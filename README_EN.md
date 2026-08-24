@@ -7,7 +7,7 @@
 **Where Conversation Meets Creation — The AI Agent-Powered Commercial Novel-Writing Workbench**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![GitHub Stars](https://img.shields.io/github/stars/worldwonderer/zenstory?style=social)](https://github.com/worldwonderer/zenstory)
+[![GitHub Stars](https://img.shields.io/github/stars/zenstory-ai/zenstory?style=social)](https://github.com/zenstory-ai/zenstory)
 [![Website](https://img.shields.io/website?url=https%3A%2F%2Fzenstory.ai&label=zenstory.ai)](https://zenstory.ai/)
 ![React](https://img.shields.io/badge/React_19-61DAFB?logo=react&logoColor=black)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
@@ -319,8 +319,8 @@ zenstory/
 
 Contributions are welcome!
 
-- [Report a Bug](https://github.com/worldwonderer/zenstory/issues/new?template=bug_report.md)
-- [Request a Feature](https://github.com/worldwonderer/zenstory/issues/new?template=feature_request.md)
+- [Report a Bug](https://github.com/zenstory-ai/zenstory/issues/new?template=bug_report.md)
+- [Request a Feature](https://github.com/zenstory-ai/zenstory/issues/new?template=feature_request.md)
 - Submit a Pull Request
 
 Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.

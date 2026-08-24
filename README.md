@@ -7,7 +7,7 @@
 **对话即创作 — AI Agent 驱动的商业级小说写作工作台**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![GitHub Stars](https://img.shields.io/github/stars/worldwonderer/zenstory?style=social)](https://github.com/worldwonderer/zenstory)
+[![GitHub Stars](https://img.shields.io/github/stars/zenstory-ai/zenstory?style=social)](https://github.com/zenstory-ai/zenstory)
 [![Website](https://img.shields.io/website?url=https%3A%2F%2Fzenstory.ai&label=zenstory.ai)](https://zenstory.ai/)
 
 ZenStory 让 AI Agent 直接操作你的创作文件——建角色卡、拆参考素材、规划大纲、逐章写作——全部在一次对话里完成。
@@ -234,8 +234,8 @@ Monorepo：React 前端（`apps/web`）+ FastAPI 后端（`apps/server`），文
 
 欢迎通过以下方式参与：
 
-- [提交 Bug](https://github.com/worldwonderer/zenstory/issues/new?template=bug_report.md)
-- [功能建议](https://github.com/worldwonderer/zenstory/issues/new?template=feature_request.md)
+- [提交 Bug](https://github.com/zenstory-ai/zenstory/issues/new?template=bug_report.md)
+- [功能建议](https://github.com/zenstory-ai/zenstory/issues/new?template=feature_request.md)
 - 提交 Pull Request
 
 请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解贡献流程。
