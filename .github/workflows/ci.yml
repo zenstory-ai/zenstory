@@ -236,6 +236,7 @@ jobs:
           "prefect==3.4.19" \
           "fastapi<0.116" \
           asyncpg \
+          importlib-metadata \
           psycopg2-binary
         prefect server database upgrade -y
 
