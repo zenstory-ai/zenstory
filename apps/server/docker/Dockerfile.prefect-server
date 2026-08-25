@@ -6,18 +6,16 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # 安装 Prefect 和 PostgreSQL 驱动
-# - importlib-metadata: a prefect 3.4.19 dependency on Python < 3.12; pin it explicitly
-#   so the server can never crash with ModuleNotFoundError if resolution skips it.
-# - fastapi<0.116: prefect 3.4.19 declares a loose `fastapi<1.0.0` range, but FastAPI's
-#   newer routing internals (_get_routes_version) break Prefect's PrefectRouter
-#   ("'PrefectRouter' object has no attribute 'routes'"). Pin to the version era prefect
-#   3.4.19 was built against so the Prefect API server serves requests correctly.
+# Keep Prefect and FastAPI aligned with requirements.txt. FastAPI 0.141.x changes
+# routing internals in a way that breaks PrefectRouter at request time, despite
+# satisfying Prefect's declared `fastapi<1.0.0` range. 0.123.7 is covered by the
+# compatibility contract in CI.
 RUN pip install --no-cache-dir \
-    prefect==3.4.19 \
+    prefect==3.6.28 \
     asyncpg \
     psycopg2-binary \
     importlib-metadata \
-    "fastapi<0.116"
+    "fastapi==0.123.7"
 
 # 暴露端口 (Railway 会自动分配 PORT)
 EXPOSE 4200

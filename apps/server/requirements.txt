@@ -1,5 +1,5 @@
 # FastAPI and dependencies
-fastapi>=0.104.0
+fastapi==0.123.7
 uvicorn[standard]>=0.24.0
 sqlmodel>=0.0.14
 python-multipart>=0.0.6
@@ -16,11 +16,11 @@ openai-agents>=0.17.6,<0.18
 
 
 # Prefect for workflow orchestration. Keep this aligned with prefect.yaml and the
-# Prefect server image: the worker must not install a newer release and then
-# downgrade it, because that can leave incompatible package files behind.
-prefect==3.4.19
-# Prefect 3.4.19 imports this backport in its worker CLI on Python 3.11 even though
-# its package metadata only declares it for older Python versions.
+# Prefect server image: the API, server, and worker must resolve the same tested
+# Prefect/FastAPI pair. FastAPI 0.141.x breaks PrefectRouter at runtime even though
+# Prefect's declared upper bound is <1.0, so FastAPI is pinned above as well.
+prefect==3.6.28
+# Keep the metadata backport explicit for the Python 3.11 server/worker images.
 importlib-metadata>=4.4
 
 # Zhipu AI (embeddings)

@@ -2,7 +2,7 @@
 # 用于素材库小说拆解流程
 
 name: zenstory-materials
-prefect-version: 3.4.19
+prefect-version: 3.6.28
 
 # build section
 build: null
