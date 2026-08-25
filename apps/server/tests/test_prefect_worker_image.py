@@ -31,3 +31,12 @@ def test_prefect_worker_checks_the_cli_during_image_build():
     worker_dockerfile = (SERVER_ROOT / "docker" / "Dockerfile.prefect-worker").read_text()
 
     assert "prefect version" in worker_dockerfile
+
+
+def test_prefect_worker_fails_when_server_or_deployment_registration_fails():
+    start_script = (SERVER_ROOT / "docker" / "start-prefect-worker.sh").read_text()
+
+    assert 'if [ "$server_ready" != "true" ]' in start_script
+    assert 'echo "ERROR: Prefect Server did not become ready within 150 seconds."' in start_script
+    assert 'prefect deploy --all\n' in start_script
+    assert 'prefect deploy --all ||' not in start_script

@@ -88,7 +88,7 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.ci == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
 
     services: &service-configs
       postgres:
@@ -158,6 +158,30 @@ jobs:
         cd apps/server
         pytest tests/test_flows -v --maxfail=1
 
+    - name: Register every production Prefect deployment
+      working-directory: apps/server
+      run: |
+        set -euo pipefail
+        prefect server start --host 127.0.0.1 --port 4200 > /tmp/prefect-deploy.log 2>&1 &
+        server_pid=$!
+        trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+        for attempt in {1..30}; do
+          if curl --fail --silent http://127.0.0.1:4200/api/health > /dev/null; then
+            break
+          fi
+          if [[ "$attempt" == "30" ]]; then
+            cat /tmp/prefect-deploy.log
+            exit 1
+          fi
+          sleep 1
+        done
+
+        export PREFECT_API_URL=http://127.0.0.1:4200/api
+        prefect work-pool create zenstory-pool --type process
+        prefect deploy --all
+        python scripts/prefect_deployments_contract.py
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
@@ -172,7 +196,7 @@ jobs:
     if: needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.ci == 'true'
     name: Prefect compatibility (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     strategy:
       fail-fast: false
       matrix:
@@ -203,16 +227,28 @@ jobs:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
 
-    - name: Install the production Prefect compatibility pair
+    - name: Create the Prefect 3.4.19 database schema
+      env:
+        PREFECT_API_DATABASE_CONNECTION_URL: postgresql+asyncpg://test:test@localhost:5434/zenstory_prefect_test
       run: |
         python -m pip install --upgrade pip
         pip install \
+          "prefect==3.4.19" \
+          "fastapi<0.116" \
+          asyncpg \
+          psycopg2-binary
+        prefect server database upgrade -y
+
+    - name: Upgrade to the production Prefect compatibility pair
+      run: |
+        pip install --upgrade \
           "$(grep '^prefect==' apps/server/requirements.txt)" \
           "$(grep '^fastapi==' apps/server/requirements.txt)" \
           asyncpg \
           psycopg2-binary
+        python -c 'import fastapi, prefect; assert prefect.__version__ == "3.6.28"; assert fastapi.__version__ == "0.123.7"'
 
-    - name: Exercise migrations, server API, client, task, and flow
+    - name: Upgrade the old schema and exercise server API, client, task, and flow
       env:
         PREFECT_API_DATABASE_CONNECTION_URL: postgresql+asyncpg://test:test@localhost:5434/zenstory_prefect_test
       run: |
@@ -235,6 +271,32 @@ jobs:
 
         PREFECT_API_URL=http://127.0.0.1:4200/api \
           python apps/server/scripts/prefect_contract.py
+
+  production-images:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.ci == 'true'
+    name: Production image (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - name: api-python-3.13
+          dockerfile: apps/server/Dockerfile
+          context: apps/server
+        - name: prefect-server-python-3.11
+          dockerfile: apps/server/docker/Dockerfile.prefect-server
+          context: .
+        - name: prefect-worker-python-3.11
+          dockerfile: apps/server/docker/Dockerfile.prefect-worker
+          context: .
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Build production image
+      run: docker build --file "${{ matrix.dockerfile }}" --tag "zenstory-${{ matrix.name }}:ci" "${{ matrix.context }}"
 
   frontend-test:
     needs: detect-changes
@@ -315,7 +377,7 @@ jobs:
 
   ci-summary:
     runs-on: ubuntu-latest
-    needs: [detect-changes, frontend-lint, ci-lint, backend-test, prefect-compatibility, frontend-test, frontend-build, vercel-build]
+    needs: [detect-changes, frontend-lint, ci-lint, backend-test, prefect-compatibility, production-images, frontend-test, frontend-build, vercel-build]
     if: always()
     steps:
     - name: Check CI results
@@ -324,6 +386,7 @@ jobs:
         CI_LINT_RESULT: ${{ needs['ci-lint'].result }}
         BACKEND_TEST_RESULT: ${{ needs['backend-test'].result }}
         PREFECT_COMPATIBILITY_RESULT: ${{ needs['prefect-compatibility'].result }}
+        PRODUCTION_IMAGES_RESULT: ${{ needs['production-images'].result }}
         FRONTEND_TEST_RESULT: ${{ needs['frontend-test'].result }}
         FRONTEND_BUILD_RESULT: ${{ needs['frontend-build'].result }}
         VERCEL_BUILD_RESULT: ${{ needs['vercel-build'].result }}
@@ -332,6 +395,7 @@ jobs:
         echo "CI lint: $CI_LINT_RESULT"
         echo "Backend tests: $BACKEND_TEST_RESULT"
         echo "Prefect compatibility: $PREFECT_COMPATIBILITY_RESULT"
+        echo "Production images: $PRODUCTION_IMAGES_RESULT"
         echo "Frontend tests: $FRONTEND_TEST_RESULT"
         echo "Frontend build: $FRONTEND_BUILD_RESULT"
         echo "Vercel build: $VERCEL_BUILD_RESULT"
@@ -350,6 +414,7 @@ jobs:
         check_job "ci-lint" "$CI_LINT_RESULT"
         check_job "backend-test" "$BACKEND_TEST_RESULT"
         check_job "prefect-compatibility" "$PREFECT_COMPATIBILITY_RESULT"
+        check_job "production-images" "$PRODUCTION_IMAGES_RESULT"
         check_job "frontend-test" "$FRONTEND_TEST_RESULT"
         check_job "frontend-build" "$FRONTEND_BUILD_RESULT"
         check_job "vercel-build" "$VERCEL_BUILD_RESULT"
