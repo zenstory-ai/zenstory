@@ -60,12 +60,6 @@ from .infra.redis_client import (
     set_resend_cooldown,
     store_verification_code,
 )
-from .infra.vector_search_service import (
-    LlamaIndexService,
-    get_llama_index_service,
-    schedule_index_delete,
-    schedule_index_upsert,
-)
 
 # Create backward-compatible module aliases for old imports
 # This allows code like `from services.auth import ...` to still work
@@ -75,8 +69,26 @@ sys.modules['services.file_version'] = import_module('.features.file_version_ser
 sys.modules['services.version'] = import_module('.features.snapshot_service', package='services')
 sys.modules['services.export_service'] = import_module('.features.export_service', package='services')
 sys.modules['services.email_service'] = import_module('.infra.email_client', package='services')
-sys.modules['services.llama_index'] = import_module('.infra.vector_search_service', package='services')
 sys.modules['services.redis_client'] = import_module('.infra.redis_client', package='services')
+
+
+_VECTOR_EXPORTS = {
+    "LlamaIndexService",
+    "get_llama_index_service",
+    "schedule_index_delete",
+    "schedule_index_upsert",
+}
+
+
+def __getattr__(name: str):
+    """Load the optional vector stack only when a vector export is requested."""
+    if name not in _VECTOR_EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    module = import_module('.infra.vector_search_service', package=__name__)
+    value = getattr(module, name)
+    globals()[name] = value
+    return value
 
 __all__ = [
     # Auth service
