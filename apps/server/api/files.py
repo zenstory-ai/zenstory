@@ -644,10 +644,10 @@ def get_files(
 
 def _rebuild_vector_index_task(project_id: str) -> None:
     """Background task: rebuild vector index for a project."""
-    from services.llama_index import get_llama_index_service
     from sqlmodel import Session
 
     from database import sync_engine
+    from services.llama_index import get_llama_index_service
 
     with Session(sync_engine) as s:
         svc = get_llama_index_service()

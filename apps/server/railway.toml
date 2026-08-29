@@ -6,7 +6,7 @@ dockerfilePath = "Dockerfile"
 healthcheckPath = "/health"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
-startCommand = "/bin/sh -c \"exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --workers ${WEB_CONCURRENCY:-3} --timeout-keep-alive 300 --timeout-worker-healthcheck 600\""
+startCommand = "/bin/sh -c \"exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --workers ${WEB_CONCURRENCY:-1} --timeout-keep-alive 300 --timeout-worker-healthcheck 600\""
 
 [deploy.healthcheck]
 path = "/health"

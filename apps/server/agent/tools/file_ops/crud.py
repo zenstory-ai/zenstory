@@ -1171,9 +1171,8 @@ class FileCRUD:
     ) -> None:
         """Fire-and-forget vector index upsert (do not block)."""
         try:
-            from services.llama_index import schedule_index_upsert
-
             from agent.tools.mcp_tools import ToolContext
+            from services.llama_index import schedule_index_upsert
 
             metadata = extra_metadata or {}
             if file.file_metadata:
@@ -1199,9 +1198,8 @@ class FileCRUD:
     def _schedule_index_delete(self, files: list[File]) -> None:
         """Fire-and-forget vector index delete (do not block)."""
         try:
-            from services.llama_index import schedule_index_delete
-
             from agent.tools.mcp_tools import ToolContext
+            from services.llama_index import schedule_index_delete
 
             user_id = ToolContext._get_context().get("user_id")
 
