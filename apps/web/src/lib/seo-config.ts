@@ -179,6 +179,32 @@ export const pageSEOConfig: Record<string, SEOPageConfig> = {
       noindex: true,
     }
   },
+  '/docs': {
+    zh: {
+      title: '文档 - zenstory',
+      description: 'zenstory 使用文档：快速入门、用户指南、进阶技巧、参考资料与故障排除',
+      keywords: ['zenstory 文档', 'AI小说写作教程', '写作工作台'],
+      noindex: false,  // 公开文档，允许索引
+    },
+    en: {
+      title: 'Documentation - zenstory',
+      description: 'zenstory documentation: getting started, user guide, advanced workflows, reference and troubleshooting',
+      keywords: ['zenstory docs', 'AI novel writing guide', 'writing workbench'],
+      noindex: false,
+    }
+  },
+  '/pricing': {
+    zh: {
+      title: '定价 - zenstory',
+      description: 'zenstory 订阅方案与权益对比',
+      noindex: false,  // 公开页面
+    },
+    en: {
+      title: 'Pricing - zenstory',
+      description: 'zenstory subscription plans and benefits',
+      noindex: false,
+    }
+  },
   '/privacy-policy': {
     zh: {
       title: '隐私政策 - zenstory',
