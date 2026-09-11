@@ -1,7 +1,113 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
     <head>
         <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+        <!--
+          Static head for non-JS crawlers (GPTBot, ClaudeBot, PerplexityBot, Bingbot, …).
+          Vercel serves this shell for every SPA route, so nothing route-specific
+          (canonical, og:url) belongs here — react-helmet-async sets those per page
+          once the app mounts, and Googlebot executes JS. This block only guarantees
+          that a crawler that does NOT run JS still sees who publishes this site.
+        -->
+        <title>ZenStory AI — Open-source agent skills for story creation, adaptation and production</title>
+        <meta name="description" content="ZenStory AI builds open-source, agent-native tools for stories in every form: Oh Story (web-fiction writing skills for Claude Code, Codex and other coding agents), Drama Skills (AI short drama and motion comics), Novel to Game, Video Recap Skills, and the ZenStory writing workbench." />
+
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="ZenStory AI" />
+        <meta property="og:title" content="ZenStory AI — Open-source agent skills for story creation, adaptation and production" />
+        <meta property="og:description" content="Open-source, agent-native tools for creating and adapting stories — from web fiction and short drama to games and video. Create stories. Adapt them. Ship them." />
+        <meta property="og:image" content="https://zenstory.ai/brand/zenstory-ai-mark.svg" />
+        <meta property="og:locale" content="en_US" />
+        <meta property="og:locale:alternate" content="zh_CN" />
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content="ZenStory AI" />
+        <meta name="twitter:description" content="Open-source agent skills for story creation, adaptation and production." />
+
+        <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "Organization",
+              "@id": "https://zenstory.ai/#org",
+              "name": "ZenStory AI",
+              "alternateName": "zenstory-ai",
+              "url": "https://zenstory.ai",
+              "logo": "https://zenstory.ai/brand/zenstory-ai-mark.svg",
+              "description": "Open-source AI tools and agent skills for story creation, adaptation, and production.",
+              "sameAs": ["https://github.com/zenstory-ai"]
+            },
+            {
+              "@type": "WebSite",
+              "@id": "https://zenstory.ai/#website",
+              "url": "https://zenstory.ai",
+              "name": "ZenStory AI",
+              "publisher": { "@id": "https://zenstory.ai/#org" },
+              "inLanguage": ["en", "zh-CN"]
+            },
+            {
+              "@type": "SoftwareApplication",
+              "@id": "https://zenstory.ai/#workbench",
+              "name": "ZenStory",
+              "description": "Chat-to-create: an AI-agent-driven novel-writing workbench that unifies project files, materials, character setup, chapter drafting and version history in one workspace.",
+              "applicationCategory": "BusinessApplication",
+              "operatingSystem": "Web",
+              "url": "https://zenstory.ai",
+              "publisher": { "@id": "https://zenstory.ai/#org" },
+              "license": "https://opensource.org/licenses/MIT",
+              "codeRepository": "https://github.com/zenstory-ai/zenstory"
+            },
+            {
+              "@type": "SoftwareSourceCode",
+              "name": "Oh Story",
+              "alternateName": "oh-story-claudecode",
+              "description": "Web-fiction writing skill pack for coding agents (Claude Code, Codex CLI, Google Antigravity, OpenCode, ZCode, OpenClaw, Reasonix): trend scanning, outline deconstruction, drafting, de-AI-flavor editing and cover generation for long- and short-form Chinese web novels.",
+              "codeRepository": "https://github.com/zenstory-ai/oh-story-claudecode",
+              "license": "https://opensource.org/licenses/MIT",
+              "publisher": { "@id": "https://zenstory.ai/#org" }
+            },
+            {
+              "@type": "SoftwareSourceCode",
+              "name": "Drama Skills",
+              "alternateName": "drama-skills",
+              "description": "AI short-drama and motion-comic production skill suite for Claude Code and Codex: scripts, character and scene assets, storyboards, image and video prompts, and independent review.",
+              "codeRepository": "https://github.com/zenstory-ai/drama-skills",
+              "license": "https://opensource.org/licenses/MIT",
+              "publisher": { "@id": "https://zenstory.ai/#org" }
+            },
+            {
+              "@type": "SoftwareSourceCode",
+              "name": "Novel to Game",
+              "alternateName": "novel-to-game",
+              "description": "Agent skills that turn novels into source-grounded, fully playable games for Claude Code, Codex and Kimi Code.",
+              "codeRepository": "https://github.com/zenstory-ai/novel-to-game",
+              "license": "https://opensource.org/licenses/MIT",
+              "publisher": { "@id": "https://zenstory.ai/#org" }
+            },
+            {
+              "@type": "SoftwareSourceCode",
+              "name": "Video Recap Skills",
+              "alternateName": "video-recap-skills",
+              "description": "Clip any video into a narrated Chinese recap with a Claude Code skill, with CapCut (剪映) draft export.",
+              "codeRepository": "https://github.com/zenstory-ai/video-recap-skills",
+              "license": "https://opensource.org/licenses/MIT",
+              "publisher": { "@id": "https://zenstory.ai/#org" }
+            },
+            {
+              "@type": "SoftwareSourceCode",
+              "name": "Oh Story DSH",
+              "alternateName": "oh-story-dsh",
+              "description": "DeepSeek Harness plugin for novel writing and short-drama production, powered by Oh Story and Drama Skills.",
+              "codeRepository": "https://github.com/zenstory-ai/oh-story-dsh",
+              "license": "https://opensource.org/licenses/MIT",
+              "publisher": { "@id": "https://zenstory.ai/#org" }
+            }
+          ]
+        }
+        </script>
+
         <!-- Preconnect to Google Fonts -->
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -9,8 +115,6 @@
         <link rel="preload" href="https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;500;600;700&family=Source+Serif+4:wght@400;500;600;700&family=Noto+Serif+SC:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Fira+Code:wght@400;500&display=swap" as="style" />
         <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;500;600;700&family=Source+Serif+4:wght@400;500;600;700&family=Noto+Serif+SC:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <!-- 移除硬编码的title，由react-helmet-async动态管理 -->
     </head>
     <body>
         <div id="root"></div>

@@ -1,0 +1,28 @@
+# ZenStory AI
+
+> Open-source AI tools and agent skills for story creation, adaptation, and production. Create stories. Adapt them. Ship them — from web fiction and short drama to games and video. Everything is MIT-licensed and maintained at https://github.com/zenstory-ai.
+
+ZenStory AI (GitHub org `zenstory-ai`) publishes six projects. Five are skill packs / plugins for coding agents such as Claude Code, Codex CLI, Google Antigravity, OpenCode, ZCode, OpenClaw, Kimi Code and DeepSeek Harness; one is a hosted writing workbench. Each project works on its own and they combine into a transparent pipeline: create → adapt → produce.
+
+Canonical install path for the skill packs is the GitHub repository under `zenstory-ai/` (e.g. `npx skills add zenstory-ai/oh-story-claudecode`). Repositories were previously hosted under `worldwonderer/`; those paths permanently redirect here.
+
+## Projects
+
+- [Oh Story (oh-story-claudecode)](https://github.com/zenstory-ai/oh-story-claudecode): Web-fiction (网文) writing skill pack covering the full workflow for long- and short-form Chinese web novels — 扫榜 (bestseller-chart scanning), 拆文 (outline deconstruction), commercial drafting, 去AI味 (de-AI-flavor editing) and cover generation. Supports Claude Code, Google Antigravity, OpenCode, ZCode, OpenClaw, Codex CLI and Reasonix. English README: https://github.com/zenstory-ai/oh-story-claudecode/blob/main/README_EN.md
+- [Drama Skills (drama-skills)](https://github.com/zenstory-ai/drama-skills): AI short-drama (短剧) and motion-comic (漫剧) production suite for Claude Code and Codex — scripts, character/scene/prop assets, storyboards, image and video generation prompts, and independent review.
+- [Novel to Game (novel-to-game)](https://github.com/zenstory-ai/novel-to-game): Agent skills that turn a source novel into a source-grounded, fully playable game. Claude Code, Codex and Kimi Code.
+- [Video Recap Skills (video-recap-skills)](https://github.com/zenstory-ai/video-recap-skills): Clip any video into a narrated Chinese recap video with a Claude Code skill; exports CapCut (剪映) drafts. No GPU or model download required.
+- [Oh Story DSH (oh-story-dsh)](https://github.com/zenstory-ai/oh-story-dsh): DeepSeek Harness plugin that runs the Oh Story and Drama Skills workflows inside DSH. Published on npm as `@oh-story/dsh`.
+- [ZenStory workbench (zenstory)](https://github.com/zenstory-ai/zenstory): Chat-to-create — an AI-agent-driven novel-writing workbench that unifies project files, materials, character setup, chapter drafting and version history. Hosted at https://zenstory.ai; self-hostable.
+
+## Documentation
+
+- [Workbench docs](https://zenstory.ai/docs): getting started, user guide, advanced, reference, troubleshooting (English and Chinese).
+- [Organization overview](https://github.com/zenstory-ai): which project to start with, based on what you want to make.
+- [Oh Story changelog](https://github.com/zenstory-ai/oh-story-claudecode/blob/main/CHANGELOG.md)
+
+## Optional
+
+- [Pricing for the hosted workbench](https://zenstory.ai/pricing)
+- [Privacy policy](https://zenstory.ai/privacy-policy)
+- [Terms of service](https://zenstory.ai/terms-of-service)

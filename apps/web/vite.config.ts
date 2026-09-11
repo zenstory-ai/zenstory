@@ -2,7 +2,33 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import sitemapPlugin from 'vite-plugin-sitemap'
 import { visualizer } from 'rollup-plugin-visualizer'
+import fs from 'fs'
 import path from 'path'
+
+/**
+ * Public docs routes for the sitemap, derived from the same markdown tree that
+ * DocsPage loads via import.meta.glob. Leaf pages only: section paths such as
+ * /docs/getting-started have no markdown file behind them and render empty.
+ * The en/ subtree is the translation of the same slugs, not extra routes.
+ */
+function publicDocsRoutes(): string[] {
+  const docsDir = path.resolve(__dirname, 'docs')
+  const routes: string[] = []
+  const walk = (dir: string, rel: string) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === 'en') continue
+      const relPath = rel ? `${rel}/${entry.name}` : entry.name
+      if (entry.isDirectory()) walk(path.join(dir, entry.name), relPath)
+      else if (entry.name.endsWith('.md') && entry.name !== 'README.md') {
+        routes.push(`/docs/${relPath.replace(/\.md$/, '')}`)
+      }
+    }
+  }
+  if (fs.existsSync(docsDir)) walk(docsDir, '')
+  return routes.sort()
+}
+
+const docsRoutes = publicDocsRoutes()
 
 const apiProxyTarget = (process.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/+$/, '')
 const allowedHosts = (process.env.VITE_ALLOWED_HOSTS || 'localhost,127.0.0.1')
@@ -19,6 +45,9 @@ export default defineConfig({
       hostname: process.env.VITE_BASE_URL || 'http://localhost:5173',
       // 添加 SPA 路由(不是实际 HTML 文件)
       dynamicRoutes: [
+        '/docs',
+        ...docsRoutes,
+        '/pricing',
         '/privacy-policy',
         '/terms-of-service',
       ],
@@ -26,9 +55,13 @@ export default defineConfig({
       exclude: [
         '/login',
         '/register',
+        '/forgot-password',
+        '/onboarding/',
         '/dashboard',
         '/profile',
         '/project/',
+        '/materials/',
+        '/admin',
         '/verify-email',
         '/auth',
       ],
@@ -37,14 +70,17 @@ export default defineConfig({
       // 配置页面优先级
       priority: {
         '/': 1.0,
-        '/privacy-policy': 0.5,
-        '/terms-of-service': 0.5,
+        '/docs': 0.8,
+        ...Object.fromEntries(docsRoutes.map((route) => [route, 0.6])),
+        '/pricing': 0.7,
+        '/privacy-policy': 0.3,
+        '/terms-of-service': 0.3,
       },
       // robots.txt 由 public/robots.txt 单独管理
       generateRobotsTxt: false,
     }),
     visualizer({
-      open: true,
+      open: !process.env.CI,
       gzipSize: true,
       brotliSize: true,
     }),

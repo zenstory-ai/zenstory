@@ -24,6 +24,11 @@ export function SEOProvider({ children }: { children: React.ReactNode }) {
     // 获取当前路由的SEO配置
     let config = pageSEOConfig[pathname]?.[langKey];
 
+    // 文档子页面 /docs/*：沿用 /docs 的配置（公开、可索引）
+    if (!config && pathname.startsWith('/docs/')) {
+      config = pageSEOConfig['/docs']?.[langKey];
+    }
+
     // 处理动态路由：/project/:projectId
     if (!config && pathname.startsWith('/project/')) {
       config = {

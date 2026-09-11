@@ -1,13 +1,30 @@
+# ZenStory AI — https://zenstory.ai
+#
+# Policy: every crawler is welcome, including AI training and retrieval
+# crawlers (GPTBot, OAI-SearchBot, ClaudeBot, Claude-SearchBot, PerplexityBot,
+# Google-Extended, Bingbot, Bytespider, …). Being read by them is the point.
+#
+# This is deliberately a single wildcard group. Under RFC 9309 a named
+# User-agent group replaces the wildcard group for that bot, so adding
+# "User-agent: GPTBot / Allow: /" would silently re-expose the app routes
+# disallowed below to exactly that bot. Do not add per-bot groups.
+
 User-agent: *
 Allow: /
 Disallow: /login
 Disallow: /register
+Disallow: /forgot-password
+Disallow: /verify-email
+Disallow: /auth
+Disallow: /onboarding/
 Disallow: /dashboard
 Disallow: /profile
 Disallow: /project/
-Disallow: /verify-email
-Disallow: /auth
+Disallow: /materials/
+Disallow: /admin
 Disallow: /api
 
 Sitemap: https://zenstory.ai/sitemap.xml
 
+# Agent-readable overview of the organization and its projects:
+# https://zenstory.ai/llms.txt
