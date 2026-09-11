@@ -374,7 +374,7 @@ jobs:
 
     - name: Audit the Vercel dependency graph
       working-directory: apps/web
-      run: npm audit --audit-level=low
+      run: npm audit --audit-level=high
 
     - name: Build with the Vercel dependency graph
       working-directory: apps/web
