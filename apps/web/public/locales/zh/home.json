@@ -143,7 +143,10 @@
   },
   "footer": {
     "copyright": "© 2026 zenstory. All rights reserved.",
-    "tagline": "把 AI 放进你的创作生产线"
+    "tagline": "把 AI 放进你的创作生产线",
+    "projects": "ZenStory AI 全部项目",
+    "glossary": "术语表",
+    "github": "GitHub"
   },
   "preview": {
     "projectFiles": "项目文件",

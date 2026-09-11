@@ -1,0 +1,269 @@
+[
+  {
+    "slug": "oh-story",
+    "repo": "oh-story-claudecode",
+    "github": "https://github.com/zenstory-ai/oh-story-claudecode",
+    "readme_en": "https://github.com/zenstory-ai/oh-story-claudecode/blob/main/README_EN.md",
+    "format": { "en": "Agent skill pack", "zh": "Agent skill 包" },
+    "name": { "en": "Oh Story", "zh": "Oh Story（网文写作 skill 包）" },
+    "tagline": {
+      "en": "Turn a coding agent into a complete web-fiction writing workflow — chart scanning, deconstruction, drafting, de-AI editing, covers.",
+      "zh": "把编程 Agent 变成完整的网文写作流程——扫榜、拆文、写作、去AI味、封面图。"
+    },
+    "definition": {
+      "en": "Oh Story is an open-source skill pack (MIT) that gives coding agents — Claude Code, Codex CLI, Google Antigravity, OpenCode, ZCode, OpenClaw and Reasonix — a professional web-fiction author's method, for both long-form serials and short stories. It is not a prompt collection: the 13 skills ship with deterministic verifiers, blocking reference gates, layered context and state management, and a one-command deployer (`/story-setup`) for each harness.",
+      "zh": "Oh Story 是一个 MIT 开源的 skill 包，让 Claude Code、Codex CLI、Google Antigravity、OpenCode、ZCode、OpenClaw、Reasonix 等编程 Agent 按职业网文作者的方法论工作，长篇连载和短篇都覆盖。它不是提示词合集：13 个 skill 内置确定性 verifier、写正文前会阻断的 Reference Gate、分层的上下文与状态管理，以及一条命令部署到各 Agent 环境的 `/story-setup`。"
+    },
+    "audience": {
+      "en": ["Authors publishing on 起点 Qidian, 番茄 Fanqie, 晋江 JJWXC, 七猫 Qimao and 知乎盐言", "Studios running several serials at once", "Developers who want a mature, non-coding example of agent skills"],
+      "zh": ["在起点、番茄、晋江、七猫、知乎盐言等平台写作的作者", "同时运营多本书的工作室", "想看非编程场景下成熟 agent skills 的开发者"]
+    },
+    "method": {
+      "en": [
+        ["扫榜 · chart scanning", "Scrape the live bestseller boards of five platforms and look for patterns that repeat across books — genre, cast, angle — rather than trusting any single ranking."],
+        ["拆文 · deconstruction", "Reverse-engineer a hit into outline rhythm, plot modules, character and style notes; the first three chapters (黄金三章) are analysed first as a make-or-break checkpoint."],
+        ["商业化写作 · commercial drafting", "Write chapter by chapter from a per-chapter blueprint with hooks, payoff pacing (爽点) and an enforced word target; a tracking state file is the single source of truth for continuity."],
+        ["去AI味 · de-AI editing", "A deterministic checker flags ~20 named Chinese AI-prose fingerprints and model-degeneration patterns; the skill rewrites what it flags."],
+        ["封面 · covers", "Genre-aware cover generation from the project's own setting files."]
+      ],
+      "zh": [
+        ["扫榜", "抓取五个平台的实时榜单，找跨样本重复的题材、人设、切入点，而不是信任单本排名。"],
+        ["拆文", "把爆款拆成大纲节奏、剧情模块、角色与文风；先拆黄金三章作为检查点，再决定是否全拆。"],
+        ["商业化写作", "按逐章细纲写正文：钩子、爽点节奏、机器校验的字数目标；追踪状态文件是连续性的唯一真相源。"],
+        ["去AI味", "确定性检查器识别约 20 种中文 AI 文风指纹与模型退化模式，skill 据此改写。"],
+        ["封面", "根据项目设定文件做题材感知的封面生成。"]
+      ]
+    },
+    "distinctive": {
+      "en": [
+        "Deterministic verifiers, not LLM self-checks: chapter-blueprint contract (16 required fields), AI-pattern scan, degeneration scan, outline-copy detection — each with documented exit codes and explicitly forbidden from judging quality.",
+        "A file-system project bible (设定 / 大纲 / 正文 / 对标 / 追踪) with a single committed tracking state that every Markdown view is re-rendered from.",
+        "Seven cooperating agents (architect, writer, consistency checker, reviewer…) deployed per harness by `/story-setup`; cross-session author memory.",
+        "Ships real output samples: a short-story deconstruction, a long-form continuation project, and a cover set."
+      ],
+      "zh": [
+        "确定性 verifier 而不是让模型自查：细纲契约（16 个必填字段）、AI 文风扫描、退化扫描、细纲抄写检测，每个都有明确退出码，且明确不评判「好不好」。",
+        "文件系统级的项目圣经（设定 / 大纲 / 正文 / 对标 / 追踪），所有 Markdown 视图由唯一的追踪状态文件派生。",
+        "7 个专业 agent 协作，`/story-setup` 按环境部署；跨会话的作者记忆。",
+        "仓库附真实产出：短篇拆文、长篇续写工程、封面示例。"
+      ]
+    },
+    "install": "npx skills add zenstory-ai/oh-story-claudecode -y -g",
+    "entry": "/story-setup",
+    "stars": 6770,
+    "skills": 13,
+    "vocabulary": ["扫榜", "拆文", "去AI味", "黄金三章", "爽点", "钩子", "套路"]
+  },
+  {
+    "slug": "drama-skills",
+    "repo": "drama-skills",
+    "github": "https://github.com/zenstory-ai/drama-skills",
+    "readme_en": "https://github.com/zenstory-ai/drama-skills/blob/main/README_EN.md",
+    "format": { "en": "Production skill suite", "zh": "制作 skill 合集" },
+    "name": { "en": "Drama Skills", "zh": "Drama Skills（AI 短剧 / 漫剧）" },
+    "tagline": {
+      "en": "An idea or a novel in; episode scripts, assets, storyboards, image and video prompts, and an independent review out.",
+      "zh": "输入一个点子或一部小说，产出分集剧本、资产设定、分镜、图片/视频提示词和独立审查。"
+    },
+    "definition": {
+      "en": "Drama Skills is an AI short-drama and motion-comic (漫剧) production workflow for Claude Code, Codex and any host that supports the Agent Skills spec. Eleven skills carry a concept or a long-form source through episode scripts, character and scene assets, image prompts, storyboard keyframes and video-generation prompts, with a separate review skill that audits the result. It was distilled from a working motion-comic studio's own pipeline.",
+      "zh": "Drama Skills 是面向 Claude Code、Codex 及任何支持 Agent Skills 规范环境的 AI 短剧 / 漫剧创作工作流。11 个 skill 把一个点子或一部长篇材料一路做成分集剧本、角色与场景资产、图片提示词、分镜关键帧和视频提示词，另有独立的审查 skill 复核结果。它来自一家漫剧工作室自己的产线。"
+    },
+    "audience": {
+      "en": ["Screenwriters", "Motion-comic and short-drama studios", "Directors and producers working with image/video generation models"],
+      "zh": ["编剧", "漫剧 / 短剧工作室", "使用图像与视频生成模型的编导、制片"]
+    },
+    "method": {
+      "en": [
+        ["Develop", "From concept or source novel to an episode map, genre playbook and director's statement (导演阐述)."],
+        ["Write", "Per-episode screenplay under a stage contract of explicit scene rules — agenda, opposing force, turn, exit state."],
+        ["Assets & look", "Character, scene and prop bibles; six production-form cards (live-action, 2D motion comic, stylised 3D, 国漫, ink, chibi); Look Development frames."],
+        ["Storyboard & prompts", "Shot-level storyboard with frozen keyframes and continuity locks, then image and video prompts written for named model dialects."],
+        ["Produce, edit, review", "A fail-closed spend gate before any generation runs; an edit decision list; an independent review pass."]
+      ],
+      "zh": [
+        ["开发", "从点子或原著到分集地图、题材手册与导演阐述。"],
+        ["写作", "在明确场次规则的阶段契约下写分集剧本——目标、对抗力、转折、出口状态。"],
+        ["资产与画风", "角色 / 场景 / 道具设定；六种制作形态卡（实拍、二维动态漫、风格化三维、国漫、水墨、Q 版）；Look Development 风格帧。"],
+        ["分镜与提示词", "镜头级分镜、冻结关键帧与连续性锁，再按具体模型方言写图片与视频提示词。"],
+        ["制作、剪辑、审查", "生成前的 fail-closed 消费门；剪辑单；独立审查。"]
+      ]
+    },
+    "distinctive": {
+      "en": [
+        "Each episode is exactly five Markdown files — screenplay, visual bible, storyboard, image prompts, video prompts — the 'creator truth' every stage reads from and writes to.",
+        "A four-tier rule taxonomy (structural invariant / reviewed invariant / craft default / taste option) so a check can block only when it is locally provable.",
+        "Money moves in one place: production requires preview → explicit confirm → run, with fingerprint-bound one-time confirmations.",
+        "Vendor profiles for current image, video and music models; a local dashboard for the production queue."
+      ],
+      "zh": [
+        "每集恰好五份 Markdown——剧本、视觉设定、分镜、图片提示词、视频提示词——是每个阶段读写的「创作真相」。",
+        "四层规则分类（结构不变量 / 审阅不变量 / 工艺默认 / 口味选项），只有本地可证明的问题才能阻断。",
+        "花钱只在一处：制作阶段要求预览 → 明确确认 → 执行，确认与指纹绑定、一次性有效。",
+        "内置当前图像、视频、音乐模型的供应商方言；本地短剧创作台管理制作队列。"
+      ]
+    },
+    "install": "npx skills add zenstory-ai/drama-skills -y -g",
+    "entry": "$short-drama",
+    "stars": 1795,
+    "skills": 11,
+    "vocabulary": ["漫剧", "分集地图", "导演阐述", "冻结关键帧", "连续性锁", "剪辑单"]
+  },
+  {
+    "slug": "novel-to-game",
+    "repo": "novel-to-game",
+    "github": "https://github.com/zenstory-ai/novel-to-game",
+    "readme_en": "https://github.com/zenstory-ai/novel-to-game",
+    "format": { "en": "Adaptation skill pack", "zh": "改编 skill 包" },
+    "name": { "en": "Novel to Game", "zh": "Novel to Game（小说改游戏）" },
+    "tagline": {
+      "en": "Turn a novel in any language into a source-grounded, fully playable game.",
+      "zh": "把任意语言的小说改编成有原著依据、真正可玩的游戏。"
+    },
+    "definition": {
+      "en": "Novel to Game is a set of seven agent skills for Claude Code, Codex and Kimi Code that adapt a novel into a playable game. It starts from a cited source bible — world rules, player verbs, spaces, character will — compares concept alternatives with hard vetoes, designs the loop and art direction, builds a risk-matched whitebox before the production candidate, and finishes with a six-check machine-verifiable QA contract. Three hosted demos are playable today.",
+      "zh": "Novel to Game 是一组 7 个 agent skills（Claude Code、Codex、Kimi Code），把小说改编成可玩游戏。它从带原文引用的原著圣经出发——世界规则、玩家动词、空间、角色意志——比较概念方案并设硬性否决，设计核心循环与美术方向，先做风险匹配的白盒再做正式版本，最后用六项机器可验证的 QA 契约收尾。三个托管 demo 已可试玩。"
+    },
+    "audience": {
+      "en": ["Authors and IP holders who want an interactive edition of a story", "Game prototypers", "Narrative designers"],
+      "zh": ["想把作品做成互动版本的作者与 IP 方", "游戏原型开发者", "叙事设计师"]
+    },
+    "method": {
+      "en": [
+        ["Analyse", "SOURCE_BIBLE.md with cited textual evidence — no genre invented yet."],
+        ["Concept", "Compare alternatives with explicit trade-offs and hard vetoes → CONCEPT.md."],
+        ["Design", "Player promise, core loop, systems, pacing, failure and outcomes → GAME_DESIGN.md; camera, composition, colour, HUD → ART_DIRECTION.md."],
+        ["Build", "Risk-matched whitebox first, then the production candidate."],
+        ["QA", "Evidence-based verification written to qa/verification.json."]
+      ],
+      "zh": [
+        ["分析", "带原文引用的 SOURCE_BIBLE.md——先不设定类型。"],
+        ["概念", "比较备选方案、写明取舍与硬性否决 → CONCEPT.md。"],
+        ["设计", "玩家承诺、核心循环、系统、节奏、失败与结局 → GAME_DESIGN.md；镜头、构图、色彩、HUD → ART_DIRECTION.md。"],
+        ["构建", "先做风险匹配的白盒，再做正式候选版本。"],
+        ["QA", "基于证据的验证写入 qa/verification.json。"]
+      ]
+    },
+    "distinctive": {
+      "en": [
+        "Source-grounded by contract: every design claim traces to cited text.",
+        "English-first skill descriptions with Chinese alongside, validated by the repo's own script.",
+        "Playable demos hosted at plateau.vibecoco.ai."
+      ],
+      "zh": ["按契约锚定原著：每条设计主张都能追溯到引用原文。", "skill 描述英文优先、中文并列，由仓库脚本校验。", "可玩 demo 托管在 plateau.vibecoco.ai。"]
+    },
+    "install": "npx skills add zenstory-ai/novel-to-game -y -g",
+    "entry": "/novel-to-game",
+    "stars": 775,
+    "skills": 7,
+    "vocabulary": ["source bible", "whitebox", "QA contract"]
+  },
+  {
+    "slug": "video-recap",
+    "repo": "video-recap-skills",
+    "github": "https://github.com/zenstory-ai/video-recap-skills",
+    "readme_en": "https://github.com/zenstory-ai/video-recap-skills/blob/main/README.en.md",
+    "format": { "en": "Video workflow", "zh": "视频工作流" },
+    "name": { "en": "Video Recap Skills", "zh": "Video Recap Skills（视频解说）" },
+    "tagline": {
+      "en": "Clip any video into a narrated Chinese recap — scene detection, script, voice-over, cut, subtitles — with a CapCut draft export.",
+      "zh": "把任意视频剪成中文解说视频——场景检测、写稿、配音、剪辑、字幕——并导出剪映草稿。"
+    },
+    "definition": {
+      "en": "Video Recap Skills is six independent skills plus an orchestrator for Claude Code that turn a source video into a narrated recap. It understands the footage (scene detection, ASR, a vision-language model), writes a director/edit/narration script, generates the voice-over, cuts and assembles with subtitles, and can export a CapCut (剪映) draft for hand-finishing. It runs on ffmpeg and one Xiaomi MiMo API key — no GPU, no model download.",
+      "zh": "Video Recap Skills 是 6 个独立 skill 加一个编排器（Claude Code），把源视频做成解说视频：理解画面（场景检测、ASR、视觉语言模型）、写导演/剪辑/解说稿、生成配音、剪辑与字幕合成，并可导出剪映草稿手工精修。依赖 ffmpeg 和一个小米 MiMo API key——不需要 GPU，也不用下载模型。"
+    },
+    "audience": {
+      "en": ["Recap and commentary channel creators", "Editors who finish in CapCut", "Teams turning long footage into short narrated cuts"],
+      "zh": ["影视解说 / 说剧类创作者", "在剪映里精修的剪辑师", "把长素材做成短解说的团队"]
+    },
+    "method": {
+      "en": [
+        ["Understand", "Scene detection + ASR + VLM; optional background research so the model knows who is who."],
+        ["Script", "Director, editor and narrator passes write the recap script against the timeline."],
+        ["Voice", "Text-to-speech narration."],
+        ["Cut & assemble", "Audio mix, subtitles, render; or 'cut first, narrate after' mode."],
+        ["Export", "CapCut draft for manual finishing."]
+      ],
+      "zh": [
+        ["理解", "场景检测 + ASR + VLM；可选背景调研，让模型认得人物。"],
+        ["写稿", "导演 / 剪辑 / 解说三道稿子对着时间线写。"],
+        ["配音", "文本转语音。"],
+        ["剪辑合成", "混音、字幕、渲染；或「先剪后配」模式。"],
+        ["导出", "剪映草稿，方便手工精修。"]
+      ]
+    },
+    "distinctive": {
+      "en": ["Local pipeline: ffmpeg + one API key, no GPU.", "CapCut draft export instead of a locked final render.", "Worked example shipped in the repo."],
+      "zh": ["本地流水线：ffmpeg + 一个 API key，无需 GPU。", "导出剪映草稿而不是锁死的成片。", "仓库附完整示例。"]
+    },
+    "install": "npx skills add zenstory-ai/video-recap-skills -y -g",
+    "entry": "/video-recap",
+    "stars": 505,
+    "skills": 6,
+    "vocabulary": ["解说视频", "剪映草稿", "先剪后配"]
+  },
+  {
+    "slug": "dsh",
+    "repo": "oh-story-dsh",
+    "github": "https://github.com/zenstory-ai/oh-story-dsh",
+    "readme_en": null,
+    "format": { "en": "DSH plugin", "zh": "DSH 插件" },
+    "name": { "en": "Oh Story DSH", "zh": "Oh Story DSH" },
+    "tagline": {
+      "en": "The whole story stack inside DeepSeek Harness, with a GUI workbench.",
+      "zh": "在 DeepSeek Harness 里用图形工作台跑完整的故事创作链路。"
+    },
+    "definition": {
+      "en": "Oh Story DSH is a community plugin for DeepSeek Harness (DSH, DeepSeek's agent CLI) that bundles pinned versions of Oh Story, Drama Skills, Novel to Game and Video Recap Skills and adds four GUI workbenches on top. It exists so that people already inside DSH get the terminal-and-skills products as a point-and-click product, without ZenStory hosting anything. Published on npm as `@oh-story/dsh`. Not affiliated with or endorsed by DeepSeek.",
+      "zh": "Oh Story DSH 是 DeepSeek Harness（DSH，DeepSeek 的 agent CLI）的社区插件，内置固定版本的 Oh Story、Drama Skills、Novel to Game、Video Recap Skills，并叠加四个图形工作台。它的意义是让已经在 DSH 里的用户以点选方式使用这些终端 + skills 产品，而不需要 ZenStory 托管任何服务。npm 包名 `@oh-story/dsh`。与 DeepSeek 无隶属或背书关系。"
+    },
+    "audience": {
+      "en": ["DeepSeek Harness users", "Creators who prefer a GUI over slash commands"],
+      "zh": ["DeepSeek Harness 用户", "偏好图形界面而非斜杠命令的创作者"]
+    },
+    "method": { "en": [["Install", "`dsh plugin add @oh-story/dsh`, then open the workbench."]], "zh": [["安装", "`dsh plugin add @oh-story/dsh`，然后打开工作台。"]] },
+    "distinctive": {
+      "en": ["Vendors pinned upstream skill packs, so a DSH user gets a tested combination.", "Four GUI workbenches: novel, drama, game, recap."],
+      "zh": ["固定上游 skill 包版本，DSH 用户拿到的是测试过的组合。", "四个图形工作台：小说、短剧、游戏、解说。"]
+    },
+    "install": "dsh plugin add @oh-story/dsh",
+    "entry": null,
+    "stars": 334,
+    "skills": null,
+    "vocabulary": ["DeepSeek Harness", "DSH plugin"]
+  },
+  {
+    "slug": "workbench",
+    "repo": "zenstory",
+    "github": "https://github.com/zenstory-ai/zenstory",
+    "readme_en": "https://github.com/zenstory-ai/zenstory/blob/main/README_EN.md",
+    "format": { "en": "Web workbench", "zh": "网页工作台" },
+    "name": { "en": "ZenStory Workbench", "zh": "ZenStory 工作台" },
+    "tagline": {
+      "en": "Chat to create — an agent-driven novel-writing workbench that keeps files, materials, characters, chapters and versions in one place.",
+      "zh": "对话即创作——以文件为中心的 AI 小说写作工作台：素材、人设、章节、版本都在一处。"
+    },
+    "definition": {
+      "en": "ZenStory is the hosted, conversation-first member of the family: a three-panel workbench (file tree, editor, AI chat) where outlines, drafts, characters and lore are files, and a multi-agent backend drafts, suggests and revises against them. It ships its own skills and an Agent API for Claude Code and OpenClaw, is self-hostable (MIT), and is available as a service at zenstory.ai with free and paid plans.",
+      "zh": "ZenStory 是这个家族里托管的、对话优先的成员：三栏工作台（文件树、编辑器、AI 对话），大纲、草稿、人设、世界观都是文件，多 agent 后端围绕它们写作、建议与修订。自带 skills 与面向 Claude Code / OpenClaw 的 Agent API，可自托管（MIT），也提供 zenstory.ai 的在线服务与免费/付费方案。"
+    },
+    "audience": {
+      "en": ["Novelists who want a workspace rather than a terminal", "Writers managing long projects with version history"],
+      "zh": ["想要工作区而不是终端的小说作者", "需要版本历史管理长篇项目的写作者"]
+    },
+    "method": {
+      "en": [["Structure first", "Project files, material capture, character setup."], ["Draft", "Chapter drafting in conversation with the agent."], ["Revise", "Suggestions, AI memory of your setting, version rollback."]],
+      "zh": [["先立结构", "项目文件、素材采集、人设。"], ["写作", "在与 agent 的对话中起草章节。"], ["修订", "建议、对设定的 AI 记忆、版本回滚。"]]
+    },
+    "distinctive": {
+      "en": ["Files are the unit; every change is versioned and diffable.", "Private by default — content is not used for training unless you opt in.", "The only hosted product in the family; the others run in your own agent."],
+      "zh": ["以文件为单位，每次改动可版本化、可比对。", "默认私密——除非主动选择，内容不用于训练。", "家族中唯一托管的产品，其余都在你自己的 agent 里运行。"]
+    },
+    "install": null,
+    "entry": "https://app.zenstory.ai",
+    "stars": 40,
+    "skills": 13,
+    "vocabulary": []
+  }
+]
