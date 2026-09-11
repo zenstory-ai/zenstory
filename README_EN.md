@@ -4,6 +4,8 @@
 
 # ZenStory
 
+> Project page: <https://zenstory.ai/workbench> · All ZenStory AI projects: <https://zenstory.ai/projects>
+
 **Where Conversation Meets Creation — The AI Agent-Powered Commercial Novel-Writing Workbench**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
