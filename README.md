@@ -4,6 +4,8 @@
 
 # ZenStory
 
+> 项目页：<https://zenstory.ai/workbench> · ZenStory AI 全部项目：<https://zenstory.ai/projects>
+
 **对话即创作 — AI Agent 驱动的商业级小说写作工作台**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
