@@ -12,7 +12,10 @@
       "en": "`/story-long-scan` scrapes the boards of 起点, 番茄, 晋江, 七猫 and 刺猬猫 (short-form: 知乎盐言, 七猫, 黑岩, 点众) and reads platform economics into the result — e.g. 番茄 optimises for traffic and completion rate, 起点 for subscriptions and follow-through, 晋江 for collections and points.",
       "zh": "`/story-long-scan` 抓取起点、番茄、晋江、七猫、刺猬猫（短篇：知乎盐言、七猫、黑岩、点众）的榜单，并把平台经济学读进结果——例如番茄优化流量与完读率，起点优化订阅与追读，晋江优化收藏与积分。"
     },
-    "related": ["chaiwen", "huangjinsanzhang"]
+    "related": [
+      "chaiwen",
+      "huangjinsanzhang"
+    ]
   },
   {
     "slug": "chaiwen",
@@ -27,7 +30,11 @@
       "en": "`/story-long-analyze` outputs 概要 / 拆文报告 / 文风 / 章节 / 角色 / 剧情 (storylines, pacing, emotion modules) / 设定; `/story-short-analyze` outputs 拆文报告 / 情节节点 / 写作手法.",
       "zh": "`/story-long-analyze` 产出概要 / 拆文报告 / 文风 / 章节 / 角色 / 剧情（故事线、节奏、情绪模块）/ 设定；`/story-short-analyze` 产出拆文报告 / 情节节点 / 写作手法。"
     },
-    "related": ["saobang", "huangjinsanzhang", "shuangdian"]
+    "related": [
+      "saobang",
+      "huangjinsanzhang",
+      "shuangdian"
+    ]
   },
   {
     "slug": "qu-ai-wei",
@@ -42,7 +49,9 @@
       "en": "`/story-deslop` runs `check-ai-patterns.js` (~20 named patterns with blocking vs advisory severity) and `check-degeneration.js`; deliberate rhetorical repetition (排比 / 复沓) is exempted because popular web fiction uses it for rhythm.",
       "zh": "`/story-deslop` 运行 `check-ai-patterns.js`（约 20 种命名模式，分阻断/建议级别）与 `check-degeneration.js`；排比、复沓等有意的修辞重复被豁免，因为通俗网文靠它们做节奏。"
     },
-    "related": ["chaiwen"]
+    "related": [
+      "chaiwen"
+    ]
   },
   {
     "slug": "manju",
@@ -68,8 +77,13 @@
       "en": "黄金三章 ('golden three chapters') is the web-fiction convention that a serial is won or lost in its first three chapters, because platform recommendation and reader retention are decided there. Oh Story treats them as a unit: long-form deconstruction analyses them first and writes a standalone preview before committing to a full breakdown, and drafting front-loads hooks into them.",
       "zh": "黄金三章是网文行业的共识：一本书成败在前三章，因为平台推荐与读者留存在那里决定。Oh Story 把它当一个单元处理：长篇拆文先拆前三章并写出独立预览，再决定是否全拆；写作时也把钩子前置到这里。"
     },
-    "in_practice": { "en": "Stage 1 of `/story-long-analyze`.", "zh": "`/story-long-analyze` 的第一阶段。" },
-    "related": ["chaiwen"]
+    "in_practice": {
+      "en": "Stage 1 of `/story-long-analyze`.",
+      "zh": "`/story-long-analyze` 的第一阶段。"
+    },
+    "related": [
+      "chaiwen"
+    ]
   },
   {
     "slug": "shuangdian",
@@ -80,7 +94,104 @@
       "en": "爽点 (shuǎng diǎn) is a payoff beat: a moment engineered to convert a negative emotion the reader has been carrying into a positive one. Oh Story's definition is deliberately broad — not only 'showing off and face-slapping' but any of six satisfaction types (overwhelming ability, goal achieved, tallying gains, and so on) — and it is designed backwards: pick the payoff type, design the expectation it lifts, then design the setup. The pacing rule is more payoffs rather than longer build-ups.",
       "zh": "爽点是情绪兑现点：把读者一直背着的负面情绪转成正面情绪的时刻。Oh Story 的定义有意放宽——不只是装逼打脸，而是六种满足类型（能力碾压、目标达成、收获盘点……）——并且反向设计：先定爽点类型，再设计它兑现的期待，最后设计铺垫。节奏原则是多想几个爽点，而不是拉长单个爽点的铺垫。"
     },
-    "in_practice": { "en": "A required field in every chapter blueprint checked by `check-outline-contract.js`.", "zh": "每份章节细纲的必填字段之一，由 `check-outline-contract.js` 校验。" },
-    "related": ["chaiwen"]
+    "in_practice": {
+      "en": "A required field in every chapter blueprint checked by `check-outline-contract.js`.",
+      "zh": "每份章节细纲的必填字段之一，由 `check-outline-contract.js` 校验。"
+    },
+    "related": [
+      "chaiwen"
+    ]
+  },
+  {
+    "slug": "gouzi",
+    "term": "钩子",
+    "bridge": "hook (a chapter-opening or chapter-ending device that makes the reader continue)",
+    "owner": "oh-story",
+    "definition": {
+      "en": "钩子 (gōu zi, 'hook') is any device placed at a chapter boundary — or inside a paragraph — whose job is to make the reader keep reading: an unanswered question, a countdown, a reversal, a line of dialogue that cannot be left hanging. In serialized web fiction the chapter-end hook is what carries a reader across the pay-per-chapter gap, so it is treated as a craft element with named forms rather than a happy accident.",
+      "zh": "钩子是放在章节边界——或段落内部——用来让读者继续往下读的装置：没答的问题、倒计时、反转、一句不能不接的对白。在连载网文里，章尾钩子决定读者是否愿意跨过付费章节的门槛，所以它被当成有命名形式的工艺要素，而不是碰巧写出来的效果。"
+    },
+    "in_practice": {
+      "en": "Oh Story taxonomises hooks as 13 chapter-ending forms, 7 chapter-opening forms (suspense dialogue, flash-forward fragment, countdown opening, mysterious monologue, contrast scene, unfinished action, image foreshadowing) and paragraph-level hooks; 章首钩子 is a required field in every chapter blueprint.",
+      "zh": "Oh Story 把钩子分成章尾钩子 13 式、章首钩子 7 式（悬念对话开局、闪前碎片、倒计时开局、神秘独白、反差场景、未完成动作开局、意象预示）和段落级钩子；「章首钩子」是每份章节细纲的必填字段。"
+    },
+    "related": [
+      "shuangdian",
+      "taolu"
+    ]
+  },
+  {
+    "slug": "taolu",
+    "term": "套路",
+    "bridge": "trope, formula (the org's thesis: 套路 = deterministic emotional payoff)",
+    "owner": "oh-story",
+    "definition": {
+      "en": "套路 (tào lù) is usually translated 'formula' or 'trope' and usually said with a sneer. Oh Story's founding line reframes it: 套路 = 确定性的情绪满足 — a trope is a way of delivering an emotional payoff with certainty. Read that way, the professional method is not about avoiding tropes but about knowing which reader emotion each one reliably produces, and sequencing them: reverse-engineer hits, recombine plot modules, manage context and state, and keep a human in the loop.",
+      "zh": "套路通常被译成 formula 或 trope，语气多半带贬义。Oh Story 的核心思路把它重新定义：套路 = 确定性的情绪满足——套路是一种能确定兑现某种情绪的写法。这样理解，职业方法论就不是避开套路，而是知道每种套路稳定产出哪种读者情绪并把它们排好序：爆款逆向、剧情模块化重组、上下文状态分层管理、人机协同。"
+    },
+    "in_practice": {
+      "en": "The four lines of the Oh Story method (爆款逆向 · 剧情模块化重组 · 上下文状态分层管理 · 人机协同) are all in service of this definition.",
+      "zh": "Oh Story 的四条线（爆款逆向 · 剧情模块化重组 · 上下文状态分层管理 · 人机协同）都服务于这个定义。"
+    },
+    "related": [
+      "shuangdian",
+      "gouzi",
+      "chaiwen"
+    ]
+  },
+  {
+    "slug": "fenji-ditu",
+    "term": "分集地图",
+    "bridge": "episode map (the series-level plan of what each episode must deliver)",
+    "owner": "drama-skills",
+    "definition": {
+      "en": "分集地图 (fēn jí dì tú, 'episode map') is the series-level document that lays out, episode by episode, the pressure source, the result each segment must reach, what has to be shown clearly on screen, and the known failure modes for that kind of scene. It is the bridge between a concept or source novel and the per-episode screenplays, and the reason a 60-episode vertical drama can be written by different sessions without drifting.",
+      "zh": "分集地图是剧集层面的文档，逐集写明压力来源、每段必须达到的结果、画面上必须拍清楚的东西，以及这类场次常见的失败方式。它是点子（或原著）与分集剧本之间的桥梁，也是一部 60 集竖屏剧能由不同会话分头写而不跑偏的原因。"
+    },
+    "in_practice": {
+      "en": "Produced in the develop stage of Drama Skills alongside the genre playbook and the director's statement; the genre playbook is a comparison table across those axes, deliberately not a formula lookup.",
+      "zh": "由 Drama Skills 的开发阶段与题材手册、导演阐述一起产出；题材手册是按这些轴对比的表格，刻意不做成剧情公式查表。"
+    },
+    "related": [
+      "manju",
+      "daoyan-chanshu"
+    ]
+  },
+  {
+    "slug": "daoyan-chanshu",
+    "term": "导演阐述",
+    "bridge": "director's statement (the production-form and visual-language decisions, fixed before assets are generated)",
+    "owner": "drama-skills",
+    "definition": {
+      "en": "导演阐述 (dǎo yǎn chǎn shù) is the director's statement: the document that commits a project to a production form (live action, 2D motion comic, stylised 3D, 国漫, ink wash, chibi), a visual grammar, a tone and a set of rules for what the audience may know and when. In an AI pipeline it is not a formality — every downstream prompt for images and video inherits from it, so it is written before any asset is generated.",
+      "zh": "导演阐述是导演对整部作品的声明：确定制作形态（实拍、二维动态漫、风格化三维、国漫、水墨、Q 版）、视觉语法、基调，以及观众可以知道什么、何时知道的规则。在 AI 流水线里它不是走形式——之后所有图片和视频提示词都从它继承，所以必须在生成任何资产之前写好。"
+    },
+    "in_practice": {
+      "en": "Drama Skills pairs it with six production-form cards and Look Development frames (风格帧) that lock the look before storyboarding.",
+      "zh": "Drama Skills 把它与六张制作形态卡和 Look Development 风格帧配套，在分镜之前先锁定画风。"
+    },
+    "related": [
+      "manju",
+      "fenji-ditu",
+      "dongjie-guanjianzhen"
+    ]
+  },
+  {
+    "slug": "dongjie-guanjianzhen",
+    "term": "冻结关键帧",
+    "bridge": "frozen keyframe (an approved frame that later shots must stay consistent with)",
+    "owner": "drama-skills",
+    "definition": {
+      "en": "冻结关键帧 (dòng jié guān jiàn zhēn, 'frozen keyframe') is a generated frame that has been approved and locked: subsequent shots of the same character, set or prop must match it, and a continuity lock (连续性锁, LOCK-) records which attributes are fixed. It is how an image-generation pipeline keeps a face, a costume or a room the same across dozens of independently generated shots — the single most common failure in AI short drama.",
+      "zh": "冻结关键帧是已经审核通过并锁定的生成画面：之后同一角色、场景或道具的镜头都必须与它一致，连续性锁（LOCK-）记录哪些属性被固定。这是图像生成流水线让一张脸、一套服装、一个房间在几十个各自生成的镜头里保持一致的手段——也是 AI 短剧最常见的翻车点。"
+    },
+    "in_practice": {
+      "en": "Part of the storyboard stage in Drama Skills; pickups and alternates (补拍与替代) are planned against the frozen frames rather than regenerated from scratch.",
+      "zh": "属于 Drama Skills 的分镜阶段；补拍与替代都对着冻结帧规划，而不是从头重生成。"
+    },
+    "related": [
+      "manju",
+      "daoyan-chanshu"
+    ]
   }
 ]
