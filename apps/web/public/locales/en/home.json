@@ -143,7 +143,10 @@
   },
   "footer": {
     "copyright": "© 2026 zenstory. All rights reserved.",
-    "tagline": "Put AI in your creative production line"
+    "tagline": "Put AI in your creative production line",
+    "projects": "All ZenStory AI projects",
+    "glossary": "Glossary",
+    "github": "GitHub"
   },
   "preview": {
     "projectFiles": "Project Files",
