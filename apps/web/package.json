@@ -8,7 +8,8 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/build-org-pages.mjs",
+    "build:org-pages": "node scripts/build-org-pages.mjs",
     "build:typecheck": "tsc -b && vite build",
     "lint:tokens": "node ../../scripts/quality/check-web-css-token-vars.mjs",
     "lint:i18n-keys": "node ../../scripts/quality/check-i18n-defaultvalue-keys.mjs",

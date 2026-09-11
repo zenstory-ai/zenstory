@@ -1,0 +1,86 @@
+[
+  {
+    "slug": "saobang",
+    "term": "扫榜",
+    "bridge": "chart scanning (bestseller-board scanning)",
+    "owner": "oh-story",
+    "definition": {
+      "en": "扫榜 (sǎo bǎng, 'sweeping the charts') is the first step in the commercial web-fiction method: read the live bestseller and recommendation boards of the major platforms and look for what repeats across many books — genre, protagonist type, opening angle — rather than what any single top-ranked title does. The working rule in Oh Story is that a single ranking only gives a lead; a pattern repeated across samples is a signal. It sits upstream of 拆文 (deconstruction), which is why competitors that only offer '拆书' start one step late.",
+      "zh": "扫榜是商业网文方法论的第一步：读各平台的实时榜单与推荐位，找的是跨很多本书重复出现的东西——题材、主角人设、开局切入点——而不是某一本榜首在做什么。Oh Story 的工作原则是「单本排名只提供线索，跨样本重复模式才算信号」。它在拆文之前，所以只提供「拆书」的工具其实晚了一步。"
+    },
+    "in_practice": {
+      "en": "`/story-long-scan` scrapes the boards of 起点, 番茄, 晋江, 七猫 and 刺猬猫 (short-form: 知乎盐言, 七猫, 黑岩, 点众) and reads platform economics into the result — e.g. 番茄 optimises for traffic and completion rate, 起点 for subscriptions and follow-through, 晋江 for collections and points.",
+      "zh": "`/story-long-scan` 抓取起点、番茄、晋江、七猫、刺猬猫（短篇：知乎盐言、七猫、黑岩、点众）的榜单，并把平台经济学读进结果——例如番茄优化流量与完读率，起点优化订阅与追读，晋江优化收藏与积分。"
+    },
+    "related": ["chaiwen", "huangjinsanzhang"]
+  },
+  {
+    "slug": "chaiwen",
+    "term": "拆文",
+    "bridge": "deconstruction (reverse-outlining a hit into reusable modules)",
+    "owner": "oh-story",
+    "definition": {
+      "en": "拆文 (chāi wén, 'taking a text apart') is reverse-engineering a successful novel into reusable parts: outline rhythm, plot modules, emotional beats, character functions, style notes. Unlike casual '拆书' (book breakdown), 拆文 in Oh Story is a staged pipeline that produces a personal module library the author writes from. Long-form deconstruction analyses the first three chapters first and asks whether to continue; short-form runs the full pipeline in one pass.",
+      "zh": "拆文是把一部成功的小说逆向拆成可复用的部件：大纲节奏、剧情模块、情绪节拍、角色功能、文风。和随手的「拆书」不同，Oh Story 里的拆文是分阶段的流水线，产出作者自己的模块库供写作调用。长篇拆文先分析黄金三章再决定是否继续；短篇一次跑完整个流程。"
+    },
+    "in_practice": {
+      "en": "`/story-long-analyze` outputs 概要 / 拆文报告 / 文风 / 章节 / 角色 / 剧情 (storylines, pacing, emotion modules) / 设定; `/story-short-analyze` outputs 拆文报告 / 情节节点 / 写作手法.",
+      "zh": "`/story-long-analyze` 产出概要 / 拆文报告 / 文风 / 章节 / 角色 / 剧情（故事线、节奏、情绪模块）/ 设定；`/story-short-analyze` 产出拆文报告 / 情节节点 / 写作手法。"
+    },
+    "related": ["saobang", "huangjinsanzhang", "shuangdian"]
+  },
+  {
+    "slug": "qu-ai-wei",
+    "term": "去AI味",
+    "bridge": "de-AI editing / de-slop (removing the fingerprints of machine prose)",
+    "owner": "oh-story",
+    "definition": {
+      "en": "去AI味 (qù AI wèi, 'removing the AI flavour') is the editing pass that strips the recognisable fingerprints of model-written Chinese prose. As a term it is widely used for prompt tips; as an automated pipeline stage it means a deterministic checker that names each pattern — negation-then-reversal comparisons, em-dash pile-ups, voice-contrast clichés, trailer-style endings, metaphor density, surveillance-camera action lists — plus model-degeneration signs such as verbatim repetition, mid-sentence truncation and refusal leakage, and a rewrite step that clears what was flagged.",
+      "zh": "去AI味是把模型写出的中文里可辨认的指纹去掉的编辑环节。作为一个词它到处是提示词技巧；作为自动化流程阶段，它指一个逐条命名模式的确定性检查器——否定铺垫加肯定翻转、破折号堆叠、「声音不高却」式对比、预告片式收尾、比喻密度、监控摄像头式动作清单——再加上复读、截断、拒答泄漏等模型退化信号，以及针对标记结果的改写。"
+    },
+    "in_practice": {
+      "en": "`/story-deslop` runs `check-ai-patterns.js` (~20 named patterns with blocking vs advisory severity) and `check-degeneration.js`; deliberate rhetorical repetition (排比 / 复沓) is exempted because popular web fiction uses it for rhythm.",
+      "zh": "`/story-deslop` 运行 `check-ai-patterns.js`（约 20 种命名模式，分阻断/建议级别）与 `check-degeneration.js`；排比、复沓等有意的修辞重复被豁免，因为通俗网文靠它们做节奏。"
+    },
+    "related": ["chaiwen"]
+  },
+  {
+    "slug": "manju",
+    "term": "漫剧",
+    "bridge": "motion comic / animated drama (as distinct from live-action short drama)",
+    "owner": "drama-skills",
+    "definition": {
+      "en": "漫剧 (màn jù) is a short serialised drama produced as animated or comic-style imagery rather than live action — the AI-generated form that now sits beside 短剧 (live-action micro-drama) on Chinese platforms. It is made episode by episode from scripts, character and scene bibles, storyboards and image/video generation prompts, which is why a production-form decision (2D motion comic, stylised 3D, 国漫, ink wash, chibi, or live action) has to be made before assets are generated.",
+      "zh": "漫剧是以动画或漫画风格画面而非实拍制作的短篇连续剧——如今在各平台与实拍短剧并列的 AI 生成形态。它按集从剧本、角色与场景设定、分镜、图片/视频生成提示词做出来，所以在生成资产之前必须先定制作形态（二维动态漫、风格化三维、国漫、水墨、Q 版或实拍）。"
+    },
+    "in_practice": {
+      "en": "In Drama Skills every episode is exactly five Markdown files — screenplay, visual bible, storyboard, image prompts, video prompts — and continuity across shots is held by frozen keyframes and continuity locks.",
+      "zh": "在 Drama Skills 里每集恰好五份 Markdown——剧本、视觉设定、分镜、图片提示词、视频提示词——跨镜头一致性靠冻结关键帧与连续性锁维持。"
+    },
+    "related": []
+  },
+  {
+    "slug": "huangjinsanzhang",
+    "term": "黄金三章",
+    "bridge": "the golden three chapters (the make-or-break opening)",
+    "owner": "oh-story",
+    "definition": {
+      "en": "黄金三章 ('golden three chapters') is the web-fiction convention that a serial is won or lost in its first three chapters, because platform recommendation and reader retention are decided there. Oh Story treats them as a unit: long-form deconstruction analyses them first and writes a standalone preview before committing to a full breakdown, and drafting front-loads hooks into them.",
+      "zh": "黄金三章是网文行业的共识：一本书成败在前三章，因为平台推荐与读者留存在那里决定。Oh Story 把它当一个单元处理：长篇拆文先拆前三章并写出独立预览，再决定是否全拆；写作时也把钩子前置到这里。"
+    },
+    "in_practice": { "en": "Stage 1 of `/story-long-analyze`.", "zh": "`/story-long-analyze` 的第一阶段。" },
+    "related": ["chaiwen"]
+  },
+  {
+    "slug": "shuangdian",
+    "term": "爽点",
+    "bridge": "payoff beat (a moment of emotional satisfaction)",
+    "owner": "oh-story",
+    "definition": {
+      "en": "爽点 (shuǎng diǎn) is a payoff beat: a moment engineered to convert a negative emotion the reader has been carrying into a positive one. Oh Story's definition is deliberately broad — not only 'showing off and face-slapping' but any of six satisfaction types (overwhelming ability, goal achieved, tallying gains, and so on) — and it is designed backwards: pick the payoff type, design the expectation it lifts, then design the setup. The pacing rule is more payoffs rather than longer build-ups.",
+      "zh": "爽点是情绪兑现点：把读者一直背着的负面情绪转成正面情绪的时刻。Oh Story 的定义有意放宽——不只是装逼打脸，而是六种满足类型（能力碾压、目标达成、收获盘点……）——并且反向设计：先定爽点类型，再设计它兑现的期待，最后设计铺垫。节奏原则是多想几个爽点，而不是拉长单个爽点的铺垫。"
+    },
+    "in_practice": { "en": "A required field in every chapter blueprint checked by `check-outline-contract.js`.", "zh": "每份章节细纲的必填字段之一，由 `check-outline-contract.js` 校验。" },
+    "related": ["chaiwen"]
+  }
+]

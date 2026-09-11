@@ -30,6 +30,19 @@ function publicDocsRoutes(): string[] {
 
 const docsRoutes = publicDocsRoutes()
 
+/**
+ * Static organization pages emitted after the build by scripts/build-org-pages.mjs
+ * (see that file). Listed here so the sitemap includes them.
+ */
+function orgPageRoutes(): string[] {
+  const read = (f: string) => JSON.parse(fs.readFileSync(path.resolve(__dirname, 'content', f), 'utf8'))
+  const projects = read('projects.json') as { slug: string }[]
+  const glossary = read('glossary.json') as { slug: string }[]
+  return ['/projects', ...projects.map((p) => `/${p.slug}`), '/glossary', ...glossary.map((g) => `/glossary/${g.slug}`)]
+}
+
+const orgRoutes = orgPageRoutes()
+
 const apiProxyTarget = (process.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/+$/, '')
 const allowedHosts = (process.env.VITE_ALLOWED_HOSTS || 'localhost,127.0.0.1')
   .split(',')
@@ -45,6 +58,7 @@ export default defineConfig({
       hostname: process.env.VITE_BASE_URL || 'http://localhost:5173',
       // 添加 SPA 路由(不是实际 HTML 文件)
       dynamicRoutes: [
+        ...orgRoutes,
         '/docs',
         ...docsRoutes,
         '/pricing',
@@ -70,6 +84,8 @@ export default defineConfig({
       // 配置页面优先级
       priority: {
         '/': 1.0,
+        '/projects': 0.9,
+        ...Object.fromEntries(orgRoutes.filter((r) => r !== '/projects').map((route) => [route, route.startsWith('/glossary') ? 0.7 : 0.9])),
         '/docs': 0.8,
         ...Object.fromEntries(docsRoutes.map((route) => [route, 0.6])),
         '/pricing': 0.7,

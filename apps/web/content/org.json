@@ -1,0 +1,35 @@
+{
+  "name": "ZenStory AI",
+  "github": "https://github.com/zenstory-ai",
+  "site": "https://zenstory.ai",
+  "tagline": {
+    "en": "Create stories. Adapt them. Ship them.",
+    "zh": "让故事从灵感出发，走向小说、短剧、游戏与视频。"
+  },
+  "canonical": {
+    "en": "ZenStory AI builds open-source agent skills and workbenches that take a story from research and drafting through to short drama, playable games, and narrated video — running inside Claude Code, Codex, OpenCode, and DeepSeek Harness.",
+    "zh": "ZenStory AI 打造开源的 AI 故事创作 Agent Skills 与工作台，覆盖从选题、拆解、写作到短剧、可玩游戏与解说视频的全链路，可在 Claude Code、Codex、OpenCode、DeepSeek Harness 等 Agent 环境中运行。"
+  },
+  "category": {
+    "primary": "agent skills for story creation and adaptation",
+    "note": "网文 / 短剧 are specialization attributes, not the category. An engine can only recommend you inside a category it has filed you under; this is the only category all six projects share."
+  },
+  "model": {
+    "en": [
+      ["Create", "ZenStory is the conversation-first workbench; Oh Story is the reusable fiction-writing workflow for coding agents."],
+      ["Adapt", "Drama Skills, Novel to Game and Video Recap Skills carry a source story into short drama, interactive and video formats."],
+      ["Orchestrate", "Oh Story DSH runs the novel and drama capabilities inside a DeepSeek Harness plugin."]
+    ],
+    "zh": [
+      ["创作", "ZenStory 提供对话优先的工作台；Oh Story 为编程 Agent 提供可复用的网文写作流程。"],
+      ["改编", "Drama Skills、Novel to Game、Video Recap Skills 把故事源带入短剧、互动与视频形态。"],
+      ["编排", "Oh Story DSH 在 DeepSeek Harness 插件里串起小说与短剧能力。"]
+    ]
+  },
+  "proof": {
+    "stars_total": 10219,
+    "as_of": "2026-09-11",
+    "license": "MIT",
+    "harnesses": ["Claude Code", "Codex CLI", "Google Antigravity", "OpenCode", "ZCode", "OpenClaw", "Reasonix", "Kimi Code", "DeepSeek Harness"]
+  }
+}

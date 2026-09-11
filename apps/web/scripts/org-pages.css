@@ -1,0 +1,57 @@
+/* Static organization pages — standalone stylesheet, no build dependency. */
+:root {
+  --paper: #f7f6f2; --surface: #ffffff; --ink: #1c1a17; --ink-2: #4a463f; --muted: #7a756c;
+  --rule: #e2ded6; --accent: #b3542e; --accent-wash: #f6ebe4; --code: #f0ede6;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --paper: #15140f; --surface: #1d1b16; --ink: #ede8df; --ink-2: #c7c0b3; --muted: #8f887b;
+          --rule: #2d2a23; --accent: #e0885e; --accent-wash: #2a1f18; --code: #26231c; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.65 "Plus Jakarta Sans", system-ui, -apple-system, sans-serif; padding-inline: 20px; }
+[lang="zh-CN"] { font-family: "Noto Serif SC", "Plus Jakarta Sans", serif; }
+a { color: var(--accent); text-underline-offset: 2px; }
+code { font: 0.9em "JetBrains Mono", ui-monospace, monospace; background: var(--code); padding: .1em .35em; border-radius: 3px; }
+h1, h2, h3 { font-family: "Source Serif 4", Georgia, serif; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(30px, 5vw, 44px); line-height: 1.1; font-weight: 600; letter-spacing: -.01em; }
+h2 { font-size: 22px; font-weight: 600; margin-top: 36px; margin-bottom: 8px; }
+h2 span[lang], h1 + .lede[lang] { color: var(--muted); font-weight: 400; }
+h3 { font-size: 18px; }
+p { margin: 0 0 12px; }
+.top, main, .bottom, .roster { max-width: 880px; margin-inline: auto; }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 18px; border-bottom: 1px solid var(--rule); }
+.brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; color: var(--ink); text-decoration: none; }
+.top nav { display: flex; gap: 18px; font-size: 14.5px; }
+.top nav a { color: var(--ink-2); text-decoration: none; }
+main { padding-block: 40px 24px; }
+main > article > * , main > article p, main > article ul, main > article ol { max-width: 68ch; }
+.eyebrow { font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+.eyebrow span[lang] { text-transform: none; letter-spacing: 0; }
+.lede { font-size: 19px; line-height: 1.5; color: var(--ink-2); margin-top: 14px; }
+.facts { font-size: 14px; color: var(--muted); }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 18px 0 8px; }
+.btn { display: inline-block; padding: 8px 14px; border-radius: 6px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 500; font-size: 14.5px; }
+.btn.ghost { background: var(--accent-wash); color: var(--accent); }
+.install { display: inline-block; padding: 8px 12px; font-size: 13px; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
+.cols ul { padding-left: 20px; margin: 0 0 8px; }
+.cols li { margin-bottom: 8px; color: var(--ink-2); }
+.steps { padding-left: 22px; margin: 0 0 18px; }
+.steps li { margin-bottom: 8px; color: var(--ink-2); }
+.steps b { color: var(--ink); font-weight: 600; }
+.terms a, .terms span { display: inline-block; margin: 0 8px 6px 0; padding: 3px 9px; border: 1px solid var(--rule); border-radius: 14px; font-size: 14px; text-decoration: none; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; margin-top: 12px; }
+.card { display: block; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 16px 18px; color: var(--ink); text-decoration: none; }
+.card h3 { margin: 2px 0 6px; }
+.card p { font-size: 14.5px; color: var(--ink-2); margin-bottom: 6px; }
+.glossary dt { font-size: 18px; margin-top: 18px; }
+.glossary dt span { font-size: 14px; color: var(--muted); margin-left: 8px; }
+.glossary dd { margin: 4px 0 0; color: var(--ink-2); }
+.roster { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--rule); }
+.roster h2 { margin-top: 0; }
+.roster table { width: 100%; border-collapse: collapse; font-size: 14.5px; margin-top: 10px; }
+.roster th, .roster td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.roster th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.roster tr.here td { background: var(--accent-wash); }
+.bottom { padding-block: 24px 40px; font-size: 13.5px; color: var(--muted); border-top: 1px solid var(--rule); margin-top: 32px; }
+@media (max-width: 640px) { .cols { grid-template-columns: 1fr; } .top { flex-direction: column; align-items: flex-start; } .roster table { display: block; overflow-x: auto; } }

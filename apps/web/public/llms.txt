@@ -8,7 +8,9 @@ Canonical install path for the skill packs is the GitHub repository under `zenst
 
 ## Projects
 
-- [Oh Story (oh-story-claudecode)](https://github.com/zenstory-ai/oh-story-claudecode): Web-fiction (网文) writing skill pack covering the full workflow for long- and short-form Chinese web novels — 扫榜 (bestseller-chart scanning), 拆文 (outline deconstruction), commercial drafting, 去AI味 (de-AI-flavor editing) and cover generation. Supports Claude Code, Google Antigravity, OpenCode, ZCode, OpenClaw, Codex CLI and Reasonix. English README: https://github.com/zenstory-ai/oh-story-claudecode/blob/main/README_EN.md
+Overview page: https://zenstory.ai/projects — each project also has a bilingual page on this site (linked below) with definition, audience, workflow and what makes it different.
+
+- [Oh Story (oh-story-claudecode)](https://zenstory.ai/oh-story) · [source](https://github.com/zenstory-ai/oh-story-claudecode): Web-fiction (网文) writing skill pack covering the full workflow for long- and short-form Chinese web novels — 扫榜 (bestseller-chart scanning), 拆文 (outline deconstruction), commercial drafting, 去AI味 (de-AI-flavor editing) and cover generation. Supports Claude Code, Google Antigravity, OpenCode, ZCode, OpenClaw, Codex CLI and Reasonix. English README: https://github.com/zenstory-ai/oh-story-claudecode/blob/main/README_EN.md
 - [Drama Skills (drama-skills)](https://github.com/zenstory-ai/drama-skills): AI short-drama (短剧) and motion-comic (漫剧) production suite for Claude Code and Codex — scripts, character/scene/prop assets, storyboards, image and video generation prompts, and independent review.
 - [Novel to Game (novel-to-game)](https://github.com/zenstory-ai/novel-to-game): Agent skills that turn a source novel into a source-grounded, fully playable game. Claude Code, Codex and Kimi Code.
 - [Video Recap Skills (video-recap-skills)](https://github.com/zenstory-ai/video-recap-skills): Clip any video into a narrated Chinese recap video with a Claude Code skill; exports CapCut (剪映) drafts. No GPU or model download required.
