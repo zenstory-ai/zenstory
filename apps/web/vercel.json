@@ -190,6 +190,10 @@
   ],
   "rewrites": [
     {
+      "source": "/1e4acbc11fe3407a8a641d69a13af696.txt",
+      "destination": "/api/indexnow-key"
+    },
+    {
       "source": "/:path(api(?:/.*)?)",
       "destination": "https://api.zenstory.ai/:path"
     },

@@ -5,6 +5,7 @@ const CANONICAL_SITE = 'https://zenstory.ai'
 const CANONICAL_APP = 'https://app.zenstory.ai'
 const PREVIEW_SITE = 'https://geo-preview.zenstory.ai'
 const PREVIEW_APP = 'https://app-preview.zenstory.ai'
+const INDEXNOW_KEY = '1e4acbc11fe3407a8a641d69a13af696'
 
 const mode = process.env.GEO_DOMAIN_MODE
 if (mode && mode !== 'preview' && mode !== 'production') {
@@ -164,6 +165,36 @@ async function expectOneHopCanonicalRedirect(
 }
 
 test.describe('organization site', () => {
+  test(`${IS_PREVIEW ? 'rejects' : 'serves'} the IndexNow key on the organization host`, async ({ request }) => {
+    for (const path of [`/${INDEXNOW_KEY}.txt`, '/api/indexnow-key']) {
+      const response = await getWithoutRedirects(request, `${SITE}${path}`)
+      const body = await response.body()
+
+      expect(response.headers()['cache-control']).toContain('private')
+      expect(response.headers()['cache-control']).toContain('no-store')
+      if (IS_PREVIEW) {
+        expect(response.status()).toBe(404)
+        expect(body.includes(Buffer.from(INDEXNOW_KEY, 'ascii'))).toBe(false)
+      } else {
+        expect(response.status()).toBe(200)
+        expect(response.headers()['content-type']).toMatch(/^text\/plain(?:;|$)/i)
+        expect(response.headers()['x-content-type-options']).toBe('nosniff')
+        expect(body).toEqual(Buffer.from(INDEXNOW_KEY, 'ascii'))
+      }
+    }
+  })
+
+  test('does not expose the IndexNow key on the app host', async ({ request }) => {
+    for (const path of [`/${INDEXNOW_KEY}.txt`, '/api/indexnow-key']) {
+      const response = await getWithoutRedirects(request, `${APP}${path}`)
+
+      expect(response.status()).toBe(404)
+      expect(response.headers()['cache-control']).toContain('private')
+      expect(response.headers()['cache-control']).toContain('no-store')
+      expect((await response.body()).includes(Buffer.from(INDEXNOW_KEY, 'ascii'))).toBe(false)
+    }
+  })
+
   test('serves a meaningful bilingual home with six project destinations and the app CTA without JavaScript', async ({ browser }) => {
     const context = await browser.newContext({ javaScriptEnabled: false })
     const page = await context.newPage()

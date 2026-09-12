@@ -5,14 +5,28 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { finalizeSite, vercelConfig } from '../build-site-layout.mjs'
 
+const INDEXNOW_KEY = '1e4acbc11fe3407a8a641d69a13af696'
+const INDEXNOW_FILE = `${INDEXNOW_KEY}.txt`
+
+test('IndexNow ownership key is not shipped as a static public asset', () => {
+  assert.match(INDEXNOW_KEY, /^[A-Za-z0-9-]{8,128}$/)
+  assert.equal(existsSync(new URL(`../../public/${INDEXNOW_FILE}`, import.meta.url)), false)
+})
+
 test('Vercel config is source-controlled and API bypasses the SPA', () => {
   assert.deepEqual(JSON.parse(readFileSync(new URL('../../vercel.json', import.meta.url))), vercelConfig)
-  assert.equal(vercelConfig.rewrites[0].source, '/:path(api(?:/.*)?)')
-  assert.equal(vercelConfig.rewrites[0].destination, 'https://api.zenstory.ai/:path')
+  assert.deepEqual(vercelConfig.rewrites[0], {
+    source: `/${INDEXNOW_FILE}`,
+    destination: '/api/indexnow-key',
+  })
+  assert.equal(vercelConfig.rewrites[1].source, '/:path(api(?:/.*)?)')
+  assert.equal(vercelConfig.rewrites[1].destination, 'https://api.zenstory.ai/:path')
   assert.ok(vercelConfig.headers.some(r => r.source === '/:path(api(?:/.*)?)' && r.headers.some(h=>h.key==='x-vercel-enable-rewrite-caching' && h.value==='0')))
   assert.ok(vercelConfig.redirects.findIndex(r=>r.source.endsWith('/index.html') && r.source.startsWith('/:path')) < vercelConfig.redirects.findIndex(r=>r.source.includes('projects|') && r.has), 'Clean aliases before host redirects')
   const scripts = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url))).scripts
   assert.equal(vercelConfig.buildCommand, 'npm run build:vercel')
+  assert.equal(vercelConfig.installCommand, 'npm install --legacy-peer-deps')
+  assert.equal(readFileSync(new URL('../../.npmrc', import.meta.url), 'utf8'), 'legacy-peer-deps=true\n', 'Standalone Vercel Function installation must use the existing web peer-resolution policy')
   assert.ok(!scripts.build.includes('build-site-layout'), 'Default/Docker build retains a normal root app index')
   assert.match(scripts['build:vercel'], /build-site-layout/)
   const workflow = readFileSync(new URL('../../../../.github/workflows/ci.yml', import.meta.url), 'utf8')
@@ -45,6 +59,10 @@ test('post-build output cannot shadow host rewrites; sitemap uses canonical rout
     assert.doesNotMatch(appMap, /\/docs|\/dashboard|\/login/)
     assert.match(readFileSync(join(dir,'_site/robots.txt'),'utf8'), /Sitemap: https:\/\/zenstory\.ai\/sitemap.xml/)
     assert.equal(readFileSync(join(dir,'docs/example/index.html'),'utf8'), '<html>Existing content</html>')
+    assert.equal(existsSync(join(dir, INDEXNOW_FILE)), false)
+    for (const path of ['_site/sitemap.xml', '_app/sitemap.xml', '_site/robots.txt', '_app/robots.txt']) {
+      assert.doesNotMatch(readFileSync(join(dir, path), 'utf8'), new RegExp(INDEXNOW_KEY))
+    }
   } finally { rmSync(dir, {recursive:true,force:true}) }
 })
 
