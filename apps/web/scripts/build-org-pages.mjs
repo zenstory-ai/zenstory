@@ -250,6 +250,10 @@ const projectPage = (p) => {
   <h2>What makes it different <span lang="zh-CN">· 有什么不同</span></h2>
   <div class="cols">${list(p.distinctive.en)}${list(p.distinctive.zh, 'zh')}</div>
 
+  <h2>Source notes <span lang="zh-CN">· 来源与边界</span></h2>
+  <p class="facts">Source checked ${esc(p.sources.checked_on)} <span lang="zh-CN">· 源码核对日期</span>. Links identify the reviewed version, not a guarantee about later releases.</p>
+  <div class="cols">${list(p.sources.en)}${list(p.sources.zh, 'zh')}</div>
+
   ${p.vocabulary?.length ? `<h2>Terms it uses</h2><p class="terms">${p.vocabulary.map((t) => {
     const g = glossary.find((x) => x.term === t)
     return g ? `<a href="/glossary/${g.slug}">${esc(t)}</a>` : `<span>${esc(t)}</span>`

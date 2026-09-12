@@ -24,6 +24,69 @@ const run = (script, outDir) => {
 const readOutput = (outDir, route) => readFileSync(join(outDir, route, 'index.html'), 'utf8')
 const matches = (html, pattern) => [...html.matchAll(pattern)]
 
+test('AI-facing project directory links the source-backed canonical pages', () => {
+  const directory = readFileSync(join(webRoot, 'public/llms.txt'), 'utf8')
+  for (const project of projects) {
+    assert.ok(directory.includes(`](https://zenstory.ai/${project.slug})`), `directory lacks /${project.slug}`)
+    assert.ok(directory.includes(`](https://github.com/zenstory-ai/${project.repo})`))
+  }
+  assert.match(directory, /versioned source notes/)
+  assert.match(directory, /five stage skills plus one orchestrator/)
+  assert.doesNotMatch(directory, /fully playable game|Clip any video|six independent skills/i)
+})
+
+test('project pages render bilingual capabilities and dated, owned immutable sources', (t) => {
+  const outDir = mkdtempSync(join(tmpdir(), 'zenstory-project-sources-'))
+  t.after(() => rmSync(outDir, { recursive: true, force: true }))
+  run('build-org-pages.mjs', outDir)
+
+  for (const project of projects) {
+    assert.ok(project.sources, `${project.slug} lacks source evidence`)
+    assert.match(project.sources.checked_on, /^\d{4}-\d{2}-\d{2}$/)
+    const html = readOutput(outDir, project.slug)
+    const article = matches(html, /<article class="project">([\s\S]*?)<\/article>/g)[0][1]
+    assert.ok(article.includes(project.sources.checked_on), 'source-check date not rendered')
+    assert.match(article, /Source notes/)
+    assert.match(article, /来源与边界/)
+    const sourceGroups = []
+    for (const language of ['en', 'zh']) {
+      const sources = project.sources[language]
+      assert.ok(sources.length >= 2, `${project.slug} lacks ${language} source notes`)
+      const urls = []
+      for (const note of sources) {
+        const noteHtml = note.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+          .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2">$1</a>')
+        assert.ok(article.includes(`<li${language === 'zh' ? ' lang="zh-CN"' : ''}>${noteHtml}</li>`), `missing ${language} source note`)
+        const links = matches(note, /\]\((https:\/\/[^)]+)\)/g).map((match) => match[1])
+        assert.ok(links.length > 0, 'source note lacks a link')
+        for (const source of links) {
+          const parsed = new URL(source)
+          assert.equal(parsed.origin, 'https://github.com')
+          assert.match(parsed.pathname, /^\/zenstory-ai\/[^/]+\/blob\/[a-f0-9]{40}\/.+/)
+          assert.equal(parsed.pathname.split('/').slice(0, 3).join('/'), new URL(project.github).pathname)
+          assert.match(parsed.hash, /^#L\d+(?:-L\d+)?$/)
+          assert.ok(article.includes(`href="${source}"`), `source not rendered: ${source}`)
+          urls.push(source)
+        }
+      }
+      sourceGroups.push(urls.sort())
+      const definition = project.definition[language].replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/`([^`]+)`/g, '<code>$1</code>')
+      assert.ok(article.includes(`<p${language === 'zh' ? ' lang="zh-CN"' : ''}>${definition}</p>`))
+    }
+    assert.deepEqual(sourceGroups[0], sourceGroups[1], `${project.slug} cites different EN/ZH sources`)
+    const canonical = `https://zenstory.ai/${project.slug}`
+    assert.equal(matches(html, /<link\b[^>]*rel="canonical"[^>]*>/gi).length, 1)
+    assert.ok(html.includes(`<link rel="canonical" href="${canonical}"`))
+    assert.equal(matches(html, /<meta\b[^>]*property="og:url"[^>]*>/gi).length, 1)
+    assert.ok(html.includes(`<meta property="og:url" content="${canonical}"`))
+    const graph = JSON.parse(matches(html, /<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi)[0][1])['@graph']
+    const software = graph.find((node) => node.codeRepository === project.github)
+    assert.equal(software.description, project.definition.en)
+    assert.equal(software.url, canonical)
+    assert.doesNotMatch(html, /<script\b[^>]*type="module"/i)
+  }
+})
+
 test('glossary terms have bilingual pages, valid relationships and traceable definitions', (t) => {
   const outDir = mkdtempSync(join(tmpdir(), 'zenstory-glossary-'))
   t.after(() => rmSync(outDir, { recursive: true, force: true }))

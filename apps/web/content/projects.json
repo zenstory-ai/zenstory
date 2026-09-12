@@ -11,8 +11,8 @@
       "zh": "把编程 Agent 变成完整的网文写作流程——扫榜、拆文、写作、去AI味、封面图。"
     },
     "definition": {
-      "en": "Oh Story is an open-source skill pack (MIT) that gives coding agents — Claude Code, Codex CLI, Google Antigravity, OpenCode, ZCode, OpenClaw and Reasonix — a professional web-fiction author's method, for both long-form serials and short stories. It is not a prompt collection: the 13 skills ship with deterministic verifiers, blocking reference gates, layered context and state management, and a one-command deployer (`/story-setup`) for each harness.",
-      "zh": "Oh Story 是一个 MIT 开源的 skill 包，让 Claude Code、Codex CLI、Google Antigravity、OpenCode、ZCode、OpenClaw、Reasonix 等编程 Agent 按职业网文作者的方法论工作，长篇连载和短篇都覆盖。它不是提示词合集：13 个 skill 内置确定性 verifier、写正文前会阻断的 Reference Gate、分层的上下文与状态管理，以及一条命令部署到各 Agent 环境的 `/story-setup`。"
+      "en": "Oh Story is an MIT-licensed pack of 13 agent skills for web-fiction research, deconstruction, long-form serials, short stories, revision and covers. It combines writing instructions with deterministic checks, reference gates and file-based project state. `/story-setup` configures supported agent hosts; specialist-agent orchestration depends on the host, with direct execution available when that capability is missing.",
+      "zh": "Oh Story 是 MIT 开源的 13 个 agent skills，覆盖网文选题、拆文、长篇连载、短篇、修订与封面。它把写作指令与确定性检查、参考资料门和文件化项目状态结合起来。`/story-setup` 配置所支持的 Agent 环境；专业 agent 编排取决于宿主能力，能力缺失时可直接执行。"
     },
     "audience": {
       "en": ["Authors publishing on 起点 Qidian, 番茄 Fanqie, 晋江 JJWXC, 七猫 Qimao and 知乎盐言", "Studios running several serials at once", "Developers who want a mature, non-coding example of agent skills"],
@@ -20,38 +20,53 @@
     },
     "method": {
       "en": [
-        ["扫榜 · chart scanning", "Scrape the live bestseller boards of five platforms and look for patterns that repeat across books — genre, cast, angle — rather than trusting any single ranking."],
-        ["拆文 · deconstruction", "Reverse-engineer a hit into outline rhythm, plot modules, character and style notes; the first three chapters (黄金三章) are analysed first as a make-or-break checkpoint."],
-        ["商业化写作 · commercial drafting", "Write chapter by chapter from a per-chapter blueprint with hooks, payoff pacing (爽点) and an enforced word target; a tracking state file is the single source of truth for continuity."],
-        ["去AI味 · de-AI editing", "A deterministic checker flags ~20 named Chinese AI-prose fingerprints and model-degeneration patterns; the skill rewrites what it flags."],
-        ["封面 · covers", "Genre-aware cover generation from the project's own setting files."]
+        ["扫榜 · chart scanning", "Collect supported platform data when available, accept creator-supplied samples, or explicitly label historical knowledge fallback; unavailable sources can be skipped."],
+        ["拆文 · deconstruction", "Analyse structure, characters and style, using an opening sample for long-form work; a creator-requested full analysis continues after writing the preview."],
+        ["Drafting", "Draft against chapter blueprints, reference gates and word-count checks; structured tracking state supplies derived progress views rather than guaranteeing narrative continuity."],
+        ["去AI味 · de-slop editing", "Use deterministic pattern scans to guide bounded rewriting; the checks do not establish authorship or guarantee AI-detector scores."],
+        ["Covers", "Prepare genre-aware cover guidance and use an available image-generation tool when configured."]
       ],
       "zh": [
-        ["扫榜", "抓取五个平台的实时榜单，找跨样本重复的题材、人设、切入点，而不是信任单本排名。"],
-        ["拆文", "把爆款拆成大纲节奏、剧情模块、角色与文风；先拆黄金三章作为检查点，再决定是否全拆。"],
-        ["商业化写作", "按逐章细纲写正文：钩子、爽点节奏、机器校验的字数目标；追踪状态文件是连续性的唯一真相源。"],
-        ["去AI味", "确定性检查器识别约 20 种中文 AI 文风指纹与模型退化模式，skill 据此改写。"],
-        ["封面", "根据项目设定文件做题材感知的封面生成。"]
+        ["扫榜", "在条件允许时采集所支持平台的数据，接受作者提供的样本，或明确标注历史知识回退；不可用的数据源可以跳过。"],
+        ["拆文", "分析结构、角色与文风，长篇先做开篇样本；作者已要求完整拆解时，写出预览后继续执行。"],
+        ["写作", "围绕逐章细纲、参考资料门和字数检查起草；结构化追踪状态用于派生进度视图，不保证情节连续性无误。"],
+        ["去AI味", "用确定性模式扫描辅助有边界的改写；检查不判定作者身份，也不保证 AI 检测分数。"],
+        ["封面", "准备题材相关的封面指引，并在配置可用生图工具时调用。"]
       ]
     },
     "distinctive": {
       "en": [
-        "Deterministic verifiers, not LLM self-checks: chapter-blueprint contract (16 required fields), AI-pattern scan, degeneration scan, outline-copy detection — each with documented exit codes and explicitly forbidden from judging quality.",
-        "A file-system project bible (设定 / 大纲 / 正文 / 对标 / 追踪) with a single committed tracking state that every Markdown view is re-rendered from.",
-        "Seven cooperating agents (architect, writer, consistency checker, reviewer…) deployed per harness by `/story-setup`; cross-session author memory.",
-        "Ships real output samples: a short-story deconstruction, a long-form continuation project, and a cover set."
+        "Local verifiers check contracts and detectable patterns, rather than assigning literary quality scores.",
+        "Project settings, outlines, drafts, references and tracking remain inspectable files.",
+        "Host-aware setup can use specialist roles or a direct fallback; supported hosts do not imply identical orchestration.",
+        "The repository includes deconstruction, continuation and cover examples, not a guarantee of comparable results."
       ],
       "zh": [
-        "确定性 verifier 而不是让模型自查：细纲契约（16 个必填字段）、AI 文风扫描、退化扫描、细纲抄写检测，每个都有明确退出码，且明确不评判「好不好」。",
-        "文件系统级的项目圣经（设定 / 大纲 / 正文 / 对标 / 追踪），所有 Markdown 视图由唯一的追踪状态文件派生。",
-        "7 个专业 agent 协作，`/story-setup` 按环境部署；跨会话的作者记忆。",
-        "仓库附真实产出：短篇拆文、长篇续写工程、封面示例。"
+        "本地 verifier 检查契约与可检测模式，不为文学质量打分。",
+        "设定、大纲、正文、参考资料与追踪记录均为可检查的文件。",
+        "按宿主能力使用专业角色或直接执行回退；支持某个宿主不代表编排能力完全相同。",
+        "仓库包含拆文、续写与封面示例，不保证复现同等结果。"
       ]
     },
     "install": "npx skills add zenstory-ai/oh-story-claudecode -y -g",
     "entry": "/story-setup",
     "stars": 6770,
     "skills": 13,
+    "sources": {
+      "checked_on": "2026-09-12",
+      "en": [
+        "[Scan inputs, historical fallback and unavailable sources](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-short-scan/SKILL.md#L50-L85)",
+        "[Opening preview and creator-requested full analysis](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-analyze/SKILL.md#L139-L149)",
+        "[De-slop purpose and detector-score limits](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-deslop/SKILL.md#L23-L49)",
+        "[Structured tracking authority and derived views](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/SKILL.md#L141-L143)"
+      ],
+      "zh": [
+        "[扫榜输入、历史回退与不可用数据源](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-short-scan/SKILL.md#L50-L85)",
+        "[开篇预览与作者已要求的完整拆解](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-analyze/SKILL.md#L139-L149)",
+        "[去AI味的用途与检测分数边界](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-deslop/SKILL.md#L23-L49)",
+        "[结构化追踪权威与派生视图](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/SKILL.md#L141-L143)"
+      ]
+    },
     "vocabulary": ["扫榜", "拆文", "去AI味", "黄金三章", "爽点", "钩子", "套路"]
   },
   {
@@ -62,12 +77,12 @@
     "format": { "en": "Production skill suite", "zh": "制作 skill 合集" },
     "name": { "en": "Drama Skills", "zh": "Drama Skills（AI 短剧 / 漫剧）" },
     "tagline": {
-      "en": "An idea or a novel in; episode scripts, assets, storyboards, image and video prompts, and an independent review out.",
-      "zh": "输入一个点子或一部小说，产出分集剧本、资产设定、分镜、图片/视频提示词和独立审查。"
+      "en": "Develop ideas or source stories into episode scripts, visual specifications, storyboards and generation prompts, with optional production and review.",
+      "zh": "把点子或原著发展为分集剧本、视觉设定、分镜和生成提示词，按需进入制作与审查。"
     },
     "definition": {
-      "en": "Drama Skills is an AI short-drama and motion-comic (漫剧) production workflow for Claude Code, Codex and any host that supports the Agent Skills spec. Eleven skills carry a concept or a long-form source through episode scripts, character and scene assets, image prompts, storyboard keyframes and video-generation prompts, with a separate review skill that audits the result. It was distilled from a working motion-comic studio's own pipeline.",
-      "zh": "Drama Skills 是面向 Claude Code、Codex 及任何支持 Agent Skills 规范环境的 AI 短剧 / 漫剧创作工作流。11 个 skill 把一个点子或一部长篇材料一路做成分集剧本、角色与场景资产、图片提示词、分镜关键帧和视频提示词，另有独立的审查 skill 复核结果。它来自一家漫剧工作室自己的产线。"
+      "en": "Drama Skills is an eleven-skill workflow for AI short-drama and motion-comic creation in agent hosts such as Claude Code and Codex. Creators can enter at the stage their material needs: development, writing, assets, storyboards, prompts, production, editing or review. Documents are created as needed; prompt/specification work is distinct from generating media, which requires configured providers and explicit spending confirmation.",
+      "zh": "Drama Skills 是面向 Claude Code、Codex 等 Agent 宿主的 11-skill AI 短剧与漫剧创作工作流。创作者可按材料需要进入开发、写作、资产、分镜、提示词、制作、剪辑或审查阶段。文档按需创建；提示词与规格设计不同于媒体生成，后者需要配置供应商并明确确认消费。"
     },
     "audience": {
       "en": ["Screenwriters", "Motion-comic and short-drama studios", "Directors and producers working with image/video generation models"],
@@ -75,38 +90,53 @@
     },
     "method": {
       "en": [
-        ["Develop", "From concept or source novel to an episode map, genre playbook and director's statement (导演阐述)."],
-        ["Write", "Per-episode screenplay under a stage contract of explicit scene rules — agenda, opposing force, turn, exit state."],
-        ["Assets & look", "Character, scene and prop bibles; six production-form cards (live-action, 2D motion comic, stylised 3D, 国漫, ink, chibi); Look Development frames."],
-        ["Storyboard & prompts", "Shot-level storyboard with frozen keyframes and continuity locks, then image and video prompts written for named model dialects."],
-        ["Produce, edit, review", "A fail-closed spend gate before any generation runs; an edit decision list; an independent review pass."]
+        ["Develop", "Create an episode map or genre guidance when needed; a candidate director brief becomes authority only after creator acceptance."],
+        ["Write", "Draft episode scripts with explicit scene goals, opposing forces, turns and exit states."],
+        ["Assets & look", "Prepare character, scene and prop specifications; production-form cards and Look Development are optional choices, not universal image gates."],
+        ["Storyboard & prompts", "Specify shot-start keyframes and continuity constraints, then image/video prompts. A frozen keyframe is a prompt/spec, not an approved generated image."],
+        ["Produce, edit, review", "Media generation uses prepare → explicit confirmation → run. Editing and a separately requested review are distinct stages."]
       ],
       "zh": [
-        ["开发", "从点子或原著到分集地图、题材手册与导演阐述。"],
-        ["写作", "在明确场次规则的阶段契约下写分集剧本——目标、对抗力、转折、出口状态。"],
-        ["资产与画风", "角色 / 场景 / 道具设定；六种制作形态卡（实拍、二维动态漫、风格化三维、国漫、水墨、Q 版）；Look Development 风格帧。"],
-        ["分镜与提示词", "镜头级分镜、冻结关键帧与连续性锁，再按具体模型方言写图片与视频提示词。"],
-        ["制作、剪辑、审查", "生成前的 fail-closed 消费门；剪辑单；独立审查。"]
+        ["开发", "按需创建分集地图或题材指引；候选导演阐述经创作者接受后才成为权威。"],
+        ["写作", "写分集剧本，明确场次目标、对抗力、转折和出口状态。"],
+        ["资产与画风", "准备角色、场景和道具规格；制作形态卡与 Look Development 是可选决策，不是通用生图门槛。"],
+        ["分镜与提示词", "规定镜头起始关键帧与连续性约束，再写图片/视频提示词。冻结关键帧是提示词或规格，不是已获批准的生成图片。"],
+        ["制作、剪辑、审查", "媒体生成遵循准备 → 明确确认 → 执行。剪辑与另行请求的审查是独立阶段。"]
       ]
     },
     "distinctive": {
       "en": [
-        "Each episode is exactly five Markdown files — screenplay, visual bible, storyboard, image prompts, video prompts — the 'creator truth' every stage reads from and writes to.",
-        "A four-tier rule taxonomy (structural invariant / reviewed invariant / craft default / taste option) so a check can block only when it is locally provable.",
-        "Money moves in one place: production requires preview → explicit confirm → run, with fingerprint-bound one-time confirmations.",
-        "Vendor profiles for current image, video and music models; a local dashboard for the production queue."
+        "An episode can use up to five core creative document types: screenplay, visual bible, storyboard, image prompts and video prompts, created only when needed.",
+        "Rule categories distinguish locally provable structural failures from reviewed judgments, craft defaults and taste choices.",
+        "Production uses a fingerprint-bound, one-time confirmation; writing prompts alone does not authorize a paid run.",
+        "Actual generated or supplied image files must exist and be bound before becoming production references. Continuity constraints do not guarantee visual consistency."
       ],
       "zh": [
-        "每集恰好五份 Markdown——剧本、视觉设定、分镜、图片提示词、视频提示词——是每个阶段读写的「创作真相」。",
-        "四层规则分类（结构不变量 / 审阅不变量 / 工艺默认 / 口味选项），只有本地可证明的问题才能阻断。",
-        "花钱只在一处：制作阶段要求预览 → 明确确认 → 执行，确认与指纹绑定、一次性有效。",
-        "内置当前图像、视频、音乐模型的供应商方言；本地短剧创作台管理制作队列。"
+        "每集按需使用至多五类核心创作文档：剧本、视觉设定、分镜、图片提示词和视频提示词，不要求提前建齐。",
+        "规则分类区分本地可证明的结构失败、需审阅的判断、工艺默认与口味选择。",
+        "制作使用与指纹绑定的一次性确认；写好提示词本身不代表授权付费执行。",
+        "生成或提供的真实图片文件必须存在并绑定后才能作为制作参考；连续性约束不保证画面一致性。"
       ]
     },
     "install": "npx skills add zenstory-ai/drama-skills -y -g",
     "entry": "$short-drama",
     "stars": 1795,
     "skills": 11,
+    "sources": {
+      "checked_on": "2026-09-12",
+      "en": [
+        "[Creator-first entry and on-demand documents](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama/SKILL.md#L70-L76)",
+        "[Optional look development, production and review boundaries](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama/SKILL.md#L117-L145)",
+        "[Director-brief acceptance and optional artifacts](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-develop/SKILL.md#L101-L129)",
+        "[Real image references and explicit spend confirmation](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-produce/SKILL.md#L15-L63)"
+      ],
+      "zh": [
+        "[创作者优先的入口与按需文档](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama/SKILL.md#L70-L76)",
+        "[可选画风探索、制作与审查边界](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama/SKILL.md#L117-L145)",
+        "[导演阐述的接受与可选产物](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-develop/SKILL.md#L101-L129)",
+        "[真实图片参考与明确消费确认](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-produce/SKILL.md#L15-L63)"
+      ]
+    },
     "vocabulary": ["漫剧", "分集地图", "导演阐述", "冻结关键帧", "连续性锁", "剪辑单"]
   },
   {
@@ -117,12 +147,12 @@
     "format": { "en": "Adaptation skill pack", "zh": "改编 skill 包" },
     "name": { "en": "Novel to Game", "zh": "Novel to Game（小说改游戏）" },
     "tagline": {
-      "en": "Turn a novel in any language into a source-grounded, fully playable game.",
-      "zh": "把任意语言的小说改编成有原著依据、真正可玩的游戏。"
+      "en": "A source-grounded workflow for adapting novels into playable game candidates on a chosen target runtime.",
+      "zh": "以原文证据为基础，在选定目标运行环境中构建和验证小说改编游戏的候选版本。"
     },
     "definition": {
-      "en": "Novel to Game is a set of seven agent skills for Claude Code, Codex and Kimi Code that adapt a novel into a playable game. It starts from a cited source bible — world rules, player verbs, spaces, character will — compares concept alternatives with hard vetoes, designs the loop and art direction, builds a risk-matched whitebox before the production candidate, and finishes with a six-check machine-verifiable QA contract. Three hosted demos are playable today.",
-      "zh": "Novel to Game 是一组 7 个 agent skills（Claude Code、Codex、Kimi Code），把小说改编成可玩游戏。它从带原文引用的原著圣经出发——世界规则、玩家动词、空间、角色意志——比较概念方案并设硬性否决，设计核心循环与美术方向，先做风险匹配的白盒再做正式版本，最后用六项机器可验证的 QA 契约收尾。三个托管 demo 已可试玩。"
+      "en": "Novel to Game is a seven-skill workflow for Claude Code, Codex and Kimi Code. It builds a cited source bible, compares adaptation concepts, designs the game and art direction, and builds a candidate for an explicitly chosen target runtime. Its QA contract records evidence for launch, rendering, input, the core loop, an outcome and restart; it does not certify fun, balance or readiness for commercial release.",
+      "zh": "Novel to Game 是面向 Claude Code、Codex 和 Kimi Code 的 7-skill 工作流。它建立带引用的原著圣经、比较改编概念、设计玩法与美术，并针对明确选定的目标运行环境构建候选版本。QA 契约记录启动、渲染、输入、核心循环、设计结果和重开的证据，不认证趣味性、平衡性或商业发布准备程度。"
     },
     "audience": {
       "en": ["Authors and IP holders who want an interactive edition of a story", "Game prototypers", "Narrative designers"],
@@ -130,32 +160,51 @@
     },
     "method": {
       "en": [
-        ["Analyse", "SOURCE_BIBLE.md with cited textual evidence — no genre invented yet."],
-        ["Concept", "Compare alternatives with explicit trade-offs and hard vetoes → CONCEPT.md."],
-        ["Design", "Player promise, core loop, systems, pacing, failure and outcomes → GAME_DESIGN.md; camera, composition, colour, HUD → ART_DIRECTION.md."],
-        ["Build", "Risk-matched whitebox first, then the production candidate."],
-        ["QA", "Evidence-based verification written to qa/verification.json."]
+        ["Analyse", "Record source evidence in SOURCE_BIBLE.md and lock product scope and target runtime in PRODUCT_BRIEF.md."],
+        ["Concept", "Compare adaptation alternatives and explicit vetoes in CONCEPT.md."],
+        ["Design", "Describe the core loop, systems and outcomes in GAME_DESIGN.md, and the visual direction in ART_DIRECTION.md."],
+        ["Build", "Build a risk-matched whitebox before the candidate where required. Missing tools or an untested target runtime must be reported, not counted as a completed game."],
+        ["QA", "Record launch, render, input, coreLoop, outcome and restart in qa/verification.json from one complete tested run."]
       ],
       "zh": [
-        ["分析", "带原文引用的 SOURCE_BIBLE.md——先不设定类型。"],
-        ["概念", "比较备选方案、写明取舍与硬性否决 → CONCEPT.md。"],
-        ["设计", "玩家承诺、核心循环、系统、节奏、失败与结局 → GAME_DESIGN.md；镜头、构图、色彩、HUD → ART_DIRECTION.md。"],
-        ["构建", "先做风险匹配的白盒，再做正式候选版本。"],
-        ["QA", "基于证据的验证写入 qa/verification.json。"]
+        ["分析", "在 SOURCE_BIBLE.md 中记录原文证据，在 PRODUCT_BRIEF.md 中锁定产品范围和目标运行环境。"],
+        ["概念", "在 CONCEPT.md 中比较改编方案并明确否决条件。"],
+        ["设计", "在 GAME_DESIGN.md 中描述核心循环、系统与结果，在 ART_DIRECTION.md 中确定视觉方向。"],
+        ["构建", "在契约要求时先做风险匹配的白盒再做候选版本。工具缺失或目标运行环境未测试必须如实报告，不能算作游戏已完成。"],
+        ["QA", "用一次完整测试运行，在 qa/verification.json 中记录 launch、render、input、coreLoop、outcome、restart。"]
       ]
     },
     "distinctive": {
       "en": [
-        "Source-grounded by contract: every design claim traces to cited text.",
-        "English-first skill descriptions with Chinese alongside, validated by the repo's own script.",
-        "Playable demos hosted at plateau.vibecoco.ai."
+        "Source evidence and adaptation decisions are explicit artifacts rather than an unsupported genre guess.",
+        "The target platform, engine and test runtime are recorded; passing in a substitute runtime does not establish target-platform compatibility.",
+        "The repository links to example games; their presence is not a guarantee that every adaptation will produce a playable release."
       ],
-      "zh": ["按契约锚定原著：每条设计主张都能追溯到引用原文。", "skill 描述英文优先、中文并列，由仓库脚本校验。", "可玩 demo 托管在 plateau.vibecoco.ai。"]
+      "zh": [
+        "原文证据与改编决策形成显式产物，而不是无依据地猜测游戏类型。",
+        "记录目标平台、引擎与测试运行环境；替代环境通过不等于目标平台兼容。",
+        "仓库链接了游戏示例；示例存在不保证每次改编都能产出可发布的游戏。"
+      ]
     },
     "install": "npx skills add zenstory-ai/novel-to-game -y -g",
     "entry": "/novel-to-game",
     "stars": 775,
     "skills": 7,
+    "sources": {
+      "checked_on": "2026-09-12",
+      "en": [
+        "[Seven skills and installation](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/README.md#L59-L76)",
+        "[Language, product scope and target-runtime contract](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/novel-to-game/SKILL.md#L16-L50)",
+        "[Build-tool limits and truthful completion reporting](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-build/SKILL.md#L15-L30)",
+        "[Six runtime checks and limits of QA](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-qa/SKILL.md#L14-L31)"
+      ],
+      "zh": [
+        "[七个 skills 与安装](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/README.md#L59-L76)",
+        "[语言、产品范围与目标运行环境契约](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/novel-to-game/SKILL.md#L16-L50)",
+        "[构建工具边界与真实完成报告](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-build/SKILL.md#L15-L30)",
+        "[六项运行检查与 QA 边界](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-qa/SKILL.md#L14-L31)"
+      ]
+    },
     "vocabulary": ["source bible", "whitebox", "QA contract"]
   },
   {
@@ -166,12 +215,12 @@
     "format": { "en": "Video workflow", "zh": "视频工作流" },
     "name": { "en": "Video Recap Skills", "zh": "Video Recap Skills（视频解说）" },
     "tagline": {
-      "en": "Clip any video into a narrated Chinese recap — scene detection, script, voice-over, cut, subtitles — with a CapCut draft export.",
-      "zh": "把任意视频剪成中文解说视频——场景检测、写稿、配音、剪辑、字幕——并导出剪映草稿。"
+      "en": "Turn supported video files into Chinese-narration recaps with scene understanding, scripting, voiceover, editing and subtitle assembly.",
+      "zh": "把支持的视频文件做成中文解说视频，覆盖场景理解、写稿、配音、剪辑和字幕合成。"
     },
     "definition": {
-      "en": "Video Recap Skills is six independent skills plus an orchestrator for Claude Code that turn a source video into a narrated recap. It understands the footage (scene detection, ASR, a vision-language model), writes a director/edit/narration script, generates the voice-over, cuts and assembles with subtitles, and can export a CapCut (剪映) draft for hand-finishing. It runs on ffmpeg and one Xiaomi MiMo API key — no GPU, no model download.",
-      "zh": "Video Recap Skills 是 6 个独立 skill 加一个编排器（Claude Code），把源视频做成解说视频：理解画面（场景检测、ASR、视觉语言模型）、写导演/剪辑/解说稿、生成配音、剪辑与字幕合成，并可导出剪映草稿手工精修。依赖 ffmpeg 和一个小米 MiMo API key——不需要 GPU，也不用下载模型。"
+      "en": "Video Recap Skills is five independent skills plus a thin orchestrator for Claude Code: six skills in total. It uses ffmpeg with remote MiMo services for ASR, visual understanding and default TTS; Fish Audio is an optional TTS provider. The workflow can produce a narrated recap and optionally export an editable CapCut/JianYing draft. Final delivery still requires full playback review, not only automated QC.",
+      "zh": "Video Recap Skills 面向 Claude Code，由 5 个独立 skill 加一个轻量编排器组成，总计 6 个 skills。它使用 ffmpeg，并通过远程 MiMo 服务完成 ASR、视觉理解和默认 TTS；Fish Audio 是可选的 TTS 服务。工作流可以制作解说视频，也可以导出可编辑的剪映草稿。最终交付仍需完整播放复核，不能只依赖自动 QC。"
     },
     "audience": {
       "en": ["Recap and commentary channel creators", "Editors who finish in CapCut", "Teams turning long footage into short narrated cuts"],
@@ -194,20 +243,43 @@
       ]
     },
     "distinctive": {
-      "en": ["Local pipeline: ffmpeg + one API key, no GPU.", "CapCut draft export instead of a locked final render.", "Worked example shipped in the repo."],
-      "zh": ["本地流水线：ffmpeg + 一个 API key，无需 GPU。", "导出剪映草稿而不是锁死的成片。", "仓库附完整示例。"]
+      "en": [
+        "ffmpeg handles local media processing, while configured remote providers receive the media or text required for ASR, visual understanding and speech generation; this is not an offline-only pipeline.",
+        "An optional CapCut/JianYing draft export supports manual finishing.",
+        "Automated checks locate candidate problems; real playback remains the final review boundary."
+      ],
+      "zh": [
+        "ffmpeg 处理本地媒体；已配置的远程服务接收 ASR、视觉理解和语音生成所需的媒体或文本，因此不是纯离线流程。",
+        "可选导出剪映草稿，供人工精修。",
+        "自动检查定位候选问题；最终复核以真实播放为准。"
+      ]
     },
     "install": "npx skills add zenstory-ai/video-recap-skills -y -g",
     "entry": "/video-recap",
     "stars": 505,
     "skills": 6,
+    "sources": {
+      "checked_on": "2026-09-12",
+      "en": [
+        "[Five stages plus the orchestrator](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L10-L19)",
+        "[MiMo and optional Fish Audio dependencies](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L47-L69)",
+        "[Understanding-stage prerequisites and API-key boundaries](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-understanding/SKILL.md#L20-L42)",
+        "[Playback review and advisory automated checks](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L149-L157)"
+      ],
+      "zh": [
+        "[五个阶段技能与编排器](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L10-L19)",
+        "[MiMo 与可选 Fish Audio 依赖](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L47-L69)",
+        "[视频理解阶段的依赖与 API key 边界](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-understanding/SKILL.md#L20-L42)",
+        "[真实播放复核与建议型自动检查](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L149-L157)"
+      ]
+    },
     "vocabulary": ["解说视频", "剪映草稿", "先剪后配"]
   },
   {
     "slug": "dsh",
     "repo": "oh-story-dsh",
     "github": "https://github.com/zenstory-ai/oh-story-dsh",
-    "readme_en": null,
+    "readme_en": "https://github.com/zenstory-ai/oh-story-dsh/blob/main/README_EN.md",
     "format": { "en": "DSH plugin", "zh": "DSH 插件" },
     "name": { "en": "Oh Story DSH", "zh": "Oh Story DSH" },
     "tagline": {
@@ -215,22 +287,53 @@
       "zh": "在 DeepSeek Harness 里用图形工作台跑完整的故事创作链路。"
     },
     "definition": {
-      "en": "Oh Story DSH is a community plugin for DeepSeek Harness (DSH, DeepSeek's agent CLI) that bundles pinned versions of Oh Story, Drama Skills, Novel to Game and Video Recap Skills and adds four GUI workbenches on top. It exists so that people already inside DSH get the terminal-and-skills products as a point-and-click product, without ZenStory hosting anything. Published on npm as `@oh-story/dsh`. Not affiliated with or endorsed by DeepSeek.",
-      "zh": "Oh Story DSH 是 DeepSeek Harness（DSH，DeepSeek 的 agent CLI）的社区插件，内置固定版本的 Oh Story、Drama Skills、Novel to Game、Video Recap Skills，并叠加四个图形工作台。它的意义是让已经在 DSH 里的用户以点选方式使用这些终端 + skills 产品，而不需要 ZenStory 托管任何服务。npm 包名 `@oh-story/dsh`。与 DeepSeek 无隶属或背书关系。"
+      "en": "Oh Story DSH is a community plugin for DeepSeek Harness that bundles pinned versions of Oh Story, Drama Skills, Novel to Game and Video Recap Skills, with novel, short-drama, game and video workbenches. It runs in a local DSH environment, whose model and media services need separate configuration; it is not an offline model bundle. The plugin package is `@oh-story/dsh`. It is not affiliated with, partnered with or endorsed by DeepSeek.",
+      "zh": "Oh Story DSH 是 DeepSeek Harness 的社区插件，打包固定版本的 Oh Story、Drama Skills、Novel to Game 与 Video Recap Skills，并提供小说、短剧、游戏和视频工作台。它运行于本地 DSH 环境，模型和媒体服务需要另行配置，不是离线模型包。插件包名为 `@oh-story/dsh`。本项目与 DeepSeek 无隶属、合作或背书关系。"
     },
     "audience": {
       "en": ["DeepSeek Harness users", "Creators who prefer a GUI over slash commands"],
       "zh": ["DeepSeek Harness 用户", "偏好图形界面而非斜杠命令的创作者"]
     },
-    "method": { "en": [["Install", "`dsh plugin add @oh-story/dsh`, then open the workbench."]], "zh": [["安装", "`dsh plugin add @oh-story/dsh`，然后打开工作台。"]] },
+    "method": { "en": [
+        ["Install", "Follow the versioned installation guide: Node.js 24+, pnpm-assisted plugin installation in a DSH Web profile, then start DSH Web. Installing the creation plugin alone does not add a Web UI to a fresh profile."],
+        ["Configure", "Configure a model for AI creation and only the media providers you use. Video processing additionally requires Python and ffmpeg/ffprobe."],
+        ["Open", "Choose a workspace and session. Creation tabs appear when project files exist; an empty workspace retains native DSH Chat."]
+      ], "zh": [
+        ["安装", "按版本化安装指南准备 Node.js 24+，用附带 pnpm 的命令将插件安装到 DSH Web profile，再启动 DSH Web。只安装创作插件不会给全新的 profile 添加网页界面。"],
+        ["配置", "为 AI 创作配置模型，并仅配置需要的媒体服务；视频处理还需要 Python 与 ffmpeg/ffprobe。"],
+        ["打开", "选择工作目录与会话。存在创作项目文件后显示对应工作台；空目录保留原生 DSH Chat。"]
+      ] },
     "distinctive": {
-      "en": ["Vendors pinned upstream skill packs, so a DSH user gets a tested combination.", "Four GUI workbenches: novel, drama, game, recap."],
-      "zh": ["固定上游 skill 包版本，DSH 用户拿到的是测试过的组合。", "四个图形工作台：小说、短剧、游戏、解说。"]
+      "en": [
+        "Pinned upstream skill versions make the bundled source combination identifiable; this is not a guarantee for every host or provider configuration.",
+        "Four task-specific workbenches share the DSH workspace and session model.",
+        "No ZenStory-hosted workbench account is required for the local plugin, but generation can use external model and media services."
+      ],
+      "zh": [
+        "固定上游 skill 版本使打包的源码组合可追溯，不保证所有宿主或供应商配置都可运行。",
+        "四个任务工作台共用 DSH 的工作目录与会话模型。",
+        "本地插件无需 ZenStory 托管工作台账户，但生成可能使用外部模型和媒体服务。"
+      ]
     },
-    "install": "dsh plugin add @oh-story/dsh",
+    "install": null,
     "entry": null,
     "stars": 334,
     "skills": null,
+    "sources": {
+      "checked_on": "2026-09-12",
+      "en": [
+        "[Community plugin and non-affiliation statement](https://github.com/zenstory-ai/oh-story-dsh/blob/54521da113f94cee6ea26d765a7ede6af5776251/README_EN.md#L15-L17)",
+        "[Pinned capabilities, prerequisites, installation and model setup](https://github.com/zenstory-ai/oh-story-dsh/blob/54521da113f94cee6ea26d765a7ede6af5776251/README_EN.md#L63-L96)",
+        "[Media services and project-driven workbench visibility](https://github.com/zenstory-ai/oh-story-dsh/blob/54521da113f94cee6ea26d765a7ede6af5776251/README_EN.md#L98-L123)",
+        "[Profile and missing-Web-UI troubleshooting](https://github.com/zenstory-ai/oh-story-dsh/blob/54521da113f94cee6ea26d765a7ede6af5776251/README_EN.md#L125-L143)"
+      ],
+      "zh": [
+        "[社区插件与非官方隶属声明](https://github.com/zenstory-ai/oh-story-dsh/blob/54521da113f94cee6ea26d765a7ede6af5776251/README_EN.md#L15-L17)",
+        "[固定版本能力、依赖、安装与模型配置](https://github.com/zenstory-ai/oh-story-dsh/blob/54521da113f94cee6ea26d765a7ede6af5776251/README_EN.md#L63-L96)",
+        "[媒体服务与按项目显示的工作台](https://github.com/zenstory-ai/oh-story-dsh/blob/54521da113f94cee6ea26d765a7ede6af5776251/README_EN.md#L98-L123)",
+        "[Profile 与缺少网页界面的排查](https://github.com/zenstory-ai/oh-story-dsh/blob/54521da113f94cee6ea26d765a7ede6af5776251/README_EN.md#L125-L143)"
+      ]
+    },
     "vocabulary": ["DeepSeek Harness", "DSH plugin"]
   },
   {
@@ -257,13 +360,36 @@
       "zh": [["先立结构", "项目文件、素材采集、人设。"], ["写作", "在与 agent 的对话中起草章节。"], ["修订", "建议、对设定的 AI 记忆、版本回滚。"]]
     },
     "distinctive": {
-      "en": ["Files are the unit; every change is versioned and diffable.", "Private by default — content is not used for training unless you opt in.", "The only hosted product in the family; the others run in your own agent."],
-      "zh": ["以文件为单位，每次改动可版本化、可比对。", "默认私密——除非主动选择，内容不用于训练。", "家族中唯一托管的产品，其余都在你自己的 agent 里运行。"]
+      "en": [
+        "Files are the core unit; version snapshots, comparison and rollback support revision without promising unlimited retention of every edit.",
+        "The published privacy policy says content is not used for general model training by default and describes third-party AI processing; this is a policy statement, not an independent infrastructure audit.",
+        "The hosted browser workbench is distinct from the agent skill packs; self-hosting still requires configuring the backend and model services."
+      ],
+      "zh": [
+        "以文件为核心，版本快照、比较与回滚支持修订，但不承诺无限保留每次编辑。",
+        "已发布隐私政策声明内容默认不用于通用模型训练，并说明第三方 AI 处理；这是政策声明，不是独立基础设施审计。",
+        "托管网页工作台不同于 Agent skill 包；自托管仍需配置后端与模型服务。"
+      ]
     },
     "install": null,
     "entry": "https://app.zenstory.ai",
     "stars": 40,
     "skills": 13,
+    "sources": {
+      "checked_on": "2026-09-12",
+      "en": [
+        "[Agent API, file editing and version features](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/README_EN.md#L163-L197)",
+        "[Self-hosting prerequisites and model configuration](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/README_EN.md#L229-L267)",
+        "[Published policy on providers and general model training](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/apps/web/public/locales/en/privacy.json#L64-L75)",
+        "[Default subscription limits include file versions](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/apps/server/services/subscription/defaults.py#L6-L25)"
+      ],
+      "zh": [
+        "[Agent API、文件编辑与版本功能](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/README_EN.md#L163-L197)",
+        "[自托管依赖与模型配置](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/README_EN.md#L229-L267)",
+        "[已发布政策中的供应商与通用模型训练说明](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/apps/web/public/locales/en/privacy.json#L64-L75)",
+        "[默认订阅限制包含文件版本数](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/apps/server/services/subscription/defaults.py#L6-L25)"
+      ]
+    },
     "vocabulary": []
   }
 ]

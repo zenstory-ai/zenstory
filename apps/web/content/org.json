@@ -18,12 +18,12 @@
     "en": [
       ["Create", "ZenStory is the conversation-first workbench; Oh Story is the reusable fiction-writing workflow for coding agents."],
       ["Adapt", "Drama Skills, Novel to Game and Video Recap Skills carry a source story into short drama, interactive and video formats."],
-      ["Orchestrate", "Oh Story DSH runs the novel and drama capabilities inside a DeepSeek Harness plugin."]
+      ["Orchestrate", "Oh Story DSH brings novel, short-drama, game and video workflows into local DeepSeek Harness workbenches."]
     ],
     "zh": [
       ["创作", "ZenStory 提供对话优先的工作台；Oh Story 为编程 Agent 提供可复用的网文写作流程。"],
       ["改编", "Drama Skills、Novel to Game、Video Recap Skills 把故事源带入短剧、互动与视频形态。"],
-      ["编排", "Oh Story DSH 在 DeepSeek Harness 插件里串起小说与短剧能力。"]
+      ["编排", "Oh Story DSH 将小说、短剧、游戏与视频流程带入本地 DeepSeek Harness 工作台。"]
     ]
   },
   "proof": {
