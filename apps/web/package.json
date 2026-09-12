@@ -38,7 +38,8 @@
     "test:ci-local:all": "act",
     "test:site": "node --test scripts/__tests__/*.test.mjs",
     "build:vercel": "npm run build && node scripts/build-site-layout.mjs",
-    "test:geo": "playwright test --config=playwright.geo.config.ts"
+    "test:geo": "playwright test --config=playwright.geo.config.ts",
+    "test:site:coverage": "mkdir -p coverage && node --test --experimental-test-coverage --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=coverage/site-lcov.info scripts/__tests__/*.test.mjs"
   },
   "overrides": {
     "@babel/core@<8": "7.29.6",

@@ -320,10 +320,28 @@ jobs:
         cd apps/web
         pnpm test:coverage
 
+    - name: Collect native generator coverage (Node 20.11+)
+      working-directory: apps/web
+      run: |
+        node --version
+        pnpm test:site:coverage
+        python3 - <<'PYTHON'
+        from pathlib import Path
+        report = Path('coverage/site-lcov.info').read_text()
+        for name in ('build-docs-pages.mjs', 'build-org-pages.mjs', 'build-site-layout.mjs'):
+            records = [r for r in report.split('end_of_record') if f'SF:scripts/{name}\n' in r]
+            assert len(records) == 1, f'Missing or duplicate generator coverage: {name}'
+            assert any(line.startswith('DA:') and int(line.split(',')[1]) > 0
+                       for line in records[0].splitlines()), f'No measured generator coverage: {name}'
+        print('All three generators have measured coverage, including spawned processes.')
+        PYTHON
+
     - name: Upload frontend coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
-        file: ./apps/web/coverage/lcov.info
+        working-directory: ./apps/web
+        files: ./coverage/lcov.info,./coverage/site-lcov.info
+        disable_search: true
         flags: frontend
         name: frontend-coverage
         fail_ci_if_error: false

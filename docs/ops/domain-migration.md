@@ -34,3 +34,7 @@ Both modes exercise read-only pages, anonymous guards and a harmless `access_den
 - Previous CORS: apex, www and manga origins. App origin was added (staging deployment `3b67233d-747e-4199-b7d7-ff8e5e1400b5`) without removing them.
 
 On regression: restore FRONTEND_URL to recorded prior value first, then roll back Vercel to verified previous production deployment. Keep additive app CORS during rollback so staged app doesn't break; no DB/schema/provider-credential changes belong in this migration. Verify rollback with actual health, callback and host responses. Keep legacy permanent redirects for long-lived old links after successful cutover.
+
+
+## Generator coverage
+`npm run test:site:coverage` requires Node20.11+ (native LCOV reporter). It retains the spawned-generator integration tests and emits `coverage/site-lcov.info`; no third-party coverage package is added. CI runs it after Vitest coverage, asserts that all three generator source files have measured hits (so subprocess collection cannot silently disappear), and uploads both LCOV files together under the existing frontend flag. A green unit suite alone must not be reported as a green Codecov patch check; inspect the actual PR check before merge.
