@@ -2,15 +2,15 @@
   {
     "slug": "saobang",
     "term": "扫榜",
-    "bridge": "chart scanning (bestseller-board scanning)",
+    "bridge": "chart scanning (finding patterns across ranking samples)",
     "owner": "oh-story",
     "definition": {
-      "en": "扫榜 (sǎo bǎng, 'sweeping the charts') is the first step in the commercial web-fiction method: read the live bestseller and recommendation boards of the major platforms and look for what repeats across many books — genre, protagonist type, opening angle — rather than what any single top-ranked title does. The working rule in Oh Story is that a single ranking only gives a lead; a pattern repeated across samples is a signal. It sits upstream of 拆文 (deconstruction), which is why competitors that only offer '拆书' start one step late.",
-      "zh": "扫榜是商业网文方法论的第一步：读各平台的实时榜单与推荐位，找的是跨很多本书重复出现的东西——题材、主角人设、开局切入点——而不是某一本榜首在做什么。Oh Story 的工作原则是「单本排名只提供线索，跨样本重复模式才算信号」。它在拆文之前，所以只提供「拆书」的工具其实晚了一步。"
+      "en": "扫榜 (sǎo bǎng, 'chart scanning') means reading ranking and recommendation samples for repeated patterns such as genre, protagonist setup and opening angle. Oh Story's scan workflow treats a single title's rank as a lead, not a validated market trend, and distinguishes observations supported across samples from ideas needing further checks.",
+      "zh": "扫榜是阅读榜单与推荐样本，寻找题材、主角人设、开局切入点等重复模式。Oh Story 的扫榜流程把单本排名当作线索，而不是已验证的市场趋势，并区分跨样本支持的观察与仍需验证的想法。"
     },
     "in_practice": {
-      "en": "`/story-long-scan` scrapes the boards of 起点, 番茄, 晋江, 七猫 and 刺猬猫 (short-form: 知乎盐言, 七猫, 黑岩, 点众) and reads platform economics into the result — e.g. 番茄 optimises for traffic and completion rate, 起点 for subscriptions and follow-through, 晋江 for collections and points.",
-      "zh": "`/story-long-scan` 抓取起点、番茄、晋江、七猫、刺猬猫（短篇：知乎盐言、七猫、黑岩、点众）的榜单，并把平台经济学读进结果——例如番茄优化流量与完读率，起点优化订阅与追读，晋江优化收藏与积分。"
+      "en": "`/story-long-scan` prefers platform collectors when available, then user-supplied ranking data; built-in knowledge is a last-resort fallback that must be labeled. The report records evidence, risks and next validation steps. Missing or small samples cannot justify high-confidence feasibility claims. Sources (reviewed 2026-09-12): [Purpose and evidence hierarchy](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-scan/SKILL.md#L44-L170) · [Report and uncertainty rules](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-scan/SKILL.md#L235-L292).",
+      "zh": "`/story-long-scan` 优先使用可用的平台采集脚本，其次使用用户提供的榜单数据；内置知识是必须标明的最后降级来源。报告记录证据、风险与下一步验证动作；缺少数据或样本过少时，不能据此给出高可行性结论。 源码依据（核对于 2026-09-12）：[目标与数据优先级](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-scan/SKILL.md#L44-L170) · [报告与不确定性规则](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-scan/SKILL.md#L235-L292)。"
     },
     "related": [
       "chaiwen",
@@ -20,15 +20,15 @@
   {
     "slug": "chaiwen",
     "term": "拆文",
-    "bridge": "deconstruction (reverse-outlining a hit into reusable modules)",
+    "bridge": "deconstruction (analyzing a reference text into reusable story components)",
     "owner": "oh-story",
     "definition": {
-      "en": "拆文 (chāi wén, 'taking a text apart') is reverse-engineering a successful novel into reusable parts: outline rhythm, plot modules, emotional beats, character functions, style notes. Unlike casual '拆书' (book breakdown), 拆文 in Oh Story is a staged pipeline that produces a personal module library the author writes from. Long-form deconstruction analyses the first three chapters first and asks whether to continue; short-form runs the full pipeline in one pass.",
-      "zh": "拆文是把一部成功的小说逆向拆成可复用的部件：大纲节奏、剧情模块、情绪节拍、角色功能、文风。和随手的「拆书」不同，Oh Story 里的拆文是分阶段的流水线，产出作者自己的模块库供写作调用。长篇拆文先分析黄金三章再决定是否继续；短篇一次跑完整个流程。"
+      "en": "拆文 (chāi wén) is structured analysis of a reference work: outline rhythm, plot modules, emotional beats, character functions, style and setting. Oh Story organizes the findings as reusable reference material for later writing. They are analytical interpretations, not a guarantee that a new work will reproduce the source’s market performance.",
+      "zh": "拆文是对参考作品进行结构化分析，包括大纲节奏、剧情模块、情绪节拍、角色功能、文风与设定。Oh Story 把分析结果整理为供后续写作使用的参考资料。这些结果是分析性解释，不保证新作品能复现原作的市场表现。"
     },
     "in_practice": {
-      "en": "`/story-long-analyze` outputs 概要 / 拆文报告 / 文风 / 章节 / 角色 / 剧情 (storylines, pacing, emotion modules) / 设定; `/story-short-analyze` outputs 拆文报告 / 情节节点 / 写作手法.",
-      "zh": "`/story-long-analyze` 产出概要 / 拆文报告 / 文风 / 章节 / 角色 / 剧情（故事线、节奏、情绪模块）/ 设定；`/story-short-analyze` 产出拆文报告 / 情节节点 / 写作手法。"
+      "en": "`/story-long-analyze` begins with a three-chapter preview and pauses to ask whether to continue, unless the creator already requested a complete run. In that case it writes the preview and continues without another prompt. Its staged outputs include an overview, analysis report, style notes, chapters, characters, plot material and settings; the output templates define what each stage records. Sources (reviewed 2026-09-12): [Staged analysis](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-analyze/SKILL.md#L139-L149) · [Output templates](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-analyze/references/output-templates.md#L63-L109).",
+      "zh": "`/story-long-analyze` 先分析前三章并生成预览，再询问是否继续；若创作者已明确要求完整拆解，则仍产出预览，但不停下询问。阶段化产物包括概要、拆文报告、文风、章节、角色、剧情素材与设定；输出模板规定各阶段记录哪些内容。 源码依据（核对于 2026-09-12）：[阶段化拆文](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-analyze/SKILL.md#L139-L149) · [输出模板](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-analyze/references/output-templates.md#L63-L109)。"
     },
     "related": [
       "saobang",
@@ -39,15 +39,15 @@
   {
     "slug": "qu-ai-wei",
     "term": "去AI味",
-    "bridge": "de-AI editing / de-slop (removing the fingerprints of machine prose)",
+    "bridge": "de-AI editing / de-slop (bounded editing of formulaic prose patterns)",
     "owner": "oh-story",
     "definition": {
-      "en": "去AI味 (qù AI wèi, 'removing the AI flavour') is the editing pass that strips the recognisable fingerprints of model-written Chinese prose. As a term it is widely used for prompt tips; as an automated pipeline stage it means a deterministic checker that names each pattern — negation-then-reversal comparisons, em-dash pile-ups, voice-contrast clichés, trailer-style endings, metaphor density, surveillance-camera action lists — plus model-degeneration signs such as verbatim repetition, mid-sentence truncation and refusal leakage, and a rewrite step that clears what was flagged.",
-      "zh": "去AI味是把模型写出的中文里可辨认的指纹去掉的编辑环节。作为一个词它到处是提示词技巧；作为自动化流程阶段，它指一个逐条命名模式的确定性检查器——否定铺垫加肯定翻转、破折号堆叠、「声音不高却」式对比、预告片式收尾、比喻密度、监控摄像头式动作清单——再加上复读、截断、拒答泄漏等模型退化信号，以及针对标记结果的改写。"
+      "en": "去AI味 (qù AI wèi) refers to editing formulaic or repetitive prose patterns associated with model output. In Oh Story it combines pattern checks with limited revisions that preserve plot, characters and timeline. Deterministic checks can identify specified patterns; they cannot establish who authored a text or guarantee a detector score.",
+      "zh": "去AI味是对常与模型输出相关的套式表达、重复模式进行编辑。在 Oh Story 中，它把模式检查与有限改写结合起来，同时保留剧情、人设和时间线。确定性检查能识别指定模式，但不能证明文本作者身份，也不能保证任何检测分数。"
     },
     "in_practice": {
-      "en": "`/story-deslop` runs `check-ai-patterns.js` (~20 named patterns with blocking vs advisory severity) and `check-degeneration.js`; deliberate rhetorical repetition (排比 / 复沓) is exempted because popular web fiction uses it for rhythm.",
-      "zh": "`/story-deslop` 运行 `check-ai-patterns.js`（约 20 种命名模式，分阻断/建议级别）与 `check-degeneration.js`；排比、复沓等有意的修辞重复被豁免，因为通俗网文靠它们做节奏。"
+      "en": "`/story-deslop` runs `check-ai-patterns.js` and `check-degeneration.js`, makes bounded minimal edits and scans again. Blocking degeneration such as unrecoverable truncation is not repaired by polishing wording; the workflow directs it back to regeneration. Sources (reviewed 2026-09-12): [Editing boundaries](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-deslop/SKILL.md#L21-L49) · [Checks and degeneration](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-deslop/SKILL.md#L186-L197).",
+      "zh": "`/story-deslop` 运行 `check-ai-patterns.js` 与 `check-degeneration.js`，按边界做最小修改后复扫。不可恢复截断等阻断级退化不能靠润色修复，流程要求回到重新生成。 源码依据（核对于 2026-09-12）：[编辑边界](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-deslop/SKILL.md#L21-L49) · [检查与退化信号](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-deslop/SKILL.md#L186-L197)。"
     },
     "related": [
       "chaiwen"
@@ -56,30 +56,30 @@
   {
     "slug": "manju",
     "term": "漫剧",
-    "bridge": "motion comic / animated drama (as distinct from live-action short drama)",
+    "bridge": "motion comic / animated drama (rather than live-action short drama)",
     "owner": "drama-skills",
     "definition": {
-      "en": "漫剧 (màn jù) is a short serialised drama produced as animated or comic-style imagery rather than live action — the AI-generated form that now sits beside 短剧 (live-action micro-drama) on Chinese platforms. It is made episode by episode from scripts, character and scene bibles, storyboards and image/video generation prompts, which is why a production-form decision (2D motion comic, stylised 3D, 国漫, ink wash, chibi, or live action) has to be made before assets are generated.",
-      "zh": "漫剧是以动画或漫画风格画面而非实拍制作的短篇连续剧——如今在各平台与实拍短剧并列的 AI 生成形态。它按集从剧本、角色与场景设定、分镜、图片/视频生成提示词做出来，所以在生成资产之前必须先定制作形态（二维动态漫、风格化三维、国漫、水墨、Q 版或实拍）。"
+      "en": "漫剧 (màn jù) is a short serialized drama told through animated or comic-style imagery rather than live-action footage. In Drama Skills, an accepted production profile is recorded for the relevant later stages. Creators can enter through an existing screenplay, visual design, storyboard or prompt task without fabricating missing upstream work.",
+      "zh": "漫剧是用动画或漫画风格画面、而非实拍影像讲述的短篇连续剧。在 Drama Skills 中，已接受的制作形态档案会被记录下来，供相关下游阶段读取。创作者可以从已有剧本、视觉设定、分镜或提示词任务直接进入，不必为了补齐流水线虚构上游文档。"
     },
     "in_practice": {
-      "en": "In Drama Skills every episode is exactly five Markdown files — screenplay, visual bible, storyboard, image prompts, video prompts — and continuity across shots is held by frozen keyframes and continuity locks.",
-      "zh": "在 Drama Skills 里每集恰好五份 Markdown——剧本、视觉设定、分镜、图片提示词、视频提示词——跨镜头一致性靠冻结关键帧与连续性锁维持。"
+      "en": "Drama Skills maintains up to five kinds of creator-readable Markdown documents per episode as needed, rather than requiring exactly five files for every episode. Frozen-keyframe prompts and continuity-lock phrases specify and mechanically check selected constraints; they do not guarantee cross-shot media consistency. Sources (reviewed 2026-09-12): [Creator-first workflow](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama/references/creator-workflow.md#L3-L34) · [Continuity-lock obligations](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama-assets/references/continuity-lock.md#L22-L49).",
+      "zh": "Drama Skills 按需维护每集最多五类、创作者可直接阅读的 Markdown 文档，而不是要求每集恰好五份文件。冻结关键帧提示词与连续性锁用于写明并机械检查部分约束，不保证生成媒体跨镜头一致。 源码依据（核对于 2026-09-12）：[按需创作流程](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama/references/creator-workflow.md#L3-L34) · [连续性锁义务](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama-assets/references/continuity-lock.md#L22-L49)。"
     },
     "related": []
   },
   {
     "slug": "huangjinsanzhang",
     "term": "黄金三章",
-    "bridge": "the golden three chapters (the make-or-break opening)",
+    "bridge": "golden three chapters (an early-opening analysis checkpoint)",
     "owner": "oh-story",
     "definition": {
-      "en": "黄金三章 ('golden three chapters') is the web-fiction convention that a serial is won or lost in its first three chapters, because platform recommendation and reader retention are decided there. Oh Story treats them as a unit: long-form deconstruction analyses them first and writes a standalone preview before committing to a full breakdown, and drafting front-loads hooks into them.",
-      "zh": "黄金三章是网文行业的共识：一本书成败在前三章，因为平台推荐与读者留存在那里决定。Oh Story 把它当一个单元处理：长篇拆文先拆前三章并写出独立预览，再决定是否全拆；写作时也把钩子前置到这里。"
+      "en": "黄金三章 ('golden three chapters') treats the opening three chapters as an early unit for examining a serial's premise, conflict, hooks and emotional payoffs. Oh Story uses that unit as a preview checkpoint before optional full deconstruction. It is a writing convention and workflow boundary, not proof that recommendations, retention or commercial success are decided in exactly three chapters.",
+      "zh": "黄金三章把开篇三章作为观察连载作品设定、冲突、钩子与爽点的早期单元。Oh Story 把它用作完整拆文之前的预览检查点。这是写作惯例与流程边界，不证明平台推荐、读者留存或商业成败恰好由三章决定。"
     },
     "in_practice": {
-      "en": "Stage 1 of `/story-long-analyze`.",
-      "zh": "`/story-long-analyze` 的第一阶段。"
+      "en": "Stage 1 of `/story-long-analyze` produces the opening preview and asks whether to continue, unless the creator already requested a complete run. In that case it writes the preview and continues without stopping. The templates record chapter-level hooks, conflict, pacing and payoff analysis rather than presenting a market-outcome forecast. Sources (reviewed 2026-09-12): [Preview checkpoint](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-analyze/SKILL.md#L139-L149) · [Three-chapter analysis](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-analyze/references/output-templates.md#L77-L142).",
+      "zh": "`/story-long-analyze` 第一阶段产出开篇预览，再询问是否继续；若创作者已明确要求完整拆解，则仍产出预览，但不停下询问。模板记录逐章钩子、冲突、节奏与爽点分析，而不是预测市场结果。 源码依据（核对于 2026-09-12）：[预览检查点](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-analyze/SKILL.md#L139-L149) · [三章拆解字段](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-analyze/references/output-templates.md#L77-L142)。"
     },
     "related": [
       "chaiwen"
@@ -88,15 +88,15 @@
   {
     "slug": "shuangdian",
     "term": "爽点",
-    "bridge": "payoff beat (a moment of emotional satisfaction)",
+    "bridge": "payoff beat (a planned moment of emotional satisfaction)",
     "owner": "oh-story",
     "definition": {
-      "en": "爽点 (shuǎng diǎn) is a payoff beat: a moment engineered to convert a negative emotion the reader has been carrying into a positive one. Oh Story's definition is deliberately broad — not only 'showing off and face-slapping' but any of six satisfaction types (overwhelming ability, goal achieved, tallying gains, and so on) — and it is designed backwards: pick the payoff type, design the expectation it lifts, then design the setup. The pacing rule is more payoffs rather than longer build-ups.",
-      "zh": "爽点是情绪兑现点：把读者一直背着的负面情绪转成正面情绪的时刻。Oh Story 的定义有意放宽——不只是装逼打脸，而是六种满足类型（能力碾压、目标达成、收获盘点……）——并且反向设计：先定爽点类型，再设计它兑现的期待，最后设计铺垫。节奏原则是多想几个爽点，而不是拉长单个爽点的铺垫。"
+      "en": "爽点 (shuǎng diǎn) is a planned payoff beat: a moment intended to satisfy an expectation created by earlier conflict or setup. Oh Story records the intended payoff in chapter planning and examines payoff patterns when analyzing reference works. This is a craft construct, not a guarantee that readers will feel satisfied or remain with a serial.",
+      "zh": "爽点是规划中的情绪兑现点：用某个时刻回应前文冲突或铺垫建立的期待。Oh Story 在章节规划中记录预期爽点，也在拆文时分析参考作品的爽点模式。这是创作设计，不保证读者一定满意或持续追读。"
     },
     "in_practice": {
-      "en": "A required field in every chapter blueprint checked by `check-outline-contract.js`.",
-      "zh": "每份章节细纲的必填字段之一，由 `check-outline-contract.js` 校验。"
+      "en": "The long-form outline-contract checker requires a 爽点 field. Analysis templates separately describe the source chapter’s payoff and setup; structural validation checks that the planning field exists, not that the scene is emotionally effective. Sources (reviewed 2026-09-12): [Required outline fields](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-write/scripts/check-outline-contract.js#L20-L28) · [Payoff analysis](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-analyze/references/output-templates.md#L128-L150).",
+      "zh": "长篇细纲契约检查器要求包含「爽点」字段。拆文模板则分别描述参考章节的爽点与铺垫；结构校验确认规划字段存在，不确认场景是否真的产生情绪效果。 源码依据（核对于 2026-09-12）：[细纲必填字段](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-write/scripts/check-outline-contract.js#L20-L28) · [爽点分析字段](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-analyze/references/output-templates.md#L128-L150)。"
     },
     "related": [
       "chaiwen"
@@ -105,15 +105,15 @@
   {
     "slug": "gouzi",
     "term": "钩子",
-    "bridge": "hook (a chapter-opening or chapter-ending device that makes the reader continue)",
+    "bridge": "hook (an opening, ending or paragraph-level reason to keep reading)",
     "owner": "oh-story",
     "definition": {
-      "en": "钩子 (gōu zi, 'hook') is any device placed at a chapter boundary — or inside a paragraph — whose job is to make the reader keep reading: an unanswered question, a countdown, a reversal, a line of dialogue that cannot be left hanging. In serialized web fiction the chapter-end hook is what carries a reader across the pay-per-chapter gap, so it is treated as a craft element with named forms rather than a happy accident.",
-      "zh": "钩子是放在章节边界——或段落内部——用来让读者继续往下读的装置：没答的问题、倒计时、反转、一句不能不接的对白。在连载网文里，章尾钩子决定读者是否愿意跨过付费章节的门槛，所以它被当成有命名形式的工艺要素，而不是碰巧写出来的效果。"
+      "en": "钩子 (gōu zi, 'hook') is a device at a chapter boundary or inside a paragraph that invites the reader to continue: an unanswered question, a countdown, a reversal or unfinished dialogue. In serialized web fiction, a chapter-ending hook aims to sustain interest into the next installment, including across a paywalled boundary; it does not guarantee a purchase or continued reading.",
+      "zh": "钩子是放在章节边界或段落内部、邀请读者继续往下读的设计，例如未回答的问题、倒计时、反转或尚未接完的对白。在连载网文中，章尾钩子旨在把兴趣带入下一章，也可能面对付费章节的门槛；它不保证读者付费或继续阅读。"
     },
     "in_practice": {
-      "en": "Oh Story taxonomises hooks as 13 chapter-ending forms, 7 chapter-opening forms (suspense dialogue, flash-forward fragment, countdown opening, mysterious monologue, contrast scene, unfinished action, image foreshadowing) and paragraph-level hooks; 章首钩子 is a required field in every chapter blueprint.",
-      "zh": "Oh Story 把钩子分成章尾钩子 13 式、章首钩子 7 式（悬念对话开局、闪前碎片、倒计时开局、神秘独白、反差场景、未完成动作开局、意象预示）和段落级钩子；「章首钩子」是每份章节细纲的必填字段。"
+      "en": "Oh Story documents 13 chapter-ending forms, 7 chapter-opening forms and paragraph-level hooks. Its long-form chapter-blueprint checker requires a 章首钩子 (opening hook) field; a structural check verifies the field, not its literary effectiveness. Sources (reviewed 2026-09-12): [Hook forms](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/README.md#L376-L382) · [Blueprint fields](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-write/scripts/check-outline-contract.js#L21-L26).",
+      "zh": "Oh Story 的参考文档列出章尾钩子 13 式、章首钩子 7 式和段落级钩子。长篇章节蓝图的结构检查器要求包含「章首钩子」字段；结构检查验证字段是否存在，不验证文学效果。 源码依据（核对于 2026-09-12）：[钩子分类](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/README.md#L376-L382) · [蓝图字段](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/skills/story-long-write/scripts/check-outline-contract.js#L21-L26)。"
     },
     "related": [
       "shuangdian",
@@ -123,15 +123,15 @@
   {
     "slug": "taolu",
     "term": "套路",
-    "bridge": "trope, formula (the org's thesis: 套路 = deterministic emotional payoff)",
+    "bridge": "trope / formula (Oh Story's emotional-payoff framing)",
     "owner": "oh-story",
     "definition": {
-      "en": "套路 (tào lù) is usually translated 'formula' or 'trope' and usually said with a sneer. Oh Story's founding line reframes it: 套路 = 确定性的情绪满足 — a trope is a way of delivering an emotional payoff with certainty. Read that way, the professional method is not about avoiding tropes but about knowing which reader emotion each one reliably produces, and sequencing them: reverse-engineer hits, recombine plot modules, manage context and state, and keep a human in the loop.",
-      "zh": "套路通常被译成 formula 或 trope，语气多半带贬义。Oh Story 的核心思路把它重新定义：套路 = 确定性的情绪满足——套路是一种能确定兑现某种情绪的写法。这样理解，职业方法论就不是避开套路，而是知道每种套路稳定产出哪种读者情绪并把它们排好序：爆款逆向、剧情模块化重组、上下文状态分层管理、人机协同。"
+      "en": "套路 (tào lù) can be translated as 'trope' or 'formula'. Oh Story frames it with the motto 套路 = 确定性的情绪满足: the craft aim is to understand the emotional payoff a familiar pattern is designed to deliver. This is the project's writing framework, not a guarantee that every reader will respond in the same way.",
+      "zh": "套路可以译为 trope 或 formula。Oh Story 用「套路 = 确定性的情绪满足」表达其创作框架：理解一种熟悉的叙事模式试图兑现什么情绪。这里是项目的方法论表述，不是每位读者都会产生相同反应的保证。"
     },
     "in_practice": {
-      "en": "The four lines of the Oh Story method (爆款逆向 · 剧情模块化重组 · 上下文状态分层管理 · 人机协同) are all in service of this definition.",
-      "zh": "Oh Story 的四条线（爆款逆向 · 剧情模块化重组 · 上下文状态分层管理 · 人机协同）都服务于这个定义。"
+      "en": "The README connects this framing to four practices: reverse-engineering successful works, recombining plot modules, managing context and state in layers, and keeping a human in the loop. Sources (reviewed 2026-09-12): [Project method](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/README.md#L13-L23).",
+      "zh": "README 将这套框架连接到四项实践：爆款逆向、剧情模块化重组、上下文状态分层管理和人机协同。 源码依据（核对于 2026-09-12）：[项目核心思路](https://github.com/zenstory-ai/oh-story-claudecode/blob/aa3574fe6887fe1204168167b747d709607e77b6/README.md#L13-L23)。"
     },
     "related": [
       "shuangdian",
@@ -142,15 +142,15 @@
   {
     "slug": "fenji-ditu",
     "term": "分集地图",
-    "bridge": "episode map (the series-level plan of what each episode must deliver)",
+    "bridge": "episode map (a series-level handoff plan for later writing)",
     "owner": "drama-skills",
     "definition": {
-      "en": "分集地图 (fēn jí dì tú, 'episode map') is the series-level document that lays out, episode by episode, the pressure source, the result each segment must reach, what has to be shown clearly on screen, and the known failure modes for that kind of scene. It is the bridge between a concept or source novel and the per-episode screenplays, and the reason a 60-episode vertical drama can be written by different sessions without drifting.",
-      "zh": "分集地图是剧集层面的文档，逐集写明压力来源、每段必须达到的结果、画面上必须拍清楚的东西，以及这类场次常见的失败方式。它是点子（或原著）与分集剧本之间的桥梁，也是一部 60 集竖屏剧能由不同会话分头写而不跑偏的原因。"
+      "en": "分集地图 (fēn jí dì tú, 'episode map') records each episode's incoming state, objective and opposition, turn, local result, information release, outgoing pressure, precise handoff, continuity changes and open questions. In Drama Skills it gives later writing sessions an explicit handoff plan; it cannot by itself guarantee that a long series will not drift.",
+      "zh": "分集地图逐集记录进入状态、目标与阻力、方向性转折、当集结果、信息释放、出去压力、精确交接、连续性变化和未决项。在 Drama Skills 中，它给后续写作会话提供显式交接计划，但不能单独保证长系列绝不跑偏。"
     },
     "in_practice": {
-      "en": "Produced in the develop stage of Drama Skills alongside the genre playbook and the director's statement; the genre playbook is a comparison table across those axes, deliberately not a formula lookup.",
-      "zh": "由 Drama Skills 的开发阶段与题材手册、导演阐述一起产出；题材手册是按这些轴对比的表格，刻意不做成剧情公式查表。"
+      "en": "`short-drama-develop` creates or revises an episode map when the creator needs episode planning. Genre and hook references are loaded as needed; a director’s statement is an optional candidate, not a mandatory companion deliverable. Sources (reviewed 2026-09-12): [Episode-map fields](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama-develop/references/episode-design.md#L328-L340) · [Development scope](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama-develop/SKILL.md#L84-L106).",
+      "zh": "`short-drama-develop` 在创作者需要分集规划时创建或修订地图；题材与钩子参考按需加载，导演阐述是可选候选，并非必须配套产出的文档。 源码依据（核对于 2026-09-12）：[分集地图字段](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama-develop/references/episode-design.md#L328-L340) · [开发阶段边界](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama-develop/SKILL.md#L84-L106)。"
     },
     "related": [
       "manju",
@@ -160,15 +160,15 @@
   {
     "slug": "daoyan-chanshu",
     "term": "导演阐述",
-    "bridge": "director's statement (the production-form and visual-language decisions, fixed before assets are generated)",
+    "bridge": "director's statement (a candidate visual direction and production profile)",
     "owner": "drama-skills",
     "definition": {
-      "en": "导演阐述 (dǎo yǎn chǎn shù) is the director's statement: the document that commits a project to a production form (live action, 2D motion comic, stylised 3D, 国漫, ink wash, chibi), a visual grammar, a tone and a set of rules for what the audience may know and when. In an AI pipeline it is not a formality — every downstream prompt for images and video inherits from it, so it is written before any asset is generated.",
-      "zh": "导演阐述是导演对整部作品的声明：确定制作形态（实拍、二维动态漫、风格化三维、国漫、水墨、Q 版）、视觉语法、基调，以及观众可以知道什么、何时知道的规则。在 AI 流水线里它不是走形式——之后所有图片和视频提示词都从它继承，所以必须在生成任何资产之前写好。"
+      "en": "导演阐述 (dǎo yǎn chǎn shù, 'director’s statement') describes project-level visual direction and production constraints. In Drama Skills it starts as a candidate director-brief. It constrains later work only after the creator accepts it and promotes its visual_direction / production_profile into the project's authoritative creative decisions.",
+      "zh": "导演阐述描述项目级视觉方向与生产约束。在 Drama Skills 中，它先作为候选文档起草；只有经创作者接受，并把 visual_direction / production_profile 提升为项目生效的创作决策（creator authority）后，才约束下游工作。"
     },
     "in_practice": {
-      "en": "Drama Skills pairs it with six production-form cards and Look Development frames (风格帧) that lock the look before storyboarding.",
-      "zh": "Drama Skills 把它与六张制作形态卡和 Look Development 风格帧配套，在分镜之前先锁定画风。"
+      "en": "Look Development is an optional branch that can turn an accepted direction into observable text frame specifications before formal storyboarding. These specifications are not proof that rendered images already match the intended look. Sources (reviewed 2026-09-12): [Accepting a director brief](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama-develop/references/director-brief-craft.md#L10-L16) · [Look Development scope](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama/references/look-development.md#L3-L18).",
+      "zh": "Look Development 是可选分支，可在正式分镜前把已接受方向写成可观察的文本风格帧规格。这些规格不证明实际生成画面已经匹配预期风格。 源码依据（核对于 2026-09-12）：[导演阐述生效边界](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama-develop/references/director-brief-craft.md#L10-L16) · [Look Development 边界](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama/references/look-development.md#L3-L18)。"
     },
     "related": [
       "manju",
@@ -179,15 +179,15 @@
   {
     "slug": "dongjie-guanjianzhen",
     "term": "冻结关键帧",
-    "bridge": "frozen keyframe (an approved frame that later shots must stay consistent with)",
+    "bridge": "frozen keyframe prompt (a specification for the visible shot-start frame)",
     "owner": "drama-skills",
     "definition": {
-      "en": "冻结关键帧 (dòng jié guān jiàn zhēn, 'frozen keyframe') is a generated frame that has been approved and locked: subsequent shots of the same character, set or prop must match it, and a continuity lock (连续性锁, LOCK-) records which attributes are fixed. It is how an image-generation pipeline keeps a face, a costume or a room the same across dozens of independently generated shots — the single most common failure in AI short drama.",
-      "zh": "冻结关键帧是已经审核通过并锁定的生成画面：之后同一角色、场景或道具的镜头都必须与它一致，连续性锁（LOCK-）记录哪些属性被固定。这是图像生成流水线让一张脸、一套服装、一个房间在几十个各自生成的镜头里保持一致的手段——也是 AI 短剧最常见的翻车点。"
+      "en": "In Drama Skills, 冻结关键帧 (dòng jié guān jiàn zhēn, 'frozen keyframe') is a prompt or specification for the visible start of a shot, not proof that an image has already been generated or approved. It inherits screenplay and visual facts; an active continuity-lock phrase must be copied verbatim into the prompt.",
+      "zh": "在 Drama Skills 中，冻结关键帧是镜头可见起点的提示词或规格，不等于图片已经生成或审核通过。它继承剧本与视觉设定事实；生效的连续性锁锁面必须原样写进提示词。"
     },
     "in_practice": {
-      "en": "Part of the storyboard stage in Drama Skills; pickups and alternates (补拍与替代) are planned against the frozen frames rather than regenerated from scratch.",
-      "zh": "属于 Drama Skills 的分镜阶段；补拍与替代都对着冻结帧规划，而不是从头重生成。"
+      "en": "It belongs to storyboarding and describes only its declared boundary, the start by default. An actual image becomes a usable starting-frame reference only after it is generated or supplied and bound as a `REF-` asset. Specifying a lock does not guarantee consistent generated media. Sources (reviewed 2026-09-12): [Storyboard contract](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama-storyboard/SKILL.md#L50-L104) · [Production and reference binding](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama-produce/SKILL.md#L15-L23).",
+      "zh": "它属于分镜阶段，只描述声明的边界（默认是起点）。真实图片须在生成或提供并绑定为 `REF-` 资产后，才成为可用起始帧参考。写入锁面不保证生成媒体一定保持一致。 源码依据（核对于 2026-09-12）：[分镜契约](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama-storyboard/SKILL.md#L50-L104) · [生产与参考绑定](https://github.com/zenstory-ai/drama-skills/blob/4c40ca6101648579b2455d0c0d890ce701f05173/skills/short-drama-produce/SKILL.md#L15-L23)。"
     },
     "related": [
       "manju",

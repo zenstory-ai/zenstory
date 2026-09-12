@@ -24,6 +24,68 @@ const run = (script, outDir) => {
 const readOutput = (outDir, route) => readFileSync(join(outDir, route, 'index.html'), 'utf8')
 const matches = (html, pattern) => [...html.matchAll(pattern)]
 
+test('glossary terms have bilingual pages, valid relationships and traceable definitions', (t) => {
+  const outDir = mkdtempSync(join(tmpdir(), 'zenstory-glossary-'))
+  t.after(() => rmSync(outDir, { recursive: true, force: true }))
+  run('build-org-pages.mjs', outDir)
+
+  const slugs = new Set(glossary.map((term) => term.slug))
+  assert.equal(slugs.size, glossary.length, 'duplicate glossary slug')
+  for (const slug of ['gouzi', 'taolu', 'fenji-ditu', 'daoyan-chanshu', 'dongjie-guanjianzhen']) {
+    assert.ok(slugs.has(slug), `missing new term ${slug}`)
+  }
+
+  for (const term of glossary) {
+    const html = readOutput(outDir, `glossary/${term.slug}`)
+    const url = `https://zenstory.ai/glossary/${term.slug}`
+    const termHtml = matches(html, /<article class="term">([\s\S]*?)<\/article>/g)[0][1]
+    const owner = projects.find((project) => project.slug === term.owner)
+    assert.ok(owner, `unknown owner of ${term.slug}`)
+    assert.ok(termHtml.includes(`href="/${owner.slug}"`), `missing owner link for ${term.slug}`)
+    for (const related of term.related) {
+      assert.ok(slugs.has(related), `broken related term ${related}`)
+      assert.ok(termHtml.includes(`href="/glossary/${related}"`), `missing related link to ${related}`)
+    }
+    for (const section of [term.definition, term.in_practice]) {
+      for (const language of ['en', 'zh']) assert.ok(section[language].trim(), `${term.slug} lacks ${language}`)
+    }
+    assert.equal(matches(html, /<h1\b/g).length, 1)
+    assert.ok(html.includes(`<h1 lang="zh-CN">${term.term}</h1>`))
+    for (const language of ['en', 'zh']) {
+      const definitionHtml = term.definition[language]
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+      const languageAttribute = language === 'zh' ? ' lang="zh-CN"' : ''
+      assert.ok(termHtml.includes(`<p${languageAttribute}>${definitionHtml}</p>`), `missing ${language} definition`)
+    }
+    assert.equal(matches(html, /<link\b[^>]*rel="canonical"[^>]*>/gi).length, 1)
+    assert.ok(html.includes(`<link rel="canonical" href="${url}"`))
+    assert.equal(matches(html, /<meta\b[^>]*property="og:url"[^>]*>/gi).length, 1)
+    assert.ok(html.includes(`<meta property="og:url" content="${url}"`))
+    assert.doesNotMatch(html, /<script\b[^>]*type="module"/i)
+    const graph = JSON.parse(matches(html, /<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi)[0][1])['@graph']
+    const definition = graph.find((node) => node['@type'] === 'DefinedTerm')
+    assert.equal(definition.name, term.term)
+    assert.equal(definition.url, url)
+    assert.equal(definition.description, term.definition.en)
+
+    const sourceGroups = []
+    for (const language of ['en', 'zh']) {
+      const sources = matches(term.in_practice[language], /\]\((https:\/\/[^)]+)\)/g).map((match) => match[1])
+      assert.ok(sources.length > 0, `${term.slug} lacks ${language} source references`)
+      sourceGroups.push(sources.sort())
+      for (const source of sources) {
+        const parsed = new URL(source)
+        assert.equal(parsed.origin, 'https://github.com')
+        assert.match(parsed.pathname, /^\/zenstory-ai\/[^/]+\/blob\/[a-f0-9]{40}\/.+/)
+        assert.equal(parsed.pathname.split('/').slice(0, 3).join('/'), new URL(owner.github).pathname)
+        assert.match(parsed.hash, /^#L\d+(?:-L\d+)?$/)
+        assert.ok(termHtml.includes(`href="${source}"`), `source not rendered: ${source}`)
+      }
+    }
+    assert.deepEqual(sourceGroups[0], sourceGroups[1], `${term.slug} cites different EN/ZH sources`)
+  }
+})
+
 test('organization generator preserves existing routes and writes a complete apex homepage', (t) => {
   const outDir = mkdtempSync(join(tmpdir(), 'zenstory-org-pages-'))
   t.after(() => rmSync(outDir, { recursive: true, force: true }))
