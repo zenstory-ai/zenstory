@@ -2,7 +2,7 @@
 
 > Open-source AI tools and agent skills for story creation, adaptation, and production. Create stories. Adapt them. Ship them — from web fiction and short drama to games and video. Everything is MIT-licensed and maintained at https://github.com/zenstory-ai.
 
-ZenStory AI (GitHub org `zenstory-ai`) publishes six projects. Five are skill packs / plugins for coding agents such as Claude Code, Codex CLI, Google Antigravity, OpenCode, ZCode, OpenClaw, Kimi Code and DeepSeek Harness; one is a hosted writing workbench. Each project works on its own and they combine into a transparent pipeline: create → adapt → produce.
+ZenStory AI (GitHub org `zenstory-ai`) publishes six projects. Five are skill packs / plugins for coding agents such as Claude Code, Codex CLI, Google Antigravity, OpenCode, ZCode, OpenClaw, Kimi Code and DeepSeek Harness; one is a hosted writing workbench. Choose by the material and deliverable: plan or revise fiction, adapt a story into short drama or a game, or turn footage into narrated video. Projects have separate setup and workspace requirements; this is not an automatic cross-product pipeline.
 
 Canonical install path for the skill packs is the GitHub repository under `zenstory-ai/` (e.g. `npx skills add zenstory-ai/oh-story-claudecode`). Repositories were previously hosted under `worldwonderer/`; those paths permanently redirect here.
 
@@ -19,6 +19,8 @@ Overview page: https://zenstory.ai/projects — each project has a bilingual can
 
 ## Documentation
 
+- [Agent skills for writers: prompts, skill packs, plugins and MCP](https://zenstory.ai/oh-story/agent-skills-for-writers): a non-programmer guide to the different layers, when a prompt is enough, choosing a task from an idea or existing manuscript, and an original outline-first writing brief.
+- [Write a novel with DeepSeek: chat, DSH plugin or workbench](https://zenstory.ai/dsh/deepseek-novel-writing): choose the right environment, prepare the DSH workspace, start a novel and continue saved work; distinguishes the model, host and community plugin.
 - [Choose a writing workflow](https://zenstory.ai/compare/writing-workflows): first-party comparison of Oh Story skills, the pinned DSH plugin and hosted ZenStory; host/configuration/file/version boundaries and a reversible trial checklist, not a ranking or price/privacy guarantee.
 - [Novel-to-game quick start](https://zenstory.ai/novel-to-game/quick-start): authorized inputs, host-specific entry, product brief, expected files and six-check runtime verification.
 - [Export a JianYing / CapCut draft](https://zenstory.ai/video-recap/capcut-draft): export an existing timeline without rerunning remote stages, preserve media, and verify the target editor rather than assuming universal compatibility.

@@ -149,14 +149,14 @@
     ],
     "checklist": {
       "en": [
-        "Stay in the environment you already use unless a specific missing capability justifies moving. Read its matching installation/account instructions before copying a whole project.",
+        "Start with your material: an idea needs planning, an existing manuscript needs import/context, and a draft needs revision. The [writer’s skill guide](https://zenstory.ai/oh-story/agent-skills-for-writers) maps these tasks to an entry point and explains when a simple prompt is enough.",
         "Try a small, non-sensitive passage you own or are authorized to use. Set the intended edit, inspect the changed text and confirm what is saved or exported; keep a backup.",
-        "Record the product/source version, host, model configuration and any untested behavior. Compare the result you actually reviewed, not the number of tabs, agents or checks."
+        "If you specifically want DeepSeek, first distinguish ordinary chat from DeepSeek Harness. The [DeepSeek novel-writing guide](https://zenstory.ai/dsh/deepseek-novel-writing) explains the host/plugin setup and a workspace-based starting request. The hosted ZenStory option here is a separate product, not a claim about which model it uses."
       ],
       "zh": [
-        "除非确实缺少某项能力，先保留已有环境。复制整个项目前，阅读与该环境对应的安装或账户说明。",
+        "先看手头材料：只有点子需要规划，已有小说需要导入与上下文，已有正文需要修订。[作者 Skill 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)把这些任务对应到入口，也说明什么时候一条提示词就够用。",
         "先用一小段你拥有或获准使用的非敏感文本试验。明确修改目标，检查改动，确认实际保存或导出的内容，并保留备份。",
-        "记录产品或源码版本、宿主、模型配置及未测试行为。比较自己真正检查过的结果，而不是标签、agent 或检查项的数量。"
+        "如果你明确想用 DeepSeek，先分清普通聊天与 DeepSeek Harness。[DeepSeek 小说写作指南](https://zenstory.ai/dsh/deepseek-novel-writing)解释宿主、插件的准备方式，并给出基于工作区的开书请求。这里的托管 ZenStory 是独立产品，不代表它使用哪一种模型。"
       ]
     },
     "boundaries": {

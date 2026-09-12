@@ -25,13 +25,13 @@ const run = (script, outDir) => {
 const readOutput = (outDir, route) => readFileSync(join(outDir, route, 'index.html'), 'utf8')
 const matches = (html, pattern) => [...html.matchAll(pattern)]
 
-test('task guides provide bilingual instructions, owned sources and canonical sitemap entries', (t) => {
+test('task guides provide bilingual instructions, primary sources and canonical sitemap entries', (t) => {
   const guides = JSON.parse(readFileSync(join(webRoot, 'content/guides.json'), 'utf8'))
   const outDir = mkdtempSync(join(tmpdir(), 'zenstory-guides-'))
   t.after(() => rmSync(outDir, { recursive: true, force: true }))
   run('build-org-pages.mjs', outDir)
   const routes = guides.map((guide) => `/${guide.owner}/${guide.slug}`)
-  assert.deepEqual(routes, ['/novel-to-game/quick-start', '/video-recap/capcut-draft'])
+  assert.deepEqual(routes, ['/novel-to-game/quick-start', '/video-recap/capcut-draft', '/oh-story/agent-skills-for-writers', '/dsh/deepseek-novel-writing'])
   const directory = readFileSync(join(webRoot, 'public/llms.txt'), 'utf8')
   const escape = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
   const richText = (s) => escape(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2">$1</a>')
@@ -64,7 +64,15 @@ test('task guides provide bilingual instructions, owned sources and canonical si
     const sourceGroups = ['en', 'zh'].map((lang) => matches(guide.sources[lang].join(' '), /\]\((https:\/\/[^)]+)\)/g).map(m => m[1]).sort())
     assert.deepEqual(sourceGroups[0], sourceGroups[1])
     assert.ok(sourceGroups[0].length >= 4)
+    const officialSources = new Set([
+      'https://agentskills.io/home',
+      'https://code.claude.com/docs/en/skills',
+      'https://code.claude.com/docs/en/plugins',
+      'https://modelcontextprotocol.io/docs/getting-started/intro',
+    ])
+    assert.ok(sourceGroups[0].filter(source => source.startsWith('https://github.com/')).length >= 4)
     for (const source of sourceGroups[0]) {
+      if (guide.slug === 'agent-skills-for-writers' && officialSources.has(source)) continue
       const parsed = new URL(source)
       assert.equal(parsed.origin, 'https://github.com')
       assert.match(parsed.pathname, /^\/zenstory-ai\/[^/]+\/blob\/[a-f0-9]{40}\/.+/)
@@ -92,6 +100,7 @@ test('task guides provide bilingual instructions, owned sources and canonical si
     const projectArticle = matches(readOutput(outDir, owner.slug), /<article class="project">([\s\S]*?)<\/article>/g)[0][1]
     assert.ok(projectArticle.includes(`href="${route}"`))
     assert.ok(directory.includes(`](https://zenstory.ai${route})`))
+    assert.ok(readOutput(outDir, 'org-home').includes(`href="${route}"`))
   }
   assert.match(readOutput(outDir, 'novel-to-game/quick-start'), /PRODUCT_BRIEF\.md/)
   assert.match(readOutput(outDir, 'novel-to-game/quick-start'), /qa\/verification\.json/)
