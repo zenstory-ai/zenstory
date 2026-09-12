@@ -4,7 +4,8 @@
  *
  * Runs after `vite build`. Emits complete, crawler-readable HTML (title, meta,
  * Open Graph, JSON-LD, bilingual body) for:
- *   /projects            – the six-project overview
+ *   /org-home           – the apex organization homepage (internal output)
+ *   /projects           – the six-project overview
  *   /<project-slug>      – one page per project
  *   /glossary            – the terminology index
  *   /glossary/<term>     – one page per term
@@ -22,6 +23,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const webRoot = resolve(here, '..')
 const outDir = resolve(process.argv[2] ?? join(webRoot, 'dist'))
 const SITE = 'https://zenstory.ai'
+const APP = 'https://app.zenstory.ai'
 
 const org = JSON.parse(readFileSync(join(webRoot, 'content/org.json'), 'utf8'))
 const projects = JSON.parse(readFileSync(join(webRoot, 'content/projects.json'), 'utf8'))
@@ -62,6 +64,7 @@ const nav = `
     <a href="/glossary">Glossary</a>
     <a href="/docs">Docs</a>
     <a href="${org.github}">GitHub</a>
+    <a class="nav-app" href="${APP}">Open app</a>
   </nav>
 </header>`
 
@@ -121,16 +124,82 @@ ${footer}
 </html>
 `
 
-// ---------- project pages ----------
-
 const list = (items, lang) => `<ul>${items.map((i) => `<li${lang === 'zh' ? ' lang="zh-CN"' : ''}>${rich(i)}</li>`).join('')}</ul>`
 const steps = (items, lang) => `<ol class="steps">${items.map(([k, v]) => `<li${lang === 'zh' ? ' lang="zh-CN"' : ''}><b>${rich(k)}</b> ${rich(v)}</li>`).join('')}</ol>`
+
+// ---------- organization homepage ----------
+
+const taskChoices = [
+  ['Write web fiction', '写网文', 'oh-story'],
+  ['Produce a short drama or motion comic', '制作短剧或漫剧', 'drama-skills'],
+  ['Adapt a novel into a playable game', '把小说改编成可玩的游戏', 'novel-to-game'],
+  ['Turn footage into a narrated recap', '把视频做成解说成片', 'video-recap'],
+  ['Use the story stack in DeepSeek Harness', '在 DeepSeek Harness 中使用故事工具链', 'dsh'],
+  ['Write in a hosted browser workspace', '在浏览器工作台中写作', 'workbench'],
+]
+
+const homePage = () => {
+  const route = '/'
+  const title = 'ZenStory AI — Open-source tools for creating and adapting stories'
+  const description = org.canonical.en
+  const ld = [
+    orgNode,
+    {
+      '@type': 'WebSite', '@id': `${SITE}/#website`, name: org.name, url: SITE,
+      description, publisher: { '@id': `${SITE}/#org` }, inLanguage: ['en', 'zh-CN'],
+    },
+  ]
+  const body = `
+<article class="home">
+  <p class="eyebrow">${esc(org.tagline.en)} <span lang="zh-CN">· ${esc(org.tagline.zh)}</span></p>
+  <h1>ZenStory AI turns stories into many forms</h1>
+  <p class="lede">${esc(org.canonical.en)}</p>
+  <p class="lede" lang="zh-CN">${esc(org.canonical.zh)}</p>
+  <p class="actions home-actions">
+    <a class="btn" href="/projects">Explore the six projects</a>
+    <a class="btn ghost" href="${APP}">Open the web workbench</a>
+  </p>
+  <p class="migration-note">The hosted writing workbench now lives at <a href="${APP}">app.zenstory.ai</a>. You may need to sign in again; account data is not copied through this page.<span lang="zh-CN">托管写作工作台现位于 app.zenstory.ai。你可能需要重新登录；此页面不会传递账户数据。</span></p>
+
+  <section aria-labelledby="choose-h">
+    <h2 id="choose-h">Choose by task <span lang="zh-CN">· 按任务选择</span></h2>
+    <div class="task-grid">${taskChoices.map(([en, zh, slug]) => `
+      <a class="task" href="/${slug}"><strong>${esc(en)}</strong><span lang="zh-CN">${esc(zh)}</span></a>`).join('')}
+    </div>
+  </section>
+
+  <section aria-labelledby="projects-h">
+    <h2 id="projects-h">Six open-source projects <span lang="zh-CN">· 六个开源项目</span></h2>
+    <div class="project-grid">${projects.map((p) => `
+      <article class="project-card">
+        <p class="eyebrow">${esc(p.format.en)} <span lang="zh-CN">· ${esc(p.format.zh)}</span></p>
+        <h3><a href="/${p.slug}">${esc(p.name.en)}</a></h3>
+        <p>${esc(p.tagline.en)}</p>
+        <p lang="zh-CN">${esc(p.tagline.zh)}</p>
+        <p class="facts">${p.stars ? `${p.stars.toLocaleString('en-US')} GitHub stars as of ${esc(org.proof.as_of)} · ` : ''}${p.skills ? `${p.skills} skills · ` : ''}${esc(org.proof.license)} license</p>
+        ${p.install ? `<code class="install">${esc(p.install)}</code>` : ''}
+        <p class="card-actions"><a href="/${p.slug}">Project details</a><a href="${p.github}">Source on GitHub</a>${p.slug === 'workbench' ? `<a href="${APP}">Open app</a>` : ''}</p>
+      </article>`).join('')}
+    </div>
+  </section>
+
+  <section aria-labelledby="model-h">
+    <h2 id="model-h">How the pieces fit together <span lang="zh-CN">· 项目如何协作</span></h2>
+    ${steps(org.model.en)}
+    ${steps(org.model.zh, 'zh')}
+    <p class="facts">${org.proof.stars_total.toLocaleString('en-US')} GitHub stars across the organization as of ${esc(org.proof.as_of)}. All repositories listed here are ${esc(org.proof.license)}-licensed.</p>
+  </section>
+</article>`
+  write('/org-home', page({ route, title, description, ogType: 'website', ld, body }))
+}
+
+// ---------- project pages ----------
 
 const projectPage = (p) => {
   const route = `/${p.slug}`
   const title = `${p.name.en} — ${p.tagline.en.replace(/\.$/, '')} | ZenStory AI`
   const facts = [
-    p.stars ? `${p.stars.toLocaleString('en-US')} GitHub stars` : null,
+    p.stars ? `${p.stars.toLocaleString('en-US')} GitHub stars as of ${org.proof.as_of}` : null,
     p.skills ? `${p.skills} skills` : null,
     'MIT license',
     `Format: ${p.format.en}`,
@@ -217,7 +286,7 @@ const projectsIndex = () => {
       <h3>${esc(p.name.en)}</h3>
       <p>${esc(p.tagline.en)}</p>
       <p lang="zh-CN">${esc(p.tagline.zh)}</p>
-      <p class="facts">${p.stars ? `${p.stars.toLocaleString('en-US')} ★` : ''}${p.skills ? ` · ${p.skills} skills` : ''}</p>
+      <p class="facts">${p.stars ? `${p.stars.toLocaleString('en-US')} ★ as of ${esc(org.proof.as_of)}` : ''}${p.skills ? ` · ${p.skills} skills` : ''}</p>
     </a>`).join('')}
   </div>
 
@@ -295,10 +364,11 @@ ${roster()}`
 
 mkdirSync(join(outDir, 'org'), { recursive: true })
 copyFileSync(join(here, 'org-pages.css'), join(outDir, 'org/org.css'))
+homePage()
 projectsIndex()
 projects.forEach(projectPage)
 glossaryIndex()
 glossary.forEach(termPage)
 
-const routes = ['/projects', ...projects.map((p) => `/${p.slug}`), '/glossary', ...glossary.map((g) => `/glossary/${g.slug}`)]
+const routes = ['/org-home', '/projects', ...projects.map((p) => `/${p.slug}`), '/glossary', ...glossary.map((g) => `/glossary/${g.slug}`)]
 console.log(`org pages: wrote ${routes.length} routes to ${outDir}\n  ${routes.join('  ')}`)

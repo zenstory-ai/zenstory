@@ -15,16 +15,16 @@ Overview page: https://zenstory.ai/projects — each project also has a bilingua
 - [Novel to Game (novel-to-game)](https://github.com/zenstory-ai/novel-to-game): Agent skills that turn a source novel into a source-grounded, fully playable game. Claude Code, Codex and Kimi Code.
 - [Video Recap Skills (video-recap-skills)](https://github.com/zenstory-ai/video-recap-skills): Clip any video into a narrated Chinese recap video with a Claude Code skill; exports CapCut (剪映) drafts. No GPU or model download required.
 - [Oh Story DSH (oh-story-dsh)](https://github.com/zenstory-ai/oh-story-dsh): DeepSeek Harness plugin that runs the Oh Story and Drama Skills workflows inside DSH. Published on npm as `@oh-story/dsh`.
-- [ZenStory workbench (zenstory)](https://github.com/zenstory-ai/zenstory): Chat-to-create — an AI-agent-driven novel-writing workbench that unifies project files, materials, character setup, chapter drafting and version history. Hosted at https://zenstory.ai; self-hostable.
+- [ZenStory workbench (zenstory)](https://github.com/zenstory-ai/zenstory): Chat-to-create — an AI-agent-driven novel-writing workbench that unifies project files, materials, character setup, chapter drafting and version history. Hosted at https://app.zenstory.ai; self-hostable.
 
 ## Documentation
 
 - [Workbench docs](https://zenstory.ai/docs): getting started, user guide, advanced, reference, troubleshooting (English and Chinese).
-- [Organization overview](https://github.com/zenstory-ai): which project to start with, based on what you want to make.
+- [Organization overview](https://zenstory.ai/projects): which project to start with, based on what you want to make.
 - [Oh Story changelog](https://github.com/zenstory-ai/oh-story-claudecode/blob/main/CHANGELOG.md)
 
 ## Optional
 
-- [Pricing for the hosted workbench](https://zenstory.ai/pricing)
+- [Pricing for the hosted workbench](https://app.zenstory.ai/pricing)
 - [Privacy policy](https://zenstory.ai/privacy-policy)
 - [Terms of service](https://zenstory.ai/terms-of-service)

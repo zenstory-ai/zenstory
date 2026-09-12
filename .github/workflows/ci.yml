@@ -340,6 +340,11 @@ jobs:
     - name: Setup frontend
       uses: ./.github/actions/setup-frontend
 
+    - name: Test domain routing and generated public pages
+      run: |
+        cd apps/web
+        pnpm test:site
+
     - name: Build with typecheck
       run: |
         cd apps/web
@@ -378,7 +383,7 @@ jobs:
 
     - name: Build with the Vercel dependency graph
       working-directory: apps/web
-      run: npm run build:typecheck
+      run: npx tsc -b && npm run build:vercel
 
   ci-summary:
     runs-on: ubuntu-latest

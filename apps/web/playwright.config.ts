@@ -44,6 +44,7 @@ const ciMaxFailures = Number.parseInt(process.env.E2E_MAX_FAILURES ?? '5', 10)
  */
 export default defineConfig({
   testDir: './e2e',
+  testIgnore: ['**/geo-domain-smoke.spec.ts'], // Explicit release checks only (test:geo)
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   // Retry failed tests in CI for flakiness mitigation and detection

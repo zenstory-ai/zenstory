@@ -29,6 +29,7 @@ export default defineConfig({
     },
     setupFiles: ['./src/test/setup.ts'],
     exclude: [
+      'scripts/__tests__/*.test.mjs', // node:test contracts run separately via test:site
       '**/node_modules/**',
       '**/dist/**',
       '**/e2e/**',
