@@ -52,6 +52,7 @@ export const vercelConfig = {
     {source:'/:path(api(?:/.*)?)',headers:[{key:'Cache-Control',value:'private, no-store'},{key:'x-vercel-enable-rewrite-caching',value:'0'}]},
   ],
   rewrites:[
+    rewrite('/1e4acbc11fe3407a8a641d69a13af696.txt','/api/indexnow-key'),
     rewrite('/:path(api(?:/.*)?)',`${API}/:path`),
     rewrite('/', '/org-home/index.html', `${siteHosts}|.*\\.vercel\\.app`),
     rewrite('/', '/_app/home.html', appHosts),
