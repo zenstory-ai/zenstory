@@ -16,8 +16,7 @@ import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync } from 
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import assert from 'node:assert/strict'
-import { micromark } from 'micromark'
-import { gfm, gfmHtml } from 'micromark-extension-gfm'
+import { renderDocsMarkdown } from './render-docs-markdown.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const webRoot = resolve(here, '..')
@@ -37,7 +36,6 @@ assert.doesNotMatch(sourceShell.slice(0, sourceShell.indexOf('</head>')), /canon
 const shell = sourceShell
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-const render = (md) => micromark(md, { extensions: [gfm()], htmlExtensions: [gfmHtml()] })
 const firstHeading = (md) => (md.match(/^#\s+(.+)$/m)?.[1] ?? '').trim()
 const firstParagraph = (md) => {
   const body = md.replace(/^#\s+.+$/m, '').trim()
@@ -75,8 +73,8 @@ function writePage(route, zhMd, enMd) {
   const title = `${zhTitle}${enTitle && enTitle !== zhTitle ? ` · ${enTitle}` : ''} · zenstory 文档 | ZenStory AI`
   const description = firstParagraph(enMd || zhMd)
   const canonical = `${SITE}${route}`
-  const zhHtml = render(zhMd)
-  const enHtml = enMd ? render(enMd) : ''
+  const zhHtml = renderDocsMarkdown(zhMd, route)
+  const enHtml = enMd ? renderDocsMarkdown(enMd, route) : ''
   const ld = {
     '@context': 'https://schema.org',
     '@graph': [

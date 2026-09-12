@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -361,4 +361,34 @@ test('docs generator rejects inherited metadata rather than sanitizing arbitrary
     assert.notEqual(result.status, 0)
     assert.match(result.stderr, /metadata-free/i)
   }
+})
+
+
+test('every prerendered docs anchor uses a reachable clean docs route', (t) => {
+  const outDir = mkdtempSync(join(tmpdir(), 'zenstory-doc-links-'))
+  t.after(() => rmSync(outDir, { recursive: true, force: true }))
+  writeFileSync(join(outDir, 'index.html'), readFileSync(join(webRoot, 'index.html'), 'utf8'))
+  run('build-docs-pages.mjs', outDir)
+  const routes = []
+  const walk = (dir, route) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) walk(join(dir, entry.name), `${route}/${entry.name}`)
+      else if (entry.name === 'index.html') routes.push(route)
+    }
+  }
+  walk(join(outDir, 'docs'), '/docs')
+  assert.equal(routes.length, 25)
+  let internal = 0
+  for (const route of routes) {
+    const html = readOutput(outDir, route)
+    for (const [, href] of html.matchAll(/<a href="([^"]*)"/g)) {
+      if (!href || href.startsWith('#') || /^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(href)) continue
+      internal++
+      assert.match(href, /^\/docs(?:\/|$)/, `${route}: relative anchor ${href}`)
+      const target = new URL(href, `https://zenstory.ai${route}`)
+      assert.ok(routes.includes(target.pathname), `${route}: unbuilt docs target ${href}`)
+      assert.ok(existsSync(join(outDir, target.pathname, 'index.html')))
+    }
+  }
+  assert.ok(internal > 100, 'Corpus check must exercise actual bilingual navigation')
 })

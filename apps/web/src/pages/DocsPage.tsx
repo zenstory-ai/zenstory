@@ -9,8 +9,10 @@ import { DocsSidebar } from '../components/docs/DocsSidebar';
 import { docsNavigation, flattenDocs, type DocNavItem } from '../data/docsNavigation';
 import { logger } from "../lib/logger";
 
+import { normalizeDocsHref } from '../lib/docs-links.mjs';
+export { isExternalHref, getDocsDirectory, normalizeDocsHref } from '../lib/docs-links.mjs';
+
 const DOCS_ROOT = '../../docs';
-const DOCS_BASE_PATH = '/docs';
 
 // Markdown 文件映射 - 使用 Vite 的 import.meta.glob 动态导入
 const docsModules = import.meta.glob('../../docs/**/*.md', { query: '?raw', import: 'default', eager: false });
@@ -23,58 +25,6 @@ export function extractDocPath(urlPath: string): string {
   const match = urlPath.match(/^\/docs\/(.+)$/);
   const rawPath = match ? match[1] : '';
   return rawPath.replace(/\.md$/i, '');
-}
-
-export function isExternalHref(href: string): boolean {
-  return /^(https?:|mailto:|tel:)/i.test(href);
-}
-
-export function getDocsDirectory(pathname: string): string {
-  if (pathname === DOCS_BASE_PATH || pathname === `${DOCS_BASE_PATH}/`) {
-    return `${DOCS_BASE_PATH}/`;
-  }
-
-  const lastSlashIndex = pathname.lastIndexOf('/');
-  if (lastSlashIndex <= 0) {
-    return `${DOCS_BASE_PATH}/`;
-  }
-  return `${pathname.slice(0, lastSlashIndex + 1)}`;
-}
-
-export function normalizeDocsHref(href: string, currentPathname: string): string | null {
-  if (!href || href.startsWith('#') || isExternalHref(href)) {
-    return null;
-  }
-
-  const [pathAndQuery, hashFragment] = href.split('#');
-  const [rawPath, queryString] = pathAndQuery.split('?');
-  if (!rawPath) return null;
-
-  let resolvedPath: string;
-
-  if (rawPath.startsWith('/')) {
-    if (rawPath.startsWith('/docs') || rawPath === '/docs') {
-      resolvedPath = rawPath;
-    } else if (rawPath.endsWith('.md')) {
-      // 兼容历史绝对链接：/getting-started/quick-start.md
-      resolvedPath = `${DOCS_BASE_PATH}${rawPath}`;
-    } else {
-      return null;
-    }
-  } else {
-    const docsDir = getDocsDirectory(currentPathname);
-    resolvedPath = new URL(rawPath, `https://zenstory.local${docsDir}`).pathname;
-    if (!resolvedPath.startsWith('/docs')) {
-      resolvedPath = `${DOCS_BASE_PATH}${resolvedPath.startsWith('/') ? '' : '/'}${resolvedPath}`;
-    }
-  }
-
-  resolvedPath = resolvedPath.replace(/\.md$/i, '');
-
-  let finalHref = resolvedPath;
-  if (queryString) finalHref += `?${queryString}`;
-  if (hashFragment) finalHref += `#${hashFragment}`;
-  return finalHref;
 }
 
 /**
