@@ -89,7 +89,7 @@
       ]
     },
     {
-      "source": "/:path((?:projects|oh-story|drama-skills|novel-to-game|video-recap|dsh|workbench|glossary|docs|privacy-policy|terms-of-service)(?:/.*)?)/index.html",
+      "source": "/:path((?:projects|oh-story|drama-skills|novel-to-game|video-recap|dsh|workbench|compare|glossary|docs|privacy-policy|terms-of-service)(?:/.*)?)/index.html",
       "destination": "https://zenstory.ai/:path",
       "permanent": true
     },
@@ -116,7 +116,7 @@
       ]
     },
     {
-      "source": "/:path((?:projects|oh-story|drama-skills|novel-to-game|video-recap|dsh|workbench|glossary|docs|privacy-policy|terms-of-service|llms\\.txt)(?:/.*)?)",
+      "source": "/:path((?:projects|oh-story|drama-skills|novel-to-game|video-recap|dsh|workbench|compare|glossary|docs|privacy-policy|terms-of-service|llms\\.txt)(?:/.*)?)",
       "destination": "https://zenstory.ai/:path",
       "permanent": true,
       "has": [
@@ -127,7 +127,7 @@
       ]
     },
     {
-      "source": "/:path((?:projects|oh-story|drama-skills|novel-to-game|video-recap|dsh|workbench|glossary|docs|privacy-policy|terms-of-service|llms\\.txt)(?:/.*)?)",
+      "source": "/:path((?:projects|oh-story|drama-skills|novel-to-game|video-recap|dsh|workbench|compare|glossary|docs|privacy-policy|terms-of-service|llms\\.txt)(?:/.*)?)",
       "destination": "https://geo-preview.zenstory.ai/:path",
       "permanent": true,
       "has": [
