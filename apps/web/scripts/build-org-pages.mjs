@@ -18,6 +18,7 @@
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import assert from 'node:assert/strict'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const webRoot = resolve(here, '..')
@@ -28,6 +29,14 @@ const APP = 'https://app.zenstory.ai'
 const org = JSON.parse(readFileSync(join(webRoot, 'content/org.json'), 'utf8'))
 const projects = JSON.parse(readFileSync(join(webRoot, 'content/projects.json'), 'utf8'))
 const glossary = JSON.parse(readFileSync(join(webRoot, 'content/glossary.json'), 'utf8'))
+const guides = JSON.parse(readFileSync(join(webRoot, 'content/guides.json'), 'utf8'))
+const guideRoutes = new Set()
+for (const guide of guides) {
+  assert.ok(projects.filter((p) => p.slug === guide.owner).length === 1 && /^[a-z0-9-]+$/.test(guide.slug), 'Invalid guide identity')
+  const route = `/${guide.owner}/${guide.slug}`
+  assert.ok(!guideRoutes.has(route), 'Duplicate guide route')
+  guideRoutes.add(route)
+}
 
 // ---------- helpers ----------
 
@@ -254,6 +263,9 @@ const projectPage = (p) => {
   <p class="facts">Source checked ${esc(p.sources.checked_on)} <span lang="zh-CN">· 源码核对日期</span>. Links identify the reviewed version, not a guarantee about later releases.</p>
   <div class="cols">${list(p.sources.en)}${list(p.sources.zh, 'zh')}</div>
 
+  ${guides.some((g) => g.owner === p.slug) ? `<h2>Practical guides <span lang="zh-CN">· 实用指南</span></h2>
+  <ul>${guides.filter((g) => g.owner === p.slug).map((g) => `<li><a href="/${g.owner}/${g.slug}">${esc(g.title.en)} <span lang="zh-CN">· ${esc(g.title.zh)}</span></a></li>`).join('')}</ul>` : ''}
+
   ${p.vocabulary?.length ? `<h2>Terms it uses</h2><p class="terms">${p.vocabulary.map((t) => {
     const g = glossary.find((x) => x.term === t)
     return g ? `<a href="/glossary/${g.slug}">${esc(t)}</a>` : `<span>${esc(t)}</span>`
@@ -261,6 +273,42 @@ const projectPage = (p) => {
 </article>
 ${roster(p.slug)}`
   write(route, page({ route, title, description: p.definition.en, ogType: 'website', ld, body }))
+}
+
+// ---------- task guides ----------
+
+const guidePage = (g) => {
+  const owner = projects.find((p) => p.slug === g.owner)
+  const route = `/${g.owner}/${g.slug}`
+  const ld = [
+    orgNode,
+    { '@type': 'TechArticle', '@id': `${SITE}${route}#article`, url: `${SITE}${route}`,
+      headline: g.title.en, description: g.answer.en, inLanguage: ['en', 'zh-CN'],
+      dateModified: g.checked_on, publisher: { '@id': `${SITE}/#org` } },
+    breadcrumb([['ZenStory AI', SITE], [owner.name.en, `${SITE}/${owner.slug}`], [g.title.en, `${SITE}${route}`]]),
+  ]
+  const body = `
+<article class="guide">
+  <p class="eyebrow">Practical guide <span lang="zh-CN">· 实用指南</span></p>
+  <h1>${esc(g.title.en)}</h1>
+  <p class="lede" lang="zh-CN">${esc(g.title.zh)}</p>
+  <p class="facts">Source checked ${esc(g.checked_on)} <span lang="zh-CN">· 源码核对日期</span></p>
+  <p>${rich(g.answer.en)}</p><p lang="zh-CN">${rich(g.answer.zh)}</p>
+  <p class="actions"><a class="btn ghost" href="/${owner.slug}">${esc(owner.name.en)}</a><a class="btn ghost" href="${owner.github}">Source on GitHub</a></p>
+  <h2>Before you start <span lang="zh-CN">· 开始之前</span></h2>
+  ${list(g.prerequisites.en)}${list(g.prerequisites.zh, 'zh')}
+  <h2>Steps <span lang="zh-CN">· 操作步骤</span></h2>
+  ${steps(g.steps.en)}${steps(g.steps.zh, 'zh')}
+  <h2>Example <span lang="zh-CN">· 示例</span></h2>
+  <pre><code>${esc(g.example.en)}</code></pre><pre lang="zh-CN"><code>${esc(g.example.zh)}</code></pre>
+  <h2>Expected files <span lang="zh-CN">· 预期文件</span></h2>
+  ${list(g.outputs.en)}${list(g.outputs.zh, 'zh')}
+  <h2>Verify the result <span lang="zh-CN">· 验证结果与边界</span></h2>
+  ${list(g.verification.en)}${list(g.verification.zh, 'zh')}
+  <h2>Versioned sources <span lang="zh-CN">· 版本化来源</span></h2>
+  ${list(g.sources.en)}${list(g.sources.zh, 'zh')}
+</article>`
+  write(route, page({ route, title: `${g.title.en} | ZenStory AI`, description: g.answer.en, ld, body }))
 }
 
 // ---------- projects index ----------
@@ -371,8 +419,9 @@ copyFileSync(join(here, 'org-pages.css'), join(outDir, 'org/org.css'))
 homePage()
 projectsIndex()
 projects.forEach(projectPage)
+guides.forEach(guidePage)
 glossaryIndex()
 glossary.forEach(termPage)
 
-const routes = ['/org-home', '/projects', ...projects.map((p) => `/${p.slug}`), '/glossary', ...glossary.map((g) => `/glossary/${g.slug}`)]
+const routes = ['/org-home', '/projects', ...projects.map((p) => `/${p.slug}`), ...guideRoutes, '/glossary', ...glossary.map((g) => `/glossary/${g.slug}`)]
 console.log(`org pages: wrote ${routes.length} routes to ${outDir}\n  ${routes.join('  ')}`)

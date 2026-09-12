@@ -34,11 +34,12 @@ const docsRoutes = publicDocsRoutes()
  * Static organization pages emitted after the build by scripts/build-org-pages.mjs
  * (see that file). Listed here so the sitemap includes them.
  */
-function orgPageRoutes(): string[] {
+export function orgPageRoutes(): string[] {
   const read = (f: string) => JSON.parse(fs.readFileSync(path.resolve(__dirname, 'content', f), 'utf8'))
   const projects = read('projects.json') as { slug: string }[]
   const glossary = read('glossary.json') as { slug: string }[]
-  return ['/projects', ...projects.map((p) => `/${p.slug}`), '/glossary', ...glossary.map((g) => `/glossary/${g.slug}`)]
+  const guides = read('guides.json') as { owner: string; slug: string }[]
+  return ['/projects', ...projects.map((p) => `/${p.slug}`), ...guides.map((g) => `/${g.owner}/${g.slug}`), '/glossary', ...glossary.map((g) => `/glossary/${g.slug}`)]
 }
 
 const orgRoutes = orgPageRoutes()

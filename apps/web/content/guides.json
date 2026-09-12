@@ -1,0 +1,252 @@
+[
+  {
+    "owner": "novel-to-game",
+    "slug": "quick-start",
+    "checked_on": "2026-09-12",
+    "title": {
+      "en": "How to adapt a novel into a game candidate",
+      "zh": "如何用 Novel to Game 把小说改编成游戏候选版本"
+    },
+    "answer": {
+      "en": "Start with a novel you own or are authorized to adapt, install the seven skills, and give the agent a small target experience. Lock the product brief before building, then ask for one complete runtime verification. A folder of design documents or a successful build alone is not a playable-game result.",
+      "zh": "从你拥有或获准改编的小说开始，安装七个 skills，并给 Agent 一个范围较小的目标体验。构建前先锁定产品简报，之后要求一次完整的运行验证。只有设计文档，或只有构建成功，都不能算作游戏已经可玩。"
+    },
+    "prerequisites": {
+      "en": [
+        "A novel file, directory or link, plus an explicit rights/asset boundary. Do not treat access to a text as permission to adapt it.",
+        "A configured agent host. The installation table distinguishes Claude Code `/novel-to-game`, Codex `$novel-to-game` and Kimi Code `/skill:novel-to-game`; use the matching adapter.",
+        "An available engine and target runtime, or a documented plan for obtaining them. Model, media and tool services may require separate configuration or cost approval."
+      ],
+      "zh": [
+        "小说文件、目录或链接，以及明确的改编与素材使用边界。能访问文本不等于已经获准改编。",
+        "已配置的 Agent 宿主。安装表区分 Claude Code 的 `/novel-to-game`、Codex 的 `$novel-to-game` 与 Kimi Code 的 `/skill:novel-to-game`，请选择对应适配器。",
+        "可用的引擎和目标运行环境，或明确的准备计划。模型、媒体与工具服务可能需要另行配置或费用授权。"
+      ]
+    },
+    "steps": {
+      "en": [
+        [
+          "Install and choose a mode",
+          "Use the source README installation row for your host. `quick` recommends defaults and continues; `director` lets you choose the concept; `resume` reads the existing workspace and resumes from the earliest incomplete handoff."
+        ],
+        [
+          "Set the product brief",
+          "Ask for `PRODUCT_BRIEF.md`: scope, language, experience type, platform, engine, target runtime, tested runtime, input/display requirements, content limits and rights/asset boundaries. Ordinary assumptions can be recorded; material or safety-sensitive decisions require resolution."
+        ],
+        [
+          "Ground the adaptation",
+          "Review `analysis/SOURCE_BIBLE.md` for actual source evidence and `concepts/CONCEPT.md` for the chosen concept and trade-offs. If you want an interactive story, say so explicitly instead of letting a systems-game format be assumed."
+        ],
+        [
+          "Design and build a small candidate",
+          "Follow `design/GAME_DESIGN.md`, a risk-matched whitebox where needed, `design/ART_DIRECTION.md` and `build/BUILD_BRIEF.md`. Keep the first candidate small enough to exercise a complete loop rather than expanding its feature list."
+        ],
+        [
+          "Verify in the chosen runtime",
+          "Run the commands recorded in the build brief and collect launch, render, input, coreLoop, outcome and restart evidence from one complete run. A substitute runtime does not establish target-platform compatibility."
+        ],
+        [
+          "Resume honestly",
+          "Read `qa/verification.json`, evidence files and `_progress.md`. Fix the earliest failed handoff and rerun verification; do not convert missing tooling or untested behavior into PASS."
+        ]
+      ],
+      "zh": [
+        [
+          "安装并选择模式",
+          "使用源码 README 中对应宿主的安装行。`quick` 推荐默认值并继续；`director` 让你选择概念；`resume` 读取现有工作区，从最早未完成的交接处恢复。"
+        ],
+        [
+          "确定产品简报",
+          "要求建立 `PRODUCT_BRIEF.md`，明确范围、语言、体验类型、平台、引擎、目标运行环境、实际测试环境、输入与显示要求、内容尺度及权利/素材边界。普通假设可以记录；实质分支或安全敏感决策必须解决。"
+        ],
+        [
+          "让改编有原文依据",
+          "检查 `analysis/SOURCE_BIBLE.md` 的原文证据，以及 `concepts/CONCEPT.md` 中选定的概念与取舍。想做互动故事时要明确说出，不要默认接受系统型游戏形式。"
+        ],
+        [
+          "设计并构建小范围候选版本",
+          "依次依据 `design/GAME_DESIGN.md`、按需的风险匹配白盒、`design/ART_DIRECTION.md` 与 `build/BUILD_BRIEF.md` 推进。先把范围控制到能验证完整循环，而不是不断增加功能。"
+        ],
+        [
+          "在选定环境中验证",
+          "运行构建简报记录的命令，用同一次完整运行收集 launch、render、input、coreLoop、outcome 和 restart 证据。替代运行环境通过不代表目标平台兼容。"
+        ],
+        [
+          "如实恢复工作",
+          "读取 `qa/verification.json`、证据文件和 `_progress.md`，先修复最早失败的交接，再重新验证；工具缺失或行为未测试不能改写成 PASS。"
+        ]
+      ]
+    },
+    "example": {
+      "en": "Terminal — install the Claude Code adapter:\nnpx skills add zenstory-ai/novel-to-game -g -y -a claude-code -s '*'\n\nThen ask in Claude Code (replace the source path):\n/novel-to-game quick\nUse /ABS/my-authorized-novel.txt to create a small interactive-story candidate.\nDraft PRODUCT_BRIEF.md first and record the target and tested runtimes.\nKeep one complete loop, outcome and restart in scope.\nReport missing tools and untested behavior rather than marking them PASS.",
+      "zh": "终端——安装 Claude Code 适配器：\nnpx skills add zenstory-ai/novel-to-game -g -y -a claude-code -s '*'\n\n然后在 Claude Code 中请求（替换小说路径）：\n/novel-to-game quick\n用 /ABS/my-authorized-novel.txt 制作小范围的互动故事候选版本。\n先写 PRODUCT_BRIEF.md，记录目标与实际测试运行环境。\n范围内保留完整循环、设计结果和重开。\n如实报告工具缺失或未测试行为，不把它们标为 PASS。"
+    },
+    "outputs": {
+      "en": [
+        "Scope: `PRODUCT_BRIEF.md`; source evidence: `analysis/SOURCE_BIBLE.md`; selected concept: `concepts/CONCEPT.md`.",
+        "Design: `design/GAME_DESIGN.md` and `design/ART_DIRECTION.md`; build instructions: `build/BUILD_BRIEF.md`; candidate: `build/app/`.",
+        "Runtime record: `qa/verification.json` plus its referenced evidence; progress and next handoff: `_progress.md`."
+      ],
+      "zh": [
+        "范围：`PRODUCT_BRIEF.md`；原文证据：`analysis/SOURCE_BIBLE.md`；选定概念：`concepts/CONCEPT.md`。",
+        "设计：`design/GAME_DESIGN.md` 与 `design/ART_DIRECTION.md`；构建说明：`build/BUILD_BRIEF.md`；候选产物：`build/app/`。",
+        "运行记录：`qa/verification.json` 及其引用的证据；进度与下一交接：`_progress.md`。"
+      ]
+    },
+    "verification": {
+      "en": [
+        "The QA record uses `NOT_RUN`, `FAIL` or `PASS`. The six required checks are launch, render, input, coreLoop, outcome and restart; collect their evidence in one complete run rather than stitching unrelated partial successes together.",
+        "A PASS is limited to the recorded runtime, build and checked behavior. It does not certify fun, balance, commercial readiness or rights clearance.",
+        "Missing tools, provider access or an untested target remain explicit limitations. A validator fixture checks the record format; it is not evidence that your adaptation runs."
+      ],
+      "zh": [
+        "QA 记录使用 `NOT_RUN`、`FAIL` 或 `PASS`。六项必检为 launch、render、input、coreLoop、outcome、restart；证据应来自同一次完整运行，不能拼接彼此无关的局部成功。",
+        "PASS 仅覆盖所记录的运行环境、构建与已检查行为，不认证趣味性、平衡性、商业发布准备程度或权利已清理。",
+        "工具、服务权限不足或目标环境未测试必须保留为明确限制。验证器样例只检查记录契约，不证明你的改编能够运行。"
+      ]
+    },
+    "sources": {
+      "en": [
+        "[Install adapters, entry commands and quick mode](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/README.md#L59-L100)",
+        "[Modes, product brief and the pipeline](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/novel-to-game/SKILL.md#L10-L46)",
+        "[Inputs, rights boundaries and product-brief fields](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/novel-to-game/references/intake-method.md#L1-L50)",
+        "[Workspace paths and named artifacts](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/novel-to-game/references/pipeline-contract.md#L3-L19)",
+        "[Tools, runtime commands and blocked builds](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-build/references/build-brief-contract.md#L27-L57)",
+        "[Six checks, complete-run evidence and failure states](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-qa/references/qa-contract.md#L5-L66)"
+      ],
+      "zh": [
+        "[安装适配器、入口命令与 quick 模式](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/README.md#L59-L100)",
+        "[模式、产品简报与流程](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/novel-to-game/SKILL.md#L10-L46)",
+        "[输入、权利边界与产品简报字段](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/novel-to-game/references/intake-method.md#L1-L50)",
+        "[工作区路径与产物名称](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/novel-to-game/references/pipeline-contract.md#L3-L19)",
+        "[工具、运行命令与构建阻塞](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-build/references/build-brief-contract.md#L27-L57)",
+        "[六项检查、完整运行证据与失败状态](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-qa/references/qa-contract.md#L5-L66)"
+      ]
+    }
+  },
+  {
+    "owner": "video-recap",
+    "slug": "capcut-draft",
+    "checked_on": "2026-09-12",
+    "title": {
+      "en": "Export a video recap as an editable JianYing / CapCut draft",
+      "zh": "把视频解说导出为可编辑的剪映 / CapCut 草稿"
+    },
+    "answer": {
+      "en": "If Video Recap Skills has already produced `timeline.json`, run its standalone JianYing exporter to create a draft folder without rerunning ASR, visual understanding, TTS or MP4 rendering. Keep the media bundle with the draft, then check import and playback in your actual editor version. Exported JSON alone does not prove editor compatibility.",
+      "zh": "如果 Video Recap Skills 已经生成 `timeline.json`，可以直接运行独立剪映导出器，创建草稿目录，无需重跑 ASR、视觉理解、TTS 或 MP4 渲染。让媒体包与草稿一起移动，再在你实际使用的编辑器版本中检查导入与播放。只导出 JSON 不证明编辑器兼容。"
+    },
+    "prerequisites": {
+      "en": [
+        "A local checkout or installed skill directory containing `skills/video-assemble/scripts/export_jianying.py`, Python, and a completed `timeline.json` with accessible media references. The `/ABS/` paths below are placeholders to replace.",
+        "If starting before assembly, prepare the source video and `work_dir/tts_meta.json`. Local assembly needs ffmpeg; burned subtitles need its libass/subtitles filter. MiMo supplies remote ASR/VLM/default TTS; optional Fish Audio replaces TTS only.",
+        "A JianYing or CapCut desktop installation in which you can test the exported folder. Export is an optional sidecar; it is not required to render a recap MP4."
+      ],
+      "zh": [
+        "本地仓库或已安装的 skill 目录中存在 `skills/video-assemble/scripts/export_jianying.py`，有 Python、已生成的 `timeline.json`，且其媒体引用可访问。下方 `/ABS/` 路径是需要替换的占位符。",
+        "若尚未合成，先准备源视频与 `work_dir/tts_meta.json`。本地合成需要 ffmpeg；烧录字幕需要 libass/subtitles filter。MiMo 提供远程 ASR/VLM/默认 TTS；可选 Fish Audio 只替换 TTS。",
+        "能用于实际测试草稿的剪映或 CapCut 桌面安装。草稿是可选附加导出，不是渲染解说 MP4 的必要步骤。"
+      ]
+    },
+    "steps": {
+      "en": [
+        [
+          "Choose the entry point",
+          "For an existing `timeline.json`, use the standalone exporter below. If still assembling, pass `--export-jianying --jianying-out /ABS/drafts` to `assemble.py` after its required inputs are ready."
+        ],
+        [
+          "Preserve the right source",
+          "In cut mode, pass `--source-video /ABS/original.mp4` to the `assemble.py` command that creates `timeline.json`; this preserves real original-video intervals in the timeline. The standalone exporter then consumes that completed timeline and does not accept `--source-video`."
+        ],
+        [
+          "Export without remote stages",
+          "Run `export_jianying.py /ABS/work/timeline.json --out-dir /ABS/drafts --name recap_demo`. This path reads the timeline and media; it does not invoke MiMo/Fish or render a new MP4."
+        ],
+        [
+          "Keep the bundle together",
+          "Media bundling is on by default. Copy the whole output folder, including `Resources/local/`. Use standalone `--no-bundle-media` only if the editor can continue accessing the external media paths. Read warnings: missing media is not reported as successfully bundled."
+        ],
+        [
+          "Open in your target editor",
+          "Use your installed editor’s supported local-draft opening or import flow. Keep the returned draft directory intact and confirm its media, subtitles and audio tracks resolve; menus and draft locations vary by editor release."
+        ],
+        [
+          "Finish and play back",
+          "Adjust subtitles, framing and audio handoffs, then play the entire final export at normal speed. Automated QC identifies candidates for review; it is not proof that the finished video is correct."
+        ]
+      ],
+      "zh": [
+        [
+          "选择入口",
+          "已有 `timeline.json` 时使用下方独立导出器。若仍在合成，待必要输入齐备后，在 `assemble.py` 命令中加入 `--export-jianying --jianying-out /ABS/drafts`。"
+        ],
+        [
+          "保留正确源视频",
+          "cut 模式下，在生成 `timeline.json` 的 `assemble.py` 命令中传入 `--source-video /ABS/original.mp4`，让时间轴保留真实原片区间。之后独立导出器只读取这份已完成的时间轴，不接受 `--source-video` 参数。"
+        ],
+        [
+          "不重跑远程阶段地导出",
+          "运行 `export_jianying.py /ABS/work/timeline.json --out-dir /ABS/drafts --name recap_demo`。这一路径读取时间轴与媒体，不调用 MiMo/Fish，也不渲染新的 MP4。"
+        ],
+        [
+          "完整保留媒体包",
+          "默认开启媒体打包。移动时复制整个输出目录，包括 `Resources/local/`。只有编辑器仍能访问外部媒体路径时才使用独立导出器的 `--no-bundle-media`。注意读取警告：缺失媒体不会被记为已成功打包。"
+        ],
+        [
+          "在目标编辑器中打开",
+          "使用已安装版本支持的本地草稿打开或导入方式，保持返回的草稿目录完整，并检查媒体、字幕和音轨是否可用；不同版本的菜单与草稿位置可能不同。"
+        ],
+        [
+          "精修并完整播放",
+          "调整字幕、构图与声音交接，再以正常速度完整播放最终导出文件。自动 QC 只能定位待复核问题，不证明成片正确。"
+        ]
+      ]
+    },
+    "example": {
+      "en": "From an existing timeline (replace every /ABS path):\npython3 /ABS/video-recap-skills/skills/video-assemble/scripts/export_jianying.py \\\n  /ABS/work/timeline.json \\\n  --out-dir /ABS/drafts \\\n  --name recap_demo\n\nRead the returned draft_dir and any warnings.\nKeep the entire draft folder and its Resources/local/ media together.",
+      "zh": "从已有时间轴导出（替换所有 /ABS 路径）：\npython3 /ABS/video-recap-skills/skills/video-assemble/scripts/export_jianying.py \\\n  /ABS/work/timeline.json \\\n  --out-dir /ABS/drafts \\\n  --name recap_demo\n\n读取返回的 draft_dir 与全部警告。\n把完整草稿目录与其中的 Resources/local/ 媒体一起保留。"
+    },
+    "outputs": {
+      "en": [
+        "The returned `draft_dir` contains `draft_content.json`, `draft_info.json` and `draft_meta_info.json`.",
+        "Bundled media goes under `Resources/local/video/`, `Resources/local/audio/` and `Resources/local/image/`; missing files remain explicit external references with warnings.",
+        "Non-empty output directories are not overwritten: export chooses a numbered sibling. This draft export is separate from the assembled MP4, subtitles and `timeline.json`."
+      ],
+      "zh": [
+        "返回的 `draft_dir` 包含 `draft_content.json`、`draft_info.json` 与 `draft_meta_info.json`。",
+        "打包媒体位于 `Resources/local/video/`、`Resources/local/audio/`、`Resources/local/image/`；缺失文件保留为带警告的外部引用。",
+        "不会覆盖非空输出目录，导出器会选择带编号的相邻目录。草稿导出与已合成的 MP4、字幕和 `timeline.json` 相互独立。"
+      ]
+    },
+    "verification": {
+      "en": [
+        "Confirm the three draft JSON files and referenced media, then test opening in the exact desktop/region version you intend to use. A schema template version or a historical smoke test is not universal CapCut/JianYing compatibility.",
+        "Check voiceover endings, audio sync, original-audio transitions, BGM levels, subtitle line breaks and cuts. Drafts reference source media, so hard subtitles already present in that footage can remain and may need masking.",
+        "An export-only smoke test validates the local draft contract, not a remote generation run, a successfully opened desktop editor or the final rendered video."
+      ],
+      "zh": [
+        "检查三份草稿 JSON 与引用媒体，再在实际目标桌面/地区版本中测试打开。Schema 模板版本或历史 smoke test 不等于所有剪映/CapCut 版本都兼容。",
+        "检查旁白尾字、音画同步、原声交接、BGM 音量、字幕断行与剪点。草稿引用源媒体，原素材已有的硬字幕可能仍在，需要时应遮罩。",
+        "只运行导出 smoke test 验证的是本地草稿契约，不证明已执行远程生成、桌面编辑器成功打开或最终成片正确。"
+      ]
+    },
+    "sources": {
+      "en": [
+        "[Assembly inputs, cut-mode source and export flags](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-assemble/SKILL.md#L33-L68)",
+        "[Subtitle, audio and final playback review](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-assemble/SKILL.md#L79-L97)",
+        "[Remote model dependencies and optional review](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L47-L69)",
+        "[Draft files and editor-version boundaries](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/references/timeline-and-jianying.md#L88-L116)",
+        "[Media bundling, warnings and non-overwriting output](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/references/timeline-and-jianying.md#L118-L141)",
+        "[Standalone exporter arguments and returned draft directory](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-assemble/scripts/export_jianying.py#L219-L261)"
+      ],
+      "zh": [
+        "[合成输入、cut 模式源视频与导出参数](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-assemble/SKILL.md#L33-L68)",
+        "[字幕、声音与最终播放复核](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-assemble/SKILL.md#L79-L97)",
+        "[远程模型依赖与可选复核](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L47-L69)",
+        "[草稿文件与编辑器版本边界](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/references/timeline-and-jianying.md#L88-L116)",
+        "[媒体打包、警告与不覆盖输出](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/references/timeline-and-jianying.md#L118-L141)",
+        "[独立导出器参数与返回的草稿目录](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-assemble/scripts/export_jianying.py#L219-L261)"
+      ]
+    }
+  }
+]

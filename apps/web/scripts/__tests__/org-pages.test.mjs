@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { finalizeSite } from '../build-site-layout.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const scriptsDir = resolve(here, '..')
@@ -23,6 +24,104 @@ const run = (script, outDir) => {
 
 const readOutput = (outDir, route) => readFileSync(join(outDir, route, 'index.html'), 'utf8')
 const matches = (html, pattern) => [...html.matchAll(pattern)]
+
+test('task guides provide bilingual instructions, owned sources and canonical sitemap entries', (t) => {
+  const guides = JSON.parse(readFileSync(join(webRoot, 'content/guides.json'), 'utf8'))
+  const outDir = mkdtempSync(join(tmpdir(), 'zenstory-guides-'))
+  t.after(() => rmSync(outDir, { recursive: true, force: true }))
+  run('build-org-pages.mjs', outDir)
+  const routes = guides.map((guide) => `/${guide.owner}/${guide.slug}`)
+  assert.deepEqual(routes, ['/novel-to-game/quick-start', '/video-recap/capcut-draft'])
+  const directory = readFileSync(join(webRoot, 'public/llms.txt'), 'utf8')
+  const escape = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  const richText = (s) => escape(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2">$1</a>')
+  for (const [index, guide] of guides.entries()) {
+    const route = routes[index]
+    const url = `https://zenstory.ai${route}`
+    const owner = projects.find((project) => project.slug === guide.owner)
+    assert.ok(owner)
+    const html = readOutput(outDir, route)
+    const article = matches(html, /<article class="guide">([\s\S]*?)<\/article>/g)[0][1]
+    assert.equal(matches(html, /<h1\b/g).length, 1)
+    assert.ok(article.includes(`<h1>${escape(guide.title.en)}</h1>`))
+    assert.ok(article.includes(`<p class="lede" lang="zh-CN">${escape(guide.title.zh)}</p>`))
+    for (const field of ['prerequisites', 'steps', 'outputs', 'verification', 'sources']) {
+      assert.equal(guide[field].en.length, guide[field].zh.length, `${route}: mismatched ${field} translations`)
+    }
+    for (const lang of ['en', 'zh']) {
+      const attr = lang === 'zh' ? ' lang="zh-CN"' : ''
+      assert.ok(article.includes(`<p${attr}>${richText(guide.answer[lang])}</p>`))
+      for (const field of ['prerequisites', 'outputs', 'verification', 'sources']) {
+        assert.ok(guide[field][lang].length > 1)
+        for (const item of guide[field][lang]) assert.ok(article.includes(`<li${attr}>${richText(item)}</li>`))
+      }
+      for (const [heading, text] of guide.steps[lang]) assert.ok(article.includes(`<li${attr}><b>${richText(heading)}</b> ${richText(text)}</li>`))
+      assert.ok(article.includes(`<pre${attr}><code>${escape(guide.example[lang])}</code></pre>`))
+    }
+    assert.ok(article.includes(guide.checked_on))
+    assert.ok(article.includes(`href="/${owner.slug}"`))
+    assert.ok(article.includes(`href="${owner.github}"`))
+    const sourceGroups = ['en', 'zh'].map((lang) => matches(guide.sources[lang].join(' '), /\]\((https:\/\/[^)]+)\)/g).map(m => m[1]).sort())
+    assert.deepEqual(sourceGroups[0], sourceGroups[1])
+    assert.ok(sourceGroups[0].length >= 4)
+    for (const source of sourceGroups[0]) {
+      const parsed = new URL(source)
+      assert.equal(parsed.origin, 'https://github.com')
+      assert.match(parsed.pathname, /^\/zenstory-ai\/[^/]+\/blob\/[a-f0-9]{40}\/.+/)
+      assert.equal(parsed.pathname.split('/').slice(0, 3).join('/'), new URL(owner.github).pathname)
+      assert.match(parsed.hash, /^#L\d+(?:-L\d+)?$/)
+    }
+    assert.equal(matches(html, /<link\b[^>]*rel="canonical"[^>]*>/gi).length, 1)
+    assert.ok(html.includes(`<link rel="canonical" href="${url}"`))
+    assert.equal(matches(html, /<meta\b[^>]*property="og:url"[^>]*>/gi).length, 1)
+    assert.ok(html.includes(`<meta property="og:url" content="${url}"`))
+    assert.equal(matches(html, /<meta\b[^>]*property="og:type"[^>]*>/gi).length, 1)
+    assert.ok(html.includes('<meta property="og:type" content="article">'))
+    const graph = JSON.parse(matches(html, /<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi)[0][1])['@graph']
+    assert.deepEqual(graph.map(node => node['@type']), ['Organization', 'TechArticle', 'BreadcrumbList'])
+    const doc = graph[1]
+    assert.equal(doc.url, url)
+    assert.equal(doc['@id'], `${url}#article`)
+    assert.equal(doc.dateModified, guide.checked_on)
+    assert.equal(doc.headline, guide.title.en)
+    assert.equal(doc.description, guide.answer.en)
+    assert.deepEqual(doc.inLanguage, ['en', 'zh-CN'])
+    assert.equal(doc.publisher['@id'], 'https://zenstory.ai/#org')
+    assert.deepEqual(graph[2].itemListElement.map(item => item.item), ['https://zenstory.ai', `https://zenstory.ai/${owner.slug}`, url])
+    assert.doesNotMatch(html, /<script\b[^>]*type="module"/i)
+    const projectArticle = matches(readOutput(outDir, owner.slug), /<article class="project">([\s\S]*?)<\/article>/g)[0][1]
+    assert.ok(projectArticle.includes(`href="${route}"`))
+    assert.ok(directory.includes(`](https://zenstory.ai${route})`))
+  }
+  assert.match(readOutput(outDir, 'novel-to-game/quick-start'), /PRODUCT_BRIEF\.md/)
+  assert.match(readOutput(outDir, 'novel-to-game/quick-start'), /qa\/verification\.json/)
+  assert.match(readOutput(outDir, 'video-recap/capcut-draft'), /export_jianying\.py/)
+  assert.match(readOutput(outDir, 'video-recap/capcut-draft'), /--out-dir/)
+  assert.match(readOutput(outDir, 'video-recap/capcut-draft'), /draft_content\.json/)
+  writeFileSync(join(outDir, 'index.html'), readFileSync(join(webRoot, 'index.html'), 'utf8'))
+  finalizeSite(outDir)
+  for (const route of routes) {
+    assert.equal(readFileSync(join(outDir, '_site/sitemap.xml'), 'utf8').split(`<loc>https://zenstory.ai${route}</loc>`).length - 1, 1)
+    assert.ok(!readFileSync(join(outDir, '_app/sitemap.xml'), 'utf8').includes(route))
+  }
+})
+
+test('guide identities reject unknown owners, unsafe paths and duplicate routes before writing', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'zenstory-invalid-guides-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  mkdirSync(join(root, 'scripts'))
+  cpSync(join(webRoot, 'content'), join(root, 'content'), { recursive: true })
+  for (const file of ['build-org-pages.mjs', 'org-pages.css']) cpSync(join(scriptsDir, file), join(root, 'scripts', file))
+  const valid = JSON.parse(readFileSync(join(root, 'content/guides.json'), 'utf8'))
+  for (const invalid of [[{ ...valid[0], owner: 'unknown' }], [{ ...valid[0], slug: '../escape' }], [valid[0], valid[0]]]) {
+    writeFileSync(join(root, 'content/guides.json'), JSON.stringify(invalid))
+    const out = join(root, 'output')
+    const result = spawnSync(process.execPath, [join(root, 'scripts/build-org-pages.mjs'), out], { encoding: 'utf8' })
+    assert.notEqual(result.status, 0)
+    assert.match(result.stderr, /Invalid guide identity|Duplicate guide route/)
+    assert.equal(existsSync(out), false)
+  }
+})
 
 test('AI-facing project directory links the source-backed canonical pages', () => {
   const directory = readFileSync(join(webRoot, 'public/llms.txt'), 'utf8')
