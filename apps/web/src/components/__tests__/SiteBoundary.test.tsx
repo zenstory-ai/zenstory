@@ -83,4 +83,55 @@ describe('SiteBoundary', () => {
     await waitFor(() => expect(replace).toHaveBeenCalledWith('https://zenstory.ai/'))
     expect(screen.queryByRole('button', { name: 'go home' })).not.toBeInTheDocument()
   })
+
+  it.each([
+    ['middle click', { button: 1 }],
+    ['right click', { button: 2 }],
+    ['ctrl click', { ctrlKey: true }],
+    ['meta click', { metaKey: true }],
+    ['shift click', { shiftKey: true }],
+    ['alt click', { altKey: true }],
+  ])('does not intercept a cross-host %s', (_name, init) => {
+    const replace = vi.fn()
+    renderBoundary(
+      'https://zenstory.ai/docs/guide',
+      replace,
+      <a href="https://zenstory.ai/login">sign in</a>,
+    )
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true, ...init })
+
+    fireEvent(screen.getByRole('link', { name: 'sign in' }), event)
+
+    expect(event.defaultPrevented).toBe(false)
+    expect(replace).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['targeted', <a href="https://zenstory.ai/login" target="_blank">sign in</a>],
+    ['download', <a href="https://zenstory.ai/login" download>sign in</a>],
+  ])('does not intercept a %s anchor', (_name, anchor) => {
+    const replace = vi.fn()
+    renderBoundary('https://zenstory.ai/docs/guide', replace, anchor)
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true })
+
+    fireEvent(screen.getByRole('link', { name: 'sign in' }), event)
+
+    expect(event.defaultPrevented).toBe(false)
+    expect(replace).not.toHaveBeenCalled()
+  })
+
+  it('leaves an ordinary same-host non-boundary click untouched', () => {
+    const replace = vi.fn()
+    renderBoundary(
+      'https://zenstory.ai/docs/guide',
+      replace,
+      <a href="https://zenstory.ai/docs/another-guide">next guide</a>,
+    )
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true })
+
+    fireEvent(screen.getByRole('link', { name: 'next guide' }), event)
+
+    expect(event.defaultPrevented).toBe(false)
+    expect(replace).not.toHaveBeenCalled()
+  })
 })

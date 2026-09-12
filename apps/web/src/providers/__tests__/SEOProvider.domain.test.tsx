@@ -29,6 +29,7 @@ function Consumer() {
 describe('SEOProvider domain metadata', () => {
   beforeEach(() => {
     document.head.innerHTML = ''
+    document.body.innerHTML = ''
     window.history.replaceState({}, '', '/')
     pathname.value = '/'
   })
@@ -86,6 +87,55 @@ describe('SEOProvider domain metadata', () => {
       expect(screen.getByTestId('og')).toHaveTextContent('article')
       expect(screen.getByTestId('og')).toHaveTextContent('Second guide · zenstory 文档 | ZenStory AI')
       expect(screen.getByTestId('og')).toHaveTextContent('Second guide description.')
+    })
+  })
+
+  it.each([
+    ['absent static JSON-LD and Open Graph', ''],
+    ['malformed static JSON-LD and blank Open Graph', `
+      <script type="application/ld+json">{not valid JSON</script>
+      <meta property="og:type">
+      <meta property="og:title" content="">
+      <meta property="og:description">
+      <meta property="og:image" content="">
+    `],
+  ])('falls back safely with a matching canonical and %s', (_name, staticMetadata) => {
+    pathname.value = '/docs/guide'
+    window.history.replaceState({}, '', pathname.value)
+    document.head.innerHTML = `
+      <link rel="canonical" href="${window.location.origin}/docs/guide">
+      ${staticMetadata}
+    `
+
+    expect(() => render(<SEOProvider><Consumer /></SEOProvider>)).not.toThrow()
+
+    expect(screen.getByTestId('schema')).toBeEmptyDOMElement()
+    expect(screen.getByTestId('og')).toHaveTextContent('article')
+    expect(screen.getByTestId('og')).toHaveTextContent('Documentation - zenstory')
+    expect(screen.getByTestId('og')).toHaveTextContent('zenstory documentation')
+    expect(screen.getByTestId('og')).toHaveTextContent('https://zenstory.ai/brand/zenstory-ai-mark.svg')
+  })
+
+  it('preserves the prior docs description and image when an article has no paragraph', async () => {
+    pathname.value = '/docs/guide'
+    window.history.replaceState({}, '', pathname.value)
+    document.title = 'Initial guide title'
+    document.head.insertAdjacentHTML('beforeend', `
+      <meta name="description" content="Prior guide description">
+      <link rel="canonical" href="${window.location.origin}/docs/guide">
+      <meta property="og:type" content="article">
+      <meta property="og:title" content="Initial guide OG title">
+      <meta property="og:description" content="Prior guide description">
+      <meta property="og:image" content="https://zenstory.ai/brand/prior-guide.png">
+    `)
+    render(<SEOProvider><Consumer /></SEOProvider>)
+
+    document.body.insertAdjacentHTML('beforeend', '<article><h1>Heading without paragraph</h1></article>')
+
+    await waitFor(() => {
+      expect(screen.getByTestId('title')).toHaveTextContent('Heading without paragraph')
+      expect(screen.getByTestId('og')).toHaveTextContent('Prior guide description')
+      expect(screen.getByTestId('og')).toHaveTextContent('https://zenstory.ai/brand/prior-guide.png')
     })
   })
 })
