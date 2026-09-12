@@ -17,6 +17,7 @@ import { CommonProviders } from "./providers/CommonProviders";
 import { ProtectedProviders } from "./providers/ProtectedProviders";
 import { ToastContainer } from "./components/Toast";
 import { RouteChangeTracker } from "./components/RouteChangeTracker";
+import { SiteBoundary } from "./components/SiteBoundary";
 import { logger } from "./lib/logger";
 import { fileApi } from "./lib/api";
 import { normalizePlanIntent } from "./lib/authFlow";
@@ -373,15 +374,16 @@ function ProjectEditor() {
 function App() {
   return (
     <HelmetProvider>
-      <ThemeProvider>
-        <FileSearchProvider>
-          <AuthProvider>
-            <BrowserRouter>
-              <SEOProvider>
-                <SEOHelmet />
-                <RouteChangeTracker />
-                <Suspense fallback={<PageLoader />}>
-                  <Routes>
+      <BrowserRouter>
+        <SiteBoundary>
+          <ThemeProvider>
+            <FileSearchProvider>
+              <AuthProvider>
+                <SEOProvider>
+                  <SEOHelmet />
+                  <RouteChangeTracker />
+                  <Suspense fallback={<PageLoader />}>
+                    <Routes>
                     {/* Public routes */}
                     <Route
                       path="/"
@@ -523,14 +525,15 @@ function App() {
 
                     {/* Fallback - redirect to home */}
                     <Route path="*" element={<Navigate to="/" replace />} />
-                  </Routes>
-                </Suspense>
-              </SEOProvider>
-            </BrowserRouter>
-            <ToastContainer />
-          </AuthProvider>
-        </FileSearchProvider>
-      </ThemeProvider>
+                    </Routes>
+                  </Suspense>
+                </SEOProvider>
+                <ToastContainer />
+              </AuthProvider>
+            </FileSearchProvider>
+          </ThemeProvider>
+        </SiteBoundary>
+      </BrowserRouter>
     </HelmetProvider>
   );
 }

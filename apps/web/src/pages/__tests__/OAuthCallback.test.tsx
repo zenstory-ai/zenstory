@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -173,5 +174,30 @@ describe("OAuthCallback", () => {
     expect(mockHandleOAuthCallback).not.toHaveBeenCalled();
     expect(mockNavigate).not.toHaveBeenCalled();
     expect(mockCaptureException).toHaveBeenCalled();
+    expect(replaceStateSpy).toHaveBeenCalledWith(window.history.state, document.title, "/auth/callback");
+  });
+
+  it("scrubs callback credentials before a failed exchange and processes StrictMode only once", async () => {
+    Object.assign(window.location, {
+      search: "?access_token=access&refresh_token=refresh",
+      hash: "#redirect=https%3A%2F%2Fmanga.zenstory.ai",
+    });
+    mockHandleOAuthCallback.mockImplementation(async () => {
+      expect(replaceStateSpy).toHaveBeenCalledWith(window.history.state, document.title, "/auth/callback");
+      throw new Error("ERR_AUTH_TOKEN_INVALID");
+    });
+    render(<MemoryRouter><StrictMode><OAuthCallback /></StrictMode></MemoryRouter>);
+    expect(await screen.findByText("Invalid authentication token")).toBeInTheDocument();
+    expect(mockHandleOAuthCallback).toHaveBeenCalledTimes(1);
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("scrubs a provider error fragment while retaining its handled error UI", async () => {
+    Object.assign(window.location, { hash: "#error=access_denied" });
+    render(<MemoryRouter><OAuthCallback /></MemoryRouter>);
+    expect(await screen.findByText("access_denied")).toBeInTheDocument();
+    expect(replaceStateSpy).toHaveBeenCalledWith(window.history.state, document.title, "/auth/callback");
+    expect(mockHandleOAuthCallback).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 });

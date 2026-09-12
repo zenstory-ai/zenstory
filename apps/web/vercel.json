@@ -1,17 +1,277 @@
 {
-  "buildCommand": "npm run build",
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build:vercel",
   "outputDirectory": "dist",
   "installCommand": "npm install --legacy-peer-deps",
   "devCommand": "npm run dev",
   "framework": "vite",
-  "rewrites": [
+  "redirects": [
     {
-      "source": "/api/:path*",
-      "destination": "$VITE_API_BASE_URL/api/:path*"
+      "source": "/org-home",
+      "destination": "https://zenstory.ai/",
+      "permanent": true
     },
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "source": "/org-home/",
+      "destination": "https://zenstory.ai/",
+      "permanent": true
+    },
+    {
+      "source": "/org-home/index.html",
+      "destination": "https://zenstory.ai/",
+      "permanent": true
+    },
+    {
+      "source": "/_app",
+      "destination": "https://app.zenstory.ai/",
+      "permanent": true
+    },
+    {
+      "source": "/_app/",
+      "destination": "https://app.zenstory.ai/",
+      "permanent": true
+    },
+    {
+      "source": "/_app/index.html",
+      "destination": "https://app.zenstory.ai/",
+      "permanent": true
+    },
+    {
+      "source": "/_app/home.html",
+      "destination": "https://app.zenstory.ai/",
+      "permanent": true
+    },
+    {
+      "source": "/_app/pricing.html",
+      "destination": "https://app.zenstory.ai/pricing",
+      "permanent": true
+    },
+    {
+      "source": "/_app/robots.txt",
+      "destination": "https://app.zenstory.ai/robots.txt",
+      "permanent": true
+    },
+    {
+      "source": "/_app/sitemap.xml",
+      "destination": "https://app.zenstory.ai/sitemap.xml",
+      "permanent": true
+    },
+    {
+      "source": "/_site/robots.txt",
+      "destination": "https://zenstory.ai/robots.txt",
+      "permanent": true
+    },
+    {
+      "source": "/_site/sitemap.xml",
+      "destination": "https://zenstory.ai/sitemap.xml",
+      "permanent": true
+    },
+    {
+      "source": "/index.html",
+      "destination": "https://app.zenstory.ai/",
+      "permanent": true,
+      "has": [
+        {
+          "type": "host",
+          "value": "app\\.zenstory\\.ai|app-preview\\.zenstory\\.ai"
+        }
+      ]
+    },
+    {
+      "source": "/index.html",
+      "destination": "https://zenstory.ai/",
+      "permanent": true,
+      "has": [
+        {
+          "type": "host",
+          "value": "zenstory\\.ai|geo-preview\\.zenstory\\.ai|www\\.zenstory\\.ai"
+        }
+      ]
+    },
+    {
+      "source": "/:path((?:projects|oh-story|drama-skills|novel-to-game|video-recap|dsh|workbench|glossary|docs|privacy-policy|terms-of-service)(?:/.*)?)/index.html",
+      "destination": "https://zenstory.ai/:path",
+      "permanent": true
+    },
+    {
+      "source": "/:path((?:login|register|forgot-password|verify-email|auth|onboarding|dashboard|project|materials|admin|pricing)(?:/.*)?)",
+      "destination": "https://app.zenstory.ai/:path",
+      "permanent": true,
+      "has": [
+        {
+          "type": "host",
+          "value": "zenstory\\.ai|www\\.zenstory\\.ai"
+        }
+      ]
+    },
+    {
+      "source": "/:path((?:login|register|forgot-password|verify-email|auth|onboarding|dashboard|project|materials|admin|pricing)(?:/.*)?)",
+      "destination": "https://app-preview.zenstory.ai/:path",
+      "permanent": true,
+      "has": [
+        {
+          "type": "host",
+          "value": "geo-preview\\.zenstory\\.ai"
+        }
+      ]
+    },
+    {
+      "source": "/:path((?:projects|oh-story|drama-skills|novel-to-game|video-recap|dsh|workbench|glossary|docs|privacy-policy|terms-of-service|llms\\.txt)(?:/.*)?)",
+      "destination": "https://zenstory.ai/:path",
+      "permanent": true,
+      "has": [
+        {
+          "type": "host",
+          "value": "app\\.zenstory\\.ai"
+        }
+      ]
+    },
+    {
+      "source": "/:path((?:projects|oh-story|drama-skills|novel-to-game|video-recap|dsh|workbench|glossary|docs|privacy-policy|terms-of-service|llms\\.txt)(?:/.*)?)",
+      "destination": "https://geo-preview.zenstory.ai/:path",
+      "permanent": true,
+      "has": [
+        {
+          "type": "host",
+          "value": "app-preview\\.zenstory\\.ai"
+        }
+      ]
+    },
+    {
+      "source": "/:path(.*)",
+      "destination": "https://zenstory.ai/:path",
+      "permanent": true,
+      "has": [
+        {
+          "type": "host",
+          "value": "www\\.zenstory\\.ai"
+        }
+      ]
+    }
+  ],
+  "headers": [
+    {
+      "source": "/:path(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "geo-preview\\.zenstory\\.ai|app-preview\\.zenstory\\.ai|.*\\.vercel\\.app"
+        }
+      ],
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex"
+        }
+      ]
+    },
+    {
+      "source": "/:path((?:login|register|forgot-password|verify-email|auth|onboarding|dashboard|project|materials|admin)(?:/.*)?)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/:path(api(?:/.*)?)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "private, no-store"
+        },
+        {
+          "key": "x-vercel-enable-rewrite-caching",
+          "value": "0"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/:path(api(?:/.*)?)",
+      "destination": "https://api.zenstory.ai/:path"
+    },
+    {
+      "source": "/",
+      "destination": "/org-home/index.html",
+      "has": [
+        {
+          "type": "host",
+          "value": "zenstory\\.ai|geo-preview\\.zenstory\\.ai|.*\\.vercel\\.app"
+        }
+      ]
+    },
+    {
+      "source": "/",
+      "destination": "/_app/home.html",
+      "has": [
+        {
+          "type": "host",
+          "value": "app\\.zenstory\\.ai|app-preview\\.zenstory\\.ai"
+        }
+      ]
+    },
+    {
+      "source": "/pricing",
+      "destination": "/_app/pricing.html",
+      "has": [
+        {
+          "type": "host",
+          "value": "app\\.zenstory\\.ai|app-preview\\.zenstory\\.ai|.*\\.vercel\\.app"
+        }
+      ]
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "/_app/robots.txt",
+      "has": [
+        {
+          "type": "host",
+          "value": "app\\.zenstory\\.ai|app-preview\\.zenstory\\.ai"
+        }
+      ]
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "/_site/robots.txt",
+      "has": [
+        {
+          "type": "host",
+          "value": "zenstory\\.ai|geo-preview\\.zenstory\\.ai|.*\\.vercel\\.app"
+        }
+      ]
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/_app/sitemap.xml",
+      "has": [
+        {
+          "type": "host",
+          "value": "app\\.zenstory\\.ai|app-preview\\.zenstory\\.ai"
+        }
+      ]
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/_site/sitemap.xml",
+      "has": [
+        {
+          "type": "host",
+          "value": "zenstory\\.ai|geo-preview\\.zenstory\\.ai|.*\\.vercel\\.app"
+        }
+      ]
+    },
+    {
+      "source": "/:path((?!api(?:/|$)|_app(?:/|$)|_site(?:/|$)|org-home(?:/|$)).*)",
+      "destination": "/_app/index.html",
+      "has": [
+        {
+          "type": "host",
+          "value": "app\\.zenstory\\.ai|app-preview\\.zenstory\\.ai|.*\\.vercel\\.app"
+        }
+      ]
     }
   ]
 }

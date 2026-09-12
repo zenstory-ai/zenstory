@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { LogoMark } from "../components/Logo";
@@ -17,7 +17,12 @@ export default function OAuthCallback() {
   const navigate = useNavigate();
   const { t } = useTranslation(['auth', 'common']);
 
+  const callbackProcessed = useRef(false);
+
   useEffect(() => {
+    // Auth updates and StrictMode must not exchange the same callback twice.
+    if (callbackProcessed.current) return;
+    callbackProcessed.current = true;
     const processCallback = async () => {
       try {
         // Get OAuth callback params from both query and hash for compatibility.
@@ -31,6 +36,10 @@ export default function OAuthCallback() {
           hashParams.get("error") ||
           queryParams.get("error_code") ||
           hashParams.get("error_code");
+
+        // Capture first, then remove credentials/errors before any async work.
+        // Preserve router history state and scrub failure paths as well as success.
+        window.history.replaceState(window.history.state, document.title, window.location.pathname);
 
         if (providerError) {
           throw new Error(providerError);
@@ -48,7 +57,6 @@ export default function OAuthCallback() {
             hasOAuthHandshakeParams,
             hasCachedSession,
             pathname: window.location.pathname,
-            search: window.location.search,
             hashPresent: Boolean(window.location.hash),
           });
 
@@ -68,7 +76,6 @@ export default function OAuthCallback() {
 
         // Handle OAuth callback
         await handleOAuthCallback(accessToken, refreshToken);
-        window.history.replaceState({}, document.title, window.location.pathname);
 
         // Check for redirect parameter from external apps
         if (redirectUrl) {

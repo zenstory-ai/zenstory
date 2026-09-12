@@ -245,8 +245,8 @@
       "zh": "对话即创作——以文件为中心的 AI 小说写作工作台：素材、人设、章节、版本都在一处。"
     },
     "definition": {
-      "en": "ZenStory is the hosted, conversation-first member of the family: a three-panel workbench (file tree, editor, AI chat) where outlines, drafts, characters and lore are files, and a multi-agent backend drafts, suggests and revises against them. It ships its own skills and an Agent API for Claude Code and OpenClaw, is self-hostable (MIT), and is available as a service at zenstory.ai with free and paid plans.",
-      "zh": "ZenStory 是这个家族里托管的、对话优先的成员：三栏工作台（文件树、编辑器、AI 对话），大纲、草稿、人设、世界观都是文件，多 agent 后端围绕它们写作、建议与修订。自带 skills 与面向 Claude Code / OpenClaw 的 Agent API，可自托管（MIT），也提供 zenstory.ai 的在线服务与免费/付费方案。"
+      "en": "ZenStory is the hosted, conversation-first member of the family: a three-panel workbench (file tree, editor, AI chat) where outlines, drafts, characters and lore are files, and a multi-agent backend drafts, suggests and revises against them. It ships its own skills and an Agent API for Claude Code and OpenClaw, is self-hostable (MIT), and is available as a service at app.zenstory.ai with free and paid plans.",
+      "zh": "ZenStory 是这个家族里托管的、对话优先的成员：三栏工作台（文件树、编辑器、AI 对话），大纲、草稿、人设、世界观都是文件，多 agent 后端围绕它们写作、建议与修订。自带 skills 与面向 Claude Code / OpenClaw 的 Agent API，可自托管（MIT），也提供 app.zenstory.ai 的在线服务与免费/付费方案。"
     },
     "audience": {
       "en": ["Novelists who want a workspace rather than a terminal", "Writers managing long projects with version history"],

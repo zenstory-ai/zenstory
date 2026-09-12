@@ -107,28 +107,20 @@ export function SEOHelmet(_props: SEOHelmetProps = {}) {
         <meta name="keywords" content={seoConfig.keywords.join(', ')} />
       )}
       {seoConfig.canonical && <link rel="canonical" href={seoConfig.canonical} />}
+      {seoConfig.canonical && <meta property="og:url" content={seoConfig.canonical} />}
       {seoConfig.noindex && <meta name="robots" content="noindex" />}
 
       {/* hreflang标签 - 仅公开页面 */}
-      {isPublicPage && (
-        <>
-          <link rel="alternate" hrefLang="zh-CN" href={`${baseUrl}${pathname}`} />
-          <link rel="alternate" hrefLang="en-US" href={`${baseUrl}${pathname}`} />
-          <link rel="alternate" hrefLang="x-default" href={`${baseUrl}${pathname}`} />
-        </>
-      )}
+      {isPublicPage && <link rel="alternate" hrefLang="zh-CN" href={`${baseUrl}${pathname}`} />}
+      {isPublicPage && <link rel="alternate" hrefLang="en-US" href={`${baseUrl}${pathname}`} />}
+      {isPublicPage && <link rel="alternate" hrefLang="x-default" href={`${baseUrl}${pathname}`} />}
 
       {/* Open Graph 标签 */}
-      {seoConfig.og && (
-        <>
-          {seoConfig.og.type && <meta property="og:type" content={seoConfig.og.type} />}
-          {seoConfig.og.title && <meta property="og:title" content={seoConfig.og.title} />}
-          {seoConfig.og.description && (
-            <meta property="og:description" content={seoConfig.og.description} />
-          )}
-          {seoConfig.og.image && <meta property="og:image" content={seoConfig.og.image} />}
-        </>
-      )}
+      {seoConfig.og && <meta property="og:site_name" content="ZenStory AI" />}
+      {seoConfig.og?.type && <meta property="og:type" content={seoConfig.og.type} />}
+      {seoConfig.og?.title && <meta property="og:title" content={seoConfig.og.title} />}
+      {seoConfig.og?.description && <meta property="og:description" content={seoConfig.og.description} />}
+      {seoConfig.og?.image && <meta property="og:image" content={seoConfig.og.image} />}
 
       {/* JSON-LD Schema */}
       {seoConfig.schema && (

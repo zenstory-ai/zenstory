@@ -11,7 +11,7 @@
     "build": "vite build && node scripts/build-org-pages.mjs && node scripts/build-docs-pages.mjs",
     "build:org-pages": "node scripts/build-org-pages.mjs",
     "build:docs-pages": "node scripts/build-docs-pages.mjs",
-    "build:typecheck": "tsc -b && vite build",
+    "build:typecheck": "tsc -b && npm run build",
     "lint:tokens": "node ../../scripts/quality/check-web-css-token-vars.mjs",
     "lint:i18n-keys": "node ../../scripts/quality/check-i18n-defaultvalue-keys.mjs",
     "lint:i18n": "npx tsx scripts/check-i18n-keys.ts",
@@ -35,7 +35,11 @@
     "test:e2e:local:full": "pnpm --dir ../.. e2e:zenstory:local:full",
     "test:smoke": "playwright test smoke.spec.ts --project=chromium",
     "test:ci-local": "act -j e2e-test",
-    "test:ci-local:all": "act"
+    "test:ci-local:all": "act",
+    "test:site": "node --test scripts/__tests__/*.test.mjs",
+    "build:vercel": "npm run build && node scripts/build-site-layout.mjs",
+    "test:geo": "playwright test --config=playwright.geo.config.ts",
+    "test:site:coverage": "mkdir -p coverage && node --test --experimental-test-coverage --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=coverage/site-lcov.info scripts/__tests__/*.test.mjs"
   },
   "overrides": {
     "@babel/core@<8": "7.29.6",

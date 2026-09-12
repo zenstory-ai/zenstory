@@ -15,6 +15,7 @@
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import assert from 'node:assert/strict'
 import { micromark } from 'micromark'
 import { gfm, gfmHtml } from 'micromark-extension-gfm'
 
@@ -24,10 +25,16 @@ const outDir = resolve(process.argv[2] ?? join(webRoot, 'dist'))
 const docsDir = join(webRoot, 'docs')
 const SITE = 'https://zenstory.ai'
 
-const shell = readFileSync(join(outDir, 'index.html'), 'utf8')
-if (!shell.includes('<div id="root"></div>')) {
+const sourceShell = readFileSync(join(outDir, 'index.html'), 'utf8')
+if (!sourceShell.includes('<div id="root"></div>')) {
   throw new Error('dist/index.html has no empty <div id="root"></div> to fill; aborting docs prerender')
 }
+
+// This is our controlled Vite template, not arbitrary HTML to sanitize.
+// Fail closed if route metadata appears upstream; each generated route owns it.
+assert.equal(sourceShell.split('</head>').length, 2, 'Expected one deterministic head insertion point')
+assert.doesNotMatch(sourceShell.slice(0, sourceShell.indexOf('</head>')), /canonical|og:url|application\/ld\+json/i, 'Expected a metadata-free source shell (no canonical, og:url or JSON-LD)')
+const shell = sourceShell
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 const render = (md) => micromark(md, { extensions: [gfm()], htmlExtensions: [gfmHtml()] })
@@ -70,13 +77,31 @@ function writePage(route, zhMd, enMd) {
   const canonical = `${SITE}${route}`
   const zhHtml = render(zhMd)
   const enHtml = enMd ? render(enMd) : ''
-  const ld = { '@context': 'https://schema.org', '@type': 'TechArticle', headline: zhTitle, alternativeHeadline: enTitle || undefined, url: canonical, inLanguage: enMd ? ['zh-CN', 'en'] : ['zh-CN'], isPartOf: { '@type': 'WebSite', url: SITE, name: 'ZenStory AI' }, publisher: { '@type': 'Organization', name: 'ZenStory AI', url: SITE } }
+  const ld = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'Organization', '@id': `${SITE}/#org`, name: 'ZenStory AI', url: SITE,
+        logo: `${SITE}/brand/zenstory-ai-mark.svg`, sameAs: ['https://github.com/zenstory-ai'],
+      },
+      {
+        '@type': 'WebSite', '@id': `${SITE}/#website`, name: 'ZenStory AI', url: SITE,
+        publisher: { '@id': `${SITE}/#org` }, inLanguage: ['en', 'zh-CN'],
+      },
+      {
+        '@type': 'TechArticle', headline: zhTitle, alternativeHeadline: enTitle || undefined,
+        url: canonical, inLanguage: enMd ? ['zh-CN', 'en'] : ['zh-CN'],
+        isPartOf: { '@id': `${SITE}/#website` }, publisher: { '@id': `${SITE}/#org` },
+      },
+    ],
+  }
   const filled = shell
-    .replace(/<title>[^<]*<\/title>/, `<title>${esc(title)}</title>`)
-    .replace(/<meta name="description" content="[^"]*" \/>/, `<meta name="description" content="${esc(description)}" />`)
-    .replace(/<meta property="og:title" content="[^"]*" \/>/, `<meta property="og:title" content="${esc(title)}" />`)
-    .replace(/<meta property="og:description" content="[^"]*" \/>/, `<meta property="og:description" content="${esc(description)}" />`)
-    .replace('</head>', `<link rel="canonical" href="${canonical}" /><meta property="og:url" content="${canonical}" /><script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script>${style}</head>`)
+    .replace(/<title\b[^>]*>[\s\S]*?<\/title>/i, `<title data-rh="true">${esc(title)}</title>`)
+    .replace(/<meta\b(?=[^>]*\bname=["']description["'])[^>]*>/i, `<meta name="description" content="${esc(description)}" data-rh="true" />`)
+    .replace(/<meta\b(?=[^>]*\bproperty=["']og:type["'])[^>]*>/i, '<meta property="og:type" content="article" data-rh="true" />')
+    .replace(/<meta\b(?=[^>]*\bproperty=["']og:title["'])[^>]*>/i, `<meta property="og:title" content="${esc(title)}" data-rh="true" />`)
+    .replace(/<meta\b(?=[^>]*\bproperty=["']og:description["'])[^>]*>/i, `<meta property="og:description" content="${esc(description)}" data-rh="true" />`)
+    .replace('</head>', `<link rel="canonical" href="${canonical}" data-rh="true" /><meta property="og:url" content="${canonical}" data-rh="true" /><script type="application/ld+json" data-rh="true">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script>${style}</head>`)
     .replace('<div id="root"></div>', `<div id="root"><div class="prerender"><article lang="zh-CN">${zhHtml}</article>${enHtml ? `<hr class="lang" /><article lang="en">${enHtml}</article>` : ''}</div></div>`)
   const dir = join(outDir, route)
   mkdirSync(dir, { recursive: true })
