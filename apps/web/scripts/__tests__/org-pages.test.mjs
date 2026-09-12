@@ -70,23 +70,11 @@ test('organization generator preserves existing routes and writes a complete ape
   }
 })
 
-test('docs generator removes inherited URL/schema metadata before adding apex-owned metadata', (t) => {
+test('docs generator adds apex-owned metadata to the clean source shell', (t) => {
   const outDir = mkdtempSync(join(tmpdir(), 'zenstory-doc-pages-'))
   t.after(() => rmSync(outDir, { recursive: true, force: true }))
 
-  writeFileSync(join(outDir, 'index.html'), `<!doctype html><html><head>
-    <title>Workbench</title>
-    <meta data-rh="true" name="description" content="Workbench description" />
-    <meta data-rh="true" property="og:type" content="website" />
-    <meta data-rh="true" property="og:title" content="Workbench" />
-    <meta data-rh="true" property="og:description" content="Workbench description" />
-    <link rel="canonical" href="https://app.zenstory.ai/" />
-    <link href="https://stale.example/" rel="alternate canonical">
-    <meta property="og:url" content="https://app.zenstory.ai/" />
-    <meta content="https://stale.example/" property="og:url">
-    <script type="application/ld+json">{"@type":"SoftwareApplication","url":"https://app.zenstory.ai"}</script>
-    <script data-rh="true" type="application/ld+json">{"@type":"WebSite","url":"https://app.zenstory.ai"}</script>
-  </head><body><div id="root"></div><script type="module" src="/assets/app.js"></script></body></html>`)
+  writeFileSync(join(outDir, 'index.html'), readFileSync(join(webRoot, 'index.html'), 'utf8'))
 
   run('build-docs-pages.mjs', outDir)
 
@@ -104,5 +92,22 @@ test('docs generator removes inherited URL/schema metadata before adding apex-ow
     const types = json['@graph'].map((node) => node['@type'])
     assert.deepEqual(types, ['Organization', 'WebSite', 'TechArticle'])
     assert.equal(json['@graph'][2].url, canonical)
+  }
+})
+
+
+test('docs generator rejects inherited metadata rather than sanitizing arbitrary HTML', (t) => {
+  const outDir = mkdtempSync(join(tmpdir(), 'zenstory-reject-shell-'))
+  t.after(() => rmSync(outDir, { recursive: true, force: true }))
+  const clean = readFileSync(join(webRoot, 'index.html'), 'utf8')
+  for (const metadata of [
+    '<link href="https://app.zenstory.ai/" rel="alternate canonical">',
+    '<meta content="https://app.zenstory.ai/" property="og:url">',
+    '<script type="application/ld+json">{"@type":"SoftwareApplication"}</script>',
+  ]) {
+    writeFileSync(join(outDir, 'index.html'), clean.replace('</head>', `${metadata}</head>`))
+    const result = spawnSync(process.execPath, [join(scriptsDir, 'build-docs-pages.mjs'), outDir], { encoding: 'utf8' })
+    assert.notEqual(result.status, 0)
+    assert.match(result.stderr, /metadata-free/i)
   }
 })

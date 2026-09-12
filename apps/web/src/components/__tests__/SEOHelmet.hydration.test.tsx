@@ -55,4 +55,33 @@ describe('SEOHelmet static metadata hydration', () => {
       expect(document.querySelector('meta[property="og:image"]')).toHaveAttribute('content', 'https://zenstory.ai/brand/generated-guide.png')
     })
   })
+
+  it('inserts the complete Open Graph set through the real Helmet implementation', async () => {
+    window.history.replaceState({}, '', '/privacy-policy')
+
+    render(
+      <HelmetProvider>
+        <MemoryRouter initialEntries={['/privacy-policy']}>
+          <SEOProvider>
+            <SEOHelmet />
+          </SEOProvider>
+        </MemoryRouter>
+      </HelmetProvider>,
+    )
+
+    await waitFor(() => {
+      expect(document.querySelector('meta[property="og:url"]')).toHaveAttribute(
+        'content',
+        `${window.location.origin}/privacy-policy`,
+      )
+      expect(document.querySelector('meta[property="og:site_name"]')).toHaveAttribute('content', 'ZenStory AI')
+      expect(document.querySelector('meta[property="og:type"]')).toHaveAttribute('content', 'website')
+      expect(document.querySelector('meta[property="og:title"]')).toHaveAttribute('content', 'Privacy Policy - zenstory')
+      expect(document.querySelector('meta[property="og:description"]')).toHaveAttribute('content', 'Privacy Policy of zenstory')
+      expect(document.querySelector('meta[property="og:image"]')).toHaveAttribute(
+        'content',
+        'https://zenstory.ai/brand/zenstory-ai-mark.svg',
+      )
+    })
+  })
 })

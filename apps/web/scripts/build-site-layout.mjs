@@ -68,9 +68,7 @@ export const vercelConfig = {
 
 const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')
 function pageHead(shell,route,origin,title) {
-  return shell.replace(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi,'')
-    .replace(/<link\b[^>]*rel=["']canonical["'][^>]*>/gi,'')
-    .replace(/<meta\b[^>]*property=["']og:url["'][^>]*>/gi,'')
+  return shell
     .replace(/<title>[^<]*<\/title>/,`<title>${esc(title)}</title>`)
     .replace(/<meta\b[^>]*name=["']description["'][^>]*>/gi,`<meta data-rh="true" name="description" content="${esc(title)}" />`)
     .replace(/<meta\b[^>]*property=["']og:title["'][^>]*>/gi,`<meta data-rh="true" property="og:title" content="${esc(title)}" />`)
@@ -81,6 +79,8 @@ const sitemap=urls=>`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http
 
 export function finalizeSite(outDir) {
   const shell=readFileSync(join(outDir,'index.html'),'utf8')
+  assert.equal(shell.split('</head>').length, 2, 'Expected one deterministic head insertion point')
+  assert.doesNotMatch(shell.slice(0, shell.indexOf('</head>')), /canonical|og:url|application\/ld\+json/i, 'Expected a metadata-free source shell (no canonical, og:url or JSON-LD)')
   assert.ok(shell.includes('<div id="root"></div>'),'Expected unfilled Vite app shell; finalizer must run after docs, only once')
   assert.ok(existsSync(join(outDir,'org-home/index.html')),'Organization home must be generated first')
   const siteRoutes=['/']

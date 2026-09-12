@@ -15,6 +15,7 @@
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import assert from 'node:assert/strict'
 import { micromark } from 'micromark'
 import { gfm, gfmHtml } from 'micromark-extension-gfm'
 
@@ -29,12 +30,11 @@ if (!sourceShell.includes('<div id="root"></div>')) {
   throw new Error('dist/index.html has no empty <div id="root"></div> to fill; aborting docs prerender')
 }
 
-// The source shell belongs to the workbench. Docs belong to the apex site, so
-// remove every inherited URL/schema declaration before adding route-owned ones.
+// This is our controlled Vite template, not arbitrary HTML to sanitize.
+// Fail closed if route metadata appears upstream; each generated route owns it.
+assert.equal(sourceShell.split('</head>').length, 2, 'Expected one deterministic head insertion point')
+assert.doesNotMatch(sourceShell.slice(0, sourceShell.indexOf('</head>')), /canonical|og:url|application\/ld\+json/i, 'Expected a metadata-free source shell (no canonical, og:url or JSON-LD)')
 const shell = sourceShell
-  .replace(/<link\b(?=[^>]*\brel=["'][^"']*\bcanonical\b[^"']*["'])[^>]*>/gi, '')
-  .replace(/<meta\b(?=[^>]*\bproperty=["']og:url["'])[^>]*>/gi, '')
-  .replace(/<script\b(?=[^>]*\btype=["']application\/ld\+json["'])[^>]*>[\s\S]*?<\/script>/gi, '')
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 const render = (md) => micromark(md, { extensions: [gfm()], htmlExtensions: [gfmHtml()] })

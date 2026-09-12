@@ -60,3 +60,21 @@ test('all protected/public route roots are classified and aliases covered', () =
     assert.ok(vercelConfig.redirects.some(r=>r.source===path), `missing canonical alias ${path}`)
   }
 })
+
+
+test('domain finalizer rejects contaminated shell metadata before generating files', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'site-layout-reject-'))
+  try {
+    mkdirSync(join(dir, 'org-home'))
+    writeFileSync(join(dir, 'org-home/index.html'), '<html>Org</html>')
+    for (const tag of [
+      '<link rel="canonical" href="https://stale.example/">',
+      '<meta property="og:url" content="https://stale.example/">',
+      '<script type="application/ld+json">{}</script>',
+    ]) {
+      writeFileSync(join(dir, 'index.html'), `<html><head>${tag}</head><body><div id="root"></div></body></html>`)
+      assert.throws(() => finalizeSite(dir), /metadata-free/i)
+      assert.equal(existsSync(join(dir, '_app')), false)
+    }
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})

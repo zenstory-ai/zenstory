@@ -59,7 +59,10 @@ const APP_PUBLIC_DOCUMENTS = [
 
 type SchemaNode = {
   type: string
-  references: string[]
+  references: Array<{
+    attribute: '@id' | 'url' | 'isPartOf.@id' | 'isPartOf.url'
+    value: string
+  }>
 }
 
 async function schemaNodes(page: Page): Promise<SchemaNode[]> {
@@ -78,15 +81,17 @@ async function schemaNodes(page: Page): Promise<SchemaNode[]> {
         : Array.isArray(type)
           ? type.filter((item): item is string => typeof item === 'string')
           : []
-      const references = [record['@id'], record.url]
-        .filter((item): item is string => typeof item === 'string')
+      const references: SchemaNode['references'] = []
+      if (typeof record['@id'] === 'string') references.push({ attribute: '@id', value: record['@id'] })
+      if (typeof record.url === 'string') references.push({ attribute: 'url', value: record.url })
       const isPartOf = record.isPartOf
-      if (typeof isPartOf === 'string') references.push(isPartOf)
+      if (typeof isPartOf === 'string') references.push({ attribute: 'isPartOf.@id', value: isPartOf })
       if (isPartOf && typeof isPartOf === 'object' && !Array.isArray(isPartOf)) {
         const parent = isPartOf as Record<string, unknown>
-        for (const item of [parent['@id'], parent.url]) {
-          if (typeof item === 'string') references.push(item)
+        if (typeof parent['@id'] === 'string') {
+          references.push({ attribute: 'isPartOf.@id', value: parent['@id'] })
         }
+        if (typeof parent.url === 'string') references.push({ attribute: 'isPartOf.url', value: parent.url })
       }
       for (const item of types) nodes.push({ type: item, references })
       Object.values(record).forEach(visit)
@@ -112,9 +117,14 @@ async function expectPublicDocumentHead(
 
   const nodes = await schemaNodes(page)
   const types = nodes.map((node) => node.type)
+  const appOrigins = new Set([CANONICAL_APP, APP])
   for (const node of nodes.filter((item) => item.type === 'WebSite')) {
     expect(
-      node.references.some((reference) => reference.startsWith(CANONICAL_APP) || reference.startsWith(APP)),
+      node.references.some((reference) => {
+        const isId = reference.attribute === '@id' || reference.attribute === 'isPartOf.@id'
+        if (isId && (reference.value.startsWith('#') || reference.value.startsWith('_:'))) return false
+        return appOrigins.has(new URL(reference.value, CANONICAL_SITE).origin)
+      }),
       'public site documents must not inherit an app-origin WebSite node',
     ).toBe(false)
   }
