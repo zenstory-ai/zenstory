@@ -7,29 +7,57 @@
     "zh": "让故事从灵感出发，走向小说、短剧、游戏与视频。"
   },
   "canonical": {
-    "en": "ZenStory AI builds open-source agent skills and workbenches that take a story from research and drafting through to short drama, playable games, and narrated video — running inside Claude Code, Codex, OpenCode, and DeepSeek Harness.",
-    "zh": "ZenStory AI 打造开源的 AI 故事创作 Agent Skills 与工作台，覆盖从选题、拆解、写作到短剧、可玩游戏与解说视频的全链路，可在 Claude Code、Codex、OpenCode、DeepSeek Harness 等 Agent 环境中运行。"
+    "en": "ZenStory AI creates open-source tools for fiction writers and story adapters: Oh Story writing skills, Drama Skills for short drama, Novel to Game and Video Recap Skills, plus an Oh Story plugin for DeepSeek Harness. Use the skill packs in a supported agent host, or choose the separate ZenStory browser workbench at app.zenstory.ai.",
+    "zh": "ZenStory AI 为小说作者与故事改编者提供开源工具：Oh Story 写作技能、Drama Skills 短剧流程、Novel to Game 小说改游戏、Video Recap Skills 视频解说，以及面向 DeepSeek Harness 的 Oh Story 插件。技能包在受支持的 Agent 宿主中使用；想在托管网页工作台写作，可选择独立的 app.zenstory.ai。"
   },
   "category": {
     "primary": "agent skills for story creation and adaptation",
-    "note": "网文 / 短剧 are specialization attributes, not the category. An engine can only recommend you inside a category it has filed you under; this is the only category all six projects share."
+    "note": "Story creation and adaptation is the shared use-case family. Skill packs, a host-specific plugin and the separate writing workbench are different product formats; web fiction and short drama are specializations, not model or host names."
   },
   "model": {
     "en": [
-      ["Create", "ZenStory is the conversation-first workbench; Oh Story is the reusable fiction-writing workflow for coding agents."],
-      ["Adapt", "Drama Skills, Novel to Game and Video Recap Skills carry a source story into short drama, interactive and video formats."],
-      ["Orchestrate", "Oh Story DSH brings novel, short-drama, game and video workflows into local DeepSeek Harness workbenches."]
+      [
+        "Create",
+        "Start with an idea, an existing manuscript or a chapter to revise. Oh Story supplies reusable fiction-writing workflows in a supported agent; the separate ZenStory workbench organizes writing in a hosted project workspace."
+      ],
+      [
+        "Adapt",
+        "Choose the next form of your story: Drama Skills for short-drama scripts and shot planning, Novel to Game for an interactive game candidate, or Video Recap Skills for narrated recaps from footage. Bring source material and the rights to use it."
+      ],
+      [
+        "Orchestrate",
+        "Already using DeepSeek Harness? Oh Story DSH brings the four skill packs into its workbenches. It is a community plugin for that host, not an extension installed into ordinary DeepSeek web chat."
+      ]
     ],
     "zh": [
-      ["创作", "ZenStory 提供对话优先的工作台；Oh Story 为编程 Agent 提供可复用的网文写作流程。"],
-      ["改编", "Drama Skills、Novel to Game、Video Recap Skills 把故事源带入短剧、互动与视频形态。"],
-      ["编排", "Oh Story DSH 将小说、短剧、游戏与视频流程带入本地 DeepSeek Harness 工作台。"]
+      [
+        "创作",
+        "从一个点子、一部已有小说或一章待修改的正文开始。Oh Story 在受支持的 Agent 中提供可复用写作流程；独立的 ZenStory 托管工作台则围绕项目组织写作。"
+      ],
+      [
+        "改编",
+        "按目标形态选工具：Drama Skills 生成短剧剧本与分镜规划，Novel to Game 制作互动游戏候选版本，Video Recap Skills 把视频素材组织成旁白解说。准备好源材料及使用权。"
+      ],
+      [
+        "编排",
+        "已经使用 DeepSeek Harness？Oh Story DSH 将四套技能整合到它的工作台中。这是该宿主的社区插件，不是安装到普通 DeepSeek 网页聊天里的扩展。"
+      ]
     ]
   },
   "proof": {
     "stars_total": 10219,
     "as_of": "2026-09-11",
     "license": "MIT",
-    "harnesses": ["Claude Code", "Codex CLI", "Google Antigravity", "OpenCode", "ZCode", "OpenClaw", "Reasonix", "Kimi Code", "DeepSeek Harness"]
+    "harnesses": [
+      "Claude Code",
+      "Codex CLI",
+      "Google Antigravity",
+      "OpenCode",
+      "ZCode",
+      "OpenClaw",
+      "Reasonix",
+      "Kimi Code",
+      "DeepSeek Harness"
+    ]
   }
 }

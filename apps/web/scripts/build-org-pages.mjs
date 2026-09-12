@@ -211,6 +211,11 @@ const homePage = () => {
     </div>
   </section>
 
+  <section aria-labelledby="guides-h">
+    <h2 id="guides-h">Writing and adaptation guides <span lang="zh-CN">· 创作与改编入门</span></h2>
+    <ul>${guides.map((g) => `<li><a href="/${g.owner}/${g.slug}">${esc(g.title.en)} <span lang="zh-CN">· ${esc(g.title.zh)}</span></a></li>`).join('')}</ul>
+  </section>
+
   <section aria-labelledby="projects-h">
     <h2 id="projects-h">Six open-source projects <span lang="zh-CN">· 六个开源项目</span></h2>
     <div class="project-grid">${projects.map((p) => `
@@ -342,7 +347,7 @@ const guidePage = (g) => {
   ${list(g.outputs.en)}${list(g.outputs.zh, 'zh')}
   <h2>Verify the result <span lang="zh-CN">· 验证结果与边界</span></h2>
   ${list(g.verification.en)}${list(g.verification.zh, 'zh')}
-  <h2>Versioned sources <span lang="zh-CN">· 版本化来源</span></h2>
+  <h2>Sources and version notes <span lang="zh-CN">· 来源与版本说明</span></h2>
   ${list(g.sources.en)}${list(g.sources.zh, 'zh')}
 </article>`
   write(route, page({ route, title: `${g.title.en} | ZenStory AI`, description: g.answer.en, ld, body }))
