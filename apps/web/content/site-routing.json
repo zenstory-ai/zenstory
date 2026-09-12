@@ -1,0 +1,9 @@
+{
+  "siteOrigin": "https://zenstory.ai",
+  "appOrigin": "https://app.zenstory.ai",
+  "apiOrigin": "https://api.zenstory.ai",
+  "previewSiteOrigin": "https://geo-preview.zenstory.ai",
+  "previewAppOrigin": "https://app-preview.zenstory.ai",
+  "appPrefixes": ["login", "register", "forgot-password", "verify-email", "auth", "onboarding", "dashboard", "project", "materials", "admin", "pricing"],
+  "sitePrefixes": ["projects", "oh-story", "drama-skills", "novel-to-game", "video-recap", "dsh", "workbench", "glossary", "docs", "privacy-policy", "terms-of-service", "llms.txt"]
+}
