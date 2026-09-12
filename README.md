@@ -10,13 +10,11 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/zenstory-ai/zenstory?style=social)](https://github.com/zenstory-ai/zenstory)
-[![Website](https://img.shields.io/website?url=https%3A%2F%2Fzenstory.ai&label=zenstory.ai)](https://zenstory.ai/)
+[![Workbench](https://img.shields.io/website?url=https%3A%2F%2Fapp.zenstory.ai&label=app.zenstory.ai)](https://app.zenstory.ai/)
 
 ZenStory 让 AI Agent 直接操作你的创作文件——建角色卡、拆参考素材、规划大纲、逐章写作——全部在一次对话里完成。
 
-**2000+ 创作者 · 1200 万字生成 · 4.9 分好评**
-
-[zenstory.ai](https://zenstory.ai/) · [快速开始](#快速开始) · [English](README_EN.md)
+[打开工作台](https://app.zenstory.ai/) · [ZenStory AI 组织站](https://zenstory.ai/) · [快速开始](#快速开始) · [English](README_EN.md)
 
 </div>
 
