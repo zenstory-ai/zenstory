@@ -1,368 +1,79 @@
 # Account Registration and Login
 
-Welcome to zenstory Novel Writing Workbench! This document will guide you through registering and logging into your account to begin your AI-assisted creative journey.
+Learn how registration, verification, invitations, login and account-recovery entrypoints work in the ZenStory workbench, including behavior that depends on deployment settings.
 
----
+Registration, login and account entrypoints for the ZenStory workbench are on [app.zenstory.ai](https://app.zenstory.ai). Organization information and this guide live on zenstory.ai; use the workbench links below rather than looking for registration on the organization homepage.
 
-## Registration Methods
+> **Source review: 2026-09-12.** This guide describes the fixed source version linked below; it is **not a live-account acceptance test**. No account was created, email delivery verified or real Google authorization completed. Deployment flags, invitation rules and verification countdowns depend on the current page and server response.
 
-### Email Registration (Recommended)
+## Email Registration
 
-Email registration is the most common method and requires verifying your email address to ensure account security.
+1. Open the workbench [registration page](https://app.zenstory.ai/register).
+2. Enter a username, email address, password and password confirmation. The current web form requires at least 3 characters for the username, at least 6 for the password, and matching passwords.
+3. Follow the form's invitation requirement. The active registration policy determines whether a code is required, and the page reads that policy again before submission. Neither “optional” nor “invite-only” is a universal deployment rule.
+4. Read and accept the terms of service and privacy policy, then submit.
+5. After a successful registration request, the page moves to email verification. Enter the code from the email; successful verification saves the login state and opens the Dashboard.
 
-[Screenshot: Registration form showing username, email, password, confirm password fields and invite code input]
+A successful registration response does not establish email delivery. If the email is missing, check the address and spam folder, then use the page's resend option after its cooldown. Follow the displayed expiry and resend countdowns; this guide does not guarantee a fixed interval or delivery time.
 
-#### Registration Steps
+## Invitation Links and Rewards
 
-1. **Access the Registration Page**
-   - Visit the zenstory official website homepage
-   - Click the "Register" button in the top right corner
-   - Or directly access the `/register` page
+An invitation link can prefill a code. This example demonstrates the URL format only; `ABCD-1234` is **not a valid code issued to you**:
 
-2. **Fill in Registration Information**
-
-   - **Username**: At least 3 characters, this will be your unique identifier on zenstory
-   - **Email Address**: Use your regular email for receiving verification codes and password recovery
-   - **Password**: At least 6 characters, recommended to include letters and numbers
-   - **Confirm Password**: Re-enter your password to ensure accuracy
-
-3. **Enter Invite Code** (Optional but Recommended)
-
-   - If you have an invite code, find the "Invite Code" input field at the bottom of the registration form
-   - Format: `XXXX-XXXX` (e.g., `ABCD-1234`)
-   - Registering with an invite code and completing email verification grants you **100 points**
-   - The invite code is validated in real-time, showing a green checkmark when valid
-
-4. **Submit Registration**
-
-   - Click the "Register" button
-   - The system will send a 6-digit verification code to your email
-   - The page will automatically redirect to the email verification page
-
-[Screenshot: Email verification page showing verification code input and resend button]
-
-5. **Verify Email**
-
-   - Open your email and find the verification email from zenstory
-   - Copy the 6-digit verification code from the email
-   - Enter the verification code on the verification page
-   - Click the "Verify" button
-
-6. **Complete Registration**
-
-   - After successful verification, you'll be automatically logged in
-   - Redirect to the Dashboard homepage
-   - Start creating your first project
-
-> **Tip**: If you don't receive the verification email, check your spam folder or click the "Resend Verification Code" button (60-second cooldown).
-
----
-
-### Google Account Login
-
-A quick login method that doesn't require filling out forms or email verification.
-
-[Screenshot: Login/Registration page highlighting the "Sign in with Google" button]
-
-#### Usage Steps
-
-1. Find the "Sign in with Google" button on the login or registration page
-2. Click the button to redirect to the Google authorization page
-3. Select your Google account
-4. Authorize zenstory to access your basic information (email, name, avatar)
-5. Registration/login will complete automatically and redirect to the workbench
-
-#### Advantages
-
-- **No password to remember**: Simply use your Google account to log in
-- **No email verification required**: Google has already verified your email, so you can skip this step
-- **Auto-fill information**: The system automatically uses your Google name and avatar
-- **More secure and convenient**: Enjoy Google's security protection and two-factor authentication
-
-> **Note**: First-time Google login will automatically create an account, and the system will generate a username based on your Google information. If the username is already taken, a numeric suffix will be automatically added (e.g., `zhangsan2`).
-
----
-
-### Invite Code System
-
-zenstory uses an invitation-based registration system to encourage healthy community growth.
-
-[Screenshot: Invite code input field showing green checkmark validation status for valid code]
-
-#### Obtaining an Invite Code
-
-Invite codes can be obtained through:
-
-- **Registered users**: Ask your friends or colleagues for one
-- **Official channels**: Apply through the official community or Discord channel
-- **Event giveaways**: Participate in official creative events to receive codes
-
-#### Invitation Reward Mechanism
-
-After registering with an invite code, both parties receive rewards:
-
-| Role | Reward | When |
-|------|--------|------|
-| **Inviter** | 100 points | After invitee completes email verification |
-| **Invitee** | 100 points | After completing email verification |
-
-#### Invite Code Usage Rules
-
-- **Format**: `XXXX-XXXX` (8-character alphanumeric combination)
-- **Usage limit**: Each invite code can be used up to 3 times
-- **Validity period**: Some invite codes may have expiration dates
-- **Real-time validation**: The system validates invite codes in real-time when entered
-- **Anti-abuse mechanism**: The system detects abnormal registration behavior (such as same IP, device fingerprint) to ensure fair use
-
-#### Auto-fill via Link
-
-If you receive an invitation link containing an invite code parameter, the system will auto-fill it:
-
-```
-https://zenstory.ai/register?invite=ABCD-1234
+```text
+https://app.zenstory.ai/register?invite=ABCD-1234
 ```
 
-After visiting this link, the invite code input field will automatically populate with `ABCD-1234`.
+The page also accepts `?code=` and normalizes the input format. A complete code looks like `XXXX-XXXX`; completing it can trigger a validation lookup. The server checks existence, enabled state, expiry and remaining uses.
 
----
+- Usage limits, expiry and rewards depend on the current rules and code record. Source defaults are not fixed promises about the live deployment.
+- Invitation rewards are processed after email verification and can be restricted by anti-abuse checks. Successful registration or verification does not guarantee a reward.
+- For an invalid code, check the copied value and page error; request a usable code from its provider if needed. Do not treat the example as registration eligibility.
 
-## Login and Logout
+## Google Login (Deployment-Dependent)
 
-### Login Process
+If a Google button is displayed on the login or registration page, follow its authorization flow. Showing the button and configuring backend OAuth are separate requirements; this guide does not verify the live configuration.
 
-[Screenshot: Login page showing username/email input, password input, and login button]
+New Google users still follow the active invitation policy. The reviewed source uses returned Google information to create a new account, marks its email verified and saves a picture when available. This is not a guarantee of account creation, authorization availability or security. A documented Google flow is not proof that every self-hosted deployment enables it.
 
-#### Login Steps
+## Login and Session State
 
-1. Visit the `/login` page or click the "Login" button on the homepage
-2. Enter your username or email address (either works)
-3. Enter your password
-4. Click the "Login" button
+Open the [login page](https://app.zenstory.ai/login) and enter your username or email address and password.
 
-#### Post-Login Behavior
+When there is no pending destination to resume, ordinary password login attempts to open the current user's locally saved project. If that record is not usable, it selects from the most recently updated or created projects. With no projects, or a failed project-list request, it falls back to the Dashboard. Login does not always open the “last-used project.”
 
-After successful login, the system intelligently redirects based on your project status:
+The current web app saves login tokens and user state in browser local storage. An ordinary API request receiving an unauthorized response can attempt a refresh and retry; a rejected refresh or another unauthorized response requires login again. Token lifetimes are deployment settings; automatic refresh does not guarantee that login will never be required again.
 
-- **Has projects**: Redirect to the most recently used project
-- **No projects**: Redirect to Dashboard homepage, guided to create first project
-- **SSO redirect**: If logging in from an external application, you'll automatically return to the original app with authentication tokens
+The user menu offers logout. The current frontend clears local login state; that is not immediate revocation of every device's session, and different entrypoints need not navigate to the same destination. Log out after using a shared device rather than treating a closed tab as logout.
 
-### Remember Login State
+## Forgotten Password
 
-zenstory uses JWT tokens to manage login state:
+Follow the login page to the [forgot-password page](https://app.zenstory.ai/forgot-password). A feature flag controls this entrypoint: when enabled, it displays a support-email contact link; otherwise it returns to login. Use the contact actually shown on the page. This guide makes no response-time commitment.
 
-- **Access token**: Short validity period (e.g., 2 hours), used for API requests
-- **Refresh token**: Longer validity period (e.g., 7 days), used to automatically refresh access tokens
-- **Auto-refresh**: When the access token expires, the system automatically uses the refresh token to obtain a new one
-- **No repeated logins**: As long as the refresh token is valid, no need to log in again
+**The reviewed version has no web self-service reset-link flow or password-change form in Settings.** A backend change-password endpoint is not a web button; follow the current page instructions.
 
-> **Security Tip**: Don't check your browser's "Remember password" feature on public computers. zenstory's tokens are stored in browser local storage and won't be cleared when you exit the browser.
+Keep non-sensitive error messages when troubleshooting. Do not publish passwords, verification or invitation codes, or login tokens in public reports. This guide does not claim two-factor authentication, immediate cross-device logout or a service guarantee for a particular support channel.
 
-### Secure Logout
+## Reviewed Source
 
-[Screenshot: User menu dropdown highlighting the "Logout" option]
+These links pin the same source version so implementation boundaries can be checked. They do not prove that later versions or production settings are unchanged.
 
-#### Logout Steps
-
-1. Click your avatar or username in the top right corner of the page
-2. Click the "Logout" button in the dropdown menu
-3. Clear locally stored authentication tokens
-4. Redirect to the login page
-
-#### Automatic Logout Situations
-
-You will be automatically logged out in these situations:
-
-- Refresh token expired (more than 7 days of inactivity)
-- Server returns 401 unauthorized error
-- Token tampering detected
-- User changed password on another device
-
----
-
-## Password Recovery
-
-If you forget your password, you can reset it through your registered email.
-
-[Screenshot: Forgot password page showing email input field]
-
-### Reset Steps
-
-1. **Access Password Recovery Page**
-   - Click the "Forgot Password?" link on the login page
-   - Or directly access the `/forgot-password` page
-
-2. **Enter Email Address**
-   - Fill in the email address you used during registration
-   - Click the "Send Reset Link" button
-
-3. **Check Your Email**
-   - Open your email and find the password reset email from zenstory
-   - The email contains a reset link valid for **1 hour**
-
-4. **Reset Password**
-   - Click the reset link in the email
-   - Enter a new password on the opened page (at least 6 characters)
-   - Re-enter to confirm the new password
-   - Click the "Confirm Reset" button
-
-5. **Log In Again**
-   - After successful reset, log in with your new password
-   - All login sessions on other devices will be invalidated and require re-login
-
-> **Note**: The reset link can only be used once. If the link expires, you'll need to request a new reset email.
-
----
-
-## Account Settings
-
-After logging in, you can modify your personal information in the settings page.
-
-[Screenshot: Settings page showing nickname, avatar, password modification, and theme switching options]
-
-### Change Nickname
-
-1. Go to the "Settings" page
-2. Find the "Nickname" input field in the "Personal Information" section
-3. Modify your nickname (username cannot be changed)
-4. Click the "Save" button
-
-### Change Password
-
-1. Go to the "Settings" page
-2. Click "Change Password" in the "Security Settings" section
-3. Enter your current password
-4. Enter your new password (at least 6 characters)
-5. Confirm your new password
-6. Click "Confirm Change"
-7. After successful change, all devices must re-login with the new password
-
-### Theme Switching
-
-zenstory supports light/dark themes:
-
-1. Go to the "Settings" page
-2. Find the "Theme" option in the "Appearance Settings" section
-3. Choose:
-   - **Light Mode**: White background, suitable for daytime use
-   - **Dark Mode**: Dark background, suitable for nighttime use, easier on the eyes
-   - **Follow System**: Automatically switches based on system settings
-
-4. Changes take effect immediately, no page refresh needed
-
-### Language Switching
-
-zenstory supports multiple interface languages:
-
-1. Go to the "Settings" page
-2. Select interface language in the "Language Settings" section
-3. Currently supported:
-   - **Chinese (Simplified)**: Default language
-   - **English**: English interface
-
-4. The page will automatically refresh after switching to apply the new language
-
----
-
-## Frequently Asked Questions
-
-### Didn't receive verification email?
-
-**Possible causes and solutions**:
-
-1. **Email in spam folder**: Check your spam/junk folder
-2. **Incorrect email address**: Confirm the email you entered is correct
-3. **Email delay**: Wait 2-3 minutes, some email providers may have delays
-4. **Too many requests**: If you clicked "Resend" multiple times, there's a 60-second cooldown
-5. **Email blocked**: Try registering with a different email (e.g., Gmail, Outlook, or other commonly used email services)
-
-### Seeing "Email already registered"?
-
-**Solutions**:
-
-- This email is already registered, please log in directly
-- If you forgot your password, use the "Forgot Password" feature to reset it
-- If you want to use a new email, you'll need to register with a different email address
-
-### Invite code invalid?
-
-**Possible causes**:
-
-1. **Invite code expired**: Some invite codes have expiration dates
-2. **Invite code reached limit**: Each invite code can be used up to 3 times
-3. **Invite code disabled**: The inviter may have manually disabled the code
-4. **Format error**: Ensure the invite code format is `XXXX-XXXX`
-
-**Solution**: Contact the inviter for a new invite code, or apply for one in the community.
-
-### Google login failed?
-
-**Possible causes and solutions**:
-
-1. **Browser blocked popup**: Allow browser popups, or manually redirect to the Google authorization page
-2. **Network issue**: Check your network connection and ensure you can access Google services
-3. **Google service error**: Try again later, or use email registration instead
-4. **Insufficient account permissions**: Ensure you authorize zenstory to access basic information (email, name)
-
-### Logged out immediately after login?
-
-**Possible causes**:
-
-1. **Token expired**: Refresh token has expired (more than 7 days of inactivity), need to log in again
-2. **Password changed**: Password was changed on another device, all devices need to re-login
-3. **Token validation failed**: Clear browser cache and local storage, then log in again
-4. **Server error**: Try again later, or contact customer support
-
----
-
-## Security Recommendations
-
-To protect your account security, please follow these recommendations:
-
-1. **Use a Strong Password**
-   - At least 8 characters
-   - Include uppercase and lowercase letters, numbers, and special characters
-   - Avoid using easily guessable information like birthdays or phone numbers
-
-2. **Change Password Regularly**
-   - Change your password every 3-6 months
-   - Don't use the same password across multiple websites
-
-3. **Be Cautious on Public Devices**
-   - Don't check "Remember password" on public computers
-   - Log out promptly after use
-   - Clear browser cache and cookies
-
-4. **Protect Your Invite Code**
-   - Don't share invite codes in public places
-   - Regularly check invite code usage
-   - Disable invite codes immediately if you notice unusual activity
-
-5. **Enable Two-Factor Authentication** (Coming Soon)
-   - Bind a phone number or authenticator app
-   - Require dynamic verification code during login
-
----
-
-## Getting Help
-
-If you encounter account-related issues, you can get help through:
-
-- **Online Documentation**: Visit [docs.zenstory.ai](https://docs.zenstory.ai) for complete documentation
-- **Help Center**: Click the "Help" button in the app to view FAQs
-- **Community Forum**: Ask questions at [community.zenstory.ai](https://community.zenstory.ai)
-- **Customer Support Email**: Send an email to support@zenstory.ai
-- **Issue Feedback**: Submit a ticket by clicking "Feedback" in the settings page
-
----
+- [Registration link and form](https://github.com/zenstory-ai/zenstory/blob/76b8ab84ce73ca309083f0c1a90f3c9d7ce8d72b/apps/web/src/pages/Register.tsx#L91-L237)
+- [Registration policy](https://github.com/zenstory-ai/zenstory/blob/76b8ab84ce73ca309083f0c1a90f3c9d7ce8d72b/apps/server/api/auth.py#L115-L172)
+- [Verification completion and resend](https://github.com/zenstory-ai/zenstory/blob/76b8ab84ce73ca309083f0c1a90f3c9d7ce8d72b/apps/web/src/pages/VerifyEmail.tsx#L153-L207)
+- [Invite-code validation](https://github.com/zenstory-ai/zenstory/blob/76b8ab84ce73ca309083f0c1a90f3c9d7ce8d72b/apps/server/api/referral.py#L160-L209)
+- [Reward configuration defaults](https://github.com/zenstory-ai/zenstory/blob/76b8ab84ce73ca309083f0c1a90f3c9d7ce8d72b/apps/server/services/features/referral_service.py#L31-L38)
+- [Invitation reward anti-abuse checks](https://github.com/zenstory-ai/zenstory/blob/76b8ab84ce73ca309083f0c1a90f3c9d7ce8d72b/apps/server/services/features/referral_service.py#L385-L426)
+- [Authentication feature flags](https://github.com/zenstory-ai/zenstory/blob/76b8ab84ce73ca309083f0c1a90f3c9d7ce8d72b/apps/web/src/config/auth.ts#L47-L68)
+- [New Google users and invitation policy](https://github.com/zenstory-ai/zenstory/blob/76b8ab84ce73ca309083f0c1a90f3c9d7ce8d72b/apps/server/api/oauth.py#L492-L591)
+- [Navigation after password login](https://github.com/zenstory-ai/zenstory/blob/76b8ab84ce73ca309083f0c1a90f3c9d7ce8d72b/apps/web/src/pages/Login.tsx#L160-L247)
+- [Token storage and local logout](https://github.com/zenstory-ai/zenstory/blob/76b8ab84ce73ca309083f0c1a90f3c9d7ce8d72b/apps/web/src/contexts/AuthContext.tsx#L248-L282)
+- [API refresh and failure handling](https://github.com/zenstory-ai/zenstory/blob/76b8ab84ce73ca309083f0c1a90f3c9d7ce8d72b/apps/web/src/lib/apiClient.ts#L124-L179)
+- [Forgot-password page](https://github.com/zenstory-ai/zenstory/blob/76b8ab84ce73ca309083f0c1a90f3c9d7ce8d72b/apps/web/src/pages/ForgotPassword.tsx#L8-L65)
 
 ## Next Steps
 
-After completing registration and login, you can:
-
-- **[Create Your First Project](./first-project.md)** - Start your creative journey
-- **[Understand the Interface](../user-guide/interface-overview.md)** - Familiarize yourself with zenstory's three-panel layout
-- **[Chat with AI](../user-guide/ai-assistant.md)** - Learn how to efficiently use the AI assistant
-- **[Manage Files](../user-guide/file-tree.md)** - Master file organization and version control
-
-Happy writing!
+- [Create your first project](./first-project.md)
+- [Explore the interface](../user-guide/interface-overview.md)
+- [Work with the AI assistant](../user-guide/ai-assistant.md)
+- [Manage files](../user-guide/file-tree.md)

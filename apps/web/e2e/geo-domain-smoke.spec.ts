@@ -7,6 +7,7 @@ const PREVIEW_SITE = 'https://geo-preview.zenstory.ai'
 const PREVIEW_APP = 'https://app-preview.zenstory.ai'
 const INDEXNOW_KEY = '1e4acbc11fe3407a8a641d69a13af696'
 const COMPARISON_PATH = '/compare/writing-workflows'
+const ACCOUNT_DOC_PATH = '/docs/getting-started/installation'
 
 const mode = process.env.GEO_DOMAIN_MODE
 if (mode && mode !== 'preview' && mode !== 'production') {
@@ -39,6 +40,12 @@ const PUBLIC_DOCUMENTS = [
   {
     name: 'documentation leaf',
     path: '/docs/getting-started/quick-start',
+    ogType: 'article',
+    requiredSchemaType: 'TechArticle',
+  },
+  {
+    name: 'account documentation',
+    path: ACCOUNT_DOC_PATH,
     ogType: 'article',
     requiredSchemaType: 'TechArticle',
   },
@@ -313,6 +320,45 @@ test.describe('organization site', () => {
         'requiredSchemaType' in document ? document.requiredSchemaType : undefined,
       )
       await expectFullOpenGraph(page, `${CANONICAL_SITE}${document.path}`, document.ogType)
+    })
+  }
+
+  test('account documentation exposes both languages and direct app links without JavaScript', async ({ browser }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false })
+    try {
+      const page = await context.newPage()
+      await page.goto(`${SITE}${ACCOUNT_DOC_PATH}`, { waitUntil: 'domcontentloaded' })
+      const article = page.locator('.prerender')
+      await expect(article).toContainText('源码核对：2026-09-12')
+      await expect(article).toContainText('Source review: 2026-09-12')
+      await expect(article).toContainText('不是线上账号验收')
+      await expect(article).toContainText('not a live-account acceptance test')
+      for (const route of ['register', 'login', 'forgot-password']) {
+        await expect(article.locator(`a[href="${CANONICAL_APP}/${route}"]`)).toHaveCount(2)
+      }
+      await expect(article.locator('a[href^="https://github.com/zenstory-ai/zenstory/blob/76b8ab84ce73ca309083f0c1a90f3c9d7ce8d72b/"]')).toHaveCount(24)
+      await expect(article).not.toContainText('https://zenstory.ai/register')
+    } finally {
+      await context.close()
+    }
+  })
+
+  for (const language of ['zh', 'en']) {
+    test(`account documentation retains ${language} source limits after hydration`, async ({ browser }) => {
+      const context = await browser.newContext()
+      try {
+        await context.addInitScript(value => localStorage.setItem('zenstory-language', value), language)
+        const page = await context.newPage()
+        await page.goto(`${SITE}${ACCOUNT_DOC_PATH}`, { waitUntil: 'networkidle' })
+        const main = page.locator('main')
+        await expect(main).toContainText(language === 'zh' ? '不是线上账号验收' : 'not a live-account acceptance test')
+        await expect(main.locator(`a[href="${CANONICAL_APP}/register"]`)).toHaveCount(1)
+        await expect(main.locator('a[href^="https://github.com/zenstory-ai/zenstory/blob/76b8ab84ce73ca309083f0c1a90f3c9d7ce8d72b/"]')).toHaveCount(12)
+        await expect(main).not.toContainText('https://zenstory.ai/register')
+        await expectPublicDocumentHead(page, `${CANONICAL_SITE}${ACCOUNT_DOC_PATH}`, 'TechArticle')
+      } finally {
+        await context.close()
+      }
     })
   }
 

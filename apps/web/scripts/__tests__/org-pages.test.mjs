@@ -320,6 +320,33 @@ test('docs generator adds apex-owned metadata to the clean source shell', (t) =>
 })
 
 
+test('account documentation keeps app entrypoints and source limits in the apex React shell', (t) => {
+  const outDir = mkdtempSync(join(tmpdir(), 'zenstory-account-doc-'))
+  t.after(() => rmSync(outDir, { recursive: true, force: true }))
+  writeFileSync(join(outDir, 'index.html'), readFileSync(join(webRoot, 'index.html'), 'utf8'))
+  run('build-docs-pages.mjs', outDir)
+  const html = readOutput(outDir, 'docs/getting-started/installation')
+  for (const route of ['register', 'login', 'forgot-password']) {
+    assert.ok(html.includes(`href="https://app.zenstory.ai/${route}"`), `Missing direct app ${route} entry`)
+  }
+  assert.equal(html.split('https://app.zenstory.ai/register?invite=ABCD-1234').length - 1, 2)
+  assert.doesNotMatch(html, /https:\/\/zenstory\.ai\/(?:register|login|forgot-password)/)
+  assert.equal(html.split('2026-09-12').length - 1, 2)
+  assert.match(html, /源码核对/)
+  assert.match(html, /Source review/)
+  assert.match(html, /不是线上账号验收/)
+  assert.match(html, /not a live-account acceptance test/)
+  assert.match(html, /没有网页自助发送密码重置链接的流程/)
+  assert.match(html, /no web self-service reset-link flow/)
+  assert.equal(matches(html, /<script\b[^>]*type="module"[^>]*src="\/src\/main\.tsx"/g).length, 1)
+  assert.ok(html.includes('href="https://zenstory.ai/docs/getting-started/installation"'))
+  const sources = matches(html, /href="(https:\/\/github\.com\/zenstory-ai\/zenstory\/blob\/[a-f0-9]{40}\/[^"#]+#L\d+(?:-L\d+)?)"/g).map(match => match[1])
+  assert.equal(sources.length, 24, 'Both languages need all twelve checked-source references')
+  const midpoint = sources.length / 2
+  assert.deepEqual(sources.slice(0, midpoint), sources.slice(midpoint))
+  for (const source of sources) assert.ok(source.includes('/blob/76b8ab84ce73ca309083f0c1a90f3c9d7ce8d72b/'))
+})
+
 test('docs generator rejects inherited metadata rather than sanitizing arbitrary HTML', (t) => {
   const outDir = mkdtempSync(join(tmpdir(), 'zenstory-reject-shell-'))
   t.after(() => rmSync(outDir, { recursive: true, force: true }))
