@@ -30,12 +30,44 @@ const org = JSON.parse(readFileSync(join(webRoot, 'content/org.json'), 'utf8'))
 const projects = JSON.parse(readFileSync(join(webRoot, 'content/projects.json'), 'utf8'))
 const glossary = JSON.parse(readFileSync(join(webRoot, 'content/glossary.json'), 'utf8'))
 const guides = JSON.parse(readFileSync(join(webRoot, 'content/guides.json'), 'utf8'))
+const comparisons = JSON.parse(readFileSync(join(webRoot, 'content/comparisons.json'), 'utf8'))
 const guideRoutes = new Set()
 for (const guide of guides) {
   assert.ok(projects.filter((p) => p.slug === guide.owner).length === 1 && /^[a-z0-9-]+$/.test(guide.slug), 'Invalid guide identity')
   const route = `/${guide.owner}/${guide.slug}`
   assert.ok(!guideRoutes.has(route), 'Duplicate guide route')
   guideRoutes.add(route)
+}
+const comparisonAxes = [
+  ['fit', 'Best fit', '适合场景'],
+  ['environment', 'Working environment', '工作环境'],
+  ['configuration', 'Configuration responsibility', '配置责任'],
+  ['files', 'Files and results', '文件与结果'],
+  ['version', 'Version relationship', '版本关系'],
+  ['review', 'What to review', '需要检查什么'],
+]
+const comparisonProjects = ['oh-story', 'dsh', 'workbench']
+const comparisonRoutes = new Set()
+for (const comparison of comparisons) {
+  assert.ok(typeof comparison.slug === 'string' && /^[a-z0-9-]+$/.test(comparison.slug), 'Invalid comparison identity')
+  const route = `/compare/${comparison.slug}`
+  assert.ok(!comparisonRoutes.has(route), 'Duplicate comparison route')
+  comparisonRoutes.add(route)
+  assert.deepEqual(comparison.options?.map((option) => option.project), comparisonProjects, 'Invalid comparison options')
+  for (const field of ['title', 'answer', 'disclosure']) {
+    assert.ok(comparison[field]?.en?.trim() && comparison[field]?.zh?.trim(), 'Invalid comparison content')
+  }
+  assert.match(comparison.checked_on, /^\d{4}-\d{2}-\d{2}$/, 'Invalid comparison content')
+  for (const option of comparison.options) {
+    assert.ok(projects.some((project) => project.slug === option.project), 'Invalid comparison options')
+    for (const [field] of comparisonAxes) {
+      assert.ok(option[field]?.en?.trim() && option[field]?.zh?.trim(), 'Invalid comparison content')
+    }
+    assert.ok(option.sources?.en?.length && option.sources?.zh?.length, 'Invalid comparison content')
+  }
+  for (const field of ['checklist', 'boundaries']) {
+    assert.ok(comparison[field]?.en?.length && comparison[field]?.zh?.length, 'Invalid comparison content')
+  }
 }
 
 // ---------- helpers ----------
@@ -135,6 +167,7 @@ ${footer}
 
 const list = (items, lang) => `<ul>${items.map((i) => `<li${lang === 'zh' ? ' lang="zh-CN"' : ''}>${rich(i)}</li>`).join('')}</ul>`
 const steps = (items, lang) => `<ol class="steps">${items.map(([k, v]) => `<li${lang === 'zh' ? ' lang="zh-CN"' : ''}><b>${rich(k)}</b> ${rich(v)}</li>`).join('')}</ol>`
+const comparisonLinks = (project) => comparisons.filter((comparison) => comparison.options.some((option) => option.project === project))
 
 // ---------- organization homepage ----------
 
@@ -166,6 +199,7 @@ const homePage = () => {
   <p class="lede" lang="zh-CN">${esc(org.canonical.zh)}</p>
   <p class="actions home-actions">
     <a class="btn" href="/projects">Explore the six projects</a>
+    ${comparisons.map((comparison) => `<a class="btn ghost" href="/compare/${comparison.slug}">${esc(comparison.title.en)}</a>`).join('')}
     <a class="btn ghost" href="${APP}">Open the web workbench</a>
   </p>
   <p class="migration-note">The hosted writing workbench now lives at <a href="${APP}">app.zenstory.ai</a>. You may need to sign in again; account data is not copied through this page.<span lang="zh-CN">托管写作工作台现位于 app.zenstory.ai。你可能需要重新登录；此页面不会传递账户数据。</span></p>
@@ -259,6 +293,9 @@ const projectPage = (p) => {
   <h2>What makes it different <span lang="zh-CN">· 有什么不同</span></h2>
   <div class="cols">${list(p.distinctive.en)}${list(p.distinctive.zh, 'zh')}</div>
 
+  ${comparisonLinks(p.slug).length ? `<h2>Compare writing workflows <span lang="zh-CN">· 比较写作环境</span></h2>
+  <ul>${comparisonLinks(p.slug).map((comparison) => `<li><a href="/compare/${comparison.slug}">${esc(comparison.title.en)} <span lang="zh-CN">· ${esc(comparison.title.zh)}</span></a></li>`).join('')}</ul>` : ''}
+
   <h2>Source notes <span lang="zh-CN">· 来源与边界</span></h2>
   <p class="facts">Source checked ${esc(p.sources.checked_on)} <span lang="zh-CN">· 源码核对日期</span>. Links identify the reviewed version, not a guarantee about later releases.</p>
   <div class="cols">${list(p.sources.en)}${list(p.sources.zh, 'zh')}</div>
@@ -311,6 +348,59 @@ const guidePage = (g) => {
   write(route, page({ route, title: `${g.title.en} | ZenStory AI`, description: g.answer.en, ld, body }))
 }
 
+// ---------- first-party comparisons ----------
+
+const comparisonPage = (comparison) => {
+  const route = `/compare/${comparison.slug}`
+  const url = `${SITE}${route}`
+  const optionProject = (option) => projects.find((project) => project.slug === option.project)
+  const axisList = (field, language) => `<ul>${comparison.options.map((option) => {
+    const project = optionProject(option)
+    return `<li${language === 'zh' ? ' lang="zh-CN"' : ''}><b><a href="/${project.slug}">${esc(project.name[language])}</a></b> ${rich(option[field][language])}</li>`
+  }).join('')}</ul>`
+  const ld = [
+    orgNode,
+    { '@type': 'TechArticle', '@id': `${url}#article`, url,
+      headline: comparison.title.en, description: comparison.answer.en,
+      inLanguage: ['en', 'zh-CN'], dateModified: comparison.checked_on,
+      publisher: { '@id': `${SITE}/#org` } },
+    breadcrumb([['ZenStory AI', SITE], [comparison.title.en, url]]),
+  ]
+  const body = `
+<article class="comparison">
+  <p class="eyebrow">First-party comparison <span lang="zh-CN">· 自有项目选择指南</span></p>
+  <h1>${esc(comparison.title.en)}</h1>
+  <p class="lede" lang="zh-CN">${esc(comparison.title.zh)}</p>
+  <p class="facts">Source checked ${esc(comparison.checked_on)} <span lang="zh-CN">· 源码核对日期</span></p>
+  <p>${rich(comparison.answer.en)}</p>
+  <p lang="zh-CN">${rich(comparison.answer.zh)}</p>
+  <aside class="migration-note" aria-label="First-party disclosure">
+    <p><strong>First-party disclosure.</strong> ${rich(comparison.disclosure.en)}</p>
+    <p lang="zh-CN"><strong>自有项目披露。</strong> ${rich(comparison.disclosure.zh)}</p>
+  </aside>
+  <nav class="terms" aria-label="Comparison axes">
+    ${comparisonAxes.map(([field, en, zh]) => `<a href="#axis-${field}">${esc(en)} <span lang="zh-CN">· ${esc(zh)}</span></a>`).join(' ')}
+  </nav>
+  ${comparisonAxes.map(([field, en, zh]) => `<section aria-labelledby="axis-${field}">
+    <h2 id="axis-${field}">${esc(en)} <span lang="zh-CN">· ${esc(zh)}</span></h2>
+    <div class="cols">${axisList(field, 'en')}${axisList(field, 'zh')}</div>
+  </section>`).join('')}
+  <h2>Small reversible trial <span lang="zh-CN">· 小范围可回退试用</span></h2>
+  <div class="cols">${list(comparison.checklist.en)}${list(comparison.checklist.zh, 'zh')}</div>
+  <h2>Comparison boundaries <span lang="zh-CN">· 比较边界</span></h2>
+  <div class="cols">${list(comparison.boundaries.en)}${list(comparison.boundaries.zh, 'zh')}</div>
+  <h2>Versioned first-party sources <span lang="zh-CN">· 版本化第一方来源</span></h2>
+  ${comparison.options.map((option) => {
+    const project = optionProject(option)
+    return `<section aria-labelledby="sources-${project.slug}">
+      <h3 id="sources-${project.slug}"><a href="/${project.slug}">${esc(project.name.en)}</a> <span lang="zh-CN">· ${esc(project.name.zh)}</span></h3>
+      <div class="cols">${list(option.sources.en)}${list(option.sources.zh, 'zh')}</div>
+    </section>`
+  }).join('')}
+</article>`
+  write(route, page({ route, title: `${comparison.title.en} | ZenStory AI`, description: comparison.answer.en, ld, body }))
+}
+
 // ---------- projects index ----------
 
 const projectsIndex = () => {
@@ -330,6 +420,7 @@ const projectsIndex = () => {
   <h1>Six open-source projects, one story stack</h1>
   <p class="lede">${esc(org.canonical.en)}</p>
   <p class="lede" lang="zh-CN">${esc(org.canonical.zh)}</p>
+  <p class="actions">${comparisons.map((comparison) => `<a class="btn ghost" href="/compare/${comparison.slug}">${esc(comparison.title.en)}</a>`).join('')}</p>
 
   <h2>Start with what you want to make <span lang="zh-CN">· 从目标开始</span></h2>
   <div class="cards">${projects.map((p) => `
@@ -420,8 +511,9 @@ homePage()
 projectsIndex()
 projects.forEach(projectPage)
 guides.forEach(guidePage)
+comparisons.forEach(comparisonPage)
 glossaryIndex()
 glossary.forEach(termPage)
 
-const routes = ['/org-home', '/projects', ...projects.map((p) => `/${p.slug}`), ...guideRoutes, '/glossary', ...glossary.map((g) => `/glossary/${g.slug}`)]
+const routes = ['/org-home', '/projects', ...projects.map((p) => `/${p.slug}`), ...guideRoutes, ...comparisonRoutes, '/glossary', ...glossary.map((g) => `/glossary/${g.slug}`)]
 console.log(`org pages: wrote ${routes.length} routes to ${outDir}\n  ${routes.join('  ')}`)

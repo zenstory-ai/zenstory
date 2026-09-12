@@ -19,6 +19,7 @@ Overview page: https://zenstory.ai/projects — each project has a bilingual can
 
 ## Documentation
 
+- [Choose a writing workflow](https://zenstory.ai/compare/writing-workflows): first-party comparison of Oh Story skills, the pinned DSH plugin and hosted ZenStory; host/configuration/file/version boundaries and a reversible trial checklist, not a ranking or price/privacy guarantee.
 - [Novel-to-game quick start](https://zenstory.ai/novel-to-game/quick-start): authorized inputs, host-specific entry, product brief, expected files and six-check runtime verification.
 - [Export a JianYing / CapCut draft](https://zenstory.ai/video-recap/capcut-draft): export an existing timeline without rerunning remote stages, preserve media, and verify the target editor rather than assuming universal compatibility.
 - [Workbench docs](https://zenstory.ai/docs): getting started, user guide, advanced, reference, troubleshooting (English and Chinese).

@@ -70,6 +70,7 @@ test('all protected/public route roots are classified and aliases covered', () =
   const contract=JSON.parse(readFileSync(new URL('../../content/site-routing.json', import.meta.url)))
   const projects=JSON.parse(readFileSync(new URL('../../content/projects.json', import.meta.url)))
   for (const p of projects) assert.ok(contract.sitePrefixes.includes(p.slug))
+  assert.ok(contract.sitePrefixes.includes('compare'))
   const src=readFileSync(new URL('../../src/App.tsx', import.meta.url),'utf8')
   for (const [,path] of src.matchAll(/path="(\/[^"*]+)"/g)) {
     assert.ok([...contract.sitePrefixes,...contract.appPrefixes].includes(path.split('/')[1]), path)
@@ -77,6 +78,7 @@ test('all protected/public route roots are classified and aliases covered', () =
   for (const path of ['/_app/index.html','/_app/home.html','/org-home/index.html','/_site/sitemap.xml','/_app/robots.txt']) {
     assert.ok(vercelConfig.redirects.some(r=>r.source===path), `missing canonical alias ${path}`)
   }
+  assert.ok(vercelConfig.redirects.some(r => r.source.includes('compare|') || r.source.includes('|compare|') || r.source.includes('|compare)')), 'comparison index aliases must be canonicalized')
 })
 
 

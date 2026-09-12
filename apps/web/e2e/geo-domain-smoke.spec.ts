@@ -6,6 +6,7 @@ const CANONICAL_APP = 'https://app.zenstory.ai'
 const PREVIEW_SITE = 'https://geo-preview.zenstory.ai'
 const PREVIEW_APP = 'https://app-preview.zenstory.ai'
 const INDEXNOW_KEY = '1e4acbc11fe3407a8a641d69a13af696'
+const COMPARISON_PATH = '/compare/writing-workflows'
 
 const mode = process.env.GEO_DOMAIN_MODE
 if (mode && mode !== 'preview' && mode !== 'production') {
@@ -228,6 +229,43 @@ test.describe('organization site', () => {
     await context.close()
   })
 
+  test('serves the bilingual writing-workflow comparison and its three choices without JavaScript', async ({ browser }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false })
+    try {
+      const page = await context.newPage()
+      await page.goto(`${SITE}${COMPARISON_PATH}`, { waitUntil: 'domcontentloaded' })
+
+      await expect(page.locator('article.comparison h1')).toContainText(/Oh Story.*DSH.*hosted ZenStory/i)
+      await expect(page.locator('article.comparison .lede[lang="zh-CN"]')).toContainText('怎么选写作环境')
+      await expect(page.locator('article.comparison [aria-label="First-party disclosure"]')).toContainText(/first-party/i)
+      await expect(page.locator('article.comparison section[aria-labelledby^="axis-"]')).toHaveCount(6)
+      for (const slug of ['oh-story', 'dsh', 'workbench']) {
+        await expect(page.locator(`article.comparison a[href="/${slug}"]`).first()).toBeVisible()
+      }
+    } finally {
+      await context.close()
+    }
+  })
+
+  test('fits the writing-workflow comparison in a 390px viewport after fonts settle', async ({ browser }, testInfo) => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } })
+    try {
+      const page = await context.newPage()
+      await page.goto(`${SITE}${COMPARISON_PATH}`, { waitUntil: 'load' })
+      await expect(page.locator('article.comparison h1')).toBeVisible()
+      await page.evaluate(() => document.fonts.ready.then(() => undefined))
+
+      const widths = await page.evaluate(() => ({
+        document: document.documentElement.scrollWidth,
+        viewport: document.documentElement.clientWidth,
+      }))
+      await page.screenshot({ path: testInfo.outputPath('writing-workflow-comparison-mobile.png'), fullPage: true })
+      expect(widths.document).toBeLessThanOrEqual(widths.viewport)
+    } finally {
+      await context.close()
+    }
+  })
+
   for (const path of ['/novel-to-game/quick-start', '/video-recap/capcut-draft']) {
     test(`task guide ${path} fits a 390px viewport after fonts settle`, async ({ browser }, testInfo) => {
       const context = await browser.newContext({ viewport: { width: 390, height: 844 } })
@@ -396,6 +434,21 @@ test.describe('platform routing', () => {
     expect(redirect.headers().location).toBe(destination)
     const final = await getWithoutRedirects(request, destination)
     expect(final.status()).toBe(200)
+  })
+
+  test('routes the comparison from the app host to the matching apex and canonicalizes its index alias once', async ({ request }) => {
+    const directDestination = `${IS_PREVIEW ? SITE : CANONICAL_SITE}${COMPARISON_PATH}`
+    await expectOneHopCanonicalRedirect(request, `${APP}${COMPARISON_PATH}`, directDestination)
+    await expectOneHopCanonicalRedirect(
+      request,
+      `${APP}${COMPARISON_PATH}/index.html`,
+      `${CANONICAL_SITE}${COMPARISON_PATH}`,
+    )
+  })
+
+  test('returns a genuine 404 for an unknown comparison URL', async ({ request }) => {
+    const response = await getWithoutRedirects(request, `${SITE}/compare/__geo-domain-smoke-missing__`)
+    expect(response.status()).toBe(404)
   })
 
   test('returns a genuine 404 for an unknown organization URL', async ({ request }) => {

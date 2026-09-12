@@ -34,12 +34,23 @@ const docsRoutes = publicDocsRoutes()
  * Static organization pages emitted after the build by scripts/build-org-pages.mjs
  * (see that file). Listed here so the sitemap includes them.
  */
-export function orgPageRoutes(): string[] {
-  const read = (f: string) => JSON.parse(fs.readFileSync(path.resolve(__dirname, 'content', f), 'utf8'))
+export function orgPageRoutes(contentDir = path.resolve(__dirname, 'content')): string[] {
+  const read = (f: string) => JSON.parse(fs.readFileSync(path.resolve(contentDir, f), 'utf8'))
   const projects = read('projects.json') as { slug: string }[]
   const glossary = read('glossary.json') as { slug: string }[]
   const guides = read('guides.json') as { owner: string; slug: string }[]
-  return ['/projects', ...projects.map((p) => `/${p.slug}`), ...guides.map((g) => `/${g.owner}/${g.slug}`), '/glossary', ...glossary.map((g) => `/glossary/${g.slug}`)]
+  const comparisons = read('comparisons.json') as { slug?: unknown; options?: { project?: unknown }[] }[]
+  const expectedProjects = ['oh-story', 'dsh', 'workbench']
+  const comparisonRoutes = new Set<string>()
+  for (const comparison of comparisons) {
+    if (typeof comparison.slug !== 'string' || !/^[a-z0-9-]+$/.test(comparison.slug)) throw new Error('Invalid comparison identity')
+    const route = `/compare/${comparison.slug}`
+    if (comparisonRoutes.has(route)) throw new Error('Duplicate comparison route')
+    comparisonRoutes.add(route)
+    const options = comparison.options?.map((option) => option.project)
+    if (!options || options.length !== expectedProjects.length || options.some((project, index) => project !== expectedProjects[index]) || options.some((project) => !projects.some((candidate) => candidate.slug === project))) throw new Error('Invalid comparison options')
+  }
+  return ['/projects', ...projects.map((p) => `/${p.slug}`), ...guides.map((g) => `/${g.owner}/${g.slug}`), ...comparisonRoutes, '/glossary', ...glossary.map((g) => `/glossary/${g.slug}`)]
 }
 
 const orgRoutes = orgPageRoutes()

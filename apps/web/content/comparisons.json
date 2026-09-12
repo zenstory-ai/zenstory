@@ -1,0 +1,175 @@
+[
+  {
+    "slug": "writing-workflows",
+    "checked_on": "2026-09-12",
+    "title": {
+      "en": "Oh Story, Oh Story DSH or hosted ZenStory: choose a writing workflow",
+      "zh": "Oh Story、DSH 插件还是 ZenStory 网页工作台：怎么选写作环境？"
+    },
+    "answer": {
+      "en": "Keep the environment you already want to work in: choose Oh Story for a supported agent working on a writing-project folder; the Oh Story DSH plugin for a DSH workspace and session; or hosted ZenStory for an account-based project workbench. Both DSH Web and ZenStory can appear in a browser—the host, files and account boundary matter more than the presence of a web page.",
+      "zh": "优先保留你准备使用的环境：让受支持的 Agent 围绕写作项目目录工作，选 Oh Story；在 DSH 的工作区与会话里创作，选 Oh Story DSH 插件；需要账户化的托管项目工作台，选 ZenStory 在线服务。DSH Web 和 ZenStory 都能在浏览器里打开，真正要比较的是宿主、文件与账户边界，而不是有没有网页。"
+    },
+    "disclosure": {
+      "en": "This is a first-party guide published by ZenStory AI about three of its own projects, not an independent review or a ranking. It compares source-described working environments, not measured writing quality, speed, price or security. Here “ZenStory Workbench” means the hosted service; self-hosting is a separate deployment choice linked below.",
+      "zh": "这是 ZenStory AI 发布的自有项目选择指南，不是独立评测或排名。比较依据是源码描述的工作环境，不是实测文笔、速度、价格或安全性。本页“ZenStory 网页工作台”指托管在线服务；自托管是另一种部署选择，另附说明。"
+    },
+    "options": [
+      {
+        "project": "oh-story",
+        "fit": {
+          "en": "Choose this when you already use a supported coding agent and want it to work with a visible writing-project directory. You do not need to move an established project into another product just to follow this guide.",
+          "zh": "已有受支持的 coding agent，希望它围绕可查看的写作项目目录工作时，可选这一项。不必为了照着本指南操作，就把已有项目迁到另一个产品。"
+        },
+        "environment": {
+          "en": "Install the skill pack using the adapter documented for your host, then run its setup/check workflow in the intended project. Integrations are not identical: some hosts use skills-only or solo/direct execution rather than every custom agent and hook.",
+          "zh": "按宿主对应的适配方式安装技能包，在目标写作项目中运行 setup/check 流程。不同集成并不等价：某些宿主采用 skills-only 或 solo/direct，而不是完整的自定义 agent 与 hook 能力。"
+        },
+        "configuration": {
+          "en": "The pack supplies skills and reference material; it is not a model bundle. Review the selected host’s model, tool, permission and data-processing configuration. A local skills directory alone does not establish offline inference or private processing.",
+          "zh": "技能包提供 skills 与参考资料，不是模型包。应检查所选宿主的模型、工具、权限和数据处理配置。仅有本地 skills 目录，不能证明推理离线或处理过程私密。"
+        },
+        "files": {
+          "en": "Work is organized as project files. The import workflow explicitly distinguishes an analysis-only library from a resumable writing project with setting, outline, draft and tracking material. Choose that intent before importing an authorized manuscript.",
+          "zh": "产物以项目文件组织。导入流程明确区分“只做拆文库分析”和“建立含设定、大纲、正文与追踪的可续写工程”。导入已获授权的稿件前，先确定自己需要哪一种。"
+        },
+        "version": {
+          "en": "The direct-pack source reviewed here is commit `070d744`. Check the version and adapter actually installed in your writing project. Do not assume that it matches the separately bundled DSH snapshot, even when skill names look similar.",
+          "zh": "本页核对的独立技能包源码为 commit `070d744`。请检查写作项目中实际安装的版本与适配器；即使 skill 名称相似，也不要默认它与 DSH 另行打包的快照相同。"
+        },
+        "review": {
+          "en": "Read the setting and chapter changes, including unresolved fields and tracking state. A reference gate, hook or deterministic check is a workflow aid—not proof of literary quality, perfect continuity or publication acceptance.",
+          "zh": "检查设定与章节修改，以及未解决字段和追踪状态。参考资料守卫、hook 或确定性检查是流程辅助，不证明文学质量、绝对连续性或平台投稿通过。"
+        },
+        "sources": {
+          "en": [
+            "[Installation and host-specific differences](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/README.md#L94-L142)",
+            "[Import intent and project artifacts](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/SKILL.md#L63-L72)",
+            "[Reference gates and execution fallbacks](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/SKILL.md#L20-L41)"
+          ],
+          "zh": [
+            "[安装与宿主适配差异](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/README.md#L94-L142)",
+            "[导入意图与项目产物](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/SKILL.md#L63-L72)",
+            "[参考资料守卫与执行降级](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/SKILL.md#L20-L41)"
+          ]
+        }
+      },
+      {
+        "project": "dsh",
+        "fit": {
+          "en": "Choose the plugin when DSH is the host you want to keep for your workspace, tools and sessions. Its workbenches live inside DSH Web; this is not an account in the hosted ZenStory service.",
+          "zh": "希望继续由 DSH 管理工作区、工具与会话时，可选该插件。它的工作台位于 DSH Web 内，不是 ZenStory 托管服务中的账户。"
+        },
+        "environment": {
+          "en": "Use a DSH Web profile and the versioned installation guide, which lists Node.js 24+. DSH owns the workspace, permissions, session and UI; the creation plugin does not launch a second agent runtime.",
+          "zh": "使用 DSH Web profile，并遵循版本化安装说明，其中列出 Node.js 24+。工作区、权限、会话与界面由 DSH 管理；创作插件不会另起一套 Agent 宿主。"
+        },
+        "configuration": {
+          "en": "Configure a model/provider in DSH for AI creation. Other bundled production workflows can require additional media services or local tools. Being able to view existing work does not establish that generation credentials and dependencies are ready.",
+          "zh": "进行 AI 创作前，在 DSH 中配置模型与供应商。其他打包的制作流程可能另需媒体服务或本地工具。能查看已有作品，不代表生成所需的凭证与依赖都已就绪。"
+        },
+        "files": {
+          "en": "Select a workspace and session. Creation views appear when recognized project files exist; an empty workspace can remain in native DSH Chat. Treat manuscript files and host/profile/session configuration as different things when backing up or moving work.",
+          "zh": "选择工作目录与会话。识别到创作项目文件后才显示对应视图；空目录可能仍是原生 DSH Chat。备份或移动作品时，要区分稿件文件与宿主、profile、会话配置。"
+        },
+        "version": {
+          "en": "At DSH commit `493cd77`, the bundled Oh Story manifest pins release `0.7.10` to commit `abe9663` (full commit in the linked manifest). Its skill provider reads the bundled knowledge directory, not your standalone Oh Story installation. A different commit alone does not establish better or worse behavior.",
+          "zh": "在 DSH commit `493cd77` 中，内置 Oh Story 的 manifest 将 release `0.7.10` 固定到 commit `abe9663`（完整 commit 见下方 manifest）。skill provider 读取包内知识目录，不是你另装的 Oh Story。commit 不同本身不能证明功能表现更好或更差。"
+        },
+        "review": {
+          "en": "Inspect the actual project files and DSH tool results, not only whether a workbench tab is visible. The plugin is a community plugin for DSH and is not affiliated with, partnered with or endorsed by DeepSeek.",
+          "zh": "检查实际项目文件与 DSH 工具结果，而不只是确认工作台标签能显示。该插件是 DSH 的社区插件，与 DeepSeek 无隶属、合作或背书关系。"
+        },
+        "sources": {
+          "en": [
+            "[Community identity and non-affiliation](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/README.md#L15-L23)",
+            "[Installation and model setup](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/README.md#L63-L94)",
+            "[Project-driven workbench visibility](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/README.md#L117-L132)",
+            "[Pinned upstream release and commit](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/packages/knowledge/oh-story/manifest.json#L1-L12)",
+            "[Native DSH ownership and runtime boundary](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/packages/dsh-plugin/src/skill-provider.ts#L16-L37)",
+            "[Bundled knowledge directory used by the provider](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/packages/dsh-plugin/src/skill-provider.ts#L207-L244)"
+          ],
+          "zh": [
+            "[社区身份与无官方隶属关系](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/README.md#L15-L23)",
+            "[安装与模型配置](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/README.md#L63-L94)",
+            "[根据项目显示工作台](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/README.md#L117-L132)",
+            "[固定上游版本与 commit](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/packages/knowledge/oh-story/manifest.json#L1-L12)",
+            "[DSH 原生宿主与运行边界](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/packages/dsh-plugin/src/skill-provider.ts#L16-L37)",
+            "[provider 使用的包内知识目录](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/packages/dsh-plugin/src/skill-provider.ts#L207-L244)"
+          ]
+        }
+      },
+      {
+        "project": "workbench",
+        "fit": {
+          "en": "Choose hosted ZenStory when you want an account-based browser project with a file tree, editor, AI chat and version features, rather than managing an agent-host installation for this workflow.",
+          "zh": "需要账户化的浏览器项目、文件树、编辑器、AI 对话与版本功能，而不是为这条工作流管理 Agent 宿主安装时，可选 ZenStory 在线服务。"
+        },
+        "environment": {
+          "en": "Open [app.zenstory.ai](https://app.zenstory.ai). The source protects dashboard and project routes with a login guard. Self-hosting is separate: it requires deploying the web/backend stack and configuring model services, not just installing an Oh Story skill.",
+          "zh": "打开 [app.zenstory.ai](https://app.zenstory.ai)。源码为 dashboard 与项目路由设置了登录守卫。自托管是另一回事：需要部署网页与后端、配置模型服务，并非只安装一个 Oh Story skill。"
+        },
+        "configuration": {
+          "en": "For hosted use, check the instance’s account, plan and service settings. For self-hosting, follow the deployment/model setup documentation. This guide makes no claim about current prices, included generation, availability or which credentials a particular service plan will require.",
+          "zh": "使用托管服务时，检查该实例的账户、方案与服务设置；自托管时，遵循部署与模型配置文档。本指南不承诺当前价格、包含的生成额度、可用性，或某个服务方案具体需要哪些凭证。"
+        },
+        "files": {
+          "en": "The instance manages project files and revision features. The inspected draft-export endpoint merges drafts into TXT and checks an active user, project ownership and allowed plan formats. Do not treat this as a complete export of every file, setting, conversation or version history.",
+          "zh": "实例管理项目文件与修订功能。核对的草稿导出端点将正文合并为 TXT，并检查活动用户、项目归属与方案允许的格式。不要将它理解成所有文件、设置、对话和版本历史的完整导出。"
+        },
+        "version": {
+          "en": "At workbench commit `9bad4fd`, the backend has its own builtin, project and user skill-loading paths. Logging into this service does not establish installation or synchronization of your standalone Oh Story pack, or equivalence with the DSH bundle.",
+          "zh": "在工作台 commit `9bad4fd` 中，后端有自己的内置、项目和用户 skill 加载路径。登录服务不代表已经安装或同步你独立使用的 Oh Story，也不证明它与 DSH 包等价。"
+        },
+        "review": {
+          "en": "Review proposed edits and the actual exported text. Snapshot, comparison and rollback features help revision, but do not guarantee unlimited retention or writing quality. Source inspection here is not a live authenticated-account test or a privacy/security audit.",
+          "zh": "检查建议修改与实际导出的文本。快照、比较与回滚有助于修订，但不保证无限保留或写作质量。本页的源码核对不是在线登录账户功能测试，也不是隐私或安全审计。"
+        },
+        "sources": {
+          "en": [
+            "[Project workspace and editing interface](https://github.com/zenstory-ai/zenstory/blob/9bad4fd5f5f14f2ac77372caf177c598aa238a9d/README.md#L55-L113)",
+            "[Revision and export features](https://github.com/zenstory-ai/zenstory/blob/9bad4fd5f5f14f2ac77372caf177c598aa238a9d/README.md#L167-L184)",
+            "[Separate self-hosting setup](https://github.com/zenstory-ai/zenstory/blob/9bad4fd5f5f14f2ac77372caf177c598aa238a9d/README.md#L201-L216)",
+            "[Unauthenticated route guard](https://github.com/zenstory-ai/zenstory/blob/9bad4fd5f5f14f2ac77372caf177c598aa238a9d/apps/web/src/App.tsx#L74-L84)",
+            "[Protected dashboard and project routes](https://github.com/zenstory-ai/zenstory/blob/9bad4fd5f5f14f2ac77372caf177c598aa238a9d/apps/web/src/App.tsx#L448-L474)",
+            "[TXT export authentication, ownership and plan checks](https://github.com/zenstory-ai/zenstory/blob/9bad4fd5f5f14f2ac77372caf177c598aa238a9d/apps/server/api/export.py#L27-L100)",
+            "[Backend builtin, project and user skill paths](https://github.com/zenstory-ai/zenstory/blob/9bad4fd5f5f14f2ac77372caf177c598aa238a9d/apps/server/agent/skills/loader.py#L27-L34)"
+          ],
+          "zh": [
+            "[项目工作区与编辑界面](https://github.com/zenstory-ai/zenstory/blob/9bad4fd5f5f14f2ac77372caf177c598aa238a9d/README.md#L55-L113)",
+            "[修订与导出功能](https://github.com/zenstory-ai/zenstory/blob/9bad4fd5f5f14f2ac77372caf177c598aa238a9d/README.md#L167-L184)",
+            "[单独的自托管准备](https://github.com/zenstory-ai/zenstory/blob/9bad4fd5f5f14f2ac77372caf177c598aa238a9d/README.md#L201-L216)",
+            "[未登录路由守卫](https://github.com/zenstory-ai/zenstory/blob/9bad4fd5f5f14f2ac77372caf177c598aa238a9d/apps/web/src/App.tsx#L74-L84)",
+            "[受保护的 dashboard 与项目路由](https://github.com/zenstory-ai/zenstory/blob/9bad4fd5f5f14f2ac77372caf177c598aa238a9d/apps/web/src/App.tsx#L448-L474)",
+            "[TXT 导出的认证、归属与方案检查](https://github.com/zenstory-ai/zenstory/blob/9bad4fd5f5f14f2ac77372caf177c598aa238a9d/apps/server/api/export.py#L27-L100)",
+            "[后端内置、项目与用户 skill 路径](https://github.com/zenstory-ai/zenstory/blob/9bad4fd5f5f14f2ac77372caf177c598aa238a9d/apps/server/agent/skills/loader.py#L27-L34)"
+          ]
+        }
+      }
+    ],
+    "checklist": {
+      "en": [
+        "Stay in the environment you already use unless a specific missing capability justifies moving. Read its matching installation/account instructions before copying a whole project.",
+        "Try a small, non-sensitive passage you own or are authorized to use. Set the intended edit, inspect the changed text and confirm what is saved or exported; keep a backup.",
+        "Record the product/source version, host, model configuration and any untested behavior. Compare the result you actually reviewed, not the number of tabs, agents or checks."
+      ],
+      "zh": [
+        "除非确实缺少某项能力，先保留已有环境。复制整个项目前，阅读与该环境对应的安装或账户说明。",
+        "先用一小段你拥有或获准使用的非敏感文本试验。明确修改目标，检查改动，确认实际保存或导出的内容，并保留备份。",
+        "记录产品或源码版本、宿主、模型配置及未测试行为。比较自己真正检查过的结果，而不是标签、agent 或检查项的数量。"
+      ]
+    },
+    "boundaries": {
+      "en": [
+        "No default cross-product migration or two-way synchronization is established by this comparison. Markdown text alone does not make project directories, accounts, sessions, settings and histories interchangeable; investigate a specific transfer path before relying on it.",
+        "Local files or a local browser UI are not evidence of offline or private model processing. Review the configured providers and the applicable deployment/privacy policies before using sensitive material.",
+        "Open-source licensing is separate from model, media, hosting and service costs. This is not a pricing, performance, security or literary-quality comparison, and none of the workflows guarantees publication acceptance."
+      ],
+      "zh": [
+        "本比较没有建立默认跨产品迁移或双向同步的结论。同为 Markdown 文本，不代表项目目录、账户、会话、设置与历史可互换；依赖某条转移路径前，需要单独验证。",
+        "本地文件或本地浏览器界面不证明模型处理离线或私密。使用敏感材料前，应检查已配置的供应商及适用的部署、隐私政策。",
+        "开源许可证与模型、媒体、托管和服务成本是两回事。本页不比较价格、性能、安全或文学质量，也没有任何流程保证投稿通过。"
+      ]
+    }
+  }
+]
