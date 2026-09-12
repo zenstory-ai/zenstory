@@ -10,16 +10,14 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/zenstory-ai/zenstory?style=social)](https://github.com/zenstory-ai/zenstory)
-[![Website](https://img.shields.io/website?url=https%3A%2F%2Fzenstory.ai&label=zenstory.ai)](https://zenstory.ai/)
+[![Workbench](https://img.shields.io/website?url=https%3A%2F%2Fapp.zenstory.ai&label=app.zenstory.ai)](https://app.zenstory.ai/)
 ![React](https://img.shields.io/badge/React_19-61DAFB?logo=react&logoColor=black)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
 ![Python](https://img.shields.io/badge/Python_3.12+-3776AB?logo=python&logoColor=white)
 
 ZenStory's Agent operates your creative files directly — building character cards, decomposing reference material, planning outlines, and writing chapter by chapter — all inside one conversation, instead of copy-pasting generated text back into an editor.
 
-**2,000+ Creators · 12M Words Generated · 4.9 Rating**
-
-[zenstory.ai](https://zenstory.ai/) · [Quick Start](#quick-start) · [Architecture](#project-architecture) · [中文文档](README.md)
+[Open workbench](https://app.zenstory.ai/) · [ZenStory AI organization](https://zenstory.ai/) · [Quick Start](#quick-start) · [Architecture](#project-architecture) · [中文文档](README.md)
 
 </div>
 
