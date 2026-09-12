@@ -197,6 +197,29 @@ test.describe('organization site', () => {
     await context.close()
   })
 
+  for (const path of ['/novel-to-game/quick-start', '/video-recap/capcut-draft']) {
+    test(`task guide ${path} fits a 390px viewport after fonts settle`, async ({ browser }, testInfo) => {
+      const context = await browser.newContext({ viewport: { width: 390, height: 844 } })
+      try {
+        const page = await context.newPage()
+        await page.goto(`${SITE}${path}`, { waitUntil: 'load' })
+        await expect(page.locator('article.guide h1')).toBeVisible()
+        await expect(page.locator('article.guide pre').first()).toHaveCSS('white-space', 'pre-wrap')
+        await expect(page.locator('article.guide pre').first()).toHaveCSS('overflow-wrap', 'anywhere')
+        await page.evaluate(() => document.fonts.ready.then(() => undefined))
+
+        const widths = await page.evaluate(() => ({
+          document: document.documentElement.scrollWidth,
+          viewport: document.documentElement.clientWidth,
+        }))
+        await page.screenshot({ path: testInfo.outputPath('task-guide-mobile.png'), fullPage: true })
+        expect(widths.document).toBeLessThanOrEqual(widths.viewport)
+      } finally {
+        await context.close()
+      }
+    })
+  }
+
   for (const document of PUBLIC_DOCUMENTS) {
     test(`${document.name} has one production canonical and clean public schema in initial HTML`, async ({ browser }) => {
       const context = await browser.newContext({ javaScriptEnabled: false })
