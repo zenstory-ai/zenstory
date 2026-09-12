@@ -11,8 +11,8 @@
       "zh": "把编程 Agent 变成完整的网文写作流程——扫榜、拆文、写作、去AI味、封面图。"
     },
     "definition": {
-      "en": "Oh Story is an MIT-licensed pack of 13 agent skills for web-fiction research, deconstruction, long-form serials, short stories, revision and covers. It combines writing instructions with deterministic checks, reference gates and file-based project state. `/story-setup` configures supported agent hosts; specialist-agent orchestration depends on the host, with direct execution available when that capability is missing.",
-      "zh": "Oh Story 是 MIT 开源的 13 个 agent skills，覆盖网文选题、拆文、长篇连载、短篇、修订与封面。它把写作指令与确定性检查、参考资料门和文件化项目状态结合起来。`/story-setup` 配置所支持的 Agent 环境；专业 agent 编排取决于宿主能力，能力缺失时可直接执行。"
+      "en": "Oh Story is an MIT-licensed creative-writing skill pack for Claude Code and other supported agent hosts. Its 13 skills cover web-fiction research, deconstruction, long-form serials, short stories, revision and covers. It combines writing instructions with chapter blueprints, deterministic checks and file-based project state; it is not a hosted model or a finished-novel guarantee. `/story-setup` configures the host. Specialist-agent orchestration depends on host capabilities, with direct execution available when those capabilities are missing.",
+      "zh": "用 Claude Code 写网文可以使用 Oh Story：这是 MIT 开源的创意写作 skill 包，也适配其他受支持的 Agent 宿主。13 个 skills 覆盖选题、拆文、长篇连载、短篇、修订与封面，把写作指令与逐章细纲、确定性检查和文件化项目状态结合起来；它不是托管模型，也不保证直接产出可发表的整本小说。`/story-setup` 负责配置宿主，专业 agent 编排取决于宿主能力，能力缺失时可直接执行。"
     },
     "audience": {
       "en": ["Authors publishing on 起点 Qidian, 番茄 Fanqie, 晋江 JJWXC, 七猫 Qimao and 知乎盐言", "Studios running several serials at once", "Developers who want a mature, non-coding example of agent skills"],
@@ -20,16 +20,20 @@
     },
     "method": {
       "en": [
+        ["How do I start writing in Claude Code?", "After installing the pack, run `/story-setup` in your writing-project folder and open a fresh session. Use `/story` to describe your task rather than memorizing every skill. For a new long-form project, `/story-long-write 帮我开书` prepares settings, an outline and chapter blueprints, then stops before prose by default. Review that plan, then request `/story-long-write 写第1章`. This is the agent-host workflow, not a login to the separate hosted ZenStory workbench."],
         ["扫榜 · chart scanning", "Collect supported platform data when available, accept creator-supplied samples, or explicitly label historical knowledge fallback; unavailable sources can be skipped."],
         ["拆文 · deconstruction", "Analyse structure, characters and style, using an opening sample for long-form work; a creator-requested full analysis continues after writing the preview."],
-        ["Drafting", "Draft against chapter blueprints, reference gates and word-count checks; structured tracking state supplies derived progress views rather than guaranteeing narrative continuity."],
+        ["How can I reduce character drift across many chapters?", "Before each chapter, the workflow checks the last committed chapter, reads its blueprint and relevant character files, and selects current character state, active foreshadowing and next-chapter promises from the derived context. `追踪/_tracking-state.json` is the structured authority; derived views are not a second source of truth. Keep facts outside the chat and review the next chapter against them. These mechanisms make continuity inspectable; they do not prove error-free performance over 100 chapters."],
+        ["What if a chapter contradicts an established fact?", "Identify the conflicting passage and the intended fact, then request `/story-long-write 修改第N章` with that evidence. If the revision changes continuity facts, the documented workflow requires a same-chapter revision transaction through `tracking_commit.py`; do not hand-edit the derived context or snapshots. Review the corrected prose and state before continuing. Structural checks do not replace the author’s judgment about characterization, voice or literary quality."],
         ["去AI味 · de-slop editing", "Use deterministic pattern scans to guide bounded rewriting; the checks do not establish authorship or guarantee AI-detector scores."],
         ["Covers", "Prepare genre-aware cover guidance and use an available image-generation tool when configured."]
       ],
       "zh": [
+        ["Claude Code 装好后，怎么开始写小说？", "安装 skill 包后，在写作项目目录运行 `/story-setup`，再新开会话。通过 `/story` 描述任务，不必先记住全部 skill。新建长篇可以说 `/story-long-write 帮我开书`：默认先生成设定、大纲与细纲，在正文前停下。审阅规划后，再明确请求 `/story-long-write 写第1章`。这是 Agent 宿主内的流程，不是登录另一个产品 ZenStory 网页工作台。"],
         ["扫榜", "在条件允许时采集所支持平台的数据，接受作者提供的样本，或明确标注历史知识回退；不可用的数据源可以跳过。"],
         ["拆文", "分析结构、角色与文风，长篇先做开篇样本；作者已要求完整拆解时，写出预览后继续执行。"],
-        ["写作", "围绕逐章细纲、参考资料门和字数检查起草；结构化追踪状态用于派生进度视图，不保证情节连续性无误。"],
+        ["长篇续写怎样减少人设和情节漂移？", "每章写前，流程检查最后已提交章节，读取本章细纲及相关角色文件，并从派生上下文筛选当前角色状态、活跃伏笔和下一章承诺。`追踪/_tracking-state.json` 是结构化权威，派生视图不是第二套事实源。把故事事实留在项目文件里，再用它们核对下一章，而非只依赖长聊天记忆。这些机制让连续性可检查，不代表已证明连续 100 章都不会出错。"],
+        ["发现某一章与既有设定冲突怎么办？", "先指出冲突段落和希望保留的事实，再带着依据请求 `/story-long-write 修改第N章`。修订若改变连续性事实，文档规定通过 `tracking_commit.py` 提交同章修订事务，不要手改派生上下文或角色快照。继续写之前核对改后的正文与状态。结构检查不能代替作者对人设、文风和文学质量的判断。"],
         ["去AI味", "用确定性模式扫描辅助有边界的改写；检查不判定作者身份，也不保证 AI 检测分数。"],
         ["封面", "准备题材相关的封面指引，并在配置可用生图工具时调用。"]
       ]
@@ -58,13 +62,21 @@
         "[Scan inputs, historical fallback and unavailable sources](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-short-scan/SKILL.md#L50-L85)",
         "[Opening preview and creator-requested full analysis](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-analyze/SKILL.md#L139-L149)",
         "[De-slop purpose and detector-score limits](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-deslop/SKILL.md#L23-L49)",
-        "[Structured tracking authority and derived views](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/SKILL.md#L141-L143)"
+        "[Structured tracking authority and derived views](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/SKILL.md#L141-L143)",
+        "[Router and setup-before-import sequence](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story/SKILL.md#L10-L38)",
+        "[Planning, explicit chapter requests and batch limits](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/SKILL.md#L55-L83)",
+        "[Chapter inputs and relevant continuity context](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L13-L34)",
+        "[Continuity-changing revisions use a tracking transaction](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L140-L144)"
       ],
       "zh": [
         "[扫榜输入、历史回退与不可用数据源](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-short-scan/SKILL.md#L50-L85)",
         "[开篇预览与作者已要求的完整拆解](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-analyze/SKILL.md#L139-L149)",
         "[去AI味的用途与检测分数边界](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-deslop/SKILL.md#L23-L49)",
-        "[结构化追踪权威与派生视图](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/SKILL.md#L141-L143)"
+        "[结构化追踪权威与派生视图](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/SKILL.md#L141-L143)",
+        "[任务路由与先部署再导入的顺序](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story/SKILL.md#L10-L38)",
+        "[规划停靠、明确章节请求与批次边界](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/SKILL.md#L55-L83)",
+        "[单章输入与相关连续性上下文](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L13-L34)",
+        "[改变连续性事实的修订需提交追踪事务](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L140-L144)"
       ]
     },
     "vocabulary": ["扫榜", "拆文", "去AI味", "黄金三章", "爽点", "钩子", "套路"]
