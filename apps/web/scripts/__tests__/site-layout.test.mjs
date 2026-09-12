@@ -25,6 +25,8 @@ test('Vercel config is source-controlled and API bypasses the SPA', () => {
   assert.ok(vercelConfig.redirects.findIndex(r=>r.source.endsWith('/index.html') && r.source.startsWith('/:path')) < vercelConfig.redirects.findIndex(r=>r.source.includes('projects|') && r.has), 'Clean aliases before host redirects')
   const scripts = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url))).scripts
   assert.equal(vercelConfig.buildCommand, 'npm run build:vercel')
+  assert.equal(vercelConfig.installCommand, 'npm install --legacy-peer-deps')
+  assert.equal(readFileSync(new URL('../../.npmrc', import.meta.url), 'utf8'), 'legacy-peer-deps=true\n', 'Standalone Vercel Function installation must use the existing web peer-resolution policy')
   assert.ok(!scripts.build.includes('build-site-layout'), 'Default/Docker build retains a normal root app index')
   assert.match(scripts['build:vercel'], /build-site-layout/)
   const workflow = readFileSync(new URL('../../../../.github/workflows/ci.yml', import.meta.url), 'utf8')
