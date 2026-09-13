@@ -319,7 +319,9 @@ test('docs generator adds apex-owned metadata to the clean source shell', (t) =>
     assert.equal(matches(html, /<meta\b(?=[^>]*\bproperty=["']og:url["'])[^>]*>/gi).length, 1)
     assert.match(html, new RegExp(`content="${canonical.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`))
     assert.equal(matches(html, /<script\b(?=[^>]*\btype=["']application\/ld\+json["'])[^>]*>[\s\S]*?<\/script>/gi).length, 1)
-    assert.doesNotMatch(html, /SoftwareApplication|https:\/\/app\.zenstory\.ai|stale\.example/)
+    const head = html.slice(0, html.indexOf('</head>'))
+    assert.doesNotMatch(head, /SoftwareApplication|https:\/\/app\.zenstory\.ai|stale\.example/)
+    assert.ok(html.includes('href="https://app.zenstory.ai/dashboard"'), 'Docs need a direct workbench entrypoint in their body')
 
     const json = JSON.parse(matches(html, /<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)[0][1])
     const types = json['@graph'].map((node) => node['@type'])

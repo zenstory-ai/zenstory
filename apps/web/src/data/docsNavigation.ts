@@ -11,9 +11,9 @@ export const docsNavigation: DocNavItem[] = [
     titleZh: "快速入门",
     path: "/docs/getting-started",
     children: [
-      { title: "Quick Start", titleZh: "5分钟快速入门", path: "/docs/getting-started/quick-start" },
+      { title: "Quick Start", titleZh: "网页写作快速入门", path: "/docs/getting-started/quick-start" },
       { title: "Installation", titleZh: "账号注册与登录", path: "/docs/getting-started/installation" },
-      { title: "First Project", titleZh: "创建第一个项目", path: "/docs/getting-started/first-project" },
+      { title: "First Story", titleZh: "写第一篇短篇", path: "/docs/getting-started/first-project" },
     ]
   },
   {

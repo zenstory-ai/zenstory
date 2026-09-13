@@ -1,188 +1,135 @@
-# Creating Your First Project
+# Write your first short story in ZenStory: idea, files and revision
 
-Welcome to zenstory Novel Writing Workbench! This tutorial will guide you step-by-step through creating your first creative project and starting your AI-assisted writing journey.
+In the ZenStory browser workbench, separate story facts from open ideas, save characters and scene plans as project files, draft one scene at a time, quote passages for local revision, and export the prose. This tutorial follows a lost-property story rather than asking AI to finish a whole book at once.
 
----
+Open the [hosted workbench](https://app.zenstory.ai/dashboard); installing Oh Story or a coding agent is not required. For the shorter button-by-button path, see [Quick Start](https://zenstory.ai/docs/getting-started/quick-start). The characters, filenames and requests below are original teaching examples, not a recorded model run.
 
-## What is a Project?
+## 1. Create an empty short-story project
 
-In zenstory, **a project is the fundamental unit of creation**. A project represents a complete work—whether it's a full-length novel, a short story, or a screenplay, you need to create a project to contain it.
+1. Sign in, open Dashboard and choose **Short Story** from the available types.
+2. **Leave the idea box empty for this exercise** and click **Start Writing**. This creates the workspace before you send a narrowly scoped request. Quick creation uses a default name; use **Edit project name** in the project switcher to rename it **Before Closing**.
+3. The project opens with files, an editor and AI chat. On a narrow screen, switch to the area you need.
 
-After creating a project, the system automatically generates a matching file structure for you, including folders for outlines, characters, settings, drafts, and more—allowing you to focus on the creative work itself.
+An idea supplied during creation may be sent automatically as a brainstorming request after the project opens. That is not a promise to produce an outline and Chapter 1; avoid submitting the same task again while it is running. Empty-idea creation does not trigger that idea auto-send path.
 
----
+The default English templates are below. They organize files, not guaranteed output lengths or quality; existing projects may have customized folders.
 
-## Creating a New Project
+| Type | Default folders | How to use it |
+| --- | --- | --- |
+| Long-form Novel | World Building, Characters, Materials, Outlines, Drafts | Work chapter by chapter from the outline |
+| Short Story | Characters, Concept, Materials, Drafts | This exercise plans three scenes |
+| Screenplay | Characters, World Building, Materials, Episode Outlines, Scripts | Organize episodes and scenes; this does not generate a video |
 
-### Method 1: From the Homepage
+## 2. Give story boundaries, not guesses disguised as facts
 
-[Screenshot: Homepage hero section highlighting the "Start Writing" button]
+Start with a brief fact card. Substitute your own premise, but retain the distinction between what you have decided and what remains open.
 
-If you haven't logged in yet, when you visit the zenstory website you'll see the homepage:
+| Established | Still open |
+| --- | --- |
+| The station's lost-property desk closes at six; it is now 5:40 | Why Shen Min describes the wrong object |
+| Lin He staffs the desk; Shen Min claims a gray canvas bag | How she is related to its owner |
+| She describes the exterior correctly but gets an inner-pocket item wrong | Who eventually receives the bag |
+| Lin He cannot release it on a verbal claim alone | Endings may be proposed, not treated as established history |
 
-1. Click the "Start Writing" button in the center of the page
-2. If not logged in, you'll be redirected to the login/registration page
-3. After successful login, you'll automatically enter the dashboard where you can create a project
+Send this in chat:
 
-### Method 2: From the Dashboard
+```text
+I am writing a realist short story, Before Closing, in Lin He's limited viewpoint.
+The station's lost-property desk closes at six; it is now 5:40. Shen Min claims
+a gray canvas bag. She describes the outside correctly but gets an inner-pocket
+item wrong. Lin He cannot release it on a verbal claim alone.
 
-[Screenshot: Dashboard homepage highlighting project type tabs and inspiration input field]
-
-After logging in and entering the dashboard, you'll see a prominent creation area:
-
-1. **Select Project Type**: There are three tabs at the top (Full-length Novel, Short Story, Short Drama Script)—click to select your desired type
-2. **Enter Creative Inspiration**: Describe your story idea in the text box
-3. **Click "Start Writing"**: The system will create a project based on your inspiration
-
-> Tip: The inspiration input field supports pressing Enter for quick creation without clicking the button.
-
----
-
-## Project Type Selection
-
-[Screenshot: Project type selector showing icons and descriptions for three types]
-
-zenstory offers three project types, each with preset file structures:
-
-| Type | Word Count Range | Use Case | Preset Folders |
-|------|-----------------|----------|----------------|
-| **Full-length Novel** | 50,000+ words | Serialized novels, web fiction, long-form stories | Settings, Characters, Materials, Outline, Draft |
-| **Short Story** | 5,000-20,000 words | Standalone short stories, competition entries | Characters, Concept, Draft |
-| **Short Drama Script** | Unlimited | Short video scripts, micro-dramas | Characters, Scenes, Episode Outline, Script |
-
-**How to Choose?**
-
-- If you're writing a large-scale work with multiple chapters and characters, choose "Full-length Novel"
-- If you want to write a complete but limited-length standalone story, choose "Short Story"
-- If you're creating scripts suitable for short video platforms, choose "Short Drama Script"
-
-> Recommendation: Choose the type that best matches your creative scale, and the system will provide the most appropriate folder structure. Once selected, you can manually adjust the file structure later to adapt to changing needs.
-
----
-
-## Filling in Initial Inspiration
-
-[Screenshot: Inspiration input field showing example content]
-
-Initial inspiration is the starting point of your project. Based on the inspiration you provide, AI will automatically generate an initial framework to help you quickly begin writing.
-
-### What Makes a Good Inspiration Description?
-
-A good inspiration description should include:
-
-- **Core Idea**: What makes your story unique?
-- **Main Characters**: Who is the protagonist? What are their characteristics?
-- **Story Setting**: What world does it take place in? What era?
-- **Core Conflict**: What challenges or dilemmas does the protagonist face?
-
-### Example Inputs
-
-**Full-length Novel Example:**
-
-```
-I want to write an urban fantasy novel. The protagonist is an ordinary college student who
-accidentally gains the ability to rewind time by 24 hours each time they die. The story revolves
-around how they grow through repeated deaths and eventually uncover the mysterious organization
-behind the city. The style is suspenseful with a touch of romance.
+Reply in chat with a three-scene outline only: goal, obstacle and change for each.
+Separate established facts from proposed additions. The reason for the mistaken
+item and the bag's eventual recipient are undecided. Do not assume theft or add
+a supernatural explanation. Do not draft prose or modify files yet.
 ```
 
-**Short Story Example:**
+“Do not modify files” is an instruction to the agent, not a product-enforced read-only switch. The agent can operate on project files: watch file changes and operation results as well as the reply. For more direct editorial control, request suggestions and apply them manually.
 
+## 3. Choose the outline, then keep files you can write from
+
+Does each scene change the situation? Does Lin He know more than the available evidence permits? Does the ending address the question you want to explore? Tell the AI which cause and ending you chose rather than leaving several alternatives to become contradictory “facts.”
+
+After deciding, request **only these files**, or create them through the file tree and paste your approved material:
+
+| Folder / example title | File type | Contents |
+| --- | --- | --- |
+| Characters / Lin He | `character` | Goal, responsibilities and knowledge boundaries |
+| Characters / Shen Min | `character` | Confirmed background; unresolved motives marked as open |
+| Concept / Three-scene outline | `outline` | Chosen plot, scene changes and when readers learn key facts |
+| Drafts / Scene 1 — The claim | `draft` | Narrative prose, not analysis or revision notes |
+
+These are files you request, not automatically generated names. **Type matters**: naming a file “Draft” does not make it an exportable draft. Materials can hold reference notes you have the right to use; this exercise does not need a whole reference novel uploaded.
+
+## 4. Open the target and choose this request's context
+
+Open **Scene 1 — The claim**. A chat request includes the focused file's identity; explicitly attach relevant project files or library materials, and quote selected text when needed. Opening a file does not mean the entire book is included in every request.
+
+Save recent edits to your characters and outline, attach the relevant files, then ask:
+
+```text
+Use the approved Three-scene outline and character files to draft only
+Scene 1 — The claim, around 400–600 English words, in Lin He's limited viewpoint.
+Stop when Shen Min names the wrong inner-pocket item. Convey urgency through
+actions and questions; do not reveal the reason or explain another person's mind.
+Write into the open draft file, not a duplicate. Do not continue to Scene 2.
+If an essential fact is missing, ask; do not turn guesses into character facts.
 ```
-An elderly person sits on a park bench all day, rain or shine. Until one day, a child hands them
-a piece of candy, revealing a secret buried in their heart for years. A warm, healing story
-exploring themes of memory and companionship.
+
+Length is an editorial target, not an exact-output guarantee. Text appearing in a reply does not prove it was saved in the intended file: open that file. If the response is only a suggestion, apply it manually or explicitly request the file update.
+
+## 5. Quote the problem instead of rewriting everything
+
+Suppose the draft says “Lin He knew Shen Min must be lying,” but you want to preserve ambiguity:
+
+1. Select that sentence and the necessary surrounding text. Add it to chat using the selection toolbar's quote control.
+2. Explain which established fact it violates and the permitted edit scope.
+3. If a diff review appears, accept or reject changes before finishing it. Other agent file operations do not necessarily use the same per-change confirmation interface.
+
+```text
+Revise only the quoted passage. Lin He knows the description does not match,
+but not why. Replace the accusation of lying with an observable action or a
+follow-up question. Keep the outcome: the bag has not been handed over.
+Suggest replacement text in chat first. Do not edit files, change motives,
+or touch other scenes.
 ```
 
-**Short Drama Script Example:**
+Apply the suggestion to the selected passage when satisfied and read the transition around it. If you instead decide to change a motive or ending, update the character file and outline separately; a prose edit is not an automatic synchronization of every story fact.
 
-```
-Sweet workplace romance drama: The new intern turns out to be the CEO's daughter. She joins
-incognito to prove herself but accidentally falls in love with another heir who's also hiding
-their identity. 2 minutes per episode, focusing on light comedy and sweet daily life moments.
-```
+## 6. Save, retain important originals and export the prose
 
-### Not Sure What to Write?
+Ordinary editing supports autosave and **Save**; check the save status before leaving. When AI is editing the same file, let that operation finish before competing edits. If there is a conflict, compare both versions instead of refreshing away unsaved local work.
 
-If you don't have a clear inspiration yet, you can also:
+History snapshots support comparison and rollback, but snapshot rules and version allowances apply. They are not a permanent backup of every keystroke. A warning that prose was saved without a new version distinguishes content saving from history creation. Keep separate copies of important originals; do not delete files to experiment with recovery.
 
-1. Enter a simple theme (e.g., "Ancient Cultivation", "Modern Urban")
-2. After creating the project, chat with the AI assistant to help you brainstorm
-3. First create character and world settings, then gradually develop the story
+Use **Export** in the project header, or its mobile menu, to download TXT. Current export combines non-deleted `draft` and `script` files with their titles and text. Chapter/episode numbering and file ordering affect the sequence; it is **not simply creation order**. Check the downloaded scene order, ending and missing passages.
 
----
+This does not export all characters, materials, chat or version history and is not a complete project backup. Missing writing files, permissions or plan-format restrictions can prevent export; follow the actual error. This tutorial does not promise DOCX, EPUB or automatic publication.
 
-## Initial Files After Project Creation
+## Continue with a deliberate next scene
 
-[Screenshot: Project editing page showing the left sidebar file tree]
+Once you have a usable scene, reuse the approved files and specify the next scene's change and stopping point. You can also write manually and use AI only when stuck or revising.
 
-After successful project creation, the system will automatically redirect to the project editing page. The left sidebar file tree will display the preset folder structure.
+- Choosing a browser workspace or local skills? See the [writing-workflow comparison](https://zenstory.ai/compare/writing-workflows).
+- Want a before/after editing example? See [revising formulaic prose](https://zenstory.ai/oh-story/revise-ai-prose). Its editorial principles can help, but Oh Story's file workflow is not a set of workbench buttons.
+- For account entrypoints, see [registration and login](https://zenstory.ai/docs/getting-started/installation). Account rules, quotas and model-service availability depend on the actual deployment.
 
-### Automatically Created Content
+## Implementation sources
 
-Depending on the project type, you'll see the following folders:
+Source checked on 2026-09-12. These fixed-version references explain the interface; they are not a live-account, model-output or current-plan test.
 
-**Full-length Novel:**
-- 📁 **Settings** - World-building, magic systems, background settings
-- 📁 **Characters** - Character profiles, relationships
-- 📁 **Materials** - Inspiration snippets, reference materials
-- 📁 **Outline** - Chapter outlines, plot planning
-- 📁 **Draft** - Novel draft content
-
-**Short Story:**
-- 📁 **Characters** - Character settings
-- 📁 **Concept** - Story framework
-- 📁 **Draft** - Story draft
-
-**Short Drama Script:**
-- 📁 **Characters** - Character settings
-- 📁 **Scenes** - Scene descriptions
-- 📁 **Episode Outline** - Plot for each episode
-- 📁 **Script** - Formal script
-
-### If You Provided Initial Inspiration
-
-If you filled in initial inspiration when creating the project, AI will automatically start working:
-
-1. The AI assistant panel on the right side of the page will show "Thinking..."
-2. AI will generate an outline framework based on your inspiration
-3. It may also create initial character cards or world-building settings
-4. Generated content will be automatically saved to corresponding files
-
-You can see AI's complete thinking process and execution steps in the chat panel.
-
----
-
-## Next Steps: Start Creating
-
-After the project is created, you can officially start writing!
-
-### Recommended Reading
-
-- **[AI Writing Assistant Guide](../user-guide/ai-assistant.md)** - Learn how to chat with AI and have it help you write
-- **[File Management Guide](../user-guide/file-tree.md)** - Understand how to manage your creative files
-- **[Interface Overview](../user-guide/interface-overview.md)** - Familiarize yourself with zenstory's three-panel workspace
-
-### Common Creative Workflow
-
-1. **Refine Settings** - First establish world-building, magic systems, and other background elements
-2. **Design Characters** - Create detailed profiles for main characters
-3. **Plan Outline** - Have AI help you generate chapter outlines
-4. **Write Draft** - Write chapter by chapter; AI can continue, expand, or rewrite
-5. **Export Work** - When finished, export as a `.txt` file
-
-### Quick Start Tips
-
-If you're using zenstory for the first time, we suggest:
-
-1. In the chat panel on the right, enter: "Help me refine the opening setting for this story"
-2. AI will generate more detailed world-building and characters based on your initial inspiration
-3. Review the generated files and ask AI to modify anything you're not satisfied with
-4. Then enter: "Based on the current settings, help me write the outline for Chapter 1"
-5. After confirming the outline, enter: "Based on Chapter 1's outline, help me write the draft"
-
-Just like that, one step at a time—AI will become your most reliable creative partner!
-
----
-
-> Remember: A good beginning is half the battle. Taking time to refine your initial settings will make subsequent creation twice as effective. Now go create your first project!
+- [Empty-idea quick creation](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/pages/DashboardHome.tsx#L511-L547)
+- [Type selection and creation controls](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/pages/DashboardHome.tsx#L653-L720)
+- [Chinese and English project templates](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/config/project_templates.py#L15-L135)
+- [Focused file, attachments and quotes](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/ChatPanel.tsx#L1151-L1177)
+- [Initial-idea send conditions](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/ChatPanel.tsx#L1238-L1287)
+- [Quoting a selection](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/SimpleEditor.tsx#L348-L354)
+- [Autosave and snapshot intent](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/SimpleEditor.tsx#L509-L554)
+- [Conflict and successful-save handling](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/Editor.tsx#L327-L394)
+- [Saving a diff review](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/Editor.tsx#L397-L446)
+- [User-version allowance](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/file_version_service.py#L536-L555)
+- [Project export control](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/Header.tsx#L228-L241)
+- [Exported file types and ordering](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L110-L143)
+- [TXT composition](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L197-L203)
+- [Export restrictions and download response](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/api/export.py#L87-L143)

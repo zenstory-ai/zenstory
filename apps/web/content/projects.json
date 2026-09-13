@@ -380,8 +380,42 @@
       "zh": ["想要工作区而不是终端的小说作者", "需要版本历史管理长篇项目的写作者"]
     },
     "method": {
-      "en": [["Structure first", "Project files, material capture, character setup."], ["Draft", "Chapter drafting in conversation with the agent."], ["Revise", "Suggestions, AI memory of your setting, version rollback."]],
-      "zh": [["先立结构", "项目文件、素材采集、人设。"], ["写作", "在与 agent 的对话中起草章节。"], ["修订", "建议、对设定的 AI 记忆、版本回滚。"]]
+      "en": [
+        [
+          "How do I start writing in the browser?",
+          "Open the [workbench Dashboard](https://app.zenstory.ai/dashboard), choose an available project type and create it with or without an idea. For a deliberate first request, leave the idea blank and then ask for an outline in chat. Follow the [short quick start](https://zenstory.ai/docs/getting-started/quick-start); no coding-agent installation is required."
+        ],
+        [
+          "How do I turn an idea into my first scene?",
+          "Separate approved facts from open decisions, save characters and a scene plan, then draft into a named file. The [first-story walkthrough](https://zenstory.ai/docs/getting-started/first-project) includes an original lost-property premise, file plan and three scoped requests, not a recorded model run."
+        ],
+        [
+          "How do I revise without changing the whole story?",
+          "Open the target file, attach the relevant project references and quote the passage. Specify what must stay unchanged. The agent can operate on files; a request for suggestions is not an enforced read-only mode, and not every file operation uses a per-change approval screen."
+        ],
+        [
+          "Can I take the manuscript out of the workbench?",
+          "The project export entry downloads combined TXT from non-deleted draft and script files, subject to access and plan-format rules. It is not a backup of characters, materials, chat or history. Check save status and keep important originals separately; history is governed by snapshot rules and allowances."
+        ]
+      ],
+      "zh": [
+        [
+          "不用编程 Agent，怎样在网页里开始写作？",
+          "打开[工作台 Dashboard](https://app.zenstory.ai/dashboard)，选择可用项目类型，可以带灵感创建，也可以留空后自己发送第一条构思请求。[快速入门](https://zenstory.ai/docs/getting-started/quick-start)给出这条短路径，不需要先安装编程 Agent。"
+        ],
+        [
+          "怎样把一个点子变成第一场正文？",
+          "先区分确定事实与待定决定，保存人物和场景提纲，再写入指定正文文件。[第一篇短篇教程](https://zenstory.ai/docs/getting-started/first-project)提供原创失物招领故事、文件安排和三段范围明确的请求；示例不是实际模型运行记录。"
+        ],
+        [
+          "怎样局部改稿，不把整篇故事改掉？",
+          "打开目标文件，附加相关项目资料，引用问题段落，并说清哪些事实不能变。Agent 可以操作文件；“只给建议”不是强制只读模式，也不是所有文件操作都有逐项批准界面。"
+        ],
+        [
+          "能把作品带出工作台吗？",
+          "项目导出入口将未删除的正文 draft 与剧本 script 合并为 TXT，受权限与套餐格式规则约束；不包含人物、素材、聊天和历史的完整备份。离开前看保存状态，重要原稿另留副本；历史受快照策略与额度约束。"
+        ]
+      ]
     },
     "distinctive": {
       "en": [
@@ -405,13 +439,19 @@
         "[Agent API, file editing and version features](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/README_EN.md#L163-L197)",
         "[Self-hosting prerequisites and model configuration](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/README_EN.md#L229-L267)",
         "[Published policy on providers and general model training](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/apps/web/public/locales/en/privacy.json#L64-L75)",
-        "[Default subscription limits include file versions](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/apps/server/services/subscription/defaults.py#L6-L25)"
+        "[Default subscription limits include file versions](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/apps/server/services/subscription/defaults.py#L6-L25)",
+        "[Empty-idea quick creation](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/pages/DashboardHome.tsx#L511-L547)",
+        "[Focused file, attachments and quotes](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/ChatPanel.tsx#L1151-L1177)",
+        "[Exported file types and ordering](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L110-L143)"
       ],
       "zh": [
         "[Agent API、文件编辑与版本功能](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/README_EN.md#L163-L197)",
         "[自托管依赖与模型配置](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/README_EN.md#L229-L267)",
         "[已发布政策中的供应商与通用模型训练说明](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/apps/web/public/locales/en/privacy.json#L64-L75)",
-        "[默认订阅限制包含文件版本数](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/apps/server/services/subscription/defaults.py#L6-L25)"
+        "[默认订阅限制包含文件版本数](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/apps/server/services/subscription/defaults.py#L6-L25)",
+        "[空灵感快速创建](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/pages/DashboardHome.tsx#L511-L547)",
+        "[焦点文件、附件与引用](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/ChatPanel.tsx#L1151-L1177)",
+        "[导出文件类型与排序](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L110-L143)"
       ]
     },
     "vocabulary": []

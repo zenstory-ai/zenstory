@@ -1,17 +1,19 @@
 # zenstory帮助文档
 
-欢迎使用 zenstory AI 辅助小说写作工作台！zenstory 是你的智能写作伙伴，帮助你从创意到成稿，全流程提升创作效率。
+ZenStory 是围绕项目文件写作的网页工作台。先从创意与场景提纲开始，再按需要使用 AI 起草和修订。
+
+在 [app.zenstory.ai](https://app.zenstory.ai/dashboard) 操作，在本站阅读指南。
 
 **核心特点**：
 - 三栏式工作台：文件树 + 编辑器 + AI 对话，一站式完成所有创作工作
-- 智能上下文：AI 自动理解你的世界观、角色和情节设定，保持创作一致性
-- 版本追溯：自动保存每次修改，随时对比和回退到任意版本
+- 写作上下文：打开目标文件，按需要附加项目资料和引用文本；作者仍需确认设定与叙事一致性
+- 版本追溯：查看已有快照并比较或回滚；快照策略和版本额度适用，重要内容另留副本
 - 仪表盘工作流：项目、素材、灵感、技能、订阅权益一体化管理
 
 ## 快速链接
 
-- [5分钟快速入门](getting-started/quick-start.md) - 新手必读，快速上手核心功能
-- [创建第一个项目](getting-started/first-project.md) - 开始你的创作之旅
+- [网页写作快速入门](https://zenstory.ai/docs/getting-started/quick-start) - 新手必读，快速上手核心功能
+- [写第一篇短篇](https://zenstory.ai/docs/getting-started/first-project) - 开始你的创作之旅
 - [AI创作助手](user-guide/ai-assistant.md) - 核心功能详解，释放AI写作潜力
 - [常见问题](reference/faq.md) - 快速找到答案，解决常见疑惑
 
@@ -22,9 +24,9 @@
 
 | 文档 | 说明 |
 |------|------|
-| [5分钟快速入门](getting-started/quick-start.md) | 最快上手路径，掌握核心功能 |
+| [网页写作快速入门](https://zenstory.ai/docs/getting-started/quick-start) | 最快上手路径，掌握核心功能 |
 | [账号注册与登录](getting-started/installation.md) | 邮箱注册、Google 登录、邀请码系统 |
-| [创建第一个项目](getting-started/first-project.md) | 项目类型、灵感输入、文件结构 |
+| [写第一篇短篇](https://zenstory.ai/docs/getting-started/first-project) | 原创故事实例、文件安排、局部修改与正文导出 |
 
 ### 用户指南
 详细的功能说明，帮助你充分利用zenstory的各项功能。
