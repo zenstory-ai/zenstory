@@ -446,6 +446,10 @@
         [
           "Can I take the manuscript out of the workbench?",
           "The [manuscript export guide](https://zenstory.ai/docs/user-guide/export) explains combined TXT from saved draft/script files, chapter ordering and a separate review copy. It is not a backup of characters, materials, chat or history. Use the [version guide](https://zenstory.ai/docs/user-guide/version-history) to distinguish file recovery from project snapshots; keep important originals independently."
+        ],
+        [
+          "Will AI Memory keep every character consistent?",
+          "AI Memory is a four-field project summary, not proof that the model reads every file or a guarantee against drift. Keep confirmed settings, saved-scene progress and undecided ideas separate. The [worked memory guide](https://zenstory.ai/docs/advanced/ai-memory) shows what to save, how context limits matter and how to correct a wrong summary without silently rewriting the manuscript."
         ]
       ],
       "zh": [
@@ -464,6 +468,10 @@
         [
           "能把作品带出工作台吗？",
           "[稿件导出指南](https://zenstory.ai/docs/user-guide/export)说明已保存正文与剧本的 TXT 合并、章节排序和另存送审副本；这不是包含人物、素材、聊天和历史的完整备份。[版本指南](https://zenstory.ai/docs/user-guide/version-history)区分单文件恢复与项目快照，重要原稿仍需独立保留。"
+        ],
+        [
+          "AI 记忆能保证长篇不崩人设吗？",
+          "AI 记忆是四字段项目摘要，不证明每轮都读完全部文件，也不保证不会写偏。分开已确认设定、已写进度与待定想法。[记忆填写与更正示例](https://zenstory.ai/docs/advanced/ai-memory)说明怎样保存、上下文为什么有限，以及如何纠正摘要而不悄悄重写正文。"
         ]
       ]
     },
@@ -484,7 +492,7 @@
     "stars": 40,
     "skills": 13,
     "sources": {
-      "checked_on": "2026-09-12",
+      "checked_on": "2026-09-13",
       "en": [
         "[Agent API, file editing and version features](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/README_EN.md#L163-L197)",
         "[Self-hosting prerequisites and model configuration](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/README_EN.md#L229-L267)",
@@ -492,7 +500,8 @@
         "[Default subscription limits include file versions](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/apps/server/services/subscription/defaults.py#L6-L25)",
         "[Empty-idea quick creation](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/pages/DashboardHome.tsx#L511-L547)",
         "[Focused file, attachments and quotes](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/ChatPanel.tsx#L1151-L1177)",
-        "[Exported file types and ordering](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L110-L143)"
+        "[Exported file types and ordering](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L110-L143)",
+        "[Project memory is budget-bound context](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/agent/context/assembler.py#L1319-L1352)"
       ],
       "zh": [
         "[Agent API、文件编辑与版本功能](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/README_EN.md#L163-L197)",
@@ -501,7 +510,8 @@
         "[默认订阅限制包含文件版本数](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/apps/server/services/subscription/defaults.py#L6-L25)",
         "[空灵感快速创建](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/pages/DashboardHome.tsx#L511-L547)",
         "[焦点文件、附件与引用](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/ChatPanel.tsx#L1151-L1177)",
-        "[导出文件类型与排序](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L110-L143)"
+        "[导出文件类型与排序](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L110-L143)",
+        "[项目记忆受上下文预算约束](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/agent/context/assembler.py#L1319-L1352)"
       ]
     },
     "vocabulary": []
