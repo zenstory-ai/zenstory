@@ -871,12 +871,14 @@
       "en": [
         "Detection-only work should give located findings and reasons without changing the manuscript. A zero-pattern result is not a certificate of authorship or literary quality.",
         "A requested revision in file mode is saved to the specified text files. The documented report includes change statistics and before/after information; it returns only a short representative excerpt rather than the complete file text.",
-        "For a change to events, timeline or reader knowledge, use the chapter-revision transaction to update tracking authority and derived views. Do not manually patch separate tracking files to make them appear consistent."
+        "For a change to events, timeline or reader knowledge, use the chapter-revision transaction to update tracking authority and derived views. Do not manually patch separate tracking files to make them appear consistent.",
+        "If the edit sounds smoother but no longer sounds like you, use [preserve your author voice](https://zenstory.ai/oh-story/preserve-author-voice) to separate this book’s style, a one-off request and a lasting preference without copying the sample’s story facts."
       ],
       "zh": [
         "只检测时，应获得问题位置与理由，正文不应被修改。“没有命中模式”不是作者身份或文学质量证明。",
         "文件模式中，已请求的修订写回指定正文文件。文档要求报告修改统计与前后信息；聊天只回传简短代表片段，不回传文件全文。",
-        "改动涉及事件、时间线或读者认知时，通过章节修订事务更新追踪权威与派生视图，不要分别手补追踪文件来凑一致。"
+        "改动涉及事件、时间线或读者认知时，通过章节修订事务更新追踪权威与派生视图，不要分别手补追踪文件来凑一致。",
+        "改完更顺，却不像自己了？看[保留作者文风](https://zenstory.ai/oh-story/preserve-author-voice)，分清本书笔调、一次性要求与长期偏好，不把样本的故事事实一并搬来。"
       ]
     },
     "verification": {
@@ -1711,6 +1713,135 @@
         "[单章钩子的种、养、收](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/long-suspense.md#L87-L95)",
         "[细纲字段、执行边界、成本与章尾交接](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-setup.md#L198-L260)",
         "[只排纲补纲、锁定单元与低压章节](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-setup.md#L265-L272)"
+      ]
+    }
+  },
+  {
+    "owner": "oh-story",
+    "slug": "preserve-author-voice",
+    "checked_on": "2026-09-12",
+    "title": {
+      "en": "Keep your author voice when AI continues a novel",
+      "zh": "AI 续写怎样保持我的文风，而不是记住另一本书的情节？"
+    },
+    "answer": {
+      "en": "Describe the dimensions of your voice, give a short sample you own or may use, and separate those choices from the current book’s facts. Oh Story’s documented workflow resolves the current request, book style and relevant active author preferences before generic writing advice; a sample alone does not establish a permanent preference. The useful result is a continuation that fits this narrator and scene—not copied phrases, mandatory short sentences or a claimed voice-similarity score.",
+      "zh": "把文风拆成表达维度，提供自己写的或获准使用的短样本，再与本书事实分开。Oh Story 的文档流程在写作前按当前要求、本书文风和相关 active 作者偏好作裁决，通用写法补缺；仅凭一段样本，不等于确认长期习惯。目标是符合当前叙述者和场景的续写，不是搬原句、强制短句，或追求“文风相似度”分数。"
+    },
+    "prerequisites": {
+      "en": [
+        "Use your own or authorized prose. Choose a representative passage and explain which features you want to carry over; note deliberate exceptions rather than treating every sentence as a rule.",
+        "Name the current book, viewpoint, established scene facts and unrevealed information. Keep these distinct from sentence rhythm, diction, punctuation, imagery and narrative distance.",
+        "Use a configured Oh Story agent host and the intended writing workspace. Existing author memory is optional; ordinary writing can continue when no memory state exists. For chapter-to-chapter facts, see [long-novel continuity](https://zenstory.ai/oh-story/long-novel-continuity)."
+      ],
+      "zh": [
+        "使用自己写的或获准使用的文字。选能代表目标风格的片段，说明想沿用什么；标明有意的例外，不把每一句都当规则。",
+        "点明当前书、视角、既定场景事实和暂不揭露的信息。把它们与句子节奏、措辞、标点、意象和叙述距离分开。",
+        "在配置好的 Oh Story 宿主及目标写作工作区操作；作者记忆不是写作前提，不存在时可直接继续。跨章事实承接见[长篇连续性指南](https://zenstory.ai/oh-story/long-novel-continuity)。"
+      ]
+    },
+    "steps": {
+      "en": [
+        [
+          "Ask what makes the sample yours",
+          "Name a few useful tendencies: a long observational sentence followed by a brief exchange, understated humor, close third person, or a restrained vocabulary. Explain their function here. Do not require a semicolon, metaphor or catchphrase in every paragraph."
+        ],
+        [
+          "Separate three kinds of input",
+          "Sample observations are evidence to discuss, not automatically active memory. The current book’s characters, objects, secrets and events belong to its settings and tracking. An explicit enduring preference can be recorded at the narrowest intended scope: book, genre, workflow or global. A request for this passage only should simply be followed."
+        ],
+        [
+          "Resolve conflicts by dimension",
+          "Within safety, authorization and delivery constraints, the explicit current request outranks this book’s style, which outranks applicable author-memory preferences and generic references. Resolve viewpoint, rhythm, punctuation and other dimensions separately: keep the sample’s rhythm while using this book’s third person. Lower-priority guidance fills gaps; it does not cancel an intentional long sentence merely because a default prefers short ones. Read the current book’s full 设定/文风.md when present, rather than relying only on an old summary; an absent style file does not require a placeholder."
+        ],
+        [
+          "Carry the same decision through drafting and review",
+          "Oh Story’s style_resolution is a working decision for the task, not a new permanent author profile. The documented workflow passes the same decision to downstream drafting, rewriting and review so a later pass does not restore a generic style. Intentional expression still needs readable syntax, supported character knowledge and sound causality. The query script filters stored active preferences; the writing agent applies their meaning and resolves dimensions. It is not a deterministic voice-matching engine."
+        ],
+        [
+          "Treat memory as an explicit scoped action",
+          "Repeated corrections or inferred sample patterns remain pending until confirmed; pending items do not constrain writing. An explicit long-term request uses record and returns an Author Memory Receipt. Without that receipt, do not say it has been remembered. A book-specific exception should not erase a global habit, and a one-off request should not silently rewrite either."
+        ],
+        [
+          "Revise the preference when your intention changes",
+          "Use an explicit replacement for a changed rule, or ask to forget a preference so it is no longer loaded. Forgetting does not promise deletion of historical evidence. The profile, pending list and change log are derived views of _author-memory-state.json; do not edit their Markdown to simulate a successful memory update."
+        ]
+      ],
+      "zh": [
+        [
+          "先说样本哪里像你",
+          "提取少数有用倾向：观察稍长、对话简短、轻微调侃、贴近人物的第三人称，或克制的用词，并说明这次为什么要它。不要要求每段必须有分号、比喻或口头禅。"
+        ],
+        [
+          "把三类输入分开",
+          "从样本观察到的模式只是待讨论证据，不自动成为 active 记忆。本书人物、道具、秘密与事件归设定和追踪；明确的长期偏好按本书、题材、流程或全局等适用范围记录。“只改这一段”则只执行，不偷偷记成习惯。"
+        ],
+        [
+          "按表达维度解决冲突",
+          "在安全、授权和交付约束之内，当前明确要求优先于本书文风，再到适用的作者记忆和通用方法。视角、节奏、标点分别裁决：可以借样本的节奏，仍用本书第三人称。低优先级只补缺项，不能因默认偏好短句就剪掉作者有意保留的长句。 本书有设定/文风.md 时读全文，不只用旧摘要；没有文件也不必先建占位文件。"
+        ],
+        [
+          "让写作和审稿沿用同一决定",
+          "style_resolution 是本次任务的表达裁决，不是新建永久画像。文档要求把同一裁决交给后续正文、改写与审稿，避免下一轮又套回通用风格；但有意的表达仍需语句可读、角色认知有据、因果成立。 query 脚本负责筛选已存的 active 偏好，语义上的维度裁决由写作流程中的 Agent 完成，不是确定性的文风匹配引擎。"
+        ],
+        [
+          "记住偏好，要明确范围和回执",
+          "重复修改或样本推断先待确认；pending 不参与正文约束。明确的长期声明通过 record 记录，并返回 Author Memory Receipt；没有回执，不能声称已记住。本书例外不应删除全局习惯，一次性要求也不应暗改两者。"
+        ],
+        [
+          "意图变了，再替换或停用",
+          "长期规则改变时明确替换；不再需要时要求忘掉，使其不再加载。“忘掉”不等于删除历史证据。画像、待确认清单与变更记录是 _author-memory-state.json 的派生视图，不手改 Markdown 冒充记忆更新。"
+        ]
+      ]
+    },
+    "example": {
+      "en": "Original editorial example — The Last Button (not a recorded Oh Story run)\n\nA short sample written for this guide, from a DIFFERENT story:\n“After lunch, Father turned his empty bowl halfway around, as though the other side might still hold some soup; when I offered the kettle, he left it in my hand and asked whether the mint by the window needed watering again.”\nPossible observations: an extended sentence, a semicolon turn, concrete observation and mild humor. These are tentative observations, not proof of an enduring preference. Father, soup, the first-person narrator and the mint plant do not belong to the new book.\n\nFacts fixed for The Last Button:\nThird person, close to Tang He. Master Zhou puts a matching dark-green button in her palm and says the repair cannot be finished today, but will be ready tomorrow morning. Tang He holds the button against the gap on her coat and checks the color. Do not add a family history, a hidden relationship or another character’s thoughts.\n\nA plain, shorter rendition—not an incorrect draft:\n“Master Zhou put the dark-green button in Tang He’s palm. ‘Not today. Come back tomorrow morning.’ She held it against the gap on her coat. The color matched.”\n\nOne alternative after the author chooses a longer rhythm and mild humor for THIS BOOK:\n“Master Zhou put the dark-green button in Tang He’s palm and said the repair would have to wait until tomorrow morning; she held it against the gap on her coat, where the color matched so exactly that it was a pity buttons could not sew themselves back on.”\nBoth versions preserve the same actions and deadline. The second changes cadence and commentary, not the plot. It does not transplant the sample’s bowl, mint, father or first-person viewpoint. This is one editorial option, not a measured likeness or a guarantee of consistent model output.\n\nCopyable request for story-long-write in your configured host:\nUse the authorized sample only to discuss expression, not to copy sentences or transfer its story facts. Work only on the specified passage of The Last Button; preserve the fixed actions, tomorrow-morning deadline and close-third viewpoint. For this book, I want longer observational sentences and mild humor where they help; do not add them to every paragraph. First state the applicable style decisions, then return one proposed passage without changing project or memory files. Distinguish tentative sample observations from my explicit choices. Carry the same decisions into review; do not mechanically shorten the passage.\n\nOptional SEPARATE enduring request, only if this is really your intention:\n“Remember for The Last Button: allow longer observational sentences and mild humor where they help. This is a book-specific preference, not a global rule.”\nThis is an example request, not a receipt. No preference has been recorded by this guide. A later ‘make this one paragraph brisk and factual’ request governs that paragraph without silently replacing the book preference.",
+      "zh": "原创编辑示例——《最后一枚纽扣》（不是 Oh Story 运行结果）\n\n为指南写的短样本，来自另一个故事：\n“午饭过后，父亲把那只空碗转了半圈，像是换个方向就能找到还没喝完的汤；我把水壶递过去，他没有接，只问窗边那盆薄荷是不是又该浇水了。”\n可讨论的观察：句子较长、分号转折、具体观察、轻微调侃。这些只是候选，不证明长期习惯。父亲、汤、第一人称和薄荷都不是新书的设定。\n\n《最后一枚纽扣》的约定事实：\n第三人称，贴近唐禾。周师傅把配好的深绿纽扣放到她掌心，说今天来不及，明早可以取。唐禾把纽扣贴在外套衣襟缺口上，核对颜色。不新增身世、隐秘关系或他人的内心。\n\n朴素短句版——不是错稿：\n“周师傅把深绿纽扣放到唐禾掌心。‘今天来不及了，明早来取。’唐禾把纽扣贴到衣襟缺口上，颜色一致。”\n\n作者为本书选择较长节奏与轻微调侃后的一种写法：\n“周师傅把那枚深绿纽扣放到唐禾掌心，说今天已经赶不及，明早可以取；她低头把纽扣贴在衣襟缺口上，颜色倒是对得一丝不差，只可惜纽扣不会自己长回去。”\n两版行动和期限相同，改变的是节奏与叙述语气，不是剧情。没有搬来原样本的碗、薄荷、父亲和第一人称。这只是一种编辑选择，不是相似度成绩或稳定复现的保证。\n\n向已配置宿主中的 story-long-write 提交：\n样本是我有权使用的，只讨论表达，不复制原句或移植情节。仅处理《最后一枚纽扣》的指定段落，保留上述动作、明早期限与贴近唐禾的第三人称。本书可以用较长观察句和轻微调侃，但有用时才用，不必每段都有。\n先说明本次各维度的表达决定，再给一版段落建议；不改项目文件，不写作者记忆。分清样本推测和我的明确选择，审稿沿用同一决定，不机械剪短。\n\n确实希望长期沿用时，再单独提出：\n“记住：仅《最后一枚纽扣》这本书，允许有用的较长观察句与轻微调侃，不设为全局规则。”\n这是示例请求，不是记忆回执；本指南没有替你记录任何偏好。以后若说“这一段写得短促、客观”，本段按新要求写，不暗改本书长期偏好。"
+    },
+    "outputs": {
+      "en": [
+        "A short, task-specific account of style choices and their scope, separating explicit requests from tentative sample observations and protected story facts.",
+        "One proposed passage that preserves the specified events while making the selected cadence and narrative tone visible; neither alternative has to be universally better.",
+        "Only when explicitly requested: a scoped memory change and its actual tool receipt. Ordinary sample discussion or a one-off revision need not create author memory."
+      ],
+      "zh": [
+        "一份简短的本次表达决定，分清明确要求、样本候选观察与不可改的故事事实，并说明范围。",
+        "一版保留指定事件、体现所选节奏和语气的段落建议；不宣称某一种写法普遍更好。",
+        "只有明确请求长期记忆时，才交付对应范围的记忆变更与真实工具回执；普通样本讨论或一次改稿不必创建作者记忆。"
+      ]
+    },
+    "verification": {
+      "en": [
+        "Read for function, not matching words: does the voice fit this narrator and scene, without mechanically repeating a stylistic feature? Check that the sample’s names, objects and private history have not migrated into the book.",
+        "Check the scope of each decision. A current-passage exception should not replace a long-term habit; a pending inference should not appear as an active instruction or a claimed successful write.",
+        "Review clarity, viewpoint and causality as well as preference. Authorial intent does not remove genuine craft problems. For bounded wording edits, see [prose revision](https://zenstory.ai/oh-story/revise-ai-prose); for missing scene movement, see [outline to chapter](https://zenstory.ai/oh-story/outline-to-chapter)."
+      ],
+      "zh": [
+        "看表达有没有服务叙述者和场景，不看偏好词命中率，也不机械重复某种句式。检查样本的人名、物件与隐含身世有没有混入本书。",
+        "核对每项决定的范围：本段例外不替换长期习惯，pending 推断不冒充 active 指令或成功写入。",
+        "同时看清晰度、视角与因果；作者有意选择某种表达，不意味着真实文笔问题消失。局部措辞修改见[改稿指南](https://zenstory.ai/oh-story/revise-ai-prose)，缺少场景推进见[从章纲到章节](https://zenstory.ai/oh-story/outline-to-chapter)。"
+      ]
+    },
+    "sources": {
+      "en": [
+        "[Dimension-level style precedence and shared decisions](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/style-resolution.md#L5-L18)",
+        "[Preference boundaries and book facts](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/author-memory.md#L3-L18)",
+        "[Derived views and task-specific active context](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/author-memory.md#L22-L49)",
+        "[Receipts, explicit choices, pending inference and scope](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/author-memory.md#L53-L76)",
+        "[Conflict, replacement, book exceptions and forgetting](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/author-memory.md#L80-L87)",
+        "[Source and status validation](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/scripts/author_memory_commit.py#L308-L335)",
+        "[Activation, replacement and forgetting transitions](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/scripts/author_memory_commit.py#L480-L544)",
+        "[Single-event receipts and active preference query](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/scripts/author_memory_commit.py#L716-L780)"
+      ],
+      "zh": [
+        "[按维度的文风优先级与统一裁决](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/style-resolution.md#L5-L18)",
+        "[作者偏好与本书事实边界](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/author-memory.md#L3-L18)",
+        "[派生视图与本次相关 active 上下文](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/author-memory.md#L22-L49)",
+        "[回执、明确选择、待确认推断与适用范围](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/author-memory.md#L53-L76)",
+        "[冲突、替换、本书例外与忘掉偏好](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/author-memory.md#L80-L87)",
+        "[偏好来源与状态校验](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/scripts/author_memory_commit.py#L308-L335)",
+        "[确认、替换与停用状态变更](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/scripts/author_memory_commit.py#L480-L544)",
+        "[单事件回执与 active 偏好查询](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/scripts/author_memory_commit.py#L716-L780)"
       ]
     }
   }
