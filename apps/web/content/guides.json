@@ -260,8 +260,8 @@
       "zh": "不会编程也能用写作 Skill 吗？提示词、技能包、插件与 MCP 怎么分"
     },
     "answer": {
-      "en": "An agent skill packages task instructions and optional resources so a compatible AI agent can reuse a workflow. For a writer, that might mean turning an idea into an outline, importing an existing manuscript or revising a chapter against project notes—not writing software. Oh Story is a fiction-writing skill pack, not a new model or a standalone chat app. Start with the writing job you need done, then choose the host and workflow.",
-      "zh": "Agent Skill 把任务说明和可选的参考资料、脚本等打包，让兼容的 AI Agent 复用一套工作流程。对作者来说，任务可以是把灵感整理成细纲、导入已有小说，或结合项目设定修改章节，不一定是编程。Oh Story 是小说创作技能包，不是新模型，也不是独立聊天软件。先想清楚要完成哪项写作任务，再选运行环境与流程。"
+      "en": "An agent skill packages task instructions and optional resources so a compatible AI agent can reuse a workflow. For a writer, that might mean turning an idea into an outline, importing an existing manuscript or revising a chapter against project notes—not writing software. Oh Story is a fiction-writing skill pack, not a new model or a standalone chat app. Start with the writing job you need done, then choose the host and workflow. Oh Story can stop at planning before drafting prose, but creating that plan still writes project files.",
+      "zh": "Agent Skill 把任务说明和可选的参考资料、脚本等打包，让兼容的 AI Agent 复用一套工作流程。对作者来说，任务可以是把灵感整理成细纲、导入已有小说，或结合项目设定修改章节，不一定是编程。Oh Story 是小说创作技能包，不是新模型，也不是独立聊天软件。先想清楚要完成哪项写作任务，再选运行环境与流程。Oh Story 可以只做规划、暂不写正文，但建立规划仍会写入项目文件。"
     },
     "prerequisites": {
       "en": [
@@ -296,8 +296,16 @@
           "The [Oh Story project page](https://zenstory.ai/oh-story) shows the npx skills installation path. In Claude Code, that path uses /story-setup, followed by a fresh session and /story. The Claude Code marketplace plugin has namespaced commands such as /oh-story:story-setup instead. Follow the path you actually installed; other hosts can use different command syntax and may not support the same hooks or specialist agents."
         ],
         [
-          "Give a brief with a clear stopping point",
-          "Specify genre, reader experience, viewpoint, constraints and the deliverable. In the example below, the first request is for planning, not prose. Read the outline and resolve story choices, then request the first chapter explicitly. The example is a suggested brief, not output from a benchmark or a claim that a single prompt produces a finished novel."
+          "Can I plan the novel without having AI write it?",
+          "Yes: a new-book request such as /story-long-write 帮我开书 defaults to planning and stops before prose unless you also ask for a chapter or daily writing. This is not a read-only preview: it writes settings and outlines, then initializes tracking when the outline stage is complete. If you only want to compare ideas, ask in ordinary chat: “Discuss two possible structures in this reply only; do not start the new-book workflow or create or change files.” That is a requested boundary, not a separate skill mode or a guaranteed file-access restriction. A bare /story-long-write diagnoses the project and offers next steps; it does not itself deliver a full planning preview."
+        ],
+        [
+          "Ask for the whole-book structure, not every detailed chapter at once",
+          "Name the deliverables: the whole-book volume overview, volume outlines and the first batch of up to ten chapter outlines. The volume overview maps the larger direction; chapter outlines specify what characters do in the next stretch. Later details are built in rolling plot-unit batches, not implied by “plan the whole book.” An explicit chapter range can be delivered in successive batches. For an existing book, name the unfinished range instead of restarting the new-book workflow; use the scoped revision example in [outline to chapter](https://zenstory.ai/oh-story/outline-to-chapter) to protect already agreed material."
+        ],
+        [
+          "Resolve author decisions without approving every small detail",
+          "In the coastal-mystery brief below, repairing old radios, family avoidance, close-third-person viewpoint and observable-clue rule are agreed constraints. The central mystery and the family’s role are still open. Ask for one or two alternatives and how each changes clues, character choices and the eventual reveal; do not let a proposed culprit become an established fact. The documented workflow allows incidental invention and records reusable additions within the agreed framework. Whole-book truths, mainline changes or conflicts with earlier decisions need the author’s ruling; affected material waits while independent planning can continue. Once you choose, have the decision saved in the relevant settings and finish the affected outlines before explicitly requesting prose."
         ],
         [
           "Continue the project, not just the conversation",
@@ -326,8 +334,16 @@
           "[Oh Story 项目页](https://zenstory.ai/oh-story)提供 npx skills 安装方式。在 Claude Code 里，这条路径使用 /story-setup，完成后新开会话，再用 /story。Claude Code marketplace 插件则使用 /oh-story:story-setup 这样的命名空间命令。按实际安装路径使用命令，不要混用；其他宿主的语法以及 hooks、专用 agent 支持也可能不同。"
         ],
         [
-          "交付要求写清楚，保留作者决策",
-          "说明题材、读者体验、视角、限制和交付物。下面的首次请求只要规划，不要正文。先读细纲、解决故事选择，再明确要求写第一章。示例是一份可改写的创作简报，不是模型实测产物，也不表示一句话就能得到可发表的整本小说。"
+          "能不能只让 AI 规划小说，不代写正文？",
+          "可以。新书请求如 /story-long-write 帮我开书，默认只做规划，在正文前停下；同次明确要求写章或日更才会进入正文。但这不是只读预览：会写入设定、大纲，并在大纲阶段完成后初始化追踪状态。如果只是想比较点子，用普通聊天说明：“只在本次回复里讨论两种结构，不启动开书流程，不创建或修改文件。”这是你提出的操作边界，不是另一个 skill 模式，也不是文件访问限制的保证。裸调用 /story-long-write 只诊断项目、列出下一步，不等于交付完整规划预览。"
+        ],
+        [
+          "要全书结构，不等于一次铺完所有章级细纲",
+          "把交付物说具体：全书卷级鸟瞰、卷纲，以及首批最多十章细纲。卷级鸟瞰交代全书大方向，细纲说明接下来一段中人物具体做什么。后续按剧情单元滚动补纲，“规划整本书”不自动意味着一次写完所有章的细节；明确指定章节范围时，也可以分批连续交付。已有书稿应点名待补的区间，不要重新启动开书；用[从章纲到章节](https://zenstory.ai/oh-story/outline-to-chapter)里的限定范围修订示例，保护已经确认的内容。"
+        ],
+        [
+          "作者裁定关键选择，不必逐项批准所有小细节",
+          "下面的海港悬疑简报中，修收音机、回避家庭矛盾、第三人称限知与可观察线索，是已经确定的约束；核心谜底和家人与谜案的关系尚未确定。要求列出一至两个候选，说明各自怎样改变线索、人物选择和最后的揭示，不把候选嫌疑人直接当成既定事实。现有流程允许自由补充一次性细节，并在既定框架内为会复用的新设定建档；牵连全书的真相、主线变更或与旧裁定冲突的内容，要交作者决定。受影响部分等待裁定，其余规划可以继续。选定后先把决定落入相应设定，再补齐受影响细纲，最后才明确要求正文。"
         ],
         [
           "续的是同一个项目，不只是同一段聊天",
@@ -336,19 +352,21 @@
       ]
     },
     "example": {
-      "en": "In Claude Code, after the npx skills installation and /story-setup, open a fresh session in your writing folder. These are suggested requests, not recorded model output.\n\n/story-long-write 帮我开书\nPlan an original Chinese-language coastal mystery serial.\nThe protagonist repairs old radios and avoids confronting her family.\nUse close third person. Clues must be observable; no supernatural solution.\nFirst deliver the premise, character constraints, volume outline and first ten chapter outlines.\nStop before prose. List story decisions that need my input.\n\nAfter reviewing and revising the plan:\n/story-long-write 写第1章\nFollow the agreed outline. Let the conflict emerge through dialogue and action.\nWrite only chapter 1, then summarize the changed project records.",
-      "zh": "在 Claude Code 中通过 npx skills 安装并完成 /story-setup 后，在写作目录新开会话。下面是建议请求，不是模型运行记录。\n\n/story-long-write 帮我开书\n规划一部原创的中文海港悬疑连载。\n主角修理旧收音机，遇到家庭矛盾时习惯回避。\n第三人称限知视角，线索必须可观察，不用超自然力量解谜。\n先交付核心卖点、角色约束、卷纲和前十章细纲。\n不要写正文；列出需要我决定的故事问题。\n\n读完并修改规划后：\n/story-long-write 写第1章\n按已确认的细纲推进，用对话和行动呈现冲突。\n只写第一章，最后说明本次更新了哪些项目记录。"
+      "en": "In Claude Code, after the npx skills installation and /story-setup, open a fresh session in your writing folder. These are suggested requests, not recorded model output.\n\nWhen ready to create planning files:\n/story-long-write 帮我开书\nPlan an original Chinese-language coastal mystery serial.\nThe protagonist repairs old radios and avoids confronting her family.\nUse close third person. Clues must be observable; no supernatural solution.\nDeliver the premise, character constraints, whole-book volume overview,\nvolume outlines and the first ten chapter outlines. Stop before prose.\nDo not decide the central mystery or the family's role for me:\nlist one or two options and the affected outlines; pause affected material\nuntil I choose, and continue independent planning.\nAt the stopping point, list files created or changed, the completed outline\nrange and pending author decisions. Say whether initial tracking has been\ncreated; do not claim it is initialized if the outline stage is still incomplete.\n\nIf choices remain, resolve them first and explicitly ask to save the chosen\nsettings and complete the remaining planning—still no prose.\nAfter reviewing and revising the completed plan:\n/story-long-write 写第1章\nFollow the agreed outline. Let the conflict emerge through dialogue and action.\nWrite only chapter 1, then summarize the changed project records.",
+      "zh": "在 Claude Code 中通过 npx skills 安装并完成 /story-setup 后，在写作目录新开会话。下面是建议请求，不是模型运行记录。\n\n准备创建规划文件时：\n/story-long-write 帮我开书\n规划一部原创的中文海港悬疑连载。\n主角修理旧收音机，遇到家庭矛盾时习惯回避。\n第三人称限知视角，线索必须可观察，不用超自然力量解谜。\n交付核心卖点、角色约束、全书卷级鸟瞰、卷纲和前十章细纲。\n到这里停下，不要写正文。\n核心谜底和家人与谜案的关系先不要替我定：列出一至两个候选，\n说明影响哪些细纲；受影响部分等我选择，其余规划继续。\n停下时列出创建或修改的文件、已完成细纲的章节范围，\n以及尚待作者裁定的问题。说明初始追踪是否已创建；\n大纲阶段尚未完成时，不要声称已经初始化。\n\n还有未决问题时，先完成选择，并明确要求保存选定的设定、\n完成剩余规划，仍不写正文。\n读完并修改完整规划后：\n/story-long-write 写第1章\n按已确认的细纲推进，用对话和行动呈现冲突。\n只写第一章，最后说明本次更新了哪些项目记录。"
     },
     "outputs": {
       "en": [
         "Setup creates the host-specific skill/configuration files for the chosen installation. Those are the working environment, not the manuscript.",
-        "Planning produces book settings and outlines; an explicit chapter request produces prose. For an imported book, inspect the reconstructed project before asking for continuation.",
+        "Planning files include settings, 大纲/大纲.md (the whole-book volume overview), 大纲/卷纲_第X卷.md (volume outlines) and separate 大纲/细纲_第XXX章.md chapter outlines. Report the range actually completed and unresolved decisions, not “the entire book is planned” if dependent sections are still pending.",
+        "After the outline stage is complete, including necessary author decisions and the affected outlines, the new-book workflow initializes a checkpoint, a continuation context card and empty clue/timeline views and directories. These are starting records, not evidence that chapters have been written. Planned reveals belong in outlines, not in tracking as events that already occurred. For an imported book, inspect its reconstructed project before asking for continuation.",
         "Chapter continuity uses project records such as tracking state, not a promise that the model remembers every message. Preserve the writing folder and a backup of material you want to keep.",
         "Once a chapter plan exists, use [outline to chapter](https://zenstory.ai/oh-story/outline-to-chapter) to turn abstract plot labels into visible evidence, choices and consequences, without forcing a twist into every chapter."
       ],
       "zh": [
         "环境部署生成所选宿主的技能与配置文件。这些是工作环境，不是书稿本身。",
-        "规划阶段交付设定与大纲，明确要求写章后才交付正文。已有小说导入后，先读重建的项目材料，再要求续写。",
+        "规划文件包括设定、全书卷级鸟瞰 大纲/大纲.md、卷纲 大纲/卷纲_第X卷.md，以及逐章独立的 大纲/细纲_第XXX章.md。交付时说明实际完成的章节范围和未决问题；依赖裁定的部分还没完成，就不能笼统说“整本规划已完成”。",
+        "必要的作者裁定完成、受影响细纲补齐，大纲阶段完成后，新书流程才初始化检查点、续写状态卡，以及空的伏笔/时间线视图与目录。这些是起始记录，不表示正文已经发生；未来揭示留在大纲，不当作已发生事件写入追踪。已有小说导入后，先读重建的项目材料，再要求续写。",
         "章节连续性依靠追踪状态等项目记录，不靠“模型记得每句话”的承诺。保留写作目录，并备份需要保存的材料。",
         "已有章纲时，接着看[从章纲到章节](https://zenstory.ai/oh-story/outline-to-chapter)：把剧情标签变成可见证据、选择与后果，不给每章硬塞反转。"
       ]
@@ -372,7 +390,11 @@
         "[Oh Story: installation paths and host differences](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/README_EN.md#L80-L144)",
         "[Oh Story: skill purposes and natural-language entry](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/README_EN.md#L146-L166)",
         "[Story router: task selection and import order](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story/SKILL.md#L10-L38)",
-        "[Long-form writing: outline-first and explicit chapter scope](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/SKILL.md#L55-L83)"
+        "[Current task routing: bare invocation, planning stop and explicit prose](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/SKILL.md#L55-L83)",
+        "[Rolling outline batches and explicit chapter ranges](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L184-L195)",
+        "[Existing-outline locks and future facts](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L263-L270)",
+        "[Reusable settings and author decisions](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L278-L291)",
+        "[Planning artifacts and initial tracking](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L293-L296)"
       ],
       "zh": [
         "[Agent Skills：格式与按需加载](https://agentskills.io/home)",
@@ -382,7 +404,11 @@
         "[Oh Story：安装路径与宿主差异](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/README_EN.md#L80-L144)",
         "[Oh Story：技能分工与自然语言入口](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/README_EN.md#L146-L166)",
         "[Story 路由：任务选择与导入顺序](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story/SKILL.md#L10-L38)",
-        "[长篇写作：先纲后文与明确章节范围](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/SKILL.md#L55-L83)"
+        "[当前任务路由：裸调用、规划停靠与明确正文请求](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/SKILL.md#L55-L83)",
+        "[滚动建纲与指定章节范围](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L184-L195)",
+        "[既有大纲锁定与未来事实边界](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L263-L270)",
+        "[复用设定与作者裁定](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L278-L291)",
+        "[规划交付物与初始追踪](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L293-L296)"
       ]
     }
   },
