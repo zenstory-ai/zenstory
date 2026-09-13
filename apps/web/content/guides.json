@@ -658,25 +658,25 @@
   {
     "owner": "oh-story",
     "slug": "import-and-continue",
-    "checked_on": "2026-09-12",
+    "checked_on": "2026-09-13",
     "title": {
       "en": "Continue an unfinished novel with AI: import 10–20 chapters into Oh Story",
       "zh": "已有 10–20 章怎么让 AI 接着写：导入 Oh Story，接续人物设定与前史"
     },
     "answer": {
-      "en": "If you already have 10–20 chapters, do not ask an empty chat to ‘continue in the same style.’ Use story-import to reconstruct the manuscript as an Oh Story writing project, review its inferences, then request the next chapter. Import preserves the source prose while building settings, outlines and continuity records. It cannot recover unwritten intent, guarantee a perfect voice match or settle every ambiguity; the manuscript remains the evidence.",
-      "zh": "已经写了 10–20 章，不要在空白聊天里只说“照这个风格续写”。先用 story-import 把书稿重建成 Oh Story 写作工程，审阅反推结果，再点名写下一章。导入会保留原文，同时建立设定、大纲与连贯性记录；它不能恢复未写进正文的意图，也不保证无损复刻文风或补对所有歧义。书稿证据始终优先于模型猜测。"
+      "en": "If you already have 10–20 chapters, do not ask an empty chat to ‘continue in the same style.’ Use story-import to reconstruct the manuscript as an Oh Story writing project, review its inferences, then request the next chapter. Import preserves the source prose while building settings, outlines and continuity records. It cannot recover unwritten intent, guarantee a perfect voice match or settle every ambiguity; the manuscript remains the evidence. Reconstructed history and a future chapter plan do different jobs: one describes what was written, the other needs an author’s choice. The harbor-radio example below shows why continuation should pay off a decision already made, rather than reset it or invent a completed repair.",
+      "zh": "已经写了 10–20 章，不要在空白聊天里只说“照这个风格续写”。先用 story-import 把书稿重建成 Oh Story 写作工程，审阅反推结果，再点名写下一章。导入会保留原文，同时建立设定、大纲与连贯性记录；它不能恢复未写进正文的意图，也不保证无损复刻文风或补对所有歧义。书稿证据始终优先于模型猜测。 已写章节的重建与下一章规划是两回事：前者描述原稿，后者需要作者裁定。下方的海港收音机示例说明，续章应接住已经作出的决定，而不是重新问一遍，或把尚未完成的修理补猜成结果。"
     },
     "prerequisites": {
       "en": [
         "Back up material you own or may use. Documented direct inputs are one .txt/.md file, a directory of chapter files, or pasted text; direct .docx, EPUB and PDF import is not documented.",
         "Open a supported agent host in the writing workspace. New to skills or hosts? Read [Agent skills for writers](https://zenstory.ai/oh-story/agent-skills-for-writers). Commands below follow Claude Code’s npx skills path; other hosts and the marketplace plugin can differ.",
-        "Identify the last complete chapter. Keep a half-written ending marked as a partial draft so unfinished events do not become established facts."
+        "Identify the last complete chapter. Keep a half-written ending marked as a partial draft so unfinished events do not become established facts. Keep an unaccepted alternate opening outside the import source, and explicitly choose whether to retain it. In the worked example it is excluded, not a chapter file to overwrite."
       ],
       "zh": [
         "先备份你拥有或获准使用的书稿。当前明确支持单个 .txt/.md、章节文件目录或直接粘贴文本；流程没有声明可直接导入 .docx、EPUB 或 PDF。",
         "在写作工作区打开受支持的 Agent 宿主。若还分不清 skill 与宿主，先看[写作者的 Agent Skill 入门](https://zenstory.ai/oh-story/agent-skills-for-writers)。下文按 Claude Code 的 npx skills 路径书写，其他宿主或 marketplace 插件的语法可能不同。",
-        "确认最后一个完整章号。把只写一半的末章明确标成残稿，避免其中尚未完成的动作被登记为事实。"
+        "确认最后一个完整章号。把只写一半的末章明确标成残稿，避免其中尚未完成的动作被登记为事实。 未采纳的另一版开头应放在导入源之外，明确是保留还是不用；本例选择排除它，不把它当作可以覆盖的章节文件。"
       ]
     },
     "steps": {
@@ -698,12 +698,16 @@
           "Confirm continuable project versus analysis only, the last complete chapter, and treatment of a partial ending. If the text has no volume markers, review candidate divisions before volume outlines are finalized. Unsupported fields should stay [待补充] or become continuity risks—not confident-looking filler."
         ],
         [
-          "Review the reconstructed handoff",
-          "Confirm 正文/ has every expected chapter and unchanged prose. Then inspect 设定/角色/, 大纲/ and 追踪/上下文.md. Current identities, locations, goals, relationships, knowledge, unresolved threads and the next-chapter promise must match evidence through the last complete chapter. Separate author-only truth from character and reader knowledge."
+          "Review history without treating a proposed future as a fact",
+          "Confirm 正文/ has the expected chapters with unchanged prose, then inspect 设定/角色/, 大纲/ and 追踪/上下文.md. Past events and current locations, possessions, relationships and knowledge need manuscript evidence or an explicit author-confirmed background boundary. Separate that history from an inferred interpretation and from a newly approved next-chapter plan. A future repair, revelation or reconciliation does not belong among completed events just because a planning field mentions it."
         ],
         [
-          "Restore intent, then request prose",
-          "Resolve important [待补充] items or leave them uncertain. State the ending to carry forward, viewpoint and voice constraints, facts not yet revealable, and the next chapter’s job. Correct the plan first if reconstruction points the story the wrong way. This restores intentions that prose could not reveal."
+          "Do not rewrite old chapters to fill a new template",
+          "Historical chapter blueprints are reconstructed descriptions, not instructions to make the old manuscript conform to a new outline. The import records each chapter’s measured original length and leaves unsupported hooks, relationship changes or side plots missing rather than inventing them. An empty field may mean “not established,” not “the author must add a twist.” Preserve the old prose; make future-facing choices in the next chapter’s plan."
+        ],
+        [
+          "Restore the unwritten intention before prose",
+          "An unresolved ending can lead to several defensible stories; the importer cannot know which one you meant to write. State the next chapter’s job, viewpoint, voice and reveal limits, and approve the plan before prose. Also identify what the last chapter has already decided. If it ends with “one more try,” continue that attempt and its consequences instead of spending another chapter asking whether to try. Leaving together can fulfill a local promise without repairing the receiver, solving the mystery or restoring all trust."
         ],
         [
           "Name the next chapter and keep one authority",
@@ -728,12 +732,16 @@
           "确认目标是可续写工程还是仅分析、最后完整章号，以及残稿如何处理。原文没有卷标时，先审阅候选卷界，再定卷纲。正文无法证明的字段保留 [待补充] 或写入连贯性风险，不为表格整齐而补猜。"
         ],
         [
-          "正文前先审阅交接状态",
-          "确认 正文/ 章节齐全且原文未被改写；再看 设定/角色/、大纲/ 和 追踪/上下文.md。人物身份、位置、目标、关系、本人已知、未结事项与下一章承诺，都要能由最后完整章以前的内容证明，并分开作者真相、角色认知与读者已知。"
+          "审阅前史，不把拟写的未来当成事实",
+          "先确认 正文/ 章节齐全且原文未改，再看 设定/角色/、大纲/ 和 追踪/上下文.md。已发生事件，以及当前的位置、持有物、关系与认知，要有书稿证据或作者明确确认的背景边界；它们与可选解读、刚批准的下一章规划分开。拟写的修好设备、揭露真相或和解，不会因为出现在规划字段里就成为既成事实。"
         ],
         [
-          "补回作者意图，再要正文",
-          "解决关键 [待补充]，或明确保留为未知。说明上一章结尾怎么承接、视角与语言习惯、暂不能揭露的事实，以及下一章任务。正文从未呈现的意图由你补回；若反推规划方向错了，先修规划，不要硬续。"
+          "别为了补齐模板，把旧章重写一遍",
+          "历史章节细纲是反推描述，不是让旧原稿服从新模板的改写命令。导入记录原章的实测长度；没有依据的钩子、关系变化或副线可以保持待补充，不靠编造填满。“字段空着”可能只是尚未建立，不等于作者必须补一个反转。保留旧正文，把面向未来的决定放进下一章规划。"
+        ],
+        [
+          "补回未写出的意图，再要正文",
+          "同一个未完结尾可以通向不止一种合理故事，导入器无法知道你原本想写哪一种。说明下一章任务、视角、声音与揭示边界，先批准规划，再写正文。也要指出上一章已经作出的决定：结尾若是“再试一次”，续章就应推进这次尝试及其后果，不再花一章讨论试不试。两人一起离开可以兑现一个局部承诺，不必同时修好设备、破案或恢复全部信任。"
         ],
         [
           "点名下一章，只保留一个权威工程",
@@ -742,19 +750,21 @@
       ]
     },
     "example": {
-      "en": "Suggested requests—not recorded or tested model output. Assume chapters 1–20 are complete and chapter 21 is a separate partial draft.\n\n/story-import\nImport /Users/me/novels/harbor-radio/complete-chapters.md as a continuable long-form project. Chapters 1–20 are complete; do not treat the chapter-21 fragment as fact. Preserve the prose. Before migration, show the detected range, unresolved facts and candidate volume boundaries.\n\nAfter reviewing the project:\n\n/story-long-write 写第21章\nContinue chapter 20’s final scene in close third person on Lin Zhou. Keep the restrained dialogue rhythm. The reader knows about the red notebook; Chen Yu does not. Do not reveal who changed the broadcast log. Make Lin Zhou choose whether to repair the receiver before the tide returns. Write only chapter 21 and report changed project records.",
-      "zh": "以下是建议请求，不是已记录或已测试的模型输出。假设第 1–20 章完整，第 21 章残稿另存。\n\n/story-import\n把 /Users/me/novels/海港收音机/完整章节.md 导入为可续写长篇工程。第 1–20 章完整；第 21 章残稿暂不视为事实。保留原文。迁移前展示章节范围、待确认事实和候选卷界。\n\n审阅工程后：\n\n/story-long-write 写第21章\n承接第 20 章最后场景，继续林舟的第三人称限知视角，保持克制的对话节奏。读者知道红色笔记本，陈雨不知道；不要揭示谁改了广播日志。本章让林舟在涨潮前决定是否修接收机。只写第 21 章，并说明更新了哪些项目记录。"
+      "en": "ORIGINAL EDITORIAL EXAMPLE — Harbor Radio\nThis is an authored reading/handoff exercise, not an observed model response or an executed\nOh Story project. It assumes an author-owned, complete chapter 1–20 manuscript. Only the\nrelevant excerpts are shown here; they are not a replacement for the complete import source.\nAll /ABS paths are placeholders for real files in your own environment.\n\nSource boundary:\n/ABS/harbor-radio/complete-chapters.md — accepted chapters 1–20 only.\n/ABS/harbor-radio/alternatives/ch21-unused.md — an old, unaccepted opening, excluded.\nThe author chooses NOT to retain that alternate opening. No chapter 21 prose file is\npresent in the imported book in this example. A real retained partial chapter needs a\nrevision/completion request, not an assumed empty new-chapter target.\n\nAccepted chapter 18 promise:\n“When we stop work this time, I’ll leave with you,” Lin Zhou told Chen Yu.\n\nChapter 19 evidence and confirmed information boundary:\nThe manuscript shows Lin Zhou finding a red notebook and hiding it in his inside pocket.\nThe reader has seen it. The author confirms that Chen Yu has not learned about it by the\nend of chapter 20. Who changed the broadcast log remains unresolved for the reader;\nthis exercise does not supply that person’s identity as a hidden answer.\n\nAccepted chapter 20 ending, at 20:10 in the old radio room:\n“At twenty-forty, the causeway closes,” Chen Yu said. She set the torch beside the toolbox.\n“I can wait another half hour.”\nLin Zhou felt the hard corner of the red notebook through his inside pocket.\n“One more try.” He turned the lamp toward the open receiver.\n\nWhat the import handoff can preserve:\n- Both characters are still in the radio room. The receiver has not been repaired.\n- Lin has the notebook; Chen does not know about it. Reader knowledge is not shared\n  character knowledge.\n- Lin has promised to leave with Chen when they stop work; they have not left yet.\n- He has already committed to one more attempt. The next scene must carry that action\n  forward, not reset the ending to “Will he try?”\n- Chen has stated a time limit. It does not establish that a repair will succeed,\n  that they have already left, or that every conflict between them is settled.\n\nA reconstruction mistake — a deliberately authored counterexample:\nSuppose the imported handoff already reports the following as established history:\n“The receiver finally worked. Chen Yu opened his red notebook and pointed to the culprit’s\nname. By morning they had all the answers, and nothing stood between them anymore.”\nThis is wrong as the imported chapter-20 state: the attempt is unfinished, Chen has neither\nthe notebook nor that knowledge, and the next morning is outside the stated cutoff. It also\nturns a local promise into complete reconciliation. Those could be proposed future events,\nbut they are neither established history nor a recovered intention from chapters 1–20.\n\nWhat the author NOW chooses — a future plan, not imported history:\nChapter 21 is about leaving an unfinished task without abandoning a promise to another\nperson. The extra attempt will fail. Chen prepares her own things but does not pack Lin’s\nfor him. Lin stops, packs the still-unrepaired receiver and leaves with her before her\nstated deadline. The notebook stays in his pocket; its contents and the person who changed the log are\nnot revealed here. This is one chosen direction, not the only valid reading of the source.\nDo not turn the choice into a romance, permanent trust or an explanation of Chen’s private\nfeelings unless the author separately establishes those things.\n\nWhy the intention belongs in the plan:\nA different author could choose a successful repair and the cost of staying. The accepted\nchapter 20 alone cannot choose between those futures. Here, the author’s decision governs\nchapter 21; it must not be backfilled as “the receiver failed and they left” in the imported\nchapter-20 checkpoint before the new scene has been written.\n\nSuggested import request, after the host setup described above:\n/story-import\nImport only /ABS/harbor-radio/complete-chapters.md as a continuable long-form project.\nChapters 1–20 are complete; the book is unfinished. Do not import the excluded alternate\nopening, rewrite old prose, or turn my future chapter-21 decision into past events.\nBefore migration, show the detected chapter range and any candidate volume divisions\nthat require my choice. Leave unsupported reconstruction fields uncertain.\nComplete the declared import workflow, but do not write chapter 21 in this request.\n\nAfter reviewing the reconstructed project, make the next-chapter plan explicit:\n/story-long-write 补纲\nPlan chapter 21 only; stop before prose. Keep chapter 20’s “one more try” decision.\nI approve the unsuccessful attempt, Lin packing the unrepaired receiver himself, and\nboth characters leaving together before Chen’s stated deadline. Do not give Chen the\nnotebook, reveal the person who changed the log or claim a complete reconciliation.\nPreserve chapters 1–20 and their established events. This is a new plan, not a historical\ncorrection. If the reconstructed outline points elsewhere, show the change before applying it.\n\nAfter that plan is accepted, and no chapter 21 prose file exists:\n/story-long-write 写第21章\nWrite only chapter 21 from its approved blueprint, in Lin Zhou’s close third person with\nrestrained dialogue. Carry through the extra attempt and the decision to stop, then show\npacking and leaving together. Keep the notebook in his pocket and Chen’s knowledge limited.\nDo not jump to the next morning, finish the repair off-page, or continue to chapter 22.\nIf a chapter-21 file or incompatible project state is present, stop and report it rather\nthan overwriting. Report the actual changed files when the chapter is finished.\n\nA candidate closing passage — original editorial prose, not a complete chapter or output:\nStatic rose again. Lin Zhou turned the dial back.\nChen Yu picked up her raincoat. She left the screwdriver beside his hand.\n“Still trying?”\nThe notebook’s corner pressed against his ribs.\n“No. Let’s go.”\nHe put the screwdriver into the box and closed the lid himself. A quarter of an hour\nremained before the time Chen had named. He lifted the unrepaired receiver and stepped\noutside with her.\n\nThis small ending enacts stopping, packing and leaving together. It does not prove that\nChen has forgiven him, that they reached home, or that the mystery is solved. In a complete\nchapter, the attempted repair still needs its scene; this closing excerpt does not replace it.\nOnly after the approved chapter actually contains these events should the resulting\ncontinuity state advance. Judge the voice beside the last original chapters; import is\nnot a guarantee that this illustrative prose is your voice.",
+      "zh": "原创编辑示例——《海港收音机》\n这是作者编写的阅读与交接练习，不是模型实测回答，也没有运行 Oh Story 工程。\n假设作者拥有完整第1–20章，下面仅摘录相关部分，不能拿这些摘录冒充完整导入源。\n所有 /ABS 路径都要替换为你环境中的真实文件。\n\n原稿边界：\n/ABS/harbor-radio/complete-chapters.md ——只含已接受的完整第1–20章。\n/ABS/harbor-radio/alternatives/ch21-unused.md ——未采纳的旧开头，不导入。\n作者本次选择“不保留”那版开头，因此本例导入工程里没有第二十一章正文文件。\n真实项目若保留了残稿，就应提出修改/补完请求，不把目标当空白新章覆盖。\n\n第18章已经作出的承诺：\n“这次收工，我跟你一起走。”林舟对陈雨说。\n\n第19章证据与已确认的信息边界：\n原稿写了林舟找到一本红色笔记本，藏进内袋。读者看见过它；作者确认截至\n第20章，陈雨还不知情。谁改了广播日志，对读者仍未揭晓；本练习也没有私下\n给出改动者的身份。\n\n第20章已接受的结尾，旧广播屋，20:10：\n“二十点四十，堤道就封了。”陈雨把手电放在工具盒旁。“我还能等半小时。”\n林舟隔着内袋摸到红册子的硬角。\n“再试一次。”他把灯头转向拆开的接收机。\n\n导入交接能保留什么：\n- 两个人仍在广播屋，接收机还没修好。\n- 红册在林舟身上，陈雨不知情；读者知道，不等于角色共享这份知识。\n- 林舟答应收工时跟陈雨一起走；他们现在还没走。\n- 他已经决定再试一次，下一场戏要接着做，不能退回“要不要试”的原点。\n- 陈雨说出了时间限制，但这没有证明修理会成功、两人已经离开，或双方一切\n  矛盾都已经解决。\n\n错误重建的反例——以下是特意编写的示意：\n假设导入交接已经把这段当成既定前史：\n“接收机终于修好了。陈雨翻开他的红册子，指着作假者的名字。天亮时他们有了\n全部答案，彼此之间也再没有任何隔阂。”\n把它当作导入至第20章的现状就错了：尝试尚未完成，陈雨没有红册和这些知识，\n次日早晨也在声明的截止点之外；它还把局部承诺变成了彻底和解。这些事件可以\n作为未来方案提出，却不是已建立的前史，也不是从第1–20章恢复出来的作者意图。\n\n作者现在才作出的选择——未来规划，不是导入前史：\n第21章要写“工作还没做完，也可以不辜负对另一个人的承诺”。再一次尝试会失败；\n陈雨准备自己的东西，但不替林舟收拾。林舟停手，亲自收起仍没修好的接收机，\n在她说的时限之前和她一起离开。红册留在内袋，这里不揭内容，也不揭日志改动者。\n这是本次选择，不是原稿唯一合理的读法；不要另外把它定为恋爱、永久信任，或替\n陈雨解释内心，除非作者另行建立这些事实。\n\n为什么意图要放在规划里：\n另一位作者也可以选择修理成功，并让留下来产生代价。仅凭已接受的第20章，\n导入无法替作者选定哪一种未来。本例现在批准的方向约束第21章，却不能在新场景\n尚未写出时，倒填成第20章追踪检查点里的“维修失败、两人已走”。\n\n按上文完成宿主 setup 后，可这样请求导入：\n/story-import\n只把 /ABS/harbor-radio/complete-chapters.md 导入为可续写长篇工程。\n第1–20章完整，整本书未完；不导入已排除的旧开头，不重写原文，不把我新选的\n第二十一章方向当成既往事件。迁移前展示识别的章节范围，以及需要我裁定的候选\n卷界；没有依据的重建字段保留未知。完成本次声明范围的导入流程，但本轮不写第21章。\n\n审阅重建工程后，单独说清下一章计划：\n/story-long-write 补纲\n只规划第21章，停在正文前。保留第20章“再试一次”的决定。\n我批准这次尝试失败、林舟自己收起没修好的接收机，以及两人在陈雨说的时限前\n一起离开。不要把红册交给陈雨，不揭日志改动者，不宣告彻底和解。\n第1–20章正文和已建立事件不变。这是新规划，不是纠正历史；若重建细纲方向\n不同，先说明要改哪里，再落实规划。\n\n计划已接受，并确认没有第21章正文文件后：\n/story-long-write 写第21章\n只按已批准细纲写第21章，用林舟的第三人称限知与克制对白。\n推进那次额外尝试和停手决定，再写出收拾、一起离开。红册仍在内袋，陈雨所知不越界。\n不跳到第二天早晨，不在画外修好接收机，不接着写第22章。\n若实际上已有第21章文件或项目状态冲突，先停下报告，不覆盖。\n本章完成后说明真实改动的文件。\n\n候选收束片段——原创编辑文字，不是完整章或生成结果：\n噪声又漫上来。林舟把旋钮退回原处。\n陈雨拎起雨衣，没碰他手边的螺丝刀。\n“还试？”\n红册子的角抵着肋骨。\n“不试了。走。”\n他把螺丝刀放回盒里，自己扣上盖。离陈雨说的时间还差一刻钟。\n他提起没修好的接收机，和她一道出了门。\n\n这个小结尾把停手、收拾、一起离开写成动作，并没有证明陈雨已经原谅他、两人\n已经到家或日志疑问已经解决。完整章里仍要写那次尝试的过程，不能拿这一小段末尾替代。\n只有获准的章节真的写出这些事件后，后续连续性状态才据此前进。文风要和最后几章\n原稿并读判断；导入不保证本例这段文字就是你的声音。"
     },
     "outputs": {
       "en": [
         "拆文库/{book}/ retains the source backup and reconstruction analysis; it is not the continuable project by itself.",
         "A long-form project puts preserved prose in 正文/, reconstructed settings in 设定/, outlines in 大纲/, and continuity state in 追踪/.",
+        "Reconstructed blueprints for chapters 1–N describe the imported prose; they are not newly written replacement chapters. A later author-approved blueprint for N+1 describes an intended future. Keep that plan separate from the historical checkpoint until prose establishes the new events.",
         "追踪/_tracking-state.json is authoritative. Context, character, foreshadowing and timeline Markdown are generated views; continuation begins after the last complete imported chapter.",
         "For ongoing chapters after import, use the [long-novel continuity example](https://zenstory.ai/oh-story/long-novel-continuity): separate author truth, character/reader knowledge, unresolved promises and future plans before drafting."
       ],
       "zh": [
         "拆文库/{书名}/ 保存原文备份与重建分析；它本身不是可续写工程。",
         "长篇工程把保留的正文放在 正文/，反推设定放在 设定/，大纲放在 大纲/，连贯性状态放在 追踪/。",
+        "第1–N章反推细纲描述导入的原稿，不是新写的替换正文；作者随后批准的第N+1章细纲描述拟写的未来。在正文建立新事件前，不把这份计划混入历史检查点。",
         "追踪/_tracking-state.json 是权威状态；上下文、角色、伏笔和时间线 Markdown 是派生视图。续写从最后完整导入章之后开始。",
         "导入后持续写章，可接着看[长篇连续性示例](https://zenstory.ai/oh-story/long-novel-continuity)：写前分开作者真相、角色/读者认知、未完承诺与未来计划。"
       ]
@@ -762,11 +772,13 @@
     "verification": {
       "en": [
         "Before chapter N+1, compare the final scene, active characters’ locations and knowledge, unresolved promises and reader-visible facts with the manuscript. Correct unsupported inferences or keep them uncertain.",
-        "Read the first continuation beside the last two original chapters for voice, viewpoint, knowledge boundaries and causal handoff. Revise old chapters through the workflow, not by patching generated tracking files."
+        "Read the first continuation beside the last two original chapters for voice, viewpoint, knowledge boundaries and causal handoff. Revise old chapters through the workflow, not by patching generated tracking files.",
+        "For the harbor exercise, distinguish an action already chosen from an outcome not yet achieved. The continuation must actually show the attempt and, if that plan is approved, stopping and leaving together; it must not reset the choice, teleport the notebook, reveal its secret to Chen or equate leaving with complete reconciliation."
       ],
       "zh": [
         "写第 N+1 章前，把最后场景、活跃角色的位置与已知、未结承诺、读者可见事实对回书稿。无证据推断要纠正或保留为未知。",
-        "把第一章续写与最后两章原稿并读，检查文风、视角、认知边界和因果承接。旧章需要修改时走大修流程，不手补派生追踪文件。"
+        "把第一章续写与最后两章原稿并读，检查文风、视角、认知边界和因果承接。旧章需要修改时走大修流程，不手补派生追踪文件。",
+        "针对海港练习，分清已经选择的行动与尚未实现的结果。续章应真正写出尝试，并在计划获准时写出停手、一起离开；不能把选择重置、让红册凭空换人、让陈雨突然知情，或把离开等同于彻底和解。"
       ]
     },
     "sources": {
@@ -778,7 +790,9 @@
         "[Character snapshots, knowledge boundaries, partial drafts and expanded-range imports](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/references/character-state-reverse.md#L21-L80)",
         "[Authoritative tracking state, derived views and manual-edit boundary](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/references/tracking-transaction.md#L5-L45)",
         "[Next-chapter context: prior prose, current state, characters and commitments](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L15-L33)",
-        "[Explicit next-chapter, daily continuation and revision routes](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/SKILL.md#L62-L83)"
+        "[Explicit next-chapter, daily continuation and revision routes](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/SKILL.md#L62-L83)",
+        "[Reconstructed history, unknown fields and future events kept out of past checkpoints](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-import/SKILL.md#L335-L398)",
+        "[Next-chapter intent, approved blueprint and limits on premature outcomes](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-chapter.md#L31-L43)"
       ],
       "zh": [
         "[安装路径、命令命名空间与导入续写顺序](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/README_EN.md#L82-L142)",
@@ -788,7 +802,9 @@
         "[角色快照、认知边界、残稿与扩大范围导入](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/references/character-state-reverse.md#L21-L80)",
         "[权威追踪状态、派生视图与手工编辑边界](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/references/tracking-transaction.md#L5-L45)",
         "[下一章上下文：上章正文、当前状态、角色与承诺](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L15-L33)",
-        "[点名写章、日更续写与旧章大修路由](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/SKILL.md#L62-L83)"
+        "[点名写章、日更续写与旧章大修路由](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/SKILL.md#L62-L83)",
+        "[反推前史、未知字段，以及不把未来事件写入历史检查点](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-import/SKILL.md#L335-L398)",
+        "[下一章意图、已批准蓝图与禁止提前给出的结果](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-chapter.md#L31-L43)"
       ]
     }
   },
