@@ -305,7 +305,7 @@
         ],
         [
           "Resolve author decisions without approving every small detail",
-          "In the coastal-mystery brief below, repairing old radios, family avoidance, close-third-person viewpoint and observable-clue rule are agreed constraints. The central mystery and the family’s role are still open. Ask for one or two alternatives and how each changes clues, character choices and the eventual reveal; do not let a proposed culprit become an established fact. The documented workflow allows incidental invention and records reusable additions within the agreed framework. Whole-book truths, mainline changes or conflicts with earlier decisions need the author’s ruling; affected material waits while independent planning can continue. Once you choose, have the decision saved in the relevant settings and finish the affected outlines before explicitly requesting prose."
+          "In the coastal-mystery brief below, repairing old radios, family avoidance, close-third-person viewpoint and observable-clue rule are agreed constraints. The central mystery and the family’s role are still open. Ask for one or two alternatives and how each changes clues, character choices and the eventual reveal; do not let a proposed culprit become an established fact. The documented workflow allows incidental invention and records reusable additions within the agreed framework. Whole-book truths, mainline changes or conflicts with earlier decisions need the author’s ruling; affected material waits while independent planning can continue. Once you choose, have the decision saved in the relevant settings and finish the affected outlines before explicitly requesting prose. If the character card is detailed but the story still will not move, use [character motivation](https://zenstory.ai/oh-story/character-motivation) to connect a goal, personal reason and habitual tactic to a concrete choice."
         ],
         [
           "Continue the project, not just the conversation",
@@ -343,7 +343,7 @@
         ],
         [
           "作者裁定关键选择，不必逐项批准所有小细节",
-          "下面的海港悬疑简报中，修收音机、回避家庭矛盾、第三人称限知与可观察线索，是已经确定的约束；核心谜底和家人与谜案的关系尚未确定。要求列出一至两个候选，说明各自怎样改变线索、人物选择和最后的揭示，不把候选嫌疑人直接当成既定事实。现有流程允许自由补充一次性细节，并在既定框架内为会复用的新设定建档；牵连全书的真相、主线变更或与旧裁定冲突的内容，要交作者决定。受影响部分等待裁定，其余规划可以继续。选定后先把决定落入相应设定，再补齐受影响细纲，最后才明确要求正文。"
+          "下面的海港悬疑简报中，修收音机、回避家庭矛盾、第三人称限知与可观察线索，是已经确定的约束；核心谜底和家人与谜案的关系尚未确定。要求列出一至两个候选，说明各自怎样改变线索、人物选择和最后的揭示，不把候选嫌疑人直接当成既定事实。现有流程允许自由补充一次性细节，并在既定框架内为会复用的新设定建档；牵连全书的真相、主线变更或与旧裁定冲突的内容，要交作者决定。受影响部分等待裁定，其余规划可以继续。选定后先把决定落入相应设定，再补齐受影响细纲，最后才明确要求正文。 如果角色卡很详细、故事却仍推不动，接着看[人物动机指南](https://zenstory.ai/oh-story/character-motivation)，把目标、在乎的理由和惯用办法连到具体选择。"
         ],
         [
           "续的是同一个项目，不只是同一段聊天",
@@ -1512,7 +1512,7 @@
       "en": [
         [
           "Separate identity from the latest state",
-          "Read the relevant `设定/角色/{角色名}.md` for stable characterization and `追踪/角色状态/{角色名}.md` for current location, goal, relationships, knowledge and open threads. “Xu Tang has an older brother” does not mean she knows he sent this letter. A returning character needs the latest state, not an old introduction copied into the prompt."
+          "Read the relevant `设定/角色/{角色名}.md` for stable characterization and `追踪/角色状态/{角色名}.md` for current location, goal, relationships, knowledge and open threads. “Xu Tang has an older brother” does not mean she knows he sent this letter. A returning character needs the latest state, not an old introduction copied into the prompt. When the facts are consistent but a decision still feels out of character, use [character motivation](https://zenstory.ai/oh-story/character-motivation) to examine the reason and the change of tactic rather than adding more memory."
         ],
         [
           "Use three information perspectives",
@@ -1550,7 +1550,7 @@
       "zh": [
         [
           "把稳定人设与最新状态分开",
-          "用相关的 `设定/角色/{角色名}.md` 理解稳定人设，用 `追踪/角色状态/{角色名}.md` 看当前位置、目标、关系、本人已知和未结事项。“许棠有一个哥哥”，不等于她知道这封信就是哥哥寄的。久别后重新出场的人物，需要最新状态，不是重贴第一次出场简介。"
+          "用相关的 `设定/角色/{角色名}.md` 理解稳定人设，用 `追踪/角色状态/{角色名}.md` 看当前位置、目标、关系、本人已知和未结事项。“许棠有一个哥哥”，不等于她知道这封信就是哥哥寄的。久别后重新出场的人物，需要最新状态，不是重贴第一次出场简介。 事实都对、选择却仍像换了一个人时，用[人物动机指南](https://zenstory.ai/oh-story/character-motivation)检查理由与策略变化，而不只是继续增加记忆。"
         ],
         [
           "把信息分成三个视角",
@@ -2203,7 +2203,7 @@
       "en": [
         [
           "Give speakers different conversational jobs",
-          "Replace a label such as “cold personality” with an action: refuse the new demand without explaining a private reason, or make the other person choose between two feasible options. People can want the same broad outcome yet disagree over what must survive it. The singer wants a better opening; the drummer wants one shared moment preserved; the recorder needs a decision within the remaining time."
+          "Replace a label such as “cold personality” with an action: refuse the new demand without explaining a private reason, or make the other person choose between two feasible options. People can want the same broad outcome yet disagree over what must survive it. The singer wants a better opening; the drummer wants one shared moment preserved; the recorder needs a decision within the remaining time. If you cannot yet say why either person wants the outcome, start with [character motivation](https://zenstory.ai/oh-story/character-motivation); phrasing alone cannot supply an absent reason to act."
         ],
         [
           "Make information enter for a reason",
@@ -2229,7 +2229,7 @@
       "zh": [
         [
           "给每个人不同的对话任务",
-          "把“性格冷淡”换成动作：不解释私人理由但拒绝新增要求，或让对方在两个可行选项中作决定。人们可以想要同一个大结果，却在必须保留什么上冲突。示例里，歌手要更好的开头，鼓手要留住一个共同瞬间，录音者需要在剩余时间内作出决定。"
+          "把“性格冷淡”换成动作：不解释私人理由但拒绝新增要求，或让对方在两个可行选项中作决定。人们可以想要同一个大结果，却在必须保留什么上冲突。示例里，歌手要更好的开头，鼓手要留住一个共同瞬间，录音者需要在剩余时间内作出决定。 如果还说不清人物为什么要这个结果，先看[人物动机指南](https://zenstory.ai/oh-story/character-motivation)；措辞本身补不出行动理由。"
         ],
         [
           "让信息有理由地进入对话",
@@ -2460,6 +2460,139 @@
         "[大书摘要处理批次与聚合进度](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-analyze/references/material-decomposition.md#L479-L489)",
         "[按进度恢复与覆盖中断块产出](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-analyze/references/pipeline-ops.md#L74-L80)",
         "[进行中、开篇停靠与带失败完成状态](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-analyze/references/pipeline-ops.md#L43-L50)"
+      ]
+    }
+  },
+  {
+    "owner": "oh-story",
+    "slug": "character-motivation",
+    "checked_on": "2026-09-12",
+    "title": {
+      "en": "AI character profiles feel flat? Turn motives into story choices",
+      "zh": "AI 生成人设很完整，人物却不行动？把目标、动机与选择连起来"
+    },
+    "answer": {
+      "en": "A detailed character profile does not yet explain why someone acts. Give the character a concrete goal, a reason it matters to them, an obstacle and something they could lose; then show how their usual way of solving problems shapes a choice. Oh Story’s character references distinguish goals from motives and connect motivation to cause, intention, constraint and risk. The original fantasy-courier example below turns “proud but responsible” into a sequence of decisions. It is an editorial planning exercise, not a generated story or a requirement that every character needs trauma, a hidden secret or a growth arc.",
+      "zh": "完整人设表还不能解释一个人为什么行动。先给人物具体目标、在乎这个目标的理由、眼前阻碍与可能失去的东西，再看他惯用的解决办法如何影响一次选择。Oh Story 的角色参考区分目标与动机，并用起因、意图、约束和风险梳理动机链。下面的原创奇幻信使示例把“骄傲但负责”变成连续的决定。这是编辑性规划练习，不是模型生成实录，也不要求每个人物都有创伤、隐藏秘密或成长弧线。"
+    },
+    "prerequisites": {
+      "en": [
+        "One character, a specific situation and the facts you have already approved. For an existing manuscript, bring the relevant scene and character notes you own or are authorized to use; do not replace established history with a fresh profile.",
+        "Decide whether you want alternatives in chat, a saved character design or a prose revision. This exercise can stay in chat; using it in an Oh Story book project requires a configured supported host. The [writer’s skill guide](https://zenstory.ai/oh-story/agent-skills-for-writers) separates discussion, planning files and the later prose request."
+      ],
+      "zh": [
+        "一个人物、一件具体处境，以及已经确认的事实。已有小说应带上你拥有或获准使用的相关场景与角色材料，不用新生成的人设覆盖已经成立的前史。",
+        "先分清这次要聊天里的候选方案、保存角色设计，还是修改正文。本练习可以只在聊天里讨论；用于 Oh Story 书稿项目时，需要已配置的受支持宿主。[作者 Skill 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)区分了讨论、规划落盘与后续正文请求。"
+      ]
+    },
+    "steps": {
+      "en": [
+        [
+          "Separate the goal from the reason it matters",
+          "“Deliver the beacon wick before dusk” is a result to pursue. “Have my route judgment recognized, rather than be seen only as someone who follows instructions” explains why this delivery matters to this character. Separate the immediate task from the longer ambition. A motive can involve care, belonging, curiosity or responsibility; it need not be revenge or a secret wound. The bundled web-fiction template favors personally meaningful motives, not a universal theory of human behavior."
+        ],
+        [
+          "Turn a trait into a habitual tactic",
+          "A useful question is not only “Is this person proud?” but “What do they do when someone offers help?” In the example, skill at reading wind has made independent route-finding a successful habit; treating every contribution as a denial of that skill is where the habit becomes a liability. If you designate something a weakness, show where it causes a mistake or narrows a useful option. Do not invent incompetence in an established strength simply to force a lesson."
+        ],
+        [
+          "Put a real obstacle between the habit and the goal",
+          "Use the situation’s approved limits. Here the direct route is closed and a viable relay exists, but taking it means giving up a solo delivery. List what each available choice preserves and gives up. A difficult choice need not threaten a life: losing time, recognition or a valued opportunity can matter. Do not add a new power, an arbitrary accident or a villain solely to make the card’s adjectives visible."
+        ],
+        [
+          "Give the other person an independent move",
+          "The relay partner also wants the beacon lit, but will not help conceal who flew which leg. She prepares the south-route wings and proposes a handoff instead of waiting to approve the protagonist’s idea. Her action creates an option and her boundary changes its terms. The character reference explicitly gives supporting and allied characters their own actions and motives; disagreement does not automatically make someone an antagonist."
+        ],
+        [
+          "Make a change of action legible",
+          "Show the offer, the first response, what the character learns or notices, and the revised choice. One new fact may justify a changed tactic without changing the underlying motive. Here recognition still matters after the courier accepts a relay; he chooses the route and accepts responsibility rather than pretending help never happened. That is more specific than declaring that he has suddenly become humble, and it does not erase the partner’s contribution."
+        ],
+        [
+          "Choose growth or a tested conviction, not a compulsory cure",
+          "A growth story needs an event and response that make the change credible. A character can also hold a considered belief while circumstances reveal its strength, limits or cost. Oh Story’s reference explicitly permits stable protagonists; it does not require every scene to improve them. For the courier below, a single relay can revise one decision without curing a lifelong habit. Do not retrofit childhood trauma to explain every preference, or mistake a new action for a new personality."
+        ],
+        [
+          "Save approved design separately from events that happened",
+          "Treat proposed motives, secrets and future turning points as choices for the author. In a long-form project, static design belongs in `设定/角色/{角色名}.md`; chapter-current state is tracked separately. A planned acceptance of help is not a completed event. Preserve existing decisions, identify the affected outline range and use [outline to chapter](https://zenstory.ai/oh-story/outline-to-chapter) for the next planning step. When the problem is already-written behavior, use the [review-to-revision guide](https://zenstory.ai/oh-story/review-and-revise) to agree on scope before rewriting."
+        ]
+      ],
+      "zh": [
+        [
+          "把要做到什么，与为什么在乎分开",
+          "“天黑前送到信标灯芯”是要实现的结果；“让别人认可自己的航路判断，而不只是把自己当执行指令的学徒”，才说明这趟任务为什么对这个人重要。把眼前任务与更长远的志向分开。动机可以关乎照顾、归属、好奇或责任，不必总是复仇或秘密伤口。随包网文模板强调对人物切身重要的理由，不是一套适用于所有人的心理学定律。"
+        ],
+        [
+          "把性格词换成惯用办法",
+          "不只问“他骄傲吗”，而要问“别人提出帮助时，他会怎么做”。示例中，读风能力让独自判断航路成为有效习惯；把任何人的参与都当成否定自己的能力，才使这个习惯变成问题。如果把某项写成弱点，就展示它在哪里导致错误或缩窄了有用选项。不要为了上成长课，临时把已经成立的强项写成无能。"
+        ],
+        [
+          "让真实阻碍卡住惯用办法",
+          "使用处境里已经确认的限制。本例直达航路封闭，中继可行，但选择中继就不能再把它称作独自送达。列出每个可行选择保住什么、放弃什么。重要选择不必都危及生命，时间、认可或一次珍惜的机会也可以有分量。不为展示人设标签，临时添加新能力、任意事故或反派。"
+        ],
+        [
+          "让对手戏人物先作自己的行动",
+          "中继搭档也想让灯塔亮起来，但不愿帮忙隐瞒各人飞了哪一段。她准备南线滑翔翼、提出交接办法，不是站着等主角的点子。她的行动创造一个选项，她的底线改变合作条件。角色参考明确要求配角和同阵营人物也有自己的行动与动机；持有不同意见，不自动等于反派。"
+        ],
+        [
+          "让改主意有可见的来路",
+          "写出提议、第一反应、人物得知或注意到的内容，以及后来的选择。新信息可以解释策略改变，不必把底层动机一起换掉。这里信使接受中继后，仍然在乎认可；他选择航路、承担责任，而不是假装别人没帮过忙。这比宣布“他突然学会谦虚”更具体，也不抹去搭档的贡献。"
+        ],
+        [
+          "可以成长，也可以让坚定信念接受考验",
+          "成长故事需要事件与回应，让变化有来路；人物也可以坚持经过考虑的信念，让处境显出它的力量、局限或代价。Oh Story 的参考明确允许稳定型主角，不要求每一场戏都把人改好。下面的信使可以只在这次中继里修改一个决定，不必就此治好长期习惯。不要用补一段童年创伤来解释所有偏好，也不要把换一个做法直接当成换了整个人。"
+        ],
+        [
+          "批准的人设与已经发生的事分开保存",
+          "候选动机、秘密和未来转折都先交作者选择。长篇项目中，静态设计放在 `设定/角色/{角色名}.md`，截至当前章的状态另作追踪；计划接受帮助，不等于已经发生。保留已有裁定，点名受影响的细纲范围，再用[从章纲到章节](https://zenstory.ai/oh-story/outline-to-chapter)继续规划。若问题已出现在正文里，先按[审稿到改稿指南](https://zenstory.ai/oh-story/review-and-revise)约定范围，再动笔重写。"
+        ]
+      ]
+    },
+    "example": {
+      "en": "Original planning example — The South-Route Relay. Written for this guide, not an Oh Story run or a complete scene.\n\nApproved fictional facts:\nAli is an apprentice glider courier, good at reading wind. He wants his route judgment recognized and often treats assistance as evidence that others do not trust it. He has volunteered to deliver a new wick to the ridge beacon before dusk. The north route is closed today; no one may fly it. The south route is open. Ali alone cannot complete it before dusk, but a two-person relay can. Nanzhi can take the first leg while Ali uses a separate launch point for the second. Both know these conditions; no hidden weather discovery is needed. If they defer until morning, the beacon will stay unlit tonight. No additional disaster is established.\n\nNanzhi's position:\nShe wants the beacon working and wants the relay honestly acknowledged. She has prepared the south-route wings and proposes the handoff. She will fly her leg, but will not pretend Ali delivered the whole route alone. The story has not promised a promotion for either of them.\n\nA profile that has not yet become a plot:\n“Ali is proud but responsible. When the north route closes, he understands the value of teamwork, accepts help and grows.”\nThis skips his resistance and the decision; adding another paragraph of biography would not supply them.\n\nOne possible sequence, not an approved new chapter:\n1. Nanzhi lays out the two departure points and offers the first leg. Ali asks whether the relay can still be called his solo delivery. His concern becomes observable rather than merely labeled “pride.”\n2. She refuses to hide her contribution. The route remains available; what is unavailable is both using her help and claiming he worked alone.\n3. Ali looks again at the wick and the two prepared wings. No new secret arrives. He has to choose between tonight's delivery with shared credit and preserving the hope of a later solo delivery while leaving the beacon dark tonight.\n4. He asks Nanzhi to take the first leg, chooses the agreed second-leg launch point and says he will describe the relay as a relay. He has not stopped wanting recognition; he accepts that today's sound route judgment includes someone else's work.\n5. End the planning beat with the handoff agreed and both preparing to depart. Delivery has not happened yet. A later scene must establish arrival before the beacon can be recorded as lit.\n\nWhat this version does not claim:\nAli is not now humble forever; Nanzhi has not forgiven an invented earlier betrayal; teamwork does not guarantee promotion. The north route does not become safe through courage. If you want a different outcome, change the design explicitly instead of smuggling it into a character card.\n\nOrdinary chat request before saving anything:\nUsing only the approved facts above, discuss Ali's immediate goal, personal motive, usual tactic and the choice he faces. Identify the passages that support each inference; leave missing history unknown. Keep Nanzhi's separate motive and contribution. For this comparison, keep the proposed ending where both agree to the relay; offer one alternative sequence and explain what it emphasizes differently. Do not add trauma, secret powers, a promotion or a completed delivery.\nReply here only; do not start a writing skill or create or edit files. This is a requested scope, not a guaranteed tool-access restriction.\n\nAfter selecting a design, explicitly request the relevant character/outline updates. Ask for prose separately.",
+      "zh": "原创规划示例——《南线中继》。为本指南撰写，不是 Oh Story 运行记录，也不是完整场景。\n\n已确认的虚构事实：\n阿砾是擅长读风的滑翔信使学徒。他想让自己的航路判断被认可，常把他人协助理解成对这种能力的不信任。他主动接下任务，要在天黑前把新灯芯送到山脊信标灯塔。北线今天封航，谁都不能飞；南线开放。阿砾独自走南线赶不及天黑前送达，两人中继可以。南枝能飞第一段，阿砾从另一处起飞点接第二段。两人都知道这些条件，不需要临时发现隐藏天气信息。如果延至明晨，灯塔今晚就不会亮；并未约定另有灾难。\n\n南枝自己的立场：\n她想让灯塔工作，也希望中继得到如实承认。她已准备好南线滑翔翼，并提出交接办法。她愿意飞自己的一段，但不愿装作整条路都是阿砾独自完成。故事没有承诺任何一人因此晋升。\n\n还没变成情节的人设摘要：\n“阿砾骄傲但负责。北线封航后，他明白团结的重要，接受帮助，获得成长。”\n这里跳过了抵抗和决定，再加一段人物生平，也补不出它们。\n\n一种候选推进，不是新章既定事实：\n1. 南枝摆出两个起飞点，提出自己飞第一段。阿砾问，中继还能算他独自送达吗？在乎的东西变得可见，不只是贴着“骄傲”标签。\n2. 她拒绝隐去自己的贡献。航路仍然可用；不能同时得到的，是使用她的帮助，却声称自己独自完成。\n3. 阿砾重新看向灯芯和备好的两只滑翔翼。没有新秘密降临。他必须在今晚共同完成并分享功劳，与保留今后独自完成的希望、让灯塔今夜不亮之间选择。\n4. 他请南枝飞第一段，选定约好的第二段起飞点，并说明会把中继如实说成中继。他没有突然不在乎认可，而是接受这次可靠的航路判断包含别人的工作。\n5. 这段规划停在交接约定落定、两人准备出发。送达还没发生；后续场景真正写到抵达，才能把信标灯记作已亮。\n\n这版没有声称：\n阿砾从此永远谦虚；南枝原谅了一场杜撰的旧日背叛；合作必定换来晋升。勇气不会把封航的北线变安全。若想换结局，应明确改设计，而不是藏进角色卡。\n\n保存设计前，可先用普通聊天请求：\n只按上面的已确认事实，讨论阿砾的眼前目标、个人动机、惯用办法与面临的选择。每项推断指出材料依据，没有提供的前史保持未知。保留南枝独立的动机和贡献。这次比较都以双方约定中继为结尾，另给一种推进，说明它强调的差别。不新增创伤、秘密能力、晋升或已经完成的送达。\n只在回复里交付，不启动写作 skill，不创建或修改文件。这是请求范围，不是工具访问限制的保证。\n\n选定设计后，再明确要求更新相应角色材料与细纲；正文另行点名请求。"
+    },
+    "outputs": {
+      "en": [
+        "A concise motive-to-choice explanation grounded in approved material: what the person wants, why it matters, what they try and what changes the available choice. This is an editorial aid, not a new required Oh Story schema.",
+        "A separate account of the supporting character’s aim, action and boundary, so the scene does not reduce them to permission for the protagonist.",
+        "A proposed sequence with a stated outcome and unresolved author choices. Approved planning can later update the relevant long-form character card and outline; it does not by itself change the chapter-current tracking state.",
+        "For the next pass, use [character dialogue](https://zenstory.ai/oh-story/character-dialogue) to give these motives different conversational actions, and [long-novel continuity](https://zenstory.ai/oh-story/long-novel-continuity) to preserve what each person actually knows and has done."
+      ],
+      "zh": [
+        "一份有已确认材料依据的“动机到选择”说明：人物要什么、为什么在乎、先试什么办法，以及什么改变了可选项。这是编辑辅助，不是 Oh Story 新增的强制 schema。",
+        "单独说明配角的目标、行动与底线，不把他缩成只负责准许主角的人。",
+        "一条说明结果与未决作者选择的候选推进。批准后可以更新相关长篇角色卡与细纲，但规划本身不改变截至当前章的追踪状态。",
+        "下一步可用[人物对白指南](https://zenstory.ai/oh-story/character-dialogue)把动机变成不同的谈话动作，再用[长篇连续性指南](https://zenstory.ai/oh-story/long-novel-continuity)保存各人确实知道、确实做过的事。"
+      ]
+    },
+    "verification": {
+      "en": [
+        "Read the chosen action against the character’s information and approved history. If it still feels arbitrary, identify the missing reason or transition rather than adding a diagnostic label or an invented past.",
+        "Ask whether a claimed weakness, change or stable conviction actually affects the scene. A filled-out profile and a finished workflow do not prove characterization quality or guarantee consistency across a novel.",
+        "The source templates target Chinese web fiction and include optional craft methods alongside workflow instructions. This guide is a selective editorial application, not a promise of a dedicated motivation command, enforced read-only mode or universally required tragic backstory."
+      ],
+      "zh": [
+        "把选择与人物已知信息、批准前史一起读。仍显得突兀时，指出缺少的理由或过渡，不用诊断标签或编造过去来填空。",
+        "问被称为弱点、成长或坚定信念的东西，是否真的影响了场景。人设表填满、流程走完，不证明人物写得好，也不保证整本小说都不崩人设。",
+        "源模板面向中文网文，同时包含创作技法和流程要求。本指南是有取舍的编辑应用，不承诺专门的动机命令、强制只读模式或人人必需的悲惨前史。"
+      ]
+    },
+    "sources": {
+      "en": [
+        "[Character card: goals, motives and consequential weaknesses](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/character-basics.md#L25-L43)",
+        "[Motivation chain and changes that need a reason](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/character-basics.md#L151-L173)",
+        "[Stable protagonists and optional growth](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/character-basics.md#L300-L304)",
+        "[Supporting and allied characters take their own actions](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/character-relations.md#L194-L198)",
+        "[Long-form static design versus current character snapshots](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/state-tracking.md#L66-L70)",
+        "[Incremental settings and author decisions](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L278-L291)"
+      ],
+      "zh": [
+        "[角色卡：目标、动机与产生后果的弱点](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/character-basics.md#L25-L43)",
+        "[动机链与有来路的变化](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/character-basics.md#L151-L173)",
+        "[稳定型主角与非强制成长](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/character-basics.md#L300-L304)",
+        "[配角与同阵营人物也有自己的行动](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/character-relations.md#L194-L198)",
+        "[长篇静态人设与当前角色快照分开](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/state-tracking.md#L66-L70)",
+        "[增量设定与作者裁定](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L278-L291)"
       ]
     }
   }
