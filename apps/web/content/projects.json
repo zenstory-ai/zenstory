@@ -263,19 +263,19 @@
     "method": {
       "en": [
         ["How do I turn a local video into a Chinese recap?", "Build a scene/dialogue evidence index, choose the audience promise, divide the work between pictures, original audio and narration, then voice and assemble the grounded script. The [complete workflow guide](https://zenstory.ai/video-recap/video-to-narration) explains full/cut choices, stage handoffs and expected files before optional draft export."],
-        ["Understand", "Scene detection + ASR + VLM; optional background research so the model knows who is who."],
-        ["Script", "Director, editor and narrator passes write the recap script against the timeline."],
-        ["Voice", "Text-to-speech narration."],
-        ["Cut & assemble", "Audio mix, subtitles, render; or 'cut first, narrate after' mode."],
-        ["Export", "CapCut draft for manual finishing."]
+        ["Which moments should keep their original sound?", "Keep dialogue that is itself an event, an action sound that reveals a change, or a meaningful pause. Add narration only for a supported job the picture and source audio cannot do. The [five-beat radio example](https://zenstory.ai/video-recap/original-audio-and-narration) shows the division without requiring a fixed narration ratio."],
+        ["Can I write the recap before choosing the cut?", "Decide the story and sound roles first. In the orchestrated cut flow, select source clips, then write narration against the actual edited output timeline. Do not copy original timestamps into that output-time narration."],
+        ["What if the voiceover is too long?", "Reduce or move the thought instead of speaking over the next protected line. Bounded speed adjustment is not unlimited; an unsafe fit can block placement rather than clipping the spoken ending."],
+        ["Does an audio-owner label automatically preserve the mix?", "No. The renderer does not parse the creative board. Actual narration timing, speech evidence and mix settings implement the plan; source audio can remain ducked beyond the written block until a safe recovery point. Listen to the rendered handoff."],
+        ["Can I finish the sound and captions manually?", "After the real timeline exists, use the [JianYing / CapCut draft guide](https://zenstory.ai/video-recap/capcut-draft) to export an editable bundle without rerunning remote stages, then review audio handoffs and audible original-dialogue captions in your editor."]
       ],
       "zh": [
         ["怎样把本地视频做成中文解说？", "先建立场景与对白证据索引，再确定观众承诺，分配画面、原声与旁白的职责，之后为有依据的文案配音、合成。[完整流程指南](https://zenstory.ai/video-recap/video-to-narration)说明 full/cut 选择、阶段交接和预期文件，再按需导出草稿。"],
-        ["理解", "场景检测 + ASR + VLM；可选背景调研，让模型认得人物。"],
-        ["写稿", "导演 / 剪辑 / 解说三道稿子对着时间线写。"],
-        ["配音", "文本转语音。"],
-        ["剪辑合成", "混音、字幕、渲染；或「先剪后配」模式。"],
-        ["导出", "剪映草稿，方便手工精修。"]
+        ["哪些地方应该保留原声？", "对白本身就是事件、动作声让人听见变化，或者停顿有意义时，让原声主导。只有画面和原声做不到的、有依据的任务才交给旁白。[收音机五拍示例](https://zenstory.ai/video-recap/original-audio-and-narration)展示分工，不要求固定的旁白比例。"],
+        ["可以先写好旁白，再随便剪画面吗？", "先明确故事与声音职责。编排式 cut 流程先选原片片段，再针对实际剪后输出时间线写旁白，不能直接把原片时间戳抄进输出时间的旁白稿。"],
+        ["配音太长，放不进窗口怎么办？", "先删减或移动这段意思，不要抢下一句须保留原话的位置。受限变速不等于无限加速；无法安全放入时可阻断放置，而不是裁掉尾音。"],
+        ["写了声音职责标签，就能自动保住原声吗？", "不能。渲染器不解析创意 board，需要实际旁白时间、对白证据与混音设置落实；原声可能在书面段落结束后仍被压低，直到安全恢复点。要听渲染后的真实交接。"],
+        ["可以再手动精修声音和字幕吗？", "真实时间轴已存在时，可按[剪映 / CapCut 草稿指南](https://zenstory.ai/video-recap/capcut-draft)导出可编辑媒体包，不重跑远程阶段；再在编辑器里精修声音交接与实际可听见的原声对白字幕。"]
       ]
     },
     "distinctive": {
@@ -301,14 +301,22 @@
         "[Five stages plus the orchestrator](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L10-L19)",
         "[MiMo and optional Fish Audio dependencies](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L47-L69)",
         "[Understanding-stage prerequisites and API-key boundaries](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-understanding/SKILL.md#L20-L42)",
-        "[Playback review and advisory automated checks](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L149-L157)"
+        "[Playback review and advisory automated checks](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L149-L157)",
+        "[Leading sound and narration jobs](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-recap/references/creative-editing-playbook.md#L95-L116)",
+        "[The renderer does not parse audio-owner decisions](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-assemble/SKILL.md#L19-L31)",
+        "[Mixing, bounded fit and safe source-audio restoration](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-assemble/SKILL.md#L60-L77)",
+        "[Source and output clocks in the cut workflow](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-cut/SKILL.md#L61-L76)"
       ],
       "zh": [
         "[编导规划与阶段交接](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-recap/SKILL.md#L10-L45)",
         "[五个阶段技能与编排器](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L10-L19)",
         "[MiMo 与可选 Fish Audio 依赖](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L47-L69)",
         "[视频理解阶段的依赖与 API key 边界](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-understanding/SKILL.md#L20-L42)",
-        "[真实播放复核与建议型自动检查](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L149-L157)"
+        "[真实播放复核与建议型自动检查](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L149-L157)",
+        "[主要声音与旁白职责](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-recap/references/creative-editing-playbook.md#L95-L116)",
+        "[渲染器不解析声音职责方案](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-assemble/SKILL.md#L19-L31)",
+        "[混音、时长边界与安全恢复原声](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-assemble/SKILL.md#L60-L77)",
+        "[剪辑流程的原片与输出时钟](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-cut/SKILL.md#L61-L76)"
       ]
     },
     "vocabulary": ["解说视频", "剪映草稿", "先剪后配"]

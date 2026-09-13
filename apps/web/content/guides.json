@@ -996,12 +996,14 @@
       "en": [
         "Understanding: scenes.json, asr_result.json, vlm_analysis.json, silence_periods.json, timeline_fusion.json and agent_narration_brief.md.",
         "Editorial: recap_story_plan.json, visual_audio_board.json, optional style_card.json, narration.json and, for cut, clip_plan.json plus edited_source.mp4.",
-        "Delivery: TTS WAV/metadata, recap_<name>.mp4, subtitles.srt/.ass and timeline.json; editable-draft export is separate."
+        "Delivery: TTS WAV/metadata, recap_<name>.mp4, subtitles.srt/.ass and timeline.json; editable-draft export is separate.",
+        "For a concrete edit decision, see [original sound versus narration](https://zenstory.ai/video-recap/original-audio-and-narration): an original five-beat radio scene shows when dialogue, action sound or a pause should lead, and why audio-owner labels alone do not control the mix."
       ],
       "zh": [
         "理解产物：scenes.json、asr_result.json、vlm_analysis.json、silence_periods.json、timeline_fusion.json 与 agent_narration_brief.md。",
         "编导交接：recap_story_plan.json、visual_audio_board.json、可选 style_card.json、narration.json；cut 模式另有 clip_plan.json 与 edited_source.mp4。",
-        "交付产物：TTS WAV 分段与元数据、recap_<name>.mp4、subtitles.srt/.ass 和 timeline.json；可编辑草稿是独立的可选导出。"
+        "交付产物：TTS WAV 分段与元数据、recap_<name>.mp4、subtitles.srt/.ass 和 timeline.json；可编辑草稿是独立的可选导出。",
+        "需要具体剪辑判断时，可读[原声与旁白怎样分工](https://zenstory.ai/video-recap/original-audio-and-narration)：原创收音机五拍示例说明何时让对白、动作声或停顿主导，以及为什么只写声音职责标签不能直接控制混音。"
       ]
     },
     "verification": {
@@ -1298,6 +1300,145 @@
         "[图片提示词结构与参考图控制范围](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-image-prompts/SKILL.md#L30-L47)",
         "[真实 REF、计划输入与不可投产状态](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-video-prompts/SKILL.md#L18-L34)",
         "[连续镜头所需的实际视频与实际尾帧](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-video-prompts/SKILL.md#L97-L105)"
+      ]
+    }
+  },
+  {
+    "owner": "video-recap",
+    "slug": "original-audio-and-narration",
+    "checked_on": "2026-09-12",
+    "title": {
+      "en": "Video recap editing: when to keep original sound and when to add narration",
+      "zh": "视频解说什么时候保留原声，什么时候加旁白？"
+    },
+    "answer": {
+      "en": "Let the sound that carries the event lead: an important spoken line, a switch click or a meaningful pause may need no narration. Add spoken Chinese only when it supplies supported context, a causal link or a transition that the picture and source sound cannot provide. The original radio-repair example below assigns five beats before writing one short narration block; it is an editorial illustration, not a processed video or an audio result.",
+      "zh": "让真正承载事件的声音先说话：一句重要对白、开关的咔嗒声，或者有意义的停顿，都可以不加旁白。只有画面和原声不足以交代有依据的背景、因果或过渡时，再写中文解说。下面用原创的旧收音机场景，先分配五拍的声音职责，再写一小段旁白；这是编辑示例，不是已处理的视频或声音效果。"
+    },
+    "prerequisites": {
+      "en": [
+        "Start with footage you are permitted to use and an evidence index from your actual material: frames, dialogue transcription and quiet windows. The timestamps in this guide are invented examples, not safe edit points for another file.",
+        "Choose a viewer promise. Here it is “hear the change from no response to the radio sounding again,” not “prove the technician diagnosed and permanently repaired the fault.”",
+        "For setup and the complete stage sequence, use [video-to-narration](https://zenstory.ai/video-recap/video-to-narration). For an already assembled timeline, use the separate [editable draft guide](https://zenstory.ai/video-recap/capcut-draft)."
+      ],
+      "zh": [
+        "准备获准使用的录像，以及来自实际素材的画面、对白转写与静音窗证据。本页时间戳均为虚构示例，不能直接作为另一文件的安全剪点。",
+        "先确定让观众看懂什么。本例是“听见收音机从没有响应到重新响起的变化”，不是“证明师傅诊断并永久修好了故障”。",
+        "安装和完整阶段顺序见[本地视频到中文解说](https://zenstory.ai/video-recap/video-to-narration)；已有合成时间轴要继续精修，见[可编辑草稿导出](https://zenstory.ai/video-recap/capcut-draft)。"
+      ]
+    },
+    "steps": {
+      "en": [
+        [
+          "Give each beat one leading sound",
+          "In `visual_audio_board.json`, `audio_owner` names the sound doing the main work: `original_dialogue`, `action_sound`, `ambience`, `music`, `silence` or `narration`. It is an editorial decision, not a requirement to use all six. Keep the customer’s exact line and the radio’s first sound instead of paraphrasing over both."
+        ],
+        [
+          "Write only what narration adds",
+          "A `narration_job` can be `context`, `causal_link`, `foreshadow`, `interpretation`, `transition` or `none`. In the example, the creator supplies the moving-house background; the picture does not prove it. Use that context once, then let dialogue and action carry the scene. Do not invent the customer’s motives, a diagnosed fault or an unseen repair."
+        ],
+        [
+          "Protect sentences, actions and pauses together",
+          "Keep the full line, its delivery and the reaction it causes. A switch followed by no response can own a beat; a pause is not an empty slot to fill with stock music. A rough narration-to-original-sound ratio is not a quota. Set `narration_job=none` when another sound already does the work."
+        ],
+        [
+          "Use the right clock after cutting",
+          "The cut plan selects source-video intervals. In the orchestrated cut flow, `edited_source.mp4` is created before narration is written on output time; `clip_plan_validated.json` records both source and output intervals. Use that real mapping, not the draft arithmetic below. Full mode uses the original timeline; the older one-stage cut mapping is a different path."
+        ],
+        [
+          "Turn the audio plan into actual narration windows",
+          "The assembler does not read `audio_owner` and automatically switch tracks. Implement the decisions through the actual `narration.json` blocks, clear intervals for original sound, speech evidence and mix settings. `overlaps_speech` describes overlap; setting it false does not mute the source or guarantee a quiet slot. Check where source sound returns: ducking may continue until a safe pause, or to the timeline end when no reliable release anchor exists."
+        ],
+        [
+          "Shorten words before stealing the next line’s time",
+          "A six-second picture does not require six seconds of speech. Leave room for the narration to end and source audio to recover before the next important line. If speech cannot safely fit after bounded speed adjustment, the placement can report `no_safe_fit`; it does not cut off the ending to make a successful result. Shorten, split the task or move the block and re-create the affected voiceover."
+        ],
+        [
+          "Keep captions faithful to what can actually be heard",
+          "If supplying `original_subtitles.json`, use output time and only actual original dialogue that remains audible. Do not add subtitles for deleted or covered speech. After assembly, listen to the complete handoff, not just the narration WAV; an editorial plan or subtitle file is not proof that a line survives the final mix."
+        ]
+      ],
+      "zh": [
+        [
+          "先给每拍一个主要声音职责",
+          "在 `visual_audio_board.json` 中，用 `audio_owner` 指明主要承载信息的是原声对白 `original_dialogue`、动作声 `action_sound`、环境声 `ambience`、音乐 `music`、沉默 `silence`，还是旁白 `narration`。这是编导决定，不要求六种都用。本例保留顾客的原话和收音机第一次响起的声音，不在它们上面重新概括一遍。"
+        ],
+        [
+          "只写旁白真正增加的信息",
+          "`narration_job` 可以是背景 `context`、因果连接 `causal_link`、伏笔 `foreshadow`、有依据的解释 `interpretation`、过渡 `transition` 或不需要旁白 `none`。本例“搬家”的背景由创作者提供，不是画面证明。交代一次就够，之后交还给对白和动作；不虚构动机、故障诊断或镜头没拍到的维修。"
+        ],
+        [
+          "把完整句子、动作和停顿一起留下",
+          "留下整句原话、说话的表演和引发的反应。拨开关后没有响声，本身就能占一拍；停顿不是等待通用 BGM 填满的空档。旁白与原声的粗略比例不是硬配额，其他声音已经完成任务时，用 `narration_job=none`。"
+        ],
+        [
+          "剪完以后，换到正确的时钟",
+          "剪辑计划选择的是原片区间。编排式 cut 流程先生成 `edited_source.mp4`，再按成片输出时间写旁白；`clip_plan_validated.json` 同时记录原片与输出区间。真正写稿时读取这份映射，不照抄下表的草拟加法。full 模式沿用原片时间，旧版单阶段 cut 映射则是另一条路径。"
+        ],
+        [
+          "让声音方案落实到实际旁白窗口",
+          "合成器不会读取 `audio_owner` 自动切音轨。需要通过真实的 `narration.json` 段落、原声留白、对白证据与混音设置落实。`overlaps_speech` 描述是否重叠，不是把它设为 false 就能静音原片或保证那里无对白。还要看原声何时恢复：旁白结束后可能继续压低至安全停顿，没有可靠恢复锚点时甚至保持到时间线末尾。"
+        ],
+        [
+          "先减字，不抢下一句原声的时间",
+          "六秒画面不代表要说满六秒。让旁白在下一句重要原话之前结束，并留出原声恢复空间。受限变速后仍放不下时，放置阶段可报告 `no_safe_fit`，不会剪掉尾音伪装成功；应缩短、拆分任务或换窗口，再重做受影响的配音。"
+        ],
+        [
+          "字幕只跟随真正听得到的话",
+          "如提供 `original_subtitles.json`，使用输出时间，只写成片中仍能听见的原声对白；已经剪掉或被旁白覆盖的句子不要照样上字幕。合成后听完整交接，不只听旁白 WAV；有声音方案或字幕文件，不等于台词已经在最终混音里保住。"
+        ]
+      ]
+    },
+    "example": {
+      "en": "ORIGINAL EDITORIAL EXAMPLE — The Radio After the Move\nNo source file, ASR transcript, voiceover or finished video was generated here.\nAll clips and timestamps below are invented planning examples, not importable JSON.\n\nCreator-supplied context: Lao Zhou kept this old radio rather than replacing it\nwhen he moved house. This background is not visible evidence from a frame.\nIllustrated observations: a switch produces no sound; the technician reseats\na connector; radio noise then becomes audible.\nNo shot opens the case or establishes a permanent repair or exact fault diagnosis.\n\nFive-beat draft cut — source clock -> provisional output clock:\n1. 00:12–00:18 -> 00:00–00:06 | radio on the bench, no dialogue\n   Owner: narration. Job: context.\n   Chinese narration: “搬家时，老周没舍得换掉这台收音机。”\n   Reading gloss only: “When he moved, Lao Zhou could not bring himself to replace\n   this radio.” Do not send the English gloss to the Chinese voiceover.\n2. 00:42–00:47 -> 00:06–00:11 | Lao Zhou speaks\n   Owner: original_dialogue. Job: none. Preserve the complete Chinese line:\n   “早上还响着，搬过来就没声了。” (It worked this morning; after the move, nothing.)\n   No narration over the line.\n3. 01:10–01:14 -> 00:11–00:15 | switch click, then no radio response\n   Owner: silence. Job: none. Preserve the opening click and then the wait;\n   the pause is this beat’s main event, not an instruction to mute the source.\n   Do not add “he turns the switch” narration or music to erase the wait.\n4. 01:28–01:34 -> 00:15–00:21 | connector seated, first radio noise\n   Owner: action_sound. Job: none. Let viewers hear the change.\n   The image and sound do not establish the whole repair history.\n5. 01:52–01:58 -> 00:21–00:27 | Lao Zhou reacts\n   Owner: original_dialogue. Job: none. Preserve his complete line:\n   “还以为它也不肯跟我走了。” (I thought it did not want to move with me either.)\n   Let the reaction finish; do not append an unsupported moral.\n\nAvoid this invented explanation:\n“The technician immediately knew the internal circuit had failed. He opened the\ncase and repaired it.” Neither the diagnosis nor opening the case is established.\nA useful replacement is the one context line above, then room for the original sound.\n\nTiming note: beat 1 contains six seconds of picture, not a guaranteed six-second\nspeech slot. The actual TTS must finish with a safe source-audio recovery window\nbefore beat 2. The row boundaries above do not prove real pauses or safe cut points.\n\nText-only handoff to an agent with Video Recap Skills configured:\nUse the authorized source and its actual evidence, not these illustrative times.\nPrepare the story/audio board and a provisional cut plan around the five units.\nLet the click lead into its pause. Keep the two full lines\nand the radio’s first sound, use only the confirmed moving-house context, and\nleave other units without narration. Stop at the editorial handoff: do not call\nTTS, render media or add BGM. List unresolved sound/timing evidence. After I choose\nthe edit and the cut exists, use the validated output-time mapping for narration.",
+      "zh": "原创编辑示例——《搬家后的收音机》\n这里没有生成源文件、ASR 转写、配音或成片。\n以下片段与时间均为虚构的编辑示意，不是可导入的 JSON。\n\n创作者提供的背景：老周搬家时没舍得换掉这台旧收音机。\n这不是某一帧能证明的事实，须明确来自创作者上下文。\n示意中能观察到的事：拨开关后没有响声；师傅重新插接连接头；随后有收音机杂音。\n画面没有拆开机壳，也没有证明故障诊断或永久修复。\n\n五段草拟剪辑——原片时间 → 暂拟输出时间：\n1. 00:12–00:18 → 00:00–00:06｜台上的收音机，无对白。\n   主职责：narration；任务：context。\n   旁白：“搬家时，老周没舍得换掉这台收音机。”\n2. 00:42–00:47 → 00:06–00:11｜老周开口。\n   主职责：original_dialogue；任务：none。完整保留原话：\n   “早上还响着，搬过来就没声了。”不铺旁白。\n3. 01:10–01:14 → 00:11–00:15｜开关咔嗒，收音机没有响应。\n   主职责：silence；任务：none。保留起始的咔嗒声和随后的等待；\n   这一拍由停顿主导，不是要求静音原片。不要加“他拨动开关”的旁白或音乐。\n4. 01:28–01:34 → 00:15–00:21｜重新插接后，收音机第一次响起杂音。\n   主职责：action_sound；任务：none。让观众听见变化，\n   不把这一刻扩写成已经证明的完整维修过程。\n5. 01:52–01:58 → 00:21–00:27｜老周的反应。\n   主职责：original_dialogue；任务：none。完整保留：\n   “还以为它也不肯跟我走了。”让反应结束，不追加无依据的升华。\n\n不该写的解释：\n“师傅一眼就看出内部电路坏了，拆开机壳便把它修好了。”\n素材没有证明这个诊断，也没拍到开壳。更合适的替换是上面那一句背景，\n然后把声音位置交还给原话、开关声和停顿。\n\n时间说明：第一段有六秒画面，不等于一定有六秒的朗读窗口。\n真实配音要在第二段原话前收住，并留下安全的原声恢复空间。\n表中边界不证明真实文件在这些位置有停顿，也不证明剪点安全。\n\n交给已配置 Video Recap Skills 的 Agent 的纯文字请求：\n使用我获准使用的源片和真实证据，不照抄示例时间。\n按以上五段准备故事/声音方案与初步剪辑计划，保留开关声引出的停顿。\n完整保留两句原话与收音机首次响起的声音，只使用已确认的搬家背景，其他段不铺旁白。\n停在编辑交接，不调用 TTS、不渲染媒体、不添加 BGM；列出未确定的声音和时间证据。\n等我选定剪法、剪后文件真实存在，再用校正后的输出时间映射写旁白。"
+    },
+    "outputs": {
+      "en": [
+        "`recap_story_plan.json` and `visual_audio_board.json`: the audience promise, changing beats, source evidence and leading sound. They record decisions; they are not a finished mix.",
+        "For cut, `clip_plan.json` expresses source selections; the later `clip_plan_validated.json` and `edited_source.mp4` establish the actual edited timeline. Do not relabel a draft table as an executed cut.",
+        "`narration.json`: only the required spoken blocks on the appropriate clock; optionally `original_subtitles.json` for audible original dialogue on output time. Voice files and a rendered result exist only after their stages run.",
+        "For manual finishing after a real `timeline.json` exists, use [JianYing / CapCut draft export](https://zenstory.ai/video-recap/capcut-draft). Exporting a draft does not itself check that every dialogue handoff sounds right."
+      ],
+      "zh": [
+        "`recap_story_plan.json` 与 `visual_audio_board.json`：记录观众承诺、变化节拍、来源证据与主要声音职责；它们是决定，不是成品混音。",
+        "cut 模式的 `clip_plan.json` 表达原片选段；后续真实的 `clip_plan_validated.json` 与 `edited_source.mp4` 才确立剪后时间线。不能把草拟表改名当成已执行剪辑。",
+        "`narration.json`：只写确有需要的口播段，并用对应时钟；`original_subtitles.json` 按需记录输出时间上仍可听到的原话。配音文件和成片必须等相应阶段实际执行后才存在。",
+        "真实 `timeline.json` 已存在、还需人工精修时，可走[剪映 / CapCut 草稿导出](https://zenstory.ai/video-recap/capcut-draft)。导出草稿本身不会证明所有声音交接都自然。"
+      ]
+    },
+    "verification": {
+      "en": [
+        "Listen for the intended handoff: context ends, the complete original line becomes audible, the switch click and waiting survive, and the closing line is not clipped. A label in the board cannot prove any of this.",
+        "The workflow may duck source audio around narration and delay restoration to safe anchors. Do not promise that every sound outside the written narration block is untouched; inspect the actual mix and revise the affected placement or finish it in the editor.",
+        "No real video, transcription, TTS, music, media generation or playback was performed for this editorial example. Model/media services and source permissions belong to the actual project; this guide does not guarantee an automatic best mix or a fixed narration ratio."
+      ],
+      "zh": [
+        "听实际交接：背景旁白结束后，整句原话是否清楚；开关声与等待是否保住；收尾原句是否被截断。board 中写对标签不能证明这些已经发生。",
+        "工作流可能在旁白附近压低原声，并延迟到安全锚点才恢复。不能保证书面旁白区间以外的每个声音都原封不动；要听实际混音，调整受影响的放置，或在编辑器内精修。",
+        "本编辑示例没有运行真实视频、转写、TTS、音乐、媒体生成或播放。实际项目另有模型/媒体服务配置与素材授权要求；本页不保证自动得到最佳混音，也不规定旁白必须占多少比例。"
+      ]
+    },
+    "sources": {
+      "en": [
+        "[Leading sound and narration jobs](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-recap/references/creative-editing-playbook.md#L95-L116)",
+        "[Assign sound ownership before writing](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-script/SKILL.md#L90-L103)",
+        "[Narration clocks, speech boundaries and original captions](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-script/SKILL.md#L147-L186)",
+        "[The renderer does not parse audio-owner decisions](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-assemble/SKILL.md#L19-L31)",
+        "[Mixing, bounded fit and safe source-audio restoration](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-assemble/SKILL.md#L60-L77)",
+        "[Actual voice placement and no-safe-fit handling](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-assemble/scripts/narration_audio.py#L221-L309)",
+        "[Source and output clocks in the cut workflow](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-cut/SKILL.md#L61-L76)",
+        "[Overlap inferred from speech and quiet-window evidence](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-script/scripts/speech_ownership.py#L103-L143)"
+      ],
+      "zh": [
+        "[主要声音与旁白职责](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-recap/references/creative-editing-playbook.md#L95-L116)",
+        "[先分配声音职责再写稿](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-script/SKILL.md#L90-L103)",
+        "[旁白时钟、对白边界与原声字幕](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-script/SKILL.md#L147-L186)",
+        "[渲染器不解析声音职责方案](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-assemble/SKILL.md#L19-L31)",
+        "[混音、时长边界与安全恢复原声](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-assemble/SKILL.md#L60-L77)",
+        "[实际配音放置与无法安全装入的处理](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-assemble/scripts/narration_audio.py#L221-L309)",
+        "[剪辑流程的原片与输出时钟](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-cut/SKILL.md#L61-L76)",
+        "[依据对白与静音证据判断重叠](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-script/scripts/speech_ownership.py#L103-L143)"
       ]
     }
   }
