@@ -37,7 +37,7 @@ Overview page: https://zenstory.ai/projects — each project has a bilingual can
 
 - [Character consistency and reference-image choices](https://zenstory.ai/drama-skills/character-consistency): an original archive three-shot example separates identity, compatible Look, locks and changing states, then tests portrait/costume/location/boundary-frame uses; real REF files versus external PLAN entry locators, the fixed-episode Look exception and no forced suite regeneration.
 
-- [Make novel-game choices matter](https://zenstory.ai/novel-to-game/meaningful-choices): an original scene becomes two decisions and three outcomes; source facts, information boundaries, persistent state and honest branch convergence, not a bundled engine or generated-game claim.
+- [Make novel-game choices matter](https://zenstory.ai/novel-to-game/meaningful-choices): an original ferry scene becomes advance information, action buttons, separate consent and three ending passages; two decisions retain testimony, records and route history without moralized options, invented punishment or a generated-game claim.
 
 - [Export a manuscript from the workbench](https://zenstory.ai/docs/user-guide/export): saved draft/script selection, sequence-aware TXT export, a separate review copy, and bringing back chosen offline edits; not a whole-project backup.
 - [Choose the scope of version recovery](https://zenstory.ai/docs/user-guide/version-history): file versions versus project snapshots, comparing before recovery and preserving independent copies.
