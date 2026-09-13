@@ -1,348 +1,80 @@
-# Editor Guide
+# Edit and review text in ZenStory
 
-The editor is the core creative space of zenstory, providing you with a smooth, intelligent writing experience. This document will introduce the various features and usage techniques of the editor in detail.
+ZenStory's editor supports direct text editing, precise quotations to chat, a selected-text **Humanize** action, paragraph-level diff review, explicit saving and retained version history. The important distinction is that saving the current file and creating a history snapshot are related but separate operations.
 
----
+For the complete station lost-property example, start with [Write your first short story in ZenStory](https://zenstory.ai/docs/getting-started/first-project). For conversation scope, attached context and file-tool behavior, see [AI Assistant](https://zenstory.ai/docs/user-guide/ai-assistant).
 
-## Editor Interface
+## Write and save manually
 
-[Screenshot: Complete editor interface, annotated with title area, toolbar, content area, status bar]
+Open a file rather than a folder in the project tree. The editor exposes a title field and a plain-text content area. Type or paste your revision, then check the status bar before switching files.
 
-The editor adopts a clean and intuitive design, mainly containing the following areas:
+- After a change, the editor schedules an automatic save after about three seconds without further editing.
+- Use **Save** or `Ctrl/Command + S` when you need to submit immediately.
+- **Unsaved**, **Saving**, and the last-saved time describe the current file state. They do not prove that every keystroke has its own recoverable version.
+- The editor pauses its automatic save while AI is editing the same file, reducing the risk that an older local copy overwrites the AI update.
 
-### Title Area
+A save writes the current title and content. A version is a separate snapshot: small edits can be saved with no snapshot, and a full version-history quota can also cause the content to save while the snapshot is skipped. Before a risky rewrite, keep a separate copy of the passage and wait for the saved state. The editor does not promise offline recovery.
 
-[Screenshot: Title input box at the top of the editor]
+The status-bar count is a workbench measure, not a publishing-platform count. Its current function counts each supported Chinese character and each contiguous Latin-letter sequence; numbers and symbols are excluded. Check the destination's own rules before submitting a manuscript.
 
-- **File Title**: Displays the name of the currently edited file
-- **Editable**: Click to directly modify the title
-- **Auto-sync**: Title modifications automatically update in the file tree
+## Quote a passage for a narrow request
 
-### Content Area
+For a local change, select the exact text in the editor. Use the floating **Add to context** action or `Ctrl/Command + Shift + Q`. The quotation carries its source file into chat. Then state both the permitted change and what must remain unchanged.
 
-[Screenshot: Central content editing area of the editor]
+Choose the handoff you actually want:
 
-- **Spacious editing space**: Comfortable line height and font size
-- **Real-time content display**: WYSIWYG editing experience
-- **Streaming output support**: Real-time display when AI generates content
+- **Suggestion only:** “Return one replacement paragraph in chat. Do not modify files.” You decide whether to paste it.
+- **Apply to the file:** name the file and ask the agent to replace only the quoted passage. The agent can operate project files; do not assume every file write waits for a confirmation dialog.
 
-### Status Bar
+The focused file can supply saved file content to the assistant within its context budget, but a quotation makes the exact target explicit. Save or preserve current local edits before relying on focused-file context.
 
-[Screenshot: Status bar at the bottom of the editor]
+## Use selected-text Humanize separately
 
-The bottom status bar provides important real-time information:
-- **Word count**: Displays the current content's word count (excluding spaces)
-- **Paragraph count**: Statistics of the number of paragraphs in the content
-- **Save status**: Displays the current file's save status
-- **History**: Quick access to version history
+Select text, then choose **Humanize** or press `Ctrl/Command + Shift + R`. This invokes the dedicated selected-text rewrite path and opens diff review with the previous file and proposed replacement. It is not the same as asking chat to discuss a paragraph, nor does it establish authorship or guarantee detector scores. This guide source-checked the flow but did not call the AI service, so it does not present the example below as model output.
 
----
+Established facts: the inner-pocket description is wrong, Lin He does not know why, and the bag has not been released.
 
-## Basic Editing Operations
+**Original editing example:**
 
-### Input and Editing
+```text
+Before: Shen Min named the object in the inner pocket. Lin He immediately knew she was lying.
+After:  Lin He did not hand over the gray canvas bag.
+        “Take another moment—what was in the inner pocket?”
+```
 
-[Screenshot: Editing in progress, showing cursor and input content]
+**Reason:** a wrong answer does not become proof of a lie. Withholding the bag and asking again moves the scene while leaving the cause open. The question is an editorial phrasing choice, not new backstory or an imposed solution.
 
-**Start Editing**:
-1. Click on any file in the left file tree
-2. The editor automatically loads the file content
-3. Click on the content area to start editing
+## Review a diff before finishing
 
-**Editing Features**:
-- **Smooth input**: Optimized text input experience, supports IME input methods
-- **Auto height**: The editor automatically adjusts height based on content
-- **Distraction-free**: Clean interface design lets you focus on the content itself
+Diff review can open from more than one route:
 
-### Real-time Saving
+1. **Humanize** builds a proposed replacement for the selected text.
+2. A streamed chat `edit_file` result can open review when both the original and changed content are available.
+3. A save conflict opens review between the newer server content and your unsaved local candidate.
 
-[Screenshot: Save status indicator, showing "Saved", save time, etc.]
+Review is not a universal pre-write approval gate. File creation, other tool results, or an edit without comparable before-and-after content may follow a different path.
 
-**Auto-save Mechanism**:
-- **Smart save**: Content is automatically saved 3 seconds after modification
-- **Manual save**: Press `Cmd/Ctrl + S` or click the "Save" button
-- **Status indicators**:
-  - "Saving..." - Save in progress
-  - "Just saved" - Save successful
-  - "X seconds/minutes ago" - Shows last save time
-  - "Unsaved" - There are unsaved changes
+The review queue groups changes by paragraph. Inspect each old/new pair, then **Accept**, **Reject**, or reset your decision. Crucially, **Pending is applied by default** when you finish; reject every change you do not want. **Accept all** and **Reject all** are available for deliberate bulk decisions. Choose **Finish review** or **Apply changes** to write the reconstructed result.
 
-**Save Reliability**:
-- All changes automatically create version records
-- Local cache protects your content during network interruptions
-- Supports version rollback (see [Version History](./version-history.md))
+Verified review shortcuts apply when the review surface has focus: `Y` accepts the current item, `N` rejects it, `U` or `R` resets it, arrow keys or `J`/`K` move between items, and `L` locates it in the diff. `Shift + Y` accepts all, `Shift + N` rejects all, and `Enter` finishes. To discard the candidate changes, choose **Reject all**, check the decisions, then finish. Dismissing a view is not proof of undo.
 
-### Undo and Redo
+## Handle a save conflict without discarding work
 
-Use standard keyboard shortcuts to manage your editing history:
-- **Undo**: `Cmd/Ctrl + Z`
-- **Redo**: `Cmd/Ctrl + Y` or `Cmd/Ctrl + Shift + Z`
+If AI or another tab changed the file after you loaded it, your save can be rejected as stale. ZenStory keeps the local text in the editor and opens diff review using the newer server text as the baseline and your local text as the candidate. First preserve any irreplaceable local passage; do not refresh the page or clear browser data as a troubleshooting shortcut. Review both sides and finish only after deciding what to keep.
 
----
+If another write lands while you are applying the reviewed result, the editor reopens review against the newest server content instead of silently discarding the result. A quota notice saying the content saved without a version snapshot is different from a save conflict: the current file was saved, but that save did not add a retained history entry.
 
-## Word Count Statistics
+## Reviewed source
 
-[Screenshot: Word count position in the status bar]
+Source checked on 2026-09-12. These references describe a fixed version; no real-account editing or model generation was performed.
 
-The editor provides accurate real-time word and paragraph statistics:
-
-### Word Count Calculation
-
-- **Counting method**: Actual word count after removing all whitespace characters
-- **Real-time update**: Updates immediately after each input
-- **Accurate and reliable**: Precise counting of Chinese characters, English words, and punctuation
-
-### Paragraph Statistics
-
-- **Paragraph definition**: Text blocks separated by blank lines
-- **Creative reference**: Helps you control chapter length and pacing
-
-### Usage Scenarios
-
-- Monitor daily writing goals
-- Control chapter word count
-- Meet submission word count requirements
-
----
-
-## AI-Assisted Editing
-
-### Add Reference to Chat
-
-[Screenshot: Floating toolbar appearing after selecting text]
-
-The editor is deeply integrated with the AI assistant, allowing you to easily reference editor content in AI conversations:
-
-**How to Use**:
-1. Select any text in the editor
-2. Wait 0.3 seconds, and a floating toolbar will appear above the text
-3. Click the "Add Reference" button (quote icon)
-4. The selected text will be automatically added to the AI chat's reference list
-
-**Keyboard Shortcut**:
-- After selecting a file, press `Cmd/Ctrl + Shift + Q` to quickly add a reference
-
-**Reference Uses**:
-- Have AI continue writing based on selected content
-- Ask AI questions about selected paragraphs
-- Request AI to polish or rewrite selected content
-
-### AI Streaming Output
-
-[Screenshot: Editor during AI writing, with "AI is writing..." animation displayed at the top]
-
-When AI generates content for you:
-
-**Real-time Display**:
-- Content displays character by character, no waiting required
-- "AI is writing..." animation indicator at the top
-- Automatically scrolls to the latest content
-
-**Smart Scrolling**:
-- If you are viewing the bottom, the editor follows new content automatically
-- If you scroll up to view historical content, the editor won't interrupt you
-- Scroll to the bottom to resume auto-following
-
-**Content Saving**:
-- Automatically saved after AI generation completes
-- Automatically creates version record, marked as "AI Edit"
-
-### AI Diff Review Mode
-
-[Screenshot: Diff review mode interface, showing modification comparison and accept/reject buttons]
-
-When AI edits existing files, it enters diff review mode:
-
-**Review Interface**:
-- Review toolbar displayed at the top
-- Shows total modification count and pending review count
-- Each modification is highlighted in different colors:
-  - Green: Added content
-  - Red: Deleted content
-  - Yellow: Pending review status
-
-**Review Actions**:
-1. **Review individually**: Click on each modification, choose "Accept" or "Reject"
-2. **Batch operations**:
-   - Click "Accept All" to accept all modifications
-   - Click "Reject All" to reject all modifications
-3. **Keyboard shortcuts**:
-   - `Shift + Y`: Accept all modifications
-   - `Shift + N`: Reject all modifications
-   - `Enter`: Complete review
-   - `Escape`: Cancel review (reject all)
-
-**Complete Review**:
-- After reviewing, click "Apply Changes" or "Complete Review"
-- System automatically saves the final content
-- Creates version record, marked as "AI Edit (Reviewed)"
-
----
-
-## Version History
-
-[Screenshot: Version history panel]
-
-The editor creates version snapshots for every important modification:
-
-### View History
-
-1. Click the "History" button in the status bar
-2. Browse the list of all historical versions
-3. Click on any version to view detailed content
-
-### Version Information
-
-Each version record contains:
-- **Modification time**: Precise to the second
-- **Modification type**: User edit, AI edit, AI edit (reviewed)
-- **Modification summary**: Brief description of the changes
-- **Content preview**: Quick browse of version differences
-
-### Rollback Operation
-
-- Select any historical version
-- Click "Rollback to this version"
-- System restores to that version's content
-
-For detailed features, please refer to the [Version History](./version-history.md) document.
-
----
-
-## File Type Descriptions
-
-The editor supports multiple file types, each with its specific purpose:
-
-### Outline Files
-
-- **Purpose**: Plan story structure, chapter arrangements
-- **Features**: Supports hierarchical structure
-- **Suggestion**: Use clear headings and indentation to organize content
-
-### Draft Files
-
-- **Purpose**: Write actual novel content
-- **Features**: Supports long-form editing, auto-save
-- **Suggestion**: Create separate draft files by chapter or scene
-
-### Character Files
-
-- **Purpose**: Record character settings, personality traits
-- **Features**: Structured information display
-- **Suggestion**: Create separate files for each main character
-
-### Lore Files
-
-- **Purpose**: Build world-building, background settings
-- **Features**: Categorized management of different setting elements
-- **Suggestion**: Organize lore content by theme
-
----
-
-## Editing Tips
-
-### Efficient Writing
-
-1. **Leverage auto-save**: Focus on content without frequent manual saves
-2. **Use version history**: Experiment boldly, you can always rollback
-3. **Reference content to AI**: Select excellent passages to let AI learn your style
-
-### Collaborating with AI
-
-1. **Step-by-step generation**: Don't ask AI to generate complete chapters at once; generating by scene works better
-2. **Detailed instructions**: Give AI enough context and clear requirements
-3. **Review modifications**: Carefully review each AI modification to maintain your creative style
-
-### Content Management
-
-1. **Regular organization**: Use folders to organize related files
-2. **Timely backup**: Regularly export projects (see [Export Feature](./export.md))
-3. **Version marking**: Create version notes before important modifications
-
----
-
-## Mobile Editing
-
-[Screenshot: Mobile editing interface]
-
-zenstory's editor fully supports mobile devices:
-
-### Touch Operations
-
-- **Tap**: Position cursor
-- **Long press**: Select text
-- **Double tap**: Select word
-- **Triple tap**: Select paragraph
-
-### Virtual Keyboard Adaptation
-
-- Editor automatically adjusts to accommodate keyboard appearance
-- Keeps editing content visible
-- Supports keyboard toolbar operations
-
-### Mobile Features
-
-- **Bottom navigation**: Quick switch between files, editing, AI assistant
-- **Gesture back**: Supports system back gesture
-- **Orientation adaptation**: Auto-adjusts layout
-
-### Mobile Recommendations
-
-- Suitable for short-term creation and quick modifications
-- Large-scale writing recommended on desktop
-- Use AI voice input feature to improve efficiency
-
----
-
-## FAQ
-
-### Editor not responding?
-
-1. Check network connection status
-2. Refresh the page (content has been auto-saved)
-3. Clear browser cache and try again
-
-### Content lost?
-
-1. Click the "History" button to view version history
-2. Select the most recent version to rollback
-3. Contact technical support for assistance
-
-### AI-generated content doesn't meet expectations?
-
-1. Provide more detailed context in the conversation
-2. Use the reference feature to let AI understand your style
-3. Try modifying instructions, generate content step by step
-4. Reject inappropriate modifications during review
-
-### Word count inaccurate?
-
-Word count removes all whitespace characters. If your copied content contains many spaces or line breaks, the word count will be less than expected. This is a normal counting method.
-
----
-
-## Keyboard Shortcut Summary
-
-| Shortcut | Function |
-|----------|----------|
-| `Cmd/Ctrl + S` | Manual save |
-| `Cmd/Ctrl + Z` | Undo |
-| `Cmd/Ctrl + Y` | Redo |
-| `Cmd/Ctrl + Shift + Z` | Redo (alternative) |
-| `Cmd/Ctrl + Shift + Q` | Add selected content to AI chat reference |
-| `Shift + Y` | Accept all AI modifications (review mode) |
-| `Shift + N` | Reject all AI modifications (review mode) |
-| `Enter` | Complete review (review mode) |
-| `Escape` | Cancel review (review mode) |
-
----
-
-## Next Steps
-
-Now that you've mastered the editor's usage, you can continue exploring:
-
-- [AI Assistant](./ai-assistant.md) - Learn how to collaborate efficiently with AI
-- [Version History](./version-history.md) - Understand version management features
-- [File Management](./file-tree.md) - Master project file organization techniques
-
-Start your creative journey!
+- [Text selection and adding an exact quotation to chat](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/SimpleEditor.tsx#L310-L354)
+- [Selected-text Humanize request and transition into diff review](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/SimpleEditor.tsx#L363-L445)
+- [Debounced/manual saving and editor/review shortcuts](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/SimpleEditor.tsx#L509-L675)
+- [Loading the focused file and related files into context](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/agent/context/assembler.py#L168-L177)
+- [Chat file-edit completion entering diff review when comparable content exists](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/hooks/useChatStreaming.ts#L1200-L1297)
+- [Pending, accepted and rejected review state; pending applies by default](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/contexts/ProjectContext.tsx#L221-L315)
+- [Per-change review navigation and shortcuts](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/DiffReviewSplitView.tsx#L209-L244)
+- [Manual save outcomes, stale-write handling and version-quota notice](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/Editor.tsx#L297-L393)
+- [Applying reviewed content and reopening review after a second conflict](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/Editor.tsx#L397-L475)
+- [Mixed Chinese/English workbench word-count function](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/lib/documentChunker.ts#L26-L29)

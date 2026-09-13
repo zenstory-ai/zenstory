@@ -36,7 +36,7 @@ describe('useDocsSearch', () => {
 
     const { result } = renderHook(() =>
       useDocsSearch({
-        query: '5分钟快速入门',
+        query: '网页写作快速入门',
         debounceMs: 10,
       }),
     )
@@ -50,7 +50,7 @@ describe('useDocsSearch', () => {
 
     expect(result.current.results[0]).toMatchObject({
       title: 'Quick Start',
-      titleZh: '5分钟快速入门',
+      titleZh: '网页写作快速入门',
       path: '/docs/getting-started/quick-start',
       parentTitle: 'Getting Started',
       parentTitleZh: '快速入门',

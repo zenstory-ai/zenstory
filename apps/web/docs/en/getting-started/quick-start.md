@@ -1,286 +1,74 @@
-# Quick Start Guide (5 Minutes)
+# ZenStory Workbench Quick Start: From an Empty Project to a Reviewable Outline
 
-Welcome to zenstory Novel Writing Workbench! This tutorial will help you get started in just 5 minutes and begin your AI-assisted creative writing journey.
+This quick start covers one focused writing session: create a project, inspect the workspace, and request a reviewable outline. Project creation does not guarantee an automatic first chapter, and version history is not unlimited backup.
 
-## What You'll Learn
+Open the hosted workbench at [app.zenstory.ai](https://app.zenstory.ai).
 
-- Register and log in to your account
-- Create your first creative project
-- Work with the AI assistant to create content
-- Manage your creative files
-- Export your work
+> This source-reviewed guide did not create an account or call AI. Registration rules depend on the current deployment; see [Account Registration and Login](https://zenstory.ai/docs/getting-started/installation).
 
----
+## 1. Sign in and create a project
 
-## Step 1: Registration and Login
+1. Open [Login](https://app.zenstory.ai/login), then go to the [Dashboard](https://app.zenstory.ai/dashboard).
+2. Choose a project type; it establishes the initial file structure.
+3. The inspiration box may be empty. Press Enter without Shift or choose **Start Writing**. Leave it empty if you want to inspect the workspace before sending your own request.
+4. If you enter an idea, inspect the resulting chat and files rather than assuming it produced an outline or prose.
 
-[Screenshot: Login page showing email input, password input, and Google login button]
+## 2. Learn the three working areas
 
-### Option 1: Email Registration (Recommended)
+- **File area:** browse the project tree and click a file to open it.
+- **Editor:** read or change the current file and watch its save state.
+- **Chat:** give the AI a task and inspect its reply and tool results.
 
-1. Visit the zenstory website and click the "Sign Up" button in the top right corner
-2. Fill in your username, email address, and password
-3. If you have an invitation code, enter it during registration to receive bonus rewards (100 points, granted after email verification)
-4. After clicking "Sign Up", the system will send a verification code to your email
-5. Enter the 6-digit verification code you received to complete verification
-6. Once verified, you'll be automatically logged in and directed to the workbench
+The AI can query, create, edit and delete project files. Do not assume every write waits for confirmation. For planning only, say “do not create or modify files”; this is not an enforced read-only mode. When saving work, name the target, permitted change and stopping point.
 
-### Option 2: Google OAuth Quick Login
+## 3. Start with one narrow request
 
-1. On the login page, click the "Sign in with Google" button
-2. Select your Google account in the popup authorization page
-3. After authorization, you'll be automatically registered/logged in with no additional verification needed
+This is an original example, not recorded model output:
 
-> Tip: Using Google login is more convenient—no extra passwords to remember and no email verification step required.
+```text
+Plan a realistic mystery short story as a three-scene outline only.
+Do not write prose or create or modify files.
 
-### About the Invitation Code System
+It is 5:40 p.m.; the station lost-property desk closes at six. Lin He handles Shen Min's
+claim for a gray canvas bag. She describes its exterior correctly but names the wrong
+object in its inner pocket. Do not conclude that she stole it or decide the truth.
+Lin He cannot release the bag on a verbal claim alone.
 
-zenstory uses invitation-based registration. New users need an invitation code to sign up:
-
-- **How to get an invitation code**: Request one from registered users or apply through the official community
-- **Invitation code rewards**:
-  - Inviter receives 100 points
-  - Invitee receives 100 points
-- **Anti-abuse mechanism**: The system detects abnormal registration behavior to ensure fair usage
-
----
-
-## Step 2: Create Your First Project
-
-[Screenshot: Dashboard homepage highlighting the "New Project" button]
-
-### 2.1 Getting Started
-
-1. After logging in, you'll see the Dashboard homepage
-2. Click the "New Project" button in the center of the page (or the "+" icon in the top right)
-3. A project creation dialog will appear
-
-[Screenshot: Project creation dialog showing project type selection and form]
-
-### 2.2 Choose Project Type
-
-zenstory supports three creative types. Choose based on your needs:
-
-| Project Type | Best For | Default Folders |
-|--------------|----------|----------------|
-| **Long Novel** | Serialized novels of 50,000+ words | Settings, Characters, Materials, Outline, Drafts |
-| **Short Story** | Standalone stories of 5,000-20,000 words | Characters, Concept, Drafts |
-| **Screenplay** | Short video scripts, mini-series | Characters, Scenes, Episode Outline, Script |
-
-> Tip: Choose the type that best fits your creative scope. The system will automatically create the corresponding folder structure.
-
-### 2.3 Fill in Project Information
-
-1. **Project Name**: Give your work a title (e.g., "My First Sci-Fi Novel")
-2. **Initial Idea** (optional): Describe your creative concept, and the AI will generate initial content based on it
-
-**Example Initial Idea**:
-
-```
-I want to write an urban fantasy novel. The protagonist is an ordinary college student
-who accidentally gains the ability to rewind time—each death sends them back 24 hours.
+For each scene, give the location, immediate goal, visible action, information change
+and closing question. End with two choices for me to decide, then stop.
 ```
 
-3. Click "Create Project"
+Check whether the scenes escalate before deciding why Shen Min was wrong, whether Lin He is withholding something, or whether to draft prose.
 
-### 2.4 Start Creating
+## 4. Open the target and add relevant context
 
-After the project is successfully created, the system will:
+Before saving the outline, create or open its target outline file and ask: “Write the approved three-scene outline into the current file.” The request identifies the focused file, and the server reads its saved content under a context budget; this does not automatically include the whole project.
 
-- Automatically create preset folders (Outline, Characters, etc.)
-- If you provided an initial idea, the AI will automatically start creating, generating an outline and the first chapter draft
+Attach supported material items. For character cards and earlier chapters, quote key text or name the files to read; not every file has a material attachment control. For a local edit, quote the passage and name its file and section. Precise context reduces wrong-file edits and scope expansion.
 
----
+## 5. Understand save, history and export boundaries
 
-## Step 3: Chat with the AI Assistant
+Watch the editor for saved or conflict messages. History can inspect or restore retained versions, but snapshot rules and version allowances apply. Content may still save without a new snapshot after the version quota is reached. Keep milestone backups elsewhere.
 
-[Screenshot: Project editing page showing the right AI chat panel and input box]
+The project header downloads a merged TXT from non-deleted `draft` and `script` files. Chapter/episode numbering and file ordering affect the sequence, with creation time used as a fallback. This is **not a project backup**: outlines, characters, lore, chat and full history are excluded.
 
-### 3.1 Understanding the Interface
+For the focused-file, material-attachment and text-quotation distinctions, see the [AI assistant guide](https://zenstory.ai/docs/user-guide/ai-assistant).
 
-zenstory uses a three-panel layout:
+## Next steps
 
-- **Left: File Tree** - Manage all creative files
-- **Center: Editor** - Edit file content
-- **Right: AI Assistant** - Chat with AI for creative assistance
+- Follow [Write your first short story in ZenStory: idea, files and revision](https://zenstory.ai/docs/getting-started/first-project) for a complete example.
+- Read the [hosted workbench overview](https://zenstory.ai/workbench).
+- Use the [writing workflow comparison](https://zenstory.ai/compare/writing-workflows) to choose Hosted ZenStory, Oh Story or Oh Story DSH.
 
-### 3.2 How to Chat with AI
+## Reviewed source
 
-1. Type your request in the input box at the bottom of the chat panel on the right
-2. Click the send button (or press Enter)
-3. The AI will analyze your request and perform the appropriate actions
+Source checked on 2026-09-12.
 
-### 3.3 Common Conversation Examples
-
-**Create a Character**:
-
-```
-Help me create a female protagonist named Lin Xiaoyue. She's a Chinese literature major
-in college, with a cheerful and lively personality who loves classical literature.
-```
-
-**Generate an Outline**:
-
-```
-Based on my settings, help me generate a 10-chapter novel outline,
-with 200-300 words of plot summary per chapter.
-```
-
-**Write Content**:
-
-```
-Based on the first chapter outline, help me write the first chapter, about 3000 words.
-```
-
-**Modify Content**:
-
-```
-Make the protagonist's dialogue in Chapter 3 more humorous.
-```
-
-**Request Suggestions**:
-
-```
-I feel the plot conflict in Chapter 3 isn't strong enough. Do you have any suggestions?
-```
-
-### 3.4 Understanding AI's Thinking Process
-
-[Screenshot: AI thinking process display with thinking status indicator]
-
-After you send a message, the AI will:
-
-1. **Thinking** (shows "AI is thinking...") - The AI analyzes your request and plans the execution steps
-2. **Executing Tools** - The AI calls appropriate tools (create files, modify content, etc.)
-3. **Displaying Results** - Shows operation results and the AI's response
-
-You can see the AI's complete thinking and execution process in the chat panel, keeping your creative process transparent and controllable.
-
-### 3.5 Quick Operation Tips
-
-- **Attach Files**: Before sending a message, you can attach relevant files as context
-- **Quote Text**: Select text in the editor, right-click and choose "Quote to Chat" to have AI modify specific content
-- **Voice Input**: Click the microphone button to the right of the input box for speech-to-text (requires browser support)
-- **Smart Suggestions**: After a conversation ends, the AI will provide follow-up creative suggestions you can click to send instantly
-
----
-
-## Step 4: Manage Your Files
-
-[Screenshot: Left file tree showing expanded folders and different file type icons]
-
-### 4.1 File Types
-
-zenstory supports multiple file types, each with a dedicated icon:
-
-| Icon | File Type | Purpose |
-|------|-----------|---------|
-| 🌟 | **Lore** | World-building, magic systems, background settings |
-| 👥 | **Characters** | Character profiles, relationships |
-| 📄 | **Outline** | Chapter outlines, plot planning |
-| 📖 | **Drafts** | Novel content, actual text |
-| 📁 | **Materials** | Inspiration snippets, reference materials |
-
-### 4.2 File Operations
-
-**Create a New File**:
-
-1. Hover over a folder and click the "+" button
-2. Enter the file name
-3. Select file type (system will auto-suggest based on the folder)
-4. Click confirm
-
-**Edit a File**:
-
-1. Click the file name in the file tree
-2. The file content will open in the center editor
-3. Changes are automatically saved
-
-**Delete a File**:
-
-1. Hover over the file and click the trash icon
-2. Confirm the deletion
-3. Deleted files can be recovered from version history
-
-**Move a File**:
-
-1. Drag the file to the target folder
-2. Release the mouse to complete the move
-
-### 4.3 File Search
-
-[Screenshot: File search box showing search results dropdown]
-
-Quickly find files:
-
-- **Keyboard Shortcut**: Press `Cmd + K` on Mac, `Ctrl + K` on Windows
-- Enter file name keywords for fuzzy search
-- Filter by file type (Outline, Drafts, Characters, etc.)
-- Use arrow keys to navigate, press Enter to open file
-
-### 4.4 Version History
-
-zenstory automatically saves versions of every modification:
-
-1. Open any file
-2. Click the "Version History" button at the top of the editor
-3. View all historical versions
-4. Select any version to compare or rollback
-
-> Tip: The AI automatically creates a snapshot after each file modification, so you can always revert to a previous version.
-
----
-
-## Step 5: Export Your Work
-
-[Screenshot: Export dialog showing format options and export button]
-
-Once you've completed your work, you can export it as a local file.
-
-### 5.1 Export Steps
-
-1. On the project page, click the "Export" button in the top toolbar
-2. Click "Start Export"
-3. The browser will automatically download the exported `.txt` file
-
-### 5.2 Export Content Details
-
-- Export scope: All draft files in the current project
-- Sorting: Arranged by file creation order
-- File naming: `{Project Name}_drafts.txt`
-
-### 5.3 Using Exported Files
-
-Exported files can be:
-
-- Opened and edited in word processors like Word or WPS
-- Uploaded to novel platforms for publishing
-- Shared with friends or editors for review
-- Printed as physical copies
-
----
-
-## Next Steps
-
-Congratulations on completing the quick start guide! You've now mastered the basics of zenstory.
-
-### Recommended Reading
-
-- **[User Guide: AI Assistant](../user-guide/ai-assistant.md)** - Learn how to collaborate more effectively with the AI
-- **[User Guide: File Tree](../user-guide/file-tree.md)** - Deep dive into file organization and version control
-- **[User Guide: Inspirations Library](../user-guide/inspirations.md)** - Reuse idea templates in your own projects
-- **[User Guide: Billing & Benefits](../user-guide/billing-benefits.md)** - Understand plans, quotas, and upgrade options
-- **[User Guide: Skills](../user-guide/skills.md)** - Create personalized creative workflows
-- **[Advanced Features: Workflow Tips](../advanced/workflow-tips.md)** - Advanced techniques to boost creative efficiency
-
-### Getting Help
-
-- **Online Documentation**: Visit [docs.zenstory.ai](https://docs.zenstory.ai) for complete documentation
-- **Community Forum**: Connect with other users at [community.zenstory.ai](https://community.zenstory.ai)
-- **Feedback**: Click the "Help" button in the app to submit issues
-
-### Start Creating
-
-Now go create your first project and let the AI become your creative partner!
-
-> Remember: AI is your assistant, not your replacement. The best works come from combining your unique creativity with the AI's efficient execution. Happy writing!
+- [Blank-inspiration quick creation and navigation](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/pages/DashboardHome.tsx#L511-L547)
+- [How focused files, attachments, materials and quotes enter a request](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/ChatPanel.tsx#L1151-L1177)
+- [Project-file tools available to the AI](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/agent/tools/registry.py#L17-L42)
+- [Saving content while skipping a snapshot at the version limit](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/api/files.py#L899-L927)
+- [Desktop export and version-history entries](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/Header.tsx#L228-L249)
+- [TXT file types, ordering and merged content](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L110-L203)
+- [Server reads of focused files and attached references](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/agent/context/assembler.py#L145-L177)
+- [Project-material attachment control](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/sidebar/FileTreePane.tsx#L552-L575)

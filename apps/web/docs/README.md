@@ -1,18 +1,20 @@
 # zenstory帮助文档
 
-欢迎使用 zenstory AI 辅助小说写作工作台！zenstory 是你的智能写作伙伴，帮助你从创意到成稿，全流程提升创作效率。
+ZenStory 是围绕项目文件写作的网页工作台。先从创意与场景提纲开始，再按需要使用 AI 起草和修订。
+
+在 [app.zenstory.ai](https://app.zenstory.ai/dashboard) 操作，在本站阅读指南。
 
 **核心特点**：
 - 三栏式工作台：文件树 + 编辑器 + AI 对话，一站式完成所有创作工作
-- 智能上下文：AI 自动理解你的世界观、角色和情节设定，保持创作一致性
-- 版本追溯：自动保存每次修改，随时对比和回退到任意版本
+- 写作上下文：打开目标文件，按需要引用关键文字与附加素材；作者仍需确认设定与叙事一致性
+- 版本追溯：查看已有快照并比较或回滚；快照策略和版本额度适用，重要内容另留副本
 - 仪表盘工作流：项目、素材、灵感、技能、订阅权益一体化管理
 
 ## 快速链接
 
-- [5分钟快速入门](getting-started/quick-start.md) - 新手必读，快速上手核心功能
-- [创建第一个项目](getting-started/first-project.md) - 开始你的创作之旅
-- [AI创作助手](user-guide/ai-assistant.md) - 核心功能详解，释放AI写作潜力
+- [网页写作快速入门](https://zenstory.ai/docs/getting-started/quick-start) - 新手必读，快速上手核心功能
+- [写第一篇短篇](https://zenstory.ai/docs/getting-started/first-project) - 开始你的创作之旅
+- [AI创作助手](https://zenstory.ai/docs/user-guide/ai-assistant) - 焦点文件、引用、分步请求与中断后接续
 - [常见问题](reference/faq.md) - 快速找到答案，解决常见疑惑
 
 ## 文档导航
@@ -22,9 +24,9 @@
 
 | 文档 | 说明 |
 |------|------|
-| [5分钟快速入门](getting-started/quick-start.md) | 最快上手路径，掌握核心功能 |
+| [网页写作快速入门](https://zenstory.ai/docs/getting-started/quick-start) | 最快上手路径，掌握核心功能 |
 | [账号注册与登录](getting-started/installation.md) | 邮箱注册、Google 登录、邀请码系统 |
-| [创建第一个项目](getting-started/first-project.md) | 项目类型、灵感输入、文件结构 |
+| [写第一篇短篇](https://zenstory.ai/docs/getting-started/first-project) | 原创故事实例、文件安排、局部修改与正文导出 |
 
 ### 用户指南
 详细的功能说明，帮助你充分利用zenstory的各项功能。
@@ -34,14 +36,14 @@
 | [界面总览](user-guide/interface-overview.md) | 三栏式工作台布局详解 |
 | [项目管理](user-guide/project-management.md) | 创建、管理你的写作项目 |
 | [文件树与文件类型](user-guide/file-tree.md) | 大纲、草稿、角色等文件类型 |
-| [编辑器使用](user-guide/editor.md) | 高效编辑你的创作内容 |
-| [AI创作助手](user-guide/ai-assistant.md) | 与 AI 对话，获取创作灵感与内容 |
+| [编辑器使用](https://zenstory.ai/docs/user-guide/editor) | 手写、引用与局部改稿前后对照 |
+| [AI创作助手](https://zenstory.ai/docs/user-guide/ai-assistant) | 给对上下文，限定写作与修改范围 |
 | [技能系统](user-guide/skills.md) | 预设技能加速特定创作任务 |
 | [素材库](user-guide/materials.md) | 管理灵感碎片、世界观设定等素材 |
 | [灵感库](user-guide/inspirations.md) | 浏览精选灵感并一键复制到项目 |
 | [订阅与权益](user-guide/billing-benefits.md) | 查看套餐能力、配额和升级路径 |
-| [版本历史](user-guide/version-history.md) | 追踪修改，随时回退 |
-| [导出功能](user-guide/export.md) | 导出项目正文（当前支持 TXT） |
+| [版本历史](https://zenstory.ai/docs/user-guide/version-history) | 单文件与项目快照，先比较再选择恢复范围 |
+| [导出功能](https://zenstory.ai/docs/user-guide/export) | 正文与剧本 TXT、另存送审副本，非完整项目备份 |
 
 ### 进阶技巧
 深入掌握zenstory，打造高效的个性化写作流程。
