@@ -20,6 +20,7 @@
     },
     "method": {
       "en": [
+        ["How do I continue a manuscript I have already written?", "Use story-import to reconstruct a writing project, not only an analysis report. Confirm the last complete chapter, review inferred facts and partial drafts, then explicitly request the next chapter. The [import and continuation guide](https://zenstory.ai/oh-story/import-and-continue) explains supported inputs, author decisions and the actual project files."],
         ["How do I start writing in Claude Code?", "After installing the pack, run `/story-setup` in your writing-project folder and open a fresh session. Use `/story` to describe your task rather than memorizing every skill. For a new long-form project, `/story-long-write 帮我开书` prepares settings, an outline and chapter blueprints, then stops before prose by default. Review that plan, then request `/story-long-write 写第1章`. This is the agent-host workflow, not a login to the separate hosted ZenStory workbench."],
         ["扫榜 · chart scanning", "Collect supported platform data when available, accept creator-supplied samples, or explicitly label historical knowledge fallback; unavailable sources can be skipped."],
         ["拆文 · deconstruction", "Analyse structure, characters and style, using an opening sample for long-form work; a creator-requested full analysis continues after writing the preview."],
@@ -29,6 +30,7 @@
         ["Covers", "Prepare genre-aware cover guidance and use an available image-generation tool when configured."]
       ],
       "zh": [
+        ["已经写了十几章，怎么接着写？", "先用 story-import 重建写作项目，而不是只生成拆文报告。确认最后完整章，审阅反推事实与残稿，再点名续写下一章。[导入续写指南](https://zenstory.ai/oh-story/import-and-continue)说明支持的材料、作者需要决定的事项以及实际工程文件。"],
         ["Claude Code 装好后，怎么开始写小说？", "安装 skill 包后，在写作项目目录运行 `/story-setup`，再新开会话。通过 `/story` 描述任务，不必先记住全部 skill。新建长篇可以说 `/story-long-write 帮我开书`：默认先生成设定、大纲与细纲，在正文前停下。审阅规划后，再明确请求 `/story-long-write 写第1章`。这是 Agent 宿主内的流程，不是登录另一个产品 ZenStory 网页工作台。"],
         ["扫榜", "在条件允许时采集所支持平台的数据，接受作者提供的样本，或明确标注历史知识回退；不可用的数据源可以跳过。"],
         ["拆文", "分析结构、角色与文风，长篇先做开篇样本；作者已要求完整拆解时，写出预览后继续执行。"],
@@ -59,6 +61,7 @@
     "sources": {
       "checked_on": "2026-09-12",
       "en": [
+        "[Import entry, source types and author decisions](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/SKILL.md#L40-L98)",
         "[Scan inputs, historical fallback and unavailable sources](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-short-scan/SKILL.md#L50-L85)",
         "[Opening preview and creator-requested full analysis](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-analyze/SKILL.md#L139-L149)",
         "[De-slop purpose and detector-score limits](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-deslop/SKILL.md#L23-L49)",
@@ -69,6 +72,7 @@
         "[Continuity-changing revisions use a tracking transaction](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L140-L144)"
       ],
       "zh": [
+        "[导入入口、材料类型与作者决定](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/SKILL.md#L40-L98)",
         "[扫榜输入、历史回退与不可用数据源](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-short-scan/SKILL.md#L50-L85)",
         "[开篇预览与作者已要求的完整拆解](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-analyze/SKILL.md#L139-L149)",
         "[去AI味的用途与检测分数边界](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-deslop/SKILL.md#L23-L49)",
@@ -102,6 +106,7 @@
     },
     "method": {
       "en": [
+        ["Does one novel chapter become one short-drama episode?", "Not by default. Plan episodes around a local dramatic result and a clear handoff, preserving source facts and marking proposed changes. Start with a pilot before expanding the series. The [novel-to-short-drama guide](https://zenstory.ai/drama-skills/novel-to-short-drama) shows an original prose-to-scene-and-shots example."],
         ["Develop", "Create an episode map or genre guidance when needed; a candidate director brief becomes authority only after creator acceptance."],
         ["Write", "Draft episode scripts with explicit scene goals, opposing forces, turns and exit states."],
         ["Assets & look", "Prepare character, scene and prop specifications; production-form cards and Look Development are optional choices, not universal image gates."],
@@ -109,6 +114,7 @@
         ["Produce, edit, review", "Media generation uses prepare → explicit confirmation → run. Editing and a separately requested review are distinct stages."]
       ],
       "zh": [
+        ["小说改短剧，是不是一章对应一集？", "不是默认一一对应。按局部戏剧结果与明确交接来分集，保留原文事实，并标清拟改内容。先试写一集，再扩展整季。[小说改短剧指南](https://zenstory.ai/drama-skills/novel-to-short-drama)用原创片段演示从叙述到场次、镜头的转换。"],
         ["开发", "按需创建分集地图或题材指引；候选导演阐述经创作者接受后才成为权威。"],
         ["写作", "写分集剧本，明确场次目标、对抗力、转折和出口状态。"],
         ["资产与画风", "准备角色、场景和道具规格；制作形态卡与 Look Development 是可选决策，不是通用生图门槛。"],
@@ -137,12 +143,14 @@
     "sources": {
       "checked_on": "2026-09-12",
       "en": [
+        "[Episode cuts follow dramatic results, not chapter counts](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-novel-analyze/references/adaptation-value.md#L77-L93)",
         "[Creator-first entry and on-demand documents](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama/SKILL.md#L70-L76)",
         "[Optional look development, production and review boundaries](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama/SKILL.md#L117-L145)",
         "[Director-brief acceptance and optional artifacts](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-develop/SKILL.md#L101-L129)",
         "[Real image references and explicit spend confirmation](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-produce/SKILL.md#L15-L63)"
       ],
       "zh": [
+        "[按戏剧结果而非章节数量切集](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-novel-analyze/references/adaptation-value.md#L77-L93)",
         "[创作者优先的入口与按需文档](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama/SKILL.md#L70-L76)",
         "[可选画风探索、制作与审查边界](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama/SKILL.md#L117-L145)",
         "[导演阐述的接受与可选产物](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-develop/SKILL.md#L101-L129)",

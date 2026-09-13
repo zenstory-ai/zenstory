@@ -287,7 +287,7 @@
         ],
         [
           "Choose the entry by what you already have",
-          "Only an idea: use story-long-write to plan a long-form project, or story-short-write for a short story. Existing manuscript: use story-import before continuing, rather than asking for chapter 21 in an empty project. A draft needing editorial feedback: use story-review; a passage needing less formulaic wording: use story-deslop. Unsure which to pick? Ask the story router to choose. Oh Story specializes in Chinese web-fiction workflows; its rubrics are not universal standards for all fiction."
+          "Only an idea: use story-long-write to plan a long-form project, or story-short-write for a short story. Existing manuscript: follow the [import and continuation guide](https://zenstory.ai/oh-story/import-and-continue) before asking for chapter 21, rather than starting from an empty project. A draft needing editorial feedback: use story-review; a passage needing less formulaic wording: use story-deslop. Unsure which to pick? Ask the story router to choose. Oh Story specializes in Chinese web-fiction workflows; its rubrics are not universal standards for all fiction."
         ],
         [
           "Install one matching route, then work in your book folder",
@@ -317,7 +317,7 @@
         ],
         [
           "按手头材料选择入口",
-          "只有点子：长篇用 story-long-write 规划，短篇用 story-short-write。已有小说：先用 story-import 导入，而不是在空目录里直接要求写第 21 章。已有正文想听编辑意见：用 story-review；只想改掉某段的套话和机械表达：用 story-deslop。不知道该选哪个，就让 story 路由判断。Oh Story 侧重中文网文流程，它的评审尺度不是所有小说的通用标准。"
+          "只有点子：长篇用 story-long-write 规划，短篇用 story-short-write。已有小说：按[导入续写指南](https://zenstory.ai/oh-story/import-and-continue)重建项目，而不是在空目录里直接要求写第 21 章。已有正文想听编辑意见：用 story-review；只想改掉某段的套话和机械表达：用 story-deslop。不知道该选哪个，就让 story 路由判断。Oh Story 侧重中文网文流程，它的评审尺度不是所有小说的通用标准。"
         ],
         [
           "选一种匹配的安装方式，在自己的书稿目录里工作",
@@ -514,6 +514,268 @@
         "[开书、指定章节与续写行为](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/packages/knowledge/oh-story/skills/story-long-write/SKILL.md#L55-L83)",
         "[小说项目目录与文件产物](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/packages/knowledge/oh-story/skills/story-long-write/references/project-files.md#L1-L60)",
         "[DSH 原生 workspace、会话、模型与权限边界](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/packages/dsh-plugin/src/skill-provider.ts#L16-L37)"
+      ]
+    }
+  },
+  {
+    "owner": "oh-story",
+    "slug": "import-and-continue",
+    "checked_on": "2026-09-12",
+    "title": {
+      "en": "Continue an unfinished novel with AI: import 10–20 chapters into Oh Story",
+      "zh": "已有 10–20 章怎么让 AI 接着写：导入 Oh Story，接续人物设定与前史"
+    },
+    "answer": {
+      "en": "If you already have 10–20 chapters, do not ask an empty chat to ‘continue in the same style.’ Use story-import to reconstruct the manuscript as an Oh Story writing project, review its inferences, then request the next chapter. Import preserves the source prose while building settings, outlines and continuity records. It cannot recover unwritten intent, guarantee a perfect voice match or settle every ambiguity; the manuscript remains the evidence.",
+      "zh": "已经写了 10–20 章，不要在空白聊天里只说“照这个风格续写”。先用 story-import 把书稿重建成 Oh Story 写作工程，审阅反推结果，再点名写下一章。导入会保留原文，同时建立设定、大纲与连贯性记录；它不能恢复未写进正文的意图，也不保证无损复刻文风或补对所有歧义。书稿证据始终优先于模型猜测。"
+    },
+    "prerequisites": {
+      "en": [
+        "Back up material you own or may use. Documented direct inputs are one .txt/.md file, a directory of chapter files, or pasted text; direct .docx, EPUB and PDF import is not documented.",
+        "Open a supported agent host in the writing workspace. New to skills or hosts? Read [Agent skills for writers](https://zenstory.ai/oh-story/agent-skills-for-writers). Commands below follow Claude Code’s npx skills path; other hosts and the marketplace plugin can differ.",
+        "Identify the last complete chapter. Keep a half-written ending marked as a partial draft so unfinished events do not become established facts."
+      ],
+      "zh": [
+        "先备份你拥有或获准使用的书稿。当前明确支持单个 .txt/.md、章节文件目录或直接粘贴文本；流程没有声明可直接导入 .docx、EPUB 或 PDF。",
+        "在写作工作区打开受支持的 Agent 宿主。若还分不清 skill 与宿主，先看[写作者的 Agent Skill 入门](https://zenstory.ai/oh-story/agent-skills-for-writers)。下文按 Claude Code 的 npx skills 路径书写，其他宿主或 marketplace 插件的语法可能不同。",
+        "确认最后一个完整章号。把只写一半的末章明确标成残稿，避免其中尚未完成的动作被登记为事实。"
+      ]
+    },
+    "steps": {
+      "en": [
+        [
+          "Choose import, not deconstruction",
+          "Use story-import for a continuable project: settings, outlines, normalized prose and tracking. Use story-long-analyze only for a deconstruction library and report. Import analyzes your manuscript, but that analysis is a data source, not the deliverable or an external comparison title."
+        ],
+        [
+          "Prepare a clean source boundary",
+          "Use one .txt/.md file, a directory with sortable chapter filenames, or pasted text. Exclude advertisements, author notes and alternate drafts unless they are evidence. State the title, genre, platform, completion status and last complete chapter. Confirm the detected chapter range and long/short classification."
+        ],
+        [
+          "Set up first, then import",
+          "For Claude Code’s npx path, run /story-setup in the workspace, refresh the session, then run /story-import and provide the path. Direct import is allowed, but missing project infrastructure can mean setup first or a serial fallback. Do not mix this spelling with namespaced marketplace-plugin commands."
+        ],
+        [
+          "Keep author decisions with the author",
+          "Confirm continuable project versus analysis only, the last complete chapter, and treatment of a partial ending. If the text has no volume markers, review candidate divisions before volume outlines are finalized. Unsupported fields should stay [待补充] or become continuity risks—not confident-looking filler."
+        ],
+        [
+          "Review the reconstructed handoff",
+          "Confirm 正文/ has every expected chapter and unchanged prose. Then inspect 设定/角色/, 大纲/ and 追踪/上下文.md. Current identities, locations, goals, relationships, knowledge, unresolved threads and the next-chapter promise must match evidence through the last complete chapter. Separate author-only truth from character and reader knowledge."
+        ],
+        [
+          "Restore intent, then request prose",
+          "Resolve important [待补充] items or leave them uncertain. State the ending to carry forward, viewpoint and voice constraints, facts not yet revealable, and the next chapter’s job. Correct the plan first if reconstruction points the story the wrong way. This restores intentions that prose could not reveal."
+        ],
+        [
+          "Name the next chapter and keep one authority",
+          "From the imported book directory, use /story-long-write 写第21章 (replace 21 with N+1) or a scoped daily request. A bare command only diagnoses the project. Revise an old chapter through its revision route; do not hand-edit derived tracking views. A current project with 追踪/_tracking-state.json normally continues without full re-import. If you expand the imported source range, the documented path is another full import rather than appending history to old snapshots. Back up any work added since the first import before rebuilding."
+        ]
+      ],
+      "zh": [
+        [
+          "先选导入续写，不要只做拆文",
+          "要得到可续写的设定、大纲、正文与追踪状态，就用 story-import；只要拆解资料和报告，才用 story-long-analyze。导入会分析书稿，但拆文库是重建数据源，不是最终工程，也不会把自己的书自动登记成外部对标。"
+        ],
+        [
+          "把导入范围整理干净",
+          "使用一个 .txt/.md、文件名可排序的章节目录，或直接粘贴文本。广告、作者的话和不同版本草稿若不是故事证据，就移出导入集。说明书名、题材、平台、完本状态与最后完整章，并确认系统识别的章节范围和长短篇分类。"
+        ],
+        [
+          "先部署环境，再导入",
+          "按 Claude Code 的 npx 路径，在工作区运行 /story-setup，刷新会话，再运行 /story-import 并提供路径。直接 import 也可以，但基础设施缺失时会选择先 setup 或串行降级。不要与 marketplace 插件的命名空间命令混用。"
+        ],
+        [
+          "作者决定不能外包",
+          "确认目标是可续写工程还是仅分析、最后完整章号，以及残稿如何处理。原文没有卷标时，先审阅候选卷界，再定卷纲。正文无法证明的字段保留 [待补充] 或写入连贯性风险，不为表格整齐而补猜。"
+        ],
+        [
+          "正文前先审阅交接状态",
+          "确认 正文/ 章节齐全且原文未被改写；再看 设定/角色/、大纲/ 和 追踪/上下文.md。人物身份、位置、目标、关系、本人已知、未结事项与下一章承诺，都要能由最后完整章以前的内容证明，并分开作者真相、角色认知与读者已知。"
+        ],
+        [
+          "补回作者意图，再要正文",
+          "解决关键 [待补充]，或明确保留为未知。说明上一章结尾怎么承接、视角与语言习惯、暂不能揭露的事实，以及下一章任务。正文从未呈现的意图由你补回；若反推规划方向错了，先修规划，不要硬续。"
+        ],
+        [
+          "点名下一章，只保留一个权威工程",
+          "进入导入后的书名目录，用 /story-long-write 写第21章（把 21 换成 N+1），或给出范围清楚的日更请求。裸调用只诊断状态。旧章变化影响连续性时走大修流程，不要手改派生追踪视图。已有 追踪/_tracking-state.json 的项目通常直接续写；扩大原文导入范围时，文档要求重新完整导入，而不是向旧快照追加历史；重建前先另存备份，保留首次导入后新增的工作。"
+        ]
+      ]
+    },
+    "example": {
+      "en": "Suggested requests—not recorded or tested model output. Assume chapters 1–20 are complete and chapter 21 is a separate partial draft.\n\n/story-import\nImport /Users/me/novels/harbor-radio/complete-chapters.md as a continuable long-form project. Chapters 1–20 are complete; do not treat the chapter-21 fragment as fact. Preserve the prose. Before migration, show the detected range, unresolved facts and candidate volume boundaries.\n\nAfter reviewing the project:\n\n/story-long-write 写第21章\nContinue chapter 20’s final scene in close third person on Lin Zhou. Keep the restrained dialogue rhythm. The reader knows about the red notebook; Chen Yu does not. Do not reveal who changed the broadcast log. Make Lin Zhou choose whether to repair the receiver before the tide returns. Write only chapter 21 and report changed project records.",
+      "zh": "以下是建议请求，不是已记录或已测试的模型输出。假设第 1–20 章完整，第 21 章残稿另存。\n\n/story-import\n把 /Users/me/novels/海港收音机/完整章节.md 导入为可续写长篇工程。第 1–20 章完整；第 21 章残稿暂不视为事实。保留原文。迁移前展示章节范围、待确认事实和候选卷界。\n\n审阅工程后：\n\n/story-long-write 写第21章\n承接第 20 章最后场景，继续林舟的第三人称限知视角，保持克制的对话节奏。读者知道红色笔记本，陈雨不知道；不要揭示谁改了广播日志。本章让林舟在涨潮前决定是否修接收机。只写第 21 章，并说明更新了哪些项目记录。"
+    },
+    "outputs": {
+      "en": [
+        "拆文库/{book}/ retains the source backup and reconstruction analysis; it is not the continuable project by itself.",
+        "A long-form project puts preserved prose in 正文/, reconstructed settings in 设定/, outlines in 大纲/, and continuity state in 追踪/.",
+        "追踪/_tracking-state.json is authoritative. Context, character, foreshadowing and timeline Markdown are generated views; continuation begins after the last complete imported chapter."
+      ],
+      "zh": [
+        "拆文库/{书名}/ 保存原文备份与重建分析；它本身不是可续写工程。",
+        "长篇工程把保留的正文放在 正文/，反推设定放在 设定/，大纲放在 大纲/，连贯性状态放在 追踪/。",
+        "追踪/_tracking-state.json 是权威状态；上下文、角色、伏笔和时间线 Markdown 是派生视图。续写从最后完整导入章之后开始。"
+      ]
+    },
+    "verification": {
+      "en": [
+        "Before chapter N+1, compare the final scene, active characters’ locations and knowledge, unresolved promises and reader-visible facts with the manuscript. Correct unsupported inferences or keep them uncertain.",
+        "Read the first continuation beside the last two original chapters for voice, viewpoint, knowledge boundaries and causal handoff. Revise old chapters through the workflow, not by patching generated tracking files."
+      ],
+      "zh": [
+        "写第 N+1 章前，把最后场景、活跃角色的位置与已知、未结承诺、读者可见事实对回书稿。无证据推断要纠正或保留为未知。",
+        "把第一章续写与最后两章原稿并读，检查文风、视角、认知边界和因果承接。旧章需要修改时走大修流程，不手补派生追踪文件。"
+      ]
+    },
+    "sources": {
+      "en": [
+        "[Installation paths, command namespaces and import/continuation order](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/README_EN.md#L82-L142)",
+        "[Import order, continuable-project choice, supported inputs and author confirmations](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/SKILL.md#L40-L121)",
+        "[Project skeleton, unchanged prose migration and author-confirmed volume boundaries](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/SKILL.md#L264-L320)",
+        "[Evidence-limited outline reconstruction and continuity initialization](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/SKILL.md#L335-L424)",
+        "[Character snapshots, knowledge boundaries, partial drafts and expanded-range imports](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/references/character-state-reverse.md#L21-L80)",
+        "[Authoritative tracking state, derived views and manual-edit boundary](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/references/tracking-transaction.md#L5-L45)",
+        "[Next-chapter context: prior prose, current state, characters and commitments](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L15-L33)",
+        "[Explicit next-chapter, daily continuation and revision routes](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/SKILL.md#L62-L83)"
+      ],
+      "zh": [
+        "[安装路径、命令命名空间与导入续写顺序](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/README_EN.md#L82-L142)",
+        "[导入顺序、可续写工程选择、支持输入与作者确认项](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/SKILL.md#L40-L121)",
+        "[工程骨架、正文原样迁移与作者确认卷界](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/SKILL.md#L264-L320)",
+        "[基于证据反推大纲与初始化连贯性状态](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/SKILL.md#L335-L424)",
+        "[角色快照、认知边界、残稿与扩大范围导入](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/references/character-state-reverse.md#L21-L80)",
+        "[权威追踪状态、派生视图与手工编辑边界](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/references/tracking-transaction.md#L5-L45)",
+        "[下一章上下文：上章正文、当前状态、角色与承诺](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L15-L33)",
+        "[点名写章、日更续写与旧章大修路由](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/SKILL.md#L62-L83)"
+      ]
+    }
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "novel-to-short-drama",
+    "checked_on": "2026-09-12",
+    "title": {
+      "en": "Adapt a novel into a short drama: episodes, scripts and storyboards",
+      "zh": "用 AI 把小说改成短剧：分集、剧本与分镜怎么衔接"
+    },
+    "answer": {
+      "en": "Start with the source story and the decisions an adaptation may change—not a request to turn every chapter into an episode. Drama Skills can help analyze the source, plan episode handoffs, write a pilot and develop its visual specifications and storyboard. It is an open-source agent skill suite, not a one-click finished-video service. This guide stops at a text handoff and uses an original editorial example to show how prose becomes visible action.",
+      "zh": "从原著和允许改动的范围开始，而不是直接要求“每章变一集”。Drama Skills 可以辅助原著分析、分集交接规划、试写一集，以及视觉设定和分镜设计。它是开源 Agent 技能合集，不是一键交付成片的视频服务。本指南止步于文本交付，并用一个原创编剧示例说明：怎样把小说文字变成观众看得见的行动。"
+    },
+    "prerequisites": {
+      "en": [
+        "Source material you own or are authorized to adapt, in a form the host can read. Select a coherent source segment for the first pass; tell the agent which characters, facts, themes and ending promises must remain.",
+        "A target form and a manageable first deliverable. For example, ask for a three-episode plan and only the first episode’s script. Choose the intended duration, audience and live-action or motion-comic form; these are project choices, not platform-wide requirements.",
+        "A configured supported agent host and a project folder. For the documented Claude Code route, ask “Install this skill suite: https://github.com/zenstory-ai/drama-skills”, review the proposed setup, then use /short-drama. See the [project page](https://zenstory.ai/drama-skills) for the suite and the [writer’s skill guide](https://zenstory.ai/oh-story/agent-skills-for-writers) for host terminology."
+      ],
+      "zh": [
+        "准备你拥有或获准改编、且宿主能够读取的源材料。首次选一段相对完整的故事，说明哪些角色、事实、主题与结局承诺不能改。",
+        "给出目标形态和范围可控的首次交付，例如先规划三集，只写第一集剧本。单集时长、受众以及实拍短剧或漫剧形态由项目选择，并非所有平台的统一要求。",
+        "准备已配置的受支持 Agent 宿主与项目目录。按文档中的 Claude Code 路径，可先请求“Install this skill suite: https://github.com/zenstory-ai/drama-skills”，审阅安装方案后使用 /short-drama。[项目页](https://zenstory.ai/drama-skills)介绍技能合集；不熟悉宿主等概念，可先读[作者 Skill 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)。"
+      ]
+    },
+    "steps": {
+      "en": [
+        [
+          "Separate source facts from adaptation decisions",
+          "Ask the agent to retain source locations, established facts, allowed changes and unresolved questions. Identify what already works on screen, what needs an observable carrier such as an action or prop, and what exists only as prose. Original ideas can be developed too, but proposed additions must not be attributed to a novel that never contained them. If you have not yet decided whether the novel is suitable, start with short-drama-novel-analyze for a source triage; use short-drama-develop to develop the chosen adaptation direction."
+        ],
+        [
+          "Cut episodes around dramatic results, not chapter numbers",
+          "Use an [episode map](https://zenstory.ai/glossary/fenji-ditu): incoming state, immediate goal, opposition, turn, local result and the pressure inherited by the next episode. A long chapter may support several episodes; several chapters may serve one dramatic result. Preserve causality when compressing or reordering events. If the selected source cannot support the requested count without invention, surface that choice rather than padding."
+        ],
+        [
+          "Write one pilot before scaling the series",
+          "Ask for the first episode’s screenplay from the accepted map. Replace important internal reasoning with actions, dialogue, evidence or a visual/sound cue the audience can understand. Do not simply read the novel aloud over images. Review who wants what, what changes in the scene and why the final beat creates a real next question; then apply those decisions to later episodes."
+        ],
+        [
+          "Record reusable visual facts",
+          "Define recurring characters, locations and props before relying on them across shots. For the example below, the oil-stained left sleeve, damaged clock corner and position of the consignment slip are continuity facts; “make it cinematic” is not. If a director’s statement is proposed, accept the intended visual direction before treating it as binding. Optional look exploration does not require commissioning images."
+        ],
+        [
+          "Turn the accepted scene into a storyboard",
+          "Each shot should have a purpose, a source in the screenplay, duration, visible action and start/end states. A [frozen keyframe](https://zenstory.ai/glossary/dongjie-guanjianzhen) describes a boundary frame, normally the shot’s start; it is not the whole movement and not an already-created picture. Distinguish a planned reference from an actual image that has been inspected and bound for use."
+        ],
+        [
+          "Keep text handoff separate from media production",
+          "Deliver the requested screenplay, visual specification and storyboard first; add image/video prompts only when needed. If you later commission media, choose available providers and review the actual assets and scope. The documented production flow prepares a preview and requires explicit confirmation before running external generation. A local skill installation is not a promise of free or offline model work."
+        ]
+      ],
+      "zh": [
+        [
+          "先把原文事实与改编决定分开",
+          "要求保留来源位置、已成立的事实、可改范围和待确认问题。分清哪些内容已经能直接拍，哪些需要动作、道具等可见载体，哪些只存在于小说叙述中。原创点子也能开发，但新增设定必须标为改编选择，不能说成原著里本来就有。 还没决定这本小说是否适合改编，可以先让 short-drama-novel-analyze 做原著快评；确定方向后，再由 short-drama-develop 推进开发。"
+        ],
+        [
+          "按戏剧结果切集，不按章节号平均分",
+          "使用[分集地图](https://zenstory.ai/glossary/fenji-ditu)，记录进入状态、当前目标、阻力、转折、局部结果和下一集继承的压力。一章可以支持多集，几章也可能共同完成一个戏剧结果；压缩或调整事件顺序时，要保住因果。如果所选原文不足以支撑目标集数，应明确提出取舍，而不是灌水或悄悄编造。"
+        ],
+        [
+          "先写一集，再扩展整季",
+          "根据已接受的分集地图，只写第一集剧本。把关键心理活动换成观众能够理解的动作、对白、证据或视听线索，不要只是给小说朗读配图。先读清楚“谁想要什么、场内改变了什么、最后一拍为什么留下真正的新问题”，再把确认后的创作决定带到后续各集。"
+        ],
+        [
+          "先记录能复用的视觉事实",
+          "跨镜头反复出现的角色、场景和道具，需要明确可见规格。以下示例中，左袖油渍、座钟缺角、委托单位置是连续性事实；“拍得有电影感”不是。如果提出导演阐述，先由创作者接受视觉方向，再把它作为下游约束；可选的画风探索不要求立刻付费生成图片。"
+        ],
+        [
+          "从已接受的场次拆分镜",
+          "每个镜头都应有职责、剧本来源、时长、可见动作和起止状态。[冻结关键帧](https://zenstory.ai/glossary/dongjie-guanjianzhen)描述一个边界画面，默认是镜头起点，不代表整个运动过程，更不代表图片已经存在。未来计划使用的参考与已经检查、绑定的真实图片，要分开记录。"
+        ],
+        [
+          "把文本交付与媒体制作分开",
+          "先交付所需的剧本、视觉设定和分镜，确实需要时再加图片、视频提示词。以后决定制作媒体时，再选择可用供应商、检查实际素材和执行范围。文档规定外部生成先准备预览、再明确确认、最后运行。技能装在本地，不代表模型工作免费或离线。"
+        ]
+      ]
+    },
+    "example": {
+      "en": "Suggested request in Claude Code after setup (replace the path):\n/short-drama\nUse /ABS/my-authorized-story.txt for a short-drama adaptation.\nFirst identify source facts, proposed changes and open questions.\nPlan the first three episodes for a 60–90 second target each; explain if the source needs a different split.\nKeep the protagonist’s motivation and the agreed ending. Do not add a hidden villain as an established source fact.\nWrite only episode 1 after I accept the map. Then develop that episode’s visual facts and storyboard when requested.\nStop at text files. Do not generate images, video, voices or music.\n\nORIGINAL EDITORIAL EXAMPLE — written for this guide, not tool output or a timed film.\nSource fragment:\nWhen an auction-house courier arrived to collect a repaired clock, Shen Ning recognized her father’s handwriting underneath it. She believed he would never have sold it. The courier needed her handover signature for an auction starting in twenty minutes; the consignment slip carried her mother’s signature.\n\nAdaptation choice:\nKeep the handwriting, deadline and signature. Replace the long internal doubt with an inspection she can perform in front of the courier. The invented sleeve/clock details below are staging choices, not extra source facts.\n\nScene excerpt:\nINT. REPAIR SHOP — EVENING\nShen turns the clock over and rubs dust from the inscription with her left sleeve.\nSHEN: He wrote that last character backwards. Every time.\nCOURIER: Twenty minutes. I need your signature.\nHe slides a slip onto the right side of the workbench.\nShen reaches for the pen, sees the consignor’s signature and stops.\nSHEN: My mother sent this?\n\nFour-shot handoff excerpt (not a full episode or a production-ready storyboard):\n01 — Clock underside: dusty writing partly visible; sleeve wipes it clean. Reveal the recognizable clue.\n02 — Two-shot: Shen holds the clock; courier checks the time. Establish the opposing deadline.\n03 — Slip insert: paper arrives on the right of the bench; a finger stops beside the signature. Reveal the new fact.\n04 — Shen’s reaction: pen held above paper; her gaze lifts to the courier. End on the question, not a generic shocked face.\n\nContinuity notes: oil stain on Shen’s left sleeve; clock missing its upper-right ornament; slip stays to the right of the clock. No reference images have been generated or bound.",
+      "zh": "在 Claude Code 完成安装后，可这样请求（替换路径）：\n/short-drama\n用 /ABS/我有权改编的故事.txt 开发短剧。\n先区分原文事实、拟改内容和待确认问题。\n先规划前三集，每集目标 60–90 秒；如果原文更适合其他切法，说明理由。\n保留主角动机和已约定的结局，不把新增幕后反派写成原著事实。\n我接受分集地图后，只写第一集剧本；之后按请求补该集视觉事实与分镜。\n止步于文本文件，不生成图片、视频、配音或音乐。\n\n原创编剧示例——为本指南编写，不是工具实测输出，也不是已计时成片。\n源故事片段：\n拍卖行的取件员来到维修铺，要取回修好的旧座钟。沈宁在钟底认出了父亲的字，她不相信父亲会卖掉它。取件员催她签交接单，拍卖二十分钟后就要开始；委托单上却签着母亲的名字。\n\n改编选择：\n保留字迹、倒计时和签名。把内心怀疑改成当着取件员的面检查座钟；下方袖口与座钟缺角是新增调度细节，不冒充原文事实。\n\n剧本片段：\n内景·维修铺·傍晚\n沈宁翻过座钟，用左袖擦掉刻字上的灰。\n沈宁：最后这个字，他每次都写反。\n取件员：二十分钟。我还等你签字呢。\n他把委托单推到工作台右侧。\n沈宁伸手拿笔，看见委托人签名，停住。\n沈宁：是我妈送来的？\n\n四镜交接片段（不是完整单集，也不是可直接投产的完整分镜）：\n01 座钟底部特写：灰尘遮着刻字，袖口擦过，字迹显露。职责是交付可识别的线索。\n02 双人中景：沈宁抱着钟，取件员看时间。职责是让保留证据与交还座钟的压力同场成立。\n03 委托单特写：纸从桌右推入，手指停在签名旁。职责是交付改变判断的新事实。\n04 沈宁反应：笔尖悬在纸上，她抬眼看取件员。用有对象的问题结束，不只写“震惊表情”。\n\n连续性备注：沈宁左袖有油渍；座钟右上角装饰缺失；委托单留在座钟右侧。此处尚未生成或绑定任何参考图片。"
+    },
+    "outputs": {
+      "en": [
+        "A source/adaptation record and, when the task needs it, `项目开发/episode-map.jsonl`: the episode map separating established material, proposed changes and episode handoffs.",
+        "The requested episode uses `剧集/<EP>/剧本.md`; later stages can add `视觉设定.md`, `分镜.md`, `图片提示词.md` and `视频提示词.md` in that episode folder. These five document types are created as needed, not a requirement to generate every file in advance or proof that media exists.",
+        "An explicit next task: revise the pilot, write the next mapped episode or prepare a media-production preview. Text may inform a later workflow, but this does not establish automatic synchronization with Oh Story or the hosted ZenStory app."
+      ],
+      "zh": [
+        "原著与改编记录，以及任务需要时建立的 `项目开发/episode-map.jsonl`：分开记录已有材料、拟改内容和各集交接。",
+        "所请求单集的剧本位于 `剧集/<EP>/剧本.md`；进入后续阶段后，可在该集目录添加 `视觉设定.md`、`分镜.md`、`图片提示词.md`、`视频提示词.md`。五类文档按需创建，不要求提前建齐，也不证明媒体已经存在。",
+        "明确下一项创作任务：修改试写集、按地图写下一集，或准备媒体制作预览。文本可以给后续流程提供材料，但不表示与 Oh Story 或托管 ZenStory 应用自动同步。"
+      ]
+    },
+    "verification": {
+      "en": [
+        "Read the pilot against the source and the map: can the audience see the information needed to understand the turn, and does the next episode inherit the actual exit state? Treat proposed additions as author decisions.",
+        "A shot description or repeated continuity phrase is not evidence that generated faces, props, motion or voices match. Review real media separately if you later produce it; no quality, duration or publication result is established by this editorial example."
+      ],
+      "zh": [
+        "把试写集与原著、分集地图对照着读：观众是否看到了理解转折所需的信息，下一集是否继承了真实的出口状态？新增内容由作者决定。",
+        "镜头描述或重复的连续性词句，不证明实际生成的人脸、道具、动作或声音一致。以后制作媒体时需要另行审看；本编剧示例不建立质量、实际时长或发布效果结论。"
+      ]
+    },
+    "sources": {
+      "en": [
+        "[Installation and host entry syntax](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/README_EN.md#L19-L85)",
+        "[Source intake, adaptation decisions and episode planning](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-develop/SKILL.md#L27-L89)",
+        "[Adaptation boundaries: dramatic results rather than chapter counts](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-novel-analyze/references/adaptation-value.md#L77-L93)",
+        "[Novel analysis handoff: visible action, carriers and prose-only material](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-novel-analyze/SKILL.md#L189-L207)",
+        "[Storyboard source, shot states and real reference images](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-storyboard/SKILL.md#L30-L71)",
+        "[Creator workflow and the separate media-production decision](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama/references/creator-workflow.md#L44-L98)",
+        "[Prepare a preview before confirmed provider execution](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-produce/SKILL.md#L37-L49)",
+        "[Episode-map output and optional development documents](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-develop/SKILL.md#L117-L131)"
+      ],
+      "zh": [
+        "[安装与宿主调用方式](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/README_EN.md#L19-L85)",
+        "[原著接入、改编决定与分集规划](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-develop/SKILL.md#L27-L89)",
+        "[改编切分：按戏剧结果，而非章节数量](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-novel-analyze/references/adaptation-value.md#L77-L93)",
+        "[原著分析交接：可拍内容、可见载体与纯文字材料](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-novel-analyze/SKILL.md#L189-L207)",
+        "[分镜来源、镜头状态与真实参考图](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-storyboard/SKILL.md#L30-L71)",
+        "[创作流程与独立的媒体制作决定](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama/references/creator-workflow.md#L44-L98)",
+        "[先准备预览，再确认供应商执行](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-produce/SKILL.md#L37-L49)",
+        "[分集地图产物与按需开发文档](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-develop/SKILL.md#L117-L131)"
       ]
     }
   }
