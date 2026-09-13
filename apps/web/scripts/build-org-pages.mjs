@@ -319,6 +319,12 @@ ${roster(p.slug)}`
 
 // ---------- task guides ----------
 
+const guideExample = (text, lang) => `
+<section class="guide-example" lang="${lang === 'zh' ? 'zh-CN' : 'en'}" aria-labelledby="example-${lang}">
+  <h3 id="example-${lang}">${lang === 'zh' ? '中文示例' : 'English example'}</h3>
+  ${text.split(/\n{2,}/).map(paragraph => `<p>${esc(paragraph)}</p>`).join('\n  ')}
+</section>`
+
 const guidePage = (g) => {
   const owner = projects.find((p) => p.slug === g.owner)
   const route = `/${g.owner}/${g.slug}`
@@ -337,17 +343,29 @@ const guidePage = (g) => {
   <p class="facts">Source checked ${esc(g.checked_on)} <span lang="zh-CN">· 源码核对日期</span></p>
   <p>${rich(g.answer.en)}</p><p lang="zh-CN">${rich(g.answer.zh)}</p>
   <p class="actions"><a class="btn ghost" href="/${owner.slug}">${esc(owner.name.en)}</a><a class="btn ghost" href="${owner.github}">Source on GitHub</a></p>
-  <h2>Before you start <span lang="zh-CN">· 开始之前</span></h2>
+  <nav class="guide-contents" aria-label="On this page · 本页导航">
+    <p><b>On this page <span lang="zh-CN">· 本页导航</span></b></p>
+    <ul>
+      <li><a href="#before-you-start">Before you start <span lang="zh-CN">· 开始之前</span></a></li>
+      <li><a href="#steps">Steps <span lang="zh-CN">· 操作步骤</span></a></li>
+      <li><a href="#example-en" lang="en">English example</a></li>
+      <li><a href="#example-zh" lang="zh-CN">中文示例</a></li>
+      <li><a href="#expected-files">Expected files <span lang="zh-CN">· 预期文件</span></a></li>
+      <li><a href="#verify-result">Result boundaries <span lang="zh-CN">· 结果边界</span></a></li>
+      <li><a href="#sources">Sources <span lang="zh-CN">· 来源</span></a></li>
+    </ul>
+  </nav>
+  <h2 id="before-you-start">Before you start <span lang="zh-CN">· 开始之前</span></h2>
   ${list(g.prerequisites.en)}${list(g.prerequisites.zh, 'zh')}
-  <h2>Steps <span lang="zh-CN">· 操作步骤</span></h2>
+  <h2 id="steps">Steps <span lang="zh-CN">· 操作步骤</span></h2>
   ${steps(g.steps.en)}${steps(g.steps.zh, 'zh')}
-  <h2>Example <span lang="zh-CN">· 示例</span></h2>
-  <pre><code>${esc(g.example.en)}</code></pre><pre lang="zh-CN"><code>${esc(g.example.zh)}</code></pre>
-  <h2>Expected files <span lang="zh-CN">· 预期文件</span></h2>
+  <h2 id="examples">Example <span lang="zh-CN">· 示例</span></h2>
+  ${guideExample(g.example.en, 'en')}${guideExample(g.example.zh, 'zh')}
+  <h2 id="expected-files">Expected files <span lang="zh-CN">· 预期文件</span></h2>
   ${list(g.outputs.en)}${list(g.outputs.zh, 'zh')}
-  <h2>Verify the result <span lang="zh-CN">· 验证结果与边界</span></h2>
+  <h2 id="verify-result">Verify the result <span lang="zh-CN">· 验证结果与边界</span></h2>
   ${list(g.verification.en)}${list(g.verification.zh, 'zh')}
-  <h2>Sources and version notes <span lang="zh-CN">· 来源与版本说明</span></h2>
+  <h2 id="sources">Sources and version notes <span lang="zh-CN">· 来源与版本说明</span></h2>
   ${list(g.sources.en)}${list(g.sources.zh, 'zh')}
 </article>`
   write(route, page({ route, title: `${g.title.en} | ZenStory AI`, description: g.answer.en, ld, body }))
