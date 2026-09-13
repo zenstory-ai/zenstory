@@ -29,7 +29,7 @@ Overview page: https://zenstory.ai/projects — each project has a bilingual can
 
 - [Preserve your author voice](https://zenstory.ai/oh-story/preserve-author-voice): an original prose-sample comparison separates expressive choices, book facts, pending inference and scoped author preferences; shared style decisions without copied plot details or a guaranteed voice match.
 
-- [From outline to chapter](https://zenstory.ai/oh-story/outline-to-chapter): an original library-move outline and prose-opening comparison turn goals, evidence and responsibility into action, with staged background, limited viewpoint and a clear boundary between a sample and a completed chapter.
+- [From outline to chapter](https://zenstory.ai/oh-story/outline-to-chapter): an original library outline becomes a staged opening and a continuation through conditional cooperation, brief transport and a concrete ending; preserves character depth, agreed chapter boundaries and the distinction between chat excerpts and saved prose.
 
 - [Keep a long novel consistent](https://zenstory.ai/oh-story/long-novel-continuity): an original letter-and-deadline handoff separates author truth, character knowledge and reader knowledge; an optional clue-payoff design prepares evidence, corrects a plausible interpretation and changes the next action without prematurely completing delivery.
 
