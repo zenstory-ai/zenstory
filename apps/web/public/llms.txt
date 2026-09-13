@@ -33,7 +33,7 @@ Overview page: https://zenstory.ai/projects — each project has a bilingual can
 
 - [Keep a long novel consistent](https://zenstory.ai/oh-story/long-novel-continuity): an original letter-and-deadline handoff separates author truth, character knowledge and reader knowledge; an optional clue-payoff design prepares evidence, corrects a plausible interpretation and changes the next action without prematurely completing delivery.
 
-- [Original sound versus recap narration](https://zenstory.ai/video-recap/original-audio-and-narration): an original five-beat example keeps complete dialogue, action sound and meaningful pauses; narration jobs, source/output clocks and safe audio handoffs without a fixed ratio or automatic-mix promise.
+- [Original sound versus recap narration](https://zenstory.ai/video-recap/original-audio-and-narration): an original radio edit compares shorter context copy with omitting it, protects the click-and-wait evidence and complete dialogue, and separates expression, sound decisions and actual mix changes; no invented motives or guaranteed TTS fit.
 
 - [Character consistency and reference-image choices](https://zenstory.ai/drama-skills/character-consistency): an original archive three-shot example separates identity, compatible Look, locks and changing states, then tests portrait/costume/location/boundary-frame uses; real REF files versus external PLAN entry locators, the fixed-episode Look exception and no forced suite regeneration.
 
