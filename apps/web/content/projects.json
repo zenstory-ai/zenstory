@@ -213,14 +213,14 @@
         ["Can I make an interactive story rather than a combat game?", "Yes: set a narrative-led experience in the brief and concept. Decisions can change testimony, what characters know and later scenes; they need not be disguised as cards, turns or an affinity meter."],
         ["How do choices change more than the wording?", "Give each important action a lasting fact and name the later scene or ending that reads it. The [original ferry example](https://zenstory.ai/novel-to-game/meaningful-choices) shows two decision points and three outcomes without branching every paragraph."],
         ["What may I change from the novel?", "Keep cited source facts and uncertainties in `analysis/SOURCE_BIBLE.md`. Separate approved adaptation additions from evidence; do not let implementation silently rewrite the agreed brief or source bible."],
-        ["How much should I adapt first?", "Start with one player role, a concrete objective, a few scenes and an outcome. Let `game-world-design` specify the smallest playable slice and causal design before full art production. Reuse a location without erasing the choices that led there."],
+        ["How much should I adapt first?", "Choose a source range explicitly, then one player role, a concrete objective and an outcome that preserves the intended experience. A small build does not excuse missing source coverage for a requested whole-book adaptation. The [worked slice-selection brief](https://zenstory.ai/novel-to-game/quick-start) compares a summary, a bounded ferry decision and an expanded town scope; game-world-design then specifies the selected slice before full art production."],
         ["What do I receive, and what remains unproven?", "The [quick start](https://zenstory.ai/novel-to-game/quick-start) explains the brief, design files and built candidate. Design-only work is not a playable game. The six runtime checks cover the recorded run; they do not establish every branch, subjective quality or commercial readiness."]
       ],
       "zh": [
         ["我想做互动文游，不想做战斗游戏，可以吗？", "可以，在简报与概念阶段选择叙事主导体验。决定可以改变证词、人物知道的信息和后续场景，不必包装成卡牌、回合或好感度条。"],
         ["怎样避免选择只换一句文案？", "让关键行动产生持久事实，并写明后续哪个场景或结局会读取它。[原创渡口示例](https://zenstory.ai/novel-to-game/meaningful-choices)用两个选择点、三个结果演示，不需要每段正文都分叉。"],
         ["原著可以改到什么程度？", "在 `analysis/SOURCE_BIBLE.md` 保留带出处的事实和疑点，把批准的改编新增设定与原文证据分开。实现阶段不能悄悄改写已确定的产品简报或原著圣经。"],
-        ["第一次应该改编多大范围？", "先限定一个玩家身份、具体目标、少量场景和结果。在完整美术生产前，由 `game-world-design` 明确最小可玩切片与因果设计。地点可以复用，但到达该地点之前的选择不能被抹掉。"],
+        ["第一次应该改编多大范围？", "先明确来源范围，再选一个玩家身份、具体目标与能保住体验承诺的结果。首版做得小，不代表已经要求的全书改编可以跳过来源覆盖。[切片选择简报示例](https://zenstory.ai/novel-to-game/quick-start)比较只读梗概、一次渡口决定和整城扩展；选定后，再由 game-world-design 在完整美术生产前明确切片设计。"],
         ["最后会拿到什么，什么还不能证明？", "[完整入门指南](https://zenstory.ai/novel-to-game/quick-start)说明简报、设计文件与构建候选版本。只做设计不等于可玩游戏。六项运行检查只覆盖所记录的一次运行，不代表每条分支、主观质量或商业发布准备程度都已通过。"]
       ]
     },

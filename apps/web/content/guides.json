@@ -2,14 +2,14 @@
   {
     "owner": "novel-to-game",
     "slug": "quick-start",
-    "checked_on": "2026-09-12",
+    "checked_on": "2026-09-13",
     "title": {
       "en": "How to adapt a novel into a game candidate",
       "zh": "如何用 Novel to Game 把小说改编成游戏候选版本"
     },
     "answer": {
-      "en": "Start with a novel you own or are authorized to adapt, install the seven skills, and give the agent a small target experience. Lock the product brief before building, then ask for one complete runtime verification. A folder of design documents or a successful build alone is not a playable-game result.",
-      "zh": "从你拥有或获准改编的小说开始，安装七个 skills，并给 Agent 一个范围较小的目标体验。构建前先锁定产品简报，之后要求一次完整的运行验证。只有设计文档，或只有构建成功，都不能算作游戏已经可玩。"
+      "en": "Start with a novel you own or are authorized to adapt, then choose a bounded experience in which a player can act and see a consequence—not a compressed retelling of the entire book. A useful first slice preserves the source’s particular pressure while limiting scenes, systems and assets. Novel to Game’s seven skills take an agreed brief through analysis, concept, design and a built candidate. The ferry example below shows how to choose the scope before building; a design document or successful build alone is not a playable-game result.",
+      "zh": "从你拥有或获准改编的小说开始，先选一段玩家能行动、能看到后果的小范围体验，而不是把全书压成梗概。第一份切片要保住原作特有的压力，同时限制场景、系统和素材范围。Novel to Game 的七个 skills 依据确认的简报，从分析、概念与设计推进到构建候选版本。下面的渡口示例先说明如何选范围，再进入制作；只有设计文档，或只有构建成功，都不能算作游戏已经可玩。"
     },
     "prerequisites": {
       "en": [
@@ -34,8 +34,16 @@
           "Ask for `PRODUCT_BRIEF.md`: scope, language, experience type, platform, engine, target runtime, tested runtime, input/display requirements, content limits and rights/asset boundaries. Ordinary assumptions can be recorded; material or safety-sensitive decisions require resolution."
         ],
         [
+          "Declare the source range before choosing a slice",
+          "If you want a whole-novel adaptation, a first-three-chapter preview or a few sampled scenes is not whole-book coverage. The analysis workflow requires full source coverage before concept design unless you explicitly limit the adaptation to a volume or excerpt. State that limit in the brief and record missing or unread material. “No relevant finding in a reviewed chapter” is different from “this chapter was not read.” Selecting a small first build does not by itself authorize skipping the rest of a requested whole-book analysis."
+        ],
+        [
           "Ground the adaptation",
-          "Review `analysis/SOURCE_BIBLE.md` for actual source evidence and `concepts/CONCEPT.md` for the chosen concept and trade-offs. If you want an interactive story, say so explicitly instead of letting a systems-game format be assumed."
+          "Read the cited evidence and adaptation boundaries in `analysis/SOURCE_BIBLE.md`, then the selected concept and tradeoffs in `concepts/CONCEPT.md`. Keep facts that change player actions, world responses or audiovisual identity, rather than retelling every chapter. Once the concept selects a passage, analysis adds its fact-level reference table. New gameplay exceptions, state design and interface structure belong to the downstream design, not backdated source evidence. If you want an interactive story, state that preference instead of silently accepting a system-led game."
+        ],
+        [
+          "Choose the smallest scope that still carries the promised experience",
+          "Name a player role, an immediate objective, available actions, feedback and an outcome. Compare only meaningful open alternatives; do not generate several genres just to fill a menu. For the ferry brief, a summary-only reading page does not test consequential choice, while a whole-town simulation would require new scope and supporting material. A bounded boarding decision can carry this particular promise. Its scene can demonstrate one narrative event, not prove an entire novel supports a repeatable management or combat loop. Slice duration and system count follow the brief and the design risk, not a universal five-minute or three-system rule. See [meaningful choices](https://zenstory.ai/novel-to-game/meaningful-choices) for the actual branch design."
         ],
         [
           "Design and build a small candidate",
@@ -60,8 +68,16 @@
           "要求建立 `PRODUCT_BRIEF.md`，明确范围、语言、体验类型、平台、引擎、目标运行环境、实际测试环境、输入与显示要求、内容尺度及权利/素材边界。普通假设可以记录；实质分支或安全敏感决策必须解决。"
         ],
         [
+          "先说清来源范围，再挑制作切片",
+          "如果要改编整部小说，前三章预览或几个抽样场景不等于全书覆盖。分析流程要求进入概念设计前完成来源覆盖，除非你明确把改编限定在某卷或片段。把这个限制写进简报，并记录缺失或未读部分。“读过但没有相关发现”，与“根本没有读到这一章”不同。首版只做很小一段，不自动授权跳过已经要求的全书分析。"
+        ],
+        [
           "让改编有原文依据",
-          "检查 `analysis/SOURCE_BIBLE.md` 的原文证据，以及 `concepts/CONCEPT.md` 中选定的概念与取舍。想做互动故事时要明确说出，不要默认接受系统型游戏形式。"
+          "读 `analysis/SOURCE_BIBLE.md` 的原文证据与改编边界，再看 `concepts/CONCEPT.md` 的选定概念和取舍。保留能改变玩家动作、世界回应或视听身份的事实，不逐章复述全部剧情。概念选定段落后，分析阶段再补该段逐事实表。新增玩法例外、状态设计与界面结构属于下游设计，不能倒写成原作证据。想做互动故事时要明确说出，不要默认接受系统型游戏形式。"
+        ],
+        [
+          "选最小范围，但别把承诺的体验一起删掉",
+          "点名玩家身份、眼前目标、可用动作、反馈和结果。只比较真正仍开放的取舍，不为凑菜单临时生成几个游戏类型。对下面的渡口简报，只读梗概不能试出选择后果，整座城模拟则需要额外范围与来源材料；一次完整的登船决定就能承载本例承诺。这能展示一个叙事事件，不证明整部小说已经支持可反复运作的经营或战斗循环。切片时长与系统数量服从简报和设计风险，不套通用的“五分钟”或“三个系统”。实际分支设计见[有意义的选择](https://zenstory.ai/novel-to-game/meaningful-choices)。"
         ],
         [
           "设计并构建小范围候选版本",
@@ -78,17 +94,19 @@
       ]
     },
     "example": {
-      "en": "Terminal — install the Claude Code adapter:\nnpx skills add zenstory-ai/novel-to-game -g -y -a claude-code -s '*'\n\nThen ask in Claude Code (replace the source path):\n/novel-to-game quick\nUse /ABS/my-authorized-novel.txt to create a small interactive-story candidate.\nDraft PRODUCT_BRIEF.md first and record the target and tested runtimes.\nKeep one complete loop, outcome and restart in scope.\nReport missing tools and untested behavior rather than marking them PASS.",
-      "zh": "终端——安装 Claude Code 适配器：\nnpx skills add zenstory-ai/novel-to-game -g -y -a claude-code -s '*'\n\n然后在 Claude Code 中请求（替换小说路径）：\n/novel-to-game quick\n用 /ABS/my-authorized-novel.txt 制作小范围的互动故事候选版本。\n先写 PRODUCT_BRIEF.md，记录目标与实际测试运行环境。\n范围内保留完整循环、设计结果和重开。\n如实报告工具缺失或未测试行为，不把它们标为 PASS。"
+      "en": "Original scope exercise — use the ferry situation from the meaningful-choices guide, not a claimed analysis of an entire novel or a generated game.\n\nSource seed:\nThe final ferry sounded its boarding whistle. Rain had blurred the stamp on Qiao Ning's ticket. The boatkeeper held it beside the register without tearing it. “The ticket office can issue proof,” he said, “but this boat will be gone by the time you return.”\n\nKeep provenance separate:\n- The seed establishes a blurred stamp and the delay attached to replacement proof.\n- The example's author additionally fixes that Qiao Ning bought the ticket and wants to cross tonight; the blurred stamp alone cannot secure boarding.\n- The author-approved adaptation exception is new design: a purchase witness plus Qiao Ning's consent to a named exception record permits boarding tonight. Finding the witness is possible before departure; replacing the ticket is not. For this design, returning with replacement proof leads to a morning-place offer; declining the named exception leaves Qiao Ning ashore. These outcomes are also author-approved design. Do not attribute the exception or those outcomes to the quoted seed or write them back as original evidence.\n- No other chapters were supplied. This exercise is explicitly an excerpt adaptation, not a full-novel adaptation based on sampling.\n\nThree scope proposals for this brief, not three mandatory game concepts:\nA. A summary of the journey with a Next button. It may provide a reading experience, but does not fulfill this brief's promise that a player's choice changes the outcome.\nB. One complete boarding dispute: choose how to establish purchase, then decide whether to accept the named exception if that route remains available. Show the appropriate departure/stay/morning-place result and allow a fresh start. This is the selected scope for the exercise.\nC. The whole town and subsequent journey, with exploration, trade and many passengers. This is additional design work and would need broader source coverage or explicitly approved adaptation additions, plus a revised content budget. It is not presumed bad; it is outside the current promise and supplied evidence.\n\nA creator-readable slice brief — illustrative planning, not an already-created PRODUCT_BRIEF.md:\n- Player: Qiao Ning. Goal: leave tonight while deciding which proof and record cost to accept.\n- Experience: single-player, narrative-led; Simplified Chinese UI in a desktop browser, keyboard and mouse. Confirm the actual available test environment separately.\n- Source scope: only the provided excerpt and separately attributed author facts; the exception is an approved adaptation addition, not a recovered source rule.\n- Structure: one dispute, two decision points and three defined results. Do not promise an unmeasured play duration. The linked branch example specifies the conditions; this brief does not replace GAME_DESIGN.\n- Preserve: proof type and timing affect available choices; accepting the exception has an acknowledged record; going to the office cannot secretly regain tonight's boat.\n- Exclude for this slice: open-world travel, combat, economy, romance meters, subsequent chapters and paid asset generation. Text and placeholders are sufficient for this candidate's chosen finish.\n- Stop the episode at its defined result; restarting restores its initial situation. An outcome screen is not evidence that any later journey happened.\n\nTerminal — install the Claude Code adapter:\nnpx skills add zenstory-ai/novel-to-game -g -y -a claude-code -s '*'\n\nAfter resolving material decisions, use the configured host for the full workflow. Replace the input with your authorized excerpt and supply author facts/additions separately:\n/novel-to-game quick\nAdapt only /ABS/my-authorized-excerpt.txt using the selected scope above.\nDo not treat the excerpt as a complete novel. Record the source range and keep author additions separate from source quotations. Preserve the narrative-led promise, exclusions and defined results in PRODUCT_BRIEF.md and the design handoffs. Resolve any blocking conflict before advancing rather than silently widening the scope.\nBuild only this candidate using text and placeholders, without paid asset generation. Record target and actual test runtimes. Report missing tools or untested behavior honestly; do not mark them PASS.\n\nThis quick request continues toward a built and tested candidate; it is not a planning-only command. If you want only analysis/concept/design, explicitly request those named skill stages and their handoff files, then stop before building, as shown in the meaningful-choices guide. Neither suggested request was executed for this article.",
+      "zh": "原创范围练习——沿用《有意义的选择》里的渡口处境，不是整本小说的实测分析，也不是已生成的游戏。\n\n正文种子：\n末班渡船响过催行的汽笛。乔宁船票上的印章被雨水洇开了。\n守船人把票压在登记簿旁，没有撕掉。\n“售票处能补凭证，”他说，“但等你回来，这班船就走了。”\n\n把来源分开：\n- 原文种子给出了印章模糊，以及补凭证会错过本班船。\n- 本例作者另行确认：乔宁确实买过票、希望今晚渡河；模糊印章本身不足以让她登船。\n- 作者批准的改编例外是新增设计：购票证人作证，加上乔宁同意实名例外登记，即可在本班开船前登船。寻找证人来得及，回售票处补凭证来不及。本设计还约定：补凭证回来后可预约明早的船位；拒绝实名例外则留在岸上。这些结果也属于作者批准的设计。不能把例外与结果归给上面四句原文，也不能倒写成原作证据。\n- 没有提供其他章节。本练习明确只改编这个片段，不靠抽样冒充全书改编。\n\n针对这份简报的三种范围提案，不是每次必做的三个游戏概念：\nA. 把旅途梗概配上“下一页”。它可以提供阅读体验，但不能兑现本简报“选择改变结果”的承诺。\nB. 一次完整的登船争议：选择怎样证明购票；对应路线仍可用时，再决定是否接受实名例外。显示今晚出发、留在岸上或预约明早的相应结果，并能重新开始。本练习选这个范围。\nC. 整座城与后续旅途，加入探索、交易和大量乘客。这属于额外设计，需要更广的原作覆盖，或作者明确批准的改编新增设计，并重新约定内容预算；不是一概不好，只是不属于当前承诺和已提供的证据范围。\n\n作者可读的切片简报——说明性规划，不是已经创建的 PRODUCT_BRIEF.md：\n- 玩家：乔宁。目标：争取今晚出发，同时选择愿意承担的凭证与留痕成本。\n- 体验：单人、叙事主导；简体中文界面，桌面浏览器，键盘与鼠标。实际可用测试环境另行确认。\n- 来源范围：只用所给片段，以及注明来自作者的补充事实；例外规则是批准的改编新增，不是恢复出的原著规则。\n- 结构：一次争议、两个选择点、三个明确结果。不承诺未经实际体验的游玩分钟数。具体条件见关联的分支示例，这份简报不替代 GAME_DESIGN。\n- 保留：凭证类型和时间影响选项；接受例外会留下明确记录；去售票处后不能悄悄又赶上今晚的船。\n- 本切片不做：开放世界旅行、战斗、经济系统、恋爱数值、后续章节与付费素材生成。这个候选版本选择文字和占位素材即可。\n- 在定义的结果处结束这次事件；重开恢复初态。结果画面不证明后面的旅途已经发生。\n\n终端——安装 Claude Code 适配器：\nnpx skills add zenstory-ai/novel-to-game -g -y -a claude-code -s '*'\n\n实质选择确定后，再在配置好的宿主里运行完整流程。把输入替换为自己获准使用的片段，作者补充事实和改编新增规则另列：\n/novel-to-game quick\n只改编 /ABS/my-authorized-excerpt.txt，采用上面选定的范围。\n不要把片段当成全书。记录来源范围，把作者新增与原文引述分开。将叙事主导承诺、非目标和明确结果保留到 PRODUCT_BRIEF.md 与设计交接中。存在阻断性冲突时先解决，不悄悄扩范围。\n只构建这个文字与占位素材候选版本，不调用付费素材生成。记录目标与实际测试运行环境。如实报告工具缺失或未测试行为，不把它们标为 PASS。\n\n这个 quick 请求会继续到构建与测试候选版本，不是只做规划。若只想要分析、概念和设计，应明确要求对应的具名技能阶段及交接文件，然后在构建前停止，示例见《有意义的选择》指南。本文没有实际执行这两类建议请求。"
     },
     "outputs": {
       "en": [
+        "A source-range declaration and a deliberately bounded experience: what the slice preserves, what it excludes and what source or author decision would be needed to expand it. A small first build is not evidence of full-novel coverage.",
         "Scope: `PRODUCT_BRIEF.md`; source evidence: `analysis/SOURCE_BIBLE.md`; selected concept: `concepts/CONCEPT.md`.",
         "Design: `design/GAME_DESIGN.md` and `design/ART_DIRECTION.md`; build instructions: `build/BUILD_BRIEF.md`; candidate: `build/app/`.",
         "Runtime record: `qa/verification.json` plus its referenced evidence; progress and next handoff: `_progress.md`.",
         "Before expanding branches, use the [meaningful-choice example](https://zenstory.ai/novel-to-game/meaningful-choices) to turn one scene into actions, lasting state and distinct endings."
       ],
       "zh": [
+        "一份明确的来源范围与体验取舍：切片保留什么、不做什么，扩展还需要哪些来源或作者决定。首版做得小，不等于全书已经分析完。",
         "范围：`PRODUCT_BRIEF.md`；原文证据：`analysis/SOURCE_BIBLE.md`；选定概念：`concepts/CONCEPT.md`。",
         "设计：`design/GAME_DESIGN.md` 与 `design/ART_DIRECTION.md`；构建说明：`build/BUILD_BRIEF.md`；候选产物：`build/app/`。",
         "运行记录：`qa/verification.json` 及其引用的证据；进度与下一交接：`_progress.md`。",
@@ -114,7 +132,12 @@
         "[Inputs, rights boundaries and product-brief fields](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/novel-to-game/references/intake-method.md#L1-L50)",
         "[Workspace paths and named artifacts](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/novel-to-game/references/pipeline-contract.md#L3-L19)",
         "[Tools, runtime commands and blocked builds](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-build/references/build-brief-contract.md#L27-L57)",
-        "[Six checks, complete-run evidence and failure states](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-qa/references/qa-contract.md#L5-L66)"
+        "[Six checks, complete-run evidence and failure states](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-qa/references/qa-contract.md#L5-L66)",
+        "[Whole-source coverage and the explicit excerpt exception](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/novel-game-analyze/SKILL.md#L16-L24)",
+        "[Source facts, selected-passage evidence and downstream inventions](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/novel-game-analyze/SKILL.md#L40-L68)",
+        "[A signature event is not automatically a repeatable core loop](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/novel-game-analyze/references/gameability-protocol.md#L32-L42)",
+        "[Open choices, hard constraints and real concept tradeoffs](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/game-concept/references/concept-method.md#L5-L35)",
+        "[Brief-led slice scope and the design handoff](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/game-world-design/SKILL.md#L18-L41)"
       ],
       "zh": [
         "[安装适配器、入口命令与 quick 模式](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/README.md#L59-L100)",
@@ -122,7 +145,12 @@
         "[输入、权利边界与产品简报字段](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/novel-to-game/references/intake-method.md#L1-L50)",
         "[工作区路径与产物名称](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/novel-to-game/references/pipeline-contract.md#L3-L19)",
         "[工具、运行命令与构建阻塞](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-build/references/build-brief-contract.md#L27-L57)",
-        "[六项检查、完整运行证据与失败状态](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-qa/references/qa-contract.md#L5-L66)"
+        "[六项检查、完整运行证据与失败状态](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-qa/references/qa-contract.md#L5-L66)",
+        "[全量来源覆盖与明确的片段范围例外](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/novel-game-analyze/SKILL.md#L16-L24)",
+        "[原作事实、选定段落证据与下游新增设计](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/novel-game-analyze/SKILL.md#L40-L68)",
+        "[标志性场面不自动成为可重复的核心循环](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/novel-game-analyze/references/gameability-protocol.md#L32-L42)",
+        "[开放选择、硬约束与实际概念取舍](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/game-concept/references/concept-method.md#L5-L35)",
+        "[服从简报的切片范围与设计交接](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/game-world-design/SKILL.md#L18-L41)"
       ]
     }
   },
