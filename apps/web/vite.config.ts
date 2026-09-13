@@ -50,7 +50,7 @@ export function orgPageRoutes(contentDir = path.resolve(__dirname, 'content')): 
     const options = comparison.options?.map((option) => option.project)
     if (!options || options.length !== expectedProjects.length || options.some((project, index) => project !== expectedProjects[index]) || options.some((project) => !projects.some((candidate) => candidate.slug === project))) throw new Error('Invalid comparison options')
   }
-  return ['/projects', ...projects.map((p) => `/${p.slug}`), ...guides.map((g) => `/${g.owner}/${g.slug}`), ...comparisonRoutes, '/glossary', ...glossary.map((g) => `/glossary/${g.slug}`)]
+  return ['/projects', ...projects.map((p) => `/${p.slug}`), ...guides.map((g) => `/${g.owner}/${g.slug}`), '/guides', ...comparisonRoutes, '/glossary', ...glossary.map((g) => `/glossary/${g.slug}`)]
 }
 
 const orgRoutes = orgPageRoutes()

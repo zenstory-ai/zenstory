@@ -280,8 +280,8 @@ test.describe('organization site', () => {
         const page = await context.newPage()
         await page.goto(`${SITE}${path}`, { waitUntil: 'load' })
         await expect(page.locator('article.guide h1')).toBeVisible()
-        await expect(page.locator('article.guide pre').first()).toHaveCSS('white-space', 'pre-wrap')
-        await expect(page.locator('article.guide pre').first()).toHaveCSS('overflow-wrap', 'anywhere')
+        await expect(page.locator('article.guide .guide-example p').first()).toHaveCSS('white-space', 'pre-wrap')
+        await expect(page.locator('article.guide .guide-example p').first()).toHaveCSS('overflow-wrap', 'anywhere')
         await page.evaluate(() => document.fonts.ready.then(() => undefined))
 
         const widths = await page.evaluate(() => ({

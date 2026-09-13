@@ -19,6 +19,8 @@ Overview page: https://zenstory.ai/projects — each project has a bilingual can
 
 ## Documentation
 
+Guides index: https://zenstory.ai/guides — every practical guide, grouped by project.
+
 Practical guides. Each is bilingual (English and Chinese), opens with a direct answer, includes an original worked example, and cites fixed-commit source files. One line each on what question it answers:
 
 - [Keep a long novel consistent](https://zenstory.ai/oh-story/long-novel-continuity): how to keep an AI-assisted long novel consistent by separating story truth, character knowledge and reader knowledge, and carrying forward only the current state.

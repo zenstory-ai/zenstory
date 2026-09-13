@@ -38,7 +38,7 @@ export const vercelConfig = {
     // Explicit document aliases must not leave duplicate HTML URLs indexed.
     redirect('/index.html',`${APP}/`,host(appHosts)),
     redirect('/index.html',`${SITE}/`,host(`${siteHosts}|www\\.zenstory\\.ai`)),
-    redirect('/:path((?:projects|oh-story|drama-skills|novel-to-game|video-recap|dsh|workbench|compare|glossary|docs|privacy-policy|terms-of-service)(?:/.*)?)/index.html',`${SITE}/:path`),
+    redirect('/:path((?:projects|oh-story|drama-skills|novel-to-game|video-recap|dsh|workbench|guides|compare|glossary|docs|privacy-policy|terms-of-service)(?:/.*)?)/index.html',`${SITE}/:path`),
     redirect(appPaths,`${APP}/:path`,host('zenstory\\.ai|www\\.zenstory\\.ai')),
     redirect(appPaths,`${PREVIEW_APP}/:path`,host('geo-preview\\.zenstory\\.ai')),
     redirect(sitePaths,`${SITE}/:path`,host('app\\.zenstory\\.ai')),
