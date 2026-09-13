@@ -4,14 +4,22 @@
  *
  * Runs after `vite build`. Emits complete, crawler-readable HTML (title, meta,
  * Open Graph, JSON-LD, bilingual body) for:
- *   /org-home           – the apex organization homepage (internal output)
- *   /projects           – the six-project overview
+ *   /org-home            – the apex organization homepage (internal output)
+ *   /projects            – the six-project overview
  *   /<project-slug>      – one page per project
+ *   /<project>/<guide>   – one page per practical guide
+ *   /guides              – the index of every practical guide
+ *   /compare/<slug>      – first-party comparisons
  *   /glossary            – the terminology index
  *   /glossary/<term>     – one page per term
  *
  * Vercel matches these files on the filesystem before the SPA rewrite, so the
  * React app is untouched. Content lives in ../content/*.json.
+ *
+ * Both languages are always delivered in the initial HTML (English first, then
+ * 中文). A small inline script reads a stored preference or navigator.language
+ * and sets <html data-lang="en|zh">; the stylesheet then shows one language.
+ * Without JavaScript (crawlers, the no-JS smoke tests) both languages render.
  *
  * Usage: node scripts/build-org-pages.mjs [outDir]   (default: ../dist)
  */
@@ -95,25 +103,57 @@ const write = (route, html) => {
   writeFileSync(join(dir, 'index.html'), html)
 }
 
+// ---------- bilingual helpers ----------
+// `.l-en` / `.l-zh` mark the two renderings of the same content. With
+// <html data-lang> set by the inline script, CSS shows one of them; without it
+// (no JavaScript) both render, English first. Content that exists in one
+// language only (Chinese glossary terms, code, links) is never wrapped.
+
+const en = (html, tag = 'div') => `<${tag} class="l-en">${html}</${tag}>`
+const zh = (html, tag = 'div') => `<${tag} class="l-zh" lang="zh-CN">${html}</${tag}>`
+/** Two block renderings of the same content. */
+const pair = (enHtml, zhHtml, cls = '') => `<div class="pair${cls ? ` ${cls}` : ''}">${en(enHtml)}${zh(zhHtml)}</div>`
+/** Two inline renderings (headings, eyebrows, link labels). */
+const both = (enText, zhText) => `${en(enText, 'span')}${zh(zhText, 'span')}`
+/** Heading with an inline bilingual label; `id` first so tests can match `<h2 id="…">`. */
+const heading = (level, enText, zhText, id) => `<h${level}${id ? ` id="${id}"` : ''}>${both(enText, zhText)}</h${level}>`
+
+const list = (items, lang) => `<ul>${items.map((i) => `<li${lang === 'zh' ? ' lang="zh-CN"' : ''}>${rich(i)}</li>`).join('')}</ul>`
+const steps = (items, lang) => `<ol class="steps">${items.map(([k, v]) => `<li${lang === 'zh' ? ' lang="zh-CN"' : ''}><b>${rich(k)}</b> ${rich(v)}</li>`).join('')}</ol>`
+const comparisonLinks = (project) => comparisons.filter((comparison) => comparison.options.some((option) => option.project === project))
+const guidesOf = (slug) => guides.filter((g) => g.owner === slug)
+const guideLink = (g) => `<a href="/${g.owner}/${g.slug}">${both(esc(g.title.en), esc(g.title.zh))}</a>`
+
 // ---------- layout ----------
+
+// Runs before first paint so the chosen language does not flash. Classic script
+// (no type="module"): organization pages must stay free of app JavaScript.
+const langScript = `<script>(function(){var l=null;try{l=localStorage.getItem('zs-lang')}catch(e){}if(l!=='en'&&l!=='zh'&&l!=='both'){l=/^zh/i.test(navigator.language||'')?'zh':'en'}document.documentElement.setAttribute('data-lang',l)})()</script>`
+const switchScript = `<script>(function(){var b=document.querySelectorAll('.lang-switch button');for(var i=0;i<b.length;i++){b[i].addEventListener('click',function(){var v=this.getAttribute('data-lang');document.documentElement.setAttribute('data-lang',v);try{localStorage.setItem('zs-lang',v)}catch(e){}})}})()</script>`
+
+const langSwitch = `<div class="lang-switch" role="group" aria-label="Language · 语言">
+      <button type="button" data-lang="en" lang="en" aria-label="English">EN</button>
+      <button type="button" data-lang="zh" lang="zh-CN" aria-label="中文">中文</button>
+    </div>`
 
 const nav = `
 <header class="top">
   <a class="brand" href="/"><img src="/brand/zenstory-ai-mark.svg" alt="" width="22" height="22"> ZenStory AI</a>
-  <nav>
-    <a href="/projects">Projects</a>
-    <a href="/glossary">Glossary</a>
-    <a href="/docs">Docs</a>
+  <nav aria-label="Site">
+    <a href="/projects">${both('Projects', '项目')}</a>
+    <a href="/guides">${both('Guides', '指南')}</a>
+    <a href="/glossary">${both('Glossary', '术语')}</a>
+    <a href="/docs">${both('Docs', '文档')}</a>
     <a href="${org.github}">GitHub</a>
-    <a class="nav-app" href="${APP}">Open app</a>
+    ${langSwitch}
+    <a class="nav-app" href="${APP}">${both('Open app', '打开工作台')}</a>
   </nav>
 </header>`
 
 const roster = (current) => `
 <section class="roster" aria-labelledby="roster-h">
-  <h2 id="roster-h">Part of ZenStory AI <span lang="zh-CN">· ZenStory AI 项目</span></h2>
-  <p>${esc(org.canonical.en)}</p>
-  <p lang="zh-CN">${esc(org.canonical.zh)}</p>
+  ${heading(2, 'Part of ZenStory AI', 'ZenStory AI 项目', 'roster-h')}
+  ${pair(`<p>${esc(org.canonical.en)}</p>`, `<p lang="zh-CN">${esc(org.canonical.zh)}</p>`)}
   <table>
     <thead><tr><th>Project</th><th>Format</th><th>What it does</th></tr></thead>
     <tbody>${projects.map((p) => `
@@ -153,6 +193,7 @@ const page = ({ route, title, description, ogType = 'article', ld, body }) => `<
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Plus+Jakarta+Sans:wght@400;500;600&family=Noto+Serif+SC:wght@400;600&family=JetBrains+Mono:wght@400&display=swap">
 <link rel="stylesheet" href="/org/org.css">
+${langScript}
 ${jsonld({ '@context': 'https://schema.org', '@graph': ld })}
 </head>
 <body>
@@ -161,13 +202,10 @@ ${nav}
 ${body}
 </main>
 ${footer}
+${switchScript}
 </body>
 </html>
 `
-
-const list = (items, lang) => `<ul>${items.map((i) => `<li${lang === 'zh' ? ' lang="zh-CN"' : ''}>${rich(i)}</li>`).join('')}</ul>`
-const steps = (items, lang) => `<ol class="steps">${items.map(([k, v]) => `<li${lang === 'zh' ? ' lang="zh-CN"' : ''}><b>${rich(k)}</b> ${rich(v)}</li>`).join('')}</ol>`
-const comparisonLinks = (project) => comparisons.filter((comparison) => comparison.options.some((option) => option.project === project))
 
 // ---------- organization homepage ----------
 
@@ -179,6 +217,8 @@ const taskChoices = [
   ['Use the story stack in DeepSeek Harness', '在 DeepSeek Harness 中使用故事工具链', 'dsh'],
   ['Write in a hosted browser workspace', '在浏览器工作台中写作', 'workbench'],
 ]
+
+const projectFacts = (p) => `${p.stars ? `${p.stars.toLocaleString('en-US')} GitHub stars as of ${esc(org.proof.as_of)} · ` : ''}${p.skills ? `${p.skills} skills · ` : ''}${esc(org.proof.license)} license`
 
 const homePage = () => {
   const route = '/'
@@ -193,48 +233,46 @@ const homePage = () => {
   ]
   const body = `
 <article class="home">
-  <p class="eyebrow">${esc(org.tagline.en)} <span lang="zh-CN">· ${esc(org.tagline.zh)}</span></p>
+  <p class="eyebrow">${both(esc(org.tagline.en), esc(org.tagline.zh))}</p>
   <h1>ZenStory AI turns stories into many forms</h1>
-  <p class="lede">${esc(org.canonical.en)}</p>
-  <p class="lede" lang="zh-CN">${esc(org.canonical.zh)}</p>
+  ${pair(`<p class="lede">${esc(org.canonical.en)}</p>`, `<p class="lede" lang="zh-CN">${esc(org.canonical.zh)}</p>`)}
   <p class="actions home-actions">
-    <a class="btn" href="/projects">Explore the six projects</a>
-    ${comparisons.map((comparison) => `<a class="btn ghost" href="/compare/${comparison.slug}">${esc(comparison.title.en)}</a>`).join('')}
+    <a class="btn" href="/projects">${both('Explore the six projects', '浏览六个项目')}</a>
+    ${comparisons.map((comparison) => `<a class="btn ghost" href="/compare/${comparison.slug}">${both(esc(comparison.title.en), esc(comparison.title.zh))}</a>`).join('')}
     <a class="btn ghost" href="${APP}">Open the web workbench</a>
   </p>
-  <p class="migration-note">The hosted writing workbench now lives at <a href="${APP}">app.zenstory.ai</a>. You may need to sign in again; account data is not copied through this page.<span lang="zh-CN">托管写作工作台现位于 app.zenstory.ai。你可能需要重新登录；此页面不会传递账户数据。</span></p>
+  <p class="migration-note">${both('The hosted writing workbench now lives at <a href="' + APP + '">app.zenstory.ai</a>. You may need to sign in again; account data is not copied through this page.', '托管写作工作台现位于 <a href="' + APP + '">app.zenstory.ai</a>。你可能需要重新登录；此页面不会传递账户数据。')}</p>
 
   <section aria-labelledby="choose-h">
-    <h2 id="choose-h">Choose by task <span lang="zh-CN">· 按任务选择</span></h2>
+    ${heading(2, 'Choose by task', '按任务选择', 'choose-h')}
     <div class="task-grid">${taskChoices.map(([en, zh, slug]) => `
-      <a class="task" href="/${slug}"><strong>${esc(en)}</strong><span lang="zh-CN">${esc(zh)}</span></a>`).join('')}
+      <a class="task" href="/${slug}"><strong>${both(esc(en), esc(zh))}</strong></a>`).join('')}
     </div>
   </section>
 
   <section aria-labelledby="guides-h">
-    <h2 id="guides-h">Writing and adaptation guides <span lang="zh-CN">· 创作与改编入门</span></h2>
-    <ul>${guides.map((g) => `<li><a href="/${g.owner}/${g.slug}">${esc(g.title.en)} <span lang="zh-CN">· ${esc(g.title.zh)}</span></a></li>`).join('')}</ul>
+    ${heading(2, 'Writing and adaptation guides', '创作与改编入门', 'guides-h')}
+    <ul>${guides.map((g) => `<li>${guideLink(g)}</li>`).join('')}</ul>
+    <p><a href="/guides">${both('All guides, grouped by project', '按项目查看全部指南')}</a></p>
   </section>
 
   <section aria-labelledby="projects-h">
-    <h2 id="projects-h">Six open-source projects <span lang="zh-CN">· 六个开源项目</span></h2>
+    ${heading(2, 'Six open-source projects', '六个开源项目', 'projects-h')}
     <div class="project-grid">${projects.map((p) => `
       <article class="project-card">
-        <p class="eyebrow">${esc(p.format.en)} <span lang="zh-CN">· ${esc(p.format.zh)}</span></p>
+        <p class="eyebrow">${both(esc(p.format.en), esc(p.format.zh))}</p>
         <h3><a href="/${p.slug}">${esc(p.name.en)}</a></h3>
-        <p>${esc(p.tagline.en)}</p>
-        <p lang="zh-CN">${esc(p.tagline.zh)}</p>
-        <p class="facts">${p.stars ? `${p.stars.toLocaleString('en-US')} GitHub stars as of ${esc(org.proof.as_of)} · ` : ''}${p.skills ? `${p.skills} skills · ` : ''}${esc(org.proof.license)} license</p>
+        ${pair(`<p>${esc(p.tagline.en)}</p>`, `<p lang="zh-CN">${esc(p.tagline.zh)}</p>`)}
+        <p class="facts">${projectFacts(p)}</p>
         ${p.install ? `<code class="install">${esc(p.install)}</code>` : ''}
-        <p class="card-actions"><a href="/${p.slug}">Project details</a><a href="${p.github}">Source on GitHub</a>${p.slug === 'workbench' ? `<a href="${APP}">Open app</a>` : ''}</p>
+        <p class="card-actions"><a href="/${p.slug}">${both('Project details', '项目详情')}</a><a href="${p.github}">Source on GitHub</a>${p.slug === 'workbench' ? `<a href="${APP}">${both('Open app', '打开工作台')}</a>` : ''}</p>
       </article>`).join('')}
     </div>
   </section>
 
   <section aria-labelledby="model-h">
-    <h2 id="model-h">How the pieces fit together <span lang="zh-CN">· 项目如何协作</span></h2>
-    ${steps(org.model.en)}
-    ${steps(org.model.zh, 'zh')}
+    ${heading(2, 'How the pieces fit together', '项目如何协作', 'model-h')}
+    ${pair(steps(org.model.en), steps(org.model.zh, 'zh'))}
     <p class="facts">${org.proof.stars_total.toLocaleString('en-US')} GitHub stars across the organization as of ${esc(org.proof.as_of)}. All repositories listed here are ${esc(org.proof.license)}-licensed.</p>
   </section>
 </article>`
@@ -269,48 +307,46 @@ const projectPage = (p) => {
     },
     breadcrumb([['ZenStory AI', SITE], ['Projects', `${SITE}/projects`], [p.name.en, `${SITE}${route}`]]),
   ]
+  const own = guidesOf(p.slug)
   const body = `
 <article class="project">
-  <p class="eyebrow">${esc(p.format.en)} <span lang="zh-CN">· ${esc(p.format.zh)}</span></p>
+  <p class="eyebrow">${both(esc(p.format.en), esc(p.format.zh))}</p>
   <h1>${esc(p.name.en)}</h1>
-  <p class="lede">${esc(p.tagline.en)}</p>
-  <p class="lede" lang="zh-CN">${esc(p.tagline.zh)}</p>
+  ${pair(`<p class="lede">${esc(p.tagline.en)}</p>`, `<p class="lede" lang="zh-CN">${esc(p.tagline.zh)}</p>`)}
   <p class="facts">${facts.map(esc).join(' · ')}</p>
   <p class="actions">
     <a class="btn" href="${p.github}">Source on GitHub</a>
     ${p.readme_en && p.readme_en !== p.github ? `<a class="btn ghost" href="${p.readme_en}">English README</a>` : ''}
     ${p.install ? `<code class="install">${esc(p.install)}</code>` : ''}
-    ${p.slug === 'workbench' ? `<a class="btn ghost" href="${p.entry}">Open the workbench</a>` : ''}
+    ${p.slug === 'workbench' ? `<a class="btn ghost" href="${p.entry}">${both('Open the workbench', '打开工作台')}</a>` : ''}
   </p>
 
-  <h2>What it is</h2>
-  <p>${rich(p.definition.en)}</p>
-  <h2 lang="zh-CN">它是什么</h2>
-  <p lang="zh-CN">${rich(p.definition.zh)}</p>
+  ${pair(`<h2>What it is</h2>
+  <p>${rich(p.definition.en)}</p>`, `<h2 lang="zh-CN">它是什么</h2>
+  <p lang="zh-CN">${rich(p.definition.zh)}</p>`)}
 
-  <h2>Who it is for <span lang="zh-CN">· 适合谁</span></h2>
-  <div class="cols">${list(p.audience.en)}${list(p.audience.zh, 'zh')}</div>
+  ${heading(2, 'Who it is for', '适合谁')}
+  ${pair(list(p.audience.en), list(p.audience.zh, 'zh'), 'cols')}
 
-  <h2>How it works <span lang="zh-CN">· 流程</span></h2>
-  ${steps(p.method.en)}
-  ${steps(p.method.zh, 'zh')}
+  ${heading(2, 'How it works', '流程')}
+  ${pair(steps(p.method.en), steps(p.method.zh, 'zh'))}
 
-  <h2>What makes it different <span lang="zh-CN">· 有什么不同</span></h2>
-  <div class="cols">${list(p.distinctive.en)}${list(p.distinctive.zh, 'zh')}</div>
+  ${heading(2, 'What makes it different', '有什么不同')}
+  ${pair(list(p.distinctive.en), list(p.distinctive.zh, 'zh'), 'cols')}
 
-  ${comparisonLinks(p.slug).length ? `<h2>Compare writing workflows <span lang="zh-CN">· 比较写作环境</span></h2>
-  <ul>${comparisonLinks(p.slug).map((comparison) => `<li><a href="/compare/${comparison.slug}">${esc(comparison.title.en)} <span lang="zh-CN">· ${esc(comparison.title.zh)}</span></a></li>`).join('')}</ul>` : ''}
+  ${comparisonLinks(p.slug).length ? `${heading(2, 'Compare writing workflows', '比较写作环境')}
+  <ul>${comparisonLinks(p.slug).map((comparison) => `<li><a href="/compare/${comparison.slug}">${both(esc(comparison.title.en), esc(comparison.title.zh))}</a></li>`).join('')}</ul>` : ''}
 
-  <h2>Source notes <span lang="zh-CN">· 来源与边界</span></h2>
-  <p class="facts">Source checked ${esc(p.sources.checked_on)} <span lang="zh-CN">· 源码核对日期</span>. Links identify the reviewed version, not a guarantee about later releases.</p>
-  <div class="cols">${list(p.sources.en)}${list(p.sources.zh, 'zh')}</div>
+  ${heading(2, 'Source notes', '来源与边界')}
+  <p class="facts">${both(`Source checked ${esc(p.sources.checked_on)}. Links identify the reviewed version, not a guarantee about later releases.`, `源码核对日期 ${esc(p.sources.checked_on)}。链接指向已核对的版本，不保证后续版本一致。`)}</p>
+  ${pair(list(p.sources.en), list(p.sources.zh, 'zh'), 'cols')}
 
-  ${guides.some((g) => g.owner === p.slug) ? `<h2>Practical guides <span lang="zh-CN">· 实用指南</span></h2>
-  <ul>${guides.filter((g) => g.owner === p.slug).map((g) => `<li><a href="/${g.owner}/${g.slug}">${esc(g.title.en)} <span lang="zh-CN">· ${esc(g.title.zh)}</span></a></li>`).join('')}</ul>` : ''}
+  ${own.length ? `${heading(2, 'Practical guides', '实用指南')}
+  <ul>${own.map((g) => `<li>${guideLink(g)}</li>`).join('')}</ul>` : ''}
 
-  ${p.vocabulary?.length ? `<h2>Terms it uses</h2><p class="terms">${p.vocabulary.map((t) => {
+  ${p.vocabulary?.length ? `${heading(2, 'Terms it uses', '相关术语')}<p class="terms">${p.vocabulary.map((t) => {
     const g = glossary.find((x) => x.term === t)
-    return g ? `<a href="/glossary/${g.slug}">${esc(t)}</a>` : `<span>${esc(t)}</span>`
+    return g ? `<a href="/glossary/${g.slug}" lang="zh-CN">${esc(t)}</a>` : `<span lang="zh-CN">${esc(t)}</span>`
   }).join(' ')}</p>` : ''}
 </article>
 ${roster(p.slug)}`
@@ -337,38 +373,69 @@ const guidePage = (g) => {
   ]
   const body = `
 <article class="guide">
-  <p class="eyebrow">Practical guide <span lang="zh-CN">· 实用指南</span></p>
+  <p class="eyebrow">${both('Practical guide', '实用指南')}</p>
   <h1>${esc(g.title.en)}</h1>
   <p class="lede" lang="zh-CN">${esc(g.title.zh)}</p>
-  <p class="facts">Source checked ${esc(g.checked_on)} <span lang="zh-CN">· 源码核对日期</span></p>
-  <p>${rich(g.answer.en)}</p><p lang="zh-CN">${rich(g.answer.zh)}</p>
+  <p class="facts">${both(`Source checked ${esc(g.checked_on)}`, `源码核对日期 ${esc(g.checked_on)}`)}</p>
+  ${pair(`<p>${rich(g.answer.en)}</p>`, `<p lang="zh-CN">${rich(g.answer.zh)}</p>`, 'answer')}
   <p class="actions"><a class="btn ghost" href="/${owner.slug}">${esc(owner.name.en)}</a><a class="btn ghost" href="${owner.github}">Source on GitHub</a></p>
   <nav class="guide-contents" aria-label="On this page · 本页导航">
-    <p><b>On this page <span lang="zh-CN">· 本页导航</span></b></p>
+    <p><b>${both('On this page', '本页导航')}</b></p>
     <ul>
-      <li><a href="#before-you-start">Before you start <span lang="zh-CN">· 开始之前</span></a></li>
-      <li><a href="#steps">Steps <span lang="zh-CN">· 操作步骤</span></a></li>
-      <li><a href="#example-en" lang="en">English example</a></li>
-      <li><a href="#example-zh" lang="zh-CN">中文示例</a></li>
-      <li><a href="#expected-files">Expected files <span lang="zh-CN">· 预期文件</span></a></li>
-      <li><a href="#verify-result">Result boundaries <span lang="zh-CN">· 结果边界</span></a></li>
-      <li><a href="#sources">Sources <span lang="zh-CN">· 来源</span></a></li>
+      <li><a href="#before-you-start">${both('Before you start', '开始之前')}</a></li>
+      <li><a href="#steps">${both('Steps', '操作步骤')}</a></li>
+      <li class="l-en"><a href="#example-en" lang="en">English example</a></li>
+      <li class="l-zh"><a href="#example-zh" lang="zh-CN">中文示例</a></li>
+      <li><a href="#expected-files">${both('Expected files', '预期文件')}</a></li>
+      <li><a href="#verify-result">${both('Result boundaries', '结果边界')}</a></li>
+      <li><a href="#sources">${both('Sources', '来源')}</a></li>
     </ul>
   </nav>
-  <h2 id="before-you-start">Before you start <span lang="zh-CN">· 开始之前</span></h2>
-  ${list(g.prerequisites.en)}${list(g.prerequisites.zh, 'zh')}
-  <h2 id="steps">Steps <span lang="zh-CN">· 操作步骤</span></h2>
-  ${steps(g.steps.en)}${steps(g.steps.zh, 'zh')}
-  <h2 id="examples">Example <span lang="zh-CN">· 示例</span></h2>
-  ${guideExample(g.example.en, 'en')}${guideExample(g.example.zh, 'zh')}
-  <h2 id="expected-files">Expected files <span lang="zh-CN">· 预期文件</span></h2>
-  ${list(g.outputs.en)}${list(g.outputs.zh, 'zh')}
-  <h2 id="verify-result">Verify the result <span lang="zh-CN">· 验证结果与边界</span></h2>
-  ${list(g.verification.en)}${list(g.verification.zh, 'zh')}
-  <h2 id="sources">Sources and version notes <span lang="zh-CN">· 来源与版本说明</span></h2>
-  ${list(g.sources.en)}${list(g.sources.zh, 'zh')}
+  ${heading(2, 'Before you start', '开始之前', 'before-you-start')}
+  ${pair(list(g.prerequisites.en), list(g.prerequisites.zh, 'zh'))}
+  ${heading(2, 'Steps', '操作步骤', 'steps')}
+  ${pair(steps(g.steps.en), steps(g.steps.zh, 'zh'))}
+  ${heading(2, 'Example', '示例', 'examples')}
+  ${pair(guideExample(g.example.en, 'en'), guideExample(g.example.zh, 'zh'))}
+  ${heading(2, 'Expected files', '预期文件', 'expected-files')}
+  ${pair(list(g.outputs.en), list(g.outputs.zh, 'zh'))}
+  ${heading(2, 'Verify the result', '验证结果与边界', 'verify-result')}
+  ${pair(list(g.verification.en), list(g.verification.zh, 'zh'))}
+  ${heading(2, 'Sources and version notes', '来源与版本说明', 'sources')}
+  ${pair(list(g.sources.en), list(g.sources.zh, 'zh'))}
 </article>`
   write(route, page({ route, title: `${g.title.en} | ZenStory AI`, description: g.answer.en, ld, body }))
+}
+
+// ---------- guides index ----------
+
+const guidesIndex = () => {
+  const route = '/guides'
+  const title = `Practical guides — ${guides.length} bilingual, source-cited answers on writing, adapting and producing stories | ZenStory AI`
+  const description = `${guides.length} practical guides from ZenStory AI, each bilingual (English and 中文), opening with a direct answer, with an original worked example and fixed-commit source citations. Grouped by project: Oh Story, Drama Skills, Novel to Game, Video Recap Skills, Oh Story DSH and the ZenStory workbench.`
+  const ld = [
+    orgNode,
+    {
+      '@type': 'ItemList', name: 'ZenStory AI practical guides', url: `${SITE}${route}`,
+      itemListElement: guides.map((g, i) => ({ '@type': 'ListItem', position: i + 1, name: g.title.en, url: `${SITE}/${g.owner}/${g.slug}` })),
+    },
+    breadcrumb([['ZenStory AI', SITE], ['Guides', `${SITE}${route}`]]),
+  ]
+  const body = `
+<article class="guides-index">
+  <p class="eyebrow">${both('Practical guides', '实用指南')}</p>
+  <h1>Practical guides</h1>
+  ${pair(`<p class="lede">Each guide answers one working question, in English and 中文, with an original example and dated source citations to the project it describes.</p>`, `<p class="lede" lang="zh-CN">每篇指南回答一个具体的创作问题，中英双语，附原创示例和带日期的源码引用。</p>`)}
+  ${projects.filter((p) => guidesOf(p.slug).length).map((p) => `
+  <section aria-labelledby="guides-${p.slug}">
+    ${heading(2, esc(p.name.en), esc(p.name.zh), `guides-${p.slug}`)}
+    ${pair(`<p>${esc(p.tagline.en)}</p>`, `<p lang="zh-CN">${esc(p.tagline.zh)}</p>`)}
+    <ul>${guidesOf(p.slug).map((g) => `<li>${guideLink(g)}</li>`).join('')}</ul>
+    <p class="facts"><a href="/${p.slug}">${both(`About ${esc(p.name.en)}`, `关于 ${esc(p.name.zh)}`)}</a></p>
+  </section>`).join('')}
+</article>
+${roster()}`
+  write(route, page({ route, title, description, ogType: 'website', ld, body }))
 }
 
 // ---------- first-party comparisons ----------
@@ -391,33 +458,31 @@ const comparisonPage = (comparison) => {
   ]
   const body = `
 <article class="comparison">
-  <p class="eyebrow">First-party comparison <span lang="zh-CN">· 自有项目选择指南</span></p>
+  <p class="eyebrow">${both('First-party comparison', '自有项目选择指南')}</p>
   <h1>${esc(comparison.title.en)}</h1>
   <p class="lede" lang="zh-CN">${esc(comparison.title.zh)}</p>
-  <p class="facts">Source checked ${esc(comparison.checked_on)} <span lang="zh-CN">· 源码核对日期</span></p>
-  <p>${rich(comparison.answer.en)}</p>
-  <p lang="zh-CN">${rich(comparison.answer.zh)}</p>
+  <p class="facts">${both(`Source checked ${esc(comparison.checked_on)}`, `源码核对日期 ${esc(comparison.checked_on)}`)}</p>
+  ${pair(`<p>${rich(comparison.answer.en)}</p>`, `<p lang="zh-CN">${rich(comparison.answer.zh)}</p>`, 'answer')}
   <aside class="migration-note" aria-label="First-party disclosure">
-    <p><strong>First-party disclosure.</strong> ${rich(comparison.disclosure.en)}</p>
-    <p lang="zh-CN"><strong>自有项目披露。</strong> ${rich(comparison.disclosure.zh)}</p>
+    ${pair(`<p><strong>First-party disclosure.</strong> ${rich(comparison.disclosure.en)}</p>`, `<p lang="zh-CN"><strong>自有项目披露。</strong> ${rich(comparison.disclosure.zh)}</p>`)}
   </aside>
   <nav class="terms" aria-label="Comparison axes">
-    ${comparisonAxes.map(([field, en, zh]) => `<a href="#axis-${field}">${esc(en)} <span lang="zh-CN">· ${esc(zh)}</span></a>`).join(' ')}
+    ${comparisonAxes.map(([field, en, zh]) => `<a href="#axis-${field}">${both(esc(en), esc(zh))}</a>`).join(' ')}
   </nav>
   ${comparisonAxes.map(([field, en, zh]) => `<section aria-labelledby="axis-${field}">
-    <h2 id="axis-${field}">${esc(en)} <span lang="zh-CN">· ${esc(zh)}</span></h2>
-    <div class="cols">${axisList(field, 'en')}${axisList(field, 'zh')}</div>
+    ${heading(2, esc(en), esc(zh), `axis-${field}`)}
+    ${pair(axisList(field, 'en'), axisList(field, 'zh'), 'cols')}
   </section>`).join('')}
-  <h2>Small reversible trial <span lang="zh-CN">· 小范围可回退试用</span></h2>
-  <div class="cols">${list(comparison.checklist.en)}${list(comparison.checklist.zh, 'zh')}</div>
-  <h2>Comparison boundaries <span lang="zh-CN">· 比较边界</span></h2>
-  <div class="cols">${list(comparison.boundaries.en)}${list(comparison.boundaries.zh, 'zh')}</div>
-  <h2>Versioned first-party sources <span lang="zh-CN">· 版本化第一方来源</span></h2>
+  ${heading(2, 'Small reversible trial', '小范围可回退试用')}
+  ${pair(list(comparison.checklist.en), list(comparison.checklist.zh, 'zh'), 'cols')}
+  ${heading(2, 'Comparison boundaries', '比较边界')}
+  ${pair(list(comparison.boundaries.en), list(comparison.boundaries.zh, 'zh'), 'cols')}
+  ${heading(2, 'Versioned first-party sources', '版本化第一方来源')}
   ${comparison.options.map((option) => {
     const project = optionProject(option)
     return `<section aria-labelledby="sources-${project.slug}">
-      <h3 id="sources-${project.slug}"><a href="/${project.slug}">${esc(project.name.en)}</a> <span lang="zh-CN">· ${esc(project.name.zh)}</span></h3>
-      <div class="cols">${list(option.sources.en)}${list(option.sources.zh, 'zh')}</div>
+      <h3 id="sources-${project.slug}"><a href="/${project.slug}">${esc(project.name.en)}</a> <span class="l-zh" lang="zh-CN">${esc(project.name.zh)}</span></h3>
+      ${pair(list(option.sources.en), list(option.sources.zh, 'zh'), 'cols')}
     </section>`
   }).join('')}
 </article>`
@@ -438,30 +503,27 @@ const projectsIndex = () => {
     breadcrumb([['ZenStory AI', SITE], ['Projects', `${SITE}${route}`]]),
   ]
   const body = `
-<article>
-  <p class="eyebrow">${esc(org.tagline.en)} <span lang="zh-CN">· ${esc(org.tagline.zh)}</span></p>
+<article class="projects-index">
+  <p class="eyebrow">${both(esc(org.tagline.en), esc(org.tagline.zh))}</p>
   <h1>Six open-source projects, one story stack</h1>
-  <p class="lede">${esc(org.canonical.en)}</p>
-  <p class="lede" lang="zh-CN">${esc(org.canonical.zh)}</p>
-  <p class="actions">${comparisons.map((comparison) => `<a class="btn ghost" href="/compare/${comparison.slug}">${esc(comparison.title.en)}</a>`).join('')}</p>
+  ${pair(`<p class="lede">${esc(org.canonical.en)}</p>`, `<p class="lede" lang="zh-CN">${esc(org.canonical.zh)}</p>`)}
+  <p class="actions">${comparisons.map((comparison) => `<a class="btn ghost" href="/compare/${comparison.slug}">${both(esc(comparison.title.en), esc(comparison.title.zh))}</a>`).join('')}</p>
 
-  <h2>Start with what you want to make <span lang="zh-CN">· 从目标开始</span></h2>
+  ${heading(2, 'Start with what you want to make', '从目标开始')}
   <div class="cards">${projects.map((p) => `
     <a class="card" href="/${p.slug}">
-      <p class="eyebrow">${esc(p.format.en)}</p>
+      <p class="eyebrow">${both(esc(p.format.en), esc(p.format.zh))}</p>
       <h3>${esc(p.name.en)}</h3>
-      <p>${esc(p.tagline.en)}</p>
-      <p lang="zh-CN">${esc(p.tagline.zh)}</p>
+      ${pair(`<p>${esc(p.tagline.en)}</p>`, `<p lang="zh-CN">${esc(p.tagline.zh)}</p>`)}
       <p class="facts">${p.stars ? `${p.stars.toLocaleString('en-US')} ★ as of ${esc(org.proof.as_of)}` : ''}${p.skills ? ` · ${p.skills} skills` : ''}</p>
     </a>`).join('')}
   </div>
 
-  <h2>How the pieces fit together <span lang="zh-CN">· 项目如何协作</span></h2>
-  ${steps(org.model.en)}
-  ${steps(org.model.zh, 'zh')}
+  ${heading(2, 'How the pieces fit together', '项目如何协作')}
+  ${pair(steps(org.model.en), steps(org.model.zh, 'zh'))}
 
-  <h2>Runs inside the agents you already use</h2>
-  <p>${org.proof.harnesses.map(esc).join(' · ')}. All ${org.proof.license}-licensed. ${org.proof.stars_total.toLocaleString('en-US')} GitHub stars across the organization as of ${org.proof.as_of}.</p>
+  ${heading(2, 'Runs inside the agents you already use', '在你已经使用的 Agent 里运行')}
+  <p>${org.proof.harnesses.map(esc).join(' · ')}. ${both(`All ${esc(org.proof.license)}-licensed. ${org.proof.stars_total.toLocaleString('en-US')} GitHub stars across the organization as of ${esc(org.proof.as_of)}.`, `全部 ${esc(org.proof.license)} 许可。截至 ${esc(org.proof.as_of)}，组织合计 ${org.proof.stars_total.toLocaleString('en-US')} 个 GitHub star。`)}</p>
 </article>`
   write(route, page({ route, title, description: org.canonical.en, ogType: 'website', ld, body }))
 }
@@ -483,20 +545,18 @@ const termPage = (g) => {
   ]
   const body = `
 <article class="term">
-  <p class="eyebrow">Glossary <span lang="zh-CN">· 术语</span></p>
+  <p class="eyebrow">${both('Glossary', '术语')}</p>
   <h1 lang="zh-CN">${esc(g.term)}</h1>
   <p class="lede">${esc(g.bridge)}</p>
 
-  <h2>Definition</h2>
-  <p>${rich(g.definition.en)}</p>
-  <h2 lang="zh-CN">定义</h2>
-  <p lang="zh-CN">${rich(g.definition.zh)}</p>
+  ${pair(`<h2>Definition</h2>
+  <p>${rich(g.definition.en)}</p>`, `<h2 lang="zh-CN">定义</h2>
+  <p lang="zh-CN">${rich(g.definition.zh)}</p>`)}
 
-  <h2>In practice <span lang="zh-CN">· 在工具里</span></h2>
-  <p>${rich(g.in_practice.en)}</p>
-  <p lang="zh-CN">${rich(g.in_practice.zh)}</p>
-  ${owner ? `<p class="facts">Implemented in <a href="/${owner.slug}">${esc(owner.name.en)}</a> · <a href="${owner.github}">source</a></p>` : ''}
-  ${g.related?.length ? `<p class="terms">Related: ${g.related.map((r) => { const x = glossary.find((y) => y.slug === r); return x ? `<a href="/glossary/${x.slug}">${esc(x.term)}</a>` : '' }).join(' ')}</p>` : ''}
+  ${heading(2, 'In practice', '在工具里')}
+  ${pair(`<p>${rich(g.in_practice.en)}</p>`, `<p lang="zh-CN">${rich(g.in_practice.zh)}</p>`)}
+  ${owner ? `<p class="facts">${both(`Implemented in <a href="/${owner.slug}">${esc(owner.name.en)}</a> · <a href="${owner.github}">source</a>`, `实现于 <a href="/${owner.slug}">${esc(owner.name.zh)}</a> · <a href="${owner.github}">源码</a>`)}</p>` : ''}
+  ${g.related?.length ? `<p class="terms">${both('Related:', '相关术语：')} ${g.related.map((r) => { const x = glossary.find((y) => y.slug === r); return x ? `<a href="/glossary/${x.slug}" lang="zh-CN">${esc(x.term)}</a>` : '' }).join(' ')}</p>` : ''}
 </article>
 ${roster(g.owner)}`
   write(route, page({ route, title, description: g.definition.en, ld, body }))
@@ -513,13 +573,13 @@ const glossaryIndex = () => {
     breadcrumb([['ZenStory AI', SITE], ['Glossary', `${SITE}${route}`]]),
   ]
   const body = `
-<article>
-  <p class="eyebrow">Glossary <span lang="zh-CN">· 术语表</span></p>
+<article class="glossary-index">
+  <p class="eyebrow">${both('Glossary', '术语表')}</p>
   <h1>Terms of the story pipeline</h1>
-  <p class="lede">${esc(description)}</p>
+  ${pair(`<p class="lede">${esc(description)}</p>`, `<p class="lede" lang="zh-CN">网文与短剧创作中的行话，附英文对照，以及 ZenStory AI 工具把它们落实为具体流程步骤的方式。</p>`)}
   <dl class="glossary">${glossary.map((g) => `
     <dt><a href="/glossary/${g.slug}" lang="zh-CN">${esc(g.term)}</a> <span>${esc(g.bridge)}</span></dt>
-    <dd>${esc(g.definition.en.split('. ')[0])}.</dd>`).join('')}
+    <dd>${both(esc(g.definition.en.split('. ')[0]) + '.', esc(g.definition.zh.split(/(?<=。)/)[0]))}</dd>`).join('')}
   </dl>
 </article>
 ${roster()}`
@@ -534,9 +594,10 @@ homePage()
 projectsIndex()
 projects.forEach(projectPage)
 guides.forEach(guidePage)
+guidesIndex()
 comparisons.forEach(comparisonPage)
 glossaryIndex()
 glossary.forEach(termPage)
 
-const routes = ['/org-home', '/projects', ...projects.map((p) => `/${p.slug}`), ...guideRoutes, ...comparisonRoutes, '/glossary', ...glossary.map((g) => `/glossary/${g.slug}`)]
+const routes = ['/org-home', '/projects', ...projects.map((p) => `/${p.slug}`), ...guideRoutes, '/guides', ...comparisonRoutes, '/glossary', ...glossary.map((g) => `/glossary/${g.slug}`)]
 console.log(`org pages: wrote ${routes.length} routes to ${outDir}\n  ${routes.join('  ')}`)

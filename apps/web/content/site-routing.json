@@ -5,5 +5,5 @@
   "previewSiteOrigin": "https://geo-preview.zenstory.ai",
   "previewAppOrigin": "https://app-preview.zenstory.ai",
   "appPrefixes": ["login", "register", "forgot-password", "verify-email", "auth", "onboarding", "dashboard", "project", "materials", "admin", "pricing"],
-  "sitePrefixes": ["projects", "oh-story", "drama-skills", "novel-to-game", "video-recap", "dsh", "workbench", "compare", "glossary", "docs", "privacy-policy", "terms-of-service", "llms.txt"]
+  "sitePrefixes": ["projects", "oh-story", "drama-skills", "novel-to-game", "video-recap", "dsh", "workbench", "guides", "compare", "glossary", "docs", "privacy-policy", "terms-of-service", "llms.txt"]
 }

@@ -34,14 +34,14 @@ p { margin: 0 0 12px; }
 main { padding-block: 40px 24px; }
 main > article > * , main > article p, main > article ul, main > article ol { max-width: 68ch; }
 .eyebrow { font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
-.eyebrow span[lang] { text-transform: none; letter-spacing: 0; }
+.eyebrow span.l-zh { text-transform: none; letter-spacing: 0; }
 .lede { font-size: 19px; line-height: 1.5; color: var(--ink-2); margin-top: 14px; }
 .facts { font-size: 14px; color: var(--muted); }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 18px 0 8px; }
 .btn { display: inline-block; padding: 8px 14px; border-radius: 6px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 500; font-size: 14.5px; }
 .btn.ghost { background: var(--accent-wash); color: var(--accent); }
 .install { display: inline-block; padding: 8px 12px; font-size: 13px; }
-.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
+.cols, .pair.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
 .cols ul { padding-left: 20px; margin: 0 0 8px; }
 .cols li { margin-bottom: 8px; color: var(--ink-2); }
 .steps { padding-left: 22px; margin: 0 0 18px; }
@@ -59,7 +59,8 @@ main > article > * , main > article p, main > article ul, main > article ol { ma
 .task-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 12px; }
 .task { display: flex; flex-direction: column; min-height: 76px; justify-content: center; padding: 12px 14px; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); color: var(--ink); text-decoration: none; }
 .task strong { font-family: "Source Serif 4", Georgia, serif; font-size: 17px; }
-.task span { color: var(--muted); font-size: 14px; }
+.task strong span.l-zh { display: block; font: 14px/1.5 "Plus Jakarta Sans", system-ui, sans-serif; color: var(--muted); }
+.task strong span.l-zh::before { content: none; }
 .project-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 12px; }
 .project-card { min-width: 0; padding: 18px; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); }
 .project-card h3 { margin: 2px 0 8px; }
@@ -77,4 +78,20 @@ main > article > * , main > article p, main > article ul, main > article ol { ma
 .roster th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .roster tr.here td { background: var(--accent-wash); }
 .bottom { padding-block: 24px 40px; font-size: 13.5px; color: var(--muted); border-top: 1px solid var(--rule); margin-top: 32px; }
-@media (max-width: 640px) { .cols, .task-grid, .project-grid { grid-template-columns: 1fr; } .top { flex-direction: column; align-items: flex-start; } .roster table { display: block; overflow-x: auto; } }
+@media (max-width: 640px) { .cols, .pair.cols, .task-grid, .project-grid { grid-template-columns: 1fr; } .top { flex-direction: column; align-items: flex-start; } .roster table { display: block; overflow-x: auto; } }
+
+/* Bilingual delivery. Both languages are always in the HTML (English first, then 中文).
+   The inline head script sets <html data-lang="en|zh"> from a stored choice or
+   navigator.language; these rules then show one language. Without JavaScript nothing
+   is hidden. `.l-en` / `.l-zh` wrap the two renderings of the same content only. */
+html:not([data-lang]) .lang-switch, html[data-lang="both"] .lang-switch { display: none; }
+html[data-lang="en"] .l-zh, html[data-lang="zh"] .l-en { display: none !important; }
+span.l-zh::before { content: " · "; }
+html[data-lang="zh"] span.l-zh::before { content: none; }
+:is(h1, h2, h3, .eyebrow, .facts) > span.l-zh { color: var(--muted); font-weight: 400; }
+html[data-lang="zh"] :is(h1, h2, h3, .eyebrow, .facts) > span.l-zh { color: inherit; font-weight: inherit; }
+html[data-lang="en"] .pair.cols, html[data-lang="zh"] .pair.cols { grid-template-columns: 1fr; }
+.lang-switch { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.lang-switch button { font: inherit; font-size: 13px; line-height: 1; padding: 7px 9px; border: 0; background: var(--surface); color: var(--ink-2); cursor: pointer; }
+.lang-switch button:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+html[data-lang="en"] .lang-switch [data-lang="en"], html[data-lang="zh"] .lang-switch [data-lang="zh"] { background: var(--ink); color: var(--paper); }
