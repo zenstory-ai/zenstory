@@ -27,7 +27,7 @@ Overview page: https://zenstory.ai/projects — each project has a bilingual can
 
 - [Turn manuscript feedback into a revision plan](https://zenstory.ai/oh-story/review-and-revise): an original decision sheet and revised transfer-slip scene turn an accepted agency diagnosis into action without an unapproved reveal; distinguish agreement from completed registration, chat-only trials from saved revisions, and concrete later-chapter impacts.
 
-- [Preserve your author voice](https://zenstory.ai/oh-story/preserve-author-voice): an original prose-sample comparison separates expressive choices, book facts, pending inference and scoped author preferences; shared style decisions without copied plot details or a guaranteed voice match.
+- [Preserve your author voice](https://zenstory.ai/oh-story/preserve-author-voice): an original sample-to-prose comparison separates expressive choices from a paragraph formula. A written local exception keeps extended observation without the semicolon pattern or joke; book facts and scoped preferences remain distinct from sample inference, with no copied plot or guaranteed voice match.
 
 - [From outline to chapter](https://zenstory.ai/oh-story/outline-to-chapter): an original library outline becomes a staged opening and a continuation through conditional cooperation, brief transport and a concrete ending; preserves character depth, agreed chapter boundaries and the distinction between chat excerpts and saved prose.
 
