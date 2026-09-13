@@ -19,7 +19,7 @@ Overview page: https://zenstory.ai/projects — each project has a bilingual can
 
 ## Documentation
 
-- [Learn writing craft from fiction](https://zenstory.ai/oh-story/learn-from-fiction): an original poster-proof passage separates located evidence, interpretation and unsupported claims, then compares two garden scenes with fixed facts and outcome but different decisions about shared responsibility and uncertain staffing; analysis versus import, first-three preview, explicitly scoped reading, summary-batch limits and saved-progress resume.
+- [Learn writing craft from fiction](https://zenstory.ai/oh-story/learn-from-fiction): original poster-proof evidence and bounded interpretation lead to two different garden plans, then a new prose passage where an uncertain staffing proposal fails and the smaller order happens. Transfer the useful constraint, not the source wording or gestures; keeps analysis/import, partial-reading and saved-progress boundaries.
 
 - [Write distinct character dialogue](https://zenstory.ai/oh-story/character-dialogue): an original three-speaker rehearsal exchange differentiates agenda, knowledge and relationship, preserves a private fact and the agreed outcome, and varies one speaker’s wording by listener without catchphrase or sentence-length formulas.
 
