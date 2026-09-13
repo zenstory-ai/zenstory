@@ -549,7 +549,7 @@
       "en": [
         [
           "Choose import, not deconstruction",
-          "Use story-import for a continuable project: settings, outlines, normalized prose and tracking. Use story-long-analyze only for a deconstruction library and report. Import analyzes your manuscript, but that analysis is a data source, not the deliverable or an external comparison title."
+          "Use story-import for a continuable project: settings, outlines, normalized prose and tracking. Use story-long-analyze only for a deconstruction library and report. Import analyzes your manuscript, but that analysis is a data source, not the deliverable or an external comparison title. If you only want to learn how a passage works, the [fiction-analysis guide](https://zenstory.ai/oh-story/learn-from-fiction) shows an evidence-to-mechanism reading exercise without starting an import."
         ],
         [
           "Prepare a clean source boundary",
@@ -579,7 +579,7 @@
       "zh": [
         [
           "先选导入续写，不要只做拆文",
-          "要得到可续写的设定、大纲、正文与追踪状态，就用 story-import；只要拆解资料和报告，才用 story-long-analyze。导入会分析书稿，但拆文库是重建数据源，不是最终工程，也不会把自己的书自动登记成外部对标。"
+          "要得到可续写的设定、大纲、正文与追踪状态，就用 story-import；只要拆解资料和报告，才用 story-long-analyze。导入会分析书稿，但拆文库是重建数据源，不是最终工程，也不会把自己的书自动登记成外部对标。 如果只想学一段文字为什么起作用，[小说拆文指南](https://zenstory.ai/oh-story/learn-from-fiction)提供从证据到机制的精读练习，不必启动导入。"
         ],
         [
           "把导入范围整理干净",
@@ -2251,6 +2251,141 @@
         "[声音维度与关系中的变化](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/dialogue-mastery.md#L174-L186)",
         "[表达不能覆盖情节与揭示边界](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-review/references/style-resolution.md#L5-L18)",
         "[局部修订范围、上下文与备份](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-revision.md#L6-L43)"
+      ]
+    }
+  },
+  {
+    "owner": "oh-story",
+    "slug": "learn-from-fiction",
+    "checked_on": "2026-09-12",
+    "title": {
+      "en": "Learn writing craft from fiction: evidence, scene mechanisms and a new-story exercise",
+      "zh": "怎样拆小说才能学会写：从原文证据、场景机制到自己的新故事"
+    },
+    "answer": {
+      "en": "A useful fiction analysis explains how a passage changes what a reader knows, expects or sees a character choose. Separate observable details from your interpretation, then state when a technique could work in a different story and when it would fail. A plot summary or a list of praise cannot do that work. Oh Story provides separate short- and long-fiction analysis workflows; analysis-only work is distinct from importing a manuscript for continuation. The original poster-proof example below demonstrates one narrow mechanism, an unsupported reading and a different-situation exercise. It is not a model run, a full-book verdict or evidence of reader demand.",
+      "zh": "有用的拆文要说明：一段文字怎样改变读者知道的事、期待的结果，或人物能作的选择。先分开看得见的细节与自己的解释，再说这种手法换到别的故事里，什么条件下成立、什么情况下会失效。剧情复述和一串夸奖代替不了这一步。Oh Story 分别提供短篇与长篇拆文流程；只做分析和导入可续写工程是不同任务。下面用原创海报校样片段，示范一个局部机制、一种缺乏依据的读法，以及换情境后的练习；这不是模型运行记录、全书结论或读者需求数据。"
+    },
+    "prerequisites": {
+      "en": [
+        "Use text you own or are authorized to use. Keep the source and its location labels available; a synopsis cannot establish exact wording, viewpoint or the placement of a clue. For an excerpt, include the immediate context you actually have and identify what is missing.",
+        "Choose a question small enough for the material: how does a hesitation change a negotiation, or why does a reveal change the next action? Distinguish a completed short story, a few chapters from a novel and a single scene. Do not invent an unseen ending to make the analysis complete.",
+        "A passage-level reading exercise can stay in ordinary chat. The slash commands below require Oh Story installed in a supported agent host; they are not hosted ZenStory or DSH commands. See [agent skills for writers](https://zenstory.ai/oh-story/agent-skills-for-writers) for those boundaries."
+      ],
+      "zh": [
+        "使用自己拥有或获准使用的文本，保留原文与段落位置。梗概不能证明具体措辞、视角或线索出现顺序。只提供片段时，附上实际拥有的相邻上下文，说明哪些部分缺失。",
+        "问题要小到材料能够回答，例如一次停顿怎样改变协商，或信息揭示为什么改变下一步行动。区分完整短篇、长篇中的几章和单个场景，不靠编造没读到的结尾补齐分析。",
+        "单段精读练习可以只在普通聊天中进行。下述 slash 命令需要在支持的 Agent 宿主中安装 Oh Story，不是 ZenStory 托管版或 DSH 命令；环境区别见[写作者的 Agent Skills 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)。"
+      ]
+    },
+    "steps": {
+      "en": [
+        [
+          "Choose analysis, not an accidental import",
+          "For analysis-only work, use /story-short-analyze for a complete short piece or /story-long-analyze for a long work. /story-import serves a different goal: building a continuable writing project. The short workflow is a full analysis pipeline, not a command that promises to stop after your favorite paragraph. For the small exercise below, use its ordinary-chat request instead."
+        ],
+        [
+          "Anchor each observation before naming a technique",
+          "Record a short quotation or an accurate description with its paragraph or chapter location. Then describe the state before and after: who can act, who knows what, and which condition remains unresolved? “Tense dialogue” names an impression; the unsigned approval box and the promise of a new proof show why printing has not been authorized."
+        ],
+        [
+          "Make the interpretation narrower than the evidence",
+          "The poster passage supports a reading in which an omitted credit changes the approval process. It does not establish deliberate theft, a lifelong rivalry or healed trust. Name an alternative explanation when it matters. A plausible reader effect is an interpretation of the text, not a measured response from all readers or a claim about the author’s private intention."
+        ],
+        [
+          "Extract a mechanism with conditions and failure cases",
+          "One possible mechanism is that withholding a small, necessary cooperation makes an overlooked contribution consequential. It works here because approval is still needed and the disputed condition can still change. If the printing is already finished, or refusal has no practical effect, the same gesture will not do the same narrative work. A pause elsewhere may simply be hesitation; do not force every scene into this pattern."
+        ],
+        [
+          "Change the conflict, not just the names",
+          "Write a new exercise with a different desired outcome, relationship, cost and decision. Keep only the abstract mechanism you chose to practice. The garden example uses an openly stated availability limit and a smaller shared plan, not a hidden credit, a silent signature gesture and a replacement proof. This is a craft exercise, not a legal originality test or a shortcut to copying a passage’s wording."
+        ],
+        [
+          "Match the claim to the workflow’s actual coverage",
+          "The documented long-analysis workflow normally pauses after its opening analysis and produces 快速预览.md; an explicit full-analysis request continues after producing that preview. An opening sample cannot establish the whole novel’s pacing or ending. Short analysis saves its own report and supporting files. Read the stated scope and missing evidence instead of treating an output filename as proof that every conclusion is sound."
+        ],
+        [
+          "Carry selected lessons into a separate writing decision",
+          "Choose which lesson serves your own premise and say what must not transfer: names, plot facts, distinctive props, reveal order or another work’s voice. A practice note is not a completed Oh Story analysis bundle; do not relabel it as one. The documented short-writing flow can read the full analysis bundle, including source text, so do not assume only your abstracted lesson will be used. Set the new story’s boundaries explicitly; the [short-story planning guide](https://zenstory.ai/oh-story/short-story-from-idea) helps turn that decision into an independent plan."
+        ]
+      ],
+      "zh": [
+        [
+          "先选只拆文，不误走导入",
+          "只要分析时，完整短篇可用 /story-short-analyze，长篇可用 /story-long-analyze。/story-import 的目标不同，是建立可续写的写作工程。短篇拆文是完整分析管道，不是保证只读你最喜欢的一段就停的命令；下面的小练习应采用单独的普通聊天请求。"
+        ],
+        [
+          "先定位观察，再给手法命名",
+          "记录短引或准确转述，并标明段落、章节位置。随后写清前后状态：谁能行动、谁知道什么、什么条件仍未解决？“对白紧张”只是印象；未签的确认格与重出校样的承诺，才说明为什么印制还没得到确认。"
+        ],
+        [
+          "让解释不超出证据",
+          "海报片段支持“署名遗漏改变了确认流程”这一读法，却不能证明蓄意侵占、终身宿怨或信任已经修复。必要时列出另一种解释。可能的阅读效果是对文本的理解，不是对所有读者的实测，也不是作者真实意图的证据。"
+        ],
+        [
+          "提取机制时，一起写条件与失效情形",
+          "一种可选机制是：暂停一项虽小却必需的合作，让被忽略的贡献真正影响下一步。这里成立，是因为确认仍然必要，争议条件也还能修改。如果海报已经印好，或拒绝配合根本没有后果，同一个动作就不承担相同作用。别处的停顿也可能只是犹豫，不能把每场戏都塞进这一模式。"
+        ],
+        [
+          "换冲突，不只是换名字",
+          "新练习要有不同的目标、关系、代价与决定，只保留选中的抽象机制。菜园练习用公开说明的时间限制和缩小共同计划，替换署名缺失、无声挡住签字与重出校样。这是写作练习，不是法律上的原创判定，也不是沿用原段措辞的捷径。"
+        ],
+        [
+          "让结论范围跟随实际读到的材料",
+          "文档中的长篇拆文通常在开篇分析后停靠，产出 快速预览.md；如果一开始明确要求完整拆解，则保留预览后继续。开篇样本不能证明全书节奏或结尾。短篇拆文则保存自己的报告及配套文件。应看实际覆盖范围和缺失证据，不把“文件存在”当成所有结论可靠的证明。"
+        ],
+        [
+          "把选中的收获变成另一项创作决定",
+          "决定哪条收获适合自己的梗，并说明不迁移哪些东西：人名、情节事实、独特道具、揭示顺序或另一部作品的声音。练习笔记不是完整的 Oh Story 拆文产物，不要改个文件名就冒充。文档中的短篇写作会读取包括原文在内的整套拆文资料，不能假设它只使用你提炼的抽象方法；新故事边界仍须明确。[短篇规划指南](https://zenstory.ai/oh-story/short-story-from-idea)可以帮助把这个决定变成独立设计。"
+        ]
+      ]
+    },
+    "example": {
+      "en": "ORIGINAL PASSAGE AND READING EXERCISE — written for this guide; not a skill run or a quotation from another work.\n\nThe proof:\n[P1] At the poster workshop, Lu Qing handed Zhou Mian the final proof. “Once you sign off, I’ll place the order.”\n[P2] Zhou pulled a comparison copy from her notebook. Both their handwritten revisions covered it. At the bottom of the new proof, only Lu’s name appeared.\n[P3] “Another typo?” Lu asked. Zhou laid her pen across the approval box without signing.\n[P4] Lu looked from their revision marks to the credit line. After a pause, Lu changed the credit line to list both names side by side. “I’ll have a fresh proof made like this. You’ll see it before printing.”\n[P5] Zhou picked up her pen, wrote “Awaiting new proof” on the back, and left the approval box empty.\n\nEvidence → reading → limit:\n• P1 makes Zhou’s approval a stated condition of ordering. P3 and P5 show that approval has not been given. The passage ends with a proposed next step, not an order placed or a poster printed.\n• P2 juxtaposes both people’s revision marks with one printed name. Together with P3–P4, that supports reading the credit line as the immediate point of disagreement. It does not tell us who made the omission or whether it was deliberate. A layout oversight is one possible alternative to deliberate exclusion; the passage does not settle the cause.\n• P4 offers a visible repair; P5 reserves the final decision until a new proof exists. This can make conditional cooperation legible to a reader. “Zhou forgives years of exploitation” invents both the history and the forgiveness.\n\nWorking lesson: a small cooperation can matter when another action genuinely depends on it. Preserve the unmet condition long enough for the response to have a cost or a limit. This is one reading of this scene, not a rule that every ending must withhold approval.\n\nDifferent-situation exercise — a proposed new design, not facts inferred from the passage:\nA community garden wants to plant a second bed. Wen has covered three consecutive Sundays and cannot cover the next one. The proposed expansion assumes Wen will cover that next Sunday too, without anyone having asked. During the meeting, Wen says this directly; nobody discovers a missing name or silently blocks a signature. The group must find another volunteer or leave the second bed unplanted. Design a short scene in which they choose the smaller plan. Give another member a credible reason to want expansion and let Wen care about the garden without promising unavailable time.\nWhat transfers: a contribution previously treated as automatic becomes a real constraint on a shared goal.\nWhat changes: the conflict is future workload rather than credit; the limit is stated aloud; the result is a reduced plan rather than a replacement proof. Do not reuse the original dialogue or its sequence of props and gestures.\n\nOrdinary-chat request for this small exercise — no analysis skill invocation:\nRead only P1–P5 above. In chat, give three claims with paragraph evidence, one plausible alternative reading and two things the passage does not establish. Do not invent a full story or produce a complete analysis bundle. Then propose two ways to stage the garden decision without borrowing the poster scene’s wording or beat sequence. Mark these as new design choices. Do not write files, import a book, start a full-book workflow or draft prose. Stop after the options.\n\nFor an actual complete short-story analysis in an installed Claude Code workflow, use /story-short-analyze with [the authorized complete text path] and a distinct output location. That invokes the documented full pipeline, not the chat-only exercise. Request analysis only and no subsequent writing or import. Existing analysis under the same title has its own archive/resume/cancel decision; do not silently overwrite it.",
+      "zh": "原创片段与精读练习——为本指南撰写，不是技能运行记录，也不是引用他人作品。\n\n《校样》：\n[P1] 海报工作室里，卢青把最后一版样张递给周眠：“你确认后，我就下单。”\n[P2] 周眠从标注本里抽出对照稿，上面留着两人各自的修改笔迹。新样张底部，只有卢青一个人的署名。\n[P3] “正文还有错？”卢青问。周眠把笔横放在确认格上，没有签。\n[P4] 卢青从两人的修改笔迹看向署名栏，停了一会，把署名改为两人并列：“按这版重出样，印之前再让你看。”\n[P5] 周眠拿回笔，在背面写了“待看新样”，把确认格留空。\n\n证据 → 读法 → 边界：\n• P1 把周眠确认设为下单条件，P3 与 P5 显示她尚未确认。片段结束时只有下一步的提议，没有下单或印成海报。\n• P2 把两人的修改笔迹与单人署名并置，结合 P3–P4，可以把署名看作眼前争议点。但不知道是谁遗漏，也不能判定是否故意。排版疏漏是不同于故意排除的一种可能解释；片段并未确定原因。\n• P4 提出可见的修补办法，P5 将最终决定保留到新样张出现后。这能让读者看见有条件的合作。“周眠原谅了多年的剥削”则同时编造了前史与原谅。\n\n暂取的收获：当另一项行动确实依赖合作时，小小的配合也可以改变局面。让尚未满足的条件保持有效，对方的回应才会有代价或边界。这只是本场景的一种读法，不是要求每篇都以暂不确认作结。\n\n不同情境练习——以下是新的设计选项，不是从片段反推的事实：\n社区菜园想增种第二块地。温宁已经连续代班三个周日，下周无法再代班。大家提出扩种时，仍把温宁下周代班算作已有的人手，尚未问过她。会上，温宁直接说清这件事；没有人发现漏掉的署名，也没有人默默拦住签字。大家必须另找志愿者，或暂时不种第二块地。设计一场最终选择缩小计划的短戏：让另一位成员有可信的扩种理由，也让温宁在关心菜园的同时，不承诺自己拿不出的时间。\n迁移的是：原本被当成理所当然的投入，成为共同目标必须面对的实际限制。\n改变的是：争议从署名转为未来分工；限制直接说出；结算是缩小计划，而非更换校样。不沿用原对白或那串道具、动作顺序。\n\n适用于本小练习的普通聊天请求——不调用拆文技能：\n只读上面的 P1–P5。在聊天中给出三条带段落依据的判断、一种合理的替代读法，以及两件文本尚不能证明的事。不补全整篇故事，不生成完整拆文资料。再提出两种呈现菜园取舍的场景方案，不借用海报片段的措辞或情节节拍，并标成新的设计选择。不写文件、不导入书、不启动全书流程、不写正文。列出方案后停止。\n\n如果实际要在已安装的 Claude Code 环境中完整拆一篇短篇，可用 /story-short-analyze，提供 [有权使用的完整原文路径] 和独立输出位置。这会进入文档规定的完整管道，不是上面的聊天小练习。明确只做分析，不继续写作或导入。同名已有拆文还有归档、续跑或取消的选择，不应静默覆盖。"
+    },
+    "outputs": {
+      "en": [
+        "For the chat exercise: located observations, bounded interpretations and new design options. These are practice notes, not a manuscript, a full analysis report or an Oh Story output-contract substitute.",
+        "For the documented complete short workflow: 拆文库/{书名}/ contains 原文/, 拆文报告.md, 情节节点.md, 写作手法.md and _meta.json, unless an alternative output location was requested. These files have distinct roles; preserve the original material.",
+        "For the long workflow’s opening stop: 快速预览.md and opening-analysis material, with further stages still pending unless requested and completed. Analysis-only delivery is not a continuable project with new chapters and tracking."
+      ],
+      "zh": [
+        "聊天练习产出：可定位的观察、有边界的解释，以及新的设计选项。这些只是练习笔记，不是正文、完整拆文报告或 Oh Story 输出契约的替代品。",
+        "文档中的完整短篇管道产出：默认 拆文库/{书名}/ 下的 原文/、拆文报告.md、情节节点.md、写作手法.md 与 _meta.json；另行指定位置则使用该位置。文件各有职责，应保留原始材料。",
+        "长篇开篇停靠产出：快速预览.md 及开篇分析材料；后续阶段除非已被要求并完成，否则仍未完成。只做拆文，不等于建立了带后续章节与追踪的可续写工程。"
+      ]
+    },
+    "verification": {
+      "en": [
+        "Can another reader find the detail behind each important claim? Mark absent facts as not established instead of inferring them from genre expectations. Keep the original passage separate from your suggested improvements.",
+        "Does the new exercise have its own conflict, costs and outcome, or merely substitute names and objects? State a case where the selected mechanism would fail. If it does not serve your story, discard it rather than force the story to match.",
+        "Separate text coverage, file completion and literary judgment. An opening preview, structured report or automatic check cannot establish market popularity, universal reader response or that your new story will succeed."
+      ],
+      "zh": [
+        "另一位读者能否找到每个重要判断的依据？没有的事实写“尚不能确定”，不按题材预期补齐。原文与自己提出的改法应保持分开。",
+        "新练习有自己的冲突、代价与结果，还是只替换名字和道具？写出所选机制的一种失效情形。如果它不服务自己的故事，就放弃，不让故事倒过来适应它。",
+        "分开文本覆盖、文件完成与文学判断。开篇预览、结构化报告或自动检查，都不能证明市场热度、所有读者的反应或新作品必然成功。"
+      ]
+    },
+    "sources": {
+      "en": [
+        "[Analysis-only versus a continuable imported project](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-import/SKILL.md#L65-L72)",
+        "[Short-analysis input and archive/resume boundaries](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-short-analyze/SKILL.md#L23-L84)",
+        "[Short-analysis files and full-bundle downstream inputs](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-short-analyze/SKILL.md#L88-L106)",
+        "[Evidence, location, effect and unknown author intent](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-short-analyze/references/analysis-report-style.md#L3-L16)",
+        "[Transfer conditions and limits](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-short-analyze/references/material-decomposition.md#L76-L81)",
+        "[Opening preview and explicit full-analysis requests](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-analyze/SKILL.md#L139-L149)",
+        "[Source-traceable facts rather than plausible gap-filling](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-analyze/SKILL.md#L198-L202)"
+      ],
+      "zh": [
+        "[只做拆文与导入可续写工程的区别](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-import/SKILL.md#L65-L72)",
+        "[短篇拆文输入与归档续跑边界](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-short-analyze/SKILL.md#L23-L84)",
+        "[短篇拆文文件与下游读取整套资料](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-short-analyze/SKILL.md#L88-L106)",
+        "[证据、位置、作用与未知作者意图](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-short-analyze/references/analysis-report-style.md#L3-L16)",
+        "[可迁移条件与风险边界](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-short-analyze/references/material-decomposition.md#L76-L81)",
+        "[开篇预览与明确要求完整拆解](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-analyze/SKILL.md#L139-L149)",
+        "[硬事实回查原文，不按合理性补空](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-analyze/SKILL.md#L198-L202)"
       ]
     }
   }
