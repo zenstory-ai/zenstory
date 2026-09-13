@@ -138,12 +138,12 @@
     },
     "prerequisites": {
       "en": [
-        "A local checkout or installed skill directory containing `skills/video-assemble/scripts/export_jianying.py`, Python, and a completed `timeline.json` with accessible media references. The `/ABS/` paths below are placeholders to replace.",
+        "A local checkout or installed skill directory containing `skills/video-assemble/scripts/export_jianying.py`, Python, and a completed `timeline.json` with accessible media references. The `/ABS/` paths below are placeholders to replace. If you have not created a recap timeline yet, start with the [video-to-narration workflow](https://zenstory.ai/video-recap/video-to-narration).",
         "If starting before assembly, prepare the source video and `work_dir/tts_meta.json`. Local assembly needs ffmpeg; burned subtitles need its libass/subtitles filter. MiMo supplies remote ASR/VLM/default TTS; optional Fish Audio replaces TTS only.",
         "A JianYing or CapCut desktop installation in which you can test the exported folder. Export is an optional sidecar; it is not required to render a recap MP4."
       ],
       "zh": [
-        "本地仓库或已安装的 skill 目录中存在 `skills/video-assemble/scripts/export_jianying.py`，有 Python、已生成的 `timeline.json`，且其媒体引用可访问。下方 `/ABS/` 路径是需要替换的占位符。",
+        "本地仓库或已安装的 skill 目录中存在 `skills/video-assemble/scripts/export_jianying.py`，有 Python、已生成的 `timeline.json`，且其媒体引用可访问。下方 `/ABS/` 路径是需要替换的占位符。 如果还没有解说时间线，先从[视频解说完整流程](https://zenstory.ai/video-recap/video-to-narration)开始。",
         "若尚未合成，先准备源视频与 `work_dir/tts_meta.json`。本地合成需要 ffmpeg；烧录字幕需要 libass/subtitles filter。MiMo 提供远程 ASR/VLM/默认 TTS；可选 Fish Audio 只替换 TTS。",
         "能用于实际测试草稿的剪映或 CapCut 桌面安装。草稿是可选附加导出，不是渲染解说 MP4 的必要步骤。"
       ]
@@ -287,7 +287,7 @@
         ],
         [
           "Choose the entry by what you already have",
-          "Only an idea: use story-long-write to plan a long-form project, or story-short-write for a short story. Existing manuscript: follow the [import and continuation guide](https://zenstory.ai/oh-story/import-and-continue) before asking for chapter 21, rather than starting from an empty project. A draft needing editorial feedback: use story-review; a passage needing less formulaic wording: use story-deslop. Unsure which to pick? Ask the story router to choose. Oh Story specializes in Chinese web-fiction workflows; its rubrics are not universal standards for all fiction."
+          "Only an idea: use story-long-write to plan a long-form project, or story-short-write for a short story. Existing manuscript: follow the [import and continuation guide](https://zenstory.ai/oh-story/import-and-continue) before asking for chapter 21, rather than starting from an empty project. A draft needing editorial feedback: use story-review; a passage needing less formulaic wording: use story-deslop and the [annotated prose revision example](https://zenstory.ai/oh-story/revise-ai-prose). Unsure which to pick? Ask the story router to choose. Oh Story specializes in Chinese web-fiction workflows; its rubrics are not universal standards for all fiction."
         ],
         [
           "Install one matching route, then work in your book folder",
@@ -317,7 +317,7 @@
         ],
         [
           "按手头材料选择入口",
-          "只有点子：长篇用 story-long-write 规划，短篇用 story-short-write。已有小说：按[导入续写指南](https://zenstory.ai/oh-story/import-and-continue)重建项目，而不是在空目录里直接要求写第 21 章。已有正文想听编辑意见：用 story-review；只想改掉某段的套话和机械表达：用 story-deslop。不知道该选哪个，就让 story 路由判断。Oh Story 侧重中文网文流程，它的评审尺度不是所有小说的通用标准。"
+          "只有点子：长篇用 story-long-write 规划，短篇用 story-short-write。已有小说：按[导入续写指南](https://zenstory.ai/oh-story/import-and-continue)重建项目，而不是在空目录里直接要求写第 21 章。已有正文想听编辑意见：用 story-review；只想改掉某段的套话和机械表达：用 story-deslop，并参考[带修改理由的前后对照](https://zenstory.ai/oh-story/revise-ai-prose)。不知道该选哪个，就让 story 路由判断。Oh Story 侧重中文网文流程，它的评审尺度不是所有小说的通用标准。"
         ],
         [
           "选一种匹配的安装方式，在自己的书稿目录里工作",
@@ -776,6 +776,266 @@
         "[创作流程与独立的媒体制作决定](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama/references/creator-workflow.md#L44-L98)",
         "[先准备预览，再确认供应商执行](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-produce/SKILL.md#L37-L49)",
         "[分集地图产物与按需开发文档](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-develop/SKILL.md#L117-L131)"
+      ]
+    }
+  },
+  {
+    "owner": "oh-story",
+    "slug": "revise-ai-prose",
+    "checked_on": "2026-09-12",
+    "title": {
+      "en": "Revise formulaic AI prose without changing your story",
+      "zh": "AI 写的小说太套路？用具体改稿减少“AI 味”"
+    },
+    "answer": {
+      "en": "Treat “AI-sounding” prose as an editorial complaint to make specific: vague emotions, repeated sentence patterns, unearned commentary or dialogue that explains too much. Oh Story’s story-deslop combines pattern checks with bounded revision. The useful goal is a passage that serves its scene and keeps the author’s facts and voice—not an authorship verdict or a detector score. The original before/after example below shows one possible edit, not a recorded skill run.",
+      "zh": "把“AI 味重”拆成能修改的问题：情绪太空泛、句式反复、议论拔高，或对白解释过多。Oh Story 的 story-deslop 把模式检查与有边界的修订结合起来。目标是让段落完成场景任务，同时保留作者设定和声音，不是判断作者身份或追求检测分数。下面的原创前后对照展示一种改法，不是一次技能运行记录。"
+    },
+    "prerequisites": {
+      "en": [
+        "Choose a passage, chapter or explicit set of files. For a short trial, paste the excerpt; for file-based work, keep a backup first. The documented file mode edits the specified manuscript files in place rather than returning a full replacement novel in chat.",
+        "Write down facts, viewpoint, information boundaries and any deliberate verbal habits that must survive. If you only want diagnosis, say “detection only; do not edit files”. For setup and installation-route syntax, use the [writer’s skill guide](https://zenstory.ai/oh-story/agent-skills-for-writers)."
+      ],
+      "zh": [
+        "选定一个片段、一章或明确的一组文件。短片段可直接粘贴；处理文件前先备份。文档中的文件模式会直接修改指定正文文件，不是在聊天里另给一本完整替换稿。",
+        "写清必须保留的事实、视角、信息边界，以及有意安排的口头习惯。只想找问题时，明确说“只检测，不修改文件”。安装与命令路径参见[作者 Skill 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)。"
+      ]
+    },
+    "steps": {
+      "en": [
+        [
+          "Name the reading problem",
+          "Instead of “make it human”, say what fails here: the paragraph names an emotion without showing its cause; several sentences repeat the same rhythm; or the narrator explains a choice that the action already makes clear. A metaphor, repeated phrase or polished sentence is not automatically a mistake. Keep it when it does useful work for this narrator, character or scene."
+        ],
+        [
+          "Set the preservation boundary",
+          "Separate the scene’s facts from wording you are willing to change. In the example, the last ferry, broken radio, ticket, hand movement and decision to stay are approved facts. The reason for staying must remain unrevealed. A new childhood memory or secret promise would be a story change, not merely a smoother sentence."
+        ],
+        [
+          "Ask for diagnosis before choosing edits",
+          "Use a /story-deslop request with the scope and “detection only” when you want to inspect findings first. The scanner identifies specified patterns and reports locations; a hit is not proof of bad prose or AI authorship. Ask why a flagged phrase is redundant in its actual scene, and leave purposeful expressions for contextual judgment. If the draft is truncated or shows blocking degeneration, return to the drafting/recovery workflow rather than trying to hide missing text with polish."
+        ],
+        [
+          "Revise the smallest useful unit",
+          "Prefer a word or sentence change over rebuilding an unaffected paragraph. Turn explanatory narration into clearer wording, an already-established action or dialogue where the scene supports it. The workflow limits deletion by severity and does not allow dropping whole paragraphs or losing plot functions. Shorter is not automatically better, and adding sensory decoration is not a substitute for a scene decision."
+        ],
+        [
+          "Compare meaning as well as wording",
+          "Read the original and revision side by side. Did a prop move, a character learn a secret, a promise disappear or the narrator suddenly gain access to another mind? Keep the revision only after resolving such changes. The example’s improvement is specific: dialogue carries the warning and the existing hand movement carries the hesitation, while a generic claim about destiny is removed."
+        ],
+        [
+          "Stop polishing and use the right next workflow",
+          "The documented pass stops after two rounds with no new change to the same paragraph, with at most three full-text rounds. Do not keep rewriting to chase a percentage. If a chapter needs changed events or a different information reveal, use the chapter-revision route and its tracking transaction instead. If you are importing an old book first, start with [import and continuation](https://zenstory.ai/oh-story/import-and-continue)."
+        ]
+      ],
+      "zh": [
+        [
+          "先说清读起来哪里不对",
+          "不要只说“写得像人”，而要指出：这段只有情绪名称，没有造成情绪的原因；几句话节奏重复；或动作已经说明选择，旁白还在解释。比喻、重复、工整句子本身不是错误，只要它对当前叙述者、角色或场景有用，就可以保留。"
+        ],
+        [
+          "划定不能改的故事边界",
+          "把场景事实与可改措辞分开。以下示例中，末班渡船、坏收音机、船票、手部动作和留下的决定都是已确认事实；留下的原因必须暂不揭露。新增童年回忆或秘密承诺，是改故事，不只是改顺一句话。"
+        ],
+        [
+          "需要先看问题时，明确只检测",
+          "使用 /story-deslop 请求，并写明范围及“只检测”。扫描器定位指定模式；命中不等于文笔差，更不证明文本由 AI 创作。要求解释某处表达在当前场景里为什么冗余；有功能的写法留给语境判断，不机械删除。 如果草稿出现截断或阻断级退化，应回到写作、恢复流程处理，不用润色掩盖缺失内容。"
+        ],
+        [
+          "修改能解决问题的最小单位",
+          "能换一个词、改一句，就不重建无关段落。场景允许时，可把解释腔换成更清楚的措辞、原本已有的动作或对白。流程按强度限制删除，不允许整段丢弃或删掉剧情功能。更短不自动等于更好，堆感官描写也不能代替场景中的选择。"
+        ],
+        [
+          "前后对读，不只看句子顺不顺",
+          "检查改稿有没有移动道具、让角色提前知晓秘密、丢掉承诺，或突然读到了另一个人的内心。先解决这些变化，再接受修订。以下示例的修改理由很具体：用对白完成催促，用已有的手部动作承载犹豫，去掉没有增加信息的宏大议论。"
+        ],
+        [
+          "到达目标就停，别反复磨成另一篇",
+          "文档规定同段两轮无新改动即停，全文最多三轮。不要为了一个百分比继续重写。如果需要改变事件或信息揭示，就进入章节大修及追踪事务，而不是借润色悄悄改剧情。旧书还没变成项目时，先看[导入续写指南](https://zenstory.ai/oh-story/import-and-continue)。"
+        ]
+      ]
+    },
+    "example": {
+      "en": "ORIGINAL EDITORIAL EXAMPLE — a possible edit written for this guide, not a recorded story-deslop run.\nApproved facts: the last ferry sounds its horn; the radio remains dismantled; Chen Yu pushes a ticket to Lin Zhou and urges him to leave; the paper touches his hand; he withdraws it to hold the loose casing; Chen waits for his answer; he chooses to stay and tells her to go first. Do not reveal his reason.\n\nBefore:\nThe last ferry sounded its horn. Looking at the dismantled radio, Lin Zhou felt a surge of complicated emotions he could scarcely describe. Chen Yu pushed the ticket toward his hand and reminded him there was still time to leave. The paper touched him; he withdrew his hand and held the loose casing. He knew he stood at a crossroads in life. This was not merely a repair, but a defense of his deepest convictions. Finally, he chose to stay and told Chen Yu to go first.\n\nOne possible revision:\nThe last ferry sounded its horn. Chen Yu pushed the ticket toward Lin Zhou. “We can still make it.” He did not take it. His eyes stayed on the dismantled radio. The paper brushed his hand; he drew it back and held the loose casing instead. Chen Yu waited for an answer. Lin Zhou offered no reason for staying. “You go first.” The radio lay open on the table, the ticket still beside his hand.\n\nWhat changed:\n- The warning becomes direct dialogue; its meaning stays the same.\n- The existing hand movement replaces a vague emotion label.\n- The crossroads/convictions commentary is removed because it supplies no established reason in this scene.\n- Names, objects, decision and withheld motive remain. This is one restrained voice choice, not a universal rule against expressive narration.\n\nSuggested request for YOUR excerpt, after the skill is installed:\n/story-deslop\nDetection only. Identify specific wording problems in the passage below; do not edit any file.\nPreserve my fact list, viewpoint and intentional dialogue habits. Explain each suggested change in context.\n[Paste your approved facts and passage.]\n\nAfter reviewing the findings, request a bounded revision and a before/after explanation. For file mode, inspect the saved file and backup rather than expecting the whole chapter in chat.",
+      "zh": "原创改稿示例——为本指南写的一种方案，不是 story-deslop 运行记录。\n已确认事实：末班渡船鸣笛；收音机仍拆着；陈雨推来船票并催林舟离开；纸边碰到他的手；他收手按住松开的机壳；陈雨等他答复；他决定留下，让陈雨先走。暂不揭露留下的原因。\n\n改前：\n末班渡船的汽笛响了，林舟看着桌上拆开的收音机，内心涌起一股难以言喻的复杂情绪。陈雨把船票推到他手边，提醒他现在走还来得及。纸边碰到他的手，他收回手，按住松开的机壳。他知道，自己正站在人生的十字路口；这不仅仅是一次维修，更是对内心信念的坚守。最终，他决定留下，让陈雨先走。\n\n一种改法：\n末班渡船的汽笛响了。陈雨把船票推到林舟手边：“现在走，还来得及。”林舟没有拿票，仍看着拆开的收音机。纸边碰到他的手，他把手收回去，按住松开的机壳。陈雨还在等他的答复。林舟没有解释为什么要留下，只说：“你先走。”收音机仍拆在桌上，船票还搁在他的手边。\n\n为什么这样改：\n- 用直接对白完成催促，不改变这句话传达的意思。\n- 用原本就有的手部动作承载犹豫，替换空泛情绪标签。\n- “人生十字路口”“信念坚守”没有交付已成立的动机，在这里删掉。\n- 人名、物件、选择和未揭露的原因保留。这只是克制叙述的一种选择，不是禁止抒情旁白的通用规则。\n\n技能安装后，可这样请求处理自己的片段：\n/story-deslop\n只检测下面这段的具体措辞问题，不修改任何文件。\n保留我的事实卡、视角和有意安排的口头习惯，结合场景说明每项建议。\n[粘贴你已确认的事实和正文。]\n\n审阅建议后，再请求有范围的修订及前后说明。文件模式应检查已保存正文和备份，不必期待聊天里返回整章。"
+    },
+    "outputs": {
+      "en": [
+        "Detection-only work should give located findings and reasons without changing the manuscript. A zero-pattern result is not a certificate of authorship or literary quality.",
+        "A requested revision in file mode is saved to the specified text files. The documented report includes change statistics and before/after information; it returns only a short representative excerpt rather than the complete file text.",
+        "For a change to events, timeline or reader knowledge, use the chapter-revision transaction to update tracking authority and derived views. Do not manually patch separate tracking files to make them appear consistent."
+      ],
+      "zh": [
+        "只检测时，应获得问题位置与理由，正文不应被修改。“没有命中模式”不是作者身份或文学质量证明。",
+        "文件模式中，已请求的修订写回指定正文文件。文档要求报告修改统计与前后信息；聊天只回传简短代表片段，不回传文件全文。",
+        "改动涉及事件、时间线或读者认知时，通过章节修订事务更新追踪权威与派生视图，不要分别手补追踪文件来凑一致。"
+      ]
+    },
+    "verification": {
+      "en": [
+        "Ask whether the scene is clearer while the author’s facts, voice and pacing still hold. A recurring phrase may be intentional; pattern counts do not overrule that judgment.",
+        "External AI detectors cannot be promised a score by this workflow. This guide concerns prose revision, not hiding provenance or establishing a “human-written” percentage."
+      ],
+      "zh": [
+        "判断场景是否更清楚，同时作者的事实、声音和节奏是否还在。重复表达可能有意为之，模式数量不能替代这种判断。",
+        "此流程不承诺外部 AI 检测分数。本指南谈正文修订，不以隐藏来源或建立“真人写作比例”为目标。"
+      ]
+    },
+    "sources": {
+      "en": [
+        "[Minimal edits, preserved facts and detector limits](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-deslop/SKILL.md#L21-L49)",
+        "[Located findings and file-mode scanning](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-deslop/SKILL.md#L86-L125)",
+        "[Post-edit pattern and degeneration checks](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-deslop/SKILL.md#L182-L197)",
+        "[Reports, direct file edits, stopping and detection-only mode](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-deslop/SKILL.md#L203-L252)",
+        "[Chapter revisions that change story or reader knowledge](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-revision.md#L58-L75)"
+      ],
+      "zh": [
+        "[最小修改、事实保留与检测器边界](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-deslop/SKILL.md#L21-L49)",
+        "[问题定位与文件模式扫描](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-deslop/SKILL.md#L86-L125)",
+        "[修改后的模式与退化检查](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-deslop/SKILL.md#L182-L197)",
+        "[报告、直接落盘、停手条件与只检测模式](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-deslop/SKILL.md#L203-L252)",
+        "[改变故事事实或读者认知的章节修订](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-revision.md#L58-L75)"
+      ]
+    }
+  },
+  {
+    "owner": "video-recap",
+    "slug": "video-to-narration",
+    "checked_on": "2026-09-12",
+    "title": {
+      "en": "Turn a local video into a source-grounded Chinese narration recap",
+      "zh": "怎样把本地视频做成有画面与原声依据的中文解说"
+    },
+    "answer": {
+      "en": "Video Recap Skills separates a Chinese-narration recap into understanding, editorial planning, narration, voiceover and assembly. Starting from an authorized local video, it builds a scene/speech/frame evidence index, chooses a viewer promise and POV, and writes only claims that evidence or supplied context supports. It can deliver a rendered MP4 or an editable draft—not merely a summary over footage.",
+      "zh": "Video Recap Skills 把中文视频解说拆成理解、编导、写稿、配音与合成。先从你有权使用的本地视频提取场景、对白和画面证据，再确定一条观众承诺与主视角，只写素材或已提供背景能够支持的内容。最终可交付解说 MP4，也可另导出可编辑草稿，而不是给原片随意铺一层摘要。"
+    },
+    "prerequisites": {
+      "en": [
+        "Install Video Recap Skills in a supported agent host using the current route on the [project page](https://zenstory.ai/video-recap), then open the authorized video’s workspace. In manual commands, /ABS/video-recap-skills means the installed checkout’s absolute path—not a system path.",
+        "A local .mp4, .mov, .mkv or .webm that you own or may process, plus Python 3.10+, ffmpeg on PATH and space for frames, WAV files and renders. Burned subtitles require ffmpeg’s libass/subtitles filter.",
+        "A Xiaomi MiMo API key for remote ASR, VLM and default TTS. Fish Audio can replace TTS only and needs another key; ASR/VLM still use MiMo. This is not fully offline. Check provider privacy, region and billing terms before sending authorized material."
+      ],
+      "zh": [
+        "先在受支持的 Agent 宿主中安装并配置 Video Recap Skills；按[项目页](https://zenstory.ai/video-recap)选择当前宿主的安装方式，再用该宿主打开获准视频所在工作区。下文手工命令中的 /ABS/video-recap-skills，指已安装 skill 仓库的绝对路径，不是系统自带目录。",
+        "一个你拥有或获准处理的本地 .mp4、.mov、.mkv 或 .webm，以及 Python 3.10+、PATH 中的 ffmpeg 和足够的中间文件空间。烧录字幕需要 ffmpeg 的 libass/subtitles filter。",
+        "远程 ASR、VLM 与默认 TTS 需要 Xiaomi MiMo API key。Fish Audio 只能替换 TTS，并需要独立 key；ASR/VLM 仍用 MiMo。这不是全离线流程，发送获准素材前应查看服务商当前的隐私、地区与计费条款。"
+      ]
+    },
+    "steps": {
+      "en": [
+        [
+          "Choose the edit shape",
+          "Primary route: invoke the installed video-recap skill in its configured host (for hosts exposing that slash name, /video-recap) with a natural-language brief. Use full to retain the source timeline; use cut for a shorter story rendered before narration. State audience, duration, context, subtitles and material that must survive."
+        ],
+        [
+          "Build an evidence index",
+          "Understanding detects scenes, extracts frames, transcribes speech, finds quiet windows and writes timeline_fusion.json plus agent_narration_brief.md. It observes rather than invents: facts and inference remain separate. Script-first entry: python3 /ABS/video-recap-skills/skills/video-understanding/scripts/understand.py /ABS/input.mp4 --work-dir /ABS/work."
+        ],
+        [
+          "Choose an angle before writing",
+          "Read the brief, contact sheet, frame facts and ASR. Decide the viewer promise, POV, dramatic question, emotional endpoint and delayed information. For a new recap, compare viable story shapes; for a directed request, honor that direction. Record the spine and change-based beats in recap_story_plan.json."
+        ],
+        [
+          "Assign picture, original sound and narration",
+          "In visual_audio_board.json, give every beat a picture task, preferred reaction, in/out reason, original-audio anchor and audio owner. Strong dialogue, action sound or silence may carry a beat alone. In cut mode, create clip_plan.json first; after edited_source.mp4 exists, recheck its storyboard and write on output time."
+        ],
+        [
+          "Write source-grounded Chinese narration",
+          "A narration.json block needs a job: context, causal link, foreshadowing, interpretation or transition. Do not restate visible action. Names, motives, relationships and outcomes must trace to visual evidence, ASR, reliable research or user context; never disguise background knowledge as an on-screen fact. Write complete spoken thoughts and preserve dialogue boundaries."
+        ],
+        [
+          "Review, voice and assemble",
+          "Ask whether every beat changes knowledge, power, goal, relationship, emotion or risk, and whether any claim lacks support. To review before TTS, take the stage route: after video-understanding, invoke video-script, inspect its plans/narration, then run python3 /ABS/video-recap-skills/skills/video-script/scripts/validate.py --work-dir /ABS/work --mode full. Only then run voiceover.py and assemble.py from their skill directories. Cut validation uses the orchestrator’s output-timeline mode."
+        ],
+        [
+          "Resume from real artifacts",
+          "The installed skill normally handles internal handoffs. For script-level cut control, start with python3 /ABS/video-recap-skills/skills/video-recap/scripts/recap.py /ABS/input.mp4 --work-dir /ABS/work --edit-mode cut --target-duration 6m. It exits after analysis for an agent/script handoff, not default human approval. After the required clip plan or narration exists, rerun that exact command; the manifest rejects mismatched source/settings. If you chose stage review, wait before rerunning. After timeline.json exists, use the [draft export guide](https://zenstory.ai/video-recap/capcut-draft)."
+        ]
+      ],
+      "zh": [
+        [
+          "先选成片形态",
+          "主入口是在已配置宿主中调用安装好的 video-recap skill（宿主若暴露该 slash 名，则用 /video-recap），再提交自然语言简报。原片时间线保持完整、只在合适位置加旁白用 full；长素材要收成短故事用 cut，它先剪片，再按剪后时间轴写稿。说明受众、时长、背景、字幕和必须保留的素材。"
+        ],
+        [
+          "建立视听证据索引",
+          "理解阶段检测场景、抽取代表帧、转写对白、寻找静音窗，并融合为 timeline_fusion.json 与 agent_narration_brief.md。它负责观察，不负责编故事：事实与推断分开，证据不足就保留不确定。脚本优先入口：python3 /ABS/video-recap-skills/skills/video-understanding/scripts/understand.py /ABS/input.mp4 --work-dir /ABS/work。"
+        ],
+        [
+          "先定角度，再写开场",
+          "阅读 brief、contact sheet、frame facts 与 ASR，确定观众承诺、POV、戏剧问题、情绪终点和暂缓揭示的信息。首次创作比较可成立的故事结构；用户已给方向时忠实落实。把选定主线和“发生了什么变化”的 beats 写进 recap_story_plan.json。"
+        ],
+        [
+          "分配画面、原声与旁白",
+          "在 visual_audio_board.json 中为每个 beat 记录画面任务、关键反应或表演、入出点理由、原声锚点和 audio_owner。强对白、动作声或沉默可以独占一拍，不必强铺旁白。cut 模式先写 clip_plan.json；edited_source.mp4 生成后，再看剪后故事板并按输出时间写稿。"
+        ],
+        [
+          "写有证据的中文解说",
+          "只有一段旁白承担 context、causal_link、foreshadow、interpretation 或 transition 时才写。画面已经说清楚的事不要复述。人物名、动机、关系和结果必须来自画面、ASR、可靠背景或用户上下文，不能把背景资料伪装成当前镜头事实。每段写成可连续朗读的完整意思，并保住原声句界。"
+        ],
+        [
+          "短审文案，再配音合成",
+          "复核每个 beat 是否改变认知、权力、目标、关系、情绪或风险，只听声音能否懂主线，以及有没有无依据断言。想在 TTS 前人工审阅，就走阶段入口：video-understanding 后调用 video-script，检查计划与旁白，再执行 python3 /ABS/video-recap-skills/skills/video-script/scripts/validate.py --work-dir /ABS/work --mode full；通过后才运行各 skill 目录中的 voiceover.py 与 assemble.py。cut 的输出时间轴校验由编排器选择对应模式。"
+        ],
+        [
+          "从真实产物继续",
+          "通常由已安装 skill 处理内部交接。若要用脚本明确控制 cut 流程，先执行 python3 /ABS/video-recap-skills/skills/video-recap/scripts/recap.py /ABS/input.mp4 --work-dir /ABS/work --edit-mode cut --target-duration 6m。它在分析后退出，把产物交给 Agent/写稿阶段；这不表示默认流程会请求人工批准。所需 clip plan 或 narration 写好后原样重跑该命令，manifest 会拒绝不匹配的源视频或设置。若选择了阶段审阅，就先保持停止。已有 timeline.json 后再看[草稿导出指南](https://zenstory.ai/video-recap/capcut-draft)。"
+        ]
+      ]
+    },
+    "example": {
+      "en": "For a host exposing this slash name (otherwise select video-recap), this is an original suggested brief—not recorded output, a benchmark or an executed provider run. Its path and timestamps are illustrative placeholders:\n\n/video-recap\nCreate a six-minute Chinese recap from /ABS/interview.mov in cut mode. I may use it. Show how the guest’s launch claim changes after the failed demonstration. Follow the guest’s POV until failure, then the engineer’s reaction. Preserve the full 18:40–19:05 exchange without narration. Use visible action, transcribed speech and my context; mark uncertain identities. Build the evidence and story/audio plan before concise spoken Chinese. Burn subtitles and retain timeline.json for draft export.",
+      "zh": "若宿主把已安装 skill 暴露为这个 slash 名（否则在宿主中选择或点名 video-recap），下面是原创建议简报，不是已记录输出、基准结果或执行过的服务商调用。路径与时间戳只是示意占位，不是来自真实文件的证据：\n\n/video-recap\n把 /ABS/interview.mov 用 cut 模式做成约六分钟中文解说。我已获准使用录像。让观众看清嘉宾自信的发布承诺怎样在演示失败后变化。失败前跟随嘉宾视角，之后转向工程师反应。完整保留 18:40–19:05 原声，不铺旁白。只使用可见动作、转写对白和我的背景；身份不确定就标明。先建立证据索引与故事/声音方案，再写简洁口语。成片烧录字幕，并保留 timeline.json 以便之后导出草稿。"
+    },
+    "outputs": {
+      "en": [
+        "Understanding: scenes.json, asr_result.json, vlm_analysis.json, silence_periods.json, timeline_fusion.json and agent_narration_brief.md.",
+        "Editorial: recap_story_plan.json, visual_audio_board.json, optional style_card.json, narration.json and, for cut, clip_plan.json plus edited_source.mp4.",
+        "Delivery: TTS WAV/metadata, recap_<name>.mp4, subtitles.srt/.ass and timeline.json; editable-draft export is separate."
+      ],
+      "zh": [
+        "理解产物：scenes.json、asr_result.json、vlm_analysis.json、silence_periods.json、timeline_fusion.json 与 agent_narration_brief.md。",
+        "编导交接：recap_story_plan.json、visual_audio_board.json、可选 style_card.json、narration.json；cut 模式另有 clip_plan.json 与 edited_source.mp4。",
+        "交付产物：TTS WAV 分段与元数据、recap_<name>.mp4、subtitles.srt/.ass 和 timeline.json；可编辑草稿是独立的可选导出。"
+      ]
+    },
+    "verification": {
+      "en": [
+        "Before TTS, spot-check names, actions, quoted speech and causal claims against frames/ASR; read narration aloud for complete thoughts and usable pauses.",
+        "Before delivery, watch the actual final file once, listen once without looking, and inspect joins around preserved dialogue. Reports locate candidates; they do not replace playback."
+      ],
+      "zh": [
+        "配音前抽查人名、动作、引用对白和因果是否能对回画面与 ASR，并朗读一遍旁白，确认意思完整、停顿可说。",
+        "交付前以正常速度完整看一次实际成片，再只听声音一次，并检查保留原声前后的接点。自动报告只能定位候选问题，不能替代播放。"
+      ]
+    },
+    "sources": {
+      "en": [
+        "[Runtime prerequisites and remote MiMo configuration](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/README.en.md#L53-L70)",
+        "[Claude Code and Codex plugin installation routes](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/README.en.md#L82-L106)",
+        "[Environment check, natural-language entry and cut-mode handoff](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/README.en.md#L133-L161)",
+        "[End-to-end stages, creative modes and plan artifacts](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-recap/SKILL.md#L10-L45)",
+        "[Remote providers, first analysis command and script handoff](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-recap/SKILL.md#L47-L98)",
+        "[Resume command, output generation and final viewing](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-recap/SKILL.md#L117-L157)",
+        "[Understanding stages, command and evidence artifacts](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-understanding/SKILL.md#L11-L63)",
+        "[Evidence inputs, creative direction and audio ownership](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-script/SKILL.md#L35-L103)",
+        "[Narration schema, grounding rules and short creative review](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-script/SKILL.md#L130-L200)",
+        "[Voiceover inputs, provider choice, outputs and cache behavior](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-voiceover/SKILL.md#L12-L70)",
+        "[Assembly inputs, command and final timeline outputs](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-assemble/SKILL.md#L33-L58)"
+      ],
+      "zh": [
+        "[运行环境前提与远程 MiMo 配置](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/README.en.md#L53-L70)",
+        "[Claude Code 与 Codex 插件安装路径](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/README.en.md#L82-L106)",
+        "[环境检查、自然语言入口与 cut 模式交接](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/README.en.md#L133-L161)",
+        "[端到端阶段、创作模式与计划产物](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-recap/SKILL.md#L10-L45)",
+        "[远程服务、首次分析命令与写稿交接](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-recap/SKILL.md#L47-L98)",
+        "[续跑命令、成片输出与最终观看](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-recap/SKILL.md#L117-L157)",
+        "[理解阶段、运行命令与证据产物](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-understanding/SKILL.md#L11-L63)",
+        "[证据输入、创作方向与声音所有权](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-script/SKILL.md#L35-L103)",
+        "[旁白结构、事实依据与简短创作复核](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-script/SKILL.md#L130-L200)",
+        "[配音输入、服务选择、产物与缓存行为](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-voiceover/SKILL.md#L12-L70)",
+        "[合成输入、命令与最终时间轴产物](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-assemble/SKILL.md#L33-L58)"
       ]
     }
   }

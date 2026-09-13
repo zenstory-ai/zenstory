@@ -26,7 +26,7 @@
         ["拆文 · deconstruction", "Analyse structure, characters and style, using an opening sample for long-form work; a creator-requested full analysis continues after writing the preview."],
         ["How can I reduce character drift across many chapters?", "Before each chapter, the workflow checks the last committed chapter, reads its blueprint and relevant character files, and selects current character state, active foreshadowing and next-chapter promises from the derived context. `追踪/_tracking-state.json` is the structured authority; derived views are not a second source of truth. Keep facts outside the chat and review the next chapter against them. These mechanisms make continuity inspectable; they do not prove error-free performance over 100 chapters."],
         ["What if a chapter contradicts an established fact?", "Identify the conflicting passage and the intended fact, then request `/story-long-write 修改第N章` with that evidence. If the revision changes continuity facts, the documented workflow requires a same-chapter revision transaction through `tracking_commit.py`; do not hand-edit the derived context or snapshots. Review the corrected prose and state before continuing. Structural checks do not replace the author’s judgment about characterization, voice or literary quality."],
-        ["去AI味 · de-slop editing", "Use deterministic pattern scans to guide bounded rewriting; the checks do not establish authorship or guarantee AI-detector scores."],
+        ["How can I revise formulaic prose without changing the story?", "Name the wording problem, preserve the scene facts and revise only the necessary passages. A pattern hit is a prompt for contextual judgment, not proof of AI authorship. The [original before/after example](https://zenstory.ai/oh-story/revise-ai-prose) explains why particular edits help and which facts stay unchanged."],
         ["Covers", "Prepare genre-aware cover guidance and use an available image-generation tool when configured."]
       ],
       "zh": [
@@ -36,7 +36,7 @@
         ["拆文", "分析结构、角色与文风，长篇先做开篇样本；作者已要求完整拆解时，写出预览后继续执行。"],
         ["长篇续写怎样减少人设和情节漂移？", "每章写前，流程检查最后已提交章节，读取本章细纲及相关角色文件，并从派生上下文筛选当前角色状态、活跃伏笔和下一章承诺。`追踪/_tracking-state.json` 是结构化权威，派生视图不是第二套事实源。把故事事实留在项目文件里，再用它们核对下一章，而非只依赖长聊天记忆。这些机制让连续性可检查，不代表已证明连续 100 章都不会出错。"],
         ["发现某一章与既有设定冲突怎么办？", "先指出冲突段落和希望保留的事实，再带着依据请求 `/story-long-write 修改第N章`。修订若改变连续性事实，文档规定通过 `tracking_commit.py` 提交同章修订事务，不要手改派生上下文或角色快照。继续写之前核对改后的正文与状态。结构检查不能代替作者对人设、文风和文学质量的判断。"],
-        ["去AI味", "用确定性模式扫描辅助有边界的改写；检查不判定作者身份，也不保证 AI 检测分数。"],
+        ["怎么改掉正文的套话和解释腔？", "先说清措辞问题，保留场景事实，只改有必要的段落。模式命中需要结合语境判断，不证明文本由 AI 创作。[原创改稿前后对照](https://zenstory.ai/oh-story/revise-ai-prose)说明每项修改的理由，以及哪些事实没有改变。"],
         ["封面", "准备题材相关的封面指引，并在配置可用生图工具时调用。"]
       ]
     },
@@ -248,6 +248,7 @@
     },
     "method": {
       "en": [
+        ["How do I turn a local video into a Chinese recap?", "Build a scene/dialogue evidence index, choose the audience promise, divide the work between pictures, original audio and narration, then voice and assemble the grounded script. The [complete workflow guide](https://zenstory.ai/video-recap/video-to-narration) explains full/cut choices, stage handoffs and expected files before optional draft export."],
         ["Understand", "Scene detection + ASR + VLM; optional background research so the model knows who is who."],
         ["Script", "Director, editor and narrator passes write the recap script against the timeline."],
         ["Voice", "Text-to-speech narration."],
@@ -255,6 +256,7 @@
         ["Export", "CapCut draft for manual finishing."]
       ],
       "zh": [
+        ["怎样把本地视频做成中文解说？", "先建立场景与对白证据索引，再确定观众承诺，分配画面、原声与旁白的职责，之后为有依据的文案配音、合成。[完整流程指南](https://zenstory.ai/video-recap/video-to-narration)说明 full/cut 选择、阶段交接和预期文件，再按需导出草稿。"],
         ["理解", "场景检测 + ASR + VLM；可选背景调研，让模型认得人物。"],
         ["写稿", "导演 / 剪辑 / 解说三道稿子对着时间线写。"],
         ["配音", "文本转语音。"],
@@ -281,12 +283,14 @@
     "sources": {
       "checked_on": "2026-09-12",
       "en": [
+        "[Creative planning and stage handoffs](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-recap/SKILL.md#L10-L45)",
         "[Five stages plus the orchestrator](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L10-L19)",
         "[MiMo and optional Fish Audio dependencies](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L47-L69)",
         "[Understanding-stage prerequisites and API-key boundaries](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-understanding/SKILL.md#L20-L42)",
         "[Playback review and advisory automated checks](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L149-L157)"
       ],
       "zh": [
+        "[编导规划与阶段交接](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-recap/SKILL.md#L10-L45)",
         "[五个阶段技能与编排器](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L10-L19)",
         "[MiMo 与可选 Fish Audio 依赖](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L47-L69)",
         "[视频理解阶段的依赖与 API key 边界](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-understanding/SKILL.md#L20-L42)",
