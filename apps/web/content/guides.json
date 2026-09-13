@@ -85,12 +85,14 @@
       "en": [
         "Scope: `PRODUCT_BRIEF.md`; source evidence: `analysis/SOURCE_BIBLE.md`; selected concept: `concepts/CONCEPT.md`.",
         "Design: `design/GAME_DESIGN.md` and `design/ART_DIRECTION.md`; build instructions: `build/BUILD_BRIEF.md`; candidate: `build/app/`.",
-        "Runtime record: `qa/verification.json` plus its referenced evidence; progress and next handoff: `_progress.md`."
+        "Runtime record: `qa/verification.json` plus its referenced evidence; progress and next handoff: `_progress.md`.",
+        "Before expanding branches, use the [meaningful-choice example](https://zenstory.ai/novel-to-game/meaningful-choices) to turn one scene into actions, lasting state and distinct endings."
       ],
       "zh": [
         "范围：`PRODUCT_BRIEF.md`；原文证据：`analysis/SOURCE_BIBLE.md`；选定概念：`concepts/CONCEPT.md`。",
         "设计：`design/GAME_DESIGN.md` 与 `design/ART_DIRECTION.md`；构建说明：`build/BUILD_BRIEF.md`；候选产物：`build/app/`。",
-        "运行记录：`qa/verification.json` 及其引用的证据；进度与下一交接：`_progress.md`。"
+        "运行记录：`qa/verification.json` 及其引用的证据；进度与下一交接：`_progress.md`。",
+        "扩展分支前，可参照[有后果的选择示例](https://zenstory.ai/novel-to-game/meaningful-choices)，把一个场景拆成行动、持久状态与不同结局。"
       ]
     },
     "verification": {
@@ -1036,6 +1038,137 @@
         "[旁白结构、事实依据与简短创作复核](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-script/SKILL.md#L130-L200)",
         "[配音输入、服务选择、产物与缓存行为](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-voiceover/SKILL.md#L12-L70)",
         "[合成输入、命令与最终时间轴产物](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-assemble/SKILL.md#L33-L58)"
+      ]
+    }
+  },
+  {
+    "owner": "novel-to-game",
+    "slug": "meaningful-choices",
+    "checked_on": "2026-09-12",
+    "title": {
+      "en": "Turn a novel scene into meaningful choices and different endings",
+      "zh": "小说改互动文游：怎样让选择真正改变剧情和结局"
+    },
+    "answer": {
+      "en": "Start with what the player can change, not a button for every paragraph. Preserve the source facts, give each choice a cost and a visible consequence, and carry its state into later scenes. This guide turns one original ferry scene into two decision points and three outcomes before handing the design to Novel to Game. These are authored design notes, not a generated game or proof that a build works.",
+      "zh": "先确定玩家能改变什么，不要给每段小说机械加上按钮。守住原文事实，让每次选择都有代价与可见后果，并把结果带到后续场景。本指南用一个原创渡口场景，演示两个选择点、三个结果怎样交给 Novel to Game 继续设计；示例是作者设计稿，不是已生成或已运行的游戏。"
+    },
+    "prerequisites": {
+      "en": [
+        "Use a scene you wrote or are authorized to adapt. Separate source facts, author-approved additions and unresolved questions; a character must not act on information they have not learned.",
+        "Choose a small narrative-led experience: one player role, a concrete objective, a few locations and an ending condition. More branches are not automatically more agency.",
+        "For host setup and the complete pipeline, use the [Novel-to-game quick start](https://zenstory.ai/novel-to-game/quick-start). This page focuses on adaptation decisions, not another installation walkthrough."
+      ],
+      "zh": [
+        "使用你创作或获准改编的场景。区分原文事实、作者批准的新增设定与待定问题；角色不能使用尚未获知的信息。",
+        "先限定一个叙事主导的小体验：一个玩家身份、明确目标、少量地点与结束条件。分支数量多不等于玩家更有决定权。",
+        "宿主配置与完整流程见[小说改游戏入门](https://zenstory.ai/novel-to-game/quick-start)。这一页只解决改编设计问题，不重复安装教程。"
+      ]
+    },
+    "steps": {
+      "en": [
+        [
+          "Find the decision hidden in the prose",
+          "Write the player’s goal, what blocks it, and what they can actually do. In the ferry example the goal is to leave tonight; the obstacle is an unreadable ticket stamp. Asking someone, fetching a document and accepting a recorded exception are actions; “feel anxious” alone is not."
+        ],
+        [
+          "Protect the source before adding routes",
+          "Put cited facts and uncertainties in `analysis/SOURCE_BIBLE.md`. Mark the ferry’s witness-and-register exception as an author-approved rule rather than pretending it was found in the novel. Record narrative-led scope and limits in `PRODUCT_BRIEF.md`; let `game-concept` resolve the concept before expanding it."
+        ],
+        [
+          "Give each option a trade-off the player can understand",
+          "Fetching an official duplicate is dependable but misses tonight’s boat. Finding a witness preserves the chance of boarding but requires a named exception. Explain these stakes before the commitment. Avoid differently worded buttons that immediately produce the same information and state."
+        ],
+        [
+          "Describe conditions and effects in plain language",
+          "For every choice record: what the player knows, when the option is allowed, what changes, and what the player sees. `proof`, `on_time` and `exception_consent` below are design labels, not built-in Novel to Game APIs. A generic affinity meter is unnecessary unless relationships actually change decisions."
+        ],
+        [
+          "Rejoin locations, not erased histories",
+          "Both routes can return to the same dock and reuse its art. Keep the evidence and missed-departure state: the duplicate route offers a morning reservation; the witness route offers a recorded exception or staying behind. A later scene must read these differences instead of silently resetting them."
+        ],
+        [
+          "Hand over the causal design before expanding production",
+          "Ask `game-world-design` to put the state transitions, ending conditions, narrative beats and smallest playable slice in `design/GAME_DESIGN.md`. Request a design-only handoff explicitly; the main `novel-to-game quick` mode otherwise continues the pipeline. Plain-language input, if used, should map to permitted actions rather than letting a persuasive sentence invent evidence or grant a ticket."
+        ]
+      ],
+      "zh": [
+        [
+          "从正文里找出真正的决定",
+          "写出玩家目标、阻碍，以及玩家实际能做的动作。渡口示例的目标是今晚离开，阻碍是船票印章模糊。询问证人、补办凭证、接受登记例外是动作；“感到焦虑”本身不是。"
+        ],
+        [
+          "先保护原文，再增加分支",
+          "将有引用的事实与疑点写入 `analysis/SOURCE_BIBLE.md`。渡口的“证人加登记”例外要标成作者批准的新增规则，不能假装小说已经写过。在 `PRODUCT_BRIEF.md` 限定叙事主导的范围和边界，先由 `game-concept` 明确概念，再扩展分支。"
+        ],
+        [
+          "让每个选项都有玩家看得懂的取舍",
+          "回售票处补办正式凭证稳妥，却会错过今晚的船；寻找证人保留登船机会，但要实名登记为例外。提交选择前说明代价，不要只换按钮措辞，转头又给出完全相同的信息和状态。"
+        ],
+        [
+          "用普通话说明条件和后果",
+          "逐项写清：玩家已经知道什么、何时能选、选后改变什么、画面或人物如何反馈。下面的 `proof`、`on_time`、`exception_consent` 只是设计记号，不是 Novel to Game 内置 API。关系不影响选择时，不必硬加好感度条。"
+        ],
+        [
+          "可以回到同一地点，不能抹掉经历",
+          "两条路线都能回到渡口并复用背景，但保留凭证类型与是否错过船的状态：补票路线只能预约明早；证人路线可接受实名例外或留在岸上。后续场景必须读取这些差异，而不是悄悄重置。"
+        ],
+        [
+          "先交清因果设计，再扩展制作",
+          "要求 `game-world-design` 在 `design/GAME_DESIGN.md` 写清状态变化、结局条件、叙事节拍和最小可玩切片。只要设计交接时须明确要求；总入口 `novel-to-game quick` 默认会继续整个流程。若使用自然语言输入，也应映射到允许的动作，不能靠一句“说服他”凭空造出证据或船票。"
+        ]
+      ]
+    },
+    "example": {
+      "en": "Original editorial example — The Last Ferry (not tool output)\n\nProse seed:\nThe last ferry sounded its warning. Rain had blurred the stamp on Qiao Ning’s\nticket. The keeper laid it beside the register instead of tearing it in half.\n“The ticket office can issue a duplicate,” he said. “But not before we leave.”\n\nApproved facts: Qiao Ning bought a ticket; its stamp is now unreadable.\nShe wants to cross tonight. The keeper cannot accept the blurred stamp alone.\nApproved adaptation addition: a purchase witness plus Qiao Ning’s consent to\nenter her name in the exception register permits boarding before departure.\nThe witness route is feasible tonight; a trip to the office misses the ferry.\nNo invented bribe, forged ticket, secret relative or magical shortcut.\n\nDesign notes, not executable syntax:\nInitial state: proof=none; on_time=true; exception_consent=false; ending=none.\n\nDecision 1 — choose how to establish the purchase:\nA. Fetch an official duplicate; the boat will leave before you return.\n   Effect: proof=duplicate; on_time=false.\n   Visible feedback: the dock is empty; the keeper offers the morning crossing.\n   Outcome A: a confirmed morning place, not a successful departure tonight.\nB. Ask the passenger who witnessed your purchase to speak to the keeper.\n   Effect: proof=witness; on_time=true. A witness statement enters the register.\n   Visible feedback: the keeper explains the named-exception requirement.\n   Continue to Decision 2.\n\nDecision 2 — available only with a witness and before departure:\nA. Consent to the named exception.\n   Effect: exception_consent=true; ending=departed_with_record.\n   Outcome B: board tonight; the next scene retains the exception record.\nB. Decline the registration.\n   Effect: exception_consent=false; ending=stayed_ashore.\n   Outcome C: remain ashore; do not silently board in the following scene.\n\nTerminal rule: the duplicate route sets ending=morning_place.\nNo option from the witness branch is available after that ending.\nRestart clears proof, timing, consent and ending to their initial values.\n\nDesign-only request for a configured agent with the skills installed:\nUse this original scene to prepare a narrative-led adaptation design.\nKeep the source facts and label the exception rule as my approved addition.\nUse novel-game-analyze, game-concept and game-world-design as appropriate.\nWrite the brief, source bible, chosen concept and GAME_DESIGN handoff.\nKeep two decision points and these three outcomes; list each condition, effect\nand player-visible consequence. Do not build or generate paid assets yet.\nList unresolved decisions instead of expanding the story on my behalf.",
+      "zh": "原创编辑示例——《末班渡船》（不是工具运行结果）\n\n正文种子：\n末班渡船响过催行的汽笛。乔宁船票上的印章被雨水洇开了。\n守船人把票压在登记簿旁，没有撕掉。\n“售票处能补凭证，”他说，“但等你回来，这班船就走了。”\n\n批准的事实：乔宁确实买过票，但印章已模糊。她希望今晚渡河。\n守船人不能仅凭模糊印章放行。\n批准的改编新增规则：购票证人作证，且乔宁同意在例外登记簿实名登记，\n便可在开船前登船。找证人来得及；回售票处则一定错过本班。\n不新增贿赂、假票、隐藏亲属或超自然捷径。\n\n以下是设计记号，不是可执行语法：\n初始：proof=none；on_time=true；exception_consent=false；ending=none。\n\n选择点1——怎样证明自己买过票：\nA. 回售票处补正式凭证；提前告知返回时船已开走。\n   后果：proof=duplicate；on_time=false。\n   可见反馈：回到空渡口，守船人提供明早的船位。\n   结果A：确认明早可走，不算今晚成功渡河。\nB. 请见过你购票的乘客向守船人作证。\n   后果：proof=witness；on_time=true；证词记入登记簿。\n   可见反馈：守船人说明必须实名登记为例外，进入选择点2。\n\n选择点2——仅在有证人且尚未开船时可选：\nA. 同意实名登记。\n   后果：exception_consent=true；ending=departed_with_record。\n   结果B：今晚登船；下一场仍保留这笔例外记录。\nB. 不接受登记。\n   后果：exception_consent=false；ending=stayed_ashore。\n   结果C：留在岸上；下一场不能又默认角色已经登船。\n\n结束规则：补凭证路线设置 ending=morning_place。\n到达该结果后，不再允许使用证人路线的选项。\n重新开始时，凭证、时间、同意状态和结局都恢复初始值。\n\n交给已配置且安装了相关技能的 Agent 的“只做设计”请求：\n用上述原创场景准备一个叙事主导的互动改编设计。\n保留原文事实，把实名例外规则标成我批准的新增设定。\n按需要使用 novel-game-analyze、game-concept、game-world-design。\n交付产品简报、原著圣经、选定概念及 GAME_DESIGN 设计交接。\n先只保留两个选择点与这三个结果，逐项写明条件、变化和玩家可见后果。\n暂不构建，不生成付费素材；列出待决项，不擅自替我扩写故事。"
+    },
+    "outputs": {
+      "en": [
+        "`PRODUCT_BRIEF.md`: player role, scope, narrative-led intent, language and eventual target runtime; a design-only stopping point is not a playable-delivery claim.",
+        "`analysis/SOURCE_BIBLE.md` and `concepts/CONCEPT.md`: cited source facts, approved adaptation departures and the chosen experience.",
+        "`design/GAME_DESIGN.md`: a small route map, readable conditions/effects, information disclosure, ending rules and the smallest playable slice. Put the example’s notes inside this handoff; no new mandatory filename or engine is implied.",
+        "When you later request a build, use the [complete quick start](https://zenstory.ai/novel-to-game/quick-start). Separately trace each intended ending; one completed playthrough does not establish every route."
+      ],
+      "zh": [
+        "`PRODUCT_BRIEF.md`：玩家身份、范围、叙事主导意图、语言与后续目标运行环境；停在设计交接不等于已交付可玩游戏。",
+        "`analysis/SOURCE_BIBLE.md` 与 `concepts/CONCEPT.md`：带出处的原文事实、批准的改编偏离，以及选定体验。",
+        "`design/GAME_DESIGN.md`：小范围路线图、清晰的条件/后果、信息披露、结局规则和最小可玩切片。示例设计说明放进该交接即可，不增加必需文件名，也不绑定引擎。",
+        "后续需要构建时，回到[完整入门流程](https://zenstory.ai/novel-to-game/quick-start)。每个计划中的结局须分别走通；一次完整试玩不代表所有路线已经覆盖。"
+      ]
+    },
+    "verification": {
+      "en": [
+        "At the design desk, trace each route and ask: what can change because of this choice, what is its cost, and where does the player see the consequence? If only the wording changes, either label it expressive flavor or give it a real downstream role.",
+        "Check impossible combinations: boarding after the ferry has left, using a witness before finding one, or retaining old consent after restart. These are review questions for your implementation, not claims that this page ran it.",
+        "Novel to Game is a skills workflow, not a bundled branching engine or a guarantee of coherent, entertaining endings. Runtime state commits must follow replayable rules; a language model’s narration is not itself proof of a state change."
+      ],
+      "zh": [
+        "在设计稿里逐条走路线：这个选择究竟改变什么、付出什么、玩家在哪里看见后果？如果只改措辞，要么明确它只是表达差异，要么给它真实的后续作用。",
+        "检查不可能的组合：船开后仍登船、尚未找到证人就用证词、重开后残留旧的同意状态。这些是留给实现的检查问题，不表示本页已经运行过游戏。",
+        "Novel to Game 是技能工作流，不是内置分支引擎，也不保证结局自然或好玩。运行时状态须由可重放规则提交；模型叙述“你已上船”本身不等于状态真的改变。"
+      ]
+    },
+    "sources": {
+      "en": [
+        "[Interactive-story entry and lasting choices](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/README.md#L88-L100)",
+        "[Causal agency, consequence resolution and narrative-led design](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-concept/references/concept-method.md#L24-L35)",
+        "[State, action, world rules and readable feedback](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-world-design/references/world-design-method.md#L11-L23)",
+        "[Knowledge boundaries, choice effects and honest convergence](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-world-design/references/narrative-design-method.md#L14-L35)",
+        "[Required narrative design handoff and smallest playable slice](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-world-design/SKILL.md#L24-L41)",
+        "[Player verbs and rule-resolved state commits](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/novel-to-game/SKILL.md#L53-L61)",
+        "[Representative paths, adjacent branches and narrative checks](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-qa/references/test-design-method.md#L27-L40)",
+        "[Source inputs, rights and the product brief](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/novel-to-game/references/intake-method.md#L1-L50)"
+      ],
+      "zh": [
+        "[互动故事入口与持久选择](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/README.md#L88-L100)",
+        "[因果权、结算权与叙事主导设计](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-concept/references/concept-method.md#L24-L35)",
+        "[状态、行动、世界规则与可读反馈](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-world-design/references/world-design-method.md#L11-L23)",
+        "[知识边界、选择后果与诚实汇流](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-world-design/references/narrative-design-method.md#L14-L35)",
+        "[叙事设计交接与最小可玩切片](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-world-design/SKILL.md#L24-L41)",
+        "[玩家动词与规则裁决的状态提交](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/novel-to-game/SKILL.md#L53-L61)",
+        "[代表路径、相邻分支与叙事检查](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-qa/references/test-design-method.md#L27-L40)",
+        "[原文输入、权利与产品简报](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/novel-to-game/references/intake-method.md#L1-L50)"
       ]
     }
   }

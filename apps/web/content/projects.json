@@ -180,18 +180,18 @@
     },
     "method": {
       "en": [
-        ["Analyse", "Record source evidence in SOURCE_BIBLE.md and lock product scope and target runtime in PRODUCT_BRIEF.md."],
-        ["Concept", "Compare adaptation alternatives and explicit vetoes in CONCEPT.md."],
-        ["Design", "Describe the core loop, systems and outcomes in GAME_DESIGN.md, and the visual direction in ART_DIRECTION.md."],
-        ["Build", "Build a risk-matched whitebox before the candidate where required. Missing tools or an untested target runtime must be reported, not counted as a completed game."],
-        ["QA", "Record launch, render, input, coreLoop, outcome and restart in qa/verification.json from one complete tested run."]
+        ["Can I make an interactive story rather than a combat game?", "Yes: set a narrative-led experience in the brief and concept. Decisions can change testimony, what characters know and later scenes; they need not be disguised as cards, turns or an affinity meter."],
+        ["How do choices change more than the wording?", "Give each important action a lasting fact and name the later scene or ending that reads it. The [original ferry example](https://zenstory.ai/novel-to-game/meaningful-choices) shows two decision points and three outcomes without branching every paragraph."],
+        ["What may I change from the novel?", "Keep cited source facts and uncertainties in `analysis/SOURCE_BIBLE.md`. Separate approved adaptation additions from evidence; do not let implementation silently rewrite the agreed brief or source bible."],
+        ["How much should I adapt first?", "Start with one player role, a concrete objective, a few scenes and an outcome. Let `game-world-design` specify the smallest playable slice and causal design before full art production. Reuse a location without erasing the choices that led there."],
+        ["What do I receive, and what remains unproven?", "The [quick start](https://zenstory.ai/novel-to-game/quick-start) explains the brief, design files and built candidate. Design-only work is not a playable game. The six runtime checks cover the recorded run; they do not establish every branch, subjective quality or commercial readiness."]
       ],
       "zh": [
-        ["分析", "在 SOURCE_BIBLE.md 中记录原文证据，在 PRODUCT_BRIEF.md 中锁定产品范围和目标运行环境。"],
-        ["概念", "在 CONCEPT.md 中比较改编方案并明确否决条件。"],
-        ["设计", "在 GAME_DESIGN.md 中描述核心循环、系统与结果，在 ART_DIRECTION.md 中确定视觉方向。"],
-        ["构建", "在契约要求时先做风险匹配的白盒再做候选版本。工具缺失或目标运行环境未测试必须如实报告，不能算作游戏已完成。"],
-        ["QA", "用一次完整测试运行，在 qa/verification.json 中记录 launch、render、input、coreLoop、outcome、restart。"]
+        ["我想做互动文游，不想做战斗游戏，可以吗？", "可以，在简报与概念阶段选择叙事主导体验。决定可以改变证词、人物知道的信息和后续场景，不必包装成卡牌、回合或好感度条。"],
+        ["怎样避免选择只换一句文案？", "让关键行动产生持久事实，并写明后续哪个场景或结局会读取它。[原创渡口示例](https://zenstory.ai/novel-to-game/meaningful-choices)用两个选择点、三个结果演示，不需要每段正文都分叉。"],
+        ["原著可以改到什么程度？", "在 `analysis/SOURCE_BIBLE.md` 保留带出处的事实和疑点，把批准的改编新增设定与原文证据分开。实现阶段不能悄悄改写已确定的产品简报或原著圣经。"],
+        ["第一次应该改编多大范围？", "先限定一个玩家身份、具体目标、少量场景和结果。在完整美术生产前，由 `game-world-design` 明确最小可玩切片与因果设计。地点可以复用，但到达该地点之前的选择不能被抹掉。"],
+        ["最后会拿到什么，什么还不能证明？", "[完整入门指南](https://zenstory.ai/novel-to-game/quick-start)说明简报、设计文件与构建候选版本。只做设计不等于可玩游戏。六项运行检查只覆盖所记录的一次运行，不代表每条分支、主观质量或商业发布准备程度都已通过。"]
       ]
     },
     "distinctive": {
@@ -216,13 +216,21 @@
         "[Seven skills and installation](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/README.md#L59-L76)",
         "[Language, product scope and target-runtime contract](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/novel-to-game/SKILL.md#L16-L50)",
         "[Build-tool limits and truthful completion reporting](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-build/SKILL.md#L15-L30)",
-        "[Six runtime checks and limits of QA](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-qa/SKILL.md#L14-L31)"
+        "[Six runtime checks and limits of QA](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-qa/SKILL.md#L14-L31)",
+        "[Causal agency, consequence resolution and narrative-led design](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-concept/references/concept-method.md#L24-L35)",
+        "[Knowledge boundaries, choice effects and honest convergence](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-world-design/references/narrative-design-method.md#L14-L35)",
+        "[Required narrative design handoff and smallest playable slice](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-world-design/SKILL.md#L24-L41)",
+        "[Player verbs and rule-resolved state commits](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/novel-to-game/SKILL.md#L53-L61)"
       ],
       "zh": [
         "[七个 skills 与安装](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/README.md#L59-L76)",
         "[语言、产品范围与目标运行环境契约](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/novel-to-game/SKILL.md#L16-L50)",
         "[构建工具边界与真实完成报告](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-build/SKILL.md#L15-L30)",
-        "[六项运行检查与 QA 边界](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-qa/SKILL.md#L14-L31)"
+        "[六项运行检查与 QA 边界](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-qa/SKILL.md#L14-L31)",
+        "[因果权、结算权与叙事主导设计](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-concept/references/concept-method.md#L24-L35)",
+        "[知识边界、选择后果与诚实汇流](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-world-design/references/narrative-design-method.md#L14-L35)",
+        "[叙事设计交接与最小可玩切片](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-world-design/SKILL.md#L24-L41)",
+        "[玩家动词与规则裁决的状态提交](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/novel-to-game/SKILL.md#L53-L61)"
       ]
     },
     "vocabulary": ["source bible", "whitebox", "QA contract"]
