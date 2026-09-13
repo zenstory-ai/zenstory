@@ -740,12 +740,14 @@
       "en": [
         "A source/adaptation record and, when the task needs it, `项目开发/episode-map.jsonl`: the episode map separating established material, proposed changes and episode handoffs.",
         "The requested episode uses `剧集/<EP>/剧本.md`; later stages can add `视觉设定.md`, `分镜.md`, `图片提示词.md` and `视频提示词.md` in that episode folder. These five document types are created as needed, not a requirement to generate every file in advance or proof that media exists.",
-        "An explicit next task: revise the pilot, write the next mapped episode or prepare a media-production preview. Text may inform a later workflow, but this does not establish automatic synchronization with Oh Story or the hosted ZenStory app."
+        "An explicit next task: revise the pilot, write the next mapped episode or prepare a media-production preview. Text may inform a later workflow, but this does not establish automatic synchronization with Oh Story or the hosted ZenStory app.",
+        "For the next visual handoff, see [character consistency across shots](https://zenstory.ai/drama-skills/character-consistency): one original three-shot scene separates identity, costume, held props and real versus planned references."
       ],
       "zh": [
         "原著与改编记录，以及任务需要时建立的 `项目开发/episode-map.jsonl`：分开记录已有材料、拟改内容和各集交接。",
         "所请求单集的剧本位于 `剧集/<EP>/剧本.md`；进入后续阶段后，可在该集目录添加 `视觉设定.md`、`分镜.md`、`图片提示词.md`、`视频提示词.md`。五类文档按需创建，不要求提前建齐，也不证明媒体已经存在。",
-        "明确下一项创作任务：修改试写集、按地图写下一集，或准备媒体制作预览。文本可以给后续流程提供材料，但不表示与 Oh Story 或托管 ZenStory 应用自动同步。"
+        "明确下一项创作任务：修改试写集、按地图写下一集，或准备媒体制作预览。文本可以给后续流程提供材料，但不表示与 Oh Story 或托管 ZenStory 应用自动同步。",
+        "进入视觉交接时，可读[角色跨镜一致性指南](https://zenstory.ai/drama-skills/character-consistency)：用原创三镜场景，区分人物身份、造型、持物状态，以及真实参考图与计划参考图。"
       ]
     },
     "verification": {
@@ -1169,6 +1171,133 @@
         "[玩家动词与规则裁决的状态提交](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/novel-to-game/SKILL.md#L53-L61)",
         "[代表路径、相邻分支与叙事检查](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-qa/references/test-design-method.md#L27-L40)",
         "[原文输入、权利与产品简报](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/novel-to-game/references/intake-method.md#L1-L50)"
+      ]
+    }
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "character-consistency",
+    "checked_on": "2026-09-12",
+    "title": {
+      "en": "Character consistency in AI short drama: identity, costume and shot continuity",
+      "zh": "AI 短剧怎样保持角色跨镜一致：人物、造型与镜头状态"
+    },
+    "answer": {
+      "en": "Separate the person’s persistent identity from the current costume and each shot’s action. Keep only genuinely unchanged visual facts in a continuity lock; track hands, props and gaze as shot state. An original three-shot archive scene below shows how to connect these decisions. A character sheet or an image-prompt ID is not a generated reference image, and written constraints do not guarantee a model’s results. For the wider adaptation workflow, start with the [novel-to-short-drama guide](https://zenstory.ai/drama-skills/novel-to-short-drama).",
+      "zh": "先把不随换装改变的人物身份、当前造型与每镜动作分开。只把真正跨镜不变的外观写入连续性锁，手持物、视线和姿势则按镜头记录。下面用原创的档案馆三镜示例，说明怎样把这些决定连起来。有角色设定或图片提示词编号，不等于已有真实参考图；文字约束也不保证模型最终效果。完整改编流程可从[小说改短剧指南](https://zenstory.ai/drama-skills/novel-to-short-drama)开始。"
+    },
+    "prerequisites": {
+      "en": [
+        "An accepted scene or episode script. It should establish who appears, which visible state matters and what changes during each shot; resolve story meaning in writing rather than hiding it inside an appearance prompt.",
+        "Creator-approved identity facts and scene styling. Do not invent age, ethnicity, facial traits, branded clothing or other details merely to fill a template. Mark unresolved choices instead.",
+        "If you plan to use the documented skills, a configured supported agent host and project folder. This guide does not execute image or video generation and its example contains no generated reference asset."
+      ],
+      "zh": [
+        "准备已接受的场次或单集剧本，写清谁出现、哪些可见状态重要、每镜发生什么变化。知识、目标和关系属于编剧，不要把故事语义藏进外观提示词。",
+        "准备创作者确认过的身份事实与本场造型。不要为了填模板擅自补年龄、族裔、五官、品牌服装等细节；未决定的内容继续标为待定。",
+        "如要使用文档中的技能，还需已配置的受支持 Agent 宿主和项目目录。本指南不执行图片或视频生成，示例也没有生成参考素材。"
+      ]
+    },
+    "steps": {
+      "en": [
+        [
+          "Write Character as the persistent identity",
+          "Use observable, comparable anchors that survive a costume change and work beyond a front-facing close-up. In the example, Lin Lan has a V-shaped nape hairline and a right shoulder that sits slightly lower than the left. These belong to Character; the rain jacket, hand-held key, gaze and pose do not. Ask `short-drama-assets` to record the accepted facts in `剧集/<EP>/视觉设定.md`."
+        ],
+        [
+          "Add one compatible Look for this scene",
+          "Reference the Character, then record only clothing, hair arrangement, makeup, injury or weathering that can coexist now. Lin Lan’s scene Look is a low-tied hairstyle and a dark-teal matte hooded work jacket with two rows of silver snaps on the left cuff. Keep the brass key as a Prop and its current holder as shot state; neither is part of the Look."
+        ],
+        [
+          "Lock only the invariant visible surface",
+          "A LOCK is justified when the fact appears across at least two shots, viewers could notice a mismatch and the story does not change it. Use the minimal phrase “dark-teal matte hooded work jacket, hood down, two rows of silver snaps on the left cuff” across the affected `IMG-*` body, frozen keyframe and `MOTION-*` body. Do not lock the key’s position, hand pose or gaze because those change."
+        ],
+        [
+          "Chain three shots with explicit states",
+          "For every shot write `start → one primary action → end`, including each hand, held prop and gaze. The next shot must start from the previous shot’s actual end unless the screenplay establishes a cut or state change. A frozen keyframe normally describes the start only; it must not show an action or prop state that first appears at the end."
+        ],
+        [
+          "Keep prompt IDs separate from media evidence",
+          "Use `short-drama-image-prompts` only to author entries such as `IMG-CHAR-LINLAN` and `IMG-LOOK-LINLAN-RAIN`; those IDs do not prove files exist. In `short-drama-storyboard`, bind an inspected project image as `REF-*`. If the creator will supply it later, keep a `PLAN-*` slot with order, intended file, purpose, control scope and exclusions. Missing files must not be silently downgraded to text-to-video."
+        ],
+        [
+          "Stop at a production-honest handoff",
+          "A `PLAN-*` shot may describe the intended image-to-video path, but it cannot enter `short-drama-produce` until the real file is present and the slot becomes `REF-*`. For a continuing shot chain, later segments also need the preceding actual video and actual tail frame; planned frames or prose cannot substitute. Text constraints improve the handoff, but do not guarantee a model will preserve face, clothing, space, props or motion."
+        ]
+      ],
+      "zh": [
+        [
+          "先写长期不变的 Character 身份",
+          "选换装后仍成立、可观察、可比较，并能在侧面或背面识别的锚点。示例中的林岚有 V 形后颈发际，右肩略低于左肩；这些属于 Character。雨衣、手里的钥匙、视线和姿势都不属于身份。可用 `short-drama-assets` 把已确认事实写入 `剧集/<EP>/视觉设定.md`。"
+        ],
+        [
+          "再写本场相容的 Look",
+          "先引用 Character，只补本场能同时存在的服装、发型、妆伤与天气化。林岚本场是低束发，穿墨绿色哑光连帽工作夹克，左袖有双排银色按扣。黄铜钥匙仍是 Prop，由谁拿着属于镜头状态，不能吞进 Look。"
+        ],
+        [
+          "只锁真正不变的可见表面",
+          "同一事实跨至少两镜可见、观众能发现不一致、剧情又不会改变它，才写 LOCK。示例锁面是“墨绿色哑光连帽工作夹克，帽子放下，左袖双排银色按扣”，在受影响的 `IMG-*` 正文、冻结关键帧和 `MOTION-*` 正文中原样携带。钥匙位置、手势和视线会变化，不上锁。"
+        ],
+        [
+          "用状态链写三镜",
+          "每镜都按“起点 → 唯一主要动作 → 终点”记录双手、持物与视线；除非剧本明确跳时空，下一镜起点应继承上一镜真实终点。冻结关键帧默认只写起点，不能提前出现终点才成立的动作或道具状态。"
+        ],
+        [
+          "把提示词编号与真实素材分开",
+          "`short-drama-image-prompts` 可写 `IMG-CHAR-LINLAN`、`IMG-LOOK-LINLAN-RAIN`，但编号不证明图片存在。到 `short-drama-storyboard`，检查过且项目内可读的图片才写 `REF-*`；创作者计划稍后提供时保留 `PLAN-*`，注明顺序、拟用文件、用途、控制范围与不得控制范围。缺图不能静默降级为文生视频。"
+        ],
+        [
+          "以诚实的投产边界收尾",
+          "`PLAN-*` 可以记录预期的图生视频路径，但真实文件入项并改为 `REF-*` 前，不能交给 `short-drama-produce`。连续时空的后续段还需要上一段实际视频和实际尾帧；文字或计划帧不能冒充。文本约束能改善交接，却不保证模型最终稳定人脸、服装、空间、道具或动作。"
+        ]
+      ]
+    },
+    "example": {
+      "en": "ORIGINAL EDITORIAL EXAMPLE — written for this guide, not skill output, generated media or a production test.\nScene: At a rain-soaked archive loading bay, Lin Lan must open locker 17 while keeping a red evidence folder dry. The steel bench stands directly beside locker 17, so the three shots require no off-shot repositioning. Her jacket hood stays down, leaving the nape anchor visible.\n\nCharacter — Lin Lan: V-shaped nape hairline; right shoulder slightly lower than left.\nLook — LOOK-LINLAN-RAIN: references Lin Lan; low-tied hair; dark-teal matte hooded work jacket; hood down; two rows of silver snaps on the left cuff.\nLOCK — LOCK-LINLAN-JACKET: “dark-teal matte hooded work jacket, hood down, two rows of silver snaps on the left cuff”; active in SHOT-01 through SHOT-03.\nProp — brass locker key and red evidence folder remain separate assets. Throughout these three shots, the left arm pins the folder and the left hand supports its lower edge; only the right hand handles the key.\n\nSHOT-01 — Start: folder tucked under left arm, key on the steel bench, right hand empty, gaze on the key. Action: Lin Lan picks up the key with her right hand. End: folder under left arm, key in right hand, gaze shifts to locker 17.\nSHOT-02 — Start: inherit the preceding end. Action: she inserts the key into locker 17. End: folder under left arm, key remains in the lock, right hand stays on it, gaze on the keyhole.\nSHOT-03 — Start: inherit the preceding end. Action: she turns the key once. End: folder still under left arm, key turned in the lock, right hand on the key, gaze moves to the door seam.\n\nPrompt/reference record: `IMG-CHAR-LINLAN` and `IMG-LOOK-LINLAN-RAIN` name prompt entries only. `PLAN-LINLAN-RAIN-01` points to the explicitly non-existent placeholder `剧集/EP001/待提供/林岚雨夜造型.png` below, first in reference order, for identity and compatible Look only; it must not control hand pose, key position, gaze or camera. No real file has been provided, inspected or bound, so all three shots remain PLAN and are not production-ready. No image, video, face-consistency or motion result is claimed.\n\nCopyable text-only handoff request:\nFor EP001, use `short-drama-assets`, `short-drama-image-prompts` and `short-drama-storyboard` to organize Lin Lan and these three shots. Keep Character, Look, LOCK and shot state separate. Stop at text files; do not generate images, video, voices or music. `剧集/EP001/待提供/林岚雨夜造型.png` is a placeholder path, not an existing file. Keep it as PLAN and do not prepare a production submission.",
+      "zh": "原创编辑示例——为本指南编写，不是技能执行输出、生成媒体或投产测试。\n场景：雨夜的档案馆装卸区，林岚要打开 17 号柜，同时护住一份红色证物夹。钢台紧挨 17 号柜，三镜之间无需补走位；夹克帽子保持放下，让后颈锚点可见。\n\nCharacter｜林岚：V 形后颈发际；右肩略低于左肩。\nLook｜LOOK-LINLAN-RAIN：引用林岚；低束发；墨绿色哑光连帽工作夹克；帽子放下；左袖双排银色按扣。\nLOCK｜LOCK-LINLAN-JACKET：“墨绿色哑光连帽工作夹克，帽子放下，左袖双排银色按扣”；SHOT-01 至 SHOT-03 生效。\nProp｜黄铜柜钥匙与红色证物夹分别建资产。三镜中，左臂始终夹住文件夹，左手压住其下缘；只有右手操作钥匙。\n\nSHOT-01｜起点：证物夹在左腋下，钥匙在钢台上，右手空，视线看钥匙。动作：林岚用右手拿起钥匙。终点：证物夹仍在左腋下，钥匙在右手，视线转向 17 号柜。\nSHOT-02｜起点：继承上镜终点。动作：她把钥匙插入 17 号柜。终点：证物夹仍在左腋下，钥匙留在锁孔，右手扶住钥匙，视线看锁孔。\nSHOT-03｜起点：继承上镜终点。动作：她把钥匙转动一次。终点：证物夹仍在左腋下，钥匙已在锁孔内转过，右手仍扶钥匙，视线移到柜门缝。\n\n提示词与参考记录：`IMG-CHAR-LINLAN`、`IMG-LOOK-LINLAN-RAIN` 只命名提示词条目。`PLAN-LINLAN-RAIN-01` 指向下方明确标为非现存文件的占位路径 `剧集/EP001/待提供/林岚雨夜造型.png`，在参考顺序中排第一，只控制身份与相容 Look，不控制手势、钥匙位置、视线或机位。现在没有真实文件被提供、检查或绑定，所以三镜都保持 PLAN，不可投产；本例不声称已获得图片、视频、人脸一致或动作效果。\n\n可复制的纯文本交接请求：\n请为 EP001 使用 `short-drama-assets`、`short-drama-image-prompts` 和 `short-drama-storyboard` 整理林岚与以上三镜；分开 Character、Look、LOCK 和镜头状态。只交文字，不生成图片、视频、配音或音乐。`剧集/EP001/待提供/林岚雨夜造型.png` 是占位路径，不是现存文件；保持 PLAN，不准备投产提交。"
+    },
+    "outputs": {
+      "en": [
+        "`剧集/<EP>/视觉设定.md`: the Character entry, one compatible Look, separate Props, scoped states and only the necessary continuity LOCK.",
+        "`剧集/<EP>/图片提示词.md`: copyable `IMG-*` prompt entries carrying the accepted anchors and LOCK text. They are text deliverables, not evidence of generated assets.",
+        "`剧集/<EP>/分镜.md`: `SHOT-*` state chains, frozen start frames, visual-basis references and honest `REF-*`, `PLAN-*` or missing-reference status. `视频提示词.md` is added only when the reference path is ready enough for that stage."
+      ],
+      "zh": [
+        "`剧集/<EP>/视觉设定.md`：Character 条目、一个相容 Look、独立 Prop、有范围的状态，以及必要的连续性 LOCK。",
+        "`剧集/<EP>/图片提示词.md`：携带身份锚点与 LOCK 锁面的可复制 `IMG-*` 提示词；它是文本交付，不证明图片已生成。",
+        "`剧集/<EP>/分镜.md`：`SHOT-*` 状态链、起点冻结帧、视觉依据，以及真实的 `REF-*`、`PLAN-*` 或缺图状态。参考路径满足该阶段要求后，才按需添加 `视频提示词.md`。"
+      ]
+    },
+    "verification": {
+      "en": [
+        "Editorially compare all three shots: Character anchors remain the same, the Look is compatible, the exact LOCK surface is carried wherever required, and every hand, prop and gaze at a shot start matches the preceding end.",
+        "Audit evidence labels before production: every `REF-*` resolves to an inspected real file with a stated purpose and boundary; unresolved `PLAN-*` slots stay non-production. Passing this document review does not validate or guarantee generated-media quality or continuity."
+      ],
+      "zh": [
+        "逐镜做编辑核对：Character 锚点不变，Look 内部相容，LOCK 锁面在所需位置原样出现；每镜起点的双手、持物与视线都接得上前镜终点。",
+        "投产前核对证据等级：每个 `REF-*` 都能找到已检查的真实文件，并写明用途和边界；未解决的 `PLAN-*` 继续保持不可投产。文档审阅通过不等于生成媒体质量或连续性已经验证。"
+      ]
+    },
+    "sources": {
+      "en": [
+        "[Asset boundaries: identity, variants, shot transients and continuity locks](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/SKILL.md#L18-L50)",
+        "[Character anchors and compatible Look definitions](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/character-and-look.md#L39-L82)",
+        "[When a visible fact merits a continuity lock](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/continuity-lock.md#L13-L30)",
+        "[Where continuity-lock text must be carried](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/continuity-lock.md#L91-L103)",
+        "[Shot states, frozen keyframes and reference-slot status](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-storyboard/SKILL.md#L45-L72)",
+        "[Image-prompt structure and scoped reference control](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-image-prompts/SKILL.md#L30-L47)",
+        "[Real REF images, planned inputs and non-production states](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-video-prompts/SKILL.md#L18-L34)",
+        "[Actual video and tail-frame requirements for continuation](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-video-prompts/SKILL.md#L97-L105)"
+      ],
+      "zh": [
+        "[资产边界：身份、变体、镜头瞬态与连续性锁](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/SKILL.md#L18-L50)",
+        "[Character 锚点与相容 Look 的定义](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/character-and-look.md#L39-L82)",
+        "[哪些可见事实值得写成连续性锁](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/continuity-lock.md#L13-L30)",
+        "[连续性锁面必须进入哪些文档](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/continuity-lock.md#L91-L103)",
+        "[镜头状态、冻结关键帧与参考槽位状态](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-storyboard/SKILL.md#L45-L72)",
+        "[图片提示词结构与参考图控制范围](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-image-prompts/SKILL.md#L30-L47)",
+        "[真实 REF、计划输入与不可投产状态](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-video-prompts/SKILL.md#L18-L34)",
+        "[连续镜头所需的实际视频与实际尾帧](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-video-prompts/SKILL.md#L97-L105)"
       ]
     }
   }

@@ -109,16 +109,16 @@
         ["Does one novel chapter become one short-drama episode?", "Not by default. Plan episodes around a local dramatic result and a clear handoff, preserving source facts and marking proposed changes. Start with a pilot before expanding the series. The [novel-to-short-drama guide](https://zenstory.ai/drama-skills/novel-to-short-drama) shows an original prose-to-scene-and-shots example."],
         ["Develop", "Create an episode map or genre guidance when needed; a candidate director brief becomes authority only after creator acceptance."],
         ["Write", "Draft episode scripts with explicit scene goals, opposing forces, turns and exit states."],
-        ["Assets & look", "Prepare character, scene and prop specifications; production-form cards and Look Development are optional choices, not universal image gates."],
-        ["Storyboard & prompts", "Specify shot-start keyframes and continuity constraints, then image/video prompts. A frozen keyframe is a prompt/spec, not an approved generated image."],
+        ["How do I keep the same character across shots?", "Separate persistent identity from the scene’s compatible Look and each shot’s changing hand, prop and gaze state. Carry only the necessary unchanged visual facts as continuity locks. The [three-shot character example](https://zenstory.ai/drama-skills/character-consistency) shows the handoff without pretending a character sheet guarantees generated faces."],
+        ["Are prompt IDs already image references?", "No. `IMG-*` identifies prompt text; `REF-*` binds an inspected real image. A creator-planned `PLAN-*` reference can describe the intended shot but cannot be submitted to `short-drama-produce` before real files are bound. Missing images do not silently authorize text-to-video."],
         ["Produce, edit, review", "Media generation uses prepare → explicit confirmation → run. Editing and a separately requested review are distinct stages."]
       ],
       "zh": [
         ["小说改短剧，是不是一章对应一集？", "不是默认一一对应。按局部戏剧结果与明确交接来分集，保留原文事实，并标清拟改内容。先试写一集，再扩展整季。[小说改短剧指南](https://zenstory.ai/drama-skills/novel-to-short-drama)用原创片段演示从叙述到场次、镜头的转换。"],
         ["开发", "按需创建分集地图或题材指引；候选导演阐述经创作者接受后才成为权威。"],
         ["写作", "写分集剧本，明确场次目标、对抗力、转折和出口状态。"],
-        ["资产与画风", "准备角色、场景和道具规格；制作形态卡与 Look Development 是可选决策，不是通用生图门槛。"],
-        ["分镜与提示词", "规定镜头起始关键帧与连续性约束，再写图片/视频提示词。冻结关键帧是提示词或规格，不是已获批准的生成图片。"],
+        ["同一角色跨镜头，怎样减少外观和动作串线？", "分开长期人物身份、本场相容造型，以及每镜变化的手位、道具和视线；只有必要且不变的可见事实才作为连续性锁传递。[原创三镜示例](https://zenstory.ai/drama-skills/character-consistency)展示具体交接，不把角色设定表当成生成脸部一致的保证。"],
+        ["有提示词编号，就算已经有参考图了吗？", "不是。`IMG-*` 标记提示词正文，`REF-*` 才绑定已检查的真实图片。创作者计划提供的 `PLAN-*` 可以描述预期镜头，但真实文件绑定前不能交给 `short-drama-produce`；缺图也不能静默当成已授权文生视频。"],
         ["制作、剪辑、审查", "媒体生成遵循准备 → 明确确认 → 执行。剪辑与另行请求的审查是独立阶段。"]
       ]
     },
@@ -147,14 +147,20 @@
         "[Creator-first entry and on-demand documents](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama/SKILL.md#L70-L76)",
         "[Optional look development, production and review boundaries](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama/SKILL.md#L117-L145)",
         "[Director-brief acceptance and optional artifacts](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-develop/SKILL.md#L101-L129)",
-        "[Real image references and explicit spend confirmation](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-produce/SKILL.md#L15-L63)"
+        "[Real image references and explicit spend confirmation](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-produce/SKILL.md#L15-L63)",
+        "[Character anchors and compatible Look definitions](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/character-and-look.md#L39-L82)",
+        "[Where continuity-lock text must be carried](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/continuity-lock.md#L91-L103)",
+        "[Real REF images, planned inputs and non-production states](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-video-prompts/SKILL.md#L18-L34)"
       ],
       "zh": [
         "[按戏剧结果而非章节数量切集](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-novel-analyze/references/adaptation-value.md#L77-L93)",
         "[创作者优先的入口与按需文档](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama/SKILL.md#L70-L76)",
         "[可选画风探索、制作与审查边界](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama/SKILL.md#L117-L145)",
         "[导演阐述的接受与可选产物](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-develop/SKILL.md#L101-L129)",
-        "[真实图片参考与明确消费确认](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-produce/SKILL.md#L15-L63)"
+        "[真实图片参考与明确消费确认](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-produce/SKILL.md#L15-L63)",
+        "[Character 锚点与相容 Look 的定义](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/character-and-look.md#L39-L82)",
+        "[连续性锁面必须进入哪些文档](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/continuity-lock.md#L91-L103)",
+        "[真实 REF、计划输入与不可投产状态](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-video-prompts/SKILL.md#L18-L34)"
       ]
     },
     "vocabulary": ["漫剧", "分集地图", "导演阐述", "冻结关键帧", "连续性锁", "剪辑单"]
