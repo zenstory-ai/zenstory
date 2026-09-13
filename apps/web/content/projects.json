@@ -24,9 +24,11 @@
         ["How do I start writing in Claude Code?", "After installing the pack, run `/story-setup` in your writing-project folder and open a fresh session. Use `/story` to describe your task rather than memorizing every skill. For a new long-form project, `/story-long-write 帮我开书` prepares settings, an outline and chapter blueprints, then stops before prose by default. Review that plan, then request `/story-long-write 写第1章`. This is the agent-host workflow, not a login to the separate hosted ZenStory workbench."],
         ["扫榜 · chart scanning", "Collect supported platform data when available, accept creator-supplied samples, or explicitly label historical knowledge fallback; unavailable sources can be skipped."],
         ["拆文 · deconstruction", "Analyse structure, characters and style, using an opening sample for long-form work; a creator-requested full analysis continues after writing the preview."],
-        ["How can I reduce character drift across many chapters?", "Before each chapter, the workflow checks the last committed chapter, reads its blueprint and relevant character files, and selects current character state, active foreshadowing and next-chapter promises from the derived context. `追踪/_tracking-state.json` is the structured authority; derived views are not a second source of truth. Keep facts outside the chat and review the next chapter against them. These mechanisms make continuity inspectable; they do not prove error-free performance over 100 chapters."],
+        ["How can I reduce character drift across many chapters?", "Separate the author’s private truth from each character’s knowledge and what the reader has seen. Carry the relevant current state, active clues and next-chapter commitments from the same project rather than relying on chat memory. The [original three-chapter example](https://zenstory.ai/oh-story/long-novel-continuity) shows how a sealed letter, a deadline and an unresolved mark survive the handoff; future reveals are not completed events."],
         ["What if a chapter contradicts an established fact?", "Identify the conflicting passage and the intended fact, then request `/story-long-write 修改第N章` with that evidence. If the revision changes continuity facts, the documented workflow requires a same-chapter revision transaction through `tracking_commit.py`; do not hand-edit the derived context or snapshots. Review the corrected prose and state before continuing. Structural checks do not replace the author’s judgment about characterization, voice or literary quality."],
+        ["Why does a detailed outline still become flat prose?", "An outline specifies what must happen; prose needs the actions, evidence and consequences that make the change visible. The [original library-rescue example](https://zenstory.ai/oh-story/outline-to-chapter) turns “they argue and pay a price” into two defensible priorities, a checked fact, a signed responsibility and conditional cooperation. Quiet chapters can move a relationship without an artificial twist."],
         ["How can I revise formulaic prose without changing the story?", "Name the wording problem, preserve the scene facts and revise only the necessary passages. A pattern hit is a prompt for contextual judgment, not proof of AI authorship. The [original before/after example](https://zenstory.ai/oh-story/revise-ai-prose) explains why particular edits help and which facts stay unchanged."],
+        ["How can continuation keep my voice instead of a generic style?", "Give an authorized sample and name the useful dimensions, while keeping this book’s facts and viewpoint separate. The [original author-voice example](https://zenstory.ai/oh-story/preserve-author-voice) preserves a longer rhythm and mild humor without importing another story’s characters. Sample inference is not confirmed memory; a temporary choice, book-specific preference and global habit have different scopes."],
         ["Covers", "Prepare genre-aware cover guidance and use an available image-generation tool when configured."]
       ],
       "zh": [
@@ -34,9 +36,11 @@
         ["Claude Code 装好后，怎么开始写小说？", "安装 skill 包后，在写作项目目录运行 `/story-setup`，再新开会话。通过 `/story` 描述任务，不必先记住全部 skill。新建长篇可以说 `/story-long-write 帮我开书`：默认先生成设定、大纲与细纲，在正文前停下。审阅规划后，再明确请求 `/story-long-write 写第1章`。这是 Agent 宿主内的流程，不是登录另一个产品 ZenStory 网页工作台。"],
         ["扫榜", "在条件允许时采集所支持平台的数据，接受作者提供的样本，或明确标注历史知识回退；不可用的数据源可以跳过。"],
         ["拆文", "分析结构、角色与文风，长篇先做开篇样本；作者已要求完整拆解时，写出预览后继续执行。"],
-        ["长篇续写怎样减少人设和情节漂移？", "每章写前，流程检查最后已提交章节，读取本章细纲及相关角色文件，并从派生上下文筛选当前角色状态、活跃伏笔和下一章承诺。`追踪/_tracking-state.json` 是结构化权威，派生视图不是第二套事实源。把故事事实留在项目文件里，再用它们核对下一章，而非只依赖长聊天记忆。这些机制让连续性可检查，不代表已证明连续 100 章都不会出错。"],
+        ["长篇续写怎样减少人设和情节漂移？", "分开作者私下的真相、各角色本人已知和读者已经看到的内容。从同一项目带上相关人物现状、活跃伏笔与下一章承诺，不只靠聊天记忆。[原创三章示例](https://zenstory.ai/oh-story/long-novel-continuity)展示一封未拆的信、期限和未解记号如何接续；未来揭示不能算已经发生的事。"],
         ["发现某一章与既有设定冲突怎么办？", "先指出冲突段落和希望保留的事实，再带着依据请求 `/story-long-write 修改第N章`。修订若改变连续性事实，文档规定通过 `tracking_commit.py` 提交同章修订事务，不要手改派生上下文或角色快照。继续写之前核对改后的正文与状态。结构检查不能代替作者对人设、文风和文学质量的判断。"],
+        ["有细纲，为什么写出来仍像剧情复述？", "细纲规定要发生什么，正文要让行动、证据和后果承载变化。[原创搬书库示例](https://zenstory.ai/oh-story/outline-to-chapter)把“争执并付出代价”落成两种有依据的优先级、一次核对、签字担责和有条件合作；低压章也可推进关系，不必强塞反转。"],
         ["怎么改掉正文的套话和解释腔？", "先说清措辞问题，保留场景事实，只改有必要的段落。模式命中需要结合语境判断，不证明文本由 AI 创作。[原创改稿前后对照](https://zenstory.ai/oh-story/revise-ai-prose)说明每项修改的理由，以及哪些事实没有改变。"],
+        ["怎么保留我的文风，而不是越改越像统一模板？", "提供有权使用的样本，说清哪些表达维度有用，再分开本书事实与视角。[原创文风示例](https://zenstory.ai/oh-story/preserve-author-voice)保留较长节奏与轻微调侃，却不搬入另一个故事的人物。样本推断不等于已确认记忆；本段选择、本书偏好与全局习惯的范围不同。"],
         ["封面", "准备题材相关的封面指引，并在配置可用生图工具时调用。"]
       ]
     },
@@ -69,7 +73,14 @@
         "[Router and setup-before-import sequence](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story/SKILL.md#L10-L38)",
         "[Planning, explicit chapter requests and batch limits](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/SKILL.md#L55-L83)",
         "[Chapter inputs and relevant continuity context](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L13-L34)",
-        "[Continuity-changing revisions use a tracking transaction](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L140-L144)"
+        "[Continuity-changing revisions use a tracking transaction](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L140-L144)",
+        "[Continuation inputs, state card and next-chapter commitments](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-daily.md#L23-L62)",
+        "[Author facts, reader knowledge, clues and commitments](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/tracking-transaction.md#L49-L117)",
+        "[Future outlines are not already-established tracking facts](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-setup.md#L265-L272)",
+        "[From outline specification to staged scene](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/writing-craft.md#L257-L271)",
+        "[State-change and dialogue-function review](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-review/references/review-quality.md#L191-L204)",
+        "[Dimension-level style precedence and shared decisions](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/style-resolution.md#L5-L18)",
+        "[Receipts, explicit choices, pending inference and scope](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/author-memory.md#L53-L76)"
       ],
       "zh": [
         "[导入入口、材料类型与作者决定](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/SKILL.md#L40-L98)",
@@ -80,7 +91,14 @@
         "[任务路由与先部署再导入的顺序](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story/SKILL.md#L10-L38)",
         "[规划停靠、明确章节请求与批次边界](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/SKILL.md#L55-L83)",
         "[单章输入与相关连续性上下文](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L13-L34)",
-        "[改变连续性事实的修订需提交追踪事务](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L140-L144)"
+        "[改变连续性事实的修订需提交追踪事务](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L140-L144)",
+        "[续写输入、状态卡与下一章承诺](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-daily.md#L23-L62)",
+        "[作者事实、读者认知、伏笔与承诺](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/tracking-transaction.md#L49-L117)",
+        "[未来细纲不是已成立的追踪事实](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-setup.md#L265-L272)",
+        "[从细纲规格到可见场景](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/writing-craft.md#L257-L271)",
+        "[状态变化与对白功能检查](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-review/references/review-quality.md#L191-L204)",
+        "[按维度的文风优先级与统一裁决](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/style-resolution.md#L5-L18)",
+        "[回执、明确选择、待确认推断与适用范围](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/author-memory.md#L53-L76)"
       ]
     },
     "vocabulary": ["扫榜", "拆文", "去AI味", "黄金三章", "爽点", "钩子", "套路"]
