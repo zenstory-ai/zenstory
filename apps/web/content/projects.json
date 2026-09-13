@@ -291,7 +291,7 @@
     "method": {
       "en": [
         ["How do I turn a local video into a Chinese recap?", "Build a scene/dialogue evidence index, choose the audience promise, divide the work between pictures, original audio and narration, then voice and assemble the grounded script. The [complete workflow guide](https://zenstory.ai/video-recap/video-to-narration) explains full/cut choices, stage handoffs and expected files before optional draft export."],
-        ["Can I add narration when the source has none?", "Yes. No existing narration does not mean no dialogue: preserve speech evidence when people speak. For footage without dialogue, the understanding stage can skip ASR while still using remote VLM analysis. The [original no-dialogue example](https://zenstory.ai/video-recap/video-to-narration) goes from visible evidence to two story angles and a short script; it does not invent a speaker’s motives or treat a written promise as a proven outcome."],
+        ["Can I add narration when the source has none?", "Yes. No narration does not mean no dialogue; preserve speech evidence when people speak. Dialogue-free footage can skip ASR while still using remote VLM analysis. The [original evidence-to-script examples](https://zenstory.ai/video-recap/video-to-narration) distinguish a changed on-screen promise from a proven result, then show what can be said when only the initial attempts are available. When later footage is missing, request that evidence or propose a clearly narrower account; do not invent an ending."],
         ["Which moments should keep their original sound?", "Let a complete original line, a revealing action sound or a meaningful wait lead, then ask what supported information narration adds. The [five-beat radio example](https://zenstory.ai/video-recap/original-audio-and-narration) compares shortening a context sentence with removing it: do not replace reluctance with invented poverty, erase the no-response interval, or call a text revision a completed mix."],
         ["Can I write the recap before choosing the cut?", "Decide the story and sound roles first. In the orchestrated cut flow, select source clips, then write narration against the actual edited output timeline. Do not copy original timestamps into that output-time narration."],
         ["What if the voiceover is too long?", "Reduce or move the thought instead of speaking over the next protected line. Bounded speed adjustment is not unlimited; an unsafe fit can block placement rather than clipping the spoken ending."],
@@ -300,7 +300,7 @@
       ],
       "zh": [
         ["怎样把本地视频做成中文解说？", "先建立场景与对白证据索引，再确定观众承诺，分配画面、原声与旁白的职责，之后为有依据的文案配音、合成。[完整流程指南](https://zenstory.ai/video-recap/video-to-narration)说明 full/cut 选择、阶段交接和预期文件，再按需导出草稿。"],
-        ["原片没有旁白，可以看画面生成解说吗？", "可以。没有旁白不等于没有对白：人物说话时仍应保留转写证据；确无对白时，理解阶段可跳过 ASR，但仍需远程 VLM 分析。[原创无对白示例](https://zenstory.ai/video-recap/video-to-narration)从画面证据走到两种叙事角度和简短文案，不编造人物动机，也不把书面承诺当成已证实的结果。"],
+        ["原片没有旁白，可以看画面生成解说吗？", "可以。没有旁白不等于没有对白，人物说话时仍应保留对白证据；确无对白时可跳过 ASR，但仍需远程 VLM 分析。[原创证据到文案示例](https://zenstory.ai/video-recap/video-to-narration)分清改写书面承诺与证实结果，再展示只拿到起初尝试时能说什么。缺少后续画面，应补要证据或明确提出较窄方案，不编造结尾。"],
         ["哪些地方应该保留原声？", "让完整原话、揭示变化的动作声或有意义的等待主导，再判断旁白是否增加有依据的信息。[收音机五拍示例](https://zenstory.ai/video-recap/original-audio-and-narration)比较缩短一句背景与去掉它的不同代价：不把不舍改成没钱，不因少说一句就删掉没有响应的等待，也不把文字修订当作已完成混音。"],
         ["可以先写好旁白，再随便剪画面吗？", "先明确故事与声音职责。编排式 cut 流程先选原片片段，再针对实际剪后输出时间线写旁白，不能直接把原片时间戳抄进输出时间的旁白稿。"],
         ["配音太长，放不进窗口怎么办？", "先删减或移动这段意思，不要抢下一句须保留原话的位置。受限变速不等于无限加速；无法安全放入时可阻断放置，而不是裁掉尾音。"],
