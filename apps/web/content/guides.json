@@ -179,8 +179,8 @@
       "zh": "视频解说导出剪映 / CapCut 后，怎样继续精剪？"
     },
     "answer": {
-      "en": "To shorten a recap, move commentary away from an important line or correct captions, export the existing `timeline.json` as an editable draft rather than treating the finished MP4 as your only source. The normal recap timeline keeps source sound with the video clips, narration and optional music on audio tracks, and displayed captions as text. The standalone exporter does not rerun ASR, visual understanding or TTS, or render the whole recap MP4. Keep the media bundle with the draft and open it in your actual editor version; the exported files alone do not prove compatibility. The rehearsal example below shows two editorial choices, including what else must change when you move a voiceover.",
-      "zh": "想缩短解说、把旁白让开关键原话，或修正字幕时，应把已有 `timeline.json` 导出成可编辑草稿，不要只拿最终 MP4 当全部素材。常规解说时间轴把原声保留在视频片段上，旁白与可选配乐放在音轨上，显示字幕则是文本。独立导出器不重跑 ASR、视觉理解或 TTS，也不重新渲染整部解说 MP4。媒体包要与草稿一起保留，并在你实际使用的编辑器版本中打开；导出文件本身不证明兼容。下方的排练示例比较两种精剪选择，也说明移动旁白时还需要一起处理什么。"
+      "en": "To keep editing a finished recap in JianYing or CapCut, export the existing `timeline.json` as an editable draft instead of working from the rendered MP4. Video Recap Skills' standalone exporter puts the source clips with their original sound, the narration and optional music on separate tracks, keeps captions as text, and bundles the media so the draft still opens after being moved. It does not rerun ASR, visual understanding or TTS, and does not re-render the MP4. Open the draft in the editor version you actually use. The rehearsal example below shows two edits, including what else has to move when a voiceover moves.",
+      "zh": "想在剪映或 CapCut 里继续改一条做好的解说，把现有的 `timeline.json` 导成可编辑草稿，不要拿渲染好的 MP4 当素材。Video Recap Skills 的独立导出器把原片（带原声）、旁白和可选配乐分别放在轨道上，字幕作为文本，并把媒体打包，草稿搬走后仍能打开。它不重跑 ASR、视觉理解或 TTS，也不重新渲染 MP4。请用你实际使用的编辑器版本打开。下面的排练示例比较两种精剪，包括移动旁白时还要一起改什么。"
     },
     "prerequisites": {
       "en": [
@@ -346,8 +346,8 @@
       "zh": "不会编程也能用写作 Skill 吗？提示词、技能包、插件与 MCP 怎么分"
     },
     "answer": {
-      "en": "An agent skill packages task instructions and optional resources so a compatible AI agent can reuse a workflow. For a writer, that might mean turning an idea into an outline, importing an existing manuscript or revising a chapter against project notes—not writing software. Oh Story is a fiction-writing skill pack, not a new model or a standalone chat app. Start with the writing job you need done, then choose the host and workflow. Oh Story can stop at planning before drafting prose, but creating that plan still writes project files. The first-request example compares two concrete investigation openings in chat before the separate step of creating planning files; it keeps the author’s open decisions visible.",
-      "zh": "Agent Skill 把任务说明和可选的参考资料、脚本等打包，让兼容的 AI Agent 复用一套工作流程。对作者来说，任务可以是把灵感整理成细纲、导入已有小说，或结合项目设定修改章节，不一定是编程。Oh Story 是小说创作技能包，不是新模型，也不是独立聊天软件。先想清楚要完成哪项写作任务，再选运行环境与流程。Oh Story 可以只做规划、暂不写正文，但建立规划仍会写入项目文件。 首轮请求示例先在聊天里比较两个具体调查开端，再单独进入创建规划文件的步骤，并保留作者尚未作出的决定。"
+      "en": "An agent skill is a folder of instructions and reference files that a coding agent such as Claude Code or Codex loads when a matching task comes up. You do not write code to use one. For a novelist the tasks are turning an idea into an outline, importing a manuscript, or revising a chapter against project notes. Oh Story is a pack of 13 such skills for fiction; it is not a new model and not a chat app. Skills differ from prompts (they live on disk and are reused), plugins (a distribution wrapper) and MCP servers (tools exposed over a protocol). Pick the writing job first, then the host. The example below compares two investigation openings in chat before any planning files are created.",
+      "zh": "Agent Skill 是一个装着任务说明和参考资料的文件夹，Claude Code、Codex 这类编程 Agent 遇到匹配任务时会自动加载它。用它不需要写代码。对小说作者来说，任务是把灵感整理成细纲、导入已有书稿，或结合项目设定改一章。Oh Story 是包含 13 个此类 skill 的小说写作技能包，不是新模型，也不是聊天软件。Skill 和提示词（存在磁盘上、可复用）、插件（分发外壳）、MCP 服务器（通过协议暴露工具）各不相同。先定写作任务，再选运行环境。下面的示例先在聊天里比较两个调查开端，再创建规划文件。"
     },
     "prerequisites": {
       "en": [
@@ -682,8 +682,8 @@
       "zh": "已有 10–20 章怎么让 AI 接着写：导入 Oh Story，接续人物设定与前史"
     },
     "answer": {
-      "en": "If you already have 10–20 chapters, do not ask an empty chat to ‘continue in the same style.’ Use story-import to reconstruct the manuscript as an Oh Story writing project, review its inferences, then request the next chapter. Import preserves the source prose while building settings, outlines and continuity records. It cannot recover unwritten intent, guarantee a perfect voice match or settle every ambiguity; the manuscript remains the evidence. Reconstructed history and a future chapter plan do different jobs: one describes what was written, the other needs an author’s choice. The harbor-radio example below shows why continuation should pay off a decision already made, rather than reset it or invent a completed repair.",
-      "zh": "已经写了 10–20 章，不要在空白聊天里只说“照这个风格续写”。先用 story-import 把书稿重建成 Oh Story 写作工程，审阅反推结果，再点名写下一章。导入会保留原文，同时建立设定、大纲与连贯性记录；它不能恢复未写进正文的意图，也不保证无损复刻文风或补对所有歧义。书稿证据始终优先于模型猜测。 已写章节的重建与下一章规划是两回事：前者描述原稿，后者需要作者裁定。下方的海港收音机示例说明，续章应接住已经作出的决定，而不是重新问一遍，或把尚未完成的修理补猜成结果。"
+      "en": "If you already have 10 to 20 chapters, do not ask an empty chat to continue in the same style. Run Oh Story's story-import: it rebuilds the manuscript as a writing project, keeps the original prose, and generates settings, outlines and continuity records from it. Inferred facts are listed for review rather than written as truth, because the manuscript stays the evidence. Then request the next chapter by name. The harbor-radio example below shows why a continuation should pay off a decision already made rather than reset it. Import cannot recover unwritten intent or guarantee a perfect voice match.",
+      "zh": "已经写了 10 到 20 章，不要在空白聊天里说“照这个风格续写”。用 Oh Story 的 story-import：它把书稿重建成写作工程，保留原文，并据此生成设定、大纲和连贯性记录。推断出来的设定列为待审阅，不直接写成事实，因为书稿才是证据。然后点名写下一章。下面的海港收音机示例说明，续章应接住已经作出的决定，而不是重新问一遍。导入不能恢复没写进正文的意图，也不保证文风完全一致。"
     },
     "prerequisites": {
       "en": [
@@ -998,8 +998,8 @@
       "zh": "AI 写的小说太套路？用具体改稿减少“AI 味”"
     },
     "answer": {
-      "en": "Treat “AI-sounding” prose as an editorial complaint to make specific: vague emotions, repeated sentence patterns, unearned commentary or dialogue that explains too much. Oh Story’s story-deslop combines pattern checks with bounded revision. Keep facts, meaningful details and the chosen narrator’s cadence; removing generic commentary does not require making every sentence short. The original before/after and connected-cadence alternative below show editorial choices, not recorded skill runs, authorship verdicts or detector-score results.",
-      "zh": "把“AI 味重”拆成能修改的问题：情绪太空泛、句式反复、议论拔高，或对白解释过多。Oh Story 的 story-deslop 把模式检查与有边界的修订结合起来。保留事实、有功能的细节和选定的叙述节奏；删掉套话，不等于把所有句子削短。下面用原创前后对照及另一种连贯句式展示取舍，不是技能运行记录、作者身份判断或检测分数结果。"
+      "en": "“AI-sounding” prose is an editorial problem you can name: vague emotion, repeated sentence shapes, commentary the scene has not earned, dialogue that explains too much. Oh Story's story-deslop skill runs a deterministic pattern check first, then revises within limits: facts, functional details and the narrator's cadence stay, generic filler goes, and cutting is capped so a scene is never hollowed out. Shorter is not the goal; specific is. The original before/after below shows the editorial choices. It does not promise any AI-detector score.",
+      "zh": "“AI 味重”可以拆成能改的具体问题：情绪空泛、句式反复、议论拔高、对白解释过多。Oh Story 的 story-deslop 先跑确定性的句式检查，再在边界内修订：事实、有功能的细节和叙述节奏保留，套话删掉，删除比例有上限，不会把场景掏空。目标不是更短，是更具体。下面的原创前后对照展示这些取舍。它不承诺任何 AI 检测分数。"
     },
     "prerequisites": {
       "en": [
@@ -1425,8 +1425,8 @@
       "zh": "AI 短剧怎样保持角色跨镜一致：人物、造型与镜头状态"
     },
     "answer": {
-      "en": "Separate persistent character identity, the scene’s compatible Look and each shot’s changing state. Then ask what each reference is allowed to control in the current frame—not whether it is simply “a picture of the character.” The original archive example below connects three shots and adds a reference-selection exercise: visible identity, costume compatibility, location geometry and start/end frames need different decisions. Existing images do not have to be regenerated by this suite; external picture plans can support prompt writing without pretending files are ready for the suite’s production API. Text constraints do not guarantee generated consistency.",
-      "zh": "先分开长期人物身份、本场相容造型与每镜变化的状态，再问每张参考图在当前画面里允许决定什么，而不只问“是不是这个人的图”。下面沿用原创档案馆三镜，补上挑图练习：可见身份、服装是否相容、场景布局和首尾帧需要不同判断。已有图片不必由本套件重新生成；外部挂图计划可以支持提示词写作，但不冒充本套件投产所需的真实文件。文字约束不保证生成结果始终一致。"
+      "en": "Cross-shot consistency in AI short drama breaks on costume, props and eyelines far more often than on faces. Drama Skills separates three things: persistent character identity, the Look compatible with the scene, and each shot's changing state. It then asks what each reference image is allowed to control in the current frame, and marks references as prompt-only, planned, or actually checked. Existing images do not have to be regenerated. The three-shot archive example below includes a reference-selection exercise. Text constraints reduce drift; they do not guarantee generated output.",
+      "zh": "AI 短剧的跨镜穿帮，多数出在服装、道具和视线，而不是脸。Drama Skills 把三件事分开：长期的人物身份、本场相容的造型、每镜变化的状态；再问每张参考图在当前画面里允许决定什么，并把参考图分成“只是提示词”“计划提供”“已实际检查”三种状态。已有图片不必重新生成。下面的档案馆三镜示例附一个挑图练习。文字约束能减少漂移，不能保证生成结果。"
     },
     "prerequisites": {
       "en": [
@@ -1729,8 +1729,8 @@
       "zh": "AI 写长篇怎样少崩人设、少忘伏笔：把已知、承诺和线索分开"
     },
     "answer": {
-      "en": "Before continuing, separate what is true in the story, what each character knows and what the reader has actually seen. Carry forward the relevant current state and unfinished commitments, not the whole conversation. Oh Story stores this handoff in project files and a structured tracking workflow. The original three-chapter example below shows how to use it without turning a future plan into an event that already happened; it is not a claim of error-free writing over hundreds of chapters. An optional continuation design also separates a visible clue from a plausible misreading, prepares the source of later evidence and gives a reveal consequences without resetting the deadline.",
-      "zh": "续写前，先分清故事里真正发生了什么、每个角色知道什么，以及读者已经看到什么。带上本章相关的当前状态与未完承诺，不要只靠整段聊天“记住一切”。Oh Story 用项目文件和结构化追踪流程承接这些信息。下面用原创三章示例说明怎样使用，尤其不把未来计划当成已发生的事实；这不代表已证明连续几百章都不会出错。 另附一条可选续段设计：分开可见线索与合理误读，提前安排后续证据的来源，让揭晓产生后果，而不重置期限。"
+      "en": "AI drifts over a long novel when the model is asked to remember the whole book. Oh Story keeps the state in files instead: what is true in the story, what each character knows and what the reader has seen are recorded separately in the project's tracking directory, and each new chapter loads only the current state and unfinished commitments. Nothing that is still a plan gets written as something that already happened. The three-chapter example below shows the handoff in practice, plus an optional clue design that separates a visible clue from a plausible misreading and gives the reveal consequences. This reduces forgetting and premature knowledge; it does not guarantee error-free writing across hundreds of chapters.",
+      "zh": "AI 写长篇会崩人设，通常是因为让模型“记住整本书”。Oh Story 改用文件记状态：故事里真正发生了什么、每个角色知道什么、读者看到了什么，分别写在项目的追踪目录里，续写每一章只加载当前状态和未完承诺。还只是计划的事，不会被写成已经发生。下面的三章示例演示这次交接，另附一条可选线索设计：分开可见线索与合理误读，并让揭晓产生后果。这套做法减少的是遗忘和角色提前知道答案，不保证几百章零错误。"
     },
     "prerequisites": {
       "en": [
