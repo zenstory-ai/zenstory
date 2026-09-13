@@ -1,265 +1,142 @@
-# Efficient Writing Workflow
+# Browser writing workflow: decisions, prose and a clear next step
 
-This document provides a proven efficient writing workflow to help you fully leverage zenstory Writing Workbench's advantages and improve your creative efficiency and work quality.
+> Repository snapshot (2026-09-13). Use the [current hosted guide](https://zenstory.ai/docs/advanced/workflow-tips) for the web workbench. This page reuses [the served guide source at this revision](https://github.com/zenstory-ai/zenstory/blob/1773af4781996363496f47268cce0e7c640108c8/apps/web/docs/en/advanced/workflow-tips.md), retaining the explanation and worked example for reading in the repository. The date identifies this page’s source version, not the freshness of other repository documents.
 
-## Recommended Creative Process
+In ZenStory, a writing turn should leave **a result you can accept or reject, plus a clear place to continue**. That result may be a scene, a chapter or an agreed complete short story; fixed-size fragments are not compulsory. State the goal, evidence, permitted changes and stopping point instead of assuming “write the whole book” settles every creative decision.
 
-zenstory's workbench uses a three-stage creative process. Each stage has clear tools and AI assistance strategies to make your creation more systematic and efficient.
+This is an author's guide to the [hosted ZenStory workbench](https://app.zenstory.ai/dashboard), not an enforced three-stage pipeline or a measured time-saving claim. Follow the [quick start](https://zenstory.ai/docs/getting-started/quick-start) to create a project. To control the first request, leave the idea empty and discuss it after creation.
 
-### Stage 1: Ideation and Planning
+## 1. Choose the deliverable before mixing discussion, drafting and file changes
 
-[Screenshot: Project initial interface, showing file tree with complete structure including AI Memory, World Building, Character Cards, Outline files]
+| Current situation | Useful request | What ends the turn |
+| --- | --- | --- |
+| Motive or plot direction is undecided | A few genuinely different options and tradeoffs | The author can choose; alternatives have not become established facts |
+| Direction is clear and evidence saved | A named scene or complete chapter draft | The agreed change occurs, without spilling into the next chapter |
+| A passage breaks character or causality | The original line, evidence and local replacement | The issue is repaired without changing unrelated facts |
+| A writing turn has ended | Completed work, open decisions and the next step | The record describes saved results, not the earlier plan |
 
-This is the foundational stage of the entire creative process. Good planning can significantly reduce rework in subsequent creation and help the AI more precisely understand your creative intent.
+If a chapter's goal, choices and ending are settled, you can request the whole chapter at once. Do not force four turns just to satisfy a tutorial. If the obstacle is why a character acts, settle that decision first; more prompts cannot substitute for it. Length is a creative target, not a guarantee of completeness or quality.
 
-**1. Create Project**
-- Click "New Project" on the homepage, name your work
-- Fill in the project description, this will help the AI understand the overall creative direction
-- Choose an appropriate template (serialized web novel, short story, etc.)
+## 2. Supply the evidence this turn needs, not every open file
 
-**2. Fill in AI Memory**
-- AI Memory is the core of global context, all conversations reference information here
-- Include: work type, writing style preferences, target audience, core themes, etc.
-- Suggestion: The more detailed the better, can be updated anytime
-- Example: *"This is an urban fantasy novel with a lighthearted and humorous style, targeting young readers aged 18-25, good at using internet slang and memes"*
+Keep settings, characters, outlines, prose and reference material in suitable files. Use recognizable titles and select file types for their purpose. You do not have to complete every character's age, appearance and catchphrase before writing the first scene.
 
-**3. Create World Building Files**
-- File type select "Lore"
-- Fill in key settings: magic system, power distribution, geographic environment, historical background, etc.
-- Categorize: Recommend creating multiple setting files, such as "Magic System", "Major Powers", "World Map"
-- Collaborate with AI: Let AI help you refine world building details, discover potential logic holes
+| Content | Use |
+| --- | --- |
+| Accepted character and setting facts | Keep them in the relevant files and name the parts to read this turn |
+| Outline or scene plan | Record goal, resistance, choice and exit state; separate open questions |
+| Draft or script | Store adopted narrative prose, not review notes mixed into the text |
+| Reference material | Select relevant, authorized items through the supported attachment controls |
+| AI Memory | Use the four project fields for brief context, style, actual progress and open decisions |
 
-**4. Create Main Character Cards**
-- File type select "Character"
-- Core info: name, age, appearance, personality, background, motivation, goals
-- Advanced info: character relationships, catchphrases, habitual gestures, growth arc
-- Suggestion: Both protagonists and important supporting characters need detailed character cards
-- AI Assistance: Describe character prototypes to AI, let it help enrich character images
+**AI Memory is not a required `AI Memory.md` file in the tree.** Creating a file with that name does not bind it to the four memory fields. See the [AI Memory guide](https://zenstory.ai/docs/advanced/ai-memory) for those fields.
 
-**5. Generate Chapter Outline**
-- File type select "Outline"
-- Use existing world building and character cards to collaborate with AI on generating chapter outlines
-- Clarify each chapter: main events, scenes, appearing characters, plot progression goals
-- Outline hierarchy: Volume > Chapter > Section (if needed)
-- Flexible adjustment: Outlines aren't set in stone, can be adjusted according to creative progress
+Save important changes before sending, open the target draft, name the outline and character files to read, and quote crucial passages when needed. Focused files, attachments and retrieval can contribute context, but opening several files in the background does not guarantee all their text reaches the AI. Context has a budget. Not every file type has the same attachment control as a material item. See the [AI assistant guide](https://zenstory.ai/docs/user-guide/ai-assistant).
 
-**Time Suggestion**: Planning stage usually takes 1-3 days, accounting for 10-15% of total creative time, but can save 30%+ revision time later.
+## 3. Original continuation exercise: turn scene two into a concrete task
 
-### Stage 2: Chapter Creation
+This continues **Before Closing** from the [first-story tutorial](https://zenstory.ai/docs/getting-started/first-project); it is **not a model-run record**. Assume scene one is saved: Shen Min described an inner-pocket item incorrectly; the bag remains at Lin He's lost-property desk and has not been released. Lin does not know the reason. The author has not chosen Shen's relationship to the owner or the eventual recipient.
 
-[Screenshot: Creation interface, left file tree, middle editor, right AI chat panel showing complete workbench view]
+### Decide which question this scene advances
 
-This is the core creative stage. zenstory's three-panel layout lets you complete all work in the same interface without switching windows.
+One route continues investigating the wrong description. Another turns to Shen's basis for claiming the bag, leaving the reason for the error unresolved this scene. They change plot direction, not just the wording of “make it tense.” If you have not chosen, request:
 
-**1. Select Chapter Outline**
-- Open the chapter outline to create from the left file tree
-- View this chapter's goals and key points in the middle editor
-- Keep relevant character cards and setting files open in background (AI will auto-reference)
-
-**2. Discuss Plot with AI**
-- Start conversation in the right AI chat panel
-- Tell AI the scene you want to create: "I want to write Chapter 3, where the protagonist discovers a mysterious jade pendant at the antique market"
-- Let AI provide plot suggestions, scene descriptions, dialogue design, etc.
-- Progressive refinement: Don't ask AI to generate complete chapters at once, discuss in segments
-
-**3. Generate First Draft**
-- When satisfied with plot direction, ask AI to generate formal text
-- Use prompt example: *"Based on our discussion, please write the opening of Chapter 3 (about 1000 words), the scene is an antique market, atmosphere should be suspenseful"*
-- AI will reference your AI Memory, character cards, world settings to maintain writing style consistency
-
-**4. Manual Revision and Polishing**
-- Copy AI-generated content to the editor
-- Make manual revisions: adjust wording, add details, correct parts that don't match settings
-- Add your personal style and creative spark
-- zenstory supports real-time auto-save, no need to worry about losing work
-
-**5. Version Save**
-- After completing a satisfactory draft, the system automatically creates a version snapshot
-- You can also manually create important versions (like "First Draft", "Polished Version")
-- Version history lets you backtrack and compare anytime
-
-**Time Suggestion**: Single chapter creation usually takes 2-4 hours (3000-5000 words), AI assistance can improve efficiency by 50%+.
-
-### Stage 3: Revision and Refinement
-
-[Screenshot: Version comparison interface, showing differences highlighted between two versions]
-
-This is the key stage for improving work quality. zenstory provides various tools to help you refine your work.
-
-**1. Version Comparison**
-- Select any two versions to compare
-- Differences are highlighted: new content (green), deleted content (red), modified content (yellow)
-- Quickly identify modification trails, make better creative decisions
-
-**2. AI-Assisted Polishing**
-- Select paragraphs needing polishing
-- Make specific requests to AI: *"Please help me polish this description to make it more visual and tense"*
-- AI will maintain your basic writing style while optimizing expression and rhythm
-- Can iterate multiple times until satisfied
-
-**3. Consistency Check**
-- Have AI check consistency between chapters and character cards, world settings
-- Discover potential issues: like character ability contradictions, timeline confusion, etc.
-- Example prompt: *"Please check if this chapter is consistent with my previously set magic system"*
-
-**Time Suggestion**: Revision stage usually accounts for 20-30% of creative time, a key investment in improving work quality.
-
-## File Organization Recommendations
-
-Good file organization lets you quickly find needed materials, improving creative flow. zenstory supports tree file structure, you can organize flexibly.
-
-### Organize by Volume Folders
-
-[Screenshot: File tree example showing clear hierarchy: Volume 1 > Chapter 1, Chapter 2...; separate Character and World Building folders]
-
-**Recommended Structure:**
-```
-├── AI Memory.md
-├── World Building/
-│   ├── Magic System.md
-│   ├── Major Powers.md
-│   └── World Map.md
-├── Characters/
-│   ├── Protagonists/
-│   │   └── John Smith.md
-│   └── Supporting/
-│       ├── Jane Doe.md
-│       └── Bob Wilson.md
-├── Volume 1/
-│   ├── Volume Outline.md
-│   ├── Chapter 1/
-│   │   ├── Chapter Outline.md
-│   │   └── First Draft.md
-│   └── Chapter 2/
-│       ├── Chapter Outline.md
-│       └── First Draft.md
-└── Material Library/
-    ├── Inspiration Fragments.md
-    └── Pending Settings.md
+```text
+Read Scene 1 — The claim and Three-scene outline first.
+Compare two scene-two routes: one advances the reason for the mistaken description;
+the other advances the basis for claiming the bag.
+For each, state the new information, the character's choice and the question left open.
+Give proposals in chat only. Do not draft prose or update characters, outline or AI Memory.
 ```
 
-**Organization Tips:**
-- One folder per volume, chapters as sub-files
-- Characters and world building in separate folders for easy cross-chapter reference
-- Use naming conventions: "Chapter 1_First Meeting.md" is clearer than "1.md"
-- Regular cleanup: delete obsolete files, archive completed chapters
+If you already have a direction, do not reopen alternatives just to follow a template. This exercise selects the second route and **proposes the following new design for author acceptance**. These are not facts already in scene one or preinstalled project content:
 
-## AI Collaboration Tips
+| New writing decision | Status and boundary |
+| --- | --- |
+| A blue patch is on the bottom of the bag | A new prop detail for this exercise |
+| Shen describes it before Lin checks it out of Shen's sight | A planned action; do not first show Shen the bottom and then treat her answer as independent information |
+| At the end, Shen says “The bag isn't mine” | The chosen dialogue endpoint, not verified knowledge of the mistaken description or true relationship |
+| The bag stays at the desk; no owner arrives | This turn's selected exit boundary, not the final ownership decision |
 
-Effective collaboration with AI is key to improving creative efficiency. The following tips help you get better AI output.
+This separates knowing a detail from authority to collect the bag. A matching patch description does not establish that Shen is its owner, a liar or an authorized representative. These are fictional story choices, not real lost-property procedures.
 
-### Step-by-Step Questioning
+### After acceptance, make the prose implement the decision
 
-**Wrong Approach:**
-*"Please help me write Chapter 3, the protagonist meets the female lead, they have a misunderstanding, then clear it up, 3000 words"*
+Explicitly add the accepted design to Three-scene outline and the relevant setting record, keeping progress marked “scene two unwritten.” Create or select the draft-type target **Scene 2 — The check**, then request:
 
-**Correct Approach:**
-1. First ask: *"For Chapter 3, I want the protagonist and female lead to meet for the first time, please give me three scene suggestions, 100-word summary each"*
-2. After selecting scene ask: *"I choose the first scene, please write a detailed opening description (500 words)"*
-3. Continue asking: *"Next the two have a conversation, please write this dialogue, showing the female lead's tsundere personality"*
-4. Progress gradually until chapter complete
+```text
+Read Lin He, Shen Min, Three-scene outline and the saved scene-one prose first.
+The target draft is Scene 2 — The check. If titles are duplicated, list candidates first.
 
-**Why It Works:**
-- AI more easily produces high-quality content under specific, clear instructions
-- You can adjust direction in time, avoiding extensive rework
-- Better control of pacing and details
+Use the accepted blue-patch design: Shen gives its detail before seeing the bottom;
+Lin checks it and asks what entitles Shen to claim the bag.
+End with Shen saying “The bag isn't mine.”
+Write the scene in Lin's limited viewpoint, targeting 400–600 English words.
+Do not release the bag, explain the earlier error, introduce the owner arriving,
+or add hidden character truths. Stop at that line's landing; do not write scene three.
 
-### Provide Sufficient Context
+Write the adopted draft into the named target, not a duplicate file.
+Do not change scene one, motives or the final recipient.
+Identify missing essential evidence before inventing it.
+```
 
-**Tips:**
-- Explicitly reference relevant files: *"Please refer to the personality setting in [John Smith's Character Card]"*
-- Provide previous text summary: *"Last chapter the protagonist just obtained the mysterious jade pendant"*
-- Explain creative goals: *"This section should create tense atmosphere, foreshadowing the upcoming climax"*
+This request explicitly permits writing the target file. If you want to see a candidate first, replace the final paragraph with “Give the draft in chat only; do not change files or memory,” then adopt it manually. That is a task boundary, not enforced read-only access. Agent file operations do not all guarantee per-change approval dialogs.
 
-zenstory's AI automatically reads relevant files, but your explicit prompts help the AI more precisely locate key information.
+## 4. Repair a line without reselecting the whole story
 
-### Make Good Use of Confirmation Mechanism
+First read for the agreed changes: what the characters know, where the bag is and which line has been spoken. Then judge pacing and language. You do not have to reassess every craft dimension in every turn.
 
-- **Check AI Output**: Don't blindly accept AI-generated content, check if it matches settings and logic
-- **Timely Correction**: When finding problems, immediately tell AI to correct, like *"This dialogue doesn't match John Smith's personality, please rewrite"*
-- **Request Explanation**: You can ask AI to explain its creative thinking, *"Why choose this scene? How does it advance the plot?"*
+**Suppose the draft says:**
 
-AI is your collaborative partner, not a ghostwriter. Your judgment and aesthetic remain the core guarantee of work quality.
+> The patch description matched. Lin finally knew Shen was entitled to take the bag.
 
-## Backup Strategy
+The problem is not insufficient vividness: familiarity with a detail has become collection authority. A possible local replacement is:
 
-Creative safety is paramount. Here's a multi-layer protection strategy:
+> The patch matched, but the wrongly described item in the inner pocket remained unexplained. Lin did not pass the bag over.
 
-### Regular Export
+This is an original replacement example, not an applied edit. It keeps the matching description and unreleased bag without deciding Shen's true identity. Quote the actual problem passage, ask to repair only that inference, and preserve the accepted dialogue and exit state. Do not quietly make scene one's wrong description correct to erase the unresolved issue the story intentionally retains.
 
-- Use the "Export" function in the top right corner
-- Supported format: Plain Text (.txt) (current version)
-- Suggestion: Export once after completing each chapter, save locally or to cloud
+See the [editor guide](https://zenstory.ai/docs/user-guide/editor) for quotations, diff actions and save status. Changing an identity or ending is a separate plot revision: name the affected outline, character and prose files rather than assuming they synchronize automatically.
 
-### Utilize Version History
+## 5. What do saving, versions and export each protect?
 
-- zenstory automatically saves all versions
-- Can backtrack to any historical version anytime
-- Manually create marked versions at important milestones (like "Volume 1 Complete")
+- **Saving prose:** writes current text to the file. Check save status; autosave does not guarantee that disconnection, conflict or closing the page cannot lose unsaved input. Avoid simultaneous overwrites while the AI edits that file.
+- **File versions or project snapshots:** support comparison and recovery under creation conditions and version allowances. Prose can save successfully without a new snapshot. Do not assume every edit is retained forever, or roll back a whole project just to recover one line. See [version history](https://zenstory.ai/docs/user-guide/version-history).
+- **Manuscript TXT:** combines undeleted `draft` and `script` files, including titles and prose. Ordering uses chapter/episode sequence and ordering information, not just creation time. It does not contain complete characters, materials, chat, memory or history. Keep separate copies of other important material; see [manuscript export](https://zenstory.ai/docs/user-guide/export).
 
-### Multiple Location Saves
+These operations are not interchangeable and do not guarantee that work can never be lost. This guide does not ask you to delete files or roll back an existing project to test recovery.
 
-- **Cloud**: zenstory auto-syncs to cloud
-- **Local**: Regularly export to local hard drive
-- **Backup**: Use cloud drives (like iCloud, Google Drive) to sync exported files
-- **Cold Backup**: Periodically burn important works to disc or save to external hard drive
+## 6. Leave the next turn an accurate starting point
 
-**Golden Rule**: Data should exist in at least 3 places, with at least 1 offline.
+Change “planned” to “completed” only after the actual prose contains the agreed result and is saved. This card assumes scene two really finished within the exercise's scope; otherwise record the actual state instead of copying it:
 
-## Common Workflow Templates
+```text
+Completed: Scene 2 — The check is saved. The blue patch was checked;
+Shen said “The bag isn't mine.” The bag remains at the desk, not released.
+Undecided: Shen's relationship to the owner, the earlier mistake and final recipient.
+Next: discuss how scene three addresses the basis for the claim; do not draft yet.
+Evidence: current character files, Three-scene outline and the saved first two scenes.
+Do not: treat Shen's statement as a verified identity finding or repeat the same check.
+```
 
-Different types of creation have different best practices. Here are recommended workflows for two common scenarios.
+If only a chat draft exists, say “candidate supplied, not yet adopted.” If interruption left only part saved, name the stopping point. A new conversation or Stop button does not undo file changes that already happened. Read the current draft before continuing the missing portion.
 
-### Serialized Web Novel Workflow
+## 7. Adapt the method to long and short fiction
 
-**Characteristics**: Pursue rapid output, flexible adjustment, maintain update rhythm
+**Serial fiction:** keep the distant direction, expanding decisions into detail where they support the current writing. Plan longer-range setups when needed. There is no compulsory batch of ten to twenty chapters. When feedback changes direction, distinguish written facts from future plans before choosing the revision scope.
 
-**Recommended Process:**
-1. **Quick Planning**: Only plan broad world building and main plot, fill in details during serialization
-2. **Batch Outlining**: Plan 10-20 chapters at once, avoid writer's block
-3. **Daily Update Rhythm**:
-   - Morning: Discuss today's chapter key points with AI (15 minutes)
-   - Afternoon: AI-assisted first draft generation (1-2 hours)
-   - Evening: Manual polishing and revision (1 hour)
-4. **Flexible Adjustment**: Adjust subsequent plot based on reader feedback
-5. **Weekly Review**: Review overall progress each weekend, adjust next week's outline
+**A complete short story:** if the central question, choices and ending are clear, request a full draft. If only the opening is known, first settle the decisions that affect its ending. No fixed six-day schedule, word count or endless sentence-level polishing is required.
 
-**Efficiency Tips:**
-- Use AI to generate transition paragraphs and daily dialogue, save time
-- Build character dialogue template library, maintain consistent character voices
-- Make good use of "continue writing" feature, let AI auto-continue based on previous text
+Whatever rhythm you choose, leave usable prose or an accepted creative decision—not just more alternatives and longer chat. Use the focused guides and actual saved results to understand the workbench's boundaries.
 
-### Short Story Workflow
+## Implementation references
 
-**Characteristics**: Pursue completeness, fine polishing, one-shot completion
+Source checked on 2026-09-13. These fixed revisions support context, save, tool and export behavior. The original workflow is not an executed model case or evidence of faster writing or manuscript quality.
 
-**Recommended Process:**
-1. **Complete Planning**: Detailed planning of all characters, scenes, plot twists
-2. **Scene-by-Scene Creation**:
-   - Day 1: Complete scene planning and opening with AI collaboration (2000 words)
-   - Day 2: Development section, advance plot (3000 words)
-   - Day 3: Climax and ending (3000 words)
-3. **Overall Polishing**:
-   - Day 4: Read through entire text, fix logic issues
-   - Day 5: Collaborate with AI on language polishing
-   - Day 6: Final check and format adjustment
-4. **External Feedback**: Share with beta readers, refine after collecting feedback
-
-**Quality Tips:**
-- Fully utilize version comparison feature, compare different revision versions
-- Have AI evaluate work from reader perspective: "Is this part too abrupt?"
-- Multiple iteration polishing until every sentence is just right
-
----
-
-## Conclusion
-
-An efficient writing workflow isn't an unchangeable dogma, but a system you continuously optimize in practice. zenstory's tools and AI collaboration capabilities can adapt to various creative styles and habits.
-
-**Remember Core Principles:**
-1. **Plan Before Creating**: Good planning is the foundation of efficiency
-2. **Collaborate with AI Step-by-Step**: Progressive refinement is more effective than one-shot generation
-3. **Human Quality Control**: AI is an assistant, you are the creator
-4. **Safety First**: Multiple backups, never lose your work
-
-Wishing you a creatively flowing journey with zenstory - may inspiration pour forth and your pen blossom!
+- [Focused file, attachments and quotations in a request](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/web/src/components/ChatPanel.tsx#L1151-L1177)
+- [Context is selected from explicit inputs and retrieval](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/agent/context/assembler.py#L149-L203)
+- [Ordinary saves and version-creation choices](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/web/src/components/SimpleEditor.tsx#L509-L554)
+- [Saving prose can succeed without a new version](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/api/files.py#L900-L960)
+- [Exported file types and ordering](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/services/features/export_service.py#L110-L143)
+- [TXT contains titles and prose](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/services/features/export_service.py#L197-L203)
+- [Agent file-operation dispatch](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/agent/tools/file_ops/router.py#L86-L119)

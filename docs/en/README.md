@@ -39,7 +39,7 @@ Master zenstory in depth and build an efficient, personalized writing workflow.
 - [AI Memory & Context](advanced/ai-memory.md) - Separate accepted settings, saved progress and open ideas within the limits of project context
 - [Advanced Custom Skills](advanced/skill-creation.md) - Create exclusive creative skills
 - [Deep Materials Analysis](advanced/material-analysis.md) - Help AI deeply understand your creative materials
-- [Efficient Writing Workflow](advanced/workflow-tips.md) - Workflow practices from professional authors
+- [Browser Writing Workflow](advanced/workflow-tips.md) - Choose the scope, write from evidence and hand off actual saved progress
 
 ### Reference
 Quick lookup tools and detailed explanations.

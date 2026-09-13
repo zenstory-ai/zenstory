@@ -51,7 +51,7 @@
 | [AI记忆与上下文](advanced/ai-memory.md) | 区分已确认设定、实际进度与待定想法，了解项目摘要的边界 |
 | [自定义技能进阶](advanced/skill-creation.md) | 创建专属创作技能 |
 | [素材深度分析](advanced/material-analysis.md) | 让 AI 深度理解你的素材 |
-| [高效写作工作流](advanced/workflow-tips.md) | 专业作者的工作流实践 |
+| [网页写作工作流](advanced/workflow-tips.md) | 从创作决定到正文，分清讨论、改稿与实际保存结果 |
 
 ### 参考资料
 快速查询工具与详细说明。
