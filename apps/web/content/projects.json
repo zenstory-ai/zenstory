@@ -31,6 +31,7 @@
         ["Why does a detailed outline still become flat prose?", "An outline specifies what must happen; prose needs the actions, evidence and consequences that make the change visible. The [original library-rescue example](https://zenstory.ai/oh-story/outline-to-chapter) turns “they argue and pay a price” into two defensible priorities, a checked fact, a signed responsibility and conditional cooperation. Quiet chapters can move a relationship without an artificial twist."],
         ["How can I revise formulaic prose without changing the story?", "Name the wording problem, preserve the scene facts and revise only the necessary passages. A pattern hit is a prompt for contextual judgment, not proof of AI authorship. The [original before/after example](https://zenstory.ai/oh-story/revise-ai-prose) explains why particular edits help and which facts stay unchanged."],
         ["How can continuation keep my voice instead of a generic style?", "Give an authorized sample and name the useful dimensions, while keeping this book’s facts and viewpoint separate. The [original author-voice example](https://zenstory.ai/oh-story/preserve-author-voice) preserves a longer rhythm and mild humor without importing another story’s characters. Sample inference is not confirmed memory; a temporary choice, book-specific preference and global habit have different scopes."],
+        ["How can characters sound different without relying on catchphrases?", "Give each speaker an immediate goal, a knowledge boundary and a relationship to the listener, then choose the wording. The [original rehearsal dialogue example](https://zenstory.ai/oh-story/character-dialogue) separates three conversational agendas while preserving the same outcome and an undisclosed private fact. Character dialogue can change with the listener without replacing the book’s narrative voice."],
         ["Covers", "Prepare genre-aware cover guidance and use an available image-generation tool when configured."]
       ],
       "zh": [
@@ -45,6 +46,7 @@
         ["有细纲，为什么写出来仍像剧情复述？", "细纲规定要发生什么，正文要让行动、证据和后果承载变化。[原创搬书库示例](https://zenstory.ai/oh-story/outline-to-chapter)把“争执并付出代价”落成两种有依据的优先级、一次核对、签字担责和有条件合作；低压章也可推进关系，不必强塞反转。"],
         ["怎么改掉正文的套话和解释腔？", "先说清措辞问题，保留场景事实，只改有必要的段落。模式命中需要结合语境判断，不证明文本由 AI 创作。[原创改稿前后对照](https://zenstory.ai/oh-story/revise-ai-prose)说明每项修改的理由，以及哪些事实没有改变。"],
         ["怎么保留我的文风，而不是越改越像统一模板？", "提供有权使用的样本，说清哪些表达维度有用，再分开本书事实与视角。[原创文风示例](https://zenstory.ai/oh-story/preserve-author-voice)保留较长节奏与轻微调侃，却不搬入另一个故事的人物。样本推断不等于已确认记忆；本段选择、本书偏好与全局习惯的范围不同。"],
+        ["怎样让人物对白不同，而不只给每人添口头禅？", "先分眼前目标、信息边界与听者关系，再选措辞。[原创排练对白示例](https://zenstory.ai/oh-story/character-dialogue)区分三人的对话议程，同时保留既定结果与尚未公开的私人事实。人物可以因听者不同而改变说法，不必把整本书的叙述声音一并换掉。"],
         ["封面", "准备题材相关的封面指引，并在配置可用生图工具时调用。"]
       ]
     },
