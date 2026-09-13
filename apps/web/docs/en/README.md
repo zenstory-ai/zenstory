@@ -8,7 +8,7 @@ Work at [app.zenstory.ai](https://app.zenstory.ai/dashboard) and read the guides
 
 - [Browser Writing Quick Start](https://zenstory.ai/docs/getting-started/quick-start) - Essential reading for beginners to master core features
 - [Write Your First Short Story](https://zenstory.ai/docs/getting-started/first-project) - An original story brief, project files, scoped revision and prose export
-- [AI Writing Assistant](user-guide/ai-assistant.md) - In-depth guide to unlock AI writing potential
+- [AI Writing Assistant](https://zenstory.ai/docs/user-guide/ai-assistant) - Focused files, quotations, scoped tasks and interrupted-work recovery
 - [FAQ](reference/faq.md) - Quickly find answers to common questions
 
 ## Documentation Navigation
@@ -26,8 +26,8 @@ Detailed feature explanations to help you make the most of zenstory's capabiliti
 - [Interface Overview](user-guide/interface-overview.md) - Understand the three-panel workbench layout
 - [Project Management](user-guide/project-management.md) - Create and manage your writing projects
 - [File Tree & File Types](user-guide/file-tree.md) - Master outline, draft, character, and other file types
-- [Editor Usage](user-guide/editor.md) - Efficiently edit your creative content
-- [AI Writing Assistant](user-guide/ai-assistant.md) - Converse with AI to get creative inspiration and content
+- [Editor Usage](https://zenstory.ai/docs/user-guide/editor) - Manual writing, quotations and a before/after passage revision
+- [AI Writing Assistant](https://zenstory.ai/docs/user-guide/ai-assistant) - Provide context and set writing or revision boundaries
 - [Skills System](user-guide/skills.md) - Use preset skills to accelerate specific creative tasks
 - [Material Library](user-guide/materials.md) - Manage inspiration fragments, world-building settings, and other materials
 - [Inspirations Library](user-guide/inspirations.md) - Discover idea templates and copy them into projects

@@ -19,6 +19,8 @@ Overview page: https://zenstory.ai/projects — each project has a bilingual can
 
 ## Documentation
 
+- [AI writing assistant: context and continuation](https://zenstory.ai/docs/user-guide/ai-assistant): focused saved files, material attachments, text quotes, scoped requests, character-consistency checks and recovery after interrupted generation.
+- [Revise a passage in the workbench editor](https://zenstory.ai/docs/user-guide/editor): an original before/after scene edit, manual writing, quotations, review decisions and save/conflict boundaries; not an offline-backup or automatic-quality promise.
 - [Start writing in the browser workbench](https://zenstory.ai/docs/getting-started/quick-start): create with or without an idea, target project files, request scoped help, save and export; no agent-host installation required.
 - [Write your first short story in ZenStory](https://zenstory.ai/docs/getting-started/first-project): original lost-property premise, approved facts versus open choices, character/outline/draft files, context selection, local revision and TXT export limits.
 - [Revise formulaic AI prose](https://zenstory.ai/oh-story/revise-ai-prose): original before/after fiction example with a fact list and edit reasons; scoped diagnosis and revision, not authorship detection or a detector-score promise.

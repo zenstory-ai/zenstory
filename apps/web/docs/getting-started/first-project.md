@@ -62,12 +62,12 @@
 
 ## 4. 打开目标文件，明确这次用哪些上下文
 
-点击「第1场 认领」打开编辑器。发送消息时，工作台会带上当前焦点文件的身份信息；需要参考的项目文件、素材库材料和选中文本，应通过附件或引用功能明确加入。打开一个文件不等于每次请求都已装入整本书。
+点击「第1场 认领」打开编辑器。发送消息时，工作台会带上焦点文件的身份，服务端据此读取已保存内容，但上下文仍受预算约束，不等于每次都装入整本书。素材可以附加到对话；普通人物与提纲文件可通过选段引用或在请求中明确命名来提供依据，不能假定每种文件都有素材的附加按钮。
 
-先保存刚改过的人物与提纲，附加这次需要的文件，然后发送：
+先保存刚改过的人物与提纲，引用这次需要的关键设定，并要求先读取相关文件。然后发送：
 
 ```text
-根据已确认的《三场景提纲》和人物文件，只写《第1场 认领》。
+先读取已确认的《三场景提纲》和人物文件，只写《第1场 认领》。
 约600—900个中文字，以林禾有限视角写到沈敏报错内袋物件为止。
 用问答和动作表现紧迫感；不要提前揭露报错原因，不替其他人物解释内心。
 将正文写入已打开的正文文件，不新建同名副本，不继续写第2场。
@@ -102,6 +102,8 @@
 
 导出不包含整套人物、素材、聊天与版本历史，不能当作完整项目备份。没有可导出的文件、权限或当前套餐格式限制时，以页面错误提示为准；本文不承诺 DOCX、EPUB 或自动投稿。
 
+更详细的焦点文件、素材附件与文本引用区别，见[AI 创作助手](https://zenstory.ai/docs/user-guide/ai-assistant)。
+
 ## 接下来写什么
 
 拿到一场可用正文后，再继续第二场：复用已确认文件，写清本场要发生的变化和停止位置。你也可以先自行写作，只在卡住或修订时使用 AI。
@@ -128,3 +130,5 @@
 - [导出文件类型与排序](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L110-L143)
 - [TXT 合并内容](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L197-L203)
 - [导出限制与下载响应](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/api/export.py#L87-L143)
+- [服务端读取焦点文件与附加资料](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/agent/context/assembler.py#L145-L177)
+- [项目素材的附加入口](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/sidebar/FileTreePane.tsx#L552-L575)

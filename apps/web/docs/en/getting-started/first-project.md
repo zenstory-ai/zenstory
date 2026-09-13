@@ -64,12 +64,12 @@ These are files you request, not automatically generated names. **Type matters**
 
 ## 4. Open the target and choose this request's context
 
-Open **Scene 1 — The claim**. A chat request includes the focused file's identity; explicitly attach relevant project files or library materials, and quote selected text when needed. Opening a file does not mean the entire book is included in every request.
+Open **Scene 1 — The claim**. The request identifies the focused file, and the server reads its saved content under a context budget; this does not include the whole book every time. Attach supported material items, quote key character or outline passages, or name files to read. Not every file type has the material attachment control.
 
-Save recent edits to your characters and outline, attach the relevant files, then ask:
+Save recent character and outline edits, quote essential constraints and request a read of the relevant files. Then ask:
 
 ```text
-Use the approved Three-scene outline and character files to draft only
+First read the approved Three-scene outline and character files, then draft only
 Scene 1 — The claim, around 400–600 English words, in Lin He's limited viewpoint.
 Stop when Shen Min names the wrong inner-pocket item. Convey urgency through
 actions and questions; do not reveal the reason or explain another person's mind.
@@ -107,6 +107,8 @@ Use **Export** in the project header, or its mobile menu, to download TXT. Curre
 
 This does not export all characters, materials, chat or version history and is not a complete project backup. Missing writing files, permissions or plan-format restrictions can prevent export; follow the actual error. This tutorial does not promise DOCX, EPUB or automatic publication.
 
+For the focused-file, material-attachment and text-quotation distinctions, see the [AI assistant guide](https://zenstory.ai/docs/user-guide/ai-assistant).
+
 ## Continue with a deliberate next scene
 
 Once you have a usable scene, reuse the approved files and specify the next scene's change and stopping point. You can also write manually and use AI only when stuck or revising.
@@ -133,3 +135,5 @@ Source checked on 2026-09-12. These fixed-version references explain the interfa
 - [Exported file types and ordering](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L110-L143)
 - [TXT composition](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L197-L203)
 - [Export restrictions and download response](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/api/export.py#L87-L143)
+- [Server reads of focused files and attached references](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/agent/context/assembler.py#L145-L177)
+- [Project-material attachment control](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/sidebar/FileTreePane.tsx#L552-L575)

@@ -1,384 +1,125 @@
-# AI Creative Assistant
+# AI writing assistant: context, scoped tasks and continuation
 
-## What is the AI Creative Assistant?
+In ZenStory, AI can read and operate on project files as well as return text. Before a writing task, identify the target, the story facts it depends on, the permitted changes and where to stop. Keep approved decisions in files and focused quotations rather than relying only on a long conversation.
 
-The AI Creative Assistant is zenstory's core feature. It acts like a writing partner who understands you. It can comprehend your story background, character settings, and writing style, providing creative inspiration, content generation, and intelligent suggestions. Whether you're constructing outlines, enriching characters, or writing drafts, the AI serves as your capable assistant.
+This guide is for the [ZenStory browser workbench](https://app.zenstory.ai/dashboard), not Oh Story commands. Start with [Quick Start](https://zenstory.ai/docs/getting-started/quick-start) if needed. Requests below continue the lost-property example from [your first short story](https://zenstory.ai/docs/getting-started/first-project); they are original teaching examples, not recorded AI results.
 
-Unlike traditional writing tools, the AI Creative Assistant actively understands your project context. When you open an outline or draft, the AI automatically retrieves relevant content; when you select a passage of text, the AI can continue or modify based on that text. This deep understanding makes the creative process more fluid and natural.
+## 1. Choose this task instead of requesting the whole novel
 
----
+Use the project's AI chat area. Distinguish discussion, drafting and file changes:
 
-## Starting a Conversation
+| What you need | This task's deliverable | Boundary to specify |
+| --- | --- | --- |
+| An unresolved plot decision | Two alternatives with consequences | Discuss in chat; do not make unchosen ideas established facts |
+| A scene draft | Prose for a named scene | Target, viewpoint, approximate length and stopping point |
+| A character-consistency check | Original sentences compared with settings | Find evidence before suggesting edits; do not rewrite the chapter |
+| An approved revision | A specific passage replacement | Facts to preserve and whether other files may change |
 
-### Entering Creative Requests
+A useful request has five parts: **goal, references, established facts, permitted changes and stopping point**. It need not be long. Do not label conflicting alternatives as simultaneous requirements.
 
-[Screenshot: Chat input box at the bottom right of the interface]
+## 2. What content can the AI see?
 
-In the input box at the bottom of the chat panel on the right, enter what you want the AI to help you with.
+The browser identifies the focused file, and the server reads its saved content within the project and assembles related material. It is not limited to seeing the filename. Nor does every request necessarily contain the entire book, every reference and all conversation history.
 
-**Example inputs:**
-- "Help me design a dramatic backstory for the female protagonist"
-- "Based on the current outline, continue writing the beginning of Chapter 3"
-- "Optimize this dialogue to make the character's personality more distinct"
+File context and chat history have budgets; material can be selected or compacted. Save important changes before requesting work, and briefly restate critical constraints instead of relying on an early chat message alone.
 
-The input box supports multi-line text, so you can describe your needs in detail. Press `Enter` to send a message, press `Shift + Enter` for a new line.
+| Input | How to provide it | Useful contents |
+| --- | --- | --- |
+| Focused file | Open the file for this task | The saved scene, character or outline |
+| Project material | Use the material item's add-to-chat control | Reference notes; this control is not a universal attachment button for every file type |
+| Library material | Use a supported item's attach-to-chat control | Relevant reference information you have the right to use |
+| Text quotation | Open a file, select text and add it to chat | The sentence to revise or a rule that must remain true |
+| Other project files | Name them and request a read; quote crucial passages if needed | Approved character and outline references, without copying every chapter |
 
-### Using Suggestion Prompts
+The current web interface shares **five attachment slots** between project materials and library items. Text quotations have a separate **five-quote limit**. Remove irrelevant items when full; a slot does not guarantee the item's full text survives the final context budget.
 
-[Screenshot: Suggestion bubbles above the input box]
+Characters, outlines and drafts do not necessarily have the material item's attachment control. Open and quote the relevant passage, or name the file to read. Do not paste an entire character sheet into an unrelated file just to simulate an attachment. If you edit the original after quoting it, check the quotation before sending.
 
-If you don't know where to start, you can click the suggestion prompts above the input box. These prompts are dynamically generated based on your project status, helping you quickly initiate conversations.
+## 3. How can a continuation preserve an unresolved truth?
 
-**Prompt types:**
-- **New Project Guidance** - When a project is just created, provides suggestions for creating outlines, characters, and other basic content
-- **AI Smart Suggestions** - The AI generates relevant follow-up suggestions based on your recent conversation content
+Suppose Scene 1 ends with Shen Min naming the wrong item inside the bag. The bag has not been released. Lin He knows the description is wrong, but not why. Save relevant files, open Scene 2's target draft and ask:
 
-**How to use:**
-- Click any suggestion bubble to automatically fill the content into the input box
-- Click the refresh button to get new suggestions
-- Press `Tab` to quickly adopt the first suggestion
+```text
+Continue Scene 2 of Before Closing. First read Three-scene outline, Lin He,
+Shen Min and the Scene 1 draft. If names are ambiguous, list the candidates
+so I can identify the target; do not guess.
 
-### Voice Input
-
-[Screenshot: Microphone button on the left side of the input box]
-
-If you prefer to dictate your thoughts, you can use the voice input feature.
-
-**Desktop operation:**
-1. Click the microphone button to start recording
-2. Speak into the microphone (maximum 55 seconds)
-3. Click the button again to stop recording, and the AI will automatically recognize and convert to text
-
-**Mobile operation:**
-1. Long press the microphone button to start recording
-2. Keep holding and speak
-3. Release the button to stop recording and recognize
-
-**Notes:**
-- Requires browser microphone permission
-- Right-click (or long press and slide away) to cancel recording
-- Recognition results will be appended to existing content in the input box
-
----
-
-## AI Responses
-
-### Thinking Process
-
-[Screenshot: Collapsible thinking process panel with expand/collapse arrow]
-
-When the AI processes complex tasks, it first displays the thinking process. This content is shown in a semi-transparent style, expanded by default, and you can click the title bar to collapse it.
-
-**The thinking process includes:**
-- AI's understanding of the task
-- Planned steps to take
-- Context factors considered
-
-The thinking process helps you understand the AI's reasoning logic and makes the creative process more transparent.
-
-### Creative Results
-
-[Screenshot: Main content area of AI output]
-
-The AI's main response is displayed in a clear format, supporting:
-- **Markdown formatting** - Headers, lists, bold, etc.
-- **Code blocks** - If format examples are involved
-- **Real-time streaming output** - You can see the AI generate content character by character
-
-### Tool Operations
-
-[Screenshot: Tool result card showing file operation status and details]
-
-When the AI performs specific operations (such as creating files, editing content), tool result cards are displayed:
-
-**Creating files:**
-```
-✓ Created Outline "Chapter 1"
+Established facts: the description is wrong; the bag remains at the desk;
+Lin He does not know why Shen Min made the mistake.
+Write only Lin He's request for further identification and Shen Min's response.
+Keep Lin He's limited viewpoint. Use actions and questions; do not turn suspicion
+into a proven lie. Give a candidate passage of around 400 English words in chat,
+without editing files. Stop at the next decision. Ask about missing essential
+facts instead of deciding the truth for me.
 ```
 
-**Editing files:**
-```
-✓ Edit Complete "Chapter 3"
-[View Edit Details ▼]
-```
+This states what the task may decide; it is not a guarantee against model mistakes. First check whether anyone knows something they have not learned, then judge the prose. Length is an editorial target.
 
-Click "View Edit Details" to see:
-- Deleted content (red background)
-- Added content (green background)
-- Operation type (replace/insert/append/delete)
+When satisfied, specify where the chosen passage belongs and whether to replace or append. Do not let “continue” mean both “draft more” and “save everything correctly.”
 
-**Querying files:**
-```
-✓ Found 3 related files
-- Character "Li Ming"
-- Lore "Worldbuilding - Cultivation System"
-- Outline "Volume 1"
+## 4. How do I find and repair a character contradiction?
+
+Instead of “make the character more consistent,” supply an observable mismatch and its reference:
+
+```text
+Compare the current Scene 2 with the character setting I quoted.
+Reply only with: problem sentence, conflicting setting and smallest suggested edit.
+Established fact: Lin He knows the description does not match, but not why. Add no background and modify no files.
+Mark unsupported decisions as “for the author to decide.”
 ```
 
----
+“Suggest, do not edit” is a task instruction, not enforced read-only mode. Available agent tools include creating, editing and deleting files; do not assume every write waits for a confirmation dialog. Save important originals, inspect actual files and operation results, and decide individual changes if a diff review appears.
 
-## Collaborating with AI
+See [the editor guide](https://zenstory.ai/docs/user-guide/editor) for selection, a before/after example and review controls. If an adopted edit genuinely changes a motive or outcome, update the related character and outline separately; prose edits do not automatically synchronize every story fact.
 
-### Confirmation and Rejection
+## 5. How do I continue without repeating a long conversation?
 
-Some AI operations may require your confirmation. When the AI is uncertain how to proceed, it will pause and ask for your input:
+Keep approved decisions in their project files and use a short handoff for the next task. This is a chat format, not an automatically executed workflow file:
 
-[Screenshot: Workflow waiting for confirmation status prompt]
-
-```
-⚠ Waiting for Your Response
-AI needs more confirmation to continue
-```
-
-At this point you can:
-- Provide more details for the AI to continue
-- Modify previous instructions
-- Send "continue" to let the AI proceed at its discretion
-
-### Undoing Operations
-
-If the AI edited a file but you're not satisfied, you can undo the modification:
-
-[Screenshot: Undo button in the edit result card]
-
-1. Find the "Undo" button in the tool result card
-2. After clicking, the AI's modification will be rolled back to the pre-edit version
-3. After undoing, you can ask the AI to regenerate
-
-**Note:** The undo function only works for recent edits. If new edits have been made since, previous edits may not be undoable.
-
-### Multi-turn Conversations
-
-You can have multi-turn conversations with the AI to gradually refine content:
-
-**Example flow:**
-```
-You: Help me design an antagonist character
-AI: [Generates character profile]
-You: Make them more complex, give them a tragic childhood
-AI: [Modifies and adds background]
-You: Now based on this character, write their entrance scene
-AI: [Generates narrative excerpt]
+```text
+Task: continue Scene 2, not the ending.
+Completed: Scene 1 is saved; the bag has not been released.
+References: current Three-scene outline, Lin He, Shen Min and Scene 1.
+Must remain true: Lin He does not know the reason for the wrong description.
+Open choices: Shen Min's next evidence and the bag's eventual recipient.
+First action: read those files and identify one choice needing my decision;
+do not draft yet.
 ```
 
-The AI remembers conversation history and understands contextual relationships. You can follow up, modify, or request regeneration at any time.
+The plus-shaped **New Session** control at the top of chat starts a new active session and clears the current message display. It **does not delete project files** or erase all project state. Record decisions and unfinished work first; check the focused file, attachments and quotations afterward.
 
----
+The old conversation is no longer the active session. Do not treat a new session as undo, or make your writing plan depend on complete retrieval and restoration of old chat. Incorrect facts already saved in project files still need correction.
 
-## Context Management
+## 6. What if generation stops or the response is interrupted?
 
-The AI automatically retrieves and uses project context information, but you can also actively manage this context.
+**Stopping generation is not undo.** An interruption can leave partial replies, operation records and file changes. Not seeing the final completion message does not mean nothing happened.
 
-### Current Editing File
+1. Preserve important unsaved editor text before refreshing or clearing anything.
+2. Inspect the reply, operation results and target file: distinguish suggestions, partial saved work and unfinished work.
+3. Scope recovery: “Read the current Scene 2 and list completed and missing portions; do not edit yet.” Then continue only the missing passage instead of appending the whole scene again.
+4. Follow quota or access errors if shown. Repeated “continue” requests do not resolve those limits.
 
-When you open a file (outline, character, lore, draft), the AI automatically sets it as the "focus file":
+Status messages and tool results help locate progress. They do not expose all of a model's internal reasoning or establish publication quality.
 
-[Screenshot: File opened in editor showing file title]
+## Next steps
 
-- **Auto-transmission:** When you send a message, the AI receives the current file's content
-- **Context understanding:** The AI can continue, modify, or expand based on the current file
+- [Editor guide](https://zenstory.ai/docs/user-guide/editor): manual writing, quotations, local revision and save state.
+- [First short-story walkthrough](https://zenstory.ai/docs/getting-started/first-project): connect outline, characters and prose.
+- [Choose a writing workflow](https://zenstory.ai/compare/writing-workflows): distinguish the browser workbench, Oh Story and the DSH plugin.
 
-**Use cases:**
-- Open an outline → Let the AI help you refine chapter structure
-- Open a character card → Let the AI expand the character's personality
-- Open a draft → Let the AI continue or optimize the content
+## Implementation sources
 
-### Referencing Materials
+Source checked on 2026-09-12. These fixed-version references explain the workflow; they do not establish live-account results, model output or complete history recovery.
 
-In addition to the current file, you can attach other materials as references:
-
-[Screenshot: "Attach to Conversation" option in the file tree context menu]
-
-**How to use:**
-1. Right-click a file in the left file tree
-2. Select "Attach to Conversation"
-3. The file will appear in the attachments area above the input box
-
-**Maximum of 5 files can be attached**, and the AI will reference this content when processing.
-
-**Suitable scenarios:**
-- Reference multiple character profiles when writing ensemble scenes
-- Create based on worldbuilding settings
-- Maintain consistent style across chapters
-
-### Referencing Text
-
-If you want the AI to handle specific text, you can quote it:
-
-[Screenshot: "Quote" button appearing after selecting text in the editor]
-
-**How to use:**
-1. Select a passage of text in the editor
-2. Click the "Quote" button (or use keyboard shortcut)
-3. The selected text will appear above the input box
-
-**Maximum of 5 text passages can be quoted**, each recording the source file.
-
-**Use cases:**
-- "Optimize the pacing of this dialogue"
-- "Make this description more vivid"
-- "Expand based on this setting"
-
----
-
-## Starting a New Session
-
-[Screenshot: "+" button in the chat panel title bar]
-
-If you want to start a completely new conversation, you can create a new session:
-
-1. Click the "+" button in the chat panel title bar
-2. The current session's message history will be cleared
-3. The AI will start a new conversation context
-
-**When to start a new session:**
-- Switching to a completely different creative task
-- Previous conversation content is interfering with new requests
-- Wanting the AI to "forget" previous discussions
-
-**Note:** Starting a new session does not delete history. You can still find previous sessions in the conversation history.
-
----
-
-## Conversation History
-
-The AI saves your conversation history, automatically loading the most recent 50 messages each time you open a project.
-
-**History features:**
-- Cross-device sync (log in to the same account)
-- Includes complete tool calls and results
-- Supports scrolling up to view earlier messages
-
-**To view complete history:**
-- All messages are saved in the database
-- Can query complete records through the backend API
-
----
-
-## Usage Tips
-
-### 1. Be Specific in Your Descriptions
-
-Vague instructions make it difficult for the AI to understand your intent.
-
-**Poor example:**
-> "Write a fight scene"
-
-**Better example:**
-> "Write a duel between two swordsmen on a rainy night, emphasizing the protagonist's disadvantage and decisive counterattack, with a cold and sharp style"
-
-**Specific descriptions include:**
-- Who are the characters
-- What is the setting
-- What happens
-- What style do you want
-- What effect do you need
-
-### 2. Provide Sufficient Background Information
-
-Although the AI automatically retrieves context, actively providing key information works better:
-
-**Example:**
-> "Based on the antagonist character just designed, combined with the 'demon cultivator' setting in the worldbuilding, write their first entrance scene. Make the reader feel threatened while maintaining some mystery."
-
-**Key information:**
-- Explicitly referenced the previous character design
-- Pointed out specific settings in the worldbuilding
-- Explained the desired narrative effect
-
-### 3. Make Good Use of the Quote Feature
-
-The quote feature lets the AI know exactly what content you want to handle:
-
-**Scenario examples:**
-- Select a dialogue in a draft → Quote → "Make this dialogue more consistent with the character's sarcastic tone"
-- Select a rule in the lore → Quote → "Based on this setting, design a related plot conflict"
-
-Quoting is more accurate than verbal description; the AI can see the original text directly.
-
-### 4. Complete Complex Tasks Step by Step
-
-For complex creative tasks, breaking them into steps works better:
-
-**Example:**
-```
-Step 1: Help me design a cultivation world's ranking system
-Step 2: Based on this system, create the protagonist's cultivation progress table
-Step 3: Now based on this progress table, plan the outline for the first three volumes
-Step 4: Write detailed chapter outlines for Volume 1
-```
-
-Benefits of this approach:
-- The AI can focus on the current task in each step
-- You can adjust direction in time
-- Final results better match expectations
-
-### 5. Leverage AI Memory
-
-The AI remembers key project information (can be viewed and edited in "AI Memory"):
-
-[Screenshot: Database icon button in title bar, clicking shows project status dialog]
-
-**AI Memory includes:**
-- Project summary
-- Current creative stage
-- Writing style preferences
-- Important notes
-
-**How to leverage:**
-- Regularly update project summary to keep the AI informed of overall progress
-- Record special requirements in notes
-- The AI provides more tailored suggestions based on memory
-
-### 6. Combine Multiple Interaction Methods
-
-The most efficient workflow typically combines multiple methods:
-
-**Recommended flow:**
-1. Open the file to edit (auto-transmit context)
-2. Attach relevant setting files (actively reference materials)
-3. Select the paragraph to optimize (precise text quoting)
-4. Enter specific modification requirements (clear instructions)
-
-This gives the AI the most complete context and provides the most precise assistance.
-
----
-
-## Frequently Asked Questions
-
-### Q: Will the AI automatically save my content?
-
-A: When the AI creates or edits files, they are automatically saved to the database. A version snapshot is created after each important modification, and you can roll back to previous versions at any time.
-
-### Q: Why does the AI sometimes "forget" what was said before?
-
-A: The AI's context window has a limit. If a conversation is very long, earlier content may not be in the current context. Solutions:
-- Use the "quote" feature to re-provide key information
-- Start a new session and re-clarify the current task
-
-### Q: What if the AI's response is interrupted?
-
-A: Possible reasons:
-- Network interruption: Refresh the page and retry
-- Content too long: Ask the AI to generate in multiple parts
-- System timeout: Try again later
-
-You can send "continue" to let the AI continue from where it was interrupted.
-
-### Q: How can I make the AI better understand my style?
-
-A:
-- Specify writing style in project settings
-- Let the AI analyze excerpts of your existing work
-- Clearly state style requirements in instructions (e.g., "in the style of Hemingway")
-
-### Q: Can the AI directly modify files without my confirmation?
-
-A: Yes, the AI can directly edit files by default. But each edit:
-- Creates a version snapshot with one-click undo support
-- Displays detailed edit differences
-- You can adjust to "require confirmation" mode in settings
-
----
-
-The AI Creative Assistant is your writing partner who truly understands you. Master these usage tips to make your creative work twice as effective. Start your first conversation now!
+- [Request fields for focused files, attachments and quotations](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/ChatPanel.tsx#L1151-L1177)
+- [Server reads of focused files and attached references](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/agent/context/assembler.py#L145-L177)
+- [Context selection under a budget](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/agent/context/assembler.py#L239-L266)
+- [Project-material attachment control](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/sidebar/FileTreePane.tsx#L552-L575)
+- [Library-material attachment control](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/sidebar/MaterialsPane.tsx#L342-L351)
+- [Shared attachment slots and types](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/contexts/MaterialAttachmentContext.tsx#L18-L96)
+- [Quotation slots and payload](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/contexts/TextQuoteContext.tsx#L5-L56)
+- [Agent file-operation tools](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/agent/tools/registry.py#L17-L42)
+- [Budgeted conversation-history window](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/agent/core/session_loader.py#L250-L273)
+- [New-session interface behavior](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/ChatPanel.tsx#L1312-L1340)
+- [Creating an active session rather than deleting a project](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/api/chat.py#L115-L152)
+- [Partial-history handling after cancellation or disconnection](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/agent/service.py#L1096-L1113)

@@ -39,15 +39,17 @@ AI 具备查询、创建、编辑和删除项目文件的工具。某些任务�
 
 ## 4. 打开目标文件，再补相关上下文
 
-准备把提纲写入项目时，先在文件树新建或打开目标大纲文件，再说“把刚确认的三场提纲写入当前文件”。当前焦点会把文件 ID、类型和标题带给请求，但不要假设整个项目会自动、完整进入上下文。
+准备把提纲写入项目时，先在文件树新建或打开目标大纲文件，再说“把刚确认的三场提纲写入当前文件”。请求会标明焦点文件，服务端据此读取已保存内容；上下文有预算，不等于自动、完整地带入整个项目。
 
-如果任务还依赖角色卡、旧章节或素材，请主动附加相关文件；只改一段时，引用具体文本，并在请求里写明文件名和段落。上下文越精确，越容易避免 AI 改错文件或扩大范围。
+素材条目可以附加到对话；需要角色卡或旧章节时，引用关键文字或明确命名请求读取，不要假定所有文件都有素材的附加按钮。只改一段时，引用原文并写明文件名和段落。上下文越精确，越容易避免 AI 改错文件或扩大范围。
 
 ## 5. 保存、历史与导出边界
 
 编辑器会提交保存；检查界面上的保存或冲突提示。版本历史可以用于查看或恢复已保留的版本，但快照生成与版本额度限制适用。版本额度用完时，正文仍可能保存成功，只是不再产生新的版本快照，因此重要节点应另做外部备份。
 
 项目顶部的下载入口当前导出一个合并的 TXT，内容来自未删除的正文 `draft` 与剧本 `script` 文件，排序参考章节/分集序号和文件排序信息，并以创建时间等信息兜底。它**不是整项目备份**：大纲、角色、设定、聊天与全部历史不在这份正文 TXT 中。
+
+更详细的焦点文件、素材附件与文本引用区别，见[AI 创作助手](https://zenstory.ai/docs/user-guide/ai-assistant)。
 
 ## 下一步
 
@@ -65,3 +67,5 @@ AI 具备查询、创建、编辑和删除项目文件的工具。某些任务�
 - [版本额度满时保存正文但跳过快照](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/api/files.py#L899-L927)
 - [桌面项目页的导出入口与版本历史入口](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/Header.tsx#L228-L249)
 - [TXT 导出的文件类型、排序与合并内容](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L110-L203)
+- [服务端读取焦点文件与附加资料](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/agent/context/assembler.py#L145-L177)
+- [项目素材的附加入口](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/sidebar/FileTreePane.tsx#L552-L575)

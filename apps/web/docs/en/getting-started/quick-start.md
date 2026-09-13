@@ -42,15 +42,17 @@ Check whether the scenes escalate before deciding why Shen Min was wrong, whethe
 
 ## 4. Open the target and add relevant context
 
-Before saving the outline, create or open its target outline file and ask: “Write the approved three-scene outline into the current file.” The request identifies the focused file by ID, type and title; it does not automatically include the whole project.
+Before saving the outline, create or open its target outline file and ask: “Write the approved three-scene outline into the current file.” The request identifies the focused file, and the server reads its saved content under a context budget; this does not automatically include the whole project.
 
-Attach any relevant character card, earlier chapter or material. For a local edit, quote the passage and name the file and section. Precise context reduces wrong-file edits and scope expansion.
+Attach supported material items. For character cards and earlier chapters, quote key text or name the files to read; not every file has a material attachment control. For a local edit, quote the passage and name its file and section. Precise context reduces wrong-file edits and scope expansion.
 
 ## 5. Understand save, history and export boundaries
 
 Watch the editor for saved or conflict messages. History can inspect or restore retained versions, but snapshot rules and version allowances apply. Content may still save without a new snapshot after the version quota is reached. Keep milestone backups elsewhere.
 
 The project header downloads a merged TXT from non-deleted `draft` and `script` files. Chapter/episode numbering and file ordering affect the sequence, with creation time used as a fallback. This is **not a project backup**: outlines, characters, lore, chat and full history are excluded.
+
+For the focused-file, material-attachment and text-quotation distinctions, see the [AI assistant guide](https://zenstory.ai/docs/user-guide/ai-assistant).
 
 ## Next steps
 
@@ -68,3 +70,5 @@ Source checked on 2026-09-12.
 - [Saving content while skipping a snapshot at the version limit](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/api/files.py#L899-L927)
 - [Desktop export and version-history entries](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/Header.tsx#L228-L249)
 - [TXT file types, ordering and merged content](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L110-L203)
+- [Server reads of focused files and attached references](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/agent/context/assembler.py#L145-L177)
+- [Project-material attachment control](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/sidebar/FileTreePane.tsx#L552-L575)

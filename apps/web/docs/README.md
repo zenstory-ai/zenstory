@@ -6,7 +6,7 @@ ZenStory 是围绕项目文件写作的网页工作台。先从创意与场景�
 
 **核心特点**：
 - 三栏式工作台：文件树 + 编辑器 + AI 对话，一站式完成所有创作工作
-- 写作上下文：打开目标文件，按需要附加项目资料和引用文本；作者仍需确认设定与叙事一致性
+- 写作上下文：打开目标文件，按需要引用关键文字与附加素材；作者仍需确认设定与叙事一致性
 - 版本追溯：查看已有快照并比较或回滚；快照策略和版本额度适用，重要内容另留副本
 - 仪表盘工作流：项目、素材、灵感、技能、订阅权益一体化管理
 
@@ -14,7 +14,7 @@ ZenStory 是围绕项目文件写作的网页工作台。先从创意与场景�
 
 - [网页写作快速入门](https://zenstory.ai/docs/getting-started/quick-start) - 新手必读，快速上手核心功能
 - [写第一篇短篇](https://zenstory.ai/docs/getting-started/first-project) - 开始你的创作之旅
-- [AI创作助手](user-guide/ai-assistant.md) - 核心功能详解，释放AI写作潜力
+- [AI创作助手](https://zenstory.ai/docs/user-guide/ai-assistant) - 焦点文件、引用、分步请求与中断后接续
 - [常见问题](reference/faq.md) - 快速找到答案，解决常见疑惑
 
 ## 文档导航
@@ -36,8 +36,8 @@ ZenStory 是围绕项目文件写作的网页工作台。先从创意与场景�
 | [界面总览](user-guide/interface-overview.md) | 三栏式工作台布局详解 |
 | [项目管理](user-guide/project-management.md) | 创建、管理你的写作项目 |
 | [文件树与文件类型](user-guide/file-tree.md) | 大纲、草稿、角色等文件类型 |
-| [编辑器使用](user-guide/editor.md) | 高效编辑你的创作内容 |
-| [AI创作助手](user-guide/ai-assistant.md) | 与 AI 对话，获取创作灵感与内容 |
+| [编辑器使用](https://zenstory.ai/docs/user-guide/editor) | 手写、引用与局部改稿前后对照 |
+| [AI创作助手](https://zenstory.ai/docs/user-guide/ai-assistant) | 给对上下文，限定写作与修改范围 |
 | [技能系统](user-guide/skills.md) | 预设技能加速特定创作任务 |
 | [素材库](user-guide/materials.md) | 管理灵感碎片、世界观设定等素材 |
 | [灵感库](user-guide/inspirations.md) | 浏览精选灵感并一键复制到项目 |

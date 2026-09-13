@@ -391,7 +391,7 @@
         ],
         [
           "How do I revise without changing the whole story?",
-          "Open the target file, attach the relevant project references and quote the passage. Specify what must stay unchanged. The agent can operate on files; a request for suggestions is not an enforced read-only mode, and not every file operation uses a per-change approval screen."
+          "Open the target file, name the references to read and quote the passage. Attach material items when relevant. The [AI assistant guide](https://zenstory.ai/docs/user-guide/ai-assistant) explains context and continuation; the [editor guide](https://zenstory.ai/docs/user-guide/editor) shows a local before/after revision. An instruction to suggest changes is not enforced read-only mode, and file operations do not all use per-change approval."
         ],
         [
           "Can I take the manuscript out of the workbench?",
@@ -409,7 +409,7 @@
         ],
         [
           "怎样局部改稿，不把整篇故事改掉？",
-          "打开目标文件，附加相关项目资料，引用问题段落，并说清哪些事实不能变。Agent 可以操作文件；“只给建议”不是强制只读模式，也不是所有文件操作都有逐项批准界面。"
+          "打开目标文件，命名需要读取的依据，引用问题段落；相关素材可附加到对话。[AI 创作助手](https://zenstory.ai/docs/user-guide/ai-assistant)说明上下文与接续，[编辑器指南](https://zenstory.ai/docs/user-guide/editor)给出局部修改前后对照。“只给建议”不是强制只读模式，也不是所有文件操作都有逐项批准界面。"
         ],
         [
           "能把作品带出工作台吗？",
