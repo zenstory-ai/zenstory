@@ -343,12 +343,14 @@
       "en": [
         "Setup creates the host-specific skill/configuration files for the chosen installation. Those are the working environment, not the manuscript.",
         "Planning produces book settings and outlines; an explicit chapter request produces prose. For an imported book, inspect the reconstructed project before asking for continuation.",
-        "Chapter continuity uses project records such as tracking state, not a promise that the model remembers every message. Preserve the writing folder and a backup of material you want to keep."
+        "Chapter continuity uses project records such as tracking state, not a promise that the model remembers every message. Preserve the writing folder and a backup of material you want to keep.",
+        "Once a chapter plan exists, use [outline to chapter](https://zenstory.ai/oh-story/outline-to-chapter) to turn abstract plot labels into visible evidence, choices and consequences, without forcing a twist into every chapter."
       ],
       "zh": [
         "环境部署生成所选宿主的技能与配置文件。这些是工作环境，不是书稿本身。",
         "规划阶段交付设定与大纲，明确要求写章后才交付正文。已有小说导入后，先读重建的项目材料，再要求续写。",
-        "章节连续性依靠追踪状态等项目记录，不靠“模型记得每句话”的承诺。保留写作目录，并备份需要保存的材料。"
+        "章节连续性依靠追踪状态等项目记录，不靠“模型记得每句话”的承诺。保留写作目录，并备份需要保存的材料。",
+        "已有章纲时，接着看[从章纲到章节](https://zenstory.ai/oh-story/outline-to-chapter)：把剧情标签变成可见证据、选择与后果，不给每章硬塞反转。"
       ]
     },
     "verification": {
@@ -1580,6 +1582,135 @@
         "[修订前读取前后章与相关材料](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-revision.md#L25-L38)",
         "[重算追踪并指出受影响后文](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-revision.md#L56-L75)",
         "[未来细纲不是已成立的追踪事实](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-setup.md#L265-L272)"
+      ]
+    }
+  },
+  {
+    "owner": "oh-story",
+    "slug": "outline-to-chapter",
+    "checked_on": "2026-09-12",
+    "title": {
+      "en": "From outline to chapter: turn plot specifications into visible change",
+      "zh": "有章纲却只会复述设定？把剧情规格写成可见变化"
+    },
+    "answer": {
+      "en": "Treat a chapter outline as a specification for what must change, not as prose waiting to be expanded field by field. Convert its goal, obstacle, evidence, choice, cost and ending into actions the viewpoint character can perceive. The chapter may interleave beats that share a time and place, but it must preserve approved facts and release boundaries. The original library example below is an original editorial design with facts fixed for this walkthrough, not a recorded Oh Story run or a claim about model quality.",
+      "zh": "章纲是“本章必须发生什么”的剧情规格，不是逐栏扩写的正文。把目标、阻碍、证据、选择、代价和章尾变化转换成视角人物可见的行动与结果；同一时空可穿插情节点，但要守住批准事实与释放边界。下面是预先约定设定的原创编辑示例，不是 Oh Story 工具实测。"
+    },
+    "prerequisites": {
+      "en": [
+        "Use a project and manuscript you own or are authorized to edit. Mark established facts, author-approved additions, unresolved questions and information that must not be revealed yet.",
+        "Choose one chapter and state its job in before-and-after terms: what the viewpoint character wants, what blocks them, and which risk, information, relationship, resource, decision or action is different at the end.",
+        "If this book was imported, review its reconstructed plan first with the [import and continuation guide](https://zenstory.ai/oh-story/import-and-continue). For cross-chapter knowledge and tracking boundaries, use [long-novel continuity](https://zenstory.ai/oh-story/long-novel-continuity)."
+      ],
+      "zh": [
+        "使用你拥有或获准编辑的项目。分清既定事实、作者批准的新增内容、待定问题和本章不能提前揭露的信息。",
+        "选定一章，用前后状态说明任务：人物要什么、什么挡住他，章末哪项风险、信息、关系、资源、决定或行动已经改变。",
+        "书稿刚导入时先看[导入续写指南](https://zenstory.ai/oh-story/import-and-continue)；跨章认知与追踪边界见[长篇连续性指南](https://zenstory.ai/oh-story/long-novel-continuity)。"
+      ]
+    },
+    "steps": {
+      "en": [
+        [
+          "Write the state change before expanding beats",
+          "Replace labels such as ‘conflict intensifies’ with a testable transition. State who wants what, the initial relationship or resource position, and the different position at the end. A chapter can be quiet: conditional trust, a completed handoff or one clarified responsibility may be enough if it changes the story and leaves a reason to continue."
+        ],
+        [
+          "Turn outline fields into visible carriers",
+          "Map the goal to an attempted action, the obstacle to a person, rule, space, clock or missing proof, and information to something actually seen, heard or checked. Map a relationship change to a refusal, condition, concession or handoff. Summary is useful for transitions; the problem is compressing the chapter's decisive choice and consequence into labels. Do not create one paragraph for every field or repeat the outline's wording four times because the same requirement appears in several sections."
+        ],
+        [
+          "Make evidence change the next action",
+          "Do not let narration simply announce that the protagonist understands. Show which receipt, waterline, message, object or response alters the available options. Dialogue earns its place when it changes information, strategy, power, relationship or the next move; it need not be added to satisfy a quota."
+        ],
+        [
+          "Give the choice an owned cost",
+          "Name the options the character can actually take, the evidence supporting each, who pays, and who receives any benefit. The cost can be time, responsibility, trust or an exposed resource; it need not be a catastrophe. Keep unknown motives unknown, and do not invent a betrayal merely to make the beat louder."
+        ],
+        [
+          "End on a changed situation, not a summary",
+          "Resolve one promised change and leave a concrete next problem through an action, object, line of dialogue or image. High-pressure and revelation chapters may need stronger setup and reactions. A low-pressure relationship chapter can end with a weaker hook or a stage goal; do not impose a twist, climax or confrontation on every chapter."
+        ],
+        [
+          "Request planning only and protect approved history",
+          "Say ‘outline only; no prose’ and name the exact chapter or new range. If the request touches an already locked outline or unit, the author must explicitly authorize the affected scope; otherwise list the impact and stop. Keep unplayed future plans in the outline. Do not silently write them into continuity tracking or revise completed chapters."
+        ]
+      ],
+      "zh": [
+        [
+          "先写章前、章后状态",
+          "把“冲突升级”换成可核对的变化：人物的目标、起初处境与章末新处境。低压章也可用有条件的信任、一次交接或责任明确推进，不必每章强冲突。"
+        ],
+        [
+          "把字段换成可见载体",
+          "目标对应动作；阻碍落到人物、规则、空间、时间或证据缺口；信息由角色看见、听见或核对；关系变化落到拒绝、条件、让步或交付。概述可作过渡，但不能把关键选择与后果全压成标签，更不能重复各栏原句。"
+        ],
+        [
+          "让证据改变下一步",
+          "不要由旁白宣布“终于明白”。写清是哪张单据、哪道水痕、哪条消息或哪个物件改变选项。对白应改变信息、策略、权力、关系或下一步，不为凑比例硬加。"
+        ],
+        [
+          "给选择一笔明确代价",
+          "列出可行动的选项、依据、谁付出、谁受益。代价可以是时间、责任、信任或资源暴露，不必都是灾难；未知动机继续未知，不为加压凭空写背叛。"
+        ],
+        [
+          "章尾落在变化上",
+          "兑现一项变化，再以动作、物件、台词或画面留下下一步。高压、揭露章可用更强铺垫；低压关系章允许弱钩子或阶段目标，不套高潮和反转公式。"
+        ],
+        [
+          "只排纲，保护已批准历史",
+          "明确“只出或修细纲，不写正文”及章节范围。触及锁定细纲或剧情单元，须由作者明确允许影响范围；否则只列影响并停下。未来规划留在大纲，不暗写追踪，也不顺手改已完成正文。"
+        ]
+      ]
+    },
+    "example": {
+      "en": "Original editorial example with facts fixed for this walkthrough — Moving the Archive Before the Storm (not tool output)\n\nFacts fixed for this example: Lu Yao and Cen An must move library materials before a storm. Only one cart is usable, and there is time for only one lower-risk trip before the rain intensifies; further trips remain possible at greater risk. The two candidate loads are unique local oral-history notebooks on low shelves and replaceable school readers on loan beside a leaking window. A reversed floor drain threatens the notebooks; the readers are due back Monday. Lu Yao may choose the notebooks first, but must sign responsibility for possible damage to the school books. Do not invent sabotage, a secret message or proof that either character predicted the storm.\n\nBefore — a restatement outline:\n‘The storm approaches. Lu Yao and Cen An disagree over which books to move. Lu Yao chooses the oral histories, pays a price, and leaves a problem for the next chapter.’\nThis names goal, conflict, choice, cost and hook without showing how evidence changes a decision.\n\nAfter — a scene-level chapter outline, still not prose:\n- Before state: both collections are exposed; Lu Yao and Cen An disagree, and no one owns the damage decision.\n- Goal/choice: decide which load receives the first, lower-risk trip; the other can still be moved later under greater risk.\n- Beat 1: Cen An rolls the cart to the school readers and shows the Monday return sheet; the external obligation becomes visible.\n- Beat 2: Lu Yao checks the floor drain, sees water pushing back toward the low shelves, and verifies the ‘sole original’ accession marks on the notebooks. Evidence changes the priority; nobody merely declares the answer.\n- Beat 3: Lu Yao chooses the notebooks and signs the incident form for any loss to the readers. The choice buys preservation of unique records while assigning a concrete cost.\n- Beat 4: Cen An stops blocking the cart and takes its rear handle. Their relationship changes from opposition to conditional cooperation, not instant agreement.\n- Ending change: the first trip ends with the notebooks upstairs, while the readers remain below the leak and may still be moved next. Cen An hands Lu Yao the signed form and says the school will inspect the crates Monday. The saved resource, exposed resource and next responsibility are all visible.\n\nA quieter version could end when Cen An conditionally yields the cart and joins the move; that relationship shift can carry the chapter without adding a broken window, accusation or surprise villain.\n\nCopyable planning-only request for story-long-write in your configured agent host:\nRevise only the unlocked chapter 12 outline; do not write prose. My authorization covers this chapter only. Preserve established events, character knowledge and unrevealed information. Do not change other outlines, completed chapters or tracking.\nReplace summary labels with a goal, obstacle, observable evidence, a choice with an owned cost, and a concrete ending change. Keep the storm, one usable cart, the two material categories and the Monday return obligation. Do not add sabotage or a hidden culprit.\nIf chapter 12 is locked, or the revision would alter a locked plot unit, return a change proposal without modifying locked content. Keep future plans in the outline rather than recording them as events that already happened.\nReturn the revised outline (or the proposal if locked) and unresolved questions, then stop.",
+      "zh": "预先约定设定的原创编辑示例——《暴雨前搬书库》（不是工具运行结果）\n\n本例约定事实：陆遥与岑安要在暴雨前搬图书库；只有一辆可用小车，雨势加大前只够先完成一趟低风险搬运；之后仍能抢搬，但风险更高。低架上是地方口述史唯一原始笔记；漏水窗边是周一须归还学校、可补购的读本。地漏正倒灌。陆遥若先搬笔记，须为读本可能受损签字负责。不得新增破坏者、秘密纸条或“早已预知暴雨”。\n\n改前——复述型章纲：\n“暴雨将至，两人为先搬哪类书争执。陆遥选择口述史笔记，付出代价，给下一章留下问题。”\n它列出标签，却没让证据改变行动。\n\n改后——仍是细纲，不是正文：\n- 章前：两类材料都受威胁，两人意见相反，损失责任未定。\n- 目标/选择：决定哪一类先完成低风险搬运；另一类之后还能抢搬，但风险更高。\n- 点1：岑安把车推到读本旁，亮出周一归还单；外部义务可见。\n- 点2：陆遥看到地漏回涌，再核对笔记的“唯一原件”标记；证据改变优先级。\n- 点3：陆遥选择先搬笔记，并签事故表，承担读本可能受损的责任。\n- 点4：岑安接过后把手；关系从阻拦变成有条件合作，不是突然和解。\n- 章尾：第一趟结束，笔记已在楼上，读本仍在漏水处，下一趟风险升高。岑安交回事故表：“学校周一验箱。”保住的资源、暴露的资源与下一步责任都可见。\n\n若是低压关系章，也可停在岑安有条件让车并加入搬运，不必硬加破窗、指控或神秘反派。\n\n向已配置宿主中的 story-long-write 提交：\n只修改第12章未锁定的细纲，不写正文。我只授权这一章范围；保留既定事件、角色认知和未揭露信息，不改其他细纲、正文或追踪。\n把复述标签改成目标、阻碍、可观察证据、带代价的选择和具体章尾变化。保留上述批准事实，不新增破坏者。\n若本章已锁定，或改动需要改变锁定剧情单元，先列变更方案，不改锁定内容。未来规划留在大纲，不登记成已发生事件。\n交付修订细纲（已锁定时交付变更方案）与待决问题，然后停止。"
+    },
+    "outputs": {
+      "en": [
+        "One bounded chapter outline whose approved facts, release limits, goal, obstacle, evidence, choice, cost, relationship/resource change and ending handoff can guide later prose.",
+        "A short unresolved-questions list instead of invented motives, evidence or future events. Planning-only work should stop before prose.",
+        "An impact note when the requested change reaches locked planning or completed chapters. No tracking change is implied by drafting a future outline."
+      ],
+      "zh": [
+        "一份范围明确、能指导正文的细纲：事实边界、目标、阻碍、证据、选择、代价、状态变化和章尾交接齐全。",
+        "一份待决清单，不替作者发明动机、证据或未来事件；只排纲任务停在正文之前。",
+        "触及锁定规划或已完成章节时给出影响说明；未来细纲不等于更新追踪。"
+      ]
+    },
+    "verification": {
+      "en": [
+        "For every beat, point to the visible carrier and the state it changes. If deleting a paragraph leaves the goal, evidence, choice and outcome unchanged, that paragraph may only be restating the outline.",
+        "Check causality: the evidence must exist before it changes the choice; the cost must belong to someone; the ending must follow from the approved action rather than an unapproved twist.",
+        "Check scope: no prose was written, locked material was not changed without explicit authorization, and future plans were not recorded as completed continuity facts. For wording-level revision after drafting, use [the prose revision guide](https://zenstory.ai/oh-story/revise-ai-prose)."
+      ],
+      "zh": [
+        "逐点指出可见载体及状态变化。若删掉一段后目标、证据、选择和结果不变，它可能只在复述章纲。",
+        "证据须先出现再改变选择；代价有承担者；章尾来自批准行动，而不是新增反转。",
+        "确认未生成正文、未越权修改锁定内容、未把未来规划登记成事实。落笔后只改措辞，可看[具体改稿指南](https://zenstory.ai/oh-story/revise-ai-prose)。"
+      ]
+    },
+    "sources": {
+      "en": [
+        "[From outline specification to staged scene](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/writing-craft.md#L257-L271)",
+        "[Scene goals, obstacles, change and concrete endings](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-review/references/review-quality.md#L31-L47)",
+        "[State-change and dialogue-function review](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-review/references/review-quality.md#L191-L204)",
+        "[Chapter blueprint fields, release boundaries and semantic deduplication](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-chapter.md#L31-L42)",
+        "[Approved-beat coverage, chapter endings and tracking boundary](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-chapter.md#L61-L70)",
+        "[Seed, develop and resolve a chapter hook](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/long-suspense.md#L87-L95)",
+        "[Fine-outline fields, execution boundaries, costs and ending handoff](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-setup.md#L198-L260)",
+        "[Planning-only expansion, locked units and low-pressure chapters](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-setup.md#L265-L272)"
+      ],
+      "zh": [
+        "[从细纲规格到可见场景](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/writing-craft.md#L257-L271)",
+        "[场景目标、阻碍、变化与具体章尾](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-review/references/review-quality.md#L31-L47)",
+        "[状态变化与对白功能检查](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-review/references/review-quality.md#L191-L204)",
+        "[章节蓝图字段、释放边界与语义去重](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-chapter.md#L31-L42)",
+        "[批准情节点覆盖、章尾与追踪边界](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-chapter.md#L61-L70)",
+        "[单章钩子的种、养、收](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/long-suspense.md#L87-L95)",
+        "[细纲字段、执行边界、成本与章尾交接](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-setup.md#L198-L260)",
+        "[只排纲补纲、锁定单元与低压章节](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-setup.md#L265-L272)"
       ]
     }
   }
