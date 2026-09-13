@@ -1981,5 +1981,140 @@
         "[细纲边界与需要先规划的变化](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L34-L43)"
       ]
     }
+  },
+  {
+    "owner": "oh-story",
+    "slug": "short-story-from-idea",
+    "checked_on": "2026-09-12",
+    "title": {
+      "en": "From one premise to a complete short story: promise, pressure, choice and payoff",
+      "zh": "只有一个梗，怎样写成完整短篇：开篇承诺、递进与结尾兑现"
+    },
+    "answer": {
+      "en": "A premise gives a short story a starting pressure, not a complete plot. Decide what the reader should want answered, what prevents an easy answer, what the protagonist must choose and what observable change will settle that question. Then build only the scenes needed to earn that ending. A twist is one option, not a requirement. Oh Story’s short-writing workflow separates design from drafting and uses a lightweight section plan rather than a long-novel chapter blueprint. The four-part framing here is an editorial aid, not a new mandatory schema. The original repair-shop example closes a relationship decision without pretending that one conversation solves a family’s entire history.",
+      "zh": "一个梗给了短篇起始压力，却还不是完整情节。先决定读者想得到什么回答、什么阻力让答案不能轻易出现、主角必须作什么选择，以及哪种可见变化能兑现这个问题，再留下通向结尾所必需的场景。反转是一种办法，不是每篇必需。Oh Story 的短篇流程把设计与正文分开，使用轻量小节大纲，而不是长篇的完整章节蓝图。这里的四步框架是编辑建议，不是新增强制字段。原创修补店示例会收束一次关系中的选择，但不假装一场谈话就能解决一家人的全部历史。"
+    },
+    "prerequisites": {
+      "en": [
+        "A premise and material you own or are authorized to use. State the intended emotional experience, viewpoint, length range and what the story must not do. “Relief mixed with guilt after setting a boundary” is more useful than “make it moving.”",
+        "Separate approved facts from open design choices. A new character, hidden motive or unusual rule is a choice to approve, not evidence recovered from a one-sentence idea. If this continues an existing story, bring its relevant facts instead of treating it as an empty project.",
+        "For the example command, install Oh Story in a supported agent host and open the intended writing folder. The example uses Claude Code slash syntax. It is not a hosted ZenStory feature or a DSH installation instruction; see [agent skills for writers](https://zenstory.ai/oh-story/agent-skills-for-writers) if you need that distinction."
+      ],
+      "zh": [
+        "一个梗，以及你有权使用的材料。写清希望交付的情绪、视角、篇幅范围和不能发生的事。“说清边界后的松一口气，又有一点愧疚”比“写得感人”更能指导取舍。",
+        "分开已确认事实与尚待选择的设计。新人物、隐藏动机或特殊规则是需要决定的内容，不是从一句梗概中还原出的证据。如果接续已有故事，应带上相关事实，而不是按空白项目另起炉灶。",
+        "使用示例命令时，需要在受支持的 Agent 宿主中安装 Oh Story，并打开目标写作目录。示例采用 Claude Code slash 语法，不是 ZenStory 托管版功能或 DSH 安装步骤；不清楚这些层次时可先看[写作者的 Agent Skills 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)。"
+      ]
+    },
+    "steps": {
+      "en": [
+        [
+          "Turn the premise into a question the ending can answer",
+          "Name the protagonist’s immediate want and why getting it matters now. In the example, the issue is not whether a sleeve can be repaired, but whether Xu He can refuse another unspoken promise of free, urgent labor before leaving town. This gives the ending a specific job. A premise that opens five unrelated mysteries will require a different scope."
+        ],
+        [
+          "Choose one central pressure and its limit",
+          "Keep the cast, place and time window small enough for the intended story. Ask what gets harder when the protagonist tries their usual response. Pressure can come from competing obligations or a strained relationship, not only a villain, catastrophe or new secret. The bundled method emphasizes a single core fulcrum; the particular limits in the example are author choices."
+        ],
+        [
+          "Make each section change the situation",
+          "For each proposed section, ask: what causes the action, what does someone actually do, and what result changes the next choice? A repeated request is not escalation unless it exposes a different cost or closes an option. The workflow’s section plan records concrete actions and causal links; it does not require a minimum number of plot points per section or extra obstacles just to fill space."
+        ],
+        [
+          "Test the ending before expanding the middle",
+          "Describe what the reader will be able to observe at the end. A decision, paid cost, changed relationship or fulfilled consequence can provide closure. If you use a twist, plant the basis for the mistaken interpretation and leave room for action after the reveal; do not end with an explanation that does all the work. Without a twist, make the promised change substantial enough to carry the ending."
+        ],
+        [
+          "Cut branches that belong to another story",
+          "An elaborate childhood account, a second romantic plot or a secret behind every prop may each be interesting but compete with the chosen question. Keep an element when it changes an action, a cost or the reader’s interpretation of the ending. If the essential chain will not fit the requested length, propose a tradeoff; do not quietly inflate a short story into the opening of a serial."
+        ],
+        [
+          "Agree on the design, then draft",
+          "The design stage produces 设定.md and 小节大纲.md; 正文.md belongs to drafting. A request for conception only can stop before prose. State the intended viewpoint, length range and section count instead of accepting defaults accidentally. The documented 8,000–20,000 range is a Chinese web-fiction workflow default, not a definition of all short stories; first person is also a default that an explicit viewpoint can override."
+        ],
+        [
+          "Read the opening and ending together",
+          "Check whether the ending answers the question the opening made important, and whether the middle earned that answer. Do not confuse an unresolved life with an unresolved central story: the jacket may still need sewing, but the agreed deadline, price and right to refuse are no longer unspoken. If feedback proposes a different story, use the [review-to-revision decision guide](https://zenstory.ai/oh-story/review-and-revise) before rewriting everything."
+        ]
+      ],
+      "zh": [
+        [
+          "把梗改成结尾能够回答的问题",
+          "明确主角眼下想要什么、为什么偏偏现在重要。示例的问题不是袖口能不能补，而是许禾能否在离开前，拒绝又一次没有说出口的免费加急承诺。结尾因此有了具体任务。若梗概同时打开五个互不相关的谜，就需要另定篇幅与范围。"
+        ],
+        [
+          "只选一个核心压力，并限定它的范围",
+          "让人物、地点和时间窗口适合这篇的体量。问主角沿用惯常办法后，什么会变得更难。压力可以来自互相竞争的责任或紧张关系，不必总靠反派、灾难或新秘密。随包方法强调单一核心支点；示例中具体的人数与时限是作者选择。"
+        ],
+        [
+          "让每一节改变处境",
+          "对每个小节追问：什么导致行动、谁实际做了什么、结果怎样改变下一步选择？请求重复一次，并不自动构成升级，除非暴露新的代价或关掉一个选项。流程的小节大纲记录具体行动与因果，不要求每节最低几个情节点，也不支持为凑长度硬加阻碍。"
+        ],
+        [
+          "先试结尾，再扩写中段",
+          "先说结尾能让读者看到什么。一次决定、付出的代价、改变的关系或得到兑现的后果，都可能形成收束。若使用反转，应为误判提供依据，并在揭示后留出行动空间，不把全部工作丢给一段解释。不用反转时，也要让承诺的变化足够实在，撑得起结尾。"
+        ],
+        [
+          "删掉属于另一篇故事的支线",
+          "详细童年史、第二条恋爱线、每件道具背后的秘密都可能有趣，却也会争夺同一个核心问题的篇幅。保留能改变行动、代价或结尾理解的内容。如果必需因果链放不进指定长度，先给取舍建议，不悄悄把短篇扩成连载开头。"
+        ],
+        [
+          "先确认设计，再生成正文",
+          "设计阶段产出 设定.md 与 小节大纲.md；正文.md 属于后续写作。明确只做构思时，可以停在正文前。把视角、篇幅范围与节数写出来，不无意中接受默认值。文档的 8000–20000 字是中文网文工作流默认范围，不是所有短篇的定义；第一人称也只是可被明确视角要求覆盖的默认。"
+        ],
+        [
+          "把开头和结尾放在一起读",
+          "看结尾是否回答了开头强调的问题，中段是否让这个答案来得有依据。人物的一生尚未解决，不等于核心故事没有收束：衣服可以还没补完，但交付时间、价格和拒绝权已不再含糊。如果审稿意见实际上要求换一篇故事，先按[审稿到改稿决策指南](https://zenstory.ai/oh-story/review-and-revise)作取舍，再决定怎么改。"
+        ]
+      ]
+    },
+    "example": {
+      "en": "ORIGINAL PLANNING EXAMPLE — written for this guide, not an observed skill run or a complete manuscript.\n\nWorking title: The Last Repair Ticket\nPremise: On the day she closes her repair shop and moves away, Xu He must quote her mother a real price and deadline instead of accepting another free rush job.\nReader promise: relief mixed with guilt when a familiar obligation becomes a choice both people can see.\nApproved facts: the moving van arrives at 17:00; the sewing machine is already packed; her mother's work jacket needs a cuff alteration. Xu He has previously repaired family clothes without charging but never clearly distinguished a gift from an obligation. Her mother is alive, is not hiding a dramatic secret, and is allowed to decline the offer. Do not make either woman a caricature.\nCentral question: can Xu He leave without promising work she cannot deliver on her own terms?\n\nSix-section plan — actions and changed conditions, not a universal six-beat formula:\n1. Her mother lays the jacket over the price list and asks for “just two stitches before you go.” Xu He now has to answer a request she usually accepts without discussion.\n2. Xu He says she is leaving soon. Her mother puts down the lunch she brought and waits, hearing a delay rather than a refusal. Hinting has not changed the assumed agreement.\n3. Xu He notices an old family repair ticket with the price left blank. She recognizes that she has helped keep the terms invisible; a list of past grievances would not fix today's agreement.\n4. She writes a price and a Wednesday dispatch date on a new ticket. She will take the jacket only on those terms, not finish it before the van arrives. Her mother may take it elsewhere. The cost is the uncomfortable possibility of refusal, not a manufactured emergency.\n5. Her mother asks whether she really needs a ticket too. Xu He keeps the offer and the right to refuse intact. After a pause, her mother pays the agreed deposit. Neither makes a speech claiming that all past hurt is healed.\n6. Her mother puts the receipt in her wallet and asks, “Wednesday?” Xu He confirms and carries the packed machine to the van. She does not add a promise to finish that night. The repair is still pending; the central agreement is settled.\n\nWhat we leave out: a terminal-illness reveal, a hostile neighbor, a surprise inheritance and a second romance. None is needed to make this decision costly or visible.\n\nSuggested request in an installed Claude Code workflow:\n/story-short-write\nPlan this original family slice-of-life short story in first person, from Xu He's viewpoint. Intended Chinese prose length: 3,500–5,000 characters, across six sections. Those numbers are choices for this project, not genre rules. Use the approved facts, central question and ending above; mark any further invention as a proposed choice. Preserve an unhurried voice, uneasy warmth and the mother's right to refuse. Do not add a hidden illness, a villain or a final shock twist.\nThis turn is conception only. In [the selected story directory], create only 设定.md and 小节大纲.md following the bundled design format. Do not create 正文.md or edit another story. Identify any scope or causal gap instead of padding the outline. Stop after the design and list the files created.\n\nAfter deciding any open choices and reading the design, explicitly request drafting from the approved plan. Design files alone are not a finished short story.",
+      "zh": "原创规划示例——为本指南撰写，不是技能运行记录，也不是完整正文。\n\n暂定篇名：最后一张修补单\n核心梗：修补店闭店搬走当天，许禾必须向母亲说出真实价格与交付时间，而不是再次答应免费加急。\n读者承诺：熟悉的义务变成双方看得见的选择后，松了一口气，却还有一点愧疚。\n已确认事实：搬家车 17:00 到；缝纫机已经打包；母亲的工服需要改袖口。许禾过去给家人修衣不收费，却从没说清那是赠送还是义务。母亲在世，没有隐藏的重大秘密，也有权拒绝这次报价。不要把任何一人写成脸谱。\n核心问题：许禾能否不再答应违背自身条件、无法按时交付的活，然后离开？\n\n六节规划——动作与处境变化，不是通用六节公式：\n1. 母亲把工服压在价目表上，说“你走前，就缝两针”。许禾必须回应一个过去总会直接接受的请求。\n2. 许禾说自己马上要走。母亲放下带来的午饭，坐着等，把这句话听成推迟而不是拒绝。暗示没能改变默认约定。\n3. 许禾看到一张没写价格的旧家人修补单，意识到自己也一直让条件隐形。罗列旧委屈解决不了今天的约定。\n4. 她在新单上写下价格与周三寄出时间。只有按这些条件才接，不在搬家车来前做完；母亲可以拿去别处修。代价是对方可能拒绝时的难堪，不是临时制造一场大事故。\n5. 母亲问“给我也要写单？”许禾保留报价，也保留她不修的选择。沉默后，母亲支付约定定金。没有人发表一段“一切旧伤都已治愈”的宣言。\n6. 母亲把回执收进钱包，问“周三？”许禾确认后，抱着打包好的机子上车，没有补一句今晚就能修好。修补还没完成，但核心约定已经落定。\n\n本篇不加入：绝症揭露、恶邻、意外遗产或第二条恋爱线。没有这些支线，这次决定仍然有代价，也有可见变化。\n\n在已安装的 Claude Code 工作流中，可以这样请求：\n/story-short-write\n规划这篇原创亲情日常短篇，采用许禾第一人称。中文正文目标 3500–5000 字，共六节；这些数字是本篇选择，不是题材规则。采用上面的已确认事实、核心问题和结尾；进一步新增的内容标为待选设计。保留不疾不徐的语气、带着不自在的温情，以及母亲拒绝报价的权利。不添加隐藏疾病、反派或终局震惊反转。\n本轮只做构思。在 [选定的短篇目录] 中，按随包设计格式只创建 设定.md 与 小节大纲.md；不创建 正文.md，不改其他故事。范围或因果有缺口就指出，不靠填充情节凑大纲。设计完成后停止，列出创建的文件。\n\n决定开放选项并读完设计后，再明确请求按确认的蓝图写正文。只有设计文件，还不算完成一篇短篇。"
+    },
+    "outputs": {
+      "en": [
+        "After a conception-only pass: 设定.md and 小节大纲.md with an agreed central pressure, planned changes and ending. The bundled outline has its own fields; the six summaries above illustrate creative decisions rather than replacing that format.",
+        "After a separately requested drafting pass: story prose in 正文.md, following the approved sections and delivery parameters. The guide does not claim a manuscript was generated or that a chosen length guarantees pacing.",
+        "An explicit list of unresolved design choices or necessary tradeoffs. A quieter ending is not automatically weak, and a twist is not automatically earned; both depend on what this story promised and showed."
+      ],
+      "zh": [
+        "只做构思后：设定.md 与 小节大纲.md，其中有确认的核心压力、计划中的变化与结尾。随包小节大纲有自己的字段；上面的六条摘要示范创作决定，不替换该格式。",
+        "另行明确请求写作后：正文保存在 正文.md，遵循已确认节数与交付参数。本指南不声称已经生成稿件，也不声称选对字数就能保证节奏。",
+        "尚未决定的设计或必须作出的取舍清单。安静的结尾不自动等于薄弱，有反转也不自动等于有依据；都要回到本篇承诺了什么、实际展示了什么。"
+      ]
+    },
+    "verification": {
+      "en": [
+        "Can you state the opening question and point to the final action that answers it? If the ending only introduces the next mystery, decide whether you are actually planning a serial opening.",
+        "Does each middle section change information, an available choice, a relationship or a cost? Remove repetitions that change none of these, but do not reduce necessary emotional development to a plot checklist.",
+        "Keep approved viewpoint, length and scope separate from the tool’s defaults. A completed design or clean structural check is not proof of literary quality, acceptance by a platform or commercial success."
+      ],
+      "zh": [
+        "能否说清开头的问题，并指出结尾回答它的具体行动？如果收尾只抛出下一个谜，要重新决定自己是否其实在规划连载开头。",
+        "每个中段小节是否改变了信息、可选行动、关系或代价？没有变化的重复可以删，但不要把必要的情绪发展压成纯情节点清单。",
+        "把确认的视角、篇幅与范围和工具默认值分开。设计完成或结构检查通过，不证明文学质量、平台接纳或商业结果。"
+      ]
+    },
+    "sources": {
+      "en": [
+        "[Single core fulcrum, opening/ending and viewpoint precedence](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-short-write/SKILL.md#L33-L39)",
+        "[Separate design and drafting phases](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-short-write/SKILL.md#L81-L103)",
+        "[Framework and the two design files](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-short-write/references/workflow-design.md#L10-L50)",
+        "[Concrete causal actions without padding](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-short-write/references/writing-workflow.md#L25-L40)",
+        "[Examples where a twist is not required](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-short-write/references/short-reversal.md#L167-L180)",
+        "[A reveal needs prior mistaken decisions and later consequences](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-short-write/references/short-reversal.md#L224-L242)",
+        "[Explicit or default delivery range and planned section count](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-short-write/SKILL.md#L105-L109)"
+      ],
+      "zh": [
+        "[单一核心支点、首尾与视角优先级](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-short-write/SKILL.md#L33-L39)",
+        "[设计与正文阶段分离](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-short-write/SKILL.md#L81-L103)",
+        "[核心框架与两份设计文件](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-short-write/references/workflow-design.md#L10-L50)",
+        "[具体因果动作与不凑量](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-short-write/references/writing-workflow.md#L25-L40)",
+        "[不必使用反转的情况](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-short-write/references/short-reversal.md#L167-L180)",
+        "[揭示前的误判与揭示后的后果](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-short-write/references/short-reversal.md#L224-L242)",
+        "[明确或默认篇幅与计划节数](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-short-write/SKILL.md#L105-L109)"
+      ]
+    }
   }
 ]
