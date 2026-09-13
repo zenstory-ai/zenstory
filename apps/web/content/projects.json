@@ -446,6 +446,18 @@
         [
           "Can I take the manuscript out of the workbench?",
           "The [manuscript export guide](https://zenstory.ai/docs/user-guide/export) explains combined TXT from saved draft/script files, chapter ordering and a separate review copy. It is not a backup of characters, materials, chat or history. Use the [version guide](https://zenstory.ai/docs/user-guide/version-history) to distinguish file recovery from project snapshots; keep important originals independently."
+        ],
+        [
+          "Will AI Memory keep every character consistent?",
+          "AI Memory is a four-field project summary, not proof that the model reads every file or a guarantee against drift. Keep confirmed settings, saved-scene progress and undecided ideas separate. The [worked memory guide](https://zenstory.ai/docs/advanced/ai-memory) shows what to save, how context limits matter and how to correct a wrong summary without silently rewriting the manuscript."
+        ],
+        [
+          "Must I split every chapter into many prompts?",
+          "No fixed prompt count is required. You can request a complete chapter when its decisions, evidence and stopping point are clear; unresolved motives may need discussion first. The [writing-handoff workflow](https://zenstory.ai/docs/advanced/workflow-tips) follows one scene from accepted design through prose, local revision and a saved-state handoff, without promising a particular writing speed."
+        ],
+        [
+          "How do I turn reference analysis into my own scene?",
+          "Locate a choice in the source, separate evidence from interpretation, then decide what changes in your own characters' actions and costs. The [original material-analysis walkthrough](https://zenstory.ai/docs/advanced/material-analysis) moves from a recording passage to a different toy-car practice scene, not just renamed props. The [materials introduction](https://zenstory.ai/docs/user-guide/materials) covers TXT limits, asynchronous analysis and explicit chat attachments; uploading a book does not put it all into every conversation."
         ]
       ],
       "zh": [
@@ -464,6 +476,18 @@
         [
           "能把作品带出工作台吗？",
           "[稿件导出指南](https://zenstory.ai/docs/user-guide/export)说明已保存正文与剧本的 TXT 合并、章节排序和另存送审副本；这不是包含人物、素材、聊天和历史的完整备份。[版本指南](https://zenstory.ai/docs/user-guide/version-history)区分单文件恢复与项目快照，重要原稿仍需独立保留。"
+        ],
+        [
+          "AI 记忆能保证长篇不崩人设吗？",
+          "AI 记忆是四字段项目摘要，不证明每轮都读完全部文件，也不保证不会写偏。分开已确认设定、已写进度与待定想法。[记忆填写与更正示例](https://zenstory.ai/docs/advanced/ai-memory)说明怎样保存、上下文为什么有限，以及如何纠正摘要而不悄悄重写正文。"
+        ],
+        [
+          "写一章必须拆成很多轮提示词吗？",
+          "没有固定轮数。决定、依据和停止点明确时，可以请求完整章节；动机尚未确定时，先讨论这个关键选择。[写作接续流程](https://zenstory.ai/docs/advanced/workflow-tips)用一场戏连起已选设计、正文、局部修改与实际保存状态，不承诺固定写作速度。"
+        ],
+        [
+          "分析完参考小说，怎样写出自己的场景？",
+          "先从原文定位人物选择，分开依据与解读，再决定自己角色的行动和代价。[素材分析原创示例](https://zenstory.ai/docs/advanced/material-analysis)从录音片段走到不同的小车练习场景，不只是换人名与道具。[素材库入门](https://zenstory.ai/docs/user-guide/materials)说明 TXT 限制、异步分析与显式附加；上传一本书，不等于每轮对话都读完它。"
         ]
       ]
     },
@@ -484,7 +508,7 @@
     "stars": 40,
     "skills": 13,
     "sources": {
-      "checked_on": "2026-09-12",
+      "checked_on": "2026-09-13",
       "en": [
         "[Agent API, file editing and version features](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/README_EN.md#L163-L197)",
         "[Self-hosting prerequisites and model configuration](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/README_EN.md#L229-L267)",
@@ -492,7 +516,8 @@
         "[Default subscription limits include file versions](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/apps/server/services/subscription/defaults.py#L6-L25)",
         "[Empty-idea quick creation](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/pages/DashboardHome.tsx#L511-L547)",
         "[Focused file, attachments and quotes](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/ChatPanel.tsx#L1151-L1177)",
-        "[Exported file types and ordering](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L110-L143)"
+        "[Exported file types and ordering](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L110-L143)",
+        "[Project memory is budget-bound context](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/agent/context/assembler.py#L1319-L1352)"
       ],
       "zh": [
         "[Agent API、文件编辑与版本功能](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/README_EN.md#L163-L197)",
@@ -501,7 +526,8 @@
         "[默认订阅限制包含文件版本数](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/apps/server/services/subscription/defaults.py#L6-L25)",
         "[空灵感快速创建](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/pages/DashboardHome.tsx#L511-L547)",
         "[焦点文件、附件与引用](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/ChatPanel.tsx#L1151-L1177)",
-        "[导出文件类型与排序](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L110-L143)"
+        "[导出文件类型与排序](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L110-L143)",
+        "[项目记忆受上下文预算约束](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/agent/context/assembler.py#L1319-L1352)"
       ]
     },
     "vocabulary": []
