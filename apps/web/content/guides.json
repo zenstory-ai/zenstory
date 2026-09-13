@@ -157,40 +157,42 @@
   {
     "owner": "video-recap",
     "slug": "capcut-draft",
-    "checked_on": "2026-09-12",
+    "checked_on": "2026-09-13",
     "title": {
-      "en": "Export a video recap as an editable JianYing / CapCut draft",
-      "zh": "把视频解说导出为可编辑的剪映 / CapCut 草稿"
+      "en": "Export a video recap to JianYing / CapCut and keep editing",
+      "zh": "视频解说导出剪映 / CapCut 后，怎样继续精剪？"
     },
     "answer": {
-      "en": "If Video Recap Skills has already produced `timeline.json`, run its standalone JianYing exporter to create a draft folder without rerunning ASR, visual understanding, TTS or MP4 rendering. Keep the media bundle with the draft, then check import and playback in your actual editor version. Exported JSON alone does not prove editor compatibility.",
-      "zh": "如果 Video Recap Skills 已经生成 `timeline.json`，可以直接运行独立剪映导出器，创建草稿目录，无需重跑 ASR、视觉理解、TTS 或 MP4 渲染。让媒体包与草稿一起移动，再在你实际使用的编辑器版本中检查导入与播放。只导出 JSON 不证明编辑器兼容。"
+      "en": "To shorten a recap, move commentary away from an important line or correct captions, export the existing `timeline.json` as an editable draft rather than treating the finished MP4 as your only source. The normal recap timeline keeps source sound with the video clips, narration and optional music on audio tracks, and displayed captions as text. The standalone exporter does not rerun ASR, visual understanding or TTS, or render the whole recap MP4. Keep the media bundle with the draft and open it in your actual editor version; the exported files alone do not prove compatibility. The rehearsal example below shows two editorial choices, including what else must change when you move a voiceover.",
+      "zh": "想缩短解说、把旁白让开关键原话，或修正字幕时，应把已有 `timeline.json` 导出成可编辑草稿，不要只拿最终 MP4 当全部素材。常规解说时间轴把原声保留在视频片段上，旁白与可选配乐放在音轨上，显示字幕则是文本。独立导出器不重跑 ASR、视觉理解或 TTS，也不重新渲染整部解说 MP4。媒体包要与草稿一起保留，并在你实际使用的编辑器版本中打开；导出文件本身不证明兼容。下方的排练示例比较两种精剪选择，也说明移动旁白时还需要一起处理什么。"
     },
     "prerequisites": {
       "en": [
-        "A local checkout or installed skill directory containing `skills/video-assemble/scripts/export_jianying.py`, Python, and a completed `timeline.json` with accessible media references. The `/ABS/` paths below are placeholders to replace. If you have not created a recap timeline yet, start with the [video-to-narration workflow](https://zenstory.ai/video-recap/video-to-narration).",
+        "A local checkout or installed skill directory containing `skills/video-assemble/scripts/export_jianying.py`, Python, ffprobe, and a completed `timeline.json` with accessible media references. Replace the `/ABS/` placeholders below. If no recap timeline exists yet, start with the [video-to-narration workflow](https://zenstory.ai/video-recap/video-to-narration); a finished MP4 alone does not reconstruct its separate voice and caption tracks.",
         "If starting before assembly, prepare the source video and `work_dir/tts_meta.json`. Local assembly needs ffmpeg; burned subtitles need its libass/subtitles filter. MiMo supplies remote ASR/VLM/default TTS; optional Fish Audio replaces TTS only.",
-        "A JianYing or CapCut desktop installation in which you can test the exported folder. Export is an optional sidecar; it is not required to render a recap MP4."
+        "A JianYing or CapCut desktop installation in which you can test the exported folder. Export is an optional sidecar; it is not required to render a recap MP4.",
+        "Decide the revision scope: the thought to keep, the source line or action that must remain audible/visible, and whether you are retaining the existing voice recording or requesting a new one. If a timeline explicitly requests reverse playback without a prepared reversed file, export can invoke local ffmpeg to create and bundle that material; this is not a no-media-processing guarantee."
       ],
       "zh": [
-        "本地仓库或已安装的 skill 目录中存在 `skills/video-assemble/scripts/export_jianying.py`，有 Python、已生成的 `timeline.json`，且其媒体引用可访问。下方 `/ABS/` 路径是需要替换的占位符。 如果还没有解说时间线，先从[视频解说完整流程](https://zenstory.ai/video-recap/video-to-narration)开始。",
+        "本地仓库或已安装的 skill 目录中有 `skills/video-assemble/scripts/export_jianying.py`，已准备 Python、ffprobe、生成完毕的 `timeline.json`，且媒体引用可访问。替换下方 `/ABS/` 占位路径。尚无解说时间轴时，先从[视频解说完整流程](https://zenstory.ai/video-recap/video-to-narration)开始；只有成片 MP4，不会自动重建分开的旁白和字幕轨道。",
         "若尚未合成，先准备源视频与 `work_dir/tts_meta.json`。本地合成需要 ffmpeg；烧录字幕需要 libass/subtitles filter。MiMo 提供远程 ASR/VLM/默认 TTS；可选 Fish Audio 只替换 TTS。",
-        "能用于实际测试草稿的剪映或 CapCut 桌面安装。草稿是可选附加导出，不是渲染解说 MP4 的必要步骤。"
+        "能用于实际测试草稿的剪映或 CapCut 桌面安装。草稿是可选附加导出，不是渲染解说 MP4 的必要步骤。",
+        "先决定修改范围：要留下的意思、必须听见的原话或看见的动作，以及保留现有配音还是另外申请新配音。若时间轴明确要求倒放却没有已备好的倒放文件，导出可以调用本地 ffmpeg 生成并打包该素材；因此不是“绝不处理媒体”的承诺。"
       ]
     },
     "steps": {
       "en": [
         [
-          "Choose the entry point",
-          "For an existing `timeline.json`, use the standalone exporter below. If still assembling, pass `--export-jianying --jianying-out /ABS/drafts` to `assemble.py` after its required inputs are ready."
+          "Choose export-only or assembly",
+          "With a completed `timeline.json`, use the standalone command below. It is the path for exporting the existing edit without rerunning assembly. If assembly has not happened yet, its separate `assemble.py` flow can also export a draft with `--export-jianying --jianying-out /ABS/drafts`, but it still performs its normal assembly work."
         ],
         [
           "Preserve the right source",
           "In cut mode, pass `--source-video /ABS/original.mp4` to the `assemble.py` command that creates `timeline.json`; this preserves real original-video intervals in the timeline. The standalone exporter then consumes that completed timeline and does not accept `--source-video`."
         ],
         [
-          "Export without remote stages",
-          "Run `export_jianying.py /ABS/work/timeline.json --out-dir /ABS/drafts --name recap_demo`. This path reads the timeline and media; it does not invoke MiMo/Fish or render a new MP4."
+          "Export the existing edit, not a flattened substitute",
+          "Run the standalone command with the real timeline and read its returned `draft_dir` and warnings. It reads the timeline and referenced media, without calling MiMo/Fish or rendering the whole recap again. Do not substitute `result.mp4` for a missing original clip merely because the pictures look similar: that file can already contain the mixed voiceover and burned captions."
         ],
         [
           "Keep the bundle together",
@@ -201,22 +203,34 @@
           "Use your installed editor’s supported local-draft opening or import flow. Keep the returned draft directory intact and confirm its media, subtitles and audio tracks resolve; menus and draft locations vary by editor release."
         ],
         [
-          "Finish and play back",
-          "Adjust subtitles, framing and audio handoffs, then play the entire final export at normal speed. Automated QC identifies candidates for review; it is not proof that the finished video is correct."
+          "Identify what each editable element actually contains",
+          "In the normal exported recap, video clips carry their original audio and volume keyframes; the exporter does not promise a separate clean dialogue stem. Narration and optional BGM are separate audio segments, and recap captions are text segments. A caption correction changes displayed text, not the words in its WAV. Hard captions already inside the source image cannot be removed by deleting an exported text segment."
+        ],
+        [
+          "Move the explanation, not the evidence",
+          "Decide what the viewer needs to hear or see before shortening. The worked rehearsal preserves a failed entrance, the instruction, a visible cue and the next entrance. Move commentary after that result, or omit it for an original-audio-led cut. Do not remove the cue to gain two seconds and then claim that the remaining cut still shows how the response followed it. For the earlier sound-planning decision, see [original audio and narration](https://zenstory.ai/video-recap/original-audio-and-narration)."
+        ],
+        [
+          "Keep voice, captions and volume changes consistent",
+          "When moving a recorded voiceover, move its corresponding caption cues and inspect original-audio and music keyframes at both the old and new positions. The exporter writes those positions; it does not actively re-duck the editor timeline afterward. If you change what is said, provide an approved replacement recording and retime it rather than only changing a caption or cutting off the old recording."
+        ],
+        [
+          "Choose which edit owns the final delivery",
+          "Keep the untouched export as a starting point and use the target editor’s supported copy/version flow for a finishing version. This exporter reads `timeline.json`; it does not read your edited desktop project back into that timeline, SRT, WAV or previously rendered MP4. Export the chosen finished version from the editor, or deliberately carry the decisions back to the pipeline inputs before a later render. Re-exporting the old timeline is not a way to recover the editor changes."
         ]
       ],
       "zh": [
         [
-          "选择入口",
-          "已有 `timeline.json` 时使用下方独立导出器。若仍在合成，待必要输入齐备后，在 `assemble.py` 命令中加入 `--export-jianying --jianying-out /ABS/drafts`。"
+          "区分仅导出与重新合成",
+          "已有完整 `timeline.json` 时，用下方独立命令导出当前剪辑，不重跑合成。尚未合成时，另一条 `assemble.py` 流程也能通过 `--export-jianying --jianying-out /ABS/drafts` 附带导出草稿，但仍会执行正常合成工作。"
         ],
         [
           "保留正确源视频",
           "cut 模式下，在生成 `timeline.json` 的 `assemble.py` 命令中传入 `--source-video /ABS/original.mp4`，让时间轴保留真实原片区间。之后独立导出器只读取这份已完成的时间轴，不接受 `--source-video` 参数。"
         ],
         [
-          "不重跑远程阶段地导出",
-          "运行 `export_jianying.py /ABS/work/timeline.json --out-dir /ABS/drafts --name recap_demo`。这一路径读取时间轴与媒体，不调用 MiMo/Fish，也不渲染新的 MP4。"
+          "导出已有剪辑，不用压平的成片冒充原素材",
+          "对真实时间轴运行独立命令，读取返回的 `draft_dir` 与警告。这条路径读取时间轴及引用媒体，不调用 MiMo/Fish，也不重新渲染整部解说。原素材缺失时，不要因为画面相似就改用 `result.mp4`：里面可能已经混入旁白并烧录字幕。"
         ],
         [
           "完整保留媒体包",
@@ -227,35 +241,51 @@
           "使用已安装版本支持的本地草稿打开或导入方式，保持返回的草稿目录完整，并检查媒体、字幕和音轨是否可用；不同版本的菜单与草稿位置可能不同。"
         ],
         [
-          "精修并完整播放",
-          "调整字幕、构图与声音交接，再以正常速度完整播放最终导出文件。自动 QC 只能定位待复核问题，不证明成片正确。"
+          "看清可编辑元素里到底是什么",
+          "常规导出的解说里，视频片段带着原声与音量关键帧，导出器不承诺另外拆出干净的人声轨。旁白、可选 BGM 是独立音频段，解说字幕是文本段。改字幕只改显示文字，不会改 WAV 里说的话；原画面已有的硬字幕也不能靠删除导出的文本段消失。"
+        ],
+        [
+          "移动解释，不剪掉它所依赖的证据",
+          "先确定观众必须听见或看见什么，再缩短。排练示例保留一次没合上的起拍、原话、可见手势和下一次起拍；可以把解说移到结果后，也可以去掉解说做原声主导的短版。不要为了省两秒剪掉手势，却仍声称成片展示了回应如何跟随它。更前面的声音分工问题，见[原声与旁白指南](https://zenstory.ai/video-recap/original-audio-and-narration)。"
+        ],
+        [
+          "让配音、字幕与音量变化一起对齐",
+          "移动已有旁白时，一起移动它对应的字幕提示，并检查旧位置、新位置的原声音量和配乐关键帧。导出器写出这些位置后，不会在编辑器里持续自动重算压低原声的窗口。真要改说话内容，应准备作者接受的新录音并重排时长，而不是只改字幕或切掉旧录音的尾字。"
+        ],
+        [
+          "确定哪一版负责最终交付",
+          "把未修改的导出留作起点，用目标编辑器支持的复制/版本方式建立精剪版。这个导出器读取 `timeline.json`，不会把桌面工程里的修改反向回写到该时间轴、SRT、WAV 或之前的 MP4。最终选择在编辑器中导出成片，或先把修改决定明确带回流程输入再另行渲染；重导出旧时间轴不会恢复编辑器里的修改。"
         ]
       ]
     },
     "example": {
-      "en": "From an existing timeline (replace every /ABS path):\npython3 /ABS/video-recap-skills/skills/video-assemble/scripts/export_jianying.py \\\n  /ABS/work/timeline.json \\\n  --out-dir /ABS/drafts \\\n  --name recap_demo\n\nRead the returned draft_dir and any warnings.\nKeep the entire draft folder and its Resources/local/ media together.",
-      "zh": "从已有时间轴导出（替换所有 /ABS 路径）：\npython3 /ABS/video-recap-skills/skills/video-assemble/scripts/export_jianying.py \\\n  /ABS/work/timeline.json \\\n  --out-dir /ABS/drafts \\\n  --name recap_demo\n\n读取返回的 draft_dir 与全部警告。\n把完整草稿目录与其中的 Resources/local/ 媒体一起保留。"
+      "en": "From an existing timeline (replace every /ABS path):\npython3 /ABS/video-recap-skills/skills/video-assemble/scripts/export_jianying.py \\\n  /ABS/work/timeline.json \\\n  --out-dir /ABS/drafts \\\n  --name rehearsal_base\n\nRead the returned draft_dir and any warnings.\nKeep the entire draft folder and its Resources/local/ media together.\n\nORIGINAL EDITORIAL EXERCISE — The Second Count-In\nThese are invented footage descriptions and edit placements, not real video, an exported\nproject or a measured TTS result. All times below are illustrative. English dialogue is\na meaning translation of the Chinese, not a timed English dub. Reuse real media only\nwhen it actually contains these beats; do not invent missing shots to match this plan.\n\nViewer question: what changes between the two entrances?\nThe supplied fictional footage shows a guitar entering before the other players, a stop,\nan instruction, a hand cue, and a second entrance that lands together. It does not show\nthat the whole rehearsal is finished, that the band has mastered the piece, or why anyone\nmade the first mistake.\n\nSource time       → edited time       | picture and source sound\n00:12–00:16        → 00:00–00:04        | first entrance does not land together; they stop\n00:22–00:26        → 00:04–00:08        | “看我抬手，再进。” / “Watch my hand go up, then come in.”\n00:26–00:28        → 00:08–00:10        | the leader raises a hand; the others wait\n00:28–00:34        → 00:10–00:16        | second entrance, complete short phrase and its necessary audible release\n00:34–00:38        → 00:16–00:20        | the phrase and its release are over; hands lower in the remaining room tone\n\nThe gap at source 00:16–00:22 is already omitted from this illustrative edit.\nAll edit decisions below use the right-hand clock, not the source-video timestamps.\nThe hand cue and second entrance stay consecutive in source order; no reaction from\nanother attempt has been substituted.\n\nA problem deliberately placed in this example draft:\n- A narration recording and its matching caption occupy edited 00:05–00:09.\n- Chinese line: “抬手以后，第二次起拍合在了一起。”\n  Meaning: “After the raised hand, the second entrance lands together.”\n- For this placement exercise ONLY, assume that the complete existing recording is four\n  seconds long. That is not an observed speaking time or a duration to force onto new TTS.\n- The voiceover covers part of the instruction; original-audio volume keyframes also\n  lower that region. Moving only the caption cannot make the instruction audible again.\n\nA — KEEP A SHORT EXPLANATION, AFTER THE RESULT (illustrative 20-second edit)\n1. Keep the failed start, complete instruction, hand cue and second phrase in order.\n2. Move the complete four-second narration from 00:05–00:09 to 00:16–00:20, with its caption\n   shifted by the same eleven seconds. It now comments on the result after the viewer\n   has heard it, rather than speaking over the instruction.\n3. Inspect the video clip’s original-audio keyframes: remove the obsolete reduction over\n   the instruction where appropriate, preserve the audible entrance, and shape any new\n   reduction/recovery around the late narration. Inspect optional music there too.\n   A moved audio segment does not itself relocate keyframes on another segment.\n4. If the actual recording or source phrase lasts longer than the illustrative window,\n   enlarge or change the edit. Do not amputate a syllable, assume a silence, or hide the cue\n   just to preserve the number “20.” The late shot must truly contain a usable settling beat.\n\nB — LET THE RETRY SPEAK FOR ITSELF (illustrative 16-second editor cut)\n1. Remove this added narration and its corresponding narration caption; do not delete\n   unrelated captions indiscriminately. If original-dialogue captions exist, keep only\n   those that match what remains audible. The standard recap text track is not a promise\n   that every original line has already been transcribed into an editable caption.\n2. Remove the 00:16–00:20 tail, not the instruction or the 00:08–00:10 cue.\n3. Remove the now-unneeded original-audio reduction and listen to both entrances at normal\n   speed. If music masks the comparison, lower or omit it rather than lifting every track.\n   End after the complete second phrase, with enough audible release in the real footage.\n\nA adds one retrospective explanation; B gives the audible comparison more responsibility.\nNeither supports a title such as “They finally mastered the whole piece.” A narrower\neditorial title is “Same opening, second try.” These are two author-selected cuts, not\nbuilt-in exporter presets, and this exercise supplies no finished recording or video.\n\nWhen the correction is about WORDS, not placement:\nSuppose an existing recording says “They finally mastered the whole piece.” Changing its\ncaption to the narrower claim would leave the unsupported spoken claim audible. Remove\nthat recording with its caption, or obtain a separately approved replacement and fit its\nreal duration. An export-only command does not synthesize the replacement voice.\n\nHandoff note — plain editorial notes, not a required file format or a new feature:\nChosen version: A or B; record the decision, not both as one final cut.\nProtected beats: first stop → complete instruction → hand cue → second phrase.\nChanged elements: narration placement/removal, matching captions, source/music volume.\nWorking master: the named editor project, while the original export remains untouched.\nFinal deliverable: the render from that chosen edit, not the older pipeline MP4.\nStill to judge in the real media: full spoken endings, cue visibility, phrase release\nand whether the target editor opens the bundled media correctly.\n\nRunning the standalone exporter again reads its input timeline again. A new output folder\nname does not make it include changes from the editor project. Keep the bundle intact and\nrecord which version you actually chose to finish.",
+      "zh": "从已有时间轴导出（替换所有 /ABS 路径）：\npython3 /ABS/video-recap-skills/skills/video-assemble/scripts/export_jianying.py \\\n  /ABS/work/timeline.json \\\n  --out-dir /ABS/drafts \\\n  --name rehearsal_base\n\n读取返回的 draft_dir 与全部警告。\n把完整草稿目录与其中的 Resources/local/ 媒体一起保留。\n\n原创编辑练习——《第二次起拍》\n以下是虚构的画面描述与剪辑位置，不是真实视频、已导出的工程或 TTS 实测结果。\n所有时间仅用于说明剪辑关系，不能当作实际录音长度。真实素材确实包含这些拍点时\n才采用相应方案，不要为了套例子补造不存在的镜头。\n\n观众问题：两次起拍之间，什么发生了变化？\n这份虚构素材里，吉他先于其他人进入，大家停下；随后有人发出指令、抬手，\n第二次起拍合在一起。它没有证明整场排练已完成、整首曲子已熟练，也没证明\n第一次失误究竟出于谁的什么心理。\n\n原片时间          → 剪后时间          | 画面与原声\n00:12–00:16        → 00:00–00:04        | 第一次起拍没合上，大家停下\n00:22–00:26        → 00:04–00:08        | “看我抬手，再进。”\n00:26–00:28        → 00:08–00:10        | 领拍的人抬手，其他人等着\n00:28–00:34        → 00:10–00:16        | 第二次一起进入，奏完短乐句并留足必要余音\n00:34–00:38        → 00:16–00:20        | 乐句及其余音已结束，手放下，只余现场底声\n\n原片00:16–00:22这段已从示例剪辑中省略。下文的编辑操作都用右边的剪后时钟。\n手势和第二次起拍保持原片中的相邻顺序，没有拿另一次尝试的反应镜头来替代。\n\n给示例草稿故意放入一个问题：\n- 一段旁白录音及其对应字幕位于剪后00:05–00:09。\n- 旁白是：“抬手以后，第二次起拍合在了一起。”\n- 只为讲清移动关系，假设这段已有完整录音长四秒；这不是实测语速，也不是\n  要求新 TTS 硬塞进去的规定时长。\n- 它盖住部分原话，视频片段的原声音量关键帧也压低了这个区域。\n  只移动字幕，不会让那句指令重新听清。\n\nA——保留一句解释，但放到结果之后（示意20秒版）\n1．保留第一次没合上的起拍、完整指令、抬手与第二次短句的先后关系。\n2．把完整四秒旁白从00:05–00:09移到00:16–00:20，对应字幕也整体后移十一秒。\n   先让观众听到结果，再回看一句，不在发出指令时抢话。\n3．检查视频片段的原声音量关键帧：按需解除指令处已经过时的压低，保住两次\n   起拍的可听性，并处理新旁白位置的压低/恢复；有配乐时也检查那个位置。\n   移动一段配音，不等于另一个片段上的关键帧会跟着搬家。\n4．真实录音或原声短句比示意窗口长，就扩展或另选剪法；不要切尾字、假设有\n   静默空隙，或为了凑“20秒”删掉手势。尾镜也必须真的有可用的收束过程。\n\nB——让这次重来自己说话（示意16秒的编辑器短版）\n1．删掉这段新增旁白及其对应的解说字幕，不盲目清空所有文本。\n   若原声对白字幕已经存在，只保留与实际可听内容相符的部分；常规解说文本轨\n   不等于已经为全部原声对白做好了可编辑字幕。\n2．删的是00:16–00:20尾段，不是指令，也不是00:08–00:10的手势。\n3．解除不再需要的原声压低，按正常速度听两次起拍。配乐遮住比较时，降低或\n   去掉配乐，而不是把所有轨道一起拉响。实际结束点要在第二次乐句完整奏完、\n   余音有足够收束之后，不能只照示例秒数硬切。\n\nA 多留一句事后解释；B 让可听的比较承担更多叙事。两者都不足以支持\n“他们终于练熟了整首曲子”这样的标题；更窄的编辑标题可以是“同一个开头，再来一次”。\n这是作者选的两种剪法，不是导出器内置预设，也没有提供已生成的配音或成片。\n\n如果错的是说话内容，而不只是位置：\n假设已有录音说“他们终于练熟了整首曲子”，只把字幕改成较窄的判断，观众仍会\n听到过度结论。应连同字幕去掉这段录音，或另外准备获准的新录音，再按真实时长\n放置。仅导出草稿的命令不会替你合成新配音。\n\n交接说明——普通编辑笔记，不是必需文件格式或新增功能：\n选定版本：A 或 B，记下选择，不把两版同时当成最终稿。\n保留拍点：第一次停下 → 完整指令 → 抬手 → 第二次短句。\n修改元素：旁白移动/删除、对应字幕、原声/配乐音量。\n当前母版：点名的编辑器工程；最初导出保留不动。\n最终交付：从选定精剪版导出的成片，不是之前那份流程 MP4。\n实际素材仍要判断：原话是否完整、手势是否可见、短句是否收住，目标编辑器能否\n正确打开媒体包。\n\n再次运行独立导出器，只会再次读取它的输入时间轴。换一个输出目录名，不会自动\n带上编辑器工程中的修改。完整保留媒体包，并注明最后真正选中了哪一版。"
     },
     "outputs": {
       "en": [
         "The returned `draft_dir` contains `draft_content.json`, `draft_info.json` and `draft_meta_info.json`.",
         "Bundled media goes under `Resources/local/video/`, `Resources/local/audio/` and `Resources/local/image/`; missing files remain explicit external references with warnings.",
-        "Non-empty output directories are not overwritten: export chooses a numbered sibling. This draft export is separate from the assembled MP4, subtitles and `timeline.json`."
+        "Non-empty output directories are not overwritten: export chooses a numbered sibling. This draft export is separate from the assembled MP4, subtitles and `timeline.json`.",
+        "The editor finishing version is a separate deliverable from the pipeline snapshot. Edited captions do not replace narration audio; a fresh draft exported from unchanged `timeline.json` does not contain the editor’s revisions. Keep the chosen project and the media it still references together."
       ],
       "zh": [
         "返回的 `draft_dir` 包含 `draft_content.json`、`draft_info.json` 与 `draft_meta_info.json`。",
         "打包媒体位于 `Resources/local/video/`、`Resources/local/audio/`、`Resources/local/image/`；缺失文件保留为带警告的外部引用。",
-        "不会覆盖非空输出目录，导出器会选择带编号的相邻目录。草稿导出与已合成的 MP4、字幕和 `timeline.json` 相互独立。"
+        "不会覆盖非空输出目录，导出器会选择带编号的相邻目录。草稿导出与已合成的 MP4、字幕和 `timeline.json` 相互独立。",
+        "编辑器精剪版与流程快照是两份不同交付。改过的字幕不会替换旁白音频；未修改的 `timeline.json` 再导出一次，也不会包含编辑器里的修订。选定工程和它仍引用的媒体要一起保留。"
       ]
     },
     "verification": {
       "en": [
         "Confirm the three draft JSON files and referenced media, then test opening in the exact desktop/region version you intend to use. A schema template version or a historical smoke test is not universal CapCut/JianYing compatibility.",
+        "For the rehearsal exercise, the instruction, cue and second entrance must remain in order and audible where needed. Check the original-audio keyframes at the old voiceover position as well as the new one, and compare the actual spoken words with their displayed captions. The illustrative 20/16-second alternatives are not measured output requirements.",
         "Check voiceover endings, audio sync, original-audio transitions, BGM levels, subtitle line breaks and cuts. Drafts reference source media, so hard subtitles already present in that footage can remain and may need masking.",
         "An export-only smoke test validates the local draft contract, not a remote generation run, a successfully opened desktop editor or the final rendered video."
       ],
       "zh": [
         "检查三份草稿 JSON 与引用媒体，再在实际目标桌面/地区版本中测试打开。Schema 模板版本或历史 smoke test 不等于所有剪映/CapCut 版本都兼容。",
+        "针对排练练习，指令、手势、第二次起拍要保持顺序，并在需要处听得清。既看新旁白位置，也看旧位置的原声音量关键帧；把实际说的话与显示字幕对照。示意的20/16秒两版不是实测交付时长要求。",
         "检查旁白尾字、音画同步、原声交接、BGM 音量、字幕断行与剪点。草稿引用源媒体，原素材已有的硬字幕可能仍在，需要时应遮罩。",
         "只运行导出 smoke test 验证的是本地草稿契约，不证明已执行远程生成、桌面编辑器成功打开或最终成片正确。"
       ]
@@ -267,7 +297,13 @@
         "[Remote model dependencies and optional review](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L47-L69)",
         "[Draft files and editor-version boundaries](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/references/timeline-and-jianying.md#L88-L116)",
         "[Media bundling, warnings and non-overwriting output](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/references/timeline-and-jianying.md#L118-L141)",
-        "[Standalone exporter arguments and returned draft directory](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-assemble/scripts/export_jianying.py#L219-L261)"
+        "[Standalone input, arguments and one-way draft output](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/export_jianying.py#L219-L256)",
+        "[Optional local reverse-media generation during export](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/export_jianying.py#L103-L216)",
+        "[Original-audio automation stays on the video clips](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/timeline.py#L77-L106)",
+        "[Separate narration, optional music and displayed subtitle segments](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/timeline.py#L108-L166)",
+        "[Video source ranges and volume keyframes in the draft](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/jianying_builders.py#L496-L543)",
+        "[Audio materials and segment placement in the draft](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/jianying_builders.py#L546-L610)",
+        "[Subtitle text is built as a separate text material](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/jianying_builders.py#L613-L636)"
       ],
       "zh": [
         "[合成输入、cut 模式源视频与导出参数](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-assemble/SKILL.md#L33-L68)",
@@ -275,7 +311,13 @@
         "[远程模型依赖与可选复核](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L47-L69)",
         "[草稿文件与编辑器版本边界](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/references/timeline-and-jianying.md#L88-L116)",
         "[媒体打包、警告与不覆盖输出](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/references/timeline-and-jianying.md#L118-L141)",
-        "[独立导出器参数与返回的草稿目录](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-assemble/scripts/export_jianying.py#L219-L261)"
+        "[独立导出的输入、参数与单向草稿输出](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/export_jianying.py#L219-L256)",
+        "[导出时可选的本地倒放素材生成](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/export_jianying.py#L103-L216)",
+        "[原声音量自动化保留在视频片段上](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/timeline.py#L77-L106)",
+        "[独立旁白、可选配乐与显示字幕段](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/timeline.py#L108-L166)",
+        "[草稿中的视频源区间与音量关键帧](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/jianying_builders.py#L496-L543)",
+        "[草稿中的音频素材与片段放置](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/jianying_builders.py#L546-L610)",
+        "[字幕文字作为独立文本素材生成](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/jianying_builders.py#L613-L636)"
       ]
     }
   },
