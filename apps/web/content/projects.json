@@ -218,14 +218,16 @@
         ["How do choices change more than the wording?", "Make important actions readable before selection and show their consequences in scene prose, not only state labels. The [original ferry example](https://zenstory.ai/novel-to-game/meaningful-choices) writes advance information, a separate consent exchange and three closing passages for two decision points. Expressive wording can remain flavor; do not promise another ending or a hidden score for every line."],
         ["What may I change from the novel?", "Keep cited source facts and uncertainties in `analysis/SOURCE_BIBLE.md`. Separate approved adaptation additions from evidence; do not let implementation silently rewrite the agreed brief or source bible."],
         ["How much should I adapt first?", "Choose a source range explicitly, then one player role, a concrete objective and an outcome that preserves the intended experience. A small build does not excuse missing source coverage for a requested whole-book adaptation. The [worked slice-selection brief](https://zenstory.ai/novel-to-game/quick-start) compares a summary, a bounded ferry decision and an expanded town scope; game-world-design then specifies the selected slice before full art production."],
-        ["What do I receive, and what remains unproven?", "The [quick start](https://zenstory.ai/novel-to-game/quick-start) explains the brief, design files and built candidate. Design-only work is not a playable game. The six runtime checks cover the recorded run; they do not establish every branch, subjective quality or commercial readiness."]
+        ["What do I receive, and what remains unproven?", "The [quick start](https://zenstory.ai/novel-to-game/quick-start) explains the brief, design files and built candidate. Design-only work is not a playable game. The six runtime checks cover the recorded run; they do not establish every branch, subjective quality or commercial readiness."],
+        ["How should I revise my first game candidate?", "Describe the exact choice or scene, your input, what you expected and what appeared. The [ferry candidate-feedback examples](https://zenstory.ai/novel-to-game/quick-start) distinguish a misleading refusal label, a displayed ending versus a wrong state transition, and an author-requested rule change. Keep approved facts and untouched design decisions; a scoped revision is not a reason to regenerate the whole concept."]
       ],
       "zh": [
         ["我想做互动文游，不想做战斗游戏，可以吗？", "可以，在简报与概念阶段选择叙事主导体验。决定可以改变证词、人物知道的信息和后续场景，不必包装成卡牌、回合或好感度条。"],
         ["怎样避免选择只换一句文案？", "让关键行动在点选前可理解，再用场景文案兑现后果，不只列状态值。[原创渡口示例](https://zenstory.ai/novel-to-game/meaningful-choices)为两个选择点写出事前信息、单独的同意确认与三段收束。单纯表达语气的选项可以保留，但不必为每句话承诺新结局或隐藏分数。"],
         ["原著可以改到什么程度？", "在 `analysis/SOURCE_BIBLE.md` 保留带出处的事实和疑点，把批准的改编新增设定与原文证据分开。实现阶段不能悄悄改写已确定的产品简报或原著圣经。"],
         ["第一次应该改编多大范围？", "先明确来源范围，再选一个玩家身份、具体目标与能保住体验承诺的结果。首版做得小，不代表已经要求的全书改编可以跳过来源覆盖。[切片选择简报示例](https://zenstory.ai/novel-to-game/quick-start)比较只读梗概、一次渡口决定和整城扩展；选定后，再由 game-world-design 在完整美术生产前明确切片设计。"],
-        ["最后会拿到什么，什么还不能证明？", "[完整入门指南](https://zenstory.ai/novel-to-game/quick-start)说明简报、设计文件与构建候选版本。只做设计不等于可玩游戏。六项运行检查只覆盖所记录的一次运行，不代表每条分支、主观质量或商业发布准备程度都已通过。"]
+        ["最后会拿到什么，什么还不能证明？", "[完整入门指南](https://zenstory.ai/novel-to-game/quick-start)说明简报、设计文件与构建候选版本。只做设计不等于可玩游戏。六项运行检查只覆盖所记录的一次运行，不代表每条分支、主观质量或商业发布准备程度都已通过。"],
+        ["拿到第一个游戏候选版本后，该怎样继续改？", "点名具体选项或场景，说明输入、期待与实际表现。[渡口候选反馈示例](https://zenstory.ai/novel-to-game/quick-start)分清误导性的拒绝标签、结尾显示与状态转换的差异，以及作者新提出的规则。保留已确认事实与未点名的设计，有范围的修改不等于重新生成整个概念。"]
       ]
     },
     "distinctive": {
