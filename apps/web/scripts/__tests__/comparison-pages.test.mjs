@@ -159,7 +159,7 @@ test('writing workflow comparison renders three source-backed choices across the
   const appMap = readFileSync(join(outDir, '_app/sitemap.xml'), 'utf8')
   assert.equal(siteMap.split(`<loc>${url}</loc>`).length - 1, 1)
   assert.ok(!appMap.includes('/compare/'))
-  assert.equal(matches(siteMap, /<loc>/g).length + matches(appMap, /<loc>/g).length, 69)
+  assert.equal(matches(siteMap, /<loc>/g).length + matches(appMap, /<loc>/g).length, 70)
 })
 
 test('comparison identities reject traversal, unknown or duplicate options and duplicate routes before writing', (t) => {

@@ -2687,5 +2687,138 @@
         "[人物想从谈话里得到什么](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/dialogue-mastery.md#L104-L108)"
       ]
     }
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "script-to-storyboard",
+    "checked_on": "2026-09-13",
+    "title": {
+      "en": "Already have a screenplay? Build a storyboard without rewriting the scene",
+      "zh": "已有剧本怎样直接做分镜：保住对白、动作与结尾，不重写整场戏"
+    },
+    "answer": {
+      "en": "Start short-drama-storyboard with the current accepted screenplay and the visual facts the scene needs. You do not have to restart idea development or create image prompts first. Decide what each shot lets the audience see or hear, carry its end state into the next shot, and estimate complete dialogue before assigning duration. The original rehearsal-room example below turns one accepted scene into four shot designs while preserving its words and unresolved ending. It is a text-planning exercise, not generated footage or a measured forty-second film.",
+      "zh": "用当前已接受的剧本与必要视觉事实，直接进入 short-drama-storyboard；不必重做灵感开发，也不必先完成图片提示词。先决定每镜让观众看到、听到什么，把终点接成下一镜的起点，再按完整对白估镜长。下面用原创排练室场景示范四镜设计，保留台词与尚未解决的结尾。这是文本编排练习，不是生成视频或实测四十秒的成片。"
+    },
+    "prerequisites": {
+      "en": [
+        "A configured supported agent host with Drama Skills installed and access to the intended project. See the [project entry](https://zenstory.ai/drama-skills) for setup. Request this stage by name; the skill produces storyboard Markdown and frozen-keyframe text, not images or video.",
+        "The current `剧集/<EP>/剧本.md`, including real scene IDs, and necessary accepted visual facts. Name the scene or episode you want covered and what cannot change. If a chat draft differs from the accepted file, surface the difference rather than silently using the older draft.",
+        "Your duration and format choices. If a target model has already been declared, use its accepted native-duration choice; if that choice is missing, resolve it before assigning model-constrained shots. Without a chosen model, narrative timing can still be planned—do not invent a provider limit or assume a reference-image strategy."
+      ],
+      "zh": [
+        "已配置的受支持 Agent 宿主，安装 Drama Skills，并能读取目标项目。[项目入口](https://zenstory.ai/drama-skills)说明安装路径。直接点名本阶段；它交付分镜 Markdown 和冻结关键帧文字，不生成图片或视频。",
+        "当前 `剧集/<EP>/剧本.md`，其中有真实场景 ID，以及必要且已接受的视觉事实。说明要覆盖一场还是一集、哪些内容不能变。聊天旧稿与已接受文件不同，先说清差异，不静默回用旧稿。",
+        "你的时长和形态选择。已经声明目标模型时，使用已接受的原生时长选择；缺这项，就先补齐再按模型限制分配镜长。尚未选择模型，也可以按叙事节奏设计，不虚构供应商上限，更不默认参考图路线。"
+      ]
+    },
+    "steps": {
+      "en": [
+        [
+          "Treat the accepted scene as the source, not a new pitch",
+          "A [creator report about EP001](https://github.com/zenstory-ai/drama-skills/issues/100) describes storyboards departing from an accepted screenplay. Establish which current file is authoritative, then preserve its actions, dialogue, sound, screen text and turning point. Directing choices can decide angle, distance and timing; changing who acts, what is said or what the ending means needs a screenplay decision. The direct entry is supported by the storyboard skill, not evidence that every project can skip all missing preparation."
+        ],
+        [
+          "Give each cut a job",
+          "A cut should change information, alignment, power, emotion, space or rhythm. In the example, placing a key, refusing to act as a messenger, an interrupted reach and a decision to wait have different functions. Do not turn every sentence into a shot, or add reaction close-ups that repeat information. If a continuous shot serves the scene, it remains a choice; the four-shot version is not mandatory coverage."
+        ],
+        [
+          "Carry objects and people through the cut",
+          "Write start → main action → end. Identify the hand that holds an object, contact, placement and withdrawal when these matter. A key placed on the table cannot start the next shot in another hand without a transfer. A later shot must not perform the same placement or pickup again. Keep the camera on a consistent side of the table for this simple example; crossing the axis is a directing choice needing a readable spatial transition, not a forbidden technique."
+        ],
+        [
+          "Place complete speech before fixing shot length",
+          "Another [creator report](https://github.com/zenstory-ai/drama-skills/issues/106) describes a line estimated at about ten seconds being assigned seven. It is one report, not a measured failure rate. Use actual speech duration when audio exists; otherwise label estimates based on the words, delivery, breathing and pauses. Dialogue followed by a decision and a physical response cannot all occupy the same seconds. Do not silently delete words or demand rushed delivery to fit an arbitrary short shot."
+        ],
+        [
+          "Choose what changes when the timing does not fit",
+          "Preserve the line and extend the shot when the accepted constraints allow it; split at a meaningful phrase or visible state boundary; or ask to revise the screenplay when the total duration is truly fixed. Sound may continue across a cut, but the audience must hear the line once, in order, with its speaker and diegetic/off-screen status clear. A split is not proof that a generation model will deliver precise timing. Longer dialogue is not inherently bad, and faster cuts do not create more speaking time."
+        ],
+        [
+          "Freeze the start, not the whole sequence",
+          "The frozen keyframe describes what can be seen at the shot start. If a hand reaches for a key during the shot, do not put the key in that hand in the starting image. Add an optional end frame only when useful. Match visual-basis entries to what is actually visible in that frame, not every character mentioned in the dialogue. The [character-continuity guide](https://zenstory.ai/drama-skills/character-consistency) covers identity, Look and reference-state detail."
+        ],
+        [
+          "Finish the requested scope without inventing images",
+          "An episode request covers the episode, not only an easy sample scene. Every actual screenplay scene needs coverage or an explicitly recorded omission with a reason. If no suitable image-prompt entry exists, “图片提示词项：无” is a valid direct entry. A real inspected image can be REF; a creator-planned external image can be PLAN; absent material remains a stated gap. Missing images do not authorize text-to-video, and none of these labels authorizes production. Preserve unaffected shot IDs when revising; video prompts, production and review begin only when requested."
+        ]
+      ],
+      "zh": [
+        [
+          "把已接受的场次当依据，不再另起一个故事",
+          "一条[关于 EP001 的创作者反馈](https://github.com/zenstory-ai/drama-skills/issues/100)指出分镜偏离了已确认剧本。先确认当前哪个文件作准，再落实其中的动作、对白、声音、画面文字和转折。导演选择可以决定机位、距离与时间分配；改谁行动、说什么或结尾意味着什么，要回到剧本决定。分镜技能支持直接入口，但不等于任何项目都能跳过缺失的必要准备。"
+        ],
+        [
+          "让每次切镜有职责",
+          "切镜应带来信息、对齐对象、权力、情绪、空间或节奏变化。示例里，放钥匙、拒绝代传话、伸手又停住、决定留下等人，承担不同作用。不按一句话切一镜，也不加只重复信息的表情特写。若连续长镜头更合适，仍可采用；四镜方案不是必拍公式。"
+        ],
+        [
+          "让人和物真正接得上",
+          "写清起点 → 主要动作 → 终点。必要时注明哪只手持物、如何接触、落在哪里、何时收手。上一镜放在桌上的钥匙，不能无交接就出现在别人手里；后镜也不能重新发生同一次放下或取回。这个简单例子让机位留在桌子同一侧；越轴不是禁术，但需要让空间转换可读，不能无意翻转人物关系。"
+        ],
+        [
+          "先容纳完整发声，再定镜长",
+          "另一条[创作者反馈](https://github.com/zenstory-ai/drama-skills/issues/106)描述了估计约十秒的对白被安排成七秒；这是一条具体反馈，不是实测失败率。有声音文件就用实际发声区间；没有时，根据原文、说话方式、换气与停顿标注文本估计。先听完话才作出的决定和身体回应，不能全部与台词共用同几秒。不为凑一个任意短镜，静默删词或要求人物赶读。"
+        ],
+        [
+          "装不下时，明确改哪一层",
+          "已接受的条件允许时，保留台词并延长镜头；也可以在语义或可见状态闭合处拆镜；总时长确实锁死时，再请求剧本修订。声音可以跨切点继续，但同一句要按顺序只说一遍，并写清说话者和画内/画外状态。拆镜不证明生成模型能精确执行时序；长对白并非天然错误，切得更快也不会凭空增加发声时间。"
+        ],
+        [
+          "冻结起点，不把整个动作塞进一张图",
+          "冻结关键帧只写镜头起点可见的内容。如果手在镜内才去拿钥匙，起始画面不能已经把钥匙放进手里；有必要时另写终点帧。视觉依据对准这一格真正出现的人和物，不是对白里提到的全员名单。[角色连续性指南](https://zenstory.ai/drama-skills/character-consistency)进一步区分身份、造型与参考状态。"
+        ],
+        [
+          "完成请求范围，但不虚构图片",
+          "请求整集就覆盖整集，不只交一个容易的样例场景。剧本中的真实场景都要有承载，确实不拍则记录场景 ID 与原因。没有合适图片提示词条目时，“图片提示词项：无”是正常直接入口。已检查的真实图片才是 REF，创作者计划在外部准备的图片可记为 PLAN，其余缺口如实保留；缺图不授权文生视频，这些标签也不授权投产。修订时保留未受影响的镜头 ID；视频提示词、制作和审查只有被点名才开始。"
+        ]
+      ]
+    },
+    "example": {
+      "zh": "原创编排例：《钥匙还没放下》\n这是为指南编写的剧本与镜头草案，不是 Drama Skills 运行记录、已保存项目或实测视频。以下假定作者已选择这些故事与视觉事实；实际使用时应换成自己的当前文件。\n\n本例请求范围：只处理 SC01，不是整集示例。目标约40秒；未选择目标模型，所有秒数均为文本编排估计，不对应某供应商能力。\n人物与空间：岑夏站在画面左侧，周屿坐在右侧，窄桌在两人之间，岑夏身后有一把空椅。钥匙是单把黄铜钥匙，带绿色布环。岑夏用右手持钥匙，左手空着；周屿不接触钥匙。构图不出现其他乐队成员。\n这些可复用条目应由作者在《视觉设定.md》中确认：人物「岑夏」、人物「周屿」、地点「排练室门口」、道具「绿环钥匙」、道具「窄桌」、道具「空椅」。这是示例输入清单，不声称这些文件或标题已经存在。\n\n已接受的剧本片段（SC01）\n内景·排练室门口·夜\n岑夏说话间把钥匙放在窄桌中间，右手离开钥匙。\n岑夏：我先走。钥匙你收着。\n周屿看着她，没有伸手。\n周屿：我可以替你锁门，但不能替你告诉他们，乐队今天就散了。\n岑夏伸手去取钥匙，停在它的上方。她看着周屿。\n岑夏：那我等他们来。\n说完，她用右手拿回钥匙，左手把身后的椅子拉近，坐下。\n\n本场出口：岑夏坐下等待，钥匙在她右手；周屿没有接钥匙。其他成员尚未出现。她决定亲自等人，不等于乐队已经和好或已决定继续演出。\n\n四镜编辑草案——覆盖以上整个 SC01，不是正式分镜文件的完整字段模板\nSHOT-001｜0—8秒，文本估计8秒｜建立离开的动作\n来源：SC01，放钥匙及“我先走。钥匙你收着。”\n同侧中景双人：岑夏左、周屿右，桌面在中间。\n起点：钥匙在岑夏右手，桌面中间空着；周屿双手留在自己身前，不向钥匙伸手。\n动作→终点：她将钥匙放在桌面中间，松手并收回右手；钥匙留在桌上，周屿没有接。\n声音：岑夏按自然、克制的方式说完短句；这句话可与放置动作部分重叠。8秒还留给动作落实与周屿未接的停留，不是按字数固定换算。\n\nSHOT-002｜8—22秒，文本估计14秒｜拒绝替她宣布散伙\n来源：SC01，周屿“我可以替你锁门，但不能替你告诉他们，乐队今天就散了。”\n同轴线侧的周屿中近景，视线朝画面左侧的岑夏；钥匙不必在这个画框内，但仍在桌面中间。\n起点：他未伸手接钥匙；岑夏尚未再次伸手。\n动作→终点：他说完拒绝代传的整句话，保持手不去接；岑夏在这句话说完前不取回钥匙。\n声音：完整台词暂按8—11秒估计，再为换气、停顿与说完后的留白分配余量，共暂留14秒。没有录音，这不是已验证的自然语速。\n\nSHOT-003｜22—30秒，文本估计8秒｜把立即离开变成一个未完成动作\n来源：SC01，“伸手去取钥匙，停在它的上方。她看着周屿。”\n回到同侧双人中景，钥匙在桌面中间可见。\n起点：两人位置未换，岑夏右手已收回，钥匙仍在桌上。\n动作→终点：她用右手伸向钥匙，在接触前停住，再看向周屿；结尾仍未拿起钥匙。\n声音：不加解释内心的旁白，保留停顿。8秒是本版为犹豫选择的节奏，不是每个伸手动作的固定时长。\n\nSHOT-004｜30—40秒，文本估计10秒｜决定留下，落实新状态\n来源：SC01，“那我等他们来”及取钥匙、拉椅、坐下。\n仍在同一侧，稍宽以看见岑夏身后的椅子。\n起点：右手停在钥匙上方、未接触；左手空着；周屿仍未接钥匙。\n动作→终点：岑夏先说完短句，再用右手拿回钥匙；左手拉近椅子后松手坐下。结束时钥匙仍在右手，其他成员未出现。\n声音：短句、取回与拉椅坐下不能全部同时发生；文本暂估发声2—3秒、后续动作4—5秒，再留坐定的余量，共暂留10秒。这是顺序安排，不是配音或生成时长承诺。\n\n为什么不把 SHOT-002 到004塞成一个8秒镜头？\n它必须容纳周屿的完整长句、岑夏听完后的迟疑、她自己的回应、取回钥匙和坐下。仅长句的文本估计就可能超过8秒，把其他动作写成“同时完成”会改变她作出回应的先后关系。也不能把周屿的台词删成“你自己说”，却声称只是调整分镜。\n\n保留剧本的拆法：若后续接受的模型时长容不下14秒，可把周屿的第一小句留在他脸上，在“但不能替你……”处切到岑夏听他说完；后半句标为周屿画外同期声，不重复上一句，也不让岑夏提前取钥匙。正式分配仍须满足该模型的最短/最长时长；末镜的10秒也要一起复核。这不是一份已经适配所有模型的替代镜表。\n如果整场时长仍不够，明确选择放宽总时长、减少停留，或请求改剧本。减少停留会改变犹豫的分量，不等于没有创作代价。\n\n冻结起点的写法（仅示范 SHOT-003）\n冻结帧里钥匙仍在桌面中间，岑夏的右手尚未再次伸出，周屿没有碰它。不要把“伸手、停住、拿回、坐下”同时塞进一个起始画面。\n项目默认提示词语言为英文时，一种原创候选文字是：\nA static medium two-shot from the same side of the narrow table. Cen Xia stands on screen left, Zhou Yu sits on screen right. One brass key with a green fabric loop rests at the center of the tabletop. Cen Xia's right hand is withdrawn, away from the key; Zhou Yu's hands remain in front of him without reaching. An empty chair is behind Cen Xia. No other band members are visible.\n它是未绑定参考图的文字候选，身份外观应继续服从项目中已接受的可见规格，不声称已经得到画面。\n\n正式交付时，按这格实际可见内容填写视觉依据；必要标题缺失就报告，不编造条目已经存在。没有对应图片提示词条目可写“图片提示词项：无”；本例没有提供任何真实图片，参考图缺口如实列明，不伪造 REF，也不默认选择文生视频。\n\n可复制的阶段请求（先替换项目路径与实际场景 ID）\n在项目 /ABS/my-drama 下，用 $short-drama-storyboard 处理 EP001 当前《剧本.md》里的 SC01。\n先读当前剧本与已接受的视觉事实，不回用聊天旧稿；保留台词、动作次序与本场出口。\n只完成 SC01 的正式分镜与每镜冻结关键帧文字，不扩写别的场景。\n按完整声音事件估镜长，标明文本估计；有已接受的模型原生时长选择就遵守，缺必要选择则指出。\n不能同时满足时长和原剧本时，说清具体冲突与取舍，不擅自改词。\n缺少的视觉条目与参考图如实报告，不生成素材，不创建后续阶段文档。\n只交文本，不生成图片、视频、配音或音乐，不启动投产或审查。",
+      "en": "Original editorial design: The Key Is Still in Her Hand\nThis screenplay and shot sketch were written for this guide. They are not a Drama Skills run, saved project or timed video. Assume the author has accepted the fictional story and visual facts below; use your own current files in practice.\n\nScope: SC01 only, not a whole episode. The target is about forty seconds. No model has been selected; all timings are text-planning estimates, not provider capabilities. The estimates concern the Chinese dialogue; the English lines below communicate its meaning, not an English dub with the same timing.\nPeople and space: Cen Xia stands on screen left, Zhou Yu sits on the right, with a narrow table between them and an empty chair behind Cen. The single brass key has a green fabric loop. Cen holds it in her right hand; her left is free. Zhou does not touch it. No other band members appear.\nReusable entries for the author to confirm in 视觉设定.md: characters 岑夏 (Cen Xia) and 周屿 (Zhou Yu), location 排练室门口 (rehearsal-room doorway), props 绿环钥匙 (green-loop key), 窄桌 (narrow table) and 空椅 (empty chair). This is an example input list, not a claim that those files or headings already exist.\n\nAccepted screenplay excerpt (SC01)\nINT. REHEARSAL-ROOM DOORWAY — NIGHT\nWhile speaking, Cen puts the key at the center of the narrow table and withdraws her right hand.\nCEN: 我先走。钥匙你收着。\n[I'm leaving. Keep the key.]\nZhou looks at her without reaching out.\nZHOU: 我可以替你锁门，但不能替你告诉他们，乐队今天就散了。\n[I can lock up for you. But I can't be the one to tell them the band is breaking up today.]\nCen reaches for the key, stops above it and looks at Zhou.\nCEN: 那我等他们来。\n[Then I'll wait for them.]\nAfter speaking, she retrieves the key with her right hand, draws the chair closer with her left and sits.\n\nExit: Cen is seated and waiting, the key in her right hand. Zhou has not accepted it. The other members have not arrived. She has decided to wait for the others herself, not established that the band has reconciled or will keep performing.\n\nFour-shot editorial sketch: covers this complete SC01, not every field of a formal storyboard file\nSHOT-001 | 0–8s, estimated 8s | Establish the action of leaving\nSource: SC01, the placement and “我先走。钥匙你收着。”\nMedium two-shot from one side of the table: Cen left, Zhou right, tabletop between them.\nStart: key in Cen's right hand, center of tabletop empty; Zhou keeps his hands in front of himself without reaching for it.\nAction → end: Cen puts the key at the center, releases it and withdraws her right hand. It remains on the table; Zhou does not accept it.\nSound: Cen completes her short Chinese line in a restrained, natural delivery, partly overlapping the placement. The eight seconds also allow the action and his non-acceptance to register; this is not a fixed character-count conversion.\n\nSHOT-002 | 8–22s, estimated 14s | Refuse to announce the breakup for her\nSource: SC01, Zhou's complete line “我可以替你锁门，但不能替你告诉他们，乐队今天就散了。”\nMedium close-up on Zhou, on the same side of the axis, looking screen left toward Cen. The key need not be in this frame; it remains at the table's center.\nStart: he has not reached for the key; Cen has not reached again.\nAction → end: he finishes the whole refusal without accepting the key. Cen does not retrieve it before he finishes.\nSound: provisionally estimate 8–11 seconds for the complete Chinese line, with additional breathing, pause and end space, reserving fourteen seconds overall. Without audio, this is not verified natural-speed delivery.\n\nSHOT-003 | 22–30s, estimated 8s | Interrupt the immediate departure\nSource: SC01, her reach, stopping above the key and looking at Zhou.\nReturn to a same-side medium two-shot with the key visible at the table's center.\nStart: positions unchanged, Cen's right hand withdrawn, key still on the table.\nAction → end: she reaches with her right hand, stops before contact and looks at Zhou. She has not picked it up at the end.\nSound: no added explanatory inner-monologue voice-over; retain the pause. Eight seconds is this version's choice for the hesitation, not a universal duration for reaching.\n\nSHOT-004 | 30–40s, estimated 10s | Choose to stay and establish the new state\nSource: SC01, “那我等他们来。” and retrieving the key, drawing the chair closer and sitting.\nSame camera side, slightly wider to include the chair behind Cen.\nStart: her right hand is above the key without contact; left hand free; Zhou has not accepted the key.\nAction → end: Cen finishes her short line, retrieves the key with her right hand, draws the chair closer with her left, releases the chair and sits. The key remains in her right hand; no other members arrive.\nSound: the line and the subsequent retrieval/chair movement cannot all happen simultaneously. Provisionally allow 2–3 seconds for the Chinese line, 4–5 for the following actions, then room to settle, reserving ten seconds overall. This is sequencing, not a promise of dubbing or generation timing.\n\nWhy not squeeze SHOT-002 through 004 into one eight-second shot?\nIt must hold Zhou's full line, Cen's hesitation after hearing it, her reply, the pickup and sitting. The long line alone may exceed eight seconds under the text estimate. Calling everything “simultaneous” changes the order of her response. Nor can the line become merely “Tell them yourself” while claiming that only the storyboard changed.\n\nA split that preserves the screenplay: if a later accepted model choice cannot accommodate fourteen seconds, keep Zhou's opening clause on his face and cut to Cen listening as “但不能替你……” continues. Label the second part as Zhou's off-screen, in-scene speech; do not repeat the first clause or let Cen retrieve the key early. Formal allocations must satisfy that model's minimum and maximum durations; the ten-second final shot also needs review. This is not a replacement shot list already compatible with every model.\nIf the scene still cannot fit, choose explicitly between more total time, less lingering or a screenplay revision. Shorter lingering changes the weight of the hesitation; it is not a cost-free adjustment.\n\nFreezing the start (SHOT-003 only)\nThe key is still at the tabletop's center; Cen's right hand has not reached again; Zhou has not touched it. Do not combine reaching, pausing, retrieving and sitting in one start frame.\nIf the project's prompt language is English, one original candidate is:\nA static medium two-shot from the same side of the narrow table. Cen Xia stands on screen left, Zhou Yu sits on screen right. One brass key with a green fabric loop rests at the center of the tabletop. Cen Xia's right hand is withdrawn, away from the key; Zhou Yu's hands remain in front of him without reaching. An empty chair is behind Cen Xia. No other band members are visible.\nThis is unbound prompt text. Appearance must still follow the project's accepted visual specifications; no image has been produced.\n\nFor formal delivery, fill visual-basis fields from what this frame actually shows. Report missing required headings rather than pretending they exist. Without a suitable image-prompt entry, 图片提示词项：无 is valid. No actual images were supplied for this example: list reference gaps, do not invent REF bindings or assume text-to-video.\n\nCopyable stage request (replace the project location and real scene ID first)\nIn project /ABS/my-drama, use $short-drama-storyboard for SC01 in EP001's current 剧本.md.\nRead the current screenplay and accepted visual facts, not an older chat draft.\nPreserve dialogue, action order and the scene's exit state.\nComplete only SC01's formal storyboard and each shot's frozen-keyframe text; do not expand other scenes.\nEstimate complete sound events first and label text estimates. Follow an accepted model-native duration choice if present; identify a necessary missing choice.\nIf duration and screenplay cannot both be preserved, explain the concrete conflict and alternatives. Do not silently change the words.\nReport missing visual entries and references; do not generate assets or create downstream-stage documents.\nText only: no images, video, voices or music, and no production or review stage."
+    },
+    "outputs": {
+      "en": [
+        "`剧集/<EP>/分镜.md` for the requested scope, with real scene sources, shot duties, estimated or audio-grounded durations, starts/actions/ends, sound, visual basis and honest reference status. The guide’s sketch is an editorial explanation, not a replacement for the skill’s formal fields.",
+        "Frozen start-frame prompt text under the relevant shot, plus optional end-frame text when needed. It describes a boundary image; it is not the entire movement, an existing picture or proof of visual consistency.",
+        "A concise handoff naming coverage and genuinely unresolved creative choices. Preserve unaffected shot IDs. Do not create video prompts, commission media or begin a separate review merely because storyboarding is done."
+      ],
+      "zh": [
+        "请求范围内的 `剧集/<EP>/分镜.md`：真实场景来源、镜头职责、文本估计或有声音依据的时长、起点/动作/终点、声音、视觉依据与真实参考状态。指南草案用于解释选择，不替代技能的正式字段。",
+        "对应镜头下的冻结起点提示词，必要时另写终点提示词。它描述边界画面，不是整个运动过程、已经存在的图片或视觉一致性证明。",
+        "简洁交接说明：覆盖了什么、哪些创作选择确实未决。保留未受影响的镜头 ID；不因分镜完成就自动创建视频提示词、委托媒体生成或开始另一次审查。"
+      ]
+    },
+    "verification": {
+      "en": [
+        "Read the storyboard against the current screenplay: every line and required action is carried once, no listener acts on words not yet heard, and the selected end state remains unchanged. Check hands, object locations and screen direction at each cut; do not add a new plot answer to hide a gap.",
+        "Distinguish planning evidence from media evidence. Text timing is provisional until actual speech/performance exists; a list of plausible durations does not establish natural delivery. Any later model-duration conflict returns to an explicit storyboard or screenplay choice, not silent shortening downstream."
+      ],
+      "zh": [
+        "把分镜与当前剧本并读：台词与必要动作各有承载，不重复发生；听者不会提前回应尚未听到的话，已选出口不变。逐个切点看双手、物件落点与屏幕方向，不靠新增剧情答案遮住缺口。",
+        "分开规划依据与媒体证据。实际发声/表演尚不存在时，文本估时仍是暂定；一串看似合理的秒数不证明自然语速。后续模型时长冲突应回到明确的分镜或剧本选择，不在下游静默缩词。"
+      ]
+    },
+    "sources": {
+      "en": [
+        "[Direct entry, language, duration choice and current screenplay](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L19-L42)",
+        "[Sound, shot-state workflow and visual/reference axes](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L45-L69)",
+        "[Scene coverage, native duration and continuous state changes](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L74-L94)",
+        "[Direct entry without image prompts and honest reference status](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L100-L139)",
+        "[Revision identity and explicitly requested downstream stages](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L158-L171)",
+        "[Complete sound events, text estimates and overload choices](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/references/shot-craft.md#L187-L203)",
+        "[Actual-generation timing is not guaranteed by a shot split](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/references/shot-craft.md#L260-L262)"
+      ],
+      "zh": [
+        "[直接入口、提示词语言、时长选择与当前剧本](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L19-L42)",
+        "[声音、镜头状态与视觉/参考三条依据](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L45-L69)",
+        "[场次覆盖、原生时长与连续状态变化](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L74-L94)",
+        "[没有图片提示词的直接入口与真实参考状态](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L100-L139)",
+        "[修订时镜头编号与按需下游阶段](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L158-L171)",
+        "[完整声音事件、文本估计与过载取舍](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/references/shot-craft.md#L187-L203)",
+        "[拆镜不保证实际生成的精确发声时序](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/references/shot-craft.md#L260-L262)"
+      ]
+    }
   }
 ]
