@@ -450,6 +450,10 @@
         [
           "Will AI Memory keep every character consistent?",
           "AI Memory is a four-field project summary, not proof that the model reads every file or a guarantee against drift. Keep confirmed settings, saved-scene progress and undecided ideas separate. The [worked memory guide](https://zenstory.ai/docs/advanced/ai-memory) shows what to save, how context limits matter and how to correct a wrong summary without silently rewriting the manuscript."
+        ],
+        [
+          "Must I split every chapter into many prompts?",
+          "No fixed prompt count is required. You can request a complete chapter when its decisions, evidence and stopping point are clear; unresolved motives may need discussion first. The [writing-handoff workflow](https://zenstory.ai/docs/advanced/workflow-tips) follows one scene from accepted design through prose, local revision and a saved-state handoff, without promising a particular writing speed."
         ]
       ],
       "zh": [
@@ -472,6 +476,10 @@
         [
           "AI 记忆能保证长篇不崩人设吗？",
           "AI 记忆是四字段项目摘要，不证明每轮都读完全部文件，也不保证不会写偏。分开已确认设定、已写进度与待定想法。[记忆填写与更正示例](https://zenstory.ai/docs/advanced/ai-memory)说明怎样保存、上下文为什么有限，以及如何纠正摘要而不悄悄重写正文。"
+        ],
+        [
+          "写一章必须拆成很多轮提示词吗？",
+          "没有固定轮数。决定、依据和停止点明确时，可以请求完整章节；动机尚未确定时，先讨论这个关键选择。[写作接续流程](https://zenstory.ai/docs/advanced/workflow-tips)用一场戏连起已选设计、正文、局部修改与实际保存状态，不承诺固定写作速度。"
         ]
       ]
     },
