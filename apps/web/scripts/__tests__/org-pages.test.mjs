@@ -45,6 +45,16 @@ test('task guides provide bilingual instructions, primary sources and canonical 
     assert.equal(matches(html, /<h1\b/g).length, 1)
     assert.ok(article.includes(`<h1>${escape(guide.title.en)}</h1>`))
     assert.ok(article.includes(`<p class="lede" lang="zh-CN">${escape(guide.title.zh)}</p>`))
+    const contents = matches(article, /<nav class="guide-contents" aria-label="On this page · 本页导航">([\s\S]*?)<\/nav>/g)
+    assert.equal(contents.length, 1, `${route}: missing guide navigation`)
+    const targets = matches(contents[0][1], /href="#([^"]+)"/g).map(match => match[1])
+    assert.deepEqual(targets, ['before-you-start', 'steps', 'example-en', 'example-zh', 'expected-files', 'verify-result', 'sources'])
+    const ids = matches(article, /\sid="([^"]+)"/g).map(match => match[1])
+    assert.equal(ids.length, new Set(ids).size, `${route}: duplicate fragment target`)
+    for (const target of targets) {
+      assert.ok(ids.includes(target), `${route}: missing #${target}`)
+      assert.match(article, new RegExp(`<h[23] id="${target}">`))
+    }
     for (const field of ['prerequisites', 'steps', 'outputs', 'verification', 'sources']) {
       assert.equal(guide[field].en.length, guide[field].zh.length, `${route}: mismatched ${field} translations`)
     }
@@ -56,7 +66,10 @@ test('task guides provide bilingual instructions, primary sources and canonical 
         for (const item of guide[field][lang]) assert.ok(article.includes(`<li${attr}>${richText(item)}</li>`))
       }
       for (const [heading, text] of guide.steps[lang]) assert.ok(article.includes(`<li${attr}><b>${richText(heading)}</b> ${richText(text)}</li>`))
-      assert.ok(article.includes(`<pre${attr}><code>${escape(guide.example[lang])}</code></pre>`))
+      const example = matches(article, new RegExp(`<section class="guide-example" lang="${lang === 'zh' ? 'zh-CN' : 'en'}" aria-labelledby="example-${lang}">([\\s\\S]*?)<\\/section>`, 'g'))
+      assert.equal(example.length, 1)
+      assert.deepEqual(matches(example[0][1], /<p>([\s\S]*?)<\/p>/g).map(match => match[1]), guide.example[lang].split(/\n{2,}/).map(escape))
+      assert.doesNotMatch(example[0][1], /<(?:pre|code)\b/)
     }
     assert.ok(article.includes(guide.checked_on))
     assert.ok(article.includes(`href="/${owner.slug}"`))
@@ -113,6 +126,31 @@ test('task guides provide bilingual instructions, primary sources and canonical 
     assert.equal(readFileSync(join(outDir, '_site/sitemap.xml'), 'utf8').split(`<loc>https://zenstory.ai${route}</loc>`).length - 1, 1)
     assert.ok(!readFileSync(join(outDir, '_app/sitemap.xml'), 'utf8').includes(route))
   }
+})
+
+test('guide examples keep literal markup, line breaks and indentation as escaped prose', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'zenstory-guide-prose-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  mkdirSync(join(root, 'scripts'))
+  cpSync(join(webRoot, 'content'), join(root, 'content'), { recursive: true })
+  for (const file of ['build-org-pages.mjs', 'org-pages.css']) cpSync(join(scriptsDir, file), join(root, 'scripts', file))
+  const [guide] = JSON.parse(readFileSync(join(root, 'content/guides.json'), 'utf8'))
+  guide.example = {
+    en: 'A literal <script>alert("x")</script> & [link](https://example.com).\n\n/skill --flag "quoted"\n  keep indentation\n`code stays literal`',
+    zh: '原文 <img src=x onerror="alert(1)"> 与 & 符号。\n\n第二段\n  保留缩进',
+  }
+  writeFileSync(join(root, 'content/guides.json'), JSON.stringify([guide]))
+  const out = join(root, 'output')
+  const result = spawnSync(process.execPath, [join(root, 'scripts/build-org-pages.mjs'), out], { encoding: 'utf8' })
+  assert.equal(result.status, 0, result.stderr)
+  const html = readOutput(out, `${guide.owner}/${guide.slug}`)
+  const examples = matches(html, /<section class="guide-example"[^>]*>([\s\S]*?)<\/section>/g)
+  assert.equal(examples.length, 2)
+  assert.ok(examples[0][1].includes('<p>A literal &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; [link](https://example.com).</p>'))
+  assert.ok(examples[0][1].includes('<p>/skill --flag &quot;quoted&quot;\n  keep indentation\n`code stays literal`</p>'))
+  assert.ok(examples[1][1].includes('<p>原文 &lt;img src=x onerror=&quot;alert(1)&quot;&gt; 与 &amp; 符号。</p>'))
+  assert.ok(examples[1][1].includes('<p>第二段\n  保留缩进</p>'))
+  for (const example of examples) assert.doesNotMatch(example[1], /<(?:script|img|a|code)\b/)
 })
 
 test('guide identities reject unknown owners, unsafe paths and duplicate routes before writing', (t) => {
