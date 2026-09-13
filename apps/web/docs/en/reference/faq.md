@@ -265,7 +265,7 @@ We deeply understand the importance of your creative content to you. Data securi
 
 If your question isn't listed above, you can get help through:
 
-- **Documentation**: Check the [User Guide](../user-guide/) for detailed features
+- **Documentation**: Check the [User Guide](../user-guide/interface-overview.md) for detailed features
 - **Feedback**: Click the "Help" button in the bottom-right corner of the app to submit feedback
 - **Community**: Join the user community to exchange experiences with other creators
 

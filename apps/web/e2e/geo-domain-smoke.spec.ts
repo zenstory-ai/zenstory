@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test'
 
 const API = 'https://api.zenstory.ai'
 const CANONICAL_SITE = 'https://zenstory.ai'
@@ -170,6 +170,43 @@ async function expectOneHopCanonicalRedirect(
 
   const final = await getWithoutRedirects(request, destination)
   expect(final.status(), `${destination} must terminate the alias redirect`).toBeLessThan(400)
+}
+
+async function expectNoJavaScriptDocsNavigation(
+  browser: Browser,
+  request: APIRequestContext,
+  sourcePath: string,
+  destinationPath: string,
+  language: 'zh-CN' | 'en',
+): Promise<void> {
+  const context = await browser.newContext({ javaScriptEnabled: false })
+  try {
+    const page = await context.newPage()
+    const sourceResponse = await page.goto(`${SITE}${sourcePath}`, { waitUntil: 'domcontentloaded' })
+    expect(sourceResponse?.status()).toBe(200)
+
+    const article = page.locator(`.prerender article[lang="${language}"]`)
+    const link = article.locator(`a[href="${destinationPath}"]`).first()
+    await expect(article).toBeVisible()
+    await expect(link).toBeVisible()
+
+    const directResponse = await getWithoutRedirects(request, `${SITE}${destinationPath}`)
+    expect(directResponse.status(), `${destinationPath} must be a direct route`).toBe(200)
+
+    const [navigationResponse] = await Promise.all([
+      page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
+      link.click(),
+    ])
+    expect(navigationResponse?.status()).toBe(200)
+    await expect(page).toHaveURL(`${SITE}${destinationPath}`)
+    await expect(page.locator(`.prerender article[lang="${language}"]`)).toBeVisible()
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+      'href',
+      `${CANONICAL_SITE}${destinationPath}`,
+    )
+  } finally {
+    await context.close()
+  }
 }
 
 test.describe('organization site', () => {
@@ -361,6 +398,67 @@ test.describe('organization site', () => {
       }
     })
   }
+
+  test('docs home links reach the quick start prerender without JavaScript in both languages', async ({ browser, request }) => {
+    for (const language of ['zh-CN', 'en'] as const) {
+      await expectNoJavaScriptDocsNavigation(
+        browser,
+        request,
+        '/docs',
+        '/docs/getting-started/quick-start',
+        language,
+      )
+    }
+  })
+
+  test('account guide links reach the first-project prerender without JavaScript in both languages', async ({ browser, request }) => {
+    for (const language of ['zh-CN', 'en'] as const) {
+      await expectNoJavaScriptDocsNavigation(
+        browser,
+        request,
+        ACCOUNT_DOC_PATH,
+        '/docs/getting-started/first-project',
+        language,
+      )
+    }
+  })
+
+  test('FAQ links reach the interface overview prerender without JavaScript in both languages', async ({ browser, request }) => {
+    for (const language of ['zh-CN', 'en'] as const) {
+      await expectNoJavaScriptDocsNavigation(
+        browser,
+        request,
+        '/docs/reference/faq',
+        '/docs/user-guide/interface-overview',
+        language,
+      )
+    }
+  })
+
+  test('hydrated Markdown links navigate to clean docs routes in both languages', async ({ browser }) => {
+    for (const language of ['zh', 'en'] as const) {
+      const context = await browser.newContext()
+      try {
+        await context.addInitScript(value => localStorage.setItem('zenstory-language', value), language)
+        const page = await context.newPage()
+        await page.goto(`${SITE}${ACCOUNT_DOC_PATH}`, { waitUntil: 'networkidle' })
+        const link = page.locator('main a[href="/docs/getting-started/first-project"]').first()
+        await expect(link).toBeVisible()
+
+        await Promise.all([
+          page.waitForURL(`${SITE}/docs/getting-started/first-project`),
+          link.click(),
+        ])
+        await expect(page.locator('main h1').first()).toBeVisible()
+        await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+          'href',
+          `${CANONICAL_SITE}/docs/getting-started/first-project`,
+        )
+      } finally {
+        await context.close()
+      }
+    }
+  })
 
   test('docs client navigation returns home on the site origin', async ({ page }) => {
     await page.goto(`${SITE}/docs/getting-started/quick-start`, { waitUntil: 'networkidle' })
