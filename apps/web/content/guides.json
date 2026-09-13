@@ -613,12 +613,14 @@
       "en": [
         "拆文库/{book}/ retains the source backup and reconstruction analysis; it is not the continuable project by itself.",
         "A long-form project puts preserved prose in 正文/, reconstructed settings in 设定/, outlines in 大纲/, and continuity state in 追踪/.",
-        "追踪/_tracking-state.json is authoritative. Context, character, foreshadowing and timeline Markdown are generated views; continuation begins after the last complete imported chapter."
+        "追踪/_tracking-state.json is authoritative. Context, character, foreshadowing and timeline Markdown are generated views; continuation begins after the last complete imported chapter.",
+        "For ongoing chapters after import, use the [long-novel continuity example](https://zenstory.ai/oh-story/long-novel-continuity): separate author truth, character/reader knowledge, unresolved promises and future plans before drafting."
       ],
       "zh": [
         "拆文库/{书名}/ 保存原文备份与重建分析；它本身不是可续写工程。",
         "长篇工程把保留的正文放在 正文/，反推设定放在 设定/，大纲放在 大纲/，连贯性状态放在 追踪/。",
-        "追踪/_tracking-state.json 是权威状态；上下文、角色、伏笔和时间线 Markdown 是派生视图。续写从最后完整导入章之后开始。"
+        "追踪/_tracking-state.json 是权威状态；上下文、角色、伏笔和时间线 Markdown 是派生视图。续写从最后完整导入章之后开始。",
+        "导入后持续写章，可接着看[长篇连续性示例](https://zenstory.ai/oh-story/long-novel-continuity)：写前分开作者真相、角色/读者认知、未完承诺与未来计划。"
       ]
     },
     "verification": {
@@ -1439,6 +1441,145 @@
         "[实际配音放置与无法安全装入的处理](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-assemble/scripts/narration_audio.py#L221-L309)",
         "[剪辑流程的原片与输出时钟](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-cut/SKILL.md#L61-L76)",
         "[依据对白与静音证据判断重叠](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-script/scripts/speech_ownership.py#L103-L143)"
+      ]
+    }
+  },
+  {
+    "owner": "oh-story",
+    "slug": "long-novel-continuity",
+    "checked_on": "2026-09-12",
+    "title": {
+      "en": "Keep a long novel consistent: character knowledge, promises and unresolved clues",
+      "zh": "AI 写长篇怎样少崩人设、少忘伏笔：把已知、承诺和线索分开"
+    },
+    "answer": {
+      "en": "Before continuing, separate what is true in the story, what each character knows and what the reader has actually seen. Carry forward the relevant current state and unfinished commitments, not the whole conversation. Oh Story stores this handoff in project files and a structured tracking workflow. The original three-chapter example below shows how to use it without turning a future plan into an event that already happened; it is not a claim of error-free writing over hundreds of chapters.",
+      "zh": "续写前，先分清故事里真正发生了什么、每个角色知道什么，以及读者已经看到什么。带上本章相关的当前状态与未完承诺，不要只靠整段聊天“记住一切”。Oh Story 用项目文件和结构化追踪流程承接这些信息。下面用原创三章示例说明怎样使用，尤其不把未来计划当成已发生的事实；这不代表已证明连续几百章都不会出错。"
+    },
+    "prerequisites": {
+      "en": [
+        "Use the same book project, with its actual completed chapters and tracking state. If an older manuscript has not yet become a continuable project, start with [import and continuation](https://zenstory.ai/oh-story/import-and-continue). This guide is about maintaining an existing book, not importing it again.",
+        "Keep the chapter being planned, the last completed chapter and any partial draft distinct. In the example only chapters 1–2 are established; chapter 3 is still a proposal.",
+        "Provide author-only decisions explicitly. A private answer can guide the author without becoming character knowledge; an unsupported guess from the model should remain unresolved."
+      ],
+      "zh": [
+        "使用同一个书名目录、实际完成的正文与追踪状态。旧书还没有变成可续写工程时，先看[导入与接续指南](https://zenstory.ai/oh-story/import-and-continue)。本页处理已在写的书，不要求反复重新导入。",
+        "分开正在规划的章节、最后完成章与残稿。以下示例只有第1—2章内容已经成立，第3章仍是计划。",
+        "明确提供作者私下确定的设定。作者可以知道答案，但角色不因此自动知道；模型从片段猜出的解释，应继续列为未定。"
+      ]
+    },
+    "steps": {
+      "en": [
+        [
+          "Separate identity from the latest state",
+          "Read the relevant `设定/角色/{角色名}.md` for stable characterization and `追踪/角色状态/{角色名}.md` for current location, goal, relationships, knowledge and open threads. “Xu Tang has an older brother” does not mean she knows he sent this letter. A returning character needs the latest state, not an old introduction copied into the prompt."
+        ],
+        [
+          "Use three information perspectives",
+          "For each important secret, ask separately: what is the author-confirmed truth, what can each character act on now, and what has the reader been shown? The tracking transaction distinguishes `objective_fact` from `reader_knowledge`; character knowledge has its own snapshot. Neither an author-only answer nor a planned reveal should silently appear in the current viewpoint."
+        ],
+        [
+          "Carry a small, relevant handoff",
+          "The continuation workflow checks the committed chapter, reads `追踪/上下文.md`, this chapter’s blueprint and the relevant outline/character material. The context card includes current position, long-term constraints, character state, active clues, recent chapters, next-chapter commitments and continuity risks. Query older material when needed rather than loading every chapter log. These are required workflow steps, not a guarantee that every host always follows them."
+        ],
+        [
+          "Distinguish a story promise from the next writing task",
+          "Xu Tang’s promise to deliver the letter before seven is an unresolved story obligation with a deadline. The chapter-3 handoff is to find a checkable old address without revealing the sender. A future chapter-4 reveal belongs in the plan; it is not already delivered knowledge. Use `next_chapter_commitments` for what the next chapter must carry, not as a permanent dumping ground for every plan or character vow."
+        ],
+        [
+          "Let evidence change knowledge before recording a payoff",
+          "Finding a blue mark is not the same as knowing what it means. Before declaring a clue resolved, show who obtained what evidence and which uncertainty it actually closes. After the chapter is written, have the existing chapter transaction update the result, affected character snapshots, clue state and reader knowledge to match the prose. Do not write a planned discovery into tracking as if the scene already exists."
+        ],
+        [
+          "Keep one tracking authority",
+          "`追踪/_tracking-state.json` is the structured authority. `上下文.md`, character snapshots, clue views and author/reader timelines are derived outputs, not extra places to hand-edit the story. The workflow submits one structured transaction through `tracking_commit.py`; ask the agent to show the resulting handoff, not just reply “I will remember.” The illustrative card below is not a replacement schema or import payload."
+        ],
+        [
+          "Repair old-chapter changes through their consequences",
+          "If you remove or change the clue in chapter X, request a scoped chapter revision with the intended fact and affected passage. The documented revision path recalculates tracking from X through the last written chapter and identifies later prose that may depend on it. It does not automatically rewrite every later chapter. Preserve current work before a large revision and decide which dependent passages should change."
+        ]
+      ],
+      "zh": [
+        [
+          "把稳定人设与最新状态分开",
+          "用相关的 `设定/角色/{角色名}.md` 理解稳定人设，用 `追踪/角色状态/{角色名}.md` 看当前位置、目标、关系、本人已知和未结事项。“许棠有一个哥哥”，不等于她知道这封信就是哥哥寄的。久别后重新出场的人物，需要最新状态，不是重贴第一次出场简介。"
+        ],
+        [
+          "把信息分成三个视角",
+          "每个重要秘密都分别问：作者已经确定的真相是什么；各角色现在能据此行动的事实是什么；读者已经看见什么？追踪事务区分 `objective_fact` 与 `reader_knowledge`，角色认知则在各自快照中。作者私下的答案与未来揭示计划，都不能悄悄变成本章视角人物的已知。"
+        ],
+        [
+          "续章只带必要交接",
+          "续写流程先核对已提交章，再读 `追踪/上下文.md`、本章细纲与相关卷纲/人物材料。状态卡包含当前位置、长期约束、核心角色状态、活跃伏笔、近章速记、下一章承诺和连贯性风险；旧信息不够时再定点查，不默认读完所有逐章记录。这是流程要求，不是所有宿主都会自动正确执行的保证。"
+        ],
+        [
+          "分清角色的承诺与下一章的任务",
+          "许棠“七点前把信送到”的话，是有期限、尚未兑现的故事责任；第3章的交接任务则是找到可核对的旧地址，同时不揭寄信人。计划第4章揭晓的事应留在规划里，不能算已经交付的信息。`next_chapter_commitments` 用于下一章必须承接的内容，不是把所有远期计划和角色誓言永远堆进去。"
+        ],
+        [
+          "先有证据改变认知，再记回收",
+          "看见蓝色三角，不等于已经知道它是什么意思。宣布伏笔回收前，要在正文中交代谁拿到什么证据，以及它究竟解决了哪个疑问。章节实际写成后，由既有章后事务更新结果、受影响角色快照、伏笔状态与读者认知，并与正文一致；不能把计划中的发现提前登记成发生过的场景。"
+        ],
+        [
+          "只保留一个追踪权威",
+          "`追踪/_tracking-state.json` 是结构化权威；`上下文.md`、角色快照、伏笔视图和作者/读者时间线都是派生产物，不是另外几处可以手改剧情的地方。流程通过 `tracking_commit.py` 提交一次结构化事务；要求 Agent 展示更新后的交接，不要只得到“我记住了”。下面的示意卡不是替代 schema，也不是可导入事务。"
+        ],
+        [
+          "旧章变动要顺着后果修",
+          "删除或改变第 X 章线索时，带着原段落和希望保留的事实请求范围明确的大修。文档规定从 X 章重算到最后已写章的追踪状态，并列出可能依赖它的后续正文；这不会自动改写所有后文。大修前先保留当前作品，再决定哪些相关段落需要一起改。"
+        ]
+      ]
+    },
+    "example": {
+      "en": "ORIGINAL EDITORIAL EXAMPLE — The Returned Letter\nThese are authored excerpts and a planning card, not an executed Oh Story project.\nNo tracking JSON or chapter file is supplied by this example.\n\nEstablished in chapter 1, at 18:20:\nXu Tang slips an unopened returned letter into her inner pocket.\n“Before seven, I will put this into Aunt Shen’s hands.”\n\nEstablished in chapter 2, at 18:35:\nThe clerk covers the page corner with a finger.\n“This page records returned items, not the sender’s name.”\nXu Tang sees a blue triangle beside the date. The envelope is still sealed in her inner pocket.\n\nAuthor-only decision:\nHer older brother sent the letter; the triangle relates to a changed address.\nThe author plans evidence-based confirmation in chapter 4, not chapter 3.\nThis is approved background, not a fact Xu Tang has learned or the reader has seen.\n\nHandoff before chapter 3 — explanatory labels, not a transaction schema:\n- Character knowledge: returned letter; blue triangle; sender still unconfirmed.\n- Reader knowledge: the same visible facts; no reveal of the brother as sender.\n- Prop/location: sealed letter remains with Xu Tang at the returns desk.\n- Unfinished story obligation: deliver it to Aunt Shen before 19:00.\n- Next chapter’s job: obtain a checkable old address and a next action.\n- Still withheld: sender identity and the triangle’s confirmed meaning.\n- Planned future event: chapter 4 confirmation; not a completed payoff now.\n\nBad continuation:\n“Xu Tang recognized her brother’s forwarding mark. With the letter delivered,\nshe decided to wait for him at the pier.”\nWhy it breaks continuity: she gains two answers without evidence, and an undelivered\nletter becomes delivered without a scene. An intention is mistaken for an event.\n\nA permitted opening revision, not a complete chapter:\nXu Tang took out the still-sealed letter and laid it beside the register.\n“Is this triangle something your office draws when a letter comes back?”\nShe checked the wall clock. Twenty-five minutes until seven.\n\nIf chapter 3 later establishes the old address, record that new knowledge after\nthe scene is actually written. The triangle can remain unresolved; finding a lead\nis not proof of the sender or fulfillment of the delivery promise.\n\nRead-only handoff request for an agent in the existing book project:\nBefore drafting, show the actual last committed chapter and the next blueprint.\nFor the involved characters, separate author truth, character knowledge and reader\nknowledge. List the current letter/prop state, unresolved clues, deadline and the\nnext chapter’s specific commitment. Identify the source chapter or author decision\nfor each; keep unknowns unknown. Do not draft prose or hand-edit tracking yet.\nAfter I settle the direction, I will explicitly request the chapter.\n\nIf revising an earlier chapter:\n“I am changing the blue triangle in chapter 2 to a torn corner; keep the sender\nunrevealed. Show which later references and planned reveals depend on the triangle,\nuse the existing revision workflow for tracking, and do not rewrite later prose\noutside the scope I specify.”",
+      "zh": "原创编辑示例——《退回来的信》\n下面是为指南写的片段与规划卡，不是运行过的 Oh Story 工程。\n示例不提供追踪 JSON 或真实章节文件。\n\n第1章已经成立，18:20：\n许棠把尚未拆封的退信放进内袋。\n“七点前，我会把它送到沈姨手里。”\n\n第2章已经成立，18:35：\n登记员用指节挡住页角。\n“这里只记退件，寄信人的名字不在这页。”\n许棠看见日期旁一个蓝色三角。信仍未拆封，放在她内袋里。\n\n作者私下确定的设定：\n寄信人是她的哥哥；三角与改寄地址有关。\n作者计划第4章才通过证据确认，不在第3章揭晓。\n这是批准的背景，不是许棠已经获知或读者已经看到的事。\n\n第3章之前的交接——以下是说明性标签，不是事务 schema：\n- 角色已知：退信、蓝色三角；寄信人尚未确认。\n- 读者已知：同样的可见事实；尚未揭示哥哥就是寄信人。\n- 道具/位置：信仍封口，在许棠内袋里；她仍在退件登记台旁。\n- 未完故事责任：19:00 前把信交到沈姨手中。\n- 下一章任务：找到可核对的旧地址，让行动有新的方向。\n- 暂不揭示：寄信人身份与三角的确定含义。\n- 未来计划：第4章确认；现在不能标成已经回收。\n\n有问题的续写：\n“许棠认出，那是哥哥改寄时留下的记号。既然信已经送达，\n她决定去码头等他。”\n问题：没有证据就得到两个答案，又没有交信场景便把未送达改成已送达。\n把计划或意图误当成已经发生的事件。\n\n允许的开头修改，不是完整一章：\n许棠取出没拆封的信，压在登记簿旁。\n“这个三角，是你们收退件时画的吗？”\n她看了一眼墙上的钟。离七点还有二十五分钟。\n\n如果第3章后来确实写出了旧地址，章后再记录这项新认知。\n三角仍可保持未解：找到下一条线索，不等于确认寄信人，也不等于兑现送信承诺。\n\n给同一书稿目录中 Agent 的只读交接请求：\n写正文前，先列出实际最后提交章与下一章细纲。\n针对本章人物，分开作者真相、本人已知和读者已知；列出信件/道具当前状态、\n未结线索、期限与下一章的具体承诺。每项标出依据章节或作者决定，未知保持未知。\n暂不写正文，不手改追踪；等方向确定后，我会明确点名要写的章节。\n\n如果要修改旧章：\n“我准备把第2章的蓝色三角改成信封缺角，仍不揭寄信人。\n先指出后续哪些引用和揭示计划依赖三角，追踪走已有大修流程；\n后文只改我指定的范围，不自动重写整本书。”"
+    },
+    "outputs": {
+      "en": [
+        "A small, source-backed continuation handoff for the next chapter: current character state, relevant facts/clues, obligations and reveal limits. It supplements the actual chapter blueprint, not a new mandatory tracking file.",
+        "After a completed chapter, updated structured tracking and derived views that agree with its actual events. `追踪/上下文.md` is a current handoff, not a lossless archive of the whole novel.",
+        "For a past-chapter change, the revised prose plus a recalculated tracking state and an explicit list of potentially affected later chapters. Future manuscript edits remain separate scope decisions.",
+        "If the problem is only formulaic wording, use [prose revision](https://zenstory.ai/oh-story/revise-ai-prose) instead of changing the plot ledger through a polish request."
+      ],
+      "zh": [
+        "面向下一章的小范围、有依据的续写交接：人物现状、相关事实/线索、责任与揭示边界。它配合实际细纲使用，不新增一种必需的追踪文件。",
+        "章节完成后的结构化追踪与派生视图，内容应与真正写出的事件一致。`追踪/上下文.md` 是当前交接，不是全书无损档案。",
+        "旧章变化后的修订正文、重算追踪状态，以及可能受影响后续章的明确清单。未来正文要改多少，仍是独立的范围决定。",
+        "若问题只是措辞套路，改用[局部正文修订](https://zenstory.ai/oh-story/revise-ai-prose)，不要借润色请求偷偷改变剧情账本。"
+      ]
+    },
+    "verification": {
+      "en": [
+        "Read the proposed paragraph from the viewpoint character’s position: did they obtain the knowledge they use, are props and location consistent, and has a promised action really occurred? Correct these before accepting a smoother sentence.",
+        "A chapter can advance a clue without resolving it. A planning date, a future reveal number or a successful state check does not prove that the reader has received the payoff.",
+        "The cited workflow makes state explicit and describes transactional updates; it does not certify characterization, voice, suspense or accuracy over 100+ chapters. No model writing, tracking transaction or long-run benchmark was executed for this editorial example."
+      ],
+      "zh": [
+        "站在视角人物的位置读拟写段落：他是否真的获得了所用的信息，道具与位置是否接得上，承诺中的行动是否已经发生？句子更顺之前，先修这些问题。",
+        "一章可以推进线索而不回收。未来揭示章号、规划日期或状态检查通过，都不能证明读者已经拿到兑现。",
+        "所引流程让状态显式化，并规定事务更新；它不认证人设、文风、悬念效果或连续100多章的准确率。本编辑示例没有执行模型写作、追踪事务或长程基准测试。"
+      ]
+    },
+    "sources": {
+      "en": [
+        "[Continuation inputs, state card and next-chapter commitments](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-daily.md#L23-L62)",
+        "[Load only the relevant current state](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/state-tracking.md#L9-L27)",
+        "[Static characters, current snapshots and revision cascades](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/state-tracking.md#L68-L106)",
+        "[One tracking authority and derived views](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/tracking-transaction.md#L1-L39)",
+        "[Author facts, reader knowledge, clues and commitments](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/tracking-transaction.md#L49-L117)",
+        "[Read surrounding chapters before revising](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-revision.md#L25-L38)",
+        "[Recalculate tracking and identify affected later prose](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-revision.md#L56-L75)",
+        "[Future outlines are not already-established tracking facts](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-setup.md#L265-L272)"
+      ],
+      "zh": [
+        "[续写输入、状态卡与下一章承诺](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-daily.md#L23-L62)",
+        "[只读取本章相关的当前状态](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/state-tracking.md#L9-L27)",
+        "[静态角色、当前快照与修订重算](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/state-tracking.md#L68-L106)",
+        "[唯一追踪权威与派生视图](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/tracking-transaction.md#L1-L39)",
+        "[作者事实、读者认知、伏笔与承诺](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/tracking-transaction.md#L49-L117)",
+        "[修订前读取前后章与相关材料](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-revision.md#L25-L38)",
+        "[重算追踪并指出受影响后文](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-revision.md#L56-L75)",
+        "[未来细纲不是已成立的追踪事实](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-setup.md#L265-L272)"
       ]
     }
   }

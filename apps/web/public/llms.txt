@@ -19,6 +19,8 @@ Overview page: https://zenstory.ai/projects — each project has a bilingual can
 
 ## Documentation
 
+- [Keep a long novel consistent](https://zenstory.ai/oh-story/long-novel-continuity): an original three-chapter handoff separates author truth, character and reader knowledge, unresolved obligations and planned reveals; current project state and scoped revisions, not a 100-chapter accuracy guarantee.
+
 - [Original sound versus recap narration](https://zenstory.ai/video-recap/original-audio-and-narration): an original five-beat example keeps complete dialogue, action sound and meaningful pauses; narration jobs, source/output clocks and safe audio handoffs without a fixed ratio or automatic-mix promise.
 
 - [Character consistency in AI short drama](https://zenstory.ai/drama-skills/character-consistency): an original three-shot example separates persistent identity, compatible costume, continuity locks and changing hand/prop state; prompt IDs, planned references and inspected real images are not interchangeable.
