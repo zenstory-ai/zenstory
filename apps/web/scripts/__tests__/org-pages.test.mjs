@@ -31,7 +31,7 @@ test('task guides provide bilingual instructions, primary sources and canonical 
   t.after(() => rmSync(outDir, { recursive: true, force: true }))
   run('build-org-pages.mjs', outDir)
   const routes = guides.map((guide) => `/${guide.owner}/${guide.slug}`)
-  assert.deepEqual(routes, ['/novel-to-game/quick-start', '/video-recap/capcut-draft', '/oh-story/agent-skills-for-writers', '/dsh/deepseek-novel-writing', '/oh-story/import-and-continue', '/drama-skills/novel-to-short-drama', '/oh-story/revise-ai-prose', '/video-recap/video-to-narration', '/novel-to-game/meaningful-choices', '/drama-skills/character-consistency', '/video-recap/original-audio-and-narration', '/oh-story/long-novel-continuity', '/oh-story/outline-to-chapter', '/oh-story/preserve-author-voice', '/oh-story/review-and-revise', '/oh-story/short-story-from-idea', '/oh-story/character-dialogue', '/oh-story/learn-from-fiction', '/oh-story/character-motivation', '/drama-skills/script-to-storyboard'])
+  assert.deepEqual(routes, ['/novel-to-game/quick-start', '/video-recap/capcut-draft', '/oh-story/agent-skills-for-writers', '/dsh/deepseek-novel-writing', '/oh-story/import-and-continue', '/drama-skills/novel-to-short-drama', '/oh-story/revise-ai-prose', '/video-recap/video-to-narration', '/novel-to-game/meaningful-choices', '/drama-skills/character-consistency', '/video-recap/original-audio-and-narration', '/oh-story/long-novel-continuity', '/oh-story/outline-to-chapter', '/oh-story/preserve-author-voice', '/oh-story/review-and-revise', '/oh-story/short-story-from-idea', '/oh-story/character-dialogue', '/oh-story/learn-from-fiction', '/oh-story/character-motivation', '/drama-skills/script-to-storyboard', '/oh-story/novel-opening'])
   const directory = readFileSync(join(webRoot, 'public/llms.txt'), 'utf8')
   const escape = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
   const richText = (s) => escape(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2">$1</a>')
@@ -115,6 +115,12 @@ test('task guides provide bilingual instructions, primary sources and canonical 
     assert.ok(directory.includes(`](https://zenstory.ai${route})`))
     assert.ok(readOutput(outDir, 'org-home').includes(`href="${route}"`))
   }
+  const opening = readOutput(outDir, 'oh-story/novel-opening')
+  assert.match(opening, /three complete chapters/)
+  assert.match(opening, /not a fixed retention law/)
+  assert.match(opening, /six intact bowls/)
+  assert.match(opening, /失去最佳摊位|失去最好的摊位|失去前排摊位/)
+  assert.ok(readOutput(outDir, 'glossary/huangjinsanzhang').includes('href="https://zenstory.ai/oh-story/novel-opening"'))
   assert.match(readOutput(outDir, 'novel-to-game/quick-start'), /PRODUCT_BRIEF\.md/)
   assert.match(readOutput(outDir, 'novel-to-game/quick-start'), /qa\/verification\.json/)
   assert.match(readOutput(outDir, 'video-recap/capcut-draft'), /export_jianying\.py/)
@@ -279,7 +285,10 @@ test('glossary terms have bilingual pages, valid relationships and traceable def
 
     const sourceGroups = []
     for (const language of ['en', 'zh']) {
-      const sources = matches(term.in_practice[language], /\]\((https:\/\/[^)]+)\)/g).map((match) => match[1])
+      const links = matches(term.in_practice[language], /\]\((https:\/\/[^)]+)\)/g).map((match) => match[1])
+      const guideLinks = links.filter((link) => link.startsWith('https://zenstory.ai/'))
+      assert.deepEqual(guideLinks, term.slug === 'huangjinsanzhang' ? ['https://zenstory.ai/oh-story/novel-opening'] : [])
+      const sources = links.filter((link) => !guideLinks.includes(link))
       assert.ok(sources.length > 0, `${term.slug} lacks ${language} source references`)
       sourceGroups.push(sources.sort())
       for (const source of sources) {

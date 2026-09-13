@@ -30,6 +30,7 @@ Overview page: https://zenstory.ai/projects — each project has a bilingual can
 - [Preserve your author voice](https://zenstory.ai/oh-story/preserve-author-voice): an original sample-to-prose comparison separates expressive choices from a paragraph formula. A written local exception keeps extended observation without the semicolon pattern or joke; book facts and scoped preferences remain distinct from sample inference, with no copied plot or guaranteed voice match.
 
 - [From outline to chapter](https://zenstory.ai/oh-story/outline-to-chapter): an original library outline becomes a staged opening and a continuation through conditional cooperation, brief transport and a concrete ending; preserves character depth, agreed chapter boundaries and the distinction between chat excerpts and saved prose.
+- [Write a serial novel opening](https://zenstory.ai/oh-story/novel-opening): an original changing-bridge-city opening and three-chapter plan move from a failed map to a costly choice, completed delivery and payment; deliver a local answer without ending the serial, copying a three-chapter formula or claiming guaranteed retention.
 
 - [Keep a long novel consistent](https://zenstory.ai/oh-story/long-novel-continuity): an original letter-and-deadline handoff separates author truth, character knowledge and reader knowledge; an optional clue-payoff design prepares evidence, corrects a plausible interpretation and changes the next action without prematurely completing delivery.
 

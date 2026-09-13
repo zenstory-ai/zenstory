@@ -3044,5 +3044,132 @@
         "[双人场景与同框中的听者反应](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/references/blocking-playbooks.md#L124-L133)"
       ]
     }
+  },
+  {
+    "owner": "oh-story",
+    "slug": "novel-opening",
+    "checked_on": "2026-09-13",
+    "title": {
+      "en": "Writing a novel opening: pay off the first promise without ending the serial",
+      "zh": "小说开头怎样吸引读者：前三章先兑现什么，而不是一直吊胃口？"
+    },
+    "answer": {
+      "en": "Give readers something specific to anticipate, let the protagonist act under understandable pressure, and deliver a meaningful answer before handing on a further question. A serial opening need not solve the whole novel, but three chapters of interrupted answers are not the same as progression. This original changing-bridge-city example compares a summary with an enacted opening, then plans a small completed job across three chapters. “Golden three chapters” is a useful editorial unit, not a fixed retention law or a promise of commercial success.",
+      "zh": "先让读者期待一件具体的事，再让主角在可理解的压力下行动，兑现一项有分量的变化，然后把新的问题交给后文。连载开头不必解决全书，但连续三章截断答案，不等于故事已经推进。下面用原创“桥会换岸的城”比较概括式与场景式开头，再安排一次小委托的三章递进。“黄金三章”可以作为编辑单元，不是固定的留存规律，也不保证签约或商业成功。"
+    },
+    "prerequisites": {
+      "en": [
+        "Name the intended reading experience, the protagonist’s immediate aim and the story facts that are already fixed. You need enough context to make this opening coherent, not every detail of the world on the first page.",
+        "Choose the scope: a proposed opening arc, an excerpt, three complete chapters or revision of existing prose. Those are different deliverables; preserve approved events and reveal boundaries when revising.",
+        "For the analysis checkpoint rather than new writing, see [golden three chapters](https://zenstory.ai/glossary/huangjinsanzhang) and [learning from fiction](https://zenstory.ai/oh-story/learn-from-fiction). For one approved chapter blueprint, see [outline to chapter](https://zenstory.ai/oh-story/outline-to-chapter)."
+      ],
+      "zh": [
+        "先说清希望读者获得什么阅读体验、主角眼前想办成什么，以及已经确定的故事事实。首场需要足以理解处境的背景，不需要第一页讲完世界设定。",
+        "选清交付范围：开篇方案、正文节选、完整三章，还是修订已有开头。这些不是同一种产物；改旧稿时保留已批准事件与信息揭露边界。",
+        "如果要分析参考作品，而非写自己的开篇，见[黄金三章](https://zenstory.ai/glossary/huangjinsanzhang)与[拆文学习](https://zenstory.ai/oh-story/learn-from-fiction)；已有单章蓝图要写成文，见[章纲到正文](https://zenstory.ai/oh-story/outline-to-chapter)。"
+      ]
+    },
+    "steps": {
+      "en": [
+        [
+          "Make the opening promise specific",
+          "“A fascinating world” is too broad to stage. Here the immediate question is whether a novice can guide a paying client through a city whose bridges move; the ongoing attraction is learning to make a living there. Mystery, romance and quieter domestic fiction may offer different experiences. Do not add danger merely to resemble this example."
+        ],
+        [
+          "Put necessary context inside the first consequential encounter",
+          "Let the old map fail in front of the customer rather than reciting the city’s history. The reader needs to know that bridges move after the evening bell and that yesterday’s map may be wrong. Who founded the city can wait unless it changes the present choice. This is a choice for this opening, not a ban on narration, scenery or prologues."
+        ],
+        [
+          "Let each chapter answer something as well as ask",
+          "Write down what was uncertain at the start and what the reader actually learns or sees accomplished by the end. One chapter can clarify a route, another commit to a costly detour, and another deliver the bowls. These are different changes, not three reminders that the map is unreliable."
+        ],
+        [
+          "Choose the cut between chapters for the next action",
+          "“Will she arrive?” can sustain an arc, but do not repeatedly stop just before the same answer without a new choice or consequence. A chapter may finish after a decision, an arrival or an emotional change. A cliffhanger is one tool, not a requirement to withhold everything."
+        ],
+        [
+          "Deliver a bounded win without cancelling its cost",
+          "Let the client and intact bowls reach the market, while the best stall is already taken. The novice earns the agreed fee, not instant mastery of every bridge. The next question grows from her continuing work; there is no need to append an unrelated murder or hidden identity to manufacture suspense."
+        ],
+        [
+          "Keep the editorial exercise separate from project execution",
+          "Oh Story’s new-book route prepares settings, a volume outline and an initial ten chapter blueprints, then stops before prose by default. A three-chapter sketch in chat is neither that completed setup nor three drafted chapters. Carry an approved opening into the project plan and request the actual chapter range explicitly. Current author choices can override generic opening-style defaults, but not silently alter approved facts or reveal future plot."
+        ]
+      ],
+      "zh": [
+        [
+          "把开篇承诺说具体",
+          "“世界很精彩”还不能直接写成场面。本例眼前的问题是新手能否在桥会移动的城里带付费客人走通一趟路，持续吸引力是她怎样在这里靠引路谋生。悬疑、言情或更安静的日常题材可以提供别的体验，不必为了像本例而额外制造危险。"
+        ],
+        [
+          "让必要背景进入第一次有后果的相遇",
+          "让旧地图当着客人的面失灵，而不是先背城史。读者此刻需要知道桥在晚钟后移动、昨天的图可能不再适用；谁建立了这座城，除非改变眼前选择，否则可以稍后再讲。这是本例的切入选择，不是禁止叙述、风景或序章。"
+        ],
+        [
+          "每章除了提问，也回答一点",
+          "写清章首尚不确定什么、章末读者实际知道或看见完成了什么。一章认清可走路线，一章选下有代价的绕路，一章交付瓷碗，是不同变化，不是三次提醒“地图不可靠”。"
+        ],
+        [
+          "按下一步行动决定章间停点",
+          "“她能到吗”可以跨章，但不要没有新选择和后果，却连续停在同一个答案前。章尾可以落在决定、到达或情感变化之后；悬崖式截断是一种办法，不要求把所有回答都扣住。"
+        ],
+        [
+          "兑现有限的胜利，不抹去代价",
+          "让客人与完好的碗确实到达夜市，同时失去最好的摊位。新手拿到约定报酬，不等于立刻掌握全城桥路。后续问题来自她还要继续谋生，不必突然追加一桩凶案或隐藏身份来制造悬念。"
+        ],
+        [
+          "把开篇练习与工程执行分开",
+          "Oh Story 的“开书”路线会准备设定、卷纲和首批10章细纲，默认停在正文之前。聊天中的三章小方案，既不是完整开书工程，也不是已经写完三章。认可后再并入项目规划，并明确请求实际要写的章节范围。作者当前选择可以覆盖通用开头写法，但不能悄悄改变已定事实或提前揭露后文。"
+        ]
+      ]
+    },
+    "example": {
+      "zh": "原创编辑示例——《桥会换岸的城》\n以下设定、方案与正文节选均为本页创作，不是实际模型输出，也不是完整三章。三章是一种可调整的安排，不要求别的故事照搬相同拍数。\n\n本例固定事实：雾城的桥在晚钟后移位。阿砚第一次接付费引路的活，手中是昨天的地图。陶匠叶姨要在今晚钟响前把六只薄胎碗带到夜市；碗放在宽竹托里，不适合走狭窄陡阶。阿砚承诺送到市场，没承诺抢到最佳摊位。她没有能预知桥位的能力。叙述贴近阿砚，只写她能见到、听到或想到的东西。\n\n概括式起手，事实未必错，但还没让压力发生：\n雾城的桥每天都会变换位置，地图需要不断更新。阿砚第一次当向导，经验不足。她带着叶姨去夜市，却发现昨天的地图已经不能用了。\n\n换成现场开场的一种候选：\n阿砚把地图转了半圈。纸上的桥还横在河上，眼前的桥却贴着对岸，两头都没有接过来。\n“你这是昨天的图？”叶姨问。\n她竹托里的碗沿轻轻碰了一下。阿砚伸手扶住托边，把刚才那句“跟我走”咽了回去。\n“是。”\n第一单活，她还没把人带过一条河。桥脚有人正收起旧路牌，她朝那边抬了抬下巴：“我先问今天怎么过。您这托碗，能走石阶吗？”\n“窄了就不行，不能斜着端。”\n阿砚把地图折小，露出空白背面。等问清了，今天的路就画在这里。\n\n开场没有只剩一团未知：桥为何不在图上，已由“昨天的图”和桥的现状给出线索；晚钟移桥这条背景可在随后的问路中补清。主角先承认地图过期，确认货物限制，再去问路。这里的期待是看她怎样办成第一单，不是猜叶姨有没有神秘身份。概括叙述也可用于过场；候选的价值在于让错误当场影响行动，不是多写几个身体动作就一定更好。\n\n三章递进候选——不是依次增加三个谜团：\n第1章：阿砚问清当前有两条过河方向：上游石阶近，沿渠绕行较远但路平。她确认竹托不能走窄阶，先建议考虑平路，带叶姨转向入口看清绕行的代价。小兑现是从“昨天的图失效”变成“今天有一条可尝试的平路”；章尾问题是绕路会付出什么，不再假装两人还不知道往哪走。\n第2章：走到沿渠入口，两人看到近道上的摊贩已先过河。叶姨想赶前排位置，阿砚把情况说清：自己不能保证抄窄阶而不碰坏碗。叶姨接受可能失去前排摊位的代价，请阿砚继续走平路；阿砚带她完成这段绕行；章末已到夜市入口，还没卸货或付引路费。兑现的是一个有代价的选择和实际走通的一段路，不是又让地图“突然失灵”。\n第3章：两人在晚钟前进入夜市，前排摊位已满。叶姨在后排卸下六只完好的碗，付约定报酬。阿砚把刚走过的路补在图背面；她手上只有一条亲自走通的今日路线，晚上桥还会变，不能因此号称全城最好的向导。\n\n第三章兑现处的短节选：\n前排最后一块空地已经铺上了蓝布。叶姨没再往那边挤，把竹托搁在后排，逐只拿出碗来。\n六只。阿砚看着最后一只落稳，才松开扶托的手。\n叶姨把说好的引路钱放进她掌心：“下次得早些。”\n“还得先把图换成今天的。”阿砚说。\n她翻过旧地图，在自己走过的那条线上补了一个小小的“到”。钟还没响。这条路至少把今天这一单送到了。\n\n到这里，送达与付费已兑现，丢掉好摊位的损失也没有被一句赞美抹平。更长的故事可以接她怎样取得每天的新路讯、定下自己的引路办法；这项持续问题来自城和职业本身，不必否认刚刚那次成功。若本书要写的是推理破案而非行职业成长，就应重新选择开篇承诺，不能只在第三章尾随手添一具尸体，把题材换掉。\n\n给写作 Agent 的限定请求示例：\n我想讨论这部轻奇幻职业成长连载的开头。请只在回复中比较上述概括式与现场式切入，沿用固定事实，给出前三章各自回答了什么、留下什么，以及一处必要背景的安放建议。保留晚钟前送到、六只碗完好、付费与失去前排摊位；不加预知能力、阴谋或神秘客人身份。先不要创建项目、运行写作技能、改文件或生成完整正文。若已有本书章纲与此例冲突，指出冲突，不直接覆盖。",
+      "en": "ORIGINAL EDITORIAL EXAMPLE — The City Where Bridges Change Banks\nThe setting, plan and prose excerpts are written for this page, not recorded model output or three complete chapters. Three chapters are an adjustable arrangement, not a beat count every story must copy.\n\nFixed facts for this example: the bridges of Mist City move after the evening bell. Ayan is taking her first paid guiding job with yesterday’s map. Potter Ye needs six thin-walled bowls at the night market before tonight’s bell. Their wide bamboo tray is unsuitable for narrow, steep steps. Ayan promises to reach the market, not secure its best stall. She cannot predict bridge positions. The narration stays close to what Ayan can observe, hear or think.\n\nA summary opening: its facts need not be wrong, but the pressure has not yet been enacted:\nThe bridges of Mist City changed position every day, so maps needed constant updating. Ayan was an inexperienced guide on her first job. Leading Potter Ye to the night market, she discovered that yesterday’s map no longer worked.\n\nOne candidate that begins inside the encounter:\nAyan turned the map halfway round. Its bridge still crossed the river. The real bridge lay against the opposite bank, neither end reaching across.\n“Is that yesterday’s map?” Ye asked.\nTwo bowl rims touched in her bamboo tray. Ayan steadied its edge and swallowed the “Follow me” she had been about to say.\n“Yes.”\nHer first job, and she had not got her customer across a single river. Someone at the bridge foot was taking down an old route sign. Ayan nodded toward them. “I’ll ask how we cross today. Can you carry that tray up steps?”\n“Not narrow ones. I can’t tip it.”\nAyan folded the map smaller, exposing its blank back. Once she had asked, today’s route could go there.\n\nThe opening does not withhold everything. Yesterday’s map and the visible bridge supply a clue to the mismatch; the evening-bell rule can be explained in the ensuing route enquiry. Ayan admits the outdated map, checks the cargo constraint and goes for information. The attraction is how she will manage her first job, not whether Ye has a secret identity. Summary remains useful for transitions. The candidate makes an error affect action; adding bodily gestures alone would not necessarily improve it.\n\nA proposed three-chapter progression, not three additional mysteries:\nChapter 1: Ayan learns of two current crossing routes: the shorter upstream steps and a longer, level canal detour. She confirms that the wide tray cannot take the narrow steps, provisionally recommends the level route and leads Ye toward its entrance to assess the cost. The small payoff is moving from an unusable map to a level route to try. The next question concerns its cost, rather than pretending they still have no direction.\nChapter 2: At the canal entrance they see stallholders already crossing by the shorter route. Ye wants a front-row position. Ayan explains that she cannot guarantee carrying the bowls through the narrow steps without damage. Ye accepts the likely loss of a front-row stall and asks Ayan to continue on the level route. Ayan leads her through the detour. They finish the chapter at the market entrance; nothing has been unloaded and the guiding fee has not been paid. A costly choice and an actual stretch of travel are delivered, rather than another map suddenly failing.\nChapter 3: They enter before the evening bell, but the front stalls are full. Ye unloads all six intact bowls at the back and pays the agreed fee. Ayan adds the route to her map’s reverse. She now has one route personally walked today; the bridges will move again tonight. This does not make her the city’s best guide.\n\nA short excerpt at the third chapter’s payoff:\nSomeone had spread a blue cloth over the last empty front-row patch. Ye stopped trying to squeeze through. At the back, she set down the tray and lifted out the bowls one by one.\nSix. Ayan watched the last settle before releasing the tray’s edge.\nYe put the agreed guiding money in her palm. “Earlier next time.”\n“And with today’s map,” Ayan said.\nShe turned the old sheet over and marked a small “arrived” on the line she had walked. The bell had not sounded. That route had at least delivered today’s job.\n\nArrival and payment are fulfilled, and a compliment does not erase the lost stall. A longer story can ask how Ayan obtains fresh route information and builds a guiding practice. That continuing problem grows from the city and the job; it need not cancel the success just delivered. If the intended book is a detective mystery rather than a working-life growth story, reconsider the opening promise instead of appending a corpse at chapter three’s end to change the genre.\n\nA bounded request for a writing agent:\nI want to discuss the opening of this light-fantasy serial about learning a trade. In this reply only, compare the summary and enacted openings using the fixed facts. State what each of the first three chapters answers and leaves open, and suggest where one necessary piece of background belongs. Preserve arrival before the bell, six intact bowls, payment and loss of the front stall. Add no predictive power, conspiracy or secret customer identity. Do not create a project, run writing skills, edit files or generate full prose yet. If an existing book outline conflicts with this illustration, identify the conflict instead of overwriting it."
+    },
+    "outputs": {
+      "en": [
+        "An opening proposal with an immediate promise, chapter-by-chapter answers, costs and the question carried forward; no required new filename or schema is introduced.",
+        "Clearly labeled original excerpts or requested manuscript scope. The excerpts below are not complete chapters, an executed skill session or evidence of reader retention.",
+        "If adopted later, an opening integrated with the book’s approved plan and reveal boundaries. Future chapter events belong in planning, not a claim that they have already happened in saved prose."
+      ],
+      "zh": [
+        "一份开篇方案：眼前承诺、逐章兑现、代价，以及后续接什么问题；本页不新增强制文件名或字段。",
+        "标明性质的原创节选，或另行明确要求的正文范围。下方节选不是完整章节、实际技能运行记录或读者留存证据。",
+        "后续若采用，再与本书已批准规划和揭露边界衔接；计划中的章节事件不能被说成已经发生在保存的正文里。"
+      ]
+    },
+    "verification": {
+      "en": [
+        "Read the opening without the planning notes: can you identify who wants what, why the first route fails and what the protagonist does next? Readers may interpret tone differently; this is a craft question, not a numerical guarantee.",
+        "Compare each chapter’s beginning and ending. Name a real answer or changed situation, not just a more emphatic version of the same withheld question. Check that the delivery and lost stall both remain in the proposed payoff.",
+        "Before calling requested chapters complete, distinguish plan, excerpts and full saved prose. This page performs no skill/model run or audience experiment; an illustrative opening does not establish reader retention."
+      ],
+      "zh": [
+        "不看规划说明，只读开场：能否知道谁想办成什么、第一条路为什么失效、主角接下来做什么？读者对语气的感受可能不同，这是创作判断，不是数字保证。",
+        "对照每章首尾，指出真实答案或处境变化，不只是把同一个悬念说得更响。兑现时既保留送达，也保留失去好摊位的代价。",
+        "声称所需章节写完之前，分清方案、节选和完整保存的正文。本页没有运行技能/模型或做读者实验；一份开篇示例不能证明读者留存。"
+      ]
+    },
+    "sources": {
+      "en": [
+        "[Opening routes are candidates, not molds](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/opening-design.md#L24-L25)",
+        "[The source’s web-fiction opening rubric and staged background](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/opening-design.md#L37-L65)",
+        "[Author choices override generic expression defaults, not facts](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/style-resolution.md#L5-L11)",
+        "[Chapter functions and different opening/ending hooks](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/long-chapter-hooks.md#L7-L37)",
+        "[Seed, develop and deliver a changed state](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/long-suspense.md#L87-L95)",
+        "[New-book, named-chapter and planning-only routes](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/SKILL.md#L55-L65)",
+        "[Chapter blueprint authority and unreleased future facts](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-chapter.md#L36-L42)"
+      ],
+      "zh": [
+        "[开头路线是候选而非模具](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/opening-design.md#L24-L25)",
+        "[源码的网文开头检查与分批背景](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/opening-design.md#L37-L65)",
+        "[作者选择覆盖通用表达默认值，不覆盖事实](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/style-resolution.md#L5-L11)",
+        "[章节功能与不同章首章尾钩子](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/long-chapter-hooks.md#L7-L37)",
+        "[种、养与兑现状态变化](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/long-suspense.md#L87-L95)",
+        "[开书、指定章与只规划路线](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/SKILL.md#L55-L65)",
+        "[细纲权威与不能提前释放的后文](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-chapter.md#L36-L42)"
+      ]
+    }
   }
 ]
