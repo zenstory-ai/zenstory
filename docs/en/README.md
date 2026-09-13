@@ -27,7 +27,7 @@ Detailed feature explanations to help you make the most of zenstory's capabiliti
 - [Editor Usage](user-guide/editor.md) - Efficiently edit your creative content
 - [AI Writing Assistant](user-guide/ai-assistant.md) - Converse with AI to get creative inspiration and content
 - [Skills System](user-guide/skills.md) - Use preset skills to accelerate specific creative tasks
-- [Material Library](user-guide/materials.md) - Manage inspiration fragments, world-building settings, and other materials
+- [Material Library](user-guide/materials.md) - Upload, inspect and selectively attach authorized reference text
 - [Inspirations Library](user-guide/inspirations.md) - Discover idea templates and copy them into projects
 - [Billing & Benefits](user-guide/billing-benefits.md) - Check plans, quotas, and upgrade paths
 - [Version History](user-guide/version-history.md) - Track changes and revert anytime
@@ -38,7 +38,7 @@ Master zenstory in depth and build an efficient, personalized writing workflow.
 
 - [AI Memory & Context](advanced/ai-memory.md) - Separate accepted settings, saved progress and open ideas within the limits of project context
 - [Advanced Custom Skills](advanced/skill-creation.md) - Create exclusive creative skills
-- [Deep Materials Analysis](advanced/material-analysis.md) - Help AI deeply understand your creative materials
+- [Material Analysis](advanced/material-analysis.md) - Read source evidence, understand a creative choice and design your own scene
 - [Browser Writing Workflow](advanced/workflow-tips.md) - Choose the scope, write from evidence and hand off actual saved progress
 
 ### Reference

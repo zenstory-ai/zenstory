@@ -1,340 +1,78 @@
-# Materials Library
+# Materials Library: Upload, Read and Reference Text
 
-The Materials Library is one of zenstory's signature features. Free users can see a capability teaser and upgrade guidance; paid members can upload reference novels and use AI for intelligent decomposition and analysis, learning excellent writing techniques, character development, and plot design to provide inspiration and reference for your creation.
+> Repository snapshot (2026-09-13). Use the [current hosted guide](https://zenstory.ai/docs/user-guide/materials) for the web workbench. This page reuses [the served guide source at this revision](https://github.com/zenstory-ai/zenstory/blob/1773af4781996363496f47268cce0e7c640108c8/apps/web/docs/en/user-guide/materials.md), retaining the explanation and examples for reading in the repository. The date identifies this page’s source version, not the freshness of other repository documents.
 
-## What is the Materials Library?
+ZenStory's materials library breaks reference fiction into browsable chapter, character, plot and world details to help you locate material to read. It is separate from manuscript files: **uploading reference material does not import a continuation-ready writing project, or put the entire book into every AI conversation.**
 
-[Screenshot: Materials Library main page, showing materials list and upload button]
+For the path from source evidence to your own scene, go to the [original material-analysis example](../advanced/material-analysis.md). This page covers the usage path, not a guarantee of processing speed, completeness or writing quality.
 
-The Materials Library is a reference material management center with core functions including:
+## 1. Prepare and upload TXT
 
-- **Upload Novels** - Supports uploading .txt format reference novel texts
-- **AI Auto-Decomposition** - System automatically identifies and extracts chapter structures, character information, plot lines, world-building settings, and special abilities (golden fingers)
-- **Intelligent Analysis** - AI performs deep analysis on extracted content to generate structured reference data
+Open the materials library in the workbench, use its upload control, select the file and check its title before submitting. Upload only text you have the right to use, and retain the original independently.
 
-Through the Materials Library, you can:
+| Constraint | Current implementation |
+|---|---|
+| Format | `.txt`; this upload does not directly accept PDF, Word or EPUB. |
+| File size | Up to 100MB, implemented as 100 × 1024 × 1024 bytes. |
+| Text length | Up to 300,000 decoded characters, checked alongside file size—not 300,000 English words. |
+| Access | Requires login and is subject to material-feature access and decomposition quota. Follow your account's current interface and returned messages. |
 
-1. Learn writing techniques and narrative structures from excellent novels
-2. Analyze character development methods and, when enabled, reference relationship design
-3. Understand world-building and power system design
-4. Study plot pacing control and arrangement
+Keep clear chapter headings and order. If you select only part of an over-limit book, label that scope; analysis of an excerpt is not evidence that the whole book was read. Do not remove context that changes a character's choice just to reach a target size.
 
----
+## 2. Separate upload success from finished analysis
 
-## Access Rules
+An accepted upload creates an asynchronous decomposition task. `pending` means waiting, not that every result is available; `processing` means work is continuing. This guide provides no fixed minutes-per-word-count schedule.
 
-- **Free users**: can see the Materials Library entry and teaser page, but cannot upload or start decomposition.
-- **Paid members**: can use the full Materials Library experience and get **5 material decompositions per month**.
-- **When exhausted**: you can still browse existing materials and results, but cannot upload, decompose, or retry until the quota resets next month.
+Task states also include `completed`, `completed_with_errors` and `failed`. These are implementation names, not a promise that every screen displays identical labels. A completion timestamp does not establish that every chapter and category was analyzed fully and correctly. Inspect the current status, error information and actual results before deciding what to use.
 
----
+When a failed card offers Retry, it can submit a new decomposition task. This is not guaranteed exact-point resume or a quota-free operation. Running tasks cannot be retried repeatedly. Read the error before treating deletion and repeated re-uploading as a default repair.
 
-## Upload Novels (Paid Members Only)
+## 3. Open a category and return to the passage
 
-### Supported Formats
+Enter material details, expand the category you need and select an item. Categories load on demand; a just-opened page or unopened folder is not evidence that no results exist.
 
-The Materials Library currently supports the following formats:
+| Result type | What to inspect |
+|---|---|
+| Chapter | Summary, plot points and available source text; check whether a decisive action was summarized away. |
+| Character | Names, aliases and descriptions; tie a personality interpretation to an actual action. |
+| Plot, story or storyline | Description, type and related chapters; read earlier or later text when needed. |
+| World and special ability | Available systems, structure, factions or ability development; ask how a limit changes a choice, not just what label it has. |
 
-| Format | Description |
-|--------|-------------|
-| .txt | Plain text file, maximum 100MB |
+These are display capabilities, not a promise that every material contains every result. Relationship or timeline categories do not establish a complete interactive graph. Structured descriptions can omit or misread evidence; “the analysis does not list a rule” does not mean “the source has no such rule.”
 
-**Tips**:
-- We recommend uploading well-formatted novels with clear chapters for better decomposition results
-- File size recommended between 1-50MB; larger files take longer to process
-- If you have used all monthly material decomposition counts, upload and retry actions will be disabled until the next reset
+This guide does not describe the result viewer as an analysis-card editor or bulk exporter. Keep your own interpretations in separate reading notes with source location and inference labels. Changing those notes is not the same as correcting the library's extracted analysis.
 
-### Upload Steps
+## 4. Attach the items the chat actually needs
 
-[Screenshot: Upload dialog, annotated with various input fields]
+Use the material-attachment control in project chat to select relevant items and confirm they are attached. Supply a short quotation when needed. Material attachments and text quotations participate in context assembly, with scope and budget limits—not automatic injection of the entire library.
 
-1. Click the "Upload Novel" button in the top right corner of the Materials Library page
-2. In the popup dialog, click the file selection area or drag and drop files directly
-3. Select the .txt file to upload
-4. (Optional) Enter the novel title; if left blank, the filename will be used as the title
-5. Click the "Start Upload" button
+A bounded request could be:
 
-After upload completes, the system will automatically start the AI decomposition process and consume 1 material decomposition count for the month.
+```text
+Use the attached item, but analyze only the source passage quoted below.
+I want to understand why the character changes their action.
+Separate explicit evidence, your interpretation and questions requiring more reading.
+Do not generate my story or modify project files yet.
+If the item is insufficient, identify the missing evidence.
+[Insert the source passage and chapter location here.]
+```
 
-### Processing Status
+“Analysis only” states the task scope; it is not enforced read-only permission. See the [AI assistant guide](ai-assistant.md) for context and file-writing boundaries. Naming a material does not establish that the model has read it all. The passages used matter more than the number of books attached.
 
-[Screenshot: Status labels on material cards, showing icons and colors for different statuses]
+## 5. Turn reading into a writing decision
 
-Each uploaded material displays its current processing status (visible to paid members only):
+You do not have to keep collecting labels. The [material-analysis walkthrough](../advanced/material-analysis.md) uses an original recording scene to locate evidence for a changed goal, then designs a different toy-car practice scene that retains the new choice's cost.
 
-| Status | Description |
-|--------|-------------|
-| Pending | Material uploaded, waiting in queue for processing |
-| Processing | AI is analyzing novel content, may take several minutes to tens of minutes |
-| Completed | Decomposition complete, all analysis results can be viewed |
-| Failed | Error encountered during processing, try re-uploading |
+Choose the function you want to learn, then decide your own characters, actions and outcome. Keep reference notes separate from accepted story design. Update progress using the [project-memory example](../advanced/ai-memory.md) only after prose is actually saved.
 
-**Processing Duration**:
+## Implementation sources
 
-Processing time depends on the novel's length and complexity:
-- Short stories (under 100k words): approximately 2-5 minutes
-- Medium-length stories (100-300k words): approximately 5-15 minutes
-- Long novels (over 300k words): approximately 15-60 minutes
+Source checked on 2026-09-13. These pinned references support format, task, display and context details; they are not account-run or analysis-quality tests.
 
-You can leave the page during processing; the system will continue processing in the background.
-
----
-
-## AI Decomposition Results (Paid Members Only)
-
-When material processing is complete, click on the material card to enter the details page and view the various AI-decomposed content.
-
-### Chapter Structure
-
-[Screenshot: Chapter list interface, showing chapter numbers and summaries]
-
-AI automatically identifies the novel's chapter divisions and generates for each chapter:
-
-- **Chapter Number** - Sequential chapter number
-- **Chapter Title** - Identified or generated chapter title
-- **Chapter Summary** - Refined summary of chapter content
-- **Plot Points** - Key events that occur in the chapter
-
-**Usage Scenarios**:
-- Learn the rhythm of chapter division
-- Understand information distribution per chapter
-- Study inter-chapter transitions
-
-### Character Information
-
-[Screenshot: Character details page, showing character name, aliases, description, and traits]
-
-AI extracts all important characters appearing in the novel and analyzes the following information:
-
-- **Character Name** - Primary name of the character
-- **Aliases** - Different titles, nicknames, etc. for the character in different scenes
-- **Description** - Character's appearance, personality, background, etc.
-- **First Appearance** - Chapter where the character first appears
-- **Relationships (optional)** - When higher-cost analysis is enabled, shows the network of relationships with other characters
-
-**Usage Scenarios**:
-- Learn character development techniques
-- Analyze character personality development arcs
-- Understand relationship design when the optional relationship analysis mode is enabled
-
-### Plot Lines
-
-[Screenshot: Plot line display interface, showing storyline titles, summaries, and chapter ranges]
-
-AI identifies major plot lines in the novel, including:
-
-- **Story Lines** - Complete plots spanning multiple chapters with beginning, development, climax, and resolution
-- **Core Goals** - Main goals pursued by characters in the story
-- **Core Conflicts** - Main contradictions driving plot development
-- **Plot Types** - Such as adventure, romance, revenge, etc.
-- **Chapter Range** - Chapters involved in the plot line
-
-**Usage Scenarios**:
-- Learn structural arrangement of multi-line narratives
-- Understand the relationship between main and sub plots
-- Analyze plot pacing control
-
-### World-Building Settings
-
-[Screenshot: Lore details page, showing power systems, world structure, and key factions]
-
-AI extracts world-building settings from the novel, including:
-
-- **Power Systems** - Such as cultivation levels, magic systems, skill settings, etc.
-- **World Structure** - Geographic environment, social structure, faction distribution
-- **Key Factions** - Detailed information on important organizations, sects, nations
-- **Special Rules** - Unique rules and settings in the world
-
-**Usage Scenarios**:
-- Learn world-building methods
-- Understand the combination of settings and plot
-- Reference power system design
-
-### Golden Fingers
-
-[Screenshot: Golden finger list, showing special ability names, types, and evolution history]
-
-AI identifies special abilities of protagonists or important characters, including:
-
-- **Golden Finger Name** - Name of special ability or system
-- **Type** - Such as system, space, rebirth, etc.
-- **Description** - Specific functions and limitations of the golden finger
-- **Evolution History** - Development and changes of the golden finger in the story
-
-**Usage Scenarios**:
-- Learn golden finger design techniques
-- Understand the coordination of abilities and plot
-- Analyze the impact of golden fingers on pacing
-
-### Timeline
-
-[Screenshot: Timeline display interface, showing the chronological order of events]
-
-AI organizes the event timeline in the novel:
-
-- **Event Sequence** - Important events arranged by time
-- **Time Labels** - Time points when events occur
-- **Related Chapters** - Chapters corresponding to events
-- **Related Plots** - Specific content of events
-
----
-
-## Material Details Page (Paid Members Only)
-
-[Screenshot: Complete material details page interface, annotated with left file tree and right content area]
-
-The material details page uses a dual-column layout:
-
-- **Left Side**: Category navigation tree, containing all categories like chapters, characters, plots, etc.
-- **Right Side**: Detailed content display of selected items
-
-### Navigation Operations
-
-- Click folder icon to expand/collapse categories
-- Click on specific items to view detailed content
-- Use the search box at the top for quick finding
-
-### Mobile Adaptation
-
-On mobile phones, the material details page uses a single-column switching layout:
-
-- Navigation tree displayed by default
-- After selecting an item, switches to content details
-- Click the back button in the top left corner to return to the navigation tree
-
----
-
-## Search Materials (Paid Members Only)
-
-On the material details page, you can quickly search for needed content:
-
-[Screenshot: Search box and search results display]
-
-1. Enter keywords in the top search box
-2. The system searches for matching items in all categories
-3. Search results display in real-time in the navigation tree
-
-Search scope includes:
-- Chapter titles and summaries
-- Character names and descriptions
-- Plot line titles and summaries
-- World-building setting content
-- Golden finger names and descriptions
-
----
-
-## Delete Materials (Paid Members Only)
-
-When a material is no longer needed, you can delete it:
-
-[Screenshot: Delete confirmation dialog]
-
-1. On the Materials Library main page, hover over the material card
-2. Click the delete icon (trash can) that appears in the top right corner
-3. Click "Delete" in the confirmation dialog
-
-**Note**: Deletion is irreversible, please proceed with caution.
-
----
-
-## Using Materials in Creation (Paid Members Only)
-
-The true value of the Materials Library lies in assisting your creation. Here are several common usage methods:
-
-### Method 1: View Materials in Left Sidebar
-
-[Screenshot: Materials tab in left sidebar, showing list of attached materials]
-
-In the project editing interface, switch the left sidebar to the "Materials" tab:
-
-1. View imported material content
-2. Quickly browse reference information like characters, world-building, etc.
-3. Use as reference material during creation
-
-### Method 2: Reference Materials in AI Chat
-
-[Screenshot: AI chat input area, annotated with material attachment button]
-
-When chatting with the AI assistant:
-
-1. Click the "Attach Material" button below the input box
-2. Select the material content you want to reference
-3. AI will reference the material content to understand and answer your questions
-
-**Usage Scenario Examples**:
-- "Please refer to the character development approach in [Material Name] to help me optimize this character"
-- "Following the world-building style of [Material Name], help me design a new faction"
-- "Learn from the rhythm of [Material Name] to help me plan this chapter's plot"
-
-### Method 3: Import Materials to Project
-
-You can also directly import specific content from materials into the current project:
-
-1. On the material details page, select the content you want to import (such as characters, world-building)
-2. Use the import function to create project files from the content
-3. Modify and expand based on the import
-
----
-
-## Best Practices
-
-### Choose Appropriate Reference Materials
-
-- Choose excellent works similar to your creative direction
-- Choose novels with clear structure and high quality
-- You can reference multiple works simultaneously, learning from each's strengths
-
-### How to Effectively Use Materials
-
-1. **Don't copy** - Materials are references, not copy templates
-2. **Analyze the essence** - Understand why it's designed this way, not just learn the surface
-3. **Apply flexibly** - Apply learned techniques to your own creation
-4. **Multi-angle learning** - Learn from multiple dimensions like characters, plot, settings, etc.
-
-### Common Usage Scenarios
-
-| Scenario | Recommended Reference Content |
-|----------|------------------------------|
-| Design new characters | Character information, optional relationships |
-| Build world-building | World-building settings, power systems |
-| Plan plots | Plot lines, timeline |
-| Design golden fingers | Golden fingers, evolution history |
-| Learn rhythm control | Chapter structure, plot points |
-
----
-
-## FAQ
-
-### Why does processing take so long?
-
-Processing time depends on the novel's length and complexity. Long novels (over 500k words) may take 30-60 minutes. You can close the page, and the system will continue processing in the background.
-
-### What to do if processing fails?
-
-Processing failure may be caused by the following reasons:
-
-1. **File format issue** - Ensure .txt file encoding is UTF-8
-2. **File corruption** - Re-download or export the source file and upload again
-3. **Irregular content** - Try organizing the text format before uploading
-
-If multiple attempts still fail, please contact customer support for assistance.
-
-### Can material data be exported?
-
-Material data currently does not support separate export. You can view all content on the material details page or import needed content into projects.
-
-### Will uploaded materials be seen by others?
-
-No. Your Materials Library is private and only you can view it. The system will not use your materials for any other purposes.
-
----
-
-## Next Steps
-
-Now that you understand the Materials Library features, you can continue reading the following documents:
-
-- [AI Assistant](./ai-assistant.md) - Learn how to collaborate efficiently with AI
-- [Skills System](./skills.md) - Explore more AI writing assistance features
-- [Editor](./editor.md) - Learn more content editing techniques
-
-Happy writing!
+- [Upload format, size and character limits](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/api/materials/upload.py#L287-L331)
+- [Creating a task and dispatching asynchronous decomposition](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/api/materials/upload.py#L374-L417)
+- [Failed-task retry, running-task limits and quota checks](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/api/materials/upload.py#L429-L500)
+- [Task completion states and error information](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/services/material/ingestion_jobs_service.py#L55-L105)
+- [Loading categories when folders expand](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/web/src/pages/MaterialDetailPage.tsx#L82-L209)
+- [Result viewer](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/web/src/components/materials/MaterialViewer.tsx#L123-L198)
+- [Explicit material attachments and text quotations](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/agent/context/assembler.py#L149-L203)
