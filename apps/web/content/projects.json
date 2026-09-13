@@ -109,16 +109,16 @@
         ["Does one novel chapter become one short-drama episode?", "Not by default. Plan episodes around a local dramatic result and a clear handoff, preserving source facts and marking proposed changes. Start with a pilot before expanding the series. The [novel-to-short-drama guide](https://zenstory.ai/drama-skills/novel-to-short-drama) shows an original prose-to-scene-and-shots example."],
         ["Develop", "Create an episode map or genre guidance when needed; a candidate director brief becomes authority only after creator acceptance."],
         ["Write", "Draft episode scripts with explicit scene goals, opposing forces, turns and exit states."],
-        ["Assets & look", "Prepare character, scene and prop specifications; production-form cards and Look Development are optional choices, not universal image gates."],
-        ["Storyboard & prompts", "Specify shot-start keyframes and continuity constraints, then image/video prompts. A frozen keyframe is a prompt/spec, not an approved generated image."],
+        ["How do I keep the same character across shots?", "Separate persistent identity from the scene’s compatible Look and each shot’s changing hand, prop and gaze state. Carry only the necessary unchanged visual facts as continuity locks. The [three-shot character example](https://zenstory.ai/drama-skills/character-consistency) shows the handoff without pretending a character sheet guarantees generated faces."],
+        ["Are prompt IDs already image references?", "No. `IMG-*` identifies prompt text; `REF-*` binds an inspected real image. A creator-planned `PLAN-*` reference can describe the intended shot but cannot be submitted to `short-drama-produce` before real files are bound. Missing images do not silently authorize text-to-video."],
         ["Produce, edit, review", "Media generation uses prepare → explicit confirmation → run. Editing and a separately requested review are distinct stages."]
       ],
       "zh": [
         ["小说改短剧，是不是一章对应一集？", "不是默认一一对应。按局部戏剧结果与明确交接来分集，保留原文事实，并标清拟改内容。先试写一集，再扩展整季。[小说改短剧指南](https://zenstory.ai/drama-skills/novel-to-short-drama)用原创片段演示从叙述到场次、镜头的转换。"],
         ["开发", "按需创建分集地图或题材指引；候选导演阐述经创作者接受后才成为权威。"],
         ["写作", "写分集剧本，明确场次目标、对抗力、转折和出口状态。"],
-        ["资产与画风", "准备角色、场景和道具规格；制作形态卡与 Look Development 是可选决策，不是通用生图门槛。"],
-        ["分镜与提示词", "规定镜头起始关键帧与连续性约束，再写图片/视频提示词。冻结关键帧是提示词或规格，不是已获批准的生成图片。"],
+        ["同一角色跨镜头，怎样减少外观和动作串线？", "分开长期人物身份、本场相容造型，以及每镜变化的手位、道具和视线；只有必要且不变的可见事实才作为连续性锁传递。[原创三镜示例](https://zenstory.ai/drama-skills/character-consistency)展示具体交接，不把角色设定表当成生成脸部一致的保证。"],
+        ["有提示词编号，就算已经有参考图了吗？", "不是。`IMG-*` 标记提示词正文，`REF-*` 才绑定已检查的真实图片。创作者计划提供的 `PLAN-*` 可以描述预期镜头，但真实文件绑定前不能交给 `short-drama-produce`；缺图也不能静默当成已授权文生视频。"],
         ["制作、剪辑、审查", "媒体生成遵循准备 → 明确确认 → 执行。剪辑与另行请求的审查是独立阶段。"]
       ]
     },
@@ -147,14 +147,20 @@
         "[Creator-first entry and on-demand documents](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama/SKILL.md#L70-L76)",
         "[Optional look development, production and review boundaries](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama/SKILL.md#L117-L145)",
         "[Director-brief acceptance and optional artifacts](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-develop/SKILL.md#L101-L129)",
-        "[Real image references and explicit spend confirmation](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-produce/SKILL.md#L15-L63)"
+        "[Real image references and explicit spend confirmation](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-produce/SKILL.md#L15-L63)",
+        "[Character anchors and compatible Look definitions](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/character-and-look.md#L39-L82)",
+        "[Where continuity-lock text must be carried](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/continuity-lock.md#L91-L103)",
+        "[Real REF images, planned inputs and non-production states](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-video-prompts/SKILL.md#L18-L34)"
       ],
       "zh": [
         "[按戏剧结果而非章节数量切集](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-novel-analyze/references/adaptation-value.md#L77-L93)",
         "[创作者优先的入口与按需文档](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama/SKILL.md#L70-L76)",
         "[可选画风探索、制作与审查边界](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama/SKILL.md#L117-L145)",
         "[导演阐述的接受与可选产物](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-develop/SKILL.md#L101-L129)",
-        "[真实图片参考与明确消费确认](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-produce/SKILL.md#L15-L63)"
+        "[真实图片参考与明确消费确认](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-produce/SKILL.md#L15-L63)",
+        "[Character 锚点与相容 Look 的定义](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/character-and-look.md#L39-L82)",
+        "[连续性锁面必须进入哪些文档](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/continuity-lock.md#L91-L103)",
+        "[真实 REF、计划输入与不可投产状态](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-video-prompts/SKILL.md#L18-L34)"
       ]
     },
     "vocabulary": ["漫剧", "分集地图", "导演阐述", "冻结关键帧", "连续性锁", "剪辑单"]
@@ -180,18 +186,18 @@
     },
     "method": {
       "en": [
-        ["Analyse", "Record source evidence in SOURCE_BIBLE.md and lock product scope and target runtime in PRODUCT_BRIEF.md."],
-        ["Concept", "Compare adaptation alternatives and explicit vetoes in CONCEPT.md."],
-        ["Design", "Describe the core loop, systems and outcomes in GAME_DESIGN.md, and the visual direction in ART_DIRECTION.md."],
-        ["Build", "Build a risk-matched whitebox before the candidate where required. Missing tools or an untested target runtime must be reported, not counted as a completed game."],
-        ["QA", "Record launch, render, input, coreLoop, outcome and restart in qa/verification.json from one complete tested run."]
+        ["Can I make an interactive story rather than a combat game?", "Yes: set a narrative-led experience in the brief and concept. Decisions can change testimony, what characters know and later scenes; they need not be disguised as cards, turns or an affinity meter."],
+        ["How do choices change more than the wording?", "Give each important action a lasting fact and name the later scene or ending that reads it. The [original ferry example](https://zenstory.ai/novel-to-game/meaningful-choices) shows two decision points and three outcomes without branching every paragraph."],
+        ["What may I change from the novel?", "Keep cited source facts and uncertainties in `analysis/SOURCE_BIBLE.md`. Separate approved adaptation additions from evidence; do not let implementation silently rewrite the agreed brief or source bible."],
+        ["How much should I adapt first?", "Start with one player role, a concrete objective, a few scenes and an outcome. Let `game-world-design` specify the smallest playable slice and causal design before full art production. Reuse a location without erasing the choices that led there."],
+        ["What do I receive, and what remains unproven?", "The [quick start](https://zenstory.ai/novel-to-game/quick-start) explains the brief, design files and built candidate. Design-only work is not a playable game. The six runtime checks cover the recorded run; they do not establish every branch, subjective quality or commercial readiness."]
       ],
       "zh": [
-        ["分析", "在 SOURCE_BIBLE.md 中记录原文证据，在 PRODUCT_BRIEF.md 中锁定产品范围和目标运行环境。"],
-        ["概念", "在 CONCEPT.md 中比较改编方案并明确否决条件。"],
-        ["设计", "在 GAME_DESIGN.md 中描述核心循环、系统与结果，在 ART_DIRECTION.md 中确定视觉方向。"],
-        ["构建", "在契约要求时先做风险匹配的白盒再做候选版本。工具缺失或目标运行环境未测试必须如实报告，不能算作游戏已完成。"],
-        ["QA", "用一次完整测试运行，在 qa/verification.json 中记录 launch、render、input、coreLoop、outcome、restart。"]
+        ["我想做互动文游，不想做战斗游戏，可以吗？", "可以，在简报与概念阶段选择叙事主导体验。决定可以改变证词、人物知道的信息和后续场景，不必包装成卡牌、回合或好感度条。"],
+        ["怎样避免选择只换一句文案？", "让关键行动产生持久事实，并写明后续哪个场景或结局会读取它。[原创渡口示例](https://zenstory.ai/novel-to-game/meaningful-choices)用两个选择点、三个结果演示，不需要每段正文都分叉。"],
+        ["原著可以改到什么程度？", "在 `analysis/SOURCE_BIBLE.md` 保留带出处的事实和疑点，把批准的改编新增设定与原文证据分开。实现阶段不能悄悄改写已确定的产品简报或原著圣经。"],
+        ["第一次应该改编多大范围？", "先限定一个玩家身份、具体目标、少量场景和结果。在完整美术生产前，由 `game-world-design` 明确最小可玩切片与因果设计。地点可以复用，但到达该地点之前的选择不能被抹掉。"],
+        ["最后会拿到什么，什么还不能证明？", "[完整入门指南](https://zenstory.ai/novel-to-game/quick-start)说明简报、设计文件与构建候选版本。只做设计不等于可玩游戏。六项运行检查只覆盖所记录的一次运行，不代表每条分支、主观质量或商业发布准备程度都已通过。"]
       ]
     },
     "distinctive": {
@@ -216,13 +222,21 @@
         "[Seven skills and installation](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/README.md#L59-L76)",
         "[Language, product scope and target-runtime contract](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/novel-to-game/SKILL.md#L16-L50)",
         "[Build-tool limits and truthful completion reporting](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-build/SKILL.md#L15-L30)",
-        "[Six runtime checks and limits of QA](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-qa/SKILL.md#L14-L31)"
+        "[Six runtime checks and limits of QA](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-qa/SKILL.md#L14-L31)",
+        "[Causal agency, consequence resolution and narrative-led design](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-concept/references/concept-method.md#L24-L35)",
+        "[Knowledge boundaries, choice effects and honest convergence](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-world-design/references/narrative-design-method.md#L14-L35)",
+        "[Required narrative design handoff and smallest playable slice](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-world-design/SKILL.md#L24-L41)",
+        "[Player verbs and rule-resolved state commits](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/novel-to-game/SKILL.md#L53-L61)"
       ],
       "zh": [
         "[七个 skills 与安装](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/README.md#L59-L76)",
         "[语言、产品范围与目标运行环境契约](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/novel-to-game/SKILL.md#L16-L50)",
         "[构建工具边界与真实完成报告](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-build/SKILL.md#L15-L30)",
-        "[六项运行检查与 QA 边界](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-qa/SKILL.md#L14-L31)"
+        "[六项运行检查与 QA 边界](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/game-qa/SKILL.md#L14-L31)",
+        "[因果权、结算权与叙事主导设计](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-concept/references/concept-method.md#L24-L35)",
+        "[知识边界、选择后果与诚实汇流](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-world-design/references/narrative-design-method.md#L14-L35)",
+        "[叙事设计交接与最小可玩切片](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-world-design/SKILL.md#L24-L41)",
+        "[玩家动词与规则裁决的状态提交](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/novel-to-game/SKILL.md#L53-L61)"
       ]
     },
     "vocabulary": ["source bible", "whitebox", "QA contract"]
@@ -249,19 +263,19 @@
     "method": {
       "en": [
         ["How do I turn a local video into a Chinese recap?", "Build a scene/dialogue evidence index, choose the audience promise, divide the work between pictures, original audio and narration, then voice and assemble the grounded script. The [complete workflow guide](https://zenstory.ai/video-recap/video-to-narration) explains full/cut choices, stage handoffs and expected files before optional draft export."],
-        ["Understand", "Scene detection + ASR + VLM; optional background research so the model knows who is who."],
-        ["Script", "Director, editor and narrator passes write the recap script against the timeline."],
-        ["Voice", "Text-to-speech narration."],
-        ["Cut & assemble", "Audio mix, subtitles, render; or 'cut first, narrate after' mode."],
-        ["Export", "CapCut draft for manual finishing."]
+        ["Which moments should keep their original sound?", "Keep dialogue that is itself an event, an action sound that reveals a change, or a meaningful pause. Add narration only for a supported job the picture and source audio cannot do. The [five-beat radio example](https://zenstory.ai/video-recap/original-audio-and-narration) shows the division without requiring a fixed narration ratio."],
+        ["Can I write the recap before choosing the cut?", "Decide the story and sound roles first. In the orchestrated cut flow, select source clips, then write narration against the actual edited output timeline. Do not copy original timestamps into that output-time narration."],
+        ["What if the voiceover is too long?", "Reduce or move the thought instead of speaking over the next protected line. Bounded speed adjustment is not unlimited; an unsafe fit can block placement rather than clipping the spoken ending."],
+        ["Does an audio-owner label automatically preserve the mix?", "No. The renderer does not parse the creative board. Actual narration timing, speech evidence and mix settings implement the plan; source audio can remain ducked beyond the written block until a safe recovery point. Listen to the rendered handoff."],
+        ["Can I finish the sound and captions manually?", "After the real timeline exists, use the [JianYing / CapCut draft guide](https://zenstory.ai/video-recap/capcut-draft) to export an editable bundle without rerunning remote stages, then review audio handoffs and audible original-dialogue captions in your editor."]
       ],
       "zh": [
         ["怎样把本地视频做成中文解说？", "先建立场景与对白证据索引，再确定观众承诺，分配画面、原声与旁白的职责，之后为有依据的文案配音、合成。[完整流程指南](https://zenstory.ai/video-recap/video-to-narration)说明 full/cut 选择、阶段交接和预期文件，再按需导出草稿。"],
-        ["理解", "场景检测 + ASR + VLM；可选背景调研，让模型认得人物。"],
-        ["写稿", "导演 / 剪辑 / 解说三道稿子对着时间线写。"],
-        ["配音", "文本转语音。"],
-        ["剪辑合成", "混音、字幕、渲染；或「先剪后配」模式。"],
-        ["导出", "剪映草稿，方便手工精修。"]
+        ["哪些地方应该保留原声？", "对白本身就是事件、动作声让人听见变化，或者停顿有意义时，让原声主导。只有画面和原声做不到的、有依据的任务才交给旁白。[收音机五拍示例](https://zenstory.ai/video-recap/original-audio-and-narration)展示分工，不要求固定的旁白比例。"],
+        ["可以先写好旁白，再随便剪画面吗？", "先明确故事与声音职责。编排式 cut 流程先选原片片段，再针对实际剪后输出时间线写旁白，不能直接把原片时间戳抄进输出时间的旁白稿。"],
+        ["配音太长，放不进窗口怎么办？", "先删减或移动这段意思，不要抢下一句须保留原话的位置。受限变速不等于无限加速；无法安全放入时可阻断放置，而不是裁掉尾音。"],
+        ["写了声音职责标签，就能自动保住原声吗？", "不能。渲染器不解析创意 board，需要实际旁白时间、对白证据与混音设置落实；原声可能在书面段落结束后仍被压低，直到安全恢复点。要听渲染后的真实交接。"],
+        ["可以再手动精修声音和字幕吗？", "真实时间轴已存在时，可按[剪映 / CapCut 草稿指南](https://zenstory.ai/video-recap/capcut-draft)导出可编辑媒体包，不重跑远程阶段；再在编辑器里精修声音交接与实际可听见的原声对白字幕。"]
       ]
     },
     "distinctive": {
@@ -287,14 +301,22 @@
         "[Five stages plus the orchestrator](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L10-L19)",
         "[MiMo and optional Fish Audio dependencies](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L47-L69)",
         "[Understanding-stage prerequisites and API-key boundaries](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-understanding/SKILL.md#L20-L42)",
-        "[Playback review and advisory automated checks](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L149-L157)"
+        "[Playback review and advisory automated checks](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L149-L157)",
+        "[Leading sound and narration jobs](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-recap/references/creative-editing-playbook.md#L95-L116)",
+        "[The renderer does not parse audio-owner decisions](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-assemble/SKILL.md#L19-L31)",
+        "[Mixing, bounded fit and safe source-audio restoration](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-assemble/SKILL.md#L60-L77)",
+        "[Source and output clocks in the cut workflow](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-cut/SKILL.md#L61-L76)"
       ],
       "zh": [
         "[编导规划与阶段交接](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-recap/SKILL.md#L10-L45)",
         "[五个阶段技能与编排器](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L10-L19)",
         "[MiMo 与可选 Fish Audio 依赖](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L47-L69)",
         "[视频理解阶段的依赖与 API key 边界](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-understanding/SKILL.md#L20-L42)",
-        "[真实播放复核与建议型自动检查](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L149-L157)"
+        "[真实播放复核与建议型自动检查](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L149-L157)",
+        "[主要声音与旁白职责](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-recap/references/creative-editing-playbook.md#L95-L116)",
+        "[渲染器不解析声音职责方案](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-assemble/SKILL.md#L19-L31)",
+        "[混音、时长边界与安全恢复原声](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-assemble/SKILL.md#L60-L77)",
+        "[剪辑流程的原片与输出时钟](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-cut/SKILL.md#L61-L76)"
       ]
     },
     "vocabulary": ["解说视频", "剪映草稿", "先剪后配"]
