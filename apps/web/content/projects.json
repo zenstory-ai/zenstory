@@ -135,7 +135,7 @@
         ["Write", "Draft episode scripts with explicit scene goals, opposing forces, turns and exit states."],
         ["Can I storyboard an already accepted screenplay directly?", "Yes: start from the current screenplay and necessary visual facts, without restarting development or waiting for image prompts. The [script-to-storyboard guide](https://zenstory.ai/drama-skills/script-to-storyboard) follows an original scene through four shot designs, preserving dialogue, handoffs and the ending. It explains what to change when complete speech and sequential actions do not fit the planned duration; its timings are text estimates, not measured footage."],
         ["How do I keep the same character across shots?", "Separate persistent identity from the scene’s compatible Look and each shot’s changing hand, prop and gaze state. Carry only the necessary unchanged visual facts as continuity locks. The [three-shot character example](https://zenstory.ai/drama-skills/character-consistency) shows the handoff without pretending a character sheet guarantees generated faces."],
-        ["Are prompt IDs already image references?", "No. `IMG-*` identifies prompt text; `REF-*` binds an inspected real image. A creator-planned `PLAN-*` reference can describe the intended shot but cannot be submitted to `short-drama-produce` before real files are bound. Missing images do not silently authorize text-to-video."],
+        ["Are prompt IDs already image references?", "No. `IMG-*` identifies prompt text; `REF-*` binds an inspected real project file. An external `PLAN-*` points to a current IMG or SHOT entry, not a made-up image path, and can support requested video-prompt writing before the creator attaches pictures in their own canvas. It cannot supply files to `short-drama-produce`. The [reference-selection exercise](https://zenstory.ai/drama-skills/character-consistency) separates visible identity, compatible clothing, geography and boundary frames without requiring every supplied picture to be regenerated."],
         ["Produce, edit, review", "Media generation uses prepare → explicit confirmation → run. Editing and a separately requested review are distinct stages."]
       ],
       "zh": [
@@ -144,7 +144,7 @@
         ["写作", "写分集剧本，明确场次目标、对抗力、转折和出口状态。"],
         ["已经确认的剧本，可以直接做分镜吗？", "可以从当前剧本与必要视觉事实进入，不必重做开发，也不必等待图片提示词。[剧本到分镜指南](https://zenstory.ai/drama-skills/script-to-storyboard)用原创场景展示四镜设计，保留对白、动作交接与结尾，并说明完整发声和顺序动作装不下时该改哪一层；示例时长是文本估计，不是实测视频。"],
         ["同一角色跨镜头，怎样减少外观和动作串线？", "分开长期人物身份、本场相容造型，以及每镜变化的手位、道具和视线；只有必要且不变的可见事实才作为连续性锁传递。[原创三镜示例](https://zenstory.ai/drama-skills/character-consistency)展示具体交接，不把角色设定表当成生成脸部一致的保证。"],
-        ["有提示词编号，就算已经有参考图了吗？", "不是。`IMG-*` 标记提示词正文，`REF-*` 才绑定已检查的真实图片。创作者计划提供的 `PLAN-*` 可以描述预期镜头，但真实文件绑定前不能交给 `short-drama-produce`；缺图也不能静默当成已授权文生视频。"],
+        ["有提示词编号，就算已经有参考图了吗？", "不是。`IMG-*` 标记提示词，`REF-*` 绑定已检查的项目内真实文件；外部 `PLAN-*` 指向当前 IMG 或 SHOT 条目，不是虚构图片路径。创作者可以先按完整计划请求视频提示词，再在自己的画布挂图，但计划不能向 `short-drama-produce` 提供文件。[挑图与挂图示例](https://zenstory.ai/drama-skills/character-consistency)区分可见身份、相容造型、地理与边界帧，不要求每张已有图都重新生成。"],
         ["制作、剪辑、审查", "媒体生成遵循准备 → 明确确认 → 执行。剪辑与另行请求的审查是独立阶段。"]
       ]
     },
