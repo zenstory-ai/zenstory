@@ -1,423 +1,131 @@
-# In-Depth Material Analysis
+# Material Analysis: From Reference Passage to Your Own Scene
 
-The material library not only automatically deconstructs novel structure, but more importantly provides in-depth analysis results to help you understand the creative logic of excellent works. This article details the meaning and usage of each analysis result, enabling you to fully leverage the learning value of the material library.
+The useful result of material analysis is not a long list of labels such as “decisive,” “kind” or “twist.” It is a writing choice you can explain: **what the character wanted, what information changed their approach, and what the new choice still cost.** In ZenStory Workbench, inspect the analysis, then bring selected items or source passages into chat for a specific writing problem.
 
----
+This guide reads an original recording-room passage, then applies one craft choice to a different scene about a toy-car practice session. Both examples are editorial fiction, not uploaded material, AI analysis results or generated manuscript output.
 
-## Analysis Results Explained
+## 1. Bring a question, not a request for every possible label
 
-### Character Analysis Dimensions
+Choose a question such as “How can a character change their goal without delivering a speech about the lesson?” Avoid starting with “Analyze everything good about this book and write me a similar one.” If you have read only a passage, limit your conclusion to it. A claim about a whole character arc needs the relevant earlier and later text.
 
-[Screenshot: Character analysis panel showing complete layout of character details page]
+See the [materials introduction](../user-guide/materials.md) for uploads, task states and viewing results. The following categories can provide leads; their presence does not establish complete extraction or correct interpretation.
 
-Character analysis results include the following core dimensions:
+| Available content | A useful question | What it cannot establish on its own |
+|---|---|---|
+| Chapter summaries, plot points and source text | Which action changes the situation? What did the summary omit? | That every setup is included or an unmentioned event never happened. |
+| Character names, aliases and descriptions | Which particular choice supports a personality judgment? | That a label explains a lifetime of motives. |
+| Plots, stories or storylines and related chapters | How do goal, obstacle, choice and consequence connect? | That more plot points mean better writing, or chapter span measures reading pace. |
+| World details, special abilities and their development | Which limitation blocks an action? What changes if it is removed? | That every story needs power levels, or an empty field means no constraint exists. |
 
-#### Basic Information
+Use source text to check an interpretation; use analysis items to locate it. Do not assume every material has a complete visual relationship network or timeline. For empty items, unclear summaries or task errors, establish what was actually read before choosing the next passage.
 
-- **Name**: Character's primary designation
-- **Aliases**: Character's names in different scenes, including nicknames, former names, etc.
-- **Archetype**: Character type positioning, such as protagonist, supporting character, antagonist
+## 2. Original reference: why does one noise change a decision?
 
-This information helps you quickly position the character's role and importance in the story.
+**Reference passage: The Missing Solo**
 
-#### Personality Traits
+> Fang Yao edited the old concert recording for the third time. A chair scrape still covered part of her mother's solo. Tonight she was hosting a small listening gathering for her mother; the program called it “Her finest performance.” A friend suggested removing the scrape and splicing in the same bar from its later repetition.
+>
+> Fang played the two sections back and forth. The later one was slightly faster. After the chair scrape, her mother said softly beside the microphone, “No hurry. Let him get settled.”
+>
+> Fang undid the splice. She crossed out the program line and wrote “That day, she paused,” then kept the two seconds before the scrape as well.
 
-[Screenshot: Personality trait tags display, multiple colorful tags]
+Keep three kinds of reading note separate:
 
-AI extracts character personality keywords, displayed as tags:
+| Kind | What this passage supports |
+|---|---|
+| Explicit evidence | The program calls it “Her finest performance”; Fang edits repeatedly and tries the splice her friend proposes; the sections differ in tempo; her mother asks someone to wait; Fang undoes the splice and changes the program. |
+| Supported interpretation | The program and editing support reading Fang's initial goal as presenting the finest performance. A noise first treated as a flaw gains meaning through the words that follow. She changes her standard for presenting her mother, rather than fixing the recording. |
+| Not established here | That her mother has died, Fang has overcome grief, the audience likes the result, her mother always sacrificed herself, or a splice is technically impossible. |
 
-- **Personality Tags**: Such as "decisive", "cautious", "hot-blooded", "scheming", etc.
-- **Trait Classification**: AI identifies personality traits, behavioral traits, appearance traits, etc.
+“Her mother is kind” may be a reading impression, but it does not replace the causal sequence. **The scrape remains, the solo is still obscured, and the gathering's response is not shown.** The new choice does not erase the old cost.
 
-**Usage Tip**: Observe how excellent works塑造 three-dimensional character images through multi-dimensional trait combinations.
+Quote the passage directly, or attach the relevant material item and supply the source text, then ask:
 
-#### Character Relationship Network
-
-[Screenshot: Character relationship list showing relationships with other characters]
-
-Each character's relationship card displays:
-
-- **Relation Object**: Other characters connected to this character
-- **Relation Type**: Such as family, mentor, enemy, ally
-- **Emotional Tendency**: Friendly, hostile, neutral
-- **Relation Description**: Specific relationship explanation and background
-
-**Learning Points:**
-- Analyze relationship complexity between main characters
-- Study how relationships affect plot development
-- Learn relationship network building techniques
-
-#### Appearance Information
-
-- **First Appearance Chapter**: Where the character first appears
-- **Importance Level**: Major character, supporting character, minor character
-
----
-
-### Plot Analysis Dimensions
-
-[Screenshot: Plot analysis panel showing plot details page]
-
-Plot analysis helps you understand story progression logic.
-
-#### Plot Type Classification
-
-AI automatically identifies plot point types:
-
-| Type | English Identifier | Description |
-|------|-------------------|-------------|
-| Conflict | CONFLICT | Key points where contradictions erupt |
-| Turning Point | TURNING_POINT | Important changes in plot direction |
-| Reveal | REVEAL | Uncovering of important information or secrets |
-| Action | ACTION | Battle, chase and other action scenes |
-| Dialogue | DIALOGUE | Important conversational exchanges |
-| Setup | SETUP | Foreshadowing for subsequent plot |
-| Resolution | RESOLUTION | Resolution of conflicts or problems |
-| Other | OTHER | Other plot types |
-
-**Learning Technique**: Count the proportion of various plot types in excellent works, learn pacing control.
-
-#### Involved Characters
-
-Each plot point marks participating core characters, helping you:
-
-- Understand character roles in the plot
-- Analyze character screen time distribution
-- Learn ensemble writing techniques
-
-#### Theme Tags
-
-For complete plots (Stories) spanning chapters, AI extracts:
-
-- **Core Goal**: What characters pursue in this plot
-- **Core Conflict**: Main contradiction driving the plot
-- **Theme Tags**: Story's theme keywords (no more than 3)
-
-**Deep Learning**: Compare how different plot types set goals and conflicts, understand story drivers.
-
-#### Chapter Range
-
-Complete plot lines mark the involved chapter range, such as "Chapter 1 - Chapter 5", helping you:
-
-- Grasp plot length and pacing
-- Learn chapter division techniques
-- Understand how main and subplot threads intertwine
-
----
-
-### World Building Analysis Dimensions
-
-[Screenshot: World building details page showing power system, world structure, and key factions]
-
-World building is an important support for web novels. The material library deeply analyzes the following dimensions:
-
-#### Power System
-
-AI extracts power settings from the work:
-
-- **Cultivation Levels**: Such as Qi Refinement, Foundation Establishment, Core Formation and other realm divisions
-- **Magic System**: Magic types, casting rules, consumption mechanisms
-- **Skill Settings**: Skill classification, acquisition methods, upgrade paths
-- **Power Comparison**: Strength gaps between different levels
-
-**Learning Points:**
-- Analyze level design rationality and balance
-- Learn how to create anticipation through levels
-- Understand coordination between power system and plot
-
-#### World Structure
-
-[Screenshot: World structure description area]
-
-Including multi-level information of geography, society, politics, etc.:
-
-- **Geographic Environment**: World map, regional distribution, special locations
-- **Social Structure**: Class divisions, forms of social organization
-- **Political Landscape**: Power distribution, power structure
-
-#### Faction Distribution
-
-Each key faction is recorded in detail:
-
-- **Faction Name**: Name of organization, sect, nation
-- **Leader**: Faction's leader or core figure
-- **Territory**: Region or range controlled by the faction
-- **Description**: Faction's characteristics, philosophy, history, etc.
-
-**Usage Suggestion**: Build faction cards, learn how to create conflict and interaction between different factions.
-
-#### Special Rules
-
-Unique rule settings in world building:
-
-- Special laws governing world operation
-- Taboos characters must observe
-- Special mechanisms and restriction conditions
-
----
-
-### Golden Finger Analysis
-
-[Screenshot: Golden finger analysis page showing type identification and evolution history]
-
-Golden finger is a core selling point of web novels. The material library deeply deconstructs:
-
-#### Type Recognition
-
-AI automatically identifies golden finger types:
-
-| Type | Description |
-|------|-------------|
-| System | System flow, with gamified mechanisms like panels, quests |
-| Space | Portable space, with independent space for storage or planting |
-| Rebirth | Rebirth flow, reborn with memories of previous life |
-| Special Ability | Other special abilities or talents |
-
-#### Evolution Path
-
-[Screenshot: Evolution history timeline, each stage as a card]
-
-Golden finger evolution history is displayed as a timeline:
-
-- **Stage Name**: Development stage of the golden finger
-- **Description**: Ability characteristics and changes at this stage
-- **Chapter**: Chapter location of ability upgrade or unlock
-- **Timestamp**: Position in story timeline
-
-**Deep Learning:**
-- Analyze golden finger upgrade pacing
-- Learn how to design ability unlock timing
-- Understand mutual promotion between golden finger and plot
-
----
-
-## How to Use Analysis Results
-
-### Learning from Excellent Works
-
-#### Deconstruct Structure
-
-Using material analysis results, you can:
-
-1. **Chapter Deconstruction**: View plot point distribution per chapter, learn information distribution
-2. **Character Arc Deconstruction**: Track protagonist's growth path, analyze personality changes
-3. **Plot Line Deconstruction**: Understand main plot progression and subplot interweaving rhythm
-
-**Practice Method:**
-```
-1. Select an excellent reference material
-2. Browse plot points in chapter order
-3. Count plot types and quantities per chapter
-4. Draw pacing curve, analyze climax distribution
+```text
+Discuss only the supplied passage The Missing Solo, not an imagined whole book.
+Identify Fang's initial goal, the source evidence that changes it,
+her actual choice, and the cost that remains.
+Support interpretations with short quotations. Separate explicit facts,
+interpretation and questions needing more context.
+Do not invent biographies, continue the gathering or modify project files.
+End with one description of the choice's function that does not mention
+recordings, chairs or programs.
 ```
 
-#### Learn Pacing
+One possible description: **Specific information changes what “doing this well” means to the character; they change their action while still paying for the abandoned goal.** This is one craft option, not a formula for every twist or character arc.
 
-Through plot point timeline distribution, you can:
+## 3. Transfer the function, not just the names and props
 
-- Observe how authors arrange tense and relaxed pacing
-- Learn when to insert turning points and climaxes
-- Understand time intervals between setup and payoff
+Changing a recording to a video, a chair scrape to a cough, and then repeating the undone edit and changed title still follows the reference's main event structure. Decide what your new character must actually choose, rather than asking for a copy of the source's rhythm.
 
-**Common Pacing Patterns:**
-- First small climax within first 3 chapters
-- Medium conflict every 5-10 chapters
-- Major climax every 20-30 chapters
+Here is a candidate design for a different original story, **A Different Starting Line**. It shares no story world with the reference. These are new author decisions, not facts extracted by material analysis.
 
-#### Analyze Character Building
+- Cen Yi has ten minutes left in his own toy-car practice slot. He wants one uninterrupted full-speed practice run.
+- Tao Tao, visiting for the first time, wants to try the controller but says, “I only know how to stop. I don't know how to turn left.” She has not completed a left turn.
+- Cen can keep practicing or ask whether she would like to use the remaining slot to try a turn. He cannot finish both tasks in that time.
+- This is a fictional practice session, not a description of official competition rules, hazardous operation or prizes.
 
-Character analysis results help you:
+Both directions can work, but they do different things:
 
-1. **Comparative Design**: Compare different characters' personality trait combinations
-2. **Relationship Networks**: Study how character relationships drive plot
-3. **Growth Trajectory**: Track character changes from introduction to maturity
+| Candidate | Action | Standard of success and remaining cost |
+|---|---|---|
+| A: Keep the original goal | Cen continues his full-speed practice and explains that this slot is not a lesson. | His own training remains the goal; Tao gets no practice this time. This can explore boundaries or distance, not necessarily make a bad story. |
+| B: Change this session's goal | He asks Tao; once she agrees, he gives her the remaining time and offers guidance without operating for her. | Success becomes her completing one left turn herself. His full-speed run remains unfinished; an unexpected victory does not cancel that cost at the end. |
 
-**Learning Technique**: Select 3-5 successful characters, compare their personality tags and growth paths, find commonalities and differences.
+**This tutorial chooses B.** It transfers the function of revising a success criterion while retaining a cost. The action changes from editing a past record to collaborating with someone present, with feedback from her own action—not merely renamed objects. A different subject does not automatically make the story your own; the specific character choices, event structure and expression still matter.
 
----
+## 4. Turn the chosen design into prose, not more labels
 
-### Getting Inspiration
+Choose B before requesting prose. This prompt does not assume those project files already exist:
 
-#### Character Setting Reference
-
-[Screenshot: Flow from material character list to project character creation]
-
-When you need to design new characters:
-
-1. **Browse material character library**, find similarly positioned characters
-2. **Analyze their personality tags**, think how to apply to your characters
-3. **Study character relationships**, design relationship networks for your characters
-4. **Reference appearance methods**, learn character introduction techniques
-
-**Note**: Reference is not plagiarism; understand the logic behind the design rather than simple imitation.
-
-#### Plot Pattern Borrowing
-
-When hitting creative bottlenecks:
-
-1. **Filter by plot type**, find similar plot segments
-2. **Analyze core conflict**, understand how contradictions are set up
-3. **Study resolution paths**, learn how problems are handled
-4. **Adapt and apply**, fit the pattern to your story
-
-#### World Building Ideas
-
-Learn world building from excellent works:
-
-1. **Power System**: Reference the design logic of level divisions
-2. **Faction Distribution**: Learn how to design checks and balances between factions
-3. **Rule Settings**: Understand how special rules create conflict and limitations
-
-**Practical Advice**: Don't pursue complete originality; innovate by combining existing elements.
-
----
-
-### As AI Context
-
-[Screenshot: Material attachment button in AI chat interface and attached materials]
-
-The power of analysis results lies in their ability to serve as reference context for AI.
-
-#### Reference in Conversation
-
-Reference materials when conversing with AI assistant:
-
-1. Click the "Attach Material" button below the input box
-2. Select the material content you want to reference
-3. Clearly indicate the reference direction when asking
-
-**Example Prompt:**
-```
-Please reference the character "Lin Yue Ru" from [Material Name],
-help me optimize the female lead's personality setting in the current project,
-especially how to balance between being strong and cute.
+```text
+Use option B for A Different Starting Line to write a 350–500-word candidate scene.
+Cen initially wants his own full-speed run, then gives Tao the remaining slot.
+Tao must agree to try. Cen must not perform the turn for her.
+Show the change through his question, handing over the controller and waiting;
+do not add a speech beginning “He finally understood.”
+Keep the cost: Tao completes one left turn, but Cen does not complete his own run.
+Do not invent prizes, family relationships or permanent mastery.
+Do not reuse distinctive sentences from the reference passage.
+Return candidate prose in chat only; do not write files or update project memory.
 ```
 
-#### AI-Referenced Creation
+“Chat only” is a working instruction, not enforced read-only permission. See the [AI assistant guide](../user-guide/ai-assistant.md) for file-operation boundaries. To draft directly into the project, name the target file and permitted scope first, so “analyze a reference” does not silently become “rewrite my manuscript.”
 
-Use material analysis results to let AI assist creation more precisely:
+Here is an **original ending excerpt**, not a full output satisfying that prompt's word count:
 
-**Character Creation:**
-```
-Reference the character relationship network design from [Material Name],
-help me design a complex but clear relationship network for the protagonist,
-including at least 3 key characters and 2 relationship layers.
-```
+> Tao's thumb hovered over the button. “Will you press it for me?”
+>
+> Cen pulled back his half-outstretched hand. “You try. Slowly first.”
+>
+> The little car touched the boundary line, backed away, then turned left. The end-of-slot timer sounded. Cen glanced at the full lap he had never run and left the controller in Tao's hands. “That turn was yours.”
 
-**Plot Design:**
-```
-Analyze the pacing arrangement of the "Sect Competition" plot in [Material Name],
-help me design a similar competition plot,
-requiring balanced proportion between early setup and late explosion.
-```
+The reaching and withdrawing hand shows Cen choosing not to take over. The timer and unrun lap preserve his loss. This does not establish Tao's mastery of every control or announce Cen's permanent transformation. The complete scene still needs to establish his initial goal, her willingness and the time limit; this ending alone cannot supply those foundations.
 
-**World Building:**
-```
-Learn from the power system design approach in [Material Name],
-help me refine the cultivation levels for the current project,
-requiring clear strength gaps and signature abilities at each level.
-```
+## 5. Read pacing through how the choice happens
 
----
+In the reference, replaying, hearing a line, undoing a splice and changing a program serve different functions. Remove the mother's words and the decision loses a support. Explain at the start that Fang never cared about perfection and the later change becomes weaker. Those relationships help this writing task more than counting “two action paragraphs and one dialogue paragraph.”
 
-## Advanced Usage
+The car scene needs room for Tao's attempt and Cen resisting the urge to take over. It does not need the reference's paragraph count, sentence lengths or pause locations. Nor is there a universal requirement for a medium conflict every five to ten chapters or a large climax every twenty to thirty. Make those decisions for the particular story, form and information available to its readers.
 
-### Comparing Multiple Works
+## 6. Save reading notes separately from story facts
 
-#### Character Types Across Different Works
+If you want to keep the work, you could create these files yourself. These are suggested names, not automatically generated analysis cards or special commands:
 
-[Screenshot: Comparison view of multiple material character lists]
+- **Reference reading — A changed goal**: material name, source location, short quotations, interpretations and unread scope.
+- **A Different Starting Line — Scene outline**: only accepted design, including consent, the choice and its remaining cost.
+- **Scene 1 — The practice slot**: prose you have actually selected. A chat-only candidate does not make “Scene 1 complete” a true memory update.
 
-By comparing character designs across different works:
+Displaying material results does not establish an analysis-card editing or export feature. Your reading notes are not a replacement for the source. In the next request, attach the needed item or quotation and name the writing problem; do not assume the whole library, whole book or previous analysis is automatically in every chat turn.
 
-1. **Open multiple materials**, switch to character lists
-2. **Find similar type characters**, such as all "hot-blooded" protagonists
-3. **Compare personality tags**, find commonalities and individualities
-4. **Analyze source of differences**, understand different authors' approaches
+Continue with the [decisions-to-prose workflow](workflow-tips.md) and [project-memory example](ai-memory.md). If you need to reconstruct an unfinished manuscript for continuation rather than study it as a reference, see [Oh Story import and continuation](https://zenstory.ai/oh-story/import-and-continue). That is a separate project's workflow, not another name for the material-upload button.
 
-**Learning Gain**: Understand that "tropes" are essentially personalized innovation on classic patterns.
+## Implementation sources
 
-#### Common Plot Patterns
+Source checked on 2026-09-13. These pinned references support the result-display and context boundaries. The fictional passages and readings are original editorial examples, not model outcomes established by the code.
 
-Count plot type distribution across multiple works:
-
-- Create plot type proportion tables
-- Compare habits across different genres, different authors
-- Find your favorite pacing patterns
-
-#### World Building Design Differences
-
-Compare world building across different works:
-
-- **Power System Comparison**: Level count, span design, upgrade difficulty
-- **Faction Distribution Comparison**: Number of factions, relationship complexity, conflict frequency
-- **Rule Setting Comparison**: Strictness of limitations, rationality of rules
-
----
-
-### Building a Material Library
-
-#### Accumulating Excellent Cases
-
-Systematically manage your learning materials:
-
-1. **Classified Collection**: Organize materials by genre (fantasy, urban, xianxia, etc.)
-2. **Mark Highlights**: Note learning points worth studying in each material
-3. **Regular Review**: Review accumulated materials weekly or monthly
-
-#### Classification Management
-
-Build your own learning index:
-
-```
-Suggested Material Classification:
-├── Character Building
-│   ├── Excellent Protagonist Cases
-│   ├── Excellent Supporting Character Cases
-│   └── Antagonist Design Cases
-├── Plot Design
-│   ├── Golden Opening Three Chapters
-│   ├── Climax Scene Design
-│   └── Turning Point Technique Cases
-├── World Building
-│   ├── Power System References
-│   ├── Faction Design References
-│   └── Rule Setting References
-└── Golden Finger Design
-    ├── System Flow Cases
-    ├── Space Flow Cases
-    └── Special Ability Cases
-```
-
-#### Regular Review
-
-Suggested learning rhythm:
-
-- **Weekly**: Quickly browse materials uploaded this week, mark highlights
-- **Monthly**: Deeply study 1-2 materials, take notes and summarize
-- **Quarterly**: Review all materials, extract common patterns
-
----
-
-## Summary
-
-In-depth material analysis is zenstory's core learning feature. Through systematic analysis results, you can:
-
-1. **Learn from Excellent Works** - Deconstruct structure, learn pacing, analyze characters
-2. **Get Creative Inspiration** - Character reference, plot borrowing, world building ideas
-3. **Enhance AI Collaboration** - As context, make AI assist creation more precisely
-4. **Build Knowledge System** - Systematically accumulate and review learning materials
-
-Remember, the value of the material library isn't in quantity, but in how you deeply learn and flexibly apply it. Recommend starting with a few high-quality materials, deeply studying before gradually expanding.
-
----
-
-## Next Steps
-
-Continue exploring more features of the material library:
-
-- [Material Library Basics](../user-guide/materials.md) - Learn about uploading and basic operations
-- [AI Assistant](../user-guide/ai-assistant.md) - Learn how to efficiently use AI
-- [Skills System](../user-guide/skills.md) - Explore more writing assistance features
-
-Wishing you creative progress!
+- [Loading categories when their folders expand](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/web/src/pages/MaterialDetailPage.tsx#L82-L209)
+- [Actual result-display types](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/web/src/components/materials/MaterialViewer.tsx#L123-L198)
+- [Plot and storyline descriptions and related chapters](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/web/src/components/materials/MaterialViewer.tsx#L317-L358)
+- [Task states and errors at completion](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/services/material/ingestion_jobs_service.py#L55-L105)
+- [Explicit material attachments, quotations and context assembly](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/agent/context/assembler.py#L149-L203)

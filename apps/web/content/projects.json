@@ -454,6 +454,10 @@
         [
           "Must I split every chapter into many prompts?",
           "No fixed prompt count is required. You can request a complete chapter when its decisions, evidence and stopping point are clear; unresolved motives may need discussion first. The [writing-handoff workflow](https://zenstory.ai/docs/advanced/workflow-tips) follows one scene from accepted design through prose, local revision and a saved-state handoff, without promising a particular writing speed."
+        ],
+        [
+          "How do I turn reference analysis into my own scene?",
+          "Locate a choice in the source, separate evidence from interpretation, then decide what changes in your own characters' actions and costs. The [original material-analysis walkthrough](https://zenstory.ai/docs/advanced/material-analysis) moves from a recording passage to a different toy-car practice scene, not just renamed props. The [materials introduction](https://zenstory.ai/docs/user-guide/materials) covers TXT limits, asynchronous analysis and explicit chat attachments; uploading a book does not put it all into every conversation."
         ]
       ],
       "zh": [
@@ -480,6 +484,10 @@
         [
           "写一章必须拆成很多轮提示词吗？",
           "没有固定轮数。决定、依据和停止点明确时，可以请求完整章节；动机尚未确定时，先讨论这个关键选择。[写作接续流程](https://zenstory.ai/docs/advanced/workflow-tips)用一场戏连起已选设计、正文、局部修改与实际保存状态，不承诺固定写作速度。"
+        ],
+        [
+          "分析完参考小说，怎样写出自己的场景？",
+          "先从原文定位人物选择，分开依据与解读，再决定自己角色的行动和代价。[素材分析原创示例](https://zenstory.ai/docs/advanced/material-analysis)从录音片段走到不同的小车练习场景，不只是换人名与道具。[素材库入门](https://zenstory.ai/docs/user-guide/materials)说明 TXT 限制、异步分析与显式附加；上传一本书，不等于每轮对话都读完它。"
         ]
       ]
     },
