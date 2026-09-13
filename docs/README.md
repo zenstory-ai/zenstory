@@ -37,7 +37,7 @@
 | [编辑器使用](user-guide/editor.md) | 高效编辑你的创作内容 |
 | [AI创作助手](user-guide/ai-assistant.md) | 与 AI 对话，获取创作灵感与内容 |
 | [技能系统](user-guide/skills.md) | 预设技能加速特定创作任务 |
-| [素材库](user-guide/materials.md) | 管理灵感碎片、世界观设定等素材 |
+| [素材库](user-guide/materials.md) | 上传、查看与按需引用有权使用的参考文本 |
 | [灵感库](user-guide/inspirations.md) | 浏览精选灵感并一键复制到项目 |
 | [订阅与权益](user-guide/billing-benefits.md) | 查看套餐能力、配额和升级路径 |
 | [版本历史](user-guide/version-history.md) | 追踪修改，随时回退 |
@@ -48,10 +48,10 @@
 
 | 文档 | 说明 |
 |------|------|
-| [AI记忆与上下文](advanced/ai-memory.md) | 理解 AI 如何记住你的设定 |
+| [AI记忆与上下文](advanced/ai-memory.md) | 区分已确认设定、实际进度与待定想法，了解项目摘要的边界 |
 | [自定义技能进阶](advanced/skill-creation.md) | 创建专属创作技能 |
-| [素材深度分析](advanced/material-analysis.md) | 让 AI 深度理解你的素材 |
-| [高效写作工作流](advanced/workflow-tips.md) | 专业作者的工作流实践 |
+| [素材深度分析](advanced/material-analysis.md) | 从原文证据理解创作选择，再设计自己的场景 |
+| [网页写作工作流](advanced/workflow-tips.md) | 从创作决定到正文，分清讨论、改稿与实际保存结果 |
 
 ### 参考资料
 快速查询工具与详细说明。

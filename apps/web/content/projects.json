@@ -20,7 +20,7 @@
     },
     "method": {
       "en": [
-        ["How do I continue a manuscript I have already written?", "Use story-import to reconstruct a writing project, not only an analysis report. Confirm the last complete chapter, review inferred facts and partial drafts, then explicitly request the next chapter. The [import and continuation guide](https://zenstory.ai/oh-story/import-and-continue) explains supported inputs, author decisions and the actual project files."],
+        ["How do I continue a manuscript I have already written?", "Use story-import for a continuable project, then separate reconstructed history from the next chapter you choose to write. The [harbor-radio handoff example](https://zenstory.ai/oh-story/import-and-continue) preserves a promise, an already-made decision and unequal character knowledge without inventing a successful repair or complete reconciliation. Old prose stays intact; a future outline is not a completed event."],
         ["How do I start writing in Claude Code?", "After installing the pack, run `/story-setup` in your writing-project folder and open a fresh session. Use `/story` to describe your task rather than memorizing every skill. For a new long-form project, `/story-long-write 帮我开书` prepares settings, an outline and chapter blueprints, then stops before prose by default. Review that plan, then request `/story-long-write 写第1章`. This is the agent-host workflow, not a login to the separate hosted ZenStory workbench. “No prose” still creates planning files; tracking is initialized after the outline stage is complete. For a chat-only proposal or a clear plan-to-draft handoff, see [the writer’s skill guide](https://zenstory.ai/oh-story/agent-skills-for-writers). For a detailed character profile that still does not generate action, use [character motivation](https://zenstory.ai/oh-story/character-motivation) to plan the reason, resistance and choice."],
         ["Can one premise become a complete short story rather than a serial opening?", "Choose one central question and an ending that answers it through action, then keep the sections needed to earn that change. The [original short-story planning example](https://zenstory.ai/oh-story/short-story-from-idea) uses a repair-shop request, a deadline and a negotiated boundary; it does not need a final shock twist. Oh Story separates conception files from a later prose draft."],
         ["扫榜 · chart scanning", "Collect supported platform data when available, accept creator-supplied samples, or explicitly label historical knowledge fallback; unavailable sources can be skipped."],
@@ -35,7 +35,7 @@
         ["Covers", "Prepare genre-aware cover guidance and use an available image-generation tool when configured."]
       ],
       "zh": [
-        ["已经写了十几章，怎么接着写？", "先用 story-import 重建写作项目，而不是只生成拆文报告。确认最后完整章，审阅反推事实与残稿，再点名续写下一章。[导入续写指南](https://zenstory.ai/oh-story/import-and-continue)说明支持的材料、作者需要决定的事项以及实际工程文件。"],
+        ["已经写了十几章，怎么接着写？", "先用 story-import 建立可续写工程，再把反推前史与作者选定的下一章分开。[海港收音机交接示例](https://zenstory.ai/oh-story/import-and-continue)保留一个承诺、已经作出的决定与不同人物的知情范围，不补猜修理成功或彻底和解。旧正文不动，未来细纲也不是已发生事件。"],
         ["Claude Code 装好后，怎么开始写小说？", "安装 skill 包后，在写作项目目录运行 `/story-setup`，再新开会话。通过 `/story` 描述任务，不必先记住全部 skill。新建长篇可以说 `/story-long-write 帮我开书`：默认先生成设定、大纲与细纲，在正文前停下。审阅规划后，再明确请求 `/story-long-write 写第1章`。这是 Agent 宿主内的流程，不是登录另一个产品 ZenStory 网页工作台。 “不写正文”仍会建立规划文件；大纲阶段完成后才初始化追踪状态。只想在聊天里看提案，或想划清规划到正文的交接点，可以看[作者 Skill 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)。 如果人设很完整、人物却不行动，用[人物动机指南](https://zenstory.ai/oh-story/character-motivation)规划行动理由、抵抗与选择。"],
         ["只有一个梗，怎么写成完整短篇而不是连载开头？", "先选一个核心问题和能用行动回答它的结尾，再留下让变化成立的小节。[原创短篇规划示例](https://zenstory.ai/oh-story/short-story-from-idea)只用修补请求、期限与一次边界协商，不必硬塞终局震惊反转。Oh Story 会区分构思文件与后续正文稿。"],
         ["扫榜", "在条件允许时采集所支持平台的数据，接受作者提供的样本，或明确标注历史知识回退；不可用的数据源可以跳过。"],
@@ -133,16 +133,20 @@
         ["Does one novel chapter become one short-drama episode?", "Not by default. Plan around a local dramatic result and a clear handoff, preserving source facts and marking proposed changes. When combining episodes, retain what changes the character’s judgment and the visible consequence of the choice, not every recap or break. The [novel-to-short-drama guide](https://zenstory.ai/drama-skills/novel-to-short-drama) compares one-episode and three-episode cuts of an original repair-shop story, alongside its prose-to-scene-and-shots example."],
         ["Develop", "Create an episode map or genre guidance when needed; a candidate director brief becomes authority only after creator acceptance."],
         ["Write", "Draft episode scripts with explicit scene goals, opposing forces, turns and exit states."],
+        ["Can I storyboard an already accepted screenplay directly?", "Yes: start from the current screenplay and necessary visual facts, without restarting development or waiting for image prompts. The [script-to-storyboard guide](https://zenstory.ai/drama-skills/script-to-storyboard) follows an original scene through four shot designs, preserving dialogue, handoffs and the ending. It explains what to change when complete speech and sequential actions do not fit the planned duration; its timings are text estimates, not measured footage."],
+        ["Can I save a reveal for the ending just by hiding it in the picture?", "Not if the dialogue already gives it away. The [screenplay-to-storyboard example](https://zenstory.ai/drama-skills/script-to-storyboard) tracks what the audience first hears or sees, then compares keeping the accepted scene with an explicitly proposed ending-reveal rewrite. Moving the line changes the cause of a response and the ending; it is not a silent camera adjustment. Any chosen subtitles or start frames must follow that same information order."],
         ["How do I keep the same character across shots?", "Separate persistent identity from the scene’s compatible Look and each shot’s changing hand, prop and gaze state. Carry only the necessary unchanged visual facts as continuity locks. The [three-shot character example](https://zenstory.ai/drama-skills/character-consistency) shows the handoff without pretending a character sheet guarantees generated faces."],
-        ["Are prompt IDs already image references?", "No. `IMG-*` identifies prompt text; `REF-*` binds an inspected real image. A creator-planned `PLAN-*` reference can describe the intended shot but cannot be submitted to `short-drama-produce` before real files are bound. Missing images do not silently authorize text-to-video."],
+        ["Are prompt IDs already image references?", "No. `IMG-*` identifies prompt text; `REF-*` binds an inspected real project file. An external `PLAN-*` points to a current IMG or SHOT entry, not a made-up image path, and can support requested video-prompt writing before the creator attaches pictures in their own canvas. It cannot supply files to `short-drama-produce`. The [reference-selection exercise](https://zenstory.ai/drama-skills/character-consistency) separates visible identity, compatible clothing, geography and boundary frames without requiring every supplied picture to be regenerated."],
         ["Produce, edit, review", "Media generation uses prepare → explicit confirmation → run. Editing and a separately requested review are distinct stages."]
       ],
       "zh": [
         ["小说改短剧，是不是一章对应一集？", "不是默认一一对应。按局部戏剧结果与明确交接来分集，保留原文事实，并标清拟改内容。合并集数时，要保住改变人物判断的信息与选择的可见后果，不必保留每次回顾或断点。[小说改短剧指南](https://zenstory.ai/drama-skills/novel-to-short-drama)用原创维修铺故事比较一集与三集切法，并演示从叙述到场次、镜头的转换。"],
         ["开发", "按需创建分集地图或题材指引；候选导演阐述经创作者接受后才成为权威。"],
         ["写作", "写分集剧本，明确场次目标、对抗力、转折和出口状态。"],
+        ["已经确认的剧本，可以直接做分镜吗？", "可以从当前剧本与必要视觉事实进入，不必重做开发，也不必等待图片提示词。[剧本到分镜指南](https://zenstory.ai/drama-skills/script-to-storyboard)用原创场景展示四镜设计，保留对白、动作交接与结尾，并说明完整发声和顺序动作装不下时该改哪一层；示例时长是文本估计，不是实测视频。"],
+        ["想把信息留到结尾揭晓，只在画面里藏住就够了吗？", "若对白已经说破，就不够。[剧本到分镜示例](https://zenstory.ai/drama-skills/script-to-storyboard)逐镜说明观众先听到或看到什么，再比较保留原场与明确提出结尾揭晓改稿。移走一句话可能改变反应的原因和结尾，不能冒充只调机位；若采用字幕或起始帧，也要服从同一信息顺序。"],
         ["同一角色跨镜头，怎样减少外观和动作串线？", "分开长期人物身份、本场相容造型，以及每镜变化的手位、道具和视线；只有必要且不变的可见事实才作为连续性锁传递。[原创三镜示例](https://zenstory.ai/drama-skills/character-consistency)展示具体交接，不把角色设定表当成生成脸部一致的保证。"],
-        ["有提示词编号，就算已经有参考图了吗？", "不是。`IMG-*` 标记提示词正文，`REF-*` 才绑定已检查的真实图片。创作者计划提供的 `PLAN-*` 可以描述预期镜头，但真实文件绑定前不能交给 `short-drama-produce`；缺图也不能静默当成已授权文生视频。"],
+        ["有提示词编号，就算已经有参考图了吗？", "不是。`IMG-*` 标记提示词，`REF-*` 绑定已检查的项目内真实文件；外部 `PLAN-*` 指向当前 IMG 或 SHOT 条目，不是虚构图片路径。创作者可以先按完整计划请求视频提示词，再在自己的画布挂图，但计划不能向 `short-drama-produce` 提供文件。[挑图与挂图示例](https://zenstory.ai/drama-skills/character-consistency)区分可见身份、相容造型、地理与边界帧，不要求每张已有图都重新生成。"],
         ["制作、剪辑、审查", "媒体生成遵循准备 → 明确确认 → 执行。剪辑与另行请求的审查是独立阶段。"]
       ]
     },
@@ -292,7 +296,7 @@
         ["Can I write the recap before choosing the cut?", "Decide the story and sound roles first. In the orchestrated cut flow, select source clips, then write narration against the actual edited output timeline. Do not copy original timestamps into that output-time narration."],
         ["What if the voiceover is too long?", "Reduce or move the thought instead of speaking over the next protected line. Bounded speed adjustment is not unlimited; an unsafe fit can block placement rather than clipping the spoken ending."],
         ["Does an audio-owner label automatically preserve the mix?", "No. The renderer does not parse the creative board. Actual narration timing, speech evidence and mix settings implement the plan; source audio can remain ducked beyond the written block until a safe recovery point. Listen to the rendered handoff."],
-        ["Can I finish the sound and captions manually?", "After the real timeline exists, use the [JianYing / CapCut draft guide](https://zenstory.ai/video-recap/capcut-draft) to export an editable bundle without rerunning remote stages, then review audio handoffs and audible original-dialogue captions in your editor."]
+        ["Can I finish the sound and captions manually?", "Export the existing timeline, then choose what the scene needs. The [JianYing / CapCut guide](https://zenstory.ai/video-recap/capcut-draft) compares two original rehearsal edits: move commentary after the result, or remove it for an original-audio-led cut. Move matching captions and inspect the old and new volume keyframes; moving only a voiceover does not move every dependent element."]
       ],
       "zh": [
         ["怎样把本地视频做成中文解说？", "先建立场景与对白证据索引，再确定观众承诺，分配画面、原声与旁白的职责，之后为有依据的文案配音、合成。[完整流程指南](https://zenstory.ai/video-recap/video-to-narration)说明 full/cut 选择、阶段交接和预期文件，再按需导出草稿。"],
@@ -301,7 +305,7 @@
         ["可以先写好旁白，再随便剪画面吗？", "先明确故事与声音职责。编排式 cut 流程先选原片片段，再针对实际剪后输出时间线写旁白，不能直接把原片时间戳抄进输出时间的旁白稿。"],
         ["配音太长，放不进窗口怎么办？", "先删减或移动这段意思，不要抢下一句须保留原话的位置。受限变速不等于无限加速；无法安全放入时可阻断放置，而不是裁掉尾音。"],
         ["写了声音职责标签，就能自动保住原声吗？", "不能。渲染器不解析创意 board，需要实际旁白时间、对白证据与混音设置落实；原声可能在书面段落结束后仍被压低，直到安全恢复点。要听渲染后的真实交接。"],
-        ["可以再手动精修声音和字幕吗？", "真实时间轴已存在时，可按[剪映 / CapCut 草稿指南](https://zenstory.ai/video-recap/capcut-draft)导出可编辑媒体包，不重跑远程阶段；再在编辑器里精修声音交接与实际可听见的原声对白字幕。"]
+        ["可以再手动精修声音和字幕吗？", "先导出已有时间轴，再选择这场戏需要什么。[剪映 / CapCut 指南](https://zenstory.ai/video-recap/capcut-draft)比较两种原创排练剪法：把解说移到结果后，或去掉解说做原声主导的短版。对应字幕要一起处理，旧位置与新位置的音量关键帧也要检查；只移动旁白，不等于所有相关元素都会跟着移动。"]
       ]
     },
     "distinctive": {
@@ -332,7 +336,8 @@
         "[The renderer does not parse audio-owner decisions](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-assemble/SKILL.md#L19-L31)",
         "[Mixing, bounded fit and safe source-audio restoration](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-assemble/SKILL.md#L60-L77)",
         "[Source and output clocks in the cut workflow](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-cut/SKILL.md#L61-L76)",
-        "[Visual understanding can skip transcription, not remote VLM](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-understanding/SKILL.md#L38-L48)"
+        "[Visual understanding can skip transcription, not remote VLM](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-understanding/SKILL.md#L38-L48)",
+        "[Video/audio/subtitle separation and authored volume placement](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/timeline.py#L77-L166)"
       ],
       "zh": [
         "[编导规划与阶段交接](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-recap/SKILL.md#L10-L45)",
@@ -344,7 +349,8 @@
         "[渲染器不解析声音职责方案](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-assemble/SKILL.md#L19-L31)",
         "[混音、时长边界与安全恢复原声](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-assemble/SKILL.md#L60-L77)",
         "[剪辑流程的原片与输出时钟](https://github.com/zenstory-ai/video-recap-skills/blob/82ebbf04d41d8c347de4fde1368bd32ec475324b/skills/video-cut/SKILL.md#L61-L76)",
-        "[视觉理解可跳过转写，不等于跳过远程 VLM](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-understanding/SKILL.md#L38-L48)"
+        "[视觉理解可跳过转写，不等于跳过远程 VLM](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-understanding/SKILL.md#L38-L48)",
+        "[视频、音频与字幕的分离及音量位置](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/timeline.py#L77-L166)"
       ]
     },
     "vocabulary": ["解说视频", "剪映草稿", "先剪后配"]
@@ -371,11 +377,13 @@
     "method": { "en": [
         ["Install", "Follow the versioned installation guide: Node.js 24+, pnpm-assisted plugin installation in a DSH Web profile, then start DSH Web. Installing the creation plugin alone does not add a Web UI to a fresh profile."],
         ["Configure", "Configure a model for AI creation and only the media providers you use. Video processing additionally requires Python and ffmpeg/ffprobe."],
-        ["Open", "Choose a workspace and session. Creation tabs appear when project files exist; an empty workspace retains native DSH Chat."]
+        ["Open", "Choose a workspace and session. Creation tabs appear when project files exist; an empty workspace retains native DSH Chat."],
+        ["Continue an existing draft", "Use the [DeepSeek fiction guide](https://zenstory.ai/dsh/deepseek-novel-writing) to distinguish a complete chapter from an unfinished tail, compare next-scene choices and separate Chat-only discussion from import or manuscript changes."]
       ], "zh": [
         ["安装", "按版本化安装指南准备 Node.js 24+，用附带 pnpm 的命令将插件安装到 DSH Web profile，再启动 DSH Web。只安装创作插件不会给全新的 profile 添加网页界面。"],
         ["配置", "为 AI 创作配置模型，并仅配置需要的媒体服务；视频处理还需要 Python 与 ffmpeg/ffprobe。"],
-        ["打开", "选择工作目录与会话。存在创作项目文件后显示对应工作台；空目录保留原生 DSH Chat。"]
+        ["打开", "选择工作目录与会话。存在创作项目文件后显示对应工作台；空目录保留原生 DSH Chat。"],
+        ["续写已有稿件", "按 [DeepSeek 小说写作指南](https://zenstory.ai/dsh/deepseek-novel-writing)区分完整章与残稿，比较下一场戏的行动选择，并把 Chat 讨论、导入工程与修改正文分开。"]
       ] },
     "distinctive": {
       "en": [

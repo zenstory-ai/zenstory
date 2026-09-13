@@ -157,40 +157,42 @@
   {
     "owner": "video-recap",
     "slug": "capcut-draft",
-    "checked_on": "2026-09-12",
+    "checked_on": "2026-09-13",
     "title": {
-      "en": "Export a video recap as an editable JianYing / CapCut draft",
-      "zh": "把视频解说导出为可编辑的剪映 / CapCut 草稿"
+      "en": "Export a video recap to JianYing / CapCut and keep editing",
+      "zh": "视频解说导出剪映 / CapCut 后，怎样继续精剪？"
     },
     "answer": {
-      "en": "If Video Recap Skills has already produced `timeline.json`, run its standalone JianYing exporter to create a draft folder without rerunning ASR, visual understanding, TTS or MP4 rendering. Keep the media bundle with the draft, then check import and playback in your actual editor version. Exported JSON alone does not prove editor compatibility.",
-      "zh": "如果 Video Recap Skills 已经生成 `timeline.json`，可以直接运行独立剪映导出器，创建草稿目录，无需重跑 ASR、视觉理解、TTS 或 MP4 渲染。让媒体包与草稿一起移动，再在你实际使用的编辑器版本中检查导入与播放。只导出 JSON 不证明编辑器兼容。"
+      "en": "To shorten a recap, move commentary away from an important line or correct captions, export the existing `timeline.json` as an editable draft rather than treating the finished MP4 as your only source. The normal recap timeline keeps source sound with the video clips, narration and optional music on audio tracks, and displayed captions as text. The standalone exporter does not rerun ASR, visual understanding or TTS, or render the whole recap MP4. Keep the media bundle with the draft and open it in your actual editor version; the exported files alone do not prove compatibility. The rehearsal example below shows two editorial choices, including what else must change when you move a voiceover.",
+      "zh": "想缩短解说、把旁白让开关键原话，或修正字幕时，应把已有 `timeline.json` 导出成可编辑草稿，不要只拿最终 MP4 当全部素材。常规解说时间轴把原声保留在视频片段上，旁白与可选配乐放在音轨上，显示字幕则是文本。独立导出器不重跑 ASR、视觉理解或 TTS，也不重新渲染整部解说 MP4。媒体包要与草稿一起保留，并在你实际使用的编辑器版本中打开；导出文件本身不证明兼容。下方的排练示例比较两种精剪选择，也说明移动旁白时还需要一起处理什么。"
     },
     "prerequisites": {
       "en": [
-        "A local checkout or installed skill directory containing `skills/video-assemble/scripts/export_jianying.py`, Python, and a completed `timeline.json` with accessible media references. The `/ABS/` paths below are placeholders to replace. If you have not created a recap timeline yet, start with the [video-to-narration workflow](https://zenstory.ai/video-recap/video-to-narration).",
+        "A local checkout or installed skill directory containing `skills/video-assemble/scripts/export_jianying.py`, Python, ffprobe, and a completed `timeline.json` with accessible media references. Replace the `/ABS/` placeholders below. If no recap timeline exists yet, start with the [video-to-narration workflow](https://zenstory.ai/video-recap/video-to-narration); a finished MP4 alone does not reconstruct its separate voice and caption tracks.",
         "If starting before assembly, prepare the source video and `work_dir/tts_meta.json`. Local assembly needs ffmpeg; burned subtitles need its libass/subtitles filter. MiMo supplies remote ASR/VLM/default TTS; optional Fish Audio replaces TTS only.",
-        "A JianYing or CapCut desktop installation in which you can test the exported folder. Export is an optional sidecar; it is not required to render a recap MP4."
+        "A JianYing or CapCut desktop installation in which you can test the exported folder. Export is an optional sidecar; it is not required to render a recap MP4.",
+        "Decide the revision scope: the thought to keep, the source line or action that must remain audible/visible, and whether you are retaining the existing voice recording or requesting a new one. If a timeline explicitly requests reverse playback without a prepared reversed file, export can invoke local ffmpeg to create and bundle that material; this is not a no-media-processing guarantee."
       ],
       "zh": [
-        "本地仓库或已安装的 skill 目录中存在 `skills/video-assemble/scripts/export_jianying.py`，有 Python、已生成的 `timeline.json`，且其媒体引用可访问。下方 `/ABS/` 路径是需要替换的占位符。 如果还没有解说时间线，先从[视频解说完整流程](https://zenstory.ai/video-recap/video-to-narration)开始。",
+        "本地仓库或已安装的 skill 目录中有 `skills/video-assemble/scripts/export_jianying.py`，已准备 Python、ffprobe、生成完毕的 `timeline.json`，且媒体引用可访问。替换下方 `/ABS/` 占位路径。尚无解说时间轴时，先从[视频解说完整流程](https://zenstory.ai/video-recap/video-to-narration)开始；只有成片 MP4，不会自动重建分开的旁白和字幕轨道。",
         "若尚未合成，先准备源视频与 `work_dir/tts_meta.json`。本地合成需要 ffmpeg；烧录字幕需要 libass/subtitles filter。MiMo 提供远程 ASR/VLM/默认 TTS；可选 Fish Audio 只替换 TTS。",
-        "能用于实际测试草稿的剪映或 CapCut 桌面安装。草稿是可选附加导出，不是渲染解说 MP4 的必要步骤。"
+        "能用于实际测试草稿的剪映或 CapCut 桌面安装。草稿是可选附加导出，不是渲染解说 MP4 的必要步骤。",
+        "先决定修改范围：要留下的意思、必须听见的原话或看见的动作，以及保留现有配音还是另外申请新配音。若时间轴明确要求倒放却没有已备好的倒放文件，导出可以调用本地 ffmpeg 生成并打包该素材；因此不是“绝不处理媒体”的承诺。"
       ]
     },
     "steps": {
       "en": [
         [
-          "Choose the entry point",
-          "For an existing `timeline.json`, use the standalone exporter below. If still assembling, pass `--export-jianying --jianying-out /ABS/drafts` to `assemble.py` after its required inputs are ready."
+          "Choose export-only or assembly",
+          "With a completed `timeline.json`, use the standalone command below. It is the path for exporting the existing edit without rerunning assembly. If assembly has not happened yet, its separate `assemble.py` flow can also export a draft with `--export-jianying --jianying-out /ABS/drafts`, but it still performs its normal assembly work."
         ],
         [
           "Preserve the right source",
           "In cut mode, pass `--source-video /ABS/original.mp4` to the `assemble.py` command that creates `timeline.json`; this preserves real original-video intervals in the timeline. The standalone exporter then consumes that completed timeline and does not accept `--source-video`."
         ],
         [
-          "Export without remote stages",
-          "Run `export_jianying.py /ABS/work/timeline.json --out-dir /ABS/drafts --name recap_demo`. This path reads the timeline and media; it does not invoke MiMo/Fish or render a new MP4."
+          "Export the existing edit, not a flattened substitute",
+          "Run the standalone command with the real timeline and read its returned `draft_dir` and warnings. It reads the timeline and referenced media, without calling MiMo/Fish or rendering the whole recap again. Do not substitute `result.mp4` for a missing original clip merely because the pictures look similar: that file can already contain the mixed voiceover and burned captions."
         ],
         [
           "Keep the bundle together",
@@ -201,22 +203,34 @@
           "Use your installed editor’s supported local-draft opening or import flow. Keep the returned draft directory intact and confirm its media, subtitles and audio tracks resolve; menus and draft locations vary by editor release."
         ],
         [
-          "Finish and play back",
-          "Adjust subtitles, framing and audio handoffs, then play the entire final export at normal speed. Automated QC identifies candidates for review; it is not proof that the finished video is correct."
+          "Identify what each editable element actually contains",
+          "In the normal exported recap, video clips carry their original audio and volume keyframes; the exporter does not promise a separate clean dialogue stem. Narration and optional BGM are separate audio segments, and recap captions are text segments. A caption correction changes displayed text, not the words in its WAV. Hard captions already inside the source image cannot be removed by deleting an exported text segment."
+        ],
+        [
+          "Move the explanation, not the evidence",
+          "Decide what the viewer needs to hear or see before shortening. The worked rehearsal preserves a failed entrance, the instruction, a visible cue and the next entrance. Move commentary after that result, or omit it for an original-audio-led cut. Do not remove the cue to gain two seconds and then claim that the remaining cut still shows how the response followed it. For the earlier sound-planning decision, see [original audio and narration](https://zenstory.ai/video-recap/original-audio-and-narration)."
+        ],
+        [
+          "Keep voice, captions and volume changes consistent",
+          "When moving a recorded voiceover, move its corresponding caption cues and inspect original-audio and music keyframes at both the old and new positions. The exporter writes those positions; it does not actively re-duck the editor timeline afterward. If you change what is said, provide an approved replacement recording and retime it rather than only changing a caption or cutting off the old recording."
+        ],
+        [
+          "Choose which edit owns the final delivery",
+          "Keep the untouched export as a starting point and use the target editor’s supported copy/version flow for a finishing version. This exporter reads `timeline.json`; it does not read your edited desktop project back into that timeline, SRT, WAV or previously rendered MP4. Export the chosen finished version from the editor, or deliberately carry the decisions back to the pipeline inputs before a later render. Re-exporting the old timeline is not a way to recover the editor changes."
         ]
       ],
       "zh": [
         [
-          "选择入口",
-          "已有 `timeline.json` 时使用下方独立导出器。若仍在合成，待必要输入齐备后，在 `assemble.py` 命令中加入 `--export-jianying --jianying-out /ABS/drafts`。"
+          "区分仅导出与重新合成",
+          "已有完整 `timeline.json` 时，用下方独立命令导出当前剪辑，不重跑合成。尚未合成时，另一条 `assemble.py` 流程也能通过 `--export-jianying --jianying-out /ABS/drafts` 附带导出草稿，但仍会执行正常合成工作。"
         ],
         [
           "保留正确源视频",
           "cut 模式下，在生成 `timeline.json` 的 `assemble.py` 命令中传入 `--source-video /ABS/original.mp4`，让时间轴保留真实原片区间。之后独立导出器只读取这份已完成的时间轴，不接受 `--source-video` 参数。"
         ],
         [
-          "不重跑远程阶段地导出",
-          "运行 `export_jianying.py /ABS/work/timeline.json --out-dir /ABS/drafts --name recap_demo`。这一路径读取时间轴与媒体，不调用 MiMo/Fish，也不渲染新的 MP4。"
+          "导出已有剪辑，不用压平的成片冒充原素材",
+          "对真实时间轴运行独立命令，读取返回的 `draft_dir` 与警告。这条路径读取时间轴及引用媒体，不调用 MiMo/Fish，也不重新渲染整部解说。原素材缺失时，不要因为画面相似就改用 `result.mp4`：里面可能已经混入旁白并烧录字幕。"
         ],
         [
           "完整保留媒体包",
@@ -227,35 +241,51 @@
           "使用已安装版本支持的本地草稿打开或导入方式，保持返回的草稿目录完整，并检查媒体、字幕和音轨是否可用；不同版本的菜单与草稿位置可能不同。"
         ],
         [
-          "精修并完整播放",
-          "调整字幕、构图与声音交接，再以正常速度完整播放最终导出文件。自动 QC 只能定位待复核问题，不证明成片正确。"
+          "看清可编辑元素里到底是什么",
+          "常规导出的解说里，视频片段带着原声与音量关键帧，导出器不承诺另外拆出干净的人声轨。旁白、可选 BGM 是独立音频段，解说字幕是文本段。改字幕只改显示文字，不会改 WAV 里说的话；原画面已有的硬字幕也不能靠删除导出的文本段消失。"
+        ],
+        [
+          "移动解释，不剪掉它所依赖的证据",
+          "先确定观众必须听见或看见什么，再缩短。排练示例保留一次没合上的起拍、原话、可见手势和下一次起拍；可以把解说移到结果后，也可以去掉解说做原声主导的短版。不要为了省两秒剪掉手势，却仍声称成片展示了回应如何跟随它。更前面的声音分工问题，见[原声与旁白指南](https://zenstory.ai/video-recap/original-audio-and-narration)。"
+        ],
+        [
+          "让配音、字幕与音量变化一起对齐",
+          "移动已有旁白时，一起移动它对应的字幕提示，并检查旧位置、新位置的原声音量和配乐关键帧。导出器写出这些位置后，不会在编辑器里持续自动重算压低原声的窗口。真要改说话内容，应准备作者接受的新录音并重排时长，而不是只改字幕或切掉旧录音的尾字。"
+        ],
+        [
+          "确定哪一版负责最终交付",
+          "把未修改的导出留作起点，用目标编辑器支持的复制/版本方式建立精剪版。这个导出器读取 `timeline.json`，不会把桌面工程里的修改反向回写到该时间轴、SRT、WAV 或之前的 MP4。最终选择在编辑器中导出成片，或先把修改决定明确带回流程输入再另行渲染；重导出旧时间轴不会恢复编辑器里的修改。"
         ]
       ]
     },
     "example": {
-      "en": "From an existing timeline (replace every /ABS path):\npython3 /ABS/video-recap-skills/skills/video-assemble/scripts/export_jianying.py \\\n  /ABS/work/timeline.json \\\n  --out-dir /ABS/drafts \\\n  --name recap_demo\n\nRead the returned draft_dir and any warnings.\nKeep the entire draft folder and its Resources/local/ media together.",
-      "zh": "从已有时间轴导出（替换所有 /ABS 路径）：\npython3 /ABS/video-recap-skills/skills/video-assemble/scripts/export_jianying.py \\\n  /ABS/work/timeline.json \\\n  --out-dir /ABS/drafts \\\n  --name recap_demo\n\n读取返回的 draft_dir 与全部警告。\n把完整草稿目录与其中的 Resources/local/ 媒体一起保留。"
+      "en": "From an existing timeline (replace every /ABS path):\npython3 /ABS/video-recap-skills/skills/video-assemble/scripts/export_jianying.py \\\n  /ABS/work/timeline.json \\\n  --out-dir /ABS/drafts \\\n  --name rehearsal_base\n\nRead the returned draft_dir and any warnings.\nKeep the entire draft folder and its Resources/local/ media together.\n\nORIGINAL EDITORIAL EXERCISE — The Second Count-In\nThese are invented footage descriptions and edit placements, not real video, an exported\nproject or a measured TTS result. All times below are illustrative. English dialogue is\na meaning translation of the Chinese, not a timed English dub. Reuse real media only\nwhen it actually contains these beats; do not invent missing shots to match this plan.\n\nViewer question: what changes between the two entrances?\nThe supplied fictional footage shows a guitar entering before the other players, a stop,\nan instruction, a hand cue, and a second entrance that lands together. It does not show\nthat the whole rehearsal is finished, that the band has mastered the piece, or why anyone\nmade the first mistake.\n\nSource time       → edited time       | picture and source sound\n00:12–00:16        → 00:00–00:04        | first entrance does not land together; they stop\n00:22–00:26        → 00:04–00:08        | “看我抬手，再进。” / “Watch my hand go up, then come in.”\n00:26–00:28        → 00:08–00:10        | the leader raises a hand; the others wait\n00:28–00:34        → 00:10–00:16        | second entrance, complete short phrase and its necessary audible release\n00:34–00:38        → 00:16–00:20        | the phrase and its release are over; hands lower in the remaining room tone\n\nThe gap at source 00:16–00:22 is already omitted from this illustrative edit.\nAll edit decisions below use the right-hand clock, not the source-video timestamps.\nThe hand cue and second entrance stay consecutive in source order; no reaction from\nanother attempt has been substituted.\n\nA problem deliberately placed in this example draft:\n- A narration recording and its matching caption occupy edited 00:05–00:09.\n- Chinese line: “抬手以后，第二次起拍合在了一起。”\n  Meaning: “After the raised hand, the second entrance lands together.”\n- For this placement exercise ONLY, assume that the complete existing recording is four\n  seconds long. That is not an observed speaking time or a duration to force onto new TTS.\n- The voiceover covers part of the instruction; original-audio volume keyframes also\n  lower that region. Moving only the caption cannot make the instruction audible again.\n\nA — KEEP A SHORT EXPLANATION, AFTER THE RESULT (illustrative 20-second edit)\n1. Keep the failed start, complete instruction, hand cue and second phrase in order.\n2. Move the complete four-second narration from 00:05–00:09 to 00:16–00:20, with its caption\n   shifted by the same eleven seconds. It now comments on the result after the viewer\n   has heard it, rather than speaking over the instruction.\n3. Inspect the video clip’s original-audio keyframes: remove the obsolete reduction over\n   the instruction where appropriate, preserve the audible entrance, and shape any new\n   reduction/recovery around the late narration. Inspect optional music there too.\n   A moved audio segment does not itself relocate keyframes on another segment.\n4. If the actual recording or source phrase lasts longer than the illustrative window,\n   enlarge or change the edit. Do not amputate a syllable, assume a silence, or hide the cue\n   just to preserve the number “20.” The late shot must truly contain a usable settling beat.\n\nB — LET THE RETRY SPEAK FOR ITSELF (illustrative 16-second editor cut)\n1. Remove this added narration and its corresponding narration caption; do not delete\n   unrelated captions indiscriminately. If original-dialogue captions exist, keep only\n   those that match what remains audible. The standard recap text track is not a promise\n   that every original line has already been transcribed into an editable caption.\n2. Remove the 00:16–00:20 tail, not the instruction or the 00:08–00:10 cue.\n3. Remove the now-unneeded original-audio reduction and listen to both entrances at normal\n   speed. If music masks the comparison, lower or omit it rather than lifting every track.\n   End after the complete second phrase, with enough audible release in the real footage.\n\nA adds one retrospective explanation; B gives the audible comparison more responsibility.\nNeither supports a title such as “They finally mastered the whole piece.” A narrower\neditorial title is “Same opening, second try.” These are two author-selected cuts, not\nbuilt-in exporter presets, and this exercise supplies no finished recording or video.\n\nWhen the correction is about WORDS, not placement:\nSuppose an existing recording says “They finally mastered the whole piece.” Changing its\ncaption to the narrower claim would leave the unsupported spoken claim audible. Remove\nthat recording with its caption, or obtain a separately approved replacement and fit its\nreal duration. An export-only command does not synthesize the replacement voice.\n\nHandoff note — plain editorial notes, not a required file format or a new feature:\nChosen version: A or B; record the decision, not both as one final cut.\nProtected beats: first stop → complete instruction → hand cue → second phrase.\nChanged elements: narration placement/removal, matching captions, source/music volume.\nWorking master: the named editor project, while the original export remains untouched.\nFinal deliverable: the render from that chosen edit, not the older pipeline MP4.\nStill to judge in the real media: full spoken endings, cue visibility, phrase release\nand whether the target editor opens the bundled media correctly.\n\nRunning the standalone exporter again reads its input timeline again. A new output folder\nname does not make it include changes from the editor project. Keep the bundle intact and\nrecord which version you actually chose to finish.",
+      "zh": "从已有时间轴导出（替换所有 /ABS 路径）：\npython3 /ABS/video-recap-skills/skills/video-assemble/scripts/export_jianying.py \\\n  /ABS/work/timeline.json \\\n  --out-dir /ABS/drafts \\\n  --name rehearsal_base\n\n读取返回的 draft_dir 与全部警告。\n把完整草稿目录与其中的 Resources/local/ 媒体一起保留。\n\n原创编辑练习——《第二次起拍》\n以下是虚构的画面描述与剪辑位置，不是真实视频、已导出的工程或 TTS 实测结果。\n所有时间仅用于说明剪辑关系，不能当作实际录音长度。真实素材确实包含这些拍点时\n才采用相应方案，不要为了套例子补造不存在的镜头。\n\n观众问题：两次起拍之间，什么发生了变化？\n这份虚构素材里，吉他先于其他人进入，大家停下；随后有人发出指令、抬手，\n第二次起拍合在一起。它没有证明整场排练已完成、整首曲子已熟练，也没证明\n第一次失误究竟出于谁的什么心理。\n\n原片时间          → 剪后时间          | 画面与原声\n00:12–00:16        → 00:00–00:04        | 第一次起拍没合上，大家停下\n00:22–00:26        → 00:04–00:08        | “看我抬手，再进。”\n00:26–00:28        → 00:08–00:10        | 领拍的人抬手，其他人等着\n00:28–00:34        → 00:10–00:16        | 第二次一起进入，奏完短乐句并留足必要余音\n00:34–00:38        → 00:16–00:20        | 乐句及其余音已结束，手放下，只余现场底声\n\n原片00:16–00:22这段已从示例剪辑中省略。下文的编辑操作都用右边的剪后时钟。\n手势和第二次起拍保持原片中的相邻顺序，没有拿另一次尝试的反应镜头来替代。\n\n给示例草稿故意放入一个问题：\n- 一段旁白录音及其对应字幕位于剪后00:05–00:09。\n- 旁白是：“抬手以后，第二次起拍合在了一起。”\n- 只为讲清移动关系，假设这段已有完整录音长四秒；这不是实测语速，也不是\n  要求新 TTS 硬塞进去的规定时长。\n- 它盖住部分原话，视频片段的原声音量关键帧也压低了这个区域。\n  只移动字幕，不会让那句指令重新听清。\n\nA——保留一句解释，但放到结果之后（示意20秒版）\n1．保留第一次没合上的起拍、完整指令、抬手与第二次短句的先后关系。\n2．把完整四秒旁白从00:05–00:09移到00:16–00:20，对应字幕也整体后移十一秒。\n   先让观众听到结果，再回看一句，不在发出指令时抢话。\n3．检查视频片段的原声音量关键帧：按需解除指令处已经过时的压低，保住两次\n   起拍的可听性，并处理新旁白位置的压低/恢复；有配乐时也检查那个位置。\n   移动一段配音，不等于另一个片段上的关键帧会跟着搬家。\n4．真实录音或原声短句比示意窗口长，就扩展或另选剪法；不要切尾字、假设有\n   静默空隙，或为了凑“20秒”删掉手势。尾镜也必须真的有可用的收束过程。\n\nB——让这次重来自己说话（示意16秒的编辑器短版）\n1．删掉这段新增旁白及其对应的解说字幕，不盲目清空所有文本。\n   若原声对白字幕已经存在，只保留与实际可听内容相符的部分；常规解说文本轨\n   不等于已经为全部原声对白做好了可编辑字幕。\n2．删的是00:16–00:20尾段，不是指令，也不是00:08–00:10的手势。\n3．解除不再需要的原声压低，按正常速度听两次起拍。配乐遮住比较时，降低或\n   去掉配乐，而不是把所有轨道一起拉响。实际结束点要在第二次乐句完整奏完、\n   余音有足够收束之后，不能只照示例秒数硬切。\n\nA 多留一句事后解释；B 让可听的比较承担更多叙事。两者都不足以支持\n“他们终于练熟了整首曲子”这样的标题；更窄的编辑标题可以是“同一个开头，再来一次”。\n这是作者选的两种剪法，不是导出器内置预设，也没有提供已生成的配音或成片。\n\n如果错的是说话内容，而不只是位置：\n假设已有录音说“他们终于练熟了整首曲子”，只把字幕改成较窄的判断，观众仍会\n听到过度结论。应连同字幕去掉这段录音，或另外准备获准的新录音，再按真实时长\n放置。仅导出草稿的命令不会替你合成新配音。\n\n交接说明——普通编辑笔记，不是必需文件格式或新增功能：\n选定版本：A 或 B，记下选择，不把两版同时当成最终稿。\n保留拍点：第一次停下 → 完整指令 → 抬手 → 第二次短句。\n修改元素：旁白移动/删除、对应字幕、原声/配乐音量。\n当前母版：点名的编辑器工程；最初导出保留不动。\n最终交付：从选定精剪版导出的成片，不是之前那份流程 MP4。\n实际素材仍要判断：原话是否完整、手势是否可见、短句是否收住，目标编辑器能否\n正确打开媒体包。\n\n再次运行独立导出器，只会再次读取它的输入时间轴。换一个输出目录名，不会自动\n带上编辑器工程中的修改。完整保留媒体包，并注明最后真正选中了哪一版。"
     },
     "outputs": {
       "en": [
         "The returned `draft_dir` contains `draft_content.json`, `draft_info.json` and `draft_meta_info.json`.",
         "Bundled media goes under `Resources/local/video/`, `Resources/local/audio/` and `Resources/local/image/`; missing files remain explicit external references with warnings.",
-        "Non-empty output directories are not overwritten: export chooses a numbered sibling. This draft export is separate from the assembled MP4, subtitles and `timeline.json`."
+        "Non-empty output directories are not overwritten: export chooses a numbered sibling. This draft export is separate from the assembled MP4, subtitles and `timeline.json`.",
+        "The editor finishing version is a separate deliverable from the pipeline snapshot. Edited captions do not replace narration audio; a fresh draft exported from unchanged `timeline.json` does not contain the editor’s revisions. Keep the chosen project and the media it still references together."
       ],
       "zh": [
         "返回的 `draft_dir` 包含 `draft_content.json`、`draft_info.json` 与 `draft_meta_info.json`。",
         "打包媒体位于 `Resources/local/video/`、`Resources/local/audio/`、`Resources/local/image/`；缺失文件保留为带警告的外部引用。",
-        "不会覆盖非空输出目录，导出器会选择带编号的相邻目录。草稿导出与已合成的 MP4、字幕和 `timeline.json` 相互独立。"
+        "不会覆盖非空输出目录，导出器会选择带编号的相邻目录。草稿导出与已合成的 MP4、字幕和 `timeline.json` 相互独立。",
+        "编辑器精剪版与流程快照是两份不同交付。改过的字幕不会替换旁白音频；未修改的 `timeline.json` 再导出一次，也不会包含编辑器里的修订。选定工程和它仍引用的媒体要一起保留。"
       ]
     },
     "verification": {
       "en": [
         "Confirm the three draft JSON files and referenced media, then test opening in the exact desktop/region version you intend to use. A schema template version or a historical smoke test is not universal CapCut/JianYing compatibility.",
+        "For the rehearsal exercise, the instruction, cue and second entrance must remain in order and audible where needed. Check the original-audio keyframes at the old voiceover position as well as the new one, and compare the actual spoken words with their displayed captions. The illustrative 20/16-second alternatives are not measured output requirements.",
         "Check voiceover endings, audio sync, original-audio transitions, BGM levels, subtitle line breaks and cuts. Drafts reference source media, so hard subtitles already present in that footage can remain and may need masking.",
         "An export-only smoke test validates the local draft contract, not a remote generation run, a successfully opened desktop editor or the final rendered video."
       ],
       "zh": [
         "检查三份草稿 JSON 与引用媒体，再在实际目标桌面/地区版本中测试打开。Schema 模板版本或历史 smoke test 不等于所有剪映/CapCut 版本都兼容。",
+        "针对排练练习，指令、手势、第二次起拍要保持顺序，并在需要处听得清。既看新旁白位置，也看旧位置的原声音量关键帧；把实际说的话与显示字幕对照。示意的20/16秒两版不是实测交付时长要求。",
         "检查旁白尾字、音画同步、原声交接、BGM 音量、字幕断行与剪点。草稿引用源媒体，原素材已有的硬字幕可能仍在，需要时应遮罩。",
         "只运行导出 smoke test 验证的是本地草稿契约，不证明已执行远程生成、桌面编辑器成功打开或最终成片正确。"
       ]
@@ -267,7 +297,13 @@
         "[Remote model dependencies and optional review](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L47-L69)",
         "[Draft files and editor-version boundaries](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/references/timeline-and-jianying.md#L88-L116)",
         "[Media bundling, warnings and non-overwriting output](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/references/timeline-and-jianying.md#L118-L141)",
-        "[Standalone exporter arguments and returned draft directory](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-assemble/scripts/export_jianying.py#L219-L261)"
+        "[Standalone input, arguments and one-way draft output](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/export_jianying.py#L219-L256)",
+        "[Optional local reverse-media generation during export](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/export_jianying.py#L103-L216)",
+        "[Original-audio automation stays on the video clips](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/timeline.py#L77-L106)",
+        "[Separate narration, optional music and displayed subtitle segments](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/timeline.py#L108-L166)",
+        "[Video source ranges and volume keyframes in the draft](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/jianying_builders.py#L496-L543)",
+        "[Audio materials and segment placement in the draft](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/jianying_builders.py#L546-L610)",
+        "[Subtitle text is built as a separate text material](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/jianying_builders.py#L613-L636)"
       ],
       "zh": [
         "[合成输入、cut 模式源视频与导出参数](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-assemble/SKILL.md#L33-L68)",
@@ -275,7 +311,13 @@
         "[远程模型依赖与可选复核](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L47-L69)",
         "[草稿文件与编辑器版本边界](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/references/timeline-and-jianying.md#L88-L116)",
         "[媒体打包、警告与不覆盖输出](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/references/timeline-and-jianying.md#L118-L141)",
-        "[独立导出器参数与返回的草稿目录](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-assemble/scripts/export_jianying.py#L219-L261)"
+        "[独立导出的输入、参数与单向草稿输出](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/export_jianying.py#L219-L256)",
+        "[导出时可选的本地倒放素材生成](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/export_jianying.py#L103-L216)",
+        "[原声音量自动化保留在视频片段上](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/timeline.py#L77-L106)",
+        "[独立旁白、可选配乐与显示字幕段](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/timeline.py#L108-L166)",
+        "[草稿中的视频源区间与音量关键帧](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/jianying_builders.py#L496-L543)",
+        "[草稿中的音频素材与片段放置](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/jianying_builders.py#L546-L610)",
+        "[字幕文字作为独立文本素材生成](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/scripts/jianying_builders.py#L613-L636)"
       ]
     }
   },
@@ -443,27 +485,29 @@
   {
     "owner": "dsh",
     "slug": "deepseek-novel-writing",
-    "checked_on": "2026-09-12",
+    "checked_on": "2026-09-13",
     "title": {
-      "en": "Writing fiction with DeepSeek: choose chat, the DSH plugin or a workbench",
-      "zh": "用 DeepSeek 写小说：聊天、DSH 插件与工作台怎么选"
+      "en": "Writing a novel with DeepSeek: choose a workspace and continue your draft",
+      "zh": "用 DeepSeek 写小说：选对工作区，从已有稿件接着写"
     },
     "answer": {
-      "en": "Choose by where the writing needs to live. Use an ordinary DeepSeek model chat for a disposable brainstorm, outline critique or scene rewrite that you will copy into your own manuscript. Use DeepSeek Harness (DSH) plus the community Oh Story DSH plugin when you want a local writing folder, persistent sessions, creation skills and a file/editor/Chat workbench. Use the separate hosted ZenStory service at app.zenstory.ai when you want an account-based browser project instead of running DSH locally. These are different layers: DeepSeek is the model/provider choice, DSH is the agent host, `@oh-story/dsh` is a community plugin for that host, and hosted ZenStory is a separate application. Installing the plugin does not add it to an ordinary DeepSeek chat, and this guide does not claim that hosted ZenStory natively uses DeepSeek. For the broader difference between chat, skills and agents, see [AI agent skills for writers](https://zenstory.ai/oh-story/agent-skills-for-writers); for a field-by-field comparison of the three ZenStory AI writing environments, see [the workflow comparison](https://zenstory.ai/compare/writing-workflows).",
-      "zh": "按作品需要保存在哪里来选。只想临时脑暴、点评大纲或改一段文字，并准备自己复制回稿件，用普通 DeepSeek 模型聊天即可；希望围绕本地写作目录持续创作，由会话、Skills 和文件/编辑器/Chat 工作台共同管理项目，可选 DeepSeek Harness（DSH）加社区插件 Oh Story DSH；不想在本地运行 DSH，而想用账户化的浏览器项目，则选独立的 ZenStory 托管服务 app.zenstory.ai。四者不是同一层：DeepSeek 是模型/Provider 选择，DSH 是 Agent 宿主，`@oh-story/dsh` 是装进该宿主的社区插件，ZenStory 托管版是另一套应用。安装插件不会把它装进普通 DeepSeek 聊天，本指南也不声称 ZenStory 托管版原生使用 DeepSeek。 若要先理解聊天、Skills 与 Agents 的通用差异，可阅读[写作者的 AI Agent Skills 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)；若要逐项比较 ZenStory AI 的三种写作环境，可查看[工作流对比](https://zenstory.ai/compare/writing-workflows)。"
+      "en": "Choose by where the writing needs to live. Use an ordinary DeepSeek model chat for a disposable brainstorm, outline critique or scene rewrite that you will copy into your own manuscript. Use DeepSeek Harness (DSH) plus the community Oh Story DSH plugin when you want a local writing folder, persistent sessions, creation skills and a file/editor/Chat workbench. Use the separate hosted ZenStory service at app.zenstory.ai when you want an account-based browser project instead of running DSH locally. These are different layers: DeepSeek is the model/provider choice, DSH is the agent host, `@oh-story/dsh` is a community plugin for that host, and hosted ZenStory is a separate application. Installing the plugin does not add it to an ordinary DeepSeek chat, and this guide does not claim that hosted ZenStory natively uses DeepSeek. For the broader difference between chat, skills and agents, see [AI agent skills for writers](https://zenstory.ai/oh-story/agent-skills-for-writers); for a field-by-field comparison of the three ZenStory AI writing environments, see [the workflow comparison](https://zenstory.ai/compare/writing-workflows). Already have a draft? Start with the latest accepted manuscript, the last complete chapter and any unfinished tail—not a bare “continue.” The worked archive mystery below shows how to turn those materials into a next-scene choice before importing or changing files.",
+      "zh": "按作品需要保存在哪里来选。只想临时脑暴、点评大纲或改一段文字，并准备自己复制回稿件，用普通 DeepSeek 模型聊天即可；希望围绕本地写作目录持续创作，由会话、Skills 和文件/编辑器/Chat 工作台共同管理项目，可选 DeepSeek Harness（DSH）加社区插件 Oh Story DSH；不想在本地运行 DSH，而想用账户化的浏览器项目，则选独立的 ZenStory 托管服务 app.zenstory.ai。四者不是同一层：DeepSeek 是模型/Provider 选择，DSH 是 Agent 宿主，`@oh-story/dsh` 是装进该宿主的社区插件，ZenStory 托管版是另一套应用。安装插件不会把它装进普通 DeepSeek 聊天，本指南也不声称 ZenStory 托管版原生使用 DeepSeek。 若要先理解聊天、Skills 与 Agents 的通用差异，可阅读[写作者的 AI Agent Skills 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)；若要逐项比较 ZenStory AI 的三种写作环境，可查看[工作流对比](https://zenstory.ai/compare/writing-workflows)。 已有稿件时，先交代当前确认版、最后完整章与尚未完成的尾稿，不要只说“继续写”。下方的档案悬疑示例把这些材料转成有代价的下一场戏选择，再决定是否导入或改文件。"
     },
     "prerequisites": {
       "en": [
         "For ordinary chat, bring only the excerpt and constraints needed for that one task. Keep your own manuscript as the durable source; a chat answer is not automatically synchronized with a writing project.",
         "For the local DSH route, use Node.js 24+ and a folder you are comfortable granting to the DSH workspace. The pinned installation below uses DSH `0.1.5-rc.1` and the community plugin `@oh-story/dsh@0.1.9`.",
         "Configure a model/provider in DSH before asking it to generate text. The source supports adding a provider and API key under Settings → Models, or setting `DEEPSEEK_API_KEY` before launch. DSH owns models, credentials, permissions and sessions; the plugin does not read those credentials.",
-        "For hosted ZenStory, use `https://app.zenstory.ai` as a separate account-based workflow. Do not expect a local DSH workspace, DSH plugin installation or ordinary DeepSeek chat history to appear there automatically."
+        "For hosted ZenStory, use `https://app.zenstory.ai` as a separate account-based workflow. Do not expect a local DSH workspace, DSH plugin installation or ordinary DeepSeek chat history to appear there automatically.",
+        "For an existing draft, keep a separate backup and name the manuscript files, any unfinished chapter, and the relevant settings or old plan. A discarded outline is not an event in the story. State whether this turn may only discuss options, create planning files, or change prose."
       ],
       "zh": [
         "使用普通聊天时，只带上这次任务所需的片段和约束，并由你自己保管权威稿件；聊天回答不会自动同步到写作项目。",
         "使用本地 DSH 路线时，准备 Node.js 24+，以及一个愿意交给 DSH workspace 管理的作品目录。下方固定版本安装使用 DSH `0.1.5-rc.1` 与社区插件 `@oh-story/dsh@0.1.9`。",
         "让 DSH 生成文本前先配置模型/Provider。源码说明可以在“设置 → 模型”中添加 Provider 和 API Key，或在启动前设置 `DEEPSEEK_API_KEY`。模型、凭据、权限和会话由 DSH 管理，插件不读取这些凭据。",
-        "ZenStory 托管版位于 `https://app.zenstory.ai`，属于独立的账户化流程。不要预期本地 DSH workspace、插件安装或普通 DeepSeek 聊天历史会自动出现在其中。"
+        "ZenStory 托管版位于 `https://app.zenstory.ai`，属于独立的账户化流程。不要预期本地 DSH workspace、插件安装或普通 DeepSeek 聊天历史会自动出现在其中。",
+        "已有稿件时先留独立备份，点名原稿文件、未完成章节，以及相关设定或旧续写设想。没有采纳的细纲不是故事里已经发生的事；说明本轮只讨论、可以写规划文件，还是允许修改正文。"
       ]
     },
     "steps": {
@@ -485,16 +529,24 @@
           "Use the plus button beside Workspaces, add the folder that should own the novel, choose that workspace and open a session. An empty folder initially stays in native DSH Chat. The novel workbench appears after recognized story files are created; a visible tab is a view of the same DSH workspace, not a second agent or a ZenStory account."
         ],
         [
-          "Start with a bounded book brief",
+          "New book: start with a bounded brief",
           "Use `/story-long-write 帮我开书` (or the English intent in the example) and state genre, reader promise, protagonist, central pressure, length target, viewpoint, tone, hard exclusions and the desired stopping point. The bundled workflow's default opening path creates the project, core settings, volume outline and the first ten chapter blueprints, then stops before prose. Review the direction instead of asking for an entire novel in one turn."
         ],
         [
-          "Write one chapter and inspect the files",
+          "New chapter: name the chapter and its ending",
           "After approving the setup, explicitly request `/story-long-write 写第1章`. Check the actual file under `正文/`, its matching file under `大纲/`, and the relevant settings rather than judging only the chat summary. Give corrections as concrete constraints—what fact, voice, reveal boundary or ending beat must change—then request a revision of the named chapter."
         ],
         [
-          "Continue from the persistent workspace",
-          "On a later visit, reopen the same DSH workspace and an existing or new session, then ask `/story` to inspect the current project before continuing. Name the next scope, such as one chapter, and tell it not to replace manual edits. The long-writing workflow distinguishes a named chapter, daily continuation and revision; a bare command diagnoses project state instead of silently producing chapters. Back up the manuscript folder separately from host/profile configuration."
+          "Existing draft: discuss the next scene before importing",
+          "In the same workspace, name only the manuscript and setting files needed for the question. Ask for accepted facts, what the viewpoint character knows, unresolved hypotheses and two possible next scenes. Mark the unfinished tail separately. A plain Chat-only request can prohibit file creation, moves, prose generation and media calls; this discussion does not initialize a novel project or make a new workbench appear. In the example, recognizing a handwriting habit creates a question, not proof of who wrote the entry."
+        ],
+        [
+          "Choose discussion, full import or an existing project",
+          "Keep a one-scene discussion in Chat if that is all you need. For a standalone manuscript that you want to turn into a writing project, the bundled `/story-import` accepts text files, a directory or pasted text, confirms scope and whether the last chapter is complete, then requires the full analysis pipeline before migration. It is not a lightweight “load this fragment” operation. Choose whether to continue from the unfinished chapter or finish it before importing. If the book already has current-format `追踪/_tracking-state.json`, confirm the active book instead of re-importing it. DSH supplies the bundled roles; do not deploy another host’s agent directories for this route."
+        ],
+        [
+          "Choose a consequence, then request the right kind of writing",
+          "Choose between next scenes by what the protagonist must risk or give up, not by which sounds more dramatic. Separate approval of a new chapter plan from permission to write prose. A genuinely new chapter can use `/story-long-write 写第N章`; an existing partial chapter needs an explicit revision/completion request with its opening protected, not an assumed empty target. The bundle defaults to one named chapter, but daily continuation can mean two or three; say which chapter and where to stop. Reopen the same workspace on later visits and back up manuscript files separately from DSH profile configuration."
         ]
       ],
       "zh": [
@@ -515,43 +567,55 @@
           "点击 Workspaces 旁的加号，添加真正存放小说的目录，选中 workspace 并打开会话。空目录起初仍显示 DSH 原生 Chat；Agent 写出可识别的小说文件后，小说工作台才会出现。这个标签只是同一 DSH workspace 的视图，不是第二个 Agent，也不是 ZenStory 账户。"
         ],
         [
-          "用有边界的开书请求起步",
+          "从零开书：给出有边界的请求",
           "输入 `/story-long-write 帮我开书`，并写清题材、读者承诺、主角、核心压力、预计篇幅、视角、语气、明确禁区和本轮停靠点。内置流程默认先建立项目、核心设定、卷纲与首批十章细纲，然后停在正文前。先审方向，不要一轮要求生成整本小说。"
         ],
         [
-          "明确写一章，并检查真实文件",
+          "写新章：点名章节与停笔点",
           "确认设定和细纲后，再明确输入 `/story-long-write 写第1章`。检查 `正文/` 中的实际章节、`大纲/` 中对应细纲及相关设定，不要只看 Chat 摘要。修改意见要落到可执行约束：哪个事实、人物声音、信息揭示边界或章尾节拍需要变化，然后点名要求修改该章。"
         ],
         [
-          "从持久化 workspace 继续",
-          "下次打开同一 DSH workspace，进入已有或新会话，先让 `/story` 检查当前项目再继续。明确本轮只写下一章等范围，并要求保留人工修改。长篇流程会区分指定章节、日更续写与回炉修改；裸命令只诊断项目状态，不会悄悄批量写正文。备份时应把稿件目录与宿主/profile 配置分别保管。"
+          "已有稿件：先谈下一场戏，不急着导入",
+          "在同一 workspace 中点名这次需要的原稿和设定，先要求列出已确认事实、视角人物所知、未解假设，再给两个续写方向；未完尾稿单独标注。自然语言的 Chat-only 请求可以明确禁止创建或移动文件、生成正文及调用媒体服务；这轮讨论不会初始化小说工程或让新工作台自动出现。示例里，“认出一种笔迹习惯”提出了问题，不等于已经证明是谁写的。"
+        ],
+        [
+          "区分只讨论、完整导入与已有工程",
+          "只想讨论一场戏，就留在 Chat。松散原稿需要变成可续写工程时，随包 `/story-import` 支持文本文件、目录或粘贴文本，先确认范围和尾章是否完整，再经过完整拆解管道迁移；它不是“轻量载入这段文字”。尾章未完时，由作者选择基于残章续写，还是先补完再导入。如果书目已有当前格式的 `追踪/_tracking-state.json`，先确认当前书目，不重复完整导入。这一路线的专业角色由 DSH 随包提供，不要为了导入而部署其他宿主的 Agent 目录。"
+        ],
+        [
+          "先选行动代价，再明确写作范围",
+          "比较续写方向时，看主角要冒什么风险、放弃什么，而不只是哪个更刺激。批准新细纲与允许写正文是两件事；确实尚不存在的新章可用 `/story-long-write 写第N章`，已有残稿则要明确提出修改/补完、保护开头，不把目标当空白文件。随包流程的指定章默认一章，日更续写却可能默认两到三章，因此要点名章节与停笔点。以后回到同一 workspace 继续，稿件文件与 DSH profile 配置分别备份。"
         ]
       ]
     },
     "example": {
-      "en": "Suggested input — original example, not an observed model answer:\n\nTerminal — install the pinned plugin and start DSH Web:\nnpx -y --package pnpm@11.7.0 --package @deepseek-ai/dsh@0.1.5-rc.1 dsh plugin --profile web add @oh-story/dsh@0.1.9 &&\nnpx -y @deepseek-ai/dsh@0.1.5-rc.1 web\n\nIn the DSH session for your chosen empty workspace:\n/story-long-write 帮我开书\nCreate a 240,000-word near-future mystery serial for adult readers.\nPremise: a municipal archivist discovers that one ordinary resident disappears from every public record at 02:17 each night, but her handwritten corrections return by morning.\nReader promise: procedural investigation plus the cost of deciding which version of a person deserves to survive.\nProtagonist: meticulous, conflict-averse, and personally implicated by a missing sibling.\nUse close third person, restrained prose, and no omniscient explanation of the system in the opening volume.\nFor this turn, create the project settings, volume outline and first ten chapter blueprints only. Stop before prose and list the files created.\n\nAfter reviewing the plan:\n/story-long-write 写第1章\nUse the approved chapter blueprint. Write only chapter 1, preserve the reveal boundary, and end when the protagonist sees her own correction handwriting in a file she has never opened. Save the prose in the project; do not continue to chapter 2.\n\nIn a later session in the same workspace:\n/story Please inspect the current novel files and continuity state first. Continue with only the next planned chapter. Preserve my manual edits to chapter 1, report any missing or conflicting blueprint before writing, and summarize the files changed when done.",
-      "zh": "建议输入——以下为原创示例，不是实测模型回答：\n\n终端——安装固定版本插件并启动 DSH Web：\nnpx -y --package pnpm@11.7.0 --package @deepseek-ai/dsh@0.1.5-rc.1 dsh plugin --profile web add @oh-story/dsh@0.1.9 &&\nnpx -y @deepseek-ai/dsh@0.1.5-rc.1 web\n\n在你选定的空 workspace 对应 DSH 会话中输入：\n/story-long-write 帮我开书\n写一部约 24 万字、面向成年读者的近未来悬疑连载。\n核心梗：市档案员发现，每晚 02:17 都有一名普通居民从全部公共记录中消失，但她手写的修订次日又会恢复。\n读者承诺：程序化调查，以及“哪个版本的人值得留下”带来的选择代价。\n主角：严谨、回避冲突，并因失踪的手足与事件有私人关联。\n使用第三人称限知和克制文风；第一卷不得全知解释系统真相。\n本轮只建立项目设定、卷纲和首批十章细纲，停在正文前，并列出创建的文件。\n\n检查并确认计划后输入：\n/story-long-write 写第1章\n严格使用已确认的本章细纲，只写第 1 章，保留信息揭示边界；在主角发现一份从未打开的档案里出现了自己的修订笔迹时收尾。正文写入项目文件，不要继续第 2 章。\n\n以后在同一 workspace 的会话中输入：\n/story 请先检查当前小说文件和连续性状态，再只续写计划中的下一章。保留我对第 1 章的人工修改；如果细纲缺失或冲突，先报告，不要猜写。完成后说明改动了哪些文件。"
+      "en": "Suggested input — original example, not an observed model answer:\n\nTerminal — install the pinned plugin and start DSH Web:\nnpx -y --package pnpm@11.7.0 --package @deepseek-ai/dsh@0.1.5-rc.1 dsh plugin --profile web add @oh-story/dsh@0.1.9 &&\nnpx -y @deepseek-ai/dsh@0.1.5-rc.1 web\n\nIn the DSH session for your chosen empty workspace:\n/story-long-write 帮我开书\nCreate a 240,000-word near-future mystery serial for adult readers.\nPremise: a municipal archivist discovers that one ordinary resident disappears from every public record at 02:17 each night, but her handwritten corrections return by morning.\nReader promise: procedural investigation plus the cost of deciding which version of a person deserves to survive.\nProtagonist: meticulous, conflict-averse, and personally implicated by a missing sibling.\nUse close third person, restrained prose, and no omniscient explanation of the system in the opening volume.\nFor this turn, create the project settings, volume outline and first ten chapter blueprints only. Stop before prose and list the files created.\n\nAfter reviewing the plan:\n/story-long-write 写第1章\nUse the approved chapter blueprint. Write only chapter 1, preserve the reveal boundary, and end when the protagonist sees correction handwriting with the same missing-stroke habit as her own in a file she has never opened; do not yet establish who wrote it. Save the prose in the project; do not continue to chapter 2.\n\nEXISTING-DRAFT EXERCISE — original editorial fiction, not generated output\nThe archivist is named Ji Ning for this worked example. The following are excerpts,\nnot a complete chapter or actual workspace files. Replace the illustrative paths\nwith your own files; give the agent the full relevant manuscript, not just this exercise.\n\nMaterials supplied by the author:\n- 原稿/第001章.md: accepted, complete chapter 1; the ending below is its final beat.\n- 原稿/第002章_未完.md: an unfinished opening, not a completed chapter 2.\n- 参考/旧续写设想.md: an unaccepted proposal, not manuscript evidence.\n- 参考/本书设定.md: the approved brief, including the missing sibling and limited viewpoint.\n\nAccepted chapter 1 ending:\nJi Ning opened file 417 for the first time. At the foot of the page,\nthe handwritten Chinese word 更正, “correction,” caught her eye: the final stroke\nof 更 was missing, exactly the habit she had never managed to change.\n\nUnfinished chapter 2 opening:\nShe pushed the request card toward the desk. The duty clerk held it down.\n“To request the original register, you have to leave your employee number.”\nJi Ning held her pen just above the signature box.\n[The author stopped here. No signature, submitted request or register access yet.]\n\nOld, unaccepted chapter 2 proposal:\n“Steal the original register from storage and confirm that her missing sibling\nforged the handwriting.” This is a possible plot proposal, not evidence already\nestablished; adopting it would change the proposed investigation and reveal timing.\n\nFirst request — natural-language Chat only, no writing skill needed:\nRead only the four named files. Chapter 1 is complete; chapter 2 is unfinished.\nSeparate accepted events, the partial chapter’s proposed situation, and old planning.\nWhat does Ji Ning actually know? What is she merely suspecting?\nGive two ways to pursue the original register without confirming the writer’s identity.\nFor each, name her action, the resistance and the visible change by the scene’s end.\nKeep close third person; no omniscient explanation, automatic access or off-page signature.\nReply only in Chat. Do not create, move or edit files, generate prose or call media services.\n\nEditorial reading of these materials — not a claim about an agent’s response:\n- Chapter 1 establishes a recognizable handwriting habit in a file she had not opened.\n  It does not prove that she wrote it, that her sibling forged it, or that time travel occurred.\n- The partial opening places a pen above a box. Even within that fragment she has not signed.\n  The clerk states a requirement; this excerpt alone does not prove a universal archive rule.\n- If the author retains that opening, chapter 2 starts with an unresolved decision.\n  Until completed, its events must not be treated as a completed chapter in tracking.\n- The investigation can advance without identifying the writer: obtain a traceable request,\n  or make another person confront the question. Neither is the same as receiving the register.\n\nTwo NEW candidate scene plans — fictional choices, not existing project facts:\nA. Accept personal exposure. Ji Ning signs her own employee number and states that she\n   wants to check the correction handwriting. The clerk accepts the request and gives\n   a receipt number, not the register. She gains a way to follow up, but the signed\n   request now connects her to the investigation. End on the handover itself;\n   do not imply that access has been granted or that anyone has identified the writer.\nB. Seek a witness without signing. Ji Ning asks the clerk to look at the disputed page\n   with her. He refuses to assess it on his own and reaches for the phone to call a supervisor.\n   End before a call connects: she has not obtained access, and keeping the inquiry quiet\n   now requires her to respond to another person’s initiative. The clerk need not recognize\n   her handwriting, know the secret, or be a villain for this resistance to work.\n\nChoose A if this chapter should make a conflict-averse investigator take responsibility\nin her own name. Choose B if it should put her attempt at secrecy under immediate social\npressure. They are alternative plans, not two events to silently combine.\n\nAn editorial candidate ending for A — a short prose illustration, not a full chapter,\nan accepted manuscript change or an observed DSH result:\n“Reason for the request?”\nJi Ning lowered the pen and wrote her employee number in the signature box.\nBelow it she added: Check the correction handwriting.\nShe pushed the signed card across. The clerk tore off the receipt. An application number; no access decision.\nShe folded the slip. The signed request stayed on his side of the desk.\nThis resolves whether she puts her name to the inquiry, not who wrote the correction.\n\nBefore writing — choose the material state:\nIf these are still standalone files, either keep discussing them or explicitly choose\nfull import. For import, confirm the scope, target book and unfinished-tail strategy first;\nchoose “continue from the partial chapter” if retaining it. Notes under 参考/ are separate\nfrom the manuscript source directory. Do not describe a Chat discussion as completed import.\nFor an already initialized, current-format project, do not import the book again.\n\nAfter the project is ready, a planning-only request:\n/story-long-write 补纲\nI choose A and retain the unfinished opening. Plan only chapter 2; stop before prose.\nDo not adopt the unaccepted theft/forgery proposal. I authorize setting the chapter 2 plan\nto the signed-request scene.\nDo not change other chapters, the accepted chapter 1, or established tracking facts.\nThe receipt records a submitted request, not granted access. Keep the writer’s identity unknown.\n\nAfter reviewing that plan, when a chapter 2 partial file already exists:\n/story-long-write 修改第2章\nThis is an unfinished chapter, not a request to skip ahead or overwrite a blank new chapter.\nFirst identify and back up its actual file; show the opening you will preserve and the\nproposed completion boundary. Wait for my confirmation before changing prose.\nThen complete only chapter 2 using the approved A plan. Preserve the existing opening;\nend with the signed request handed over and a receipt, without access or identity confirmation.\nDo not rewrite chapter 1, count the old fragment as a finished chapter, or continue to chapter 3.\nIf the actual files or tracking disagree with this description, report the conflict first.\n\nIf no chapter 2 prose file exists at all, use the named-new-chapter route instead.\nThe distinction depends on the actual files, not just on what the last Chat message said.",
+      "zh": "建议输入——以下为原创示例，不是实测模型回答：\n\n终端——安装固定版本插件并启动 DSH Web：\nnpx -y --package pnpm@11.7.0 --package @deepseek-ai/dsh@0.1.5-rc.1 dsh plugin --profile web add @oh-story/dsh@0.1.9 &&\nnpx -y @deepseek-ai/dsh@0.1.5-rc.1 web\n\n在你选定的空 workspace 对应 DSH 会话中输入：\n/story-long-write 帮我开书\n写一部约 24 万字、面向成年读者的近未来悬疑连载。\n核心梗：市档案员发现，每晚 02:17 都有一名普通居民从全部公共记录中消失，但她手写的修订次日又会恢复。\n读者承诺：程序化调查，以及“哪个版本的人值得留下”带来的选择代价。\n主角：严谨、回避冲突，并因失踪的手足与事件有私人关联。\n使用第三人称限知和克制文风；第一卷不得全知解释系统真相。\n本轮只建立项目设定、卷纲和首批十章细纲，停在正文前，并列出创建的文件。\n\n检查并确认计划后输入：\n/story-long-write 写第1章\n严格使用已确认的本章细纲，只写第 1 章，保留信息揭示边界；在主角发现一份从未打开的档案里出现了与她有相同缺笔习惯的修订笔迹时收尾；此时不证明是谁写的。正文写入项目文件，不要继续第 2 章。\n\n已有稿件练习——原创编辑示例，不是生成结果\n这次给档案员取名“纪宁”。下文只是相关摘录，不是完整章节，也没有创建真实\nworkspace 文件。实际使用时换成你的真实文件名，并提供相关完整原稿，不只给这份练习。\n\n作者提供的材料：\n- 原稿/第001章.md：作者已确认的完整第一章，以下摘录就是章尾。\n- 原稿/第002章_未完.md：未完成的开头，不是已经写完的第二章。\n- 参考/旧续写设想.md：没有采纳的提议，不是正文证据。\n- 参考/本书设定.md：已确认的创作简报，包括失踪手足与限知视角。\n\n已确认的第一章末尾：\n纪宁第一次翻开417号档案。页脚那行“准予更正”里，“更”字少了最后一捺，\n正是她多年改不掉的写法。\n\n第二章未完开头：\n她把调阅卡推到窗口。值班员压住卡片：“申请调原始登记，得留你的工号。”\n纪宁把笔尖停在签名栏上方。\n［作者写到这里停下。尚未签字、递交申请或拿到登记册。］\n\n旧的、尚未采纳的第二章设想：\n“潜入保管室偷走原始登记册，确认是失踪的手足伪造了笔迹。”\n这是剧情提议，不是已经成立的证据；采纳它会改变调查方式与揭示时机。\n\n第一轮请求——自然语言 Chat 讨论，不必启动写作 Skill：\n只读上述四份文件。第一章已完，第二章未完。\n分开列出已确认事件、残稿提出的当前情境，以及旧规划。\n纪宁实际知道什么，又只是在怀疑什么？\n给出两个继续追查原始登记的方向，不确认笔迹作者。\n每个方向说明她采取什么行动、遇到什么阻力、场末发生什么可见变化。\n保持第三人称限知，不全知解释，不自动获准调阅，不跳过签字动作。\n只在 Chat 回复，不创建、移动或修改文件，不生成正文，不调用媒体服务。\n\n编辑对材料的阅读——不是声称 Agent 已经这样回答：\n- 第一章确立了：她在从未翻开的档案里认出一种笔迹习惯。\n  尚不能推出“就是她写的”“手足伪造”或“发生了时间穿越”。\n- 残稿停在笔尖悬空；即使只看这个片段，她也还没签字。\n  值班员说需要工号，不等于这一摘录已证明整座档案馆的统一制度。\n- 作者若保留这个开头，第二章要接住的是尚未作出的决定；章没完成前，\n  不能把残稿情节当成已完成章节写入追踪检查点。\n- 调查不必马上查明笔迹作者也能前进：留下可追问的申请，或让另一个人\n  面对这个疑点；这两者都不等于已经拿到登记册。\n\n两个新增的候选场景——虚构创作选择，不是项目已有事实：\nA．承担署名代价。纪宁签下自己的工号，写明要核对修订笔迹；值班员收下申请，\n   给的是回执编号，不是登记册。她获得了可追问的线索，也让签名把自己与调查\n   联系起来。章尾落在交出申请：动作已经做出，但不能暗示调阅已获批或身份已查明。\nB．不签字，先求一个见证。纪宁请值班员和她一起看有疑点的那一页。\n   他不愿独自判断，伸手拿电话准备叫主管。停在尚未接通时：她没有取得调阅权，\n   想悄悄调查却必须应对另一个人的主动行动。值班员不必认得她的笔迹、知道秘密，\n   更不必先被写成反派，这个阻力就可以成立。\n\n选 A，是让回避冲突的主角第一次用自己的名字承担调查；选 B，是让她保密的打算\n受到当场的人际压力。它们是两种方案，不是可以悄悄拼成一段既成剧情的两个事件。\n\nA 的候选收束——仅为编辑写的短段示意，不是完整章、已采纳的改稿或 DSH 实测输出：\n“申请理由？”\n纪宁让笔尖落下，在签名栏写完自己的工号。\n她在下面补了一行：核对修订笔迹，再把签好的卡片推过去。\n值班员撕下回执。上面只有申请编号，没有调阅结果。\n她折好纸条，签过工号的申请留在窗口里面。\n这里回答的是“她是否署名追查”，不是“谁写了那行修订”。\n\n准备落稿前——先区分材料状态：\n如果仍是松散文件，可以继续只讨论，也可以明确选择完整导入。导入前先确认范围、\n目标书目和尾稿策略；要保留开头就选“基于残章续写”。参考/下的规划笔记要与原稿\n目录分开。不要把 Chat 讨论说成已经导入；已有当前格式工程则不重复导入整本书。\n\n工程准备好之后，先只规划：\n/story-long-write 补纲\n我选 A，保留残稿开头。本轮只规划第二章，停在正文前。\n不要采纳未确认的旧第二章续写设想。我授权将本章细纲定为署名申请这一场戏。\n其他章、已确认的第一章和既有追踪事实不变。\n回执只说明申请已递交，不代表调阅获批；笔迹作者仍然未知。\n\n审过细纲后，如果第二章的残稿文件已经存在：\n/story-long-write 修改第2章\n这是未完成章节，不是要求跳到下一章，也不是覆盖一个空白新章。\n先定位并备份实际文件，列出将保留的开头和本次补完边界；等我确认后再改正文。\n然后只按已确认的 A 方案补完第二章，保留已有开头；在交出署名申请、拿到回执时\n收尾，不获得调阅权、不确认笔迹作者。\n不重写第一章，不把原残稿算成已经完成第二章，不继续第三章。\n真实文件或追踪状态如果与这些描述冲突，先报告。\n\n如果实际上根本没有第二章正文文件，才用“写第2章”的新章入口。\n区分依据是真实文件，不只是上一条 Chat 消息说了什么。"
     },
     "outputs": {
       "en": [
         "After the default book-opening pass, expect creator-readable files for positioning and relationships under `设定/`, a book and volume outline plus per-chapter blueprints under `大纲/`, and initialized continuity state under `追踪/`. The bundled workflow says the first pass normally stops after the first ten chapter blueprints.",
         "After an explicit chapter request, prose is written by chapter under `正文/` (for example `正文/第001章_章名.md`) and the continuity views are updated through the writing workflow. The manuscript file, not a celebratory chat message, is the deliverable to review.",
-        "The DSH novel workbench presents the same project as a file tree, editor and Chat. Hosted ZenStory also uses a browser workbench, but it is a separate account/application boundary; neither surface name proves that the same plugin, model or project files are underneath."
+        "The DSH novel workbench presents the same project as a file tree, editor and Chat. Hosted ZenStory also uses a browser workbench, but it is a separate account/application boundary; neither surface name proves that the same plugin, model or project files are underneath.",
+        "For full import, manuscript text is migrated without rewriting the source content. A partial chapter can be present in the prose files while `last_chapter` and current-state snapshots still end at the last complete chapter; the unfinished-tail strategy belongs in continuity risks. File presence does not certify chapter completion."
       ],
       "zh": [
         "默认开书完成后，通常会得到 `设定/` 下供作者阅读的题材定位与关系等文件，`大纲/` 下的全书/卷级大纲和逐章细纲，以及 `追踪/` 下初始化的连续性状态。内置流程说明第一轮默认停在首批十章细纲之后。",
         "明确请求写章后，正文按章写入 `正文/`（例如 `正文/第001章_章名.md`），连续性视图也由写作流程更新。需要审的是稿件文件，而不是 Chat 中一句“已经完成”。",
-        "DSH 小说工作台用文件树、编辑器和 Chat 呈现同一项目。ZenStory 托管版也有浏览器工作台，但它属于独立账户与应用边界；界面都叫工作台，不代表底层使用同一插件、模型或项目文件。"
+        "DSH 小说工作台用文件树、编辑器和 Chat 呈现同一项目。ZenStory 托管版也有浏览器工作台，但它属于独立账户与应用边界；界面都叫工作台，不代表底层使用同一插件、模型或项目文件。",
+        "完整导入会迁移原文而不改写其内容。残章可以出现在正文文件中，但 `last_chapter` 与当前状态快照仍截至最后完整章，尾稿处理策略写入连贯性风险。文件存在不代表该章已经完成。"
       ]
     },
     "verification": {
       "en": [
         "Before continuing, open the files named in the completion message and confirm that the premise, viewpoint, exclusions, reveal boundary and chapter stopping point are actually present. A workbench tab or a fluent answer alone is not proof that the project was updated.",
+        "For the archive exercise, look for the actual decision: if A was chosen, the signature and submitted request must happen on the page. A receipt must not silently become access to the register; recognition of handwriting must not become proof of its writer. Confirm whether chapter 2 is now complete from the manuscript and resulting project state, not merely because a chapter 2 file exists.",
         "Reopen the same workspace in a later session and ask for a project-state diagnosis before generation. Confirm the last completed chapter and next blueprint, then request only the scope you want.",
         "Treat model output as a draft: review continuity, copied or unsupported material, factual claims and publication rights yourself. This guide compares workflows, not measured writing quality or a guarantee of publishable fiction."
       ],
       "zh": [
         "继续前，打开完成消息中点名的文件，确认核心梗、视角、禁区、信息揭示边界与本章停笔点确实落在项目里。只看到工作台标签或一段流畅回答，不能证明项目已更新。",
+        "针对档案例子，看行动是否真的写出来：选 A 就要让签字与递交申请在场内发生；回执不能偷换成已经获准调阅，认出笔迹也不能偷换成证明作者。结合正文与实际项目状态核对第二章是否已经补完，不因存在“第二章”文件就当作完成。",
         "之后换会话时重新打开同一 workspace，先要求诊断项目状态。核对最后完成章节与下一章细纲，再明确只生成你要的范围。",
         "把模型输出当作草稿：连续性、可能复用或缺乏依据的内容、事实与发表权利都需要作者自行复核。本指南比较工作流，不代表实测写作质量，也不保证直接可发表。"
       ]
@@ -561,42 +625,58 @@
         "[Community plugin identity, host boundary and novel workbench](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/README.md#L15-L23)",
         "[Novel capability, pinned installation and host-owned model configuration](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/README.md#L63-L94)",
         "[Workspace selection, project-driven workbench and profile persistence](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/README.md#L117-L161)",
-        "[Book-opening, named-chapter and continuation behavior](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/packages/knowledge/oh-story/skills/story-long-write/SKILL.md#L55-L83)",
         "[Novel project folders and file outputs](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/packages/knowledge/oh-story/skills/story-long-write/references/project-files.md#L1-L60)",
-        "[DSH-native workspace, session, model and permission boundary](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/packages/dsh-plugin/src/skill-provider.ts#L16-L37)"
+        "[Existing manuscripts: discussion without import or file changes](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/README.md#L136-L142)",
+        "[Import intent, source forms and unfinished-tail decisions](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-import/SKILL.md#L65-L98)",
+        "[Full analysis before import migration](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-import/SKILL.md#L125-L145)",
+        "[Preserving manuscript text during migration](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-import/SKILL.md#L283-L290)",
+        "[Import checkpoints stop at the last complete chapter](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-import/SKILL.md#L394-L424)",
+        "[Current-format projects should not be imported again](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-import/SKILL.md#L46-L47)",
+        "[Named chapter, planning, daily continuation and revision boundaries](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-long-write/SKILL.md#L59-L83)",
+        "[Locate, back up and scope an existing-chapter revision](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-long-write/references/workflow-revision.md#L7-L50)",
+        "[DSH-provided roles override external-host deployment instructions](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/dsh-plugin/src/skill-provider.ts#L16-L35)",
+        "[Bundled skill discovery and native provider registration](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/dsh-plugin/src/skill-provider.ts#L228-L282)"
       ],
       "zh": [
         "[社区插件身份、宿主边界与小说工作台](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/README.md#L15-L23)",
         "[小说能力、固定版本安装与宿主管理模型配置](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/README.md#L63-L94)",
         "[选择 workspace、按项目显示工作台与 profile 持久化](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/README.md#L117-L161)",
-        "[开书、指定章节与续写行为](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/packages/knowledge/oh-story/skills/story-long-write/SKILL.md#L55-L83)",
         "[小说项目目录与文件产物](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/packages/knowledge/oh-story/skills/story-long-write/references/project-files.md#L1-L60)",
-        "[DSH 原生 workspace、会话、模型与权限边界](https://github.com/zenstory-ai/oh-story-dsh/blob/493cd7793f69d4c02e19a4431d161b5284e7ad38/packages/dsh-plugin/src/skill-provider.ts#L16-L37)"
+        "[已有稿件：只讨论，不导入或改文件](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/README.md#L136-L142)",
+        "[导入意图、原稿形式与残章裁定](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-import/SKILL.md#L65-L98)",
+        "[导入迁移前的完整拆解要求](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-import/SKILL.md#L125-L145)",
+        "[迁移正文时保留原文](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-import/SKILL.md#L283-L290)",
+        "[导入检查点截至最后完整章](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-import/SKILL.md#L394-L424)",
+        "[当前格式工程不重复完整导入](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-import/SKILL.md#L46-L47)",
+        "[指定章、补纲、日更与修订边界](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-long-write/SKILL.md#L59-L83)",
+        "[定位、备份与限定已有章节的修改范围](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/knowledge/oh-story/skills/story-long-write/references/workflow-revision.md#L7-L50)",
+        "[DSH 随包角色覆盖外部宿主部署指令](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/dsh-plugin/src/skill-provider.ts#L16-L35)",
+        "[随包 Skill 发现与原生 Provider 注册](https://github.com/zenstory-ai/oh-story-dsh/blob/5de00e6b610b94fca9f0d9165f4ca8b6c83c6147/packages/dsh-plugin/src/skill-provider.ts#L228-L282)"
       ]
     }
   },
   {
     "owner": "oh-story",
     "slug": "import-and-continue",
-    "checked_on": "2026-09-12",
+    "checked_on": "2026-09-13",
     "title": {
       "en": "Continue an unfinished novel with AI: import 10–20 chapters into Oh Story",
       "zh": "已有 10–20 章怎么让 AI 接着写：导入 Oh Story，接续人物设定与前史"
     },
     "answer": {
-      "en": "If you already have 10–20 chapters, do not ask an empty chat to ‘continue in the same style.’ Use story-import to reconstruct the manuscript as an Oh Story writing project, review its inferences, then request the next chapter. Import preserves the source prose while building settings, outlines and continuity records. It cannot recover unwritten intent, guarantee a perfect voice match or settle every ambiguity; the manuscript remains the evidence.",
-      "zh": "已经写了 10–20 章，不要在空白聊天里只说“照这个风格续写”。先用 story-import 把书稿重建成 Oh Story 写作工程，审阅反推结果，再点名写下一章。导入会保留原文，同时建立设定、大纲与连贯性记录；它不能恢复未写进正文的意图，也不保证无损复刻文风或补对所有歧义。书稿证据始终优先于模型猜测。"
+      "en": "If you already have 10–20 chapters, do not ask an empty chat to ‘continue in the same style.’ Use story-import to reconstruct the manuscript as an Oh Story writing project, review its inferences, then request the next chapter. Import preserves the source prose while building settings, outlines and continuity records. It cannot recover unwritten intent, guarantee a perfect voice match or settle every ambiguity; the manuscript remains the evidence. Reconstructed history and a future chapter plan do different jobs: one describes what was written, the other needs an author’s choice. The harbor-radio example below shows why continuation should pay off a decision already made, rather than reset it or invent a completed repair.",
+      "zh": "已经写了 10–20 章，不要在空白聊天里只说“照这个风格续写”。先用 story-import 把书稿重建成 Oh Story 写作工程，审阅反推结果，再点名写下一章。导入会保留原文，同时建立设定、大纲与连贯性记录；它不能恢复未写进正文的意图，也不保证无损复刻文风或补对所有歧义。书稿证据始终优先于模型猜测。 已写章节的重建与下一章规划是两回事：前者描述原稿，后者需要作者裁定。下方的海港收音机示例说明，续章应接住已经作出的决定，而不是重新问一遍，或把尚未完成的修理补猜成结果。"
     },
     "prerequisites": {
       "en": [
         "Back up material you own or may use. Documented direct inputs are one .txt/.md file, a directory of chapter files, or pasted text; direct .docx, EPUB and PDF import is not documented.",
         "Open a supported agent host in the writing workspace. New to skills or hosts? Read [Agent skills for writers](https://zenstory.ai/oh-story/agent-skills-for-writers). Commands below follow Claude Code’s npx skills path; other hosts and the marketplace plugin can differ.",
-        "Identify the last complete chapter. Keep a half-written ending marked as a partial draft so unfinished events do not become established facts."
+        "Identify the last complete chapter. Keep a half-written ending marked as a partial draft so unfinished events do not become established facts. Keep an unaccepted alternate opening outside the import source, and explicitly choose whether to retain it. In the worked example it is excluded, not a chapter file to overwrite."
       ],
       "zh": [
         "先备份你拥有或获准使用的书稿。当前明确支持单个 .txt/.md、章节文件目录或直接粘贴文本；流程没有声明可直接导入 .docx、EPUB 或 PDF。",
         "在写作工作区打开受支持的 Agent 宿主。若还分不清 skill 与宿主，先看[写作者的 Agent Skill 入门](https://zenstory.ai/oh-story/agent-skills-for-writers)。下文按 Claude Code 的 npx skills 路径书写，其他宿主或 marketplace 插件的语法可能不同。",
-        "确认最后一个完整章号。把只写一半的末章明确标成残稿，避免其中尚未完成的动作被登记为事实。"
+        "确认最后一个完整章号。把只写一半的末章明确标成残稿，避免其中尚未完成的动作被登记为事实。 未采纳的另一版开头应放在导入源之外，明确是保留还是不用；本例选择排除它，不把它当作可以覆盖的章节文件。"
       ]
     },
     "steps": {
@@ -618,12 +698,16 @@
           "Confirm continuable project versus analysis only, the last complete chapter, and treatment of a partial ending. If the text has no volume markers, review candidate divisions before volume outlines are finalized. Unsupported fields should stay [待补充] or become continuity risks—not confident-looking filler."
         ],
         [
-          "Review the reconstructed handoff",
-          "Confirm 正文/ has every expected chapter and unchanged prose. Then inspect 设定/角色/, 大纲/ and 追踪/上下文.md. Current identities, locations, goals, relationships, knowledge, unresolved threads and the next-chapter promise must match evidence through the last complete chapter. Separate author-only truth from character and reader knowledge."
+          "Review history without treating a proposed future as a fact",
+          "Confirm 正文/ has the expected chapters with unchanged prose, then inspect 设定/角色/, 大纲/ and 追踪/上下文.md. Past events and current locations, possessions, relationships and knowledge need manuscript evidence or an explicit author-confirmed background boundary. Separate that history from an inferred interpretation and from a newly approved next-chapter plan. A future repair, revelation or reconciliation does not belong among completed events just because a planning field mentions it."
         ],
         [
-          "Restore intent, then request prose",
-          "Resolve important [待补充] items or leave them uncertain. State the ending to carry forward, viewpoint and voice constraints, facts not yet revealable, and the next chapter’s job. Correct the plan first if reconstruction points the story the wrong way. This restores intentions that prose could not reveal."
+          "Do not rewrite old chapters to fill a new template",
+          "Historical chapter blueprints are reconstructed descriptions, not instructions to make the old manuscript conform to a new outline. The import records each chapter’s measured original length and leaves unsupported hooks, relationship changes or side plots missing rather than inventing them. An empty field may mean “not established,” not “the author must add a twist.” Preserve the old prose; make future-facing choices in the next chapter’s plan."
+        ],
+        [
+          "Restore the unwritten intention before prose",
+          "An unresolved ending can lead to several defensible stories; the importer cannot know which one you meant to write. State the next chapter’s job, viewpoint, voice and reveal limits, and approve the plan before prose. Also identify what the last chapter has already decided. If it ends with “one more try,” continue that attempt and its consequences instead of spending another chapter asking whether to try. Leaving together can fulfill a local promise without repairing the receiver, solving the mystery or restoring all trust."
         ],
         [
           "Name the next chapter and keep one authority",
@@ -648,12 +732,16 @@
           "确认目标是可续写工程还是仅分析、最后完整章号，以及残稿如何处理。原文没有卷标时，先审阅候选卷界，再定卷纲。正文无法证明的字段保留 [待补充] 或写入连贯性风险，不为表格整齐而补猜。"
         ],
         [
-          "正文前先审阅交接状态",
-          "确认 正文/ 章节齐全且原文未被改写；再看 设定/角色/、大纲/ 和 追踪/上下文.md。人物身份、位置、目标、关系、本人已知、未结事项与下一章承诺，都要能由最后完整章以前的内容证明，并分开作者真相、角色认知与读者已知。"
+          "审阅前史，不把拟写的未来当成事实",
+          "先确认 正文/ 章节齐全且原文未改，再看 设定/角色/、大纲/ 和 追踪/上下文.md。已发生事件，以及当前的位置、持有物、关系与认知，要有书稿证据或作者明确确认的背景边界；它们与可选解读、刚批准的下一章规划分开。拟写的修好设备、揭露真相或和解，不会因为出现在规划字段里就成为既成事实。"
         ],
         [
-          "补回作者意图，再要正文",
-          "解决关键 [待补充]，或明确保留为未知。说明上一章结尾怎么承接、视角与语言习惯、暂不能揭露的事实，以及下一章任务。正文从未呈现的意图由你补回；若反推规划方向错了，先修规划，不要硬续。"
+          "别为了补齐模板，把旧章重写一遍",
+          "历史章节细纲是反推描述，不是让旧原稿服从新模板的改写命令。导入记录原章的实测长度；没有依据的钩子、关系变化或副线可以保持待补充，不靠编造填满。“字段空着”可能只是尚未建立，不等于作者必须补一个反转。保留旧正文，把面向未来的决定放进下一章规划。"
+        ],
+        [
+          "补回未写出的意图，再要正文",
+          "同一个未完结尾可以通向不止一种合理故事，导入器无法知道你原本想写哪一种。说明下一章任务、视角、声音与揭示边界，先批准规划，再写正文。也要指出上一章已经作出的决定：结尾若是“再试一次”，续章就应推进这次尝试及其后果，不再花一章讨论试不试。两人一起离开可以兑现一个局部承诺，不必同时修好设备、破案或恢复全部信任。"
         ],
         [
           "点名下一章，只保留一个权威工程",
@@ -662,19 +750,21 @@
       ]
     },
     "example": {
-      "en": "Suggested requests—not recorded or tested model output. Assume chapters 1–20 are complete and chapter 21 is a separate partial draft.\n\n/story-import\nImport /Users/me/novels/harbor-radio/complete-chapters.md as a continuable long-form project. Chapters 1–20 are complete; do not treat the chapter-21 fragment as fact. Preserve the prose. Before migration, show the detected range, unresolved facts and candidate volume boundaries.\n\nAfter reviewing the project:\n\n/story-long-write 写第21章\nContinue chapter 20’s final scene in close third person on Lin Zhou. Keep the restrained dialogue rhythm. The reader knows about the red notebook; Chen Yu does not. Do not reveal who changed the broadcast log. Make Lin Zhou choose whether to repair the receiver before the tide returns. Write only chapter 21 and report changed project records.",
-      "zh": "以下是建议请求，不是已记录或已测试的模型输出。假设第 1–20 章完整，第 21 章残稿另存。\n\n/story-import\n把 /Users/me/novels/海港收音机/完整章节.md 导入为可续写长篇工程。第 1–20 章完整；第 21 章残稿暂不视为事实。保留原文。迁移前展示章节范围、待确认事实和候选卷界。\n\n审阅工程后：\n\n/story-long-write 写第21章\n承接第 20 章最后场景，继续林舟的第三人称限知视角，保持克制的对话节奏。读者知道红色笔记本，陈雨不知道；不要揭示谁改了广播日志。本章让林舟在涨潮前决定是否修接收机。只写第 21 章，并说明更新了哪些项目记录。"
+      "en": "ORIGINAL EDITORIAL EXAMPLE — Harbor Radio\nThis is an authored reading/handoff exercise, not an observed model response or an executed\nOh Story project. It assumes an author-owned, complete chapter 1–20 manuscript. Only the\nrelevant excerpts are shown here; they are not a replacement for the complete import source.\nAll /ABS paths are placeholders for real files in your own environment.\n\nSource boundary:\n/ABS/harbor-radio/complete-chapters.md — accepted chapters 1–20 only.\n/ABS/harbor-radio/alternatives/ch21-unused.md — an old, unaccepted opening, excluded.\nThe author chooses NOT to retain that alternate opening. No chapter 21 prose file is\npresent in the imported book in this example. A real retained partial chapter needs a\nrevision/completion request, not an assumed empty new-chapter target.\n\nAccepted chapter 18 promise:\n“When we stop work this time, I’ll leave with you,” Lin Zhou told Chen Yu.\n\nChapter 19 evidence and confirmed information boundary:\nThe manuscript shows Lin Zhou finding a red notebook and hiding it in his inside pocket.\nThe reader has seen it. The author confirms that Chen Yu has not learned about it by the\nend of chapter 20. Who changed the broadcast log remains unresolved for the reader;\nthis exercise does not supply that person’s identity as a hidden answer.\n\nAccepted chapter 20 ending, at 20:10 in the old radio room:\n“At twenty-forty, the causeway closes,” Chen Yu said. She set the torch beside the toolbox.\n“I can wait another half hour.”\nLin Zhou felt the hard corner of the red notebook through his inside pocket.\n“One more try.” He turned the lamp toward the open receiver.\n\nWhat the import handoff can preserve:\n- Both characters are still in the radio room. The receiver has not been repaired.\n- Lin has the notebook; Chen does not know about it. Reader knowledge is not shared\n  character knowledge.\n- Lin has promised to leave with Chen when they stop work; they have not left yet.\n- He has already committed to one more attempt. The next scene must carry that action\n  forward, not reset the ending to “Will he try?”\n- Chen has stated a time limit. It does not establish that a repair will succeed,\n  that they have already left, or that every conflict between them is settled.\n\nA reconstruction mistake — a deliberately authored counterexample:\nSuppose the imported handoff already reports the following as established history:\n“The receiver finally worked. Chen Yu opened his red notebook and pointed to the culprit’s\nname. By morning they had all the answers, and nothing stood between them anymore.”\nThis is wrong as the imported chapter-20 state: the attempt is unfinished, Chen has neither\nthe notebook nor that knowledge, and the next morning is outside the stated cutoff. It also\nturns a local promise into complete reconciliation. Those could be proposed future events,\nbut they are neither established history nor a recovered intention from chapters 1–20.\n\nWhat the author NOW chooses — a future plan, not imported history:\nChapter 21 is about leaving an unfinished task without abandoning a promise to another\nperson. The extra attempt will fail. Chen prepares her own things but does not pack Lin’s\nfor him. Lin stops, packs the still-unrepaired receiver and leaves with her before her\nstated deadline. The notebook stays in his pocket; its contents and the person who changed the log are\nnot revealed here. This is one chosen direction, not the only valid reading of the source.\nDo not turn the choice into a romance, permanent trust or an explanation of Chen’s private\nfeelings unless the author separately establishes those things.\n\nWhy the intention belongs in the plan:\nA different author could choose a successful repair and the cost of staying. The accepted\nchapter 20 alone cannot choose between those futures. Here, the author’s decision governs\nchapter 21; it must not be backfilled as “the receiver failed and they left” in the imported\nchapter-20 checkpoint before the new scene has been written.\n\nSuggested import request, after the host setup described above:\n/story-import\nImport only /ABS/harbor-radio/complete-chapters.md as a continuable long-form project.\nChapters 1–20 are complete; the book is unfinished. Do not import the excluded alternate\nopening, rewrite old prose, or turn my future chapter-21 decision into past events.\nBefore migration, show the detected chapter range and any candidate volume divisions\nthat require my choice. Leave unsupported reconstruction fields uncertain.\nComplete the declared import workflow, but do not write chapter 21 in this request.\n\nAfter reviewing the reconstructed project, make the next-chapter plan explicit:\n/story-long-write 补纲\nPlan chapter 21 only; stop before prose. Keep chapter 20’s “one more try” decision.\nI approve the unsuccessful attempt, Lin packing the unrepaired receiver himself, and\nboth characters leaving together before Chen’s stated deadline. Do not give Chen the\nnotebook, reveal the person who changed the log or claim a complete reconciliation.\nPreserve chapters 1–20 and their established events. This is a new plan, not a historical\ncorrection. If the reconstructed outline points elsewhere, show the change before applying it.\n\nAfter that plan is accepted, and no chapter 21 prose file exists:\n/story-long-write 写第21章\nWrite only chapter 21 from its approved blueprint, in Lin Zhou’s close third person with\nrestrained dialogue. Carry through the extra attempt and the decision to stop, then show\npacking and leaving together. Keep the notebook in his pocket and Chen’s knowledge limited.\nDo not jump to the next morning, finish the repair off-page, or continue to chapter 22.\nIf a chapter-21 file or incompatible project state is present, stop and report it rather\nthan overwriting. Report the actual changed files when the chapter is finished.\n\nA candidate closing passage — original editorial prose, not a complete chapter or output:\nStatic rose again. Lin Zhou turned the dial back.\nChen Yu picked up her raincoat. She left the screwdriver beside his hand.\n“Still trying?”\nThe notebook’s corner pressed against his ribs.\n“No. Let’s go.”\nHe put the screwdriver into the box and closed the lid himself. A quarter of an hour\nremained before the time Chen had named. He lifted the unrepaired receiver and stepped\noutside with her.\n\nThis small ending enacts stopping, packing and leaving together. It does not prove that\nChen has forgiven him, that they reached home, or that the mystery is solved. In a complete\nchapter, the attempted repair still needs its scene; this closing excerpt does not replace it.\nOnly after the approved chapter actually contains these events should the resulting\ncontinuity state advance. Judge the voice beside the last original chapters; import is\nnot a guarantee that this illustrative prose is your voice.",
+      "zh": "原创编辑示例——《海港收音机》\n这是作者编写的阅读与交接练习，不是模型实测回答，也没有运行 Oh Story 工程。\n假设作者拥有完整第1–20章，下面仅摘录相关部分，不能拿这些摘录冒充完整导入源。\n所有 /ABS 路径都要替换为你环境中的真实文件。\n\n原稿边界：\n/ABS/harbor-radio/complete-chapters.md ——只含已接受的完整第1–20章。\n/ABS/harbor-radio/alternatives/ch21-unused.md ——未采纳的旧开头，不导入。\n作者本次选择“不保留”那版开头，因此本例导入工程里没有第二十一章正文文件。\n真实项目若保留了残稿，就应提出修改/补完请求，不把目标当空白新章覆盖。\n\n第18章已经作出的承诺：\n“这次收工，我跟你一起走。”林舟对陈雨说。\n\n第19章证据与已确认的信息边界：\n原稿写了林舟找到一本红色笔记本，藏进内袋。读者看见过它；作者确认截至\n第20章，陈雨还不知情。谁改了广播日志，对读者仍未揭晓；本练习也没有私下\n给出改动者的身份。\n\n第20章已接受的结尾，旧广播屋，20:10：\n“二十点四十，堤道就封了。”陈雨把手电放在工具盒旁。“我还能等半小时。”\n林舟隔着内袋摸到红册子的硬角。\n“再试一次。”他把灯头转向拆开的接收机。\n\n导入交接能保留什么：\n- 两个人仍在广播屋，接收机还没修好。\n- 红册在林舟身上，陈雨不知情；读者知道，不等于角色共享这份知识。\n- 林舟答应收工时跟陈雨一起走；他们现在还没走。\n- 他已经决定再试一次，下一场戏要接着做，不能退回“要不要试”的原点。\n- 陈雨说出了时间限制，但这没有证明修理会成功、两人已经离开，或双方一切\n  矛盾都已经解决。\n\n错误重建的反例——以下是特意编写的示意：\n假设导入交接已经把这段当成既定前史：\n“接收机终于修好了。陈雨翻开他的红册子，指着作假者的名字。天亮时他们有了\n全部答案，彼此之间也再没有任何隔阂。”\n把它当作导入至第20章的现状就错了：尝试尚未完成，陈雨没有红册和这些知识，\n次日早晨也在声明的截止点之外；它还把局部承诺变成了彻底和解。这些事件可以\n作为未来方案提出，却不是已建立的前史，也不是从第1–20章恢复出来的作者意图。\n\n作者现在才作出的选择——未来规划，不是导入前史：\n第21章要写“工作还没做完，也可以不辜负对另一个人的承诺”。再一次尝试会失败；\n陈雨准备自己的东西，但不替林舟收拾。林舟停手，亲自收起仍没修好的接收机，\n在她说的时限之前和她一起离开。红册留在内袋，这里不揭内容，也不揭日志改动者。\n这是本次选择，不是原稿唯一合理的读法；不要另外把它定为恋爱、永久信任，或替\n陈雨解释内心，除非作者另行建立这些事实。\n\n为什么意图要放在规划里：\n另一位作者也可以选择修理成功，并让留下来产生代价。仅凭已接受的第20章，\n导入无法替作者选定哪一种未来。本例现在批准的方向约束第21章，却不能在新场景\n尚未写出时，倒填成第20章追踪检查点里的“维修失败、两人已走”。\n\n按上文完成宿主 setup 后，可这样请求导入：\n/story-import\n只把 /ABS/harbor-radio/complete-chapters.md 导入为可续写长篇工程。\n第1–20章完整，整本书未完；不导入已排除的旧开头，不重写原文，不把我新选的\n第二十一章方向当成既往事件。迁移前展示识别的章节范围，以及需要我裁定的候选\n卷界；没有依据的重建字段保留未知。完成本次声明范围的导入流程，但本轮不写第21章。\n\n审阅重建工程后，单独说清下一章计划：\n/story-long-write 补纲\n只规划第21章，停在正文前。保留第20章“再试一次”的决定。\n我批准这次尝试失败、林舟自己收起没修好的接收机，以及两人在陈雨说的时限前\n一起离开。不要把红册交给陈雨，不揭日志改动者，不宣告彻底和解。\n第1–20章正文和已建立事件不变。这是新规划，不是纠正历史；若重建细纲方向\n不同，先说明要改哪里，再落实规划。\n\n计划已接受，并确认没有第21章正文文件后：\n/story-long-write 写第21章\n只按已批准细纲写第21章，用林舟的第三人称限知与克制对白。\n推进那次额外尝试和停手决定，再写出收拾、一起离开。红册仍在内袋，陈雨所知不越界。\n不跳到第二天早晨，不在画外修好接收机，不接着写第22章。\n若实际上已有第21章文件或项目状态冲突，先停下报告，不覆盖。\n本章完成后说明真实改动的文件。\n\n候选收束片段——原创编辑文字，不是完整章或生成结果：\n噪声又漫上来。林舟把旋钮退回原处。\n陈雨拎起雨衣，没碰他手边的螺丝刀。\n“还试？”\n红册子的角抵着肋骨。\n“不试了。走。”\n他把螺丝刀放回盒里，自己扣上盖。离陈雨说的时间还差一刻钟。\n他提起没修好的接收机，和她一道出了门。\n\n这个小结尾把停手、收拾、一起离开写成动作，并没有证明陈雨已经原谅他、两人\n已经到家或日志疑问已经解决。完整章里仍要写那次尝试的过程，不能拿这一小段末尾替代。\n只有获准的章节真的写出这些事件后，后续连续性状态才据此前进。文风要和最后几章\n原稿并读判断；导入不保证本例这段文字就是你的声音。"
     },
     "outputs": {
       "en": [
         "拆文库/{book}/ retains the source backup and reconstruction analysis; it is not the continuable project by itself.",
         "A long-form project puts preserved prose in 正文/, reconstructed settings in 设定/, outlines in 大纲/, and continuity state in 追踪/.",
+        "Reconstructed blueprints for chapters 1–N describe the imported prose; they are not newly written replacement chapters. A later author-approved blueprint for N+1 describes an intended future. Keep that plan separate from the historical checkpoint until prose establishes the new events.",
         "追踪/_tracking-state.json is authoritative. Context, character, foreshadowing and timeline Markdown are generated views; continuation begins after the last complete imported chapter.",
         "For ongoing chapters after import, use the [long-novel continuity example](https://zenstory.ai/oh-story/long-novel-continuity): separate author truth, character/reader knowledge, unresolved promises and future plans before drafting."
       ],
       "zh": [
         "拆文库/{书名}/ 保存原文备份与重建分析；它本身不是可续写工程。",
         "长篇工程把保留的正文放在 正文/，反推设定放在 设定/，大纲放在 大纲/，连贯性状态放在 追踪/。",
+        "第1–N章反推细纲描述导入的原稿，不是新写的替换正文；作者随后批准的第N+1章细纲描述拟写的未来。在正文建立新事件前，不把这份计划混入历史检查点。",
         "追踪/_tracking-state.json 是权威状态；上下文、角色、伏笔和时间线 Markdown 是派生视图。续写从最后完整导入章之后开始。",
         "导入后持续写章，可接着看[长篇连续性示例](https://zenstory.ai/oh-story/long-novel-continuity)：写前分开作者真相、角色/读者认知、未完承诺与未来计划。"
       ]
@@ -682,11 +772,13 @@
     "verification": {
       "en": [
         "Before chapter N+1, compare the final scene, active characters’ locations and knowledge, unresolved promises and reader-visible facts with the manuscript. Correct unsupported inferences or keep them uncertain.",
-        "Read the first continuation beside the last two original chapters for voice, viewpoint, knowledge boundaries and causal handoff. Revise old chapters through the workflow, not by patching generated tracking files."
+        "Read the first continuation beside the last two original chapters for voice, viewpoint, knowledge boundaries and causal handoff. Revise old chapters through the workflow, not by patching generated tracking files.",
+        "For the harbor exercise, distinguish an action already chosen from an outcome not yet achieved. The continuation must actually show the attempt and, if that plan is approved, stopping and leaving together; it must not reset the choice, teleport the notebook, reveal its secret to Chen or equate leaving with complete reconciliation."
       ],
       "zh": [
         "写第 N+1 章前，把最后场景、活跃角色的位置与已知、未结承诺、读者可见事实对回书稿。无证据推断要纠正或保留为未知。",
-        "把第一章续写与最后两章原稿并读，检查文风、视角、认知边界和因果承接。旧章需要修改时走大修流程，不手补派生追踪文件。"
+        "把第一章续写与最后两章原稿并读，检查文风、视角、认知边界和因果承接。旧章需要修改时走大修流程，不手补派生追踪文件。",
+        "针对海港练习，分清已经选择的行动与尚未实现的结果。续章应真正写出尝试，并在计划获准时写出停手、一起离开；不能把选择重置、让红册凭空换人、让陈雨突然知情，或把离开等同于彻底和解。"
       ]
     },
     "sources": {
@@ -698,7 +790,9 @@
         "[Character snapshots, knowledge boundaries, partial drafts and expanded-range imports](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/references/character-state-reverse.md#L21-L80)",
         "[Authoritative tracking state, derived views and manual-edit boundary](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/references/tracking-transaction.md#L5-L45)",
         "[Next-chapter context: prior prose, current state, characters and commitments](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L15-L33)",
-        "[Explicit next-chapter, daily continuation and revision routes](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/SKILL.md#L62-L83)"
+        "[Explicit next-chapter, daily continuation and revision routes](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/SKILL.md#L62-L83)",
+        "[Reconstructed history, unknown fields and future events kept out of past checkpoints](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-import/SKILL.md#L335-L398)",
+        "[Next-chapter intent, approved blueprint and limits on premature outcomes](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-chapter.md#L31-L43)"
       ],
       "zh": [
         "[安装路径、命令命名空间与导入续写顺序](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/README_EN.md#L82-L142)",
@@ -708,7 +802,9 @@
         "[角色快照、认知边界、残稿与扩大范围导入](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/references/character-state-reverse.md#L21-L80)",
         "[权威追踪状态、派生视图与手工编辑边界](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/references/tracking-transaction.md#L5-L45)",
         "[下一章上下文：上章正文、当前状态、角色与承诺](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L15-L33)",
-        "[点名写章、日更续写与旧章大修路由](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/SKILL.md#L62-L83)"
+        "[点名写章、日更续写与旧章大修路由](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/SKILL.md#L62-L83)",
+        "[反推前史、未知字段，以及不把未来事件写入历史检查点](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-import/SKILL.md#L335-L398)",
+        "[下一章意图、已批准蓝图与禁止提前给出的结果](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-chapter.md#L31-L43)"
       ]
     }
   },
@@ -1279,14 +1375,14 @@
   {
     "owner": "drama-skills",
     "slug": "character-consistency",
-    "checked_on": "2026-09-12",
+    "checked_on": "2026-09-13",
     "title": {
       "en": "Character consistency in AI short drama: identity, costume and shot continuity",
       "zh": "AI 短剧怎样保持角色跨镜一致：人物、造型与镜头状态"
     },
     "answer": {
-      "en": "Separate the person’s persistent identity from the current costume and each shot’s action. Keep only genuinely unchanged visual facts in a continuity lock; track hands, props and gaze as shot state. An original three-shot archive scene below shows how to connect these decisions. A character sheet or an image-prompt ID is not a generated reference image, and written constraints do not guarantee a model’s results. For the wider adaptation workflow, start with the [novel-to-short-drama guide](https://zenstory.ai/drama-skills/novel-to-short-drama).",
-      "zh": "先把不随换装改变的人物身份、当前造型与每镜动作分开。只把真正跨镜不变的外观写入连续性锁，手持物、视线和姿势则按镜头记录。下面用原创的档案馆三镜示例，说明怎样把这些决定连起来。有角色设定或图片提示词编号，不等于已有真实参考图；文字约束也不保证模型最终效果。完整改编流程可从[小说改短剧指南](https://zenstory.ai/drama-skills/novel-to-short-drama)开始。"
+      "en": "Separate persistent character identity, the scene’s compatible Look and each shot’s changing state. Then ask what each reference is allowed to control in the current frame—not whether it is simply “a picture of the character.” The original archive example below connects three shots and adds a reference-selection exercise: visible identity, costume compatibility, location geometry and start/end frames need different decisions. Existing images do not have to be regenerated by this suite; external picture plans can support prompt writing without pretending files are ready for the suite’s production API. Text constraints do not guarantee generated consistency.",
+      "zh": "先分开长期人物身份、本场相容造型与每镜变化的状态，再问每张参考图在当前画面里允许决定什么，而不只问“是不是这个人的图”。下面沿用原创档案馆三镜，补上挑图练习：可见身份、服装是否相容、场景布局和首尾帧需要不同判断。已有图片不必由本套件重新生成；外部挂图计划可以支持提示词写作，但不冒充本套件投产所需的真实文件。文字约束不保证生成结果始终一致。"
     },
     "prerequisites": {
       "en": [
@@ -1319,12 +1415,20 @@
           "For every shot write `start → one primary action → end`, including each hand, held prop and gaze. The next shot must start from the previous shot’s actual end unless the screenplay establishes a cut or state change. A frozen keyframe normally describes the start only; it must not show an action or prop state that first appears at the end."
         ],
         [
-          "Keep prompt IDs separate from media evidence",
-          "Use `short-drama-image-prompts` only to author entries such as `IMG-CHAR-LINLAN` and `IMG-LOOK-LINLAN-RAIN`; those IDs do not prove files exist. In `short-drama-storyboard`, bind an inspected project image as `REF-*`. If the creator will supply it later, keep a `PLAN-*` slot with order, intended file, purpose, control scope and exclusions. Missing files must not be silently downgraded to text-to-video."
+          "Choose references after deciding the frame",
+          "Read the finished frozen start frame: which people, places and props are actually visible, and what must stay recognizable? A [creator report](https://github.com/zenstory-ai/drama-skills/issues/94) concerns a named character in prompt text without the corresponding visual-basis entry; it does not establish how a model handles poses. Cite the accepted visual entries for what this frame shows. A portrait that hides the nape cannot establish its rear hairline. Reconsider bindings for every shot rather than carrying the previous shot’s entire reference list forward automatically."
         ],
         [
-          "Stop at a production-honest handoff",
-          "A `PLAN-*` shot may describe the intended image-to-video path, but it cannot enter `short-drama-produce` until the real file is present and the slot becomes `REF-*`. For a continuing shot chain, later segments also need the preceding actual video and actual tail frame; planned frames or prose cannot substitute. Text constraints improve the handoff, but do not guarantee a model will preserve face, clothing, space, props or motion."
+          "Give each reference a purpose and explicit limits",
+          "Identity, Look state, geography, composition and boundary frames answer different questions. Write both what a slot controls and what it must not control. Do not make a costume image dictate where a key is held, or make a location image impose the camera angle and weather of every shot. The source permits one identity slot to include an explicitly fixed whole-episode Look; a changing costume/state needs its own scope. A genuinely different second purpose gets a separate slot, not an “everything reference.”"
+        ],
+        [
+          "Distinguish a file, an external plan and a missing input",
+          "REF points to a currently readable, inspected project-relative image file. PLAN instead points to a current, resolvable IMG prompt entry or SHOT frozen frame for pictures the creator will prepare and attach externally. It is not a made-up future filename. If the required entry or creative choice is still absent, report the gap rather than presenting a complete plan. With no suitable image-prompt entry, the storyboard can still proceed from screenplay/visual facts; it must not fabricate an IMG merely to keep going."
+        ],
+        [
+          "Keep the external-canvas path separate from suite production",
+          "A [creator question and maintainer explanation](https://github.com/zenstory-ai/drama-skills/issues/105#issuecomment-5550666854) distinguish writing reference prompts from calling production with real files. Accepted external plans can support video-prompt writing when that stage is requested; the creator supplies the pictures in their own tool. For short-drama-produce, those planned inputs need actual project files and REF bindings first. Where the chosen route continues actual generated results, the next segment requires the previous real video and its real tail frame, not an early character sheet or planned end frame. No reference plan guarantees model quality or authorizes a paid run."
         ]
       ],
       "zh": [
@@ -1345,39 +1449,47 @@
           "每镜都按“起点 → 唯一主要动作 → 终点”记录双手、持物与视线；除非剧本明确跳时空，下一镜起点应继承上一镜真实终点。冻结关键帧默认只写起点，不能提前出现终点才成立的动作或道具状态。"
         ],
         [
-          "把提示词编号与真实素材分开",
-          "`short-drama-image-prompts` 可写 `IMG-CHAR-LINLAN`、`IMG-LOOK-LINLAN-RAIN`，但编号不证明图片存在。到 `short-drama-storyboard`，检查过且项目内可读的图片才写 `REF-*`；创作者计划稍后提供时保留 `PLAN-*`，注明顺序、拟用文件、用途、控制范围与不得控制范围。缺图不能静默降级为文生视频。"
+          "先定这一格，再选参考图",
+          "读已经写出的冻结起点：这一格真正出现哪些人物、地点、道具，哪些需要认出身份？一条[创作者反馈](https://github.com/zenstory-ai/drama-skills/issues/94)指出提示词写进了人物，却没有对应视觉依据；它不证明模型怎样处理姿势。按实际可见内容引用已接受条目。遮住后颈的人像不能证明后侧发际形状；下一镜也要重新判断，不把上一镜整份参考清单自动沿用。"
         ],
         [
-          "以诚实的投产边界收尾",
-          "`PLAN-*` 可以记录预期的图生视频路径，但真实文件入项并改为 `REF-*` 前，不能交给 `short-drama-produce`。连续时空的后续段还需要上一段实际视频和实际尾帧；文字或计划帧不能冒充。文本约束能改善交接，却不保证模型最终稳定人脸、服装、空间、道具或动作。"
+          "逐图写用途，也写不能决定什么",
+          "身份、造型状态、地理、构图与边界帧回答不同问题。每个槽位既写控制范围，也写不得控制范围：不让服装图决定钥匙拿在哪只手，也不让场景图规定每镜的机位和天气。源码允许一个身份槽位明确包含整集固定不变的造型；会改变的服装/状态另设范围。真正不同的第二用途另开槽位，不写笼统的“全参考”。"
+        ],
+        [
+          "分清真实文件、外部挂图计划与待补",
+          "REF 指向当前项目内可读、已检查的真实图片相对路径；PLAN 指向当前可解析的 IMG 提示词条目或 SHOT 冻结帧，表示创作者将在外部准备并自行挂图，不是虚构的未来文件名。必要条目或创作选择还没有，就报告缺口，不把计划写成已就绪。没有合适图片提示词条目时，分镜仍可从剧本与视觉事实进入，不能为了继续而假造一个 IMG。"
+        ],
+        [
+          "外部画布与本套件投产是两条使用路径",
+          "一则[创作者提问与维护者解释](https://github.com/zenstory-ai/drama-skills/issues/105#issuecomment-5550666854)区分了参考提示词写作和带真实文件调用生产。已接受的外部计划可在被请求时继续写视频提示词，图片由创作者在自己的工具里准备、挂载；交给 short-drama-produce 时，才须先让计划输入成为项目内真实文件并绑定 REF。采用实际生成结果续接的路线，后段还需上一段真实视频与真实尾帧，不能由早期角色图或计划终点帧替代。挂图计划不保证模型效果，也不授权付费调用。"
         ]
       ]
     },
     "example": {
-      "en": "ORIGINAL EDITORIAL EXAMPLE — written for this guide, not skill output, generated media or a production test.\nScene: At a rain-soaked archive loading bay, Lin Lan must open locker 17 while keeping a red evidence folder dry. The steel bench stands directly beside locker 17, so the three shots require no off-shot repositioning. Her jacket hood stays down, leaving the nape anchor visible.\n\nCharacter — Lin Lan: V-shaped nape hairline; right shoulder slightly lower than left.\nLook — LOOK-LINLAN-RAIN: references Lin Lan; low-tied hair; dark-teal matte hooded work jacket; hood down; two rows of silver snaps on the left cuff.\nLOCK — LOCK-LINLAN-JACKET: “dark-teal matte hooded work jacket, hood down, two rows of silver snaps on the left cuff”; active in SHOT-01 through SHOT-03.\nProp — brass locker key and red evidence folder remain separate assets. Throughout these three shots, the left arm pins the folder and the left hand supports its lower edge; only the right hand handles the key.\n\nSHOT-01 — Start: folder tucked under left arm, key on the steel bench, right hand empty, gaze on the key. Action: Lin Lan picks up the key with her right hand. End: folder under left arm, key in right hand, gaze shifts to locker 17.\nSHOT-02 — Start: inherit the preceding end. Action: she inserts the key into locker 17. End: folder under left arm, key remains in the lock, right hand stays on it, gaze on the keyhole.\nSHOT-03 — Start: inherit the preceding end. Action: she turns the key once. End: folder still under left arm, key turned in the lock, right hand on the key, gaze moves to the door seam.\n\nPrompt/reference record: `IMG-CHAR-LINLAN` and `IMG-LOOK-LINLAN-RAIN` name prompt entries only. `PLAN-LINLAN-RAIN-01` points to the explicitly non-existent placeholder `剧集/EP001/待提供/林岚雨夜造型.png` below, first in reference order, for identity and compatible Look only; it must not control hand pose, key position, gaze or camera. No real file has been provided, inspected or bound, so all three shots remain PLAN and are not production-ready. No image, video, face-consistency or motion result is claimed.\n\nCopyable text-only handoff request:\nFor EP001, use `short-drama-assets`, `short-drama-image-prompts` and `short-drama-storyboard` to organize Lin Lan and these three shots. Keep Character, Look, LOCK and shot state separate. Stop at text files; do not generate images, video, voices or music. `剧集/EP001/待提供/林岚雨夜造型.png` is a placeholder path, not an existing file. Keep it as PLAN and do not prepare a production submission.",
-      "zh": "原创编辑示例——为本指南编写，不是技能执行输出、生成媒体或投产测试。\n场景：雨夜的档案馆装卸区，林岚要打开 17 号柜，同时护住一份红色证物夹。钢台紧挨 17 号柜，三镜之间无需补走位；夹克帽子保持放下，让后颈锚点可见。\n\nCharacter｜林岚：V 形后颈发际；右肩略低于左肩。\nLook｜LOOK-LINLAN-RAIN：引用林岚；低束发；墨绿色哑光连帽工作夹克；帽子放下；左袖双排银色按扣。\nLOCK｜LOCK-LINLAN-JACKET：“墨绿色哑光连帽工作夹克，帽子放下，左袖双排银色按扣”；SHOT-01 至 SHOT-03 生效。\nProp｜黄铜柜钥匙与红色证物夹分别建资产。三镜中，左臂始终夹住文件夹，左手压住其下缘；只有右手操作钥匙。\n\nSHOT-01｜起点：证物夹在左腋下，钥匙在钢台上，右手空，视线看钥匙。动作：林岚用右手拿起钥匙。终点：证物夹仍在左腋下，钥匙在右手，视线转向 17 号柜。\nSHOT-02｜起点：继承上镜终点。动作：她把钥匙插入 17 号柜。终点：证物夹仍在左腋下，钥匙留在锁孔，右手扶住钥匙，视线看锁孔。\nSHOT-03｜起点：继承上镜终点。动作：她把钥匙转动一次。终点：证物夹仍在左腋下，钥匙已在锁孔内转过，右手仍扶钥匙，视线移到柜门缝。\n\n提示词与参考记录：`IMG-CHAR-LINLAN`、`IMG-LOOK-LINLAN-RAIN` 只命名提示词条目。`PLAN-LINLAN-RAIN-01` 指向下方明确标为非现存文件的占位路径 `剧集/EP001/待提供/林岚雨夜造型.png`，在参考顺序中排第一，只控制身份与相容 Look，不控制手势、钥匙位置、视线或机位。现在没有真实文件被提供、检查或绑定，所以三镜都保持 PLAN，不可投产；本例不声称已获得图片、视频、人脸一致或动作效果。\n\n可复制的纯文本交接请求：\n请为 EP001 使用 `short-drama-assets`、`short-drama-image-prompts` 和 `short-drama-storyboard` 整理林岚与以上三镜；分开 Character、Look、LOCK 和镜头状态。只交文字，不生成图片、视频、配音或音乐。`剧集/EP001/待提供/林岚雨夜造型.png` 是占位路径，不是现存文件；保持 PLAN，不准备投产提交。"
+      "en": "ORIGINAL EDITORIAL EXAMPLE — written for this guide, not skill output, generated media or a production test.\nScene: At a rain-soaked archive loading bay, Lin Lan must open locker 17 while keeping a red evidence folder dry. The steel bench stands directly beside locker 17, so the three shots require no off-shot repositioning. Her jacket hood stays down, leaving the nape anchor visible.\n\nCharacter — Lin Lan: V-shaped nape hairline; right shoulder slightly lower than left.\nLook — LOOK-LINLAN-RAIN: references Lin Lan; low-tied hair; dark-teal matte hooded work jacket; hood down; two rows of silver snaps on the left cuff.\nLOCK — LOCK-LINLAN-JACKET: “dark-teal matte hooded work jacket, hood down, two rows of silver snaps on the left cuff”; active in SHOT-01 through SHOT-03.\nProp — brass locker key and red evidence folder remain separate assets. Throughout these three shots, the left arm pins the folder and the left hand supports its lower edge; only the right hand handles the key.\n\nSHOT-01 — Start: folder tucked under left arm, key on the steel bench, right hand empty, gaze on the key. Action: Lin Lan picks up the key with her right hand. End: folder under left arm, key in right hand, gaze shifts to locker 17.\nSHOT-02 — Start: inherit the preceding end. Action: she inserts the key into locker 17. End: folder under left arm, key remains in the lock, right hand stays on it, gaze on the keyhole.\nSHOT-03 — Start: inherit the preceding end. Action: she turns the key once. End: folder still under left arm, key turned in the lock, right hand on the key, gaze moves to the door seam.\n\nReference-selection exercise: these candidate-picture descriptions were written for the guide. No such images were supplied or inspected in this session.\nA | Proposed daytime front portrait of Lin Lan: loose hair, an ivory shirt and bookshelves behind her. If the author confirms identity and an actual inspection supports it, it may provide visible facial features. The filename cannot establish identity, and the portrait cannot establish a V-shaped nape hidden by hair. The shirt, loose hair, shelves and frontal camera are not new facts for the rain-night scene.\nB | Proposed rainwear picture: hood up, with one black strap on the left cuff. That conflicts with the accepted hood-down jacket and two rows of silver snaps. To keep the design, choose a compatible picture. If the author changes the Look instead, update the accepted visual specification and affected LOCK/shots; do not call that merely adding a reference. Negative wording cannot guarantee removal of conflicts already present in a picture.\nC | Proposed empty loading-bay wide view: daylight, steel bench beside locker 17, fixed entrances clear. It can help establish spatial relations, not force every shot into that wide composition or change the story from rainy night to daytime.\nD | Proposed shot-three end frame: the key has turned, the right hand remains on it and the gaze has moved to the door seam. That is the existing end state, not the third shot's start. Using it as a start frame advances the result of the turn; it is not a tail frame taken from an actual video either.\n\nAn optional directing choice for this pass: make SHOT-03 a medium view from the left rear, showing the nape, left cuff, folder under the left arm and right hand on the key in the lock. Bench and locker remain adjacent. This is a new camera proposal requiring author acceptance, not a change to the three shots' action order or accepted endpoint.\nThat frame does not need A's frontal face merely because a character picture is available. It needs support for the visible rear anchors and compatible Look. Resolve B's costume conflict first. C may serve geography. D cannot substitute for this shot's start frame.\n\nDo not hide decisions inside “use everything as reference”\n“Use B's person and C's location, then start every shot like D” imports conflicting clothing, a fixed wide composition and an early end state. A clearer request preserves the accepted identity/Look, lets the location reference control only bench/locker spatial relations, and makes each start frame obey its own shot's start. Scope declarations express creative intent; they do not guarantee a model will separate influences perfectly.\n\nHow can a reference record avoid inventing files?\n1. The author has supplied a picture, it is readable in the project and its content/purpose has been inspected: use REF with a project-relative file path. Do not require regeneration through this suite or invent an IMG entry for a real supplied image.\n2. The creator explicitly prepares and attaches pictures in their own canvas: use PLAN with an existing project IMG or SHOT entry, not a future filename such as 待提供/some-picture.png. It says what to attach and in what order; it is not another label for waiting on an upload.\n3. The corresponding entry or necessary preparation choice is still absent: keep a stated gap. Missing pictures do not silently select text-to-video or make an incomplete plan ready for external prompt work.\n\nThe next two slots illustrate syntax, not a complete production-input list. They assume the author has accepted the proposed camera choice, and that its matching SHOT-03 frozen start and an IMG-LOOK-LINLAN-RAIN entry titled 林岚雨夜造型 already exist in the current project. The author must additionally have confirmed that this Look remains fixed for the entire episode and explicitly chosen external picture preparation. Without those premises, do not copy these as a ready plan:\nPLAN-START-03（顺序：1）· SHOT-03《17号柜转钥匙起点》（用途：起始帧；控制：已接受的左后侧中景、站位、钥匙已插入但尚未转动的起始状态；不得控制：已经转过的钥匙、柜门打开或新的终点）\nPLAN-LINLAN（顺序：2）· IMG-LOOK-LINLAN-RAIN《林岚雨夜造型》（用途：身份；控制：可见后颈发际、肩线及已确认本集固定造型；不得控制：手势、钥匙位置、视线、场景地理、镜头构图）\nMeaning: slot 1 uses the existing SHOT start for the accepted camera/placement and the inserted-but-unturned key, not the endpoint. Slot 2 uses the existing Look prompt entry for visible identity anchors and the separately confirmed whole-episode Look, not hands, key position, gaze, geography or composition. The Chinese field names preserve the source's documented slot syntax.\n\nIncluding fixed clothing in that identity slot depends on the explicit whole-episode premise above; a costume picture does not automatically become identity. If clothing, wetness or damage changes within the episode, scope that state separately. A genuinely different purpose for the same image gets a separate slot. REF and PLAN can coexist, but their order is one sequence; two different inputs cannot both be Picture 1.\nThe syntax excerpt omits other potentially needed geography/prop inputs. Formal records must cover the actual visible frame and retain real gaps. No project entries or pictures were created here, so this guide claims no shot has passed readiness or production checks.\n\nIf you later choose an end frame for shot three, it can only show the already-selected turned key, hand still on it and gaze at the seam. Opening the locker is not this three-shot sequence's accepted endpoint. An end-frame slot also requires a corresponding start frame. Even both planned boundaries do not establish the intervening movement, or supply the actual video/tail frame required by a later actual-result continuation.\n\nCopyable text handoff request:\nIn project /ABS/my-drama, EP001, preserve Lin Lan's accepted identity, Look, LOCK and three-shot action order. Read the current frozen frames and explain each frame's visible subjects and reference needs.\nSeparate images actually supplied and inspected, explicit external preparation plans and remaining gaps. Do not say an unread picture has been checked. Surface costume or boundary-state conflicts without automatically changing the accepted design.\nFor external plans, PLAN must resolve to a current IMG or SHOT, with order, purpose, control and non-control scope. Report missing entries; do not substitute future filenames.\nText only. Do not move into video prompts unless requested, generate images/video/voices/music or start suite production.",
+      "zh": "原创编辑示例——为本指南编写，不是技能执行输出、生成媒体或投产测试。\n场景：雨夜的档案馆装卸区，林岚要打开 17 号柜，同时护住一份红色证物夹。钢台紧挨 17 号柜，三镜之间无需补走位；夹克帽子保持放下，让后颈锚点可见。\n\nCharacter｜林岚：V 形后颈发际；右肩略低于左肩。\nLook｜LOOK-LINLAN-RAIN：引用林岚；低束发；墨绿色哑光连帽工作夹克；帽子放下；左袖双排银色按扣。\nLOCK｜LOCK-LINLAN-JACKET：“墨绿色哑光连帽工作夹克，帽子放下，左袖双排银色按扣”；SHOT-01 至 SHOT-03 生效。\nProp｜黄铜柜钥匙与红色证物夹分别建资产。三镜中，左臂始终夹住文件夹，左手压住其下缘；只有右手操作钥匙。\n\nSHOT-01｜起点：证物夹在左腋下，钥匙在钢台上，右手空，视线看钥匙。动作：林岚用右手拿起钥匙。终点：证物夹仍在左腋下，钥匙在右手，视线转向 17 号柜。\nSHOT-02｜起点：继承上镜终点。动作：她把钥匙插入 17 号柜。终点：证物夹仍在左腋下，钥匙留在锁孔，右手扶住钥匙，视线看锁孔。\nSHOT-03｜起点：继承上镜终点。动作：她把钥匙转动一次。终点：证物夹仍在左腋下，钥匙已在锁孔内转过，右手仍扶钥匙，视线移到柜门缝。\n\n挑图练习：以下都是为教程编写的候选图描述，不是本次收到或看过的图片。\nA｜拟用的林岚日间正面人像：披发、米白衬衫，后面是书架。若作者确认身份且实际检查相符，它可以提供可见面部特征；不能由文件名推定同一人，也不能证明被头发遮住的 V 形后颈发际。白衬衫、披发、书架和正面机位都不是雨夜场景的新设定。\nB｜拟用的雨衣图：人物戴着帽子，左袖只有一道黑色带子。它与已经接受的帽子放下、双排银色按扣冲突。保持原案就换成相容的图；若作者决定改造型，则同步改视觉设定与受影响的 LOCK/镜头，不把改造型说成“只是挂了一张参考”。写负面词不能保证消除已有图像中的冲突。\nC｜拟用的装卸区空场全景：白天，钢台紧挨17号柜，固定出入口清楚。它可帮助说明地理关系，不强迫后续每镜都是这个全景，也不把故事的雨夜改成白天。\nD｜拟用的第三镜收尾画面：钥匙已经转过，右手仍扶钥匙，视线已到柜门缝。这是原案终点，不是第三镜起点。把它当首帧，会把“转动一次”的结果提前；它也不是从实际视频中取得的尾帧。\n\n本轮可选的导演决定：为 SHOT-03 采用左后侧中景，能看见后颈、夹克左袖、左臂下的文件夹和右手扶着锁孔中的钥匙。钢台与17号柜仍相邻。这是新增机位候选，需作者接受；不改变三镜的动作次序或既定终点。\n在这个画框里，不必为了“角色图必须有”就强行挂 A 的正脸；更需要能支持可见后侧锚点与相容造型的依据。B 应先解决造型冲突。C 可按地理用途保留。D 不能替代此镜起始帧。\n\n不要用一个“全参考”掩盖选择\n“照B图的人物，照C图的场景，每镜都按D图开始。”会把冲突造型、固定全景和过早的终态一起带入。更清楚的任务是：保留已接受的林岚身份/Look；地点参考仅管钢台与柜子的空间关系；每镜首帧分别服从该镜起点。控制范围说明的是创作意图，不保证模型一定分离得干净。\n\n挂图记录怎样写才不假装有文件？\n1. 图片已经由作者提供、项目内可读且内容/用途检查相符：写 REF，定位符是项目相对文件路径。不要求先用本套件重生成，也不为真实图虚构 IMG 条目。\n2. 作者明确在自己的画布准备并挂图：写 PLAN，定位符是当前项目已存在的 IMG 或 SHOT 条目，不是“待提供/某图片.png”。它说明挂哪一项、按什么顺序挂，不是“还在等文件上传”的同义词。\n3. 还没有对应条目，或没有决定怎样准备必要图片：保留待补。缺图不自动选择文生视频，也不把未完成计划标成可继续的外部挂图方案。\n\n下面仅是两个槽位的语法样例，不是完整的投产输入清单。前提是作者已接受上述机位，当前项目已经存在与之对应的 SHOT-03 冻结起点，以及标题为“林岚雨夜造型”的 IMG-LOOK-LINLAN-RAIN 条目；作者另已确认这套Look在本集全程不变，并明确选择外部挂图。若前提尚未成立，不要照抄为已就绪：\nPLAN-START-03（顺序：1）· SHOT-03《17号柜转钥匙起点》（用途：起始帧；控制：已接受的左后侧中景、站位、钥匙已插入但尚未转动的起始状态；不得控制：已经转过的钥匙、柜门打开或新的终点）\nPLAN-LINLAN（顺序：2）· IMG-LOOK-LINLAN-RAIN《林岚雨夜造型》（用途：身份；控制：可见后颈发际、肩线及已确认本集固定造型；不得控制：手势、钥匙位置、视线、场景地理、镜头构图）\n\n这个身份槽位能带固定造型，依赖上面额外写明的“整集不变”前提，不是见到一张服装图就能并入身份。若本集会换装或改变湿污/破损状态，给相应状态单独的范围；若同一图片承担另一个不同用途，另列槽位。混用 REF 与 PLAN 时统一顺序，不能把两个不同输入都写成第1张。\n语法样例没有列齐地理与道具等可能需要的其他输入；正式记录须按该格实际可见内容补齐依据与真实缺口。这里没有创建项目条目或图片，因此不声称任何镜头已通过就绪或投产检查。\n\n如果以后确实需要第三镜的结束帧，它只能显示原案中“钥匙已转过、手未松开、视线移到门缝”；柜门打开不在这三镜的既定终点内，不能顺手加上。一个结束帧槽位还须有对应起始帧。即使计划首尾帧都写齐，也未得到中间运动，更未得到后续段所需的实际视频/实际尾帧。\n\n可复制的文字交接请求：\n在项目 /ABS/my-drama 的 EP001 中，保留林岚上述三镜的已接受身份、Look、LOCK与动作次序。先根据当前冻结帧逐镜说明可见对象和参考需求。\n区分本次真正提供且已读取的图片、作者外部出图计划、仍待补的内容；未读取的图不声称已检查。发现造型或起终状态冲突时，列明取舍，不自动改原案。\n如果选择外部挂图，PLAN只能引用项目中可解析的IMG或SHOT，并列顺序、用途、控制与不得控制范围；缺条目就报告，不拿未来文件名替代。\n只交文本；没有请求视频提示词时不自动扩到该阶段，不生成图片、视频、配音或音乐，不启动本套件生产。"
     },
     "outputs": {
       "en": [
         "`剧集/<EP>/视觉设定.md`: the Character entry, one compatible Look, separate Props, scoped states and only the necessary continuity LOCK.",
         "`剧集/<EP>/图片提示词.md`: copyable `IMG-*` prompt entries carrying the accepted anchors and LOCK text. They are text deliverables, not evidence of generated assets.",
-        "`剧集/<EP>/分镜.md`: `SHOT-*` state chains, frozen start frames, visual-basis references and honest `REF-*`, `PLAN-*` or missing-reference status. `视频提示词.md` is added only when the reference path is ready enough for that stage."
+        "`剧集/<EP>/分镜.md`: shot-state chains, frozen frames, frame-specific visual basis and honest REF, PLAN or missing-input status. When requested, video prompts can use a complete accepted external PLAN; that does not supply the actual files short-drama-produce needs."
       ],
       "zh": [
         "`剧集/<EP>/视觉设定.md`：Character 条目、一个相容 Look、独立 Prop、有范围的状态，以及必要的连续性 LOCK。",
         "`剧集/<EP>/图片提示词.md`：携带身份锚点与 LOCK 锁面的可复制 `IMG-*` 提示词；它是文本交付，不证明图片已生成。",
-        "`剧集/<EP>/分镜.md`：`SHOT-*` 状态链、起点冻结帧、视觉依据，以及真实的 `REF-*`、`PLAN-*` 或缺图状态。参考路径满足该阶段要求后，才按需添加 `视频提示词.md`。"
+        "`剧集/<EP>/分镜.md`：镜头状态链、冻结帧、逐帧视觉依据与真实的REF、PLAN或待补状态。被请求时，视频提示词可使用完整且已接受的外部PLAN；它不提供short-drama-produce所需的实际文件。"
       ]
     },
     "verification": {
       "en": [
         "Editorially compare all three shots: Character anchors remain the same, the Look is compatible, the exact LOCK surface is carried wherever required, and every hand, prop and gaze at a shot start matches the preceding end.",
-        "Audit evidence labels before production: every `REF-*` resolves to an inspected real file with a stated purpose and boundary; unresolved `PLAN-*` slots stay non-production. Passing this document review does not validate or guarantee generated-media quality or continuity."
+        "Before using a reference, distinguish inspected images from described or planned ones and check what the current frame actually needs. REF files must exist and match their declared purpose; PLAN locators must resolve to current entries and remain outside suite production until real files are bound. Text review does not validate generated-media quality or continuity."
       ],
       "zh": [
         "逐镜做编辑核对：Character 锚点不变，Look 内部相容，LOCK 锁面在所需位置原样出现；每镜起点的双手、持物与视线都接得上前镜终点。",
-        "投产前核对证据等级：每个 `REF-*` 都能找到已检查的真实文件，并写明用途和边界；未解决的 `PLAN-*` 继续保持不可投产。文档审阅通过不等于生成媒体质量或连续性已经验证。"
+        "使用参考前，分清已检查图片与描述/计划，并核对当前画框真正需要什么。REF文件须真实存在且符合声明用途；PLAN须解析到当前条目，真实文件绑定前仍不能交本套件生产。文本审阅不证明生成媒体质量或连续性。"
       ]
     },
     "sources": {
@@ -1386,20 +1498,26 @@
         "[Character anchors and compatible Look definitions](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/character-and-look.md#L39-L82)",
         "[When a visible fact merits a continuity lock](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/continuity-lock.md#L13-L30)",
         "[Where continuity-lock text must be carried](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/continuity-lock.md#L91-L103)",
-        "[Shot states, frozen keyframes and reference-slot status](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-storyboard/SKILL.md#L45-L72)",
         "[Image-prompt structure and scoped reference control](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-image-prompts/SKILL.md#L30-L47)",
-        "[Real REF images, planned inputs and non-production states](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-video-prompts/SKILL.md#L18-L34)",
-        "[Actual video and tail-frame requirements for continuation](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-video-prompts/SKILL.md#L97-L105)"
+        "[Reference purposes, fixed-episode Look exception and observation boundaries](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama/references/reference-roles.md#L15-L49)",
+        "[REF paths, PLAN entry locators and four preparation states](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama/references/creator-documents.md#L102-L137)",
+        "[Supplied images without invented prompt entries and mixed reference examples](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama/references/creator-documents.md#L138-L172)",
+        "[Three image-preparation choices, not forced suite generation](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L33-L40)",
+        "[Frame-specific visual basis and bindings do not automatically carry to later shots](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L100-L121)",
+        "[Actual video/tail frames and accepted-start conflicts in continuation](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-video-prompts/references/delivery-profile.md#L66-L82)"
       ],
       "zh": [
         "[资产边界：身份、变体、镜头瞬态与连续性锁](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/SKILL.md#L18-L50)",
         "[Character 锚点与相容 Look 的定义](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/character-and-look.md#L39-L82)",
         "[哪些可见事实值得写成连续性锁](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/continuity-lock.md#L13-L30)",
         "[连续性锁面必须进入哪些文档](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-assets/references/continuity-lock.md#L91-L103)",
-        "[镜头状态、冻结关键帧与参考槽位状态](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-storyboard/SKILL.md#L45-L72)",
         "[图片提示词结构与参考图控制范围](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-image-prompts/SKILL.md#L30-L47)",
-        "[真实 REF、计划输入与不可投产状态](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-video-prompts/SKILL.md#L18-L34)",
-        "[连续镜头所需的实际视频与实际尾帧](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama-video-prompts/SKILL.md#L97-L105)"
+        "[参考用途、整集固定造型例外与观察边界](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama/references/reference-roles.md#L15-L49)",
+        "[REF文件路径、PLAN条目定位符与四种准备状态](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama/references/creator-documents.md#L102-L137)",
+        "[已有图无需虚构提示词条目及混合参考示例](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama/references/creator-documents.md#L138-L172)",
+        "[三种图片准备选择，不强制本套件出图](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L33-L40)",
+        "[逐帧视觉依据与不能自动沿用的跨镜绑定](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L100-L121)",
+        "[续接中的实际视频、尾帧与已接受起点冲突](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-video-prompts/references/delivery-profile.md#L66-L82)"
       ]
     }
   },
@@ -2685,6 +2803,167 @@
         "[审查无铺垫的动机变化与不一致行动](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-review/references/review-quality.md#L101-L109)",
         "[以人物驱动行动，不为强推剧情改人设](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/character-basics.md#L277-L288)",
         "[人物想从谈话里得到什么](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/dialogue-mastery.md#L104-L108)"
+      ]
+    }
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "script-to-storyboard",
+    "checked_on": "2026-09-13",
+    "title": {
+      "en": "Already have a screenplay? Build a storyboard without rewriting the scene",
+      "zh": "已有剧本怎样直接做分镜：保住对白、动作与结尾，不重写整场戏"
+    },
+    "answer": {
+      "en": "Start short-drama-storyboard with the current accepted screenplay and the visual facts the scene needs. You do not have to restart idea development or create image prompts first. Decide what each shot lets the audience see or hear, carry its end state into the next shot, and estimate complete dialogue before assigning duration. The original rehearsal-room example below turns one accepted scene into four shot designs while preserving its words and unresolved ending. It is a text-planning exercise, not generated footage or a measured forty-second film. Hiding a prop or cutting away from a speaker does not conceal what the audience can already hear. A separate, explicitly unaccepted variant shows the screenplay tradeoff behind an ending-reveal request.",
+      "zh": "用当前已接受的剧本与必要视觉事实，直接进入 short-drama-storyboard；不必重做灵感开发，也不必先完成图片提示词。先决定每镜让观众看到、听到什么，把终点接成下一镜的起点，再按完整对白估镜长。下面用原创排练室场景示范四镜设计，保留台词与尚未解决的结尾。这是文本编排练习，不是生成视频或实测四十秒的成片。 藏住道具或切走说话者，不会收回观众已经听懂的信息；另附明确标为待接受的改写备选，说明“留到结尾揭晓”需要付出什么剧本取舍。"
+    },
+    "prerequisites": {
+      "en": [
+        "A configured supported agent host with Drama Skills installed and access to the intended project. See the [project entry](https://zenstory.ai/drama-skills) for setup. Request this stage by name; the skill produces storyboard Markdown and frozen-keyframe text, not images or video.",
+        "The current `剧集/<EP>/剧本.md`, including real scene IDs, and necessary accepted visual facts. Name the scene or episode you want covered and what cannot change. If a chat draft differs from the accepted file, surface the difference rather than silently using the older draft.",
+        "Your duration and format choices. If a target model has already been declared, use its accepted native-duration choice; if that choice is missing, resolve it before assigning model-constrained shots. Without a chosen model, narrative timing can still be planned—do not invent a provider limit or assume a reference-image strategy."
+      ],
+      "zh": [
+        "已配置的受支持 Agent 宿主，安装 Drama Skills，并能读取目标项目。[项目入口](https://zenstory.ai/drama-skills)说明安装路径。直接点名本阶段；它交付分镜 Markdown 和冻结关键帧文字，不生成图片或视频。",
+        "当前 `剧集/<EP>/剧本.md`，其中有真实场景 ID，以及必要且已接受的视觉事实。说明要覆盖一场还是一集、哪些内容不能变。聊天旧稿与已接受文件不同，先说清差异，不静默回用旧稿。",
+        "你的时长和形态选择。已经声明目标模型时，使用已接受的原生时长选择；缺这项，就先补齐再按模型限制分配镜长。尚未选择模型，也可以按叙事节奏设计，不虚构供应商上限，更不默认参考图路线。"
+      ]
+    },
+    "steps": {
+      "en": [
+        [
+          "Treat the accepted scene as the source, not a new pitch",
+          "A [creator report about EP001](https://github.com/zenstory-ai/drama-skills/issues/100) describes storyboards departing from an accepted screenplay. Establish which current file is authoritative, then preserve its actions, dialogue, sound, screen text and turning point. Directing choices can decide angle, distance and timing; changing who acts, what is said or what the ending means needs a screenplay decision. The direct entry is supported by the storyboard skill, not evidence that every project can skip all missing preparation."
+        ],
+        [
+          "Give each cut a job",
+          "A cut should change information, alignment, power, emotion, space or rhythm. In the example, placing a key, refusing to act as a messenger, an interrupted reach and a decision to wait have different functions. Do not turn every sentence into a shot, or add reaction close-ups that repeat information. If a continuous shot serves the scene, it remains a choice; the four-shot version is not mandatory coverage."
+        ],
+        [
+          "Separate character knowledge from audience knowledge",
+          "A character knowing something does not mean the audience knows it. Hearing a character’s claim does not make that claim established truth. For each information change, name its screenplay source, whether to show or withhold it now, the visible/audible carrier, release event, protection and dramatic reason. Below, read departure, the breakup statement, hesitation and waiting separately before comparing early disclosure with an ending reveal."
+        ],
+        [
+          "Surface a new reveal request that conflicts with the screenplay",
+          "A back view, obstruction or off-screen voice can serve an accepted information design, but cannot conceal words that already disclose the fact. For “only in the last ten seconds,” first establish whether the scope is the episode or this scene and which total duration is accepted; a draft target is not an accepted timeline. Offer a screenplay-preserving option or an explicit script revision, not silently deleted, moved or muted dialogue. Later subtitles, screen text and reference frames must follow the chosen version. These are handoff conditions, not automatic subtitle alignment or guaranteed concealment features."
+        ],
+        [
+          "Carry objects and people through the cut",
+          "Write start → main action → end. Identify the hand that holds an object, contact, placement and withdrawal when these matter. A key placed on the table cannot start the next shot in another hand without a transfer. A later shot must not perform the same placement or pickup again. Keep the camera on a consistent side of the table for this simple example; crossing the axis is a directing choice needing a readable spatial transition, not a forbidden technique."
+        ],
+        [
+          "Place complete speech before fixing shot length",
+          "Another [creator report](https://github.com/zenstory-ai/drama-skills/issues/106) describes a line estimated at about ten seconds being assigned seven. It is one report, not a measured failure rate. Use actual speech duration when audio exists; otherwise label estimates based on the words, delivery, breathing and pauses. Dialogue followed by a decision and a physical response cannot all occupy the same seconds. Do not silently delete words or demand rushed delivery to fit an arbitrary short shot."
+        ],
+        [
+          "Choose what changes when the timing does not fit",
+          "Preserve the line and extend the shot when the accepted constraints allow it; split at a meaningful phrase or visible state boundary; or ask to revise the screenplay when the total duration is truly fixed. Sound may continue across a cut, but the audience must hear the line once, in order, with its speaker and diegetic/off-screen status clear. A split is not proof that a generation model will deliver precise timing. Longer dialogue is not inherently bad, and faster cuts do not create more speaking time."
+        ],
+        [
+          "Freeze the start, not the whole sequence",
+          "The frozen keyframe describes what can be seen at the shot start. If a hand reaches for a key during the shot, do not put the key in that hand in the starting image. Add an optional end frame only when useful. Match visual-basis entries to what is actually visible in that frame, not every character mentioned in the dialogue. The [character-continuity guide](https://zenstory.ai/drama-skills/character-consistency) covers identity, Look and reference-state detail."
+        ],
+        [
+          "Finish the requested scope without inventing images",
+          "An episode request covers the episode, not only an easy sample scene. Every actual screenplay scene needs coverage or an explicitly recorded omission with a reason. If no suitable image-prompt entry exists, “图片提示词项：无” is a valid direct entry. A real inspected image can be REF; a creator-planned external image can be PLAN; absent material remains a stated gap. Missing images do not authorize text-to-video, and none of these labels authorizes production. Preserve unaffected shot IDs when revising; video prompts, production and review begin only when requested."
+        ]
+      ],
+      "zh": [
+        [
+          "把已接受的场次当依据，不再另起一个故事",
+          "一条[关于 EP001 的创作者反馈](https://github.com/zenstory-ai/drama-skills/issues/100)指出分镜偏离了已确认剧本。先确认当前哪个文件作准，再落实其中的动作、对白、声音、画面文字和转折。导演选择可以决定机位、距离与时间分配；改谁行动、说什么或结尾意味着什么，要回到剧本决定。分镜技能支持直接入口，但不等于任何项目都能跳过缺失的必要准备。"
+        ],
+        [
+          "让每次切镜有职责",
+          "切镜应带来信息、对齐对象、权力、情绪、空间或节奏变化。示例里，放钥匙、拒绝代传话、伸手又停住、决定留下等人，承担不同作用。不按一句话切一镜，也不加只重复信息的表情特写。若连续长镜头更合适，仍可采用；四镜方案不是必拍公式。"
+        ],
+        [
+          "把“人物知道”与“观众何时知道”分开",
+          "一个人知道事实，不等于观众已经知道；观众听见人物的判断，也不等于故事证实了判断。对每条会改变理解的信息，写出剧本来源、本镜展示或暂扣、具体可见/可听载体、释放事件、保护办法与戏剧理由。下面先把四镜中的离开动作、散伙说法、犹豫和等待分别读清，再比较早揭晓与结尾揭晓的代价。"
+        ],
+        [
+          "新的揭晓要求与原剧本冲突时，先说清改动",
+          "背影、遮挡或画外声能服务已有信息安排，但不能让一条已经说破的台词变成秘密。若新 Brief 要求“最后十秒才知道”，先确认它指整集还是本场，以及已接受的总时长；草案目标不是已接受时间轴。原剧本不相容时，给保留剧本或修改剧本的明确选择，不静默删词、移句或屏蔽声音。后续字幕、画面文字与参考帧也要服从所选版本；这里说明交接条件，不宣称技能能自动校准字幕或防止生成泄露。"
+        ],
+        [
+          "让人和物真正接得上",
+          "写清起点 → 主要动作 → 终点。必要时注明哪只手持物、如何接触、落在哪里、何时收手。上一镜放在桌上的钥匙，不能无交接就出现在别人手里；后镜也不能重新发生同一次放下或取回。这个简单例子让机位留在桌子同一侧；越轴不是禁术，但需要让空间转换可读，不能无意翻转人物关系。"
+        ],
+        [
+          "先容纳完整发声，再定镜长",
+          "另一条[创作者反馈](https://github.com/zenstory-ai/drama-skills/issues/106)描述了估计约十秒的对白被安排成七秒；这是一条具体反馈，不是实测失败率。有声音文件就用实际发声区间；没有时，根据原文、说话方式、换气与停顿标注文本估计。先听完话才作出的决定和身体回应，不能全部与台词共用同几秒。不为凑一个任意短镜，静默删词或要求人物赶读。"
+        ],
+        [
+          "装不下时，明确改哪一层",
+          "已接受的条件允许时，保留台词并延长镜头；也可以在语义或可见状态闭合处拆镜；总时长确实锁死时，再请求剧本修订。声音可以跨切点继续，但同一句要按顺序只说一遍，并写清说话者和画内/画外状态。拆镜不证明生成模型能精确执行时序；长对白并非天然错误，切得更快也不会凭空增加发声时间。"
+        ],
+        [
+          "冻结起点，不把整个动作塞进一张图",
+          "冻结关键帧只写镜头起点可见的内容。如果手在镜内才去拿钥匙，起始画面不能已经把钥匙放进手里；有必要时另写终点帧。视觉依据对准这一格真正出现的人和物，不是对白里提到的全员名单。[角色连续性指南](https://zenstory.ai/drama-skills/character-consistency)进一步区分身份、造型与参考状态。"
+        ],
+        [
+          "完成请求范围，但不虚构图片",
+          "请求整集就覆盖整集，不只交一个容易的样例场景。剧本中的真实场景都要有承载，确实不拍则记录场景 ID 与原因。没有合适图片提示词条目时，“图片提示词项：无”是正常直接入口。已检查的真实图片才是 REF，创作者计划在外部准备的图片可记为 PLAN，其余缺口如实保留；缺图不授权文生视频，这些标签也不授权投产。修订时保留未受影响的镜头 ID；视频提示词、制作和审查只有被点名才开始。"
+        ]
+      ]
+    },
+    "example": {
+      "zh": "原创编排例：《钥匙还没放下》\n这是为指南编写的剧本与镜头草案，不是 Drama Skills 运行记录、已保存项目或实测视频。以下假定作者已选择这些故事与视觉事实；实际使用时应换成自己的当前文件。\n\n本例请求范围：只处理 SC01，不是整集示例。目标约40秒；未选择目标模型，所有秒数均为文本编排估计，不对应某供应商能力。\n人物与空间：岑夏站在画面左侧，周屿坐在右侧，窄桌在两人之间，岑夏身后有一把空椅。钥匙是单把黄铜钥匙，带绿色布环。岑夏用右手持钥匙，左手空着；周屿不接触钥匙。构图不出现其他乐队成员。\n这些可复用条目应由作者在《视觉设定.md》中确认：人物「岑夏」、人物「周屿」、地点「排练室门口」、道具「绿环钥匙」、道具「窄桌」、道具「空椅」。这是示例输入清单，不声称这些文件或标题已经存在。\n\n已接受的剧本片段（SC01）\n内景·排练室门口·夜\n岑夏说话间把钥匙放在窄桌中间，右手离开钥匙。\n岑夏：我先走。钥匙你收着。\n周屿看着她，没有伸手。\n周屿：我可以替你锁门，但不能替你告诉他们，乐队今天就散了。\n岑夏伸手去取钥匙，停在它的上方。她看着周屿。\n岑夏：那我等他们来。\n说完，她用右手拿回钥匙，左手把身后的椅子拉近，坐下。\n\n本场出口：岑夏坐下等待，钥匙在她右手；周屿没有接钥匙。其他成员尚未出现。她决定亲自等人，不等于乐队已经和好或已决定继续演出。\n\n四镜编辑草案——覆盖以上整个 SC01，不是正式分镜文件的完整字段模板\nSHOT-001｜0—8秒，文本估计8秒｜建立离开的动作\n来源：SC01，放钥匙及“我先走。钥匙你收着。”\n同侧中景双人：岑夏左、周屿右，桌面在中间。\n起点：钥匙在岑夏右手，桌面中间空着；周屿双手留在自己身前，不向钥匙伸手。\n动作→终点：她将钥匙放在桌面中间，松手并收回右手；钥匙留在桌上，周屿没有接。\n声音：岑夏按自然、克制的方式说完短句；这句话可与放置动作部分重叠。8秒还留给动作落实与周屿未接的停留，不是按字数固定换算。\n\nSHOT-002｜8—22秒，文本估计14秒｜拒绝替她宣布散伙\n来源：SC01，周屿“我可以替你锁门，但不能替你告诉他们，乐队今天就散了。”\n同轴线侧的周屿中近景，视线朝画面左侧的岑夏；钥匙不必在这个画框内，但仍在桌面中间。\n起点：他未伸手接钥匙；岑夏尚未再次伸手。\n动作→终点：他说完拒绝代传的整句话，保持手不去接；岑夏在这句话说完前不取回钥匙。\n声音：完整台词暂按8—11秒估计，再为换气、停顿与说完后的留白分配余量，共暂留14秒。没有录音，这不是已验证的自然语速。\n\nSHOT-003｜22—30秒，文本估计8秒｜把立即离开变成一个未完成动作\n来源：SC01，“伸手去取钥匙，停在它的上方。她看着周屿。”\n回到同侧双人中景，钥匙在桌面中间可见。\n起点：两人位置未换，岑夏右手已收回，钥匙仍在桌上。\n动作→终点：她用右手伸向钥匙，在接触前停住，再看向周屿；结尾仍未拿起钥匙。\n声音：不加解释内心的旁白，保留停顿。8秒是本版为犹豫选择的节奏，不是每个伸手动作的固定时长。\n\nSHOT-004｜30—40秒，文本估计10秒｜决定留下，落实新状态\n来源：SC01，“那我等他们来”及取钥匙、拉椅、坐下。\n仍在同一侧，稍宽以看见岑夏身后的椅子。\n起点：右手停在钥匙上方、未接触；左手空着；周屿仍未接钥匙。\n动作→终点：岑夏先说完短句，再用右手拿回钥匙；左手拉近椅子后松手坐下。结束时钥匙仍在右手，其他成员未出现。\n声音：短句、取回与拉椅坐下不能全部同时发生；文本暂估发声2—3秒、后续动作4—5秒，再留坐定的余量，共暂留10秒。这是顺序安排，不是配音或生成时长承诺。\n\n为什么不把 SHOT-002 到004塞成一个8秒镜头？\n它必须容纳周屿的完整长句、岑夏听完后的迟疑、她自己的回应、取回钥匙和坐下。仅长句的文本估计就可能超过8秒，把其他动作写成“同时完成”会改变她作出回应的先后关系。也不能把周屿的台词删成“你自己说”，却声称只是调整分镜。\n\n保留剧本的拆法：若后续接受的模型时长容不下14秒，可把周屿的第一小句留在他脸上，在“但不能替你……”处切到岑夏听他说完；后半句标为周屿画外同期声，不重复上一句，也不让岑夏提前取钥匙。正式分配仍须满足该模型的最短/最长时长；末镜的10秒也要一起复核。这不是一份已经适配所有模型的替代镜表。\n如果整场时长仍不够，明确选择放宽总时长、减少停留，或请求改剧本。减少停留会改变犹豫的分量，不等于没有创作代价。\n\n观众何时知道：先读原版，再谈“结尾揭晓”\n以下是上述 SC01 的信息安排，不是另一份已接受镜表，也不是观众测试结果。\n• SHOT-001：放钥匙和“我先走”让观众看见岑夏要离开的行动；尚未直接说明乐队散伙，也不能据此断言钥匙所有权已转给周屿。\n• SHOT-002：周屿说到“乐队今天就散了”，观众便听到他的散伙说法。这不能继续标为“暂扣至第四镜”。它也没有证明其他成员已经同意，或这件事以后不会改变。\n• SHOT-003：伸手在接触钥匙前停住，呈现离开动作受阻后的犹豫；这里不是再次揭示散伙。不要用回忆字幕重复宣布同一件事来充当新转折。\n• SHOT-004：先说“那我等他们来”，再拿回钥匙、拉椅坐下，让等待的决定落地；不是已经和好，也没有交代最终由谁说什么。\n\n一条可写进 SHOT-002 的信息判断（只示范这一条，不替代正式字段）\n来源：SC01，周屿的完整台词。\n本镜权限：展示“周屿明确说出散伙”这条信息；不把它扩大成全员共识。\n载体与释放：周屿的声音说到可辨识的“乐队今天就散了”时释放；若采用字幕，以观众最先能读懂或听懂这条信息的载体为准，不等到整句结束才算揭晓。\n保护与必须交代：不在前镜新增已经说破的字幕或旁白；本镜要让完整话语可听清。切到岑夏听话、或让钥匙离框，都不会推迟这句声音的揭示。\n戏剧理由：先听到周屿拒绝代传，后面的停手和留下才是对此压力的回应。不能为了保密把这句静音，却仍称忠于原版。\n\n新增要求：“能不能一直不说明散伙，留到结尾才说破？”\n这是本指南假设的新要求，不是上方已接受剧本原有的约定。两条路线不能同时假装成立：\nA｜保留原剧本。第二镜按原位说出散伙；原版场末回答岑夏此刻是否仍离开。观众此前已听见周屿的散伙说法，但未得到缺席成员的确认，也不能据此断言事情以后绝不会改变。保留原台词和反应因果，明确告诉作者：这版不满足结尾才首次说破的要求。\nB｜提出剧本备选。下面新增一句，并把周屿原长句移到坐下之后；它不是已接受改稿，不覆盖上方原版。只演示事件顺序，不沿用原四镜编号或8/14/8/10秒估计：\n① 岑夏说“我先走。钥匙你收着。”，同时按原动作放下钥匙、收回右手。\n② 周屿不接钥匙，改说：“他们还没来。”（新增台词）\n③ 岑夏伸右手、在接触前停住，看向周屿，说：“那我等他们来。”\n④ 她说完后用右手拿回钥匙，左手拉近椅子、松手坐下；其他成员仍未出现。\n⑤ 她坐定后，周屿才说原长句：“我可以替你锁门，但不能替你告诉他们，乐队今天就散了。”到此结束，不补全员同意或和好的答案。\nB 的代价：岑夏此前只听到“他们还没来”，她停手并坐下的直接触发改了；最后落点也从“她对拒绝代传作出等待的回应”，变成“她已坐下，周屿才把拒绝代传说出口”。同样的钥匙落点，不代表同一个戏剧结果。作者接受该方向并把修订落实到当前剧本后，才能据此重新分镜、估时与交接，不能直接当作原版下游。\n\n“最后十秒”还缺什么？\n先选 A 或 B，再解决确切范围与时长。如果明确接受的是一段总长40秒的作品，“最后10秒首次说破”的边界才是第30秒；本指南原来的40秒只是 SC01 草案目标，不是已接受整集长度。要求若指整集，就用整集长度与 SC01 在其中的位置换算，不能套本场目标。估时表和未计时的 B 版都不能证明揭示落在那个窗口，更不能为了卡点赶读台词。\n\n不要只在台词栏保护信息\n若采用字幕，整句提前铺屏可能比声音更早说破；字幕分段和入点要按已接受的文字政策与实际发声安排，不在这里伪造秒级字幕。若采用标题卡、旁白或可读背景文字，也要逐项看它们何时首次交付该信息。原例没有提供这些素材，不能声称已经发现或排除泄露。\n同理，第三镜的起始图不能先画成岑夏已经坐下、右手持钥匙——那会把第四镜才落地的状态提前，不是“同一个人所以可用”。新增遮挡也不能挡住本镜必须让观众看清的停手动作。逐帧决定哪些事实该给、哪些未到时机，不把所有参考图或所有文字都一概禁用。\n\n冻结起点的写法（仅示范 SHOT-003）\n冻结帧里钥匙仍在桌面中间，岑夏的右手尚未再次伸出，周屿没有碰它。不要把“伸手、停住、拿回、坐下”同时塞进一个起始画面。\n项目默认提示词语言为英文时，一种原创候选文字是：\nA static medium two-shot from the same side of the narrow table. Cen Xia stands on screen left, Zhou Yu sits on screen right. One brass key with a green fabric loop rests at the center of the tabletop. Cen Xia's right hand is withdrawn, away from the key; Zhou Yu's hands remain in front of him without reaching. An empty chair is behind Cen Xia. No other band members are visible.\n它是未绑定参考图的文字候选，身份外观应继续服从项目中已接受的可见规格，不声称已经得到画面。\n\n正式交付时，按这格实际可见内容填写视觉依据；必要标题缺失就报告，不编造条目已经存在。没有对应图片提示词条目可写“图片提示词项：无”；本例没有提供任何真实图片，参考图缺口如实列明，不伪造 REF，也不默认选择文生视频。\n\n可复制的阶段请求（先替换项目路径与实际场景 ID）\n在项目 /ABS/my-drama 下，用 $short-drama-storyboard 处理 EP001 当前《剧本.md》里的 SC01。\n先读当前剧本与已接受的视觉事实，不回用聊天旧稿；保留台词、动作次序与本场出口。\n只完成 SC01 的正式分镜与每镜冻结关键帧文字，不扩写别的场景。\n按完整声音事件估镜长，标明文本估计；有已接受的模型原生时长选择就遵守，缺必要选择则指出。\n不能同时满足时长和原剧本时，说清具体冲突与取舍，不擅自改词。\n逐条标明关键事实的来源、展示/暂扣、可见或可听载体、释放事件和保护理由；有相对揭晓时间要求时，确认其整集/本场范围与已接受长度。\n新要求若与现有对白或动作冲突，先列保留原版与待接受改稿的差异，不自动应用 B 版，不新增解释字幕或旁白。\n缺少的视觉条目与参考图如实报告，不生成素材，不创建后续阶段文档。\n只交文本，不生成图片、视频、配音或音乐，不启动投产或审查。",
+      "en": "Original editorial design: The Key Is Still in Her Hand\nThis screenplay and shot sketch were written for this guide. They are not a Drama Skills run, saved project or timed video. Assume the author has accepted the fictional story and visual facts below; use your own current files in practice.\n\nScope: SC01 only, not a whole episode. The target is about forty seconds. No model has been selected; all timings are text-planning estimates, not provider capabilities. The estimates concern the Chinese dialogue; the English lines below communicate its meaning, not an English dub with the same timing.\nPeople and space: Cen Xia stands on screen left, Zhou Yu sits on the right, with a narrow table between them and an empty chair behind Cen. The single brass key has a green fabric loop. Cen holds it in her right hand; her left is free. Zhou does not touch it. No other band members appear.\nReusable entries for the author to confirm in 视觉设定.md: characters 岑夏 (Cen Xia) and 周屿 (Zhou Yu), location 排练室门口 (rehearsal-room doorway), props 绿环钥匙 (green-loop key), 窄桌 (narrow table) and 空椅 (empty chair). This is an example input list, not a claim that those files or headings already exist.\n\nAccepted screenplay excerpt (SC01)\nINT. REHEARSAL-ROOM DOORWAY — NIGHT\nWhile speaking, Cen puts the key at the center of the narrow table and withdraws her right hand.\nCEN: 我先走。钥匙你收着。\n[I'm leaving. Keep the key.]\nZhou looks at her without reaching out.\nZHOU: 我可以替你锁门，但不能替你告诉他们，乐队今天就散了。\n[I can lock up for you. But I can't be the one to tell them the band is breaking up today.]\nCen reaches for the key, stops above it and looks at Zhou.\nCEN: 那我等他们来。\n[Then I'll wait for them.]\nAfter speaking, she retrieves the key with her right hand, draws the chair closer with her left and sits.\n\nExit: Cen is seated and waiting, the key in her right hand. Zhou has not accepted it. The other members have not arrived. She has decided to wait for the others herself, not established that the band has reconciled or will keep performing.\n\nFour-shot editorial sketch: covers this complete SC01, not every field of a formal storyboard file\nSHOT-001 | 0–8s, estimated 8s | Establish the action of leaving\nSource: SC01, the placement and “我先走。钥匙你收着。”\nMedium two-shot from one side of the table: Cen left, Zhou right, tabletop between them.\nStart: key in Cen's right hand, center of tabletop empty; Zhou keeps his hands in front of himself without reaching for it.\nAction → end: Cen puts the key at the center, releases it and withdraws her right hand. It remains on the table; Zhou does not accept it.\nSound: Cen completes her short Chinese line in a restrained, natural delivery, partly overlapping the placement. The eight seconds also allow the action and his non-acceptance to register; this is not a fixed character-count conversion.\n\nSHOT-002 | 8–22s, estimated 14s | Refuse to announce the breakup for her\nSource: SC01, Zhou's complete line “我可以替你锁门，但不能替你告诉他们，乐队今天就散了。”\nMedium close-up on Zhou, on the same side of the axis, looking screen left toward Cen. The key need not be in this frame; it remains at the table's center.\nStart: he has not reached for the key; Cen has not reached again.\nAction → end: he finishes the whole refusal without accepting the key. Cen does not retrieve it before he finishes.\nSound: provisionally estimate 8–11 seconds for the complete Chinese line, with additional breathing, pause and end space, reserving fourteen seconds overall. Without audio, this is not verified natural-speed delivery.\n\nSHOT-003 | 22–30s, estimated 8s | Interrupt the immediate departure\nSource: SC01, her reach, stopping above the key and looking at Zhou.\nReturn to a same-side medium two-shot with the key visible at the table's center.\nStart: positions unchanged, Cen's right hand withdrawn, key still on the table.\nAction → end: she reaches with her right hand, stops before contact and looks at Zhou. She has not picked it up at the end.\nSound: no added explanatory inner-monologue voice-over; retain the pause. Eight seconds is this version's choice for the hesitation, not a universal duration for reaching.\n\nSHOT-004 | 30–40s, estimated 10s | Choose to stay and establish the new state\nSource: SC01, “那我等他们来。” and retrieving the key, drawing the chair closer and sitting.\nSame camera side, slightly wider to include the chair behind Cen.\nStart: her right hand is above the key without contact; left hand free; Zhou has not accepted the key.\nAction → end: Cen finishes her short line, retrieves the key with her right hand, draws the chair closer with her left, releases the chair and sits. The key remains in her right hand; no other members arrive.\nSound: the line and the subsequent retrieval/chair movement cannot all happen simultaneously. Provisionally allow 2–3 seconds for the Chinese line, 4–5 for the following actions, then room to settle, reserving ten seconds overall. This is sequencing, not a promise of dubbing or generation timing.\n\nWhy not squeeze SHOT-002 through 004 into one eight-second shot?\nIt must hold Zhou's full line, Cen's hesitation after hearing it, her reply, the pickup and sitting. The long line alone may exceed eight seconds under the text estimate. Calling everything “simultaneous” changes the order of her response. Nor can the line become merely “Tell them yourself” while claiming that only the storyboard changed.\n\nA split that preserves the screenplay: if a later accepted model choice cannot accommodate fourteen seconds, keep Zhou's opening clause on his face and cut to Cen listening as “但不能替你……” continues. Label the second part as Zhou's off-screen, in-scene speech; do not repeat the first clause or let Cen retrieve the key early. Formal allocations must satisfy that model's minimum and maximum durations; the ten-second final shot also needs review. This is not a replacement shot list already compatible with every model.\nIf the scene still cannot fit, choose explicitly between more total time, less lingering or a screenplay revision. Shorter lingering changes the weight of the hesitation; it is not a cost-free adjustment.\n\nWhen the audience knows: read the original before requesting an ending reveal\nThis is an information reading of the accepted SC01 above, not another accepted shot list or an audience-test result.\n• SHOT-001: placing the key and “I'm leaving” show Cen acting to leave. They do not explicitly disclose a band breakup or establish that key ownership has transferred to Zhou.\n• SHOT-002: as Zhou says “乐队今天就散了” (“the band is breaking up today”), the audience hears his breakup statement. It cannot remain marked “withhold until shot four.” This does not establish the absent members' agreement or make the outcome irreversible.\n• SHOT-003: the reach stopping before contact shows hesitation interrupting departure, not a second breakup reveal. A recap caption repeating the disclosure would not create a new turn.\n• SHOT-004: “Then I'll wait for them,” followed by the pickup and sitting, makes waiting a concrete choice. It establishes neither reconciliation nor who will ultimately say what.\n\nOne information note for SHOT-002 (only this fact, not the complete formal fields)\nSource: SC01, Zhou's complete line.\nPermission now: disclose that Zhou explicitly speaks of a breakup; do not enlarge that into a band-wide agreement.\nCarrier and release: his voice reaches the recognizable breakup statement. If subtitles are used, count the first carrier that makes the information intelligible to the viewer, whether read or heard—not only when the complete line ends.\nProtection and required disclosure: do not add a revealing caption or voice-over to an earlier shot; make this complete line audible here. Cutting to Cen listening, or framing out the key, does not postpone the spoken disclosure.\nDramatic reason: hearing his refusal to speak for her gives the subsequent interrupted reach and decision to stay their pressure. Muting the line to keep a secret would not preserve this screenplay.\n\nA new request: “Can we leave the breakup unspoken until the ending?”\nThis is a hypothetical request written for the guide, not a condition already accepted in the screenplay above. Do not pretend both routes preserve everything:\nA | Keep the screenplay. Disclose the breakup in shot two. The original ending answers whether Cen still leaves now. The audience has already heard Zhou's breakup statement, without confirmation from the absent members or an established irreversible outcome. Keep the words and response causality, while explicitly saying this version does not meet an ending-only first disclosure.\nB | Propose a screenplay alternative. Add one line and move Zhou's original long line until after Cen sits. This is unaccepted revision text, not a replacement for the original. The beats show event order only; they do not reuse its four shot IDs or 8/14/8/10-second estimates:\n1. Cen says “我先走。钥匙你收着。” (“I'm leaving. You keep the key.”) while placing it and withdrawing her right hand as before.\n2. Zhou does not accept it; he instead says “他们还没来。” (“They aren't here yet.”)—a new line.\n3. Cen reaches with her right hand, stops before touching the key, looks at Zhou and says “那我等他们来。” (“Then I'll wait for them.”)\n4. After speaking, she retrieves the key with her right hand, draws the chair closer with her left, releases the chair and sits. No other members arrive.\n5. Only after she settles does Zhou say his original complete line: “我可以替你锁门，但不能替你告诉他们，乐队今天就散了。” (“I can lock up for you, but I can't tell them for you that the band is breaking up today.”) End there, without inventing agreement or reconciliation.\nB's cost: Cen has heard only “They aren't here yet” before pausing and sitting, so the immediate trigger changes. The ending also changes from her response to his refusal into his refusal arriving after she has chosen to sit. The same final key placement does not mean the same dramatic result. Only after the author accepts that direction and the current screenplay contains the revision should it receive new storyboarding, timing and handoff—not become an unannounced downstream version of the original.\n\nWhat is still missing from “the last ten seconds”?\nChoose A or B, then resolve scope and duration. Only if an entire forty-second work is explicitly accepted does “first disclose in the last ten seconds” yield a thirty-second boundary. This guide's forty seconds was a draft target for SC01, not an accepted episode length. For an episode-wide request, use that episode's length and SC01's position within it, not the scene target. Neither the provisional timing sketch nor the untimed B variant establishes that window; do not rush the dialogue to claim compliance.\n\nProtect more than the dialogue field\nIf subtitles are used, displaying the full sentence early may disclose the fact before the voice. Segmenting and placing subtitles must follow the accepted text policy and actual speech; this guide invents no timestamped subtitle file. If a title card, voice-over or readable background text is chosen, consider when each first communicates the information. No such media was supplied here; no leak has been observed or ruled out.\nLikewise, a shot-three start image with Cen already seated and the key in her right hand would import shot four's resulting state early. “It is the same character” does not make that image suitable. A new obstruction must not hide the interrupted reach that the shot needs the audience to read. Decide which facts belong in each frame rather than banning all reference pictures or all text.\n\nFreezing the start (SHOT-003 only)\nThe key is still at the tabletop's center; Cen's right hand has not reached again; Zhou has not touched it. Do not combine reaching, pausing, retrieving and sitting in one start frame.\nIf the project's prompt language is English, one original candidate is:\nA static medium two-shot from the same side of the narrow table. Cen Xia stands on screen left, Zhou Yu sits on screen right. One brass key with a green fabric loop rests at the center of the tabletop. Cen Xia's right hand is withdrawn, away from the key; Zhou Yu's hands remain in front of him without reaching. An empty chair is behind Cen Xia. No other band members are visible.\nThis is unbound prompt text. Appearance must still follow the project's accepted visual specifications; no image has been produced.\n\nFor formal delivery, fill visual-basis fields from what this frame actually shows. Report missing required headings rather than pretending they exist. Without a suitable image-prompt entry, 图片提示词项：无 is valid. No actual images were supplied for this example: list reference gaps, do not invent REF bindings or assume text-to-video.\n\nCopyable stage request (replace the project location and real scene ID first)\nIn project /ABS/my-drama, use $short-drama-storyboard for SC01 in EP001's current 剧本.md.\nRead the current screenplay and accepted visual facts, not an older chat draft.\nPreserve dialogue, action order and the scene's exit state.\nComplete only SC01's formal storyboard and each shot's frozen-keyframe text; do not expand other scenes.\nEstimate complete sound events first and label text estimates. Follow an accepted model-native duration choice if present; identify a necessary missing choice.\nIf duration and screenplay cannot both be preserved, explain the concrete conflict and alternatives. Do not silently change the words.\nFor each key fact, name its source, show/withhold permission, visible/audible carrier, release event and protection rationale. For a relative reveal window, establish episode/scene scope and the accepted length.\nIf a new request conflicts with the current dialogue or action, distinguish the original from a proposed revision. Do not automatically apply variant B or add explanatory captions or voice-over.\nReport missing visual entries and references; do not generate assets or create downstream-stage documents.\nText only: no images, video, voices or music, and no production or review stage."
+    },
+    "outputs": {
+      "en": [
+        "`剧集/<EP>/分镜.md` for the requested scope, with real scene sources, shot duties, estimated or audio-grounded durations, starts/actions/ends, sound, visual basis and honest reference status. The guide’s sketch is an editorial explanation, not a replacement for the skill’s formal fields.",
+        "Frozen start-frame prompt text under the relevant shot, plus optional end-frame text when needed. It describes a boundary image; it is not the entire movement, an existing picture or proof of visual consistency.",
+        "A concise handoff naming coverage and genuinely unresolved creative choices. Preserve unaffected shot IDs. Do not create video prompts, commission media or begin a separate review merely because storyboarding is done."
+      ],
+      "zh": [
+        "请求范围内的 `剧集/<EP>/分镜.md`：真实场景来源、镜头职责、文本估计或有声音依据的时长、起点/动作/终点、声音、视觉依据与真实参考状态。指南草案用于解释选择，不替代技能的正式字段。",
+        "对应镜头下的冻结起点提示词，必要时另写终点提示词。它描述边界画面，不是整个运动过程、已经存在的图片或视觉一致性证明。",
+        "简洁交接说明：覆盖了什么、哪些创作选择确实未决。保留未受影响的镜头 ID；不因分镜完成就自动创建视频提示词、委托媒体生成或开始另一次审查。"
+      ]
+    },
+    "verification": {
+      "en": [
+        "Read the storyboard against the current screenplay: every line and required action is carried once, no listener acts on words not yet heard, and the selected end state remains unchanged. Check hands, object locations and screen direction at each cut; do not add a new plot answer to hide a gap.",
+        "Distinguish planning evidence from media evidence. Text timing is provisional until actual speech/performance exists; a list of plausible durations does not establish natural delivery. Any later model-duration conflict returns to an explicit storyboard or screenplay choice, not silent shortening downstream.",
+        "Trace when each key fact first becomes visible or audible, separating a character’s statement from established truth. Include any chosen subtitles, title cards and reference frames in that information design. Unsupplied or uninspected media remains unknown; a text information map is not evidence of an on-time reveal in the finished film."
+      ],
+      "zh": [
+        "把分镜与当前剧本并读：台词与必要动作各有承载，不重复发生；听者不会提前回应尚未听到的话，已选出口不变。逐个切点看双手、物件落点与屏幕方向，不靠新增剧情答案遮住缺口。",
+        "分开规划依据与媒体证据。实际发声/表演尚不存在时，文本估时仍是暂定；一串看似合理的秒数不证明自然语速。后续模型时长冲突应回到明确的分镜或剧本选择，不在下游静默缩词。",
+        "逐条看关键事实何时第一次可见或可听，区分人物说法与已证实事实。若采用字幕、标题卡或参考帧，也纳入同一揭示安排；未提供或未检查的媒体仍是未知，文本信息表不等于成片按时揭晓。"
+      ]
+    },
+    "sources": {
+      "en": [
+        "[Direct entry, language, duration choice and current screenplay](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L19-L42)",
+        "[Sound, shot-state workflow and visual/reference axes](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L45-L69)",
+        "[Scene coverage, native duration and continuous state changes](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L74-L94)",
+        "[Direct entry without image prompts and honest reference status](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L100-L139)",
+        "[Revision identity and explicitly requested downstream stages](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L158-L171)",
+        "[Complete sound events, text estimates and overload choices](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/references/shot-craft.md#L187-L203)",
+        "[Actual-generation timing is not guaranteed by a shot split](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/references/shot-craft.md#L260-L262)",
+        "[Per-fact audience knowledge, release events and dramatic reasons](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama/references/audience-reveal.md#L6-L21)",
+        "[Source-preserving stage ownership](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/references/stage-contract.md#L3-L7)",
+        "[Boundary facts and audience-visibility permissions](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/references/stage-contract.md#L24-L27)",
+        "[Protecting a reveal without hiding required evidence](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/references/shot-craft.md#L80-L92)",
+        "[Frozen boundaries and accepted visible-text policy](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/references/keyframe-craft.md#L24-L43)"
+      ],
+      "zh": [
+        "[直接入口、提示词语言、时长选择与当前剧本](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L19-L42)",
+        "[声音、镜头状态与视觉/参考三条依据](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L45-L69)",
+        "[场次覆盖、原生时长与连续状态变化](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L74-L94)",
+        "[没有图片提示词的直接入口与真实参考状态](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L100-L139)",
+        "[修订时镜头编号与按需下游阶段](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L158-L171)",
+        "[完整声音事件、文本估计与过载取舍](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/references/shot-craft.md#L187-L203)",
+        "[拆镜不保证实际生成的精确发声时序](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/references/shot-craft.md#L260-L262)",
+        "[逐事实观众信息、释放事件与戏剧理由](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama/references/audience-reveal.md#L6-L21)",
+        "[继承剧本而非改写剧情的阶段边界](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/references/stage-contract.md#L3-L7)",
+        "[边界事实与观众可见性权限](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/references/stage-contract.md#L24-L27)",
+        "[保护揭示但不遮住本镜必要信息](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/references/shot-craft.md#L80-L92)",
+        "[冻结边界与已接受的可见文字政策](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/references/keyframe-craft.md#L24-L43)"
       ]
     }
   }
