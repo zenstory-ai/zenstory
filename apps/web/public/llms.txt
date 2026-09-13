@@ -19,6 +19,8 @@ Overview page: https://zenstory.ai/projects — each project has a bilingual can
 
 ## Documentation
 
+- [Export a manuscript from the workbench](https://zenstory.ai/docs/user-guide/export): saved draft/script selection, sequence-aware TXT export, a separate review copy, and bringing back chosen offline edits; not a whole-project backup.
+- [Choose the scope of version recovery](https://zenstory.ai/docs/user-guide/version-history): file versions versus project snapshots, comparing before recovery and preserving independent copies.
 - [AI writing assistant: context and continuation](https://zenstory.ai/docs/user-guide/ai-assistant): focused saved files, material attachments, text quotes, scoped requests, character-consistency checks and recovery after interrupted generation.
 - [Revise a passage in the workbench editor](https://zenstory.ai/docs/user-guide/editor): an original before/after scene edit, manual writing, quotations, review decisions and save/conflict boundaries; not an offline-backup or automatic-quality promise.
 - [Start writing in the browser workbench](https://zenstory.ai/docs/getting-started/quick-start): create with or without an idea, target project files, request scoped help, save and export; no agent-host installation required.

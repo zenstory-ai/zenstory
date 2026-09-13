@@ -104,6 +104,8 @@
 
 更详细的焦点文件、素材附件与文本引用区别，见[AI 创作助手](https://zenstory.ai/docs/user-guide/ai-assistant)。
 
+详见[导出稿件](https://zenstory.ai/docs/user-guide/export)与[版本历史](https://zenstory.ai/docs/user-guide/version-history)，不要混淆交稿副本与项目恢复。
+
 ## 接下来写什么
 
 拿到一场可用正文后，再继续第二场：复用已确认文件，写清本场要发生的变化和停止位置。你也可以先自行写作，只在卡住或修订时使用 AI。

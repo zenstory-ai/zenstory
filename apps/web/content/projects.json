@@ -395,7 +395,7 @@
         ],
         [
           "Can I take the manuscript out of the workbench?",
-          "The project export entry downloads combined TXT from non-deleted draft and script files, subject to access and plan-format rules. It is not a backup of characters, materials, chat or history. Check save status and keep important originals separately; history is governed by snapshot rules and allowances."
+          "The [manuscript export guide](https://zenstory.ai/docs/user-guide/export) explains combined TXT from saved draft/script files, chapter ordering and a separate review copy. It is not a backup of characters, materials, chat or history. Use the [version guide](https://zenstory.ai/docs/user-guide/version-history) to distinguish file recovery from project snapshots; keep important originals independently."
         ]
       ],
       "zh": [
@@ -413,7 +413,7 @@
         ],
         [
           "能把作品带出工作台吗？",
-          "项目导出入口将未删除的正文 draft 与剧本 script 合并为 TXT，受权限与套餐格式规则约束；不包含人物、素材、聊天和历史的完整备份。离开前看保存状态，重要原稿另留副本；历史受快照策略与额度约束。"
+          "[稿件导出指南](https://zenstory.ai/docs/user-guide/export)说明已保存正文与剧本的 TXT 合并、章节排序和另存送审副本；这不是包含人物、素材、聊天和历史的完整备份。[版本指南](https://zenstory.ai/docs/user-guide/version-history)区分单文件恢复与项目快照，重要原稿仍需独立保留。"
         ]
       ]
     },

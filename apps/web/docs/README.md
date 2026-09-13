@@ -42,8 +42,8 @@ ZenStory 是围绕项目文件写作的网页工作台。先从创意与场景�
 | [素材库](user-guide/materials.md) | 管理灵感碎片、世界观设定等素材 |
 | [灵感库](user-guide/inspirations.md) | 浏览精选灵感并一键复制到项目 |
 | [订阅与权益](user-guide/billing-benefits.md) | 查看套餐能力、配额和升级路径 |
-| [版本历史](user-guide/version-history.md) | 追踪修改，随时回退 |
-| [导出功能](user-guide/export.md) | 导出项目正文（当前支持 TXT） |
+| [版本历史](https://zenstory.ai/docs/user-guide/version-history) | 单文件与项目快照，先比较再选择恢复范围 |
+| [导出功能](https://zenstory.ai/docs/user-guide/export) | 正文与剧本 TXT、另存送审副本，非完整项目备份 |
 
 ### 进阶技巧
 深入掌握zenstory，打造高效的个性化写作流程。

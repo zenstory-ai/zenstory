@@ -32,8 +32,8 @@ Detailed feature explanations to help you make the most of zenstory's capabiliti
 - [Material Library](user-guide/materials.md) - Manage inspiration fragments, world-building settings, and other materials
 - [Inspirations Library](user-guide/inspirations.md) - Discover idea templates and copy them into projects
 - [Billing & Benefits](user-guide/billing-benefits.md) - Check plans, quotas, and upgrade paths
-- [Version History](user-guide/version-history.md) - Compare and roll back available snapshots; version allowances apply
-- [Export Features](user-guide/export.md) - Export project drafts (TXT currently supported)
+- [Version History](https://zenstory.ai/docs/user-guide/version-history) - Compare before choosing file-level or project-snapshot recovery
+- [Export Features](https://zenstory.ai/docs/user-guide/export) - Draft/script TXT, separate review copies and non-backup boundaries
 
 ### Advanced Tips
 Master zenstory in depth and build an efficient, personalized writing workflow.

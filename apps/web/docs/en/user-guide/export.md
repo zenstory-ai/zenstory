@@ -1,227 +1,105 @@
-# Export Feature
+# Export your manuscript, not the whole project
 
-zenstory supports one-click export of your creative work to local files, making it easy to backup, submit, or share.
+ZenStory's Export Manuscript action combines saved, non-deleted draft and script files from the current project into one TXT. Use it for a manuscript handoff, offline reading or a point-in-time prose copy. It excludes characters, reference materials, chat and complete version history, so it is not a project-restoration package.
 
-## Export Entry
+Open the intended project in the [browser workbench](https://app.zenstory.ai/dashboard). This guide continues the [Before Closing short-story example](https://zenstory.ai/docs/getting-started/first-project). Filenames and prose below are teaching examples, not an actual export of a user's work.
 
-[Screenshot: Top toolbar export button location]
+## 1. Decide what you want to take away
 
-In the project editing page's top toolbar on the right, click the **download icon** button to start the export feature.
+Export selects by **file type**, not simply by looking inside a folder named Drafts:
 
-- **Desktop**: The export button is located on the right side of the toolbar, displayed as a download icon
-- **Mobile**: Click the menu button (three horizontal lines) in the top right corner, then select "Export Content" from the expanded menu
+| Project content | Included in the current TXT? |
+| --- | --- |
+| Non-deleted `draft` files | Yes, including drafts in other folders |
+| Non-deleted `script` files | Yes, including screenplay projects and mixed file types |
+| Characters, lore, outlines and materials | No, even if a title or folder contains the word “draft” |
+| Deleted files | No |
+| Unsaved editor text or candidate prose only in chat | Export does not automatically turn it into a saved manuscript |
+| Chat, attachment provenance, file history and project snapshots | Not part of this combined prose file |
 
-## Export Format
+Renaming a character file “Final Draft” does not change its type. Conversely, planning notes stored in a `draft` can be exported with the prose. Before a handoff, inspect both the file type and what you put inside it.
 
-### Plain Text Format (.txt)
+## 2. Save first, then download from the project
 
-[Screenshot: Example of exported TXT file]
+1. Open the correct project and save the changes you intend to deliver. Finish pending AI writes or diff review and inspect the target file; a chat message saying “done” is not enough.
+2. On desktop, use the header's download icon, labeled **Export Manuscript**. On mobile, choose **Export Manuscript** from the menu.
+3. Let the browser finish downloading, then open the file. Duration depends on the network, project and service; no fixed number of seconds is promised.
+4. The server suggests `{project name}_正文.txt`. If the browser cannot read the filename information, it may use a default such as `Export.txt`; check the actual download record.
 
-zenstory currently supports exporting to **plain text format (.txt)**, which is the most universal file format with the following features:
+The export request reads saved server content. It does not press **Save** in the editor for you. Avoid continuing a large rewrite during export and then assuming those later changes are in the downloaded copy.
 
-- **Wide compatibility**: Almost all text editors and word processors can open it
-- **Compact size**: Small file size, easy to transfer and store
-- **UTF-8 encoding**: Perfect support for Chinese, preserving all characters and punctuation
-- **Windows compatible**: UTF-8 BOM marker added to ensure Windows Notepad displays Chinese correctly
+## 3. Why might chapter order differ from drag-and-drop order?
 
-**Suitable Scenarios**:
-- Copy and paste to other platforms (Qidian, Jinjiang, and other novel websites)
-- Send via email or WeChat
-- Quick backup and archiving
-- Import into other writing tools
+Current sorting uses file ordering, title and sequence information, with creation time among the fallback information. For recognized chapter-like draft or script titles—such as `第1章`, `第2集`, `第3场` or `Chapter 4`—the title sequence can determine the effective order. **Drag order is not always dominant, and creation time is not the only rule.**
 
-## Export Content
+- Use clear, consistent numbering and avoid two drafts with the same chapter number.
+- A leading number can also provide a sequence hint. Do not assume any English title is recognized; `Scene Two`, for example, is not a promised numbering format.
+- If the result is wrong, inspect titles and file placement, then export again. Do not delete project files to rearrange an export.
 
-### Chapter Merging
+### A simple handoff example
 
-The export feature automatically merges all **Draft** type files in the project:
+Suppose you have saved two scenes as draft files and titled them **1. The claim** and **2. Identification**. The organization of the download looks like this; the two prose lines illustrate structure, not a complete story:
 
-[Screenshot: Draft folder in file tree]
+```text
+1. The claim
 
-- Only exports content from the "Drafts" folder
-- Outlines, characters, lore, and other files are not included in the export
-- Automatically arranged in chapter order
-- Chapters separated by a divider (`---`)
-
-### Smart Sorting
-
-[Screenshot: Example of chapter order in exported file]
-
-When exporting, the system intelligently identifies chapter order:
-
-- **Chinese numerals**: Chapter 1, Chapter 2, Chapter 10...
-- **Arabic numerals**: Chapter 1, Chapter 2, Chapter 10...
-- **Custom order**: Arranged according to the order set in the file tree
-- **Creation time**: When same number, sorted by creation time
-
-### Format Preservation
-
-The exported text file preserves:
-
-- Chapter titles (e.g., "Chapter 1: The Beginning")
-- Paragraph line breaks in the main content
-- Chinese punctuation marks
-- Special characters (such as circled numbers, spaces, etc.)
-
-**Note**: Images, bold, italic, and other rich text formatting is not exported; only plain text content is retained.
-
-## Export Process
-
-### Operation Steps
-
-1. **Open Project**
-   Enter the project editing page you want to export
-
-2. **Click Export**
-   Click the download icon button in the top toolbar
-
-3. **Wait for Download**
-   The system automatically generates the file and triggers browser download (usually completes within 1-3 seconds)
-
-4. **View File**
-   Find the exported file in the browser download directory. Current default filename format is: `{Project Name}_正文.txt`
-
-### Example
-
-Assume your project is named "My Novel" and contains three chapters:
-
-```
-Chapter 1: The Beginning
-  Content: This is a story about...
+Lin He did not hand over the gray canvas bag.
 
 ---
 
-Chapter 2: The Journey
-  Content: The next morning...
+2. Identification
 
----
-
-Chapter 3: The Ending
-  Content: Finally, the protagonist...
+“Take another moment—what was in the inner pocket?”
 ```
 
-The exported filename will be: `My Novel_正文.txt`
+Each file contributes its title, a blank line and its text. Files are separated by `---`. Leading and trailing body whitespace is trimmed; internal line breaks remain text. This does not produce a typeset document with page headers, images and font styling.
 
-## FAQ
+## 4. How can I share two scenes without changing the original project?
 
-### Q: No response after clicking the export button?
+The current entry exports all eligible draft and script files; it does not offer a chapter-selection step. To show an editor only two scenes:
 
-**Possible Causes**:
-- No draft files created in the project yet
-- Network connection issue
+1. Download the complete prose and keep an unchanged copy, for example `Before_Closing_prose_2026-09-12.txt`.
+2. Save another local copy as `Before_Closing_two_scenes_for_review.txt`.
+3. Remove unwanted scenes, writing notes and information you should not share **only from the review copy**. Open it before you send it yourself.
 
-**Solutions**:
-- First create at least one chapter under the "Drafts" folder
-- Check network connection, refresh the page and try again
+You choose those names after downloading; the workbench does not automatically create that dated archive. Do not temporarily delete later chapters from the project to produce a shorter export, or overwrite your only full download.
 
-### Q: The exported file has garbled characters?
+## 5. How do offline edits get back into the workbench?
 
-zenstory exported files use UTF-8 encoding with BOM marker added, so garbled characters should not occur normally.
+A downloaded TXT is an independent copy, not a two-way synchronized file. Edit a local copy if useful. When returning, open the corresponding current draft, check whether you or AI changed it in the meantime, then copy the chosen passages into the right file and save.
 
-**Solutions**:
-- Open with Notepad: Windows systems recommend using Notepad or Notepad++
-- Open with Word: Word automatically recognizes UTF-8 encoding
-- Mac system: Open with TextEdit or VS Code
+If you revised two sentences in Scene 2, apply those two sentences rather than pasting the entire merged book into one scene. Preserve both versions before reconciling overlapping edits. Matching filenames do not make the workbench automatically recognize an offline revision.
 
-### Q: Chapter order is incorrect after export?
+For older text, see [version history and recovery scope](https://zenstory.ai/docs/user-guide/version-history). A TXT copy, a file version and a project snapshot are different things.
 
-Chapter sorting is based on the following rules:
+## 6. Handle download and format problems
 
-1. Order set in the file tree (order field)
-2. Numbers in chapter titles (Chapter 1, Chapter 2, etc.)
-3. File creation time
+| Symptom | First action |
+| --- | --- |
+| No exportable prose | Check for non-deleted `draft` or `script` files, not just outlines or chat candidates |
+| Access, sign-in or plan-format error | Check the account and project, then follow the current message; repeated clicks do not bypass a restriction |
+| No visible download | Check page errors and the browser's download list; preserve unsaved text before addressing connectivity |
+| Garbled text | The server emits UTF-8 with BOM; select a matching encoding in your software and retain the original download |
+| Need Word, PDF or EPUB | This entry emits TXT. Use trusted local software for layout or conversion if needed; a separate converter is not a built-in ZenStory feature |
 
-**Adjustment Methods**:
-- Drag and drop to adjust chapter positions in the file tree
-- Modify chapter titles using standard naming (e.g., "Chapter 1", "Chapter 2")
+TXT does not preserve rich-text styling or image layout. It does not guarantee a match with every publishing platform's word count, chapter separators or upload rules. Read the beginning, chapter boundaries and ending before handoff to catch missing passages, duplicates and unintended notes. This guide makes no promise about future export formats.
 
-### Q: Can I export only some chapters?
+## Next steps
 
-Currently, the export feature merges all draft files. To export partial chapters:
+- [Editor guide](https://zenstory.ai/docs/user-guide/editor): saving, local edits and conflicts.
+- [Version history](https://zenstory.ai/docs/user-guide/version-history): file-level versus project-level recovery.
+- [AI assistant](https://zenstory.ai/docs/user-guide/ai-assistant): explicitly put adopted prose into the target file rather than leaving it in chat.
 
-**Temporary Workaround**:
-1. Export the entire project
-2. Open with a text editor, manually delete unwanted chapters
-3. Save the modified file
+## Implementation sources
 
-### Q: Is exporting to Word or PDF format supported?
+Source checked on 2026-09-12. These fixed-version references explain export; no authenticated manuscript export or publishing-platform compatibility test was performed.
 
-The current version only supports plain text (.txt) format export. Word, PDF, and other format support will be available in future versions.
-
-**Alternatives**:
-- Use local office tools to convert TXT into your required document format
-- Use a trusted converter to turn TXT into PDF (check privacy settings)
-
-## Export Tips
-
-### Submission Preparation
-
-Preparing for novel website submissions:
-
-1. Export TXT file
-2. Open with Notepad, check formatting
-3. Copy all content
-4. Paste into the submission platform's editor
-
-### Batch Backup
-
-Regularly backup your creations:
-
-1. Export once after completing each important chapter
-2. Filename automatically includes project name
-3. Save exported files to cloud storage (such as Baidu Netdisk, iCloud)
-
-### Multi-version Management
-
-Keep different versions of manuscripts:
-
-1. Rename the file after export, add date suffix
-   - `My Novel_正文_20240115.txt`
-   - `My Novel_正文_20240220.txt`
-2. Easy to compare creations from different periods
-
-### Offline Writing
-
-Continue creating in an environment without internet:
-
-1. Export current manuscript
-2. Modify in a local editor
-3. When you have internet, copy the modified content back to zenstory
-
-## Technical Details
-
-### File Encoding
-
-- **Encoding format**: UTF-8 with BOM
-- **Line endings**: Automatically adapted to operating system
-- **Compatibility**: Perfect support for Windows, Mac, Linux
-
-### Chapter Separator
-
-Standard separator between chapters:
-
-```
----
-```
-
-This is three consecutive hyphens, making it easy to identify chapter boundaries.
-
-### File Naming Convention
-
-Export filename format (current default): `{Project Name}_正文.txt`
-
-- Supports Chinese characters
-- Automatically handles special characters
-- Complies with operating system filename conventions
-
-### Performance Notes
-
-- **Small projects** (<10 chapters): 1-2 seconds
-- **Medium projects** (10-50 chapters): 3-5 seconds
-- **Large projects** (50+ chapters): May take more than 10 seconds
-
-Do not close the page during export; wait for the browser to complete the download.
-
----
-
-> **Tip**: It's recommended to develop a habit of regular export backups to ensure your creative work is always safe.
+- [Desktop project export control](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/Header.tsx#L228-L241)
+- [Mobile-menu export control](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/components/Header.tsx#L326-L337)
+- [Export access and format restrictions](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/api/export.py#L56-L100)
+- [Exported file types and ordering call](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L110-L143)
+- [TXT composition](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/services/features/export_service.py#L197-L203)
+- [Effective order and chapter-title precedence](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/utils/title_sequence.py#L216-L252)
+- [Supported title-sequence forms](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/utils/title_sequence.py#L32-L49)
+- [Output encoding and server filename](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/server/api/export.py#L129-L143)
+- [Browser filename and download behavior](https://github.com/zenstory-ai/zenstory/blob/0cb3d51c8f92a1856b99ef974b94fa81b7da6cc3/apps/web/src/lib/api.ts#L335-L364)

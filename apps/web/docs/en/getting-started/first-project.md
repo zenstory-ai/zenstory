@@ -109,6 +109,8 @@ This does not export all characters, materials, chat or version history and is n
 
 For the focused-file, material-attachment and text-quotation distinctions, see the [AI assistant guide](https://zenstory.ai/docs/user-guide/ai-assistant).
 
+See [manuscript export](https://zenstory.ai/docs/user-guide/export) and [version history](https://zenstory.ai/docs/user-guide/version-history); a handoff copy is not project recovery.
+
 ## Continue with a deliberate next scene
 
 Once you have a usable scene, reuse the approved files and specify the next scene's change and stopping point. You can also write manually and use AI only when stuck or revising.
