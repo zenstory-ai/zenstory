@@ -31,7 +31,7 @@ test('task guides provide bilingual instructions, primary sources and canonical 
   t.after(() => rmSync(outDir, { recursive: true, force: true }))
   run('build-org-pages.mjs', outDir)
   const routes = guides.map((guide) => `/${guide.owner}/${guide.slug}`)
-  assert.deepEqual(routes, ['/novel-to-game/quick-start', '/video-recap/capcut-draft', '/oh-story/agent-skills-for-writers', '/dsh/deepseek-novel-writing', '/oh-story/import-and-continue', '/drama-skills/novel-to-short-drama', '/oh-story/revise-ai-prose', '/video-recap/video-to-narration', '/novel-to-game/meaningful-choices', '/drama-skills/character-consistency', '/video-recap/original-audio-and-narration', '/oh-story/long-novel-continuity', '/oh-story/outline-to-chapter', '/oh-story/preserve-author-voice'])
+  assert.deepEqual(routes, ['/novel-to-game/quick-start', '/video-recap/capcut-draft', '/oh-story/agent-skills-for-writers', '/dsh/deepseek-novel-writing', '/oh-story/import-and-continue', '/drama-skills/novel-to-short-drama', '/oh-story/revise-ai-prose', '/video-recap/video-to-narration', '/novel-to-game/meaningful-choices', '/drama-skills/character-consistency', '/video-recap/original-audio-and-narration', '/oh-story/long-novel-continuity', '/oh-story/outline-to-chapter', '/oh-story/preserve-author-voice', '/oh-story/review-and-revise', '/oh-story/short-story-from-idea', '/oh-story/character-dialogue'])
   const directory = readFileSync(join(webRoot, 'public/llms.txt'), 'utf8')
   const escape = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
   const richText = (s) => escape(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2">$1</a>')
