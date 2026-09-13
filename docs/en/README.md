@@ -36,7 +36,7 @@ Detailed feature explanations to help you make the most of zenstory's capabiliti
 ### Advanced Tips
 Master zenstory in depth and build an efficient, personalized writing workflow.
 
-- [AI Memory & Context](advanced/ai-memory.md) - Understand how AI remembers your settings
+- [AI Memory & Context](advanced/ai-memory.md) - Separate accepted settings, saved progress and open ideas within the limits of project context
 - [Advanced Custom Skills](advanced/skill-creation.md) - Create exclusive creative skills
 - [Deep Materials Analysis](advanced/material-analysis.md) - Help AI deeply understand your creative materials
 - [Efficient Writing Workflow](advanced/workflow-tips.md) - Workflow practices from professional authors

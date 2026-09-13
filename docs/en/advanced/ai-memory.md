@@ -1,412 +1,135 @@
-# AI Memory & Context
+# AI Memory & Context: separate settings, progress and open ideas
 
-AI Memory is one of the core features of zenstory Novel Writing Workbench. It serves as a "project dossier" for your AI assistant, enabling the AI to continuously understand your work's settings, writing style, and creative progress, ensuring consistency and professionalism in every conversation.
+> Repository snapshot (2026-09-13). Use the [current hosted guide](https://zenstory.ai/docs/advanced/ai-memory) for the web workbench. This page reuses [the served guide source at this revision](https://github.com/zenstory-ai/zenstory/blob/1773af4781996363496f47268cce0e7c640108c8/apps/web/docs/en/advanced/ai-memory.md), retaining the explanation and worked example for reading in the repository. The date identifies this page’s source version, not the freshness of other repository documents.
 
----
+ZenStory's **AI Memory is an editable project summary**, not proof that the AI has read your whole book or a guarantee that characters never drift. It stores four fields—project summary, writing style, current phase and notes—for context assembly. Keep detailed characters, outlines and prose in their respective files, and identify the evidence needed for each task.
 
-## What is AI Memory?
+This guide covers the [hosted ZenStory workbench](https://app.zenstory.ai/dashboard), not Oh Story tracking files or the DSH plugin. New users can start with the [browser quick start](https://zenstory.ai/docs/getting-started/quick-start).
 
-AI Memory is a project-level persistent information storage. Unlike temporary conversations, content in AI Memory is automatically referenced in **all conversations**, ensuring the AI always understands the full scope of your work.
+## 1. What belongs in memory, and what stays in files?
 
-**Core Benefits:**
-- **Consistency Assurance** - The AI won't forget your settings, styles, and preferences
-- **No Repetition** - No need to re-explain background in every conversation
-- **Intelligent Context** - The AI can provide more precise suggestions based on the project's overall context
-- **Dynamic Updates** - Can be automatically updated by AI during conversations (with your confirmation)
+| Content | Useful location | Do not confuse it with |
+| --- | --- | --- |
+| Stable genre, viewpoint and important constraints | A short memory summary, with detailed evidence in setting files | A promise that the AI will remember a statement forever |
+| Character backgrounds, ability limits and full outlines | The relevant character, setting and outline files | All files automatically collected into the four memory fields |
+| Events already written | Prose files, with a short progress note in Current Phase | Events planned for the next scene already completed |
+| Unchosen motives, identities or endings | Planning files or notes explicitly marked undecided | Established facts or knowledge a character already has |
+| A change requested only for this turn | The current message, quotation and target file | A permanent change to the whole project's style |
+| Ideas discussed in chat | Conversation history; move adopted decisions into files or the summary | Every suggestion automatically becoming permanent memory |
 
-**Typical Use Cases:**
-- Recording the novel's genre (fantasy, urban, sci-fi, etc.)
-- Defining the protagonist's personality traits and growth trajectory
-- Setting the writing style (humorous, serious, action-packed, etc.)
-- Tracking current creative progress
-- Noting important setting details to remember
+Starting a new conversation and changing project memory are different operations. Do not try to clear an incorrect saved setting by switching conversations, or make complete recovery of old chat a prerequisite for writing. See the [AI assistant guide](https://zenstory.ai/docs/user-guide/ai-assistant) for focused files, attachments, quotations and session handoffs.
 
----
+## 2. Open, edit and save
 
-## Opening AI Memory
+1. In the project's chat header, choose the database icon with the AI Memory tooltip.
+2. Read the four fields and edit only what needs updating.
+3. Choose Save. A successful save closes the dialog; if saving fails, preserve your input and address the message. Closing a panel alone is not evidence of a save.
+4. After an important correction, reopen the panel to check the stored text. Cancel does not submit your edits; do not rely on an additional unsaved-exit warning always appearing.
 
-[Screenshot: Database icon button in the right chat panel header bar, with "AI Memory" tooltip on hover]
+Save is the relevant action here. If other actions such as sharing an inspiration are visible, they are not required to save memory.
 
-**Steps:**
-1. Enter any project's editing interface
-2. Find the database icon in the right chat panel's header bar
-3. Click the icon to open the "AI Memory" dialog
+| Field | Suggested content | Current source-defined storage limit |
+| --- | --- | --- |
+| Project Summary `summary` | Genre, central situation, viewpoint and a few accepted constraints | 4,000 characters |
+| Writing Style `writing_style` | Expression choices to preserve and approaches to avoid | 1,000 characters |
+| Current Phase `current_phase` | What is saved, the current task and what remains unfinished | 1,000 characters |
+| Notes `notes` | Easily confused facts, relevant file names and clearly marked open questions | 4,000 characters |
 
-**Location Tips:**
-- The icon is located on the right side of the chat panel header
-- To the left of the "New Chat" button (+)
-- Hovering shows the "AI Memory" tooltip
+These are storage limits, not recommended lengths, token counts or a promise that every character reaches the model. Context has a budget; long Summary and Notes text can be shortened. Put the important constraints first, keep long character records and chapter history in files, and quote the key passage again when it matters.
 
-**Quick Tips:**
-- Desktop: The icon is small, look for the database-shaped button
-- Mobile: Button size is adapted for touch, easier to tap
+Manual edits need saving, but **the Agent also has a tool that updates project memory**. Not pressing this panel's Save button does not prove that no Agent update happened. Do not assume every tool update first opens a per-change approval dialog. Asking for suggestions only is a task boundary, not an enforced read-only permission.
 
----
+## 3. Original example: scene one is written, not the ending
 
-## AI Memory Content Details
+This exercise continues the lost-property story from the [first-story tutorial](https://zenstory.ai/docs/getting-started/first-project). It assumes the author has saved scene one; it is **not a real account, model output or automatically generated memory**. The file titles match the English first-story tutorial; substitute the actual titles in your project.
 
-The AI Memory dialog contains four core modules, each with specific purposes and filling recommendations.
+Established conditions: Lin He runs the station's lost-property window, and Shen Min claims a gray canvas bag. Shen describes its appearance correctly but gets an inner-pocket item wrong. Scene one ends at that discrepancy. The bag has not been handed over; Lin does not know why the description is wrong. The author has not chosen that reason, Shen's relationship to the owner or the eventual recipient. The story uses Lin's limited viewpoint, and a spoken claim alone does not authorize releasing the bag.
 
-### Project Overview
+**An unsuitable progress summary:**
 
-[Screenshot: Project Overview input box showing multi-line text editing area, with placeholder text "Describe the novel's genre, world setting, protagonist setup, and other core information"]
+> Lin exposed Shen as a fraud and has returned the bag to its true owner. Next, write Shen's regret.
 
-**Content to Fill:**
-- **Work Type** - Web novel, short story, serialized novel, etc.
-- **World Setting Overview** - Cultivation world, modern urban, sci-fi future, etc.
-- **Protagonist Setup** - Name, core traits, main goals
-- **Core Conflict** - The main conflict and themes of the story
-- **Target Audience** - Expected reader demographic
+This upgrades an undecided identity to fact, records an unperformed handover as complete and invents another person's inner state. Repeatedly supplying that wrong summary does not make continuation more reliable.
 
-**Example:**
-> This is an Eastern fantasy cultivation novel, set in a xianxia world of three realms and nine domains. The protagonist Lin Feng is a young man with a special constitution, raised by a mysterious elder. The story's core is the protagonist's journey from mortal to powerful cultivator, with a hot-blooded, satisfying style targeting male web novel readers aged 18-30. Main attractions are the leveling system, sect competitions, and treasure hunts.
+**A more useful four-field draft:**
 
-**Best Practices:**
-- The more detailed, the better - don't worry about writing too much
-- Include key proper nouns (faction names, technique names, etc.)
-- Clearly define the work's positioning and style
-- Can be updated anytime; recommend filling carefully at project start
+```text
+Project Summary: Realist short story Before Closing, in Lin He's limited viewpoint.
+The station's lost-property window closes at six; the opening is at five forty.
+Lin cannot release the gray canvas bag on a spoken claim alone.
 
----
+Writing Style: Move the scene through questions, answers and observable action.
+Necessary interiority is allowed, but stay within what Lin currently knows;
+do not explain other people's private thoughts.
 
-### Writing Style
+Current Phase: Scene one is saved up to the incorrect inner-pocket description.
+The bag is not handed over. This turn only discusses further checks in scene two,
+not the ending; scene two remains unwritten.
 
-[Screenshot: Writing Style input box showing 2-line text editing area, with placeholder text "Describe language style, narrative pacing, writing characteristics, etc."]
-
-**Content to Fill:**
-- **Language Style** - Lighthearted humor, serious depth, passionate intensity, etc.
-- **Narrative Pacing** - Fast-paced, slow burn, balanced tension, etc.
-- **Writing Characteristics** - Concise, flowery, colloquial, classical style, etc.
-- **Reference Authors** - If you have writers you're emulating, mention them
-- **Special Requirements** - Things to avoid, elements that must be included, etc.
-
-**Example:**
-> Lighthearted and humorous language, using internet slang and memes frequently. Dialogue should be concise and punchy. Fast narrative pacing with satisfying moments or cliffhangers in every chapter. Avoid excessive psychological descriptions and scenery descriptions; drive the plot through action and dialogue. Reference style: Mao Ni's humor + Tang Jia San Shao's pacing.
-
-**Best Practices:**
-- If you like a particular author's style, write it explicitly
-- Note your writing weaknesses (e.g., "not good at writing fight scenes")
-- State your strengths (e.g., "good at writing plot twists")
-- You can include links to representative works
-
----
-
-### Current Stage
-
-[Screenshot: Current Stage input box showing 2-line text editing area, with placeholder text "Explain current writing progress and stage goals"]
-
-**Content to Fill:**
-- **Writing Progress** - Which chapter/volume you're currently writing
-- **Current Goal** - Tasks to complete at this stage
-- **Key Content** - Plot lines currently being handled
-- **Problems Encountered** - Creative bottlenecks or issues to resolve
-
-**Example:**
-> Currently writing Chapter 7 of Volume 1, the protagonist just entered the sect. This stage's goal is to complete the sect trial arc (about 10 chapters), focusing on depicting the protagonist showcasing talent during trials, making companions, and obtaining the first fortuitous encounter. Current problem: trial level designs lack novelty, need more creativity.
-
-**Best Practices:**
-- Update regularly (recommend updating after completing each important milestone)
-- Clearly state short-term goals to help AI understand current focus
-- Record creative difficulties encountered; AI may offer suggestions
-- Can include expected completion dates
-
----
-
-### Notes
-
-[Screenshot: Notes input box showing 3-line text editing area, with placeholder text "Record writing key points, matters needing attention, problems to solve, etc."]
-
-**Content to Fill:**
-- **Important Settings** - Details easy to forget or confuse
-- **Writing Points** - Creative principles for self-reminder
-- **Things to Avoid** - Mistakes that must not be made
-- **Unresolved Issues** - Settings not yet decided
-- **Inspiration Fragments** - Plots you want to add but haven't scheduled yet
-
-**Example:**
-> Important setting: The protagonist's golden finger is a "time perception" ability, but each use consumes lifespan - this setting should run throughout the text. Avoid: Don't make the protagonist too overpowered; maintain appropriate setbacks. Unresolved: The main villain's motivation isn't sufficient yet, needs refinement. Inspiration fragment: Want to add a "secret realm exploration" arc in the middle section, located in underwater ruins.
-
-**Best Practices:**
-- This is a "memo" - write down whatever comes to mind
-- Can use list format for AI to quickly understand
-- Regularly clean up resolved issues
-- Important foreshadowing can be noted here for self-reminder
-
----
-
-## How AI Uses Memory
-
-AI Memory content is automatically passed to the AI during each conversation, becoming important context for the AI to understand your project.
-
-### Automatic Reference Mechanism
-
-When you send a message to the AI, the system automatically appends AI Memory content to your message context:
-
-```
-Your message: "Help me design the plot for Chapter 3"
-
-Complete context received by AI:
-- [AI Memory]
-  - Project Overview: Eastern fantasy cultivation novel...
-  - Writing Style: Lighthearted humor, fast pacing...
-  - Current Stage: Writing Volume 1 Chapter 7...
-  - Notes: Protagonist's golden finger is time perception...
-- [Your Message] Help me design the plot for Chapter 3
+Notes: [Author undecided] Reason for the error, Shen's relationship to the owner,
+and the bag's final recipient.
+[Continuation boundary] A mismatched description is not proven lying.
+[Evidence files] Lin He, Shen Min, Three-scene outline and Scene 1 — The claim.
 ```
 
-This means when designing plots, the AI will automatically consider:
-- The work's overall style and positioning
-- The protagonist's ability settings and limitations
-- Current creative progress and goals
-- Notes and things to avoid that you've recorded
+The bracketed labels are the author's plain-text convention, not special system fields. Naming a file here is not an instruction that automatically reads it. When writing scene two, explicitly request those files and quote the important material if needed.
 
-### Maintaining Creative Consistency
+The summary provides a useful entry point without trying to hold the entire story. If the author later chooses a motive, record it as an author decision and separately decide when a character learns it. Author knowledge is still not Lin's knowledge.
 
-**Example Scenario:**
-You defined in AI Memory: "Using the time perception ability consumes the protagonist's lifespan."
+## 4. Correct a wrong memory without rewriting the story
 
-**Without AI Memory:**
-```
-You: Help me write a battle scene for the protagonist
-AI: [Generates battle where protagonist uses time perception unlimitedly, completely unharmed]
-You: That's wrong, using this ability consumes lifespan
-AI: Sorry, let me regenerate...
-```
+Find the evidence before deciding which layer to change. A wrong summary does not prove the prose is wrong. Changed prose does not mean every character file, outline and summary has already been synchronized.
 
-**With AI Memory:**
-```
-You: Help me write a battle scene for the protagonist
-AI: [Automatically considers lifespan consumption setting, generates battle where protagonist uses ability cautiously, weighing pros and cons]
+Start with a request like this:
+
+```text
+Read Lin He, Shen Min, Three-scene outline and Scene 1 — The claim first.
+If several files share a title, list the candidates instead of guessing.
+Compare them with current AI Memory. List only each conflicting sentence,
+its file evidence and a proposed replacement.
+
+Confirmed: scene one ends at the mismatched description; the bag is not released,
+and Lin does not know the reason.
+Provide a four-field correction draft in chat only. Do not update memory or files.
+Keep undecided identities and motives open; do not choose the ending or write scene two.
 ```
 
-### AI Auto-Update (Requires Confirmation)
+After reading the proposal, you can edit and save the fields yourself. If you explicitly ask the Agent to write the update, name the fields and accepted text. Inspect actual memory and relevant files afterward; “I'll remember that” alone does not establish a saved update.
 
-In some conversations, the AI may suggest updating AI Memory content:
+If you also change the story direction, separately choose which character records, outline and prose need revision. Make that a scoped task, not a silent whole-book rewrite hidden inside a summary correction.
 
-[Screenshot: AI conversation showing "I suggest updating your AI Memory: Current Stage from 'Volume 1 Chapter 7' to 'Volume 1 Chapter 8'", with "Agree"/"Decline" buttons below]
+## 5. Update without accumulating contradictions
 
-**Typical Update Scenarios:**
-- You completed a creative stage, AI suggests updating "Current Stage"
-- AI discovered a setting conflict, suggests correcting "Project Overview"
-- Your writing style has adjusted, AI suggests updating "Writing Style"
+- **After accepting a setting:** keep a short decision and relevant file names; remove rejected alternatives without quietly turning “possible” into “happened.”
+- **After saving a scene:** update actual progress and its exit state. Planning to hand over the bag next is not its current physical state.
+- **Before changing conversations:** leave completed work, open decisions and the next task; check the target file and quotations in the new conversation.
+- **After drift:** find which evidence is outdated and correct that specific layer; do not blindly overwrite every file to make them agree.
 
-**Handling Options:**
-- Agree: AI Memory updates immediately
-- Decline: Keep original content unchanged
-- Manual Edit: You can also open the AI Memory dialog yourself to edit
+You do not need to fill every field on a weekly or fixed-chapter schedule. Maintain them when decisions, progress or evidence actually change, rather than copying all chat into Notes. Memory content may enter AI context; it is not a private scratchpad for information you intend to hide from the model.
 
----
+## Common questions
 
-## Editing AI Memory
+### Why can a character still drift with memory enabled?
 
-You can manually edit AI Memory content at any time.
+The summary may be outdated, incomplete or conflict with a file; context can be budget-limited, and the model can misunderstand. Check the saved evidence and the key sentence for this turn rather than asking it to “never be wrong.” The distinction between author truth, character knowledge and reader knowledge in the [long-novel continuity guide](https://zenstory.ai/oh-story/long-novel-continuity) is useful, but Oh Story's tracking files are not automatically features of the hosted workbench.
 
-### Editing Operations
+### Is saying “remember this” enough to save it?
 
-[Screenshot: AI Memory dialog editing interface showing four text input boxes and "Cancel"/"Save" buttons at the bottom]
+Not necessarily. It may remain a chat response, or a project-status update may have occurred. Read the tool result and open memory to check; important formal settings also need clear evidence in project files.
 
-**Steps:**
-1. Open the AI Memory dialog
-2. Directly modify content in any input box
-3. Click the "Save" button at the bottom
-4. Changes take effect immediately
+### Does exporting TXT back up memory too?
 
-**Notes:**
-- Only clicking "Save" will save changes
-- Clicking "Cancel" discards all modifications
-- If no changes are made, the "Save" button remains disabled
-- Loading animation displays while saving, dialog auto-closes when complete
+Do not treat it that way. Manuscript export covers draft and script files, not a complete project backup containing these four fields, materials, chat and history. To keep the summary independently, copy the four fields to your own document. See [version history](https://zenstory.ai/docs/user-guide/version-history) and [manuscript export](https://zenstory.ai/docs/user-guide/export) for their separate recovery boundaries; neither is a promise to recover any arbitrary memory edit.
 
-### Modification Suggestions
+## Implementation references
 
-**When to Update AI Memory:**
-- When starting a new project, fill all fields completely
-- When completing an important creative milestone, update "Current Stage"
-- When discovering setting errors or needing adjustments, modify relevant fields
-- When getting new inspiration or clarifying new requirements, add to "Notes"
+Source checked on 2026-09-13. These fixed revisions support the fields, save path and context limits. This tutorial did not operate a live account or run a model to establish writing quality or memory effectiveness.
 
-**Update Frequency Recommendations:**
-- Project Overview: Fill in detail initially, occasionally supplement later
-- Writing Style: Fill at project start, rarely changes afterward
-- Current Stage: Update weekly or after completing each major chapter
-- Notes: Add anytime, regularly clean up resolved issues
-
----
-
-## Best Practices
-
-### 1. Fill Completely at Project Start
-
-**Recommended Action:**
-After creating a new project, the first thing to do is open AI Memory and carefully fill each field.
-
-**Reasons:**
-- The more complete the initial information, the more precise the AI's subsequent suggestions
-- Avoid repeatedly explaining basic settings in conversations
-- Helps you clarify your creative vision
-
-**Checklist:**
-- [ ] Project Overview: Includes genre, world setting, protagonist, core conflict
-- [ ] Writing Style: Clear language style, pacing, reference objects
-- [ ] Current Stage: Write "Project starting, currently brainstorming outline"
-- [ ] Notes: Record initial inspirations and ideas
-
----
-
-### 2. Regularly Update Current Stage
-
-**Recommended Frequency:** Every 3-5 chapters completed, or after completing an important plot segment
-
-**Update Template:**
-```
-[Time] YYYY-MM-DD
-[Progress] Currently writing Chapter X/Volume X
-[Goal] To complete XXX at this stage (approximately Y chapters)
-[Focus] Currently handling XXX plot line
-[Issue] Current difficulty: XXX
-```
-
-**Benefits:**
-- AI can provide suggestions more aligned with current progress
-- Helps you maintain creative rhythm
-- Forms a creative log for easy review
-
----
-
-### 3. Record Important Setting Decisions in Notes
-
-**Content to Record:**
-- Detail settings easy to forget
-- Important foreshadowing and hints
-- Pitfalls to avoid
-- Unresolved questions temporarily undecided
-
-**Example:**
-> [Setting] The protagonist's master is actually the main villain, this twist is revealed in Chapter 50, need to plant foreshadowing early on
-> [Avoid] Don't write the female lead as a vase; give her independent growth arc
-> [Pending] The Volume 3 villain isn't decided yet, need to design an opponent whose abilities counter the protagonist
-
----
-
-### 4. Use AI Memory to Resolve Setting Conflicts
-
-**Problem Scenario:**
-You wrote "protagonist uses time perception for the first time" in Chapter 10, but when writing Chapter 30, you forgot and wrote "first time using" again.
-
-**Solution:**
-Clearly record in AI Memory's "Notes":
-> [Ability] Time perception first used in Chapter 10, upgraded to level 2 in Chapter 20, comprehended time stop in Chapter 35
-
-**AI's Role:**
-When writing relevant chapters, the AI will reference the notes and remind you of the ability's usage history, avoiding contradictions.
-
----
-
-### 5. Let AI Help Improve AI Memory
-
-**Conversation Example:**
-```
-You: I created a new project but don't know how to fill AI Memory. Can you help?
-AI: Of course! Please tell me your work type, protagonist setup, and core selling points, and I'll help generate a complete AI Memory draft.
-You: [Provide basic information]
-AI: Based on your description, I suggest filling it this way:
-     Project Overview: ...
-     Writing Style: ...
-     Current Stage: ...
-     Notes: ...
-     How does that look? Need modifications?
-```
-
-**Benefits:**
-- AI excels at structured expression and can help organize your thoughts
-- AI will supplement dimensions you might overlook based on your description
-- Generated drafts can be directly copied into AI Memory
-
----
-
-### 6. Regular Review and Cleanup
-
-**Recommended Frequency:** Monthly or after completing each volume
-
-**Review Content:**
-- Project Overview: Any new confirmed settings to add?
-- Writing Style: Any new style preferences?
-- Current Stage: Is it outdated?
-- Notes: Any resolved issues that can be deleted?
-
-**Benefits:**
-- Maintain AI Memory accuracy and conciseness
-- Avoid outdated information interfering with AI's judgment
-- Form a complete record of project evolution
-
----
-
-## Common Questions
-
-### Q: What's the difference between AI Memory and conversation history?
-
-**A:**
-- **AI Memory** - Project-level persistent information, referenced in all conversations
-- **Conversation History** - Temporary records of a single session, cleared when starting a new session
-
-Analogy: AI Memory is your "personal file," conversation history is "chat logs."
-
----
-
-### Q: Will AI Memory content being too long cause issues?
-
-**A:** No issues. AI Memory content counts toward context token budget, but the system manages it intelligently. Recommendations:
-- Project Overview can be detailed (suggest under 500 words)
-- Other fields stay concise (suggest under 200 words each)
-- Total length best kept under 1500 words
-
----
-
-### Q: I don't want the AI to see certain information, what should I do?
-
-**A:** Don't fill it in AI Memory. AI Memory content is **referenced in all conversations**. If you want certain information mentioned only in specific conversations, it's recommended to:
-- Tell the AI directly during conversation (don't write to AI Memory)
-- Or state at conversation start: "Don't consider the XXX setting for this conversation"
-
----
-
-### Q: Does AI Memory auto-save?
-
-**A:** No. You must manually click the "Save" button for changes to take effect. This prevents accidental operations. If you close the dialog without saving, there will be a prompt.
-
----
-
-### Q: In collaborative projects, is AI Memory shared?
-
-**A:** Yes. AI Memory is project-level; all collaborators on the same project see the same AI Memory content. Recommendations:
-- Primary creator responsible for maintaining AI Memory
-- Confirm settings and style together before collaborating
-- Communicate before major changes
-
----
-
-### Q: Can AI Memory be exported or backed up?
-
-**A:** Currently AI Memory is stored in the database and doesn't support individual export. For backup, it's recommended to:
-- Manually copy content to local documents
-- Periodically save screenshots
-- Use the project's complete export function (includes AI Memory)
-
----
-
-## Summary
-
-AI Memory is the "project brain" of the zenstory platform, enabling the AI to continuously and consistently understand your creative intent. Mastering AI Memory usage will significantly improve your creative efficiency:
-
-**Key Points:**
-- Fill completely at project start to avoid repeated explanations later
-- Regularly update current stage to help AI provide precise suggestions
-- Record important settings in notes to prevent contradictions
-- Utilize AI to help improve, making settings more systematic
-
-**Next Steps:**
-- Open your project, check if AI Memory is complete
-- Optimize each field's content based on this article's recommendations
-- Observe in your next AI conversation whether the AI better understands your needs
-
-Start using AI Memory to make your creative journey smoother!
+- [AI Memory entry in the chat header](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/web/src/components/ChatPanel.tsx#L1595-L1609)
+- [Save changed fields and report failures](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/web/src/components/ProjectStatusDialog.tsx#L128-L155)
+- [Cancel and Save controls](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/web/src/components/ProjectStatusDialog.tsx#L225-L247)
+- [Four project fields and character limits](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/config/project_status.py#L12-L40)
+- [Read saved project context from the database](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/agent/context/assembler.py#L1022-L1054)
+- [Budget-bound long summary and notes fields](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/agent/context/assembler.py#L1319-L1352)
+- [Format saved fields as project state](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/agent/context/assembler.py#L1791-L1835)
+- [Agent tool can write project status](https://github.com/zenstory-ai/zenstory/blob/306059d9418dbdd6612d67574816ad960f58e51c/apps/server/agent/tools/mcp_tools.py#L1609-L1639)
