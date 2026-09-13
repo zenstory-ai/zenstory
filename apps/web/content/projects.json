@@ -375,11 +375,13 @@
     "method": { "en": [
         ["Install", "Follow the versioned installation guide: Node.js 24+, pnpm-assisted plugin installation in a DSH Web profile, then start DSH Web. Installing the creation plugin alone does not add a Web UI to a fresh profile."],
         ["Configure", "Configure a model for AI creation and only the media providers you use. Video processing additionally requires Python and ffmpeg/ffprobe."],
-        ["Open", "Choose a workspace and session. Creation tabs appear when project files exist; an empty workspace retains native DSH Chat."]
+        ["Open", "Choose a workspace and session. Creation tabs appear when project files exist; an empty workspace retains native DSH Chat."],
+        ["Continue an existing draft", "Use the [DeepSeek fiction guide](https://zenstory.ai/dsh/deepseek-novel-writing) to distinguish a complete chapter from an unfinished tail, compare next-scene choices and separate Chat-only discussion from import or manuscript changes."]
       ], "zh": [
         ["安装", "按版本化安装指南准备 Node.js 24+，用附带 pnpm 的命令将插件安装到 DSH Web profile，再启动 DSH Web。只安装创作插件不会给全新的 profile 添加网页界面。"],
         ["配置", "为 AI 创作配置模型，并仅配置需要的媒体服务；视频处理还需要 Python 与 ffmpeg/ffprobe。"],
-        ["打开", "选择工作目录与会话。存在创作项目文件后显示对应工作台；空目录保留原生 DSH Chat。"]
+        ["打开", "选择工作目录与会话。存在创作项目文件后显示对应工作台；空目录保留原生 DSH Chat。"],
+        ["续写已有稿件", "按 [DeepSeek 小说写作指南](https://zenstory.ai/dsh/deepseek-novel-writing)区分完整章与残稿，比较下一场戏的行动选择，并把 Chat 讨论、导入工程与修改正文分开。"]
       ] },
     "distinctive": {
       "en": [
