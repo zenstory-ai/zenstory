@@ -19,6 +19,8 @@ Overview page: https://zenstory.ai/projects — each project has a bilingual can
 
 ## Documentation
 
+- [Turn manuscript feedback into a revision plan](https://zenstory.ai/oh-story/review-and-revise): an original editorial decision sheet separates evidence, severity, accepted repairs and rejected plot changes; one-scene scope, review-mode write boundaries and later-chapter impacts.
+
 - [Preserve your author voice](https://zenstory.ai/oh-story/preserve-author-voice): an original prose-sample comparison separates expressive choices, book facts, pending inference and scoped author preferences; shared style decisions without copied plot details or a guaranteed voice match.
 
 - [From outline to chapter](https://zenstory.ai/oh-story/outline-to-chapter): an original library-rescue example turns plot labels into observable evidence, choices, costs and relationship changes; planning-only scope, not a mandatory twist formula or recorded model output.

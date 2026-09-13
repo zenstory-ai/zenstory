@@ -1844,5 +1844,142 @@
         "[单事件回执与 active 偏好查询](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/scripts/author_memory_commit.py#L716-L780)"
       ]
     }
+  },
+  {
+    "owner": "oh-story",
+    "slug": "review-and-revise",
+    "checked_on": "2026-09-12",
+    "title": {
+      "en": "Turn AI manuscript feedback into a revision plan without rewriting the wrong story",
+      "zh": "AI 审稿意见太多怎么改：分清必改、可选与后续影响"
+    },
+    "answer": {
+      "en": "Do not turn every review comment into a rewrite instruction. First connect the criticism to a passage and an established story constraint, then decide what to fix, what needs clarification and what is merely an alternative taste. A useful revision brief names the problem, approved action, facts to preserve, exact chapter or scene and possible effects on later chapters. Oh Story separates story-review findings from the chapter-revision workflow. The decision sheet below is an editorial aid, not a new required project file or an automatic acceptance feature. For wording alone, use the separate [prose-revision guide](https://zenstory.ai/oh-story/revise-ai-prose); for which character or reader knows what, see [long-novel continuity](https://zenstory.ai/oh-story/long-novel-continuity).",
+      "zh": "不要把每条审稿意见直接变成重写指令。先把批评连回具体段落与已经成立的故事约束，再决定哪些要修、哪些要补问、哪些只是另一种审美选择。一份能执行的改稿任务应说明问题、获准的动作、必须保留的事实、精确章节或场景，以及对后文的影响。Oh Story 把 story-review 的发现与章节修订流程分开。下面的决策单是给作者使用的编辑方法，不是新增的必需项目文件，也不是自动采纳功能。只涉及措辞时看[局部润色指南](https://zenstory.ai/oh-story/revise-ai-prose)；涉及角色或读者知道什么时看[长篇连续性指南](https://zenstory.ai/oh-story/long-novel-continuity)。"
+    },
+    "prerequisites": {
+      "en": [
+        "A manuscript you own or are authorized to edit, its chapter plan and the relevant preceding/following passage. Include the book’s viewpoint, intended reader experience and facts or reveal timing that must stay. Missing context should remain an explicit gap, not an invented explanation.",
+        "The original review comments and passages they refer to. Oh Story findings include severity, category, location, evidence, issue and a proposed fix. A harsh verdict without enough evidence does not tell you which sentence or story decision should change.",
+        "For the command examples, an installed Oh Story skill pack in a supported agent host and the correct writing folder. The examples use Claude Code slash syntax, not hosted ZenStory or DSH installation instructions. A loose manuscript is not yet a tracked project; use the [import guide](https://zenstory.ai/oh-story/import-and-continue) before a project-level revision that requires existing tracking state."
+      ],
+      "zh": [
+        "你有权编辑的稿件、本章细纲及相关前后文。带上本书视角、希望交付的阅读感受，以及不能改变的事实或揭示时机。材料缺失应明确列为缺口，不用临时编出的解释补齐。",
+        "原始审稿意见及对应段落。Oh Story 的 finding 包括严重度、类别、位置、证据、问题和建议修法。只有严厉结论、没有足够依据，仍然不能说明该改哪句话或哪项故事决定。",
+        "若使用命令示例，需要在受支持的 Agent 宿主中安装 Oh Story，并打开正确写作目录。示例采用 Claude Code 的 slash 语法，不是 ZenStory 托管版或 DSH 的安装步骤。散稿不等于已有追踪项目；需要现有追踪状态的工程级修订，应先按[导入指南](https://zenstory.ai/oh-story/import-and-continue)建立项目。"
+      ]
+    },
+    "steps": {
+      "en": [
+        [
+          "Ask what the criticism actually establishes",
+          "For each finding, keep the location and evidence alongside the proposed fix. “The protagonist is passive” needs the decision they fail to make and the resulting effect; “too slow” needs the scene function that is delayed or duplicated. If two comments disagree, preserve the disagreement and ask which better serves this book. The review workflow calls for presenting conflicts, not silently averaging them."
+        ],
+        [
+          "Prioritize damage before stylistic preference",
+          "The bundled rubric uses S1 for damage to the main story, motivation, world rules or reader trust; S2 for substantial chapter problems; S3 for local issues; and S4 for optional refinements. These are workflow judgments, not universal literary scores. Resolve a supported contradiction before polishing its sentences. An author preference does not make a factual conflict disappear; an unsupported criticism still needs evidence."
+        ],
+        [
+          "Choose an action, not just a verdict",
+          "Use four editorial decisions: accept a specific repair; ask for missing evidence; defer a lower-priority change; or reject a proposed solution that violates the story contract. You can accept the diagnosis and reject its suggested fix. Record why. These decisions supplement the report; they do not rename its severity labels or automatically modify project files."
+        ],
+        [
+          "Separate a repair from a new story decision",
+          "If prose contradicts an approved fact, choose the authoritative fact and repair the passage. If the desired change would move a reveal, alter a relationship or replace the chapter outcome, it is a change of direction: settle it with the author and revise the affected plan explicitly before drafting. Do not smuggle it in as “stronger tension.” For a flat but correct blueprint, see [outline to chapter](https://zenstory.ai/oh-story/outline-to-chapter)."
+        ],
+        [
+          "Bound one revision pass",
+          "Name the chapter and the scene or paragraph anchors. Specify the accepted items, immutable facts, allowed changes and stopping point. The documented chapter workflow reads adjacent context, backs up the original and distinguishes local edits from whole-chapter rewrites. If the agreed improvement cannot fit that scope, ask for the conflict and a revised plan rather than permissionless expansion."
+        ],
+        [
+          "Keep later consequences visible",
+          "The chapter-revision workflow uses a revision transaction to rebuild the affected chapter record and current continuity views. Removing a clue is not safe when a later chapter still uses it; changing who learned something may affect later dialogue. List those passages for the author instead of silently rewriting them too. A review recommendation or a future plot idea is not already-established tracking fact."
+        ],
+        [
+          "Decide whether the repair worked",
+          "Read the changed scene against the accepted problem: does the protagonist now make the intended choice, is the evidence still present, and does the following scene still follow? Ask for changes made, suggestions not applied and unresolved downstream effects. A cleaner report is not itself a better chapter; stop when the selected problem is addressed rather than repeatedly rewriting until every taste-based comment vanishes."
+        ]
+      ],
+      "zh": [
+        [
+          "先问批评到底证明了什么",
+          "把每条发现的位置、证据和建议修法放在一起。“主角被动”要说清他缺少了哪次决定、造成什么影响；“节奏慢”要指出哪个场景功能被拖延或重复。两条意见相反时，保留分歧，再判断哪条更服务于这本书。审稿流程要求呈现冲突，不是静默折中。"
+        ],
+        [
+          "先修有依据的损伤，再谈审美偏好",
+          "随包尺度用 S1 表示破坏主线、动机、世界规则或读者信任的问题，S2 表示明显影响章节效果的问题，S3 表示局部问题，S4 表示建议性微调。这是工作流内的判断，不是普适文学分数。先解决有依据的矛盾，再打磨其句子。作者偏好不能抹掉事实冲突；没有证据的批评仍需要补证。"
+        ],
+        [
+          "选择修复动作，而不只是接受判决",
+          "可以作四种编辑决定：采纳一个具体修复；补问缺失依据；暂缓较低优先级的问题；拒绝违背故事约定的修法。可以接受诊断、拒绝它附带的解决方案，并说明理由。这些决定是对审稿报告的补充，不改名严重度标签，也不自动修改项目文件。"
+        ],
+        [
+          "分清修错与改变故事方向",
+          "如果正文违反已确认事实，就先裁定权威事实，再修相应段落。如果想把揭示提前、改变关系或替换本章结果，那是改方向：先由作者决定，再明确修订受影响规划，之后才写正文。不要借“加强紧张感”偷渡变化。细纲本身正确、正文却平淡时，可参考[从细纲到场景](https://zenstory.ai/oh-story/outline-to-chapter)。"
+        ],
+        [
+          "把一轮修改圈在具体范围内",
+          "写清章节、场景或段落锚点，以及本轮采纳项、不变事实、可改动作与停靠点。章节流程会读前后衔接材料、备份原文，并区分局部修改与整章重写。如果目标无法在约定范围内完成，应先报告冲突并调整计划，不擅自扩大改稿范围。"
+        ],
+        [
+          "把后文的连锁影响留在明面上",
+          "章节修订流程通过一次修订事务重建受影响章记录与当前连续性视图。删掉一个伏笔，但后章还用它，就不能当作已经处理；改变谁知道一件事，也可能影响后文对白。应列出这些段落供作者决定，而不是顺手重写后章。审稿建议和未来构想不等于已经成立的追踪事实。"
+        ],
+        [
+          "判断原问题是否真的修好",
+          "拿改后场景对照采纳的问题：主角是否作出了所需选择、证据是否仍在、下一场戏是否接得上？要求说明已改内容、未采纳建议与尚未解决的后续影响。报告更干净不等于章节更好；选定问题得到解决后就停，不为了消灭所有审美分歧反复重写。"
+        ]
+      ]
+    },
+    "example": {
+      "en": "ORIGINAL EDITORIAL EXAMPLE — invented for this guide, not a recorded review or model run.\n\nChapter 8: The Transfer Slip\nApproved facts: Zhou Lan and workshop keeper Yu Heng both notice that the last two digits on a retired machine's exterior plate differ from its transfer slip. She must register the discrepancy before 17:00. She may inspect the exterior only; the machine stays sealed. Both the chapter plan and the already-written chapter 9 depend on that seal remaining intact. The person who changed the record is not identified until chapter 12.\nCurrent weakness: Yu notices the mismatch, explains everything and offers to register it; Zhou merely agrees.\n\nFour comments and an author's decision sheet:\n1. “Zhou has no consequential action.” ACCEPT THE DIAGNOSIS. Approved repair: she compares the two visible numbers, asks to register the mismatch and insists when Yu proposes waiting. Yu still sees the same evidence. Keep the discrepancy, deadline and sealed machine.\n2. “Cut the transfer-slip exchange; it slows the scene.” REJECT THE DELETION, ACCEPT COMPRESSION. Its evidence supports the later investigation. Remove repeated explanation, not the comparison or registration decision.\n3. “Have Zhou break the seal and find the culprit's signature for a stronger ending.” REJECT THIS SOLUTION. It changes the permitted action, chapter 9's premise and chapter 12's reveal. If the author wants that different plot, plan its consequences separately.\n4. “Every line should be shorter and sharper.” ASK FOR A SPECIFIC PROBLEM; DEFER THE BLANKET REWRITE. This book uses an unhurried voice. Identify an actual redundant exchange instead of replacing the voice wholesale.\n\nSuggested first request for an installed Claude Code workflow:\n/story-review solo\nReview only chapter 8. Read the named chapter plan and relevant passages from chapters 7 and 9 as supporting context, not additional review batches. Identify evidence-backed problems and distinguish a diagnosis from one possible fix. Show missing evidence and disagreements. Deliver the report in this reply; do not edit manuscript, settings, outline, tracking or other project files. Do not infer persistent author preferences from this one request.\n[Supply the real paths, approved facts and original feedback.]\n\nAfter choosing the repair:\n/story-long-write 修改第8章\nOnly revise the transfer-slip conversation. Apply decisions 1 and 2 above; do not apply 3 or the blanket rewrite in 4. Preserve the deadline, sealed machine, reveal timing and everything outside this scene. Confirm that scope, back up the original and follow the bundled revision workflow. If a plan conflict prevents the local repair, report it before writing. Report the actual changes and any consequences for chapters 9 onward; do not edit those chapters or start a new one this turn.",
+      "zh": "原创编辑示例——为本指南虚构，不是审稿记录或模型运行结果。\n\n第 8 章：移交单\n已确认事实：周岚与车间保管员于衡都在本场发现，退役机床外部铭牌与移交单的倒数两位编号不符。她必须在 17:00 前登记异议。她只能查看外部，封条不能拆；本章细纲与已经写好的第 9 章都以封条完整为前提。改动记录的人到第 12 章才会被认出。\n当前薄弱处：于衡发现差异、解释来龙去脉、主动提出登记，周岚只说同意。\n\n四条意见与作者决策单：\n1. “周岚没有带来后果的行动。”采纳诊断。获准修法：由她核对两处可见编号、要求登记差异，并在于衡建议等一等时坚持推进。于衡仍看到同样证据；差异、期限和未拆封机床不变。\n2. “删掉移交单对话，这里太慢。”拒绝删除，接受压缩。后续调查需要这项依据；删重复解释，不删编号核对与登记决定。\n3. “让周岚拆封，发现篡改者签名，章尾才够强。”拒绝这个修法。它同时改变允许的行动、第 9 章前提和第 12 章揭示。如果作者确实想走另一条剧情，应另行规划连锁影响。\n4. “所有对白都改短、改锋利。”先补问具体问题，暂缓一刀切重写。本书保留不疾不徐的语气；请指出真正重复的一轮对白，不要整套替换文风。\n\n在已安装的 Claude Code 工作流里，可先这样请求：\n/story-review solo\n只审第 8 章。读取我点名的本章细纲与第 7、9 章相关段落作为衔接依据，不将它们另立审查批次。列出有原文证据的问题，分开诊断与一种可能的修法，呈现证据缺失与意见分歧。报告在本次回复里交付，不修改正文、设定、大纲、追踪或其他项目文件。不要从这次一次性要求推断长期作者偏好。\n[填写真实路径、已确认事实与原始意见。]\n\n选定修法后：\n/story-long-write 修改第8章\n只改移交单对话。执行上面第 1、2 项决定，不执行第 3 项和第 4 项的一刀切重写。保留期限、未拆封机床、揭示时机及本场以外所有内容。确认范围、备份原稿，再按随包修订流程处理；若细纲冲突使局部修复无法完成，先报告再写。说明实际修改及对第 9 章以后的影响，本轮不改后章、不新写章节。"
+    },
+    "outputs": {
+      "en": [
+        "A review report with located evidence, severity, actual review mode, missing context and disagreements. The author’s decision sheet identifies accepted fixes and protected facts; the example does not claim the tool creates that sheet automatically.",
+        "After an explicit revision, the selected chapter changes within the agreed scope, with an original-copy backup and a report of later impacts. The documented workflow updates tracking through its transaction; a chat claim alone is not evidence that the manuscript or state was saved.",
+        "Review modes have different write boundaries. Solo does not modify story tracking; batch review can save unresolved findings in .story-review/state.md. Full/lean may maintain tracking through the prescribed transaction when existing prose proves a recorded fact is wrong or missing. This is why the example requests a single-chapter solo report and explicitly excludes file edits, rather than calling all review read-only."
+      ],
+      "zh": [
+        "一份带位置、证据、严重度、实际审查模式、缺失材料与分歧的报告。作者决策单另列采纳修法与受保护事实；示例不声称工具会自动生成这张单。",
+        "明确请求修订后，目标章按约定范围修改，保留原稿备份，并报告后续影响。文档流程经事务更新追踪；聊天里说完成，不足以证明正文或状态已保存。",
+        "审稿模式的写入边界不同。solo 不修改故事追踪；分批审稿可以把未解决发现保存在 .story-review/state.md。full/lean 在现有正文证明追踪事实错误或缺失时，可经规定事务维护追踪。因此示例选择单章 solo、明确不改文件，而不是把所有审稿称作只读。"
+      ]
+    },
+    "verification": {
+      "en": [
+        "Check the accepted decisions against the actual changed passage, including material that must remain. Do not count an unrequested plot change as a fix simply because the scene sounds more dramatic.",
+        "Read each specifically affected later passage. If its premise no longer holds, leave the conflict visible and decide the next revision scope; a consistent tracking view does not repair unchanged prose by itself.",
+        "Keep review severity separate from sales, platform acceptance or publishability. Neither a positive verdict nor local structural checks establish those outcomes."
+      ],
+      "zh": [
+        "把采纳决定与实际改后段落对照，同时检查应保留的内容。场面更激烈，不代表未经要求的剧情改变就算修复。",
+        "读被点名影响的后续段落。若其前提不再成立，应明确保留冲突并决定下一轮范围；追踪视图一致不会自行修好尚未修改的正文。",
+        "把审稿严重度与销量、平台接纳或可发表性分开。通过式结论与本地结构检查都不能证明这些结果。"
+      ]
+    },
+    "sources": {
+      "en": [
+        "[Review modes and effective execution](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-review/SKILL.md#L25-L30)",
+        "[Evidence, location and severity of findings](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-review/SKILL.md#L198-L217)",
+        "[Report synthesis and conflicting recommendations](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-review/SKILL.md#L360-L370)",
+        "[Batch-review state is not manuscript authority](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-review/SKILL.md#L145-L150)",
+        "[Tracking-maintenance boundaries and workflow handoff](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-review/SKILL.md#L475-L495)",
+        "[Chapter scope, adjacent context and original backup](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-revision.md#L6-L43)",
+        "[Revision transaction and later-chapter impacts](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-revision.md#L49-L71)",
+        "[Blueprint boundaries and changes that need planning](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L34-L43)"
+      ],
+      "zh": [
+        "[审稿模式与实际执行](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-review/SKILL.md#L25-L30)",
+        "[发现的位置、证据与严重度](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-review/SKILL.md#L198-L217)",
+        "[报告综合与冲突建议](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-review/SKILL.md#L360-L370)",
+        "[分批审稿状态不是小说事实](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-review/SKILL.md#L145-L150)",
+        "[追踪维护边界与改稿衔接](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-review/SKILL.md#L475-L495)",
+        "[章节范围、相邻上下文与原稿备份](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-revision.md#L6-L43)",
+        "[修订事务与后续章节影响](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-revision.md#L49-L71)",
+        "[细纲边界与需要先规划的变化](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-long-write/references/workflow-chapter.md#L34-L43)"
+      ]
+    }
   }
 ]
