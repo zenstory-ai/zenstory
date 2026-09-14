@@ -38,7 +38,7 @@ export const vercelConfig = {
     // Explicit document aliases must not leave duplicate HTML URLs indexed.
     redirect('/index.html',`${APP}/`,host(appHosts)),
     redirect('/index.html',`${SITE}/`,host(`${siteHosts}|www\\.zenstory\\.ai`)),
-    redirect('/:path((?:projects|oh-story|drama-skills|novel-to-game|video-recap|dsh|workbench|guides|compare|glossary|docs|privacy-policy|terms-of-service)(?:/.*)?)/index.html',`${SITE}/:path`),
+    redirect(`${prefixPattern(contract.sitePrefixes.filter(p=>p!=='llms.txt'))}/index.html`,`${SITE}/:path`),
     redirect(appPaths,`${APP}/:path`,host('zenstory\\.ai|www\\.zenstory\\.ai')),
     redirect(appPaths,`${PREVIEW_APP}/:path`,host('geo-preview\\.zenstory\\.ai')),
     redirect(sitePaths,`${SITE}/:path`,host('app\\.zenstory\\.ai')),
@@ -76,7 +76,24 @@ function pageHead(shell,route,origin,title) {
     .replace(/<meta\b[^>]*property=["']og:description["'][^>]*>/gi,`<meta data-rh="true" property="og:description" content="${esc(title)}" />`)
     .replace('</head>',`<link data-rh="true" rel="canonical" href="${origin}${route}" /><meta data-rh="true" property="og:url" content="${origin}${route}" /></head>`)
 }
-const sitemap=urls=>`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(url=>`  <url><loc>${esc(url)}</loc></url>`).join('\n')}\n</urlset>\n`
+/** English route of a site route (`/zh/x` → `/x`, `/zh` → `/`), or null when it is not a Chinese page. */
+const englishRoute=route=>route==='/zh' ? '/' : route.startsWith('/zh/') ? route.slice(3) : null
+const chineseRoute=route=>route==='/' ? '/zh' : `/zh${route}`
+/**
+ * Sitemap with hreflang pairs: a route whose Chinese counterpart exists lists
+ * both languages (and x-default = English) on each of the two entries.
+ */
+const sitemap=(origin,routes)=>{
+  const set=new Set(routes)
+  const entry=route=>{
+    const en=englishRoute(route) ?? route
+    const zh=chineseRoute(en)
+    const paired=set.has(en) && set.has(zh)
+    const alternates=paired ? [['en',en],['zh-CN',zh],['x-default',en]].map(([lang,r])=>`<xhtml:link rel="alternate" hreflang="${lang}" href="${esc(origin+r)}"/>`).join('') : ''
+    return `  <url><loc>${esc(origin+route)}</loc>${alternates}</url>`
+  }
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${routes.map(entry).join('\n')}\n</urlset>\n`
+}
 
 export function finalizeSite(outDir) {
   const shell=readFileSync(join(outDir,'index.html'),'utf8')
@@ -101,8 +118,8 @@ export function finalizeSite(outDir) {
   }
   writeFileSync(join(outDir,'_app/home.html'),pageHead(shell,'/',APP,'ZenStory — AI novel-writing workbench'))
   writeFileSync(join(outDir,'_app/pricing.html'),pageHead(shell,'/pricing',APP,'ZenStory pricing — AI writing workbench'))
-  writeFileSync(join(outDir,'_site/sitemap.xml'),sitemap([...new Set(siteRoutes)].sort().map(route=>SITE+route)))
-  writeFileSync(join(outDir,'_app/sitemap.xml'),sitemap([APP+'/',APP+'/pricing']))
+  writeFileSync(join(outDir,'_site/sitemap.xml'),sitemap(SITE,[...new Set(siteRoutes)].sort()))
+  writeFileSync(join(outDir,'_app/sitemap.xml'),sitemap(APP,['/','/pricing']))
   writeFileSync(join(outDir,'_site/robots.txt'),`# Public organization corpus and legacy redirects are crawlable.\nUser-agent: *\nAllow: /\nDisallow: /api\n\nSitemap: ${SITE}/sitemap.xml\n`)
   writeFileSync(join(outDir,'_app/robots.txt'),`User-agent: *\nAllow: /\nDisallow: /api\n${contract.appPrefixes.filter(p=>p!=='pricing').map(p=>`Disallow: /${p}`).join('\n')}\n\nSitemap: ${APP}/sitemap.xml\n`)
   renameSync(join(outDir,'index.html'),join(outDir,'_app/index.html'))

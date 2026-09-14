@@ -86,16 +86,16 @@ a:hover .arrow { transform: translateX(2px); }
 .nav-app { display: inline-flex; align-items: center; min-height: 40px; padding: 0 12px; border: 1px solid var(--rule-strong); border-radius: 6px; color: var(--ink); font-weight: 600; font-size: 14px; white-space: nowrap; }
 .nav-app:hover { border-color: var(--ink); }
 .lang-switch { display: inline-flex; border: 1px solid var(--rule-strong); border-radius: 6px; overflow: hidden; }
-.lang-switch button { font: inherit; font-size: 13px; font-weight: 600; line-height: 1; min-height: 38px; padding: 0 11px; border: 0; background: transparent; color: var(--ink-2); cursor: pointer; }
-.lang-switch button:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; border-radius: 0; }
-html[data-lang="en"] .lang-switch [data-lang="en"], html[data-lang="zh"] .lang-switch [data-lang="zh"] { background: var(--ink); color: var(--btn-fg); }
+.lang-switch a { display: inline-flex; align-items: center; font-size: 13px; font-weight: 600; line-height: 1; min-height: 38px; padding: 0 11px; color: var(--ink-2); text-decoration: none; }
+.lang-switch a:hover { color: var(--ink); }
+.lang-switch a:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; border-radius: 0; }
+.lang-switch a[aria-current] { background: var(--ink); color: var(--btn-fg); }
 
 /* ---------- shared type roles ---------- */
 .eyebrow { font-size: 12.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--accent-text); margin: 0 0 12px; }
-.eyebrow .l-zh { text-transform: none; letter-spacing: .02em; font-weight: 500; }
 html[data-lang="zh"] .eyebrow { font-size: 13.5px; }
+html[data-lang="zh"] :is(.eyebrow, .install-label, .jump-label, .sub-h, .foot-h, .terms > .terms-label, .guide-contents p, .guide-example h3, .docs-group) { text-transform: none; letter-spacing: .03em; }
 .lede { font-size: 19px; line-height: 1.55; color: var(--ink-2); margin: 14px 0 0; max-width: var(--measure); }
-.lede[lang="zh-CN"] { font-size: 17.5px; line-height: 1.75; }
 .facts { font-size: 14px; color: var(--muted); }
 .section-lede { max-width: var(--measure); color: var(--ink-2); margin: -4px 0 24px; }
 .crumbs { font-size: 13.5px; color: var(--muted); margin: 0 0 20px; }
@@ -106,9 +106,6 @@ html[data-lang="zh"] .eyebrow { font-size: 13.5px; }
 .more a { text-decoration: none; color: var(--ink); }
 .more a:hover { color: var(--accent-text); }
 
-/* Heading language suffix (and its " · " separator) is subordinate; in zh mode it is the heading. */
-:is(h1, h2, h3, h4, .eyebrow, .facts) > :is(span.l-zh, .sep) { color: var(--muted); font-weight: 400; font-size: .8em; letter-spacing: 0; }
-html[data-lang="zh"] :is(h1, h2, h3, h4, .eyebrow, .facts) > span.l-zh { color: inherit; font-weight: inherit; font-size: inherit; }
 
 /* Buttons */
 .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 24px 0 12px; }
@@ -129,7 +126,6 @@ html[data-lang="zh"] :is(h1, h2, h3, h4, .eyebrow, .facts) > span.l-zh { color: 
    The command wraps rather than clips, so the whole line is always readable. */
 .install-block { margin: 20px 0 6px; max-width: 560px; }
 .install-label { display: block; font-size: 12.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
-.install-label .l-zh { text-transform: none; letter-spacing: 0; }
 .install-row { display: flex; align-items: stretch; border: 1px solid var(--rule-strong); border-radius: 8px; background: var(--code); overflow: hidden; }
 .install-row code.install { flex: 1; min-width: 0; display: block; padding: 11px 12px; font-size: 13px; line-height: 1.5; background: transparent; color: var(--code-ink); white-space: pre-wrap; overflow-wrap: normal; border-radius: 0; }
 .copy { flex: none; font: inherit; font-size: 12.5px; font-weight: 600; padding: 0 12px; border: 0; border-left: 1px solid var(--rule-strong); background: var(--surface); color: var(--ink); cursor: pointer; }
@@ -141,12 +137,11 @@ html[data-lang="zh"] :is(h1, h2, h3, h4, .eyebrow, .facts) > span.l-zh { color: 
 .hero-note code { font-size: 12.5px; }
 .hero-note a { color: var(--ink); font-weight: 600; text-decoration: none; white-space: nowrap; }
 .hero-note a:hover { color: var(--accent-text); }
-.hero-note > .l-zh { display: block; margin-top: 2px; }
 
 /* Migration / disclosure note: a quiet hairline note, no fill */
 .migration-note { max-width: var(--measure); margin: 24px 0; padding: 12px 16px; border: 1px solid var(--rule); border-left: 3px solid var(--rule-strong); border-radius: 6px; color: var(--muted); font-size: 13.5px; line-height: 1.6; background: transparent; }
 .migration-note p { margin: 0; font-size: 13.5px; }
-.migration-note p + p, .migration-note .l-zh p { margin-top: 6px; }
+.migration-note p + p { margin-top: 6px; }
 .migration-note strong { color: var(--ink-2); }
 
 /* Chips row (glossary terms, comparison axes, jump links) — chip only on direct children */
@@ -156,14 +151,12 @@ html[data-lang="zh"] :is(h1, h2, h3, h4, .eyebrow, .facts) > span.l-zh { color: 
 .terms a span, .terms > span span { display: inline; border: 0; padding: 0; margin: 0; }
 .terms a span.count, .terms > span span.count { margin-left: 6px; color: var(--muted); font-size: 12.5px; }
 .terms > .terms-label { flex-basis: 100%; min-height: 0; border: 0; padding: 0; background: transparent; color: var(--muted); font-size: 12.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
-.terms > .terms-label .l-zh { text-transform: none; letter-spacing: 0; }
 .terms.hosts > span { color: var(--ink-2); }
 
 /* In-page jump links: chips after the hero; on wide project pages a sticky side rail */
 .jump-row, .page-rail { font-size: 14px; }
 .jump-label { margin: 0 0 8px; font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .jump-label b { font-weight: 600; }
-.jump-label .l-zh { text-transform: none; letter-spacing: 0; }
 :is(.jump-row, .page-rail) ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
 :is(.jump-row, .page-rail) li { margin: 0; }
 :is(.jump-row, .page-rail) a { display: inline-flex; align-items: center; min-height: 34px; padding: 0 13px; border: 1px solid var(--rule-strong); border-radius: 999px; color: var(--ink); background: var(--surface); text-decoration: none; }
@@ -172,37 +165,20 @@ html[data-lang="zh"] :is(h1, h2, h3, h4, .eyebrow, .facts) > span.l-zh { color: 
 .jump-row .jump-label { margin: 0; }
 .page-rail { margin: 24px 0 0; }
 
-/* Bilingual blocks. `.pair` holds EN then ZH renderings of one block. In a single
-   language mode only one shows; in both mode ZH sits directly under EN, subordinate,
-   and list-like pairs (.cols) sit side by side at wide widths. */
-.pair > .l-zh { margin-top: 4px; }
-.pair.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 32px; align-items: start; }
-.pair.cols > .l-zh { margin-top: 0; }
-html[data-lang="en"] .pair.cols, html[data-lang="zh"] .pair.cols { grid-template-columns: 1fr; }
-.pair p[lang="zh-CN"], .pair li[lang="zh-CN"] { color: var(--ink-2); }
-.pair.tagline p[lang="zh-CN"] { font-size: 15px; }
-.pair > .l-zh > h2 { margin-top: 20px; border-top: 0; padding-top: 0; font-size: 20px; }
+/* `.pair` blocks hold the page language's rendering of one content block. */
 .pair.definition p { max-width: var(--measure); }
-.pair.definition > .l-en h2 { margin-top: 40px; border-top: 0; padding-top: 0; }
-.pair.definition > .l-zh h2 { margin-top: 20px; }
-html[data-lang="zh"] .pair.definition > .l-zh h2 { margin-top: 40px; font-size: 26px; }
+.pair.definition h2 { margin-top: 40px; border-top: 0; padding-top: 0; }
 .pair ul li, .pair ol li { color: var(--text); }
 /* Lists inside pairs: quiet markers, comfortable rhythm */
 .pair ul { padding-left: 20px; }
 .pair li { margin-bottom: 10px; }
 .pair li::marker { color: var(--muted); }
 
-/* Both / no-JS mode: a dashed seam between the EN and ZH halves of stacked pairs */
-html:not([data-lang="en"]):not([data-lang="zh"]) .pair.answer > .l-zh { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--rule-strong); }
-html:not([data-lang="en"]):not([data-lang="zh"]) .model .pair.cols > .l-zh { margin-top: 8px; padding-top: 20px; border-top: 1px dashed var(--rule-strong); }
-
 /* Answer block on guide / comparison pages */
 .pair.answer { position: relative; margin: 22px 0 4px; padding: 18px 22px 8px; border: 1px solid var(--rule); border-left: 3px solid var(--ink); border-radius: 8px; background: var(--surface); max-width: var(--measure); }
-.pair.answer::before { content: "Answer · 一句话结论"; display: block; font: 600 12px/1 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--accent-text); margin-bottom: 10px; }
+.pair.answer::before { content: "Answer"; display: block; font: 600 12px/1 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--accent-text); margin-bottom: 10px; }
 html[data-lang="zh"] .pair.answer::before { content: "一句话结论"; letter-spacing: .04em; }
-html[data-lang="en"] .pair.answer::before { content: "Answer"; }
 .pair.answer p { font-size: 17px; line-height: 1.6; color: var(--ink); }
-.pair.answer p[lang="zh-CN"] { font-size: 16px; line-height: 1.8; }
 
 /* Steps / Q&A */
 .steps { padding-left: 26px; margin: 0 0 18px; }
@@ -212,12 +188,10 @@ html[data-lang="en"] .pair.answer::before { content: "Answer"; }
 .qa .steps li { margin-bottom: 22px; padding-bottom: 18px; border-bottom: 1px solid var(--rule); }
 .qa .steps li:last-child { border-bottom: 0; }
 .qa .steps b { display: block; font-family: var(--serif); font-size: 18px; line-height: 1.35; margin-bottom: 6px; }
-.qa .steps li[lang="zh-CN"] b { font-size: 17px; }
 .model .steps { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; counter-reset: model; }
 .model .steps li { counter-increment: model; margin: 0; padding: 20px; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); font-size: 15px; }
 .model .steps li::before { content: counter(model, decimal-leading-zero); display: block; font: 600 13px/1 var(--mono); color: var(--accent-text); margin-bottom: 12px; }
 .model .steps b { display: block; font-family: var(--serif); font-size: 20px; margin-bottom: 8px; }
-.model .pair.cols { grid-template-columns: 1fr; gap: 16px; }
 .model + .facts { margin-top: 20px; }
 
 /* What you need / Start in 3 steps (project pages) */
@@ -230,7 +204,7 @@ html[data-lang="en"] .pair.answer::before { content: "Answer"; }
 .start-list li { grid-template-columns: 36px 140px 1fr; }
 .start-list li::before { counter-increment: start; content: counter(start); display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: var(--ink); color: var(--btn-fg); font: 600 13px/1 var(--mono); }
 
-/* Guide lists (navigational): EN title as the link, ZH as a second line */
+/* Guide lists (navigational) */
 .guide-list { list-style: none; padding: 0; margin: 0 0 8px; }
 .guide-list li { margin: 0; border-top: 1px solid var(--rule); }
 .guide-list li:first-child { border-top: 0; }
@@ -239,9 +213,6 @@ html[data-lang="en"] .pair.answer::before { content: "Answer"; }
 .guide-list a .guide-title { flex: 1 1 auto; min-width: 0; }
 .guide-list a .arrow { flex: none; margin-left: auto; color: var(--muted); }
 .guide-list a:hover .arrow { color: inherit; }
-.guide-list a .l-zh { display: block; font-weight: 400; font-size: 14px; color: var(--muted); margin-top: 2px; }
-.guide-list a .sep { display: none; }
-html[data-lang="zh"] .guide-list a .l-zh { font-weight: 600; font-size: 15.5px; color: inherit; margin-top: 0; }
 
 /* ---------- cards (shared by home and /projects) ---------- */
 .project-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 8px; }
@@ -251,7 +222,6 @@ html[data-lang="zh"] .guide-list a .l-zh { font-weight: 600; font-size: 15.5px; 
 .project-card h3 a { color: var(--ink); text-decoration: none; }
 .project-card h3 a:hover { color: var(--accent-text); }
 .project-card p { font-size: 14.5px; color: var(--ink-2); margin-bottom: 6px; }
-.project-card .pair.tagline p[lang="zh-CN"] { font-size: 14px; }
 .project-card .proof-row { margin: 8px 0 6px; gap: 6px; }
 .project-card .proof { min-height: 26px; font-size: 12.5px; padding: 0 9px; }
 .project-card .install-block { margin: 10px 0 4px; }
@@ -268,12 +238,8 @@ html[data-lang="zh"] .guide-list a .l-zh { font-weight: 600; font-size: 15.5px; 
 .guide-card:hover { border-color: var(--rule-strong); }
 .guide-card .eyebrow { margin: 0; }
 .guide-card-title { font-family: var(--serif); font-size: 19px; line-height: 1.3; font-weight: 600; }
-.guide-card-title .l-zh { display: block; font-family: var(--sans); font-size: 14px; font-weight: 400; color: var(--muted); margin-top: 6px; }
-.guide-card-title .sep { display: none; }
-html[data-lang="zh"] .guide-card-title .l-zh { font-family: var(--serif); font-size: 18px; font-weight: 600; color: inherit; margin-top: 0; }
 .guide-card .facts { margin: auto 0 0; font-size: 12.5px; }
 .sub-h { font-family: var(--sans); font-size: 12.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 0 14px; }
-.sub-h .l-zh { text-transform: none; letter-spacing: 0; }
 .guide-groups { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 32px; }
 .guide-group.wide { grid-column: 1 / -1; }
 .guide-group h4 { font-family: var(--sans); font-size: 14px; font-weight: 600; color: var(--ink); padding-bottom: 8px; border-bottom: 2px solid var(--ink); margin-bottom: 4px; }
@@ -288,27 +254,19 @@ html[data-lang="zh"] .guide-card-title .l-zh { font-family: var(--serif); font-s
 .hero-copy { min-width: 0; }
 .hero-art { padding-top: 28px; } /* diagram top sits level with the h1, not centred against the column */
 .hero-copy .lede { margin-top: 18px; }
-.hero-copy .pair .lede[lang="zh-CN"] { font-size: 16.5px; margin-top: 10px; color: var(--ink-2); }
 .hero .install-block { margin-top: 26px; }
 .hero .proof-row { margin-top: 20px; }
 .hero-aside { font-size: 14px; color: var(--muted); margin-top: 10px; }
 .hero-aside a { color: var(--ink); font-weight: 600; text-decoration: none; }
 .hero-aside a:hover { color: var(--accent-text); }
-.hero-aside > .l-zh { display: block; margin-top: 2px; }
 .hero-art { justify-self: end; }
 .pipe { width: 100%; max-width: 520px; height: auto; display: block; color: var(--ink); }
 .pipe .node { fill: var(--surface); stroke: var(--ink); stroke-width: 1.5; }
 .pipe .edge { fill: none; stroke: var(--rule-strong); stroke-width: 1.5; }
 .pipe .edge-head { fill: var(--rule-strong); }
 .pipe text { font-family: var(--sans); font-size: 14px; font-weight: 600; fill: var(--ink); text-anchor: middle; }
-.pipe text.l-zh { font-size: 13px; font-weight: 500; fill: var(--ink-2); }
 .pipe text.tool { font-family: var(--mono); font-size: 12px; font-weight: 500; fill: var(--muted); letter-spacing: .02em; }
-.hero-copy h1 > .l-zh { display: block; } /* the Chinese headline is its own line (zh: the headline; both: a subordinate line), never a mid-phrase break */
-.hero-copy h1 > .sep { display: none; }
-/* Both / no-JS mode: the app CTA is one anchor per language; show the English one only (same href). */
-html:not([data-lang="en"]):not([data-lang="zh"]) .home-actions > .l-zh { display: none; }
-html[data-lang="en"] .pipe text.l-en { transform: translateY(5px); }
-html[data-lang="zh"] .pipe text.l-zh { transform: translateY(-8px); }
+html[data-lang="zh"] .hero-copy h1 > .headline { display: block; } /* the Chinese headline is its own line, never a mid-phrase break */
 .band { padding-block: 64px; }
 .band-cream { background: var(--cream); }
 .band > .wrap > h2, .roster > .wrap > h2 { margin-top: 0; padding-top: 0; border-top: 0; font-size: 30px; }
@@ -345,7 +303,6 @@ html[data-lang="zh"] .pipe text.l-zh { transform: translateY(-8px); }
 .guide-contents { grid-column: 2; grid-row: 1 / span 2; align-self: start; position: sticky; top: calc(var(--top-h) + 24px); margin-top: 8px; padding: 16px 18px; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); font-size: 14px; }
 .guide-contents p { margin: 0 0 8px; font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .guide-contents p b { font-weight: 600; }
-.guide-contents p .l-zh { text-transform: none; letter-spacing: 0; }
 .guide-contents ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
 .guide-contents li { margin: 0; }
 .guide-contents a { display: block; padding: 6px 0; color: var(--ink-2); text-decoration: none; border-left: 2px solid transparent; padding-left: 10px; margin-left: -12px; }
@@ -360,30 +317,22 @@ html[data-lang="zh"] .pipe text.l-zh { transform: translateY(-8px); }
 .guide-example h3 { margin: 0 0 16px; font-family: var(--sans); font-size: 12.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent-text); }
 .guide-example p { font-family: var(--serif); font-size: 16px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 1.1em; color: var(--text); }
 .guide-example p:last-child { margin-bottom: 0; }
-.guide-example[lang="zh-CN"] p { line-height: 1.9; }
-/* In both mode the guide reads as two aligned columns across the full wrap. */
-html:not([data-lang="en"]):not([data-lang="zh"]) .guide { grid-template-columns: minmax(0, 1fr) 220px; }
-html:not([data-lang="en"]):not([data-lang="zh"]) .guide-head { max-width: var(--measure); }
-
-/* zh mode: the Chinese title becomes the headline, the English h1 the subordinate line (CSS order only). */
 .guide-head, .comparison .page-hero > .wrap { display: flex; flex-direction: column; }
-html[data-lang="zh"] :is(.guide-head, .comparison .page-hero > .wrap) > .eyebrow { order: -2; }
-html[data-lang="zh"] :is(.guide-head, .comparison .page-hero > .wrap) > h1 + .lede[lang="zh-CN"] { order: -1; font: 600 clamp(30px, 3.8vw, 42px)/1.15 var(--serif); color: var(--ink); letter-spacing: 0; margin: 0; }
-html[data-lang="zh"] :is(.guide-head, .comparison .page-hero > .wrap) > h1 { font-size: 18px; line-height: 1.45; font-family: var(--sans); font-weight: 500; color: var(--muted); margin-top: 12px; }
 
 /* ---------- guides index ---------- */
 .guide-section { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 8px 48px; padding-top: 24px; margin-top: 48px; border-top: 1px solid var(--rule); }
 .guide-section h2 { margin: 0 0 8px; padding: 0; border: 0; word-break: keep-all; }
-html[data-lang="zh"] .guide-section h2 .paren { display: block; font: 400 14px/1.5 var(--sans); color: var(--muted); letter-spacing: 0; margin-top: 4px; }
+/* "Oh Story（网文写作 skill 包）": the parenthetical is a subordinate line under the name */
+:is(h1, h2, h3) .paren { display: block; font: 400 .42em/1.5 var(--sans); color: var(--muted); letter-spacing: 0; margin-top: 6px; }
+h3 .paren { display: inline; font-size: .8em; margin: 0 0 0 .3em; }
 .guide-section-head p { font-size: 14.5px; color: var(--ink-2); }
 .guide-section-head .facts a { text-decoration: none; font-weight: 600; color: var(--ink); }
 .guides-index .page-body > .guide-section:first-child { margin-top: 24px; border-top: 0; padding-top: 0; }
 
 /* ---------- comparison ---------- */
-html[data-lang="en"] .comparison .page-body .pair, html[data-lang="zh"] .comparison .page-body .pair { max-width: var(--measure); }
-html[data-lang="en"] .comparison .page-body h2, html[data-lang="zh"] .comparison .page-body h2 { max-width: var(--measure); } /* h2 rules match the h3 / list measure in a single-language mode */
+.comparison .page-body .pair { max-width: var(--measure); }
+.comparison .page-body h2 { max-width: var(--measure); } /* h2 rules match the h3 / list measure */
 .comparison .axes { margin: 24px 0 8px; }
-.axis .pair.cols { gap: 0 40px; }
 .axis ul { list-style: none; padding: 0; }
 .axis li { padding: 14px 0; margin: 0; border-top: 1px solid var(--rule); }
 .axis li b { display: block; font-family: var(--serif); font-size: 17px; margin-bottom: 4px; }
@@ -402,8 +351,6 @@ html[data-lang="en"] .comparison .page-body h2, html[data-lang="zh"] .comparison
 .glossary dt a:hover { color: var(--accent-text); }
 .glossary dt .bridge { display: block; font-family: var(--sans); font-size: 12.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
 .glossary dd { margin: 8px 0 0; font-size: 15px; color: var(--ink-2); }
-.glossary dd .l-zh { display: block; margin-top: 4px; }
-.glossary dd .sep { display: none; }
 .glossary dd .owner { display: block; margin-top: 8px; font-size: 12.5px; color: var(--muted); }
 .term .related { margin-top: 28px; }
 
@@ -429,7 +376,6 @@ html[data-lang="en"] .comparison .page-body h2, html[data-lang="zh"] .comparison
 .foot-brand p a, .bottom nav a { color: var(--foot-fg); text-decoration: none; }
 .foot-brand p a { font-weight: 600; }
 .foot-h { font-family: var(--sans); font-size: 12.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--foot-muted); margin: 6px 0 14px; padding: 0; border: 0; }
-.foot-h :is(.l-zh, .sep) { color: var(--foot-muted); text-transform: none; letter-spacing: 0; font-size: 12.5px; }
 .bottom nav ul { list-style: none; padding: 0; margin: 0; }
 .bottom nav li { margin: 0 0 8px; font-size: 14.5px; }
 .bottom nav a:hover, .foot-brand p a:hover { color: var(--cyan); }
@@ -438,22 +384,43 @@ html[data-lang="en"] .comparison .page-body h2, html[data-lang="zh"] .comparison
 .copyright a:hover { color: var(--cyan); text-decoration-color: currentColor; }
 .bottom :focus-visible { outline-color: var(--cyan); }
 
-/* ---------- bilingual delivery ----------
-   Both languages are always in the HTML (English first, then 中文). The inline head
-   script sets <html data-lang="en|zh"> from a stored choice or navigator.language;
-   these rules then show one language. Without JavaScript nothing is hidden.
-   `.l-en` / `.l-zh` wrap the two renderings of the same content only. */
-html:not([data-lang]) .lang-switch, html[data-lang="both"] .lang-switch { display: none; }
-html[data-lang="en"] .l-zh, html[data-lang="zh"] .l-en { display: none !important; }
-/* `.sep` is the real " · " text between an inline EN/ZH pair; `pre` keeps both spaces in flex rows too. */
-.sep { white-space: pre; }
-html[data-lang="en"] .sep, html[data-lang="zh"] .sep { display: none !important; }
-html:not([data-lang="en"]):not([data-lang="zh"]) .copy :is(.l-zh, .sep) { display: none; } /* "Copy" only, so the hero command keeps one line */
+/* ---------- language delivery ----------
+   One language per URL: <html data-lang="en|zh"> is set at build time and `.pair`
+   blocks hold that language's rendering only. English pages keep `lang="zh-CN"`
+   on Chinese-only fragments (glossary terms). */
+
+/* ---------- workbench docs (single URL, 中文 then English) ---------- */
+.docs-grid { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 0 56px; padding-block: 32px 72px; }
+.docs-side { position: sticky; top: calc(var(--top-h) + 24px); align-self: start; max-height: calc(100vh - var(--top-h) - 48px); overflow-y: auto; font-size: 14px; padding-right: 8px; }
+.docs-side-h { margin: 0 0 14px; font-family: var(--serif); font-size: 17px; font-weight: 600; }
+.docs-side-h a { color: var(--ink); text-decoration: none; }
+.docs-group { margin: 18px 0 6px; font-size: 12.5px; font-weight: 600; letter-spacing: .06em; color: var(--muted); }
+.docs-group-en { font-weight: 400; margin-left: 6px; }
+.docs-side ul { list-style: none; padding: 0; margin: 0; }
+.docs-side li { margin: 0; }
+.docs-side li a { display: block; padding: 5px 10px; margin-left: -10px; border-left: 2px solid transparent; color: var(--ink-2); text-decoration: none; border-radius: 0 4px 4px 0; }
+.docs-side li a:hover { color: var(--ink); }
+.docs-side li a[aria-current="page"] { color: var(--ink); font-weight: 600; border-left-color: var(--cyan); background: var(--surface); }
+.docs-body { min-width: 0; max-width: var(--measure); }
+.docs-note { font-size: 13.5px; color: var(--muted); margin: 0 0 24px; padding: 10px 14px; border: 1px solid var(--rule); border-left: 3px solid var(--rule-strong); border-radius: 6px; }
+.docs-note a { color: var(--ink); }
+.prose h1 { font-size: clamp(28px, 3.6vw, 40px); margin-bottom: 20px; }
+.prose h2 { margin-top: 48px; }
+.prose p, .prose li { font-size: 16px; }
+.prose table { border-collapse: collapse; width: 100%; margin: 16px 0 24px; font-size: 14.5px; }
+.prose th, .prose td { text-align: left; padding: 8px 12px; border: 1px solid var(--rule); vertical-align: top; }
+.prose th { background: var(--cream); font-weight: 600; }
+.prose pre { overflow-x: auto; padding: 14px 16px; border-radius: 8px; background: var(--code); color: var(--code-ink); font: 13px/1.55 var(--mono); }
+.prose pre code { background: transparent; padding: 0; font-size: inherit; }
+.prose blockquote { margin: 16px 0; padding: 4px 18px; border-left: 3px solid var(--rule-strong); color: var(--ink-2); }
+.prose img { border: 1px solid var(--rule); border-radius: 8px; }
+.prose hr { border: 0; border-top: 1px solid var(--rule); margin: 32px 0; }
+hr.lang { border: 0; border-top: 1px dashed var(--rule-strong); margin: 56px 0 40px; }
 
 /* ---------- responsive ---------- */
 @media (min-width: 900px) {
-  /* Single-language project source notes: compact two-column small type (both mode is already EN | ZH). */
-  html[data-lang="en"] .project .sources ul, html[data-lang="zh"] .project .sources ul { columns: 2; column-gap: 32px; }
+  /* Project source notes: compact two-column small type. */
+  .project .sources ul { columns: 2; column-gap: 32px; }
 }
 @media (min-width: 961px) {
   .page-grid { flex-direction: row; align-items: flex-start; gap: 56px; }
@@ -478,6 +445,10 @@ html:not([data-lang="en"]):not([data-lang="zh"]) .copy :is(.l-zh, .sep) { displa
   .guide-section { grid-template-columns: 1fr; gap: 4px; }
   .foot-grid { grid-template-columns: 1fr 1fr; }
   .glossary { grid-template-columns: 1fr; }
+  .docs-grid { grid-template-columns: 1fr; }
+  .docs-side { position: static; max-height: none; padding: 0 0 20px; margin-bottom: 8px; border-bottom: 1px solid var(--rule); }
+  .docs-side ul { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .docs-side li a { margin-left: 0; padding: 4px 0; border-left: 0; }
   .model .steps { grid-template-columns: 1fr; }
 }
 @media (max-width: 720px) {
@@ -486,8 +457,6 @@ html:not([data-lang="en"]):not([data-lang="zh"]) .copy :is(.l-zh, .sep) { displa
   .band { padding-block: 44px; }
   .band > .wrap > h2, .roster > .wrap > h2 { font-size: 26px; }
   .pair.cols { grid-template-columns: 1fr; }
-  .pair.cols > .l-zh { margin-top: 4px; }
-  html:not([data-lang="en"]):not([data-lang="zh"]) .pair.cols > .l-zh { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--rule-strong); }
   .project-grid, .guide-cards, .guide-groups { grid-template-columns: 1fr; }
   .guide-group.wide .guide-list { grid-template-columns: 1fr; }
   .guide-group.wide .guide-list li:nth-child(2) { border-top: 1px solid var(--rule); }
@@ -519,13 +488,9 @@ html:not([data-lang="en"]):not([data-lang="zh"]) .copy :is(.l-zh, .sep) { displa
   .top nav a { min-height: 42px; font-size: 14.5px; }
   .top nav a[aria-current="page"]::after { bottom: 0; }
   .nav-app { min-height: 40px; padding: 0 10px; font-size: 13.5px; }
-  .lang-switch button { min-height: 40px; padding: 0 9px; }
-  /* Both / no-JS mode: EN header labels only (ZH stays in the HTML, visually hidden) so the row fits a phone. */
-  html:not([data-lang="en"]):not([data-lang="zh"]) :is(.top nav a, .nav-app) .l-zh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  html:not([data-lang="en"]):not([data-lang="zh"]) :is(.top nav a, .nav-app) .sep { display: none; }
+  .lang-switch a { min-height: 40px; padding: 0 9px; }
   h1 { font-size: 32px; }
   .lede { font-size: 17px; }
-  .lede[lang="zh-CN"], .hero-copy .pair .lede[lang="zh-CN"] { font-size: 16px; line-height: 1.7; }
   .install-block { max-width: none; }
   .hero-note { max-width: none; }
   .guide { padding-block: 28px 56px; }
@@ -536,5 +501,4 @@ html:not([data-lang="en"]):not([data-lang="zh"]) .copy :is(.l-zh, .sep) { displa
   /* The diagram scales to ~62%: drop the tool captions and enlarge the node labels so they stay ≥ 11px. */
   .pipe text.tool { display: none; }
   .pipe text { font-size: 19px; }
-  .pipe text.l-zh { font-size: 18px; }
 }

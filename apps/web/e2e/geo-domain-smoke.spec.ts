@@ -203,7 +203,7 @@ test.describe('organization site', () => {
     }
   })
 
-  test('serves a meaningful bilingual home with six project destinations and the app CTA without JavaScript', async ({ browser }) => {
+  test('serves the English home with six project destinations and the app CTA without JavaScript', async ({ browser }) => {
     const context = await browser.newContext({ javaScriptEnabled: false })
     const page = await context.newPage()
 
@@ -211,13 +211,35 @@ test.describe('organization site', () => {
 
     await expect(page.getByRole('heading', { level: 1 })).toContainText('ZenStory AI')
     await expect(page.locator('article.home .lede').first()).toContainText(/story|open-source/i)
-    await expect(page.locator('article.home .lede[lang="zh-CN"]')).toContainText(/故事|创作/)
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en')
+    await expect(page.locator('link[rel="alternate"][hreflang="zh-CN"]')).toHaveAttribute('href', `${CANONICAL_SITE}/zh`)
+    await expect(page.locator('link[rel="alternate"][hreflang="x-default"]')).toHaveAttribute('href', `${CANONICAL_SITE}/`)
+    await expect(page.locator('header .lang-switch a[hreflang="zh-CN"]')).toHaveAttribute('href', '/zh')
+    await expect(page.locator('header nav[aria-label="Site"] a[href="/docs"]')).toHaveCount(0)
     const projectDestinations = await page.locator('.project-grid h3 a').evaluateAll((links) =>
       links.map((link) => link.getAttribute('href')),
     )
     expect(projectDestinations).toEqual(PROJECT_SLUGS.map((slug) => `/${slug}`))
     await expect(page.locator(`a[href="${CANONICAL_APP}"]`).first()).toBeVisible()
 
+    await context.close()
+  })
+
+  test('serves the Chinese home at /zh with Chinese-only copy, six project destinations and the English counterpart', async ({ browser }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false })
+    const page = await context.newPage()
+    await page.goto(`${SITE}/zh`, { waitUntil: 'domcontentloaded' })
+
+    await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('ZenStory AI')
+    await expect(page.locator('article.home .lede').first()).toContainText(/故事|创作/)
+    await expect(page.locator('article.home .lede').first()).not.toContainText(/open-source tools/)
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', `${CANONICAL_SITE}/zh`)
+    await expect(page.locator('link[rel="alternate"][hreflang="en"]')).toHaveAttribute('href', `${CANONICAL_SITE}/`)
+    await expect(page.locator('header .lang-switch a[hreflang="en"]')).toHaveAttribute('href', '/')
+    const projectDestinations = await page.locator('article.home .project-card h3 a').evaluateAll((links) => links.map((link) => link.getAttribute('href')))
+    expect(projectDestinations).toEqual(PROJECT_SLUGS.map((slug) => `/zh/${slug}`))
+    await expect(page.locator(`a[href="${CANONICAL_APP}"]`).first()).toBeVisible()
     await context.close()
   })
 
@@ -236,16 +258,22 @@ test.describe('organization site', () => {
     await context.close()
   })
 
-  test('serves the bilingual writing-workflow comparison and its three choices without JavaScript', async ({ browser }) => {
+  test('serves the writing-workflow comparison and its three choices in each language without JavaScript', async ({ browser }) => {
     const context = await browser.newContext({ javaScriptEnabled: false })
     try {
       const page = await context.newPage()
       await page.goto(`${SITE}${COMPARISON_PATH}`, { waitUntil: 'domcontentloaded' })
 
       await expect(page.locator('article.comparison h1')).toContainText(/Oh Story.*DSH.*hosted ZenStory/i)
-      await expect(page.locator('article.comparison .lede[lang="zh-CN"]')).toContainText('怎么选写作环境')
       await expect(page.locator('article.comparison [aria-label="First-party disclosure"]')).toContainText(/first-party/i)
       await expect(page.locator('article.comparison section[aria-labelledby^="axis-"]')).toHaveCount(6)
+      await page.goto(`${SITE}/zh${COMPARISON_PATH}`, { waitUntil: 'domcontentloaded' })
+      await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
+      await expect(page.locator('article.comparison h1')).toContainText('怎么选写作环境')
+      await expect(page.locator('article.comparison [aria-label="自有项目披露"]')).toContainText('自有项目披露')
+      await expect(page.locator('article.comparison section[aria-labelledby^="axis-"]')).toHaveCount(6)
+      await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', `${CANONICAL_SITE}/zh${COMPARISON_PATH}`)
+      await page.goto(`${SITE}${COMPARISON_PATH}`, { waitUntil: 'domcontentloaded' })
       for (const slug of ['oh-story', 'dsh', 'workbench']) {
         await expect(page.locator(`article.comparison a[href="/${slug}"]`).first()).toBeVisible()
       }
@@ -328,7 +356,9 @@ test.describe('organization site', () => {
     try {
       const page = await context.newPage()
       await page.goto(`${SITE}${ACCOUNT_DOC_PATH}`, { waitUntil: 'domcontentloaded' })
-      const article = page.locator('.prerender')
+      const article = page.locator('article.docs')
+      await expect(page.locator('header.top')).toBeVisible()
+      await expect(page.locator('nav.docs-side a[aria-current="page"]')).toHaveAttribute('href', ACCOUNT_DOC_PATH)
       await expect(article).toContainText('源码核对：2026-09-12')
       await expect(article).toContainText('Source review: 2026-09-12')
       await expect(article).toContainText('不是线上账号验收')
@@ -344,37 +374,36 @@ test.describe('organization site', () => {
   })
 
   for (const language of ['zh', 'en']) {
-    test(`account documentation retains ${language} source limits after hydration`, async ({ browser }) => {
-      const context = await browser.newContext()
-      try {
-        await context.addInitScript(value => localStorage.setItem('zenstory-language', value), language)
-        const page = await context.newPage()
-        await page.goto(`${SITE}${ACCOUNT_DOC_PATH}`, { waitUntil: 'networkidle' })
-        const main = page.locator('main')
-        await expect(main).toContainText(language === 'zh' ? '不是线上账号验收' : 'not a live-account acceptance test')
-        await expect(main.locator(`a[href="${CANONICAL_APP}/register"]`)).toHaveCount(1)
-        await expect(main.locator('a[href^="https://github.com/zenstory-ai/zenstory/blob/76b8ab84ce73ca309083f0c1a90f3c9d7ce8d72b/"]')).toHaveCount(12)
-        await expect(main).not.toContainText('https://zenstory.ai/register')
-        await expectPublicDocumentHead(page, `${CANONICAL_SITE}${ACCOUNT_DOC_PATH}`, 'TechArticle')
-      } finally {
-        await context.close()
-      }
+    test(`account documentation keeps the ${language} source limits in its own section`, async ({ page }) => {
+      await page.goto(`${SITE}${ACCOUNT_DOC_PATH}`, { waitUntil: 'networkidle' })
+      const section = page.locator(`section.prose#${language}`)
+      await expect(section).toHaveAttribute('lang', language === 'zh' ? 'zh-CN' : 'en')
+      await expect(section).toContainText(language === 'zh' ? '不是线上账号验收' : 'not a live-account acceptance test')
+      await expect(section.locator(`a[href="${CANONICAL_APP}/register"]`)).toHaveCount(1)
+      await expect(section.locator('a[href^="https://github.com/zenstory-ai/zenstory/blob/76b8ab84ce73ca309083f0c1a90f3c9d7ce8d72b/"]')).toHaveCount(12)
+      await expect(section).not.toContainText('https://zenstory.ai/register')
+      await expect(page.locator(`header .lang-switch a[hreflang="${language === 'zh' ? 'zh-CN' : 'en'}"]`)).toHaveAttribute('href', `#${language}`)
+      await expectPublicDocumentHead(page, `${CANONICAL_SITE}${ACCOUNT_DOC_PATH}`, 'TechArticle')
     })
   }
 
-  test('docs client navigation returns home on the site origin', async ({ page }) => {
+  test('docs pages stay on the organization shell without the app bundle and lead back to the workbench project page', async ({ page }) => {
+    const moduleScripts: string[] = []
+    page.on('request', (request) => { if (request.resourceType() === 'script') moduleScripts.push(request.url()) })
     await page.goto(`${SITE}/docs/getting-started/quick-start`, { waitUntil: 'networkidle' })
-    await page.locator('header button').first().click()
+    expect(moduleScripts.filter((url) => /\/assets\/.*\.js$/.test(url))).toEqual([])
+    await expect(page.locator('header.top .brand')).toHaveAttribute('href', '/zh')
+    await page.locator('article.docs .crumbs a[href="/zh/workbench"]').click()
 
-    await expect(page).toHaveURL(`${SITE}/`)
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('ZenStory AI')
+    await expect(page).toHaveURL(`${SITE}/zh/workbench`)
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('ZenStory')
   })
 
-  test('docs client navigation sends an app route to the app origin', async ({ page }) => {
+  test('the header app link sends visitors to the app origin from a docs page', async ({ page }) => {
     await page.goto(`${SITE}/docs/getting-started/quick-start`, { waitUntil: 'networkidle' })
-    await page.locator('header a[href^="/pricing"]').first().click()
+    await page.locator('header a.nav-app').first().click()
 
-    await expect(page).toHaveURL(new RegExp(`^${APP.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/pricing(?:[?#]|$)`))
+    await expect(page).toHaveURL(new RegExp(`^${APP.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/(?:[?#]|$)`))
   })
 })
 
