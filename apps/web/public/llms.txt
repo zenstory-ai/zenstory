@@ -8,7 +8,7 @@ Canonical install path for the skill packs is the GitHub repository under `zenst
 
 ## Projects
 
-Overview page: https://zenstory.ai/projects — each project has a bilingual canonical page with its definition, audience, workflow, capability limits and dated, versioned source notes. Those notes identify the reviewed source snapshot, not a guarantee about later releases.
+Overview page: https://zenstory.ai/projects (中文: https://zenstory.ai/zh/projects) — each project has a canonical page in English and, under `/zh`, in 中文, with its definition, audience, workflow, capability limits and dated, versioned source notes. Those notes identify the reviewed source snapshot, not a guarantee about later releases.
 
 - [Oh Story (oh-story-claudecode)](https://zenstory.ai/oh-story) · [source](https://github.com/zenstory-ai/oh-story-claudecode): Thirteen agent skills for web-fiction research, deconstruction, drafting, revision and covers. Chart data depends on available sources; historical fallback is labeled. Pattern checks do not establish authorship or guarantee AI-detector scores. Host capabilities determine orchestration support.
 - [Drama Skills (drama-skills)](https://zenstory.ai/drama-skills) · [source](https://github.com/zenstory-ai/drama-skills): Eleven skills for short-drama and motion-comic scripts, visual specifications, storyboards and generation prompts. Documents and stages are selected as needed. Media production requires configured providers and explicit spending confirmation; review is separately requested.
@@ -17,11 +17,9 @@ Overview page: https://zenstory.ai/projects — each project has a bilingual can
 - [Oh Story DSH (oh-story-dsh)](https://zenstory.ai/dsh) · [source](https://github.com/zenstory-ai/oh-story-dsh): A community DeepSeek Harness plugin with pinned novel, short-drama, game and video skill packs and four workbenches. The local DSH Web environment and model/media services require configuration. Package: `@oh-story/dsh`; not affiliated with, partnered with or endorsed by DeepSeek.
 - [ZenStory workbench (zenstory)](https://zenstory.ai/workbench) · [source](https://github.com/zenstory-ai/zenstory): A conversation-first writing workspace for project files, materials, characters, drafts and version history. Hosted at https://app.zenstory.ai; self-hosting requires backend/model configuration. See the project page for version limits and the published privacy-policy statement.
 
-## Documentation
+## Guides
 
-Guides index: https://zenstory.ai/guides — every practical guide, grouped by project.
-
-Practical guides. Each is bilingual (English and Chinese), opens with a direct answer, includes an original worked example, and cites fixed-commit source files. One line each on what question it answers:
+Guides index: https://zenstory.ai/guides — every practical guide, grouped by project. Each guide is published in two languages at two URLs: English at the root path and 中文 under `/zh` (for example https://zenstory.ai/zh/oh-story/agent-skills-for-writers); the two are linked with hreflang. Each opens with a direct answer, includes an original worked example, and cites fixed-commit source files. One line each on what question it answers:
 
 - [Keep a long novel consistent](https://zenstory.ai/oh-story/long-novel-continuity): how to keep an AI-assisted long novel consistent by separating story truth, character knowledge and reader knowledge, and carrying forward only the current state.
 - [Revise formulaic AI prose](https://zenstory.ai/oh-story/revise-ai-prose): how to remove AI flavor from fiction by naming the specific problems and revising within limits; no detector-score claims.
@@ -44,6 +42,14 @@ Practical guides. Each is bilingual (English and Chinese), opens with a direct a
 - [Turn video into grounded Chinese narration](https://zenstory.ai/video-recap/video-to-narration): how to go from footage to evidence, story angle and script, and what to do with partial footage.
 - [Original sound versus recap narration](https://zenstory.ai/video-recap/original-audio-and-narration): when a recap should keep original sound or silence and when narration earns its place, beat by beat.
 - [Export and finish a JianYing / CapCut recap draft](https://zenstory.ai/video-recap/capcut-draft): how to keep editing a finished recap in JianYing or CapCut by exporting the timeline as a draft with bundled media.
+- [Choose a writing workflow](https://zenstory.ai/compare/writing-workflows): first-party comparison of Oh Story skills, the pinned DSH plugin and the hosted ZenStory workbench; boundaries, not a ranking.
+- [Organization overview](https://zenstory.ai/projects): which project to start with, based on what you want to make.
+- [Oh Story changelog](https://github.com/zenstory-ai/oh-story-claudecode/blob/main/CHANGELOG.md)
+
+## Workbench docs
+
+Product documentation for the ZenStory workbench only (the hosted browser app at https://app.zenstory.ai, project page https://zenstory.ai/workbench). Single URL per page, 中文 first with the English translation below. Index: https://zenstory.ai/docs — getting started, user guide, advanced, reference, troubleshooting.
+
 - [Start writing in the browser workbench](https://zenstory.ai/docs/getting-started/quick-start): how to start in one session: create, target project files, request scoped help, save, export.
 - [Write your first short story in ZenStory](https://zenstory.ai/docs/getting-started/first-project): a first short story from premise to TXT export, with facts, open choices and project files.
 - [AI writing assistant: context and continuation](https://zenstory.ai/docs/user-guide/ai-assistant): how to give the assistant the right context: focused files, attachments, quotes, scoped requests and recovery.
@@ -54,10 +60,6 @@ Practical guides. Each is bilingual (English and Chinese), opens with a direct a
 - [AI Memory: settings, progress and open ideas](https://zenstory.ai/docs/advanced/ai-memory): four editable project-summary fields, saved facts versus plans, and context budgets.
 - [Browser writing workflow: decisions to saved prose](https://zenstory.ai/docs/advanced/workflow-tips): what to keep in context, what to save, and what the workbench does not promise.
 - [Material analysis: source evidence to your own scene](https://zenstory.ai/docs/advanced/material-analysis): separate evidence from interpretation, then transfer the changed goal and cost into your own scene.
-- [Choose a writing workflow](https://zenstory.ai/compare/writing-workflows): first-party comparison of Oh Story skills, the pinned DSH plugin and the hosted ZenStory workbench; boundaries, not a ranking.
-- [Workbench docs](https://zenstory.ai/docs): getting started, user guide, advanced, reference, troubleshooting (English and Chinese).
-- [Organization overview](https://zenstory.ai/projects): which project to start with, based on what you want to make.
-- [Oh Story changelog](https://github.com/zenstory-ai/oh-story-claudecode/blob/main/CHANGELOG.md)
 
 ## Optional
 

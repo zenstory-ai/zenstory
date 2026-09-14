@@ -44,7 +44,7 @@ test('post-build output cannot shadow host rewrites; sitemap uses canonical rout
     writeFileSync(join(dir, 'index.html'), '<html><head><title>App</title><meta name="description" content="App" /></head><body><div id="root"></div></body></html>')
     writeFileSync(join(dir, 'robots.txt'), 'old robots')
     writeFileSync(join(dir, 'sitemap.xml'), 'old sitemap')
-    for (const path of ['org-home','projects','docs/example','workbench']) {
+    for (const path of ['org-home','projects','docs/example','workbench','zh','zh/projects']) {
       mkdirSync(join(dir,path), {recursive:true});writeFileSync(join(dir,path,'index.html'), '<html>Existing content</html>')
     }
     finalizeSite(dir)
@@ -52,7 +52,15 @@ test('post-build output cannot shadow host rewrites; sitemap uses canonical rout
     assert.match(readFileSync(join(dir,'_app/home.html'),'utf8'), /href="https:\/\/app\.zenstory\.ai\/"/)
     assert.doesNotMatch(readFileSync(join(dir,'_app/index.html'),'utf8'), /rel="canonical"/)
     const siteMap=readFileSync(join(dir,'_site/sitemap.xml'),'utf8')
-    assert.match(siteMap, /https:\/\/zenstory\.ai\/docs\/example/)
+    assert.match(siteMap, /xmlns:xhtml="http:\/\/www\.w3\.org\/1999\/xhtml"/)
+    // Single-URL pages list no alternates; language pairs list both languages and x-default on each entry.
+    assert.match(siteMap, /<url><loc>https:\/\/zenstory\.ai\/docs\/example<\/loc><\/url>/)
+    assert.match(siteMap, /<url><loc>https:\/\/zenstory\.ai\/workbench<\/loc><\/url>/)
+    const pair=(route,zh)=>`<xhtml:link rel="alternate" hreflang="en" href="https://zenstory.ai${route}"/><xhtml:link rel="alternate" hreflang="zh-CN" href="https://zenstory.ai${zh}"/><xhtml:link rel="alternate" hreflang="x-default" href="https://zenstory.ai${route}"/>`
+    assert.ok(siteMap.includes(`<url><loc>https://zenstory.ai/</loc>${pair('/','/zh')}</url>`))
+    assert.ok(siteMap.includes(`<url><loc>https://zenstory.ai/zh</loc>${pair('/','/zh')}</url>`))
+    assert.ok(siteMap.includes(`<url><loc>https://zenstory.ai/projects</loc>${pair('/projects','/zh/projects')}</url>`))
+    assert.ok(siteMap.includes(`<url><loc>https://zenstory.ai/zh/projects</loc>${pair('/projects','/zh/projects')}</url>`))
     assert.doesNotMatch(siteMap, /app\.zenstory|org-home|_app|_site|\/pricing|\/login/)
     const appMap=readFileSync(join(dir,'_app/sitemap.xml'),'utf8')
     assert.match(appMap, /https:\/\/app\.zenstory\.ai\/pricing/)
@@ -71,6 +79,10 @@ test('all protected/public route roots are classified and aliases covered', () =
   const projects=JSON.parse(readFileSync(new URL('../../content/projects.json', import.meta.url)))
   for (const p of projects) assert.ok(contract.sitePrefixes.includes(p.slug))
   assert.ok(contract.sitePrefixes.includes('compare'))
+  assert.ok(contract.sitePrefixes.includes('zh'), 'the Chinese site lives under /zh on the organization host')
+  const aliasRedirect = vercelConfig.redirects.find(r => r.source.startsWith('/:path') && r.source.endsWith('/index.html'))
+  for (const prefix of contract.sitePrefixes.filter(p => p !== 'llms.txt')) assert.ok(aliasRedirect.source.includes(`|${prefix}|`) || aliasRedirect.source.includes(`(?:${prefix}|`) || aliasRedirect.source.includes(`|${prefix})`), `index.html alias redirect must cover ${prefix}`)
+  assert.ok(vercelConfig.redirects.some(r => r.source.includes('(?:zh|') && r.destination === 'https://zenstory.ai/:path' && r.has), 'app host must send /zh/* to the organization host')
   const src=readFileSync(new URL('../../src/App.tsx', import.meta.url),'utf8')
   for (const [,path] of src.matchAll(/path="(\/[^"*]+)"/g)) {
     assert.ok([...contract.sitePrefixes,...contract.appPrefixes].includes(path.split('/')[1]), path)

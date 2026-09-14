@@ -1,4 +1,4 @@
-# zenstory Help Documentation
+# ZenStory Workbench Documentation
 
 ZenStory is a browser writing workspace organized around project files. Start with an idea and scene plan, then use AI for drafting or revision as needed.
 

@@ -1,42 +1,28 @@
 #!/usr/bin/env node
 /**
- * Make the workbench docs readable by crawlers that do not execute JavaScript.
+ * Render the workbench docs (apps/web/docs/**\/*.md) as static organization
+ * pages: /docs and one page per leaf route, each on the shared site shell
+ * (header, footer, metadata) with a sidebar built from src/data/docsNavigation.ts.
  *
- * For /docs and every docs leaf route this writes dist/docs/<slug>/index.html:
- * the built SPA shell (same hashed assets) with a page-specific <title>,
- * description and canonical, and with <div id="root"> pre-filled with the
- * rendered markdown (中文 first, then English). React mounts on the same URL
- * and replaces the root content, so people still get the app; GPTBot,
- * ClaudeBot, PerplexityBot and Bingbot get the article.
+ * The docs keep one URL per page with both languages on it: the Chinese
+ * article first, the English translation (docs/en/**) below it, each with an
+ * anchor the header language switch points at. Relative markdown links
+ * (`../user-guide/editor.md`) are resolved to site routes and must exist.
  *
- * Runs after `vite build` and after scripts/build-org-pages.mjs.
+ * Runs after `vite build` and scripts/build-org-pages.mjs. No app JavaScript.
  * Usage: node scripts/build-docs-pages.mjs [outDir]   (default: ../dist)
  */
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join, resolve } from 'node:path'
 import assert from 'node:assert/strict'
 import { micromark } from 'micromark'
 import { gfm, gfmHtml } from 'micromark-extension-gfm'
+import { SITE, APP, webRoot, esc, orgNode, localized, page } from './site-shell.mjs'
 
-const here = dirname(fileURLToPath(import.meta.url))
-const webRoot = resolve(here, '..')
 const outDir = resolve(process.argv[2] ?? join(webRoot, 'dist'))
 const docsDir = join(webRoot, 'docs')
-const SITE = 'https://zenstory.ai'
+const LANG = 'zh' // shell language: the docs are Chinese-first
 
-const sourceShell = readFileSync(join(outDir, 'index.html'), 'utf8')
-if (!sourceShell.includes('<div id="root"></div>')) {
-  throw new Error('dist/index.html has no empty <div id="root"></div> to fill; aborting docs prerender')
-}
-
-// This is our controlled Vite template, not arbitrary HTML to sanitize.
-// Fail closed if route metadata appears upstream; each generated route owns it.
-assert.equal(sourceShell.split('</head>').length, 2, 'Expected one deterministic head insertion point')
-assert.doesNotMatch(sourceShell.slice(0, sourceShell.indexOf('</head>')), /canonical|og:url|application\/ld\+json/i, 'Expected a metadata-free source shell (no canonical, og:url or JSON-LD)')
-const shell = sourceShell
-
-const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 const render = (md) => micromark(md, { extensions: [gfm()], htmlExtensions: [gfmHtml()] })
 const firstHeading = (md) => (md.match(/^#\s+(.+)$/m)?.[1] ?? '').trim()
 const firstParagraph = (md) => {
@@ -59,59 +45,103 @@ function leafSlugs() {
   walk(docsDir, '')
   return out.sort()
 }
+const slugs = leafSlugs()
+const routes = new Set(['/docs', ...slugs.map((slug) => `/docs/${slug}`)])
 
-const style = `<style>
-#root .prerender{max-width:72ch;margin:0 auto;padding:32px 20px;font:16px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif;color:#1c1a17}
-#root .prerender h1{font-size:30px;line-height:1.2;margin:0 0 16px}#root .prerender h2{font-size:22px;margin:28px 0 8px}#root .prerender h3{font-size:18px;margin:20px 0 6px}
-#root .prerender p,#root .prerender li{margin:0 0 10px}#root .prerender ul,#root .prerender ol{padding-left:22px}
-#root .prerender table{border-collapse:collapse;margin:12px 0}#root .prerender td,#root .prerender th{border:1px solid #ddd;padding:6px 10px;text-align:left}
-#root .prerender code{font-family:ui-monospace,Menlo,monospace;font-size:.9em;background:#f0ede6;padding:.1em .3em;border-radius:3px}#root .prerender pre{overflow-x:auto;background:#f0ede6;padding:12px;border-radius:6px}
-#root .prerender img{max-width:100%}#root .prerender hr.lang{margin:40px 0;border:0;border-top:1px solid #ddd}
-</style>`
+/**
+ * The sidebar comes from the app's navigation data so both renderings agree.
+ * docsNavigation.ts is a plain literal; each entry is `{ title, titleZh, path }`
+ * with sections (`/docs/<group>`) followed by their leaves (`/docs/<group>/<page>`).
+ */
+function navigation() {
+  const source = readFileSync(join(webRoot, 'src/data/docsNavigation.ts'), 'utf8')
+  const entries = [...source.matchAll(/title:\s*"([^"]+)",\s*titleZh:\s*"([^"]+)",\s*path:\s*"([^"]+)"/g)]
+    .map(([, title, titleZh, path]) => ({ title, titleZh, path }))
+  const sections = []
+  for (const entry of entries) {
+    const depth = entry.path.split('/').length
+    if (depth === 3) sections.push({ ...entry, children: [] })
+    else if (depth === 4) sections.at(-1).children.push(entry)
+    else throw new Error(`Unexpected docs navigation path ${entry.path}`)
+  }
+  const listed = sections.flatMap((s) => s.children.map((c) => c.path))
+  assert.deepEqual([...listed].sort(), [...routes].filter((r) => r !== '/docs').sort(), 'docsNavigation.ts and docs/**/*.md must list the same pages')
+  return sections
+}
+const sections = navigation()
+
+/**
+ * Point relative markdown links at site routes. `dir` is the directory of the
+ * current page (`/docs/` or `/docs/<group>/`); the English tree mirrors the
+ * Chinese one, so the same resolution serves both articles. Unknown targets fail.
+ */
+function resolveLinks(html, route) {
+  const dir = route === '/docs' ? '/docs/' : route.slice(0, route.lastIndexOf('/') + 1)
+  return html.replace(/href="([^"]+)"/g, (m, href) => {
+    if (/^(?:https?:|mailto:|tel:|#|\/)/i.test(href)) return m
+    const [pathPart, hash] = href.split('#')
+    let target = new URL(pathPart, `https://zenstory.local${dir}`).pathname.replace(/\.md$/i, '').replace(/\/README$/, '').replace(/(.)\/$/, '$1')
+    // A link to a section (`../user-guide/`) opens its first page, as the app does.
+    const section = sections.find((s) => s.path === target)
+    if (section) target = section.children[0].path
+    assert.ok(routes.has(target), `${route}: link to ${href} resolves to ${target}, which is not a docs page`)
+    return `href="${target}${hash ? `#${hash}` : ''}"`
+  })
+}
+
+const sidebar = (route) => `
+<nav class="docs-side" aria-label="文档目录 · Documentation">
+  <p class="docs-side-h"><a href="/docs"${route === '/docs' ? ' aria-current="page"' : ''}>工作台文档</a></p>
+  ${sections.map((section) => `
+  <p class="docs-group">${esc(section.titleZh)} <span class="docs-group-en">${esc(section.title)}</span></p>
+  <ul>${section.children.map((leaf) => `
+    <li><a href="${leaf.path}"${leaf.path === route ? ' aria-current="page"' : ''}>${esc(leaf.titleZh)}</a></li>`).join('')}
+  </ul>`).join('')}
+</nav>`
 
 function writePage(route, zhMd, enMd) {
   const zhTitle = firstHeading(zhMd)
   const enTitle = enMd ? firstHeading(enMd) : ''
-  const title = `${zhTitle}${enTitle && enTitle !== zhTitle ? ` · ${enTitle}` : ''} · zenstory 文档 | ZenStory AI`
-  const description = firstParagraph(enMd || zhMd)
+  const title = `${zhTitle}${enTitle && enTitle !== zhTitle ? ` · ${enTitle}` : ''} | ZenStory Workbench`
+  const description = firstParagraph(zhMd)
   const canonical = `${SITE}${route}`
-  const zhHtml = render(zhMd)
-  const enHtml = enMd ? render(enMd) : ''
-  const ld = {
-    '@context': 'https://schema.org',
-    '@graph': [
-      {
-        '@type': 'Organization', '@id': `${SITE}/#org`, name: 'ZenStory AI', url: SITE,
-        logo: `${SITE}/brand/zenstory-ai-mark.svg`, sameAs: ['https://github.com/zenstory-ai'],
-      },
-      {
-        '@type': 'WebSite', '@id': `${SITE}/#website`, name: 'ZenStory AI', url: SITE,
-        publisher: { '@id': `${SITE}/#org` }, inLanguage: ['en', 'zh-CN'],
-      },
-      {
-        '@type': 'TechArticle', headline: zhTitle, alternativeHeadline: enTitle || undefined,
-        url: canonical, inLanguage: enMd ? ['zh-CN', 'en'] : ['zh-CN'],
-        isPartOf: { '@id': `${SITE}/#website` }, publisher: { '@id': `${SITE}/#org` },
-      },
-    ],
-  }
-  const filled = shell
-    .replace(/<title\b[^>]*>[\s\S]*?<\/title>/i, `<title data-rh="true">${esc(title)}</title>`)
-    .replace(/<meta\b(?=[^>]*\bname=["']description["'])[^>]*>/i, `<meta name="description" content="${esc(description)}" data-rh="true" />`)
-    .replace(/<meta\b(?=[^>]*\bproperty=["']og:type["'])[^>]*>/i, '<meta property="og:type" content="article" data-rh="true" />')
-    .replace(/<meta\b(?=[^>]*\bproperty=["']og:title["'])[^>]*>/i, `<meta property="og:title" content="${esc(title)}" data-rh="true" />`)
-    .replace(/<meta\b(?=[^>]*\bproperty=["']og:description["'])[^>]*>/i, `<meta property="og:description" content="${esc(description)}" data-rh="true" />`)
-    .replace('</head>', `<link rel="canonical" href="${canonical}" data-rh="true" /><meta property="og:url" content="${canonical}" data-rh="true" /><script type="application/ld+json" data-rh="true">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script>${style}</head>`)
-    .replace('<div id="root"></div>', `<div id="root"><div class="prerender"><article lang="zh-CN">${zhHtml}</article>${enHtml ? `<hr class="lang" /><article lang="en">${enHtml}</article>` : ''}</div></div>`)
+  const zhHtml = resolveLinks(render(zhMd), route)
+  const enHtml = enMd ? resolveLinks(render(enMd), route) : ''
+  const ld = [
+    orgNode,
+    {
+      '@type': 'WebSite', '@id': `${SITE}/#website`, name: 'ZenStory AI', url: SITE,
+      publisher: { '@id': `${SITE}/#org` }, inLanguage: ['en', 'zh-CN'],
+    },
+    {
+      '@type': 'TechArticle', '@id': `${canonical}#article`, headline: zhTitle, alternativeHeadline: enTitle || undefined,
+      url: canonical, inLanguage: enMd ? ['zh-CN', 'en'] : ['zh-CN'],
+      about: { '@id': `${SITE}/workbench#software` },
+      isPartOf: { '@id': `${SITE}/#website` }, publisher: { '@id': `${SITE}/#org` },
+    },
+  ]
+  const body = `
+<article class="docs">
+  <div class="wrap docs-grid">
+    ${sidebar(route)}
+    <div class="docs-body">
+      <p class="crumbs"><a href="${localized(LANG, '/')}">ZenStory AI</a> <span aria-hidden="true">/</span> <a href="${localized(LANG, '/workbench')}">ZenStory Workbench</a> <span aria-hidden="true">/</span> <a href="/docs">工作台文档</a></p>
+      <p class="docs-note">本页是 <a href="${localized(LANG, '/workbench')}">ZenStory 工作台</a> 的产品文档；工作台在 <a href="${APP}">app.zenstory.ai</a> 运行。${enHtml ? '<a href="#en" lang="en">English below</a>' : ''}</p>
+      <section class="prose" id="zh" lang="zh-CN">${zhHtml}</section>
+      ${enHtml ? `<hr class="lang">
+      <section class="prose" id="en" lang="en">${enHtml}</section>` : ''}
+    </div>
+  </div>
+</article>`
+  const html = page({ lang: LANG, route, alternates: null, switchLinks: { en: enHtml ? '#en' : '#zh', zh: '#zh' }, title, description, ogType: 'article', ld, body })
   const dir = join(outDir, route)
   mkdirSync(dir, { recursive: true })
-  writeFileSync(join(dir, 'index.html'), filled)
+  writeFileSync(join(dir, 'index.html'), html)
 }
 
 const read = (p) => (existsSync(p) ? readFileSync(p, 'utf8') : null)
 writePage('/docs', read(join(docsDir, 'README.md')) ?? '# 文档', read(join(docsDir, 'en/README.md')))
-const slugs = leafSlugs()
 for (const slug of slugs) {
   writePage(`/docs/${slug}`, read(join(docsDir, `${slug}.md`)), read(join(docsDir, 'en', `${slug}.md`)))
 }
-console.log(`docs pages: prerendered /docs + ${slugs.length} leaf routes into ${outDir}`)
+console.log(`docs pages: rendered /docs + ${slugs.length} leaf routes into ${outDir}`)
