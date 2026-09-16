@@ -10,10 +10,6 @@
     "en": "Six MIT-licensed projects for writers and story creators. Write web fiction with AI skills inside Claude Code or Codex, turn a novel into short-drama scripts and storyboards, a playable game or a narrated video recap — or write in the browser at the ZenStory Workbench, no agent setup needed.",
     "zh": "六个 MIT 开源项目，给写小说和做故事的人。在 Claude Code、Codex 里用 AI skill 写网文，把小说改成短剧剧本与分镜、可玩的游戏，或者把视频做成解说成片；不想折腾 Agent，就直接在网页版 ZenStory 工作台里写。"
   },
-  "canonical": {
-    "en": "ZenStory AI creates open-source tools for fiction writers and story adapters: Oh Story writing skills, Drama Skills for short drama, Novel to Game and Video Recap Skills, plus an Oh Story plugin for DeepSeek Harness. Use the skill packs in a supported agent host, or choose the separate ZenStory browser workbench at app.zenstory.ai.",
-    "zh": "ZenStory AI 为小说作者与故事改编者提供开源工具：Oh Story 写作技能、Drama Skills 短剧流程、Novel to Game 小说改游戏、Video Recap Skills 视频解说，以及面向 DeepSeek Harness 的 Oh Story 插件。技能包在受支持的 Agent 宿主中使用；想在托管网页工作台写作，可选择独立的 app.zenstory.ai。"
-  },
   "category": {
     "primary": "agent skills for story creation and adaptation",
     "note": "Story creation and adaptation is the shared use-case family. Skill packs, a host-specific plugin and the separate writing workbench are different product formats; web fiction and short drama are specializations, not model or host names."

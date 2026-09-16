@@ -10,7 +10,7 @@ Status: implemented
 
 组织页生成器 `apps/web/scripts/build-org-pages.mjs` 按以下规则出页：
 
-- 首页与 /projects 的 lede 使用 `content/org.json` 新增的 `intro`（一段面向作者的人话），`canonical` 段落只保留给 llms.txt 等抽取层，页面正文不再出现。首页 H1 为"ZenStory AI 用 AI 写小说，再改成短剧、游戏和解说视频"（英文同义），包含用户会搜的词。
+- 首页与 /projects 的 lede 使用 `content/org.json` 新增的 `intro`（一段面向作者的人话）。原 `canonical` 段落是罗列五个产品名的抽取用摘要，页面不再渲染它，`org.json` 里也随之删除；`public/llms.txt` 有自己的一段摘要，不依赖这个字段。首页 H1 为"ZenStory AI 用 AI 写小说，再改成短剧、游戏和解说视频"（英文同义），包含用户会搜的词。
 - 每个项目在 `content/projects.json` 里有 `seo.title` 与 `seo.description`：title 以关键词开头、以 `| ZenStory AI` 结尾，英文 ≤ 85 字符；description 英文 ≈ 160 字符、中文 ≈ 90 字符。`definition` 只用于正文和 JSON-LD，六段 definition 改写为不含"不是…/不保证…"从句的产品描述。
 - 指南页与比较页的 meta description 由 `summary()` 从 answer 截取到句末（英文 160 / 中文 90），正文和 JSON-LD 仍是完整 answer。
 - 日期戳只出现一次：首页与 /projects 末尾的事实行（star 总数截至日期），项目页"来源"段一句话（源码读取日期 + star 截至日期），指南页与比较页的"更新于"。hero、卡片、指南卡上的 `as of / 截至 / Checked / 核对于` 全部移除；`proofRow` 不再接受日期参数。
@@ -27,8 +27,8 @@ Status: implemented
 
 - 收益：首屏用一句话说清价值，title/description 不再被截断，`/` 与 `/projects` 有各自的 description，页面上的数据表感消失；GEO 层（llms.txt、JSON-LD、canonical、hreflang）原样保留。
 - 代价：`org-pages.test.mjs` 里与旧措辞绑定的断言（首页标题短语、"Source notes"标题）随之更新；新增项目时 `seo` 字段为必填，缺失会在生成时抛错。
-- 未做：21 篇指南正文里"结果边界"段落的措辞未改，比较页的第一方披露按测试要求保留。
+- 未做：英文指南标题未缩短；21 篇指南正文里"结果边界"段落的措辞未改，比较页的第一方披露按测试要求保留。
 
 ## Verification
 
-`cd apps/web && pnpm test:site` 通过；对生成目录统计：英文 title 最长 ≤ 95、description ≤ 170，中文 title ≤ 70、description ≤ 110；首页 `as of|截至` 仅出现一次，`Checked|核对于` 为零。
+`cd apps/web && pnpm test:site` 20/20 通过。对生成目录（86 页）统计：英文 description 最长 160、中文 117，无重复、无空值；中文 title 最长 60。英文 title 最长 99，来自指南标题本身（`Learn writing craft from fiction: …`）——指南标题是编辑内容，本次未改写，因此英文指南页标题仍可能被搜索结果截断。首页 `as of|截至` 仅出现一次，`Checked|核对于` 为零。

@@ -137,8 +137,8 @@ const summary = (text) => {
   const head = plain.slice(0, max)
   const stop = Math.max(...(LANG === 'zh' ? ['。', '！', '？', '；'] : ['. ', '! ', '? ']).map((mark) => head.lastIndexOf(mark)))
   if (stop >= max / 2) return head.slice(0, stop + 1).trim()
-  const space = LANG === 'zh' ? max : head.lastIndexOf(' ')
-  return `${head.slice(0, space > max / 2 ? space : max).trim()}…`
+  const space = LANG === 'zh' ? max - 1 : head.lastIndexOf(' ')
+  return `${head.slice(0, space > max / 2 ? space : max - 1).trim()}…`
 }
 
 // ---------- language-specific renderings ----------
@@ -267,7 +267,7 @@ const homePage = () => {
   const route = '/'
   const title = t('ZenStory AI — Open-source AI tools for writing and adapting stories', 'ZenStory AI — 开源 AI 写小说、做短剧、改游戏与视频解说工具')
   const description = t(
-    'Open-source AI tools for writers: novel-writing skills for Claude Code and Codex, short-drama storyboards, novel-to-game adaptation, video recaps and a web workbench.',
+    'Open-source AI tools for writers: novel-writing skills for Claude Code and Codex, short-drama storyboards, novel-to-game adaptation and video recaps.',
     '六个开源项目：用 Claude Code、Codex 写网文的 Oh Story，AI 短剧剧本与分镜，小说改游戏，视频解说，以及在线小说写作工作台。全部 MIT 许可。',
   )
   const ld = [
@@ -540,7 +540,7 @@ const guidePage = (g) => {
 const guidesIndex = () => {
   const route = '/guides'
   const title = t('Guides — writing, adapting and producing stories with AI | ZenStory AI', '创作指南 — 用 AI 写小说、改短剧、做游戏与视频解说 | ZenStory AI')
-  const description = t(`${guides.length} practical guides on writing novels with AI, adapting them into short drama and games, and producing video recaps, each with a worked example. Grouped by project.`, `${guides.length} 篇实用指南：AI 写小说、续写与改稿，小说改短剧与游戏，视频解说制作。每篇附具体示例，按项目分组。`)
+  const description = t(`${guides.length} practical guides on writing novels with AI, adapting them into short drama and games, and producing video recaps. Grouped by project.`, `${guides.length} 篇实用指南：AI 写小说、续写与改稿，小说改短剧与游戏，视频解说制作。每篇附具体示例，按项目分组。`)
   const ld = [
     orgNode,
     {
@@ -641,7 +641,7 @@ const projectsIndex = () => {
   const route = '/projects'
   const title = t('Projects — six open-source AI story tools | ZenStory AI', '全部项目 — 六个开源 AI 故事创作工具 | ZenStory AI')
   const description = t(
-    'All six ZenStory AI projects: Oh Story, Drama Skills, Novel to Game, Video Recap Skills, Oh Story DSH and the ZenStory Workbench, with install commands. Pick by what you want to make.',
+    'All six ZenStory AI projects with their install commands: Oh Story, Drama Skills, Novel to Game, Video Recap Skills, Oh Story DSH and the ZenStory Workbench.',
     'ZenStory AI 全部六个项目及安装方式：Oh Story、Drama Skills、Novel to Game、Video Recap Skills、Oh Story DSH 与 ZenStory 工作台。按你想做的东西来选。',
   )
   const ld = [

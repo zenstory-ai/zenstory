@@ -254,7 +254,7 @@
         "zh": "Drama Skills — AI 短剧 / 漫剧剧本、分镜与视频提示词 skill | ZenStory AI"
       },
       "description": {
-        "en": "Eleven Claude Code / Codex skills that take an idea or a novel to episode scripts, character assets, storyboards and image/video prompts, then production and review.",
+        "en": "Eleven Claude Code / Codex skills that take an idea or a novel to episode scripts, character assets, storyboards and image and video prompts.",
         "zh": "11 个 Claude Code / Codex skill，把点子或原著做成分集剧本、角色资产、分镜和图片/视频提示词，按需进入制作与审查。来自上千个漫剧项目的产线经验。"
       }
     },
@@ -417,7 +417,7 @@
         "zh": "Novel to Game — 用 AI 把小说改编成可玩的游戏 | ZenStory AI"
       },
       "description": {
-        "en": "Seven skills for Claude Code, Codex and Kimi Code: cited source bible, concept comparison, gameplay and art design, then a built and QA'd candidate on your runtime.",
+        "en": "Seven skills for Claude Code, Codex and Kimi Code: cited source bible, concept comparison, gameplay and art design, then a built and tested candidate.",
         "zh": "7 个 Claude Code / Codex / Kimi Code skill：建立带引用的原著圣经，比较改编概念，设计玩法与美术，再在目标运行环境构建并验证候选版本。附三个可玩示例。"
       }
     },
@@ -559,7 +559,7 @@
         "zh": "Video Recap Skills — 用 Claude Code 把视频做成中文解说成片 | ZenStory AI"
       },
       "description": {
-        "en": "Claude Code skills that turn a local video into a Chinese narration recap: scene detection, ASR, script, voiceover, ffmpeg assembly and an editable CapCut draft. No GPU.",
+        "en": "Claude Code skills that turn a local video into a Chinese narration recap: scene detection, ASR, script, voiceover and an editable CapCut draft. No GPU.",
         "zh": "用 Claude Code skills 把本地视频做成中文解说：场景检测、语音识别、写稿、配音、ffmpeg 合成，可导出可编辑的剪映草稿。本地 ffmpeg 加一个 MiMo key，不需要 GPU。"
       }
     },
@@ -830,7 +830,7 @@
         "zh": "ZenStory 工作台 — 对话即创作的 AI 小说写作工作台 | ZenStory AI"
       },
       "description": {
-        "en": "Chat to create: a three-panel writing workbench where AI agents read and write your project files, with materials, characters, chapters and versions in one place.",
+        "en": "Chat to create: a three-panel writing workbench where AI agents read and write your project files, with materials, characters, chapters and versions together.",
         "zh": "对话即创作：三栏式 AI 小说写作工作台，AI Agent 直接读写你的创作文件，素材、人设、章节和版本历史都在一处。app.zenstory.ai 免费使用，也可 MIT 自托管。"
       }
     },
