@@ -19,13 +19,13 @@ Status: implemented
 
 ## Alternatives considered
 
-- **保留 canonical 段落作为首屏 lede，只缩短 meta**。最强理由：这段话是 llms.txt、组织 profile 和各仓库 README 共用的"标准答案"，一处改动会让抽取结果不一致。被否：首屏是给人看的，罗列产品名的句子无法回答"这是什么、我能得到什么"；抽取层在 llms.txt 里完整保留，页面正文不需要复述。
+- **保留 canonical 段落作为首屏 lede，只缩短 meta**。最强理由：这段话是 llms.txt、组织 profile 和各仓库 README 共用的"标准答案"，一处改动会让抽取结果不一致。被否：首屏是给人看的，罗列产品名的句子无法回答"这是什么、我能得到什么"；`public/llms.txt` 本来就写着自己的摘要，页面正文不需要再复述一遍。
 - **把日期戳改成隐藏文本（`sr-only`）保留在每个数字旁**。最强理由：答案引擎和 JSON-LD 消费者仍能读到 provenance，肉眼不受干扰。被否：隐藏文本对搜索引擎是负面信号，且同一日期在一页重复八次没有信息增量；一页一次、可见即可。
 - **用 Accept-Language 把中文用户重定向到 /zh**。最强理由：用户主体是中文作者，x-default 指向英文首页对他们多一次点击。被否：按语言头重定向会让抓取器拿到不稳定的首页，hreflang 已经让搜索结果按语言落到对应页；本次不改路由。
 
 ## Consequences
 
-- 收益：首屏用一句话说清价值，title/description 不再被截断，`/` 与 `/projects` 有各自的 description，页面上的数据表感消失；GEO 层（llms.txt、JSON-LD、canonical、hreflang）原样保留。
+- 收益：首屏用一句话说清价值，description 全部落在搜索结果预算内，`/` 与 `/projects` 有各自的 description，页面上的数据表感消失；GEO 层（llms.txt、JSON-LD、canonical、hreflang）原样保留。
 - 代价：`org-pages.test.mjs` 里与旧措辞绑定的断言（首页标题短语、"Source notes"标题）随之更新；新增项目时 `seo` 字段为必填，缺失会在生成时抛错。
 - 未做：英文指南标题未缩短；21 篇指南正文里"结果边界"段落的措辞未改，比较页的第一方披露按测试要求保留。
 
