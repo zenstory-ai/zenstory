@@ -2,11 +2,11 @@
 
 <img src="apps/web/public/favicon.svg" alt="ZenStory Logo" width="64" height="64">
 
-# ZenStory
-
-> 项目页：<https://zenstory.ai/zh/workbench> · ZenStory AI 全部项目：<https://zenstory.ai/zh/projects>
+# ZenStory Workbench
 
 **对话即创作 — AI Agent 驱动的商业级小说写作工作台**
+
+项目主页：<https://zenstory.ai/zh/workbench>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/zenstory-ai/zenstory?style=social)](https://github.com/zenstory-ai/zenstory)
@@ -14,7 +14,7 @@
 
 ZenStory 让 AI Agent 直接操作你的创作文件——建角色卡、拆参考素材、规划大纲、逐章写作——全部在一次对话里完成。
 
-[打开工作台](https://app.zenstory.ai/) · [ZenStory AI 组织站](https://zenstory.ai/zh) · [网页写作入门](https://zenstory.ai/docs/getting-started/quick-start) · [第一篇短篇](https://zenstory.ai/docs/getting-started/first-project) · [本地部署](#快速开始) · [English](README_EN.md)
+[打开工作台](https://app.zenstory.ai/) · [使用文档](https://zenstory.ai/docs) · [本地部署](#快速开始) · [English](README_EN.md)
 
 </div>
 
