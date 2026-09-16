@@ -2,11 +2,11 @@
 
 <img src="apps/web/public/favicon.svg" alt="ZenStory Logo" width="64" height="64">
 
-# ZenStory
-
-> Project page: <https://zenstory.ai/workbench> · All ZenStory AI projects: <https://zenstory.ai/projects>
+# ZenStory Workbench
 
 **Where Conversation Meets Creation — The AI Agent-Powered Commercial Novel-Writing Workbench**
+
+Project page: <https://zenstory.ai/workbench>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/zenstory-ai/zenstory?style=social)](https://github.com/zenstory-ai/zenstory)
@@ -17,7 +17,7 @@
 
 ZenStory's Agent operates your creative files directly — building character cards, decomposing reference material, planning outlines, and writing chapter by chapter — all inside one conversation, instead of copy-pasting generated text back into an editor.
 
-[Open workbench](https://app.zenstory.ai/) · [ZenStory AI organization](https://zenstory.ai/) · [Browser writing quick start](https://zenstory.ai/docs/getting-started/quick-start) · [First short story](https://zenstory.ai/docs/getting-started/first-project) · [Self-hosting](#quick-start) · [Architecture](#project-architecture) · [中文文档](README.md)
+[Open workbench](https://app.zenstory.ai/) · [Docs](https://zenstory.ai/docs) · [Self-hosting](#quick-start) · [Architecture](#project-architecture) · [中文文档](README.md)
 
 </div>
 

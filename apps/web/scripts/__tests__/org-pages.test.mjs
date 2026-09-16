@@ -257,7 +257,7 @@ test('project pages render each language with dated, owned immutable sources', (
       assertHead(html, lang, route)
       const article = matches(html, /<article class="project">([\s\S]*?)<\/article>/g)[0][1]
       assert.ok(article.includes(project.sources.checked_on), 'source-check date not rendered')
-      assert.match(article, lang === 'en' ? /Source notes/ : /来源与边界/)
+      assert.match(article, lang === 'en' ? /<h2 id="sources-h">Sources</ : /<h2 id="sources-h">来源</)
       const sources = project.sources[lang]
       assert.ok(sources.length >= 2, `${project.slug} lacks ${lang} source notes`)
       const urls = []
@@ -366,7 +366,7 @@ test('organization generator writes every route in both languages, an apex homep
     const homepage = readOutput(outDir, file)
     assertHead(homepage, lang, '/')
     assert.match(homepage, /<h1>ZenStory AI <span class="headline">/)
-    assert.match(homepage, lang === 'en' ? /turns stories into many forms/ : /让故事走向更多形态/)
+    assert.match(homepage, lang === 'en' ? /write novels and adapt them/ : /用 AI 写小说，再改成/)
     assert.match(homepage, /<p class="lede">[^<]*(?:story|open-source|故事|创作)/i)
     assert.match(homepage, /href="https:\/\/app\.zenstory\.ai">(?:Open the web workbench|打开网页工作台)/)
     assert.match(homepage, lang === 'en' ? /choose by task/i : /按任务选择/)
