@@ -52,6 +52,7 @@ function assertHead(html, lang, route) {
   assert.ok(html.includes(`<link rel="canonical" href="${url}">`))
   assert.ok(html.includes(`<link rel="alternate" hreflang="en" href="${urlIn('en', route)}">`))
   assert.ok(html.includes(`<link rel="alternate" hreflang="zh-CN" href="${urlIn('zh', route)}">`))
+  assert.ok(html.includes(`<link rel="alternate" hreflang="zh" href="${urlIn('zh', route)}">`))
   assert.ok(html.includes(`<link rel="alternate" hreflang="x-default" href="${urlIn('en', route)}">`))
   assert.equal(matches(html, /<meta\b[^>]*property="og:url"[^>]*>/gi).length, 1)
   assert.ok(html.includes(`<meta property="og:url" content="${url}">`))
@@ -182,6 +183,7 @@ test('task guides render one language per URL with hreflang pairs, primary sourc
       assert.equal(entry.length, 1, `${route} (${lang}) must appear once in the sitemap`)
       assert.ok(entry[0][1].includes(`<xhtml:link rel="alternate" hreflang="en" href="${urlIn('en', route)}"/>`))
       assert.ok(entry[0][1].includes(`<xhtml:link rel="alternate" hreflang="zh-CN" href="${urlIn('zh', route)}"/>`))
+      assert.ok(entry[0][1].includes(`<xhtml:link rel="alternate" hreflang="zh" href="${urlIn('zh', route)}"/>`))
       assert.ok(entry[0][1].includes(`<xhtml:link rel="alternate" hreflang="x-default" href="${urlIn('en', route)}"/>`))
     }
     assert.ok(!readFileSync(join(outDir, '_app/sitemap.xml'), 'utf8').includes(route))
