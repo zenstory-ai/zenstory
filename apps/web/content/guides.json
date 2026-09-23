@@ -4,8 +4,8 @@
     "slug": "quick-start",
     "checked_on": "2026-09-13",
     "title": {
-      "en": "How to adapt a novel into a game candidate",
-      "zh": "如何用 Novel to Game 把小说改编成游戏候选版本"
+      "en": "Adapt a novel into a game: pick a playable slice, then build",
+      "zh": "小说改游戏怎么做：从可玩切片到候选版本"
     },
     "answer": {
       "en": "Start with a novel you own or are authorized to adapt, then choose a bounded experience in which a player can act and see a consequence—not a compressed retelling of the entire book. A useful first slice preserves the source’s particular pressure while limiting scenes, systems and assets. Novel to Game’s seven skills take an agreed brief through analysis, concept, design and a built candidate. The ferry example below shows how to choose the scope before building; a design document or successful build alone is not a playable-game result. Once a candidate exists, separate a misleading line, a result that violates the approved rules and a new design request before asking for another build. The author-feedback examples below show how to keep the next change small without treating a different story as a bug fix.",
@@ -175,8 +175,8 @@
     "slug": "capcut-draft",
     "checked_on": "2026-09-13",
     "title": {
-      "en": "Export a video recap to JianYing / CapCut and keep editing",
-      "zh": "视频解说导出剪映 / CapCut 后，怎样继续精剪？"
+      "en": "Export a video recap as an editable CapCut or JianYing draft",
+      "zh": "剪映草稿导出：视频解说导进剪映 / CapCut 继续精剪"
     },
     "answer": {
       "en": "To keep editing a finished recap in JianYing or CapCut, export the existing `timeline.json` as an editable draft instead of working from the rendered MP4. Video Recap Skills' standalone exporter puts the source clips with their original sound, the narration and optional music on separate tracks, keeps captions as text, and bundles the media so the draft still opens after being moved. It does not rerun ASR, visual understanding or TTS, and does not re-render the MP4. Open the draft in the editor version you actually use. The rehearsal example below shows two edits, including what else has to move when a voiceover moves.",
@@ -342,8 +342,8 @@
     "slug": "agent-skills-for-writers",
     "checked_on": "2026-09-13",
     "title": {
-      "en": "Agent skills for writers: prompts, skill packs, plugins and MCP explained",
-      "zh": "不会编程也能用写作 Skill 吗？提示词、技能包、插件与 MCP 怎么分"
+      "en": "Agent skills for writers: prompts, skill packs, plugins, MCP",
+      "zh": "写作 Skill 是什么：和提示词、插件、MCP 怎么分"
     },
     "answer": {
       "en": "An agent skill is a folder of instructions and reference files that a coding agent such as Claude Code or Codex loads when a matching task comes up. You do not write code to use one. For a novelist the tasks are turning an idea into an outline, importing a manuscript, or revising a chapter against project notes. Oh Story is a pack of 13 such skills for fiction; it is not a new model and not a chat app. Skills differ from prompts (they live on disk and are reused), plugins (a distribution wrapper) and MCP servers (tools exposed over a protocol). Pick the writing job first, then the host. The example below compares two investigation openings in chat before any planning files are created.",
@@ -505,8 +505,8 @@
     "slug": "deepseek-novel-writing",
     "checked_on": "2026-09-13",
     "title": {
-      "en": "Writing a novel with DeepSeek: choose a workspace and continue your draft",
-      "zh": "用 DeepSeek 写小说：选对工作区，从已有稿件接着写"
+      "en": "Write a novel with DeepSeek: pick a workspace, keep drafting",
+      "zh": "DeepSeek写小说：选对工作区，从已有稿件接着写"
     },
     "answer": {
       "en": "Choose by where the writing needs to live. Use an ordinary DeepSeek model chat for a disposable brainstorm, outline critique or scene rewrite that you will copy into your own manuscript. Use DeepSeek Harness (DSH) plus the community Oh Story DSH plugin when you want a local writing folder, persistent sessions, creation skills and a file/editor/Chat workbench. Use the separate hosted ZenStory service at app.zenstory.ai when you want an account-based browser project instead of running DSH locally. These are different layers: DeepSeek is the model/provider choice, DSH is the agent host, `@oh-story/dsh` is a community plugin for that host, and hosted ZenStory is a separate application. Installing the plugin does not add it to an ordinary DeepSeek chat, and this guide does not claim that hosted ZenStory natively uses DeepSeek. For the broader difference between chat, skills and agents, see [AI agent skills for writers](https://zenstory.ai/oh-story/agent-skills-for-writers); for a field-by-field comparison of the three ZenStory AI writing environments, see [the workflow comparison](https://zenstory.ai/compare/writing-workflows). Already have a draft? Start with the latest accepted manuscript, the last complete chapter and any unfinished tail—not a bare “continue.” The worked archive mystery below shows how to turn those materials into a next-scene choice before importing or changing files.",
@@ -678,8 +678,8 @@
     "slug": "import-and-continue",
     "checked_on": "2026-09-13",
     "title": {
-      "en": "Continue an unfinished novel with AI: import 10–20 chapters into Oh Story",
-      "zh": "已有 10–20 章怎么让 AI 接着写：导入 Oh Story，接续人物设定与前史"
+      "en": "Continue your unfinished novel with AI: import into Oh Story",
+      "zh": "AI续写已有书稿：导入 Oh Story，接上设定与前史"
     },
     "answer": {
       "en": "If you already have 10 to 20 chapters, do not ask an empty chat to continue in the same style. Run Oh Story's story-import: it rebuilds the manuscript as a writing project, keeps the original prose, and generates settings, outlines and continuity records from it. Inferred facts are listed for review rather than written as truth, because the manuscript stays the evidence. Then request the next chapter by name. The harbor-radio example below shows why a continuation should pay off a decision already made rather than reset it. Import cannot recover unwritten intent or guarantee a perfect voice match.",
@@ -831,8 +831,8 @@
     "slug": "novel-to-short-drama",
     "checked_on": "2026-09-13",
     "title": {
-      "en": "Adapt a novel into a short drama: episodes, scripts and storyboards",
-      "zh": "用 AI 把小说改成短剧：分集、剧本与分镜怎么衔接"
+      "en": "Novel to short drama: episodes, scripts and storyboards",
+      "zh": "小说改编短剧怎么做：分集、剧本与分镜衔接"
     },
     "answer": {
       "en": "Start with the source story and the decisions an adaptation may change—not a request to turn every chapter into an episode. Drama Skills can help analyze the source, plan episode handoffs, write a pilot and develop its visual specifications and storyboard. It is an open-source agent skill suite, not a one-click finished-video service. This guide stops at a text handoff. Its original repair-shop example turns prose into visible action, then compares one-episode and three-episode versions without cutting away the reason for the protagonist’s choice. The same private thought is also compared as subjective VO and spoken dialogue, distinguishing audience knowledge from what another character hears. A small dialogue revision shows how the mother can express concern without removing the rent problem or deciding for her daughter.",
@@ -994,12 +994,12 @@
     "slug": "revise-ai-prose",
     "checked_on": "2026-09-13",
     "title": {
-      "en": "Revise formulaic AI prose without changing your story",
-      "zh": "AI 写的小说太套路？用具体改稿减少“AI 味”"
+      "en": "Fix AI-sounding prose in fiction without changing the story",
+      "zh": "去AI味怎么改：保住剧情，把套话改成具体细节"
     },
     "answer": {
-      "en": "“AI-sounding” prose is an editorial problem you can name: vague emotion, repeated sentence shapes, commentary the scene has not earned, dialogue that explains too much. Oh Story's story-deslop skill runs a deterministic pattern check first, then revises within limits: facts, functional details and the narrator's cadence stay, generic filler goes, and cutting is capped so a scene is never hollowed out. Shorter is not the goal; specific is. The original before/after below shows the editorial choices. It does not promise any AI-detector score.",
-      "zh": "“AI 味重”可以拆成能改的具体问题：情绪空泛、句式反复、议论拔高、对白解释过多。Oh Story 的 story-deslop 先跑确定性的句式检查，再在边界内修订：事实、有功能的细节和叙述节奏保留，套话删掉，删除比例有上限，不会把场景掏空。目标不是更短，是更具体。下面的原创前后对照展示这些取舍。它不承诺任何 AI 检测分数。"
+      "en": "To fix AI-sounding fiction, find vague emotion, repeated sentence shapes, unearned commentary and over-explaining dialogue, and rewrite each spot. Oh Story's story-deslop skill runs a deterministic pattern check first, then revises within limits: facts, functional details and the narrator's cadence stay, generic filler goes, and cutting is capped so a scene is never hollowed out. Shorter is not the goal; specific is. The original before/after below shows the editorial choices. It does not promise any AI-detector score.",
+      "zh": "去AI味，就是把情绪空泛、句式反复、议论拔高、对白解释过多这四类问题逐处找出来，改成具体的场景文字。Oh Story 的 story-deslop 先跑确定性的句式检查，再在边界内修订：事实、有功能的细节和叙述节奏保留，套话删掉，删除比例有上限，不会把场景掏空。目标不是更短，是更具体。下面的原创前后对照展示这些取舍。它不承诺任何 AI 检测分数。"
     },
     "prerequisites": {
       "en": [
@@ -1121,8 +1121,8 @@
     "slug": "video-to-narration",
     "checked_on": "2026-09-13",
     "title": {
-      "en": "Turn a local video into a source-grounded Chinese narration recap",
-      "zh": "怎样把本地视频做成有画面与原声依据的中文解说"
+      "en": "Make a video recap with Chinese narration from local footage",
+      "zh": "视频解说怎么做：把本地视频做成有依据的中文解说"
     },
     "answer": {
       "en": "Video Recap Skills separates a Chinese-narration recap into understanding, editorial planning, narration, voiceover and assembly. Starting from an authorized local video, it builds a scene/speech/frame evidence index, chooses a viewer promise and POV, and writes only claims that evidence or supplied context supports. It can deliver a rendered MP4 or an editable draft—not merely a summary over footage. The source need not already have narration: the original no-dialogue example below compares two story angles and a short Chinese script, without treating a claim written on screen as a verified result. A separate partial-source variant shows what to do when only the initial attempts are available: request the missing payoff footage or propose a narrower account, without silently changing a fixed direction.",
@@ -1282,8 +1282,8 @@
     "slug": "meaningful-choices",
     "checked_on": "2026-09-13",
     "title": {
-      "en": "Turn a novel scene into meaningful choices and different endings",
-      "zh": "小说改互动文游：怎样让选择真正改变剧情和结局"
+      "en": "Adapt a novel scene into meaningful choices and endings",
+      "zh": "互动小说分支剧情怎么设计：让选择真正改变剧情和结局"
     },
     "answer": {
       "en": "Start with what the player can change, not a button for every paragraph. Make an important decision’s trade-off understandable, then write a response that preserves what the player actually chose. This original ferry scene goes from source facts to two decision points, advance information, a confirmation exchange and three different ending passages. A meaningful choice need not create a new ending every time; expressive wording can also have a place, as long as it is not sold as a causal branch. These are editorial design notes, not a generated or played game.",
@@ -1421,8 +1421,8 @@
     "slug": "character-consistency",
     "checked_on": "2026-09-13",
     "title": {
-      "en": "Character consistency in AI short drama: identity, costume and shot continuity",
-      "zh": "AI 短剧怎样保持角色跨镜一致：人物、造型与镜头状态"
+      "en": "AI short drama character consistency across shots",
+      "zh": "AI短剧角色一致性：人物、造型与镜头状态怎么保持"
     },
     "answer": {
       "en": "Cross-shot consistency in AI short drama breaks on costume, props and eyelines far more often than on faces. Drama Skills separates three things: persistent character identity, the Look compatible with the scene, and each shot's changing state. It then asks what each reference image is allowed to control in the current frame, and marks references as prompt-only, planned, or actually checked. Existing images do not have to be regenerated. The three-shot archive example below includes a reference-selection exercise. Text constraints reduce drift; they do not guarantee generated output.",
@@ -1570,8 +1570,8 @@
     "slug": "original-audio-and-narration",
     "checked_on": "2026-09-13",
     "title": {
-      "en": "Video recap editing: when to keep original sound and when to add narration",
-      "zh": "视频解说什么时候保留原声，什么时候加旁白？"
+      "en": "Video recap audio: keep the original sound or add narration?",
+      "zh": "视频解说原声和旁白怎么搭配：逐拍分配声音"
     },
     "answer": {
       "zh": "让真正承载事件的声音先说话：完整原话、开关声和有意义的等待，都不必靠旁白重新解释。需要背景时，只说有依据、观众此刻又确实需要的部分。下面的原创收音机示例先分五拍，再比较减字与去掉一段旁白的取舍：既不把“不舍得换”改成“没钱换”，也不把没有响应的停顿剪没，制造一拨就响的错觉。字幕则区分忠实台词与额外说明，不把“不重复旁白”误解成删掉台词字幕。这是编辑写稿练习，不是已处理的视频或声音效果。",
@@ -1725,8 +1725,8 @@
     "slug": "long-novel-continuity",
     "checked_on": "2026-09-12",
     "title": {
-      "en": "Keep a long novel consistent: character knowledge, promises and unresolved clues",
-      "zh": "AI 写长篇怎样少崩人设、少忘伏笔：把已知、承诺和线索分开"
+      "en": "AI keeps forgetting your novel? Keep state in files",
+      "zh": "AI写长篇记不住设定、忘伏笔怎么办：分开记已知、承诺和线索"
     },
     "answer": {
       "en": "AI drifts over a long novel when the model is asked to remember the whole book. Oh Story keeps the state in files instead: what is true in the story, what each character knows and what the reader has seen are recorded separately in the project's tracking directory, and each new chapter loads only the current state and unfinished commitments. Nothing that is still a plan gets written as something that already happened. The three-chapter example below shows the handoff in practice, plus an optional clue design that separates a visible clue from a plausible misreading and gives the reveal consequences. This reduces forgetting and premature knowledge; it does not guarantee error-free writing across hundreds of chapters.",
@@ -1886,8 +1886,8 @@
     "slug": "outline-to-chapter",
     "checked_on": "2026-09-13",
     "title": {
-      "en": "From outline to chapter: turn plot specifications into visible change",
-      "zh": "有章纲却只会复述设定？把剧情规格写成可见变化"
+      "en": "Outline to chapter: turn plot specs into visible change",
+      "zh": "按大纲写章节总像复述设定？把剧情规格写成可见变化"
     },
     "answer": {
       "zh": "章纲规定“本章必须发生什么”，不是逐栏扩写的正文。把目标、阻碍、证据、选择和代价写成视角人物可见的过程，再兑现约定的章尾变化。下面的原创书库示例既比较说明书式开场与成文改法，也从签字后的停点继续写出有条件合作、简短搬运过场和首趟结束：详写改变关系的反应，不为凑篇幅逐步复述所有搬运动作。示例不等于完整章节或 Oh Story 工具实测。",
@@ -2043,8 +2043,8 @@
     "slug": "preserve-author-voice",
     "checked_on": "2026-09-13",
     "title": {
-      "en": "Keep your author voice when AI continues a novel",
-      "zh": "AI 续写怎样保持我的文风，而不是记住另一本书的情节？"
+      "en": "Keep your writing voice when AI continues your novel",
+      "zh": "AI续写怎么保持文风：拆成表达维度，附上短样本"
     },
     "answer": {
       "en": "Describe the dimensions of your voice, give a short sample you own or may use, and separate those choices from the current book’s facts. Oh Story’s documented workflow resolves the current request, book style and relevant active author preferences before generic writing advice; a sample alone does not establish a permanent preference. The useful result is a continuation that fits this narrator and scene—not copied phrases, mandatory short sentences or a claimed voice-similarity score. The original comparison also shows a one-paragraph exception: keep extended observation while dropping the semicolon pattern and comic aside, without rewriting the book’s preferences.",
@@ -2172,8 +2172,8 @@
     "slug": "review-and-revise",
     "checked_on": "2026-09-13",
     "title": {
-      "en": "Turn AI manuscript feedback into a revision plan without rewriting the wrong story",
-      "zh": "AI 审稿意见太多怎么改：分清必改、可选与后续影响"
+      "en": "Turn AI manuscript feedback into a focused revision plan",
+      "zh": "AI审稿意见怎么改：分清必改、可选与后续影响"
     },
     "answer": {
       "en": "Do not turn every review comment into a rewrite instruction. First connect the criticism to a passage and an established story constraint, then decide what to fix, what needs clarification and what is merely an alternative taste. A useful revision brief names the problem, approved action, facts to preserve, exact chapter or scene and possible effects on later chapters. Oh Story separates story-review findings from the chapter-revision workflow. The decision sheet below is an editorial aid, not a new required project file or an automatic acceptance feature. For wording alone, use the separate [prose-revision guide](https://zenstory.ai/oh-story/revise-ai-prose); for which character or reader knows what, see [long-novel continuity](https://zenstory.ai/oh-story/long-novel-continuity). For interchangeable character speech, use the [dialogue example](https://zenstory.ai/oh-story/character-dialogue) before treating it as a whole-book style problem. The revised scene below shows how an accepted agency repair becomes dialogue and action without breaking the seal, revealing the culprit or mistaking an agreement to register for a completed registration.",
@@ -2311,8 +2311,8 @@
     "slug": "short-story-from-idea",
     "checked_on": "2026-09-13",
     "title": {
-      "en": "From one premise to a complete short story: promise, pressure, choice and payoff",
-      "zh": "只有一个梗，怎样写成完整短篇：开篇承诺、递进与结尾兑现"
+      "en": "Short story from one premise: pressure, choice and payoff",
+      "zh": "一个梗怎么写成短篇小说：承诺、递进、选择与兑现"
     },
     "answer": {
       "en": "A premise gives a short story a starting pressure, not a complete plot. Decide what the reader should want answered, what prevents an easy answer, what the protagonist must choose and what observable change will settle that question. Then build only the scenes needed to earn that ending. A twist is one option, not a requirement. Oh Story’s short-writing workflow separates design from drafting and uses a lightweight section plan rather than a long-novel chapter blueprint. The four-part framing here is an editorial aid, not a new mandatory schema. The original repair-shop example closes a relationship decision without pretending that one conversation solves a family’s entire history. The opening, negotiation and ending excerpts below show that choice on the page: a failed hint becomes stated terms, a deposit and a departure, not proof that the repair is finished or every family hurt is healed.",
@@ -2450,8 +2450,8 @@
     "slug": "character-dialogue",
     "checked_on": "2026-09-13",
     "title": {
-      "en": "Write distinct character dialogue through goals, knowledge and relationships",
-      "zh": "人物对白总是千人一面？先分目标、信息与关系，再改说话方式"
+      "en": "Distinct character dialogue: goals, knowledge, relationships",
+      "zh": "小说人物对话怎么写出区分度：按目标、信息与关系来分"
     },
     "answer": {
       "en": "Distinct dialogue starts with what each speaker is trying to do to the conversation: obtain permission, protect something, avoid an admission, test a claim or offer a concession. Give each character a different selection of relevant information and a relationship to the listener, then choose wording and rhythm that fit this moment. Catchphrases alone do not provide that structure. Oh Story’s dialogue references connect voice to agenda, relationship, setting and purpose; they are not a rule that one character must always speak briefly or another must always explain. The original rehearsal example below preserves the same decision while separating three voices and keeping a private fact out of characters’ mouths. A second version lets a direct answer resolve a misunderstanding while leaving a private fact undisclosed; it compares that extra friction with the earlier, quicker exchange.",
@@ -2577,8 +2577,8 @@
     "slug": "learn-from-fiction",
     "checked_on": "2026-09-12",
     "title": {
-      "en": "Learn writing craft from fiction: evidence, scene mechanisms and a new-story exercise",
-      "zh": "怎样拆小说才能学会写：从原文证据、场景机制到自己的新故事"
+      "en": "How to break down a novel to learn writing craft",
+      "zh": "小说拆书怎么拆：从原文证据、场景机制到新故事"
     },
     "answer": {
       "en": "A useful fiction analysis explains how a passage changes what a reader knows, expects or sees a character choose. Separate observable details from your interpretation, then state when a technique could work in a different story and when it would fail. A plot summary or a list of praise cannot do that work. Oh Story provides separate short- and long-fiction analysis workflows; analysis-only work is distinct from importing a manuscript for continuation. The original poster-proof example below demonstrates one narrow mechanism and an unsupported reading, then compares two new garden plans with the same facts and outcome but different dramatic emphasis. A separate prose version of Option B shows the uncertain staffing proposal being tested and rejected without recreating the poster scene. It is not a model run, a full-book verdict or evidence of reader demand.",
@@ -2738,8 +2738,8 @@
     "slug": "character-motivation",
     "checked_on": "2026-09-13",
     "title": {
-      "en": "AI character profiles feel flat? Turn motives into story choices",
-      "zh": "AI 生成人设很完整，人物却不行动？把目标、动机与选择连起来"
+      "en": "Character motivation: turn AI profiles into story choices",
+      "zh": "人物动机怎么写：把目标、动机与选择连起来"
     },
     "answer": {
       "en": "A detailed character profile does not yet explain why someone acts. Give the character a concrete goal, a reason it matters to them, an obstacle and something they could lose; then show how their usual way of solving problems shapes a choice. Oh Story’s character references distinguish goals from motives and connect motivation to cause, intention, constraint and risk. The original fantasy-courier example below turns “proud but responsible” into a sequence of decisions. A separate prose excerpt then lets the offer, resistance and agreement happen in dialogue and action. These are original editorial examples, not a model run or a requirement that every character needs trauma, a hidden secret or a growth arc.",
@@ -2887,8 +2887,8 @@
     "slug": "script-to-storyboard",
     "checked_on": "2026-09-13",
     "title": {
-      "en": "Already have a screenplay? Build a storyboard without rewriting the scene",
-      "zh": "已有剧本怎样直接做分镜：保住对白、动作与结尾，不重写整场戏"
+      "en": "How to storyboard an existing screenplay, shot by shot",
+      "zh": "分镜脚本怎么写：已有剧本直接拆分镜，保住对白与结尾"
     },
     "answer": {
       "en": "Start short-drama-storyboard with the current accepted screenplay and the visual facts the scene needs. You do not have to restart idea development or create image prompts first. Decide what each shot lets the audience see or hear, carry its end state into the next shot, and estimate complete dialogue before assigning duration. The original rehearsal-room example below turns one accepted scene into four shot designs while preserving its words and unresolved ending. It is a text-planning exercise, not generated footage or a measured forty-second film. Hiding a prop or cutting away from a speaker does not conceal what the audience can already hear. A separate, explicitly unaccepted variant shows the screenplay tradeoff behind an ending-reveal request. A same-script comparison shows when to keep four shots or consider one continuous two-shot, and what each choice makes visible or gives up.",
