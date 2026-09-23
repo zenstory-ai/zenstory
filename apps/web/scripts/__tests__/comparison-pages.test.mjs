@@ -163,8 +163,13 @@ test('writing workflow comparison renders three source-backed choices across the
   const appMap = readFileSync(join(outDir, '_app/sitemap.xml'), 'utf8')
   for (const lang of LANGS) assert.equal(siteMap.split(`<loc>${urlIn(lang, route)}</loc>`).length - 1, 1)
   assert.ok(!appMap.includes('/compare/'))
-  // 43 organization routes × 2 languages + 25 workbench docs + 2 legal pages on the site; home and pricing on the app.
-  assert.equal(matches(siteMap, /<loc>/g).length, 43 * 2 + 25 + 2)
+  // Organization routes × 2 languages (home, /projects, /guides, /glossary, projects, guides, bilingual
+  // articles, comparisons, terms) + Chinese-only articles + 25 workbench docs + 2 legal pages on the
+  // site; home and pricing on the app. Counts come from the content JSON so new content needs no edit here.
+  const content = (file) => JSON.parse(readFileSync(join(webRoot, 'content', file), 'utf8'))
+  const articles = content('articles.json')
+  const bilingual = 4 + projects.length + content('guides.json').length + articles.filter((a) => a.langs.includes('en')).length + comparisons.length + content('glossary.json').length
+  assert.equal(matches(siteMap, /<loc>/g).length, bilingual * 2 + articles.filter((a) => !a.langs.includes('en')).length + 25 + 2)
   assert.equal(matches(appMap, /<loc>/g).length, 2)
 })
 

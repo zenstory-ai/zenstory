@@ -8,6 +8,10 @@
  *   /projects            – the six-project overview
  *   /<project-slug>      – one page per project
  *   /<project>/<guide>   – one page per practical guide
+ *   /<project>/<article> – one page per craft article (content/articles.json):
+ *                          free-form sections; Chinese always, English only
+ *                          when the article lists it (Chinese-only articles
+ *                          exist under /zh alone and carry no hreflang pair)
  *   /guides              – the index of every practical guide
  *   /compare/<slug>      – first-party comparisons
  *   /glossary            – the terminology index
@@ -74,8 +78,42 @@ for (const comparison of comparisons) {
   }
 }
 
+const articles = JSON.parse(readFileSync(join(webRoot, 'content/articles.json'), 'utf8'))
+/** Craft articles published in both languages (English route; the Chinese one is under /zh). */
+const articleRoutes = new Set()
+/** Craft articles published in Chinese only (English route form; the page exists only under /zh). */
+const zhOnlyRoutes = new Set()
+const isDate = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+/** Title and meta-description budgets per language (characters), matching what results pages show. */
+const ARTICLE_LIMITS = { seo_title: { en: 60, zh: 30 }, description: { en: 160, zh: 90 } }
+for (const article of articles) {
+  assert.ok(projects.filter((p) => p.slug === article.owner).length === 1 && /^[a-z0-9-]+$/.test(article.slug ?? ''), 'Invalid article identity')
+  const route = `/${article.owner}/${article.slug}`
+  assert.ok(!guideRoutes.has(route) && !articleRoutes.has(route) && !zhOnlyRoutes.has(route), `Duplicate article route ${route}`)
+  const langs = article.langs
+  assert.ok(Array.isArray(langs) && langs.includes('zh') && langs.every((lang) => LANGS.includes(lang)) && new Set(langs).size === langs.length, `Invalid article languages: ${route}`)
+  assert.ok(isDate(article.published_on) && isDate(article.updated_on) && article.updated_on >= article.published_on, `Invalid article dates: ${route}`)
+  assert.ok(Array.isArray(article.sections) && article.sections.length >= 2, `Invalid article content: ${route} needs sections`)
+  const ids = article.sections.map((section) => section.id)
+  assert.ok(ids.every((id) => /^[a-z0-9-]+$/.test(id ?? '') && !['faq', 'use-the-skill', 'related'].includes(id)) && new Set(ids).size === ids.length, `Invalid article section ids: ${route}`)
+  assert.ok(typeof article.skill?.name === 'string' && /^[a-z0-9-]+$/.test(article.skill.name), `Invalid article skill: ${route}`)
+  for (const lang of langs) {
+    for (const field of ['title', 'seo_title', 'description', 'answer']) assert.ok(article[field]?.[lang]?.trim(), `Invalid article content: ${route} ${field}.${lang}`)
+    for (const [field, limit] of Object.entries(ARTICLE_LIMITS)) assert.ok([...article[field][lang]].length <= limit[lang], `${route}: ${field}.${lang} exceeds ${limit[lang]} characters`)
+    for (const section of article.sections) assert.ok(section.heading?.[lang]?.trim() && section.body?.[lang]?.trim(), `Invalid article content: ${route} section ${section.id} (${lang})`)
+    for (const item of article.faq ?? []) assert.ok(item.q?.[lang]?.trim() && item.a?.[lang]?.trim(), `Invalid article content: ${route} faq (${lang})`)
+    assert.ok(article.skill.text?.[lang]?.trim(), `Invalid article skill: ${route} (${lang})`)
+  }
+  ;(langs.includes('en') ? articleRoutes : zhOnlyRoutes).add(route)
+}
+
 /** English routes; every one also exists under /zh. */
-const orgRoutes = new Set(['/', '/projects', ...projects.map((p) => `/${p.slug}`), ...guideRoutes, '/guides', ...comparisonRoutes, '/glossary', ...glossary.map((g) => `/glossary/${g.slug}`)])
+const orgRoutes = new Set(['/', '/projects', ...projects.map((p) => `/${p.slug}`), ...guideRoutes, ...articleRoutes, '/guides', ...comparisonRoutes, '/glossary', ...glossary.map((g) => `/glossary/${g.slug}`)])
+/** Whether an English-form organization route exists on the site of `lang`. */
+const routeExists = (lang, route) => orgRoutes.has(route) || (lang === 'zh' && zhOnlyRoutes.has(route))
+for (const article of articles) {
+  for (const route of article.related ?? []) assert.ok(routeExists('zh', route), `/${article.owner}/${article.slug} lists an unknown related page ${route}`)
+}
 
 // ---------- language ----------
 // The generator runs once per language. `LANG` is the language of the page
@@ -112,7 +150,7 @@ const breadcrumb = (items) => ({
  */
 const localizeBody = (html) => (LANG === 'zh'
   ? html
-    .replace(/href="(?:https:\/\/zenstory\.ai)?(\/[^"#?]*)([#?][^"]*)?"/g, (m, path, rest) => (orgRoutes.has(path) ? `href="${L(path)}${rest ?? ''}"` : m))
+    .replace(/href="(?:https:\/\/zenstory\.ai)?(\/[^"#?]*)([#?][^"]*)?"/g, (m, path, rest) => (routeExists('zh', path) ? `href="${L(path)}${rest ?? ''}"` : m))
     .replace(/ lang="zh-CN"/g, '')
   : html)
 
@@ -153,6 +191,43 @@ const heading = (level, enText, zhText, id) => `<h${level}${id ? ` id="${id}"` :
 
 const list = (items) => `<ul>${items.map((i) => `<li>${rich(i)}</li>`).join('')}</ul>`
 const steps = (items) => `<ol class="steps">${items.map(([k, v]) => `<li><b>${rich(k)}</b> ${rich(v)}</li>`).join('')}</ol>`
+
+/**
+ * Inline markup for article prose: `code`, **bold**, and [text](url) links where
+ * the url is absolute or an organization route such as /oh-story/novel-opening.
+ * A relative link must name a page that exists on the current language's site.
+ */
+const inline = (s) => esc(s)
+  .replace(/`([^`]+)`/g, '<code>$1</code>')
+  .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+  .replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/)[^)\s]*)\)/g, (m, text, href) => {
+    if (href.startsWith('/')) assert.ok(routeExists(LANG, href.split('#')[0]), `Article links a page that does not exist in ${LANG}: ${href}`)
+    return `<a href="${href}">${text}</a>`
+  })
+
+/**
+ * Block markup for article bodies (blocks separated by a blank line): a block is
+ * a paragraph, a "- " list, a "1. " list, a "| a | b |" table (second row is the
+ * |---| divider), a "> " quote (used for original examples) or one "### " heading.
+ * A block that starts like a list, table or quote must be one throughout.
+ */
+const md = (text) => String(text).trim().split(/\n{2,}/).map((block) => {
+  const lines = block.split('\n')
+  const all = (pattern) => lines.every((line) => pattern.test(line))
+  const kind = /^- /.test(lines[0]) ? 'ul' : /^\d+\. /.test(lines[0]) ? 'ol' : /^\|/.test(lines[0]) ? 'table' : /^> ?/.test(lines[0]) ? 'quote' : /^### /.test(lines[0]) ? 'h3' : 'p'
+  if (kind === 'ul') { assert.ok(all(/^- /), `Mixed list block: ${lines[0]}`); return `<ul>${lines.map((line) => `<li>${inline(line.slice(2))}</li>`).join('')}</ul>` }
+  if (kind === 'ol') { assert.ok(all(/^\d+\. /), `Mixed list block: ${lines[0]}`); return `<ol>${lines.map((line) => `<li>${inline(line.replace(/^\d+\. /, ''))}</li>`).join('')}</ol>` }
+  if (kind === 'quote') { assert.ok(all(/^> ?/), `Mixed quote block: ${lines[0]}`); return `<blockquote>${lines.map((line) => line.replace(/^> ?/, '')).join('\n').split(/\n(?=\S)/).map((para) => `<p>${inline(para)}</p>`).join('')}</blockquote>` }
+  if (kind === 'h3') { assert.equal(lines.length, 1, `A ### heading is its own block: ${lines[0]}`); return `<h3>${inline(lines[0].slice(4))}</h3>` }
+  if (kind === 'table') {
+    assert.ok(all(/^\|.*\|$/) && lines.length >= 3 && /^\|[\s:|-]+\|$/.test(lines[1]), `Malformed table: ${lines[0]}`)
+    const cells = (line) => line.slice(1, -1).split('|').map((cell) => cell.trim())
+    const width = cells(lines[0]).length
+    assert.ok(lines.every((line) => cells(line).length === width), `Ragged table: ${lines[0]}`)
+    return `<div class="table-wrap"><table><thead><tr>${cells(lines[0]).map((cell) => `<th scope="col">${inline(cell)}</th>`).join('')}</tr></thead><tbody>${lines.slice(2).map((line) => `<tr>${cells(line).map((cell) => `<td>${inline(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`
+  }
+  return `<p>${lines.map(inline).join('<br>')}</p>`
+}).join('\n')
 const comparisonLinks = (project) => comparisons.filter((comparison) => comparison.options.some((option) => option.project === project))
 const guidesOf = (slug) => guides.filter((g) => g.owner === slug)
 /** "Oh Story（网文写作 skill 包）" → the parenthetical becomes a subordinate line (same characters). */
@@ -185,14 +260,14 @@ const installBlock = (p, { label = true } = {}) => p.install ? `<div class="inst
 
 const navSection = (route) => {
   if (route === '/projects' || projects.some((p) => `/${p.slug}` === route)) return '/projects'
-  if (route === '/guides' || guideRoutes.has(route)) return '/guides'
+  if (route === '/guides' || guideRoutes.has(route) || articleRoutes.has(route) || zhOnlyRoutes.has(route)) return '/guides'
   if (route === '/glossary' || route.startsWith('/glossary/')) return '/glossary'
   return null
 }
 
 /** A complete document for the English route `route` in the current language. */
-const page = ({ route, title, description, ogType = 'article', ld, body }) =>
-  shellPage({ lang: LANG, route: L(route), alternates: alternatesOf(route), section: navSection(route), title, description, ogType, ld, body: localizeBody(body) })
+const page = ({ route, title, description, ogType = 'article', ld, body, alternates = alternatesOf(route), switchLinks = alternates }) =>
+  shellPage({ lang: LANG, route: L(route), alternates, switchLinks, section: navSection(route), title, description, ogType, ld, body: localizeBody(body) })
 
 const roster = (current) => `
 <section class="roster band-cream" aria-labelledby="roster-h">
@@ -411,6 +486,7 @@ const projectPage = (p) => {
     breadcrumb([['ZenStory AI', U('/')], [t('Projects', '项目'), U('/projects')], [p.name.en, U(route)]]),
   ]
   const own = guidesOf(p.slug)
+  const craft = articlesOf(p.slug)
   const body = `
 <article class="project">
   <header class="page-hero">
@@ -434,6 +510,7 @@ const projectPage = (p) => {
     ['need-h', 'What you need', '你需要什么'],
     ...(p.install && p.entry ? [['start-h', 'Start in 3 steps', '三步开始']] : []),
     ...(own.length ? [['guides-h', 'Practical guides', '实用指南']] : []),
+    ...(craft.length ? [['craft-h', 'Writing craft', '写作技法']] : []),
     ['method-h', 'How it works', '流程'],
     ['sources-h', 'Sources', '来源'],
   ], 'page-rail')}
@@ -447,6 +524,8 @@ const projectPage = (p) => {
 
   ${own.length ? `<section aria-labelledby="guides-h">${heading(2, 'Practical guides', '实用指南', 'guides-h')}
   ${guideList(own)}</section>` : ''}
+  ${craft.length ? `<section aria-labelledby="craft-h">${heading(2, 'Writing craft', '写作技法', 'craft-h')}
+  ${articleList(craft)}</section>` : ''}
 
   <section aria-labelledby="method-h">
   ${heading(2, 'How it works', '流程', 'method-h')}
@@ -536,21 +615,103 @@ const guidePage = (g) => {
   write(route, page({ route, title: `${pick(g.title)} | ZenStory AI`, description: summary(pick(g.answer)), ld, body }))
 }
 
+// ---------- craft articles ----------
+
+/** Articles of a project that exist on the current language's site. */
+const articlesOf = (slug) => articles.filter((a) => a.owner === slug && a.langs.includes(LANG))
+const articleList = (items) => `<ul class="guide-list">${items.map((a) => `<li>${listLink(`/${a.owner}/${a.slug}`, esc(a.title.en ?? ''), esc(a.title.zh))}</li>`).join('')}</ul>`
+
+/** Title of an organization route on the current language's site, for related-reading lists. */
+const routeTitle = (route) => {
+  const guide = guides.find((g) => `/${g.owner}/${g.slug}` === route)
+  if (guide) return pick(guide.title)
+  const article = articles.find((a) => `/${a.owner}/${a.slug}` === route)
+  if (article) return pick(article.title)
+  const term = glossary.find((g) => `/glossary/${g.slug}` === route)
+  if (term) return t(`${term.term} — ${term.bridge.split(/\s*[/(]/)[0].trim()}`, `${term.term}是什么意思`)
+  const project = projects.find((p) => `/${p.slug}` === route)
+  if (project) return t(project.name.en, project.name.zh)
+  const comparison = comparisons.find((c) => `/compare/${c.slug}` === route)
+  if (comparison) return pick(comparison.title)
+  return { '/guides': t('All guides', '全部指南'), '/glossary': t('Glossary', '术语表'), '/projects': t('All projects', '全部项目') }[route]
+}
+
+const articlePage = (a) => {
+  const owner = projects.find((p) => p.slug === a.owner)
+  const route = `/${a.owner}/${a.slug}`
+  const url = U(route)
+  const bilingual = a.langs.includes('en')
+  const related = (a.related ?? []).filter((r) => routeExists(LANG, r))
+  const faq = a.faq ?? []
+  const skillUrl = `${owner.github}/tree/main/skills/${a.skill.name}`
+  const contents = [
+    ...a.sections.map((section) => [section.id, pick(section.heading)]),
+    ...(faq.length ? [['faq', t('FAQ', '常见问题')]] : []),
+    ['use-the-skill', t('Do it with the skill', '用 skill 来做')],
+    ...(related.length ? [['related', t('Related reading', '相关阅读')]] : []),
+  ]
+  const ld = [
+    orgNode,
+    { '@type': 'Article', '@id': `${url}#article`, url,
+      headline: pick(a.title), description: pick(a.description), inLanguage: LOCALE[LANG],
+      datePublished: a.published_on, dateModified: a.updated_on,
+      author: { '@id': `${SITE}/#org` }, publisher: { '@id': `${SITE}/#org` } },
+    breadcrumb([['ZenStory AI', U('/')], [owner.name.en, U(`/${owner.slug}`)], [pick(a.title), url]]),
+  ]
+  const zhMark = LANG === 'zh' ? ' lang="zh-CN"' : ''
+  const body = `
+<article class="guide article">
+  <header class="guide-head">
+  <p class="eyebrow">${t('Writing craft', '写作技法')}</p>
+  <h1>${esc(pick(a.title))}</h1>
+  <p class="facts">${t(`${esc(owner.name.en)} · Updated ${esc(a.updated_on)}`, `${esc(owner.name.en)} · 更新于 ${esc(a.updated_on)}`)}</p>
+  <div class="pair answer"><div class="l-${LANG}"${zhMark}>${md(pick(a.answer))}</div></div>
+  </header>
+  <nav class="guide-contents" aria-label="${t('On this page', '本页导航')}">
+    <p><b>${t('On this page', '本页导航')}</b></p>
+    <ul>${contents.map(([id, text]) => `<li><a href="#${id}">${esc(text)}</a></li>`).join('')}</ul>
+  </nav>
+  <div class="guide-body article-body"${zhMark}>
+  ${a.sections.map((section) => `<section aria-labelledby="${section.id}">
+  <h2 id="${section.id}">${esc(pick(section.heading))}</h2>
+  ${md(pick(section.body))}
+  </section>`).join('\n  ')}
+  ${faq.length ? `<section aria-labelledby="faq">
+  <h2 id="faq">${t('FAQ', '常见问题')}</h2>
+  ${faq.map((item) => `<h3>${esc(pick(item.q))}</h3>\n  ${md(pick(item.a))}`).join('\n  ')}
+  </section>` : ''}
+  <section class="use-skill" aria-labelledby="use-the-skill">
+  <h2 id="use-the-skill">${t('Do it with the skill', '用 skill 来做')}</h2>
+  ${md(pick(a.skill.text))}
+  <p class="actions"><a class="btn ghost" href="/${owner.slug}">${t(`About ${esc(owner.name.en)}`, `了解 ${esc(owner.name.en)}`)}${arrowGlyph}</a><a class="btn ghost" href="${skillUrl}">${t(`The ${esc(a.skill.name)} skill on GitHub`, `在 GitHub 查看 ${esc(a.skill.name)}`)}${extGlyph}</a></p>
+  </section>
+  ${related.length ? `<section aria-labelledby="related">
+  <h2 id="related">${t('Related reading', '相关阅读')}</h2>
+  <ul class="guide-list">${related.map((r) => `<li>${listLink(r, esc(routeTitle(r)), esc(routeTitle(r)))}</li>`).join('')}</ul>
+  </section>` : ''}
+  <p class="actions guide-end"><a class="btn ghost" href="/guides">${t('All guides', '全部指南')}${arrowGlyph}</a></p>
+  </div>
+</article>`
+  const alternates = bilingual ? alternatesOf(route) : null
+  write(route, page({ route, title: `${pick(a.seo_title)} | ZenStory AI`, description: pick(a.description), ld, body, alternates, switchLinks: alternates ?? { en: `/${owner.slug}`, zh: L(route) } }))
+}
+
 // ---------- guides index ----------
 
 const guidesIndex = () => {
   const route = '/guides'
   const title = t('Guides — writing, adapting and producing stories with AI | ZenStory AI', '创作指南 — 用 AI 写小说、改短剧、做游戏与视频解说 | ZenStory AI')
-  const description = t(`${guides.length} practical guides on writing novels with AI, adapting them into short drama and games, and producing video recaps. Grouped by project.`, `${guides.length} 篇实用指南：AI 写小说、续写与改稿，小说改短剧与游戏，视频解说制作。每篇附具体示例，按项目分组。`)
+  const craft = articles.filter((a) => a.langs.includes(LANG))
+  const description = t(`${guides.length + craft.length} practical guides on writing novels with AI, adapting them into short drama and games, and producing video recaps. Grouped by project.`, `${guides.length + craft.length} 篇实用指南与写作技法：AI 写小说、续写与改稿，小说改短剧与游戏，视频解说制作。按项目分组。`)
   const ld = [
     orgNode,
     {
       '@type': 'ItemList', name: t('ZenStory AI practical guides', 'ZenStory AI 实用指南'), url: U(route),
-      itemListElement: guides.map((g, i) => ({ '@type': 'ListItem', position: i + 1, name: pick(g.title), url: U(`/${g.owner}/${g.slug}`) })),
+      itemListElement: [...guides, ...craft].map((g, i) => ({ '@type': 'ListItem', position: i + 1, name: pick(g.title), url: U(`/${g.owner}/${g.slug}`) })),
     },
     breadcrumb([['ZenStory AI', U('/')], [t('Guides', '指南'), U(route)]]),
   ]
-  const groups = projects.filter((p) => guidesOf(p.slug).length)
+  const groups = projects.filter((p) => guidesOf(p.slug).length || articlesOf(p.slug).length)
   const body = `
 <article class="guides-index">
   <header class="page-hero">
@@ -558,7 +719,7 @@ const guidesIndex = () => {
       <p class="eyebrow">${t('Practical guides', '实用指南')}</p>
       <h1>${t('Practical guides', '实用指南')}</h1>
       ${pair(`<p class="lede">Each guide answers one working question with a worked example, and links to the project that does the work.</p>`, `<p class="lede">每篇指南回答一个具体的创作问题，附完整示例，并链接到负责这件事的项目。</p>`)}
-      <nav class="terms jump" aria-label="${t('Jump to project', '跳到项目')}">${groups.map((p) => `<a href="#guides-${p.slug}">${esc(p.name.en)} <span class="count">${guidesOf(p.slug).length}</span></a>`).join(' ')}</nav>
+      <nav class="terms jump" aria-label="${t('Jump to project', '跳到项目')}">${groups.map((p) => `<a href="#guides-${p.slug}">${esc(p.name.en)} <span class="count">${guidesOf(p.slug).length + articlesOf(p.slug).length}</span></a>`).join(' ')}</nav>
     </div>
   </header>
   <div class="wrap page-body wide">
@@ -569,7 +730,11 @@ const guidesIndex = () => {
     ${pair(`<p>${esc(p.tagline.en)}</p>`, `<p>${esc(p.tagline.zh)}</p>`, 'tagline')}
     <p class="facts"><a href="/${p.slug}">${t(`About ${esc(p.name.en)}`, `关于 ${esc(p.name.en)}`)}${arrowGlyph}</a></p>
     </div>
+    <div>
     ${guideList(guidesOf(p.slug))}
+    ${articlesOf(p.slug).length ? `<h3 class="sub-h">${t('Writing craft', '写作技法')}</h3>
+    ${articleList(articlesOf(p.slug))}` : ''}
+    </div>
   </section>`).join('')}
   </div>
 </article>
@@ -773,6 +938,15 @@ ${roster()}`
 
 // ---------- run ----------
 
+// Render every article body once per language before writing anything, so bad
+// markup or a link to a missing page fails the build with no partial output.
+for (const lang of LANGS) {
+  LANG = lang
+  for (const a of articles.filter((candidate) => candidate.langs.includes(lang))) {
+    for (const text of [a.answer, a.skill.text, ...a.sections.map((section) => section.body), ...(a.faq ?? []).map((item) => item.a)]) md(text[lang])
+  }
+}
+
 mkdirSync(join(outDir, 'org'), { recursive: true })
 copyFileSync(join(here, 'org-pages.css'), join(outDir, 'org/org.css'))
 for (const lang of LANGS) {
@@ -781,6 +955,7 @@ for (const lang of LANGS) {
   projectsIndex()
   projects.forEach(projectPage)
   guides.forEach(guidePage)
+  articles.filter((a) => a.langs.includes(LANG)).forEach(articlePage)
   guidesIndex()
   comparisons.forEach(comparisonPage)
   glossaryIndex()

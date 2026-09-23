@@ -39,6 +39,7 @@ export function orgPageRoutes(contentDir = path.resolve(__dirname, 'content')): 
   const projects = read('projects.json') as { slug: string }[]
   const glossary = read('glossary.json') as { slug: string }[]
   const guides = read('guides.json') as { owner: string; slug: string }[]
+  const articles = read('articles.json') as { owner: string; slug: string; langs: string[] }[]
   const comparisons = read('comparisons.json') as { slug?: unknown; options?: { project?: unknown }[] }[]
   const expectedProjects = ['oh-story', 'dsh', 'workbench']
   const comparisonRoutes = new Set<string>()
@@ -50,9 +51,11 @@ export function orgPageRoutes(contentDir = path.resolve(__dirname, 'content')): 
     const options = comparison.options?.map((option) => option.project)
     if (!options || options.length !== expectedProjects.length || options.some((project, index) => project !== expectedProjects[index]) || options.some((project) => !projects.some((candidate) => candidate.slug === project))) throw new Error('Invalid comparison options')
   }
-  const english = ['/projects', ...projects.map((p) => `/${p.slug}`), ...guides.map((g) => `/${g.owner}/${g.slug}`), '/guides', ...comparisonRoutes, '/glossary', ...glossary.map((g) => `/glossary/${g.slug}`)]
-  // Every organization route also exists in Chinese under /zh (and /zh is the Chinese home).
-  return [...english, '/zh', ...english.map((route) => `/zh${route}`)]
+  const english = ['/projects', ...projects.map((p) => `/${p.slug}`), ...guides.map((g) => `/${g.owner}/${g.slug}`), ...articles.filter((a) => a.langs.includes('en')).map((a) => `/${a.owner}/${a.slug}`), '/guides', ...comparisonRoutes, '/glossary', ...glossary.map((g) => `/glossary/${g.slug}`)]
+  // Every organization route also exists in Chinese under /zh (and /zh is the Chinese home);
+  // Chinese-only craft articles exist only there.
+  const chineseOnly = articles.filter((a) => !a.langs.includes('en')).map((a) => `/zh/${a.owner}/${a.slug}`)
+  return [...english, '/zh', ...english.map((route) => `/zh${route}`), ...chineseOnly]
 }
 
 const orgRoutes = orgPageRoutes()
