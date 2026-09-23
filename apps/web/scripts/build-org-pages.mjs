@@ -207,7 +207,7 @@ const inline = (s) => esc(s)
 
 /**
  * Block markup for article bodies (blocks separated by a blank line): a block is
- * a paragraph, a "- " list, a "1. " list, a "| a | b |" table (second row is the
+ * a paragraph, a "- " list (all "- [ ] " lines make a checklist), a "1. " list, a "| a | b |" table (second row is the
  * |---| divider), a "> " quote (used for original examples) or one "### " heading.
  * A block that starts like a list, table or quote must be one throughout.
  */
@@ -215,7 +215,12 @@ const md = (text) => String(text).trim().split(/\n{2,}/).map((block) => {
   const lines = block.split('\n')
   const all = (pattern) => lines.every((line) => pattern.test(line))
   const kind = /^- /.test(lines[0]) ? 'ul' : /^\d+\. /.test(lines[0]) ? 'ol' : /^\|/.test(lines[0]) ? 'table' : /^> ?/.test(lines[0]) ? 'quote' : /^### /.test(lines[0]) ? 'h3' : 'p'
-  if (kind === 'ul') { assert.ok(all(/^- /), `Mixed list block: ${lines[0]}`); return `<ul>${lines.map((line) => `<li>${inline(line.slice(2))}</li>`).join('')}</ul>` }
+  if (kind === 'ul') {
+    assert.ok(all(/^- /), `Mixed list block: ${lines[0]}`)
+    // "- [ ] item" is a copyable checklist line.
+    const checklist = lines.every((line) => /^- \[ \] /.test(line))
+    return `<ul${checklist ? ' class="checklist"' : ''}>${lines.map((line) => `<li>${inline(checklist ? line.slice(6) : line.slice(2))}</li>`).join('')}</ul>`
+  }
   if (kind === 'ol') { assert.ok(all(/^\d+\. /), `Mixed list block: ${lines[0]}`); return `<ol>${lines.map((line) => `<li>${inline(line.replace(/^\d+\. /, ''))}</li>`).join('')}</ol>` }
   if (kind === 'quote') { assert.ok(all(/^> ?/), `Mixed quote block: ${lines[0]}`); return `<blockquote>${lines.map((line) => line.replace(/^> ?/, '')).join('\n').split(/\n(?=\S)/).map((para) => `<p>${inline(para)}</p>`).join('')}</blockquote>` }
   if (kind === 'h3') { assert.equal(lines.length, 1, `A ### heading is its own block: ${lines[0]}`); return `<h3>${inline(lines[0].slice(4))}</h3>` }

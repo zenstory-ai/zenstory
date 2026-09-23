@@ -43,7 +43,7 @@ const fixtureBilingual = {
   description: { zh: '章尾钩子的几种留法与取舍。', en: 'How to end a serial chapter so readers open the next one.' },
   answer: { zh: '章尾留一个**具体**的未完成动作。', en: 'End on one **specific** unfinished action.' },
   sections: [
-    section('types', '| 类型 | 做法 |\n|---|---|\n| 危机 | 危险刚到 |\n| 悬念 | 问题刚问出 |\n\n- 第一条\n- 第二条\n\n### 小标题\n\n> 原创示例第一段。\n> 原创示例第二段。', '| Type | Move |\n|---|---|\n| Threat | Danger arrives |\n\n1. First\n2. Second'),
+    section('types', '| 类型 | 做法 |\n|---|---|\n| 危机 | 危险刚到 |\n| 悬念 | 问题刚问出 |\n\n- 第一条\n- 第二条\n\n- [ ] 可复制的检查项\n- [ ] 第二项\n\n### 小标题\n\n> 原创示例第一段。\n> 原创示例第二段。', '| Type | Move |\n|---|---|\n| Threat | Danger arrives |\n\n1. First\n2. Second'),
     section('links', '见[小说开头指南](/oh-story/novel-opening)，以及[纯中文页](/oh-story/fixture-zh-only)。', 'See the [opening guide](/oh-story/novel-opening).'),
   ],
   faq: [{ q: { zh: '每章都要留钩子吗？', en: 'Does every chapter need a hook?' }, a: { zh: '要有推进。', en: 'It needs movement.' } }],
@@ -97,6 +97,7 @@ test('craft articles render free-form sections, one language per URL, and Chines
   const zh = readPage(out, routeIn('zh', bilingualRoute).slice(1))
   assert.ok(zh.includes('<ul><li>第一条</li><li>第二条</li></ul>'))
   assert.ok(zh.includes('<h3>小标题</h3>'))
+  assert.ok(zh.includes('<ul class="checklist"><li>可复制的检查项</li><li>第二项</li></ul>'))
   assert.ok(zh.includes('<blockquote><p>原创示例第一段。</p><p>原创示例第二段。</p></blockquote>'))
   assert.ok(zh.includes('href="/zh/oh-story/novel-opening"'), 'zh body links stay on /zh')
   assert.ok(zh.includes(`href="/zh${zhOnlyRoute}"`), 'zh page links the Chinese-only article')
