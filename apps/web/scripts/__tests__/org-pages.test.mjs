@@ -84,7 +84,7 @@ test('task guides render one language per URL with hreflang pairs, primary sourc
   t.after(() => rmSync(outDir, { recursive: true, force: true }))
   run('build-org-pages.mjs', outDir)
   const routes = guides.map((guide) => `/${guide.owner}/${guide.slug}`)
-  assert.deepEqual(routes, ['/novel-to-game/quick-start', '/video-recap/capcut-draft', '/oh-story/agent-skills-for-writers', '/dsh/deepseek-novel-writing', '/oh-story/import-and-continue', '/drama-skills/novel-to-short-drama', '/oh-story/revise-ai-prose', '/video-recap/video-to-narration', '/novel-to-game/meaningful-choices', '/drama-skills/character-consistency', '/video-recap/original-audio-and-narration', '/oh-story/long-novel-continuity', '/oh-story/outline-to-chapter', '/oh-story/preserve-author-voice', '/oh-story/review-and-revise', '/oh-story/short-story-from-idea', '/oh-story/character-dialogue', '/oh-story/learn-from-fiction', '/oh-story/character-motivation', '/drama-skills/script-to-storyboard', '/oh-story/novel-opening'])
+  assert.deepEqual(routes, ['/novel-to-game/quick-start', '/video-recap/capcut-draft', '/oh-story/agent-skills-for-writers', '/dsh/deepseek-novel-writing', '/oh-story/import-and-continue', '/drama-skills/novel-to-short-drama', '/oh-story/revise-ai-prose', '/video-recap/video-to-narration', '/novel-to-game/meaningful-choices', '/drama-skills/character-consistency', '/video-recap/original-audio-and-narration', '/oh-story/long-novel-continuity', '/oh-story/outline-to-chapter', '/oh-story/preserve-author-voice', '/oh-story/review-and-revise', '/oh-story/short-story-from-idea', '/oh-story/character-dialogue', '/oh-story/learn-from-fiction', '/oh-story/character-motivation', '/drama-skills/script-to-storyboard'])
   const directory = readFileSync(join(webRoot, 'public/llms.txt'), 'utf8')
   for (const [index, guide] of guides.entries()) {
     const route = routes[index]
@@ -164,10 +164,9 @@ test('task guides render one language per URL with hreflang pairs, primary sourc
       assert.ok(readOutput(outDir, outPath(lang, '/')).includes(`href="${routeIn(lang, route)}"`))
     }
   }
-  assert.match(readOutput(outDir, 'oh-story/novel-opening'), /three complete chapters/)
-  assert.match(readOutput(outDir, 'oh-story/novel-opening'), /not a fixed retention law/)
-  assert.match(readOutput(outDir, 'oh-story/novel-opening'), /six intact bowls/)
-  assert.match(readOutput(outDir, 'zh/oh-story/novel-opening'), /失去最佳摊位|失去最好的摊位|失去前排摊位/)
+  // The serial-opening guide became a craft article at the same URL (content/articles.json).
+  assert.match(readOutput(outDir, 'oh-story/novel-opening'), /<article class="guide article">/)
+  assert.match(readOutput(outDir, 'zh/oh-story/novel-opening'), /<h1>黄金三章怎么写/)
   assert.ok(readOutput(outDir, 'glossary/huangjinsanzhang').includes('href="https://zenstory.ai/oh-story/novel-opening"'))
   assert.match(readOutput(outDir, 'novel-to-game/quick-start'), /PRODUCT_BRIEF\.md/)
   assert.match(readOutput(outDir, 'novel-to-game/quick-start'), /qa\/verification\.json/)
@@ -202,6 +201,7 @@ test('guide examples keep literal markup, line breaks and indentation as escaped
     zh: '原文 <img src=x onerror="alert(1)"> 与 & 符号。\n\n第二段\n  保留缩进',
   }
   writeFileSync(join(root, 'content/guides.json'), JSON.stringify([guide]))
+  writeFileSync(join(root, 'content/articles.json'), '[]')
   const out = join(root, 'output')
   const result = spawnSync(process.execPath, [join(root, 'scripts/build-org-pages.mjs'), out], { encoding: 'utf8' })
   assert.equal(result.status, 0, result.stderr)
@@ -225,6 +225,7 @@ test('guide identities reject unknown owners, unsafe paths and duplicate routes 
   cpSync(join(webRoot, 'content'), join(root, 'content'), { recursive: true })
   for (const file of GENERATOR_FILES) cpSync(join(scriptsDir, file), join(root, 'scripts', file))
   const valid = JSON.parse(readFileSync(join(root, 'content/guides.json'), 'utf8'))
+  writeFileSync(join(root, 'content/articles.json'), '[]')
   for (const invalid of [[{ ...valid[0], owner: 'unknown' }], [{ ...valid[0], slug: '../escape' }], [valid[0], valid[0]]]) {
     writeFileSync(join(root, 'content/guides.json'), JSON.stringify(invalid))
     const out = join(root, 'output')
@@ -333,8 +334,10 @@ test('glossary terms have pages in each language, valid relationships and tracea
       assert.equal(definition.url, urlIn(lang, route))
       assert.equal(definition.description, term.definition[lang])
       const links = matches(term.in_practice[lang], /\]\((https:\/\/[^)]+)\)/g).map((match) => match[1])
+      // A term may point at the one page that owns its how-to intent (a guide or craft article).
       const guideLinks = links.filter((link) => link.startsWith('https://zenstory.ai/'))
-      assert.deepEqual(guideLinks, term.slug === 'huangjinsanzhang' ? ['https://zenstory.ai/oh-story/novel-opening'] : [])
+      assert.ok(guideLinks.length <= 1, `${term.slug} links more than one owning page`)
+      for (const link of guideLinks) assert.ok(existsSync(join(outDir, new URL(link).pathname.slice(1), 'index.html')), `${term.slug} links a missing page ${link}`)
       const sources = links.filter((link) => !guideLinks.includes(link))
       assert.ok(sources.length > 0, `${term.slug} lacks ${lang} source references`)
       sourceGroups.push(sources.sort())

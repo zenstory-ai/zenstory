@@ -44,11 +44,11 @@ const fixtureBilingual = {
   answer: { zh: '章尾留一个**具体**的未完成动作。', en: 'End on one **specific** unfinished action.' },
   sections: [
     section('types', '| 类型 | 做法 |\n|---|---|\n| 危机 | 危险刚到 |\n| 悬念 | 问题刚问出 |\n\n- 第一条\n- 第二条\n\n- [ ] 可复制的检查项\n- [ ] 第二项\n\n### 小标题\n\n> 原创示例第一段。\n> 原创示例第二段。', '| Type | Move |\n|---|---|\n| Threat | Danger arrives |\n\n1. First\n2. Second'),
-    section('links', '见[小说开头指南](/oh-story/novel-opening)，以及[纯中文页](/oh-story/fixture-zh-only)。', 'See the [opening guide](/oh-story/novel-opening).'),
+    section('links', '见[长篇连贯指南](/oh-story/long-novel-continuity)，以及[纯中文页](/oh-story/fixture-zh-only)。', 'See the [continuity guide](/oh-story/long-novel-continuity).'),
   ],
   faq: [{ q: { zh: '每章都要留钩子吗？', en: 'Does every chapter need a hook?' }, a: { zh: '要有推进。', en: 'It needs movement.' } }],
   skill: { name: 'story-long-write', text: { zh: '用 `/story-long-write` 写下一章。', en: 'Use `/story-long-write` for the next chapter.' } },
-  related: ['/oh-story/novel-opening', '/glossary/gouzi', '/oh-story/fixture-zh-only'],
+  related: ['/oh-story/long-novel-continuity', '/glossary/gouzi', '/oh-story/fixture-zh-only'],
 }
 const fixtureZhOnly = {
   owner: 'oh-story', slug: 'fixture-zh-only', langs: ['zh'],
@@ -99,7 +99,7 @@ test('craft articles render free-form sections, one language per URL, and Chines
   assert.ok(zh.includes('<h3>小标题</h3>'))
   assert.ok(zh.includes('<ul class="checklist"><li>可复制的检查项</li><li>第二项</li></ul>'))
   assert.ok(zh.includes('<blockquote><p>原创示例第一段。</p><p>原创示例第二段。</p></blockquote>'))
-  assert.ok(zh.includes('href="/zh/oh-story/novel-opening"'), 'zh body links stay on /zh')
+  assert.ok(zh.includes('href="/zh/oh-story/long-novel-continuity"'), 'zh body links stay on /zh')
   assert.ok(zh.includes(`href="/zh${zhOnlyRoute}"`), 'zh page links the Chinese-only article')
   const en = readPage(out, bilingualRoute.slice(1))
   assert.ok(en.includes('<ol><li>First</li><li>Second</li></ol>'))
@@ -157,7 +157,7 @@ test('invalid craft articles fail the build before any page is written', (t) => 
   const cases = [
     [{ ...valid, slug: '../escape' }, /Invalid article identity/],
     [{ ...valid, owner: 'unknown' }, /Invalid article identity/],
-    [{ ...valid, slug: 'novel-opening' }, /Duplicate article route/],
+    [{ ...valid, slug: 'long-novel-continuity' }, /Duplicate article route/],
     [{ ...valid, langs: ['en'] }, /Invalid article languages/],
     [{ ...valid, updated_on: '2026-09-01' }, /Invalid article dates/],
     [{ ...valid, seo_title: { zh: '这是一个明显超过三十个字符预算的非常非常长的页面标题会被搜索结果截断' } }, /seo_title\.zh exceeds 30/],
