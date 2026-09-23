@@ -56,7 +56,7 @@ test('post-build output cannot shadow host rewrites; sitemap uses canonical rout
     // Single-URL pages list no alternates; language pairs list both languages and x-default on each entry.
     assert.match(siteMap, /<url><loc>https:\/\/zenstory\.ai\/docs\/example<\/loc><\/url>/)
     assert.match(siteMap, /<url><loc>https:\/\/zenstory\.ai\/workbench<\/loc><\/url>/)
-    const pair=(route,zh)=>`<xhtml:link rel="alternate" hreflang="en" href="https://zenstory.ai${route}"/><xhtml:link rel="alternate" hreflang="zh-CN" href="https://zenstory.ai${zh}"/><xhtml:link rel="alternate" hreflang="x-default" href="https://zenstory.ai${route}"/>`
+    const pair=(route,zh)=>`<xhtml:link rel="alternate" hreflang="en" href="https://zenstory.ai${route}"/><xhtml:link rel="alternate" hreflang="zh-CN" href="https://zenstory.ai${zh}"/><xhtml:link rel="alternate" hreflang="zh" href="https://zenstory.ai${zh}"/><xhtml:link rel="alternate" hreflang="x-default" href="https://zenstory.ai${route}"/>`
     assert.ok(siteMap.includes(`<url><loc>https://zenstory.ai/</loc>${pair('/','/zh')}</url>`))
     assert.ok(siteMap.includes(`<url><loc>https://zenstory.ai/zh</loc>${pair('/','/zh')}</url>`))
     assert.ok(siteMap.includes(`<url><loc>https://zenstory.ai/projects</loc>${pair('/projects','/zh/projects')}</url>`))

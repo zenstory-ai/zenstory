@@ -25,7 +25,7 @@ Guides index: https://zenstory.ai/guides — every practical guide, grouped by p
 - [Revise formulaic AI prose](https://zenstory.ai/oh-story/revise-ai-prose): how to remove AI flavor from fiction by naming the specific problems and revising within limits; no detector-score claims.
 - [Agent skills for writers](https://zenstory.ai/oh-story/agent-skills-for-writers): what an agent skill is for a non-programmer writer, how it differs from prompts, plugins and MCP, and how to make a first request.
 - [Import an unfinished novel and continue writing](https://zenstory.ai/oh-story/import-and-continue): how to continue a novel with AI by importing 10–20 chapters into Oh Story, reviewing the reconstruction, then requesting the next chapter.
-- [Write a serial novel opening](https://zenstory.ai/oh-story/novel-opening): how to write an opening that pays off its first promise within three chapters without ending the serial.
+- [Golden three chapters: write a web novel opening](https://zenstory.ai/oh-story/novel-opening): what each of a serial's first three chapters delivers, a copyable opening checklist, a before/after rewrite and a self-check scorecard.
 - [From outline to chapter](https://zenstory.ai/oh-story/outline-to-chapter): how to write a chapter from an outline so it shows change instead of restating the plan.
 - [Preserve your author voice](https://zenstory.ai/oh-story/preserve-author-voice): how to keep your own voice when AI continues your novel, separating expressive choices from book facts.
 - [Turn character motives into story choices](https://zenstory.ai/oh-story/character-motivation): how to make flat AI character profiles drive scenes through goals, motives and tactics.
@@ -42,6 +42,12 @@ Guides index: https://zenstory.ai/guides — every practical guide, grouped by p
 - [Turn video into grounded Chinese narration](https://zenstory.ai/video-recap/video-to-narration): how to go from footage to evidence, story angle and script, and what to do with partial footage.
 - [Original sound versus recap narration](https://zenstory.ai/video-recap/original-audio-and-narration): when a recap should keep original sound or silence and when narration earns its place, beat by beat.
 - [Export and finish a JianYing / CapCut recap draft](https://zenstory.ai/video-recap/capcut-draft): how to keep editing a finished recap in JianYing or CapCut by exporting the timeline as a draft with bundled media.
+- [Types of cliffhangers for web serials](https://zenstory.ai/oh-story/chapter-ending-hooks): 13 chapter-ending hooks and 7 chapter-opening hooks with original examples, and how to pick one by chapter mood and story stage.
+- [Chapter outline template for web serials](https://zenstory.ai/oh-story/chapter-outline-template): a copyable chapter-outline (细纲) template with the difference from a volume outline (章纲) and one filled original chapter.
+- [How to write rules horror](https://zenstory.ai/oh-story/rules-horror): building rule-based horror (规则怪谈) around colliding rules, with a build order and an original rule sheet.
+- [Write a novel with Claude Code or Codex](https://zenstory.ai/oh-story/claude-code-novel-writing): installing the Oh Story skill pack in Claude Code, Codex and other agents, running setup, and drafting chapter one.
+- [Character turnaround sheet prompts](https://zenstory.ai/drama-skills/character-turnaround-prompt): a prompt template for AI character turnaround sheets (三视图) with six original filled examples.
+- [Seedance prompts for short drama shots](https://zenstory.ai/drama-skills/seedance-prompts): writing Seedance video prompts as start state, causal action chain and end state, with the 2.5 and 2.0 differences.
 - [Choose a writing workflow](https://zenstory.ai/compare/writing-workflows): first-party comparison of Oh Story skills, the pinned DSH plugin and the hosted ZenStory workbench; boundaries, not a ranking.
 - [Organization overview](https://zenstory.ai/projects): which project to start with, based on what you want to make.
 - [Oh Story changelog](https://github.com/zenstory-ai/oh-story-claudecode/blob/main/CHANGELOG.md)

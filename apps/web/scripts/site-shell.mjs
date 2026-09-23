@@ -135,6 +135,7 @@ export const page = ({ lang, route, alternates = null, switchLinks = alternates,
 <link rel="canonical" href="${SITE}${route}">
 ${alternates ? `<link rel="alternate" hreflang="en" href="${SITE}${alternates.en}">
 <link rel="alternate" hreflang="zh-CN" href="${SITE}${alternates.zh}">
+<link rel="alternate" hreflang="zh" href="${SITE}${alternates.zh}">
 <link rel="alternate" hreflang="x-default" href="${SITE}${alternates.en}">
 ` : ''}<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <meta property="og:type" content="${ogType}">

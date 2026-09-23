@@ -38,6 +38,10 @@ const readOutput = (outDir, route) => readFileSync(join(outDir, route, 'index.ht
 const matches = (html, pattern) => [...html.matchAll(pattern)]
 const escape = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 const richText = (s) => escape(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2">$1</a>')
+/** Chinese pages point organization links written as absolute zenstory.ai URLs at the /zh site (single-URL pages stay). */
+const zhLinks = (html) => html.replace(/href="https:\/\/zenstory\.ai(\/(?!zh(?:\/|")|docs(?:\/|")|privacy-policy|terms-of-service|llms\.txt)[^"]*)"/g, (m, path) => `href="${path === '/' ? '/zh' : `/zh${path}`}"`)
+/** Rich text as rendered on the `lang` page. */
+const richIn = (lang, s) => (lang === 'zh' ? zhLinks(richText(s)) : richText(s))
 const graphOf = (html) => JSON.parse(matches(html, /<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi)[0][1])['@graph']
 
 /** Head invariants of one generated page: canonical, hreflang pair, Open Graph locale, language attributes. */
@@ -48,6 +52,7 @@ function assertHead(html, lang, route) {
   assert.ok(html.includes(`<link rel="canonical" href="${url}">`))
   assert.ok(html.includes(`<link rel="alternate" hreflang="en" href="${urlIn('en', route)}">`))
   assert.ok(html.includes(`<link rel="alternate" hreflang="zh-CN" href="${urlIn('zh', route)}">`))
+  assert.ok(html.includes(`<link rel="alternate" hreflang="zh" href="${urlIn('zh', route)}">`))
   assert.ok(html.includes(`<link rel="alternate" hreflang="x-default" href="${urlIn('en', route)}">`))
   assert.equal(matches(html, /<meta\b[^>]*property="og:url"[^>]*>/gi).length, 1)
   assert.ok(html.includes(`<meta property="og:url" content="${url}">`))
@@ -62,7 +67,11 @@ function assertHead(html, lang, route) {
     // Every internal link on a Chinese page stays on the Chinese site, except single-URL pages
     // and the language switch, which is the one link to the English counterpart.
     const withoutSwitch = html.replace(/<div class="lang-switch"[\s\S]*?<\/div>/, '')
-    for (const [, href] of matches(withoutSwitch, /href="(\/[^"]*)"/g)) {
+    // Relative links anywhere, and absolute organization links in the body (the head's hreflang
+    // alternates name the English counterpart on purpose).
+    const bodyOnly = withoutSwitch.slice(withoutSwitch.indexOf('<body>'))
+    const internal = [...matches(withoutSwitch, /href="(\/[^"]*)"/g), ...matches(bodyOnly, /href="https:\/\/zenstory\.ai(\/[^"]*)"/g)]
+    for (const [, href] of internal) {
       assert.ok(/^\/(?:zh(?:\/|$)|docs(?:\/|$)|privacy-policy|terms-of-service|llms\.txt|brand\/|org\/|favicon\.svg)/.test(href), `${route} (zh) links off the Chinese site: ${href}`)
     }
     assert.equal(matches(withoutSwitch.slice(withoutSwitch.indexOf('<body>')), / lang="zh-CN"/g).length, 0, `${route} (zh) marks fragments zh-CN inside a zh-CN document`)
@@ -75,7 +84,7 @@ test('task guides render one language per URL with hreflang pairs, primary sourc
   t.after(() => rmSync(outDir, { recursive: true, force: true }))
   run('build-org-pages.mjs', outDir)
   const routes = guides.map((guide) => `/${guide.owner}/${guide.slug}`)
-  assert.deepEqual(routes, ['/novel-to-game/quick-start', '/video-recap/capcut-draft', '/oh-story/agent-skills-for-writers', '/dsh/deepseek-novel-writing', '/oh-story/import-and-continue', '/drama-skills/novel-to-short-drama', '/oh-story/revise-ai-prose', '/video-recap/video-to-narration', '/novel-to-game/meaningful-choices', '/drama-skills/character-consistency', '/video-recap/original-audio-and-narration', '/oh-story/long-novel-continuity', '/oh-story/outline-to-chapter', '/oh-story/preserve-author-voice', '/oh-story/review-and-revise', '/oh-story/short-story-from-idea', '/oh-story/character-dialogue', '/oh-story/learn-from-fiction', '/oh-story/character-motivation', '/drama-skills/script-to-storyboard', '/oh-story/novel-opening'])
+  assert.deepEqual(routes, ['/novel-to-game/quick-start', '/video-recap/capcut-draft', '/oh-story/agent-skills-for-writers', '/dsh/deepseek-novel-writing', '/oh-story/import-and-continue', '/drama-skills/novel-to-short-drama', '/oh-story/revise-ai-prose', '/video-recap/video-to-narration', '/novel-to-game/meaningful-choices', '/drama-skills/character-consistency', '/video-recap/original-audio-and-narration', '/oh-story/long-novel-continuity', '/oh-story/outline-to-chapter', '/oh-story/preserve-author-voice', '/oh-story/review-and-revise', '/oh-story/short-story-from-idea', '/oh-story/character-dialogue', '/oh-story/learn-from-fiction', '/oh-story/character-motivation', '/drama-skills/script-to-storyboard'])
   const directory = readFileSync(join(webRoot, 'public/llms.txt'), 'utf8')
   for (const [index, guide] of guides.entries()) {
     const route = routes[index]
@@ -122,14 +131,14 @@ test('task guides render one language per URL with hreflang pairs, primary sourc
         assert.ok(ids.includes(target), `${route}: missing #${target}`)
         assert.match(article, new RegExp(`<h[23] id="${target}">`))
       }
-      assert.ok(article.includes(`<p>${richText(guide.answer[lang])}</p>`))
+      assert.ok(article.includes(`<p>${richIn(lang, guide.answer[lang])}</p>`))
       assert.ok(!article.includes(richText(guide.answer[other(lang)])))
       for (const field of ['prerequisites', 'outputs', 'verification', 'sources']) {
         assert.ok(guide[field][lang].length > 1)
-        for (const item of guide[field][lang]) assert.ok(article.includes(`<li>${richText(item)}</li>`))
+        for (const item of guide[field][lang]) assert.ok(article.includes(`<li>${richIn(lang, item)}</li>`))
         for (const item of guide[field][other(lang)]) assert.ok(!article.includes(`<li>${richText(item)}</li>`), `${route} (${lang}) renders ${other(lang)} ${field}`)
       }
-      for (const [heading, text] of guide.steps[lang]) assert.ok(article.includes(`<li><b>${richText(heading)}</b> ${richText(text)}</li>`))
+      for (const [heading, text] of guide.steps[lang]) assert.ok(article.includes(`<li><b>${richIn(lang, heading)}</b> ${richIn(lang, text)}</li>`))
       const example = matches(article, /<section class="guide-example" aria-labelledby="example-(\w+)">([\s\S]*?)<\/section>/g)
       assert.equal(example.length, 1)
       assert.equal(example[0][1], lang)
@@ -155,10 +164,9 @@ test('task guides render one language per URL with hreflang pairs, primary sourc
       assert.ok(readOutput(outDir, outPath(lang, '/')).includes(`href="${routeIn(lang, route)}"`))
     }
   }
-  assert.match(readOutput(outDir, 'oh-story/novel-opening'), /three complete chapters/)
-  assert.match(readOutput(outDir, 'oh-story/novel-opening'), /not a fixed retention law/)
-  assert.match(readOutput(outDir, 'oh-story/novel-opening'), /six intact bowls/)
-  assert.match(readOutput(outDir, 'zh/oh-story/novel-opening'), /失去最佳摊位|失去最好的摊位|失去前排摊位/)
+  // The serial-opening guide became a craft article at the same URL (content/articles.json).
+  assert.match(readOutput(outDir, 'oh-story/novel-opening'), /<article class="guide article">/)
+  assert.match(readOutput(outDir, 'zh/oh-story/novel-opening'), /<h1>黄金三章怎么写/)
   assert.ok(readOutput(outDir, 'glossary/huangjinsanzhang').includes('href="https://zenstory.ai/oh-story/novel-opening"'))
   assert.match(readOutput(outDir, 'novel-to-game/quick-start'), /PRODUCT_BRIEF\.md/)
   assert.match(readOutput(outDir, 'novel-to-game/quick-start'), /qa\/verification\.json/)
@@ -174,6 +182,7 @@ test('task guides render one language per URL with hreflang pairs, primary sourc
       assert.equal(entry.length, 1, `${route} (${lang}) must appear once in the sitemap`)
       assert.ok(entry[0][1].includes(`<xhtml:link rel="alternate" hreflang="en" href="${urlIn('en', route)}"/>`))
       assert.ok(entry[0][1].includes(`<xhtml:link rel="alternate" hreflang="zh-CN" href="${urlIn('zh', route)}"/>`))
+      assert.ok(entry[0][1].includes(`<xhtml:link rel="alternate" hreflang="zh" href="${urlIn('zh', route)}"/>`))
       assert.ok(entry[0][1].includes(`<xhtml:link rel="alternate" hreflang="x-default" href="${urlIn('en', route)}"/>`))
     }
     assert.ok(!readFileSync(join(outDir, '_app/sitemap.xml'), 'utf8').includes(route))
@@ -192,6 +201,7 @@ test('guide examples keep literal markup, line breaks and indentation as escaped
     zh: '原文 <img src=x onerror="alert(1)"> 与 & 符号。\n\n第二段\n  保留缩进',
   }
   writeFileSync(join(root, 'content/guides.json'), JSON.stringify([guide]))
+  writeFileSync(join(root, 'content/articles.json'), '[]')
   const out = join(root, 'output')
   const result = spawnSync(process.execPath, [join(root, 'scripts/build-org-pages.mjs'), out], { encoding: 'utf8' })
   assert.equal(result.status, 0, result.stderr)
@@ -215,6 +225,7 @@ test('guide identities reject unknown owners, unsafe paths and duplicate routes 
   cpSync(join(webRoot, 'content'), join(root, 'content'), { recursive: true })
   for (const file of GENERATOR_FILES) cpSync(join(scriptsDir, file), join(root, 'scripts', file))
   const valid = JSON.parse(readFileSync(join(root, 'content/guides.json'), 'utf8'))
+  writeFileSync(join(root, 'content/articles.json'), '[]')
   for (const invalid of [[{ ...valid[0], owner: 'unknown' }], [{ ...valid[0], slug: '../escape' }], [valid[0], valid[0]]]) {
     writeFileSync(join(root, 'content/guides.json'), JSON.stringify(invalid))
     const out = join(root, 'output')
@@ -262,7 +273,7 @@ test('project pages render each language with dated, owned immutable sources', (
       assert.ok(sources.length >= 2, `${project.slug} lacks ${lang} source notes`)
       const urls = []
       for (const note of sources) {
-        assert.ok(article.includes(`<li>${richText(note)}</li>`), `missing ${lang} source note`)
+        assert.ok(article.includes(`<li>${richIn(lang, note)}</li>`), `missing ${lang} source note`)
         const links = matches(note, /\]\((https:\/\/[^)]+)\)/g).map((match) => match[1])
         assert.ok(links.length > 0, 'source note lacks a link')
         for (const source of links) {
@@ -276,7 +287,7 @@ test('project pages render each language with dated, owned immutable sources', (
         }
       }
       sourceGroups.push(urls.sort())
-      assert.ok(article.includes(`<p>${richText(project.definition[lang])}</p>`))
+      assert.ok(article.includes(`<p>${richIn(lang, project.definition[lang])}</p>`))
       assert.ok(!article.includes(`<p>${richText(project.definition[other(lang)])}</p>`))
       const software = graphOf(html).find((node) => node.codeRepository === project.github)
       assert.equal(software.description, project.definition[lang])
@@ -316,15 +327,19 @@ test('glossary terms have pages in each language, valid relationships and tracea
       assert.equal(matches(html, /<h1\b/g).length, 1)
       // The term itself is Chinese: marked zh-CN on the English page, plain inside the zh-CN document.
       assert.ok(html.includes(lang === 'en' ? `<h1 lang="zh-CN">${term.term}</h1>` : `<h1>${term.term}</h1>`))
-      assert.ok(termHtml.includes(`<p>${richText(term.definition[lang])}</p>`), `missing ${lang} definition`)
+      assert.ok(termHtml.includes(`<p>${richIn(lang, term.definition[lang])}</p>`), `missing ${lang} definition`)
       assert.ok(!termHtml.includes(`<p>${richText(term.definition[other(lang)])}</p>`))
       const definition = graphOf(html).find((node) => node['@type'] === 'DefinedTerm')
       assert.equal(definition.name, term.term)
       assert.equal(definition.url, urlIn(lang, route))
       assert.equal(definition.description, term.definition[lang])
       const links = matches(term.in_practice[lang], /\]\((https:\/\/[^)]+)\)/g).map((match) => match[1])
+      // A term may point at the one page that owns its how-to intent (a guide or craft article),
+      // the same page in both languages.
       const guideLinks = links.filter((link) => link.startsWith('https://zenstory.ai/'))
-      assert.deepEqual(guideLinks, term.slug === 'huangjinsanzhang' ? ['https://zenstory.ai/oh-story/novel-opening'] : [])
+      assert.ok(guideLinks.length <= 1, `${term.slug} links more than one owning page`)
+      assert.deepEqual(guideLinks, matches(term.in_practice[other(lang)], /\]\((https:\/\/zenstory\.ai\/[^)]+)\)/g).map((match) => match[1]), `${term.slug} links different owning pages in EN and ZH`)
+      for (const link of guideLinks) assert.ok(existsSync(join(outDir, outPath(lang, new URL(link).pathname), 'index.html')), `${term.slug} links a missing page ${link}`)
       const sources = links.filter((link) => !guideLinks.includes(link))
       assert.ok(sources.length > 0, `${term.slug} lacks ${lang} source references`)
       sourceGroups.push(sources.sort())

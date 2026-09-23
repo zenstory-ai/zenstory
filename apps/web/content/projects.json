@@ -54,7 +54,7 @@
         ],
         [
           "How do I make the first three chapters invite continued reading?",
-          "Give the opening a specific promise and deliver something before handing on the next question. The [original serial-opening guide](https://zenstory.ai/oh-story/novel-opening) stages a novice guide’s failed map, then carries a small job through a costly route choice to actual arrival and payment. It distinguishes a bounded win from solving the whole book, and three chapter plans from three completed chapters; no fixed retention or commercial-success claim."
+          "Give each of the first three chapters one job: chapter 1 puts the protagonist into a conflict with a stated goal, chapter 2 escalates and lands a payoff, chapter 3 shows the long-term goal readers will follow. The [golden three chapters guide](https://zenstory.ai/oh-story/novel-opening) has a copyable opening checklist, an original before/after rewrite and a self-check scorecard; for the last line of every chapter, see [types of cliffhangers](https://zenstory.ai/oh-story/chapter-ending-hooks)."
         ],
         [
           "Can one premise become a complete short story rather than a serial opening?",
@@ -111,8 +111,8 @@
           "安装 skill 包后，在写作项目目录运行 `/story-setup`，再新开会话。通过 `/story` 描述任务，不必先记住全部 skill。新建长篇可以说 `/story-long-write 帮我开书`：默认先生成设定、大纲与细纲，在正文前停下。审阅规划后，再明确请求 `/story-long-write 写第1章`。这是 Agent 宿主内的流程，不是登录另一个产品 ZenStory 网页工作台。 “不写正文”仍会建立规划文件；大纲阶段完成后才初始化追踪状态。建立项目前的第一轮，可以用[作者 Skill 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)比较两个具体调查开端，再把选定方向带入单独的规划请求。 如果人设很完整、人物却不行动，[人物动机指南](https://zenstory.ai/oh-story/character-motivation)从中继规划写到争取、抵抗与分享功劳的原创场景，不把达成约定当成已完成送达。"
         ],
         [
-          "前三章怎样让人想接着看，而不是一直吊胃口？",
-          "先提出具体期待，再兑现一点，才把后续问题接过去。[原创连载开篇指南](https://zenstory.ai/oh-story/novel-opening)从新手向导的旧地图失灵写起，经由有代价的选路，走到实际送达与付费。分清有限胜利与解决全书，也分清三章方案与写完三章，不承诺固定留存或商业成功。"
+          "黄金三章怎么写，前三章怎样让人想接着看？",
+          "前三章各管一件事：第一章让主角在冲突里登场、交代目标，第二章升级矛盾并兑现爽点，第三章亮出读者要追的长线目标。[黄金三章指南](https://zenstory.ai/oh-story/novel-opening)附可复制的开篇清单、原创改写示例和自查评分表；每章最后一句怎么留，见[网文断章技巧](https://zenstory.ai/oh-story/chapter-ending-hooks)。"
         ],
         [
           "只有一个梗，怎么写成完整短篇而不是连载开头？",
