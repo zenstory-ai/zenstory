@@ -325,6 +325,8 @@ html[data-lang="zh"] .hero-copy h1 > .headline { display: block; } /* the Chines
 .article-body ul, .article-body ol { padding-left: 22px; margin: 0 0 18px; }
 .article-body li { margin-bottom: 8px; color: var(--text); }
 .article-body li::marker { color: var(--muted); }
+.article-body code { overflow-wrap: anywhere; }
+.table-wrap:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .article-body ul.checklist { list-style: none; padding-left: 4px; }
 .article-body ul.checklist li { position: relative; padding-left: 28px; }
 .article-body ul.checklist li::before { content: ""; position: absolute; left: 0; top: .3em; width: 14px; height: 14px; border: 1.5px solid var(--rule-strong); border-radius: 3px; background: var(--surface); }
@@ -335,7 +337,8 @@ html[data-lang="zh"] .hero-copy h1 > .headline { display: block; } /* the Chines
 .table-wrap table { width: 100%; border-collapse: collapse; font-size: 15px; line-height: 1.55; }
 .table-wrap th, .table-wrap td { padding: 10px 14px; text-align: left; vertical-align: top; border-top: 1px solid var(--rule); }
 .table-wrap thead th { border-top: 0; background: var(--cream); color: var(--ink); font-weight: 600; white-space: nowrap; }
-.table-wrap td:first-child { color: var(--ink); font-weight: 600; min-width: 6em; }
+.table-wrap :is(th, td) { min-width: 7.5em; }
+.table-wrap :is(th, td):first-child { min-width: 2em; color: var(--ink); font-weight: 600; }
 .use-skill { margin-top: 36px; padding: 4px 24px 18px; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); }
 .use-skill h2 { border-top: 0; margin-top: 18px; padding-top: 0; font-size: 22px; }
 

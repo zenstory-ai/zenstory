@@ -82,7 +82,7 @@ test('craft articles render free-form sections, one language per URL, and Chines
     assert.ok(html.includes(lang === 'zh' ? '<strong>具体</strong>' : '<strong>specific</strong>'))
     for (const s of a.sections) assert.ok(html.includes(`<h2 id="${s.id}">${escape(s.heading[lang])}</h2>`))
     for (const id of ['types', 'links', 'faq', 'use-the-skill', 'related']) assert.ok(html.includes(`<li><a href="#${id}">`), `${lang}: contents lack #${id}`)
-    assert.ok(html.includes('<div class="table-wrap"><table><thead><tr><th scope="col">'))
+    assert.match(html, /<div class="table-wrap" role="region" tabindex="0" aria-label="[^"]+"><table><thead><tr><th scope="col">/)
     assert.ok(html.includes('href="https://github.com/zenstory-ai/oh-story-claudecode/tree/main/skills/story-long-write"'))
     const graph = graphOf(html)
     assert.deepEqual(graph.map((node) => node['@type']), ['Organization', 'Article', 'BreadcrumbList'])

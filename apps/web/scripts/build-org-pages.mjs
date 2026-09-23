@@ -229,7 +229,9 @@ const md = (text) => String(text).trim().split(/\n{2,}/).map((block) => {
     const cells = (line) => line.slice(1, -1).split('|').map((cell) => cell.trim())
     const width = cells(lines[0]).length
     assert.ok(lines.every((line) => cells(line).length === width), `Ragged table: ${lines[0]}`)
-    return `<div class="table-wrap"><table><thead><tr>${cells(lines[0]).map((cell) => `<th scope="col">${inline(cell)}</th>`).join('')}</tr></thead><tbody>${lines.slice(2).map((line) => `<tr>${cells(line).map((cell) => `<td>${inline(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`
+    // A scroll container must be keyboard-focusable and named (axe: scrollable-region-focusable).
+    const label = `${t('Table', '表格')}: ${cells(lines[0]).join(' / ')}`.replace(/[`*]/g, '')
+    return `<div class="table-wrap" role="region" tabindex="0" aria-label="${esc(label)}"><table><thead><tr>${cells(lines[0]).map((cell) => `<th scope="col">${inline(cell)}</th>`).join('')}</tr></thead><tbody>${lines.slice(2).map((line) => `<tr>${cells(line).map((cell) => `<td>${inline(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`
   }
   return `<p>${lines.map(inline).join('<br>')}</p>`
 }).join('\n')
@@ -359,7 +361,7 @@ const homePage = () => {
     },
   ]
   const flagship = projects[0]
-  const featured = featuredGuideSlugs.map((slug) => guides.find((g) => g.slug === slug)).filter(Boolean)
+  const featured = featuredGuideSlugs.map((slug) => guides.find((g) => g.slug === slug) ?? articles.find((a) => a.slug === slug && a.langs.includes(LANG))).filter(Boolean)
   const hosts = org.proof.harnesses
   const body = `
 <article class="home">
