@@ -334,10 +334,12 @@ test('glossary terms have pages in each language, valid relationships and tracea
       assert.equal(definition.url, urlIn(lang, route))
       assert.equal(definition.description, term.definition[lang])
       const links = matches(term.in_practice[lang], /\]\((https:\/\/[^)]+)\)/g).map((match) => match[1])
-      // A term may point at the one page that owns its how-to intent (a guide or craft article).
+      // A term may point at the one page that owns its how-to intent (a guide or craft article),
+      // the same page in both languages.
       const guideLinks = links.filter((link) => link.startsWith('https://zenstory.ai/'))
       assert.ok(guideLinks.length <= 1, `${term.slug} links more than one owning page`)
-      for (const link of guideLinks) assert.ok(existsSync(join(outDir, new URL(link).pathname.slice(1), 'index.html')), `${term.slug} links a missing page ${link}`)
+      assert.deepEqual(guideLinks, matches(term.in_practice[other(lang)], /\]\((https:\/\/zenstory\.ai\/[^)]+)\)/g).map((match) => match[1]), `${term.slug} links different owning pages in EN and ZH`)
+      for (const link of guideLinks) assert.ok(existsSync(join(outDir, outPath(lang, new URL(link).pathname), 'index.html')), `${term.slug} links a missing page ${link}`)
       const sources = links.filter((link) => !guideLinks.includes(link))
       assert.ok(sources.length > 0, `${term.slug} lacks ${lang} source references`)
       sourceGroups.push(sources.sort())

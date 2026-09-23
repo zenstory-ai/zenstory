@@ -95,7 +95,7 @@ for (const article of articles) {
   assert.ok(isDate(article.published_on) && isDate(article.updated_on) && article.updated_on >= article.published_on, `Invalid article dates: ${route}`)
   assert.ok(Array.isArray(article.sections) && article.sections.length >= 2, `Invalid article content: ${route} needs sections`)
   const ids = article.sections.map((section) => section.id)
-  assert.ok(ids.every((id) => /^[a-z0-9-]+$/.test(id ?? '') && !['faq', 'use-the-skill', 'related'].includes(id)) && new Set(ids).size === ids.length, `Invalid article section ids: ${route}`)
+  assert.ok(ids.every((id) => /^[a-z0-9-]+$/.test(id ?? '') && !['faq', 'use-the-skill', 'related', 'main'].includes(id)) && new Set(ids).size === ids.length, `Invalid article section ids: ${route}`)
   assert.ok(typeof article.skill?.name === 'string' && /^[a-z0-9-]+$/.test(article.skill.name), `Invalid article skill: ${route}`)
   for (const lang of langs) {
     for (const field of ['title', 'seo_title', 'description', 'answer']) assert.ok(article[field]?.[lang]?.trim(), `Invalid article content: ${route} ${field}.${lang}`)
@@ -192,18 +192,30 @@ const heading = (level, enText, zhText, id) => `<h${level}${id ? ` id="${id}"` :
 const list = (items) => `<ul>${items.map((i) => `<li>${rich(i)}</li>`).join('')}</ul>`
 const steps = (items) => `<ol class="steps">${items.map(([k, v]) => `<li><b>${rich(k)}</b> ${rich(v)}</li>`).join('')}</ol>`
 
+/** Site paths served on one URL for both languages; they are not organization routes. */
+const SINGLE_URL = /^\/(?:docs(?:\/|$)|llms\.txt$|privacy-policy$|terms-of-service$)/
 /**
  * Inline markup for article prose: `code`, **bold**, and [text](url) links where
- * the url is absolute or an organization route such as /oh-story/novel-opening.
- * A relative link must name a page that exists on the current language's site.
+ * the url is absolute or a site path such as /oh-story/novel-opening. Links to this
+ * site (relative, or written as https://zenstory.ai/…) are output as paths, so
+ * Chinese pages localize them, and must name a page that exists in the current
+ * language. Code spans are literal: no bold or links inside them.
  */
-const inline = (s) => esc(s)
-  .replace(/`([^`]+)`/g, '<code>$1</code>')
+const prose = (s) => esc(s)
   .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-  .replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/)[^)\s]*)\)/g, (m, text, href) => {
-    if (href.startsWith('/')) assert.ok(routeExists(LANG, href.split('#')[0]), `Article links a page that does not exist in ${LANG}: ${href}`)
+  .replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/)[^)\s]*)\)/g, (m, text, url) => {
+    let href = url
+    const own = url.match(/^https:\/\/(?:www\.)?zenstory\.ai(?=\/|$)(.*)$/)
+    if (own) href = own[1] || '/'
+    if (href.startsWith('/')) {
+      const [, path, rest] = href.match(/^([^?#]*)(.*)$/)
+      const route = path.length > 1 ? path.replace(/\/$/, '') : path
+      assert.ok(SINGLE_URL.test(route) || routeExists(LANG, route), `Article links a page that does not exist in ${LANG}: ${url}`)
+      href = `${route}${rest}`
+    }
     return `<a href="${href}">${text}</a>`
   })
+const inline = (s) => String(s).split(/(`[^`]+`)/).map((part, i) => (i % 2 ? `<code>${esc(part.slice(1, -1))}</code>` : prose(part))).join('')
 
 /**
  * Block markup for article bodies (blocks separated by a blank line): a block is
@@ -222,7 +234,7 @@ const md = (text) => String(text).trim().split(/\n{2,}/).map((block) => {
     return `<ul${checklist ? ' class="checklist"' : ''}>${lines.map((line) => `<li>${inline(checklist ? line.slice(6) : line.slice(2))}</li>`).join('')}</ul>`
   }
   if (kind === 'ol') { assert.ok(all(/^\d+\. /), `Mixed list block: ${lines[0]}`); return `<ol>${lines.map((line) => `<li>${inline(line.replace(/^\d+\. /, ''))}</li>`).join('')}</ol>` }
-  if (kind === 'quote') { assert.ok(all(/^> ?/), `Mixed quote block: ${lines[0]}`); return `<blockquote>${lines.map((line) => line.replace(/^> ?/, '')).join('\n').split(/\n(?=\S)/).map((para) => `<p>${inline(para)}</p>`).join('')}</blockquote>` }
+  if (kind === 'quote') { assert.ok(all(/^> ?/), `Mixed quote block: ${lines[0]}`); return `<blockquote>${lines.map((line) => line.replace(/^> ?/, '').trim()).filter(Boolean).map((para) => `<p>${inline(para)}</p>`).join('')}</blockquote>` }
   if (kind === 'h3') { assert.equal(lines.length, 1, `A ### heading is its own block: ${lines[0]}`); return `<h3>${inline(lines[0].slice(4))}</h3>` }
   if (kind === 'table') {
     assert.ok(all(/^\|.*\|$/) && lines.length >= 3 && /^\|[\s:|-]+\|$/.test(lines[1]), `Malformed table: ${lines[0]}`)
@@ -233,6 +245,8 @@ const md = (text) => String(text).trim().split(/\n{2,}/).map((block) => {
     const label = `${t('Table', '表格')}: ${cells(lines[0]).join(' / ')}`.replace(/[`*]/g, '')
     return `<div class="table-wrap" role="region" tabindex="0" aria-label="${esc(label)}"><table><thead><tr>${cells(lines[0]).map((cell) => `<th scope="col">${inline(cell)}</th>`).join('')}</tr></thead><tbody>${lines.slice(2).map((line) => `<tr>${cells(line).map((cell) => `<td>${inline(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`
   }
+  // A list, table, quote or heading line inside a paragraph means a missing blank line.
+  assert.ok(!/^#{1,6} /.test(lines[0]) && lines.slice(1).every((line) => !/^(?:- |\d+\. |\||> ?|#{1,6} )/.test(line)), `Block markup inside a paragraph (add a blank line before it): ${lines[0]}`)
   return `<p>${lines.map(inline).join('<br>')}</p>`
 }).join('\n')
 const comparisonLinks = (project) => comparisons.filter((comparison) => comparison.options.some((option) => option.project === project))
@@ -410,11 +424,11 @@ const homePage = () => {
       </a>`
     }).join('')}
     </div>
-    <h3 class="sub-h">${t(`All ${guides.length} guides, by project`, `全部 ${guides.length} 篇指南，按项目分组`)}</h3>
-    <div class="guide-groups">${projects.filter((p) => guidesOf(p.slug).length).map((p) => `
-      <div class="guide-group${guidesOf(p.slug).length > 6 ? ' wide' : ''}">
-        <h4><a href="/${p.slug}">${esc(p.name.en)}</a> <span class="count">${guidesOf(p.slug).length}</span></h4>
-        ${guideList(guidesOf(p.slug))}
+    <h3 class="sub-h">${t(`All ${readingOf().length} guides, by project`, `全部 ${readingOf().length} 篇指南，按项目分组`)}</h3>
+    <div class="guide-groups">${projects.filter((p) => readingOf(p.slug).length).map((p) => `
+      <div class="guide-group${readingOf(p.slug).length > 6 ? ' wide' : ''}">
+        <h4><a href="/${p.slug}">${esc(p.name.en)}</a> <span class="count">${readingOf(p.slug).length}</span></h4>
+        ${guideList(readingOf(p.slug))}
       </div>`).join('')}
     </div>
     <p class="more"><a href="/guides">${t('All guides, grouped by project', '按项目查看全部指南')}${arrowGlyph}</a></p>
@@ -626,6 +640,8 @@ const guidePage = (g) => {
 
 /** Articles of a project that exist on the current language's site. */
 const articlesOf = (slug) => articles.filter((a) => a.owner === slug && a.langs.includes(LANG))
+/** Guides and craft articles (of one project, or all) on the current language's site. */
+const readingOf = (slug) => [...guides, ...articles.filter((a) => a.langs.includes(LANG))].filter((item) => !slug || item.owner === slug)
 const articleList = (items) => `<ul class="guide-list">${items.map((a) => `<li>${listLink(`/${a.owner}/${a.slug}`, esc(a.title.en ?? ''), esc(a.title.zh))}</li>`).join('')}</ul>`
 
 /** Title of an organization route on the current language's site, for related-reading lists. */
@@ -661,7 +677,7 @@ const articlePage = (a) => {
     orgNode,
     { '@type': 'Article', '@id': `${url}#article`, url,
       headline: pick(a.title), description: pick(a.description), inLanguage: LOCALE[LANG],
-      datePublished: a.published_on, dateModified: a.updated_on,
+      datePublished: a.published_on, dateModified: a.updated_on, image: `${SITE}/brand/og-zenstory-ai.png`,
       author: { '@id': `${SITE}/#org` }, publisher: { '@id': `${SITE}/#org` } },
     breadcrumb([['ZenStory AI', U('/')], [owner.name.en, U(`/${owner.slug}`)], [pick(a.title), url]]),
   ]
@@ -738,7 +754,7 @@ const guidesIndex = () => {
     <p class="facts"><a href="/${p.slug}">${t(`About ${esc(p.name.en)}`, `关于 ${esc(p.name.en)}`)}${arrowGlyph}</a></p>
     </div>
     <div>
-    ${guideList(guidesOf(p.slug))}
+    ${guidesOf(p.slug).length ? guideList(guidesOf(p.slug)) : ''}
     ${articlesOf(p.slug).length ? `<h3 class="sub-h">${t('Writing craft', '写作技法')}</h3>
     ${articleList(articlesOf(p.slug))}` : ''}
     </div>
@@ -951,6 +967,9 @@ for (const lang of LANGS) {
   LANG = lang
   for (const a of articles.filter((candidate) => candidate.langs.includes(lang))) {
     for (const text of [a.answer, a.skill.text, ...a.sections.map((section) => section.body), ...(a.faq ?? []).map((item) => item.a)]) md(text[lang])
+    for (const route of (a.related ?? []).filter((r) => routeExists(lang, r))) {
+      assert.ok(route !== `/${a.owner}/${a.slug}` && routeTitle(route), `/${a.owner}/${a.slug} lists itself or an untitled page as related: ${route}`)
+    }
   }
 }
 
@@ -970,4 +989,4 @@ for (const lang of LANGS) {
 }
 
 const routes = [...orgRoutes].map((route) => (route === '/' ? '/org-home' : route))
-console.log(`org pages: wrote ${routes.length} routes × ${LANGS.length} languages to ${outDir}\n  ${routes.join('  ')}`)
+console.log(`org pages: wrote ${routes.length} routes × ${LANGS.length} languages${zhOnlyRoutes.size ? ` + ${zhOnlyRoutes.size} Chinese-only` : ''} to ${outDir}\n  ${routes.join('  ')}${zhOnlyRoutes.size ? `\n  Chinese-only: ${[...zhOnlyRoutes].map((r) => `/zh${r}`).join('  ')}` : ''}`)

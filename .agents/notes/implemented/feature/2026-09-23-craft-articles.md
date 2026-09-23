@@ -9,7 +9,7 @@ Status: implemented
 ## Decision
 
 - 新增内容文件 `apps/web/content/articles.json`，每篇文章路由与指南相同：`/<project>/<slug>`，中文在 `/zh/<project>/<slug>`。不新增路由前缀，所以 `site-routing.json` 与 `vercel.json` 不变。
-- 正文是自由分节：`sections[]` 的每节有 `id`、标题与一段轻量标记（段落、`- ` 列表、`1. ` 列表、`|` 表格、`> ` 原创示例、单独一行的 `### ` 小标题；行内支持 `code`、**粗体** 与链接）。混用的块、残缺表格、指向不存在页面的站内链接都会让构建失败，且在写出任何文件之前失败。
+- 正文是自由分节：`sections[]` 的每节有 `id`、标题与一段轻量标记（段落、`- ` 列表、`- [ ] ` 可复制清单、`1. ` 列表、`|` 表格、`> ` 原创示例、单独一行的 `### ` 小标题；行内支持 `code`、**粗体** 与链接，代码片段内原样显示）。站内链接无论写成路径还是 `https://zenstory.ai/…`，都输出为路径（中文页再改指 `/zh`），且必须指向当前语言存在的页面。混用的块、段落里夹着列表或表格行、残缺表格、指向不存在页面的站内链接、把自己列为相关阅读，都会让构建失败，且在写出任何文件之前失败。
 - `langs` must 含 `zh`；含 `en` 时写两种语言并互相 hreflang，不含时只写 `/zh` 页：没有 hreflang 对，语言切换的 EN 指向所属项目的英文页，英文页面和英文索引 never 链接纯中文文章，sitemap 条目不带 alternates。
 - 每篇只显示一个日期（`updated_on`），JSON-LD 为 `Article`，带 `datePublished` / `dateModified`。`seo_title`（中文 ≤30 字、英文 ≤60 字符）与 H1 `title` 分开；`description` 中文 ≤90、英文 ≤160。
 - 每篇末尾是"用 skill 来做"：一段说明，加所属项目页与该 skill 的 GitHub 目录两个链接，代替工具手册式的多条固定提交源码引用。
@@ -30,4 +30,4 @@ Status: implemented
 
 ## Verification
 
-`cd apps/web && pnpm test:site`（新增 `scripts/__tests__/article-pages.test.mjs`：双语与纯中文夹具、标记渲染、sitemap 条目、非法数据在写出前失败）与 `pnpm build:vercel`。
+`cd apps/web && pnpm test:site`（新增 `scripts/__tests__/article-pages.test.mjs`：双语与纯中文夹具、标记渲染、sitemap 条目、非法数据在写出前失败，并对 `articles.json` 里的每篇真实文章检查 canonical、hreflang、单一 H1、锚点与 JSON-LD，所以新增文章不改测试也有覆盖）与 `pnpm build:vercel`。

@@ -39,7 +39,11 @@ export function orgPageRoutes(contentDir = path.resolve(__dirname, 'content')): 
   const projects = read('projects.json') as { slug: string }[]
   const glossary = read('glossary.json') as { slug: string }[]
   const guides = read('guides.json') as { owner: string; slug: string }[]
-  const articles = read('articles.json') as { owner: string; slug: string; langs: string[] }[]
+  const articles = read('articles.json') as { owner?: unknown; slug?: unknown; langs?: unknown }[]
+  for (const article of articles) {
+    if (typeof article.slug !== 'string' || !/^[a-z0-9-]+$/.test(article.slug) || !projects.some((p) => p.slug === article.owner)) throw new Error('Invalid article identity')
+    if (!Array.isArray(article.langs) || !article.langs.includes('zh') || article.langs.some((lang) => lang !== 'zh' && lang !== 'en')) throw new Error('Invalid article languages')
+  }
   const comparisons = read('comparisons.json') as { slug?: unknown; options?: { project?: unknown }[] }[]
   const expectedProjects = ['oh-story', 'dsh', 'workbench']
   const comparisonRoutes = new Set<string>()
@@ -51,10 +55,10 @@ export function orgPageRoutes(contentDir = path.resolve(__dirname, 'content')): 
     const options = comparison.options?.map((option) => option.project)
     if (!options || options.length !== expectedProjects.length || options.some((project, index) => project !== expectedProjects[index]) || options.some((project) => !projects.some((candidate) => candidate.slug === project))) throw new Error('Invalid comparison options')
   }
-  const english = ['/projects', ...projects.map((p) => `/${p.slug}`), ...guides.map((g) => `/${g.owner}/${g.slug}`), ...articles.filter((a) => a.langs.includes('en')).map((a) => `/${a.owner}/${a.slug}`), '/guides', ...comparisonRoutes, '/glossary', ...glossary.map((g) => `/glossary/${g.slug}`)]
+  const english = ['/projects', ...projects.map((p) => `/${p.slug}`), ...guides.map((g) => `/${g.owner}/${g.slug}`), ...articles.filter((a) => (a.langs as string[]).includes('en')).map((a) => `/${a.owner}/${a.slug}`), '/guides', ...comparisonRoutes, '/glossary', ...glossary.map((g) => `/glossary/${g.slug}`)]
   // Every organization route also exists in Chinese under /zh (and /zh is the Chinese home);
   // Chinese-only craft articles exist only there.
-  const chineseOnly = articles.filter((a) => !a.langs.includes('en')).map((a) => `/zh/${a.owner}/${a.slug}`)
+  const chineseOnly = articles.filter((a) => !(a.langs as string[]).includes('en')).map((a) => `/zh/${a.owner}/${a.slug}`)
   return [...english, '/zh', ...english.map((route) => `/zh${route}`), ...chineseOnly]
 }
 

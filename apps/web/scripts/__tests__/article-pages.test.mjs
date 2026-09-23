@@ -44,7 +44,7 @@ const fixtureBilingual = {
   answer: { zh: '章尾留一个**具体**的未完成动作。', en: 'End on one **specific** unfinished action.' },
   sections: [
     section('types', '| 类型 | 做法 |\n|---|---|\n| 危机 | 危险刚到 |\n| 悬念 | 问题刚问出 |\n\n- 第一条\n- 第二条\n\n- [ ] 可复制的检查项\n- [ ] 第二项\n\n### 小标题\n\n> 原创示例第一段。\n> 原创示例第二段。', '| Type | Move |\n|---|---|\n| Threat | Danger arrives |\n\n1. First\n2. Second'),
-    section('links', '见[长篇连贯指南](/oh-story/long-novel-continuity)，以及[纯中文页](/oh-story/fixture-zh-only)。', 'See the [continuity guide](/oh-story/long-novel-continuity).'),
+    section('links', '见[长篇连贯指南](/oh-story/long-novel-continuity)，以及[纯中文页](/oh-story/fixture-zh-only)、[钩子](https://zenstory.ai/glossary/gouzi/)。代码 `**不加粗** [不是链接](/nope)` 原样显示。', 'See the [continuity guide](https://zenstory.ai/oh-story/long-novel-continuity). Code `**literal**` stays.'),
   ],
   faq: [{ q: { zh: '每章都要留钩子吗？', en: 'Does every chapter need a hook?' }, a: { zh: '要有推进。', en: 'It needs movement.' } }],
   skill: { name: 'story-long-write', text: { zh: '用 `/story-long-write` 写下一章。', en: 'Use `/story-long-write` for the next chapter.' } },
@@ -101,7 +101,11 @@ test('craft articles render free-form sections, one language per URL, and Chines
   assert.ok(zh.includes('<blockquote><p>原创示例第一段。</p><p>原创示例第二段。</p></blockquote>'))
   assert.ok(zh.includes('href="/zh/oh-story/long-novel-continuity"'), 'zh body links stay on /zh')
   assert.ok(zh.includes(`href="/zh${zhOnlyRoute}"`), 'zh page links the Chinese-only article')
+  assert.ok(zh.includes('href="/zh/glossary/gouzi"'), 'absolute self-links become localized paths without the trailing slash')
+  assert.ok(zh.includes('<code>**不加粗** [不是链接](/nope)</code>'), 'code spans are literal')
   const en = readPage(out, bilingualRoute.slice(1))
+  assert.ok(en.includes('<a href="/oh-story/long-novel-continuity">continuity guide</a>'))
+  assert.ok(en.includes('<code>**literal**</code>'))
   assert.ok(en.includes('<ol><li>First</li><li>Second</li></ol>'))
   assert.ok(!en.includes(zhOnlyRoute), 'English pages never link a Chinese-only article')
 
@@ -145,9 +149,27 @@ test('published craft articles are listed in llms.txt and render in every langua
   assert.equal(result.status, 0, result.stderr)
   for (const a of articles) {
     const route = `/${a.owner}/${a.slug}`
-    assert.ok(directory.includes(`](${urlIn(a.langs.includes('en') ? 'en' : 'zh', route)})`), `llms.txt lacks ${route}`)
+    const bilingual = a.langs.includes('en')
+    assert.ok(directory.includes(`](${urlIn(bilingual ? 'en' : 'zh', route)})`), `llms.txt lacks ${route}`)
     for (const lang of LANGS) {
       assert.equal(existsSync(join(out, routeIn(lang, route).slice(1), 'index.html')), a.langs.includes(lang), `${route} (${lang})`)
+      if (!a.langs.includes(lang)) continue
+      const html = readPage(out, routeIn(lang, route).slice(1))
+      assert.ok(html.includes(`<link rel="canonical" href="${urlIn(lang, route)}">`), `${route} (${lang}) canonical`)
+      assert.equal(matches(html, /<link rel="alternate" hreflang=/g).length, bilingual ? 4 : 0, `${route} (${lang}) hreflang set`)
+      if (!bilingual) assert.ok(html.includes(`<a href="/${a.owner}" lang="en" hreflang="en">EN</a>`), `${route}: EN switch leads to the project page`)
+      assert.equal(matches(html, /<h1\b/g).length, 1, `${route} (${lang}) has one h1`)
+      assert.ok(html.includes(`<title>${escape(a.seo_title[lang])} | ZenStory AI</title>`))
+      const ids = matches(html, /\sid="([^"]+)"/g).map((m) => m[1])
+      assert.equal(ids.length, new Set(ids).size, `${route} (${lang}) duplicate id`)
+      for (const [, target] of matches(html, /href="#([^"]+)"/g)) assert.ok(ids.includes(target), `${route} (${lang}) anchor #${target} has no target`)
+      assert.deepEqual(graphOf(html).map((node) => node['@type']), ['Organization', 'Article', 'BreadcrumbList'])
+      if (lang === 'zh') {
+        const body = html.slice(html.indexOf('<body>')).replace(/<div class="lang-switch"[\s\S]*?<\/div>/, '')
+        for (const [, href] of [...matches(body, /href="(\/[^"]*)"/g), ...matches(body, /href="https:\/\/zenstory\.ai(\/[^"]*)"/g)]) {
+          assert.ok(/^\/(?:zh(?:\/|$)|docs(?:\/|$)|privacy-policy|terms-of-service|llms\.txt|brand\/|org\/|favicon\.svg)/.test(href), `${route} (zh) links off the Chinese site: ${href}`)
+        }
+      }
     }
   }
 })
@@ -166,9 +188,16 @@ test('invalid craft articles fail the build before any page is written', (t) => 
     [{ ...valid, sections: [section('one', '- 列表\n不是列表'), section('two', '正文。')] }, /Mixed list block/],
     [{ ...valid, sections: [section('one', '链接[不存在](/oh-story/missing)。'), section('two', '正文。')] }, /does not exist in zh/],
     [{ ...valid, sections: [section('one', '| a | b |\n|---|---|\n| 1 |'), section('two', '正文。')] }, /Malformed table|Ragged table/],
+    [{ ...valid, sections: [section('one', '引言：\n- 列表少了空行'), section('two', '正文。')] }, /Block markup inside a paragraph/],
+    [{ ...valid, sections: [section('one', '见[旧页](https://zenstory.ai/oh-story/missing)。'), section('two', '正文。')] }, /does not exist in zh/],
+    [{ ...valid, sections: [section('main', '正文。'), section('two', '正文。')] }, /Invalid article section ids/],
+    [{ ...valid, sections: [section('one', '正文。'), section('two', '正文。')], related: ['/oh-story/fixture-zh-only'] }, /lists itself or an untitled page/],
   ]
+  // An English page must not link a Chinese-only article.
+  const englishLinksChineseOnly = { ...fixtureBilingual, related: [], sections: [section('one', '正文。', 'See [the zh-only page](/oh-story/fixture-zh-only).'), section('two', '正文。', 'Body.')] }
+  cases.push([[englishLinksChineseOnly, valid], /does not exist in en/])
   for (const [article, pattern] of cases) {
-    const root = scratch(t, [article])
+    const root = scratch(t, Array.isArray(article) ? article : [article])
     const { out, result } = build(root)
     assert.notEqual(result.status, 0, `accepted ${JSON.stringify(article).slice(0, 80)}`)
     assert.match(result.stderr, pattern)
