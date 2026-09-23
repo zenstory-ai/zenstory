@@ -105,13 +105,14 @@ const breadcrumb = (items) => ({
 
 /**
  * Body markup for the current language. On Chinese pages, internal links to
- * organization routes are re-pointed at the Chinese site (links to single-URL
- * pages such as /docs, legal pages and llms.txt, and external links stay), and
+ * organization routes — relative or written as absolute https://zenstory.ai
+ * URLs in the content JSON — are re-pointed at the Chinese site (links to
+ * single-URL pages such as /docs, legal pages and llms.txt, and external links stay), and
  * per-element zh-CN markers are dropped because the whole document is zh-CN.
  */
 const localizeBody = (html) => (LANG === 'zh'
   ? html
-    .replace(/href="(\/[^"#?]*)([#?][^"]*)?"/g, (m, path, rest) => (orgRoutes.has(path) ? `href="${L(path)}${rest ?? ''}"` : m))
+    .replace(/href="(?:https:\/\/zenstory\.ai)?(\/[^"#?]*)([#?][^"]*)?"/g, (m, path, rest) => (orgRoutes.has(path) ? `href="${L(path)}${rest ?? ''}"` : m))
     .replace(/ lang="zh-CN"/g, '')
   : html)
 

@@ -38,6 +38,10 @@ const readOutput = (outDir, route) => readFileSync(join(outDir, route, 'index.ht
 const matches = (html, pattern) => [...html.matchAll(pattern)]
 const escape = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 const richText = (s) => escape(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2">$1</a>')
+/** Chinese pages point organization links written as absolute zenstory.ai URLs at the /zh site (single-URL pages stay). */
+const zhLinks = (html) => html.replace(/href="https:\/\/zenstory\.ai(\/(?!zh(?:\/|")|docs(?:\/|")|privacy-policy|terms-of-service|llms\.txt)[^"]*)"/g, (m, path) => `href="${path === '/' ? '/zh' : `/zh${path}`}"`)
+/** Rich text as rendered on the `lang` page. */
+const richIn = (lang, s) => (lang === 'zh' ? zhLinks(richText(s)) : richText(s))
 const graphOf = (html) => JSON.parse(matches(html, /<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi)[0][1])['@graph']
 
 /** Head invariants of one generated page: canonical, hreflang pair, Open Graph locale, language attributes. */
@@ -62,7 +66,11 @@ function assertHead(html, lang, route) {
     // Every internal link on a Chinese page stays on the Chinese site, except single-URL pages
     // and the language switch, which is the one link to the English counterpart.
     const withoutSwitch = html.replace(/<div class="lang-switch"[\s\S]*?<\/div>/, '')
-    for (const [, href] of matches(withoutSwitch, /href="(\/[^"]*)"/g)) {
+    // Relative links anywhere, and absolute organization links in the body (the head's hreflang
+    // alternates name the English counterpart on purpose).
+    const bodyOnly = withoutSwitch.slice(withoutSwitch.indexOf('<body>'))
+    const internal = [...matches(withoutSwitch, /href="(\/[^"]*)"/g), ...matches(bodyOnly, /href="https:\/\/zenstory\.ai(\/[^"]*)"/g)]
+    for (const [, href] of internal) {
       assert.ok(/^\/(?:zh(?:\/|$)|docs(?:\/|$)|privacy-policy|terms-of-service|llms\.txt|brand\/|org\/|favicon\.svg)/.test(href), `${route} (zh) links off the Chinese site: ${href}`)
     }
     assert.equal(matches(withoutSwitch.slice(withoutSwitch.indexOf('<body>')), / lang="zh-CN"/g).length, 0, `${route} (zh) marks fragments zh-CN inside a zh-CN document`)
@@ -122,14 +130,14 @@ test('task guides render one language per URL with hreflang pairs, primary sourc
         assert.ok(ids.includes(target), `${route}: missing #${target}`)
         assert.match(article, new RegExp(`<h[23] id="${target}">`))
       }
-      assert.ok(article.includes(`<p>${richText(guide.answer[lang])}</p>`))
+      assert.ok(article.includes(`<p>${richIn(lang, guide.answer[lang])}</p>`))
       assert.ok(!article.includes(richText(guide.answer[other(lang)])))
       for (const field of ['prerequisites', 'outputs', 'verification', 'sources']) {
         assert.ok(guide[field][lang].length > 1)
-        for (const item of guide[field][lang]) assert.ok(article.includes(`<li>${richText(item)}</li>`))
+        for (const item of guide[field][lang]) assert.ok(article.includes(`<li>${richIn(lang, item)}</li>`))
         for (const item of guide[field][other(lang)]) assert.ok(!article.includes(`<li>${richText(item)}</li>`), `${route} (${lang}) renders ${other(lang)} ${field}`)
       }
-      for (const [heading, text] of guide.steps[lang]) assert.ok(article.includes(`<li><b>${richText(heading)}</b> ${richText(text)}</li>`))
+      for (const [heading, text] of guide.steps[lang]) assert.ok(article.includes(`<li><b>${richIn(lang, heading)}</b> ${richIn(lang, text)}</li>`))
       const example = matches(article, /<section class="guide-example" aria-labelledby="example-(\w+)">([\s\S]*?)<\/section>/g)
       assert.equal(example.length, 1)
       assert.equal(example[0][1], lang)
@@ -262,7 +270,7 @@ test('project pages render each language with dated, owned immutable sources', (
       assert.ok(sources.length >= 2, `${project.slug} lacks ${lang} source notes`)
       const urls = []
       for (const note of sources) {
-        assert.ok(article.includes(`<li>${richText(note)}</li>`), `missing ${lang} source note`)
+        assert.ok(article.includes(`<li>${richIn(lang, note)}</li>`), `missing ${lang} source note`)
         const links = matches(note, /\]\((https:\/\/[^)]+)\)/g).map((match) => match[1])
         assert.ok(links.length > 0, 'source note lacks a link')
         for (const source of links) {
@@ -276,7 +284,7 @@ test('project pages render each language with dated, owned immutable sources', (
         }
       }
       sourceGroups.push(urls.sort())
-      assert.ok(article.includes(`<p>${richText(project.definition[lang])}</p>`))
+      assert.ok(article.includes(`<p>${richIn(lang, project.definition[lang])}</p>`))
       assert.ok(!article.includes(`<p>${richText(project.definition[other(lang)])}</p>`))
       const software = graphOf(html).find((node) => node.codeRepository === project.github)
       assert.equal(software.description, project.definition[lang])
@@ -316,7 +324,7 @@ test('glossary terms have pages in each language, valid relationships and tracea
       assert.equal(matches(html, /<h1\b/g).length, 1)
       // The term itself is Chinese: marked zh-CN on the English page, plain inside the zh-CN document.
       assert.ok(html.includes(lang === 'en' ? `<h1 lang="zh-CN">${term.term}</h1>` : `<h1>${term.term}</h1>`))
-      assert.ok(termHtml.includes(`<p>${richText(term.definition[lang])}</p>`), `missing ${lang} definition`)
+      assert.ok(termHtml.includes(`<p>${richIn(lang, term.definition[lang])}</p>`), `missing ${lang} definition`)
       assert.ok(!termHtml.includes(`<p>${richText(term.definition[other(lang)])}</p>`))
       const definition = graphOf(html).find((node) => node['@type'] === 'DefinedTerm')
       assert.equal(definition.name, term.term)
