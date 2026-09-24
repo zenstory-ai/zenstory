@@ -100,6 +100,9 @@ describe('agentApi', () => {
   })
 
   afterEach(() => {
+    // Vitest 4's restoreAllMocks only restores vi.spyOn spies, so also reset the
+    // vi.fn() module mocks to keep per-test overrides (e.g. getAccessToken) from leaking.
+    vi.resetAllMocks()
     vi.restoreAllMocks()
   })
 

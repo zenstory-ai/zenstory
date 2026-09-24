@@ -105,8 +105,8 @@
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
-    "@vitest/coverage-v8": "^3.2.6",
-    "@vitest/ui": "^3.2.6",
+    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/ui": "^4.1.11",
     "autoprefixer": "^10.4.23",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
@@ -124,6 +124,6 @@
     "typescript-eslint": "^8.46.4",
     "vite": "^7.3.5",
     "vite-plugin-sitemap": "^0.8.2",
-    "vitest": "^3.2.6"
+    "vitest": "^4.1.11"
   }
 }

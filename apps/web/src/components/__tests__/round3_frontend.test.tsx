@@ -78,10 +78,12 @@ vi.mock('../../contexts/AuthContext', () => ({
 }))
 
 vi.mock('diff-match-patch', () => ({
-  diff_match_patch: vi.fn().mockImplementation(() => ({
-    diff_main: vi.fn().mockReturnValue([]),
-    diff_cleanupSemantic: vi.fn(),
-  })),
+  diff_match_patch: vi.fn().mockImplementation(function () {
+    return {
+      diff_main: vi.fn().mockReturnValue([]),
+      diff_cleanupSemantic: vi.fn(),
+    }
+  }),
   DIFF_DELETE: -1,
   DIFF_INSERT: 1,
   DIFF_EQUAL: 0,
