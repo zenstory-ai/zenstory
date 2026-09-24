@@ -107,11 +107,13 @@ function writePage(route, zhMd, enMd) {
   const description = firstParagraph(zhMd)
   const canonical = `${SITE}${route}`
   // Code blocks scroll sideways on phones; a scroll region must be keyboard-focusable (axe).
-  const focusable = (html) => html.replace(/<pre>/g, '<pre tabindex="0">')
+  const focusable = (html) => html.replace(/<pre>/g, '<pre tabindex="0" role="region" aria-label="代码 · Code">')
   const zhHtml = focusable(resolveLinks(render(zhMd), route))
   // The English article sits below the Chinese one on the same page: its headings move down one
   // level so the page keeps a single <h1>.
-  const enHtml = enMd ? focusable(resolveLinks(render(enMd), route)).replace(/<(\/?)h([1-5])\b/g, (m, slash, level) => `<${slash}h${Number(level) + 1}`) : ''
+  const enRendered = enMd ? render(enMd) : ''
+  assert.ok(!/<h[56]\b/.test(enRendered), `${route}: the English doc uses h5/h6, which cannot move below the page h1`)
+  const enHtml = enMd ? focusable(resolveLinks(enRendered, route)).replace(/<(\/?)h([1-5])\b/g, (m, slash, level) => `<${slash}h${Number(level) + 1}`) : ''
   const ld = [
     orgNode,
     {

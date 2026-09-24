@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -125,7 +125,7 @@ test('task guides render one language per URL with hreflang pairs, primary sourc
       const targets = matches(contents[0][1], /href="#([^"]+)"/g).map(match => match[1])
       assert.deepEqual(targets, ['before-you-start', 'steps', `example-${lang}`, ...(guide.faq?.length ? ['faq'] : []), 'expected-files', 'verify-result', 'sources'])
       for (const item of guide.faq ?? []) {
-        assert.ok(article.includes(`<h3>${escape(item.q[lang])}</h3><p>${richIn(lang, item.a[lang])}</p>`), `${route} (${lang}) FAQ item`)
+        assert.ok(article.includes(`<h3>${escape(item.q[lang])}</h3><p>`), `${route} (${lang}) FAQ item`)
       }
       const ids = matches(article, /\sid="([^"]+)"/g).map(match => match[1])
       assert.equal(ids.length, new Set(ids).size, `${route}: duplicate fragment target`)
@@ -202,7 +202,7 @@ test('guide examples keep literal markup, line breaks and indentation as escaped
     en: 'A literal <script>alert("x")</script> & [link](https://example.com).\n\n/skill --flag "quoted"\n  keep indentation\n`code stays literal`',
     zh: '原文 <img src=x onerror="alert(1)"> 与 & 符号。\n\n第二段\n  保留缩进',
   }
-  guide.faq = [{ q: { en: 'Where is the draft saved?', zh: '草稿保存在哪里？' }, a: { en: 'Next to the `--out-dir` <b>folder</b>.', zh: '在 `--out-dir` 指定的目录。' } }]
+  guide.faq = [{ q: { en: 'Where does `--out-dir` put <drafts> & files?', zh: '草稿保存在哪里？' }, a: { en: 'Next to the `--out-dir **x**` <b>folder</b>; see **the** [project](https://zenstory.ai/video-recap/).', zh: '在 `--out-dir` 指定的目录，见[项目页](https://zenstory.ai/video-recap)。' } }]
   writeFileSync(join(root, 'content/guides.json'), JSON.stringify([guide]))
   writeFileSync(join(root, 'content/articles.json'), '[]')
   const out = join(root, 'output')
@@ -223,13 +223,22 @@ test('guide examples keep literal markup, line breaks and indentation as escaped
   const en = readOutput(out, outPath('en', `/${guide.owner}/${guide.slug}`))
   assert.ok(en.includes('<li><a href="#faq">FAQ</a></li>'))
   assert.ok(en.includes('<h2 id="faq">FAQ</h2>'))
-  assert.ok(en.includes('<h3>Where is the draft saved?</h3><p>Next to the <code>--out-dir</code> &lt;b&gt;folder&lt;/b&gt;.</p>'))
-  assert.ok(readOutput(out, outPath('zh', `/${guide.owner}/${guide.slug}`)).includes('<h3>草稿保存在哪里？</h3>'))
-  guide.faq = [{ q: { en: 'Only English?' }, a: { en: 'Yes.', zh: '是。' } }]
-  writeFileSync(join(root, 'content/guides.json'), JSON.stringify([guide]))
-  const bad = spawnSync(process.execPath, [join(root, 'scripts/build-org-pages.mjs'), join(root, 'bad')], { encoding: 'utf8' })
-  assert.notEqual(bad.status, 0)
-  assert.match(bad.stderr, /Invalid guide FAQ/)
+  assert.ok(en.includes('<h3>Where does `--out-dir` put &lt;drafts&gt; &amp; files?</h3><p>Next to the <code>--out-dir **x**</code> &lt;b&gt;folder&lt;/b&gt;; see <strong>the</strong> <a href="/video-recap">project</a>.</p>'))
+  assert.ok(readOutput(out, outPath('zh', `/${guide.owner}/${guide.slug}`)).includes('<h3>草稿保存在哪里？</h3><p>在 <code>--out-dir</code> 指定的目录，见<a href="/zh/video-recap">项目页</a>。</p>'))
+  for (const [faq, pattern] of [
+    [[{ q: { en: 'Only English?' }, a: { en: 'Yes.', zh: '是。' } }], /Invalid guide FAQ/],
+    [{}, /Invalid guide FAQ/],
+    [[null], /Invalid guide FAQ/],
+    [[{ q: { en: 'Two paragraphs?', zh: '两段？' }, a: { en: 'One.\n\nTwo.', zh: '一。' } }], /Invalid guide FAQ/],
+    [[{ q: { en: 'Link?', zh: '链接？' }, a: { en: 'See [x](/oh-story/missing).', zh: '见。' } }], /does not exist in en/],
+  ]) {
+    guide.faq = faq
+    writeFileSync(join(root, 'content/guides.json'), JSON.stringify([guide]))
+    const bad = spawnSync(process.execPath, [join(root, 'scripts/build-org-pages.mjs'), join(root, 'bad')], { encoding: 'utf8' })
+    assert.notEqual(bad.status, 0)
+    assert.match(bad.stderr, pattern)
+    assert.equal(existsSync(join(root, 'bad')), false, 'no partial output')
+  }
 })
 
 test('guide identities reject unknown owners, unsafe paths and duplicate routes before writing', (t) => {
@@ -456,6 +465,15 @@ test('docs pages sit on the organization shell with resolved links and their own
     const graph = graphOf(html)
     assert.deepEqual(graph.map((node) => node['@type']), ['Organization', 'WebSite', 'TechArticle'])
     assert.equal(graph[2].url, canonical)
+  }
+  // Every docs page: one h1, the English article one level below it, focusable code blocks.
+  const docsPages = readdirSync(join(outDir, 'docs'), { recursive: true }).filter((file) => file.endsWith('index.html'))
+  assert.equal(docsPages.length, 25)
+  for (const file of docsPages) {
+    const html = readFileSync(join(outDir, 'docs', file), 'utf8')
+    assert.equal(matches(html, /<h1\b/g).length, 1, `docs/${file} has one h1`)
+    assert.doesNotMatch(html, /<pre>/, `docs/${file}: code blocks are focusable`)
+    if (html.includes('id="en"')) assert.match(html.slice(html.indexOf('<section class="prose" id="en"')), /^<section class="prose" id="en" lang="en">\s*<h2\b/, `docs/${file}: English starts at h2`)
   }
   const index = readOutput(outDir, 'docs')
   assert.match(index, /<h1>ZenStory 工作台帮助文档<\/h1>/)

@@ -45,7 +45,9 @@ for (const guide of guides) {
   const route = `/${guide.owner}/${guide.slug}`
   assert.ok(!guideRoutes.has(route), 'Duplicate guide route')
   // Optional questions people search for, answered from the guide's own material.
-  assert.ok((guide.faq ?? []).every((item) => item.q?.en?.trim() && item.q?.zh?.trim() && item.a?.en?.trim() && item.a?.zh?.trim()), `Invalid guide FAQ: ${route}`)
+  // Answers are one paragraph of inline markup (`code`, **bold**, links); a blank line is rejected.
+  const faq = guide.faq ?? []
+  assert.ok(Array.isArray(faq) && faq.every((item) => item && ['q', 'a'].every((k) => LANGS.every((l) => typeof item[k]?.[l] === 'string' && item[k][l].trim()))) && faq.every((item) => LANGS.every((l) => !/\n\s*\n/.test(item.a[l]))), `Invalid guide FAQ: ${route}`)
   guideRoutes.add(route)
 }
 const comparisonAxes = [
@@ -628,7 +630,7 @@ const guidePage = (g) => {
   ${heading(2, 'Example', '示例', 'examples')}
   ${pair(guideExample(g.example.en), guideExample(g.example.zh), 'cols')}
   ${g.faq?.length ? `${heading(2, 'FAQ', '常见问题', 'faq')}
-  <div class="pair cols"><div class="l-${LANG}"${LANG === 'zh' ? ' lang="zh-CN"' : ''}>${g.faq.map((item) => `<h3>${esc(pick(item.q))}</h3><p>${rich(pick(item.a))}</p>`).join('')}</div></div>` : ''}
+  ${((faqHtml) => pair(faqHtml, faqHtml, 'cols'))(g.faq.map((item) => `<h3>${esc(pick(item.q))}</h3><p>${inline(pick(item.a))}</p>`).join(''))}` : ''}
   ${heading(2, 'Expected files', '预期文件', 'expected-files')}
   ${pair(list(g.outputs.en), list(g.outputs.zh), 'cols')}
   ${heading(2, 'Check the result', '检查结果', 'verify-result')}
@@ -667,7 +669,7 @@ const routeTitle = (route) => {
 /** Related-reading label: a Chinese glossary term keeps its zh-CN marker on English pages. */
 const relatedLabel = (route) => {
   const term = glossary.find((g) => `/glossary/${g.slug}` === route)
-  return term && LANG === 'en' ? esc(routeTitle(route)).replace(esc(term.term), `<span lang="zh-CN">${esc(term.term)}</span>`) : esc(routeTitle(route))
+  return term && LANG === 'en' ? esc(routeTitle(route)).replace(esc(term.term), () => `<span lang="zh-CN">${esc(term.term)}</span>`) : esc(routeTitle(route))
 }
 
 const articlePage = (a) => {
@@ -721,7 +723,7 @@ const articlePage = (a) => {
   </section>
   ${related.length ? `<section aria-labelledby="related">
   <h2 id="related">${t('Related reading', '相关阅读')}</h2>
-  <ul class="guide-list">${related.map((r) => `<li>${listLink(r, relatedLabel(r), relatedLabel(r))}</li>`).join('')}</ul>
+  <ul class="guide-list">${related.map((r) => { const label = relatedLabel(r); return `<li>${listLink(r, label, label)}</li>` }).join('')}</ul>
   </section>` : ''}
   <p class="actions guide-end"><a class="btn ghost" href="/guides">${t('All guides', '全部指南')}${arrowGlyph}</a></p>
   </div>
@@ -972,10 +974,11 @@ ${roster()}`
 
 // ---------- run ----------
 
-// Render every article body once per language before writing anything, so bad
+// Render every article body and guide FAQ answer once per language before writing anything, so bad
 // markup or a link to a missing page fails the build with no partial output.
 for (const lang of LANGS) {
   LANG = lang
+  for (const g of guides) for (const item of g.faq ?? []) inline(item.a[lang])
   for (const a of articles.filter((candidate) => candidate.langs.includes(lang))) {
     for (const text of [a.answer, a.skill.text, ...a.sections.map((section) => section.body), ...(a.faq ?? []).map((item) => item.a)]) md(text[lang])
     for (const route of (a.related ?? []).filter((r) => routeExists(lang, r))) {

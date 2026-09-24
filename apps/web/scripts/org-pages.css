@@ -429,6 +429,8 @@ h3 .paren { display: inline; font-size: .8em; margin: 0 0 0 .3em; }
 .docs-note a { color: var(--ink); }
 .prose h1 { font-size: clamp(28px, 3.6vw, 40px); margin-bottom: 20px; }
 .prose h2 { margin-top: 48px; }
+/* The English article of a docs page starts one level below the page h1; its title still reads as a title. */
+#en > h2:first-child { font-size: clamp(24px, 3vw, 32px); margin-top: 0; }
 .prose p, .prose li { font-size: 16px; }
 .prose table { border-collapse: collapse; width: 100%; margin: 16px 0 24px; font-size: 14.5px; }
 .prose th, .prose td { text-align: left; padding: 8px 12px; border: 1px solid var(--rule); vertical-align: top; }

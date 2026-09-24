@@ -106,6 +106,7 @@ test('craft articles render free-form sections, one language per URL, and Chines
   const en = readPage(out, bilingualRoute.slice(1))
   assert.ok(en.includes('<a href="/oh-story/long-novel-continuity">continuity guide</a>'))
   assert.ok(en.includes('<code>**literal**</code>'))
+  assert.ok(en.includes('<span lang="zh-CN">钩子</span> — '), 'Chinese glossary terms keep their language on English pages')
   assert.ok(en.includes('<ol><li>First</li><li>Second</li></ol>'))
   assert.ok(!en.includes(zhOnlyRoute), 'English pages never link a Chinese-only article')
 
