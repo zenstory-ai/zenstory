@@ -312,3 +312,12 @@ Tools are in `apps/server/agent/tools/`:
 1. Create tool function with type hints
 2. Register in `agent/service.py` tool registry
 3. Update frontend `ToolResultCard.tsx` to display results
+
+## Decision Notes (required for non-trivial changes)
+
+Design decisions live in `.agents/notes/{proposed,implemented,rejected}/{feature,bug-fix,simplification,architecture,process,testing}/yyyy-mm-dd-topic.md`, following the DeepSeek Harness agent-notes convention (see https://github.com/czm15053/write-notes-like-deepseek). Notes are written in Chinese; section headers stay in English.
+
+1. Before a non-trivial change (behavior, architecture, cross-file contract, process/tooling, testing strategy, on-disk/wire/config format), search `.agents/notes/` for the owning note. Update its facts in place if one exists; otherwise draft a new note under `proposed/` and move it to `implemented/` in the same commit as the code. Mechanical edits (styling, formatting, version bumps, behavior-neutral dependency patches, plain CRUD) need no note.
+2. Every note has `## Problem`, `## Decision` (present tense, implemented facts only) or `## Proposal`, `## Alternatives considered` (each rejected option gets its strongest argument first, then why it lost; never invent options), and `## Consequences` (both benefits and costs).
+3. Never rewrite a note into the opposite decision. Facts (paths, names, defaults) change in place; a reversed decision gets a new note that links to the old one. Do not append dated "decisions recorded" logs to `DESIGN.md`; each decision becomes its own note.
+4. No `INDEX.md`. The folder is the state; search with `rg --hidden .agents/notes/`.
