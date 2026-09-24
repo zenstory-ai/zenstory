@@ -16,9 +16,9 @@ README 与 `docs/docker-compose.md` 写的是「`export DEEPSEEK_API_KEY=...` �
 - `apps/server/requirements.txt` 把 sqlmodel 限制为 `>=0.0.14,<0.0.45`，并用注释写明原因与解除条件（时间戳默认值改成带时区之后）。
 - `apps/web/Dockerfile` 改用 `apps/web/package-lock.json` 执行 `npm ci --legacy-peer-deps`，以 `npm run dev` 启动。这份 npm 锁文件本来就被 Vercel 构建与 CI 的 vercel-build 任务使用并校验。
 - `apps/server/Dockerfile` 在切换到 `zenstory` 用户之前创建 `/app/db`、`/app/uploads`、`/app/chroma_data` 并交给该用户，命名卷首次挂载时继承这个属主。Railway 的卷挂在 `/app/chroma_data` 与 `/app/uploads`，不受影响。
-- `docker-compose.yml` 的 SQLite 路径改为 `sqlite:////app/db/zenstory.db`；文件头改为真实可走的步骤（导出 Key 或写 `.env`、启动、用 `create_admin.py` 建第一个账号）。
+- `docker-compose.yml` 的 SQLite 路径改为 `sqlite:////app/db/zenstory.db`；文件头改为真实可走的步骤（导出 Key 或写 `.env`、启动、用 `create_admin.py` 建第一个账号，示例密码 `CHANGE-ME` 不足 12 位，不改就会被脚本拒绝）；透传可选的 `JWT_SECRET_KEY`，设置后重启不再让所有人掉线。`apps/server/.dockerignore` 排除本地 `uploads/`，免得开发机上的上传文件被打进镜像、再被复制进新卷。
 - `docker-compose.full.yml` 给 server 挂上 uploads 与 chroma 两个卷；`apps/server/.env.docker.example` 的 `DATABASE_URL` 改成与 compose 默认的 `zenstory / changeme` 一致。
-- `docs/docker-compose.md` 与 `CONTRIBUTING.md` 写明第一个账号怎么来、邀请码与邮箱验证的默认行为、各可选功能需要的 Key，删除指向不存在的 `docker-compose.mini-local.yml` 的段落；Node 版本要求改为 20.19+（Vite 7 的下限）。
+- `docs/docker-compose.md` 与 `CONTRIBUTING.md` 写明第一个账号怎么来、管理员同样受免费套餐额度限制以及怎么放开、邀请码与邮箱验证的默认行为、各可选功能需要的 Key（自部署的 Agent API 要指向后端 8000 端口），删除指向不存在的 `docker-compose.mini-local.yml` 的段落；Node 版本要求改为 20.19+（Vite 7 的下限）。
 
 ## Alternatives considered
 
@@ -34,4 +34,4 @@ README 与 `docs/docker-compose.md` 写的是「`export DEEPSEEK_API_KEY=...` �
 
 ## Verification
 
-在 `git archive HEAD` 导出的干净目录中 `docker compose build` 与 `up -d`，依次确认：server 健康检查通过、web 返回页面、`create_admin.py` 建出管理员并能登录、通过 API 创建项目与文件、导出与版本比较正常、`docker compose down` 后再 `up -d`，账号与项目仍在。
+在 `git archive HEAD` 导出的干净目录中 `docker compose build` 与 `up -d`，依次确认：server 健康检查通过、web 返回页面、`create_admin.py` 建出管理员并能登录、通过 API 创建项目与文件、导出与版本比较正常、`migrate_skills.py` 导入 13 个内置技能、`docker compose down` 后再 `up -d`，账号与项目仍在；设置 `JWT_SECRET_KEY` 后重启 server，旧 token 调用 `/api/auth/me` 仍返回 200。独立评审另用 sqlmodel 0.0.44 跑完后端测试（2899 通过、7 跳过），0.0.47 下 `test_auth.py` 复现同样的时区报错；本 PR 的 CI backend-test 全新安装到 0.0.44 并通过。

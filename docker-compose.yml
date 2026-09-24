@@ -4,7 +4,8 @@
 # 2. docker compose up -d --build
 # 3. Create the first account:
 #    docker compose exec -e ZENSTORY_ADMIN_EMAIL=you@example.com \
-#      -e ZENSTORY_ADMIN_PASSWORD='at-least-12-characters' server python scripts/create_admin.py
+#      -e ZENSTORY_ADMIN_PASSWORD='CHANGE-ME' server python scripts/create_admin.py
+#    (use your own email, and a password of at least 12 characters)
 # 4. Visit http://localhost:5173
 #
 # For production with PostgreSQL + Redis, use docker-compose.full.yml
@@ -19,6 +20,8 @@ services:
     environment:
       # Required config for the writing agent — DeepSeek only
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      # Optional: a fixed secret (32+ characters) keeps people signed in across restarts
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-}
       # SQLite on the zenstory_db volume, so accounts and projects survive
       # `docker compose down` and image rebuilds
       DATABASE_URL: sqlite:////app/db/zenstory.db

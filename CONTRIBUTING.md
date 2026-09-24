@@ -7,7 +7,7 @@ Thank you for your interest in contributing! ZenStory is an AI-assisted novel wr
 ### Prerequisites
 
 - Node.js 20.19+ (or 22.12+)
-- Python 3.12 (CI runs 3.12; the Docker image uses 3.13)
+- Python 3.12 or 3.13 (CI tests 3.12; the Docker image uses 3.13)
 - pnpm 10 (recommended) or npm
 
 ### Backend
@@ -45,7 +45,8 @@ Registration needs an invite code by default, and email sign-up needs Redis plus
 
 ```bash
 cd apps/server && source venv/bin/activate
-ZENSTORY_ADMIN_EMAIL=you@example.com ZENSTORY_ADMIN_PASSWORD='at-least-12-characters' python scripts/create_admin.py
+# use your own email and a password of at least 12 characters
+ZENSTORY_ADMIN_EMAIL=you@example.com ZENSTORY_ADMIN_PASSWORD='CHANGE-ME' python scripts/create_admin.py
 ```
 
 ## Code Style
