@@ -63,3 +63,6 @@ temp/
 
 # Node modules (not needed for backend)
 node_modules/
+
+# Local uploads (runtime data lives in the uploads volume)
+uploads/
