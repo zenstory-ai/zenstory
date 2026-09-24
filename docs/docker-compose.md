@@ -32,7 +32,7 @@ docker compose exec server python scripts/migrate_skills.py --db-url sqlite:////
 
 默认注册要填邀请码。用管理员账号在「设置 → 邀请」或管理后台「邀请系统」生成邀请码；不想要邀请码，就在 `docker-compose.yml` 的 `server.environment` 里加 `AUTH_REGISTER_INVITE_CODE_OPTIONAL: "true"`，再 `docker compose up -d`。
 
-用邮箱注册的账号要先收验证码才能登录，发验证码需要 Redis 和 `RESEND_API_KEY`（以及在 Resend 验证过的 `RESEND_FROM_EMAIL`）。快速启动不带 Redis，别人在这里用邮箱注册后会因为「邮箱未验证」登录不了，需要的话用下面的 `docker-compose.full.yml`。只是给几个人用，也可以再运行 `create_admin.py` 建账号，每次换一个 `ZENSTORY_ADMIN_USERNAME`（默认是 `admin`，用户名不能重复）。
+用邮箱注册的账号要先收验证码才能登录，发验证码需要 Redis 和 `RESEND_API_KEY`（以及在 Resend 验证过的 `RESEND_FROM_EMAIL`）。快速启动不带 Redis，别人在这里用邮箱注册后会因为「邮箱未验证」登录不了，需要的话用下面的 `docker-compose.full.yml`。只给几个信得过的人用，也可以再运行 `create_admin.py` 建账号，每次换一个邮箱和 `ZENSTORY_ADMIN_USERNAME`（默认是 `admin`，用户名不能重复）。这样建的都是管理员账号，能进管理后台；建好后在后台「用户管理」里编辑这个账号，取消「超级用户」。
 
 ## 可选功能
 
