@@ -450,6 +450,7 @@ test('docs pages sit on the organization shell with resolved links and their own
     assert.doesNotMatch(head, /SoftwareApplication|https:\/\/app\.zenstory\.ai|stale\.example/)
     assert.match(head, /<title>[^<·]*\| ZenStory Workbench<\/title>/, 'docs titles carry one language')
     assert.equal(matches(html, /<h1\b/g).length, 1, `${route} has one h1`)
+    assert.doesNotMatch(html, /<pre>/, 'code blocks are keyboard-focusable scroll regions')
     assert.match(html.slice(html.indexOf('<section class="prose" id="en"')), /^<section class="prose" id="en" lang="en">\s*<h2\b/, 'the English article starts one level below the page h1')
     assert.doesNotMatch(head, /zenstory 文档|zenstory帮助文档/)
     const graph = graphOf(html)

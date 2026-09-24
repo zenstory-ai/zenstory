@@ -106,10 +106,12 @@ function writePage(route, zhMd, enMd) {
   const title = `${zhTitle} | ZenStory Workbench`
   const description = firstParagraph(zhMd)
   const canonical = `${SITE}${route}`
-  const zhHtml = resolveLinks(render(zhMd), route)
+  // Code blocks scroll sideways on phones; a scroll region must be keyboard-focusable (axe).
+  const focusable = (html) => html.replace(/<pre>/g, '<pre tabindex="0">')
+  const zhHtml = focusable(resolveLinks(render(zhMd), route))
   // The English article sits below the Chinese one on the same page: its headings move down one
   // level so the page keeps a single <h1>.
-  const enHtml = enMd ? resolveLinks(render(enMd), route).replace(/<(\/?)h([1-5])\b/g, (m, slash, level) => `<${slash}h${Number(level) + 1}`) : ''
+  const enHtml = enMd ? focusable(resolveLinks(render(enMd), route)).replace(/<(\/?)h([1-5])\b/g, (m, slash, level) => `<${slash}h${Number(level) + 1}`) : ''
   const ld = [
     orgNode,
     {
