@@ -1,7 +1,9 @@
 # FastAPI and dependencies
 fastapi==0.123.7
 uvicorn[standard]>=0.24.0
-sqlmodel>=0.0.14
+# sqlmodel 0.0.45+ rejects naive datetimes on insert; the models still default to
+# datetime.utcnow, so stay below it until those defaults are timezone-aware.
+sqlmodel>=0.0.14,<0.0.45
 python-multipart>=0.0.6
 pydantic-settings>=2.0.0
 

@@ -1,8 +1,11 @@
 # zenstory - Quick Start
 # ======================
-# 1. Copy .env.example to .env and set your LLM API key
+# 1. export DEEPSEEK_API_KEY=your-key  (or put that line in a .env file next to this one)
 # 2. docker compose up -d --build
-# 3. Visit http://localhost:5173
+# 3. Create the first account:
+#    docker compose exec -e ZENSTORY_ADMIN_EMAIL=you@example.com \
+#      -e ZENSTORY_ADMIN_PASSWORD='at-least-12-characters' server python scripts/create_admin.py
+# 4. Visit http://localhost:5173
 #
 # For production with PostgreSQL + Redis, use docker-compose.full.yml
 
@@ -16,8 +19,9 @@ services:
     environment:
       # Required config for the writing agent — DeepSeek only
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-      # Database defaults to SQLite inside container
-      DATABASE_URL: sqlite:///./zenstory.db
+      # SQLite on the zenstory_db volume, so accounts and projects survive
+      # `docker compose down` and image rebuilds
+      DATABASE_URL: sqlite:////app/db/zenstory.db
       # CORS for local dev
       CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
     ports:
