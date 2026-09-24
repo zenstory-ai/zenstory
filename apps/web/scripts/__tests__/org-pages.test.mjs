@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { finalizeSite } from '../build-site-layout.mjs'
+import { zhLinks } from './helpers.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const scriptsDir = resolve(here, '..')
@@ -38,8 +39,6 @@ const readOutput = (outDir, route) => readFileSync(join(outDir, route, 'index.ht
 const matches = (html, pattern) => [...html.matchAll(pattern)]
 const escape = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 const richText = (s) => escape(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2">$1</a>')
-/** Chinese pages point organization links written as absolute zenstory.ai URLs at the /zh site (single-URL pages stay). */
-const zhLinks = (html) => html.replace(/href="https:\/\/zenstory\.ai(\/(?!zh(?:\/|")|docs(?:\/|")|privacy-policy|terms-of-service|llms\.txt)[^"]*)"/g, (m, path) => `href="${path === '/' ? '/zh' : `/zh${path}`}"`)
 /** Rich text as rendered on the `lang` page. */
 const richIn = (lang, s) => (lang === 'zh' ? zhLinks(richText(s)) : richText(s))
 const graphOf = (html) => JSON.parse(matches(html, /<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi)[0][1])['@graph']
@@ -124,7 +123,10 @@ test('task guides render one language per URL with hreflang pairs, primary sourc
       const contents = matches(article, /<nav class="guide-contents" aria-label="[^"]+">([\s\S]*?)<\/nav>/g)
       assert.equal(contents.length, 1, `${route}: missing guide navigation`)
       const targets = matches(contents[0][1], /href="#([^"]+)"/g).map(match => match[1])
-      assert.deepEqual(targets, ['before-you-start', 'steps', `example-${lang}`, 'expected-files', 'verify-result', 'sources'])
+      assert.deepEqual(targets, ['before-you-start', 'steps', `example-${lang}`, ...(guide.faq?.length ? ['faq'] : []), 'expected-files', 'verify-result', 'sources'])
+      for (const item of guide.faq ?? []) {
+        assert.ok(article.includes(`<h3>${escape(item.q[lang])}</h3><p>${richIn(lang, item.a[lang])}</p>`), `${route} (${lang}) FAQ item`)
+      }
       const ids = matches(article, /\sid="([^"]+)"/g).map(match => match[1])
       assert.equal(ids.length, new Set(ids).size, `${route}: duplicate fragment target`)
       for (const target of targets) {
@@ -200,6 +202,7 @@ test('guide examples keep literal markup, line breaks and indentation as escaped
     en: 'A literal <script>alert("x")</script> & [link](https://example.com).\n\n/skill --flag "quoted"\n  keep indentation\n`code stays literal`',
     zh: '原文 <img src=x onerror="alert(1)"> 与 & 符号。\n\n第二段\n  保留缩进',
   }
+  guide.faq = [{ q: { en: 'Where is the draft saved?', zh: '草稿保存在哪里？' }, a: { en: 'Next to the `--out-dir` <b>folder</b>.', zh: '在 `--out-dir` 指定的目录。' } }]
   writeFileSync(join(root, 'content/guides.json'), JSON.stringify([guide]))
   writeFileSync(join(root, 'content/articles.json'), '[]')
   const out = join(root, 'output')
@@ -216,6 +219,17 @@ test('guide examples keep literal markup, line breaks and indentation as escaped
   assert.ok(examples[1][1].includes('<p>原文 &lt;img src=x onerror=&quot;alert(1)&quot;&gt; 与 &amp; 符号。</p>'))
   assert.ok(examples[1][1].includes('<p>第二段\n  保留缩进</p>'))
   for (const example of examples) assert.doesNotMatch(example[1], /<(?:script|img|a|code)\b/)
+  // Optional guide FAQ: its own anchor in the contents, questions as h3, escaped rich-text answers.
+  const en = readOutput(out, outPath('en', `/${guide.owner}/${guide.slug}`))
+  assert.ok(en.includes('<li><a href="#faq">FAQ</a></li>'))
+  assert.ok(en.includes('<h2 id="faq">FAQ</h2>'))
+  assert.ok(en.includes('<h3>Where is the draft saved?</h3><p>Next to the <code>--out-dir</code> &lt;b&gt;folder&lt;/b&gt;.</p>'))
+  assert.ok(readOutput(out, outPath('zh', `/${guide.owner}/${guide.slug}`)).includes('<h3>草稿保存在哪里？</h3>'))
+  guide.faq = [{ q: { en: 'Only English?' }, a: { en: 'Yes.', zh: '是。' } }]
+  writeFileSync(join(root, 'content/guides.json'), JSON.stringify([guide]))
+  const bad = spawnSync(process.execPath, [join(root, 'scripts/build-org-pages.mjs'), join(root, 'bad')], { encoding: 'utf8' })
+  assert.notEqual(bad.status, 0)
+  assert.match(bad.stderr, /Invalid guide FAQ/)
 })
 
 test('guide identities reject unknown owners, unsafe paths and duplicate routes before writing', (t) => {

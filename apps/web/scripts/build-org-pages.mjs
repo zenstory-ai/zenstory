@@ -44,6 +44,8 @@ for (const guide of guides) {
   assert.ok(projects.filter((p) => p.slug === guide.owner).length === 1 && /^[a-z0-9-]+$/.test(guide.slug), 'Invalid guide identity')
   const route = `/${guide.owner}/${guide.slug}`
   assert.ok(!guideRoutes.has(route), 'Duplicate guide route')
+  // Optional questions people search for, answered from the guide's own material.
+  assert.ok((guide.faq ?? []).every((item) => item.q?.en?.trim() && item.q?.zh?.trim() && item.a?.en?.trim() && item.a?.zh?.trim()), `Invalid guide FAQ: ${route}`)
   guideRoutes.add(route)
 }
 const comparisonAxes = [
@@ -612,8 +614,9 @@ const guidePage = (g) => {
       <li><a href="#before-you-start">${t('Before you start', '开始之前')}</a></li>
       <li><a href="#steps">${t('Steps', '操作步骤')}</a></li>
       <li><a href="#example-${LANG}">${t('Example', '示例')}</a></li>
+      ${g.faq?.length ? `<li><a href="#faq">${t('FAQ', '常见问题')}</a></li>` : ''}
       <li><a href="#expected-files">${t('Expected files', '预期文件')}</a></li>
-      <li><a href="#verify-result">${t('Result boundaries', '结果边界')}</a></li>
+      <li><a href="#verify-result">${t('Check the result', '检查结果')}</a></li>
       <li><a href="#sources">${t('Sources', '来源')}</a></li>
     </ul>
   </nav>
@@ -624,11 +627,13 @@ const guidePage = (g) => {
   ${pair(steps(g.steps.en), steps(g.steps.zh), 'cols')}
   ${heading(2, 'Example', '示例', 'examples')}
   ${pair(guideExample(g.example.en), guideExample(g.example.zh), 'cols')}
+  ${g.faq?.length ? `${heading(2, 'FAQ', '常见问题', 'faq')}
+  <div class="pair cols"><div class="l-${LANG}"${LANG === 'zh' ? ' lang="zh-CN"' : ''}>${g.faq.map((item) => `<h3>${esc(pick(item.q))}</h3><p>${rich(pick(item.a))}</p>`).join('')}</div></div>` : ''}
   ${heading(2, 'Expected files', '预期文件', 'expected-files')}
   ${pair(list(g.outputs.en), list(g.outputs.zh), 'cols')}
-  ${heading(2, 'Verify the result', '验证结果与边界', 'verify-result')}
+  ${heading(2, 'Check the result', '检查结果', 'verify-result')}
   ${pair(list(g.verification.en), list(g.verification.zh), 'cols')}
-  ${heading(2, 'Sources and version notes', '来源与版本说明', 'sources')}
+  ${heading(2, 'Sources', '来源', 'sources')}
   ${pair(list(g.sources.en), list(g.sources.zh), 'cols')}
   <p class="actions guide-end"><a class="btn ghost" href="/${owner.slug}">${t(`More about ${esc(owner.name.en)}`, `了解 ${esc(owner.name.en)}`)}${arrowGlyph}</a><a class="btn ghost" href="/guides">${t('All guides', '全部指南')}${arrowGlyph}</a></p>
   </div>
@@ -657,6 +662,12 @@ const routeTitle = (route) => {
   const comparison = comparisons.find((c) => `/compare/${c.slug}` === route)
   if (comparison) return pick(comparison.title)
   return { '/guides': t('All guides', '全部指南'), '/glossary': t('Glossary', '术语表'), '/projects': t('All projects', '全部项目') }[route]
+}
+
+/** Related-reading label: a Chinese glossary term keeps its zh-CN marker on English pages. */
+const relatedLabel = (route) => {
+  const term = glossary.find((g) => `/glossary/${g.slug}` === route)
+  return term && LANG === 'en' ? esc(routeTitle(route)).replace(esc(term.term), `<span lang="zh-CN">${esc(term.term)}</span>`) : esc(routeTitle(route))
 }
 
 const articlePage = (a) => {
@@ -710,7 +721,7 @@ const articlePage = (a) => {
   </section>
   ${related.length ? `<section aria-labelledby="related">
   <h2 id="related">${t('Related reading', '相关阅读')}</h2>
-  <ul class="guide-list">${related.map((r) => `<li>${listLink(r, esc(routeTitle(r)), esc(routeTitle(r)))}</li>`).join('')}</ul>
+  <ul class="guide-list">${related.map((r) => `<li>${listLink(r, relatedLabel(r), relatedLabel(r))}</li>`).join('')}</ul>
   </section>` : ''}
   <p class="actions guide-end"><a class="btn ghost" href="/guides">${t('All guides', '全部指南')}${arrowGlyph}</a></p>
   </div>
