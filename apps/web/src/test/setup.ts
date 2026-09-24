@@ -44,11 +44,13 @@ if (typeof TextEncoder === 'undefined') {
 afterEach(() => cleanup())
 
 // Mock IntersectionObserver
-global.IntersectionObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}))
+global.IntersectionObserver = vi.fn().mockImplementation(function () {
+  return {
+    observe: vi.fn(),
+    unobserve: vi.fn(),
+    disconnect: vi.fn(),
+  }
+})
 
 // Create a proper localStorage mock that stores values
 const createLocalStorage = () => {

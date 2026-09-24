@@ -44,16 +44,18 @@ describe('useVoiceInput', () => {
     onstopCallback = null
     recorderState = 'inactive'
 
-    // Mock MediaRecorder class
-    const MockMediaRecorder = vi.fn().mockImplementation(() => ({
-      start: mockStart,
-      stop: mockStop,
-      get ondataavailable() { return ondataavailableCallback },
-      set ondataavailable(cb: typeof ondataavailableCallback) { ondataavailableCallback = cb },
-      get onstop() { return onstopCallback },
-      set onstop(cb: typeof onstopCallback) { onstopCallback = cb },
-      get state() { return recorderState },
-    }))
+    // Mock MediaRecorder class (constructed with `new`, so not an arrow function)
+    const MockMediaRecorder = vi.fn().mockImplementation(function () {
+      return {
+        start: mockStart,
+        stop: mockStop,
+        get ondataavailable() { return ondataavailableCallback },
+        set ondataavailable(cb: typeof ondataavailableCallback) { ondataavailableCallback = cb },
+        get onstop() { return onstopCallback },
+        set onstop(cb: typeof onstopCallback) { onstopCallback = cb },
+        get state() { return recorderState },
+      }
+    })
     ;(MockMediaRecorder as unknown as { isTypeSupported: typeof vi.fn }).isTypeSupported = vi.fn(() => true)
     vi.stubGlobal('MediaRecorder', MockMediaRecorder)
 
