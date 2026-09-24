@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { finalizeSite } from '../build-site-layout.mjs'
+import { zhLinks } from './helpers.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const scriptsDir = resolve(here, '..')
@@ -33,6 +34,8 @@ const escape = (s) => String(s ?? '')
 const richText = (s) => escape(s)
   .replace(/`([^`]+)`/g, '<code>$1</code>')
   .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2">$1</a>')
+/** Rich text as rendered on the `lang` page. */
+const richIn = (lang, s) => (lang === 'zh' ? zhLinks(richText(s)) : richText(s))
 const matches = (html, pattern) => [...html.matchAll(pattern)]
 const readOutput = (outDir, route) => readFileSync(join(outDir, route, 'index.html'), 'utf8')
 const run = (script, outDir, cwd = webRoot) => {
@@ -106,19 +109,19 @@ test('writing workflow comparison renders three source-backed choices across the
     assert.equal(matches(html, /<h1\b/g).length, 1)
     assert.ok(article.includes(`<h1>${escape(comparison.title[lang])}</h1>`))
     assert.ok(!article.includes(escape(comparison.title[other(lang)])))
-    assert.ok(article.includes(richText(comparison.answer[lang])))
+    assert.ok(article.includes(richIn(lang, comparison.answer[lang])))
     assert.ok(!article.includes(richText(comparison.answer[other(lang)])))
-    assert.ok(article.includes(richText(comparison.disclosure[lang])))
+    assert.ok(article.includes(richIn(lang, comparison.disclosure[lang])))
     for (const option of comparison.options) {
       for (const axis of AXES) {
         assert.ok(option[axis][lang].trim(), `${option.project}.${axis}.${lang}`)
-        assert.ok(article.includes(richText(option[axis][lang])))
+        assert.ok(article.includes(richIn(lang, option[axis][lang])))
         assert.ok(!article.includes(richText(option[axis][other(lang)])), `${option.project}.${axis} leaks ${other(lang)} into the ${lang} page`)
       }
-      for (const source of option.sources[lang]) assert.ok(article.includes(richText(source)), `missing rendered ${lang} source`)
+      for (const source of option.sources[lang]) assert.ok(article.includes(richIn(lang, source)), `missing rendered ${lang} source`)
     }
     for (const field of ['checklist', 'boundaries']) {
-      for (const item of comparison[field][lang]) assert.ok(article.includes(`<li>${richText(item)}</li>`), `missing ${field}.${lang} item`)
+      for (const item of comparison[field][lang]) assert.ok(article.includes(`<li>${richIn(lang, item)}</li>`), `missing ${field}.${lang} item`)
     }
     for (const axis of AXES) {
       const section = matches(article, new RegExp(`<section aria-labelledby="axis-${axis}">([\\s\\S]*?)<\\/section>`, 'g'))[0][1]
@@ -159,8 +162,13 @@ test('writing workflow comparison renders three source-backed choices across the
   const appMap = readFileSync(join(outDir, '_app/sitemap.xml'), 'utf8')
   for (const lang of LANGS) assert.equal(siteMap.split(`<loc>${urlIn(lang, route)}</loc>`).length - 1, 1)
   assert.ok(!appMap.includes('/compare/'))
-  // 43 organization routes × 2 languages + 25 workbench docs + 2 legal pages on the site; home and pricing on the app.
-  assert.equal(matches(siteMap, /<loc>/g).length, 43 * 2 + 25 + 2)
+  // Organization routes × 2 languages (home, /projects, /guides, /glossary, projects, guides, bilingual
+  // articles, comparisons, terms) + Chinese-only articles + 25 workbench docs + 2 legal pages on the
+  // site; home and pricing on the app. Counts come from the content JSON so new content needs no edit here.
+  const content = (file) => JSON.parse(readFileSync(join(webRoot, 'content', file), 'utf8'))
+  const articles = content('articles.json')
+  const bilingual = 4 + projects.length + content('guides.json').length + articles.filter((a) => a.langs.includes('en')).length + comparisons.length + content('glossary.json').length
+  assert.equal(matches(siteMap, /<loc>/g).length, bilingual * 2 + articles.filter((a) => !a.langs.includes('en')).length + 25 + 2)
   assert.equal(matches(appMap, /<loc>/g).length, 2)
 })
 

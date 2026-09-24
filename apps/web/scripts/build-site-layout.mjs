@@ -81,7 +81,9 @@ const englishRoute=route=>route==='/zh' ? '/' : route.startsWith('/zh/') ? route
 const chineseRoute=route=>route==='/' ? '/zh' : `/zh${route}`
 /**
  * Sitemap with hreflang pairs: a route whose Chinese counterpart exists lists
- * both languages (and x-default = English) on each of the two entries.
+ * both languages (zh-CN plus language-only zh, so Chinese searchers outside
+ * mainland China also get the Chinese page, and x-default = English) on each
+ * of the two entries.
  */
 const sitemap=(origin,routes)=>{
   const set=new Set(routes)
@@ -89,7 +91,7 @@ const sitemap=(origin,routes)=>{
     const en=englishRoute(route) ?? route
     const zh=chineseRoute(en)
     const paired=set.has(en) && set.has(zh)
-    const alternates=paired ? [['en',en],['zh-CN',zh],['x-default',en]].map(([lang,r])=>`<xhtml:link rel="alternate" hreflang="${lang}" href="${esc(origin+r)}"/>`).join('') : ''
+    const alternates=paired ? [['en',en],['zh-CN',zh],['zh',zh],['x-default',en]].map(([lang,r])=>`<xhtml:link rel="alternate" hreflang="${lang}" href="${esc(origin+r)}"/>`).join('') : ''
     return `  <url><loc>${esc(origin+route)}</loc>${alternates}</url>`
   }
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${routes.map(entry).join('\n')}\n</urlset>\n`

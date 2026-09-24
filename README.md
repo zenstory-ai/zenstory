@@ -1,22 +1,38 @@
-<div align="center">
+<p align="center">
+  <img src="https://zenstory.ai/brand/zenstory-ai-mark.svg" alt="" width="76" height="76">
+</p>
 
-<img src="apps/web/public/favicon.svg" alt="ZenStory Logo" width="64" height="64">
+<h1 align="center">ZenStory Workbench</h1>
 
-# ZenStory
+<p align="center">
+  <b>对话即创作 — AI Agent 驱动的商业级小说写作工作台</b>
+</p>
 
-> 项目页：<https://zenstory.ai/zh/workbench> · ZenStory AI 全部项目：<https://zenstory.ai/zh/projects>
+<p align="center">
+  ZenStory 让 AI Agent 直接操作你的创作文件——建角色卡、拆参考素材、规划大纲、逐章写作——全部在一次对话里完成。
+</p>
 
-**对话即创作 — AI Agent 驱动的商业级小说写作工作台**
+<p align="center">
+  <a href="https://zenstory.ai/zh/workbench"><b>项目主页</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://zenstory.ai/docs"><b>使用文档</b></a>
+  &nbsp;·&nbsp;
+  <a href="#快速开始"><b>本地部署</b></a>
+  &nbsp;·&nbsp;
+  <a href="README_EN.md"><b>English</b></a>
+</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![GitHub Stars](https://img.shields.io/github/stars/zenstory-ai/zenstory?style=social)](https://github.com/zenstory-ai/zenstory)
-[![Workbench](https://img.shields.io/website?url=https%3A%2F%2Fapp.zenstory.ai&label=app.zenstory.ai)](https://app.zenstory.ai/)
+<p align="center">
+  <a href="https://github.com/zenstory-ai/zenstory/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/zenstory-ai/zenstory?style=flat-square&color=22D3EE&logo=github&logoColor=white&label=Stars"></a>
+  <img alt="Skills 13" src="https://img.shields.io/badge/Skills-13-081431?style=flat-square">
+  <a href="https://app.zenstory.ai/"><img alt="app.zenstory.ai" src="https://img.shields.io/website?style=flat-square&url=https%3A%2F%2Fapp.zenstory.ai&label=app.zenstory.ai"></a>
+  <a href="./LICENSE"><img alt="License MIT" src="https://img.shields.io/badge/License-MIT-1F6FEB?style=flat-square"></a>
+</p>
 
-ZenStory 让 AI Agent 直接操作你的创作文件——建角色卡、拆参考素材、规划大纲、逐章写作——全部在一次对话里完成。
-
-[打开工作台](https://app.zenstory.ai/) · [ZenStory AI 组织站](https://zenstory.ai/zh) · [网页写作入门](https://zenstory.ai/docs/getting-started/quick-start) · [第一篇短篇](https://zenstory.ai/docs/getting-started/first-project) · [本地部署](#快速开始) · [English](README_EN.md)
-
-</div>
+<p align="center">
+  <a href="https://app.zenstory.ai/"><img alt="打开工作台" src="https://img.shields.io/badge/%E6%89%93%E5%BC%80%E5%B7%A5%E4%BD%9C%E5%8F%B0-1F6FEB?style=for-the-badge&logo=vercel&logoColor=white"></a>
+  <a href="https://github.com/zenstory-ai/zenstory/issues"><img alt="GitHub Issues" src="https://img.shields.io/badge/GitHub%20Issues-181717?style=for-the-badge&logo=github&logoColor=white"></a>
+</p>
 
 ---
 

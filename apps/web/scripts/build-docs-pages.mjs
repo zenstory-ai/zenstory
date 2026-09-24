@@ -102,11 +102,18 @@ const sidebar = (route) => `
 function writePage(route, zhMd, enMd) {
   const zhTitle = firstHeading(zhMd)
   const enTitle = enMd ? firstHeading(enMd) : ''
-  const title = `${zhTitle}${enTitle && enTitle !== zhTitle ? ` · ${enTitle}` : ''} | ZenStory Workbench`
+  // One language in the title: the page is Chinese first; the English title stays in JSON-LD (alternativeHeadline).
+  const title = `${zhTitle} | ZenStory Workbench`
   const description = firstParagraph(zhMd)
   const canonical = `${SITE}${route}`
-  const zhHtml = resolveLinks(render(zhMd), route)
-  const enHtml = enMd ? resolveLinks(render(enMd), route) : ''
+  // Code blocks scroll sideways on phones; a scroll region must be keyboard-focusable (axe).
+  const focusable = (html) => html.replace(/<pre>/g, '<pre tabindex="0" role="region" aria-label="代码 · Code">')
+  const zhHtml = focusable(resolveLinks(render(zhMd), route))
+  // The English article sits below the Chinese one on the same page: its headings move down one
+  // level so the page keeps a single <h1>.
+  const enRendered = enMd ? render(enMd) : ''
+  assert.ok(!/<h[56]\b/.test(enRendered), `${route}: the English doc uses h5/h6, which cannot move below the page h1`)
+  const enHtml = enMd ? focusable(resolveLinks(enRendered, route)).replace(/<(\/?)h([1-5])\b/g, (m, slash, level) => `<${slash}h${Number(level) + 1}`) : ''
   const ld = [
     orgNode,
     {
