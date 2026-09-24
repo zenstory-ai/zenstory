@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { finalizeSite } from '../build-site-layout.mjs'
+import { zhLinks } from './helpers.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const scriptsDir = resolve(here, '..')
@@ -33,8 +34,6 @@ const escape = (s) => String(s ?? '')
 const richText = (s) => escape(s)
   .replace(/`([^`]+)`/g, '<code>$1</code>')
   .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2">$1</a>')
-/** Chinese pages point organization links written as absolute zenstory.ai URLs at the /zh site (single-URL pages stay). */
-const zhLinks = (html) => html.replace(/href="https:\/\/zenstory\.ai(\/(?!zh(?:\/|")|docs(?:\/|")|privacy-policy|terms-of-service|llms\.txt)[^"]*)"/g, (m, path) => `href="${path === '/' ? '/zh' : `/zh${path}`}"`)
 /** Rich text as rendered on the `lang` page. */
 const richIn = (lang, s) => (lang === 'zh' ? zhLinks(richText(s)) : richText(s))
 const matches = (html, pattern) => [...html.matchAll(pattern)]

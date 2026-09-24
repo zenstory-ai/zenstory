@@ -1003,5 +1003,448 @@
       "/glossary/dongjie-guanjianzhen",
       "/drama-skills"
     ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "revise-ai-prose",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-13",
+    "updated_on": "2026-09-23",
+    "title": {
+      "zh": "去AI味怎么改：三遍改稿与删改刹车",
+      "en": "Make AI Fiction Sound Human: Fix AI-Sounding Prose in Three Passes"
+    },
+    "seo_title": {
+      "zh": "去AI味怎么改：AI小说三遍改稿与删改刹车",
+      "en": "Make AI Fiction Sound Human: 3 Revision Passes"
+    },
+    "description": {
+      "zh": "AI写的小说怎么去AI味：先给可疑句子做删除测试，删不掉的依次去泛化、去书面化、回自然感，问题越重改得越多，再用删除上限刹车，防止删成电报体。附原创改前改后示例。",
+      "en": "To make AI fiction sound human, delete-test each flagged line, revise the rest in three ordered passes, and cap cuts so the prose never goes telegraphic."
+    },
+    "answer": {
+      "zh": "AI写的小说去AI味，先给每处可疑句子做删除测试：删掉不丢剧情信息就直接删，会丢就只改说法。删不掉的句子按去泛化、去书面化、回自然感的顺序改，问题越重，改的范围越大。最后用删除上限和收敛条件刹车，防止稿子被删成电报体；剧情、人设和信息揭露节奏全程不动。",
+      "en": "To make AI-written fiction sound human, delete-test every flagged line: cut it if the story loses nothing, otherwise reword only the delivery. Revise the rest in a fixed order (strip generic phrasing, cut bookish diction, restore a natural voice), widening the scope for heavier problems, and stop at a deletion cap before the prose turns telegraphic. Plot, characters and reveal timing stay put."
+    },
+    "sections": [
+      {
+        "id": "how-to-revise",
+        "heading": {
+          "zh": "去AI味怎么改：五步改稿清单",
+          "en": "How to revise AI-sounding prose: a five-step checklist"
+        },
+        "body": {
+          "zh": "1. **先划事实边界**：写下不能动的东西，比如人名、物件、角色已做的决定、还没揭晓的信息。[去AI味](/glossary/qu-ai-wei)只改怎么说，说什么保持原样。\n2. **先检测，再动手**：先拿到一张问题标记表，看清每处的位置、类型和理由，再决定改哪里。\n3. **每处先删掉试试**：删了不丢剧情信息就直接删，会丢就把信息留下，只换说法。\n4. **按轻重定范围**：问题越重，改的范围越大，顺序始终是去泛化、去书面化、回自然感。\n5. **通读刹车**：连读一遍，看有没有删成电报体、删除量有没有超上限。\n\n### 常见AI味句子怎么改：速查表\n\n| 问题 | 原创例句 | 改法 |\n|---|---|---|\n| 空泛情绪 | 她心里涌起一阵说不清的酸楚。 | 上下文已让情绪成立就删；没成立，写她当场说的话或做的决定 |\n| 上帝视角剧透 | 他还不知道，这通电话会改变他的一生。 | 删掉，只写角色此刻知道的事 |\n| 升华式结尾 | 那一晚，她终于明白了成长的代价。 | 用动作或对白收住：她把钥匙压在门垫下面，走了。 |\n| 对白把动机说满 | “我瞒着你，是因为怕你担心。” | 人很少把动机讲清楚，改成回避或半句话：“你问这个干什么？” |\n| 排比三连 | 她想起那条街，那盏灯，那个回不去的夏天。 | 只留最有力的一项 |",
+          "en": "1. **Mark what cannot change.** Names, objects, decisions made, anything not yet revealed. Humanizing AI writing changes how a line is said and keeps what it says.\n2. **Detect before you edit.** Get a findings table with the location, type and reason for each spot first.\n3. **Try deleting each flagged line.** Cut it if the story loses nothing; otherwise keep the information and reword only the delivery.\n4. **Scale the scope to severity.** Heavier problems get a wider scope, always in the same order: strip the generic, cut bookish diction, restore a natural voice.\n5. **Read it through and brake.** Check for telegraphic prose and for cuts beyond the cap.\n\n### Quick fixes for common AI-sounding lines\n\n| Problem | Original example | Fix |\n|---|---|---|\n| Vague emotion | A strange, nameless sorrow welled up inside her. | If context already earns the feeling, cut it; if not, show what she says or decides |\n| Omniscient spoiler | He had no idea this call would change his life. | Cut it and stay with what the character knows now |\n| Moral-of-the-story ending | That night she finally understood the price of growing up. | End on an action or line: She left the key under the mat and walked off. |\n| Dialogue that explains motive | \"I hid it because I didn't want you to worry.\" | People rarely spell out motives; try a dodge: \"Why are you asking?\" |\n| Rule-of-three list | She remembered the street, the lamp, the summer she could never return to. | Keep the strongest item |"
+        }
+      },
+      {
+        "id": "prompt-vs-revision-pass",
+        "heading": {
+          "zh": "一句“帮我去AI味”和带检查的改稿，差在哪",
+          "en": "A generic 'make this sound human' prompt vs a checked revision pass"
+        },
+        "body": {
+          "zh": "一句笼统的“帮我去AI味”，把下面四个决定都留给了模型。Oh Story 的 story-deslop 把每一项写成了检查规则：\n\n| 要定的事 | story-deslop 的检查规则 |\n|---|---|\n| 改动范围 | 能改一个词就不动整句，能删一句就不重写整段 |\n| 保留什么 | 人名、地名、数字、专有名词和剧情功能优先保留 |\n| 删多少 | 按轻、中、重三档设删除上限，不整段删正文 |\n| 何时停 | 同段连续两轮无新改动即停，全文最多重扫三轮 |",
+          "en": "A one-line \"make this sound human\" prompt leaves four decisions to the model. Oh Story's story-deslop skill writes each one down as a rule:\n\n| Decision | story-deslop's rule |\n|---|---|\n| Scope | Change a word before a sentence, cut a sentence before rewriting a paragraph |\n| What stays | Names, places, numbers, proper nouns and plot functions |\n| How much to cut | A deletion cap per severity level; whole paragraphs stay |\n| When to stop | Two rounds with no new change in a paragraph; at most three full rescans |"
+        }
+      },
+      {
+        "id": "delete-first-test",
+        "heading": {
+          "zh": "删除优先：去AI味的第一道判断",
+          "en": "The delete-first test for AI-sounding lines"
+        },
+        "body": {
+          "zh": "很多带AI味的句子本身就是解释、注水或凑字，润色得再顺也还是多余。每处被标记的句子先问一句：删掉它，读者会少知道什么？\n\n- [ ] 删掉后会丢伏笔或钩子吗？\n- [ ] 会丢人物特征、人物记忆或情绪承接吗？\n- [ ] 会丢情节推进、因果锚点或必要转折吗？\n- [ ] 会丢读者必须知道的信息吗？\n\n四项全是否，就直接删，这句不再进入润色。只要有一项是，就把信息留下，只改说法。\n\n有些解释句承担着小的衔接，比如让读者明白角色为什么停顿。这类句子压成角色当下的一句白话、一个动作或一个物件。新道具第一次出场也一样：讲来历的整段说明删掉，留一个锚，用角色的反应或看得见的后果带出它此刻的用处。",
+          "en": "Much AI-sounding prose is padding, and polishing padding only makes it smoother. For every flagged line, ask first: if I cut this, what does the reader lose?\n\n- [ ] Does cutting it lose foreshadowing or a hook?\n- [ ] Does it lose a character trait, a memory or an emotional carry-over?\n- [ ] Does it lose plot movement, a cause-and-effect anchor or a necessary turn?\n- [ ] Does it lose information the reader needs?\n\nAll no: delete the line and move on. Any yes: keep the information and change only the wording.\n\nSome explanatory lines carry small continuity work, such as telling the reader why a character pauses. Compress those into a plain phrase, a gesture or an object. For a new prop, cut the origin lecture and leave one anchor: a reaction or visible consequence that shows what it does now."
+        }
+      },
+      {
+        "id": "three-pass-method",
+        "heading": {
+          "zh": "去AI味三遍法：去泛化、去书面化、回自然感",
+          "en": "Three revision passes: strip the generic, cut bookish diction, restore a natural voice"
+        },
+        "body": {
+          "zh": "删不掉的句子，按三遍的顺序改。Oh Story 的写后自检清单按轻重定遍数：轻度只做第一遍，中度做前两遍，重度三遍全做。story-deslop 按问题类别定范围：轻度清禁用词和套路句式，中度再加情绪空转、节奏和解释腔，重度全部检查并重写重点段落；三遍只排先后，范围由你指定或按扫描等级定。\n\n| 遍次 | 处理对象 | 改法 |\n|---|---|---|\n| 第一遍 去泛化 | 抽象情绪总结、假深度句、意义膨胀、空洞结论、工整对比、形容词堆砌、叙述者跳出来解释或剧透 | 能删就删；删不掉，换成场景里已有的具体细节 |\n| 第二遍 去书面化 | 分析词（机制、体系、逻辑）、公文词（进一步、落实、推进）、抽象名词、术语堆砌 | 换成日常说法，直接说事；公文词多半可以直接删，术语只留必要的，用白话带过 |\n| 第三遍 回自然感 | 人人一个腔调、连续同一个开头、段落长短均匀、缺少场景独有的细节 | 区分角色口吻，换句首开法，按情绪起伏调句段长短，每段补一两个具体细节就够 |\n\n第二遍有例外：历史题材的正式用语、刻意追求密度的文学向文字、喜剧的夸张修辞，可以保留专业感。",
+          "en": "Lines that survive the delete test are revised in pass order. Oh Story's post-draft checklist runs pass one for light problems, passes one and two for medium, all three for heavy. story-deslop scopes by problem type: light text gets banned words and stock sentence patterns, medium adds empty emotion, rhythm and narrator explanation, heavy gets every check plus a rewrite of the worst paragraphs. The passes set the order; you or the scan grade set the scope.\n\n| Pass | Targets | Fix |\n|---|---|---|\n| 1. Strip the generic | Summarized emotion, fake depth, inflated significance, empty conclusions, neat contrasts, stacked adjectives, a narrator explaining or foreshadowing | Cut; otherwise swap in a concrete detail already in the scene |\n| 2. Cut bookish diction | Analytic words (mechanism, framework, logic), office jargon (going forward, implement, facilitate), abstract nouns, piled-up terminology | Say it in everyday words; office jargon usually just goes, and necessary terms stay, glossed plainly |\n| 3. Restore a natural voice | Everyone talking alike, repeated openings, evenly sized paragraphs, nothing unique to the scene | Distinct voices, varied openings, length that follows the emotional beat, one or two specific details per paragraph |\n\nPass two exempts formal register in historical fiction, deliberately dense literary prose and comic exaggeration."
+        }
+      },
+      {
+        "id": "over-deletion-brakes",
+        "heading": {
+          "zh": "删改刹车：去AI味删到哪里该停",
+          "en": "How much to cut when humanizing AI prose"
+        },
+        "body": {
+          "zh": "去AI味删过头，会得到另一种机器味：每句压到最短，“了、的、就”这类结构虚词被扫光，连读像提纲。Oh Story 给删改装了三道刹车。\n\n- **比例上限**：Oh Story 的默认上限是轻度删除不超过原文的15%，中度不超过25%，重度不超过35%；超限就分段处理并在报告里标出来，任何时候都不整段删正文。\n- **字数下限**：删完跌破要求的字数，就改成降AI重写，靠改写保住字数，别拿新废话凑。\n- **收敛条件**：同一段连续两轮没有新改动就停；全文最多重扫三轮，第三轮还有十处以上改动，就标记出来交给人工判断。\n\n删完从头连读一遍。读着像提纲，就把铺垫句、过渡句恢复成自然的白话，补回“了、的、就、的时候”这些连接；动作、情绪、悬念的峰值句可以继续短。回填只补连接，删掉的套话一个也不放回来。",
+          "en": "Over-deleting creates a new machine voice: clipped sentences, no connectors, a scene that reads like an outline. Oh Story puts three brakes on cutting.\n\n- **Deletion cap.** Oh Story's defaults cap deletion at 15% of the original for light problems, 25% for medium and 35% for heavy. Past the cap, the work is split and flagged; whole paragraphs always stay.\n- **Word-count floor.** If cutting drops below the length you need, switch to a rewrite that holds the length and lowers the machine feel.\n- **Convergence.** A paragraph stops after two rounds with no new change. The text gets at most three rescans; ten or more changes in round three get flagged for a human read.\n\nThen read it through. If it reads like an outline, restore connecting words in setup and transition sentences; peak beats stay short and the cut clichés stay cut."
+        }
+      },
+      {
+        "id": "before-after-example",
+        "heading": {
+          "zh": "去AI味改前改后示例",
+          "en": "Before and after: revising an AI-sounding scene"
+        },
+        "body": {
+          "zh": "下面是为本页写的原创段落。必须保住的事实：渡船汽笛、拆开的收音机、推到林舟手边的船票、他收回的手、陈雨的等待、他留下的决定，以及暂不揭晓的原因。\n\n> **改前**：末班渡船的汽笛响了，林舟看着桌上拆开的收音机，内心涌起一股难以言喻的复杂情绪。陈雨把船票推到他手边，提醒他现在走还来得及。纸边碰到他的手，他收回手，按住松开的机壳。陈雨等着他回答。他知道，自己正站在人生的十字路口；这不仅仅是一次维修，更是对内心信念的坚守。最终，他决定留下，让陈雨先走。\n\n> **改后**：末班渡船的汽笛响了。陈雨把船票推到林舟手边：“现在走，还来得及。”林舟没拿票，眼睛还在拆开的收音机上。纸边碰到他的手，他把手收回去，按住松开的机壳。陈雨等着他开口。他没说为什么留下，只说：“你先走。”\n\n- **删除测试**：“难以言喻的复杂情绪”删了什么也不少，犹豫已经由收手、按机壳承担；“人生的十字路口”“信念的坚守”是意义膨胀加工整对比，这一场没交代动机，删了也不丢伏笔。两句在这一步直接删，不进润色。\n- **对白代替转述**：转述的催促改成陈雨的直接对白，“让陈雨先走”改成他说出口的“你先走”，意思不变。\n- **事实边界**：开头列的事实全部保留。\n\n刹车也要试：再删成“陈雨递票。林舟没接。‘你先走。’”，纸边碰手、收手按机壳和陈雨的等待都没了，这是删过头。另一种错法是写成“陈雨把票塞进他掌心”，读着顺，动作却变了：票一直搁在他手边，他没有接。",
+          "en": "An original passage written for this page. Facts that must survive: the ferry horn, the dismantled radio, the ticket pushed toward Lin Zhou's hand, his pulled-back hand, Chen Yu's wait, his decision to stay and his unspoken reason.\n\n> **Before:** The last ferry sounded its horn. Lin Zhou looked at the dismantled radio on the table as a surge of complicated, indescribable emotions rose inside him. Chen Yu pushed the ticket toward his hand and reminded him there was still time to leave. The paper touched his hand; he drew back and held down the loose casing. Chen Yu waited for his answer. He knew he stood at a crossroads in life. This was more than a repair; it was a stand for his deepest convictions. In the end he chose to stay and told Chen Yu to go first.\n\n> **After:** The last ferry sounded its horn. Chen Yu pushed the ticket toward Lin Zhou's hand. \"There's still time if you go now.\" He didn't take it; his eyes stayed on the dismantled radio. The paper brushed his hand, and he drew back to hold down the loose casing. Chen Yu waited for him to speak. He gave no reason for staying. \"You go first.\"\n\n- **Delete test:** \"Complicated, indescribable emotions\" adds nothing; the hand movement already carries the hesitation. \"Crossroads in life\" and \"deepest convictions\" inflate a motive the scene never sets up. Both go at this step, before any polishing.\n- **Dialogue for report:** the reported warning becomes Chen Yu's own line, and \"told Chen Yu to go first\" becomes his spoken \"You go first.\"\n- **Fact boundary:** every fact listed above survives.\n\nTest the brakes too. Cut further to \"Chen Yu offered the ticket. Lin Zhou didn't take it. 'You go first.'\" and the paper, the pulled-back hand and her wait are gone: that is over-deletion. A different mistake, \"Chen Yu pressed the ticket into his palm\", reads smoothly but changes the action; the ticket stays beside his hand and he never takes it."
+        }
+      },
+      {
+        "id": "reduce-ai-rate",
+        "heading": {
+          "zh": "降AI率：把检测报告变成改稿线索",
+          "en": "AI detector reports: turn them into edit notes"
+        },
+        "body": {
+          "zh": "story-deslop 的衡量标准是读感。你贴来检测工具的报告，它只挑出能落到正文上的句式、段落和用词问题，转成具体修改点；报告只列修改点和前后对照。\n\n为了压分数强行每句换行、故意写错字、把“地、得”全改成“的”、硬把心理描写改成台词，这些做法会在文字里留下新的模板痕迹。Oh Story 把它们归为二次修改造成的伪自然，同样要改掉。",
+          "en": "story-deslop measures success by how the prose reads. Paste a detector report and it turns the sentence, paragraph and word-choice problems that map onto the text into specific edits; its report lists those edits with before/after comparisons.\n\nForcing a line break after every sentence, planting typos or turning inner thought into dialogue to shift a score leaves a new template in the prose. Oh Story counts these as fake naturalness left by a second rewrite and revises them out."
+        }
+      },
+      {
+        "id": "common-mistakes",
+        "heading": {
+          "zh": "去AI味常见改错与修法",
+          "en": "Common mistakes when humanizing AI writing"
+        },
+        "body": {
+          "zh": "- **同义词轮换**：把“仿佛”换成“好像”，把“一丝”换成“一点”。修法：换个词还是同一种腔调；回到角色当下碰得到的东西，文件、动作、对白、实际后果。\n- **给每个情绪配一个动作**：把“她很生气”改成“她攥住衣角”。修法：情绪有上下文撑着，直接写“她很生气”就行，多出来的攥衣角删掉，也别换成咬唇；身体细节只在带来后果时留下，比如烫伤的手指让她解不开外套扣子。\n- **借润色改剧情**：给角色补一段回忆、加一个秘密誓言。修法：事件、设定、关系和时间线保持原样；要改事件，走[章节修订](/oh-story/review-and-revise)。\n- **把作者故意的写法当毛病**：修法：本书文风选定的写法优先于默认规则，有意保留的原句可逐句登记进书目录下的 `.deslop-whitelist`，详见[保留作者文风](/oh-story/preserve-author-voice)。",
+          "en": "- **Synonym swapping.** \"As if\" becomes \"as though\". Fix: go back to what the character can touch right now: a document, an action, a line of dialogue, a real consequence.\n- **A gesture for every feeling.** \"She was angry\" becomes \"she twisted the hem of her shirt\". Fix: if context supports the feeling, the plain statement can stand; cut the added gesture without swapping in another. Keep a physical detail only when it has a consequence, like a burned finger that can't work a coat button.\n- **Changing the plot while polishing.** A new flashback, a secret vow. Fix: events, setting, relationships and timeline stay put; event changes belong in a [chapter revision](/oh-story/review-and-revise).\n- **Treating deliberate style as a flaw.** Fix: the book's style sheet overrides the defaults, and a line you mean to keep can go verbatim into the book folder's `.deslop-whitelist`. See [keep your writing voice](/oh-story/preserve-author-voice)."
+        }
+      },
+      {
+        "id": "deslop-skill",
+        "heading": {
+          "zh": "去AI味 skill（Claude Code / Codex）",
+          "en": "An AI prose revision skill for Claude Code and Codex"
+        },
+        "body": {
+          "zh": "Oh Story 的 `story-deslop` 把上面的流程做成了可复用的 skill，在 Claude Code、Codex 等编程 Agent 里运行，安装见 [Claude/Codex 写小说 skill](/oh-story/claude-code-novel-writing)。它分五步：\n\n1. **扫描**：标出AI味位置，定轻、中、重等级；处理正文文件时先跑自带的句式检查脚本，只报告不改文。\n2. **分级**：按等级决定处理范围；你指定了范围，就按你的来。\n3. **逐项清除**：每处先做删除测试，再按三遍顺序改写。\n4. **收尾复扫**（文件模式）：再跑一遍句式检查，并做退化检查和标点整理；逐字复读、末尾截断这类退化，回到写作环节重写那一段。\n5. **报告**：给出改前改后字符数、修改统计和逐段对照。文件模式直接改文件，只回不超过200字的代表片段；贴进来的片段返回完整改稿。",
+          "en": "Oh Story's `story-deslop` packages this workflow as a skill for coding agents such as Claude Code and Codex; setup is in [writing a novel with Claude Code or Codex](/oh-story/claude-code-novel-writing). Five steps:\n\n1. **Scan.** Flag AI-sounding spots and grade the text light, medium or heavy; for manuscript files a bundled pattern checker runs first and only reports.\n2. **Grade.** The level sets the scope unless you name one.\n3. **Clear.** The delete-first test on each spot, then revision in pass order.\n4. **Final rescan** (file mode). The pattern check runs again, plus a degeneration check and punctuation cleanup; looping or a truncated ending goes back to drafting.\n5. **Report.** Character counts before and after, change counts and paragraph comparisons. File mode edits the files and returns a sample of at most 200 characters; a pasted fragment comes back in full."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "去AI味要改几遍？",
+          "en": "How many revision passes does AI prose need?"
+        },
+        "a": {
+          "zh": "Oh Story 的写后自检清单按轻重定遍数：轻度只做去泛化，中度加去书面化，重度三遍全做。用 story-deslop 时，扫描给出的等级决定处理哪几类问题，三遍只排先后。同一段连续两轮没有新改动就停。",
+          "en": "Oh Story's post-draft checklist ties passes to severity: pass one for light problems, passes one and two for medium, all three for heavy. In story-deslop the graded level decides which problem types get handled, and the passes set the order. A paragraph stops after two rounds with no new change."
+        }
+      },
+      {
+        "q": {
+          "zh": "去AI味会删掉多少字？",
+          "en": "How much text should you cut when humanizing AI writing?"
+        },
+        "a": {
+          "zh": "Oh Story 的默认上限是轻度删除不超过15%，中度不超过25%，重度不超过35%，并且不整段删除；删完低于字数要求，就改为重写。",
+          "en": "Oh Story's default caps are 15% of the original for light problems, 25% for medium and 35% for heavy, with no whole paragraphs removed. If cutting drops below your length target, rewrite instead."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-deslop",
+      "text": {
+        "zh": "贴一段正文，发 `/story-deslop` 并写明“只检测，不要改”，先拿到问题标记表和轻、中、重分级；确认后再让它修订，按扫描等级处理或点明只改哪几类问题（比如只改结尾升华），同时列出必须保留的人名、物件和未揭晓的信息。",
+        "en": "Paste a passage and send `/story-deslop` with \"detection only, don't edit\" to get the findings table and severity grade first. Then ask for the revision at that grade or a narrower scope (say, only the moralizing endings), listing the names, objects and unrevealed information it must keep."
+      }
+    },
+    "related": [
+      "/glossary/qu-ai-wei",
+      "/oh-story/preserve-author-voice",
+      "/oh-story/review-and-revise",
+      "/oh-story/claude-code-novel-writing",
+      "/oh-story"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "learn-from-fiction",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-12",
+    "updated_on": "2026-09-23",
+    "title": {
+      "zh": "小说拆书怎么拆（附网文拆书模板）：从原文证据到新故事",
+      "en": "How to Deconstruct a Novel Chapter by Chapter (Breakdown Template)"
+    },
+    "seo_title": {
+      "zh": "小说拆书怎么拆（附网文拆书模板）",
+      "en": "How to Deconstruct a Novel: Chapter Breakdown Template"
+    },
+    "description": {
+      "zh": "小说拆书先切章，再逐章拆三步：白描情节点，拆出关键信息怎样被扩写成场景，写明哪些情绪逻辑能复用、哪些桥段台词不能照搬。附可复制的网文拆书模板和原创示例。",
+      "en": "Break down a novel chapter by chapter: log plot points plainly, map each key reveal to its technique, mark what to reuse. Copyable template included."
+    },
+    "answer": {
+      "zh": "小说拆书先把全书切成章，再逐章拆三步：用白描记下每个情节点里谁做了什么、结果如何；把本章必须交给读者的关键信息和作者把它扩成场景的手法分开记；写明哪些情绪逻辑能换素材复用、哪些专名、桥段和台词只属于原作。下面的网文拆书表把这三步放进每章笔记。",
+      "en": "Split the novel into chapters, then make three passes on each: log every plot point plainly (who did what, and what came of it), separate the information the chapter must deliver from the technique that stretches it into a scene, and note which emotional logic you can reuse and which names, set pieces and lines stay with the original."
+    },
+    "sections": [
+      {
+        "id": "chaishu-template",
+        "heading": {
+          "zh": "网文拆书模板（拆文模板）：逐章拆书表",
+          "en": "Novel breakdown template: two tables per chapter"
+        },
+        "body": {
+          "zh": "[拆文](/glossary/chaiwen)时每章填两张表：表一记情节点，一行一个；表二记关键信息与扩写技法，每章至少一行。\n\n### 表一：情节点\n\n| 序号 | 标题 | 类型 | 白描 | 人物 | 基调 |\n|---|---|---|---|---|---|\n| P1 | 15 字以内的短标签 | 从八种类型里选 | 谁做了什么、结果如何 | 写全名 | 从十种基调里选 |\n\n### 表二：关键信息与扩写技法\n\n| 关键信息 | 原文如何扩写 | 扩写技法 | 读者情绪 | 复用条件 | 不可照搬 |\n|---|---|---|---|---|---|\n| 读者读完这章该知道、会误会、在等或已证实的事 | 用了哪些事件、对话、旁人反应、细节、误导或回扣 | 从下方技法里选 | 好奇、期待、压抑、爽、心疼、紧张等 | 换到新故事要满足的前提和失效风险 | 专名、具体桥段、标志性台词、独特设定 |\n\n### 填表用的选项\n\n- 情节点类型（8 种）：转折点、信息揭示、冲突、解决、铺垫、行动、对话、状态变化\n- 基调（10 种）：紧张、轻松、悲伤、热血、爽、甜、温馨、恐怖、压抑、其他\n- 扩写技法（7 种，另可写其他）：铺垫后置、反应层放大、信息差、对比锚点、延迟揭示、身体反应、小目标嵌套\n\n### 每章拆完自查\n\n- [ ] 情节点照事件发生的先后排，没有重排\n- [ ] 白描写清谁做了什么、结果如何，没替人物补动机\n- [ ] 表二至少一行，过渡章也写明维持了什么期待\n- [ ] 原文没给的信息写「原文未明确」",
+          "en": "A novel breakdown (some writers call it a reverse outline) fills two tables per chapter: plot points, one per row, and key information with the technique that expands it, at least one row.\n\n### Table 1: plot points\n\n| # | Label | Type | Plain description | Characters | Tone |\n|---|---|---|---|---|---|\n| P1 | A short tag | One of eight types | Who did what, and what came of it | Full names | One of ten tones |\n\n### Table 2: key information and expansion technique\n\n| Key information | How the text expands it | Technique | Reader emotion | Reuse condition | Do not copy |\n|---|---|---|---|---|---|\n| What the reader should know, misread, be waiting for or have confirmed | Events, dialogue, reactions, details, misdirection or callbacks | From the list below | Curiosity, anticipation, tension, payoff… | What a new story needs, and where it breaks | Names, set pieces, signature lines, unique world details |\n\n### Values for the columns\n\n- Plot point types (8): turning point, reveal, conflict, resolution, setup, action, dialogue, change of state\n- Tones (10): tense, light, sad, rousing, satisfying, sweet, warm, horror, oppressive, other\n- Expansion techniques (7, plus other): backfilled setup, amplified reactions, information gap, contrast anchor, delayed reveal, physical reaction, nested small goal\n\n### Per-chapter checklist\n\n- [ ] Plot points follow the order events happen\n- [ ] Each description says who did what and what came of it, with no invented motives\n- [ ] Table 2 has a row, even for a transition chapter\n- [ ] Anything the text leaves out is marked \"not stated in the text\""
+        }
+      },
+      {
+        "id": "how-to-break-down-a-novel",
+        "heading": {
+          "zh": "小说拆书怎么拆：先切章，再逐章拆三步",
+          "en": "How to deconstruct a novel: split the chapters, then three passes each"
+        },
+        "body": {
+          "zh": "1. **切章。** 认出章节分隔，做一张章号、标题、起始位置、字数的章节边界表，之后凡是切原文都以这张表为准。章号要连续、不重复；多卷书每卷从第一章重起时，在标题里带上卷号。\n2. **白描情节点。** 一个情节点一句话：谁做了什么、结果如何。原文写出的起因照写，原文没写的动机不补；为同一个戏剧目的连续发生的小动作合成一条。\n3. **拆关键信息与扩写技法。** 先问这一章要让读者知道什么、误会什么、盼着什么、确认什么，再看作者用哪些事件、对话、旁人反应、细节、误导和回扣把这条信息撑成一场戏。「讲了什么」和「怎么讲长」之间的差，就是能学的写法。\n4. **写复用条件和不可照搬。** 只抽情绪逻辑和功能位，比如「一个被小看的人当众拿出结果」；专名、具体桥段、标志性台词和独特设定都记进不可照搬一栏。\n\n引用要省着用：Oh Story 的拆书模板每章最多留 8 条原文引用，只给关键转折、关键台词和写法样本；段落太长就记一句能搜回原文的短句定位。",
+          "en": "1. **Split the chapters.** Build a boundary table of chapter number, title, start position and length; all later slicing of the text follows it. Numbers must run in order with no duplicates; if each volume restarts at chapter one, keep the volume in the title.\n2. **Describe plot points plainly.** One sentence each: who did what, and what came of it. Keep causes the text states, leave out motives it does not, and merge small actions that serve one dramatic purpose.\n3. **Map key information to technique.** Ask what the chapter must make the reader know, misread, look forward to or confirm, then find the events, dialogue, reactions, details and callbacks that stretch it into a scene. That stretch, from information to scene, is the part you can learn.\n4. **Write the reuse condition and the do-not-copy list.** Abstract only emotional logic and functional roles, such as \"an underestimated person produces a result in public.\" Names, set pieces and signature lines go in do-not-copy.\n\nQuote sparingly: Oh Story's template keeps at most 8 quotes per chapter, for key turns, key lines and style samples; for a long passage, note a short searchable phrase."
+        }
+      },
+      {
+        "id": "plain-description",
+        "heading": {
+          "zh": "拆书情节点怎么写：白描和概括式写法的区别",
+          "en": "How to write plot points: plain description vs summary"
+        },
+        "body": {
+          "zh": "拆书最容易错在情节点那一句。「一番交谈过后，真相大白」看不出谁说了什么；「她很失望」把原文没写的感受当成了事实。后面的剧情聚合、节奏索引和模块卡都从这些句子长出来，白描一歪，整份拆书跟着歪。\n\n白描记动作、对话和结果；原文明写的起因和内心活动照记，原文同时给了外部表现就优先记表现。几组原创对照（左栏都假定原文只写了动作）：\n\n| 维度 | 要避开的写法 | 白描写法 |\n|---|---|---|\n| 情感 | 她心里很失望 | 她把买好的两张票放回抽屉，没再提周末 |\n| 评价 | 这场谈判写得很精彩 | 老周报出底价，对方合上文件夹，起身去倒水 |\n| 意图 | 他想让大家知道自己不好惹 | 他把欠条拍在桌上，挨个念出名字 |\n| 叙事框架词 | 一通电话让小满知道了坏消息 | 房东打电话给小满：月底收回店面 |\n\n等级、数值、谁对谁说了哪句话、角色在哪几章出场，这类硬事实都要能回到原文查到；查不到就写「原文未明确」，别拿同类作品的惯例补一个看似合理的值。",
+          "en": "Breakdowns usually go wrong in the plot-point line. \"After a long talk, the truth comes out\" hides who said what; \"She is disappointed\" records a feeling the text never wrote. Everything later grows from these lines, so a slanted line slants the whole breakdown.\n\nRecord actions, dialogue and results. Causes and thoughts the text states go in as written; when it also shows an outward sign, record the sign. Original pairs (in each, assume the text shows only the action):\n\n| Aspect | Avoid | Plain description |\n|---|---|---|\n| Feeling | She is deeply disappointed | She puts the two tickets back in the drawer and drops the subject |\n| Judgment | A brilliant negotiation | Old Zhou names his floor price; the buyer closes the folder and goes to pour water |\n| Intent | He wants everyone to fear him | He slaps the IOUs on the table and reads out the names one by one |\n| Framing words | A phone call brings Xiaoman bad news | The landlord phones Xiaoman: he wants the shop back at month end |\n\nHard facts (ranks, numbers, who said what to whom, which chapters a character appears in) must trace to the text. If the text is silent, write \"not stated in the text\"; genre convention is no substitute."
+        }
+      },
+      {
+        "id": "breakdown-to-module",
+        "heading": {
+          "zh": "拆完怎么用：从拆书表到可复用模块",
+          "en": "From chapter breakdowns to a reusable story module"
+        },
+        "body": {
+          "zh": "单章表格攒够后，按章节顺序把关键信息串起来，看每条信息怎样走完「进入读者视野 → 被延迟、误导或验证 → 情绪爆发 → 余波和新钩子」。连续三章以上没有情绪触动点的地方，记下作者靠哪些小钩子撑住了期待。\n\n把一条链上的具体素材拿掉，剩下的情绪链和功能位就能收成一张模块卡。Oh Story 的模块卡主要有这几栏：\n\n- **读者想看什么**：一句话，比如被理解、翻盘\n- **情绪链**：缺口 → 加压 → 触发 → 爆发 → 余波\n- **戏剧单元**：拿掉素材后剩下的结构\n- **关键触发物**：误判的人、见证的人、代价、证据、奖励\n- **可替换项**：人物身份、地点、道具、对手类别、要达成的结果\n- **不可照搬**：原作的专有名称、事件先后、招牌台词、独有设定\n\n用模块写新故事时，先定读者需求，再挑模块卡，别从原文桥段倒着抄。冲突对象、公开或私密场景、触发证据、余波方向这四项，Oh Story 的复现指南要求至少改掉三项。人物和模块对不上时，按人物重搭模块，别为了套路扭曲人物。",
+          "en": "String the key information together in chapter order and trace each piece: it enters the reader's view, gets delayed, misdirected or verified, peaks, then leaves an aftermath and a new hook. Where three or more chapters pass with no emotional peak, note which small hooks carry the wait.\n\nStrip the specific material from a chain and what remains, the emotional chain and the roles, becomes a module card. Oh Story's card has these main fields:\n\n- **What the reader wants**: one line, such as being understood or a comeback\n- **Emotional chain**: gap → pressure → trigger → release → aftermath\n- **Dramatic unit**: the structure left once the material is removed\n- **Trigger roles**: the one who misjudges, the witness, the cost, the proof, the reward\n- **Replaceable**: identities, setting, props, opponent type, the goal\n- **Do not copy**: names, the exact order of events, signature lines, unique world details\n\nChoose the reader need first, then the card; never work backwards from the source's set pieces. Oh Story's reuse guide asks you to change at least three of four things: who the conflict is with, whether the scene is public or private, the triggering evidence, and where the aftermath goes. If characters and module clash, rebuild the module around the characters."
+        }
+      },
+      {
+        "id": "worked-example",
+        "heading": {
+          "zh": "拆书示例：用拆书表拆一场原创戏",
+          "en": "Worked example: a chapter breakdown of one original scene"
+        },
+        "body": {
+          "zh": "一段为本文写的原创小场景，按段落编号，方便回指（示例表一为省篇幅略去人物一栏）：\n\n> [P1] 海报工作室里，卢青把最后一版样张递给周眠：“你确认后，我就下单。”\n> [P2] 周眠抽出对照稿，上面留着两人各自的修改笔迹。新样张底部只有卢青一个人的署名。\n> [P3] “正文还有错？”卢青问。周眠把笔横放在确认格上，没有签。\n> [P4] 卢青看了看两人的笔迹，把署名改成两人并列：“按这版重出样，印之前再给你看。”\n> [P5] 周眠在样张背面写下“待看新样”，确认格留空。\n\n### 表一：情节点\n\n| 序号 | 标题 | 类型 | 白描 | 基调 |\n|---|---|---|---|---|\n| P1 | 递终版样张 | 铺垫 | 卢青把样张交给周眠，说她确认后才下单 | 其他 |\n| P2 | 只署一人 | 信息揭示 | 周眠拿出留有两人笔迹的对照稿，新样张只署卢青一人 | 压抑 |\n| P3 | 确认格没签 | 冲突 | 卢青问正文是否有错，周眠把笔横放在确认格上，没有签 | 紧张 |\n| P4 | 改成并列署名 | 行动 | 卢青把署名改成两人并列，答应重出样张、印前给周眠看 | 其他 |\n| P5 | 等新样 | 铺垫 | 周眠在背面写下待看新样，确认格仍空着 | 紧张 |\n\n### 表二：关键信息与扩写技法\n\n| 关键信息 | 原文如何扩写 | 扩写技法 | 读者情绪 | 复用条件 | 不可照搬 |\n|---|---|---|---|---|---|\n| 周眠的贡献没被署名，下单又离不开她的确认 | 两种笔迹和单人署名并排，一个没签的确认格代替争吵 | 对比锚点、信息差 | 压抑转期待 | 对方的下一步确实要靠这次合作，拒绝配合有代价 | 样张、署名栏、横放的笔这串道具和动作顺序 |\n\n证据只撑到这里：缺署名卡住了确认流程。谁漏掉的、是否故意、两人有没有旧账，笔记里一律记「原文未明确」。\n\n### 换素材试一次\n\n新情境：社区菜园开会商量扩种第二块地。方案默认温宁周日照常来值守，没人问过她，而她这周日整天走不开。苗圃要周四前确认追加的苗，可能顶班的乔越周五才能答复。四项全换：\n\n- 冲突对象：合作者卢青 → 整个菜园小组，争的也从署名换成周日人手\n- 场景：私下对稿 → 小组会上当众说清\n- 触发证据：对照稿上的两种笔迹 → 苗圃周四截单、乔越周五才答复的时间差\n- 余波方向：重出样张、等她确认 → 只给原来那块地下单，第二块地先空着\n\n带过来的只有情绪逻辑：一份被当成理所当然的投入，成了共同计划绕不过去的限制。当众说清和缩小计划，都是换过的部分。",
+          "en": "A short original scene, numbered so the notes can point back to it (Table 1 omits the character column to save space):\n\n> [P1] In the poster studio, Lu Qing hands Zhou Mian the final proof. \"Once you sign off, I'll place the order.\"\n> [P2] Zhou Mian pulls out the draft carrying both their handwritten edits. The new proof carries one credit: Lu Qing's.\n> [P3] \"Still a typo?\" Lu Qing asks. Zhou Mian lays her pen across the sign-off box and does not sign.\n> [P4] Lu Qing looks from the two sets of handwriting to the credit line and changes it to both names. \"I'll rerun the proof. You'll see it before it prints.\"\n> [P5] Zhou Mian writes \"waiting for new proof\" on the back and leaves the box empty.\n\n### Table 1: plot points\n\n| # | Label | Type | Plain description | Tone |\n|---|---|---|---|---|\n| P1 | Final proof | Setup | Lu Qing says the order waits on Zhou Mian's sign-off | Other |\n| P2 | One credit | Reveal | The draft shows both their edits; the proof credits only Lu Qing | Oppressive |\n| P3 | Box unsigned | Conflict | Zhou Mian lays her pen across the box and does not sign | Tense |\n| P4 | Both names | Action | Lu Qing credits both and promises a new proof | Other |\n| P5 | Waiting | Setup | Zhou Mian notes she will wait; the box stays empty | Tense |\n\n### Table 2: key information and technique\n\n| Key information | How the text expands it | Technique | Reader emotion | Reuse condition | Do not copy |\n|---|---|---|---|---|---|\n| Zhou Mian's work went uncredited, and the order needs her sign-off | Two sets of handwritten edits beside one credit; an unsigned box in place of an argument | Contrast anchor, information gap | Pressure turning to anticipation | The other side truly needs this cooperation, and refusing costs something | The proof, credit line and pen, in that order |\n\nThe evidence stops here: a missing credit holds up sign-off. Who left it off, and why, is \"not stated in the text.\"\n\n### Try it with new material\n\nNew situation: a community garden plans a second plot and assumes Wen Ning will cover Sunday again. Nobody asked her, and she is away all day. The nursery wants the order by Thursday; the only stand-in, Qiao Yue, answers on Friday. All four things change:\n\n- Conflict: Lu Qing over credit → the whole group over Sunday cover\n- Scene: a private proof check → an open meeting\n- Trigger: two sets of handwriting → the Thursday–Friday gap\n- Aftermath: a rerun proof → an order for the original plot only, the second plot left empty\n\nWhat travels is the emotional logic: a contribution everyone took for granted becomes a limit the shared plan has to face. The open meeting and the smaller plan are changed parts."
+        }
+      },
+      {
+        "id": "common-mistakes",
+        "heading": {
+          "zh": "小说拆书常见错误和改法",
+          "en": "Common novel breakdown mistakes and fixes"
+        },
+        "body": {
+          "zh": "- **只复述剧情。** 情节点表写满了，表二空着。改法：每章至少补一行关键信息与扩写技法，说清这章让读者知道或期待了什么、作者靠什么把它撑长。\n- **替人物补动机。** 原文只写他摔门，笔记里写「他恨透了对方」。改法：只记摔门和摔门之后发生了什么。\n- **过渡章写「无」。** 改法：写它维持了哪条期待，或者让哪股情绪冷了下来。\n- **粒度不对。** 整场打斗记成一条会丢细节，抬手、转身各记一条又太碎。改法：一个完整的戏剧事件记一条。\n- **把桥段当模板。** 改法：可复用那栏只写情绪链和功能位，桥段、台词、专名全部记进不可照搬。",
+          "en": "- **Retelling the plot.** Table 1 is full, Table 2 empty. Fix: add a key-information row: what the reader learns, and what stretches it out.\n- **Inventing motives.** The text says he slams the door; the notes say he hates her. Fix: record the slam and what happens after it.\n- **Marking a transition chapter \"nothing.\"** Fix: note which expectation it keeps alive or which emotion it cools down.\n- **Plot points too coarse or too fine.** One line for a whole fight loses detail; one line per raised hand is noise. Fix: one complete dramatic event per plot point.\n- **Treating a set piece as a template.** Fix: reuse only the emotional chain and roles; set pieces, lines and names go in do-not-copy."
+        }
+      },
+      {
+        "id": "novel-breakdown-skill",
+        "heading": {
+          "zh": "小说拆书 skill：用 story-long-analyze 按表自动拆",
+          "en": "A novel breakdown skill: story-long-analyze"
+        },
+        "body": {
+          "zh": "[Oh Story](/oh-story) 里的 [story-long-analyze](https://github.com/zenstory-ai/oh-story-claudecode/tree/main/skills/story-long-analyze) 把上面的拆法做成了一条管道，原文和所有产物都存在 `拆文库/{书名}/` 下：\n\n1. 备份原文，切出章节边界表，写一版简短概要。\n2. 深度拆解前三章，写出 `快速预览.md` 后停下来问你要不要继续；一开始就说「完整拆解」，它会跳过询问一路跑完。\n3. 逐章拆出情节点、关键信息与扩写技法表和逐章写法公式，公式里包括[章尾卡点](/oh-story/chapter-ending-hooks)与伏笔。\n4. 跨章聚合出剧情单元、`剧情/节奏.md` 和 `剧情/情绪模块.md`，再整理设定与人物关系。\n5. 汇总成 `拆文报告.md`，最后写一份 `文风.md`。\n\n中途断了，它读 `_progress.md` 从断点接着跑。短篇用 `/story-short-analyze`，拆故事核、结构、情感线和反转。把自己写了一半的书导进来续写是另一项任务，见[导入续写](/oh-story/import-and-continue)；前三章怎么看，见[黄金三章交付清单](/oh-story/novel-opening)。",
+          "en": "In [Oh Story](/oh-story), [story-long-analyze](https://github.com/zenstory-ai/oh-story-claudecode/tree/main/skills/story-long-analyze) runs the method above as a pipeline and saves the source text and every output under `拆文库/{book title}/`:\n\n1. Back up the source, build the chapter boundary table and write a short synopsis.\n2. Break down the first three chapters, write a quick preview (`快速预览.md`) and ask whether to continue; ask for a full breakdown up front and it runs straight through.\n3. Break every chapter into plot points, the key-information table and a per-chapter formula that includes the [chapter-ending hook](/oh-story/chapter-ending-hooks).\n4. Group chapters into plot units, a pacing index and module cards, then settings and relationships.\n5. Write the full report and a style profile.\n\nAn interrupted run resumes from `_progress.md`. For short fiction use `/story-short-analyze`. To continue your own manuscript, see [import and continue](/oh-story/import-and-continue); for openings, see [the golden three chapters](/oh-story/novel-opening)."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "小说拆书一章要拆多少个情节点？",
+          "en": "How many plot points per chapter in a novel breakdown?"
+        },
+        "a": {
+          "zh": "Oh Story 的逐章提取按每 150–200 字一个情节点算，一章 10 到 40 个：3000 字的章约 15–20 个，1000 字以内的短章也拆足 10 个关键步骤，8000 字以上封顶 40 个。",
+          "en": "Oh Story's extractor works from one plot point per 150–200 Chinese characters, 10 to 40 per chapter: about 15–20 for 3,000 characters, 10 even for 1,000 or fewer, at most 40 for 8,000 or more."
+        }
+      },
+      {
+        "q": {
+          "zh": "拆书要把整本书拆完吗？",
+          "en": "Do I need to break down the whole novel?"
+        },
+        "a": {
+          "zh": "先拆前三章，判断值不值得继续。story-long-analyze 拆完前三章停在 `快速预览.md`，给出开篇钩子、主角塑造等五项评分和早期可借鉴点；你确认后它再逐章拆全书。当时选择先停下的话，之后对同一本书再跑一次，会从逐章摘要接着拆。",
+          "en": "Start with the first three chapters. story-long-analyze stops after them with a quick preview that scores five areas, from the opening hook to chapter-end suspense, and lists early takeaways. Confirm and it goes on chapter by chapter; if you stop there, running it on the same book later picks up at the per-chapter stage."
+        }
+      },
+      {
+        "q": {
+          "zh": "拆书笔记怎么用到自己的小说里？",
+          "en": "How do I use breakdown notes in my own novel?"
+        },
+        "a": {
+          "zh": "用模块卡，桥段留在原作里：先定读者需求，挑情绪链对得上的卡，保留情绪链和功能位，冲突对象、场景、触发证据、余波方向至少换三项。",
+          "en": "Work from module cards and leave set pieces behind: pick the reader need, choose a fitting card, keep its chain and roles, and change at least three of conflict, scene, trigger and aftermath."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-analyze",
+      "text": {
+        "zh": "在装好 Oh Story 的 Agent 里输入 `/story-long-analyze`（或说「帮我拆这本书」），给出书名和原文文件路径，它会按上面的拆书表逐章拆完并汇总成 `拆文报告.md`；短篇换用 `/story-short-analyze`。",
+        "en": "In an agent with Oh Story installed, run `/story-long-analyze` with the book title and source file path; it fills the tables above chapter by chapter and ends with a full report. For short fiction, use `/story-short-analyze`."
+      }
+    },
+    "related": [
+      "/glossary/chaiwen",
+      "/oh-story/novel-opening",
+      "/oh-story/chapter-ending-hooks",
+      "/oh-story/short-story-from-idea",
+      "/oh-story/import-and-continue"
+    ]
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "script-to-storyboard",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-13",
+    "updated_on": "2026-09-23",
+    "title": {
+      "zh": "分镜脚本怎么写：短剧分镜表模板，把剧本逐镜拆开",
+      "en": "How to write a storyboard script: shot list template for short drama"
+    },
+    "seo_title": {
+      "zh": "分镜脚本怎么写：附短剧分镜表格模板",
+      "en": "Storyboard Script Template for AI Short Drama"
+    },
+    "description": {
+      "zh": "分镜脚本一镜一行，写镜号、来源、镜头职责、景别运镜与轴线侧、起点、动作到终点、对白和时长估计，先排完整台词再定秒数。附可复制的短剧分镜表模板和填好的四镜范例。",
+      "en": "A storyboard script gives each shot a row: source, purpose, framing, start state, action to end state, dialogue and duration. Copy the shot list template."
+    },
+    "answer": {
+      "zh": "分镜脚本是把定稿剧本逐镜写成的一张表：每镜一行，写镜号、来源场景、镜头职责、景别运镜与机位所在的轴线侧、起点状态、动作到终点、对白声音和时长估计。先定这一镜结束时观众多知道了什么，再选景别；上一镜的终点就是下一镜的起点；有对白先排整句，再定秒数。",
+      "en": "A storyboard script turns a finished screenplay into a shot list, one row per shot: number, source scene, purpose, framing and camera move with the axis side, start state, action to end state, dialogue and time estimate. Decide what the viewer learns before choosing the framing, make each end state the next start, and fit the full line before setting the duration."
+    },
+    "sections": [
+      {
+        "id": "storyboard-script-template",
+        "heading": {
+          "zh": "分镜脚本模板：短剧分镜脚本表格怎么列",
+          "en": "Storyboard script template: the shot list"
+        },
+        "body": {
+          "zh": "一镜一行，尖括号换成你的内容；同一场戏里，第二行起的起点接上一镜的终点。\n\n| 镜号 | 来源 | 镜头职责 | 景别·机位·运镜（轴线侧） | 起点状态 | 动作→终点 | 对白/声音 | 时长估计 |\n|---|---|---|---|---|---|---|---|\n| SHOT-001 | <场景ID>「必要短引文」 | <这一镜结束时变了什么> | <景别>·<水平角度、机位高度>·<固定或推、拉、摇、跟>（<轴线哪一侧>） | <谁在哪、朝向、双手、道具落点> | <一条可见动作链>→<终点的位置、双手与持物> | <原句照抄；说话者；画内或画外> | <文本估计 N 秒；估时依据> |\n| SHOT-002 | <场景ID>「必要短引文」 | <这一镜结束时变了什么> | <景别、角度、人物关系至少换一项> | 与 SHOT-001 终点逐项一致 | <动作链>→<终点> | <原句照抄> | <文本估计 N 秒> |\n\n每一镜写完，用这张清单过一遍：\n\n- [ ] 来源栏开头是剧本里确有的场景 ID，引文对得上本镜承担的动作或台词\n- [ ] 镜头职责说得出这一镜结束时谁多知道了什么、谁的处境变了\n- [ ] 和上一镜相比，景别、角度或人物关系至少换了一项\n- [ ] 起点和上一镜终点逐项对得上：位置、朝向、双手、道具\n- [ ] 同一个动作只在一镜里真正发生\n- [ ] 台词逐字照抄，镜长先容下整句话和听完之后的反应\n- [ ] 剧本里每一场都有镜头承载，不拍的场次写下理由",
+          "en": "One row per shot: fill in the angle brackets and, within a scene, start each row from the previous shot's end state.\n\n| Shot | Source | Purpose | Framing and camera (axis side) | Start state | Action to end state | Dialogue and sound | Time estimate |\n|---|---|---|---|---|---|---|---|\n| SHOT-001 | <scene ID> \"short quote\" | <what has changed by the end> | <size>, <angle, camera height>, <locked, push, pull, pan or follow> (<axis side>) | <who is where, facing, hands, props> | <one visible action chain> to <end position, hands, props> | <exact line; speaker; on or off screen> | <text estimate N s; basis> |\n| SHOT-002 | <scene ID> \"short quote\" | <what has changed> | <change size, angle or relationship> | Same as SHOT-001's end state | <action chain> to <end state> | <exact line> | <text estimate N s> |\n\nCheck every finished shot:\n\n- [ ] Source opens with a real scene ID, and the quote matches what this shot carries\n- [ ] The purpose says who knows more, or whose situation changed, by the end\n- [ ] Size, angle or relationship differs from the previous shot\n- [ ] Start state matches the previous end state: position, facing, hands, props\n- [ ] Each action happens in one shot only\n- [ ] Lines are exact, and the duration fits the whole line plus the reaction\n- [ ] Every scene has a shot, or a written reason for leaving it out"
+        }
+      },
+      {
+        "id": "storyboard-columns",
+        "heading": {
+          "zh": "短剧分镜表每一栏怎么填",
+          "en": "How to fill in each column of a shot list"
+        },
+        "body": {
+          "zh": "- **镜号**：按顺序编 SHOT-001、SHOT-002，改稿时没受影响的镜头保留原号。\n- **来源**：场景 ID 加一句短引文。剧本一改，顺着这一栏就能找到要复核的镜头。\n- **镜头职责**：一句话写清谁做了什么、这一镜为什么存在，比如交出证据、暂扣信息、权力易手、接住反应。只写“开场”两个字，审稿时无从查起。\n- **景别·机位**：景别看观众要读的信息落在哪个尺度，后果在两人距离上用中景，证据在指节上才给大特写。水平角度（正面、斜侧、正侧、背面）和机位高度（仰、平视、俯）分开写，再注明在轴线哪一侧。\n- **运镜**：固定机位适合观察和紧张；推近、拉远改变亲近或压力，摇和俯仰转移注意，跟拍留给移动本身有意义的人物。同一段时间里别同时要求固定和移动。\n- **起点、动作→终点**：起点写位置、朝向、双手和道具落点；动作写一条走到终点的可见链，放下、递交、取回要写清谁碰、落在哪。终点要能原样当下一镜的起点。\n- **对白/声音**：原句照抄，标说话者和画内、画外。\n- **时长估计**：有录音就用实际发声区间；没有，就照原文、说话人的节奏、情绪和换气估出一个区间，写明“文本估计”和估算依据。",
+          "en": "- **Shot number.** SHOT-001, SHOT-002 in order; on revision, untouched shots keep their numbers.\n- **Source.** Scene ID plus a short quote, so a script change shows which shots to recheck.\n- **Purpose.** One sentence on who does what and why the shot exists: show evidence, hold information back, shift power, catch a reaction. \"Opening\" gives a reviewer nothing to check.\n- **Framing and camera.** Choose size by where the information lives: a consequence in the gap between two people wants a medium shot; evidence on a knuckle earns an extreme close-up. Write angle and camera height separately, plus the axis side.\n- **Camera movement.** Lock the camera for watching and tension; push in or pull out to change closeness or pressure, pan or tilt to shift attention, and follow only when the movement itself matters. Don't mix locked and moving in one stretch.\n- **Start, action, end.** Start lists positions, facing, hands and props. The action is one visible chain to the end state; for a hand-off, say who touches what and where it lands. The end state doubles as the next start.\n- **Dialogue and sound.** Exact line, speaker, on or off screen.\n- **Time estimate.** Use the real speaking interval if you have audio; otherwise estimate a range from the text, pace, emotion and breathing, and label it a text estimate, with its basis."
+        }
+      },
+      {
+        "id": "how-to-write-storyboard-script",
+        "heading": {
+          "zh": "分镜脚本怎么写：从剧本到镜头的五个判断",
+          "en": "How to storyboard a script: five decisions per shot"
+        },
+        "body": {
+          "zh": "Drama Skills 的分镜技能拆镜时，要过这五个判断：\n\n1. **先把剧本对到镜头上。** 每个动作、台词、声音和画面上的字，都要落到某一镜里，或写明不拍的理由。几段原文可以合进一镜，一段也可以分给几镜。\n2. **先定职责，最后选景别。** 找出关键动作（一句台词、一次拒绝、一次转手或揭示），说清观众或人物因此有了什么变化，决定从谁的体验看，定下开头结尾必须看见什么，然后才挑景别、机位和切点。\n3. **有变化才切。** 出现新信息、新的目光、新决定、新证据、新的空间关系或节奏变化，才值得切一刀。一个双人镜可以装下好几轮对话；决定切了，景别、角度、人物关系至少有一样不同。\n4. **每个动作只发生一次。** 放钥匙、开门、亮证物，只有一个主要镜头能把状态从“之前”改成“之后”，别的镜头再碰到它，只管反应、细节或新的理解。\n5. **先排声音，再定镜长。** 多句对白按先后累加，停顿和听者反应按实际顺序插进去；边说边抬眼可以和台词共用时间，要等话说完才能做的动作单独给时间。放不下就延长、在状态清楚处拆镜或回剧本修订，台词一字不删，也不赶读。\n\n### 工作景别：一场戏里景别怎么走\n\n常见走法：第一镜比这场真正要演的距离宽一档，第二镜落进本场的工作景别，之后多在它上下一格来回；宽景、特写都算临时离开，用完就回来，场尾略微放开。一路只收不放，演到一半就无景可收。\n\n### 冻结关键帧只写起点\n\n每一镜下面还要写一段[冻结关键帧](/glossary/dongjie-guanjianzhen)提示词，只描述起点那一瞬间看得见的东西：手在镜内才去拿钥匙，起始画面里钥匙就还在桌上。动作过程交给视频提示词，见[Seedance 提示词怎么写](/drama-skills/seedance-prompts)；人物跨镜不走样，见[AI 短剧角色一致性](/drama-skills/character-consistency)。",
+          "en": "Drama Skills' storyboard skill makes five calls when breaking a script into shots:\n\n1. **Map the script to shots.** Every action, line, sound and piece of on-screen text lands in a shot or has a written reason to skip it. Several beats can share one shot; one beat can span several.\n2. **Purpose first, framing last.** Find the key action (a line, a refusal, a hand-off, a reveal), say what it changes and whose experience shapes the frame, fix what must show at start and end, then pick size, camera and cut.\n3. **Cut on change.** A cut is earned by new information, a look, a decision, evidence, a spatial relationship or a rhythm change. One two-shot can hold several rounds of dialogue; once you cut, change size, angle or relationship.\n4. **Each action happens once.** Only one primary shot moves a put-down, a door or evidence from before to after; other shots add reaction, detail or a new reading.\n5. **Sound first, then duration.** Sequential lines add up, with pauses and reactions in real order. Actions that overlap speech share its time; actions that wait for the line to finish need their own. If it won't fit, lengthen the shot, split it at a clear state change, or revise the script; never cut words or rush the line.\n\n### Working shot size\n\nA common pattern: open one step wider than the scene's playing distance, settle into its working size by shot two, then move one step either side of it. Wides and close-ups are brief departures, and the scene ends slightly wider. A scene that only tightens runs out of room by the middle.\n\n### The frozen keyframe covers the start only\n\nEach shot also gets a [frozen keyframe](/glossary/dongjie-guanjianzhen) prompt for its first instant only: if the hand reaches for the key mid-shot, the key is still on the table in that frame. Motion belongs in the video prompt ([Seedance prompt guide](/drama-skills/seedance-prompts)); for faces that hold across shots, see [character consistency](/drama-skills/character-consistency)."
+        }
+      },
+      {
+        "id": "storyboard-script-example",
+        "heading": {
+          "zh": "分镜脚本范例：一场排练室的戏拆成四镜",
+          "en": "Storyboard script example: one scene in four shots"
+        },
+        "body": {
+          "zh": "下面拿一场排练室的戏拆镜，秒数都按剧本文本估计。SHOT-002 和 SHOT-004 超过 8 秒，起始关键帧只管得住开头，这里按创作者认可的长镜头处理；SHOT-004 也可以在拿回钥匙后拆开。\n\n> SC01　内景·排练室门口·夜\n> 窄桌横在中间。岑夏站在桌子左侧，右手拿一把系绿布环的黄铜钥匙；周屿坐在右侧。岑夏身后有一把空椅。\n> 岑夏说话间把钥匙放到桌子中间，收回右手。\n> 岑夏：我先走。钥匙你收着。\n> 周屿看着她，没有伸手。\n> 周屿：（克制）我可以替你锁门，但不能替你告诉他们，乐队今天就散了。\n> 岑夏伸手去拿钥匙，停在钥匙上方，看着周屿。\n> 岑夏：那我等他们来。\n> 她用右手拿回钥匙，左手把身后的椅子拉近，坐下。\n\n| 镜号 | 来源 | 镜头职责 | 景别·机位·运镜（轴线侧） | 起点状态 | 动作→终点 | 对白/声音 | 时长估计 |\n|---|---|---|---|---|---|---|---|\n| SHOT-001 | SC01「钥匙你收着」 | 立起她要走、他不接 | 中景双人·平视·固定（机位在桌子一侧，岑夏画左、周屿画右） | 钥匙在岑夏右手，桌面中间空着，周屿双手在身前 | 她把钥匙放到桌子中间，松手收回→钥匙留在桌上，周屿没接 | 岑夏（画内）：“我先走。钥匙你收着。”与放钥匙重叠 | 6 秒：短句约 2 秒，余下给放钥匙和他不接 |\n| SHOT-002 | SC01「替你锁门」 | 他拒绝替她宣布散伙 | 周屿中近景·平视·固定（同一侧，视线朝画左） | 钥匙在桌子中间，周屿没伸手 | 他说完整句，手始终不碰钥匙→岑夏还没再伸手 | 周屿（画内，按括注克制）：“我可以替你锁门，但不能替你告诉他们，乐队今天就散了。” | 10 秒：整句 6–8 秒含停顿，说完留约 2 秒 |\n| SHOT-003 | SC01「停在钥匙上方」 | 把“立刻走”变成没做完的动作 | 岑夏中近景·平视·固定（同一侧，视线朝画右，右手和钥匙在画面下缘） | 岑夏右手已收回，钥匙在桌子中间 | 她右手伸向钥匙，碰到前停住，抬眼看周屿→手悬在钥匙上方 | 无对白，留住停顿 | 6 秒：伸手到停住约 2 秒，悬停对视约 4 秒 |\n| SHOT-004 | SC01「那我等他们来」及取钥匙、拉椅、坐下 | 她决定留下，新状态落地 | 中景双人·平视·固定（同一侧，身后椅子入画） | 右手悬在钥匙上方，左手空着 | 先说完短句，再右手拿回钥匙，左手拉椅坐下→岑夏坐在桌子左侧，钥匙在她右手，其他成员还没来 | 岑夏（画内）：“那我等他们来。” | 10 秒：短句 2–3 秒，取钥匙和坐下 4–5 秒，坐定再停一下 |\n\n- **景别跟着要读的东西走。** SHOT-001 的中景交代桌子、钥匙和两人距离，空间随放钥匙的动作一起到达，省掉空景全景；SHOT-002 收到周屿，读他的拒绝；SHOT-003 反打岑夏，中近景留住她悬着的手；SHOT-004 退回双人中景，让身后的椅子入画。\n- **轴线不动。** 四镜机位都在桌子同一侧，岑夏始终在画左，观众不用重新找方向。\n- **钥匙只动两次。** 放下归 SHOT-001，拿回归 SHOT-004；SHOT-002、SHOT-003 里钥匙一直停在桌子中间，谁也没碰。\n\n后三镜能不能压成一个 8 秒镜头？周屿的整句、岑夏的停顿、她的回答、取钥匙和坐下得按先后发生，压进 8 秒，要么把周屿的话删成“你自己说”，要么让岑夏没等他说完就伸手，两种都改了剧本。",
+          "en": "Durations below are text estimates. SHOT-002 and SHOT-004 run past 8 seconds, longer than one start keyframe controls, so the creator accepts them as long shots; SHOT-004 could also split after the key pick-up.\n\n> SC01. INT. REHEARSAL ROOM DOORWAY - NIGHT\n> A narrow table between them. CEN XIA stands on its left, a brass key on a green loop in her right hand. ZHOU YU sits on the right. An empty chair behind her.\n> As she speaks, Cen Xia sets the key in the middle of the table and draws her hand back.\n> CEN XIA: I'm going. You keep the key.\n> Zhou Yu watches her. He doesn't reach for it.\n> ZHOU YU: (restrained) I can lock up for you. Telling them the band broke up today is on you.\n> She reaches for the key, stops just above it, and looks at him.\n> CEN XIA: Then I'll wait for them.\n> She takes the key back in her right hand, pulls the chair closer with her left, and sits.\n\n| Shot | Source | Purpose | Framing and camera (axis side) | Start state | Action to end state | Dialogue and sound | Time estimate |\n|---|---|---|---|---|---|---|---|\n| SHOT-001 | SC01 \"You keep the key\" | She is leaving; he won't take the key | Medium two-shot, eye level, locked (one side of the table; she is screen left) | Key in her right hand; table center empty | She sets the key down and withdraws; key stays, untaken | Cen Xia (on screen): \"I'm going. You keep the key.\" Over the put-down | 6 s: line about 2 s, then the put-down and his stillness |\n| SHOT-002 | SC01 \"lock up for you\" | He refuses to announce the break-up | Medium close-up on Zhou Yu, eye level, locked (same side; eyeline left) | Key at table center | He finishes the line without touching the key; she hasn't reached again | Zhou Yu (on screen, restrained as written): \"I can lock up for you. Telling them the band broke up today is on you.\" | 10 s: line 6–8 s with pauses, about 2 s after |\n| SHOT-003 | SC01 \"stops just above it\" | Leaving becomes an unfinished gesture | Medium close-up on Cen Xia, eye level, locked (same side; eyeline right; hand and key low in frame) | Her hand withdrawn; key at table center | She reaches, stops short, looks up at him; hand hovering | None; hold the pause | 6 s: reach about 2 s, hover and look about 4 s |\n| SHOT-004 | SC01 \"wait for them\" and the sit-down | She decides to stay | Medium two-shot, eye level, locked (same side; chair in frame) | Hand hovering; left hand empty | Line, then key, chair, sits; seated, key in her right hand, nobody else has arrived | Cen Xia (on screen): \"Then I'll wait for them.\" | 10 s: line 2–3 s, key and chair 4–5 s, a beat seated |\n\n- **Framing follows what must be read.** The opening medium shot gives table, key and distance at once, with no empty establishing wide. SHOT-002 tightens on his refusal, SHOT-003 reverses to her hovering hand in a medium close-up, and SHOT-004 opens back to the two-shot for the chair.\n- **The axis stays put.** All four set-ups stay on one side of the table; she is always screen left.\n- **The key moves twice.** Put-down in SHOT-001, pick-up in SHOT-004; in between it sits untouched at table center.\n\nCould the last three shots share one 8-second shot? Only by cutting his line to \"tell them yourself\" or having her reach before he finishes, and both rewrite the script."
+        }
+      },
+      {
+        "id": "storyboard-script-mistakes",
+        "heading": {
+          "zh": "分镜脚本常见问题和改法",
+          "en": "Common storyboard script mistakes and fixes"
+        },
+        "body": {
+          "zh": "- **镜头表只是把剧本抄了一遍。** 每镜补上职责：结束时谁多知道了什么、谁的处境变了。说不出来，就并进前后镜。\n- **切了等于没切。** 相邻两镜景别、角度、人物关系都没变，观众读到的是跳切。沿中景、中近景、近景、特写相邻换一格，或换到轴线另一侧，或两镜合一，靠走位在镜内改变关系。\n- **同一个动作演了两遍，道具切镜后换了位置。** 把转手、开门、拿证物逐条列出：归哪一镜、前后各是什么状态。只有归属的那一镜能改状态。\n- **保留了对白，删掉了承受者的反应。** 打击、拒绝、翻盘要让观众看懂后果，就给一个可读的反应：反应镜、双人镜里的调度、声音或物件状态都行；画面已经清楚就不必补镜。",
+          "en": "- **The shot list just restates the script.** Give each shot a purpose: what does the viewer know, or whose situation changed, by its end? If you can't say, merge it with a neighbor.\n- **A cut that changes nothing.** Same size, angle and relationship in adjacent shots reads as a jump cut. Step one rung along medium shot, medium close-up, close shot, close-up; switch axis side; or merge the shots and let blocking change the relationship.\n- **An action plays twice, or a prop jumps.** List each hand-off, door or piece of evidence with the shot that owns it and its before and after states; only that shot changes them.\n- **Dialogue kept, reaction dropped.** When a refusal's consequence must land, give it a readable carrier: a reaction shot, blocking in a two-shot, a sound, an object's state, or nothing extra if the frame already shows it."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "分镜脚本一个镜头多少秒？",
+          "en": "How long should one storyboard shot be?"
+        },
+        "a": {
+          "zh": "按 Drama Skills 生产镜头语法的起步默认，竖屏短剧大致每 4–8 秒切一次镜。具体到某一镜，从它必须保留的动作、反应和对白倒推；项目定了生成时长档位，就取容得下它的最短一档。单镜超过约 5–8 秒，一张起始关键帧只管得住开头，更长的镜头要么在状态清楚处拆开，要么由创作者接受后段没有关键帧可对照。",
+          "en": "Drama Skills' production grammar defaults to roughly one cut every 4–8 seconds for vertical short drama. For a single shot, work backwards from the action, reaction and dialogue it must keep, and take the shortest fixed generation length that fits. Past about 5–8 seconds a start keyframe pins down only the opening: split where the state is clear, or accept the rest unchecked."
+        }
+      },
+      {
+        "q": {
+          "zh": "分镜脚本和剧本有什么区别？",
+          "en": "What is the difference between a script and a storyboard?"
+        },
+        "a": {
+          "zh": "剧本决定谁做什么、说什么、结尾意味着什么；分镜脚本继承这些事实，决定观众从什么距离、什么角度、在哪一刻看到和听到。要改台词、动作先后或结尾，回剧本改完再拆镜。从小说起步的，先看[小说改编短剧](/drama-skills/novel-to-short-drama)。",
+          "en": "The script decides who does what, what is said and what the ending means. The storyboard inherits those facts and decides the distance, angle and moment the audience sees and hears them. To change lines, action order or the ending, revise the script, then re-storyboard. Starting from a novel? See [novel to short drama](/drama-skills/novel-to-short-drama)."
+        }
+      },
+      {
+        "q": {
+          "zh": "不会画画怎么写分镜脚本？",
+          "en": "Can you storyboard without drawing?"
+        },
+        "a": {
+          "zh": "用文字分镜表就行。每镜写清起点、动作、终点和声音，再配一段冻结关键帧提示词描述起点画面，交给出图工具生成起始帧。Drama Skills 的分镜技能就只产出文字，图片和视频在后面的环节生成。",
+          "en": "Yes. A text shot list covers each shot's start, action, end and sound, and a frozen keyframe prompt describes the first frame for an image tool to render. Drama Skills' storyboard skill outputs only text; images and video come later."
+        }
+      }
+    ],
+    "skill": {
+      "name": "short-drama-storyboard",
+      "text": {
+        "zh": "在 Claude Code 里说：“用 /short-drama-storyboard 给 EP001 拆分镜，每镜写冻结关键帧”（Codex 里写作 `$short-drama-storyboard`）。它读当前的 `剧集/EP001/剧本.md` 和视觉设定，写出 `剧集/EP001/分镜.md`，只交文字，不生成图片或视频；视频提示词、生产和审查要另外点名。",
+        "en": "In Claude Code, say \"use /short-drama-storyboard to write EP001's storyboard and a frozen keyframe for every shot\" (in Codex, `$short-drama-storyboard`). It reads the current `剧集/EP001/剧本.md` and visual settings, writes `剧集/EP001/分镜.md`, and delivers text only; video prompts, production and review start only when you ask."
+      }
+    },
+    "related": [
+      "/drama-skills/novel-to-short-drama",
+      "/drama-skills/seedance-prompts",
+      "/drama-skills/character-consistency",
+      "/glossary/dongjie-guanjianzhen",
+      "/drama-skills"
+    ]
   }
 ]
