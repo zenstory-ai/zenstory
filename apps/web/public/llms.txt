@@ -66,6 +66,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 
 - [AI生成游戏怎么验收：从完整通关到重开回归](https://zenstory.ai/zh/novel-to-game/playable-acceptance-tests): 把游戏设计承诺改写成可观察断言，用一条完整路径检查启动、画面、输入、核心循环、结果与重开，并为修复留下回归卡。
 
+- [AI游戏美术需求怎么写：先验证画面能否读懂](https://zenstory.ai/zh/novel-to-game/readable-game-art-brief): 从游戏状态反推构图、焦点、反馈和资产交接，用一个原创信号台界面示例写清玩家动作、提交前后变化、失败条件与降级方案。
+
 ## Workbench docs
 
 Product documentation for the ZenStory workbench only (the hosted browser app at https://app.zenstory.ai, project page https://zenstory.ai/workbench). Single URL per page, 中文 first with the English translation below. Index: https://zenstory.ai/docs — getting started, user guide, advanced, reference, troubleshooting.
