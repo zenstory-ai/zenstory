@@ -56,6 +56,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 
 - [小说反转怎么写：6种类型的铺垫、揭示与后果](https://zenstory.ai/zh/oh-story/plot-twists): 小说反转可分为身份、视角、动机、时间线、信息和认知六种；无需反转时直接兑现情绪。附原创案例、可猜性测试和设计表。
 
+- [短剧付费卡点怎么设计：卡点前要欠观众什么](https://zenstory.ai/zh/drama-skills/paywall-episode): 短剧付费卡点放在尚未兑现的回报前：先建立人物、规则和代价，让本集产生局部结果，再让结果启动下一步。附定位表与连续分集原创案例。
+
 ## Workbench docs
 
 Product documentation for the ZenStory workbench only (the hosted browser app at https://app.zenstory.ai, project page https://zenstory.ai/workbench). Single URL per page, 中文 first with the English translation below. Index: https://zenstory.ai/docs — getting started, user guide, advanced, reference, troubleshooting.
