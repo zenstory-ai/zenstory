@@ -19,7 +19,7 @@ Overview page: https://zenstory.ai/projects (中文: https://zenstory.ai/zh/proj
 
 ## Guides
 
-Guides index: https://zenstory.ai/guides — every practical guide, grouped by project. Each guide is published in two languages at two URLs: English at the root path and 中文 under `/zh` (for example https://zenstory.ai/zh/oh-story/agent-skills-for-writers); the two are linked with hreflang. Each opens with a direct answer, includes an original worked example, and cites fixed-commit source files. One line each on what question it answers:
+Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides) — practical guides and craft articles, grouped by project. Chinese pages live under `/zh`; English adaptations, where available, live at the root path and link to their Chinese counterparts with hreflang. Chinese-only articles are listed below with their `/zh` URLs. Each page answers a working question with an original example and a related project workflow.
 
 - [Keep a long novel consistent](https://zenstory.ai/oh-story/long-novel-continuity): how to keep an AI-assisted long novel consistent by separating story truth, character knowledge and reader knowledge, and carrying forward only the current state.
 - [Make AI fiction sound human](https://zenstory.ai/oh-story/revise-ai-prose): 去AI味 — a delete-first test, three ordered revision passes (strip the generic, cut bookish diction, restore a natural voice), deletion caps, and an original before/after example.
@@ -51,6 +51,8 @@ Guides index: https://zenstory.ai/guides — every practical guide, grouped by p
 - [Choose a writing workflow](https://zenstory.ai/compare/writing-workflows): first-party comparison of Oh Story skills, the pinned DSH plugin and the hosted ZenStory workbench; boundaries, not a ranking.
 - [Organization overview](https://zenstory.ai/projects): which project to start with, based on what you want to make.
 - [Oh Story changelog](https://github.com/zenstory-ai/oh-story-claudecode/blob/main/CHANGELOG.md)
+
+- [网文爽点有哪些、怎么写：用倒推法完成铺垫与兑现](https://zenstory.ai/zh/oh-story/satisfaction-beats): 网文爽点可分为能力碾压、目标达成、收获盘点、态度转变、身份揭示和情感圆满。用倒推表先定兑现结果，再补期待、铺垫、反应与新目标。
 
 ## Workbench docs
 
