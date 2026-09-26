@@ -54,6 +54,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 
 - [网文爽点有哪些、怎么写：用倒推法完成铺垫与兑现](https://zenstory.ai/zh/oh-story/satisfaction-beats): 网文爽点可分为能力碾压、目标达成、收获盘点、态度转变、身份揭示和情感圆满。用倒推表先定兑现结果，再补期待、铺垫、反应与新目标。
 
+- [小说反转怎么写：6种类型的铺垫、揭示与后果](https://zenstory.ai/zh/oh-story/plot-twists): 小说反转可分为身份、视角、动机、时间线、信息和认知六种；无需反转时直接兑现情绪。附原创案例、可猜性测试和设计表。
+
 ## Workbench docs
 
 Product documentation for the ZenStory workbench only (the hosted browser app at https://app.zenstory.ai, project page https://zenstory.ai/workbench). Single URL per page, 中文 first with the English translation below. Index: https://zenstory.ai/docs — getting started, user guide, advanced, reference, troubleshooting.
