@@ -64,6 +64,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 
 - [AI短剧道具连续性：损坏、转手和内容物怎么记](https://zenstory.ai/zh/drama-skills/prop-state-continuity): 把道具身份与可变状态分开，逐场记录持有人、位置、开合、损坏、内容物和知情变化。附原创标本夹状态链、交接表与穿帮修正。
 
+- [AI生成游戏怎么验收：从完整通关到重开回归](https://zenstory.ai/zh/novel-to-game/playable-acceptance-tests): 把游戏设计承诺改写成可观察断言，用一条完整路径检查启动、画面、输入、核心循环、结果与重开，并为修复留下回归卡。
+
 ## Workbench docs
 
 Product documentation for the ZenStory workbench only (the hosted browser app at https://app.zenstory.ai, project page https://zenstory.ai/workbench). Single URL per page, 中文 first with the English translation below. Index: https://zenstory.ai/docs — getting started, user guide, advanced, reference, troubleshooting.
