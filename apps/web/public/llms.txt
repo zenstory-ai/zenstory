@@ -58,6 +58,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 
 - [短剧付费卡点怎么设计：卡点前要欠观众什么](https://zenstory.ai/zh/drama-skills/paywall-episode): 短剧付费卡点放在尚未兑现的回报前：先建立人物、规则和代价，让本集产生局部结果，再让结果启动下一步。附定位表与连续分集原创案例。
 
+- [图生视频提示词怎么写：参考帧减法与 8 类运动难题](https://zenstory.ai/zh/drama-skills/image-to-video-prompts): 有参考图时，先删外貌、服装、场景等静态复述，再补动作依赖的手、持物、遮挡与终点差异。附删减表、起终点差异表和 8 类运动难题改写。
+
 ## Workbench docs
 
 Product documentation for the ZenStory workbench only (the hosted browser app at https://app.zenstory.ai, project page https://zenstory.ai/workbench). Single URL per page, 中文 first with the English translation below. Index: https://zenstory.ai/docs — getting started, user guide, advanced, reference, troubleshooting.
