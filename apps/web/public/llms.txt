@@ -60,6 +60,14 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 
 - [图生视频提示词怎么写：参考帧减法与 8 类运动难题](https://zenstory.ai/zh/drama-skills/image-to-video-prompts): 有参考图时，先删外貌、服装、场景等静态复述，再补动作依赖的手、持物、遮挡与终点差异。附删减表、起终点差异表和 8 类运动难题改写。
 
+- [AI场景反打为什么换了房间：平面布局与视角表](https://zenstory.ai/zh/drama-skills/location-view-layout): 先固定门窗、锚点与通行关系，再为可复用观看方向建立视角表。附原创修复室平面记录、正反向对照、状态变体和穿帮修正。
+
+- [AI短剧道具连续性：损坏、转手和内容物怎么记](https://zenstory.ai/zh/drama-skills/prop-state-continuity): 把道具身份与可变状态分开，逐场记录持有人、位置、开合、损坏、内容物和知情变化。附原创标本夹状态链、交接表与穿帮修正。
+
+- [AI生成游戏怎么验收：从完整通关到重开回归](https://zenstory.ai/zh/novel-to-game/playable-acceptance-tests): 把游戏设计承诺改写成可观察断言，用一条完整路径检查启动、画面、输入、核心循环、结果与重开，并为修复留下回归卡。
+
+- [AI游戏美术需求怎么写：先验证画面能否读懂](https://zenstory.ai/zh/novel-to-game/readable-game-art-brief): 从游戏状态反推构图、焦点、反馈和资产交接，用一个原创信号台界面示例写清玩家动作、提交前后变化、失败条件与降级方案。
+
 ## Workbench docs
 
 Product documentation for the ZenStory workbench only (the hosted browser app at https://app.zenstory.ai, project page https://zenstory.ai/workbench). Single URL per page, 中文 first with the English translation below. Index: https://zenstory.ai/docs — getting started, user guide, advanced, reference, troubleshooting.
