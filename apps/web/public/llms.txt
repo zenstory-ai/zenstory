@@ -62,6 +62,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 
 - [AI场景反打为什么换了房间：平面布局与视角表](https://zenstory.ai/zh/drama-skills/location-view-layout): 先固定门窗、锚点与通行关系，再为可复用观看方向建立视角表。附原创修复室平面记录、正反向对照、状态变体和穿帮修正。
 
+- [AI短剧道具连续性：损坏、转手和内容物怎么记](https://zenstory.ai/zh/drama-skills/prop-state-continuity): 把道具身份与可变状态分开，逐场记录持有人、位置、开合、损坏、内容物和知情变化。附原创标本夹状态链、交接表与穿帮修正。
+
 ## Workbench docs
 
 Product documentation for the ZenStory workbench only (the hosted browser app at https://app.zenstory.ai, project page https://zenstory.ai/workbench). Single URL per page, 中文 first with the English translation below. Index: https://zenstory.ai/docs — getting started, user guide, advanced, reference, troubleshooting.
