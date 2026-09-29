@@ -176,10 +176,10 @@
     },
     "install": "npx skills add zenstory-ai/oh-story-claudecode -y -g",
     "entry": "/story-setup",
-    "stars": 6770,
+    "stars": 7166,
     "skills": 13,
     "sources": {
-      "checked_on": "2026-09-12",
+      "checked_on": "2026-09-29",
       "en": [
         "[Import entry, source types and author decisions](https://github.com/zenstory-ai/oh-story-claudecode/blob/070d744b075024b530d1befbaa2474531f4700a1/skills/story-import/SKILL.md#L40-L98)",
         "[Scan inputs, historical fallback and unavailable sources](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-short-scan/SKILL.md#L50-L85)",
@@ -356,10 +356,10 @@
     },
     "install": "npx skills add zenstory-ai/drama-skills -y -g",
     "entry": "$short-drama",
-    "stars": 1795,
+    "stars": 2374,
     "skills": 11,
     "sources": {
-      "checked_on": "2026-09-12",
+      "checked_on": "2026-09-29",
       "en": [
         "[Episode cuts follow dramatic results, not chapter counts](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-novel-analyze/references/adaptation-value.md#L77-L93)",
         "[Creator-first entry and on-demand documents](https://github.com/zenstory-ai/drama-skills/blob/bbe3b46e0ec984bcf4e43f75096d23b137a1aa32/skills/short-drama/SKILL.md#L70-L76)",
@@ -501,10 +501,10 @@
     },
     "install": "npx skills add zenstory-ai/novel-to-game -y -g",
     "entry": "/novel-to-game",
-    "stars": 775,
+    "stars": 813,
     "skills": 7,
     "sources": {
-      "checked_on": "2026-09-12",
+      "checked_on": "2026-09-29",
       "en": [
         "[Seven skills and installation](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/README.md#L59-L76)",
         "[Language, product scope and target-runtime contract](https://github.com/zenstory-ai/novel-to-game/blob/406f6d7dfaf1476b65c3acf6452557c5b7622aea/skills/novel-to-game/SKILL.md#L16-L50)",
@@ -651,10 +651,10 @@
     },
     "install": "npx skills add zenstory-ai/video-recap-skills -y -g",
     "entry": "/video-recap",
-    "stars": 505,
+    "stars": 541,
     "skills": 6,
     "sources": {
-      "checked_on": "2026-09-13",
+      "checked_on": "2026-09-29",
       "en": [
         "[Creative planning and stage handoffs](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-recap/SKILL.md#L10-L45)",
         "[Five stages plus the orchestrator](https://github.com/zenstory-ai/video-recap-skills/blob/ce272239f93818c102e10050646850f5e3918342/skills/video-recap/SKILL.md#L10-L19)",
@@ -781,10 +781,10 @@
     },
     "install": null,
     "entry": null,
-    "stars": 334,
+    "stars": 425,
     "skills": null,
     "sources": {
-      "checked_on": "2026-09-12",
+      "checked_on": "2026-09-29",
       "en": [
         "[Community plugin and non-affiliation statement](https://github.com/zenstory-ai/oh-story-dsh/blob/54521da113f94cee6ea26d765a7ede6af5776251/README_EN.md#L15-L17)",
         "[Pinned capabilities, prerequisites, installation and model setup](https://github.com/zenstory-ai/oh-story-dsh/blob/54521da113f94cee6ea26d765a7ede6af5776251/README_EN.md#L63-L96)",
@@ -920,10 +920,10 @@
     },
     "install": null,
     "entry": "https://app.zenstory.ai",
-    "stars": 40,
+    "stars": 56,
     "skills": 13,
     "sources": {
-      "checked_on": "2026-09-13",
+      "checked_on": "2026-09-29",
       "en": [
         "[Agent API, file editing and version features](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/README_EN.md#L163-L197)",
         "[Self-hosting prerequisites and model configuration](https://github.com/zenstory-ai/zenstory/blob/e3611ed6f80aab426d696479457fcd54fa2487a3/README_EN.md#L229-L267)",
