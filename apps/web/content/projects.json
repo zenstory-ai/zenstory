@@ -176,7 +176,7 @@
     },
     "install": "npx skills add zenstory-ai/oh-story-claudecode -y -g",
     "entry": "/story-setup",
-    "stars": 7166,
+    "stars": 7170,
     "skills": 13,
     "sources": {
       "checked_on": "2026-09-29",
@@ -356,7 +356,7 @@
     },
     "install": "npx skills add zenstory-ai/drama-skills -y -g",
     "entry": "$short-drama",
-    "stars": 2374,
+    "stars": 2383,
     "skills": 11,
     "sources": {
       "checked_on": "2026-09-29",
