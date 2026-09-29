@@ -623,6 +623,131 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Adapt a Historical Novel into a Game](https://zenstory.ai/novel-to-game/adapt-a-historical-novel-into-a-game): Adapt historical fiction by separating documented context, the novel's inventions, and the interactive choices the game adds.
 - [How to Adapt a Science Fiction Novel into a Game](https://zenstory.ai/novel-to-game/adapt-a-science-fiction-novel-into-a-game): Turn a science fiction novel's technology, social rules, and ethical questions into mechanics players can test through action.
 
+
+- [How to Finish the First Draft of a Novel](https://zenstory.ai/oh-story/finish-the-first-draft-of-a-novel): Keep a novel moving toward a complete draft with a realistic target, a clear next scene, and a plan for missed writing days.
+
+- [How to Write a Horror Novel That Sustains Dread](https://zenstory.ai/oh-story/write-a-horror-novel): Build horror from a specific threat, a character's vulnerability, and consequences that escalate beyond repeated scares.
+- [How to Write an Alternate-History Novel with Clear Consequences](https://zenstory.ai/oh-story/write-an-alternate-history-novel): Choose a credible point of divergence and trace how it changes institutions, daily life, and a character's choices.
+- [How to Write a Novel Sequel That Stands on Its Own](https://zenstory.ai/oh-story/write-a-novel-sequel-that-stands-alone): Continue a character's consequences while giving a sequel its own central problem, fresh choices, and a satisfying resolution.
+- [How to Write a Novel Series Finale That Pays Off the Arc](https://zenstory.ai/oh-story/write-a-novel-series-finale): Resolve a series' central promise by connecting the finale to earlier choices, relationships, and planted story threads.
+- [How to Write a Novel with an Antihero Readers Can Follow](https://zenstory.ai/oh-story/write-a-novel-with-an-antihero): Give an antihero a clear goal, understandable values, and choices with consequences so readers can follow a difficult protagonist.
+- [How to Write a Novella with a Complete Story Arc](https://zenstory.ai/oh-story/write-a-novella-with-a-complete-story-arc): Shape a novella around one focused conflict, a small cast, and a full arc that fits a shorter work.
+
+- [How to Write a Video Game Review Script with Clear Criteria](https://zenstory.ai/video-recap/write-a-video-game-review-script): Review a game through clear criteria, firsthand examples, and an audience fit instead of retelling the campaign.
+- [How to Write a Reaction Video with Original Commentary](https://zenstory.ai/video-recap/write-a-reaction-video-script-with-original-commentary): Plan a reaction video around specific observations, context, and original analysis rather than leaving long stretches of unstructured viewing.
+- [How to Write a Travel Video Script with a Clear Story](https://zenstory.ai/video-recap/write-a-travel-video-script): Build a travel video around a reason for the journey, useful details, and moments that change what the viewer understands.
+- [How to Write a Product Review Video Script with Evidence](https://zenstory.ai/video-recap/write-a-product-review-video-script-with-evidence): Make a product review useful by testing specific claims, stating who the product suits, and separating experience from fact.
+- [How to Write a Science Explainer Video Script](https://zenstory.ai/video-recap/write-a-science-explainer-video-script): Explain a science question clearly by defining terms, grounding claims in sources, and using visuals that show the process.
+
+- [How to Write a Short-Drama Logline Producers Can Grasp](https://zenstory.ai/drama-skills/write-a-short-drama-logline): Pitch a short drama in one sentence by naming the protagonist, repeatable conflict, and consequence that keeps episodes moving.
+- [How to Write a Short Drama's Second Episode](https://zenstory.ai/drama-skills/write-a-short-drama-second-episode): Turn the premiere's hook into a new episode goal, reveal a consequence, and deepen the story without repeating the opening.
+- [How to Adapt a Webtoon into a Short Drama](https://zenstory.ai/drama-skills/adapt-a-webtoon-into-a-short-drama): Translate a webtoon's panel reveals, character beats, and visual rhythm into filmable scenes and episodic hooks.
+- [How to Build a Character Arc Across Short-Drama Episodes](https://zenstory.ai/drama-skills/build-a-character-arc-across-short-drama-episodes): Track a character's goal, strategy, and changing relationships so each episode contributes to a visible series-long arc.
+
+- [How to Write a YouTube Outro That Gives Viewers a Next Step](https://zenstory.ai/video-recap/write-a-youtube-outro-that-gives-viewers-a-next-step): Close a YouTube video by answering its central question, reinforcing the takeaway, and offering one relevant next step.
+- [How to Write a Recipe Video Script Viewers Can Follow](https://zenstory.ai/video-recap/write-a-recipe-video-script-viewers-can-follow): Make a recipe video easy to follow by organizing ingredients, showing critical steps, and timing narration around the cooking process.
+- [How to Adapt a Podcast Episode into a Video Script](https://zenstory.ai/video-recap/adapt-a-podcast-episode-into-a-video-script): Reshape an audio episode for video with visual evidence, a clear opening, and edits that respect the original conversation.
+- [How to Write a Gameplay Commentary Video Script](https://zenstory.ai/video-recap/write-a-gameplay-commentary-video-script): Guide gameplay commentary with a clear goal, useful reactions, and explanations that help viewers follow what happens on screen.
+- [How to Write a Product Demo Video Script](https://zenstory.ai/video-recap/write-a-product-demo-video-script): Show how a product solves a real task with a focused walkthrough, visible steps, and honest limits.
+
+- [How to Adapt a Stage Play into a Screenplay](https://zenstory.ai/drama-skills/adapt-a-stage-play-into-a-screenplay): Translate a play's live tension into filmable action, visual storytelling, and scene changes without losing its dramatic core.
+- [How to Plan a Screenplay Table Read](https://zenstory.ai/drama-skills/plan-a-screenplay-table-read): Use a focused table read to hear character voices, scene rhythm, and unclear action before revising a screenplay.
+- [How to Revise a Screenplay After a Table Read](https://zenstory.ai/drama-skills/revise-a-screenplay-after-a-table-read): Turn table-read reactions into specific screenplay revisions by finding patterns, diagnosing causes, and retesting key scenes.
+- [How to Adapt a Podcast Story into a Short Drama](https://zenstory.ai/drama-skills/adapt-a-podcast-story-into-a-short-drama): Turn an audio narrative into filmable scenes by identifying its central conflict, visual evidence, and changes to point of view.
+- [How to Write a Short Film Script from a True Event](https://zenstory.ai/drama-skills/write-a-short-film-script-from-a-true-event): Shape a short film from a documented event by narrowing the time span, checking sources, and distinguishing reconstruction from fact.
+
+- [How to Write RPG Item Descriptions That Tell a Story](https://zenstory.ai/novel-to-game/write-rpg-item-descriptions-with-story): Use concise item text to add character, history, or world detail without making players read a second lore book.
+- [How to Write NPC Dialogue Players Can Understand and Use](https://zenstory.ai/novel-to-game/write-npc-dialogue-for-a-game): Give non-player characters distinct voices, useful information, and responses that fit what the player has done.
+- [How to Write Quest Dialogue That Reacts to Player Progress](https://zenstory.ai/novel-to-game/write-quest-dialogue-that-reacts-to-progress): Plan dialogue for quest stages so characters acknowledge discoveries, changed plans, and completed or failed objectives.
+- [How to Organize Game Dialogue for Implementation](https://zenstory.ai/novel-to-game/organize-game-dialogue-for-implementation): Make game dialogue easier to build and review with stable scene IDs, speaker labels, conditions, and clear branch outcomes.
+- [How to Prepare Game Dialogue for Localization](https://zenstory.ai/novel-to-game/prepare-game-dialogue-for-localization): Give translators the context, character voice, and variable limits needed to adapt game dialogue without breaking meaning or play.
+
+- [How to Write a YouTube Channel Trailer Script](https://zenstory.ai/video-recap/write-a-youtube-channel-trailer-script): Introduce a channel's audience, recurring value, and strongest examples in a short trailer that gets to the point.
+- [How to Write a Screen-Recording Tutorial Script](https://zenstory.ai/video-recap/write-a-screen-recording-tutorial-script): Guide viewers through a software task with ordered actions, visible cursor movement, and checks that confirm each step worked.
+- [How to Write a Video Essay About a Video Game](https://zenstory.ai/video-recap/write-a-video-essay-about-a-video-game): Build a game video essay around one arguable idea, using gameplay, mechanics, and player experience as evidence.
+
+- [How to Write Screenplay Dialogue with Subtext](https://zenstory.ai/drama-skills/write-screenplay-dialogue-with-subtext): Let characters hide, redirect, or negotiate through dialogue while keeping the scene's surface conversation clear.
+- [How to Write a Comedy Scene That Escalates](https://zenstory.ai/drama-skills/write-a-comedy-scene-that-escalates): Build a comedy scene from a clear want, a specific obstacle, and reactions that make each attempt more difficult or surprising.
+- [How to Adapt a Memoir into a Short Film Script](https://zenstory.ai/drama-skills/adapt-a-memoir-into-a-short-film-script): Choose one turning point from a memoir, preserve the narrator's perspective, and shape personal reflection into filmable scenes.
+- [How to Write a Short Film with a Time Jump](https://zenstory.ai/drama-skills/write-a-short-film-with-a-time-jump): Use a time jump to change the meaning of a choice, reveal a consequence, or compare two stages of a character's life.
+
+- [How to Write a Book Summary Video Script](https://zenstory.ai/video-recap/write-a-book-summary-video-script): Summarize a book around its central idea and structure, set spoiler expectations, and distinguish summary from review.
+- [How to Write an Anime Review Video Script](https://zenstory.ai/video-recap/write-an-anime-review-video-script): Review an anime with clear criteria for story, characters, direction, and pacing while setting spoiler limits for viewers.
+- [How to Recap a Video Game Story for New Players](https://zenstory.ai/video-recap/recap-a-video-game-story-for-new-players): Explain a game's premise, key characters, and story choices while keeping spoilers clear and separating plot from optional lore.
+- [How to Write a Podcast Trailer Script](https://zenstory.ai/video-recap/write-a-podcast-trailer-script): Introduce a podcast's audience, subject, host voice, and listening promise in a short trailer built from clear examples.
+
+- [How to Write an Animated Explainer Video Script](https://zenstory.ai/video-recap/write-an-animated-explainer-video-script): Explain one idea through a clear narration arc, visual examples, and animation that makes relationships easier to understand.
+- [How to Write an Online Course Lesson Video Script](https://zenstory.ai/video-recap/write-an-online-course-lesson-video-script): Give each course lesson one learning outcome, a worked example, and a check that shows learners can apply it.
+- [How to Write a Teleprompter-Friendly Video Script](https://zenstory.ai/video-recap/write-a-teleprompter-friendly-video-script): Make on-camera narration easy to deliver with spoken phrasing, clear pauses, short lines, and directions that are not read aloud.
+- [How to Storyboard an Explainer Video Before Production](https://zenstory.ai/video-recap/storyboard-an-explainer-video): Plan what viewers see for each idea, transition, and proof point so the explainer's visuals do real teaching work.
+
+- [How to Write a Book Recommendation Video Script](https://zenstory.ai/video-recap/write-a-book-recommendation-video-script): Recommend books by matching their reading experience to specific viewers and supporting each suggestion with a useful detail.
+- [How to Write a Video Game Walkthrough Script](https://zenstory.ai/video-recap/write-a-video-game-walkthrough-script): Guide players through a game section with a clear objective, actionable steps, and checks for common mistakes.
+- [How to Write a Documentary Interview Profile Video](https://zenstory.ai/video-recap/write-a-documentary-interview-profile-video): Build a profile around the subject's decisions and perspective while preserving interview context and checking supporting claims.
+- [How to Write a Video Essay About Film Editing](https://zenstory.ai/video-recap/write-a-video-essay-about-film-editing): Explain how cuts, shot length, and scene order shape meaning by grounding each claim in examples viewers can see.
+
+- [How to Write a Video Essay About a Film's Theme](https://zenstory.ai/video-recap/write-a-video-essay-about-a-film-theme): Build a film-theme argument from recurring choices, images, and consequences rather than treating the theme as a slogan.
+- [How to Write a Video Essay About Cinematography](https://zenstory.ai/video-recap/write-a-video-essay-about-cinematography): Explain how framing, camera movement, light, and composition shape a viewer's attention with precise scene examples.
+- [How to Write a Video Essay About Film Sound Design](https://zenstory.ai/video-recap/write-a-video-essay-about-film-sound-design): Analyze dialogue, music, effects, silence, and sound perspective with evidence from scenes and careful listening.
+- [How to Write a Video Essay About a TV Series](https://zenstory.ai/video-recap/write-a-video-essay-about-a-tv-series): Make a focused argument about a series while tracking episode structure, character change, and the viewing context for spoilers.
+- [How to Write a Video Essay About a Game Character](https://zenstory.ai/video-recap/write-a-video-essay-about-a-game-character): Analyze a game character through dialogue, player actions, branching outcomes, and the systems that shape their story.
+
+- [How to Write a Faceless YouTube Video Script](https://zenstory.ai/video-recap/write-a-faceless-youtube-video-script): Build a voiceover-led YouTube video with a clear argument, purposeful visuals, and pacing that does not depend on a presenter on screen.
+- [How to Write a Video Script Explaining a Research Paper](https://zenstory.ai/video-recap/write-a-research-paper-explainer-video-script): Explain a paper's question, method, results, and limits without turning its findings into broader claims than the study supports.
+- [How to Write a Product Comparison Video Script](https://zenstory.ai/video-recap/write-a-product-comparison-video-script): Compare products using the same criteria, real examples, and clear audience needs instead of declaring a universal winner.
+- [How to Write a Book Club Discussion Video Script](https://zenstory.ai/video-recap/write-a-book-club-discussion-video-script): Guide a book discussion with open questions, scene evidence, and room for multiple interpretations without turning it into a plot recap.
+- [How to Write a Video Essay About Film Genre Conventions](https://zenstory.ai/video-recap/write-a-video-essay-about-film-genre-conventions): Explain how a film uses, changes, or challenges genre expectations with evidence from scenes and audience context.
+
+- [How to Write a Book Trailer Video Script](https://zenstory.ai/video-recap/write-a-book-trailer-video-script): Turn a book's premise, emotional stakes, and genre promise into a short trailer without spoiling its central reveal.
+- [How to Write a News Explainer Video Script](https://zenstory.ai/video-recap/write-a-news-explainer-video-script): Explain a developing story with a clear timeline, attributed claims, and an honest distinction between confirmed facts and open questions.
+- [How to Write a Video Essay About Film Symbolism](https://zenstory.ai/video-recap/write-a-video-essay-about-film-symbolism): Support a symbolism interpretation with repeated visual evidence, story context, and attention to scenes that complicate the reading.
+
+- [How to Adapt a Dystopian Novel into a Game](https://zenstory.ai/novel-to-game/adapt-a-dystopian-novel-into-a-game): Turn a dystopian story's rules, power structures, and personal costs into choices players can experience.
+- [How to Adapt a Comedy Novel into a Game](https://zenstory.ai/novel-to-game/adapt-a-comedy-novel-into-a-game): Turn comic character goals, timing, and escalating complications into player actions without making every interaction a joke.
+- [How to Adapt an Adventure Novel into a Game](https://zenstory.ai/novel-to-game/adapt-an-adventure-novel-into-a-game): Turn an adventure story's journey, discoveries, and obstacles into playable goals with a clear route and changing stakes.
+- [How to Design Story Quests for an Open-World Game](https://zenstory.ai/novel-to-game/design-story-quests-for-an-open-world-game): Connect open-world quests to the player's location, choices, and larger story without making exploration feel like a checklist.
+- [How to Keep an Open-World Game Story Coherent Out of Order](https://zenstory.ai/novel-to-game/keep-an-open-world-game-story-coherent-out-of-order): Track knowledge, character states, and mission prerequisites so an open-world story still makes sense when players explore out of order.
+
+- [How to Write a Sponsored Segment That Fits Your Video](https://zenstory.ai/video-recap/write-a-sponsored-video-segment): Introduce a sponsor clearly, connect it to the viewer’s needs, and keep the video’s main promise intact.
+- [How to Plan a YouTube Livestream Run of Show](https://zenstory.ai/video-recap/write-a-youtube-livestream-run-of-show): Plan a live stream with a clear opening, timed segments, audience interaction, and a graceful fallback if plans change.
+- [How to Outline a Video Podcast Episode](https://zenstory.ai/video-recap/outline-a-video-podcast-episode): Give a video podcast episode a central question, a useful guest conversation, and moments that work on camera.
+- [How to Plan a YouTube Shorts Series](https://zenstory.ai/video-recap/outline-a-youtube-shorts-series): Build connected short videos around a repeatable idea, while giving every episode a payoff viewers can enjoy on its own.
+
+- [How to Design a Roguelike Story Across Runs](https://zenstory.ai/novel-to-game/design-a-roguelike-story-across-runs): Let each run change the player’s knowledge while keeping repetition, failure, and persistent progress meaningful.
+- [How to Write a Story for a Cozy Game](https://zenstory.ai/novel-to-game/write-a-story-for-a-cozy-game): Build a gentle game story from welcoming routines, relationships, small goals, and changes players can notice over time.
+- [How to Design a Story for a Co-op Game](https://zenstory.ai/novel-to-game/design-a-co-op-game-story-for-two-players): Give two players distinct contributions, shared stakes, and clear story feedback when they act together or apart.
+- [How to Plan Story Updates for a Live-Service Game](https://zenstory.ai/novel-to-game/plan-story-updates-for-a-live-service-game): Plan ongoing game story content with a stable canon, clear update goals, and payoffs that respect player time.
+
+- [How to Format a Screenplay So It Reads Clearly](https://zenstory.ai/drama-skills/format-a-screenplay): Use consistent scene headings, concise action, and clean dialogue blocks to make a screenplay easy to read and produce.
+- [How to Write a Feature Film Screenplay with Momentum](https://zenstory.ai/drama-skills/write-a-feature-film-screenplay): Build a feature screenplay around a protagonist’s goal, escalating obstacles, and a final decision that resolves the central conflict.
+- [How to Write a Sitcom Pilot with a Repeatable Story Engine](https://zenstory.ai/drama-skills/write-a-sitcom-pilot): Introduce a comic world, an ensemble with clashing goals, and a repeatable source of stories for future episodes.
+- [How to Adapt a Book into a Feature Film Screenplay](https://zenstory.ai/drama-skills/adapt-a-book-into-a-feature-film-screenplay): Find the book’s central dramatic promise, combine or cut material, and build a film story with clear cause and effect.
+
+- [How to Design a Story for a Puzzle Game](https://zenstory.ai/novel-to-game/design-a-story-for-a-puzzle-game): Connect puzzle rules, player discoveries, and story reveals so solving the game also advances the narrative.
+- [How to Write a Story for a Player-Created Character](https://zenstory.ai/novel-to-game/write-a-story-for-a-player-created-game-character): Give customizable protagonists a meaningful place in the story without assuming a fixed personality or backstory.
+- [How to Adapt a Screenplay into a Game](https://zenstory.ai/novel-to-game/adapt-a-screenplay-into-a-game): Turn a screenplay’s scenes into player actions, decisions, and feedback while preserving its dramatic promise.
+- [How to Adapt a Web Serial into a Game](https://zenstory.ai/novel-to-game/adapt-a-web-serial-into-a-game): Turn a serial’s recurring story engine, growing cast, and long-term payoffs into a focused playable structure.
+
+- [How to Outline a Feature Screenplay Before Drafting](https://zenstory.ai/drama-skills/outline-a-feature-screenplay-before-drafting): Map the main turns, character decisions, and causal links before drafting a full-length screenplay.
+- [How to Outline a Television Episode](https://zenstory.ai/drama-skills/outline-a-television-episode): Shape an episode around its main question, character choices, story tracks, and a satisfying end beat.
+- [How to Adapt a Novel into a TV Pilot](https://zenstory.ai/drama-skills/adapt-a-novel-into-a-tv-pilot): Find a strong entry point, dramatize the source’s central promise, and establish a story engine for future episodes.
+- [How to Write an Anthology TV Episode](https://zenstory.ai/drama-skills/write-an-anthology-tv-episode): Create a self-contained episode with a clear premise, character choices, and a resolution that fits the anthology’s identity.
+
+- [How to Write a Webinar Script People Can Follow](https://zenstory.ai/video-recap/write-a-webinar-script): Organize a webinar around one audience outcome, a clear teaching path, useful interaction, and a focused close.
+- [How to Write a Crowdfunding Video Script](https://zenstory.ai/video-recap/write-a-crowdfunding-video-script): Explain the project, show why it matters now, and make a credible request with evidence supporters can check.
+- [How to Write a Book Launch Video Script](https://zenstory.ai/video-recap/write-a-book-launch-video-script): Introduce a new book, explain who it is for, share a concrete reason to care, and give viewers a clear way to find it.
+- [How to Write a YouTube Short with a Complete Story](https://zenstory.ai/video-recap/write-a-youtube-shorts-story-script): Shape one brief story around a clear setup, a meaningful turn, and a payoff viewers can understand without extra context.
+
+- [How to Write Internal Monologue in Fiction](https://zenstory.ai/oh-story/write-internal-monologue-in-fiction): Use a character’s thoughts to reveal pressure, conflict, or a decision without repeating what the scene already shows.
+- [How to Write Text Messages in a Novel](https://zenstory.ai/oh-story/write-text-messages-in-fiction): Use texts to change a relationship, reveal timing, or create a choice while keeping phone conversations clear on the page.
+- [How to Write a Dream Sequence That Serves the Story](https://zenstory.ai/oh-story/write-a-dream-sequence-in-fiction): Use a dream to reveal a character’s fear or desire, then connect its images to a change in waking action.
+
+- [How to Design a Story for a Strategy Game](https://zenstory.ai/novel-to-game/design-a-story-for-a-strategy-game): Connect faction goals, resource choices, and campaign outcomes so strategic decisions shape the story.
+- [How to Write a Story for a Platformer Game](https://zenstory.ai/novel-to-game/write-a-story-for-a-platformer-game): Let movement, level hazards, and discoveries carry character goals and story progress in a platform game.
+- [How to Write a Story for a Mobile Game](https://zenstory.ai/novel-to-game/write-a-story-for-a-mobile-game): Make mobile game story beats clear in short sessions, with useful recaps and progress that remains easy to resume.
+- [How to Adapt a Comic into a Game](https://zenstory.ai/novel-to-game/adapt-a-comic-into-a-game): Turn panel composition, character action, and visual motifs into interaction while preserving the comic’s central promise.
+- [How to Design a Story Mode for a Sports Game](https://zenstory.ai/novel-to-game/design-a-story-mode-for-a-sports-game): Build a season arc from team goals, player development, match results, and decisions that change life beyond the score.
+
 ## Workbench docs
 
 Product documentation for the ZenStory workbench only (the hosted browser app at https://app.zenstory.ai, project page https://zenstory.ai/workbench). Single URL per page, 中文 first with the English translation below. Index: https://zenstory.ai/docs — getting started, user guide, advanced, reference, troubleshooting.
