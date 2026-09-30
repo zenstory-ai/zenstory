@@ -39657,7 +39657,7 @@
         },
         "body": {
           "zh": "假设《旧车站来信》写到第十八章。阿澄和朋友闻宁查一批遗失的旧照片。第十二章，闻宁实际陪她看过废站的照片箱；第十七章，他收到过保管人的电话，说有一张照片被单独封存。阿澄听见电话响，但不知道通话内容。第十八章结尾，两人约好第二天到站务室继续查。\n\n旧大纲打算第二十二章揭示闻宁偷藏照片，第二十五章两人决裂。作者现在觉得合作调查更适合这本书，希望把闻宁改成愿意帮忙、却因答应保管人暂不外传而沉默的朋友。**这个承诺是作者选择新增的后续解释，不是第十七章正文已经证实的事实。**\n\n| 内容 | 本次如何处理 |\n|---|---|\n| 第十二章共同查箱 | 保留；两人真的去过，不改成闻宁从未到场 |\n| 第十七章电话 | 保留接听与阿澄不知内容；未写的内容可在后文解释 |\n| 闻宁偷藏照片 | 只是旧计划，撤下；若原稿已经写他拿走照片，就要另选归还、动机解释或前文重写 |\n| 第十九章会面 | 保留既有约定；让闻宁解释隐瞒，再由保管人实际回应 |\n| 第二十二至二十五章 | 换成查封存缘由和取得有限查看机会；查看不自动证明谁遗失整批照片 |\n\n新方向留下朋友隐瞒造成的不满，也留下照片去向的问题。它撤下的是未发生的偷藏和决裂，不是把阿澄已有的疑惑改成“她一直信任他”。",
-          "en": "Suppose *Letters from the Old Station* is drafted through chapter eighteen. Cheng and her friend Ning are investigating missing photographs. In chapter twelve he accompanies her to inspect a box at the disused station. In chapter seventeen he receives a call from the keeper saying that one photograph is separately sealed. Cheng hears the phone ring but not the conversation. Chapter eighteen ends with an appointment to visit the station office together the next day.\n\nThe old outline makes Ning the thief in chapter twenty-two and ends their friendship in chapter twenty-five. The author now prefers a cooperative investigation: Ning has stayed silent because he promised the keeper not to circulate the information yet. **That promise is a newly chosen future explanation, not a fact already established by chapter seventeen.**\n\n| Element | This revision |\n|---|---|\n| Joint box inspection | Retain the visit; do not make Ning absent from it. |\n| Phone call | Retain the call and Cheng’s ignorance; later scenes may reveal its unwritten content. |\n| Theft by Ning | Remove an unexecuted plan. If the draft already shows him taking the photograph, separately choose return, explanation, or earlier revision. |\n| Chapter nineteen meeting | Keep the appointment; let Ning explain and the keeper actually respond. |\n| Chapters twenty-two to twenty-five | Investigate the sealing and obtain limited viewing. Viewing does not prove who lost the entire collection. |\n\nThe new direction retains resentment over withheld information and the mystery of the photographs. It removes a planned theft and rupture; it does not make Cheng “always have trusted him.”"
+          "en": "Suppose “Letters from the Old Station” is drafted through chapter eighteen. Cheng and her friend Ning are investigating missing photographs. In chapter twelve he accompanies her to inspect a box at the disused station. In chapter seventeen he receives a call from the keeper saying that one photograph is separately sealed. Cheng hears the phone ring but not the conversation. Chapter eighteen ends with an appointment to visit the station office together the next day.\n\nThe old outline makes Ning the thief in chapter twenty-two and ends their friendship in chapter twenty-five. The author now prefers a cooperative investigation: Ning has stayed silent because he promised the keeper not to circulate the information yet. **That promise is a newly chosen future explanation, not a fact already established by chapter seventeen.**\n\n| Element | This revision |\n|---|---|\n| Joint box inspection | Retain the visit; do not make Ning absent from it. |\n| Phone call | Retain the call and Cheng’s ignorance; later scenes may reveal its unwritten content. |\n| Theft by Ning | Remove an unexecuted plan. If the draft already shows him taking the photograph, separately choose return, explanation, or earlier revision. |\n| Chapter nineteen meeting | Keep the appointment; let Ning explain and the keeper actually respond. |\n| Chapters twenty-two to twenty-five | Investigate the sealing and obtain limited viewing. Viewing does not prove who lost the entire collection. |\n\nThe new direction retains resentment over withheld information and the mystery of the photographs. It removes a planned theft and rupture; it does not make Cheng “always have trusted him.”"
         }
       },
       {
@@ -40179,6 +40179,588 @@
           "en": "Narrative choices and known facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      }
+    ]
+  },
+  {
+    "owner": "novel-to-game",
+    "slug": "design-items-for-a-story-game",
+    "topic": "interactive-games",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "叙事游戏道具怎么设计：获得、使用和归属要真的生效",
+      "en": "How to Design Items for a Story Game"
+    },
+    "seo_title": {
+      "zh": "叙事游戏道具怎么设计",
+      "en": "Design Items for a Story Game"
+    },
+    "description": {
+      "zh": "让道具改变可用行动，写清取得、使用、消耗和交还。附借手电的完整纸面路径、失败分支与存档核对。",
+      "en": "Make items affect available actions. Includes a complete borrowed-flashlight design, failed uses, ownership, and save-state checks."
+    },
+    "answer": {
+      "zh": "先确定道具让玩家能做什么，再写谁持有、怎样获得、使用前要满足什么、用后是否消耗或转交，以及世界怎样回应。请求不等于取得，使用工具不必销毁工具，得到线索也不等于知道全部真相。只保留会改变行动、体验或后续读取的道具，不为背包数量增加无用物件。",
+      "en": "Choose what an item lets the player do, then define ownership, acquisition, prerequisites, consumption or transfer, and feedback. Requesting is not acquiring; using a tool need not destroy it; finding a clue does not reveal everything. Keep items with a role in actions, experience, or later state rather than filling an inventory for its own sake."
+    },
+    "sections": [
+      {
+        "id": "function",
+        "heading": {
+          "zh": "先写用途，再决定要不要一个背包系统",
+          "en": "Choose the Function Before an Inventory System"
+        },
+        "body": {
+          "zh": "原作里有信物、工具、证物，不代表改编时都要变成可点击道具。判断玩家拿到它以后，哪项行动、体验或后续回应会改变。\n\n一把钥匙可改变可达空间，一件工具可改变观察方式，一封信可改变谁获得信息。只供观赏的纪念物也可以保留为叙事展示，不必包装成万能工具或数值奖励。\n\n源世界设计方法要求必要系统参与核心决策，道具可以只存在于一小段场景中。若本关只借一支手电，用当前持物提示就可能足够；不必为它新增格子、负重、合成和装备栏。确实需要整理多件物品时，再让界面帮助玩家辨认用途与归属。",
+          "en": "An original novel’s keepsakes, tools, and evidence need not all become clickable items. Ask which action, experience, or later response changes when the player gets one.\n\nA key can change access, a tool can change observation, and a letter can change who receives information. A keepsake may remain a narrative display without becoming a universal tool or numerical reward.\n\nThe world-design method makes systems serve core decisions. An item can belong to a single scene. One borrowed flashlight may need only a held-item indication rather than slots, weight, crafting, and equipment screens. A larger collection can justify an interface that clarifies uses and ownership."
+        }
+      },
+      {
+        "id": "item-note",
+        "heading": {
+          "zh": "写一张取得与使用说明",
+          "en": "Write an Acquisition and Use Note"
+        },
+        "body": {
+          "zh": "| 项目 | 需要决定的事 |\n|---|---|\n| 初始归属 | 在谁手里或什么位置；可见不等于玩家已经持有 |\n| 取得 | 谁允许、玩家做什么、何时实际转交 |\n| 使用 | 对什么有效、需什么权限或位置、失败时改变什么 |\n| 使用后 | 保留、消耗、变成另一物件或交给别人；不混用几种结果 |\n| 反馈与后续 | 哪项变化让玩家看见，后面在哪里读取 |\n\n这是本页的组合编辑表，不是技能原生文件格式。消耗品要选定扣除时点：前置不满足而不能开始时是否不扣，开始后失败是否已消耗，按本作规则写清。耐用工具用过后通常仍可持有，本例也如此；这不是禁止其他作品设计损坏或耐久。",
+          "en": "| Field | Decision |\n|---|---|\n| Initial ownership | Holder or location; visibility does not give possession. |\n| Acquisition | Permission, player action, and actual handoff point. |\n| Use | Valid targets, permissions or positions, and effects of failure. |\n| After use | Retain, consume, transform, or transfer; distinguish these outcomes. |\n| Feedback and later read | Visible change and where subsequent content reads it. |\n\nThis is a combined editorial worksheet, not a native skill format. Choose when consumables are spent, including refused starts and failed attempts after use begins. A reusable tool remains held in this example; other games may deliberately implement damage or durability."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "完整纸面路径：借手电查看展品",
+          "en": "Complete Paper Path: Borrowing a Flashlight"
+        },
+        "body": {
+          "zh": "原创设计《闭馆前的画册》：玩家想核对展品上被阴影挡住的编号。管理员有一支手电，可以借给玩家在本展厅使用；玩家已有查看这件展品的权限，不能因此进入办公室。编号直接支持的是展品编号，不证明作者、真伪或所有权。\n\n**初始界面：**展品编号在普通光下看不清；桌上可见手电，但持物提示为空。玩家可问管理员借用，或先看清楚处的其他展品。下面选择借用路线：\n\n> 玩家选择“借手电看这件展品”。\n>\n> 管理员说：“可以，在展厅用，走前还给我。”\n>\n> 玩家选择“接过手电”，管理员实际递出。持物提示变为“借用手电”。\n>\n> 玩家对该展品选择“用手电看编号”。光照到标签，显示“B7”；当前发现中记录“看见这件展品编号B7”。手电仍在玩家手里。\n>\n> 玩家回到桌边选择“归还手电”。管理员实际接回，持物提示清空；发现记录仍保留。管理员说：“收到了。”\n\n| 此刻再操作 | 规则与反馈 |\n|---|---|\n| 对同件展品再次照明 | 手电仍持有时可重复观察；不多生成一份编号，不把手电扣成零件 |\n| 持手电点击办公室门 | 没有进入权限；手电不能代替许可，归属不变 |\n| 归还后再照标签 | 提示“手电已归还，可重新询问借用”；本次不能执行，不悄悄从旧按钮复制一支 |\n| 带着B7继续查目录 | 可以读取已见编号；不知道的作者与去向仍需下一步核对 |\n\n这是未构建、未试玩的设计片段。规则路径可查归属与重复效果，不能证明实际灯光、点击命中或玩家是否注意到提示。",
+          "en": "Original design, “The Album Before Closing”: the player wants to read an exhibit number obscured by shadow. A keeper can lend a flashlight for this gallery. The player already has permission to inspect this exhibit, not enter the office. Its number establishes neither authorship, authenticity, nor ownership.\n\n**Initial view:** the label is unreadable in ordinary light. A flashlight is visible on the desk, but the held-item indicator is empty. The player may ask to borrow it or inspect other legible exhibits. Here is the borrowing path:\n\n> Player: “Borrow the flashlight to inspect this exhibit.”\n>\n> Keeper: “Yes. Use it in the gallery and return it before leaving.”\n>\n> The player selects “Take the flashlight”; the keeper actually hands it over. The indicator reads “Borrowed flashlight.”\n>\n> At the exhibit the player selects “Light the number.” The label reveals “B7,” and the discovery records this exhibit’s visible number. The flashlight remains held.\n>\n> At the desk the player selects “Return the flashlight.” The keeper takes it, the held-item indicator clears, and the discovery remains. “Received,” says the keeper.\n\n| Subsequent action | Rule and feedback |\n|---|---|\n| Illuminate again | While held, observation may repeat without duplicating the number or consuming the tool. |\n| Click office door while holding it | Access is absent; the tool cannot substitute for permission. Ownership remains. |\n| Illuminate after returning it | “Flashlight returned; ask to borrow it again.” No execution or copy from a stale button. |\n| Search catalog with B7 | Read the known number; authorship and destination still need checking. |\n\nThis design is unbuilt and untested with players. Its path checks ownership and repeat effects, not actual lighting, click targets, or attention to feedback."
+        }
+      },
+      {
+        "id": "persistence",
+        "heading": {
+          "zh": "存档与交还后，别让道具重新长出来",
+          "en": "Prevent Items Reappearing After Loading or Return"
+        },
+        "body": {
+          "zh": "道具当前在谁手里，与曾经借过或曾经观察到什么，是不同记录。归还后的存档应保留管理员持有手电、玩家记得B7；不能只保存“借用成功”就恢复成玩家仍有手电。\n\n一次性复印券则需要另一种规则：如果本作规定成功复印才消耗，资格检查失败就保留券；成功后扣一张，下一次读取实际剩余数量。不要因为输出了一句“复印好了”，就默认已经生成副本和消费券。\n\n实现可以用现有游戏状态机，不要求为了文章的表格再造一套文件。画面动画、背包图标和角色对白读取已确认结果，不能各自决定物件突然属于谁。",
+          "en": "Current possession differs from borrowing history and discoveries. A post-return save should keep the flashlight with the keeper and B7 known to the player. Saving only “borrowing succeeded” cannot restore possession.\n\nA one-use copying voucher needs a different rule. If consumed on successful copying, a refused prerequisite check retains it; success spends one, and the next attempt reads the remaining count. A line saying “copied” does not by itself create a copy or spend the voucher.\n\nUse an existing state machine when available rather than creating files to imitate this worksheet. Animation, inventory icons, and dialogue read confirmed results; they cannot independently decide ownership."
+        }
+      },
+      {
+        "id": "repairs",
+        "heading": {
+          "zh": "道具没作用或处处能用，怎样修",
+          "en": "Repair Useless or Universally Effective Items"
+        },
+        "body": {
+          "zh": "**拿到后只有弹一句说明：**先找它应该改变的可用行动或体验。纯纪念物可按叙事展示处理，不硬塞到工具栏。\n\n**任何地方点击都成功：**明确可用对象和条件。手电只改变照明，不替代钥匙、许可或证据解释。\n\n**归还了还显示持有：**修当前归属与界面读取，保留确实发生过的观察；不要删掉所有历史来补一个图标。\n\n**重复使用反复给奖励：**决定重复观察、重复取得和一次性消耗各自的效果。重放原失败路径，再走一条相邻反例；新规则改了旧存档含义时，应迁移或明确拒绝旧版本。具体乐趣和理解仍由实际试玩观察。",
+          "en": "**Acquisition only shows a description:** identify the intended change to action or experience. A keepsake may remain narrative display without a tool slot.\n\n**Every target succeeds:** define targets and conditions. Illumination does not replace keys, permission, or interpretation.\n\n**Returned item still appears held:** repair current ownership and its display while retaining real observations. Do not erase history to fix an icon.\n\n**Repeated use repeats rewards:** distinguish repeat observation, repeat acquisition, and consumption. Replay the failure and an adjacent counterexample. Migrate or explicitly reject old saves when rules change their meaning. Observe understanding and enjoyment in actual play."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "每个道具都要消耗或升级吗？",
+          "en": "Must every item be consumed or upgraded?"
+        },
+        "a": {
+          "zh": "不用。耐用工具、证物、一次性材料和纪念物可有不同用途。只在消耗、耐久或升级会改变本作决策时加入这些系统。",
+          "en": "No. Reusable tools, evidence, consumables, and keepsakes may work differently. Add consumption, durability, or upgrades when they affect this game’s decisions."
+        }
+      },
+      {
+        "q": {
+          "zh": "道具说明能代替实际使用反馈吗？",
+          "en": "Can an item description replace feedback from use?"
+        },
+        "a": {
+          "zh": "不能完全代替。说明帮助理解用途，实际使用仍要呈现本次成功、拒绝或局部效果；尤其交给别人后，当前持有者和后续行动要跟着变化。",
+          "en": "Not fully. A description helps explain use, but action should show success, refusal, or a partial effect. Transfers must change current possession and subsequent actions."
+        }
+      }
+    ],
+    "skill": {
+      "name": "game-world-design",
+      "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/SKILL.md",
+      "text": {
+        "zh": "用 $game-world-design 设计本关道具。附当前场景、角色权限和核心动作。逐项写初始归属、取得条件、可用对象、使用效果、消耗或交还及后续读取；给一条正常路径和一条重复使用/归还后使用的反例。不要自动增加库存、合成或耐久系统，不把纸面路径当已试玩。",
+        "en": "Use $game-world-design to design this section’s items from the scene, permissions, and core actions. Specify initial ownership, acquisition, valid targets, effects, consumption or return, and later reads. Include a normal path and a repeated-use or post-return counterexample. Do not add inventory, crafting, or durability systems automatically or report a paper design as a playtest."
+      }
+    },
+    "related": [
+      "/novel-to-game/resource-cost-design",
+      "/novel-to-game/readable-gameplay-feedback",
+      "/novel-to-game/design-story-game-saves"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "动作前置、物件变化与系统取舍",
+          "en": "Action prerequisites, item changes, and system scope"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/world-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "物件去向与后续回读",
+          "en": "Item destinations and later reads"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/narrative-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "归属提交、载入与表现边界",
+          "en": "Committed ownership, loading, and presentation limits"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
+      }
+    ]
+  },
+  {
+    "owner": "novel-to-game",
+    "slug": "design-locked-options-in-a-story-game",
+    "topic": "interactive-games",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "互动游戏选项锁定怎么设计：说明缺少条件，别提前揭底",
+      "en": "How to Design Locked Options in a Story Game"
+    },
+    "seo_title": {
+      "zh": "互动游戏选项锁定怎么设计",
+      "en": "Design Locked Options in a Story Game"
+    },
+    "description": {
+      "zh": "给锁定选项明确的当前原因和可行下一步，保留未知路线。附许可与钥匙完整解锁示例、过期状态和反例检查。",
+      "en": "Explain current requirements without exposing unknown routes. Includes a permission-and-key example, stale-state handling, and counterchecks."
+    },
+    "answer": {
+      "zh": "先确定玩家已经知道这项行动存在，再决定显示锁定原因还是暂不展示。已知限制应说明当前缺哪条条件和下一步能做什么；未知秘密不要写在灰色按钮里。解锁读取实际许可、持物或进度，点击时再核对当前状态，不能靠换一行文案就算条件满足。",
+      "en": "First determine whether the player knows the action exists, then choose a visible requirement or temporary omission. Explain known limitations and a feasible next step without revealing secrets in disabled labels. Unlock from actual permission, possession, or progress; recheck current state on selection. A changed label cannot satisfy a rule."
+    },
+    "sections": [
+      {
+        "id": "visible-or-hidden",
+        "heading": {
+          "zh": "先决定显示锁定，还是暂时不出现",
+          "en": "Choose Visible Requirements or Temporary Omission"
+        },
+        "body": {
+          "zh": "玩家已经看见库房、听说能申请查看，锁定提示可解释为什么现在进不了。玩家还不知道有地下密室，按钮“进入密室：尚未发现”则提前说出了秘密。\n\n| 情况 | 本页建议 |\n|---|---|\n| 行动与条件是已知规则 | 显示行动、当前缺口和可做的下一步 |\n| 行动存在本身是秘密 | 等玩家通过既定信息得知再呈现，不用锁图标剧透 |\n| 当前没有任何可行取得路径 | 说明暂不可用或按本书设计隐藏，别承诺必能解锁 |\n\n这不是所有游戏的统一可见规则。如果作品明确把路线预览作为玩法，可以选择适度预告；要与玩家承诺一致，而不是无意暴露完整反转。可读的锁定提示与让角色提前知情是两回事。",
+          "en": "If players see a storeroom and hear that visits can be requested, a requirement can explain why entry is unavailable. “Enter secret basement: undiscovered” reveals a room they do not yet know exists.\n\n| Situation | Suggested presentation |\n|---|---|\n| Action and requirement are known | Show the action, current gap, and available next step. |\n| Existence is secret | Present it after the intended discovery instead of spoiling it with a lock icon. |\n| No current way to qualify | State present unavailability or omit it by design; do not promise eventual access. |\n\nThis is not universal. A game deliberately built around route previews may offer controlled advance information consistent with its promise. A readable requirement does not automatically give story knowledge to characters."
+        }
+      },
+      {
+        "id": "reason",
+        "heading": {
+          "zh": "锁定提示要说当前缺口，不预告全部后果",
+          "en": "Explain the Present Gap, Not the Whole Outcome"
+        },
+        "body": {
+          "zh": "“条件不足”没有帮助；“需要值班员同意”让玩家知道去问谁。若还缺钥匙，分别显示，别让玩家拿到钥匙后误以为权限也自动成立。\n\n提示可以在按钮旁或选择后的拒绝反馈里，关键是必要信息在玩家需要时可见、语义一致。已知成本应在行动前出现；隐藏人物动机和结局不必一并公布。\n\n源方法将按钮、代价提示与人物回应分工。避免每行重复完整任务历史，把当前缺口贴在受影响行动旁。原因不只有道具或数值，还可以是人物未在场、已有承诺冲突、位置不对或当前不愿接受。",
+          "en": "“Requirements unmet” offers little help; “Duty keeper’s permission needed” identifies whom to ask. Show a missing key separately so obtaining it does not imply permission.\n\nA nearby note or a response to an attempted action can explain the limit. Necessary information should appear when needed and remain consistent. Disclose known costs before action without publishing hidden motives or endings.\n\nThe sources separate button, cost prompt, and character response. Put the present gap beside its action instead of repeating the whole quest history. Requirements may concern presence, conflicting commitments, location, or willingness as well as items and numbers."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "原创示例：获准之后，还要真正拿到钥匙",
+          "en": "Original Example: Permission Still Requires a Key"
+        },
+        "body": {
+          "zh": "纸面游戏《库房访客》：门旁已贴规则“申请查看工具架，获准后领取本次钥匙”。玩家从这里知道可申请，当前没有许可或钥匙。值班员能批准本次工具架查看；档案区不在许可内。门在尝试进入时检查本次许可与玩家持钥匙两项，失败不消耗物件、不改变位置。\n\n| 状态与玩家动作 | 界面和人物实际回应 |\n|---|---|\n| 初到门前 | “进入工具架区”暂不可执行；旁注“先向值班员申请，获准后领钥匙” |\n| 请求查看工具架 | 值班员实际回应“可以，只看工具架，档案区不开放”；记录本次许可，仍提示“尚未领取钥匙” |\n| 选择领取钥匙 | 值班员实际递给玩家；持物更新后，进入选项可用 |\n| 选择进入 | 当前许可和持钥匙均有效，位置变为工具架区；没有自动打开档案区或完成全部查找 |\n| 出来后交还钥匙 | 值班员接回，持物清空；再进提示“本次钥匙已交还，需重新领取” |\n\n在本例中，许可只对本次来访有效，离开库房场景后结束；同一次来访中归还再领钥匙是否允许，由作者明确选择，这里允许向仍在场的值班员再次领取。不要因为最后一行提到“重新领取”，就在所有存档中免费复制钥匙。\n\n**完整走读：**玩家先看到公开规则，申请并听到同意，再选领取并获得钥匙，进入工具架区；检查结束后出门交还，尝试旧“进入”按钮被拒，最后离开结束本次来访。每一步用当前状态判断，按钮之前出现过不等于永远有效。\n\n以上是原创设计路径，不是已运行的产品或试玩录像。实际界面还要检查不可点击时能否读到原因、可用状态怎样被辨认以及反馈是否挡住下一步。",
+          "en": "Paper design, “The Storeroom Visitor”: a sign says, “Request a visit to the tool shelves; collect this visit’s key after approval.” The player learns the action here and initially has neither permission nor key. The duty keeper can authorize the shelves, not the archive area. Entry checks both current permission and possession; refusal spends nothing and changes no location.\n\n| State, action | Response |\n|---|---|\n| First arrival | Entry unavailable; “Ask the keeper, then collect the key after approval.” |\n| Request shelf visit | Keeper says, “Yes, shelves only; archives closed.” Permission is recorded; key still missing. |\n| Collect key | Keeper actually hands it over; possession changes and entry becomes available. |\n| Enter | Current permission and held key pass; location becomes the shelf area, not archives or a completed search. |\n| Exit and return key | Keeper receives it; possession clears. Re-entry requires collecting it again. |\n\nPermission ends when leaving the storeroom scene at the end of this visit. The author chooses that collecting again during the same visit is allowed from the keeper still present. A prompt mentioning recollection cannot freely duplicate keys in every save.\n\n**Complete walkthrough:** read the public rule, request and receive approval, collect the key, enter, inspect, exit and return it, attempt the old entry option and receive refusal, then leave to end the visit. Each step reads current state; a once-visible button is not permanently valid.\n\nThis is an original design path, not a running product or playtest recording. Check whether actual players can read unavailable-action reasons, recognize availability, and proceed after feedback."
+        }
+      },
+      {
+        "id": "stale-state",
+        "heading": {
+          "zh": "条件变化以后，旧选项也必须重新检查",
+          "en": "Recheck an Option After Conditions Change"
+        },
+        "body": {
+          "zh": "渲染出来时符合条件，点击时可能已不符合：钥匙交还、承诺撤销、人物离场或本次许可到期。表现层不能绕过规则；检查失败时保留应保留的状态，再给当前原因。\n\n读档也要恢复当前来访、许可范围与持物，不能凭“曾获准”替代本次有效许可。若改了许可含义，说明旧存档迁移或明确失效，不让同一个旧记录突然扩大到档案区。\n\n秘密选项同样如此。玩家从某条分支发现的事，另一条没有发现的路线不应仅因共享场景就出现同样标签。世界事实存在、玩家已经知道、人物是否相信，分别判断。",
+          "en": "An option may qualify when rendered and fail when selected: a key returns, a commitment is withdrawn, a person leaves, or permission expires. Presentation cannot bypass the rules. Preserve the appropriate state after refusal and give the current reason.\n\nLoading restores the visit, permission scope, and possession. “Once approved” does not mean valid now. If permission semantics change, migrate or explicitly invalidate old saves rather than expanding an old record to the archives.\n\nSecret options need the same care. Discovery in one branch cannot leak through a shared scene into an undiscovered route. Distinguish an existing world fact, player knowledge, and character belief."
+        }
+      },
+      {
+        "id": "repairs",
+        "heading": {
+          "zh": "从四种反例查锁定设计",
+          "en": "Check Four Counterexamples"
+        },
+        "body": {
+          "zh": "只有钥匙没有许可，进入应按本例规则拒绝；只有许可没有钥匙，也应指出缺物件；两项齐全可进入，但仍不能扩大到档案区；交还钥匙后点旧按钮，不能再进入或扣出负数道具。\n\n若所有行动都锁着，给一个合法的询问、等待、离开或替代行动，按本场设计决定。不是每个限制都必须立即解除，但玩家应能理解为什么停在这里。\n\n锁定提示过长时，保留当前必要条件，把完整任务史放到按需日志。若读者看提示就知道幕后人、全部路线或最终结局，退回当前知识。规则走读能发现泄露与错误放行；不能证明玩家一定觉得探索有趣。",
+          "en": "Key without permission must fail in this design; permission without key identifies the missing item; both allow entry but not archive access; a stale click after return cannot re-enter or produce negative item counts.\n\nIf everything is unavailable, offer a legal inquiry, wait, exit, or alternative by design. Every limit need not immediately disappear, but players should understand their position.\n\nKeep essential current requirements near choices and full quest history in an optional log. If prompts expose culprits, entire routes, or endings, return to current knowledge. Rule walkthroughs detect disclosure and wrongful access, not whether exploration feels enjoyable."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "所有锁定选项都应该显示吗？",
+          "en": "Should every locked option remain visible?"
+        },
+        "a": {
+          "zh": "不应该一律显示。已知规则可说明，未知秘密可以暂不呈现。路线预告若是本作明确玩法，也要控制信息量与角色知情边界。",
+          "en": "No universal rule applies. Explain known requirements while withholding undiscovered secrets. Deliberate route previews still need controlled information and character knowledge boundaries."
+        }
+      },
+      {
+        "q": {
+          "zh": "条件满足后自动继续剧情可以吗？",
+          "en": "May the story continue automatically after unlocking?"
+        },
+        "a": {
+          "zh": "可以在本作明确选择的自动流程里这样设计。若原来承诺玩家自行选择进入，取得钥匙不应顺带替他进门、翻档案或提交证据；把自动动作范围写清。",
+          "en": "Yes, in an explicitly chosen automatic flow. If entry is the player’s choice, receiving a key should not also enter, search archives, or submit evidence. Define the automatic scope."
+        }
+      }
+    ],
+    "skill": {
+      "name": "game-world-design",
+      "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/SKILL.md",
+      "text": {
+        "zh": "用 $game-world-design 检查这些锁定选项。附玩家已知信息、行动前置、实际状态和可获得条件的路径。说明哪些限制可公开、哪些标签会剧透；给当前原因、可行下一步和满足条件后的真实动作。检查条件撤销、物件交还、旧界面点击和读档，不自动放行或泄露秘密。",
+        "en": "Use $game-world-design to review locked options with player knowledge, prerequisites, actual state, and ways to satisfy requirements. Separate public limits from spoiler labels. Give a current reason, feasible next step, and actual unlocked action. Check revoked conditions, returned items, stale clicks, and loading without automatic access or secret disclosure."
+      }
+    },
+    "related": [
+      "/novel-to-game/write-clear-interactive-story-choices",
+      "/novel-to-game/organize-a-story-game-interface",
+      "/novel-to-game/stop-characters-knowing-secrets-too-early"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "行动前置、可预判信息与失败反馈",
+          "en": "Prerequisites, foreseeable information, and failure feedback"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/world-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "隐藏因果与玩家当前知识",
+          "en": "Hidden causality and current player knowledge"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/narrative-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "按钮、可见条件与提示分工",
+          "en": "Buttons, visible requirements, and prompts"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/game-writing-craft.md"
+      },
+      {
+        "label": {
+          "zh": "实际规则验证与状态提交",
+          "en": "Actual validation and state commitment"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
+      }
+    ]
+  },
+  {
+    "owner": "novel-to-game",
+    "slug": "design-a-game-opening-tutorial",
+    "topic": "interactive-games",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "游戏开场教程怎么做：让玩家操作一次，再给下一步",
+      "en": "How to Design a Game Opening Tutorial"
+    },
+    "seo_title": {
+      "zh": "游戏开场教程怎么做",
+      "en": "Design a Game Opening Tutorial"
+    },
+    "description": {
+      "zh": "先教一项本作核心动作，用可见依据、误操作和真实反馈建立理解。附投递任务完整首段设计与试玩观察表。",
+      "en": "Teach one core action through visible information, a recoverable mistake, and feedback. Includes a complete opening delivery task and playtest questions."
+    },
+    "answer": {
+      "zh": "先让玩家知道眼前要完成什么，提供这次行动必需的依据，再让他亲手操作并看到结果。初次失误要说明原因与可改之处，完成后接一个需要再次使用所学的局面。不要先讲完整百科、全部系统和所有按键；教程长度跟随本作风险与玩家理解，不靠固定秒数判定成功。",
+      "en": "Give players a present goal and the evidence needed for the first action, then let them act and see its result. A first mistake should explain what happened and what can change. Follow completion with another use of the learned action. Avoid opening with every system, key, and lore detail. Length follows the game’s risks and player understanding, not a fixed number of seconds."
+    },
+    "sections": [
+      {
+        "id": "one-action",
+        "heading": {
+          "zh": "先教当前动作，别先介绍全部系统",
+          "en": "Teach the Present Action Before the Whole System"
+        },
+        "body": {
+          "zh": "“游戏背景是什么”“所有系统怎么用”“现在做什么”是不同问题。开场先给玩家身份、眼前目标和可操作对象一个足够短的锚点，然后教完成这一步需要的规则。\n\n源方法要求首屏有主要焦点，并让核心动作、反馈和状态变化在同一节拍里闭合。动作可以是观察、选择回应、投递、摆放或移动，不要求所有改编游戏都先走路、战斗或打开背包。\n\n教学可以融入人物请求、环境标记或简短提示。需要操作说明时直接说清，不必为了“沉浸”把必要信息藏起来；也不要让人物用一整段百科解释未来十个系统。",
+          "en": "Background, every system, and the present action answer different questions. Orient players to role, immediate goal, and an actionable object, then teach what this step needs.\n\nThe source calls for a primary opening focus and a complete action-feedback-state beat. The action may be observation, a reply, delivery, placement, or movement. Adaptations need not all begin with walking, combat, or inventory.\n\nUse a character request, an environmental marker, or a short prompt. State necessary instructions clearly instead of hiding them for immersion, while avoiding encyclopedic dialogue about ten future systems."
+        }
+      },
+      {
+        "id": "teaching-card",
+        "heading": {
+          "zh": "把初次操作写成一张完整教学卡",
+          "en": "Write a Complete First-Action Card"
+        },
+        "body": {
+          "zh": "| 当前一步 | 设计内容 |\n|---|---|\n| 玩家目标 | 这一刻要完成哪件可观察的事 |\n| 必要依据 | 操作前从哪里看见对象、条件或规则 |\n| 玩家输入 | 点击、选择、移动或其他实际动作，不只读说明 |\n| 成功反馈 | 世界怎样回应，什么状态确实变了 |\n| 可恢复失误 | 失败原因、保留什么、下一次能改什么 |\n| 下一步 | 哪里再次读取所学，而不是永久不再使用 |\n\n这是本页的编辑卡。段数、按钮数与完成时长按游戏而定；不能用“已弹出教程”替代“玩家理解并能操作”。如果风险是手势、碰撞或空间阅读，要在目标平台原型里看实际输入，文本纸面稿只能查逻辑。",
+          "en": "| Present step | Design detail |\n|---|---|\n| Goal | An observable task now. |\n| Needed evidence | Where the player sees objects, conditions, or rules before acting. |\n| Input | Actual clicking, choice, movement, or another action beyond reading. |\n| Success | World response and confirmed state change. |\n| Recoverable mistake | Cause, retained state, and what can change next time. |\n| Next use | A later read of the learned rule. |\n\nThis is an editorial card. Length, option count, and time follow the game. A displayed tutorial does not establish comprehension. Gesture, collision, and spatial risks need a prototype on the target platform; paper text checks logic."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "原创首段：先送一封信，再处理下一封",
+          "en": "Original Opening: One Delivery Before the Next"
+        },
+        "body": {
+          "zh": "《驿站来信》是文字与选择主导的纸面改编例，核心动作是根据收件信息选择投递对象，并看对方实际是否接收。玩家是新来的递信员，先不讲整座镇的秘密、所有关系数值或全部工作日程。\n\n**首屏局面：**“把这封库房信交给林姐。”信封上写“库房，林姐”；两个在场角色的名字和职责可见：林姐负责库房，方叔负责码头。当前只有这一封信，未投递；玩家可选“把库房信交给林姐”“把库房信交给方叔”或查看信封。按钮附近保留目标与收件信息。\n\n**一条含误操作的完整路线：**\n\n> 玩家先选交给方叔。\n>\n> 方叔看清地址：“库房的信不归我收。林姐就在柜台那边。”他没有接走信。\n>\n> 界面显示“未送出；仍持有库房信”，两项投递行动仍按当前状态可选。\n>\n> 玩家查看信封，改选交给林姐。\n>\n> 林姐核对收件名，接过并签收：“这封是我的，收到了。”\n>\n> 当前目标显示完成，信从玩家持物中移除；方叔没有因为第一次错误选择就获得信件内容。\n>\n> 林姐再交给玩家一封写着“码头，方叔”的信。玩家取得后出现第二项投递任务，这次不再重复完整说明，只保留信封信息与真实可执行的行动。\n\n| 第二次操作 | 用同一条已学规则处理 |\n|---|---|\n| 交给方叔 | 他核收，信实际转交，第二任务完成 |\n| 又交给林姐 | 她指出收件人不同且不接走；玩家仍可改投 |\n| 只点击旧“库房信”行动 | 旧信已经送出，不能再次转交或多生成签收 |\n\n玩家学到的是看信息→选择对象→核实际接收，第二封换对象来检验复用。误投不会暗中泄露内容或销毁信；本例选择了可恢复教学，其他作品若选择有代价失误，需要在行动前给相应依据。本段没有证明实际玩家已经理解，仍要构建后观察。",
+          "en": "“Letters at the Station” is an original paper adaptation led by text and choices. Its core action is choosing a recipient from delivery information and seeing whether they actually accept. The new courier does not begin with the town’s secrets, every relationship value, or the entire schedule.\n\n**Opening:** “Deliver the storeroom letter to Lin.” The envelope names Lin and the storeroom. Two present characters have visible names and roles: Lin handles the storeroom; Fang handles the wharf. One letter remains undelivered. Actions are “Give the storeroom letter to Lin,” “Give it to Fang,” or inspect the envelope. Goal and recipient information stay near the choices.\n\n**Complete path with a mistake:**\n\n> The player offers it to Fang.\n>\n> He reads the address. “I don’t receive storeroom mail. Lin’s by the counter.” He does not take it.\n>\n> Feedback: “Not delivered; still holding the storeroom letter.” The delivery actions remain available according to state.\n>\n> The player inspects the envelope and selects Lin.\n>\n> Lin checks the recipient, takes it, and signs. “This one’s mine. Received.”\n>\n> The goal completes and possession clears. The wrong first choice did not reveal the letter’s contents to Fang.\n>\n> Lin hands over a new envelope addressed “Wharf, Fang.” After acquisition, a second task appears without repeating the full explanation; envelope information and valid actions remain.\n\n| Second action | Same learned rule |\n|---|---|\n| Deliver to Fang | He checks and accepts; actual transfer completes this task. |\n| Offer to Lin again | She identifies the different recipient and refuses; the player can redirect. |\n| Select stale storeroom-letter action | That letter is gone; no duplicate transfer or receipt. |\n\nThe player practices reading information, choosing a recipient, and checking acceptance. A different recipient tests reuse. This design makes a first error recoverable without hidden disclosure or destruction. Games with costly mistakes need appropriate advance information. The paper path does not establish player comprehension; observe it after building."
+        }
+      },
+      {
+        "id": "observe",
+        "heading": {
+          "zh": "试玩时看玩家实际做了什么",
+          "en": "Observe What Players Actually Do"
+        },
+        "body": {
+          "zh": "| 观察问题 | 有问题时先改什么 |\n|---|---|\n| 不知道目标在哪里 | 首屏焦点和当前目标表达 |\n| 没看见收件信息就选 | 信息位置、行动旁依据；不是再弹一篇背景 |\n| 误投后以为信已经丢失 | 真实持物反馈与可重试行动 |\n| 第一封能送，第二封仍机械选同一人 | 是否理解收件规则；是否第二封信息清楚 |\n| 说明遮住操作或必须先滚很久 | 拆短当前拍，长档案由玩家按需打开 |\n\n可记录首次动作、误操作后的下一步和任务完成路径。完成一次可能是猜对，不能单独证明理解；拒收反馈被看见也不等于玩家理解所有剧情。真人感受、愿意继续玩和操作手感需要真实观察，不由自动化PASS替代。",
+          "en": "| Observation | First repair |\n|---|---|\n| Goal cannot be found | Opening focus and present goal. |\n| Chooses without seeing address | Evidence placement near action, not another lore panel. |\n| Thinks rejected delivery lost the letter | Accurate possession feedback and retry actions. |\n| Always selects the first recipient | Understanding of the recipient rule and clarity of new information. |\n| Instructions cover controls or require long scrolling | Shorten the present beat; make long records optional. |\n\nRecord first action, response after mistakes, and the completed path. One success may be a guess; seeing a refusal does not establish all story understanding. Feeling, willingness to continue, and control quality require actual observation rather than an automated PASS."
+        }
+      },
+      {
+        "id": "repairs",
+        "heading": {
+          "zh": "教程过长、强制太多时，怎样删",
+          "en": "Shorten Long or Overbearing Tutorials"
+        },
+        "body": {
+          "zh": "把未来才需要的规则推迟到首次有用时，保留这一拍的目标、依据、操作与反馈。已经证明理解的内容可以减少提示；新的对象、例外或操作仍可能需要说明，不一律取消。\n\n若允许跳过，明确跳过后玩家位于哪里、持有什么、哪些教学事件没有发生。可以提供按需帮助，但不能声称玩家已经签收第一封信，除非设计明确选择自动完成并一致更新结果。\n\n不要为了让教学显得有刺激，突然加入倒计时、敌人、货币和随机惩罚。先检验本作核心动作是否值得继续，再选择合适的压力。开场很短也可能不清楚，开场较长也可能有内容；具体判断来自本作体验和真实试玩。",
+          "en": "Defer future rules until useful while retaining this beat’s goal, evidence, input, and response. Reduce prompts after demonstrated understanding; new objects, exceptions, or controls may still need guidance.\n\nIf skipping is allowed, define position, possessions, and events that did not occur. Offer optional help without claiming a letter was received unless deliberate automatic completion updates results consistently.\n\nDo not add timers, enemies, currency, and random punishment merely to make teaching exciting. Test whether the core action sustains interest before choosing pressure. A short opening may be unclear and a longer one worthwhile; assess this game through actual play."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "开场必须在一分钟内教完吗？",
+          "en": "Must an opening tutorial finish within one minute?"
+        },
+        "a": {
+          "zh": "不用。首分钟目标帮助收束焦点，不是所有游戏的时长验收线。按操作风险、玩家背景和本作节奏组织，观察理解与下一步，而不只计时。",
+          "en": "No. An opening goal focuses design rather than imposing a universal time gate. Structure teaching by input risk, player background, and pacing; observe understanding and continuation as well as time."
+        }
+      },
+      {
+        "q": {
+          "zh": "教程可以只靠人物对白吗？",
+          "en": "Can dialogue alone carry the tutorial?"
+        },
+        "a": {
+          "zh": "对白可以给目标与必要规则，但还需要玩家真正执行动作并看结果。如果只读“信已送到”，却从未选择接收者，就没有教到本例的核心操作。",
+          "en": "Dialogue may give goals and rules, but players still need to act and see results. Reading “delivered” without choosing a recipient does not teach this example’s core action."
+        }
+      }
+    ],
+    "skill": {
+      "name": "game-world-design",
+      "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/SKILL.md",
+      "text": {
+        "zh": "用 $game-world-design 设计首段教学。附本作核心动作、玩家身份、目标平台和原作约束。只教当前一步需要的规则，写可见依据、实际操作、成功反馈、可恢复误操作和下一次使用。列真实试玩要观察的问题，不把设计稿或规则演算当成理解、手感和乐趣已经验证。",
+        "en": "Use $game-world-design to design the opening tutorial from core actions, player role, platform, and source constraints. Teach the current step’s rules with visible evidence, actual input, success feedback, a recoverable mistake, and another use. List questions for real playtesting without claiming the design proves understanding, feel, or enjoyment."
+      }
+    },
+    "related": [
+      "/novel-to-game/game-level-pacing",
+      "/novel-to-game/readable-gameplay-feedback",
+      "/novel-to-game/playtest-a-novel-game-adaptation"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "首分钟目标、教学动作与规则变式",
+          "en": "Opening goal, teaching actions, and rule variation"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/world-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "引导信息与按钮文案",
+          "en": "Guidance and action labels"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/game-writing-craft.md"
+      },
+      {
+        "label": {
+          "zh": "完整路径与实际试玩证据",
+          "en": "Complete paths and actual playtest evidence"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-qa/references/test-design-method.md"
+      }
+    ]
+  },
+  {
+    "owner": "video-recap",
+    "slug": "fix-music-swells-between-voiceover-lines",
+    "topic": "video-recaps",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "配音句间背景音乐忽大忽小怎么办：检查压低区间与恢复",
+      "en": "How to Fix Music Swells Between Voiceover Lines"
+    },
+    "seo_title": {
+      "zh": "配音句间背景音乐忽大忽小怎么办",
+      "en": "Fix Music Swells Between Voiceover Lines"
+    },
+    "description": {
+      "zh": "区分配音本身音量差和底声反复恢复。用真实压低区间合并与淡变方法，检查短停顿、长留白和显式完整混音。",
+      "en": "Separate uneven voice segments from music repeatedly recovering in pauses. Includes a ducking-window example, short gaps, and intentional longer breaks."
+    },
+    "answer": {
+      "zh": "先单独听配音和底声，确认是音乐在每次停顿回升，还是配音本身有差异。短句间停顿可以保持连续压低，较长留白是否恢复要按声音用途决定；进出压低区间留适当淡变。Video Recap的普通旁白路径会合并短间隔，显式完整声音路径不自动执行这项处理。",
+      "en": "Listen to voice and bed separately to identify repeated music recovery versus uneven speech. Short pauses may stay ducked; longer breaks need an intentional sound role, with appropriate ramps into and out of attenuation. Video Recap’s ordinary narration path merges short gaps; its explicit full-sound mix does not run that automation."
+    },
+    "sections": [
+      {
+        "id": "isolate",
+        "heading": {
+          "zh": "先确认哪一路声音在起伏",
+          "en": "Identify Which Track Is Changing"
+        },
+        "body": {
+          "zh": "把异常时间段分别只听配音、音乐和原声。如果配音单独听就忽强忽弱，先查[分段配音音量](/video-recap/fix-uneven-ai-voiceover-volume)；如果每句配音结束，音乐就突然上来，下一句又下去，再查这篇的区间恢复。\n\n原片对白在旁白缝隙冒出半句，是另一个交接问题：要找到完整原声句界，不能只用音乐的短间隔合并替它解决。音乐本来就有强拍或编曲变化时，也先区分素材本身与自动音量曲线；平直的增益不保证听起来永远一样响。",
+          "en": "Listen to the affected voice, music, and source separately. If speech alone is uneven, use the [segment-volume guide](/video-recap/fix-uneven-ai-voiceover-volume). If music rises after each line and falls at the next, inspect recovery between windows.\n\nA source-dialogue fragment emerging in a pause is a separate handoff problem requiring complete source sentence boundaries. Music-window merging cannot solve it alone. Distinguish a track’s own strong beats or arrangement changes from gain automation; constant gain does not guarantee constant perceived loudness."
+        }
+      },
+      {
+        "id": "method",
+        "heading": {
+          "zh": "短停顿连着压低，长留白另作决定",
+          "en": "Bridge Short Pauses and Decide Longer Breaks"
+        },
+        "body": {
+          "zh": "普通旁白路径把每段配音对应的音乐压低区间排序，**相邻间隔严格小于合并阈值**时连成一个区间，合并后用其中较低的增益；避免短缝里先涨再降。等于阈值不在这条“小于”规则里。\n\n压低区间开始前渐降，期间维持，结束后渐回。实际合成配置中淡变默认0.3秒、短间隔合并默认1.5秒；作者可按本段用途选值，不把默认写成所有视频标准。\n\n如果间隙要听完整原对白、动作声或有意义的沉默，先保留这项声音安排。把阈值调得很大，可能把本来要恢复的原声块也连着压低。原声和音乐的恢复路径不同，必须分别检查；创作分配表不会被渲染器自动理解。",
+          "en": "The ordinary narration path sorts music-ducking windows and joins adjacent gaps **strictly shorter than the merge threshold**, using the lowest gain in a merged span. This prevents a brief rise followed immediately by another fall. Equality does not satisfy that less-than rule.\n\nRamp down before the window, hold attenuation, then recover after it. Assembly configuration defaults are 0.3 seconds for ramps and 1.5 seconds for merging. These are separate controls, not universal standards.\n\nPreserve intervals intended for complete source dialogue, action sound, or meaningful silence. An excessive threshold may suppress a deliberate source block too. Source and music recover differently and need separate checks; the renderer does not interpret the creative allocation board automatically."
+        }
+      },
+      {
+        "id": "worked-example",
+        "heading": {
+          "zh": "原创演算：两句间0.4秒不让音乐突起",
+          "en": "Worked Example: Holding Across a 0.4-Second Gap"
+        },
+        "body": {
+          "zh": "假设纸面12秒时间线已经确定三段配音：1–3秒、3.4–5秒、8–10秒。音乐平时增益0.18，配音期间0.10；淡变0.3秒，合并阈值1.5秒。这些是本例选值，不是已试听音频，也不是建议每部视频都采用。\n\n| 区间 | 本例音乐安排 |\n|---|---|\n| 0–0.7秒 | 平时增益0.18 |\n| 0.7–1秒 | 渐降到0.10 |\n| 1–5秒 | 前两段间隙0.4小于1.5，合并维持0.10，不在3–3.4秒突起 |\n| 5–5.3秒 | 渐回0.18 |\n| 5.3–7.7秒 | 较长留白按本例决定恢复；不因此新增任何配乐或原对白 |\n| 7.7–8秒 | 第三段前渐降 |\n| 8–10秒 | 维持0.10 |\n| 10–10.3秒及以后 | 渐回后保持0.18；片尾另要不要淡出到零，本例未设 |\n\n三秒的长间隔不合并。0.18和0.10是振幅增益，不代表感知响度的18%和10%；最后还要听音乐强拍是否盖句子。若5–8秒原来安排重要原对白，需按那段实际声音改音乐和原声的安排，不能因为表里写“恢复”就判它必然合适。\n\n本演算只说明合并与淡变时点。成片另有混音、标准化或编码步骤，不能把这张表的增益当成最终响度已经达标。",
+          "en": "Suppose a chosen 12-second paper timeline contains narration at 1–3, 3.4–5, and 8–10 seconds. Music gain is 0.18 normally and 0.10 under voice; ramps are 0.3 seconds and the merge threshold is 1.5. These are illustrative choices, not listened-to audio or universal recommendations.\n\n| Interval | Music arrangement |\n|---|---|\n| 0–0.7 s | Ordinary gain 0.18. |\n| 0.7–1 s | Ramp to 0.10. |\n| 1–5 s | Merge the first two windows: 0.4 is below 1.5; hold 0.10 across the gap. |\n| 5–5.3 s | Recover to 0.18. |\n| 5.3–7.7 s | Restore for this chosen longer break; do not add music or dialogue. |\n| 7.7–8 s | Ramp down before the third line. |\n| 8–10 s | Hold 0.10. |\n| From 10 s | Recover by 10.3, then hold 0.18. No final fade to zero is specified. |\n\nThe three-second gap stays separate. Gains describe amplitude, not percentages of perceived loudness. Listen for musical accents masking words. Important source dialogue in 5–8 seconds requires its own actual arrangement; “restore” in a table cannot establish suitability.\n\nThis calculation explains merge and ramp times. Later mixing, normalization, and encoding mean these gains do not establish final loudness compliance."
+        }
+      },
+      {
+        "id": "mode",
+        "heading": {
+          "zh": "先看当前声音路径，再改设置",
+          "en": "Identify the Audio Path Before Changing Settings"
+        },
+        "body": {
+          "zh": "普通 `narration` 路径可自动压低原声并处理可选音乐；本页区间方法在该路径中使用。`source-mix` 不生成配音区间，也不执行这套旁白压低。冻结音轨复制不会重混。\n\n仍叫 `narration`、但传入显式完整混音的路径会跳过旧自动压低、环境BGM和自动响度处理。底轨已经被独立采用时，应在声音制作处修正底轨及其采用安排；只改旧淡变或合并设置不会让这条路径重新生成曲线。\n\n保存当前模式、实际配音位置、底声区间与异常时间点，让 skill 对照真实输入查。不要从一份过期时间表判断新配音的间隙，也不要让重新合成覆盖仍要保留的已定声音。",
+          "en": "Ordinary `narration` can duck source and handle optional music using these windows. `source-mix` creates no narration windows and does not run this narration ducking. Frozen audio copying does not remix.\n\nThe explicit full-mix path still named `narration` bypasses legacy ducking, ambient BGM, and automatic loudness operations. Revise the independently adopted bed and its arrangement at production; changing legacy ramp or merge settings cannot rebuild a curve on this path.\n\nKeep the actual mode, voice placements, bed intervals, and affected times for review against real inputs. An old timing sheet cannot describe new voice gaps, and rerendering should not overwrite adopted sound that must remain."
+        }
+      },
+      {
+        "id": "listen",
+        "heading": {
+          "zh": "修完只听完整交接，再看画面",
+          "en": "Listen to the Complete Handoffs Before Reviewing Picture"
+        },
+        "body": {
+          "zh": "连听前一句末尾、停顿和后一句开头，检查音乐是否仍突起、是否压住重要原对白、是否损失有意留白。再听完整一段，单个切点顺滑不等于整段节奏合适。\n\n若句间仍起伏，核实际区间与合并条件；若被合成一路闷着，核是否把长原声块误并；若只有某句很轻，回到配音段检查；若素材强拍太大，可局部调整音乐或更换选择，不用把整片人声一起降。\n\n检查当前导出音频，再核可编辑时间线是否用了同样区间和曲线。成功写出文件、曲线演算正确或整体响度达标，均不能替代对当前成片的实际回听。",
+          "en": "Listen across a line’s ending, pause, and next opening. Check sudden rises, masked source dialogue, and lost intentional quiet. Then hear the whole passage; one smooth boundary does not establish the section’s rhythm.\n\nFor continued pumping, inspect actual windows and merge conditions. For continuously suppressed source, check accidentally bridged longer blocks. For one faint line, return to voice segments. For a strong music accent, locally change music or its selection rather than lowering the entire voice mix.\n\nReview the current export and whether the editable timeline uses the same windows and curve. A written file, correct calculation, or overall loudness target cannot replace listening to this output."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "把音乐整体调低就能解决吗？",
+          "en": "Will lowering all music fix it?"
+        },
+        "a": {
+          "zh": "可能减少遮盖，但不会自动改变每次停顿的恢复形状。先分清过响、短间隙起伏和素材强拍，再决定整体增益或局部区间。",
+          "en": "It may reduce masking without changing recovery at every pause. Separate excessive level, short-gap pumping, and musical accents before choosing overall gain or local windows."
+        }
+      },
+      {
+        "q": {
+          "zh": "句间都保持压低会更好吗？",
+          "en": "Should every pause stay ducked?"
+        },
+        "a": {
+          "zh": "不一定。短停顿可连着铺底，完整原对白、动作声、较长休息和有意义的沉默需要各自安排。不要把合并阈值当成旁白与原声比例。",
+          "en": "Not always. Short pauses may bridge; complete source dialogue, action sound, longer breaks, and intentional silence need deliberate treatment. A gap threshold is not a voice-to-source quota."
+        }
+      }
+    ],
+    "skill": {
+      "name": "video-assemble",
+      "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/SKILL.md",
+      "text": {
+        "zh": "用 video-assemble 排查配音句间底声起伏。附当前声音模式、每段实际配音位置、音乐与原声用途、异常时间点和听审结果。先区分音乐回升、原对白交接与配音音量差，核短区间合并和淡变；保留有意原声块，不把所有空隙填满。显式完整混音若已选定，按采用底轨修订，不期待旧自动压低生效。",
+        "en": "Use video-assemble to investigate bed swells between voice lines. Include audio mode, actual placements, music and source roles, affected times, and listening observations. Separate music recovery, source-dialogue handoff, and uneven voice. Check short-gap merging and ramps while preserving intentional source blocks. For an explicit full mix, revise the adopted bed instead of expecting legacy ducking."
+      }
+    },
+    "related": [
+      "/video-recap/background-music-overpowers-voice",
+      "/video-recap/fix-uneven-ai-voiceover-volume",
+      "/video-recap/original-audio-and-narration"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "短区间合并与压低淡变",
+          "en": "Short-gap merging and ducking ramps"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/scripts/audio_automation.py"
+      },
+      {
+        "label": {
+          "zh": "原声与音乐各自的混音路径",
+          "en": "Separate source and music mixing paths"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/scripts/audio_mix.py"
+      },
+      {
+        "label": {
+          "zh": "淡变、合并间隔与音乐增益设置",
+          "en": "Ramp, gap-merge, and music-gain settings"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/scripts/lib.py"
+      },
+      {
+        "label": {
+          "zh": "普通旁白与显式完整混音边界",
+          "en": "Ordinary narration and explicit full-mix boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/audio-modes.md"
       }
     ]
   }
