@@ -68,6 +68,9 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Use Three-Act Structure for a Novel](https://zenstory.ai/oh-story/use-three-act-structure-for-a-novel) — Plan setup, confrontation and resolution around changing choices. Includes a filled three-act outline, a middle turn and use within a serial volume.
 - [How to Write a Story Theme Without Preaching](https://zenstory.ai/oh-story/write-theme-without-preaching) — Turn an abstract theme into recurring choices with different consequences. Includes an original comparison, a scene revision and checks for drift.
 - [How to Write a Fanfiction Opening](https://zenstory.ai/oh-story/write-a-fanfiction-opening) — Separate familiar canon from new premises and bring established characters into a fresh goal. Includes an original fictional-canon example and a setup table.
+- [How to Make Readers Care About the Outcome](https://zenstory.ai/oh-story/create-emotional-stakes-in-fiction) — Connect a goal to visible investment and meaningful loss. Includes an original night-school story and repairs that do not rely on adding tragedy.
+- [How to Write a Complete Fiction Scene](https://zenstory.ai/oh-story/write-a-scene-that-changes-the-story) — Turn a scene goal, obstacle, judgment and result into continuous prose. Includes an original lost-property scene, a detail plan and revision checks.
+- [How to Decide Whether Your Novel Needs a Prologue](https://zenstory.ai/oh-story/write-a-novel-prologue) — Test whether a prologue supplies necessary narrative context. Includes an original ferry story, keep-or-merge comparisons and exposition repairs.
 
 ### Characters and dialogue / 人物与对白
 - [Characters and dialogue](https://zenstory.ai/guides/characters-and-dialogue) — Build believable motives, distinct voices, and relationships.
@@ -93,6 +96,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Write a Worthy Rival](https://zenstory.ai/oh-story/write-a-worthy-rival) — Give rivals independent goals, demonstrated respect and a conflict neither can easily abandon. Includes an original competition and a limited-cooperation plan.
 - [How to Design Characters for a Short Drama](https://zenstory.ai/drama-skills/short-drama-character-design) — Turn biography into goals, protected values, habitual strategies and costs. Includes an original character card and a scene testing those traits.
 - [How to Fix Out-of-Character Fanfiction](https://zenstory.ai/oh-story/write-fanfiction-that-fits-the-characters) — Separate canon behavior, its triggers and your changes. Includes a fictional-canon comparison and a method for repairing choices without freezing growth.
+- [How to Write a Believable Betrayal](https://zenstory.ai/oh-story/write-a-betrayal-that-feels-earned) — Build betrayal from established trust and character choices, then change what happens next. Includes an original theater story and a trust-evidence table.
+- [How to Write a Romance Confession Scene](https://zenstory.ai/oh-story/write-a-romance-confession-scene) — Design a confession around relationship progress, personal agendas and a real response. Includes an original choir scene and before-and-after dialogue.
 
 ### Choose and write a genre / 题材与类型写法
 - [Choose and write a genre](https://zenstory.ai/guides/genres) — Choose a genre and learn the story patterns it needs.
@@ -133,6 +138,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Write a Modern Superpower Novel](https://zenstory.ai/oh-story/write-a-gaowu-novel) — Connect tests, training and combat to school, work and family consequences. Includes an original exam story and a power-to-consequence worksheet.
 - [How to Connect Cultivation and Romance](https://zenstory.ai/oh-story/write-a-xianxia-romance) — Use one event to change cultivation, status and relationships. Includes an original life-lamp scene and repairs for passive leads and disconnected romance.
 - [How to Write Urban Cultivation Fiction](https://zenstory.ai/oh-story/write-an-urban-cultivation-novel) — Make cultivation interact with modern processes, family and identity. Includes an original shop story and a worksheet for ability limits.
+- [How to Write a Spy Thriller](https://zenstory.ai/oh-story/write-a-spy-thriller) — Build a spy story around cover, intelligence access and consequences. Includes an original hospital story, an information table and dialogue repairs.
+- [How to Write a Book-Transmigration Romance](https://zenstory.ai/oh-story/write-a-book-transmigration-romance) — Test knowledge of a book against status, marriage arrangements and household rules. Includes an original ledger scene and a knowledge-limit worksheet.
 
 ### Revise your novel / 小说改稿与去 AI 味
 - [Revise your novel](https://zenstory.ai/guides/revision) — Fix weak prose, continuity mistakes, and chapters that stall.
@@ -189,6 +196,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Make Xianxia Rules Visible in a Short Drama](https://zenstory.ai/drama-skills/xianxia-short-drama) — Show power limits through objects, position and consequences. Includes an original lamp scene, a spell-state table and alternatives to excessive effects.
 - [How to Write a System-Power Short Drama](https://zenstory.ai/drama-skills/system-short-drama) — Connect tasks, choices, rewards and real consequences while reserving readable panels for post-production. Includes an original skill-reward scenario.
 - [How to Write a Gentle Slice-of-Life Short Drama](https://zenstory.ai/drama-skills/healing-slice-of-life-short-drama) — Build gentle stories around a small goal, everyday cost and relationship change. Includes an original umbrella repair and ways to avoid empty warmth.
+- [How to Write a Hidden-Identity Short Drama](https://zenstory.ai/drama-skills/hidden-identity-short-drama) — Connect a hidden identity to a task, recognition tests and relationship consequences. Includes an original acting-director story and knowledge table.
+- [How to Write an Underdog Rise Short Drama](https://zenstory.ai/drama-skills/underdog-rise-short-drama) — Make dismissal concrete, then change judgments through verifiable results. Includes an original repair contest and witness roles beyond applause.
 
 ### Storyboards and AI video / 分镜与 AI 视频
 - [Storyboards and AI video](https://zenstory.ai/guides/ai-video) — Plan shots, keep characters consistent, and improve generated footage.
@@ -220,6 +229,10 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Find Continuity Breaks Between AI Short-Drama Shots](https://zenstory.ai/drama-skills/shot-continuity-checklist) — Compare each shot's end with the next shot's start across position, props, visible state, light, text, and action stage; find and repair the first break.
 - [How to Keep Locations Consistent Across AI Video Shots](https://zenstory.ai/drama-skills/ai-video-location-consistency) — Keep room layout, viewing direction and temporary states separate. Use location references to preserve doors, routes and light sources, with filled examples.
 - [AI Video Lip Sync Problems: Check Speaker, Audio Role and Timing](https://zenstory.ai/drama-skills/ai-video-lip-sync) — Separate visible dialogue, off-screen speech and voiceover, then budget time for the full line. Includes a two-person example and a repair table.
+- [How to Match Color Between AI Video Shots](https://zenstory.ai/drama-skills/match-ai-video-shot-color) — Distinguish generated drift from intended light changes, then compare matching regions. Includes an original counter scene and focused correction checks.
+- [How to Cut Away During Continuous Dialogue](https://zenstory.ai/drama-skills/cut-away-during-continuous-dialogue) — Locate the spoken line before cutting to a useful reaction or object. Includes an original key-return scene, interval table and workflow limits.
+- [How to Storyboard a Single-Room Short Drama](https://zenstory.ai/drama-skills/storyboard-a-single-room-short-drama) — Stage a one-room scene through exits, object control and character purposes. Includes an original locker-room scene and repairs for pointless movement.
+- [AI Short-Drama Edit List Template](https://zenstory.ai/drama-skills/ai-short-drama-edit-list-template) — Record footage, boundaries, reasons, subtitles and sound treatment in one edit list. Includes an original example and timing-update checks.
 
 ### Interactive stories and games / 互动故事与游戏
 - [Interactive stories and games](https://zenstory.ai/guides/interactive-games) — Turn a novel into player actions, branching stories, and a playable game.
@@ -248,6 +261,12 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Design NPCs With Goals and Memory](https://zenstory.ai/novel-to-game/design-game-npcs) — Give NPCs desires, leverage, knowledge and active responses, with depth matched to their role. Includes an original vendor who does more than wait for clicks.
 - [How to Design Clues for a Story Game](https://zenstory.ai/novel-to-game/design-clues-for-a-detective-game-adaptation) — Separate evidence, supported conclusions and uncertain explanations. Includes an original ticket mystery with observation, questions and earned reveals.
 - [How Much of a Novel Should a Game Adapt?](https://zenstory.ai/novel-to-game/scope-a-novel-game-adaptation-for-a-small-team) — Separate source understanding from production scope. Preserve defining rules and tensions with an original adaptation table and a complete playable goal.
+- [How to Simplify a Story Game Interface](https://zenstory.ai/novel-to-game/organize-a-story-game-interface) — Separate persistent signals, current evidence and archives. Includes an original harbor scene and interface repairs that preserve readable text.
+- [How to Fix a Game Screen That Is Too Dark](https://zenstory.ai/novel-to-game/fix-an-overly-dark-game-interface) — Separate atmosphere from essential visual information. Includes an original night warehouse, four readability layers and viewport checks.
+- [How to Define an Ancient-Fantasy Game Art Style](https://zenstory.ai/novel-to-game/define-an-ancient-fantasy-game-art-style) — Calibrate period, visual medium and character treatment separately. Includes an original canal-city game, feedback repairs and an in-game target frame.
+- [How to Design Skippable Game Cutscenes](https://zenstory.ai/novel-to-game/design-skippable-game-cutscenes) — Make cutscenes read confirmed state and define boundaries and fallbacks. Includes an original lighthouse sequence and skip-path checks.
+- [How to Write Clear Interactive Story Choices](https://zenstory.ai/novel-to-game/write-clear-interactive-story-choices) — Make options state real actions, with distinct cost cues and responses. Includes an original testimony scene and boundaries for hidden consequences.
+- [How to Design Deadlines in a Story Game](https://zenstory.ai/novel-to-game/design-time-limits-in-a-story-game) — Define time advancement, commitments and visible deadline consequences. Includes an original ferry task and checks for early or repeated triggers.
 
 ### Video scripts and editing / 视频解说与剪辑
 - [Video scripts and editing](https://zenstory.ai/guides/video-recaps) — Write narration from footage, edit a story, and finish audio and subtitles.
@@ -268,6 +287,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Keep Approved Audio When Changing Picture](https://zenstory.ai/video-recap/keep-audio-when-changing-video) — Check whether picture changes alter timing, then pair independent picture and a complete soundtrack. Includes input checks, failures and subtitle rebinding.
 - [How to Fix AI Voiceover That Runs Too Long](https://zenstory.ai/video-recap/fit-voiceover-to-a-picture-edit) — Compare authored text, spoken text, audio duration and output windows. Includes an original compression example and checks against clipping or excessive speed.
 - [How to Keep AI Edit Revisions Local](https://zenstory.ai/video-recap/revise-one-part-of-ai-edit) — Locate feedback by shot, sentence and time range, and record what this revision keeps. Includes a change list to prevent a small edit becoming a remake.
+- [How to Dub an English Video into Chinese](https://zenstory.ai/video-recap/translate-an-english-video-into-chinese) — Verify the English transcript and sentence translations before dubbing into the original windows. Includes an original demo and current workflow limits.
 
 
 ## Workbench docs
