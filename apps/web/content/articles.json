@@ -1135,7 +1135,7 @@
       "en"
     ],
     "published_on": "2026-09-13",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "去AI味怎么改：三遍改稿与删改刹车",
       "en": "Make AI Fiction Sound Human: Fix AI-Sounding Prose in Three Passes"
@@ -1149,19 +1149,19 @@
       "en": "To make AI fiction sound human, delete-test each flagged line, revise the rest in three ordered passes, and cap cuts so the prose never goes telegraphic."
     },
     "answer": {
-      "zh": "AI写的小说去AI味，先给每处可疑句子做删除测试：删掉不丢剧情信息就直接删，会丢就只改说法。删不掉的句子按去泛化、去书面化、回自然感的顺序改，问题越重，改的范围越大。最后用删除上限和收敛条件刹车，防止稿子被删成电报体；剧情、人设和信息揭露节奏全程不动。",
-      "en": "To make AI-written fiction sound human, delete-test every flagged line: cut it if the story loses nothing, otherwise reword only the delivery. Revise the rest in a fixed order (strip generic phrasing, cut bookish diction, restore a natural voice), widening the scope for heavier problems, and stop at a deletion cap before the prose turns telegraphic. Plot, characters and reveal timing stay put."
+      "zh": "AI小说去AI味，先确定本书文风与不可改的事实，再判断可疑句是否冗余、空泛或破坏读感。能删且不丢叙事功能的句子先删；承担信息、情绪、视角或作者声音的句子留下，必要时只改表达。去泛化、去书面化、回自然感是改稿顺序，不是所有文字必须磨成同一种口吻。最后对照事实、朗读并检查删除量，避免删成提纲。",
+      "en": "To revise AI-sounding fiction, establish the book’s voice and fixed facts first. Test flagged lines for redundancy, vagueness, or damaged readability. Cut only what can go without losing narrative function; keep information, emotion, point of view, and authorial voice, rewording where needed. Moving from generic phrasing to diction to natural rhythm sets an editing order, not a single required voice. Compare facts, read aloud, and check cuts before the prose becomes an outline."
     },
     "sections": [
       {
         "id": "how-to-revise",
         "heading": {
-          "zh": "去AI味怎么改：五步改稿清单",
-          "en": "How to revise AI-sounding prose: a five-step checklist"
+          "zh": "去AI味怎么改：先按本书文风判断",
+          "en": "Start with the book’s voice"
         },
         "body": {
-          "zh": "1. **先划事实边界**：写下不能动的东西，比如人名、物件、角色已做的决定、还没揭晓的信息。[去AI味](/glossary/qu-ai-wei)只改怎么说，说什么保持原样。\n2. **先检测，再动手**：先拿到一张问题标记表，看清每处的位置、类型和理由，再决定改哪里。\n3. **每处先删掉试试**：删了不丢剧情信息就直接删，会丢就把信息留下，只换说法。\n4. **按轻重定范围**：问题越重，改的范围越大，顺序始终是去泛化、去书面化、回自然感。\n5. **通读刹车**：连读一遍，看有没有删成电报体、删除量有没有超上限。\n\n### 常见AI味句子怎么改：速查表\n\n| 问题 | 原创例句 | 改法 |\n|---|---|---|\n| 空泛情绪 | 她心里涌起一阵说不清的酸楚。 | 上下文已让情绪成立就删；没成立，写她当场说的话或做的决定 |\n| 上帝视角剧透 | 他还不知道，这通电话会改变他的一生。 | 删掉，只写角色此刻知道的事 |\n| 升华式结尾 | 那一晚，她终于明白了成长的代价。 | 用动作或对白收住：她把钥匙压在门垫下面，走了。 |\n| 对白把动机说满 | “我瞒着你，是因为怕你担心。” | 人很少把动机讲清楚，改成回避或半句话：“你问这个干什么？” |\n| 排比三连 | 她想起那条街，那盏灯，那个回不去的夏天。 | 只留最有力的一项 |",
-          "en": "1. **Mark what cannot change.** Names, objects, decisions made, anything not yet revealed. Humanizing AI writing changes how a line is said and keeps what it says.\n2. **Detect before you edit.** Get a findings table with the location, type and reason for each spot first.\n3. **Try deleting each flagged line.** Cut it if the story loses nothing; otherwise keep the information and reword only the delivery.\n4. **Scale the scope to severity.** Heavier problems get a wider scope, always in the same order: strip the generic, cut bookish diction, restore a natural voice.\n5. **Read it through and brake.** Check for telegraphic prose and for cuts beyond the cap.\n\n### Quick fixes for common AI-sounding lines\n\n| Problem | Original example | Fix |\n|---|---|---|\n| Vague emotion | A strange, nameless sorrow welled up inside her. | If context already earns the feeling, cut it; if not, show what she says or decides |\n| Omniscient spoiler | He had no idea this call would change his life. | Cut it and stay with what the character knows now |\n| Moral-of-the-story ending | That night she finally understood the price of growing up. | End on an action or line: She left the key under the mat and walked off. |\n| Dialogue that explains motive | \"I hid it because I didn't want you to worry.\" | People rarely spell out motives; try a dodge: \"Why are you asking?\" |\n| Rule-of-three list | She remembered the street, the lamp, the summer she could never return to. | Keep the strongest item |"
+          "zh": "1. **定文风和事实**：列出叙述视角、角色口吻、明确保留的修辞与停顿，再列不可改的人名、物件、选择、先后和未揭晓的信息。\n2. **拿原句判断**：标记具体位置和读起来有什么问题。检测器只帮助定位，不能证明一句有意的排比、心理或全知评论必错。\n3. **删除测试**：删掉后信息、情绪承接、视角和声音是否损失？没有损失才删，有损失就保留功能，只改确有问题的表达。\n4. **限定改稿范围**：先处理泛化与套话，再处理不合本书的书面腔，最后检查节奏和角色差异；只处理已选问题。\n5. **对照与朗读**：核对事实、知情和动作结果，再检查是否仍像原作者，有没有删成提纲。\n\n| 原句与可疑之处 | 判断与改法 |\n|---|---|\n| “她心里涌起说不清的酸楚”：情绪可能空泛 | 已有细节足以传递且直写无新作用时可删；若承接判断或有本书声音，保留并按上下文修 |\n| “他还不知道，这通电话会改变他的一生”：可能无依据预告 | 限知场景中若越过边界就处理；作者明确的全知、回顾叙述有功能时不自动删 |\n| “那一晚，她终于明白成长的代价”：可能重复升华 | 检查是否仅复述已完成的场面；有意的叙述者评论可保留，不必都换成走出门 |\n| “我瞒着你，是怕你担心”：可能解释过满 | 若真是主动坦白可直接说；若这人正躲避问题，可沿已有语境改成回避，不擅自改变诚实程度 |\n| 连续三项同句式：可能机械整齐 | 检查各项信息与韵律；纯复述可合并，有意义的递进、回环或喜剧合唱可保留 |",
+          "en": "1. **Set voice and facts.** Identify point of view, character diction, chosen rhetoric and pauses, then fixed names, objects, choices, order, and unrevealed information.\n2. **Judge actual lines.** Locate the passage and say what harms the reading. A detector cannot prove deliberate parallelism, thought, or omniscient commentary is wrong.\n3. **Delete-test.** Would cutting lose information, emotional continuity, point of view, or voice? Cut only when these survive; otherwise preserve the function and repair the actual fault.\n4. **Bound the scope.** Address generic phrasing, then diction inconsistent with this book, then rhythm and character differences. Work only on selected problems.\n5. **Compare and read aloud.** Check facts, knowledge, and action outcomes, then authorial voice and overcompression.\n\n| Line | Decision |\n|---|---|\n| “A nameless sorrow rose inside her”: possibly vague | Cut when existing detail communicates it and the statement adds nothing; keep a functional judgment or deliberate voice |\n| “He did not know the call would change his life”: possibly unsupported preview | Repair a limited-viewpoint violation; purposeful omniscient or retrospective narration is not automatically wrong |\n| “That night she understood the price of growing up”: possibly repeated moral | Test whether it restates the scene; deliberate narrator commentary need not become an exit gesture |\n| “I hid it because I worried about you”: possibly excessive explanation | An honest confession may say this directly; evasion fits only if established. Do not silently change honesty |\n| Three matching clauses: possibly mechanical | Check information and rhythm; merge restatement but preserve progression, refrain, or comic chorus |"
         }
       },
       {
@@ -1178,23 +1178,23 @@
       {
         "id": "delete-first-test",
         "heading": {
-          "zh": "删除优先：去AI味的第一道判断",
-          "en": "The delete-first test for AI-sounding lines"
+          "zh": "删除优先：先确认叙事功能",
+          "en": "Delete-first: test narrative function"
         },
         "body": {
-          "zh": "很多带AI味的句子本身就是解释、注水或凑字，润色得再顺也还是多余。每处被标记的句子先问一句：删掉它，读者会少知道什么？\n\n- [ ] 删掉后会丢伏笔或钩子吗？\n- [ ] 会丢人物特征、人物记忆或情绪承接吗？\n- [ ] 会丢情节推进、因果锚点或必要转折吗？\n- [ ] 会丢读者必须知道的信息吗？\n\n四项全是否，就直接删，这句不再进入润色。只要有一项是，就把信息留下，只改说法。\n\n有些解释句承担着小的衔接，比如让读者明白角色为什么停顿。这类句子压成角色当下的一句白话、一个动作或一个物件。新道具第一次出场也一样：讲来历的整段说明删掉，留一个锚，用角色的反应或看得见的后果带出它此刻的用处。",
-          "en": "Much AI-sounding prose is padding, and polishing padding only makes it smoother. For every flagged line, ask first: if I cut this, what does the reader lose?\n\n- [ ] Does cutting it lose foreshadowing or a hook?\n- [ ] Does it lose a character trait, a memory or an emotional carry-over?\n- [ ] Does it lose plot movement, a cause-and-effect anchor or a necessary turn?\n- [ ] Does it lose information the reader needs?\n\nAll no: delete the line and move on. Any yes: keep the information and change only the wording.\n\nSome explanatory lines carry small continuity work, such as telling the reader why a character pauses. Compress those into a plain phrase, a gesture or an object. For a new prop, cut the origin lecture and leave one anchor: a reaction or visible consequence that shows what it does now."
+          "zh": "每处被标记的句子先问：删掉它，读者会少得到什么？\n\n- [ ] 伏笔、钩子、必要信息或因果锚点\n- [ ] 人物特征、记忆、判断或情绪承接\n- [ ] 行动先后、情节推进或必要转折\n- [ ] 本书有意的声音、节奏、视角或修辞效果\n\n都不损失，才直接删。只要承担一项功能，就保留功能，必要时改表达；疑似问题标给作者复核，不塞进正文。\n\n让读者明白人物为何停顿的连接句，可能正是必要认知，不必总换成物件或动作。新道具的来历若影响本场理解，就留下所需信息；来历只重复已知事实时才压缩。去AI味不能为了“具体”制造原文没有的物件、手续或行动。",
+          "en": "For each flagged line, ask what readers lose if it goes:\n\n- [ ] A clue, hook, necessary information, or causal anchor\n- [ ] A trait, memory, judgment, or emotional connection\n- [ ] Event order, plot movement, or a necessary turn\n- [ ] Deliberate voice, rhythm, point of view, or rhetoric\n\nDelete only when these survive. Keep any function and reword only where needed. Flag uncertain issues for the author outside the manuscript.\n\nA connecting thought explaining a pause can be necessary understanding; it need not become an object or gesture. Retain a new prop’s history when the scene needs it, and compress history only when it repeats known facts. Concrete prose does not authorize inventing objects, procedures, or actions absent from the source."
         }
       },
       {
         "id": "three-pass-method",
         "heading": {
-          "zh": "去AI味三遍法：去泛化、去书面化、回自然感",
-          "en": "Three revision passes: strip the generic, cut bookish diction, restore a natural voice"
+          "zh": "三遍是处理顺序，不是统一口吻",
+          "en": "Three passes set order, not a uniform voice"
         },
         "body": {
-          "zh": "删不掉的句子，按三遍的顺序改。Oh Story 的写后自检清单按轻重定遍数：轻度只做第一遍，中度做前两遍，重度三遍全做。story-deslop 按问题类别定范围：轻度清禁用词和套路句式，中度再加情绪空转、节奏和解释腔，重度全部检查并重写重点段落；三遍只排先后，范围由你指定或按扫描等级定。\n\n| 遍次 | 处理对象 | 改法 |\n|---|---|---|\n| 第一遍 去泛化 | 抽象情绪总结、假深度句、意义膨胀、空洞结论、工整对比、形容词堆砌、叙述者跳出来解释或剧透 | 能删就删；删不掉，换成场景里已有的具体细节 |\n| 第二遍 去书面化 | 分析词（机制、体系、逻辑）、公文词（进一步、落实、推进）、抽象名词、术语堆砌 | 换成日常说法，直接说事；公文词多半可以直接删，术语只留必要的，用白话带过 |\n| 第三遍 回自然感 | 人人一个腔调、连续同一个开头、段落长短均匀、缺少场景独有的细节 | 区分角色口吻，换句首开法，按情绪起伏调句段长短，每段补一两个具体细节就够 |\n\n第二遍有例外：历史题材的正式用语、刻意追求密度的文学向文字、喜剧的夸张修辞，可以保留专业感。",
-          "en": "Lines that survive the delete test are revised in pass order. Oh Story's post-draft checklist runs pass one for light problems, passes one and two for medium, all three for heavy. story-deslop scopes by problem type: light text gets banned words and stock sentence patterns, medium adds empty emotion, rhythm and narrator explanation, heavy gets every check plus a rewrite of the worst paragraphs. The passes set the order; you or the scan grade set the scope.\n\n| Pass | Targets | Fix |\n|---|---|---|\n| 1. Strip the generic | Summarized emotion, fake depth, inflated significance, empty conclusions, neat contrasts, stacked adjectives, a narrator explaining or foreshadowing | Cut; otherwise swap in a concrete detail already in the scene |\n| 2. Cut bookish diction | Analytic words (mechanism, framework, logic), office jargon (going forward, implement, facilitate), abstract nouns, piled-up terminology | Say it in everyday words; office jargon usually just goes, and necessary terms stay, glossed plainly |\n| 3. Restore a natural voice | Everyone talking alike, repeated openings, evenly sized paragraphs, nothing unique to the scene | Distinct voices, varied openings, length that follows the emotional beat, one or two specific details per paragraph |\n\nPass two exempts formal register in historical fiction, deliberately dense literary prose and comic exaggeration."
+          "zh": "story-deslop 按指定范围或扫描等级选问题，三遍只排这些问题的处理先后，不另开一次全文重写。\n\n| 顺序 | 检查与取舍 |\n|---|---|\n| 去泛化 | 查套话、空泛总结、堆砌修饰、无功能解释；删得掉才删，改写材料来自原文已有细节 |\n| 去书面化 | 查不合人物与叙述声音的公文词、抽象名词或术语；历史正式语、专业工作对白或故意说明文腔可有功能 |\n| 回自然感 | 查角色是否同腔、句首机械、长短一律；按动作、思路和情绪调整，不按每段配细节或每句配动作 |\n\nOh Story 的文风裁决明确：当前要求与本书文风按表达维度覆盖通用参考默认值。判断一句长句、排比或心理直写，应说出它具体造成什么重复、混乱或节奏问题；不能只因它不符合默认句长就删。\n\n轻度、中度、重度决定 skill 默认处理哪些问题；作者已指定只改某一类时，按该范围处理。等级不是作品质量、市场价值或AI检测分数，三遍也不是必须各改一轮。",
+          "en": "story-deslop selects problems from the requested scope or scan grade. The three passes order that work; they do not start another whole-manuscript rewrite.\n\n| Order | Check and tradeoff |\n|---|---|\n| Remove generic phrasing | Stock wording, vague conclusions, piled modifiers, and unneeded explanation; cut only what is dispensable and reword from existing material |\n| Reconsider bookish diction | Office jargon, abstraction, or terms inconsistent with this voice; historical formality, professional dialogue, and deliberately formal notices can function |\n| Restore natural rhythm | Indistinct voices, mechanical openings, uniform length; follow action, thought, and emotion without detail or gesture quotas |\n\nOh Story’s style resolution lets the current request and book-specific voice override general reference defaults by expression dimension. Identify actual repetition, confusion, or rhythm damage before cutting a long sentence, parallel structure, or direct thought. A mismatch with a default sentence length is insufficient.\n\nLight, medium, and heavy grades select default problem categories. A narrower author request controls the scope. A grade is not a judgment of literary quality, market value, or a detector score, and each pass need not produce another round of edits."
         }
       },
       {
@@ -1237,8 +1237,8 @@
           "en": "Common mistakes when humanizing AI writing"
         },
         "body": {
-          "zh": "- **同义词轮换**：把“仿佛”换成“好像”，把“一丝”换成“一点”。修法：换个词还是同一种腔调；回到角色当下碰得到的东西，文件、动作、对白、实际后果。\n- **给每个情绪配一个动作**：把“她很生气”改成“她攥住衣角”。修法：情绪有上下文撑着，直接写“她很生气”就行，多出来的攥衣角删掉，也别换成咬唇；身体细节只在带来后果时留下，比如烫伤的手指让她解不开外套扣子。\n- **借润色改剧情**：给角色补一段回忆、加一个秘密誓言。修法：事件、设定、关系和时间线保持原样；要改事件，走[章节修订](/oh-story/review-and-revise)。\n- **把作者故意的写法当毛病**：修法：本书文风选定的写法优先于默认规则，有意保留的原句可逐句登记进书目录下的 `.deslop-whitelist`，详见[保留作者文风](/oh-story/preserve-author-voice)。",
-          "en": "- **Synonym swapping.** \"As if\" becomes \"as though\". Fix: go back to what the character can touch right now: a document, an action, a line of dialogue, a real consequence.\n- **A gesture for every feeling.** \"She was angry\" becomes \"she twisted the hem of her shirt\". Fix: if context supports the feeling, the plain statement can stand; cut the added gesture without swapping in another. Keep a physical detail only when it has a consequence, like a burned finger that can't work a coat button.\n- **Changing the plot while polishing.** A new flashback, a secret vow. Fix: events, setting, relationships and timeline stay put; event changes belong in a [chapter revision](/oh-story/review-and-revise).\n- **Treating deliberate style as a flaw.** Fix: the book's style sheet overrides the defaults, and a line you mean to keep can go verbatim into the book folder's `.deslop-whitelist`. See [keep your writing voice](/oh-story/preserve-author-voice)."
+          "zh": "- **同义词轮换**：把“仿佛”换成“好像”，把“一丝”换成“一点”。修法：换个词还是同一种腔调；回到角色当下碰得到的东西，文件、动作、对白、实际后果。\n- **给每个情绪配一个动作**：把“她很生气”改成“她攥住衣角”。修法：情绪有上下文撑着，直接写“她很生气”就行，多出来的攥衣角删掉，也别换成咬唇；身体细节若承担感受、视角、节奏或动作后果就可留下，比如烫伤的手指让她解不开外套扣子；不只用情节后果衡量。\n- **借润色改剧情**：给角色补一段回忆、加一个秘密誓言。修法：事件、设定、关系和时间线保持原样；要改事件，走[章节修订](/oh-story/review-and-revise)。\n- **把作者故意的写法当毛病**：修法：本书文风选定的写法优先于默认规则，有意保留的原句可逐句登记进书目录下的 `.deslop-whitelist`，详见[保留作者文风](/oh-story/preserve-author-voice)。",
+          "en": "- **Synonym swapping.** \"As if\" becomes \"as though\". Fix: go back to what the character can touch right now: a document, an action, a line of dialogue, a real consequence.\n- **A gesture for every feeling.** \"She was angry\" becomes \"she twisted the hem of her shirt\". Fix: if context supports the feeling, the plain statement can stand; cut the added gesture without swapping in another. Keep physical detail that carries sensation, viewpoint, rhythm, or an action consequence, such as a burned finger that cannot work a coat button; plot consequence is not its only function.\n- **Changing the plot while polishing.** A new flashback, a secret vow. Fix: events, setting, relationships and timeline stay put; event changes belong in a [chapter revision](/oh-story/review-and-revise).\n- **Treating deliberate style as a flaw.** Fix: the book's style sheet overrides the defaults, and a line you mean to keep can go verbatim into the book folder's `.deslop-whitelist`. See [keep your writing voice](/oh-story/preserve-author-voice)."
         }
       },
       {
@@ -1260,8 +1260,8 @@
           "en": "How many revision passes does AI prose need?"
         },
         "a": {
-          "zh": "Oh Story 的写后自检清单按轻重定遍数：轻度只做去泛化，中度加去书面化，重度三遍全做。用 story-deslop 时，扫描给出的等级决定处理哪几类问题，三遍只排先后。同一段连续两轮没有新改动就停。",
-          "en": "Oh Story's post-draft checklist ties passes to severity: pass one for light problems, passes one and two for medium, all three for heavy. In story-deslop the graded level decides which problem types get handled, and the passes set the order. A paragraph stops after two rounds with no new change."
+          "zh": "不按固定遍数判断。三遍是去泛化、去书面化、回自然感的顺序，范围由本次要求或skill扫描等级决定；没有对应问题的步骤不必硬改。同一段连续两轮没有新改动就停，全文最多三轮重扫，仍多处改动时交给作者复核。",
+          "en": "Do not require a fixed number of edits. The three passes order generic phrasing, diction, and natural rhythm within the requested or graded scope. Skip steps without relevant problems. The skill stops a paragraph after two unchanged rounds, permits at most three full rescans, and flags substantial remaining changes for author review."
         }
       },
       {
@@ -1294,10 +1294,24 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "去AI味范围、删除保护与收敛",
+          "en": "Revision scope, deletion protection, and stopping"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-deslop/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "作者文风覆盖参考默认值",
+          "en": "Author style over reference defaults"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-deslop/references/style-resolution.md"
+      },
+      {
+        "label": {
+          "zh": "泛化、书面腔与自然节奏",
+          "en": "Generic phrasing, bookish diction, and natural rhythm"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-deslop/references/anti-ai-writing.md"
       }
     ]
   },
@@ -5819,7 +5833,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "误会梗怎么写不狗血：巧合、选择与澄清后的代价",
       "en": "How to Write Misunderstandings: Coincidence, Choice, and Cost"
@@ -5841,11 +5855,11 @@
         "id": "quick-check",
         "heading": {
           "zh": "误会梗先查这四处",
-          "en": "Check These Four Parts of a Misunderstanding"
+          "en": "Four checks for a misunderstanding"
         },
         "body": {
-          "zh": "| 检查项 | 能成立的写法 | 容易显得狗血的写法 |\n|---|---|---|\n| 判断依据 | 人物掌握的局部事实支持错误解释 | 只因反派随口一句就推翻全部相处经验 |\n| 解释阻力 | 说出真相会伤害承诺、暴露秘密或付出具体代价 | 双方有空对话，却反复只说“你听我解释” |\n| 行动后果 | 因误判撤回支持、公开指责、拒绝合作 | 误会只带来几场重复生气 |\n| 澄清残余 | 事实澄清后仍要修复承诺与损失 | 一句“原来如此”让所有伤害消失 |\n\n先选观众掌握的信息。观众提前知道真相，重点是担心错误选择会走多远；观众与人物一起误判，重点是重新理解已有线索。后一种也要给出可回看的事实，不能到揭晓时才凭空添加关键人物。",
-          "en": "| Check | A version that works | A version that feels contrived |\n|---|---|---|\n| Basis for judgment | The partial facts available support the wrong interpretation | One casual remark from an antagonist overturns everything learned through the relationship |\n| Barrier to explanation | Telling the truth would break a promise, expose a secret, or exact a concrete cost | Both people have time to talk but repeatedly say only “let me explain” |\n| Consequence in action | The mistaken belief causes someone to withdraw support, accuse another publicly, or refuse cooperation | The misunderstanding produces only several repeated scenes of anger |\n| Residue after clarification | Even after the facts are clear, promises and losses must still be repaired | “So that’s what happened” erases every injury |\n\nFirst decide what the audience knows. If viewers know the truth in advance, the tension lies in how far the mistaken choice will go. If viewers misjudge events alongside the character, the pleasure lies in reinterpreting earlier clues. The second approach still needs facts viewers can revisit; do not invent a crucial person only at the reveal."
+          "zh": "| 检查项 | 成立的方向与常见失败 |\n|---|---|\n| 判断依据 | 局部事实支持错误解释；若一句挑拨就推翻长期相处，补明人物为何相信它 |\n| 解释阻力 | 澄清涉及承诺、秘密、代价或真实缺少机会；双方反复只说“听我解释”不构成阻力 |\n| 行动后果 | 误判促使拒绝合作、公开指责或撤回支持；只有反复生气时，检查场次是否重复 |\n| 澄清残余 | 根据已经发生的行动修复承诺、损失或关系；一句“原来如此”不能撤销真实违约 |\n\n选定本段观众掌握的信息。观众提前知道真相，期待来自人物会怎样误判和应对；观众与人物一起误判，则要留下可回看的事实。可以有意换到新的知情位置，但需要明确揭示，不让含混指代替代悬念。误会也不必都通向严重损失；轻喜剧的小尴尬、改口或关系新理解也可成为落点。",
+          "en": "| Check | Approach |\n|---|---|\n| Basis for judgment | Partial facts support the mistaken reading; explain why one accusation outweighs a long relationship if that happens |\n| Obstacle to explanation | A commitment, secret, cost, or real lack of opportunity matters; repeated “let me explain” is not an obstacle by itself |\n| Action caused | The mistake causes refusal, accusation, or withdrawal; repeated anger alone may repeat a scene |\n| After clarification | Repair the commitments, loss, or relationship affected by actual actions; “now I understand” cannot undo a broken agreement |\n\nChoose the audience’s knowledge in this passage. If viewers know the truth, interest comes from how people misread and respond. If they share the error, leave facts they can reread. A deliberate shift in knowledge is valid when clearly revealed. Confusing references do not create suspense. Misunderstandings need not cause severe loss: embarrassment, a changed response, or a new understanding can give a light comedy its landing."
         }
       },
       {
@@ -5862,12 +5876,12 @@
       {
         "id": "original-scene",
         "heading": {
-          "zh": "原创场景：一张空掉的合影位",
-          "en": "Original Scene: An Empty Place in the Group Photo"
+          "zh": "原创场景：一张缺席的宣传合影",
+          "en": "Original scene: an absent collaborator in a publicity photo"
         },
         "body": {
-          "zh": "**已有关系**：许安和周梨共同制作一部社区短片。许安承诺把宣传材料交给社区前，会让周梨确认宣传图与署名。参与拍摄的陶婶另行告诉许安，她想在公开照片里避开正脸，还不愿对其他人说明理由。\n\n**误会如何发生**：周梨到剪辑室时，看见许安把原定宣传合影换成没有她的一张，便判断许安想独占项目。许安已把替换图和署名发给社区用于放映预告。原合影中陶婶正脸清晰；替换照片恰好也缺少周梨。观众此前听过陶婶的请求，知道换图动机，却也知道许安跳过了约定的交付前确认。\n\n**容易失败的版本**：许安只说“我有苦衷”，周梨摔门离开。下一场陶婶正巧出现解释，一切恢复如常。这里，沟通被人为封住，解决又全部交给路人。\n\n**修改后的场景**：\n\n> 周梨指着屏幕：“图里没有我，发之前也不用问我了？”\n>\n> 许安把署名页调出来：“名字还在。照片涉及参与者的要求，我会请社区先撤下预告，等我们确认后再发。”\n>\n> “署名是署名。你答应的是我确认过才能送。”\n>\n> 周梨拿走尚未交付的配乐文件：“这版音乐先别用。我需要知道，下一次我的决定会不会又被跳过。”\n\n许安随后主动询问陶婶是否愿意只说明“需要换照片”，不公开私人原因；获得同意后，再邀请周梨一起选图。误判因此澄清，但周梨撤回音乐已让原定放映无法按时进行。许安要向社区说明延期，并接受共同确认后才能交付的安排。\n\n这场戏保留两层事实：许安没有抢署名，却确实绕过了约定；周梨有理由生气，也把换图动机想错了。修复关系需要处理已经发生的行动，单独证明“没有坏心”还不够。",
-          "en": "**Established relationship**: Xu An and Zhou Li are making a short community film together. Xu An promises that before sending promotional materials to the community, he will let Zhou Li approve the image and credit. Aunt Tao, who appears in the film, privately tells Xu An that she does not want her face shown clearly in public photographs and is not ready to tell anyone else why.\n\n**How the misunderstanding begins**: Zhou Li enters the editing room and sees that Xu An has replaced the planned group photo with one that omits her. She concludes that he intends to claim the project for himself. Xu An has already sent the replacement image and the credit line to the community for a screening preview. Aunt Tao’s face is clearly visible in the original group photo; by chance, Zhou Li is also absent from the replacement. Viewers heard Aunt Tao’s request earlier, so they know why the image changed, but they also know that Xu An skipped the promised approval before delivery.\n\n**A weak version**: Xu An says only, “I have my reasons.” Zhou Li slams the door and leaves. In the next scene, Aunt Tao happens to appear, explains everything, and restores the relationship. Communication is artificially blocked, while the solution is handed entirely to a passerby.\n\n**Revised scene**:\n\n> Zhou Li points at the screen. “I’m not in the picture, and now you don’t need to ask me before sending it either?”\n>\n> Xu An opens the credit page. “Your name is still here. The photo involves a participant’s request. I’ll ask the community to withdraw the preview and wait until we confirm a replacement.”\n>\n> “Credit is credit. You promised you would not send anything until I approved it.”\n>\n> Zhou Li takes the music file that has not yet been delivered. “Do not use this version. I need to know whether you will bypass my decision again.”\n\nXu An then actively asks Aunt Tao whether she is willing to say only that the photo must be changed, without revealing the private reason. After receiving permission, he invites Zhou Li to choose the replacement with him. The mistaken motive is clarified, but Zhou Li’s withdrawal of the music means the planned screening can no longer happen on time. Xu An must explain the delay to the community and accept a process in which both collaborators approve materials before delivery.\n\nThe scene preserves two layers of truth: Xu An did not steal the credit. He did bypass their agreement. Zhou Li has reason to be angry, but she misread his reason for changing the image. Repairing the relationship requires dealing with actions that have already occurred; proving that he “meant no harm” is not enough."
+          "zh": "**已有事实与约定**：许安和周梨共同制作社区短片，约好宣传图、署名与本片唯一配乐都经两人确认后用于放映；不能单方面更换后照常交付。许安答应送宣传材料前让周梨看过。参与拍摄的陶婶私下要求公开照片避开她的正脸，也不愿公开私人原因。配乐当前由周梨保管，还没有交付。\n\n**误会发生**：周梨到剪辑室时，看见社区已经发布许安送去的替换合影，照片里恰好也没有周梨。署名仍列两人，周梨却认为许安想独占项目。观众已听过陶婶的请求，知道换图理由，同时知道许安确实跳过了确认。\n\n失败版让许安只说“我有苦衷”，再让陶婶碰巧路过解释、一切复原。可改成双方正常回应：\n\n> 周梨指着已发布的预告：“图里没有我，发之前也不用问我了？”\n>\n> 许安调出署名页：“名字还在。照片要换，但我确实没等你确认。我现在请社区撤下，先不继续发。”\n>\n> “署名是署名。你答应的是我看过才能送。”\n>\n> 周梨合上配乐文件：“这版先别交。我需要知道，下一次我的决定会不会又被跳过。”\n\n许安当场给社区联系人发撤下请求，对方回复并实际移除预告。他随后主动询问陶婶是否愿意只说明“我要求换照片”，不公开原因；她同意，三人再讨论可用照片。陶婶的有限说明澄清了换图动机，没有替许安免掉违约。\n\n到约定交片时间，两人仍未确认新图和配乐交付。许安向联系人说明不能按约交齐，联系人回复将放映改期。**延期这时才成为已发生的结果**，不是周梨一合文件就自动发生；以后若补救赶上另一场，也应写出新确认与实际交付。\n\n修复需要许安遵守共同确认，周梨也可为“抢走署名”的错误指责澄清。但两者不是等量责任，周梨也不必立即恢复合作。",
+          "en": "**Established agreement:** Xu An and Zhou Li co-create a community short film. Its publicity image, credits, and sole score require both collaborators’ approval before use at the screening; neither can replace them unilaterally and proceed. Xu An promised to show Zhou Li the publicity before delivery. Participant Aunt Tao privately requested that public photos avoid her face and that her reason remain private. Zhou Li still holds the undelivered score.\n\n**The error:** Zhou Li arrives in the editing room and sees the replacement photo already published by the community. By chance, she is absent from it too. Both names remain credited, but she suspects Xu An is claiming the project. Viewers have heard Aunt Tao’s request and also know he skipped approval.\n\nA weak version gives him only “I have my reasons,” then brings Aunt Tao past by coincidence to explain and reset everything. Let both respond normally instead:\n\n> Zhou Li points at the published notice. “I’m not in the photo, and you don’t even ask before sending it?”\n>\n> Xu An opens the credits. “Your name’s here. The photo needed replacing, but I did send it without waiting for you. I’ll ask them to take it down now and stop sharing it.”\n>\n> “Credits are separate. You promised I’d see it before you sent it.”\n>\n> Zhou Li closes the score file. “Don’t deliver this version yet. I need to know you won’t bypass my decision again.”\n\nXu An sends the community contact a removal request. The contact replies and actually removes the notice. He then asks Aunt Tao whether she will confirm only “I asked for a different photo,” without her private reason. She agrees, and the three discuss usable pictures. Her limited disclosure explains the motive without excusing the broken agreement.\n\nAt the delivery deadline, the new picture and score handover remain unapproved. Xu An tells the contact they cannot deliver the agreed package, and the contact reschedules the screening. **The delay becomes an actual consequence here**, rather than automatically occurring when Zhou Li closes a file. A later successful delivery also needs actual approval and handover.\n\nRepair requires him to honor shared approval. She can correct her mistaken accusation about claiming credit. Those are not equal responsibilities, and she need not resume collaboration immediately."
         }
       },
       {
@@ -5933,10 +5947,10 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "巧合方向、误会行动与澄清残余",
+          "en": "Coincidence direction, mistaken action, and aftermath"
         },
-        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-write/references/dialogue-craft.md"
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-write/references/script-craft.md"
       }
     ]
   },
@@ -11841,7 +11855,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "沙雕短篇怎么写：让笑点从设定和人物反应里长出来",
       "en": "How to Write Absurdist Comedy from Rules and Character Reactions"
@@ -11863,44 +11877,44 @@
         "id": "engine",
         "heading": {
           "zh": "把一句怪设定变成喜剧行动",
-          "en": "Turn One Strange Rule into Comic Action"
+          "en": "Turn a strange premise into comic action"
         },
         "body": {
-          "zh": "写下四件事：人物想办成的普通小事；读者原本以为会怎样；哪条异常规则改变结果；人物为了补救又做了什么。\n\n规则先演示再解释。演示之后，下一场从已经造成的麻烦继续，让同一规则遇到不同条件。升级可以改变损失、知情者或关系，没必要每次都增加更强的能力。\n\n| 写法 | 笑点为何容易停住 | 修改方向 |\n|---|---|---|\n| 角色连续喊离谱 | 反应没有改变行动 | 让他认真补救，补救又碰到规则 |\n| 每个人轮流说同一个梗 | 只有说话者变化 | 改变谁得利、谁付出、谁识破 |\n| 作者解释这里很搞笑 | 把读者已懂的落差再讲一遍 | 留下反应或后果，删除评语 |\n| 用新规则解救每次困境 | 前面的限制失效 | 用已建立规则的另一种应用完成转向 |",
-          "en": "Write down four things: the ordinary task the character wants to complete; what readers normally expect to happen; the abnormal rule that changes the result; and what the character does next to repair the damage.\n\nDemonstrate the rule before explaining it. In the next scene, continue from the trouble already caused and place the same rule under different conditions. Escalation can change the loss, who knows, or the relationship; it does not need a stronger power every time.\n\n| Approach | Why the joke stalls | Revision |\n|---|---|---|\n| The character repeatedly shouts that everything is ridiculous | The reaction changes no action | Have the character attempt a serious repair that runs into the rule again |\n| Everyone takes turns making the same joke | Only the speaker changes | Change who benefits, who pays, or who sees through it |\n| The narrator explains that this part is funny | The story restates a contrast readers already understood | Keep the reaction or consequence and delete the commentary |\n| A new rule rescues every predicament | Earlier limits stop mattering | Turn the scene with another application of an established rule |"
+          "zh": "写下人物想办的普通小事、读者的正常预期、哪条荒诞规则改变结果，以及人物怎样认真补救。规则先演示，再沿它已经造成的麻烦继续；简介演过的笑点，第一个正文场景不必再演一遍。\n\n| 笑点停住的写法 | 改法与取舍 |\n|---|---|\n| 角色只连续喊离谱 | 让他补救，补救又碰到既有规则；吐槽可留下声音与节奏 |\n| 每个人轮流说同一梗 | 改变知情、得失或误读；有意的合唱复读可保留 |\n| 作者解释为什么搞笑 | 已经可读的落差不用再讲，留反应或后果 |\n| 每次新规则救场 | 用已建立规则的不同用法，不让限制悄悄消失 |\n\n不是每个笑点都要升级损失，也不是每节都必须放包袱。停顿、复读、标点台词和说明文腔可以是题材手段；只有它们没有效果、只是填字时才压缩。第一人称吐槽是来源题材包的常用方案，作者已有的第三人称、冷面叙述或其他喜剧声音也能成立。",
+          "en": "Name the character’s ordinary goal, the reader’s expected result, the absurd rule that changes it, and the earnest repair. Demonstrate the rule and continue from the resulting trouble; a joke already performed in the lead-in need not be replayed in the first scene.\n\n| Where the joke stalls | Repair and tradeoff |\n|---|---|\n| Only exclamations of disbelief | Let the character repair the problem and meet the established rule again; commentary may still carry voice |\n| Everyone repeats the same joke | Change knowledge, benefit, or misreading; deliberate chorus-like repetition may stay |\n| The narrator explains why it is funny | Let an already readable mismatch stand with its response or consequence |\n| A new rule rescues each problem | Find another use of an established rule without silently removing its limits |\n\nNot every joke needs greater loss or a mandatory gag in every section. Pauses, repetition, punctuation dialogue, and formal system notices can serve the comedy. Compress only ineffective padding. First-person commentary is a common option in the source genre pack; an author’s third-person or deadpan voice can work too."
         }
       },
       {
         "id": "example",
         "heading": {
-          "zh": "原创范例：客气话会打印工时单",
-          "en": "Original Example: Polite Phrases Print Literal Work Orders"
+          "zh": "原创范例：客套话变成必须兑现的字面任务",
+          "en": "Original example: polite promises become literal tasks"
         },
         "body": {
-          "zh": "虚构规则：办公室里，只要有人当面向我提出请求，我回答的客套话就会变成必须由我完成的字面任务，桌上的小打印机立刻打出任务单。明确说出范围或拒绝，就按原话记录；机器不能判断谁“其实只是客气”。\n\n同事问我能否替她检查一页表格。\n\n> “举手之劳。”\n>\n> 打印机吐出一行字：右手举至表格检查完毕。\n>\n> 我把鼠标换到左边。今天先练左手。\n\n第一次用法把客套话变成实际麻烦，人物没有停下来向读者解释笑点。\n\n接着主管问能否帮忙核对整箱旧档案。我为挽回效率，说“包在我身上”。机器打印出包扎任务单，我只好抱着档案箱找胶带。正准备开工，同事提出新请求：“能帮我看看这份图吗？”这一次我把条件说完整：“可以，看第一页，十分钟，之后我要交自己的稿。”纸上终于出现一张能做完的任务单。\n\n后续可以把压力转向关系：同事以为我计较，追问以前的帮忙是否也嫌麻烦。我承认自己常用客气话躲开说不的尴尬，也说明这次愿意帮什么。规则没有消失，人物学会了给出真实承诺。喜剧的结果改变了相处方式，不只是让打印纸越吐越长。",
-          "en": "**Fictional rule**: In this office, whenever someone makes a request to my face, my polite reply becomes a literal task I must complete, and the small printer on my desk immediately prints the work order. If I state a limit or refuse clearly, it records those exact words. The machine cannot tell when someone “was only being polite.”\n\nA coworker asks whether I can check one page of a form for her.\n\n> “Happy to lend a hand.”\n>\n> The printer spits out one line: Lend your right hand until the form has been checked.\n>\n> I move the mouse to the left. Today, I train my left hand.\n\nThe first use turns a polite phrase into a practical problem. The character does not stop to explain the joke to the reader.\n\nNext, the supervisor asks whether I can help verify a whole box of old files. Trying to save time, I say, “I’ve got it covered.” The machine prints a wrapping order, so I have to carry the archive box off in search of tape. Just as I am about to start, the coworker makes another request: “Can you look at this diagram for me?” This time, I state the conditions in full: “Yes. I’ll look at page one for ten minutes, and then I need to submit my own draft.” At last, the printer produces a task I can finish.\n\nThe pressure can then move into the relationship. The coworker assumes I am being petty and asks whether all my previous help was a burden too. I admit that I often use polite phrases to avoid the discomfort of saying no, then explain what I am genuinely willing to help with this time. The rule remains; the character learns to make honest promises. The comic result changes how they interact instead of merely making the printer produce ever longer sheets of paper."
+          "zh": "**虚构规则**：同事当面请求我检查材料时，我的回答会被桌上小打印机记成承诺。“举手之劳”让我的右手一直举着，直到这次承诺的检查完成；“包在我身上”让待检查的箱子固定在我肩上，直到检查完成。明确范围则只记录范围，不加身体限制。机器不判断客气话，也不替我检查；未履行的旧任务不会因说了新话消失。这是本故事明确建立的两种字面触发，不是所有成语都随时变成新法术。\n\n同事请求检查一页表格，我回答：\n\n> “举手之劳。”\n>\n> 纸条刚出来，右手就抬到耳边，放不下了。\n>\n> 我把鼠标移到左边。今天先练左手。\n\n我用左手核对表格，指出漏填的一格，完成这一页的检查，右手才落下来。笑点来自客套承诺被字面兑现，任务没有靠换句台词跳过。\n\n主管又请我核对整箱旧档案。“包在我身上。”箱子随即固定到肩上。我扶着箱底挪回桌边，逐份摊开核对。等整箱核对完、箱子终于放下，同事又来问：“能看看这份图吗？”\n\n> “看第一页，十分钟。到点我把查到的和没查完的告诉你，之后要交自己的稿。”\n\n这次纸条只打印这段具体承诺。我坐下看图，到点交代已查部分与未查部分，回到自己的稿子。**十分钟不是保证整份图都查完**，同事知道哪些仍待处理。\n\n若同事觉得我突然计较，关系可以成为下一层问题。我承认以前常用客气话绕开说不的尴尬，同时说明现在愿意帮的范围。愿意清楚帮忙不等于必须接受每个请求；同事怎样回应，还要继续写。魔法没有消失，人物开始给真实承诺。",
+          "en": "**Fictional rule:** When a colleague asks me in person to review material, a small desk printer records my reply as a promise. “I can do it with one hand tied behind my back” holds my right hand behind me until the promised review is complete. “Let me shoulder it” fastens the box to my shoulder until its contents are reviewed. A stated scope records only that scope and adds no bodily constraint. The machine neither recognizes politeness nor reviews anything; a new reply cannot erase an unfinished task. These are two explicitly established triggers, not unlimited new magic for any idiom.\n\nA colleague asks me to check one spreadsheet page:\n\n> “I can do it with one hand tied behind my back.”\n>\n> The slip emerges. My right hand folds behind me and won’t come forward.\n>\n> I move the mouse to the left. Today’s a training day.\n\nI check the page left-handed and identify an empty required cell. Only after finishing that review does my hand return. The literal promise causes trouble without a new line letting me skip the task.\n\nThe manager asks me to review a box of old files. “Let me shoulder it.” The box fastens to my shoulder. Supporting its base, I return to the desk and spread out the files one by one. Once the review is complete and I can put the box down, the colleague returns with a drawing.\n\n> “The first page, ten minutes. Then I’ll tell you what I checked and what remains. I have my own draft to deliver.”\n\nThe printer records precisely that promise. I review the drawing, report completed and uncompleted parts at the end of the window, and return to my draft. **Ten minutes does not promise the entire drawing is checked**; the colleague knows what remains.\n\nIf the colleague reads the new precision as selfishness, that becomes another problem. I admit using polite assurances to avoid the awkwardness of saying no and explain what I will actually help with. Clear help does not require accepting every request; their response still needs writing. The magic remains, while the character starts making honest commitments."
         }
       },
       {
         "id": "reaction",
         "heading": {
           "zh": "一本正经，不等于没有情绪",
-          "en": "Deadpan Seriousness Does Not Mean Having No Emotion"
+          "en": "Deadpan seriousness does not mean no emotion"
         },
         "body": {
-          "zh": "人物可以着急、丢脸或嘴硬，但要让情绪进入补救策略。工时单例里，换左手、找胶带、明确帮忙范围是逐步变化的应对；反复写“我崩溃了”无法代替这些动作。\n\n叙述可以把大麻烦说得轻一些，但关系真的受伤时，先让人把话说清。想收束到真情，就暂时撤掉抢话的吐槽，让选择或承诺落地，再决定是否需要一个轻巧的尾声。不要每句话都争着当包袱。",
-          "en": "A character may panic, feel embarrassed, or pretend not to care. The emotion should shape the repair strategy. In the work-order example, switching hands, looking for tape, and defining the scope of help are responses that change step by step. Repeating “I’m losing it” cannot replace those actions.\n\nNarration may describe a large problem lightly, but when a relationship is genuinely hurt, let the characters clarify it. If the ending becomes sincere, temporarily remove the interrupting quips so a choice or promise can land, then decide whether a light final beat is still useful. Not every sentence needs to compete to be the punchline."
+          "zh": "人物可以着急、丢脸或嘴硬，让反应进入补救策略。本例中用左手检查、肩上负箱仍逐份核对、后来明确范围，是三种不同的应对；反复喊“我崩溃了”不能代替它们。\n\n这里的中英文用各自自然的客套话演示同一种机制：中文举手、英文把一只手放到背后，都只让另一只手能操作。笑点用法可以按语言改造，不能把惯用语机械直译后要求读者仍觉得自然。\n\n想收束到真情，可以暂时收住抢话的吐槽，让选择或承诺落地，再决定是否需要轻巧尾声。若作品一直用幽默面对难受，也不必全撤掉。不要每句话都争着当包袱。",
+          "en": "A character can panic, feel embarrassed, or pretend not to care. Let the response shape the repair. Reviewing left-handed, checking files while carrying the box, and later defining scope are three different responses. Repeating “I’m losing it” cannot replace them.\n\nThe Chinese and English examples adapt natural polite idioms to the same mechanism. The Chinese version raises one hand; the English version holds it behind the character. Only the other hand remains available. Adapt wordplay to its language rather than translating an idiom mechanically and expecting the joke to survive.\n\nFor a sincere landing, you can quiet the competing quips, let a choice or promise register, and then decide on a light final beat. A work that uses humor through difficulty need not remove it entirely. Not every sentence must be the punchline."
         }
       },
       {
         "id": "edit",
         "heading": {
           "zh": "改稿时追踪笑点后面发生了什么",
-          "en": "During Revision, Track What Happens After Each Joke"
+          "en": "Track what follows each joke"
         },
         "body": {
-          "zh": "逐个标出笑点前的预期、实际结果和人物下一动作。只有套话、没有可识别预期的地方，补一个普通目标；已经能读懂的地方，删掉“这也太好笑了”一类说明。\n\n检查设定重复出现时是否至少改变了一项后果：操作方式、代价、知情者、选择或关系。若后文只是把同一张任务单换成更长的纸，可以压缩；若人物开始敢于拒绝，变化就进入了故事。\n\n网络用语可以符合角色声音，但拿掉它之后，行动与落差仍应成立。别把整段流行段子搬进角色嘴里，再把它当作原创情节。",
-          "en": "For every joke, mark the expectation before it, the actual result, and the character’s next action. If a passage contains only a catchphrase and no recognizable expectation, add an ordinary goal. If the contrast is already clear, remove explanations such as “That was hilarious.”\n\nWhen the premise repeats, check that at least one consequence changes: the operating method, cost, person who knows, choice, or relationship. If the later scene only replaces one work order with a longer sheet of paper, compress it. If the character begins to refuse requests honestly, the change has entered the story.\n\nInternet slang may fit a character’s voice, but the action and contrast should still work after the slang is removed. Do not transplant an entire popular routine into a character’s dialogue and then call it an original plot."
+          "zh": "标出预期、结果和人物应对。只有热词而没有可识别落差，回到普通目标；笑点已经成立，就删掉解释评语。规则再次出现时，问它有没有新用法、误读、代价、关系效果，或刻意节奏；不把“必须改变一项”当每句对白的门槛。\n\n本例中身体限制在对应任务完成后解除，新承诺只管新任务。若改稿让人物刚说“十分钟”就摆脱未完成的旧箱子，规则已经换了；若只有纸条变长、人物没有新应对，就可能重复。\n\n网络用语应化进角色与情境，拿掉热词后，预期和结果的落差仍要可读。需要转入真情时，可以收住抢话的吐槽，让选择落地；也可用作品已有的幽默保留复杂情绪，不要求所有喜剧最后突然严肃。用本书文风判断，不把题材包的篇幅、烈度和真情次数当普遍规律。",
+          "en": "Mark expectation, result, and response. If slang has no readable mismatch, return to an ordinary goal. If the joke works, remove the explanation. A returning rule may offer a new use, error, cost, relationship effect, or deliberate rhythm; do not impose a change quota on every line.\n\nHere, each physical constraint ends only after its corresponding task is complete. A new scoped promise governs a new task. If “ten minutes” releases an unfinished old box, the rule changed. If only the printed slip grows longer, the scene may be repeating itself.\n\nAdapt slang into character and situation. The mismatch should remain readable without the catchphrase. When turning toward genuine feeling, you can quiet the competing jokes and let a choice land, or retain established humor for mixed emotions. A solemn turn is not required in every comedy. Use the book’s voice rather than treating the genre pack’s length, intensity, or emotional-turn counts as universal rules."
         }
       }
     ],
@@ -11944,10 +11958,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "预期违背、设定新用法与一本正经的反应",
+          "en": "Broken expectations, new uses, and earnest reactions"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/genre-styles/沙雕脑洞.md"
+      },
+      {
+        "label": {
+          "zh": "本书文风与题材默认值的取舍",
+          "en": "Book-specific style and genre defaults"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/style-resolution.md"
       }
     ]
   },
@@ -14421,7 +14442,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "短剧内心戏怎么写：把心理活动变成可表演信息",
       "en": "How to Write Inner Monologue for Short Drama: Make It Performable"
@@ -14443,11 +14464,11 @@
         "id": "meaning",
         "heading": {
           "zh": "先保住内心描写的作用，再换载体",
-          "en": "Preserve the Function of the Thought Before Changing Its Form"
+          "en": "Keep the thought’s function before changing its carrier"
         },
         "body": {
-          "zh": "把原文中的心理句改写成一句功能说明：人物因此相信什么、害怕失去什么、准备隐瞒什么，或决定怎样做。保留作用，不必保留原句形状。\n\n| 原文作用 | 可用屏幕载体 |\n|---|---|\n| 判断对方在撒谎 | 核对证据、改变问法、暂不揭穿 |\n| 想离开又舍不得 | 走到出口又把关键物件留下 |\n| 不愿承认失败 | 拒绝帮助、改口谈条件、藏起结果 |\n| 私人记忆影响选择 | 触发物与当下行动，或明确的主观声音 |\n\n若一句心理话删掉后人物行为完全不变，它可能只是解释。若行为会变，就必须让这个变化被演出来或被有意听见。",
-          "en": "Rewrite each internal sentence from the source as a functional statement: What does the character now believe, fear losing, plan to conceal, or decide to do? Preserve that function rather than the sentence’s original shape.\n\n| Function in the source | Possible screen carrier |\n|---|---|\n| Judges that someone is lying | Checks evidence, changes the question, or delays confrontation |\n| Wants to leave but cannot let go | Reaches the exit but leaves a crucial object behind |\n| Refuses to admit failure | Rejects help, renegotiates, or hides the result |\n| A private memory changes a choice | A trigger and present action, or a clearly marked subjective voice |\n\nIf deleting a thought leaves the character’s behavior completely unchanged, it may only be explanation. If the behavior changes, that change must either be performed or deliberately heard."
+          "zh": "先问原文中的心理话是什么：**事实、人物推断、欲望，还是尚未决定的念头**？“她怀疑他来过”和“他确实来过”不能互换。再写一句功能说明：她因此相信什么、怕失去什么、打算隐瞒什么，或下一步怎样做。\n\n| 原文作用 | 可选载体与边界 |\n|---|---|\n| 怀疑对方说谎 | 核对既有信息、改变问法；异常只支持怀疑，不自动确定责任人 |\n| 想走又舍不得 | 拒绝催促、询问还能否联系；不必新增关键物件 |\n| 不愿承认失败 | 改口、回避帮助、暂缓交出结果；保留原文真实结果 |\n| 私人记忆影响选择 | 当前触发与回应、明确回忆或VO；现场人物不自动知道记忆内容 |\n\n动作完全不变，并不证明心理句多余：它可能改变观众对同一动作的理解，或承担叙述风格。删改前比较人物行为与观众理解两方面。载体不必解释全部意义，但需要给出足以支持本场推断的依据。",
+          "en": "Identify what the original thought is: **fact, inference, desire, or an undecided possibility**. “She suspects he came here” cannot become “he came here.” Then state its function: what she believes, fears losing, intends to hide, or does next.\n\n| Function | Possible carrier and limit |\n|---|---|\n| Suspects a lie | Check existing information or change the question; an anomaly does not identify its author |\n| Wants to leave but hesitates | Resist a prompt or ask about future contact; no new key prop is required |\n| Avoids admitting failure | Rephrase, refuse help, or delay handing over a result; keep the actual result |\n| A private memory affects a choice | Present trigger and response, a marked memory, or VO; others do not automatically know its contents |\n\nUnchanged action does not prove a thought is redundant: it may change the audience’s reading of that action or carry the chosen voice. Compare both behavior and audience understanding before cutting. The carrier need not explain every meaning, but it must support the inference this scene asks for."
         }
       },
       {
@@ -14464,23 +14485,23 @@
       {
         "id": "knowledge",
         "heading": {
-          "zh": "旁白、对白与留白会改变谁知道什么",
-          "en": "Voice-Over, Dialogue, and Silence Change Who Knows What"
+          "zh": "VO、OS与对白：分清谁能听见",
+          "en": "VO, OS, and dialogue: identify who can hear"
         },
         "body": {
-          "zh": "同一句“我不信他忘了密码”，写成对白，听者会知道自己被怀疑；写成明确的内心声音，观众知道，现场人物不知道；完全不说，则需要可见证据让观众推断。三种选择会打开不同后续。\n\n选择声音时写清声源和时空关系。电话里的现场声音、人物没有入画却在门外说话、事后叙述和人物内心，属于不同通道。下场戏只能继承人物实际听见或看见的信息，不能因为观众听过旁白，就让对手自动知情。",
-          "en": "Take the same thought: “I don’t believe he forgot the password.” Spoken as dialogue, the listener knows they are suspected. Presented as a clearly marked inner voice, the audience knows but people in the scene do not. Left unspoken, it requires visible evidence from which the audience can infer it. Each option opens a different next scene.\n\nWhen using voice, state its source and relationship to time and space. Live sound over a phone, a character speaking outside the door while offscreen, retrospective narration, and private thought are different channels. The next scene can inherit only what a character actually heard or saw. An opponent does not automatically know something merely because the audience heard it in voice-over."
+          "zh": "同一句“我不信他忘了密码”，作为对白会让听者知道自己被怀疑；作为本场明确的内心VO，只让观众知道；完全留白时，则由已有证据和人物行动支持观众推断。\n\nDrama Skills 的格式中，**[VO]**用于非现场主观或叙述声音，**[OS]**用于同场景中未入画的说话者。例如门外同伴喊“车到了”是OS，人物仍能听见；“我现在还不能告诉她”若是内心声音，是VO，现场同伴不能据此接话。电话与录音要写清设备、实际播放和谁能听到，不能只因说话者没入画就当作内心。\n\nVO可以增加画面无法独立给出的私人判断、隐瞒计划、跨时认知或有意反讽。画面已经明白演出的同一信息通常不必再念一遍；声音若改变意义或属于作品明确的风格，则按实际功能判断。已经接受节奏档案的项目按该项目的VO限制核对，没接受就不要替作者发明统一比例。",
+          "en": "“I don’t believe he forgot the password” alerts a listener to suspicion when spoken aloud. Marked as this character’s interior VO, it informs only the audience. Left unsaid, it needs existing evidence and action to support the audience’s inference.\n\nIn Drama Skills, **[VO]** identifies a nonlocal subjective or narrative voice; **[OS]** identifies an unseen speaker in the same scene. A companion outside calling “The car’s here” is OS and can be heard inside. An interior “I can’t tell her yet” is VO; the companion cannot reply to it. For a phone or recording, specify the device, actual playback, and listeners. An unseen speaker is not automatically an inner voice.\n\nVO can add a private judgment, concealed plan, cross-time understanding, or deliberate irony unavailable from the picture alone. Avoid simply restating an already clear image, but judge changed meaning and deliberate style by function. Apply a VO limit from an accepted project pacing profile; do not invent a universal ratio for a project without one."
         }
       },
       {
         "id": "example",
         "heading": {
-          "zh": "原创范例：冷库门上的第二层霜",
-          "en": "Original Example: A Second Layer of Frost on a Cold-Storage Door"
+          "zh": "原创范例：器材箱上的断封条",
+          "en": "Original example: the broken seal on an equipment case"
         },
         "body": {
-          "zh": "食品检测员唐郁陪仓库主管检查一批被退货的冷冻浆果。小说原句是：“她忽然明白，主管早就进过这间封存冷库，只是在等她替他签字。”\n\n可表演版本不直接解释：\n\n> 主管把封存表推到她面前。唐郁没有接笔。她蹲下看门锁，锁孔周围结着新霜，霜下却压着半枚已经断开的红色封签。\n>\n> 唐郁把自己的空白封签放在旁边，没有贴。\n>\n> 唐郁：你先写开门时间。\n>\n> 主管：现在补也一样。\n>\n> 唐郁把表转回去，压在他的钥匙串下。\n>\n> 唐郁：那就由开门的人签。\n\n断签让她形成判断；不接笔、要求时间、把表退回去让判断改变行动。主管能听见质问，却不知道她是否还发现了别的痕迹。若作品需要观众准确知道她的怀疑，可以在看见断签后加一句内心声音；加了以后仍保留退表动作，因为意义需要产生后果。",
-          "en": "Food inspector Tang Yu accompanies a warehouse supervisor to inspect returned frozen berries. The source novel says, “She suddenly understood that the supervisor had already entered the sealed cold room and was merely waiting for her to sign on his behalf.”\n\nA performable version does not explain it directly:\n\n> The supervisor pushes the seal form toward her. Tang Yu does not take the pen. She crouches to inspect the lock. Fresh frost surrounds the keyhole, but beneath it lies half of a red security seal that has already been broken.\n>\n> Tang Yu places her blank seal beside it without attaching it.\n>\n> Tang Yu: Write down the time you opened the door first.\n>\n> Supervisor: Filling it in now makes no difference.\n>\n> Tang Yu turns the form back and pins it beneath his key ring.\n>\n> Tang Yu: Then the person who opened it should sign.\n\nThe broken seal produces her judgment. Refusing the pen, demanding the time, and returning the form turn that judgment into action. The supervisor hears the accusation but does not know whether she has found any other trace. If the work requires the audience to know her suspicion precisely, add one line of inner voice after she sees the seal. Keep the action of returning the form, because the meaning still needs a consequence."
+          "zh": "虚构社区演出中，林澈负责在交接单上确认自己检查过的录音器材。器材员韩越保管储物室钥匙。前文已建立：林澈昨晚贴了完整的红封条，韩越今早说“今天没人开过箱”；其他值班人员也可能接触器材，封条破损的原因尚未查明。\n\n待改的心理句是：“林澈怀疑韩越隐瞒了开箱情况，不想在还没检查时替整箱器材担保。”**不是**“韩越一定打开过，也一定拿走了东西”。\n\n> 韩越把交接单和笔推到林澈面前。\n>\n> 林澈看见箱扣处的红封条断了。她把笔放回桌上，将箱子转向韩越。\n>\n> 林澈：昨晚贴的时候是整条。这个什么时候断的？\n>\n> 韩越：我没开。可能搬的时候刮到了。\n>\n> 林澈：那先一起点。我只签我看过的。\n>\n> 韩越取出保管的钥匙打开箱子。林澈拿起清单，韩越把清单上第一支话筒放到桌面，她核对型号和数量后，在对应条目旁作记号；整箱确认栏仍空着。\n\n断封条让“不接受未经核对的交接”有依据，但不能唯一推出谁开过箱、何时开、有没有少物件。韩越解释也仍是说法，不是已验证的结论。打开箱子、核对第一项是实际动作；剩余项目未核对，就不要在场尾宣布整箱无误。\n\n若必须把怀疑准确交给观众，可在看到断封条后加：**[VO] 林澈：他说今天没开过。我得先点清。**韩越不会听见这句。声音说出她在比较的事实与下一步意图，核对动作则真的执行这一步；后续若要确定责任，还需已有记录、证言或别的剧情依据。",
+          "en": "In a fictional community performance, Lin Che signs for recording equipment she has inspected. Equipment keeper Han Yue holds the storeroom key. Established facts: Lin Che applied an intact red seal last night; Han Yue said this morning that nobody opened the case today. Other staff could have handled it, and the damage is unexplained.\n\nThe thought to adapt is “Lin Che suspects Han Yue is withholding an opening of the case and refuses to certify equipment she has not checked.” It is **not** “Han Yue certainly opened it and took something.”\n\n> Han Yue pushes the handover sheet and pen toward Lin Che.\n>\n> She sees the red seal broken at the latch. She returns the pen to the table and turns the case toward him.\n>\n> Lin Che: It was intact when I put it on last night. When did this break?\n>\n> Han Yue: I didn’t open it. It might have snagged while we moved it.\n>\n> Lin Che: Then let’s count together. I’ll sign for what I’ve checked.\n>\n> Han Yue uses the key he holds to open the case. Lin Che takes the list. He places the first listed microphone on the table; she checks its model and quantity and marks that item. The box for certifying the whole case remains blank.\n\nThe broken seal supports refusing an unchecked handover. It does not identify who opened the case, when, or whether anything is missing. Han Yue’s explanation is still a claim. Opening and checking one item actually occur; the scene cannot certify the remaining contents.\n\nIf the audience must know her suspicion precisely, add after the discovery: **[VO] Lin Che: He said nobody opened it today. I need to count first.** Han Yue cannot hear this. The voice gives her comparison and intent; the action executes the check. Establishing responsibility later requires records, testimony, or other story evidence."
         }
       },
       {
@@ -14512,8 +14533,8 @@
           "en": "Can silence express a character’s thoughts?"
         },
         "a": {
-          "zh": "可以，前提是沉默有对象并改变现场，例如拒绝回答使对方换策略。没有压力与后果的停顿只会留下空白。",
-          "en": "Yes, if the silence has an object and changes the scene—for example, refusing to answer makes the other person change tactics. A pause without pressure or consequence only leaves a blank."
+          "zh": "可以。沉默可让对方换策略，也可以让观众感到犹豫、距离、时间或气氛，不必每次都改变权力。先看它在本场承担什么，画面、声音与既有信息能否支持理解；只写停顿而没有可读作用时，再考虑压缩。",
+          "en": "Yes. Silence may change another person’s tactic or communicate hesitation, distance, time, or atmosphere without shifting power each time. Judge its function and whether the picture, sound, and established information support it. Compress a pause when it has no readable purpose."
         }
       }
     ],
@@ -14535,10 +14556,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "意义与可表演载体、VO的适用范围",
+          "en": "Meaning, performable carriers, and VO scope"
         },
-        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-write/references/script-craft.md"
+      },
+      {
+        "label": {
+          "zh": "VO与OS的格式及知情通道",
+          "en": "VO and OS syntax and information channels"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-write/references/screenplay-format.md"
       }
     ]
   },
@@ -19193,7 +19221,7 @@
       "en"
     ],
     "published_on": "2026-09-28",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "AI 写小说动作重复怎么办：删改前后对照",
       "en": "How to Fix Repetitive Actions in AI Fiction"
@@ -19225,12 +19253,12 @@
       {
         "id": "mark-and-merge-worksheet",
         "heading": {
-          "zh": "标记—保留—合并：可复制的短检查表",
-          "en": "A copyable mark, keep, and merge worksheet"
+          "zh": "标记、保留与合并：短检查表",
+          "en": "A short mark, keep, and merge worksheet"
         },
         "body": {
-          "zh": "不要先把身体反应全部删掉。先问每个细节是否承担功能，再决定保留、合并还是删除。\n\n| 步骤 | 写下什么 | 判断标准 |\n|---|---|---|\n| 1. 标记同一拍 | A 发生 / B 感知或身体 / C 解释 | 是否处在同一时刻、传递同一情绪或动作信息 |\n| 2. 圈出必须保留项 | 人物选择、关系变化、物件状态、动作结果、空间位置、必要因果 | 删掉后，读者是否会误判发生了什么或人物为何这样做 |\n| 3. 删除纯复述 | 只给前一句换说法的总结、标签或套式反应 | 删掉后事实、情绪力度和衔接都不变 |\n| 4. 按事件顺序合并 | 动作 → 受阻或感知 → 选择或结果 | 读起来像一个连续镜头，而不是动作清单 |\n| 5. 对照原文 | 人物、地点、物件、先后、因果、叙述口吻 | 没有新增设定、关系、事件或时间跳跃 |\n\n身体细节是否值得留，看它有没有作用。例如，手抖导致钥匙插不进锁，这是动作结果；伤口让人物留下证据，这是情节后果。若“手指发白”只是在“她很紧张”后又贴一次标签，可以删掉或并入真正发生的动作。合并也不是把所有动词挤成一串；无关紧要的拿起、转身、放下应压缩，承担情绪、情节或空间信息的动作要留下。",
-          "en": "Do not begin by deleting every physical response. Test what each detail does, then keep, merge, or cut it.\n\n| Step | What to note | Test |\n|---|---|---|\n| 1. Mark one beat | A event / B sensation or body / C explanation | Same instant, same emotional or action information? |\n| 2. Circle required details | Choice, relationship shift, object state, outcome, position, necessary cause | Would cutting it make the reader misread what happened or why? |\n| 3. Cut restatement | A label, stock response, or summary that only rephrases the previous line | Do facts, force, and continuity survive without it? |\n| 4. Merge in event order | Action → interruption or perception → choice or result | Does it read as one shot rather than an action inventory? |\n| 5. Compare with the source | People, place, objects, order, causality, narrative voice | No new setting, relationship, event, or time jump? |\n\nA bodily detail earns its place through function. A shaking hand that prevents a key entering the lock changes the outcome; a cut that leaves evidence affects the plot. White knuckles that merely repeat “she was nervous” can go. Merging does not mean packing every verb into a list: compress trivial handling, but keep actions that carry emotion, plot, or spatial information."
+          "zh": "不要先把身体反应全部删掉。先问每个细节是否承担功能，再决定保留、合并还是删除。\n\n| 步骤 | 记录与判断 |\n|---|---|\n| 1. 标记相邻反应 | A发生、B感知或身体、C解释：是否围绕同一反应重复交付信息？动作有真实先后就保留先后 |\n| 2. 圈出必须保留项 | 选择、关系、物件状态、结果、位置、必要因果；删掉是否误导读者或损伤情绪与声音？ |\n| 3. 删除纯复述 | 仅给前句换说法的标签或套式反应；事实、力度和衔接确实不变才删 |\n| 4. 连成事件顺序 | 发生、受阻或感知、选择或结果；不要为了“一拍”写成同时发生，也别把所有动词塞成清单 |\n| 5. 对照原文 | 人物、地点、物件、先后、因果、口吻；没有新增设定、关系、事件或时间跳跃 |\n\n手抖导致钥匙插不进锁，是动作结果；伤口留下痕迹，是情节后果。若“手指发白”只是在“她紧张”后重复贴标签，可删或并入实际动作；若作者有意用重复控制节奏，则先评估效果。动作、掉落、捡回有先后，本页压缩的是其中重复解释，不抹掉这条动作链。",
+          "en": "Do not start by deleting bodily responses. Test each detail’s function before keeping, merging, or cutting it.\n\n| Step | Record and test |\n|---|---|\n| 1. Mark adjacent responses | A event, B sensation or body, C explanation: do they redeliver one response’s information? Preserve actual event order |\n| 2. Circle required details | Choice, relationship, object state, result, position, cause: would removal mislead or damage emotion and voice? |\n| 3. Cut restatement | A label or stock response merely rewords the preceding line; cut only when facts, force, and continuity survive |\n| 4. Reconnect in order | Event, interruption or perception, choice or result; do not make sequential actions simultaneous or cram every verb into a list |\n| 5. Compare | People, place, objects, order, causality, voice; no invented setting, relationship, event, or time jump |\n\nA shaking hand that cannot insert a key changes an outcome; a wound that leaves a trace affects the plot. White knuckles that merely relabel nervousness can go, but deliberate rhythmic repetition needs evaluation. Offering, dropping, and retrieving happen in order. This edit compresses repeated explanation without erasing that action chain."
         }
       },
       {
@@ -19240,8 +19268,8 @@
           "en": "Original example: turn three layers into one continuous moment"
         },
         "body": {
-          "zh": "下面的车站片段为本页原创。四句都围绕程雾是否去北城这一拍，信息没有必要分四段重复交付。\n\n**改写前：**\n\n> 程雾把去北城的车票递向检票员。\n>\n> 她的手指忽然发僵，车票掉到了地上。\n>\n> 她很害怕去北城，因为哥哥失踪前最后一通电话就是从那里打来的。\n>\n> 她把票捡起来，重新递给检票员。\n\n先做标记：第一句是 A（递票），第二句是 B（身体反应改变动作结果），第三句前半只是情绪标签，后半却提供了不能丢的因果；第四句给出人物最终选择。应删的是“她很害怕”这层重复，不是北城来电，也不是她重新递票的决定。\n\n**合并后：**\n\n> 程雾把去北城的车票递向检票员，指尖忽然发僵，票掉在地上。哥哥失踪前的最后一通电话，来自北城。她弯腰捡起票，还是递给了检票员。\n\n改后没有添新事故，也没有把恐惧换成另一套华丽描写。掉票让身体反应产生结果，来电说明北城为何有分量，“还是递给了检票员”让这一个瞬间落在选择上。四个分段变成连续正文，但关键信息一项未少。",
-          "en": "This station scene is original to this page. Every line belongs to the moment when Cheng Wu must decide whether to travel to Beicheng, so the information does not need four separate deliveries.\n\n**Before:**\n\n> Cheng Wu held out her Beicheng ticket to the inspector.\n>\n> Her fingers suddenly locked, and the ticket slipped to the floor.\n>\n> She was afraid to go to Beicheng because her brother's last call before he vanished had come from there.\n>\n> She picked up the ticket and handed it to the inspector again.\n\nThe first line is A, the attempted handoff. The second is B, a physical response that changes the action's outcome. “She was afraid” labels what the stumble already shows, but the brother's call is necessary cause. The last line carries her decision. Cut the duplicated label, not the call or the choice.\n\n**After:**\n\n> Cheng Wu held out her Beicheng ticket to the inspector, but her fingers locked and it slipped to the floor. Her brother's last call before he vanished had come from Beicheng. She bent to retrieve the ticket and handed it to the inspector anyway.\n\nThe revision invents no incident and reaches for no decorative substitute. Dropping the ticket gives the physical response an outcome, the call explains the destination's weight, and “anyway” lands the beat on a choice. Four isolated deliveries become one continuous passage without losing a fact."
+          "zh": "下面的车站片段为本页原创。四句围绕程雾去北城的这次反应，但递票、掉票和重新递票确有先后。可合并的是割裂的交付与重复情绪说明，不是把四件事当作同一时刻。\n\n**改写前：**\n\n> 程雾把去北城的车票递向检票员。\n>\n> 她的手指忽然发僵，车票掉到了地上。\n>\n> 她很害怕去北城，因为哥哥失踪前最后一通电话就是从那里打来的。\n>\n> 她把票捡起来，重新递给检票员。\n\n先做标记：第一句是 A（递票），第二句是 B（身体反应改变动作结果），第三句前半只是情绪标签，后半却提供了不能丢的因果；第四句给出人物最终选择。应删的是“她很害怕”这层重复，不是北城来电，也不是她重新递票的决定。\n\n**合并后：**\n\n> 程雾把去北城的车票递向检票员，指尖忽然发僵，票掉在地上。哥哥失踪前的最后一通电话，来自北城。她弯腰捡起票，还是递给了检票员。\n\n改后没有添新事故，也没有把恐惧换成另一套华丽描写。掉票让身体反应产生结果，来电说明北城为何有分量，“还是递给了检票员”让这一个瞬间落在选择上。四个分段变成连续正文，但关键信息一项未少。",
+          "en": "This station scene is original to this page. The passage follows Cheng Wu’s response to traveling to Beicheng, but offering, dropping, and offering again happen in order. Merge the fragmented delivery and repeated emotional explanation without calling the actions simultaneous.\n\n**Before:**\n\n> Cheng Wu held out her Beicheng ticket to the inspector.\n>\n> Her fingers suddenly locked, and the ticket slipped to the floor.\n>\n> She was afraid to go to Beicheng because her brother's last call before he vanished had come from there.\n>\n> She picked up the ticket and handed it to the inspector again.\n\nThe first line is A, the attempted handoff. The second is B, a physical response that changes the action's outcome. “She was afraid” labels what the stumble already shows, but the brother's call is necessary cause. The last line carries her decision. Cut the duplicated label, not the call or the choice.\n\n**After:**\n\n> Cheng Wu held out her Beicheng ticket to the inspector, but her fingers locked and it slipped to the floor. Her brother's last call before he vanished had come from Beicheng. She bent to retrieve the ticket and handed it to the inspector anyway.\n\nThe revision invents no incident and reaches for no decorative substitute. Dropping the ticket gives the physical response an outcome, the call explains the destination's weight, and “anyway” lands the beat on a choice. Four isolated deliveries become one continuous passage without losing a fact."
         }
       },
       {
@@ -19307,10 +19335,24 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "重复描写判断与删除保护",
+          "en": "Repeated description and deletion protection"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-deslop/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "按叙事功能判断情绪与动作",
+          "en": "Emotion and action judged by narrative function"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-deslop/references/anti-ai-writing.md"
+      },
+      {
+        "label": {
+          "zh": "作者文风与功能性重复",
+          "en": "Author voice and functional repetition"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-deslop/references/style-resolution.md"
       }
     ]
   },
@@ -35661,6 +35703,127 @@
       "/drama-skills/ai-video-location-consistency",
       "/drama-skills/ai-video-ambient-sound-continuity",
       "/drama-skills/motivated-camera-movement"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "write-a-sad-scene-in-fiction",
+    "topic": "characters-and-dialogue",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "小说悲伤场景怎么写：具体失去与人物反应",
+      "en": "How to Write a Sad Scene in Fiction"
+    },
+    "seo_title": {
+      "zh": "小说悲伤场景怎么写：具体失去与人物反应",
+      "en": "How to Write a Sad Scene in Fiction"
+    },
+    "description": {
+      "zh": "小说悲伤场景怎么写才动人：先让读者认识值得留恋的关系与日常，再写具体失去怎样发生、人物怎样回应。附告别场景、改前改后、检查表与提示词，不靠堆叠死亡和哭喊。",
+      "en": "Write a sad scene through a specific bond, a loss, and a response. Use an original farewell example, revision checks, and a bounded writing prompt."
+    },
+    "answer": {
+      "zh": "写悲伤场景，先让读者知道人物会失去什么具体的相处、机会或生活，再让这份失去在场景里发生，并留下可信的反应。角色可以哭、沉默、说笑或继续做事；要检验的是这些反应是否符合这个人，是否让读者感到此前的日常已经改变。悲伤不必来自死亡，也不必以立刻振作收束。",
+      "en": "A sad scene gives readers a specific relationship, opportunity, or routine to care about, lets the loss occur, and follows the character’s response. Crying, silence, humor, and ordinary work can all fit. Test whether the response belongs to this person and makes the changed life felt. Death is optional, and immediate recovery is not required."
+    },
+    "sections": [
+      {
+        "id": "choose-the-loss",
+        "heading": {
+          "zh": "先写清失去的是什么，不先安排哭法",
+          "en": "Name the loss before choosing the reaction"
+        },
+        "body": {
+          "zh": "“她很难过”告诉读者情绪名称，还没交代这份难过为什么属于她。先补一句：过去她能和谁做什么，现在哪一部分不能照旧？可能是朋友每周来排练、父亲还没听过的新曲、两个人曾经计划的旅程。只选本场真正相关的部分，不必把人生所有遗憾一起搬来。\n\nOh Story 的情感方法先问承载对象、为什么是现在、此前为什么仍悬着，以及人物能做什么。用于悲伤场景时，可把这些问题写成一张简表：\n\n| 要回答的事 | 本场写下什么 |\n|---|---|\n| 值得留恋什么 | 一段已被展示的相处、投入或可能性 |\n| 什么现在改变 | 离开、错过、关系结束或事实被确认；分清暂时失约与不可照旧 |\n| 人物知道多少 | 谁已知结果，谁仍在期待；不把读者的信息自动给角色 |\n| 人物如何回应 | 试着留住、接受一部分、拒绝谈、继续办事，或暂时没有决定 |\n| 场后还剩什么 | 新的生活安排、尚未说完的话、不能立即修好的缺口 |\n\n这是场景诊断，不是必须凑齐五个剧情事件。悲伤也不需要添加坏人；双方都作了合理选择，告别仍可能难受。",
+          "en": "“She was sad” names a feeling without explaining why it belongs to her. Ask: what could she do with someone before, and what cannot continue in the same way? A weekly rehearsal, a song her father never heard, a trip two people planned. Use what matters here rather than gathering every regret in her life.\n\nOh Story’s emotional method asks what carries the feeling, why now, why the situation remained unresolved, and what the character can do. For a sad scene, use this worksheet:\n\n| Question | What to establish |\n|---|---|\n| What matters? | A relationship, investment, or possibility readers have seen |\n| What changes now? | A departure, missed chance, ending, or confirmed fact; distinguish a temporary absence from a changed life |\n| Who knows? | Who knows the outcome and who still expects otherwise; reader knowledge is not character knowledge |\n| How do they respond? | Try to hold on, accept part of it, avoid talking, continue working, or remain undecided |\n| What remains? | A changed routine, unfinished words, or a gap that cannot immediately be repaired |\n\nThis diagnoses a scene; it does not require five separate plot events. A sad farewell can involve two reasonable choices without needing a villain."
+        }
+      },
+      {
+        "id": "build-and-release",
+        "heading": {
+          "zh": "让相处先有质感，再选择揭示顺序",
+          "en": "Give the bond texture, then choose the reveal"
+        },
+        "body": {
+          "zh": "铺垫不必很长，却要让关系区别于“他们是好朋友”。一次共同练习中谁替谁留位置，一句只有两人懂的提醒，一件认真完成过的小事，都能给失去一个可辨认的对象。物件和习惯可选，不要求固定出现三次。\n\n**读者预先知道告别**时，可以照常写最后一次相处：角色仍在说笑，读者知道这次之后日常会变。**人物与读者一起得知结果**时，要留出接收信息、理解它和回应的空间，别让一句消息立刻跳到结尾感悟。前者是 skill 中“先知坏结果，再看美好事物、结果发生、人物反应”的一种用法；后者不用为了套这个顺序提前剧透。\n\n反应按人物来选。一个爱说话的人突然认真问下一次联系时间，和一个寡言的人直接哭出来，都可能比套式的攥拳更准确。直写心理也可以；若沉默需要读者知道原因，就保留必要的认知。",
+          "en": "A bond does not need a long introduction, but it should mean more than “they were friends.” Who saves a place at rehearsal? What reminder belongs only to them? What small task have they completed together? Objects and routines are options, without a fixed repetition count.\n\nWhen **readers know the farewell is coming**, the last ordinary encounter can hurt while the characters still joke. When **the character and readers learn together**, allow room to receive, understand, and respond before a concluding reflection. The first uses the skill’s sequence of anticipated loss, valued experience, loss, and response; the second need not reveal the outcome early to fit that sequence.\n\nChoose the response for this person. A talkative character asking precisely when they will speak again, or a quiet character openly crying, may be more accurate than a stock clenched fist. Interior thought is also valid. Keep the necessary understanding when silence alone cannot communicate its reason."
+        }
+      },
+      {
+        "id": "farewell-example",
+        "heading": {
+          "zh": "原创范例：最后一次合唱与下一周的空位",
+          "en": "Original example: a last duet and next week’s empty place"
+        },
+        "body": {
+          "zh": "**已有事实**：许沛与温禾每周六在社区合唱团练二重唱。温禾已接受外地的学习机会，周日坐车离开；两人和读者都知道。许沛替她高兴，也不想失去这段周末日常。合唱团负责人已知她要走，下周由许沛试唱这首歌的独唱版本，不假装临时缺席。\n\n**容易失败的写法：**\n\n> 温禾离开时，许沛心如刀绞，泪如雨下。她们都明白，人生有太多无可奈何，友情会永远留在心中。\n\n情绪很重，但读者不知道这两人具体失去了什么，告别也只在概述中发生。\n\n**场景版本：**\n\n> “第二段别抢我。”温禾把谱架往许沛这边挪了挪。\n>\n> “你每次都这么说。”许沛翻到那一页，两个人的铅笔记号挤在同一行。\n>\n> 她们唱完最后一遍。温禾去拿外套，许沛还按着谱页：“下周六，你那边能打电话吗？”\n>\n> “下午有课。晚上我给你打。”\n>\n> 许沛松开手，帮她把落在椅背上的围巾递过去。“那你记得。别只给我发学校照片。”\n\n温禾周日确实离开。**转到下一周**，不要把两个时点剪成同一次排练：\n\n> 第二段开头，许沛照旧停了一拍。谱架旁没有人接。她看了一眼自己的铅笔记号，从那一行重新唱起。结束后，她给温禾发了条消息：“今天没抢你。晚上给你听。”\n\n最后一次共同演唱、约定通话、实际离开和下周改变都有交代。温禾获得机会没有被写成背叛，通话也没有恢复每周并肩排练。许沛继续唱，不等于她已经不难过；故事若需要通话兑现，后文再写温禾实际接通，而不是把约定算作完成。",
+          "en": "**Established facts:** Xu Pei and Wen He rehearse a duet at the community choir every Saturday. Wen He has accepted a course in another city and leaves on Sunday. Both friends and the reader know. Xu Pei is glad for her and dreads losing their weekend routine. The choir director knows about the departure; Xu Pei will try a solo arrangement next week, rather than treating Wen He as temporarily absent.\n\n**A weak version:**\n\n> When Wen He left, Xu Pei’s heart shattered and tears poured down. They understood that life was full of helpless sorrow and friendship would live forever in their hearts.\n\nThe language is intense, but readers have no specific shared life to miss, and the farewell is only summarized.\n\n**A scene version:**\n\n> “Don’t steal my entrance in the second verse.” Wen He nudged the music stand toward Xu Pei.\n>\n> “You say that every time.” Xu Pei found the page. Their pencil marks crowded the same line.\n>\n> They sang it once more. Wen He reached for her coat; Xu Pei still held the page. “Can you call next Saturday?”\n>\n> “I have class in the afternoon. I’ll call that evening.”\n>\n> Xu Pei let go and handed over the scarf left on the chair. “Remember. Don’t just send me campus photos.”\n\nWen He leaves on Sunday. **Move explicitly to the following week**, rather than blending two dates into one rehearsal:\n\n> At the second verse, Xu Pei left the usual beat. Nobody entered beside the stand. She looked at her pencil mark and started again from that line. Afterward, she messaged Wen He: “Didn’t steal your entrance today. I’ll sing it for you tonight.”\n\nThe last duet, promised call, actual departure, and changed rehearsal are present. Wen He’s opportunity is not betrayal, and a call does not restore singing side by side each week. Continuing to sing does not mean Xu Pei has stopped missing her. If the call matters later, write it actually happening; an agreement is not fulfillment."
+        }
+      },
+      {
+        "id": "revise-and-prompt",
+        "heading": {
+          "zh": "修稿检查与可复制提示词",
+          "en": "Revision checks and a copyable prompt"
+        },
+        "body": {
+          "zh": "| 读起来不动人的原因 | 优先修哪里 |\n|---|---|\n| 只有哭喊，没有值得失去的具体相处 | 回到前文关系与投入，不临时插入一大段完美回忆 |\n| 每段反应都在重复“很难过” | 保留不同作用的反应，合并纯复述；哭本身不是问题 |\n| 为加强悲伤突然加死亡、疾病或背叛 | 检查已有失去是否尚未被写清，不先升级灾难 |\n| 角色一笑或开始办事就被宣布走出来 | 分清当下行动与整段情绪弧线，不强迫即时恢复 |\n| 每次都用不流泪显得高级 | 让克制、失控或复杂感受服从人物与文风 |\n| 结尾把主题解释完 | 选择准确的动作、对白、内心或意象留下余韵；作者明确选择的评论可保留 |\n\n**提示词：**\n\n> 检查下面悲伤场景。先列出已有关系与投入、具体失去、人物与读者的知情范围、失去发生的时点和人物反应。指出原句中空泛或重复之处，再给有限修订。不新增死亡、疾病、背叛、回忆事件或原文没有的机会；保留作者文风与有功能的哭、沉默、心理直写。缺少铺垫时标为待作者补充，不代造。对照列出改变的句子和待确认处。正文：〔粘贴〕\n\n采用前对照原文事实，再连读前后两场。预先悲伤、当场反应和后来的生活不必相同；只要变化有来处，就不用按固定情绪阶段排队。\n\n本页安排一场悲伤如何发生。词句、身体反应与直写的取舍见[情绪描写](/oh-story/emotion-on-the-page)；整篇关系撕裂与虐文推进见[虐文写法](/oh-story/angst-fiction)。",
+          "en": "| Why the scene falls flat | First repair |\n|---|---|\n| Crying without a specific bond to miss | Return to established relationship and investment rather than inventing a perfect-memory flashback |\n| Every reaction repeats sadness | Keep responses with different functions and merge restatement; tears are not the fault |\n| Sudden death, illness, or betrayal added for force | Check whether the existing loss has actually been made clear |\n| A smile or ordinary task declared complete recovery | Separate present action from the larger emotional arc |\n| Restraint treated as automatically superior | Let control, open distress, or mixed feelings fit character and voice |\n| A conclusion explains the entire theme | Leave an accurate action, line, thought, or image; keep commentary the author deliberately chose |\n\n**Prompt:**\n\n> Review this sad scene. List the established bond and investment, specific loss, character and reader knowledge, when the loss occurs, and the response. Identify vague or repetitive lines, then offer bounded edits. Add no death, illness, betrayal, past event, or opportunity absent from the original. Preserve the author’s voice and functional tears, silence, and direct thought. Flag missing setup for the author rather than inventing it. List changed lines and uncertainties. Text: [paste]\n\nCompare the facts before adopting the edit, then read the adjoining scenes. Anticipation, immediate response, and later life need not feel alike. Let changes have causes instead of assigning fixed emotional stages.\n\nThis page shapes how sadness unfolds in a scene. For prose carriers, bodily responses, and direct statements, use [emotion on the page](/oh-story/emotion-on-the-page). For relationship rupture across a whole story, use [angst fiction](/oh-story/angst-fiction)."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "悲伤场景一定要有人死，或最后振作吗？",
+          "en": "Does a sad scene require death or recovery?"
+        },
+        "a": {
+          "zh": "不需要。告别、机会错过、关系结束或一个日常不能照旧，都能承载悲伤。哭与不哭、继续做事与暂时停住，按人物和作品来选；不要把一个当下动作当作悲伤已结束的证明。",
+          "en": "No. A farewell, missed opportunity, ended relationship, or changed routine can carry sadness. Tears, restraint, work, and a pause depend on the character and work. One present action does not prove the feeling is over."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 story-long-write 检查一个已有悲伤场景：提供前后文、不可改的事实和本书文风，只核对具体投入、失去时点与反应；先给修改建议，不扩写新的不幸。确认取舍后再改正文。",
+        "en": "Use story-long-write on an existing sad scene with surrounding context, fixed facts, and the book’s voice. Ask for checks on specific investment, the timing of loss, and response, with suggestions first and no invented misfortunes. Adopt chosen edits afterward."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "情感投入、意义变化与余韵",
+          "en": "Emotional investment, changed meaning, and aftermath"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/emotional-methods.md"
+      },
+      {
+        "label": {
+          "zh": "预知失去、场景反应与心理直写",
+          "en": "Anticipated loss, scene response, and direct thought"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/emotion-on-page.md"
+      },
+      {
+        "label": {
+          "zh": "本书文风优先于默认写法",
+          "en": "Book-specific style over defaults"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      }
+    ],
+    "related": [
+      "/oh-story/create-emotional-stakes-in-fiction",
+      "/oh-story/write-interior-monologue",
+      "/oh-story/recurring-object-in-fiction"
     ]
   }
 ]
