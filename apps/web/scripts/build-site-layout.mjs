@@ -11,6 +11,7 @@ import assert from 'node:assert/strict'
 
 const web = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const contract = JSON.parse(readFileSync(join(web, 'content/site-routing.json'), 'utf8'))
+const guideRedirects = JSON.parse(readFileSync(join(web, 'content/guide-redirects.json'), 'utf8'))
 const {siteOrigin:SITE, appOrigin:APP, apiOrigin:API, previewSiteOrigin:PREVIEW_SITE, previewAppOrigin:PREVIEW_APP} = contract
 const escapeRegex = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const host = value => [{type:'host',value}]
@@ -34,6 +35,7 @@ export const vercelConfig = {
   '$schema':'https://openapi.vercel.sh/vercel.json',
   buildCommand:'npm run build:vercel',outputDirectory:'dist',installCommand:'npm install --legacy-peer-deps',devCommand:'npm run dev',framework:'vite',
   redirects:[
+    ...Object.entries(guideRedirects).flatMap(([source, destination]) => [redirect(source, `${SITE}${destination}`), redirect(`/zh${source}`, `${SITE}/zh${destination}`)]),
     ...Object.entries(internalAliases).map(([source,destination])=>redirect(source,destination)),
     // Explicit document aliases must not leave duplicate HTML URLs indexed.
     redirect('/index.html',`${APP}/`,host(appHosts)),

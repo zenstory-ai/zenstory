@@ -7,6 +7,436 @@
   "framework": "vite",
   "redirects": [
     {
+      "source": "/oh-story/recurring-object-in-fiction",
+      "destination": "https://zenstory.ai/oh-story/emotion-on-the-page",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/recurring-object-in-fiction",
+      "destination": "https://zenstory.ai/zh/oh-story/emotion-on-the-page",
+      "permanent": true
+    },
+    {
+      "source": "/oh-story/numbers-in-fiction",
+      "destination": "https://zenstory.ai/oh-story/show-vs-tell-fiction",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/numbers-in-fiction",
+      "destination": "https://zenstory.ai/zh/oh-story/show-vs-tell-fiction",
+      "permanent": true
+    },
+    {
+      "source": "/video-recap/subtitle-packaging-order",
+      "destination": "https://zenstory.ai/video-recap/subtitle-layout-and-line-breaks",
+      "permanent": true
+    },
+    {
+      "source": "/zh/video-recap/subtitle-packaging-order",
+      "destination": "https://zenstory.ai/zh/video-recap/subtitle-layout-and-line-breaks",
+      "permanent": true
+    },
+    {
+      "source": "/drama-skills/music-continuity-across-shots",
+      "destination": "https://zenstory.ai/drama-skills/scene-sound-and-silence",
+      "permanent": true
+    },
+    {
+      "source": "/zh/drama-skills/music-continuity-across-shots",
+      "destination": "https://zenstory.ai/zh/drama-skills/scene-sound-and-silence",
+      "permanent": true
+    },
+    {
+      "source": "/drama-skills/ai-video-ambient-sound-continuity",
+      "destination": "https://zenstory.ai/drama-skills/scene-sound-and-silence",
+      "permanent": true
+    },
+    {
+      "source": "/zh/drama-skills/ai-video-ambient-sound-continuity",
+      "destination": "https://zenstory.ai/zh/drama-skills/scene-sound-and-silence",
+      "permanent": true
+    },
+    {
+      "source": "/oh-story/write-a-novel-epilogue",
+      "destination": "https://zenstory.ai/oh-story/write-a-satisfying-novel-ending",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/write-a-novel-epilogue",
+      "destination": "https://zenstory.ai/zh/oh-story/write-a-satisfying-novel-ending",
+      "permanent": true
+    },
+    {
+      "source": "/oh-story/choose-a-point-of-view-for-a-novel",
+      "destination": "https://zenstory.ai/oh-story/narrative-point-of-view",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/choose-a-point-of-view-for-a-novel",
+      "destination": "https://zenstory.ai/zh/oh-story/narrative-point-of-view",
+      "permanent": true
+    },
+    {
+      "source": "/oh-story/write-a-novel-in-first-person",
+      "destination": "https://zenstory.ai/oh-story/narrative-point-of-view",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/write-a-novel-in-first-person",
+      "destination": "https://zenstory.ai/zh/oh-story/narrative-point-of-view",
+      "permanent": true
+    },
+    {
+      "source": "/oh-story/avoid-head-hopping-in-fiction",
+      "destination": "https://zenstory.ai/oh-story/narrative-point-of-view",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/avoid-head-hopping-in-fiction",
+      "destination": "https://zenstory.ai/zh/oh-story/narrative-point-of-view",
+      "permanent": true
+    },
+    {
+      "source": "/oh-story/write-a-novel-with-multiple-povs",
+      "destination": "https://zenstory.ai/oh-story/narrative-point-of-view",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/write-a-novel-with-multiple-povs",
+      "destination": "https://zenstory.ai/zh/oh-story/narrative-point-of-view",
+      "permanent": true
+    },
+    {
+      "source": "/oh-story/write-natural-dialogue-in-fiction",
+      "destination": "https://zenstory.ai/oh-story/character-dialogue",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/write-natural-dialogue-in-fiction",
+      "destination": "https://zenstory.ai/zh/oh-story/character-dialogue",
+      "permanent": true
+    },
+    {
+      "source": "/oh-story/give-each-character-a-distinct-voice",
+      "destination": "https://zenstory.ai/oh-story/character-dialogue",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/give-each-character-a-distinct-voice",
+      "destination": "https://zenstory.ai/zh/oh-story/character-dialogue",
+      "permanent": true
+    },
+    {
+      "source": "/oh-story/write-believable-character-motivation",
+      "destination": "https://zenstory.ai/oh-story/character-motivation",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/write-believable-character-motivation",
+      "destination": "https://zenstory.ai/zh/oh-story/character-motivation",
+      "permanent": true
+    },
+    {
+      "source": "/oh-story/write-a-book-blurb",
+      "destination": "https://zenstory.ai/oh-story/novel-blurb",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/write-a-book-blurb",
+      "destination": "https://zenstory.ai/zh/oh-story/novel-blurb",
+      "permanent": true
+    },
+    {
+      "source": "/oh-story/write-a-first-page-readers-want-to-finish",
+      "destination": "https://zenstory.ai/oh-story/novel-opening",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/write-a-first-page-readers-want-to-finish",
+      "destination": "https://zenstory.ai/zh/oh-story/novel-opening",
+      "permanent": true
+    },
+    {
+      "source": "/oh-story/write-a-memorable-opening-line",
+      "destination": "https://zenstory.ai/oh-story/novel-opening",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/write-a-memorable-opening-line",
+      "destination": "https://zenstory.ai/zh/oh-story/novel-opening",
+      "permanent": true
+    },
+    {
+      "source": "/oh-story/avoid-info-dumps-in-novels",
+      "destination": "https://zenstory.ai/oh-story/worldbuilding-exposition",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/avoid-info-dumps-in-novels",
+      "destination": "https://zenstory.ai/zh/oh-story/worldbuilding-exposition",
+      "permanent": true
+    },
+    {
+      "source": "/oh-story/write-better-chapter-transitions",
+      "destination": "https://zenstory.ai/oh-story/scene-transitions",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/write-better-chapter-transitions",
+      "destination": "https://zenstory.ai/zh/oh-story/scene-transitions",
+      "permanent": true
+    },
+    {
+      "source": "/oh-story/write-fiction-description",
+      "destination": "https://zenstory.ai/oh-story/environment-description",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/write-fiction-description",
+      "destination": "https://zenstory.ai/zh/oh-story/environment-description",
+      "permanent": true
+    },
+    {
+      "source": "/oh-story/write-a-short-story-from-idea-to-ending",
+      "destination": "https://zenstory.ai/oh-story/short-story-from-idea",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/write-a-short-story-from-idea-to-ending",
+      "destination": "https://zenstory.ai/zh/oh-story/short-story-from-idea",
+      "permanent": true
+    },
+    {
+      "source": "/oh-story/write-a-character-profile",
+      "destination": "https://zenstory.ai/oh-story/story-bible-template",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/write-a-character-profile",
+      "destination": "https://zenstory.ai/zh/oh-story/story-bible-template",
+      "permanent": true
+    },
+    {
+      "source": "/oh-story/plan-a-trilogy",
+      "destination": "https://zenstory.ai/oh-story/plan-a-novel-series",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/plan-a-trilogy",
+      "destination": "https://zenstory.ai/zh/oh-story/plan-a-novel-series",
+      "permanent": true
+    },
+    {
+      "source": "/oh-story/outline-a-novel-series-arc",
+      "destination": "https://zenstory.ai/oh-story/plan-a-novel-series",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/outline-a-novel-series-arc",
+      "destination": "https://zenstory.ai/zh/oh-story/plan-a-novel-series",
+      "permanent": true
+    },
+    {
+      "source": "/oh-story/write-a-character-arc-across-a-series",
+      "destination": "https://zenstory.ai/oh-story/plan-a-novel-series",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/write-a-character-arc-across-a-series",
+      "destination": "https://zenstory.ai/zh/oh-story/plan-a-novel-series",
+      "permanent": true
+    },
+    {
+      "source": "/oh-story/use-foreshadowing-in-a-novel",
+      "destination": "https://zenstory.ai/oh-story/foreshadowing-and-suspense",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/use-foreshadowing-in-a-novel",
+      "destination": "https://zenstory.ai/zh/oh-story/foreshadowing-and-suspense",
+      "permanent": true
+    },
+    {
+      "source": "/oh-story/write-a-character-arc-for-a-supporting-character",
+      "destination": "https://zenstory.ai/oh-story/character-arc",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/write-a-character-arc-for-a-supporting-character",
+      "destination": "https://zenstory.ai/zh/oh-story/character-arc",
+      "permanent": true
+    },
+    {
+      "source": "/drama-skills/adapt-web-novel-into-short-drama",
+      "destination": "https://zenstory.ai/drama-skills/novel-to-short-drama",
+      "permanent": true
+    },
+    {
+      "source": "/zh/drama-skills/adapt-web-novel-into-short-drama",
+      "destination": "https://zenstory.ai/zh/drama-skills/novel-to-short-drama",
+      "permanent": true
+    },
+    {
+      "source": "/drama-skills/format-a-screenplay",
+      "destination": "https://zenstory.ai/drama-skills/vertical-drama-script-format",
+      "permanent": true
+    },
+    {
+      "source": "/zh/drama-skills/format-a-screenplay",
+      "destination": "https://zenstory.ai/zh/drama-skills/vertical-drama-script-format",
+      "permanent": true
+    },
+    {
+      "source": "/drama-skills/storyboard-a-dialogue-heavy-scene",
+      "destination": "https://zenstory.ai/drama-skills/script-to-storyboard",
+      "permanent": true
+    },
+    {
+      "source": "/zh/drama-skills/storyboard-a-dialogue-heavy-scene",
+      "destination": "https://zenstory.ai/zh/drama-skills/script-to-storyboard",
+      "permanent": true
+    },
+    {
+      "source": "/novel-to-game/write-a-branching-story",
+      "destination": "https://zenstory.ai/novel-to-game/meaningful-choices",
+      "permanent": true
+    },
+    {
+      "source": "/zh/novel-to-game/write-a-branching-story",
+      "destination": "https://zenstory.ai/zh/novel-to-game/meaningful-choices",
+      "permanent": true
+    },
+    {
+      "source": "/novel-to-game/write-choices-for-interactive-fiction",
+      "destination": "https://zenstory.ai/novel-to-game/meaningful-choices",
+      "permanent": true
+    },
+    {
+      "source": "/zh/novel-to-game/write-choices-for-interactive-fiction",
+      "destination": "https://zenstory.ai/zh/novel-to-game/meaningful-choices",
+      "permanent": true
+    },
+    {
+      "source": "/novel-to-game/adapt-a-novel-into-a-game",
+      "destination": "https://zenstory.ai/novel-to-game/quick-start",
+      "permanent": true
+    },
+    {
+      "source": "/zh/novel-to-game/adapt-a-novel-into-a-game",
+      "destination": "https://zenstory.ai/zh/novel-to-game/quick-start",
+      "permanent": true
+    },
+    {
+      "source": "/novel-to-game/adapt-a-web-novel-into-a-game",
+      "destination": "https://zenstory.ai/novel-to-game/quick-start",
+      "permanent": true
+    },
+    {
+      "source": "/zh/novel-to-game/adapt-a-web-novel-into-a-game",
+      "destination": "https://zenstory.ai/zh/novel-to-game/quick-start",
+      "permanent": true
+    },
+    {
+      "source": "/novel-to-game/adapt-a-web-serial-into-a-game",
+      "destination": "https://zenstory.ai/novel-to-game/quick-start",
+      "permanent": true
+    },
+    {
+      "source": "/zh/novel-to-game/adapt-a-web-serial-into-a-game",
+      "destination": "https://zenstory.ai/zh/novel-to-game/quick-start",
+      "permanent": true
+    },
+    {
+      "source": "/novel-to-game/choose-a-game-genre-for-a-novel-adaptation",
+      "destination": "https://zenstory.ai/novel-to-game/choose-gameplay",
+      "permanent": true
+    },
+    {
+      "source": "/zh/novel-to-game/choose-a-game-genre-for-a-novel-adaptation",
+      "destination": "https://zenstory.ai/zh/novel-to-game/choose-gameplay",
+      "permanent": true
+    },
+    {
+      "source": "/novel-to-game/adapt-a-short-story-into-a-visual-novel",
+      "destination": "https://zenstory.ai/novel-to-game/write-a-visual-novel-script",
+      "permanent": true
+    },
+    {
+      "source": "/zh/novel-to-game/adapt-a-short-story-into-a-visual-novel",
+      "destination": "https://zenstory.ai/zh/novel-to-game/write-a-visual-novel-script",
+      "permanent": true
+    },
+    {
+      "source": "/novel-to-game/turn-a-game-story-into-quests",
+      "destination": "https://zenstory.ai/novel-to-game/write-a-game-quest",
+      "permanent": true
+    },
+    {
+      "source": "/zh/novel-to-game/turn-a-game-story-into-quests",
+      "destination": "https://zenstory.ai/zh/novel-to-game/write-a-game-quest",
+      "permanent": true
+    },
+    {
+      "source": "/novel-to-game/turn-a-novel-scene-into-a-game-objective",
+      "destination": "https://zenstory.ai/novel-to-game/write-a-game-quest",
+      "permanent": true
+    },
+    {
+      "source": "/zh/novel-to-game/turn-a-novel-scene-into-a-game-objective",
+      "destination": "https://zenstory.ai/zh/novel-to-game/write-a-game-quest",
+      "permanent": true
+    },
+    {
+      "source": "/novel-to-game/create-a-game-story-that-rewards-exploration",
+      "destination": "https://zenstory.ai/novel-to-game/tell-a-game-story-through-the-environment",
+      "permanent": true
+    },
+    {
+      "source": "/zh/novel-to-game/create-a-game-story-that-rewards-exploration",
+      "destination": "https://zenstory.ai/zh/novel-to-game/tell-a-game-story-through-the-environment",
+      "permanent": true
+    },
+    {
+      "source": "/novel-to-game/adapt-a-novel-setting-for-gameplay",
+      "destination": "https://zenstory.ai/novel-to-game/tell-a-game-story-through-the-environment",
+      "permanent": true
+    },
+    {
+      "source": "/zh/novel-to-game/adapt-a-novel-setting-for-gameplay",
+      "destination": "https://zenstory.ai/zh/novel-to-game/tell-a-game-story-through-the-environment",
+      "permanent": true
+    },
+    {
+      "source": "/video-recap/repurpose-a-long-video-into-short-clips",
+      "destination": "https://zenstory.ai/video-recap/turn-a-long-video-into-short-clips",
+      "permanent": true
+    },
+    {
+      "source": "/zh/video-recap/repurpose-a-long-video-into-short-clips",
+      "destination": "https://zenstory.ai/zh/video-recap/turn-a-long-video-into-short-clips",
+      "permanent": true
+    },
+    {
+      "source": "/video-recap/write-a-voiceover-script-for-video",
+      "destination": "https://zenstory.ai/video-recap/recap-script",
+      "permanent": true
+    },
+    {
+      "source": "/zh/video-recap/write-a-voiceover-script-for-video",
+      "destination": "https://zenstory.ai/zh/video-recap/recap-script",
+      "permanent": true
+    },
+    {
+      "source": "/video-recap/write-a-video-script-for-existing-footage",
+      "destination": "https://zenstory.ai/video-recap/recap-script",
+      "permanent": true
+    },
+    {
+      "source": "/zh/video-recap/write-a-video-script-for-existing-footage",
+      "destination": "https://zenstory.ai/zh/video-recap/recap-script",
+      "permanent": true
+    },
+    {
       "source": "/org-home",
       "destination": "https://zenstory.ai/",
       "permanent": true

@@ -1,0 +1,146 @@
+[
+  {
+    "slug": "getting-started",
+    "title": {
+      "en": "Start writing with AI",
+      "zh": "AI 写作入门"
+    },
+    "description": {
+      "en": "Install a writing workflow, import a draft, and write your first chapter.",
+      "zh": "安装写作工具，导入已有书稿，写出第一章。"
+    },
+    "featured": [
+      "claude-code-novel-writing",
+      "agent-skills-for-writers",
+      "import-and-continue"
+    ]
+  },
+  {
+    "slug": "plot-and-outline",
+    "title": {
+      "en": "Outlines and plot",
+      "zh": "小说大纲与情节"
+    },
+    "description": {
+      "en": "Plan openings, chapters, suspense, pacing, and endings.",
+      "zh": "从开篇、大纲到伏笔、节奏和结尾，把故事写完整。"
+    },
+    "featured": [
+      "novel-outline-template",
+      "chapter-outline-template",
+      "novel-opening"
+    ]
+  },
+  {
+    "slug": "characters-and-dialogue",
+    "title": {
+      "en": "Characters and dialogue",
+      "zh": "人物与对白"
+    },
+    "description": {
+      "en": "Build believable motives, distinct voices, and relationships.",
+      "zh": "写清人物动机，区分对白，让感情与人物成长落在行动上。"
+    },
+    "featured": [
+      "character-motivation",
+      "character-dialogue",
+      "romance-subplot"
+    ]
+  },
+  {
+    "slug": "genres",
+    "title": {
+      "en": "Choose and write a genre",
+      "zh": "题材与类型写法"
+    },
+    "description": {
+      "en": "Choose a genre and learn the story patterns it needs.",
+      "zh": "选择适合自己的题材，掌握言情、悬疑、玄幻等类型的写法。"
+    },
+    "featured": [
+      "choosing-a-genre",
+      "web-novel-subgenres",
+      "mystery-novel"
+    ]
+  },
+  {
+    "slug": "revision",
+    "title": {
+      "en": "Revise your novel",
+      "zh": "小说改稿与去 AI 味"
+    },
+    "description": {
+      "en": "Fix weak prose, continuity mistakes, and chapters that stall.",
+      "zh": "去 AI 味、查前后矛盾，解决卡文、注水和追读下降。"
+    },
+    "featured": [
+      "revise-ai-prose",
+      "ai-fiction-consistency-check",
+      "writers-block"
+    ]
+  },
+  {
+    "slug": "short-drama",
+    "title": {
+      "en": "Short-drama scripts",
+      "zh": "短剧改编与剧本"
+    },
+    "description": {
+      "en": "Adapt a story into episodes, scenes, and shootable dialogue.",
+      "zh": "把小说和点子改成分集大纲、可表演的剧本与台词。"
+    },
+    "featured": [
+      "novel-to-short-drama",
+      "episode-outline-template",
+      "screenwriting"
+    ]
+  },
+  {
+    "slug": "ai-video",
+    "title": {
+      "en": "Storyboards and AI video",
+      "zh": "分镜与 AI 视频"
+    },
+    "description": {
+      "en": "Plan shots, keep characters consistent, and improve generated footage.",
+      "zh": "写分镜、参考图与视频提示词，修复角色和镜头不连贯。"
+    },
+    "featured": [
+      "script-to-storyboard",
+      "character-consistency",
+      "seedance-prompts"
+    ]
+  },
+  {
+    "slug": "interactive-games",
+    "title": {
+      "en": "Interactive stories and games",
+      "zh": "互动故事与游戏"
+    },
+    "description": {
+      "en": "Turn a novel into player actions, branching stories, and a playable game.",
+      "zh": "把小说改成可玩的游戏，设计分支、任务、对白和结局。"
+    },
+    "featured": [
+      "quick-start",
+      "meaningful-choices",
+      "choose-gameplay"
+    ]
+  },
+  {
+    "slug": "video-recaps",
+    "title": {
+      "en": "Video scripts and editing",
+      "zh": "视频解说与剪辑"
+    },
+    "description": {
+      "en": "Write narration from footage, edit a story, and finish audio and subtitles.",
+      "zh": "从现有视频写解说、剪故事，处理配音、原声与字幕。"
+    },
+    "featured": [
+      "video-to-narration",
+      "recap-script",
+      "capcut-draft"
+    ]
+  }
+]

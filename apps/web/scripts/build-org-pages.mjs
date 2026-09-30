@@ -39,6 +39,17 @@ const outDir = resolve(process.argv[2] ?? join(webRoot, 'dist'))
 const glossary = JSON.parse(readFileSync(join(webRoot, 'content/glossary.json'), 'utf8'))
 const guides = JSON.parse(readFileSync(join(webRoot, 'content/guides.json'), 'utf8'))
 const comparisons = JSON.parse(readFileSync(join(webRoot, 'content/comparisons.json'), 'utf8'))
+const topics = JSON.parse(readFileSync(join(webRoot, 'content/guide-topics.json'), 'utf8'))
+const topicIds = new Set(topics.map((topic) => topic.slug))
+assert.equal(topicIds.size, topics.length, 'Duplicate guide topic')
+for (const topic of topics) {
+  assert.match(topic.slug, /^[a-z0-9-]+$/, 'Invalid guide topic')
+  for (const field of ['title', 'description']) for (const lang of LANGS) assert.ok(topic[field]?.[lang]?.trim(), 'Invalid guide topic label')
+}
+// Older content and isolated markup fixtures can omit a topic. Published content
+// has explicit editorial assignments, checked by the catalog regression test.
+const topicOf = (item) => item.topic ?? ({'oh-story':'plot-and-outline', 'drama-skills':'short-drama', 'novel-to-game':'interactive-games', 'video-recap':'video-recaps', dsh:'getting-started'})[item.owner]
+
 const guideRoutes = new Set()
 for (const guide of guides) {
   assert.ok(projects.filter((p) => p.slug === guide.owner).length === 1 && /^[a-z0-9-]+$/.test(guide.slug), 'Invalid guide identity')
@@ -111,8 +122,14 @@ for (const article of articles) {
   ;(langs.includes('en') ? articleRoutes : zhOnlyRoutes).add(route)
 }
 
+const TOPIC_PAGE_SIZE = 24
+const topicPageCount = (topic, lang) => Math.max(1, Math.ceil([...guides, ...articles.filter((a) => a.langs.includes(lang))].filter((item) => topicOf(item) === topic.slug).length / TOPIC_PAGE_SIZE))
+const topicRoute = (topic, number = 1) => `/guides/${topic.slug}${number > 1 ? `/page/${number}` : ''}`
+const paginatedTopicRoutes = topics.flatMap((topic) => Array.from({length:topicPageCount(topic,'en')}, (_, i) => topicRoute(topic,i+1)))
+for (const topic of topics) for (let number = topicPageCount(topic,'en') + 1; number <= topicPageCount(topic,'zh'); number++) zhOnlyRoutes.add(topicRoute(topic,number))
 /** English routes; every one also exists under /zh. */
-const orgRoutes = new Set(['/', '/projects', ...projects.map((p) => `/${p.slug}`), ...guideRoutes, ...articleRoutes, '/guides', ...comparisonRoutes, '/glossary', ...glossary.map((g) => `/glossary/${g.slug}`)])
+for (const item of [...guides, ...articles]) assert.ok(topicIds.has(topicOf(item)), `Unknown guide topic: ${item.slug}`)
+const orgRoutes = new Set(['/', ...paginatedTopicRoutes, '/projects', ...projects.map((p) => `/${p.slug}`), ...guideRoutes, ...articleRoutes, '/guides', ...comparisonRoutes, '/glossary', ...glossary.map((g) => `/glossary/${g.slug}`)])
 /** Whether an English-form organization route exists on the site of `lang`. */
 const routeExists = (lang, route) => orgRoutes.has(route) || (lang === 'zh' && zhOnlyRoutes.has(route))
 for (const article of articles) {
@@ -285,7 +302,7 @@ const installBlock = (p, { label = true } = {}) => p.install ? `<div class="inst
 
 const navSection = (route) => {
   if (route === '/projects' || projects.some((p) => `/${p.slug}` === route)) return '/projects'
-  if (route === '/guides' || guideRoutes.has(route) || articleRoutes.has(route) || zhOnlyRoutes.has(route)) return '/guides'
+  if (route === '/guides' || route.startsWith('/guides/') || guideRoutes.has(route) || articleRoutes.has(route) || zhOnlyRoutes.has(route)) return '/guides'
   if (route === '/glossary' || route.startsWith('/glossary/')) return '/glossary'
   return null
 }
@@ -428,14 +445,9 @@ const homePage = () => {
       </a>`
     }).join('')}
     </div>
-    <h3 class="sub-h">${t(`All ${readingOf().length} guides, by project`, `全部 ${readingOf().length} 篇指南，按项目分组`)}</h3>
-    <div class="guide-groups">${projects.filter((p) => readingOf(p.slug).length).map((p) => `
-      <div class="guide-group${readingOf(p.slug).length > 6 ? ' wide' : ''}">
-        <h4><a href="/${p.slug}">${esc(p.name.en)}</a> <span class="count">${readingOf(p.slug).length}</span></h4>
-        ${guideList(readingOf(p.slug))}
-      </div>`).join('')}
-    </div>
-    <p class="more"><a href="/guides">${t('All guides, grouped by project', '按项目查看全部指南')}${arrowGlyph}</a></p>
+    <h3 class="sub-h">${t('Find a guide for your next task', '按你正在做的事找文章')}</h3>
+    ${topicCards(false)}
+    <p class="more"><a href="/guides">${t('Browse and search all guides', '浏览与搜索全部指南')}${arrowGlyph}</a></p>
     </div>
   </section>
 
@@ -550,7 +562,7 @@ const projectPage = (p) => {
   ${own.length ? `<section aria-labelledby="guides-h">${heading(2, 'Practical guides', '实用指南', 'guides-h')}
   ${guideList(own)}</section>` : ''}
   ${craft.length ? `<section aria-labelledby="craft-h">${heading(2, 'Writing craft', '写作技法', 'craft-h')}
-  ${articleList(craft)}</section>` : ''}
+  ${topics.filter((topic) => craft.some((a) => topicOf(a) === topic.slug)).map((topic) => `<h3>${esc(pick(topic.title))}</h3>${articleList(craft.filter((a) => topicOf(a) === topic.slug))}`).join('')}</section>` : ''}
 
   <section aria-labelledby="method-h">
   ${heading(2, 'How it works', '流程', 'method-h')}
@@ -604,7 +616,7 @@ const guidePage = (g) => {
   const body = `
 <article class="guide">
   <header class="guide-head">
-  <p class="eyebrow">${t('Practical guide', '实用指南')}</p>
+  <p class="eyebrow"><a href="/guides/${topicOf(g)}">${esc(pick(topics.find((topic) => topic.slug === topicOf(g)).title))}</a></p>
   <h1>${esc(pick(g.title))}</h1>
   <p class="facts">${t(`${esc(owner.name.en)} · Updated ${esc(g.checked_on)}`, `${esc(owner.name.en)} · 更新于 ${esc(g.checked_on)}`)}</p>
   ${pair(`<p>${rich(g.answer.en)}</p>`, `<p>${rich(g.answer.zh)}</p>`, 'answer')}
@@ -679,7 +691,7 @@ const articlePage = (a) => {
   const bilingual = a.langs.includes('en')
   const related = (a.related ?? []).filter((r) => routeExists(LANG, r))
   const faq = a.faq ?? []
-  const skillUrl = `${owner.github}/tree/main/skills/${a.skill.name}`
+  const skillUrl = a.skill.url ?? `${owner.github}/tree/main/skills/${a.skill.name}`
   const contents = [
     ...a.sections.map((section) => [section.id, pick(section.heading)]),
     ...(faq.length ? [['faq', t('FAQ', '常见问题')]] : []),
@@ -698,7 +710,7 @@ const articlePage = (a) => {
   const body = `
 <article class="guide article">
   <header class="guide-head">
-  <p class="eyebrow">${t('Writing craft', '写作技法')}</p>
+  <p class="eyebrow"><a href="/guides/${topicOf(a)}">${esc(pick(topics.find((topic) => topic.slug === topicOf(a)).title))}</a></p>
   <h1>${esc(pick(a.title))}</h1>
   <p class="facts">${t(`${esc(owner.name.en)} · Updated ${esc(a.updated_on)}`, `${esc(owner.name.en)} · 更新于 ${esc(a.updated_on)}`)}</p>
   <div class="pair answer"><div class="l-${LANG}"${zhMark}>${md(pick(a.answer))}</div></div>
@@ -719,6 +731,7 @@ const articlePage = (a) => {
   <section class="use-skill" aria-labelledby="use-the-skill">
   <h2 id="use-the-skill">${t('Do it with the skill', '用 skill 来做')}</h2>
   ${md(pick(a.skill.text))}
+  ${a.sources?.length ? `<p>${t('Read the method:', '查看具体方法：')} ${a.sources.map((source) => `<a href="${esc(source.url)}">${esc(pick(source.label))}</a>`).join(' · ')}</p>` : ''}
   <p class="actions"><a class="btn ghost" href="/${owner.slug}">${t(`About ${esc(owner.name.en)}`, `了解 ${esc(owner.name.en)}`)}${arrowGlyph}</a><a class="btn ghost" href="${skillUrl}">${t(`The ${esc(a.skill.name)} skill on GitHub`, `在 GitHub 查看 ${esc(a.skill.name)}`)}${extGlyph}</a></p>
   </section>
   ${related.length ? `<section aria-labelledby="related">
@@ -732,50 +745,91 @@ const articlePage = (a) => {
   write(route, page({ route, title: `${pick(a.seo_title)} | ZenStory AI`, description: pick(a.description), ld, body, alternates, switchLinks: alternates ?? { en: `/${owner.slug}`, zh: L(route) } }))
 }
 
-// ---------- guides index ----------
+// ---------- creator task library ----------
+
+const topicReading = (topic) => readingOf().filter((item) => topicOf(item) === topic.slug)
+const topicFeatured = (topic) => {
+  const own = topicReading(topic)
+  const first = (topic.featured ?? []).map((slug) => own.find((item) => item.slug === slug)).filter(Boolean)
+  return [...first, ...own.filter((item) => !first.includes(item))].slice(0, 3)
+}
+const topicCards = (withLinks = true) => `<div class="topic-grid">${topics.filter((topic) => topicReading(topic).length).map((topic) => `
+<section class="topic-card" aria-labelledby="topic-${topic.slug}">
+  <h3 id="topic-${topic.slug}"><a href="/guides/${topic.slug}">${esc(pick(topic.title))}${arrowGlyph}</a></h3>
+  <p>${esc(pick(topic.description))}</p>
+  ${withLinks ? guideList(topicFeatured(topic)) : ''}
+  <a class="topic-more" href="/guides/${topic.slug}">${t(`See ${topicReading(topic).length} guides`, `查看 ${topicReading(topic).length} 篇文章`)}${arrowGlyph}</a>
+</section>`).join('')}</div>`
+const libraryList = (items) => `<ul class="reading-list">${items.map((item) => `<li>${guideLink(item)}<p>${esc(item.description ? pick(item.description) : summary(pick(item.answer)))}</p></li>`).join('')}</ul>`
+const learningPaths = () => {
+  const paths = [
+    ['Write your first chapter', '写出第一章', ['claude-code-novel-writing', 'novel-outline-template', 'novel-opening', 'revise-ai-prose']],
+    ['Make your first short drama', '做出第一集短剧', ['novel-to-short-drama', 'episode-outline-template', 'script-to-storyboard', 'character-consistency']],
+    ['Turn footage into a recap', '把视频剪成解说', ['video-to-narration', 'recap-script', 'original-audio-and-narration', 'capcut-draft']],
+  ]
+  return `<section aria-labelledby="learning-paths" data-library-browse><h2 id="learning-paths">${t('Start with a complete workflow', '先走完一条创作路径')}</h2><div class="learning-paths">${paths.map(([en, zh, slugs]) => {
+    const items = slugs.map((slug) => readingOf().find((item) => item.slug === slug)).filter(Boolean)
+    return items.length ? `<div class="learning-path"><h3>${t(en, zh)}</h3><ol>${items.map((item) => `<li>${guideLink(item)}</li>`).join('')}</ol></div>` : ''
+  }).join('')}</div></section>`
+}
 
 const guidesIndex = () => {
   const route = '/guides'
-  const title = t('Guides — writing, adapting and producing stories with AI | ZenStory AI', '创作指南 — 用 AI 写小说、改短剧、做游戏与视频解说 | ZenStory AI')
-  const craft = articles.filter((a) => a.langs.includes(LANG))
-  const description = t(`${guides.length + craft.length} practical guides on writing novels with AI, adapting them into short drama and games, and producing video recaps. Grouped by project.`, `${guides.length + craft.length} 篇实用指南与写作技法：AI 写小说、续写与改稿，小说改短剧与游戏，视频解说制作。按项目分组。`)
-  const ld = [
-    orgNode,
-    {
-      '@type': 'ItemList', name: t('ZenStory AI practical guides', 'ZenStory AI 实用指南'), url: U(route),
-      itemListElement: [...guides, ...craft].map((g, i) => ({ '@type': 'ListItem', position: i + 1, name: pick(g.title), url: U(`/${g.owner}/${g.slug}`) })),
-    },
-    breadcrumb([['ZenStory AI', U('/')], [t('Guides', '指南'), U(route)]]),
-  ]
-  const groups = projects.filter((p) => guidesOf(p.slug).length || articlesOf(p.slug).length)
+  const title = t('Writing and Adaptation Guides | ZenStory AI', '创作指南：小说、短剧、AI 视频与游戏 | ZenStory AI')
+  const description = t('Find practical guides by creative task: novel outlines, characters, revision, short drama, AI video, interactive games and video recaps.', '按创作任务查找实用指南：小说大纲、人物对白、去 AI 味、短剧剧本、AI 视频、互动游戏与视频解说。附模板、原创案例和 skill 方法来源。')
+  const groups = topics.filter((topic) => topicReading(topic).length)
+  const ld = [orgNode, { '@type':'ItemList', name:t('Writing and adaptation topics','创作与改编主题'), url:U(route), itemListElement:groups.map((topic,i)=>({'@type':'ListItem',position:i+1,name:pick(topic.title),url:U(`/guides/${topic.slug}`)})) }, breadcrumb([['ZenStory AI',U('/')],[t('Guides','指南'),U(route)]])]
   const body = `
 <article class="guides-index">
-  <header class="page-hero">
-    <div class="wrap">
-      <p class="eyebrow">${t('Practical guides', '实用指南')}</p>
-      <h1>${t('Practical guides', '实用指南')}</h1>
-      ${pair(`<p class="lede">Each guide answers one working question with a worked example, and links to the project that does the work.</p>`, `<p class="lede">每篇指南回答一个具体的创作问题，附完整示例，并链接到负责这件事的项目。</p>`)}
-      <nav class="terms jump" aria-label="${t('Jump to project', '跳到项目')}">${groups.map((p) => `<a href="#guides-${p.slug}">${esc(p.name.en)} <span class="count">${guidesOf(p.slug).length + articlesOf(p.slug).length}</span></a>`).join(' ')}</nav>
-    </div>
-  </header>
+  <header class="page-hero"><div class="wrap">
+    <p class="eyebrow">${t('Writing and adaptation', '写作与改编')}</p>
+    <h1>${t('What are you working on?', '你正在写什么、做什么？')}</h1>
+    <p class="lede">${t('Find a method you can use today, with a template, an original example, and the skill behind it.', '按你正在遇到的问题找方法。文章提供模板、原创示例，以及对应的 skill 方法来源。')}</p>
+    <form class="guide-search" data-guide-search hidden role="search">
+      <label for="guide-query">${t('Search all guides', '搜索全部指南')}</label>
+      <div class="guide-search-controls"><input type="search" id="guide-query" name="q" placeholder="${t('Try dialogue, outline, subtitles…','试试：大纲、对白、字幕……')}" autocomplete="off"><button type="reset">${t('Clear','清空')}</button></div>
+      <p data-search-status role="status" aria-live="polite" data-count="${t('guides found','篇结果')}" data-empty="${t('No guides found. Try fewer words or browse a topic below.','没有匹配的文章。试试更短的关键词，或从下方分类浏览。')}"></p>
+    </form>
+    <noscript><p>${t('Browse the topics below to find a guide.', '从下方分类进入完整文章列表。')}</p></noscript>
+  </div></header>
   <div class="wrap page-body wide">
-  ${groups.map((p) => `
-  <section class="guide-section" aria-labelledby="guides-${p.slug}">
-    <div class="guide-section-head">
-    <h2 id="guides-${p.slug}">${projectName(p)}</h2>
-    ${pair(`<p>${esc(p.tagline.en)}</p>`, `<p>${esc(p.tagline.zh)}</p>`, 'tagline')}
-    <p class="facts"><a href="/${p.slug}">${t(`About ${esc(p.name.en)}`, `关于 ${esc(p.name.en)}`)}${arrowGlyph}</a></p>
-    </div>
-    <div>
-    ${guidesOf(p.slug).length ? guideList(guidesOf(p.slug)) : ''}
-    ${articlesOf(p.slug).length ? `<h3 class="sub-h">${t('Writing craft', '写作技法')}</h3>
-    ${articleList(articlesOf(p.slug))}` : ''}
-    </div>
-  </section>`).join('')}
+    ${learningPaths()}
+    <section aria-labelledby="browse-topics" data-library-browse><h2 id="browse-topics">${t('Browse by creative task','按创作任务浏览')}</h2>${topicCards()}</section>
+    <section data-search-results hidden aria-labelledby="search-results"><h2 id="search-results">${t('Search results','搜索结果')}</h2>
+      <ul class="reading-list">${readingOf().map((item)=>{
+        const topic=topics.find((candidate)=>candidate.slug===topicOf(item));const project=projects.find((candidate)=>candidate.slug===item.owner)
+        const desc=item.description ? pick(item.description) : summary(pick(item.answer))
+        return `<li data-search-text="${esc([pick(item.title),desc,pick(topic.title),project.name.en].join(' '))}">${guideLink(item)}<p>${esc(desc)}</p><span class="facts">${esc(pick(topic.title))} · ${esc(project.name.en)}</span></li>`
+      }).join('')}</ul>
+    </section>
   </div>
-</article>
-${roster()}`
-  write(route, page({ route, title, description, ogType: 'website', ld, body }))
+</article>`
+  write(route,page({route,title,description,ogType:'website',ld,body}))
+}
+
+const topicPage = (topic, number = 1) => {
+  const route = topicRoute(topic, number)
+  const items = topicReading(topic)
+  const featured = topicFeatured(topic)
+  const rest = items.filter((item) => !featured.includes(item))
+  const ordered = [...featured, ...rest]
+  const current = ordered.slice((number - 1) * TOPIC_PAGE_SIZE, number * TOPIC_PAGE_SIZE)
+  const count = topicPageCount(topic, LANG)
+  const pagination = count > 1 ? `<nav class="library-pagination" aria-label="${t('Guide pages','文章分页')}">${number > 1 ? `<a href="${topicRoute(topic, number - 1)}" rel="prev">${t('Previous','上一页')}</a>` : ''}<span>${t(`Page ${number} of ${count}`,`第 ${number} / ${count} 页`)}</span>${number < count ? `<a href="${topicRoute(topic, number + 1)}" rel="next">${t('Next','下一页')}${arrowGlyph}</a>` : ''}</nav>` : ''
+  const title = `${pick(topic.title)}${number > 1 ? t(` — Page ${number}`, ` — 第 ${number} 页`) : ''} | ZenStory AI`
+  const description = pick(topic.description)
+  const ld = [orgNode, {'@type':'ItemList',name:pick(topic.title),url:U(route),itemListElement:current.map((item,i)=>({'@type':'ListItem',position:(number-1)*TOPIC_PAGE_SIZE+i+1,name:pick(item.title),url:U(`/${item.owner}/${item.slug}`)}))}, breadcrumb([['ZenStory AI',U('/')],[t('Guides','指南'),U('/guides')],[pick(topic.title),U(route)]])]
+  const body = `<article class="guides-index"><header class="page-hero"><div class="wrap">
+    <p class="crumbs"><a href="/guides">${t('All guides','全部指南')}</a></p>
+    <h1>${esc(pick(topic.title))}${number > 1 ? t(`: page ${number}`, `：第 ${number} 页`) : ''}</h1><p class="lede">${esc(description)}</p>
+    <nav class="terms jump" aria-label="${t('Other creative tasks','其他创作任务')}">${topics.filter((other)=>other.slug!==topic.slug && topicReading(other).length).map((other)=>`<a href="/guides/${other.slug}">${esc(pick(other.title))}</a>`).join(' ')}</nav>
+  </div></header><div class="wrap page-body">
+    ${number === 1 ? `<section aria-labelledby="topic-start"><h2 id="topic-start">${t('Start here','先看这几篇')}</h2>${libraryList(current.filter((item) => featured.includes(item)))}</section>` : ''}
+    ${current.some((item) => !featured.includes(item)) ? `<section aria-labelledby="topic-more"><h2 id="topic-more">${t('More questions and methods','更多问题与方法')}</h2>${libraryList(current.filter((item) => !featured.includes(item)))}</section>` : ''}
+    ${pagination}
+  </div></article>`
+  const alternates = number <= Math.min(topicPageCount(topic, 'en'), topicPageCount(topic, 'zh')) ? alternatesOf(route) : null
+  write(route,page({route,title,description,ogType:'website',ld,body,alternates,switchLinks:alternates ?? alternatesOf(topicRoute(topic))}))
 }
 
 // ---------- first-party comparisons ----------
@@ -997,10 +1051,11 @@ for (const lang of LANGS) {
   guides.forEach(guidePage)
   articles.filter((a) => a.langs.includes(LANG)).forEach(articlePage)
   guidesIndex()
+  topics.forEach((topic) => { for (let number = 1; number <= topicPageCount(topic, LANG); number++) topicPage(topic, number) })
   comparisons.forEach(comparisonPage)
   glossaryIndex()
   glossary.forEach(termPage)
 }
 
 const routes = [...orgRoutes].map((route) => (route === '/' ? '/org-home' : route))
-console.log(`org pages: wrote ${routes.length} routes × ${LANGS.length} languages${zhOnlyRoutes.size ? ` + ${zhOnlyRoutes.size} Chinese-only` : ''} to ${outDir}\n  ${routes.join('  ')}${zhOnlyRoutes.size ? `\n  Chinese-only: ${[...zhOnlyRoutes].map((r) => `/zh${r}`).join('  ')}` : ''}`)
+console.log(`org pages: wrote ${routes.length} routes × ${LANGS.length} languages + ${zhOnlyRoutes.size} Chinese-only to ${outDir}`)

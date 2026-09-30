@@ -167,8 +167,9 @@ test('writing workflow comparison renders three source-backed choices across the
   // site; home and pricing on the app. Counts come from the content JSON so new content needs no edit here.
   const content = (file) => JSON.parse(readFileSync(join(webRoot, 'content', file), 'utf8'))
   const articles = content('articles.json')
+  const topicURLs = ['en', 'zh'].reduce((sum, lang) => sum + content('guide-topics.json').reduce((total, topic) => total + Math.max(1, Math.ceil([...content('guides.json'), ...articles.filter((a) => a.langs.includes(lang))].filter((item) => item.topic === topic.slug).length / 24)), 0), 0)
   const bilingual = 4 + projects.length + content('guides.json').length + articles.filter((a) => a.langs.includes('en')).length + comparisons.length + content('glossary.json').length
-  assert.equal(matches(siteMap, /<loc>/g).length, bilingual * 2 + articles.filter((a) => !a.langs.includes('en')).length + 25 + 2)
+  assert.equal(matches(siteMap, /<loc>/g).length, bilingual * 2 + topicURLs + articles.filter((a) => !a.langs.includes('en')).length + 25 + 2)
   assert.equal(matches(appMap, /<loc>/g).length, 2)
 })
 

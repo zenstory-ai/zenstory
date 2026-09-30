@@ -163,7 +163,7 @@ test('task guides render one language per URL with hreflang pairs, primary sourc
       assert.deepEqual(graph[2].itemListElement.map(item => item.item), [urlIn(lang, '/'), urlIn(lang, `/${owner.slug}`), url])
       const projectArticle = matches(readOutput(outDir, outPath(lang, `/${owner.slug}`)), /<article class="project">([\s\S]*?)<\/article>/g)[0][1]
       assert.ok(projectArticle.includes(`href="${routeIn(lang, route)}"`))
-      assert.ok(readOutput(outDir, outPath(lang, '/')).includes(`href="${routeIn(lang, route)}"`))
+      assert.ok(readOutput(outDir, outPath(lang, `/guides/${guide.topic}`)).includes(`href="${routeIn(lang, route)}"`), 'each workflow belongs to a reachable task category')
     }
   }
   // The serial-opening guide became a craft article at the same URL (content/articles.json).

@@ -49,6 +49,22 @@ export const extGlyph = '<span class="arrow" aria-hidden="true">↗</span>'
 // Reveals the copy buttons only when a clipboard exists.
 export const copyScript = `<script>(function(){if(navigator.clipboard&&navigator.clipboard.writeText){var c=document.querySelectorAll('button.copy');for(var j=0;j<c.length;j++){c[j].hidden=false;c[j].addEventListener('click',function(){var s=this;if(!(navigator.clipboard&&navigator.clipboard.writeText))return;navigator.clipboard.writeText(s.getAttribute('data-copy')).then(function(){var l=s.querySelector('.copy-idle'),d=s.querySelector('.copy-done');l.hidden=true;d.hidden=false;setTimeout(function(){l.hidden=false;d.hidden=true},1600)},function(){})})}}})()</script>`
 
+/** Progressive enhancement: ordinary topic links work without this script. */
+export const guideSearchScript = `<script>(function(){
+var form=document.querySelector('[data-guide-search]');if(!form)return;
+var input=form.querySelector('input'),status=form.querySelector('[data-search-status]'),results=document.querySelector('[data-search-results]'),browse=document.querySelectorAll('[data-library-browse]'),rows=results.querySelectorAll('[data-search-text]');
+function normalize(value){return value.normalize('NFKC').toLocaleLowerCase().trim();}
+function update(){var query=normalize(input.value),terms=query.split(/\\s+/).filter(Boolean),count=0;
+for(var i=0;i<rows.length;i++){var text=normalize(rows[i].getAttribute('data-search-text')),match=terms.every(function(term){return text.indexOf(term)!==-1});rows[i].hidden=!match;if(match)count++;}
+results.hidden=!query;for(var j=0;j<browse.length;j++)browse[j].hidden=!!query&&count>0;
+status.textContent=!query?'':count?count+' '+status.getAttribute('data-count'):status.getAttribute('data-empty');
+var url=new URL(location.href);if(query)url.searchParams.set('q',input.value.trim());else url.searchParams.delete('q');history.replaceState(null,'',url.pathname+url.search+url.hash);}
+form.addEventListener('submit',function(event){event.preventDefault();update();});input.addEventListener('input',update);
+form.addEventListener('reset',function(){input.value='';update();input.focus();});
+window.addEventListener('popstate',function(){input.value=new URL(location.href).searchParams.get('q')||'';update();});
+input.value=new URL(location.href).searchParams.get('q')||'';form.hidden=false;update();
+})()</script>`
+
 export const FONTS = 'https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Plus+Jakarta+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap'
 
 /** Header language switch: two links, the current language marked. */
@@ -165,6 +181,7 @@ ${body}
 </main>
 ${footer(lang)}
 ${copyScript}
+${guideSearchScript}
 </body>
 </html>
 `

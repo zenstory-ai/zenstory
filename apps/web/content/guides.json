@@ -2,7 +2,7 @@
   {
     "owner": "novel-to-game",
     "slug": "quick-start",
-    "checked_on": "2026-09-13",
+    "checked_on": "2026-09-29",
     "title": {
       "en": "Adapt a novel into a game: pick a playable slice, then build",
       "zh": "小说改游戏怎么做：从可玩切片到候选版本"
@@ -168,12 +168,13 @@
         "[现有状态与独立的概念、设计、美术归属](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/novel-to-game/references/pipeline-contract.md#L21-L28)",
         "[修订影响、既有存档与按归属回流](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/novel-to-game/references/pipeline-contract.md#L49-L63)"
       ]
-    }
+    },
+    "topic": "interactive-games"
   },
   {
     "owner": "video-recap",
     "slug": "capcut-draft",
-    "checked_on": "2026-09-13",
+    "checked_on": "2026-09-29",
     "title": {
       "en": "Export a video recap as an editable CapCut or JianYing draft",
       "zh": "剪映草稿导出：视频解说导进剪映 / CapCut 继续精剪"
@@ -367,12 +368,13 @@
           "en": "Keep media bundling on, the default (leave out `--no-bundle-media` and `--jianying-no-bundle-media`, and keep `JIANYING_BUNDLE_MEDIA` on), so the exporter copies video, audio and images into the draft's `Resources/local/` and references them through the editor's draft placeholder paths. Copy the whole draft folder into the new computer's drafts root and open it there. Media that was already missing at export time is listed in the warnings and keeps its old external path, so restore it and export again."
         }
       }
-    ]
+    ],
+    "topic": "video-recaps"
   },
   {
     "owner": "oh-story",
     "slug": "agent-skills-for-writers",
-    "checked_on": "2026-09-13",
+    "checked_on": "2026-09-29",
     "title": {
       "en": "Agent skills for writers: prompts, skill packs, plugins, MCP",
       "zh": "写作 Skill 是什么：和提示词、插件、MCP 怎么分"
@@ -530,12 +532,13 @@
         "[复用设定与作者裁定](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L278-L291)",
         "[规划交付物与初始追踪](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-setup.md#L293-L296)"
       ]
-    }
+    },
+    "topic": "getting-started"
   },
   {
     "owner": "dsh",
     "slug": "deepseek-novel-writing",
-    "checked_on": "2026-09-13",
+    "checked_on": "2026-09-29",
     "title": {
       "en": "Write a novel with DeepSeek: pick a workspace, keep drafting",
       "zh": "DeepSeek写小说：选对工作区，从已有稿件接着写"
@@ -743,12 +746,13 @@
           "en": "No. DeepSeek writes the screenplay, storyboard and prompts; images, video and music come from `short-drama-produce` calling GPT Image 2, Seedance, MiniMax H3 or MiniMax Music, with keys set as host environment variables before DSH starts, and every call is previewed and runs only after you confirm it. Without a video key you can still finish all five documents per episode, and with an image key you can generate keyframe images; for episodes and storyboards, see [novel to short drama](https://zenstory.ai/drama-skills/novel-to-short-drama)."
         }
       }
-    ]
+    ],
+    "topic": "getting-started"
   },
   {
     "owner": "oh-story",
     "slug": "import-and-continue",
-    "checked_on": "2026-09-13",
+    "checked_on": "2026-09-29",
     "title": {
       "en": "Continue your unfinished novel with AI: import into Oh Story",
       "zh": "AI续写已有书稿：导入 Oh Story，接上设定与前史"
@@ -896,12 +900,13 @@
         "[反推前史、未知字段，以及不把未来事件写入历史检查点](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-import/SKILL.md#L335-L398)",
         "[下一章意图、已批准蓝图与禁止提前给出的结果](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-chapter.md#L31-L43)"
       ]
-    }
+    },
+    "topic": "getting-started"
   },
   {
     "owner": "drama-skills",
     "slug": "novel-to-short-drama",
-    "checked_on": "2026-09-13",
+    "checked_on": "2026-09-29",
     "title": {
       "en": "Novel to short drama: episodes, scripts and storyboards",
       "zh": "小说改编短剧怎么做：分集、剧本与分镜衔接"
@@ -1046,7 +1051,7 @@
         "[先准备预览，再确认供应商执行](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-produce/SKILL.md#L37-L49)",
         "[分集地图产物与按需开发文档](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-develop/SKILL.md#L117-L131)",
         "[分集地图记录局部结果与精确继承事实](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-develop/SKILL.md#L84-L89)",
-        "[单集是一次状态变化](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-develop/references/episode-design.md#L17-L30)",
+        "[单集是一次人物处境变化](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-develop/references/episode-design.md#L17-L30)",
         "[出口压力与完整情绪落点](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-develop/references/episode-design.md#L189-L201)",
         "[地图字段与知识、行动、物理状态交接](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-develop/references/episode-design.md#L328-L378)",
         "[先设计必要状态台阶，再定目标集数](https://github.com/zenstory-ai/drama-skills/blob/3cddfb1786c2a38634fe62e4e58a548819b7768a/skills/short-drama-develop/references/story-craft.md#L297-L306)",
@@ -1059,19 +1064,20 @@
         "[已有场景入口与定点剧本修改](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-write/SKILL.md#L17-L37)",
         "[说话者、回应以及 VO 与 OS 的区分](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-write/references/screenplay-format.md#L100-L126)"
       ]
-    }
+    },
+    "topic": "short-drama"
   },
   {
     "owner": "video-recap",
     "slug": "video-to-narration",
-    "checked_on": "2026-09-13",
+    "checked_on": "2026-09-29",
     "title": {
       "en": "Make a video recap with Chinese narration from local footage",
       "zh": "视频解说怎么做：把本地视频做成有依据的中文解说"
     },
     "answer": {
       "en": "Video Recap Skills separates a Chinese-narration recap into understanding, editorial planning, narration, voiceover and assembly. Starting from an authorized local video, it builds a scene/speech/frame evidence index, chooses a viewer promise and POV, and writes only claims that evidence or supplied context supports. It can deliver a rendered MP4 or an editable draft. The source need not already have narration: the original no-dialogue example below compares two story angles and writes a short Chinese script that treats a promise written on screen as still untested. A separate partial-source variant covers footage that stops after the first attempts: request the missing payoff footage, or propose a narrower account and let the creator decide whether a fixed direction changes.",
-      "zh": "Video Recap Skills 把中文视频解说拆成理解、编导、写稿、配音与合成。先从你有权使用的本地视频提取场景、对白和画面证据，再确定一条观众承诺与主视角，只写素材或已提供背景能够支持的内容。最终可交付解说 MP4，也可另导出可编辑草稿。原片不必已经有旁白：下方用原创无对白素材比较两种叙事角度，再写一小段中文解说，把画面上写出的承诺当作有待验证的主张。另一个只有前半段素材的变体说明：素材只拍到起初尝试时，先补要结尾证据，或提出范围更窄的观察稿；已确认的方向要不要改，由创作者决定。"
+      "zh": "Video Recap Skills 把中文视频解说拆成理解、编导、写稿、配音与合成。先从你有权使用的本地视频提取场景、对白和素材中的证据，再确定一条观众期待与主视角，只写素材或已提供背景能够支持的内容。最终可交付解说 MP4，也可另导出可编辑草稿。原片不必已经有旁白：下方用原创无对白素材比较两种叙事角度，再写一小段中文解说，把画面上写出的承诺当作有待验证的主张。另一个只有前半段素材的变体说明：素材只拍到起初尝试时，先补要结尾证据，或提出范围更窄的观察稿；已确认的方向要不要改，由创作者决定。"
     },
     "prerequisites": {
       "en": [
@@ -1135,7 +1141,7 @@
         ],
         [
           "先定角度，再写开场",
-          "阅读 brief、contact sheet、frame facts 与 ASR，确定观众承诺、POV、戏剧问题、情绪终点和暂缓揭示的信息。首次创作比较可成立的故事结构；用户已给方向时忠实落实。把选定主线和“发生了什么变化”的 beats 写进 recap_story_plan.json。只比较素材能支持的角度。下方既可跟随承诺的改写，也可跟随让演示继续的可见动作；两者都不能直接写成“骗局被揭穿”。缺少后续结果时，先指出缺口，结局留给真实素材。可以提出较窄的观众承诺或说明边界；方向已固定时，替换前应由创作者决定。"
+          "阅读 brief、contact sheet、frame facts 与 ASR，确定观众期待、POV、戏剧问题、情绪终点和暂缓揭示的信息。首次创作比较可成立的故事结构；用户已给方向时忠实落实。把选定主线和“发生了什么变化”的 beats 写进 recap_story_plan.json。只比较素材能支持的角度。下方既可跟随承诺的改写，也可跟随让演示继续的可见动作；两者都不能直接写成“骗局被揭穿”。缺少后续结果时，先指出缺口，结局留给真实素材。可以提出较窄的观众期待或说明边界；方向已固定时，替换前应由创作者决定。"
         ],
         [
           "分配画面、原声与旁白",
@@ -1157,7 +1163,7 @@
     },
     "example": {
       "en": "Here is an original suggested brief for a host that exposes this slash name (otherwise select video-recap). The path and timestamps are placeholders:\n\n/video-recap\nCreate a six-minute Chinese recap from /ABS/interview.mov in cut mode. I may use it. Show how the guest’s launch claim changes after the failed demonstration. Follow the guest’s POV until failure, then the engineer’s reaction. Preserve the full 18:40–19:05 exchange without narration. Use visible action, transcribed speech and my context; mark uncertain identities. Build the evidence and story/audio plan before concise spoken Chinese. Burn subtitles and retain timeline.json for draft export.\n\nORIGINAL EDITORIAL EXAMPLE — a demonstration with no dialogue\nThis is a separate, invented teaching example, unrelated to the interview brief above. A–E are editorial labels for the beats, in source order.\n\nSupplied context: the creator identifies the object as a folding display stand. Names, occupations, relationships, product specification and earlier events are all unknown. The imagined footage has no narration or dialogue; room tone and the buckle click stay as source sound.\n\nEvidence notes in source order\nA. Person A puts a card reading “十秒展开” (“opens in ten seconds”) beside the folded stand. This establishes a written promise only; nothing has been timed yet.\nB. A pulls at the stand twice. It does not unfold. Record just that: whether the stand is broken, or whether A knew it would fail, stays unknown.\nC. Person B points to the still-fastened transport strap. A unfastens it. The pointing is visible; whether B is an engineer, a supervisor or an accuser is unknown.\nD. In the same continuous shot after C, A opens the stand. The footage shows this one sequence; no new attempt is timed against the ten-second claim.\nE. A crosses out “十秒” (“ten seconds”) on the card and writes “先解运输带，再展开” (“unfasten the transport strap, then unfold”). The wording changes; whether A feels ashamed, angry or relieved is unknown.\n\nTwo supported story angles\n1. Follow A and the card: how does a speed promise become a preparation step? Keep A at the beginning and E at the end, with B–D explaining what happens between them. The payoff is a visible change in the claim; the narration passes no judgment on anyone’s character.\n2. Follow the detail B points out: what visible action lets this stalled demonstration continue? Focus on the still-fastened strap, the unfastening and the subsequent opening. This foregrounds the practical sequence of this one demonstration.\nChoose angle 1 for this editorial brief: the before/after card gives the ending a concrete answer. Angle 2 remains a valid alternative with a hook of its own. “An expert exposes a deliberate scam” fails as a third angle: it adds an occupation, intent and accusation that the notes do not support.\n\nShort proposed Chinese script, with English meaning\nOpening, around A — establish what the ending will answer:\n“先记住卡片上的‘十秒’。演示结束时，再看这个承诺留下了什么。”\nMeaning: Remember the card’s ten-second promise; at the end, see what remains of it.\n\nMiddle, B–D — no added line. Let the failed opening, pointing, unfastening and opening play in order. Leave the hand movements and the buckle click to picture and source sound: no line for each movement and no invented dialogue. Keep C and D as one uncut take in this proposed edit, so viewers can see for themselves what happens between the unfastening and the opening.\n\nEnding, after E — distinguish the observed result from the untested promise:\n“现在卡片写的是‘先解运输带，再展开’，原来的‘十秒’被划掉了。十秒到底能不能做到，素材并没有重新计时的结果。”\nMeaning: The card now says to unfasten the transport strap before unfolding; the original “ten seconds” has been crossed out. There is still no new timed result establishing whether ten seconds is achievable.\n\nThe opening directs attention to an actual promise that E revises; the ending names the question the footage leaves open. The middle needs no sentence for every action. These lines are writing and editorial planning; they go into narration.json once you find real time windows in the footage and check the reading length against them.\n\nA tempting but unsupported rewrite\n“He knew the stand was broken, yet kept boasting. An engineer exposed his scam, repaired it and finally proved the ten-second claim.” None of knowing deception, engineering credentials, a repair or a successful timed test appears in A–E. Adding “perhaps” leaves that added story just as unsupported. Remove those claims; keep the visible sequence and the narrower outcome. Equally, if the real source stops at B, leave this example’s C–E out of it.\n\nIf only A–B are available: keep the gap visible; narrow the promise only with approval\nThis is a separate original editorial variant. The supplied material now stops after the two unsuccessful pulls, so C–E are unknown to this edit, even though the full teaching example above describes them.\n\nChoose between two different jobs:\n- Keep the already-selected before/after-card story. Its ending needs the legible changed card and evidence of the intervening opening sequence. Record those missing source locations or request the missing material, and hold the promised payoff until that evidence arrives. If that direction is fixed, offer a smaller observation clip as a proposal for the creator to accept or decline.\n- With the creator's agreement, make a narrower account of what the supplied excerpt shows. The promise becomes “what this excerpt establishes about the attempts”; how the problem was solved and what the card eventually said drop out of it. Keep A–B in order and make the limited scope clear from the start.\n\nOne proposed Chinese narration block for that narrower version:\n“卡片写着‘十秒展开’，这里能看到的是两次没有展开的尝试。原因是什么、后来有没有打开，这段素材没有给出答案。”\nMeaning: The card says “opens in ten seconds”; this excerpt shows two unsuccessful attempts. It does not establish the cause or whether the stand later opened.\n\nThat line identifies the card's claim and the supplied record's limit. Let the two attempts play on screen, with no sentence per pull. Two unsuccessful pulls leave the ten-second claim untested. Place the line once you find a real speaking window in the footage.\n\nKeep C's pointing, strap and buckle sound, D's opening and E's crossed-out wording out of this variant. The title and opening promise only what the available ending can answer, so leave out “the truth at the end”. A replay shows the same pull again, so the count stays at two attempts; if you use a replay, label it clearly.\n\nWhen the supplied footage stops early, treat three things as unknown: whether a later event happened, whether it was filmed and whether anyone withheld it. If the notes are incomplete but you have the source, return to the relevant source passage before making a stronger claim. If the available recording itself ends at B, re-running analysis adds no later images. Leave that gap visible or obtain the additional material, and let an uncertain ending sound uncertain.\n\nBounded request for this partial-source situation:\nUse only the actual A–B-equivalent evidence and source locations I provide; treat all later actions and outcomes as unknown. First say which part of my selected viewer promise cannot yet be delivered. If I require the complete before/after story, list the missing material and stop before writing its ending. Otherwise, propose a clearly narrower observation script and state what it gives up; do not silently replace an already-approved direction. Do not add a repair, a changed card, dialogue, later-event audio or a timed result. Stay in the text proposal; no remote analysis, TTS or rendering.\n[Replace the teaching labels with your real source notes and scope.]\n\nText-only editorial request for your own material\nUse the real evidence notes and source locations I supply in place of this example’s invented A–E. Separate observations, quoted or on-screen claims, supplied context and open questions. Compare two supported angles unless I have already chosen one; propose the beat order and a short Chinese script for the selected promise. If the required evidence index is absent, identify what is missing—do not silently run remote analysis. Stop at the text plan: no TTS, media rendering or background music. Use actual output-time mappings only after I choose the cut and the edited video exists.",
-      "zh": "下面是一份原创建议简报，适用于把已安装 skill 暴露为这个 slash 名的宿主（否则在宿主中选择或点名 video-recap）。路径与时间戳都是示意占位：\n\n/video-recap\n把 /ABS/interview.mov 用 cut 模式做成约六分钟中文解说。我已获准使用录像。让观众看清嘉宾自信的发布承诺怎样在演示失败后变化。失败前跟随嘉宾视角，之后转向工程师反应。完整保留 18:40–19:05 原声，不铺旁白。只使用可见动作、转写对白和我的背景；身份不确定就标明。先建立证据索引与故事/声音方案，再写简洁口语。成片烧录字幕，并保留 timeline.json 以便之后导出草稿。\n\n原创编辑示例——没有对白的展架演示\n这是另一个虚构教学案例，与上方的访谈简报无关。A–E 是按原片顺序排列的编辑标签。\n\n创作者提供的背景：物件是一副折叠展架。人物姓名、职业、关系、产品规格和前史都未知。示意素材没有旁白、没有对白，但有环境声和扣件声，它们按原声保留。\n\n按原片顺序记录证据\nA. 人物甲把写着“十秒展开”的卡片放在收拢的展架旁。它只建立了一个书面承诺，此时还没有任何实测。\nB. 甲拉了两次，展架没有展开。只记下这一点；展架是否坏了、甲是否早知道会失败，都未知。\nC. 人物乙指向仍扣着的运输带，甲解开扣件。指向动作可见；乙是工程师、上司，还是有意揭短，都尚未成立。\nD. 与 C 连续的同一镜头中，甲随后把展架打开。素材展示的只是这一次的先后过程，其中没有重新计时、检验十秒承诺的尝试。\nE. 甲在卡片上划掉“十秒”，写上“先解运输带，再展开”。可确认的是文字被改写；甲是羞愧、愤怒还是松了一口气，都未知。\n\n两个有依据的叙事角度\n1. 跟随甲与卡片：一句速度承诺，怎样变成一个准备步骤？开头保留 A，结尾保留 E，用 B–D 连接其间发生的事。兑现的是可见承诺的变化，旁白不评判人物品行。\n2. 跟随乙指出的细节：这次卡住的演示，经过哪个可见动作继续下去？重点保留运输带尚扣着、解扣、随后展开的顺序。这能突出这一次演示的操作过程。\n本次编辑简报选 1：卡片前后变化，让结尾有具体答案。2 仍是可选方案，有自己的钩子。“专家当场揭穿蓄意骗局”站不住：它额外编出了职业、意图与指控。\n\n一版简短中文稿\n开场，围绕 A，提出结尾会回答的问题：\n“先记住卡片上的‘十秒’。演示结束时，再看这个承诺留下了什么。”\n\n中段 B–D，不另加一句。让未能展开、指向、解扣与展开按顺序播出，手部动作和扣件声交给画面与原声，不逐一口播，也不配虚构对白。本剪法让 C 与 D 保持同一段连续镜头，不在两者之间下剪，观众能自己确认解扣和展开之间发生了什么。\n\n结尾，在 E 之后，分清已见结果与未验证的承诺：\n“现在卡片写的是‘先解运输带，再展开’，原来的‘十秒’被划掉了。十秒到底能不能做到，素材并没有重新计时的结果。”\n\n开场引导观众留意 E 确实改写的承诺；结尾说明素材还留着哪个问题。中间不必每个动作都配一句话。这些句子属于文案与编辑方案，要在素材里找到实际的时间窗口、核对朗读时长后，才写进 narration.json。\n\n容易写出、但没有依据的版本\n“他明知展架坏了还在吹嘘，工程师当场拆穿骗局，修好以后终于兑现十秒承诺。”知情欺骗、工程师身份、修理行为、成功计时，A–E 里一样都没有。句子前面加上“也许”，这些情节照样没有依据。删掉这些主张，保留可见过程和较窄的结果。同样，如果真实素材只有 A–B，就别借本示例的 C–E 替它补完结局。\n\n只有 A–B 时：保留证据缺口，获准后再缩窄承诺\n这是另一个独立的原创编辑变体。此次提供的素材到两次没有拉开为止；即使上方完整教学例子写了 C–E，对这次剪辑而言，它们仍未知。\n\n先分清要做哪件事：\n- 保留已经选定的“卡片承诺前后变化”主线。它需要可读的改后卡片，以及其间展开过程的证据。先列出缺失的来源位置或补要素材，承诺的结尾等证据到了再写。如果方向已固定，较窄的观察短片只作备选建议，由创作者决定是否采用。\n- 经创作者同意，改做只说明现有画面交代了什么的短片。承诺变成“这段能确认哪些尝试”，“问题怎样解决”“卡片最后写了什么”都移出承诺。保留 A–B 的顺序，从开头就交代范围。\n\n针对较窄版本的一段中文稿：\n“卡片写着‘十秒展开’，这里能看到的是两次没有展开的尝试。原因是什么、后来有没有打开，这段素材没有给出答案。”\n\n这段话指出卡片主张与现有记录的边界。让两次尝试在画面上看得清，不必每拉一下再配一句。两次没拉开，十秒承诺仍未经过检验。在素材中找到合适的朗读窗口后，再安排这句旁白。\n\nC 的指向、运输带与扣件声，D 的展开，E 的划字，都不要借进这个变体。标题和开头只承诺现有结尾能回答的问题，不写“看到最后揭晓真相”。回放的是同一次拉动，尝试仍是两次；要用回放，就明确标注。\n\n素材没给后续画面时，后来是否拍过、是否有人隐瞒、事情是否发生，都按未知处理。如果只是笔记不全、原片还在，先回到相应素材再加强结论。如果现有录像本身就止于 B，重做分析也补不出后续影像；保留缺口或补充材料，未知就写成未知。\n\n针对不完整素材的有范围请求：\n只使用我提供的真实前半段证据及来源位置，把后续动作与结果都当作未知。先指出我选定的观众承诺还有哪一部分无法兑现。如果我要求完整的前后变化故事，就列缺失素材，停在写结尾之前；否则提出明确较窄的观察稿，并说明放弃了什么，不默默替换已确认方向。不加修理、卡片改写、对白、后续事件声音或计时结果。只做文字提案，不远程分析、不配音、不渲染。\n[把教学标签换成自己的真实素材笔记与范围。]\n\n用于自己素材的纯文字编辑请求\n使用我提供的真实证据笔记与来源位置，不套用虚构的 A–E。分开观察、人物或画面中的主张、外部提供的背景和未决问题。若我还没选方向，比较两个有依据的角度，再按选定承诺给出节拍顺序与简短中文稿；已有方向就沿用。缺少必要证据索引时先列缺项，不自动调用远程分析。停在文本方案，不配音、不渲染、不加 BGM；等我选定剪法、剪后视频确实存在，再用实际输出时间映射编排旁白。"
+      "zh": "下面是一份原创建议简报，适用于把已安装 skill 暴露为这个 slash 名的宿主（否则在宿主中选择或点名 video-recap）。路径与时间戳都是示意占位：\n\n/video-recap\n把 /ABS/interview.mov 用 cut 模式做成约六分钟中文解说。我已获准使用录像。让观众看清嘉宾自信的发布承诺怎样在演示失败后变化。失败前跟随嘉宾视角，之后转向工程师反应。完整保留 18:40–19:05 原声，不铺旁白。只使用可见动作、转写对白和我的背景；身份不确定就标明。先建立证据索引与故事/声音方案，再写简洁口语。成片烧录字幕，并保留 timeline.json 以便之后导出草稿。\n\n原创编辑示例——没有对白的展架演示\n这是另一个虚构教学案例，与上方的访谈简报无关。A–E 是按原片顺序排列的编辑标签。\n\n创作者提供的背景：物件是一副折叠展架。人物姓名、职业、关系、产品规格和前史都未知。示意素材没有旁白、没有对白，但有环境声和扣件声，它们按原声保留。\n\n按原片顺序记录证据\nA. 人物甲把写着“十秒展开”的卡片放在收拢的展架旁。它只建立了一个书面承诺，此时还没有任何实测。\nB. 甲拉了两次，展架没有展开。只记下这一点；展架是否坏了、甲是否早知道会失败，都未知。\nC. 人物乙指向仍扣着的运输带，甲解开扣件。指向动作可见；乙是工程师、上司，还是有意揭短，都尚未成立。\nD. 与 C 连续的同一镜头中，甲随后把展架打开。素材展示的只是这一次的先后过程，其中没有重新计时、检验十秒承诺的尝试。\nE. 甲在卡片上划掉“十秒”，写上“先解运输带，再展开”。可确认的是文字被改写；甲是羞愧、愤怒还是松了一口气，都未知。\n\n两个有依据的叙事角度\n1. 跟随甲与卡片：一句速度承诺，怎样变成一个准备步骤？开头保留 A，结尾保留 E，用 B–D 连接其间发生的事。兑现的是可见承诺的变化，旁白不评判人物品行。\n2. 跟随乙指出的细节：这次卡住的演示，经过哪个可见动作继续下去？重点保留运输带尚扣着、解扣、随后展开的顺序。这能突出这一次演示的操作过程。\n本次编辑简报选 1：卡片前后变化，让结尾有具体答案。2 仍是可选方案，有自己的钩子。“专家当场揭穿蓄意骗局”站不住：它额外编出了职业、意图与指控。\n\n一版简短中文稿\n开场，围绕 A，提出结尾会回答的问题：\n“先记住卡片上的‘十秒’。演示结束时，再看这个承诺留下了什么。”\n\n中段 B–D，不另加一句。让未能展开、指向、解扣与展开按顺序播出，手部动作和扣件声交给画面与原声，不逐一口播，也不配虚构对白。本剪法让 C 与 D 保持同一段连续镜头，不在两者之间下剪，观众能自己确认解扣和展开之间发生了什么。\n\n结尾，在 E 之后，分清已见结果与未验证的承诺：\n“现在卡片写的是‘先解运输带，再展开’，原来的‘十秒’被划掉了。十秒到底能不能做到，素材并没有重新计时的结果。”\n\n开场引导观众留意 E 确实改写的承诺；结尾说明素材还留着哪个问题。中间不必每个动作都配一句话。这些句子属于文案与编辑方案，要在素材里找到实际的时间窗口、核对朗读时长后，才写进 narration.json。\n\n容易写出、但没有依据的版本\n“他明知展架坏了还在吹嘘，工程师当场拆穿骗局，修好以后终于兑现十秒承诺。”知情欺骗、工程师身份、修理行为、成功计时，A–E 里一样都没有。句子前面加上“也许”，这些情节照样没有依据。删掉这些主张，保留可见过程和较窄的结果。同样，如果真实素材只有 A–B，就别借本示例的 C–E 替它补完结局。\n\n只有 A–B 时：保留证据缺口，获准后再缩窄承诺\n这是另一个独立的原创编辑变体。此次提供的素材到两次没有拉开为止；即使上方完整教学例子写了 C–E，对这次剪辑而言，它们仍未知。\n\n先分清要做哪件事：\n- 保留已经选定的“卡片承诺前后变化”主线。它需要可读的改后卡片，以及其间展开过程的证据。先列出缺失的来源位置或补要素材，承诺的结尾等证据到了再写。如果方向已固定，较窄的观察短片只作备选建议，由创作者决定是否采用。\n- 经创作者同意，改做只说明现有画面交代了什么的短片。承诺变成“这段能确认哪些尝试”，“问题怎样解决”“卡片最后写了什么”都移出承诺。保留 A–B 的顺序，从开头就交代范围。\n\n针对较窄版本的一段中文稿：\n“卡片写着‘十秒展开’，这里能看到的是两次没有展开的尝试。原因是什么、后来有没有打开，这段素材没有给出答案。”\n\n这段话指出卡片主张与现有记录的边界。让两次尝试在画面上看得清，不必每拉一下再配一句。两次没拉开，十秒承诺仍未经过检验。在素材中找到合适的朗读窗口后，再安排这句旁白。\n\nC 的指向、运输带与扣件声，D 的展开，E 的划字，都不要借进这个变体。标题和开头只承诺现有结尾能回答的问题，不写“看到最后揭晓真相”。回放的是同一次拉动，尝试仍是两次；要用回放，就明确标注。\n\n素材没给后续画面时，后来是否拍过、是否有人隐瞒、事情是否发生，都按未知处理。如果只是笔记不全、原片还在，先回到相应素材再加强结论。如果现有录像本身就止于 B，重做分析也补不出后续影像；保留缺口或补充材料，未知就写成未知。\n\n针对不完整素材的有范围请求：\n只使用我提供的真实前半段证据及来源位置，把后续动作与结果都当作未知。先指出我选定的观众期待还有哪一部分无法兑现。如果我要求完整的前后变化故事，就列缺失素材，停在写结尾之前；否则提出明确较窄的观察稿，并说明放弃了什么，不默默替换已确认方向。不加修理、卡片改写、对白、后续事件声音或计时结果。只做文字提案，不远程分析、不配音、不渲染。\n[把教学标签换成自己的真实素材笔记与范围。]\n\n用于自己素材的纯文字编辑请求\n使用我提供的真实证据笔记与来源位置，不套用虚构的 A–E。分开观察、人物或画面中的主张、外部提供的背景和未决问题。若我还没选方向，比较两个有依据的角度，再按选定承诺给出节拍顺序与简短中文稿；已有方向就沿用。缺少必要证据索引时先列缺项，不自动调用远程分析。停在文本方案，不配音、不渲染、不加 BGM；等我选定剪法、剪后视频确实存在，再用实际输出时间映射编排旁白。"
     },
     "outputs": {
       "en": [
@@ -1216,16 +1222,17 @@
         "[合成输入、命令与最终时间轴产物](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/skills/video-assemble/SKILL.md#L33-L58)",
         "[观察边界与按需跳过 ASR](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-understanding/SKILL.md#L12-L38)",
         "[人物、因果与结果需要证据](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L13-L18)",
-        "[比较叙事角度，兑现有依据的观众承诺](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L32-L56)",
+        "[比较叙事角度，兑现有依据的观众期待](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L32-L56)",
         "[旁白只在有明确职责时才写](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L95-L118)",
         "[遵守指定方向与本轮未点名的冻结项](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L5-L11)"
       ]
-    }
+    },
+    "topic": "video-recaps"
   },
   {
     "owner": "novel-to-game",
     "slug": "meaningful-choices",
-    "checked_on": "2026-09-13",
+    "checked_on": "2026-09-29",
     "title": {
       "en": "Adapt a novel scene into meaningful choices and endings",
       "zh": "互动小说分支剧情怎么设计：让选择真正改变剧情和结局"
@@ -1304,7 +1311,7 @@
         ],
         [
           "先交清因果设计，再扩展制作",
-          "要求 `game-world-design` 在 `design/GAME_DESIGN.md` 写清状态变化、结局条件、叙事节拍和最小可玩切片。只想要设计交接时，须明确提出；总入口 `novel-to-game quick` 默认会继续整个流程。若使用自然语言输入，也应映射到允许的动作：一句“说服他”同样走规则裁决，证据和船票只能按规则获得。"
+          "要求 `game-world-design` 在 `design/GAME_DESIGN.md` 写清人物处境变化、结局条件、叙事节拍和最小可玩切片。只想要设计交接时，须明确提出；总入口 `novel-to-game quick` 默认会继续整个流程。若使用自然语言输入，也应映射到允许的动作：一句“说服他”同样走规则裁决，证据和船票只能按规则获得。"
         ]
       ]
     },
@@ -1351,7 +1358,7 @@
       ],
       "zh": [
         "[互动故事入口与持久选择](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/README.md#L88-L100)",
-        "[因果权、结算权与叙事主导设计](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-concept/references/concept-method.md#L24-L35)",
+        "[推动情节的机会、决定结果的机会与叙事主导设计](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-concept/references/concept-method.md#L24-L35)",
         "[状态、行动、世界规则与可读反馈](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/game-world-design/references/world-design-method.md#L11-L24)",
         "[知识边界、选择后果与诚实汇流](https://github.com/zenstory-ai/novel-to-game/blob/80a22427554dacdcb80ed906e474b7d9f456bd55/skills/game-world-design/references/narrative-design-method.md#L6-L35)",
         "[叙事设计交接与最小可玩切片](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-world-design/SKILL.md#L24-L41)",
@@ -1359,12 +1366,13 @@
         "[代表路径、相邻分支与叙事检查](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/game-qa/references/test-design-method.md#L27-L40)",
         "[原文输入、权利与产品简报](https://github.com/zenstory-ai/novel-to-game/blob/97373ea0147b1269b8d63334ab781832b77fcae5/skills/novel-to-game/references/intake-method.md#L1-L50)"
       ]
-    }
+    },
+    "topic": "interactive-games"
   },
   {
     "owner": "drama-skills",
     "slug": "character-consistency",
-    "checked_on": "2026-09-13",
+    "checked_on": "2026-09-29",
     "title": {
       "en": "AI short drama character consistency across shots",
       "zh": "AI短剧角色一致性：人物、造型与镜头状态怎么保持"
@@ -1508,12 +1516,13 @@
         "[逐帧视觉依据与逐镜重新判断的参考绑定](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-storyboard/SKILL.md#L100-L121)",
         "[续接中的实际视频、尾帧与已接受起点冲突](https://github.com/zenstory-ai/drama-skills/blob/263dd15488e5d544c0aed6a04cec12e7fd9c7e9a/skills/short-drama-video-prompts/references/delivery-profile.md#L66-L82)"
       ]
-    }
+    },
+    "topic": "ai-video"
   },
   {
     "owner": "video-recap",
     "slug": "original-audio-and-narration",
-    "checked_on": "2026-09-13",
+    "checked_on": "2026-09-29",
     "title": {
       "en": "Video recap audio: keep the original sound or add narration?",
       "zh": "视频解说原声和旁白怎么搭配：逐拍分配声音"
@@ -1596,7 +1605,7 @@
         ],
         [
           "按反馈改对应层，不重新设计整条片",
-          "如果只是把第一句说短，保留已选故事、五拍顺序和声音任务，修改表达与对应文案；如果整段去掉旁白，声音分工也随之改变。源码把表达、口语节奏和字幕反馈记入 `style_card.json`，镜头与声音分工记入 `visual_audio_board.json`；只有观众承诺、视角、主线或 beat 真正改变时，才修改 `recap_story_plan.json`。删除的文案要同步从相关计划和待用字幕里清掉。已生成的 WAV 或混音要重跑对应阶段才会更新。"
+          "如果只是把第一句说短，保留已选故事、五拍顺序和声音任务，修改表达与对应文案；如果整段去掉旁白，声音分工也随之改变。源码把表达、口语节奏和字幕反馈记入 `style_card.json`，镜头与声音分工记入 `visual_audio_board.json`；只有观众期待、视角、主线或 beat 真正改变时，才修改 `recap_story_plan.json`。删除的文案要同步从相关计划和待用字幕里清掉。已生成的 WAV 或混音要重跑对应阶段才会更新。"
         ],
         [
           "区分台词字幕与额外说明",
@@ -1606,7 +1615,7 @@
     },
     "example": {
       "en": "ORIGINAL EDITORIAL EXAMPLE — The Radio After the Move\nThis example is a written plan only.\nAll clips and timestamps below are invented planning examples, written as readable text.\n\nCreator-supplied context: when he moved house, Lao Zhou could not bring himself\nto replace this old radio. Label it as creator context; no frame shows it.\nIllustrated observations: a switch produces no sound; the technician reseats\na connector; radio noise then becomes audible.\nThe footage shows no open case, no identified fault and nothing about whether the fix lasts.\n\nFive-beat draft cut — source clock -> provisional output clock:\n1. 00:12–00:18 -> 00:00–00:06 | radio on the bench, no dialogue\n   Owner: narration. Job: context.\n   Chinese narration: “搬家时，老周没舍得换掉这台收音机。”\n   Reading gloss only: “When he moved, Lao Zhou could not bring himself to replace\n   this radio.” Do not send the English gloss to the Chinese voiceover.\n2. 00:42–00:47 -> 00:06–00:11 | Lao Zhou speaks\n   Owner: original_dialogue. Job: none. Preserve the complete Chinese line:\n   “早上还响着，搬过来就没声了。” (It worked this morning; after the move, nothing.)\n   No narration over the line.\n3. 01:10–01:14 -> 00:11–00:15 | switch click, then no radio response\n   Owner: silence. Job: none. Preserve the opening click and then the wait;\n   the pause is this beat’s main event, and the source audio stays in.\n   Do not add “he turns the switch” narration or music to erase the wait.\n4. 01:28–01:34 -> 00:15–00:21 | connector seated, first radio noise\n   Owner: action_sound. Job: none. Let viewers hear the change.\n   The moment shows one response; leave the repair story untold.\n5. 01:52–01:58 -> 00:21–00:27 | Lao Zhou reacts\n   Owner: original_dialogue. Job: none. Preserve his complete line:\n   “还以为它也不肯跟我走了。” (I thought it did not want to move with me either.)\n   Let the reaction finish; do not append an unsupported moral.\n\nAvoid this invented explanation:\n“The technician immediately knew the internal circuit had failed. He opened the\ncase and repaired it.” The footage shows neither the diagnosis nor the case being opened.\nA useful replacement is the one context line above, then room for the original sound.\n\nRevision exercise — what does “There is too much narration” actually change?\nThese are two alternative edits to the same five-beat plan; pick one, and everything stays on paper.\n\nFirst distinguish unnecessary description from a false claim:\n“The switch clicks. There is no response. The technician reseats the connector, and radio noise appears.”\nThose lines describe the illustrated observations accurately. But laid over beats 3 and 4, they make the viewer listen past commentary to hear the click, the wait and the first noise. This edit promises an audible change, and repeating it in words covers the very sounds that show it. A spoken-description version made for a different audience need gets its own sound plan; this allocation serves this cut.\n\nA. Keep the context job and remove unnecessary repeated naming:\nOriginal Chinese: “搬家时，老周没舍得换掉这台收音机。”\nShorter Chinese candidate: “搬家时，老周没舍得换它。”\nReading gloss: “When he moved, Lao Zhou could not bring himself to replace it.” The radio is clearly on screen, so “it” has a visible referent; the move and reluctance both remain. If the opening switches to another object, a close-up of a person or a standalone audio version, establish the referent again. The gloss is for reading only; the voiceover uses the Chinese line. Whether the TTS finishes safely before the original line is checked in the actual voiceover.\n\n“Lao Zhou could not afford to replace it” would invent an economic reason. The word “either” in his closing remark likewise gives no grounds for adding that nobody keeps him company after the move, or that a relative died. Cut words, keep the facts.\n\nB. If the author no longer needs that context stated explicitly, omit narration from the first beat:\nKeep the existing introduction of the radio and the five-beat order. Beat 2 still says “It worked this morning; after the move, nothing,” and beat 5 retains Lao Zhou’s full response. No commentator repeats the event for him, and viewers lose the explicit mention of his reluctance to replace the radio, which neither of his recorded lines states.\nThis option keeps all the picture, so the illustrative edit stays at 27 seconds. The example leaves the first beat’s ambient sound unspecified: inspect the actual material before assigning its new sound owner, keep the source audio and add no invented room tone.\n\nBoth A and B keep the wait after the click in beat 3. That beat establishes the lack of response before the connector action and noise in beat 4. The draft cut omits the source interval from 1:14 to 1:28; the two shots play back to back, yet 14 seconds of source separate them, so neither narration nor captions should say one flick of the switch fixed the radio for good. Both options keep this draft’s edit points; in your own project, set each wait’s length from the actual pause in your material.\n\nName the selected option in the handoff. A replaces the corresponding narration text and pending narration captions, so the captions match the new short line. B removes that narration together with its captions. Keep the two original lines and their original-dialogue captions subject to actual audibility. This handoff records the decision; existing voice files and mixes are redone in a separately authorized stage.\n\nWhat should this same edit put in captions? — a text illustration assuming A is selected\nFaithful captions make heard words readable; that repetition across sound and text is useful. Remove distracting extra commentary and keep the dialogue captions. These notes keep the five beats and assume A has been chosen.\n\n1. Radio introduction: the narration caption uses the selected shorter Chinese sentence, “搬家时，老周没舍得换它。” Do not retain the old longer sentence or add a separate “An old possession he cannot let go of” emotional summary.\n2. Lao Zhou explains: retain the original-dialogue caption “早上还响着，搬过来就没声了。” Do not paraphrase it as “Moving broke the radio”: the line gives the order of events and leaves the cause of the fault unstated.\n3. Click and wait: nobody speaks here, so invent no dialogue caption. If a separate sound-description layer is chosen, “[开关声]” (switch click) is a candidate label. It must not replace the waiting interval or anticipate “It will be fixed in a moment.”\n4. Connector and first noise: still no dialogue caption. An optional “[收音机杂音]” (radio noise) describes a sound; “[故障排除]” (fault resolved) would turn one response into a complete diagnosis and repair.\n5. Lao Zhou reacts: retain “还以为它也不肯跟我走了。” Do not add a closing “Even old possessions feel the sorrow of leaving” card; let his personification finish in his own words.\n\nThe opening caption could use two display lines:\n搬家时，\n老周没舍得换它。\nThis is a reading-layout break within one continuous utterance, voiced as a single TTS block. Actual caption cues and their in/out points follow real speech and output time; generate them from the actual voiceover and timeline.\n\nThe bracketed sound labels are separate editorial candidates. Keep them apart from recorded dialogue: hand them to the separately chosen caption/manual-finishing workflow and keep them out of original_subtitles.json. Dialogue captions alone leave the wait and the audible change unexpressed; a silent-viewing version needs its own decisions about how to show those events.\n\nIf B is eventually chosen, remove the opening narration caption with the narration. The author could separately add a context card, which brings back the background B leaves unstated. That is a separate expression choice for the author to make deliberately.\n\nTiming note: beat 1 contains six seconds of picture, and the narration has to end\nwell inside it. The actual TTS must finish with a safe source-audio recovery window\nbefore beat 2. The row boundaries above are drafts; confirm real pauses and safe cut points from the material’s evidence.\n\nText-only handoff to an agent with Video Recap Skills configured:\nUse the authorized source and take all times from its actual evidence.\nPrepare the story/audio board and a provisional cut plan around the five units.\nLet the click lead into its pause. Keep the two full lines\nand the radio’s first sound, use only the confirmed moving-house context, and\nleave other units without narration. Stop at the editorial handoff: do not call\nTTS, render media or add BGM. List unresolved sound/timing evidence. After I choose\nthe edit and the cut exists, use the validated output-time mapping for narration.\n\nIf selecting A, give a bounded revision request that touches only this line:\nThis is a text-revision exercise for the radio plan above. Change only the first beat’s Chinese narration to “搬家时，老周没舍得换它。” Do not apply B. Preserve the viewer promise, five-beat order, picture ranges, two complete original lines, the wait after the click and the first radio noise. Add no poverty, loneliness or fault diagnosis.\nReturn the candidate wording and affected expression/caption handoff notes in this reply only; do not write into existing artifacts. The first beat still has a context-narration job. Do not redesign the story because one sentence became shorter.\nDo not cut, run TTS, replace audio, mix or render; leave the real duration to be checked after voiceover. If the actual opening fails to identify the radio clearly, explain the pronoun ambiguity and keep the noun; clarity comes before brevity.",
-      "zh": "原创编辑示例——《搬家后的收音机》\n本示例只写文字方案。\n以下片段与时间均为虚构的编辑示意，写成便于阅读的纯文本。\n\n创作者提供的背景：老周搬家时没舍得换掉这台旧收音机。\n这项背景画面里看不出，写稿时要标明来自创作者。\n示意中能观察到的事：拨开关后没有响声；师傅重新插接连接头；随后有收音机杂音。\n画面没拍到开壳，故障原因和修复能否持久也都没有交代。\n\n五段草拟剪辑——原片时间 → 暂拟输出时间：\n1. 00:12–00:18 → 00:00–00:06｜台上的收音机，无对白。\n   主职责：narration；任务：context。\n   旁白：“搬家时，老周没舍得换掉这台收音机。”\n2. 00:42–00:47 → 00:06–00:11｜老周开口。\n   主职责：original_dialogue；任务：none。完整保留原话：\n   “早上还响着，搬过来就没声了。”不铺旁白。\n3. 01:10–01:14 → 00:11–00:15｜开关咔嗒，收音机没有响应。\n   主职责：silence；任务：none。保留起始的咔嗒声和随后的等待；\n   这一拍由停顿主导，原片声音照常保留。不要加“他拨动开关”的旁白或音乐。\n4. 01:28–01:34 → 00:15–00:21｜重新插接后，收音机第一次响起杂音。\n   主职责：action_sound；任务：none。让观众听见变化，\n   这一刻只交代收音机响了。\n5. 01:52–01:58 → 00:21–00:27｜老周的反应。\n   主职责：original_dialogue；任务：none。完整保留：\n   “还以为它也不肯跟我走了。”让反应结束，不追加无依据的升华。\n\n不该写的解释：\n“师傅一眼就看出内部电路坏了，拆开机壳便把它修好了。”\n素材里既没有这个诊断，也没拍到开壳。更合适的替换是上面那一句背景，\n然后把声音位置交还给原话、开关声和停顿。\n\n修订练习——“旁白太满，少说一点”具体改哪里：\n下面在同一五拍方案里比较两种改法，二选一即可，全程只改文字。\n\n先区分多说与说错：\n“开关咔嗒一声，收音机没有响应。师傅重新插好连接头，杂音出现了。”\n这几句如实复述了本例的观察，内容没错。但把它们铺在第3、4拍上，观众就得隔着旁白去听咔嗒、等待和第一次杂音。本片承诺让观众听见变化，重复说明会盖住体现变化的那些声音。若另做以口述说明为目的的版本，先为那个版本确定观众需求，再分配声音；本例的声音分工只服务这一版。\n\nA. 保留背景任务，只删不必要的重复指代：\n原句：“搬家时，老周没舍得换掉这台收音机。”\n候选短句：“搬家时，老周没舍得换它。”\n画面此时明确呈现台上的收音机，“它”有可见指向；搬家、不舍得换这两项意思仍在。若第一拍换成别的物件、人物特写，或要做脱离画面的纯音频版本，应重新说明指代。TTS 能否在原话前安全收住，要等实际配音后再听。\n\n缩短时守住原意：“老周没钱换它”加进了创作者没提供的财务原因；结尾那个“也”字同样撑不起“搬家后再没有人陪他”或亲人离世的前史。减字只减字，事实保持原样。\n\nB. 如果作者不再要求明说这段背景，第一拍也可以不写旁白：\n先保留原来收音机入场画面和五拍顺序，第2拍仍由“早上还响着，搬过来就没声了”交代这次变化，第5拍仍保留老周完整的反应。这样没有旁白重复替他说话，观众也就听不到他“没舍得换”这层意思；老周的两句原话提到了搬家，没说出这一点。\n这个方案保留全部画面，示意成片仍是27秒。示例没有写第一拍的环境声；查看自己的素材再决定这一拍的声音归属，原片声音照常保留，也不另补室内底噪。\n\n无论选A还是B，都保留第3拍咔嗒后的等待。那一拍要先建立“没有响应”，再由第4拍的重新插接与杂音给出后续变化。源片1:14到1:28之间的内容在这份草拟剪辑中被省略了；两段在成片里紧挨着，原片中间隔着14秒，旁白和字幕都不能写成“一拨开关就彻底修好了”。A、B 都沿用这份草拟的剪点；到你自己的项目里，等待留多长按素材里的实际停顿决定。\n\n交接时写明选了哪个方案：选A，同时替换对应旁白稿和待用旁白字幕，让字幕与新短句一致；选B，旁白和对应字幕一起去掉。两句原声台词与其原声字幕仍按实际可听内容处理。这里先交编辑决定；已有配音或混音要在之后另行授权的阶段重做。\n\n同一条片，字幕该写什么？——假设选定A的文字示意\n忠实字幕把听到的话变成可读内容，这种跨声音与文字的重复有用；要省的是抢占注意的额外解释，台词字幕照常保留。以下沿用五拍，按选定A的情形示意。\n\n1. 收音机入场：旁白字幕用选定短句“搬家时，老周没舍得换它。”，不沿用旧长句，也不另叠“舍不得的旧物”来替观众概括情绪。\n2. 老周说明：原声对白字幕保留“早上还响着，搬过来就没声了。”，不改成旁白口吻“搬家弄坏了收音机”；原话只交代先后顺序，损坏原因没有说。\n3. 咔嗒与等待：这里没有人说话，不编一条对白字幕。若另选声音提示层，可把“[开关声]”作为候选标注；不要让提示替代咔嗒后的等待，也不要抢先写“马上就修好了”。\n4. 插接与首次杂音：仍没有对白字幕。可选的“[收音机杂音]”只描述声音；“[故障排除]”则把一次响应说成了完整诊断和修复。\n5. 老周回应：原声对白字幕保留“还以为它也不肯跟我走了。”，不再加“旧物也懂离愁”的结论卡，让这句拟人表达由他说完。\n\n字幕排版可以把第一句显示为两行：\n搬家时，\n老周没舍得换它。\n这是阅读换行，口播仍是连贯的一句，只做一段TTS。真正分成多个字幕提示、何时出现和消失，要跟实际语音与输出时间配合；字幕时码从实际配音和时间线生成。\n\n方括号声音提示是另提的编辑候选，要和录到的台词分开：交给选定的字幕/人工精修流程处理，不塞进 original_subtitles.json 冒充原声对白。只有台词字幕时，咔嗒后的等待与声音变化还没传达出来；若另做静音观看版本，要单独决定怎样表达这些信息。\n\n若最终选B，第一拍的旁白字幕随旁白去掉。作者可以另选一张背景文字卡，把B省去的背景重新交代给观众；这属于另一项有意的表达选择，要单独决定。\n\n时间说明：第一段有六秒画面，旁白要在这六秒里提前收住。\n真实配音要在第二段原话前收住，并留下安全的原声恢复空间。\n表中边界是草拟值；真实停顿和安全剪点要从素材证据里确认。\n\n交给已配置 Video Recap Skills 的 Agent 的纯文字请求：\n使用我获准使用的源片和真实证据，不照抄示例时间。\n按以上五段准备故事/声音方案与初步剪辑计划，保留开关声引出的停顿。\n完整保留两句原话与收音机首次响起的声音，只使用已确认的搬家背景，其他段不铺旁白。\n停在编辑交接，不调用 TTS、不渲染媒体、不添加 BGM；列出未确定的声音和时间证据。\n等我选定剪法、剪后文件真实存在，再用校正后的输出时间映射写旁白。\n\n若采用A，可另交一份只改这一处的限定修订请求：\n这是上述收音机方案的文字修订练习。只把第一拍旁白改为“搬家时，老周没舍得换它。”；本次不采用B。保留观众承诺、五拍顺序、已有画面范围、两句完整原话、咔嗒后的等待和首次杂音，不补贫困、孤独或维修诊断。\n返回修改后的候选文案与受影响的表达/字幕交接项；先只在回复里提出，不写入现有产物。第一拍仍是背景旁白任务，不因一句减字而重新设计故事。\n不执行剪辑、TTS、音频替换、混音或渲染，真实时长留到配音后核对。若实际首镜不能明确指向收音机，说明“它”的歧义并保留名词，不为追求短句牺牲理解。"
+      "zh": "原创编辑示例——《搬家后的收音机》\n本示例只写文字方案。\n以下片段与时间均为虚构的编辑示意，写成便于阅读的纯文本。\n\n创作者提供的背景：老周搬家时没舍得换掉这台旧收音机。\n这项背景画面里看不出，写稿时要标明来自创作者。\n示意中能观察到的事：拨开关后没有响声；师傅重新插接连接头；随后有收音机杂音。\n画面没拍到开壳，故障原因和修复能否持久也都没有交代。\n\n五段草拟剪辑——原片时间 → 暂拟输出时间：\n1. 00:12–00:18 → 00:00–00:06｜台上的收音机，无对白。\n   主职责：narration；任务：context。\n   旁白：“搬家时，老周没舍得换掉这台收音机。”\n2. 00:42–00:47 → 00:06–00:11｜老周开口。\n   主职责：original_dialogue；任务：none。完整保留原话：\n   “早上还响着，搬过来就没声了。”不铺旁白。\n3. 01:10–01:14 → 00:11–00:15｜开关咔嗒，收音机没有响应。\n   主职责：silence；任务：none。保留起始的咔嗒声和随后的等待；\n   这一拍由停顿主导，原片声音照常保留。不要加“他拨动开关”的旁白或音乐。\n4. 01:28–01:34 → 00:15–00:21｜重新插接后，收音机第一次响起杂音。\n   主职责：action_sound；任务：none。让观众听见变化，\n   这一刻只交代收音机响了。\n5. 01:52–01:58 → 00:21–00:27｜老周的反应。\n   主职责：original_dialogue；任务：none。完整保留：\n   “还以为它也不肯跟我走了。”让反应结束，不追加无依据的升华。\n\n不该写的解释：\n“师傅一眼就看出内部电路坏了，拆开机壳便把它修好了。”\n素材里既没有这个诊断，也没拍到开壳。更合适的替换是上面那一句背景，\n然后把声音位置交还给原话、开关声和停顿。\n\n修订练习——“旁白太满，少说一点”具体改哪里：\n下面在同一五拍方案里比较两种改法，二选一即可，全程只改文字。\n\n先区分多说与说错：\n“开关咔嗒一声，收音机没有响应。师傅重新插好连接头，杂音出现了。”\n这几句如实复述了本例的观察，内容没错。但把它们铺在第3、4拍上，观众就得隔着旁白去听咔嗒、等待和第一次杂音。本片承诺让观众听见变化，重复说明会盖住体现变化的那些声音。若另做以口述说明为目的的版本，先为那个版本确定观众需求，再分配声音；本例的声音分工只服务这一版。\n\nA. 保留背景任务，只删不必要的重复指代：\n原句：“搬家时，老周没舍得换掉这台收音机。”\n候选短句：“搬家时，老周没舍得换它。”\n画面此时明确呈现台上的收音机，“它”有可见指向；搬家、不舍得换这两项意思仍在。若第一拍换成别的物件、人物特写，或要做脱离画面的纯音频版本，应重新说明指代。TTS 能否在原话前安全收住，要等实际配音后再听。\n\n缩短时守住原意：“老周没钱换它”加进了创作者没提供的财务原因；结尾那个“也”字同样撑不起“搬家后再没有人陪他”或亲人离世的前史。减字只减字，事实保持原样。\n\nB. 如果作者不再要求明说这段背景，第一拍也可以不写旁白：\n先保留原来收音机入场画面和五拍顺序，第2拍仍由“早上还响着，搬过来就没声了”交代这次变化，第5拍仍保留老周完整的反应。这样没有旁白重复替他说话，观众也就听不到他“没舍得换”这层意思；老周的两句原话提到了搬家，没说出这一点。\n这个方案保留全部画面，示意成片仍是27秒。示例没有写第一拍的环境声；查看自己的素材再决定这一拍的声音归属，原片声音照常保留，也不另补室内底噪。\n\n无论选A还是B，都保留第3拍咔嗒后的等待。那一拍要先建立“没有响应”，再由第4拍的重新插接与杂音给出后续变化。源片1:14到1:28之间的内容在这份草拟剪辑中被省略了；两段在成片里紧挨着，原片中间隔着14秒，旁白和字幕都不能写成“一拨开关就彻底修好了”。A、B 都沿用这份草拟的剪点；到你自己的项目里，等待留多长按素材里的实际停顿决定。\n\n交接时写明选了哪个方案：选A，同时替换对应旁白稿和待用旁白字幕，让字幕与新短句一致；选B，旁白和对应字幕一起去掉。两句原声台词与其原声字幕仍按实际可听内容处理。这里先交编辑决定；已有配音或混音要在之后另行授权的阶段重做。\n\n同一条片，字幕该写什么？——假设选定A的文字示意\n忠实字幕把听到的话变成可读内容，这种跨声音与文字的重复有用；要省的是抢占注意的额外解释，台词字幕照常保留。以下沿用五拍，按选定A的情形示意。\n\n1. 收音机入场：旁白字幕用选定短句“搬家时，老周没舍得换它。”，不沿用旧长句，也不另叠“舍不得的旧物”来替观众概括情绪。\n2. 老周说明：原声对白字幕保留“早上还响着，搬过来就没声了。”，不改成旁白口吻“搬家弄坏了收音机”；原话只交代先后顺序，损坏原因没有说。\n3. 咔嗒与等待：这里没有人说话，不编一条对白字幕。若另选声音提示层，可把“[开关声]”作为候选标注；不要让提示替代咔嗒后的等待，也不要抢先写“马上就修好了”。\n4. 插接与首次杂音：仍没有对白字幕。可选的“[收音机杂音]”只描述声音；“[故障排除]”则把一次响应说成了完整诊断和修复。\n5. 老周回应：原声对白字幕保留“还以为它也不肯跟我走了。”，不再加“旧物也懂离愁”的结论卡，让这句拟人表达由他说完。\n\n字幕排版可以把第一句显示为两行：\n搬家时，\n老周没舍得换它。\n这是阅读换行，口播仍是连贯的一句，只做一段TTS。真正分成多个字幕提示、何时出现和消失，要跟实际语音与输出时间配合；字幕时码从实际配音和时间线生成。\n\n方括号声音提示是另提的编辑候选，要和录到的台词分开：交给选定的字幕/人工精修流程处理，不塞进 original_subtitles.json 冒充原声对白。只有台词字幕时，咔嗒后的等待与声音变化还没传达出来；若另做静音观看版本，要单独决定怎样表达这些信息。\n\n若最终选B，第一拍的旁白字幕随旁白去掉。作者可以另选一张背景文字卡，把B省去的背景重新交代给观众；这属于另一项有意的表达选择，要单独决定。\n\n时间说明：第一段有六秒画面，旁白要在这六秒里提前收住。\n真实配音要在第二段原话前收住，并留下安全的原声恢复空间。\n表中边界是草拟值；真实停顿和安全剪点要从素材证据里确认。\n\n交给已配置 Video Recap Skills 的 Agent 的纯文字请求：\n使用我获准使用的源片和真实证据，不照抄示例时间。\n按以上五段准备故事/声音方案与初步剪辑计划，保留开关声引出的停顿。\n完整保留两句原话与收音机首次响起的声音，只使用已确认的搬家背景，其他段不铺旁白。\n停在编辑交接，不调用 TTS、不渲染媒体、不添加 BGM；列出未确定的声音和时间证据。\n等我选定剪法、剪后文件真实存在，再用校正后的输出时间映射写旁白。\n\n若采用A，可另交一份只改这一处的限定修订请求：\n这是上述收音机方案的文字修订练习。只把第一拍旁白改为“搬家时，老周没舍得换它。”；本次不采用B。保留观众期待、五拍顺序、已有画面范围、两句完整原话、咔嗒后的等待和首次杂音，不补贫困、孤独或维修诊断。\n返回修改后的候选文案与受影响的表达/字幕交接项；先只在回复里提出，不写入现有产物。第一拍仍是背景旁白任务，不因一句减字而重新设计故事。\n不执行剪辑、TTS、音频替换、混音或渲染，真实时长留到配音后核对。若实际首镜不能明确指向收音机，说明“它”的歧义并保留名词，不为追求短句牺牲理解。"
     },
     "outputs": {
       "en": [
@@ -1618,7 +1627,7 @@
       ],
       "zh": [
         "一份明确选定的文案修订：保留哪些背景与原话、删掉什么、是否改变声音分工，以及对应字幕要怎样更新。比较之后只执行选定的一种，也无需新增文件。",
-        "`recap_story_plan.json` 与 `visual_audio_board.json`：记录观众承诺、变化节拍、来源证据与主要声音职责；它们记录决定，混音在之后的阶段完成。",
+        "`recap_story_plan.json` 与 `visual_audio_board.json`：记录观众期待、变化节拍、来源证据与主要声音职责；它们记录决定，混音在之后的阶段完成。",
         "cut 模式的 `clip_plan.json` 表达原片选段；后续真实的 `clip_plan_validated.json` 与 `edited_source.mp4` 才确立剪后时间线。这两个文件生成之前，草拟表只是计划。",
         "`narration.json`：只写确有需要的口播段，并用对应时钟；`original_subtitles.json` 按需记录输出时间上仍可听到的原话。配音文件和成片必须等相应阶段实际执行后才存在。",
         "真实 `timeline.json` 已存在、还需人工精修时，可走[剪映 / CapCut 草稿导出](https://zenstory.ai/video-recap/capcut-draft)。导出后在编辑器里逐处试听声音交接。"
@@ -1663,15 +1672,16 @@
         "[口语写作、证据与非机械减字](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/SKILL.md#L157-L167)",
         "[剪辑定稿后的字幕提示与可选包装](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-assemble/SKILL.md#L79-L89)"
       ]
-    }
+    },
+    "topic": "video-recaps"
   },
   {
     "owner": "oh-story",
     "slug": "long-novel-continuity",
-    "checked_on": "2026-09-12",
+    "checked_on": "2026-09-29",
     "title": {
-      "en": "AI keeps forgetting your novel? Keep state in files",
-      "zh": "AI写长篇记不住设定、忘伏笔怎么办：分开记已知、承诺和线索"
+      "zh": "AI 写长篇忘设定怎么办：人物、伏笔与时间线管理",
+      "en": "AI Keeps Forgetting Your Novel? Track Characters and Plot"
     },
     "answer": {
       "en": "AI drifts over a long novel when the model is asked to remember the whole book. Oh Story keeps the state in files instead: what is true in the story, what each character knows and what the reader has seen are recorded separately in the project's tracking directory, and each new chapter loads only the current state and unfinished commitments. Anything still in the plan stays in the plan until the chapter that shows it is written. The three-chapter example below shows the handoff in practice, plus an optional clue design that separates a visible clue from a plausible misreading and gives the reveal consequences. The method targets two failures in particular: forgetting, and characters knowing answers too early.",
@@ -1824,15 +1834,16 @@
         "[疑问、伏笔与可信的误导提示](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/long-suspense.md#L26-L46)",
         "[用新证据推进，并在本章兑现一项变化](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/long-suspense.md#L87-L93)"
       ]
-    }
+    },
+    "topic": "revision"
   },
   {
     "owner": "oh-story",
     "slug": "outline-to-chapter",
-    "checked_on": "2026-09-13",
+    "checked_on": "2026-09-29",
     "title": {
-      "en": "Outline to chapter: turn plot specs into visible change",
-      "zh": "按大纲写章节总像复述设定？把剧情规格写成可见变化"
+      "zh": "按大纲写小说怎么避免流水账：从细纲到正文",
+      "en": "How to Draft a Novel Chapter from an Outline"
     },
     "answer": {
       "zh": "章纲规定“本章必须发生什么”；写正文时，把目标、阻碍、证据、选择和代价写成视角人物可见的过程，再兑现约定的章尾变化。下面的原创书库示例先比较说明书式开场与成文改法，再从签字后的停点续写有条件合作、简短搬运过场和首趟结束：改变关系的反应详写，常规搬运一笔带过。示例片段均由编辑手写。",
@@ -1932,7 +1943,7 @@
         "If prose is separately requested, return a candidate opening or continuation with an explicit start and stop, plus a short note on what was staged, compressed and left unresolved. A trial excerpt, approved outline, saved manuscript and committed chapter are different artifacts."
       ],
       "zh": [
-        "一份范围明确、能指导正文的细纲：事实边界、目标、阻碍、证据、选择、代价、状态变化和章尾交接齐全。",
+        "一份范围明确、能指导正文的细纲：事实边界、目标、阻碍、证据、选择、代价、人物处境变化和章尾交接齐全。",
         "一份待决清单：材料定不下来的动机、证据或未来事件列成问题，留给作者决定；只排纲任务停在正文之前。",
         "触及锁定规划或已完成章节时给出影响说明；起草未来细纲时，追踪保持不变。",
         "另行要求成文时，交付标明起点与停点的候选开场或续段，以及详写了什么、压缩了什么、哪些结果仍未发生的简短说明。试段、已批准细纲、已保存正文和已提交的章节是不同产物。"
@@ -1945,7 +1956,7 @@
         "Check against the chosen task: planning-only work stops before prose; a chat exercise returns only its scoped excerpt and leaves saved files and tracking unchanged; manuscript editing needs separate explicit authorization. In every case, locked material changes only with authorization, and future plans stay recorded as plans. For wording-level revision, use [the prose revision guide](https://zenstory.ai/oh-story/revise-ai-prose)."
       ],
       "zh": [
-        "逐点指出可见载体与状态变化，再看反应是否有成立过程。重复标签可以删；没有新增事件的段落，只要提供了人物层次、处境感或必要停顿，就可以留下。这种余韵由材料自然长出，不按配额另加。",
+        "逐点指出可见载体与人物处境变化，再看反应是否有成立过程。重复标签可以删；没有新增事件的段落，只要提供了人物层次、处境感或必要停顿，就可以留下。这种余韵由材料自然长出，不按配额另加。",
         "证据须先出现再改变选择；代价有承担者；章尾来自批准行动，反转也要事先获批。",
         "按所选任务检查范围：只排纲时停在正文之前；聊天试写时只交约定片段，保存文件和追踪保持原样；正式编辑时另有明确授权。每种任务下，锁定内容都要经授权才改，未来规划始终记作规划。落笔后只改措辞，可看[具体改稿指南](https://zenstory.ai/oh-story/revise-ai-prose)。"
       ]
@@ -1969,7 +1980,7 @@
       "zh": [
         "[从细纲规格到可见场景](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/writing-craft.md#L257-L271)",
         "[场景目标、阻碍、变化与具体章尾](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-review/references/review-quality.md#L31-L47)",
-        "[状态变化与对白功能检查](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-review/references/review-quality.md#L191-L204)",
+        "[人物处境变化与对白功能检查](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-review/references/review-quality.md#L191-L204)",
         "[章节蓝图字段、释放边界与语义去重](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-chapter.md#L31-L42)",
         "[批准情节点覆盖、章尾与追踪边界](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/workflow-chapter.md#L61-L70)",
         "[单章钩子的种、养、收](https://github.com/zenstory-ai/oh-story-claudecode/blob/f138f584fe543e1afe66307d8a7643b61d502d04/skills/story-long-write/references/long-suspense.md#L87-L95)",
@@ -1981,12 +1992,13 @@
         "[早期章节定调，不强求公式](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/style-craft.md#L287-L303)",
         "[人物余韵：删稿规则的例外](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/writing-craft.md#L240-L253)"
       ]
-    }
+    },
+    "topic": "plot-and-outline"
   },
   {
     "owner": "oh-story",
     "slug": "preserve-author-voice",
-    "checked_on": "2026-09-13",
+    "checked_on": "2026-09-29",
     "title": {
       "en": "Keep your writing voice when AI continues your novel",
       "zh": "AI续写怎么保持文风：拆成表达维度，附上短样本"
@@ -2110,12 +2122,13 @@
         "[确认、替换与停用状态变更](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/scripts/author_memory_commit.py#L480-L544)",
         "[单事件回执与 active 偏好查询](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/scripts/author_memory_commit.py#L716-L780)"
       ]
-    }
+    },
+    "topic": "revision"
   },
   {
     "owner": "oh-story",
     "slug": "review-and-revise",
-    "checked_on": "2026-09-13",
+    "checked_on": "2026-09-29",
     "title": {
       "en": "Turn AI manuscript feedback into a focused revision plan",
       "zh": "AI审稿意见怎么改：分清必改、可选与后续影响"
@@ -2249,15 +2262,16 @@
         "[修订事务与后续章节影响](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-revision.md#L56-L72)",
         "[细纲边界与需要先规划的变化](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-chapter.md#L34-L43)"
       ]
-    }
+    },
+    "topic": "revision"
   },
   {
     "owner": "oh-story",
     "slug": "short-story-from-idea",
-    "checked_on": "2026-09-13",
+    "checked_on": "2026-09-29",
     "title": {
-      "en": "Short story from one premise: pressure, choice and payoff",
-      "zh": "一个梗怎么写成短篇小说：承诺、递进、选择与兑现"
+      "zh": "一个点子怎么写成短篇小说：大纲、冲突与结尾",
+      "en": "How to Turn an Idea into a Complete Short Story"
     },
     "answer": {
       "en": "A premise gives a short story its starting pressure; the plot still has to be built. Decide what the reader should want answered, what prevents an easy answer, what the protagonist must choose and what observable change will settle that question. Then build only the scenes needed to earn that ending. A twist is optional. Oh Story’s short-writing workflow separates design from drafting and plans with a section outline that is lighter than a long-novel chapter blueprint. The four-part framing here is an editorial thinking aid; the design files still follow the skill’s bundled format. The original repair-shop example closes one relationship decision and leaves the family’s longer history where it is. The opening, negotiation and ending excerpts below show that choice on the page: a failed hint becomes stated terms, a deposit and a departure, while the jacket still waits to be mended at her new home and older family hurts remain.",
@@ -2388,12 +2402,13 @@
         "[正文文件与明确交付参数](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-short-write/references/workflow-draft.md#L5-L13)",
         "[分批写作、整篇范围与不擅自合并小节](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-short-write/references/workflow-draft.md#L34-L49)"
       ]
-    }
+    },
+    "topic": "plot-and-outline"
   },
   {
     "owner": "oh-story",
     "slug": "character-dialogue",
-    "checked_on": "2026-09-13",
+    "checked_on": "2026-09-29",
     "title": {
       "en": "Distinct character dialogue: goals, knowledge, relationships",
       "zh": "小说人物对话怎么写出区分度：按目标、信息与关系来分"
@@ -2515,15 +2530,16 @@
         "[情节与揭示边界优先于表达](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-review/references/style-resolution.md#L5-L18)",
         "[局部范围、上下文、备份与后续影响检查](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/workflow-revision.md#L7-L75)"
       ]
-    }
+    },
+    "topic": "characters-and-dialogue"
   },
   {
     "owner": "oh-story",
     "slug": "character-motivation",
-    "checked_on": "2026-09-13",
+    "checked_on": "2026-09-29",
     "title": {
-      "en": "Character motivation: turn AI profiles into story choices",
-      "zh": "人物动机怎么写：把目标、动机与选择连起来"
+      "zh": "人物动机怎么写：目标、阻力与选择",
+      "en": "How to Write Believable Character Motivation"
     },
     "answer": {
       "en": "To show why a character acts, give them a concrete goal, a reason it matters to them, an obstacle and something they could lose, then show how their usual way of solving problems shapes one choice. However detailed the profile, the motive only becomes visible in that choice. Oh Story’s character references distinguish goals from motives and connect motivation to cause, intention, constraint and risk. The original fantasy-courier example below turns “proud but responsible” into a sequence of decisions, and a separate prose excerpt lets the offer, resistance and agreement happen in dialogue and action. Trauma, a hidden secret and a growth arc are optional; use them when the character and the story call for them.",
@@ -2664,6 +2680,7 @@
         "[以人物驱动行动，剧情与人设冲突时先改剧情](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/character-basics.md#L277-L288)",
         "[人物想从谈话里得到什么](https://github.com/zenstory-ai/oh-story-claudecode/blob/67e77b206c8e9413c541759b9baaf6c613a6dbfd/skills/story-long-write/references/dialogue-mastery.md#L104-L108)"
       ]
-    }
+    },
+    "topic": "characters-and-dialogue"
   }
 ]

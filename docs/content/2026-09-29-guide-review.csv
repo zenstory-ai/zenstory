@@ -1,0 +1,1062 @@
+route,title_zh,decision,target,reason,original_body_characters,original_skill
+/oh-story/novel-opening,黄金三章怎么写：网文开头前三章交付清单与自查评分表,revise,,保留具体方法与案例，修订作者用语、分类和来源,3633,story-long-write
+/oh-story/claude-code-novel-writing,Claude/Codex 写小说 skill：从安装到第一章,revise,,保留具体方法与案例，修订作者用语、分类和来源,5746,story-setup
+/oh-story/chapter-ending-hooks,网文断章技巧：13种章尾钩子怎么写、怎么选,revise,,保留具体方法与案例，修订作者用语、分类和来源,3895,story-long-write
+/oh-story/chapter-outline-template,网文细纲模板：细纲怎么写，和章纲有什么区别（附范例）,revise,,保留具体方法与案例，修订作者用语、分类和来源,4043,story-long-write
+/oh-story/rules-horror,规则怪谈怎么写：规则开始冲突才可怕,revise,,保留具体方法与案例，修订作者用语、分类和来源,3318,story-long-write
+/drama-skills/character-turnaround-prompt,角色三视图提示词怎么写（附模板与 6 个范例）,revise,,保留具体方法与案例，修订作者用语、分类和来源,4613,short-drama-image-prompts
+/drama-skills/seedance-prompts,Seedance提示词怎么写：起点、动作链、终点三步写法,revise,,保留具体方法与案例，修订作者用语、分类和来源,3519,short-drama-video-prompts
+/oh-story/revise-ai-prose,去AI味怎么改：三遍改稿与删改刹车,revise,,保留具体方法与案例，修订作者用语、分类和来源,3547,story-deslop
+/oh-story/learn-from-fiction,小说拆书怎么拆（附网文拆书模板）：从原文证据到新故事,revise,,保留具体方法与案例，修订作者用语、分类和来源,3950,story-long-analyze
+/drama-skills/script-to-storyboard,分镜脚本怎么写：短剧分镜表模板，把剧本逐镜拆开,revise,,保留具体方法与案例，修订作者用语、分类和来源,3774,short-drama-storyboard
+/oh-story/satisfaction-beats,网文爽点有哪些、怎么写：用倒推法完成铺垫与兑现,revise,,保留具体方法与案例，修订作者用语、分类和来源,2604,story-long-write
+/oh-story/plot-twists,小说反转怎么写：6种类型的铺垫、揭示与后果,revise,,保留具体方法与案例，修订作者用语、分类和来源,2808,story-long-write
+/drama-skills/paywall-episode,短剧付费卡点怎么设计：卡点前要欠观众什么,revise,,保留具体方法与案例，修订作者用语、分类和来源,2574,short-drama-develop
+/drama-skills/image-to-video-prompts,图生视频提示词怎么写：参考帧减法与 8 类运动难题,revise,,保留具体方法与案例，修订作者用语、分类和来源,3607,short-drama-video-prompts
+/drama-skills/first-last-frame,首尾帧生成视频怎么用：判断、写法与避坑,revise,,保留具体方法与案例，修订作者用语、分类和来源,1237,short-drama-storyboard
+/drama-skills/reroll-or-rewrite,AI视频不满意：重抽、改提示词还是补拍？,revise,,保留具体方法与案例，修订作者用语、分类和来源,1367,short-drama-review
+/oh-story/novel-outline-template,网文大纲怎么写：长篇小说大纲模板与分卷范例,revise,,保留具体方法与案例，修订作者用语、分类和来源,1605,story-long-write
+/oh-story/writers-block,写小说卡文了怎么办：先诊断，再写下一步,revise,,保留具体方法与案例，修订作者用语、分类和来源,1330,story-long-write
+/oh-story/novel-blurb,小说简介怎么写：从正文卖点到可读文案,revise,,保留具体方法与案例，修订作者用语、分类和来源,1361,story-long-write
+/drama-skills/episode-outline-template,短剧分集大纲怎么写：分集地图模板与范例,revise,,保留具体方法与案例，修订作者用语、分类和来源,1411,short-drama-develop
+/oh-story/short-story-outline-template,短篇小说大纲模板：从情绪落点倒推每一节,revise,,保留具体方法与案例，修订作者用语、分类和来源,1897,story-short-write
+/oh-story/system-panel-template,小说系统面板怎么写：规则、代价与显示模板,revise,,保留具体方法与案例，修订作者用语、分类和来源,1280,story-long-write
+/oh-story/face-slapping-scene,打脸剧情怎么写：让反应真正改变局面,revise,,保留具体方法与案例，修订作者用语、分类和来源,1231,story-long-write
+/oh-story/foreshadowing-and-suspense,小说伏笔怎么埋：伏笔和悬念的区别与回收方法,revise,,保留具体方法与案例，修订作者用语、分类和来源,2253,story-long-write
+/oh-story/web-serial-pacing,网文节奏怎么把控：用状态变化安排快慢,revise,,保留具体方法与案例，修订作者用语、分类和来源,1409,story-long-write
+/oh-story/romance-subplot,小说感情线怎么写：让关系通过选择升级,revise,,保留具体方法与案例，修订作者用语、分类和来源,1185,story-long-write
+/oh-story/villains,小说反派怎么写不降智：目标、筹码与反制,revise,,保留具体方法与案例，修订作者用语、分类和来源,1081,story-long-write
+/oh-story/fight-scenes,打斗场面怎么写：先定胜负，再安排动作,revise,,保留具体方法与案例，修订作者用语、分类和来源,1173,story-long-write
+/oh-story/worldbuilding-exposition,小说设定怎么自然交代：让规则进入行动,revise,,保留具体方法与案例，修订作者用语、分类和来源,1137,story-long-write
+/oh-story/novel-titles,网文书名怎么起：从卖点生成可兑现的标题,revise,,保留具体方法与案例，修订作者用语、分类和来源,1149,story-long-write
+/oh-story/reader-retention,追读下降怎么办：修复断掉的期待链,revise,,保留具体方法与案例，修订作者用语、分类和来源,1097,story-long-write
+/oh-story/angst-fiction,虐文怎么写才虐：先建立羁绊，再制造撕裂,revise,,保留具体方法与案例，修订作者用语、分类和来源,1062,story-long-write
+/oh-story/tropes-without-copying,网文套路怎么用不雷同：提取功能，再重新设计,revise,,保留具体方法与案例，修订作者用语、分类和来源,1060,story-long-write
+/oh-story/protagonist-agency,主角被配角抢戏怎么办：拿回因果权和结算权,revise,,保留具体方法与案例，修订作者用语、分类和来源,1000,story-long-write
+/oh-story/reader-dealbreakers,网文毒点有哪些：区分人物犯错与作者强推,revise,,保留具体方法与案例，修订作者用语、分类和来源,1068,story-long-write
+/oh-story/short-story-paywall,短篇付费卡点怎么设计：先定断点，再倒推,revise,,保留具体方法与案例，修订作者用语、分类和来源,926,story-short-write
+/oh-story/family-drama-fiction,世情文怎么写：小恶累积、证据清算,revise,,保留具体方法与案例，修订作者用语、分类和来源,995,story-short-write
+/oh-story/sweet-romance,甜宠文怎么写才不腻：用关系变化制造甜,revise,,保留具体方法与案例，修订作者用语、分类和来源,980,story-short-write
+/drama-skills/episode-ending-hooks,短剧集尾钩子怎么写：本集有结果，下集有事做,revise,,保留具体方法与案例，修订作者用语、分类和来源,2000,short-drama-develop
+/drama-skills/episode-one,短剧第一集怎么写：选开场时刻，让人物马上有事可做,revise,,保留具体方法与案例，修订作者用语、分类和来源,2344,short-drama-develop
+/drama-skills/coincidence-and-misunderstanding,误会梗怎么写不狗血：巧合、选择与澄清后的代价,revise,,保留具体方法与案例，修订作者用语、分类和来源,1920,short-drama-write
+/oh-story/period-novel,年代文怎么写：让物件、流程和人情账推动剧情,revise,,保留具体方法与案例，修订作者用语、分类和来源,1273,story-long-write
+/oh-story/palace-intrigue,宫斗文怎么写：规矩、证据与裁决怎样形成回合,revise,,保留具体方法与案例，修订作者用语、分类和来源,1200,story-long-write
+/oh-story/crematorium-arc,追妻火葬场怎么写：伤害、离场与追悔怎样成立,revise,,保留具体方法与案例，修订作者用语、分类和来源,1171,story-long-write
+/oh-story/ceo-romance,霸总文怎么写不油腻：把照料和控制分开,revise,,保留具体方法与案例，修订作者用语、分类和来源,1186,story-long-write
+/oh-story/rebirth-revenge,重生复仇文怎么写：切开前世信息，保留新的阻力,revise,,保留具体方法与案例，修订作者用语、分类和来源,1057,story-long-write
+/oh-story/mystery-novel,悬疑小说怎么写：用线索账本检查公平揭示,revise,,保留具体方法与案例，修订作者用语、分类和来源,1419,story-long-write
+/oh-story/web-novel-subgenres,网文流派有哪些：先看每种流派的核心循环,revise,,保留具体方法与案例，修订作者用语、分类和来源,1337,story-long-write
+/drama-skills/generable-actions,AI视频动作崩坏怎么办：保住剧情信息，重写动作实现,revise,,保留具体方法与案例，修订作者用语、分类和来源,1918,short-drama-video-prompts
+/drama-skills/text-in-ai-frames,AI画面文字乱码怎么办：可读文字、空白区与后期字幕分开处理,revise,,保留具体方法与案例，修订作者用语、分类和来源,2017,short-drama-image-prompts
+/drama-skills/motion-comic-styles,漫剧画风怎么选：动态漫、二次元、水墨与Q版的制作取舍,revise,,保留具体方法与案例，修订作者用语、分类和来源,2053,short-drama
+/drama-skills/vertical-storyboarding,竖屏短剧分镜怎么设计：多人站位、景别与字幕避让,revise,,保留具体方法与案例，修订作者用语、分类和来源,1988,short-drama-storyboard
+/oh-story/ai-tell-words,AI味高频词有哪些：先看它在句子里做了什么,revise,,保留具体方法与案例，修订作者用语、分类和来源,1400,story-deslop
+/oh-story/over-edited-prose,去AI味改过头怎么办：把电报体修回自然叙事,revise,,保留具体方法与案例，修订作者用语、分类和来源,1229,story-deslop
+/oh-story/emotion-on-the-page,小说情绪描写怎么写：让感受改变行动,revise,,保留具体方法与案例，修订作者用语、分类和来源,970,story-long-write
+/oh-story/yanyan-stories,盐言故事怎么写：用有限视角推进误判与反转,revise,,保留具体方法与案例，修订作者用语、分类和来源,1315,story-short-write
+/oh-story/short-vs-long-fiction,短篇和长篇小说有什么区别：同一题材的两套结构,revise,,保留具体方法与案例，修订作者用语、分类和来源,1163,story-short-write
+/video-recap/recap-script,影视解说文案怎么写：先定观众问题，再分配画面与旁白,revise,,保留具体方法与案例，修订作者用语、分类和来源,1320,video-recap
+/video-recap/clip-titles,视频切片标题和花字怎么写：承诺、证据与分工,revise,,保留具体方法与案例，修订作者用语、分类和来源,1378,video-recap
+/drama-skills/revenge-micro-drama,复仇打脸短剧怎么写：每次翻盘都拿回一项权力,revise,,保留具体方法与案例，修订作者用语、分类和来源,681,short-drama-develop
+/drama-skills/secret-baby-drama,萌宝短剧怎么写：让孩子拥有自己的目标,revise,,保留具体方法与案例，修订作者用语、分类和来源,607,short-drama-develop
+/drama-skills/screenwriting,短剧剧本怎么写：把故事写成可表演的场景,revise,,保留具体方法与案例，修订作者用语、分类和来源,823,short-drama-write
+/drama-skills/episode-structure,短剧一集怎么写：用因果链完成一次状态变化,revise,,保留具体方法与案例，修订作者用语、分类和来源,689,short-drama-develop
+/drama-skills/adaptation-value,什么样的小说适合改短剧：先看能否变成屏幕行动,revise,,保留具体方法与案例，修订作者用语、分类和来源,608,short-drama-novel-analyze
+/drama-skills/micro-drama-dialogue,短剧台词怎么写：让每句话改变现场,revise,,保留具体方法与案例，修订作者用语、分类和来源,599,short-drama-write
+/drama-skills/mid-season-sag,短剧中段拖沓怎么办：让故事循环换代,revise,,保留具体方法与案例，修订作者用语、分类和来源,584,short-drama-develop
+/novel-to-game/choose-gameplay,小说改游戏选什么类型：把原作的反复行动变成玩法,revise,,保留具体方法与案例，修订作者用语、分类和来源,1911,game-concept
+/oh-story/choosing-a-genre,网文写什么题材好：从兴趣、承诺到试写验证,revise,,保留具体方法与案例，修订作者用语、分类和来源,695,story-long-write
+/oh-story/quick-transmigration-novel,快穿小说怎么写：让每个世界改变总任务,revise,,保留具体方法与案例，修订作者用语、分类和来源,761,story-long-write
+/oh-story/farming-novel,女频种田文怎么写：让生活资源和关系一起增长,revise,,保留具体方法与案例，修订作者用语、分类和来源,654,story-long-write
+/oh-story/apocalypse-scifi-novel,科幻末世小说怎么写：资源、规则与信任同时倒计时,revise,,保留具体方法与案例，修订作者用语、分类和来源,838,story-long-write
+/oh-story/western-fantasy-novel,西幻小说怎么写：让制度和魔法代价进入行动,revise,,保留具体方法与案例，修订作者用语、分类和来源,655,story-long-write
+/oh-story/workplace-romance-novel,职场婚恋小说怎么写：让事业与感情互相改变选择,revise,,保留具体方法与案例，修订作者用语、分类和来源,698,story-long-write
+/oh-story/story-bible-template,小说人物设定集怎么整理：角色、时间线与知识边界模板,revise,,保留具体方法与案例，修订作者用语、分类和来源,798,story-long-write
+/oh-story/novel-cover-prompts,小说封面提示词怎么写：题材、构图和文字分层,revise,,保留具体方法与案例，修订作者用语、分类和来源,803,story-cover
+/oh-story/emotional-safety-in-romance,女频小说安全感怎么写：虐有回报，选择有去处,revise,,保留具体方法与案例，修订作者用语、分类和来源,698,story-long-write
+/oh-story/urban-premise-novel,都市脑洞文怎么写：让一个新规则撑起整本书,revise,,保留具体方法与案例，修订作者用语、分类和来源,613,story-long-write
+/drama-skills/short-drama-lighting-prompts,短剧灯光提示词怎么写：从光源、职责到跨镜连续,revise,,保留具体方法与案例，修订作者用语、分类和来源,1323,short-drama-storyboard
+/drama-skills/motivated-camera-movement,镜头运动怎么设计：推拉摇移都要有叙事动机,revise,,保留具体方法与案例，修订作者用语、分类和来源,1371,short-drama-storyboard
+/drama-skills/shot-reverse-shot-continuity,正反打怎么拍不跳轴：轴线、视线与道具连续,revise,,保留具体方法与案例，修订作者用语、分类和来源,1223,short-drama-storyboard
+/drama-skills/scene-sound-and-silence,短剧声音怎么设计：让环境声、留白与声音桥推动剧情,revise,,保留具体方法与案例，修订作者用语、分类和来源,1252,short-drama-write
+/drama-skills/dialogue-timing,短剧台词节奏怎么设计：对白、动作与反应一起排,revise,,保留具体方法与案例，修订作者用语、分类和来源,1168,short-drama-video-prompts
+/drama-skills/reference-image-roles,AI短剧参考图怎么用：角色、场景、构图与风格分开绑定,revise,,保留具体方法与案例，修订作者用语、分类和来源,1443,short-drama
+/drama-skills/visual-look-development,短剧视觉风格怎么统一：代表帧开发方法,revise,,保留具体方法与案例，修订作者用语、分类和来源,1462,short-drama
+/oh-story/ensemble-cast,群像小说怎么写：让人物各有用处，关系互相推动,revise,,保留具体方法与案例，修订作者用语、分类和来源,1163,story-long-write
+/oh-story/comedy-short-story,沙雕短篇怎么写：让笑点从设定和人物反应里长出来,revise,,保留具体方法与案例，修订作者用语、分类和来源,1147,story-short-write
+/oh-story/historical-fiction,历史小说怎么写：把史料约束变成剧情,revise,,保留具体方法与案例，修订作者用语、分类和来源,1641,story-long-write
+/oh-story/historical-premise-novel,历史脑洞小说怎么写：让新信息真正撬动旧秩序,revise,,保留具体方法与案例，修订作者用语、分类和来源,1391,story-long-write
+/oh-story/game-competition-novel,电竞小说怎么写：让规则、操作与团队反馈决定胜负,revise,,保留具体方法与案例，修订作者用语、分类和来源,1097,story-long-write
+/oh-story/entertainment-industry-novel,娱乐圈小说怎么写：才华展示必须换来职业后果,revise,,保留具体方法与案例，修订作者用语、分类和来源,1129,story-long-write
+/oh-story/urban-slice-of-life-novel,都市日常文怎么写不流水账：小事也要改变生活,revise,,保留具体方法与案例，修订作者用语、分类和来源,1342,story-long-write
+/oh-story/folk-horror-fiction,民俗怪谈怎么写：让一条禁忌贯穿人情与代价,revise,,保留具体方法与案例，修订作者用语、分类和来源,1347,story-short-write
+/oh-story/narrative-point-of-view,小说视角怎么选：第一人称、第三人称与切换方法,revise,,保留具体方法与案例，修订作者用语、分类和来源,1411,story-long-write
+/oh-story/character-arc,人物弧光怎么写：让旧办法在多次选择中发生变化,revise,,保留具体方法与案例，修订作者用语、分类和来源,1226,story-long-write
+/oh-story/story-conflict,小说冲突怎么写：让双方在反制中失去旧解法,revise,,保留具体方法与案例，修订作者用语、分类和来源,1243,story-long-write
+/oh-story/climax-scene,小说高潮怎么写：让承诺汇合，逼出最终选择,revise,,保留具体方法与案例，修订作者用语、分类和来源,1618,story-long-write
+/drama-skills/body-swap-story,身体互换短剧怎么写：让身份限制改变完成任务的方法,revise,,保留具体方法与案例，修订作者用语、分类和来源,1409,short-drama-develop
+/video-recap/editing-rhythm,视频剪辑节奏怎么把控：删等待，留下动作和反应,revise,,保留具体方法与案例，修订作者用语、分类和来源,1258,video-recap
+/oh-story/scene-transitions,小说转场怎么写：让前一场把读者送进下一场,revise,,保留具体方法与案例，修订作者用语、分类和来源,1428,story-long-write
+/oh-story/flashbacks-in-fiction,小说回忆怎么写：让过去改变眼前的选择,revise,,保留具体方法与案例，修订作者用语、分类和来源,1229,story-long-write
+/oh-story/environment-description,小说环境描写怎么写：让人物在场景里行动,revise,,保留具体方法与案例，修订作者用语、分类和来源,1208,story-long-write
+/drama-skills/adaptation-character-compression,小说改短剧怎么删角色、合并角色：先保住人物功能,revise,,保留具体方法与案例，修订作者用语、分类和来源,1507,short-drama-develop
+/drama-skills/evidence-reveal-storyboard,短剧证据镜头怎么拍：让观众看清，也看见后果,revise,,保留具体方法与案例，修订作者用语、分类和来源,1218,short-drama-storyboard
+/drama-skills/prop-reference-image,AI短剧道具参考图怎么做：把形制、状态和文字分开,revise,,保留具体方法与案例，修订作者用语、分类和来源,1219,short-drama-image-prompts
+/drama-skills/short-drama-inner-monologue,短剧内心戏怎么写：把心理活动变成可表演信息,revise,,保留具体方法与案例，修订作者用语、分类和来源,1222,short-drama-write
+/drama-skills/adaptation-timeline-reordering,小说改短剧怎么调整时间线：重排顺序，别打断因果,revise,,保留具体方法与案例，修订作者用语、分类和来源,1307,short-drama-develop
+/drama-skills/adaptation-scene-compression,小说改短剧怎么合并场景：减地点，不剪断因果,revise,,保留具体方法与案例，修订作者用语、分类和来源,1727,short-drama-develop
+/oh-story/recurring-object-in-fiction,小说贯穿物件怎么写：让同一件东西改变关系含义,merge,/oh-story/emotion-on-the-page,同一读者问题并入主文章,1323,story-long-write
+/oh-story/numbers-in-fiction,小说里数字怎么写出代价：把金额、时间和数量换成选择,merge,/oh-story/show-vs-tell-fiction,同一读者问题并入主文章,1342,story-long-write
+/novel-to-game/resource-cost-design,游戏资源消耗怎么设计：把行动成本算到最后一步,revise,,保留具体方法与案例，修订作者用语、分类和来源,1810,game-world-design
+/drama-skills/motion-comic,什么是漫剧、AI漫剧怎么做：从剧本到成片流程,revise,,保留具体方法与案例，修订作者用语、分类和来源,2151,short-drama
+/oh-story/golden-finger,网文金手指有哪些、怎么设计：规则、代价与成长线,revise,,保留具体方法与案例，修订作者用语、分类和来源,2103,story-long-write
+/oh-story/cultivation-realms,修仙境界怎么设计（附原创境界划分表）,revise,,保留具体方法与案例，修订作者用语、分类和来源,2149,story-long-write
+/oh-story/story-lead-in,小说导语怎么写：四维骨架与黄金三角,revise,,保留具体方法与案例，修订作者用语、分类和来源,1742,story-short-write
+/drama-skills/character-performance-prompts,AI视频人物表情僵硬怎么办：把情绪写成可见反应,revise,,保留具体方法与案例，修订作者用语、分类和来源,1779,short-drama-video-prompts
+/video-recap/multi-video-story-edit,多个视频怎么剪成一个完整故事：让每段素材服务同一条主线,revise,,保留具体方法与案例，修订作者用语、分类和来源,2140,video-recap
+/video-recap/recap-background-research,影视解说写稿前怎么查资料：背景与画面证据分开记,revise,,保留具体方法与案例，修订作者用语、分类和来源,2093,video-recap
+/video-recap/subtitle-layout-and-line-breaks,视频字幕怎么排版和断句：先锁音画，再用样帧检查,revise,,保留具体方法与案例，修订作者用语、分类和来源,2150,video-recap
+/drama-skills/local-image-edit-prompts,AI图片局部修改提示词怎么写：写清改哪里、留下什么,revise,,保留具体方法与案例，修订作者用语、分类和来源,1651,short-drama-image-prompts
+/novel-to-game/gameplay-core-loop,游戏核心循环怎么设计：把动作、回应和下一步连成闭环,revise,,保留具体方法与案例，修订作者用语、分类和来源,1938,game-world-design
+/novel-to-game/game-level-pacing,游戏关卡怎么设计：用新决定和规则重组安排节奏,revise,,保留具体方法与案例，修订作者用语、分类和来源,1855,game-world-design
+/novel-to-game/readable-gameplay-feedback,游戏反馈怎么设计：让玩家看懂动作、结果和下一步,revise,,保留具体方法与案例，修订作者用语、分类和来源,1901,game-world-design
+/novel-to-game/game-failure-and-restart,游戏失败与重开怎么设计：写清原因、保留内容和恢复位置,revise,,保留具体方法与案例，修订作者用语、分类和来源,2633,game-world-design
+/drama-skills/character-look-variants,同一角色多套造型怎么管理：从身份卡到造型版本表,revise,,保留具体方法与案例，修订作者用语、分类和来源,4065,short-drama-image-prompts
+/drama-skills/idea-to-creative-brief,短剧只有一个点子怎么展开：把灵感变成故事引擎,revise,,保留具体方法与案例，修订作者用语、分类和来源,3654,short-drama-develop
+/video-recap/subtitle-packaging-order,AI解说视频什么时候加字幕？先锁定画面和声音,merge,/video-recap/subtitle-layout-and-line-breaks,同一读者问题并入主文章,2711,video-recap
+/oh-story/subplot-mainline-convergence,小说支线怎么写才不拖主线：目标、作用与回归点,revise,,保留具体方法与案例，修订作者用语、分类和来源,3366,story-long-write
+/novel-to-game/llm-text-games,AI文字冒险游戏怎么设计：让自由输入不乱改结果,revise,,保留具体方法与案例，修订作者用语、分类和来源,2940,game-world-design
+/oh-story/fanqie-vs-qidian,番茄和起点哪个好：给 AI 的两套写作简报,revise,,保留具体方法与案例，修订作者用语、分类和来源,2425,story-long-write
+/drama-skills/hailuo-h3-prompts,海螺H3提示词怎么写：三段结构、声音分层与参考模式,revise,,保留具体方法与案例，修订作者用语、分类和来源,4492,short-drama-video-prompts
+/dsh/deepseek-text-adventure,DeepSeek文游提示词怎么玩：把小说改成可玩的一幕,revise,,保留具体方法与案例，修订作者用语、分类和来源,1929,novel-to-game
+/oh-story/volume-outline-template,小说卷纲怎么写：把一卷排成连续推进的故事,revise,,保留具体方法与案例，修订作者用语、分类和来源,3222,story-long-write
+/oh-story/ai-novel-word-count,AI写小说字数不够怎么办：先补漏掉的情节点,revise,,保留具体方法与案例，修订作者用语、分类和来源,2266,story-long-write
+/video-recap/subtitle-timing-evidence,SRT字幕和AI配音不同步：分清偏移、漂移与单条错误,revise,,保留具体方法与案例，修订作者用语、分类和来源,3576,video-recap
+/oh-story/ai-assisted-novel-submission,AI写的小说能签约吗：投稿规则、来源与最终文件检查,revise,,保留具体方法与案例，修订作者用语、分类和来源,3277,story-review
+/oh-story/hidden-strength-loop,扮猪吃虎怎么写：用连载循环安排隐藏实力,revise,,保留具体方法与案例，修订作者用语、分类和来源,3043,story-long-write
+/oh-story/dual-male-lead-subtext,双男主感情线怎么写出潜台词：用信息差与行动痕迹,revise,,保留具体方法与案例，修订作者用语、分类和来源,1867,story-short-write
+/novel-to-game/game-voice-assets,AI游戏角色配音怎么做：用台词表对齐语音、字幕与触发,revise,,保留具体方法与案例，修订作者用语、分类和来源,4811,game-build
+/drama-skills/shot-continuity-checklist,AI短剧镜头不连贯怎么办：逐剪点排查前后状态,revise,,保留具体方法与案例，修订作者用语、分类和来源,3416,short-drama-storyboard
+/drama-skills/music-continuity-across-shots,AI视频配乐在剪辑点重启怎么办：跨镜头接续表,merge,/drama-skills/scene-sound-and-silence,同一读者问题并入主文章,1999,short-drama-video-prompts
+/drama-skills/ai-video-ambient-sound-continuity,AI视频换镜后环境声忽变怎么办：同场底声检查表,merge,/drama-skills/scene-sound-and-silence,同一读者问题并入主文章,1904,short-drama-video-prompts
+/drama-skills/vertical-drama-script-format,短剧剧本格式模板：场景、动作和对白怎么分,revise,,保留具体方法与案例，修订作者用语、分类和来源,2411,short-drama-write
+/oh-story/ai-repeated-actions,AI写小说动作描写重复怎么办：合并同一瞬间的改稿法,revise,,保留具体方法与案例，修订作者用语、分类和来源,2204,story-deslop
+/oh-story/ai-fiction-consistency-check,AI写小说前后矛盾怎么查：证据链审稿法,revise,,保留具体方法与案例，修订作者用语、分类和来源,3034,story-review
+/oh-story/write-a-satisfying-novel-ending,小说结尾怎么写才满足：兑现承诺，也留下余味,rewrite,,常用问题补充具体模板与原创案例,511,story-long-write
+/oh-story/show-vs-tell-fiction,小说展示还是概述：什么时候该写场景，什么时候该略过,rewrite,,常用问题补充具体模板与原创案例,449,story-long-write
+/oh-story/write-a-scene-that-changes-the-story,小说场景怎么写：让目标、阻力和结果都发生变化,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,390,story-long-write
+/oh-story/plan-a-novel-series,长篇系列怎么规划：每一卷有回报，也有新问题,rewrite,,常用问题补充具体模板与原创案例,394,story-long-write
+/oh-story/write-character-backstory,人物前史怎么写才有用：让过去影响眼前选择,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,396,story-long-write
+/oh-story/write-believable-character-motivation,人物动机怎么写可信：把需要变成眼前选择,merge,/oh-story/character-motivation,同一读者问题并入主文章,446,story-long-write
+/oh-story/write-natural-dialogue-in-fiction,小说对白怎么写自然：让每句话带着目的,merge,/oh-story/character-dialogue,同一读者问题并入主文章,404,story-long-write
+/oh-story/avoid-info-dumps-in-novels,小说怎么避免设定堆砌：让信息解决眼前问题,merge,/oh-story/worldbuilding-exposition,同一读者问题并入主文章,395,story-long-write
+/oh-story/write-a-romance-confession-scene,言情告白场景怎么写：让关系变化落在选择上,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,397,story-long-write
+/oh-story/design-a-magic-system-readers-understand,魔法体系怎么设计清楚：先定边界，再让规则影响剧情,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,444,story-long-write
+/oh-story/write-a-novel-prologue,小说序章怎么写：让它提供正文开篇给不了的信息,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,387,story-long-write
+/oh-story/write-a-novel-synopsis,小说投稿梗概怎么写：讲清主线、转折和结局,rewrite,,常用问题补充具体模板与原创案例,386,story-setup
+/oh-story/revise-the-first-draft-of-a-novel,小说初稿怎么修改：先看结构，再改句子,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,395,story-long-write
+/oh-story/build-a-realistic-writing-routine,怎么建立可持续的写作习惯：让下一步足够清楚,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,382,story-long-write
+/oh-story/write-character-chemistry,人物化学反应怎么写：让互动改变彼此的下一步,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,368,story-long-write
+/oh-story/choose-past-or-present-tense,小说用过去时还是现在时：按叙事效果来选,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,365,story-long-write
+/oh-story/write-an-unreliable-narrator,不可靠叙述者怎么写：让误判有线索，也有代价,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,418,story-long-write
+/oh-story/write-an-antihero-protagonist,反英雄主角怎么写：给人物底线，也给选择后果,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,368,story-long-write
+/oh-story/add-humor-to-a-novel,小说怎么加幽默感：让笑点来自人物和处境,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,381,story-long-write
+/oh-story/create-emotional-stakes-in-fiction,小说情感利害怎么写：让结果触及人物珍视之物,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,406,story-long-write
+/oh-story/write-a-slow-burn-romance,慢热恋爱怎么写不拖：让每次靠近都改变关系,rewrite,,常用问题补充具体模板与原创案例,371,story-long-write
+/oh-story/write-enemies-to-lovers-romance,先敌后爱怎么写：让冲突真实，也让转变有证据,rewrite,,常用问题补充具体模板与原创案例,382,story-long-write
+/oh-story/write-a-fake-dating-romance,假恋爱怎么写出真感情：让约定制造压力和选择,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,360,story-long-write
+/oh-story/write-a-love-triangle,三角恋怎么写有分量：让每段关系代表不同未来,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,390,story-long-write
+/oh-story/write-a-second-chance-romance,破镜重圆怎么写可信：让旧问题被解决，而非遗忘,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,365,story-long-write
+/oh-story/write-found-family-fiction,小说里的“家人”关系怎么写：让归属感来自行动,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,379,story-long-write
+/oh-story/write-a-redemption-arc,救赎弧线怎么写：改变行为，但不抹去伤害,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,342,story-long-write
+/oh-story/write-a-character-death-that-matters,小说角色死亡怎么写有分量：让选择、关系与余波完整,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,350,story-long-write
+/oh-story/write-grief-in-fiction,小说里的悲伤怎么写：用变化中的日常呈现失去,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,392,story-long-write
+/oh-story/write-a-betrayal-that-feels-earned,小说背叛怎么写有说服力：先建立信任，再改变选择,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,342,story-long-write
+/oh-story/write-a-magic-academy-novel,魔法学院小说怎么写：让课程、竞争和秘密推动成长,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,366,story-long-write
+/oh-story/write-a-time-loop-novel,时间循环小说怎么写不重复：让每次重来都改变代价,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,352,story-long-write
+/oh-story/write-a-time-travel-novel,时间旅行小说怎么写清楚：固定规则、时间线和代价,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,366,story-long-write
+/oh-story/write-a-reincarnation-novel,重生小说怎么写出新意：让前世经验遇上新阻力,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,342,story-long-write
+/oh-story/write-urban-fantasy,都市奇幻怎么写：让超自然规则进入城市生活,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,370,story-long-write
+/oh-story/write-a-psychological-thriller,心理惊悚小说怎么写：让危险来自人物认知与选择,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,351,story-long-write
+/oh-story/write-a-cozy-mystery,温馨推理小说怎么写：让线索公平，社区也有故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,328,story-long-write
+/oh-story/write-a-ghost-story,鬼故事怎么写有余味：让恐惧连接人物与过去,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,351,story-long-write
+/oh-story/write-a-scary-scene,恐怖场景怎么写有压迫感：先限制选择，再兑现威胁,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,321,story-long-write
+/oh-story/write-a-locked-room-mystery,密室推理怎么写：先定限制，再公平铺出解法,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,347,story-long-write
+/oh-story/write-a-novel-in-first-person,第一人称小说怎么写：让叙述声音稳定又有层次,merge,/oh-story/narrative-point-of-view,同一读者问题并入主文章,355,story-long-write
+/oh-story/avoid-head-hopping-in-fiction,小说怎么避免视角乱跳：固定每场能进入谁的内心,merge,/oh-story/narrative-point-of-view,同一读者问题并入主文章,321,story-long-write
+/oh-story/write-a-novel-with-multiple-povs,多视角小说怎么写：让每条视角线带来独有信息,merge,/oh-story/narrative-point-of-view,同一读者问题并入主文章,350,story-long-write
+/oh-story/write-a-character-flaw-that-matters,人物缺点怎么写进剧情：让旧办法有效，也让它带来代价,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,323,story-long-write
+/oh-story/give-each-character-a-distinct-voice,小说人物说话声音怎么区分：从关注点和表达习惯入手,merge,/oh-story/character-dialogue,同一读者问题并入主文章,333,story-long-write
+/oh-story/write-a-relatable-protagonist,主角怎么写让人共情：用具体选择代替完美人设,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,328,story-long-write
+/oh-story/write-a-strong-female-protagonist,女主怎么写得有力量：让能力、关系和代价同时成立,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,297,story-long-write
+/oh-story/write-a-rival-character,小说里的对手怎么写：目标相撞，方法也要不同,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,320,story-long-write
+/oh-story/write-a-mentor-character,导师角色怎么写有作用：传授方法，但不替主角做决定,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,317,story-long-write
+/oh-story/write-a-memorable-supporting-character,配角怎么写得让人记住：目标独立，行动影响主线,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,288,story-long-write
+/oh-story/build-a-cause-and-effect-plot,小说情节怎么写有因果：让下一件事由上一选择引出,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,354,story-long-write
+/oh-story/use-three-act-structure-for-a-novel,小说三幕结构怎么用：用转折安排目标、阻力和结算,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,289,story-long-write
+/oh-story/write-an-inciting-incident,小说激励事件怎么写：让日常目标遇到无法回避的变化,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,323,story-long-write
+/oh-story/write-a-midpoint-turning-point,小说中点怎么写：让新信息改变目标或策略,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,332,story-long-write
+/oh-story/write-rising-action-in-a-novel,小说发展段怎么写不注水：升级旧问题，而非堆新麻烦,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,291,story-long-write
+/video-recap/write-a-youtube-video-script,YouTube视频脚本怎么写：先给观众问题，再安排画面,rewrite,,常用问题补充具体模板与原创案例,330,video-recap
+/video-recap/write-a-youtube-video-intro,YouTube视频开头怎么写：先兑现标题，再展开内容,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,301,video-recap
+/video-recap/write-a-video-essay-script,视频论文脚本怎么写：观点、证据和解释要连起来,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,303,video-recap
+/drama-skills/write-a-short-form-video-script,Reels和Shorts短视频脚本怎么写：一个承诺，一条清晰路径,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,323,short-drama
+/video-recap/write-a-voiceover-script-for-video,视频旁白稿怎么写：让每句话对应素材的工作,merge,/video-recap/recap-script,同一读者问题并入主文章,333,video-recap
+/novel-to-game/write-a-branching-story,分支剧情怎么写不失控：让选择改变经历，也能回到主线,merge,/novel-to-game/meaningful-choices,同一读者问题并入主文章,346,novel-to-game
+/novel-to-game/write-choices-for-interactive-fiction,互动小说选项怎么写有意义：让每种选择代表不同取舍,merge,/novel-to-game/meaningful-choices,同一读者问题并入主文章,325,novel-to-game
+/novel-to-game/design-multiple-endings-in-a-game,多结局游戏怎么设计：让结局回应玩家一路作出的选择,rewrite,,常用问题补充具体模板与原创案例,318,novel-to-game
+/novel-to-game/write-a-visual-novel-script,视觉小说脚本怎么写：让角色路线各有目标和变化,rewrite,,常用问题补充具体模板与原创案例,341,novel-to-game
+/novel-to-game/write-a-game-quest,游戏任务怎么写：目标明确，过程改变处境,rewrite,,常用问题补充具体模板与原创案例,296,novel-to-game
+/video-recap/write-an-explainer-video-script,科普讲解视频脚本怎么写：先回答一个问题，再逐步拆解,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,284,video-recap
+/video-recap/write-a-documentary-video-script,纪录片视频脚本怎么写：用资料证据搭建人物和事件,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,324,video-recap
+/video-recap/turn-a-case-study-into-a-video-story,案例视频怎么写成故事：呈现问题、尝试、结果和限制,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,297,video-recap
+/video-recap/turn-a-long-video-into-short-clips,长视频怎么剪成短片段：每条保留完整问题和结果,rewrite,,常用问题补充具体模板与原创案例,282,video-recap
+/video-recap/plan-a-youtube-video-series,YouTube系列视频怎么规划：每集有答案，也有下一步,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,297,video-recap
+/oh-story/write-a-romance-novel,言情小说怎么写：让相遇、关系变化和结局互相呼应,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,329,story-long-write
+/oh-story/write-a-fantasy-novel,奇幻小说怎么写：让世界规则推动人物目标和冲突,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,315,story-long-write
+/oh-story/write-a-science-fiction-novel,科幻小说怎么写：从一个“如果”推演人物后果,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,326,story-long-write
+/oh-story/write-a-detective-novel,侦探小说怎么写：让调查者主动追线索，也承担误判后果,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,296,story-long-write
+/oh-story/write-contemporary-fiction,当代小说怎么写不流水账：让现实选择不断改变人物关系,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,331,story-long-write
+/drama-skills/write-a-short-film-script,短片剧本怎么写完整：用一个选择完成一条人物弧线,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,314,short-drama-write
+/drama-skills/write-a-film-trailer-script,电影预告片脚本怎么写：展示承诺，不提前讲完故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,303,video-recap
+/drama-skills/outline-a-tv-series-pilot,电视剧试播集大纲怎么写：交代主线，也展示每集引擎,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,275,short-drama-develop
+/drama-skills/outline-a-short-drama-season,短剧整季大纲怎么写：每集结算一件事，整季升级一条线,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,282,short-drama-develop
+/drama-skills/write-a-series-pitch-for-short-drama,短剧项目提案怎么写：用一句话讲清人物、引擎和卖点,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,288,short-drama-develop
+/oh-story/write-a-novel-chapter-with-a-mini-arc,小说单章怎么写完整：有眼前目标，也有状态变化,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,305,story-long-write
+/oh-story/choose-novel-chapter-length,小说一章写多少字：按阅读体验和场景目标决定,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,276,story-long-write
+/oh-story/write-a-strong-chapter-opening,小说每章开头怎么写：先给读者定位，再引出变化,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,284,story-long-write
+/oh-story/end-a-chapter-without-a-cliffhanger,不靠悬崖式断章怎么结尾：用决定、回报和新问题留读者,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,271,story-long-write
+/oh-story/plan-a-web-novel-release-schedule,网文更新计划怎么排：用库存、节奏和现实产能来定,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,273,story-long-write
+/oh-story/write-subtext-in-dialogue,小说对白潜台词怎么写：让言外之意影响当下行动,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,258,story-long-write
+/oh-story/write-an-argument-scene,小说争吵戏怎么写有变化：让双方各有目标和筹码,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,285,story-long-write
+/oh-story/use-action-beats-in-dialogue,小说对白动作提示怎么写：补充节奏，不重复台词,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,281,story-long-write
+/oh-story/write-an-apology-scene-that-feels-real,小说道歉场景怎么写真实：承认具体伤害，也接受对方反应,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,288,story-long-write
+/oh-story/write-silence-and-pauses-in-fiction,小说里的沉默和停顿怎么写：让空白改变下一句的分量,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,294,story-long-write
+/oh-story/brainstorm-fiction-ideas-with-ai,怎么用AI构思小说点子：让它拓展选择，不替你定故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,317,story-setup
+/oh-story/ask-ai-to-critique-a-fiction-scene,怎么让AI点评小说场景：限定问题，要求引用原文证据,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,317,story-review
+/oh-story/use-ai-to-outline-a-novel-chapter,怎么用AI写章节细纲：提供已确认事实，先审计划再起草,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,309,story-long-write
+/oh-story/prompt-ai-to-draft-a-fiction-scene,怎么提示AI写一场小说戏：明确任务、事实和停笔位置,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,301,story-long-write
+/oh-story/use-ai-to-develop-a-novel-character,怎么用AI打磨小说人物：用具体情境检验性格设定,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,285,story-setup
+/novel-to-game/write-video-game-dialogue,游戏对白怎么写贴合玩法：结合角色声音、状态和操作,rewrite,,常用问题补充具体模板与原创案例,297,novel-to-game
+/novel-to-game/design-a-story-driven-game-tutorial,游戏新手教程怎么设计：让剧情带着玩家学会操作,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,265,game-concept
+/novel-to-game/write-branching-dialogue-for-a-game,游戏分支对白怎么写：让选择改变回应，也能接回对话,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,289,novel-to-game
+/novel-to-game/adapt-a-novel-into-a-game,小说改游戏怎么开始：找出玩家能参与的行动与选择,merge,/novel-to-game/quick-start,同一读者问题并入主文章,280,novel-to-game
+/novel-to-game/write-a-game-character-arc-through-gameplay,游戏角色成长怎么通过玩法呈现：让操作和选择一起变化,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,282,novel-to-game
+/oh-story/write-a-short-story-from-idea-to-ending,短篇小说怎么从点子写到结尾：聚焦一次重要变化,merge,/oh-story/short-story-from-idea,同一读者问题并入主文章,278,story-short-write
+/oh-story/write-fanfiction-that-fits-the-characters,同人文怎么写不OOC：抓住人物核心，再改变情境,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,311,story-long-write
+/oh-story/write-a-story-from-a-writing-prompt,写作提示词怎么发展成自己的故事：先定人物，再找冲突,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,272,story-short-write
+/oh-story/write-a-memorable-opening-line,小说第一句话怎么写：用声音、问题或行动建立期待,merge,/oh-story/novel-opening,同一读者问题并入主文章,288,story-long-write
+/oh-story/write-a-first-page-readers-want-to-finish,小说第一页怎么写：建立人物关注点、场景目标和阅读方向,merge,/oh-story/novel-opening,同一读者问题并入主文章,266,story-long-write
+/oh-story/write-character-driven-fiction,人物驱动型小说怎么写：让性格和选择制造剧情,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,275,story-long-write
+/oh-story/write-plot-driven-fiction,情节驱动型小说怎么写不空：让任务推进，也让人物回应,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,272,story-long-write
+/oh-story/balance-plot-and-character-development,小说怎么平衡剧情与人物成长：让外部事件逼出内在选择,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,287,story-long-write
+/oh-story/write-theme-without-preaching,小说主题怎么写不说教：让不同选择呈现不同答案,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,274,story-long-write
+/oh-story/write-a-story-theme,小说主题怎么找：从反复出现的选择与后果里提炼,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,266,story-long-write
+/oh-story/use-sensory-details-in-fiction,小说感官描写怎么写：只选影响人物注意和行动的细节,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,281,story-long-write
+/oh-story/vary-sentence-length-in-fiction,小说句子长短怎么安排：用节奏配合注意力和动作,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,237,story-long-write
+/oh-story/use-active-and-passive-voice-in-fiction,小说主动语态和被动语态怎么选：看谁需要成为句子焦点,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,263,story-long-write
+/oh-story/avoid-cliches-in-fiction,小说怎么避免陈词滥调：保留有效套路，改写具体情境,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,257,story-long-write
+/oh-story/write-a-fiction-paragraph,小说段落怎么写清楚：让每段围绕一个动作或变化,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,254,story-long-write
+/oh-story/write-a-romantic-comedy,浪漫喜剧怎么写：让笑点和关系变化来自同一冲突,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,274,story-long-write
+/oh-story/write-a-coming-of-age-story,成长小说怎么写：用一次承担后果的选择完成转折,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,245,story-long-write
+/oh-story/write-a-family-saga,家族故事怎么写清多代关系：让每代人继承问题，也作出新选择,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,285,story-long-write
+/oh-story/write-a-fantasy-romance-novel,奇幻言情怎么写：让感情关系和外部冒险互相影响,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,254,story-long-write
+/oh-story/write-a-survival-story,生存故事怎么写不单调：让资源短缺逼出关系和价值选择,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,267,story-long-write
+/oh-story/write-a-heist-story,劫案故事怎么写：让计划有分工，也会被意外改变,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,281,story-long-write
+/oh-story/write-a-chase-scene,追逐场景怎么写清楚：让路线、目标和障碍一目了然,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,274,story-long-write
+/oh-story/write-a-rescue-scene,营救场景怎么写：让被救者有行动，也让救援付出代价,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,270,story-long-write
+/oh-story/write-a-first-kiss-scene,小说初吻场景怎么写：让身体靠近回应此前建立的信任,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,264,story-long-write
+/oh-story/write-a-breakup-scene,小说分手场景怎么写：让原因清楚，也让失去有重量,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,258,story-long-write
+/novel-to-game/write-a-game-side-quest,游戏支线任务怎么写有意义：补充世界，也改变玩家选择,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,262,novel-to-game
+/novel-to-game/tell-a-game-story-through-the-environment,游戏环境叙事怎么做：让地点变化透露过去和选择,rewrite,,常用问题补充具体模板与原创案例,260,game-world-design
+/novel-to-game/build-a-game-world-for-story-and-play,游戏世界观怎么搭：让地图规则既能讲故事，也能支持玩法,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,274,game-world-design
+/novel-to-game/write-game-cutscenes-that-keep-momentum,游戏过场动画怎么写不拖：改变信息、目标或关系后尽快交还操作,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,261,game-build
+/novel-to-game/write-an-rpg-companion-arc,RPG同伴角色弧线怎么写：让同行、任务和选择逐步改变关系,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,273,novel-to-game
+/video-recap/write-a-movie-review-video-script,电影评论视频脚本怎么写：用具体场景支撑观点,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,278,video-recap
+/video-recap/write-a-book-review-video-script,图书评论视频脚本怎么写：说明适读人群，并用细节作证,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,251,video-recap
+/video-recap/write-interview-questions-for-a-video-story,视频访谈问题怎么设计：从事实追问到选择与后果,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,288,video-recap
+/video-recap/edit-an-interview-into-a-video-story,访谈素材怎么剪成故事：整理叙事，但不改变原意,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,269,video-recap
+/video-recap/write-a-personal-story-video-script,个人经历视频脚本怎么写：选一段变化，而不是讲完全部人生,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,261,video-recap
+/oh-story/self-edit-a-novel,小说怎么自我编辑：给读者看之前的检查步骤,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,193,oh-story
+/oh-story/find-and-fix-plot-holes,怎么发现并修补故事里的情节漏洞,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,192,oh-story
+/oh-story/write-natural-dialogue-tags,对话标签怎么用：让读者顺畅读下去,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,173,oh-story
+/oh-story/write-better-chapter-transitions,章节之间怎么衔接：让读者愿意翻页,merge,/oh-story/scene-transitions,同一读者问题并入主文章,177,oh-story
+/oh-story/write-fiction-description,小说描写怎么写：有画面又不拖慢情节,merge,/oh-story/environment-description,同一读者问题并入主文章,178,oh-story
+/oh-story/write-a-novella,中篇小说怎么写：为较短篇幅规划完整故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,179,oh-story
+/oh-story/write-a-book-blurb,书籍简介怎么写：让读者想知道接下来会怎样,merge,/oh-story/novel-blurb,同一读者问题并入主文章,172,oh-story
+/oh-story/write-a-character-profile,人物档案怎么做：让设定真正帮助写作,merge,/oh-story/story-bible-template,同一读者问题并入主文章,163,oh-story
+/oh-story/write-a-novel-epilogue,小说尾声怎么写：让结局后的补充有意义,merge,/oh-story/write-a-satisfying-novel-ending,同一读者问题并入主文章,186,oh-story
+/video-recap/write-a-tutorial-video-script,教程视频脚本怎么写：让观众跟得上每一步,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,182,video-recap
+/video-recap/adapt-a-blog-post-into-a-video-script,怎么把博客文章改成视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,157,video-recap
+/drama-skills/write-a-montage-scene,蒙太奇场景怎么写：压缩时间也推进故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,168,drama-skills
+/drama-skills/write-a-scene-without-dialogue,没有对白的场景怎么写：让动作讲清楚,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,161,drama-skills
+/novel-to-game/design-a-quest-chain,游戏任务链怎么设计：让每一步都带来新变化,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,179,novel-to-game
+/drama-skills/storyboard-a-dialogue-heavy-scene,对白较多的场景怎么分镜：让谈话有画面变化,merge,/drama-skills/script-to-storyboard,同一读者问题并入主文章,179,drama-skills
+/drama-skills/adapt-web-novel-into-short-drama,怎么把网文一章改成短剧一集,merge,/drama-skills/novel-to-short-drama,同一读者问题并入主文章,181,drama-skills
+/novel-to-game/introduce-a-game-character-through-play,游戏角色怎么登场：让玩家通过行动认识人物,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,171,novel-to-game
+/novel-to-game/design-a-game-story-opening,游戏剧情开场怎么设计：尽快让玩家开始行动,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,175,novel-to-game
+/video-recap/estimate-video-script-runtime,怎么用字数估算视频脚本时长,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,149,video-recap
+/video-recap/build-a-b-roll-shot-list,怎么根据视频脚本列 B-roll 镜头清单,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,175,video-recap
+/video-recap/write-a-spoiler-free-movie-recap,无剧透电影解说视频怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,170,video-recap
+/video-recap/write-a-video-call-to-action,视频 CTA 怎么写：让行动邀请贴合内容,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,171,video-recap
+/video-recap/edit-video-essay-for-clear-argument,视频论文脚本怎么修改：让论点清楚推进,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,172,video-recap
+/drama-skills/write-a-cold-open-for-tv-pilot,电视剧试播集冷开场怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,157,drama-skills
+/drama-skills/write-a-low-budget-short-film-scene,低预算短片场景怎么写：用限制创造戏剧张力,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,165,drama-skills
+/drama-skills/write-a-reveal-scene-for-short-drama,短剧揭示场景怎么写：让真相改变局面,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,171,drama-skills
+/oh-story/write-a-scene-with-conflicting-goals,人物目标冲突的场景怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,177,oh-story
+/oh-story/write-dramatic-irony-in-fiction,戏剧反讽怎么写：用信息差建立悬念,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,166,oh-story
+/oh-story/write-a-xianxia-novel,仙侠小说怎么写：让修炼线推动主线,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,169,oh-story
+/oh-story/write-a-wuxia-story,武侠故事怎么写：让武艺体现人物立场,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,171,oh-story
+/oh-story/write-progression-fantasy,升级流奇幻怎么写：避免重复堆叠战力,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,162,oh-story
+/oh-story/write-portal-fantasy,穿越奇幻怎么写：让两个世界都影响主线,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,169,oh-story
+/oh-story/write-a-marriage-of-convenience-romance,契约婚姻爱情故事怎么写：让关系变化可信,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,169,oh-story
+/oh-story/write-a-forced-proximity-romance,被迫相处爱情故事怎么写：让信任慢慢建立,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,180,oh-story
+/oh-story/write-a-secret-identity-romance,身份隐瞒爱情故事怎么写：线索公平，揭晓有后果,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,165,oh-story
+/oh-story/write-a-revenge-story,复仇故事怎么写：让结局回应代价和选择,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,172,oh-story
+/oh-story/write-a-paranormal-romance,超自然爱情故事怎么写：规则清楚，关系可信,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,188,oh-story
+/oh-story/write-a-historical-romance,历史言情怎么写：让时代细节服务感情线,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,187,oh-story
+/oh-story/write-a-crime-novel,犯罪小说怎么写：让案件、动机和证据连贯,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,160,oh-story
+/oh-story/write-a-domestic-thriller,家庭惊悚小说怎么写：让秘密动摇亲密关系,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,176,oh-story
+/oh-story/write-a-spy-thriller,间谍惊悚故事怎么写：让任务、身份和风险清楚,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,164,oh-story
+/oh-story/write-a-dystopian-novel,反乌托邦小说怎么写：从日常选择呈现制度,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,180,oh-story
+/oh-story/write-a-first-contact-sci-fi-story,首次接触科幻故事怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,167,oh-story
+/oh-story/write-a-superhero-story,超级英雄故事怎么写：让力量之外也有冲突,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,166,oh-story
+/oh-story/write-a-cozy-fantasy-story,舒适奇幻怎么写：温暖氛围也要有真实利害,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,178,oh-story
+/oh-story/write-a-sports-romance,体育爱情故事怎么写：赛场内外都有目标,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,172,oh-story
+/oh-story/write-a-dark-romance,暗黑爱情故事怎么写：边界清楚，选择有后果,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,175,oh-story
+/oh-story/write-a-historical-adventure,历史冒险故事怎么写：让时代限制影响行动,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,163,oh-story
+/oh-story/use-beta-reader-feedback-to-revise,怎么用试读反馈修改小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,166,oh-story
+/oh-story/start-writing-your-first-novel,第一部长篇小说怎么开始写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,184,oh-story
+/oh-story/write-a-novel-query-letter,小说投稿信怎么写：让经纪人看清故事和定位,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,154,oh-story
+/oh-story/write-a-novel-logline,小说 logline 怎么写：一句话说清故事钩子,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,149,oh-story
+/drama-skills/write-a-screenplay-treatment,电影剧本 treatment 怎么写：展示完整故事走向,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,164,drama-skills
+/drama-skills/pitch-a-short-film,短片项目怎么推介：一页讲清故事与制作规模,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,154,drama-skills
+/oh-story/write-a-young-adult-novel,青少年小说怎么写：让视角和声音真实可信,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,179,oh-story
+/oh-story/write-a-middle-grade-novel,儿童中年级小说怎么写：让小主角主动解决问题,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,162,oh-story
+/drama-skills/write-a-graphic-novel-script,图像小说脚本怎么写：让画手看清每格要画什么,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,166,drama-skills
+/drama-skills/write-a-webtoon-episode-script,条漫单集脚本怎么写：按竖屏阅读节奏安排,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,173,drama-skills
+/oh-story/introduce-a-new-character-in-fiction,小说新角色怎么登场：让读者记住且知道其作用,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,156,oh-story
+/oh-story/write-a-reunion-scene,重逢场景怎么写：让再次相见改变关系,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,161,oh-story
+/oh-story/write-a-sacrifice-scene,牺牲场景怎么写：让付出有铺垫和后果,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,172,oh-story
+/oh-story/write-a-character-death,角色死亡怎么写：让失去改变故事和人物,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,177,oh-story
+/oh-story/write-a-final-confrontation-scene,最终对峙怎么写：让高潮回应整段故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,163,oh-story
+/oh-story/write-a-difficult-choice-scene,两难选择场景怎么写：让每个选项都有代价,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,149,oh-story
+/oh-story/write-a-meet-cute-scene,浪漫初遇怎么写：让相遇开启真实关系,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,155,oh-story
+/oh-story/plotter-or-pantser,先规划还是边写边发现？选适合小说的起稿方式,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,190,oh-story
+/oh-story/reverse-outline-a-novel,如何用反向大纲修改小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,161,oh-story
+/oh-story/fix-a-sagging-middle-of-a-novel,小说中段松散怎么办：不靠注水重建推进力,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,174,oh-story
+/oh-story/write-a-dual-timeline-novel,双时间线小说怎么写才清晰,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,163,oh-story
+/oh-story/write-a-frame-story,框架故事怎么写：让外层与内层互相呼应,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,162,oh-story
+/oh-story/write-a-chapter-from-an-outline,如何根据大纲写出小说章节,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,168,oh-story
+/oh-story/write-a-scene-with-a-deadline,如何写出可信的限时场景,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,163,oh-story
+/oh-story/write-a-story-with-interwoven-plots,交织多条情节线的小说怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,164,oh-story
+/oh-story/write-an-anthology-series,如何规划一套有统一辨识度的选集系列,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,166,oh-story
+/oh-story/revise-a-novel-scene,如何修改小说场景，让张力与变化更清晰,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,169,oh-story
+/drama-skills/adapt-prose-point-of-view-for-screen,如何把小说视角转化为画面叙事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,164,drama-skills
+/drama-skills/create-a-filmable-shot-list,如何从剧本整理出可拍摄的镜头清单,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,164,drama-skills
+/drama-skills/make-screen-directions-playable,如何写出演员能演出来的剧本动作提示,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,148,drama-skills
+/drama-skills/break-down-a-script-for-production,如何为短剧拍摄拆解剧本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,164,drama-skills
+/drama-skills/write-a-two-character-short-drama,两人短剧怎么写：让冲突持续升级,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,163,drama-skills
+/drama-skills/review-ai-video-shots-against-script,如何对照剧本检查AI生成的视频镜头,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,156,drama-skills
+/video-recap/build-a-movie-recap-scene-outline,如何为电影解说搭建逐场大纲,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,143,video-recap
+/video-recap/choose-movie-clips-for-video-essay,如何挑选能支撑视频 essay 论点的电影片段,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,167,video-recap
+/novel-to-game/prototype-a-story-driven-game-vertical-slice,如何为叙事游戏制作垂直切片,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,158,novel-to-game
+/novel-to-game/write-an-in-game-tutorial-through-story,如何通过游戏故事教会玩家操作,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,151,novel-to-game
+/drama-skills/storyboard-an-action-scene-for-short-drama,如何为短剧动作场面绘制分镜,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,138,drama-skills
+/drama-skills/block-a-two-character-confrontation,如何调度银幕上的双人对峙,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,147,drama-skills
+/drama-skills/make-a-visual-continuity-guide-for-short-drama,如何为短剧制作视觉连续性指南,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,146,drama-skills
+/drama-skills/write-a-silent-short-film,如何写出没有对白的短片场景,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,147,drama-skills
+/drama-skills/create-screenplay-coverage-plan,如何为短片场景规划摄影覆盖,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,149,drama-skills
+/drama-skills/turn-a-screenplay-beat-into-an-ai-video-prompt,如何把剧本节拍改写成AI视频提示词,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,157,drama-skills
+/video-recap/make-a-video-essay-fact-check-sheet,剪辑前如何核对视频 essay 的事实,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,145,video-recap
+/video-recap/write-a-movie-recap-opening,如何写好电影解说开场并交代故事方向,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,148,video-recap
+/video-recap/edit-a-movie-recap-for-clarity,如何剪辑电影解说，让故事更清楚,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,154,video-recap
+/video-recap/retain-original-film-audio-in-a-recap,电影解说什么时候该保留原片声音,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,155,video-recap
+/novel-to-game/write-branching-dialogue-that-converges,如何写出可汇合的分支游戏对话,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,157,novel-to-game
+/novel-to-game/turn-a-novel-chapter-into-a-game-mission,如何把小说章节改编成游戏任务,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,165,novel-to-game
+/novel-to-game/design-a-narrative-boss-encounter,如何设计能推进故事的游戏首领战,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,158,novel-to-game
+/novel-to-game/design-a-game-journal-without-repeating-exposition,如何设计游戏日志，避免重复剧情说明,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,141,novel-to-game
+/oh-story/choose-comparable-titles-for-a-novel,如何为小说选择可比作品,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,176,oh-story
+/oh-story/research-a-novel-genre-before-drafting,起稿前如何研究小说类型,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,174,oh-story
+/oh-story/write-a-serial-installment-that-stands-alone,如何写出单篇完整的网络连载章节,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,153,oh-story
+/oh-story/write-a-series-premiere-novel,如何让系列小说第一部有完整感,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,145,oh-story
+/drama-skills/adapt-inner-conflict-for-the-screen,如何在画面中呈现人物的内心冲突,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,155,drama-skills
+/drama-skills/write-a-short-drama-one-location,如何写好单一场景的短剧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,156,drama-skills
+/drama-skills/plan-reaction-shots-for-short-drama,如何规划反应镜头，让短剧场景更清楚,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,140,drama-skills
+/video-recap/write-a-tv-episode-recap-script,如何写电视剧单集解说脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,134,video-recap
+/video-recap/turn-a-transcript-into-a-documentary-outline,如何把采访文字稿整理成纪录片大纲,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,152,video-recap
+/video-recap/write-a-conversational-video-voiceover,如何写出口语自然的视频旁白,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,154,video-recap
+/video-recap/create-a-timestamped-source-log-for-video,如何为视频制作带时间码的来源记录,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,155,video-recap
+/novel-to-game/turn-a-story-theme-into-gameplay,如何把故事主题转化为游戏机制,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,157,novel-to-game
+/novel-to-game/make-player-choice-consequences-visible,如何让玩家看见选择带来的后果,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,148,novel-to-game
+/novel-to-game/adapt-a-novel-climax-into-gameplay,如何把小说高潮改编成游戏玩法,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,146,novel-to-game
+/oh-story/write-a-legal-thriller,如何写好案件清晰的法律惊悚小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,147,oh-story
+/oh-story/write-a-medical-thriller,如何写出读者看得懂的医疗惊悚小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,157,oh-story
+/oh-story/write-a-dark-academia-novel,如何写出不止有氛围的暗黑学院小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,137,oh-story
+/oh-story/write-a-space-opera,如何写出以人物为核心的太空歌剧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,142,oh-story
+/oh-story/write-a-romantic-suspense-novel,如何平衡爱情线与悬疑线，写好浪漫惊悚小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,139,oh-story
+/video-recap/outline-a-video-essay,如何围绕一个清晰论点搭建视频 essay 大纲,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,148,video-recap
+/video-recap/write-a-video-essay-conclusion,如何写出回应开场问题的视频 essay 结尾,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,143,video-recap
+/video-recap/storyboard-a-video-essay,剪辑前如何为视频 essay 做分镜计划,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,146,video-recap
+/video-recap/write-a-season-finale-recap,如何清晰解说电视剧季终集,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,149,video-recap
+/novel-to-game/write-a-narrative-design-brief-for-an-adaptation,如何为游戏改编撰写叙事设计简报,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,145,novel-to-game
+/novel-to-game/map-a-branching-game-story,写对白前如何绘制游戏分支故事图,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,148,novel-to-game
+/novel-to-game/test-branching-narrative-routes,如何测试互动故事中的每条分支路线,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,149,novel-to-game
+/novel-to-game/turn-character-relationships-into-gameplay,如何把人物关系转化为游戏玩法,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,153,novel-to-game
+/oh-story/read-bestseller-charts-for-novel-research,如何通过畅销榜研究小说读者与类型,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,161,oh-story
+/oh-story/write-a-contemporary-romance-novel,如何写出感情弧线完整的当代言情小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,173,oh-story
+/oh-story/write-an-epic-fantasy-series,如何逐卷规划史诗奇幻系列,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,159,oh-story
+/oh-story/write-a-historical-mystery-novel,如何写出线索公平的历史悬疑小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,169,oh-story
+/oh-story/write-a-mystery-series-with-a-recurring-detective,如何写好由固定侦探贯穿的推理系列,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,149,oh-story
+/drama-skills/write-a-short-film-screenplay,如何从一个点子写出短片剧本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,147,drama-skills
+/drama-skills/write-a-tv-pilot-script,如何写出建立持续故事引擎的电视剧试播集,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,148,drama-skills
+/drama-skills/create-a-short-drama-series-bible,如何制作短剧系列设定手册,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,150,drama-skills
+/drama-skills/adapt-a-short-story-into-a-film-script,如何把短篇小说改编成电影剧本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,143,drama-skills
+/drama-skills/write-a-tv-series-pitch,如何用一页清晰介绍推介电视剧系列,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,145,drama-skills
+/drama-skills/write-screenplay-action-lines,如何写清晰的剧本动作行,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,153,drama-skills
+/video-recap/outline-a-documentary-video,如何围绕清晰问题搭建纪录片视频大纲,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,145,video-recap
+/video-recap/build-a-character-timeline-for-a-tv-recap,如何为电视剧解说整理人物时间线,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,134,video-recap
+/video-recap/structure-a-long-form-movie-recap,如何搭建长篇电影解说视频结构,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,144,video-recap
+/novel-to-game/design-a-game-narrative-state-table,如何为游戏设计叙事状态表,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,152,novel-to-game
+/novel-to-game/write-clear-game-quest-objectives,如何为剧情任务写清晰的游戏目标,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,144,novel-to-game
+/oh-story/write-a-flash-fiction-story,如何写出弧线完整的闪小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,154,oh-story
+/oh-story/write-an-epistolary-novel,如何写出有故事推进力的书信体小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,154,oh-story
+/oh-story/plan-a-cohesive-short-story-collection,如何规划具有整体弧线的短篇小说集,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,160,oh-story
+/drama-skills/make-an-animatic-from-a-storyboard,如何根据分镜制作动态预演,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,148,drama-skills
+/drama-skills/write-a-short-drama-trailer,如何写出承诺清晰的短剧预告,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,126,drama-skills
+/drama-skills/time-a-short-drama-scene,如何按目标时长安排短剧场景节奏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,140,drama-skills
+/drama-skills/stage-a-phone-call-scene-for-camera,如何为摄影机调度电话场景,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,138,drama-skills
+/drama-skills/review-a-short-drama-before-delivery,短剧最终交付前如何复核,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,156,drama-skills
+/video-recap/write-a-documentary-trailer-script,如何依据已核实素材写纪录片预告脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,148,video-recap
+/video-recap/recap-a-tv-season-without-listing-every-episode,如何解说电视剧整季，而非逐集罗列,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,158,video-recap
+/video-recap/condense-a-movie-recap-into-a-short-video,如何把电影解说压缩成短视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,143,video-recap
+/video-recap/edit-interview-quotes-with-context,如何剪辑采访引语而不丢失上下文,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,139,video-recap
+/video-recap/fit-voiceover-to-a-picture-edit,如何让旁白贴合已有视频剪辑,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,139,video-recap
+/video-recap/write-transitions-for-a-video-essay,如何写出推动视频 essay 前进的转接句,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,129,video-recap
+/video-recap/write-a-source-grounded-scene-transition,电影解说如何在场景间自然转接,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,145,video-recap
+/novel-to-game/find-playable-moments-in-a-novel,如何从小说中寻找适合改成玩法的片段,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,148,novel-to-game
+/novel-to-game/extract-player-verbs-from-a-source-story,如何从故事原作中提取玩家行动动词,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,167,novel-to-game
+/novel-to-game/turn-source-world-rules-into-game-systems,如何把故事世界规则转成游戏系统,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,157,novel-to-game
+/novel-to-game/design-a-game-level-from-a-novel-location,如何把小说地点改成游戏关卡,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,151,novel-to-game
+/novel-to-game/adapt-a-novel-timeline-into-game-missions,如何把小说时间线改编成游戏任务,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,143,novel-to-game
+/novel-to-game/choose-a-player-perspective-for-a-novel-adaptation,如何为小说改编游戏选择玩家视角,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,170,novel-to-game
+/novel-to-game/adapt-a-signature-scene-as-a-game-set-piece,如何把小说标志性场景改编成游戏关卡亮点,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,148,novel-to-game
+/novel-to-game/keep-a-game-adaptation-grounded-in-its-source,如何让游戏改编扎根于原作,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,142,novel-to-game
+/oh-story/write-a-contemporary-fantasy-novel,如何写好扎根日常生活的当代奇幻小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,138,oh-story
+/oh-story/write-a-magical-realism-novel,如何写出人物真实可信的魔幻现实主义小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,150,oh-story
+/oh-story/write-a-fairy-tale-retelling,如何写出有新意的童话改写故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,148,oh-story
+/oh-story/write-a-myth-retelling,如何以新视角改写神话故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,145,oh-story
+/oh-story/write-a-literary-fiction-novel,如何写出故事弧线清晰的文学小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,156,oh-story
+/oh-story/write-a-friends-to-lovers-romance,如何写出转变自然的朋友变恋人故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,148,oh-story
+/drama-skills/design-a-short-drama-season-finale,如何写出兑现系列承诺的短剧季终集,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,145,drama-skills
+/drama-skills/write-a-short-drama-midseason-turn,如何设计短剧中段转折,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,138,drama-skills
+/drama-skills/convert-a-beat-sheet-into-a-shooting-script,如何把故事节拍表整理成拍摄剧本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,135,drama-skills
+/video-recap/write-a-video-essay-about-an-adaptation,如何写视频 essay 比较原著与影视改编,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,142,video-recap
+/novel-to-game/design-optional-quests-that-pay-off-in-the-main-story,如何让游戏支线任务影响主线故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,144,novel-to-game
+/novel-to-game/reveal-game-backstory-through-player-discovery,如何通过玩家探索揭示游戏背景故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,152,novel-to-game
+/oh-story/write-a-grumpy-sunshine-romance,如何写出人物真正改变的欢喜冤家式恋爱,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,154,oh-story
+/oh-story/write-an-unrequited-love-story,如何写出情感有层次的单恋故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,142,oh-story
+/oh-story/write-an-opposites-attract-romance,如何写出可信的性格反差型恋爱,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,157,oh-story
+/oh-story/write-a-political-thriller,如何写出脉络清楚的政治惊悚小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,140,oh-story
+/oh-story/write-a-gothic-novel,如何让场景承载秘密，写好哥特小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,157,oh-story
+/oh-story/write-a-paranormal-mystery,如何写出线索公平的灵异推理故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,151,oh-story
+/drama-skills/adapt-a-romance-novel-into-short-drama,如何把言情小说改编成短剧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,146,drama-skills
+/drama-skills/adapt-a-mystery-novel-into-short-drama,如何把悬疑小说改编成短剧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,148,drama-skills
+/drama-skills/track-story-payoffs-across-short-drama-episodes,如何追踪短剧跨集铺垫与回报,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,143,drama-skills
+/drama-skills/write-a-short-drama-story-engine,如何为短剧建立可持续的故事引擎,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,146,drama-skills
+/video-recap/recap-a-tv-episode-without-spoilers,如何写不剧透的电视剧单集解说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,138,video-recap
+/video-recap/choose-the-viewpoint-for-a-movie-recap,如何为电影解说选择叙述视角,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,149,video-recap
+/video-recap/write-a-video-essay-about-a-character-arc,如何围绕人物弧线写视频 essay,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,130,video-recap
+/novel-to-game/compare-gameplay-concepts-for-a-novel-adaptation,如何比较小说改编游戏的玩法构想,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,153,novel-to-game
+/novel-to-game/balance-authored-scenes-and-player-control,如何平衡剧情游戏中的过场与玩家控制,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,156,novel-to-game
+/oh-story/write-a-forbidden-love-story,如何写出利害关系可信的禁忌之恋,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,145,oh-story
+/oh-story/write-a-mutual-pining-romance,如何写出不断推进的双向暗恋,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,150,oh-story
+/oh-story/write-an-only-one-bed-romance,如何在尊重边界的前提下写好同床场景,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,142,oh-story
+/oh-story/write-an-arranged-marriage-romance,如何写出双方都有选择权的包办婚姻恋爱,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,144,oh-story
+/oh-story/write-a-police-procedural-novel,如何写出清晰可信的刑侦小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,147,oh-story
+/oh-story/write-a-small-town-mystery,如何写出嫌疑人关系紧密的小镇谜案,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,145,oh-story
+/oh-story/write-a-climate-fiction-novel,如何通过人物选择写气候题材小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,154,oh-story
+/oh-story/write-a-near-future-science-fiction-novel,如何写出读者能够代入的近未来科幻小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,146,oh-story
+/oh-story/write-a-western-novel,如何写出不止有边疆背景的西部小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,137,oh-story
+/oh-story/write-a-political-satire-novel,如何写出有故事性的政治讽刺小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,143,oh-story
+/oh-story/write-a-story-based-on-a-true-event,如何在不丢失人物故事的前提下改写真实事件,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,147,oh-story
+/oh-story/weave-research-into-a-historical-novel,如何把历史考据自然写进小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,142,oh-story
+/oh-story/build-a-fictional-city-for-a-novel,如何打造能推动小说情节的虚构城市,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,151,oh-story
+/drama-skills/write-a-family-drama-short-series,如何写出各集相连的家庭短剧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,124,drama-skills
+/drama-skills/write-a-vertical-comedy-series,如何写出笑点清楚、节奏连贯的竖屏喜剧系列,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,123,drama-skills
+/drama-skills/write-a-romantic-comedy-short-drama,如何写好浪漫喜剧短剧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,127,drama-skills
+/drama-skills/write-a-fantasy-microdrama,如何写出设定清楚、节奏明快的奇幻微短剧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,128,drama-skills
+/drama-skills/write-a-horror-microdrama,如何快速累积恐惧感，写好恐怖微短剧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,125,drama-skills
+/drama-skills/write-a-thriller-microdrama,如何用清晰的单集问题写好惊悚微短剧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,121,drama-skills
+/drama-skills/write-a-workplace-short-drama,如何写出目标冲突鲜明的职场短剧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,130,drama-skills
+/drama-skills/write-a-short-drama-social-feed-hook,如何为信息流写短剧开场钩子,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,128,drama-skills
+/drama-skills/localize-a-short-drama-for-a-new-audience,如何为新受众改编和本地化短剧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,130,drama-skills
+/video-recap/explain-a-movie-ending-with-evidence,如何用电影细节解释结局,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,179,video-recap
+/video-recap/explain-a-nonlinear-film-timeline,如何讲清非线性电影时间线,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,169,video-recap
+/video-recap/recap-a-movie-franchise-for-new-viewers,如何为新观众梳理电影系列,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,151,video-recap
+/video-recap/make-a-film-franchise-timeline-video,如何制作电影系列时间线视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,164,video-recap
+/video-recap/write-a-film-theory-video-with-evidence,如何用证据写电影理论视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,173,video-recap
+/video-recap/analyze-a-movie-twist-in-a-video,如何在视频中分析电影反转,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,181,video-recap
+/video-recap/compare-a-film-remake-with-the-original,如何比较电影翻拍版与原版,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,149,video-recap
+/video-recap/analyze-a-film-scene-frame-by-frame-in-a-video,如何逐帧分析电影场景,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,161,video-recap
+/video-recap/write-a-video-essay-about-a-directors-style,如何写导演风格视频论文,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,180,video-recap
+/video-recap/write-a-film-character-analysis-video,如何写电影人物分析视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,163,video-recap
+/video-recap/write-a-biography-video-script-from-sources,如何根据资料写人物传记视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,178,video-recap
+/video-recap/outline-a-true-crime-video-from-sources,如何根据来源梳理真实犯罪视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,171,video-recap
+/video-recap/write-a-true-crime-video-script-with-attribution,如何为真实犯罪视频标注出处,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,179,video-recap
+/video-recap/write-a-historical-event-video-script-from-sources,如何根据史料写历史事件视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,185,video-recap
+/video-recap/handle-conflicting-witness-accounts-in-a-documentary,纪录片如何呈现相互矛盾的证词,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,171,video-recap
+/video-recap/outline-a-multi-part-documentary-series,如何规划多集纪录片系列,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,169,video-recap
+/video-recap/turn-a-historical-timeline-into-a-short-video,如何把历史时间线改成短视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,148,video-recap
+/video-recap/write-a-video-essay-about-a-film-scene,如何围绕电影场景写视频论文,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,169,video-recap
+/video-recap/write-a-film-ranking-video-with-a-clear-argument,如何写有明确观点的电影排名视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,157,video-recap
+/novel-to-game/choose-what-to-cut-in-a-game-adaptation,游戏改编时如何决定删减内容,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,185,novel-to-game
+/novel-to-game/pitch-a-game-adaptation-to-a-studio,如何向游戏团队提案改编项目,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,164,novel-to-game
+/novel-to-game/define-player-fantasy-for-a-story-driven-game,如何定义叙事游戏的玩家幻想,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,167,novel-to-game
+/novel-to-game/scope-a-novel-game-adaptation-for-a-small-team,小团队如何控制小说改编游戏范围,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,169,novel-to-game
+/novel-to-game/turn-character-goals-into-player-objectives,如何把人物目标变成玩家任务,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,162,novel-to-game
+/novel-to-game/adapt-a-novel-conflict-into-gameplay,如何把小说冲突改成游戏玩法,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,159,novel-to-game
+/novel-to-game/adapt-an-unreliable-narrator-into-a-game,如何把不可靠叙述者改编成游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,177,novel-to-game
+/novel-to-game/adapt-an-ensemble-novel-into-playable-characters,如何把群像小说改成可玩角色,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,192,novel-to-game
+/novel-to-game/adapt-a-mystery-novel-into-a-game,如何把推理小说改编成游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,177,novel-to-game
+/novel-to-game/design-clues-for-a-detective-game-adaptation,如何为侦探游戏改编设计线索,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,169,novel-to-game
+/novel-to-game/adapt-a-romance-novel-into-an-interactive-game,如何把言情小说改编成互动游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,178,novel-to-game
+/novel-to-game/design-relationship-routes-for-a-visual-novel,如何设计视觉小说的角色路线,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,171,novel-to-game
+/novel-to-game/turn-a-novel-scene-into-a-game-quest,如何把小说场景改成游戏任务,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,166,novel-to-game
+/novel-to-game/write-rpg-party-banter-that-reveals-character,如何写出展现人物的角色队伍对白,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,184,novel-to-game
+/novel-to-game/adapt-a-villain-reveal-for-a-story-game,如何把反派揭示改编进叙事游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,179,novel-to-game
+/novel-to-game/adapt-a-novel-cliffhanger-into-a-game-ending,如何把小说悬念改成游戏结尾,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,163,novel-to-game
+/novel-to-game/design-exploration-that-reveals-story,如何让游戏探索揭示故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,174,novel-to-game
+/novel-to-game/keep-a-branching-game-story-consistent,如何保持分支游戏剧情一致,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,172,novel-to-game
+/novel-to-game/adapt-a-linear-story-for-player-agency,如何让线性故事拥有玩家能动性,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,179,novel-to-game
+/novel-to-game/design-narrative-pacing-for-a-story-game,如何设计叙事游戏的剧情节奏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,180,novel-to-game
+/novel-to-game/adapt-novel-internal-monologue-into-gameplay,如何把小说内心独白改成玩法,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,174,novel-to-game
+/novel-to-game/adapt-a-thriller-novel-into-a-game,如何把惊悚小说改编成游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,155,novel-to-game
+/novel-to-game/plan-a-game-mission-sequence-from-a-novel,如何从小说规划游戏任务序列,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,149,novel-to-game
+/novel-to-game/playtest-a-novel-game-adaptation,如何测试小说改编游戏,rewrite,,常用问题补充具体模板与原创案例,177,novel-to-game
+/novel-to-game/choose-a-game-genre-for-a-novel-adaptation,如何为小说改编选择游戏类型,merge,/novel-to-game/choose-gameplay,同一读者问题并入主文章,196,novel-to-game
+/novel-to-game/adapt-a-survival-novel-into-gameplay,如何把生存小说改编成游戏玩法,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,166,novel-to-game
+/novel-to-game/design-the-first-hour-of-a-novel-game-adaptation,如何设计小说改编游戏的首小时,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,158,novel-to-game
+/novel-to-game/connect-story-and-gameplay-in-a-novel-adaptation,如何连接小说改编中的剧情与玩法,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,174,novel-to-game
+/novel-to-game/adapt-a-fantasy-novel-into-a-game,如何把奇幻小说改编成游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,182,novel-to-game
+/novel-to-game/adapt-a-horror-novel-into-a-game,如何把恐怖小说改编成游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,166,novel-to-game
+/novel-to-game/adapt-a-historical-novel-into-a-game,如何把历史小说改编成游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,161,novel-to-game
+/novel-to-game/adapt-a-science-fiction-novel-into-a-game,如何把科幻小说改编成游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,162,novel-to-game
+/oh-story/finish-the-first-draft-of-a-novel,如何完成小说初稿,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,158,oh-story
+/oh-story/write-a-horror-novel,如何写出持续营造恐惧的小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,163,oh-story
+/oh-story/write-an-alternate-history-novel,如何写出后果清晰的架空历史小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,163,oh-story
+/oh-story/write-a-novel-sequel-that-stands-alone,如何写一部独立完整的小说续集,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,151,oh-story
+/oh-story/write-a-novel-series-finale,如何写出兑现系列主线的最终卷,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,162,oh-story
+/oh-story/write-a-novel-with-an-antihero,如何写出读者愿意追随的反英雄小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,165,oh-story
+/oh-story/write-a-novella-with-a-complete-story-arc,如何写出结构完整的中篇小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,161,oh-story
+/video-recap/write-a-video-game-review-script,如何写有明确标准的游戏评测视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,170,video-recap
+/video-recap/write-a-reaction-video-script-with-original-commentary,如何写有原创评论的反应视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,173,video-recap
+/video-recap/write-a-travel-video-script,如何写有清晰故事线的旅行视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,174,video-recap
+/video-recap/write-a-product-review-video-script-with-evidence,如何用证据写产品评测视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,153,video-recap
+/video-recap/write-a-science-explainer-video-script,如何写科学知识解说视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,159,video-recap
+/drama-skills/write-a-short-drama-logline,如何写出一看就懂的短剧梗概句,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,169,drama-skills
+/drama-skills/write-a-short-drama-second-episode,短剧第二集如何接住首集并推进,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,162,drama-skills
+/drama-skills/adapt-a-webtoon-into-a-short-drama,如何把网络漫画改编成短剧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,181,drama-skills
+/drama-skills/build-a-character-arc-across-short-drama-episodes,如何用多集短剧写出人物成长弧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,160,drama-skills
+/video-recap/write-a-youtube-outro-that-gives-viewers-a-next-step,如何写能引导下一步的 YouTube 结尾,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,153,video-recap
+/video-recap/write-a-recipe-video-script-viewers-can-follow,如何写观众能跟着做的食谱视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,155,video-recap
+/video-recap/adapt-a-podcast-episode-into-a-video-script,如何把播客节目改成视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,158,video-recap
+/video-recap/write-a-gameplay-commentary-video-script,如何写游戏实况评论视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,155,video-recap
+/video-recap/write-a-product-demo-video-script,如何写清楚易懂的产品演示视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,161,video-recap
+/drama-skills/adapt-a-stage-play-into-a-screenplay,如何把舞台剧改编成电影剧本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,181,drama-skills
+/drama-skills/plan-a-screenplay-table-read,如何为电影剧本安排围读,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,171,drama-skills
+/drama-skills/revise-a-screenplay-after-a-table-read,如何根据围读反馈修改电影剧本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,157,drama-skills
+/drama-skills/adapt-a-podcast-story-into-a-short-drama,如何把播客故事改编成短剧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,161,drama-skills
+/drama-skills/write-a-short-film-script-from-a-true-event,如何根据真实事件写短片剧本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,180,drama-skills
+/novel-to-game/write-rpg-item-descriptions-with-story,如何用角色扮演游戏道具说明讲故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,166,novel-to-game
+/novel-to-game/write-npc-dialogue-for-a-game,如何写玩家听得懂也用得上的 NPC 对白,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,165,novel-to-game
+/novel-to-game/write-quest-dialogue-that-reacts-to-progress,如何编写会随任务进展变化的对白,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,170,novel-to-game
+/novel-to-game/organize-game-dialogue-for-implementation,如何整理便于实现的游戏对白脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,161,novel-to-game
+/novel-to-game/prepare-game-dialogue-for-localization,如何为游戏对白本地化做准备,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,168,novel-to-game
+/video-recap/write-a-youtube-channel-trailer-script,如何写 YouTube 频道宣传片脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,167,video-recap
+/video-recap/write-a-screen-recording-tutorial-script,如何写屏幕录制教程脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,153,video-recap
+/video-recap/write-a-video-essay-about-a-video-game,如何写视频游戏分析论文,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,166,video-recap
+/drama-skills/write-screenplay-dialogue-with-subtext,如何为电影剧本写有潜台词的对白,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,171,drama-skills
+/drama-skills/write-a-comedy-scene-that-escalates,如何写出逐步升级的喜剧场景,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,163,drama-skills
+/drama-skills/adapt-a-memoir-into-a-short-film-script,如何把回忆录改编成短片剧本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,158,drama-skills
+/drama-skills/write-a-short-film-with-a-time-jump,如何写有时间跳跃的短片,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,159,drama-skills
+/video-recap/write-a-book-summary-video-script,如何写图书内容梳理视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,164,video-recap
+/video-recap/write-an-anime-review-video-script,如何写动漫评测视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,164,video-recap
+/video-recap/recap-a-video-game-story-for-new-players,如何为新玩家梳理游戏剧情,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,167,video-recap
+/video-recap/write-a-podcast-trailer-script,如何写播客宣传片脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,152,video-recap
+/video-recap/write-an-animated-explainer-video-script,如何写动画知识解说视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,154,video-recap
+/video-recap/write-an-online-course-lesson-video-script,如何写在线课程单节视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,157,video-recap
+/video-recap/write-a-teleprompter-friendly-video-script,如何写适合提词器朗读的视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,144,video-recap
+/video-recap/storyboard-an-explainer-video,如何在制作前为解说视频画分镜,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,152,video-recap
+/video-recap/write-a-book-recommendation-video-script,如何写图书推荐视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,138,video-recap
+/video-recap/write-a-video-game-walkthrough-script,如何写视频游戏通关攻略脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,160,video-recap
+/video-recap/write-a-documentary-interview-profile-video,如何用访谈写人物纪录片视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,168,video-recap
+/video-recap/write-a-video-essay-about-film-editing,如何写电影剪辑分析视频论文,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,147,video-recap
+/video-recap/write-a-video-essay-about-a-film-theme,如何写电影主题分析视频论文,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,151,video-recap
+/video-recap/write-a-video-essay-about-cinematography,如何写电影摄影分析视频论文,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,156,video-recap
+/video-recap/write-a-video-essay-about-film-sound-design,如何写电影声音设计分析视频论文,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,154,video-recap
+/video-recap/write-a-video-essay-about-a-tv-series,如何写电视剧分析视频论文,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,152,video-recap
+/video-recap/write-a-video-essay-about-a-game-character,如何写游戏角色分析视频论文,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,146,video-recap
+/video-recap/write-a-faceless-youtube-video-script,如何写适合无出镜 YouTube 视频的脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,171,video-recap
+/video-recap/write-a-research-paper-explainer-video-script,如何写解读研究论文的视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,149,video-recap
+/video-recap/write-a-product-comparison-video-script,如何写产品对比视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,141,video-recap
+/video-recap/write-a-book-club-discussion-video-script,如何写读书会讨论视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,156,video-recap
+/video-recap/write-a-video-essay-about-film-genre-conventions,如何写电影类型惯例分析视频论文,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,159,video-recap
+/video-recap/write-a-book-trailer-video-script,如何写图书宣传视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,153,video-recap
+/video-recap/write-a-news-explainer-video-script,如何写新闻事件解说视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,168,video-recap
+/video-recap/write-a-video-essay-about-film-symbolism,如何写电影象征手法分析视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,163,video-recap
+/novel-to-game/adapt-a-dystopian-novel-into-a-game,如何把反乌托邦小说改编成游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,167,novel-to-game
+/novel-to-game/adapt-a-comedy-novel-into-a-game,如何把喜剧小说改编成游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,166,novel-to-game
+/novel-to-game/adapt-an-adventure-novel-into-a-game,如何把冒险小说改编成游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,175,novel-to-game
+/novel-to-game/design-story-quests-for-an-open-world-game,如何为开放世界游戏设计剧情任务,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,171,novel-to-game
+/novel-to-game/keep-an-open-world-game-story-coherent-out-of-order,如何让开放世界非线性剧情保持连贯,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,163,novel-to-game
+/video-recap/write-a-sponsored-video-segment,视频赞助口播怎么写才自然,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,350,video-recap
+/video-recap/write-a-youtube-livestream-run-of-show,YouTube直播流程怎么安排,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,344,video-recap
+/video-recap/outline-a-video-podcast-episode,视频播客一期节目怎么列提纲,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,332,video-recap
+/video-recap/outline-a-youtube-shorts-series,YouTube Shorts系列内容怎么规划,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,342,video-recap
+/novel-to-game/design-a-roguelike-story-across-runs,Roguelike游戏的多轮叙事怎么设计,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,337,novel-to-game
+/novel-to-game/write-a-story-for-a-cozy-game,治愈系游戏的故事怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,347,novel-to-game
+/novel-to-game/design-a-co-op-game-story-for-two-players,合作游戏的双人故事怎么设计,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,367,novel-to-game
+/novel-to-game/plan-story-updates-for-a-live-service-game,持续运营游戏的剧情更新怎么规划,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,346,novel-to-game
+/drama-skills/format-a-screenplay,电影剧本格式怎么排才清楚,merge,/drama-skills/vertical-drama-script-format,同一读者问题并入主文章,350,drama-skills
+/drama-skills/write-a-feature-film-screenplay,长片剧本怎么写出持续推进力,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,341,drama-skills
+/drama-skills/write-a-sitcom-pilot,情景喜剧试播集怎么建立可持续的故事机制,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,340,drama-skills
+/drama-skills/adapt-a-book-into-a-feature-film-screenplay,如何把小说改编成长片电影剧本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,348,drama-skills
+/novel-to-game/design-a-story-for-a-puzzle-game,解谜游戏的故事怎么融入谜题,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,319,novel-to-game
+/novel-to-game/write-a-story-for-a-player-created-game-character,玩家自创角色的游戏故事怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,329,novel-to-game
+/novel-to-game/adapt-a-screenplay-into-a-game,电影剧本改编成游戏怎么做,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,322,novel-to-game
+/novel-to-game/adapt-a-web-serial-into-a-game,网络连载小说改编成游戏怎么做,merge,/novel-to-game/quick-start,同一读者问题并入主文章,351,novel-to-game
+/drama-skills/outline-a-feature-screenplay-before-drafting,长片剧本动笔前如何列提纲,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,313,drama-skills
+/drama-skills/outline-a-television-episode,电视剧单集提纲怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,301,drama-skills
+/drama-skills/adapt-a-novel-into-a-tv-pilot,如何把小说改编成电视剧试播集,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,317,drama-skills
+/drama-skills/write-an-anthology-tv-episode,电视剧选集单集怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,308,drama-skills
+/video-recap/write-a-webinar-script,线上讲座脚本怎么写才好跟,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,305,video-recap
+/video-recap/write-a-crowdfunding-video-script,众筹宣传视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,309,video-recap
+/video-recap/write-a-book-launch-video-script,新书发布视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,325,video-recap
+/video-recap/write-a-youtube-shorts-story-script,YouTube短视频故事脚本怎么写完整,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,318,video-recap
+/oh-story/write-internal-monologue-in-fiction,小说中的内心独白怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,253,oh-story
+/oh-story/write-text-messages-in-fiction,小说里的短信对话怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,246,oh-story
+/oh-story/write-a-dream-sequence-in-fiction,小说梦境场景怎么服务剧情,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,246,oh-story
+/novel-to-game/design-a-story-for-a-strategy-game,策略游戏的故事怎么融入决策,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,308,novel-to-game
+/novel-to-game/write-a-story-for-a-platformer-game,平台跳跃游戏的故事怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,336,novel-to-game
+/novel-to-game/write-a-story-for-a-mobile-game,手机游戏的故事怎么安排,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,322,novel-to-game
+/novel-to-game/adapt-a-comic-into-a-game,漫画改编成游戏怎么保留原作魅力,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,310,novel-to-game
+/novel-to-game/design-a-story-mode-for-a-sports-game,体育游戏的故事模式怎么设计,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,309,novel-to-game
+/oh-story/create-a-fictional-culture-for-a-novel,小说中的虚构文化怎么构建,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,340,oh-story
+/oh-story/design-a-government-for-a-fictional-world,虚构世界的政体怎么设计,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,322,oh-story
+/oh-story/write-a-world-history-that-shapes-the-plot,如何编写真正影响剧情的世界历史,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,313,oh-story
+/oh-story/design-a-fictional-religion-for-a-story,故事中的虚构信仰体系怎么设计,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,306,oh-story
+/oh-story/make-a-fantasy-map-that-supports-the-story,怎样绘制真正服务剧情的奇幻地图,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,330,oh-story
+/drama-skills/write-a-horror-screenplay,恐怖电影剧本怎么逐步建立恐惧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,296,drama-skills
+/drama-skills/write-a-thriller-screenplay,惊悚片剧本怎么持续升级利害,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,316,drama-skills
+/drama-skills/write-a-comedy-screenplay,喜剧电影剧本怎么建立持续笑点,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,306,drama-skills
+/drama-skills/write-an-action-screenplay,动作片剧本怎么让场面清楚又有利害,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,302,drama-skills
+/drama-skills/write-a-mystery-screenplay,悬疑电影剧本怎么公平铺设线索,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,310,drama-skills
+/oh-story/design-a-fictional-economy-for-a-story,故事中的虚构经济体系怎么设计,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,291,oh-story
+/drama-skills/write-a-science-fiction-screenplay,科幻电影剧本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,299,drama-skills
+/drama-skills/write-a-romantic-drama-screenplay,爱情剧情片剧本怎么写出关系变化,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,289,drama-skills
+/drama-skills/write-a-crime-screenplay,犯罪电影剧本怎么建立清晰案件,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,316,drama-skills
+/drama-skills/write-a-historical-screenplay,历史题材剧本怎么写得可信又有戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,309,drama-skills
+/drama-skills/write-a-fantasy-screenplay,奇幻电影剧本怎么写得清楚好懂,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,284,drama-skills
+/drama-skills/write-a-superhero-screenplay,超级英雄电影剧本怎么突出人物冲突,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,298,drama-skills
+/drama-skills/write-an-adventure-screenplay,冒险电影剧本怎么写清旅程目标,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,311,drama-skills
+/drama-skills/write-screenplay-exposition-through-conflict,电影剧本怎么用冲突自然交代背景,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,279,drama-skills
+/drama-skills/use-flashbacks-in-a-screenplay,电影剧本里的闪回怎么用,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,284,drama-skills
+/drama-skills/create-a-visual-motif-for-a-screenplay,电影剧本的视觉母题怎么设计,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,295,drama-skills
+/video-recap/write-an-anime-recap-script,动漫剧情解说稿怎么写给新观众看,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,309,video-recap
+/video-recap/write-a-video-essay-about-a-film-performance,如何围绕电影表演写视频论文,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,283,video-recap
+/oh-story/write-body-language-in-fiction,小说人物的肢体语言怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,315,oh-story
+/oh-story/build-tension-in-a-fiction-scene,小说场景中的张力怎么递增,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,310,oh-story
+/novel-to-game/write-a-story-for-an-rpg,角色扮演游戏的故事怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,305,novel-to-game
+/novel-to-game/plan-an-episodic-game-story,分章节发布的游戏剧情怎么规划,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,293,novel-to-game
+/video-recap/explain-a-tv-series-ending-with-evidence,电视剧结局解析视频怎么用证据讲清楚,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,308,video-recap
+/oh-story/continue-a-novel-without-losing-continuity,续写小说时怎么保持前后连贯,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,301,oh-story
+/novel-to-game/design-a-story-for-a-simulation-game,模拟经营游戏的故事怎么设计,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,293,novel-to-game
+/novel-to-game/write-a-story-mode-for-a-fighting-game,格斗游戏的故事模式怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,300,novel-to-game
+/novel-to-game/adapt-a-short-story-into-a-game,短篇小说怎么改编成游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,320,novel-to-game
+/oh-story/turn-a-story-idea-into-a-clear-premise,怎样把故事创意发展成清晰前提,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,300,oh-story
+/oh-story/revise-a-novel-for-pacing,修改小说节奏：找出拖慢或跳过的部分,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,307,oh-story
+/video-recap/write-a-live-shopping-video-script,直播带货脚本怎么写得清楚可信,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,310,video-recap
+/video-recap/outline-a-solo-podcast-video-episode,单人视频播客一期节目怎么列提纲,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,271,video-recap
+/video-recap/outline-a-live-panel-discussion,直播圆桌讨论流程怎么设计,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,290,video-recap
+/video-recap/write-a-customer-testimonial-video-script,客户证言视频脚本怎么写得真实,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,294,video-recap
+/novel-to-game/design-a-story-for-a-survival-game,生存游戏的故事怎么围绕资源压力展开,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,300,novel-to-game
+/novel-to-game/design-a-story-for-a-horror-game,恐怖游戏的故事怎么结合玩家行动,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,289,novel-to-game
+/novel-to-game/write-a-story-for-an-adventure-game,冒险游戏的故事怎么跟着探索推进,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,281,novel-to-game
+/oh-story/choose-a-point-of-view-for-a-novel,小说视角怎么选,merge,/oh-story/narrative-point-of-view,同一读者问题并入主文章,202,oh-story
+/oh-story/write-a-novel-with-multiple-pov-characters,多视角小说怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,199,oh-story
+/oh-story/write-a-romance-scene-that-changes-the-relationship,爱情场景怎样推动关系变化,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,204,oh-story
+/oh-story/use-foreshadowing-in-a-novel,小说伏笔怎么埋,merge,/oh-story/foreshadowing-and-suspense,同一读者问题并入主文章,201,oh-story
+/oh-story/write-a-story-with-an-unreliable-narrator,不可靠叙述者怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,198,oh-story
+/oh-story/write-a-mystery-novel-with-fair-clues,悬疑小说怎么公平铺线索,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,217,oh-story
+/oh-story/write-a-character-backstory-that-affects-the-plot,角色背景怎样影响剧情,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,199,oh-story
+/oh-story/write-a-strong-novel-ending,小说结尾怎么写有力,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,198,oh-story
+/drama-skills/write-a-tv-series-bible,电视剧圣经怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,212,drama-skills
+/drama-skills/outline-a-tv-episode,电视剧单集提纲怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,183,drama-skills
+/drama-skills/write-a-limited-series,限定剧怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,180,drama-skills
+/drama-skills/write-a-stage-play,舞台剧剧本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,218,drama-skills
+/drama-skills/write-a-screenplay-logline,电影剧本一句话梗概怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,205,drama-skills
+/drama-skills/write-a-screenplay-spec-script,电影剧本样稿怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,198,drama-skills
+/drama-skills/adapt-a-true-story-into-a-screenplay,真实事件怎么改编成剧本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,212,drama-skills
+/drama-skills/outline-a-tv-pilot,电视剧试播集怎么列提纲,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,170,drama-skills
+/video-recap/write-a-tiktok-script,TikTok视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,190,video-recap
+/video-recap/write-an-instagram-reels-script,Instagram Reels脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,167,video-recap
+/video-recap/write-a-youtube-shorts-script,YouTube Shorts脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,170,video-recap
+/video-recap/repurpose-a-long-video-into-short-clips,长视频怎么剪成短片,merge,/video-recap/turn-a-long-video-into-short-clips,同一读者问题并入主文章,200,video-recap
+/video-recap/turn-a-podcast-into-short-video-clips,播客怎么剪成短视频片段,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,188,video-recap
+/video-recap/write-a-user-generated-content-video-script,UGC视频脚本怎么写得可信,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,182,video-recap
+/video-recap/write-an-influencer-brand-deal-video-script,达人品牌合作视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,187,video-recap
+/video-recap/plan-a-live-qa-stream,直播问答怎么规划,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,184,video-recap
+/video-recap/plan-a-live-product-launch,产品发布直播脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,195,video-recap
+/video-recap/write-an-online-course-promo-video,线上课程宣传视频怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,170,video-recap
+/video-recap/write-a-company-about-us-video,企业介绍视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,188,video-recap
+/video-recap/write-an-event-highlight-video-script,活动精彩回顾视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,192,video-recap
+/video-recap/write-a-personal-brand-video-script,个人品牌视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,177,video-recap
+/video-recap/write-a-linkedin-video-script,LinkedIn视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,186,video-recap
+/video-recap/script-clips-from-a-livestream,直播回放怎么剪成短片,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,176,video-recap
+/video-recap/write-a-podcast-intro,播客开场白怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,168,video-recap
+/video-recap/create-a-podcast-interview-outline,播客访谈提纲怎么列,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,178,video-recap
+/video-recap/introduce-a-podcast-guest,播客嘉宾怎么介绍,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,166,video-recap
+/video-recap/write-a-video-content-series,视频系列内容怎么规划,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,182,video-recap
+/video-recap/write-a-launch-video-script,产品或项目发布视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,158,video-recap
+/video-recap/write-a-campaign-video-script,活动宣传视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,188,video-recap
+/video-recap/write-a-customer-case-study-video,客户案例视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,183,video-recap
+/video-recap/write-an-educational-youtube-video,教育类YouTube视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,159,video-recap
+/novel-to-game/write-a-game-narrative-design-document,游戏叙事设计文档怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,205,novel-to-game
+/novel-to-game/create-a-game-story-bible,游戏故事圣经怎么建,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,204,novel-to-game
+/novel-to-game/pitch-a-game-story-to-a-studio,怎么向游戏团队提案故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,190,novel-to-game
+/novel-to-game/build-a-game-narrative-portfolio,游戏叙事设计作品集怎么做,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,189,novel-to-game
+/novel-to-game/write-dialogue-for-an-open-world-game,开放世界游戏对白怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,184,novel-to-game
+/novel-to-game/reveal-game-lore-through-player-discovery,如何通过探索揭示游戏背景,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,196,novel-to-game
+/novel-to-game/design-a-game-prologue,游戏序章怎么设计,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,184,novel-to-game
+/novel-to-game/outline-a-game-story-before-writing,游戏剧情动笔前怎么列大纲,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,179,novel-to-game
+/novel-to-game/write-a-game-faction-conflict,游戏阵营冲突怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,190,novel-to-game
+/novel-to-game/design-a-game-protagonist,剧情向游戏主角怎么设计,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,186,novel-to-game
+/novel-to-game/design-a-game-antagonist,游戏反派怎么设计,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,185,novel-to-game
+/novel-to-game/write-distinct-voices-for-game-characters,游戏角色的声音怎么区分,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,187,novel-to-game
+/novel-to-game/write-a-game-story-for-a-demo,游戏试玩版的故事怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,183,novel-to-game
+/novel-to-game/write-a-multiplayer-game-story,多人游戏的故事怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,181,novel-to-game
+/novel-to-game/design-a-story-for-an-mmo,大型多人在线游戏剧情怎么设计,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,196,novel-to-game
+/novel-to-game/write-a-dating-sim-story,恋爱模拟游戏剧情怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,182,novel-to-game
+/novel-to-game/design-a-story-for-a-sandbox-game,沙盒游戏的故事怎么设计,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,189,novel-to-game
+/novel-to-game/write-a-story-for-a-first-person-shooter,第一人称射击游戏剧情怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,189,novel-to-game
+/novel-to-game/write-a-story-for-a-racing-game,赛车游戏的故事怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,187,novel-to-game
+/novel-to-game/adapt-a-novel-character-into-a-game-protagonist,如何把小说人物改编成游戏主角,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,179,novel-to-game
+/oh-story/write-a-novel-series,小说系列怎么规划,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,167,oh-story
+/oh-story/write-a-sequel-novel,小说续集怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,165,oh-story
+/oh-story/write-a-childrens-book,儿童故事书怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,175,oh-story
+/oh-story/write-a-coming-of-age-novel,成长小说怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,166,oh-story
+/oh-story/write-a-fable,如何写出寓意清楚的寓言,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,127,oh-story
+/oh-story/write-a-story-with-a-ticking-clock,倒计时故事怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,168,oh-story
+/oh-story/write-a-group-scene-with-distinct-voices,多人场景怎么写出不同声音,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,177,oh-story
+/oh-story/write-a-comedy-scene-in-a-novel,小说喜剧场景怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,181,oh-story
+/oh-story/introduce-a-character-in-a-novel,小说里怎么介绍新角色,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,170,oh-story
+/oh-story/write-a-flashback-in-a-novel,小说闪回怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,176,oh-story
+/oh-story/write-a-character-driven-novel,人物驱动型小说怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,181,oh-story
+/oh-story/write-a-serial-fiction-story,连载小说怎么持续吸引读者,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,169,oh-story
+/oh-story/write-a-query-letter-for-a-novel,小说投稿信怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,153,oh-story
+/drama-skills/write-a-screenplay-opening-scene,电影剧本开场场景怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,170,drama-skills
+/drama-skills/write-a-screenplay-action-scene,电影剧本动作场景怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,155,drama-skills
+/drama-skills/write-a-screenplay-fight-scene,电影剧本打斗场景怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,176,drama-skills
+/drama-skills/write-a-screenplay-chase-scene,电影剧本追逐戏怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,169,drama-skills
+/drama-skills/write-a-screenplay-montage,电影剧本蒙太奇怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,165,drama-skills
+/drama-skills/write-a-screenplay-midpoint,剧本中点怎么设计,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,142,drama-skills
+/drama-skills/write-a-screenplay-climax,电影剧本高潮怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,171,drama-skills
+/drama-skills/write-a-screenplay-ending,电影剧本结尾怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,131,drama-skills
+/drama-skills/write-a-screenplay-scene-transition,电影剧本场景转场怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,164,drama-skills
+/drama-skills/introduce-a-screenplay-character,电影剧本人物怎么登场,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,169,drama-skills
+/drama-skills/build-a-screenplay-character-arc,电影剧本人物弧线怎么设计,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,167,drama-skills
+/drama-skills/outline-a-tv-season,电视剧一季怎么列大纲,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,165,drama-skills
+/drama-skills/write-a-sitcom-episode,情景喜剧单集怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,184,drama-skills
+/drama-skills/write-a-serialized-tv-drama,连续剧情电视剧怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,172,drama-skills
+/drama-skills/write-a-tv-animation-script,动画电视剧剧本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,168,drama-skills
+/drama-skills/write-a-one-act-play,独幕剧怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,155,drama-skills
+/drama-skills/write-a-screenplay-with-a-small-cast,小角色阵容电影剧本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,169,drama-skills
+/drama-skills/write-a-screenplay-set-in-one-location,单一场景电影剧本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,168,drama-skills
+/drama-skills/write-a-screenplay-sequence,电影剧本段落怎么列大纲,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,162,drama-skills
+/drama-skills/write-a-screenplay-with-an-ensemble-cast,群像电影剧本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,165,drama-skills
+/video-recap/write-a-youtube-vlog-script,YouTube日常视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,172,video-recap
+/video-recap/write-a-youtube-challenge-video-script,YouTube挑战视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,157,video-recap
+/video-recap/write-a-comedy-sketch-video-script,喜剧短剧视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,142,video-recap
+/video-recap/write-an-unboxing-video-script,开箱视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,168,video-recap
+/video-recap/write-a-workout-video-script,健身训练视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,174,video-recap
+/video-recap/write-an-investor-pitch-video-script,融资路演视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,175,video-recap
+/video-recap/write-an-employee-onboarding-video,员工入职视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,159,video-recap
+/video-recap/write-a-safety-training-video-script,安全培训视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,163,video-recap
+/video-recap/write-a-customer-onboarding-video-script,客户上手引导视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,147,video-recap
+/video-recap/write-an-app-onboarding-video,应用上手引导视频怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,173,video-recap
+/video-recap/write-a-nonprofit-fundraising-video-script,非营利组织筹款视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,176,video-recap
+/video-recap/write-a-public-service-announcement-video,公益提示视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,169,video-recap
+/video-recap/write-a-real-estate-video-tour,房产视频看房脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,168,video-recap
+/video-recap/write-a-virtual-event-video-script,线上活动脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,158,video-recap
+/video-recap/write-an-interactive-workshop-video-script,互动工作坊视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,151,video-recap
+/video-recap/write-a-training-video-script,培训视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,144,video-recap
+/video-recap/write-a-social-media-ad-video-script,社交媒体广告视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,166,video-recap
+/video-recap/write-a-video-script-for-a-live-interview,直播视频访谈脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,162,video-recap
+/video-recap/write-a-community-update-video,社区动态视频怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,171,video-recap
+/video-recap/write-a-podcast-episode-outro,播客单集结尾怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,152,video-recap
+/video-recap/write-a-public-speaking-video-script,演讲视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,164,video-recap
+/video-recap/write-a-business-presentation-video-script,商业演示视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,152,video-recap
+/video-recap/write-a-recruitment-video-script,招聘视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,158,video-recap
+/video-recap/write-a-product-update-video-script,产品更新视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,161,video-recap
+/video-recap/write-a-conference-intro-video-script,会议开场视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,149,video-recap
+/video-recap/write-a-small-business-promo-video,小企业宣传视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,150,video-recap
+/video-recap/write-an-employee-testimonial-video-script,员工体验视频脚本怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,162,video-recap
+/novel-to-game/write-a-tabletop-rpg-campaign,桌面角色扮演游戏战役怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,172,novel-to-game
+/novel-to-game/write-a-dnd-one-shot,D&D单次冒险怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,155,novel-to-game
+/novel-to-game/design-a-tabletop-rpg-quest,桌面角色扮演任务怎么设计,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,151,novel-to-game
+/novel-to-game/write-a-mystery-for-a-tabletop-rpg,桌面角色扮演游戏的谜案怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,159,novel-to-game
+/novel-to-game/outline-a-story-driven-rpg-session,剧情向角色扮演游戏单次流程怎么列,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,144,novel-to-game
+/novel-to-game/write-npcs-for-a-tabletop-rpg-campaign,桌面角色扮演战役中的NPC怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,167,novel-to-game
+/novel-to-game/write-a-villain-for-a-tabletop-rpg,桌面角色扮演游戏反派怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,168,novel-to-game
+/novel-to-game/design-a-one-shot-mystery-adventure,单次推理冒险怎么设计,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,159,novel-to-game
+/novel-to-game/write-a-story-for-a-board-game,桌面棋盘游戏故事怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,164,novel-to-game
+/novel-to-game/write-a-story-for-a-card-game,卡牌游戏故事怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,152,novel-to-game
+/novel-to-game/write-a-story-for-an-indie-game,独立游戏故事怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,173,novel-to-game
+/novel-to-game/design-a-game-expansion-story,游戏资料片故事怎么设计,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,159,novel-to-game
+/novel-to-game/write-a-game-dlc-story,游戏DLC剧情怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,147,novel-to-game
+/novel-to-game/write-a-live-service-game-event-story,长期运营游戏活动剧情怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,154,novel-to-game
+/novel-to-game/write-a-companion-quest-for-a-game,游戏伙伴角色任务怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,158,novel-to-game
+/novel-to-game/write-a-side-character-for-a-game,游戏配角怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,163,novel-to-game
+/novel-to-game/write-a-relationship-arc-for-a-game,游戏人物关系弧线怎么写,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,159,novel-to-game
+/novel-to-game/plan-a-dnd-campaign-arc,如何围绕玩家目标规划 D&D 战役主线,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,121,novel-to-game
+/novel-to-game/write-a-dnd-campaign-premise,如何写出玩家能采取行动的 D&D 战役梗概,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,133,novel-to-game
+/novel-to-game/connect-player-backstories-to-a-dnd-campaign,如何把玩家角色背景融入 D&D 战役,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,138,novel-to-game
+/novel-to-game/write-a-dnd-character-backstory,如何写出主持人用得上的 D&D 角色背景,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,135,novel-to-game
+/novel-to-game/write-a-dnd-campaign-villain-with-a-plan,如何为 D&D 战役设计有计划的反派,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,143,novel-to-game
+/novel-to-game/write-a-dnd-adventure-hook-players-can-choose,如何设计玩家可以选择的 D&D 冒险钩子,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,134,novel-to-game
+/novel-to-game/outline-the-first-session-of-a-dnd-campaign,如何规划 D&D 战役的第一场游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,116,novel-to-game
+/novel-to-game/plan-a-short-dnd-campaign,如何规划一场有完整起止的短篇 D&D 战役,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,138,novel-to-game
+/novel-to-game/write-a-dnd-campaign-finale,如何写出兑现铺垫的 D&D 战役终章,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,125,novel-to-game
+/novel-to-game/create-a-rival-party-for-a-dnd-campaign,如何为 D&D 战役设计竞争队伍,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,131,novel-to-game
+/novel-to-game/build-faction-conflict-for-a-dnd-campaign,如何为 D&D 战役设计阵营冲突,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,131,novel-to-game
+/novel-to-game/design-a-dnd-town-around-a-story-problem,如何围绕故事问题设计 D&D 小镇,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,122,novel-to-game
+/novel-to-game/write-a-personal-quest-for-a-dnd-character,如何为 D&D 角色写个人任务,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,130,novel-to-game
+/novel-to-game/design-a-mystery-for-a-dnd-campaign,如何为 D&D 战役设计谜案,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,129,novel-to-game
+/novel-to-game/write-clues-for-a-dnd-mystery,如何设计玩家能推理的 D&D 谜案线索,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,125,novel-to-game
+/novel-to-game/give-a-dnd-npc-a-goal-and-secret,如何为 D&D 非玩家角色设计目标与秘密,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,124,novel-to-game
+/novel-to-game/plan-a-multi-session-dnd-adventure,如何规划一场持续数次游戏的 D&D 冒险,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,118,novel-to-game
+/novel-to-game/create-a-rival-npc-for-a-dnd-campaign,如何为 D&D 战役设计竞争型非玩家角色,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,124,novel-to-game
+/novel-to-game/write-a-dnd-campaign-session-ending,如何以清楚的下一步结束 D&D 游戏场次,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,112,novel-to-game
+/novel-to-game/run-a-dnd-session-when-players-change-the-plan,玩家改变计划时，如何继续推进 D&D 游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,135,novel-to-game
+/novel-to-game/write-a-dnd-session-recap,如何写出玩家用得上的 D&D 游戏回顾,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,107,novel-to-game
+/novel-to-game/write-a-dnd-adventure-with-multiple-solutions,如何设计有多种解法的 D&D 冒险,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,120,novel-to-game
+/novel-to-game/reveal-a-campaign-secret-in-a-dnd-game,如何在 D&D 游戏中揭示战役秘密,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,125,novel-to-game
+/oh-story/write-a-picture-book,如何写出有完整故事的绘本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,116,oh-story
+/oh-story/outline-a-picture-book-story,如何为绘本编写故事大纲,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,120,oh-story
+/oh-story/plan-picture-book-page-turns,如何安排绘本翻页节奏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,127,oh-story
+/oh-story/match-picture-book-text-with-illustrations,如何让绘本文字与插图互相配合,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,126,oh-story
+/oh-story/write-a-read-aloud-picture-book,如何写出适合朗读的绘本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,121,oh-story
+/oh-story/write-a-bedtime-story,如何为孩子写睡前故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,119,oh-story
+/oh-story/write-an-early-reader-story,如何为初级独立阅读者写故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,111,oh-story
+/oh-story/write-a-memoir,如何从亲身经历写出回忆录,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,133,oh-story
+/oh-story/outline-a-memoir,如何围绕核心故事规划回忆录,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,125,oh-story
+/oh-story/choose-a-memoir-focus,如何为回忆录确定聚焦方向,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,112,oh-story
+/oh-story/write-a-memoir-scene-from-memory,如何根据记忆写出回忆录场景,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,123,oh-story
+/oh-story/write-dialogue-in-a-memoir,如何谨慎地为回忆录写对白,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,116,oh-story
+/oh-story/structure-a-memoir-chronologically,如何按时间顺序组织回忆录,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,123,oh-story
+/oh-story/write-a-personal-essay,如何写出观点清楚的个人随笔,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,109,oh-story
+/oh-story/outline-a-personal-essay,如何为个人随笔编写大纲,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,122,oh-story
+/oh-story/write-a-narrative-nonfiction-story,如何写出叙事性非虚构作品,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,134,oh-story
+/oh-story/write-a-biography,如何写出有清楚故事线的人物传记,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,127,oh-story
+/oh-story/outline-a-biography,动笔前如何为人物传记编写大纲,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,122,oh-story
+/oh-story/write-an-opening-for-a-memoir,如何写出回忆录的开篇,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,118,oh-story
+/oh-story/write-an-ending-for-a-memoir,如何为回忆录收尾而不强行说教,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,127,oh-story
+/drama-skills/write-a-two-act-play,如何写出两幕剧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,119,drama-skills
+/drama-skills/outline-a-two-act-play,动笔前如何为两幕剧编写大纲,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,124,drama-skills
+/drama-skills/write-a-stage-play-monologue,如何为舞台剧写独白,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,112,drama-skills
+/drama-skills/write-dialogue-for-a-stage-play,如何为舞台剧写对白,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,110,drama-skills
+/drama-skills/write-stage-directions-actors-can-play,如何写出演员能表演的舞台说明,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,106,drama-skills
+/drama-skills/write-a-stage-play-opening-scene,如何写出舞台剧的开场场景,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,100,drama-skills
+/drama-skills/write-a-stage-play-ending,如何为舞台剧写结尾,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,105,drama-skills
+/drama-skills/write-a-stage-play-with-a-small-cast,如何为少量演员写舞台剧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,119,drama-skills
+/drama-skills/write-a-radio-play,如何写广播剧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,127,drama-skills
+/drama-skills/write-an-audio-drama-script,如何写音频剧剧本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,120,drama-skills
+/drama-skills/outline-a-fiction-podcast-season,如何规划虚构播客剧集,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,123,drama-skills
+/drama-skills/write-a-fiction-podcast-pilot,如何为虚构播客写试播集,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,123,drama-skills
+/drama-skills/write-dialogue-for-an-audio-drama,如何为音频剧写对白,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,118,drama-skills
+/drama-skills/use-sound-cues-in-an-audio-drama,如何在音频剧中使用声音提示,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,115,drama-skills
+/drama-skills/adapt-a-short-story-into-an-audio-drama,如何把短篇小说改编成音频剧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,132,drama-skills
+/drama-skills/write-a-stage-play-from-a-true-story,如何根据真实事件写舞台剧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,115,drama-skills
+/drama-skills/write-a-short-audio-drama,如何写一部短篇音频剧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,118,drama-skills
+/drama-skills/write-a-feature-animation-script,如何写动画长片剧本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,111,drama-skills
+/drama-skills/write-a-short-animation-script,如何为动画短片写剧本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,111,drama-skills
+/drama-skills/adapt-a-novel-into-an-audio-drama,如何把小说改编成音频剧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,127,drama-skills
+/drama-skills/write-a-stage-play-with-one-location,如何写出发生在一个地点的舞台剧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,122,drama-skills
+/drama-skills/write-a-stage-play-with-two-characters,如何写出双人舞台剧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,121,drama-skills
+/drama-skills/write-a-stage-play-adaptation,如何把故事改编成舞台剧,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,117,drama-skills
+/drama-skills/write-a-stage-play-scene-transition,如何为舞台剧写场景转场,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,116,drama-skills
+/drama-skills/write-an-audio-drama-cliffhanger,如何用悬念结束音频剧单集,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,106,drama-skills
+/drama-skills/write-a-stage-play-with-a-chorus,如何在舞台剧中使用合唱角色,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,117,drama-skills
+/oh-story/use-symbolism-in-fiction,如何在小说中使用象征而不刻意解释,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,121,oh-story
+/oh-story/create-a-recurring-motif-in-a-novel,如何在小说中使用反复意象,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,120,oh-story
+/oh-story/build-atmosphere-in-a-novel,如何在小说中营造氛围,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,125,oh-story
+/oh-story/maintain-a-consistent-tone-in-a-novel,如何保持小说基调一致,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,115,oh-story
+/oh-story/reveal-character-through-objects-in-fiction,如何用物件揭示小说人物,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,110,oh-story
+/oh-story/use-setting-to-create-suspense-in-fiction,如何利用环境为小说制造悬念,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,111,oh-story
+/oh-story/choose-narrative-distance-for-a-novel,如何为小说选择叙述距离,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,123,oh-story
+/oh-story/write-conflicting-loyalties-in-a-story,如何写出人物忠诚冲突的故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,115,oh-story
+/oh-story/write-a-moral-dilemma-in-fiction,如何在小说中写道德困境,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,116,oh-story
+/video-recap/write-a-sports-recap-video,如何写体育赛事回顾视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,106,video-recap
+/video-recap/write-a-sports-highlight-voiceover,如何为体育精彩集锦写旁白,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,98,video-recap
+/video-recap/write-a-game-preview-video,如何写体育比赛前瞻视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,118,video-recap
+/video-recap/write-a-sports-season-recap,如何写体育赛季回顾视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,105,video-recap
+/video-recap/write-an-athlete-profile-video,如何写运动员人物专题视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,117,video-recap
+/video-recap/outline-a-sports-documentary,如何规划体育纪录片视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,113,video-recap
+/video-recap/write-a-postgame-analysis-video,如何写赛后分析视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,121,video-recap
+/video-recap/write-a-sports-interview-video,如何写体育采访视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,115,video-recap
+/video-recap/write-a-video-essay-about-a-sports-rivalry,如何写体育宿敌关系的视频论文,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,115,video-recap
+/video-recap/write-a-sports-comeback-documentary,如何写体育逆转纪录片脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,115,video-recap
+/video-recap/write-a-tournament-recap-video,如何写赛事锦标赛回顾视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,113,video-recap
+/video-recap/write-a-sports-rules-explainer-video,如何写体育规则讲解视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,95,video-recap
+/video-recap/write-a-coach-interview-video,如何写教练采访视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,104,video-recap
+/video-recap/write-a-sports-season-preview-video,如何写体育赛季前瞻视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,112,video-recap
+/video-recap/write-a-player-career-retrospective-video,如何写运动员职业生涯回顾视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,114,video-recap
+/video-recap/write-a-team-history-video,如何写体育球队历史视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,107,video-recap
+/video-recap/script-a-postgame-press-conference-video,如何规划赛后新闻发布会视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,114,video-recap
+/video-recap/write-a-youth-sports-highlight-video,如何编排青少年体育精彩集锦视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,117,video-recap
+/video-recap/write-a-documentary-about-a-sports-season,如何写一部关于体育赛季的纪录片,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,126,video-recap
+/video-recap/explain-a-controversial-call-in-a-video,如何在视频中解释有争议的体育判罚,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,108,video-recap
+/video-recap/write-a-sports-video-for-new-fans,如何为新球迷写体育视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,117,video-recap
+/video-recap/write-a-sports-postseason-recap,如何写季后赛回顾视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,103,video-recap
+/novel-to-game/adapt-a-tv-series-into-a-game,如何把电视剧改编成游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,111,novel-to-game
+/novel-to-game/adapt-an-anime-series-into-a-game,如何把动画剧集改编成游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,116,novel-to-game
+/novel-to-game/adapt-a-film-into-a-game,如何把电影改编成游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,125,novel-to-game
+/novel-to-game/adapt-a-stage-play-into-a-game,如何把舞台剧改编成游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,124,novel-to-game
+/novel-to-game/adapt-a-podcast-story-into-a-game,如何把播客故事改编成游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,117,novel-to-game
+/novel-to-game/adapt-an-audio-drama-into-a-game,如何把音频剧改编成游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,118,novel-to-game
+/novel-to-game/adapt-a-picture-book-into-a-game,如何把绘本改编成游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,121,novel-to-game
+/novel-to-game/adapt-a-folktale-into-a-game,如何把民间故事改编成游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,111,novel-to-game
+/novel-to-game/adapt-a-memoir-into-a-game,如何把回忆录改编成游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,104,novel-to-game
+/novel-to-game/adapt-a-true-story-into-a-game,如何把真实故事改编成游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,118,novel-to-game
+/novel-to-game/design-a-dnd-dungeon-adventure,如何设计目标清楚的 D&D 地城冒险,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,103,novel-to-game
+/novel-to-game/write-a-dnd-puzzle-with-story-stakes,如何为 D&D 设计有故事利害的谜题,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,114,novel-to-game
+/novel-to-game/write-a-dnd-heist-adventure,如何写一场 D&D 劫案冒险,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,112,novel-to-game
+/novel-to-game/plan-a-dnd-rescue-adventure,如何规划 D&D 营救冒险,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,119,novel-to-game
+/novel-to-game/design-a-dnd-chase-encounter,如何设计 D&D 追逐遭遇,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,103,novel-to-game
+/novel-to-game/write-a-dnd-social-encounter,如何为 D&D 设计有真实冲突的社交遭遇,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,116,novel-to-game
+/novel-to-game/design-a-dnd-travel-adventure,如何为 D&D 冒险设计旅程,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,107,novel-to-game
+/novel-to-game/write-a-dnd-treasure-reveal,如何让 D&D 冒险中的宝藏揭示产生意义,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,115,novel-to-game
+/novel-to-game/create-a-dnd-artifact-with-a-cost,如何为 D&D 设计带有故事代价的神器,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,106,novel-to-game
+/novel-to-game/design-a-dnd-combat-encounter-that-advances-story,如何设计能推进故事的 D&D 战斗遭遇,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,110,novel-to-game
+/novel-to-game/write-a-dnd-adventure-for-new-players,如何为新手玩家写 D&D 冒险,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,113,novel-to-game
+/novel-to-game/write-a-dnd-session-with-a-moral-choice,如何围绕道德选择设计 D&D 游戏场次,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,126,novel-to-game
+/novel-to-game/design-a-dnd-trap-with-fair-clues,如何设计带有公平线索的 D&D 陷阱,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,112,novel-to-game
+/oh-story/write-a-found-family-story,如何写出自然动人的亲情群像故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,125,oh-story
+/oh-story/write-a-friendship-arc,如何写出让双方都发生变化的友情弧线,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,115,oh-story
+/oh-story/write-a-time-loop-story,如何写出选择不断升级的循环故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,123,oh-story
+/oh-story/write-a-romantic-thriller,如何写出爱情与悬疑都成立的浪漫惊悚故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,121,oh-story
+/oh-story/plan-a-trilogy,如何规划一部各卷各有发展的三部曲,merge,/oh-story/plan-a-novel-series,同一读者问题并入主文章,121,oh-story
+/oh-story/outline-a-novel-series-arc,如何从第一卷开始规划小说系列主线,merge,/oh-story/plan-a-novel-series,同一读者问题并入主文章,112,oh-story
+/oh-story/write-a-sequel-opening,如何开启续集而不重复第一部,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,110,oh-story
+/oh-story/write-a-character-secret-that-changes-the-plot,如何让人物秘密真正改变剧情,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,119,oh-story
+/oh-story/write-a-secret-identity-story,如何写出读者能跟上的双重身份故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,106,oh-story
+/oh-story/write-a-character-rivalry,如何写出推动故事发展的角色竞争,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,122,oh-story
+/oh-story/write-a-young-adult-fantasy-novel,如何写出青少年奇幻小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,137,oh-story
+/oh-story/write-a-campus-novel,如何写出有明确主线的校园小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,124,oh-story
+/oh-story/get-past-writers-block-while-writing-a-novel,写小说卡住时如何重新动笔,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,123,oh-story
+/oh-story/make-a-weekly-novel-writing-schedule,如何制定能坚持的每周小说写作计划,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,123,oh-story
+/oh-story/prepare-a-novel-for-beta-readers,如何为小说寻找测试读者做好准备,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,119,oh-story
+/oh-story/choose-beta-readers-for-a-novel,如何为小说挑选测试读者,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,102,oh-story
+/oh-story/write-a-novel-after-a-long-break,长时间停笔后如何重回小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,111,oh-story
+/oh-story/build-distinct-character-voices-in-a-novel,如何让小说里的人物各有说话方式,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,107,oh-story
+/oh-story/write-a-scene-that-changes-a-relationship,如何写出推动关系变化的场景,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,105,oh-story
+/oh-story/write-a-vampire-novel,如何写出有新意的吸血鬼小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,122,oh-story
+/oh-story/write-a-small-town-novel,如何避免刻板印象地写小镇小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,109,oh-story
+/oh-story/write-a-sports-fiction-novel,如何写出比赛真正影响剧情的体育小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,108,oh-story
+/drama-skills/write-an-animated-series-pilot,如何写出动画剧集试播集,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,117,drama-skills
+/drama-skills/write-a-feature-screenplay-in-three-acts,如何用三幕结构规划电影剧本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,117,drama-skills
+/drama-skills/write-a-screenplay-inciting-incident,如何为电影剧本设计激励事件,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,106,drama-skills
+/drama-skills/write-a-tv-series-finale,如何写出兑现整部剧承诺的系列大结局,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,103,drama-skills
+/drama-skills/write-a-limited-series-finale,如何写出限定剧大结局,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,119,drama-skills
+/drama-skills/outline-a-tv-season-arc,如何逐集规划电视剧季主线,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,109,drama-skills
+/drama-skills/write-a-tv-episode-with-a-and-b-stories,如何安排电视剧一集的 A 线与 B 线,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,99,drama-skills
+/drama-skills/write-a-screenplay-with-a-dual-timeline,如何写出双时间线电影剧本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,112,drama-skills
+/drama-skills/write-a-screenplay-scene-for-two-characters,如何写好只有两个人物的电影场景,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,106,drama-skills
+/drama-skills/write-an-ensemble-scene-in-a-screenplay,如何写好电影中的群像场景,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,108,drama-skills
+/drama-skills/show-character-backstory-on-screen,如何在画面中呈现人物背景,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,118,drama-skills
+/drama-skills/adapt-a-video-game-into-a-screenplay,如何把电子游戏改编成电影剧本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,118,drama-skills
+/drama-skills/adapt-a-manga-into-a-screenplay,如何把漫画改编成电影剧本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,116,drama-skills
+/drama-skills/adapt-a-podcast-story-into-a-screenplay,如何把播客故事改编成电影剧本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,115,drama-skills
+/drama-skills/adapt-a-short-story-into-a-feature-screenplay,如何把短篇小说改编成长片剧本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,109,drama-skills
+/drama-skills/write-a-low-budget-feature-screenplay,如何写出适合低成本制作的长片剧本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,124,drama-skills
+/drama-skills/write-a-thriller-tv-pilot,如何写出有持续故事动力的惊悚剧试播集,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,115,drama-skills
+/drama-skills/write-a-web-series-pilot,如何写出网络剧试播集,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,119,drama-skills
+/drama-skills/write-a-tv-act-break,如何写出提高利害的电视剧幕间转折,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,91,drama-skills
+/drama-skills/write-a-limited-series-premise,如何写出限定剧故事设定,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,113,drama-skills
+/drama-skills/write-a-screenplay-from-a-news-story,如何把新闻事件改编成电影剧本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,106,drama-skills
+/drama-skills/adapt-a-comic-into-a-screenplay,如何把漫画改编成电影剧本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,113,drama-skills
+/drama-skills/write-a-feature-screenplay-first-act,如何写好电影剧本的第一幕,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,98,drama-skills
+/drama-skills/write-a-tv-season-premiere,如何写好电视剧新一季首集,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,94,drama-skills
+/drama-skills/write-a-screenplay-with-a-parallel-plotline,如何在电影剧本中组织并行故事线,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,111,drama-skills
+/video-recap/write-a-game-lore-explainer-video,如何写清楚游戏世界观解说视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,113,video-recap
+/video-recap/write-a-video-essay-about-a-game-story,如何写一篇分析游戏叙事的视频文案,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,110,video-recap
+/video-recap/explain-a-game-ending-in-a-video,如何清楚解释电子游戏结局,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,112,video-recap
+/video-recap/write-a-game-character-analysis-video,如何写一篇分析游戏人物的视频文案,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,106,video-recap
+/video-recap/script-a-gameplay-highlight-video,如何为游戏精彩片段视频写旁白,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,113,video-recap
+/video-recap/turn-a-game-stream-into-a-recap-video,如何把游戏直播整理成回顾视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,103,video-recap
+/video-recap/write-a-storytime-video-script,如何写出观众容易跟上的故事类视频文案,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,105,video-recap
+/video-recap/write-a-list-video-script,如何把清单类视频写成连贯故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,95,video-recap
+/video-recap/write-a-history-video-essay,如何写出史料清楚的历史视频论文,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,104,video-recap
+/video-recap/compare-a-book-and-its-film-adaptation-in-a-video,如何比较一本书与它的电影改编,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,101,video-recap
+/video-recap/write-a-video-essay-comparing-two-films,如何写一篇比较两部电影的视频论文,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,111,video-recap
+/video-recap/write-a-film-franchise-timeline-video,如何制作电影系列时间线视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,100,video-recap
+/video-recap/write-a-video-essay-about-a-book-ending,如何在视频论文中分析小说结尾,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,101,video-recap
+/video-recap/write-a-tiktok-storytime-script,如何写 TikTok 故事类短视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,105,video-recap
+/video-recap/write-a-vlog-script-with-a-clear-story,如何给 Vlog 写出清楚的故事线,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,106,video-recap
+/video-recap/write-a-manga-recap-video-script,如何写漫画剧情回顾视频脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,99,video-recap
+/video-recap/write-an-anime-season-recap-video,如何写动漫一季剧情回顾视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,109,video-recap
+/video-recap/write-a-screen-recording-product-demo-script,如何为屏幕录制产品演示写脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,109,video-recap
+/video-recap/write-a-how-to-video-script-for-beginners,如何为新手写好操作教程视频,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,114,video-recap
+/video-recap/write-a-video-script-for-existing-footage,如何围绕已有素材写视频脚本,merge,/video-recap/recap-script,同一读者问题并入主文章,110,video-recap
+/video-recap/write-a-video-essay-from-research,如何把研究资料整理成视频论文脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,107,video-recap
+/video-recap/write-a-youtube-video-script-for-a-game-walkthrough,如何为游戏流程攻略视频写脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,113,video-recap
+/video-recap/write-a-documentary-script-about-a-historical-event,如何为历史事件纪录片写脚本,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,108,video-recap
+/video-recap/write-a-video-essay-about-a-film-franchise,如何写一篇分析电影系列的视频论文,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,104,video-recap
+/video-recap/write-a-game-review-comparison-video,如何在视频评测中比较两款游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,108,video-recap
+/oh-story/write-a-queer-romance-novel,如何写出爱情线完整的酷儿浪漫小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,106,oh-story
+/oh-story/write-a-road-trip-novel,如何写出不断向前推进的公路小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,114,oh-story
+/oh-story/write-a-workplace-novel,如何写出有真实冲突的职场小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,99,oh-story
+/oh-story/write-a-legal-drama-novel,如何写出读者能跟上的法律题材小说,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,102,oh-story
+/oh-story/write-a-short-story-collection,如何组织短篇小说集,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,114,oh-story
+/novel-to-game/adapt-a-web-novel-into-a-game,如何把网络小说改编成游戏,merge,/novel-to-game/quick-start,同一读者问题并入主文章,121,novel-to-game
+/novel-to-game/adapt-a-romance-novel-into-a-game,如何把爱情小说改编成游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,116,novel-to-game
+/novel-to-game/adapt-a-short-story-into-a-visual-novel,如何把短篇小说改编成视觉小说,merge,/novel-to-game/write-a-visual-novel-script,同一读者问题并入主文章,113,novel-to-game
+/novel-to-game/write-a-choice-based-mobile-game-story,如何写出选择式手机游戏故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,108,novel-to-game
+/novel-to-game/write-an-interactive-romance-game,如何写互动恋爱游戏,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,114,novel-to-game
+/novel-to-game/turn-a-game-story-into-quests,如何把游戏故事整理成任务结构,merge,/novel-to-game/write-a-game-quest,同一读者问题并入主文章,106,novel-to-game
+/novel-to-game/adapt-a-story-world-into-a-game-map,如何把故事世界转化为游戏地图,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,109,novel-to-game
+/novel-to-game/adapt-a-character-arc-into-gameplay,如何把人物弧线转化为玩法,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,101,novel-to-game
+/novel-to-game/write-a-game-prologue-that-gets-players-moving,如何写出让玩家马上行动的游戏序章,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,109,novel-to-game
+/novel-to-game/design-a-game-story-for-a-small-team,如何为小型团队设计游戏故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,118,novel-to-game
+/novel-to-game/scope-a-novel-game-adaptation-for-an-indie-team,如何为独立团队规划小说改编游戏的范围,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,115,novel-to-game
+/novel-to-game/plan-a-playable-novel-adaptation-demo,如何规划小说改编游戏的可玩演示,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,110,novel-to-game
+/novel-to-game/write-an-interactive-mystery-game-story,如何写互动推理游戏故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,122,novel-to-game
+/novel-to-game/design-a-story-driven-puzzle-adventure,如何设计剧情驱动的解谜冒险,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,101,novel-to-game
+/novel-to-game/turn-a-novel-scene-into-a-game-objective,如何把小说场景转化为游戏目标,merge,/novel-to-game/write-a-game-quest,同一读者问题并入主文章,115,novel-to-game
+/novel-to-game/create-a-game-story-that-rewards-exploration,如何让探索推动游戏故事,merge,/novel-to-game/tell-a-game-story-through-the-environment,同一读者问题并入主文章,107,novel-to-game
+/novel-to-game/adapt-a-novel-setting-for-gameplay,如何把小说背景转化为可玩的游戏环境,merge,/novel-to-game/tell-a-game-story-through-the-environment,同一读者问题并入主文章,104,novel-to-game
+/novel-to-game/adapt-a-relationship-plot-into-game-choices,如何把人物关系线转化为游戏选择,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,115,novel-to-game
+/novel-to-game/write-a-game-story-for-new-players,如何为新手玩家写游戏故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,86,novel-to-game
+/novel-to-game/design-a-story-for-an-episodic-game,如何为分集发布的游戏设计故事,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,101,novel-to-game
+/oh-story/write-a-first-draft-without-editing,如何写初稿时避免每写一页就反复修改,retire,,仅通用建议，缺少该题的具体 skill 方法与可操作案例；不作为独立文章发布,123,oh-story
+/oh-story/write-a-character-arc-for-a-supporting-character,如何写好配角的人物弧线,merge,/oh-story/character-arc,同一读者问题并入主文章,103,oh-story
+/oh-story/write-a-character-arc-across-a-series,如何在小说系列中发展人物弧线,merge,/oh-story/plan-a-novel-series,同一读者问题并入主文章,117,oh-story
+/novel-to-game/quick-start,小说改游戏怎么做：从可玩切片到候选版本,revise,,保留具体操作流程与固定版本来源，修订任务分类及标题用语,1575,workflow
+/video-recap/capcut-draft,剪映草稿导出：视频解说导进剪映 / CapCut 继续精剪,revise,,保留具体操作流程与固定版本来源，修订任务分类及标题用语,1524,workflow
+/oh-story/agent-skills-for-writers,写作 Skill 是什么：和提示词、插件、MCP 怎么分,revise,,保留具体操作流程与固定版本来源，修订任务分类及标题用语,2422,workflow
+/dsh/deepseek-novel-writing,DeepSeek写小说：选对工作区，从已有稿件接着写,revise,,保留具体操作流程与固定版本来源，修订任务分类及标题用语,2915,workflow
+/oh-story/import-and-continue,AI续写已有书稿：导入 Oh Story，接上设定与前史,revise,,保留具体操作流程与固定版本来源，修订任务分类及标题用语,1465,workflow
+/drama-skills/novel-to-short-drama,小说改编短剧怎么做：分集、剧本与分镜衔接,revise,,保留具体操作流程与固定版本来源，修订任务分类及标题用语,1676,workflow
+/video-recap/video-to-narration,视频解说怎么做：把本地视频做成有依据的中文解说,revise,,保留具体操作流程与固定版本来源，修订任务分类及标题用语,2223,workflow
+/novel-to-game/meaningful-choices,互动小说分支剧情怎么设计：让选择真正改变剧情和结局,revise,,保留具体操作流程与固定版本来源，修订任务分类及标题用语,1118,workflow
+/drama-skills/character-consistency,AI短剧角色一致性：人物、造型与镜头状态怎么保持,revise,,保留具体操作流程与固定版本来源，修订任务分类及标题用语,1523,workflow
+/video-recap/original-audio-and-narration,视频解说原声和旁白怎么搭配：逐拍分配声音,revise,,保留具体操作流程与固定版本来源，修订任务分类及标题用语,1728,workflow
+/oh-story/long-novel-continuity,AI写长篇记不住设定、忘伏笔怎么办：分开记已知、承诺和线索,revise,,保留具体操作流程与固定版本来源，修订任务分类及标题用语,1729,workflow
+/oh-story/outline-to-chapter,按大纲写章节总像复述设定？把剧情规格写成可见变化,revise,,保留具体操作流程与固定版本来源，修订任务分类及标题用语,1083,workflow
+/oh-story/preserve-author-voice,AI续写怎么保持文风：拆成表达维度，附上短样本,revise,,保留具体操作流程与固定版本来源，修订任务分类及标题用语,1005,workflow
+/oh-story/review-and-revise,AI审稿意见怎么改：分清必改、可选与后续影响,revise,,保留具体操作流程与固定版本来源，修订任务分类及标题用语,1571,workflow
+/oh-story/short-story-from-idea,一个梗怎么写成短篇小说：承诺、递进、选择与兑现,revise,,保留具体操作流程与固定版本来源，修订任务分类及标题用语,1303,workflow
+/oh-story/character-dialogue,小说人物对话怎么写出区分度：按目标、信息与关系来分,revise,,保留具体操作流程与固定版本来源，修订任务分类及标题用语,1276,workflow
+/oh-story/character-motivation,人物动机怎么写：把目标、动机与选择连起来,revise,,保留具体操作流程与固定版本来源，修订任务分类及标题用语,1578,workflow
