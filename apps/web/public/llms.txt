@@ -361,6 +361,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [Fix Automatic Subtitle Errors in a Video Recap](https://zenstory.ai/video-recap/fix-automatic-subtitle-errors) — Correct names and negation against actual speech. Separate narration, dialogue and burned text, then choose the right subtitle source and clock.
 - [How to Make a Video with Original Audio and No Voiceover](https://zenstory.ai/video-recap/make-a-video-with-original-audio-and-no-voiceover) — Choose processed source audio, copying an adopted track, or pairing a new picture with a locked mix. Includes an operation request and listening checks.
 - [How to Combine Landscape and Portrait Videos](https://zenstory.ai/video-recap/combine-landscape-and-portrait-videos) — Choose a canvas for mixed video orientations, distinguish fitting from cropping, and check people, objects, subtitles, and cuts with a worked example.
+- [How to Fix Dialogue Cut Off by a Video Edit](https://zenstory.ai/video-recap/fix-dialogue-cut-off-in-video) — Distinguish clipped speech, masking, and missing source audio. Restore complete source dialogue with an original borrowing example and updated output timing.
+- [How to Fix Uneven Volume Between AI Voiceover Segments](https://zenstory.ai/video-recap/fix-uneven-ai-voiceover-volume) — Separate segment levels, peak guards, and final mixing. Includes gain examples and listening checks without confusing RMS targets with measured LUFS.
 
 
 ## Workbench docs

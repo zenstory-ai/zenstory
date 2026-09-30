@@ -21117,7 +21117,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "en": "How to Turn a Long Video into Short Clips That Stand Alone",
       "zh": "长视频怎么剪成短片段：每条保留完整问题和结果"
@@ -21153,8 +21153,8 @@
           "en": "Record indispensable premises in the cut request"
         },
         "body": {
-          "zh": "| 项目 | 本例填写 |\n|---|---|\n| 本条问题 | 借用承诺与演出前等待为何冲突 |\n| 必留声音 | 同意借用、今晚演出前归还的完整台词 |\n| 必留画面 | 拿走乐器，以及演出前朋友等待的实际反应 |\n| 顺序 | 许可与条件先于拿走；等待是后续结果 |\n| 可删部分 | 无新信息的路程、重复问候与空等待 |\n| 尚未证实 | 没归还的原因，是否有意违约 |\n\n制作时为必留区间写实际文件、原片时间、音频或视频职责；关键前提写明先后关系，不只在备注里说“保留逻辑”。剪点吸附或再次压时长后，复核这些区间仍被完整采用。\n\n时间属于哪版原片与成片要清楚。不能把旧版本时码复制到换序后的新视频上，再声称证据已对齐。",
-          "en": "| Field | Example |\n|---|---|\n| Question | Why do the borrowing promise and pre-show wait conflict? |\n| Required sound | Permission and complete evening-return condition |\n| Required picture | Removal and the lender’s actual waiting response |\n| Order | Permission before removal; waiting as later result |\n| Removable | Uninformative travel, repeated greetings, empty waits |\n| Unproved | Cause of nonreturn and deliberate breach |\n\nFor production, record actual file, source interval and audio/video role; specify required order rather than hiding it in a general note. Recheck adoption after snapped boundaries or further shortening.\n\nDistinguish source and output clocks and versions. Old timestamps cannot verify reordered new footage."
+          "zh": "| 项目 | 本例填写 |\n|---|---|\n| 本条问题 | 借用承诺与演出前等待为何冲突 |\n| 必留声音 | 同意借用、今晚演出前归还的完整台词 |\n| 必留画面 | 拿走乐器，以及演出前朋友等待的实际反应 |\n| 顺序 | 许可与条件先于拿走；等待是后续结果 |\n| 可删部分 | 无新信息的路程、重复问候与空等待 |\n| 尚未证实 | 没归还的原因，是否有意违约 |\n\n制作时为必留区间写实际文件、原片时间、音频或视频职责；关键前提写明先后关系，不只在备注里说“保留逻辑”。剪点吸附或再次压时长后，复核这些区间仍被完整采用。\n\n时间属于哪版原片与成片要清楚。不能把旧版本时码复制到换序后的新视频上，再声称证据已对齐。\n\n在引用版本中，必保时刻写进同一剪辑计划的 `required_evidence`：本例把完整许可与归还条件登记为音频节点，交接与演出前等待登记为画面节点。每项用唯一标识、实际源文件、原片起止时间、音画职责与内容说明；先核素材再填写，不照抄示例时码。把许可先于交接、交接先于等待登记为本条必需顺序；只锁这些具体时刻，不锁整个场次。\n\nvideo-cut 会在画面与句界吸附之后检查声明区间是否至少有一处完整连续保留、来源及顺序是否对应，缺段或错序会阻断。这个检查支持“计划没丢必保区间”，仍不能证明所填区间真含完整条件、或者最终音乐没有盖住对白；这些要按当前素材与成片听审。",
+          "en": "| Field | Example |\n|---|---|\n| Question | Why do the borrowing promise and pre-show wait conflict? |\n| Required sound | Permission and complete evening-return condition |\n| Required picture | Removal and the lender’s actual waiting response |\n| Order | Permission before removal; waiting as later result |\n| Removable | Uninformative travel, repeated greetings, empty waits |\n| Unproved | Cause of nonreturn and deliberate breach |\n\nFor production, record actual file, source interval and audio/video role; specify required order rather than hiding it in a general note. Recheck adoption after snapped boundaries or further shortening.\n\nDistinguish source and output clocks and versions. Old timestamps cannot verify reordered new footage.\n\nIn the pinned version, put required moments into the same plan’s `required_evidence`: permission and the complete return condition are audio nodes; handoff and pre-show waiting are video nodes. Give each a unique ID, actual source file, source start/end, track role, and content. Inspect footage before entering times rather than copying illustrative timestamps. Declare permission before handoff and handoff before waiting where required by this clip; lock these moments rather than the whole scene.\n\nAfter visual and speech-boundary snapping, video-cut checks that declared intervals are retained completely and continuously at least once, with matching source and required order. Missing intervals or wrong order block the cut. This supports retention of declared intervals, but cannot establish that they truly contain the complete condition or that final music leaves speech audible. Check those against current source and output."
         }
       },
       {
@@ -21202,7 +21202,8 @@
     },
     "related": [
       "/video-recap/editing-rhythm",
-      "/video-recap/clip-titles"
+      "/video-recap/clip-titles",
+      "/video-recap/fix-dialogue-cut-off-in-video"
     ],
     "topic": "video-recaps",
     "sources": [
@@ -21219,6 +21220,13 @@
           "en": "Short-shot candidates and playback review"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-cut/references/shot-review.md"
+      },
+      {
+        "label": {
+          "zh": "必保源区间与顺序的执行检查",
+          "en": "Required source intervals and order checks"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-cut/SKILL.md"
       }
     ]
   },
@@ -22451,7 +22459,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "视频剪辑闪帧怎么修：找出残留短镜头，回源调整剪点",
       "en": "How to Fix Flash Frames and Stray Shots in an Edit"
@@ -22476,8 +22484,8 @@
           "en": "A short shot is not automatically a mistake"
         },
         "body": {
-          "zh": "video-cut 的镜头检查检查实际渲染文件，因为一个计划中很长的截取区间，仍可能带着原片内部几个帧的反打。报告里的短镜头和密集切点是待看候选，不是自动删除清单。\n\n| 看到的现象 | 可能原因 | 先做什么 |\n|---|---|---|\n| 接点夹着陌生人物一闪 | 截取带入前后无关镜头 | 回原片确认完整镜头范围 |\n| 手势只露半截就切走 | 反应或动作被截短 | 找真实动作开始与完成位置 |\n| 画面忽亮一下 | 曝光、闪光或动效 | 不只凭切点检测认定换镜 |\n| 同一人突然变大或移位 | 取景范围在接点附近跳动 | 比较原片与输出取景 |\n| 一连串短镜推动动作 | 有意快切 | 正常播放判断每镜是否可读 |\n\n闪帧修复针对无意残留或丢失的信息。保留有作用的快切，不为统一镜长把整片放慢。",
-          "en": "video-cut reviews the actual rendered file because even a long planned source interval can contain a few frames of an internal reverse shot. Short-shot and dense-cut reports provide candidates to inspect, not a deletion list.\n\n| Symptom | Possible cause | First check |\n|---|---|---|\n| An unrelated face flashes at a join | A neighboring source shot was included | Complete shot boundaries in the source |\n| A hand action appears only halfway | A reaction or action was truncated | Its real beginning and completion |\n| The image briefly brightens | Exposure, flash or effect | Whether there was an actual cut |\n| A person abruptly enlarges or shifts | The crop changes near the join | Source shot versus output framing |\n| Rapid shots advance an action | Deliberate fast cutting | Readability at normal speed |\n\nRepair unintended leftovers or missing information. Keep useful fast cuts rather than slowing everything to a uniform duration."
+          "zh": "video-cut 的镜头检查检查实际渲染文件，因为一个计划中很长的截取区间，仍可能带着原片内部几个帧的反打。报告里的短镜头和密集切点是待看候选，不是自动删除清单。\n\n| 看到的现象 | 判断与处理 |\n|---|---|\n| 接点夹着陌生人物一闪 | **可能原因：** 截取带入前后无关镜头 **先做什么：** 回原片确认完整镜头范围 |\n| 手势只露半截就切走 | **可能原因：** 反应或动作被截短 **先做什么：** 找真实动作开始与完成位置 |\n| 画面忽亮一下 | **可能原因：** 曝光、闪光或动效 **先做什么：** 不只凭切点检测认定换镜 |\n| 同一人突然变大或移位 | **可能原因：** 取景范围在接点附近跳动 **先做什么：** 比较原片与输出取景 |\n| 一连串短镜推动动作 | **可能原因：** 有意快切 **先做什么：** 正常播放判断每镜是否可读 |\n\n闪帧修复针对无意残留或丢失的信息。保留有作用的快切，不为统一镜长把整片放慢。",
+          "en": "video-cut reviews the actual rendered file because even a long planned source interval can contain a few frames of an internal reverse shot. Short-shot and dense-cut reports provide candidates to inspect, not a deletion list.\n\n| Symptom | Record |\n|---|---|\n| An unrelated face flashes at a join | **Possible cause:** A neighboring source shot was included **First check:** Complete shot boundaries in the source |\n| A hand action appears only halfway | **Possible cause:** A reaction or action was truncated **First check:** Its real beginning and completion |\n| The image briefly brightens | **Possible cause:** Exposure, flash or effect **First check:** Whether there was an actual cut |\n| A person abruptly enlarges or shifts | **Possible cause:** The crop changes near the join **First check:** Source shot versus output framing |\n| Rapid shots advance an action | **Possible cause:** Deliberate fast cutting **First check:** Readability at normal speed |\n\nRepair unintended leftovers or missing information. Keep useful fast cuts rather than slowing everything to a uniform duration."
         }
       },
       {
@@ -22487,8 +22495,8 @@
           "en": "Original join example: removing a stray shot versus restoring a reaction"
         },
         "body": {
-          "zh": "下面是虚构剪辑计划，用于说明判断方法，没有声称实际检测过素材。\n\n原片顺序：客户指向账单 → 店主解释费用 → 路过者两帧插镜 → 客户收回账单并点头。你的成片只想保留费用说明与客户接受。\n\n| 版本 | 修法 | 需要检查 |\n|---|---|---|\n| 路过者两帧被误带入 | 回源找到完整插镜边界，在剪辑计划中去掉整段无关镜头 | 说明尾句完整，后镜仍从客户收账单的真实状态开始 |\n| 客户反应只剩两帧 | 从原片扩回客户收账单到点头的完整动作 | 这个反应确实发生在该句之后，没拼错时间 |\n| 两帧其实是窗外闪光 | 保留原动作，核对是否确为闪光 | 不把曝光变化误删成镜头 |\n\n无关镜头删掉，不相关的人脸无需定格加长。相关反应需要从真实源素材恢复，而不是把两帧拉成一秒，制造原片没有的停顿。",
-          "en": "This fictional edit plan illustrates the decision; it is not a claim that footage was analyzed.\n\nSource order: customer points at invoice → mechanic explains the fee → two-frame passerby insert → customer takes back the invoice and nods. The intended edit keeps the explanation and acceptance.\n\n| Version | Repair | Verify |\n|---|---|---|\n| The passerby was accidentally included | Find the complete insert boundary and remove it in the edit plan | Keep the final words and the customer’s real next state |\n| The customer’s response was cut to two frames | Restore the complete take-and-nod action from source | Confirm it belongs after this line, not a different exchange |\n| The bright frames were a window flash | Preserve the action and confirm the cause | Do not remove exposure change as if it were a stray shot |\n\nRemove an unrelated insert; do not freeze it to make it longer. Restore a useful response from real source footage rather than stretching two frames into a pause that never occurred."
+          "zh": "下面是虚构剪辑计划，用于说明判断方法，没有声称实际检测过素材。\n\n原片顺序：客户指向账单 → 店主解释费用 → 路过者两帧插镜 → 客户收回账单并点头。你的成片只想保留费用说明与客户接受。\n\n| 版本 | 判断与处理 |\n|---|---|\n| 路过者两帧被误带入 | **修法：** 回源找到完整插镜边界，在剪辑计划中去掉整段无关镜头 **需要检查：** 说明尾句完整，后镜仍从客户收账单的真实状态开始 |\n| 客户反应只剩两帧 | **修法：** 从原片扩回客户收账单到点头的完整动作 **需要检查：** 这个反应确实发生在该句之后，没拼错时间 |\n| 两帧其实是窗外闪光 | **修法：** 保留原动作，核对是否确为闪光 **需要检查：** 不把曝光变化误删成镜头 |\n\n无关镜头删掉，不相关的人脸无需定格加长。相关反应需要从真实源素材恢复，而不是把两帧拉成一秒，制造原片没有的停顿。",
+          "en": "This fictional edit plan illustrates the decision; it is not a claim that footage was analyzed.\n\nSource order: customer points at invoice → mechanic explains the fee → two-frame passerby insert → customer takes back the invoice and nods. The intended edit keeps the explanation and acceptance.\n\n| Version | Record |\n|---|---|\n| The passerby was accidentally included | **Repair:** Find the complete insert boundary and remove it in the edit plan **Verify:** Keep the final words and the customer’s real next state |\n| The customer’s response was cut to two frames | **Repair:** Restore the complete take-and-nod action from source **Verify:** Confirm it belongs after this line, not a different exchange |\n| The bright frames were a window flash | **Repair:** Preserve the action and confirm the cause **Verify:** Do not remove exposure change as if it were a stray shot |\n\nRemove an unrelated insert; do not freeze it to make it longer. Restore a useful response from real source footage rather than stretching two frames into a pause that never occurred."
         }
       },
       {
@@ -22498,8 +22506,8 @@
           "en": "Locate, compare source, revise the plan and play again"
         },
         "body": {
-          "zh": "1. 检查本轮实际导出文件，记录候选时间附近的前后画面，不只看剪辑计划中的段落长度。\n2. 连同前后片段正常播放，检查动作、台词和反应。逐帧查看可以定位边界，但不能替代正常速度判断。\n3. 回原片核对是否本来就有短镜，或本次截取、取景造成残留。无法证明来源时先保留待确认，不猜是原片问题。\n4. 在剪辑计划里修完整边界，再重新导出；不要只改导出文件而留下旧计划。\n5. 用同样画面范围和检测参数对照修前修后，再听台词、看字幕、核动作和速度。\n\n若黑边、花字或标题影响检测，可检查主画面范围，同时保留全画面或较大范围作对照。不能靠缩小检查区域把问题排除掉后宣布成功。",
-          "en": "1. Inspect this run’s actual export and record the candidate with surrounding pictures. Planned interval length is not enough.\n2. Play the neighborhood at normal speed to assess action, dialogue and response. Frame stepping locates boundaries but cannot establish viewing comfort.\n3. Compare the source: was the short shot already there, or did the edit or crop create it? Keep uncertain origin unconfirmed.\n4. Repair the complete boundary in the edit plan and export again; do not repair only the rendered file while leaving an obsolete plan.\n5. Compare before and after using the same picture region and detection parameters, then check words, subtitles, actions and playback speed.\n\nIf borders or titles affect detection, inspect the main picture while retaining a full-frame or broader comparison. Shrinking the inspected region to hide a defect is not a repair."
+          "zh": "1. 检查本轮实际导出文件，记录候选时间附近的前后画面，不只看剪辑计划中的段落长度。\n2. 连同前后片段正常播放，检查动作、台词和反应。逐帧查看可以定位边界，但不能替代正常速度判断。\n3. 回原片核对是否本来就有短镜，或本次截取、取景造成残留。无法证明来源时先保留待确认，不猜是原片问题。\n4. 在剪辑计划里修完整边界，再重新导出；不要只改导出文件而留下旧计划。\n5. 用同样画面范围和检测参数对照修前修后，再听台词、看字幕、核动作和速度。\n\n若黑边、花字或标题影响检测，可检查主画面范围，同时保留全画面或较大范围作对照。不能靠缩小检查区域把问题排除掉后宣布成功。\n\n修画面边界后再核声音。video-cut 的顺序是先避开视觉硬切，再修到可靠句末或停顿，最后检查有没有落在已知讲话区间里；不能为了删残帧把最后一个字切掉。若整句与期望画面区间冲突，回源换选择，或另做保留完整音轨的画面剪辑；“短镜候选为零”不检查这句是否说完。",
+          "en": "1. Inspect this run’s actual export and record the candidate with surrounding pictures. Planned interval length is not enough.\n2. Play the neighborhood at normal speed to assess action, dialogue and response. Frame stepping locates boundaries but cannot establish viewing comfort.\n3. Compare the source: was the short shot already there, or did the edit or crop create it? Keep uncertain origin unconfirmed.\n4. Repair the complete boundary in the edit plan and export again; do not repair only the rendered file while leaving an obsolete plan.\n5. Compare before and after using the same picture region and detection parameters, then check words, subtitles, actions and playback speed.\n\nIf borders or titles affect detection, inspect the main picture while retaining a full-frame or broader comparison. Shrinking the inspected region to hide a defect is not a repair.\n\nCheck sound again after moving visual boundaries. video-cut cleans visual hard-cut edges, then adjusts to reliable sentence/pause windows and checks for cuts inside known speech. Do not remove a final word to lose a stray frame. If complete speech conflicts with the desired picture interval, choose source material again or use a separate picture edit retaining complete audio. Zero short-shot candidates does not establish a finished line."
         }
       },
       {
@@ -22509,8 +22517,8 @@
           "en": "Fewer detected candidates do not prove a good repair"
         },
         "body": {
-          "zh": "| 容易误用的办法 | 为什么不可靠 | 更合适的处理 |\n|---|---|---|\n| 插闪白或溶解 | 可能遮住没解决的动作跳跃 | 回源对齐有因果的入出点 |\n| 将两帧定格补长 | 新造停顿，未恢复真实表演 | 恢复源片中完整反应 |\n| 接点突然大幅放大 | 可能压低检测差异，却裁掉手和表情 | 给每个原生镜头连续、可读的取景 |\n| 调高阈值直到零报告 | 只变成少报，不证明问题消失 | 保留检查条件与人工播放证据 |\n\n最后确认：台词不被截断；同一动作没有完成两次；关键表情与物件仍可读；字幕与声音未因重导出漂移。检测只是帮助找位置，最终判断来自实际播放。",
-          "en": "| Tempting shortcut | Why it is unreliable | Better repair |\n|---|---|---|\n| Flash or dissolve over the join | Hides an unresolved action jump | Align causal source boundaries |\n| Freeze two frames to extend them | Invents a pause rather than restoring performance | Recover the actual response |\n| Extreme zoom at the join | May reduce a detection score while cropping hands or faces | Keep coherent, readable framing within each source shot |\n| Raise the threshold until no report appears | Reduces recall without proving a fix | Keep comparable settings and playback evidence |\n\nConfirm complete words, no duplicated action, readable expressions and objects, and no subtitle/audio drift after rendering. Detection locates candidates; actual playback determines the result."
+          "zh": "| 容易误用的办法 | 判断与处理 |\n|---|---|\n| 插闪白或溶解 | **为什么不可靠：** 可能遮住没解决的动作跳跃 **更合适的处理：** 回源对齐有因果的入出点 |\n| 将两帧定格补长 | **为什么不可靠：** 新造停顿，未恢复真实表演 **更合适的处理：** 恢复源片中完整反应 |\n| 接点突然大幅放大 | **为什么不可靠：** 可能压低检测差异，却裁掉手和表情 **更合适的处理：** 给每个原生镜头连续、可读的取景 |\n| 调高阈值直到零报告 | **为什么不可靠：** 只变成少报，不证明问题消失 **更合适的处理：** 保留检查条件与人工播放证据 |\n\n最后确认：台词不被截断；同一动作没有完成两次；关键表情与物件仍可读；字幕与声音未因重导出漂移。检测只是帮助找位置，最终判断来自实际播放。",
+          "en": "| Tempting shortcut | Record |\n|---|---|\n| Flash or dissolve over the join | **Why it is unreliable:** Hides an unresolved action jump **Better repair:** Align causal source boundaries |\n| Freeze two frames to extend them | **Why it is unreliable:** Invents a pause rather than restoring performance **Better repair:** Recover the actual response |\n| Extreme zoom at the join | **Why it is unreliable:** May reduce a detection score while cropping hands or faces **Better repair:** Keep coherent, readable framing within each source shot |\n| Raise the threshold until no report appears | **Why it is unreliable:** Reduces recall without proving a fix **Better repair:** Keep comparable settings and playback evidence |\n\nConfirm complete words, no duplicated action, readable expressions and objects, and no subtitle/audio drift after rendering. Detection locates candidates; actual playback determines the result."
         }
       }
     ],
@@ -22551,12 +22559,20 @@
           "en": "Rendered-shot review and repairs"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-cut/references/shot-review.md"
+      },
+      {
+        "label": {
+          "zh": "画面修正后保留完整对白",
+          "en": "Complete dialogue after visual cleanup"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-cut/SKILL.md"
       }
     ],
     "related": [
       "/video-recap/editing-rhythm",
       "/video-recap/multi-video-story-edit",
-      "/video-recap/turn-a-long-video-into-short-clips"
+      "/video-recap/turn-a-long-video-into-short-clips",
+      "/video-recap/fix-dialogue-cut-off-in-video"
     ]
   },
   {
@@ -26578,7 +26594,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "背景音乐盖住人声怎么办：先分清哪路声音要听清",
       "en": "How to Fix Music That Overpowers Speech"
@@ -26614,8 +26630,8 @@
           "en": "Record local sound priorities"
         },
         "body": {
-          "zh": "| 段落 | 必须听清 | 音乐处理 | 原声处理 |\n|---|---|---|---|\n| 关键对白 | 完整的钥匙句 | 降低或暂时不铺 | 保留句首与句末 |\n| 开空柜 | 开柜声与停顿 | 根据情绪低位延续或留空 | 保留有用动作声 |\n| 补背景 | 连续旁白 | 在旁白下保持较低位置 | 压低非关键原声 |\n| 对方回应 | 回答与犹豫 | 不在回答中突然跃升 | 到可靠停顿再恢复 |\n\n表格是本例的创作选择，不是全片固定比例。不要要求旁白覆盖七成，或者音乐永远比人声低同一个数；不同素材、声线与音乐频段需要实际试听。",
-          "en": "| Passage | Must remain clear | Music | Source sound |\n|---|---|---|---|\n| Crucial dialogue | Complete key line | Lower or omit | Preserve sentence boundaries |\n| Empty cabinet | Opening and pause | Quiet continuation or absence | Keep useful action sound |\n| Context | Connected narration | Lower beneath narration | Duck nonessential source sound |\n| Response | Answer and hesitation | No sudden rise mid-answer | Restore at a reliable pause |\n\nThis is an editorial choice, not a universal ratio. Fixed narration coverage or one volume difference cannot account for material, voices and frequency overlap. Listen to the actual result."
+          "zh": "| 段落 | 判断与处理 |\n|---|---|\n| 关键对白 | **必须听清：** 完整的钥匙句 **音乐处理：** 降低或暂时不铺 **原声处理：** 保留句首与句末 |\n| 开空柜 | **必须听清：** 开柜声与停顿 **音乐处理：** 根据情绪低位延续或留空 **原声处理：** 保留有用动作声 |\n| 补背景 | **必须听清：** 连续旁白 **音乐处理：** 在旁白下保持较低位置 **原声处理：** 压低非关键原声 |\n| 对方回应 | **必须听清：** 回答与犹豫 **音乐处理：** 不在回答中突然跃升 **原声处理：** 到可靠停顿再恢复 |\n\n表格是本例的创作选择，不是全片固定比例。不要要求旁白覆盖七成，或者音乐永远比人声低同一个数；不同素材、声线与音乐频段需要实际试听。",
+          "en": "| Passage | Record |\n|---|---|\n| Crucial dialogue | **Must remain clear:** Complete key line **Music:** Lower or omit **Source sound:** Preserve sentence boundaries |\n| Empty cabinet | **Must remain clear:** Opening and pause **Music:** Quiet continuation or absence **Source sound:** Keep useful action sound |\n| Context | **Must remain clear:** Connected narration **Music:** Lower beneath narration **Source sound:** Duck nonessential source sound |\n| Response | **Must remain clear:** Answer and hesitation **Music:** No sudden rise mid-answer **Source sound:** Restore at a reliable pause |\n\nThis is an editorial choice, not a universal ratio. Fixed narration coverage or one volume difference cannot account for material, voices and frequency overlap. Listen to the actual result."
         }
       },
       {
@@ -26625,8 +26641,8 @@
           "en": "Confirm the assembly path before changing settings"
         },
         "body": {
-          "zh": "在本文引用版本的普通合成入口，`BGM_PATH` 指定配乐，`BGM_VOLUME` 与 `BGM_DUCKING_VOLUME` 控制音乐位置；原声另有闲时与旁白下的音量设置。先改冲突的那一路，输出短候选试听，不拿整体响度标准化代替局部平衡。\n\n如果已采用完整声音底轨，严格混音路径会跳过旧 BGM、ducking 和标准化设置。此时不能以为修改环境参数就改了音乐，更不能把已混好的底轨再次放进旧入口自动压低。应回到声音底轨的原声区间与音乐决定，局部修订再重新采用。\n\n参数只控制实现，不能证明听起来清楚。不要为凑一个目标响度裁掉必需的配音尾字。",
-          "en": "In the cited ordinary assembly entry, BGM_PATH selects music; BGM_VOLUME and BGM_DUCKING_VOLUME control its levels. Source sound has separate idle and under-narration settings. Adjust the conflicting source and render a short candidate. Final loudness normalization does not replace local balance.\n\nAn explicitly adopted complete-bed mix bypasses legacy BGM, ducking and normalization settings. Changing those settings will not repair its music. Do not send a finished bed through legacy ducking again; revise the original intervals and music decision, then adopt the revised bed.\n\nParameters establish implementation, not intelligibility. Never remove necessary voice endings to satisfy a loudness target."
+          "zh": "在本文引用版本的普通合成入口，`BGM_PATH` 指定配乐，`BGM_VOLUME` 与 `BGM_DUCKING_VOLUME` 控制音乐位置；原声另有闲时与旁白下的音量设置。先改冲突的那一路，输出短候选试听，不拿整体响度标准化代替局部平衡。\n\n如果已采用完整声音底轨，严格混音路径会跳过旧 BGM、ducking 和标准化设置。此时不能以为修改环境参数就改了音乐，更不能把已混好的底轨再次放进旧入口自动压低。应回到声音底轨的原声区间与音乐决定，局部修订再重新采用。\n\n参数只控制实现，不能证明听起来清楚。不要为凑一个目标响度裁掉必需的配音尾字。\n\n局部音乐比例修好之后，再做所需整片响度处理并测量当前编码输出的实际LUFS和真峰。短剧声音方法指出，两遍 loudnorm 也不能保证恰好命中目标；目标值不是实测值。整片达标仍要逐句听，不能从平均响度推断钥匙句清楚。\n\n如果旁白在未加音乐时就一段响一段轻，应回分段配音检查；TTS的RMS归一记录描述该WAV阶段，不自动代表混音后的响度。先区分这两个问题，避免给每段一起加增益后又让音乐盖住原对白。",
+          "en": "In the cited ordinary assembly entry, BGM_PATH selects music; BGM_VOLUME and BGM_DUCKING_VOLUME control its levels. Source sound has separate idle and under-narration settings. Adjust the conflicting source and render a short candidate. Final loudness normalization does not replace local balance.\n\nAn explicitly adopted complete-bed mix bypasses legacy BGM, ducking and normalization settings. Changing those settings will not repair its music. Do not send a finished bed through legacy ducking again; revise the original intervals and music decision, then adopt the revised bed.\n\nParameters establish implementation, not intelligibility. Never remove necessary voice endings to satisfy a loudness target.\n\nOnce local music balance is repaired, apply the required whole-film loudness treatment and measure actual LUFS and true peak in the current encoded output. Short-drama audio craft warns that even two-pass loudnorm may miss the target; a target is not a measurement. Whole-film compliance still needs line-by-line listening and cannot establish that the key line is clear.\n\nIf narration varies between loud and quiet before music is added, inspect voice segments. TTS RMS records describe that WAV stage rather than finished-mix loudness. Distinguish these problems before raising all segments together and masking essential original dialogue again."
         }
       },
       {
@@ -26675,12 +26691,20 @@
           "en": "Audio modes and processing boundaries"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/audio-modes.md"
+      },
+      {
+        "label": {
+          "zh": "混音后的响度与逐句听审",
+          "en": "Post-mix loudness and line review"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/sound-and-subtitles.md"
       }
     ],
     "related": [
       "/video-recap/original-audio-and-narration",
       "/drama-skills/scene-sound-and-silence",
-      "/video-recap/recap-script"
+      "/video-recap/recap-script",
+      "/video-recap/fix-uneven-ai-voiceover-volume"
     ]
   },
   {
@@ -26806,7 +26830,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "AI配音超时怎么办：先查文案与时间窗",
       "en": "How to Fix AI Voiceover That Runs Too Long"
@@ -26847,14 +26871,25 @@
         }
       },
       {
+        "id": "window-repair",
+        "heading": {
+          "zh": "四秒窗口装六秒配音，要检查后面是谁在说话",
+          "en": "Fitting Six Seconds into Four: Check What Comes Next"
+        },
+        "body": {
+          "zh": "继续使用18—22秒窗口的纸面例。再假设22—24秒必须保留人物原对白。六秒旁白若仍从18秒开始，会说到24秒，盖住这段原对白；只把文案里的“结束22秒”改成24秒，并没有处理冲突。\n\n| 选择 | 本例修法与验收 |\n|---|---|\n| 可以改稿 | 删除重复解释形成新稿，再实际合成，确认完整朗读确实能放进18—22；不能按字数宣布已压到四秒 |\n| 原文与原速必须保留，画面可延长 | 若源素材真有可用的连续画面，可以让当前段多留两秒，完整旁白在18—24；原对白及其画面随后移到24—26，后续累计位置一起更新 |\n| 原文必须保留，画面不能延长 | 另找足够的输出位置或重新设计段落；没有合适安排就保留待修，不能裁尾或自动覆盖必要原对白 |\n\n第二行只是本例允许延长时的编辑方案，不是配音工具自动实现的能力。确认多留画面确实存在、没有伪造反应，剪后再测实际时长、字幕与音效；不能把静止画面默认拉长两秒就算自然。若实际语音或渲染时长与假设不同，用实际值重排。\n\n原文保护也不等于必须用完全相同的表演；可以试更合适但可辨的朗读。已采用原速版本时，按该决定重新安排，别再靠下游默认加速掩盖窗口不足。",
+          "en": "Continue the paper 18–22 window and assume essential original dialogue occupies 22–24. Six seconds of narration starting at 18 would end at 24 and mask that dialogue. Changing an end field from 22 to 24 does not resolve the conflict.\n\n| Choice | Repair and check |\n|---|---|\n| Text may change | Remove repetition, synthesize the revised draft, and confirm complete speech fits 18–22; word count cannot prove a four-second result |\n| Text and original speed are fixed; picture may extend | If actual usable continuous footage exists, retain two more seconds here: narration occupies 18–24 and original dialogue with its picture moves to 24–26; update later positions too |\n| Text is fixed; picture cannot extend | Find sufficient space elsewhere or redesign the passage; otherwise leave placement unresolved rather than clip the ending or mask essential dialogue |\n\nThe second row is an editorial option for this assumed case, not an automatic voiceover capability. Confirm additional footage exists and does not fabricate a response, then remeasure duration, captions, and effects. Stretching a still image by two seconds is no automatic natural solution. If real audio or rendered durations differ, rearrange using actual values.\n\nText protection need not freeze every performance choice: a suitable intelligible reading can be tried. Once an original-speed version is adopted, arrange around that decision instead of hiding inadequate space with downstream default speed changes."
+        }
+      },
+      {
         "id": "approved-text",
         "heading": {
           "zh": "已定文案用明确保护策略",
           "en": "Protect adopted text explicitly"
         },
         "body": {
-          "zh": "在引用版本的 `video-voiceover` 中，默认超窗可能在句界自动缩稿，并记录 `spoken_text/truncated`。原稿已确定时，显式使用 `--preserve-approved-text`：保留作者原文证据，放不下时报告失败，而不是悄悄交付缩短版。\n\n失败后按创作选择处理：给完整声音更长窗口、把必要背景放到另一段，或经明确修订形成新稿。若后续采用配音的原速合同，也不能让旧适速缓存偷偷覆盖它。\n\n配音只生成输入稿件的语音，不负责自动选镜头、混音或字幕。修改安排后，重新检查下游放置文件与字幕所用文本，避免声音一版、字幕另一版。",
-          "en": "In the cited video-voiceover version, default overflow may shorten at sentence boundaries and record spoken_text/truncated. For fixed text, explicitly use --preserve-approved-text: it retains authored evidence and fails when the complete reading cannot fit instead of quietly delivering less.\n\nResolve failure through an editorial choice: a longer window, context moved elsewhere or an explicitly revised draft. A downstream original-speed adoption contract must not be overridden by an old fitting cache.\n\nVoiceover generates supplied text; it does not choose shots, mix or render subtitles. After changing placement, check downstream audio and subtitle text so they do not use different versions."
+          "zh": "在引用版本的 `video-voiceover` 中，默认超窗可能在句界自动缩稿，并记录 `spoken_text/truncated`。原稿已确定时，显式使用 `--preserve-approved-text`：保留作者原文证据，放不下时报告失败，而不是悄悄交付缩短版。\n\n失败后按创作选择处理：给完整声音更长窗口、把必要背景放到另一段，或经明确修订形成新稿。若后续采用配音的原速合同，也不能让旧适速缓存偷偷覆盖它。\n\n配音只生成输入稿件的语音，不负责自动选镜头、混音或字幕。修改安排后，重新检查下游放置文件与字幕所用文本，避免声音一版、字幕另一版。\n\n分段元数据中的 `fit_status: pending_assembly` 表示还待合成放置，`audio_duration` 是生成语音时长；最终放置起止也需在合成后核对。生成WAV成功不等于六秒声音已经在四秒画面中完整交付。",
+          "en": "In the cited video-voiceover version, default overflow may shorten at sentence boundaries and record spoken_text/truncated. For fixed text, explicitly use --preserve-approved-text: it retains authored evidence and fails when the complete reading cannot fit instead of quietly delivering less.\n\nResolve failure through an editorial choice: a longer window, context moved elsewhere or an explicitly revised draft. A downstream original-speed adoption contract must not be overridden by an old fitting cache.\n\nVoiceover generates supplied text; it does not choose shots, mix or render subtitles. After changing placement, check downstream audio and subtitle text so they do not use different versions.\n\nSegment metadata `fit_status: pending_assembly` means placement still awaits assembly; `audio_duration` is synthesized duration. Verify actual placed start/end after assembly. A successfully generated WAV does not establish complete delivery of six seconds inside a four-second picture window."
         }
       },
       {
@@ -26903,12 +26938,20 @@
           "en": "Assembly placement and complete endings"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "生成时长与待放置元数据",
+          "en": "Generated duration and pending-placement metadata"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/scripts/voiceover.py"
       }
     ],
     "related": [
       "/video-recap/subtitle-timing-evidence",
       "/video-recap/original-audio-and-narration",
-      "/video-recap/recap-script"
+      "/video-recap/recap-script",
+      "/video-recap/fix-uneven-ai-voiceover-volume"
     ]
   },
   {
@@ -38308,6 +38351,277 @@
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
+    ]
+  },
+  {
+    "owner": "video-recap",
+    "slug": "fix-dialogue-cut-off-in-video",
+    "topic": "video-recaps",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "剪视频把对白剪断了怎么修：回原片找完整句子",
+      "en": "How to Fix Dialogue Cut Off by a Video Edit"
+    },
+    "seo_title": {
+      "zh": "剪视频把对白剪断了怎么修：回原片找完整句子",
+      "en": "How to Fix Dialogue Cut Off by a Video Edit"
+    },
+    "description": {
+      "zh": "区分剪点截断、混音盖声与原素材缺字，回原片恢复完整对白。附原创借书片段的源时间、输出时间与字幕重排示例。",
+      "en": "Distinguish clipped speech, masking, and missing source audio. Restore complete source dialogue with an original borrowing example and updated output timing."
+    },
+    "answer": {
+      "zh": "先只听接点附近，再回原片确认缺字是否存在。剪点落在讲话中时，把入出点移到完整句子外的可靠停顿；修画面闪帧后再核对白。保留的句子变长会移动后续声音和字幕，要按新输出时间重排。原片本就缺字时，不能靠淡入淡出或字幕补出不存在的声音。",
+      "en": "Listen around the join, then check whether the missing words exist in the source. Move cuts inside speech to reliable pauses around the complete line, and check speech again after visual cleanup. Longer retained dialogue moves later audio and captions, which need new output times. Fades or captions cannot restore words absent from the source."
+    },
+    "sections": [
+      {
+        "id": "diagnose",
+        "heading": {
+          "zh": "先听原片，别把所有缺字都当剪点问题",
+          "en": "Check Source Audio Before Moving a Cut"
+        },
+        "body": {
+          "zh": "先暂停配乐和旁白，只听原声接点，再比较原片同一句。不同原因需要不同修法：\n\n| 现象 | 判断与处理 |\n|---|---|\n| 原片有完整尾字，成片在句中切走 | 回剪辑计划移动出点，保留完整发声和必要停顿 |\n| 成片有尾字，但被音乐或旁白盖住 | 调对应音轨或旁白位置；移动画面剪点不解决遮盖 |\n| 原片本身也听不见尾字 | 查实际选择的音轨、其他完整素材；没有完整声音就需补录或重写，不能声称已恢复 |\n| 只有自动字幕漏字 | 回听确认声音完整后改文字与时间，不为识别错误重剪正确音轨 |\n\n不要靠一个波形低谷就认定句子说完。爆破音、轻声字和短暂停顿都可能很轻；转写用于定位，是否完整要听实际声音。本篇主要处理第一种：完整原声被本次剪点截断。",
+          "en": "Mute music and narration temporarily, listen to source-audio joins, and compare the same line in the source.\n\n| Symptom | Decision and repair |\n|---|---|\n| Source contains the ending; the edit leaves mid-line | Move the planned out point to retain the full utterance and needed pause |\n| Ending is present but masked by music or narration | Adjust that track or narration placement; a picture cut cannot fix masking |\n| Ending is missing in the source too | Check the selected audio stream or another complete take; otherwise record or rewrite rather than claim restoration |\n| Only automatic captions omit a word | Confirm complete sound, then correct text/timing without recutting a good audio track |\n\nA waveform dip does not establish a finished sentence: a quiet syllable or brief pause may be part of speech. Transcription helps locate the line; actual listening decides completeness. This article addresses the first case: a new cut truncating intact source dialogue."
+        }
+      },
+      {
+        "id": "source-example",
+        "heading": {
+          "zh": "原创时码例：一个尾字会改变许可条件",
+          "en": "Original Timing Example: The Missing Word Changes Permission"
+        },
+        "body": {
+          "zh": "以下是纸面剪辑例，时码用于演算，没有声称实际分析或播放了视频。一本书的借用场面中，原片10.20—12.60秒说“借你可以，周五前还”，句前停顿为10.00—10.20，句后停顿为12.60—12.90。现计划截取10.40—12.30，开头和归还条件都不完整。\n\n可以把该段改为10.10—12.75：两边在已知停顿内，完整保留句子。它不是固定多留0.5秒的公式；真实素材须按实际发声、停顿与后续动作选择，若句后紧接别人的话，还要避免切入下一句。\n\n| 计划 | 时间核对 |\n|---|---|\n| 旧段 | 源10.40—12.30，长1.90秒；前面已有5.00秒，输出5.00—6.90 |\n| 修后段 | 源10.10—12.75，长2.65秒；输出5.00—7.65 |\n| 完整台词 | 源10.20—12.60；本例无变速，修后输出5.10—7.50 |\n| 后续段 | 原本输出6.90起，现在7.65起，顺延0.75秒 |\n\n表里时间是本例假设。真实成片应使用渲染后的实际时长与帧边界，不能以演算表代替输出测量。修后再听完整许可与归还条件，不能仅凭字幕写全就说声音完整。",
+          "en": "This is a paper edit with illustrative times, not analyzed or played footage. In a book-borrowing scene, source 10.20–12.60 contains “You can borrow it, but return it before Friday.” Known pauses are 10.00–10.20 before and 12.60–12.90 after. The current 10.40–12.30 selection loses the beginning and part of the return condition.\n\nA proposed 10.10–12.75 selection puts both edges inside known pauses and retains the line. This is no fixed “add half a second” rule: choose from actual speech, pauses, and actions, without cutting into the next speaker.\n\n| Plan | Timing record |\n|---|---|\n| Old segment | Source 10.40–12.30, duration 1.90; with 5.00 seconds preceding it, output 5.00–6.90 |\n| Repaired segment | Source 10.10–12.75, duration 2.65; output 5.00–7.65 |\n| Complete line | Source 10.20–12.60; at unchanged speed, new output 5.10–7.50 |\n| Following segment | Previously started at output 6.90; now 7.65, moving 0.75 seconds later |\n\nThese are assumed times. Use actual rendered duration and frame boundaries for real footage rather than treating worksheet arithmetic as measured output. Listen for the whole permission and return condition; complete caption text alone does not prove complete sound."
+        }
+      },
+      {
+        "id": "boundary-method",
+        "heading": {
+          "zh": "画面修整之后，句界还要再检查",
+          "en": "Recheck Speech After Visual Boundary Cleanup"
+        },
+        "body": {
+          "zh": "video-cut 先避开画面硬切附近的残帧，再用可靠句末或静音窗修正边界，声音完整性最后检查。句末锚点只采用中、高可信记录；已有讲话时段却仍在讲话中截断时，写阻断问题，不把无法吸附算通过。\n\n没有可用讲话时码时，实现会把相应检查记为未检查，而非自动保证对白安全。别只看没有错误：先回听并补可靠定位，再决定剪点。停顿窗也不能替代内容判断，保住字词之后，还要确认没有删掉前一句中的“可以”或“不能”。\n\n同一原片的相邻区间若源时间和输出时间真正连续，并未丢声音，不必为了片段标签强制再造句界；仍须回听接缝。两个不同文件各有自己的讲话区间，不能把甲片的停顿时码套给乙片。画面干净却声音少了半句时，继续回源修选择；不把闪帧检测为零当声音验收。",
+          "en": "video-cut cleans edges near visual hard cuts first, then adjusts to reliable sentence or quiet windows, with speech completeness checked last. Sentence anchors use medium/high confidence records. An edge still inside known speech becomes a blocking issue rather than a successful unsnapped cut.\n\nWithout usable speech timing, the implementation marks the relevant check unchecked; it cannot automatically promise safe dialogue. Listen and obtain reliable timing before choosing boundaries. Pause windows also cannot establish meaning: keeping words still requires retaining an earlier “may” or “must not” where relevant.\n\nTruly adjacent intervals from the same source, continuous in both source and output time, have not removed speech merely because they have separate clip labels. Listen to that join too. Different source files need their own speech intervals, not copied pause times. If visual cleanup leaves half a spoken line, repair selection again; zero flash-frame candidates is no audio approval."
+        }
+      },
+      {
+        "id": "retime",
+        "heading": {
+          "zh": "句子补长后，重排后面的声音与字幕",
+          "en": "Update Later Sound and Captions After Extending a Line"
+        },
+        "body": {
+          "zh": "本例后续段顺延0.75秒，原先按6.90起写的旁白、字幕和音效不能照抄。原片区间仍用源时间；剪后旁白用新的输出时间。字幕再绑定当前视频和实际采用的声音，逐句核对开始、尾字和阅读停留。\n\n不要简单给全片字幕统一加0.75秒：本例前面5秒没有变化，修补段内部的台词还因入点提前而改变相对位置。只修受影响区间及后续累计位置，最后检查全段。若还有变速、重排或帧取整，按实际输出重测，不能只加一个偏移量。\n\n导出候选后，正常速度连听接点前后，再只听声音，确认完整句子、没有重复尾字或突兀淡出；连画面检查动作与反应仍属于这句话。原素材不足时，保留待补录或待选素材状态，不用字幕、定格或转场宣称声音恢复。",
+          "en": "In the example, later material moves 0.75 seconds. Narration, captions, and effects written for 6.90 cannot be copied unchanged. Source selections retain source times; edited narration uses new output times. Bind captions to the current video and chosen sound, then check starts, final words, and reading time.\n\nDo not shift all captions by 0.75: the preceding five seconds stay unchanged, and the repaired line’s relative position changes with the earlier in point. Correct affected intervals and later cumulative times, then review the passage. Speed changes, reordering, or frame rounding require actual output measurements rather than one offset.\n\nPlay the exported join normally and listen without picture for complete speech, duplicated words, or an abrupt fade. With picture, confirm actions and responses belong to that line. If source material is inadequate, leave recording or selection unresolved instead of claiming that a caption, freeze, or transition restored audio."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "加淡入淡出能把缺的字补回来吗？",
+          "en": "Can a fade restore missing words?"
+        },
+        "a": {
+          "zh": "不能。淡入淡出可以处理安全停顿内的接缝，但不生成被删的音节。先恢复完整源声音，再按需要处理接缝；不要在完整句中用淡出遮掩剪断。",
+          "en": "No. A fade can smooth a join within a safe pause, but cannot generate a removed syllable. Restore complete source sound first, then treat the join if needed without fading away speech."
+        }
+      },
+      {
+        "q": {
+          "zh": "画面必须切走，还能保留整句对白吗？",
+          "en": "Can picture cut away while dialogue continues?"
+        },
+        "a": {
+          "zh": "可以在保留完整音轨时独立调整画面，先确认反打或补画面真实属于该事件。本文的同段音画截取修法不能直接当作独立声音剪辑；需要分离轨道的方案再核对实际音画对应。",
+          "en": "You can edit picture independently while retaining complete sound, using a reaction or insert that belongs to the event. Moving coupled audio/video boundaries is not the same operation; check actual correspondence in a separate-track edit."
+        }
+      }
+    ],
+    "skill": {
+      "name": "video-cut",
+      "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-cut/SKILL.md",
+      "text": {
+        "zh": "请通过 video-recap 检查我指出的断句，先回原片区分剪点截断、盖声或原音缺失。对完整句子提出新入出点，核对句末与讲话区间，并按实际剪后时间更新后续旁白和字幕；给正常速度试听候选。",
+        "en": "Use video-recap to diagnose the specified clipped line against source audio. Distinguish a bad cut, masking, and source loss; propose boundaries around the complete line, check pauses and speech spans, and update later narration/captions to actual edited times. Provide a normal-speed listening candidate."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "剪点、句界与声音优先级",
+          "en": "Cut boundaries and speech priority"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-cut/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "句末停顿、讲话区间与连续连接检查",
+          "en": "Pause windows, speech spans, and continuous joins"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-cut/scripts/sentence_boundaries.py"
+      },
+      {
+        "label": {
+          "zh": "源素材与成片逐句回听",
+          "en": "Line review in source and finished audio"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/sound-and-subtitles.md"
+      }
+    ],
+    "related": [
+      "/video-recap/fix-flash-frames",
+      "/video-recap/turn-a-long-video-into-short-clips",
+      "/video-recap/subtitle-timing-evidence",
+      "/drama-skills/cut-away-during-continuous-dialogue"
+    ]
+  },
+  {
+    "owner": "video-recap",
+    "slug": "fix-uneven-ai-voiceover-volume",
+    "topic": "video-recaps",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI配音音量忽大忽小怎么办：先检查每段，再检查混音",
+      "en": "How to Fix Uneven Volume Between AI Voiceover Segments"
+    },
+    "seo_title": {
+      "zh": "AI配音音量忽大忽小怎么办：先检查每段，再检查混音",
+      "en": "How to Fix Uneven Volume Between AI Voiceover Segments"
+    },
+    "description": {
+      "zh": "区分分段配音电平、峰值限制和整片混音，避免把RMS目标当成LUFS实测。附原创增益演算与逐段回听方法。",
+      "en": "Separate segment levels, peak guards, and final mixing. Includes gain examples and listening checks without confusing RMS targets with measured LUFS."
+    },
+    "answer": {
+      "zh": "先把各段配音单独连听，确认差异来自语音本身还是音乐和原声。逐段统一电平时同时留意峰值，峰值受限的段落可能达不到RMS目标；声音太冲或停顿过长时再按表演修订。完成混音后测量当前编码成片的响度和真峰，再回听各句，不把整片达标当作每段都均衡。",
+      "en": "Listen to voiceover segments alone to distinguish voice-level differences from music or source masking. Level segments with a peak guard: a peak-limited segment may miss its RMS target, and harsh delivery or long pauses may need performance revision. After mixing, measure loudness and true peak in the current encoded export and listen to individual lines; whole-film compliance does not establish even segments."
+    },
+    "sections": [
+      {
+        "id": "isolate",
+        "heading": {
+          "zh": "先单独连听配音，找音量差来自哪里",
+          "en": "Listen to Voice Segments Alone First"
+        },
+        "body": {
+          "zh": "把相邻几段WAV按实际顺序连听，再比较加音乐后的成片。同一声线也会因为语气、参考音频、停顿长度或生成结果而有电平差，不能只看音色名称相同。\n\n| 差异出现在哪里 | 先检查 |\n|---|---|\n| 独立配音已一段响一段轻 | 当前WAV的电平、峰值、生成设置与有意表演 |\n| 独立配音顺，混完却听不清 | 音乐、原声与旁白的位置和局部比例 |\n| 只有一个字特别刺耳 | 瞬态或表演，不把整段无限调低就算解决 |\n| 轻声段是人物有意压低声音 | 是否仍可辨、有上下文；不把所有语气拉成一样响 |\n\n先保存当前候选，再改最明显的几段。改完独立声音也要重新放回混音里听；耳机、手机扬声器上的可辨性都来自实际输出，不由一行目标值保证。",
+          "en": "Listen to neighboring WAVs in actual order before comparing the mix with music. The same voice can produce different levels with delivery, references, pause length, or synthesis results; a matching voice name is insufficient.\n\n| Difference | First check |\n|---|---|\n| Voice files already alternate loud/quiet | Current WAV levels, peaks, settings, and intentional delivery |\n| Voice alone is consistent, mixed speech is unclear | Music, source sound, and local timing/balance |\n| One word is unusually harsh | Transient or performance, rather than indefinitely lowering the entire segment |\n| Soft speech is intentional | Intelligibility and context; do not flatten every delivery |\n\nSave the current candidate and begin with the most noticeable segments. Repaired standalone sound must be heard in the mix too. Headphones and phone speakers test actual intelligibility; a target field cannot guarantee it."
+        }
+      },
+      {
+        "id": "segment-normalization",
+        "heading": {
+          "zh": "逐段归一会受峰值约束",
+          "en": "Segment Normalization Has a Peak Constraint"
+        },
+        "body": {
+          "zh": "引用版本的 video-voiceover 默认对每段16-bit PCM WAV做RMS归一：目标为−20 dBFS，线性峰值上限为0.98。这是该版本的默认设置，可以改变，不是所有平台的交付标准。\n\n实现先按整段采样计算RMS并求所需增益，再用峰值约束增益，最后记录实际输出。它是在整段上乘同一个系数，不是把一个过高瞬态单独压平的压缩器。目标增益碰到峰值上限，就可能无法达到目标。\n\n分段元数据里的 `rms_dbfs_before`、`rms_dbfs_after` 与 `peak_after` 是归一阶段的记录；没有归一记录的空值不能读成“已达标”。声音后续经过适速、叠轨或编码，这些值也不自动代表最终文件。检查你这次实际采用的WAV与设置，而非拿旧缓存或旧报告说明新声音。\n\nRMS包含整段采样，长静音会拉低均值；两段RMS一样，也可能因停顿、声线和频率分布而听起来不同。先听，确认停顿是否有创作作用，再决定修表演或时间安排，不为数字接近就删掉必要呼吸。",
+          "en": "The pinned video-voiceover defaults normalize each 16-bit PCM WAV to −20 dBFS RMS with a linear peak ceiling of 0.98. These configurable version defaults are not universal platform delivery requirements.\n\nThe implementation computes whole-block RMS and desired gain, caps that gain by the peak constraint, then records the output. It multiplies the whole segment by one factor, rather than compressing a single excessive transient. A peak-constrained gain may not reach the RMS target.\n\nSegment fields `rms_dbfs_before`, `rms_dbfs_after`, and `peak_after` record this normalization stage. Null normalization records are no proof of compliance. Later tempo processing, mixing, or encoding means these values do not automatically describe the final file. Inspect adopted WAVs and settings from this run rather than an old cache/report.\n\nWhole-block RMS includes pauses; long silence lowers the average. Equal RMS can still sound different with pauses, voices, and frequency content. Listen and judge a pause’s purpose before changing delivery or timing rather than deleting needed breaths to align numbers."
+        }
+      },
+      {
+        "id": "gain-example",
+        "heading": {
+          "zh": "原创演算：不是每段都能加到同一目标",
+          "en": "Original Calculation: Not Every Segment Can Reach the Target"
+        },
+        "body": {
+          "zh": "以下是为了说明增益约束的假设数值，没有生成或试听过这些音频。暂不考虑采样取整，统一以−20 dBFS RMS为演算目标。\n\n| 段落 | 输入与预期结果 |\n|---|---|\n| A，较轻、峰值低 | 输入RMS −26 dBFS、峰值0.20；约加6 dB，幅度约乘2，可到−20，峰值约0.40 |\n| B，较轻但有高峰 | 输入RMS −26、峰值0.75；约乘2会使峰值到1.50，超过0.98。增益最多约1.31，即+2.32 dB，输出RMS约−23.68，峰值约0.98 |\n| C，整体较响 | 输入RMS −18、峰值0.50；约减2 dB，幅度乘0.79，输出RMS −20，峰值约0.40 |\n\nA和C可以靠整段增益缩小差异，B仍偏轻的原因却是高峰值，不是参数没写对。继续把B整体推到−20会违反本例峰值约束。回听究竟是必要强调、异常尖声还是素材问题；需要处理瞬态时另用音频工具，或修正表演重生成，再检查当前声音。不把代码的增益限制称为已经做了压缩器或真峰测量。\n\nB与其他段还有数字差也不一定必须重做：实际连听可懂且强调符合表达时，可以保留。修订的目的在可辨与自然，不在让每行报告完全相等。",
+          "en": "These assumed values illustrate gain limits; none were synthesized or auditioned. Ignoring sample rounding, use −20 dBFS RMS as the worksheet target.\n\n| Segment | Input and expected result |\n|---|---|\n| A: quiet, low peak | RMS −26 dBFS, peak 0.20; about +6 dB multiplies amplitude by 2, reaching −20 and peak about 0.40 |\n| B: quiet, high peak | RMS −26, peak 0.75; multiplying by 2 would reach peak 1.50, over 0.98. Maximum gain is about 1.31, or +2.32 dB: RMS about −23.68, peak about 0.98 |\n| C: louder overall | RMS −18, peak 0.50; about −2 dB multiplies amplitude by 0.79, reaching RMS −20 and peak about 0.40 |\n\nGain can bring A and C closer. B remains quieter because of its high peak, not a missing setting. Raising B to −20 would violate this example’s peak constraint. Listen for intended emphasis, a harsh transient, or a source problem. Use a separate audio tool if transient treatment is needed, or revise delivery and regenerate, then inspect the current sound. The gain guard is neither a compressor nor a true-peak measurement.\n\nA remaining numerical difference need not force regeneration if connected listening is intelligible and the emphasis suits the line. The aim is natural clarity rather than identical report rows."
+        }
+      },
+      {
+        "id": "mixed-export",
+        "heading": {
+          "zh": "混音完成后，再测成片与回听",
+          "en": "Measure and Listen Again After Mixing"
+        },
+        "body": {
+          "zh": "逐段归一不负责混音乐、压低原声或渲染字幕。独立声音合适后，按各段用途安排音乐、原对白和旁白，再检查整片。\n\n短剧声音方法要求混音后测量编码输出的实际LUFS与真峰，并指出两遍 loudnorm 不保证恰好达到目标；峰值或动态范围不允许线性增益时，可能转为动态处理。−20 dBFS RMS、目标LUFS和编码后实测LUFS是不同量，不要把它们互相替换。WAV的样本峰值0.98，也不证明编码成片的真峰已经通过。\n\n整片测量通过后，仍逐句连听：有没有只有某一段轻到漏词、音乐在一句中途突然冒起、接缝切断呼吸、轻声被拉成喊叫。若问题来自音乐遮盖，回混音改局部比例；若来自语音表演，回该段修，不反复标准化全片碰运气。\n\n保存修前与修后候选、实际设置和本次测量。没有测过或听过的输出写为待测/待试听，不把预设目标当成完成结果。",
+          "en": "Segment normalization does not mix music, duck source sound, or render captions. Once voice files suit their roles, arrange music, original dialogue, and narration, then inspect the finished mix.\n\nShort-drama audio craft calls for measuring actual LUFS and true peak in the encoded output. Two-pass loudnorm does not guarantee hitting a target exactly: peak or dynamic-range constraints can cause dynamic processing instead of linear gain. −20 dBFS RMS, target LUFS, and measured encoded LUFS are different quantities. A WAV sample peak of 0.98 also does not prove compliant true peak in the encoded film.\n\nEven after whole-film measurement passes, listen to connected lines: a single segment may lose words, music may rise mid-line, a join may cut breathing, or a whisper may become a shout. Repair local masking in the mix and performance problems in the relevant voice segment rather than repeatedly normalizing the entire film.\n\nRetain before/after candidates, actual settings, and this run’s measurements. Mark unmeasured or unheard outputs awaiting measurement/listening instead of reporting a preset as a result."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "把所有段音量都设成100%就一样响吗？",
+          "en": "Will setting every segment to 100% make them equally loud?"
+        },
+        "a": {
+          "zh": "不会。相同播放增益不代表输入音频的电平一样。先比较实际WAV与表演，再用峰值约束下的增益调整，最后连听。",
+          "en": "No. Equal playback gain does not mean equal input levels. Compare actual WAVs and delivery, adjust gain within peak constraints, and listen in sequence."
+        }
+      },
+      {
+        "q": {
+          "zh": "全片LUFS达标，为什么还是有一段太轻？",
+          "en": "Why can one line be quiet when whole-film LUFS meets the target?"
+        },
+        "a": {
+          "zh": "整片响度汇总不能证明每段相对平衡。该段可能有意轻声、原始电平较低、受高峰值约束或被音乐遮盖；单独与混音分别回听，再修对应原因。",
+          "en": "Whole-film loudness cannot establish local balance. A line may be intentionally soft, lower-level, peak-constrained, or masked. Listen to it alone and in the mix, then repair the actual cause."
+        }
+      }
+    ],
+    "skill": {
+      "name": "video-voiceover",
+      "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/SKILL.md",
+      "text": {
+        "zh": "请通过 video-recap 对比音量不一致的配音段，先单独试听并检查当前WAV的RMS与峰值及归一设置。解释不能达到目标的段落，不反复加增益冲破峰值。保留有意的轻声与强调，修后重新混音，再测量成片LUFS与真峰并试听。",
+        "en": "Use video-recap to compare uneven voiceover segments in isolation. Inspect current WAV RMS/peak and normalization settings, explain peak-constrained segments without repeatedly raising gain, and preserve intentional soft speech/emphasis. Remix repaired segments, measure encoded-export LUFS and true peak, and listen."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "逐段配音与输出证据",
+          "en": "Segment synthesis and output evidence"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "RMS归一与峰值增益约束",
+          "en": "RMS normalization and peak gain guard"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/scripts/tts_audio.py"
+      },
+      {
+        "label": {
+          "zh": "当前默认归一设置",
+          "en": "Pinned normalization defaults"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/scripts/lib.py"
+      },
+      {
+        "label": {
+          "zh": "混音后测量实际响度和真峰",
+          "en": "Post-mix loudness and true-peak measurement"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/sound-and-subtitles.md"
+      }
+    ],
+    "related": [
+      "/video-recap/background-music-overpowers-voice",
+      "/video-recap/fit-voiceover-to-a-picture-edit",
+      "/drama-skills/choose-distinct-short-drama-voices",
+      "/drama-skills/scene-sound-and-silence"
     ]
   }
 ]
