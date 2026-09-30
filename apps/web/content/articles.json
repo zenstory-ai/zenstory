@@ -17,8 +17,8 @@
       "en": "How to Write a Web Novel Opening: The First Three Chapters"
     },
     "description": {
-      "zh": "黄金三章怎么写？第一章让主角在冲突里登场，交代目标和卖点，尽早给出爽点或期待点；第二章升级矛盾、兑现爽点；第三章给出追读理由。附交付清单、原创改写示例和自查评分表。",
-      "en": "Chapter 1 puts the protagonist in a conflict with a clear goal and an early payoff; chapter 2 escalates to another; chapter 3 gives a reason to read on."
+      "zh": "黄金三章先建立人物处境、目标与本书看点，再交付实际进展和继续阅读的理由。附前三章检查表、修表铺原创开头与核对兑现片段，不把字数和爽点当通用配额。",
+      "en": "Build a clear protagonist, goal and story promise, then deliver progress. Includes opening checks and a watch-shop scene without fixed payoff quotas."
     },
     "answer": {
       "zh": "黄金三章是检查网文开头的一个单元：读者能否认清主角的处境、目标、本书看点和继续阅读的理由。用具体任务建立投入，让后续章节有进展与回报。Oh Story 的字数位置和数量是项目默认参照，按本书要求与题材调整，不以数字替代案例和阅读判断。",
@@ -43,8 +43,8 @@
           "en": "What to put in a web novel's first chapter, and chapters 2 and 3"
         },
         "body": {
-          "zh": "| 章 | 核对重点 | 可用收尾 |\n|---|---|---|\n| 第一章 | 谁在什么处境，要做什么，本书值得看什么 | 新发现、选择、关系或情绪期待 |\n| 第二章 | 原目标怎样推进，阻碍或理解怎样变化 | 局部回报与未完事项 |\n| 第三章 | 读者得到什么阶段进度，长期方向是否清楚 | 指向主线的行动或余味 |\n\n这是作者手写检查表，不是每章必须一次完成所有项。\n\n- 主角与当前任务清楚，信息量能辨认\n- 初始问题连着本书长期看点\n- 必要背景按需要出现，没有压住正在发生的事\n- 局部结果实际发生，旁人按自己的关切响应\n- 下一章接住已留下的目标\n- 书名、简介与正文承诺相容\n\n参考文件有主角约300字内、期待约1000字内等快节奏默认检查；本书明确要求优先。天气、日常、回忆、多人或无超能力开局并非自动失败，关键是它们有没有让读者理解并投入眼前故事。",
-          "en": "| Chapter | Check | Ending |\n|---|---|---|\n| One | Person, situation, aim and appeal | Discovery, choice, relationship or emotional anticipation |\n| Two | Progress and changed obstacle or understanding | Local reward and open issue |\n| Three | Delivered progress and longer direction | Main-thread action or aftereffect |\n\nThis manual check is not a requirement to complete every item in every chapter.\n\n- Protagonist and task are clear; information is distinguishable\n- Initial problem connects to the longer appeal\n- Needed background does not bury current events\n- Local results happen; people respond through their concerns\n- Next chapter addresses the carried aim\n- Title, blurb and prose make compatible promises\n\nThe reference gives fast-paced defaults such as a lead around the first three hundred words and anticipation around one thousand. Explicit book requirements take priority. Weather, everyday life, flashbacks, a large cast or no supernatural ability are not automatic failures; judge understanding and investment."
+          "zh": "| 章 | 核对与收尾 |\n|---|---|\n| 第一章 | **核对**：谁在什么处境，要做什么，本书值得看什么；**收尾**：新发现、选择、关系或情绪期待 |\n| 第二章 | **核对**：原目标怎样推进，阻碍或理解怎样变化；**收尾**：局部回报与未完事项 |\n| 第三章 | **核对**：读者得到什么阶段进度，长期方向是否清楚；**收尾**：指向主线的行动或余味 |\n\n这是作者手写检查表，不是每章必须一次完成所有项。\n\n- 主角与当前任务清楚，信息量能辨认\n- 初始问题连着本书长期看点\n- 必要背景按需要出现，没有压住正在发生的事\n- 局部结果实际发生，旁人按自己的关切响应\n- 下一章接住已留下的目标\n- 书名、简介与正文承诺相容\n\n参考文件有主角约300字内、期待约1000字内等快节奏默认检查；本书明确要求优先。天气、日常、回忆、多人或无超能力开局并非自动失败，关键是它们有没有让读者理解并投入眼前故事。",
+          "en": "| Chapter | Check and ending |\n|---|---|\n| One | **Check**: Person, situation, aim and appeal; **Ending**: Discovery, choice, relationship or emotional anticipation |\n| Two | **Check**: Progress and changed obstacle or understanding; **Ending**: Local reward and open issue |\n| Three | **Check**: Delivered progress and longer direction; **Ending**: Main-thread action or aftereffect |\n\nThis manual check is not a requirement to complete every item in every chapter.\n\n- Protagonist and task are clear; information is distinguishable\n- Initial problem connects to the longer appeal\n- Needed background does not bury current events\n- Local results happen; people respond through their concerns\n- Next chapter addresses the carried aim\n- Title, blurb and prose make compatible promises\n\nThe reference gives fast-paced defaults such as a lead around the first three hundred words and anticipation around one thousand. Explicit book requirements take priority. Weather, everyday life, flashbacks, a large cast or no supernatural ability are not automatic failures; judge understanding and investment."
         }
       },
       {
@@ -54,8 +54,8 @@
           "en": "How to write a web novel opening: character, entry point and golden finger"
         },
         "body": {
-          "zh": "Oh Story 的开篇参考以人设、切入点和金手指组织商业网文开局。把它用于本书时，先确定作者的故事承诺；普通人物的关系故事并不需要超能力。\n\n| 观察项 | 写作问题 | 可见表达 |\n|---|---|---|\n| 人物 | 他在意什么，眼前处境如何？ | 一次取舍、请求或观察 |\n| 切入点 | 从哪件事进入本书？ | 冲突、机会、关系或值得亲历的日常 |\n| 优势 | 若本书承诺独特本领，它是什么？ | 一次有边界的使用；没有此承诺可略 |\n\n困境起手可以先让读者理解人物，再展示他的应对；优势起手可以先展示本领，再让任务检验它。两种都是候选，不规定前三章必须翻盘、遭轻视或引来围观。\n\n若写公开胜利，让相关人物的响应和实际奖励落地；若写私下成长或关系变化，确认、理解或合作也能形成回报。背景跟着当前需要分批进入，也可以在重氛围的作品里先建立环境。情绪、动机和信息差是检查期待的角度，分量和顺序服从本书。",
-          "en": "Oh Story’s opening reference uses character, entry point and golden finger to organize commercial web fiction. Apply it through the author’s story promise: an ordinary person’s relationship story needs no supernatural power.\n\n| Focus | Question | On the page |\n|---|---|---|\n| Character | What matters to them, in what situation? | A choice, request or observation |\n| Entry | Where should this book begin? | Conflict, opportunity, relationship or meaningful daily life |\n| Advantage | If a special ability is promised, what is it? | A bounded use; omit if this is not the promise |\n\nA trouble-first opening may establish the person before their response. An ability-first opening may show the skill before a task tests it. Neither requires a reversal, ridicule or a crowd within three chapters.\n\nFor a public victory, show relevant responses and actual rewards. Private growth and relationships may pay off through recognition, understanding or cooperation. Background can enter as needed, while atmospheric books may establish their setting first. Emotion, motive and information gaps are lenses for checking anticipation; their weight and order follow this book."
+          "zh": "Oh Story 的开篇参考以人设、切入点和金手指组织商业网文开局。把它用于本书时，先确定作者的故事承诺；普通人物的关系故事并不需要超能力。\n\n| 观察项 | 问题与表达 |\n|---|---|\n| 人物 | **问题**：他在意什么，眼前处境如何？；**表达**：一次取舍、请求或观察 |\n| 切入点 | **问题**：从哪件事进入本书？；**表达**：冲突、机会、关系或值得亲历的日常 |\n| 优势 | **问题**：若本书承诺独特本领，它是什么？；**表达**：一次有边界的使用；没有此承诺可略 |\n\n困境起手可以先让读者理解人物，再展示他的应对；优势起手可以先展示本领，再让任务检验它。两种都是候选，不规定前三章必须翻盘、遭轻视或引来围观。\n\n若写公开胜利，让相关人物的响应和实际奖励落地；若写私下成长或关系变化，确认、理解或合作也能形成回报。背景跟着当前需要分批进入，也可以在重氛围的作品里先建立环境。情绪、动机和信息差是检查期待的角度，分量和顺序服从本书。",
+          "en": "Oh Story’s opening reference uses character, entry point and golden finger to organize commercial web fiction. Apply it through the author’s story promise: an ordinary person’s relationship story needs no supernatural power.\n\n| Focus | Question and use |\n|---|---|\n| Character | **Ask**: What matters to them, in what situation?; **On the page**: A choice, request or observation |\n| Entry | **Ask**: Where should this book begin?; **On the page**: Conflict, opportunity, relationship or meaningful daily life |\n| Advantage | **Ask**: If a special ability is promised, what is it?; **On the page**: A bounded use; omit if this is not the promise |\n\nA trouble-first opening may establish the person before their response. An ability-first opening may show the skill before a task tests it. Neither requires a reversal, ridicule or a crowd within three chapters.\n\nFor a public victory, show relevant responses and actual rewards. Private growth and relationships may pay off through recognition, understanding or cooperation. Background can enter as needed, while atmospheric books may establish their setting first. Emotion, motive and information gaps are lenses for checking anticipation; their weight and order follow this book."
         }
       },
       {
@@ -70,14 +70,25 @@
         }
       },
       {
+        "id": "complete-payoff-example",
+        "heading": {
+          "zh": "第二章怎样接住开头：核对之后有实际结果",
+          "en": "Let chapter two deliver on the opening"
+        },
+        "body": {
+          "zh": "沿用许青禾修表铺的前提。收检记录已记进水，照片也在；能力片段中的方戒只能提示继续询问。下面展开第二章核对与报价，再略写维修后的交付。八十元是本原创例子选定的报价。\n\n> 刘老板一进门就指着表：“是不是你修的时候进了水？”\n>\n> 许青禾把送检照片和检验记录并在柜台上，指给他看当场记下的进水位置：“收表时就有。您看这张，维修还没开始。”\n>\n> 他拿起记录，对照照片看了一遍。“这项不算你修坏的。修好要多少？”\n>\n> “八十。”她把报价写在原记录下面，递过去等他确认。\n>\n> 刘老板在报价旁写下确认：“按这个修。”许青禾收回记录，才将这块表列入待修订单。\n>\n> 修复完成后，刘老板按约检查交付的表，确认收下并付了八十元。许青禾在交付记录上勾掉这一单，把工钱另放进搬店预算的信封；柜台上还有六块寄修表。\n\n核对、撤回这项索赔、接受报价、完成修复与付款是不同的结果。争议怎样改变值得详写；本例可略写维修过程，但保留实际验收和工钱归属。只写“他被打脸”，不能替代这串结果。\n\n第三章接看工位与新停表，当前回报支持长期目标。方戒仍未确定损坏者，师父旧事仍待查，看工位也未成为已租到新铺。关系故事可以兑现理解、合作或决定，按本书承诺选择回报。",
+          "en": "Keep Xu Qinghe’s watch-shop setup. The intake record notes water and its photograph is available; the square-ringed hand only prompts further inquiry. Expand chapter two’s comparison and quote, then summarize delivery after repair. Eighty is the fee selected for this original example.\n\n> Mr. Liu pointed at the watch as he came in. “Did water get in while you were repairing it?”\n>\n> Xu laid the intake photograph beside the record and indicated the water noted on arrival. “It was there when you brought it. Look at this photograph. The repair hasn’t started.”\n>\n> He picked up the record and compared it with the photograph. “That part isn’t damage you caused repairing it. What will the repair cost?”\n>\n> “Eighty.” She wrote the quote below the original entry and passed it across for confirmation.\n>\n> Liu wrote his approval beside the quote. “Go ahead at that price.” Xu took back the record before adding the watch to the repair queue.\n>\n> After the repair, Liu checked the delivered watch as agreed, accepted it and paid eighty. Xu marked this order complete and placed the earnings in the envelope for her move. Six deposited watches remained on the counter.\n\nComparison, withdrawal of this claim, approval, repair and payment are different results. Expand the disputed exchange. Summarize repair work when appropriate while retaining actual acceptance and ownership of the earnings. “He was defeated” cannot replace these outcomes.\n\nChapter three can address the workbench visit and new watch, letting a local reward support the longer goal. The ring has not identified who caused damage, the mentor’s past remains open and the visit is not a lease. Relationship stories may deliver understanding, cooperation or a decision according to their promise."
+        }
+      },
+      {
         "id": "scorecard",
         "heading": {
           "zh": "黄金三章自查评分表（可复制）",
           "en": "Golden three chapters scorecard (copyable)"
         },
         "body": {
-          "zh": "这张手写自查表帮助定位问题，不作平台成功预测。可记“清楚／需补／不适用”，分数只是整理手段。\n\n| 维度 | 要看什么 | 问题信号 |\n|---|---|---|\n| 开篇吸引 | 有无具体想看下去的事 | 只报资料，任务不清 |\n| 主角 | 处境、在意与选择 | 只贴性格标签 |\n| 回报 | 已承诺的进度是否交付 | 声称赢了，却没发生结果 |\n| 信息 | 能否理解当前事件 | 新概念压住任务 |\n| 章尾 | 下章会接住什么 | 空泛预告，无可回应事项 |\n| 关系响应 | 相关人物怎么实际行动 | 全员惊叹却无变化 |\n\n慢热或低压故事可用情绪、关系和理解变化交付，不必凑“两个爽点”。先改最影响本书承诺的一项。",
-          "en": "This manual check locates problems rather than predicts platform success. Use clear, needs work or not applicable; scores are an organizing aid.\n\n| Area | Check | Signal |\n|---|---|---|\n| Appeal | Concrete reason to continue | Facts without a task |\n| Lead | Situation, concern and choice | Traits listed alone |\n| Reward | Promised progress delivered | Victory claimed without result |\n| Facts | Current events clear | New concepts bury task |\n| Ending | What comes next | Vague prediction without response |\n| Reactions | Relevant people actually act | Admiration changes nothing |\n\nSlow or quiet fiction can deliver emotional, relational or interpretive progress without a two-payoff quota. Repair what most harms this book’s promise first."
+          "zh": "这张手写自查表帮助定位问题，不作平台成功预测。可记“清楚／需补／不适用”，分数只是整理手段。\n\n| 维度 | 检查与信号 |\n|---|---|\n| 开篇吸引 | **检查**：有无具体想看下去的事；**信号**：只报资料，任务不清 |\n| 主角 | **检查**：处境、在意与选择；**信号**：只贴性格标签 |\n| 回报 | **检查**：已承诺的进度是否交付；**信号**：声称赢了，却没发生结果 |\n| 信息 | **检查**：能否理解当前事件；**信号**：新概念压住任务 |\n| 章尾 | **检查**：下章会接住什么；**信号**：空泛预告，无可回应事项 |\n| 关系响应 | **检查**：相关人物怎么实际行动；**信号**：全员惊叹却无变化 |\n\n慢热或低压故事可用情绪、关系和理解变化交付，不必凑“两个爽点”。先改最影响本书承诺的一项。",
+          "en": "This manual check locates problems rather than predicts platform success. Use clear, needs work or not applicable; scores are an organizing aid.\n\n| Area | Check and signal |\n|---|---|\n| Appeal | **Check**: Concrete reason to continue; **Signal**: Facts without a task |\n| Lead | **Check**: Situation, concern and choice; **Signal**: Traits listed alone |\n| Reward | **Check**: Promised progress delivered; **Signal**: Victory claimed without result |\n| Facts | **Check**: Current events clear; **Signal**: New concepts bury task |\n| Ending | **Check**: What comes next; **Signal**: Vague prediction without response |\n| Reactions | **Check**: Relevant people actually act; **Signal**: Admiration changes nothing |\n\nSlow or quiet fiction can deliver emotional, relational or interpretive progress without a two-payoff quota. Repair what most harms this book’s promise first."
         }
       },
       {
@@ -87,8 +98,8 @@
           "en": "Opening too slow? Where to look first"
         },
         "body": {
-          "zh": "找出哪几段没有产生预期作用，不因慢或长就删除。检查目标、信息、关系、风险、身份、资源和情绪立场的变化；有用的气氛与停留也要结合本书文风判断。\n\n| 症状 | 先查 | 改法 |\n|---|---|---|\n| 主线迟迟不清 | 人物为什么在这里 | 尽早建立当前任务与投入 |\n| 对话反复同一内容 | 有没有回应和变化 | 合并重复，留交锋与关系作用 |\n| 背景压住事件 | 此刻是否需要全部资料 | 先留理解任务所需内容 |\n| 回忆停不下来 | 过去带回什么理解 | 留新作用，压缩重复 |\n| 后果全靠宣布 | 谁实际接受、拒绝或交付 | 补有权限者的响应与结果 |\n\n标题能表达任务，却不能替空章节制造进展。需要扩写已有冲突，就补选择与后果，不靠固定字数位置加事故。",
-          "en": "Find passages failing their intended job rather than cut everything slow or long. Inspect changes in goals, information, relationships, risk, identity, resources and emotion; useful atmosphere and reflection also depend on the book’s voice.\n\n| Symptom | Check | Repair |\n|---|---|---|\n| Main direction unclear | Why this person is here | Establish task and investment |\n| Dialogue repeats | Response or change | Merge repeats; keep the conflict and bond |\n| Background buries event | Is it all needed now? | Keep what explains the task |\n| Flashback expands endlessly | New meaning | Retain function, compress repetition |\n| Results only announced | Who actually accepts or delivers? | Give authorized responses and results |\n\nA title can express a task, not supply missing progress. Expand choices and consequences rather than add incidents at fixed word positions."
+          "zh": "找出哪几段没有产生预期作用，不因慢或长就删除。检查目标、信息、关系、风险、身份、资源和情绪立场的变化；有用的气氛与停留也要结合本书文风判断。\n\n| 症状 | 判断与改法 |\n|---|---|\n| 主线迟迟不清 | **先查**：人物为什么在这里；**改法**：尽早建立当前任务与投入 |\n| 对话反复同一内容 | **先查**：有没有回应和变化；**改法**：合并重复，留交锋与关系作用 |\n| 背景压住事件 | **先查**：此刻是否需要全部资料；**改法**：先留理解任务所需内容 |\n| 回忆停不下来 | **先查**：过去带回什么理解；**改法**：留新作用，压缩重复 |\n| 后果全靠宣布 | **先查**：谁实际接受、拒绝或交付；**改法**：补有权限者的响应与结果 |\n\n标题能表达任务，却不能替空章节制造进展。需要扩写已有冲突，就补选择与后果，不靠固定字数位置加事故。",
+          "en": "Find passages failing their intended job rather than cut everything slow or long. Inspect changes in goals, information, relationships, risk, identity, resources and emotion; useful atmosphere and reflection also depend on the book’s voice.\n\n| Symptom | Check and fix |\n|---|---|\n| Main direction unclear | **Check**: Why this person is here; **Repair**: Establish task and investment |\n| Dialogue repeats | **Check**: Response or change; **Repair**: Merge repeats; keep the conflict and bond |\n| Background buries event | **Check**: Is it all needed now?; **Repair**: Keep what explains the task |\n| Flashback expands endlessly | **Check**: New meaning; **Repair**: Retain function, compress repetition |\n| Results only announced | **Check**: Who actually accepts or delivers?; **Repair**: Give authorized responses and results |\n\nA title can express a task, not supply missing progress. Expand choices and consequences rather than add incidents at fixed word positions."
         }
       },
       {
@@ -152,6 +163,13 @@
           "en": "Author choices, style and facts"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      },
+      {
+        "label": {
+          "zh": "把既定结果演成完整场景",
+          "en": "Develop accepted results into a scene"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
       }
     ]
   },
@@ -2824,6 +2842,17 @@
         }
       },
       {
+        "id": "complete-next-step",
+        "heading": {
+          "zh": "剧情已经清楚时，怎样从骨架写成正文",
+          "en": "When the plot is clear, turn the skeleton into prose"
+        },
+        "body": {
+          "zh": "原例已找到下一步：阿岑带副签、交接便条与车次说明，请沿路驿站转达暂缓交付核对。若此时仍写不出句子，先展开这个已定请求，所述只是包裹登记核对。\n\n> 阿岑把副签和便条放到驿站当班人面前，指着两处相同的批次。“早班车在摊边换过车，装车的人也确认了去向。我想请下一站先别交这件，让收件人核一下完整标签。”\n>\n> 当班人把两张纸移到一边，摊开发询登记册。“我能收这个询问，不能替那边答应已经留住了。车次说明带了吗？”\n>\n> 阿岑递上说明，等他把询问事项抄进当班转送栏，又补了一句：“请写暂缓交付并留件核对。副签只能对记录，实物还得看。”\n>\n> 当班人将这句话记好，把本地收件回执交给他。阿岑看过上面的事项，收起回执，也拿回自己的两张凭据。“那我等那边回复。”\n\n详写请求如何被理解、接收与登记，保留凭据回到阿岑手中的结果。去驿站的普通路程可以略写；当班人正常说明能做什么，就足够让结果清楚，无须再加恶意刁难。\n\n回执表示询问进入转送，目的地收件与实际留住包裹仍待回复。下一章接这个等待。若卡点其实是“为什么能判断这趟车”，就回到副签、便条和装车人证言的因果；补对白无法替代此前缺失的证据。",
+          "en": "The original example supplies the next step: Acen brings the retained label copy, handover note and cart description to request a hold-and-check inquiry through the relay. If sentences still will not come, develop this established encounter. The scene checks parcel records.\n\n> Acen placed the label copy and note before the attendant and pointed to the matching batch. “The morning load changed carts at the stall. The loader confirmed where it went. Please ask the next station to hold this parcel so the recipient can check the full label.”\n>\n> The attendant moved the two documents aside and opened the inquiry ledger. “I can accept your inquiry. I can’t say they’ve held it. Have you brought the cart description?”\n>\n> Acen passed it over. As the attendant entered the inquiry in the current shift’s forwarding column, he added, “Please write: hold delivery for checking. This copy supports the record. They still need to inspect the parcel.”\n>\n> The attendant recorded the request and handed him a local receipt. Acen checked its wording, put it away and took back both documents. “I’ll wait for their reply.”\n\nExpand how the request is understood, accepted and registered, retaining the evidence’s return to Acen. Summarize the ordinary journey. Explaining what the attendant can do makes the result clear without deliberate obstruction.\n\nThe local receipt establishes entry into forwarding. Destination receipt and a held parcel await confirmation. The next chapter can address that reply. If the block instead concerns Acen’s basis for choosing this cart, return to the label, note and loader’s testimony. Adding dialogue cannot repair missing earlier evidence."
+        }
+      },
+      {
         "id": "failure-loops",
         "heading": {
           "zh": "越解越卡的几种做法",
@@ -2893,6 +2922,13 @@
           "en": "Expression follows the book"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      },
+      {
+        "label": {
+          "zh": "场景展开与疏密选择",
+          "en": "Scene development and selective detail"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
       }
     ]
   },
@@ -3639,6 +3675,17 @@
         }
       },
       {
+        "id": "complete-reveal-scene",
+        "heading": {
+          "zh": "揭晓名单问题后，让人物真正回应",
+          "en": "Let the characters respond to the program reveal"
+        },
+        "body": {
+          "zh": "沿用许沅、唐宁与策划周澄的原例，保已有旧单、新版和筹备群通知的取得途径。订孔只说明纸板曾固定过材料。下面展开比对、说明与争取。\n\n> 许沅从签到本里取出旧节目单，和墙上的新版对照。她找到自己的那行，又看见唐宁的独唱也没了，新添的一首占了原来的时间。\n>\n> “两个人的都换了？”她问周澄。\n>\n> 唐宁走过来，看完两张名单：“我也想知道。我还带着原来的谱。”\n>\n> 周澄打开自己保存的筹备群通知，给她们看新版和发送范围。“是我改的。赞助方推荐的独唱放进来，两段旧独唱就撤了。我以为筹备群会转告。”\n>\n> “名单是你贴的，表演者却没收到。”许沅把旧单放到他面前，“以后变更也发给我们，别让我到排练才发现。”\n>\n> “这条我同意。”唐宁说，“但我今天还是想唱。”\n>\n> 周澄翻到原有的三分钟主持串场：“我去问主持人能不能缩两分钟。你们愿意共同唱旧曲的副歌吗？”\n>\n> 许沅没有替唐宁答应。两人拿原谱核了声部，试唱后才各自点头。周澄再去问主持人，得到缩短串场的同意，才把共同副歌写进本次安排。\n\n随后实际演出唱出共同副歌，仍未恢复两段完整独唱；下一次排练的变更确实发给表演者，由对方回复确认。局部回报与流程改变都保留，询问本身还没完成演出。\n\n旧单支持内容变化，通知与周澄的说明补齐决定过程，人物从怀疑竞争转向要求知情、争取演出。唐宁受损只是反向线索；订孔也不能证明谁恶意删节目。答案需要这些依据，后果由人物行动完成。",
+          "en": "Keep Xu Yuan, Tang Ning and planner Zhou Cheng, with established access to the old program, revision and organizers’ notice. Staple holes show prior attachment only. Expand comparison, explanation and negotiation.\n\n> Xu retrieved the old program from the sign-in book and compared it with the revision on the wall. Her line was gone. Tang’s solo was missing too, with a new song occupying their former time.\n>\n> “Both solos were replaced?” she asked Zhou.\n>\n> Tang came over and read both lists. “I want to know too. I brought the old score.”\n>\n> Zhou opened the organizers’ notice he had kept and showed them the revision and recipients. “I changed it. The sponsor recommended this solo, so I removed the two earlier ones. I thought the organizers would pass it on.”\n>\n> “You posted the list, but the performers never received it.” Xu laid the old program before him. “Send changes to us too. I shouldn’t discover this at rehearsal.”\n>\n> “I agree with that,” Tang said. “But I still want to sing today.”\n>\n> Zhou turned to the established three-minute host remarks. “I’ll ask the host about shortening this by two minutes. Would you sing the old song’s chorus together?”\n>\n> Xu did not answer for Tang. They checked parts against the original score, tried the chorus and each agreed. Zhou then asked the host, secured agreement to shorter remarks and entered the shared chorus in the program.\n\nThe actual performance later includes their shared chorus without restoring both complete solos. At the next rehearsal, a version change reaches performers and receives confirmation. Retain partial opportunity and changed communication; asking has not completed the performance.\n\nThe old program supports content changes. The notice and Zhou’s account supply the decision process. Suspicion of rivalry becomes a demand for notice and an effort to recover time. Tang’s loss is counterevidence, while staple holes cannot establish malicious removal. Evidence supports the answer; character actions deliver its consequences."
+        }
+      },
+      {
         "id": "fixes",
         "heading": {
           "zh": "埋伏笔常见问题与改法",
@@ -3729,7 +3776,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "网文节奏怎么把控：什么时候快写，什么时候放慢",
       "en": "How to Control Pacing in a Web Novel"
@@ -3743,8 +3790,8 @@
       "en": "Vary high-pressure, progress, relationship and quiet chapters through state changes. Includes pacing diagnosis and an original chapter sequence."
     },
     "answer": {
-      "zh": "网文节奏要看“变化多久发生一次、变化有多重、读者能否消化”。每章至少改变目标、风险、信息、关系、资源、身份或情绪立场中的一项；连续高压会疲劳，连续低压会停滞。用结果、停顿和下一步期待组成起伏，不用固定字数或每章强塞爽点。",
-      "en": "Web-fiction pacing depends on how often change occurs, how consequential each change is, and whether readers have time to absorb it. Every chapter should change at least one of goal, risk, information, relationship, resources, identity, or emotional stance. Continuous high pressure causes fatigue; continuous low pressure causes stagnation. Create variation through results, pauses, and anticipation of the next move rather than a fixed word count or a forced payoff beat in every chapter."
+      "zh": "网文节奏要看“变化多久发生一次、变化有多重、读者能否消化”。按本书承诺检查目标、风险、信息、关系、资源、身份或情绪立场的进展。连续高压或低压都需复核作用：持续追逐可以保留，连续日常也可以有关系与生活进度。真正该修的是重复无作用，或缺少消化关键变化的空间。用结果、停顿和下一步期待组成起伏，不用固定字数或每章强塞爽点。",
+      "en": "Web-fiction pacing depends on how often change occurs, how consequential each change is, and whether readers have time to absorb it. Assess progress in goals, risk, information, relationships, resources, identity or emotional stance against the book’s promise. Review the function of sustained pressure or quiet: a continuous chase may work, and consecutive everyday scenes can develop relationships and life. Repair repetition without purpose or missing room to absorb important change. Create variation through results, pauses, and anticipation of the next move rather than a fixed word count or a forced payoff beat in every chapter."
     },
     "sections": [
       {
@@ -3754,8 +3801,8 @@
           "en": "What Makes Web-Fiction Pacing Feel Fast or Slow?"
         },
         "body": {
-          "zh": "节奏包含三层：事件出现的频率、事件改变局面的幅度、读者处理信息的时间。追逐戏动作多，却反复绕回原点，仍然会拖；两个人安静谈判，只要关系和决定持续变化，也可以很紧。\n\n最简单的检测是：读完这一章，目标、风险、信息、关系、资源、身份、情绪立场中哪一项变了？若答不出，先压缩或合并。若变了，再判断变化强度是否符合这一段的任务。",
-          "en": "Pacing has three layers: how frequently events occur, how much they change the situation, and how much time readers receive to process information. A chase may contain many actions yet still drag if it circles back to the same state. A quiet negotiation can feel tight if the relationship and decisions keep changing.\n\nUse one simple test after a chapter: which of goal, risk, information, relationship, resources, identity, or emotional stance changed? If none did, compress or merge the material. If something changed, ask whether the change’s intensity fits that part of the story."
+          "zh": "节奏包含三层：事件出现的频率、事件改变局面的幅度、读者处理信息的时间。追逐戏动作多，却反复绕回原点，仍然会拖；两个人安静谈判，只要关系和决定持续变化，也可以很紧。\n\n最简单的检测是：读完这一章，目标、风险、信息、关系、资源、身份、情绪立场中哪一项变了？若答不出，再看本段是否让人物多了一层、气氛与体验是否有作用；确认无损才压缩或合并。若变了，再判断变化强度是否符合这一段的任务。",
+          "en": "Pacing has three layers: how frequently events occur, how much they change the situation, and how much time readers receive to process information. A chase may contain many actions yet still drag if it circles back to the same state. A quiet negotiation can feel tight if the relationship and decisions keep changing.\n\nUse one simple test after a chapter: which of goal, risk, information, relationship, resources, identity, or emotional stance changed? If none did, also check whether the passage adds a layer to a character or serves atmosphere and experience; compress or merge only when those functions are not lost. If something changed, ask whether its intensity fits that part of the story."
         }
       },
       {
@@ -3765,8 +3812,8 @@
           "en": "Let the Chapter’s Role Determine Its Intensity"
         },
         "body": {
-          "zh": "| 章节作用 | 主要交付 | 常见力度 |\n|---|---|---|\n| 高压兑现 | 大冲突、反转或重要结果 | 高 |\n| 普通推进 | 目标向前一步，出现新阻力 | 中 |\n| 试错成长 | 新方法失败或能力边界被看见 | 中 |\n| 关系回收 | 先前事件改变人物关系 | 中低 |\n| 低压生活 | 展示人物余韵、恢复或小收益 | 低 |\n| 信息整理 | 把零散线索变成下一步决定 | 低到中 |\n\n这些是功能，不是配额。一章可以同时完成推进和关系变化；高潮后允许有低压收益，让前一轮结果被感受到。真正的红线是连续多章没有新变化，或所有章节都用同一强度。",
-          "en": "| Role | Delivery | Force |\n|---|---|---|\n| High-pressure payoff | Major conflict, twist, or important result | High |\n| Ordinary progress | The goal advances one step and new resistance appears | Medium |\n| Learning through failure | A new method fails or an ability limit becomes visible | Medium |\n| Relationship payoff | An earlier event changes a relationship | Medium-low |\n| Low-pressure life | Aftereffects, recovery, or a small gain | Low |\n| Information synthesis | Scattered clues become a next decision | Low to medium |\n\nThese are functions, not quotas. One chapter may advance the plot and change a relationship. After a climax, a low-pressure gain lets readers feel the previous result. The real warning signs are several consecutive chapters without a new change, or every chapter using the same intensity."
+          "zh": "| 章节作用 | 交付与力度 |\n|---|---|\n| 高压兑现 | **交付**：大冲突、反转或重要结果；**力度**：高 |\n| 普通推进 | **交付**：目标向前一步，出现新阻力；**力度**：中 |\n| 试错成长 | **交付**：新方法失败或能力边界被看见；**力度**：中 |\n| 关系回收 | **交付**：先前事件改变人物关系；**力度**：中低 |\n| 低压生活 | **交付**：展示人物余韵、恢复或小收益；**力度**：低 |\n| 信息整理 | **交付**：把零散线索变成下一步决定；**力度**：低到中 |\n\n这些是功能，不是配额。一章可以同时完成推进和关系变化；高潮后允许有低压收益，让前一轮结果被感受到。连续多章没有有效作用，或相同强度使关键变化读不出来时，再针对具体问题调整；不规定高低必须轮流出现。",
+          "en": "| Role | Delivery and force |\n|---|---|\n| High-pressure payoff | **Delivery**: Major conflict, twist, or important result; **Force**: High |\n| Ordinary progress | **Delivery**: The goal advances one step and new resistance appears; **Force**: Medium |\n| Learning through failure | **Delivery**: A new method fails or an ability limit becomes visible; **Force**: Medium |\n| Relationship payoff | **Delivery**: An earlier event changes a relationship; **Force**: Medium-low |\n| Low-pressure life | **Delivery**: Aftereffects, recovery, or a small gain; **Force**: Low |\n| Information synthesis | **Delivery**: Scattered clues become a next decision; **Force**: Low to medium |\n\nThese are functions, not quotas. One chapter may advance the plot and change a relationship. After a climax, a low-pressure gain lets readers feel the previous result. Revise when consecutive chapters lack useful function or repeated intensity obscures important changes. High and low need not alternate mechanically."
         }
       },
       {
@@ -3776,8 +3823,19 @@
           "en": "Original Example: The Rise and Fall of a Wildfire-Lookout Sequence"
         },
         "body": {
-          "zh": "原创林区故事中，程岚追查被改写的巡查记录。以下只比较叙事力度，不提供火场操作方法或已执行的测试。\n\n| 作用 | 本轮变化 | 承接理由 |\n|---|---|---|\n| 高压 | 她误报位置，负责人暂停她单独提交 | 让信息错误有后果 |\n| 整理 | 她比对旧电台与巡查记录，申请到旧塔核对 | 失败产生调查目标 |\n| 推进 | 发现新线接向伐木区 | 是待查线索，不直接定责 |\n| 关系 | 老护林员交出原记录，承认自己改过一项 | 具体承认改变信任 |\n| 兑现 | 两人递交可核对的新报告，接收人核实后更新安排 | 选择与实际响应相连 |\n| 低压 | 负责人恢复她有限的记录提交资格，两人整理工具 | 让本轮收益被感受到 |\n\n恢复资格来自核实与明确决定，不是主角报完便自动拿回所有权限。记录全案仍需继续查；低压段可以让人物休息、修复合作，不必再塞一把神秘缺钥匙。\n\n高低由前一轮后果连接。若安静场里读者终于感到获得信任，它就有功能；不要只按事故数量判断是否推进。",
-          "en": "In this original forest story, Cheng Lan investigates altered patrol records. The sequence compares narrative intensity; it is neither fire-response procedure nor a tested event.\n\n| Role | Change | Reason |\n|---|---|---|\n| Pressure | Wrong location report; independent submissions paused | Error has a cost |\n| Review | Compare radio and patrol records; request a tower check | Failure creates a goal |\n| Progress | New line leads toward logging area | A clue, not guilt |\n| Relationship | Ranger provides originals and admits one alteration | Specific admission changes trust |\n| Payoff | Submit checkable report; receiver verifies and updates plans | Action has an enacted response |\n| Quiet gain | Supervisor restores limited reporting; tools are sorted | Let the result be felt |\n\nRestoration follows verification and a decision, not the report alone. The full inquiry remains open. Quiet scenes can support rest and renewed cooperation without another missing-key mystery.\n\nConsequences connect high and low. Feeling newly earned trust serves a purpose. Accident counts alone do not measure progression."
+          "zh": "原创林区故事中，程岚追查被改写的巡查记录。以下只比较叙事力度，不提供火场操作方法或已执行的测试。\n\n| 作用 | 变化与承接 |\n|---|---|\n| 高压 | **变化**：她误报位置，负责人暂停她单独提交；**理由**：让信息错误有后果 |\n| 整理 | **变化**：她比对旧电台与巡查记录，申请到旧塔核对；**理由**：失败产生调查目标 |\n| 推进 | **变化**：发现新线接向伐木区；**理由**：是待查线索，不直接定责 |\n| 关系 | **变化**：老护林员交出原记录，承认自己改过一项；**理由**：具体承认改变信任 |\n| 兑现 | **变化**：两人递交可核对的新报告，接收人核实后更新安排；**理由**：选择与实际响应相连 |\n| 低压 | **变化**：负责人恢复她有限的记录提交资格，两人整理工具；**理由**：让本轮收益被感受到 |\n\n恢复资格来自核实与明确决定，不是主角报完便自动拿回所有权限。记录全案仍需继续查；低压段可以让人物休息、修复合作，不必再塞一把神秘缺钥匙。\n\n高低由前一轮后果连接。若安静场里读者终于感到获得信任，它就有功能；不要只按事故数量判断是否推进。",
+          "en": "In this original forest story, Cheng Lan investigates altered patrol records. The sequence compares narrative intensity; it is neither fire-response procedure nor a tested event.\n\n| Role | Change and reason |\n|---|---|\n| Pressure | **Change**: Wrong location report; independent submissions paused; **Reason**: Error has a cost |\n| Review | **Change**: Compare radio and patrol records; request a tower check; **Reason**: Failure creates a goal |\n| Progress | **Change**: New line leads toward logging area; **Reason**: A clue, not guilt |\n| Relationship | **Change**: Ranger provides originals and admits one alteration; **Reason**: Specific admission changes trust |\n| Payoff | **Change**: Submit checkable report; receiver verifies and updates plans; **Reason**: Action has an enacted response |\n| Quiet gain | **Change**: Supervisor restores limited reporting; tools are sorted; **Reason**: Let the result be felt |\n\nRestoration follows verification and a decision, not the report alone. The full inquiry remains open. Quiet scenes can support rest and renewed cooperation without another missing-key mystery.\n\nConsequences connect high and low. Feeling newly earned trust serves a purpose. Accident counts alone do not measure progression."
+        }
+      },
+      {
+        "id": "quiet-payoff-example",
+        "heading": {
+          "zh": "低压段怎样写出刚得到的信任",
+          "en": "Let a quiet scene make earned trust felt"
+        },
+        "body": {
+          "zh": "沿用程岚与老护林员的原例，展开最后的低压收益。两人已递交报告，接收人已核实并更新安排；这里从负责人有限恢复提交资格开始。\n\n> “这组核对过的记录，由你提交。”负责人把确认页交给程岚，“其他项目的独立提交仍按暂停后的安排。”\n>\n> 她看了一遍范围，把确认页放在报告旁。老护林员将用完的工具收回箱里，留出桌面，让她把原记录和新报告分开。\n>\n> “你改过的那一项，我还是会写进去。”程岚说。\n>\n> “写吧。原件已经给你了。”他把空出的盒子推过来，等她收好纸页才合上工具箱。\n>\n> 程岚在报告上写下自己的名字，把尚待核查的条目留在原来的位置。\n\n本段具体选择恢复“本组已核记录”的提交资格。程岚实际承担这份结果，合作也能容纳不舒服的事实；权限仍有限，老护林员的承认没有证明全部差错与他无关。\n\n工具整理只取它如何让出空间、收束这一轮，无须列出每件工具。删成“她恢复资格”，会少掉刚获得信任的体验；再塞一场袭击，也可能遮住这次回报。未查清的记录仍在，安静段可以在这里结束。",
+          "en": "Expand the quiet gain at the end of Cheng Lan’s original sequence. Both people have submitted the report; the receiver has verified it and updated arrangements. Begin with the supervisor’s limited restoration of submission permission.\n\n> “You can submit this checked set of records,” the supervisor said, handing Cheng the confirmation page. “Independent submission of other items remains under the arrangements made when it was paused.”\n>\n> She read the scope and placed the page beside the report. The old ranger returned used tools to their box, clearing table space for her to separate the originals from the new report.\n>\n> “I’m still including the entry you changed,” Cheng said.\n>\n> “Include it. You have the original.” He slid the emptied container toward her and waited until she had gathered the pages before closing the tool box.\n>\n> Cheng wrote her name on the report, leaving the items awaiting investigation in place.\n\nThis selects a concrete scope for restoration: submission of this checked set. Cheng owns that result and cooperation can accommodate an uncomfortable fact. Permission remains limited; the ranger’s admission does not establish innocence concerning every discrepancy.\n\nTool sorting needs only the details that make space and close this round. Cutting to “her permission was restored” loses the experience of earned trust. Adding an attack may bury the reward. The unresolved records remain, and the quiet passage can end here."
         }
       },
       {
@@ -3787,8 +3845,8 @@
           "en": "How to Identify and Remove Filler"
         },
         "body": {
-          "zh": "注水的标准是删掉后是否损失有效变化，不是描写长或对话多。人物余韵也有价值：删掉一段后人物少了一层，就应保留；若只少了重复说明，可以压缩。\n\n| 症状 | 检查 | 修改 |\n|---|---|---|\n| 对话很长 | 有没有新信息、决定或权力变化 | 保留交锋，删重复立场 |\n| 回忆很多 | 是否提供当下未知的新角度 | 无新意就压成一句或删除 |\n| 办事流程完整 | 卡点有没有逼出选择或代价 | 只留改变局面的步骤 |\n| 同一情绪反复 | 后一段是否增加新后果 | 留最有信息的一处 |\n| 描写很细 | 细节是否影响判断、气氛或行动 | 留功能细节，删装饰性重复 |",
-          "en": "Filler is material whose removal loses no meaningful change, not simply long description or extended dialogue. Aftereffects matter: if deleting a passage removes a layer from a character, retain it. If it removes only repeated explanation, compress it.\n\n| Issue | Check | Fix |\n|---|---|---|\n| Long dialogue | Does it add facts, a decision, or a shift of power? | Keep the clash; remove repeated positions |\n| Many flashbacks | Do they offer an angle unknown in the present? | Compress to one sentence or delete when nothing is new |\n| Every procedural step appears | Does a bottleneck force a choice or cost? | Keep only steps that change the situation |\n| The same emotion repeats | Does the later passage add a consequence? | Keep the instance that adds the most |\n| Dense description | Does the detail affect judgment, atmosphere, or action? | Keep functional detail and remove ornamental repetition |"
+          "zh": "注水的标准是删掉后是否损失有效变化，不是描写长或对话多。人物余韵也有价值：删掉一段后人物少了一层，就应保留；若只少了重复说明，可以压缩。\n\n| 症状 | 检查与修改 |\n|---|---|\n| 对话很长 | **检查**：有没有新信息、决定或权力变化；**修改**：保留交锋，删重复立场 |\n| 回忆很多 | **检查**：是否提供当下未知的新角度；**修改**：无新意就压成一句或删除 |\n| 办事流程完整 | **检查**：卡点有没有逼出选择或代价；**修改**：只留改变局面的步骤 |\n| 同一情绪反复 | **检查**：后一段是否增加新后果；**修改**：留最有信息的一处 |\n| 描写很细 | **检查**：细节是否影响判断、气氛或行动；**修改**：留功能细节，删装饰性重复 |",
+          "en": "Filler is material whose removal loses no meaningful change, not simply long description or extended dialogue. Aftereffects matter: if deleting a passage removes a layer from a character, retain it. If it removes only repeated explanation, compress it.\n\n| Issue | Check and fix |\n|---|---|\n| Long dialogue | **Check**: Does it add facts, a decision, or a shift of power?; **Fix**: Keep the clash; remove repeated positions |\n| Many flashbacks | **Check**: Do they offer an angle unknown in the present?; **Fix**: Compress to one sentence or delete when nothing is new |\n| Every procedural step appears | **Check**: Does a bottleneck force a choice or cost?; **Fix**: Keep only steps that change the situation |\n| The same emotion repeats | **Check**: Does the later passage add a consequence?; **Fix**: Keep the instance that adds the most |\n| Dense description | **Check**: Does the detail affect judgment, atmosphere, or action?; **Fix**: Keep functional detail and remove ornamental repetition |"
         }
       },
       {
@@ -3848,6 +3906,20 @@
           "en": "Progression, quiet gains and optional costs"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/reader-contract-and-progression.md"
+      },
+      {
+        "label": {
+          "zh": "动静起伏与人物余韵",
+          "en": "Pressure, pauses and character aftereffects"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
+      },
+      {
+        "label": {
+          "zh": "表达默认值服从本书",
+          "en": "Expression defaults follow this book"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ]
   },
