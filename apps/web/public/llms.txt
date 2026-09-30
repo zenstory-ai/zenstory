@@ -78,6 +78,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Weave Multiple Storylines in a Novel](https://zenstory.ai/oh-story/weave-multiple-storylines-in-a-novel) — Give each storyline a present question, then choose returns and intersections. Includes a complete two-location passage and a timing worksheet.
 - [How to Write a Chase Scene](https://zenstory.ai/oh-story/write-a-chase-scene) — Establish the objective and route, then show choices changing pursuit. Includes an original warehouse chase without a last-minute exit or frozen pursuer.
 - [How to Write a Countdown Plot](https://zenstory.ai/oh-story/write-a-countdown-plot) — Build urgency from a clear cutoff, task duration, and consequences. Includes an original submission timeline without convenient extensions.
+- [How to Write a Rescue Scene](https://zenstory.ai/oh-story/write-a-rescue-scene) — Define the person, obstacle, and escape result. Includes a complete fantasy rescue with established abilities, cooperation, and an actual exit.
 
 ### Characters and dialogue / 人物与对白
 - [Characters and dialogue](https://zenstory.ai/guides/characters-and-dialogue) — Build believable motives, distinct voices, and relationships.
@@ -132,6 +133,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Write a Friendship Arc](https://zenstory.ai/oh-story/write-a-friendship-arc) — Give friends shared habits, independent goals, and credible change. Includes an original photography-show scene without compulsory betrayal or romance.
 - [How to Write an Apology Scene](https://zenstory.ai/oh-story/write-an-apology-scene) — Build an apology from a specific wrong, conversational purpose, and reply. Includes an original cover-credit scene separating admission, repair, and trust.
 - [How to Write a Character Death That Matters](https://zenstory.ai/oh-story/write-a-character-death) — Establish the living character, the cause of death, who knows what, and the changed relationships. Includes original prose and revision checks.
+- [How to Write a Reunion Scene](https://zenstory.ai/oh-story/write-a-reunion-scene) — Use expectations, old habits, and present responses to write a reunion. Includes a complete scene without assuming romance or forgiveness.
 
 ### Choose and write a genre / 题材与类型写法
 - [Choose and write a genre](https://zenstory.ai/guides/genres) — Choose a genre and learn the story patterns it needs.
