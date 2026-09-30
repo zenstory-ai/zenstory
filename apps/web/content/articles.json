@@ -7638,8 +7638,8 @@
           "en": "Build Four Narrative Components First"
         },
         "body": {
-          "zh": "| 部件 | 写作问题 | 作用 |\n|---|---|---|\n| 当前目标 | “我”现在非办成什么不可？ | 防止开头只讲背景 |\n| 个人盲区 | “我”因身份、愿望或偏见看漏什么？ | 建立有限视角 |\n| 日常异常 | 哪件普通东西出现了不合常理的变化？ | 产生可追查的问题 |\n| 代价选择 | 真相出现后，“我”要放弃什么？ | 让反转改变人物 |\n\n盲区必须符合人物处境。叙述者可以判断错，不能隐瞒自己已经看见、已经知道的关键事实。",
-          "en": "“Yanyan story” is the Chinese label used here for this kind of compact short fiction. Start with four components:\n\n| Component | Writing question | Function |\n|---|---|---|\n| Immediate goal | What must “I” accomplish now? | Prevents the opening from becoming background summary |\n| Personal blind spot | What does “I” overlook because of identity, desire, or bias? | Establishes limited viewpoint |\n| Everyday anomaly | What ordinary object has changed in a way that does not make sense? | Creates a question that can be investigated |\n| Costly choice | Once the truth appears, what must “I” give up? | Lets the twist change the character |\n\nThe blind spot must fit the narrator’s situation. A narrator may draw the wrong conclusion, but cannot conceal a crucial fact they have already seen and understood."
+          "zh": "| 部件 | 写作问题 | 作用 |\n|---|---|---|\n| 当前目标 | “我”现在非办成什么不可？ | 防止开头只讲背景 |\n| 个人盲区 | “我”因身份、愿望或偏见看漏什么？ | 建立有限视角 |\n| 日常异常 | 哪件普通东西出现了不合常理的变化？ | 产生可追查的问题 |\n| 代价选择 | 真相出现后，“我”要放弃什么？ | 让反转改变人物 |\n\n本篇采用叙述者真诚误判的写法，盲区必须符合人物处境，不能中途改成明知真相却装不知道。悬疑中的凶手叙述者可以采用如实记录动作、暂不解释动机的另一种安排，见[不可靠叙述者的两种写法](/oh-story/write-an-unreliable-narrator)。",
+          "en": "“Yanyan story” is the Chinese label used here for this kind of compact short fiction. Start with four components:\n\n| Component | Writing question | Function |\n|---|---|---|\n| Immediate goal | What must “I” accomplish now? | Prevents the opening from becoming background summary |\n| Personal blind spot | What does “I” overlook because of identity, desire, or bias? | Establishes limited viewpoint |\n| Everyday anomaly | What ordinary object has changed in a way that does not make sense? | Creates a question that can be investigated |\n| Costly choice | Once the truth appears, what must “I” give up? | Lets the twist change the character |\n\nThis article uses sincere misjudgment: the blind spot must fit the narrator, who cannot abruptly turn out to have known the truth all along. A suspense culprit can instead report actions truthfully while withholding motive; see [two approaches to unreliable narration](/oh-story/write-an-unreliable-narrator)."
         }
       },
       {
@@ -7682,8 +7682,8 @@
           "en": "Common Missteps and Fixes"
         },
         "body": {
-          "zh": "| 写偏点 | 修正 |\n|---|---|\n| 第一段先讲多年恩怨 | 从人物今天必须处理的事进入 |\n| 叙述者明知真相却故意不说 | 限制其信息来源或改变视角 |\n| 每次反转都增加陌生人物 | 用已有物件、证词和关系重解释 |\n| 异常只负责吓人 | 让它指向目标、风险或人物关系 |\n| 结尾只宣布“原来如此” | 让真相迫使人物选择并承担代价 |\n| 复制统一的审判金句 | 让结尾语气来自叙述者经历 |",
-          "en": "| Misstep | Fix |\n|---|---|\n| Opening with years of grievances | Begin with the task the character must handle today |\n| The narrator knows the truth but deliberately withholds it | Limit the information source or change the viewpoint |\n| Every twist adds a stranger | Reinterpret established objects, testimony, and relationships |\n| The anomaly exists only to frighten | Connect it to the goal, risk, or relationship |\n| The ending only announces “Now I understand” | Make the truth force a choice and cost |\n| The ending copies a stock line of judgment | Let its tone come from the narrator’s experience |"
+          "zh": "| 写偏点 | 修正 |\n|---|---|\n| 第一段先讲多年恩怨 | 从人物今天必须处理的事进入 |\n| 原定真诚误判，结尾却变成故意装傻 | 维持原定知识边界，或从开头另设隐瞒动机的方案 |\n| 每次反转都增加陌生人物 | 用已有物件、证词和关系重解释 |\n| 异常只负责吓人 | 让它指向目标、风险或人物关系 |\n| 结尾只宣布“原来如此” | 让真相迫使人物选择并承担代价 |\n| 复制统一的审判金句 | 让结尾语气来自叙述者经历 |",
+          "en": "| Misstep | Fix |\n|---|---|\n| Opening with years of grievances | Begin with the task the character must handle today |\n| A sincere mistake abruptly becomes deliberate pretence | Keep the established knowledge boundary, or plan withheld motive from the start |\n| Every twist adds a stranger | Reinterpret established objects, testimony, and relationships |\n| The anomaly exists only to frighten | Connect it to the goal, risk, or relationship |\n| The ending only announces “Now I understand” | Make the truth force a choice and cost |\n| The ending copies a stock line of judgment | Let its tone come from the narrator’s experience |"
         }
       }
     ],
@@ -7718,6 +7718,7 @@
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/SKILL.md"
     },
     "related": [
+      "/oh-story/write-an-unreliable-narrator",
       "/oh-story/short-story-from-idea",
       "/oh-story/plot-twists",
       "/oh-story/character-motivation",
@@ -7727,10 +7728,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "视角反转与信息边界",
+          "en": "Viewpoint reversal and knowledge boundaries"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/short-reversal.md"
+      },
+      {
+        "label": {
+          "zh": "悬疑叙述者的动机隐瞒",
+          "en": "Withheld motives in suspense narration"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/genre-styles/悬疑.md"
       }
     ]
   },
@@ -11091,6 +11099,7 @@
       "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/SKILL.md"
     },
     "related": [
+      "/drama-skills/ai-video-lip-sync",
       "/drama-skills/script-to-storyboard",
       "/drama-skills/image-to-video-prompts",
       "/drama-skills/character-consistency",
@@ -13223,6 +13232,7 @@
       "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-recap/SKILL.md"
     },
     "related": [
+      "/video-recap/fix-flash-frames",
       "/video-recap/video-to-narration",
       "/video-recap/original-audio-and-narration",
       "/video-recap/capcut-draft",
@@ -20479,6 +20489,991 @@
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-qa/references/test-design-method.md"
       }
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "write-character-backstory",
+    "topic": "characters-and-dialogue",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "人物背景怎么写：让过去影响眼前的选择",
+      "en": "How to Write Character Backstory Without Stopping the Story"
+    },
+    "seo_title": {
+      "zh": "人物背景怎么写：让过去影响眼前的选择",
+      "en": "How to Write Character Backstory Without Stopping the Story"
+    },
+    "description": {
+      "zh": "用过去、现在、未来整理人物经历，再决定哪些背景需要进入正文。附原创场景、信息投放表和过度解释的改法。",
+      "en": "Connect a character’s past to a present choice, then decide what the reader needs now. Includes an original scene, a reveal plan and revision checks."
+    },
+    "answer": {
+      "zh": "先写人物今天必须作出的选择，再找出让这个选择变难的一段过去。人物卡可以记完整经历，正文只放读者理解当下行动所需的部分；其余等到新压力出现时再揭示。背景的作用是改变人物怎么做事，而不是替他列一份履历。",
+      "en": "Start with a choice the character must make today, then identify a past experience that makes it difficult. Keep the full history in your character notes; reveal only what readers need to understand the present action. Save the rest for a pressure that makes it matter."
+    },
+    "sections": [
+      {
+        "id": "past-present-future",
+        "heading": {
+          "zh": "人物卡记完整，正文有选择地放",
+          "en": "Separate your character history from its use in the story"
+        },
+        "body": {
+          "zh": "Oh Story 的角色方法把经历分成过去、现在和未来。写背景时，可以把这三项连起来：过去发生了什么，留下哪种习惯；现在遇到什么事，这种习惯有什么帮助和代价；未来哪次选择会检验它。\n\n| 层次 | 原创人物：社区修车师傅罗宁 | 正文用途 |\n|---|---|---|\n| 过去 | 年轻时答应替朋友检修刹车，却因赶工漏查，朋友摔伤 | 解释他为什么不肯接受“先骑走，明天再修” |\n| 现在 | 他必须在交租前完成大客户订单，但一位学生来修失灵的刹车 | 让责任与生计真正冲突 |\n| 未来 | 订单来不及全部完成，他要主动告知客户并承担损失 | 检验他能否用诚实处理责任，而非靠独自硬扛 |\n\n朋友的姓名、当年的学校和每次争执可以记在作者笔记里。若它们不影响当前选择，不必在人物第一次出场时一起交代。",
+          "en": "Oh Story’s character method connects past, present and future. Record the event, the habit it left, the help and cost of that habit today, and a later choice that tests it.\n\n| Layer | Original character: Luo Ning, a bicycle mechanic | Story use |\n|---|---|---|\n| Past | He rushed a friend’s brake repair and missed a fault; the friend was injured | Explains his refusal to let someone ride an unsafe bike |\n| Present | A large order must be finished before rent is due; a student arrives with failed brakes | Puts responsibility in conflict with income |\n| Future | He must tell the customer he cannot finish every bike on time and accept the loss | Tests whether he can take responsibility honestly rather than shoulder everything alone |\n\nThe friend’s school and every old argument can stay in your notes. They need not arrive with the character’s first appearance."
+        }
+      },
+      {
+        "id": "scene-before-explanation",
+        "heading": {
+          "zh": "示例：先让人物行动，再补背景",
+          "en": "Example: let the past affect an action before explaining it"
+        },
+        "body": {
+          "zh": "下面是为本文设计的虚构片段。\n\n**背景先行：**\n\n> 罗宁曾经因为疏忽害朋友受伤。从那以后，他对每辆自行车都格外认真，哪怕损失收入也不愿冒险。\n\n这段信息明确，但如果接着再讲事故经过，眼前的订单就会停下来。可以先让旧经历作用于当前行动：\n\n> 学生把五块钱放在台上。“能骑回家就行，明天再修。”\n> 罗宁转了半圈前轮，捏住刹把，轮子还在走。他把车钥匙收进抽屉。\n> “今晚放这儿。钱先拿回去。”\n> 手机又响起来，大客户问最后六辆车装好了没有。罗宁没接，先往学生车的刹车线上套了一枚红签。\n\n学生抱怨他小题大做时，可以用一句具体背景补足理解：“上回有人这么说，我就让他骑走了。”事故详情留到学生追问或旧友真正出场时。并非任何背景都必须藏起来；若读者已经无法理解人物在怕什么，直接交代必要事实比持续卖关子更好。",
+          "en": "This fictional passage is original to the article.\n\n**History first:**\n\n> Luo Ning once injured a friend through a careless repair. Since then, he inspected every bike thoroughly, even when it cost him money.\n\nThe information is clear, but a full accident account here would stop the order in progress. Let the history work through an action first:\n\n> The student put a small bill on the bench. “Just enough to get home. You can fix it tomorrow.”\n> Luo Ning spun the front wheel and squeezed the brake. The wheel kept turning. He put the bike key in his drawer.\n> “Leave it tonight. Keep the money.”\n> His phone rang again: the customer wanted the last six bikes. He let it ring and tied a red tag to the student’s brake cable.\n\nWhen the student protests, one line may supply enough history: “The last time someone said that, I let him ride away.” Save the fuller account for a question or encounter that needs it. If readers cannot understand what he fears, give them the necessary fact plainly rather than prolonging a mystery."
+        }
+      },
+      {
+        "id": "reveal-plan",
+        "heading": {
+          "zh": "用信息投放表安排背景出现的位置",
+          "en": "Plan each reveal around a present need"
+        },
+        "body": {
+          "zh": "| 当前场景 | 读者需要知道 | 暂不交代 | 揭示后会改变什么 |\n|---|---|---|---|\n| 学生要求先骑走 | 罗宁曾经放走过一辆不安全的车 | 事故全过程 | 学生理解他为何坚持留下车 |\n| 大客户要求按时交付 | 他错过订单会付不起租金 | 多年经营史 | 留车的选择有可见成本 |\n| 旧友回来找他 | 事故后两人多年没见 | 与本场无关的童年 | 罗宁无法再用忙碌回避道歉 |\n\n删去一条背景试读：人物的选择还讲得通，就可以稍后放；选择像无缘无故，说明需要提前补。长回忆适合过去本身包含一个必须看清的决定；如果只需要说明原因，一句叙述或对话往往够用。",
+          "en": "| Present scene | What readers need | What can wait | What the reveal changes |\n|---|---|---|---|\n| The student asks to ride home | Luo once released an unsafe bike | The complete accident | The student understands his refusal |\n| The customer demands delivery | Losing the order threatens his rent | Years of business history | Keeping the bike has a visible cost |\n| The old friend returns | They have not met since the accident | Unrelated childhood | Luo can no longer avoid apologizing by staying busy |\n\nRemove a fact and reread the choice. If it still makes sense, that fact can wait. If the action becomes arbitrary, reveal it sooner. Use a full flashback when an earlier decision must be experienced; a brief explanation is often enough when only the cause matters."
+        }
+      },
+      {
+        "id": "repair-backstory",
+        "heading": {
+          "zh": "背景写得多但人物仍然薄，怎么改",
+          "en": "Repair a detailed history that does not shape the character"
+        },
+        "body": {
+          "zh": "- **所有习惯都由同一次创伤解释**：补一项来自职业、兴趣或日常关系的选择，让人物的生活不只剩事故。\n- **每次坚持都重复讲同一段往事**：第一次建立原因，后续展示这项坚持在不同情境里的成本，不重复事故介绍。\n- **以悲惨经历替伤人行为开脱**：让过去解释行为，同时保留受伤者的反应和人物应负的责任。\n- **背景随剧情临时增加**：在人物卡记录已经公开的事实，新增经历要能与年龄、关系和时间线对上。\n\n写完检查：过去是否改变了至少一个具体选择？读者是否在需要时获得信息？删去履历后，人物在场景里是否仍然可辨认？",
+          "en": "- **One wound explains every trait:** add a choice shaped by work, interest or an ordinary relationship. The accident should not consume the whole life.\n- **Every refusal repeats the same history:** establish the cause once, then vary the cost of the principle in later scenes.\n- **A painful past excuses harmful behavior:** keep the harmed person’s response and the character’s responsibility visible.\n- **New history appears whenever the plot needs help:** record established facts and check additions against age, relationships and chronology.\n\nDoes the past change a concrete choice? Does the reader receive information when it becomes necessary? After removing the résumé, can the character still be recognized through action?"
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "人物背景要在第一章写完吗？",
+          "en": "Must all backstory appear in chapter one?"
+        },
+        "a": {
+          "zh": "不用。第一章先给理解当前目标和选择所需的信息。会影响以后行动的经历先记在人物卡，等相关压力出现时再放。",
+          "en": "No. Give enough history to understand the immediate goal and choice. Record later-relevant experiences in your notes and reveal them when the pressure makes them matter."
+        }
+      },
+      {
+        "q": {
+          "zh": "人物一定要有童年创伤吗？",
+          "en": "Does every character need childhood trauma?"
+        },
+        "a": {
+          "zh": "不一定。职业训练、反复失败、一个被兑现的承诺、长期关系，都能影响人物。选择适合故事的成因，不为了“深度”强塞悲惨经历。",
+          "en": "No. Training, repeated failures, a kept promise or a lasting relationship can shape behavior. Choose a cause that belongs to the story rather than adding misery to suggest depth."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "可以对 story-long-write 说：“先只整理罗宁的人物背景方案。把过去、当前习惯和未来选择连起来，标出第一场需要交代的事实，不写正文。”确定后再请求相应章节。",
+        "en": "Ask story-long-write to plan the character’s history first: connect past experience, present habit and a future choice; identify what the first scene must reveal, and stop before prose. Request the chapter separately once the plan is settled."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "人物经历与选择",
+          "en": "Character history and choices"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-basics.md"
+      },
+      {
+        "label": {
+          "zh": "必要背景与叙事取舍",
+          "en": "Exposition and narrative choices"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-craft.md"
+      }
+    ],
+    "related": [
+      "/oh-story/character-motivation",
+      "/oh-story/character-arc",
+      "/oh-story/flashbacks-in-fiction"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "write-a-memorable-supporting-character",
+    "topic": "characters-and-dialogue",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "小说配角怎么写：有自己的目标，也能推动主线",
+      "en": "How to Write Supporting Characters Who Have Their Own Goals"
+    },
+    "seo_title": {
+      "zh": "小说配角怎么写：有自己的目标，也能推动主线",
+      "en": "How to Write Supporting Characters Who Have Their Own Goals"
+    },
+    "description": {
+      "zh": "从出场作用、独立目标、标志性行为与退场安排设计配角。附原创人物卡和同一场冲突中的三种选择。",
+      "en": "Give supporting characters a story function, a goal of their own and a planned exit. Includes character cards and three choices in one conflict."
+    },
+    "answer": {
+      "zh": "先确认配角进入故事后会改变什么，再给他一个与主角不完全相同的目标。用具体选择和少量特征让读者记住他，提前安排其承诺何时兑现、何时退场。这样配角能帮助或阻碍主线，又不会只在主角需要时出现。",
+      "en": "Decide what the supporting character changes in the story, then give them a goal that does not completely match the protagonist’s. Make them memorable through a choice and a few recognizable traits. Plan when their promises pay off and when they leave."
+    },
+    "sections": [
+      {
+        "id": "character-card",
+        "heading": {
+          "zh": "配角卡先填作用与目标",
+          "en": "Start the character card with function and goal"
+        },
+        "body": {
+          "zh": "Oh Story 的配角卡先问功能、与主角的关系、核心特质、标志性特征和退场方式。创作时再加一句“他自己想得到什么”，能避免人物只负责送线索或夸主角。\n\n以下人物和修车店故事均为原创：主角要在房租到期前完成一笔车队订单。\n\n| 配角 | 改变主线的作用 | 自己的目标 | 可记住的行为 | 本段结束后的去向 |\n|---|---|---|---|---|\n| 学徒小陶 | 指出主角忽略的交付缺口，也能承担部分检修 | 想独立完成第一辆车，不总被叫去拿工具 | 每次检查后在红签背面记下结果 | 订单结束后申请单独负责学生车 |\n| 邻店老板许姐 | 提供临时工作台，同时要求公平交换 | 自己的忙季不能被占用 | 先把约定写在收据背面 | 收回工作台，保留以后合作的关系 |\n| 车队领队阿民 | 代表客户验收，决定哪些车可先交付 | 第二天的比赛必须安全开跑 | 逐辆捏刹车，不接受口头保证 | 验收后带队离开，留下反馈而非常驻店里 |\n\n功能让人物有出场理由，独立目标让他有拒绝和谈判的理由。两者不能互相替代。",
+          "en": "Oh Story’s supporting-character card asks for function, relationship, core traits, a memorable feature and an exit. Add “What do they want for themselves?” to keep the character from becoming a source of clues or praise.\n\nThese characters belong to an original story: a mechanic needs to finish a team’s bike order before rent is due.\n\n| Character | Main-plot function | Personal goal | Recognizable behavior | Where they go next |\n|---|---|---|---|---|\n| Tao, the apprentice | Spots a delivery gap and can handle repairs | Wants responsibility for a complete bike | Writes each test result on the back of a red tag | Asks to take charge of student bikes |\n| Xu, the neighboring shop owner | Offers a temporary bench on negotiated terms | Needs room for her own busy season | Writes agreements on the back of a receipt | Reclaims the bench but remains a possible partner |\n| Min, the team captain | Inspects and accepts the delivery | Needs safe bikes for tomorrow’s race | Tests every brake rather than accepting assurances | Leaves with the team and later sends feedback |\n\nFunction explains the entrance; a personal goal explains refusals and negotiations. Both are necessary."
+        }
+      },
+      {
+        "id": "choices-in-one-scene",
+        "heading": {
+          "zh": "同一压力下，让配角作出不同选择",
+          "en": "Use one pressure to reveal different priorities"
+        },
+        "body": {
+          "zh": "**虚构场景**：晚上十点，六辆车还未检修。主角打算不吃饭继续做，希望所有人都留下帮忙。\n\n> 小陶把第三辆车推到自己台前。“这辆我做，你最后复查。”\n> 许姐没有坐下。“我十一点要收店。台子给你，货架上的东西别动。”\n> 阿民看了看明天的名单，划掉两辆备用车。“先保四辆上场的。缺哪一步，直接告诉我。”\n\n三个人都与主角合作，但合作的条件不同。小陶争取能力证明，许姐维护自己的营业边界，阿民改变交付优先级。主角仍要决定检修顺序并承担结果；配角提供新条件，不替他把全部难题解决。\n\n如果三个人都说“你太辛苦了，我来帮你”，功能就会重叠。合并其中两人，或让其中一人拥有必须保住的不同利益。",
+          "en": "**Fictional scene:** at ten at night, six bikes remain unchecked. The protagonist plans to skip dinner and wants everyone to stay.\n\n> Tao rolled the third bike to his bench. “I’ll do this one. You give it the final check.”\n> Xu stayed standing. “I close at eleven. Use the bench. Leave the stock on the shelves.”\n> Min crossed two spare bikes off tomorrow’s list. “The four race bikes first. Tell me exactly what’s missing.”\n\nAll three cooperate on different terms: Tao seeks responsibility, Xu protects her business, Min changes the delivery priority. The protagonist still chooses the repair order and bears the result.\n\nIf everyone only says “You work too hard; let me help,” their functions overlap. Merge characters or give one a distinct interest they must protect."
+        }
+      },
+      {
+        "id": "repeat-with-change",
+        "heading": {
+          "zh": "标志特征可以重复，选择不能原地打转",
+          "en": "Repeat a trait while changing what it costs"
+        },
+        "body": {
+          "zh": "小陶总写检修记录，是一个辨认点。第一次可以被主角嫌慢；发现漏项时成为有用证据；后来独立负责车子时，他自己要为签字负责。重复的是行为，变化的是意义和责任。\n\n不要每次出场都复述同一句口头禅，也不用用夸张外貌代替性格。先定一两项稳定特征，再让不同压力揭出其矛盾：许姐重视明算账，但可以主动给困难学生免一笔工钱；她自己作出的例外，比作者宣布“其实她很善良”更有分量。\n\n主要配角需要持续关系变化；偶尔出现的支线人物，围绕一个鲜明目标或执念写清即可。篇幅与其实际作用相称。",
+          "en": "Tao’s habit of recording repairs is a recognition cue. At first the mechanic thinks it slows him down; later the notes reveal an omission; finally Tao must take responsibility for his own signed checks. The behavior repeats, but its meaning and cost change.\n\nDo not repeat a catchphrase at every entrance or substitute extravagant appearance for character. Choose one or two stable traits, then expose tension within them: Xu values clear accounts but may waive a fee for a student. Her chosen exception carries more weight than “She was kind underneath.”\n\nRecurring supporting characters need evolving relationships. A brief visitor may need only a clear goal and a memorable choice. Give them space proportionate to their function."
+        }
+      },
+      {
+        "id": "exit-and-revision",
+        "heading": {
+          "zh": "写清去向，处理抢戏与遗忘",
+          "en": "Plan departures and repair attention problems"
+        },
+        "body": {
+          "zh": "| 问题 | 先查 | 改法 |\n|---|---|---|\n| 配角突然知道所有答案 | 信息从哪里来 | 给他合理来源与知识边界，不让情报凭空出现 |\n| 配角比主角更能决定主线 | 谁作关键选择、承担成本 | 把主线决定交回主角，保留配角自己的局部决定 |\n| 新人物越来越多 | 是否承担相同作用 | 合并功能相近者，保留不同目标带来的必要分歧 |\n| 配角后半本消失 | 已承诺的事情是否结束 | 安排交接、完成、失败或有原因的离开 |\n\n出场前能回答“为什么是这个人”；退场时能回答“他这段要做的事怎样了”。不必给所有人一个长结局，但不要留下无意遗忘的承诺。",
+          "en": "| Problem | Check | Repair |\n|---|---|---|\n| A supporting character suddenly knows every answer | Where the information came from | Establish a source and a knowledge boundary |\n| They control the main story more than the protagonist | Who chooses and pays | Return the main decision to the protagonist while keeping local choices theirs |\n| The cast grows without need | Who performs the same function | Merge overlapping roles; preserve necessary differences in goals |\n| Someone vanishes halfway through | Which promises remain open | Show completion, failure, handover or a reason for leaving |\n\nAt the entrance, answer “Why this person?” At the exit, answer “What happened to their task?” Everyone need not receive a long epilogue, but accidental disappearance leaves a promise unpaid."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "配角需要完整人物弧光吗？",
+          "en": "Does every supporting character need a complete arc?"
+        },
+        "a": {
+          "zh": "不需要。经常出现并影响主线的人，应有能持续发展的目标与关系；只承担一场作用的人，清楚的选择、特征与去向就够。",
+          "en": "No. A recurring, consequential character needs developing goals and relationships. A one-scene character may only need a clear choice, trait and departure."
+        }
+      },
+      {
+        "q": {
+          "zh": "配角太多，优先删谁？",
+          "en": "Which character should I cut from an overcrowded cast?"
+        },
+        "a": {
+          "zh": "先看功能重叠和关系重叠。删掉后没有任何决定、信息或后果改变的角色，优先合并；不要仅凭台词少就删掉唯一能完成重要行动的人。",
+          "en": "Check duplicated functions and relationships. Merge someone whose removal changes no decision, information or consequence; do not cut the only person able to perform an important action merely because they speak little."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "对 story-long-write 说：“先只做配角方案。每人填主线作用、自己的目标、与主角的分歧、标志行为和退场方式；指出可合并的人物，不写章节。”",
+        "en": "Ask story-long-write for a supporting-cast plan only: each person’s function, own goal, disagreement with the protagonist, recognizable behavior and exit. Request suggestions for overlapping roles without drafting chapters."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "配角卡与出退场",
+          "en": "Supporting character cards and exits"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-basics.md"
+      },
+      {
+        "label": {
+          "zh": "配角功能与行为反差",
+          "en": "Function and contrasting behavior"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-design-methods.md"
+      }
+    ],
+    "related": [
+      "/oh-story/ensemble-cast",
+      "/oh-story/protagonist-agency",
+      "/oh-story/character-dialogue"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "write-natural-dialogue-tags",
+    "topic": "characters-and-dialogue",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "小说对白提示语怎么写：说话标签、动作和停顿的取舍",
+      "en": "Dialogue Tags and Action Beats: When to Use Each"
+    },
+    "seo_title": {
+      "zh": "小说对白提示语怎么写：说话标签、动作和停顿的取舍",
+      "en": "Dialogue Tags and Action Beats: When to Use Each"
+    },
+    "description": {
+      "zh": "什么时候保留“他说”，什么时候省略或改成动作？用原创改前改后对照，处理说话者不明、动作堆砌与节奏机械。",
+      "en": "Use tags to identify speakers and action beats to change the scene. Original before-and-after examples address unclear attribution and repetitive gestures."
+    },
+    "answer": {
+      "zh": "“他说”先负责让读者知道谁在说话，不需要每次换一个华丽动词。说话者清楚时可以省略；动作改变物件、关系或决定时才值得插入。停顿要对应人物正在考虑、等待或拒绝的事，不必给每句对白配表情。",
+      "en": "A dialogue tag first identifies the speaker; it need not use a different ornate verb each time. Omit it when attribution is clear. Add an action beat when it changes a possession, relationship or decision. Let pauses belong to a real hesitation, wait or refusal rather than decorating every line."
+    },
+    "sections": [
+      {
+        "id": "choose-a-form",
+        "heading": {
+          "zh": "先判断这句旁白需要完成什么",
+          "en": "Choose the form by its job"
+        },
+        "body": {
+          "zh": "Oh Story 的行文方法明确保留普通“说”，需要处理的是机械重复和高频公式化标签；对话方法也指出，句句配动作会让行文机械。可以按下表判断：\n\n| 此处缺什么 | 优先选择 | 示例 |\n|---|---|---|\n| 不知道谁在说 | 简单说话标签或姓名 | “钥匙留下。”许姐说。 |\n| 两人交替很清楚 | 直接对白 | “明早几点？”“七点。” |\n| 控制权改变 | 有后果的动作 | 她把钥匙收进口袋。“明早我开门。” |\n| 人物暂不答应 | 等待、具体动作或沉默 | 阿民没有伸手接单。“刹车试过了吗？” |\n| 普通一问一答 | 不补多余表演 | 不必在每句后写抬眼、皱眉或点头 |\n\n动作可以顺带标明说话者，但角色做动作并不自动等于他在说。多人在场时，若可能误读，直接点明名字。",
+          "en": "Oh Story’s prose method keeps ordinary “said” and targets mechanical repetition. Its dialogue method warns that attaching a gesture to every line makes the rhythm mechanical. Choose by the missing information:\n\n| What is missing? | Use | Example |\n|---|---|---|\n| Speaker identity | A simple tag or name | “Leave the key,” Xu said. |\n| Nothing: two speakers alternate clearly | Bare dialogue | “What time?” “Seven.” |\n| A change in control | A consequential action | She pocketed the key. “I’ll open tomorrow.” |\n| Acceptance is uncertain | A meaningful wait or refusal | Min did not take the invoice. “Have you tested the brakes?” |\n| An ordinary exchange | No added performance | Do not attach a nod or frown to every answer |\n\nAn action can help identify a speaker, but movement alone does not always make attribution clear. In a group scene, name the speaker when needed."
+        }
+      },
+      {
+        "id": "before-and-after",
+        "heading": {
+          "zh": "改前改后：删表情，保留局面变化",
+          "en": "Before and after: keep changes, remove decorative gestures"
+        },
+        "body": {
+          "zh": "以下修车店对话为原创。\n\n**改前：**\n\n> “四辆都能交吗？”阿民皱着眉问道。\n> “还差最后一辆。”罗宁深吸一口气回答。\n> “那先给我三辆。”阿民点了点头说道。\n> “不行，要先试车。”罗宁抬起眼，坚定地说道。\n\n四次动作都在强调已能从台词读出的态度，没有改变交车条件。\n\n**改后：**\n\n> “四辆都能交吗？”阿民问。\n> “还差最后一辆。”\n> 阿民把三辆车的钥匙从台上拢过来。“先给我这三辆。”\n> 罗宁压住最外面那把。“试过再走。”\n\n第一句点清说话者，第二句在双人交流中可以省标签。后两个动作改变钥匙控制权，把“着急交车”和“先保证安全”的分歧落到同一件物品上。不是因为“压住”比“说道”更高级，而是这个动作确实影响下一步。",
+          "en": "This bike-shop exchange is original.\n\n**Before:**\n\n> “Are all four ready?” Min asked with a frown.\n> “One left,” Luo replied, taking a deep breath.\n> “I’ll take three.” Min nodded.\n> “Not before a test ride,” Luo said firmly, lifting his eyes.\n\nEvery gesture repeats an attitude already present in the words. None changes the delivery terms.\n\n**After:**\n\n> “Are all four ready?” Min asked.\n> “One left.”\n> Min gathered three keys from the bench. “I’ll take these.”\n> Luo pinned the nearest key under his hand. “Test rides first.”\n\nThe first tag establishes the exchange; the next line needs none. Gathering and stopping the keys alter control and make the disagreement physical. The action earns its place because it affects what happens next."
+        }
+      },
+      {
+        "id": "pauses-and-groups",
+        "heading": {
+          "zh": "长对白与多人场景怎么安排停顿",
+          "en": "Handle long speeches and group exchanges"
+        },
+        "body": {
+          "zh": "长台词里可以插入对方拒绝、物品被拿走、声音打断或人物自己改口。若动作没有改变说话条件，只是“喝了口水继续说”，不必按固定间隔塞进去。说明性内容读者已经知道时，可以用一句叙述带过；关键谈判仍应保留双方的拉扯。\n\n多人场景每次换发言对象时重新确认归属。比如许姐从门口插话，先写“许姐在门口说”，比连写三句无标签对白后让读者倒回去猜更顺。动作和对白的相邻位置也要清楚，别把一个人的动作写在另一个人的台词后面，却没有说明是谁在动。\n\n停顿的长短由场景决定。钥匙被压住后，阿民要衡量比赛时间；这段等待有内容。普通报时中插入反复沉默，只会延迟信息。",
+          "en": "Interrupt a long speech when the listener refuses, an object changes hands, a sound intervenes or the speaker revises their position. Do not insert a drink or glance at fixed intervals merely to break the paragraph. Summarize explanations the reader already knows; keep the negotiation that changes terms.\n\nIn a group scene, re-establish attribution when a new person enters the exchange. “Xu called from the doorway” is easier to follow than several untagged lines that make readers guess. Keep the ownership of nearby actions clear too.\n\nLet the pause have content. After Luo stops the key, Min weighs the race schedule. Repeated silence during a simple request for the time only delays information."
+        }
+      },
+      {
+        "id": "revision-pass",
+        "heading": {
+          "zh": "一遍修改只查归属、作用与密度",
+          "en": "Revise attribution, purpose and repetition"
+        },
+        "body": {
+          "zh": "1. 只读对白，标出不知道谁说的地方，补最短的必要标签。\n2. 圈出所有动作，问它是否改变了注意、关系、物件或选择；只是翻译语气的重复动作优先删。\n3. 看剩下的标签是否连续用同一种公式；保留自然的“说”，把真正重要的转折写具体。\n4. 正常速度朗读整段，确认停顿没有打散一句完整意图，也没有把关键反应删掉。\n\n“说”出现多不自动等于差，少也不自动等于好。改完应更容易知道谁在争什么，而不只是标签数量变少。",
+          "en": "1. Read only the dialogue and mark uncertain speakers. Add the shortest necessary attribution.\n2. Circle actions. Keep those that change attention, relationships, objects or choices; remove gestures that only translate the tone.\n3. Check for a repeated tagging formula. Keep natural “said” and make meaningful turns specific.\n4. Read the passage aloud at normal pace. Ensure pauses do not fragment an intention or erase a necessary response.\n\nMany instances of “said” are not automatically bad; few are not automatically good. The revision should make it easier to follow who wants what, not merely reduce a count."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "“他说”是不是都要删？",
+          "en": "Should I delete every “said”?"
+        },
+        "a": {
+          "zh": "不用。归属不清时保留最简单的标签。优先删机械重复、重复解释语气的部分，不拿动作强行替换每个“说”。",
+          "en": "No. Keep a simple tag when attribution needs it. Remove mechanical repetition and redundant descriptions of tone without replacing every tag with a gesture."
+        }
+      },
+      {
+        "q": {
+          "zh": "每句对白都加动作会更有画面吗？",
+          "en": "Does a gesture after every line make dialogue more visual?"
+        },
+        "a": {
+          "zh": "通常会机械。动作应有场景作用，比如收回钥匙、拒绝签字、退出门口；其他地方让对白和必要的上下文自己推进。",
+          "en": "Usually it makes the passage mechanical. Give actions a scene function—taking back a key, refusing a signature or leaving the doorway—and let dialogue carry the rest."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "把原段交给 story-long-write，并限定：“只改这一段对白的归属提示和重复动作，不改台词事实、人物决定或场景结果；改后指出保留动作的作用。”",
+        "en": "Give story-long-write the passage and limit the request to attribution and repetitive action beats. Preserve dialogue facts, decisions and the scene outcome; ask it to explain the purpose of retained actions."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "说话标签与行文",
+          "en": "Dialogue attribution in prose"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-craft.md"
+      },
+      {
+        "label": {
+          "zh": "动作密度与对白节奏",
+          "en": "Action density and dialogue rhythm"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/dialogue-mastery.md"
+      }
+    ],
+    "related": [
+      "/oh-story/character-dialogue",
+      "/oh-story/revise-ai-prose",
+      "/oh-story/emotion-on-the-page"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "write-an-unreliable-narrator",
+    "topic": "plot-and-outline",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "不可靠叙述者怎么写：事实、误判与隐瞒要分清",
+      "en": "How to Write an Unreliable Narrator With Fair Clues"
+    },
+    "seo_title": {
+      "zh": "不可靠叙述者怎么写：事实、误判与隐瞒要分清",
+      "en": "How to Write an Unreliable Narrator With Fair Clues"
+    },
+    "description": {
+      "zh": "区分真诚误判与有意隐瞒动机，给可疑叙述建立事实表。附原创两种版本、揭示步骤与公平性自查。",
+      "en": "Separate mistaken interpretation from withheld motives. Use a fact ledger, two original versions and a reveal that survives rereading."
+    },
+    "answer": {
+      "zh": "先决定叙述者哪里不可靠：他看见了事实却解释错，还是如实叙述行动却没有说出动机。把客观事实、人物解释和最终真相分别记下，关键线索提前让读者见到。揭示后改变的是旧事实的意义，不能把此前明确写出的事实临时推翻。",
+      "en": "Decide whether the narrator misinterprets what they witness or truthfully reports actions while withholding a motive. Track fact, interpretation and truth separately. Show important clues before the reveal; change their meaning rather than overturning previously established facts."
+    },
+    "sections": [
+      {
+        "id": "two-methods",
+        "heading": {
+          "zh": "先选不可靠的方式，别在中途换规则",
+          "en": "Choose the kind of unreliability before drafting"
+        },
+        "body": {
+          "zh": "Oh Story 的短篇视角反转以“叙述者真诚相信自己的判断”为方法；悬疑题材卡另允许凶手或共谋叙述者如实记录动作、暂不解释动机。这是两种不同安排，不能把第一种的误判写到结尾才改成第二种的装傻。\n\n| 方式 | 正文应给什么 | 可以保留什么 | 需要避免 |\n|---|---|---|---|\n| 真诚误判 | 看到或听到的事实，以及人物当时的判断 | 尚未接触的信息 | 人物早就知道真相却装不知道 |\n| 隐瞒动机 | 真实发生的动作与可回查的细节 | 行动背后的目的 | 明确否认自己确实做过的事 |\n\n本篇采用这两种 skill 支持的方法。它们不代表所有文学作品的不可靠叙述规则；这里的目标是让反转在回看时仍成立。",
+          "en": "Oh Story’s viewpoint-reversal method uses a narrator who sincerely believes their interpretation. Its suspense genre card separately permits a culprit or accomplice to report actions truthfully while withholding motive. Do not draft sincere ignorance and abruptly reveal that it was a deliberate performance all along.\n\n| Method | Give readers | May withhold | Avoid |\n|---|---|---|---|\n| Sincere misjudgment | Observed facts and the narrator’s interpretation | Information they have not encountered | Pretending not to know an established truth |\n| Withheld motive | Real actions and details that can be rechecked | Why those actions were taken | Explicitly denying something they actually did |\n\nThese are the two methods supported by the cited skill, not universal rules for every literary use of unreliable narration. The aim here is a reveal that holds up on rereading."
+        }
+      },
+      {
+        "id": "fact-ledger",
+        "heading": {
+          "zh": "原创示例：同一组事实的两种叙述",
+          "en": "Original example: two narrators, one set of facts"
+        },
+        "body": {
+          "zh": "虚构故事里，咖啡店收银员收到一份投诉，认为经理正在找理由辞退自己。经理收走了排班表，又约她关店后谈话。\n\n| 事实 | 误判版本的解释 | 最终证据 |\n|---|---|---|\n| 投诉信没有写员工姓名 | “一定是在说我” | 原信投诉的是店里坏掉的报警器 |\n| 经理收走排班表 | “他在删我的班” | 表上标记的是谁愿意临时值守等维修工 |\n| 关店后才谈 | “不想当着同事辞退我” | 经理先前让她等维修预约结果 |\n\n**真诚误判版：**“他收走排班表时，把我那一栏折在里面。我盯着折痕，没看他在纸角写的‘等维修回电’。”事实不变，注意被恐惧引向一边。揭示时给原信和完整排班表，她需要承认自己在群聊里指责经理过早，并处理关系后果。\n\n**隐瞒动机版**可另选一名叙述者：收银员的同事确实递交了报警器投诉，却希望迫使经理推迟开店，好让自己完成一场面试。他可以写“我把信放到办公室门缝下”，不解释动机；不能写“我没有交过投诉”。前文应出现面试预约和他打听维修时长的行为，结尾再连起目的。\n\n两个版本不能混成一个角色忽而无知、忽而全知。选定后，把其知识边界维持到底。",
+          "en": "In this fictional café story, a cashier fears a complaint is an excuse to fire her. The manager removes the rota and asks to speak after closing.\n\n| Fact | Mistaken interpretation | Later evidence |\n|---|---|---|\n| The complaint names no employee | “It must mean me” | The original concerns a broken alarm |\n| The manager takes the rota | “He is cutting my shifts” | It records who can wait for the repair visit |\n| The talk is after closing | “He wants to fire me privately” | He is waiting for the appointment to be confirmed |\n\n**Sincere version:** “He folded the rota with my column inside. I watched the crease, not the note in the corner: ‘Await repair callback.’” The fact remains true; fear redirects attention. The reveal supplies the letter and full rota. She must then repair the damage caused by accusing him in the group chat.\n\n**Withheld-motive version:** choose a different narrator, the coworker who submitted the alarm complaint to delay opening and attend an interview. They can say “I slipped the letter under the office door” without explaining why. They cannot say “I never submitted a complaint.” An interview appointment and questions about repair times should appear before the motive is connected.\n\nDo not combine the versions into a person who alternates between sincere ignorance and complete knowledge. Maintain the chosen knowledge boundary."
+        }
+      },
+      {
+        "id": "reveal-and-consequence",
+        "heading": {
+          "zh": "揭示要有证据，也要迫使人物行动",
+          "en": "Make the reveal supply evidence and force a response"
+        },
+        "body": {
+          "zh": "先让误判或隐瞒参与一次重要决定：指责、承诺、离开或错误合作。随后用已存在的人、物件或证词纠正解释。最后让人物处理自己造成的后果。\n\n收银员看见原信后，不能只用一句“原来我误会了”收尾。她可以撤回群聊指责、向同事说明维修安排，并接受经理暂时不再让她代表门店发通知。失去一点信任，会让真相具有重量。\n\n隐瞒动机的同事也不能凭解释获得自动原谅：报警器确实需要修，目的里却有个人算计。结尾可以保留他对自己“做了好事”的辩解，同时让读者看见别人如何评价。事实与自我解释仍分开。",
+          "en": "Let the misunderstanding or concealment influence an important accusation, promise, departure or alliance. Correct the interpretation with an existing person, object or testimony. Then make the narrator handle the consequences.\n\nThe cashier should do more than say “I was mistaken.” She can withdraw the accusation, explain the repair arrangement and accept that the manager no longer trusts her to send shop announcements. Lost trust gives the truth weight.\n\nThe coworker’s explanation should not produce automatic forgiveness either. The alarm needs repair, but personal calculation shaped the complaint. They may still insist they did a good thing while readers see how others judge it. Keep fact and self-justification separate."
+        }
+      },
+      {
+        "id": "fairness-check",
+        "heading": {
+          "zh": "回看检查：读者有没有被作者作弊",
+          "en": "Check whether the reveal cheats the reader"
+        },
+        "body": {
+          "zh": "- 把所有“肯定”“从来没有”“我知道”圈出来，核对是否把推测写成硬事实。\n- 给每条关键消息标注亲见、转述、推断或隐瞒动机，检查叙述者能否在当时获得它。\n- 用真相重读早期场景，动作和物件应能对上，不只靠结尾解释补漏洞。\n- 如果真相必须新增此前完全不存在的人或记录，优先提前铺设必要证据。\n- 删掉结尾说明，再看读者是否能从已出现的线索拼出核心真相；太含糊就补线索，不把谜底全部提前说破。\n\n不可靠来自这个人的认知或议程，不来自作者随时改事实。",
+          "en": "- Circle absolutes such as “definitely,” “never” and “I knew.” Check that inference has not become hard fact.\n- Mark each key statement as witnessed, reported, inferred or motive withheld. Could the narrator access it then?\n- Reread early scenes with the truth in mind. Actions and objects should fit without a final speech repairing holes.\n- If the truth needs a previously nonexistent person or record, establish the necessary evidence earlier.\n- Remove the final explanation. Readers should still be able to connect the core truth from clues already present; add evidence if needed without announcing the solution.\n\nUnreliability belongs to the person’s perception or agenda, not to facts the author changes at will."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "不可靠叙述者一定是坏人吗？",
+          "en": "Must an unreliable narrator be a villain?"
+        },
+        "a": {
+          "zh": "不一定。恐惧、愿望、有限经验都可能造成真诚误判。要写清其盲区如何影响观察和选择，不把判断错直接等同于恶意。",
+          "en": "No. Fear, desire and limited experience can produce sincere mistakes. Show how the blind spot shapes observation and choice without equating error with malice."
+        }
+      },
+      {
+        "q": {
+          "zh": "可以一直藏到最后才给关键线索吗？",
+          "en": "Can I save every key clue for the final reveal?"
+        },
+        "a": {
+          "zh": "若真相完全依赖最后新增的证据，回看很难成立。关键事实提前出现，先容许另一种解释，结尾再用已有证据改变意义。",
+          "en": "A truth that depends entirely on new final evidence rarely rewards rereading. Present important facts earlier under a plausible interpretation, then change their meaning with established evidence."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-short-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/SKILL.md",
+      "text": {
+        "zh": "对 story-short-write 说：“只设计叙述方案，不写正文。分别列客观事实、叙述者当时知道什么、他的解释和最终真相；选择真诚误判或隐瞒动机，给出提前出现的公平线索。”",
+        "en": "Ask story-short-write for a narration plan only: objective fact, knowledge at the time, interpretation and eventual truth. Choose sincere misjudgment or withheld motive and identify fair clues that appear before the reveal."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "视角反转与公平铺垫",
+          "en": "Viewpoint reversal and fair setup"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/short-reversal.md"
+      },
+      {
+        "label": {
+          "zh": "悬疑叙述者的动机隐瞒",
+          "en": "Withheld motives in suspense narration"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/genre-styles/悬疑.md"
+      }
+    ],
+    "related": [
+      "/oh-story/narrative-point-of-view",
+      "/oh-story/plot-twists",
+      "/oh-story/yanyan-stories"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "ai-novel-writing-prompts",
+    "topic": "getting-started",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "AI写小说提示词怎么写：任务、细纲与知识边界",
+      "en": "How to Prompt AI to Write a Novel Chapter"
+    },
+    "seo_title": {
+      "zh": "AI写小说提示词怎么写：任务、细纲与知识边界",
+      "en": "How to Prompt AI to Write a Novel Chapter"
+    },
+    "description": {
+      "zh": "把任务范围、章节情节点、人物状态和禁止提前揭示的信息交清楚。附可复制提示词、填写范例和有针对性的返修写法。",
+      "en": "Give the AI a defined task, chapter beats, current character state and limits on what may be revealed. Includes a filled prompt and focused revision requests."
+    },
+    "answer": {
+      "zh": "先说清要规划、写正文还是改一段，再给这次必须发生的情节点、人物当前状态、上一段停点和不能提前透露的信息。文风用短样本说明，缺的故事事实让 AI 列出待补项。提示词应把作者已定内容和可自由发挥的细节分开，避免一句“写得精彩”让模型自行改剧情。",
+      "en": "State whether you want planning, prose or a local revision. Supply required beats, current character state, the previous stopping point and information that must remain unrevealed. Use a short style sample and ask for missing facts to be identified. Separate settled story decisions from details the model may invent."
+    },
+    "sections": [
+      {
+        "id": "task-and-material",
+        "heading": {
+          "zh": "先定任务，再给本次用得上的材料",
+          "en": "Define the task before assembling relevant material"
+        },
+        "body": {
+          "zh": "Oh Story 的单章写作方法先检查细纲、读取相关人物与设定、承接上一章结尾，再明确本章意图。手动组装方法也把任务范围放在最前，而不是先堆一长串“你是一位知名作家”的角色要求。\n\n| 材料 | 需要回答的问题 | 不必默认塞入 |\n|---|---|---|\n| 任务 | 规划还是正文？哪一章或哪一段？停在哪里？ | 与这次无关的全书任务 |\n| 情节点 | 哪些事必须发生？顺序和结果定了吗？ | 未批准的新支线 |\n| 当前状态 | 谁在场、知道什么、手里有什么？ | 每个人物完整生平 |\n| 衔接 | 上一段最后发生了什么？ | 整本旧稿全文 |\n| 信息边界 | 哪个真相现在不能揭示？ | 后文全部结局细节 |\n| 表达 | 视角、节奏、短样本、字数范围 | 相互矛盾的泛用风格口号 |\n\n材料少而准确，通常比很多互相冲突的要求更可执行；如果某条旧设定会影响本章，仍必须给到，不能为了短就省略。",
+          "en": "Oh Story’s chapter workflow checks the outline, reads relevant characters and setting, connects to the previous ending, and defines the chapter’s purpose. Its manual assembly method puts the task and scope first rather than beginning with elaborate role praise.\n\n| Material | Question to answer | Do not include by default |\n|---|---|---|\n| Task | Planning or prose? Which chapter or passage? Where must it stop? | Unrelated whole-book tasks |\n| Beats | What must happen, in what order, with what outcome? | Unapproved subplots |\n| Current state | Who is present, what do they know and hold? | Every character’s full biography |\n| Connection | What happened at the previous stopping point? | The entire earlier manuscript |\n| Knowledge limit | What truth must remain unrevealed? | Every later ending detail |\n| Expression | POV, rhythm, a short sample and length range | Conflicting general style slogans |\n\nRelevant, accurate material is easier to execute than a long contradictory brief. Brevity does not justify omitting an old fact that affects the scene."
+        }
+      },
+      {
+        "id": "filled-prompt",
+        "heading": {
+          "zh": "可复制提示词：把作者已定和可发挥分开",
+          "en": "A filled prompt that separates decisions from freedom"
+        },
+        "body": {
+          "zh": "以下故事为原创示例；字数范围是作者的本次要求，不是通用标准。\n\n> 本次只写第 4 章正文，中文 1800—2200 字，不接着写第 5 章。视角跟随修车师傅罗宁。\n>\n> 上一章停点：阿民提出先交三辆车，罗宁压住钥匙，要求试车后再走。\n>\n> 必须发生：阿民解释比赛开场时间；罗宁让学徒试骑已完成的车；试骑发现第二辆刹车线松动；罗宁说明延误原因并调整交付顺序；阿民接受先交两辆。不要改变这个结果。\n>\n> 人物状态：罗宁知道修不完会失去部分工钱，但不肯放走不安全的车；小陶会做基础检查，尚不能独立签最终验收；阿民知道比赛安排，不知道罗宁旧事故。钥匙仍在柜台上，三辆车尚未交付。\n>\n> 暂不揭示：不要在本章说出罗宁旧事故的完整经过，也不要让阿民突然知道它。\n>\n> 可以补：试车过程中的短动作、与检修有关的一次性物件细节。新增长期人物、改事故真相或改交付结果，先列建议，不写进正文。\n>\n> 文风参考：附上我自己写的短段。保留对话的自然语气，不给每句配动作，也不用结尾感悟替人物收场。章尾停在阿民准备带走两辆车时，接到比赛地点临时更改的电话。\n>\n> 交付后对照必发生事项逐项指出落点；缺必要事实时先列待补项。\n\n在能读取文件的工作区，提供真实文件路径并明确要读取；在普通聊天里，贴相关摘录。路径名本身不能代替内容，也不要假定模型看过未提供的文件。",
+          "en": "This is an original story example. The length range is this author’s request, not a universal standard.\n\n> Write chapter 4 only, in 900–1,200 English words, following bicycle mechanic Luo Ning. Do not continue into chapter 5.\n>\n> Previous stopping point: Min asked to take three bikes. Luo stopped the keys and required test rides first.\n>\n> Required events: Min explains the race start time; Luo has the apprentice test the finished bikes; the second bike has a loose brake cable; Luo explains the delay and changes delivery order; Min accepts two bikes first. Preserve this outcome.\n>\n> Current state: Luo risks losing part of his fee but will not release an unsafe bike. Tao can perform basic checks but cannot sign final acceptance alone. Min knows the race arrangements, not Luo’s old accident. The keys remain on the counter; no bike has been delivered.\n>\n> Do not reveal: the complete old accident or knowledge of it that Min does not have.\n>\n> May invent: brief test-ride actions and one-use repair details. Suggest, rather than silently add, recurring characters, a changed accident truth or a different delivery outcome.\n>\n> Style: use my attached original sample. Keep natural dialogue; do not attach gestures to every line or end with a moral summary. Stop as Min prepares to take two bikes and receives a call changing the race venue.\n>\n> After the draft, identify where each required event appears. List missing necessary facts before drafting if needed.\n\nIn a workspace with file access, supply real paths and ask for them to be read. In ordinary chat, supply relevant excerpts. A path name alone does not give access to its contents."
+        }
+      },
+      {
+        "id": "focused-revision",
+        "heading": {
+          "zh": "返修提示词指出缺在哪里，不只说“再精彩些”",
+          "en": "Use revision requests that name the actual defect"
+        },
+        "body": {
+          "zh": "| 成稿问题 | 更具体的返修要求 |\n|---|---|\n| 学徒突然成了检修专家 | “小陶只能基础检查。只改超出其能力的动作，把最终验收交回罗宁。” |\n| 旧事故提前说破 | “删除完整事故解释，保留罗宁不放车的选择；不要新增替代秘密。” |\n| 每段都在感叹压力 | “合并重复说明租金压力的段落，保留一次明确代价；不删试车发现。” |\n| 字数不足但情节点完整 | “先指出哪处场景还没展开，不新增主线事件；我选定后再补写。” |\n| 结尾接着写下一章 | “停在比赛地点变更的电话，不展开新地点。删去越过停点的部分。” |\n\n返修时给原文和范围，说明哪些台词事实、选择与结果要保留。若缺的是细纲里的必要事件，先补遗漏；若只是想增加字数，不让模型用新剧情填满。",
+          "en": "| Draft problem | Focused request |\n|---|---|\n| The apprentice becomes an expert | “Tao only performs basic checks. Revise actions beyond that ability and return final acceptance to Luo.” |\n| The accident is revealed early | “Remove the full accident account but keep Luo’s refusal. Do not invent a replacement secret.” |\n| Every paragraph repeats the pressure | “Merge repeated rent explanations, keep one clear cost, and preserve the test-ride discovery.” |\n| The draft is short but covers the beats | “Identify underdeveloped scene work without adding a main event. Wait for my choice before expanding.” |\n| The ending continues into the next chapter | “Stop at the venue-change call. Remove the new-location sequence.” |\n\nSupply the original passage and revision boundaries. Preserve settled facts, choices and outcomes. Restore missing required events first; do not fill a length target by inventing plot."
+        }
+      },
+      {
+        "id": "skill-use",
+        "heading": {
+          "zh": "用 skill 时说明创作意图，不手动复刻内部流程",
+          "en": "Use the skill through an author-facing request"
+        },
+        "body": {
+          "zh": "在已经配置好的 Oh Story 工作区，可以直接说：“用已有细纲写第 4 章，只写这一章；按本书文风，停在比赛地点变更的电话。”技能会按自己的写前与检查流程处理材料。本页模板用来帮助作者交清事实和边界，不要求作者复制技能内部的字段或脚本步骤。\n\n第一次使用时，先确认工作区里确实有本书的设定、细纲和续写状态。缺材料就先补规划，不在不知道上一章结果时强行续写。交稿后至少检查必发生事项、人物知识和停点；格式或检测结果不能替代这三项阅读判断。",
+          "en": "In a configured Oh Story workspace, an author-facing request can be brief: “Use the existing outline to write chapter 4 only, in this book’s style; stop at the venue-change call.” The skill handles its own preparation and checks. This template helps communicate facts and boundaries; it does not require authors to reproduce internal fields or scripts.\n\nConfirm that the workspace contains the book’s setting, outline and continuation state. Supply missing planning material before continuing. After delivery, check required events, character knowledge and the stopping point; formatting and automated checks cannot replace that reading judgment."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "提示词越长越好吗？",
+          "en": "Are longer prompts better?"
+        },
+        "a": {
+          "zh": "不是。优先提供本次写错就会影响剧情的事实，删去互相冲突的风格要求。相关旧设定不能省，无关整本资料不必全部贴。",
+          "en": "No. Prioritize facts that would change the scene if misunderstood and remove conflicting style requirements. Keep relevant old constraints without pasting all unrelated material."
+        }
+      },
+      {
+        "q": {
+          "zh": "一句“不要有AI味”够吗？",
+          "en": "Is “avoid AI-sounding prose” enough?"
+        },
+        "a": {
+          "zh": "太笼统。附自己写的短样本，点名实际问题，例如重复解释动机、每句插动作或章尾感悟；返修限定段落和必须保留的事件。",
+          "en": "It is too vague. Supply your own short sample and identify the actual issue: repeated motive explanations, gestures after every line or a moralizing ending. Specify the revision range and events to preserve."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "对 story-long-write 直接交代作者已定的范围、必发生事项和停点。想先讨论提示词，就明确说“只帮我整理写作简报，不写正文”，材料齐全后再请求指定章节。",
+        "en": "Give story-long-write your settled scope, required events and stopping point. To discuss the prompt first, request a writing brief only and stop before prose. Ask for the chapter once the materials are ready."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "单章材料准备与核对",
+          "en": "Chapter preparation and checks"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-chapter.md"
+      },
+      {
+        "label": {
+          "zh": "任务范围与材料组装",
+          "en": "Task scope and prompt assembly"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writer-prompt-fallback.md"
+      }
+    ],
+    "related": [
+      "/oh-story/outline-to-chapter",
+      "/oh-story/long-novel-continuity",
+      "/oh-story/preserve-author-voice"
+    ]
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "ai-video-location-consistency",
+    "topic": "ai-video",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "AI视频场景不一致怎么办：固定布局，再换机位",
+      "en": "How to Keep Locations Consistent Across AI Video Shots"
+    },
+    "seo_title": {
+      "zh": "AI视频场景不一致怎么办：固定布局，再换机位",
+      "en": "How to Keep Locations Consistent Across AI Video Shots"
+    },
+    "description": {
+      "zh": "区分固定房间布局、观察方向与临时状态，用空场参考图固定门窗、路线和光源。附原创场景模板与正反方向示例。",
+      "en": "Keep room layout, viewing direction and temporary states separate. Use location references to preserve doors, routes and light sources, with filled examples."
+    },
+    "answer": {
+      "zh": "先确定同一场景里不会随镜头变化的入口、路线和固定物件，再为不同观察方向准备参考图。换机位只改变观众从哪里看，不让门窗和柜台跟着换位置；时间、天气和开灯变化则另记一版状态，并同步所有需要剪在一起的镜头。",
+      "en": "Establish entrances, routes and fixed structures before making reference images for different viewing directions. A new camera position changes the view, not the room. Record time, weather and lighting changes separately and apply them consistently to shots that will be edited together."
+    },
+    "sections": [
+      {
+        "id": "layout-view-state",
+        "heading": {
+          "zh": "把场景布局、观察方向和状态分开",
+          "en": "Separate layout, view and temporary state"
+        },
+        "body": {
+          "zh": "drama-skills 的场景空镜方法先保持地理与固定锚点，再选择观察方向。问题常出在把“同一间店，反向镜头”写成一段全新装饰提示词，模型就会重新设计房间。\n\n以下修车店是原创制作示例，不是实测生成结果。\n\n| 要固定的层次 | 示例 | 换镜时能否改变 |\n|---|---|---|\n| 场景布局 | 入口通向中间通道，工作台沿东墙，唯一后门在北墙，窗在西墙 | 不随机位改动 |\n| 观察方向 | 从入口向北看；从后门向南看 | 可以换，但相对布局要能对上 |\n| 临时状态 | 傍晚、窗外下雨、台灯开启、两辆车停在通道边 | 有剧情原因时变化，需前后衔接 |\n| 构图 | 中景、低机位、竖屏 | 可调整，不借此搬门窗 |\n\n先使用房间自身的东、西、入口与后门确定关系，再转换成某一视角的画面左右。否则“左边有窗”换个机位后容易被误当成另一个左边。",
+          "en": "drama-skills’ location-reference method preserves geography and fixed anchors before choosing a view. A common failure is to describe the reverse angle as a fresh decorative scene, effectively asking for a new room.\n\nThis bike shop is an original production example, not a measured generation result.\n\n| Layer | Example | Can it change between shots? |\n|---|---|---|\n| Layout | Entrance opens onto a central aisle; bench on east wall; one rear door on north wall; window on west wall | Not merely because the camera moves |\n| View | From entrance facing north; from rear door facing south | Yes, while preserving the room |\n| State | Rainy evening, desk lamp on, two bikes beside the aisle | With a story reason and continuity |\n| Framing | Medium shot, low camera, vertical frame | Yes, without relocating structures |\n\nUse room-relative directions and named anchors first, then translate them into screen directions for each view. “Window on the left” alone becomes ambiguous when the camera turns."
+        }
+      },
+      {
+        "id": "reference-prompts",
+        "heading": {
+          "zh": "空场参考图提示词：两种方向共享一间店",
+          "en": "Two reference prompts for the same room"
+        },
+        "body": {
+          "zh": "**从入口朝里看：**\n\n> 小型修车店的空场参考图，从南侧入口向北观察。中央通道连接入口和北墙唯一后门，工作台沿东墙延伸，西墙只有一扇横窗。保留中央通道宽度和后门位置，固定家具不移位。傍晚雨天，窗外冷光来自西侧，工作台暖色台灯已开启。没有剧情人物，也不添加临时围观者。材质与色彩沿用已确定的视觉参考。\n\n**从后门朝外看：**\n\n> 同一修车店，从北侧后门向南观察入口。东墙工作台在这一观察方向的画面左侧，西墙横窗在画面右侧，中央通道直通南侧入口。保持前一参考图的门窗、工作台长度和通道关系。仍是同一傍晚雨天，冷光来自西墙窗户，台灯位置和开关状态不变。画面为空场，不重新增加柜台或出口。\n\n固定物件优先保留，次要装饰可以概括。两个视角不必长得一样：一个可能顺光，一个可能逆光；差异必须能由同一个光源和不同观察方向解释。\n\n完成后并排看入口、后门、工作台、窗与光向，不只分别挑“最好看”的两张。",
+          "en": "**From entrance looking in:**\n\n> Empty reference image of a small bicycle repair shop, viewed north from the south entrance. A central aisle connects the entrance to the single rear door on the north wall. The bench runs along the east wall; one horizontal window is on the west wall. Preserve aisle width, rear-door position and fixed furniture. Rainy evening: cool light enters from the west window, with a warm desk lamp already on at the bench. No story characters or added crowd. Use the accepted material and color reference.\n\n**From rear door looking out:**\n\n> The same shop viewed south from the north rear door. The east-wall bench appears screen-left, the west-wall window screen-right, and the central aisle leads to the south entrance. Keep the same doors, bench length and aisle relationships. It is the same rainy evening; cool light still comes from the west window, and the desk lamp remains in place and on. Empty space; do not add a new counter or exit.\n\nPrioritize fixed structures and simplify secondary decoration. The views may differ in brightness or backlighting, but the difference must follow from one light setup and different directions. Compare them side by side rather than independently choosing two attractive images."
+        }
+      },
+      {
+        "id": "change-with-reason",
+        "heading": {
+          "zh": "人物进出、夜景与开灯怎样接续",
+          "en": "Track entrances and lighting changes"
+        },
+        "body": {
+          "zh": "人物从入口走到后门时，先让路线在场景参考里成立，再安排镜头的起止位置。别用一张漂亮但没有通道的参考图，要求人物穿过柜台。\n\n从傍晚变夜晚，变化的是时间与光线状态：窗外冷光减弱，台灯仍亮；若另开顶灯，正反方向的参考和后续镜头都要知道顶灯已开。只改其中一镜，剪在一起就可能像突然换了房间。\n\n| 变化 | 需要同步的内容 |\n|---|---|\n| 镜头转向 | 观察方向、可见锚点和画面左右 |\n| 开顶灯 | 灯具开关、光源主次和相邻镜头 |\n| 道具移位 | 移动由谁完成、从哪到哪、后镜的新位置 |\n| 时间推进 | 窗外亮度、天气是否变化、人物是否仍在同一行动中 |\n\n不要为了营造“危险感”额外封住出口或发明损坏物；气氛用已确定空间的光线、材质与构图表达。",
+          "en": "Before a character crosses from entrance to rear door, establish a usable route and record start and end positions. A beautiful reference without an aisle cannot support walking through the bench.\n\nWhen evening becomes night, change the time and lighting state: window light weakens while the desk lamp stays on. If a ceiling light is switched on, every relevant view and following shot must inherit that fact.\n\n| Change | Update |\n|---|---|\n| Camera turns | View direction, visible anchors and screen directions |\n| Ceiling light turns on | Switch state, light hierarchy and neighboring shots |\n| Prop moves | Who moves it, from where to where, and its next position |\n| Time advances | Exterior brightness, weather and continuity of the action |\n\nDo not seal an exit or invent damage merely to make a location feel dangerous. Express mood through accepted light, material and framing choices."
+        }
+      },
+      {
+        "id": "repair-before-motion",
+        "heading": {
+          "zh": "场景错了，先修参考，不急着生成视频",
+          "en": "Fix the reference before generating motion"
+        },
+        "body": {
+          "zh": "- **门窗换边**：回到房间布局和观察方向，判断是正常反向观察还是固定结构被搬动。\n- **每个镜头都加新家具**：删无功能装饰，保留少量可辨认的固定锚点。\n- **正反镜冷暖不一致**：核对同一窗和灯是否仍承担相同光源作用，记录能解释的视角差异。\n- **人物无路可走**：先修改参考图或调度，别用运动提示词要求穿模。\n- **风格统一但空间不同**：色调与画风一致不能证明布局一致，逐项检查入口和路线。\n\n先确认参考图之间的空间关系，再做关键帧和视频。文字提示能限制目标，但是否保住布局仍要查看生成画面与剪接结果。",
+          "en": "- **Doors and windows swap:** check whether this is a valid reverse view or a relocated structure.\n- **New furniture in every shot:** remove nonfunctional decoration and retain a few recognizable anchors.\n- **Reverse angles have incompatible color:** confirm the same window and lamp still serve the same roles; record explainable view differences.\n- **No route for the actor:** revise the reference or blocking rather than asking motion to pass through furniture.\n- **Matching style, different space:** a shared palette does not establish geography; inspect entrances and routes.\n\nConfirm relationships between reference images before making keyframes and motion. Prompt instructions describe the target; generated images and cuts still require visual review."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "换一个角度要重做一间场景吗？",
+          "en": "Does a new camera angle require a new location?"
+        },
+        "a": {
+          "zh": "通常是同一场景的新观察方向。沿用入口、边界和固定结构，补充这个方向能看见的关系；不要从零装饰出另一间房。",
+          "en": "Usually it is a new view of the same location. Keep entrances, boundaries and fixed structures, and specify the relationships visible from that direction."
+        }
+      },
+      {
+        "q": {
+          "zh": "空场参考图一定不能有人吗？",
+          "en": "Must a location reference always be empty?"
+        },
+        "a": {
+          "zh": "默认空场便于复用。确需尺度参照或已确定的占用状态时可以有相应人物，但要明确目的，避免临时演员遮住地理或混入剧情。",
+          "en": "An empty space is easier to reuse. A deliberate scale reference or established occupancy may include people, but specify the purpose and avoid obscuring geography or inventing events."
+        }
+      }
+    ],
+    "skill": {
+      "name": "short-drama-image-prompts",
+      "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-image-prompts/SKILL.md",
+      "text": {
+        "zh": "用 short-drama-image-prompts 请求：“为已确定的修车店布局写入口向内、后门向外两种空场参考提示词；保持门窗、路线和同一时段光源，并列出需要核对的差异。”",
+        "en": "Ask short-drama-image-prompts for entrance-inward and rear-door-outward reference prompts based on the accepted layout. Preserve doors, routes and the same lighting state, and list differences to verify."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "场景地理与跨视角光线",
+          "en": "Location geography and lighting across views"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-image-prompts/references/location-plate.md"
+      },
+      {
+        "label": {
+          "zh": "地点与观察视角",
+          "en": "Locations and viewing directions"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-assets/references/location-and-view.md"
+      }
+    ],
+    "related": [
+      "/drama-skills/reference-image-roles",
+      "/drama-skills/shot-reverse-shot-continuity",
+      "/drama-skills/shot-continuity-checklist"
+    ]
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "ai-video-lip-sync",
+    "topic": "ai-video",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "AI视频口型对不上怎么办：先查说话人、声音类型与时长",
+      "en": "AI Video Lip Sync Problems: Check Speaker, Audio Role and Timing"
+    },
+    "seo_title": {
+      "zh": "AI视频口型对不上怎么办：先查说话人、声音类型与时长",
+      "en": "AI Video Lip Sync: Speaker, Audio Role and Timing"
+    },
+    "description": {
+      "zh": "分清画内对白、画外说话和旁白，再核台词是否装得进镜头。附原创双人场景提示词与四类失败的处理方法。",
+      "en": "Separate visible dialogue, off-screen speech and voiceover, then budget time for the full line. Includes a two-person example and a repair table."
+    },
+    "answer": {
+      "zh": "先核对声音属于谁、这个人此时是否应在画面里开口，再检查完整台词与动作是否装得进镜头。旁白不等于画内对白，听者也不应跟着动嘴。写清声源和时序后仍要回听、查看口部；如果持续失败，调整分镜或生成方案，单靠“口型精准同步”不能代替检查。",
+      "en": "Check who owns the voice and whether that person should visibly speak. Then verify that the complete line and required actions fit the shot. Voiceover is not visible dialogue, and listeners should not mouth another person’s words. Review the generated sound and mouth movement; a phrase such as “perfect lip sync” is not evidence of success."
+    },
+    "sections": [
+      {
+        "id": "audio-roles",
+        "heading": {
+          "zh": "先分清三种容易混淆的声音",
+          "en": "Distinguish three different audio roles"
+        },
+        "body": {
+          "zh": "drama-skills 的声音方法分别处理画内对白、画外声和旁白。提示词里只写“她说”，却同时要求她闭嘴思考，可能给出互相冲突的目标。\n\n| 声音 | 画面需要什么 | 例子 |\n|---|---|---|\n| 画内对白 | 对应人物的开口、表演和完整台词 | 店主面对客户说“试车后再交钥匙” |\n| 画外说话 | 声音来自不在画面或口部不可见的人，方向与场景一致 | 镜头拍店主，客户在对面画外提问 |\n| 旁白或内心独白 | 不要求画中人物用嘴说出这一句 | 店主看钥匙，听见其回忆旁白 |\n\n同一句话跨镜时，注明在哪一镜开始、下一镜是画外继续还是已经结束。不要前镜写“说完”，后镜又让这句从头出现。",
+          "en": "drama-skills handles visible dialogue, off-screen speech and voiceover separately. “She says” conflicts with an instruction that she silently thinks with her lips closed.\n\n| Audio role | Visual requirement | Example |\n|---|---|---|\n| Visible dialogue | The right person speaks and performs the complete line | The mechanic faces the customer and says the keys follow the test ride |\n| Off-screen speech | Voice belongs to someone outside the frame or with mouth unseen; spatial direction remains coherent | The camera stays on the mechanic while the customer asks from opposite them |\n| Voiceover or inner thought | The visible person need not mouth the line | The mechanic looks at a key under recollection voiceover |\n\nFor a line continuing across shots, specify where it starts, where it continues off-screen and where it ends. Do not finish it in one prompt and restart it in the next."
+        }
+      },
+      {
+        "id": "time-budget",
+        "heading": {
+          "zh": "先测完整台词，再安排开口和反应",
+          "en": "Budget the complete line, preparation and response"
+        },
+        "body": {
+          "zh": "有同句、同表演的录音，优先用实际发声时长；没有录音，标明只是文本估计，不假称已经试听。镜头还要容纳开口前的等待、不能同时进行的动作和末尾反应。\n\n下面只是预算示例：假设镜头共 7 秒，等待和收尾各需约半秒，发声窗口只剩 6 秒。若你录下的完整台词需要 8 秒，把提示词写成“0—7 秒说完”并不会使它装得下。可以延长镜头，或在语义合适处拆镜；若要精简台词，先修订剧本，再同步提示词与音频。\n\n| 可以调整 | 应保住 |\n|---|---|\n| 无必要的抬手、走动和复杂运镜 | 完整台词与正确说话人 |\n| 能自然同时进行的简单动作 | 必须先后发生的因果动作 |\n| 镜头时长或合理拆镜 | 结尾能看懂的回应 |\n\n不同语言、声音和情绪的语速不同，不用一个固定每秒字数当所有模型的容量保证。",
+          "en": "Use the actual speaking duration when you have the same line recorded in the same performance. Without audio, label the duration a text estimate rather than claiming it was measured. Also allow for preparation, actions that cannot overlap speech and the final response.\n\nThis is a budgeting example: a seven-second shot with half a second before and after leaves six seconds for speech. If your full recording lasts eight seconds, writing “finish within seven seconds” does not make it fit. Extend the shot or split at a meaningful boundary. If shortening the line, revise the script first and update the prompt and audio together.\n\n| May adjust | Preserve |\n|---|---|\n| Unnecessary gestures, walking and complex camera motion | Complete words and the correct speaker |\n| Simple actions that can naturally overlap | Actions that must occur in sequence |\n| Duration or a meaningful shot split | A readable response at the end |\n\nSpeech rate varies by language, voice and emotion. A fixed characters-per-second estimate is not a capacity guarantee for every model."
+        }
+      },
+      {
+        "id": "two-person-example",
+        "heading": {
+          "zh": "双人场景提示词：说话与听话各有职责",
+          "en": "A two-person prompt with distinct speaking and listening roles"
+        },
+        "body": {
+          "zh": "以下是原创场景设计，生成后仍需检查。\n\n> 保持已确定的店内机位，店主在画面左侧，客户在右侧。客户先停手看向店主，不说话。店主面向客户，完整说出：“试车后再交钥匙。”发声属于店主的画内对白，口部表演与这一句对应；客户听完才将手从钥匙旁移开，不跟说、不重复台词。店主说完后保留客户撤手的反应，钥匙仍在台上。不要增加旁白或新台词。镜头时长按完整录音和反应时间安排。\n\n若同框听者总跟着张嘴，分镜允许时可改成店主单人近景，客户的撤手另拍反应；若坚持同框，明确听者不发声、嘴唇闭合，并核生成结果。\n\n**内心独白版**不能只把同一句改标“旁白”而保留开口动作。可以拍手与钥匙，听见内心旁白；若必须正脸，明确嘴唇闭合并检查。skill 中的小样本观察说明文字限制有时仍会失败，因此不要把“写了闭嘴”当成已经解决。",
+          "en": "This is an original shot design that still requires output review.\n\n> Keep the accepted shop camera position: mechanic screen-left, customer screen-right. The customer stops reaching and looks at the mechanic without speaking. Facing the customer, the mechanic says the full line: “Keys after the test ride.” This is the mechanic’s visible dialogue. The customer listens, then withdraws their hand; they do not repeat or mouth the line. Keep the withdrawal after the mechanic finishes, with the keys still on the bench. Add no voiceover or new words. Set duration from the full recording and required response.\n\nIf a visible listener repeatedly mouths the words, a permitted storyboard revision can isolate the speaker and show the hand withdrawal separately. If keeping both people visible, specify the silent listener and check the result.\n\nFor an **inner-voice version**, do not merely relabel the audio while keeping the speaking action. Show hands and keys under voiceover, or require closed lips when a face must remain visible. The skill’s small-sample observations show that textual restrictions can still fail; writing “mouth closed” does not prove the output obeyed it."
+        }
+      },
+      {
+        "id": "diagnose-and-review",
+        "heading": {
+          "zh": "四类失败，分别修",
+          "en": "Match the repair to the failure"
+        },
+        "body": {
+          "zh": "| 现象 | 优先核对 | 处理 |\n|---|---|---|\n| 错的人在动嘴 | 说话人归属、同框人物与台词顺序 | 写清声源，必要时改取景 |\n| 旁白时人物张嘴 | 是否把旁白误写成对白 | 调整分镜或注明闭嘴，再看实际画面 |\n| 台词尾巴没说完 | 完整发声时长是否超窗口 | 延长、拆镜或先修剧本，不悄悄删字 |\n| 台词重复跨两个镜头 | 前后镜开始、延续与结束关系 | 对齐相邻提示词和剪辑声音段 |\n\n回听完整台词，再按正常速度看画内开口与声音是否对应，检查切镜处有没有多说、少说或声源跳变。仅检查提示词、字幕文本或一张截图，都不能证明口型同步。",
+          "en": "| Symptom | Check first | Repair |\n|---|---|---|\n| The wrong person mouths the line | Speaker ownership and visible cast | Clarify the source; revise framing if needed |\n| A face speaks during voiceover | Voiceover mislabeled as dialogue | Revise the shot or specify closed lips, then inspect output |\n| The last words disappear | Full speech duration versus available window | Extend, split or revise the script without silently dropping words |\n| A line repeats in two shots | Start, continuation and ending across prompts | Align prompts and the edited audio |\n\nListen to the full line, then watch at normal speed for mouth/audio correspondence and extra or missing words at cuts. Prompt text, subtitles and a still image cannot establish synchronization."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "写“口型精准同步”能保证成功吗？",
+          "en": "Does “perfect lip sync” guarantee success?"
+        },
+        "a": {
+          "zh": "不能。先给正确声源、完整台词和合理时长，再检查实际输出；失败时根据说话人、旁白处理或容量问题分别调整。",
+          "en": "No. Specify the right voice source, full line and feasible duration, then inspect the output. Repair speaker ownership, voiceover staging or capacity as appropriate."
+        }
+      },
+      {
+        "q": {
+          "zh": "可以直接把难同步的对白改成旁白吗？",
+          "en": "Can I change difficult dialogue into voiceover?"
+        },
+        "a": {
+          "zh": "这会改变表现方式，可能也改变剧情。先确认场景能否这样讲，再修剧本与分镜，不能只在视频提示词里悄悄转换。",
+          "en": "That changes presentation and may change the story. Confirm the scene can work that way, then revise script and storyboard rather than silently converting it inside a motion prompt."
+        }
+      }
+    ],
+    "skill": {
+      "name": "short-drama-video-prompts",
+      "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/SKILL.md",
+      "text": {
+        "zh": "用 short-drama-video-prompts 请求：“根据这段剧本和分镜写声音与表演提示，标清说话人、完整台词、画内/画外/旁白关系；检查发声窗口，超时先提出延长或拆镜方案，不改台词。”",
+        "en": "Ask short-drama-video-prompts to preserve the script and storyboard while specifying speaker, full line and visible/off-screen/voiceover role. Check the speaking window and propose extension or splitting when needed, without changing dialogue."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "对白、旁白与口部表现",
+          "en": "Dialogue, voiceover and visible mouths"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/camera-audio-continuity.md"
+      },
+      {
+        "label": {
+          "zh": "完整台词与动作的时长预算",
+          "en": "Timing dialogue and actions"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/performance-action-timing.md"
+      }
+    ],
+    "related": [
+      "/drama-skills/dialogue-timing",
+      "/drama-skills/character-performance-prompts",
+      "/drama-skills/reroll-or-rewrite"
+    ]
+  },
+  {
+    "owner": "video-recap",
+    "slug": "fix-flash-frames",
+    "topic": "video-recaps",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "视频剪辑闪帧怎么修：找出残留短镜头，回源调整剪点",
+      "en": "How to Fix Flash Frames and Stray Shots in an Edit"
+    },
+    "seo_title": {
+      "zh": "视频剪辑闪帧怎么修：找出残留短镜头，回源调整剪点",
+      "en": "How to Fix Flash Frames and Stray Shots in an Edit"
+    },
+    "description": {
+      "zh": "区分无关残镜、有效快切、曝光变化和取景跳动，检查实际导出视频，再回源修入出点。附原创接点示例与复查表。",
+      "en": "Distinguish stray frames from useful fast cuts, exposure changes and crop jumps. Inspect the rendered video, repair source boundaries and review the result."
+    },
+    "answer": {
+      "zh": "先在实际导出的视频里定位一闪而过的画面，再连前后正常播放，确认是无关残镜还是有效的短反应。回原片核对镜头与截取边界：无关残镜删完整，相关反应扩回真实素材；不要用定格、闪白或极端放大掩盖。修后用相同检查条件对照，再正常速度观看。",
+      "en": "Locate the fleeting image in the rendered video and watch it with its neighbors. Decide whether it is a stray shot or a useful brief response. Check the source and edit boundaries: remove an unrelated shot entirely or restore a relevant reaction from real footage. Review the repair under the same detection settings and at normal speed."
+    },
+    "sections": [
+      {
+        "id": "what-is-a-problem",
+        "heading": {
+          "zh": "短镜头不一定是闪帧问题",
+          "en": "A short shot is not automatically a mistake"
+        },
+        "body": {
+          "zh": "video-cut 的镜头检查检查实际渲染文件，因为一个计划中很长的截取区间，仍可能带着原片内部几个帧的反打。报告里的短镜头和密集切点是待看候选，不是自动删除清单。\n\n| 看到的现象 | 可能原因 | 先做什么 |\n|---|---|---|\n| 接点夹着陌生人物一闪 | 截取带入前后无关镜头 | 回原片确认完整镜头范围 |\n| 手势只露半截就切走 | 反应或动作被截短 | 找真实动作开始与完成位置 |\n| 画面忽亮一下 | 曝光、闪光或动效 | 不只凭切点检测认定换镜 |\n| 同一人突然变大或移位 | 取景范围在接点附近跳动 | 比较原片与输出取景 |\n| 一连串短镜推动动作 | 有意快切 | 正常播放判断每镜是否可读 |\n\n闪帧修复针对无意残留或丢失的信息。保留有作用的快切，不为统一镜长把整片放慢。",
+          "en": "video-cut reviews the actual rendered file because even a long planned source interval can contain a few frames of an internal reverse shot. Short-shot and dense-cut reports provide candidates to inspect, not a deletion list.\n\n| Symptom | Possible cause | First check |\n|---|---|---|\n| An unrelated face flashes at a join | A neighboring source shot was included | Complete shot boundaries in the source |\n| A hand action appears only halfway | A reaction or action was truncated | Its real beginning and completion |\n| The image briefly brightens | Exposure, flash or effect | Whether there was an actual cut |\n| A person abruptly enlarges or shifts | The crop changes near the join | Source shot versus output framing |\n| Rapid shots advance an action | Deliberate fast cutting | Readability at normal speed |\n\nRepair unintended leftovers or missing information. Keep useful fast cuts rather than slowing everything to a uniform duration."
+        }
+      },
+      {
+        "id": "original-join-example",
+        "heading": {
+          "zh": "原创接点示例：删残镜和补反应是两种修法",
+          "en": "Original join example: removing a stray shot versus restoring a reaction"
+        },
+        "body": {
+          "zh": "下面是虚构剪辑计划，用于说明判断方法，没有声称实际检测过素材。\n\n原片顺序：客户指向账单 → 店主解释费用 → 路过者两帧插镜 → 客户收回账单并点头。你的成片只想保留费用说明与客户接受。\n\n| 版本 | 修法 | 需要检查 |\n|---|---|---|\n| 路过者两帧被误带入 | 回源找到完整插镜边界，在剪辑计划中去掉整段无关镜头 | 说明尾句完整，后镜仍从客户收账单的真实状态开始 |\n| 客户反应只剩两帧 | 从原片扩回客户收账单到点头的完整动作 | 这个反应确实发生在该句之后，没拼错时间 |\n| 两帧其实是窗外闪光 | 保留原动作，核对是否确为闪光 | 不把曝光变化误删成镜头 |\n\n无关镜头删掉，不相关的人脸无需定格加长。相关反应需要从真实源素材恢复，而不是把两帧拉成一秒，制造原片没有的停顿。",
+          "en": "This fictional edit plan illustrates the decision; it is not a claim that footage was analyzed.\n\nSource order: customer points at invoice → mechanic explains the fee → two-frame passerby insert → customer takes back the invoice and nods. The intended edit keeps the explanation and acceptance.\n\n| Version | Repair | Verify |\n|---|---|---|\n| The passerby was accidentally included | Find the complete insert boundary and remove it in the edit plan | Keep the final words and the customer’s real next state |\n| The customer’s response was cut to two frames | Restore the complete take-and-nod action from source | Confirm it belongs after this line, not a different exchange |\n| The bright frames were a window flash | Preserve the action and confirm the cause | Do not remove exposure change as if it were a stray shot |\n\nRemove an unrelated insert; do not freeze it to make it longer. Restore a useful response from real source footage rather than stretching two frames into a pause that never occurred."
+        }
+      },
+      {
+        "id": "review-workflow",
+        "heading": {
+          "zh": "定位、回源、改计划、再播放",
+          "en": "Locate, compare source, revise the plan and play again"
+        },
+        "body": {
+          "zh": "1. 检查本轮实际导出文件，记录候选时间附近的前后画面，不只看剪辑计划中的段落长度。\n2. 连同前后片段正常播放，检查动作、台词和反应。逐帧查看可以定位边界，但不能替代正常速度判断。\n3. 回原片核对是否本来就有短镜，或本次截取、取景造成残留。无法证明来源时先保留待确认，不猜是原片问题。\n4. 在剪辑计划里修完整边界，再重新导出；不要只改导出文件而留下旧计划。\n5. 用同样画面范围和检测参数对照修前修后，再听台词、看字幕、核动作和速度。\n\n若黑边、花字或标题影响检测，可检查主画面范围，同时保留全画面或较大范围作对照。不能靠缩小检查区域把问题排除掉后宣布成功。",
+          "en": "1. Inspect this run’s actual export and record the candidate with surrounding pictures. Planned interval length is not enough.\n2. Play the neighborhood at normal speed to assess action, dialogue and response. Frame stepping locates boundaries but cannot establish viewing comfort.\n3. Compare the source: was the short shot already there, or did the edit or crop create it? Keep uncertain origin unconfirmed.\n4. Repair the complete boundary in the edit plan and export again; do not repair only the rendered file while leaving an obsolete plan.\n5. Compare before and after using the same picture region and detection parameters, then check words, subtitles, actions and playback speed.\n\nIf borders or titles affect detection, inspect the main picture while retaining a full-frame or broader comparison. Shrinking the inspected region to hide a defect is not a repair."
+        }
+      },
+      {
+        "id": "do-not-hide-the-cut",
+        "heading": {
+          "zh": "检测数减少，不等于接点已修好",
+          "en": "Fewer detected candidates do not prove a good repair"
+        },
+        "body": {
+          "zh": "| 容易误用的办法 | 为什么不可靠 | 更合适的处理 |\n|---|---|---|\n| 插闪白或溶解 | 可能遮住没解决的动作跳跃 | 回源对齐有因果的入出点 |\n| 将两帧定格补长 | 新造停顿，未恢复真实表演 | 恢复源片中完整反应 |\n| 接点突然大幅放大 | 可能压低检测差异，却裁掉手和表情 | 给每个原生镜头连续、可读的取景 |\n| 调高阈值直到零报告 | 只变成少报，不证明问题消失 | 保留检查条件与人工播放证据 |\n\n最后确认：台词不被截断；同一动作没有完成两次；关键表情与物件仍可读；字幕与声音未因重导出漂移。检测只是帮助找位置，最终判断来自实际播放。",
+          "en": "| Tempting shortcut | Why it is unreliable | Better repair |\n|---|---|---|\n| Flash or dissolve over the join | Hides an unresolved action jump | Align causal source boundaries |\n| Freeze two frames to extend them | Invents a pause rather than restoring performance | Recover the actual response |\n| Extreme zoom at the join | May reduce a detection score while cropping hands or faces | Keep coherent, readable framing within each source shot |\n| Raise the threshold until no report appears | Reduces recall without proving a fix | Keep comparable settings and playback evidence |\n\nConfirm complete words, no duplicated action, readable expressions and objects, and no subtitle/audio drift after rendering. Detection locates candidates; actual playback determines the result."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "检测报告没有候选，就没有闪帧吗？",
+          "en": "Does a report with no candidates prove there are no flash frames?"
+        },
+        "a": {
+          "zh": "不能。阈值、黑边、画面反差和包装都可能影响召回。用已知问题片段核对检查条件，仍需正常播放实际成片。",
+          "en": "No. Threshold, borders, contrast and overlays affect recall. Check the settings against a known problem passage and still play the rendered video normally."
+        }
+      },
+      {
+        "q": {
+          "zh": "所有一秒以内的镜头都应该删吗？",
+          "en": "Should every shot shorter than one second be removed?"
+        },
+        "a": {
+          "zh": "不应该。短镜可以承担反应、细节或快切节奏。看它是否提供可读的信息，是否完整属于当前事件，再决定保留、回源扩完整或删除。",
+          "en": "No. A short shot may carry a response, detail or fast-cut rhythm. Judge its readable information and relation to the event before keeping, restoring or removing it."
+        }
+      }
+    ],
+    "skill": {
+      "name": "video-cut",
+      "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-cut/SKILL.md",
+      "text": {
+        "zh": "对 video-cut 提出：“检查这次实际输出里的短残镜与密集切点，先只给候选；回源核对原因，给保留、恢复完整或删除的建议，不自动改剪点。修后按相同条件复查。”",
+        "en": "Ask video-cut to inspect the actual output for short or dense-cut candidates first. Compare source evidence and recommend keeping, restoring or removing shots without automatically moving cut points. Recheck under the same conditions after repair."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "实际成片短镜检查与修复",
+          "en": "Rendered-shot review and repairs"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-cut/references/shot-review.md"
+      }
+    ],
+    "related": [
+      "/video-recap/editing-rhythm",
+      "/video-recap/multi-video-story-edit",
+      "/video-recap/turn-a-long-video-into-short-clips"
     ]
   }
 ]

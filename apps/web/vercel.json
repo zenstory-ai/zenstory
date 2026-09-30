@@ -437,6 +437,26 @@
       "permanent": true
     },
     {
+      "source": "/oh-story/write-a-story-with-an-unreliable-narrator",
+      "destination": "https://zenstory.ai/oh-story/write-an-unreliable-narrator",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/write-a-story-with-an-unreliable-narrator",
+      "destination": "https://zenstory.ai/zh/oh-story/write-an-unreliable-narrator",
+      "permanent": true
+    },
+    {
+      "source": "/oh-story/write-a-character-backstory-that-affects-the-plot",
+      "destination": "https://zenstory.ai/oh-story/write-character-backstory",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/write-a-character-backstory-that-affects-the-plot",
+      "destination": "https://zenstory.ai/zh/oh-story/write-character-backstory",
+      "permanent": true
+    },
+    {
       "source": "/org-home",
       "destination": "https://zenstory.ai/",
       "permanent": true
