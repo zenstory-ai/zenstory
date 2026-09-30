@@ -8443,7 +8443,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "影视解说文案怎么写：先定观众问题，再分配画面与旁白",
       "en": "How to Write a Recap Script: Give Images and Narration Jobs"
@@ -8503,6 +8503,17 @@
         "body": {
           "zh": "下面是原创纸面素材方案，未拍摄、剪辑或做播放测试。家庭短片讲姐姐返家协助一次免费的社区修补课，想找到母亲示范手法的旧录像。弟弟按住播放键，说“你找错东西了”。\n\n片中提前给出当前课程的公告：免费参加，不收报名费。旧录像里，母亲示范针法后说“这次课给街坊免费开”；姐姐随后找到弟弟本次课的报名收费记录。当她询问时，他亲口承认收了费用，却未告知她。公告、录像、记录与承认各自承担证据，不能只靠按键动作推出动机。\n\n解说跟随姐姐认知，问题是“弟弟为什么阻止她播放”。开头保留阻止动作与原话，不先说他骗钱。中段旁白只补姐姐返家的目的；翻找与录像卡顿由画面和原声承担。收费记录出现后，保留询问和承认，不用旁白替弟弟虚构“只为贪财”的内心。\n\n结尾素材写出弟弟关闭当前收费入口、姐姐核对退款名单。这里只能说停止继续收款、开始处理旧款，不能宣布已全部退款。旁白可以连接免费承诺与本次收费的矛盾，最后让未完成的名单留下后果。",
           "en": "This original paper footage plan has not been filmed, edited or tested. A sister returns to help with a free community mending class and looks for an old tape of her mother’s technique. Her brother holds down the play button: “You’re looking for the wrong thing.”\n\nThe film first establishes the current class notice: attendance is free. On the tape, their mother demonstrates stitching and says this class is free for neighbors. The sister then finds paid sign-up records for the current class. Asked about them, her brother admits taking fees without telling her. Notice, tape, records and admission provide distinct evidence; the button press alone cannot establish motive.\n\nFollow the sister’s understanding and ask why he blocks playback. Open with the action and original line, not an accusation. Narration supplies her reason for returning. Images and original sound carry searching and tape stutters. Keep the question and admission when payment records appear; do not invent an inner motive of greed.\n\nThe ending shows him closing the payment entry and her checking a refund list. Further charging has stopped; past payments are being addressed, not already all returned. Narration can connect the free promise with actual charging. The unfinished list retains consequences."
+        }
+      },
+      {
+        "id": "script-handoff",
+        "heading": {
+          "zh": "把节拍表写成画面、原声与旁白接力",
+          "en": "Turn the beat plan into a script handoff"
+        },
+        "body": {
+          "zh": "沿用上面的社区缝补课原例，下面是纸面写稿示范，尚无拍摄素材、真实时码或试听结果。引号内新增的问答是本例选定的台词，不是从实际视频转录。\n\n| 顺序 | 画面与声音安排 |\n|---|---|\n| 阻止播放 | 姐姐找录音，弟弟挡住播放键。保留原声“你找错东西了”，旁白先不宣布他为什么阻止。 |\n| 交代来意 | 在有足够无关键对白的画面窗口时，旁白：“她回来帮忙办这次免费缝补课，想找出母亲教针法的旧录音。”句子连成一个思路；没有合适窗口就重选位置或缩句。 |\n| 核对承诺 | 当前免费课程通知可辨认，旧录音继续播放。母亲说“这次课给街坊免费开”时让出旁白，不用配音再念一遍。 |\n| 出现矛盾 | 姐姐发现本次付费报名记录。必要时补一句旁白：“可这一次的报名记录里，已经收了钱。”保留能识别“本次”的依据。 |\n| 当面确认 | 姐姐问：“这次免费课为什么收钱？”弟弟答：“是我收的，没告诉你。”这两句与听者反应由原声承担；不盖成“弟弟承认贪心”。 |\n| 当前结果 | 保留弟弟关闭本次付费入口、姐姐开始核对退款名单的动作。旁白收束：“新的收费停了。已经收的钱，她开始逐笔核对。”之后让动作完成，不宣布退款全部到账。 |\n\n开头跟随姐姐的疑问，回答落在记录与承认上；收尾再交付实际处理。若成片删掉了付费记录，必须重审“已经收钱”的依据。若只保留关入口而没有退款核对，最后一句也随之缩到停止新收费。\n\n进入制作后，先核真实原声和可用画面；剪辑式解说要对剪后时间安排旁白。纸面顺序不自动成为可合成的时间线，语句装不下时减写，不能把关键原话压在旁白底下。",
+          "en": "Use the community mending-class example above. This is a paper script with no filmed material, measured timing or listening test. Newly quoted questions and answers are dialogue chosen for this example, not transcriptions.\n\n| Order | Picture and sound handoff |\n|---|---|\n| Playback blocked | The sister seeks the recording; the brother blocks the play button. Keep “You’re looking for the wrong thing” in original sound, without announcing his motive. |\n| Purpose | In a picture window with room and no crucial speech, narrate: “She came back to help with this free mending class. She wanted their mother’s old recording of the technique.” Keep a connected thought; relocate or shorten it if no suitable window exists. |\n| Promise checked | Make the current free-class notice readable and let the old recording play. When their mother says the class is free for neighbors, narration yields rather than repeating the line. |\n| Contradiction | The sister finds paid signup records for this class. If needed, narrate: “But the signup records for this class already show payments.” Retain evidence identifying the current class. |\n| Confirmation | The sister asks, “Why are you charging for this free class?” He answers, “I collected the money. I didn’t tell you.” Original speech and the listener’s reaction carry this exchange. Do not replace it with a claim about greed. |\n| Current result | Keep the brother closing the current payment entry and the sister beginning the refund-list review. Narrate: “New charges have stopped. She starts checking the payments already collected.” Let the actions complete without claiming every refund arrived. |\n\nFollow her question into the records and admission, then deliver the actual response. If the paid records are cut, reassess the basis for claiming collection. If only closure remains without refund review, narrow the final sentence to stopping new fees.\n\nDuring production, check actual speech and available picture. In a cut recap, place narration against the edited timeline. Paper order does not establish usable timing: reduce text that will not fit rather than burying crucial original words beneath it."
         }
       },
       {
@@ -8648,8 +8659,8 @@
       {
         "id": "worked-example",
         "heading": {
-          "zh": "原创范例：没送出的录音笔",
-          "en": "Original Example: The Recorder That Was Never Handed Over"
+          "zh": "原创示例：发布会上的录音选择",
+          "en": "Original example: choosing to play the recording onstage"
         },
         "body": {
           "zh": "以下为虚构短片方案，不描述真实发布会操作。片中已交代：实习记者获得一个提问时段，台上的控制屏与音频接口在该时段交由他使用；他拿到录音笔后先听过内容。导师的原话是“把这道问题删掉”，不据此直接断言违法或全部真相。\n\n切片中，记者走上台，关闭预设提词画面，接入录音笔并开始播放。观众实际听见导师要求删掉问题的同一句原话；导师起身离席。片段没有调查或处置结果。\n\n- 常驻标题：`导师让他删掉问题，他在发布会放出了录音`\n- 封面字：`删掉问题，还是放出录音？`\n- 发布标题：`实习记者把职业选择摆到了台前`\n- 花字：若提词画面熄灭的意义不清，可在对应位置补`他主动关掉了预设稿`；画面与原声已清楚时不加。\n\n标题里的“放出”由实际可听播放支撑，不能只拍到按键就宣布录音公开。“导师被查处”“他揭开全部黑幕”超出本片结果。设备权限是这个原创故事的前置安排，不是记者在任何发布会都能控制屏幕或广播的常识。",
@@ -8688,6 +8699,17 @@
           "zh": "本文采用 Video Recap 的宣发文案方法：返修提案与工程采用分开。先确认建议针对哪版成片；如果剪点、换序或声音已变，把建议重新对到当前画面，不拿旧全文覆盖。\n\n| 采用项 | 本轮明确决定 |\n|---|---|\n| 常驻标题 | 替换为已选文字，保留原样式与位置；需要改样式时另写。 |\n| 花字 | 逐条说明保留、新增、替换或删除；“不新增”不等于清空旧花字轨。 |\n| 字幕与声音 | 本轮未授权修改就保留；文案建议不能替代原话。 |\n| 时间位置 | 提案先写对应画面；进工程前核当前成片的真实帧位置。 |\n\n例如外部模型回复“这条不需要新花字”，只能说明不新增，不能顺手删掉原有时空提示。仅查看字幕或工程得到的时间窗还是建议；实际画面尚未核对时不要称已看片。\n\n回填后核改了哪几项、未改层是否保留。工程修改并不等于成片更新；渲染后再检查新字是否出现、是否遮挡动作、是否给观众重复信息。",
           "en": "This article uses Video Recap’s promotional-copy method: revision proposals and adopted project edits are separate. Confirm which delivery the suggestions concern. If cuts, order, or sound changed, map them to the current picture instead of overwriting it with an old full draft.\n\n| Item | Adopted decision |\n|---|---|\n| Persistent title | Replace with selected words while retaining style and placement unless separately changed. |\n| Notes | Mark each as keep, add, replace, or delete. “No additions” does not clear the old note track. |\n| Subtitles and sound | Preserve unless this request changes them; promotional copy cannot replace spoken words. |\n| Timing | Locate the corresponding picture in the proposal, then check real frame positions before applying. |\n\nIf an external model says no new notes are needed, that means no additions, not deletion of an existing time/place cue. A window derived only from subtitles or project data remains a suggestion. Do not claim to have viewed footage before checking it.\n\nAfter applying, compare adopted edits and retained layers. An edited project is not an updated delivery. Render, then check that the new words appear, do not cover action, and do not duplicate information."
         }
+      },
+      {
+        "id": "selected-copy-revision",
+        "heading": {
+          "zh": "只改一处标题时，给出能采用的返修单",
+          "en": "Deliver an adoptable title-only revision"
+        },
+        "body": {
+          "zh": "仍用上面的发布会原例。假设当前候选工程的常驻标题写“实习记者揭开全部黑幕”，这句是本次演示设定的旧文案；其余文字已经采用原例的封面、发布标题与必要提示。本轮要求只修常驻标题，返修单写：\n\n| 项目 | 明确采用的修改 |\n|---|---|\n| 原文问题 | “全部黑幕”承诺超过片中播放那句要求删问题的录音，也超过导师离场这个结果。 |\n| 替换文字 | 采用“导师让他删掉问题，他在发布会放出了录音”。只有本版实际听得到播放，才能用“放出了录音”。 |\n| 采用范围 | 替换候选工程里的这一条常驻标题，沿用其样式、位置与出入范围；这轮不改封面、发布标题和已有必要提示。 |\n| 复核依据 | 本版是否保留删问题的原话、实习记者上台操作、实际播放与导师离场；若声音后来删掉，重新收窄标题。 |\n| 出片检查 | 渲染后看新字是否确实出现、能读完、是否挡住接入录音笔的动作；项目已改不等于检查已完成。 |\n\n不需要新增花字时，返修单写“不新增”，保留工程中未点名的提示。提案中的标题候选也不能全部写进同一轨。先选定这一个修改，再把采用后的候选工程与原版比较。\n\n这份纸面返修单展示怎样收窄承诺和交接修改，未声称已有工程、播放核验或成片效果。",
+          "en": "Keep the press-conference example. For this exercise, suppose the candidate project’s persistent title is “An intern exposes the whole conspiracy.” The cover, publishing title and necessary note already use the example above. This request changes only the persistent title:\n\n| Item | Adopted revision |\n|---|---|\n| Problem | “The whole conspiracy” exceeds the recording of the instruction to remove a question and the mentor leaving. |\n| Replacement | Adopt “His mentor told him to cut the question. He played the recording onstage.” “Played” requires audible playback in this version. |\n| Scope | Replace this persistent title in the candidate project while retaining style, position and entry/exit range. Keep the cover, publishing title and existing necessary notes. |\n| Evidence | Check that this version retains the instruction, onstage operation, audible playback and departure. Narrow the title again if playback is later removed. |\n| Delivery check | After rendering, check that the new words appear, remain readable and do not obscure the recorder connection. A saved edit has not completed this check. |\n\nWrite “no new notes” when none are needed, preserving unmentioned existing cues. Do not place every proposed title on the same track. Select this revision before comparing the adopted candidate with the original.\n\nThis paper worksheet demonstrates a narrower promise and an edit handoff. It does not claim an existing project, playback verification or measured delivery results."
+        }
       }
     ],
     "faq": [
@@ -8713,12 +8735,12 @@
       }
     ],
     "skill": {
-      "name": "video-recap",
+      "name": "video-script",
       "text": {
         "zh": "请用 video-script 修订这条切片文案：先定位本片观看理由与兑现位置，再分别给常驻标题、封面、发布标题和必要花字。标出原文、建议、片内依据与采用范围；保留未改字幕、剪点和声音，时间窗未核真实画面时写提案。",
         "en": "Use video-script to revise this clip’s promotional copy. Locate its viewing reason and payoff, then separate persistent, cover, publishing, and necessary note text. List original, proposal, footage evidence, and adopted scope. Preserve unchanged subtitles, cuts, and sound; label unverified timing as proposed."
       },
-      "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-recap/SKILL.md"
+      "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-script/SKILL.md"
     },
     "related": [
       "/video-recap/video-to-narration",
@@ -14018,7 +14040,7 @@
         },
         "body": {
           "zh": "| 位置 | 取舍 |\n|---|---|\n| 入点之前 | **可以尝试压缩：** 已经能推断的走路、等候、重复交代；**需要保住：** 人物为何作出下一动作的必要前提 |\n| 动作之中 | **可以尝试压缩：** 没有新变化的机械重复；**需要保住：** 转手、停下、拒绝等可辨认的完成状态 |\n| 台词之后 | **可以尝试压缩：** 信息已经落地的空等；**需要保住：** 听者理解、犹豫或改变选择的反应 |\n| 场景之间 | **可以尝试压缩：** 没有作用的过场；**需要保住：** 新地点建立、声音接力或有意并置的边界 |\n\n晚进入之前问“观众还知道他为什么这样做吗”；早离开之前问“观众看见后果了吗”。保留多少需要回到具体表演，不用统一秒数代替判断。",
-          "en": "| Point | Decision |\n|---|---|\n| Before the in point | **You can try compressing: ** Walking, waiting, or repeated setup the viewer can already infer; **You need to preserve: ** The premise needed to understand why the character takes the next action |\n| During the action | **You can try compressing: ** Mechanical repetition with no new change; **You need to preserve: ** A recognizable completion state, such as a handoff, stop, or refusal |\n| After dialogue | **You can try compressing: ** Empty waiting after the information has landed; **You need to preserve: ** The listener’s understanding, hesitation, or changed choice |\n| Between scenes | **You can try compressing: ** Transitional material with no function; **You need to preserve: ** Establishment of a new location, a sound bridge, or an intentional juxtaposition |\n\nBefore entering later, ask, “Will the viewer still know why this person acts?” Before leaving earlier, ask, “Has the viewer seen the consequence?” Return to the specific performance to decide how much to retain; do not replace judgment with a universal number of seconds."
+          "en": "| Point | Decision |\n|---|---|\n| Before the in point | **You can try compressing:**  Walking, waiting, or repeated setup the viewer can already infer; **You need to preserve:**  The premise needed to understand why the character takes the next action |\n| During the action | **You can try compressing:**  Mechanical repetition with no new change; **You need to preserve:**  A recognizable completion state, such as a handoff, stop, or refusal |\n| After dialogue | **You can try compressing:**  Empty waiting after the information has landed; **You need to preserve:**  The listener’s understanding, hesitation, or changed choice |\n| Between scenes | **You can try compressing:**  Transitional material with no function; **You need to preserve:**  Establishment of a new location, a sound bridge, or an intentional juxtaposition |\n\nBefore entering later, ask, “Will the viewer still know why this person acts?” Before leaving earlier, ask, “Has the viewer seen the consequence?” Return to the specific performance to decide how much to retain; do not replace judgment with a universal number of seconds."
         }
       },
       {
@@ -14029,7 +14051,18 @@
         },
         "body": {
           "zh": "以下是为说明剪辑方法设计的虚构素材，不是已经拍摄或试听过的视频。素材中，老人拿来损坏的相框，说只想把玻璃换好，旧照片不要动。修理者先答应，拆开背板后发现照片后面写着一句给家人的留言。他看向老人，老人伸手压住背板，停了一下，才说：“别给他们看。”修理者把背板翻回去，取来不透明的衬纸。\n\n| 位置 | 取舍 |\n|---|---|\n| 过度压缩 | **剪点处理：** 从拆背板直接跳到放衬纸；**观众可能失去什么：** 看不见留言、目光和保密请求，衬纸像无缘无故的操作 |\n| 只留说话者 | **剪点处理：** 保留老人的要求，删去修理者停手、翻回背板；**观众可能失去什么：** 听见请求，却看不见对方是否接受 |\n| 保留因果与回应 | **剪点处理：** 缩短找工具过程，保留留言露出、老人压住背板、保密请求与翻回动作；**观众可能失去什么：** 观众能理解修理者改变处理方式的原因 |\n\n“别给他们看”之后的停留要容得下接受请求的动作。若原素材只有沉默而没有能辨认的回应，应重新挑选真实存在的时刻，或保留原有不确定性，不能另拼一段点头冒充承诺。",
-          "en": "The following fictional footage was designed to illustrate editing choices. This is not footage that has actually been filmed or reviewed. An older man brings in a damaged picture frame and says he wants only the glass replaced; the old photograph must remain untouched. The repairer agrees. After removing the backing, he finds a message to the family written behind the photo. He looks toward the customer. The older man reaches out, presses down the backing, pauses, and says, “Don’t show them.” The repairer turns the backing over again and fetches an opaque liner.\n\n| Point | Decision |\n|---|---|\n| Over-compressed | **Cut treatment: ** Jumps directly from removing the backing to inserting the liner; **What the viewer may lose: ** The message, exchanged glance, and request for secrecy disappear, so the liner seems arbitrary |\n| Keeps only the speaker | **Cut treatment: ** Preserves the older man’s request but removes the repairer stopping and turning the backing over; **What the viewer may lose: ** The viewer hears the request but cannot see whether it was accepted |\n| Preserves cause and response | **Cut treatment: ** Shortens the search for tools but keeps the revealed message, the hand on the backing, the request, and the action of turning it back over; **What the viewer may lose: ** The viewer understands why the repairer changes his method |\n\nAfter “Don’t show them,” the shot must last long enough for the accepting action to occur. If the source contains only silence and no recognizable response, choose another moment that genuinely exists or preserve the original uncertainty. Do not splice in an unrelated nod and present it as a promise."
+          "en": "The following fictional footage was designed to illustrate editing choices. This is not footage that has actually been filmed or reviewed. An older man brings in a damaged picture frame and says he wants only the glass replaced; the old photograph must remain untouched. The repairer agrees. After removing the backing, he finds a message to the family written behind the photo. He looks toward the customer. The older man reaches out, presses down the backing, pauses, and says, “Don’t show them.” The repairer turns the backing over again and fetches an opaque liner.\n\n| Point | Decision |\n|---|---|\n| Over-compressed | **Cut treatment:**  Jumps directly from removing the backing to inserting the liner; **What the viewer may lose:**  The message, exchanged glance, and request for secrecy disappear, so the liner seems arbitrary |\n| Keeps only the speaker | **Cut treatment:**  Preserves the older man’s request but removes the repairer stopping and turning the backing over; **What the viewer may lose:**  The viewer hears the request but cannot see whether it was accepted |\n| Preserves cause and response | **Cut treatment:**  Shortens the search for tools but keeps the revealed message, the hand on the backing, the request, and the action of turning it back over; **What the viewer may lose:**  The viewer understands why the repairer changes his method |\n\nAfter “Don’t show them,” the shot must last long enough for the accepting action to occur. If the source contains only silence and no recognizable response, choose another moment that genuinely exists or preserve the original uncertainty. Do not splice in an unrelated nod and present it as a promise."
+        }
+      },
+      {
+        "id": "cut-handoff",
+        "heading": {
+          "zh": "选定剪法后，怎样写清保留到哪里",
+          "en": "Specify the selected cut through its completion"
+        },
+        "body": {
+          "zh": "沿用维修摊的虚构素材，选“保留因果与回应”。给剪辑师的修改说明可以这样写，不先套一个每镜几秒的模板：\n\n1. **建立请求**：保留老人“只换玻璃、旧照片不动”的完整要求，以及修理者最初答应。工具已经在场的前提清楚后，可缩短寻找过程。\n2. **揭示留言**：从背板打开、留言变得可见的真实动作进入，留够观众识别它是写给家人的话；不要提前接上老人保密的声音，让他看似早就回应尚未发现的留言。\n3. **请求保密**：接修理者看向老人，保留老人压住背板、停顿和“别给他们看”的完整原话。这里的停顿属于人物选择，不是待删的空白。\n4. **接受并改变处理**：原话结束后，保留修理者把背板翻回去的完成动作，再接他取来不透明衬纸。若找衬纸很长，可以压缩路程，但让观众知道新材料已取到。\n5. **在本轮结果处离开**：这段只证明修理者接受保密并改变处理方式；还没有完成换玻璃和交付，就不要接“修好了”的字幕或旁白。\n\n实际素材若是同一连续镜头完成发现、请求与翻回动作，可直接保留连续段，不必为了展示这些步骤再切四刀。若各自分镜，按真实来源对接，保留关键台词及动作先后。\n\n修改前后正常速度各看一遍：观众是否仍知道原要求、看见留言、听清保密请求、看懂翻回的回应？接点截图只能定位，不能证明这套剪法已经播放自然。",
+          "en": "For the fictional repair-stall material, choose the version preserving cause and response. A useful note to the editor specifies completion rather than a uniform shot duration:\n\n1. **Establish the request:** Keep the full request to replace only the glass and leave the photograph untouched, plus the repairer’s initial agreement. Shorten tool searching once availability is clear.\n2. **Reveal the message:** Enter on the actual opening of the backing and visible message. Allow recognition that it addresses the family. Do not move the secrecy request ahead of discovery, making the customer appear to answer a discovery that has not occurred.\n3. **Request secrecy:** Connect the repairer’s look to the customer’s hand pressing the backing, pause and complete “Don’t show them.” The pause carries a choice.\n4. **Accept and change the method:** After the line, retain the completed turn of the backing, then the repairer obtaining the opaque liner. Compress a long search while making its arrival clear.\n5. **Leave on this result:** This passage establishes acceptance of secrecy and a changed method. It has not completed glass replacement and delivery, so do not add a “repair complete” caption or narration.\n\nIf discovery, request and response occur in one continuous source shot, retain that continuity; the steps do not require four new cuts. For separate shots, connect actual sources while retaining crucial speech and action order.\n\nWatch before and after at normal speed. Can viewers still understand the original request, recognize the message, hear the secrecy request and read the turn as a response? Join screenshots locate issues; they do not establish smooth playback."
         }
       },
       {
@@ -21217,7 +21250,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "en": "How to Write a Game Quest with a Clear Goal and Payoff",
       "zh": "游戏任务怎么写：目标明确，过程改变处境"
@@ -21264,8 +21297,19 @@
           "en": "Give approaches distinct consequences"
         },
         "body": {
-          "zh": "调查路线先找到修改记录，再出示给园丁。园丁提供可核对的顺序，供水恢复；管理员得知记录被交出，会要求玩家解释。保密路线保留原件的私人归属，但自行试阀可能耗掉北侧余水。\n\n玩家按钮写“给园丁看修改记录”，不写“诚实路线”；提示必要代价，不提前宣布所有远期结局。若园丁没有看过记录，后文不能突然替玩家引用文件细节。\n\n结果也不必都成功。苗圃受损可以让园丁拒绝下一次帮忙，并提供另一条查账路径。失败由已知风险产生且有后续行动，比弹出“任务失败”后毫无变化更完整。",
-          "en": "The investigation route finds and shows the modification record. The gardener supplies a verifiable sequence, restoring water; the administrator then asks why the record was disclosed. The private route keeps custody but accepts the risk of draining the north reserve through trial.\n\nLabel the button “Show the gardener the modification record,” not “Honest route.” Present necessary costs without every distant ending. An uninformed gardener cannot later quote unseen details.\n\nNot every approach must succeed. Nursery damage may cause refusal of later help while opening another investigation path. A known-risk failure with continuing actions is more complete than an isolated failure popup."
+          "zh": "调查路线先找到修改记录，再出示给园丁。园丁提供可核对的顺序，玩家取得操作入口并按该顺序开阀后，供水才恢复；管理员得知记录被出示，会要求玩家解释。两路线都可以保留原件，保密路线另保留内容未向园丁披露的状态，但自行试阀可能耗掉北侧余水。\n\n玩家按钮写“给园丁看修改记录”，不写“诚实路线”；提示必要代价，不提前宣布所有远期结局。若园丁没有看过记录，后文不能突然替玩家引用文件细节。\n\n结果也不必都成功。苗圃受损可以让园丁拒绝下一次帮忙，并提供另一条查账路径。失败由已知风险产生且有后续行动，比弹出“任务失败”后毫无变化更完整。",
+          "en": "The investigation route finds and shows the modification record. The gardener supplies a verifiable sequence; water is restored only after the player gains operating access and follows it. The administrator then asks why the record was disclosed. Either route can retain the original document; the private route also keeps its contents undisclosed to the gardener while accepting the risk of draining the north reserve through trial.\n\nLabel the button “Show the gardener the modification record,” not “Honest route.” Present necessary costs without every distant ending. An uninformed gardener cannot later quote unseen details.\n\nNot every approach must succeed. Nursery damage may cause refusal of later help while opening another investigation path. A known-risk failure with continuing actions is more complete than an isolated failure popup."
+        }
+      },
+      {
+        "id": "complete-quest-path",
+        "heading": {
+          "zh": "把调查路线走完：知道顺序仍要实际开阀",
+          "en": "Complete the route: knowledge still requires action"
+        },
+        "body": {
+          "zh": "以下继续温室原例，是供制作讨论的纸面路径，不是已运行原型。为把既有“顺序影响蓄水”写成可执行规则，本例选定：从两阀关闭开始，先开南阀、再开北阀恢复供水并保住北侧余水；先开北阀会耗掉这份余水。具体顺序是本例世界规则，不是现实管线操作建议，进入操作前在管线图与园丁提醒中呈现。\n\n| 玩家行动 | 本次结果与反馈 |\n|---|---|\n| 日落前查图、找到修改记录 | 玩家看见顺序风险和记录内容；园丁尚不知道文件内容，钥匙仍在园丁手中。 |\n| 选择“给园丁看修改记录” | 园丁实际看过后解释南先北后的顺序，玩家将它与图示核对。记录仍由玩家拿着；看到文件不等于收走文件。 |\n| 向园丁借钥匙、打开阀门间 | 本例园丁同意借出，钥匙移入玩家背包。玩家实际使用钥匙打开入口，才出现开阀动作；得知顺序本身不会开门或供水。 |\n| 先开南阀，再开北阀 | 依已提示规则恢复水流，北侧余水保留。本路径在期限前完成，苗圃不受此次停水到期损失。场景水流和日志读同一个结果。 |\n| 归还钥匙，再询问旧账 | 本例钥匙回到园丁手中。园丁根据没发生损失、自己确已看过记录，同意协助查账；这才开放协助入口，不直接宣布旧账已经查清。 |\n\n管理员只能在获得“玩家曾出示记录”的信息后追问；本例让园丁当面向他说明此事，不能让远处管理员自动读玩家背包。管理员知道文件曾被展示，也不自动知道其全部文字。\n\n对照路径沿用相同初态：私下读记录、借到钥匙但不出示，先开北阀。余水按规则损失，水流、苗圃和日志随后读取这次结果；园丁可依据实际损失拒绝下一次帮忙，却不能引用未见的记录。重复结算不再改一次余水或再给一次协助奖励。\n\n先把这两条路径的输入与结果写清，再放进原型检查。纸面叙述顺畅，不能证明实际开门、背包移交、期限和反馈已经正确运行。",
+          "en": "Continue the greenhouse example as a paper route for production discussion, not a running prototype. Make its established order-dependent storage rule concrete: from both valves closed, south then north restores supply and preserves the north reserve; opening north first loses that reserve. This is the example’s fictional rule, not real plumbing advice. Present it through the diagram and gardener’s warning before operation.\n\n| Player action | Result and feedback |\n|---|---|\n| Before sunset, inspect the diagram and find the record | The player learns the order risk and record contents. The gardener remains uninformed and holds the key. |\n| Choose “Show the gardener the modification record” | After seeing it, the gardener explains south before north; the player checks that against the diagram. The original stays with the player. Viewing does not transfer custody. |\n| Borrow the key and open the valve room | In this route the gardener agrees, placing the key in inventory. The player uses it to gain access before valve actions become available. Knowing the sequence opens neither door nor supply. |\n| Open south, then north | The announced rule restores flow and preserves the reserve. Completion is before the deadline, avoiding this outage’s expiry loss. Scene water and the log read the same result. |\n| Return the key and ask about the old accounts | The key returns to the gardener. Reading the absence of loss and having seen the record, the gardener agrees to help. Assistance becomes available; the accounts are not already solved. |\n\nThe administrator needs access to the disclosure before asking about it. Here the gardener tells him in person; a distant administrator cannot automatically inspect inventory. Knowing a document was shown does not reveal all its contents.\n\nFor comparison, start from the same state: privately read the record and borrow the key without showing it, then open north first. The rule removes the reserve; flow, nursery and log read the resulting state. The gardener can refuse later help because of actual loss but cannot quote unseen records. Repeating resolution cannot remove the reserve again or grant assistance twice.\n\nSpecify these inputs and results before checking a prototype. A coherent paper account does not establish working access, inventory transfers, deadlines or feedback."
         }
       },
       {
