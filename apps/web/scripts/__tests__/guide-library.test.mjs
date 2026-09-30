@@ -19,7 +19,7 @@ test('published articles link immutable specialist skill files and have explicit
     'oh-story':['story-setup','story-import','story-long-write','story-short-write','story-long-analyze','story-review','story-deslop','story-cover'],
     'drama-skills':['short-drama','short-drama-develop','short-drama-write','short-drama-novel-analyze','short-drama-image-prompts','short-drama-video-prompts','short-drama-storyboard','short-drama-review'],
     'novel-to-game':['novel-to-game','game-concept','game-world-design','game-build','game-qa'],
-    'video-recap':['video-recap','video-script','video-cut'], dsh:['novel-to-game']
+    'video-recap':['video-recap','video-script','video-cut','video-assemble','video-voiceover'], dsh:['novel-to-game']
   }
   for (const item of reading) assert.ok(ids.has(item.topic), `${item.slug}: missing task assignment`)
   for (const lang of ['en','zh']) {

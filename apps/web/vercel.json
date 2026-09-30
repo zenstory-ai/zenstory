@@ -467,6 +467,16 @@
       "permanent": true
     },
     {
+      "source": "/novel-to-game/scope-a-novel-game-adaptation-for-an-indie-team",
+      "destination": "https://zenstory.ai/novel-to-game/scope-a-novel-game-adaptation-for-a-small-team",
+      "permanent": true
+    },
+    {
+      "source": "/zh/novel-to-game/scope-a-novel-game-adaptation-for-an-indie-team",
+      "destination": "https://zenstory.ai/zh/novel-to-game/scope-a-novel-game-adaptation-for-a-small-team",
+      "permanent": true
+    },
+    {
       "source": "/org-home",
       "destination": "https://zenstory.ai/",
       "permanent": true
