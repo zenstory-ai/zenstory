@@ -270,6 +270,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [Short-Drama Subtitles: Text, Timing and Placement](https://zenstory.ai/drama-skills/add-and-time-short-drama-subtitles) — Fix wrong, late or obstructive captions: verify script text, locate speech, convert clip timing and review readability in the finished cut.
 - [Where to Trim an AI Video: Actions and Reactions](https://zenstory.ai/drama-skills/choose-ai-video-in-and-out-points) — Trim waiting, drift and repeated motion by marking usable spans, then choosing cuts that preserve complete speech, action results and reactions.
 - [AI Video Camera Drift: Lock or Time the Move](https://zenstory.ai/drama-skills/stop-unwanted-ai-video-camera-drift) — Wanted a still camera but got a push or orbit? Check accepted motion, resolve prompt conflicts and specify framing, allowed action and hold intervals.
+- [Fix Deformed Hands in AI Video](https://zenstory.ai/drama-skills/fix-deformed-hands-in-ai-video) — Locate hand defects in references, motion and object contact. Reduce competing fine actions while preserving required technique and story facts.
+- [Fix Slow Actions in AI Video](https://zenstory.ai/drama-skills/fix-slow-actions-in-ai-video) — Separate deliberate waiting, delayed starts and stretched motion. Plan beats within the accepted duration and select usable footage from actual results.
 
 ### Interactive stories and games / 互动故事与游戏
 - [Interactive stories and games](https://zenstory.ai/guides/interactive-games) — Turn a novel into player actions, branching stories, and a playable game.
@@ -307,6 +309,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Integrate AI Media into a Story Game](https://zenstory.ai/novel-to-game/put-ai-media-assets-into-a-story-game) — Save generated media as stable game assets, connect it to state triggers and retain a fallback. Includes an original ferry scene and failure checks.
 - [Buttons or Free Text: Choose a Story Game Input](https://zenstory.ai/novel-to-game/choose-buttons-or-free-text-input) — Choose input from player actions. Compare buttons and free text in an original courier task, with finite intent, clear costs and readable outcomes.
 - [How to Analyze Gameplay References](https://zenstory.ai/novel-to-game/analyze-gameplay-references) — Analyze references by actions, loops, pressure and mastery. Use an original adaptation worksheet to state what to borrow, omit and test.
+- [Balance Game Numbers by Comparing Strategies](https://zenstory.ai/novel-to-game/balance-game-numbers-by-comparing-strategies) — Define what breaks a tradeoff, compare strategies from the same start, then change the situation. Includes repair costs and deadline calculations.
+- [Too Many Game Stats? Keep Those That Affect Choices](https://zenstory.ai/novel-to-game/reduce-unused-game-stats) — Audit generation, spending, rule checks and feedback. Separate strategic resources, story facts and history with a repair-commission example.
 
 ### Video scripts and editing / 视频解说与剪辑
 - [Video scripts and editing](https://zenstory.ai/guides/video-recaps) — Write narration from footage, edit a story, and finish audio and subtitles.

@@ -2354,7 +2354,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "AI视频不满意：重抽、改提示词还是补拍？",
       "en": "Unsatisfied with an AI Video? Reroll, Rewrite, Edit, or Reshoot"
@@ -2368,8 +2368,8 @@
       "en": "Ask if text controls the flaw and if it repeats. Reroll random failures sparingly, rewrite structural flaws, and edit or reshoot local defects."
     },
     "answer": {
-      "zh": "AI 视频不满意时，先别立即堆提示词。若原提示已经清楚，失败看起来随机，可以设上限重抽；若同一缺陷反复出现，说明文字或镜头结构有问题，应拆镜、减少并发动作或改实现路径；若只有一层局部错误，保留正确部分做局部编辑；文字、混音或边缘帧问题则交给后期。",
-      "en": "When an AI video falls short, do not immediately add more prompt text. If the original prompt is clear and the failure looks random, reroll within a preset limit. If the same defect repeats, revise the text or shot structure: split the shot, reduce simultaneous actions, or change the execution path. If only one local layer is wrong, preserve the correct material and edit that layer. Leave text, mixing, and edge-frame problems to post-production."
+      "zh": "先记录实际缺陷，再检查原提示、参考和镜头边界。输入已清楚、单次问题没有明显原因时，可以设预算重抽；同一问题复现时，优先排查动作、绑定和结构，但不能据此证明唯一原因。后期问题交后期，局部问题尽量保留正确部分；补拍要交代原要求由谁承担。",
+      "en": "Record the actual defect, then check prompt, references and shot boundaries. With clear inputs and no obvious cause, use a bounded reroll budget. Repeated defects prioritize motion, binding and structural checks without proving a unique cause. Route editing issues to post-production, preserve working parts and assign pickup coverage."
     },
     "sections": [
       {
@@ -2379,8 +2379,8 @@
           "en": "What Does “Rerolling” an AI Video Mean?"
         },
         "body": {
-          "zh": "“抽卡”通常指在输入基本不变时反复生成，希望随机结果更好。它不是修复方法，只适用于文字已经明确、参考与镜头边界也没有明显矛盾，而一次失败看起来像偶然波动的情况。\n\n如果每次人物都在同一处交错、同一道具都错误易手，继续重抽不会增加理解，只会重复支付同一个问题。此时应改结构。别再叠加“高质量、稳定、不要变形”。",
-          "en": "“Rerolling” means generating again with substantially the same input in the hope that randomness produces a better result. It is not a repair method. Use it only when the wording is already clear, references and shot boundaries do not conflict, and one failure looks accidental.\n\nIf characters cross at the same point every time or the same prop repeatedly changes hands incorrectly, another reroll will not clarify the request; it only pays for the same problem again. Change the structure instead of stacking phrases such as “high quality,” “stable,” or “no deformation.”"
+          "zh": "“抽卡”通常指在输入基本不变时反复生成，希望随机结果更好。它不是修复方法，只适用于文字已经明确、参考与镜头边界也没有明显矛盾，而一次失败看起来像偶然波动的情况。\n\n如果每次人物都在同一处交错、同一道具都错误易手，继续重抽之前，应核对输入是否含混或互相冲突，再比较最小修订。同一位置失败是排查线索，可能还涉及模型或生产设置，不是结构问题的确定证明。别再叠加“高质量、稳定、不要变形”。",
+          "en": "“Rerolling” means generating again with substantially the same input in the hope that randomness produces a better result. It is not a repair method. Use it only when the wording is already clear, references and shot boundaries do not conflict, and one failure looks accidental.\n\nRepeated crossing or incorrect possession at the same point is a diagnostic clue. Inspect ambiguity, competing demands and boundaries before another attempt; model or production settings may also contribute. Compare a bounded revision without claiming a unique cause or stacking generic quality phrases."
         }
       },
       {
@@ -2390,8 +2390,8 @@
           "en": "Use Two Questions to Choose the Repair Path"
         },
         "body": {
-          "zh": "**判断一：缺陷是否在提示词能控制的范围？** 字幕拼写、混音、调色、少量边缘帧等问题，未必需要改提示词。身份资产不一致要回到角色或道具参考；空间边界错要回分镜。\n\n**判断二：同一缺陷是否重复出现？** 第一次可能随机；多次在同一位置复现，优先视为要求冲突、动作过载或边界不清。\n\n| 情况 | 处置 |\n|---|---|\n| 镜头目的已达成，瑕疵不影响理解 | 保留 |\n| 问题属于字幕、声音、调色或修剪 | 后期处理 |\n| 构图和表演大体正确，只有一层错 | 局部编辑 |\n| 文字无明显缺陷，失败像随机波动 | 有上限地重抽 |\n| 同一缺陷重复，或要求互相竞争 | 改写、拆镜或换路径 |",
-          "en": "**Question 1: Is the defect controllable through the prompt?** Subtitle spelling, audio mixing, color grading, and a few bad edge frames may not require a prompt change. An identity mismatch returns to the character or prop reference; a wrong spatial boundary returns to the storyboard.\n\n**Question 2: Does the same defect repeat?** One occurrence may be random. Repetition at the same point suggests competing requirements, overloaded action, or an unclear boundary.\n\n| Situation | Response |\n|---|---|\n| The shot communicates its purpose and the flaw does not impede understanding | Keep it |\n| The problem concerns subtitles, sound, grading, or trimming | Fix in post |\n| Composition and performance are largely correct; one layer is wrong | Edit locally |\n| The prompt has no obvious defect and the failure looks random | Reroll within a limit |\n| The defect repeats or requirements compete | Rewrite, split the shot, or change the path |"
+          "zh": "**判断一：缺陷是否在提示词能控制的范围？** 字幕拼写、混音、调色、少量边缘帧等问题，未必需要改提示词。身份资产不一致要回到角色或道具参考；空间边界错要回分镜。\n\n**判断二：同一缺陷是否重复出现？** 第一次可能随机；多次在同一位置复现，优先核对要求冲突、动作过载或边界不清，并保留其他原因待验证。\n\n| 情况 | 处置 |\n|---|---|\n| 镜头目的已达成，瑕疵不影响理解 | 保留 |\n| 问题属于字幕、声音、调色或修剪 | 后期处理 |\n| 构图和表演大体正确，只有一层错 | 局部编辑 |\n| 文字无明显缺陷，失败像随机波动 | 有上限地重抽 |\n| 同一缺陷重复，或要求互相竞争 | 先定位，再比较改写、拆镜或换实现 |",
+          "en": "**Question 1: Is the defect controllable through the prompt?** Subtitle spelling, audio mixing, color grading, and a few bad edge frames may not require a prompt change. An identity mismatch returns to the character or prop reference; a wrong spatial boundary returns to the storyboard.\n\n**Question 2: Does the same defect repeat?** One occurrence may be random. Repetition prioritizes checks for competing requirements, overloaded action or unclear boundaries, while other causes remain unproven.\n\n| Situation | Response |\n|---|---|\n| The shot communicates its purpose and the flaw does not impede understanding | Keep it |\n| The problem concerns subtitles, sound, grading, or trimming | Fix in post |\n| Composition and performance are largely correct; one layer is wrong | Edit locally |\n| The prompt has no obvious defect and the failure looks random | Reroll within a limit |\n| The defect repeats or requirements compete | Diagnose the repeated region, then compare a bounded rewrite, split or alternate realization |"
         }
       },
       {
@@ -2401,8 +2401,8 @@
           "en": "When Rewriting the Prompt, Change Only the Diagnosed Layer"
         },
         "body": {
-          "zh": "> **镜头目的保持**：观众必须看懂什么？\n>\n> **直接观察**：只写实际看到的缺陷，不猜原因。\n>\n> **可能定位**：动作、表演、构图、摄影、参考或起止边界中的哪一层？\n>\n> **本次只改**：一个必要变量；必须联动时说明原因。\n>\n> **必须保持**：角色身份、场景方向、已经正确的动作、终点义务。\n>\n> **预期变化**：下一版应出现什么可观察差异？\n\n没有实际生成结果可看时，只能指出文字风险，不能声称某种失败已经发生。",
-          "en": "> **Preserve the shot purpose:** What must viewers understand?\n>\n> **Direct observation:** Describe only the visible defect; do not guess its cause.\n>\n> **Likely layer:** Action, performance, composition, camera, reference, or start/end boundary?\n>\n> **Change this time:** One necessary variable; explain any required linked change.\n>\n> **Must remain:** Character identity, scene direction, actions already working, and endpoint obligations.\n>\n> **Expected difference:** What observable change should the next version show?\n\nWithout an actual generated result to inspect, you may identify textual risks but cannot claim that a particular failure occurred."
+          "zh": "> **镜头目的保持**：观众必须看懂什么？\n>\n\n> **直接观察**：只写实际看到的缺陷，不猜原因。\n>\n\n> **可能定位**：动作、表演、构图、摄影、参考或起止边界中的哪一层？\n>\n\n> **本次只改**：一个必要变量；必须联动时说明原因。\n>\n\n> **必须保持**：角色身份、场景方向、已经正确的动作、终点义务。\n>\n\n> **预期变化**：下一版应出现什么可观察差异？\n\n没有实际生成结果可看时，只能指出文字风险，不能声称某种失败已经发生。",
+          "en": "> **Preserve the shot purpose:** What must viewers understand?\n>\n\n> **Direct observation:** Describe only the visible defect; do not guess its cause.\n>\n\n> **Likely layer:** Action, performance, composition, camera, reference, or start/end boundary?\n>\n\n> **Change this time:** One necessary variable; explain any required linked change.\n>\n\n> **Must remain:** Character identity, scene direction, actions already working, and endpoint obligations.\n>\n\n> **Expected difference:** What observable change should the next version show?\n\nWithout an actual generated result to inspect, you may identify textual risks but cannot claim that a particular failure occurred."
         }
       },
       {
@@ -2412,8 +2412,8 @@
           "en": "Original Example: Delivering a Letter at a Ticket Window"
         },
         "body": {
-          "zh": "原要求：快递员从窗口递入信封，售票员接住、低头看署名、表情由疑惑变惊恐，背景旅客同时拥挤催促，摄影机绕到窗口内。\n\n**假设观察**：如果生成结果中信封交接不清，但人物和空间正确，可以先核对文字：递交、接住、看署名、情绪变化、群演动作和绕拍同时堆叠，存在要求竞争的风险。此时先简化镜头，再比较交接动作是否更清楚；这是一种诊断示例，不是实际生成记录。\n\n**改写方案**：\n\n- 母版保留快递员递信与售票员接住，固定侧面机位，背景旅客只保持排队压力。\n- 补拍一条信封署名特写，承担“看见名字”。\n- 再用售票员近景承担惊恐反应。\n\n拆分后要逐项确认：递信由母版承担，署名由补拍承担，反应由近景承担；不能把提示词缩短后，让原来重要的反应无人负责。",
-          "en": "Original request: a courier passes an envelope through the window; the clerk takes it, looks down at the signature, and changes from confusion to fear. Travelers crowd and complain behind them while the camera moves around to the inside of the booth.\n\n**Hypothetical observation:** If a generated result makes the handoff unclear while character identity and space remain correct, inspect the wording first. Passing, receiving, reading, reacting, crowd movement, and a moving camera compete for attention. Simplify the shot, then compare whether the handoff becomes clearer. This is a diagnostic example, not a record of an actual generation.\n\n**Rewrite plan:**\n\n- Keep the courier’s handoff and the clerk’s receipt in the master shot. Lock a side view; the travelers provide only queue pressure.\n- Add a close-up of the name on the envelope to carry “sees the signature.”\n- Use a separate close-up for the clerk’s fearful reaction.\n\nAfter splitting, account for every requirement: the master carries the handoff, the insert carries the name, and the close-up carries the reaction. Shortening a prompt must not leave an important beat without a shot."
+          "zh": "原要求：快递员从窗口递入信封，售票员接住、低头看署名、由疑惑变惊恐；背景旅客同时催促，摄影机绕到窗口内。假设实际素材信封交接不清，但角色与空间正确，先核对哪些要求争夺同一时段；这是诊断示例，不是实际生成记录。\n\n**局部方案**：母版保留递交、接住与排队压力，固定侧面机位；另一条补拍让观众看清署名；售票员近景承担他实际看见署名后的反应。拆镜与改变机位先回分镜确认，不在运动提示词里悄悄切镜。\n\n| 原要求 | 谁承担与要核对什么 |\n|---|---|\n| 递交并接住 | 母版保留接触、释放、最终持有人 |\n| 观众看清署名 | 补拍提供已接受的可读文字；若生成字形不可用，用已批准后期方式 |\n| 售票员获得信息 | 建立信封在他手中、目光落到署名的机会；观众看到特写不等于角色已知 |\n| 惊恐反应 | 近景在获知之后，保留剧本指定表演 |\n| 后续连续性 | 下一镜信封仍由售票员持有，站位与声音能够衔接 |\n\n这个方案只提出实现路径。若署名是剧情证据，不能换成模糊纸面然后声称已经揭示；后期加字是否自然、读得清楚，需要实际画面检查。原有信息没有被任何版本承担时，列缺口并补素材，不能让缩短后的提示词自动取代母版。",
+          "en": "Original request: a courier passes an envelope through a window; the clerk receives it, reads the sender’s name and changes from puzzled to frightened. Travelers press behind them while the camera moves inside. Suppose actual footage fails at the handoff while identity and space work. Inspect competing demands; this is a diagnostic example, not a generation record.\n\n**Local plan:** the main take retains handoff and queue pressure from a fixed side view. A pickup shows the sender’s name to viewers. A clerk close shot delivers the reaction after the clerk actually sees it. Shot splitting and camera changes require storyboard agreement rather than hidden cuts inside motion prose.\n\n| Requirement | Coverage and check |\n|---|---|\n| Pass and receive | Main take preserves contact, release and final possession |\n| Viewers read the name | Pickup supplies accepted readable text; use approved post-production if generated letters fail |\n| Clerk learns it | Establish possession and a gaze opportunity; a viewer insert alone does not grant character knowledge |\n| Frightened reaction | Close shot follows learning and preserves accepted performance |\n| Continuity | The clerk keeps the envelope, with connected positions and sound |\n\nThis proposes realization, not completion. A name serving as evidence cannot become unreadable paper labeled as a reveal. Inspect any added text for clarity and integration. If no version carries a duty, request material rather than letting the shorter prompt replace the main take."
         }
       },
       {
@@ -2423,8 +2423,8 @@
           "en": "When Is Another Reroll Worth Trying?"
         },
         "body": {
-          "zh": "重抽前满足三个条件：原文要求彼此不冲突；起点、终点和参考没有明显错误；你能说明本次重抽是在验证一次随机失败。设定尝试上限，到点就重新判断。\n\n重抽时保持输入版本可比。若每次同时改构图、动作和参考，就无法知道改善来自哪里。反过来，改写时也只改诊断指向的变量，保留已经正确的部分。",
-          "en": "Reroll only when three conditions hold: the original requirements do not conflict; the start, endpoint, and references contain no obvious error; and you can explain that this reroll tests a likely random failure. Set a limit in advance and reassess when you reach it.\n\nKeep inputs comparable. If every attempt changes composition, action, and reference together, you cannot tell what improved the result. When rewriting, likewise change only the diagnosed variable and preserve what already works."
+          "zh": "重抽前满足三个条件：原文要求彼此不冲突；起点、终点和参考没有明显错误；本次是在比较输入不变时结果是否变化，不声称已证明随机原因。设定尝试上限，到点就重新判断。\n\n重抽时保持输入版本可比。若每次同时改构图、动作和参考，就无法知道改善来自哪里。反过来，改写时也只改诊断指向的变量，保留已经正确的部分。",
+          "en": "Reroll only when three conditions hold: the original requirements do not conflict; the start, endpoint, and references contain no obvious error; and the attempt compares variation under unchanged inputs rather than claiming a proven random cause. Set a limit in advance and reassess when you reach it.\n\nKeep inputs comparable. If every attempt changes composition, action, and reference together, you cannot tell what improved the result. When rewriting, likewise change only the diagnosed variable and preserve what already works."
         }
       },
       {
@@ -2434,8 +2434,8 @@
           "en": "Common Mistakes When an AI Video Falls Short"
         },
         "body": {
-          "zh": "| 误区 | 正确做法 |\n|---|---|\n| 所有问题都改提示词 | 先路由到资产、分镜、视频或后期 |\n| 加一串“高质量、稳定” | 增加可执行的空间、动作或边界事实 |\n| 同一缺陷无限重抽 | 复现后改结构 |\n| 一处错就重写整条 | 只编辑错误层，声明保持项 |\n| 补拍自动替代母版 | 写清每项原要求由谁承担 |\n| 只记录“效果不好” | 写可观察事实和对应版本 |\n\n目标是用最小改动消除已经定位的问题，同时保住镜头原本正确的内容。",
-          "en": "| Mistake | Better response |\n|---|---|\n| Rewrite the prompt for every problem | Route the issue to assets, storyboard, video, or post first |\n| Add a string of “high quality” and “stable” | Add executable spatial, action, or boundary facts |\n| Reroll the same repeating defect indefinitely | Change the structure once it reproduces |\n| Rewrite the whole shot because one part is wrong | Edit only the faulty layer and declare what stays fixed |\n| Assume a pickup shot replaces the master automatically | State which shot carries every original requirement |\n| Record only “the result is bad” | Record an observable fact and its version |\n\nThe goal is the smallest change that removes the diagnosed problem while preserving what the shot already does correctly."
+          "zh": "| 误区 | 正确做法 |\n|---|---|\n| 所有问题都改提示词 | 先路由到资产、分镜、视频或后期 |\n| 加一串“高质量、稳定” | 增加可执行的空间、动作或边界事实 |\n| 同一缺陷无限重抽 | 先查复现位置与输入，再试最小修改 |\n| 一处错就重写整条 | 只编辑错误层，声明保持项 |\n| 补拍自动替代母版 | 写清每项原要求由谁承担 |\n| 只记录“效果不好” | 写可观察事实和对应版本 |\n\n目标是用最小改动消除已经定位的问题，同时保住镜头原本正确的内容。",
+          "en": "| Mistake | Better response |\n|---|---|\n| Rewrite the prompt for every problem | Route the issue to assets, storyboard, video, or post first |\n| Add a string of “high quality” and “stable” | Add executable spatial, action, or boundary facts |\n| Reroll the same repeating defect indefinitely | Inspect the repeated region and inputs, then try the smallest change |\n| Rewrite the whole shot because one part is wrong | Edit only the faulty layer and declare what stays fixed |\n| Assume a pickup shot replaces the master automatically | State which shot carries every original requirement |\n| Record only “the result is bad” | Record an observable fact and its version |\n\nThe goal is the smallest change that removes the diagnosed problem while preserving what the shot already does correctly."
         }
       }
     ],
@@ -2479,10 +2479,31 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "按证据定位问题与局部修订",
+          "en": "Evidence-based diagnosis and bounded revision"
         },
-        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-review/SKILL.md"
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-review/references/review-method.md"
+      },
+      {
+        "label": {
+          "zh": "保持正确部分与动作实现",
+          "en": "Preserve working parts and motion requirements"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
+      },
+      {
+        "label": {
+          "zh": "母版、补拍与替代职责",
+          "en": "Main, pickup and replacement duties"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama/references/pickup-and-alternate.md"
+      },
+      {
+        "label": {
+          "zh": "实际素材缺陷反馈",
+          "en": "Observed footage defect feedback"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/generated-footage.md"
       }
     ]
   },
@@ -14685,7 +14706,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "游戏资源消耗怎么设计：把行动成本算到最后一步",
       "en": "How to Design Resource Costs: Calculate Every Route to Its End"
@@ -14732,8 +14753,8 @@
           "en": "Calculate Costs Through Settlement Before Comparing Choices"
         },
         "body": {
-          "zh": "| 路线 | 算式 | 返回后电量 | 可实现的结果 |\n|---|---|---|---|\n| 东坡采样返航 | 10−2−2−2 | 4 | 4份样本，并可耗电3开信标 |\n| 西坡采样返航 | 10−3−3−3 | 1 | 9份样本，不能再开信标 |\n| 先开信标，再走东坡 | 10−3−2−2−2 | 1 | 信标开启，提交4份样本 |\n| 先开信标，再去西坡采样 | 10−3−3−3 | 1，仍在西坡 | 无法支付返航成本3 |\n\n这组设计给出的是“更多样本”与“少量样本加信标”的取舍。若玩家只追求样本数量，西坡当然更合适；若信标对后续完全没有作用，界面却宣称两条路线各有优势，就要补足信标的真实作用或改掉承诺。不要靠写一句“所有选择都很重要”掩盖收益差异。\n\n最后一行揭示的失败要单独裁决：如果设计允许玩家在明知风险后耗尽资源，就需要事前提示、明确失败原因和可用的重开方式。如果关卡承诺新手不会因出发顺序被困，那么只检查单次行动成本不够，应在信标已开启时阻止西坡出发，并说明“剩余7，完成西坡往返需要9”。选择哪种规则，取决于这关承诺的体验。",
-          "en": "| Route | Calculation | Energy and location after the listed actions | Achievable result |\n|---|---|---|---|\n| East sampling round trip | 10−2−2−2 | 4 | 4 samples, with enough energy to spend 3 on the beacon |\n| West sampling round trip | 10−3−3−3 | 1 | 9 samples; beacon no longer available |\n| Beacon first, then east | 10−3−2−2−2 | 1 | Beacon active and 4 samples submitted |\n| Beacon first, then sample west | 10−3−3−3 | 1, still on west slope | Cannot pay the return cost of 3 |\n\nThe design creates a tradeoff between more samples and fewer samples plus the beacon. If the player cares only about sample quantity, west is plainly better. If the beacon has no later function, an interface claim that both routes have advantages is empty; give the beacon a real function or revise the promise. Do not hide unequal rewards behind “every choice matters.”\n\nThe final row needs a separate ruling. If players may knowingly exhaust a resource, they need advance warning, a clear failure reason, and an available restart. If the level promises that a new player will not become trapped by departure order, checking single-action cost is insufficient. Once the beacon is active, prevent westward departure and explain: “7 energy remaining; a west-slope round trip requires 9.” Which rule is right depends on the experience this level promises."
+          "zh": "| 路线 | 演算与结果 |\n|---|---|\n| 东坡采样返航 | 10−2−2−2；余额/位置：4；4份样本，并可耗电3开信标 |\n| 西坡采样返航 | 10−3−3−3；余额/位置：1；9份样本，不能再开信标 |\n| 先开信标，再走东坡 | 10−3−2−2−2；余额/位置：1；信标开启，提交4份样本 |\n| 先开信标，再去西坡采样 | 10−3−3−3；余额/位置：1，仍在西坡；无法支付返航成本3 |\n\n这组设计给出的是“更多样本”与“少量样本加信标”的取舍。若玩家只追求样本数量，西坡当然更合适；若信标对后续完全没有作用，界面却宣称两条路线各有优势，就要补足信标的真实作用或改掉承诺。不要靠写一句“所有选择都很重要”掩盖收益差异。\n\n最后一行揭示的失败要单独裁决：如果设计允许玩家在明知风险后耗尽资源，就需要事前提示、明确失败原因和可用的重开方式。如果关卡承诺新手不会因出发顺序被困，那么只检查单次行动成本不够，应在信标已开启时阻止西坡出发，并说明“剩余7，完成西坡往返需要9”。选择哪种规则，取决于这关承诺的体验。",
+          "en": "| Route | Result |\n|---|---|\n| East sampling round trip | 10−2−2−2. Balance/location: 4. 4 samples, with enough energy to spend 3 on the beacon |\n| West sampling round trip | 10−3−3−3. Balance/location: 1. 9 samples; beacon no longer available |\n| Beacon first, then east | 10−3−2−2−2. Balance/location: 1. Beacon active and 4 samples submitted |\n| Beacon first, then sample west | 10−3−3−3. Balance/location: 1, still on west slope. Cannot pay the return cost of 3 |\n\nThe design creates a tradeoff between more samples and fewer samples plus the beacon. If the player cares only about sample quantity, west is plainly better. If the beacon has no later function, an interface claim that both routes have advantages is empty; give the beacon a real function or revise the promise. Do not hide unequal rewards behind “every choice matters.”\n\nThe final row needs a separate ruling. If players may knowingly exhaust a resource, they need advance warning, a clear failure reason, and an available restart. If the level promises that a new player will not become trapped by departure order, checking single-action cost is insufficient. Once the beacon is active, prevent westward departure and explain: “7 energy remaining; a west-slope round trip requires 9.” Which rule is right depends on the experience this level promises."
         }
       },
       {
@@ -16121,7 +16142,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "related": [
       "/novel-to-game/quick-start",
       "/novel-to-game/meaningful-choices",
@@ -16174,8 +16195,8 @@
           "en": "Original Design Example: The Night-Shift Wind Gate of Paper City"
         },
         "body": {
-          "zh": "以下是纸面设计，没有构建或试玩结果。虚构游戏中，玩家是纸城夜班维护员。城里只有一股机械风，同一时刻只能送往一个城区。每区都有一座纸轮；纸轮转动后会带动当地电梯，维护员才能进入更高处。沙尘会堵住当前受风区的过滤网，堵塞程度通过纸旗抬起的高度、齿轮声和风门旁刻度共同显示。\n\n**一轮目标**：让一座停转纸轮恢复，并到达该区高台。\n\n| 环节 | 本例中的内容 |\n|---|---|\n| 读取状态 | 看三城区纸旗、听齿轮声、检查风门刻度，判断哪区缺风，以及哪些滤网已堵或接近堵塞 |\n| 选择动作 | 转动风门，或先到近处拍净一张滤网 |\n| 世界规则 | 一次只给一城区送风；堵塞滤网会削弱送风，完全堵塞则纸轮不转 |\n| 人物处境变化 | 受风区改变，纸轮从停转到转动，另一城区暂时失去风 |\n| 反馈 | 纸旗抬起、纸轮声恢复、电梯指示牌翻面；失败时刻度升高但纸轮不动 |\n| 下一步机会 | 电梯开启高台路线；停风区的变化成为下一轮要处理的局面 |\n| 结束标记 | 玩家乘电梯抵达高台，看到新的风路分配图 |\n\n**代表路径**：先发现东区旗帜低垂且滤网畅通，同时北区滤网接近堵塞；玩家暂时把风留在北区，拍净滤网，再转向东区。东区纸轮转动、电梯开放，北区虽然停风，滤网却已恢复容量。玩家到达东区高台后，发现下一轮要在西区货梯启动前重新分风。\n\n这条路径里，清滤网改变后续可用时间，转风门改变空间机会，抵达高台给出本轮终态。若清滤网只播放动作、完全不影响送风结果，它就不属于核心循环。",
-          "en": "The following is a paper design, not a report of a build or playtest. In this fictional game, the player is Paper City's night-shift maintenance worker. The city has only one stream of mechanical wind, which can be sent to only one district at a time. Each district has a paper wheel. Once its wheel turns, it powers the local elevator and lets the maintenance worker reach higher areas. Dust clogs the filter in whichever district currently receives wind. The degree of blockage is shown through the height of its paper flags, the sound of its gears, and a gauge beside the wind gate.\n\n**Goal of one cycle:** Restart one stalled paper wheel and reach that district's upper platform.\n\n| Stage | Content in this example |\n|---|---|\n| Read the state | Look at the three districts' paper flags, listen to the gears, and check the wind-gate gauge to determine which district lacks wind and which filters are clogged or close to clogging |\n| Choose an action | Turn the wind gate, or first go to a nearby filter and beat the dust out of it |\n| World rule | Wind reaches one district at a time; a clogged filter weakens the flow, and a fully clogged filter prevents the paper wheel from turning |\n| State change | The district receiving wind changes, one paper wheel goes from stopped to turning, and another district temporarily loses wind |\n| Feedback | Paper flags rise, the sound of the wheel returns, and the elevator sign flips; on failure, the gauge rises but the wheel does not move |\n| Next opportunity | The elevator opens a route to the upper platform; changes in the district that lost wind become the situation to address in the next cycle |\n| End marker | The player rides the elevator to the upper platform and sees a new wind-routing diagram |\n\n**Representative path:** The player first sees the East District's flags hanging low with its filter clear, while the North District's filter is close to clogging. They keep the wind in the North District for the moment, clean its filter, and then redirect the wind east. The East District's paper wheel turns and its elevator opens. The North District loses wind, but its filter has regained capacity. On reaching the East District's upper platform, the player learns that the wind must be redirected again before the West District's freight elevator can start in the next cycle.\n\nAlong this path, cleaning the filter changes how much usable time remains, turning the wind gate changes spatial opportunities, and reaching the upper platform establishes the cycle's final state. If cleaning the filter merely plays an animation and never affects the wind-delivery result, it does not belong in the core loop."
+          "zh": "以下是纸面设计，没有构建或试玩结果。虚构游戏中，玩家是纸城夜班维护员。城里只有一股机械风，同一时刻只能送往一个城区。每区都有一座纸轮；纸轮转动后会带动当地电梯，维护员才能进入更高处。沙尘会堵住当前受风区的过滤网，堵塞程度通过纸旗抬起的高度、齿轮声和风门旁刻度共同显示。\n\n**一轮目标**：让一座停转纸轮恢复，并到达该区高台。\n\n| 环节 | 本例中的内容 |\n|---|---|\n| 读取状态 | 看三城区纸旗、听齿轮声、检查风门刻度，判断哪区缺风，以及哪些滤网已堵或接近堵塞 |\n| 选择动作 | 转动风门，或先到近处拍净一张滤网 |\n| 世界规则 | 一次只给一城区送风；堵塞滤网会削弱送风，完全堵塞则纸轮不转 |\n| 人物处境变化 | 受风区改变，纸轮从停转到转动，另一城区暂时失去风 |\n| 反馈 | 纸旗抬起、纸轮声恢复、电梯指示牌翻面；失败时刻度升高但纸轮不动 |\n| 下一步机会 | 电梯开启高台路线；停风区的变化成为下一轮要处理的局面 |\n| 结束标记 | 玩家乘电梯抵达高台，看到新的风路分配图 |\n\n**代表路径**：先发现东区旗帜低垂且滤网畅通，同时北区滤网接近堵塞；玩家暂时把风留在北区，拍净滤网，再转向东区。东区纸轮转动、电梯开放，北区虽然停风，滤网却已恢复容量。玩家到达东区高台后，发现下一轮要在西区货梯启动前重新分风。\n\n纸旗低垂可能来自停风或堵塞，不能单靠旗高判原因；本例还需读取风门方向、滤网刻度与实际滤网状态。清理只恢复本例已定义的滤网容量，不额外承诺持续几秒。\n\n这条路径里，清滤网使北区下一次受风时不再沿用旧堵塞，转风门改变空间机会，抵达高台给出本轮终态。若清滤网只播放动作、完全不影响送风结果，它就不属于核心循环。",
+          "en": "The following is a paper design, not a report of a build or playtest. In this fictional game, the player is Paper City's night-shift maintenance worker. The city has only one stream of mechanical wind, which can be sent to only one district at a time. Each district has a paper wheel. Once its wheel turns, it powers the local elevator and lets the maintenance worker reach higher areas. Dust clogs the filter in whichever district currently receives wind. The degree of blockage is shown through the height of its paper flags, the sound of its gears, and a gauge beside the wind gate.\n\n**Goal of one cycle:** Restart one stalled paper wheel and reach that district's upper platform.\n\n| Stage | Content in this example |\n|---|---|\n| Read the state | Look at the three districts' paper flags, listen to the gears, and check the wind-gate gauge to determine which district lacks wind and which filters are clogged or close to clogging |\n| Choose an action | Turn the wind gate, or first go to a nearby filter and beat the dust out of it |\n| World rule | Wind reaches one district at a time; a clogged filter weakens the flow, and a fully clogged filter prevents the paper wheel from turning |\n| State change | The district receiving wind changes, one paper wheel goes from stopped to turning, and another district temporarily loses wind |\n| Feedback | Paper flags rise, the sound of the wheel returns, and the elevator sign flips; on failure, the gauge rises but the wheel does not move |\n| Next opportunity | The elevator opens a route to the upper platform; changes in the district that lost wind become the situation to address in the next cycle |\n| End marker | The player rides the elevator to the upper platform and sees a new wind-routing diagram |\n\n**Representative path:** The player first sees the East District's flags hanging low with its filter clear, while the North District's filter is close to clogging. They keep the wind in the North District for the moment, clean its filter, and then redirect the wind east. The East District's paper wheel turns and its elevator opens. The North District loses wind, but its filter has regained capacity. On reaching the East District's upper platform, the player learns that the wind must be redirected again before the West District's freight elevator can start in the next cycle.\n\nA low flag can mean no wind or blockage, so it alone does not identify the cause. Read wind direction, the gauge and actual filter condition too. Cleaning restores the stated capacity without promising an unspecified duration.\n\nAlong this path, cleaning prevents the old blockage from carrying into the North District’s next wind supply, turning the wind gate changes spatial opportunities, and reaching the upper platform establishes the cycle's final state. If cleaning the filter merely plays an animation and never affects the wind-delivery result, it does not belong in the core loop."
         }
       },
       {
@@ -16260,7 +16281,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "related": [
       "/novel-to-game/quick-start",
       "/novel-to-game/meaningful-choices",
@@ -16291,8 +16312,8 @@
           "en": "Map the Level Route, Then Give Each Segment a New Decision"
         },
         "body": {
-          "zh": "把关卡拆成玩家能感知的局面，不先套统一段数。每段填写：\n\n| 项目 | 设计问题 |\n|---|---|\n| 进入状态 | 玩家已经学会什么、持有什么、知道什么 |\n| 本段新决定 | 新增的是判断、取舍还是规则组合 |\n| 承载局面 | 哪个空间、对阵或限制让决定发生 |\n| 玩家动作 | 怎样实际使用已学规则或试出新规则 |\n| 世界回应 | 哪个结果变得可见并改变后续 |\n| 结束标记 | 什么可观察状态说明本段完成 |\n| 下一段重组 | 旧办法将怎样遇到冲突或新条件 |\n\n一段可以教一条规则，也可以检验已经学会的组合。若“新决定”一栏只能写“再做一次”，这一段需要重新设计或删除。",
-          "en": "Break the level into situations players can perceive instead of forcing every level into the same number of segments. Fill in these fields for each segment:\n\n| Item | Design question |\n|---|---|\n| Entry state | What have players learned, acquired, or discovered? |\n| New decision | Does this segment add a judgment, tradeoff, or rule combination? |\n| Supporting situation | What space, encounter, or constraint makes the decision happen? |\n| Player action | How do players apply a learned rule or test a new one? |\n| World response | What outcome becomes visible and changes what follows? |\n| End marker | What observable state shows that the segment is complete? |\n| Next recombination | How will an old approach meet a conflict or new condition? |\n\nA segment may teach one rule or test a combination players have already learned. If the only entry you can write under “New decision” is “do it again,” redesign or remove the segment."
+          "zh": "把关卡拆成玩家能感知的局面，不先套统一段数。每段填写：\n\n| 项目 | 设计问题 |\n|---|---|\n| 进入状态 | 玩家已经学会什么、持有什么、知道什么 |\n| 本段新决定 | 新增的是判断、取舍还是规则组合 |\n| 承载局面 | 哪个空间、对阵或限制让决定发生 |\n| 玩家动作 | 怎样实际使用已学规则或试出新规则 |\n| 世界回应 | 哪个结果变得可见并改变后续 |\n| 结束标记 | 什么可观察状态说明本段完成 |\n| 下一段重组 | 旧办法将怎样遇到冲突或新条件 |\n\n一段可以教一条规则，也可以检验已经学会的组合。练习、恢复和气氛段也可使用已知动作；若重复既未帮助掌握，也未改变压力、体验或后续状态，再考虑合并或删除。",
+          "en": "Break the level into situations players can perceive instead of forcing every level into the same number of segments. Fill in these fields for each segment:\n\n| Item | Design question |\n|---|---|\n| Entry state | What have players learned, acquired, or discovered? |\n| New decision | Does this segment add a judgment, tradeoff, or rule combination? |\n| Supporting situation | What space, encounter, or constraint makes the decision happen? |\n| Player action | How do players apply a learned rule or test a new one? |\n| World response | What outcome becomes visible and changes what follows? |\n| End marker | What observable state shows that the segment is complete? |\n| Next recombination | How will an old approach meet a conflict or new condition? |\n\nA segment may teach one rule or test a combination players have already learned. Practice, recovery and atmosphere may use familiar actions. Consider merging or deleting repetition when it supports neither mastery nor a change in pressure, experience or later state."
         }
       },
       {
@@ -16302,8 +16323,8 @@
           "en": "Let Players Cause the First Result Themselves"
         },
         "body": {
-          "zh": "规则说明不能替代行动。第一次出现新规则时，给玩家一个能看见前置、尝试动作、读到结果的局面。失败反馈也要靠近原因，让玩家知道下一次改什么。\n\n教学完成后，下一段不必继续弹同一说明。可以改变空间、目标或同时生效的规则，让玩家主动回忆。重复同一操作但扩大数值，只会延长时间；重组规则才会带来新判断。",
-          "en": "A rule explanation cannot replace action. When a new rule first appears, give players a situation in which they can see the prerequisite, try the action, and read the result. Keep failure feedback close to its cause so players know what to change next time.\n\nAfter the teaching segment, the next segment does not need to repeat the same pop-up. Change the space, objective, or rules in effect so players must recall the lesson themselves. Repeating the same action with larger numbers only adds time; recombining rules creates a new decision."
+          "zh": "规则说明不能替代行动。第一次出现新规则时，给玩家一个能看见前置、尝试动作、读到结果的局面。失败反馈也要靠近原因，让玩家知道下一次改什么。\n\n教学完成后，下一段不必继续弹同一说明。可以改变空间、目标或同时生效的规则，让玩家主动回忆。增大数值可能改变资源与风险判断，也可能只延长时间；先检查实际影响，再决定是否需要重组规则。",
+          "en": "A rule explanation cannot replace action. When a new rule first appears, give players a situation in which they can see the prerequisite, try the action, and read the result. Keep failure feedback close to its cause so players know what to change next time.\n\nAfter the teaching segment, the next segment does not need to repeat the same pop-up. Change the space, objective, or rules in effect so players must recall the lesson themselves. Larger values may change resource or risk judgments, or merely add time. Check their actual effect before deciding to recombine rules."
         }
       },
       {
@@ -16313,8 +16334,8 @@
           "en": "Original Design Example: The Shadowlight Theater's Missing Set Piece"
         },
         "body": {
-          "zh": "以下为纸面关卡设计，没有构建、试玩或节奏测试。虚构游戏中，玩家是影灯剧院的舞台修复员。每盏影灯能把一个纸偶的影子投到幕布上；影子压住幕布上的机关纹路时，对应舞台门会开启。两盏灯同时照到同一纸偶，影子会分叉，门无法识别。玩家可以移动纸偶、开关影灯和拉动幕布轨道。\n\n本关目标是找到失踪的“月舟”布景，并把它送回后台升降台。\n\n| 段落 | 进入状态与新决定 | 局面、回应与结束标记 |\n|---|---|---|\n| 空台 | 玩家只知道单灯投影；决定纸偶放在哪个标记前 | 移动纸偶并开灯，影子压住圆纹，侧门打开；玩家穿过侧门为结束 |\n| 双灯廊 | 已会单灯；新问题是第二盏灯会让影子分叉 | 关掉远灯，或把纸偶移出其中一盏灯的照射范围；影子恢复单一轮廓，轨道锁解除 |\n| 移动幕墙 | 已会处理灯光冲突，且上一段已解锁幕布轨道；新问题是幕布会移动，固定位置失效 | 先把纸偶放上固定在幕轨上的平台，再拉动幕布轨道并开近灯；平台随幕同步移动，纸偶与幕布机关纹路保持对位，库房门打开 |\n| 返台 | 玩家找到月舟；旧规则与搬运冲突：双手推布景时不能移动纸偶 | 先设置灯和纸偶，再推月舟经过已开启路线；月舟进入升降台并亮起后台编号牌，关卡结束 |\n\n四段没有要求所有项目照用。这里的节奏来自“单灯成立—双灯制造冲突—移动幕墙改变位置关系—搬运限制要求预先安排”。每段都让旧规则以新条件重新出现。",
-          "en": "The following is a paper level design. It has not been built, playtested, or tested for pacing. In this fictional game, the player is a stage restorer at the Shadowlight Theater. Each shadow lamp projects the silhouette of a paper puppet onto a screen. When the silhouette covers a mechanism pattern on the screen, the corresponding stage door opens. If two lamps illuminate the same puppet at once, its silhouette splits and the door cannot recognize it. The player can move puppets, switch shadow lamps on and off, and pull the screen along its track.\n\nThe objective is to find the missing “Moon Boat” set piece and return it to the backstage lift.\n\n| Segment | Entry state and new decision | Situation, response, and end marker |\n|---|---|---|\n| Empty Stage | The player knows only single-lamp projection and must decide which marker to place the puppet before | Move the puppet and switch on the lamp. Its silhouette covers the circular pattern, opening a side door; the segment ends when the player passes through it |\n| Two-Lamp Corridor | The player knows how one lamp works; the new problem is that a second lamp splits the silhouette | Switch off the distant lamp or move the puppet outside one lamp’s beam; the silhouette returns to a single outline and the track lock releases |\n| Moving Screen | The player knows how to resolve conflicting lights, and the track was unlocked in the previous segment; now the moving screen makes a fixed position ineffective | Put the puppet on the platform attached to the screen carrier, pull the screen along the track, and switch on the near lamp. The platform moves with the screen, keeping the puppet’s shadow aligned with the mechanism pattern and opening the storeroom door |\n| Return to the Stage | The player has found the Moon Boat; an earlier rule now conflicts with transport because both hands are needed to push the set piece, leaving no way to move a puppet | Arrange the lamps and puppets first, then push the Moon Boat along the opened route; when it reaches the lift, the backstage number plate lights up and the level ends |\n\nThese four segments do not mechanically use every field in the worksheet. Their pacing comes from this progression: one lamp works, two lamps create a conflict, the moving screen changes the spatial relationship, and the transport constraint demands advance planning. Each segment brings an old rule back under a new condition."
+          "zh": "以下为原创纸面关卡，尚未构建或试玩。玩家是影灯剧院的舞台修复员：单盏灯给纸偶投出单一影子，两盏照同一纸偶会形成分叉。每处幕布机关只在幕布定位、单影压中纹路时识别；识别后对应门锁定开放，直到关卡复位。固定幕布已定位；移动幕布需玩家拉下定位销。以上为本例游戏规则，不是舞台设备的真实工作原理。\n\n目标是把库房里的“月舟”布景送回后台升降台。玩家能移动纸偶、开关灯、移动幕布并定位；双手推扶月舟时，不能同时操作纸偶或灯。完整路线如下，段数与顺序不是通用模板。\n\n| 段落 | 局面、动作与结果 |\n|---|---|\n| 空台 | 单灯、固定幕布。把纸偶移到圆纹前并开灯；单影压中纹路，侧门锁定开放，穿过侧门结束本段 |\n| 双灯廊 | 两灯同照产生分叉。关远灯或移开纸偶避开一束光，保留近灯的单影对位；门开启并解除下一处幕轨锁 |\n| 移动幕墙 | 纸偶与近灯保持固定，幕布尚未对位。移动幕布到纹路与单影重叠处，再拉下定位销；识别条件成立，库房门锁定开放 |\n| 返台 | 月舟已找到，返程货运门尚未打开。先给货运门机关安排单灯与纸偶对位，开门后再双手推月舟通过；月舟到升降台，编号牌亮起，本关结束 |\n\n第三段不声称“纸偶随幕移动就必然让影子对位”：光、纸偶与投影面的相对关系必须能在实现中读到。这里明确保持单影，再移动幕布并定位。返程沿用已开放的门，新货运门提前安排；没有要求玩家推布景时同时挪纸偶。\n\n下一步分别观察玩家能否理解分叉、是否看到幕布已定位、货运门是否真的保持开放。纸面描述可核对规则，不能证明投影显示、操作手感与节奏已经成立。",
+          "en": "This original paper level has not been built or playtested. The player restores a theater using shadow lamps: one lamp projects a single puppet silhouette, while two illuminating the same puppet produce a split. A screen mechanism recognizes a single shadow covering its pattern only when the screen is secured. Recognition latches its door open until level reset. Fixed screens start secured; movable screens need the player to engage a locating pin. These are fictional game rules, not claims about real theater equipment.\n\nThe goal is returning the Moon Boat set piece from the storeroom to the backstage lift. Players move puppets, switch lamps and move or secure screens. Both hands pushing the boat cannot simultaneously adjust a puppet or lamp. This route is not a universal segment template.\n\n| Segment | Situation, action and result |\n|---|---|\n| Empty Stage | One lamp and a secured screen. Move the puppet before the circular pattern and switch on the lamp; recognition latches the side door open. Passing through ends the segment |\n| Two-Lamp Corridor | Two beams create a split. Turn off the distant lamp or move the puppet out of one beam, retaining the near lamp’s aligned single shadow. The door opens and releases the next screen track |\n| Moving Screen | Keep puppet and near lamp fixed. Move the unsecured screen until its pattern overlaps the single shadow, then engage the pin; recognition latches the storeroom door open |\n| Return | The boat is found but the return cargo door remains closed. Arrange that door’s lamp and puppet first, then push the boat through with both hands. Reaching the lift lights its number plate and ends the level |\n\nThe third segment does not assume that moving a puppet with a screen guarantees shadow alignment. The relationship among lamp, puppet and projection surface must be readable in implementation. Here the shadow stays fixed while the screen moves into alignment and is secured. The return keeps earlier doors open and prepares a new cargo door before transport, without simultaneous puppet manipulation.\n\nNext observe whether players understand splitting, see the secured screen and encounter a cargo door that truly stays open. Paper rules do not establish projection display, control feel or pacing."
         }
       },
       {
@@ -16335,8 +16356,8 @@
           "en": "Carry Each Segment's Outcome Into the Next"
         },
         "body": {
-          "zh": "关卡段落之间需要状态接力。前段打开的门、消耗的工具、改变的关系或获得的理解，应成为下一段进入状态的一部分。\n\n返台段读取的是玩家已经学会的灯光安排，同时新增“双手搬运”的限制；它没有重置成一个无关推箱谜题。月舟送达后，升降台编号牌亮起，是玩家能看见的结束标记。若月舟入台后没有任何变化，玩家无法确认本关是否完成。\n\n线性关卡也可以成立。重点是行动与回响清楚，不必为了显得自由强加分支路线。",
-          "en": "State must carry from one level segment into the next. A door opened, a tool spent, a relationship changed, or an insight gained in one segment should become part of the next segment's entry state.\n\nThe Return to the Stage segment draws on the lighting arrangements players have learned while adding the constraint that carrying requires both hands. It does not reset into an unrelated box-pushing puzzle. After the Moon Boat arrives, the number plate on the lift lights up as a visible end marker. If nothing changes when the set piece enters the lift, players cannot confirm that the level is complete.\n\nA linear level can work. What matters is a clear action and response; do not force branching routes merely to create the appearance of freedom."
+          "zh": "关卡段落之间需要状态接力：前段打开的门、获得的规则理解与解开的幕轨锁，应进入下一段，而不是每到新地点就恢复空白。\n\n本例门开启后保持开放，避免玩家离开纸偶就失去已走路线；第三段明确检查幕布定位，返台段在推月舟前安排货运门。编号牌亮起只表示布景到达升降台，不等于整场演出完成。\n\n线性路线可以包含空间阅读、操作判断和复用已学规则；不必强加多条路线。教学、变化、练习与恢复怎样分配，仍需结合本作节奏。",
+          "en": "Carry open doors, learned rules and the released track into later segments rather than resetting each new location to blank state.\n\nDoors remain open after recognition, preserving an earlier route when the player leaves a puppet. The third segment checks screen securing; the return prepares the cargo door before pushing. The lit plate means the set piece reached the lift, not that the entire performance is complete.\n\nA linear route can include spatial reading, execution judgments and reused rules without forced branches. Allocate teaching, variation, practice and recovery to the project’s pacing."
         }
       },
       {
@@ -16357,8 +16378,8 @@
           "en": "Common Problems and Fixes"
         },
         "body": {
-          "zh": "| 失败 | 修正 |\n|---|---|\n| 每段只增加敌人数值或谜题数量 | 给每段写一项新的判断或规则组合 |\n| 教学只弹说明，玩家没有亲手造成结果 | 安排一次动作—回应—结束标记 |\n| 新规则用过一次便消失 | 在后段用新条件重新读取它 |\n| 删除一段对后文毫无影响 | 合并、删除，或补足真正的状态接力 |\n| 为防重复不断增加新系统 | 先重组现有规则、空间和目标 |\n| 纸面路线直接宣称节奏流畅 | 标明未试玩，构建后再观察时长与理解 |",
-          "en": "| Problem | Fix |\n|---|---|\n| Each segment only increases enemy values or the number of puzzles | Give each segment a new judgment or rule combination |\n| Teaching consists only of a pop-up, so players never cause the result themselves | Arrange an action, response, and end marker |\n| A new rule disappears after one use | Bring it back later under a new condition |\n| Removing a segment has no effect on anything that follows | Merge or remove it, or add a genuine state handoff |\n| New systems keep being added to prevent repetition | Recombine existing rules, spaces, and objectives first |\n| A paper route is presented as proof of smooth pacing | State that it is untested, then observe timing and comprehension after building it |"
+          "zh": "| 失败 | 修正 |\n|---|---|\n| 数值或数量上涨，却未改变判断与体验 | 给每段写一项新的判断或规则组合 |\n| 教学只弹说明，玩家没有亲手造成结果 | 安排一次动作—回应—结束标记 |\n| 新规则用过一次便消失 | 在后段用新条件重新读取它 |\n| 删除一段对后文毫无影响 | 合并、删除，或补足真正的状态接力 |\n| 为防重复不断增加新系统 | 先重组现有规则、空间和目标 |\n| 纸面路线直接宣称节奏流畅 | 标明未试玩，构建后再观察时长与理解 |",
+          "en": "| Problem | Fix |\n|---|---|\n| Values or quantities rise without changing decisions or experience | Give each segment a new judgment or rule combination |\n| Teaching consists only of a pop-up, so players never cause the result themselves | Arrange an action, response, and end marker |\n| A new rule disappears after one use | Bring it back later under a new condition |\n| Removing a segment has no effect on anything that follows | Merge or remove it, or add a genuine state handoff |\n| New systems keep being added to prevent repetition | Recombine existing rules, spaces, and objectives first |\n| A paper route is presented as proof of smooth pacing | State that it is untested, then observe timing and comprehension after building it |"
         }
       }
     ],
@@ -16369,8 +16390,8 @@
           "en": "Does a level always have to get harder?"
         },
         "a": {
-          "zh": "关卡需要带来新的判断或规则组合，难度不必单向上升。收束段可以减少压力，让玩家用已经掌握的规则完成目标并看见结果。",
-          "en": "A level should introduce a new judgment or rule combination, but its difficulty does not have to rise continuously. A closing segment can reduce the pressure and let players use rules they have mastered to complete the objective and see the result."
+          "zh": "不必。变化、练习、恢复和收束可以交替；检查每段如何影响掌握、压力、体验或后文，不要求难度单向增加，也不要求每段新造规则。",
+          "en": "No. Variation, practice, recovery and closure can alternate. Check each segment’s contribution to mastery, pressure, experience or later play without requiring rising difficulty or a new rule every time."
         }
       },
       {
@@ -16560,7 +16581,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "related": [
       "/novel-to-game/quick-start",
       "/novel-to-game/meaningful-choices",
@@ -16613,8 +16634,8 @@
           "en": "Original Design Example: Failure and Restart in an Old-City Photo Exhibition"
         },
         "body": {
-          "zh": "以下是原创纸面设计，不是构建、试玩或平衡结论。虚构游戏让玩家为旧城档案室准备一场照片展：桌上有三张老街照片、可公开查阅的日期簿和一位老居民的口述资料。主任务是按日期排好照片；人物关系展签是可选内容，不确定时可以如实标成“待考”。本例的口述资料只在本轮筹备中开放一次，依据的是这位居民只接受这一场访谈的故事设定，不是通用的失败次数规则。展览只印制一次：若提交的主时间线与公开日期簿冲突，开幕方会取消本轮展览。\n\n| 结果 | 可观察触发（最后一次可改变的行动） | 终态 | 后续 |\n|---|---|---|---|\n| 较弱完成 | 三张照片都按日期簿排对；玩家把无法证实的人物关系标为“待考”，随后选择“送印” | 时间线正确、关系展签留白；本轮展览开放 | 目录明确保留未确认项，不把猜测写成事实；本轮不能再改已印目录 |\n| 软失败 | 玩家在口述会谈中把未经资料支持的亲属关系说成定论；居民当场指出依据不足并收回口述资料 | 唯一的口述资料机会结束，但照片展筹备仍继续；日期簿和已排照片保留，尚未送印 | 玩家可继续用公开日期完成主时间线，把关系标为“待考”；口述资料本轮不可取回，主流程没有重置 |\n| 硬失败 | 玩家提交的照片顺序与桌上可见的日期簿冲突，最后仍选择“送印” | 审核单标出矛盾日期；由于本轮唯一开幕安排已过，展览取消，本轮结束 | 只能选择“重新筹备”，进入下方定义的完整初态；不能在已结束的本轮偷偷改印 |\n\n**软失败后的当前状态。** 例如，玩家已按日期簿放好两张照片，第三张仍在照片槽；日期簿保持打开，两张既有摆放保留，关系展签仍未确认。口述资料状态变为“本轮不可查阅”，访谈请求已结束；印制状态仍为未提交，展览取消标记为假，界面显示“口述资料已撤回；仍可按公开日期完成时间线”。玩家的下一项可用行动，是查看打开的日期簿并摆放第三张照片，或把关系展签留作“待考”。没有按钮能重新索要这份口述资料；继续主任务不是重试访谈。\n\n**硬失败后的整轮重开。** 玩家回到档案室筹备桌，界面没有打开的结果卡或送印对话框。三张照片都回到各自照片槽；日期簿回到本轮作者设定的起始页并保持可查；访谈请求恢复到“尚未进行”；所有摆放、关系展签、审核结论、送印记录和开幕状态都清空。展览取消标记为假，重开后的第一个可用动作，是打开日期簿核对一张照片的日期。本例重开使用相同的照片、日期簿和作者编排顺序，不抽新题、不换随机种子。\n\n**序列规则。** 本例的照片和日期证据固定。软失败后沿用当前已排状态与公开日期，不重置本轮；硬失败重开才清空筹备状态，并从相同的作者编排开始。它只说明两种恢复路径在纸面上各自读取什么状态，不证明提示易懂、展览规则有趣或实际实现能正确复位。",
-          "en": "The following is an original paper design, not a conclusion from a build, playtest, or balance test. In this fictional game, the player prepares a photo exhibition for an old-city archive. On the table are three photographs of an old street, a publicly available date ledger, and oral-history material from a longtime resident. The main task is to arrange the photographs by date. Captions about relationships between people are optional; when uncertain, the player can honestly mark them as “To Be Verified.” In this example, the oral-history material is available only once during this round of preparation because the story establishes that the resident will accept only one interview for this exhibition. This is not a general rule based on the number of failures. The exhibition has only one print run: if the submitted main timeline conflicts with the public date ledger, the opening organizers cancel the exhibition for this run.\n\n| Result | Observable trigger (last action the player could change) | Terminal state | What follows |\n|---|---|---|---|\n| Weaker completion | All three photographs are correctly ordered according to the date ledger; the player marks an unverified relationship as “To Be Verified,” then selects “Send to Print” | The timeline is correct, the relationship caption remains blank, and the exhibition opens for this run | The catalog explicitly preserves the unconfirmed item rather than presenting a guess as fact; the printed catalog cannot be changed during this run |\n| Soft failure | During the oral-history interview, the player states an unsupported family relationship as fact; the resident immediately points out the lack of support and withdraws the oral-history material | The only opportunity to consult the oral-history material ends, but exhibition preparation continues; the date ledger and photographs already placed remain, and nothing has been sent to print | The player can still use the public dates to complete the main timeline and mark the relationship as “To Be Verified”; the oral-history material cannot be recovered during this run, and the main process does not reset |\n| Hard failure | The submitted photograph order conflicts with the date ledger visible on the table, and the player still selects “Send to Print” as the final action | The review sheet marks the conflicting dates; because the only opening slot for this run has passed, the exhibition is canceled and the run ends | The only option is “Restart Preparation,” which enters the complete initial state defined below; the player cannot quietly revise the printing in a run that has already ended |\n\n**Current state after the soft failure.** For example, the player has placed two photographs according to the date ledger, while the third remains in its photo slot. The date ledger stays open, the two existing placements remain, and the relationship caption is still unconfirmed. The oral-history material changes to “Unavailable for the Rest of This Run,” and the interview request has ended. The print state remains unsubmitted, the exhibition-canceled flag is false. The interface displays: “Oral-history material withdrawn; you can still complete the timeline using public dates.” The player's next available action is to consult the open date ledger and place the third photograph, or to leave the relationship caption marked “To Be Verified.” No button can request the same oral-history material again; continuing the main task is not a retry of the interview.\n\n**Full restart after the hard failure.** The player returns to the preparation table in the archive. No result card or print dialog is open in the interface. All three photographs return to their respective photo slots. The date ledger returns to the opening page authored for this run and remains available to consult. The interview request returns to “Not Yet Conducted.” All placements, relationship captions, review findings, print records, and opening states are cleared. The exhibition-canceled flag is false. The first available action after the restart is to open the date ledger and check the date of one photograph. This example reuses the same photographs, date ledger, and authored sequence after a restart; it does not draw a new puzzle or change a random seed.\n\n**Sequence rule.** The photographs and date evidence are fixed in this example. After the soft failure, the current arrangement and public dates remain in effect; the current run does not reset. Only a restart after hard failure clears the preparation state and begins again from the same authored sequence. This only shows which state each recovery path reads in the paper design. It does not establish that the prompts are easy to understand, that the exhibition rules are fun, or that an implementation can reset correctly."
+          "zh": "以下是原创纸面设计，不是构建、试玩或平衡结论。虚构游戏让玩家为旧城档案室准备一场照片展：桌上有三张老街照片、可公开查阅的日期簿和一位老居民的口述资料。主任务是按日期排好照片；人物关系展签是可选内容，不确定时可以如实标成“待考”。本例的口述资料只在本轮筹备中开放一次，依据的是这位居民只接受这一场访谈的故事设定，不是通用的失败次数规则。展览只印制一次：若提交的主时间线与公开日期簿冲突，开幕方会取消本轮展览。\n\n| 结果 | 触发、状态与后续 |\n|---|---|\n| 较弱完成 | **触发**：三张照片都按日期簿排对；玩家把无法证实的人物关系标为“待考”，随后选择“送印”。**状态**：时间线正确、关系展签留白；本轮展览开放。**后续**：目录明确保留未确认项，不把猜测写成事实；本轮不能再改已印目录 |\n| 软失败 | **触发**：玩家在口述会谈中把未经资料支持的亲属关系说成定论；居民当场指出依据不足并收回口述资料。**状态**：唯一的口述资料机会结束，但照片展筹备仍继续；日期簿和已排照片保留，尚未送印。**后续**：玩家可继续用公开日期完成主时间线，把关系标为“待考”；口述资料本轮不可取回，主流程没有重置 |\n| 硬失败 | **触发**：玩家提交的照片顺序与桌上可见的日期簿冲突，最后仍选择“送印”。**状态**：审核单标出矛盾日期；本轮只允许一次印制，错误目录无法在本轮重印，展览取消，本轮结束。**后续**：只能选择“重新筹备”，进入下方定义的完整初态；不能在已结束的本轮偷偷改印 |\n\n**软失败后的当前状态。** 例如，玩家已按日期簿放好两张照片，第三张仍在照片槽；日期簿保持打开，两张既有摆放保留，关系展签仍未确认。口述资料状态变为“本轮不可查阅”，访谈请求已结束；印制状态仍为未提交，展览取消标记为假，界面显示“口述资料已撤回；仍可按公开日期完成时间线”。玩家的下一项可用行动，是查看打开的日期簿并摆放第三张照片，或把关系展签留作“待考”。没有按钮能重新索要这份口述资料；继续主任务不是重试访谈。\n\n**硬失败后的整轮重开。** 玩家回到档案室筹备桌，界面没有打开的结果卡或送印对话框。三张照片都回到各自照片槽；日期簿回到本轮作者设定的起始页并保持可查；访谈请求恢复到“尚未进行”；所有摆放、关系展签、审核结论、送印记录和开幕状态都清空。展览取消标记为假，重开后的第一个可用动作，是打开日期簿核对一张照片的日期。本例重开使用相同的照片、日期簿和作者编排顺序，不抽新题、不换随机种子。\n\n**序列规则。** 本例的照片和日期证据固定。软失败后沿用当前已排状态与公开日期，不重置本轮；硬失败重开才清空筹备状态，并从相同的作者编排开始。它只说明两种恢复路径在纸面上各自读取什么状态，不证明提示易懂、展览规则有趣或实际实现能正确复位。",
+          "en": "The following is an original paper design, not a conclusion from a build, playtest, or balance test. In this fictional game, the player prepares a photo exhibition for an old-city archive. On the table are three photographs of an old street, a publicly available date ledger, and oral-history material from a longtime resident. The main task is to arrange the photographs by date. Captions about relationships between people are optional; when uncertain, the player can honestly mark them as “To Be Verified.” In this example, the oral-history material is available only once during this round of preparation because the story establishes that the resident will accept only one interview for this exhibition. This is not a general rule based on the number of failures. The exhibition has only one print run: if the submitted main timeline conflicts with the public date ledger, the opening organizers cancel the exhibition for this run.\n\n| Result | Trigger and state |\n|---|---|\n| Weaker completion | **Trigger:** All three photographs are correctly ordered according to the date ledger; the player marks an unverified relationship as “To Be Verified,” then selects “Send to Print”. **State:** The timeline is correct, the relationship caption remains blank, and the exhibition opens for this run. **Next:** The catalog explicitly preserves the unconfirmed item rather than presenting a guess as fact; the printed catalog cannot be changed during this run |\n| Soft failure | **Trigger:** During the oral-history interview, the player states an unsupported family relationship as fact; the resident immediately points out the lack of support and withdraws the oral-history material. **State:** The only opportunity to consult the oral-history material ends, but exhibition preparation continues; the date ledger and photographs already placed remain, and nothing has been sent to print. **Next:** The player can still use the public dates to complete the main timeline and mark the relationship as “To Be Verified”; the oral-history material cannot be recovered during this run, and the main process does not reset |\n| Hard failure | **Trigger:** The submitted photograph order conflicts with the date ledger visible on the table, and the player still selects “Send to Print” as the final action. **State:** The review sheet marks the conflicting dates; because this run allows only one print and the incorrect catalog cannot be reprinted, the exhibition is canceled and the run ends. **Next:** The only option is “Restart Preparation,” which enters the complete initial state defined below; the player cannot quietly revise the printing in a run that has already ended |\n\n**Current state after the soft failure.** For example, the player has placed two photographs according to the date ledger, while the third remains in its photo slot. The date ledger stays open, the two existing placements remain, and the relationship caption is still unconfirmed. The oral-history material changes to “Unavailable for the Rest of This Run,” and the interview request has ended. The print state remains unsubmitted, the exhibition-canceled flag is false. The interface displays: “Oral-history material withdrawn; you can still complete the timeline using public dates.” The player's next available action is to consult the open date ledger and place the third photograph, or to leave the relationship caption marked “To Be Verified.” No button can request the same oral-history material again; continuing the main task is not a retry of the interview.\n\n**Full restart after the hard failure.** The player returns to the preparation table in the archive. No result card or print dialog is open in the interface. All three photographs return to their respective photo slots. The date ledger returns to the opening page authored for this run and remains available to consult. The interview request returns to “Not Yet Conducted.” All placements, relationship captions, review findings, print records, and opening states are cleared. The exhibition-canceled flag is false. The first available action after the restart is to open the date ledger and check the date of one photograph. This example reuses the same photographs, date ledger, and authored sequence after a restart; it does not draw a new puzzle or change a random seed.\n\n**Sequence rule.** The photographs and date evidence are fixed in this example. After the soft failure, the current arrangement and public dates remain in effect; the current run does not reset. Only a restart after hard failure clears the preparation state and begins again from the same authored sequence. This only shows which state each recovery path reads in the paper design. It does not establish that the prompts are easy to understand, that the exhibition rules are fun, or that an implementation can reset correctly."
         }
       },
       {
@@ -26513,7 +26534,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "游戏NPC怎么设计：有自己的目标，也记得玩家",
       "en": "How to Design NPCs With Goals and Memory"
@@ -26538,8 +26559,8 @@
           "en": "Give the NPC an agenda before dialogue"
         },
         "body": {
-          "zh": "NovelToGame 的人物方法关注欲望、信息、筹码与主动行动。先问玩家来之前这个人正在做什么，玩家离开后他会继续做什么。名字、外貌和一句口头禅无法替代行动逻辑。\n\n原创例子：灯会摊主程姨想保住靠近入口的摊位，怕突然调位让老客找不到。她有提前布置的物件与熟悉人流的信息，误以为志愿者已经保证她的位置。玩家要重新安排场地，不能只点“说服”就让她放弃目标。\n\n她可以提出保留标识、延后搬动或协助引导的条件。每种回应来自当前需要，不是随机抽一句愤怒对白。",
-          "en": "NovelToGame focuses on desire, information, leverage and initiative. Ask what this person does before the player arrives and after they leave. A name, appearance and catchphrase cannot replace behavioral logic.\n\nOriginal example: vendor Cheng wants her entrance stall and fears regular customers losing her. She has setup materials and knowledge of foot traffic, and mistakenly believes a volunteer guaranteed her position. The player cannot click “persuade” to erase that goal.\n\nShe may require retained signage, a delayed move or help guiding customers. Responses follow her needs rather than a randomly selected angry line."
+          "zh": "NovelToGame 的人物方法先看欲望、信息、筹码和主动行动。玩家来之前，NPC也在忙自己的事；名字、外貌与口头禅不够解释他为何答应或拒绝。\n\n本页原创纸面游戏中，玩家负责协调灯会摊位，无权保证永久入口位；实际布置方案由场地方确认。摊主程姨已经布置好标识，担心老客找不到她。另一名志愿者说“我替你问问入口位”，她却误信已经获准。\n\n玩家应先说明确认过的方案，不能借一段生成对白把问询变成批准。程姨可以要求保留引导标识、等旧客散去再移，或拒绝尚无明确位置的方案。这些回应来自目标和已知事实。",
+          "en": "NovelToGame starts with desire, knowledge, leverage and initiative. An NPC has work before the player arrives; a name, appearance and catchphrase do not explain agreement or refusal.\n\nIn this original paper game, the player coordinates festival stalls but cannot guarantee a permanent entrance position; the venue confirms placement. Vendor Cheng has arranged her sign and fears regular customers losing her. Another volunteer said, “I’ll ask about an entrance spot,” which she mistakenly takes as approval.\n\nPresent the confirmed plan rather than letting generated dialogue turn an inquiry into permission. Cheng may request retained signage, delayed movement until customers leave, or refuse a proposal with no clear destination. Responses follow goals and known facts."
         }
       },
       {
@@ -26549,8 +26570,8 @@
           "en": "Remember acts rather than only affinity"
         },
         "body": {
-          "zh": "| 玩家历史 | NPC知道吗 | 此刻回应 |\n|---|---|---|\n| 亲口答应保留位置 | 她在场听见 | 要求解释为什么变更 |\n| 私下调查舞台漏水 | 她未在场 | 不直接提起秘密 |\n| 帮她找回摊位标识 | 她看见或得到可信转述 | 愿意听临时调整方案 |\n| 向另一人承诺同一位置 | 尚未得知 | 不提前报复；得知后再形成冲突 |\n\n记忆应改变可问内容、条件或行动。若只让她说“谢谢上次帮忙”，之后所有选项仍一样，记忆只是装饰。关系数值可辅助，但不能抹掉具体承诺。",
-          "en": "| Player history | Does Cheng know? | Current response |\n|---|---|---|\n| Promised to keep the stall | Heard it directly | Requests an explanation for change |\n| Privately investigated a leak | Was absent | Does not mention the secret |\n| Recovered her sign | Saw it or received a credible account | Will consider temporary adjustment |\n| Promised the same place elsewhere | Not yet learned | No premature retaliation |\n\nMemory should change questions, terms or action. A thank-you followed by identical options is decorative. An affinity score cannot erase a concrete promise."
+          "zh": "先区分世界发生、程姨知道与玩家知道。程姨听到玩家承诺，才可以就这次承诺追问；玩家私下调查过舞台漏水，不代表她可以立即引用调查结果。\n\n| 历史 | 当前回应依据 |\n|---|---|\n| 玩家当面答应保留引导标识 | 她听见，可在搬位前要求确认标识去向 |\n| 玩家私下发现舞台漏水 | 她未见证，不能自动提起；需要真实告知来源 |\n| 玩家找回她遗失的标识并交还 | 她收到，能够感谢并据此评估合作 |\n| 玩家向别的摊主作了冲突承诺 | 她尚未得知，不提前报复；知情后再回应 |\n\n感谢、称呼变化与温和态度也可以是有效的人物回响。只有当本作承诺记忆会改变行动或条件，却始终没有读取时，才是没有兑现；不要求每句回忆都解锁一条分支。",
+          "en": "Separate world events, Cheng’s knowledge and the player’s knowledge. She can question a promise she heard, but cannot automatically cite the player’s private leak investigation.\n\n| History | Basis for response |\n|---|---|\n| Player promises retained signage to her face | She can request its destination before relocation |\n| Player privately discovers a stage leak | She did not witness it; a real information source is needed |\n| Player returns her missing sign | Receipt supports thanks and reassessing cooperation |\n| Player makes a conflicting promise elsewhere | No retaliation before she learns it; respond after disclosure |\n\nThanks, changed forms of address and warmer tone can be meaningful character callbacks. A defect arises when promised consequences never read the memory. Every recollection need not unlock a branch."
         }
       },
       {
@@ -26560,8 +26581,8 @@
           "en": "Let the NPC initiate a response"
         },
         "body": {
-          "zh": "程姨得知搬位后，可以主动带标识来找玩家，要求先定新入口；若玩家一直回避，她按已声明的时间压力选择暂停布置。反馈说明原因，并给当前仍可做的行动，而不是静默封死路线。\n\n她也可以拒绝不符合底线的请求。AI生成对白时，只表达规则已确认的回应，不因为玩家多夸几句就偷偷改摊位归属。私人谈话产生承诺时，同样要验证条件、记录事实与知情者。\n\n主动回应不要求每个NPC复杂模拟全天日程。只实现会改变核心选择的行动与触发，避免把小原型扩成完整社会系统。",
-          "en": "After learning about relocation, Cheng can bring her sign to the player and request a new entrance plan. If avoided, she may pause setup under an established deadline. Explain the reason and remaining actions instead of silently blocking a route.\n\nShe may refuse requests crossing her boundary. Generated dialogue expresses a validated response; praise cannot secretly change stall ownership. Promises from private conversation require conditions, committed facts and witnesses too.\n\nInitiative does not require a full daily simulation for every NPC. Implement actions that affect the core decision without expanding a small prototype into a society simulator."
+          "zh": "**同一初态的两条纸面路径**：场地方已批准新位置并允许保留一块入口引导牌，玩家把方案当面出示。程姨尚未答应搬位，标识仍在旧摊旁。\n\n- **落实条件**：玩家请程姨确认引导牌位置，她指向入口柱；场地方同意该位置，玩家把牌放好，程姨亲眼检查后答应搬位。下一场才展示她移动摊物，搬完后记录新位置。答应之前不能记成已经搬走。\n- **跳过条件**：玩家拒绝安排引导牌，却要求她立即搬。程姨明确拒绝，旧摊物与位置保持；玩家仍可回场地方协商方案。她不会因为玩家多夸几句就自动改变规则结果。\n\n这两条是本例选定的回应，不是所有摊主的性格公式。程姨也可以主动带着标识来询问安排；若使用时间压力，要先声明何时触发以及会暂停什么，不能靠“拖久就失败”隐藏规则。\n\n自由对话可以提出承诺或权限候选；只有规则验证并提交后，它们才成为游戏事实。生成表达读取已经确认的结果，不拥有摊位归属的最终决定权。",
+          "en": "**Two paper paths from one starting state:** the venue has approved a new spot and permits an entrance direction sign. The player presents the plan to Cheng. She has not agreed to move; her sign stays beside the old stall.\n\n- **Fulfill the condition:** ask where the sign should go. She indicates an entrance pillar; the venue accepts the location. The player places it, and Cheng checks it before agreeing to move. The next scene shows relocation, with the new position recorded only after completion.\n- **Skip the condition:** refuse to arrange the sign and demand immediate movement. Cheng refuses; goods and position remain unchanged. The player can negotiate with the venue. Additional praise does not silently change the settled outcome.\n\nThese are this example’s selected responses, not a universal vendor formula. Cheng may initiate an inquiry with her sign. If a deadline is used, establish its trigger and what pauses rather than hiding a “delay means failure” rule.\n\nFree dialogue may propose promises or permission candidates. They become facts only after rule validation and commitment. Generated expression reads confirmed results without deciding stall ownership."
         }
       },
       {
@@ -26599,17 +26620,24 @@
     "sources": [
       {
         "label": {
-          "zh": "人物议程、知识与回响",
-          "en": "Character agendas, knowledge and callbacks"
+          "zh": "人物议程、知情与选择回响",
+          "en": "Agendas, knowledge and callbacks"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/narrative-design-method.md"
       },
       {
         "label": {
-          "zh": "人物范围与主动世界",
-          "en": "Character scope and active world responses"
+          "zh": "人物范围与主动回应",
+          "en": "Role scope and active responses"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/world-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "对话候选与最终状态提交",
+          "en": "Dialogue candidates and committed state"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
       }
     ],
     "related": [
@@ -33858,6 +33886,511 @@
       "/oh-story/story-bible-template",
       "/oh-story/ai-fiction-consistency-check",
       "/oh-story/sync-later-chapters-after-a-revision"
+    ]
+  },
+  {
+    "owner": "novel-to-game",
+    "slug": "balance-game-numbers-by-comparing-strategies",
+    "topic": "interactive-games",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "游戏数值怎么平衡：比较策略，不先套比例",
+      "en": "Balance Game Numbers by Comparing Strategies"
+    },
+    "seo_title": {
+      "zh": "游戏数值怎么平衡：比较策略，不先套比例",
+      "en": "Balance Game Numbers by Comparing Strategies"
+    },
+    "description": {
+      "zh": "先写清什么现象表示取舍失效，再用同一初态比较策略，并换局面复查。附维修行动的完整成本与期限演算。",
+      "en": "Define what breaks a tradeoff, compare strategies from the same start, then change the situation. Includes repair costs and deadline calculations."
+    },
+    "answer": {
+      "zh": "先定义数值对应的行动、目标和可见反馈，再声明哪种现象会推翻设计：一个策略通吃、路线不可达或不同选择始终同结果。用一致初态比较策略，并在另一真实局面重算；数字调整后核对实现规则。演算能发现漏洞，玩家是否觉得公平仍需试玩。",
+      "en": "Define actions, goals and visible feedback, then state what would invalidate the design: a dominant strategy, unreachable route or identical outcomes. Compare from consistent starts and recalculate in another relevant situation. Check implementation after changes. Calculations expose defects; fairness still needs playtesting."
+    },
+    "sections": [
+      {
+        "id": "define-failure",
+        "heading": {
+          "zh": "先说清“平衡”在本项目指什么",
+          "en": "Define Balance for This Project"
+        },
+        "body": {
+          "zh": "“两个技能差不多强”无法验收。先写你希望玩家作什么判断，以及什么现象表示判断消失。例如，紧急场面应考虑时间，长期行动应考虑资源；若同一动作在所有已列局面中既省时又省资源，取舍可能没有成立。\n\nNovelToGame 的数值方法要求项目自己声明有效差距与失败现象，不提供通用倍率、胜率或回合数。本页讨论**策略在不同局面中的作用**；单条路线能否支付返程和最终成本，先看[资源消耗](/novel-to-game/resource-cost-design)。\n\n| 要定的事 | 记录 |\n|---|---|\n| 玩家目标 | 要完成什么，哪项结果算有效 |\n| 行动规则 | 前置、成本、时点与实际效果 |\n| 可见依据 | 玩家选择前能知道什么 |\n| 否决现象 | 哪种结果会证明设计承诺没兑现 |",
+          "en": "“Both abilities should be equally strong” is not a testable goal. State the judgment players should make and the observation that would remove it. Urgency may prioritize time; sustained activity may prioritize resources. If the same action saves both in every listed situation, the intended tradeoff may be absent.\n\nNovelToGame asks each project to define meaningful differences and failure observations, without universal multipliers, win rates or turn counts. This page compares strategies across situations. For paying return and final costs on one route, see [resource costs](/novel-to-game/resource-cost-design).\n\n| Decision | Record |\n|---|---|\n| Goal | What must be completed and what counts as a result |\n| Action rule | Preconditions, costs, timing and committed effects |\n| Visible basis | What players know before acting |\n| Falsifier | What would show the promise has failed |"
+        }
+      },
+      {
+        "id": "repair-rules",
+        "heading": {
+          "zh": "原创规则：同样修一处，花时间还是电量",
+          "en": "Original Rules: Spend Time or Energy on a Repair"
+        },
+        "body": {
+          "zh": "下面是纸面游戏设计，不是实测平衡结论。维修员每次修好一处故障，所有故障相同且不需赶路；没有充电、随机失误或额外奖励。\n\n- 快修：消耗3电量与1回合，修好一处。\n- 细修：消耗1电量与2回合，修好一处。\n- 每次行动开始前，检查电量足够且完成时不超过期限；不满足就拒绝，不扣资源、不推进回合。\n- 当前故障全部修好即完成；界面提前显示剩余电量、剩余回合与两种成本。\n\n**局面A**：2处故障、6电量、2回合期限。两次快修共耗6电量和2回合，可以完成；两次细修需要4回合，不能在期限内完成。混用也需要3回合。\n\n**局面B**：3处故障、6电量、5回合期限。三次快修要9电量；三次细修要6回合。一次快修加两次细修共耗5电量与5回合，可以完成。次序可换，没有额外次序奖励。\n\n两局面目标都是完成维修，判断却不同：A要求节省回合；B需要组合行动。数字为这个虚构小关卡定义，不能照抄成其他游戏的比例。",
+          "en": "This is a paper design, not a measured balance result. Each repair fixes one identical fault; there is no travel, charging, random failure or extra reward.\n\n- Quick repair costs 3 energy and 1 turn, fixing one fault.\n- Careful repair costs 1 energy and 2 turns, fixing one fault.\n- Before acting, require sufficient energy and completion within the deadline. Reject invalid actions without spending energy or advancing time.\n- Fixing every fault completes the task. Remaining energy, turns and both costs are visible before choice.\n\n**Situation A:** 2 faults, 6 energy and a 2-turn deadline. Two quick repairs cost 6 energy and 2 turns, completing the task. Two careful repairs need 4 turns; a mixed pair needs 3. Neither fits.\n\n**Situation B:** 3 faults, 6 energy and a 5-turn deadline. Three quick repairs need 9 energy; three careful repairs need 6 turns. One quick plus two careful repairs costs 5 energy and 5 turns, completing the task. Order is interchangeable with no bonus.\n\nBoth situations require completed repairs, while A rewards turn economy and B requires combining actions. These values belong to this fictional level, not a universal ratio."
+        }
+      },
+      {
+        "id": "compare",
+        "heading": {
+          "zh": "沿同一初态记余额与拒绝原因",
+          "en": "Track Balances and Rejections From the Same Start"
+        },
+        "body": {
+          "zh": "在局面B试走：细修后剩5电量、已用2回合；再细修后剩4电量、已用4回合，已修2处。此时再细修会到第6回合，规则拒绝；换快修则剩1电量、已用5回合，完成第三处。\n\n如果界面只灰掉细修，却不说明期限，玩家无法知道为何不能行动；如果点击后先扣电再拒绝，实际规则已经不同。比较时记录的必须是最终提交结果，不只是AI说“你修好了”。\n\n调数后重新走原路径。若快修降为1电量，且仍只占1回合，在这些局面中它比细修更省时、同样省电，细修不再有对应优势。可以恢复差异、改变体验承诺或删去多余动作；不要为了保住按钮临时加一个无关系统。",
+          "en": "Walk Situation B: a careful repair leaves 5 energy after 2 turns. Another leaves 4 energy after 4 turns, with 2 faults fixed. A third careful repair would finish on turn 6 and is rejected. A quick repair instead leaves 1 energy after 5 turns and fixes the final fault.\n\nA disabled button without the deadline reason conceals the basis for choice. Spending energy before rejecting would implement a different rule. Compare committed results rather than an AI’s statement that the repair succeeded.\n\nAfter changing values, replay the same path. If quick repair costs 1 energy and still 1 turn, it becomes faster at equal cost in these situations; careful repair loses its advantage. Restore the difference, revise the promise or remove the redundant action without adding an unrelated system merely to preserve a button."
+        }
+      },
+      {
+        "id": "handoff",
+        "heading": {
+          "zh": "给AI比较条件，给玩家验证体验",
+          "en": "Separate Rule Comparison From Player Experience"
+        },
+        "body": {
+          "zh": "下面是人工设计任务模板：\n\n> 按〔规则版本、初态与目标〕比较〔策略〕，逐步记录资源、时间、已完成事项、行动资格与反馈。先检验〔设计声明的否决现象〕，再换到〔另一局面〕重算。只改定位到的数值或规则；注明改变哪些路径，不引入新系统，不把演算当作试玩结论。\n\n实现后重放原问题路径和一条相邻路径，核对按钮、结算、失败提示是否消费同一组规则。随机机制会影响结果时才控制随机条件；确定设计不必硬加随机种子。\n\n真实玩家是否读懂成本、是否觉得选择有重量、长期资源流是否合理，需要构建后的观察。有限局面没有出现通吃策略，只能支持这些局面中的结论。",
+          "en": "Use this manual design brief:\n\n> Compare [strategies] under [rule version, starting state and goal]. Track resources, time, completed work, eligibility and feedback at every step. Test [declared failure observation], then recalculate in [another situation]. Change only located values or rules, identify affected paths and add no new system. Do not present calculations as playtest conclusions.\n\nAfter implementation, replay the faulty path and an adjacent path, checking buttons, settlement and failure feedback against the same rules. Control randomness when it affects results; a deterministic design need not acquire a random seed.\n\nPlayer comprehension, choice weight and long-term resource flow require observation in a build. Finding no dominant strategy in limited situations supports only those situations."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "是不是把所有选项收益调成一样就平衡了？",
+          "en": "Does equalizing all rewards create balance?"
+        },
+        "a": {
+          "zh": "未必。选择可能比较时间、资源、信息或机会，收益不同也能有取舍；收益一样却行动与后果完全一致，就可能只剩重复按钮。按项目目标比较实际路径。",
+          "en": "Not necessarily. Choices can trade time, resources, knowledge or opportunity. Unequal rewards can support decisions, while equal outcomes may leave duplicate buttons. Compare actual paths against project goals."
+        }
+      }
+    ],
+    "skill": {
+      "name": "game-world-design",
+      "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/SKILL.md",
+      "text": {
+        "zh": "在已有 SOURCE_BIBLE.md、选定 CONCEPT.md 与 PRODUCT_BRIEF.md 的项目里，用 /game-world-design（Codex 用 $game-world-design），附规则与比较局面。numeric-design-method 提供预算和证伪方法；先交付设计，实际构建与试玩另行验证。",
+        "en": "In a project with SOURCE_BIBLE.md, a chosen CONCEPT.md and PRODUCT_BRIEF.md, use /game-world-design or $game-world-design in Codex with the rules and situations. numeric-design-method supplies budget and falsification methods. Deliver design before separately validating the build and player experience."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "资源、可达性与策略比较",
+          "en": "Resources, reachability and strategy comparison"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/numeric-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "局面变化与删除测试",
+          "en": "Changing situations and deletion tests"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/world-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "按设计承诺验证路径",
+          "en": "Test paths against design promises"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-qa/references/test-design-method.md"
+      }
+    ],
+    "related": [
+      "/novel-to-game/resource-cost-design",
+      "/novel-to-game/design-game-randomness",
+      "/novel-to-game/playtest-a-novel-game-adaptation"
+    ]
+  },
+  {
+    "owner": "novel-to-game",
+    "slug": "reduce-unused-game-stats",
+    "topic": "interactive-games",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "游戏属性太多怎么办：只留会改变选择的数值",
+      "en": "Too Many Game Stats? Keep Those That Affect Choices"
+    },
+    "seo_title": {
+      "zh": "游戏属性太多怎么办：只留会改变选择的数值",
+      "en": "Too Many Game Stats? Keep Those That Affect Choices"
+    },
+    "description": {
+      "zh": "按产生、消耗、读取与反馈检查属性，区分策略资源、剧情事实和历史记录。附修缮委托案例与删除测试。",
+      "en": "Audit generation, spending, rule checks and feedback. Separate strategic resources, story facts and history with a repair-commission example."
+    },
+    "answer": {
+      "zh": "逐项问数值从哪来、花到哪、哪条规则读取、玩家怎样感知结果。没有读取点的属性退出策略界面；有纪念价值的记录可进档案。具体承诺与知情不必压成好感分。暂时删除或自动处理一项，比较玩家判断是否消失，再决定保留、降级或合并。",
+      "en": "For each stat, identify sources, spending, rule checks and visible consequences. Remove unused strategy readouts while retaining meaningful history in an archive. Keep concrete promises and knowledge separate from generic scores. Temporarily remove or automate a stat and compare which decisions disappear before retaining, reducing or merging it."
+    },
+    "sections": [
+      {
+        "id": "different-jobs",
+        "heading": {
+          "zh": "资源、剧情事实与记录不是同一类东西",
+          "en": "Separate Resources, Story Facts and Records"
+        },
+        "body": {
+          "zh": "NovelToGame 的数值方法要求资源有实际规则读取，隐藏的承诺、证词和物件去向也有写入与回响。不是所有信息都要变成进度条。\n\n| 内容 | 判断方向 |\n|---|---|\n| 剩余工时 | 是否限制今天能完成的行动 |\n| 答应先修某扇窗 | 哪次人物回应或可选行动读取承诺 |\n| 本月已修窗数量 | 若只记录历史，可放档案而非策略面板 |\n| 每次点击都加的“专注” | 没有规则读取，就别宣称影响玩法 |\n\n本页处理**数值系统是否需要存在**。[界面信息整理](/novel-to-game/organize-a-story-game-interface)处理已有信息何时展示；把一个无用属性藏起来，并不会让它成为有用系统。",
+          "en": "NovelToGame requires resources to be read by actual rules. Hidden promises, testimony and possession also need recorded causes and callbacks. Not every fact needs a progress bar.\n\n| Content | Question |\n|---|---|\n| Remaining work time | Does it limit today’s available actions? |\n| Promise to repair one window first | Which response or action reads that promise? |\n| Windows repaired this month | If only historical, can it live in an archive? |\n| “Focus” rising on every click | With no rule reading it, why claim gameplay impact? |\n\nThis guide asks whether a numeric system needs to exist. [Interface organization](/novel-to-game/organize-a-story-game-interface) asks when to display existing information. Hiding an unused stat does not make it useful."
+        }
+      },
+      {
+        "id": "audit",
+        "heading": {
+          "zh": "给每项属性找到产生与读取位置",
+          "en": "Locate Sources and Rule Checks for Each Stat"
+        },
+        "body": {
+          "zh": "先从当前实现或设计中逐项查，不凭名字猜作用。\n\n1. 它用玩家懂的词衡量什么？“信任”是评分，还是某人接受过一次承诺的记录？\n2. 哪项行动增加或消耗它？一次结算只处理一次，重读界面不重复发奖励。\n3. 哪个门槛、行动或结果实际读取它？尚未实现的用途标计划。\n4. 玩家从哪里看到原因与新机会？数字上升本身不解释意义。\n5. 删除后哪项判断失效？如果都不变，就考虑移出核心系统。\n\n只有来源没有用途的资源会积累，只有消耗没有恢复也可能堵死必经路。恢复机会由本作任务与范围决定，不是每种资源都必须循环获得。",
+          "en": "Audit the current design or implementation rather than guessing from names.\n\n1. What does it measure in terms players understand? Is “trust” a score or a record that someone accepted a promise?\n2. Which action adds or spends it? Settle once; rereading a screen should not award it again.\n3. Which gate, action or result reads it? Mark unimplemented uses as plans.\n4. Where do players see the reason and resulting opportunity? A rising number alone does not explain meaning.\n5. Which judgment disappears if it is removed? If none changes, consider removing it from the core system.\n\nA source with no use accumulates; spending with no recovery can block a required path. Recovery depends on the project’s task and scope, rather than requiring every resource to regenerate."
+        }
+      },
+      {
+        "id": "commission-example",
+        "heading": {
+          "zh": "原创示例：修缮委托只需要哪些状态？",
+          "en": "Original Example: What a Repair Commission Needs"
+        },
+        "body": {
+          "zh": "纸面游戏中，玩家一天有4小时可用工时。修东窗用2小时，修西门用3小时，没有当天补充；所选任务完成才扣工时，开始前检查余额。居民唐婶请求先修东窗，玩家可以答应或明确不答应。\n\n唐婶听到玩家答应后，若玩家先修西门，她会暂停交出下一份可选委托，直到玩家解释并由她决定是否继续合作。这个故事规则由本例明确选择，不是“违约必扣好感”的通用公式。若玩家未答应，唐婶不能指控他违反承诺。\n\n设计里另有“专业度”，每次修好物件加1，但没有任何行动、人物或结局读取它。\n\n- **工时保留**：东窗与西门不能在当天都做，4−2剩2或4−3剩1，会禁用当天另一项未完成的任务。\n- **承诺单独记录**：谁答应、先做了什么、唐婶亲耳听到什么，不能由一个总分代替。\n- **专业度移出策略面板**：若只想纪念完成量，记录修过哪些物件即可；不额外发明等级奖励。\n\n这是编辑原创设计，不是已经运行的系统。取消工时限制会改变任务取舍；删除无读取的专业度则不改变已列路径。二者的删除效果不同。",
+          "en": "In this paper game, the player has 4 work hours for the day. Repairing the east window takes 2; the west door takes 3, with no same-day replenishment. Check the balance before starting and deduct only when the chosen job finishes. Resident Tang asks for the window first; the player may promise or explicitly decline.\n\nIf Tang hears a promise and the player repairs the door first, she pauses the next optional commission until the player explains and she decides whether to cooperate again. This is the example’s chosen story rule, not a universal affinity penalty. Without a promise, she cannot accuse the player of breaking it.\n\nA separate “professionalism” stat rises by 1 per repair, but no action, character or ending reads it.\n\n- **Retain work hours:** both jobs cannot fit today. The remaining 2 or 1 hours block the other unfinished job today.\n- **Record the promise separately:** who promised, which job came first and what Tang actually heard cannot be replaced by a total score.\n- **Remove unused professionalism from the strategy panel:** record repaired objects if completion history matters, without inventing level rewards.\n\nThis original design is not a running system. Removing the work-hour limit changes task choices; removing unread professionalism changes none of the listed paths."
+        }
+      },
+      {
+        "id": "revision",
+        "heading": {
+          "zh": "减属性后，检查原来的行动与存档",
+          "en": "Check Actions and Saves After Reducing Stats"
+        },
+        "body": {
+          "zh": "下面是人工审读表，不是新的原生数据合同。\n\n> 审查〔属性列表与规则〕。列每项含义、来源、消耗、读取点、反馈和删除后的路径变化。区分实际规则与未来计划；无读取项建议删除或作为档案，不自动加新用途。具体承诺、知识和物件去向保留为事实。指出受影响的按钮、结果、存档与记录，逐项决定修改。\n\n实现中删掉状态或改变语义，可能影响旧存档；先声明迁移或拒绝旧版本，再重放原问题路径及相邻路径。单纯改变显示文案与改变规则分别处理。\n\n属性少并不自动让游戏更有深度。删减的结果应是当前任务更容易理解，保留下来的状态确实改变行动；这些还需从实际候选与玩家反馈核对。",
+          "en": "Use this manual audit brief, not a new native data contract:\n\n> Review [stats and rules]. List meaning, sources, spending, rule checks, feedback and path changes after removal. Separate actual rules from plans. Recommend deletion or archival treatment for unread values without inventing uses. Preserve concrete promises, knowledge and possession as facts. Identify affected buttons, results, saves and records for individual decisions.\n\nRemoving state or changing semantics may affect old saves. Declare migration or rejection of old versions, then replay the faulty and adjacent paths. Treat label changes separately from rule changes.\n\nFewer stats do not automatically create depth. The intended result is clearer tasks and retained states that affect actions, which still require checking the candidate and player feedback."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "好感度一定要删掉吗？",
+          "en": "Must affinity scores be removed?"
+        },
+        "a": {
+          "zh": "不必。若数值确实控制可理解的条件，可以保留；但具体承诺、授权、知情与物件归属不能被分数替代。先说明每项状态的实际用途。",
+          "en": "No. Keep scores that govern understandable conditions, while preserving concrete promises, permission, knowledge and possession separately. Establish each state’s actual purpose."
+        }
+      }
+    ],
+    "skill": {
+      "name": "game-world-design",
+      "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/SKILL.md",
+      "text": {
+        "zh": "在资料、选定概念和产品需求齐全的 NovelToGame 项目中，用 /game-world-design（Codex 用 $game-world-design）按 numeric-design-method 审查读取点与必要系统。正式实现改动还需遵循 game-build 的状态、存档与局部修改边界；本页工作表用于设计审读。",
+        "en": "With source materials, a chosen concept and a product brief, use /game-world-design or $game-world-design in Codex to audit rule checks and necessary systems. Implementation changes also follow game-build state, save and patch boundaries. This worksheet supports design review."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "资源、可达性与策略比较",
+          "en": "Resources, reachability and strategy comparison"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/numeric-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "局面变化与删除测试",
+          "en": "Changing situations and deletion tests"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/world-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "状态、存档与局部修改",
+          "en": "State, saves and bounded patches"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
+      }
+    ],
+    "related": [
+      "/novel-to-game/organize-a-story-game-interface",
+      "/novel-to-game/resource-cost-design",
+      "/novel-to-game/design-a-relationship-system"
+    ]
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "fix-deformed-hands-in-ai-video",
+    "topic": "ai-video",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI视频手指变形怎么办：先查参考与接触动作",
+      "en": "Fix Deformed Hands in AI Video"
+    },
+    "seo_title": {
+      "zh": "AI视频手指变形怎么办：先查参考与接触动作",
+      "en": "Fix Deformed Hands in AI Video"
+    },
+    "description": {
+      "zh": "按参考画面、动作过程和物件接触定位手部问题，减少互相冲突的精细操作；保留必须展示的手法与剧情事实。",
+      "en": "Locate hand defects in references, motion and object contact. Reduce competing fine actions while preserving required technique and story facts."
+    },
+    "answer": {
+      "zh": "先看手部问题是否已在输入画面中存在，再找它在视频哪次转动、遮挡或接触时出现。写清哪只手、接触对象、先后与结果，减少同一时刻互相冲突的操作。关键手法不能只剪成结果；无法保留过程时补素材或换实现。提示词不是修复保证，最终逐段看成片。",
+      "en": "Check whether the input already contains the defect, then locate its appearance during rotation, occlusion or contact. Specify the hand, object, order and result; reduce incompatible simultaneous operations. Preserve indispensable technique rather than cutting directly to its result. Request new material when needed and inspect the actual output."
+    },
+    "sections": [
+      {
+        "id": "locate",
+        "heading": {
+          "zh": "问题在起始图，还是在动作中？",
+          "en": "Locate the Defect in the Input or Motion"
+        },
+        "body": {
+          "zh": "先检查实际使用的参考画面与实际输出，不凭提示词推断像素。记录最早正常、首次异常和最后异常的位置。\n\n| 观察 | 首先处理 |\n|---|---|\n| 起始图手指、握法就不成立 | 修正这张图与对应起点，再做运动 |\n| 手转向或遮挡后才异常 | 检查姿态、遮挡和阶段边界 |\n| 接触小物时手与物融合 | 写清接近、接触、施力与结果 |\n| 动作正确，只是局部外观错 | 评估有界修复，复查前后连续性 |\n\nDrama Skills 的可生成性参考用来识别精细操作风险，不提供某模型“最多几根手指、几个动作”的能力保证。[递东西穿模](/drama-skills/fix-object-handoffs-in-ai-video)专门处理两人交接；本页也检查单人手部形态与操作。",
+          "en": "Inspect the actual reference used and the output, rather than inferring pixels from text. Record the last normal, first abnormal and final abnormal points.\n\n| Observation | First response |\n|---|---|\n| Fingers or grip are wrong in the starting image | Correct the image and corresponding start before motion |\n| A turn or occlusion introduces the defect | Check posture, occlusion and phase boundaries |\n| Hand and small object merge during contact | Clarify approach, contact, force and result |\n| Action works but local appearance is wrong | Assess a bounded repair and recheck continuity |\n\nDrama Skills’ generability reference identifies fine-operation risk without guaranteeing a model’s finger or action capacity. [Object handoffs](/drama-skills/fix-object-handoffs-in-ai-video) concerns two-person transfer; this page also checks single-person anatomy and manipulation."
+        }
+      },
+      {
+        "id": "order",
+        "heading": {
+          "zh": "别让同一只手同时执行两个任务",
+          "en": "Avoid Incompatible Tasks for One Hand"
+        },
+        "body": {
+          "zh": "“右手拿钥匙、按住盒盖、转戒指，同时打开锁扣”把握持、固定与精细操作堆在一起。先找剧情真正依赖什么：观众必须看见解锁，还是只需明白人物选择把盒子关上？二者不能互相替代。\n\n按顺序说明接触对象与到达状态。写“手掌落在盒盖上，盖合后停住”比只写“手自然移动”更容易核对；不要用厘米和手指清单替代动作目的。\n\n若问题只出在参考图的局部，给修图要求写清目标区域、变化、脸与构图等保持项，以及哪几个镜头需要复查。图片提示词 skill 只产出编辑说明；实际修图与重新生成还需生产工具，并检查返回画面。",
+          "en": "“Hold a key, pin the lid down, turn a ring and open the clasp simultaneously with the right hand” combines grip, support and fine manipulation. Identify the story requirement first: must viewers see unlocking, or understand a choice to close the box? Those outcomes are not interchangeable.\n\nSpecify contact and resulting state in order. “The palm settles on the lid and stays after closure” is more checkable than “the hand moves naturally.” Distances and finger lists should not replace the action’s purpose.\n\nFor a local reference-image defect, specify target region, change, preserved face and composition, and affected shots. The image-prompt skill creates edit instructions; a production tool must execute them and the returned image still needs inspection."
+        }
+      },
+      {
+        "id": "box-example",
+        "heading": {
+          "zh": "原创示例：关上盒子，保留控制权",
+          "en": "Original Example: Close the Box Without Losing the Choice"
+        },
+        "body": {
+          "zh": "已接受的戏：齐遥把桌上的纪念章盒关上，表示此刻不让陆衡取走；纪念章仍在盒里。陆衡在对面，起点已伸手想取盒，看到关盖后收回手。齐遥没有上锁，也没有把盒子交给他。\n\n原动作方案要求齐遥一边转戒指，一边用两指拨锁扣，再拿钥匙，同时关盖。假设生成素材在拨扣处出现手物融合，就应先去掉没有剧情职责的戒指与钥匙操作；不能凭空变成“已锁住”。\n\n**可供创作者选择的简化实现**\n\n> 从盒盖打开、纪念章留在盒内的起点开始。齐遥右手移到盒盖外沿，将盒盖合上；盖合后右掌停在盒盖上。左手留在桌面空处。陆衡看着盒子，把原先伸向它的手收回。固定中近景，让盒盖与齐遥的手仍可辨认；结尾盒子留在齐遥面前。\n\n这里用关盖与停留表达当前拒绝，不证明陆衡永远拿不到，也不新增锁。起始图必须实际提供这些关系，或在文生视频正文中补齐人物与地点锚点。简化提案需先与原剧本核对；例子不是某次生成成功记录。",
+          "en": "Accepted scene: Qi Yao closes the commemorative-medal box on the table to deny Lu Heng access for now. The medal stays inside. Lu sits opposite with a hand already reaching for the box, then withdraws it after seeing closure. Qi neither locks the box nor hands it over.\n\nThe original action plan adds turning a ring, adjusting a clasp with two fingers, holding a key and closing the lid together. Suppose footage merges hand and clasp. Remove ring and key manipulation that carries no story duty; do not invent a locked box.\n\n**A simplification for the creator to consider**\n\n> Start with the lid open and medal inside. Qi Yao moves her right hand to the outer lid edge and closes it, then rests her palm on the closed lid. Her left hand stays on a clear part of the table. Lu Heng watches the box and withdraws the hand already reaching for it. Keep a fixed medium close shot with lid and hand readable; the box remains in front of Qi at the end.\n\nClosure and the resting hand express a current refusal, not permanent prevention or a new lock. The actual starting frame must support these relationships, or text-to-video prose must supply visual anchors. Check the proposal against the script first; this is not a successful generation report."
+        }
+      },
+      {
+        "id": "check",
+        "heading": {
+          "zh": "手法承载信息时，不能靠遮挡解决",
+          "en": "Do Not Hide an Indispensable Technique"
+        },
+        "body": {
+          "zh": "人物弹奏、修复、偷换或接触证物的过程，可能正是观众要判断的事情。移出画面、切到表情或只显示“已完成”，会删掉技艺、证据或身份信息。需要过程时，比较拆镜、扩大可见范围、实拍或动画等实现；补拍与母版分别说明承担什么。\n\n> 检查〔实际素材与参考〕的手部缺陷。记录发生位置，区分输入形态、动作顺序、接触与遮挡。保留〔必须展示的手法、物件归属与起止状态〕，提出最小修订，不增锁、交换或身份事实。无法在现有素材保住过程时，列出缺口与补拍职责。\n\n改后在正常速度和缺陷附近逐段复查：手部形态、握持、物件数量、动作完成与下一镜能否连接。静帧正常不证明整段运动正常；单次改善也不代表所有模型都有同样表现。",
+          "en": "Playing an instrument, repairing, secretly swapping or touching evidence may be the very process viewers must judge. Moving hands out of frame, cutting to a face or showing only completion can erase technique, evidence or identity. Compare shot splitting, clearer framing, live action or animation when the process matters. State which duties belong to pickups and the main take.\n\n> Check hand defects in [actual footage and references]. Locate them and separate input anatomy, ordering, contact and occlusion. Preserve [required technique, possession and boundaries]. Propose the smallest change without inventing locks, transfers or identity facts. List missing material and pickup duties when existing footage cannot preserve the process.\n\nRecheck shape, grip, count, completion and next-shot continuity at normal speed and near the defect. A clean still does not prove clean motion, nor does one improvement establish performance across models."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "只写“五根手指、不要变形”够吗？",
+          "en": "Is “five fingers, no deformation” enough?"
+        },
+        "a": {
+          "zh": "它不能替代正确参考、接触对象和动作条件。先判断问题出现在哪里，修对应层；必要的排除描述可保留，但最终以实际画面为准。",
+          "en": "It cannot replace a valid reference, contact target and action conditions. Locate and revise the affected layer. Necessary exclusions may remain, while actual output determines usability."
+        }
+      }
+    ],
+    "skill": {
+      "name": "short-drama-video-prompts",
+      "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/SKILL.md",
+      "text": {
+        "zh": "用 /short-drama-video-prompts（Codex 用 $short-drama-video-prompts）修已确认镜头的动作说明；参考图问题转 short-drama-image-prompts 的有界编辑说明。两者不等于已经执行媒体修复，实际素材仍需生产与复查。",
+        "en": "Use /short-drama-video-prompts or $short-drama-video-prompts in Codex to revise motion under an accepted shot. Route reference-image defects to bounded edit instructions in short-drama-image-prompts. Neither instruction step proves media was repaired; produce and inspect the result."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "动作先后、接触与完成状态",
+          "en": "Motion order, contact and completion"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
+      },
+      {
+        "label": {
+          "zh": "动作实现与剧情信息保护",
+          "en": "Action realization and story preservation"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/generability.md"
+      },
+      {
+        "label": {
+          "zh": "图片的有界编辑说明",
+          "en": "Bounded image-edit instructions"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-image-prompts/references/edit-and-revision.md"
+      },
+      {
+        "label": {
+          "zh": "母版与补拍职责",
+          "en": "Main and pickup duties"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama/references/pickup-and-alternate.md"
+      }
+    ],
+    "related": [
+      "/drama-skills/fix-object-handoffs-in-ai-video",
+      "/drama-skills/generable-actions",
+      "/drama-skills/local-image-edit-prompts"
+    ]
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "fix-slow-actions-in-ai-video",
+    "topic": "ai-video",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI视频动作太慢怎么办：时长、停顿与完成状态",
+      "en": "Fix Slow Actions in AI Video"
+    },
+    "seo_title": {
+      "zh": "AI视频动作太慢怎么办：时长、停顿与完成状态",
+      "en": "Fix Slow Actions in AI Video"
+    },
+    "description": {
+      "zh": "区分有意等待、起手拖延与运动被拉长；按已定镜长安排动作节拍，并从实际素材选择保留区间。",
+      "en": "Separate deliberate waiting, delayed starts and stretched motion. Plan beats within the accepted duration and select usable footage from actual results."
+    },
+    "answer": {
+      "zh": "先判断慢的是必要表演、无意义等待，还是整条动作被拉长。生成前检查起点、动作、结果与已定时长是否一致；显式秒段要覆盖完整时长，相对节拍保留弹性。生成后按实际动作与发声选剪点。不能靠快进删掉关键接触、台词或反应，也不能把计划秒数当精确输出。",
+      "en": "Identify necessary performance, empty waiting or stretched motion. Before generation, align start, action, result and accepted duration; explicit segments cover the full duration while relative beats retain flexibility. Afterward, cut against actual motion and speech. Speed must preserve contact, dialogue and reaction, and planned seconds are not exact output timing."
+    },
+    "sections": [
+      {
+        "id": "locate",
+        "heading": {
+          "zh": "先说清慢在哪里",
+          "en": "Locate What Feels Slow"
+        },
+        "body": {
+          "zh": "| 观察 | 首先判断 |\n|---|---|\n| 开头一直没行动 | 是否在听、等或隐瞒；没作用才压缩 |\n| 伸手过程被拖长 | 距离、对象与停点是否明确，镜长是否合适 |\n| 动作做完仍停很久 | 是否需要观众读结果或人物反应 |\n| 台词和动作都赶不上 | 可能是超载，不能只要求加速 |\n\n停顿是创作选择，不以“越短越好”处理。Drama Skills 的表演预算要求必要动作、完整台词、反应与终点都可读；本页关注镜头内动作速度，[入出点选择](/drama-skills/choose-ai-video-in-and-out-points)则处理已有素材的实际截取。",
+          "en": "| Observation | First question |\n|---|---|\n| No action at the start | Is the character listening, waiting or concealing something? Cut only unused delay |\n| Reaching takes too long | Are distance, target and stopping point clear, and is the duration suitable? |\n| A long hold follows completion | Do viewers need it to read the result or reaction? |\n| Neither speech nor action finishes | This may be overload, rather than a need for speed |\n\nPauses are creative choices, not automatically defects. Drama Skills budgets readable action, complete dialogue, reaction and the end state. This guide concerns motion inside the shot; [in/out selection](/drama-skills/choose-ai-video-in-and-out-points) concerns extracting existing footage."
+        }
+      },
+      {
+        "id": "timing",
+        "heading": {
+          "zh": "相对节拍与显式秒段怎样选？",
+          "en": "Choose Relative Beats or Explicit Segments"
+        },
+        "body": {
+          "zh": "先写动作先后：起手、接触、结果与必要停留。需要精确排期时再标秒段；不需要时可以只用“听到后”“合上后”与少量起手或落幅锚点。\n\n若已定镜长8秒，显式安排只写到5秒，剩余3秒没人负责，就不是完整时间计划。把余量分配给已有阶段，或请求调整镜长；不要加一个无功能动作凑满。显式阶段覆盖完整时长也不保证模型按秒落点，实际剪辑仍要看素材。\n\n不要把“动作自然”“速度更快”作为唯一修订。写明终点接触什么、何时停住，以及哪项原有等待可缩短。改变分镜时长或起止条件，先让相应环节接受修改；运动提示词不能悄悄改。",
+          "en": "Write start, contact, result and necessary hold in order. Add second-by-second segments when production needs them; otherwise use cues such as “after hearing” or “after closure,” with a few start or end anchors.\n\nFor an accepted 8-second shot, explicit segments ending at 5 seconds leave 3 seconds unassigned. Allocate them to existing phases or request a duration change without adding busywork. Full coverage still does not guarantee precise generated timing; inspect the footage for editing.\n\n“Natural motion, faster” is insufficient. Specify contact, stopping point and the existing wait that can shorten. Changes to shot duration or boundaries require an accepted upstream revision rather than a silent motion-prompt change."
+        }
+      },
+      {
+        "id": "folder-example",
+        "heading": {
+          "zh": "原创示例：把文件夹放回架子",
+          "en": "Original Example: Return a Folder to a Shelf"
+        },
+        "body": {
+          "zh": "已定镜头：陆乔站在书架旁，右手持文件夹；把它插回眼前空位，松手，文件夹留在架上。无对白，只有已建立的房间底声。镜头目的只是让观众知道文件夹归位，没有偷换或迟疑信息。\n\n**相对节拍提案**\n\n> 从右手持文件夹、站在空位前开始。短暂保留起手，随后把文件夹送进眼前的空位；文件夹落稳后右手才松开并撤回，结尾让观众看清它留在架上。固定中景，动作范围和接触点可见，房间底声持续。\n\n若制作需要8秒显式方案，可先分为：0–1秒保持起点；1–5秒插入并放稳；5–6秒松手撤回；6–8秒看清终点。四段共8秒，仅是计划；放稳后才能释放这一条件优先于任何赶秒数的指令。\n\n假设实际素材前2秒等待、2–6秒完成插入与撤手、6–8秒稳定，剪辑可以评估从行动前进入、结果可读后退出。不要照抄“1秒开动、5秒放稳”去剪，因为那不是实测。示例与时间均为本页假设，不是生成表现数据。",
+          "en": "Accepted shot: Lu Qiao stands beside a shelf holding a folder in her right hand. She inserts it into the empty slot in front of her, releases it and leaves it on the shelf. There is no dialogue, only established room ambience. The purpose is return, with no swap or hesitation to reveal.\n\n**Relative-beat proposal**\n\n> Start with the folder in her right hand at the empty slot. Briefly preserve the start, then insert it. Only after it is supported does her right hand release and withdraw. End long enough to read the folder on the shelf. Keep a fixed medium shot with motion and contact visible; room ambience continues.\n\nIf production needs an 8-second explicit plan, allocate 0–1 to the start, 1–5 to insertion and support, 5–6 to release and withdrawal, and 6–8 to the readable end. The total is 8 seconds, but support-before-release takes precedence over rushing to meet a timestamp.\n\nSuppose actual footage waits for 2 seconds, performs insertion and withdrawal from 2–6, and stays stable from 6–8. Assess cuts just before action and after its result is readable. Do not cut to planned 1-second and 5-second cues as if measured. All example times are hypothetical, not generation-performance data."
+        }
+      },
+      {
+        "id": "repair",
+        "heading": {
+          "zh": "已有素材变速前，核对音画与动作",
+          "en": "Check Picture, Sound and Motion Before Retiming"
+        },
+        "body": {
+          "zh": "先用普通速度看结果，区分可删等待与必须保留的停顿。必要对白、接触或反应缺失时，裁剪与加速都不能补出它们；补素材或调整分镜更合适。\n\n如果选择用外部剪辑工具变速，分别复查动作观感、字音、音调、底声与相邻镜头。内置剪辑单的入出点不等于已执行变速；记录所用处理，查看实际输出，不把它当无损的通用修复。\n\n> 根据〔实际素材〕定位动作拖慢的位置。区分有意停顿、起手等待与动作拉长。保留〔关键接触、完整对白、反应与终点〕，提出运动说明、镜长或剪辑层的最小修改。计划时间与实测时间分别记，不能以快进替代缺失过程。\n\n重出后比较同一处，确认完整动作仍成立，并检查下一镜起点。哪怕总时长变短，结果不可读也不算修好。",
+          "en": "Inspect at normal speed and distinguish disposable waiting from necessary pauses. Trimming or acceleration cannot create missing dialogue, contact or reaction; request material or revise the shot instead.\n\nIf you choose an external editor for speed changes, recheck movement, words, pitch, ambience and adjacent shots separately. In/out points in the built-in edit list do not prove a speed change was executed. Record the treatment and inspect the result rather than treating retiming as a lossless universal repair.\n\n> Locate slow motion in [actual footage]. Separate intentional pauses, initial waiting and stretched action. Preserve [contact, complete speech, reaction and end state]. Propose the smallest motion, duration or editing change. Record planned and observed times separately; acceleration cannot replace a missing process.\n\nCompare the same region after regeneration and check completion and next-shot boundaries. A shorter result that cannot be understood is not a successful repair."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "每个动作应该控制在几秒？",
+          "en": "How many seconds should each action take?"
+        },
+        "a": {
+          "zh": "没有统一值。距离、接触、对白、反应与作者节奏共同决定时长；显式计划需要算完整，生成后的精确剪点以实际素材为准。",
+          "en": "There is no universal duration. Distance, contact, speech, reaction and chosen pacing determine it. Explicit plans must be complete; actual footage determines precise cuts."
+        }
+      }
+    ],
+    "skill": {
+      "name": "short-drama-video-prompts",
+      "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/SKILL.md",
+      "text": {
+        "zh": "用 /short-drama-video-prompts（Codex 用 $short-drama-video-prompts）在已接受镜长和起止状态内修运动节拍。需要改边界时转分镜修订；已有素材的剪点由 short-drama-edit 选择，外部变速需实际执行后复查。",
+        "en": "Use /short-drama-video-prompts or $short-drama-video-prompts in Codex to revise beats under accepted duration and boundaries. Route boundary changes to storyboard revision. short-drama-edit selects cuts in existing footage; inspect externally executed speed changes."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "动作先后、接触与完成状态",
+          "en": "Motion order, contact and completion"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
+      },
+      {
+        "label": {
+          "zh": "动作实现与剧情信息保护",
+          "en": "Action realization and story preservation"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/generability.md"
+      },
+      {
+        "label": {
+          "zh": "表演与时长共同预算",
+          "en": "Performance and duration budgeting"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/performance-action-timing.md"
+      },
+      {
+        "label": {
+          "zh": "实际可用素材区间",
+          "en": "Observed usable footage bands"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/generated-footage.md"
+      },
+      {
+        "label": {
+          "zh": "入出点与剪后完成状态",
+          "en": "Cuts and readable completion"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/cut-craft.md"
+      }
+    ],
+    "related": [
+      "/drama-skills/choose-ai-video-in-and-out-points",
+      "/drama-skills/dialogue-timing",
+      "/drama-skills/reroll-or-rewrite"
     ]
   }
 ]
