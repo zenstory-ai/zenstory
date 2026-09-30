@@ -13034,8 +13034,8 @@
       "en": "Choose POV by information limits, psychic distance, blind spots, and story scale. Includes one event in multiple POVs and fixes for head-hopping."
     },
     "answer": {
-      "zh": "小说视角没有统一最优解。先确定读者需要贴近谁、知道多少、保留哪些盲区，再选择叙述方式。采用有限视角切换时，每个场景通常保持一个清楚的观察中心，让切换带来新行动或新信息；全知叙述和客观叙述则采用不同的信息边界。",
-      "en": "There is no universally best point of view. First decide whom the reader should stay close to, how much they should know, and which blind spots to preserve. When switching between limited viewpoints, usually keep one clear center of perception per scene and make each switch add new action or information. Omniscient and objective narration use different information boundaries."
+      "zh": "小说视角没有统一最优解。先确定读者需要贴近谁、知道多少、保留哪些盲区，再选择叙述方式。采用有限视角切换时，每个场景通常保持一个清楚的观察中心，让切换服务行动、信息、不同理解或情感体验；全知叙述和客观叙述则采用不同的信息边界。",
+      "en": "There is no universally best point of view. First decide whom the reader should stay close to, how much they should know, and which blind spots to preserve. When switching between limited viewpoints, usually keep one clear center of perception per scene and let switches serve action, information, different understanding, or emotional experience. Omniscient and objective narration use different information boundaries."
     },
     "sections": [
       {
@@ -13045,8 +13045,8 @@
           "en": "Choose a Viewpoint with Four Questions"
         },
         "body": {
-          "zh": "1. **谁承担关键选择？** 贴近这个人，读者能否看懂代价。\n2. **哪些信息必须暂扣？** 采用有限视角时，视角人物不知道的内容不能随手作为他的认知写出。\n3. **故事靠亲历感还是全局关系？** 强主观体验适合更近的距离；多人并行可按场景切有限视角。\n4. **谁的误判最有价值？** 盲区若会逼出行动，它就是叙事资源；只制造人工隐瞒则会惹人烦。\n\n先决定信息边界，再决定用“我”还是“他／她”。人称只是表面，真正影响阅读的是叙述距离与知道多少。\n\n这四问是本文手写选择工具，不是 skill 的固定格式。",
-          "en": "1. **Who makes the crucial choice?** If readers stay close to this person, can they understand what the choice costs?\n2. **What information must be withheld?** In a limited viewpoint, something the viewpoint character does not know cannot casually appear as part of their understanding.\n3. **Does the story depend on lived experience or the larger web of relationships?** A strongly subjective experience suits a closer distance; parallel character lines can use scene-by-scene limited viewpoints.\n4. **Whose misjudgment is most valuable?** A blind spot that forces action is a narrative resource. A blind spot used only to manufacture concealment will frustrate readers.\n\nSet the information boundary before choosing first person or third person. Grammatical person is only the surface; narrative distance and access to knowledge are what truly shape the reading experience.\n\nThese four questions are a manual choice aid, not a fixed skill format."
+          "zh": "1. **谁承担关键选择？** 贴近这个人，读者能否看懂代价。\n2. **哪些信息必须暂扣？** 采用有限视角时，视角人物不知道的内容不能随手作为他的认知写出。\n3. **故事靠亲历感还是全局关系？** 强主观体验适合更近的距离；多人并行可按场景切有限视角。\n4. **谁的误判最有价值？** 盲区若会逼出行动，它就是叙事资源；只制造人工隐瞒则会惹人烦。\n\n先决定信息边界，再决定用“我”还是“他／她”。人称只是表面，真正影响阅读的是叙述距离与知道多少。\n\n这四问是本文手写选择工具，不是 skill 的固定格式。\n\nOh Story 的 style-craft 提供视角与明确切换的技法，style-resolution 则要求按作者选择和本书文风取值。本文据此比较方案，不把“推荐第三人称有限”写成第一人称或全知必然较差；所选视角仍要尊重已有事实与揭示时机。",
+          "en": "1. **Who makes the crucial choice?** If readers stay close to this person, can they understand what the choice costs?\n2. **What information must be withheld?** In a limited viewpoint, something the viewpoint character does not know cannot casually appear as part of their understanding.\n3. **Does the story depend on lived experience or the larger web of relationships?** A strongly subjective experience suits a closer distance; parallel character lines can use scene-by-scene limited viewpoints.\n4. **Whose misjudgment is most valuable?** A blind spot that forces action is a narrative resource. A blind spot used only to manufacture concealment will frustrate readers.\n\nSet the information boundary before choosing first person or third person. Grammatical person is only the surface; narrative distance and access to knowledge are what truly shape the reading experience.\n\nThese four questions are a manual choice aid, not a fixed skill format.\n\nOh Story’s style-craft supplies viewpoint and clear-switch methods; style-resolution gives precedence to the author’s choices and the book’s style. Compare options without treating a preference for third-person limited as proof that first person or omniscience is inferior. The chosen view still respects established facts and reveal timing."
         }
       },
       {
@@ -13056,8 +13056,8 @@
           "en": "How Three Common Options Compare"
         },
         "body": {
-          "zh": "| 方式 | 长处 | 使用时注意 |\n|---|---|---|\n| 第一人称 | 主观声音、亲历和自我辩护直接 | 不直接进入别人的内心；回顾口吻区分当时与后来所知 |\n| 第三人称有限 | 贴近一人，兼顾行动与内心 | 不无意越进他人的想法 |\n| 多角色有限 | 展示并行目标和信息差 | 换场或清楚标记；避免重复同一事件 |\n\n客观叙述主要呈现行为、对白与环境，让读者推断。全知叙述可以跨越内心、时空，靠稳定声音与有意的信息安排组织关系。选择这些方式时，让权限贯穿全文；不要把有限视角中偶然泄露的心理事后解释为全知。",
-          "en": "| Method | Strength | Watch for |\n|---|---|---|\n| First person | Direct personal voice and experience | No direct access to other minds; separate past and later knowledge in a memoir voice |\n| One limited view | Close access to action and thought | Avoid drifting into another mind |\n| Several limited views | Parallel goals and information gaps | Mark switches clearly; avoid repeating an event |\n\nObjective narration chiefly presents action, dialogue and setting for readers to interpret. Omniscience can cross minds, times and places through a stable voice and deliberate information control. Keep the chosen scope consistent; do not relabel accidental mind leakage in a limited passage as omniscience."
+          "zh": "| 方式 | 长处与注意 |\n|---|---|\n| 第一人称 | 长处：主观声音、亲历和自我辩护直接；使用时注意：不直接进入别人的内心；回顾口吻区分当时与后来所知 |\n| 第三人称有限 | 长处：贴近一人，兼顾行动与内心；使用时注意：不无意越进他人的想法 |\n| 多角色有限 | 长处：展示并行目标和信息差；使用时注意：换场或清楚标记；重述同一事件时提供不同理解或体验 |\n\n客观叙述主要呈现行为、对白与环境，让读者推断。全知叙述可以跨越内心、时空，靠稳定声音与有意的信息安排组织关系。选择这些方式时，让权限贯穿全文；不要把有限视角中偶然泄露的心理事后解释为全知。",
+          "en": "| Method | Strength and caution |\n|---|---|\n| First person | Strength: Direct personal voice and experience; Watch for: No direct access to other minds; separate past and later knowledge in a memoir voice |\n| One limited view | Strength: Close access to action and thought; Watch for: Avoid drifting into another mind |\n| Several limited views | Strength: Parallel goals and information gaps; Watch for: Mark switches clearly; retelling an event should provide a different understanding or experience |\n\nObjective narration chiefly presents action, dialogue and setting for readers to interpret. Omniscience can cross minds, times and places through a stable voice and deliberate information control. Keep the chosen scope consistent; do not relabel accidental mind leakage in a limited passage as omniscience."
         }
       },
       {
@@ -13067,8 +13067,8 @@
           "en": "Original Comparison: The Missing Orchestral Score"
         },
         "body": {
-          "zh": "青年乐团排练前，总谱不见了。助理指挥沈嘉昨晚把总谱带回家做标记，早晨却把装有旧节目单的相似文件夹送回排练厅。她尚未发现拿错；首席小提琴赵文只知道谱子没在柜里。\n\n**第一人称，贴沈嘉**：\n\n> 我把蓝文件夹放回柜顶时，还在想昨晚改过的三处速度。赵文问总谱在哪儿，我指了指柜子。她拉开夹子，先抽出来的却是去年的节目单。\n\n读者与沈嘉同时发现错误，重点是她怎样面对自己的疏忽。\n\n**第三人称有限，贴赵文**：\n\n> 沈嘉指向柜顶，语气太肯定。赵文抽出第一张纸，看见去年的赞助名单。她没有立刻问责，先看了一眼已经落座的乐手。\n\n这里不能写沈嘉昨晚拿错的过程；赵文只能从文件与语气判断。重点变成她如何稳住排练。\n\n**下一场切沈嘉**：只有当她回家寻找并发现真正总谱时才切换。新视角带来独占行动与信息；如果只是把赵文开夹子的同一幕再演一次，就没有切换价值。",
-          "en": "Before a youth orchestra rehearsal, the full score disappears. Assistant conductor Shen Jia took it home the previous evening to mark it, but in the morning she returned a similar folder containing old programs. She has not yet noticed the mix-up. Concertmaster Zhao Wen knows only that the score is not in the cabinet.\n\n**First person, close to Shen Jia:**\n\n> As I put the blue folder back on top of the cabinet, I was still thinking about the three tempo changes I had marked last night. Zhao Wen asked where the full score was, and I pointed to the cabinet. She opened the folder. The first sheet she pulled out was last year’s program.\n\nThe reader discovers the mistake with Shen Jia, so the emphasis is how she faces her own carelessness.\n\n**Third-person limited, close to Zhao Wen:**\n\n> Shen Jia pointed to the top of the cabinet with far too much confidence. Zhao Wen pulled out the first sheet and found last year’s sponsor list. Instead of assigning blame at once, she glanced at the musicians already in their seats.\n\nThis version cannot narrate how Shen Jia took the wrong folder the previous night. Zhao Wen can judge only from the folder and Shen Jia’s tone. The emphasis becomes how Zhao Wen keeps the rehearsal under control.\n\n**Switch to Shen Jia in the next scene:** Make the switch only when she goes home to search and finds the real score. The new viewpoint brings exclusive action and information. If it merely replays Zhao Wen opening the folder, the switch adds no value."
+          "zh": "青年乐团排练前，总谱不见了。助理指挥沈嘉昨晚把总谱带回家做标记，早晨却把装有旧节目单的相似文件夹送回排练厅。她尚未发现拿错；首席小提琴赵文只知道谱子没在柜里。\n\n**第一人称，贴沈嘉**：\n\n> 我把蓝文件夹放回柜顶时，还在想昨晚改过的三处速度。赵文问总谱在哪儿，我指了指柜子。她拉开夹子，先抽出来的却是去年的节目单。\n\n读者与沈嘉同时发现错误，重点是她怎样面对自己的疏忽。\n\n**第三人称有限，贴赵文**：\n\n> 沈嘉指向柜顶，语气太肯定。赵文抽出第一张纸，看见去年的赞助名单。她没有立刻问责，先看了一眼已经落座的乐手。\n\n这里不能写沈嘉早晨拿错的过程；赵文只能从文件与语气判断。重点变成她如何稳住排练。\n\n**下一场切沈嘉**：本例可从她回家找真正总谱开始，写她怎样面对疏忽；不必等到已经找到才允许切换。也可以重述开夹子的时刻，但要让沈嘉的理解或体验提供新的阅读作用，而不是照抄赵文那一幕。",
+          "en": "Before a youth orchestra rehearsal, the full score disappears. Assistant conductor Shen Jia took it home the previous evening to mark it, but in the morning she returned a similar folder containing old programs. She has not yet noticed the mix-up. Concertmaster Zhao Wen knows only that the score is not in the cabinet.\n\n**First person, close to Shen Jia:**\n\n> As I put the blue folder back on top of the cabinet, I was still thinking about the three tempo changes I had marked last night. Zhao Wen asked where the full score was, and I pointed to the cabinet. She opened the folder. The first sheet she pulled out was last year’s program.\n\nThe reader discovers the mistake with Shen Jia, so the emphasis is how she faces her own carelessness.\n\n**Third-person limited, close to Zhao Wen:**\n\n> Shen Jia pointed to the top of the cabinet with far too much confidence. Zhao Wen pulled out the first sheet and found last year’s sponsor list. Instead of assigning blame at once, she glanced at the musicians already in their seats.\n\nThis version cannot narrate how Shen Jia took the wrong folder that morning. Zhao Wen can judge only from the folder and Shen Jia’s tone. The emphasis becomes how Zhao Wen keeps the rehearsal under control.\n\n**Switch to Shen Jia in the next scene:** Begin with her search at home and response to the mistake; switching need not wait until she has found the real score. Retelling the folder-opening moment can also work if Shen’s understanding or experience contributes something, rather than copying Zhao’s scene."
         }
       },
       {
@@ -13078,8 +13078,8 @@
           "en": "Three Checks for Switching Limited Viewpoints"
         },
         "body": {
-          "zh": "下面针对多角色有限视角，不是对全知叙述的禁令。\n\n- **边界清楚**：用换章、空行或场景转换建立新的观察中心，不在一句话中越过两个人的内心。\n- **新增价值**：新视角拥有独占的行动、误判、代价或信息。\n- **回到主线**：并行线最终要改变主角的选项，不能只解释反派早已显而易见的计划。\n\n切换前记录当前角色知道什么、误以为什么、想做什么；切换后只使用新角色可感知的证据。读者可以知道得更多，人物之间却不能自动共享。",
-          "en": "The checks below apply to multiple limited viewpoints; they are not prohibitions on omniscient narration.\n\n- **Clear boundary:** Use a chapter break, section break, or scene transition to establish a new center of perception. Do not cross through two minds in one sentence.\n- **New value:** The new viewpoint owns an action, misjudgment, cost, or piece of information unavailable elsewhere.\n- **Return to the main line:** A parallel thread must eventually alter the protagonist’s options, not merely explain an antagonist’s already obvious plan.\n\nBefore switching, record what the current character knows, falsely believes, and wants to do. After switching, use only evidence the new character can perceive. Readers may know more than either character, but the characters do not automatically share knowledge."
+          "zh": "下面针对多角色有限视角，不是对全知叙述的禁令。\n\n- **边界清楚**：用换章、空行或场景转换建立新的观察中心，不在一句话中越过两个人的内心。\n- **新增价值**：新视角可以提供行动、误判、信息，也可以提供对同一件事不同的理解与情感经验。\n- **回到主线**：看并行线怎样服务本书的目标、关系、对照或群像；群像作品不必每条线都回到一个主角。单纯重复读者已知计划时，再考虑压缩。\n\n切换前记录当前角色知道什么、误以为什么、想做什么；切换后只使用新角色可感知的证据。读者可以知道得更多，人物之间却不能自动共享。",
+          "en": "The checks below apply to multiple limited viewpoints; they are not prohibitions on omniscient narration.\n\n- **Clear boundary:** Use a chapter break, section break, or scene transition to establish a new center of perception. Do not cross through two minds in one sentence.\n- **New value:** A new viewpoint can contribute action, misjudgment, or information, as well as a different understanding or emotional experience of the same event.\n- **Return to the main line:** Check how a parallel thread serves the work’s goals, relationships, contrasts, or ensemble. An ensemble need not send every line back to one protagonist. Consider compression when it merely repeats a plan readers already understand.\n\nBefore switching, record what the current character knows, falsely believes, and wants to do. After switching, use only evidence the new character can perceive. Readers may know more than either character, but the characters do not automatically share knowledge."
         }
       },
       {
@@ -13111,8 +13111,8 @@
           "en": "Can I switch viewpoints within one chapter?"
         },
         "a": {
-          "zh": "采用多角色有限视角时，可以在同章切换，但要有清楚的场景边界和新视角的独占价值。全知叙述可以由叙述者组织多人的内心与信息，重点是让读者始终知道谁在观察、谁作判断，避免无意混淆。",
-          "en": "With multiple limited viewpoints, yes, provided there is a clear scene boundary and the new viewpoint offers something exclusive. An omniscient narrator can organize several characters’ minds and information. In either case, readers should always know who is observing and who is judging, rather than being confused by an accidental shift."
+          "zh": "采用多角色有限视角时，可以在同章切换，但要有清楚的场景边界和新视角的阅读作用。全知叙述可以由叙述者组织多人的内心与信息，重点是让读者始终知道谁在观察、谁作判断，避免无意混淆。",
+          "en": "With multiple limited viewpoints, yes, provided there is a clear scene boundary and the new viewpoint has a useful role. An omniscient narrator can organize several characters’ minds and information. In either case, readers should always know who is observing and who is judging, rather than being confused by an accidental shift."
         }
       }
     ],
@@ -13180,8 +13180,8 @@
           "en": "A Six-Part Map for a Positive Change Arc"
         },
         "body": {
-          "zh": "以下是组织正向变化弧的一种实用模型，用于追踪旧策略如何被修正；负向弧与稳定弧另见下文。\n\n| 阶段 | 要回答 |\n|---|---|\n| 旧信念 | 人物把什么当作安全、成功或体面 |\n| 保护策略 | 遇到压力时，他习惯怎样做 |\n| 早期有效 | 这套办法为何曾帮助过他 |\n| 代价累积 | 它开始伤到什么目标、关系或身份 |\n| 最终选择 | 哪两个重要价值无法同时保住 |\n| 新行为证据 | 后续遇到相似压力时，他怎样换一种做法 |\n\n角色动机解释此刻为何在乎；人物弧光追踪同一种压力跨全书怎样反复测试他的办法。一次接受帮助只能证明一次选择，不能自动证明长期成长。",
-          "en": "The following is one practical model for organizing a positive change arc and tracking how an old strategy is revised. Negative and steadfast arcs are discussed below.\n\n| Stage | Question to answer |\n|---|---|\n| Old belief | What does the character equate with safety, success, or dignity? |\n| Protective strategy | What do they habitually do under pressure? |\n| Early success | Why did this strategy once help them? |\n| Accumulating cost | Which goal, relationship, or identity does it begin to damage? |\n| Final choice | Which two important values can no longer both be preserved? |\n| Evidence in new behavior | Under similar pressure later, what do they do differently? |\n\nCharacter motivation explains why someone cares in the present moment. A character arc tracks how the same kind of pressure repeatedly tests their approach across the entire story. Accepting help once proves one choice, not lasting growth by itself."
+          "zh": "以下是组织正向变化弧的一种实用模型，用于追踪旧策略如何被修正；负向弧与稳定弧另见下文。\n\n| 阶段 | 要回答 |\n|---|---|\n| 旧信念 | 人物把什么当作安全、成功或体面 |\n| 保护策略 | 遇到压力时，他习惯怎样做 |\n| 早期有效 | 这套办法为何曾帮助过他 |\n| 代价累积 | 它开始伤到什么目标、关系或身份 |\n| 最终选择 | 哪两个重要价值无法同时保住 |\n| 新行为证据 | 后续遇到相似压力时，他怎样换一种做法 |\n\n角色动机解释此刻为何在乎；人物弧光追踪同一种压力跨全书怎样反复测试他的办法。一次接受帮助只能证明一次选择，不能自动证明长期成长。\n\nOh Story 的 character-basics 把成长落在心智和选择，也明确稳定人设可以有魅力。上表是作者组织变化的工作卡，不是技能固定交付格式；“最终选择”的两难与成本只在本书已建立时使用，人物也可以学会更有效的方法而没有额外损失。",
+          "en": "The following is one practical model for organizing a positive change arc and tracking how an old strategy is revised. Negative and steadfast arcs are discussed below.\n\n| Stage | Question to answer |\n|---|---|\n| Old belief | What does the character equate with safety, success, or dignity? |\n| Protective strategy | What do they habitually do under pressure? |\n| Early success | Why did this strategy once help them? |\n| Accumulating cost | Which goal, relationship, or identity does it begin to damage? |\n| Final choice | Which two important values can no longer both be preserved? |\n| Evidence in new behavior | Under similar pressure later, what do they do differently? |\n\nCharacter motivation explains why someone cares in the present moment. A character arc tracks how the same kind of pressure repeatedly tests their approach across the entire story. Accepting help once proves one choice, not lasting growth by itself.\n\nOh Story’s character-basics places growth in judgment and choices and also recognizes the appeal of a stable character. This is an editorial planning card, not a fixed skill deliverable. Use a costly dilemma when the work establishes one; learning a more effective approach need not add a loss."
         }
       },
       {
@@ -13213,8 +13213,8 @@
           "en": "Why a Transformation Often Feels Sudden"
         },
         "body": {
-          "zh": "- **旧办法从未有效**：角色看起来只是在犯蠢。补一场它确实保护过什么的经历。\n- **代价没有累积**：每次失败都自动复位。让关系、信誉或资源留下痕迹。\n- **顿悟替代选择**：角色讲完道理，仍无需放弃任何东西。让新做法牺牲旧收益。\n- **高潮后没有复测**：读者不知道改变能否保持。用一个较小的相似情境给行为证据。\n- **变化等于性格反转**：谨慎者无需突然鲁莽；他可以保留谨慎，只改变独自承担的方式。",
-          "en": "- **The old approach never worked:** The character merely looks foolish. Add an experience in which it genuinely protected something.\n- **Costs do not accumulate:** Every failure resets automatically. Leave marks on relationships, reputation, or resources.\n- **An epiphany replaces a choice:** The character states the lesson without giving anything up. Make the new approach sacrifice an old benefit.\n- **No test follows the climax:** Readers cannot tell whether the change will hold. Use a smaller, similar situation as behavioral evidence.\n- **Change becomes a personality reversal:** A cautious person need not suddenly become reckless. They can remain cautious while changing the habit of carrying everything alone."
+          "zh": "- **旧办法从未有效**：角色看起来只是在犯蠢。补一场它确实保护过什么的经历。\n- **代价没有累积**：每次失败都自动复位。让关系、信誉或资源留下痕迹。\n- **顿悟替代行为**：角色讲完道理，做法仍与以前相同。用实际选择表现变化；若旧收益确实与新做法冲突，再写他如何取舍，不强制所有成长受损。\n- **改变缺少行为证据**：只有一句“他成长了”，读者看不见实际做法。可在高潮的选择中兑现；需要观察持续性时，再用较小的相似情境，不为满足模板硬加尾声。\n- **变化等于性格反转**：谨慎者无需突然鲁莽；他可以保留谨慎，只改变独自承担的方式。",
+          "en": "- **The old approach never worked:** The character merely looks foolish. Add an experience in which it genuinely protected something.\n- **Costs do not accumulate:** Every failure resets automatically. Leave marks on relationships, reputation, or resources.\n- **An epiphany replaces behavior:** The character states a lesson but acts as before. Show a changed choice. If an old benefit conflicts with the new approach, establish that trade-off; growth does not always require a loss.\n- **Change lacks behavioral evidence:** “He had grown” alone does not show a new approach. The climax’s actual choice may deliver it. A smaller later test can show persistence when needed, without adding an epilogue merely to complete the template.\n- **Change becomes a personality reversal:** A cautious person need not suddenly become reckless. They can remain cautious while changing the habit of carrying everything alone."
         }
       },
       {
@@ -13224,8 +13224,8 @@
           "en": "Does a Character Always Have to Improve?"
         },
         "body": {
-          "zh": "也可以写负向弧：角色越来越依赖旧策略，直到它吞掉最在乎的东西；稳定弧则让角色坚持经过审视的信念，并改变周围人。三种弧都要有连续选择与结果。\n\n判断弧线方向时，避免用作者评语给人物判道德分。追踪他面对同类压力时做了什么、失去什么，以及最终是否接受代价。",
-          "en": "You can also write a negative arc, in which a character relies more and more on an old strategy until it consumes what matters most. A steadfast arc lets a character uphold a scrutinized belief and change the people around them. All three kinds require a sequence of choices and results.\n\nWhen judging the arc’s direction, do not assign the character a moral grade through authorial commentary. Track what they do under similar pressure, what they lose, and whether they ultimately accept the cost."
+          "zh": "也可以写负向弧：角色越来越依赖旧策略，直到它吞掉最在乎的东西；稳定弧则让角色坚持经过审视的信念，并改变周围人。三种弧都要有连续选择与结果。\n\n判断弧线方向时，避免用作者评语给人物判道德分。追踪他面对同类压力时做了什么、产生什么结果，以及本书已建立的代价怎样处理；稳定弧不必为了显得有变化而推翻原有信念。",
+          "en": "You can also write a negative arc, in which a character relies more and more on an old strategy until it consumes what matters most. A steadfast arc lets a character uphold a scrutinized belief and change the people around them. All three kinds require a sequence of choices and results.\n\nWhen judging the arc’s direction, do not assign the character a moral grade through authorial commentary. Track actions under similar pressure, their results, and any established costs. A steadfast arc need not overturn a belief merely to appear changed."
         }
       }
     ],
@@ -13246,16 +13246,16 @@
           "en": "Does every supporting character need a complete arc?"
         },
         "a": {
-          "zh": "只有当他的连续选择会改变主线时才需要。短暂承担功能的角色可以保持清楚而简洁；重要配角的弧线也应通过自己的行动完成。",
-          "en": "Only if that character’s sequence of choices changes the main plot. A briefly functional character can be clear and concise. An important supporting character’s arc should still be completed through that character’s own actions."
+          "zh": "不一定。按他在作品中的分量与作者想呈现的经历选择；重要配角可以有自己的成长或稳定弧，也可以主要提供陪伴、声线和关系。不必每条弧都改变主线，短暂出场也不硬补一生经历。",
+          "en": "Not necessarily. Choose according to the character’s place in the work and the experience the author wants to present. An important supporting character may change, remain steadfast, or chiefly provide companionship, voice, and relationships. Every arc need not change the main plot, and a brief appearance need not carry a full life story."
         }
       }
     ],
     "skill": {
       "name": "story-long-write",
       "text": {
-        "zh": "在 Claude Code 里说：“用 /story-long-write 只规划这个角色的全书弧线，按旧信念、保护策略、早期有效、代价累积、最终选择和新行为证据列阶段；保留已有情节，不写正文”（Codex 里使用 `$story-long-write`）。",
-        "en": "In Claude Code, say: “Use `/story-long-write` only to plan this character’s full-story arc. Map the old belief, protective strategy, early success, accumulating costs, final choice, and evidence in new behavior. Preserve the existing plot and do not write prose.” In Codex, use `$story-long-write`."
+        "zh": "请 story-long-write 只规划这个角色的全书弧线：先确认我选择的是正向、负向还是稳定弧，再按已有经历、惯常策略、触发事件、选择与实际结果列阶段。正向变化可借本文六项工作卡，不强制所有人物牺牲收益或增加尾声；保留已有情节，不写正文。",
+        "en": "Ask story-long-write to plan this character’s arc only. Confirm the chosen positive, negative, or steadfast form, then track established experience, habitual strategy, triggers, choices, and results. The six-field card can assist a positive arc without making every character lose a benefit or gain an epilogue. Preserve existing plot and do not draft prose."
       },
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
     },
@@ -13290,18 +13290,18 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
-      "zh": "小说冲突怎么写：让双方在反制中失去旧解法",
-      "en": "How to Write Story Conflict: Make Each Countermove Close an Old Option"
+      "zh": "小说冲突怎么写：目标、筹码与双方反制",
+      "en": "How to Write Story Conflict: Goals, Leverage, and Countermoves"
     },
     "seo_title": {
       "zh": "小说冲突怎么写｜ZenStory",
       "en": "How to Write Story Conflict | ZenStory"
     },
     "description": {
-      "zh": "冲突不只是主角遇到阻碍，而是双方目标无法同时满足，并会读取上一轮结果、调整策略。附原创修复赛冲突阶梯。",
-      "en": "Conflict means incompatible outcomes and opponents who learn and adjust after each round. Includes an original restoration contest and escalation fixes."
+      "zh": "用双方目标、筹码和回应组织对抗，不靠重复争吵或临时事故升级。附山顶发射塔完整回合例与冲突修订表。",
+      "en": "Build adversarial conflict from goals, leverage, and countermoves. Includes a transmitter-restoration example and checks for escalation and results."
     },
     "answer": {
       "zh": "设计人物或阵营之间的对抗型冲突时，让双方都有行动能力，并争取当前无法同时满足的结果。每轮出招、反制和结算改变筹码、关系或可用策略，下一轮才能继续升级。人与自然、内心抉择等冲突不必虚构一个会反制的对手，可以通过压力、选择与后果推进。",
@@ -13326,8 +13326,8 @@
           "en": "Advance Through Countermoves, Not One-Sided Difficulty"
         },
         "body": {
-          "zh": "| 回合 | 行动与反制 | 改变 |\n|---|---|---|\n| 试探 | 用低成本办法争取结果；对方：暴露一项限制或条件 | 信息与立场 |\n| 加码 | 投入更重要的筹码；对方：改规则、联盟或证据解释 | 资源与可选方案 |\n| 锁死 | 迫使对方公开选择；对方：承担损失或反向揭底 | 关系与退路 |\n| 决断 | 在剩余选项中行动；对方：给出最后回应 | 不可逆结果 |\n\n不要求每个故事固定四轮。表格只检查双方是否会学习，以及每次交手是否留下东西；能在两轮完成的冲突无需拉长。\n\n此表是本页用于核对的简表，不是 skill 的固定四轮交付格式。有限同意可能只改变一次复查资格，不必每轮都制造不可逆损失。",
-          "en": "| Round | Move and reply | Change |\n|---|---|---|\n| Probe | Pursue the result with a low-cost method; reply: Reveal a constraint or condition | Information and positions |\n| Raise | Commit more important leverage; reply: Change the rules, alliance, or interpretation of evidence | Resources and available options |\n| Lock-in | Force the other side to choose publicly; reply: Accept a loss or expose the other side in return | Relationships and escape routes |\n| Decision | Act among the remaining options; reply: Give a final response | An irreversible outcome |\n\nA story does not need exactly four rounds. The table only checks whether both sides learn and whether each exchange leaves something changed. A conflict that can finish in two rounds should not be stretched.\n\nThis editorial worksheet is not the skill’s fixed four-round output. Limited agreement can change review access without an irreversible loss in every round."
+          "zh": "| 回合 | 行动与改变 |\n|---|---|\n| 试探 | 行动与反制：用低成本办法争取结果；对方：暴露一项限制或条件；改变：信息与立场 |\n| 加码 | 行动与反制：投入更重要的筹码；对方：改规则、联盟或证据解释；改变：资源与可选方案 |\n| 锁死 | 行动与反制：迫使对方公开选择；对方：承担损失或反向揭底；改变：关系与退路 |\n| 决断 | 行动与反制：在剩余选项中行动；对方：给出最后回应；改变：不可逆结果 |\n\n不要求每个故事固定四轮。表格只检查双方是否会学习，以及每次交手是否留下东西；能在两轮完成的冲突无需拉长。\n\n此表是本页用于核对的简表，不是 skill 的固定四轮交付格式。有限同意可能只改变一次复查资格，不必每轮都制造不可逆损失。",
+          "en": "| Round | Move and change |\n|---|---|\n| Probe | Move and reply: Pursue the result with a low-cost method; reply: Reveal a constraint or condition; Change: Information and positions |\n| Raise | Move and reply: Commit more important leverage; reply: Change the rules, alliance, or interpretation of evidence; Change: Resources and available options |\n| Lock-in | Move and reply: Force the other side to choose publicly; reply: Accept a loss or expose the other side in return; Change: Relationships and escape routes |\n| Decision | Move and reply: Act among the remaining options; reply: Give a final response; Change: An irreversible outcome |\n\nA story does not need exactly four rounds. The table only checks whether both sides learn and whether each exchange leaves something changed. A conflict that can finish in two rounds should not be stretched.\n\nThis editorial worksheet is not the skill’s fixed four-round output. Limited agreement can change review access without an irreversible loss in every round."
         }
       },
       {
@@ -13337,8 +13337,8 @@
           "en": "Original Example: The Broadcast-Tower Restoration Bid"
         },
         "body": {
-          "zh": "旧城广播协会要选一队修复停用多年的山顶发射塔。工程师梁昼主张保留原装调谐器，证明旧设备仍能工作；安全主管贺敏坚持先拆除它，避免未经检查的部件进入试播。两人的目标无法同时满足，却都想让广播恢复。\n\n**试探**：梁昼提交台架测试，证明调谐器能稳定发出短讯号。贺敏不否定结果，却指出测试未包含山顶潮湿环境，只同意继续离线检查。结算：梁昼赢得测试资格，没有赢得安装权。\n\n**加码**：梁昼找到旧维护日志，提出按原结构做密封。贺敏发现日志最后几页缺失，改要求团队先完成替代件方案。结算：历史价值仍在，原件不再是唯一选项。\n\n**锁死**：赞助方要求纪念日当天试播，并暗示只有“原机复活”才继续出资。梁昼本可借压力越过贺敏，却公开承认日志缺页；贺敏则同意让原件参与低功率、有人值守的对照试验。两人都放弃了最方便的旧解法。\n\n高潮前的冲突没有变成互骂。每轮都改变权限、证据和方案，双方也根据上一轮调整。最终试验成败仍要在后续场景结算，本文没有虚构执行结果。",
-          "en": "An old-city broadcasting association must choose a team to restore a mountaintop transmitter that has been out of service for years. Engineer Liang Zhou wants to keep the original tuner and prove that the old equipment can still work. Safety supervisor He Min insists on removing it first so that an uninspected component cannot enter the test broadcast. Their desired outcomes cannot coexist, although both want broadcasting restored.\n\n**Probe:** Liang Zhou submits a bench test showing that the tuner can transmit a stable short signal. He Min accepts that result. She points out that the test did not reproduce the damp mountaintop environment and approves only further offline inspection. Resolution: Liang Zhou wins permission to test, not permission to install.\n\n**Raise:** Liang Zhou finds an old maintenance log and proposes sealing the unit according to the original structure. He Min discovers that the log’s final pages are missing and instead requires the team to design a replacement option first. Resolution: the historical value remains, but the original unit is no longer the sole option.\n\n**Lock-in:** A sponsor demands a commemorative test broadcast and implies that funding will continue only if the “original machine comes back to life.” Liang Zhou could use that pressure to bypass He Min, but publicly acknowledges the missing pages. He Min, in turn, permits the original unit to enter a supervised, low-power comparison test. Both give up their easiest old solution.\n\nThe conflict before the climax never turns into mere shouting. Every round changes authority, evidence, and options, and each side adapts to the last result. A later scene must still resolve whether the final test succeeds; this article does not invent an executed result."
+          "zh": "旧城广播协会要选一队修复停用多年的山顶发射塔。旧机组已运到工作间做离线初测，调谐器仍在机组内。工程师梁昼主张保留原装调谐器，证明旧设备仍能工作；安全主管贺敏坚持先拆除它，避免未经检查的部件进入试播。今天“整机装回塔上”与“先拆下调谐器进一步检查”的要求不能同时执行，长期目标却都是恢复广播。本例中梁昼负责工程提案，贺敏决定是否允许安装与试验，协会安排日期，赞助方可决定资助但不能代替试验许可。\n\n**试探**：梁昼提交台架测试，显示初测机组的短讯号保持稳定。贺敏不否定结果，却指出测试未包含山顶潮湿环境，只同意继续离线检查。结算：梁昼赢得测试资格，没有赢得安装权。\n\n**加码**：梁昼找到旧维护日志，提出按原结构做密封。贺敏发现日志最后几页缺失，改要求团队先完成替代件方案。结算：历史价值仍在，原件不再是唯一选项。\n\n**条件改变**：赞助方要求纪念日试播，并以“原机复活”作为继续出资条件。梁昼不能凭资助要求越过贺敏；他向协会说明日志缺页，提出先将原件与替代件做离线台架对照，暂不安装。贺敏接受有人值守的低功率离线试验范围，协会同意先保留纪念日安排、按检查结果再选设备。原件获得一次比较机会，不等于已经获准接入山顶发射塔；赞助方是否接受延期仍待回应。\n\n高潮前的冲突没有变成互骂。每轮都改变权限、证据和方案，双方也根据上一轮调整。最终试验成败仍要在后续场景结算，本文没有虚构执行结果。",
+          "en": "An old-city broadcasting association must choose a team to restore a mountaintop transmitter that has been out of service for years. The old unit is in the workshop for initial offline checks, with the tuner still inside it. Engineer Liang Zhou wants to keep the original tuner and prove that the old equipment can still work. Safety supervisor He Min insists on removing it first so that an uninspected component cannot enter the test broadcast. Reinstalling the assembled unit at the tower now conflicts with first removing the tuner for further inspection; their long-term aim is the same restored service. Here Liang owns the engineering proposal, He Min approves installation and testing, the association schedules events, and the sponsor controls funding rather than test permission.\n\n**Probe:** Liang Zhou submits a bench test showing a stable short signal during the unit’s initial check. He Min accepts that result. She points out that the test did not reproduce the damp mountaintop environment and approves only further offline inspection. Resolution: Liang Zhou wins permission to test, not permission to install.\n\n**Raise:** Liang Zhou finds an old maintenance log and proposes sealing the unit according to the original structure. He Min discovers that the log’s final pages are missing and instead requires the team to design a replacement option first. Resolution: the historical value remains, but the original unit is no longer the sole option.\n\n**Changed conditions:** The sponsor wants a commemorative broadcast and makes further funding conditional on reviving the original unit. Liang cannot use funding demands to bypass He Min. Liang discloses the missing log pages to the association and proposes an offline bench comparison of original and replacement units, without installation. He Min approves supervised, low-power offline testing; the association keeps the anniversary plan provisional, with equipment selection following checks. The original earns a comparison opportunity, not permission to join the mountaintop transmitter. The sponsor’s response to a possible delay remains unknown.\n\nThe conflict before the climax never turns into mere shouting. Every round changes authority, evidence, and options, and each side adapts to the last result. A later scene must still resolve whether the final test succeeds; this article does not invent an executed result."
         }
       },
       {
@@ -13348,8 +13348,8 @@
           "en": "How to Escalate Without Repeating Yourself"
         },
         "body": {
-          "zh": "升级可以换四个维度：\n\n- **筹码**：从口头意见到信誉、资源或承诺。\n- **公开范围**：从私下协商到团队必须站队。\n- **可逆性**：从可撤回提案到会永久改变关系或物件的行动。\n- **时间与出口**：旧折中方案因前一轮结果失效。\n\n每轮至少变一项即可。若只是对手换一句更难听的话、主角再用同样证据回应，冲突强度没有真正上升。",
-          "en": "Escalation can change four dimensions:\n\n- **Leverage:** Move from a verbal opinion to reputation, resources, or a promise.\n- **Public scope:** Move from private negotiation to a choice that forces the team to take sides.\n- **Reversibility:** Move from a retractable proposal to an action that permanently changes a relationship or object.\n- **Time and exits:** Let the last round’s result invalidate an old compromise.\n\nChanging even one dimension per round can be enough. If the opponent only says something harsher and the protagonist answers with the same evidence, the conflict has not truly intensified."
+          "zh": "升级可以换四个维度：\n\n- **筹码**：从口头意见到信誉、资源或承诺。\n- **公开范围**：从私下协商到团队必须站队。\n- **可逆性**：从可撤回提案到会永久改变关系或物件的行动。\n- **时间与出口**：旧折中方案因前一轮结果失效。\n\n需要升级时可以改变其中一项，不要求每轮扩大损失。若只是对手换一句更难听的话、主角再用同样证据回应，先检查是否重复；语气也能表现关系，只是不能据此宣称实际权限已经变化。",
+          "en": "Escalation can change four dimensions:\n\n- **Leverage:** Move from a verbal opinion to reputation, resources, or a promise.\n- **Public scope:** Move from private negotiation to a choice that forces the team to take sides.\n- **Reversibility:** Move from a retractable proposal to an action that permanently changes a relationship or object.\n- **Time and exits:** Let the last round’s result invalidate an old compromise.\n\nChange one dimension when escalation is needed, without enlarging loss every round. A harsher line answered with identical evidence may be repetitive. Tone can still express a relationship, but it does not itself change actual permission."
         }
       },
       {
@@ -13359,8 +13359,8 @@
           "en": "Common Conflict Failures and Fixes"
         },
         "body": {
-          "zh": "| 失败 | 修正 |\n|---|---|\n| 对手只负责说不 | 给他独立目标、筹码和可接受条件 |\n| 主角每轮重复同一办法 | 让上一轮结算关闭旧解法 |\n| 突然出现新事故强行升级 | 优先从已有筹码、承诺和关系推导 |\n| 吵得很凶但场面归零 | 让权限、资源、信息或关系发生变化 |\n| 一方赢了，对方像没学过 | 写出败方如何调整证据、联盟或规则 |",
-          "en": "| Failure | Fix |\n|---|---|\n| The opponent only says no | Give the opponent an independent goal, leverage, and acceptable conditions |\n| The protagonist repeats the same approach every round | Let the previous resolution close that option |\n| A new accident suddenly forces escalation | Derive escalation from established leverage, promises, and relationships first |\n| The argument is fierce but the scene resets | Change authority, resources, information, or a relationship |\n| One side wins and the loser seems to learn nothing | Show how the losing side adjusts its evidence, alliances, or rules |"
+          "zh": "| 失败 | 修正 |\n|---|---|\n| 对手只负责说不 | 给他独立目标、筹码和可接受条件 |\n| 主角每轮重复同一办法 | 让人物利用上一轮信息调整；同一方法有新的适用理由时可继续使用 |\n| 突然出现新事故强行升级 | 优先从已有筹码、承诺和关系推导 |\n| 吵得很凶但场面归零 | 让权限、资源、信息或关系发生变化 |\n| 一方赢了，对方像没学过 | 写出败方如何调整证据、联盟或规则 |",
+          "en": "| Failure | Fix |\n|---|---|\n| The opponent only says no | Give the opponent an independent goal, leverage, and acceptable conditions |\n| The protagonist repeats the same approach every round | Let the character adjust using the previous result; an old method can remain useful under newly established conditions |\n| A new accident suddenly forces escalation | Derive escalation from established leverage, promises, and relationships first |\n| The argument is fierce but the scene resets | Change authority, resources, information, or a relationship |\n| One side wins and the loser seems to learn nothing | Show how the losing side adjusts its evidence, alliances, or rules |"
         }
       }
     ],
@@ -13419,18 +13419,18 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
-      "zh": "小说高潮怎么写：让承诺汇合，逼出最终选择",
-      "en": "How to Write a Climax: Converge Promises and Force a Final Choice"
+      "zh": "小说高潮怎么写：让前文承诺得到兑现",
+      "en": "How to Write a Climax That Delivers Your Story's Promises"
     },
     "seo_title": {
       "zh": "小说高潮怎么写｜ZenStory",
       "en": "How to Write a Climax Scene | ZenStory"
     },
     "description": {
-      "zh": "高潮场景要让能力、关系、证据和代价在同一行动中汇合，逐步关闭退路，最终由人物选择完成结算。附原创档案放映案例。",
-      "en": "Bring ability, relationships, evidence, and cost into one action, close escape routes, and resolve the climax through choice. Includes an original example."
+      "zh": "从前文已建立的目标、能力、关系与证据规划高潮，按作品需要选择揭示、行动或关系回应。附完整展映案例与反推检查。",
+      "en": "Plan a climax from established goals, abilities, relationships, and evidence. Includes payoff types, an archive-screening example, and setup checks."
     },
     "answer": {
       "zh": "先找出前文持续建立、需要在此兑现的承诺，让高潮产生可判断的结果。若核心是价值冲突，可以让能力、关系、证据和代价汇合，迫使人物作出重要选择；揭晓型、行动型或关系型高潮则可通过答案、胜负或关系变化结算，不必都安排放弃收益的关口。",
@@ -13444,8 +13444,8 @@
           "en": "List the Promises the Climax Must Fulfill"
         },
         "body": {
-          "zh": "| 承诺类型 | 高潮中怎样到场 |\n|---|---|\n| 外部目标 | 有一个可判断完成或失败的结果 |\n| 能力线 | 主角使用已建立、有限制的办法 |\n| 关系线 | 关键人物按自己的立场帮助、拒绝或提出条件 |\n| 证据线 | 早先埋下的信息改变最终选项，不临时救场 |\n| 代价线 | 主角不能同时保住两项重要东西 |\n| 人物弧 | 最终行动与早期惯用办法形成可见对照 |\n\n不是每部小说都要六项齐全。只列本书已经持续承诺的线，高潮负责让它们碰撞，而非临时增加更大的敌人。",
-          "en": "| Promise | Payoff |\n|---|---|\n| External goal | A result that can clearly succeed or fail |\n| Ability thread | The protagonist uses an established method with known limits |\n| Relationship thread | A key person helps, refuses, or sets conditions from their own position |\n| Evidence thread | Earlier information changes the final options instead of arriving as a last-minute rescue |\n| Cost thread | The protagonist cannot preserve two important things at once |\n| Character arc | The final action visibly contrasts with the protagonist’s earlier habitual approach |\n\nNot every novel needs all six. List only the threads the book has consistently promised. The climax makes those threads collide rather than introducing a suddenly larger enemy."
+          "zh": "| 承诺类型 | 高潮中怎样到场 |\n|---|---|\n| 外部目标 | 有一个可判断完成或失败的结果 |\n| 能力线 | 主角使用已建立、有限制的办法 |\n| 关系线 | 关键人物按自己的立场帮助、拒绝或提出条件 |\n| 证据线 | 早先埋下的信息改变最终选项，不临时救场 |\n| 代价线 | 交代已经建立的代价如何发生或被合理化解 |\n| 人物弧 | 最终行动与早期惯用办法形成可见对照 |\n\n不是每部小说都要六项齐全。只列本书已经持续承诺的线，高潮负责让它们碰撞，而非临时增加更大的敌人。",
+          "en": "| Promise | Payoff |\n|---|---|\n| External goal | A result that can clearly succeed or fail |\n| Ability thread | The protagonist uses an established method with known limits |\n| Relationship thread | A key person helps, refuses, or sets conditions from their own position |\n| Evidence thread | Earlier information changes the final options instead of arriving as a last-minute rescue |\n| Cost thread | Show how an established cost occurs or is credibly resolved |\n| Character arc | The final action visibly contrasts with the protagonist’s earlier habitual approach |\n\nNot every novel needs all six. List only the threads the book has consistently promised. The climax makes those threads collide rather than introducing a suddenly larger enemy."
         }
       },
       {
@@ -13477,8 +13477,8 @@
           "en": "Work Backward and Add Only Missing Conditions"
         },
         "body": {
-          "zh": "高潮写不动时，通常源于某项选择没有前置重量，单纯扩大场面解决不了。逐项问：能力是否早先用过并暴露边界；关系是否经过行动建立；证据是否被读者见过；代价是否真的会失去；对手为何此刻能关闭出口。\n\n缺哪项就回到前文相应位置补一处有效建立，不为追求“史诗感”遍地埋伏笔。若高潮所需条件与已写事实冲突，应改高潮方案，而非强行篡改前文。",
-          "en": "When a climax will not come together, one of its choices often lacks prior weight; simply enlarging the spectacle will not fix it. Ask in turn: Was the ability used earlier, with its limits exposed? Was the relationship built through action? Has the reader seen the evidence? Will the stated cost truly be lost? Why can the opponent close the exit now?\n\nReturn to the relevant earlier point and add one effective setup for whatever is missing. Do not scatter foreshadowing everywhere in pursuit of an “epic” feeling. If a condition required by the climax contradicts an established fact, change the climax rather than forcibly rewriting the earlier story."
+          "zh": "高潮写不动时，通常源于某项选择没有前置重量，单纯扩大场面解决不了。逐项问：能力是否早先用过并暴露边界；关系是否经过行动建立；证据是否被读者见过；代价是否真的会失去；对手为何此刻能关闭出口。\n\n缺哪项就回到前文相应位置补一处有效建立，不为追求“史诗感”遍地埋伏笔。若高潮所需条件与已写事实冲突，应改高潮方案，而非强行篡改前文。\n\nOh Story 的 outline-rhythm 在高潮反推中列角色、背景、故事线与情绪演变；reader-contract-and-progression 检查先前承诺怎样兑现，并允许兑现后的低压回报。本文的选择型安排是其中一种编辑用法，不是所有高潮都必须关闭全部退路、牺牲重要利益或立刻开启更高危机。",
+          "en": "When a climax will not come together, one of its choices often lacks prior weight; simply enlarging the spectacle will not fix it. Ask in turn: Was the ability used earlier, with its limits exposed? Was the relationship built through action? Has the reader seen the evidence? Will the stated cost truly be lost? Why can the opponent close the exit now?\n\nReturn to the relevant earlier point and add one effective setup for whatever is missing. Do not scatter foreshadowing everywhere in pursuit of an “epic” feeling. If a condition required by the climax contradicts an established fact, change the climax rather than forcibly rewriting the earlier story.\n\nOh Story’s outline-rhythm backsolves characters, background, storylines, and emotional development; reader-contract-and-progression checks delivery of prior promises and allows low-pressure reward afterward. This choice-driven plan is one editorial application, not a requirement to close every exit, sacrifice an important interest, or immediately add a higher crisis."
         }
       },
       {
@@ -13488,8 +13488,8 @@
           "en": "Give the Result Room to Breathe After the Climax"
         },
         "body": {
-          "zh": "外部胜负落定后，至少写清：谁得到或失去什么、哪个关系改变、主角的新选择是否留下后续行为。余波可以短，但不能用一句“从此一切都好了”抹掉代价。\n\n如果这是卷高潮，结算本卷核心问题，再由结果制造下一阶段压力；如果是全书高潮，结局应展示新秩序怎样运作。章尾是否悬置按故事需要，不必为了钩子故意把已经该回答的胜负拖走。",
-          "en": "After the external victory or defeat is settled, make at least three things clear: who gains or loses what, which relationship changes, and whether the protagonist’s new choice produces later behavior. The aftermath may be short, but it cannot erase the cost with “and everything was fine from then on.”\n\nFor a volume climax, resolve the volume’s central question, then let the result create pressure for the next stage. For the climax of the entire book, show how the new order operates. Whether the chapter ends on suspense depends on the story; do not delay a result that should already be answered merely to manufacture a hook."
+          "zh": "外部胜负落定后，检查本书已承诺的结果：谁得到或失去什么，重要关系是否有回应，若人物改变是重点，新选择怎样表现。按本次高潮的重心取舍，不要求三项每次同时变化。余波可以短，但不能用一句“从此一切都好了”抹掉代价。\n\n卷高潮先结算本卷核心问题，后续可以承接新目标，也可以留一段日常回报。全书高潮先回应全书承诺，需要交代新的生活或秩序时再展开。章尾是否悬置按故事需要，不必为了钩子故意把已经该回答的胜负拖走。",
+          "en": "After victory or defeat, check the results the work promised: gains and losses, responses in important relationships, and behavior if character change is central. Choose according to this climax’s focus; all three need not change every time. The aftermath may be short, but it cannot erase the cost with “and everything was fine from then on.”\n\nFor a volume climax, resolve its central question, then follow a new objective or allow ordinary life and reward. For a full-book climax, answer the book’s promise; develop a new life or order when that ending needs it. Whether the chapter ends on suspense depends on the story; do not delay a result that should already be answered merely to manufacture a hook."
         }
       },
       {
@@ -13499,8 +13499,8 @@
           "en": "Common Climax Failures and Fixes"
         },
         "body": {
-          "zh": "| 失效 | 修正 |\n|---|---|\n| 临时获得新能力解决危机 | 提前建立能力边界，或改用已有资源组合 |\n| 所有配角只来鼓掌 | 让他们带着独立立场提供条件或拒绝 |\n| 反派忽然变笨 | 让最终破局来自前文信息与主角代价 |\n| 前文承诺的价值选择没有回应 | 让已建立的两难进入行动，不临时强添 |\n| 胜利后立刻结束 | 给资源、关系和新秩序一个具体落点 |\n| 为反转再翻一次 | 只有新理解会改变结算时才保留反转 |",
-          "en": "| Failure | Fix |\n|---|---|\n| A new ability appears at the last minute and solves the crisis | Establish the ability and its limits earlier, or combine existing resources |\n| Every supporting character arrives only to applaud | Give each an independent position from which to offer conditions or refuse |\n| The antagonist suddenly becomes foolish | Let established information and the protagonist’s cost create the breakthrough |\n| A promised value choice is left unanswered | Put the established dilemma into action rather than inventing one |\n| The story ends immediately after victory | Give resources, relationships, and the new order a concrete landing point |\n| One more twist exists only to reverse the result again | Keep it only if the new understanding changes the resolution |"
+          "zh": "| 失效 | 修正 |\n|---|---|\n| 临时获得新能力解决危机 | 提前建立能力边界，或改用已有资源组合 |\n| 所有配角只来鼓掌 | 让他们带着独立立场提供条件或拒绝 |\n| 反派忽然变笨 | 用已建立的信息、能力或选择破局，不为结算突然降低对手判断 |\n| 前文承诺的价值选择没有回应 | 让已建立的两难进入行动，不临时强添 |\n| 胜利后立刻结束 | 给资源、关系和新秩序一个具体落点 |\n| 为反转再翻一次 | 只有新理解会改变结算时才保留反转 |",
+          "en": "| Failure | Fix |\n|---|---|\n| A new ability appears at the last minute and solves the crisis | Establish the ability and its limits earlier, or combine existing resources |\n| Every supporting character arrives only to applaud | Give each an independent position from which to offer conditions or refuse |\n| The antagonist suddenly becomes foolish | Use established information, ability, or choices without suddenly lowering the opponent’s judgment |\n| A promised value choice is left unanswered | Put the established dilemma into action rather than inventing one |\n| The story ends immediately after victory | Give resources, relationships, and the new order a concrete landing point |\n| One more twist exists only to reverse the result again | Keep it only if the new understanding changes the resolution |"
         }
       }
     ],
@@ -13529,8 +13529,8 @@
     "skill": {
       "name": "story-long-write",
       "text": {
-        "zh": "在 Claude Code 里说：“用 /story-long-write 只设计这部小说的高潮场景，列已建立的外部目标、能力、关系、证据、代价与人物弧承诺，再安排退路关闭、最终选择、外部结算和人物余波；不新增能力或关键证据，不写完整正文”（Codex 里使用 `$story-long-write`）。",
-        "en": "In Claude Code, say: “Use `/story-long-write` only to design this novel’s climax scene. List the established promises involving the external goal, ability, relationships, evidence, cost, and character arc. Then arrange the closing of escape routes, final choice, external resolution, and character aftermath. Add no new ability or crucial evidence, and do not write full prose.” In Codex, use `$story-long-write`."
+        "zh": "请 story-long-write 只规划这部小说的高潮：先确认作者选择的高潮类型，列已有目标、能力、关系、证据与需要兑现的承诺，再安排实际执行和结果；已有价值两难时才规划取舍，不新增能力或关键证据，不写完整正文。",
+        "en": "Ask story-long-write to plan the climax only. Confirm the author’s chosen type, list established goals, abilities, relationships, evidence, and promises, then arrange execution and results. Use a value dilemma when already established; add no new power or crucial evidence and write no full prose."
       },
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
     },
@@ -13853,8 +13853,8 @@
       "en": "Decide when to jump ahead, then bridge scenes through causality, questions, emotional residue, objects, or sound. Includes a weather-station example."
     },
     "answer": {
-      "zh": "自然转场要让前一场留下能跨过切口的东西：下一步行动、待回答的问题、尚未消化的情绪，或会在新地点继续出现的物件与声音。一句“与此同时”和完整赶路都不是必需。没有新信息的过程可以直接跳过；新场开头要尽快说明谁、在哪里、正在处理什么，并让承接项发生变化。",
-      "en": "A natural transition carries something across the cut: the next action, an unanswered question, an unprocessed emotion, or an object or sound that continues in the new place. Neither “meanwhile” nor a complete travel sequence is required. Skip processes that add no new information. At the start of the new scene, quickly establish who is present, where they are, and what they are handling, then change the element carried across."
+      "zh": "自然转场要让前一场留下能跨过切口的东西：下一步行动、待回答的问题、尚未消化的情绪，或会在新地点继续出现的物件与声音。一句“与此同时”和完整赶路都不是必需。没有值得展开作用的过程可以直接跳过；新场开头要尽快说明谁、在哪里、正在处理什么，按这场的阅读作用继续承接。",
+      "en": "A natural transition carries something across the cut: the next action, an unanswered question, an unprocessed emotion, or an object or sound that continues in the new place. Neither “meanwhile” nor a complete travel sequence is required. Skip processes that serve no intended purpose. At the start of the new scene, quickly establish who is present, where they are, and what they are handling, and continue according to this scene’s intended effect."
     },
     "sections": [
       {
@@ -13875,8 +13875,8 @@
           "en": "Four Things That Can Bridge Scenes"
         },
         "body": {
-          "zh": "| 承接方式 | 前一场留下什么 | 新一场怎样接 |\n|---|---|---|\n| 因果 | 一个决定、命令或损失 | 直接写它造成的下一步行动 |\n| 问题 | 一个具体未解疑问 | 用调查、误判或局部答案推进 |\n| 情绪余波 | 人物尚未处理的羞愧、兴奋或戒备 | 让它改变新场中的说法与选择 |\n| 物件或声音 | 信件、污迹、铃声、广播等具体对象 | 在新时空获得新用途或含义 |\n\n同一处选最有力的一条即可。相似物、光影或声音可以让画面顺滑，但若新场没有推进，它只是漂亮的连接。反过来，只要因果清楚，干净的空行也可以完成跳切。",
-          "en": "| Bridge | Before | After |\n|---|---|---|\n| Causality | A decision, order, or loss | Show the next action it directly causes |\n| Question | One specific unresolved question | Advance it through investigation, misjudgment, or a partial answer |\n| Emotional residue | Shame, excitement, or wariness the character has not processed | Let it alter what the character says and chooses in the new scene |\n| Object or sound | A concrete item such as a letter, stain, bell, or broadcast | Give it a new use or meaning in the new time and place |\n\nChoose the strongest one at a given cut. Similar objects, light, or sound can smooth the image, but the link is merely attractive if the new scene does not advance. Conversely, when causality is clear, a clean section break can complete the jump."
+          "zh": "| 承接方式 | 前后场的联系 |\n|---|---|\n| 因果 | 前一场留下什么：一个决定、命令或损失；新一场怎样接：直接写它造成的下一步行动 |\n| 问题 | 前一场留下什么：一个具体未解疑问；新一场怎样接：用调查、误判或局部答案推进 |\n| 情绪余波 | 前一场留下什么：人物尚未处理的羞愧、兴奋或戒备；新一场怎样接：让它改变新场中的说法与选择 |\n| 物件或声音 | 前一场留下什么：信件、污迹、铃声、广播等具体对象；新一场怎样接：在新时空获得新用途或含义 |\n\n同一处选最有力的一条即可。相似物、光影或声音可以让画面顺滑，其价值也可以是对照、氛围或停留，不要求新场立即得到线索；同时检查人物与时间是否让读者误读。反过来，只要因果清楚，干净的空行也可以完成跳切。\n\nOh Story 的 style-craft 提供相似物、感知和情绪的衔接法；style-resolution 让具体写法服从作者和本书文风。上表是编辑比较卡，不是原生章节格式。因果桥、干净跳切和安静停留可以按本次需要组合，不机械要求四种桥都用一遍。",
+          "en": "| Bridge | Scene connection |\n|---|---|\n| Causality | Before: A decision, order, or loss; After: Show the next action it directly causes |\n| Question | Before: One specific unresolved question; After: Advance it through investigation, misjudgment, or a partial answer |\n| Emotional residue | Before: Shame, excitement, or wariness the character has not processed; After: Let it alter what the character says and chooses in the new scene |\n| Object or sound | Before: A concrete item such as a letter, stain, bell, or broadcast; After: Give it a new use or meaning in the new time and place |\n\nChoose the strongest one at a given cut. Similar objects, light, or sound can smooth the image, and can provide contrast, atmosphere, or a pause without an immediate clue. Still check whether readers can place the characters and time. Conversely, when causality is clear, a clean section break can complete the jump.\n\nOh Story’s style-craft offers object, perception, and emotional links; style-resolution places the author’s and book’s choices first. This is an editorial comparison, not the native chapter format. Combine a causal bridge, clean cut, or quiet pause as needed rather than cycling through every method."
         }
       },
       {
@@ -13886,8 +13886,8 @@
           "en": "Orient the Reader at the New Scene, Then Create Change"
         },
         "body": {
-          "zh": "新场第一小段回答读者此刻真正需要的三件事：视角人物是谁、地点或时间发生了什么变化、他正处理上一场留下的哪件事。不要把日期、天气、房间陈设和人物履历一次性重报。\n\n承接不等于复述。上一场以“她决定去查停机记录”结束，新场无需再写“她想着一定要查清”。让她已经站在档案柜前，却发现记录页被替换，读者会从行动认出承接，同时收到新变化。多线切换时，每条线切出前留下可继续的问题；切回来时先推进这个问题，避免重新介绍人物。",
-          "en": "The first short passage of a new scene should answer the three things readers actually need now: whose viewpoint this is, what has changed in time or place, and which matter from the prior scene the character is addressing. Do not report the date, weather, room furnishings, and character history all over again.\n\nA bridge is not a recap. If the prior scene ends with “She decided to inspect the shutdown records,” the new scene need not repeat that she was determined to investigate. Put her at the archive cabinet, where she discovers that a record page has been replaced. Readers recognize the continuation through action and receive a new change at the same time. When alternating plotlines, leave each line with a question that can continue. When returning, advance that question before reintroducing anyone."
+          "zh": "新场第一小段回答读者此刻真正需要的三件事：视角人物是谁、地点或时间发生了什么变化、他正处理上一场留下的哪件事。不要把日期、天气、房间陈设和人物履历一次性重报。\n\n承接不等于复述。上一场以“她决定去查停机记录”结束，新场无需再写“她想着一定要查清”。让她已经站在档案柜前，却发现要找的一页不在册中，读者会从行动认出承接，同时收到新变化。多线切换时，可让各线切出前留下目标、情绪或未解问题，切回时承接已有状态。群像或日常作品也可以回到关系与生活，不必每条线都像调查一样追问答案。\n\n“缺页”是眼前可见的状态，“有人替换”是需要对照或其他依据的判断；若下一步要查替换者，先让调查取得支持，不用一个转场直接送出幕后答案。",
+          "en": "The first short passage of a new scene should answer the three things readers actually need now: whose viewpoint this is, what has changed in time or place, and which matter from the prior scene the character is addressing. Do not report the date, weather, room furnishings, and character history all over again.\n\nA bridge is not a recap. If the prior scene ends with “She decided to inspect the shutdown records,” the new scene need not repeat that she was determined to investigate. Put her at the archive cabinet, where the page she needs is absent. Readers recognize the continuation through action and receive a new change at the same time. When alternating plotlines, a line can leave a goal, emotion, or unresolved question and return with its established state intact. An ensemble or slice-of-life story can revisit relationships and ordinary life without making every line pursue an investigative answer.\n\nAn absent page is visible; replacement by someone requires comparison or other support. If the next step concerns who replaced it, let the investigation establish a basis rather than having the transition supply the hidden answer."
         }
       },
       {
@@ -13908,8 +13908,8 @@
           "en": "How to Repair Abrupt or Dragging Transitions"
         },
         "body": {
-          "zh": "| 症状：原因 | 修正 |\n| --- | --- |\n| 每次都写人物离开、赶路、抵达：把空间连续误当成叙事连续 | 跳到下一次有变化的动作 |\n| 用“与此同时”切到无关人物：两条线没有共同问题 | 先让切出线留下会被另一线影响的信息 |\n| 新场开头复述上一场结论：只承接，没有推进 | 从结论造成的阻碍、发现或选择写起 |\n| 用相似物硬转，逻辑却断了：视觉相似代替了因果 | 补清谁为何来到这里、要处理什么 |\n| 高压场后立刻完全松弛：情绪结果被清零 | 让余波改变新场的节奏或人物策略 |\n| 频繁切线却迟迟不回来：每条线只留钩子不交付 | 切回时先回答一部分，再提出新问题 |",
-          "en": "| Problem and cause | Fix |\n| --- | --- |\n| Every scene shows the character leaving, traveling, and arriving: Spatial continuity is mistaken for narrative continuity | Jump to the next action that changes something |\n| “Meanwhile” cuts to an unrelated character: The two lines share no question | Leave a fact that the other line can affect |\n| A new scene opens by repeating the last scene’s conclusion: The transition continues but does not advance | Begin with the obstacle, discovery, or choice caused by that conclusion |\n| A similar image forces a transition while the logic breaks: Image matching has replaced cause | Clarify who came here, why, and what they need to handle |\n| A tense scene cuts away with its effects forgotten: The emotional consequence has been reset | Carry its effects into the next scene; earned relief can be a response |\n| The narrative switches lines repeatedly and takes too long to return: Every line leaves hooks but delivers nothing | On returning, answer something before raising a new question |"
+          "zh": "| 症状：原因 | 修正 |\n| --- | --- |\n| 每次都写人物离开、赶路、抵达：把空间连续误当成叙事连续 | 跳到下一次有变化的动作 |\n| 切到新人物后读者不知为何：只用“与此同时”代替定位和联系 | 补必要定位；联系可以来自共同事件、对照、情绪或本书群像安排 |\n| 新场开头复述上一场结论：只承接，没有推进 | 从结论造成的阻碍、发现或选择写起 |\n| 用相似物硬转，逻辑却断了：视觉相似代替了因果 | 补清谁为何来到这里、要处理什么 |\n| 高压场后立刻完全松弛：情绪结果被清零 | 让余波改变新场的节奏或人物策略 |\n| 频繁切线却迟迟不回来：每条线只留钩子不交付 | 切回时先回答一部分，再提出新问题 |",
+          "en": "| Problem and cause | Fix |\n| --- | --- |\n| Every scene shows the character leaving, traveling, and arriving: Spatial continuity is mistaken for narrative continuity | Jump to the next action that changes something |\n| Readers cannot place a cut to another person: “Meanwhile” substitutes for orientation and connection | Supply necessary orientation; shared events, contrast, emotion, or the work’s ensemble design can provide the link |\n| A new scene opens by repeating the last scene’s conclusion: The transition continues but does not advance | Begin with the obstacle, discovery, or choice caused by that conclusion |\n| A similar image forces a transition while the logic breaks: Image matching has replaced cause | Clarify who came here, why, and what they need to handle |\n| A tense scene cuts away with its effects forgotten: The emotional consequence has been reset | Carry its effects into the next scene; earned relief can be a response |\n| The narrative switches lines repeatedly and takes too long to return: Every line leaves hooks but delivers nothing | On returning, answer something before raising a new question |"
         }
       }
     ],
@@ -13930,8 +13930,8 @@
           "en": "Can one chapter contain many scene changes?"
         },
         "a": {
-          "zh": "可以，但每次切换都应让故事获得新信息、行动或对照，并让读者迅速定位。若几个短场只重复同一结论，可以合并或保留最有变化的一场。",
-          "en": "Yes, but each switch should add information, action, or contrast and let readers reorient quickly. If several brief scenes repeat the same conclusion, combine them or keep the one that changes the most."
+          "zh": "可以。让读者迅速定位，并检查切换服务的是信息、行动、情绪、对照还是陪伴。没有必要每次都增加事件；几个短场若只是无作用地重复结论，再合并或保留更有效的一场。",
+          "en": "Yes. Reorient readers and check whether the switch serves information, action, emotion, contrast, or companionship. Every cut need not add an event. Combine short scenes when they merely repeat a conclusion without a useful effect."
         }
       }
     ],
