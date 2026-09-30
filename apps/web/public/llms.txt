@@ -313,6 +313,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [AI Video Speaking the Wrong Language? Check Prompts, Dialogue, and Audio](https://zenstory.ai/drama-skills/fix-wrong-spoken-language-in-ai-video) — Separate prompt language from spoken dialogue. Preserve verbatim lines and speaker roles, then check the actual audio with a bilingual worked example.
 - [How to Fix a Static Character in Image-to-Video](https://zenstory.ai/drama-skills/fix-a-static-subject-in-image-to-video) — Check the intended action, starting image, and constraints. Includes a complete stand-and-walk prompt and checks for the actual result.
 - [How to Keep AI Video Effects Within Their Target](https://zenstory.ai/drama-skills/keep-ai-video-effects-within-the-target) — Bound an effect by trigger, target, end state, and preservation. Includes a complete material-change prompt and checks for unaffected objects.
+- [How to Fix Sliding Feet in AI Video](https://zenstory.ai/drama-skills/fix-sliding-feet-in-ai-video) — Check foot contact, body travel, and floor anchors. Includes a complete doorway-walk prompt and checks for preserving the shot’s purpose.
+- [How to Fix Floating Props in AI Video](https://zenstory.ai/drama-skills/fix-floating-props-in-ai-video) — Separate lost support, unintended carried motion, and chosen effects. Includes a complete tabletop-envelope prompt and repair checks.
 
 ### Interactive stories and games / 互动故事与游戏
 - [Interactive stories and games](https://zenstory.ai/guides/interactive-games) — Turn a novel into player actions, branching stories, and a playable game.
@@ -361,6 +363,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Design Exploration Routes in a Story Game](https://zenstory.ai/novel-to-game/design-exploration-routes-in-a-story-game) — Connect readable landmarks, a main route, and optional routes to the current goal. Includes a sketchbook-return path with a remembered favor.
 - [How to Fix a Story Game That Cannot Progress](https://zenstory.ai/novel-to-game/fix-a-story-game-that-cannot-progress) — Check reachable actions from the current state, distinguishing unclear guidance, declared failure, and an unintended dead end. Includes a key-loan repair.
 - [How to Connect Combat Results to a Game Story](https://zenstory.ai/novel-to-game/connect-game-combat-results-to-the-story) — Make aftermath read actual results, choices, and delivered rewards. Includes two tournament paths without rewriting victory or making it solve every problem.
+- [How to Design Puzzles for a Story Game](https://zenstory.ai/novel-to-game/design-puzzles-for-a-story-game) — Fix the answer and rules, then connect visible clues to a real action. Includes a complete symbol-order puzzle, wrong answers, and an unread-clue route.
 
 ### Video scripts and editing / 视频解说与剪辑
 - [Video scripts and editing](https://zenstory.ai/guides/video-recaps) — Write narration from footage, edit a story, and finish audio and subtitles.

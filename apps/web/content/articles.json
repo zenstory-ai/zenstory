@@ -21357,8 +21357,8 @@
           "en": "Use actual events as line conditions"
         },
         "body": {
-          "zh": "| 项目 | 记录 |\n|---|---|\n| G-01 | 说话者与条件：园丁；玩家请求钥匙但尚未说明阀门；台词：“先告诉我你开过哪只阀。”；状态或下一步：开放现场检查与出示记录 |\n| G-02 | 说话者与条件：园丁；本场实际见过旧记录；台词：“这道线是后来加的。钥匙给你，别先开南边。”；状态或下一步：交钥匙，提供顺序依据 |\n| G-03 | 说话者与条件：园丁；玩家只检查了现场；台词：“先让我看你找到的接头。”；状态或下一步：进入核验，尚未交钥匙 |\n\n玩家自己读过文件，不等于园丁见过。G-02 的条件来自“出示记录”的实际行动；不能用无关的好感分数代替这一知识来源。\n\n编号把文案、字幕与语音对应起来，出现条件仍由游戏规则检查。表格是本页纸面设计，不代表已经接入引擎或运行通过。",
-          "en": "| Item | Record |\n|---|---|\n| G-01 | Speaker / condition: Gardener; key requested without valve history; Line: “Tell me which valve you opened.”; State or next step: Inspection and showing records become available |\n| G-02 | Speaker / condition: Gardener actually shown the old record; Line: “That line was added later. Take the key. Don’t open south first.”; State or next step: Key handed over; sequence evidence given |\n| G-03 | Speaker / condition: Player inspected only the site; Line: “Show me the joint you found first.”; State or next step: Verification begins; no key yet |\n\nPrivate reading does not inform the gardener. G-02 reads the showing action, not an unrelated affection score.\n\nIDs connect copy, captions and voices; game rules still verify conditions. This is a paper example, not an implemented or tested engine script."
+          "zh": "| 项目 | 记录 |\n|---|---|\n| G-01 | 说话者与条件：园丁；玩家请求钥匙但尚未说明阀门；台词：“先告诉我你开过哪只阀。”；状态或下一步：开放现场检查与出示记录 |\n| G-02 | 说话者与条件：园丁；本场实际见过旧记录，钥匙仍在园丁、玩家尚未持有；台词：“这道线是后来加的。钥匙给你，别先开南边。”；状态或下一步：交钥匙，提供顺序依据 |\n| G-03 | 说话者与条件：园丁；玩家只检查了现场；台词：“先让我看你找到的接头。”；状态或下一步：进入核验，尚未交钥匙 |\n\n玩家自己读过文件，不等于园丁见过。G-02 的条件来自“出示记录”的实际行动；不能用无关的好感分数代替这一知识来源。\n\n编号把文案、字幕与语音对应起来，出现条件仍由游戏规则检查。表格是本页纸面设计，不代表已经接入引擎或运行通过。\n\n**同一初态的完整纸面交互：**供水暂停，钥匙在园丁手中，玩家尚未开阀且只检查过现场。玩家手中有旧记录，园丁本场还未见；本例页边注记明确南边那条线为后加，原定顺序仍是先北后南。这是本例选定的游戏规则。\n\n> 玩家：“先借我阀门钥匙。”\n>\n> 园丁：“先告诉我你开过哪只阀。”\n>\n> 玩家：“还没开。我把旧记录带来了，你看看这页。”\n>\n> 玩家实际选择“出示旧记录”。园丁接过纸页，看了页边注记，再指向北侧箭头。\n>\n> 园丁：“这道线是后来加的。钥匙给你，别先开南边。”\n>\n> 他把钥匙递到玩家手里。状态记录归属转移，出现按既定顺序前往阀柜的行动；此刻供水仍未恢复。\n>\n> 玩家再次请求钥匙。园丁看着玩家手中的钥匙：“你拿着呢，按刚才说的来。”\n\n第二次请求没有再次发物件，也不把园丁变回“未见记录”。未出示的相邻路径仍可选择带他看接头，触发原G-03：“先让我看你找到的接头。”他同意查看后进入现场核验，钥匙暂留园丁；不能先写成已经交出，或借出示分支的注记知识收尾。两路后来做完各自规则才进入相应结果。\n\n“钥匙给你”是对白表现，真正归属由规则提交的递交记录决定。只改句子而不改触发条件，重复播放仍可能重发；规则正确之后，感谢、提醒或沉默都可以按人物选择写，不为避免一句重复无限新增台词。",
+          "en": "| Item | Record |\n|---|---|\n| G-01 | Speaker / condition: Gardener; key requested without valve history; Line: “Tell me which valve you opened.”; State or next step: Inspection and showing records become available |\n| G-02 | Speaker / condition: Gardener shown the record; key still with gardener, not held by player; Line: “That line was added later. Take the key. Don’t open south first.”; State or next step: Key handed over; sequence evidence given |\n| G-03 | Speaker / condition: Player inspected only the site; Line: “Show me the joint you found first.”; State or next step: Verification begins; no key yet |\n\nPrivate reading does not inform the gardener. G-02 reads the showing action, not an unrelated affection score.\n\nIDs connect copy, captions and voices; game rules still verify conditions. This is a paper example, not an implemented or tested engine script.\n\n**Complete paper interaction from one initial state:** Supply is paused; the gardener holds the key. The player has inspected the site but opened no valve and carries an old record the gardener has not seen in this scene. Its margin explicitly identifies the south line as a later addition, with the original north-before-south order unchanged. These are the chosen game rules for this example.\n\n> Player: “Lend me the valve key.”\n>\n> Gardener: “Tell me which valve you opened.”\n>\n> Player: “None yet. I brought the old record. Look at this page.”\n>\n> The player actually selects showing the record. The gardener takes the page, reads its margin, and points to the north arrow.\n>\n> Gardener: “That line was added later. Take the key. Don’t open south first.”\n>\n> He puts the key in the player’s hand. The state records transfer and offers travel to the valve cabinet in the established order. Supply remains unrestored.\n>\n> The player asks again. The gardener looks at the held key: “You have it. Follow the order we just discussed.”\n\nThe second request grants no additional object or reset to an unseen record. On the unshown route, the player may instead offer to show the joint, triggering the original G-03: “Show me the joint you found first.” Agreement enters site verification with the key still held by the gardener. Do not report transfer early or borrow the other route’s margin knowledge. Each route reaches its own result only after its requirements are completed.\n\n“Take the key” presents dialogue; possession follows the rule-committed handover. Wording changes alone cannot stop duplicate grants from faulty conditions. Once state is correct, reminders, thanks, or silence may fit the character without limitless new lines merely to avoid one repetition."
         }
       },
       {
@@ -21435,6 +21435,13 @@
           "en": "Game copy and source voice"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/game-writing-craft.md"
+      },
+      {
+        "label": {
+          "zh": "前置、归属与表现层读取",
+          "en": "Preconditions, possession, and presentation reads"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
       }
     ]
   },
@@ -43563,6 +43570,432 @@
       "/oh-story/ai-novel-writing-prompts",
       "/oh-story/revise-a-novel-outline-mid-draft",
       "/oh-story/sync-later-chapters-after-a-revision"
+    ]
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "fix-sliding-feet-in-ai-video",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI视频人物走路脚滑怎么办：落脚、身体位移与地面",
+      "en": "How to Fix Sliding Feet in AI Video"
+    },
+    "seo_title": {
+      "zh": "AI视频人物走路脚滑怎么办",
+      "en": "Fix Sliding Feet in AI Video"
+    },
+    "description": {
+      "zh": "检查脚底接触、身体是否前进和地面锚点，别只写“自然走路”。附完整走到门口提示词，改景别时保住原镜头职责。",
+      "en": "Check foot contact, body travel, and floor anchors. Includes a complete doorway-walk prompt and checks for preserving the shot’s purpose."
+    },
+    "answer": {
+      "zh": "先正常速度看脚、身体和地面之间的关系：腿在迈但身体原地，还是身体滑过去而支撑脚没换？再核参考起点、路线和机位。修提示时写一个常见的连续走路动作、可见地标和落脚后的站定，不把双脚全程锁死；仍失败时按原镜头职责选择补拍或改实现，遮住脚不能证明步态已修好。",
+      "en": "Watch feet, body, and floor together at normal speed: are the legs stepping without travel, or does the body slide without a change of support? Check the reference start, route, and camera. Specify an ordinary continuous walk, visible landmarks, and a settled end without locking both feet throughout. If it still fails, choose another implementation around the shot’s purpose; hiding the feet does not prove repaired gait."
+    },
+    "sections": [
+      {
+        "id": "diagnose",
+        "heading": {
+          "zh": "先分清脚滑、原地迈腿和摄影机移动",
+          "en": "Distinguish Sliding, Stepping in Place, and Camera Travel"
+        },
+        "body": {
+          "zh": "用正常速度看当前成片，再慢放定位接触错误。对照身体有没有接近门、地砖或桌角，支撑脚是否异常滑过地面，脚离地后有没有下一次落脚。\n\n摄影机跟着走、地面缺少可辨锚点或本来是跑步机，不能仅凭“脚在画面里没换位置”判断错误。先明确本镜要表现的是人物真实走到某处，还是原地动作。步态审读是运动关系判断，不是靠一个“禁止滑步”词就能完成。",
+          "en": "Watch the current output at normal speed, then use slow playback to locate contact faults. Check whether the body approaches a door, tile, or table edge, whether a supporting foot slides abnormally, and whether a lifted foot lands again.\n\nA following camera, an unmarked floor, or a treadmill can change what stationary screen position means. Establish travel versus an in-place action first. Gait review concerns motion relationships rather than the presence of “no sliding” in a prompt."
+        }
+      },
+      {
+        "id": "repair",
+        "heading": {
+          "zh": "把走路写成身体经过空间，不是脚部动作清单",
+          "en": "Describe Travel Through Space Rather Than a Foot Checklist"
+        },
+        "body": {
+          "zh": "| 要明确的内容 | 本题修法 |\n|---|---|\n| 起步 | 当前站姿、重心与行动方向，核是否与真实起始帧一致 |\n| 路线 | 从哪个地标到哪个地标，画面能看到移动依据 |\n| 支撑 | 自然交替落脚承重，身体随步子前进；不是双脚始终钉在原处 |\n| 收尾 | 到门框前站定，接下一镜既定姿态 |\n| 摄影机 | 固定或已选路径，地面与人物移动不要由含糊机位代替 |\n\n不必逐帧规定每只脚、每个关节的角度。来源优先常见整体动作，起点只写执行必须知道的条件。走路本身可以是一个连续动作；若同时要跑、转身交物和揭示身份，就先核这些职责是否真的能同镜完成。",
+          "en": "| Specify | Repair |\n|---|---|\n| Start | Current stance, weight, and direction matching a real start frame if supplied. |\n| Route | Travel between visible landmarks. |\n| Support | Alternating planted support with body travel, rather than both feet pinned throughout. |\n| End | Settle before the doorframe in the chosen next-shot pose. |\n| Camera | A fixed frame or chosen route, not an ambiguous camera replacing subject travel. |\n\nDo not prescribe every joint angle in every frame. The source favors ordinary whole-body actions and necessary starting facts. Walking can be one continuous action. Running, turning, handing over an object, and revealing an identity together need an actual capacity check."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "完整原创提示：走两步，到门框前站定",
+          "en": "Complete Original Prompt: Walk to the Doorframe"
+        },
+        "body": {
+          "zh": "原创镜头目的：观众要看见柳宁从屋内走到关闭的门前。作者选择文生视频，尚无参考图或生成结果；计划六秒只是本例候选窗口，提交时须匹配实际执行端能力，生成后再核完成情况。\n\n**可复制正文：**\n\n> 柳宁穿灰色毛衣和深色长裤，站在浅色工作室的地砖上，关闭的木门在她前方两步处。固定全身景，鞋底接触区、地砖缝和门框同框，侧窗柔光。起点双脚落地、重心偏左，双手自然垂在身侧。她先看向门口，接着以日常步幅连续向门前走两步，双脚交替落地承重，身体随步子向门框前进；最后在门前站稳，面向关闭的门，双手仍垂在身侧。机位全程固定，让观众看清起步、落脚和到达。声音为脚步与室内底声，全程无对白、画外音或配乐；全镜不生成非画内字幕、caption或对白文字叠加。\n\n提示里的两步和终点是本例安排，不能变成所有模型的精确控制保证。实际复查要看脚底接触与身体位移、是否到了门前，以及门和双手是否仍接得上下一镜；不能只看到终帧“站在门前”就忽略中途滑过去。",
+          "en": "Original purpose: show Liu Ning travel from inside the room to a closed door. The author chooses text-to-video, with no reference image or generated result. Six seconds is an illustrative proposed window: match the actual execution mode before submission and review completion afterward.\n\n**Copyable prompt:**\n\n> Liu Ning wears a gray sweater and dark trousers on the tiled floor of a pale workshop. A closed wooden door is two steps ahead. Fixed full-body framing includes the soles’ contact area, tile seams, and doorframe in soft side-window light. She starts with both feet on the floor, weight toward the left, arms resting at her sides. She first looks at the door, then walks two ordinary steps toward it, alternating planted support as her body advances. She settles before the frame, facing the closed door with arms still at her sides. The camera stays fixed throughout so the start, footfalls, and arrival remain visible. Sound consists of footsteps and room ambience, with no dialogue, voiceover, or music. Generate no non-diegetic subtitles, captions, or dialogue text overlays at any point.\n\nTwo steps and this endpoint are chosen for the example, not guaranteed precise model controls. Check foot contact, body travel, actual arrival, and continuity of the door and hands. An end frame at the door does not excuse sliding through the intervening motion."
+        }
+      },
+      {
+        "id": "references",
+        "heading": {
+          "zh": "参考起点与改镜方案各自要成立",
+          "en": "Check the Reference Start and Any Reframing"
+        },
+        "body": {
+          "zh": "有真实首帧时，核脚是否被裁、站姿是否清楚、地面与目标位置是否可用；看不见的条件不能声称已由图提供。必要时回分镜和图片环节修起点，再写运动。只有文字提示或图片文件名，不等于已看过参考。\n\n若改成上身近景，要说明它是否仍能表现走到门口。脚部动作不承担剧情时，可经作者选择用其他镜头覆盖空间到达；若脚步、受伤跛行或跨越障碍本来就是信息，就不能删掉。改边界或拆镜后同步当前分镜、提示和相邻状态。",
+          "en": "With a real start frame, check cropped feet, readable stance, floor, and destination. Unseen conditions cannot be credited to the image. Repair the start through storyboard and image work if needed. Text or a filename is not proof of observation.\n\nFor an upper-body close-up, account for arrival at the door. Where feet carry no story information, the author may use another shot to cover travel. Footsteps, a limp, or crossing an obstacle cannot disappear if they carry the scene. Update the storyboard, prompts, and neighbors after changed boundaries or cuts."
+        }
+      },
+      {
+        "id": "review",
+        "heading": {
+          "zh": "回看整段，不把遮住问题当修好",
+          "en": "Review the Whole Interval"
+        },
+        "body": {
+          "zh": "先确认身体从起点到终点，再看每次支撑、速度与机位是否相容，最后核声音和下一镜接续。慢放能定位，正常速度才用来判断当前观看效果。\n\n如果仍不成立，先缩掉无关并行动作或换更清楚的路线；需改变镜头职责时给出完整替代安排。换提示后要看实际新产物，不能用原来坏的候选加一张好终帧宣布通过。本文没有生成或步态测试结果。",
+          "en": "Check body travel first, then support, speed, and camera compatibility, followed by sound and next-shot continuity. Slow playback locates faults; normal playback evaluates the current viewing result.\n\nIf it fails, remove irrelevant parallel activity or clarify the route. A changed duty requires a complete alternative plan. Review the actual new output after a prompt change rather than combining the faulty old clip with a good ending still. No generated or gait-tested result exists here."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "只加“自然走路、不要滑步”够吗？",
+          "en": "Is “walk naturally, no sliding” enough?"
+        },
+        "a": {
+          "zh": "通常还缺起点重心、身体路线、地面锚点与结束位置。先写这些具体条件，再看实际运动；限制词不能保证接触正确。",
+          "en": "It still leaves weight, travel, floor anchors, and the end position unspecified. Establish those conditions and inspect actual motion; prohibitions do not guarantee correct contact."
+        }
+      },
+      {
+        "q": {
+          "zh": "把镜头裁到腰部以上可以吗？",
+          "en": "Can I crop above the waist?"
+        },
+        "a": {
+          "zh": "可以按作者选择改构图，但要覆盖原来要表现的到达或步态信息。若脚本身承载剧情，遮住它就丢了职责；裁掉问题区也不等于原步态已修好。",
+          "en": "The author may reframe while covering required travel or gait information. If feet carry the story, hiding them drops a duty. A crop does not prove that the original gait is repaired."
+        }
+      }
+    ],
+    "topic": "ai-video",
+    "skill": {
+      "name": "short-drama-video-prompts",
+      "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/SKILL.md",
+      "text": {
+        "zh": "用 $short-drama-video-prompts 只修点名走路镜，附当前分镜、起止姿态、真实参考情况与脚滑位置。核支撑变化、身体路径、机位和结束地标，保留时长、声音与下一镜状态。先给完整修订提示；若需改景别、拆镜或改变边界，列出原职责怎样覆盖，再同步分镜。",
+        "en": "Use $short-drama-video-prompts on the named walking shot with its storyboard, boundaries, actual references, and the slipping location. Check support changes, body route, camera, and end landmark while retaining duration, sound, and the next shot’s state. Propose a complete prompt; if framing, cuts, or boundaries change, account for original duties before updating the storyboard."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "起点重心、路径、支撑与结束地标",
+          "en": "Weight, route, support, and end landmarks"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
+      },
+      {
+        "label": {
+          "zh": "常见整体动作与等效改写",
+          "en": "Ordinary whole-body actions and equivalent revisions"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/generability.md"
+      },
+      {
+        "label": {
+          "zh": "改景别与拆镜后的职责对账",
+          "en": "Reconcile duties after reframing or splitting"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/shot-revision-identity.md"
+      }
+    ],
+    "related": [
+      "/drama-skills/generable-actions",
+      "/drama-skills/stop-unwanted-ai-video-camera-drift",
+      "/drama-skills/shot-continuity-checklist"
+    ]
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "fix-floating-props-in-ai-video",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI视频道具漂浮怎么办：支撑、接触与移动原因",
+      "en": "How to Fix Floating Props in AI Video"
+    },
+    "seo_title": {
+      "zh": "AI视频道具漂浮怎么办",
+      "en": "Fix Floating Props in AI Video"
+    },
+    "description": {
+      "zh": "分清道具失去支撑、随人物误动和有意特效，写明谁接触、哪里承托。附信封留在桌面的完整提示与返修检查。",
+      "en": "Separate lost support, unintended carried motion, and chosen effects. Includes a complete tabletop-envelope prompt and repair checks."
+    },
+    "answer": {
+      "zh": "先核道具本来由桌面、手或其他物件怎样支撑，是什么已选动作让它移动。如果镜头没有拿起或抛出，它却离开承托面，修的是持续接触关系。把支撑、允许移动和终点写成可见状态，保留作者有意安排的风、滚动或悬浮效果；不要一句“所有道具不动”抹掉本来该发生的动作。",
+      "en": "Check what supports the prop and which chosen action should move it. If no lift or throw occurs yet the object leaves its support, repair the persistent contact relationship. Describe support, allowed movement, and the end state visibly. Preserve intentional wind, rolling, or floating effects instead of freezing every prop and erasing required action."
+    },
+    "sections": [
+      {
+        "id": "support",
+        "heading": {
+          "zh": "先找道具为什么会离开承托面",
+          "en": "Locate the Missing Support Relationship"
+        },
+        "body": {
+          "zh": "同一物件可能平放桌上、被手抓住、吊在绳上，或正处于作者选定的抛落过程。先写当前是哪一种，什么时候发生支撑变化，再看坏候选偏离哪一处。\n\n转头本来只改变人物注意，道具却随之飞起，通常要回查接触与动作绑定；若原镜头确实有风吹纸张或法术悬浮，就保留这个效果的来源、对象与终点。不能看到物件在空中就统一判错。",
+          "en": "A prop may rest on a table, be held, hang from a cord, or follow a chosen throw. Establish the current relationship and when it changes, then locate the candidate’s departure.\n\nIf a head turn moves a previously resting prop into the air, revisit contact and motion ownership. Keep chosen wind-blown paper or magical suspension with its cause, target, and endpoint. Being airborne alone does not establish an error."
+        }
+      },
+      {
+        "id": "state",
+        "heading": {
+          "zh": "把“保持不变”换成实际接触状态",
+          "en": "Replace “Keep Unchanged” With a Contact State"
+        },
+        "body": {
+          "zh": "| 要写清 | 信封例 |\n|---|---|\n| 物件与数量 | 一只牛皮信封，不新增同款 |\n| 承托 | 平放木桌中部，桌面持续承托 |\n| 接触者 | 柳宁双手在椅子扶手，未安排拿信封 |\n| 允许变化 | 人物听声转头；信封保持桌面原位置 |\n| 结束状态 | 人物看关闭的门，信封仍在桌上 |\n\n若需要拿起，就写手接触并握住之后物件才离桌；若需要放下，就写承托接上之后再松手。持续关系限制哪些动作可做，却不必让整个人都不动。图生视频也要保留执行需要知道的局部接触事实。",
+          "en": "| Specify | Envelope example |\n|---|---|\n| Object and count | One brown envelope, without a duplicate. |\n| Support | Flat in the middle of a wooden tabletop, continuously supported. |\n| Contact | Liu’s hands rest on chair arms; no pickup is chosen. |\n| Allowed change | She turns toward a sound; the envelope stays at its table position. |\n| End | She faces the closed door; the envelope remains on the table. |\n\nFor a lift, establish contact and grip before departure. For placement, establish support before release. Persistent relationships constrain actions without freezing the whole person. Image-to-video still needs local contact facts necessary for execution."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "完整原创提示：转头时信封仍留在木桌上",
+          "en": "Complete Original Prompt: A Head Turn With the Envelope Supported"
+        },
+        "body": {
+          "zh": "原创安排是柳宁听门响转头，信封不被拿起；作者选择文生视频，没有真实参考或产物。计划六秒是示意窗口，实际执行端的时长与提示格式要另匹配。\n\n**可复制正文：**\n\n> 浅色工作室里，穿灰色毛衣的柳宁坐在木椅上，双手搭在椅子扶手。一只牛皮信封平放木桌中部，桌面持续承托信封。固定中景同时看见人物、双手和信封，关闭的木门在画面右侧，侧窗柔光。先保持当前坐姿；右侧门上传来两下敲门声后，她把目光转向门，再转头看过去，双手仍搭扶手。信封在转头过程中始终平放原位置，最后她看着关闭的门，信封仍由桌面承托。机位全程固定，让观众看清注意转移及桌上物件的位置。声音为两下敲门和室内底声，全程无对白、画外音或配乐；全镜不生成非画内字幕、caption或对白文字叠加。\n\n原错误写法若只有“她自然转头，信封保持不变”，缺的是承托、接触者与允许变化。本例没有把提示写成已生成成功的证据；真正采用时，要看物件全程的位置、厚度和接触，而非仅核最后一帧。",
+          "en": "Original plan: Liu turns toward a knock while the envelope is not picked up. The author chooses text-to-video, with no real reference or output. Six seconds is an illustrative window; match actual duration support and prompt format separately.\n\n**Copyable prompt:**\n\n> In a pale workshop, Liu Ning in a gray sweater sits on a wooden chair, hands resting on its arms. One brown envelope lies flat in the middle of a wooden tabletop, continuously supported by the table. A fixed medium shot includes her, both hands, and the envelope; a closed wooden door is at screen right in soft side-window light. Begin in this seated state. After two knocks sound from the right-hand door, her gaze shifts there and her head follows, with hands remaining on the chair arms. The envelope stays flat at its original table position throughout. She ends looking at the closed door while the table still supports it. The camera remains fixed to show the change of attention and the prop’s location. Sound consists of the two knocks and room ambience, with no dialogue, voiceover, or music. Generate no non-diegetic subtitles, captions, or dialogue text overlays at any point.\n\n“She turns naturally; keep the envelope unchanged” omits support, contact, and allowed movement. The prompt is not evidence of a successful generation. Check position, shape, and contact throughout any adopted output rather than just its final frame."
+        }
+      },
+      {
+        "id": "local-repair",
+        "heading": {
+          "zh": "局部修提示，别改掉本镜的表演",
+          "en": "Repair the Relationship While Keeping the Performance"
+        },
+        "body": {
+          "zh": "先检查真实参考的物件是否本来离桌、被遮挡或与手重叠，不能让视频环节一边修漂浮、一边沿用矛盾起点。需要改图或起点时，把缺口交回对应文档，不只叠加禁令。\n\n若仅接触描述缺失，保留台词、人物反应、机位和终点，只补必要关系。拟改成近景、移出信封或拆镜时，要说明信封是否承担观众必须看见的信息；该职责由哪里覆盖，不能随“更容易生成”消失。",
+          "en": "Inspect whether a real reference already suspends, hides, or overlaps the object with a hand. Avoid repairing floating while retaining a contradictory start. Route necessary image or boundary repairs back to their documents instead of adding prohibitions.\n\nIf contact wording alone is missing, keep lines, reactions, camera, and endpoint while adding that relationship. Reframing, removing the prop, or splitting must account for any information it carries. Ease of generation cannot make its duty disappear."
+        }
+      },
+      {
+        "id": "review",
+        "heading": {
+          "zh": "最后看支撑接续与原定结束状态",
+          "en": "Check Support Continuity and the Chosen End"
+        },
+        "body": {
+          "zh": "正常速度看整镜，必要时慢放定位物件离面、手穿过或形制变化。若是拿起/放下，另核接触、离面、承托和松手的顺序；交接问题回递物教程，不把一切都靠“道具不动”解决。\n\n再核原来的表演、声音和下一镜起点。重新生成之后要查看实际新候选，提示里写了正确承托并不等于画面已保持；没有产物的项目只交修订方案，保持结果待核。",
+          "en": "Watch the whole shot normally, using slow playback to locate departure, penetration, or shape change. For lifting or placement, check contact, departure, support, and release in order. Handoffs need their own repair rather than a universal prop freeze.\n\nThen verify original performance, sound, and the next start. Review the actual new candidate after regeneration. Correctly described support does not establish retained contact; without an output, deliver the revision plan with the result unresolved."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "把所有道具都写成“不许移动”可以吗？",
+          "en": "Can I forbid every prop from moving?"
+        },
+        "a": {
+          "zh": "只能约束本镜确实该留在原处的物件。人物已选拿起、风吹或特效需要物件移动时，写明来源和接触转换，不用全局冻结覆盖剧情。",
+          "en": "Constrain only props that should stay. Chosen pickups, wind, or effects need defined causes and contact transitions rather than a global freeze overriding the scene."
+        }
+      },
+      {
+        "q": {
+          "zh": "道具漂浮一定是提示词错了吗？",
+          "en": "Does floating always mean the prompt is wrong?"
+        },
+        "a": {
+          "zh": "不一定。还可能是参考起点、遮挡或当前生成候选失败。核实际输入与画面；必要时改实现或重做局部，不能只凭新增限制词宣称修好。",
+          "en": "No. The start reference, occlusion, or the candidate itself can fail. Check actual inputs and frames; change implementation or redo the affected shot if necessary rather than reporting a fix from an added prohibition."
+        }
+      }
+    ],
+    "topic": "ai-video",
+    "skill": {
+      "name": "short-drama-video-prompts",
+      "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/SKILL.md",
+      "text": {
+        "zh": "用 $short-drama-video-prompts 检查点名道具镜，附分镜、实际参考、承托面、接触者和漂浮位置。只修支撑与允许动作，保持人物表演、道具数量、声音和原定结束状态；需要改起点或分镜时先说明。交付完整提示后，以实际新产物检查，不把文字通过当成画面已修复。",
+        "en": "Use $short-drama-video-prompts on the named prop shot with storyboard, real references, support surface, contact, and the floating location. Repair support and allowed motion while retaining performance, quantity, sound, and the chosen end. Identify necessary start or storyboard changes first. Review the actual new output after the complete prompt; valid wording does not establish a repaired image."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "贯穿支撑、接触与允许动作通道",
+          "en": "Persistent support, contact, and allowed movement"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
+      },
+      {
+        "label": {
+          "zh": "整体动作与持物落位",
+          "en": "Ordinary actions and settled prop positions"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/generability.md"
+      }
+    ],
+    "related": [
+      "/drama-skills/prop-reference-image",
+      "/drama-skills/fix-object-handoffs-in-ai-video",
+      "/drama-skills/keep-ai-video-effects-within-the-target"
+    ]
+  },
+  {
+    "owner": "novel-to-game",
+    "slug": "design-puzzles-for-a-story-game",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "叙事游戏谜题怎么设计：线索、推理与可执行答案",
+      "en": "How to Design Puzzles for a Story Game"
+    },
+    "seo_title": {
+      "zh": "叙事游戏谜题怎么设计",
+      "en": "Design Puzzles for a Story Game"
+    },
+    "description": {
+      "zh": "先固定答案与规则，让玩家从可见线索完成一个真实动作。附桥、花、钟的完整排列谜题、错误反馈与未读线索反例。",
+      "en": "Fix the answer and rules, then connect visible clues to a real action. Includes a complete symbol-order puzzle, wrong answers, and an unread-clue route."
+    },
+    "answer": {
+      "zh": "先写玩家要解决什么、答案依据是什么，再安排可获得的线索、输入方式和结果。答案由固定规则裁决，不随玩家猜测改写；错误反馈帮助回看依据，不直接代做。把解谜和领取结果分开，分别记录打开、取得与后续使用，并检查读线索、猜中、答错和重开路径。",
+      "en": "Define the problem and basis for its solution before placing clues, input, and results. Fixed rules adjudicate the answer rather than changing with a guess. Failure feedback should support reconsideration without doing the work. Separate solving from taking the result, track opening, possession, and later use, and check clue-reading, guessing, wrong-answer, and restart paths."
+    },
+    "sections": [
+      {
+        "id": "problem",
+        "heading": {
+          "zh": "先固定规则，再藏线索",
+          "en": "Fix the Rules Before Placing Clues"
+        },
+        "body": {
+          "zh": "谜题让玩家根据依据完成一项操作；侦探线索可能只能缩小解释范围，不必立即给出唯一答案。先确定本题需要哪一种推理，不把所有观察都做成输入密码。\n\n本页把真实 skill 的动作前置、确定效果、知识边界和反例检查组合成谜题编辑方法；桥、花、钟是原创例，不是原生谜题模板。原作若没有这类锁箱，是否添加先服从已选改编范围，不替原作临时发明重大秘密。",
+          "en": "A puzzle asks players to use evidence to perform an operation. Detective evidence may only narrow interpretations without giving an immediate unique answer. Choose the reasoning required instead of turning every observation into a password.\n\nThis editorial method combines the skills’ preconditions, deterministic effects, knowledge bounds, and counterexamples. Bridge, flower, and bell form an original example rather than a native puzzle template. Adding such a box follows the chosen adaptation scope, not an invented major source secret."
+        }
+      },
+      {
+        "id": "clue-chain",
+        "heading": {
+          "zh": "把依据、输入和结果接成一条链",
+          "en": "Connect Evidence, Input, and Outcome"
+        },
+        "body": {
+          "zh": "| 作者要写清 | 本例选择 |\n|---|---|\n| 当前目标 | 从祖母留下的信箱取出一只信封 |\n| 可见依据 | 桌上可读札记，说明桥、花房和钟声的先后 |\n| 规则提示 | 箱盖写“按札记中的先后排三格，每个图案只用一次”，桥、花、钟各一个图案 |\n| 输入 | 把三个不同图案逐格放好，再按“确认排列” |\n| 判定 | 仅桥—花—钟打开；其他完整排列保持关闭，无消耗 |\n| 结果 | 打开后可取信封；实际取出才改变持有者 |\n\n线索要能找到、读懂并指向操作。按钮设置排列只是当前输入，确认才判定；“我解开了”的自由叙述不能直接改箱子状态。必要规则不藏在作者脑中，反馈也不同时塞入全部后续剧情。",
+          "en": "| Define | This example |\n|---|---|\n| Goal | Take one envelope from the grandmother’s box. |\n| Evidence | A readable desk note orders the bridge, flower house, and bell. |\n| Rule cue | The lid says “Arrange three slots in the note’s order, using each symbol once,” with one bridge, one flower, and one bell symbol. |\n| Input | Place the three different symbols in the slots, then confirm the arrangement. |\n| Adjudication | Only bridge–flower–bell opens it; other complete orders keep it closed with no cost. |\n| Result | Opening offers retrieval; taking changes possession. |\n\nClues must be accessible, legible, and relevant to the operation. Setting slots supplies input; confirmation adjudicates it. Free narration that “I solved it” cannot directly change the box. Keep necessary rules available without dumping later plot into feedback."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "完整纸面谜题：桥、花、钟怎样排",
+          "en": "Complete Paper Puzzle: Order Bridge, Flower, and Bell"
+        },
+        "body": {
+          "zh": "原创场景是祖母旧花房。初态信箱关闭，一只信封在箱内，三格未选，玩家未读札记。桌上札记全文为：“从桥上下来，才看见花房的灯。进了花房以后，钟楼响了。”箱盖另写：“按札记中的先后排三格，每个图案只用一次。”每个图案在箱盖旁都有对应名称，不靠颜色辨认。输入区提供桥、花、钟各一张图案卡，每张只能放入一格；改排列可以移回卡片。未填满时确认只提示“请把三个图案放齐”，箱子保持关闭，补齐后仍可确认。\n\n这两句先后关系给出**桥在花前、花在钟前**，所以三格顺序为桥—花—钟。作者应先固定这条规则，再让玩家找到札记，不在玩家答错后改答案。\n\n1. 玩家选择“读桌上札记”，界面显示上述原文，记录这次已读。\n2. 玩家依次选桥、花、钟，按“确认排列”；箱盖打开，反馈“箱子开了，信封还在里面”，出现“取出信封”。\n3. 玩家实际选择取出，信封归玩家、箱内为空，反馈“信封已在你手里”；本小目标完成，不自动读出信的秘密或送达下一场人物。\n4. 重复确认只保持已经打开，重复取出不再生成信封；重开恢复关闭、信封在箱内、三格未选、札记未读。\n\n**答错路线：**读札记后填花—桥—钟，确认时箱子仍关闭，反馈“排列未打开信箱，可以再看桌上札记”。没有隐藏扣次或销毁线索，玩家可改回桥—花—钟再确认，随后仍需取出。\n\n**未读路线：**本例允许直接猜中桥—花—钟并打开、取出。已解开和已持有可以成立，但札记仍未读；后续不能自动写“你读过祖母那句话”或宣布理解了她的往事。若作者另选必须读线索才可尝试，那是另一条需要明确展示的规则。\n\n这些是完整纸面路径，没有实际界面、原型或试玩结果。它核对依据与结算，不能证明这六种排列对真实玩家有趣，也不能证明目标视口读得下。",
+          "en": "Original location: the grandmother’s old flower house. Initially the box is closed with one envelope inside, three empty slots, and the note unread. The full desk note says: “Only after coming down from the bridge did I see the flower house lights. After entering the flower house, I heard the bell tower.” The lid says “Arrange three slots in the note’s order, using each symbol once.” Each symbol has a matching name beside the lid rather than relying on color. Input provides one card per symbol, each usable in one slot; cards can be moved back to rearrange. Confirming incomplete slots asks for all three symbols and leaves the box closed, with confirmation still available after completion.\n\nThe relationships put **bridge before flower and flower before bell**, yielding bridge–flower–bell. Fix this rule before clue placement instead of changing the answer after a wrong attempt.\n\n1. Read the desk note: display the complete text above and record reading.\n2. Select bridge, flower, bell, then confirm. The lid opens; feedback says the envelope remains inside and offers retrieval.\n3. Actually take it: possession moves to the player and the box becomes empty. Feedback confirms the envelope is in hand. This local goal is complete; its secret is not automatically read or delivered to a later character.\n4. Confirming again keeps the box open; repeated retrieval creates no second envelope. Restart restores the closed box, envelope inside, empty slots, and unread note.\n\n**Wrong answer:** after reading, submit flower–bridge–bell. The box stays closed. Feedback says the arrangement did not open it and the desk note can be reread. No hidden attempt cost or clue destruction applies. Correct the order, confirm, and still take the envelope separately.\n\n**Unread route:** this example allows a direct correct guess to open the box and take the envelope. Solved and possession states may hold while the note remains unread. Later writing cannot claim the player read the grandmother’s words or understood her past. Requiring clue reading before attempts would be a different rule that needs disclosure.\n\nThese complete paper paths have no actual UI, prototype, or playtest. They check evidence and outcome, not whether six permutations are fun or the target viewport fits the material."
+        }
+      },
+      {
+        "id": "hints",
+        "heading": {
+          "zh": "提示帮助重看依据，不把结果全说完",
+          "en": "Hints Should Help Reconsider Evidence"
+        },
+        "body": {
+          "zh": "基础提示可以指向“桌上有祖母的札记”，再给“留意两句中的先后”。直接给完整顺序属于作者选定的更强帮助，不应每次答错立刻代解，也不一定要藏到玩家无限猜。\n\n提示强度取决于目标玩家和实际观察。答错反馈至少说明本次没有打开、什么仍可做；如果本作选了次数或时间成本，提交前先让玩家知道。数字上“只有六种”不等于实际简单，图案对应、文字表达与输入反馈都要看。",
+          "en": "A basic hint may point to the desk note, followed by attention to the two temporal relationships. Giving the full order is stronger help chosen by the author, neither a mandatory response to every error nor something that must be withheld indefinitely.\n\nChoose assistance through intended players and observation. Wrong-answer feedback should show that opening failed and what remains available. Disclose any chosen attempt or time cost before commitment. Six permutations alone do not establish ease; symbols, wording, and input feedback also matter."
+        }
+      },
+      {
+        "id": "review",
+        "heading": {
+          "zh": "用首次路径和反例检查，不只核正确答案",
+          "en": "Check First-Time and Counterexample Paths"
+        },
+        "body": {
+          "zh": "遮住作者答案，从初态检查玩家是否真能获得必要依据、找到输入并读到反馈，再走一次答错、未读猜中和重复领取。最后重开，核世界事实与已读记录是否按所选规则恢复。\n\n做成原型后再检查正常速度下的输入、结果与视口。玩家若只靠遍历排列，观察是线索太隐、推理不清，还是本来就喜欢试错；调整对应部分，不凭作者自评把体验记成通过。状态正确与谜题有趣分别验证。",
+          "en": "Hide the answer and begin from the initial state: can players obtain evidence, locate input, and see feedback? Walk a wrong answer, an unread correct guess, and repeated retrieval, then restart according to the chosen reset rules.\n\nIn the prototype, check input, outcome, and viewport at normal speed. If players enumerate orders, investigate hidden clues, unclear reasoning, or a preference for trial and error. Revise that cause without declaring a pass from author opinion. State correctness and enjoyable reasoning need separate evidence."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "谜题必须只有一个解法吗？",
+          "en": "Must a puzzle have only one solution?"
+        },
+        "a": {
+          "zh": "不必；多解要各自有明确规则、可见依据与结果。本例选唯一顺序只是便于检查，不能把玩家提出的任何合理句子都临时判成通过。",
+          "en": "No. Multiple solutions need defined rules, evidence, and outcomes. This example uses one order for clarity; plausible player prose cannot become an improvised pass."
+        }
+      },
+      {
+        "q": {
+          "zh": "玩家没看线索就猜中，算设计失败吗？",
+          "en": "Is a correct guess without reading a design failure?"
+        },
+        "a": {
+          "zh": "看本作承诺与规则。本例允许猜中，但不附赠已读或理解记录；若大量玩家只猜，需通过试玩看线索与输入是否值得思考，而不是事后偷加必须读过的门槛。",
+          "en": "It depends on the promised experience and rules. This example allows guessing without granting reading or understanding. If many players only guess, investigate clue and input quality through playtests rather than silently adding a reading gate afterward."
+        }
+      }
+    ],
+    "topic": "interactive-games",
+    "skill": {
+      "name": "game-world-design",
+      "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/SKILL.md",
+      "text": {
+        "zh": "用 $game-world-design 为已有小说改编项目设计点名谜题，附原作边界、选定玩法和当前简报。只给固定事实、可见线索、实际输入、反馈与结果，保留原作的关键信息顺序；走通读线索与未读/答错的纸面路径，不假称已在引擎测试，也不扩展成另一套玩法系统。",
+        "en": "Use $game-world-design for the named puzzle in an existing adaptation with source bounds, chosen play, and current brief. Define fixed facts, visible clues, actual input, feedback, and outcome while retaining key reveal order. Walk clue-reading and unread/wrong-answer paper paths without claiming engine tests or expanding into another gameplay system."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "动作、规则、反馈与局面变化",
+          "en": "Actions, rules, feedback, and changed situations"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/world-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "证据依据、玩家知识与回读",
+          "en": "Evidence, player knowledge, and callbacks"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/narrative-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "前置条件、物件归属与规则裁决",
+          "en": "Preconditions, possession, and rule adjudication"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
+      },
+      {
+        "label": {
+          "zh": "正例、边界路径与重开",
+          "en": "Positive cases, boundary paths, and restart"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-qa/references/test-design-method.md"
+      }
+    ],
+    "related": [
+      "/novel-to-game/design-clues-for-a-detective-game-adaptation",
+      "/novel-to-game/write-clear-interactive-story-choices",
+      "/novel-to-game/fix-a-story-game-that-cannot-progress"
     ]
   }
 ]
