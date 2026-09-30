@@ -23438,7 +23438,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "重生短剧怎么写：第一次改命要成为屏幕行动",
       "en": "How to Write a Rebirth Short Drama"
@@ -23463,8 +23463,19 @@
           "en": "Pay off a visible changed choice early"
         },
         "body": {
-          "zh": "Drama Skills 的重生题材卡优先让首集兑现第一次翻盘。本篇采用这个快进入的方案，不把它写成所有短剧必须在某一秒完成的标准。\n\n原创场景：配音演员沈遥重生在录音交付当天。前世她借出自己的工作账号，之后被栽赃为泄露未公开音频。今生，同事又要求借账号，她把登录页面关掉，提出当面导出授权文件。\n\n| 屏幕信息 | 观众要懂什么 | 可表演的做法 |\n|---|---|---|\n| 同一份交付单再次出现 | 她回到了关键选择前 | 看见签名空栏，手停住 |\n| 简短旧事 | 借账号曾带来真实损失 | 一个前世指控片段，或一句必要内心声 |\n| 当下改变 | 她不再照旧选择 | 关页面，把授权文件交到对方面前 |\n| 第一结果 | 对手的旧手段失效 | 对方转而要求另一位同事代传文件 |\n\n日期卡、合同上必须读清的内容由后期制作落实；不要把故事是否能懂完全押在生成画面中的小字上。首集需要的是一次有原因的行动，不是反复照镜子说“我重生了”。",
-          "en": "Drama Skills’ rebirth card prioritizes a first reversal in episode one. This article adopts that quick-entry approach without imposing a universal second-by-second requirement.\n\nOriginal scene: voice actor Shen Yao returns to delivery day. In her previous life she lent a colleague her work account and was blamed for leaking unreleased audio. The colleague asks again. This time she closes the login page and offers to export an authorized file in person.\n\n| Screen information | Audience understanding | Playable action |\n|---|---|---|\n| The same delivery form reappears | She is before the crucial choice | Her hand stops over the blank signature field |\n| Brief past event | Lending access caused a real loss | One accusation fragment or a necessary short inner line |\n| Present change | She chooses differently | Closes the page and offers the authorized export |\n| First result | The old method fails | The colleague seeks another person to transfer the file |\n\nProduction must supply dates and any contract text that needs to be legible. Do not depend on tiny generated text to explain the story. The episode needs a motivated action, not repeated mirror scenes announcing rebirth."
+          "zh": "Drama Skills 的重生题材卡优先让首集兑现第一次翻盘。本篇采用这个快进入的方案，不把它写成所有短剧必须在某一秒完成的标准。\n\n原创场景：配音演员沈遥重生在录音交付当天。前世她借出自己的工作账号，之后被栽赃为泄露未公开音频。今生，同事又要求借账号，她把登录页面关掉，提出当面导出授权文件。\n\n| 屏幕信息 | 判断与动作 |\n|---|---|\n| 同一份交付单再次出现 | **观众要懂什么：** 她回到了关键选择前 **可表演的做法：** 看见签名空栏，手停住 |\n| 简短旧事 | **观众要懂什么：** 借账号曾带来真实损失 **可表演的做法：** 一个前世指控片段，或一句必要内心声 |\n| 当下改变 | **观众要懂什么：** 她不再照旧选择 **可表演的做法：** 关页面，把授权文件交到对方面前 |\n| 第一结果 | **观众要懂什么：** 对手的旧手段失效 **可表演的做法：** 对方转而要求另一位同事代传文件 |\n\n日期卡、合同上必须读清的内容由后期制作落实；不要把故事是否能懂完全押在生成画面中的小字上。首集需要的是一次有原因的行动，不是反复照镜子说“我重生了”。\n\n本例补定一项当前事实：制片先前已明确同事只需交付授权样音，沈遥手头已有那一版，不需要为这件事借出整套工作账号。她能关掉登录页面，但还要真正交出正确文件并确认对方收到。前世被指控的回忆解释她为什么谨慎，不证明眼前同事就是上传者。",
+          "en": "Drama Skills’ rebirth card prioritizes a first reversal in episode one. This article adopts that quick-entry approach without imposing a universal second-by-second requirement.\n\nOriginal scene: voice actor Shen Yao returns to delivery day. In her previous life she lent a colleague her work account and was blamed for leaking unreleased audio. The colleague asks again. This time she closes the login page and offers to export an authorized file in person.\n\n| Screen information | Record |\n|---|---|\n| The same delivery form reappears | **Audience understanding:** She is before the crucial choice **Playable action:** Her hand stops over the blank signature field |\n| Brief past event | **Audience understanding:** Lending access caused a real loss **Playable action:** One accusation fragment or a necessary short inner line |\n| Present change | **Audience understanding:** She chooses differently **Playable action:** Closes the page and offers the authorized export |\n| First result | **Audience understanding:** The old method fails **Playable action:** The colleague seeks another person to transfer the file |\n\nProduction must supply dates and any contract text that needs to be legible. Do not depend on tiny generated text to explain the story. The episode needs a motivated action, not repeated mirror scenes announcing rebirth.\n\nEstablish one current fact: the producer previously specified that this colleague needs only the authorized sample, and Shen has that version. This task does not require lending her complete work account. Closing login must be followed by delivering the correct file and checking receipt. Remembering the accusation explains caution but does not identify this colleague as the uploader."
+        }
+      },
+      {
+        "id": "complete-delivery-scene",
+        "heading": {
+          "zh": "原创片段：拒借账号之后，她还得完成交付",
+          "en": "Original Scene: Refusal Still Needs a Completed Delivery"
+        },
+        "body": {
+          "zh": "以下是延展前例的原创剧本片段，没有声称拍摄或生成过视频。\n\n**录音室·白天。** 同事把笔记本转向沈遥，指着还未输入的密码栏。\n\n**同事：**“我顺手把文件传了，账号借我两分钟。”\n\n沈遥的手伸到触控板前。短闪回里，同一张交付单压在桌上，有人指着她的名字：“从你的账号出去的。”画面回到现在，密码栏仍是空的。\n\n她合上登录页面，打开已经标好的样音文件夹。\n\n**沈遥：**“制片要的是这版样音。我现在交，账号不借。”\n\n**同事：**“你信不过我？”\n\n**沈遥：**“工作照做。别用我的账号。”\n\n她按先前约定的交付位置上传样音，给制片发出核对消息。对方回复后接通语音，确认已收到并播放了指定版本。沈遥在自己的交付单上记下这次接收；没有把回忆里的指控写成今日结论。\n\n同事拿起手机，走到门口，问另一位同事能不能帮忙传文件。沈遥停住收线的手，朝门口看了一眼。\n\n她改变了一件已经落地的事：本次不再借出账号，指定交付也已被接收。门口的请求说明旧做法开始转向，不能单独证明有人已经泄密，也不保证其他渠道被封死。接下来的调查由今生新发生的事实推进；不要让她凭前世记忆直接说出从未见过的上传密码。",
+          "en": "This original extension of the example is a script passage, not shot or generated footage.\n\n**Recording studio, day.** The colleague turns a laptop toward Shen Yao and points to the empty password box.\n\n**Colleague:** “I’ll upload it while I’m here. Lend me the account for two minutes.”\n\nShen reaches toward the trackpad. In a brief flashback, the same delivery sheet lies on the desk. Someone points at her name: “It came from your account.” Back in the present, the password box remains empty.\n\nShe closes login and opens the prepared sample folder.\n\n**Shen:** “The producer asked for this sample. I’ll deliver it now. You’re not borrowing my account.”\n\n**Colleague:** “You don’t trust me?”\n\n**Shen:** “The work gets done. With my account left to me.”\n\nShe uploads the sample to the agreed destination and asks the producer to check. After replying, the producer joins an audio call and confirms receiving and playing the specified version. Shen records this receipt on her delivery sheet, without recording the remembered accusation as a present conclusion.\n\nThe colleague takes a phone to the doorway and asks another colleague to help send files. Shen stops coiling a cable and looks toward the door.\n\nOne change has actually landed: she has not lent the account, and the specified delivery was received. The new request shows a change of approach, not proof that a leak has occurred or that every other route is closed. Later investigation needs new present-life facts, not a suddenly remembered password she never saw."
         }
       },
       {
@@ -23485,8 +23496,8 @@
           "en": "Let opponents learn and the remembered future diverge"
         },
         "body": {
-          "zh": "第一步拒绝借账号后，不要每集都让同事用同一借口来借。对手可以换目标、换时间、利用新的合作方；主角则需要调查实际发生的变化。\n\n本例的连续推进可以是：\n\n1. 拒绝借账号，保住第一次交付记录。\n2. 同事转向另一人，泄露时间提前，沈遥的旧记忆失准。\n3. 沈遥核对授权版本，发现外流音频与正式交付不同。\n4. 她取得这一世新形成的证词和记录，再决定何时公开。\n\n每一步都有今生行为产生的结果。前世信息负责让她看见风险，不能自动替她取得证据。揭露真相后，处理被误伤的合作关系或交付责任，不要立即重置成另一轮同样的栽赃。",
-          "en": "After the first refusal, do not repeat the same request every episode. The opponent can change targets, timing or collaborators; Shen must investigate what actually happens.\n\nA progression could be:\n\n1. Refuse account access and preserve the initial delivery record.\n2. The colleague approaches someone else; the leak occurs earlier, invalidating her remembered timing.\n3. Shen compares authorized versions and discovers that the leaked audio differs from the official delivery.\n4. She obtains new testimony and records, then decides when to disclose them.\n\nPresent actions generate each result. Old information alerts her to risk; it does not supply evidence automatically. After the reveal, handle damaged cooperation and delivery responsibility instead of resetting to identical accusations."
+          "zh": "第一步拒绝借账号后，不要每集都让同事用同一借口来借。对手可以换目标、换时间、利用新的合作方；主角则需要调查实际发生的变化。\n\n本例的连续推进可以是：\n\n1. 拒绝借账号，保住第一次交付记录。\n2. 同事转向另一人，泄露时间提前，沈遥的旧记忆失准。\n3. 沈遥核对授权版本，发现外流音频与正式交付不同。\n4. 她取得这一世新形成的证词和记录，再决定何时公开。\n\n每一步都有今生行为产生的结果。前世信息负责让她看见风险，不能自动替她取得证据。揭露真相后，处理被误伤的合作关系或交付责任，不要立即重置成另一轮同样的栽赃。\n\n上述四步是后续分集的候选推进，本场只完成拒借、交付与看见新请求。若采用外流音频比对，先交代她如何取得当前文件、比哪一版、直接支持什么；版本不同不自动确定上传人，也不证明谁有意陷害。",
+          "en": "After the first refusal, do not repeat the same request every episode. The opponent can change targets, timing or collaborators; Shen must investigate what actually happens.\n\nA progression could be:\n\n1. Refuse account access and preserve the initial delivery record.\n2. The colleague approaches someone else; the leak occurs earlier, invalidating her remembered timing.\n3. Shen compares authorized versions and discovers that the leaked audio differs from the official delivery.\n4. She obtains new testimony and records, then decides when to disclose them.\n\nPresent actions generate each result. Old information alerts her to risk; it does not supply evidence automatically. After the reveal, handle damaged cooperation and delivery responsibility instead of resetting to identical accusations.\n\nThose four steps propose later episodes; this scene completes refusal, delivery, and observation of a new request. If a leaked-file comparison is adopted, establish access, compared versions, and the supported conclusion. Different versions alone identify neither uploader nor deliberate framing."
         }
       },
       {
@@ -23496,8 +23507,8 @@
           "en": "Use flashbacks for the present choice and plan their assets"
         },
         "body": {
-          "zh": "先列必须看见的前世信息，再决定是否真的需要一个旧场景。本例的账号损失可用简短指控片段交代，不必补拍前世从入职到失业的全过程。\n\n| 需要的信息 | 较省的呈现 | 仍要核对 |\n|---|---|---|\n| 曾借账号 | 今生同一句请求触发短回忆 | 回忆与现在的造型差别 |\n| 曾被栽赃 | 一个交付单或一句旧指控 | 哪些字必须后期可读 |\n| 时间线已变化 | 主角看到与记忆不一致的来电或交付动作 | 当前日期、文件与人物状态 |\n\n前世片段属于自己的时间分支，不能把今生已修正的文件或关系覆盖回去。闪回长度按信息量和项目节奏控制，方法卡的短闪回建议是制作取舍，不是机械行数。\n\n修订时删掉三种内容：重复宣布重生、已经被行动说明的独白、没有新信息却新增旧时空的回忆。留下的是能解释眼前选择或改写当前判断的部分。",
-          "en": "List the past-life information that must be visible before creating an old scene. A brief accusation can explain the account loss; there is no need to reconstruct the entire previous employment.\n\n| Needed fact | Economical presentation | Check |\n|---|---|---|\n| She lent access | The repeated request triggers a brief memory | Distinct past and present appearance |\n| She was blamed | A delivery form or one earlier accusation | Text requiring readable post-production |\n| Events diverged | A call or delivery differs from memory | Current date, files and character states |\n\nPast footage belongs to its own timeline. It cannot overwrite revised present files or relationships. Fit flashback length to information and project rhythm; the card’s brief-flashback guidance is a production choice, not a mechanical line count.\n\nCut repeated rebirth announcements, inner speech already expressed by action, and new past locations with no new information. Retain what explains a present choice or changes a judgment."
+          "zh": "先列必须看见的前世信息，再决定是否真的需要一个旧场景。本例的账号损失可用简短指控片段交代，不必补拍前世从入职到失业的全过程。\n\n| 需要的信息 | 判断与动作 |\n|---|---|\n| 曾借账号 | **较省的呈现：** 今生同一句请求触发短回忆 **仍要核对：** 回忆与现在的造型差别 |\n| 曾被栽赃 | **较省的呈现：** 一个交付单或一句旧指控 **仍要核对：** 哪些字必须后期可读 |\n| 时间线已变化 | **较省的呈现：** 主角看到与记忆不一致的来电或交付动作 **仍要核对：** 当前日期、文件与人物状态 |\n\n前世片段属于自己的时间分支，不能把今生已修正的文件或关系覆盖回去。闪回长度按信息量和项目节奏控制，方法卡的短闪回建议是制作取舍，不是机械行数。\n\n修订时删掉三种内容：重复宣布重生、已经被行动说明的独白、没有新信息却新增旧时空的回忆。留下的是能解释眼前选择或改写当前判断的部分。",
+          "en": "List the past-life information that must be visible before creating an old scene. A brief accusation can explain the account loss; there is no need to reconstruct the entire previous employment.\n\n| Needed fact | Record |\n|---|---|\n| She lent access | **Economical presentation:** The repeated request triggers a brief memory **Check:** Distinct past and present appearance |\n| She was blamed | **Economical presentation:** A delivery form or one earlier accusation **Check:** Text requiring readable post-production |\n| Events diverged | **Economical presentation:** A call or delivery differs from memory **Check:** Current date, files and character states |\n\nPast footage belongs to its own timeline. It cannot overwrite revised present files or relationships. Fit flashback length to information and project rhythm; the card’s brief-flashback guidance is a production choice, not a mechanical line count.\n\nCut repeated rebirth announcements, inner speech already expressed by action, and new past locations with no new information. Retain what explains a present choice or changes a judgment."
         }
       }
     ],
@@ -23545,6 +23556,13 @@
           "en": "Memory boundaries, disclosure and premise rules"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/premise-devices.md"
+      },
+      {
+        "label": {
+          "zh": "当前载体与结论范围",
+          "en": "Current evidence and conclusion scope"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/serial-character-and-memory.md"
       }
     ],
     "related": [
@@ -24176,7 +24194,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "短剧反转怎么写：新事实要改变下一步行动",
       "en": "How to Write a Short-Drama Plot Twist"
@@ -24190,8 +24208,8 @@
       "en": "Distinguish revelation, reversal and an ending hook. Use established facts to change a plan, with an original evidence scene and a payoff worksheet."
     },
     "answer": {
-      "zh": "先写人物当前计划，再让已经铺过的事实使它失效，逼人物作出新的选择。揭示一个秘密不自动等于反转；观众要能回看见线索，人物也要因此改变行动。完成本集承诺的一项结果后，再从结果里引出新压力，不靠“其实……”切黑后继续拖。",
-      "en": "Establish the current plan, then let an earlier fact invalidate it and require a new choice. A secret revealed is not automatically a reversal: viewers need prior clues and characters must change action. Deliver a result promised by the episode, then grow new pressure from that result rather than repeatedly cutting before the answer."
+      "zh": "先写人物当前计划或解释，再用已铺事实改变它，让人物采取相应行动。秘密揭示不自动等于反转；观众要有可回看的线索，人物的下一步也要有变化。兑现本集承诺的一项结果后，可以继续查证、留下新选择，也可以安静收束，不靠反复切黑拖延已答应的答案。",
+      "en": "Establish the current plan or interpretation, then change it through an earlier fact and a resulting action. Revealing a secret is not automatically a reversal: viewers need prior clues and a changed next step. Deliver a promised result, then continue inquiry, leave a choice, or close quietly rather than repeatedly cutting before the promised answer."
     },
     "sections": [
       {
@@ -24201,8 +24219,8 @@
           "en": "Give revelation, reversal, payoff and hook different jobs"
         },
         "body": {
-          "zh": "Drama Skills 的条件方法把这四项分开，不要求每集按固定套路轮换。\n\n原创例子：维修员顾敏想用门禁记录证明学徒没有进入被破坏的库房。\n\n| 动作 | 本场表现 | 判断标准 |\n|---|---|---|\n| 揭示 | 记录显示学徒工牌在库房门口被刷过 | 观众得到新事实 |\n| 反转 | 早已出现的临时借卡记录说明工牌当时不在学徒手里 | “刷卡就是本人”这条解释失效 |\n| 回报 | 学徒不再因这条记录被直接排除出维修组 | 前面的保护目标得到局部结果 |\n| 钩子 | 顾敏决定追查借卡人，对方却准备交还一张不同编号的卡 | 由已发生结果产生下一步问题 |\n\n最后一项要有之前的借卡与编号依据，不能为了钩子临时新增另一张万能卡。也可以不用反转，只完成有力度的行动结果。",
-          "en": "Drama Skills separates these functions without requiring a fixed sequence in every episode.\n\nOriginal example: technician Gu Min uses access records to defend an apprentice accused of entering a damaged storeroom.\n\n| Function | Scene event | Test |\n|---|---|---|\n| Revelation | The apprentice’s card was used at the storeroom | New information reaches viewers |\n| Reversal | An established temporary-loan record shows the card was elsewhere | Card use no longer proves the holder entered |\n| Payoff | That record alone no longer excludes the apprentice from the repair team | A local protection objective is delivered |\n| Hook | Gu pursues the borrower, who prepares to return a differently numbered card | The result creates a new problem |\n\nThe last beat needs established borrowing and numbering; do not invent a convenient extra card for the hook. An episode can also deliver strong action without any reversal."
+          "zh": "Drama Skills 的条件方法把这四项分开，不要求每集按固定套路轮换。\n\n原创例子：维修员顾敏想用门禁记录证明学徒没有进入被破坏的库房。\n\n| 动作 | 判断与动作 |\n|---|---|\n| 揭示 | **本场表现：** 记录显示学徒工牌在库房门口被刷过 **判断标准：** 观众得到新事实 |\n| 反转 | **本场表现：** 早已出现的交卡动作与临时借卡记录，使实际持卡者不能由刷卡记录直接确定 **判断标准：** “刷卡就是本人”这条解释失效 |\n| 回报 | **本场表现：** 学徒不再因这条记录被直接排除出维修组 **判断标准：** 前面的保护目标得到局部结果 |\n| 钩子 | **本场表现：** 顾敏联系借卡人核对实际交还的卡；借卡人答应回来，交还尚未发生 **判断标准：** 由已发生结果产生下一步问题 |\n\n若另选“交还不同编号的卡”作后续钩子，须先有借卡与另一卡号的依据，不能临时新增万能卡。本例只留下核对交还这一步。也可以不用反转，只完成有力度的行动结果。",
+          "en": "Drama Skills separates these functions without requiring a fixed sequence in every episode.\n\nOriginal example: technician Gu Min uses access records to defend an apprentice accused of entering a damaged storeroom.\n\n| Function | Record |\n|---|---|\n| Revelation | **Scene event:** The apprentice’s card was used at the storeroom **Test:** New information reaches viewers |\n| Reversal | **Scene event:** The earlier handoff and loan record make the actual cardholder uncertain **Test:** The card-equals-person explanation fails |\n| Payoff | **Scene event:** That record alone no longer excludes the apprentice from the repair team **Test:** A local protection objective is delivered |\n| Hook | **Scene event:** Gu contacts the borrower to check the returned card; a return is agreed but has not happened **Test:** A next step follows the result |\n\nIf a different-numbered return is chosen later, establish the loan and other card number first rather than inventing a convenient extra card. This example only leaves the actual return for checking. An episode can also deliver strong action without any reversal."
         }
       },
       {
@@ -24214,6 +24232,17 @@
         "body": {
           "zh": "顾敏之前整理交接箱时，看过学徒借卡给送货员的登记；整理动作服务当时任务，不只是专为结尾插入特写。观众未必猜到用途，但能记得这件事出现过。\n\n门禁画面只证明某张卡被使用，不能证明谁拿着卡。剧中有人可以误判，但作者需要保留事实、角色相信与观众所知的区别。\n\n如果卡号决定反转，要安排可读的后期画面、准确念出的编号或明确对照。不能画面上根本看不清，下一句却说“你们都看见编号不一样了”。\n\n反转前问：谁能接触登记、证据为何现在被查到、它排除哪种解释、仍不能证明什么、得知后谁改变行动。这五项比增加秘密数量更能检查公平性。",
           "en": "Earlier, Gu sees the apprentice’s loan entry while organizing a handover box. That action serves an immediate task instead of inserting an arbitrary close-up for the ending. Viewers need not anticipate its purpose, but can recognize it later.\n\nAccess footage proves a card was used, not who held it. Characters may misjudge; keep the fact distinct from belief and audience knowledge.\n\nIf the number matters, provide readable post-production text, an accurately spoken number or an explicit comparison. Characters cannot claim everyone saw a difference that the picture never shows.\n\nBefore the turn, check access, why the evidence appears now, which interpretation it excludes, what remains unproven and whose action changes. These are more useful than simply increasing the number of secrets."
+        }
+      },
+      {
+        "id": "complete-card-scene",
+        "heading": {
+          "zh": "原创片段：反转后，谁真的改变了决定",
+          "en": "Original Scene: Who Actually Changes a Decision After the Turn"
+        },
+        "body": {
+          "zh": "本例补定：观众早先在交接箱旁看过学徒把C-17工牌交给送货员并登记借卡。现在门禁记录出现C-17在15:12被刷过；单凭登记与交卡画面，不知道这张卡在15:12由谁实际持有。\n\n**库房外。** 组长指着门禁记录：“你说他没进去，可他的卡刷过。”\n\n顾敏本想把屏幕转给学徒作证明。她停住，放下自己原先那句结论，拿来刚才整理过的借卡记录。\n\n**顾敏：**“我说得太满。C-17早先借出过，我们看见的是卡被用，不是人进门。”\n\n**组长：**“所以送货员就是破坏的人？”\n\n**顾敏：**“也不能这么说。先核谁拿过卡，别按这条记录把学徒除名。”\n\n组长对照卡号和借卡登记，再问学徒交卡的经过。学徒说明交过卡，没有声称借出后一直知道卡在哪里。\n\n**组长：**“这条不够归到你本人。你留在维修组，先做不进库房的任务。顾敏，你和我继续核交还。”\n\n他把原本准备划去的学徒名字留在当日任务表上，指给他当前要做的工作。顾敏当场联系送货员；对方答应带卡回来。她将已经核对的两份记录分开放好，没在任何人的名字旁写“已查明”。\n\n本场实际结果是学徒不因这一条门禁记录被除名，查证方向从“证明绝未进入”转成“核实际持卡者”。这不证明学徒完全无涉，也不证明送货员作案；限制库房任务仍在。若此集在这里收束，局部结果已经落地，不必再塞一个陌生人报秘密。",
+          "en": "Establish that viewers earlier saw the apprentice hand badge C-17 to a courier and record the loan beside the handoff box. The access log now shows C-17 used at 15:12. The earlier handoff and register do not identify its actual holder at 15:12.\n\n**Outside the storeroom.** The team leader points to the log: “You said he didn’t enter. His card was used.”\n\nGu Min was about to turn the screen toward the apprentice as proof. She stops, withdraws that conclusion, and retrieves the loan register she was sorting earlier.\n\n**Gu:** “I overstated it. C-17 was lent out. We can see the card was used, not who entered.”\n\n**Leader:** “So the courier caused the damage?”\n\n**Gu:** “We can’t say that either. Check who held the card before removing the apprentice over this log.”\n\nThe leader compares card number and loan record, then asks about the handoff. The apprentice describes lending it without claiming to know where it remained afterward.\n\n**Leader:** “This entry doesn’t identify you. You stay on the team, doing work outside the storeroom for now. Gu, we’ll check the return together.”\n\nHe leaves the apprentice’s name on the day’s task sheet instead of crossing it out and assigns an actual task. Gu contacts the courier, who agrees to bring the card back. She keeps the two checked records separate, without marking anyone’s name “case resolved.”\n\nThe landed result is retention on the team despite this log. Inquiry moves from proving no entry to checking the actual holder. Neither complete innocence nor courier responsibility is established; the storeroom restriction remains. This can close the episode with its local result rather than adding a stranger’s new secret."
         }
       },
       {
@@ -24234,8 +24263,8 @@
           "en": "Repair twists that are numerous but weak"
         },
         "body": {
-          "zh": "| 问题 | 改法 |\n|---|---|\n| 陌生人突然宣布真相 | 从已有证据、人物接触权限与选择里找揭示来源 |\n| 秘密揭开，所有人照旧 | 改计划、关系位置、可采取行动或责任 |\n| 每次都推翻全部前情 | 重新解释旧事实，不抹掉已发生行动与损失 |\n| 刚胜利就说一切没用 | 保留局部回报，再增加由胜利造成的压力 |\n| 连续两集反同一件事 | 删重复层，让第二次改变新的条件或代价 |\n\n如果没有合适反转，就保留清楚的推进。为了满足“每集反转”而临时更改人物所知，会损伤整条故事。",
-          "en": "| Problem | Repair |\n|---|---|\n| A stranger announces the truth | Find the reveal in established evidence, access and choices |\n| A secret changes nothing | Change the plan, relationship, available action or responsibility |\n| Every turn erases prior events | Reinterpret facts without deleting actions and losses |\n| Every win becomes pointless immediately | Preserve its local payoff, then add resulting pressure |\n| Two episodes reverse the same issue | Remove repetition or change a new condition or cost |\n\nKeep clear progress when no useful reversal exists. Inventing knowledge merely to meet a twist quota damages the story."
+          "zh": "| 问题 | 改法 |\n|---|---|\n| 陌生人突然宣布真相 | 从已有证据、人物接触权限与选择里找揭示来源 |\n| 秘密揭开，所有人照旧 | 改计划、关系位置、可采取行动或责任 |\n| 每次都推翻全部前情 | 重新解释旧事实，不抹掉已发生行动与损失 |\n| 刚胜利就说一切没用 | 保留局部回报，再增加由胜利造成的压力 |\n| 连续两集反同一件事 | 删重复层，让第二次改变新的条件或代价 |\n\n如果没有合适反转，就保留清楚的推进。为了满足“每集反转”而临时更改人物所知，会损伤整条故事。\n\n反转改变的也可以是理解、合作方式或下一步核查，不一定要让人物同时失去另一件珍贵东西。若已有行动足以完成当集体验，允许保留接受、松口气或安静收束；新压力在后续需要时再从已定事实产生。",
+          "en": "| Problem | Repair |\n|---|---|\n| A stranger announces the truth | Find the reveal in established evidence, access and choices |\n| A secret changes nothing | Change the plan, relationship, available action or responsibility |\n| Every turn erases prior events | Reinterpret facts without deleting actions and losses |\n| Every win becomes pointless immediately | Preserve its local payoff, then add resulting pressure |\n| Two episodes reverse the same issue | Remove repetition or change a new condition or cost |\n\nKeep clear progress when no useful reversal exists. Inventing knowledge merely to meet a twist quota damages the story.\n\nA turn may change understanding, cooperation, or the next check without imposing another valuable loss. When the action completes the intended experience, allow acceptance, relief, or quiet closure; later pressure can arise from established facts when needed."
         }
       }
     ],
@@ -24265,8 +24294,8 @@
       "name": "short-drama-develop",
       "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/SKILL.md",
       "text": {
-        "zh": "请 short-drama-develop 检查反转方案：分别列揭示、旧判断如何失效、新选择、本集回报和下一集压力。引用已出现的事实；缺铺垫就指出，不新增万能证据。",
-        "en": "Ask short-drama-develop to separate revelation, invalidated interpretation, new choice, episode payoff and outgoing pressure. Cite established facts and identify missing setup rather than inventing evidence."
+        "zh": "请 short-drama-develop 检查反转方案：列当前计划/解释、已铺新事实、改变的选择及实际回报。引用当前载体，保留未决结论；若要续集钩子，从已发生结果找后续动作，不强制每次另加代价或秘密。",
+        "en": "Use short-drama-develop to check the current plan/interpretation, established fact, changed choice, and actual payoff. Cite current evidence and preserve unresolved claims. If a continuing hook is wanted, derive its next action from the result rather than forcing another cost or secret every time."
       }
     },
     "sources": [
@@ -24283,6 +24312,13 @@
           "en": "Visible evidence and conclusion boundaries"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/serial-character-and-memory.md"
+      },
+      {
+        "label": {
+          "zh": "结尾可安静收束，不强制追加事件",
+          "en": "Quiet closure without a compulsory extra event"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-write/SKILL.md"
       }
     ],
     "related": [
@@ -24300,7 +24336,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "短剧人物前后矛盾怎么办：先查跨集记忆",
       "en": "How to Fix Character Continuity in a Short Drama"
@@ -24336,8 +24372,8 @@
           "en": "Record changes and active obligations, not a full recap"
         },
         "body": {
-          "zh": "| 交接项 | 第七集结束时 |\n|---|---|\n| 当前目标 | 打烊后核对缺失账目 |\n| 人物策略 | 先比对记录，再决定是否公开 |\n| 关系承诺 | 唐云答应合伙人共同核对，不独自归责 |\n| 世界事实 | 原页缺失，副本在合伙人手里 |\n| 人物所知 | 两人知道缺页；唐云怀疑周末，尚未证实 |\n| 未解决问题 | 谁移走原页、副本是否完整 |\n| 精确状态 | 唐云留在店里，合伙人带副本离开；当天尚未打烊 |\n\n与下一集无关的完成事件可以缩成一句。谁持证据、谁误信什么、答应何时做什么，则不能为了摘要变短而丢失。\n\n下一集开写前读交接，再看上一集对应片段。摘要写“实习生拿走原页”，正文只写“唐云怀疑”，应先把摘要降回怀疑，不能让下一集沿错误摘要继续。",
-          "en": "| Handoff item | End of episode seven |\n|---|---|\n| Goal | Compare missing entries after closing |\n| Strategy | Compare records before public attribution |\n| Commitment | Tang agrees to investigate with the partner |\n| World facts | Original page missing; partner holds the copy |\n| Character knowledge | Both know a page is missing; Tang’s weekend theory remains unverified |\n| Open questions | Who removed it and whether the copy is complete |\n| Exact state | Tang stays; partner leaves with the copy; closing has not occurred |\n\nCompress settled events that no longer affect later decisions. Do not lose evidence ownership, mistaken beliefs or timed commitments for brevity.\n\nRead the handoff and verify the relevant prior passage before drafting. If a summary names the intern as culprit while the text states only suspicion, correct the summary first."
+          "zh": "| 交接项 | 第七集结束时 |\n|---|---|\n| 当前目标 | 打烊后核对缺失账目 |\n| 人物策略 | 先比对记录，再决定是否公开 |\n| 关系承诺 | 唐云答应合伙人共同核对，不独自归责 |\n| 世界事实 | 原页缺失，副本在合伙人手里 |\n| 人物所知 | 两人知道缺页；唐云怀疑周末，尚未证实 |\n| 未解决问题 | 谁移走原页、副本是否完整 |\n| 精确状态 | 唐云留在店里，合伙人带副本离开；当天尚未打烊 |\n\n与下一集无关的完成事件可以缩成一句。谁持证据、谁误信什么、答应何时做什么，则不能为了摘要变短而丢失。\n\n下一集开写前读交接，再看上一集对应片段。摘要写“实习生拿走原页”，正文只写“唐云怀疑”，应先把摘要降回怀疑，不能让下一集沿错误摘要继续。\n\n上面的表记录第七集，不要提前改成第八集查到的内容。电话结束后的新摘要可以写：“副本仍由合伙人持有；双方比对了B-15与周六补货日期；唐云已留临时标记并发照片，对方确认看到。打烊后带副本共同核对已约定、未完成。谁移走原页仍未知。”\n\n这是本文的编辑记录，不是新增 skill 文件格式。每条把实际动作、双方接受的约定与未发生结果分开，下一集才不会把‘会回来’继承成‘已交还’。",
+          "en": "| Handoff item | End of episode seven |\n|---|---|\n| Goal | Compare missing entries after closing |\n| Strategy | Compare records before public attribution |\n| Commitment | Tang agrees to investigate with the partner |\n| World facts | Original page missing; partner holds the copy |\n| Character knowledge | Both know a page is missing; Tang’s weekend theory remains unverified |\n| Open questions | Who removed it and whether the copy is complete |\n| Exact state | Tang stays; partner leaves with the copy; closing has not occurred |\n\nCompress settled events that no longer affect later decisions. Do not lose evidence ownership, mistaken beliefs or timed commitments for brevity.\n\nRead the handoff and verify the relevant prior passage before drafting. If a summary names the intern as culprit while the text states only suspicion, correct the summary first.\n\nKeep the table as episode seven’s state; do not insert episode eight’s later findings prematurely. After the call, a new summary can read: “Partner still holds copy. Both compared B-15 and Saturday’s delivery date. Tang marked the entry and sent a photo; he confirmed seeing it. Returning for joint review after closing is agreed, not completed. Who removed the original page remains unknown.”\n\nThis is an editorial record rather than a new skill schema. Separating completed acts, accepted plans, and future results prevents the next episode from inheriting “will return” as “already handed back.”"
         }
       },
       {
@@ -24349,6 +24385,17 @@
         "body": {
           "zh": "第八集可以从打烊前的来电开始：合伙人发现副本缺一个编号，请唐云拿店内交付记录比对。唐云因此知道原页与某次补货有关，但仍不能确定谁拿走。\n\n这样，副本仍在原持有人手里，约定进入实际行动，新信息有查证来源。若需要副本回到唐云手上，就写交还动作或有依据的跳时；不必为了形式完整补一段无意义路程。\n\n若人物改变主意，不要求永远履行原策略。唐云可以决定提前公开，但需要新的压力与选择，并处理违背共同核对承诺的关系后果。连续性不是禁止人物变化，而是变化有因果、有记忆。",
           "en": "Episode eight can begin with a call before closing. The partner finds a missing number in the copy and asks Tang to compare the shop’s delivery record. She learns that the gap connects to a restocking event, but still cannot identify who removed the page.\n\nThe copy remains with its established holder, the promise becomes action and new knowledge has a source. If the copy must return to Tang, show its transfer or a supported time jump; no ceremonial travel scene is needed.\n\nCharacters may change plans. Tang can disclose early under new pressure, but the choice should affect trust after breaking their agreement. Continuity permits change with cause and memory."
+        }
+      },
+      {
+        "id": "complete-handoff-scene",
+        "heading": {
+          "zh": "原创续集片段：副本没有瞬移，猜测没有变真相",
+          "en": "Original Continuation: No Teleporting Copy or Promoted Guess"
+        },
+        "body": {
+          "zh": "本例补定：副本里的补货编号从B-14跳到B-16；店内交付记录可核对同一批编号。第八集从第七集分开后、当天打烊前的电话开始。\n\n唐云正在收银台擦杯垫，手机响了。合伙人还在外面，副本压在他面前。\n\n**合伙人：**“你给我的这份，B-14后面直接是B-16。店里能找到B-15那批吗？”\n\n唐云放下杯垫，翻店内交付记录。\n\n**唐云：**“有。B-15，周六补货，日期和编号都在。”\n\n**合伙人：**“我这边没有那条。先核这批，不急着说谁拿的。”\n\n**唐云：**“那打烊后还是一起看。我把这条留出来，原记录不改。”\n\n**合伙人：**“好，我带副本回来。”\n\n唐云在交付记录夹上临时标记，拍下这条发给合伙人。对方回消息确认看到了B-15和周六日期。她没有在实习生的名字旁写责任结论，也没有拿起仍在合伙人手里的副本。\n\n电话让两人知道副本缺少一个与周六补货对应的条目，不证明原页何时、怎样或被谁移走。“带回来”仍是约定；本场结束时他尚未返回。共同核对已开始做了一部分，全部核对与副本交还仍待打烊后发生。",
+          "en": "Establish that the copy’s restocking references jump from B-14 to B-16 and that the shop’s delivery records use the same references. Episode eight begins after their separation, before closing that same day.\n\nTang Yun wipes a coaster at the till when her phone rings. Her partner is still outside, with the copy in front of him.\n\n**Partner:** “The copy you gave me jumps from B-14 to B-16. Can you find delivery B-15 at the shop?”\n\nTang puts down the coaster and opens the delivery record.\n\n**Tang:** “Yes. B-15, Saturday restocking. The date and reference are here.”\n\n**Partner:** “That entry is missing here. Let’s check this delivery before naming who took anything.”\n\n**Tang:** “Still together after closing, then. I’ll mark this entry and leave the record unchanged.”\n\n**Partner:** “Agreed. I’ll bring the copy back.”\n\nTang attaches a temporary marker and sends him a photograph of the entry. He replies that he can see B-15 and the Saturday date. She neither writes blame beside the intern’s name nor picks up the copy still held by her partner.\n\nThey now know the copy lacks an entry corresponding to Saturday’s delivery. They have not established when, how, or by whom the original page was removed. Bringing the copy back is still a promise; he has not returned. Joint checking has begun in part, with the complete comparison and handback awaiting closing."
         }
       },
       {
@@ -24417,7 +24464,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "短剧人物怎么设计：用压力预测他的选择",
       "en": "How to Design Characters for a Short Drama"
@@ -24442,8 +24489,8 @@
           "en": "A character card should predict choices"
         },
         "body": {
-          "zh": "Drama Skills 的人物方法记录追求、保护的价值、信念、前史、策略、代价和改变条件。只取当前故事会用的内容，不要求给所有群演写完整人生。\n\n原创人物：小店老板乔音，总替员工悄悄补交班差错。她想保住团队，怕自己被当成不体恤人的老板。\n\n| 问题 | 本例填写 |\n|---|---|\n| 明确追求 | 让店按时开门，不因交班差错失去客人 |\n| 不愿失去 | 员工信任与“大家都能依靠我”的自我看法 |\n| 旧信念 | 问题不公开，团队就不会散 |\n| 前史依据 | 她曾见过一次公开归责后员工互相推卸 |\n| 惯常策略 | 自己补表、替人解释、延迟追问 |\n| 正在付的代价 | 员工不知道差错，重复犯；她的工作越来越多 |\n| 可能的改变条件 | 一次掩盖直接影响另一名员工的工资记录 |\n\n这张卡可以预测她开场会先补表，也说明后面什么压力会让这套办法不再够用。",
-          "en": "Drama Skills records pursuit, protected value, belief, history, strategy, cost and conditions for change. Use what the story needs; extras do not require full biographies.\n\nOriginal character: shop owner Qiao Yin quietly fixes employees’ handover errors. She wants to preserve the team and fears appearing uncaring.\n\n| Question | Entry |\n|---|---|\n| Immediate pursuit | Open on time without losing customers to handover mistakes |\n| Protected value | Staff trust and her identity as dependable |\n| Belief | Keeping problems private keeps the team together |\n| Prior basis | Public blame once caused coworkers to accuse each other |\n| Habitual strategy | Fill gaps herself, explain for others, delay questions |\n| Current cost | Staff repeat mistakes they never learn about; her workload grows |\n| Change condition | Concealment affects another employee’s pay record |\n\nThe card predicts her first repair and identifies pressure that can expose the strategy’s limits."
+          "zh": "Drama Skills 的人物方法记录追求、保护的价值、信念、前史、策略、代价和改变条件。只取当前故事会用的内容，不要求给所有群演写完整人生。\n\n原创人物：小店老板乔音，总替员工悄悄补交班差错。她想保住团队，怕自己被当成不体恤人的老板。\n\n| 问题 | 本例填写 |\n|---|---|\n| 明确追求 | 让店按时开门，不因交班差错失去客人 |\n| 不愿失去 | 员工信任与“大家都能依靠我”的自我看法 |\n| 旧信念 | 问题不公开，团队就不会散 |\n| 前史依据 | 她曾见过一次公开归责后员工互相推卸 |\n| 惯常策略 | 自己补表、替人解释、延迟追问 |\n| 正在付的代价 | 员工不知道差错，重复犯；她的工作越来越多 |\n| 可能的改变条件 | 一次掩盖直接影响另一名员工的工资记录 |\n\n这张卡可以预测她开场会先补表，也说明后面什么压力会让这套办法不再够用。\n\n人物开发还要回答观众为什么愿意跟着看。乔音把开门和补错都扛在自己身上，观众能认出她想保住一群人的愿望；阿诚提出具体少算的工时，又让观众看见这个好意伤到了谁。可跟随不等于必须可爱或永远正确，别用一长串美德替代眼前的欲望、本事和失误。",
+          "en": "Drama Skills records pursuit, protected value, belief, history, strategy, cost and conditions for change. Use what the story needs; extras do not require full biographies.\n\nOriginal character: shop owner Qiao Yin quietly fixes employees’ handover errors. She wants to preserve the team and fears appearing uncaring.\n\n| Question | Entry |\n|---|---|\n| Immediate pursuit | Open on time without losing customers to handover mistakes |\n| Protected value | Staff trust and her identity as dependable |\n| Belief | Keeping problems private keeps the team together |\n| Prior basis | Public blame once caused coworkers to accuse each other |\n| Habitual strategy | Fill gaps herself, explain for others, delay questions |\n| Current cost | Staff repeat mistakes they never learn about; her workload grows |\n| Change condition | Concealment affects another employee’s pay record |\n\nThe card predicts her first repair and identifies pressure that can expose the strategy’s limits.\n\nCharacter development also asks why viewers will follow. Qiao shoulders opening and corrections because she wants to keep a group together; Cheng’s concrete missing hours show whom that protection hurts. Followability requires neither charm nor constant correctness. Visible wants, ability, and mistakes do more than a list of virtues."
         }
       },
       {
@@ -24453,8 +24500,8 @@
           "en": "Translate relationship tension into competing requests"
         },
         "body": {
-          "zh": "乔音与负责交班的阿诚同场，不能只写“老板善良，员工冲动”。\n\n> 乔音想让阿诚先开店，晚点再补表；不想让他看到自己替人改过记录。\n> 阿诚想先核对工资时长；不愿把自己的工时再次算成缺勤。\n> 乔音用开门期限催促；阿诚拿出已确认的排班照片，坚持现在看。\n\n两人都有目标和筹码。阿诚不是为了触发老板成长而无缘由发脾气，乔音也不是为了剧情突然变坏。\n\n把这些要求转成动作：乔音把表合上去拉卷帘门，阿诚将排班照片放在收银台，先不接钥匙。观众从行动看见冲突，无需先听两份小传。",
-          "en": "When Qiao meets handover worker A Cheng, “kind owner, impulsive employee” is insufficient.\n\n> Qiao wants him to open first and check later, hiding her altered records.\n> Cheng wants recorded hours checked now, preventing another absence charged to him.\n> Qiao invokes opening time; Cheng produces an approved schedule photo.\n\nBoth have aims and leverage. Cheng does not become angry merely to trigger her growth; Qiao does not suddenly become malicious.\n\nMake the exchange playable: she closes the sheet and goes to lift the shutter; he puts the photograph by the register and leaves the keys untouched. Viewers see the conflict without two biographies."
+          "zh": "乔音与负责交班的阿诚同场，不能只写“老板善良，员工冲动”。\n\n> 乔音想让阿诚先开店，晚点再补表；不想让他看到自己替人改过记录。\n> 阿诚想先核对工资时长；不愿把自己的工时再次算成缺勤。\n> 乔音用开门期限催促；阿诚拿出已确认的排班照片，坚持现在看。\n\n两人都有目标和筹码。阿诚不是为了触发老板成长而无缘由发脾气，乔音也不是为了剧情突然变坏。\n\n把这些要求转成动作：乔音把表合上去拉卷帘门，阿诚将排班照片放在收银台，先不接钥匙。观众从行动看见冲突，无需先听两份小传。\n\n本例补定昨天的核对材料：已确认排班为阿诚07:00—11:00，当班签到也留有07:00与11:00两端；工资预览却把他记成10:00—11:00。乔音先前替另一笔交班补表时，把10:00错填进阿诚那行。排班说明安排，签到支持实际起止，本例要两者对照，不把排班照片单独当成全部出勤。",
+          "en": "When Qiao meets handover worker A Cheng, “kind owner, impulsive employee” is insufficient.\n\n> Qiao wants him to open first and check later, hiding her altered records.\n> Cheng wants recorded hours checked now, preventing another absence charged to him.\n> Qiao invokes opening time; Cheng produces an approved schedule photo.\n\nBoth have aims and leverage. Cheng does not become angry merely to trigger her growth; Qiao does not suddenly become malicious.\n\nMake the exchange playable: she closes the sheet and goes to lift the shutter; he puts the photograph by the register and leaves the keys untouched. Viewers see the conflict without two biographies.\n\nEstablish yesterday’s materials: Cheng’s confirmed schedule is 07:00–11:00, with both 07:00 and 11:00 in attendance records, while the pay preview uses 10:00–11:00. When filling a different handover entry, Qiao previously put 10:00 in his row by mistake. The schedule establishes the plan; attendance supports actual endpoints. Compare both rather than treating a schedule photo as complete attendance proof."
         }
       },
       {
@@ -24466,6 +24513,17 @@
         "body": {
           "zh": "这一场不必立刻完成“学会坦诚”的全部成长。可以只让乔音第一次停止偷偷补表，留下记录一起核对。她仍怕公开会让人难堪，所以只邀请当事人先查。\n\n可追踪的变化是：旧策略遮掩，压力触及另一人的工时，人物选择保留原记录，结果是查出交班环节缺口，代价是承认自己曾修改。下一集才面对是否向全体员工说明。\n\n也可以让她继续遮掩，短期保住开门，长期失去阿诚信任。只要后果成立，拒绝变化同样能成为人物路线。不要为满足“正向成长”把所有复杂人物改成最终都正确。\n\n前史在行动需要时才释放。例如阿诚问她为什么总不让大家一起看表，她可以说一句过去的经历，而不是首集先讲完创业人生。",
           "en": "This scene need not complete her entire growth toward openness. She can first stop silently fixing the sheet and retain it for comparison, still limiting the meeting to those involved because she fears public embarrassment.\n\nTrack the chain: concealment meets pressure on another person’s hours; she retains the original record; comparison exposes a handover gap; she admits an alteration. The next episode addresses whether to tell all staff.\n\nShe may also conceal again, opening on time but losing Cheng’s trust. A refusal to change is a valid route when consequences follow. Do not make every complex character morally correct to satisfy a growth requirement.\n\nReveal history when action requires it. If Cheng asks why she prevents group checking, one relevant prior event can answer without an opening life story."
+        }
+      },
+      {
+        "id": "complete-pressure-scene",
+        "heading": {
+          "zh": "原创片段：她保留了原表，但还没有变成另一个人",
+          "en": "Original Scene: Keeping the Sheet Is a First Change"
+        },
+        "body": {
+          "zh": "**小店·开门前。** 乔音把工资预览合上，递钥匙给阿诚。\n\n**乔音：**“先开门。那一行我晚点补，别让大家难堪。”\n\n阿诚没接钥匙，把昨天的排班照片放到收银台旁。\n\n**阿诚：**“我不是要你替我补。七点到十一点，怎么只剩一小时？”\n\n她看了看卷帘门，又把预览翻开。原本要划掉旧数字的笔停在纸边。\n\n**乔音：**“这行十点是我写的。我补别人的交班，填到你这里了。”\n\n**阿诚：**“那就留着原来那行，一起看签到。”\n\n两人找出昨日起止签到，与排班日期和姓名逐一对应：07:00、11:00，四小时，不是预览里的一小时。乔音保留原记录，标明本次更正依据，将待汇总的这一行改成四小时，给阿诚看。\n\n**乔音：**“这笔先按核对结果更正。其他人的表我不能再自己补完就算了。但现在只叫当事人查，我还不想把谁放到大家面前。”\n\n**阿诚：**“这一笔对了。我开门，之后一起核别的。你要改我的记录，先问我。”\n\n她点头。阿诚这才接钥匙，去拉卷帘门；乔音把原表和更正依据一起留在台上，没有藏回抽屉。\n\n本场从遮掩转成共同核对，阿诚的这行已实际修订；工资仍待汇总结算，其他人记录尚未查完。乔音仍害怕公开让人难堪，变化是先试一种新做法，不是瞬间克服所有盲区。阿诚也保有自己的条件，不是替老板宣布成长完成。",
+          "en": "**Shop, before opening.** Qiao Yin closes the pay preview and offers Cheng the key.\n\n**Qiao:** “Open first. I’ll fix that row later. Don’t embarrass everyone.”\n\nCheng leaves the key and sets yesterday’s schedule photo beside the till.\n\n**Cheng:** “I’m not asking you to fill it in for me. Seven to eleven—how did it become one hour?”\n\nShe looks toward the shutter, then reopens the preview. Her pen stops before crossing out the old number.\n\n**Qiao:** “I wrote ten. I was filling someone else’s handover and put it in your row.”\n\n**Cheng:** “Keep that row. Let’s check attendance together.”\n\nThey match yesterday’s attendance endpoints against date and name on the schedule: 07:00 and 11:00, four hours rather than the preview’s one. Qiao retains the original, marks the correction’s basis, changes this pending row to four hours, and shows him.\n\n**Qiao:** “This one follows what we checked. I can’t finish everyone else’s sheets alone and call it done. But for now, only the people involved. I still don’t want to expose anyone to the whole staff.”\n\n**Cheng:** “This entry is right. I’ll open; we’ll check the others later. Ask before changing my record.”\n\nShe nods. He takes the key and opens the shutter. She leaves the original and correction evidence on the counter instead of hiding them in a drawer.\n\nConcealment has become joint checking, and his entry is actually revised. Pay still awaits aggregation and payment; other records remain unchecked. Qiao still fears public embarrassment. This is a trial of a new strategy rather than instant removal of every blind spot. Cheng keeps his own terms instead of announcing that his boss has completed her growth."
         }
       },
       {
@@ -24517,6 +24575,13 @@
           "en": "Character drives, conflicting agendas and pressure tests"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/serial-character-and-memory.md"
+      },
+      {
+        "label": {
+          "zh": "观众为何跟随人物与行动动机",
+          "en": "Reasons to follow a character and action motives"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/story-craft.md"
       }
     ],
     "related": [
@@ -29543,7 +29608,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "隐藏身份短剧怎么写：暴露风险要改变行动",
       "en": "How to Write a Hidden-Identity Short Drama"
@@ -29568,8 +29633,8 @@
           "en": "Tie concealment to a task that cannot wait"
         },
         "body": {
-          "zh": "Drama Skills 的身份错位卡把外部任务、当前身份限制与识别方式组成压力。身体互换改变身体与能力；隐藏身份则重点处理别人相信你是谁，以及由此给出的权限。\n\n原创故事：修复师乔岚临时以普通志愿者身份进入一间筹备开馆的民间资料馆，核对自己参与修复的展品。她不公开自己是委托方派来的代理负责人，因为希望先听到未经准备的工作反馈。开馆前必须确认一件展品能否公开展示。\n\n她能以志愿者身份接近登记桌，却没有资格直接命令停展。隐瞒提供观察机会，也限制手段；不能一边称身份秘密，一边所有人都默认服从她的负责人权限。",
-          "en": "Drama Skills links an urgent task, role limitation and recognition method. Body swapping changes bodies or abilities; hidden identity focuses on what others believe and the access they grant.\n\nOriginal story: restorer Qiao Lan enters a community archive as a volunteer to inspect an exhibit she helped repair. She conceals that she is the commissioning party’s acting representative because she wants unprepared feedback. Before opening, she must establish whether the exhibit can be displayed.\n\nThe volunteer role grants access to registration, not authority to halt the exhibition. Concealment creates an observation opportunity and limits her methods. Others cannot obey secret representative authority they do not know exists."
+          "zh": "Drama Skills 的身份错位卡把外部任务、当前身份限制与识别方式组成压力。身体互换改变身体与能力；隐藏身份则重点处理别人相信你是谁，以及由此给出的权限。\n\n原创故事：修复师乔岚临时以普通志愿者身份进入一间筹备开馆的民间资料馆，核对自己参与修复的展品。她不公开自己是委托方派来的代理负责人，因为希望先听到未经准备的工作反馈。开馆前必须确认一件展品能否公开展示。\n\n她能以志愿者身份接近登记桌，却没有资格直接命令停展。隐瞒提供观察机会，也限制手段；不能一边称身份秘密，一边所有人都默认服从她的负责人权限。\n\n本例中委托方已把这件展品的复核与暂缓决定交给她，馆员也有平时使用的委托联系人；权限只及这一项展品，不包含任意改排班。乔岚在志愿登记时答应了明早的值班。她隐瞒的角色与已接受的普通承诺是两件事，后面分别处理。",
+          "en": "Drama Skills links an urgent task, role limitation and recognition method. Body swapping changes bodies or abilities; hidden identity focuses on what others believe and the access they grant.\n\nOriginal story: restorer Qiao Lan enters a community archive as a volunteer to inspect an exhibit she helped repair. She conceals that she is the commissioning party’s acting representative because she wants unprepared feedback. Before opening, she must establish whether the exhibit can be displayed.\n\nThe volunteer role grants access to registration, not authority to halt the exhibition. Concealment creates an observation opportunity and limits her methods. Others cannot obey secret representative authority they do not know exists.\n\nFor this example, the commissioner has delegated this exhibit’s review and pause decision to Qiao. The curator has an established commissioner contact. Her authority concerns this exhibit, not arbitrary staff scheduling. At volunteer registration she also accepted tomorrow morning’s duty. The concealed role and accepted ordinary commitment need separate handling."
         }
       },
       {
@@ -29579,8 +29644,8 @@
           "en": "Track beliefs, suspicion and supporting evidence"
         },
         "body": {
-          "zh": "| 人物 | 当前相信 | 已见依据 | 可采取的行动 |\n|---|---|---|---|\n| 馆员 | 她是临时志愿者 | 当天登记与普通工牌 | 分配登记任务 |\n| 修复助手 | 她可能认识展品工艺 | 她指出只有参与修复才知道的接缝 | 追问她的经历 |\n| 乔岚 | 馆员尚不知道委托关系 | 对方仍让她等待负责人 | 决定何时公开 |\n\n怀疑要来自实际观察，不由作者写一句“他突然发现不对”。乔岚答对一项工艺问题后，助手可以改变称呼或提供更多记录；知识变化进入下一场，不每集重置成完全不认识。\n\n谁替她作了承诺也要记录。馆员因把她当志愿者安排明早值班，任务成功后她仍需解释和处理，不能露出身份就让旧约自动消失。",
-          "en": "| Person | Current belief | Observed basis | Available action |\n|---|---|---|---|\n| Archivist | Temporary volunteer | Registration and ordinary badge | Assign registration work |\n| Restoration assistant | May know the exhibit’s construction | Identifies a repair seam | Ask about experience |\n| Qiao | Commissioning role remains unknown | Still told to wait for a manager | Decide when to disclose |\n\nSuspicion needs observation rather than a narrator announcing unease. After a technical answer, the assistant can change address or offer records. Carry that knowledge forward instead of resetting recognition each episode.\n\nRecord commitments made under the assumed role. A morning shift assignment still needs explanation after task success; revealing status does not automatically erase it."
+          "zh": "| 人物 | 判断与动作 |\n|---|---|\n| 馆员 | **当前相信：** 她是临时志愿者 **已见依据：** 当天登记与普通工牌 **可采取的行动：** 分配登记任务 |\n| 修复助手 | **当前相信：** 她可能认识展品工艺 **已见依据：** 她指出只有参与修复才知道的接缝 **可采取的行动：** 追问她的经历 |\n| 乔岚 | **当前相信：** 馆员尚不知道委托关系 **已见依据：** 对方仍让她等待负责人 **可采取的行动：** 决定何时公开 |\n\n怀疑要来自实际观察，不由作者写一句“他突然发现不对”。乔岚答对一项工艺问题后，助手可以改变称呼或提供更多记录；知识变化进入下一场，不每集重置成完全不认识。\n\n谁替她作了承诺也要记录。馆员因把她当志愿者安排明早值班，任务成功后她仍需解释和处理，不能露出身份就让旧约自动消失。",
+          "en": "| Person | Record |\n|---|---|\n| Curator | **Current belief:** Temporary volunteer **Observed basis:** Registration and ordinary badge **Available action:** Assign registration work |\n| Restoration assistant | **Current belief:** May know the exhibit’s construction **Observed basis:** Identifies a repair seam **Available action:** Ask about experience |\n| Qiao | **Current belief:** Commissioning role remains unknown **Observed basis:** Still told to wait for a manager **Available action:** Decide when to disclose |\n\nSuspicion needs observation rather than a narrator announcing unease. After a technical answer, the assistant can change address or offer records. Carry that knowledge forward instead of resetting recognition each episode.\n\nRecord commitments made under the assumed role. A morning shift assignment still needs explanation after task success; revealing status does not automatically erase it."
         }
       },
       {
@@ -29592,6 +29657,17 @@
         "body": {
           "zh": "临近开馆，乔岚发现展品的实际状态与登记不符。她可以继续通过核账争取检查，也可以公开委托权限要求暂缓。后一条路推进任务，却使馆员知道此前对话其实发生在有监督权的人面前。\n\n关系余波可以是信任受损、今后要求公开角色，或重新协商合作。不要把普通员工的合理戒备一律写成无知，也不必每次掉马都让全场下跪或齐声惊叹。见证者按能决定、能作证和仅在场分工。\n\n最后让她承担解释：为什么隐瞒、使用过哪些信息、接下来按什么条件合作。身份带来的权限不替代人物选择，结果也不只剩观众听见一个高级头衔。",
           "en": "Near opening, Qiao finds a mismatch between the exhibit and register. She can continue requesting a review or disclose her commissioning authority to pause display. Disclosure advances the task but reveals that earlier conversations occurred with someone holding oversight power.\n\nConsequences may include damaged trust, a demand for transparent roles or renegotiated cooperation. Reasonable caution is not ignorance. Witnesses can decide, testify or simply observe instead of reacting identically.\n\nQiao must explain the concealment, use of information and future terms. Authority does not replace choice, and the payoff is more than an impressive title."
+        }
+      },
+      {
+        "id": "complete-exposure-scene",
+        "heading": {
+          "zh": "原创片段：说出身份，还要让对方核对并作决定",
+          "en": "Original Scene: Identity Needs Verification and a Reply"
+        },
+        "body": {
+          "zh": "本场沿用前例：展品是一张修复过的旧海报，登记写可悬挂，乔岚看见接缝处翘起。这个观察足以请求复查，不单独证明原因或全部修复质量。\n\n**资料馆·开馆前。** 助手正要把海报送往展位。乔岚伸手指向翘起的位置，没有去抢海报。\n\n**乔岚：**“先别挂。这一处跟登记的状态不同。”\n\n**馆员：**“你把情况记下来。我得等负责人。”\n\n她把志愿工牌放到桌上，打开此前已有的委托文件。\n\n**乔岚：**“这件的复核是我负责。刚才没说清身份，是我的问题。请用你们原来的联系人核一下；核完我要求它暂缓展示。”\n\n馆员按馆内已有号码联系委托方，确认她的身份与本件权限。他再和助手对照海报与登记，说明暂缓原因，亲自把展位安排改为空位，助手将海报留在复查区。\n\n**馆员：**“这一件不挂，其他展位照常。以后你来检查，先说自己是谁。”\n\n**乔岚：**“好。明早我答应的值班还来，但和负责人复查分开。”\n\n**馆员：**“值班照登记。复查你提前通知，我安排当事人在场。”\n\n暂停展品已经执行，合作也有了双方说出的条件；原因、修复结论和信任恢复仍未全部完成。馆员不是因为高级头衔自动服从，而是核验了权限并回应具体请求。乔岚的答复处理自己的承诺，不代替馆员同意所有后续安排。",
+          "en": "Continue the example with a repaired old poster: the register permits hanging, but Qiao sees a lifting seam. That supports requesting review, not identifying the cause or judging every repair.\n\n**Archive, before opening.** The assistant is about to take the poster to its display. Qiao points to the lifting area without grabbing it.\n\n**Qiao:** “Please don’t hang it yet. This area differs from the recorded condition.”\n\n**Curator:** “Write it down. I have to wait for the person responsible.”\n\nShe puts her volunteer badge on the desk and opens the existing commission document.\n\n**Qiao:** “I’m responsible for reviewing this piece. I should have explained my role. Please check through your usual contact; once confirmed, I’m asking that this display pause.”\n\nThe curator calls the commissioner through the archive’s established number and verifies her identity and authority for this piece. He and the assistant compare poster and register, state the reason for pausing, and actually leave the display space empty. The assistant keeps the poster in the review area.\n\n**Curator:** “This one stays off display; the others open. Next time you inspect, tell us your role first.”\n\n**Qiao:** “Agreed. I’ll still do tomorrow’s volunteer duty as promised, separately from the review.”\n\n**Curator:** “Duty follows the register. Notify me before the review; I’ll arrange for the people involved to attend.”\n\nThe pause has been carried out and both have stated terms for cooperation. Cause, repair conclusions, and restored trust remain unresolved. The curator verifies specific authority and answers the request rather than automatically obeying an impressive title. Qiao addresses her commitment without deciding the curator’s acceptance for him."
         }
       },
       {
@@ -29657,7 +29733,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "逆袭短剧怎么写：用可核对的结果赢得改口",
       "en": "How to Write an Underdog Rise Short Drama"
@@ -29682,8 +29758,8 @@
           "en": "Make dismissal an observable action"
         },
         "body": {
-          "zh": "Drama Skills 的逆袭卡将轻视与公开可核对的结果相连，区别于清算具体剥夺的复仇。把“大家看不起她”落到拒收申请、不给试用或当众否定某项资格。\n\n原创故事：旧街修理铺学徒孟夏申请参加公共维修试演，主办人只看她的岗位，退回报名表。她想争取的是正式检修资格，不是把某个仇人赶尽杀绝。观众已看见她能识别设备间歇失效的规律，主办人还不知道。\n\n开头尽快让这种轻视与能力表现碰上，不用十集重复嘲讽。首次证明大小由项目节奏决定；题材卡里的经验方向不能写成所有剧集都必须按同一分钟翻盘。",
-          "en": "Drama Skills connects concrete dismissal with a publicly verifiable result, distinct from revenge for a specific deprivation. Show a rejected application, denied trial or public assessment instead of announcing universal contempt.\n\nOriginal story: repair apprentice Meng Xia applies for a public demonstration. An organizer rejects her based on her job title. She wants inspection qualification, not an enemy’s destruction. Viewers have seen her recognize an intermittent fault; the organizer has not.\n\nBring dismissal and capability together early rather than repeating insults for many episodes. The scale and timing follow the project’s rhythm, not a universal minute for reversal."
+          "zh": "Drama Skills 的逆袭卡将轻视与公开可核对的结果相连，区别于清算具体剥夺的复仇。把“大家看不起她”落到拒收申请、不给试用或当众否定某项资格。\n\n原创故事：旧街修理铺学徒孟夏申请参加公共维修试演，主办人只看她的岗位，退回报名表。她想争取的是正式检修资格，不是把某个仇人赶尽杀绝。观众已看见她能识别设备间歇失效的规律，主办人还不知道。\n\n开头尽快让这种轻视与能力表现碰上，不用十集重复嘲讽。首次证明大小由项目节奏决定；题材卡里的经验方向不能写成所有剧集都必须按同一分钟翻盘。\n\n补定本场规则：现场同条件复核通过可进入公开试演，之后才按既定审核争取正式资格。主办人刚才只凭岗位退表，尚未按这条规则看她的结果。孟夏在这一场争的是入围机会；她的长期目标仍是正式资格，不能由一次示范跳过后面的要求。",
+          "en": "Drama Skills connects concrete dismissal with a publicly verifiable result, distinct from revenge for a specific deprivation. Show a rejected application, denied trial or public assessment instead of announcing universal contempt.\n\nOriginal story: repair apprentice Meng Xia applies for a public demonstration. An organizer rejects her based on her job title. She wants inspection qualification, not an enemy’s destruction. Viewers have seen her recognize an intermittent fault; the organizer has not.\n\nBring dismissal and capability together early rather than repeating insults for many episodes. The scale and timing follow the project’s rhythm, not a universal minute for reversal.\n\nEstablish the rule: passing the event’s same-condition verification permits entry to the public demonstration; the established later review decides formal qualification. The organizer rejected the form by job title without inspecting her result under that rule. Meng seeks entry here, with formal qualification remaining the larger goal rather than being granted after one example."
         }
       },
       {
@@ -29693,8 +29769,19 @@
           "en": "Make results testable and witnesses consequential"
         },
         "body": {
-          "zh": "| 场面职责 | 本例实现 | 见证者的后续动作 |\n|---|---|---|\n| 能力展示 | 找到设备仅在升温后断路的条件 | 技师按同条件复测 |\n| 结果核对 | 维修后再次运行到对应状态 | 主办人接受正式记录 |\n| 资格变化 | 允许她完成公开试演 | 审核者收回退表决定 |\n| 评价变化 | 原本质疑的同行请求交流方法 | 合作关系开始改变 |\n\n故障与试演均为原创设定，不是实际维修教程。观众要看懂她的判断怎样被检验，不能一句“检测通过”跳过所有证明。\n\n见证者不必全是群演。负责复测的人、能更改资格的人、会传播评价的人各做一件事；少量明确作用比全场同一种惊叹更有分量。",
-          "en": "| Function | Example | Witness action |\n|---|---|---|\n| Capability | Identifies a fault occurring after heating | Technician repeats the condition |\n| Verification | Runs the repaired equipment through that state | Organizer accepts the record |\n| Access | Allows the public demonstration | Reviewer reverses rejection |\n| Judgment | Skeptical colleague asks about the method | Cooperation changes |\n\nThe fault is fictional, not a repair tutorial. Show how the judgment is tested rather than skipping all proof with a pass announcement.\n\nWitnesses need not be a large crowd. A verifier, authority and person who spreads judgment can each act. A few functional responses carry more weight than identical amazement."
+          "zh": "| 场面职责 | 判断与动作 |\n|---|---|\n| 能力展示 | **本例实现：** 找到设备仅在升温后断路的条件 **见证者的后续动作：** 技师按同条件复测 |\n| 结果核对 | **本例实现：** 维修后再次运行到对应状态 **见证者的后续动作：** 主办人接受正式记录 |\n| 资格变化 | **本例实现：** 允许她完成公开试演 **见证者的后续动作：** 审核者收回退表决定 |\n| 评价变化 | **本例实现：** 原本质疑的同行请求交流方法 **见证者的后续动作：** 合作关系开始改变 |\n\n故障与试演均为原创设定，不是实际维修教程。观众要看懂她的判断怎样被检验，不能一句“检测通过”跳过所有证明。\n\n见证者不必全是群演。负责复测的人、能更改资格的人、会传播评价的人各做一件事；少量明确作用比全场同一种惊叹更有分量。",
+          "en": "| Function | Record |\n|---|---|\n| Capability | **Example:** Identifies a fault occurring after heating **Witness action:** Technician repeats the condition |\n| Verification | **Example:** Runs the repaired equipment through that state **Witness action:** Organizer accepts the record |\n| Access | **Example:** Allows the public demonstration **Witness action:** Reviewer reverses rejection |\n| Judgment | **Example:** Skeptical colleague asks about the method **Witness action:** Cooperation changes |\n\nThe fault is fictional, not a repair tutorial. Show how the judgment is tested rather than skipping all proof with a pass announcement.\n\nWitnesses need not be a large crowd. A verifier, authority and person who spreads judgment can each act. A few functional responses carry more weight than identical amazement."
+        }
+      },
+      {
+        "id": "complete-rise-scene",
+        "heading": {
+          "zh": "原创片段：不是所有人鼓掌，而是有人实际改口",
+          "en": "Original Scene: A Changed Decision Instead of General Applause"
+        },
+        "body": {
+          "zh": "本场设备、故障和测试均为虚构写作例，不提供真实维修操作；观众已在前场见过孟夏的判断。现场技师负责获准操作与复测。\n\n主办人把报名表推回去：“学徒先旁观吧。”\n\n孟夏按住表角，没有报出另一份头衔。\n\n**孟夏：**“场上规则是同条件复核。我想按那条试，不按岗位猜。”\n\n技师答应核验。冷态运行完成一轮没有异常；转到现场统一的升温测试状态，故障指示再次出现，与孟夏此前指出的条件对应。她在技师许可下参与调整，技师再按同样两种状态各运行一轮并留下结果：本次未复现故障。\n\n**技师：**“她说的条件复现了，调整后这两轮通过。这是现场这一项的记录，别写成全部资格都通过。”\n\n主办人看完记录，在退回的报名表上改为入围，实际把孟夏写进下一场公开试演名单。\n\n**主办人：**“刚才我只看岗位，是我判断早了。你按名单参加，后面的审核照规则走。”\n\n原先质疑的同行走过来，没有替审核者宣布发证。\n\n**同行：**“升温之后那一下，你怎么先想到的？下场我想听你讲。”\n\n**孟夏：**“先别把我又当讲师。下一场我也得准备。”\n\n她拿回已登记的表，对一直在旁边等她的铺里师傅晃了一下。师傅笑着腾出座位，让她坐下整理下一场要用的记录。\n\n主角主动争取复核，技师执行了核对，主办人落实入围，同行提出具体交流；这些回应各有职责。赢得机会可以停留一会儿，不必立刻追加事故。两轮记录只支持本次条件内的结果，正式资格、所有工况与下场表现仍未完成。",
+          "en": "Equipment, fault, and testing are fictional writing examples rather than real repair instructions. Viewers saw Meng’s judgment earlier; the site technician controls permitted operation and verification.\n\nThe organizer pushes her form back: “Apprentices can watch.”\n\nMeng holds the corner rather than announcing another title.\n\n**Meng:** “The event rule says verification under the same conditions. I’d like that test, not a guess from my job.”\n\nThe technician agrees. A cold-state cycle completes normally. Under the event’s standard heating test, the fault indicator reappears, matching Meng’s earlier prediction. With the technician’s permission, she participates in an adjustment. The technician repeats one cycle in each of the same two states and records that the fault did not recur in those runs.\n\n**Technician:** “Her predicted condition reproduced; both runs passed after adjustment. This is this event item’s record, not complete qualification.”\n\nAfter reading the record, the organizer changes the returned form to accepted and actually enters Meng on the next public-demonstration list.\n\n**Organizer:** “I judged your job before your result. That was premature. You’re on the list; later review follows the rule.”\n\nA formerly skeptical peer approaches without announcing a certificate on the reviewer’s behalf.\n\n**Peer:** “How did you think of the heated state first? I’d like to hear after the next round.”\n\n**Meng:** “Don’t promote me to lecturer yet. I still have to prepare.”\n\nShe raises the registered form toward her shop mentor, who has been waiting beside her. Smiling, the mentor clears a seat so she can organize the next round’s records.\n\nMeng requests the check, the technician performs it, the organizer grants entry, and the peer asks a specific question. Each response has a different role. The win can breathe without an immediate accident. Two runs support their tested conditions, not final qualification, every operating condition, or success in the next round."
         }
       },
       {
@@ -29705,7 +29792,7 @@
         },
         "body": {
           "zh": "孟夏拿到试演资格后，可以选择参与更复杂的检修任务，也可以先建立独立工作记录。成功留下新的行动空间，不只是换一个更刻薄的人继续嘲讽。\n\n对手也会学习：从质疑岗位变成质疑复测条件，或试图在主角不熟悉的任务中比较。反制要根据此前见过的能力，不能每次都忘掉她上集赢过。主角则需要证明方法适用于哪里、哪些事还不会。\n\n痛快兑现不必立刻加灾难冲淡。允许主角拿回报名表、领取已经获得的资格，与支持者分享结果。下一轮压力从新舞台产生，保留这轮胜利的真实性。",
-          "en": "Qualification gives Meng usable opportunities: a harder inspection or an independent work record. Progress is more than meeting another insulting person.\n\nOpposition can learn, challenging test conditions or proposing an unfamiliar task based on observed capability. It should not forget last episode’s success. Meng can establish where her method applies and what she still cannot do.\n\nA satisfying result need not be immediately diluted by disaster. Let her retrieve the application, use her qualification and share the outcome. Later pressure arises from the new opportunity while this win remains real."
+          "en": "Admission to the demonstration gives Meng usable opportunities: a harder inspection or an independent work record. Progress is more than meeting another insulting person.\n\nOpposition can learn, challenging test conditions or proposing an unfamiliar task based on observed capability. It should not forget last episode’s success. Meng can establish where her method applies and what she still cannot do.\n\nA satisfying result need not be immediately diluted by disaster. Let her retrieve the application, use her admission and share the outcome. Later pressure arises from the new opportunity while this win remains real."
         }
       },
       {
@@ -29747,6 +29834,13 @@
           "en": "Underdog-rise craft and scope"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/genre-cards/逆袭.md"
+      },
+      {
+        "label": {
+          "zh": "主角选择、局部结果与信息权限",
+          "en": "Protagonist choice, local result, and knowledge scope"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/serial-character-and-memory.md"
       }
     ],
     "related": [
