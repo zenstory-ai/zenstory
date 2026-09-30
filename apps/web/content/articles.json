@@ -19241,52 +19241,52 @@
       "zh": "让每卷完成一条情感线，再留下升级的问题与主角的新目标。"
     },
     "answer": {
-      "en": "Plan a series as a sequence of complete reading experiences. Each installment needs a central problem that reaches a satisfying result, while the wider conflict changes enough to create a specific next goal. Track what the protagonist knows, wants, and can risk at the end of every book.",
-      "zh": "把系列规划成一连串完整的阅读体验：每一卷解决一个核心问题，同时让更大的冲突发生变化，形成具体的下一卷目标。记录每卷结尾主角知道什么、想要什么、愿意承担什么风险。"
+      "zh": "先写全系列最终要回应的问题，再给当前卷一个能完成的目标、关键选择与结果。每卷的能力、关系、信息或责任留下变化，并成为下一卷阻力或机会的来源。第一卷不能只铺垫，换地图也不能无代价清空旧人物与旧成果；计划调整先核已写事实与读者期待。",
+      "en": "Define the series-level question and a completable goal, choice and outcome for the current volume. Let changes in ability, relationships, knowledge or responsibility create later resistance and opportunities. Do not make volume one only setup or erase earlier consequences when changing location."
     },
     "sections": [
       {
-        "id": "lesson-1",
+        "id": "series-and-volume",
         "heading": {
-          "zh": "先规划系列方向，再给每卷一个完整目标",
-          "en": "Plan the series direction and a complete goal for each volume"
+          "zh": "全系列方向与本卷回报都要成立",
+          "en": "Make series direction and current-volume payoff work"
         },
         "body": {
-          "zh": "系列可以共用人物与世界，但不能让第一卷只负责铺垫。先写整个系列最终要解决的问题，再为本卷确定一个可完成的目标：赢得资格、查清一宗案、守住一座城。后续卷数可以调整；当前卷仍要有自己的开场、转折、高潮与结果。\n\n不要为最终卷的秘密让主角原地等待。每卷应让能力、关系、已知信息或责任至少有一项不可完全撤回的变化。",
-          "en": "A series may share a cast and world, but its first book needs more than setup. Name the series-wide question, then give this volume a finishable goal: earn a license, solve a case, or save a town. Future volume counts can change. Each completed book still needs a beginning, turning points, climax, and outcome."
+          "zh": "Oh Story 的分卷方法同时记全书阶段与每卷起始、结束状态；卷纲还记录当前承诺、可释放的信息与需要保留的后续内容。本页用于长篇的分卷或连续故事规划，不把参考比例当固定篇幅公式。\n\n沿用原创修钟师系列：全系列讨论责任与信任，最终目标是让危险信息能被共同维护。第一卷仍有独立任务——修好镇上的报警钟并取得检修资格，不能等第三卷才第一次让读者得到结果。\n\n每卷提两问：这次读者等什么兑现？结果怎样改变下一卷的起点？只加新地图、新反派却不读取旧后果，系列会像反复重开。",
+          "en": "Oh Story tracks whole-story stages and each volume’s start/end states, current promise, releasable information and reserved developments. Apply this to volumes or continuing stories without treating reference proportions as fixed lengths.\n\nOriginal clock-repair series concerns responsibility and trust, ending with shared maintenance of danger information. Volume one still repairs the town alarm and earns a license; readers should not wait until volume three for the first payoff.\n\nAsk what this volume delivers and how its result changes the next starting point. New locations and opponents without inherited consequences make a series feel repeatedly reset."
         }
       },
       {
-        "id": "lesson-2",
+        "id": "volume-matrix",
         "heading": {
-          "zh": "分卷表：记录目标与继承的后果",
-          "en": "A volume worksheet"
+          "zh": "每卷写目标、选择、结果与继承",
+          "en": "Map goal, choice, result and inheritance"
         },
         "body": {
-          "zh": "| 卷 | 本卷目标 | 结果 | 带进下卷的后果 |\n|---|---|---|---|\n| 一 | 修复镇上的报警钟 | 钟恢复，发现有人改过记录 | 主角拿到检修资格，也被要求负责夜间警报 |\n| 二 | 查明误报来源 | 找到旧水闸故障 | 城外居民要求公开危险范围 |\n| 三 | 在洪水前完成撤离 | 主角选择公开证据并协调撤离 | 回应全书关于责任与信任的问题 |\n\n每卷的困难来自前卷的结果。换地图之后让人重新不信主角、重复同一翻盘，会削弱累计成长。",
-          "en": "| Volume | Local goal | Outcome | Consequence carried forward |\n|---|---|---|---|\n| One | Repair the alarm bell | It works; records were altered | The protagonist earns a license and night-watch responsibility |\n| Two | Find the false-alarm source | An old floodgate is failing | Residents demand public risk information |\n| Three | Evacuate before the flood | Evidence is shared and evacuation coordinated | The series question about trust is answered |\n\nLet new difficulty grow from previous results rather than resetting reputation in every location."
+          "zh": "| 卷 | 本卷目标与关键选择 | 兑现结果 | 下一卷继承 |\n|---|---|---|---|\n| 一 | 修复报警钟；失误后请助手复核 | 钟恢复，取得资格 | 承担夜间警报责任，留下待查误报 |\n| 二 | 查误报；是否分享旧水闸记录 | 找到故障及被隐瞒的来源 | 居民要求公开危险范围，汛期逼近 |\n| 三 | 洪水前撤离；是否公开最坏情况 | 协调撤离，检验长期责任选择 | 记录改为多人共同维护，回应全系列问题 |\n\n表格是本例的总体计划，不是每卷都必须同等长度。能力与关系可以一起增长，也可以取得资格却失去信任；重要的是新起点来自已完成的选择。\n\n本卷失败也能推进，但需有具体结果和下一步。不能把所有失败都当“尚未真正开始”，无限延期已经建立的期待。",
+          "en": "| Volume | Goal and key choice | Delivered result | Inherited condition |\n|---|---|---|---|\n| One | Repair alarm; request verification after a mistake | Clock restored, license earned | Night-alarm duty and unexplained false alarms |\n| Two | Trace alarms; share old sluice records? | Fault and concealment established | Public demand for risk information as floods approach |\n| Three | Evacuate; disclose worst-case risk? | Evacuation and responsibility tested | Shared records answer the series question |\n\nThis plan does not require equal lengths. Qualification may grow while trust falls; the next starting point must follow completed choices.\n\nFailure can advance the story through a concrete result and next action. It cannot indefinitely postpone every established expectation by claiming the real story has not begun."
         }
       },
       {
-        "id": "lesson-3",
+        "id": "deferred-promises",
         "heading": {
-          "zh": "人物成长和伏笔各记一条线",
-          "en": "Track character change and promises separately"
+          "zh": "暂不回答的事，也要有推进",
+          "en": "Advance questions that remain open"
         },
         "body": {
-          "zh": "以修钟师为例：第一卷习惯独自修补，失误后接受助手；第二卷学会分享记录，却仍不敢公开责任；第三卷主动告诉居民最坏结果。每一卷都有一次选择检验变化，而非末卷突然成为领袖。\n\n伏笔表记录：首次出现、读者目前知道什么、预计回应在哪卷、延期时怎样给进展。只记录读者有理由期待回报的事项，不把每个物件都变成秘密。",
-          "en": "For the bell repairer: book one moves from solitary work to accepting an assistant; book two shares records but avoids public accountability; book three openly describes the worst outcome. Each volume tests a change through action. Track promises separately: first appearance, what readers know, planned payoff volume, and progress if delayed."
+          "zh": "| 待回应事项 | 读者目前知道 | 本卷应给进展 | 预定回应 |\n|---|---|---|---|\n| 报警误报 | 钟修好后仍误响 | 确认不是当前机械故障 | 第二卷调查来源 |\n| 姐姐为何隐瞒 | 已见她保护旧记录 | 显示她承担的一项现实代价 | 第二、三卷随行动补齐 |\n| 共同维护记录 | 助手已参与复核 | 后续真的读取与修正记录 | 最终卷形成稳定做法 |\n\n只跟踪读者有理由期待的事项，不把所有物件都变成秘密。延期时补取证、关系变化或阶段结果，不能只用更大的谜团替换旧问题。\n\n本卷核心任务要收束；已完成的修钟不能在下一卷无原因失效。新的故障可以存在，但应有新来源，并保留人物此前学到的办法与关系。",
+          "en": "| Open item | Current knowledge | Needed progress | Planned response |\n|---|---|---|---|\n| False alarms | Repaired mechanism still misfires | Exclude the current mechanical cause | Volume two investigation |\n| Sister’s concealment | She protects old records | Show a practical cost she carries | Later actions across two and three |\n| Shared records | Assistants help verify | They actually use and correct records | Stable final practice |\n\nTrack justified expectations, not every object as a secret. Delay with evidence, relationship change or partial outcome rather than substituting a larger mystery.\n\nResolve the volume’s central task. The repaired clock must not fail without a cause merely to restart the old plot. New faults should preserve previous learning and relationships."
         }
       },
       {
-        "id": "lesson-4",
+        "id": "plan-change",
         "heading": {
-          "zh": "给下一卷留问题，也给本卷读者回报",
-          "en": "Leave a future question without withholding this book’s reward"
+          "zh": "改未来计划，先核已经兑现的事实",
+          "en": "Check delivered facts before changing future plans"
         },
         "body": {
-          "zh": "本卷谜案已经查清，可以让结尾发现另一份旧记录；不能把所有解释推给下一卷。系列写到中途调整计划时，先核对已经写出的事实与承诺，再改未来大纲。新增设定应解决新的问题，不应撤销过去人物付出的代价。\n\n给 AI 本卷总结、当前人物状态和未回收伏笔，要求提出下一卷目标，逐项说明它怎样继承前卷结果。作者选定之后再展开卷纲。",
-          "en": "Solve this book’s case before revealing another record. When plans change mid-series, check published facts and promises before revising future outlines. New lore should not erase past costs. Give AI the volume summary, current character states, and unresolved promises; ask how each proposed next goal follows from the last result."
+          "zh": "中途缩减卷数或增加新阶段，先列已写状态、已给回报和未回应事项，再调整未来节点。角色退出、地图更换与能力变化都要说明怎样继承旧责任，不能回头撤销已经支付的代价。\n\n给 AI 的输入包括本卷结果、人物当前目标与关系、物件去向、未回收期待。让它提出下一卷行动，并逐项说明从何继承；作者选定后再展开卷纲与细纲，不一口气重写全系列。\n\n最后检查当前卷的开局与结尾能否独立理解，系列主问题是否仍在发展。若新阶段只是重复“又被看不起—再证明一次”，保留能带来新资格、责任或冲突的变化，删无新作用的重复。",
+          "en": "When reducing volumes or adding a stage, list established states, delivered payoffs and open expectations before changing future nodes. Exits, locations and abilities must inherit responsibility without canceling paid costs.\n\nGive AI current outcomes, aims, relationships, object custody and open promises. Ask for proposed next-volume actions with their inherited causes. Select a direction before expanding volume and chapter plans rather than rewriting the entire series.\n\nCheck the current opening and ending for coherence and the series question for development. Replace repetitions of dismissal and proof with new responsibilities, qualification or conflict that actually follow earlier results."
         }
       }
     ],
@@ -19305,8 +19305,8 @@
     "skill": {
       "name": "story-long-write",
       "text": {
-        "zh": "把你的稿件、已确定的情节和本页填写后的表格交给 `story-long-write`，先检查计划，再起草需要修改的部分。每次修改后核对人物已知信息、前后因果和你的文风要求。",
-        "en": "Give `story-long-write` your draft, confirmed story facts, and the completed worksheet. Review the plan before drafting the affected part, then check continuity and your voice."
+        "zh": "用 $story-long-write 规划后续分卷，先读取本卷已写结果、人物状态与待回应事项。每卷列目标、关键选择、回报和继承关系；改未来计划前核旧事实，不按固定卷数与比例扩写。",
+        "en": "Use $story-long-write to plan later volumes from established outcomes, character states and open expectations. Map goals, choices, payoff and inheritance; check existing facts before revising future plans without fixed volume counts or proportions."
       },
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
     },
@@ -19318,10 +19318,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "分卷节点与收尾",
+          "en": "Volume nodes and closure"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/outline-methods.md"
+      },
+      {
+        "label": {
+          "zh": "卷承诺、状态与阶段边界",
+          "en": "Volume promises, states and stage boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-volume.md"
       }
     ]
   },
@@ -19347,52 +19354,52 @@
       "zh": "用直白文字写清主角目标、主要转折、因果关系和结局；梗概不同于简介。"
     },
     "answer": {
-      "en": "A synopsis lets an editor understand the complete story, including the ending. State who the protagonist is, what they pursue, which decisions change the plan, and how the central conflict resolves. Keep the cause-and-effect chain; remove scene-by-scene detail and promotional questions meant for a blurb.",
-      "zh": "梗概让编辑理解完整故事，包括结局。写清主角是谁、追求什么、哪些决定改变了计划，以及核心冲突如何解决。保留因果链，删去逐场复述和简介式的宣传问句。"
+      "zh": "梗概把主角目标、阻碍、关键选择、转折与结果串成可理解的主线。先梳理起点、终点和改变方向的节点，再删支线与装饰，最后压句子。用于让编辑了解全书的梗概通常交代结局；具体长度、格式和材料范围按当前投稿入口要求准备，别把读者简介原样交上去。",
+      "en": "A synopsis connects the protagonist’s goal, resistance, choices, turns and outcome. Establish start, end and direction-changing nodes before removing subplots and compressing sentences. A full-story synopsis generally reveals the outcome; follow the actual submission’s length, format and scope requirements."
     },
     "sections": [
       {
-        "id": "lesson-1",
+        "id": "synopsis-purpose",
         "heading": {
-          "zh": "投稿梗概和吸引读者的简介分开写",
-          "en": "A synopsis and a sales blurb have different jobs"
+          "zh": "先区分故事梗概与读者简介",
+          "en": "Distinguish a synopsis from reader-facing copy"
         },
         "body": {
-          "zh": "小说梗概让编辑看清整条故事：谁想完成什么，为什么受阻，关键选择怎样改变局势，最终如何收束。通常要写出结局；读者简介则留下悬念。先按投稿入口的长度和格式准备，不用一个固定字数适配所有平台。\n\n不要把每章发生的事逐项抄过来。选出会改变目标、策略、关系或胜负条件的事件，用因果串起来。",
-          "en": "A submission synopsis shows the complete story: goal, obstacle, choices, turning points, and ending. A sales blurb creates curiosity. Follow the recipient’s current length and format instructions. Rather than listing every chapter, select events that change goals, strategy, relationships, or the conditions of success."
+          "zh": "Oh Story 的定位简报用主角、目标、阻碍与反转整理核心设定，大纲节点法再连接起点、终点和关键变化。本页将这些方法用于梗概提炼；它们帮助讲清故事，不能替代具体投稿入口的要求。\n\n读者简介突出看点并留期待；编辑需要的全书梗概通常让人看清最后怎样收束。因此“她能否揭开真相？”可以在简介中有用，却不能代替要求交代完整主线的梗概结尾。\n\n先记本次材料范围：已完成正文、当前大纲，还是二者组合。尚未写出的计划标明为计划，不把设想的高潮写成稿件已经实现的结果。",
+          "en": "Oh Story’s positioning brief organizes protagonist, goal, obstacle and turn; outline methods connect starting state, ending state and key changes. This page applies those methods to synopsis extraction, while the actual submission controls requirements.\n\nReader-facing copy emphasizes attraction and expectation. A full-story synopsis generally explains resolution. “Can she uncover the truth?” may sell the book but cannot replace the outcome in a requested complete synopsis.\n\nIdentify the material: finished manuscript, current outline or both. Mark unwritten developments as planned instead of presenting an imagined climax as completed prose."
         }
       },
       {
-        "id": "lesson-2",
+        "id": "causal-template",
         "heading": {
-          "zh": "五段式梗概填写表",
-          "en": "A five-part synopsis worksheet"
+          "zh": "从事件清单提炼改变方向的节点",
+          "en": "Extract direction-changing nodes from an event list"
         },
         "body": {
-          "zh": "| 段 | 写什么 | 常见遗漏 |\n|---|---|---|\n| 开局 | 主角处境、目标与触发事件 | 只有背景，没有行动 |\n| 前期尝试 | 主角采取的办法与阻力 | 事件之间没有因果 |\n| 主要转折 | 新信息如何让原计划失效 | 只写“事情发生反转” |\n| 高潮 | 最难的选择、行动与代价 | 配角替主角解决 |\n| 结局 | 主线结果与人物变化 | 只留下悬念 |\n\n这是整理顺序；最终段数和篇幅仍服从投稿要求。",
-          "en": "| Part | Include | Common omission |\n|---|---|---|\n| Opening | Situation, goal, triggering event | Background without action |\n| Attempts | Strategy and resistance | Events without causal links |\n| Turn | Information that defeats the old plan | “A twist happens” without explanation |\n| Climax | Choice, action, and cost | Someone else solves the problem |\n| Ending | Outcome and character change | Withholding the answer |\n\nUse this to organize the material, then fit the required length."
+          "zh": "| 梗概部分 | 要讲清的变化 | 删掉什么不会伤主线 |\n|---|---|---|\n| 开局 | 主角处境、目标与触发 | 无关家谱和完整世界史 |\n| 尝试 | 采取哪种办法，为何受阻 | 重复同一困难的过程 |\n| 转折 | 哪项新事实令旧计划失效 | 只说“事情反转了”的空话 |\n| 高潮 | 主角最后选择、行动与代价 | 与胜负无关的场景装饰 |\n| 收束 | 主线结果与人物的新做法 | 另起悬念代替结果 |\n\n这不是固定五段配额，而是检查是否漏了因果。把“修钟、找记录、争吵、洪水”逐项串起来，还需说明为什么查记录、争吵怎样改变行动、洪水为何使原办法来不及。",
+          "en": "| Function | Explain | Remove without harming the spine |\n|---|---|---|\n| Opening | Situation, goal and trigger | Unrelated genealogy or world history |\n| Attempt | Strategy and resistance | Repeated versions of one obstacle |\n| Turn | New fact invalidating the plan | Abstract “everything changes” |\n| Climax | Final choice, action and cost | Decorative detail unrelated to outcome |\n| Resolution | Main result and changed behavior | A new mystery replacing resolution |\n\nThese are coverage functions, not a five-paragraph quota. “Repair clock, find records, argue, flood” still needs reasons for inquiry, consequences of the argument and a deadline defeating the old strategy."
         }
       },
       {
-        "id": "lesson-3",
+        "id": "worked-synopsis",
         "heading": {
-          "zh": "原创示例：把事件列表改成因果梗概",
-          "en": "Original example: turn an event list into a causal summary"
+          "zh": "原创范例：保留选择与可执行结果",
+          "en": "Original synopsis: retain choices and achievable results"
         },
         "body": {
-          "zh": "事件列表：“主角修钟、找记录、与姐姐争吵、遇上洪水。”\n\n改成梗概：“修钟师许遥为了保住检修资格，追查警报反复误报的原因。旧记录显示姐姐曾替前任站长隐瞒水闸故障。许遥先尝试私下补修，却发现工期赶不上汛期。她公开记录，请居民协助撤离，失去姐姐的支持，也保住了下游住户。洪水退后，她把检修记录交给两名助手共同维护。”\n\n读者能跟上目标、方法、转折与结果。人物姓名只在辨认主要行动者时出现，不让梗概变成人名表。",
-          "en": "Event list: “She repairs the bell, finds records, argues with her sister, and faces a flood.”\n\nCausal synopsis: “To keep her inspection license, Xu Yao investigates repeated false alarms. Old records reveal that her sister hid a floodgate fault for the previous supervisor. A private repair cannot finish before the rains. Xu Yao publishes the evidence and organizes evacuation, losing her sister’s support but saving downstream residents. After the flood, she shares maintenance records with two assistants.”\n\nReaders can follow goal, strategy, turn, action, and outcome."
+          "zh": "> 修钟师许遥想保住检修资格，追查报警钟误报。旧记录显示姐姐曾替前任站长隐瞒水闸故障。许遥先想私下补修，却发现工期赶不上汛期。她公开记录，借居民协助完成撤离，失去姐姐的支持，也保住下游住户。洪水退后，她把检修记录交给两名助手共同维护。\n\n这段包含目标、发现、失效办法、关键选择与后续行为。“居民协助”需要正文或大纲中有可成立的取得过程；梗概可以概述，但不能凭压缩跳过一个原稿根本没有的解决条件。\n\n姓名只保留辨认主要行动者所需。姐姐和前任站长按关系称呼足以理解时，不必引入更多名字与职务，免得短稿成为人名表。",
+          "en": "Original example:\n\n> Clock repairer Xu Yao investigates false alarms to retain her maintenance license. Records reveal that her sister hid a sluice fault for the former supervisor. Private repair cannot finish before flood season. Xu Yao publishes the records and secures residents’ help with evacuation, losing her sister’s support while protecting downstream homes. Afterward, she shares maintenance records with two assistants.\n\nIt retains aim, discovery, failed strategy, choice and later behavior. The manuscript or plan still needs a viable process for obtaining residents’ help. Summary can compress a process, not invent a missing condition.\n\nKeep names necessary for principal action. Relationship labels can identify the sister and former supervisor without turning a short document into a cast list."
         }
       },
       {
-        "id": "lesson-4",
+        "id": "compression-and-check",
         "heading": {
-          "zh": "压缩时保因果，删除次要名字和支线",
-          "en": "Cut names and side plots before cutting causality"
+          "zh": "先删支线，再压句子，最后对原稿",
+          "en": "Cut secondary material before sentence compression"
         },
         "body": {
-          "zh": "先删不影响主线的角色介绍、场景装饰与重复受挫，再压句子。保留人物为什么换策略的那条新信息，以及最后行动为何可能。只剩“历经困难后获得成长”，编辑仍不知道小说写了什么。\n\n让 AI 对照正文检查每个梗概句的依据；正文尚未写到的结局注明是大纲计划。梗概不能为了显得完整，悄悄补出书稿没有的关键行动。",
-          "en": "Remove minor biographies, decoration, and repeated setbacks first. Keep the information that changes strategy and the setup that makes the final action possible. “She grows after many hardships” does not explain a novel. Ask AI to check each summary claim against the manuscript; label an unwritten ending as a plan rather than inventing missing scenes."
+          "zh": "先圈与主线结果没有因果联系的角色介绍、支线过程与重复挫折，再压说明性句子。保留每次换策略的原因，不能把一条完整行动链压成“历经困难后成长”。\n\n每句梗概对到正文或当前大纲依据，检查人物是否亲自作出关键选择、解决条件是否已建立、结局是否与稿件一致。AI 可以标缺口与冗余，不能为凑完整暗中补新行动。\n\n按目标入口核格式与长度后，再从未读原稿者的角度读一遍：谁在争什么、为何变难、怎么解决、代价是什么？答不出哪项，就回补那条因果，而不是加更多背景。",
+          "en": "Remove introductions, secondary processes and repeated setbacks without causal importance, then compress sentences. Preserve reasons for strategy changes instead of “grows through difficulties.”\n\nMap each sentence to manuscript or outline evidence. Check who makes decisive choices, whether enabling conditions exist and whether the ending matches. AI can flag omissions and redundancy, not secretly invent actions for completeness.\n\nCheck the actual destination’s format and length, then read as someone unfamiliar with the manuscript: who seeks what, why does it become harder, how is it resolved and at what cost? Repair missing causality rather than adding background."
         }
       }
     ],
@@ -19411,8 +19418,8 @@
     "skill": {
       "name": "story-long-write",
       "text": {
-        "zh": "把你的稿件、已确定的情节和本页填写后的表格交给 `story-long-write`，先检查计划，再起草需要修改的部分。每次修改后核对人物已知信息、前后因果和你的文风要求。",
-        "en": "Give `story-long-write` your draft, confirmed story facts, and the completed worksheet. Review the plan before drafting the affected part, then check continuity and your voice."
+        "zh": "用 $story-long-write 依据我提供的正文与大纲整理主线梗概，先列起点、终点和改变策略的节点，再压缩。每句注明依据；未写出的情节标计划，不补新解决条件。",
+        "en": "Use $story-long-write to extract a synopsis from the provided manuscript and outline: identify start, end and strategy-changing nodes before compression. Cite sentence evidence and mark unwritten events as plans without inventing enabling conditions."
       },
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
     },
@@ -19424,10 +19431,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "主角、目标与阻碍简报",
+          "en": "Protagonist, goal and obstacle brief"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-setup/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-setup.md"
+      },
+      {
+        "label": {
+          "zh": "起点、终点与关键节点",
+          "en": "Start, end and key nodes"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/outline-methods.md"
       }
     ]
   },
@@ -19665,52 +19679,52 @@
       "zh": "明确观众的问题，把答案分成清晰节拍，并同时规划画面与旁白。"
     },
     "answer": {
-      "en": "Start a YouTube script with one viewer question and a promise the video can fulfill. Outline the answer in a few logical beats, assign each beat a visual job, and write spoken lines that sound natural aloud. Cut sections that repeat a point without adding proof, context, or a next step.",
-      "zh": "从一个观众问题和视频能兑现的承诺开始写YouTube脚本。把答案分成若干逻辑节拍，为每段安排画面作用，再写出自然可说的旁白。删去没有增加证据、背景或下一步的重复段落。"
+      "zh": "已有素材的 YouTube 解说或分析视频，先写观众看完要理解的问题，再选实际画面与原声，按变化组织段落。旁白只补必要背景、因果或解释，不复述所有动作。标题、开头和结尾兑现同一承诺，稿件与素材缺口先查清，再配音和包装。",
+      "en": "For a YouTube recap or analysis built from existing footage, define the question viewers will understand, select actual picture and sound, and organize changes. Narration supplies necessary context, causality or interpretation. Keep title, opening and ending on one promise; resolve evidence gaps before voicing and packaging."
     },
     "sections": [
       {
-        "id": "lesson-1",
+        "id": "viewer-promise",
         "heading": {
-          "zh": "先决定这条视频要回答哪个问题",
-          "en": "Choose the question this video will answer"
+          "zh": "先定一个素材能兑现的问题",
+          "en": "Choose a promise the footage can deliver"
         },
         "body": {
-          "zh": "写 YouTube 视频脚本前，先用一句话说观众看完会理解什么，再列现有素材能支持的事实。标题、开头与结尾应围绕同一个问题。不用夸张开场承诺素材里没有的逆转，也不把原片完整剧情机械缩写一遍。\n\n本页适合已有视频素材的故事、影视解说和分析视频。先选具体时刻，再写旁白，能避免稿件很好听却找不到对应画面。",
-          "en": "Choose one question and list facts the footage supports. The title, introduction, and ending should address the same question. Do not promise a reversal absent from the source or mechanically summarize the whole plot. This workflow fits footage-based story, recap, and analysis videos: select moments before writing narration."
+          "zh": "video-script 的创作方法先确定观众问题、跟随谁、信息何时揭示，以及结尾留下什么。本文针对已有素材的故事解说与分析，不把这套写法当成所有 YouTube 内容的统一格式。\n\n沿用原创申请窗口素材：女主退回盖章的表格，另一位申请者站在一旁。可成立的主线是“为什么名额到手，她却退掉？”也可从结果出发，追问这次放弃让谁承担损失。\n\n创作新稿时比较真实叙述方案；用户已定结构或只要求改稿时，沿用已采用的主线。不得为了开头刺激，把一次名额争执写成素材没有的骗局或胜利。",
+          "en": "video-script establishes the viewer question, viewpoint, revelation timing and ending impression. This guide addresses footage-based recaps and analysis, not a compulsory format for every YouTube genre.\n\nOriginal application-window footage shows a woman returning a stamped form beside another applicant. One viable spine asks why she gives up a secured place; another starts with the consequences and traces the loss.\n\nCompare real narrative alternatives when creating. Preserve an adopted structure during directed work or revision. Do not turn the dispute into a nonexistent scam or victory for a stronger opening."
         }
       },
       {
-        "id": "lesson-2",
+        "id": "script-worksheet",
         "heading": {
-          "zh": "脚本用画面、原声和旁白三栏",
-          "en": "Use picture, original sound, and narration columns"
+          "zh": "每段写变化与声音分工",
+          "en": "Give each segment a change and sound owner"
         },
         "body": {
-          "zh": "| 段落任务 | 画面与原声 | 旁白补什么 |\n|---|---|---|\n| 开头问题 | 女主退回已经盖章的表格 | 点出她为什么愿意放弃名额 |\n| 必要背景 | 前一场提交申请的对白 | 补当天截止这一条件 |\n| 转折 | 主办方说名额不可转让，保留原声 | 连接她此前的打算 |\n| 结果 | 女主带另一人离开申请窗口 | 解释选择带来的损失，不编胜利 |\n\n每段标素材文件与时间码。画面已经说明的动作无需再逐字复述。",
-          "en": "| Story job | Picture and original sound | Narration’s addition |\n|---|---|---|\n| Opening question | A woman returns a stamped form | Why would she give up the place? |\n| Context | Earlier application dialogue | The deadline is today |\n| Turn | Keep “The place cannot be transferred” | Connect it to her earlier plan |\n| Result | She leaves with another applicant | Explain the cost without inventing victory |\n\nAttach source files and timecodes. Avoid narrating actions the picture already makes clear."
+          "zh": "| 段落任务 | 选中的画面与原声 | 旁白工作 | 观众此时得到什么 |\n|---|---|---|---|\n| 开头问题 | 盖章后退表，保留停顿 | 点出异常选择 | 想知道放弃原因 |\n| 前提 | 上午承诺与截止说明 | 连接两处素材的时间 | 理解她原先打算转让 |\n| 转折 | 主办方说名额不可转让 | 不盖住关键原声 | 原计划失效 |\n| 结果 | 她带另一人离开窗口 | 补已证实的代价，不编成功 | 看见她如何处理承诺 |\n\n每项写实际文件与原片时间。完成剪辑后，再核对应的成片位置。画面已表达退表，不必再旁白“她伸手把表格推回”；原声能完整交代条件时，让它承担这一拍。\n\n本表是原创素材的编排示例，不是实际播放成绩。段落长短跟含义与表演走，不按固定秒数或旁白比例分配。",
+          "en": "| Segment | Selected picture / sound | Narration job | Viewer change |\n|---|---|---|---|\n| Opening | Return stamped form; retain pause | Identify the unusual choice | Wants its reason |\n| Setup | Morning promise and deadline | Connect source timing | Understands intended transfer |\n| Turn | Official says transfer is impossible | Leave essential original speech clear | Plan fails |\n| Outcome | Both applicants leave | Explain established cost, not invented success | Sees how she addresses the promise |\n\nRecord actual files and source times, then map them to the edit. Do not narrate every visible hand movement; let a complete original statement carry its condition.\n\nThis is an original planning example, not performance evidence. Allocate duration by meaning and performance rather than fixed seconds or narration ratios."
         }
       },
       {
-        "id": "lesson-3",
+        "id": "opening-and-link",
         "heading": {
-          "zh": "原创开头：兑现标题的问题",
-          "en": "Original opening: deliver the title’s question"
+          "zh": "开头提出问题，正文补真实因果",
+          "en": "Open a question and connect actual causes"
         },
         "body": {
-          "zh": "虚构素材的标题是“她为什么退掉已经拿到的名额？”开头可以写：\n\n> 印章刚落下，她把申请表推了回去。名额到手以后，她才知道另一位申请者必须离开。这次选择，先要从上午那份承诺说起。\n\n画面展示退表，旁白说明问题与时间连接，后面必须拿素材兑现承诺。别改成“她揭穿了惊天骗局”，如果视频只显示一次名额争执。",
-          "en": "For the fictional title “Why did she give up the place she had won?” an opening might be:\n\n> The stamp had barely landed when she pushed the form back. Only after winning did she learn the other applicant had to leave. Her choice began with a promise that morning.\n\nPicture supplies the action; narration supplies context. Do not inflate this into an exposed conspiracy if the footage only supports an allocation dispute."
+          "zh": "本例开头可写：“印章刚落下，她把申请表推了回去。名额到手以后，她才知道这份名额不能转给身旁的人。这次决定，要从上午那份承诺说起。”使用这句前，先核素材确实交代不可转让与承诺。\n\n接着保留主办方的原话，再用旁白连接被压缩的上午事件。旁白拥有一个连续思路，不为每条字幕拆成一次朗读；字幕可按阅读宽度断句，发声内容仍自然连接。\n\n结尾若只显示两人离开，就回答她放弃了什么、怎样处理当下关系。不能补“最终获得新名额”作为圆满答案，除非后续素材或可靠已知事实确实支持。",
+          "en": "An opening might say: “The stamp had barely landed before she returned the form. Only then did she learn the place could not go to the person beside her. Her decision begins with that morning’s promise.” First verify both the transfer rule and promise in the material.\n\nRetain the official’s words, then connect the compressed earlier event. Narration should deliver a continuous thought; caption wrapping does not require separate choppy utterances.\n\nIf the footage ends with departure, resolve what she gives up and how she handles the relationship now. A newly won place cannot supply a happy ending without source evidence."
         }
       },
       {
-        "id": "lesson-4",
+        "id": "script-review",
         "heading": {
-          "zh": "写完做三次观看检查",
-          "en": "Review picture, sound, and the full viewing experience"
+          "zh": "三种方式检查同一稿件",
+          "en": "Review the script three ways"
         },
         "body": {
-          "zh": "先静音旁白，看人物、变化和情绪还能否成立；再只听声音，检查主线是否听得懂；最后完整播放，看开头问题是否在结尾得到回答。时长不从字数单独保证，实际配音、停顿与保留原声都要算进去。\n\n把 AI 用在整理已提供的素材记录、比较叙述顺序和修订句子。让它为每条事实注明依据，缺素材的地方先标缺口，不补戏。",
-          "en": "Mute narration to check the footage’s story, listen without picture to check the spoken argument, then watch the full edit to confirm the opening question is answered. Runtime depends on performed narration, pauses, and original sound. Use AI to organize supplied evidence, compare sequence, and revise lines; mark missing evidence instead of inventing scenes."
+          "zh": "先静音旁白，检查画面与原声是否保住人物选择和必要反应；再只听声音，检查主线能否理解；最后按第一次观看的速度完整播放，看开头承诺是否得到回应。\n\n把每条待删内容对应到损失：删了是否少动机、条件或情绪结果？只删等待和无新作用的重复，不把犹豫一概当拖沓。缺素材的连接先标缺口，不让 AI 代编。\n\n进入配音前检查事实与声音分工，配音后确认时长；最终仍需看实际文件和各接点。字数、样帧和自动 QC 辅助定位，不替代对人物与故事的完整观看。",
+          "en": "Mute narration to check picture and original sound, listen without picture for a coherent spine, then watch at normal first-viewing speed to assess the promise.\n\nFor each deletion, identify lost motivation, conditions or emotional payoff. Remove empty waiting and redundant repetition without treating every hesitation as waste. Mark missing evidence rather than asking AI to invent a bridge.\n\nConfirm facts and sound roles before voicing, then measure actual duration. Review the final file and joins: word counts, frames and technical QC assist judgment, not full story viewing."
         }
       }
     ],
@@ -19729,8 +19743,8 @@
     "skill": {
       "name": "video-script",
       "text": {
-        "zh": "把你的稿件、已确定的情节和本页填写后的表格交给 `video-script`，先检查计划，再起草需要修改的部分。每次修改后核对人物已知信息、前后因果和你的文风要求。",
-        "en": "Give `video-script` your draft, confirmed story facts, and the completed worksheet. Review the plan before drafting the affected part, then check continuity and your voice."
+        "zh": "请用 $video-recap 为已有素材整理 YouTube 解说脚本：先定观众问题与视角，再列具体画面、原声、变化和旁白任务；逐条事实注明来源，缺口先保留，不写素材没有的结果。",
+        "en": "Use $video-recap to plan a footage-based YouTube script: define question and viewpoint, then map picture, original audio, changes and narration jobs. Cite source evidence and retain gaps instead of inventing outcomes."
       },
       "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-script/SKILL.md"
     },
@@ -19742,8 +19756,8 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "观众承诺、变化与声音分工",
+          "en": "Viewer promises, changes and sound roles"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-script/references/creative-editing-playbook.md"
       }
@@ -19771,52 +19785,52 @@
       "zh": "让结局对应少数关键选择，每种结果都回应核心承诺，并展示路线代价。"
     },
     "answer": {
-      "en": "Multiple endings feel earned when they reflect choices the player understood and made across the story. Track a small number of important states, decide how they combine, and ensure each ending resolves the central conflict in a distinct way. Do not reduce the result to a hidden score with no visible setup.",
-      "zh": "多结局要有来由，需要回应玩家一路理解并作出的选择。追踪少量关键状态，明确它们如何组合，并让每个结局以不同方式解决核心冲突。不要把结果简化为毫无铺垫的隐藏分数。"
+      "zh": "先记录玩家实际做过的关键选择，再为结局定义可获得的条件与人物回应。每项条件写清在哪里产生、在哪里使用；相邻路径只改变一个决定，也应能解释结果差别。共享终局画面可以节约制作，但必须保留路线历史，不能让未发生的公开、交易或修复串入结局。",
+      "en": "Track consequential actions and give each ending obtainable conditions and character responses. Record where each condition is written and read. A neighboring path should explain a changed result when one decision changes. Shared ending assets can save production work, but must preserve route history."
     },
     "sections": [
       {
-        "id": "lesson-1",
+        "id": "ending-facts",
         "heading": {
-          "zh": "结局从玩家的选择里生长",
-          "en": "Build endings from player decisions"
+          "zh": "先确定结局读取哪些事实",
+          "en": "Choose the facts each ending reads"
         },
         "body": {
-          "zh": "多结局先记录玩家一路做过什么，再安排人物和世界怎样回应。选了谁作盟友、把证据交给谁、是否接受一项交易，都比隐藏的“好人分数”更容易解释结局。让玩家在决定前看见必要依据，不能到结尾才宣布早期无关选项决定胜负。",
-          "en": "Record what the player actually did: whom they trusted, who received the evidence, or which bargain they accepted. Concrete facts explain endings more clearly than a hidden morality score. Reveal necessary evidence before choices rather than announcing an arbitrary ending rule afterward."
+          "zh": "game-world-design 的互动叙事方法让终局回应具体行动，而不只结算隐藏总分。先确定核心冲突，再挑会改变结果的事实：原件是否保留、证人是否同意公开、玩家是否接受了不得公开的交易。\n\n沿用本页原创水站故事：居民需要恢复供水，也想查明失踪维修记录。证人担心公开后失去工作，管理员则愿意用维修资源交换档案原件。两个结局都可能修好水站，但修复来源和记录去向不同。\n\n公开路线必须写出居民得知问题后协作修复的行动；私下路线由交易承诺的资源完成修复。不能只在两种结尾共用“水站已修好”的画面，却不给其中一条路线达成它的过程。",
+          "en": "game-world-design makes outcomes respond to concrete actions rather than only a hidden total. Begin with the central conflict and choose consequential facts: retained original, witness consent, and acceptance of a nonpublication bargain.\n\nIn this page’s original water-station story, residents need restored supply and an explanation of missing maintenance records. The witness risks a job; the administrator offers repair resources for the original archive. Both endings can restore the station through different means.\n\nThe public route needs residents organizing repairs after learning the problem. The private route uses promised resources from the bargain. A shared repaired-station image cannot substitute for an absent repair process."
         }
       },
       {
-        "id": "lesson-2",
+        "id": "condition-table",
         "heading": {
-          "zh": "为每个结局填条件和回应",
-          "en": "Record conditions and responses"
+          "zh": "把条件、提示和结果放在同一表里",
+          "en": "Connect conditions, signals and outcomes"
         },
         "body": {
-          "zh": "| 结局 | 进入条件 | 途中怎样提示 | 终局回应 |\n|---|---|---|---|\n| 公开档案 | 玩家保留原件并获得证人同意 | 证人提到公开会失去工作 | 居民获知真相，证人离开岗位 |\n| 私下修复 | 玩家用原件换维修机会 | 交易明确要求不再公布 | 水站恢复，失踪记录仍无法追问 |\n\n条件应来自实际行动。每条记录指定写入场景和检查场景；写了状态却从不使用就删除。",
-          "en": "| Ending | Conditions | Earlier signal | Response |\n|---|---|---|---|\n| Public archive | Keep the original and obtain witness consent | The witness explains the job risk | Residents learn the truth; the witness leaves the job |\n| Private repair | Trade the original for repairs | The deal explicitly prevents publication | Water returns; missing records stay unresolved |\n\nGive each condition a scene that writes it and a scene that reads it."
+          "zh": "| 结局 | 来自玩家行动的条件 | 途中可见依据 | 终局回应 |\n|---|---|---|---|\n| 公开档案 | 保留原件，获得证人同意，决定公布 | 证人说明岗位风险；居民提出协作修复 | 记录公开，居民共同修好水站，证人离岗 |\n| 私下修复 | 接受交易，将原件交给管理员 | 交易明确供给维修资源并禁止公布 | 水站恢复，原件被收回，失踪记录仍未公开 |\n\n每项状态有实际写入场景和读取场景，例如“获得证人同意”产生于一次明确答应，并在公开选择前检查。只看过证词，不等于得到了公开许可。\n\n两种终局条件在本例中互斥：交出唯一原件后，不能再照原路线公布。若另设计副本或改变同意，先写清取得方式与新条件，而非在结尾临时放行。",
+          "en": "| Ending | Action-derived conditions | Earlier evidence | Outcome |\n|---|---|---|---|\n| Public archive | Retain original, obtain consent, publish | Witness states job risk; residents offer repair work | Records public, station repaired collectively, witness leaves job |\n| Private repair | Accept bargain and surrender original | Resources and nonpublication terms are explicit | Supply returns; original withheld; records remain private |\n\nGive states actual write and read scenes. Consent arises from an explicit agreement and is checked before publication; seeing testimony is not permission.\n\nThese routes are exclusive in this example because the only original is surrendered. A copy or revised consent needs an established acquisition and rule, not an unexplained final exception."
         }
       },
       {
-        "id": "lesson-3",
+        "id": "shared-ending",
         "heading": {
-          "zh": "原创示例：同一结尾地点，不同的人物回应",
-          "en": "Original example: shared location, different responses"
+          "zh": "共享地点，保留不同的历史",
+          "en": "Share the location, preserve different histories"
         },
         "body": {
-          "zh": "两个结局都在修复后的水站结束。公开路线中，居民代表带来证人的行李；私下路线中，管理员收回原件，要求玩家在维修簿上签名。地点和部分画面可以共用，人物称呼、物件与可用行动随历史变化。\n\n不要在私下路线突然让居民感谢“公开证据”，因为玩家从未做过这件事。分支汇合时保住历史，结局才算回应选择。",
-          "en": "Both endings use the repaired water station. In the public route, a resident brings the witness’s luggage. In the private route, the administrator collects the original and asks for a signature. Reuse the location while changing dialogue, objects, and actions. The private route cannot thank the player for publication that never happened."
+          "zh": "两个结局都在修复后的水站结束。公开路线中，居民代表收拾维修工具，带来证人的行李；私下路线中，管理员收回原件，让玩家在维修簿上签名。环境部分可共用，人物、称呼、物件和可用行动按历史变化。\n\n私下路线不能让居民感谢玩家“公开了证据”，公开路线也不能让玩家再次交出已经展出的唯一原件。先列终局进入时的物件归属与各人知情，再写台词，比写完后只换几句感谢更可靠。\n\n结局中的代价可以留下余味。证人离岗不必立刻被一份更好工作抵消，记录未公开也不自动等于所有人忘记问题；它们成为本路线的具体结果。",
+          "en": "Both endings use the repaired station. Public-route residents pack repair tools and bring the witness’s luggage. In the private route, the administrator receives the archive and requests a maintenance signature. Reuse the environment while varying people, address, objects and available actions.\n\nThe private route cannot thank the player for publication. The public route cannot surrender the unique original again after displaying it. Establish ownership and knowledge at ending entry before writing dialogue.\n\nCosts can remain: a job loss need not immediately become a better offer, and private records do not mean everyone forgets the issue. Preserve the route’s particular consequences."
         }
       },
       {
-        "id": "lesson-4",
+        "id": "ending-tests",
         "heading": {
-          "zh": "逐条走完到结局的路径",
-          "en": "Test complete paths to every ending"
+          "zh": "正向走到结局，再检查相邻反例",
+          "en": "Reach each ending and test a neighboring case"
         },
         "body": {
-          "zh": "为每个结局至少走一条能达到它的完整路径，检查条件是否可获得、顺序是否合理、人物知道什么。再走一条相邻路径：只换一个决定，结果为什么不同？解释不了，就调整规则或提前提示。\n\n测试记录写玩家行动、条件前后值、实际终局和预期差异，不把文字大纲当作游戏已经可玩。",
-          "en": "Play a complete path to each ending. Check obtainable conditions, ordering, and character knowledge. Then change one decision on an adjacent path and explain the different result. Record actions, state changes, observed ending, and discrepancies; a branching outline alone does not verify a playable game."
+          "zh": "为每个结局走一条从初态开始的完整路径，检查条件能否获得、修复如何发生、终局是否读取了实际行动。再改一个关键决定：证人拒绝同意时，公开选项怎样回应？交出原件后，是否仍错误保留公开路线？\n\n记录初态、输入、状态变化、预期与实际终局。若结局依赖某项条件，却没有任何场景写入它，就修条件链；若同一事实在共享场景中被覆盖，就修汇合读取。\n\n纸面规划只能帮助检查设计，实际实现后仍要跑完整路径。只有结果能回到玩家选择与人物目标，多结局才不只是末页的几个按钮。",
+          "en": "Walk a complete initial-state path to each ending, checking obtainable conditions, repair events and historical reads. Change one consequential decision: what happens if consent is refused, or publication remains available after surrendering the original?\n\nRecord initial state, inputs, changes, expected and observed outcome. Repair a condition without a write scene; repair a shared scene that overwrites route history.\n\nA paper plan supports design review, not playable verification. Implemented paths still need execution. Endings become meaningful when their results trace back to choices and character aims."
         }
       }
     ],
@@ -19835,8 +19849,8 @@
     "skill": {
       "name": "game-world-design",
       "text": {
-        "zh": "把你的稿件、已确定的情节和本页填写后的表格交给 `game-world-design`，先检查计划，再起草需要修改的部分。每次修改后核对人物已知信息、前后因果和你的文风要求。",
-        "en": "Give `game-world-design` your draft, confirmed story facts, and the completed worksheet. Review the plan before drafting the affected part, then check continuity and your voice."
+        "zh": "用 $game-world-design 整理各结局的行动条件、写入与读取场景、途中提示和代价；检查共享终局是否串入未选事实，再交 $game-qa 验证完整路径与相邻反例。",
+        "en": "Use $game-world-design to map ending conditions, write/read scenes, signals and costs. Check shared endings for unchosen facts, then use $game-qa for complete paths and neighboring counterexamples."
       },
       "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/SKILL.md"
     },
@@ -19848,10 +19862,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "结局条件与历史回读",
+          "en": "Ending conditions and historical reads"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/narrative-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "路径与边界测试",
+          "en": "Path and boundary tests"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-qa/references/test-design-method.md"
       }
     ]
   },
@@ -19877,52 +19898,52 @@
       "zh": "规划共通线，明确角色路线开启条件，并用清楚角色、场景和选择状态写对白。"
     },
     "answer": {
-      "en": "A visual novel script combines dialogue, scene direction, character expression, and player choices. Plan the shared story first, decide what evidence or relationship state opens each route, and give every route its own conflict and payoff. Keep script labels consistent so production can identify assets and branching conditions.",
-      "zh": "视觉小说脚本需要结合对白、场景说明、角色表情和玩家选择。先规划共通剧情，明确哪些信息或关系状态会开启各角色路线，并为每条路线安排独立冲突与回报。统一脚本标签，方便制作识别素材和分支条件。"
+      "zh": "先选玩家能观察、追问或行动的冲突，写共通线的进入、选择与离场状态，再确定各角色路线的独立目标。脚本把说话者、画面、声音、条件和结果对应起来；路线汇合时读取玩家真正看过或做过的事，不把小说逐屏切开就当成互动脚本。",
+      "en": "Choose a conflict the player can observe, question or act on. Define the common scene’s entry, choice and exit state, then give character routes independent goals. Connect dialogue, presentation, conditions and results; converging scenes must read actual player history."
     },
     "sections": [
       {
-        "id": "lesson-1",
+        "id": "scene-spine",
         "heading": {
-          "zh": "先选玩家要参与的场景",
-          "en": "Choose a scene the player can participate in"
+          "zh": "先写场景行动，再写逐句对白",
+          "en": "Plan scene action before dialogue"
         },
         "body": {
-          "zh": "视觉小说用场景、对白和选择推进故事。改编小说时，先选一段玩家能调查、表态或行动的冲突，而非把原文拆成一屏屏阅读。确定玩家视角，区分世界真相、角色相信什么与玩家目前看见什么。",
-          "en": "Visual novels advance through scenes, dialogue, and choices. Choose a conflict where the player can investigate, respond, or act; dividing prose into screens is not enough. Separate world facts, character beliefs, and the player’s current knowledge."
+          "zh": "game-world-design 的场景方法先确定存在理由、人物议程、知识边界、玩家介入和离场状态。视觉小说可以阅读为主，但选定的关键互动仍要改变人物回应、信息或后续机会。\n\n沿用原创展厅场景：一张借展照片不见了，玩家在闭馆后向保管员询问。保管员想保护借展手续的信誉，照片主人想查明物件去向；玩家只看见空相框，尚不知道谁拿走照片。\n\n共通场景的任务是取得可追问依据。原作内心描写可以转成当前视角可感知的动作或文字，不让旁白提前宣布保管员在隐瞒，否则调查选择失去意义。",
+          "en": "game-world-design establishes scene purpose, agendas, knowledge, player intervention and exit state before lines. A visual novel can prioritize reading while consequential interactions still change responses, information or opportunities.\n\nOriginal gallery scene: a borrowed photograph is missing after closing. The keeper protects confidence in the loan process; its owner wants the object traced. The player sees an empty frame but does not know who removed it.\n\nThe common scene obtains grounds for inquiry. Adapt interior prose through the chosen viewpoint; narration should not declare concealment before investigation establishes it."
         }
       },
       {
-        "id": "lesson-2",
+        "id": "script-table",
         "heading": {
-          "zh": "可交给制作的场景脚本表",
-          "en": "A scene-script worksheet"
+          "zh": "场景表写清条件与实际结果",
+          "en": "Write conditions and actual results into the scene table"
         },
         "body": {
-          "zh": "| 场景 | 画面与声音 | 说话者／文本 | 选项与结果 |\n|---|---|---|---|\n| 闭馆后的展厅 | 门口雨声，桌上空相框 | 保管员：照片是昨夜取走的 | 追问签收人／查看登记簿 |\n| 查看登记簿 | 登记簿近景 | 主角发现日期重写过 | 记下涂改；开放新追问 |\n\n独立标记场景进入条件、角色表情、必要音效和退出状态。音乐与表情不必每句变一次；只标有叙事作用的变化。",
-          "en": "| Scene | Picture and sound | Speaker / text | Choice and result |\n|---|---|---|---|\n| Gallery after closing | Rain at the door; an empty frame | Keeper: “It was collected last night.” | Ask about the signer / inspect the ledger |\n| Inspect ledger | Ledger close-up | The date has been rewritten | Record the alteration; unlock a question |\n\nAlso specify entry conditions and exit states. Change expressions or music when they have a story function, not after every line."
+          "zh": "| 脚本段 | 画面与声音 | 说话者／内容 | 条件与结果 |\n|---|---|---|---|\n| 共通开场 | 空相框，门口雨声 | 保管员：“登记说昨夜取走。” | 建立其说法，尚未证实 |\n| 查看登记簿 | 日期局部 | 主角看见日期被涂改 | 写入“见过涂改”，不直接认定伪造者 |\n| 返回问话 | 保管员停下收钥匙 | “这处日期为什么改过？” | 仅见过涂改时出现；得到解释候选 |\n| 未查看的问话 | 同一展厅 | “谁签收了照片？” | 不假装玩家已经发现涂改 |\n\n独立记进入条件和离场状态，表情与音效只在有作用时变化。台词编号可供文本、字幕与配音共用，格式按所选制作工具调整；这张表是交接模板，不是任意引擎可直接执行的脚本语法。",
+          "en": "| Segment | Picture / sound | Speaker / content | Condition and result |\n|---|---|---|---|\n| Common opening | Empty frame; rain | Keeper: “The register says last night.” | Establish a claim, not verified truth |\n| Inspect register | Date close-up | Player sees an altered date | Record inspection, not the editor’s identity |\n| Return question | Keeper pauses while collecting keys | “Why was this date changed?” | Available after inspection; obtains an explanation candidate |\n| Uninspected question | Same room | “Who signed for the photo?” | Does not assume unseen evidence |\n\nRecord entry and exit states; vary expression and sound when useful. Line IDs can connect text, captions and voices. Adapt the format to the production tool: this worksheet is not universal executable engine syntax."
         }
       },
       {
-        "id": "lesson-3",
+        "id": "character-routes",
         "heading": {
-          "zh": "原创示例：汇合对白仍记得玩家看过什么",
-          "en": "Original example: converging dialogue remembers evidence"
+          "zh": "角色路线要有自己的问题",
+          "en": "Give each character route its own question"
         },
         "body": {
-          "zh": "两条路径都回到保管员面前。看过登记簿的玩家可以说：“昨夜那一栏为什么重写？”没有看过的人只能问：“谁来取过照片？”保管员随问题给不同回应。\n\n这允许你共用后面的场景，同时保留玩家选择。角色路线也应有独立目标和问题；只换人物立绘、重复同一段对白，很快会显得路线没有意义。",
-          "en": "Both routes return to the keeper. A player who read the ledger may ask, “Why was last night’s entry rewritten?” Another asks, “Who collected the photograph?” Responses reflect the evidence. Shared scenes can reduce production work while preserving choices. Character routes need their own goals and conflicts, not merely different portraits on identical dialogue."
+          "zh": "| 路线方向 | 持续目标 | 新行动与阻力 | 路线回报 |\n|---|---|---|---|\n| 跟保管员核手续 | 找到签收流程的漏洞 | 查交接与补签，保管员需承认管理疏漏 | 建立可追溯的借展记录 |\n| 与照片主人追去向 | 找回物件及其私人意义 | 沿签收线索找收件人，主人要决定是否公开家事 | 找回照片，明确今后由谁保管 |\n\n这只是本页新增的纸面路线设计。入口根据已发生的调查与明确合作决定，不把一个随意闲聊选项藏作唯一开启条件。\n\n两条路线可以共用展厅，却不能只换立绘重演同一冲突。核心人物应有多阶段关系、独立筹码与结局回收；若只有一场短交谈，就先作为支持短线，不为了“角色路线”标签扩成冗长内容。",
+          "en": "| Route direction | Ongoing aim | Action and resistance | Payoff |\n|---|---|---|---|\n| Audit with keeper | Find the handoff failure | Review signatures; keeper admits a procedural lapse | Traceable loan records |\n| Trace with owner | Recover the object and its personal meaning | Follow recipient evidence; owner chooses whether to reveal private context | Photograph recovered; custody agreed |\n\nThese are new paper-design routes for the example. Open them through established investigation and explicit cooperation, not an unrelated hidden chat choice.\n\nRoutes may share a gallery, but swapping portraits cannot replace distinct conflicts. A core route needs sustained relationship, leverage and payoff. Keep a brief encounter as a supporting line until broader depth is justified."
         }
       },
       {
-        "id": "lesson-4",
+        "id": "playable-reading",
         "heading": {
-          "zh": "对白写完后，检查阅读与交互",
-          "en": "Check reading and interaction after drafting"
+          "zh": "检查汇合、阅读和资产交接",
+          "en": "Check convergence, reading and production handoff"
         },
         "body": {
-          "zh": "把一屏文字按实际字号看一遍，重要选择是否容易找到？删掉重复说明，必要信息贴近相关选项。检查每条路线的入口、汇合、结局与回退，确认未发生的行动不会被当成历史。\n\n让 AI 从原作摘出本场可用事实，再提出对白与选项；作者确认后才展开全文。新增路线事件标明为改编决定，不能冒充原作已有情节。",
-          "en": "Inspect a screen at the actual font size. Put needed evidence near the choice and remove repeated explanation. Check route entry, convergence, endings, and backtracking. Ask AI to extract usable source facts before proposing dialogue and choices; identify new route events as adaptation decisions."
+          "zh": "从共通线分别走到两条路线，再反向核对入口：被问到的证据是否确实见过，合作条件是否满足，汇合对白是否误用另一条路线的事实。失败或回退也要有明确落点。\n\n在实际字号与视口看选择页，必要依据贴近问题，长档案按需打开，不把按钮挤到当前正文之外。画面、配音和文本共用当前台词记录，修改后只同步受影响条目。\n\n让 AI 先摘原作事实，再提新增路线决定，作者确认后展开。纸面选择成立后还要在目标环境检查输入、结果与回到互动；对白读得顺不能单独证明游戏可玩。",
+          "en": "Walk each route from the common scene and trace entry requirements backward. Characters must not refer to unseen evidence, unmet cooperation or another route’s facts. Give failure and return paths clear destinations.\n\nInspect choices at the actual font and viewport. Place necessary evidence near the decision and long records in accessible archives. Keep picture, voice and text on current line records; synchronize affected entries after edits.\n\nAsk AI to extract source facts before proposing adaptation changes. Confirm those changes before expansion. Test input, outcome and return to interaction in the target runtime; smooth dialogue alone does not prove playability."
         }
       }
     ],
@@ -19941,8 +19962,8 @@
     "skill": {
       "name": "game-world-design",
       "text": {
-        "zh": "把你的稿件、已确定的情节和本页填写后的表格交给 `game-world-design`，先检查计划，再起草需要修改的部分。每次修改后核对人物已知信息、前后因果和你的文风要求。",
-        "en": "Give `game-world-design` your draft, confirmed story facts, and the completed worksheet. Review the plan before drafting the affected part, then check continuity and your voice."
+        "zh": "用 $game-world-design 写本场视觉小说脚本，先定视角、议程、进入与离场状态，再填写台词和选项表；给各路线独立目标，标明原作事实与新增改编，检查汇合知识。",
+        "en": "Use $game-world-design to define viewpoint, agendas and entry/exit states before a visual-novel line and choice table. Give routes distinct aims, label adaptation additions and check knowledge at convergence."
       },
       "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/SKILL.md"
     },
@@ -19954,10 +19975,24 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "场景、知识与分支",
+          "en": "Scenes, knowledge and branches"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/narrative-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "人物议程与选择台词",
+          "en": "Character agendas and choice dialogue"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/dialogue-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "路线深度与范围",
+          "en": "Route depth and scope"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/world-design-method.md"
       }
     ]
   },
@@ -19983,52 +20018,52 @@
       "zh": "给任务清楚目标、行动理由、有意义的步骤，以及能改变后续选项的回报。"
     },
     "answer": {
-      "en": "A game quest needs a goal players can understand, a reason it matters now, and steps that produce visible change. Connect the reward to the task’s cost or story consequence. If a quest only sends the player to a marker and back without changing knowledge, resources, or relationships, add a decision or remove the errand.",
-      "zh": "游戏任务要有玩家看得懂的目标、当下行动的理由，以及能产生可见变化的步骤。让奖励回应任务代价或剧情后果。若任务只是跑到标记地点再回来，认知、资源和关系都没变化，就增加决定或删掉跑腿。"
+      "zh": "任务先让玩家理解目标、开始方法和必要风险，再用行动改变世界或人物处境。写清前置条件、可采取动作、规则结果、可读反馈与后续机会。完成图标只是显示；任务日志、场景、物件和角色回应必须读取同一结果，不能只让玩家交差后回到原点。",
+      "en": "A quest establishes a goal, starting action and necessary risks, then lets player actions change the situation. Connect prerequisites, actions, rules, feedback and future opportunities. A completion icon is only a display; logs, objects, scenes and characters must agree on the result."
     },
     "sections": [
       {
-        "id": "lesson-1",
+        "id": "quest-causality",
         "heading": {
-          "zh": "任务从玩家想完成的事开始",
-          "en": "Start with what the player wants to accomplish"
+          "zh": "从人物需求写到玩家能做的事",
+          "en": "Turn a character need into player action"
         },
         "body": {
-          "zh": "任务需要一个玩家能理解的目标，以及可采取的行动。故事背景解释为什么要做；地图、角色和物件给出怎样开始的线索。把小说段落改成任务时，保留人物目的与阻力，再设计玩家如何介入。",
-          "en": "A quest needs an understandable objective and available actions. Background explains why it matters; locations, characters, and objects show how to begin. Preserve a novel scene’s motives and resistance before deciding how the player intervenes."
+          "zh": "game-world-design 把关键行动写为“当前状态＋玩家选择＋世界规则→新状态＋可读反馈＋后续选择”。任务不只是一段背景和一个完成按钮，还需要开始路径与可理解的阻力。\n\n沿用原创温室：日落前需要恢复供水，南北阀门的开启顺序影响蓄水箱。园丁有钥匙，管理员想保住温室，也怕父亲留下的修改记录公开。玩家可以调查后求助，或在已提示风险下自行试阀。\n\n进入任务时，玩家应先知道水停了、何处可查、向谁借钥匙。阀门风险通过可见图示和园丁提醒呈现；不能等失败后才宣布一个此前无从得知的规则。",
+          "en": "game-world-design connects current state, player action and world rule to a new state, readable feedback and changed opportunities. A quest needs a starting path and understandable resistance, not just background plus a completion button.\n\nOriginal greenhouse: restore supply before sunset; valve order affects storage. The gardener holds a key. The administrator wants repairs but fears disclosure of a parent’s modification record. Players can investigate and seek help or try valves after learning the risk.\n\nEstablish the failure, investigation point and key holder on entry. Show valve risks through readable diagrams and warnings before failure, rather than revealing an unknowable rule afterward."
         }
       },
       {
-        "id": "lesson-2",
+        "id": "quest-card",
         "heading": {
-          "zh": "一张任务设计表",
-          "en": "A quest design worksheet"
+          "zh": "填写可用于制作的任务卡",
+          "en": "Fill a production-ready quest card"
         },
         "body": {
-          "zh": "| 项目 | 填写示例 |\n|---|---|\n| 目标 | 日落前给温室恢复供水 |\n| 初始线索 | 管线图显示旧阀门在南墙，园丁有钥匙 |\n| 行动 | 检查管线、问园丁、选择开启顺序 |\n| 阻力 | 先开南阀会排空北侧蓄水箱 |\n| 结果 | 供水恢复；所选顺序改变哪片苗圃损失 |\n| 下一步 | 园丁依据损失决定是否帮玩家查旧账 |\n\n结果让后续行动不同，任务才不会只是完成图标。",
-          "en": "| Field | Filled example |\n|---|---|\n| Goal | Restore greenhouse water before sunset |\n| Starting evidence | A map shows the old south valve; the gardener has the key |\n| Actions | Inspect pipes, question the gardener, choose valve order |\n| Resistance | Opening south first drains the north tank |\n| Result | Water returns; the order determines which seedlings are lost |\n| Next step | The gardener’s help depends on that loss |\n\nThe outcome changes what comes next rather than only ticking a quest icon."
+          "zh": "| 项目 | 本例填写 |\n|---|---|\n| 初始状态 | 供水停止，北侧蓄水箱仍有余水，钥匙由园丁保管 |\n| 目标与期限 | 日落前恢复供水；到期苗圃状态变化 |\n| 前置路径 | 查管线图，向园丁借钥匙，取得可操作入口 |\n| 核心取舍 | 出示旧记录换准确顺序，或保密并承受试阀风险 |\n| 确定结果 | 按选择更新阀门、余水与受影响苗圃 |\n| 可读反馈 | 水流与苗圃显示实际变化，人物回应本次做法 |\n| 后续机会 | 园丁依据损失和是否见过记录决定是否协助查旧账 |\n\n记录只覆盖本任务有作用的规则，不为所有项目强加同样字段。出示文件让园丁知道其内容；玩家私下读过文件并不让所有 NPC 自动知道。",
+          "en": "| Field | Example |\n|---|---|\n| Initial state | No supply; north reserve remains; gardener holds key |\n| Goal / deadline | Restore supply by sunset; expiry changes nursery state |\n| Starting path | Read diagram, request key, gain operating access |\n| Tradeoff | Show old record for a reliable sequence, or keep it private and accept trial risk |\n| Rule result | Update valves, reserve and affected plants from the action |\n| Feedback | Water and nursery show the change; characters respond |\n| Next opportunity | Gardener’s assistance reads loss and whether the record was shown |\n\nKeep task-relevant rules rather than imposing identical fields on every game. Showing a document informs its recipient; private inspection does not automatically inform every NPC."
         }
       },
       {
-        "id": "lesson-3",
+        "id": "choice-response",
         "heading": {
-          "zh": "原创改编：把心理矛盾变成可执行选择",
-          "en": "Original adaptation: turn a private conflict into an action"
+          "zh": "让每条做法留下不同后果",
+          "en": "Give approaches distinct consequences"
         },
         "body": {
-          "zh": "原作里，管理员想保住温室，也不愿承认父亲当年改错管线。游戏中让玩家先读管线图，再决定是否把旧修改记录交给园丁。交出记录会得到正确顺序，却让管理员失去隐瞒的机会；自己试阀可以保密，但必须承担已提示的排水风险。\n\n选项写动作：“给园丁看修改记录”，不要写“诚实路线”。先给足选择依据，再让人物回应。",
-          "en": "In the source story, the administrator wants to save the greenhouse without revealing a parent’s faulty alteration. The player reads the map and can show the record to the gardener for the correct sequence, or test valves while keeping the secret at a disclosed risk. Label the button “Show the alteration record,” not “Honest route.”"
+          "zh": "调查路线先找到修改记录，再出示给园丁。园丁提供可核对的顺序，供水恢复；管理员得知记录被交出，会要求玩家解释。保密路线保留原件的私人归属，但自行试阀可能耗掉北侧余水。\n\n玩家按钮写“给园丁看修改记录”，不写“诚实路线”；提示必要代价，不提前宣布所有远期结局。若园丁没有看过记录，后文不能突然替玩家引用文件细节。\n\n结果也不必都成功。苗圃受损可以让园丁拒绝下一次帮忙，并提供另一条查账路径。失败由已知风险产生且有后续行动，比弹出“任务失败”后毫无变化更完整。",
+          "en": "The investigation route finds and shows the modification record. The gardener supplies a verifiable sequence, restoring water; the administrator then asks why the record was disclosed. The private route keeps custody but accepts the risk of draining the north reserve through trial.\n\nLabel the button “Show the gardener the modification record,” not “Honest route.” Present necessary costs without every distant ending. An uninformed gardener cannot later quote unseen details.\n\nNot every approach must succeed. Nursery damage may cause refusal of later help while opening another investigation path. A known-risk failure with continuing actions is more complete than an isolated failure popup."
         }
       },
       {
-        "id": "lesson-4",
+        "id": "quest-validation",
         "heading": {
-          "zh": "任务链继承结果，别重复跑腿",
-          "en": "Quest chains should inherit consequences"
+          "zh": "检查日志、世界与人物是否一起变化",
+          "en": "Check agreement across log, world and characters"
         },
         "body": {
-          "zh": "下一项任务应由供水结果、关系或新线索引出。重复去同一地点拿不同颜色物件，却不产生新决定，通常可以合并。支线可以给主线新的信息、盟友或代价；不必每条都开启巨大分支。\n\n实现后走完目标、行动、结果与下一任务触发。日志的描述、角色对白和实际世界状态应一致。",
-          "en": "Make the next quest follow from water restoration, a relationship change, or a discovered clue. Repeated collection tasks with no new decision may be merged. Side quests can add information, allies, or costs without large new branches. In the build, verify objectives, actions, outcomes, triggers, and agreement between the journal, dialogue, and world."
+          "zh": "走完调查、借钥匙、开阀和结算，再走一条改变顺序的相邻路径。检查实际水流、背包钥匙、苗圃状态与任务日志，确认“完成”不是只改了文字。重复点击结算不能再次领取同一奖励。\n\n下一任务由本次结果引出：园丁帮助、管理员阻挠或新增记录，各有原因。重复跑同地点取不同颜色物件却没有新取舍，可以合并为一次行动。\n\n若改了规则，重放受影响路径，再查共享上游但走另一选择的情况。叙事修订不能只润色日志，让旧结果继续藏在状态里；对白与可用动作也要读到正确的任务历史。",
+          "en": "Walk investigation, key access, valve operation and resolution, then change the order on a neighboring path. Compare water flow, key inventory, nursery state and log. Completion must change more than text, and repeated resolution must not duplicate rewards.\n\nConnect the next quest to this result: assistance, obstruction or new records each need a cause. Repeated collection errands without new tradeoffs can become one action.\n\nAfter rule changes, replay the affected route and a neighboring choice sharing earlier state. Polishing the log cannot leave an obsolete result hidden in state; dialogue and actions must read the revised history."
         }
       }
     ],
@@ -20047,8 +20082,8 @@
     "skill": {
       "name": "game-world-design",
       "text": {
-        "zh": "把你的稿件、已确定的情节和本页填写后的表格交给 `game-world-design`，先检查计划，再起草需要修改的部分。每次修改后核对人物已知信息、前后因果和你的文风要求。",
-        "en": "Give `game-world-design` your draft, confirmed story facts, and the completed worksheet. Review the plan before drafting the affected part, then check continuity and your voice."
+        "zh": "用 $game-world-design 将原作冲突改成任务卡，写明初态、开始路径、风险、行动结果与后续回响；保留人物知情边界，并安排正常路径和一个有区分力的反例。",
+        "en": "Use $game-world-design to turn a source conflict into a quest card with initial state, access, risks, results and later responses. Preserve knowledge boundaries and define a normal path plus a meaningful counterexample."
       },
       "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/SKILL.md"
     },
@@ -20060,8 +20095,15 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "行动、反馈与任务回响",
+          "en": "Actions, feedback and quest responses"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/world-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "人物议程与信息边界",
+          "en": "Agendas and knowledge boundaries"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/narrative-design-method.md"
       }
@@ -20089,52 +20131,52 @@
       "zh": "挑选能讲完整观点的片段，补足必要背景，并让标题符合素材证据。"
     },
     "answer": {
-      "en": "A useful short clip carries one complete idea from setup to payoff. Find a moment with a clear question, decision, or result; add enough context for someone who has not seen the full video; and remove pauses that do not aid comprehension. Do not cut a sentence so its meaning changes.",
-      "zh": "有效短片段要从铺垫到结果讲完一个完整想法。寻找有明确问题、决定或结果的时刻，为没看过长视频的人补足背景，并删去不助理解的停顿。不要把句子剪到意思改变。"
+      "zh": "先选能独立理解的一次决定、问答或变化，再保留必要前提与具体回报。记录必留画面、原声及顺序，入出点按完整动作和台词选择；压时长删无新作用的等待，不删除改变含义的借用条件。标题只承诺本条切片实际呈现的内容。",
+      "en": "Choose an independently understandable decision, exchange or change, then preserve its premise and payoff. Record required picture, sound and order. Set boundaries around complete actions and speech; shorten empty waiting without removing meaning-changing conditions. Titles must match what the clip actually presents."
     },
     "sections": [
       {
-        "id": "lesson-1",
+        "id": "independent-clip",
         "heading": {
-          "zh": "每条切片保留一个完整问题与结果",
-          "en": "Keep a complete question and result in each clip"
+          "zh": "先判断切片是否能独立理解",
+          "en": "Check whether the clip stands on its own"
         },
         "body": {
-          "zh": "长视频剪短先找能独立理解的段落：一次决定、一段完整问答或一个有前提的反转。再确定切片起点需要补什么，终点已经交付什么。只取最刺激的一句，观众常会不知道谁在说话、为何发生或结论指向哪里。",
-          "en": "Find a segment that stands alone: one decision, a complete exchange, or a reversal with its setup. Identify what the start must establish and what the end delivers. A dramatic sentence alone may conceal who is speaking, why it happened, or what the conclusion concerns."
+          "zh": "video-script 的剪辑方法用可感知变化组织素材，不把固定秒数当一条片。先问观众从哪里进入、等待什么、离开时得到什么；人物动机与接受条件也是内容，不只保留刺激动作。\n\n沿用原创乐器片段：朋友说“借给你可以，但今晚演出前还我”，对方带走乐器，朋友在演出前等待。如果只从拿走开始，观众可能误读成偷窃。\n\n本条可以关注“借走的乐器为什么没回来”，但若原片没有原因，切片只能呈现借用与未归还的矛盾，不在标题里先宣布欺骗。不同条目用不同问题和回报，不只是同一段换五个近义标题。",
+          "en": "video-script organizes perceptible changes rather than fixed-duration chunks. Establish entry, question and payoff. Motivation and acceptance terms are content too, not expendable setup before an exciting action.\n\nOriginal instrument scene: a friend permits borrowing on condition of return before that evening’s performance. The instrument leaves, and the lender waits. Starting at removal can falsely suggest theft.\n\nThe question may concern the missing return, but absent cause footage cannot establish deception. Different clips need distinct questions and payoffs rather than five synonymous titles for one segment."
         }
       },
       {
-        "id": "lesson-2",
+        "id": "evidence-plan",
         "heading": {
-          "zh": "切片选段表",
-          "en": "A clip-selection worksheet"
+          "zh": "把不能删的前提写进剪辑要求",
+          "en": "Record indispensable premises in the cut request"
         },
         "body": {
-          "zh": "| 字段 | 记录内容 |\n|---|---|\n| 本条问题 | 观众从开头等哪个答案 |\n| 必要前提 | 哪句原声或哪段画面不能删 |\n| 主要变化 | 信息、关系或行动怎样改变 |\n| 入点／出点 | 原片时间码与剪在这里的理由 |\n| 结果 | 观众实际看到了什么 |\n| 标题 | 对应本条结果的具体说法 |\n\n同一长片可以剪多条，各条要有不同问题，不只是同一剧情换五个标题。",
-          "en": "| Field | Record |\n|---|---|\n| Question | The answer viewers await |\n| Essential premise | Sound or picture that cannot be cut |\n| Main change | Information, relationship, or action |\n| In / out | Source timecodes and boundary reasons |\n| Result | What the viewer actually sees |\n| Title | A specific promise matching that result |\n\nDifferent clips need different questions, not five titles on the same sequence."
+          "zh": "| 项目 | 本例填写 |\n|---|---|\n| 本条问题 | 借用承诺与演出前等待为何冲突 |\n| 必留声音 | 同意借用、今晚演出前归还的完整台词 |\n| 必留画面 | 拿走乐器，以及演出前朋友等待的实际反应 |\n| 顺序 | 许可与条件先于拿走；等待是后续结果 |\n| 可删部分 | 无新信息的路程、重复问候与空等待 |\n| 尚未证实 | 没归还的原因，是否有意违约 |\n\n制作时为必留区间写实际文件、原片时间、音频或视频职责；关键前提写明先后关系，不只在备注里说“保留逻辑”。剪点吸附或再次压时长后，复核这些区间仍被完整采用。\n\n时间属于哪版原片与成片要清楚。不能把旧版本时码复制到换序后的新视频上，再声称证据已对齐。",
+          "en": "| Field | Example |\n|---|---|\n| Question | Why do the borrowing promise and pre-show wait conflict? |\n| Required sound | Permission and complete evening-return condition |\n| Required picture | Removal and the lender’s actual waiting response |\n| Order | Permission before removal; waiting as later result |\n| Removable | Uninformative travel, repeated greetings, empty waits |\n| Unproved | Cause of nonreturn and deliberate breach |\n\nFor production, record actual file, source interval and audio/video role; specify required order rather than hiding it in a general note. Recheck adoption after snapped boundaries or further shortening.\n\nDistinguish source and output clocks and versions. Old timestamps cannot verify reordered new footage."
         }
       },
       {
-        "id": "lesson-3",
+        "id": "entry-exit",
         "heading": {
-          "zh": "原创剪辑对照：晚进不能丢因果",
-          "en": "Original comparison: a late entry still needs the premise"
+          "zh": "按完整含义选入点与出点",
+          "en": "Choose boundaries around complete meaning"
         },
         "body": {
-          "zh": "原片先有一句“借给你可以，但今晚演出前还我”，随后角色把乐器带走，最后没有归还。只从带走开始剪，标题“她偷走了朋友的乐器”会改变事件。\n\n保留完整借用条件，再接带走与演出前等待，切片的问题可以是“借走的乐器为什么没有回来？”如果素材尚未给答案，就不要在标题里宣布已经证实的原因。",
-          "en": "The source begins, “You can borrow it, but return it before tonight’s show.” Later the instrument is not returned. Cutting from the departure and calling it theft changes the event. Keep the loan condition, departure, and waiting before the performance. If the source gives no cause, the title must not claim one."
+          "zh": "入点可以晚进，但不能省掉许可条件；出点可以早离开，但要让朋友的等待或回应读得出来。必要时回源多保留一点实际表演，不默认定格或慢放凑长度。\n\n把两个场次并置时，交代时空变化，别拼成同场反应。竖屏取景先看说话者、乐器与关键手部，不能为维持中心人物而裁掉证明借用的交接。字幕、标题和花字也要避开这些信息。\n\n正常速度播放接点前后，核完整声音与动作。检测出的短镜只是候选；相关反应不因短就删，无关残镜则回剪辑计划修，不用转场特效掩盖。",
+          "en": "Enter later without losing permission and exit earlier without swallowing the lender’s response. Retain actual source performance when more time is needed rather than freezing or slowing by default.\n\nClarify time and location when juxtaposing scenes; do not fabricate one continuous reaction. Vertical framing must retain speakers, instrument and evidential handoff. Titles and captions should avoid those areas.\n\nPlay around joins at normal speed for complete sound and action. A short-shot detector supplies candidates: useful reactions may remain; unrelated remnants require plan corrections rather than concealing transitions."
         }
       },
       {
-        "id": "lesson-4",
+        "id": "clip-review",
         "heading": {
-          "zh": "字幕和竖屏改完再看一次",
-          "en": "Rewatch after captions and vertical reframing"
+          "zh": "逐条核兑现与未证实部分",
+          "en": "Review payoff and unproved claims for each clip"
         },
         "body": {
-          "zh": "竖屏裁切可能删掉说话者、证物或必要反应。字幕与花字不能遮住关键动作，也不能提前宣布素材未证明的结果。正常速度播放每个接点，检查对白句子是否完整、动作与反应是否仍属于同一场事件。\n\n交给 AI 或剪辑工具时指定原片区间和必留证据；后续压时长只删等待与重复，不删理解故事的条件。",
-          "en": "Vertical reframing can remove speakers, evidence, or necessary reactions. Captions should not cover the action or announce an unsupported result. Play joins at normal speed to check complete speech and truthful action-response relationships. Specify source ranges and essential evidence; shorten waiting and repetition while keeping the conditions needed for understanding."
+          "zh": "看完每条，写两句：观众实际看到了什么；还有什么只是怀疑。标题、花字和旁白与这两句比较，删超出证据的胜负、关系或动机判断。\n\n批量切片检查重复观看理由，也检查共享镜头是否提供不同回报。每条保留自己的必需前提，不能因为全长视频交代过，就认为陌生切片观众已经知道。\n\n最后完整看当前文件、逐接点看，再只听声音。若压缩后没法理解借用关系，回源补最短有效条件；若叙事已完整，就不因预设时长随意增加或删除表演。",
+          "en": "After each clip, state what viewers actually saw and what remains a suspicion. Compare titles, annotations and narration against those statements; remove unsupported victories, relationships or motives.\n\nFor a batch, compare viewing reasons and distinct payoffs even when footage is shared. Each clip needs its own essential premise; new viewers have not necessarily seen the full video.\n\nWatch the current file, inspect joins and listen without picture. Restore the shortest necessary borrowing condition if compression breaks comprehension. Do not add or remove performance merely to reach a preset duration."
         }
       }
     ],
@@ -20153,8 +20195,8 @@
     "skill": {
       "name": "video-cut",
       "text": {
-        "zh": "把你的稿件、已确定的情节和本页填写后的表格交给 `video-cut`，先检查计划，再起草需要修改的部分。每次修改后核对人物已知信息、前后因果和你的文风要求。",
-        "en": "Give `video-cut` your draft, confirmed story facts, and the completed worksheet. Review the plan before drafting the affected part, then check continuity and your voice."
+        "zh": "请用 $video-recap 从长视频提出独立切片，逐条写问题、必留声音和画面、原片区间及先后关系。压时长只删无新作用部分，标题不越过证据，剪后正常播放复查。",
+        "en": "Use $video-recap to propose independent clips with a question, required sound/picture, source intervals and order. Shorten only unneeded material, keep titles evidence-based and review the actual cuts at normal speed."
       },
       "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-cut/SKILL.md"
     },
@@ -20166,8 +20208,15 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "独立变化、证据区间与入出点",
+          "en": "Independent changes, evidence and edit boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-script/references/creative-editing-playbook.md"
+      },
+      {
+        "label": {
+          "zh": "短镜候选与正常播放复核",
+          "en": "Short-shot candidates and playback review"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-cut/references/shot-review.md"
       }
@@ -20195,52 +20244,52 @@
       "zh": "让台词连接人物目标和游戏状态，避免复述画面，并在实际操作中测试。"
     },
     "answer": {
-      "en": "Game dialogue should help players understand characters, choices, or the world without interrupting play. Tie lines to the current game state, avoid narrating an action the screen already shows, and write distinct voices. Test timing in context because a line that reads well on a page may feel too long during play.",
-      "zh": "游戏对白要帮助玩家理解人物、选择或世界，同时不打断游玩。让台词对应当前状态，避免复述屏幕已经展示的动作，并区分人物声音。要在实际情境中测试时长，因为纸面上顺畅的句子，玩起来可能太长。"
+      "zh": "先写角色要达成什么、知道什么、能用什么筹码，再让台词执行请求、拒绝、交换或承诺。每轮对话改变信息、关系或可用行动，选择后给出相符回应。按具体事件触发台词，并同步字幕与配音，不让 NPC 统一替设计师解释任务。",
+      "en": "Establish each character’s aim, knowledge and leverage, then let lines request, refuse, bargain or promise. Exchanges should change information, relationships or available actions. Trigger dialogue from concrete events and keep text, captions and voice assets on the same revision."
     },
     "sections": [
       {
-        "id": "lesson-1",
+        "id": "agenda-before-lines",
         "heading": {
-          "zh": "先写人物要得到什么，再写台词",
-          "en": "Write the speaker’s intention before the line"
+          "zh": "先列议程，避免 NPC 只讲说明书",
+          "en": "Start with agendas rather than instructions"
         },
         "body": {
-          "zh": "游戏对白既表现人物，也帮助玩家决定下一步。每位角色记四项：眼前目的、掌握的信息、能用的筹码、说话习惯。别让所有 NPC 都替设计师解释任务；让他们请求、拒绝、试探或讨价还价。",
-          "en": "Game dialogue reveals character and helps players decide. For each speaker, record immediate purpose, knowledge, leverage, and speaking habits. Let NPCs request, refuse, test, or bargain instead of all explaining objectives in the designer’s voice."
+          "zh": "game-world-design 的对白方法先写人物要求、顾虑、筹码、初始策略与受阻后换招。台词是行动的一部分，不能每句都只补背景。\n\n沿用本页温室场景：站长需要明确谁承担供水恢复责任，园丁想保住北侧苗圃，玩家要得到阀门钥匙。站长掌握签字权限，园丁掌握钥匙和现场经验，两人对“足够证据”的要求不同。\n\n先写行动链：玩家请求钥匙，园丁要求说明开过哪只阀，玩家选择现场检查或出示记录，园丁据此决定是否交钥匙。对白承担这次交换，操作说明另在必要时呈现。",
+          "en": "game-world-design begins dialogue with demands, concerns, leverage and strategies that change under resistance. Lines act rather than merely supplying background.\n\nIn the original greenhouse, the supervisor wants responsibility established, the gardener wants the north nursery protected, and the player needs a valve key. Signing authority and practical access give the two NPCs different leverage and evidence standards.\n\nPlan the exchange: request the key, receive a demand for valve history, inspect the site or show a record, then obtain a response. Dialogue carries this bargain; essential controls can appear separately."
         }
       },
       {
-        "id": "lesson-2",
+        "id": "line-state-table",
         "heading": {
-          "zh": "对白表保留条件与后果",
-          "en": "Track conditions and consequences"
+          "zh": "把台词条件写成实际事件",
+          "en": "Use actual events as line conditions"
         },
         "body": {
-          "zh": "| 台词编号 | 说话者 | 出现条件 | 台词 | 结果 |\n|---|---|---|---|---|\n| G-01 | 园丁 | 尚未看记录 | “先告诉我你开过哪只阀。” | 开放现场检查 |\n| G-02 | 园丁 | 玩家出示旧记录 | “这道线是后来加的。钥匙给你，别先开南边。” | 获得钥匙与顺序信息 |\n\n让条件引用具体事件，不只写“好感足够”。文本、字幕和配音都引用同一编号，避免改词之后遗漏音频。",
-          "en": "| Line ID | Speaker | Condition | Line | Result |\n|---|---|---|---|---|\n| G-01 | Gardener | Record not seen | “Tell me which valve you opened first.” | Inspection becomes available |\n| G-02 | Gardener | Old record shown | “That line was added later. Take the key. Don’t open south first.” | Key and sequence information gained |\n\nReference concrete events. Use the same line ID for text, subtitles, and voice assets."
+          "zh": "| 台词编号 | 说话者与条件 | 台词 | 状态或下一步 |\n|---|---|---|---|\n| G-01 | 园丁；玩家请求钥匙但尚未说明阀门 | “先告诉我你开过哪只阀。” | 开放现场检查与出示记录 |\n| G-02 | 园丁；本场实际见过旧记录 | “这道线是后来加的。钥匙给你，别先开南边。” | 交钥匙，提供顺序依据 |\n| G-03 | 园丁；玩家只检查了现场 | “先让我看你找到的接头。” | 进入核验，尚未交钥匙 |\n\n玩家自己读过文件，不等于园丁见过。G-02 的条件来自“出示记录”的实际行动；不能用无关的好感分数代替这一知识来源。\n\n编号把文案、字幕与语音对应起来，出现条件仍由游戏规则检查。表格是本页纸面设计，不代表已经接入引擎或运行通过。",
+          "en": "| ID | Speaker / condition | Line | State or next step |\n|---|---|---|---|\n| G-01 | Gardener; key requested without valve history | “Tell me which valve you opened.” | Inspection and showing records become available |\n| G-02 | Gardener actually shown the old record | “That line was added later. Take the key. Don’t open south first.” | Key handed over; sequence evidence given |\n| G-03 | Player inspected only the site | “Show me the joint you found first.” | Verification begins; no key yet |\n\nPrivate reading does not inform the gardener. G-02 reads the showing action, not an unrelated affection score.\n\nIDs connect copy, captions and voices; game rules still verify conditions. This is a paper example, not an implemented or tested engine script."
         }
       },
       {
-        "id": "lesson-3",
+        "id": "distinct-exchange",
         "heading": {
-          "zh": "原创示例：让两人用不同方式说同一件事",
-          "en": "Original example: two voices, one problem"
+          "zh": "同一风险，两个人用不同筹码说话",
+          "en": "Let different leverage shape speech"
         },
         "body": {
-          "zh": "供水暂停，站长关心责任：“恢复以前，谁都不能签供水合格。”园丁关心苗圃：“北边那排还剩半桶水，别等到根全干。”\n\n两句各带目的与具体证据。无需让站长反复说口头禅，也不必给园丁塞满方言。玩家得到风险、时间与行动边界，人物区别也自然出现。\n\n选择按钮写玩家真正会说的话；如果按钮显示“协商”，点下去却变成威胁，玩家就无法相信选项。",
-          "en": "The supervisor says, “Nobody signs the water certificate until supply is restored.” The gardener says, “There’s half a bucket left for the north row. Don’t wait until the roots dry.” Different concerns create different voices without catchphrases. Choice buttons should represent the words or action the player will actually deliver, not show “Negotiate” and execute a threat."
+          "zh": "供水暂停，站长说：“恢复以前，谁都不能签供水合格。”园丁说：“北边那排还剩半桶水，别等到根全干。”前者划责任边界，后者提出眼前损失，玩家分别获得权限与期限信息。\n\n若改成两人轮流说“情况很严重，你必须尽快完成任务”，声音会合并，现场也没有新进展。修订时保留各自关注的实物与条件，让反对者能拒绝、要求证据或换策略，不让玩家每句请求都立刻成功。\n\n按钮写玩家真正会说的话，例如“先借我钥匙，我带你去核接头”。不能显示“协商”，执行时却变成威胁。回应先呈现对方反应，再进入确实开放的新动作。",
+          "en": "“Nobody signs the water certificate before restoration,” says the supervisor. “The north row has half a bucket left. Don’t wait until the roots dry,” says the gardener. One sets responsibility limits; the other presents immediate loss. Players learn authority and urgency.\n\nReplacing both with “This is serious; finish your quest quickly” removes distinction and progress. Preserve concrete concerns and conditions. Let resistance request evidence, refuse or change strategy instead of granting every request.\n\nButtons should represent actual speech: “Lend me the key; I’ll show you the joint.” A “Negotiate” label must not execute a threat. Show the reaction before offering newly available actions."
         }
       },
       {
-        "id": "lesson-4",
+        "id": "dialogue-revision",
         "heading": {
-          "zh": "在真实场景里检查台词",
-          "en": "Review lines in their playable context"
+          "zh": "用状态和实际播放复查台词",
+          "en": "Review dialogue against state and playback"
         },
         "body": {
-          "zh": "单看表格顺畅的句子，放进游戏可能挡住操作、超过语音长度，或重复玩家已看见的信息。播放一条完整路径，检查谁知道证据、关键请求是否能听全、选项会不会需要滚动才能找到。\n\n让 AI 每轮只修改指定台词编号，保留触发条件、人物目标和既定结果。修改之后核对字幕与配音采用的是同一稿。",
-          "en": "A smooth spreadsheet line may obstruct play, exceed a voice clip, or repeat visible information. Play a complete path and check knowledge, timing, and choice visibility. Ask AI to revise specified line IDs while keeping triggers, intentions, and outcomes. Confirm subtitles and voice assets use the same revision."
+          "zh": "正向走一条出示记录路线，再走没有出示的路线。园丁是否提前知道文件内容，钥匙是否重复发放，汇合处是否误说玩家已公开记录？这些先查触发与状态，再改句子。\n\n修语言时删重复解释与没有新作用的来回，保留人物的称呼、急话或地方表达。交换说话者后仍完全成立的关键句，检查缺了目标、知识还是筹码，不用硬塞口头禅制造区别。\n\n在目标视口与实际配音中检查关键请求能否读完、听全，选项是否被挤走。让 AI 只改指定台词编号，冻结条件和结果；采用后同步对应字幕与声音，再看当前版本。",
+          "en": "Walk a showing route and an unshown-record route. Check premature knowledge, duplicate keys and shared dialogue claiming disclosure that never happened. Repair triggers and state before polishing language.\n\nRemove explanation and repetitive exchanges without erasing characteristic address, urgency or regional speech. If exchanging speakers leaves a key line intact, inspect missing aims, knowledge or leverage rather than adding catchphrases.\n\nCheck critical requests and choices in the target viewport and actual voice playback. Limit AI edits to specified line IDs while preserving conditions and results, then synchronize affected captions and voices."
         }
       }
     ],
@@ -20259,8 +20308,8 @@
     "skill": {
       "name": "game-world-design",
       "text": {
-        "zh": "把你的稿件、已确定的情节和本页填写后的表格交给 `game-world-design`，先检查计划，再起草需要修改的部分。每次修改后核对人物已知信息、前后因果和你的文风要求。",
-        "en": "Give `game-world-design` your draft, confirmed story facts, and the completed worksheet. Review the plan before drafting the affected part, then check continuity and your voice."
+        "zh": "用 $game-world-design 为本场列人物议程、知识与筹码，再写条件化台词和实际选项。检查未见证者泄密、重复给予物件和汇合串线；文案修订只作用于指定编号。",
+        "en": "Use $game-world-design to establish agendas, knowledge and leverage before conditional lines and actual choices. Check leaked knowledge, duplicate object grants and route contamination; constrain copy edits to specified IDs."
       },
       "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/SKILL.md"
     },
@@ -20272,10 +20321,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "对白行动与人物声音",
+          "en": "Dialogue actions and character voices"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/dialogue-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "游戏文本与原作声口",
+          "en": "Game copy and source voice"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/game-writing-craft.md"
       }
     ]
   },
@@ -20301,52 +20357,52 @@
       "zh": "用物件位置、破损、权限和重复地点展示发生过什么及玩家能推断什么。"
     },
     "answer": {
-      "en": "A game environment can communicate story through objects, layout, wear, and changes players can inspect. Give each detail a reason to be there, make important clues readable from the player’s path, and let exploration reveal information that supports a choice. Visual detail should complement, not replace, necessary clarity.",
-      "zh": "游戏环境可以通过物件、布局、磨损和人物处境变化讲故事。每个细节都要有存在理由，关键线索应能从玩家路径中看见，探索得到的信息还要支持选择。视觉细节应补充清晰度，而非取代它。"
+      "zh": "先决定玩家需要观察到的事实，再选物件、布局或痕迹承载它，区分可见证据、最小结论与尚未确定的解释。让发现支持下一步行动，并在实际视角中可读。水渍或划痕可以提示继续调查，不能单独证明作案人、动机或精确发生时间。",
+      "en": "Choose the observable fact players need, then carry it through objects, layout or traces. Separate evidence, the smallest supported conclusion and unresolved explanations. A discovery should support an action and remain readable from the actual viewpoint; wetness or scratches alone do not identify an actor, motive or exact time."
     },
     "sections": [
       {
-        "id": "lesson-1",
+        "id": "evidence-levels",
         "heading": {
-          "zh": "场景里的线索要能被玩家发现和使用",
-          "en": "Make environmental clues discoverable and usable"
+          "zh": "环境细节先证明它能证明的事",
+          "en": "Keep conclusions within the evidence"
         },
         "body": {
-          "zh": "环境叙事让玩家从物件、位置与变化理解发生过什么。先决定玩家需要知道哪条事实，再找可见载体：磨损、搬动痕迹、空掉的货架或被改过的标记。线索应支持一个明确的最小结论，不能靠策划脑中的背景解释才成立。",
-          "en": "Environmental storytelling lets players infer events from objects, placement, and changes. Decide the needed fact, then choose a visible carrier: wear, movement marks, empty shelves, or altered labels. A clue should support a specific conclusion without requiring unwritten designer knowledge."
+          "zh": "game-world-design 的知识方法区分载体、直接支持的最小结论与未确定解释。写环境叙事时，先定事实，再挑痕迹，不让美术细节自动承担完整推理。\n\n沿用原创温室：北墙灌溉牌写“停用”，接头下的托盘却有水。玩家观察到矛盾，可以检查接头和管路；还不能认定有人夜间偷偷供水。旧水残留、别处漏水或标牌过期，都需要进一步排除。\n\n只有新增证据才能缩小解释。例如玩家看到接头此刻仍滴水，就确认它现在不是完全无水；要说谁开启、何时开启，仍需相应记录、见证或其它事实。",
+          "en": "game-world-design separates a clue’s carrier, minimum supported conclusion and unresolved interpretation. Establish the fact before choosing the trace; art detail does not automatically supply a complete deduction.\n\nOriginal greenhouse: a north irrigation sign says “Disused,” yet a tray below the joint holds water. The discrepancy invites inspection. It does not prove secret nighttime use; residual water, another leak or an obsolete sign remain possible.\n\nNew evidence narrows explanations. Seeing the joint currently drip establishes water there now. An actor or earlier time still needs records, witnesses or other relevant facts."
         }
       },
       {
-        "id": "lesson-2",
+        "id": "clue-table",
         "heading": {
-          "zh": "给每条线索记录四项",
-          "en": "Record four fields for each clue"
+          "zh": "将观察、解释与行动分开记录",
+          "en": "Separate observation, inference and action"
         },
         "body": {
-          "zh": "| 载体 | 玩家能看见什么 | 直接支持的结论 | 对行动的作用 |\n|---|---|---|---|\n| 锁扣 | 内侧有新刮痕 | 门最近从里面被打开 | 可以追问留在屋内的人 |\n| 配电箱 | 标签与接线不一致 | 图纸不能直接照用 | 玩家先核线，再通电 |\n| 空架 | 尘印边缘有拖痕 | 物件被搬走 | 沿痕迹查出口 |\n\n“有人搬走物件”不等于“园丁偷走它”。把观察与解释分开，保留玩家推理空间。",
-          "en": "| Carrier | Observation | Supported conclusion | Effect on action |\n|---|---|---|---|\n| Latch | Fresh scratches inside | Door was opened from within | Question someone who remained inside |\n| Fuse box | Labels disagree with wiring | The diagram cannot be trusted directly | Check circuits before power |\n| Empty shelf | Drag marks beside the dust outline | An object was moved | Follow marks toward an exit |\n\nA moved object does not establish who stole it."
+          "zh": "| 载体与观察 | 直接支持什么 | 仍未知与下一步 |\n|---|---|---|\n| 锁扣内侧有新擦痕 | 此处近期受过擦碰 | 谁碰过、是否开门：比较使用痕迹与记录 |\n| 配电箱标签与接线不一致 | 标签不能直接指导操作 | 谁改过、哪个版本有效：先核线 |\n| 空架尘印旁有拖痕 | 支持物件曾被移动的判断 | 移动者与目的：查出口和交接记录 |\n| 灌溉接头眼前仍滴水 | 此处当前有水 | 水源与控制者：沿可访问管路核查 |\n\n观察可支持怀疑，不必每次都给确定答案。若游戏希望一条痕迹唯一指向某个解释，先建立排除其它原因的条件，不能在结算页替玩家补此前看不到的设定。",
+          "en": "| Carrier and observation | Supports | Unknown and next action |\n|---|---|---|\n| Fresh marks inside latch | Recent abrasion here | Actor and opening remain unknown: compare use and records |\n| Fuse labels differ from wiring | Labels cannot directly guide operation | Editor and valid version: verify before acting |\n| Drag marks by empty shelf outline | Suggests an object was moved | Mover and purpose: inspect exit and handoff records |\n| Irrigation joint dripping now | Water currently present | Source and controller: trace accessible pipe |\n\nEvidence may justify suspicion without certainty. A uniquely identifying clue needs established conditions excluding alternatives, not invisible rules added at resolution."
         }
       },
       {
-        "id": "lesson-3",
+        "id": "exploration-use",
         "heading": {
-          "zh": "原创示例：让线索改变下一次操作",
-          "en": "Original example: evidence changes the next action"
+          "zh": "让观察改变下一次行动",
+          "en": "Let observation change available actions"
         },
         "body": {
-          "zh": "玩家进入旧温室，北墙的灌溉牌写着“已停用”，地面却有新水渍。检查阀门后发现有人夜间偷偷供水。玩家可以跟随水管寻找未登记的苗圃，也可以先把异常告诉管理员。\n\n线索改变了可用行动；装饰性的旧照片只补背景。两者都能存在，但重要线索需要在实际视角、光照和移动路线中清楚可见。",
-          "en": "At the old greenhouse, the north irrigation label says “Disused,” but the floor is freshly wet. Inspecting the valve reveals recent water use. The player can follow the pipe to an unregistered nursery or report the anomaly. The clue creates actions; an old photograph may merely enrich background. Important evidence must be visible from actual player angles and lighting."
+          "zh": "玩家沿可访问的管路找到另一处仍在用水的苗圃，可以询问管理者，或把“停用牌与实际滴水不符”告诉管理员。报告的是已观察事实，不是已经证实的偷水指控。\n\n随后有签署的供水记录，才可能确定使用时间与负责人；人物承认也需与证据及其可信度一起判断。环境可以承载一部分背景，准确姓名、操作条件或人物承诺则可由文字与对白补齐。\n\n同一地点再次出现时，展示已发生的变化：阀门关闭、积水擦去、标牌更换。变化应来自游戏行动或已接受事件，不在玩家返回时无缘无故复位。",
+          "en": "Following an accessible pipe reveals another nursery using water. Players can question its manager or report the discrepancy between the sign and current dripping. They report observations, not a proved theft accusation.\n\nA signed supply record can establish time and responsibility; an admission still needs context and evidence. Environments can carry history while text or dialogue supplies exact names, operating conditions and promises.\n\nOn return, show established changes: a closed valve, cleared water or replaced sign. Tie them to game actions or accepted events instead of unexplained resets."
         }
       },
       {
-        "id": "lesson-4",
+        "id": "readability-test",
         "heading": {
-          "zh": "用不知道答案的人检查可读性",
-          "en": "Test with someone who does not know the answer"
+          "zh": "分别修发现难、推断错与行动不明",
+          "en": "Repair visibility, inference and guidance separately"
         },
         "body": {
-          "zh": "让测试者说出看见什么、推断什么、准备做什么。把观察不到、推断过头和不知道下一步分开：分别调整可见性、证据内容与行动提示。不要为了“讲清”给每件物品写一段真相旁白。\n\n改编小说时，环境线索对应原文事实；新增谜题写作改编决定。场景更换后重新检查线索与目标的连接。",
-          "en": "Ask a tester to state what they observed, inferred, and intend to do. Fix visibility, unsupported inference, and missing action guidance separately. Avoid attaching an explanatory truth paragraph to every object. Source-derived clues should match the novel; record added puzzles as adaptation decisions and recheck them after location changes."
+          "zh": "让不了解设计答案的试玩者说明看见什么、推断什么、准备做什么。看不见就检查视角、光照、尺度和路线；推断过头就检查证据与解释层级；不知道下一步就检查可用动作与就近提示。\n\n重要线索要在实际玩家视角可读，不只在美术大图里存在。装饰照片可以补气氛，不必每个物件都附真相旁白。需要精确字符的文件再安排可读视图，不靠模糊纹理承载姓名。\n\n改编时逐条对到原作事实；新增线索是改编决定。换场景或光线后重看可见性，改线索后重走受影响推理路径，确保玩家获得的结论仍有依据。",
+          "en": "Ask an uninformed tester what they observed, inferred and plan to do. Repair visibility through angle, lighting, scale and path; unsupported inference through evidence scope; missing next actions through accessible options and local guidance.\n\nImportant clues must read from the actual player view, not merely an art sheet. Decorative photographs can add atmosphere without a truth caption on every object. Provide a readable document view for exact names instead of ambiguous texture.\n\nMatch source-derived clues to the novel and label additions as adaptation choices. Recheck visibility after location or lighting changes and replay deductions after evidence changes."
         }
       }
     ],
@@ -20365,8 +20421,8 @@
     "skill": {
       "name": "game-world-design",
       "text": {
-        "zh": "把你的稿件、已确定的情节和本页填写后的表格交给 `game-world-design`，先检查计划，再起草需要修改的部分。每次修改后核对人物已知信息、前后因果和你的文风要求。",
-        "en": "Give `game-world-design` your draft, confirmed story facts, and the completed worksheet. Review the plan before drafting the affected part, then check continuity and your voice."
+        "zh": "用 $game-world-design 为环境线索写载体、可见观察、最小结论、未知解释与下一动作。对照原作事实，删除无证据的时间、动机或身份推断，再检查实际玩家视角。",
+        "en": "Use $game-world-design to map clue carriers, observations, minimum conclusions, open explanations and next actions. Compare source facts, remove unsupported time, motive or identity claims, and inspect the actual player view."
       },
       "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/SKILL.md"
     },
@@ -20378,10 +20434,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "证据层级与人物知识",
+          "en": "Evidence levels and knowledge"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/narrative-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "空间与可读反馈",
+          "en": "Space and readable feedback"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/world-design-method.md"
       }
     ]
   },
@@ -20407,52 +20470,52 @@
       "zh": "测试玩家能否理解游戏目标、原作特色、选择与剧情反馈，而不依赖作者讲解。"
     },
     "answer": {
-      "en": "Give players a playable slice and observe what they infer, choose, and remember. Ask focused questions about the source connection, objective clarity, and consequences; use their behavior and answers to revise the game rather than explaining away confusion.",
-      "zh": "提供一段可玩内容，观察玩家推断、选择和记住了什么。围绕原作关联、目标清晰度和选择后果提出具体问题；根据行为和回答修改游戏，不要只用讲解掩盖困惑。"
+      "zh": "先按设计承诺写预期，再从实际交付入口完成启动、渲染、输入、核心行动、结果与重开。每项保留最小可观察证据，并选能区分规则的失败或边界路径。截图与运行成功不能证明结局正确；修复后重放原故障及相邻分支，检查状态与画面一起恢复。",
+      "en": "Write expectations from design promises, then run the actual delivered build through launch, rendering, input, core action, outcome and restart. Keep minimal observable evidence and meaningful boundary cases. After a repair, replay the failing path and a neighboring branch, checking state as well as presentation."
     },
     "sections": [
       {
-        "id": "lesson-1",
+        "id": "promises-to-tests",
         "heading": {
-          "zh": "先写玩家应该能完成的一次完整过程",
-          "en": "Define one complete player journey"
+          "zh": "先把设计承诺变成可判断的问题",
+          "en": "Turn design promises into checks"
         },
         "body": {
-          "zh": "游戏测试从实际体验开始：启动、看清画面、操作、完成核心行动、得到结果，再重开。把计划中的目标平台与本次实际测试环境都写清楚。浏览器里能运行，不能证明另一台设备的输入与打包已经验证。",
-          "en": "Test a real journey: launch, see the scene, use controls, complete the core action, receive an outcome, and restart. Record the intended platform and the environment actually used. A browser run does not verify another device’s input or packaging."
+          "zh": "game-qa 的方法从六项可玩结果反推证据：能打开、实际呈现、输入生效、核心行动闭合、产生设计结果、重开恢复。目标环境与本次实际运行环境分别写明，不从浏览器成功推断另一设备已经验证。\n\n沿用原创温室：玩家查管线、借钥匙、开阀并决定是否出示旧记录。测试前写预期：顺序影响余水；文件未出示时园丁不知内容；失败重开后恢复初始钥匙归属和调查状态。\n\n重点来自此游戏的承诺，不是把每个点击都截图。人物是否有魅力、故事是否感人可以另外记录体验意见，不能用一次运行结果自动判定。",
+          "en": "game-qa derives evidence from six playable results: launch, actual rendering, effective input, a closed core loop, a designed outcome and restart. Record intended and tested runtimes separately; browser success does not verify another device.\n\nOriginal greenhouse: inspect pipes, obtain a key, operate valves and decide whether to show a record. Set expectations first: order affects reserve; an unshown record remains unknown to the gardener; failure and restart restore custody and investigation state.\n\nFocus on this game’s promises instead of screenshots for every click. Character appeal or emotional impact can be experience feedback, not automatic conclusions from a successful run."
         }
       },
       {
-        "id": "lesson-2",
+        "id": "six-results",
         "heading": {
-          "zh": "一张够用的测试记录表",
-          "en": "A practical test record"
+          "zh": "一条完整路径覆盖六项结果",
+          "en": "Cover six results through a complete path"
         },
         "body": {
-          "zh": "| 检查 | 做什么 | 记录什么 |\n|---|---|---|\n| 启动 | 从交付入口打开 | 版本、环境、是否成功 |\n| 核心任务 | 按提示恢复供水 | 实际行动、结果、截图 |\n| 不同选择 | 换一次阀门顺序 | 状态与人物回应是否改变 |\n| 失败 | 走一条已说明的失败路径 | 原因是否可理解 |\n| 重开 | 从失败重新开始 | 初始资源和线索是否恢复 |\n\n预期结果写在测试前；实际结果依据运行记录填写。没有运行的项目标明未运行。",
-          "en": "| Check | Action | Record |\n|---|---|---|\n| Launch | Open the delivered entry | Version, environment, success |\n| Core quest | Restore water through the shown controls | Actions, outcome, screenshot |\n| Alternative choice | Change valve order | State and character-response differences |\n| Failure | Follow a stated failure path | Whether the cause is understandable |\n| Restart | Begin again after failure | Reset resources and evidence |\n\nWrite expectations before testing; report observed results afterward. Mark unrun checks explicitly."
+          "zh": "| 检查 | 本例行动 | 需要观察的结果 |\n|---|---|---|\n| 启动 | 从交付入口开当前候选 | 正确版本在所记环境打开 |\n| 渲染 | 进入温室 | 正文、场景与必要选项可读 |\n| 输入 | 点击检查管线 | 对应动作被接受，不误触另一项 |\n| 核心行动 | 调查、借钥匙、开阀 | 每步状态与反馈连接 |\n| 结果 | 完成或触发已设计失败 | 余水、苗圃与人物回应符合选择 |\n| 重开 | 从结果重新开始 | 恢复声明的初态，可再次行动 |\n\n预期先写，实际结果由运行填写。保存版本、环境、初态、输入与终态；有随机机制再记录种子。关键动效和接镜正常速度观察，慢放用于定位，不能证明正常体验。",
+          "en": "| Check | Example action | Observe |\n|---|---|---|\n| Launch | Open the delivered candidate | Correct version in recorded runtime |\n| Render | Enter greenhouse | Scene, text and required options readable |\n| Input | Select pipe inspection | Intended action accepted |\n| Core loop | Investigate, obtain key, operate | State and feedback connect |\n| Outcome | Reach success or designed failure | Reserve, plants and responses match choices |\n| Restart | Start again from outcome | Declared initial state restored; action possible |\n\nRecord expectations before observed results. Keep version, runtime, initial state, inputs and final state, plus a seed when randomness exists. Review motion at normal speed; slow playback locates faults rather than proving ordinary experience."
         }
       },
       {
-        "id": "lesson-3",
+        "id": "failure-example",
         "heading": {
-          "zh": "原创问题：重开后钥匙还在背包里",
-          "en": "Original bug: a key survives restart"
+          "zh": "原创故障：画面重开，状态没重开",
+          "en": "Original failure: the picture resets but state does not"
         },
         "body": {
-          "zh": "温室关卡失败后，画面回到入口，背包却保留钥匙，任务日志仍写“检查完成”。第二次进入，玩家跳过调查就能开阀；这说明重开只重置了画面。\n\n报告写“失败后点击重开，钥匙和调查标记仍保留”，附前后状态。修复时核对完整初态：物件、资源、角色知情与任务阶段。不要仅改掉日志的显示文字。",
-          "en": "After failing the greenhouse level, restart returns the view to the entrance but keeps the key and “Inspection complete” flag. The next run bypasses the investigation. Report the action and before/after states. A fix must restore objects, resources, character knowledge, and quest phase rather than only changing the journal text."
+          "zh": "纸面故障示例：失败后回到温室入口，背包却保留钥匙，任务日志仍写“检查完成”。第二次进入可以跳过调查开阀，说明重开只恢复了画面。\n\n报告写“失败→重开后钥匙仍在玩家背包，调查标记仍为已完成”，附两处状态和对应画面。修复要回到完整初态：物件、资源、人物知情与任务阶段，不能只删日志里的“完成”。\n\n再跑一条没有出示记录的相邻路线，检查园丁是否错误说出文件细节。生成对白读得自然，也不能覆盖规则未允许的知识；只查看 happy path 会漏掉这种分支污染。",
+          "en": "Paper failure example: restart returns the picture to the entrance, but the key remains in inventory and the log still says inspection is complete. The second run skips investigation and operates a valve.\n\nReport the exact failure-to-restart sequence with retained-key and inspection-state evidence. Restore objects, resources, knowledge and quest stage, not merely the displayed word “complete.”\n\nThen test a neighboring route without showing the record. The gardener must not reveal its contents. Fluent generated dialogue cannot authorize knowledge that rules withheld; a happy path alone misses this contamination."
         }
       },
       {
-        "id": "lesson-4",
+        "id": "retest-scope",
         "heading": {
-          "zh": "修复后复测受影响路径",
-          "en": "Retest the affected journey after a fix"
+          "zh": "修复后重放故障，再看相邻路径",
+          "en": "Replay the fault, then a neighboring path"
         },
         "body": {
-          "zh": "修复重开时，重新走失败、恢复与再行动；修改选择条件时，测试对应路线与相邻路线。没有证据的成功不补写为通过。试玩者表达意见时，记录具体位置、做了什么、预期与实际差异，比“体验不够好”更容易转成修改任务。",
-          "en": "For a restart fix, replay failure, recovery, and another attempt. For a choice-condition fix, test the changed route and a neighboring route. Keep unverified checks separate from passes. Player feedback should identify location, action, expectation, and observation so it can become a concrete change."
+          "zh": "保留能复现问题的版本、初态与输入顺序，修复后先重放原失败路径，再选共享上游状态但走另一选择的反例。断言玩家能观察的结果，不只检查内部函数被调用。\n\n只换台词或资产，通常可保持状态含义；若改变变量语义、节点或行动效果，需要迁移旧存档/日志，或明确拒绝旧版本，不能假装旧状态自然兼容。具体处理随项目决定。\n\n沿用项目已有验证入口，把回归放进同一验证流程，避免另外堆重复的通过报告。报告保留实际未运行项和必要缺口；已通过的范围要能回到当前候选与相应证据。",
+          "en": "Keep the reproducible version, initial state and input sequence. After repair, replay the failing route and a neighboring choice sharing earlier state. Assert observable outcomes rather than merely internal function calls.\n\nCopy or asset replacement may preserve state meaning. Changing variable semantics, nodes or action effects requires migration or explicit rejection of incompatible old saves or logs; choose the project-appropriate handling.\n\nUse the project’s existing verification entry and include regressions in that flow rather than producing duplicate pass reports. Record unrun items and material gaps. Every claimed result must refer to the current candidate and its evidence."
         }
       }
     ],
@@ -20471,8 +20534,8 @@
     "skill": {
       "name": "game-qa",
       "text": {
-        "zh": "把你的稿件、已确定的情节和本页填写后的表格交给 `game-qa`，先检查计划，再起草需要修改的部分。每次修改后核对人物已知信息、前后因果和你的文风要求。",
-        "en": "Give `game-qa` your draft, confirmed story facts, and the completed worksheet. Review the plan before drafting the affected part, then check continuity and your voice."
+        "zh": "用 $game-qa 验证当前候选，在已选运行环境中从启动走到核心行动、结果与重开。以设计承诺写预期，保留最小证据，在同一验证入口加入原故障与相邻反例；未运行项如实记录。",
+        "en": "Use $game-qa to verify the current candidate in its selected runtime from launch through core action, outcome and restart. Derive expectations from design promises and retain minimal evidence, including the reproduced fault and neighboring counterexample in the existing verification flow."
       },
       "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-qa/SKILL.md"
     },
@@ -20484,10 +20547,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "最小证据与有区分力的路径",
+          "en": "Minimal evidence and discriminating paths"
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-qa/references/test-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "真实候选与六项结果",
+          "en": "Actual candidate and six results"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-qa/SKILL.md"
       }
     ]
   },
