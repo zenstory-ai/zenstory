@@ -76,6 +76,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [Organize Your Novel’s Timeline and Reveals](https://zenstory.ai/oh-story/organize-a-novel-timeline) — Separate event chronology, manuscript order and reader knowledge. Use relative time and a worked flashback example without inventing dates.
 - [How to Name Novel Chapters Without Spoiling the Reveal](https://zenstory.ai/oh-story/novel-chapter-titles) — Choose chapter titles from actual actions, lines, or motifs. Compare workshop examples, check spoilers and repeats, and preserve manuscript naming.
 - [How to Weave Multiple Storylines in a Novel](https://zenstory.ai/oh-story/weave-multiple-storylines-in-a-novel) — Give each storyline a present question, then choose returns and intersections. Includes a complete two-location passage and a timing worksheet.
+- [How to Write a Chase Scene](https://zenstory.ai/oh-story/write-a-chase-scene) — Establish the objective and route, then show choices changing pursuit. Includes an original warehouse chase without a last-minute exit or frozen pursuer.
+- [How to Write a Countdown Plot](https://zenstory.ai/oh-story/write-a-countdown-plot) — Build urgency from a clear deadline, task duration, and consequences. Includes an original photography-submission timeline without empty numbers or a convenient extension.
 
 ### Characters and dialogue / 人物与对白
 - [Characters and dialogue](https://zenstory.ai/guides/characters-and-dialogue) — Build believable motives, distinct voices, and relationships.
@@ -127,6 +129,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Write a Flawed Protagonist](https://zenstory.ai/oh-story/write-a-flawed-protagonist) — Connect a flaw to established experience, habitual choices, and consequences. Includes a complete scene about an editor judging too soon.
 - [How to Write a Moral Dilemma in Fiction](https://zenstory.ai/oh-story/write-a-moral-dilemma) — Put goals, promises, and values in conflict, check feasible alternatives, then show the choice and consequences. Includes a choir-selection scene.
 - [How to Write a Believable Misunderstanding](https://zenstory.ai/oh-story/write-a-believable-misunderstanding) — Separate observed facts from inference and allow credible questions and replies. Includes a moving-day scene where clarification leaves a relationship cost.
+- [How to Write a Friendship Arc](https://zenstory.ai/oh-story/write-a-friendship-arc) — Give friends shared habits, independent goals, and credible change. Includes an original photography-show scene without compulsory betrayal or romance.
+- [How to Write an Apology Scene](https://zenstory.ai/oh-story/write-an-apology-scene) — Build an apology from a specific wrong, conversational purpose, and reply. Includes an original cover-credit scene separating admission, repair, and trust.
 
 ### Choose and write a genre / 题材与类型写法
 - [Choose and write a genre](https://zenstory.ai/guides/genres) — Choose a genre and learn the story patterns it needs.

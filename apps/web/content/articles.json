@@ -42088,5 +42088,608 @@
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
       }
     ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "write-a-friendship-arc",
+    "topic": "characters-and-dialogue",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "小说友情线怎么写：共同经历，也有各自生活",
+      "en": "How to Write a Friendship Arc"
+    },
+    "seo_title": {
+      "zh": "小说友情线怎么写",
+      "en": "Write a Friendship Arc"
+    },
+    "description": {
+      "zh": "让友情有具体相处、独立目标和可信变化。附摄影展与陶艺课的原创片段，友情不用靠背叛或恋爱证明分量。",
+      "en": "Give friends shared habits, independent goals, and credible change. Includes an original photography-show scene without compulsory betrayal or romance."
+    },
+    "answer": {
+      "zh": "先写两人怎样相处，让读者认识这段友情值得保留什么，再让各自生活带来新的需要。朋友可以支持、争执、拒绝，也可以只是一起开心；写清对方怎样回应以及后来怎样相处，不把随叫随到当友情的唯一证明。关系变化不一定变坏，也不必最终变成恋爱。",
+      "en": "Establish how these people enjoy being together and what makes the friendship worth keeping. Independent lives bring new needs. Friends can help, argue, decline, or simply have fun; show the reply and later contact without treating constant availability as the only proof. Change need not mean deterioration or romance."
+    },
+    "sections": [
+      {
+        "id": "bond",
+        "heading": {
+          "zh": "从两个人相处的趣味开始",
+          "en": "Begin With the Pleasure of Their Company"
+        },
+        "body": {
+          "zh": "“多年好友”能交代时间，却不能独自给出关系质感。可以写他们怎样开玩笑、分享喜欢的东西、记得彼此的小偏好，或者能在对方面前说出平时难说的话。帮助与牺牲都能成立，轻松相处本身也有价值。\n\nOh Story 的关系方法把联盟、亲密与冲突分开，要求人物有自身动机；情感方法用具体经历建立羁绊。本文组合这些方法处理友情，不把恋爱好感度或“每段关系必须背叛一次”移作友情验收线。\n\n重要的关系可以在改变生活安排时显出分量，也可以通过稳定陪伴深化。不是只有翻脸才算有戏。",
+          "en": "“Friends for years” gives duration but not texture. Show their jokes, shared interests, remembered preferences, or the things they can say in each other’s company. Help and sacrifice can matter; easy enjoyment also has value.\n\nOh Story distinguishes alliance, intimacy, and conflict while deriving conduct from personal motives. Its emotional methods build bonds through specifics. This page combines those methods for friendship rather than importing romance affinity levels or a compulsory betrayal test.\n\nA bond can reveal its weight as routines change or deepen through steady company. A falling-out is not the only possible drama."
+        }
+      },
+      {
+        "id": "independent-goals",
+        "heading": {
+          "zh": "别让一个朋友只负责成全另一个",
+          "en": "Let Both Friends Have a Life"
+        },
+        "body": {
+          "zh": "给两个人都写想完成的事，也写对这段友情的不同需要。一个盼人陪自己撑场，另一个愿意来看，却不能取消已报名的课；差异就能产生交流，不必把其中一个改成坏人。\n\n| 要看什么 | 场景里的依据 |\n|---|---|\n| 原有相处 | 哪种习惯让两人觉得自在 |\n| 各自目标 | 即使本场不帮忙，仍在做什么 |\n| 当前需要 | 请求的是全程陪伴、片刻见面，还是只想被听见 |\n| 后来相处 | 接受、拒绝或另约之后，实际发生什么 |\n\n这是编辑用表，不是 skill 的原生友情公式。朋友也可以为对方自愿改变安排；重点是选择有来处，而不是友情禁止让步。",
+          "en": "Give each person something to pursue and a distinct need from the friendship. One wants company throughout an event; the other wants to visit but keep an enrolled class. That difference supports an exchange without turning either person into a villain.\n\n| Check | Scene evidence |\n|---|---|\n| Earlier contact | A habit that feels easy together. |\n| Individual goal | What each pursues without this favor. |\n| Present need | Full company, a brief meeting, or being heard. |\n| Later contact | What follows acceptance, refusal, or a new arrangement. |\n\nThis is an editorial table, not a native friendship formula. A friend may freely change plans; the point is a motivated choice, not a ban on compromise."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "原创片段：不陪全程，也认真来看你的作品",
+          "en": "Original Passage: A Short Visit That Still Matters"
+        },
+        "body": {
+          "zh": "唐禾和祝乔是多年好友，常在周末看完展去喝茶。祝乔总先看照片边缘，唐禾则爱给她的陶杯挑名字。唐禾周六办第一次社区摄影展，九点到十七点开放；祝乔已报陶艺课，当天十六点下课，之前也告诉过她。唐禾仍想让好友整天在场。以下为原创示范。\n\n> “你坐入口那张椅子吧，我每次一回头都能看见你。”唐禾说。\n>\n> 祝乔把展览小卡放在桌上。“我上午和下午都上课。能四点半到，赶你收展前看。”\n>\n> “我知道。只是第一回办，怕冷场。”\n>\n> “椅子坐满不等于展办好了。”祝乔把卡翻过来，“你给我留一点时间，讲讲那只猫为什么只露半张脸。”\n>\n> 唐禾看着那张照片。猫真正在看的是框外的水碗，她自己倒老想着入口那把椅子。\n>\n> “好。你来我再讲，别为了赶路没做完杯子。”\n\n周六唐禾照常布展、接待来客。祝乔十六点半实际到场，唐禾带她从第一张看到最后一张；祝乔问到猫照片的边缘，她把水碗在框外的取舍讲完。收展后，两人照常喝茶，祝乔拿出当天做杯子的照片，唐禾给歪了一点的杯耳起名“侧着听”。她们笑了好一会儿。\n\n展览是唐禾自己办成的，祝乔没有放弃课。一次短相聚仍有认真关注，也保留两人的趣味。唐禾以后是否不再要求全程陪伴，要由后文支持；本场只完成了这次安排与实际见面。视角里的判断属于唐禾，不替祝乔宣布内心。",
+          "en": "Tang He and Zhu Qiao have been friends for years and often have tea after visiting shows. Zhu checks a photograph’s edges first; Tang likes naming her pottery cups. Tang’s first community photography show opens Saturday from nine to five. Zhu’s enrolled class ends at four, as she already told Tang. Tang still wants her there all day. Original demonstration:\n\n> “Sit in the chair by the entrance. I could look back and see you,” Tang said.\n>\n> Zhu laid down the exhibition card. “I have class morning and afternoon. I can come at four-thirty, before you close.”\n>\n> “I know. It’s my first show. I’m afraid nobody will come.”\n>\n> “A full chair won’t make the show work.” Zhu turned the card over. “Save time to tell me why that cat shows only half its face.”\n>\n> Tang looked at the photograph. The cat had been watching a water bowl outside the frame, while she kept thinking about the entrance chair.\n>\n> “All right. I’ll tell you when you come. Don’t leave your cup unfinished to rush.”\n\nTang sets up and receives visitors. Zhu actually arrives at four-thirty; Tang takes her through the photographs. Asked about the cat’s edge, she explains the decision to leave its water bowl outside the frame. After closing, they have tea. Zhu shows a photo of the cup made that day. Tang names its slightly crooked handle “Listening Sideways.” They laugh for a while.\n\nTang runs her show; Zhu keeps her class. The brief visit contains attention and their shared pleasure. Later text would need to support any lasting change in Tang’s wish for full-time company. This scene establishes this arrangement and meeting. Interior judgment belongs to Tang, without assigning Zhu an unspoken feeling."
+        }
+      },
+      {
+        "id": "changes",
+        "heading": {
+          "zh": "友情可以换一种相处，不必先失去它",
+          "en": "Let the Friendship Find a New Form"
+        },
+        "body": {
+          "zh": "住得远、工作变忙、兴趣不同，都可以让相处改变。写具体：以前随时碰面，后来另约时间；以前一个人总听，后来两个人都讲自己的事。温暖可以继续，偶尔失落也可以保留。\n\n如果作者选择疏远或决裂，再找真正的原因和行动后果，别靠“长大了就必定散”替代过程。若写一场争执，见[争吵场景](/oh-story/write-an-argument-scene)；若写友情转恋爱，另外核新的心意与双方回答，不把普通关心一律当恋爱证据。",
+          "en": "Distance, work, and differing interests may change contact. Specify it: spontaneous meetings become arrangements; one usual listener also gets to talk. Warmth can continue alongside occasional disappointment.\n\nFor a chosen estrangement or rupture, show its causes and consequences instead of invoking inevitable adulthood. Use the [argument scene](/oh-story/write-an-argument-scene) for a confrontation. A romantic turn requires new feelings and replies; ordinary care need not be evidence of attraction."
+        }
+      },
+      {
+        "id": "review",
+        "heading": {
+          "zh": "改稿时，先找朋友自己的行动",
+          "en": "Review Each Friend’s Own Actions"
+        },
+        "body": {
+          "zh": "| 问题 | 先修什么 |\n|---|---|\n| 朋友只负责夸主角 | 给他自己的审美、趣味、目标与回应 |\n| 没有牺牲就被称不够真 | 看具体关注与自愿选择，不按付出大小评级 |\n| 一次拒绝就突然翻脸 | 核原有约定、人物经历与本次需要 |\n| 友情最后必变恋爱 | 按作者选定关系收束，友情本身可以是终点 |\n\n**改稿提示：**列出两人各自目标、旧相处和本次请求，指出哪些回应在原文已经发生。只修没有依据的关系跳跃，保留作者选定文风与结局。别为了制造考验添加事故、背叛或秘密爱情。",
+          "en": "| Problem | First repair |\n|---|---|\n| A friend only praises the protagonist | Restore taste, humor, goals, and replies. |\n| No sacrifice means no friendship | Examine specific attention and free choices rather than ranking costs. |\n| One refusal instantly ends the bond | Check old arrangements, experience, and current needs. |\n| Friendship must end in romance | Follow the chosen relationship; friendship can be the destination. |\n\n**Revision prompt:** list both goals, earlier contact, and the current request. Identify replies already present. Repair unsupported relationship leaps while preserving the chosen voice and ending. Add no accident, betrayal, or secret attraction merely to test the bond."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "友情线一定要安排背叛或牺牲吗？",
+          "en": "Must friendship include betrayal or sacrifice?"
+        },
+        "a": {
+          "zh": "不必。分歧、生活安排改变、认真听对方或共同享受一件事，都能显示关系。需要重大考验时按已有情节来写，不把考验类型当配额。",
+          "en": "No. Differences, changed routines, attention, and shared enjoyment can reveal a bond. Use a major test when the chosen story supports it, without a quota of test types."
+        }
+      },
+      {
+        "q": {
+          "zh": "两个人目标不同，还能写成很好的朋友吗？",
+          "en": "Can friends have different goals?"
+        },
+        "a": {
+          "zh": "可以。不同目标让他们有各自生活，也能学会理解和安排相处。不必一人完全围着另一个转；主动帮忙也不因此失去自身目标。",
+          "en": "Yes. Different goals support independent lives and changed contact. Neither needs to orbit the other, and freely offered help need not erase a personal goal."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 检查友情线。附两人的旧相处、各自目标、当下约定和片段；指出关系变化由哪次交流与行动支持。保留已有温暖与独立生活，只修点名范围，不添加背叛、事故或爱情来强造分量。",
+        "en": "Use $story-long-write to review a friendship with earlier habits, independent goals, present arrangements, and the passage. Identify the exchanges and actions supporting change. Preserve warmth and independent lives, revising only the named scope without invented betrayal, accidents, or romance."
+      }
+    },
+    "related": [
+      "/oh-story/ensemble-cast",
+      "/oh-story/write-a-worthy-rival",
+      "/oh-story/write-a-friends-to-lovers-romance"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "关系类型、独立目标与人物行为",
+          "en": "Relationship types, independent goals, and conduct"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-relations.md"
+      },
+      {
+        "label": {
+          "zh": "具体羁绊与意义变化",
+          "en": "Specific bonds and changed meaning"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/emotional-methods.md"
+      },
+      {
+        "label": {
+          "zh": "交流目标与回应",
+          "en": "Conversational purposes and replies"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/dialogue-mastery.md"
+      },
+      {
+        "label": {
+          "zh": "文风与故事事实分开裁决",
+          "en": "Separating style from story facts"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      }
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "write-an-apology-scene",
+    "topic": "characters-and-dialogue",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "小说道歉场景怎么写：承认什么，对方怎样回应",
+      "en": "How to Write an Apology Scene"
+    },
+    "seo_title": {
+      "zh": "小说道歉场景怎么写",
+      "en": "Write an Apology Scene"
+    },
+    "description": {
+      "zh": "从具体错误、交流目标和对方回应写道歉。附封面署名被抢的原创场景，分清说出歉意、实际修复和恢复信任。",
+      "en": "Build an apology from a specific wrong, conversational purpose, and reply. Includes an original cover-credit scene separating admission, repair, and trust."
+    },
+    "answer": {
+      "zh": "写清人物为哪件事道歉，而不是只让他说“我错了”。承认与解释可以同时存在，解释却不能把已经造成的后果取消；对方可以接受修复、暂缓亲近或不原谅。道歉如何影响关系，要由实际回应和后续行为支持，不由旁白替双方宣布。",
+      "en": "Name the specific wrong rather than stopping at “I was wrong.” An explanation can accompany admission without undoing consequences. The other person may accept a repair, delay closeness, or decline forgiveness. Replies and later conduct establish the relationship change, not a narrator’s declaration for both."
+    },
+    "sections": [
+      {
+        "id": "specific-wrong",
+        "heading": {
+          "zh": "先确定他承认的是哪件事",
+          "en": "Name the Wrong Being Admitted"
+        },
+        "body": {
+          "zh": "“让你不开心”有时绕开了实际行为：抢走署名、失约、泄露别人不愿公开的话。把原因落到本场已经发生的事，读者才知道这份歉意回应什么。\n\nOh Story 的对白方法先找双方议程，让回应接住上一句情绪；关系方法从人物已有目标与状态推导行为。本文据此组织道歉场景，不宣称 skill 内置一种道歉话术，也不把长短台词当责任大小的刻度。人物可以直说，潜台词不是必须遮住认错。",
+          "en": "“Making you unhappy” may avoid the actual act: taking credit, missing an arrangement, or revealing something another person did not want shared. Name what happened so readers understand what the apology answers.\n\nOh Story’s dialogue methods identify both agendas and emotionally responsive replies; its relationship methods derive conduct from established goals and state. This page applies them to an apology without claiming a native apology script or measuring responsibility by line length. Direct admission can fit; subtext need not conceal it."
+        }
+      },
+      {
+        "id": "reply",
+        "heading": {
+          "zh": "给对方一个与自身需要有关的回答",
+          "en": "Give the Other Person a Reply of Their Own"
+        },
+        "body": {
+          "zh": "道歉者可能想弥补，也可能急于结束尴尬。受影响的人可能要公开更正、归还物品、重新安排合作，或者今天不想继续谈。两人的需要未必一致。\n\n| 层面 | 要区分的事 |\n|---|---|\n| 承认 | 是否说清自己做了什么 |\n| 解释 | 是否解释原因，还是借原因否认后果 |\n| 修复 | 做了什么，哪些仍无法撤回 |\n| 回应 | 对方接受了哪一项，拒绝或暂缓哪一项 |\n\n这张表是编辑组合工具，不是必须四段念完的台词模板。一声简短“对不起”也能有力，只要前后文已让责任与回应可读。",
+          "en": "The apologizer may want repair or a quick end to embarrassment. The affected person may want a public correction, a returned object, changed cooperation, or no more conversation today. Their needs can differ.\n\n| Layer | Distinction |\n|---|---|\n| Admission | Naming one’s actual act. |\n| Explanation | Explaining a cause versus denying its consequence. |\n| Repair | What happens and what cannot be withdrawn. |\n| Reply | What is accepted, refused, or deferred. |\n\nThis editorial combination is not a four-paragraph speech template. A brief “sorry” can work when context makes responsibility and response readable."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "原创片段：先更正那句“我做的”",
+          "en": "Original Passage: Correct “I Made It” First"
+        },
+        "body": {
+          "zh": "社区小册子的封面由葛简独立画成，江澄做文字排版；印在册子上的署名本来正确。六人的展示筹备会上，主持问“封面也是你做的？”，江澄急着接过夸奖，回答“是”，主持随即把展示记录中的封面作者填成江澄。葛简在场，听到后没有再参与闲聊。散会江澄追上她，以下为原创片段。\n\n> “刚才那句是我说错了。封面是你画的，我只排版。”\n>\n> “你不是不知道。”葛简说。\n>\n> “知道。我想顺着夸奖接下去。这是原因，不是你的封面就成了我的。”\n>\n> 葛简把自己的画稿收进包里。“先把会上说法改过来。晚饭今天不一起了。”\n>\n> 江澄拿出手机，向包含原来六人的筹备群发出更正：“刚才我回答错了。封面作者是葛简，排版是我，请展示介绍按原署名说。”他把已发送的消息给她看，没有再问她是不是消气了。\n\n主持随后回复已看到，并实际把展示记录里的封面作者改为葛简；葛简核对后说“更正看到了”。她仍按自己的安排离开，没有接受晚饭。江澄把自己负责的排版继续完成。\n\n本例已经完成具体承认、消息更正和展示记录修复；葛简确认更正，不等于确认恢复亲近。消息发到原群，也不能证明每名成员都已读或所有印象已消除。江澄以后怎样面对夸奖，需另有行为支持，不靠一句道歉宣布长期成长。",
+          "en": "Ge Jian drew a community booklet’s cover alone; Jiang Cheng laid out its text. The printed credit is correct. In a six-person exhibition-planning meeting, the host asks whether Jiang also made the cover. Eager to accept praise, he answers yes; the host enters Jiang as cover artist in the exhibition record. Ge hears and stops joining the casual talk. Jiang catches up after the meeting. Original passage:\n\n> “That answer was wrong. You drew the cover. I did the layout.”\n>\n> “You knew that,” Ge said.\n>\n> “I did. I wanted to keep accepting the praise. That explains my answer; it doesn’t make your cover mine.”\n>\n> Ge put her drawing into her bag. “Correct what you said at the meeting first. I’m not having dinner together today.”\n>\n> Jiang sent a message to the planning group containing the same six people: “My answer was wrong. Ge Jian is the cover artist; I did layout. Please use the original credit in the display introduction.” He showed the sent message without asking whether she had stopped being angry.\n\nThe host replies and actually corrects the exhibition record’s cover credit. Ge checks and says, “I’ve seen the correction.” She still leaves on her own plans without accepting dinner. Jiang finishes his assigned layout.\n\nThe specific admission, sent correction, and record repair happen. Ge’s acknowledgment does not establish restored closeness. Posting to the original group does not prove every member read it or every impression vanished. Later conduct would need to support any lasting change in Jiang’s response to praise."
+        }
+      },
+      {
+        "id": "tone",
+        "heading": {
+          "zh": "真诚、笨拙与操纵，要由内容和后果区分",
+          "en": "Distinguish Sincerity, Awkwardness, and Manipulation"
+        },
+        "body": {
+          "zh": "台词流利不等于真诚，说得笨拙也不等于敷衍。看他有没有承认事实、接住对方要求、实际做所说的修复，还是把“我已经道歉了”用来要求立刻恢复原状。\n\n作者也可以写失败或不真诚的道歉。让读者看出它怎样转移责任，人物又怎样回应，不把一段漂亮话自动当成有效改变。对方本来愿意原谅，也可写温暖接受；不要求每场都拒绝才显得高级。",
+          "en": "Fluent words do not prove sincerity, and awkward speech does not prove indifference. Examine admission, attention to the reply, and actual repair, or whether “I apologized” demands immediate restoration.\n\nA failed or insincere apology can be intentional. Make its responsibility shift and the response readable rather than treating polished speech as change. Warm acceptance is also possible when supported; refusal is not a mandatory mark of sophistication."
+        }
+      },
+      {
+        "id": "review",
+        "heading": {
+          "zh": "改稿时，不用苦衷抹掉原来的错",
+          "en": "Keep the Original Wrong Visible in Revision"
+        },
+        "body": {
+          "zh": "| 问题 | 修改方向 |\n|---|---|\n| 只说“对不起”，读者不知道为哪件事 | 借已有前文或一句具体承认交代 |\n| 临时添加巨大苦衷 | 核是否已有依据；原因不自动取消责任 |\n| 把接受修复写成全原谅 | 收到对方实际说出、做出的变化 |\n| 宣布永久改好 | 看后文相似情境中的行为 |\n\n**改稿提示：**列出原错、已发生后果、双方目标、道歉与回应，指出跳过了哪一步因果。只修指定片段，保留文风与选定结局；不代造苦衷、替对方原谅或抹掉已发生损失。跨全书改变见[人物弧光](/oh-story/character-arc)，关系恢复见[亲情和解](/oh-story/write-a-family-reconciliation-scene)。",
+          "en": "| Problem | Revision direction |\n|---|---|\n| “Sorry” without a readable object | Use existing context or a specific admission. |\n| A sudden enormous excuse | Check its established basis; a cause does not erase responsibility. |\n| Accepting repair becomes total forgiveness | Limit the conclusion to actual replies and conduct. |\n| Permanent reform is declared | Examine later behavior under similar pressure. |\n\n**Revision prompt:** list the wrong, consequences, goals, apology, and reply. Identify missing causality, then revise only the named passage with voice and ending preserved. Invent no excuse, forgiveness, or erased loss. Use the [character arc](/oh-story/character-arc) for book-length change and [family reconciliation](/oh-story/write-a-family-reconciliation-scene) for restored contact."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "道歉之后一定要和好吗？",
+          "en": "Must an apology lead to reconciliation?"
+        },
+        "a": {
+          "zh": "不必。可以只承认并修复一件事，也可以暂时不恢复亲近。作者要写和好时，用对方真实回答和后续相处支持它。",
+          "en": "No. An admission and one repair can happen without restored closeness. For reconciliation, support it through the other person’s reply and later contact."
+        }
+      },
+      {
+        "q": {
+          "zh": "道歉场景能不能直接写“对不起”？",
+          "en": "Can the character simply say “sorry”?"
+        },
+        "a": {
+          "zh": "可以。具体错误已经清楚时，简短台词可能更符合人物。不要把长篇解释当真诚的固定证明，也不要机械禁止直说。",
+          "en": "Yes. A brief line can fit when the wrong is already clear. Lengthy explanation is not a fixed proof of sincerity, and direct speech need not be banned."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 检查道歉片段。附原错、已经造成的后果、双方目标和后文；区分承认、解释、修复行动与对方回答。保留已知事实和作者结局，只修指定句段，不替受影响者原谅，也不补新苦衷免除责任。",
+        "en": "Use $story-long-write to review an apology with the wrong, consequences, both goals, and later text. Separate admission, explanation, repair, and reply. Preserve facts and the chosen ending, revising only the named passage without granting forgiveness for another person or inventing excuses."
+      }
+    },
+    "related": [
+      "/oh-story/write-a-family-reconciliation-scene",
+      "/oh-story/write-a-believable-villain-redemption",
+      "/oh-story/write-a-second-chance-romance"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "对话议程、情绪承接与因果",
+          "en": "Dialogue agendas, emotional replies, and causality"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/dialogue-mastery.md"
+      },
+      {
+        "label": {
+          "zh": "从既有目标与行为推导回应",
+          "en": "Deriving replies from established goals and conduct"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-relations.md"
+      },
+      {
+        "label": {
+          "zh": "事件触发的变化与可见兑现",
+          "en": "Event-triggered change and visible outcomes"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/emotional-methods.md"
+      },
+      {
+        "label": {
+          "zh": "作者选择与既有事实",
+          "en": "Author choices and established facts"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      }
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "write-a-chase-scene",
+    "topic": "plot-and-outline",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "小说追逐戏怎么写：路线、距离与改变策略",
+      "en": "How to Write a Chase Scene"
+    },
+    "seo_title": {
+      "zh": "小说追逐戏怎么写",
+      "en": "Write a Chase Scene"
+    },
+    "description": {
+      "zh": "先定追赶目标和完整路线，再写双方选择如何改变距离。附仓区追逐原创片段，不靠临时出口或对手突然停下解围。",
+      "en": "Establish the objective and route, then show choices changing pursuit. Includes an original warehouse chase without a last-minute exit or frozen pursuer."
+    },
+    "answer": {
+      "zh": "先说清谁追谁、为何追、追到或跑到哪里才算本场结果。读者要跟得上关键路线和双方回应，不必记住整张地图；障碍应改变走法或距离，不能只增加动作词。到达一个地点、交出物件和彻底脱险分别判断，后面的追赶与消耗照前文继续。",
+      "en": "Establish who pursues whom, why, and what counts as this scene’s outcome. Readers need the key route and both responses rather than a complete map. Obstacles should affect routes or distance beyond extra verbs. Arrival, handoff, and escape are distinct; ongoing pursuit and established costs continue afterward."
+    },
+    "sections": [
+      {
+        "id": "objective",
+        "heading": {
+          "zh": "先定本场追逐要交付什么",
+          "en": "Choose the Outcome Before the Sprint"
+        },
+        "body": {
+          "zh": "追逐可以为了抓住一个人、抢回物件、摆脱跟随，或把重要东西先送出去。对手也有目的：要人、要物，还是只想阻止到达？目标不同，会改变拦截和转向的选择。\n\nOh Story 把追逐列为叙事元素，战斗方法则先定结果与条件、再安排动作。本文把这些方法用于移动中的追赶，未把它称为独立追逐 skill。跑得更快不自动解决所有问题，逃跑者也未必需要战胜追赶者。",
+          "en": "A chase may aim to catch someone, recover an object, lose a follower, or send something ahead. The pursuer may want the person, the object, or simply prevent arrival. These goals shape interception and turns.\n\nOh Story lists pursuit as a narrative element; its combat methods choose outcomes and conditions before actions. This page applies those methods to a moving chase without claiming a separate native chase skill. Greater speed need not solve everything, and the runner may not need to defeat the pursuer."
+        }
+      },
+      {
+        "id": "route",
+        "heading": {
+          "zh": "让读者认出关键路线，不列整张街区图",
+          "en": "Make the Relevant Route Readable"
+        },
+        "body": {
+          "zh": "写清起点、一次关键岔路、障碍与终点之间的连接。必要地标可以先进入人物观察，也可以随行动第一次出现；影响破局的捷径、门和工具要有可用依据，不能在结果需要时才凭空补出。\n\n| 记录 | 要检查什么 |\n|---|---|\n| 位置 | 过门、拐弯、进入通道前后各在哪里 |\n| 距离 | 哪次阻挡、选择或能力让人追近/拉开 |\n| 持物 | 是否一直携带，什么时候实际递出 |\n| 对方回应 | 有没有跟随、换路、拦截或被真实挡住 |\n\n不要求每步报米数。一个拐角隔断视线、门口足以伸手的距离，都可以够用；“差点抓到”要与实际位置相容。",
+          "en": "Connect the start, a meaningful fork, an obstacle, and the destination. Landmarks can appear in prior observation or as the route unfolds; an escape-enabling shortcut, door, or tool needs a usable basis rather than appearing for convenience.\n\n| Record | Check |\n|---|---|\n| Position | Where each person is before and after a turn or doorway. |\n| Distance | What choice, obstacle, or ability closes or opens the gap. |\n| Possession | What remains carried and when it is actually handed over. |\n| Response | Following, changing route, intercepting, or being genuinely blocked. |\n\nExact meters are optional. A corner interrupting sight or reaching distance at a door may suffice, provided “almost caught” matches positions."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "原创片段：先把纸包递进去，人还没进去",
+          "en": "Original Passage: The Packet Gets Inside First"
+        },
+        "body": {
+          "zh": "原创仓区故事：周宁手里拿着自己拍下并打印的登记页，已发现仓管殷衡擅改数量，想交给值守员复核。殷衡要抢回纸包，已在北库门口试过夺取。周宁先前来过这里，知道北门外晒架区有两路通向东门：左路较宽但绕，右路窄且短；东门外的直通道尽头是值守室，室外投递窗可交东西，不能从窗钻人。值守员今天在室内，前文已看见。\n\n> 周宁攥住纸包，出北门往左绕。他怕在窄路被追上时无处侧让，宁愿绕远。回头看见殷衡进了右侧窄路，他知道那条路短，没有把拐弯当成甩脱。\n>\n> 晒架挡着内侧，他沿外缘过。到东门时，殷衡从右路口追上来，伸手碰到了包角。周宁把纸包收向胸前，包没脱手；他转出东门，继续往通道尽头跑。\n>\n> “把东西留下！”\n>\n> 值守室就在前面，门关着，投递窗开着。周宁没有停在门外找钥匙，把纸包伸向窗里：“请先收着，看登记数量。”\n>\n> 值守员在室内接稳，他才松手。再回身时，殷衡已到两步外。周宁背后是墙，值守室的门仍没开。\n\n纸包经过实际接收留在室内，周宁仍在通道，不是整个人已经安全。殷衡走较短路使距离缩小，没为主角递东西而突然停机；后文怎样处理两步距离，要继续依靠已建立条件。若作者要本场写到完全脱险，就须另写有依据的过程，不能用“到了值守室”代替。\n\n这份原创文本按周宁所知、所见与所闻写，不跳进殷衡内心。",
+          "en": "Original warehouse story: Zhou Ning carries copies of register pages he photographed and printed. He has discovered manager Yin Heng changed quantities and wants the duty attendant to check them. Yin tried to take the packet at the north warehouse door. Zhou has visited before: the drying-rack area outside the north door has a wider, longer left route and a narrow, shorter right route to the east gate. Outside that gate, a straight passage ends at the duty room. Its delivery window passes objects, not people. The attendant was shown inside earlier today.\n\n> Zhou gripped the packet and went left outside the north door. He wanted room to dodge a reaching hand if caught, preferring the longer path to the cramped one. Looking back, he saw Yin take the narrow right route. He knew it was shorter; the turn had not ended pursuit.\n>\n> Racks blocked the inner edge. He followed the outside. At the east gate, Yin emerged from the right route and reached the packet’s corner. Zhou drew it against his chest without losing it, turned outside, and ran down the passage.\n>\n> “Leave it!”\n>\n> The duty room was ahead, its door closed and delivery window open. Zhou did not stop to search for a key. He extended the packet through the window. “Please hold this. Check the quantities.”\n>\n> The attendant secured it before Zhou let go. When he turned, Yin was two steps away. The wall was behind Zhou, and the room’s door had not opened.\n\nThe packet is actually received inside; Zhou remains outside. Yin’s shorter path closes the gap rather than freezing him for the handoff. Resolving the remaining two steps requires further established conditions. A chosen complete escape would need that process, not merely “reached the duty room.”\n\nThis original passage follows Zhou’s knowledge and perceptions without entering Yin’s mind."
+        }
+      },
+      {
+        "id": "rhythm",
+        "heading": {
+          "zh": "快不等于每个动作都写短句",
+          "en": "Let Speed Follow Attention and Change"
+        },
+        "body": {
+          "zh": "关键碰到包角、收回、接稳再松手，要留足过程。连续绕路可以概述，前提是读者仍能跟上它怎样改变距离。心理只留影响这次行动的判断，如知道右路更短，不停下来回忆整段旧史。\n\n写作方法允许追逐连续处在动作中，不要求每节塞一个停顿或受伤。长短句按本书文风与注意点安排；真实疲劳、伤势或丢失的东西继续有效，不为“节奏更快”直接消除。",
+          "en": "Leave enough process for the packet corner, withdrawal, secure receipt, and release. Summarize routine movement when its effect on pursuit stays clear. Keep thoughts relevant to a decision, such as knowing the right route is shorter, without stopping for an entire history.\n\nThe writing methods allow sustained action in a chase without a pause or injury quota. Sentence length follows the book’s voice and attention. Established fatigue, wounds, or lost objects remain effective rather than disappearing to accelerate pacing."
+        }
+      },
+      {
+        "id": "review",
+        "heading": {
+          "zh": "查对手有没有消失，出口有没有临时长出来",
+          "en": "Check the Pursuer and the Available Exits"
+        },
+        "body": {
+          "zh": "| 问题 | 优先修改 |\n|---|---|\n| 一转弯就直接甩脱 | 补真实遮挡、距离或换路依据 |\n| 追赶者一直只喊不动 | 写符合目标的行动与可见回应 |\n| 屋里屋外突然切换 | 核跨门、位置与实际进入 |\n| 找到接应处就宣布全安全 | 分清到达、交接与本人脱险 |\n| 招式、路名太多却没有变化 | 留影响追赶的节点，压缩纯重复 |\n\n**改稿提示：**逐段列关键位置、持物、路线和对方回应，指出哪次动作造成距离变化。保留既有条件与选定终点，只改空间和因果断点，不造新出口、救兵、消耗恢复或对手停机。",
+          "en": "| Problem | First repair |\n|---|---|\n| A turn automatically loses pursuit | Supply actual cover, separation, or route logic. |\n| The pursuer only shouts | Restore goal-driven action and visible response. |\n| Outside becomes inside without passage | Check the doorway and actual entry. |\n| Reaching support means total safety | Separate arrival, handoff, and personal escape. |\n| Many moves and street names without change | Retain consequential points and compress repetition. |\n\n**Revision prompt:** trace positions, possession, routes, and replies; identify actions changing distance. Preserve established conditions and the chosen endpoint, repairing spatial and causal gaps without invented exits, rescuers, restored stamina, or a frozen opponent."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "追逐场景必须写很多地形和米数吗？",
+          "en": "Does a chase need many landmarks and exact distances?"
+        },
+        "a": {
+          "zh": "不必。读者需要关键连接与有作用的距离变化。地形影响选择时写清，重复跑过的路可压缩，别让地图信息淹没当前目标。",
+          "en": "No. Readers need relevant connections and consequential changes in distance. Explain terrain affecting a choice, summarize repeated movement, and keep the goal readable."
+        }
+      },
+      {
+        "q": {
+          "zh": "追逐一定要在章尾彻底脱险吗？",
+          "en": "Must a chase end with complete escape?"
+        },
+        "a": {
+          "zh": "不一定。本场可选交出物件、暂时挡住或仍被追赶。把已经完成和尚未完成的结果分清，下一场继承当前位置与持物。",
+          "en": "No. The chosen outcome may be a handoff, temporary obstruction, or continuing pursuit. Separate completed from unresolved results and carry position and possession forward."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 检查追逐场景。附起点、路线、双方目标、已有能力/消耗和选定结果；逐段列出关键位置、持物与对方回应。只修空间或因果断点，保留文风，不新增出口、工具、救兵或瞬移来替主角解围。",
+        "en": "Use $story-long-write to review a chase with starting positions, route, goals, abilities, costs, and chosen result. Trace key positions, possession, and pursuit responses. Repair only spatial or causal gaps while preserving voice, without invented exits, tools, rescuers, or teleportation."
+      }
+    },
+    "related": [
+      "/oh-story/fight-scenes",
+      "/oh-story/write-a-scary-scene",
+      "/oh-story/build-a-cause-and-effect-plot"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "追逐作为叙事元素",
+          "en": "Pursuit as a narrative element"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/plot-emotion-system.md"
+      },
+      {
+        "label": {
+          "zh": "预定结果、环境与双方回应",
+          "en": "Chosen outcomes, environment, and opposing responses"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-combat-face.md"
+      },
+      {
+        "label": {
+          "zh": "连续动作与场景节奏",
+          "en": "Continuous action and scene rhythm"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
+      },
+      {
+        "label": {
+          "zh": "视角、感知与动作信息",
+          "en": "Viewpoint, perception, and action information"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-craft.md"
+      },
+      {
+        "label": {
+          "zh": "文风选择不改故事事实",
+          "en": "Style choices preserve story facts"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      }
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "write-a-countdown-plot",
+    "topic": "plot-and-outline",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "小说倒计时情节怎么写：期限逼近，选择也要变",
+      "en": "How to Write a Countdown Plot"
+    },
+    "seo_title": {
+      "zh": "小说倒计时情节怎么写",
+      "en": "Write a Countdown Plot"
+    },
+    "description": {
+      "zh": "让截止条件、耗时和实际后果共同制造紧迫感。附摄影投稿的原创时间线，不靠反复报数字或临时延期维持悬念。",
+      "en": "Build urgency from a clear cutoff, task duration, and consequences. Includes an original submission timeline without convenient extensions."
+    },
+    "answer": {
+      "zh": "先让读者知道期限到来时会发生什么、人物为什么在乎，再把剩余时间与仍要做的事连起来。报时有用，是因为它改变了可选办法；不是每段倒数一次就会紧张。结果可以成功、失败或部分完成，截止之后的后果仍按已经建立的规则发生。",
+      "en": "Tell readers what happens at the deadline and why it matters, then connect remaining time to unfinished work. A time check matters when it changes options, not merely because numbers decrease. Success, failure, or partial completion can work; consequences after the cutoff follow the established rules."
+    },
+    "sections": [
+      {
+        "id": "deadline",
+        "heading": {
+          "zh": "先说明到点发生什么",
+          "en": "Establish What the Deadline Does"
+        },
+        "body": {
+          "zh": "截止不是一串数字，而是选择即将失效：报名停止、船已开走、约定的人离开，或者某项威胁开始生效。人物要争取的东西和失去它的意义也要可读。\n\nOh Story 的倒计时卡要求结束时有事发生，悬念方法用时间锁和提前告知大事件制造期待。本文把它们与数字意义、场景节奏合用，不把固定隔一两章报时当普遍要求。期限可以很日常，不用每次升级成生死。",
+          "en": "A cutoff means an option expires: submissions close, a boat leaves, someone departs, or a threat takes effect. Make the desired result and meaning of losing it readable.\n\nOh Story’s countdown card requires an event at its end; suspense methods use time locks and advance disclosure. This page combines those ideas with meaningful numbers and scene rhythm without a universal report-every-two-chapters rule. Ordinary stakes can support a deadline without becoming life or death."
+        }
+      },
+      {
+        "id": "options",
+        "heading": {
+          "zh": "让时间改变能选的办法",
+          "en": "Let Time Change Available Tactics"
+        },
+        "body": {
+          "zh": "列出剩余任务、时间依据和可能放弃的部分。精确数字适合算可行性；耗时尚未知时，写不确定范围或先核条件，别假装所有步骤保证准点。\n\n| 检查 | 对应问题 |\n|---|---|\n| 截止条件 | 以开始、到达还是完整交付为准 |\n| 任务 | 哪步没做，哪些已经完成 |\n| 耗时 | 已测、规则规定、人物估计，还是未知 |\n| 选择 | 赶最佳版本、交已有版本或接受错过 |\n\n这是编辑检查表，不是 skill 原生时间账协议。结果要与条件相符；也可通过交谈改变期限，但谁有权改变、何时确实同意，需要在故事里成立。",
+          "en": "List unfinished tasks, duration evidence, and possible tradeoffs. Exact figures help feasibility; unknown durations need uncertainty or a check rather than guaranteed punctuality.\n\n| Check | Question |\n|---|---|\n| Cutoff condition | Starting, arriving, or delivering everything? |\n| Tasks | What remains and what is already done? |\n| Duration | Measured, prescribed, estimated, or unknown? |\n| Choice | Pursue the best version, use an existing one, or miss the chance? |\n\nThis is an editorial table, not a native timing-ledger protocol. An agreed extension can work, but authority and actual agreement need support in the story."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "原创时间线：保住投稿机会，放弃最想换的新照片",
+          "en": "Original Timeline: Submit the Existing Set"
+        },
+        "body": {
+          "zh": "原创社区摄影征集在今晚二十点停止收件，以截止前收到完整封装为准：三张纸质照片加报名表。这是本故事规则。秦遥想交一组“回家的路”，表与两张照片已经装好，第三张想换成今晚新拍的门灯；旧候选“院口”已经印好放在同一袋中，可以组成完整三张，但她更喜欢新图的收束。\n\n十九点四十二分，打印店说新图预计十九点五十六分可取；她按熟悉路程估计，从店到收件处约六分钟。十九点五十六分再走，预计二十点零二分到，已晚于截止；这些是当时估计，不能当已完成的测量。\n\n| 时刻 | 本例实际发生的事 |\n|---|---|\n| 19:42 | 秦遥听到打印估计，比较等新图与交旧组的选择 |\n| 19:48 | 她已选旧“院口”，核三张与报名表，完整封好后离店 |\n| 19:54 | 实际到达收件处，工作人员核收完整封装并记下收到时间 |\n| 20:00 | 工作人员结束收件，收起提交箱；没有为她临时延时 |\n\n> 秦遥把门灯的预览收回手机里，将旧照片翻到最上面。院口那盏灯还没亮，路却已经走到这里了。\n>\n> “交这一组。”她说。\n\n她保住了这次投稿机会，实际放弃的是新照片替换；不是拿到奖，也不是新图必然比旧图好。十九点五十六分能否真的取到新图没有在本路径发生，后文不要改写成实测。若选择等新图，作者就要另写真实取件和到达，让迟到后果按截止条件结算。",
+          "en": "Original community photography call closes at eight tonight. A complete sealed submission must arrive before then: three paper photographs and a form. This is the fictional story’s rule. Qin Yao’s “Way Home” has its form and two prints ready. She wants a new doorway-light picture as the third; an already printed courtyard candidate in the same bag can complete the set, but she prefers the new ending.\n\nAt 19:42, the print shop estimates the new picture ready at 19:56. Qin estimates about six minutes from shop to collection point on a familiar route. Leaving then suggests arrival at 20:02, after closure. These are present estimates rather than completed measurements.\n\n| Time | What happens in this path |\n|---|---|\n| 19:42 | Qin hears the estimate and compares waiting with submitting the existing set. |\n| 19:48 | She chooses the courtyard print, checks three photographs and the form, seals everything, and leaves. |\n| 19:54 | She actually arrives; staff receive the complete packet and record its arrival. |\n| 20:00 | Staff close collection and put away the box without extending it for her. |\n\n> Qin put the doorway-light preview back on her phone and moved the old photograph to the top. The courtyard lamp was unlit, but the route had reached home.\n>\n> “I’ll submit this set,” she said.\n\nShe preserves the submission opportunity while giving up the replacement, without winning a prize or proving one photograph better. The estimated 19:56 pickup never occurs in this path and must not become a measured fact later. A chosen waiting branch needs its own actual pickup and arrival, with lateness handled under the cutoff condition."
+        }
+      },
+      {
+        "id": "pressure",
+        "heading": {
+          "zh": "报时之间，要有新的选择或进展",
+          "en": "Give the Time Checks Something to Measure"
+        },
+        "body": {
+          "zh": "时钟可以不反复出现。检查任务推进、人物改变办法、一个原本可行的选择失效，读者就能感到时间压缩。等待本身也能产生压力，前提是知道等什么及错过会怎样，不为每次报时硬塞新事故。\n\n秦遥的两张照片和表早已完成，紧张点是第三张取舍与完整交付。补拍、交通堵塞、工作人员刁难都不是本例需要的额外障碍。大段谈话或回忆若发生在实时倒数中，时间仍要计入；概述和跳时可以用，但前后时刻不能矛盾。",
+          "en": "The clock need not appear repeatedly. Task progress, changed tactics, or an option expiring can compress time. Waiting itself can create pressure when its object and consequence are known, without an accident for every check.\n\nQin’s two prints and form are ready; the tension concerns the third image and complete delivery. Extra reshoots, traffic, or obstructive staff are unnecessary here. Conversation and memories consume time within a continuous countdown. Summary and time jumps can work with consistent anchors."
+        }
+      },
+      {
+        "id": "review",
+        "heading": {
+          "zh": "结束时别让规则忘了自己说过什么",
+          "en": "Make the Ending Respect the Established Cutoff"
+        },
+        "body": {
+          "zh": "| 问题 | 修改方向 |\n|---|---|\n| 只报数字，任务一直没变 | 核报时是否影响选择、进展或等待压力 |\n| 以提交为准，却到门口就算完成 | 补真实交付或改准确结果 |\n| 预估全写成保证 | 区分预期和实际时刻 |\n| 到点突然无条件延期 | 给已有条件与真实同意，或按原规则结算 |\n| 成功投递就宣布胜出 | 限于实际获得的结果，后续评选另写 |\n\n**改稿提示：**列截止条件、关键时刻、未完成任务与每次选择。对照实际发生的路径核时间；只修矛盾，不添事故或延期，不把作者计划、人物估计写成已发生。",
+          "en": "| Problem | Revision direction |\n|---|---|\n| Numbers change while nothing else does | Check choices, progress, or meaningful waiting pressure. |\n| Arrival counts despite a delivery condition | Show actual delivery or limit the result. |\n| Estimates become guarantees | Separate expectation from actual timing. |\n| A free extension appears at closure | Establish conditions and agreement or honor the original rule. |\n| Submission becomes victory | Keep the actual outcome; selection remains separate. |\n\n**Revision prompt:** list the cutoff, time anchors, unfinished tasks, and choices. Check the actual branch for timing consistency. Repair contradictions without new accidents or extensions, and keep plans and estimates distinct from events."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "倒计时一定要秒表、爆炸或生死危险吗？",
+          "en": "Does a countdown need a stopwatch or mortal danger?"
+        },
+        "a": {
+          "zh": "不需要。投稿、赴约、赶车或一个机会结束，都可以有分量。让读者明白人物为何在乎与到点后果，不靠危险级别替代投入。",
+          "en": "No. Submission, an appointment, transport, or an expiring opportunity can matter. Establish investment and consequences rather than substituting danger level for stakes."
+        }
+      },
+      {
+        "q": {
+          "zh": "截止前成功是不是最好的结局？",
+          "en": "Is success before the deadline always the best ending?"
+        },
+        "a": {
+          "zh": "不一定。错过、部分完成或付出取舍都可以成立，按作者的故事承诺选择。重要的是条件、过程与结果相符，不为制造反转临时改截止规则。",
+          "en": "No. Missing it, partial completion, or a tradeoff can fit the chosen story. Conditions, process, and result need to agree without a last-minute rule change for a twist."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 检查倒计时情节。附起始时刻、截止条件、任务耗时依据、双方所知和原稿；逐项核选择与实际到达/提交时间。保留既定结果，只修时间或因果矛盾，不凭空延期、瞬间完成步骤或把计划当已发生。",
+        "en": "Use $story-long-write to review a countdown with its start, cutoff condition, duration basis, knowledge, and passage. Check choices against actual arrival or submission. Preserve the result while repairing timing or causality, without convenient extensions, instantaneous work, or completed plans that never happened."
+      }
+    },
+    "related": [
+      "/oh-story/foreshadowing-and-suspense",
+      "/oh-story/numbers-in-fiction",
+      "/oh-story/web-serial-pacing"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "倒计时结束要有事件",
+          "en": "An event at the end of a countdown"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/plot-emotion-system.md"
+      },
+      {
+        "label": {
+          "zh": "时间锁与提前告知的悬念",
+          "en": "Time locks and disclosed suspense"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/long-suspense.md"
+      },
+      {
+        "label": {
+          "zh": "数字含义与场景节奏",
+          "en": "Meaningful numbers and scene rhythm"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
+      },
+      {
+        "label": {
+          "zh": "作者节奏与已定时间事实",
+          "en": "Authorial rhythm and established times"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      }
+    ]
   }
 ]
