@@ -799,7 +799,7 @@ const guidesIndex = () => {
       <ul class="reading-list">${readingOf().map((item)=>{
         const topic=topics.find((candidate)=>candidate.slug===topicOf(item));const project=projects.find((candidate)=>candidate.slug===item.owner)
         const desc=item.description ? pick(item.description) : summary(pick(item.answer))
-        return `<li data-search-text="${esc([pick(item.title),desc,pick(topic.title),project.name.en].join(' '))}">${guideLink(item)}<p>${esc(desc)}</p><span class="facts">${esc(pick(topic.title))} · ${esc(project.name.en)}</span></li>`
+        return `<li data-search-text="${esc([pick(item.title),item.seo_title ? pick(item.seo_title) : '',desc,pick(topic.title),project.name.en].join(' '))}">${guideLink(item)}<p>${esc(desc)}</p><span class="facts">${esc(pick(topic.title))} · ${esc(project.name.en)}</span></li>`
       }).join('')}</ul>
     </section>
   </div>

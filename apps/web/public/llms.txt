@@ -75,6 +75,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Write Multiple Factions in a Novel](https://zenstory.ai/oh-story/write-multiple-factions-in-a-novel) — Give factions independent reasons to act on one event. Includes an original alliance map and repairs for passive observers or unexplained support.
 - [Organize Your Novel’s Timeline and Reveals](https://zenstory.ai/oh-story/organize-a-novel-timeline) — Separate event chronology, manuscript order and reader knowledge. Use relative time and a worked flashback example without inventing dates.
 - [How to Name Novel Chapters Without Spoiling the Reveal](https://zenstory.ai/oh-story/novel-chapter-titles) — Choose chapter titles from actual actions, lines, or motifs. Compare workshop examples, check spoilers and repeats, and preserve manuscript naming.
+- [How to Weave Multiple Storylines in a Novel](https://zenstory.ai/oh-story/weave-multiple-storylines-in-a-novel) — Give each storyline a present question, then choose returns and intersections. Includes a complete two-location passage and a timing worksheet.
 
 ### Characters and dialogue / 人物与对白
 - [Characters and dialogue](https://zenstory.ai/guides/characters-and-dialogue) — Build believable motives, distinct voices, and relationships.
@@ -101,8 +102,6 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Design Characters for a Short Drama](https://zenstory.ai/drama-skills/short-drama-character-design) — Turn biography into goals, protected values, habitual strategies and costs. Includes an original character card and a scene testing those traits.
 - [How to Fix Out-of-Character Fanfiction](https://zenstory.ai/oh-story/write-fanfiction-that-fits-the-characters) — Separate canon behavior, its triggers and your changes. Includes a fictional-canon comparison and a method for repairing choices without freezing growth.
 - [How to Write a Believable Betrayal](https://zenstory.ai/oh-story/write-a-betrayal-that-feels-earned) — Build betrayal from established trust and character choices, then change what happens next. Includes an original theater story and a trust-evidence table.
-- [How to Write Jealousy in a Romance](https://zenstory.ai/oh-story/write-jealousy-in-a-romance) — Separate observed facts, guesses, and the reply a character wants. Includes a jealousy scene that retains work, a third person’s goals, and an agreed date.
-- [How to Write a Believable Villain Redemption](https://zenstory.ai/oh-story/write-a-believable-villain-redemption) — Write redemption through changed choices, real repair, and the injured person’s reply. Includes a lantern-fair scene without forced forgiveness.
 - [How to Write a Romance Confession Scene](https://zenstory.ai/oh-story/write-a-romance-confession-scene) — Design a confession around relationship progress, personal agendas and a real response. Includes an original choir scene and before-and-after dialogue.
 - [How to Give Numbers Meaning in Fiction](https://zenstory.ai/oh-story/numbers-in-fiction) — Connect money, time and quantities to established character costs. Includes an original budget scene and a practical meaning table.
 - [How to Introduce a Fiction Character Readers Remember](https://zenstory.ai/oh-story/introduce-a-fiction-character) — Introduce a character through a task, a memorable detail and a choice. Includes an original rehearsal scene and a compact planning card.
@@ -121,6 +120,10 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Write an Unrequited-Love Story with Emotional Depth](https://zenstory.ai/oh-story/write-an-unrequited-love-story) — Separate one person’s hopes from the other’s actual reply. Includes an original running scene, actions after rejection, and repairs for emotional depth.
 - [How to Write Mutual Pining Without Stalling the Romance](https://zenstory.ai/oh-story/write-a-mutual-pining-romance) — Show attraction on both sides while tracking what each person knows. Includes original viewpoints, a date invitation, actual contact, and pacing repairs.
 - [How to Write a Secret-Identity Romance with Fair Clues](https://zenstory.ai/oh-story/write-a-secret-identity-romance) — Track who knows the identity, when they learn it, and what disclosure changes. Includes an original pen-name romance, fair clues, and replies after revelation.
+- [How to Write a Believable Villain Redemption](https://zenstory.ai/oh-story/write-a-believable-villain-redemption) — Write redemption through changed choices, real repair, and the injured person’s reply. Includes a lantern-fair scene without forced forgiveness.
+- [How to Write Jealousy in a Romance](https://zenstory.ai/oh-story/write-jealousy-in-a-romance) — Separate observed facts, guesses, and the reply a character wants. Includes a jealousy scene that retains work, a third person’s goals, and an agreed date.
+- [How to Write a Negotiation Scene in Fiction](https://zenstory.ai/oh-story/write-a-negotiation-scene) — Build negotiations around goals, conditions, and limits. Includes a complete repair-shop scene and the difference between agreement and action.
+- [How to Write a Character Who Lies](https://zenstory.ai/oh-story/write-a-character-who-lies) — Define the deliberate falsehood and motive, then track what the listener actually knows. Includes a complete library exchange and repairs after discovery.
 
 ### Choose and write a genre / 题材与类型写法
 - [Choose and write a genre](https://zenstory.ai/guides/genres) — Choose a genre and learn the story patterns it needs.
@@ -198,6 +201,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [Get Specific AI Feedback on Your Manuscript](https://zenstory.ai/oh-story/get-specific-ai-manuscript-feedback) — Turn vague criticism into located quotations, reader effects and bounded next steps. Separate necessary fixes, suggestions and author choices.
 - [What to Revise First in a Novel](https://zenstory.ai/oh-story/choose-what-to-revise-first-in-a-novel) — Diagnose story direction, causal design or prose before editing. Includes a change-of-mind example and clear stopping criteria.
 - [Fix a Novel That Reads Like a Screenplay](https://zenstory.ai/oh-story/fix-a-novel-that-reads-like-a-screenplay) — Distinguish intentional dialogue-heavy style from leaked camera and scene instructions. Restore viewpoint, choices and actual actions.
+- [How to Revise a Novel Outline Mid-Draft](https://zenstory.ai/oh-story/revise-a-novel-outline-mid-draft) — Separate established facts from future plans before changing an outline. Includes a mid-draft example, a candidate scene, and a bounded AI request.
 
 ### Book covers / 小说封面
 - [Book covers](https://zenstory.ai/guides/book-covers) — Plan cover art and lettering, then check upload crops and thumbnail readability.

@@ -39599,5 +39599,587 @@
       "/video-recap/background-music-overpowers-voice",
       "/video-recap/fix-missing-words-in-ai-voiceover"
     ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "revise-a-novel-outline-mid-draft",
+    "topic": "revision",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "小说写到一半想改大纲怎么办：先分清已写事实和后续计划",
+      "en": "How to Revise a Novel Outline Mid-Draft"
+    },
+    "seo_title": {
+      "zh": "小说写到一半改大纲怎么办",
+      "en": "Revise a Novel Outline Mid-Draft"
+    },
+    "description": {
+      "zh": "把中途改纲拆成保留、替换和需要重写的部分。附十八章后的改纲示例、后续场面和给AI的范围说明。",
+      "en": "Separate established facts from future plans before changing an outline. Includes a mid-draft example, a candidate scene, and a bounded AI request."
+    },
+    "answer": {
+      "zh": "先说清想改什么：后续走向、人物用途，还是已写事件。把正文已经发生的事、读者仍在等的承诺和尚未发生的计划分开，再调整受影响的后续段落。若新走向与已写事实冲突，选择保留事实并另找路径，或明确重写哪些前文章节；不要让新大纲悄悄改掉过去。",
+      "en": "Define whether you want to change a future direction, a character’s role, or a written event. Separate established facts, outstanding reader promises, and unexecuted plans before revising dependent beats. When the new direction conflicts with the draft, preserve the facts and find another route, or explicitly select earlier chapters for revision. A new outline cannot silently rewrite the past."
+    },
+    "sections": [
+      {
+        "id": "change-size",
+        "heading": {
+          "zh": "先判断是小调整，还是需要回头改正文",
+          "en": "Distinguish a Future Adjustment from a Draft Rewrite"
+        },
+        "body": {
+          "zh": "角色写活以后，原大纲不再合适很常见。需要判断的是新版本怎样接上现有故事，而不是证明自己开书时就想对了。\n\n- **只改尚未写到的路径：**原来准备靠一封信揭谜，现在改成两人当面核对。检查这封信是否已经出现在正文、它的存在是否还需要解释，再重排后面的场景。\n- **改变人物用途：**原计划让朋友成为幕后人，现在想保留合作关系。过去的行为可以重新解释，但已写的明确事实不能无声消失；留意哪些可疑细节仍需要交代。\n- **改变核心前提或结局：**会牵动更多章节。先标出牵动范围，再决定继续草稿、局部返修或整体重构。不是每次改纲都要推翻全书。\n\n技能的中途补纲流程限制本次请求范围，并保护已有正文区间对应的规划；这里把它转成作者可用的编辑办法。**保护旧内容不等于作者不能重写**，而是改未来和改过去应当成为两项明确选择。",
+          "en": "Once characters develop on the page, the original plan may stop fitting. The task is to connect the new direction to the existing story, not to prove that your first plan was perfect.\n\n- **Change an unwritten route:** replace a planned letter with an in-person inquiry. Check whether the letter already exists in the prose or its existence still needs explaining, then rearrange future scenes.\n- **Change a character’s role:** a planned culprit becomes a continuing ally. Earlier behavior may receive a different interpretation, but explicit facts cannot disappear. Suspicious details may still need an explanation.\n- **Change the premise or ending:** identify the wider consequences before choosing to continue, revise selected passages, or rebuild. A local change need not overturn the whole novel.\n\nThe skill’s expansion workflow bounds the request and protects planning associated with written sections. This page translates that into an editorial method. **Protection does not forbid an author from rewriting.** Changing the future and changing the past should be explicit, separate choices."
+        }
+      },
+      {
+        "id": "change-note",
+        "heading": {
+          "zh": "用一页说明新方向怎样接住旧内容",
+          "en": "Make a One-Page Change Note"
+        },
+        "body": {
+          "zh": "| 要写清的事 | 本次改纲说明 |\n|---|---|\n| 为什么改 | 读者体验或人物选择有什么具体改善，避免只写“更精彩” |\n| 已写事实 | 谁做过什么、实际知道什么、物件在哪里；引用章段 |\n| 仍在等的内容 | 已提出的问题、承诺或伏笔；决定兑现、改变理解或明确放弃 |\n| 新的后续 | 哪些未写场景替换、保留或推迟，怎样接到当前状态 |\n| 牵动范围 | 本次改哪几章；结局、其他卷或已写正文是否需要另作选择 |\n\n这是本页的编辑说明，不是技能原生文件格式。不需要罗列整部小说的每个细节，只抓本次变动会碰到的依赖。还没决定的地方写“待选”，不要让AI为补齐表格编一个既成事实。",
+          "en": "| Question | Change note |\n|---|---|\n| Why change? | Name the improvement to reader experience or character choice rather than “make it better.” |\n| Established facts | Cite who acted, who knows what, and where relevant objects are. |\n| Outstanding promises | List affected questions, commitments, or clues; choose payoff, reinterpretation, or explicit abandonment. |\n| New future | Identify unwritten scenes to replace, retain, or defer and how they follow the current state. |\n| Scope | Name affected chapters and any separate choice involving earlier prose, other volumes, or the ending. |\n\nThis is an editorial worksheet, not a native skill file format. Include dependencies touched by this change rather than the entire book. Mark undecided points as choices instead of asking AI to invent established facts to complete a table."
+        }
+      },
+      {
+        "id": "worked-change",
+        "heading": {
+          "zh": "原创示例：不再让朋友成为幕后人",
+          "en": "Original Example: Keeping the Friend as an Ally"
+        },
+        "body": {
+          "zh": "假设《旧车站来信》写到第十八章。阿澄和朋友闻宁查一批遗失的旧照片。第十二章，闻宁实际陪她看过废站的照片箱；第十七章，他收到过保管人的电话，说有一张照片被单独封存。阿澄听见电话响，但不知道通话内容。第十八章结尾，两人约好第二天到站务室继续查。\n\n旧大纲打算第二十二章揭示闻宁偷藏照片，第二十五章两人决裂。作者现在觉得合作调查更适合这本书，希望把闻宁改成愿意帮忙、却因答应保管人暂不外传而沉默的朋友。**这个承诺是作者选择新增的后续解释，不是第十七章正文已经证实的事实。**\n\n| 内容 | 本次如何处理 |\n|---|---|\n| 第十二章共同查箱 | 保留；两人真的去过，不改成闻宁从未到场 |\n| 第十七章电话 | 保留接听与阿澄不知内容；未写的内容可在后文解释 |\n| 闻宁偷藏照片 | 只是旧计划，撤下；若原稿已经写他拿走照片，就要另选归还、动机解释或前文重写 |\n| 第十九章会面 | 保留既有约定；让闻宁解释隐瞒，再由保管人实际回应 |\n| 第二十二至二十五章 | 换成查封存缘由和取得有限查看机会；查看不自动证明谁遗失整批照片 |\n\n新方向留下朋友隐瞒造成的不满，也留下照片去向的问题。它撤下的是未发生的偷藏和决裂，不是把阿澄已有的疑惑改成“她一直信任他”。",
+          "en": "Suppose *Letters from the Old Station* is drafted through chapter eighteen. Cheng and her friend Ning are investigating missing photographs. In chapter twelve he accompanies her to inspect a box at the disused station. In chapter seventeen he receives a call from the keeper saying that one photograph is separately sealed. Cheng hears the phone ring but not the conversation. Chapter eighteen ends with an appointment to visit the station office together the next day.\n\nThe old outline makes Ning the thief in chapter twenty-two and ends their friendship in chapter twenty-five. The author now prefers a cooperative investigation: Ning has stayed silent because he promised the keeper not to circulate the information yet. **That promise is a newly chosen future explanation, not a fact already established by chapter seventeen.**\n\n| Element | This revision |\n|---|---|\n| Joint box inspection | Retain the visit; do not make Ning absent from it. |\n| Phone call | Retain the call and Cheng’s ignorance; later scenes may reveal its unwritten content. |\n| Theft by Ning | Remove an unexecuted plan. If the draft already shows him taking the photograph, separately choose return, explanation, or earlier revision. |\n| Chapter nineteen meeting | Keep the appointment; let Ning explain and the keeper actually respond. |\n| Chapters twenty-two to twenty-five | Investigate the sealing and obtain limited viewing. Viewing does not prove who lost the entire collection. |\n\nThe new direction retains resentment over withheld information and the mystery of the photographs. It removes a planned theft and rupture; it does not make Cheng “always have trusted him.”"
+        }
+      },
+      {
+        "id": "candidate-scene",
+        "heading": {
+          "zh": "再写一小段，试新方向能不能落地",
+          "en": "Test the Direction in a Candidate Scene"
+        },
+        "body": {
+          "zh": "作者选定保管人可当面核对自己经手的事，并允许约定一次查看。下面是候选第十九章片段，不表示真实项目已经写到这里：\n\n> 到站务室门口，闻宁停下来。“那天电话是说一张照片被封存了。我答应等当面问清楚再说，可我也该告诉你，我有事瞒着。”\n>\n> “你可以说不方便讲，”阿澄说，“别让我猜你又查到了什么。”\n>\n> 保管人开门后，闻宁问起那通电话。对方说：“是我让你暂不外传。照片没给你，一直在我保管的封袋里。”\n>\n> “我想看照片和封存那天的记录。”阿澄说。\n>\n> “今天我找记录，明天下午给你们看这张。其他封袋不能动。”\n>\n> 阿澄记下时间。“好。先看这一张。”她把本来要问闻宁“你藏在哪里”的那一行划掉，另写了封存日期。\n\n这段把旧约定接上、把隐瞒说出、给对方真实回应，并留下下一步。保管人的说法仍需要核对；看照片还是明天的计划，两人还没有拿到照片或查明整批去向。若作者希望阿澄暂不接受解释，可保留她的拒绝或更强的不满，不强行完成和解。",
+          "en": "The author chooses that the keeper can answer for his own handling and arrange a viewing. This is a candidate for chapter nineteen, not a report that a real project has reached it:\n\n> Outside the office Ning stopped. “The call was about a sealed photograph. I promised to wait until we could ask in person. I still should have told you I was withholding something.”\n>\n> “You could have said you couldn’t discuss it,” Cheng said. “Don’t leave me guessing what else you’ve found.”\n>\n> When the keeper opened the door, Ning asked about the call. “I asked you not to circulate it yet,” the keeper said. “I never gave you the photograph. It’s remained in a sealed envelope with me.”\n>\n> “I’d like to see it and the record from the day it was sealed,” Cheng said.\n>\n> “I’ll find the record today. Tomorrow afternoon you can see this photograph. Not the other envelopes.”\n>\n> Cheng wrote down the time. “All right. This one first.” She crossed out the question “Where did you hide it?” and wrote the sealing date instead.\n\nThe passage honors the appointment, exposes the concealment, gives the keeper a response, and establishes a next step. His account still needs checking. Tomorrow’s viewing is a plan: they neither possess the photograph nor know the collection’s full destination. An author may instead keep Cheng’s refusal or stronger resentment; reconciliation is not compulsory."
+        }
+      },
+      {
+        "id": "repair-order",
+        "heading": {
+          "zh": "改完后检查什么，什么时候停",
+          "en": "Check the Dependencies and Stop at the Agreed Layer"
+        },
+        "body": {
+          "zh": "先看新后续是否从第十八章的真实状态出发，再查旧计划是否残留在人物卡、卷纲或后续细纲中。只改受影响的记录，别把整个书库都重做。\n\n**三种常见失败：**新纲给阿澄提前知道通话内容，回到她实际获知的场面；旧纲仍写“第二十二章闻宁承认偷藏”，撤下或明确选另一条路线；为了补一个场景把整卷多扩二十章，先说明体量改变，让作者决定扩卷还是压缩。\n\n本次只要大纲，就停在大纲。若需要返修已写正文，先选具体章段，再按[前文改动后的后文检查](/oh-story/sync-later-chapters-after-a-revision)核依赖。规划文件中的“明天看照片”不会自动成为人物已经看过照片的记录。",
+          "en": "First check that the new future begins from chapter eighteen’s actual state. Then remove obsolete plans from affected character notes and outlines, without rebuilding unrelated records.\n\n**Common failures:** Cheng knows the call’s contents too early—return to the scene where she learns them. An outline still says Ning admits theft in chapter twenty-two—remove it or explicitly choose that other route. One added scene expands the volume by twenty chapters—explain the size change before choosing expansion or compression.\n\nStop at the outline if that is the requested deliverable. Select earlier passages before revising prose, then use the [later-chapter dependency check](/oh-story/sync-later-chapters-after-a-revision). A planned viewing cannot become a record that a character already saw the photograph."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "改大纲是不是说明前面白写了？",
+          "en": "Does changing the outline waste the earlier draft?"
+        },
+        "a": {
+          "zh": "不一定。人物、关系和已提出的问题可能仍有效。先保留新方向用得上的正文，再处理真正冲突的章段，不能仅因旧计划不再采用就认定所有前文无用。",
+          "en": "Not necessarily. Characters, relationships, and outstanding questions may still work. Retain useful prose and identify actual conflicts instead of treating every passage as wasted because an old plan changes."
+        }
+      },
+      {
+        "q": {
+          "zh": "可以让AI直接重新生成整部大纲吗？",
+          "en": "Can I ask AI to regenerate the entire outline?"
+        },
+        "a": {
+          "zh": "可以在明确选择整体重构时这样做，但要给已写事实和保留范围。只想调整后续几章时，先限制请求；整部重生容易把旧计划、已发生事件和新设定混在一起。",
+          "en": "Yes, when you explicitly choose a full rebuild and supply established facts and retained material. For a local adjustment, bound the request first; wholesale regeneration may mix old plans, actual events, and new inventions."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 帮我调整第十九至二十五章大纲。附已写到第十八章的状态、原计划、新方向、仍需兑现的线索和本书文风。先列保留事实、受影响的计划与需要我选择的冲突；只改点名范围，不修改已写正文，不把计划写成已发生。若结局或卷长也受影响，先说明牵动范围。",
+        "en": "Use $story-long-write to revise the outline for chapters nineteen through twenty-five. Include the written state through chapter eighteen, old plan, new direction, outstanding clues, and book style. Identify retained facts, affected plans, and conflicts requiring a choice. Revise the named scope without changing existing prose or marking plans as events. Explain any dependency on the ending or volume length."
+      }
+    },
+    "related": [
+      "/oh-story/novel-outline-template",
+      "/oh-story/volume-outline-template",
+      "/oh-story/sync-later-chapters-after-a-revision"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "中途补纲、请求范围与规划事实",
+          "en": "Mid-draft expansion, requested scope, and planned facts"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-outline.md"
+      },
+      {
+        "label": {
+          "zh": "已写区间的规划与卷尾追加",
+          "en": "Planning for written sections and appending units"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-volume.md"
+      },
+      {
+        "label": {
+          "zh": "作者选择与事实边界",
+          "en": "Author choices and factual boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      }
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "weave-multiple-storylines-in-a-novel",
+    "topic": "plot-and-outline",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "小说多线叙事怎么安排：切换时机、时间和信息差",
+      "en": "How to Weave Multiple Storylines in a Novel"
+    },
+    "seo_title": {
+      "zh": "小说多线叙事怎么安排",
+      "en": "Weave Multiple Storylines in a Novel"
+    },
+    "description": {
+      "zh": "给每条故事线明确当下问题，再安排切换与汇合。附图书馆和印刷铺的完整双线片段、时间表与修订办法。",
+      "en": "Give each storyline a present question, then choose returns and intersections. Includes a complete two-location passage and a timing worksheet."
+    },
+    "answer": {
+      "zh": "先确定每条线在这一段解决什么、读者为什么关心，再按行动与情绪的停点切换。各线可以快慢不同，不必每章轮流出场或字数平均。切回时交代人物、地点和必要时间；分清读者从另一条线看到的事与人物真正收到的信息。",
+      "en": "Give each thread a present question and a reason readers care. Switch at useful action or emotional stopping points. Threads may move at different speeds without equal word counts or rigid alternation. On returning, orient readers to character, place, and necessary time. What readers saw elsewhere is not automatically information the characters received."
+    },
+    "sections": [
+      {
+        "id": "thread-purpose",
+        "heading": {
+          "zh": "先决定读者为什么要跟每一条线",
+          "en": "Give Readers a Reason to Follow Each Thread"
+        },
+        "body": {
+          "zh": "多线不只是多个人物轮流出现。先为这一段写清：谁在处理什么问题、处境会怎样变化、下次回来要看什么。可以有共同目标，也可以分别处理同一主题的不同难题。\n\n一条线帮助另一条线取得资源、改变选择或发现信息时，可用[主线与支线汇聚](/oh-story/subplot-mainline-convergence)检查作用。若你选择的是平行叙事，例如两代人分别面对离乡，各线也可以靠主题和情绪互相照见，不必每条线立即送一个道具给主角。但读者仍需要理解它在这本书里的位置。\n\n源框架建议多线错开推进，也给出升级题材的出场频率示例。本页只取“错开节奏”的方法，**不把战力、装备、情感或声望每段升级当成所有小说的配额**。生活、停顿和回收关系也可以是这一轮的内容。",
+          "en": "Multiple threads are more than alternating people. For this section, identify the problem each person handles, what may change, and what readers will return to see. Threads may share a goal or address different aspects of one theme.\n\nWhen one thread changes another’s resources, choices, or knowledge, use the [main-plot and subplot convergence guide](/oh-story/subplot-mainline-convergence). Parallel narratives can also illuminate one another through theme and feeling—for example, two generations leaving home—without immediately handing the protagonist an object. Readers still need a reason for each thread’s place in the book.\n\nThe source framework staggers threads and includes progression-fiction frequency examples. This page uses the staggered rhythm, **not a quota requiring combat, equipment, romance, or reputation upgrades in every novel**. Everyday life, a pause, or a relationship’s return can carry a turn."
+        }
+      },
+      {
+        "id": "switches",
+        "heading": {
+          "zh": "在有理由的地方切，而不是机械ABAB",
+          "en": "Switch for a Reason Rather Than a Rigid ABAB Pattern"
+        },
+        "body": {
+          "zh": "切换可以发生在一个选择之后、一次结果之前、一个小段落结束时，或情绪需要缓冲时。不是每次都要把人物留在危险里。\n\n| 这一段的切换 | 读者带着什么回来 |\n|---|---|\n| A刚提出借展问题，转B | 想知道B能否带来可用资料；回来需有处理，不长期只吊问题 |\n| B决定放弃原件，转A | 读者知道资料形式变了，等待A如何接受；A尚未收到消息时仍不能照新计划行动 |\n| A完成展柜安排，再转B | 一个局部问题已收束，可以接另一线的关系或善后 |\n\n不要把同一事件完整叙述两遍，只为轮到另一个视角。第二次若没有新的选择、理解或体验，压缩重复；若重看本身是作品需要，可保留。视角切换是否另起章节、用空行或标注时间，服从本书形式，关键是读者能跟上。",
+          "en": "A switch may follow a choice, precede a result, finish a local passage, or give emotion room. It need not always strand someone in danger.\n\n| Switch | Reason to return |\n|---|---|\n| A raises the loan question; move to B | Can B obtain usable material? Return with meaningful handling instead of endlessly postponing it. |\n| B gives up borrowing the original; move to A | Readers await A’s response to a changed format. A cannot act on news that has not arrived. |\n| A finishes the display arrangement; move to B | A local question has closed, leaving room for B’s relationship or aftermath. |\n\nDo not retell an entire event merely because another viewpoint gets a turn. Compress a second account without a new choice, understanding, or experience; retain repetition when it is an intentional effect. Chapters, breaks, and time labels follow the book’s form while keeping orientation clear."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "原创双线片段：展柜与旧印版",
+          "en": "Original Two-Thread Passage: A Cabinet and an Old Printing Plate"
+        },
+        "body": {
+          "zh": "设定：图书馆当晚办旧街展览。陈瑜负责布展，林乔去印刷铺申请借一块旧印版，是否准借尚未确认。铺主可以决定原件借用和本次拍摄，拍摄件能在图书馆展出；陈瑜此前只知道林乔去问原件。两人手机可通话，林乔原来答应下午三点半前给答复。以下为本页原创示范：\n\n> **下午三点十分，图书馆。**陈瑜把“印版原件，借展待确认”的便签贴在空柜上。\n>\n> 同事拿来另一组老街照片。“这个柜要是不用原件，我们就摆照片。”\n>\n> “三点半前定。”陈瑜留下便签，把照片放在旁边。\n>\n> **三点十二分，印刷铺。**林乔把借展说明递给铺主。铺主看完，把旧印版留在工作台上：“出门搬动不行。上回边角就磕过。你可以在这里拍，今晚展拍摄件，原件不借。”\n>\n> “那我拍完先给你看选哪张，标清是拍摄件，可以吗？”\n>\n> 铺主点头。“写上铺名。别把晚上的展出当成以后都能拿去用。”\n>\n> 林乔应下，拿手机拍了一张全貌。她先把照片给铺主看，对方确认这张可用。三点二十四分，她拨通陈瑜的电话。\n>\n> **图书馆。**陈瑜听完说：“好，展拍摄件。把确认过的照片发来，说明原件仍在铺里。”\n>\n> 林乔发送照片后，陈瑜打开消息，确认能看清图案，才对同事说：“柜里放老街照片，印版的照片在旁边展板上。标签写清拍摄件。”两人取下待确认便签，把老街照片放进展柜。\n>\n> **印刷铺。**电话挂断，林乔按铺主的要求记录这次使用范围。她没有带走印版，铺主把它盖好，仍留在工作台上。林乔收起手机：“展板做好后，我发一张给你看标签。”\n\nB线先取得拍摄许可，读者先知道它；A直到实际接电话才知道借展结果，直到打开照片才知道成像是否可用。结尾A完成照片入柜，B记下使用范围；展板尚未做完，也没证明整场展览成功。",
+          "en": "Setup: a library is preparing an old-street exhibition that evening. Chen handles the display; Lin asks a print-shop owner to lend an old plate. Approval is pending. The owner can authorize this loan or this photographed display. Chen knows only that Lin is asking about the original. Both phones work; Lin promised an answer by 3:30. This is an original demonstration:\n\n> **3:10 p.m., library.** Chen stuck a note on the empty cabinet: “Original plate—loan pending.”\n>\n> A colleague brought another set of street photographs. “If there’s no original, these can go here.”\n>\n> “We’ll know by half past.” Chen left the note and put the photographs beside it.\n>\n> **3:12 p.m., print shop.** Lin handed over the loan request. The owner read it but kept the plate on the bench. “No transport. The edge was chipped last time. You can photograph it here and display the image tonight. The original stays.”\n>\n> “Can I show you the image I select and label it as a photograph?”\n>\n> He nodded. “Name the shop. Tonight’s display doesn’t authorize every later use.”\n>\n> Lin agreed and photographed the whole plate. She showed the image to the owner, who approved that one. At 3:24 she called Chen.\n>\n> **Library.** After listening, Chen said, “Good. We’ll display the photograph. Send the approved image and note that the original stays at the shop.”\n>\n> Lin sent it. Chen opened the message and checked that the pattern was visible before telling her colleague, “Street photos in the cabinet; the plate image on the neighboring board. Label it as a photograph.” They removed the pending note and placed the street photographs in the cabinet.\n>\n> **Print shop.** After the call, Lin recorded the permitted use. She did not take the plate; the owner covered it on the bench. Lin put her phone away. “When the board’s ready, I’ll send you a picture of the label.”\n\nReaders learn B’s permission first. A learns the loan outcome only by answering the call, and sees image quality only by opening the message. A finishes placing cabinet photographs; B records the permission. The board remains unfinished, and the whole exhibition’s success is not established."
+        }
+      },
+      {
+        "id": "time-check",
+        "heading": {
+          "zh": "用时间和知情表查穿帮",
+          "en": "Check Time and Knowledge Across the Threads"
+        },
+        "body": {
+          "zh": "| 时刻与人物 | 此刻实际发生、知道或持有的事 |\n|---|---|\n| 15:10陈瑜 | 知道借展待确认；留柜，还没有借展答复 |\n| 15:12起林乔 | 得到拒借与本次拍摄许可；拍摄并给铺主确认，原件留铺 |\n| 15:24起双方 | 实际通话，陈瑜接受改展拍摄件；照片发送后实际打开才核可用性 |\n| 通话后 | 陈瑜和同事摆好柜内照片；林乔记下范围；展板与标签照片仍待做 |\n\n这张表是编辑工具，不是必须出现在小说里的说明。正文可只在最初标明时间，后面靠电话承接；如果各线隔了数天，就需要更多时间提示。读者知道B获准拍摄，不等于A或其他同事已经知道；发出消息也不等于所有人已经读到。",
+          "en": "| Time, person | Actual state |\n|---|---|\n| 3:10, Chen | Loan pending; reserves cabinet without a loan answer yet. |\n| From 3:12, Lin | Receives refusal and specific photography permission; takes and gets approval for an image. Plate remains at shop. |\n| From 3:24, both | Actually speak; Chen accepts the changed display. She checks usability after receiving and opening the image. |\n| After call | Chen and colleague place cabinet photographs; Lin records scope. Board and label photograph remain pending. |\n\nThis is an editing tool, not compulsory exposition. The prose may label time initially and use the call to connect the rest. Threads separated by days need more orientation. Reader knowledge of B’s permission does not give it to A or absent colleagues. Sending a message does not mean everyone has read it."
+        }
+      },
+      {
+        "id": "repairs",
+        "heading": {
+          "zh": "切得太碎或一条线被遗忘，怎样修",
+          "en": "Repair Fragmented Switches and Neglected Threads"
+        },
+        "body": {
+          "zh": "**每次只写几句就切：**先把同一条线的一次询问、选择或感受写到可停的位置，再切；不要为了展示“多线”把完整交流拆碎。\n\n**一条线隔很久才回来：**返回时给人物、地点、距离上次的时间和当前问题一个简短锚点，不必重述整条线。如果等待期间什么都没有发生，可压缩时间或明确暂放；如果发生了变化，写出必要结果，别让人物永远停在上一章的姿势。\n\n**两条线像两本无关的书：**明确共同问题、因果连接或主题联系，并让读者能感受到。不一定强行安排所有人最终会面。删去一条线会失去什么，是诊断问题；保留它可能为了体验和主题，而不只是运送主线资源。\n\n**每条线都在章尾危急：**用局部完成、低压回收和关系交流改变节奏。技能里的特定高潮框架是选项，各线不必同步冲顶。",
+          "en": "**Switching every few sentences:** finish a useful question, choice, or feeling within one thread before leaving it. Do not fragment a complete exchange to advertise the structure.\n\n**Returning after a long absence:** briefly orient readers to person, place, elapsed time, and the present problem. If nothing happened during the gap, compress or explicitly pause it. If something changed, include the necessary result rather than freezing a character in the previous pose.\n\n**Threads feel like unrelated books:** make the shared question, causal connection, or thematic relationship perceptible. Everyone need not meet eventually. Asking what removal would lose is a diagnostic; experience and theme can justify a thread as well as resources for the main plot.\n\n**Every line ends in peril:** vary rhythm with local completion, quiet returns, and relationship exchanges. Specific climax frameworks are options; threads need not peak simultaneously."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "多线叙事一定要多视角吗？",
+          "en": "Does a multi-thread story require multiple viewpoints?"
+        },
+        "a": {
+          "zh": "不一定。一个视角人物也可以参与多条事情；多个人物的平行线则可按需要选不同视角。故事线回答“发生什么”，视角回答“读者从谁那里看见”，不要把两项当成同一件事。",
+          "en": "No. One viewpoint character can participate in several threads; parallel characters may need different viewpoints. A thread concerns what happens, while viewpoint concerns whose experience presents it."
+        }
+      },
+      {
+        "q": {
+          "zh": "每条线都要一样长吗？",
+          "en": "Must the threads be equally long?"
+        },
+        "a": {
+          "zh": "不必。按它在本书的分量、当前阶段和读者等待决定篇幅。重要配角线也可能只在关键位置出现，不因轮到它就填一章无关内容。",
+          "en": "No. Allocate space by importance, stage, and what readers await. Even an important secondary thread may appear only at key moments; its turn does not justify an irrelevant chapter."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 帮我安排这段多线叙事。附各线人物、地点、当下目标、已知信息、时间约束与既定结局。先提出切换和回归位置，说明每次切换让读者等待什么；核对消息发送、接收和人物行动。允许各线不同步，不要求每章全部出场或统一升级，不改既定事实。",
+        "en": "Use $story-long-write to arrange these storylines with characters, locations, present goals, known information, time constraints, and the chosen ending. Propose switches and returns, naming what readers wait for. Check actual message sending, receipt, and action. Allow unequal pace without compulsory appearances or upgrades in every chapter; retain established facts."
+      }
+    },
+    "related": [
+      "/oh-story/subplot-mainline-convergence",
+      "/oh-story/narrative-point-of-view",
+      "/oh-story/novel-outline-template"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "多线错开推进与双线交替",
+          "en": "Staggered threads and alternating lines"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/plot-frameworks.md"
+      },
+      {
+        "label": {
+          "zh": "故事线、信息差与批次边界",
+          "en": "Storylines, information gaps, and scoped beats"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-outline.md"
+      },
+      {
+        "label": {
+          "zh": "视角选择与信息边界",
+          "en": "Viewpoint choices and information limits"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      }
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "write-a-negotiation-scene",
+    "topic": "characters-and-dialogue",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "小说谈判场景怎么写：目标、条件和实际让步",
+      "en": "How to Write a Negotiation Scene in Fiction"
+    },
+    "seo_title": {
+      "zh": "小说谈判场景怎么写",
+      "en": "Write a Negotiation Scene in Fiction"
+    },
+    "description": {
+      "zh": "让人物围绕可交换条件谈判，保留各自限制。附修船铺完整场面、逐回合分析和谈妥后实际执行的边界。",
+      "en": "Build negotiations around goals, conditions, and limits. Includes a complete repair-shop scene and the difference between agreement and action."
+    },
+    "answer": {
+      "zh": "先明确双方各要什么、能给什么、不能接受什么，再让每轮对白回应上一轮的条件。新信息、拒绝和让步要改变可选方案；结果可以是有限成交、暂停或谈崩。对方说了同意才算达成这一项，后续实际执行了多少也要单独写，不用一句主角宣言代替全部过程。",
+      "en": "Define what each side wants, can offer, and cannot accept. Make each reply address the previous condition. New information, refusals, and concessions should alter the options. The result may be a limited agreement, pause, or failure. Show acceptance before treating a term as settled, and distinguish subsequent action from the agreement. A protagonist’s declaration cannot perform the entire exchange."
+    },
+    "sections": [
+      {
+        "id": "positions",
+        "heading": {
+          "zh": "写目标，也写对方为什么不能照办",
+          "en": "Give Both Parties Goals and Limits"
+        },
+        "body": {
+          "zh": "争吵可以围绕过去的委屈，谈判更集中于下一步怎样安排。两者可以在同一场戏里交织，但本场若要谈一笔交换，就先弄清资源、权限和条件。\n\n| 人物 | 场前要弄清的事 |\n|---|---|\n| 提议方 | 想得到什么；能交换什么；若不成，接下来有什么可行选择 |\n| 回应方 | 为什么考虑这笔交换；为什么会拒绝；实际有权承诺到哪一步 |\n| 双方 | 哪些条件已知、哪些只是猜测；这次可以谈妥哪一部分 |\n\n这是组合源方法的编辑表，不是原生谈判算法。角色未必把真实目的全部说出，但作者应当知道他们在保护什么。不要把提议方的需求当成对方必须满足的理由，也不要为了让主角赢，临时让对方放弃已经明确的限制。",
+          "en": "An argument may concern old resentment; a negotiation focuses on the next arrangement. They can coexist, but a scene about an exchange first needs resources, authority, and terms.\n\n| Party | Establish before the scene |\n|---|---|\n| Proposer | Desired result, available offer, and feasible next choice if refused. |\n| Responder | Reason to consider it, reason to refuse, and actual authority to promise. |\n| Both | Known terms versus guesses and the portion this conversation could settle. |\n\nThis is an editorial combination of source methods, not a native negotiation algorithm. Characters need not disclose every motive, but the author should understand what they protect. One person’s need does not oblige the other to meet it. Do not discard an established limit merely to make the protagonist win."
+        }
+      },
+      {
+        "id": "rounds",
+        "heading": {
+          "zh": "让每轮回应改变条件或理解",
+          "en": "Let Each Response Change the Terms or Understanding"
+        },
+        "body": {
+          "zh": "一轮可以是提出需求→对方指出限制→缩小范围或改变交换→对方接受、拒绝或再加条件。这是可选的组织方式，不必每场严格四轮。\n\n情绪也要承接。例如“你以前就答应过”会让对方开始核旧承诺；“我不要求你现在开工”回应的是档期限制。只反复说“你必须帮我”，而对方反复说“不可能”，如果没有新的关系体验或条件变化，就考虑压缩。\n\n源方法把可见交换和战略让步作为保留人物选择的办法。让出一部分时间、资源或聚光灯可以换来更重要的机会，不等于主角输了。另一方也可以有合理收益。对白长短、直接说明条件或保留潜台词，按本书文风决定，不能用“短句者必胜”判定结果。",
+          "en": "One possible sequence is a request, a stated limit, a smaller scope or changed exchange, then acceptance, refusal, or another condition. It is an option rather than a compulsory four-round formula.\n\nFeeling should connect too. “You promised before” prompts a response to the old promise. “I’m not asking you to start now” answers a scheduling limit. Repeated demands and refusals without new terms or meaningful relationship experience may be compressed.\n\nThe sources use visible exchange and strategic concessions to retain agency. Giving up some time, resources, or attention may secure something more valuable without making the protagonist a loser. The other party may reasonably benefit too. Dialogue length, explicit conditions, and subtext follow the book’s voice; “the shorter speaker wins” cannot establish an outcome."
+        }
+      },
+      {
+        "id": "complete-scene",
+        "heading": {
+          "zh": "原创场景：先谈检查，再谈修船",
+          "en": "Original Scene: Agree on an Inspection Before Repairs"
+        },
+        "body": {
+          "zh": "设定：季禾的旧渡船停在岸边，她希望修船铺尽快处理。铺主周师傅可以安排自己的检查时段，但已有两条船的修理承诺；季禾知道缺少一枚固定销，却不知道内部还坏了什么。作者选定本场只谈检查，价钱和修理时间留到检查后，不假设口头同意就能航行。\n\n> “今天能给我修上吗？”季禾问。\n>\n> 周师傅指了指台架上的船。“这两条先来，已经答应明天交。不能让它们给你腾位。”\n>\n> “我不是要你停它们。我想先知道坏到哪一步。只缺一个销，还是里面也裂了？”\n>\n> “没看不能给你这个保证。”\n>\n> 季禾把带来的固定销放在桌边。“那先检查，修不修等检查完再定。我把船边堆的网收开，六点以后你过来能直接看。”\n>\n> “七点，”他说，“我先把这两条今天的活做完。今晚只查，不拆开修。查完告诉你需要什么；明天开不开工，现在不能答应。”\n>\n> “七点，只检查。你看完说清哪些是查到的，哪些还得拆才知道。”季禾把固定销收回，“那我去收网。”\n>\n> 七点前，她搬开船边的网。周师傅按时到了，查看能看见的部位，指出固定孔已经变形；里面的连接仍需拆开检查。他把查到的地方指给季禾看，没有当场宣布整船已经能修好。\n>\n> “先把你看到的写给我，”季禾说，“要拆和要换的，明天再谈。”周师傅记下检查结果交给她，收起工具。\n\n这是虚构创作例。季禾得到的是当晚检查和一份有限结果，周师傅保留已有工作承诺；接下来修不修、多少钱、何时完工仍没有谈定。读者看到收网、到场、检查和交记录，不能据此推定已经修船或确认航行安全。",
+          "en": "Setup: Ji’s old ferry is moored ashore. She wants a repair shop to act quickly. Zhou controls his inspection schedule but has promised repairs on two other boats. Ji knows a retaining pin is missing; she does not know the internal damage. The author chooses an inspection agreement, leaving price and repair time for later.\n\n> “Can you repair it today?” Ji asked.\n>\n> Zhou pointed at the boats on the stands. “These came first. I promised them tomorrow. They can’t give up their places for yours.”\n>\n> “I’m not asking you to stop them. I want to know how bad it is. Just the pin, or something cracked inside?”\n>\n> “I can’t promise without looking.”\n>\n> Ji placed the pin she had brought on the table. “Then inspect it first. We decide on repairs afterward. I’ll clear the nets beside the boat. After six you can get straight to it.”\n>\n> “Seven,” he said. “After today’s work on these. Inspection only tonight; no dismantling for repairs. I’ll tell you what’s needed. I can’t promise a start tomorrow.”\n>\n> “Seven. Inspection only. Tell me what you’ve seen and what you’d still need to open up to know.” Ji took the pin back. “I’ll clear the nets.”\n>\n> Before seven she moved the nets. Zhou arrived on time and inspected the accessible parts. He showed her a distorted retaining hole; the internal connection still needed dismantling to inspect. He did not announce that the whole boat could be repaired.\n>\n> “Write down what you’ve seen,” Ji said. “We’ll discuss opening it up and replacements tomorrow.” Zhou handed her his inspection notes and packed his tools.\n\nThis is a fictional writing example. Ji receives an evening inspection and limited findings; Zhou retains his existing commitments. Repair, price, and completion remain unsettled. Readers see clearing, arrival, inspection, and a handoff of notes—not a repaired boat or confirmation that it is safe to sail."
+        }
+      },
+      {
+        "id": "terms-check",
+        "heading": {
+          "zh": "看懂成交的范围，别把局部接受写成全赢",
+          "en": "Keep the Agreement’s Scope Visible"
+        },
+        "body": {
+          "zh": "| 回合 | 实际变化 |\n|---|---|\n| 今天修船被拒 | 理由是既有承诺，不是铺主突然讨厌主角 |\n| 季禾改求检查 | 缩小请求；收网使到场后可直接查看，但不让她取得插队修理权 |\n| 周师傅给七点条件 | 明确只查、不拆修、明日开工未定 |\n| 季禾回应接受 | 双方就这一项谈妥；固定销仍被她收回 |\n| 晚间到场与交记录 | 本轮检查实际执行；内部情况和后续安排仍待谈 |\n\n若本场需要谈崩，周师傅可以说今晚也没有时间，季禾选择换一家或等明日；这也是有效结果。若需要更大冲突，先给各方相应的关系、事实和限制，不把一句挖苦当成必需的高潮。",
+          "en": "| Exchange | Actual change |\n|---|---|\n| Today’s repair refused | Existing commitments explain refusal, rather than sudden hostility. |\n| Ji requests inspection | Smaller scope; clearing access helps the visit without granting priority repairs. |\n| Zhou offers seven | Inspection only, no repair dismantling, no promised start tomorrow. |\n| Ji accepts | That limited arrangement is settled; she retains the pin. |\n| Visit and notes | The inspection happens; internal condition and later arrangements remain open. |\n\nFor a failed negotiation, Zhou may refuse even tonight’s inspection and Ji may try another shop or wait. That is a valid outcome. Greater conflict needs supporting relationships, facts, and constraints; an insult is not a compulsory climax."
+        }
+      },
+      {
+        "id": "repair",
+        "heading": {
+          "zh": "三种谈判戏常见问题",
+          "en": "Repair Three Common Negotiation Problems"
+        },
+        "body": {
+          "zh": "**只写主角讲条件，对方没回应：**补对方实际接受、提出限制或拒绝的回合。沉默可以有含义，但不默认等于全部同意。\n\n**为了显聪明让对方突然变笨：**让改变条件有可理解的利益、新信息或缩小范围。聪明可以体现在准确识别“今晚只能检查”，而不是编出对方无法拒绝的神奇一句话。\n\n**情绪只是攥拳和冷笑：**若气愤改变场面，就写撤回哪项提议、追问什么或暂停哪一步；若情绪只是人物的体验，可以直接写。不要每次强塞一个身体动作。\n\n按既定剧情判断条件变化是否成立。人物可以被明确条件、新信息或可信回应影响，这不等于几句宣言就改掉全部信念。源参考的压制、短句和冲突升级都是表达选项，不能覆盖作者已经选定的平静协商。",
+          "en": "**Only the protagonist speaks terms:** add actual acceptance, a limit, or refusal. Silence may matter, but it does not automatically accept everything.\n\n**Make the other party foolish to display cleverness:** motivate a change through understandable benefit, new information, or reduced scope. Recognizing that only an inspection is available can be intelligent without a magical irresistible sentence.\n\n**Feeling is only clenched fists and sneers:** when anger changes the exchange, identify the withdrawn offer, question, or pause. When it is lived experience, direct emotion is available; do not require bodily gestures.\n\nEvaluate changed terms against the chosen plot. Specific terms, credible replies, and new information may affect a choice without instantly replacing every belief. Source defaults for domination, short replies, or escalating conflict cannot override the author’s chosen calm negotiation."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "谈判戏一定要主角赢吗？",
+          "en": "Must the protagonist win a negotiation?"
+        },
+        "a": {
+          "zh": "不一定。有限交换、暂缓和失败都可以推动故事或加深理解。写清本场人物真正争取到什么以及放弃什么，不把每次让步都当成失去主角高光。",
+          "en": "No. Limited exchange, delay, and failure may move the story or deepen understanding. Show actual gains and concessions rather than treating every concession as lost agency."
+        }
+      },
+      {
+        "q": {
+          "zh": "条件说得清楚会不会没有潜台词？",
+          "en": "Do explicit terms remove subtext?"
+        },
+        "a": {
+          "zh": "不会。人物可以明确说七点只检查，同时把担心旧承诺被破坏留在语气和回应里。安排必须听得懂，隐藏目的可以另有层次。",
+          "en": "No. A character can clearly say “inspection only at seven” while concern about old commitments shapes the response. Understandable arrangements and layered motives can coexist."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 检查这个虚构谈判场景。附双方目标、可交换条件、权限、已知事实和本场预定结果。找没有回应的条件、无理由让步和宣布胜利却未被接受的地方，按本书文风提出局部改法。保留各自选择，不用统一短句、侮辱或突然事故强迫成交。",
+        "en": "Use $story-long-write to review this fictional negotiation with goals, exchangeable terms, authority, known facts, and the chosen outcome. Identify unanswered conditions, unjustified concessions, and declared victories that were never accepted. Suggest local changes within book style, preserving both parties’ choices without mandatory short replies, insults, or a sudden accident to force agreement."
+      }
+    },
+    "related": [
+      "/oh-story/write-an-argument-scene",
+      "/oh-story/write-subtext-in-dialogue",
+      "/oh-story/write-a-smart-character"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "各方议程与逐句回应",
+          "en": "Individual agendas and responsive dialogue"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/dialogue-mastery.md"
+      },
+      {
+        "label": {
+          "zh": "战略让步、可见交换与选择权",
+          "en": "Strategic concessions, visible exchange, and agency"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/reader-contract-and-progression.md"
+      },
+      {
+        "label": {
+          "zh": "让情绪改变提议和选择",
+          "en": "Feeling that changes offers and choices"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
+      },
+      {
+        "label": {
+          "zh": "谈话形式与事实边界",
+          "en": "Dialogue form and factual boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      }
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "write-a-character-who-lies",
+    "topic": "characters-and-dialogue",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "小说人物撒谎怎么写：真假信息、听者反应和后果",
+      "en": "How to Write a Character Who Lies"
+    },
+    "seo_title": {
+      "zh": "小说人物撒谎怎么写",
+      "en": "Write a Character Who Lies"
+    },
+    "description": {
+      "zh": "先确定人物故意说错了哪项事实、为什么隐瞒，再写听者实际知道多少。附借书记录完整场面和谎言揭穿后的修法。",
+      "en": "Define the deliberate falsehood and motive, then track what the listener actually knows. Includes a complete library exchange and repairs after discovery."
+    },
+    "answer": {
+      "zh": "先给作者自己一份真实发生的事，再确定人物故意说错或隐瞒哪部分、想保护什么。对白要回应听者的问题和双方关系，听者能否信、疑或揭穿，取决于已知信息和实际核对。不要靠避开目光、出汗或长篇解释就宣布撒谎；揭穿以后继续写回应与后果。",
+      "en": "Establish the underlying facts for yourself, then choose what the character deliberately falsifies or conceals and why. Shape replies around the listener’s questions and their relationship. Belief, suspicion, and discovery depend on available information and actual checking. Looking away, sweating, or speaking at length cannot by themselves establish a lie. After discovery, write the response and consequences."
+    },
+    "sections": [
+      {
+        "id": "what-is-false",
+        "heading": {
+          "zh": "先分清撒谎、误记和没说完",
+          "en": "Distinguish a Lie from Error and Incomplete Disclosure"
+        },
+        "body": {
+          "zh": "本页讨论人物知道某项事实，却故意给另一个人错误说法。记错时间、理解不同、误信消息，并不自动等于故意撒谎。说了部分真话而故意让人误解，也要具体看省略了什么、双方原来问的是什么。\n\n先为作者写三行：\n\n1. **真实事件：**昨天下午许闻把书借给了同事。\n2. **人物说法：**今天对管理员说“书放在我家”。\n3. **当前目的：**不想让同事被追问，也不想承认自己违背借阅约定。\n\n动机让选择可理解，不等于虚报没有后果。角色之间的谎言也不必让叙述者一起骗读者：读者可以先看到真实事件，再看听者怎样回应；或按既定视角暂不知道真相，后面通过可回看的信息揭示。",
+          "en": "This page concerns a character who knows a fact but deliberately gives someone else a false account. Misremembering, interpreting differently, or trusting a false report does not automatically constitute deliberate lying. A partial truth intended to mislead needs a specific omission and conversational context.\n\nWrite three lines for yourself:\n\n1. **Actual event:** yesterday Xu lent the book to a colleague.\n2. **Stated account:** today he tells the librarian, “It’s at my home.”\n3. **Present purpose:** protect the colleague from questions and avoid admitting a broken borrowing agreement.\n\nA motive makes the choice understandable without removing consequences. A character’s lie need not make the narrator deceive readers too. Readers may see the actual event first and follow the listener’s response, or learn the truth later through fair, recoverable information within the chosen viewpoint."
+        }
+      },
+      {
+        "id": "listener",
+        "heading": {
+          "zh": "听者为什么相信或怀疑，要有来路",
+          "en": "Give Belief or Suspicion a Basis"
+        },
+        "body": {
+          "zh": "听者可以因为既有信任先接受，也可以记得前后矛盾而追问，或因为没有材料而暂不判断。不要把作者知道的真相塞进听者脑中。\n\n| 作者检查 | 应该写到什么程度 |\n|---|---|\n| 听者有哪些材料 | 已经听过的说法、看过的物件或实际记录；别凭空新增 |\n| 这项材料能证明什么 | 出借条目可以与“书在家”冲突，不一定证明所有去向和隐藏目的 |\n| 人物怎样回应 | 接受、问一句、暂放、实际核对或拒绝继续；看关系与本场需要 |\n\n眼神、停顿、紧张和话多都可以写成人物体验，但不能单独证明撒谎。**“谁都看得出他在撒谎”**若只是作者替所有人下结论，会抹掉各人的信息差。作者明确选择评论型叙述者时可有判断语气，仍不能无依据让每个人都获得真相。",
+          "en": "A listener may provisionally accept an account because of trust, question a remembered contradiction, or suspend judgment without evidence. Do not transfer the author’s knowledge into the listener’s mind.\n\n| Editorial question | What to establish |\n|---|---|\n| Available material | Accounts, objects, or records the listener actually encountered; no invented evidence. |\n| What it establishes | A loan entry may contradict “at home” without proving every destination or hidden motive. |\n| Actual response | Acceptance, a question, a pause, checking, or refusal to continue, shaped by the relationship and scene. |\n\nGaze, pauses, nerves, and verbosity may express experience but cannot independently prove lying. “Everyone could tell he was lying” may erase the different information each person has. A deliberately commenting narrator can judge while still preserving how characters actually acquire the truth."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "原创片段：一句“在家”怎样被查到",
+          "en": "Original Passage: Checking “It’s at Home”"
+        },
+        "body": {
+          "zh": "设定：管理员林姐管理一间单位阅览室。借阅约定不允许私下转借，许闻明知这一条，仍把书借给同事唐夏；后来他当面写过一条转借记录交给林姐，自己也记得写过。唐夏已告诉许闻书仍在她那里，今天会带来。林姐有权查阅她管理的记录，没有见过那次实际交接。作者选定读者先知道真实事件。**本例写的是明知留下记录、仍逃避眼前追问的失败谎言；不是示范高明骗术，也不要求所有撒谎人物都犯这种错。**以下是本页原创示范：\n\n> 昨天，许闻把书交给唐夏，说好今天还。午休前她发消息：“还在我这里，下班带来。”他看过，没有催她。\n>\n> 林姐问书能不能今天归还。\n>\n> “在我家，晚上拿来。”许闻说。\n>\n> 林姐翻到他昨天交的那张记录，放在桌上。“这里写借给唐夏。是你写的吗？”\n>\n> “是。”\n>\n> “后来收回来了吗？”\n>\n> 许闻看着自己的签名。他知道没有。“没收回来。她说今天下班带来。我刚才怕你追着问她，就说在家。”\n>\n> “我先问的是书能不能归还，”林姐说，“位置写错，我就没法按实情安排。今天由你交回；没拿到，就告诉我没拿到，别再说在家。”\n>\n> 许闻点头。“好。她给我以后，我再拿来；如果没拿到，我先给你消息。”\n>\n> 下班时唐夏实际把书交给他。他带到阅览室，林姐核对书名和借阅编号，接收后记下归还。许闻又把先前“在家”的说法更正为当天仍在唐夏手中。\n\n谎言被查的是明确位置，记录和追问没有读出他的全部心理；他在回应中自己说出了害怕追问的理由。林姐要求实际交还与如实说明，不因此获得唐夏更多私事，也没有说“以后我都相信你”。归还完成解决这本书的去向，未自动解决信任。",
+          "en": "Setup: Lin manages a workplace reading room. Private relending is prohibited. Xu knows this but lends a book to Tang. He later writes a relending note for Lin and remembers doing so. Tang has told him she still has the book and will bring it today. Lin can inspect records she manages but did not witness the handoff. The author lets readers know the truth first. **This is a failed lie: Xu avoids the immediate question despite knowing his own note exists. It is not expert deception or a mistake required of every lying character.** This is an original demonstration:\n\n> Yesterday Xu handed Tang the book, agreeing she would return it today. Before lunch she messaged, “Still with me. I’ll bring it after work.” He read it without pressing her.\n>\n> Lin asked whether the book could return today.\n>\n> “It’s at home. I’ll bring it tonight,” Xu said.\n>\n> Lin found yesterday’s note and put it on the desk. “This says you lent it to Tang. Did you write it?”\n>\n> “Yes.”\n>\n> “Have you got it back since?”\n>\n> Xu looked at his signature. He knew he had not. “No. She says she’ll bring it after work. I was afraid you’d question her, so I said it was home.”\n>\n> “I asked whether it could return,” Lin said. “The wrong location stops me arranging things accurately. Bring it back yourself today. If you don’t get it, tell me that. Don’t say it’s home.”\n>\n> Xu nodded. “All right. I’ll bring it once she gives it to me. If she doesn’t, I’ll message you first.”\n>\n> After work Tang actually handed him the book. He brought it to the reading room. Lin checked the title and loan number, accepted it, and recorded the return. Xu also corrected his earlier account: it had still been with Tang that day.\n\nThe discovery concerns a specific location. A record and a question do not reveal every motive; Xu supplies his explanation in his response. Lin requires return and accurate reporting without acquiring Tang’s private affairs or promising permanent trust. The completed return resolves this book’s whereabouts, not the entire relationship."
+        }
+      },
+      {
+        "id": "why-it-works",
+        "heading": {
+          "zh": "让人物有选择，不把揭穿写成全知",
+          "en": "Give the Character a Choice Without Omniscient Discovery"
+        },
+        "body": {
+          "zh": "| 节点 | 事实与选择 |\n|---|---|\n| 说“在家”前 | 许闻读过唐夏消息，知道书不在家，因此是故意虚报而非记错 |\n| 林姐拿出旧记录 | 只知道昨天记过转借，还要问是否收回；没有直接宣布当前仍在唐夏处 |\n| 许闻承认没收回 | 实际承认与解释发生，林姐才获得这项当前说法；解释是否完整仍可待后文 |\n| 答应归还 | 是承诺；唐夏实际交书、许闻实际送回、管理员核收才完成 |\n\n作者若要他继续圆谎，可选“昨天借了，后来收回了”，但要写清这会怎样碰到唐夏的当前消息、为什么他选择冒更大风险。不能让他忘记自己刚写过记录，只为制造反转。若没有这条记录，就找现有的核验途径或让听者暂不能揭穿；不为表格临时造证据。",
+          "en": "| Point | Fact and choice |\n|---|---|\n| Before “at home” | Xu read Tang’s message and knows it is elsewhere: deliberate falsehood, not faulty memory. |\n| Lin produces the note | It records yesterday’s relending. She still asks about return instead of asserting present possession. |\n| Xu admits no return | The admission and explanation occur; Lin now has his current account. Its completeness can remain open. |\n| Promise to return | A commitment until Tang hands it over, Xu delivers it, and Lin checks and accepts it. |\n\nFor a continuing lie, he might claim he already got it back. Then show how that encounters Tang’s current message and why he risks a larger falsehood. Do not make him forget his own recent note merely to create a twist. Without that note, use an existing check or let the listener remain unable to expose him instead of inventing evidence for a worksheet."
+        }
+      },
+      {
+        "id": "revise",
+        "heading": {
+          "zh": "撒谎对白写得假，先改哪几处",
+          "en": "Repair an Unconvincing Lie"
+        },
+        "body": {
+          "zh": "**全靠结巴、移开目光或解释太多：**先看具体说法怎样回应当前问题。人物可以说得流畅，也可以紧张；身体表现由人物与场合决定，不用作统一测谎标志。\n\n**撒谎没有目的：**明确他在这一刻保护什么。动机可以是怕丢脸、怕问及别人、想逃责任或维持一种自我形象；不必每次都有宏大阴谋，也不必把动机全写成台词。\n\n**别人一问就自动全招：**若人物选择承认，给当前压力、关系和证据一条可理解的路径；若仍拒绝承认，允许继续僵持。不是每个谎言都要立刻揭穿。\n\n**揭穿后只留一句“他后悔了”：**按本场需要写具体回应、更正、弥补、拒绝或余波。道歉不保证对方原谅，完成一件补救不等于一切恢复。读者可以理解他的害怕，同时看到位置虚报确实给安排带来问题。",
+          "en": "**Only stammering, looking away, or overexplaining:** examine how the false account answers the actual question. A liar may be fluent or nervous; bodily expression belongs to the character and occasion, not a universal detection code.\n\n**No purpose:** identify what the character protects now—face, someone else, freedom from responsibility, or a self-image. A grand conspiracy is unnecessary, and motives need not all become spoken lines.\n\n**One question triggers a full confession:** make admission understandable through the present pressure, relationship, and evidence. If the character refuses, allow the impasse. Not every lie needs immediate discovery.\n\n**Only “he regretted it” afterward:** include the response, correction, repair, refusal, or aftermath this scene needs. Apology does not guarantee forgiveness; one repair does not restore everything. Readers can understand his fear while seeing that false location information disrupted arrangements."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "读者先知道谎言，会失去悬念吗？",
+          "en": "Does showing readers the lie first remove suspense?"
+        },
+        "a": {
+          "zh": "不一定。悬念可以变成听者会不会发现、人物是否继续隐瞒、真相到来会怎样影响关系。先知与后知是不同体验，按本书视角和预定效果选择。",
+          "en": "No. Readers may wait to see whether the listener discovers it, the speaker continues, or the truth changes the relationship. Earlier and later knowledge create different experiences; choose by viewpoint and intended effect."
+        }
+      },
+      {
+        "q": {
+          "zh": "撒谎角色就是不可靠叙述者吗？",
+          "en": "Is a lying character an unreliable narrator?"
+        },
+        "a": {
+          "zh": "不一定。角色可以只对另一个人撒谎，而叙述仍如实呈现事件。不可靠叙述者涉及读者从叙述中得到怎样的偏差，两个问题可重叠，但不应混为一篇同义教程。",
+          "en": "No. A character may lie to another person while the narrative presents events accurately. Unreliable narration concerns distortions in the reader’s account; the two can overlap without being identical."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 检查这段人物撒谎的对白。附真实事件、人物知道什么、故意改变的说法、动机、听者已有证据与预定揭露位置。找不可能知道的信息、作者替听者断言和没有后果的揭穿；按本书文风局部修订，不新增证明、自动原谅或通用测谎动作。",
+        "en": "Use $story-long-write to review this lying character’s dialogue. Include actual events, the speaker’s knowledge, deliberate falsehood, motive, listener’s existing evidence, and the intended reveal. Find impossible knowledge, narrator-imposed conclusions, and discoveries without response. Revise locally within book style without inventing proof, automatic forgiveness, or generic lie-detection gestures."
+      }
+    },
+    "related": [
+      "/oh-story/write-subtext-in-dialogue",
+      "/oh-story/write-an-unreliable-narrator",
+      "/oh-story/foreshadowing-and-suspense"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "真实动机、说法与谈话议程",
+          "en": "Motives, stated explanations, and agendas"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/dialogue-mastery.md"
+      },
+      {
+        "label": {
+          "zh": "避免叙述者替人物点破",
+          "en": "Avoid narrator-imposed conclusions"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/anti-ai-writing.md"
+      },
+      {
+        "label": {
+          "zh": "误导与公平信息",
+          "en": "Misdirection and fair information"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/long-reversal.md"
+      },
+      {
+        "label": {
+          "zh": "叙述选择与已知事实",
+          "en": "Narrative choices and known facts"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      }
+    ]
   }
 ]
