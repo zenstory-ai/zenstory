@@ -5120,7 +5120,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "网文毒点有哪些：区分人物犯错与作者强推",
       "en": "Web-Fiction Dealbreakers: Character Mistakes or Forced Plot?"
@@ -5134,8 +5134,8 @@
       "en": "Spot web-fiction dealbreakers, from forced foolishness to stolen rewards. Use information, motives and consequences to judge what can be repaired."
     },
     "answer": {
-      "zh": "网文毒点要结合题材承诺判断。高风险问题包括：主角为推进剧情突然变蠢、核心收益被无关角色拿走、独家能力无交换上交、长期受辱却不行动、行为与既有人设断裂。人物可以犯错；只要错误来自有限信息或稳定弱点，并让人物承担后果、获得成长，它就能成为剧情。",
-      "en": "Judge web-fiction dealbreakers against the genre’s promise. High-risk problems include a protagonist suddenly becoming foolish to advance the plot, unrelated characters receiving the central reward, an exclusive ability being surrendered without an exchange, prolonged humiliation without action, or conduct that breaks established characterization. Characters may make mistakes. When an error stems from limited information or a consistent weakness, produces consequences and allows growth, it can drive the story."
+      "zh": "网文毒点要结合这部作品承诺的体验判断。常见高风险问题包括：为推进剧情无依据地改掉人物判断、核心回报被无关角色拿走、资源无交换被接管、长期受辱却没有行动或进展。人物可以误判、犯错，也可以明知代价仍作选择；先核当时所知、动机、决定与实际后果，再看是否兑现本书承诺。不必每次错误都换来成长，也不能保证因果清楚就让所有读者接受。",
+      "en": "Judge dealbreakers against this book’s promise. Common risks include unsupported changes in judgment, rewards diverted to unrelated characters, assets taken over without an exchange, and prolonged humiliation without action or progress. Characters can misjudge, make mistakes, or knowingly accept a cost. Check knowledge, motive, decision, and actual consequence before testing the reader promise. Every error need not earn growth, and clear causality cannot guarantee acceptance."
     },
     "sections": [
       {
@@ -5172,6 +5172,17 @@
         }
       },
       {
+        "id": "known-risk-example",
+        "heading": {
+          "zh": "补充对照：明知有损失，也可能是主动选择",
+          "en": "A Known Cost Can Be an Active Choice"
+        },
+        "body": {
+          "zh": "沿用上面的三问，再看一段独立原创日常故事。摄影社员纪川有自己的相机，想拍屋顶最后一束夕照。朋友林苒提出借相机，去街对面给当晚离开的祖母拍张合照。纪川知道来回与拍摄会超过这束光的剩余时间，也知道林苒已经联系好祖母；他没有许诺给社团拍摄，牺牲的是自己这次取景机会。\n\n> “你回来，这边就没有那束光了。”纪川看了一眼屋顶，“今天我不拍它。带过去吧。”\n>\n> 林苒拍完合照，把相机带回。纪川到屋顶时，墙已经全在阴影里。他收起三脚架，没有拿旧照片冒充今晚拍的。\n>\n> “我耽误你了。”林苒说。\n>\n> “时间我算过。这次是我选的。”他问她照片要留哪张，两人坐下来挑。\n\n这段没有失忆，没有逼别人替他买单，也没有补一个神奇夕照让损失消失。明知代价仍借出相机，不自动等于降智；它是否适合，要看本书让读者期待什么。若前面已承诺这次取景决定重要比赛结果，就不能只靠一句“友情更重要”取消比赛线，需要结算失去的机会与后续方向。\n\n真实改稿时，若人物明知的信息要改变，应明确修前史与受影响的后文；若信息保留，就从已有目标解释选择，或改成他真正会做的行动。不要为了让选择好看而让角色忘掉原文。",
+          "en": "Apply the three questions to a separate original everyday story. Photography-club member Ji owns a camera and wants the last sunset light on a rooftop. Lin asks to borrow it for a portrait with her grandmother across the street before her departure that evening. Ji knows the trip and portrait will outlast the remaining light; Lin has arranged to meet her grandmother. He has no club shooting commitment, so he gives up his own opportunity.\n\n> “By the time you’re back, that light will be gone.” Ji glanced at the rooftop. “I won’t shoot it today. Take it.”\n>\n> Lin made the portrait and returned the camera. On the rooftop, Ji found the wall entirely in shadow. He packed his tripod rather than passing off an old image as tonight’s.\n>\n> “I cost you the shot,” Lin said.\n>\n> “I knew the timing. I chose this.” He asked which portrait she wanted to keep, and they sat down to select one.\n\nThere is no forgotten fact, cost forced onto someone else, or miraculous sunset erasing the loss. Lending the camera despite a known cost is not automatically foolish. Fit depends on the book’s promise: if the shot was established as decisive for an important competition, “friendship matters more” cannot cancel that storyline. Settle the lost opportunity and subsequent direction.\n\nAn actual revision that changes established knowledge must explicitly revise affected history and later chapters. If knowledge remains, explain the choice from existing goals or choose conduct that fits. Do not make a character forget facts to flatter the decision."
+        }
+      },
+      {
         "id": "composure",
         "heading": {
           "zh": "爽文主角怎样保持强而不冷血？",
@@ -5189,8 +5200,8 @@
           "en": "Make the smallest repair that restores credible choices"
         },
         "body": {
-          "zh": "| 症状 | 最小修复 |\n|---|---|\n| 明知危险仍犯错 | 调整信息，让错误在当时合理 |\n| 行为不符合人设 | 增加触发事件，或改回人物会做的选择 |\n| 收益被配角拿走 | 重分关键选择与结算 |\n| 能力被无偿接管 | 增加主角主动交换和可见收益 |\n| 反复原谅威胁 | 写边界、防范和再次违约的后果 |\n| 长期憋屈 | 给阶段反击、进展或主动撤退 |\n\n优先修因果和选择，别用旁白解释“他其实很聪明、很强”来覆盖问题。",
-          "en": "| Symptom | Smallest repair |\n|---|---|\n| A character errs despite knowing the danger | Adjust the available information so the mistake makes sense at the time |\n| Conduct contradicts established characterization | Add a triggering event or restore a choice the character would actually make |\n| A supporting character receives the protagonist’s reward | Redistribute the pivotal choices and payoffs |\n| Control of an exclusive ability is taken without compensation | Show the protagonist negotiating the exchange and receiving a visible return |\n| A threat is repeatedly forgiven | Establish boundaries, precautions and consequences for another breach |\n| Frustration drags on without relief | Give the protagonist an interim counterattack, progress or a deliberate retreat |\n\nRepair causes and choices first. Do not cover the problem with narration insisting that the character is actually clever or powerful."
+          "zh": "| 症状 | 最小修复 |\n|---|---|\n| 明知风险仍行动 | 先看是否是有依据的取舍；缺因果就修选择，不静默删掉已知信息 |\n| 行为不符合人设 | 增加触发事件，或改回人物会做的选择 |\n| 收益被配角拿走 | 重分关键选择与结算 |\n| 能力被无偿接管 | 增加主角主动交换和可见收益 |\n| 反复原谅威胁 | 写边界、防范和再次违约的后果 |\n| 长期憋屈 | 给阶段反击、进展或主动撤退 |\n\n优先修因果和选择，别用旁白解释“他其实很聪明、很强”来覆盖问题。",
+          "en": "| Symptom | Smallest repair |\n|---|---|\n| Acts despite a known risk | Check for a grounded tradeoff; repair unsupported choice without silently erasing known facts |\n| Conduct contradicts established characterization | Add a triggering event or restore a choice the character would actually make |\n| A supporting character receives the protagonist’s reward | Redistribute the pivotal choices and payoffs |\n| Control of an exclusive ability is taken without compensation | Show the protagonist negotiating the exchange and receiving a visible return |\n| A threat is repeatedly forgiven | Establish boundaries, precautions and consequences for another breach |\n| Frustration drags on without relief | Give the protagonist an interim counterattack, progress or a deliberate retreat |\n\nRepair causes and choices first. Do not cover the problem with narration insisting that the character is actually clever or powerful."
         }
       }
     ],
@@ -5238,6 +5249,13 @@
           "en": "Reader promises, agency and ownership of gains"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/reader-contract-and-progression.md"
+      },
+      {
+        "label": {
+          "zh": "改稿保留事实与信息边界",
+          "en": "Preserving facts and knowledge in revision"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ]
   },
@@ -41074,6 +41092,432 @@
           "en": "Risky implementation, splitting, and equivalent expression"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/generability.md"
+      }
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "write-a-flawed-protagonist",
+    "topic": "characters-and-dialogue",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "小说主角缺点怎么写：让弱点影响选择与后果",
+      "en": "How to Write a Flawed Protagonist"
+    },
+    "seo_title": {
+      "zh": "小说主角缺点怎么写",
+      "en": "Write a Flawed Protagonist"
+    },
+    "description": {
+      "zh": "用既有经历、惯常做法和实际后果写人物缺点。附校刊编辑过早下判断的完整场景，不靠临时降智制造失败。",
+      "en": "Connect a flaw to established experience, habitual choices, and consequences. Includes a complete scene about an editor judging too soon."
+    },
+    "answer": {
+      "zh": "把缺点写成有诱因的做法，而不是设定表上的“急躁、倔强”。这种做法可以曾经帮过人物，此刻却使他忽略信息、误伤关系或选错办法。保留他的能力和当时所知，写实际发生的损失、他如何回应以及别人怎样回应；一次认错不自动等于改好了。",
+      "en": "Make the flaw a triggered way of acting rather than a label such as impatient or stubborn. It may have helped before but now causes ignored evidence, a damaged relationship, or a poor tactic. Preserve ability and knowledge, show the actual cost and responses, and distinguish one admission from lasting change."
+    },
+    "sections": [
+      {
+        "id": "fault-or-limit",
+        "heading": {
+          "zh": "先分清缺点、能力边界和外部困难",
+          "en": "Separate a Flaw From a Limit or Obstacle"
+        },
+        "body": {
+          "zh": "不会开锁是能力边界，门被锁住是外部困难；明知自己没核完，却为证明“不用别人帮忙”宣布完成，才可能是性格缺点在作选择。缺点不一定造成灾难，也可以使人反复失去沟通机会。\n\nOh Story 的人物方法要求弱点进入关键行为，并从已有经历、目标和状态推导反应。不是每个主角都必须走改过路线；稳定坚持也能有魅力。本文处理的是作者已经选择“这个做法会出问题”的人物，不给所有善良、谨慎或沉默贴缺陷标签。\n\n人物为什么在乎，见[动机指南](/oh-story/character-motivation)；跨全书怎样改变，见[人物弧光](/oh-story/character-arc)。",
+          "en": "Not knowing how to pick a lock is a skill limit; a locked door is an obstacle. Declaring a check complete to prove no help is needed, despite knowing it is unfinished, can express a flaw. Costs may be missed conversations rather than disasters.\n\nOh Story places a weakness in consequential behavior and derives responses from established experience, goals, and state. Not every protagonist needs reform; stable conviction can be compelling. This page concerns a chosen problematic habit, not a blanket diagnosis of kindness, caution, or silence.\n\nUse [motivation](/oh-story/character-motivation) for why a goal matters, and the [character arc](/oh-story/character-arc) for change across the book."
+        }
+      },
+      {
+        "id": "cause-and-cost",
+        "heading": {
+          "zh": "让同一种做法在具体条件下失效",
+          "en": "Show Where the Habit Stops Working"
+        },
+        "body": {
+          "zh": "先写人物用这个办法保护什么，再找这次与以前不同的条件。赶时间时敢作决定曾帮她交稿；现在她把“敢删”误用成“不用听完”。能力没有消失，判断条件变了。\n\n| 要核的项 | 写进场景的内容 |\n|---|---|\n| 诱因 | 怕失去什么、想证明什么，不能只写性格词 |\n| 已有依据 | 他实际读过、听过或经历过的内容 |\n| 选择 | 仍可停下核对时，为何选择另一条路 |\n| 结果 | 哪个误读、损失或关系变化确实发生 |\n\n弱点不能替任意错误背书。人物一贯核得仔细，本场又无触发，却突然跳过明显步骤，应修行为或建立合理变化；别宣布“他其实一直这样”覆盖已写前文。",
+          "en": "Establish what the habit protects, then identify a changed condition. Decisiveness once helped her meet a deadline; now she confuses willingness to cut with permission not to hear a concern. Ability remains, but its application is poor.\n\n| Check | Scene evidence |\n|---|---|\n| Trigger | What is feared or sought beyond a personality label. |\n| Evidence | What was actually read, heard, or experienced. |\n| Choice | Why another tactic is chosen while checking remains possible. |\n| Result | A misunderstanding, loss, or relationship change that happens. |\n\nA flaw cannot authorize arbitrary errors. If a careful character skips an obvious check without a trigger, repair the conduct or establish a credible change; do not overwrite earlier behavior with “always like this.”"
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "原创场景：编辑能力还在，结论下得太早",
+          "en": "Original Scene: A Capable Editor Decides Too Soon"
+        },
+        "body": {
+          "zh": "校刊编辑柳禾擅长删重复段落，上一期赶稿时靠这项能力救过版面，因此习惯抢先判断。新人苏檐的短篇先回忆两年前借出一本曲谱，再回到本周归还；两场各有时间提示。周五午间发出纸质试读版，下周再出修订。柳禾决定修改内容，排版员按她交出的稿做版。这里是完整原创示范。\n\n> 柳禾划掉第一场前的时间提示，又删去回到本周的那句。“借出去，再还回来。时间不用交代这么细。”\n>\n> “前面是两年前。后面她才说，找了这本谱子两年——”\n>\n> “我读过后面。读者会懂。”她把删过的稿发给排版员。苏檐递过来标了时序的草稿，她没再展开。\n>\n> 周五午休，一位拿到试读版的同学问：“谱子刚借出去，怎么已经找了两年？”\n>\n> 柳禾回到原稿。第一次借谱是在回忆里，本周才归还；她删掉的是进入过去和回到现在的提示。\n>\n> “这两处是我删的。”她在编辑群里回复，随后问排版员能否换回去。\n>\n> “这二十份已发出去了。下周修订版能换。”\n>\n> 柳禾没让苏檐替她解释。“初版这处失误记我。我们先把时序一起核完，我再交修订。”苏檐摊开草稿：“先看哪一场是回忆。”\n\n柳禾不是突然不会编辑，也不是忘了别人提醒；她实际听到却过早驳回，损害的是读者理解和初版机会。发出的纸页没有凭一句道歉消失。两人开始核对，修订版尚未交付，不能写成错误已全部补好。",
+          "en": "School-magazine editor Liu cuts repetition well; this rescued a previous issue under pressure and encouraged premature judgments. Su’s story first recalls lending a score two years ago, then returns to its handover this week, with a time marker for each scene. A printed reading edition goes out Friday; a revision follows next week. Liu decides content edits; the layout editor uses her delivered text. Original demonstration:\n\n> Liu crossed out the first time marker and the return to this week. “Borrowed, then returned. We don’t need so much timing.”\n>\n> “The first scene is two years ago. Later she says she’s been looking for the score for two years—”\n>\n> “I read the ending. Readers will understand.” Liu sent the cut text to layout. Su offered a draft marked with the sequence; she did not reopen it.\n>\n> At Friday lunch, a student with the reading edition asked, “She’s only just lent it. How has she been looking for it for two years?”\n>\n> Liu returned to the original. The loan was a memory; the return was this week. She had cut the entry into the past and return to the present.\n>\n> “I cut those,” she replied in the editorial group, then asked layout to restore them.\n>\n> “Those twenty copies are already distributed. Next week’s revision can change.”\n>\n> Liu did not ask Su to explain for her. “Put the first-edition error on me. Let’s check the sequence together before I send a revision.” Su spread out the draft. “Start with which scene is the memory.”\n\nEditing ability remains. Liu heard and prematurely rejected the warning rather than forgetting it. Reader understanding and the first-edition opportunity suffered. An apology does not remove distributed pages. They begin checking; the revision is not yet delivered, so the error is not fully repaired."
+        }
+      },
+      {
+        "id": "response",
+        "heading": {
+          "zh": "让别人保留反应，不用夸赞替人物免责",
+          "en": "Let Others Respond Without Excusing the Character"
+        },
+        "body": {
+          "zh": "认错之后，可以有拒绝、有限合作或暂时不信任。苏檐愿意一起核时序，不等于承认删改正确；排版员愿意接下一版，不等于能恢复初版。\n\n若本书需要成长，再写柳禾在相似压力下怎样做：把疑问读完，问哪处事实依赖被删句，再决定取舍。她仍可以快速判断和删稿，改变的是过早封闭核对。一次新做法是一次证据；持续改变须由后续文本支持。\n\n若角色就是反复犯同类错，也可以写，代价与阅读承诺要接住。不能让每次损失由别人无条件消化，旁白却一直称她“有担当”。",
+          "en": "An admission can meet refusal, limited cooperation, or mistrust. Su’s willingness to check does not endorse the cut; layout accepting a later revision cannot recover the first edition.\n\nIf growth belongs in the book, show Liu hearing a concern under similar pressure and asking which fact depends on the line before deciding. She can remain decisive and capable of cutting; the premature shutdown changes. One better choice is evidence of that choice, with sustained change supported later.\n\nRepeated mistakes may also be intentional, with consequences and reader promises maintained. Other people absorbing every loss cannot substantiate narration calling her responsible."
+        }
+      },
+      {
+        "id": "revision-check",
+        "heading": {
+          "zh": "改稿时，核能力、知识和后果有没有被偷换",
+          "en": "Check Ability, Knowledge, and Consequences"
+        },
+        "body": {
+          "zh": "| 问题 | 修改方向 |\n|---|---|\n| 只写急躁，行为无差别 | 给本场诱因与具体选择 |\n| 为失败删除角色已知信息 | 保留所知，改真实取舍；确要改前史时一并修相关章节 |\n| 缺点只是无害小习惯 | 若作者想让它承担冲突，建立实际影响；否则保留为特征即可 |\n| 受害者当场全原谅 | 让对方按自身目标给真实回应 |\n| 一次道歉宣布长期成长 | 收到本场已发生的变化，后续再证明持续性 |\n\n先核发生了什么，再判断是否符合人物和题材。不是每个缺点都得改成美德，也不是每次犯错都得奖励一次成长。",
+          "en": "| Problem | Revision |\n|---|---|\n| A label without different conduct | Supply the trigger and choice. |\n| Established knowledge erased to force failure | Preserve knowledge and revise the tradeoff, or explicitly revise affected earlier chapters. |\n| A harmless habit called a major flaw | Establish impact if conflict is intended; otherwise keep it as a trait. |\n| Everyone forgives instantly | Let each person respond to their own goal. |\n| One apology proves permanent growth | Report the present change and establish durability later. |\n\nCheck what happened before judging character and genre fit. Flaws need not become virtues, and every mistake need not earn growth."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "主角有缺点，会不会让读者讨厌？",
+          "en": "Will readers dislike a flawed protagonist?"
+        },
+        "a": {
+          "zh": "要看这部作品承诺的体验、选择依据和后果。理解人物不等于赞成他，充分铺垫也不保证所有读者喜欢；先让他的能力、吸引力与错误都可见。",
+          "en": "It depends on the book’s promise, the basis for choice, and consequences. Understanding is not approval, and preparation cannot guarantee affection. Make capability, appeal, and error visible."
+        }
+      },
+      {
+        "q": {
+          "zh": "缺点一定要被改好吗？",
+          "en": "Must the flaw be corrected?"
+        },
+        "a": {
+          "zh": "不用。可以写改善、反复或恶化，也可以只在本场暴露。按故事方向安排，别把一回道歉当作必然改好。",
+          "en": "No. It may improve, recur, worsen, or be exposed locally. Follow the story’s direction without treating one apology as inevitable reform."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 检查这个主角的缺点。附已有经历、当时所知、本场目标和原稿；指出哪项惯常做法影响了选择、哪项后果确实发生。保留能力、已有知识和故事结果，只修指定段落；不为制造失败添加新事故，也不把一次道歉写成长期成长。",
+        "en": "Use $story-long-write to review the protagonist’s flaw with established experience, current knowledge, scene goal, and passage. Identify the habitual choice and actual consequence. Preserve ability, knowledge, and outcome while revising only the named passage. Do not invent an accident to force failure or turn one apology into lasting growth."
+      }
+    },
+    "related": [
+      "/oh-story/character-arc",
+      "/oh-story/character-motivation",
+      "/oh-story/reader-dealbreakers"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "弱点、行为与人物真相",
+          "en": "Flaws, conduct, and character revealed by choices"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-basics.md"
+      },
+      {
+        "label": {
+          "zh": "按既有属性推导行为",
+          "en": "Deriving conduct from established attributes"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-relations.md"
+      },
+      {
+        "label": {
+          "zh": "题材承诺与失败后的结算",
+          "en": "Genre promises and consequences after failure"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/reader-contract-and-progression.md"
+      }
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "write-a-moral-dilemma",
+    "topic": "characters-and-dialogue",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "小说两难选择怎么写：让在乎的两件事真正冲突",
+      "en": "How to Write a Moral Dilemma in Fiction"
+    },
+    "seo_title": {
+      "zh": "小说两难选择怎么写",
+      "en": "Write a Moral Dilemma in Fiction"
+    },
+    "description": {
+      "zh": "让人物的目标、承诺与价值冲突，先检查可行替代方案，再写实际选择及后果。附合唱团名额的完整原创场景。",
+      "en": "Put goals, promises, and values in conflict, check feasible alternatives, then show the choice and consequences. Includes a choir-selection scene."
+    },
+    "answer": {
+      "zh": "先让读者知道人物同时在乎什么，再用已经建立的条件说明这一次为什么不能全部保住。检查是否有能兼顾的实际办法，不能靠人物忘记它来造两难。写选择、对方响应和真正损失；正确选择可以有关系代价，不必获得全场原谅或额外大奖。",
+      "en": "Establish what the character cares about and why existing conditions prevent preserving all of it here. Check actual ways to reconcile the values rather than making a character forget them. Show the choice, others’ responses, and the loss. A defensible decision can cost a relationship without universal forgiveness or a bonus reward."
+    },
+    "sections": [
+      {
+        "id": "values",
+        "heading": {
+          "zh": "冲突来自人物在乎的事，不只来自损失大小",
+          "en": "Start With What Matters to the Character"
+        },
+        "body": {
+          "zh": "Oh Story 的动机方法列出目标与道德、情感与利益、短期与长期、自我与他人的冲突。用这些方向检查你的人物，不必每场都装齐四种。\n\n“两个都很坏”还不够。读者要知道人物为何愿意守其中一个，也为何舍不下另一个。公平与陪伴朋友可以冲突，两个选项却不必道德上同样正确；人物明知一项不该做，仍被其中重要的关系牵住，也能形成压力。\n\n如果只写“他必须二选一”，没有前面的投入与具体条件，损失再大也可能只是作者指令。",
+          "en": "Oh Story lists conflicts between goals and morality, feelings and interests, short and long term, or self and others. Use a relevant direction rather than fitting all four into every scene.\n\nTwo bad options are insufficient: establish why one matters and why the other is hard to surrender. Fairness may conflict with supporting a friend without both options being equally defensible. Knowing an action is wrong does not remove attachment to what it would protect.\n\n“He must choose” without prior investment or concrete conditions can feel imposed regardless of the scale of loss."
+        }
+      },
+      {
+        "id": "alternatives",
+        "heading": {
+          "zh": "先问有没有兼顾办法，别藏掉第三条路",
+          "en": "Check Whether the Values Can Be Reconciled"
+        },
+        "body": {
+          "zh": "延后决定、换资源、找有权协调的人、由别人自愿让步，可能是实际选项。按人物已经知道的条件检查，不必正文逐条穷举所有想象办法。\n\n| 候选 | 需要的依据 |\n|---|---|\n| 再核一次事实 | 有可查看的原记录，核对结果实际写清 |\n| 增加名额或改安排 | 谁能决定，对方有没有答应 |\n| 请别人让出机会 | 对方自己的意愿与损失，不能替他同意 |\n| 保留两项目标 | 当前资源和规则确实支持，不是突然无限供应 |\n\n若第三条路真正可行，人物使用它也可以成为好场景。想保留两难，就先修订可信条件，不让聪明角色漏掉已经摆在眼前的办法。",
+          "en": "Delay, different resources, an authorized coordinator, or someone’s voluntary concession may be real options. Check known conditions; the prose need not enumerate every imaginable tactic.\n\n| Alternative | Required basis |\n|---|---|\n| Recheck facts | Available records and an actual finding. |\n| Add a place or change the arrangement | Who decides and whether they agree. |\n| Ask someone to yield | Their own wishes and loss, not presumed consent. |\n| Keep both goals | Resources and rules that support it rather than suddenly unlimited supply. |\n\nUsing a feasible third path can make a good scene. To retain the dilemma, establish credible conditions instead of making an intelligent character overlook an available solution."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "原创场景：守住评分，也失去一次同行",
+          "en": "Original Scene: Keep the Scores, Lose a Shared Journey"
+        },
+        "body": {
+          "zh": "社区合唱团的音乐节节目只留一个独唱位，已定规则是三位评委合计分最高者入选。安祈汇总原始评分，负责人公布结果与节目安排。她的好友夏安得87分，乔叶得91分；乔叶已确认愿意参加。安祈曾答应陪夏安准备，这首歌是夏安想唱给即将搬走的母亲的。不是她能私下另发的奖励。\n\n> 夏安把演出裙放在桌边。“四分而已。你汇总的时候少记一点，谁会再看？”\n>\n> 安祈没拿笔，先把三张表重新相加。还是91和87。她给负责人打电话：“能不能多留一个节目？”\n>\n> “时段已经排满，这次只选一个。把原表和汇总一起交。”\n>\n> 电话挂了，夏安问：“那你答应陪我准备，算什么？”\n>\n> “练歌我答应了。分数我不能替你改。”安祈把原表装进文件袋，“我先来告诉你，再去交。”\n>\n> “今天别跟我一起走。”夏安拿起裙子。\n>\n> 安祈没有把文件袋递回桌上。负责人核对后公布乔叶入选，安排她按原时段排练。散场时，安祈在车站看见夏安，走过去问下次是否还一起练；夏安摇头，独自上了车。\n\n核对没有发现记分错误，增加节目也被实际拒绝；安祈提交原分数，正式名额由负责人确认。友情的代价是夏安这次拒绝同行与继续练歌，不是旁白预告“永远失去朋友”。安祈的选择可被理解，夏安的反应也留下后续空间；没人因她守规则又送来一个免费名额。",
+          "en": "A community choir has one festival solo slot. The agreed rule selects the highest total from three judges. An compiles original scores; the organizer confirms the result and schedule. Friend Xia has 87, Qiao 91; Qiao has confirmed willingness to perform. An promised to help Xia prepare a song for her mother, who is moving away. The slot is not An’s private reward to give.\n\n> Xia put her performance dress on the desk. “Four points. Leave a few out when you total them. Who will check?”\n>\n> An left the pen down and added the three sheets again: 91 and 87. She called the organizer. “Can we add another act?”\n>\n> “The time is full. One solo this time. Send the originals with the total.”\n>\n> Xia asked, “What did your promise to help me prepare mean, then?”\n>\n> “I promised to rehearse. I can’t change the scores.” An put the sheets in a folder. “I wanted to tell you before submitting them.”\n>\n> “Don’t come with me today.” Xia picked up the dress.\n>\n> An did not return the folder to the desk. The organizer checked it, announced Qiao’s selection, and assigned the existing rehearsal time. Later, An saw Xia at the station and asked about practicing together again. Xia shook her head and boarded alone.\n\nRechecking finds no scoring error; the added act is actually refused. An submits the scores; the organizer confirms the slot. The relationship cost is Xia’s present refusal to travel or rehearse together, not a narrator’s claim of permanent friendship loss. The choice and reaction leave room for later development without a free extra slot rewarding An’s conduct."
+        }
+      },
+      {
+        "id": "after-choice",
+        "heading": {
+          "zh": "结算的是本次选择，不替未来提前判案",
+          "en": "Settle This Choice Without Declaring the Entire Future"
+        },
+        "body": {
+          "zh": "选完之后至少把本场欠读者的结果写清：哪项安排实际改变、谁知道了什么、人物失去或保住什么。打算去道歉是打算，对方接受道歉才是回应；提出补救也不等于补救完成。\n\n安祈可以继续关心夏安，夏安也可以暂时不接受。若作者写另一种选择，隐去分数会怎样影响乔叶、负责人和安祈，也要结算，不能只让朋友开心就结束。题材若要求后续反击、成长或和解，继续兑现已建立的方向。\n\n不必给每次选择都加额外损失。有些条件核完就能兼顾；真正存在冲突时，再让选择留下分量。",
+          "en": "Deliver the present result: what arrangement changed, who learned what, and what was kept or lost. Planning an apology differs from receiving a response; proposing repair differs from completing it.\n\nAn can continue caring while Xia declines. A different choice that hides scores also needs consequences for Qiao, the organizer, and An rather than ending at a happy friend. Continue the established promise if the book calls for later resistance, growth, or reconciliation.\n\nDo not attach an extra loss to every choice. Conditions may allow both aims; weight belongs where a conflict actually exists."
+        }
+      },
+      {
+        "id": "check",
+        "heading": {
+          "zh": "删掉道理，选择是否仍有分量",
+          "en": "Check the Choice Before Adding Explanations"
+        },
+        "body": {
+          "zh": "复读时问：\n\n1. 两件在乎的事有没有此前的投入，而非临时加一句“很重要”？\n2. 不能兼顾的条件是否真实，人物有没有忽略已知可行办法？\n3. 主角是否作了选择，其他人是否按自身目标回应？\n4. 当前结果和后续待办是否分清，没有一次损失证明永久崩溃？\n\n必要的心理可以直写。读者已经从练歌承诺、评分与文件袋看懂冲突，再补长段“她终于明白公平更重要”未必有用。让解释解决真实缺口，不用演讲替代实际抉择。",
+          "en": "Ask on rereading:\n\n1. Is prior investment present rather than a newly asserted importance?\n2. Are the conditions real, without an overlooked known solution?\n3. Does the protagonist choose while others respond to their own goals?\n4. Are the present outcome and future work separate, without one loss proving permanent collapse?\n\nNecessary thought may be direct. Once rehearsal promises, scores, and the folder make the conflict clear, a speech about fairness may add little. Explanation addresses a real gap rather than replacing the choice."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "两种选择必须一样正确吗？",
+          "en": "Must both choices be equally right?"
+        },
+        "a": {
+          "zh": "不必。压力可以来自守住原则会伤及珍惜的关系。让读者理解牵挂，不把理解写成对任意做法的认可。",
+          "en": "No. Upholding a principle can hurt a valued relationship. Make attachment understandable without treating understanding as approval of every action."
+        }
+      },
+      {
+        "q": {
+          "zh": "必须牺牲一个人，才算两难吗？",
+          "en": "Does a dilemma require sacrificing a person?"
+        },
+        "a": {
+          "zh": "不用。时间、机会、信任、承诺或自我评价也能有分量。按本书已建立的价值写，不为提高强度突然造灾难。",
+          "en": "No. Time, opportunity, trust, promises, or self-image can matter. Use established values rather than inventing a disaster to raise intensity."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 检查这场两难选择。附人物在乎的目标与价值、已定条件、可行方案和场景结果。判断冲突是否真实、有没有忽略可兼顾的办法；在事实和所知范围内修选择与回应，不临时新增无代价救场，也不替其他人物宣布原谅。",
+        "en": "Use $story-long-write to review the dilemma with goals, values, established conditions, feasible options, and scene outcome. Check the conflict and overlooked ways to reconcile it. Revise the choice and responses within facts and knowledge without a cost-free rescue or forgiveness declared for other characters."
+      }
+    },
+    "related": [
+      "/oh-story/character-motivation",
+      "/oh-story/write-theme-without-preaching",
+      "/oh-story/character-arc"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "动机冲突与关键选择",
+          "en": "Motivation conflicts and decisive choices"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-basics.md"
+      },
+      {
+        "label": {
+          "zh": "理念矛盾与情感投入",
+          "en": "Conflicting ideals and emotional investment"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/emotion-on-page.md"
+      },
+      {
+        "label": {
+          "zh": "主动承担结果与本书承诺",
+          "en": "Chosen consequences and the book’s promise"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/reader-contract-and-progression.md"
+      }
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "write-a-believable-misunderstanding",
+    "topic": "characters-and-dialogue",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "小说误会剧情怎么写：信息有缺口，人物也会核实",
+      "en": "How to Write a Believable Misunderstanding"
+    },
+    "seo_title": {
+      "zh": "小说误会剧情怎么写",
+      "en": "Write a Believable Misunderstanding"
+    },
+    "description": {
+      "zh": "分清看到的事实与误判，给人物合理核实和回应机会。附搬家台灯的完整场景，解释清楚不等于关系自动修复。",
+      "en": "Separate observed facts from inference and allow credible questions and replies. Includes a moving-day scene where clarification leaves a relationship cost."
+    },
+    "answer": {
+      "zh": "给误会一个可追踪的来源：人物看见了什么、缺哪项信息、为何按既有经历作了这个判断。能问时允许他问，回答要回应具体误读；需要延迟沟通时，写实际限制而非反复回避。真相被说明后，错误行动造成的关系或资源损失仍可继续，不必靠永不澄清拖长故事。",
+      "en": "Give the misunderstanding a traceable basis: observed evidence, missing information, and an inference shaped by prior experience. Allow a question when possible and a reply addressing the actual misreading. Establish a real constraint if communication is delayed. Clarification can leave relationship or resource costs from mistaken action, so perpetual silence is unnecessary."
+    },
+    "sections": [
+      {
+        "id": "facts-and-inference",
+        "heading": {
+          "zh": "先把事实、判断和未知分开",
+          "en": "Separate Observation, Inference, and the Unknown"
+        },
+        "body": {
+          "zh": "| 内容 | 可以怎样写 |\n|---|---|\n| 实际看见 | 台灯靠着写“回收”的纸箱 |\n| 实际听见 | “这一箱带下去” |\n| 人物推断 | 他要把我的台灯一起扔掉 |\n| 还没核实 | “这一箱”指什么，台灯准备给谁 |\n\n缺信息可以导致误判，但人物过去的经历只解释为何这样想，不自动证明现在也一样。已经知道台灯要归还的人，不能为了制造误会突然忘记这项约定；已有怀疑也不应被旁白宣布为事实。\n\n读者可先知道真相，也可跟人物一起查。选择哪种，按本书的[视角安排](/oh-story/narrative-point-of-view)写；读者知道不等于其他人物知道。",
+          "en": "| Layer | Example |\n|---|---|\n| Seen | A lamp beside a box marked “recycling.” |\n| Heard | “Take this box downstairs.” |\n| Inferred | He intends to throw away my lamp. |\n| Unchecked | Which box is meant and where the lamp is going. |\n\nMissing information can produce an error, but prior experience explains an inference without proving it. A character who knows a return arrangement cannot suddenly forget it for the plot; narration should not certify a suspicion as fact.\n\nReaders may know first or investigate alongside the character. Follow the book’s [viewpoint](/oh-story/narrative-point-of-view); reader knowledge is not shared automatically."
+        }
+      },
+      {
+        "id": "why-not-ask",
+        "heading": {
+          "zh": "能问就让人物问，延迟要有当下理由",
+          "en": "Allow Questions and Establish Any Delay"
+        },
+        "body": {
+          "zh": "Oh Story 的对白方法把语气与关系、场合、目的联系起来，也检查回答是否承接上一句。问“台灯也要扔吗”，回答应处理台灯，不能无理由转成“你从来不信我”后绕开事实。\n\n羞于承认在乎、公开场合不能谈某件私事、对方确实不在场，都可能延迟沟通；是否成立要看已写的关系与条件。手机坏、突然停电、有人反复打断，也不能每到解释处自动出现。\n\n若当面已经能说清，就写清。澄清以后，对方仍可追问为何先指责、是否尊重旧约定。事实解决与关系解决可以分开推进，不必维护一个失去依据的误会。",
+          "en": "Oh Story relates speech to relationship, setting, and purpose and checks whether a reply answers the prior move. “Are you throwing away the lamp?” calls for an answer about the lamp, not an unexplained diversion into trust.\n\nReluctance to admit attachment, a public setting unsuitable for a private topic, or genuine absence may delay a conversation if supported by the relationship and conditions. Broken phones, blackouts, or interruptions cannot appear automatically whenever explanation is possible.\n\nIf the facts can be explained now, explain them. A person may still ask why they were accused first or whether an old agreement is respected. Factual and relational repair can proceed separately without preserving an unsupported belief."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "原创场景：台灯还回来了，指责没有自动消失",
+          "en": "Original Scene: The Lamp Returns, the Accusation Remains"
+        },
+        "body": {
+          "zh": "陆鸣搬家，借用许棠的台灯要归还。他已经把灯放到纸箱旁，箱子里只有旧包装纸。许棠还不知道这个归还安排；她知道陆鸣以前曾没问就重排她的明信片，也已经为此吵过。她这次带着不满进门。正文贴许棠，不进入陆鸣内心；以上是作者核对用的事实。\n\n> 纸箱上写着“回收”，台灯紧靠箱沿。陆鸣在门里对邻居说：“这一箱带下去。”\n>\n> 许棠想，他又替我做决定了。她在搬家群里发：“他把我的灯也放进回收里了，先别帮他搬。”\n>\n> 她走到箱边。“我的灯你也要扔？”\n>\n> “不，那箱才是。”陆鸣把灯从箱旁拿起，递给她，“灯是还你的。”\n>\n> 许棠接住灯。箱里翻开的都是包装纸，灯根本没装进去。她删掉刚才那条，又发：“刚才我看错了，灯是还给我的。对不起，搬纸箱可以照常。”邻居回复收到，进门抱起纸箱。\n>\n> “上次明信片你也没问我。”她说。\n>\n> “那次是我做错了。这次你可以先问。”陆鸣把箱底剩下的纸叠好，“我的东西我自己收。你的东西，你说放哪儿。”\n>\n> 许棠把灯放回自己的房间。回来时问要不要帮忙，陆鸣说：“今天我先自己来。”\n\n位置与指代造成缺口，过去的不满使她过早下结论；这是误判来源，不表示公开指责正确，也不保证读者接受。若她既有人设一贯先核实，应改她的行动，不靠此例许可改人设。灯实际回到她手上，群里实际纠正并得到邻居确认；陆鸣没有自动原谅，过去的收纳争执也没被一句解释抹掉。",
+          "en": "Lu is moving and intends to return Xu’s borrowed lamp. It stands beside a box containing old packing paper. Xu does not know this return arrangement. She does know Lu previously rearranged her postcards without asking, causing an argument; she arrives resentful. The prose follows Xu without entering Lu’s mind. These are author-facing facts.\n\n> “Recycling” was written on the box; the lamp leaned beside it. From the doorway Lu told a neighbor, “Take this box downstairs.”\n>\n> He’s deciding for me again, Xu thought. She posted in the moving group: “He’s put my lamp with the recycling too. Don’t help him move yet.”\n>\n> She approached the box. “Are you throwing away my lamp?”\n>\n> “No. Just that box.” Lu lifted the lamp from beside it and handed it over. “This is for you to take back.”\n>\n> Xu accepted it. The open box held packing paper; the lamp had never been inside. She deleted her message and posted, “I read it wrong. The lamp is being returned. I’m sorry; moving the paper can go ahead.” The neighbor acknowledged it and carried the box.\n>\n> “You didn’t ask about the postcards last time either,” she said.\n>\n> “I was wrong then. You could ask first this time.” Lu stacked the remaining paper. “I’ll pack my things. You decide where yours go.”\n>\n> Xu put the lamp in her room. Returning, she offered help. “I’ll do it myself today,” Lu said.\n\nPosition and reference leave an information gap; prior resentment leads to premature judgment. That explains the error without endorsing a public accusation or guaranteeing reader acceptance. If Xu normally verifies first, revise the action rather than using this example to change characterization. The lamp is returned, and the public correction is acknowledged by the neighbor. Lu does not automatically forgive, and the old argument remains."
+        }
+      },
+      {
+        "id": "reveal-and-cost",
+        "heading": {
+          "zh": "真相改变判断，后果需要另写回应",
+          "en": "Clarification Changes Belief; Consequences Need Responses"
+        },
+        "body": {
+          "zh": "许棠不再相信灯被扔了，但她已经公开指责。可以道歉、纠正消息、重谈边界；每一步都由实际行为和接收者回应确认，不由旁白一句“误会解开，一切如初”完成。\n\n本例只让一位邻居确认，不证明群里所有人都看到了纠正。后文若要写其他人的评价变化，需要他们实际收到信息；别把发出消息当作全体已经理解。\n\n若误会导致错过列车、放弃合作或损伤物件，澄清也不会倒转既成后果。后续空间来自如何处理这些结果，而非再藏一条谁都不肯说的话。",
+          "en": "Xu no longer believes the lamp was discarded, but she accused publicly. Apology, correction, and renegotiated boundaries depend on actions and recipients’ replies, not narration restoring everything at once.\n\nOne neighbor acknowledges this correction; that does not prove every group member read it. Later changes in others’ opinions need receipt of the information rather than a message equaling universal understanding.\n\nClarification cannot undo a missed train, abandoned collaboration, or damaged object. Further story can come from handling those results rather than another withheld sentence."
+        }
+      },
+      {
+        "id": "revision-check",
+        "heading": {
+          "zh": "修掉为了拖延而存在的回避",
+          "en": "Revise Evasion That Exists Only to Delay"
+        },
+        "body": {
+          "zh": "| 问题 | 修改 |\n|---|---|\n| 人物忘掉已经知道的真相 | 保留所知，把误判放到真正未知处 |\n| 问题直接，回答总绕开 | 给当下目的或限制；没有就回答具体问题 |\n| 解释一半总被事故截断 | 检查是否是已有条件，不重复临时救场 |\n| 澄清后所有损失清零 | 写实际补救与回应，保留尚未处理的部分 |\n| 旁白替限知人物断言别人动机 | 写已有言行及判断，未知继续保持未知 |\n\n更长不等于更有张力。删掉一轮没作用的回避，保留人物在证据变化后仍要承担的选择，误会反而更有分量。",
+          "en": "| Problem | Revision |\n|---|---|\n| A known truth forgotten | Preserve knowledge and move uncertainty to what is unknown. |\n| Direct questions always evaded | Establish a present purpose or limit, otherwise answer. |\n| Accidents repeatedly cut explanations | Check established conditions instead of fresh rescues. |\n| All costs vanish at clarification | Show repair and responses with unfinished consequences retained. |\n| Limited narration asserts another person’s motive | Use established conduct and inference while retaining unknowns. |\n\nLength does not create tension by itself. Removing a purposeless evasion can make the remaining consequential choices more substantial."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "读者先知道真相，误会还成立吗？",
+          "en": "Can readers know the truth before the character?"
+        },
+        "a": {
+          "zh": "可以。重点会转向人物会怎样误判、何时得到依据以及先前行动有什么后果。按既定视角安排读者信息，不能让人物无来源共享。",
+          "en": "Yes. Interest shifts to the inference, when evidence arrives, and consequences of prior action. Arrange reader information through the chosen viewpoint without sharing it with characters without a source."
+        }
+      },
+      {
+        "q": {
+          "zh": "解释清楚之后，冲突就没了吗？",
+          "en": "Does explaining the truth end the conflict?"
+        },
+        "a": {
+          "zh": "事实误会可能结束，先前的指责、失约或损失仍能继续影响关系。让后续处理这些已经发生的事，不另造不肯解释的秘密拖延。",
+          "en": "The factual error may end while accusation, broken promises, or losses still affect the relationship. Address what happened rather than inventing another unexplained secret."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 检查这个误会场景。附原稿、各人实际所知与此前关系，分开观察、推断和作者事实。找能核实却被强行绕过的句子，修具体问答与行动后果；保留既有知识、视角和场景结果，不新增秘密或临时事故拖延沟通，也不把澄清写成大家自动原谅。",
+        "en": "Use $story-long-write to review the misunderstanding with the passage, actual knowledge, and prior relationship. Separate observation, inference, and author facts. Repair forced evasion, specific questions and replies, and consequences while preserving knowledge, viewpoint, and outcome. Do not invent a secret or accident to delay communication or equate clarification with forgiveness."
+      }
+    },
+    "related": [
+      "/oh-story/character-dialogue",
+      "/oh-story/narrative-point-of-view",
+      "/oh-story/write-an-unreliable-narrator"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "对白议程、信息阻力与回应",
+          "en": "Dialogue agendas, information friction, and replies"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/dialogue-mastery.md"
+      },
+      {
+        "label": {
+          "zh": "限知视角与叙事信息",
+          "en": "Limited viewpoint and narrative information"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-craft.md"
+      },
+      {
+        "label": {
+          "zh": "事实与表达分别裁决",
+          "en": "Separating facts from expression"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ]
   }

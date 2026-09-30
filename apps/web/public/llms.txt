@@ -124,6 +124,9 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Write Jealousy in a Romance](https://zenstory.ai/oh-story/write-jealousy-in-a-romance) — Separate observed facts, guesses, and the reply a character wants. Includes a jealousy scene that retains work, a third person’s goals, and an agreed date.
 - [How to Write a Negotiation Scene in Fiction](https://zenstory.ai/oh-story/write-a-negotiation-scene) — Build negotiations around goals, conditions, and limits. Includes a complete repair-shop scene and the difference between agreement and action.
 - [How to Write a Character Who Lies](https://zenstory.ai/oh-story/write-a-character-who-lies) — Define the deliberate falsehood and motive, then track what the listener actually knows. Includes a complete library exchange and repairs after discovery.
+- [How to Write a Flawed Protagonist](https://zenstory.ai/oh-story/write-a-flawed-protagonist) — Connect a flaw to established experience, habitual choices, and consequences. Includes a complete scene about an editor judging too soon.
+- [How to Write a Moral Dilemma in Fiction](https://zenstory.ai/oh-story/write-a-moral-dilemma) — Put goals, promises, and values in conflict, check feasible alternatives, then show the choice and consequences. Includes a choir-selection scene.
+- [How to Write a Believable Misunderstanding](https://zenstory.ai/oh-story/write-a-believable-misunderstanding) — Separate observed facts from inference and allow credible questions and replies. Includes a moving-day scene where clarification leaves a relationship cost.
 
 ### Choose and write a genre / 题材与类型写法
 - [Choose and write a genre](https://zenstory.ai/guides/genres) — Choose a genre and learn the story patterns it needs.
