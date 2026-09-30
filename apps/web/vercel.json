@@ -457,6 +457,16 @@
       "permanent": true
     },
     {
+      "source": "/oh-story/write-a-story-theme",
+      "destination": "https://zenstory.ai/oh-story/write-theme-without-preaching",
+      "permanent": true
+    },
+    {
+      "source": "/zh/oh-story/write-a-story-theme",
+      "destination": "https://zenstory.ai/zh/oh-story/write-theme-without-preaching",
+      "permanent": true
+    },
+    {
       "source": "/org-home",
       "destination": "https://zenstory.ai/",
       "permanent": true

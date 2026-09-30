@@ -21475,5 +21475,377 @@
       "/video-recap/multi-video-story-edit",
       "/video-recap/turn-a-long-video-into-short-clips"
     ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "use-three-act-structure-for-a-novel",
+    "topic": "plot-and-outline",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "小说三幕结构怎么用：用转折改变人物的行动",
+      "en": "How to Use Three-Act Structure for a Novel"
+    },
+    "seo_title": {
+      "zh": "小说三幕结构怎么用：用转折改变人物的行动",
+      "en": "How to Use Three-Act Structure for a Novel"
+    },
+    "description": {
+      "zh": "按建立目标、持续对抗和最终解决组织小说，不用机械字数比例。附原创三幕表、中段转折与连载单卷的用法。",
+      "en": "Plan setup, confrontation and resolution around changing choices. Includes a filled three-act outline, a middle turn and use within a serial volume."
+    },
+    "answer": {
+      "zh": "把三幕看成三种任务：第一幕让主角进入必须处理的问题，第二幕让行动遭遇反制并改变旧办法，第三幕让主角用前面的经历完成最后选择。每幕之间的转折要改变目标、条件或风险，不能只是换地点。先写因果，再按需要分章，不把固定篇幅比例当作规则。",
+      "en": "Treat the acts as jobs: bring the protagonist into a problem, let their actions meet resistance that changes the old approach, then resolve the problem through a final choice earned by those experiences. Act transitions must change goals, conditions or risks. Establish causality before dividing chapters; fixed length percentages are not the rule."
+    },
+    "sections": [
+      {
+        "id": "three-jobs",
+        "heading": {
+          "zh": "三幕分别解决什么写作问题",
+          "en": "The three acts have different jobs"
+        },
+        "body": {
+          "zh": "Oh Story 的结构方法用“冲突开始、对抗、解决”概括三幕。它适合先判断一段故事有没有完整进展；章数与长度则随题材、事件分量和既定大纲安排。\n\n以下故事为原创：一名社区图书管理员林月，要在闭馆检修前找回一本借阅记录错乱的旧画册。\n\n| 幕 | 主要任务 | 例子 | 进入下一幕的变化 |\n|---|---|---|---|\n| 第一幕：建立问题 | 给目标、阻力和不能拖延的理由 | 画册被登记为已归还，架上却没有；检修前要完成盘点 | 林月决定核查归还流程，暂不把赔偿记到读者名下 |\n| 第二幕：对抗与调整 | 让尝试有结果，也带来新困难 | 查录像只看到还书箱；同事坚持系统已确认归还；林月发现检修搬箱时标签被贴错 | 原先“找借阅者”的办法失效，她转而查库房流转 |\n| 第三幕：解决 | 用前面的证据与选择处理核心问题 | 林月找回混进待修书箱的画册，说明责任，修正记录 | 借阅问题结束，流转制度需要后续改进 |\n\n第一幕不是必须写大量日常，第二幕不是一串不相干的难题，第三幕也不是突然有人带来答案。每一幕都要承接上一幕留下的结果。",
+          "en": "Oh Story’s structural method summarizes three acts as the start of conflict, confrontation and resolution. Use the framework to test whether a story develops completely; chapters and length follow genre, event weight and the settled outline.\n\nOriginal story: community librarian Lin Yue must find a missing art book before the library closes for maintenance.\n\n| Act | Job | Example | Change leading onward |\n|---|---|---|---|\n| Setup | Goal, resistance and a reason not to postpone | The system says the book was returned, but the shelf is empty; inventory is due | Lin chooses to check the return process before charging the borrower |\n| Confrontation | Attempts produce results and new problems | Footage shows only the return box; a colleague trusts the system; Lin finds mislabeled maintenance boxes | Looking for the borrower no longer works; she investigates storage movement |\n| Resolution | Use established evidence and choices to solve the problem | Lin finds the book among repair stock, explains responsibility and corrects the record | The missing-book problem ends; the handling process still needs improvement |\n\nSetup does not require a long stretch of routine. Confrontation is not a list of unrelated difficulties. Resolution is not someone arriving with an unprepared answer. Each act inherits the previous act’s consequences."
+        }
+      },
+      {
+        "id": "turning-points",
+        "heading": {
+          "zh": "转折改变做法，不只是换场景",
+          "en": "A turn changes the approach, not merely the location"
+        },
+        "body": {
+          "zh": "“林月来到库房”只是位置变化。“林月发现查错了方向，必须在箱子被搬走前核查库房”，才改变行动与风险。\n\n写转折时填三行：\n\n> 原计划：按借阅记录找最后一位读者。\n> 新事实：画册确实进了还书箱，问题发生在还书后的搬运。\n> 新选择：停止催问读者，检查即将移走的箱子，并公开承认原判断可能有错。\n\n中段转折可以是新证据、失败、关系改变或一次得来不易的成功。关键是它让旧策略不再够用。若每次只出现“另一位读者也不知道”，把重复调查压缩；留下能改变嫌疑、路线或合作条件的发现。\n\n转折前要放必要线索：检修搬箱、标签格式、谁接触过还书箱。结尾才新增“还有一个秘密库房”，会使前面的调查显得无用。",
+          "en": "“Lin goes to storage” changes location. “Lin discovers she investigated the wrong stage and must check storage before the boxes are moved” changes action and risk.\n\nWrite three lines for a turn:\n\n> Old plan: question the last borrower listed.\n> New fact: the book reached the return box; the problem occurred during later handling.\n> New choice: stop pursuing the borrower, inspect the departing boxes and admit that the initial judgment may be wrong.\n\nA middle turn can be evidence, failure, a relationship change or a hard-won success. It makes the old strategy inadequate. Compress repeated interviews that only say another person knows nothing; retain discoveries that alter suspicion, route or cooperation.\n\nEstablish needed clues beforehand: maintenance movement, label format and access to the return box. A previously unknown secret storeroom at the ending makes earlier investigation feel wasted."
+        }
+      },
+      {
+        "id": "serial-volumes",
+        "heading": {
+          "zh": "长篇连载怎么用：单卷结算，全书继续",
+          "en": "Use acts within a serial volume"
+        },
+        "body": {
+          "zh": "长篇可以让一卷完成一个主要问题，同时保留全书目标。图书馆这一卷找回画册、处理错误记录；下一卷可以围绕已提前出现的档案整理计划展开，而不是发现画册后立刻重置成同一场丢书调查。\n\n不要要求每章都塞完三幕。调查的一章可以只完成新线索与决定，下一章才处理后果。单章仍要有进展，但一卷的大结构不等于每章都变成独立短篇。\n\n如果第二幕特别长，拆成几个彼此有因果的阶段：查借阅记录、还书箱证据改变方向、箱子流转暴露标签问题。每阶段有自己的小结果，并把新条件送给下一阶段。",
+          "en": "A serial volume can settle one major problem while the whole-book goal continues. This volume finds the book and corrects the record; a later volume may pursue an archive project established earlier. Do not reset immediately into the same missing-book investigation.\n\nEvery chapter need not contain all three acts. One chapter can uncover a clue and establish a decision; another handles the result. Chapters still need progress, but a volume’s structure does not require each chapter to become a standalone short story.\n\nFor a long confrontation, use causal stages: borrowing records, return-box evidence, then the mislabeled storage route. Each stage pays off locally and supplies conditions for the next."
+        }
+      },
+      {
+        "id": "structure-repair",
+        "heading": {
+          "zh": "三幕都有了，仍然不好读，先查这些",
+          "en": "Repair an outline that has three acts but little progress"
+        },
+        "body": {
+          "zh": "| 问题 | 修订方向 |\n|---|---|\n| 第一幕只有背景 | 把必须处理的异常或冲突提前，相关背景随行动交代 |\n| 第二幕一直拖到期限 | 给每次尝试新证据、损失或关系变化，删无结果的重复 |\n| 转折靠巧合送答案 | 让人物的调查、选择或对手行动产生新条件 |\n| 第三幕突然新增办法 | 提前铺设工具、知识或合作，结尾用它承担代价 |\n| 结尾解决了另一个问题 | 对照第一幕的核心承诺，补原问题的明确结果 |\n\n结构表是检查工具。若作者选用另一种组织方式，也应检查目标、因果和回报，而不是强行把每一段贴成三幕标签。",
+          "en": "| Problem | Revision |\n|---|---|\n| Setup contains only background | Bring the necessary anomaly or conflict forward; reveal relevant context through action |\n| Confrontation merely delays a deadline | Give attempts evidence, loss or relationship change; cut repetition with no result |\n| Chance supplies every turn | Let investigation, choices or opposing actions create new conditions |\n| Resolution invents a new solution | Establish the tool, knowledge or cooperation earlier and make its use cost something |\n| The ending solves a different problem | Return to the setup’s central promise and give it a definite result |\n\nThe outline is a checking tool. An author using another structure still needs goals, causality and payoff, without forcing every passage into an act label."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "三幕必须按固定字数比例分吗？",
+          "en": "Must the acts follow fixed length percentages?"
+        },
+        "a": {
+          "zh": "不必。本篇按每幕承担的任务判断，长度随内容分量变化。比例只能辅助看明显失衡，不能替代人物行动和因果。",
+          "en": "No. Judge each act by its job and let length follow the material. A proportion may help spot imbalance, but it cannot replace action and causality."
+        }
+      },
+      {
+        "q": {
+          "zh": "第二幕卡住，怎么找下一步？",
+          "en": "How do I find the next step in a stalled second act?"
+        },
+        "a": {
+          "zh": "先写旧计划为何失效，再让当前选择产生新条件。如果只是不断增加不相关麻烦，回到主角目标与已铺线索重新安排。",
+          "en": "Identify why the old plan fails, then let the present choice create a new condition. If you only add unrelated trouble, return to the goal and established clues."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "对 story-long-write 说：“只规划这段故事的三幕方案。列每幕目标、行动、结果和转折的新条件；检查结尾是否回应开头，不展开章节正文。”",
+        "en": "Ask story-long-write for a three-act plan only: goal, action, result and changed conditions at each turn. Check that the ending answers the opening without drafting chapters."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "三幕功能与因果链",
+          "en": "Act functions and causality"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/outline-structure-theory.md"
+      },
+      {
+        "label": {
+          "zh": "阶段目标与计划变化",
+          "en": "Staged goals and changing plans"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/plot-frameworks.md"
+      }
+    ],
+    "related": [
+      "/oh-story/novel-outline-template",
+      "/oh-story/volume-outline-template",
+      "/oh-story/climax-scene"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "build-a-cause-and-effect-plot",
+    "topic": "revision",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "小说剧情不合理怎么改：检查选择、证据与后果",
+      "en": "How to Fix Plot Logic With Cause and Effect"
+    },
+    "seo_title": {
+      "zh": "小说剧情不合理怎么改：检查选择、证据与后果",
+      "en": "How to Fix Plot Logic With Cause and Effect"
+    },
+    "description": {
+      "zh": "把事件清单改成因果链，核对人物为什么知道、为什么行动、结果怎样出现。附原创调查故事对照和逻辑修改表。",
+      "en": "Turn an event list into a causal chain. Check knowledge, choices and outcomes with an original investigation example and a revision table."
+    },
+    "answer": {
+      "zh": "逐个转折问三件事：人物依据什么作决定，这个决定怎样改变条件，下一件事为什么因此发生。缺原因就补必要证据或约束，缺后果就让选择真正改变局面。不要只加一句“他忽然想到”或用角色降智把剧情推到预定结局。",
+      "en": "At each turn, ask what supports the decision, how it changes conditions and why the next event follows. Supply missing evidence or constraints and make choices produce consequences. A sudden insight or a character acting foolishly is not a substitute for the missing causal link."
+    },
+    "sections": [
+      {
+        "id": "event-and-cause",
+        "heading": {
+          "zh": "先分事件顺序与因果关系",
+          "en": "Separate chronological order from cause"
+        },
+        "body": {
+          "zh": "Oh Story 的结构方法区分静态事实、发生变化的事件，以及按因果组织出来的故事。两件事先后发生，不代表前者造成后者。\n\n**只有顺序：**林月接到投诉，去了库房，看见一箱旧书，找到丢失的画册。\n\n**补上因果：**投诉提到画册已归还；林月核对还书记录，发现归还时间与检修搬箱重叠；值班员记得箱子被临时放进库房；林月检查那批箱子的标签，找到错归类的画册。\n\n第二版的每一步都说明下一步为什么合理。它仍可以有意外，但意外出现后，人物要根据新条件行动，不能用巧合连续送齐全部答案。",
+          "en": "Oh Story distinguishes static facts, changing events and a story organized through causality. Two events happening in sequence does not mean one causes the other.\n\n**Sequence only:** Lin receives a complaint, goes to storage, sees old books and finds the missing art book.\n\n**Causal version:** the complaint says the book was returned; Lin checks the record and finds the return overlapped maintenance handling; the duty worker remembers temporary storage; Lin checks that batch’s labels and finds the misclassified book.\n\nEvery step explains the next. Chance can occur, but the protagonist must respond to its new conditions rather than receive every answer through repeated coincidence."
+        }
+      },
+      {
+        "id": "causal-audit",
+        "heading": {
+          "zh": "用三栏表找断点",
+          "en": "Use a three-column audit to find gaps"
+        },
+        "body": {
+          "zh": "以下图书馆故事是原创例子。\n\n| 人物已有依据 | 选择或行动 | 可见结果 |\n|---|---|---|\n| 系统有归还记录，架上没有书 | 暂缓向读者收赔偿，先查内部流程 | 读者愿意提供还书时间，同事担心盘点延误 |\n| 还书时间与搬箱重叠 | 询问当天值班员 | 得知有一批书送往库房 |\n| 值班员说标签临时更换 | 比较标签与箱内书目 | 发现修复书与已归还书混装 |\n| 找到画册，记录此前判断错误 | 更正记录并向借阅者说明 | 当前问题解决，内部流程需要调整 |\n\n表格空一格，就找到一类缺口：没有依据，人物像知道作者答案；没有行动，证据只是自己飘来；没有结果，剧情可能原地打转。\n\n不必把所有因果都用旁白解释。记录中的时间、人物实际问的问题、带着标签的箱子，都能让读者理解联系。",
+          "en": "This library story is original.\n\n| Evidence available | Choice or action | Visible result |\n|---|---|---|\n| A return record exists, but the shelf is empty | Delay the charge and check internal handling | The borrower supplies the time; a colleague worries about the inventory deadline |\n| Return time overlaps moving boxes | Ask the duty worker | Learn that a batch went to storage |\n| Labels were temporarily replaced | Compare labels with contents | Discover returned books mixed with repair stock |\n| The book is found and the initial judgment was wrong | Correct the record and explain | The immediate problem ends; the procedure needs revision |\n\nAn empty column identifies a gap. Without evidence, a character knows the author’s answer. Without action, clues drift into the scene. Without a result, the plot may be standing still.\n\nReaders need not receive a lecture explaining every connection. A recorded time, an actual question and a labeled box can communicate the causal link."
+        }
+      },
+      {
+        "id": "counterfactual-check",
+        "heading": {
+          "zh": "再问：人物能不能轻易避开这件事",
+          "en": "Check whether an easier alternative breaks the plot"
+        },
+        "body": {
+          "zh": "林月为什么不直接打电话问读者？可以问，而且应当问；但读者能证明已经归还，就不能继续把“找不到”当成对方的责任。剧情要让简单办法产生真实结果，再进入下一层，而不是为了调查篇幅让所有人忘记电话存在。\n\n检查三种容易漏掉的选择：\n\n- **现成工具**：记录、电话、钥匙或已建立的能力能否立即解决？能解决就用，或提前说明合理限制。\n- **退出路径**：主角能否放弃却不失去任何东西？若故事需要他留下，写清目标、承诺或现实代价。\n- **信息传播**：谁知道了新事实，何时告诉别人？如果一条消息已公开，后续人物不能仍按旧信息行动，除非有明确原因。\n\n约束要属于设定与人物处境。不临时让手机全部没电，也不让善于核对的人突然完全不检查。",
+          "en": "Why not simply call the borrower? Lin can and should. Once the borrower supplies evidence of returning the book, an empty shelf cannot remain their responsibility. Let the easy method produce its real result before investigating further; do not make everyone forget phones exist.\n\nCheck three alternatives:\n\n- **Available tools:** could a record, phone, key or established ability solve this? Use it or establish a credible limit beforehand.\n- **An exit:** could the protagonist quit without losing anything? If they must stay, establish a goal, promise or real cost.\n- **Information sharing:** who learns the fact, and when is it shared? Once a fact is public, later behavior needs to account for it.\n\nConstraints must belong to setting and character. Do not suddenly drain every phone or make a careful person stop checking anything."
+        }
+      },
+      {
+        "id": "repair-with-limits",
+        "heading": {
+          "zh": "逻辑修改不要顺手重写整本故事",
+          "en": "Repair the missing link without casually replacing the story"
+        },
+        "body": {
+          "zh": "| 断点 | 局部修法 | 若仍不成立 |\n|---|---|---|\n| 人物突然知道库房在哪 | 提前交代值班员提供路线 | 重新安排调查顺序 |\n| 同事无理由拒绝合作 | 写明盘点期限和责任分歧 | 调整冲突，不把同事写成无脑阻拦者 |\n| 关键标签此前没出现 | 在搬箱或记录场景里给可见线索 | 修改揭示方式与铺垫 |\n| 找到书却无后果 | 处理赔偿记录与误判关系 | 重新确定本段承诺 |\n\n先修有证据的局部缺口。若修法需要改主线真相、人物重大选择或结局，就回大纲确认，不能在一句润色里悄悄换掉。修改后从前一个决定读到后一个结果，检查新补的约束是否又造成矛盾。\n\n这篇检查的是“为什么会发生”；[人物、时间线与伏笔检查](/oh-story/ai-fiction-consistency-check)另负责“已发生的事实是否前后一致”。两项都过，剧情才站得住。",
+          "en": "| Gap | Local repair | If still insufficient |\n|---|---|---|\n| Lin suddenly knows the storage route | Establish the worker’s directions | Reorder the investigation |\n| A colleague refuses without reason | Show deadline and responsibility concerns | Revise the conflict rather than making them foolish |\n| The decisive label never appeared | Show it during handling or record checking | Replan setup and reveal |\n| Finding the book changes nothing | Resolve the charge and relationship after the mistake | Reconsider the sequence’s promise |\n\nFix supported local gaps first. A repair changing the main truth, major choice or ending belongs in outline revision, not a casual sentence edit. Reread from the preceding decision through the following result to catch contradictions caused by the new constraint.\n\nThis article checks why events happen. [Character, chronology and clue continuity](/oh-story/ai-fiction-consistency-check) checks whether established facts stay consistent. Both matter."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "所有巧合都不能用吗？",
+          "en": "Must I remove every coincidence?"
+        },
+        "a": {
+          "zh": "不必。巧合可以让故事开始或产生新压力。关键问题的解决仍应来自人物对条件的处理，不连续用巧合送答案和胜利。",
+          "en": "No. Chance can start the story or create pressure. Major solutions should still follow how characters handle conditions rather than repeated chance delivering answers and victories."
+        }
+      },
+      {
+        "q": {
+          "zh": "剧情合理，就一定好看吗？",
+          "en": "Does logical plotting automatically make a good story?"
+        },
+        "a": {
+          "zh": "不一定。因果让读者相信事情这样发生，目标、情绪和回报让他愿意继续看。逻辑检查后还要看冲突是否值得关心、选择是否有分量。",
+          "en": "No. Causality makes the sequence believable; goals, emotion and payoff make it worth following. Also check whether the conflict matters and the choices carry weight."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "把大纲交给 story-long-write：“只检查这段情节的因果，按已有依据、人物行动、可见结果列断点。先给局部修法；需要改主线或结局的方案另列，不直接重写。”",
+        "en": "Give story-long-write the outline and request a causal audit only: available evidence, action and result. Ask for local repairs first, separating proposals that change the main plot or ending."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "事件与因果组织",
+          "en": "Events and causal organization"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/outline-structure-theory.md"
+      },
+      {
+        "label": {
+          "zh": "目标、阻碍与退出代价",
+          "en": "Goals, resistance and costs of leaving"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/plot-frameworks.md"
+      }
+    ],
+    "related": [
+      "/oh-story/story-conflict",
+      "/oh-story/ai-fiction-consistency-check",
+      "/oh-story/review-and-revise"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "write-theme-without-preaching",
+    "topic": "plot-and-outline",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "小说主题怎么写不说教：让选择与后果给出答案",
+      "en": "How to Write a Story Theme Without Preaching"
+    },
+    "seo_title": {
+      "zh": "小说主题怎么写不说教：让选择与后果给出答案",
+      "en": "How to Write a Story Theme Without Preaching"
+    },
+    "description": {
+      "zh": "把抽象主题变成反复出现的选择，人物可以给出不同答案。附原创选择对照、场景修改与主题偏离检查。",
+      "en": "Turn an abstract theme into recurring choices with different consequences. Includes an original comparison, a scene revision and checks for drift."
+    },
+    "answer": {
+      "zh": "先把主题改写成人物必须回答的问题，再安排不同角色的选择及其后果。主题会从这些因果里浮现，不需要人物轮流宣布道理。保留作者想要的核心情绪，但允许人物承担不同立场，让结局回应前面的选择，而不是用总结替代经历。",
+      "en": "Turn the theme into a question characters must answer, then give their choices consequences. Meaning emerges from those causal relationships without everyone announcing a lesson. Keep the intended emotional focus while allowing different positions, and make the ending answer earlier choices through what happens."
+    },
+    "sections": [
+      {
+        "id": "question-not-slogan",
+        "heading": {
+          "zh": "把主题从口号改成人物问题",
+          "en": "Replace a slogan with a question characters can answer"
+        },
+        "body": {
+          "zh": "Oh Story 的剧情方法强调，事件之间的因果关系产生意义；商业创作方法也要求小情绪服务全书的核心情绪。编辑时可以把这两点落实为“同一问题，不同选择，真实后果”。\n\n“诚信很重要”是观点，还不是场景。改成“发现自己负责的记录有错，公开承认会损失信任，人物怎么做”，就能写行动。\n\n以下人物属于原创图书馆故事：一份错归还记录可能让读者多付赔偿。\n\n| 人物 | 面对同一问题的选择 | 眼前好处 | 需要承担的后果 |\n|---|---|---|---|\n| 林月 | 暂停收费，核查并公开更正 | 保护借阅者 | 盘点延误，必须解释判断失误 |\n| 同事 | 先按系统收费，以后再处理 | 当天能结账 | 读者投诉后，撤销费用与恢复信任更难 |\n| 值班员 | 承认自己临时换过标签 | 找回书的路线清楚了 | 需要一起修订搬运流程 |\n\n不是给角色贴“好人、坏人”标签，而是让每个人的目标与压力可理解，再让选择显出代价。",
+          "en": "Oh Story’s plot method treats meaning as an outcome of causal relationships; its commercial writing method aligns smaller emotions with the book’s core emotional focus. Apply both through a shared question, different choices and real consequences.\n\n“Honesty matters” is a position, not yet a scene. “Admitting an error in your records will cost trust; what do you do?” produces action.\n\nThese characters belong to an original library story: a faulty return record may cause an unfair replacement charge.\n\n| Character | Choice | Immediate advantage | Consequence |\n|---|---|---|---|\n| Lin | Pause the charge, investigate and correct openly | Protects the borrower | Delays inventory and must explain her mistaken judgment |\n| Colleague | Charge according to the system and revisit later | Finishes the day’s accounts | A complaint makes reversal and trust repair harder |\n| Duty worker | Admit replacing temporary labels | Clarifies the route to the book | Must help revise handling procedures |\n\nDo not merely label them good and bad. Make their goals and pressures intelligible, then let the costs reveal the choices."
+        }
+      },
+      {
+        "id": "scene-revision",
+        "heading": {
+          "zh": "改前改后：把道理换成可见结果",
+          "en": "Before and after: replace a lecture with consequences"
+        },
+        "body": {
+          "zh": "以下场景为原创。\n\n**改前：**\n\n> 林月意识到诚信比个人面子更重要。她告诉同事，做人应该勇于承认错误，只有诚实才能获得真正的信任。\n\n这段可以表达作者立场，却没让读者看见承认错误到底难在哪里。\n\n**改后：**\n\n> 林月把赔偿单上的金额划掉，在下面签了名。\n> “书已经还了。记录是我们弄错的。”\n> 同事指着盘点截止时间。“这张不结，今天的表都要重做。”\n> “那我重做。”\n> 借阅者收起单子，没有像她预想的那样松口气。“上次我也这么说，你们让我回去再找。”\n\n后半句保留不舒服的结果：更正并不能立刻换来原谅。后续林月要完成表格、发更正通知，还要接受对方暂时不再信任图书馆。主题由行动与结果形成，不靠一句完美台词收账。",
+          "en": "This scene is original.\n\n**Before:**\n\n> Lin realized honesty mattered more than saving face. She told her colleague that people should admit mistakes and that honesty alone earns true trust.\n\nThe paragraph states the author’s position without making the difficulty visible.\n\n**After:**\n\n> Lin crossed out the charge and signed below it.\n> “The book was returned. We made the mistake.”\n> Her colleague pointed at the inventory deadline. “If this stays open, today’s accounts need redoing.”\n> “I’ll redo them.”\n> The borrower folded the form. She did not look relieved. “I told you that last time. You sent me home to look again.”\n\nCorrection does not immediately buy forgiveness. Lin must redo the records, send a correction and accept that trust remains damaged. Theme emerges through action and consequence rather than a perfect final line."
+        }
+      },
+      {
+        "id": "variation-and-focus",
+        "heading": {
+          "zh": "重复同一问题，别重复同一场训话",
+          "en": "Vary the pressure while keeping the thematic question"
+        },
+        "body": {
+          "zh": "之后可以把同一问题放到不同关系里：林月对读者承认错记，对同事承认自己先入为主，对负责人说明制度缺口。每次承担的成本不同，不必重复“诚信很重要”。\n\n主题统一也不等于每章情绪相同。可以有轻松的找书场景、紧张的盘点、尴尬的道歉；只要这些场景继续影响“出错后怎样负责”的问题。无关笑话或支线如果既不改变人物关系，也不影响这个问题，就考虑压缩。\n\n不同人物可以保留分歧。同事担心期限并不自动成为反派；负责人是否接受延误、读者是否接受道歉，都可以有自己的答案。让故事检验立场，不用作者替所有角色盖章。",
+          "en": "Later, place the question in different relationships: Lin admits a faulty charge to a reader, her assumption to a colleague and a procedural gap to a supervisor. Costs vary; the same moral speech need not repeat.\n\nThematic unity does not require identical emotion every chapter. A light search scene, tense inventory and awkward apology can all develop responsibility after error. Compress an unrelated joke or subplot if it changes neither relationships nor that question.\n\nCharacters may keep disagreements. Deadline concerns do not automatically make the colleague a villain. A supervisor may question the delay; the reader may reject the apology. Let events test their positions without authorial approval stamped on everyone."
+        }
+      },
+      {
+        "id": "theme-audit",
+        "heading": {
+          "zh": "检查主题是否来自故事，而非最后一段",
+          "en": "Check that the theme exists before the closing paragraph"
+        },
+        "body": {
+          "zh": "- 删掉总结句，人物的选择和后果是否仍能表现核心问题？不能，就补场景，不只补金句。\n- 看重要转折是否在检验同一问题；若结尾突然换成另一条道理，重新核对前面的承诺。\n- 让“正确选择”也有现实成本，避免故事总给支持作者观点的人无条件奖励。\n- 让相反立场有可理解的理由，不写成只能被打败的稻草人。\n- 检查旁白是否反复解释读者已经看见的意义，保留必要叙述，删重复裁决。\n\n作者不一定先有一句完整主题再动笔。也可以从已写场景反复出现的选择里提炼问题，再回头修正偏离。核心是意义有故事依据，而非结尾贴上一个结论。",
+          "en": "- Remove summary sentences. Do choices and consequences still express the central question? If not, strengthen scenes rather than slogans.\n- Check whether major turns test the same question. An ending that announces a different lesson needs earlier setup revised.\n- Give the favored choice a real cost instead of rewarding the author’s position unconditionally.\n- Make the opposing position understandable rather than a straw figure to defeat.\n- Keep necessary narration but remove repeated judgments about meaning already visible in events.\n\nAn author need not settle a perfect theme sentence before drafting. You can identify a recurring question in existing choices and revise drift afterward. Meaning needs story evidence, not a conclusion pasted onto the end."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "主题一定要让角色说出来吗？",
+          "en": "Must a character state the theme aloud?"
+        },
+        "a": {
+          "zh": "不用。人物可以有观点，但情节应让这些观点面对选择与后果。删掉宣讲后仍然成立的主题，通常更有说服力。",
+          "en": "No. Characters may express views, but the plot should test them through choices and consequences. A theme that survives removing the speech is more convincing."
+        }
+      },
+      {
+        "q": {
+          "zh": "多个主题会不会分散？",
+          "en": "Will several themes divide the story’s focus?"
+        },
+        "a": {
+          "zh": "可以有多个问题，但先确定主线最重要的选择。次要问题应影响这个选择或人物关系，不要在结尾临时增加未经情节检验的道理。",
+          "en": "Several questions can coexist, but identify the main plot’s central choice first. Secondary questions should affect it or the relationships rather than arrive as untested final lessons."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "对 story-long-write 说：“只检查大纲的主题表达。提炼反复出现的人物问题，列不同选择和后果；指出说教段落怎样改成场景，不改变我已定的结局。”",
+        "en": "Ask story-long-write to review thematic expression in the outline only. Identify the recurring question, choices and consequences, and suggest scene replacements for preaching while preserving the settled ending."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "因果关系产生故事意义",
+          "en": "Causality and story meaning"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/plot-frameworks.md"
+      },
+      {
+        "label": {
+          "zh": "主题与核心情绪统一",
+          "en": "Theme and emotional focus"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/commercial-core-methods.md"
+      }
+    ],
+    "related": [
+      "/oh-story/character-arc",
+      "/oh-story/write-a-satisfying-novel-ending",
+      "/oh-story/story-conflict"
+    ]
   }
 ]

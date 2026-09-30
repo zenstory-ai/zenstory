@@ -65,6 +65,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Plan a Novel Series Without Losing Momentum](https://zenstory.ai/oh-story/plan-a-novel-series) — Give each book a complete emotional payoff, a larger unresolved question, and a changing protagonist goal that earns the next installment.
 - [How to Write a Novel Synopsis That Shows the Whole Story](https://zenstory.ai/oh-story/write-a-novel-synopsis) — Summarize the protagonist’s goal, major turns, causal links, and ending in plain language; a synopsis is not a blurb.
 - [How to Write an Unreliable Narrator With Fair Clues](https://zenstory.ai/oh-story/write-an-unreliable-narrator) — Separate mistaken interpretation from withheld motives. Use a fact ledger, two original versions and a reveal that survives rereading.
+- [How to Use Three-Act Structure for a Novel](https://zenstory.ai/oh-story/use-three-act-structure-for-a-novel) — Plan setup, confrontation and resolution around changing choices. Includes a filled three-act outline, a middle turn and use within a serial volume.
+- [How to Write a Story Theme Without Preaching](https://zenstory.ai/oh-story/write-theme-without-preaching) — Turn an abstract theme into recurring choices with different consequences. Includes an original comparison, a scene revision and checks for drift.
 
 ### Characters and dialogue / 人物与对白
 - [Characters and dialogue](https://zenstory.ai/guides/characters-and-dialogue) — Build believable motives, distinct voices, and relationships.
@@ -135,6 +137,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [AI-Assisted Novel Submission Checklist](https://zenstory.ai/oh-story/ai-assisted-novel-submission) — Check route rules and AI-source provenance before submission. Includes a checklist, audit prompt, original example, and final-file check.
 - [How to Fix Repetitive Actions in AI Fiction](https://zenstory.ai/oh-story/ai-repeated-actions) — Fix AI fiction that repeats one beat as action, bodily reaction, and explanation. Use a mark-and-merge worksheet, example, checklist, and prompt.
 - [How to Check AI Fiction for Continuity Errors](https://zenstory.ai/oh-story/ai-fiction-consistency-check) — Audit AI-assisted fiction for factual, rule, timeline, causal, and cost conflicts. Cite both sides, separate evidence from severity, and recheck later chapters.
+- [How to Fix Plot Logic With Cause and Effect](https://zenstory.ai/oh-story/build-a-cause-and-effect-plot) — Turn an event list into a causal chain. Check knowledge, choices and outcomes with an original investigation example and a revision table.
 
 ### Short-drama scripts / 短剧改编与剧本
 - [Short-drama scripts](https://zenstory.ai/guides/short-drama) — Adapt a story into episodes, scenes, and shootable dialogue.
