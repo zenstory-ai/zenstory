@@ -143,6 +143,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Write Urban Cultivation Fiction](https://zenstory.ai/oh-story/write-an-urban-cultivation-novel) — Make cultivation interact with modern processes, family and identity. Includes an original shop story and a worksheet for ability limits.
 - [How to Write a Spy Thriller](https://zenstory.ai/oh-story/write-a-spy-thriller) — Build a spy story around cover, intelligence access and consequences. Includes an original hospital story, an information table and dialogue repairs.
 - [How to Write a Book-Transmigration Romance](https://zenstory.ai/oh-story/write-a-book-transmigration-romance) — Test knowledge of a book against status, marriage arrangements and household rules. Includes an original ledger scene and a knowledge-limit worksheet.
+- [How to Write Sports Fiction](https://zenstory.ai/oh-story/write-a-sports-fiction-novel) — Connect match goals, limits, decisions and feedback. Includes an original match and training worksheet, with team changes that affect play.
 
 ### Revise your novel / 小说改稿与去 AI 味
 - [Revise your novel](https://zenstory.ai/guides/revision) — Fix weak prose, continuity mistakes, and chapters that stall.
@@ -249,6 +250,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Storyboard a Group Confrontation](https://zenstory.ai/drama-skills/storyboard-a-group-confrontation) — Map who protects, pressures, witnesses and decides before placing the cast. Includes an original scene and repairs for conflicting positions and reactions.
 - [How to Storyboard Ball Sports for AI Video](https://zenstory.ai/drama-skills/storyboard-ai-video-ball-sports) — Keep the ball’s origin, controller and transfer readable. Includes an original pass sequence and repairs for teleporting objects or reversed movement.
 - [How to Fix Object Handoffs in AI Video](https://zenstory.ai/drama-skills/fix-object-handoffs-in-ai-video) — Specify approach, contact, release and new possession. Includes an original handover prompt and repairs for conflicting hands or duplicated objects.
+- [Replay an AI Drama Action from Multiple Angles](https://zenstory.ai/drama-skills/replay-an-action-from-multiple-angles) — Replay a peak action deliberately without repeating its result. An original reveal plan covers the primary shot, shared states and the next shot.
 
 ### Interactive stories and games / 互动故事与游戏
 - [Interactive stories and games](https://zenstory.ai/guides/interactive-games) — Turn a novel into player actions, branching stories, and a playable game.
@@ -284,6 +286,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Write Clear Interactive Story Choices](https://zenstory.ai/novel-to-game/write-clear-interactive-story-choices) — Make options state real actions, with distinct cost cues and responses. Includes an original testimony scene and boundaries for hidden consequences.
 - [How to Design Deadlines in a Story Game](https://zenstory.ai/novel-to-game/design-time-limits-in-a-story-game) — Define time advancement, commitments and visible deadline consequences. Includes an original ferry task and checks for early or repeated triggers.
 - [How to Integrate AI Media into a Story Game](https://zenstory.ai/novel-to-game/put-ai-media-assets-into-a-story-game) — Save generated media as stable game assets, connect it to state triggers and retain a fallback. Includes an original ferry scene and failure checks.
+- [Buttons or Free Text: Choose a Story Game Input](https://zenstory.ai/novel-to-game/choose-buttons-or-free-text-input) — Choose input from player actions. Compare buttons and free text in an original courier task, with finite intent, clear costs and readable outcomes.
+- [How to Analyze Gameplay References](https://zenstory.ai/novel-to-game/analyze-gameplay-references) — Analyze references by actions, loops, pressure and mastery. Use an original adaptation worksheet to state what to borrow, omit and test.
 
 ### Video scripts and editing / 视频解说与剪辑
 - [Video scripts and editing](https://zenstory.ai/guides/video-recaps) — Write narration from footage, edit a story, and finish audio and subtitles.
@@ -305,6 +309,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Fix AI Voiceover That Runs Too Long](https://zenstory.ai/video-recap/fit-voiceover-to-a-picture-edit) — Compare authored text, spoken text, audio duration and output windows. Includes an original compression example and checks against clipping or excessive speed.
 - [How to Keep AI Edit Revisions Local](https://zenstory.ai/video-recap/revise-one-part-of-ai-edit) — Locate feedback by shot, sentence and time range, and record what this revision keeps. Includes a change list to prevent a small edit becoming a remake.
 - [How to Dub an English Video into Chinese](https://zenstory.ai/video-recap/translate-an-english-video-into-chinese) — Verify the English transcript and sentence translations before dubbing into the original windows. Includes an original demo and current workflow limits.
+- [Fix Automatic Subtitle Errors in a Video Recap](https://zenstory.ai/video-recap/fix-automatic-subtitle-errors) — Correct names and negation against actual speech. Separate narration, dialogue and burned text, then choose the right subtitle source and clock.
 
 
 ## Workbench docs

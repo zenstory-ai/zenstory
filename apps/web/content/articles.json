@@ -3649,8 +3649,19 @@
           "en": "Original Example: A Relationship Advances at a Mountaintop Weather Station"
         },
         "body": {
-          "zh": "气象员许芮坚持按观测数据发布暴雪预警，维修师梁策则要赶在封路前下山照顾父亲。两人都有自己的目标。\n\n**初始**：许芮认为梁策遇事先走，梁策觉得她只认规程。\n\n**共同压力**：主雷达失灵，备用风速仪在崖边。梁策可以直接下山，也可以先修仪器，但晚一步就会被封在站里。\n\n**选择**：许芮没有要求他牺牲，而是把唯一的雪地车钥匙交给他；梁策走到半坡，看见校车仍在山路，转身回来修仪器。两人的选择都来自自己的价值判断。\n\n**关系证据**：下次轮班，许芮提前替梁策调好与医院的通信频段；梁策仍会下山，却把备用零件按她习惯的位置贴好标签。他们先获得可验证的信任，还没到告白。",
-          "en": "Meteorologist Xu Rui insists on issuing a blizzard warning based on observational data. Maintenance engineer Liang Ce needs to get down the mountain before the road closes so he can care for his father. Each has a goal of their own.\n\n**Starting point**: Xu Rui thinks Liang Ce leaves when trouble starts. Liang Ce thinks she cares only about procedure.\n\n**Shared pressure**: The main radar fails, and the backup anemometer is at the cliff edge. Liang Ce can head down immediately or repair the instrument first, but one delay could leave him stranded at the station.\n\n**Choice**: Xu Rui does not demand a sacrifice. She gives him the only snowmobile key. Liang Ce gets halfway down the mountain, sees that a school bus is still on the road, and turns back to repair the instrument. Each choice follows that character’s own values.\n\n**Evidence of the relationship**: Before their next shift, Xu Rui pre-tunes a radio to the hospital frequency for Liang Ce. He still plans to go down the mountain, but labels the spare parts in the positions she prefers. They have gained verifiable trust; they have not yet reached the point of confessing their feelings."
+          "zh": "以下为原创场景设计，不描述现实观测流程。许芮要按时交接本班资料，维修师梁策要赶末班车去接父亲。项目已交代：资料未核对不能标完成，负责人可批准延后汇总；梁策的离站时间是提前约定的。\n\n**初始**：许芮以为梁策只想尽早走，梁策以为她会把临时工作都压给自己。两人互相欣赏能力，但仍是普通同事。\n\n**共同压力**：导出的资料出现缺项。许芮能继续核对内容，梁策知道怎样定位导出记录，但额外返工会占用他离站前的时间。\n\n**双方选择**：许芮先把缺口报给负责人，获得延后汇总的许可，并告诉梁策“先定位问题，到了约定时间你就走，后面的核对我负责”。梁策同意用原本休息的时间帮她查明缺项位置，写清步骤后按时离站。没有虚报完成，也没有让对方独自承担全部代价。\n\n**下一场证据**：许芮后来主动确认梁策可参与复查的时间，而非默认他随叫随到；梁策明确答应，并提前整理她需要的记录。两人开始愿意请求与接受有限帮助，这是专业信任的变化。若要进入暧昧，还需另有个人层面的主动与回应，不能把一次合作直接宣布成恋爱。",
+          "en": "This original scene does not describe real observation procedures. Xu Rui must hand over her shift’s records; maintenance engineer Liang Ce needs the last bus to meet his father. Established project rules forbid marking unchecked data complete, allow an approved delay to the summary, and honor Liang’s agreed departure time.\n\n**Start**: Xu expects him to leave all extra work behind; Liang expects her to assign everything to him. They respect each other’s skill but remain ordinary colleagues.\n\n**Pressure**: Exported records have gaps. Xu can check content; Liang knows how to locate export entries. Rework consumes his remaining time before departure.\n\n**Mutual choices**: Xu reports the gap and obtains approval to delay the summary. She proposes: “Locate the problem first. Leave at the agreed time; I’ll handle the remaining checks.” Liang accepts, gives up his break to identify missing entries, documents the steps and leaves on time. Neither falsely marks completion or places the entire cost on the other.\n\n**Next-scene evidence**: Xu asks when he can join a later review rather than assuming availability. Liang explicitly agrees and prepares the records she needs. Requesting and accepting bounded help shows professional trust. A romantic turn needs additional personal initiative and response; cooperation alone does not establish romance."
+        }
+      },
+      {
+        "id": "response-check",
+        "heading": {
+          "zh": "善意之后要有采用与回应",
+          "en": "Show acceptance and response"
+        },
+        "body": {
+          "zh": "写一方“为对方考虑”后，再问：安排是否可行，对方是否同意，谁仍承担什么，下一次行为有什么不同。\n\n许芮给出离站边界，梁策接受并完成有限帮助；负责人批准的是资料汇总延期，不是把缺项当完成。下一次双方共同约定复查时间，才把本场信任带到后文。\n\n一方帮忙不自动获得亲密资格。感谢、合作、愿意再见和恋爱确认有不同证据；按人物当前意愿与较慢的关系进度决定行为。",
+          "en": "After one person considers the other, ask whether the arrangement is feasible, accepted and carried out, who retains responsibility, and what changes next time.\n\nXu offers a departure boundary; Liang accepts and completes limited help. Approval delays the summary rather than declaring missing work done. Their later agreed review carries trust forward.\n\nHelping grants no automatic intimacy. Gratitude, cooperation, another meeting and romantic commitment need distinct evidence. Let willingness and the slower relationship track guide behavior."
         }
       },
       {
@@ -3660,8 +3671,8 @@
           "en": "What Behavior Fits the Current Stage?"
         },
         "body": {
-          "zh": "| 当前关系 | 可用的关系证据 | 容易越界的写法 |\n|---|---|---|\n| 熟悉 | 记住习惯、提供普通帮助、愿意听解释 | 无条件袒护 |\n| 试探 | 分享有限秘密、主动创造再次见面的理由 | 强占有欲、突然身体亲密 |\n| 暧昧 | 特殊对待、共同承担风险、因对方调整安排 | 未经铺垫牺牲全部人生目标 |\n| 确认 | 公开选择、共同计划、面对重大阻碍 | 用甜蜜掩盖尚未解决的核心伤害 |\n\n行为门槛还取决于性格和文化背景。判断标准是：前面的经历是否足以让这个人做出该选择，以及对方是否有真实回应。",
-          "en": "| Current relationship | Evidence that fits | Behavior that may cross the boundary |\n|---|---|---|\n| Acquainted | Remembering habits, offering ordinary help, hearing an explanation | Unconditional protection |\n| Testing | Sharing a limited secret, creating a reason to meet again | Strong possessiveness, sudden physical intimacy |\n| Romantic ambiguity | Special treatment, shared risk, adjusting plans for the other person | Sacrificing every life goal without setup |\n| Committed | Choosing each other openly, making joint plans, facing major obstacles | Using sweetness to conceal unresolved fundamental harm |\n\nBehavioral thresholds also depend on personality and cultural context. Ask whether the preceding experiences are enough for this person to make that choice, and whether the other person gives a genuine response."
+          "zh": "| 关系 | 证据 | 越界风险 |\n|---|---|---|\n| 熟悉 | 记住习惯、提供普通帮助、愿意听解释 | 无条件袒护 |\n| 试探 | 分享有限秘密、主动创造再次见面的理由 | 强占有欲、突然身体亲密 |\n| 暧昧 | 特殊对待、共同承担风险、因对方调整安排 | 未经铺垫牺牲全部人生目标 |\n| 确认 | 公开选择、共同计划、面对重大阻碍 | 用甜蜜掩盖尚未解决的核心伤害 |\n\n行为门槛还取决于性格和文化背景。判断标准是：前面的经历是否足以让这个人做出该选择，以及对方是否有真实回应。",
+          "en": "| Stage | Evidence | Too soon |\n|---|---|---|\n| Familiar | Remember habits, offer help, hear an account | Blanket protection |\n| Testing | Share a limited secret, seek another meeting | Control or sudden intimacy |\n| Drawn close | Special care, shared risk, adjusted plans | Give up all life goals without setup |\n| Committed | Choose openly, plan together, face obstacles | Sweetness that hides unresolved harm |\n\nBehavior also depends on personality and culture. Check whether prior events support this choice and whether the other person actually responds."
         }
       },
       {
@@ -3716,8 +3727,8 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "双线进度与行为门槛",
+          "en": "Dual progress and behavior thresholds"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-relations.md"
       }
@@ -4412,8 +4423,8 @@
           "en": "Build the Bond, Break It, Then Let the Ache Linger"
         },
         "body": {
-          "zh": "**羁绊**：用能重复出现的日常选择建立关系。例如每次夜班结束，姐姐都会把便利店最后一盒热饭留给弟弟；弟弟嘴上嫌凉，仍会把盒盖洗净带回。\n\n**撕裂**：让同一细节改变意义。弟弟后来发现，姐姐把热饭留给他，是因为她已经连续几个月只喝临期牛奶还债。真正的痛点在他曾把照顾当作理所当然。\n\n**钝痛**：大事结束后，留一个无需解释的缺口。便利店换了新饭盒，弟弟下意识拿了两双筷子，走到收银台又放回一双。",
-          "en": "**The bond:** Build the relationship through everyday choices that can recur. After every night shift, an older sister saves the convenience store’s last box of hot food for her younger brother. He complains that it has gone cold, but still washes the lid and brings it back.\n\n**The rupture:** Change what that same detail means. The brother later discovers that, for months, his sister has been giving him the meal while living on milk near its expiry date to pay off her debts. The real pain lies in his having taken her care for granted.\n\n**The lingering ache:** Once the major events are over, leave a gap that needs no explanation. The convenience store switches to new food containers. Without thinking, the brother picks up two pairs of chopsticks, then puts one back when he reaches the till."
+          "zh": "羁绊、撕裂与余韵是一种可选安排，不是所有虐文必须遵守的顺序。以下小例只说明同一日常细节怎样改变意义。\n\n**羁绊**：用能重复出现的日常选择建立关系。例如每次夜班结束，姐姐都会把便利店最后一盒热饭留给弟弟；弟弟嘴上嫌凉，仍会把盒盖洗净带回。\n\n**撕裂**：让同一细节改变意义。弟弟后来发现，姐姐把热饭留给他，是因为她已经连续几个月只喝临期牛奶还债。真正的痛点在他曾把照顾当作理所当然。\n\n**钝痛**：姐弟谈开后，姐姐换到外地工作。便利店换了新饭盒，弟弟仍下意识拿了两双筷子，走到收银台又放回一双。过去的习惯还在，眼前安排已经改变。",
+          "en": "Bond, rupture and aftermath are an optional arrangement, not a required sequence for every angsty story. A daily detail can change meaning.\n\n**Bond**: After a night shift, an older sister saves the last hot meal for her brother. He complains that it is cold but washes and returns the lid.\n\n**Rupture**: He learns that she has spent months buying cheaper food for herself while repaying debt. The hurt comes from taking her care for granted.\n\n**Aftermath**: After they discuss it, she moves away for work. At the store, he still takes two pairs of chopsticks, then returns one before paying. The habit remains while their daily arrangement has changed."
         }
       },
       {
@@ -4423,8 +4434,19 @@
           "en": "Original Example: The Last Shuttle"
         },
         "body": {
-          "zh": "父亲每天凌晨开渡车送女儿去县城学琴。他从不进琴房，只坐在停车场修旧收音机；女儿以为父亲不懂，也嫌渡车的柴油味沾上演出服。\n\n羁绊通过行动建立：暴雨天父亲把车停在桥下等她，车里永远有一块干毛巾；女儿每次比赛前会把曲目单塞进遮阳板，却从没问他是否看过。\n\n撕裂发生在她拿到离城名额后。父亲卖掉渡车替她交学费，却谎称公司换车。她直到返乡才发现，他因没有车错过复诊。最重的选择不是“父亲病了”，是他把维持生活的工具换成她离开的机会，而她当时主动选择不追问。\n\n结尾，她在空车场调好那台旧收音机。父亲卖车前拆下遮阳板，和收音机一起留给了她；收音机里没有录音，遮阳板里只有按年份叠好的曲目单。她把最新一张放进去，车已经不在了。",
-          "en": "Every day before dawn, a father drives his daughter to piano lessons in the county town in his shuttle van. He never enters the practice room, instead sitting in the car park repairing an old radio. His daughter assumes he does not understand music and resents the smell of diesel clinging to her performance clothes.\n\nActions establish their bond. During heavy rain, he parks under a bridge to wait for her; there is always a dry towel in the van. Before each competition, she tucks a programme into the sun visor, but never asks whether he has read it.\n\nThe rupture comes after she earns a place to study away from home. Her father sells the van to pay her tuition, telling her that the company is replacing its vehicles. Only when she returns home does she discover that he missed a follow-up medical appointment because he no longer had a vehicle. The defining choice is not that he became ill. It is that he traded his means of earning a living for her chance to leave, while she deliberately chose not to ask further questions.\n\nAt the end, she tunes the old radio in the empty car park. Before selling the van, her father removed the sun visor and left it with the radio. There is no recording on the radio; the visor holds the set lists, stacked by year. She slips the latest set list into the same stack. The van is gone."
+          "zh": "以下为原创故事设计。父亲拥有一辆旧渡车，靠固定接送订单生活，也每天凌晨送女儿去县城学琴。女儿知道它是父亲的生计，却嫌柴油味沾上演出服；父亲每次在停车场修旧收音机等她。\n\n羁绊落在小事：暴雨天车里有干毛巾，比赛前女儿把曲目单塞进遮阳板。父亲逐张保存，她却一直没问他是否看过。\n\n离城学费到期时，父亲卖车付款，失去已建立的接送订单。他说自己打算换份工作，刻意不谈收入下降；女儿看到他取消订单，却害怕一问就得放弃名额，选择匆匆离开。沉默来自两人的愿望与回避，不是作者禁止沟通。\n\n返乡后，她看见父亲改做工时更长的仓库夜班，才面对自己当时回避的成本。两人谈开，商量后续学费与工作安排；她不能靠一句道歉把已经失去的订单还给他，也不必再追加疾病证明痛感。\n\n卖车前父亲取出曲目单，把它们和旧收音机留在储物盒里。结尾，女儿在空车场调好收音机，把最新曲目单放进盒子。熟悉的东西仍在，等待她的车已不在。关系可以修复，过去那次选择仍有后果。",
+          "en": "This is an original story design. The father owns an old shuttle van and earns his living from regular rides, including taking his daughter to piano lessons. She knows it supports him but dislikes diesel on her performance clothes. He waits in the car park repairing an old radio.\n\nSmall actions establish the bond: a dry towel in the rain, programmes tucked into the visor before competitions. He saves them; she never asks whether he has read them.\n\nWhen tuition is due, he sells the van to pay, losing established bookings. He says he plans to change work but avoids discussing lower income. She sees cancellations and fears that asking means giving up her place; she hurries away. Silence follows their wishes and avoidance, not a ban on communication.\n\nReturning, she finds him working longer warehouse night shifts and confronts the cost she avoided. They discuss future fees and work. An apology cannot restore lost bookings; an added illness is unnecessary to establish hurt.\n\nBefore the sale, he placed the programmes and radio in a box. At the empty car park, she tunes the radio and adds her latest programme. Familiar objects remain; the waiting van is gone. The relationship can heal while the earlier choice retains consequences."
+        }
+      },
+      {
+        "id": "cost-check",
+        "heading": {
+          "zh": "痛感需要已有投入和可见代价",
+          "en": "Ground hurt in investment and cost"
+        },
+        "body": {
+          "zh": "| 关系事实 | 本轮选择 | 后果 |\n|---|---|---|\n| 渡车既接女儿也支撑收入 | 父亲卖车交学费 | 原订单失去，另找工作 |\n| 女儿知道父亲正取消订单 | 回避追问，先离城 | 后来必须面对当时未问的成本 |\n| 曲目单由父亲保存 | 女儿重新放入新一张 | 同一物件从忽略变成理解 |\n\n检查可否不靠新增灾难也写出意义变化。若只能用旁白说“他牺牲了一切”，补实际失去；若人物不沟通只有“为了剧情”，补愿望、恐惧和信息差，也允许沟通后还有真实问题。",
+          "en": "| Fact | Choice | Effect |\n|---|---|---|\n| Van supports rides and income | Father sells it for tuition | Lost bookings and new work |\n| Daughter sees cancellations | Avoids questions and leaves | Later faces the cost she avoided |\n| Father saves programmes | Daughter adds a new one | A neglected object gains understood meaning |\n\nCheck whether meaning changes without another disaster. Replace “he sacrificed everything” with an actual loss. Give silence wishes, fears and limited knowledge; let real problems remain after communication."
         }
       },
       {
@@ -4435,7 +4457,7 @@
         },
         "body": {
           "zh": "| 失败 | 读者为何无感 | 修正 |\n|---|---|---|\n| 开篇立刻重病或死亡 | 尚未建立投入 | 先写关系如何改变日常选择 |\n| 只写“他们很相爱” | 羁绊抽象 | 用习惯、物件、付出和共同决定落地 |\n| 误会靠一句话就能解释 | 人物像被作者按住 | 给沉默真实代价、恐惧或利益 |\n| 连续堆惨事 | 新灾难没有新意义 | 让每次受阻改变人物理解或关系 |\n| 所有人只会哭 | 反应同质 | 写回避、补偿、迁怒、继续办事等不同选择 |\n| 结尾长篇升华 | 替读者规定感受 | 落在仍被日常触发的具体缺口 |",
-          "en": "| What goes wrong | Why readers feel little | How to revise it |\n|---|---|---|\n| Serious illness or death arrives immediately | Readers have not yet invested in anyone | Show how the relationship shapes everyday choices first |\n| The story only says “they loved each other” | The bond remains abstract | Make it tangible through habits, objects, sacrifices and shared decisions |\n| One sentence could clear up the misunderstanding | The author seems to be preventing the characters from speaking | Give the silence a credible cost, fear or interest to protect |\n| Misfortunes keep piling up | Each new disaster adds no new meaning | Let each setback change a character’s understanding or the relationship |\n| Everyone only cries | Reactions become interchangeable | Show different choices: avoidance, attempts to make amends, displaced anger or carrying on with practical tasks |\n| The ending delivers a long explanation of its deeper meaning | It dictates how readers should feel | End on a specific absence that everyday life still brings into focus |"
+          "en": "| Problem | Why | Repair |\n|---|---|---|\n| Start with illness or death | Readers lack a bond | Show how care shapes daily choices |\n| Only say “they loved each other” | The bond is abstract | Show habits, objects and shared choices |\n| Silence blocks a simple answer | People seem unable to speak | Give silence a credible fear, cost or interest |\n| Pile up disasters | No new meaning | Let setbacks change a person’s view or bond |\n| Everyone only cries | Responses all match | Use avoidance, amends, anger or practical tasks |\n| Explain the ending at length | Dictates how to feel | End on an absence felt in daily life |"
         }
       },
       {
@@ -4490,17 +4512,10 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "情绪因果、合理性五问与可选虐心写法",
+          "en": "Emotional causality, plausibility checks and optional angst methods"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
-      },
-      {
-        "label": {
-          "zh": "题材写作方法",
-          "en": "Genre writing method"
-        },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-prose-cards/古风世情.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/emotional-methods.md"
       }
     ]
   },
@@ -7937,8 +7952,19 @@
           "en": "Original Example: The Apology in an Old Recording"
         },
         "body": {
-          "zh": "素材是一个虚构家庭短片：姐姐在储物间寻找房契，弟弟阻止她播放一盘旧录像，母亲留下的画面显示房契早已捐给社区托管，弟弟多年隐瞒只是为了继续收租。\n\n文案主线选择姐姐的认知，观众问题是“弟弟为什么怕她播放录像”。开头保留弟弟按住播放键的动作与一句“你找错东西了”，不先宣布骗局。中段旁白只补姐姐此次回家的目的；翻找、磁带卡顿和弟弟的沉默由原声与画面承担。录像出现托管文件时，旁白连接“房契消失”与“租金仍被收取”的因果。结尾停在姐姐把钥匙放到社区工作人员手里，旁白不代替她宣布正义。\n\n这份设计让揭示顺序跟随人物认知，关键表演获得空间。它是方法示例，没有经过真实剪辑或播放测试。",
-          "en": "The source material is a fictional short film about a family. An older sister searches a storeroom for a property deed. Her younger brother tries to stop her playing an old videotape. Footage left by their mother shows that the property was donated long ago to be managed by the community; the brother has hidden this for years so he can keep collecting rent.\n\nFollow the sister’s understanding. The viewer’s question is: “Why is her brother afraid of her playing the tape?” Open with his hand holding down the play button and the line, “You’re looking for the wrong thing.” Do not announce the deception first. In the middle, narration supplies only the reason for her return home. Let the images and original audio carry the search, the tape stuttering and the brother’s silence. When the recording shows the documents placing it under community management, narration connects the missing deed with the rent still being collected. End as the sister places the key in a community worker’s hand, without using narration to declare justice on her behalf.\n\nThis design lets the reveal order follow the character’s understanding and gives key performances space. It is an illustration of the method, not an edit that has been produced or tested in playback."
+          "zh": "下面是原创纸面素材方案，未拍摄、剪辑或做播放测试。家庭短片讲姐姐返家协助一次免费的社区修补课，想找到母亲示范手法的旧录像。弟弟按住播放键，说“你找错东西了”。\n\n片中提前给出当前课程的公告：免费参加，不收报名费。旧录像里，母亲示范针法后说“这次课给街坊免费开”；姐姐随后找到弟弟本次课的报名收费记录。当她询问时，他亲口承认收了费用，却未告知她。公告、录像、记录与承认各自承担证据，不能只靠按键动作推出动机。\n\n解说跟随姐姐认知，问题是“弟弟为什么阻止她播放”。开头保留阻止动作与原话，不先说他骗钱。中段旁白只补姐姐返家的目的；翻找与录像卡顿由画面和原声承担。收费记录出现后，保留询问和承认，不用旁白替弟弟虚构“只为贪财”的内心。\n\n结尾素材写出弟弟关闭当前收费入口、姐姐核对退款名单。这里只能说停止继续收款、开始处理旧款，不能宣布已全部退款。旁白可以连接免费承诺与本次收费的矛盾，最后让未完成的名单留下后果。",
+          "en": "This original paper footage plan has not been filmed, edited or tested. A sister returns to help with a free community mending class and looks for an old tape of her mother’s technique. Her brother holds down the play button: “You’re looking for the wrong thing.”\n\nThe film first establishes the current class notice: attendance is free. On the tape, their mother demonstrates stitching and says this class is free for neighbors. The sister then finds paid sign-up records for the current class. Asked about them, her brother admits taking fees without telling her. Notice, tape, records and admission provide distinct evidence; the button press alone cannot establish motive.\n\nFollow the sister’s understanding and ask why he blocks playback. Open with the action and original line, not an accusation. Narration supplies her reason for returning. Images and original sound carry searching and tape stutters. Keep the question and admission when payment records appear; do not invent an inner motive of greed.\n\nThe ending shows him closing the payment entry and her checking a refund list. Further charging has stopped; past payments are being addressed, not already all returned. Narration can connect the free promise with actual charging. The unfinished list retains consequences."
+        }
+      },
+      {
+        "id": "footage-evidence",
+        "heading": {
+          "zh": "旁白结论要能回到具体素材",
+          "en": "Tie narration claims to footage"
+        },
+        "body": {
+          "zh": "| 素材 | 可以说 | 不能直接说 |\n|---|---|---|\n| 弟弟阻止播放 | 他不愿现在播放 | 已知道他全部动机 |\n| 公告、收费记录与承认 | 本次收费违反片中免费承诺 | 所有往年课程都一样 |\n| 关闭入口、核对退款名单 | 停止新收费，开始核对 | 全部退款已经完成 |\n\n给每句解释标出对应片段。若解释需要人物动机，找原话、选择或明确上下文；若素材不足，降低结论或换钩子，不让解说替原片补一段不存在的真相。",
+          "en": "| Seen | Can say | Cannot infer |\n|---|---|---|\n| Brother blocks playback | He resists playing it now | His entire motive is known |\n| Notice, paid entries and admission | Charging contradicts this class’s promise | Every past class did the same |\n| Closed entry and refund review | New fees stop; review begins | All refunds are complete |\n\nAttach each explanation to a segment. Motive needs speech, choices or clear context. With insufficient footage, narrow the claim or change the hook rather than adding an absent truth."
         }
       },
       {
@@ -7989,8 +8015,8 @@
     "skill": {
       "name": "video-recap",
       "text": {
-        "zh": "在 Claude Code 里说：“用 /video-recap 为这组素材规划影视解说，先定观众期待、主视角与戏剧问题，再按变化节拍分配画面、原声、沉默和旁白；不要复述画面或提前宣布未呈现结果。”",
-        "en": "In Claude Code, say: “Use /video-recap to plan a film or TV recap from this material. First define the promise to viewers, the main perspective and the dramatic question. Then assign images, original audio, silence and narration to the beats of change. Do not retell what is visible or announce results that have not been shown.”"
+        "zh": "用 $video-recap 为这组素材规划解说。先定观众问题与主视角，再分配画面、原声、沉默和旁白；逐句列解释依据，保留关键接受、承认与执行动作。素材未呈现的动机或结果不宣布，先输出节拍表。",
+        "en": "Use $video-recap to plan this recap: viewer question, perspective, beats and audio roles. Link explanations to footage and preserve key acceptance, admissions and enacted actions. Do not announce absent motives or outcomes. Produce a beat worksheet first."
       },
       "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-recap/SKILL.md"
     },
@@ -11736,8 +11762,8 @@
           "en": "Turn Research into Plot Constraints in Four Steps"
         },
         "body": {
-          "zh": "1. **缩小问题**：从“古代仓储怎样运作”缩到“某时某地、某种身份的人怎样完成一次交割”。\n2. **分层记录**：把笔记标成“资料明确写到”“依据多条材料推断”“为架空故事设定”。三者不能混写。\n3. **提取行动限制**：只挑会影响资格、时间、物资、信息或责任的内容。\n4. **放进选择**：让人物因这项限制换办法、求人、延误或承担代价。\n\n| 研究笔记 | 进入正文前要补的问题 | 剧情用途 |\n|---|---|---|\n| 某类文书存在 | 谁能签发、谁承认、在本场何时需要 | 决定人物能否行动 |\n| 某种运输受季节影响 | 影响哪段路、会延误什么 | 给计划增加时间成本 |\n| 某岗位负责复核 | 这是史料事实还是作者设定 | 设置通路或责任人 |\n\n本文不提供任何具体朝代结论。实际项目引用真实制度时，应回到可靠史料核对；查不到的部分要架空并保持前后一致。",
-          "en": "1. **Narrow the question:** Replace “How did storage work in the past?” with “How could a person of this status complete one handover, at this time and place?”\n2. **Label each claim:** Mark notes as “directly stated in a source,” “inferred from multiple sources” or “created for this fictional story.” Never blur the three.\n3. **Extract action constraints:** Keep only details that affect eligibility, time, resources, information or responsibility.\n4. **Put them into a choice:** Make a character change tactics, ask for help, lose time or accept a cost because of the constraint.\n\n| Research note | Question to answer before using it in a scene | Story function |\n|---|---|---|\n| A type of document existed | Who could issue it, who recognized it, and when would the scene require it? | Determines whether a character can act |\n| A form of transport depended on the season | Which stretch of the route was affected, and what would be delayed? | Adds a time cost to a plan |\n| A role was responsible for verification | Is that role attested in the sources or created by the author? | Sets up a gate or an accountable person |\n\nThis article makes no claims about the rules of any specific dynasty. For a real project, verify actual institutions against reliable historical sources. If a detail cannot be confirmed, make it fictional and keep it consistent."
+          "zh": "1. **缩小问题**：从“古代仓储怎样运作”缩到“某时某地、某种身份的人怎样完成一次交割”。\n2. **分层记录**：把笔记标成“资料明确写到”“依据多条材料推断”“为架空故事设定”。三者不能混写。\n3. **提取行动限制**：只挑会影响资格、时间、物资、信息或责任的内容。\n4. **放进选择**：让人物因这项限制换办法、求人、延误或承担代价。\n\n| 笔记 | 入场前核对 | 用途 |\n|---|---|---|\n| 某类文书存在 | 谁能签发、谁承认、在本场何时需要 | 决定人物能否行动 |\n| 某种运输受季节影响 | 影响哪段路、会延误什么 | 给计划增加时间成本 |\n| 某岗位负责复核 | 这是史料事实还是作者设定 | 设置通路或责任人 |\n\n本文不提供任何具体朝代结论。实际项目引用真实制度时，应回到可靠史料核对；查不到的部分要架空并保持前后一致。",
+          "en": "1. **Narrow the question:** Replace “How did storage work in the past?” with “How could a person of this status complete one handover, at this time and place?”\n2. **Label each claim:** Mark notes as “directly stated in a source,” “inferred from multiple sources” or “created for this fictional story.” Never blur the three.\n3. **Extract action constraints:** Keep only details that affect eligibility, time, resources, information or responsibility.\n4. **Put them into a choice:** Make a character change tactics, ask for help, lose time or accept a cost because of the constraint.\n\n| Note | Check | Use |\n|---|---|---|\n| A type of document existed | Who could issue it, who recognized it, and when would the scene require it? | Determines whether a character can act |\n| A form of transport depended on the season | Which stretch of the route was affected, and what would be delayed? | Adds a time cost to a plan |\n| A role was responsible for verification | Is that role attested in the sources or created by the author? | Sets up a gate or an accountable person |\n\nThis article makes no claims about the rules of any specific dynasty. For a real project, verify actual institutions against reliable historical sources. If a detail cannot be confirmed, make it fictional and keep it consistent."
         }
       },
       {
@@ -11758,8 +11784,19 @@
           "en": "Original Fictional Example: Damp Grain at Nanpu Canal Warehouse"
         },
         "body": {
-          "zh": "以下制度均为本文原创设定，不影射真实朝代。架空王朝的南浦漕仓刚收一批秋粮。低阶录事顾砚发现三艘粮船的封泥完好，船舱底层却持续返潮。仓正坚持按到港簿立刻入库；若顾砚擅自开封，他会承担毁封之责，若照单入库，数日后整仓粮食可能受损。\n\n顾砚没有当众宣称有人舞弊。他先查出交割规程允许在“器物危及仓储”时由船主、仓吏与第三方脚夫共同见证复验。可仓正控制仓吏，船主又急着离港。顾砚于是请负责修栈桥的木匠查看船底渗水痕，把“粮质争议”改成“船体可能损仓”的现场风险；仓正若拒绝复验，就要在维修记录上承担后果。\n\n复验只证明底层麻袋受潮，并未自动证明谁做假。顾砚争到的是暂缓入库、分仓晾置和保留船主的权限。下一步还要查装船地点与途中换签。这个回合用身份限制制造难题，用现有流程开路，再以可执行决定结算，没有靠一段雄辩直接定罪。",
-          "en": "All institutions in this example are invented for this article and do not describe a real dynasty. A fictional dynasty’s Nanpu canal warehouse has just received an autumn grain shipment. Junior clerk Gu Yan notices that the seals on three grain boats are intact, yet moisture keeps returning at the bottom of their holds. The warehouse superintendent insists on entering the grain shipment into storage immediately according to the arrival ledger. If Gu breaks a seal on his own, he will be blamed for damaging it; if he accepts the shipment as recorded, the entire store of grain may be ruined days later.\n\nGu does not publicly accuse anyone of fraud. First, he checks the handover procedure and finds that if cargo threatens the warehouse, a reinspection can be witnessed jointly by the boat owner, a warehouse clerk and an independent porter. But the superintendent controls the clerk, and the boat owner is eager to leave port. Gu asks the carpenter repairing the loading bridge to inspect the water marks beneath the boat. This reframes the dispute from “Is the grain bad?” to “Could the boat itself endanger the warehouse?” If the superintendent refuses a reinspection, the repair record will make him accountable.\n\nThe reinspection proves only that the bottom sacks are damp; it does not automatically prove fraud. Gu secures the authority to pause storage, dry the damp sacks separately, and require the boat owner to remain available. The next step is to investigate the loading point and any changes to the seals along the route. This turn uses status to create a problem, an existing procedure to open a path, and an executable decision to settle the immediate stakes. A speech does not convict anyone on its own."
+          "zh": "以下制度均为原创设定，不描述真实朝代。南浦漕仓收到秋粮，低阶录事顾砚发现船舱底层返潮。仓正要按到港簿立即交割；顾砚无权自行开封。\n\n本场先交代两项既定流程：怀疑船体危及仓储，可申请由船主、仓吏与独立脚夫共同见证复验，但须仓正签准；维修记录发现风险后，继续交割也须仓正签明由谁承担损失。记录只触发申请和责任选择，不自动授予顾砚新权限。\n\n顾砚请修栈桥的木匠记录可见渗水痕，随申请递交。仓正不愿签下未经复查的风险，批准复验并安排仓吏；船主接受短暂延误，以便先分清抵港时粮食状态；独立脚夫到场。三方见证开封后，才确认底层麻袋受潮。\n\n仓正据此签下暂缓该批入库、分开处理的决定，仓吏按单组织搬运。船主同意留下协助核对交割记录，不是顾砚凭一个发现就能扣留他。受潮仍未证明舞弊，下一步另查装船记录与封签。主角争到一次复核，权限、执行与责任各有来源。",
+          "en": "All institutions here are invented, not claims about a real dynasty. Nanpu warehouse receives autumn grain. Junior clerk Gu Yan notices dampness at the bottom of a boat; the superintendent wants immediate handover. Gu cannot break seals himself.\n\nEstablish two procedures first: suspected vessel risk allows a request for reinspection with the owner, a warehouse clerk and an independent porter, subject to the superintendent’s approval. After a recorded repair risk, proceeding also requires a signed allocation of loss. A record triggers a request and responsibility choice, not new authority for Gu.\n\nA carpenter records visible water marks. Gu submits that record with his request. Unwilling to sign an unchecked risk, the superintendent approves inspection and assigns a clerk. The owner accepts a brief delay to establish the arrival condition; the independent porter attends. Only witnessed opening confirms damp bottom sacks.\n\nThe superintendent signs a hold on this shipment and separate handling; the clerk organizes it. The owner agrees to stay for record comparison, rather than being detained by Gu’s discovery. Dampness does not prove fraud. Loading records and seals still need investigation. Review, authority, execution and responsibility each have a source."
+        }
+      },
+      {
+        "id": "authority-check",
+        "heading": {
+          "zh": "检查发现之后有没有真正办成",
+          "en": "Check what happens after discovery"
+        },
+        "body": {
+          "zh": "| 环节 | 已发生 | 还不能推出 |\n|---|---|---|\n| 木匠记录水痕 | 有申请复验的依据 | 顾砚可自行开封 |\n| 仓正签准、三方到场 | 可以按既定流程复验 | 已证明有人舞弊 |\n| 仓正签处理单、仓吏执行 | 该批粮实际暂缓并分开处理 | 主角拥有长期调度权 |\n\n复读时沿这条链找缺口。对手认可风险、愿意签字或付出资源，也要有已建立的利益与责任理由；不能在主角说完后忽然全部服从。",
+          "en": "| Step | Established | Not yet implied |\n|---|---|---|\n| Water marks recorded | Basis for an inspection request | Gu may open seals himself |\n| Approval and witnesses present | Authorized reinspection | Fraud proved |\n| Signed handling order executed | This shipment is held and separated | Permanent authority for Gu |\n\nTrace gaps along this chain. Acceptance, signatures and resources require established interests or responsibility. Opponents should not simply obey after a speech."
         }
       },
       {
@@ -11825,15 +11862,8 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
-        },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
-      },
-      {
-        "label": {
-          "zh": "题材写作方法",
-          "en": "Genre writing method"
+          "zh": "身份、流程、文书与责任",
+          "en": "Status, process, documents and responsibility"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-prose-cards/历史古代.md"
       }
@@ -11894,8 +11924,19 @@
           "en": "Original Example: Three River Images on the Sky Screen"
         },
         "body": {
-          "zh": "架空的澄朝正为春汛是否提前开闸争执。天幕忽然出现三幅同一河湾的俯视图：第一幅河道完整，第二幅下游变窄，第三幅城外出现大片水面。画面没有年份、地名或解释。\n\n河官认为这是下游淤塞的警告，守城将领却认为第三幅是敌军决堤后的结果，沿河商户则担心朝廷借机封航。主角陶岑安只是负责抄录水位的小吏，没有下令资格。她把天幕信息拆成可核对问题：河湾形状是否与本地相同、下游最窄处在哪里、现有水尺近期怎样变化。\n\n她没有声称看见未来，而是争取到半日巡查和一次小范围泄水试验。巡查发现窄处堆着上游冲来的木排；清障后水位变化证明“立刻大开闸”没有必要，却暴露商户私占河道。新信息先被误读、再被验证，最后改变封航范围与河道管理。天幕下一次出现时，各方会争夺的是解释和验证权，不只是观看位置。",
-          "en": "In the fictional Cheng dynasty, officials are arguing over whether to open the floodgates early for the spring flood. A sky screen suddenly shows three overhead images of the same river bend. In the first, the channel is intact. In the second, the downstream channel is narrower. In the third, a large body of water appears outside the city. The images have no date, place name, or explanation.\n\nThe river official reads them as a warning about downstream silt. The city commander thinks the third image shows the result of an enemy breaching the embankment. Merchants along the river fear that the court will use the images to close navigation. The protagonist, Tao Cen’an, is only a low clerk who records water levels and has no authority to issue orders. She breaks the information into questions that can be checked: Does the shape of the bend match the local river? Where is the narrowest downstream point? How have the existing gauge readings changed recently?\n\nShe does not claim to have seen the future. Instead, she secures half a day for inspection and permission for one small release test. The inspection finds rafts of timber washed down from upstream and piled at the narrow point. After the blockage is cleared, the change in water level shows that opening the gates fully is unnecessary, while also exposing unauthorized encroachment on the channel. The new information is misread, then tested, and finally changes the scope of the navigation closure and river management. When the sky screen appears again, the factions will compete for the right to interpret and verify it, not merely for the best viewing position."
+          "zh": "以下人物、制度与天幕均为原创设定。架空澄朝正为春汛是否提前封航争执。天幕显示三幅相似河湾的俯视图：完整河道、变窄河道、城外大片水面，却没有年份、地名或解释。\n\n河官怀疑淤塞，守城将领怀疑敌军破堤，商户担心借机全线封航。记录水位的小吏陶岑安没有下令权。她先提出能核对的问题：河湾是否是本地，窄处当前有什么，现有巡查与货船记录是否一致。图像相似不证明它展示未来。\n\n已定航道规程允许河官对巡查发现的受阻段暂缓通行。陶岑安申请复查，河官批准半日、指定巡查员同行并保留其他河段原安排。巡查发现木排占据窄处，只能证明当前存在障碍；谁放的、是否违约，还要比对登记与证词，不能从天幕直接定责。\n\n河官收到记录后，按已有权限暂缓该窄段通行，组织复核与清障安排，公开记下原因和复查条件。这里没有用一次水位变化宣布洪水风险解除，也没有自动给陶岑安开闸权。新信息改变的是调查次序、有限调度与公开责任；后续还要承担延误成本。下一次天幕出现，各方争夺解释和验证资格，而非只争观看位置。",
+          "en": "People, institutions and the sky screen are invented. The fictional Cheng dynasty debates early navigation closure before the spring flood. The screen shows three similar overhead river bends: an intact channel, a narrowed one and water outside a city, without dates, locations or explanation.\n\nThe river official suspects silt; the commander suspects an enemy breach; merchants fear a blanket closure. Clerk Tao Cen’an has no command authority. She proposes checkable questions: is this the local bend, what occupies its narrow section, and do inspection and cargo records agree? Similar images do not prove a vision of the future.\n\nEstablished rules let the river official pause passage through an observed obstruction. Tao requests a check. The official grants half a day with an assigned inspector and keeps other sections unchanged. Timber occupies the narrow point, establishing a present obstruction only. Ownership and any breach require records and testimony, not the screen alone.\n\nOn receiving the record, the official pauses that section under existing authority, arranges further checking and clearance, and records reasons and review conditions. No single water-level change proves flood safety; Tao gains no gate-control right. The information changes investigation order, limited allocation and public responsibility, with delay costs to follow. Future screens provoke competition for interpretation and verification, not merely viewing positions."
+        }
+      },
+      {
+        "id": "claim-boundary",
+        "heading": {
+          "zh": "新信息与结论之间留验证步骤",
+          "en": "Keep verification between information and claims"
+        },
+        "body": {
+          "zh": "| 所见 | 最小结论 | 下一步 |\n|---|---|---|\n| 天幕河湾像本地 | 值得核对地点 | 对照当前地形记录 |\n| 窄处有木排 | 目前存在障碍 | 查范围、来源与记录 |\n| 河官签出暂缓安排 | 特定河段执行了决定 | 继续复查并结算延误 |\n\n把“发现”“推断”“正式决定”分开写。有限试行可以失败或只回答一部分问题，这样下一轮才有新条件；不需要每次新信息都证明主角对一切都正确。",
+          "en": "| Seen | Claim | Next |\n|---|---|---|\n| Bend resembles the local one | Location merits checking | Compare current records |\n| Timber occupies the narrow point | A present obstruction | Check extent, origin and records |\n| Official signs the pause | A decision applies to this section | Review and settle delay costs |\n\nSeparate discovery, inference and formal decision. A limited trial can fail or answer only part of the question, creating new conditions. New information need not prove the protagonist right about everything."
         }
       },
       {
@@ -11906,7 +11947,7 @@
         },
         "body": {
           "zh": "脑洞落地后，至少追踪一项结构变化：\n\n| 旧秩序账 | 变化前 | 变化后 |\n|---|---|---|\n| 解释权 | 谁能定义信息是真是假 | 谁获得验证或公开说明的资格 |\n| 调度权 | 谁能调用人、钱、材料与场地 | 试行后谁扩大或失去权限 |\n| 信誉 | 哪个群体的话默认被相信 | 成功、误判或隐瞒后怎样重排 |\n| 执行规则 | 原流程怎样处理新问题 | 新增什么复核、试行或禁止条件 |\n\n如果天幕结束后仍由原来的人用原来流程做原来的决定，只多了一轮惊叹，这个脑洞没有撬动历史处境。制度变化也应留下新受益者、新成本和新的反对理由。",
-          "en": "After the premise takes effect, track at least one structural change:\n\n| Ledger of the old order | Before | After |\n|---|---|---|\n| Authority to interpret | Who can declare whether information is true | Who gains the right to verify it or explain it publicly |\n| Authority to mobilize | Who can mobilize people and allocate money, materials, and facilities | Who gains or loses authority after the trial |\n| Credibility | Which group is believed by default | How success, error, or concealment rearranges trust |\n| Rules of execution | How the old process handles a new problem | Which review, trial, or prohibition is added |\n\nIf the same people make the same decisions through the same process after the sky screen disappears, with only one extra round of amazement, the premise has not changed the historical predicament. Institutional change should also create new beneficiaries, costs, and reasons for opposition."
+          "en": "After the premise takes effect, track at least one structural change:\n\n| Account | Before | After |\n|---|---|---|\n| Authority to interpret | Who can declare whether information is true | Who gains the right to verify it or explain it publicly |\n| Authority to mobilize | Who can mobilize people and allocate money, materials, and facilities | Who gains or loses authority after the trial |\n| Credibility | Which group is believed by default | How success, error, or concealment rearranges trust |\n| Rules of execution | How the old process handles a new problem | Which review, trial, or prohibition is added |\n\nIf the same people make the same decisions through the same process after the sky screen disappears, with only one extra round of amazement, the premise has not changed the historical predicament. Institutional change should also create new beneficiaries, costs, and reasons for opposition."
         }
       },
       {
@@ -11972,15 +12013,8 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
-        },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
-      },
-      {
-        "label": {
-          "zh": "题材写作方法",
-          "en": "Genre writing method"
+          "zh": "新信息、误读与执行成本",
+          "en": "New information, misreading and execution costs"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-prose-cards/历史脑洞.md"
       }
@@ -30729,6 +30763,548 @@
       "/drama-skills/mid-season-sag",
       "/drama-skills/micro-drama-dialogue",
       "/oh-story/revise-ai-prose"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "write-a-sports-fiction-novel",
+    "topic": "genres",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "体育竞技小说怎么写：比赛、训练与队伍变化",
+      "en": "How to Write Sports Fiction"
+    },
+    "seo_title": {
+      "zh": "体育竞技小说怎么写：比赛、训练与队伍变化",
+      "en": "How to Write Sports Fiction"
+    },
+    "description": {
+      "zh": "把比赛写成目标、限制、临场选择与反馈，让训练成果和队伍关系进入胜负。附原创比赛与训练对照，不靠解说宣布翻盘。",
+      "en": "Connect match goals, limits, decisions and feedback. Includes an original match and training worksheet, with team changes that affect play."
+    },
+    "answer": {
+      "zh": "先让读者知道本场要争取什么、为什么旧办法不够，再写人物根据场上信息调整。训练建立可复用能力，比赛检验它在压力下是否成立；结果改变排名、合作或下一轮要求。写清“怎么做到”，比分和观众反应辅助理解，不能替代操作与选择。",
+      "en": "Establish the match goal and why the old approach fails. Let participants adapt to visible information. Training builds an ability; competition tests it under pressure. Results change standing, cooperation or future requirements. Scores and reactions support the action rather than replacing how it happens."
+    },
+    "sections": [
+      {
+        "id": "match-plan",
+        "heading": {
+          "zh": "赛制只交代当前选择需要的部分",
+          "en": "Explain the rules needed for this choice"
+        },
+        "body": {
+          "zh": "Oh Story 的游戏体育方法把胜负目标、限制、操作与公开反馈连起来。本文用于竞技故事结构；具体项目的真实规则和技术细节，应在写作时查证，不把方法卡里的数值比例当通用标准。\n\n原创球队故事：本场前已经交代，这支队伍要赢下比赛才有晋级机会。比赛临近结束，主角林峤所在队落后一球，对手开始封堵他们惯用的传球路线。队友周越认为应继续找林峤，另一名队员提出利用对手挤向同一侧后留下的空间。\n\n先让读者看见位置、谁控球、哪些通路被挡，再进入选择。只说“他读懂了局势，完成绝杀”，缺的是行动过程，不是更多激情形容词。",
+          "en": "Oh Story’s sports-and-game method connects victory goals, constraints, action and public feedback. This is a story-structure guide; verify a real sport’s rules and technical details for your manuscript rather than adopting sample ratios as standards.\n\nOriginal team story: the established competition requires a win for a chance to advance. Near the finish, Lin Qiao’s team trails by one goal. Opponents block its usual passing route. Zhou Yue wants to keep feeding Lin; another teammate proposes using space left as defenders crowd one side.\n\nShow positions, possession and blocked routes before the choice. “He read the game and won it” lacks a process, not passionate adjectives."
+        }
+      },
+      {
+        "id": "action-and-response",
+        "heading": {
+          "zh": "原创示例：一次判断改变下一步",
+          "en": "Example: a decision changes the next move"
+        },
+        "body": {
+          "zh": "| 这一拍 | 场上依据 | 改变什么 |\n|---|---|---|\n| 对手封住旧路线 | 林峤无法按前场办法接球 | 队友必须换传递目标或承担失误风险 |\n| 林峤带动防守注意 | 另一侧队友得到可用空间 | 配合依据来自移动，不是全员突然变笨 |\n| 球转到新接应点 | 队友能继续推进 | 接应成功仍不等于已经得分 |\n\n后续得分或失误必须实际写出。可以让方案奏效，也可以让对手识别并反制；无论哪种，结果要回到已经展示的动作、规则和限制。\n\n周越的反应关注以后能否继续这样配合，对手关注暴露的路线，解说说明关键变化。观众可以欢呼，但不能让所有人都用同一句“天才”完成反馈。",
+          "en": "| Beat | On-field basis | Change |\n|---|---|---|\n| Opponents block the old route | Lin cannot receive as before | Teammates need another target or accept a turnover risk |\n| Lin draws defensive attention | Space becomes available elsewhere | Movement explains the opportunity |\n| Ball reaches the new receiver | The team can advance | Reception is not already a goal |\n\nEnact the score or failure afterward. The plan can work or invite an informed counter; either result follows shown actions, rules and limits.\n\nZhou considers future coordination; opponents notice the exposed route; commentary clarifies the change. Cheers can follow, but everyone need not call Lin a genius."
+        }
+      },
+      {
+        "id": "training-payoff",
+        "heading": {
+          "zh": "训练章先建立比赛会用的能力",
+          "en": "Build an ability before testing it"
+        },
+        "body": {
+          "zh": "| 训练内容 | 前后差别 | 比赛怎样检验 |\n|---|---|---|\n| 判断传递时机 | 从只盯林峤到能识别另一接应点 | 旧路线被堵时是否会换目标 |\n| 配合约定 | 周越知道队友移动的含义 | 压力下是否仍能按约行动 |\n| 失败复盘 | 指出信息或执行在哪一步丢失 | 下次修同一问题，对手也会调整 |\n\n这是原创剧情准备表，不是现实训练处方。进步可以是失误减少，也可以是敢于询问、愿意信任或学会承认判断不准；没有实际训练证据，不在比赛前临时宣布“他早就会”。\n\n训练章也有具体目标与反馈，但不必每章打破纪录。普通练习可概述，关键分歧、第一次完成配合和失败后的选择值得展开。",
+          "en": "| Drill | Change | Test |\n|---|---|---|\n| Passing decisions | Look beyond Lin to another receiver | Change targets when the old route closes |\n| Coordination | Zhou understands a teammate’s movement | Act on it under pressure |\n| Failure review | Locate missing information or execution | Address it next time while opponents also adapt |\n\nThis fictional planning worksheet is not a real training prescription. Improvement may mean fewer errors, asking questions or trusting a teammate. Establish it before the match rather than granting unseen preparation.\n\nPractice needs a goal and feedback without a record every chapter. Summarize routine drills; expand consequential disagreements, new coordination and responses to failure."
+        }
+      },
+      {
+        "id": "after-the-result",
+        "heading": {
+          "zh": "结算比赛，也结算关系与责任",
+          "en": "Settle the match and its consequences"
+        },
+        "body": {
+          "zh": "比赛结束后，分别写事实结果与人物回应：晋级条件是否真的满足，谁承担失误，队友对配合有什么新判断，下一场暴露了哪项限制。一次赢球不保证全部矛盾消失，一次失误也不等于人物没有成长。\n\n复读时暂时删掉解说与弹幕：读者还能理解谁依据什么改变了行动吗？再遮住队友姓名：他们关注的是同一件事吗？若全是赞叹，补不同职责与目标；若动作只是技能名称，补起点、选择和结果。\n\n保留原先已付的体力、机会或关系代价，不让结算奖励重置所有限制。下一轮从本场造成的新条件开始，避免每场都靠同一种临时觉醒。",
+          "en": "Separate the factual result from responses: were advancement conditions met, who bears an error, what did teammates learn and what remains limited? A win resolves neither every conflict nor all responsibility; failure need not erase growth.\n\nRemove commentary temporarily. Can readers still follow the decisions? Hide teammate names and compare concerns. Replace identical praise with distinct duties; replace skill labels with starts, choices and results.\n\nCarry physical, opportunity or relationship costs forward. Rewards should not reset every limit. Begin the next contest from this one’s conditions rather than another identical awakening."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "训练章一定要写数字进步吗？",
+          "en": "Must a training chapter show numerical improvement?"
+        },
+        "a": {
+          "zh": "不必。可观察的配合、判断或关系变化也能推进；数字只在它确实影响比赛选择时使用。",
+          "en": "No. Observable coordination, judgment or relationship changes can advance the story. Use numbers when they affect match decisions."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 规划竞技小说本场比赛。列已定目标、赛制限制、场上信息、主角和队友的选择、真实结果与下一场条件；核对能力是否由训练建立。先出行动与反馈表，不靠解说宣布胜负，不临时发新能力。",
+        "en": "Use $story-long-write to plan the contest: established goal, rules, visible information, decisions, enacted result and carryover. Check preparation. Produce an action-and-feedback worksheet without commentary-only wins or sudden powers."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "竞技目标、操作与反馈",
+          "en": "Competition goals, action and feedback"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-prose-cards/游戏体育.md"
+      }
+    ],
+    "related": [
+      "/oh-story/web-serial-pacing",
+      "/oh-story/write-a-worthy-rival",
+      "/oh-story/romance-subplot"
+    ]
+  },
+  {
+    "owner": "novel-to-game",
+    "slug": "choose-buttons-or-free-text-input",
+    "topic": "interactive-games",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "文字游戏该用按钮还是自由输入：从玩家动作决定",
+      "en": "Buttons or Free Text: Choose a Story Game Input"
+    },
+    "seo_title": {
+      "zh": "文字游戏该用按钮还是自由输入：从玩家动作决定",
+      "en": "Buttons or Free Text: Choose a Story Game Input"
+    },
+    "description": {
+      "zh": "先看玩家要执行什么，再判断自由表达是否增加有意义的组合。用原创信使任务比较按钮与命令，避免给每个角色都加聊天框。",
+      "en": "Choose input from player actions. Compare buttons and free text in an original courier task, with finite intent, clear costs and readable outcomes."
+    },
+    "answer": {
+      "zh": "按钮能完整表达核心动作时，优先让玩家直接选择。自由输入适合角色需要组合对象、执行人、条件、期限或知情范围，且不同安排真会改变局面的时候。先决定这种表达带来什么玩法，再设计有限候选与世界回应；不以“能聊天”代替互动。",
+      "en": "Use buttons when they fully express the core action. Free text is useful when a role combines objects, actors, conditions, deadlines or disclosure, and different arrangements matter. Define that play value first, then bound candidate actions and world responses."
+    },
+    "sections": [
+      {
+        "id": "action-before-interface",
+        "heading": {
+          "zh": "先问动作是否需要自由组织",
+          "en": "Start with the action"
+        },
+        "body": {
+          "zh": "novel-to-game 的概念方法先确定玩家身份与反复做的工作，再选择输入方式。自然语言不是所有故事游戏的默认功能；已有按钮能完整表达的动作，不必绕到聊天框。\n\n原创信使故事有两种设计。第一种只让玩家对手中一封信选择“送到南门”“暂存”“退回”。如果对象、路线和后果都已确定，按钮足以表达。第二种让玩家担任驿站调度员，需要安排哪位信使、何时交给谁、遇到什么情况暂停，以及谁可知道内容。它才可能需要组合表达。\n\n两种都可以有好故事。判断依据是玩家的工作，不是小说对白多不多，也不是项目用了大模型就必须打字。",
+          "en": "The concept method starts with the player’s role and recurring job. Natural language is not a default feature; a chat box need not replace a complete set of actions.\n\nAn original courier story offers two designs. In one, the player holds a letter and chooses “Deliver to South Gate,” “Hold” or “Return.” With object, route and effects fixed, buttons are sufficient. In the other, a depot dispatcher assigns a courier, recipient, time, stop condition and disclosure. Combining those choices may justify free expression.\n\nEither can support a strong story. Choose from the job, not the amount of dialogue or the presence of a language model."
+        }
+      },
+      {
+        "id": "compare-a-task",
+        "heading": {
+          "zh": "用同一个任务比较两种输入",
+          "en": "Compare one task"
+        },
+        "body": {
+          "zh": "| 玩家安排 | 按钮版本 | 自由表达的价值 |\n|---|---|---|\n| 把此信送到已指定南门 | 点击明确动作即可 | 换说法并未增加玩法 |\n| 让阿岚在换岗后送给守门人 | 可用人物与时间选项 | 只有组合真正重要时才保留表达 |\n| 若城门封闭就退回，不向助手转交 | 条件菜单也可能足够 | 复杂安排需让玩家看懂采用了什么 |\n\n自由输入并不天然优于菜单。条件组合很少、玩家主要比较明确代价时，结构化选项可能更清楚。若角色身份的乐趣就在安排和交涉，才保留有价值的措辞差异。\n\n不要把“尽快办妥”直接解释为任意付钱或向所有人透露秘密。缺少执行条件时，先询问；对照已有动作后仍无新增价值，就把 `signature_command` 记为 `N/A`。",
+          "en": "| Plan | Buttons | Text |\n|---|---|---|\n| Deliver this letter to the set gate | One clear action | Rewording adds no play |\n| Assign Alan after the guard change | Actor and time choices | Keep expression only if combining them matters |\n| Return if the gate closes; do not pass it to the aide | A condition menu may suffice | Complex plans need a readable adopted meaning |\n\nMenus may be clearer when combinations are few and costs explicit. Keep wording differences when arranging or negotiating is part of the role’s appeal.\n\n“Handle it soon” cannot authorize arbitrary spending or disclosure. Ask about missing terms. If expression adds no value beyond existing actions, record `signature_command` as `N/A`."
+        }
+      },
+      {
+        "id": "world-resistance",
+        "heading": {
+          "zh": "输入有效，也不等于安排必定成功",
+          "en": "Valid input still meets resistance"
+        },
+        "body": {
+          "zh": "在纸面设计中，调度员提出：“换岗后由阿岚把这封信交给守门人；城门关闭就带回，内容只给收件人看。”先展示被采用的安排，再让世界按规则回应。\n\n阿岚可能不在站内，守门人可能拒收，时间也可能被前一任务占用。这些是有依据的阻力，不能由模型随意换成“任务已完成”。部分执行时，写清已经做了哪一步、信仍在谁手里、谁实际得知了内容。\n\n可支持的安排、费用、权限与保密后果都要在世界设计中确定。概念阶段只提出候选和风险，不冒充已经有可运行解析器。实现时的验证与状态提交另见[自由输入不乱改结果](/novel-to-game/llm-text-games)。",
+          "en": "In the paper design, the dispatcher says: “After the guard change, have Alan deliver this letter to the gatekeeper. Return if the gate is closed; show the contents only to the recipient.” Display the adopted plan before the world responds.\n\nAlan may be absent, the recipient may refuse or an earlier job may occupy the time. Grounded resistance cannot become a model’s invented success. Partial execution must say what happened, who holds the letter and who learned its contents.\n\nWorld design determines supported plans, costs, rights and disclosure effects. A concept proposes candidates and risks; it is not a working parser. See the separate free-input guide for validation and state commits."
+        }
+      },
+      {
+        "id": "small-prototype",
+        "heading": {
+          "zh": "原型只检验最重要的表达差别",
+          "en": "Test the important difference"
+        },
+        "body": {
+          "zh": "为同一小任务准备按钮版和自由表达版，使用相同世界条件。让参与者做一项确实需要取舍的安排，观察：能否理解动作，能否预判代价，能否看出结果对应自己哪项决定。\n\n这是一份待执行的比较方案，不是测试成绩。若输入自由了，结果仍全部相同，先修玩法；若表达有价值但常被误读，缩小候选范围、增加采用前确认，或改用组合菜单。不要靠新增无限 NPC 对话掩盖问题。\n\n保留能够重复使用、产生不同后果的核心动作。输入方式应帮助玩家做决定，而不是增加打字工作。",
+          "en": "Prepare button and free-text versions of the same small task under the same world conditions. Ask participants to make a consequential plan. Observe whether they understand actions, anticipate costs and identify which decision caused the result.\n\nThis is an unrun comparison plan. If every input produces the same result, repair the gameplay. If valuable expression is often misread, bound intents, confirm the adopted plan or use a menu that combines choices. More NPC chat will not fix the decision.\n\nKeep repeatable actions with distinct consequences. Input should help the player decide rather than merely type."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "按钮会不会让文字游戏显得不够智能？",
+          "en": "Do buttons make a text game less intelligent?"
+        },
+        "a": {
+          "zh": "不会。可理解的选择、真实的代价和世界对过去行为的回应更重要；打字后只得到同一结果，互动并未增加。",
+          "en": "No. Clear choices, meaningful costs and remembered consequences matter more. Typing toward the same outcome adds little interaction."
+        }
+      }
+    ],
+    "skill": {
+      "name": "game-concept",
+      "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-concept/SKILL.md",
+      "text": {
+        "zh": "用 $game-concept 比较此小说游戏的按钮与自由输入。基于已有 SOURCE_BIBLE 和 PRODUCT_BRIEF，写玩家身份、反复任务、按钮能否完整表达、值得保留的措辞差异与世界阻力；无必要则 signature_command 为 N/A。不写解析器或声称已测试。",
+        "en": "Use $game-concept with the existing SOURCE_BIBLE and PRODUCT_BRIEF to compare buttons and free text: role, recurring job, expressive value and world resistance. Use N/A for signature_command when unnecessary. Do not implement a parser or claim test results."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "身份、输入与有限候选",
+          "en": "Role, input and bounded intents"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-concept/references/concept-method.md"
+      }
+    ],
+    "related": [
+      "/novel-to-game/choose-gameplay",
+      "/novel-to-game/llm-text-games",
+      "/novel-to-game/write-clear-interactive-story-choices"
+    ]
+  },
+  {
+    "owner": "novel-to-game",
+    "slug": "analyze-gameplay-references",
+    "topic": "interactive-games",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "游戏参考怎么分析：借玩法，不只看题材相似",
+      "en": "How to Analyze Gameplay References"
+    },
+    "seo_title": {
+      "zh": "游戏参考怎么分析：借玩法，不只看题材相似",
+      "en": "How to Analyze Gameplay References"
+    },
+    "description": {
+      "zh": "按当前设计问题拆玩法参考，记录核心动作、循环、压力与熟练度。用原创改编方案示例说明借什么、不借什么，以及怎样验证。",
+      "en": "Analyze references by actions, loops, pressure and mastery. Use an original adaptation worksheet to state what to borrow, omit and test."
+    },
+    "answer": {
+      "zh": "先写本项目要解决的设计问题，再选能回答它的主要玩法参考。分析玩家反复做什么、为什么要取舍、怎样变熟练，以及结果如何回到下一轮；辅助参考只补独立缺口。记录借与不借的部分，让原作规则改变玩法，不用同题材和截图代替分析。",
+      "en": "Name the design question, then choose a primary reference that answers it. Study repeated actions, trade-offs, mastery and carryover. Auxiliary references fill separate gaps. Record what to borrow and omit, and let the source story’s rules change the play."
+    },
+    "sections": [
+      {
+        "id": "question-first",
+        "heading": {
+          "zh": "先写需要参考回答的问题",
+          "en": "Write the question first"
+        },
+        "body": {
+          "zh": "novel-to-game 的概念方法按设计问题选择先例。小说里有侦探、宫廷或经营，不意味着只看同题材游戏；你可能需要的是追问顺序、证据比较、任务压力或关系记忆。\n\n先填写：“玩家以什么身份，反复做什么工作？当前最不清楚的是哪一步？”例如原创渡口故事中，玩家是摆渡人，需要在有限班次里安排乘客；原作设定某些乘客彼此不能同行。设计问题是怎样让调度和识别人际约束都成为可读选择。\n\n主参考解释核心循环，辅助参考只解决主参考没回答的问题。不能说明具体缺口的参考，先从清单里删掉；数量并不证明分析深入。",
+          "en": "The concept method selects precedents by design question. A detective, court or business setting does not require references from that same genre. You may need question order, evidence comparison, time pressure or remembered relationships.\n\nWrite: “Who is the player, what recurring job do they do, and which step is unclear?” In an original ferry story, the player schedules passengers across limited departures. The source establishes pairs who cannot travel together. The question is how scheduling and reading those constraints become clear choices.\n\nA primary reference explains the loop; an auxiliary one answers a distinct gap. Remove references without a named purpose. A long list is not deeper analysis."
+        }
+      },
+      {
+        "id": "reference-sheet",
+        "heading": {
+          "zh": "把游玩观察写成可用记录",
+          "en": "Turn observations into a usable record"
+        },
+        "body": {
+          "zh": "| 要记的事 | 观察什么 | 本项目要决定 |\n|---|---|---|\n| 核心动作 | 玩家亲自操作什么 | 采用哪种参与方式 |\n| 循环与压力 | 结果怎样影响下一轮、为何不能全选 | 如何保留取舍 |\n| 熟练度 | 重玩后判断或操作怎样改善 | 成长来自什么 |\n| 借与不借 | 哪项机制解决问题，哪项超出范围 | 切片保留边界 |\n\n为真实参考填写这些项时，区分亲自游玩、官方材料和推测，附对应记录或来源。销量、榜单和平台信息只有确实影响当前决定时才核对，不拿它们代替玩法证据。\n\n不要只写“节奏很好”“有沉浸感”。改成可观察过程：玩家先看需求，再安排位置，遇到冲突后调整；或拿到新证词，回头质问先前对象。记录要能指导下一项设计。",
+          "en": "| Record | Observe | Decide |\n|---|---|---|\n| Actions | What the player does | Form of participation |\n| Loop and pressure | Carryover and why not everything is possible | Required trade-offs |\n| Mastery | How judgment or skill improves | Source of growth |\n| Borrow and omit | Useful mechanism and excess scope | Slice boundaries |\n\nFor real references, separate direct play, official material and inference, and attach evidence. Check sales, rankings or platform facts only when they change the decision; they do not replace gameplay evidence.\n\nReplace “good pacing” with an observable process: inspect demand, place people, revise a conflict; or hear testimony and return to question an earlier witness. The record should guide a design decision."
+        }
+      },
+      {
+        "id": "adapt-the-loop",
+        "heading": {
+          "zh": "原创示例：让原作改变安排",
+          "en": "Example: the source changes the plan"
+        },
+        "body": {
+          "zh": "以下是原创纸面方案，不描述某款真实游戏，也不报告游玩结果。渡口设计考虑借一种排程循环：查看请求、分配班次、执行、处理反馈。它不借参考里无关的建城系统或大量生产链。\n\n原作的人际约束必须进入动作：玩家知道阿禾不愿与旧雇主同船，便要改班次、征求她的同意，或承担失约后果。不能只在开场讲过她的过去，后续排程仍只按空位自动填满。\n\n若另一个参考用于信息呈现，记录它只解决“怎样看见已知约束”，不顺手复制它的地图、角色或界面。最终方案应写清安排前看见什么、玩家改变什么、执行后谁接受或拒绝，下一轮哪些条件被继承。",
+          "en": "This original paper design describes no real game and reports no play results. The ferry concept considers a scheduling loop: inspect requests, assign departures, execute and handle feedback. It omits unrelated city-building or production chains.\n\nThe source’s relationship constraint must affect actions. Knowing that Ahe refuses to share a boat with her former employer, the player changes departures, seeks consent or bears a broken agreement. Her past cannot remain a prologue while later scheduling simply fills seats.\n\nAn auxiliary presentation reference addresses only how known constraints are visible; it does not supply copied maps, characters or screens. Specify visible facts, player changes, accepted or refused execution, and carryover."
+        }
+      },
+      {
+        "id": "prove-the-decision",
+        "heading": {
+          "zh": "用切片验证借来的机制",
+          "en": "Test the borrowed mechanism"
+        },
+        "body": {
+          "zh": "给每项借用写一句待验证问题，例如：“不读长篇解释，玩家能否识别人际冲突，并在班次、承诺与时间中做出不同安排？”只做足以回答这句的小切片。\n\n若所有安排都由旁白修成同一结局，参考没有带来因果选择；若必须堆大量地点才能看懂，先缩小范围；若删掉原作名字后动作、代价与回应都没区别，继续让原作规则进入循环。\n\n先例分析服务于决定。交付一张简明记录、明确取舍和未执行的验证计划即可，不靠小数评分掩盖没有证据的推荐。后续实际游玩再写结果与失败情况。",
+          "en": "Attach a question to each borrowed mechanism: “Can players recognize the relationship conflict without a long explanation and make distinct plans across departures, promises and time?” Build only enough to answer it.\n\nIf narration repairs every plan into one ending, there is little causal choice. If understanding needs many locations, reduce scope. If removing source names leaves actions, costs and responses unchanged, bring more source rules into the loop.\n\nReference analysis serves a decision. Deliver a compact record, explicit trade-offs and an unrun test plan. Decimal scores cannot replace evidence. Report outcomes after actual play."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "需要给每个方案找很多游戏参考吗？",
+          "en": "Does each concept need many references?"
+        },
+        "a": {
+          "zh": "不需要。主要参考解释循环，必要的辅助参考补独立问题；无法说明用途的名单不增加设计依据。",
+          "en": "No. A primary reference explains the loop; useful auxiliaries fill distinct gaps. A list without purposes adds little evidence."
+        }
+      }
+    ],
+    "skill": {
+      "name": "game-concept",
+      "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-concept/SKILL.md",
+      "text": {
+        "zh": "用 $game-concept 分析已有 SOURCE_BIBLE 和 PRODUCT_BRIEF 的玩法参考。先列当前设计问题，记录主参考的动作、循环、压力、熟练度与来源，再写借什么、不借什么、原作如何改变它及最小验证问题。不按题材相似或销量替我选。",
+        "en": "Use $game-concept with the existing SOURCE_BIBLE and PRODUCT_BRIEF to analyze gameplay references: design question, actions, loop, pressure, mastery, evidence, borrow/omit decisions, source-specific changes and a minimal test. Do not choose from genre resemblance or sales alone."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "类型、先例与验证取舍",
+          "en": "Types, precedents and validation trade-offs"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-concept/references/concept-method.md"
+      }
+    ],
+    "related": [
+      "/novel-to-game/choose-gameplay",
+      "/novel-to-game/prototype-a-story-driven-game-vertical-slice",
+      "/novel-to-game/scope-a-novel-game-adaptation-for-a-small-team"
+    ]
+  },
+  {
+    "owner": "video-recap",
+    "slug": "fix-automatic-subtitle-errors",
+    "topic": "video-recaps",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "自动字幕识别错了怎么改：人名、否定词与原声对白",
+      "en": "Fix Automatic Subtitle Errors in a Video Recap"
+    },
+    "seo_title": {
+      "zh": "自动字幕识别错了怎么改：人名、否定词与原声对白",
+      "en": "Fix Automatic Subtitle Errors in a Video Recap"
+    },
+    "description": {
+      "zh": "先分清旁白、原声对白和画面硬字幕，再对照实际声音纠正人名与否定词。说明校对文件的优先级、原片与成片时间轴及重做后的检查。",
+      "en": "Correct names and negation against actual speech. Separate narration, dialogue and burned text, then choose the right subtitle source and clock."
+    },
+    "answer": {
+      "zh": "先听采用的声音，确认错的是文字还是录音，再找到真正被合成使用的字幕来源。原声留白可用用户字幕或已校对的 original_subtitles.json；优先级和时间轴必须正确。只改低优先级文件或把原片时码当成片时码，错误仍会出现。",
+      "en": "Listen to the adopted audio, identify whether text or speech is wrong, and correct the subtitle source assembly actually uses. Dialogue gaps can use supplied subtitles or corrected original_subtitles.json. Source priority and source-versus-output time must match."
+    },
+    "sections": [
+      {
+        "id": "find-the-layer",
+        "heading": {
+          "zh": "先找到错误属于哪一层",
+          "en": "Locate the wrong layer"
+        },
+        "body": {
+          "zh": "video-recap 的数据契约区分解说旁白与原声留白。旁白文字应对应采用的配音；对白字幕则对应留白里真正听见的句子。原片已经烧进画面的硬字幕是像素，另改一份文字文件不会擦除它。\n\n原创素材中，人物说“不是顾砚，是顾源”，自动识别却写成“是顾砚，是顾源”。丢掉否定词，人物纠正姓名的意思变了。先回听这句，再对照本片已核定的人物名单确定姓名字形，不依据剧情猜它该说什么；听不清时记录待确认，不能补一个看似合理的名字。\n\n若录音本身说错，修改屏幕字幕只能制造音画矛盾，应先决定是否更换声音。下面的方法重点处理已经正确出声的原声对白。",
+          "en": "The data contract distinguishes narration from original-dialogue gaps. Narration text follows the adopted voice track; dialogue subtitles follow what is actually audible in a gap. Text already burned into source frames is pixels, which a text-file edit cannot erase.\n\nIn an original example, a speaker says “Not Gu Yan—Gu Yuan.” ASR produces “Gu Yan—Gu Yuan,” losing the correction. Listen and check the approved character list for spelling; do not infer the intended name from the plot. Mark unclear speech for confirmation rather than guessing.\n\nIf the recording is wrong, changing the subtitle creates a mismatch. Decide about the audio first. The following workflow focuses on dialogue that is already spoken correctly."
+        }
+      },
+      {
+        "id": "source-priority",
+        "heading": {
+          "zh": "改真正会被读取的字幕文件",
+          "en": "Correct the source that wins"
+        },
+        "body": {
+          "zh": "原声留白字幕的优先级从高到低是：`user_subtitles.json`、用户提供的 SRT/ASS、Agent 校对的 `original_subtitles.json`、ASR 兜底。若前面已有旧用户字幕，只改后面的校对文件，仍可能读到旧文字。\n\n| 当前来源 | 先做什么 | 核对什么 |\n|---|---|---|\n| 用户字幕 | 在采用的版本中改人名或否定词 | 是否覆盖了需要保留的对白 |\n| 已校对白 | 更新实际出声句子的记录 | 是否仍对应当前剪辑 |\n| 识别兜底 | 准备有依据的校对文件 | 不靠粗略估时冒充精确对白 |\n\n一次修改的范围也要说明。若用户文件不是完整对白集，先确定剩余句子的保留方案，不假设会自动与低优先级文件逐条合并。字幕内容核对不等于已完成出入点听审。",
+          "en": "Dialogue-gap priority is: user_subtitles.json, supplied SRT/ASS, corrected original_subtitles.json, then ASR fallback. An older supplied file can still win even after the lower-priority correction is fixed.\n\n| Source | First action | Check |\n|---|---|---|\n| Supplied text | Correct the adopted version | Coverage of retained dialogue |\n| Reviewed text | Update audible utterances | Match to the current edit |\n| ASR fallback | Prepare supported corrections | No coarse timing presented as precise |\n\nState the edit’s coverage. If a supplied file contains only part of the dialogue, plan how remaining lines are retained; do not assume line-by-line merging with lower-priority files. Correct wording is separate from reviewing cue boundaries."
+        }
+      },
+      {
+        "id": "two-clocks",
+        "heading": {
+          "zh": "原片时码与成片时码不能混用",
+          "en": "Keep the two clocks separate"
+        },
+        "body": {
+          "zh": "下面是原创纸面时间示例，不是已合成的视频。原片第 110—113 秒的句子，剪进当前成片后位于第 8—11 秒。只填 110—113 而不说明轴，可能让字幕完全离开对应画面。\n\n在这一固定版本中，`user_subtitles.json` 的裸数组默认是成片 OUTPUT 轴；包一层 `timeline` 与 `lines` 可明确指定 `source` 或 `output`。用户 SRT/ASS 默认按原片轴映射；`original_subtitles.json` 使用成片轴。\n\n例如要提供原片轴校对，可写：\n\n> {\"timeline\":\"source\",\"lines\":[{\"start\":110,\"end\":113,\"text\":\"不是顾砚，是顾源。\"}]}\n\n这只是文件形状示例，实际区间必须回听原片并依据当前剪辑映射。精确来源会按句区间裁到留白边界，跨边界可拆分；不能把 ASR 的中点估时当作相同证据。",
+          "en": "This fictional timing example is not rendered media. A source utterance at 110–113 seconds appears at 8–11 seconds in the current cut. Unqualified source times can put the subtitle away from its speech.\n\nIn this pinned version, a bare user_subtitles.json array defaults to the OUTPUT clock. An envelope with timeline and lines can specify source or output. Supplied SRT/ASS defaults to source time; original_subtitles.json uses output time.\n\nA source-clock correction can use:\n\n> {\"timeline\":\"source\",\"lines\":[{\"start\":110,\"end\":113,\"text\":\"Not Gu Yan—Gu Yuan.\"}]}\n\nThis shows file shape only. Obtain actual intervals from listening and the current edit map. Precise sources are clipped to covered dialogue-gap intervals and may split across boundaries. ASR midpoint estimates provide different evidence."
+        }
+      },
+      {
+        "id": "render-and-listen",
+        "heading": {
+          "zh": "重做后检查实际听到和看到的内容",
+          "en": "Review the actual new output"
+        },
+        "body": {
+          "zh": "用当前文件重做后，播放姓名出现、否定词、句子交界和旁白切回的片段，再完整看一遍实际交付文件。检查是否多了一行旧字幕、换场后还残留上一句、原声被压住，或硬字幕与新对白互相遮挡。\n\n原声对白是否烧录还受现有遮罩和用户替换要求影响，文件存在不保证它已显示。需要替换旧硬字幕时，另按明确方案处理画面；不要用新文字叠在错误文字上就当修好了。\n\n若项目采用显式 `subtitle_track.json`，它是完整替换字幕轨，不能当一条纠错补丁；需携带所有应保留的 cue 并匹配当前音画。本文没有渲染或试听结果，文件合法也不能代替实际播放。",
+          "en": "After rebuilding from current files, review names, negation, cue edges and returns from narration, then watch the actual full deliverable. Look for duplicate old lines, text left across cuts, inaudible dialogue or competing burned captions.\n\nBurning dialogue also depends on the mask and explicit replacement request. A file’s presence does not prove it appears. Replacing source-burned errors requires a picture-edit plan; overlapping new text is not a repair by itself.\n\nIf the project uses an explicit subtitle_track.json, it completely replaces generated subtitles; it is not a one-cue patch. Carry all retained cues and bind current media. No rendering or listening result is reported here; valid files do not replace playback."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "校对文件改对了，为什么导出还是旧字？",
+          "en": "Why does export still show old text after correction?"
+        },
+        "a": {
+          "zh": "先看是否仍采用更高优先级的用户字幕，再核对是否重新合成当前版本；也可能旧字已烧在原片画面里。分清来源后再修对应层。",
+          "en": "Check for a higher-priority supplied subtitle file and whether the current version was rebuilt. The old text may also be burned into source frames. Correct the relevant layer."
+        }
+      }
+    ],
+    "skill": {
+      "name": "video-assemble",
+      "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/SKILL.md",
+      "text": {
+        "zh": "用 $video-recap 只修这段原声对白字幕。回听当前采用的声音，核对人名与否定词，列实际字幕来源及优先级、原片或成片轴与留白区间。保留其他文案和声音；重做后报告实际显示与播放检查，未检查就明确写未检查。",
+        "en": "Use $video-recap to correct only these dialogue subtitles. Listen to adopted speech; check names, negation, winning subtitle source, clock and gap intervals. Preserve other copy and audio. Report actual display and playback checks after rebuilding, or mark them unperformed."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "对白字幕来源与两条时间轴",
+          "en": "Dialogue subtitle sources and clocks"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-recap/references/data-schema.md"
+      },
+      {
+        "label": {
+          "zh": "显式完整字幕轨的替换边界",
+          "en": "Complete explicit subtitle-track replacement"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/subtitle-track.md"
+      }
+    ],
+    "related": [
+      "/video-recap/subtitle-layout-and-line-breaks",
+      "/video-recap/subtitle-timing-evidence",
+      "/video-recap/recap-script"
+    ]
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "replay-an-action-from-multiple-angles",
+    "topic": "ai-video",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "AI短剧动作回放怎么拍：多角度，同一个结果",
+      "en": "Replay an AI Drama Action from Multiple Angles"
+    },
+    "seo_title": {
+      "zh": "AI短剧动作回放怎么拍：多角度，同一个结果",
+      "en": "Replay an AI Drama Action from Multiple Angles"
+    },
+    "description": {
+      "zh": "重大揭示可有意回放同一动作，但状态只改变一次。用原创揭布分镜说明主镜、回放标注、参考起止与接回后果，避免道具复位。",
+      "en": "Replay a peak action deliberately without repeating its result. An original reveal plan covers the primary shot, shared states and the next shot."
+    },
+    "answer": {
+      "zh": "先完整设计一个关键动作，再把需要的角度写成明确回放，指向同一个主镜。每个回放从相同动作前状态到相同动作后状态，剧情结果只发生一次；最后接回已经完成的状态。回放是峰值的风格选择，不是每场的必做步骤。",
+      "en": "Design the primary action first, then label extra angles as replays of that shot. Every replay travels from the same before-state to the same after-state, while the story result happens once. Resume from the completed state. Replay is an optional peak treatment."
+    },
+    "sections": [
+      {
+        "id": "choose-the-peak",
+        "heading": {
+          "zh": "只在有明确作用的峰值回放",
+          "en": "Choose a purposeful peak"
+        },
+        "body": {
+          "zh": "short-drama-storyboard 的镜头方法允许在情绪爆发或重大揭示处有意重看同一动作。它同时要求注明这种处理，不能让普通接镜中的重复动作冒充风格。\n\n原创场景：顾青当众揭开桌上一块布，让账箱露出来。回放可以强调揭示那一下，但箱子可见不等于箱内内容已经被核对，更不等于当场证明某人有罪。下一个镜头仍需承担新的证据或反应。\n\n若只是想多看表情，直接在完成后的状态拍反应；若需要重看动作本身，才设计回放。不要因为一个角度不清楚就连续堆相同镜头。",
+          "en": "The shot-craft method allows intentional repetition at an emotional peak or major reveal. Declare it so accidental duplicate actions do not masquerade as style.\n\nOriginal scene: Gu Qing lifts a cloth from a box on a table. Replay may stress that reveal, but a visible box does not establish its contents or anyone’s guilt. A later shot must supply evidence or reaction.\n\nIf the purpose is a reaction, film the completed state. Replay only when the action itself deserves another view. Repeated angles do not automatically clarify a poorly shown action."
+        }
+      },
+      {
+        "id": "before-and-after",
+        "heading": {
+          "zh": "原创分镜：共同起点与共同终点",
+          "en": "Example: shared before and after"
+        },
+        "body": {
+          "zh": "先锁两项事实：动作前，布盖住账箱，顾青右手握布角；动作后，账箱露出，布仍由右手拿着，箱子没有移动。以下只是纸面分镜，未生成视频。\n\n| 镜头 | 职责 | 状态 |\n|---|---|---|\n| SHOT-04 | 主要落实揭布 | 从盖住到露出 |\n| SHOT-05 | 另一角度重看同一揭布 | 仍从同一盖住状态到同一露出状态 |\n| SHOT-06 | 观察者看向账箱 | 从已露出状态继续，不再揭一次 |\n\nSHOT-05 的说明写“冲击重复：SHOT-04”，明确指向主镜。这是方法中的标注用语，文章主题仍是普通的动作回放。\n\n回放之间不按连续时刻硬接：第二角度回到动作前，是已声明的回放。最后一个回放之后再恢复正常连续，不能把布重新盖回去而没有新动作。",
+          "en": "Lock the facts: before, cloth covers the box and Gu grips a corner with her right hand; after, the box is exposed and the cloth remains in that hand. The box does not move. This is an ungenerated shot plan.\n\n| Shot | Job | State |\n|---|---|---|\n| SHOT-04 | Primary cloth lift | Covered to exposed |\n| SHOT-05 | Replay from another angle | Same covered start to same exposed end |\n| SHOT-06 | Observer looks at the box | Continue exposed; no second lift |\n\nMark SHOT-05 with the source method’s native note, “冲击重复：SHOT-04,” identifying the primary shot.\n\nReplay cuts intentionally return to the before-state rather than representing successive moments. After the last replay, resume normal continuity. The cloth cannot cover the box again without a new action."
+        }
+      },
+      {
+        "id": "references-and-motion",
+        "heading": {
+          "zh": "参考图不能预先完成动作",
+          "en": "References must preserve the start"
+        },
+        "body": {
+          "zh": "两个角度可以改变观察位置，但都必须保留动作前的对象位置、持物手和覆盖状态。若第二角度的首帧已经露出账箱，却又要求完整揭布，就会重新生成一块布或表演没有依据的动作。\n\n提示中分清本角度起点、关键接触、终点，以及它回放哪个镜头。主镜和回放镜共享同一事件，不添加第二次揭示、第二只箱子或新的交接。\n\n如果当前参考和模型无法清楚呈现揭布过程，可先修参考或调整拍法；不把生成失败强行解释成有意回放。角度变化也不能随意换服装、桌面物件或人物位置。",
+          "en": "Angles may change the view, but both preserve the object, holding hand and covered before-state. If the second angle already exposes the box, asking for another full lift invites a new cloth or an unsupported action.\n\nSpecify the angle’s start, contact and end, plus the shot it replays. Both shots share one event, without another reveal, box or handoff.\n\nRepair the reference or staging if the lift is unclear. A failed generation does not become intentional replay by relabeling it. A new angle also cannot arbitrarily change clothing, table objects or positions."
+        }
+      },
+      {
+        "id": "edit-review",
+        "heading": {
+          "zh": "最后接回真正的新后果",
+          "en": "Resume with a new consequence"
+        },
+        "body": {
+          "zh": "组接后检查：观众是否读懂在重看同一事件，动作前后事实是否一致，最后一镜是否从结果继续。下一步可以是人物核对箱上编号或承受者改变策略，不能旁白说“第二次揭开”来圆道具错误。\n\n| 问题 | 修正 |\n|---|---|\n| 第二角度从已完成状态再做动作 | 恢复共同起点，或改成完成后的细节镜 |\n| 回放后布又盖回箱上 | 后续从动作后状态开始 |\n| 每个回放都获得新的剧情结果 | 把同一事件结算一次，新动作另拍 |\n| 每场都反复回放 | 只保留确实需要强调的峰值 |\n\n这是待执行的镜头与剪辑检查。实际生成后还要看过程是否可读、回放节奏是否符合风格；标注存在不等于视频已经通过连续性审查。",
+          "en": "After assembly, check whether viewers read one replayed event, whether shared facts match and whether the next shot continues from the result. Follow with a new action such as comparing the box number or changing strategy. Narration cannot excuse a prop error as a “second reveal.”\n\n| Problem | Repair |\n|---|---|\n| Another lift from an exposed start | Restore the before-state or use a detail shot |\n| Cloth covers the box again | Continue from the after-state |\n| Every replay creates a new result | Settle the event once; film new actions separately |\n| Every scene repeats actions | Reserve repetition for a purposeful peak |\n\nThis is a review plan. Inspect generated motion and edited rhythm afterward. A replay label does not prove continuity has passed."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "多角度回放一定要拍三遍吗？",
+          "en": "Must an action have three replay angles?"
+        },
+        "a": {
+          "zh": "不必。按风格和峰值需要取舍，也可以完全不回放。多看一遍要有强调作用，不能只是补镜头数量。",
+          "en": "No. Use as much or as little as the style and peak require, including none. Another view needs a purpose beyond adding shots."
+        }
+      }
+    ],
+    "skill": {
+      "name": "short-drama-storyboard",
+      "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/SKILL.md",
+      "text": {
+        "zh": "用 $short-drama-storyboard 为这一个峰值动作设计可选多角度回放。先锁主镜、共同动作前后事实，再为回放标注冲击重复及主镜编号，最后从已完成状态接新后果。不要新增剧情结果或把生成错误当回放。",
+        "en": "Use $short-drama-storyboard to plan optional replay angles for this peak. Lock the primary shot and shared before/after facts, mark replays with the primary ID, then continue from the completed state into a new consequence. Do not add results or relabel errors as replay."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "主要动作、冲击重复与镜头职责",
+          "en": "Primary actions, deliberate replay and shot jobs"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/shot-craft.md"
+      }
+    ],
+    "related": [
+      "/drama-skills/shot-continuity-checklist",
+      "/drama-skills/image-to-video-prompts",
+      "/drama-skills/ai-short-drama-edit-list-template"
     ]
   }
 ]
