@@ -74,6 +74,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Decide Whether Your Novel Needs a Prologue](https://zenstory.ai/oh-story/write-a-novel-prologue) — Test whether a prologue supplies necessary narrative context. Includes an original ferry story, keep-or-merge comparisons and exposition repairs.
 - [How to Develop a Recurring Object in a Novel](https://zenstory.ai/oh-story/recurring-object-in-fiction) — Develop an object through practical use and changing character choices. Includes an original key example and a recurrence planning table.
 - [How to Write Multiple Factions in a Novel](https://zenstory.ai/oh-story/write-multiple-factions-in-a-novel) — Give factions independent reasons to act on one event. Includes an original alliance map and repairs for passive observers or unexplained support.
+- [Organize Your Novel’s Timeline and Reveals](https://zenstory.ai/oh-story/organize-a-novel-timeline) — Separate event chronology, manuscript order and reader knowledge. Use relative time and a worked flashback example without inventing dates.
 
 ### Characters and dialogue / 人物与对白
 - [Characters and dialogue](https://zenstory.ai/guides/characters-and-dialogue) — Build believable motives, distinct voices, and relationships.
@@ -105,6 +106,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Introduce a Fiction Character Readers Remember](https://zenstory.ai/oh-story/introduce-a-fiction-character) — Introduce a character through a task, a memorable detail and a choice. Includes an original rehearsal scene and a compact planning card.
 - [How to Describe Character Appearance in Fiction](https://zenstory.ai/oh-story/describe-character-appearance) — Choose visible traits through viewpoint and attention rather than listing features. Includes an original scene and before-and-after descriptions.
 - [How to Write Interior Monologue That Changes a Choice](https://zenstory.ai/oh-story/write-interior-monologue) — Separate observations, guesses, memories and decisions in interior monologue. Includes an original cancellation scene and knowledge checks.
+- [Too Much Dialogue in Your Novel? What to Keep](https://zenstory.ai/oh-story/fix-too-much-dialogue-in-a-novel) — Diagnose repeated information and conversational results rather than counting lines. Preserve key responses with a worked instrument-loan example.
 
 ### Choose and write a genre / 题材与类型写法
 - [Choose and write a genre](https://zenstory.ai/guides/genres) — Choose a genre and learn the story patterns it needs.
@@ -176,6 +178,10 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [Sensory Details in Fiction: Attention Before Quantity](https://zenstory.ai/oh-story/use-sensory-details-in-fiction) — Choose sensory detail through task, perceptual access and purpose. An original backstage revision shows when to use one sense or omit decoration.
 - [Sentence Length in Fiction: Flow, Pauses and Emphasis](https://zenstory.ai/oh-story/vary-sentence-length-in-fiction) — Vary sentence length for continuity, emphasis and pause while preserving facts. Compare three original versions of a string breaking on stage.
 - [AI Fiction Research: Verify Sources and Scope](https://zenstory.ai/oh-story/verify-research-for-ai-fiction) — Check dates, original sources and claim scope before using AI research. Includes a real official-notice check and a reusable research note.
+- [Stop AI Polishing From Changing Your Plot](https://zenstory.ai/oh-story/stop-ai-polishing-from-changing-your-plot) — Separate prose polishing from plot revision. Protect facts, knowledge sources and scene joins with a worked key-handoff example.
+- [Get Specific AI Feedback on Your Manuscript](https://zenstory.ai/oh-story/get-specific-ai-manuscript-feedback) — Turn vague criticism into located quotations, reader effects and bounded next steps. Separate necessary fixes, suggestions and author choices.
+- [What to Revise First in a Novel](https://zenstory.ai/oh-story/choose-what-to-revise-first-in-a-novel) — Diagnose story direction, causal design or prose before editing. Includes a change-of-mind example and clear stopping criteria.
+- [Fix a Novel That Reads Like a Screenplay](https://zenstory.ai/oh-story/fix-a-novel-that-reads-like-a-screenplay) — Distinguish intentional dialogue-heavy style from leaked camera and scene instructions. Restore viewpoint, choices and actual actions.
 
 ### Short-drama scripts / 短剧改编与剧本
 - [Short-drama scripts](https://zenstory.ai/guides/short-drama) — Adapt a story into episodes, scenes, and shootable dialogue.

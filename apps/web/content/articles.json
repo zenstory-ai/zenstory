@@ -7321,7 +7321,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "AI味高频词有哪些：先看它在句子里做了什么",
       "en": "Common Signs of AI-Like Prose: Diagnose the Sentence Before Rewriting"
@@ -7335,8 +7335,8 @@
       "en": "Treat AI-like words as clues. Diagnose explanatory tone, vague emotion, and stock actions by function; rewrite with information, choice, and consequence."
     },
     "answer": {
-      "zh": "检查AI味高频词时，先问它有没有传递具体信息。删掉后意思毫无损失，说明它多半在替作者概括、升华或制造假强调；词语承担角色口吻、真实引用或准确动作时应保留。修订目标是让句子回到人物的选择、场景证据和实际后果。",
-      "en": "When a word or phrase keeps making prose feel AI-written, ask first whether it conveys specific information. If removing it loses no fact, tone, or relationship, it is probably summarizing, moralizing, or adding empty emphasis for the author. Keep language that belongs to a character’s voice, an accurate quotation, or a precise action. The goal is not to ban words; it is to return each sentence to a character’s choice, scene evidence, and actual consequence."
+      "zh": "高频词只是修订线索，先看这处表达对信息、语气、节奏和人物体验做了什么。无功能重复可删；角色口吻、不确定观察、有意速度与题材语体应结合上下文保留。改写只调整表达，不借换词新增决定或动作，也不把检测命中当成作者必须接受的禁词。",
+      "en": "Frequent words are revision clues. Check their contribution to information, tone, rhythm and experience. Cut functionless repetition while preserving voice, genuine uncertainty, purposeful pacing and register. Change expression without inventing decisions or actions; a detector hit is not an author’s mandatory word ban."
     },
     "sections": [
       {
@@ -7346,8 +7346,8 @@
           "en": "Which Patterns Commonly Make Prose Feel AI-Written?"
         },
         "body": {
-          "zh": "问题常出在一组词反复承担同一种偷懒功能。单个词不能给文本定性，语境、密度和角色口吻共同决定它是否需要修改。\n\n| 线索 | 它常在替作者做什么 | 检查问题 |\n|---|---|---|\n| “仿佛、似乎、某种”密集出现 | 模糊本可明确的感受 | 人物究竟看见或判断了什么？ |\n| “心中涌起复杂情绪”一类概括 | 跳过选择与反应 | 这份情绪改变了哪个动作？ |\n| “意义、命运、成长”式收束 | 给场景强行升华 | 本场已有哪个结果可落句？ |\n| “缓缓、微微、不由得”连用 | 给普通动作套统一滤镜 | 动作的速度或程度真的影响结果吗？ |\n| 普通名词频繁加引号 | 制造虚假的特殊含义 | 这是原话、专名或反讽吗？ |\n| 整齐的转折与排比 | 让每段听起来像同一位解说者 | 角色会这样思考和说话吗？ |\n\n先圈功能，再决定删、留或重写，能避免把常用汉语误伤成“禁词”。",
-          "en": "The problem usually appears when a cluster of expressions repeatedly performs the same lazy function. No single word proves that a passage is AI-written. Context, density, and character voice determine whether it needs revision.\n\n| Clue | What it often does for the author | Diagnostic question |\n|---|---|---|\n| Repeated hedges such as “as if,” “somehow,” and “in a way” | Blurs a perception that could be stated precisely | What did the character actually see or conclude? |\n| Generalizations such as “a complex wave of emotion rose within her” | Skips the resulting choice and response | Which action does this emotion change? |\n| Abstract closing words such as “meaning,” “fate,” or “growth” | Forces a moral onto the scene | Which existing result can end the scene instead? |\n| A constant layer of “slowly,” “slightly,” and “involuntarily” | Gives ordinary actions one uniform filter | Does the speed or degree affect the outcome? |\n| Quotation marks around ordinary nouns | Manufactures a special meaning that has not been earned | Is this an exact quotation, proper term, or deliberate irony? |\n| Identical turns and parallel phrasing in every paragraph | Makes every character sound like the same commentator | Would this person actually think or speak this way? |\n\nDiagnose the function before choosing to remove, preserve, or rewrite. That prevents ordinary, useful language from becoming a prohibited-word list."
+          "zh": "问题常出在一组词反复承担同一种偷懒功能。单个词不能给文本定性，语境、密度和角色口吻共同决定它是否需要修改。\n\n| 线索 | 检查 |\n|---|---|\n| “仿佛、似乎、某种”密集出现 | **它常在替作者做什么**：模糊本可明确的感受；**检查问题**：人物究竟看见或判断了什么？ |\n| “心中涌起复杂情绪”一类概括 | **它常在替作者做什么**：跳过选择与反应；**检查问题**：这份情绪改变了哪个动作？ |\n| “意义、命运、成长”式收束 | **它常在替作者做什么**：给场景强行升华；**检查问题**：本场已有哪个结果可落句？ |\n| “缓缓、微微、不由得”连用 | **它常在替作者做什么**：给普通动作套统一滤镜；**检查问题**：速度或程度是否影响信息、语气或节奏？ |\n| 普通名词频繁加引号 | **它常在替作者做什么**：制造虚假的特殊含义；**检查问题**：这是原话、专名或反讽吗？ |\n| 整齐的转折与排比 | **它常在替作者做什么**：让每段听起来像同一位解说者；**检查问题**：角色会这样思考和说话吗？ |\n\n先圈功能，再决定删、留或重写，能避免把常用汉语误伤成“禁词”。",
+          "en": "The problem usually appears when a cluster of expressions repeatedly performs the same lazy function. No single word proves that a passage is AI-written. Context, density, and character voice determine whether it needs revision.\n\n| Clue | Check |\n|---|---|\n| Repeated hedges such as “as if,” “somehow,” and “in a way” | **What it often does for the author:** Blurs a perception that could be stated precisely. **Diagnostic question:** What did the character actually see or conclude? |\n| Generalizations such as “a complex wave of emotion rose within her” | **What it often does for the author:** Skips the resulting choice and response. **Diagnostic question:** Which action does this emotion change? |\n| Abstract closing words such as “meaning,” “fate,” or “growth” | **What it often does for the author:** Forces a moral onto the scene. **Diagnostic question:** Which existing result can end the scene instead? |\n| A constant layer of “slowly,” “slightly,” and “involuntarily” | **What it often does for the author:** Gives ordinary actions one uniform filter. **Diagnostic question:** Does speed or degree affect information, tone or rhythm? |\n| Quotation marks around ordinary nouns | **What it often does for the author:** Manufactures a special meaning that has not been earned. **Diagnostic question:** Is this an exact quotation, proper term, or deliberate irony? |\n| Identical turns and parallel phrasing in every paragraph | **What it often does for the author:** Makes every character sound like the same commentator. **Diagnostic question:** Would this person actually think or speak this way? |\n\nDiagnose the function before choosing to remove, preserve, or rewrite. That prevents ordinary, useful language from becoming a prohibited-word list."
         }
       },
       {
@@ -7357,8 +7357,8 @@
           "en": "How to Decide Whether to Cut, Keep, or Rewrite"
         },
         "body": {
-          "zh": "对每一处做三个动作。\n\n1. **删除测试**：拿掉词语，事实、语气和人物关系都没变，就直接删。\n2. **证据测试**：句子在替人物解释情绪时，回到场景里找能承担它的选择、物件、对话或代价。\n3. **声音测试**：它若来自人物稳定的说话习惯、真实引用或题材语体，保留并检查周围是否重复。\n\n例如“她微微一愣，心中涌起复杂的情绪”没有说明新信息。可以根据后续作用改成“她把已经递出去的钥匙收了回来”。动作同时给出犹豫、关系变化和下一步冲突。若人物当场需要承认感受，“她有点怕”也比堆叠身体微动作准确。",
-          "en": "Use three tests on each suspect expression.\n\n1. **Removal test:** Delete it. If fact, tone, and relationship remain unchanged, leave it out.\n2. **Evidence test:** If the sentence explains an emotion on the character’s behalf, find the choice, object, line of dialogue, or cost in the scene that can carry it.\n3. **Voice test:** If the expression belongs to a stable speech habit, an exact quotation, or the genre’s register, keep it and check whether nearby sentences merely duplicate it.\n\nFor example, “She froze slightly as complicated feelings rose inside her” adds no usable information. If the next beat is hesitation, write, “She took back the key she had already handed over.” The action supplies hesitation, a relationship shift, and the next conflict. If the character needs to acknowledge the feeling aloud, “I’m scared” can be more accurate than a stack of tiny physical gestures."
+          "zh": "对每一处做三个检查。\n\n1. **删除测试**：拿掉词语，比较事实、语气、关系、节奏与体验。都没有损失且确属重复时再删，不只问剧情是否继续成立。\n2. **证据测试**：句子泛泛解释情绪时，检查上下文已有的选择、物件、对白或后果是否够用；若要添新动作，需要另外获准。\n3. **声音测试**：来自人物稳定说话习惯、引用或作者选定语体的表达可以保留，再检查是否重复过密。\n\n“她微微一愣，心中涌起复杂的情绪”可能缺乏落点，但不能直接改成“她把钥匙收回来”：如果原稿没有收钥匙，这就是新增事件。可以删掉重复概括、按已有事实重写，或把缺失反应列给作者。人物确实要承认感受时，“我害怕”也可以成立，不必再补咬唇或攥拳。",
+          "en": "Apply three checks to each occurrence.\n\n1. **Removal:** compare fact, tone, relationship, rhythm and experience after deleting it. Cut genuine repetition only when these lose nothing, rather than checking plot alone.\n2. **Evidence:** for vague emotion, assess existing choices, objects, dialogue and consequences. Adding a new action requires permission beyond expression editing.\n3. **Voice:** preserve stable speech habits, quotations or a chosen register when appropriate; assess repetitive density afterward.\n\n“She froze slightly as complicated feelings rose inside her” may lack specificity, but replacing it with “She took back the key” invents an event unless that action exists in the draft. Cut duplicated commentary, rewrite within established facts or flag the missing response for the author. A direct admission such as “I’m afraid” may work without adding bitten lips or clenched fists."
         }
       },
       {
@@ -7368,8 +7368,8 @@
           "en": "Original Example: The Compensation Form at a Repair Shop"
         },
         "body": {
-          "zh": "原句：\n\n> 周岚缓缓抬起头，眼底掠过一丝复杂。柜台上的赔偿单写着三百二十元，她看完后推回单子，指出店里还拆掉了父亲留下的铭牌。店长伸手拿计算器，她按住单子，要求先找回铭牌再谈钱。此刻她才意识到，这张小小的赔偿单，承载的不只是金钱，更是一份迟来的尊重。\n\n先拆功能：“缓缓”“一丝复杂”没有改变画面；“不只是……更是……”替读者总结主题；“迟来的尊重”没有场景证据。\n\n改写：\n\n> 赔偿单上写着三百二十元。周岚看完金额，把单子推回柜台：“漏了一项。你们还拆了我爸留下的铭牌。”店长伸手去拿计算器，她按住那张纸，“先把铭牌找回来，再谈钱。”\n\n新版保留了金额、缺失物和人物选择。读者能从她拒绝只谈钱的行动中理解那件东西的重要性，无需作者代为升华。这个例子是为方法设计的虚构场景。",
-          "en": "Original version:\n\n> Zhou Lan slowly raised her head, something complicated passing through her eyes. The compensation form on the counter listed 320 yuan. After reading it, she pushed it back and pointed out that the shop had also removed the nameplate her father left behind. The manager reached for a calculator. She held the form down and demanded that they find the nameplate before discussing money. Only then did she realize that this small compensation form represented not merely money, but long-delayed respect.\n\nFirst diagnose the work each phrase performs. “Slowly” and “something complicated” add no change to the image. “Not merely... but...” states a theme for the reader. “Long-delayed respect” has no evidence in the scene.\n\nRewritten version:\n\n> The compensation form listed 320 yuan. Zhou Lan read the amount and pushed it back across the counter. “One item is missing. You also removed the nameplate my father left behind.” The manager reached for a calculator. She pinned the paper beneath her hand. “Find the nameplate first. Then we can discuss money.”\n\nThe revision preserves the amount, the missing object, and the character’s choice. Readers understand the nameplate’s importance from her refusal to discuss money alone; the author does not need to elevate it for them. This is a fictional scene designed to demonstrate the method."
+          "zh": "原句：\n\n> 周岚缓缓抬起头，眼底掠过一丝复杂。柜台上的赔偿单写着三百二十元，她看完后推回单子，指出店里还拆掉了父亲留下的铭牌。店长伸手拿计算器，她按住单子，要求先找回铭牌再谈钱。此刻她才意识到，这张小小的赔偿单，承载的不只是金钱，更是一份迟来的尊重。\n\n先拆功能：“一丝复杂”没有具体落点；这个版本选择不强调抬头速度，可以去掉“缓缓”，保留抬头本身；“不只是……更是……”替读者总结主题；“迟来的尊重”没有场景证据。\n\n改写：\n\n> 赔偿单上写着三百二十元。周岚抬起头，看完金额后把单子推回柜台：“漏了一项。你们还拆了我爸留下的铭牌。”店长伸手去拿计算器，她按住那张纸，“先把铭牌找回来，再谈钱。”\n\n新版保留抬头、金额、缺失物、店长拿计算器与周岚按住单子的动作，以及她的选择。读者能从她拒绝只谈钱的行动中理解那件东西的重要性，无需作者代为升华。若本书要让这个抬头形成有意的等待或节奏，“缓缓”也可以保留；无需让速度改变剧情结果才有资格留下。例子为本页原创，展示一个可选改法，不是词语有无价值的普遍结论。",
+          "en": "Original version:\n\n> Zhou Lan slowly raised her head, something complicated passing through her eyes. The compensation form on the counter listed 320 yuan. After reading it, she pushed it back and pointed out that the shop had also removed the nameplate her father left behind. The manager reached for a calculator. She held the form down and demanded that they find the nameplate before discussing money. Only then did she realize that this small compensation form represented not merely money, but long-delayed respect.\n\nFirst diagnose the work each phrase performs. “Something complicated” lacks a concrete referent. This version does not emphasize the speed of raising her head, so it removes “slowly” while preserving the movement. “Not merely... but...” states a theme for the reader. “Long-delayed respect” has no evidence in the scene.\n\nRewritten version:\n\n> The compensation form listed 320 yuan. Zhou Lan raised her head, then pushed the form back after reading the amount. “One item is missing. You also removed the nameplate my father left behind.” The manager reached for a calculator. She pinned the paper beneath her hand. “Find the nameplate first. Then we can discuss money.”\n\nThe revision preserves raising her head, the amount, the missing object, the manager reaching for a calculator, her holding the form and her choice. Readers understand the nameplate’s importance from her refusal to discuss money alone; the author does not need to elevate it for them. If the chosen style uses the slow movement to create waiting or rhythm, “slowly” can remain. Speed need not alter the plot outcome to have a function. This original example demonstrates one optional revision, not a universal verdict on a word."
         }
       },
       {
@@ -7379,8 +7379,8 @@
           "en": "When a Commonly Flagged Expression Should Stay"
         },
         "body": {
-          "zh": "保留有明确工作的表达：\n\n- 角色原话需要引号；文件名、书名或专名按规范标示。\n- “似乎”表达人物确实无法确认的观察时，可以保留。\n- “缓缓”若速度决定威胁、等待或动作是否被阻止，它就有叙事作用。\n- 直接情绪词在需要准确落地时有效，例如“我害怕回家”。\n- 排比体现人物受教育程度、职业习惯或当场失控时，可以成为声音特征。\n\n复查相邻段落。有效表达一旦连续复制，也会让人物声音变平。",
-          "en": "Keep an expression when it has a specific job:\n\n- Character dialogue needs quotation marks; filenames, titles, and proper terms follow their normal conventions.\n- A hedge such as “apparently” belongs when the character genuinely cannot confirm an observation.\n- “Slowly” matters when speed determines threat, waiting, or whether someone can interrupt the action.\n- Direct emotion words work when precision matters: “I’m afraid to go home.”\n- Parallel phrasing can express a character’s education, professional habits, or loss of control in the moment.\n\nThen reread adjacent paragraphs. Even a useful construction flattens character voice when copied continuously."
+          "zh": "保留有明确工作的表达：\n\n- 角色原话需要引号；文件名、书名或专名按规范标示。\n- “似乎”表达人物确实无法确认的观察时，可以保留。\n- “缓缓”若速度表现威胁、等待、叙述节奏或动作是否被阻止，它就有叙事作用。\n- 直接情绪词在需要准确落地时有效，例如“我害怕回家”。\n- 排比体现人物受教育程度、职业习惯或当场失控时，可以成为声音特征。\n\n复查相邻段落。有效表达一旦连续复制，也会让人物声音变平。",
+          "en": "Keep an expression when it has a specific job:\n\n- Character dialogue needs quotation marks; filenames, titles, and proper terms follow their normal conventions.\n- A hedge such as “apparently” belongs when the character genuinely cannot confirm an observation.\n- “Slowly” matters when speed conveys threat, waiting, narrative rhythm or whether someone can interrupt the action.\n- Direct emotion words work when precision matters: “I’m afraid to go home.”\n- Parallel phrasing can express a character’s education, professional habits, or loss of control in the moment.\n\nThen reread adjacent paragraphs. Even a useful construction flattens character voice when copied continuously."
         }
       },
       {
@@ -7435,10 +7435,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "创作意图与最少改动",
+          "en": "Creative intent and minimal changes"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-deslop/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "作者文风与表达边界",
+          "en": "Author style and expression boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-deslop/references/style-resolution.md"
       }
     ]
   },
@@ -7450,7 +7457,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "去AI味改过头怎么办：把电报体修回自然叙事",
       "en": "When Removing AI-Like Prose Goes Too Far: Repair Telegraphic Writing"
@@ -7475,8 +7482,8 @@
           "en": "How to Tell When Revision Has Gone Too Far"
         },
         "body": {
-          "zh": "过度修订常留下六种症状：\n\n| 症状 | 阅读时的感受 | 真正缺失的东西 |\n|---|---|---|\n| 连续短句 | 像逐条报动作 | 动作之间的时间与因果 |\n| 主语被大量省略 | 分不清谁在做事 | 人物与动作的归属 |\n| 连接词全部消失 | 每句都能懂，场景却跳 | 转折、条件与先后 |\n| 强制一句一段 | 每个动作都被抬成重点 | 重点与过渡的层级 |\n| 为口语感乱倒装、加错字 | 人物像在表演“自然” | 稳定的角色声音 |\n| 对话承包全部信息 | 人物互相讲已知常识 | 场景动作与必要叙述 |\n\n这些问题说明修改破坏了叙事连接。继续替换词语只会扩大断裂。",
-          "en": "Over-editing commonly leaves six symptoms:\n\n| Symptom | Reading experience | What is actually missing |\n|---|---|---|\n| A run of short sentences | Actions arrive like separate incident reports | Timing and causality between actions |\n| Subjects are omitted repeatedly | It becomes unclear who does what | Ownership of character and action |\n| Every connective disappears | Each sentence is intelligible, but the scene jumps | Contrast, condition, and sequence |\n| Every sentence becomes its own paragraph | Every motion receives equal emphasis | A hierarchy between peaks and transitions |\n| Inversions and typos are added to sound conversational | Characters perform “naturalness” | A stable character voice |\n| Dialogue carries all information | Characters tell one another things they already know | Scene action and necessary narration |\n\nThese symptoms show that revision damaged narrative connections. Replacing more words only widens the breaks."
+          "zh": "过度修订常留下六种症状：\n\n| 症状 | 检查 |\n|---|---|\n| 连续短句 | **阅读时的感受**：像逐条报动作；**真正缺失的东西**：动作之间的时间与因果 |\n| 主语被大量省略 | **阅读时的感受**：分不清谁在做事；**真正缺失的东西**：人物与动作的归属 |\n| 连接词全部消失 | **阅读时的感受**：每句都能懂，场景却跳；**真正缺失的东西**：转折、条件与先后 |\n| 强制一句一段 | **阅读时的感受**：每个动作都被抬成重点；**真正缺失的东西**：重点与过渡的层级 |\n| 为口语感乱倒装、加错字 | **阅读时的感受**：人物像在表演“自然”；**真正缺失的东西**：稳定的角色声音 |\n| 对话承包全部信息 | **阅读时的感受**：人物互相讲已知常识；**真正缺失的东西**：场景动作与必要叙述 |\n\n这些问题说明修改破坏了叙事连接。继续替换词语只会扩大断裂。",
+          "en": "Over-editing commonly leaves six symptoms:\n\n| Symptom | Check |\n|---|---|\n| A run of short sentences | **Reading experience:** Actions arrive like separate incident reports. **What is actually missing:** Timing and causality between actions |\n| Subjects are omitted repeatedly | **Reading experience:** It becomes unclear who does what. **What is actually missing:** Ownership of character and action |\n| Every connective disappears | **Reading experience:** Each sentence is intelligible, but the scene jumps. **What is actually missing:** Contrast, condition, and sequence |\n| Every sentence becomes its own paragraph | **Reading experience:** Every motion receives equal emphasis. **What is actually missing:** A hierarchy between peaks and transitions |\n| Inversions and typos are added to sound conversational | **Reading experience:** Characters perform “naturalness”. **What is actually missing:** A stable character voice |\n| Dialogue carries all information | **Reading experience:** Characters tell one another things they already know. **What is actually missing:** Scene action and necessary narration |\n\nThese symptoms show that revision damaged narrative connections. Replacing more words only widens the breaks."
         }
       },
       {
@@ -7486,8 +7493,8 @@
           "en": "Five Steps for Repairing Broken Sentences"
         },
         "body": {
-          "zh": "1. **冻结事实**：写下谁在场、想做什么、发生了什么、结果是什么，避免修句时改掉剧情。\n2. **标出峰值**：冲突落点、决定和意外适合短句；走路、寻找、观察和交接通常需要连续句。\n3. **合并同镜头动作**：同一个人、同一空间、连续发生的动作放回一个完整句群。\n4. **补必要连接**：恢复读者无法自行推断的时间、条件、指代和因果。\n5. **检查声音**：朗读一遍，确认停顿来自含义，人物说话符合身份，段落没有统一切碎。\n\n连接词本身没有问题。它明确了真实关系，就应该留下；它只在重复上一句时，才需要删。",
-          "en": "1. **Freeze the facts:** Record who is present, what each person wants, what happens, and the result, so sentence repair does not alter the plot.\n2. **Mark the peaks:** A point of conflict, decision, or surprise can use a short sentence. Walking, searching, observing, and transferring objects usually need continuous syntax.\n3. **Join actions in one visual unit:** Return consecutive actions by the same person in the same space to one complete sentence group.\n4. **Restore necessary links:** Add only the timing, conditions, references, and causes that readers cannot infer.\n5. **Check the voice:** Read aloud. Pauses should come from meaning, dialogue should fit the speaker, and every paragraph should not be chopped to the same rhythm.\n\nConnectives are not the problem. Keep one when it states a real relationship; remove it only when it repeats what the prior sentence already makes clear."
+          "zh": "1. **冻结事实**：写下谁在场、想做什么、发生了什么、结果是什么，以及人物如何知道结果，避免修句时改掉剧情。\n2. **按文风确定停顿**：决定、意外或冲击可以独立成句，连续过程也可以用连贯句群；这不是每种小说都必须采用的句长规则。\n3. **接回连续动作**：判断哪些动作属于同一目的、同一空间和连续时间，把被误删的关系恢复；不强制合成一个长句。\n4. **补必要连接**：恢复读者无法自行推断的时间、条件、指代与因果，不添加新的观察或经历。\n5. **检查声音**：按本书选定文风连读，确认停顿有作用，人物说话符合身份，段落没有机械切碎。\n\n连接词本身没有问题。它明确真实关系就应该留下；删改要同时考虑信息、语气、节奏与体验，不只数句子长短。",
+          "en": "1. **Lock the facts:** identify who is present, what they want, what occurs, the result and how the character learns it.\n2. **Choose pauses under the book’s style:** a decision, surprise or impact may stand alone; a continuous process may use a connected sentence group. This is not a universal sentence-length rule.\n3. **Reconnect continuous actions:** restore relations lost between actions sharing purpose, space and time without forcing them into one long sentence.\n4. **Restore necessary links:** repair time, conditions, references and causality without adding observations or experiences.\n5. **Check the voice:** read under the chosen style for meaningful pauses, appropriate character speech and paragraphs not mechanically fragmented.\n\nConjunctions are useful when they express real relationships. Evaluate information, tone, rhythm and experience rather than counting sentence lengths."
         }
       },
       {
@@ -7497,8 +7504,8 @@
           "en": "Original Example: Telegraphic Prose on a Night of Leaks"
         },
         "body": {
-          "zh": "过度修订版：\n\n> 水滴下来。林澄放洗菜盆。接水。她端盆去阳台。倒了一次。回来。墙皮鼓起。巴掌大。她上楼。敲门。没人开。门上贴着房东电话。她拨过去。停机。\n\n事实齐全，阅读却像监控记录。所有动作受到同样强调，楼上无人回应这个变化反而不突出。\n\n修复版：\n\n> 林澄把洗菜盆推到漏水处，端去阳台倒了一次。再回来时，墙皮已经鼓成巴掌大的一块。她上楼敲门，屋里没有动静；门上贴的房东电话，也已经停机。\n\n第一句合并接水与倒水，第二句把时间推进落在墙皮变化，最后一句保留“无人—电话失效”的升级。信息没有增加，场景重新有了连续性。这个例子是为方法设计的虚构场景。",
-          "en": "Over-edited version:\n\n> Water dripped. Lin Cheng set out a washing-up bowl. Caught it. Carried the bowl to the balcony. Emptied it once. Came back. Paint bulged from the wall. Palm-sized. She went upstairs. Knocked. No answer. The landlord’s number was posted on the door. She called. Disconnected.\n\nThe facts are present, but the passage reads like a surveillance log. Every movement receives the same emphasis, so the important change—that no one upstairs responds—barely registers.\n\nRepaired version:\n\n> Lin Cheng slid a washing-up bowl beneath the leak and carried it to the balcony to empty it once. By the time she returned, the paint had swollen into a palm-sized blister. She went upstairs and knocked, but no one answered. The landlord’s number was taped to the door, and that line had been disconnected too.\n\nThe first sentence joins catching and emptying the water. The second puts the passage of time into the change in the wall. The final sentence preserves the escalation from no answer at the door to no working phone number. No fact has been added; the scene simply moves continuously again. This is a fictional scene designed to demonstrate the method."
+          "zh": "过度修订版：\n\n> 水滴下来。林澄放洗菜盆。接水。她端盆去阳台。倒了一次。回来。墙皮鼓起。巴掌大。她上楼。敲门。没人开。门上贴着房东电话。她拨过去。停机。\n\n事实齐全，阅读却像监控记录。所有动作受到同样强调，楼上无人回应这个变化反而不突出。\n\n修复版：\n\n> 林澄把洗菜盆推到漏水处，端去阳台倒了一次。再回来时，墙皮已经鼓成巴掌大的一块。她上楼敲门，屋里没有动静。门上贴着房东的号码，她拨过去，听到的却是停机提示。\n\n第一句合并接水与倒水，第二句把时间推进落在墙皮变化，后两句保留敲门无人回应、看见号码、拨号听到停机提示的过程。林澄凭拨号结果获知电话失效，不能省成她直接知道。未增加新事件，场景重新有了连续性。这个例子是为方法设计的虚构场景。",
+          "en": "Over-edited version:\n\n> Water dripped. Lin Cheng set out a washing-up bowl. Caught it. Carried the bowl to the balcony. Emptied it once. Came back. Paint bulged from the wall. Palm-sized. She went upstairs. Knocked. No answer. The landlord’s number was posted on the door. She called. Disconnected.\n\nThe facts are present, but the passage reads like a surveillance log. Every movement receives the same emphasis, so the important change—that no one upstairs responds—barely registers.\n\nRepaired version:\n\n> Lin Cheng slid a washing-up bowl beneath the leak and carried it to the balcony to empty it once. By the time she returned, the paint had swollen into a palm-sized blister. She went upstairs and knocked, but no one answered. The landlord’s number was taped to the door. She dialed it and heard a disconnected-line message.\n\nThe first sentence joins catching and emptying the water. The second puts the passage of time into the change in the wall. The last sentences preserve knocking, seeing the number, dialing and hearing the disconnected-line message. The call provides her knowledge that the line does not work; she does not simply know it. No new event has been added; the scene simply moves continuously again. This is a fictional scene designed to demonstrate the method."
         }
       },
       {
@@ -7531,8 +7538,8 @@
           "en": "Are fewer short sentences always better?"
         },
         "a": {
-          "zh": "短句适合决定、打击、转折和突然发现。问题来自连续使用同一种短句，让过渡与峰值失去区别。",
-          "en": "No. Short sentences suit decisions, blows, turns, and sudden discoveries. The problem is an unbroken sequence of identical short sentences, which erases the contrast between transition and peak."
+          "zh": "短句可以承担决定、打击、转折和发现，也可以用于作者选定的其他效果。问题是机械地让所有句子一样短，或因此丢失连接；先按本书文风和阅读效果判断。",
+          "en": "Short sentences can serve decisions, blows, turns and discoveries, or other effects chosen by the author. Mechanical uniformity and lost connections are the problems. Judge by the book’s style and reading effect."
         }
       },
       {
@@ -7564,10 +7571,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "最少改动与创作意图保护",
+          "en": "Minimal changes and creative intent"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-deslop/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "文风与信息来源边界",
+          "en": "Style and knowledge-source boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-deslop/references/style-resolution.md"
       }
     ]
   },
@@ -13740,7 +13754,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "小说环境描写怎么写：让人物在场景里行动",
       "en": "How to Write Setting Description: Let Characters Act in the Scene"
@@ -13776,8 +13790,8 @@
           "en": "Build Description as Attention, Interaction, and Consequence"
         },
         "body": {
-          "zh": "| 环节 | 要写什么 | 避免什么 |\n|---|---|---|\n| 注意 | 人物因目标或经验捕捉到的异常 | 从天花板到地板逐项扫描 |\n| 交互 | 触碰、绕开、借用、试探或被环境限制 | 人物站着欣赏，景物自行表演 |\n| 后果 | 信息、行动、关系或身体状态改变 | 描写完立即忘记场景条件 |\n\n五感不是配额。能决定动作的湿滑触感，比同时补齐颜色、气味、声音更有用。动态变化尤其有效：光线熄灭、风把门推回、地面积水上涨，都能迫使人物重新选择。",
-          "en": "| Stage | What to write | What to avoid |\n|---|---|---|\n| Attention | An anomaly the character catches because of a goal or experience | Scanning item by item from ceiling to floor |\n| Interaction | Touching, avoiding, using, testing, or being constrained by the environment | A character standing still to admire scenery while the setting performs by itself |\n| Consequence | A change in information, action, relationships, or physical state | Forgetting the conditions immediately after describing them |\n\nThe five senses are not a quota. A slippery surface that determines an action is more useful than filling in color, smell, and sound at once. Dynamic changes are especially effective: the lights go out, wind pushes a door closed, or rising water forces the character to choose again."
+          "zh": "| 环节 | 检查 |\n|---|---|\n| 注意 | **要写什么**：人物因目标或经验捕捉到的异常；**避免什么**：从天花板到地板逐项扫描 |\n| 交互 | **要写什么**：触碰、绕开、借用、试探或被环境限制；**避免什么**：与本场目标无关的景物清单 |\n| 后果 | **要写什么**：信息、行动、关系或身体状态改变；**避免什么**：描写完立即忘记场景条件 |\n\n五感不是配额。人物要通过湿滑地面时，触感可能比补齐颜色、气味、声音更重要；人物只是停留感受时，取舍也可以围绕气氛。动态变化尤其有效：光线熄灭、风把门推回、地面积水上涨，都能迫使人物重新选择。",
+          "en": "| Stage | Check |\n|---|---|\n| Attention | **What to write:** An anomaly the character catches because of a goal or experience. **What to avoid:** Scanning item by item from ceiling to floor |\n| Interaction | **What to write:** Touching, avoiding, using, testing, or being constrained by the environment. **What to avoid:** A scenery inventory unrelated to the reading goal |\n| Consequence | **What to write:** A change in information, action, relationships, or physical state. **What to avoid:** Forgetting the conditions immediately after describing them |\n\nThe five senses are not a quota. For someone crossing a slippery floor, touch may matter more than filling in color, smell and sound. For someone pausing to experience a place, atmosphere can guide the selection instead. Dynamic changes are especially effective: the lights go out, wind pushes a door closed, or rising water forces the character to choose again."
         }
       },
       {
@@ -13798,8 +13812,8 @@
           "en": "Original Example: A Community Greenhouse After a Blackout"
         },
         "body": {
-          "zh": "志愿者高槐音夜里赶到社区温室，要在降温前转移一批幼苗。若只写“温室里潮湿发冷，玻璃上全是水雾，四周很黑”，气氛有了，行动仍未发生。\n\n改写时让环境参与选择：\n\n> 应急灯只照亮门边两排架子。高槐音伸手去搬育苗盘，塑料边缘却粘在铁架上——白天漏出的营养液已经冻住。她没再硬扯，先摘下围巾裹住最靠风口的一盘，又把浇水软管拖到门缝下。水管里的余水结成一节节硬骨，门因此关不严。\n>\n> 她顺着水管往里摸，发现阀门还在滴。若先救幼苗，冷风会继续灌进来；若去关总阀，门边这几盘要留在原地。她把应急灯放到地上，对刚赶来的邻居说：“你抱盘，我去找阀。别拔，先拧松架子上的冰。”\n\n灯光范围、结冰的营养液、风口和水管都改变任务；高槐音如何注意并处理它们，也体现她熟悉温室。没有必要再补一段植物香气，除非气味将提供泄漏或腐坏的信息。",
-          "en": "Volunteer Gao Huaiyin arrives at a community greenhouse at night to move a batch of seedlings before the temperature drops. Simply writing, “The greenhouse was damp and cold, mist covered the glass, and everything was dark,” creates atmosphere without beginning the action.\n\nRevise so the environment participates in the choice:\n\n> The emergency lamp reached only the two racks beside the door. Gao Huaiyin reached for a seedling tray, but its plastic rim clung to the iron shelf—the nutrient solution spilled that afternoon had frozen. Instead of pulling harder, she wrapped her scarf around the tray nearest the draft, then dragged the watering hose beneath the gap in the door. Water left inside had frozen into a row of rigid joints, preventing the door from closing.\n>\n> She followed the hose inward by touch and found the valve still dripping. If she saved the seedlings first, cold air would keep pouring in. If she went to shut the main valve, the trays by the door would remain where they were. She set the emergency lamp on the floor and told the neighbor who had just arrived, “You carry the trays. I’ll find the valve. Don’t pull—twist the ice loose from the rack first.”\n\nThe lamp’s reach, frozen nutrient solution, draft, and hose all change the task. The way Gao Huaiyin notices and handles them also shows that she knows the greenhouse. There is no need to add the scent of plants unless smell will indicate a leak or rot."
+          "zh": "下面是为本页设计的虚构场景，展示空间条件怎样改变行动，不是温室养护建议。志愿者高槐音和邻居沈桐一同到社区温室，把靠门的三盘幼苗搬到已经获准借用的隔壁活动室。温室停电，浇水软管横在门槛上，门关不拢；两人各带一盏手电。\n\n只写“温室又冷又黑”有气氛，却没说明人物怎样完成搬运。可以这样写：\n\n> 高槐音把手电放到门边架子上，光只照到最外面的两盘。第三盘藏在架后，她侧过身，才看清盘底已经探出架沿。\n\n> “你先抱这两盘。”她对沈桐说。沈桐一手托一盘，绕过门槛上的软管往活动室走。\n\n> 高槐音没去拉门，先把软管挪到门内，给回来的路腾出地方。她托住第三盘的底部，抱起后用肩膀推门，门这才合上。架子上的手电还亮着，等沈桐回来取。\n\n**条件与结果**：光照范围使第三盘需要另找角度；软管影响通行和关门，先挪开才有合门条件；沈桐的协助在开场已经建立。借用活动室已经获准，搬过去不等于幼苗得到长期安置。稿件若需要更多安全或园艺细节，另行查证，不从这个例子推导。\n\n气味、温度或一段静景也能建立气氛和人物体验，不必每个细节都触发新事件。选择要服务本场阅读目标，而不是凑齐五感。",
+          "en": "This fictional scene demonstrates spatial cause and effect, rather than greenhouse care. Gao Huaiyin and neighbor Shen Tong arrive together to move three trays near the door to a neighboring activity room they already have permission to use. The greenhouse has lost power, a hose crosses the threshold and prevents the door from closing, and each person carries a torch.\n\n“The greenhouse was cold and dark” supplies atmosphere without explaining the task. A scene could read:\n\n> Gao Huaiyin set her torch on the shelf beside the door. Its beam reached only the outer two trays. The third was behind the rack; she turned sideways and saw its base projecting beyond the shelf.\n\n> “Take these two first,” she told Shen Tong. Supporting one tray in each hand, he stepped around the hose and headed to the activity room.\n\n> She left the door alone and moved the hose inside, clearing their return path. She supported the third tray from beneath, lifted it and pushed the door with her shoulder. This time it closed. The torch remained on the shelf, lit for Shen Tong to collect on his return.\n\n**Conditions and results:** limited light changes how she sees the third tray. The hose affects access and closure, so moving it enables the door to close. Shen Tong’s help is established at the start. Permission to use the room does not prove long-term accommodation for the seedlings. Research safety or horticultural details separately if the manuscript needs them.\n\nSmell, temperature and still description can also build atmosphere and experience without triggering new events. Choose details for the reading goal rather than filling a sensory quota."
         }
       },
       {
@@ -13809,8 +13823,8 @@
           "en": "How to Cut or Revise Setting Description That Feels Like Padding"
         },
         "body": {
-          "zh": "| 症状 | 修正 |\n|---|---|\n| 开场先写一整段天气，再让人物出现 | 从人物受天气影响的第一个动作进入 |\n| 罗列颜色、声音、气味，彼此无关 | 留下会影响判断或节奏的一两项 |\n| 所有人都注意同样的景色 | 按人物目标与经验筛选细节 |\n| 环境只负责象征人物心情 | 增加物理限制、信息或可用资源 |\n| 场景条件写过后不再生效 | 让人物处理它，或删除这项条件 |\n| 为了“不水”把地点删成空白 | 保留行动所需的距离、出口、障碍与可操作物 |\n\n环境少写不等于不写。读者需要知道动作能否发生、危险从哪里来、人物能碰到什么。删的是不参与体验的清单，不是空间因果。",
-          "en": "| Symptom | Fix |\n|---|---|\n| An opening describes a full passage of weather before the character appears | Enter on the character’s first action affected by the weather |\n| Colors, sounds, and smells are listed without connection | Keep the one or two details that alter judgment or rhythm |\n| Everyone notices the same view | Filter details through each character’s goal and experience |\n| The setting only symbolizes a character’s mood | Add a physical constraint, information, or usable resource |\n| A condition never matters after it is described | Make the character handle it, or delete it |\n| In avoiding padding, the writer strips the location into a blank | Preserve distances, exits, obstacles, and usable objects required for action |\n\nWriting less setting does not mean writing none. Readers need to know whether an action is possible, where danger comes from, and what the character can reach. Remove the list that does not participate in experience, not the spatial cause and effect."
+          "zh": "| 症状 | 修正 |\n|---|---|\n| 开场先写一整段天气，再让人物出现 | 从人物受天气影响的第一个动作进入 |\n| 罗列颜色、声音、气味，彼此无关 | 留下会影响判断或节奏的一两项 |\n| 所有人都注意同样的景色 | 按人物目标与经验筛选细节 |\n| 环境只负责象征人物心情 | 先判断象征是否有效；缺现场依据再补已有细节 |\n| 场景条件写过后不再生效 | 检查是否影响体验或后续；无功能才删 |\n| 为了“不水”把地点删成空白 | 保留行动所需的距离、出口、障碍与可操作物 |\n\n环境少写不等于不写。读者需要知道动作能否发生、危险从哪里来、人物能碰到什么。删的是不参与体验的清单，不是空间因果。",
+          "en": "| Symptom | Fix |\n|---|---|\n| An opening describes a full passage of weather before the character appears | Enter on the character’s first action affected by the weather |\n| Colors, sounds, and smells are listed without connection | Keep the one or two details that alter judgment or rhythm |\n| Everyone notices the same view | Filter details through each character’s goal and experience |\n| The setting only symbolizes a character’s mood | Assess the symbolism; restore existing detail if it lacks support in the scene |\n| A condition never matters after it is described | Check its effect on experience and later events; cut only if it has no function |\n| In avoiding padding, the writer strips the location into a blank | Preserve distances, exits, obstacles, and usable objects required for action |\n\nWriting less setting does not mean writing none. Readers need to know whether an action is possible, where danger comes from, and what the character can reach. Remove the list that does not participate in experience, not the spatial cause and effect."
         }
       }
     ],
@@ -13839,8 +13853,8 @@
     "skill": {
       "name": "story-long-write",
       "text": {
-        "zh": "在 Claude Code 里说：“用 /story-long-write 修改这段环境描写，先确认人物当前目标，再保留会帮助、阻碍、误导或逼迫行动的细节，写出注意、交互和后果；不新增剧情条件，不为凑五感补描写”（Codex 中使用 `$story-long-write`）。",
-        "en": "In Claude Code, say: “Use `/story-long-write` to revise this setting description. First identify the character’s current goal, then keep details that help, obstruct, mislead, or pressure the action. Show attention, interaction, and consequence. Add no new plot conditions, and do not add description merely to cover all five senses.” In Codex, use `$story-long-write`."
+        "zh": "用 /story-long-write（Codex 用 $story-long-write）局部修订环境描写，附人物目标、既定场景条件与本书文风。保留影响行动或体验的细节，不新增权限、协助者、工具或物理结果；不凑五感，也不要求每句景物制造事件。",
+        "en": "Use /story-long-write, or $story-long-write in Codex, for a local setting revision with goals, established conditions and book style. Preserve details affecting action or experience. Add no permission, helpers, tools or physical results; require neither sensory quotas nor an event from every detail."
       },
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
     },
@@ -13854,10 +13868,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "环境交互与详略",
+          "en": "Environmental interaction and emphasis"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-craft.md"
+      },
+      {
+        "label": {
+          "zh": "作者文风优先级",
+          "en": "Author style priorities"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ]
   },
@@ -19136,7 +19157,7 @@
       "en"
     ],
     "published_on": "2026-09-28",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "AI 写小说前后矛盾怎么办：人物、时间线与伏笔检查",
       "en": "How to Check AI Fiction for Continuity Errors"
@@ -19150,19 +19171,19 @@
       "en": "Audit AI-assisted fiction for factual, rule, timeline, causal, and cost conflicts. Cite both sides, separate evidence from severity, and recheck later chapters."
     },
     "answer": {
-      "zh": "审计 AI 辅助小说的前后矛盾，先限定章节范围，按人物名、物件、规则、地点和时间词搜索明文；再为每个可疑点列出前提或规则、触发事件、表面冲突和待作者回答的问题。任何一端缺少原文依据，都标“证据不足”；证据支持的冲突仍是候选，不自动等于错误。先独立记录证据状态，再按项目 story-review 的统一 S1–S4 口径排序影响。报告只给证据和待裁决项；作者确认是否存在刻意揭示或适用例外后，再修改并复查依赖它的后续章节。",
-      "en": "To audit continuity in AI-assisted fiction, define the chapter range and search explicit claims about people, objects, rules, places, and time. For each concern, record the premise or rule, triggering event, apparent contradiction, and question for the author. If either side lacks textual support, mark it Insufficient evidence; even a supported clash remains a candidate, not an automatic error. Record evidence status separately, then prioritize impact using the project’s shared story-review S1–S4 rubric. The report supplies evidence and questions; the author decides whether an intentional reveal or applicable exception explains the passage, then revises and checks dependent later chapters."
+      "zh": "先限定已写章节与参考材料，搜索人物、物件、规则和时间，再为每条疑点记录前提与触发两端的位置和短引文。缺一端就标证据不足；有证据仍需判断误认、谎言或适用例外。用问题影响安排修改顺序，作者选定事实后再改稿，并检查后文实际依赖。",
+      "en": "Define the written scope and supporting materials. Search people, objects, rules and time; record locations and short quotations for premise and trigger. Mark missing evidence and check mistakes, lies or applicable exceptions. Prioritize by impact, choose the facts, then revise and recheck later dependencies."
     },
     "sections": [
       {
         "id": "scope-the-manuscript-audit",
         "heading": {
-          "zh": "先定范围：这次产出是一份成稿审计报告",
-          "en": "Set the scope: this pass produces a manuscript audit report"
+          "zh": "先定范围：检查已写正文的事实关系",
+          "en": "Set the Scope: Facts in Written Prose"
         },
         "body": {
-          "zh": "这套方法用于**已经写出的正文**。输入是明确的章节范围、相关设定或细纲，以及可引用的追踪记录；输出是一份带位置、双端证据、证据状态、项目统一严重度和待答问题的审计报告。重点检查六类事实关系：\n\n- **实体**：人物属性、身份、亲属、位置、持有物和已知信息。\n- **规则**：世界规则、能力边界、制度权限、例外条件和术语。\n- **时间线**：日期、时长、事件先后、旅行与恢复时间。\n- **因果**：原因、必要条件、行动、结果和后果能否接上。\n- **代价**：能力、交易、治疗或突破的既定成本是否兑现。\n- **明文事实**：同一对象是否被写成两个无法同时成立的状态。\n\n如果担心写到后面忘记前文，就在创作过程中持续更新状态、角色知情和未结事项；本页则拿已经写出的正文反向取证。它不评价文笔、人物弧线或情节是否精彩，也不直接改稿。作者批准问题及处理方向后，再用[审稿意见改稿流程](/oh-story/review-and-revise)将决定变成有范围的修订任务。",
-          "en": "Use this method on **prose that already exists**. Its inputs are a defined chapter range, relevant setting or outline material, and citable tracking records. Its output is an audit report with locations, evidence on both sides, evidence status, the project-wide severity label, and questions for the author. Check six kinds of factual relationship:\n\n- **Entities**: attributes, identity, family, location, possessions, and character knowledge.\n- **Rules**: world rules, ability limits, institutional authority, exceptions, and terminology.\n- **Timeline**: dates, durations, event order, travel, and recovery time.\n- **Causality**: whether cause, necessary condition, action, result, and consequence connect.\n- **Cost**: whether an established price for an ability, bargain, treatment, or breakthrough is paid.\n- **Explicit facts**: whether the same subject receives two states that cannot both hold.\n\nIf your concern is forgetting established facts while drafting, keep states, character knowledge, and open matters current as chapters change. This page instead gathers evidence from prose that is already written. It does not judge prose quality, character arcs, or whether a plot is exciting, and it makes no edits. After the author approves a finding and its direction, use the [review-to-revision workflow](/oh-story/review-and-revise) to make it a bounded revision task."
+          "zh": "这套方法用于已经写出的正文。先说明审哪几章、哪些设定或追踪材料可作证，再输出有原文位置、两端证据、影响与待决定事项的报告。重点检查六类关系：\n\n- **人物与物件**：身份、亲属、位置、持有物和已知信息。\n- **规则**：能力边界、制度权限、例外条件和术语。\n- **时间**：日期、时长与事件先后。\n- **因果**：条件、行动、结果和后果能否接上。\n- **代价**：能力、交易或治疗的既定成本是否兑现。\n- **明文事实**：同一对象是否处于两个不能同时成立的状态。\n\n创作过程中维护状态与知情范围，可减少遗忘；本页反向检查已有正文，不评价故事精彩程度，也不直接改稿。作者选定事实与修法后，再走[审稿意见改稿](/oh-story/review-and-revise)。未提供、未读到的章节不算已经检查。",
+          "en": "This method checks written prose. Define chapters and supporting setting or tracking materials, then produce a report with locations, evidence on both sides, impact and decisions required. Check six relationships:\n\n- **People and objects:** identity, family, location, possession and knowledge.\n- **Rules:** ability limits, authority, exceptions and terminology.\n- **Time:** dates, durations and event order.\n- **Causality:** conditions, action, result and consequences.\n- **Cost:** established prices of abilities, transactions or treatment.\n- **Explicit facts:** incompatible states of the same subject.\n\nMaintaining state and knowledge during drafting helps prevent forgetting. This page checks existing prose without judging how exciting the story is or rewriting it. After choosing facts and repairs, use [review-to-revision](/oh-story/review-and-revise). Unprovided or unread chapters have not been checked."
         }
       },
       {
@@ -19179,12 +19200,12 @@
       {
         "id": "copyable-finding-report",
         "heading": {
-          "zh": "可复制的证据表与 S1–S4 分诊",
-          "en": "A copyable evidence table and S1–S4 triage"
+          "zh": "可复制的两列问题记录",
+          "en": "A Two-Column Finding Record"
         },
         "body": {
-          "zh": "把每条审计项写成一行，方便按证据裁决，也方便修改后复查。\n\n| ID | 证据状态 | 类型 | 严重度 | 前提/规则引文 | 触发引文 | 表面冲突 | 可能解释/缺证 | 待作者裁决的问题 | 下游复查范围 |\n|---|---|---|---|---|---|---|---|---|---|\n| C-01 | 证据不足 / 证据支持的候选 / 作者已裁决 / 已排除 | 实体 / 规则 / 时间线 / 因果 / 代价 / 事实 | S1–S4 | 文件或章节 + 位置 + 短引文 | 文件或章节 + 位置 + 短引文 | 两端为何暂时不能同时成立 | 例外、叙述视角或缺失材料 | 一个可回答的问题 | 受影响章节、人物、物件或规则 |\n\n严重度沿用项目 story-review 的统一口径，回答“这件事影响多大”，不回答证据有多确定：\n\n- **S1**：会损害主线、人物动机、世界规则或读者信任的问题。\n- **S2**：明显影响章节效果、节奏、人物可信度或阅读留存的问题。\n- **S3**：局部问题，如轻微细节、格式或措辞差异。\n- **S4**：建议项或可选优化；例如伏笔已经超过计划回收点仍未兑现，先作为提醒，不自动判错。\n\n先判证据状态，再标严重度。没有位置和原文依据的条目退回“证据不足”；引用支持的矛盾仍需作者确认其意图和影响。纯粹的“人物这样做不够聪明”“这个反转可以更精彩”不属于事实一致性审计。",
-          "en": "Put each audit item on one row so the author can rule on evidence and the same record can guide the post-revision check.\n\n| ID | Evidence status | Type | Severity | Premise/rule citation | Trigger citation | Apparent contradiction | Possible explanation/missing evidence | Question for author | Downstream range |\n|---|---|---|---|---|---|---|---|---|---|\n| C-01 | Insufficient evidence / Evidence-supported candidate / Author ruled / Cleared | Entity / Rule / Timeline / Causal / Cost / Fact | S1–S4 | File or chapter + location + short quote | File or chapter + location + short quote | Why the claims currently cannot both hold | Exception, viewpoint, or missing material | One answerable question | Affected chapters, people, objects, or rules |\n\nUse the project’s shared story-review severity rubric to answer “how much does this matter?” Severity is not evidence confidence:\n\n- **S1**: threatens the main story, character motivation, world rules, or reader trust.\n- **S2**: substantially affects a chapter, pacing, character credibility, or reader retention.\n- **S3**: a local issue such as a minor detail, format, or wording mismatch.\n- **S4**: an advisory or optional improvement; for example, a clue that has passed its planned payoff point can be flagged for follow-up, not declared an error.\n\nAssign evidence status before severity. Return any item without a location and textual support to Insufficient evidence; even a supported conflict still needs the author’s ruling on intent and impact. Claims such as “the character should act smarter” or “the twist could be more exciting” are outside factual-consistency review."
+          "zh": "下面是作者的人工记录模板，不是 skill 内部报告数据格式。每个问题单独一张记录，比把所有字段挤成一行更容易阅读与复查。\n\n| 项目 | 记录 |\n|---|---|\n| 位置与状态 | 章节/段落；待核对、证据支持的候选、已排除或作者已裁决 |\n| 前提 | 规则或早先事实的位置与短引文 |\n| 触发 | 后来事件的位置与短引文 |\n| 冲突与影响 | 哪两项不能同时成立，读者会误解什么 |\n| 解释与缺证 | 已搜索的例外，以及还缺的材料 |\n| 作者决定 | 一个明确问题；选定保留的事实或解释 |\n| 改后复查 | 受影响的后文与改后证据 |\n\n按作者容易使用的“必须改、建议改、可以不改”安排工作，不要求把 skill 内部严重度代号写进报告。证据状态与影响大小要分开：一个影响很大的怀疑，证据仍可能不足。缺少任一端引文就暂不据此改稿；有证据的冲突还要确认是不是有意的谎言、误认或规则变化。\n\n“人物不够聪明”“反转可以更精彩”属于创作评价，不是事实一致性错误。",
+          "en": "This is a manual author worksheet, not the skill’s internal finding schema. Give each finding its own record rather than squeezing all fields into one row.\n\n| Item | Record |\n|---|---|\n| Location and status | Chapter/paragraph; pending, evidence-supported candidate, cleared or author-decided |\n| Premise | Rule or earlier fact, location and short quotation |\n| Trigger | Later event, location and short quotation |\n| Conflict and effect | What cannot coexist and what readers may misunderstand |\n| Explanation and gaps | Exceptions searched and materials still missing |\n| Author decision | One clear question and the chosen fact or explanation |\n| Recheck | Affected later passages and revised evidence |\n\nOrganize work into necessary fixes, suggestions and optional changes without putting internal severity codes into the author’s report. Impact and evidence are separate: a serious suspicion can still lack support. Do not revise on a finding missing either quotation. Check supported conflicts for intentional lies, mistakes or rule changes.\n\n“A foolish character” or “a better twist” is creative evaluation, not a factual continuity error."
         }
       },
       {
@@ -19194,8 +19215,8 @@
           "en": "Original example: one person opens a two-key archive"
         },
         "body": {
-          "zh": "下面的档案库片段与审计结果均为本页原创。假定审查范围是第 3–19 章。\n\n> **第 3 章，第 12 段：**“密封档案库只有在东、西两把钥匙分别由两名不同的库守同时转动时才会打开。每把钥匙固定由一人保管，单人操作不能启动。”\n>\n> **第 19 章，第 4 段：**“乔青禾独自走到门前，拧动东钥匙。西钥匙还挂在值班室墙上。锁舌缩回，门向内滑开。”\n\n搜索“两把钥匙”“库守”“西钥匙”“备用”“授权”“应急”和“远程”等词后，第 3–19 章没有找到规则变化、单人模式或例外条件。报告行可以这样写：\n\n| ID | 状态 | 类型 | 严重度 | 前提/规则 | 触发事件 | 表面冲突 | 需要作者裁决的问题 | 后续复查 |\n|---|---|---|---|---|---|---|---|---|\n| C-01 | 证据支持的候选 | 规则 | 暂定 S1 | 第3章¶12：两名库守分别转动两把钥匙；单人不能启动 | 第19章¶4：乔青禾独自用东钥匙开门，西钥匙留在墙上 | 正文事件没有满足明示的双人、双钥匙条件 | 第19章是否要揭示一个适用于此情形的例外？例外的条件和证据在哪里？ | 后续所有档案库进入、钥匙归属、知情人与影响主线的结果 |\n\n两端引文互相冲突，且限定范围内没有找到适用例外，因此可以记为“证据支持的候选”；由于它直接触及世界规则，暂按 S1 排在前面。作者仍要判断这是不是有意揭示。如果确有例外，只有当正文说明的条件适用于第 19 章这次开启时，才可以排除该项；同时记录适用边界、知情人和证据位置，再检查后文是否一致使用。若作者确认是失误，由作者裁定要保留哪条事实并批准修改。改完后从第 19 章向后搜索档案库访问、钥匙持有人、谁知道这次开启、谁因此受益或被怀疑，直到下游引用都与裁决一致。",
-          "en": "The archive excerpts and audit result below are original to this page. Assume the review covers Chapters 3–19.\n\n> **Chapter 3, paragraph 12:** “The sealed archive opens only when two different keepers turn the east and west keys at the same time. Each key stays with its assigned keeper; one person cannot operate the lock alone.”\n>\n> **Chapter 19, paragraph 4:** “Qiao Qinghe approached alone and turned the east key. The west key still hung on the wall in the duty room. The bolts slid back, and the door opened inward.”\n\nSearches for “both keys,” “keeper,” “west key,” “spare,” “authorization,” “emergency,” and “remote” find no rule change, single-person mode, or applicable exception in Chapters 3–19. The report row can read:\n\n| ID | Status | Type | Severity | Premise/rule | Trigger | Apparent contradiction | Question for author | Downstream check |\n|---|---|---|---|---|---|---|---|---|\n| C-01 | Evidence-supported candidate | Rule | Provisional S1 | Ch. 3 ¶12: two keepers turn two keys; one person cannot operate the lock | Ch. 19 ¶4: Qiao Qinghe opens it alone with the east key while the west key remains on the wall | The event does not meet the stated two-person, two-key conditions | Is Chapter 19 meant to reveal an exception that applies here? Where are its conditions and evidence? | All later archive entries, key custody, informed characters, and main-story consequences |\n\nThe two quotations conflict, and no applicable exception appears in the defined range, so this can be recorded as an evidence-supported candidate. Because it directly touches a world rule, it receives provisional S1 priority. The author still decides whether the passage intentionally reveals an exception. Clear the item only if the text shows an exception whose conditions apply to this opening; record its boundary, informed characters, and evidence location, then check later uses. If the author confirms an error, the author chooses which fact remains and approves the change. After revision, search forward from Chapter 19 for archive access, key custody, who knows about the opening, who benefits or becomes suspect, and any downstream consequence until each later reference agrees with the ruling."
+          "zh": "以下片段与问题记录为本页原创。假设作者提供了第3–19章，并在这个虚构例子的设定中确认：范围内没有规则变化、单人模式或适用例外。这不是对一部实际小说执行搜索后的结果。\n\n> **第3章，第12段：**“密封档案库只有在东、西两把钥匙分别由两名不同的库守同时转动时才会打开。每把钥匙固定由一人保管，单人操作不能启动。”\n>\n\n> **第19章，第4段：**“乔青禾独自走到门前，拧动东钥匙。西钥匙还挂在值班室墙上。锁舌缩回，门向内滑开。”\n\n| 项目 | 示例记录 |\n|---|---|\n| 状态 | 证据支持的候选；优先核对，因为影响档案库规则 |\n| 前提 | 第3章¶12：两名库守同时转动各自钥匙；单人不能启动 |\n| 触发 | 第19章¶4：乔青禾独自使用东钥匙，西钥匙仍在墙上，门却打开 |\n| 冲突 | 开门事件未满足明示的双人、双钥匙条件 |\n| 待决定 | 这是失误，还是此处要揭示一个适用例外？依据在哪里？ |\n| 后文 | 库门访问、钥匙归属、知情人与开门导致的结果 |\n\n实际审稿时，先搜索“两把钥匙、库守、西钥匙、备用、授权、应急、远程”等相关词，并保存有效依据。找不到例外只说明在已读范围内未找到，不证明全书没有。\n\n若作者说明这是有意例外，检查正文是否给出适用条件与可理解的证据；解释只存在于脑中时，仍要决定读者何时获得依据。若确认失误，先决定保留规则还是改变事件，再批准修改。改后沿开门结果向后检查；已有例外的条件与代价按作品设定核对，不临时强加新代价。",
+          "en": "These excerpts and findings are original. Suppose the author supplies Chapters 3–19 and the fictional example establishes no rule change, single-user mode or applicable exception within them. This is not a search result from an actual novel.\n\n> **Chapter 3, paragraph 12:** “The sealed archive opens only when two different keepers turn the east and west keys simultaneously. Each key has its own keeper. One person cannot activate the lock.”\n>\n\n> **Chapter 19, paragraph 4:** “Qiao Qinghe approached alone and turned the east key. The west key still hung on the duty-room wall. The bolt withdrew, and the door slid inward.”\n\n| Item | Example record |\n|---|---|\n| Status | Evidence-supported candidate; check early because it affects the archive rule |\n| Premise | Chapter 3 ¶12: two keepers turn their keys together; one person cannot activate it |\n| Trigger | Chapter 19 ¶4: Qiao uses the east key alone; the west remains on the wall, yet the door opens |\n| Conflict | The opening lacks the stated two-person, two-key conditions |\n| Decision | Is this an error or an intended applicable exception? Where is its support? |\n| Later checks | Access, key possession, knowledge and results of the opening |\n\nIn a real review, search related terms such as keys, keepers, backup, authorization, emergency and remote access, retaining supporting evidence. Finding no exception in the read scope does not prove none exists elsewhere.\n\nFor an intended exception, check applicable conditions and comprehensible textual support. An explanation existing only in the author’s intent still requires a decision about reader evidence. For an error, choose the retained rule or changed event before editing. Recheck later consequences under established conditions and costs without imposing a new price on the exception."
         }
       },
       {
@@ -19205,8 +19226,8 @@
           "en": "A copyable read-only audit prompt and follow-through check"
         },
         "body": {
-          "zh": "下面的提示词把 AI 限制在取证与报告，不让它顺手代写。\n\n> 对我提供的小说正文与参考材料做只读一致性审计。范围：〔章节/文件〕。先搜索人物名与别名、地点、物件、规则术语、日期、数量、限制和代价，再检查实体、规则、时间线、因果、代价和明文事实。不要改写正文，不评价文笔、人物弧线或情节好坏，不补设定，不提出创意方案，不修改任何文件或运行会产生副作用的命令，只输出审计报告。每条候选必须给出：ID、证据状态、类型、按项目统一口径标注的严重度、前提/规则的精确位置与短引文、触发事件的精确位置与短引文、表面冲突、可能的例外或缺失证据、待作者裁决的问题、受影响的后续章节。缺少任一端引文时标“证据不足”；只有当正文能证明某项例外的条件适用于当前触发事件时，才标“已排除”并引用该例外及其适用依据；否则仍保留为候选或证据不足。严重度按 S1 主线/规则/读者信任、S2 重大章节影响、S3 局部问题、S4 建议项排序，严重度不代替证据判断。把结论写成待作者裁决项。材料：〔粘贴或附上正文与参考文件〕\n\n作者裁决并获准改稿后，再做一次定向复查：\n\n- [ ] 裁决选定的事实、规则或例外有唯一清楚的表述\n- [ ] 触发场景所需条件、权限和代价已经对齐\n- [ ] 后续章节的人物知识、物件状态、关系和行动后果同步更新\n- [ ] 删除或移动场景后，后文没有引用已不存在的原因、线索或承诺\n- [ ] 新增例外没有被无成本扩大到其他人物或场景\n- [ ] 报告中的每条关闭项都能引用改后正文，而不是只引用作者说明\n\n复查范围沿因果链走，不只看被改的那一段。章节改动若改变了谁知道什么、谁持有什么或哪条规则可用，就一直查到最后一次依赖该状态的章节。",
-          "en": "This prompt confines the AI to evidence collection and reporting rather than an unrequested rewrite.\n\n> Run a read-only consistency audit on the fiction and reference material I supply. Scope: [chapters/files]. Search names and aliases, places, objects, rule terms, dates, quantities, limits, and costs first. Then check entity, rule, timeline, causal, cost, and explicit-fact conflicts. Do not rewrite the prose, judge prose quality, evaluate character arcs or plot quality, invent setting facts, offer creative solutions, modify any file, or run side-effecting commands. Output only the audit report. Every candidate must include: ID, evidence status, type, severity using the project-wide rubric, exact location and short quotation for the premise/rule, exact location and short quotation for the trigger, apparent contradiction, possible exception or missing evidence, question for the author, and affected later chapters. If either side lacks a quotation, mark Insufficient evidence. Mark Cleared only when the text establishes an exception whose conditions apply to this trigger, citing both the exception and its applicability; otherwise retain the candidate or mark it Insufficient evidence. Order severity as S1 main-story/rule/reader-trust harm, S2 substantial chapter impact, S3 local issue, and S4 advisory; severity does not replace evidence review. Present conclusions as items awaiting the author’s ruling. Material: [paste or attach manuscript and reference files]\n\nAfter the author rules on a finding and approves a revision, run a focused follow-through check:\n\n- [ ] The selected fact, rule, or exception has one clear expression\n- [ ] The trigger scene now matches the required conditions, authority, and cost\n- [ ] Later character knowledge, object state, relationships, and consequences reflect the ruling\n- [ ] A cut or moved scene leaves no later reference to a cause, clue, or promise that no longer exists\n- [ ] A new exception has not expanded without cost to unrelated people or scenes\n- [ ] Every closed report item cites revised prose rather than relying only on the author’s explanation\n\nFollow the causal chain beyond the edited paragraph. If a chapter change alters who knows something, who holds something, or which rule applies, continue through the last chapter that depends on that state."
+          "zh": "下面的人工提示词只要求取证和报告。它不创造新的 skill 模式。\n\n> 对〔已提供章节与参考材料〕做只读一致性检查。先搜索人物与别名、地点、物件、规则、时间、数量、限制和代价，再核对条件、行动与结果。每条候选给前提和触发两端的位置、短引文、表面冲突、读者影响、可能例外、缺失材料与待作者决定的问题。缺一端就标证据不足。只在有正文依据证明例外适用时排除候选。按必须改、建议改、可以不改说明优先级，优先级不代替证据。不评价故事精彩程度，不补设定，不改文件或运行有副作用的命令。\n\n作者决定并授权改稿后，定向复查：\n\n- [ ] 选定事实、规则或例外在正文中表述清楚\n- [ ] 触发所需条件、权限与作品既定代价对齐\n- [ ] 后文知情、物件、关系与行动后果仍有依据\n- [ ] 删除或移动场景后，没有引用已不存在的线索或原因\n- [ ] 关闭项可以引用改后正文，而不只是作者口头说明\n\n复查沿实际依赖展开，不只看改动段，也不无条件重写全书。",
+          "en": "This manual prompt requests evidence and a report without creating a new skill mode.\n\n> Perform a read-only continuity check on [supplied chapters and materials]. Search names and aliases, places, objects, rules, time, quantities, limits and costs; compare conditions, actions and results. For each candidate, give premise and trigger locations with short quotations, apparent conflict, reader effect, possible exceptions, missing materials and an author decision. Mark insufficient evidence if either quotation is missing. Clear a candidate only with textual evidence that an exception applies. Explain priority as necessary, suggested or optional without substituting priority for evidence. Do not evaluate excitement, invent setting, edit files or run side-effecting commands.\n\nAfter an author decision and authorized revision, recheck:\n\n- [ ] The chosen fact, rule or exception is clear in prose\n- [ ] Conditions, authority and established costs fit the trigger\n- [ ] Later knowledge, possession, relationships and consequences remain supported\n- [ ] Deleted or moved scenes leave no references to missing clues or causes\n- [ ] Closed findings cite revised prose, rather than only the author’s explanation\n\nFollow actual dependencies beyond the edited passage without automatically rewriting the full book."
         }
       }
     ],
@@ -19235,8 +19256,8 @@
     "skill": {
       "name": "story-review",
       "text": {
-        "zh": "如果使用项目的 /story-review lean（Codex 用 $story-review lean），先注意它不只是连续性检查：该模式还会运行 story-architect。对本页任务，只把 consistency-checker 中带双端精确引文的事实/连续性项列入审计：前提或规则可引用已提供的设定、细纲或追踪材料，触发事件引用正文；文学或结构建议另行处理，不当作事实矛盾。若要严格只读、只输出这份审计报告，可直接使用上方提示词，并明确不修改文件、不运行有副作用的命令。",
-        "en": "If you use the project’s /story-review lean mode (or $story-review lean in Codex), note that it is broader than a continuity check: it also runs story-architect. For this task, include only consistency-checker items with precise citations on both sides: a premise or rule may cite supplied setting, outline, or tracking material; the triggering event should cite the prose. Handle literary or structural suggestions separately rather than labeling them factual contradictions. For a strictly read-only audit report, use the prompt above and explicitly prohibit file edits and side-effecting commands."
+        "zh": "使用 /story-review lean（Codex 用 $story-review lean）时，它会尝试故事结构与一致性两个视角，所需助手或运行能力不足时转为 solo 基础审查。因此该入口比本页的事实检查更广；只提取有两端引文的事实项，结构意见另列。严格只读可直接用上方提示词，明确不修改文件或运行有副作用的命令；原生审查可能按流程维护审查状态或追踪记录。",
+        "en": "/story-review lean, or $story-review lean in Codex, attempts structure and consistency review, falling back to solo basic review when required agents or runtime capability are unavailable. It is broader than this page’s fact check: extract cited factual findings and separate structural notes. For strict read-only work, use the prompt above and prohibit file edits and side-effecting commands; the native workflow may maintain review state or tracking records."
       },
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-review/SKILL.md"
     },
@@ -19250,10 +19271,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "事实证据与面向作者的报告",
+          "en": "Factual evidence and author-facing reports"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-review/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "作者报告中的修改优先级",
+          "en": "Revision priorities in author reports"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-review/references/solo.md"
       }
     ]
   },
@@ -33069,6 +33097,767 @@
       "/drama-skills/motivated-camera-movement",
       "/drama-skills/reroll-or-rewrite",
       "/drama-skills/choose-ai-video-in-and-out-points"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "stop-ai-polishing-from-changing-your-plot",
+    "topic": "revision",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI润色小说乱改剧情怎么办：先定修改范围",
+      "en": "Stop AI Polishing From Changing Your Plot"
+    },
+    "seo_title": {
+      "zh": "AI润色小说乱改剧情怎么办：先定修改范围",
+      "en": "Stop AI Polishing From Changing Your Plot"
+    },
+    "description": {
+      "zh": "把文字润色、局部修订和整章重写分开；用原文事实、信息来源与前后衔接限制改动，附钥匙交接案例。",
+      "en": "Separate prose polishing from plot revision. Protect facts, knowledge sources and scene joins with a worked key-handoff example."
+    },
+    "answer": {
+      "zh": "先明确这次只改表达，还是允许改变事件。润色可以调整句子、重复和停顿，但不能改变物件交接、人物决定、知识来源或揭示时机。保留原稿，先改一个片段，再逐项核对事实；发现剧情问题时另列建议，不借润色顺手修掉。",
+      "en": "Specify whether the task may change events or only their expression. Polishing can alter phrasing, repetition and pauses, while preserving possession, decisions, knowledge sources and reveal timing. Keep the original, revise a small passage first and compare its facts. Report plot problems separately."
+    },
+    "sections": [
+      {
+        "id": "choose-scope",
+        "heading": {
+          "zh": "“润色一下”需要先补哪句话？",
+          "en": "Define What Polishing May Change"
+        },
+        "body": {
+          "zh": "“更好看”“更自然”说明期望，没说明改动权限。Oh Story 的去AI味方法只改怎么说；章节修订则区分局部修改、按原细纲整章重写、先改细纲再重写。本页把这些边界整理成作者可用的任务说明。\n\n| 任务 | 写清权限 |\n|---|---|\n| 文字润色 | 只改指定片段的表达，事件和信息分配不变 |\n| 局部修订 | 点明可变的事件或对白，其他段落保持原样 |\n| 整章重写 | 指定采用的细纲与相邻章材料，说明是否允许改剧情 |\n\n有时一句“这段只改表达，人物仍拒绝接钥匙”就够了。别为了润色先造一整本设定集；只补本段所依赖的事实和作者已经选定的文风。",
+          "en": "“Make it better” states an ambition without defining editing authority. Oh Story’s deslop method changes expression. Its chapter revision workflow distinguishes a local edit, a chapter rewrite under the existing outline, and revising the outline before rewriting. The table translates those boundaries into an author’s brief.\n\n| Task | Permission to specify |\n|---|---|\n| Prose polish | Change expression in the named passage; preserve events and information distribution |\n| Local revision | Name the event or dialogue that may change; preserve the other paragraphs |\n| Chapter rewrite | Supply the chosen outline and neighboring context; state whether plot changes are allowed |\n\nSometimes “Polish only; she still refuses the key” is enough. Use the facts the passage depends on and the author’s chosen style, rather than inventing a book-wide specification for a small edit."
+        }
+      },
+      {
+        "id": "fact-list",
+        "heading": {
+          "zh": "核对动作结果，也核对人物怎么知道",
+          "en": "Check Results and How Characters Know"
+        },
+        "body": {
+          "zh": "先从原文摘出必须保留的事实：谁在场、物件在哪里、谁做了什么、决定是否兑现、人物通过什么途径得到信息、读者此刻能知道多少。原文没有交代的动机也属于边界：润色不能替作者补成一个确定原因。\n\n写法变化可能掩盖事件变化。“把钥匙放在她面前”改成“把钥匙塞进她手里”，改变了交接；“拨号后听到停机提示”改成“她知道号码已经停机”，丢掉了获知过程。逐项比较动作、结果与来源，比只看新稿是否流畅更可靠。\n\n本书选定的长句、直接情绪或叙述者评论可以保留。文风允许一种表达，不代表允许提前揭示秘密或替角色增加经历。",
+          "en": "Extract the facts that must survive: who is present, where objects are, what people do, whether a decision is carried out, how information is learned and what the reader currently knows. An unspecified motive is also a boundary; polishing cannot replace it with a definite explanation.\n\nA stylistic change can conceal an event change. “He put the key in front of her” becoming “He pressed it into her hand” changes possession. Replacing a disconnected-line message heard after dialing with “she knew the number was disconnected” removes the knowledge-gathering action. Compare actions, results and sources as well as fluency.\n\nPreserve the author’s chosen long sentences, direct emotion or narrator commentary when they work. A style preference does not authorize revealing secrets early or adding experiences to a character’s history."
+        }
+      },
+      {
+        "id": "key-example",
+        "heading": {
+          "zh": "原创对照：钥匙没有交出去",
+          "en": "Original Comparison: The Key Was Never Accepted"
+        },
+        "body": {
+          "zh": "**原文**\n\n> 谢宁把钥匙放在桌上。陶禾看了一眼，没有拿。她说等房东把漏水修好再决定。谢宁把钥匙收回外套口袋，二人都没再提搬家的事。\n\n**越界改稿**\n\n> 陶禾接过钥匙，终于决定给这个家一次机会。\n\n这不是压缩表达：钥匙到了另一人手里，条件等待变成接受，还新增了“家”的关系解释。\n\n**保留事实的润色**\n\n> 谢宁把钥匙放到桌上，陶禾看过后没有伸手：“等房东修好漏水，再决定。”谢宁收回钥匙，放进外套口袋。搬家的话题就停在那里。\n\n新版调整转述与停顿，仍保留放下、未拿、提出条件、收回、结束话题这五项。陶禾没有答应搬家，也没有新获知房东已安排维修。例子为本页原创，展示的是可核对的修改边界，不是一次实际模型运行结果。",
+          "en": "**Original**\n\n> Xie Ning put the key on the table. Tao He looked at it without taking it. She said she would decide after the landlord fixed the leak. Xie Ning returned the key to his coat pocket. Neither mentioned the move again.\n\n**Revision beyond the brief**\n\n> Tao He accepted the key, finally deciding to give this home a chance.\n\nThe key changes hands, a conditional wait becomes acceptance, and “home” adds a relationship interpretation.\n\n**A fact-preserving polish**\n\n> Xie Ning set the key on the table. Tao He looked at it but did not reach. “I’ll decide after the landlord fixes the leak.” He put the key back in his coat pocket. The subject of moving ended there.\n\nThe phrasing changes, while setting down, not taking, stating a condition, taking back and ending the topic remain. Tao He has neither agreed to move nor learned that repairs are scheduled. This original editorial example demonstrates a checkable boundary; it is not a reported model run."
+        }
+      },
+      {
+        "id": "delivery",
+        "heading": {
+          "zh": "怎样要求改稿与报告？",
+          "en": "Request a Revision You Can Compare"
+        },
+        "body": {
+          "zh": "给出范围、文风和不可改事实后，要求返回改稿与简短变更说明。先看这一段是否符合要求，再扩大范围。下面是人工任务模板，不是 skill 新增的运行模式。\n\n> 只润色〔片段〕。保留〔动作、结果、信息来源、未揭示内容〕，采用〔本书文风〕。不新增经历、物件、解释或人物决定。发现剧情问题另列，暂不修。返回改稿和主要表达改动；若某处无法在保留事实的前提下改好，标明位置供我决定。\n\n接受改稿前，把事实表逐项对照；再读前段末尾和后段开头，检查指代、时间和物件归属。未获准的整章改写退回原稿，保留有用建议即可。若你确实决定改变事件，转到[章节修订](/oh-story/review-and-revise)，并检查[后文依赖](/oh-story/sync-later-chapters-after-a-revision)。",
+          "en": "Supply scope, style and protected facts, then request the revised passage and a short change note. Check a small result before expanding the assignment. This is a manual brief, not a new skill mode.\n\n> Polish only [passage]. Preserve [actions, results, knowledge sources and unrevealed information]. Use [book style]. Add no experiences, objects, explanations or decisions. List plot problems separately without fixing them. Return the revision and main expression changes. Identify any passage you cannot improve within these boundaries for my decision.\n\nCompare each protected fact, then read the preceding ending and following opening for references, time and possession. Revert an unauthorized chapter rewrite while retaining useful suggestions. If you choose to change an event, use [chapter revision](/oh-story/review-and-revise) and check [later dependencies](/oh-story/sync-later-chapters-after-a-revision)."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "AI发现了原文逻辑问题，润色时能顺手改吗？",
+          "en": "Can polishing also fix a plot problem the AI discovers?"
+        },
+        "a": {
+          "zh": "先列出问题、位置和影响，由作者决定是否扩大范围。原文确实有问题，也不能用未获准的新剧情来替换；改事件后还要核对后文依赖。",
+          "en": "List the problem, location and effect for the author’s decision. A real defect does not authorize an unrequested plot replacement. Event changes also require checking later dependencies."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-deslop",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-deslop/SKILL.md",
+      "text": {
+        "zh": "在 Claude Code 用 /story-deslop（Codex 用 $story-deslop），附上上方的范围、文风与事实说明。它用于表达修订；允许改变事件时，应另走 story-long-write 的章节修订流程。",
+        "en": "Use /story-deslop in Claude Code or $story-deslop in Codex with the scope, style and fact brief above. It handles expression; authorized event changes belong in story-long-write’s chapter revision workflow."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "保留创作意图与最少改动",
+          "en": "Preserve intent with minimal changes"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-deslop/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "作者文风优先级",
+          "en": "Author style priorities"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-deslop/references/style-resolution.md"
+      },
+      {
+        "label": {
+          "zh": "章节修订的范围与衔接",
+          "en": "Chapter revision scope and joins"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-revision.md"
+      },
+      {
+        "label": {
+          "zh": "文风与事实分别裁决",
+          "en": "Separate style from facts"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      }
+    ],
+    "related": [
+      "/oh-story/revise-ai-prose",
+      "/oh-story/preserve-author-voice",
+      "/oh-story/sync-later-chapters-after-a-revision"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "get-specific-ai-manuscript-feedback",
+    "topic": "revision",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI审稿意见太空泛怎么办：原句、影响与改法",
+      "en": "Get Specific AI Feedback on Your Manuscript"
+    },
+    "seo_title": {
+      "zh": "AI审稿意见太空泛怎么办：原句、影响与改法",
+      "en": "Get Specific AI Feedback on Your Manuscript"
+    },
+    "description": {
+      "zh": "把“节奏不好、人物不立体”转成有原文位置、读者影响和有限改法的审稿意见；区分必须改、建议改与作者选择。",
+      "en": "Turn vague criticism into located quotations, reader effects and bounded next steps. Separate necessary fixes, suggestions and author choices."
+    },
+    "answer": {
+      "zh": "要求每条意见引用原文，说明读者在哪里误解、等待或失去依据，并指出要修改的范围。事实矛盾需要两端证据；风格判断要结合作者目标。把意见分成必须改、建议改、可以不改，材料不够就说明缺什么，先报告再决定改稿。",
+      "en": "Require a quotation and location, the specific reader effect and a bounded next step. Factual contradictions need evidence on both sides; style judgments need the author’s goal. Separate necessary fixes, suggestions and optional changes. Identify missing evidence before deciding on revision."
+    },
+    "sections": [
+      {
+        "id": "goal-and-scope",
+        "heading": {
+          "zh": "先给审稿一个可回答的问题",
+          "en": "Give the Review an Answerable Question"
+        },
+        "body": {
+          "zh": "“评价我的小说”容易得到一串抽象褒贬。先说明审查哪一章或哪场戏，以及你最担心什么：读者是否理解拒绝的原因？悬念是不是拖到失去兴趣？角色转变有没有依据？一轮集中处理一个主问题，其他明显错误可以另列。\n\n同时提供相关前提和文风。你希望对白克制，就不能让“台词没有说透情绪”自动成为缺陷；但若读者连谁说话都无法辨认，仍要指出具体位置。Oh Story 的审稿报告要求说明范围、原文证据、读者后果与作者待定事项；本页把它转成可用的提问方法。",
+          "en": "“Evaluate my novel” invites abstract praise and criticism. Specify the chapter or scene and your main concern: Can readers understand the refusal? Does suspense outlast their interest? Is the change of mind supported? Focus one pass on one main question while listing other clear errors separately.\n\nSupply relevant premises and style. A preference for restrained dialogue means unspoken emotion is not automatically a defect. If readers cannot identify the speaker, the reviewer should still locate the problem. Oh Story’s report method calls for scope, quotations, reader consequences and author decisions; this guide translates that into useful review questions."
+        }
+      },
+      {
+        "id": "useful-note",
+        "heading": {
+          "zh": "一条意见要能回到哪句话？",
+          "en": "Make Each Note Traceable to the Passage"
+        },
+        "body": {
+          "zh": "| 项目 | 要求 |\n|---|---|\n| 位置 | 章节与段落；文件审查可用真实行号 |\n| 引文 | 足以支持判断的短原句，不改写成所谓原文 |\n| 影响 | 读者会误认什么，哪条期待或因果失效 |\n| 下一步 | 修改哪一处、保留哪些事实；无需直接代写 |\n| 边界 | 哪些是判断，哪些缺材料或由作者选择 |\n\n“人物不立体”不能直接变成“加一段悲惨童年”。先指出这个人物哪次选择缺少已建立的动机。事实问题要求前提与触发事件两端引文，方法见[小说一致性检查](/oh-story/ai-fiction-consistency-check)；本页也处理节奏、表达与读者体验，不把这些主观判断伪装成事实错误。",
+          "en": "| Item | Requirement |\n|---|---|\n| Location | Chapter and paragraph; real line numbers for file reviews |\n| Quotation | A short original excerpt supporting the judgment |\n| Effect | What readers misread, or which expectation or causal link fails |\n| Next step | What to revise and preserve; drafting is not required |\n| Limits | Distinguish judgment, missing materials and author choices |\n\n“A flat character” does not justify adding a traumatic childhood. Locate the choice lacking an established motive first. Factual findings need quotations for both premise and triggering event; see [continuity checking](/oh-story/ai-fiction-consistency-check). This guide also covers pacing, expression and reader experience, whose judgments should not be presented as factual contradictions."
+        }
+      },
+      {
+        "id": "courier-example",
+        "heading": {
+          "zh": "原创示例：把“节奏拖沓”改成具体意见",
+          "en": "Original Example: Make a Pacing Note Specific"
+        },
+        "body": {
+          "zh": "假设作者要让读者跟着岑雨等待包裹，却不提前透露寄件人。稿件片段如下：\n\n> 门铃响了，岑雨从桌边起身，往玄关走。她经过餐桌，穿过客厅，绕过沙发，走到玄关，伸手打开门。快递员把盒子递给她，她只看见上面写着自己的名字。\n\n空泛意见是“节奏拖沓，建议增强悬念”。更可用的意见：\n\n> **建议改：本场开头“起身……往玄关走……经过餐桌……走到玄关”。**连续句子重复从桌边到门口的位移，读者等待包裹内容，途中没有新阻碍或新线索。可压缩这次走动，保留门铃、开门、交接和只看到收件人名字。不要为了增强悬念添加敲门暗号、陌生监视者或寄件人信息。\n\n这是基于给定目标的局部节奏判断。若作者要表现行动艰难，就需要读到稿件中实际存在的阻碍，再判断哪些步伐应保留；不能凭空设定岑雨受伤来证明原段合理。示例为编辑原创。",
+          "en": "Suppose the author wants readers to wait with Cen Yu for a parcel without revealing its sender. The draft reads:\n\n> The doorbell rang. Cen Yu rose from the table and headed toward the entrance. She passed the dining table, crossed the living room, went around the sofa, reached the entrance and opened the door. The courier handed her a box. All she saw on it was her own name.\n\nA vague note says, “Slow pacing; increase suspense.” A useful note says:\n\n> **Suggested revision: the opening movement from “rose” through “reached the entrance.”** Several clauses repeat the journey from table to door. Readers are waiting for the parcel; the route adds no obstacle or clue. Compress the journey while preserving the bell, opening, handoff and recipient-only information. Do not add a coded knock, watcher or sender details to manufacture suspense.\n\nThis is a local pacing judgment against a stated goal. If difficult movement is the intended effect, assess obstacles actually present in the manuscript. Do not invent an injury to justify the passage. This example was written for the guide."
+        }
+      },
+      {
+        "id": "sort-feedback",
+        "heading": {
+          "zh": "排序，不让“建议”变成全部重写",
+          "en": "Prioritize Without Turning Every Suggestion Into a Rewrite"
+        },
+        "body": {
+          "zh": "Oh Story 给作者的报告用“必须改、建议改、可以不改”，内部严重度代号不必成为作者的任务清单。明显的事实断裂或读不通之处优先；节奏和风格意见结合本场目标再决定。\n\n审稿意见互相冲突时，先看它们引用的是不是同一处、针对的是不是同一个目标。“压缩进门”与“给交接留停顿”可以同时成立，因为处理的过程不同。若一条要隐藏寄件人，另一条要立即揭示，就交给作者选择揭示时机，不能两边都执行。\n\n下面是人工追加要求，可附在实际审稿请求后：\n\n> 每条意见给出位置、短引文、读者影响、有限改法与保留事实。按必须改、建议改、可以不改排序。证据不足说清缺什么，风格取舍由我决定。只审〔范围〕，不修改正文；我选定意见后再另开改稿任务。\n\n改完对照原来的问题读一遍：重复位移是否减少，包裹交接和信息边界是否仍在。评价词变好听不能代替这些结果。",
+          "en": "Oh Story’s author report uses necessary fixes, suggested revisions and optional changes. Internal severity codes need not become the author’s checklist. Prioritize clear factual breaks and unreadable passages; judge pacing and style against the scene’s goal.\n\nFor conflicting notes, compare locations and goals. Compressing the walk and allowing a pause at the handoff can coexist because they concern different processes. Hiding and immediately revealing the sender require an author decision, rather than executing both.\n\nThis manual requirement can accompany a review request:\n\n> For each finding, provide location, a short quotation, reader effect, bounded next step and protected facts. Separate necessary fixes, suggestions and optional changes. State missing evidence and leave style choices to me. Review only [scope] without editing the prose. I will select findings for a separate revision task.\n\nAfter editing, test the original concern: Has repeated movement decreased, with handoff and information boundaries intact? More flattering evaluation language cannot substitute for those results."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "AI说“不错”，却没有问题清单，能当作审稿通过吗？",
+          "en": "Does praise without findings mean the manuscript passed review?"
+        },
+        "a": {
+          "zh": "不能据此判断。先确认它读了哪些材料、按什么目标检查；要求指出可核对的结果和没法判断之处。没有发现问题与没有实际核查，是不同情况。",
+          "en": "It is insufficient evidence. Confirm the materials and goals checked, and request verifiable results and unresolved limits. Finding no problem differs from performing no meaningful review."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-review",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-review/SKILL.md",
+      "text": {
+        "zh": "在 Claude Code 用 /story-review solo（Codex 用 $story-review solo），指定范围、作者目标与文风，附上上方报告要求。solo 是已有基础审查模式，不代表能从未提供的全书材料中推断结论；报告后另行授权改稿。",
+        "en": "Use /story-review solo in Claude Code or $story-review solo in Codex with scope, goals, style and the report requirements above. This existing basic-review mode cannot infer a full manuscript it has not read. Choose findings before assigning revision."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "审查范围、证据与作者报告",
+          "en": "Review scope, evidence and author reports"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-review/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "单人审稿的报告格式",
+          "en": "Single-reviewer report format"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-review/references/solo.md"
+      },
+      {
+        "label": {
+          "zh": "剧情与文笔分层诊断",
+          "en": "Diagnose plot and prose separately"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-craft.md"
+      },
+      {
+        "label": {
+          "zh": "文风与事实分别裁决",
+          "en": "Separate style from facts"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      }
+    ],
+    "related": [
+      "/oh-story/ai-fiction-consistency-check",
+      "/oh-story/review-and-revise",
+      "/oh-story/preserve-author-voice"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "choose-what-to-revise-first-in-a-novel",
+    "topic": "revision",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "小说修稿先改什么：剧情、场景与文字的顺序",
+      "en": "What to Revise First in a Novel"
+    },
+    "seo_title": {
+      "zh": "小说修稿先改什么：剧情、场景与文字的顺序",
+      "en": "What to Revise First in a Novel"
+    },
+    "description": {
+      "zh": "用具体读者问题判断先改故事方向、情节因果还是句子；附人物改变主意的修订顺序与停手条件。",
+      "en": "Diagnose story direction, causal design or prose before editing. Includes a change-of-mind example and clear stopping criteria."
+    },
+    "answer": {
+      "zh": "先找最影响当前阅读目标的问题。若人物行动没有原因或结果缺少条件，先解决事件设计；若事件成立但读者看不懂，先修交付过程与表达；方向和目标读者需要调整时，再回到定位与大纲。先定事实和范围，再润色，不把所有问题都当成词句问题。",
+      "en": "Start with the defect that most affects the intended reading experience. Repair missing motives or conditions before polishing; clarify delivery when events already work. Revisit positioning and outlines only when the story’s direction needs changing. Set facts and scope before sentence editing."
+    },
+    "sections": [
+      {
+        "id": "diagnose-level",
+        "heading": {
+          "zh": "同一句“读着没劲”，可能要改三种东西",
+          "en": "One Complaint Can Point to Different Layers"
+        },
+        "body": {
+          "zh": "Oh Story 的写作参考将输出检查分为选材、剧情设计与文笔。它不是要求每轮都推翻定位，而是提醒作者：句子改顺，未必解决读者不想继续看的原因。\n\n| 观察 | 先查哪里 |\n|---|---|\n| 卖点与目标读者一直不清楚 | 定位和核心承诺是否成立 |\n| 知道人物在做什么，却不信他会这样做 | 动机、条件、选择与结果 |\n| 因果已成立，却读不出发生过程 | 场景交付、信息顺序与句子 |\n\n把“没劲”换成一次具体阅读失败：不知道主人公想要什么？理解目标却看不到阻碍？还是同一动作读了三遍？先定位症状，不凭单个读者的一句话重定整本书的方向。",
+          "en": "Oh Story’s writing references separate material and audience, plot design, and prose delivery. This does not require overturning a book’s positioning on every pass. It reminds the author that smoother sentences may leave the reason readers disengage untouched.\n\n| Observation | First place to investigate |\n|---|---|\n| The core promise and intended reader remain unclear | Positioning and the central premise |\n| Actions are clear but unconvincing | Motive, conditions, choice and result |\n| Cause and effect work but the process is hard to follow | Scene delivery, information order and sentences |\n\nReplace “boring” with a specific reading failure: an unknown goal, no meaningful obstacle, or the same action repeated three times. Locate the symptom before changing an entire book’s direction in response to one comment."
+        }
+      },
+      {
+        "id": "change-of-mind",
+        "heading": {
+          "zh": "原创案例：拒绝之后为什么答应？",
+          "en": "Original Case: Why Agree After Refusing?"
+        },
+        "body": {
+          "zh": "已有前提：许韵要借学校礼堂演出，馆务员担心她们排练后留下垃圾。双方先前没有私人交情。\n\n**问题稿**\n\n> “不能借，明早有人用。”馆务员说。许韵笑了笑：“我们真的很需要。”馆务员被她的真诚打动，答应了。\n\n句子并不难懂。问题是馆务员此前担心清理，明早又要有人使用；“真诚”没有解决任何条件。仅把“真诚”换成一个表情，拒绝到同意的台阶仍然缺失。\n\n作者若决定让借用成立，可以先在细纲批准一个方案：许韵提出负责清理、当晚交还，馆务员根据既有权限决定是否接受。若馆务员本来无权批准，就不能仅加保证让他放行。也可以保留拒绝，让许韵另找场地。两条是剧情选择，由作者决定，不是润色的自动结果。",
+          "en": "Established premise: Xu Yun wants to borrow a school hall for a performance. Its caretaker worries about rubbish after rehearsals. They have no prior personal relationship.\n\n**Problem draft**\n\n> “No. Someone needs it tomorrow morning,” the caretaker said. Xu Yun smiled. “We really need it.” Moved by her sincerity, he agreed.\n\nThe sentences are understandable. The missing step concerns cleanup and next-morning availability. Replacing “sincerity” with a facial expression resolves neither condition.\n\nIf the author wants permission granted, first approve an outline change: Xu Yun offers cleanup and same-night return, and the caretaker decides within his established authority. A promise cannot grant authority he lacks. Alternatively, retain the refusal and send Xu Yun elsewhere. These are author-selected plot changes, not automatic consequences of polishing."
+        }
+      },
+      {
+        "id": "revision-order",
+        "heading": {
+          "zh": "选定事实之后，再把场景写清楚",
+          "en": "Set the Events Before Polishing Their Delivery"
+        },
+        "body": {
+          "zh": "假设作者选择“提出清理与交还方案”，并已确认馆务员有权同意，可以这样安排这一轮：\n\n1. **细纲先定条件。** 写明许韵提出什么、馆务员为什么认为条件可接受，以及答应的边界。\n2. **场景兑现决定。** 让读者看到提议与回应，不用“被感动”跳过协商；答应借用也不等于演出已成功。\n3. **文字再去重复。** 清理反复请求和重复解释，保留实际促成改变的条件。\n4. **检查相邻段落。** 后文准备演出可以继续依赖借用，但不能写成获得了整周使用权。\n\n若事实不需要变，只是“我们真的很需要”被重复多次，就可以直接做局部表达修订。层级判断的目的，是找到必要改动，并非强制先改一遍大纲再碰句子。",
+          "en": "Suppose the author chooses a cleanup-and-return proposal and confirms that the caretaker can approve it. Order this revision as follows:\n\n1. **Set the conditions in the outline.** Specify the offer, why it is acceptable and the limits of permission.\n2. **Deliver the decision in the scene.** Show proposal and response rather than skipping negotiation with “moved.” Permission does not mean the performance has succeeded.\n3. **Polish repetition afterward.** Cut repeated pleas and explanations while preserving the conditions that change the answer.\n4. **Check neighboring passages.** Later preparations can depend on the booking, but cannot treat it as a week’s unrestricted use.\n\nIf the events already work and only the plea repeats, a local expression edit is enough. Diagnosis identifies necessary changes; it does not mandate rewriting an outline before touching any sentence."
+        }
+      },
+      {
+        "id": "work-plan",
+        "heading": {
+          "zh": "用一张修订清单控制这轮工作",
+          "en": "Keep One Bounded Revision List"
+        },
+        "body": {
+          "zh": "下面是人工修订清单，可由作者或审稿结果填写，不是新的 skill 数据格式。\n\n| 项目 | 记录 |\n|---|---|\n| 首要问题 | 位置、原句和读者影响 |\n| 原因 | 定位、事件设计或表达；仍不确定的注明缺证 |\n| 本轮决定 | 选定改法、获准范围和不可改事实 |\n| 验收 | 改后哪项条件成立，哪些后文仍要检查 |\n\n先处理妨碍理解或破坏主要因果的问题；可选文风意见放后面。文字漂亮不代表剧情成立，剧情成立也不代表每个作者都必须采用同一种文风。\n\n当选定问题解决、事件边界保持、衔接复读没有发现新断裂时，结束这轮。暂未处理的建议留在清单上，别为了“再好一点”循环重写。需要多章事实同步时，再使用[后文修订检查](/oh-story/sync-later-chapters-after-a-revision)。",
+          "en": "This manual revision list can be filled from author notes or review findings. It is not a new skill data format.\n\n| Item | Record |\n|---|---|\n| Main problem | Location, quotation and reader effect |\n| Cause | Direction, event design or expression; note missing evidence |\n| Decision | Chosen repair, authorized scope and protected facts |\n| Acceptance | Which condition now works and what later passages need checking |\n\nAddress problems blocking understanding or major causality before optional style changes. Attractive prose does not prove sound plot, and sound plot does not require every author to share a style.\n\nEnd the pass when the selected problem is resolved, event boundaries remain intact and neighboring passages introduce no new break. Keep deferred suggestions on the list rather than rewriting indefinitely. Use [later revision checks](/oh-story/sync-later-chapters-after-a-revision) when changed facts affect multiple chapters."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "小说修稿一定要先整本审查吗？",
+          "en": "Must every revision begin with a full-book review?"
+        },
+        "a": {
+          "zh": "不必。局部问题先读对应片段和必要上下文；只有证据指向更广的结构或连续性问题时才扩大范围。未读到的章节不能算已经审过。",
+          "en": "No. Start with the affected passage and necessary context. Expand when evidence points to broader structural or continuity problems. Unread chapters have not been reviewed."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-review",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-review/SKILL.md",
+      "text": {
+        "zh": "用 /story-review solo（Codex 用 $story-review solo）先审指定范围，要求定位问题层级并给出原文依据。选定事实修订后走 story-long-write 的章节修订；仅表达问题可用 story-deslop。这个顺序是作者工作安排，不是一个全书自动重写模式。",
+        "en": "Use /story-review solo, or $story-review solo in Codex, to review the specified scope and locate the problem with quotations. Use story-long-write chapter revision for approved event changes and story-deslop for expression. This is an author’s work plan, not an automatic full-book rewrite mode."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "剧情与文笔分层诊断",
+          "en": "Diagnose plot and prose separately"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-craft.md"
+      },
+      {
+        "label": {
+          "zh": "文风与事实分别裁决",
+          "en": "Separate style from facts"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      },
+      {
+        "label": {
+          "zh": "审查范围、证据与作者报告",
+          "en": "Review scope, evidence and author reports"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-review/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "单人审稿的报告格式",
+          "en": "Single-reviewer report format"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-review/references/solo.md"
+      },
+      {
+        "label": {
+          "zh": "章节修订的范围与衔接",
+          "en": "Chapter revision scope and joins"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-revision.md"
+      },
+      {
+        "label": {
+          "zh": "文风与事实分别裁决",
+          "en": "Separate style from facts"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      }
+    ],
+    "related": [
+      "/oh-story/get-specific-ai-manuscript-feedback",
+      "/oh-story/review-and-revise",
+      "/oh-story/revise-ai-prose"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "fix-too-much-dialogue-in-a-novel",
+    "topic": "characters-and-dialogue",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "小说对白太多怎么办：删重复，保留交流的作用",
+      "en": "Too Much Dialogue in Your Novel? What to Keep"
+    },
+    "seo_title": {
+      "zh": "小说对白太多怎么办：删重复，保留交流的作用",
+      "en": "Too Much Dialogue in Your Novel? What to Keep"
+    },
+    "description": {
+      "zh": "对白多不等于有问题。检查重复信息、角色目标和交流结果，压缩可略过程，保留关键回应，附乐器借还案例。",
+      "en": "Diagnose repeated information and conversational results rather than counting lines. Preserve key responses with a worked instrument-loan example."
+    },
+    "answer": {
+      "zh": "先看对白是否重复已知信息，是否让读者理解人物目标、回应与关系。压缩无变化的重复确认和流程，把关键提议、拒绝、条件与承诺留下；需要概述的过程可以用叙述带过。别设全书对白比例，也别给每句台词强加动作或冲突。",
+      "en": "Look for repeated information and whether the exchange conveys goals, responses and relationships. Compress unchanged confirmations and routine process; preserve offers, refusals, conditions and commitments. Use narration for a process that can be summarized, without imposing dialogue percentages or adding action to every line."
+    },
+    "sections": [
+      {
+        "id": "diagnose",
+        "heading": {
+          "zh": "是对白太多，还是交流没有变化？",
+          "en": "Diagnose the Exchange Before Counting Lines"
+        },
+        "body": {
+          "zh": "两个人谈满一页，仍可以有丰富的试探与变化；对白只有几句，也可能一直重复读者知道的事实。先标出每段交流的任务：争取什么、确认什么、隐瞒什么，或如何表现亲近、尴尬与告别。\n\nOh Story 的写作参考关注对白对剧情、人物与张力的作用，也允许氛围与人物互动。结合文风裁决，这些是修改时的观察方向，不能推成“每句话都必须翻转局面”。日常应答、仪式性重复和喜剧回环可能就是效果。\n\n本页解决的是**交流内容的密度**。谁在说话以及标签怎么写，见[对白提示语](/oh-story/write-natural-dialogue-tags)；没说透的意思如何让对方接住，见[潜台词](/oh-story/write-subtext-in-dialogue)。",
+          "en": "A page-long conversation can contain rich testing and change. A few lines can still repeat facts readers know. Mark the purpose of each exchange: seeking something, confirming something, withholding something, or expressing closeness, discomfort or farewell.\n\nOh Story’s references consider dialogue’s contribution to plot, character and tension, while allowing atmosphere and interaction. With author style priorities applied, these are diagnostic directions, not a requirement that every line reverse the situation. Routine answers, ritual repetition and comic returns may be the intended effect.\n\nThis guide addresses the density of conversational content. For attribution, see [dialogue tags](/oh-story/write-natural-dialogue-tags); for communicating unstated intentions, see [subtext](/oh-story/write-subtext-in-dialogue)."
+        }
+      },
+      {
+        "id": "mark-function",
+        "heading": {
+          "zh": "把重复确认与关键回应分开",
+          "en": "Separate Repeated Confirmation From Key Responses"
+        },
+        "body": {
+          "zh": "| 看见的情况 | 修改方向 |\n|---|---|\n| 两人把双方已知的来历重新讲完 | 留触发当前选择的部分，其余删或概述 |\n| 同一要求反复出现，回答没有变化 | 压缩重复；有意施压或回环则保留效果 |\n| 决定被概述成“谈好了” | 补回已有的关键提议与回应，勿编新条件 |\n| 台词很多，却不知道物件交到谁手里 | 保留实际交接动作，区分承诺与完成 |\n| 每句话后都新增一个小动作 | 删无功能填充，用必要叙述维持交流 |\n\n压缩对白时，最容易把“我愿意借”写成“已经借到”，或者把“我会还”写成“已归还”。决定和行动要分别核对。概述不等于省掉因果。",
+          "en": "| Observation | Revision direction |\n|---|---|\n| Both speakers recap history they both know | Keep what changes the current choice; cut or summarize the rest |\n| The same request repeats without a changing answer | Compress, unless pressure or a deliberate refrain is the effect |\n| The decision becomes “they sorted it out” | Restore the existing key offer and response without inventing conditions |\n| Many lines leave possession unclear | Keep the actual handoff; distinguish promise from completion |\n| Every line gains a tiny physical action | Cut filler and use necessary narration to sustain the exchange |\n\nCompression can turn “I’m willing to lend it” into “the loan is complete,” or “I’ll return it” into “it was returned.” Check decisions and actions separately. Summary should preserve cause and effect."
+        }
+      },
+      {
+        "id": "instrument-example",
+        "heading": {
+          "zh": "原创对照：借一把排练用的吉他",
+          "en": "Original Comparison: Borrowing a Guitar for Rehearsal"
+        },
+        "body": {
+          "zh": "前提是杜琳需要吉他排练，许杭还没答应借。原段如下：\n\n> “明天排练，我想借你的吉他。”杜琳说。\n\n> “你明天要排练？”\n\n> “对，明天要用吉他。”\n\n> “所以你想借我的？”\n\n> “是。周五之前还给你。”\n\n> “周五我也要用。”\n\n> “周四晚上还行吗？”\n\n> “行。”许杭从柜子里拿出琴包，递给她。杜琳接过，背在肩上。\n\n中间两轮只复述请求；周五的使用需要、改为周四归还以及实际交接改变了安排。\n\n**压缩版**\n\n> 杜琳说了明天排练借吉他的事，答应周五前归还。许杭摇头：“周五我也要用。”\n\n> “那周四晚上还。”\n\n> “行。”他从柜子里拿出琴包递来，杜琳接过，背在肩上。\n\n这里概述第一项请求，保留改期与接受，最后明确琴包已到杜琳手里。周四归还是承诺，当前片段没有证明它已经兑现。两版为本页原创；若重复问话原本表现听力困难或故意刁难，就应按那个目标重新判断，不能照抄删法。",
+          "en": "Du Lin needs a guitar for rehearsal; Xu Hang has not yet agreed to lend his. The original passage reads:\n\n> “I’m rehearsing tomorrow. Could I borrow your guitar?” Du Lin asked.\n\n> “You have rehearsal tomorrow?”\n\n> “Yes. I need a guitar tomorrow.”\n\n> “So you want mine?”\n\n> “Yes. I’ll return it before Friday.”\n\n> “I need it on Friday.”\n\n> “Would Thursday evening work?”\n\n> “Yes.” Xu Hang took the guitar case from the cupboard and handed it over. Du Lin accepted it and slung it over her shoulder.\n\nTwo exchanges only restate the request. Friday’s need, changing the return to Thursday and the handoff affect the arrangement.\n\n**Compressed version**\n\n> Du Lin asked to borrow the guitar for tomorrow’s rehearsal and promised it back before Friday. Xu Hang shook his head. “I need it on Friday.”\n\n> “Thursday evening, then.”\n\n> “Yes.” He brought the case from the cupboard and handed it over. She accepted it and slung it over her shoulder.\n\nThe request is summarized, while renegotiation, acceptance and actual possession remain. Thursday’s return is a promise, not a completed event. These examples are original. Repeated questions serving hearing difficulties or deliberate obstruction would require a different judgment."
+        }
+      },
+      {
+        "id": "revision-pass",
+        "heading": {
+          "zh": "一遍检查：删完交流还成立吗？",
+          "en": "One Pass: Does the Exchange Still Work?"
+        },
+        "body": {
+          "zh": "先留原稿，圈出有意重复，再标请求、回应、变化与交接。只修改这场交流，连读前后段，核对说话人、时间和物件；多人场景不要为了少写标签让读者失去归属。\n\n> 修改〔对白片段〕的交流密度。先说明哪些台词重复了什么；只压缩无功能重复与可略过程，保留〔关键回应、条件、承诺、交接〕。采用〔本书文风〕，不新增冲突、动作或知识来源。返回改稿与保留事实；无法判断的重复列给我决定。\n\n这是人工改稿要求。若需要取消借琴或改成另一天归还，属于事实修订，先决定范围再检查后文。仅减少对白行数不是验收标准。",
+          "en": "Keep the original, mark intentional repetition, then identify request, response, change and handoff. Revise this exchange only and reread its joins for speakers, time and possession. In a group scene, fewer tags should not make attribution uncertain.\n\n> Revise conversational density in [passage]. Identify repeated content first. Compress only functionless repetition and summarizable process. Preserve [responses, conditions, promises and handoffs]. Use [book style] without adding conflict, actions or knowledge sources. Return the revision and protected facts; flag uncertain repetition for my decision.\n\nThis is a manual revision brief. Canceling the loan or changing its return date is a factual revision requiring scope and downstream checks. Fewer dialogue lines alone do not establish success."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "对白占多少比例才合适？",
+          "en": "What percentage of a novel should be dialogue?"
+        },
+        "a": {
+          "zh": "本页方法不设统一比例。按作品文风、场景任务和读者能否跟上判断；关键交流可以长，重复已知信息的短对白也可删。",
+          "en": "This method sets no universal percentage. Judge by style, scene purpose and readability. A pivotal conversation may be long; a short one repeating known facts may still need cutting."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 /story-long-write（Codex 用 $story-long-write）做指定场面的局部修订，附上交流目标和不可改事实。明确其他段落不动，参考默认对白规则需服从本书文风；先报告内容问题，再采用你选定的压缩方向。",
+        "en": "Use /story-long-write, or $story-long-write in Codex, for local revision of the named exchange. Supply its purpose and protected facts; preserve other paragraphs and apply dialogue defaults under the book’s style. Choose the compression direction after diagnosis."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "对白、节奏与氛围的取舍",
+          "en": "Dialogue, rhythm and atmosphere"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-craft.md"
+      },
+      {
+        "label": {
+          "zh": "作者文风与事实边界",
+          "en": "Author style and factual boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      },
+      {
+        "label": {
+          "zh": "局部修订与衔接检查",
+          "en": "Local revision and joins"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-revision.md"
+      }
+    ],
+    "related": [
+      "/oh-story/write-natural-dialogue-tags",
+      "/oh-story/write-subtext-in-dialogue",
+      "/oh-story/stop-ai-polishing-from-changing-your-plot"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "fix-a-novel-that-reads-like-a-screenplay",
+    "topic": "revision",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "小说写得像剧本怎么办：把指令改成叙述",
+      "en": "Fix a Novel That Reads Like a Screenplay"
+    },
+    "seo_title": {
+      "zh": "小说写得像剧本怎么办：把指令改成叙述",
+      "en": "Fix a Novel That Reads Like a Screenplay"
+    },
+    "description": {
+      "zh": "区分有意的对白风格与漏进正文的镜头、场次指令；按视角、选择和真实动作改写，保留必要概述。",
+      "en": "Distinguish intentional dialogue-heavy style from leaked camera and scene instructions. Restore viewpoint, choices and actual actions."
+    },
+    "answer": {
+      "zh": "先判断剧本感来自作者选定的形式，还是正文只剩场次标签、镜头命令与动作清单。后者应回到本书视角，把已有事件写成人物能感知的选择和结果；规划字段不必逐格成段。关键变化写清过程，可略过场仍可概述，不为补小说感新增内心、细节或剧情。",
+      "en": "Distinguish chosen form from leaked scene labels, camera commands and action lists. Return to the book’s viewpoint and render existing events as perceivable choices and results. Planning fields need not become matching paragraphs. Show key changes, summarize routine transitions and avoid invented psychology or plot."
+    },
+    "sections": [
+      {
+        "id": "distinguish",
+        "heading": {
+          "zh": "先分清形式选择与未成文的指令",
+          "en": "Separate Chosen Form From Undrafted Instructions"
+        },
+        "body": {
+          "zh": "对白多、动作清楚，不代表小说有问题。有些作者有意使用剧本体或克制叙述；应按作品目标评价。这里处理的是作者要写普通小说，却留下“场景一”“特写”“镜头拉远”“此处制造悬念”等制作指令。\n\nOh Story 的场景方法指出：细纲规定发生什么，不规定正文的形状。目标、情节点与结尾状态不能原样搬进叙述。“镜头思维”可以帮助选择注意重点，但不要求在小说里给一个不存在的摄影机下命令。\n\n[细纲写成章节](/oh-story/outline-to-chapter)处理从规划到初稿的完整过程；本页用于诊断已经写出的正文里，哪些句子仍是指令或清单。",
+          "en": "Abundant dialogue and clear action do not prove a defect. Some writers deliberately choose a script form or restrained narration; evaluate that choice against their goals. This guide concerns an intended prose novel retaining “Scene One,” “close-up,” “camera pulls back” or “create suspense here.”\n\nOh Story’s scene method treats the outline as requirements for events, not the shape of the prose. Goals, plot points and ending states should not be copied as narration. Camera thinking can guide attention without issuing commands to an imaginary camera inside the novel.\n\n[Outline to chapter](/oh-story/outline-to-chapter) covers the full planning-to-draft process. This guide diagnoses sentences in an existing draft that remain instructions or lists."
+        }
+      },
+      {
+        "id": "convert",
+        "heading": {
+          "zh": "改写时补什么，不补什么？",
+          "en": "What to Restore During Revision"
+        },
+        "body": {
+          "zh": "| 原稿表现 | 修订方向 |\n|---|---|\n| “特写破掉的扣子” | 当前视角如何注意到扣子，已有发现影响什么 |\n| “人物A愤怒，人物B心虚” | 按本书视角写可知感受；不替限知人物读心 |\n| “发现问题 → 改变主意 → 离开” | 让已确定的发现、选择与离开接上因果 |\n| 每个情节点一段，长短完全一致 | 按重要变化安排详略，勿机械逐格填空 |\n| “本场结束，两人关系恶化” | 兑现已写的具体变化，不新增吵架或断交 |\n\n缺少事实时，不能靠添一个秘密、一段回忆或新道具填满小说感。先请作者决定缺失过程，再修正文。风格可以允许直接写情绪或叙述者评论；它们不必全部改成身体动作。",
+          "en": "| Draft pattern | Revision direction |\n|---|---|\n| “Close-up: broken clasp” | Show how the viewpoint notices it and what the existing discovery changes |\n| “A is angry; B feels guilty” | Use accessible feelings under the chosen viewpoint, without unauthorized mind-reading |\n| “Find problem → change mind → leave” | Connect established discovery, decision and departure causally |\n| One identical paragraph per plot point | Allocate detail by importance rather than filling planning boxes |\n| “Scene ends; relationship worsens” | Deliver the established change without inventing a fight or breakup |\n\nA secret, memory or new object cannot fill missing facts merely to make prose feel novelistic. Ask the author to decide missing processes first. Direct emotion and narrator commentary may fit the chosen style; they need not all become physical reactions."
+        }
+      },
+      {
+        "id": "clasp-example",
+        "heading": {
+          "zh": "原创对照：演员试戴旧项链",
+          "en": "Original Comparison: Trying on an Old Necklace"
+        },
+        "body": {
+          "zh": "已定事实：宋芮在排练前试戴旧项链，扣子接不上；阿哲提出用胶带，她拒绝，取下项链放回盒里。采用宋芮限知视角。\n\n**未成文版本**\n\n> 场景：后台。特写项链扣。宋芮试戴，扣不上。阿哲：用胶带？宋芮拒绝。镜头拉远，她摘下项链。结尾状态：放回盒里。\n\n**小说段落**\n\n> 宋芮把项链绕到颈后，扣子却接不上。\n\n> “用胶带？”阿哲问。\n\n> “不用了。”她取下项链，放回盒里。\n\n新版把试戴与扣不上接成一个动作过程，保留建议、拒绝、取下与放回盒里；没有靠新增一次尝试或新道具制造过程。\n\n没有写阿哲心里失望，没有解释项链属于谁，也没有说宋芮因此退出演出。盒中物件的状态清楚，结尾不用再报一次“放回盒里”。这个场景为本页原创，可替换为你已经确定的动作细节。",
+          "en": "Established facts: before rehearsal, Song Rui tries an old necklace whose clasp will not close. A Zhe suggests tape; she refuses, removes the necklace and returns it to its box. The chosen viewpoint is limited to Song Rui.\n\n**Undrafted version**\n\n> Location: backstage. Close-up on clasp. Song Rui tries it; it will not close. A Zhe: tape? Song Rui refuses. Camera pulls back as she removes it. Ending state: returned to box.\n\n**Prose passage**\n\n> Song Rui brought the necklace ends together behind her neck, but the clasp would not close.\n\n> “Tape?” A Zhe asked.\n\n> “No.” She removed the necklace and put it back in its box.\n\nThe revision connects trying on and the failed clasp, preserving the suggestion, refusal, removal and return to the box. It adds neither a second attempt nor a new object to manufacture a process.\n\nThe passage supplies no thoughts for A Zhe, ownership history or withdrawal from the performance. Possession is clear, and the ending does not restate its planning label. This original scene can be adapted using actions already established in your manuscript."
+        }
+      },
+      {
+        "id": "check",
+        "heading": {
+          "zh": "不要把所有过场也扩成一场戏",
+          "en": "Routine Transitions Can Remain Summary"
+        },
+        "body": {
+          "zh": "重点是发现和拒绝的过程，走到后台、整理普通衣物等过场可以简写。把每项概述展开，会换来另一种冗长。小说需要叙述和场景配合，不需要每句都可拍成分镜。\n\n> 诊断〔片段〕的剧本感。区分有意形式与漏入的场次、镜头或规划标签。按〔本书视角与文风〕改写，保留〔既定事件与信息边界〕；关键变化写清，过场可概述。列出需要作者批准的新增动作，未批准的不要加。返回改稿和删除的指令类型。\n\n这是人工局部修订任务。改后连读，检查是否仍能辨认谁发现问题、凭什么知道、怎样选择、结果如何；同时确认没有新增外部视角、动作权限或秘密解释。",
+          "en": "The discovery and refusal deserve attention. Arrival backstage and routine preparation can remain concise. Expanding every summary produces a different form of excess. A novel combines narration and scenes; every sentence need not become a storyboard shot.\n\n> Diagnose script-like passages in [excerpt]. Distinguish intentional form from leaked scene, camera or planning labels. Revise under [viewpoint and style], preserving [events and information boundaries]. Clarify key changes and summarize routine transitions. List proposed new actions for author approval; do not add unapproved ones. Return the prose and instruction types removed.\n\nThis is a manual local revision brief. Reread for who discovers the problem, how they know, what they choose and what results. Check that no unauthorized viewpoint, action or secret explanation has appeared."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "小说是不是不能出现“镜头”这个词？",
+          "en": "Must the word “camera” be removed from a novel?"
+        },
+        "a": {
+          "zh": "不必。角色在拍摄、叙述者有意采用影像比喻时都可使用。需要修的是作者不想要的制作指令泄漏，以及只报状态却缺少过程的正文。",
+          "en": "No. Characters may be filming, and a narrator may intentionally use visual metaphors. Repair unwanted production instructions and missing processes, rather than banning a word."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 /story-long-write（Codex 用 $story-long-write）修指定片段，说明本次是局部修订、采用的视角和是否允许展开已有事件。writing-craft 的“把规格演成场景”提供方法，本书文风优先；它不是剧本自动转小说的专用模式。",
+        "en": "Use /story-long-write, or $story-long-write in Codex, for local revision with viewpoint and explicit permission to develop events. The writing-craft scene method supplies the approach under the book’s style. This is not a dedicated screenplay-to-novel mode."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "细纲规格如何写成场景",
+          "en": "Turn outline requirements into scenes"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
+      },
+      {
+        "label": {
+          "zh": "对白、节奏与氛围的取舍",
+          "en": "Dialogue, rhythm and atmosphere"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-craft.md"
+      },
+      {
+        "label": {
+          "zh": "作者文风与事实边界",
+          "en": "Author style and factual boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      },
+      {
+        "label": {
+          "zh": "局部修订与衔接检查",
+          "en": "Local revision and joins"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-revision.md"
+      }
+    ],
+    "related": [
+      "/oh-story/outline-to-chapter",
+      "/oh-story/over-edited-prose",
+      "/oh-story/fix-too-much-dialogue-in-a-novel"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "organize-a-novel-timeline",
+    "topic": "plot-and-outline",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "小说时间线怎么整理：事件先后与揭示顺序",
+      "en": "Organize Your Novel’s Timeline and Reveals"
+    },
+    "seo_title": {
+      "zh": "小说时间线怎么整理：事件先后与揭示顺序",
+      "en": "Organize Your Novel’s Timeline and Reveals"
+    },
+    "description": {
+      "zh": "把故事实际先后、正文呈现和读者已知分开记录；用相对时间避免乱补日期，附错放包裹的倒叙案例。",
+      "en": "Separate event chronology, manuscript order and reader knowledge. Use relative time and a worked flashback example without inventing dates."
+    },
+    "answer": {
+      "zh": "先按故事内的实际顺序记录事件，再注明它在哪章出现、当时读者知道什么。倒叙与延迟揭示不改变事件发生时间；未来揭示计划留在大纲。原稿只有“前两天”就用相对时间，未知处标待定。修订后检查依赖时间、知情与物件状态的后文。",
+      "en": "Record events in story order, then note their chapter appearances and what readers know. Flashbacks and delayed revelations do not change when events occurred. Keep future reveal plans in the outline; use relative time when dates are unspecified. After revision, check later timing, knowledge and possession dependencies."
+    },
+    "sections": [
+      {
+        "id": "three-orders",
+        "heading": {
+          "zh": "先分开三种“先后”",
+          "en": "Separate Three Kinds of Order"
+        },
+        "body": {
+          "zh": "| 顺序 | 回答什么 |\n|---|---|\n| 故事发生 | 哪件事先发生，间隔多久 |\n| 正文呈现 | 作者先写哪场戏，哪里倒叙或概述 |\n| 读者获知 | 哪章知道哪部分事实，哪些仍未知 |\n\n第八章回忆上周的交接，交接不会因此发生在第八章的“现在”；第二章只看到空架，也不代表读者已经知道谁移动了包裹。\n\nOh Story 的追踪方法区分客观事件、读者认知与实际揭示章节，并要求未来计划留在大纲。下面的表是作者的人工工作表，不是直接提交给工具的字段格式。[设定集整理](/oh-story/story-bible-template)用于整本资料管理，本页专门处理时间与揭示顺序。",
+          "en": "| Order | Question |\n|---|---|\n| Story chronology | What happened first, and how much time passed? |\n| Manuscript presentation | Which scene appears first, including flashbacks and summaries? |\n| Reader knowledge | Which facts are known in which chapter, and what remains unknown? |\n\nA handoff recalled in Chapter Eight still happened last week. An empty shelf shown in Chapter Two does not identify who moved the parcel.\n\nOh Story’s tracking method separates objective events, reader knowledge and actual revelation chapters, keeping future plans in the outline. The table below is a manual worksheet, not a tool input schema. [Story-bible organization](/oh-story/story-bible-template) covers book-wide materials; this page focuses on chronology and reveals."
+        }
+      },
+      {
+        "id": "record",
+        "heading": {
+          "zh": "时间不够精确时，别补一个日期",
+          "en": "Do Not Invent Dates to Complete the Table"
+        },
+        "body": {
+          "zh": "先收集原文明确时间词、事件条件和顺序。例如“停雨后”“交接两天前”“当晚”可以保持相对形式。未说明年月日就不猜一个日期；矛盾的时间写成待裁决，不偷偷选一个。\n\n每件重要事件记录实际发生、依据位置、呈现位置和当前读者认知。需要跨度时，再检查最少必须经过多久与稿件实际给出多久；旅行、治疗等外部事实需另行查证，不能用作者时间表证明现实可行。\n\n未发生的计划不要混入已完成事件。角色也有自己的知情范围：作者和读者知道包裹被移动，不代表收件人已得到这个消息。",
+          "en": "Collect explicit time phrases, prerequisites and ordering. “After the rain,” “two days before the handoff” and “that evening” can remain relative. Do not invent a calendar date where none is specified. Record conflicting times for a decision instead of silently choosing one.\n\nFor important events, note occurrence, evidence location, presentation location and current reader knowledge. When duration matters, compare the required interval with the time the draft actually supplies. External facts such as travel or recovery require separate verification; an author’s timetable cannot prove real-world feasibility.\n\nKeep unperformed plans separate from completed events. Characters also have their own knowledge boundaries: the author and reader knowing a parcel moved does not mean its recipient knows."
+        }
+      },
+      {
+        "id": "parcel-example",
+        "heading": {
+          "zh": "原创案例：先见空架，后见搬走过程",
+          "en": "Original Case: The Empty Shelf Before the Move Is Revealed"
+        },
+        "body": {
+          "zh": "假设稿件已经写到第八章：周五傍晚，秦泊将许简的包裹从门外架子移到室内储物柜，以避雨；许简不在。周六早上许简看到空架，以为包裹没送到。第八章倒叙周五，读者才看到秦泊移动它。柜门随后仍关着，秦泊尚未告诉许简。\n\n这套完整前提为本页原创，表格只记录已经写出的版本：\n\n| 事件 | 时间与读者获知 |\n|---|---|\n| 秦泊搬走包裹 | 周五傍晚；第八章倒叙才展示搬入室内柜的过程 |\n| 许简看到空架 | 周六早上；第二章展示，她判断“没送到”，读者尚不知原因 |\n| 许简得知真实去向 | 截至第八章未发生；不填写一个未来章节当实际揭示 |\n\n**当前状态**：读者知道包裹在室内柜里，许简仍以为没送到。秦泊知道自己的搬移动作。第二章的判断是人物误认，不是“作者写错投递结果”。\n\n第十章让秦泊解释去向可以是大纲计划；只有实际写出告知，才能更新许简已知与读者新增信息。这个示例不保证倒叙有效，效果还需从悬念与阅读目标判断。",
+          "en": "Suppose the manuscript reaches Chapter Eight. On Friday evening, Qin Bo moves Xu Jian’s parcel from an outdoor shelf into an indoor cupboard to protect it from rain; Xu Jian is absent. Saturday morning, Xu Jian sees the empty shelf and assumes no delivery. Chapter Eight flashes back to Friday, showing the move for the first time. The cupboard remains shut, and Qin Bo has not told Xu Jian.\n\nThis complete premise is original to the guide. The worksheet records the written version:\n\n| Event | Time and revelation |\n|---|---|\n| Qin Bo moves the parcel | Friday evening; Chapter Eight’s flashback first shows the move indoors |\n| Xu Jian sees the empty shelf | Saturday morning; Chapter Two shows her mistaken conclusion before readers know the cause |\n| Xu Jian learns its location | Not yet written by Chapter Eight; no planned future chapter counts as an actual reveal |\n\n**Current state:** readers know the parcel is in the cupboard; Xu Jian still assumes it was not delivered. Qin Bo knows his own action. Chapter Two contains a character’s mistaken belief, not an erroneous authorial delivery record.\n\nQin Bo explaining in Chapter Ten can remain an outline plan. Update Xu Jian’s knowledge only when the explanation is written. This example does not prove the flashback is effective; judge it against suspense and reading goals."
+        }
+      },
+      {
+        "id": "revision-and-skill",
+        "heading": {
+          "zh": "移动一场戏后，按实际版本更新",
+          "en": "Update the Written Version After Moving a Scene"
+        },
+        "body": {
+          "zh": "把第八章倒叙提前到第三章，会改变读者获知时间，但不会自动改变周五的搬移动作或许简的知情。若删除搬移动作，则室内柜里的包裹和后续解释都失去依据。先判断改变的是事件还是呈现，再查后文。\n\n> 整理〔已写章节范围〕的时间线。给出事件实际先后、原文位置、正文呈现章节、读者已知与角色知情。保持原文时间精度，缺失标待定；把误认与客观事实分开，未来揭示计划另列。只整理与指出候选冲突，不改写正文或文件。\n\n这个提示词适合人工整理。使用 Oh Story 正式项目时，时间线视图由结构化状态生成，不直接手改作者真相或读者已知文件；已批准修订通过章节修订流程更新截至最后已写章的当前状态。表格写好了，不代表现存正文的时间矛盾已经修复。",
+          "en": "Moving Chapter Eight’s flashback to Chapter Three changes when readers learn the move. It does not automatically change Friday’s event or Xu Jian’s knowledge. Deleting the move removes support for the cupboard’s parcel and later explanations. Distinguish event changes from presentation changes before checking later dependencies.\n\n> Organize the timeline for [written scope]. Give event chronology, quotation locations, presentation chapters, reader knowledge and character knowledge. Preserve the source’s time precision; mark unknowns. Separate mistaken beliefs from objective facts and future reveal plans. Report candidate conflicts without editing prose or files.\n\nThis prompt supports manual organization. In a formal Oh Story project, timeline views are generated from structured state; do not directly edit the author-truth or reader-knowledge views. Approved chapter revision updates current state through the last written chapter. A completed table does not itself repair contradictory prose."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "时间线整理后，还能倒叙或隐藏真相吗？",
+          "en": "Can I still use flashbacks and hidden truths after organizing a timeline?"
+        },
+        "a": {
+          "zh": "可以。整理用于区分实际发生、呈现顺序与知情范围，不强迫顺叙。检查读者能否理解已给出的线索，以及角色的判断是否符合当时所知。",
+          "en": "Yes. Organization separates occurrence, presentation and knowledge without enforcing chronological narration. Check that clues are understandable and character judgments fit what they know at the time."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "人工只读整理可用上方提示词。若用 /story-long-write（Codex 用 $story-long-write）修订章节，按 workflow-revision 与 tracking-transaction 更新事件、实际揭示和当前知情；不要把本页工作表当作正式事务输入，也不要为整理时间线自动重写小说。",
+        "en": "Use the prompt above for a manual read-only worksheet. For chapter revision with /story-long-write or $story-long-write in Codex, workflow-revision and tracking-transaction update events, actual reveals and current knowledge. This worksheet is not formal transaction input, and organization does not authorize rewriting."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "事件与实际揭示记录",
+          "en": "Events and actual revelation records"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/tracking-transaction.md"
+      },
+      {
+        "label": {
+          "zh": "局部修订与衔接检查",
+          "en": "Local revision and joins"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-revision.md"
+      }
+    ],
+    "related": [
+      "/oh-story/story-bible-template",
+      "/oh-story/ai-fiction-consistency-check",
+      "/oh-story/sync-later-chapters-after-a-revision"
     ]
   }
 ]
