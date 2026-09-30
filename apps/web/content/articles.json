@@ -1492,7 +1492,7 @@
       "en"
     ],
     "published_on": "2026-09-13",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "分镜脚本怎么写：短剧分镜表模板，把剧本逐镜拆开",
       "en": "How to write a storyboard script: shot list template for short drama"
@@ -1506,19 +1506,19 @@
       "en": "A storyboard script gives each shot a row: source, purpose, framing, start state, action to end state, dialogue and duration. Copy the shot list template."
     },
     "answer": {
-      "zh": "分镜脚本是把定稿剧本逐镜写成的一张表：每镜一行，写镜号、来源场景、镜头职责、景别运镜与机位所在的轴线侧、起点状态、动作到终点、对白声音和时长估计。先定这一镜结束时观众多知道了什么，再选景别；上一镜的终点就是下一镜的起点；有对白先排整句，再定秒数。",
-      "en": "A storyboard script turns a finished screenplay into a shot list, one row per shot: number, source scene, purpose, framing and camera move with the axis side, start state, action to end state, dialogue and time estimate. Decide what the viewer learns before choosing the framing, make each end state the next start, and fit the full line before setting the duration."
+      "zh": "分镜先把定稿剧本中的动作、对白、声音和必读文字落实到镜头，再为每镜确定观众要看懂什么、从谁的体验看、起止状态、景别机位和声音时间线。切镜后守住人物、知情、持物与空间事实，不要求两镜是同一幅画面。有对白先排完整声音与必要动作，再选择容得下它的镜长；文字模板便于规划，正式skill产物是逐镜Markdown块。",
+      "en": "Map the accepted script’s actions, dialogue, sound, and required text to shots. For each, define what viewers need to understand, whose experience organizes it, start and end states, framing, camera position, and the sound timeline. Preserve character, knowledge, possession, and spatial facts across cuts without requiring identical pictures. Schedule full speech and necessary action before choosing duration. The worksheet supports planning; the native skill writes individual Markdown shot blocks."
     },
     "sections": [
       {
         "id": "storyboard-script-template",
         "heading": {
-          "zh": "分镜脚本模板：短剧分镜脚本表格怎么列",
-          "en": "Storyboard script template: the shot list"
+          "zh": "分镜脚本模板：先记事实与职责",
+          "en": "Storyboard worksheet: facts and purpose first"
         },
         "body": {
-          "zh": "一镜一行，尖括号换成你的内容；同一场戏里，第二行起的起点接上一镜的终点。\n\n| 镜号 | 来源 | 镜头职责 | 景别·机位·运镜（轴线侧） | 起点状态 | 动作→终点 | 对白/声音 | 时长估计 |\n|---|---|---|---|---|---|---|---|\n| SHOT-001 | <场景ID>「必要短引文」 | <这一镜结束时变了什么> | <景别>·<水平角度、机位高度>·<固定或推、拉、摇、跟>（<轴线哪一侧>） | <谁在哪、朝向、双手、道具落点> | <一条可见动作链>→<终点的位置、双手与持物> | <原句照抄；说话者；画内或画外> | <文本估计 N 秒；估时依据> |\n| SHOT-002 | <场景ID>「必要短引文」 | <这一镜结束时变了什么> | <景别、角度、人物关系至少换一项> | 与 SHOT-001 终点逐项一致 | <动作链>→<终点> | <原句照抄> | <文本估计 N 秒> |\n\n每一镜写完，用这张清单过一遍：\n\n- [ ] 来源栏开头是剧本里确有的场景 ID，引文对得上本镜承担的动作或台词\n- [ ] 镜头职责说得出这一镜结束时谁多知道了什么、谁的处境变了\n- [ ] 和上一镜相比，景别、角度或人物关系至少换了一项\n- [ ] 起点和上一镜终点逐项对得上：位置、朝向、双手、道具\n- [ ] 同一个动作只在一镜里真正发生\n- [ ] 台词逐字照抄，镜长先容下整句话和听完之后的反应\n- [ ] 剧本里每一场都有镜头承载，不拍的场次写下理由",
-          "en": "One row per shot: fill in the angle brackets and, within a scene, start each row from the previous shot's end state.\n\n| Shot | Source | Purpose | Framing and camera (axis side) | Start state | Action to end state | Dialogue and sound | Time estimate |\n|---|---|---|---|---|---|---|---|\n| SHOT-001 | <scene ID> \"short quote\" | <what has changed by the end> | <size>, <angle, camera height>, <locked, push, pull, pan or follow> (<axis side>) | <who is where, facing, hands, props> | <one visible action chain> to <end position, hands, props> | <exact line; speaker; on or off screen> | <text estimate N s; basis> |\n| SHOT-002 | <scene ID> \"short quote\" | <what has changed> | <change size, angle or relationship> | Same as SHOT-001's end state | <action chain> to <end state> | <exact line> | <text estimate N s> |\n\nCheck every finished shot:\n\n- [ ] Source opens with a real scene ID, and the quote matches what this shot carries\n- [ ] The purpose says who knows more, or whose situation changed, by the end\n- [ ] Size, angle or relationship differs from the previous shot\n- [ ] Start state matches the previous end state: position, facing, hands, props\n- [ ] Each action happens in one shot only\n- [ ] Lines are exact, and the duration fits the whole line plus the reaction\n- [ ] Every scene has a shot, or a written reason for leaving it out"
+          "zh": "下面是编辑手写的简化记录，尖括号换成已确认内容；它不是正式skill文件的八列表头，也不新增生产字段。\n\n| 镜头 | 一镜的记录 |\n|---|---|\n| SHOT-001 | **来源**：<真实场景ID、必要短引文>。**职责**：<本镜让观众理解什么>。**画面**：<景别、水平角度、高度、轴线侧、运镜起止与理由>。**起点**：<影响动作的位置、朝向、持物和空间关系>。**动作与终点**：<连续行动怎样到达结果>。**声音**：<原句、说话者、画内/画外/VO、声音发生次序>。**估时**：<录音区间或标明文本估计的依据、需另占时间的反应>。 |\n| SHOT-002 | 按同一记录写本镜；延续SHOT-001的实际事实，明确时间省略、重排或有意回放。换机位不会使钥匙再次回到原主人手里。 |\n\n检查来源是否真实、关键内容是否遗漏、镜头职责是否可读、动作先后和持物是否一致、声音是否完整。单一主要动作可以是一条连续行动链，不按动词数量删戏；有意回放指向主要镜头，同一事实只改变一次。\n\n正式short-drama-storyboard按每镜标题写职责、来源、起点、行动、终点、声音、时长和冻结关键帧等内容，并按实际画面回填视觉依据与图片参考。提示词条目不等于已有图片；已有图片仍要读内容、核对用途。",
+          "en": "This is a simplified editorial worksheet. Replace placeholders with accepted content. It is not a native eight-column file format and adds no production fields.\n\n| Shot | Record |\n|---|---|\n| SHOT-001 | **Source:** Real scene ID and necessary short quote. **Purpose:** What viewers understand. **Picture:** Framing, horizontal angle, height, axis side, camera start/end and reason. **Start:** Relevant position, orientation, possession, and space. **Action/end:** Continuous action leading to its result. **Sound:** Exact lines, speaker, visible/offscreen/VO channel, and event order. **Timing:** Recording interval or labeled text estimate, with separate reaction time where needed. |\n| SHOT-002 | Use the same record while inheriting SHOT-001’s actual facts. Declare omission, reordering, or deliberate replay. A camera change does not return a key to its previous owner. |\n\nCheck real sources, coverage, readable purpose, action order, possession, and full sound. One primary action can be a continuous chain; a verb count should not remove the scene. Deliberate replay refers to its primary shot, and the event changes state only once.\n\nThe native short-drama-storyboard writes purpose, source, start, action, end, sound, duration, and frozen keyframe content under individual shot headings, then fills visual and picture references from the actual frame. A prompt entry is not an existing image; an image’s content and role still need inspection."
         }
       },
       {
@@ -1528,19 +1528,19 @@
           "en": "How to fill in each column of a shot list"
         },
         "body": {
-          "zh": "- **镜号**：按顺序编 SHOT-001、SHOT-002，改稿时没受影响的镜头保留原号。\n- **来源**：场景 ID 加一句短引文。剧本一改，顺着这一栏就能找到要复核的镜头。\n- **镜头职责**：一句话写清谁做了什么、这一镜为什么存在，比如交出证据、暂扣信息、权力易手、接住反应。只写“开场”两个字，审稿时无从查起。\n- **景别·机位**：景别看观众要读的信息落在哪个尺度，后果在两人距离上用中景，证据在指节上才给大特写。水平角度（正面、斜侧、正侧、背面）和机位高度（仰、平视、俯）分开写，再注明在轴线哪一侧。\n- **运镜**：固定机位适合观察和紧张；推近、拉远改变亲近或压力，摇和俯仰转移注意，跟拍留给移动本身有意义的人物。同一段时间里别同时要求固定和移动。\n- **起点、动作→终点**：起点写位置、朝向、双手和道具落点；动作写一条走到终点的可见链，放下、递交、取回要写清谁碰、落在哪。终点要能原样当下一镜的起点。\n- **对白/声音**：原句照抄，标说话者和画内、画外。\n- **时长估计**：有录音就用实际发声区间；没有，就照原文、说话人的节奏、情绪和换气估出一个区间，写明“文本估计”和估算依据。",
-          "en": "- **Shot number.** SHOT-001, SHOT-002 in order; on revision, untouched shots keep their numbers.\n- **Source.** Scene ID plus a short quote, so a script change shows which shots to recheck.\n- **Purpose.** One sentence on who does what and why the shot exists: show evidence, hold information back, shift power, catch a reaction. \"Opening\" gives a reviewer nothing to check.\n- **Framing and camera.** Choose size by where the information lives: a consequence in the gap between two people wants a medium shot; evidence on a knuckle earns an extreme close-up. Write angle and camera height separately, plus the axis side.\n- **Camera movement.** Lock the camera for watching and tension; push in or pull out to change closeness or pressure, pan or tilt to shift attention, and follow only when the movement itself matters. Don't mix locked and moving in one stretch.\n- **Start, action, end.** Start lists positions, facing, hands and props. The action is one visible chain to the end state; for a hand-off, say who touches what and where it lands. The end state doubles as the next start.\n- **Dialogue and sound.** Exact line, speaker, on or off screen.\n- **Time estimate.** Use the real speaking interval if you have audio; otherwise estimate a range from the text, pace, emotion and breathing, and label it a text estimate, with its basis."
+          "zh": "- **镜号**：按顺序编 SHOT-001、SHOT-002，改稿时没受影响的镜头保留原号。\n- **来源**：场景 ID 加一句短引文。剧本一改，顺着这一栏就能找到要复核的镜头。\n- **镜头职责**：一句话写清谁做了什么、这一镜为什么存在，比如交出证据、暂扣信息、权力易手、接住反应。只写“开场”两个字，审稿时无从查起。\n- **景别·机位**：景别看观众要读的信息落在哪个尺度，后果在两人距离上用中景，证据在指节上才给大特写。水平角度（正面、斜侧、正侧、背面）和机位高度（仰、平视、俯）分开写，再注明在轴线哪一侧。\n- **运镜**：固定机位适合观察和紧张；推近、拉远改变亲近或压力，摇和俯仰转移注意，跟拍留给移动本身有意义的人物。同一段时间里别同时要求固定和移动。\n- **起点、动作→终点**：起点写位置、朝向、双手和道具落点；动作写一条走到终点的可见链，放下、递交、取回要写清谁碰、落在哪。下一镜继承这些实际事实，画面角度与可见范围可以变；有省略或回放则明确声明。\n- **对白/声音**：原句照抄，标说话者和画内、画外。\n- **时长估计**：有录音就用实际发声区间；没有，就照原文、说话人的节奏、情绪和换气估出一个区间，写明“文本估计”和估算依据。",
+          "en": "- **Shot number.** SHOT-001, SHOT-002 in order; on revision, untouched shots keep their numbers.\n- **Source.** Scene ID plus a short quote, so a script change shows which shots to recheck.\n- **Purpose.** One sentence on who does what and why the shot exists: show evidence, hold information back, shift power, catch a reaction. \"Opening\" gives a reviewer nothing to check.\n- **Framing and camera.** Choose size by where the information lives: a consequence in the gap between two people wants a medium shot; evidence on a knuckle earns an extreme close-up. Write angle and camera height separately, plus the axis side.\n- **Camera movement.** Lock the camera for watching and tension; push in or pull out to change closeness or pressure, pan or tilt to shift attention, and follow only when the movement itself matters. Don't mix locked and moving in one stretch.\n- **Start, action, end.** Start lists positions, facing, hands and props. The action is one visible chain to the end state; for a hand-off, say who touches what and where it lands. The next shot inherits those actual facts while its view can change; declare omissions or replays.\n- **Dialogue and sound.** Exact line, speaker, on or off screen.\n- **Time estimate.** Use the real speaking interval if you have audio; otherwise estimate a range from the text, pace, emotion and breathing, and label it a text estimate, with its basis."
         }
       },
       {
         "id": "how-to-write-storyboard-script",
         "heading": {
-          "zh": "分镜脚本怎么写：从剧本到镜头的五个判断",
-          "en": "How to storyboard a script: five decisions per shot"
+          "zh": "从剧本到镜头的五个判断",
+          "en": "Five decisions from script to shots"
         },
         "body": {
-          "zh": "Drama Skills 的分镜技能拆镜时，要过这五个判断：\n\n1. **先把剧本对到镜头上。** 每个动作、台词、声音和画面上的字，都要落到某一镜里，或写明不拍的理由。几段原文可以合进一镜，一段也可以分给几镜。\n2. **先定职责，最后选景别。** 找出关键动作（一句台词、一次拒绝、一次转手或揭示），说清观众或人物因此有了什么变化，决定从谁的体验看，定下开头结尾必须看见什么，然后才挑景别、机位和切点。\n3. **有变化才切。** 出现新信息、新的目光、新决定、新证据、新的空间关系或节奏变化，才值得切一刀。一个双人镜可以装下好几轮对话；决定切了，景别、角度、人物关系至少有一样不同。\n4. **每个动作只发生一次。** 放钥匙、开门、亮证物，只有一个主要镜头能把状态从“之前”改成“之后”，别的镜头再碰到它，只管反应、细节或新的理解。\n5. **先排声音，再定镜长。** 多句对白按先后累加，停顿和听者反应按实际顺序插进去；边说边抬眼可以和台词共用时间，要等话说完才能做的动作单独给时间。放不下就延长、在状态清楚处拆镜或回剧本修订，台词一字不删，也不赶读。\n\n### 工作景别：一场戏里景别怎么走\n\n常见走法：第一镜比这场真正要演的距离宽一档，第二镜落进本场的工作景别，之后多在它上下一格来回；宽景、特写都算临时离开，用完就回来，场尾略微放开。一路只收不放，演到一半就无景可收。\n\n### 冻结关键帧只写起点\n\n每一镜下面还要写一段[冻结关键帧](/glossary/dongjie-guanjianzhen)提示词，只描述起点那一瞬间看得见的东西：手在镜内才去拿钥匙，起始画面里钥匙就还在桌上。动作过程交给视频提示词，见[Seedance 提示词怎么写](/drama-skills/seedance-prompts)；人物跨镜不走样，见[AI 短剧角色一致性](/drama-skills/character-consistency)。",
-          "en": "Drama Skills' storyboard skill makes five calls when breaking a script into shots:\n\n1. **Map the script to shots.** Every action, line, sound and piece of on-screen text lands in a shot or has a written reason to skip it. Several beats can share one shot; one beat can span several.\n2. **Purpose first, framing last.** Find the key action (a line, a refusal, a hand-off, a reveal), say what it changes and whose experience shapes the frame, fix what must show at start and end, then pick size, camera and cut.\n3. **Cut on change.** A cut is earned by new information, a look, a decision, evidence, a spatial relationship or a rhythm change. One two-shot can hold several rounds of dialogue; once you cut, change size, angle or relationship.\n4. **Each action happens once.** Only one primary shot moves a put-down, a door or evidence from before to after; other shots add reaction, detail or a new reading.\n5. **Sound first, then duration.** Sequential lines add up, with pauses and reactions in real order. Actions that overlap speech share its time; actions that wait for the line to finish need their own. If it won't fit, lengthen the shot, split it at a clear state change, or revise the script; never cut words or rush the line.\n\n### Working shot size\n\nA common pattern: open one step wider than the scene's playing distance, settle into its working size by shot two, then move one step either side of it. Wides and close-ups are brief departures, and the scene ends slightly wider. A scene that only tightens runs out of room by the middle.\n\n### The frozen keyframe covers the start only\n\nEach shot also gets a [frozen keyframe](/glossary/dongjie-guanjianzhen) prompt for its first instant only: if the hand reaches for the key mid-shot, the key is still on the table in that frame. Motion belongs in the video prompt ([Seedance prompt guide](/drama-skills/seedance-prompts)); for faces that hold across shots, see [character consistency](/drama-skills/character-consistency)."
+          "zh": "1. **原文先落实**：动作、对白、声音与必读文字都要由镜头承担，或明确省略理由。几段可合一镜，一段可由几镜承担，不按段落数拆镜。\n2. **先职责，后景别**：确定关键动作、观众理解、体验位置与必须看清的起止信息，再选机位。空间、等待、余波也可承担职责，不必每镜都新增秘密。\n3. **在有用的变化处切**：信息、注意、关系、空间或节奏变化支持切点。同景别同角度的切镜通常先问作用；有意跳切、停顿或风格安排按作者选择评估，不为变化随意跨轴。\n4. **状态只改变一次**：放钥匙、开门或递交，各有主要落实镜头；细节与反应不再重新完成动作。峰值回放可有意重复，但标清同一动作前后，而不是结果上再来一次。\n5. **声音先排完**：顺序对白累加，能并行的动作共用时间，必须等说完才发生的另占时间。放不下时调整镜长、切画面保留连续声音，或经作者选择修剧本，不擅自删词。\n\n**景别收放**可从交代空间的镜头进入工作距离，再在需要读细节或后果时改变；不要求每一刀固定换一档，也不强制所有场都先宽后紧。\n\n**冻结关键帧**只描述起点能看见的状态：要在镜内拿钥匙，首帧里钥匙仍在原处。可选尾帧描述终点，不能证明中间过程已经正确。原生时长或节奏档案已接受时按它们核对；未接受时按本场需要规划，不猜统一供应商秒数。",
+          "en": "1. **Map the script first.** Assign action, dialogue, sound, and required text to shots, or state why something is omitted. Several paragraphs may share a shot, and one paragraph may span several shots.\n2. **Purpose before framing.** Define action, audience understanding, experiential position, and readable boundaries before choosing the camera. Space, waiting, and aftermath can have a purpose without a new secret.\n3. **Cut at useful change.** Information, attention, relationship, space, or rhythm motivates a cut. Question identical framing and angles, but judge deliberate jump cuts or style by function. Do not cross the axis merely to create variation.\n4. **Change state once.** Placing a key, opening a door, or handing something over has a primary shot. Details and reactions do not execute it again. A peak replay can repeat deliberately with the same before/after states rather than adding another occurrence.\n5. **Schedule full sound.** Add sequential speech, share time with actions that genuinely overlap, and reserve separate time for dependent actions. Adjust duration, cut pictures under continuous sound, or seek a chosen script revision; do not silently remove words.\n\n**Framing progression** can move from geography to a working distance and change for detail or consequence. Every cut need not move one scale, and every scene need not start wide and tighten.\n\nA **frozen start frame** contains only the visible start state: a key picked up during the shot still begins where it was. An optional end frame describes the result without proving the middle action correct. Apply accepted native durations or pacing profiles when present; otherwise plan the scene without guessing universal vendor seconds."
         }
       },
       {
@@ -1550,19 +1550,19 @@
           "en": "Storyboard script example: one scene in four shots"
         },
         "body": {
-          "zh": "下面拿一场排练室的戏拆镜，秒数都按剧本文本估计。SHOT-002 和 SHOT-004 超过 8 秒，起始关键帧只管得住开头，这里按创作者认可的长镜头处理；SHOT-004 也可以在拿回钥匙后拆开。\n\n> SC01　内景·排练室门口·夜\n> 窄桌横在中间。岑夏站在桌子左侧，右手拿一把系绿布环的黄铜钥匙；周屿坐在右侧。岑夏身后有一把空椅。\n> 岑夏说话间把钥匙放到桌子中间，收回右手。\n> 岑夏：我先走。钥匙你收着。\n> 周屿看着她，没有伸手。\n> 周屿：（克制）我可以替你锁门，但不能替你告诉他们，乐队今天就散了。\n> 岑夏伸手去拿钥匙，停在钥匙上方，看着周屿。\n> 岑夏：那我等他们来。\n> 她用右手拿回钥匙，左手把身后的椅子拉近，坐下。\n\n| 镜号 | 来源 | 镜头职责 | 景别·机位·运镜（轴线侧） | 起点状态 | 动作→终点 | 对白/声音 | 时长估计 |\n|---|---|---|---|---|---|---|---|\n| SHOT-001 | SC01「钥匙你收着」 | 立起她要走、他不接 | 中景双人·平视·固定（机位在桌子一侧，岑夏画左、周屿画右） | 钥匙在岑夏右手，桌面中间空着，周屿双手在身前 | 她把钥匙放到桌子中间，松手收回→钥匙留在桌上，周屿没接 | 岑夏（画内）：“我先走。钥匙你收着。”与放钥匙重叠 | 6 秒：短句约 2 秒，余下给放钥匙和他不接 |\n| SHOT-002 | SC01「替你锁门」 | 他拒绝替她宣布散伙 | 周屿中近景·平视·固定（同一侧，视线朝画左） | 钥匙在桌子中间，周屿没伸手 | 他说完整句，手始终不碰钥匙→岑夏还没再伸手 | 周屿（画内，按括注克制）：“我可以替你锁门，但不能替你告诉他们，乐队今天就散了。” | 10 秒：整句 6–8 秒含停顿，说完留约 2 秒 |\n| SHOT-003 | SC01「停在钥匙上方」 | 把“立刻走”变成没做完的动作 | 岑夏中近景·平视·固定（同一侧，视线朝画右，右手和钥匙在画面下缘） | 岑夏右手已收回，钥匙在桌子中间 | 她右手伸向钥匙，碰到前停住，抬眼看周屿→手悬在钥匙上方 | 无对白，留住停顿 | 6 秒：伸手到停住约 2 秒，悬停对视约 4 秒 |\n| SHOT-004 | SC01「那我等他们来」及取钥匙、拉椅、坐下 | 她决定留下，新状态落地 | 中景双人·平视·固定（同一侧，身后椅子入画） | 右手悬在钥匙上方，左手空着 | 先说完短句，再右手拿回钥匙，左手拉椅坐下→岑夏坐在桌子左侧，钥匙在她右手，其他成员还没来 | 岑夏（画内）：“那我等他们来。” | 10 秒：短句 2–3 秒，取钥匙和坐下 4–5 秒，坐定再停一下 |\n\n- **景别跟着要读的东西走。** SHOT-001 的中景交代桌子、钥匙和两人距离，空间随放钥匙的动作一起到达，省掉空景全景；SHOT-002 收到周屿，读他的拒绝；SHOT-003 反打岑夏，中近景留住她悬着的手；SHOT-004 退回双人中景，让身后的椅子入画。\n- **轴线不动。** 四镜机位都在桌子同一侧，岑夏始终在画左，观众不用重新找方向。\n- **钥匙只动两次。** 放下归 SHOT-001，拿回归 SHOT-004；SHOT-002、SHOT-003 里钥匙一直停在桌子中间，谁也没碰。\n\n后三镜能不能压成一个 8 秒镜头？周屿的整句、岑夏的停顿、她的回答、取钥匙和坐下得按先后发生，压进 8 秒，要么把周屿的话删成“你自己说”，要么让岑夏没等他说完就伸手，两种都改了剧本。",
-          "en": "Durations below are text estimates. SHOT-002 and SHOT-004 run past 8 seconds, longer than one start keyframe controls, so the creator accepts them as long shots; SHOT-004 could also split after the key pick-up.\n\n> SC01. INT. REHEARSAL ROOM DOORWAY - NIGHT\n> A narrow table between them. CEN XIA stands on its left, a brass key on a green loop in her right hand. ZHOU YU sits on the right. An empty chair behind her.\n> As she speaks, Cen Xia sets the key in the middle of the table and draws her hand back.\n> CEN XIA: I'm going. You keep the key.\n> Zhou Yu watches her. He doesn't reach for it.\n> ZHOU YU: (restrained) I can lock up for you. Telling them the band broke up today is on you.\n> She reaches for the key, stops just above it, and looks at him.\n> CEN XIA: Then I'll wait for them.\n> She takes the key back in her right hand, pulls the chair closer with her left, and sits.\n\n| Shot | Source | Purpose | Framing and camera (axis side) | Start state | Action to end state | Dialogue and sound | Time estimate |\n|---|---|---|---|---|---|---|---|\n| SHOT-001 | SC01 \"You keep the key\" | She is leaving; he won't take the key | Medium two-shot, eye level, locked (one side of the table; she is screen left) | Key in her right hand; table center empty | She sets the key down and withdraws; key stays, untaken | Cen Xia (on screen): \"I'm going. You keep the key.\" Over the put-down | 6 s: line about 2 s, then the put-down and his stillness |\n| SHOT-002 | SC01 \"lock up for you\" | He refuses to announce the break-up | Medium close-up on Zhou Yu, eye level, locked (same side; eyeline left) | Key at table center | He finishes the line without touching the key; she hasn't reached again | Zhou Yu (on screen, restrained as written): \"I can lock up for you. Telling them the band broke up today is on you.\" | 10 s: line 6–8 s with pauses, about 2 s after |\n| SHOT-003 | SC01 \"stops just above it\" | Leaving becomes an unfinished gesture | Medium close-up on Cen Xia, eye level, locked (same side; eyeline right; hand and key low in frame) | Her hand withdrawn; key at table center | She reaches, stops short, looks up at him; hand hovering | None; hold the pause | 6 s: reach about 2 s, hover and look about 4 s |\n| SHOT-004 | SC01 \"wait for them\" and the sit-down | She decides to stay | Medium two-shot, eye level, locked (same side; chair in frame) | Hand hovering; left hand empty | Line, then key, chair, sits; seated, key in her right hand, nobody else has arrived | Cen Xia (on screen): \"Then I'll wait for them.\" | 10 s: line 2–3 s, key and chair 4–5 s, a beat seated |\n\n- **Framing follows what must be read.** The opening medium shot gives table, key and distance at once, with no empty establishing wide. SHOT-002 tightens on his refusal, SHOT-003 reverses to her hovering hand in a medium close-up, and SHOT-004 opens back to the two-shot for the chair.\n- **The axis stays put.** All four set-ups stay on one side of the table; she is always screen left.\n- **The key moves twice.** Put-down in SHOT-001, pick-up in SHOT-004; in between it sits untouched at table center.\n\nCould the last three shots share one 8-second shot? Only by cutting his line to \"tell them yourself\" or having her reach before he finishes, and both rewrite the script."
+          "zh": "下面保留同一场排练室戏的四镜方案。秒数全部是按本页台词与动作作的文本规划，未实际录音，也不是目标模型的官方档位。确定生成模型后再核对已接受时长；SHOT-004若需拆开，可在拿回钥匙后的清楚状态闭合点分开。\n\n> SC01　内景·排练室门口·夜\n> 窄桌横在中间。岑夏站在桌子左侧，右手拿一把系绿布环的黄铜钥匙；周屿坐在右侧。岑夏身后有一把空椅。\n> 岑夏说话间把钥匙放到桌子中间，收回右手。\n> 岑夏：我先走。钥匙你收着。\n> 周屿看着她，没有伸手。\n> 周屿：（克制）我可以替你锁门，但不能替你告诉他们，乐队今天就散了。\n> 岑夏伸手去拿钥匙，停在钥匙上方，看着周屿。\n> 岑夏：那我等他们来。\n> 她用右手拿回钥匙，左手把身后的椅子拉近，坐下。\n\n| 镜头 | 记录 |\n|---|---|\n| SHOT-001 | **来源**: SC01「钥匙你收着」; **职责**: 立起她要走、他不接; **画面**: 中景双人·平视·固定（机位在桌子一侧，岑夏画左、周屿画右）; **起点**: 钥匙在岑夏右手，桌面中间空着，周屿双手在身前; **动作与终点**: 她把钥匙放到桌子中间，松手收回→钥匙留在桌上，周屿没接; **声音**: 岑夏（画内）：“我先走。钥匙你收着。”与放钥匙重叠; **估时**: 6 秒：短句约 2 秒，余下给放钥匙和他不接 |\n| SHOT-002 | **来源**: SC01「替你锁门」; **职责**: 他拒绝替她宣布散伙; **画面**: 周屿中近景·平视·固定（同一侧，视线朝画左）; **起点**: 钥匙在桌子中间，周屿没伸手; **动作与终点**: 他说完整句，手始终不碰钥匙→岑夏还没再伸手; **声音**: 周屿（画内，按括注克制）：“我可以替你锁门，但不能替你告诉他们，乐队今天就散了。”; **估时**: 10 秒：整句 6–8 秒含停顿，说完留约 2 秒 |\n| SHOT-003 | **来源**: SC01「停在钥匙上方」; **职责**: 把“立刻走”变成没做完的动作; **画面**: 岑夏中近景·平视·固定（同一侧，视线朝画右，右手和钥匙在画面下缘）; **起点**: 岑夏右手已收回，钥匙在桌子中间; **动作与终点**: 她右手伸向钥匙，碰到前停住，抬眼看周屿→手悬在钥匙上方; **声音**: 无对白，留住停顿; **估时**: 6 秒：伸手到停住约 2 秒，悬停对视约 4 秒 |\n| SHOT-004 | **来源**: SC01「那我等他们来」及取钥匙、拉椅、坐下; **职责**: 她决定留下，新状态落地; **画面**: 中景双人·平视·固定（同一侧，身后椅子入画）; **起点**: 右手悬在钥匙上方，左手空着; **动作与终点**: 先说完短句，再右手拿回钥匙，左手拉椅坐下→岑夏坐在桌子左侧，钥匙在她右手，其他成员还没来; **声音**: 岑夏（画内）：“那我等他们来。”; **估时**: 10 秒：短句 2–3 秒，取钥匙和坐下 4–5 秒，坐定再停一下 |\n\n- **景别跟着要读的东西走。** SHOT-001 的中景交代桌子、钥匙和两人距离，空间随放钥匙的动作一起到达，省掉空景全景；SHOT-002 收到周屿，读他的拒绝；SHOT-003 反打岑夏，中近景留住她悬着的手；SHOT-004 退回双人中景，让身后的椅子入画。\n- **轴线不动。** 四镜机位都在桌子同一侧；双人镜里岑夏在画左、周屿在画右，单人反打分别保留朝右与朝左的视线。人物未入画时不硬说她仍占画面左侧。\n- **钥匙只动两次。** 放下归 SHOT-001，拿回归 SHOT-004；SHOT-002、SHOT-003 里钥匙一直停在桌子中间，谁也没碰。\n\n按上表当前估算，后三镜的顺序内容放不进一个8秒镜头；真实表演时长仍需录音或排练核对。不要为了压时长把周屿整句删成“你自己说”，或让岑夏在规定的听完之前伸手。可改切点、安排连续声音覆盖，或由作者修订停顿与剧情；不声称只有两种处理办法。",
+          "en": "This preserves the same four-shot rehearsal-room plan. Durations are text estimates for these lines and actions, without recorded timing or an official model duration selected. Check accepted generation durations later; SHOT-004 can split at the clear state after the key returns to her hand.\n\n> SC01. INT. REHEARSAL ROOM DOORWAY - NIGHT\n> A narrow table between them. CEN XIA stands on its left, a brass key on a green loop in her right hand. ZHOU YU sits on the right. An empty chair behind her.\n> As she speaks, Cen Xia sets the key in the middle of the table and draws her hand back.\n> CEN XIA: I'm going. You keep the key.\n> Zhou Yu watches her. He doesn't reach for it.\n> ZHOU YU: (restrained) I can lock up for you. Telling them the band broke up today is on you.\n> She reaches for the key, stops just above it, and looks at him.\n> CEN XIA: Then I'll wait for them.\n> She takes the key back in her right hand, pulls the chair closer with her left, and sits.\n\n| Shot | Notes |\n|---|---|\n| SHOT-001 | **Source**: SC01 \"You keep the key\"; **Purpose**: She is leaving; he won't take the key; **Picture**: Medium two-shot, eye level, locked (one side of the table; she is screen left); **Start**: Key in her right hand; table center empty; **Action/end**: She sets the key down and withdraws; key stays, untaken; **Sound**: Cen Xia (on screen): \"I'm going. You keep the key.\" Over the put-down; **Estimate**: 6 s: line about 2 s, then the put-down and his stillness |\n| SHOT-002 | **Source**: SC01 \"lock up for you\"; **Purpose**: He refuses to announce the break-up; **Picture**: Medium close-up on Zhou Yu, eye level, locked (same side; eyeline left); **Start**: Key at table center; **Action/end**: He finishes the line without touching the key; she hasn't reached again; **Sound**: Zhou Yu (on screen, restrained as written): \"I can lock up for you. Telling them the band broke up today is on you.\"; **Estimate**: 10 s: line 6–8 s with pauses, about 2 s after |\n| SHOT-003 | **Source**: SC01 \"stops just above it\"; **Purpose**: Leaving becomes an unfinished gesture; **Picture**: Medium close-up on Cen Xia, eye level, locked (same side; eyeline right; hand and key low in frame); **Start**: Her hand withdrawn; key at table center; **Action/end**: She reaches, stops short, looks up at him; hand hovering; **Sound**: None; hold the pause; **Estimate**: 6 s: reach about 2 s, hover and look about 4 s |\n| SHOT-004 | **Source**: SC01 \"wait for them\" and the sit-down; **Purpose**: She decides to stay; **Picture**: Medium two-shot, eye level, locked (same side; chair in frame); **Start**: Hand hovering; left hand empty; **Action/end**: Line, then key, chair, sits; seated, key in her right hand, nobody else has arrived; **Sound**: Cen Xia (on screen): \"Then I'll wait for them.\"; **Estimate**: 10 s: line 2–3 s, key and chair 4–5 s, a beat seated |\n\n- **Framing follows what must be read.** The opening medium shot gives table, key and distance at once, with no empty establishing wide. SHOT-002 tightens on his refusal, SHOT-003 reverses to her hovering hand in a medium close-up, and SHOT-004 opens back to the two-shot for the chair.\n- **The axis stays put.** All four set-ups stay on one side of the table. Two-shots place Cen Xia left and Zhou Yu right; single-person coverage preserves their rightward and leftward eyelines. An offscreen person has no required place within that picture.\n- **The key moves twice.** Put-down in SHOT-001, pick-up in SHOT-004; in between it sits untouched at table center.\n\nUnder the current estimates, the sequential content of the last three shots does not fit eight seconds. Actual delivery still needs recording or rehearsal. Do not cut his line to \"tell them yourself\" or make her reach before the specified response time. Adjust cuts, preserve continuous sound over pictures, or let the creator revise pauses and story action; these are not the only two possible repairs."
         }
       },
       {
         "id": "storyboard-script-mistakes",
         "heading": {
-          "zh": "分镜脚本常见问题和改法",
-          "en": "Common storyboard script mistakes and fixes"
+          "zh": "分镜常见问题与修法",
+          "en": "Common storyboard problems and repairs"
         },
         "body": {
-          "zh": "- **镜头表只是把剧本抄了一遍。** 每镜补上职责：结束时谁多知道了什么、谁的处境变了。说不出来，就并进前后镜。\n- **切了等于没切。** 相邻两镜景别、角度、人物关系都没变，观众读到的是跳切。沿中景、中近景、近景、特写相邻换一格，或换到轴线另一侧，或两镜合一，靠走位在镜内改变关系。\n- **同一个动作演了两遍，道具切镜后换了位置。** 把转手、开门、拿证物逐条列出：归哪一镜、前后各是什么状态。只有归属的那一镜能改状态。\n- **保留了对白，删掉了承受者的反应。** 打击、拒绝、翻盘要让观众看懂后果，就给一个可读的反应：反应镜、双人镜里的调度、声音或物件状态都行；画面已经清楚就不必补镜。",
-          "en": "- **The shot list just restates the script.** Give each shot a purpose: what does the viewer know, or whose situation changed, by its end? If you can't say, merge it with a neighbor.\n- **A cut that changes nothing.** Same size, angle and relationship in adjacent shots reads as a jump cut. Step one rung along medium shot, medium close-up, close shot, close-up; switch axis side; or merge the shots and let blocking change the relationship.\n- **An action plays twice, or a prop jumps.** List each hand-off, door or piece of evidence with the shot that owns it and its before and after states; only that shot changes them.\n- **Dialogue kept, reaction dropped.** When a refusal's consequence must land, give it a readable carrier: a reaction shot, blocking in a two-shot, a sound, an object's state, or nothing extra if the frame already shows it."
+          "zh": "| 问题 | 修法 |\n|---|---|\n| 表格只是改写剧本 | 补观众从哪看、必须看懂什么；已有画面能承担就合并，不把气氛与等待自动判无用 |\n| 切镜没有可读作用 | 检查注意、关系、空间、节奏；按明确风格安排判断，不随机跨轴制造变化 |\n| 同一动作被再次执行 | 记主要镜头、动作前后和其他镜头作用；有意回放注明，不让持物逐次累加 |\n| 道具切镜后换位 | 对照实际空间与持物；画外不等于物件消失，补真实动作或声明省略 |\n| 对白有了，后果不可读 | 给听者反应、同框调度、声音或物件状态；已有后果清楚就不额外加反应镜 |\n| 一个关键帧被当整段成功保证 | 首帧只固定起始图，尾帧也不能证明中间动作，生成后逐段核对 |\n| 用统一秒数压完整台词 | 以声音与动作时间线排镜，再按接受的项目档案与生成方式处理 |\n\n文章里的两列表是手写规划；交正式skill时提供当前剧本与视觉事实，让每镜按原生块结构写，别把文章表格反当工具格式。",
+          "en": "| Problem | Repair |\n|---|---|\n| A table merely rewrites the script | Define the viewing position and required understanding; combine redundant coverage without rejecting atmosphere or waiting |\n| A cut adds no readable function | Inspect attention, relationship, space, and rhythm; judge chosen style without arbitrary axis changes |\n| An action executes again | Record its primary shot and before/after states; mark deliberate replay without cumulative possession changes |\n| An object relocates at a cut | Compare geography and possession; offscreen does not mean absent. Supply an action or declared omission |\n| Speech is present but its effect unreadable | Use listener reaction, staging, sound, or an object. Add no reaction shot when the effect is already clear |\n| A keyframe treated as a whole-shot guarantee | A start frame anchors an image; an end frame does not prove the middle. Inspect generated footage |\n| Universal seconds squeeze full dialogue | Schedule sound and action, then apply accepted project choices and generation form |\n\nThe two-column records are planning worksheets. Give the native skill the current script and visual facts to write shot blocks rather than treating the article table as its file format."
         }
       }
     ],
@@ -1573,8 +1573,8 @@
           "en": "How long should one storyboard shot be?"
         },
         "a": {
-          "zh": "按 Drama Skills 生产镜头语法的起步默认，竖屏短剧大致每 4–8 秒切一次镜。具体到某一镜，从它必须保留的动作、反应和对白倒推；项目定了生成时长档位，就取容得下它的最短一档。单镜超过约 5–8 秒，一张起始关键帧只管得住开头，更长的镜头要么在状态清楚处拆开，要么由创作者接受后段没有关键帧可对照。",
-          "en": "Drama Skills' production grammar defaults to roughly one cut every 4–8 seconds for vertical short drama. For a single shot, work backwards from the action, reaction and dialogue it must keep, and take the shortest fixed generation length that fits. Past about 5–8 seconds a start keyframe pins down only the opening: split where the state is clear, or accept the rest unchecked."
+          "zh": "没有统一秒数。先排完整对白、关键声音、动作与必要反应；有实际录音就用发声区间，没有就标明文本估计。已接受的项目节奏档案与模型时长决定后续分配；放不下可延长、切画面保留连续声音或修剧本。一张首帧图没有适用于所有模型的5–8秒保证。",
+          "en": "There is no universal duration. Schedule complete speech, key sound, action, and necessary response. Use recorded speaking intervals when available or label text estimates. Accepted project pacing and model durations guide allocation. Extend, cut pictures under continuous sound, or revise the script when needed. A start image has no universal five-to-eight-second guarantee."
         }
       },
       {
@@ -1617,10 +1617,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "原文落实、镜头职责、连续性与对白估时",
+          "en": "Source coverage, shot purpose, continuity, and speech timing"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/shot-craft.md"
+      },
+      {
+        "label": {
+          "zh": "正式镜头块与冻结关键帧入口",
+          "en": "Native shot blocks and frozen keyframe entry"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/SKILL.md"
       }
     ]
   },
@@ -1957,7 +1964,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "短剧付费卡点怎么设计：卡点前要欠观众什么",
       "en": "How to Design a Paywall Cliffhanger for a Short Drama"
@@ -1971,63 +1978,63 @@
       "en": "Establish characters, rules, and stakes; produce a partial result; let it start the next action. Includes a placement table and multi-episode example."
     },
     "answer": {
-      "zh": "短剧付费卡点放在一次尚未兑现的关键行动前。候选集统一检查四项：人物、规则与失败赌注已经建立；本集产生局部结果；这个结果启动了仍未兑现的下一行动；下一集先偿还一个可见动作或即时后果。把四项逐集填入分集地图，第一次全部成立的位置就是最早候选，再从多个候选中选择最贴近主线承诺、下一集偿还最直接的一集。",
-      "en": "Place a short-drama paywall break immediately before a crucial action that has not yet been delivered. Evaluate every candidate episode on four points: the characters, rules, and stakes are established; the episode produces a partial result; that result starts an unfinished next action; and the next episode promptly delivers a visible action or immediate consequence. Fill these four fields into the episode map. The first episode where all four are concrete is the earliest candidate; among several candidates, choose the one closest to the story’s central promise and with the most direct next-episode payoff."
+      "zh": "付费卡点先按项目已经声明的观看门槛安排，再检查叙事位置：观众关心的问题已有铺垫，本集给出自己的局部回报，仍留下值得继续看的具体行动或关系问题，下一集接住并推进。用同一检查表比较候选，不把第一次填全的集自动判为最佳，也不靠临时藏一句台词制造欠账。",
+      "en": "Start with the viewing threshold the project has actually chosen. At a candidate break, establish the question viewers care about, deliver this episode’s local payoff, retain a specific action or relationship question, and make the next episode inherit and advance it. Compare candidates with the same worksheet; the earliest complete row is not automatically best, and hiding one line does not create an earned promise."
     },
     "sections": [
       {
         "id": "what-is-paywall-episode",
         "heading": {
           "zh": "短剧付费卡点是什么意思？",
-          "en": "What Is a Short-Drama Paywall Break?"
+          "en": "What is a short-drama paywall break?"
         },
         "body": {
-          "zh": "**付费卡点**是观看路径里的门槛位置：观众继续观看前，需要完成项目已经声明的解锁、跳转、等待或其他动作。本页服务正在编写分集地图的创作者，门槛形式和预定集号由项目方确定。\n\n一个可用的候选集统一检查四项：\n\n1. **人物、规则与失败赌注已建立**：观众知道谁在争取什么、怎样才算失败。\n2. **本集产生局部结果**：信息、关系、权力、风险或物理状态已经改变。\n3. **结果启动仍未兑现的下一行动**：人物因本集结果作出决定并开始下一步。\n4. **下一集先偿还可见动作或即时后果**：开场直接完成动作，或让已经启动的后果落下。\n\n卡点前的“欠”要具体。欠的是直播连接键能否亮起、约定是否兑现、人物会不会按下公开按钮、刚启动的反制怎样落下。只留一句没说完的话，观众无法形成可追踪的问题。",
-          "en": "A **paywall break** is a threshold in the viewing path: before continuing, viewers must complete an unlock, follow a link, wait, or take another action the project has already declared. This page is for creators who are writing an episode map. The project determines the threshold’s form and any planned episode number.\n\nEvaluate every candidate episode on the same four points:\n\n1. **Characters, rules, and failure stakes are established.** Viewers know who is pursuing what and what failure costs.\n2. **This episode produces a partial result.** Information, relationships, power, risk, or a physical state has changed.\n3. **That result initiates an unfinished next action.** A character decides and starts the next step because of the episode’s outcome.\n4. **The next episode first delivers a visible action or immediate consequence.** Its opening completes the action or lets the already initiated consequence land.\n\nWhat the story “owes” before the break must be specific: whether the livestream connection button lights up, whether a promise is honored, whether a character presses the publish button, or how an initiated countermeasure lands. Cutting off one unfinished line of dialogue gives viewers no concrete question to track."
+          "zh": "付费卡点是项目已声明的观看门槛；解锁、跳转、等待或其他形式由项目确定。故事没有选择这类门槛时，不必主动加。本页只讨论编剧怎样安排叙事位置，不根据统一集号承诺付费或留存结果。\n\n根据分集方法，可用四项编辑检查：\n\n1. **投入已建立**：观众知道谁争取什么，规则与失败意味着什么。\n2. **本集有局部回报**：信息、关系、选择、风险或情绪已得到可读结果，不只许诺。\n3. **仍有具体期待**：本集结果让下一行动、回应或问题值得继续看。\n4. **后集接得住**：开场继承现有状态，并兑现或实质推进期待，不换线重开。\n\n这四项是本文手写检查表，不是 skill 的新增字段或质量分数。卡点可以落在揭示、决定、关系回应或行动结果前；前文要让观众认识赌注，不能只靠新角色临时丢来秘密。",
+          "en": "A paywall break is a viewing threshold the project has declared. Unlocking, moving elsewhere, waiting, or another form belongs to that project. Do not add one to a story that has not chosen it. This page discusses narrative placement rather than promising conversion or retention from an episode number.\n\nUse four editorial checks drawn from the episode method:\n\n1. **Established investment:** Viewers know who wants what, the relevant rules, and what failure means.\n2. **Local payoff:** Information, relationship, choice, risk, or emotion reaches a readable result rather than another promise.\n3. **Specific remaining expectation:** The result makes an action, response, or question worth continuing.\n4. **A continuation that works:** The opening inherits the actual state and fulfills or advances the expectation instead of restarting another line.\n\nThis is the article’s worksheet, not new native skill fields or a quality score. A break may precede a reveal, choice, relationship response, or action result. Establish the stakes rather than introducing a stranger with a convenient secret."
         }
       },
       {
         "id": "placement-table",
         "heading": {
-          "zh": "短剧付费卡点一般在第几集？",
-          "en": "Which Episode Should Carry the Paywall Break?"
+          "zh": "在分集地图里比较卡点位置",
+          "en": "Compare positions in the episode map"
         },
         "body": {
-          "zh": "集号由项目的分集长度、故事密度和观看路径共同决定。先在分集地图中找叙事位置，再把项目声明的门槛对齐到这个位置。可复制以下五列表：\n\n| 集 | 人物／规则／失败赌注已建立 | 本集局部结果 | 结果启动、尚未兑现的下一行动 | 下一集先偿还的动作或后果 |\n|---|---|---|---|---|\n| EP___ | 谁争取什么；按什么规则；失败失去什么 | ___确实获得／失去／公开／拒绝了什么 | 因此谁立即开始做什么 | 下一集第一场完成什么或让什么后果落下 |\n\n逐集填写时按这个顺序判断：\n\n1. 标出人物、规则和失败代价已经落地的集数；没投入过的问题先回前文建立。\n2. 写出每集确实产生的局部结果。只有背景交代、人物介绍或重复承诺的集先补行动结果。\n3. 从局部结果往后追，写清它迫使谁开始了哪一步行动。\n4. 把这一步写进“尚未兑现的下一行动”，再写下一集第一场怎样偿还。\n5. 四栏第一次都能填成具体事实的位置就是最早候选；出现多个候选时，选择最贴近主线承诺、偿还最直接的一处。\n\n项目已有固定门槛集时，也用同一张表检查该集；任何一栏只能写抽象词，就回到对应分集补事实。",
-          "en": "The episode number depends on installment length, story density, and the viewing path. Find the narrative position in the episode map first, then align the project’s declared threshold with it. Use this five-column table:\n\n| Episode | Characters / rules / failure stakes established | Partial result in this episode | Unfinished next action initiated by the result | Action or consequence delivered first in the next episode |\n|---|---|---|---|---|\n| EP___ | Who wants what; under which rule; what failure costs | What was actually gained / lost / disclosed / refused | Who immediately begins doing what because of it | What the first scene completes or lets land |\n\nFill it episode by episode in this order:\n\n1. Mark where the characters, rules, and cost of failure are already established. If viewers have never invested in the question, establish it earlier.\n2. Record the partial result each episode actually produces. If an episode contains only background, introductions, or a repeated promise, add an action with an outcome.\n3. Follow that result forward and identify who it forces to begin which action.\n4. Put that step in “unfinished next action,” then state how the next episode’s first scene delivers it.\n5. The first episode where all four content columns contain concrete facts is the earliest candidate. If several qualify, prefer the one closest to the central promise and with the most direct payoff.\n\nIf the project already has a fixed threshold episode, test that episode with the same table. When any field can contain only an abstraction, return to the relevant episode and add the missing fact."
+          "zh": "| 集号 | 四项内容写在同一格 |\n|---|---|\n| EP___ | **已有投入**：人物、规则、失败影响。**本集回报**：确实得到、失去、确认或决定了什么。**剩余期待**：谁开始或将回应哪一步。**下集承接**：先发生什么，保留哪些知情、持物与权限。 |\n\n逐集填可找到有依据的候选。最早完整的一行只说明它可以被拿来比较，不决定卡点必须在那里。再看哪个候选更贴近主线承诺，前面的投入够不够，门槛后能否尽快给出读得懂的回报，以及项目是否已经固定观看位置。\n\n已有固定集号时，先修该处缺失的铺垫和承接，不为了填表凭空追加事故。没有固定集号时，可以调整边界，但保留各集自己的回报；同一问题不靠反复截断延长。",
+          "en": "| Episode | Keep the four checks together |\n|---|---|\n| EP___ | **Investment:** People, rules, effect of failure. **Payoff:** What is actually gained, lost, confirmed, or decided. **Expectation:** Who begins or will respond to which next step. **Continuation:** What happens first and which knowledge, possession, and authority remain. |\n\nConcrete rows identify candidates. The earliest complete row is a point to compare, not a compulsory placement. Compare closeness to the central promise, sufficient investment, a readable payoff after the threshold, and any position already fixed by the project.\n\nFor a fixed episode, repair its setup and handover without inventing an accident for the table. With flexible placement, adjust boundaries while preserving local payoffs. Repeated interruption of one question does not strengthen it."
         }
       },
       {
         "id": "worked-example",
         "heading": {
-          "zh": "原创案例：社区观测名额的四集连续地图",
-          "en": "Original Example: A Four-Episode Map for the Community Observation Slot"
+          "zh": "原创案例：社区观测名额的四集地图",
+          "en": "Original example: four episodes around an observation slot"
         },
         "body": {
-          "zh": "下面是为本页编写的虚构案例。社区天文社负责人孟知遥带孩子们准备流星雨公开观测，远程望远镜的十二分钟接入名额却从排期屏上消失。十二分钟和名额转移流程均为本案例的虚构设定。\n\n| 集 | 人物／规则／失败赌注已建立 | 本集局部结果 | 结果启动、尚未兑现的下一行动 | 下一集先偿还的动作或后果 |\n|---|---|---|---|---|\n| EP02 | 孟知遥要保住当晚观测；错过流星雨窗口，孩子们的活动取消 | 上月测试录像证明社区账号曾成功控制望远镜 | 她要求值守员调出名额转移的触发读数 | EP03 第一场展示持续异常的雨量记录 |\n| EP03 | 雨量读数持续异常会把名额转给备用点；窗口只在当晚开放 | 孟知遥发现屋顶喷淋打湿传感器，关掉喷淋后读数开始回落 | 她守着排期屏等待系统恢复原预约 | EP04 开场出现“正在恢复原预约” |\n| EP04 | 恢复流程启动后仍可进入人工复核；流星雨窗口临近 | 排期屏重新显示社区名称；赞助团队负责人随即提交复核请求 | 孟知遥守在控制台等待复核计时结束 | EP05 开场让计时归零、连接键亮起 |\n| EP05 | 孩子们已在广场等待；控制台解锁才能把星野传到幕布 | 控制台解锁，第一幅实时星野传到广场 | 孟知遥开始用测试录像里的校准星修正镜架偏差 | 后续第一场先让目标星回到取景框中央 |\n\nEP02 四栏已经全部成立，因此它是最早候选。它欠的是“为什么名额被转移”，下一集用雨量记录立即偿还。EP03 把规则、现场原因和时间压力接在一起，候选压力更集中。EP04 又让恢复结果与人工复核正面相撞，而“控制台能否解锁”更贴近本故事的公开观测承诺；项目因此可以选择 EP04 作为门槛集。若这样安排，EP05 第一场必须先让复核计时结束、连接键亮起，再开启镜架校准的新任务。\n\n同一条因果链可以写成一句检查语：`因为排期屏已经恢复社区名称，所以孟知遥守在控制台等待复核结束；尚未兑现的行动是完成连接，而下一集先让连接键亮起。` 四项都能回填到表格，候选卡点才成立。",
-          "en": "The following fictional case was created for this page. Meng Zhiyao leads a community astronomy club preparing a public meteor-shower observation for local children. Their twelve-minute remote-telescope access slot disappears from the schedule. Both the twelve-minute duration and the transfer process are fictional elements of this example.\n\n| Episode | Characters / rules / failure stakes established | Partial result in this episode | Unfinished next action initiated by the result | First payoff in the next episode |\n|---|---|---|---|---|\n| EP02 | Meng Zhiyao wants to preserve that evening’s observation; missing the meteor-shower window cancels the children’s event | Last month’s test recording proves the community account previously controlled the telescope | She asks the operator to retrieve the sensor reading that triggered the slot transfer | EP03 opens on a sustained abnormal rainfall reading |\n| EP03 | Continued abnormal rainfall transfers the slot to a backup site; the observation window opens only that night | Meng Zhiyao discovers a rooftop sprinkler wetting the sensor; the reading begins to fall after she turns it off | She watches the schedule and waits for the original reservation to return | EP04 opens with “Restoring original reservation” on screen |\n| EP04 | A restoration already in progress may still enter manual review; the meteor-shower window is approaching | The community name returns to the schedule; the sponsor team’s lead immediately requests a review | Meng Zhiyao remains at the console and waits for the review timer to expire | EP05 opens with the timer reaching zero and the connection button lighting up |\n| EP05 | The children are waiting in the square; the console must unlock before the star field can reach the screen | The console unlocks and sends the first live star field to the square | Meng Zhiyao uses the calibration star in the test recording to correct the mount’s drift | The next scene first brings the target star back to the center of the viewfinder |\n\nEP02 already satisfies all four columns, so it is the earliest candidate. It owes an answer to “Why was the slot transferred?” and EP03 immediately pays that off with the rainfall record. EP03 connects the rule, the physical cause, and the time pressure, making it a more concentrated candidate. EP04 then puts the restored booking into direct conflict with manual review. “Will the console unlock?” lies closer to this story’s promise of a public observation, so the project may choose EP04 as the threshold episode. If it does, EP05 must first let the review timer expire and the connection button light up before beginning the new task of calibrating the telescope mount.\n\nThe same causal chain can be written as one checking sentence: `Because the community name has returned to the schedule, Meng Zhiyao stays at the console until the review ends. The unfinished action is completing the connection, and the next episode first shows the connection button lighting up.` A candidate is valid only when all four columns can be reconstructed from it."
+          "zh": "以下规则为本页虚构故事设定，不是现实观测系统的技术说明。社区天文社负责人孟知遥带孩子准备当晚的公开观测：望远镜在同楼屋顶，值守员在楼下控制台操作，画面通过网络送到广场。孟负责活动，无权擅自开设备、进入维护区或修改预约。\n\n**EP01先建立**：社区有已确认的十二分钟预约；本故事的持续雨量报警会把预约转到备用点。报警消失后，值守员核对现场和记录，可以申请恢复。恢复结果公布后，既有赞助团队有一次复核机会；复核按已展示的预约顺序处理，不是计时归零就必然批准。赞助团队、权限和规则先出现，不能在卡点才补。\n\n| 集 | 连续变化 |\n|---|---|\n| EP02 | **压力**：预约从屏上消失，孩子已准备到广场。**结果**：孟要求核对，值守员实际调出本次转移记录，确认由屋顶雨量报警触发，而非社区取消。**下一步**：孟请求检查现场，值守员同意陪她到维护区。**EP03承接**：两人实际到屋顶核查，不把获准当成已查明。 |\n| EP03 | **结果**：两人看到楼内喷淋的水正落在传感器处；值守员联系负责喷淋的工作人员，工作人员关掉喷淋。读数回落，值守员核对现场后提交恢复，系统显示“待核对原预约”。**下一步**：孟准备原预约回执协助核对。**EP04承接**：值守员读取回执与排期记录，实际恢复社区名称；回落本身不等于已经恢复。 |\n| EP04 | **结果**：社区预约恢复，赞助团队随即提交已建立规则允许的复核，连接仍未开放。孟把回执交值守员，要求按先后核对；值守员展示双方记录并开始处理。**期待**：复核后谁得到当晚连接？**EP05承接**：先给出实际核对与回复，不让孟只等一个倒计时。 |\n| EP05 | **兑现**：值守员确认社区预约在先，按已建立规则保留名额，赞助团队获知回复；控制台显示获准连接。值守员实际按键，广场协作员确认收到实时星野，孩子们看见画面。**后续**：孟开始既定的观测讲解，不再把已解决的连接问题重演一次。 |\n\nEP02适合接出现场原因，EP03适合接出预约能否恢复，EP04更直接指向活动能否开始。项目若选择EP04为门槛集，EP05应先兑现复核结果和实际传送。屏上获准、按键传送和广场收到是三个不同事实；四集完成了预约争议，不保证读者会付费，也不代表所有天文活动都按此运作。",
+          "en": "These rules belong to an original fictional story, not a technical description of a real observatory. Meng Zhiyao leads a community astronomy event that evening. The telescope is on the same building’s roof, an operator controls it downstairs, and its picture reaches the square over a network. Meng runs the event but cannot operate equipment, enter maintenance space, or alter bookings unilaterally.\n\n**Establish in EP01:** The community has a confirmed twelve-minute booking. A sustained rainfall alarm transfers it to a backup site in this fictional system. After the alarm clears, the operator can inspect conditions and records and request restoration. An introduced sponsor team may request one review after restoration. That review follows the already shown booking order; timer expiry does not guarantee approval. Establish people, authority, and rules before the break.\n\n| Episode | Notes |\n|---|---|\n| EP02 | **Pressure:** The booking vanishes; children are ready for the square. **Result:** At Meng’s request, the operator retrieves the current transfer record and confirms a roof rainfall alarm caused it, rather than community cancellation. **Next step:** The operator agrees to accompany her to inspect. **EP03:** They actually reach the roof; permission to inspect is not a discovered cause. |\n| EP03 | **Result:** They see water from the building sprinkler reaching the sensor. The operator contacts the responsible worker, who turns the sprinkler off. Readings fall; after inspection, the operator submits restoration, and the screen says the original booking awaits verification. **Next step:** Meng prepares the booking receipt. **EP04:** The operator actually compares it with the schedule and restores the community name. Falling readings alone are not restoration. |\n| EP04 | **Result:** The booking returns, but the introduced sponsor team requests its permitted review, keeping connection closed. Meng submits her receipt and asks for an order check. The operator displays both records and begins processing. **Expectation:** Who receives access after review? **EP05:** Show the actual comparison and response rather than merely ending a countdown. |\n| EP05 | **Payoff:** The operator confirms the community booked first and retains its slot under the established rule. The sponsor team receives the response, and the console authorizes connection. The operator presses the button; a collaborator in the square confirms receipt of the live star field, which the children see. **Continuation:** Meng starts the planned commentary rather than repeating the solved connection problem. |\n\nEP02 leads to the physical cause, EP03 to restoration, and EP04 most directly to whether the event can begin. If the project chooses EP04 as its threshold, EP05 first delivers review and transmission. Authorization on screen, transmission, and receipt in the square are distinct facts. The episodes resolve a booking dispute without guaranteeing payment or describing all astronomy events."
         }
       },
       {
         "id": "pressure-chain",
         "heading": {
-          "zh": "卡点前要铺什么：人物、规则、代价与行动",
-          "en": "What to Establish Before the Break: Characters, Rules, Stakes, and Action"
+          "zh": "卡点前要铺什么",
+          "en": "What to establish before the break"
         },
         "body": {
-          "zh": "门槛处的悬念只使用观众已经投入过的事实。按以下顺序检查铺垫：\n\n| 要素 | 分集地图里写什么 | 缺失时怎样补 |\n|---|---|---|\n| 人物 | 谁承担结果，谁会反制 | 提前让双方完成一次有后果的选择 |\n| 规则 | 雨量读数触发名额转移、恢复后还能进入人工复核 | 用行动验证规则，删去口头说明堆积 |\n| 代价 | 错过流星雨窗口，孩子们的公开观测取消 | 让代价影响人物当下策略 |\n| 局部结果 | 读数确实回落、排期屏恢复社区名称 | 本集至少改变一种状态 |\n| 下一步行动 | 等复核倒计时、按连接键、重新校准镜架 | 让结果直接触发动作，不另加随机事故 |\n\n悬念依赖新人物、新能力或临时规则时，观众只能等作者补信息；悬念依赖已经建立的赌注时，观众能预测回报的形状，又不知道人物能否拿到它。后者才适合作为门槛前的叙事债。",
-          "en": "Suspense at the threshold should use only facts in which viewers have already invested. Check the setup in this order:\n\n| Element | What to record in the episode map | What to add if it is missing |\n|---|---|---|\n| Characters | Who bears the outcome, and who will counter it | Let both sides make an earlier choice with consequences |\n| Rules | Rainfall triggers a slot transfer; a restored slot can still enter manual review | Verify rules through action and cut stacked verbal explanation |\n| Stakes | Missing the meteor-shower window cancels the children’s public observation | Let the cost affect the character’s current strategy |\n| Partial result | The reading truly falls; the community name returns to the schedule | Change at least one state during the episode |\n| Next action | Wait out the review timer, press the connection button, recalibrate the telescope mount | Let the result trigger the action instead of adding a random accident |\n\nWhen suspense depends on a new character, a new ability, or a temporary rule, viewers can only wait for the author to supply missing information. When it depends on established stakes, viewers can anticipate the shape of the reward without knowing whether the characters will obtain it. Only the latter creates a useful narrative debt before the threshold."
+          "zh": "| 要素 | 在本案例中的落点 |\n|---|---|\n| 人物与赌注 | 社区活动、孩子已准备，孟负责组织；不是最后才加一群失望观众 |\n| 规则与权限 | 值守员操作，孟请求核对；预约、恢复和复核条件在EP01已说明并在后文实际执行 |\n| 本集结果 | 记录读取、现场核对、恢复显示各自发生，不把请求当结果 |\n| 下集期待 | 从本轮结果接出下一问题，不重复已确认原因，也不跳过未完成复核 |\n\n故事可以用其他人物、规则与回报。检查表的作用是把缺口定位到具体前文，不要求每个项目都写权限争议、屏幕或倒计时。",
+          "en": "| Element | Its place in this example |\n|---|---|\n| People and stakes | The event and prepared children exist first; Meng organizes it rather than a disappointed crowd appearing at the break |\n| Rules and authority | The operator controls equipment; Meng requests checks. Booking, restoration, and review are established in EP01 and actually used |\n| Local result | Retrieval, inspection, and restoration occur separately; a request is not its result |\n| Next expectation | A result opens the next question without repeating a resolved cause or skipping unfinished review |\n\nOther stories use other people, rules, and rewards. The worksheet locates missing setup; it does not require every project to use authority disputes, screens, or timers."
         }
       },
       {
         "id": "failures-and-fixes",
         "heading": {
-          "zh": "付费卡点常见失误与修改方法",
-          "en": "Common Paywall-Break Mistakes and How to Fix Them"
+          "zh": "付费卡点常见失误与修法",
+          "en": "Common break failures and repairs"
         },
         "body": {
-          "zh": "| 失误 | 分集地图暴露的问题 | 修改方法 |\n|---|---|---|\n| 大回报刚结束就设门槛 | “尚未兑现的下一行动”一栏为空 | 让回报产生代价、债务或反制，再停在新行动启动处 |\n| 新角色突然带来秘密 | “人物／规则／失败赌注”找不到前序集 | 提前建立人物与事实，让新信息改变已有计划 |\n| 一整集只讲背景 | “本集局部结果”只有说明 | 让人物完成一次选择、取得一项结果或失去一项筹码 |\n| 故意掐掉一句台词 | 欠账只等一句被遮住的信息 | 让完整信息逼人物采取可见行动，再把行动结果留到下一集 |\n| 下一集换线重开 | “门槛后第一项兑现”无法填写 | 下一集第一场偿还动作或展示即时后果 |\n| 每集都用同一种危机 | 压力来源和人物策略没有变化 | 比较相邻集，改变压力来源、策略、代价或回报类型 |\n\n改稿时一次只修一条因果链：`本集结果 → 谁失去筹码 → 谁改变行动 → 下一集先兑现什么`。链条写顺后，再交给[分镜脚本](/drama-skills/script-to-storyboard)把动作与反应落进镜头。",
-          "en": "| Mistake | Problem exposed by the episode map | Revision |\n|---|---|---|\n| Put the threshold immediately after a major reward | “Unfinished next action” is empty | Let the reward create a cost, debt, or countermeasure, then stop when that new action begins |\n| A new character suddenly brings a secret | No earlier episode establishes the character, rule, or failure stakes | Establish the person and fact earlier; let the new information alter an existing plan |\n| The entire episode explains background | “Partial result” contains only exposition | Let a character make a choice, gain a result, or lose leverage |\n| Cut off a sentence deliberately | The only debt is one obscured piece of dialogue | Let the complete information force a visible action, then carry the action’s result into the next episode |\n| The next episode abandons the thread | “First payoff after the threshold” cannot be filled in | Open the next episode by completing the action or showing its immediate consequence |\n| Every episode repeats the same crisis | Neither the pressure source nor the strategy changes | Compare adjacent episodes and vary the pressure source, strategy, cost, or kind of reward |\n\nRevise one causal chain at a time: `this episode’s result → who loses leverage → who changes course → what the next episode delivers first`. Once that chain reads cleanly, hand it to [Script to Storyboard](/drama-skills/script-to-storyboard) so the actions and reactions can be placed into shots."
+          "zh": "| 问题 | 修法 |\n|---|---|\n| 大回报结束，后面没有已建立的期待 | 检查本集结果还能怎样推进主线；不能成立就考虑别处，不强加新灾难 |\n| 新角色临时送来秘密 | 回到前文建立人物与赌注，让新信息改变已有行动 |\n| 一集只有介绍或重复许诺 | 兑现本集承诺的局部行动、认知、关系或情绪，不必都赢 |\n| 同一行台词反复掐断 | 问题已清楚时推进人物行动，不靠遮住最后几个字延长 |\n| 下集换线重开 | 先承接上一集真实状态，再按作品安排推进或兑现 |\n| 把计时结束当全部解决 | 写出决定权、实际回复与执行，检查计时是否真的有这个含义 |\n\n用`本集结果 → 尚欠的问题 → 下集继承的事实 → 实际回应`核对，再交[分镜脚本](/drama-skills/script-to-storyboard)落实画面。这里讨论叙事质量，没有运行投放测试。",
+          "en": "| Problem | Repair |\n|---|---|\n| A large payoff ends with no established expectation | Inspect how the result continues the main line; consider another position rather than inventing a catastrophe |\n| A stranger delivers a secret | Establish people and stakes earlier; make information affect existing action |\n| Only introductions or repeated promises | Deliver local action, understanding, relationship, or feeling; success is optional |\n| One line repeatedly cut short | Advance action when the question is clear instead of hiding the last words |\n| The next episode starts another line | Inherit the actual previous state before progressing or paying off |\n| Timer expiry treated as a complete solution | Show authority, a response, and execution; test what expiry actually means |\n\nCheck `result → outstanding question → inherited facts → actual response`, then use [storyboarding](/drama-skills/script-to-storyboard) to realize it. This is narrative review, with no distribution test claimed."
         }
       }
     ],
@@ -2058,8 +2065,8 @@
           "en": "How do I choose among several candidate paywall breaks?"
         },
         "a": {
-          "zh": "优先选择最能代表主线承诺、已建立赌注最清楚、下一集又能立即偿还的一处。用五列表并排比较，任何一栏需要临时补人物或规则的候选都先排除。",
-          "en": "Prefer the point that best represents the story’s central promise, has the clearest established stakes, and can be paid off immediately in the next episode. Compare candidates in the same five-column table and eliminate any that require a last-minute character or rule to fill a field."
+          "zh": "用同一张编辑表比较主线承诺、已有投入、本集回报与下集承接。最早完整的一集只是候选，未必最好；项目已有固定位置时优先修该处。不靠栏目数量预测付费结果。",
+          "en": "Compare the central promise, established investment, local payoff, and continuation in the same editorial worksheet. The earliest complete episode is only a candidate. Repair an already fixed position first, and do not predict conversion from filled columns."
         }
       }
     ],
@@ -2081,8 +2088,8 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "门槛集、局部回报与下一集交接",
+          "en": "Threshold episodes, local payoff, and handover"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/episode-design.md"
       }
@@ -2966,7 +2973,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "短剧分集大纲怎么写：分集地图模板与范例",
       "en": "How to Write a Short-Drama Episode Outline: Map and Example"
@@ -3002,19 +3009,19 @@
           "en": "Reusable Episode Card and Episode Map"
         },
         "body": {
-          "zh": "每一集填写：\n\n> **进入状态**：位置、持物、伤势、已知信息、关系主动权，以及必须接住的上一集动作。\n>\n> **当前压力**：为什么此刻不能拖？\n>\n> **本集目标**：谁想让什么在本集结束前发生怎样的变化？\n>\n> **反对力量**：对方自己的目标、筹码和反制动作。\n>\n> **关键选择与转折**：旧策略为何失效，人物换了什么策略？\n>\n> **局部兑现**：观众这集实际得到什么结果？\n>\n> **留给下一集的问题**：由本集结果启动的下一步。\n>\n> **出去状态**：谁知道什么、关系或资源怎样改变、人物在哪里并能否行动。\n\n整季地图只需把这些字段压缩成一行一集。若因果只有一步，不必另造复杂流程栏；字段越多不等于剧情越清楚。",
-          "en": "Fill in each episode:\n\n> **Entry state:** Location, held objects, injuries, known information, relationship leverage, and any action inherited from the previous episode.\n>\n> **Current pressure:** Why can this not wait?\n>\n> **Episode goal:** Who wants which state to change before the episode ends?\n>\n> **Opposition:** The other side’s goal, leverage, and counteraction.\n>\n> **Key choice and turn:** Why does the old strategy fail, and what replaces it?\n>\n> **Partial payoff:** What result does the audience actually receive?\n>\n> **Exit pressure:** Which next step begins because of this result?\n>\n> **Exit state:** Who knows what, how relationships or resources changed, where everyone is, and whether they can act.\n\nCompress these fields to one row per episode for a season map. If the causality has only one step, do not invent a complicated process column. More fields do not automatically produce a clearer story."
+          "zh": "这是按分集方法整理的手写检查卡，不是新增原生字段；只填本集真正影响创作的事实。\n\n每一集填写：\n\n> **进入状态**：位置、持物、伤势、已知信息、关系主动权，以及必须接住的上一集动作。\n>\n> **当前压力**：为什么此刻不能拖？\n>\n> **本集目标**：谁想让什么在本集结束前发生怎样的变化？\n>\n> **反对力量**：对方自己的目标、筹码和反制动作。\n>\n> **关键选择与转折**：旧策略为何失效，人物换了什么策略？\n>\n> **局部兑现**：观众这集实际得到什么结果？\n>\n> **留给下一集的问题**：由本集结果启动的下一步。\n>\n> **出去状态**：谁知道什么、关系或资源怎样改变、人物在哪里并能否行动。\n\n整季地图只需把这些字段压缩成一行一集。若因果只有一步，不必另造复杂流程栏；字段越多不等于剧情越清楚。",
+          "en": "This is an editorial card derived from the episode method, not added native fields. Keep only facts that affect this episode.\n\nFill in each episode:\n\n> **Entry state:** Location, held objects, injuries, known information, relationship leverage, and any action inherited from the previous episode.\n>\n> **Current pressure:** Why can this not wait?\n>\n> **Episode goal:** Who wants which state to change before the episode ends?\n>\n> **Opposition:** The other side’s goal, leverage, and counteraction.\n>\n> **Key choice and turn:** Why does the old strategy fail, and what replaces it?\n>\n> **Partial payoff:** What result does the audience actually receive?\n>\n> **Exit pressure:** Which next step begins because of this result?\n>\n> **Exit state:** Who knows what, how relationships or resources changed, where everyone is, and whether they can act.\n\nCompress these fields to one row per episode for a season map. If the causality has only one step, do not invent a complicated process column. More fields do not automatically produce a clearer story."
         }
       },
       {
         "id": "worked-example",
         "heading": {
           "zh": "原创范例：《后台最后一件戏服》",
-          "en": "Original Example: “The Last Costume Backstage”"
+          "en": "Original example: “The Last Costume Backstage”"
         },
         "body": {
-          "zh": "社区剧团演出前夜，镇馆戏服失踪。服装管理员林絮既要找回戏服，也要阻止剧团借机赶走患病的老裁缝。\n\n| 集 | 进入状态与压力 | 选择、反制与转折 | 当集兑现 | 出去状态与新压力 |\n|---|---|---|---|---|\n| 1 | 戏服柜空了，演出次日开场 | 林絮封锁后台；团长以“影响彩排”逼她开门 | 找到被剪断的旧锁，不是忘记归还 | 老裁缝持有唯一备用钥匙，众人去找他 |\n| 2 | 老裁缝失联，团长掌握舆论 | 林絮查维修单；团长公开指责老人偷卖戏服 | 维修单证明钥匙早已失效 | 戏服曾被送去洗护，洗护车正要离镇 |\n| 3 | 林絮追上洗护车，却只有空箱 | 她放弃追物，改查谁签收空箱 | 门卫承认团长秘书取走戏服 | 秘书愿交代，但要求先保证老裁缝上台谢幕 |\n| 4 | 演出将开，团长必须公开选择 | 林絮把备用戏服交给演员，留原戏服作证 | 演出正常开始，老人恢复署名 | 团长承认藏衣为逼退老人；剧团面临董事会调查 |\n\n每集都先完成一个局部问题，再由结果启动下一集。集数来自故事所需的人物处境变化，不来自预设配额。",
-          "en": "On the eve of a community troupe’s performance, its signature costume disappears. Costume manager Lin Xu must recover it and stop the troupe from using the incident to expel an ill, elderly tailor.\n\n| Episode | Entry state and pressure | Choice, counteraction, and turn | Episode payoff | Exit state and new pressure |\n|---|---|---|---|---|\n| 1 | The costume cabinet is empty; the show opens tomorrow | Lin Xu seals backstage; the director demands she reopen it so rehearsal can continue | The old lock was cut, so this was not a forgotten return | The elderly tailor has the only spare key; everyone goes to find him |\n| 2 | The tailor is missing; the director controls the public story | Lin Xu checks repair orders; the director publicly accuses the tailor of selling the costume | The order proves the key stopped working long ago | The costume went to a cleaner, whose van is about to leave town |\n| 3 | Lin Xu catches the van but finds only an empty case | She stops chasing the object and asks who signed for the empty case | The gatekeeper admits the director’s secretary collected the costume | The secretary will talk only if the tailor is guaranteed a final bow onstage |\n| 4 | The performance is about to begin; the director must choose publicly | Lin Xu gives the backup costume to the actor and preserves the original as evidence | The show begins and the tailor’s credit is restored | The director admits hiding the costume to force the tailor out; the board opens an investigation |\n\nEach episode resolves a local question, and its result initiates the next. The episode count comes from necessary state changes rather than a preset quota."
+          "zh": "**前提先建立**：社区剧团明晚演出。服装管理员林絮负责保管与安排洗护；团长顾锐能安排工作人员搬运，却不能单方改已确认的制作署名，署名争议由演出委员会处理。老裁缝程师傅设计并缝制原戏服，备用戏服已试装、演员可穿。顾锐想用外包团队替代他，前文已提出这项计划。程师傅此时在自己的工作间，林絮知道如何联系，并非无故失联。\n\n下面四集是为本页写的一个可拆方案，普通记录同时承载所有栏目，不再横向铺五列。\n\n| 集 | 进入、选择、局部结果与交接 |\n|---|---|\n| 1 | **进入**：林絮发现存放原戏服的柜子空了，锁扣断开。**行动**：她记录现场、问当班人员，不封锁整个后台妨碍排练。顾锐以排练为先，让她别追问。她坚持核对交接册，找到昨晚送洗记录。**结果**：戏服曾送去洗护已确定，之后是否送回仍未知，断锁不说明谁取走。**交接**：林絮联系程师傅核对送洗约定，并按册上联系方式找洗护人员。 |\n| 2 | **进入**：顾锐在排练群声称程师傅“拿走不还”。**行动**：林絮实际通话，程师傅说自己未领取；洗护人员发来今天返还凭单，并说明交给秘书叶青。顾锐要求先把署名改成外包团队。**结果**：凭单记录领取者为叶青，且叶青回复同意来说明；这支持转向核对她，不自动证明程师傅从未接触。**交接**：林絮保留原凭单文件，等叶青到场；她也请程师傅来协助辨认，程师傅答应，不把回复当供述。 |\n| 3 | **进入**：叶青与程师傅按约到场，顾锐与林絮都能听见。**行动**：叶青说明按顾锐消息把戏服送进资料室，出示原对话，并打开由她保管钥匙的资料室。林絮按此前保管照片和程师傅当面指出的修补处核对，实际取回戏服。顾锐承认要求暂时收起来，却说只是防止使用。**结果**：原戏服已取回，临时保管链有依据；逼退程师傅的动机仍是待判断，不靠藏衣直接定案。**交接**：林絮把戏服带回自己负责的服装间，将署名争议送演出委员会。 |\n| 4 | **进入**：演出临近，原署名与备用服已可用，委员会已收到材料。**行动**：林絮给演员穿已试好的备用服，把原服妥善留存；委员会对照程师傅的设计稿、既有制作确认和本次材料，回复本场按已确认署名，不采纳临时替换。林絮核对节目单，演员实际登台。**结果**：演出开始，程师傅姓名没有被换掉。**交接**：顾锐的后续人事安排仍需另行处理，委员会通知将继续询问，不称调查或全部责任已查清。 |\n\n每集的结果有范围：送洗记录证明一段流程，凭单给出领取者，实际取回解决持物，署名决定解决这一场演出的署名。不要把最后一个结果扩大成老人职位永久保住。未读到的消息、未完成的调查和未发生的谢幕，下一集不能当作既成事实。",
+          "en": "**Establish first:** A community troupe performs tomorrow evening. Costume manager Lin Xu handles storage and cleaning. Director Gu Rui can arrange staff transport but cannot unilaterally replace confirmed production credits; the performance committee handles credit disputes. Tailor Cheng designed and made the original costume. A backup has already been fitted. Gu Rui has previously proposed replacing Cheng with an outside team. Cheng is in his own workshop and reachable, rather than inexplicably missing.\n\nThe four episodes below are an original possible division, not a count requirement. Each row keeps the full handover without five horizontal columns.\n\n| Episode | Notes |\n|---|---|\n| 1 | **Entry:** Lin Xu finds the original costume missing and its cabinet latch broken. **Action:** She records the condition and questions staff without sealing all backstage. Gu Rui tells her to prioritize rehearsal. She checks the handover book and finds last night’s cleaning record. **Result:** Cleaning occurred; return and removal remain unknown. The broken latch identifies nobody. **Handover:** She contacts Cheng about the cleaning arrangement and the cleaner using the recorded details. |\n| 2 | **Entry:** Gu Rui claims in the rehearsal group that Cheng took the costume and failed to return it. **Action:** Lin Xu actually calls. Cheng denies collecting it; the cleaner sends today’s return receipt naming secretary Ye Qing. Gu Rui demands an outside-team credit. **Result:** The receipt names Ye Qing, who agrees to explain in person. This supports questioning her without proving Cheng never handled the costume. **Handover:** Lin Xu keeps the original receipt file and awaits Ye Qing. She also asks Cheng to help identify the costume, and he agrees; agreement to talk is not testimony. |\n| 3 | **Entry:** Ye Qing and Cheng arrive as agreed, where Lin Xu and Gu Rui can hear. **Action:** She says Gu Rui instructed her to place the costume in the records room, shows the original exchange, and unlocks the room with the key she holds. Lin Xu compares the costume with her storage photos and Cheng’s in-person identification of a repair, then actually retrieves it. Gu Rui admits ordering temporary storage but calls it a way to prevent use. **Result:** The costume is recovered and the storage chain supported. Intent to force Cheng out remains a judgment to examine. **Handover:** Lin Xu returns it to the costume room she controls and submits the credit dispute to the committee. |\n| 4 | **Entry:** Performance approaches; the confirmed credit and fitted backup are available, and the committee has the material. **Action:** Lin Xu dresses the actor in the backup and stores the original. The committee compares Cheng’s designs, existing production approval, and current records, then confirms the existing credit for this show. Lin Xu checks the program; the actor actually goes onstage. **Result:** The performance begins without removing Cheng’s name. **Handover:** Later staffing remains unresolved. The committee announces further questions; all responsibility has not been established. |\n\nResults have limits: a cleaning record establishes one stage, a receipt names a collector, retrieval settles current possession, and a credit decision settles this show’s credit. None guarantees Cheng’s permanent position. Unread messages, unfinished inquiry, and an unperformed final bow cannot be inherited as completed facts."
         }
       },
       {
@@ -3024,8 +3031,8 @@
           "en": "What Do the Hook, Payoff, and Exit Pressure Each Do?"
         },
         "body": {
-          "zh": "**钩子**回答“为什么现在要看”，可以是高代价行动、证据矛盾、倒计时或必须公开作出的决定。它必须连着本集目标。\n\n**兑现**回答“这一集给了什么”，可以是局部真相、关系变化、一次不可撤回的选择或真实代价。开放结尾也要有局部结果。\n\n**留给下一集的问题**回答“为什么状态还会继续动”。把“可能有人报复”改成“失去职位的副团长已经拿走账本”，下一集才有可执行的起点。",
-          "en": "A **hook** answers “Why watch now?” It may be a high-cost action, contradictory evidence, a countdown, or a decision that must be made publicly. It must connect to the episode goal.\n\nA **payoff** answers “What did this episode deliver?” It may be a partial truth, a changed relationship, an irreversible choice, or a real cost. Even an open ending needs a local result.\n\n**Exit pressure** answers “Why will the state keep moving?” Replace “someone may retaliate” with “the demoted deputy director has already taken the ledger.” The next episode now has an executable starting point."
+          "zh": "**钩子**回答“为什么现在要看”，可以是高代价行动、证据矛盾、倒计时或必须公开作出的决定。它必须连着本集目标。\n\n**兑现**回答“这一集给了什么”，可以是局部真相、关系变化、一次不可撤回的选择或真实代价。开放结尾也要有局部结果。\n\n**留给下一集的问题**回答“为什么状态还会继续动”。把“可能有人报复”改成“失去职位的副团长已经拿走账本”，下一集才有可执行的起点。\n\n完整情绪落点也可结束一集，不强制留下未完成动作。需要连续推进时，再选择由结果引出的期待；这不是每集都必须新增灾难的模板。",
+          "en": "A **hook** answers “Why watch now?” It may be a high-cost action, contradictory evidence, a countdown, or a decision that must be made publicly. It must connect to the episode goal.\n\nA **payoff** answers “What did this episode deliver?” It may be a partial truth, a changed relationship, an irreversible choice, or a real cost. Even an open ending needs a local result.\n\n**Exit pressure** answers “Why will the state keep moving?” Replace “someone may retaliate” with “the demoted deputy director has already taken the ledger.” The next episode now has an executable starting point.\n\nA complete emotional landing can end an episode without an unfinished action. When the work needs forward pressure, choose an expectation arising from the result rather than a compulsory new catastrophe."
         }
       },
       {
@@ -5693,7 +5700,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "短剧第一集怎么写：选开场时刻，让人物马上有事可做",
       "en": "How to Write a Short Drama's First Episode: Pick the Opening, Give the Character a Task"
@@ -5715,33 +5722,33 @@
         "id": "opening-test",
         "heading": {
           "zh": "第一集开场先回答什么？",
-          "en": "What Must the Opening of Episode One Establish?"
+          "en": "What should the opening establish?"
         },
         "body": {
-          "zh": "| 开场要让观众接收到的事 | 可用的画面或行动 | 常见缺口 |\n|---|---|---|\n| 现在出了什么问题 | 正在被收走的物品、无法履行的承诺、当场提出的要求 | 只有人物身份介绍 |\n| 主角想保住什么 | 他阻止谁、争取什么、先护住谁 | 只有一句“我要成功” |\n| 原来的办法还管用吗 | 主角习惯性答应，却发现这次承诺兑现不了 | 压力出现后人物仍没有行动 |\n| 为什么值得跟着他看 | 具体的不公、保护行为、可代入愿望或吸引人的能力 | 所有人都说他很好，观众却没见过他做事 |\n\n这些信息可以由同一个动作承担，无需四段说明。例如主角先把仅有的一份工具让给学徒，再用手边零件继续赶工，同时让观众看见他护着谁、有什么本事、正在争取什么。",
-          "en": "| What viewers need to grasp | Possible image or action | Common gap |\n|---|---|---|\n| What is wrong right now | An item being taken away, a promise that cannot be kept, a demand made on the spot | Only an introduction to the character’s identity |\n| What the protagonist wants to protect | Whom they stop, what they seek, whom they shield first | Only the statement “I want to succeed” |\n| Whether the old method still works | The protagonist habitually agrees, then discovers the promise cannot be fulfilled this time | Pressure appears, but the character still does nothing |\n| Why the protagonist is worth following | A concrete injustice, an act of protection, a relatable desire, or an engaging ability | Everyone says the protagonist is good, but viewers never see them act |\n\nOne action can communicate several of these points; they do not require four explanations. The protagonist might give the only available tool to an apprentice and continue the urgent work with spare parts, showing at once whom they protect, what they can do, and what they are trying to accomplish."
+          "zh": "| 观众要接收到的事 | 画面或行动与常见缺口 |\n|---|---|\n| 当前问题 | 正被收走的物品、兑现不了的承诺或当场要求；单列身份还没提出本集问题 |\n| 主角在乎什么 | 他争取、拒绝或先护住什么；“我要成功”通常还不够具体 |\n| 应对怎样起作用 | 旧办法仍在使用却出现后果，或人物面对新条件选择回应；不要求所有开场都证明旧办法失效 |\n| 为什么跟着看 | 能力、可代入的愿望、不公、关系或作品气质，实际给出观看理由，不靠别人齐声夸主角 |\n\n同一个动作可传递几项信息，无需四段说明。开场也可以安静或有意延迟解释；应让观众有可读的问题与作品承诺，不用统一秒数或刺激程度替代判断。",
+          "en": "| Need | Approach |\n|---|---|\n| Present problem | An item being removed, an unfulfilled promise, or a demand; identity alone does not pose the episode’s question |\n| What matters | What the protagonist pursues, refuses, or protects; “I want success” is usually too general |\n| How they respond | A familiar approach meets consequences or a new condition receives a choice; not every opening must prove an old tactic failed |\n| Why follow | Ability, relatable desire, unfairness, relationship, or tone; demonstrate the experience instead of a chorus praising the protagonist |\n\nOne action can supply several facts without four explanatory passages. Quiet openings and delayed explanation can work when a readable question and the work’s promise are present. A universal second count or intensity threshold does not replace judgment."
         }
       },
       {
         "id": "cut-in",
         "heading": {
-          "zh": "怎样选第一集从哪一刻开始？",
-          "en": "How Do You Choose the Moment When Episode One Begins?"
+          "zh": "比较时序、收益与冷开三个入口",
+          "en": "Compare chronological, payoff, and cold-open entries"
         },
         "body": {
-          "zh": "Drama Skills 的切入方法是：先掌握人物的前因，再比较旧办法开始付出代价的时刻。压力已经发生，主角仍在用自己熟悉的办法，却无法再轻松过关。\n\n以下以原创故事《招牌上的花》为例：手绘招牌师杜弦习惯用复杂装饰遮掩失误。这次她把新店的“禾”字错写成“木”，发现后没有向店主说明，而是添加花叶把缺少的一撇补上，又用大片装饰遮住接笔处。取牌时店主站到门外试读，只看见一团花纹，读不清店名。\n\n| 切入点 | 画面里发生什么 | 得失 |\n|---|---|---|\n| 更早：开始画招牌 | 杜弦铺纸、描字、配色 | 能展示手艺，却要等她犯错才进入主要问题 |\n| 当下：店主第一次站远试读 | 杜弦正夸新添的花叶，店主却眯眼问第一个字是什么 | 她的掩饰失效，必须决定继续辩解还是承认失误 |\n| 更晚：招牌被退回 | 杜弦独自擦掉装饰 | 能从后果切入，但观众看不到她当场如何面对质疑 |\n\n这部故事选择中间一处，因为杜弦怎样维护自己的“从不出错”形象，会决定她后续如何工作。若整部戏重点是失败后的重新开始，第三处也可成为更合适的开头；切入点取决于你想让观众亲眼看见哪一次选择。",
-          "en": "The Drama Skills entry-point method is to understand the character’s backstory, then compare moments when the old approach begins to carry a cost. The pressure is already active. The protagonist still uses a familiar method but can no longer get through easily.\n\nConsider the original story *Flowers on the Sign*. Hand-painted sign maker Du Xian habitually hides mistakes beneath elaborate decoration. This time, she writes the intended character hé (“grain”) as mù (“wood”) on a new shop’s sign. Instead of telling the owner, she adds flowers and leaves to complete the missing stroke and covers the join with a broad decorative pattern. When the owner comes to collect the sign and tests it from outside, the name disappears into a mass of decoration and cannot be read.\n\n| Entry point | What happens on screen | Trade-off |\n|---|---|---|\n| Earlier: she begins painting the sign | Du Xian lays out the paper, sketches the lettering, and selects colors | Shows her craft, but the story must wait for the mistake before reaching the main problem |\n| Present: the owner reads it from a distance for the first time | Du Xian praises the new flowers while the owner squints and asks what the first character says | Her concealment fails, and she must decide whether to keep defending it or admit the mistake |\n| Later: the sign is returned | Du Xian removes the decoration alone | Begins with the consequence, but viewers miss how she responds when challenged |\n\nThis story chooses the middle point because the way Du Xian protects her image as someone who “never makes mistakes” will shape how she works later. If the entire drama centers on starting over after failure, the third point may be better. The right entry depends on which choice viewers need to witness."
+          "zh": "以原创故事《招牌上的花》比较。手绘招牌师杜弦用装饰遮掩错误：她把新店名中的“禾”写成“木”，补笔后又加花叶挡住接笔处。店主需要路人在街对面也读得清店名，近看漂亮不能代替它。\n\nDrama Skills 的首集方法比较三个候选，其中包括后文片段的冷开。不是要求每部戏都用冷开，而是别只在同一条时间线上挑早、中、晚。\n\n| 入口 | 第一画面、观众问题与取舍 |\n|---|---|\n| 时序 | 杜弦发现错笔，正用花叶覆盖。观众问她能不能遮过去。可从动作里见到习惯，但仍要尽快出现委托要求，别先演完整配色流程 |\n| 收益 | 店主站到门外试读，杜弦正夸新装饰。观众问她怎样面对失效的掩饰。当前压力直接可读，既有失误用短对白或可见字形补足 |\n| 冷开 | 先给后文杜弦把返工单推给店主：“这块我重做。”观众问她为什么主动承担。明确转回此前取牌时点，再演导致这句承诺的过程；开头只是一段未来片段，不把返工当已完成 |\n\n本例选择收益入口，因为本集要看她当场从掩饰变为承担。冷开若更符合作品语气也成立；它需要清楚的时间转回、相同招牌与人物关系，回到原位置时给新的因果理解，而不是重复同一段交付。",
+          "en": "Compare entries for the original “Flowers on the Sign.” Painter Du Xian uses decoration to conceal mistakes. She writes 木 instead of 禾 in the shop name, adds the missing stroke, then hides its join with flowers. The client needs the name readable across the street; attractive detail up close cannot replace that requirement.\n\nDrama Skills compares three candidates, including a later fragment as a cold open. This does not require a cold open in every story. It broadens the comparison beyond early, middle, and late points on one timeline.\n\n| Entry | View |\n|---|---|\n| Chronological | Du Xian notices the stroke error and covers it with flowers. Can she hide it? Her habit is visible, but establish the commission soon instead of showing the entire paint preparation |\n| Payoff | The client tries reading outside while Du Xian praises the decoration. How will she face failed concealment? Pressure is immediately readable; brief dialogue or the visible character supplies the prior mistake |\n| Cold open | Show a later fragment: she pushes a rework order toward the client and says, “I’ll remake this.” Why accept the burden? Clearly return to the earlier collection visit and show the cause. A future promise is not completed rework |\n\nThis version chooses the payoff entry to show her change from concealment to responsibility. A cold open can fit another tone; connect the time return, sign, and relationship, and provide new causal understanding when reaching the fragment’s original place rather than replaying the same delivery."
         }
       },
       {
         "id": "backstory",
         "heading": {
-          "zh": "前史分成三份，别都塞进开场",
-          "en": "Divide Backstory into Three Parts Instead of Putting It All in the Opening"
+          "zh": "前史分三份，不都塞进开场",
+          "en": "Divide backstory instead of putting it all upfront"
         },
         "body": {
-          "zh": "| 前史放在哪里 | 判断办法 | 杜弦的例子 |\n|---|---|---|\n| 作者先知道 | 它解释角色习惯，但观众现在不知道也能看懂行动 | 她曾因一次小失误被师父当众奚落，从此不愿承认画错 |\n| 本场就给观众 | 少了它，当前争执或选择难以理解 | 客户要能从街对面读清的店名，她却用花叶挡住了字形 |\n| 暂时保留 | 它会在后面改变观众对人物或关系的理解 | 师父为何执意要她以自己的名字接这笔订单 |\n\n先写一个开场能用的事实，再决定承载方式。店主站到门外问字，杜弦用身体挡住刚补过的一角，随后主动指出自己写错的笔画，就能把问题和责任放进正在发生的行动里。\n\n保留背景不能妨碍理解眼前的行动。观众可以暂时不知道杜弦为什么害怕认错，却需要知道这块牌子必须让路人读清，单纯好看不足以完成委托。",
-          "en": "| Where the backstory belongs | Test | Du Xian’s example |\n|---|---|---|\n| The writer knows it first | It explains a habit, but viewers can understand the present action without it | Her mentor once mocked a minor mistake in public, and she has refused to admit errors ever since |\n| Viewers need it in this scene | Without it, the present dispute or choice is hard to understand | The client needs a shop name readable from across the street, but her flowers obscure the letterforms |\n| Hold it for later | It will later change how viewers understand a person or relationship | Why her mentor insists that she accept this order under her own name |\n\nFirst write one fact the opening needs, then choose how to carry it. The owner steps outside and asks what the character says. Du Xian blocks the corner she patched with her body, then points out the incorrect stroke herself. The problem and her responsibility now sit inside an action already under way.\n\nWithholding background must not obstruct the action in front of viewers. They can wait to learn why Du Xian fears admitting a mistake. They do need to know that passersby must be able to read the sign and that visual beauty alone does not fulfill the commission."
+          "zh": "| 去向 | 判断与杜弦的例子 |\n|---|---|\n| 作者先知道 | 解释习惯，但观众暂时不知道也能看懂；杜弦曾因小错被师父奚落，因而怕认错 |\n| 本场就给 | 少了就误解目标或责任；委托要求街对面能读清，花叶却挡住字形 |\n| 后面再给 | 会改变对关系的理解；师父为什么坚持她用自己的名字接这笔订单 |\n\n先写本场需要的事实，再选承载方式。店主站到门外问字，杜弦挡住补笔处，随后主动指出失误，就能在行动中给出问题与责任。暂不说明害怕认错的来历不妨碍本场；隐去招牌必须可读，则会让争执显得无缘由。",
+          "en": "| Destination | Test and example |\n|---|---|\n| Author knowledge first | Explains a habit but can wait: Du Xian was mocked by her mentor for a small mistake and fears admitting one |\n| Give it here | Without it the goal or responsibility is unclear: the commission requires readability across the street, which flowers obscure |\n| Give it later | Reframes a relationship: why the mentor insists she accept this job under her own name |\n\nIdentify the needed fact before choosing its carrier. The client reads outside, Du Xian blocks the repaired stroke, then names her mistake. Action supplies problem and responsibility. Her past fear can wait; hiding the readability requirement makes the dispute arbitrary."
         }
       },
       {
@@ -5751,8 +5758,8 @@
           "en": "Original First Episode: Deliver One Local Result"
         },
         "body": {
-          "zh": "把上面的切入点接成第一集，先让一个简短画面建立后续会碰到的安排：店主进门前，杜弦看了眼桌边日历，上面圈着她与师父约好的个人作品展示日。随后围绕当前问题推进：\n\n1. **旧办法失效**：杜弦请店主走近欣赏细节，店主指着街对面的路口，说招牌就是要让那里的人认出店。她不能再用“近看很精致”转移问题。\n2. **承认具体失误**：杜弦指出错笔和后来添加的遮挡，提出盖掉这部分重写。底色无法当场完全配回，她同时说明会留下可见色差，不能保证立刻恢复如新。\n3. **对方决定可接受的结果**：店主愿意先挂能读清的招牌，要求杜弦把返工日期写进订单。杜弦同意重新做整块面板，费用由自己承担。\n4. **完成局部行动**：杜弦遮盖错误区域，重新写清店名。店主再次走到街对面，逐字读出来，接受临时交付。牌子能用了，杜弦却付出了免费返工与承认错误的代价。\n5. **结果带来下一步**：店主把签好的返工单交给她。杜弦翻开日程，返工日期与她答应师父的个人作品展示日重叠。她拿起手机，准备第一次向师父解释自己为什么要改期。\n\n第一集已经完成“让店名读得清”的局部任务，下一集要处理她主动承担返工后怎样调整安排。个人展示日期应在前文的日历或对话里出现，集尾只让观众看见两个安排撞上；不能到最后才凭空添加一个绝对不能更改的期限。\n\n杜弦的成长在这里刚开始：她承认了一次错误，还没有学会面对所有人的评价。后续需要继续通过选择表现变化。",
-          "en": "Extend that entry point into an episode. Begin with one brief image establishing a later scheduling problem: before the owner enters, Du Xian glances at the calendar beside her desk, where she has circled the date of a showcase of her own work arranged with her mentor. Then develop the present problem:\n\n1. **The old method fails**: Du Xian asks the owner to come closer and admire the detail. The owner points to the intersection across the street and says the sign must identify the shop from there. She can no longer deflect the problem with “it looks intricate up close.”\n2. **She admits the specific error**: Du Xian identifies the incorrect stroke and the decoration added to conceal it, then proposes painting over that area and rewriting it. She cannot perfectly match the background color on the spot, so she also explains that a visible difference will remain and does not promise an immediate like-new restoration.\n3. **The other party defines an acceptable result**: The owner will temporarily hang a legible sign but requires Du Xian to put the remake date into the order. Du Xian agrees to remake the whole panel at her own expense.\n4. **A local action is completed**: Du Xian covers the erroneous area and rewrites the shop name clearly. The owner crosses the street, reads it character by character, and accepts the temporary delivery. The sign now works, but Du Xian bears the cost of remaking it for free and admitting her mistake.\n5. **The result creates the next step**: The owner hands her the signed remake order. Du Xian opens her schedule and sees that the remake date overlaps with the showcase of her own work arranged with her mentor. She picks up her phone, preparing to explain for the first time why she must change the date.\n\nThe episode has completed the local task of making the shop name legible. The next episode must address how Du Xian changes her arrangements after taking responsibility for the remake. The exhibition date should have appeared earlier on the calendar or in dialogue. Do not invent an unchangeable deadline only at the ending.\n\nDu Xian’s growth has only begun. She has admitted one error; she has not learned to face everyone’s judgment. Later episodes must continue to show change through choices."
+          "zh": "把上面的切入点接成第一集，先让一个简短画面建立后续会碰到的安排：店主进门前，杜弦看了眼桌边日历，上面圈着她与师父约好的个人作品展示日。随后围绕当前问题推进：\n\n1. **旧办法失效**：杜弦请店主走近欣赏细节，店主指着街对面的路口，说招牌就是要让那里的人认出店。她不能再用“近看很精致”转移问题。\n2. **承认具体失误**：杜弦指出错笔和后来添加的遮挡，提出盖掉这部分重写。底色无法当场完全配回，她同时说明会留下可见色差，不能保证立刻恢复如新。\n3. **对方决定可接受的结果**：店主愿意先挂能读清的招牌，要求杜弦把返工日期写进订单。杜弦同意重新做整块面板，费用由自己承担。\n4. **完成局部行动**：杜弦遮盖错误区域，重新写清店名。店主再次走到街对面，逐字读出来，接受临时交付。牌子能用了，杜弦却付出了免费返工与承认错误的代价。\n5. **结果带来下一步**：店主把签好的返工单交给她。杜弦翻开日程，返工日期与她答应师父的个人作品展示日重叠。她拿起手机，准备第一次向师父解释自己为什么要改期。\n\n第一集已经完成“让店名读得清”的局部任务，下一集要处理她主动承担返工后怎样调整安排。个人展示日期应在前文的日历或对话里出现，集尾只让观众看见两个安排撞上；不能到最后才凭空添加一个绝对不能更改的期限。\n\n杜弦的成长在这里刚开始：她承认了一次错误，还没有学会面对所有人的评价。后续需要继续通过选择表现变化。\n\n日程重叠只产生商谈需要，不证明展示必被取消。下一集可以比较改期、分工或新的安排，再写师父和店主实际回应；不能把“准备解释”当已经获得同意。",
+          "en": "Extend that entry point into an episode. Begin with one brief image establishing a later scheduling problem: before the owner enters, Du Xian glances at the calendar beside her desk, where she has circled the date of a showcase of her own work arranged with her mentor. Then develop the present problem:\n\n1. **The old method fails**: Du Xian asks the owner to come closer and admire the detail. The owner points to the intersection across the street and says the sign must identify the shop from there. She can no longer deflect the problem with “it looks intricate up close.”\n2. **She admits the specific error**: Du Xian identifies the incorrect stroke and the decoration added to conceal it, then proposes painting over that area and rewriting it. She cannot perfectly match the background color on the spot, so she also explains that a visible difference will remain and does not promise an immediate like-new restoration.\n3. **The other party defines an acceptable result**: The owner will temporarily hang a legible sign but requires Du Xian to put the remake date into the order. Du Xian agrees to remake the whole panel at her own expense.\n4. **A local action is completed**: Du Xian covers the erroneous area and rewrites the shop name clearly. The owner crosses the street, reads it character by character, and accepts the temporary delivery. The sign now works, but Du Xian bears the cost of remaking it for free and admitting her mistake.\n5. **The result creates the next step**: The owner hands her the signed remake order. Du Xian opens her schedule and sees that the remake date overlaps with the showcase of her own work arranged with her mentor. She picks up her phone, preparing to explain for the first time why she must change the date.\n\nThe episode has completed the local task of making the shop name legible. The next episode must address how Du Xian changes her arrangements after taking responsibility for the remake. The exhibition date should have appeared earlier on the calendar or in dialogue. Do not invent an unchangeable deadline only at the ending.\n\nDu Xian’s growth has only begun. She has admitted one error; she has not learned to face everyone’s judgment. Later episodes must continue to show change through choices.\n\nThe overlap requires a discussion, not automatic cancellation of the exhibition. The next episode may compare rescheduling, shared work, or another arrangement and show actual responses from the mentor and client. Preparing to explain is not receiving agreement."
         }
       },
       {
@@ -8834,7 +8841,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "短剧一集怎么写：用因果链完成一次人物处境变化",
       "en": "Micro-Drama Episode Structure: Build a Chain of Consequences"
@@ -8848,41 +8855,41 @@
       "en": "Build an episode from entry state, goal and resistance, a turn, payoff and exit state. Test the causal chain with “therefore” and “but.”"
     },
     "answer": {
-      "zh": "一集短剧要完成一次有边界的人物处境变化。先写可验证的进入状态，再让当前压力逼人物行动；每次选择触发反制，迫使人物换策略或付代价；结尾先兑现本集承诺，再留下由结果产生的下一步压力。",
-      "en": "An episode of a micro-drama should complete a bounded change of state. Establish a verifiable starting state, then let current pressure force the characters to act. Each choice triggers resistance that makes them change strategy or pay a cost. At the end, deliver this episode’s promised result before leaving new pressure that grows out of that result."
+      "zh": "一集短剧先写清人物带着什么事实进入、这一集给观众什么体验，再让行动、回应或新信息改变局面。结尾兑现本集承诺，可以是任务进展、关系变化、明确失败或情绪落点；需要接下一集时，交代已经发生的状态与下一步。不要把五个支点当五场戏，也不要求每集都用争吵或大反转。",
+      "en": "Start an episode with the facts characters bring in and the experience it promises viewers. Let action, response, or information change the situation. Deliver a local payoff: progress, a relationship shift, an explicit failure, or an emotional landing. When continuing, hand over the actual state and next step. Five design checks do not require five scenes, an argument, or a major twist in every episode."
     },
     "sections": [
       {
         "id": "contract",
         "heading": {
           "zh": "单集结构的五个支点",
-          "en": "Five Anchors for an Episode"
+          "en": "Five checks for an episode"
         },
         "body": {
-          "zh": "| 支点 | 核心问题 |\n|---|---|\n| 进入状态 | 人物带着哪些知识、持物和已启动行动进入？ |\n| 目标与反对 | 谁想改变什么，对手能怎样真正阻止？ |\n| 因果升级 | 前一选择怎样增加下一步难度？ |\n| 当集兑现 | 观众在本集实际得到什么结果？ |\n| 出去状态 | 谁知道什么、拿着什么、已经决定做什么？ |\n\n分集大纲安排整季故事如何分配到各集；这里检查一集内部的选择与结果能否相互推动。集尾钩子则聚焦最后一拍如何留下下一步压力。",
-          "en": "| Anchor | Core question |\n|---|---|\n| Entry state | What do the characters know, what do they hold, and which actions are already underway? |\n| Goal and opposition | Who wants to change what, and how can the opponent genuinely prevent it? |\n| Causal escalation | How does the previous choice make the next step harder? |\n| This episode’s payoff | What result do viewers actually get in this episode? |\n| Exit state | Who knows what, holds what and has already decided to do what? |\n\nAn episode outline distributes the season’s story across episodes. Here, you are checking whether choices and results within one episode drive each other forward. An episode-ending hook focuses specifically on how the final beat leaves pressure for the next step."
+          "zh": "| 支点 | 要回答的事 |\n|---|---|\n| 进入状态 | 位置、知情、持物、关系与上一集已经启动的行动中，哪些影响本集？ |\n| 目标与压力 | 人物此刻想改变什么，谁或什么限制它？安静的等待也可承载压力 |\n| 行动与回应 | 前一步怎样影响下一步条件？反对不必来自坏人，也可来自合理的另一目标 |\n| 本集回报 | 观众看见了什么结果、认知、关系或情绪变化？不是把所有问题解决完 |\n| 出去状态 | 谁知道什么、谁实际拿着什么、什么已做或仍未做？需要续集时怎样接住？ |\n\n这些支点用于检查，不规定场数或统一节拍。分集大纲决定整季如何分配；本页检查一集内部是否给出约定的体验。完整情绪落点也能收集，不必最后再加陌生事故。",
+          "en": "| Check | Question |\n|---|---|\n| Entry | Which positions, knowledge, held objects, relationships, and started actions matter here? |\n| Goal and pressure | What changes does the character want, and what limits them? Quiet waiting can carry pressure |\n| Action and response | How does a step change the conditions for the next? Opposition can have a reasonable goal |\n| Local payoff | What result, understanding, relationship, or feeling has landed? This need not solve everything |\n| Exit | Who knows and holds what? What occurred and what remains? How does a continuation inherit it? |\n\nThese are checks rather than a scene count or compulsory beat pattern. The season outline distributes the larger story; this page checks one episode’s promised experience. An episode may finish on a complete emotional landing without a sudden new accident."
         }
       },
       {
         "id": "test",
         "heading": {
-          "zh": "用“所以/但是”检查因果",
-          "en": "Test Causality with “Therefore” and “But”"
+          "zh": "用“所以、但是”检查行动因果",
+          "en": "Use “therefore” and “but” to inspect causality"
         },
         "body": {
-          "zh": "把相邻节拍读成：“因为前一结果，所以人物这样做；但是对手利用新状态反制；所以人物换策略或承担代价。”只能用“然后”连接时，通常缺少选择、反制或人物处境变化。再做删集测试：删掉本集后，后续知识、权力、关系和行动若毫无损失，本集需要合并或重设结果。",
-          "en": "Read adjacent beats as a chain: “Because of the previous result, the character therefore does this. But the opponent uses the new state to counter them. Therefore, the character changes strategy or accepts a cost.” If you can only connect the beats with “and then,” a choice, countermove or change of state is usually missing. Next, try removing the episode. If subsequent knowledge, power, relationships and actions lose nothing, merge the episode with another or give it a different result."
+          "zh": "对行动戏，可以把相邻节拍读成：“因为前一结果，所以人物这样做；但是对方回应改变了条件；所以人物换办法或承担结果。”若只能用“然后”，回看这些事件为何要连在一起，不为了套句式硬加阻挠。\n\n删集测试也要看全：删掉之后，知识、关系、行动、情绪积累、作品节奏或观看体验会损失什么？没有可指出的损失时，才考虑合并。沉默、喜剧重复和气氛本身可能是这集的贡献，不能只按任务有没有完成判空集。",
+          "en": "For action scenes, connect the beats: “Because of that result, the character does this; but the response changes the conditions; therefore the character changes approach or faces the outcome.” If only “then” fits, inspect why these events belong together rather than inventing an obstacle for the formula.\n\nThe removal test should include knowledge, relationships, action, emotional accumulation, rhythm, and viewing experience. Consider combining an episode when you cannot identify a loss. Silence, comic repetition, and atmosphere can contribute; task completion alone does not define an episode’s value."
         }
       },
       {
         "id": "example",
         "heading": {
-          "zh": "原创范例：停办前的最后一堂课",
-          "en": "Original Example: The Last Class Before Closure"
+          "zh": "原创范例：腾空前的最后一次排练",
+          "en": "Original example: the last rehearsal before clearing the room"
         },
         "body": {
-          "zh": "社区陶艺室收到停办通知。老师乔宁想让管理方接受安全整改，对方用未登记窑炉拒绝。她先交出维修单，所以管理员同意复查；但是维修单缺少设备编号，管理员当场贴封条；所以乔宁放弃保住全部设备，只申请带走学员尚未烧制的作品。管理员同意，却要求当晚清空。\n\n本集兑现了“作品能取回”，也产生新压力“当晚如何完成搬运”。出去状态明确：窑炉被封、作品获准搬走、乔宁持有许可。",
-          "en": "A community pottery studio receives a closure notice. Teacher Qiao Ning wants management to approve her proposed safety fixes, but the administrator refuses because the kiln is unregistered. She presents a repair invoice, so the administrator agrees to inspect it again. But the invoice has no equipment ID, and the administrator seals the kiln on the spot. Qiao Ning therefore gives up on saving all the equipment and asks only to take away her students’ unfired pieces. The administrator agrees, but requires the approved pieces to be removed that night.\n\nThe episode delivers the result “the students’ pieces can be retrieved” and creates new pressure: “How will they move it all tonight?” The exit state is clear: the kiln is sealed, removal of the pieces is authorised, and Qiao Ning holds the permit."
+          "zh": "**虚构约定**：社区剧团借用活动室到当晚八点，八点后布展组进场。负责人乔宁有权组织剧团搬自己的道具，无权延长场地借期；管理员沈越负责场地交接，不能独自推迟布展。两人在第一场就知道这些安排。门外已有剧团自备的推车，可先移道具，不是临时出现的救援。\n\n乔宁想让新人完成第一次整段排练，沈越来提醒准备交接。她先要求再借半小时；沈越把已确认的布展进场安排给她看，拒绝延期。她改问能否在八点前，用剩下的时间完成一遍不带道具的走位，剧团同时搬出道具。沈越同意按原交接时间验空房间，没有免掉腾空要求。\n\n乔宁让新人试演，自己与另一位团员把道具箱推到门外。新人把此前卡住的进场与回应连着演完；乔宁指出已经完成的部分，也说明表演还没达到正式上台标准。随后剧团收好场内物品，沈越实际检查房间并确认交接，布展组进入。\n\n这集兑现“新人完成一次整段尝试”和“按约腾空”，并未赢得延长借用，也没有自动取得新场地。出去状态是道具已在门外、活动室由布展组使用、乔宁决定去询问前文出现过的学校礼堂是否有空档。下一集先写她实际联系及对方回复，再决定新排练地点；“决定询问”不等于“已借到”。",
+          "en": "**Fictional agreement:** A community troupe has the activity room until eight that evening, after which an exhibition team enters. Qiao Ning can organize moving the troupe’s props but cannot extend the booking. Administrator Shen Yue handles handover and cannot postpone the exhibition himself. Both know this from the opening. The troupe’s own trolley is already outside, so moving equipment does not depend on a surprise rescue.\n\nQiao Ning wants a newcomer to complete a first full rehearsal. Shen Yue reminds her of handover. She asks for another half hour; he shows the confirmed exhibition arrival and refuses. She changes the request: finish one run without props before eight while the troupe moves its equipment. He agrees to inspect at the original time, without waiving the requirement to clear the room.\n\nThe newcomer performs while Qiao Ning and another member wheel a prop box outside. The newcomer completes the entrance and response that previously stalled. Qiao Ning acknowledges that progress without declaring the performance stage-ready. The troupe clears the remaining items. Shen Yue actually inspects and accepts the room, and the exhibition team enters.\n\nThe episode delivers a complete attempt and timely handover. It wins no extension and does not acquire another venue automatically. Props are outside, the exhibition uses the room, and Qiao Ning decides to ask the previously introduced school hall about availability. The next episode shows contact and a reply before determining the new venue. Deciding to ask is not obtaining a booking."
         }
       },
       {
@@ -8899,12 +8906,12 @@
       {
         "id": "worked-scene",
         "heading": {
-          "zh": "用单集卡检查一集是否完整",
-          "en": "Check completeness with an episode card"
+          "zh": "把同一个案例回填进单集卡",
+          "en": "Fill the episode card with the same case"
         },
         "body": {
-          "zh": "| 单集卡 | 停办前的最后一堂课 |\n|---|---|\n| 开场目标 | 老师要让学生完成作品展示 |\n| 阻力 | 管理员按通知准备锁门 |\n| 选择 | 老师把展示移到门外，邀请家长作评委 |\n| 本集结果 | 第一位学生完成公开展示 |\n| 下集问题 | 家长发现停办通知的理由与事实不符 |\n\n这集有局部回报，也留下由回报带来的新行动。若只在锁门前黑屏，本集就没有完成任何事；补一次人物自己挣来的结果，再选择断点。",
-          "en": "| Episode field | The final lesson before closure |\n|---|---|\n| Goal | Let students show their work |\n| Obstacle | The administrator is preparing to lock the room |\n| Choice | Move outside and invite parents to judge |\n| Local result | The first student completes a public presentation |\n| Next question | A parent notices the closure notice misstates the facts |\n\nA blackout before the door locks delivers no result. Add an earned local outcome, then choose the ending."
+          "zh": "以下是编辑手写检查卡，不是额外五场戏，也不冒充 skill 生成结果。\n\n| 单集卡 | 腾空前的最后一次排练 |\n|---|---|\n| 进入 | 八点交接已定，道具和新人在活动室，推车在门外 |\n| 当前目标与限制 | 乔宁要完成整段尝试，借期不可单方延长，场地必须腾空 |\n| 换办法 | 延期被拒后，改为无道具试演与搬运同时进行，管理员接受原时点交接 |\n| 局部结果 | 新人演完，道具搬出，管理员验空，布展组实际进场 |\n| 后续 | 乔宁尚未借到替代场地，准备向既有学校联系人询问 |\n\n若仅在拒绝延期时黑屏，就没有兑现这集承诺的试演；若作品本来承诺的是被拒后的关系变化，则应把那份变化写清，不必强行把结果改成成功。",
+          "en": "This is an editorial worksheet, not five extra scenes or an output claimed from running the skill.\n\n| Card | Case |\n|---|---|\n| Entry | Eight o’clock handover agreed; props and newcomer inside; trolley outside |\n| Goal and limit | Complete a full attempt; no unilateral extension; room must be cleared |\n| Changed approach | After refusal, combine a prop-free run with moving equipment; inspection stays at the agreed time |\n| Result | Newcomer finishes, props leave, administrator inspects, exhibition team enters |\n| Continuation | No replacement venue yet; Qiao Ning prepares to ask the established school contact |\n\nCutting to black at the refusal would not fulfill this episode’s promised rehearsal. If a different work promises a relationship change caused by refusal, deliver that change instead of forcing success."
         }
       }
     ],
@@ -8963,7 +8970,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "什么样的小说适合改短剧：先看能否变成屏幕行动",
       "en": "Which Novels Suit Micro-Drama Adaptation? Look for Screen Action"
@@ -8977,93 +8984,93 @@
       "en": "Sort material into screen-ready, requiring a new vehicle, or prose-only. Assess adaptation value with new openings and a production-burden checklist."
     },
     "answer": {
-      "zh": "判断小说是否适合改短剧，要按剧情单元检查功能由什么承载：可见行动、可听对白和空间关系可直接进入候选；内心或叙述承担的功能需要设计新载体；依赖叙述者与读者关系的效果要诚实舍弃。随后比较开篇转折、制作负担和可持续的分集结果。",
-      "en": "To judge whether a novel suits micro-drama adaptation, examine what carries each story unit’s function. Visible action, audible dialogue and spatial relationships are immediate candidates for the screen. Functions carried by thoughts or narration need a new vehicle. Be explicit about giving up effects that depend on the narrator’s relationship with the reader. Then compare opening turns, production demands and the potential to keep delivering results episode by episode."
+      "zh": "判断小说适不适合改短剧，先找原作吸引人的功能，再逐个剧情单元看它由行动、对白、空间，还是心理与叙述承担。能直接保留的写清依据；要换载体的提出具体方案与损失；目前无法保住的效果诚实列出。再比较可用开篇、分集回报和制作负担，结论只覆盖实际读过的内容，分析候选交给作者决定。",
+      "en": "Identify what makes the novel compelling, then examine each plot unit’s carriers: action, dialogue, space, thought, or narration. Cite functions that can remain, propose concrete replacements and losses where needed, and name effects that cannot currently be preserved. Compare openings, episode payoffs, and production burden. Confine conclusions to material actually read and leave adaptation decisions to the creator."
     },
     "sections": [
       {
         "id": "classify",
         "heading": {
-          "zh": "三类屏幕适配判断",
-          "en": "Three Ways Material Can Relate to the Screen"
+          "zh": "三类判断针对功能，不针对题材标签",
+          "en": "Classify functions rather than labels"
         },
         "body": {
-          "zh": "| 判断 | 读者问题 | 处理 |\n|---|---|---|\n| 可直接上屏 | 关键变化已由行动、对白或空间完成吗？ | 保留并压缩 |\n| 需要换载体 | 功能成立，但当前只在叙述或内心里吗？ | 写出物证、关系动作、对白策略或第三方反应 |\n| 文字专属 | 效果依赖叙述视角欺骗或长期文字回扣吗？ | 明说舍弃及损失 |\n\n“需要换载体”必须指出新载体保住什么、改变什么。仍靠旁白解释一切，问题尚未解决。",
-          "en": "| Category | Question to ask | Treatment |\n|---|---|---|\n| Screen-ready | Is the key change already conveyed through action, dialogue or spatial relationships? | Retain it and compress it |\n| Needs a new vehicle | Does the function work, but currently exist only in narration or thought? | Convey it through physical evidence, an action that affects a relationship, a dialogue tactic or a third party’s reaction |\n| Prose-only | Does the effect depend on deception through narrative perspective or callbacks built up over a long stretch of prose? | State explicitly what you will omit and what will be lost |\n\nFor material that needs a new vehicle, specify what the replacement preserves and what it changes. If voiceover still has to explain everything, the problem remains unsolved."
+          "zh": "| 判断 | 依据与处理 |\n|---|---|\n| 可直接上屏 | 功能已由可见行动、可听对白或空间关系承担；说明保留哪次判断、选择或关系变化，再检查所需制作资源 |\n| 需要换载体 | 当前靠内心或叙述，提出具体行动、证据、空间、对白或反应，逐项说明保住什么、改变什么 |\n| 当前不能保住 | 功能依赖特定阅读关系，而现有方案无法兑现；指出具体效果与损失，不假装加一段旁白就完全等价 |\n\n这是原生分析方法的三类判定，后面的手写表只是编辑示意。心理多不等于不能改，叙述诡计也不自动无法拍；判断某个效果之前，需要看具体的信息安排与可用形式。有意的VO可以是改编选择，但如果只是复述原文，不算已经证明新载体有效。",
+          "en": "| Judgment | Evidence and next step |\n|---|---|\n| Screen-ready | Action, audible dialogue, or space already carries the function. Name the judgment, choice, or relationship change before checking resources |\n| Needs a carrier | Thought or narration carries it now. Propose specific action, evidence, space, dialogue, or response, then state what survives and changes |\n| Not preserved yet | A particular reading relationship creates an effect the current screen plan cannot deliver. Name that loss rather than treating added narration as equivalent |\n\nThese are the native analysis method’s three judgments; the later worksheet is an editorial illustration. Heavy interior thought or narrative deception is not automatically unadaptable. Inspect the particular information design and available form. Deliberate VO can be an adaptation choice, but reading the source aloud does not prove an effective replacement."
         }
       },
       {
         "id": "opening",
         "heading": {
-          "zh": "寻找开篇替换点",
-          "en": "Find an Alternative Starting Point"
+          "zh": "寻找可用开篇与必要背景",
+          "en": "Find an opening and its necessary context"
         },
         "body": {
-          "zh": "短剧开篇优先寻找第一个可见、有代价、当场发生的选择。它可能晚于小说第一章。把此前内容分成两类：观众理解选择必须知道的，移到动作后补入；只服务阅读氛围或长线记忆的，暂不带入。找不到可拍转折，本身就是改编风险。",
-          "en": "For a micro-drama opening, look first for a visible, costly choice made in the moment. It may occur later than the novel’s first chapter. Divide earlier material into two groups: what viewers must know to understand the choice, which you can supply after the action, and what serves only the atmosphere of the prose or long-term recall, which you can leave out for now. An inability to find a filmable turn is itself an adaptation risk."
+          "zh": "比较观众收益强、又能交代主角、眼前危机与目标的候选，而不是只挑第一章或时间最早的一次争执。后文高光可列为冷开选项，由作者决定是否提前，以及怎样转回原时点。\n\n对每个候选写：观众第一眼看见什么，能理解什么问题，本集能得到哪部分回报；少了哪些前因就会误解责任或规则，这些事实怎样补入。抽样尚未读到成立的入口，就写“抽样内未见”，不能据此断言整本没有。\n\n初步快评按读过的章节提出假设；全量分析再以剧情单元评估，二者分母不同，不把比例强行换算成精确改编率。",
+          "en": "Compare candidates with strong audience payoff that also establish the protagonist, present crisis, and goal. Do not automatically choose chapter one or the earliest argument. A later peak can be offered as a cold-open option; the creator decides whether to advance it and how to return in time.\n\nFor each candidate, state the first image, readable question, and episode payoff. Identify missing causes needed to understand responsibility or rules and how to supply them. If sampling reveals no suitable entry, say “none found in the sampled material” rather than claiming the whole novel lacks one.\n\nTriage proposes hypotheses from sampled chapters; full analysis evaluates plot units. Their denominators differ, so do not manufacture a precise adaptation percentage by converting one into the other."
         }
       },
       {
         "id": "example",
         "heading": {
           "zh": "原创快评：钟表铺学徒记",
-          "en": "Original Quick Assessment: The Watchmaker’s Apprentice"
+          "en": "Original triage illustration: the clock-shop apprentice"
         },
         "body": {
-          "zh": "虚构小说前段大量依赖主人公辨认钟声时的内心联想。单元一“听声认出假零件”需要换载体：让她停下全店钟摆，只留下故障表的异响，并据此拒绝签收；保住专业判断，失去部分诗性联想。单元二用叙述者故意省略她早已认识送货人，属于文字专属，改编需放弃骗局或重建观众信息位置。\n\n可用开篇从她拒签一箱昂贵零件开始。场景集中在店面和仓库，同框人数少；可读标签和多版本零件会增加连续性负担。",
-          "en": "The opening of this fictional novel relies heavily on the protagonist’s internal associations as she recognises the sounds of clocks. In the first unit, “identifying a counterfeit part by sound” needs a new vehicle. Have her stop every pendulum in the shop, leaving only the faulty watch’s unusual noise, and refuse to sign for the delivery on that basis. This preserves her professional judgment while losing some of the poetic associations. In the second unit, the narrator deliberately omits that she already knows the delivery person. That effect is prose-only: the adaptation must abandon the deception or rebuild what the audience knows and when.\n\nA workable opening is her refusal to sign for a box of expensive parts. Scenes are concentrated in the shop and storeroom, with few people in the same frame. Legible labels and multiple versions of the parts will add continuity demands."
+          "zh": "这是为本页虚构的候选小说与手写分析，不是已读真实书的快评结果。假设已提供两个剧情单元：\n\n**单元一**：学徒许宁准备验收店里订的新钟。原作已经写清：双方约定这批钟用蓝签标记已核对的新件，橙签表示等待复检；许宁在送货单上看见蓝签清单，箱内却是一排橙签。原文用钟声联想和内心权衡表现她怕得罪师父，最后拒绝签“全部已核对”。\n\n分析可建议：让蓝签清单与橙签实际内容在同一场可读，保留她指出不符、只签已检查项的选择。保住的是“顶着关系压力拒绝虚假确认”，减少的是钟声触发的诗性联想。标记规则是原作已有的虚构约定，不当作现实钟表检验常识；橙签也不自动说明零件是假货。\n\n**单元二**：原作前文写许宁“第一次见到送货人”，后文揭示那其实是多年未见的哥哥，叙述者早先故意说错。可比较隐藏脸部与关系信息、明确的回顾VO，或放弃这次叙述者欺骗。隐藏身份只能保住观众暂不知道，未必保住被叙述者直接骗过的阅读感。要写清这个差别，再由作者决定。\n\n开篇可从她把未签的验收单退回切入，让观众问为何不接受。但当前只有两单元示意，不能估整部书适合多少集；要看她与师父怎样回应、单元结尾实际结果和后续回报。店面、仓库、必读文字、钟与签牌的跨镜一致性，都算制作负担，少地点并不自动低成本。",
+          "en": "This is a fictional candidate novel and editorial illustration, not a report from reading a real book. Assume two plot units have been supplied:\n\n**Unit one:** Apprentice Xu Ning receives new clocks. The source has already established an agreement: blue tags mark checked new components, orange tags mark items awaiting reinspection. The delivery list specifies blue tags, but the box contains orange-tagged items. Chime associations and interior deliberation express her fear of offending her mentor before she refuses to sign that everything has been checked.\n\nThe analysis can propose making the blue-tag list and orange-tagged contents readable together and preserving her objection and decision to sign only inspected items. This retains refusing false confirmation under relationship pressure while reducing poetic associations. The tags are an established fictional agreement, not real clock-inspection practice. Orange tags do not prove counterfeit parts.\n\n**Unit two:** Earlier narration says Xu Ning meets the courier for the first time; later he is revealed as her long-absent brother, with the narrator having deliberately misstated the encounter. Compare hiding face and relationship information, marked retrospective VO, or abandoning that deception. Concealing identity may preserve uncertainty without preserving the experience of being directly misled by narration. State that difference for the creator’s decision.\n\nAn opening could begin with her returning an unsigned acceptance sheet. Why refuse? Two illustrative units cannot establish the whole novel’s episode count. Inspect responses, actual unit endings, and later payoffs. Shop, storage room, required text, clocks, and cross-shot tags all create production work; few locations do not guarantee low cost."
         }
       },
       {
         "id": "check",
         "heading": {
           "zh": "选书时还要检查什么",
-          "en": "What Else Should You Check When Choosing a Novel?"
+          "en": "What else should selection consider?"
         },
         "body": {
-          "zh": "检查主角是否会作出可见选择；对手是否有可执行筹码；每个单元能否产生局部结果；核心回报是否需要观众记住大量细节；群戏、动作、特效、可读文字和跨时造型是否与制作形态匹配。结论只覆盖读过的内容，抽样快评应保留可被全量阅读推翻的余地。",
-          "en": "Check whether the protagonist makes visible choices; whether the opponent has leverage they can actually use; whether each unit can deliver a partial result; and whether the central payoff requires viewers to remember many details. Assess whether ensemble scenes, action, visual effects, legible text and changes in character appearance across time fit the production format. Limit conclusions to material you have read. A quick assessment based on a sample must remain open to being overturned by a full reading."
+          "zh": "按已接受的制作方式，列人物同框、独立空间、群戏、动作、特效、必读文字、跨时间造型与连续性需求。生成视频、动画与实拍的负担可能不同，形态未定就保留不同方案，不替作者选。\n\n同时检查主角的选择、对手的筹码、关系吸引力、单元的局部回报。题材热度或人物少只能帮助提出候选，不能代替这些依据。快评写明实际阅读范围、被跳过的材料与未决问题；之后读全书，应列出哪些快评被修正，而非让早先判断一直显得正确。",
+          "en": "For the accepted production form, record cast sharing a frame, distinct spaces, crowds, action, effects, required text, cross-time looks, and continuity. Generated video, animation, and live action can carry different burdens. Keep alternatives when the form is undecided rather than choosing for the creator.\n\nAlso examine protagonist choices, opposing leverage, relationship appeal, and local payoffs. Genre attention or a small cast can suggest candidates, not replace evidence. State actual reading coverage, skipped material, and open questions. After a full read, name corrected triage findings instead of leaving an earlier hypothesis untouched."
         }
       },
       {
         "id": "worked-scene",
         "heading": {
-          "zh": "选书时先试写同一个短场景",
-          "en": "Test the source with one short scene"
+          "zh": "用一个单元比较，再决定是否试写",
+          "en": "Compare a unit before deciding to draft"
         },
         "body": {
-          "zh": "从候选小说各选一场主角需要行动的冲突，写成约一页剧本。记录原文怎样呈现目标、阻力、转折和结果，再标记哪些能直接拍、哪些需要改编。大量心理解释不一定不能改，但需要找到对白、物件或行为来承担同样的信息。\n\n比较三项：不了解原作的观众是否能看懂；人物能否凭自己的行动改变局面；改完是否仍保留原作最吸引人的关系或能力。不要仅用热度、篇幅或人物数量替代试写。",
-          "en": "Choose one actionable conflict from each candidate novel and adapt it into roughly a page of script. Record goal, obstacle, turn, and outcome, distinguishing filmable facts from adaptation work. Inner explanation may become dialogue, objects, or behavior. Compare readability for a new viewer, character action, and preservation of the source’s strongest appeal. Popularity or cast size alone cannot answer those questions."
+          "zh": "| 手写快评项 | 写什么 |\n|---|---|\n| 原作范围 | 已读章节或单元位置、未覆盖部分 |\n| 功能与载体 | 原文改变哪项信息、判断、关系或行动，靠什么传递 |\n| 屏幕方案 | 具体保留或替换方案，分别说明新增、删去与意义变化 |\n| 制作负担 | 本方案真实需要的画面、声音、人物、地点与文字 |\n| 下一步 | 值得全量分析、先试一个单元，或暂不改；理由与未知处 |\n\nshort-drama-novel-analyze只做结构化分析，不在分析阶段写对白、分镜或生成媒体。作者采用方向后，交开发和剧本技能试写同一单元，再比较不认识原作的观众能否理解、人物行动是否成立、原作吸引力保住多少。分析认为可行、写出一页、实际拍成，是三个不同检查点。",
+          "en": "| Editorial note | What to record |\n|---|---|\n| Coverage | Read chapters or units and uncovered material |\n| Function and carrier | Which information, judgment, relationship, or action changes, and how the text delivers it |\n| Screen proposal | Specific retention or replacement, including additions, cuts, and changed meaning |\n| Production work | Picture, sound, cast, location, and text actually needed |\n| Next step | Full analysis, one-unit trial, or pause, with reasons and unknowns |\n\nshort-drama-novel-analyze produces structured analysis, not dialogue, storyboards, or generated media. After the creator adopts a direction, development and script skills can trial the same unit. Compare comprehension without source knowledge, credible action, and retained appeal. An analytical proposal, a drafted page, and a produced scene are separate checkpoints."
         }
       }
     ],
     "faq": [
       {
         "q": {
-          "zh": "短剧方法需要固定时长或固定集数吗？",
-          "en": "Does this method require a fixed runtime or episode count?"
+          "zh": "小说心理描写很多，就不适合改短剧吗？",
+          "en": "Does extensive interior thought make a novel unsuitable?"
         },
         "a": {
-          "zh": "不需要。先让目标、反制、转向和结果成立，再按项目已经接受的篇幅与制作条件调整容量。",
-          "en": "No. First make the goal, countermove, change of direction and result work. Then adjust the amount of material to the length and production conditions already agreed for the project."
+          "zh": "不一定。按具体单元检查心理承担的判断、信息与关系变化，提出可执行的新载体，并写清失去的阅读效果。当前没有合适方案就保留风险，不把心理多当整本书的否决标签。",
+          "en": "Not necessarily. Inspect the judgments, information, and relationship changes each unit’s thoughts carry. Propose a concrete carrier and state the lost reading effect. Keep unresolved risks instead of rejecting a whole book by the amount of thought."
         }
       },
       {
         "q": {
-          "zh": "可以直接套用表格吗？",
-          "en": "Can I use the table as it is?"
+          "zh": "抽样快评可以直接决定全书改多少集吗？",
+          "en": "Can sampled triage decide the whole episode count?"
         },
         "a": {
-          "zh": "表格用于发现缺口。正文仍要写成人物可执行的行动、对白与后果，空字段无需硬填。",
-          "en": "Use the table to find gaps. The script still needs actions the characters can perform, dialogue and consequences. Do not force an entry into a field you do not need."
+          "zh": "不能。快评说明实际抽样范围，初步量级也只是由该范围推来的假设。全量分析再按单元与回报切候选，作者决定采纳、合并与拆分；抽样章与全量单元的比例不强行换算。",
+          "en": "No. State actual sampling coverage and treat any preliminary scale as a hypothesis from it. Full analysis proposes candidates by units and payoffs; the creator chooses, combines, or splits them. Do not convert sampled-chapter proportions into full-unit proportions."
         }
       }
     ],
     "skill": {
       "name": "short-drama-novel-analyze",
       "text": {
-        "zh": "在 Claude Code 中用 /short-drama-novel-analyze（Codex 中用 $short-drama-novel-analyze）对已提供的小说做只读适配快评：哪些冲突可以上屏，哪些内心信息需要换载体，哪些关键效果难以保留？结论限于实际读取的范围，暂不进入剧本开发。",
-        "en": "In Claude Code, use /short-drama-novel-analyze (in Codex, use $short-drama-novel-analyze) for a read-only adaptation assessment of the novel you have supplied: which conflicts can be shown on screen, which internal information needs a new vehicle, and which key effects will be hard to preserve? Limit conclusions to the material actually read, and do not start script development yet."
+        "zh": "用 /short-drama-novel-analyze（Codex中用 $short-drama-novel-analyze）对我提供的原著先做快评：说明实际抽样范围、功能与载体、可用开篇、制作负担和未决风险，不写剧本。若我要全量分析，完整覆盖后再按剧情单元给候选，并说明哪些初步判断被推翻；最终方向由我选择。",
+        "en": "Use /short-drama-novel-analyze (or $short-drama-novel-analyze in Codex) on the supplied source for triage: report actual sampled coverage, functions and carriers, opening candidates, production work, and unresolved risks without writing a script. If I request full analysis, cover it before proposing plot-unit candidates and identify corrected hypotheses. I choose the final direction."
       },
       "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-novel-analyze/SKILL.md"
     },
@@ -9077,10 +9084,24 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "快评抽样、覆盖与开篇候选",
+          "en": "Triage sampling, coverage, and opening candidates"
         },
-        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-novel-analyze/SKILL.md"
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-novel-analyze/references/adaptation-triage.md"
+      },
+      {
+        "label": {
+          "zh": "单元适配、载体替换与制作负担",
+          "en": "Unit suitability, carrier changes, and production burden"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-novel-analyze/references/adaptation-value.md"
+      },
+      {
+        "label": {
+          "zh": "分析范围、事实追溯与创作者决定",
+          "en": "Analysis scope, fact traceability, and creator decisions"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-novel-analyze/references/stage-contract.md"
       }
     ]
   },
