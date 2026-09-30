@@ -617,8 +617,8 @@
       "en": "How to write rule-based horror: make two rules collide so each test costs a route, a tool or an ally. Includes a build order and a sample rule sheet."
     },
     "answer": {
-      "zh": "规则怪谈要写出规则之间的冲突：人物守住一条就得违反另一条，每摸清一条规则都要赔上一样东西，少一条路、一件道具或一个同伴。动笔前先搭副本（背景故事、规则包装、通关线和死路），正文再按“异常、试探、代价、更危险的信息”一章一章往前推。",
-      "en": "Rules horror (also called rule-based horror) scares readers when the rules start to collide: the character is caught between two rules that cannot both be kept, and every rule they test costs a route, a tool or an ally. Build the setting first (backstory, rule presentation, a way out and dead ends), then move each chapter through anomaly, test, cost and a more dangerous piece of information."
+      "zh": "规则怪谈先建立可观察的限制，再让人物在信息不足、时间压力或相互冲突的要求中选择。线索、试探与结果要能对应，代价按情节累积，不必每次都丢一件东西。动笔前确定规则来历、能走的通路、误判的后果和本轮可实际完成的目标。",
+      "en": "Establish observable limits, then force choices under incomplete information, time pressure or conflicting demands. Connect clues, tests and results. Costs can accumulate without losing an item at every step. Plan origins, viable routes, mistaken choices and an achievable objective."
     },
     "sections": [
       {
@@ -628,8 +628,8 @@
           "en": "How to design a rules horror setting: a four-step build order"
         },
         "body": {
-          "zh": "Oh Story 的长篇题材库把规则怪谈看作无限流的近亲：玩家被拉进一个规则副本，靠摸清规则活下来。搭副本按这个顺序：\n\n1. **背景故事**：先定这个地方原来做什么、出过什么事。规则的来历藏在这里。\n2. **规则包装**：把规则落成现场的东西，比如墙上的守则、交班时的一句嘱咐、半张撕掉的纸条。每条规则都要能被验证，写清它在什么条件下出现、什么条件下停。\n3. **通关线和死路**：先定一条走得通的路，再设几条看着能走、其实走不通的死路。走进死路的人要付出看得见的代价。\n4. **副本节奏**：别人先出事，示范规则有多狠；主角稳住局面，亮出本事；揭开规则背后的真相；最后的升华落到一个具体画面上（下面示例里，是值班表上空出来的那一格）。\n\n副本搭完，再装一台发动机：人物停不下来（同伴还困在里面、天一亮门就封死、差事逼他非去不可），每摸清一条规则都要赔上点什么，吃透的规则又冒出例外。",
-          "en": "Oh Story's genre catalog treats rules horror as a cousin of infinite flow, the web-serial genre that drops players into one deadly \"dungeon\" after another; here the dungeon runs on rules, and survival means working them out. Build it in this order:\n\n1. **Backstory**: what the place used to be and what happened there. The origin of the rules lives here.\n2. **Rule presentation**: a notice on a wall, a warning at shift change, half of a torn note. Every rule must be testable: decide when it switches on and when it stops.\n3. **A way out and dead ends**: one route that works, several that look workable and fail. Walking into a dead end costs something visible.\n4. **Pacing**: someone else gets hurt first to show how harsh the rules are; the protagonist stays calm and shows skill; the truth comes out; the ending lands on one concrete image (in the example below, an empty slot on the roster).\n\nThen add an engine: the character cannot stop (a friend is still inside, the doors seal at dawn, the job demands it), every rule mapped costs something, and known rules start showing exceptions."
+          "zh": "Oh Story 的题材库提供副本式规则怪谈的搭建参考：背景故事、现场规则、通路与死路、揭示和结算。它是一种结构选择，不要求所有怪谈都出现死亡示范或同一种升华。\n\n先写这个地方原来做什么、人物为什么必须留下，再把规则落到纸条、交班告诫或已经发生的事件。作者应知道每条限制的作用范围；人物可以只知道其中一部分，读者也可以暂时不明白来历。\n\n安排一条能走通的路线，并给误判可信后果。危险可以损耗时间、信任、可用位置或认知；不必每发现一条规则都强制牺牲道具或同伴。例外要有前文依据，不能到结尾才替主角临时豁免。",
+          "en": "Oh Story offers a dungeon-style planning reference: history, rules in the scene, viable and dead-end routes, revelation and settlement. It is an option, not a requirement for a death demonstration or one kind of elevated ending.\n\nEstablish the place’s ordinary function and why the character stays, then embody rules in notes, warnings or prior events. The author should know each limit’s scope; characters and readers may know only part.\n\nPlan a viable route and credible consequences for mistakes. Pressure can cost time, trust, position or certainty. Discovering a rule need not sacrifice an item or companion. Establish exceptions before they help the protagonist."
         }
       },
       {
@@ -639,8 +639,8 @@
           "en": "How do the rules conflict? Tie the fear to countable resources"
         },
         "body": {
-          "zh": "规则一打架，读者就发冷：两条规则同时拽住人物，他只能顺着一条走。读者盯着他在线索不够时押下一注，再看这一注怎么收账。所以恐惧要落在数得清的东西上：地图上又划掉一条路，手里又少一件道具，身边又少一个能信的人。\n\n路线、时间、空间、人手、光线，连规则本身，都是筹码，每试探一次就押上一样。下表可当道具清单：\n\n| 可数资源 | 现场细节 | 消耗的写法 |\n|---|---|---|\n| 路线 | 楼层指示牌、地上用粉笔画的线 | 走廊证明不安全，地图上划掉一条路 |\n| 时间 | 两只走得不一样的钟、监控角落的时间戳 | 每试一次，离天亮又近一格 |\n| 光与能见度 | 手电剩几格电、玻璃里多出的倒影 | 电量掉一格，或者把唯一的光源交出去 |\n| 人数 | 点名册上划掉的名字、数了三遍的人头 | 数到的人和名单对不上 |\n| 痕迹与声音 | 没干的水渍、录音里多出的一口气 | 证明有东西来过，它的限制却还没摸清 |\n| 门与锁 | 早上锁好、半夜却开着的门 | 能躲的房间少一间，安全区又小了一圈 |\n\n冲突的造法：两条规则在同一时刻提出相反的要求，人物只能守一条。保护别人要付出行动上的代价，比如用身体堵住入口，或者把唯一的光源交给同伴。\n\n人物靠四步活命：看、试、记、再用。每条消息标清来路：亲眼所见、道听途说，还是有人编的。最懂行的老手也只摸清一半。\n\n回报往往很小：规则多摸清一格，或者侥幸躲过一次代价，但每次都让读者更清楚自己在怕什么。回报也可以是冷的：人救回来了，守则上多出一行字。",
-          "en": "The chill starts when two rules pull the character in opposite directions and only one can be followed. Readers watch a character bet on too little information, so anchor the fear in things you can count: one fewer route, tool or person to trust.\n\nRoutes, time, space, people, light and the rules themselves are stakes; each test spends one. Use this table as your prop inventory:\n\n| Resource | Scene details | How it gets spent |\n|---|---|---|\n| Routes | Floor signs, a chalk line on the ground | A corridor proves unsafe and comes off the map |\n| Time | Two clocks that disagree, a CCTV timestamp | Each test moves the clock toward dawn or handover |\n| Light | Flashlight bars, an extra reflection in the glass | The battery drops a bar, or the only light is handed over |\n| Head count | Crossed-out names on a roll, heads counted three times | The count and the list stop matching |\n| Traces and sounds | A wet stain that never dries, an extra breath on a recording | Proof something was here, limits still unknown |\n| Doors and locks | A door locked in the morning, open at midnight | One fewer room to hide in, and the safe zone shrinks |\n\nTo build the collision, make two rules demand opposite things at once. Protecting someone must cost room to act: blocking an entrance with your body, giving a friend the only light.\n\nSurvival is a four-step loop: look, test, record, reuse. Tag every piece of information: seen firsthand, heard secondhand, or made up. Even the old hand knows only half the map.\n\nRewards are small: one more square of the rules mapped, or one cost dodged, each telling the reader more exactly what to fear. A reward can be cold: the person is saved, and the rule sheet gains a line."
+          "zh": "两条规则可以在同一时刻要求相反行动，逼人物在不完整信息中选择。也可以让纸条、告诫与亲眼所见不一致，迫使他判断哪条可信。冲突来自限制和信息，不必每一回都丢失一个同伴。\n\n| 可用条件 | 现场承载 | 怎样施压 |\n|---|---|---|\n| 通路 | 楼层牌、地面标线 | 某段路暂时不能走 |\n| 时间与光 | 钟表、手电余量 | 调查占用时间，暗处难判断 |\n| 人与信息 | 登记本、证词、录音 | 来源矛盾，信任需要重新确认 |\n\n水渍或多一口呼吸先是异常线索，不自动证明是谁来过。给信息标亲见、转述、推断，试探只证明它实际检验的部分。保护别人可以承担等待、暴露位置或资源分配的代价，也可以暂时不付代价但留下新责任。\n\n摸清一点限制、避开一次风险或争到一条通路，都能完成局部回报。下一轮从结果开始，不靠资源复位或随意增写规则。",
+          "en": "Two rules can demand opposite actions at the same time, forcing a choice under limited knowledge. Notes, warnings and observations may also disagree, requiring a judgment about reliability. Limits and information create conflict without losing a companion every round.\n\n| Condition | Carrier | Pressure |\n|---|---|---|\n| Routes | Signs and floor marks | A section becomes unavailable |\n| Time and light | Clocks and torch charge | Inquiry takes time; darkness limits judgment |\n| People and facts | Register, testimony, audio | Conflicting sources change trust |\n\nA wet mark or extra breath is a clue, not proof of who visited. Label observation, report and inference. A test supports only what it examines. Protection may cost waiting, exposure or allocation; it can also create responsibility without an immediate loss.\n\nLearning a limit, avoiding danger or gaining a route can provide a local payoff. Continue from that result without resetting resources or adding convenient rules."
         }
       },
       {
@@ -650,8 +650,8 @@
           "en": "How to pace a rules horror story chapter by chapter"
         },
         "body": {
-          "zh": "Oh Story 写悬疑灵异正文时，每章按这个顺序走：先出异常，再试规则，付一笔小代价，最后换来一条更危险的信息。只吓人、不推进规则的一章算没写完。\n\n惊吓和解谜分主次：重惊吓的一章用一条清楚的线索收住，重解谜的一章留一个没解释的危险。\n\n- **前期**：亮出看得见的怪事和一条能当场验证的规则，来历不讲；安排一次失败，把后果摆在明面上。\n- **中期**：规则之间打起来，人物只能在两条没法同时守住的规则里挑一条。\n- **后期**：开头随手带过的细节，成了能不能活下来的关键；真相可以只揭一半，立过的限制一条也不能改。\n\n章尾钩子可以从这几种里挑：划好的安全线往里缩了，某条规则露出例外，同伴做了规则不许做的事，刚用过的道具不灵了，原本在屋里的人出现在门外。切断之前，这一章先要兑现点东西：一个新发现、一次试验的结果，或者路线变了。收尾方式见[章尾钩子有哪些](/oh-story/chapter-ending-hooks)，把这四步排进每章可以套用[细纲模板](/oh-story/chapter-outline-template)。",
-          "en": "Oh Story's prose guide for supernatural suspense runs every chapter through four beats: an anomaly appears, a rule is tested, a small price is paid, a more dangerous piece of information arrives. A chapter that only scares is unfinished. A scare-heavy chapter closes on one clear clue; a puzzle-heavy one leaves one danger unexplained.\n\n- **Early**: visible anomalies and one rule the reader can watch being tested, no origin story; one failure shows what the threat does.\n- **Middle**: the rules conflict, and the character must choose between two rules they cannot keep at once.\n- **Late**: a detail brushed past early decides who lives; reveal half the truth if you like, and keep every limit you set.\n\nChapter-ending hooks that fit: the safe line shrinks, a rule shows an exception, an ally breaks a rule, a tool that just worked fails, someone who was inside now stands outside the door. Deliver a discovery, a test result or a route change before the cut. See [types of cliffhangers](/oh-story/chapter-ending-hooks) and the [chapter outline template](/oh-story/chapter-outline-template)."
+          "zh": "悬疑灵异方法卡给出“异常、试探、代价、新信息”的默认推进参考。可以分布在一章内，也可以跨几个场景展开；恢复、整理线索或关系选择有作用时，不为每章达标再制造一场事故。\n\n前期建立一个可感知异常与有限线索，中期让调查改变判断或可用通路，后期用前文细节处理已经立下的限制。重惊吓的段落保留理解依据，重解谜的段落保留当前危险。\n\n章尾可以落在发现、已完成的试验、路线变化或下一项选择。先兑现本轮内容，再接新问题。需要排列详细节点时可参考[细纲模板](/oh-story/chapter-outline-template)。",
+          "en": "The suspense card offers anomaly, test, cost and new information as a default progression. It can fit one chapter or span scenes. Do not add an accident merely to meet a quota when recovery, clue review or a relationship choice already matters.\n\nEarly passages establish an observable anomaly and limited clues. Investigation changes judgment or routes. Later passages use planted details to address established limits. Scares need a basis for understanding; deduction retains present danger.\n\nEnd with a finding, completed test, route change or next choice. Deliver the current beat before opening another question. Use a detailed outline when ordering the nodes."
         }
       },
       {
@@ -661,8 +661,8 @@
           "en": "Rules horror example: a rule sheet that turns on itself"
         },
         "body": {
-          "zh": "下面是一个原创的小副本：老小区地下车库的夜班收费亭。先看贴在亭子玻璃上的守则：\n\n> 地下二层夜班守则\n> 一、零点以后，人不能离开有光的地方。\n> 二、没挂车牌的车开到杆前，不抬杆，不和司机对视。\n> 三、出亭巡查时，手电只照脚下。\n> 四、交班前，登记本上的车数要和车位对上。对不上，就把多出来的那辆找出来。\n> 五、后窗有人敲，不要应声。后窗外面是墙。\n\n第一章的开头可以这样写：\n\n> 雨从傍晚下到现在。老贺把登记本推给我，说三十一辆，一辆不差。B-17 停着一辆灰色轿车，车身一滴水都没有。我当它是包月车，老贺早记过了，没多问。\n> 老贺走到门口又回头：“手电别往高处照。”说完就走了，没说为什么。\n> 零点四十，一辆没挂牌的白色面包车开下坡道，停在杆前。驾驶座的车窗摇下来一半。我低头盯着自己的鞋，数到三百多，才听见它倒车上去。杆前留下两道水印，一直拖回坡道口。\n> 登记本里夹着值班表。上周三那一格的名字被红笔划掉了。那天的车数后面多了一行小字：无牌，一辆，已抬杆。\n> 两点半，我把车位又数了一遍。三十二辆，比本上多一辆。老贺从来没记错过。\n> 三点十分，停电了。亭里的灯闪了两下就灭了，只剩我手里那支手电，电量三格。\n> 后窗响了两下。是老贺的声音：“开门，我给你送电池来了。”\n\n这张守则怎么打架，又怎么兑现：\n\n- **前期只验证一条**：第二条靠那辆面包车当场验证；值班表上划掉的名字和“已抬杆”那行字，是一次不用解释的失败示范。\n- **规则开始冲突**：停电后，第四条逼他出亭数车，第一条只许他带着光走，唯一的光是手电；第三条又让手电只能照地面，车牌看不清。\n- **每一步都付代价**：后面几章里，面包车又停回杆前，出口走不了，少一条路；每照一排车位，电量掉一格，少一件道具；敲门声不能应，唯一熟悉车库的老贺帮不上忙，少一个同伴。\n- **前期细节兑现**：手电只能贴地照，他才看见 B-17 四个轮胎底下，车位白线一截都没被压住：这车根本没挨着地。接班时那辆一滴水都没有的车，他当时没多想，这下成了认出多余那辆车的依据。困住他的规则，成了找车的工具。\n- **冷回报**：车找到了，账对上了。天亮交班，值班表上老贺那一格空着。",
-          "en": "An original small setting: the night-shift toll booth of an old apartment block's underground garage. The notice on the booth glass:\n\n> Level B2 night shift rules\n> 1. After midnight, do not leave a lit area.\n> 2. A car with no plates at the barrier: do not raise it, do not look at the driver.\n> 3. Outside the booth, point the flashlight only at your feet.\n> 4. Before handover, the logbook must match the cars in the bays. If it does not, find the extra car.\n> 5. If someone knocks on the back window, do not answer. The back window faces a wall.\n\nThe chapter could open like this:\n\n> It had been raining since dusk. Lao He pushed the logbook at me: thirty-one cars, all accounted for. A gray sedan sat in B-17, bone dry. I took it for a monthly pass holder Lao He had already counted.\n> At the door Lao He turned back. \"Don't shine the flashlight up high.\" He left without saying why.\n> At 12:40 a white van with no plates stopped at the barrier. I stared at my shoes and counted past three hundred before it reversed away, leaving two wet tracks up the ramp.\n> In the logbook was the duty roster. Last Wednesday's name was crossed out in red. Under that night's count someone had written: no plates, one car, barrier raised.\n> At 2:30 I counted the bays again. Thirty-two. One more than the book, and Lao He never miscounted.\n> At 3:10 the power went. All I had was the flashlight, three bars left.\n> Two knocks on the back window. Lao He's voice: \"Open up, I've brought you batteries.\"\n\nHow the sheet turns on itself and pays off:\n\n- **Early, one rule tested**: the van proves rule 2; the crossed-out name and \"barrier raised\" show a failure without explanation.\n- **The rules collide**: with the power out, rule 4 sends him out to count, rule 1 lets him move only with light, and rule 3 keeps his only light on the ground, so he cannot read a plate.\n- **Every step costs something**: in later chapters the van returns to the barrier (a route lost); each row drains a bar (a tool lost); he cannot answer the knock, so Lao He, who knows the garage, cannot help (an ally lost).\n- **The early detail pays off**: with the light kept low, he sees the white bay line unbroken under B-17's tires. The car is not touching the ground. The dry body he shrugged off at handover marks the extra car, and the rule that boxed him in becomes his tool.\n- **A cold reward**: the count matches. At dawn handover, Lao He's slot on the roster is empty."
+          "zh": "以下是原创车库夜班故事，不是现实守则。收费亭纸条写着：零点后只留在有光区域；无牌车到杆前不抬杆、不对视；巡查时手电只照脚下；交班前若实车多于登记数，核对多出的车位，在空栏画叉并回亭合上本子，不能擦掉原有登记；后窗敲门不要应，窗外是墙。\n\n老贺交班说有三十一辆。主角看见 B-17 的灰车干得反常，却没核对全页。后来无牌面包车在杆前停过又退走。守住规则只说明主角没有抬杆，尚不能证明违规则必死；旧值班表的划名也只是待查线索。\n\n主角巡查发现三十二辆，B-17 的登记栏空着，其余车位对应本页记录。停电后只剩手电，照车位耗时又耗电，但不把“照一排就掉一格”当物理定律。低处光线显示 B-17 轮胎悬着，白线从下面连着通过：这支持它异常，登记核对才支持它是多出的那辆。\n\n主角在空栏画叉，回亭合本，不回应后窗熟悉的声音。天亮 B-17 空了，实车重新与登记一致，才完成本轮交班条件。值班表上老贺的名字被划去，原因仍未查明。发现、推断、执行和实际结果分开，余谜继续施压。",
+          "en": "This original garage story supplies fictional rules: after midnight stay in light; do not raise the barrier or meet an unplated driver’s eyes; aim the patrol torch only at the floor; if cars exceed the register, locate the unlisted bay, cross its blank row, return and close the book without erasing entries; ignore the rear window, which faces a wall.\n\nOld He reports thirty-one cars. The narrator notices the unusually dry B-17 car but does not check the full page. An unplated van later waits and leaves. Obedience establishes no barrier opening, not proof that violation kills. A crossed-out name remains a clue.\n\nPatrol finds thirty-two cars. B-17 has a blank row; other occupied bays match entries. A blackout leaves the torch. Inspection uses time and power without a fixed unit per row. Floor-level light shows the tires hovering and the bay line beneath: evidence of an anomaly. The register comparison identifies the extra car.\n\nThe narrator crosses the blank row, returns, closes the book and ignores a familiar voice behind the window. At dawn B-17 is empty and the count matches, completing handover. He’s crossed-out name remains unexplained. Separate finding, inference, action and result while retaining a mystery."
         }
       },
       {
@@ -672,8 +672,8 @@
           "en": "Chinese folk horror vs rules horror: what's the difference"
         },
         "body": {
-          "zh": "中式恐怖小说可以从民俗怪谈写起。它是规则怪谈的近亲，规矩同样卡住人物的选择，犯了就有追得到源头的后果，只是规矩来自冥婚、头七、风水这类乡土讲究。Oh Story 短篇的民俗怪谈风格包管它叫“规矩即命门”：坏了规矩的人倒霉，守住规矩的人活命。它的基本节拍：先立规矩，再有人破，当场或隔天应验。\n\n和副本式规则怪谈比，破戒顺序相同，帮手、用词和计时各有讲究：\n\n- **破戒顺序相同**：最先犯忌的多是主角身边的糊涂人或坏人，主角先看他们付代价，再轮到自己。\n- **帮手有价码**：神婆、师父肯出手，收钱、收替身，或者收你的命。\n- **名词用现成的**：头七、糯米、黄符、生辰八字，读者一看就懂。\n- **时辰就是节拍器**：白天缓，入夜紧，子时、头七、鸡鸣都是倒计时。异象围着同一条规矩转，一章换一个新怪物，规矩线就散了。",
-          "en": "Chinese horror fiction can start from folk horror, a close cousin of rules horror: rules still box in the character's choices, but here they come from rural customs such as ghost marriages, the seventh-day wake and feng shui. Oh Story's short-fiction folk horror style pack sums it up as \"the rule is your lifeline\": break it and you suffer, keep it and you live. The core beat: set the rule, someone breaks it, the price lands at once or the next day.\n\n- **The same order of breaking**: a fool or a bully near the protagonist breaks the taboo first, and the protagonist watches them pay before their own turn.\n- **Helpers charge a price**: the medium or the master will step in, for money, a stand-in, or your life.\n- **Familiar terms**: the seventh-day wake, glutinous rice, yellow talismans, birth dates.\n- **The hour is the metronome**: calm by day, tight after dark, with midnight and the first cockcrow as countdowns. Keep every omen circling the same rule; a new monster every chapter scatters it."
+          "zh": "民俗怪谈可把限制放进地方生活、亲族和行当，异象沿同一禁忌及旧账加深。帮手是否收费、谁先破戒、用什么时辰倒计时，都服从本篇人物与情境，不是固定配件。\n\n使用现实传统先核实来源；使用虚构地方规矩要明确其创作性质。更完整的单一禁忌与旧账设计见[民俗怪谈写法](/oh-story/folk-horror-fiction)，不把各类民俗名词混成万能解法。",
+          "en": "Folk horror places limits within local life, kinship or a trade. Anomalies deepen through one taboo and old debt. Paid helpers, first transgressors and time markers depend on the story rather than being mandatory accessories.\n\nVerify real traditions; label invented local rules as fiction. See the folk-horror guide for a fuller taboo-and-debt design. A mixture of traditional terms should not become a universal solution."
         }
       },
       {
@@ -683,8 +683,8 @@
           "en": "Rules horror as a long web serial: linking dungeons"
         },
         "body": {
-          "zh": "规则怪谈写成长篇，可以借无限流的骨架。Oh Story 的长篇题材库把规则怪谈算作类无限流，给无限流的默认结构是：一个副本 20 到 30 章，每个副本自成一个完整故事，再设一条现实主线兜底，把副本串起来。光源、伤势、人数和道具消耗要跨章记账，不能悄悄复位，做法见[长篇连贯性](/oh-story/long-novel-continuity)。",
-          "en": "A long rules horror web serial can borrow the infinite flow structure, which Oh Story's catalog sets by default at one dungeon per 20 to 30 chapters, each a complete story, with a real-world main plot linking them. Track light, injuries, head count and props across chapters so nothing quietly resets; see [long novel continuity](/oh-story/long-novel-continuity)."
+          "zh": "长篇可以采用多个自成故事的副本，加一条现实主线连接人物目标与后果。题材库中的副本章数只是默认参考，实际长度按问题复杂度、兑现与连载节奏决定，不为了凑数重复试探。\n\n光源、伤势、人数、知识与道具消耗跨章继承；副本结束也要写哪些代价仍在。新副本应让旧经验可用但不足，避免每次重新教学。状态记录见[长篇连贯性](/oh-story/long-novel-continuity)。",
+          "en": "A long novel can connect self-contained scenarios with a real-world throughline. The catalog’s chapter count is a default reference; use the problem, payoff and serial rhythm to set length rather than repeating tests for a quota.\n\nCarry light, injuries, people, knowledge and items across chapters and state which costs survive a scenario. Old experience helps in a new one without solving everything. See long-novel continuity for state tracking."
         }
       },
       {
@@ -694,8 +694,8 @@
           "en": "Common rules horror mistakes and how to fix them"
         },
         "body": {
-          "zh": "| 写崩点 | 改法 |\n|---|---|\n| 升级只靠更黑、更吵、更多形容词 | 每过一关，让人物失去一样具体的东西：一条出口、一格电量或一个帮手 |\n| 一章接一章地宣读新规则 | 每章围绕一个核心问题，先把已有规则验证、用足 |\n| 剧情需要时就改规则 | 已经立住的限制到结局也不推翻，例外要在前期细节里先露个头 |\n| 用旁白或系统提示直接讲出答案 | 让人物试一次，读者亲眼看见结果 |\n| 人物做读者都知道不该做的事来推剧情 | 给他一个不得不做的理由，或者让别人去犯错并付代价 |\n| 电量、伤势、人数跨章悄悄复位 | 每章末尾记一次状态，下一章从这里接着写 |\n\n卡住的时候先问一句：这一关过完，谁能做什么，谁不能做什么？答不上来，这一关就没写完。",
-          "en": "| Mistake | Fix |\n|---|---|\n| Escalating with darker, louder, more adjectives | After each obstacle, take something specific away: an exit, a bar of battery, a helper |\n| Reading out new rules every chapter | Build each chapter around one core question; use up the rules you have first |\n| Rewriting a rule when the plot needs it | Keep every established limit; let exceptions surface in early details |\n| Narration or system messages stating the answer | Let the character try it and the reader see the result |\n| Characters doing what readers know is stupid | Give them a reason they must, or let someone else err and pay |\n| Battery, injuries or head count quietly resetting | Log the state at each chapter end and pick up from there |\n\nWhen stuck, ask: after this obstacle, who can do what, and who no longer can? If you cannot answer, the obstacle is unfinished."
+          "zh": "| 写偏 | 修正 |\n|---|---|\n| 只靠更黑、更吵升级 | 改变通路、认知、时间或关系 |\n| 不断宣读新规则 | 让已有规则进入选择和检验 |\n| 剧情需要就改限制 | 提前建立例外与适用范围 |\n| 旁白直接宣布答案 | 展示观察、比对、行动与结果 |\n| 只为危险让人物变笨 | 给冒险已建立的目标、信息与代价 |\n| 资源和伤势悄悄复位 | 下一场继承本场实际状态 |\n\n问本轮之后人物知道什么、能做什么、仍不能确定什么。回报可以小，依据要清楚。",
+          "en": "| Problem | Repair |\n|---|---|\n| Only darker and louder | Change routes, knowledge, time or trust |\n| Endless new rules | Use existing limits in choices and tests |\n| Convenient rule changes | Plant exceptions and scope |\n| Narration declares the answer | Show observation, comparison, action and result |\n| Foolishness creates danger | Ground risk in goals, knowledge and cost |\n| Resources reset | Carry the actual state into the next scene |\n\nAsk what is known, possible and still uncertain after this turn. A small payoff works when its basis is clear."
         }
       }
     ],
@@ -706,8 +706,8 @@
           "en": "How do you write rules for a rules horror story?"
         },
         "a": {
-          "zh": "每条规则都能被验证，写清什么时候生效、什么时候停；再让两条规则同时提出相反要求，人物守住一条，就得为另一条付出看得见的代价。",
-          "en": "Make every rule testable, with a clear start and stop condition, then set two rules against each other so keeping one means paying a visible price for breaking the other."
+          "zh": "让规则有稳定的适用范围和可感知后果，再把相反要求或信息冲突放进人物选择。读者可以暂时不知来历，不必逐条做实验。",
+          "en": "Give rules stable scope and perceptible consequences, then make opposing demands or conflicting information affect choices. Origins may remain unknown; not every rule needs its own test."
         }
       },
       {
@@ -716,8 +716,8 @@
           "en": "How should a rules horror story open?"
         },
         "a": {
-          "zh": "开头亮出看得见的怪事和一条能当场验证的规则，来历留到后面；再用一次失败示范后果，比如名单上被划掉的名字。开篇节奏见[小说开头怎么写](/oh-story/novel-opening)。",
-          "en": "Open on visible anomalies and one rule the reader watches being tested. Skip the origin; let one early failure, such as a crossed-out name, show the cost. See [how to write a novel opening](/oh-story/novel-opening)."
+          "zh": "开头可用怪事、现场规则或人物受阻，把当前行动带出来。划掉的名字是线索；若要证明违规则的后果，还要有对应事件，不凭一行字宣布死因。",
+          "en": "Open with an anomaly, a rule in the scene or blocked action. A crossed-out name is a clue; establishing a violation’s consequence needs a corresponding event rather than an asserted cause."
         }
       },
       {
@@ -726,16 +726,16 @@
           "en": "How many chapters should one rules horror dungeon run?"
         },
         "a": {
-          "zh": "Oh Story 的题材库按无限流的默认来排，一个副本 20 到 30 章（规则怪谈算类无限流）。副本收尾时留一条没解决的矛盾，下一个副本从这里接上，过渡就不会写成流水账。",
-          "en": "Oh Story's catalog defaults infinite flow serials, which rules horror resembles, to 20 to 30 chapters per dungeon. End each dungeon on one open conflict and start the next from it."
+          "zh": "没有固定章数。按副本问题、人物变化、回报和连载节奏决定；题材库的默认长度只作规划参考，不为凑数重复试探。",
+          "en": "There is no fixed count. Use the scenario’s problem, character changes, payoffs and serial rhythm. The catalog’s default is a planning reference, not a reason to repeat tests."
         }
       }
     ],
     "skill": {
       "name": "story-long-write",
       "text": {
-        "zh": "对 `/story-long-write` 说「写大纲：题材是规则怪谈，先规划第一个副本」，它只交付大纲和必要设定；大纲定下后说「补细纲」，写明每章验证哪条规则、付什么代价。",
-        "en": "Run `/story-long-write` and say \"写大纲\" (write the outline) for a rules horror book, starting with the first dungeon; it stops at the outline. Then say \"补细纲\" (add chapter outlines) to list the rule each chapter tests and the price paid."
+        "zh": "用 $story-long-write 规划规则怪谈第一个副本。列背景、限制范围、线索来源、可行路线、人物选择、风险与实际结果；区分观察、推断和执行。不按固定章数或每次扣资源排稿，先出大纲与状态表。",
+        "en": "Use $story-long-write to plan the first rules-horror scenario: history, limits, clue sources, viable routes, choices, risks and enacted results. Separate observation, inference and action. Produce an outline and state sheet without fixed chapter or resource-loss quotas."
       },
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
     },
@@ -750,15 +750,15 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "副本规划与结构参考",
+          "en": "Scenario planning and structural references"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/long-genre-catalog.md"
       },
       {
         "label": {
-          "zh": "题材写作方法",
-          "en": "Genre writing method"
+          "zh": "有限视角、线索与危险推进",
+          "en": "Limited view, clues and advancing danger"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-prose-cards/悬疑灵异.md"
       }
@@ -1287,12 +1287,12 @@
       "en": "How to Deconstruct a Novel: Chapter Breakdown Template"
     },
     "description": {
-      "zh": "小说拆书先切章，再逐章拆三步：白描情节点，拆出关键信息怎样被扩写成场景，写明哪些情绪逻辑能复用、哪些桥段台词不能照搬。附可复制的网文拆书模板和原创示例。",
-      "en": "Break down a novel chapter by chapter: log plot points plainly, map each key reveal to its technique, mark what to reuse. Copyable template included."
+      "zh": "小说拆书怎样从剧情复述变成写作学习？用手写事实表、机制卡和原创场景，分清披露顺序、情绪节奏及能迁移的方法。",
+      "en": "Study fiction with a fact log and mechanism card. An original scene shows how to separate disclosure, pacing and transferable methods."
     },
     "answer": {
-      "zh": "小说拆书先把全书切成章，再逐章拆三步：用白描记下每个情节点里谁做了什么、结果如何；把本章必须交给读者的关键信息和作者把它扩成场景的手法分开记；写明哪些情绪逻辑能换素材复用、哪些专名、桥段和台词只属于原作。下面的网文拆书表把这三步放进每章笔记。",
-      "en": "Split the novel into chapters, then make three passes on each: log every plot point plainly (who did what, and what came of it), separate the information the chapter must deliver from the technique that stretches it into a scene, and note which emotional logic you can reuse and which names, set pieces and lines stay with the original."
+      "zh": "小说拆书先确认原文和分析范围，按文本披露顺序记人物动作与结果，把没写出的动机留作未知。再聚合完整剧情问题，分开事件、情绪和篇幅节奏，提取可替换的功能与情绪链。下面提供手写简表和原创场景，说明哪些方法能迁移、哪些桥段不能照搬。",
+      "en": "Start with a defined text and scope. Record actions and results in disclosure order, leaving unstated motives unknown. Group complete plot problems, separate event, emotion and space, and extract transferable functions and emotional chains. Use the manual worksheet and original scene below."
     },
     "sections": [
       {
@@ -1302,8 +1302,8 @@
           "en": "Novel breakdown template: two tables per chapter"
         },
         "body": {
-          "zh": "[拆文](/glossary/chaiwen)时每章填两张表：表一记情节点，一行一个；表二记关键信息与扩写技法，每章至少一行。\n\n### 表一：情节点\n\n| 序号 | 标题 | 类型 | 白描 | 人物 | 基调 |\n|---|---|---|---|---|---|\n| P1 | 15 字以内的短标签 | 从八种类型里选 | 谁做了什么、结果如何 | 写全名 | 从十种基调里选 |\n\n### 表二：关键信息与扩写技法\n\n| 关键信息 | 原文如何扩写 | 扩写技法 | 读者情绪 | 复用条件 | 不可照搬 |\n|---|---|---|---|---|---|\n| 读者读完这章该知道、会误会、在等或已证实的事 | 用了哪些事件、对话、旁人反应、细节、误导或回扣 | 从下方技法里选 | 好奇、期待、压抑、爽、心疼、紧张等 | 换到新故事要满足的前提和失效风险 | 专名、具体桥段、标志性台词、独特设定 |\n\n### 填表用的选项\n\n- 情节点类型（8 种）：转折点、信息揭示、冲突、解决、铺垫、行动、对话、人物处境变化\n- 基调（10 种）：紧张、轻松、悲伤、热血、爽、甜、温馨、恐怖、压抑、其他\n- 扩写技法（7 种，另可写其他）：铺垫后置、反应层放大、信息差、对比锚点、延迟揭示、身体反应、小目标嵌套\n\n### 每章拆完自查\n\n- [ ] 情节点照事件发生的先后排，没有重排\n- [ ] 白描写清谁做了什么、结果如何，没替人物补动机\n- [ ] 表二至少一行，过渡章也写明维持了什么期待\n- [ ] 原文没给的信息写「原文未明确」",
-          "en": "A novel breakdown (some writers call it a reverse outline) fills two tables per chapter: plot points, one per row, and key information with the technique that expands it, at least one row.\n\n### Table 1: plot points\n\n| # | Label | Type | Plain description | Characters | Tone |\n|---|---|---|---|---|---|\n| P1 | A short tag | One of eight types | Who did what, and what came of it | Full names | One of ten tones |\n\n### Table 2: key information and expansion technique\n\n| Key information | How the text expands it | Technique | Reader emotion | Reuse condition | Do not copy |\n|---|---|---|---|---|---|\n| What the reader should know, misread, be waiting for or have confirmed | Events, dialogue, reactions, details, misdirection or callbacks | From the list below | Curiosity, anticipation, tension, payoff… | What a new story needs, and where it breaks | Names, set pieces, signature lines, unique world details |\n\n### Values for the columns\n\n- Plot point types (8): turning point, reveal, conflict, resolution, setup, action, dialogue, change of state\n- Tones (10): tense, light, sad, rousing, satisfying, sweet, warm, horror, oppressive, other\n- Expansion techniques (7, plus other): backfilled setup, amplified reactions, information gap, contrast anchor, delayed reveal, physical reaction, nested small goal\n\n### Per-chapter checklist\n\n- [ ] Plot points follow the order events happen\n- [ ] Each description says who did what and what came of it, with no invented motives\n- [ ] Table 2 has a row, even for a transition chapter\n- [ ] Anything the text leaves out is marked \"not stated in the text\""
+          "zh": "下面是便于作者手写的简表，不是当前 skill 自动产物的逐列复制。先按文本披露顺序记事实；若原文回忆过去，另记故事内时间，不把回忆挪成当场发生。\n\n| 定位 | 原文动作与结果 | 仍未明确 |\n|---|---|---|\n| 章号、段号或短定位词 | 谁做了什么，结果怎样 | 未写出的动机、身份或后果 |\n\n另做一张机制卡：\n\n| 项目 | 填什么 |\n|---|---|\n| 读者想看什么 | 具体期待或情绪缺口 |\n| 情绪链 | 怎样建立、延迟、触发、兑现与留余波 |\n| 戏剧单元 | 拿掉专名与桥段后的功能 |\n| 可替换项 | 身份、场景、道具、目标等功能位 |\n| 不可照搬 | 原句、专名、独特事件链与标志动作 |\n\n事件推进、读者情绪和展开篇幅分开看。动作少不等于拖沓，文字多不等于高情绪。原文没有的信息写“未明确”，不能为了填完整而补动机。",
+          "en": "This compact author worksheet is not a column-for-column copy of current skill output. Record facts in disclosure order; date past recollections separately rather than moving them into the present scene.\n\n| Place | Fact | Unknown |\n|---|---|---|\n| Chapter, paragraph or short phrase | Who did what and what followed | Unstated motives, identity or effects |\n\nUse a separate mechanism card:\n\n| Item | Record |\n|---|---|\n| Reader desire | Specific expectation or gap |\n| Emotion chain | Setup, delay, trigger, payoff and aftermath |\n| Dramatic unit | Function without source-specific material |\n| Replaceable roles | Identity, setting, object or goal |\n| Do not copy | Prose, names, unique event chains and signature actions |\n\nStudy event progress, emotion and space separately. Few actions need not mean slow; many words need not mean strong feeling. Mark absent information unknown rather than inventing motives."
         }
       },
       {
@@ -1313,8 +1313,8 @@
           "en": "How to deconstruct a novel: split the chapters, then three passes each"
         },
         "body": {
-          "zh": "1. **切章。** 认出章节分隔，做一张章号、标题、起始位置、字数的章节边界表，之后凡是切原文都以这张表为准。章号要连续、不重复；多卷书每卷从第一章重起时，在标题里带上卷号。\n2. **白描情节点。** 一个情节点一句话：谁做了什么、结果如何。原文写出的起因照写，原文没写的动机不补；为同一个戏剧目的连续发生的小动作合成一条。\n3. **拆关键信息与扩写技法。** 先问这一章要让读者知道什么、误会什么、盼着什么、确认什么，再看作者用哪些事件、对话、旁人反应、细节、误导和回扣把这条信息撑成一场戏。「讲了什么」和「怎么讲长」之间的差，就是能学的写法。\n4. **写复用条件和不可照搬。** 只抽情绪逻辑和功能位，比如「一个被小看的人当众拿出结果」；专名、具体桥段、标志性台词和独特设定都记进不可照搬一栏。\n\n引用要省着用：Oh Story 的拆书模板每章最多留 8 条原文引用，只给关键转折、关键台词和写法样本；段落太长就记一句能搜回原文的短句定位。",
-          "en": "1. **Split the chapters.** Build a boundary table of chapter number, title, start position and length; all later slicing of the text follows it. Numbers must run in order with no duplicates; if each volume restarts at chapter one, keep the volume in the title.\n2. **Describe plot points plainly.** One sentence each: who did what, and what came of it. Keep causes the text states, leave out motives it does not, and merge small actions that serve one dramatic purpose.\n3. **Map key information to technique.** Ask what the chapter must make the reader know, misread, look forward to or confirm, then find the events, dialogue, reactions, details and callbacks that stretch it into a scene. That stretch, from information to scene, is the part you can learn.\n4. **Write the reuse condition and the do-not-copy list.** Abstract only emotional logic and functional roles, such as \"an underestimated person produces a result in public.\" Names, set pieces and signature lines go in do-not-copy.\n\nQuote sparingly: Oh Story's template keeps at most 8 quotes per chapter, for key turns, key lines and style samples; for a long passage, note a short searchable phrase."
+          "zh": "1. **固定边界**：先确认章号、标题与原文位置，倒叙仍按文本出现处记录。\n2. **记事实**：一句写谁做了什么、结果怎样；已写的内心可记，没写的动机不补。一个戏剧目的下的小动作可合并。\n3. **按问题聚合**：从起始目标与阻碍，到改变局面的动作、得失与后续；一个完整问题可能跨章，不能用章节边界强拆。\n4. **看三种节奏**：事件推进了什么，读者情绪由什么触发，哪些内容被展开、压缩或略过。\n5. **提取可迁移机制**：保留情绪逻辑与功能，写清条件、反例和不可照搬。引用只留必要定位与短样本，不把整段原作搬进模板。",
+          "en": "1. Fix chapter numbers, titles and source locations. Keep flashbacks where the text reveals them.\n2. Record who acts and what follows. Explicit thoughts are evidence; unstated motives are not. Combine small actions serving one dramatic purpose.\n3. Group by the problem: goal, obstacle, change, gains and carryover. A complete unit may cross chapters.\n4. Separate event progress, triggered emotion and expanded or compressed space.\n5. Extract transferable mechanisms with conditions, counterexamples and noncopyable material. Keep necessary locators and short samples rather than reproducing long passages."
         }
       },
       {
@@ -1325,7 +1325,7 @@
         },
         "body": {
           "zh": "拆书最容易错在情节点那一句。「一番交谈过后，真相大白」看不出谁说了什么；「她很失望」把原文没写的感受当成了事实。后面的剧情聚合、节奏索引和模块卡都从这些句子长出来，白描一歪，整份拆书跟着歪。\n\n白描记动作、对话和结果；原文明写的起因和内心活动照记，原文同时给了外部表现就优先记表现。几组原创对照（左栏都假定原文只写了动作）：\n\n| 维度 | 要避开的写法 | 白描写法 |\n|---|---|---|\n| 情感 | 她心里很失望 | 她把买好的两张票放回抽屉，没再提周末 |\n| 评价 | 这场谈判写得很精彩 | 老周报出底价，对方合上文件夹，起身去倒水 |\n| 意图 | 他想让大家知道自己不好惹 | 他把欠条拍在桌上，挨个念出名字 |\n| 叙事框架词 | 一通电话让小满知道了坏消息 | 房东打电话给小满：月底收回店面 |\n\n等级、数值、谁对谁说了哪句话、角色在哪几章出场，这类硬事实都要能回到原文查到；查不到就写「原文未明确」，别拿同类作品的惯例补一个看似合理的值。",
-          "en": "Breakdowns usually go wrong in the plot-point line. \"After a long talk, the truth comes out\" hides who said what; \"She is disappointed\" records a feeling the text never wrote. Everything later grows from these lines, so a slanted line slants the whole breakdown.\n\nRecord actions, dialogue and results. Causes and thoughts the text states go in as written; when it also shows an outward sign, record the sign. Original pairs (in each, assume the text shows only the action):\n\n| Aspect | Avoid | Plain description |\n|---|---|---|\n| Feeling | She is deeply disappointed | She puts the two tickets back in the drawer and drops the subject |\n| Judgment | A brilliant negotiation | Old Zhou names his floor price; the buyer closes the folder and goes to pour water |\n| Intent | He wants everyone to fear him | He slaps the IOUs on the table and reads out the names one by one |\n| Framing words | A phone call brings Xiaoman bad news | The landlord phones Xiaoman: he wants the shop back at month end |\n\nHard facts (ranks, numbers, who said what to whom, which chapters a character appears in) must trace to the text. If the text is silent, write \"not stated in the text\"; genre convention is no substitute."
+          "en": "Breakdowns usually go wrong in the plot-point line. \"After a long talk, the truth comes out\" hides who said what; \"She is disappointed\" records a feeling the text never wrote. Everything later grows from these lines, so a slanted line slants the whole breakdown.\n\nRecord actions, dialogue and results. Causes and thoughts the text states go in as written; when it also shows an outward sign, record the sign. Original pairs (in each, assume the text shows only the action):\n\n| Aspect | Avoid | Fact |\n|---|---|---|\n| Feeling | She is deeply disappointed | She puts the two tickets back in the drawer and drops the subject |\n| Judgment | A brilliant negotiation | Old Zhou names his floor price; the buyer closes the folder and goes to pour water |\n| Intent | He wants everyone to fear him | He slaps the IOUs on the table and reads out the names one by one |\n| Framing words | A phone call brings Xiaoman bad news | The landlord phones Xiaoman: he wants the shop back at month end |\n\nHard facts (ranks, numbers, who said what to whom, which chapters a character appears in) must trace to the text. If the text is silent, write \"not stated in the text\"; genre convention is no substitute."
         }
       },
       {
@@ -1335,8 +1335,8 @@
           "en": "From chapter breakdowns to a reusable story module"
         },
         "body": {
-          "zh": "单章表格攒够后，按章节顺序把关键信息串起来，看每条信息怎样走完「进入读者视野 → 被延迟、误导或验证 → 情绪爆发 → 余波和新钩子」。连续三章以上没有情绪触动点的地方，记下作者靠哪些小钩子撑住了期待。\n\n把一条链上的具体素材拿掉，剩下的情绪链和功能位就能收成一张模块卡。Oh Story 的模块卡主要有这几栏：\n\n- **读者想看什么**：一句话，比如被理解、翻盘\n- **情绪链**：缺口 → 加压 → 触发 → 爆发 → 余波\n- **戏剧单元**：拿掉素材后剩下的结构\n- **关键触发物**：误判的人、见证的人、代价、证据、奖励\n- **可替换项**：人物身份、地点、道具、对手类别、要达成的结果\n- **不可照搬**：原作的专有名称、事件先后、招牌台词、独有设定\n\n用模块写新故事时，先定读者需求，再挑模块卡，别从原文桥段倒着抄。冲突对象、公开或私密场景、触发证据、余波方向这四项，Oh Story 的复现指南要求至少改掉三项。人物和模块对不上时，按人物重搭模块，别为了套路扭曲人物。",
-          "en": "String the key information together in chapter order and trace each piece: it enters the reader's view, gets delayed, misdirected or verified, peaks, then leaves an aftermath and a new hook. Where three or more chapters pass with no emotional peak, note which small hooks carry the wait.\n\nStrip the specific material from a chain and what remains, the emotional chain and the roles, becomes a module card. Oh Story's card has these main fields:\n\n- **What the reader wants**: one line, such as being understood or a comeback\n- **Emotional chain**: gap → pressure → trigger → release → aftermath\n- **Dramatic unit**: the structure left once the material is removed\n- **Trigger roles**: the one who misjudges, the witness, the cost, the proof, the reward\n- **Replaceable**: identities, setting, props, opponent type, the goal\n- **Do not copy**: names, the exact order of events, signature lines, unique world details\n\nChoose the reader need first, then the card; never work backwards from the source's set pieces. Oh Story's reuse guide asks you to change at least three of four things: who the conflict is with, whether the scene is public or private, the triggering evidence, and where the aftermath goes. If characters and module clash, rebuild the module around the characters."
+          "zh": "先看一个完整问题怎样从目标与阻碍走到改变、得失和后续，而不是按章硬切。在这条链上检查读者期待如何建立、延迟、兑现或转向；安静的段落也可能承担关系缓和和回报，不必每章都有爆点。\n\n机制卡使用上面的五项：读者想看什么、情绪链、戏剧单元、可替换项、不可照搬。触发证据、见证者或代价可以记进情绪链，必要条件另作备注。\n\n选模块时先定自己的读者需求与人物选择，再改写冲突对象、场景、触发证据和余波方向。方法卡给出四项至少改三项的练习要求，但换够名词不代表已经原创；仍要检查是否复制了独特事件链与表达。人物和模块不合时，按人物重搭。",
+          "en": "Follow a complete problem from goal and obstacle through change, gains and carryover rather than cutting it at chapter boundaries. Track how reader expectations are established, delayed, paid off or redirected. Quiet passages can offer repair and reward without a peak in every chapter.\n\nUse the five card fields above: reader desire, emotion chain, dramatic unit, replaceable roles and do-not-copy. Put evidence, witnesses or costs in the chain; add required conditions as notes.\n\nBegin with your own reader need and character choices, then redesign the opponent, setting, trigger and aftermath. The method proposes changing at least three of those four as a practice constraint. Swapping enough nouns does not establish originality: also check for copied event chains and expression. Rebuild the mechanism when it clashes with your characters."
         }
       },
       {
@@ -1346,8 +1346,8 @@
           "en": "Worked example: a chapter breakdown of one original scene"
         },
         "body": {
-          "zh": "一段为本文写的原创小场景，按段落编号，方便回指（示例表一为省篇幅略去人物一栏）：\n\n> [P1] 海报工作室里，卢青把最后一版样张递给周眠：“你确认后，我就下单。”\n> [P2] 周眠抽出对照稿，上面留着两人各自的修改笔迹。新样张底部只有卢青一个人的署名。\n> [P3] “正文还有错？”卢青问。周眠把笔横放在确认格上，没有签。\n> [P4] 卢青看了看两人的笔迹，把署名改成两人并列：“按这版重出样，印之前再给你看。”\n> [P5] 周眠在样张背面写下“待看新样”，确认格留空。\n\n### 表一：情节点\n\n| 序号 | 标题 | 类型 | 白描 | 基调 |\n|---|---|---|---|---|\n| P1 | 递终版样张 | 铺垫 | 卢青把样张交给周眠，说她确认后才下单 | 其他 |\n| P2 | 只署一人 | 信息揭示 | 周眠拿出留有两人笔迹的对照稿，新样张只署卢青一人 | 压抑 |\n| P3 | 确认格没签 | 冲突 | 卢青问正文是否有错，周眠把笔横放在确认格上，没有签 | 紧张 |\n| P4 | 改成并列署名 | 行动 | 卢青把署名改成两人并列，答应重出样张、印前给周眠看 | 其他 |\n| P5 | 等新样 | 铺垫 | 周眠在背面写下待看新样，确认格仍空着 | 紧张 |\n\n### 表二：关键信息与扩写技法\n\n| 关键信息 | 原文如何扩写 | 扩写技法 | 读者情绪 | 复用条件 | 不可照搬 |\n|---|---|---|---|---|---|\n| 周眠的贡献没被署名，下单又离不开她的确认 | 两种笔迹和单人署名并排，一个没签的确认格代替争吵 | 对比锚点、信息差 | 压抑转期待 | 对方的下一步确实要靠这次合作，拒绝配合有代价 | 样张、署名栏、横放的笔这串道具和动作顺序 |\n\n证据只撑到这里：缺署名卡住了确认流程。谁漏掉的、是否故意、两人有没有旧账，笔记里一律记「原文未明确」。\n\n### 换素材试一次\n\n新情境：社区菜园开会商量扩种第二块地。方案默认温宁周日照常来值守，没人问过她，而她这周日整天走不开。苗圃要周四前确认追加的苗，可能顶班的乔越周五才能答复。四项全换：\n\n- 冲突对象：合作者卢青 → 整个菜园小组，争的也从署名换成周日人手\n- 场景：私下对稿 → 小组会上当众说清\n- 触发证据：对照稿上的两种笔迹 → 苗圃周四截单、乔越周五才答复的时间差\n- 余波方向：重出样张、等她确认 → 只给原来那块地下单，第二块地先空着\n\n带过来的只有情绪逻辑：一份被当成理所当然的投入，成了共同计划绕不过去的限制。当众说清和缩小计划，都是换过的部分。",
-          "en": "A short original scene, numbered so the notes can point back to it (Table 1 omits the character column to save space):\n\n> [P1] In the poster studio, Lu Qing hands Zhou Mian the final proof. \"Once you sign off, I'll place the order.\"\n> [P2] Zhou Mian pulls out the draft carrying both their handwritten edits. The new proof carries one credit: Lu Qing's.\n> [P3] \"Still a typo?\" Lu Qing asks. Zhou Mian lays her pen across the sign-off box and does not sign.\n> [P4] Lu Qing looks from the two sets of handwriting to the credit line and changes it to both names. \"I'll rerun the proof. You'll see it before it prints.\"\n> [P5] Zhou Mian writes \"waiting for new proof\" on the back and leaves the box empty.\n\n### Table 1: plot points\n\n| # | Label | Type | Plain description | Tone |\n|---|---|---|---|---|\n| P1 | Final proof | Setup | Lu Qing says the order waits on Zhou Mian's sign-off | Other |\n| P2 | One credit | Reveal | The draft shows both their edits; the proof credits only Lu Qing | Oppressive |\n| P3 | Box unsigned | Conflict | Zhou Mian lays her pen across the box and does not sign | Tense |\n| P4 | Both names | Action | Lu Qing credits both and promises a new proof | Other |\n| P5 | Waiting | Setup | Zhou Mian notes she will wait; the box stays empty | Tense |\n\n### Table 2: key information and technique\n\n| Key information | How the text expands it | Technique | Reader emotion | Reuse condition | Do not copy |\n|---|---|---|---|---|---|\n| Zhou Mian's work went uncredited, and the order needs her sign-off | Two sets of handwritten edits beside one credit; an unsigned box in place of an argument | Contrast anchor, information gap | Pressure turning to anticipation | The other side truly needs this cooperation, and refusing costs something | The proof, credit line and pen, in that order |\n\nThe evidence stops here: a missing credit holds up sign-off. Who left it off, and why, is \"not stated in the text.\"\n\n### Try it with new material\n\nNew situation: a community garden plans a second plot and assumes Wen Ning will cover Sunday again. Nobody asked her, and she is away all day. The nursery wants the order by Thursday; the only stand-in, Qiao Yue, answers on Friday. All four things change:\n\n- Conflict: Lu Qing over credit → the whole group over Sunday cover\n- Scene: a private proof check → an open meeting\n- Trigger: two sets of handwriting → the Thursday–Friday gap\n- Aftermath: a rerun proof → an order for the original plot only, the second plot left empty\n\nWhat travels is the emotional logic: a contribution everyone took for granted becomes a limit the shared plan has to face. The open meeting and the smaller plan are changed parts."
+          "zh": "一段为本文写的原创小场景，按段落编号，方便回指：\n\n> [P1] 海报工作室里，卢青把最后一版样张递给周眠：“你确认后，我就下单。”\n> [P2] 周眠抽出对照稿，上面留着两人各自的修改笔迹。新样张底部只有卢青一个人的署名。\n> [P3] “正文还有错？”卢青问。周眠把笔横放在确认格上，没有签。\n> [P4] 卢青看了看两人的笔迹，把署名改成两人并列：“按这版重出样，印之前再给你看。”\n> [P5] 周眠在样张背面写下“待看新样”，确认格留空。\n\n| 定位 | 事实 | 支持什么 |\n|---|---|---|\n| P1—P2 | 交样张，两种笔迹却只署一人 | 贡献与署名有差别 |\n| P3 | 周眠把笔横在确认格，未签 | 订单还未获确认 |\n| P4—P5 | 卢青改署名，周眠写待看新样 | 约定复核，尚未下单 |\n\n这只支持署名问题卡住确认，不能证明是谁故意漏名。机制卡可写：读者想看投入获承认；情绪链是发现缺口、拒绝确认、提出更正、等待新样；功能是必需合作者把被忽略的投入变成限制；可替换身份与任务；不可照搬样张、并列署名、横笔等具体组合。\n\n换成社区菜园：小组默认温宁周日值守，她实际没空；苗圃周四截单，替班人周五才答复。小组核对后只订原地所需苗，第二块地暂缓。迁移的是投入不能被擅自默认，不是复制原场景的道具和动作。",
+          "en": "A short original scene, numbered so the notes can point back to it:\n\n> [P1] In the poster studio, Lu Qing hands Zhou Mian the final proof. \"Once you sign off, I'll place the order.\"\n> [P2] Zhou Mian pulls out the draft carrying both their handwritten edits. The new proof carries one credit: Lu Qing's.\n> [P3] \"Still a typo?\" Lu Qing asks. Zhou Mian lays her pen across the sign-off box and does not sign.\n> [P4] Lu Qing looks from the two sets of handwriting to the credit line and changes it to both names. \"I'll rerun the proof. You'll see it before it prints.\"\n> [P5] Zhou Mian writes \"waiting for new proof\" on the back and leaves the box empty.\n\n| Locator | Fact | Supports |\n|---|---|---|\n| P1–P2 | Sample has two sets of marks but one credit | Contribution and credit differ |\n| P3 | Zhou leaves the approval unsigned | Order is not approved |\n| P4–P5 | Credit changed; new sample still awaited | Review agreed; no order yet |\n\nThis supports a credit problem blocking approval, not deliberate omission by a known culprit. The card records recognition as reader desire; discovery, refusal, correction and pending review as the chain; an essential collaborator’s overlooked input as the function. Replace role and task, not the sample, credit and pen combination.\n\nIn a community garden, Wen Ning is assigned Sunday duty without consent but is unavailable. Plants must be ordered Thursday; cover is not confirmed until Friday. After review, the group orders only for the existing plot and postpones expansion. Transfer the unconfirmed input as a limit, not the original props and actions."
         }
       },
       {
@@ -1357,8 +1357,8 @@
           "en": "Common novel breakdown mistakes and fixes"
         },
         "body": {
-          "zh": "- **只复述剧情。** 情节点表写满了，表二空着。改法：每章至少补一行关键信息与扩写技法，说清这章让读者知道或期待了什么、作者靠什么把它撑长。\n- **替人物补动机。** 原文只写他摔门，笔记里写「他恨透了对方」。改法：只记摔门和摔门之后发生了什么。\n- **过渡章写「无」。** 改法：写它维持了哪条期待，或者让哪股情绪冷了下来。\n- **粒度不对。** 整场打斗记成一条会丢细节，抬手、转身各记一条又太碎。改法：一个完整的戏剧事件记一条。\n- **把桥段当模板。** 改法：可复用那栏只写情绪链和功能位，桥段、台词、专名全部记进不可照搬。",
-          "en": "- **Retelling the plot.** Table 1 is full, Table 2 empty. Fix: add a key-information row: what the reader learns, and what stretches it out.\n- **Inventing motives.** The text says he slams the door; the notes say he hates her. Fix: record the slam and what happens after it.\n- **Marking a transition chapter \"nothing.\"** Fix: note which expectation it keeps alive or which emotion it cools down.\n- **Plot points too coarse or too fine.** One line for a whole fight loses detail; one line per raised hand is noise. Fix: one complete dramatic event per plot point.\n- **Treating a set piece as a template.** Fix: reuse only the emotional chain and roles; set pieces, lines and names go in do-not-copy."
+          "zh": "- **只复述剧情。** 事实很多，却没有分析它们如何影响读者。改法：挑一个完整问题，写清期待、触发与兑现，并指出展开或压缩怎样服务它。\n- **替人物补动机。** 原文只写他摔门，笔记里写「他恨透了对方」。改法：只记摔门和摔门之后发生了什么。\n- **过渡章写「无」。** 改法：写它维持了哪条期待，或者让哪股情绪冷了下来。\n- **粒度不对。** 整场打斗记成一条会丢细节，抬手、转身各记一条又太碎。改法：同一戏剧目的下的动作可合并，转折、得失与因果依据不能省。\n- **把桥段当模板。** 改法：可复用那栏只写情绪链和功能位，桥段、台词、专名全部记进不可照搬。",
+          "en": "- **Retelling the plot.** Facts fill the notes but their effect on readers goes unexplained. Fix: follow one complete problem through expectation, trigger and payoff; explain how expansion or compression serves it.\n- **Inventing motives.** The text says he slams the door; the notes say he hates her. Fix: record the slam and what happens after it.\n- **Marking a transition chapter \"nothing.\"** Fix: note which expectation it keeps alive or which emotion it cools down.\n- **Plot points too coarse or too fine.** One line for a whole fight loses detail; one line per raised hand is noise. Fix: combine actions serving one purpose, preserving turns, gains and causal evidence.\n- **Treating a set piece as a template.** Fix: reuse only the emotional chain and roles; set pieces, lines and names go in do-not-copy."
         }
       },
       {
@@ -1368,8 +1368,8 @@
           "en": "A novel breakdown skill: story-long-analyze"
         },
         "body": {
-          "zh": "[Oh Story](/oh-story) 里的 [story-long-analyze](https://github.com/zenstory-ai/oh-story-claudecode/tree/main/skills/story-long-analyze) 把上面的拆法做成了一条管道，原文和所有产物都存在 `拆文库/{书名}/` 下：\n\n1. 备份原文，切出章节边界表，写一版简短概要。\n2. 深度拆解前三章，写出 `快速预览.md` 后停下来问你要不要继续；一开始就说「完整拆解」，它会跳过询问一路跑完。\n3. 逐章拆出情节点、关键信息与扩写技法表和逐章写法公式，公式里包括[章尾卡点](/oh-story/chapter-ending-hooks)与伏笔。\n4. 跨章聚合出剧情单元、`剧情/节奏.md` 和 `剧情/情绪模块.md`，再整理设定与人物关系。\n5. 汇总成 `拆文报告.md`，最后写一份 `文风.md`。\n\n中途断了，它读 `_progress.md` 从断点接着跑。短篇用 `/story-short-analyze`，拆故事核、结构、情感线和反转。把自己写了一半的书导进来续写是另一项任务，见[导入续写](/oh-story/import-and-continue)；前三章怎么看，见[黄金三章交付清单](/oh-story/novel-opening)。",
-          "en": "In [Oh Story](/oh-story), [story-long-analyze](https://github.com/zenstory-ai/oh-story-claudecode/tree/main/skills/story-long-analyze) runs the method above as a pipeline and saves the source text and every output under `拆文库/{book title}/`:\n\n1. Back up the source, build the chapter boundary table and write a short synopsis.\n2. Break down the first three chapters, write a quick preview (`快速预览.md`) and ask whether to continue; ask for a full breakdown up front and it runs straight through.\n3. Break every chapter into plot points, the key-information table and a per-chapter formula that includes the [chapter-ending hook](/oh-story/chapter-ending-hooks).\n4. Group chapters into plot units, a pacing index and module cards, then settings and relationships.\n5. Write the full report and a style profile.\n\nAn interrupted run resumes from `_progress.md`. For short fiction use `/story-short-analyze`. To continue your own manuscript, see [import and continue](/oh-story/import-and-continue); for openings, see [the golden three chapters](/oh-story/novel-opening)."
+          "zh": "当前固定版本的 [story-long-analyze](https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-analyze/SKILL.md) 先整理原文边界和开头三章，再从连续章节块提取逐章事实与跨章观察。它不为每章重复生成长篇扩写表。\n\n后续把事实聚合成完整剧情问题，分别整理事件发生、文本披露及事件、情绪、篇幅节奏；可复用方法集中在剧情与情绪机制资料中。报告与文风分析最后汇总，缺失处保留未知。只读开头时不能给全书写确定结论。\n\n想手工学习，可用上面的简表；想用 skill 完整分析，提供原文和范围，明确只看开头还是全书。中断按已有进度继续；导入自己的未完成作品另见[导入续写](/oh-story/import-and-continue)。",
+          "en": "The pinned story-long-analyze first establishes source boundaries and examines the opening three chapters, then extracts chapter facts and cross-chapter observations from consecutive blocks. It does not duplicate long expansion tables for every chapter.\n\nLater stages group facts into complete plot problems, separate event order from disclosure, and study event, emotion and space. Transferable methods belong in consolidated plot and emotion material. Report and style analysis summarize results; gaps remain unknown. Opening-only evidence cannot support a definite whole-book judgment.\n\nUse the compact tables for manual study. For skill analysis, supply the text and specify opening-only or full-book scope. Resume from saved progress after interruption. Importing your unfinished manuscript is a separate task."
         }
       }
     ],
@@ -1380,8 +1380,8 @@
           "en": "How many plot points per chapter in a novel breakdown?"
         },
         "a": {
-          "zh": "Oh Story 的逐章提取按每 150–200 字一个情节点算，一章 10 到 40 个：3000 字的章约 15–20 个，1000 字以内的短章也拆足 10 个关键步骤，8000 字以上封顶 40 个。",
-          "en": "Oh Story's extractor works from one plot point per 150–200 Chinese characters, 10 to 40 per chapter: about 15–20 for 3,000 characters, 10 even for 1,000 or fewer, at most 40 for 8,000 or more."
+          "zh": "手写学习没有固定条数。按戏剧目的合并小动作，保留会改变信息、选择或结果的节点，并留下原文定位。当前 skill 使用自己的事实提取与后续聚合流程，不能把旧版本的逐字数配额当成通用规则。",
+          "en": "Manual study has no fixed count. Combine small actions serving one purpose, preserve changes to information, choice or outcome, and keep source locators. The current skill has its own extraction and aggregation flow; old character-count quotas are not universal rules."
         }
       },
       {
@@ -1390,8 +1390,8 @@
           "en": "Do I need to break down the whole novel?"
         },
         "a": {
-          "zh": "先拆前三章，判断值不值得继续。story-long-analyze 拆完前三章停在 `快速预览.md`，给出开篇钩子、主角塑造等五项评分和早期可借鉴点；你确认后它再逐章拆全书。当时选择先停下的话，之后对同一本书再跑一次，会从逐章摘要接着拆。",
-          "en": "Start with the first three chapters. story-long-analyze stops after them with a quick preview that scores five areas, from the opening hook to chapter-end suspense, and lists early takeaways. Confirm and it goes on chapter by chapter; if you stop there, running it on the same book later picks up at the per-chapter stage."
+          "zh": "取决于问题。学开篇可以先看前三章；研究长线伏笔与结尾兑现，需要读到相应后文。使用 skill 时明确开头或全书范围，按已有进度继续；只读开头的结论保留为早期观察。",
+          "en": "It depends on the question. Study the opening from the first chapters; study long-range setup and payoff through the relevant ending. Specify opening-only or full-book scope for the skill and resume saved progress. Opening evidence supports early observations only."
         }
       },
       {
@@ -1400,16 +1400,16 @@
           "en": "How do I use breakdown notes in my own novel?"
         },
         "a": {
-          "zh": "用模块卡，桥段留在原作里：先定读者需求，挑情绪链对得上的卡，保留情绪链和功能位，冲突对象、场景、触发证据、余波方向至少换三项。",
-          "en": "Work from module cards and leave set pieces behind: pick the reader need, choose a fitting card, keep its chain and roles, and change at least three of conflict, scene, trigger and aftermath."
+          "zh": "先定自己的读者期待、人物选择与限制，再借功能和情绪链，重写场景、触发证据和后续。检查独特事件链、台词和设定是否仍像原作；换名字、道具或凑够改动数量都不足以完成迁移。",
+          "en": "Define your reader expectation, choices and constraints first. Borrow function and emotional logic while redesigning scene, trigger and consequences. Check unique event chains, lines and setting: renamed characters or a quota of substitutions do not complete the transfer."
         }
       }
     ],
     "skill": {
       "name": "story-long-analyze",
       "text": {
-        "zh": "在装好 Oh Story 的 Agent 里输入 `/story-long-analyze`（或说「帮我拆这本书」），给出书名和原文文件路径，它会按上面的拆书表逐章拆完并汇总成 `拆文报告.md`；短篇换用 `/story-short-analyze`。",
-        "en": "In an agent with Oh Story installed, run `/story-long-analyze` with the book title and source file path; it fills the tables above chapter by chapter and ends with a full report. For short fiction, use `/story-short-analyze`."
+        "zh": "用 $story-long-analyze 分析这部小说，先确认原文与分析范围。按披露顺序记录事实、另记客观时间，聚合目标、阻碍、变化与后果；分开事件、情绪和篇幅，给可复用机制的条件与不可照搬内容。缺失不补，开头分析不冒充全书结论。",
+        "en": "Use $story-long-analyze with a stated text and scope. Record disclosure and event order separately, group goals/obstacles/changes/consequences, distinguish event/emotion/space and give transfer conditions and noncopyable material. Do not invent gaps or call opening analysis a whole-book result."
       },
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-analyze/SKILL.md"
     },
@@ -1424,10 +1424,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "事实提取与双序分离",
+          "en": "Fact extraction and separate orders"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-analyze/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-analyze/references/stage2-extraction.md"
+      },
+      {
+        "label": {
+          "zh": "剧情问题、三维节奏与机制迁移",
+          "en": "Plot problems, three-dimensional pacing and transfer"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-analyze/references/stage3-plot-rhythm.md"
       }
     ]
   },
@@ -2585,7 +2592,7 @@
         },
         "body": {
           "zh": "| 症状 | 真正缺的东西 | 先做什么 |\n|---|---|---|\n| 不知道下一章写什么 | 阶段目标或后果 | 写出主角下一步必须完成的事 |\n| 有事件但很平 | 能反制的阻力 | 给对方自己的目标和筹码 |\n| 每章都像重复 | 策略没有变化 | 让旧方法失效，迫使主角换办法 |\n| 知道剧情却写不出句子 | 场景动作骨架 | 先列进入状态、动作、反应、结果 |\n| 什么都不想碰 | 注意力或精力耗尽 | 把任务缩成一个场景，必要时停写恢复 |\n\n“卡文”不是单一故障。结构问题靠润色解决不了，疲劳也不该被解释成作者不会写。",
-          "en": "| Symptom | What is actually missing | First response |\n|---|---|---|\n| You do not know what the next chapter contains | A stage goal or consequence | State what the protagonist must accomplish next |\n| Events happen but feel flat | Opposition capable of counteraction | Give the opposing side its own goal and leverage |\n| Every chapter feels repetitive | The strategy never changes | Make the old method fail and force another approach |\n| You know the plot but cannot form sentences | A scene-action skeleton | List entry state, action, reaction, and result |\n| You cannot bear to touch the draft | Attention or energy is exhausted | Reduce the task to one scene and pause to recover if needed |\n\nWriter’s block is not one fault. Polishing cannot repair a structural problem, and fatigue should not be interpreted as an inability to write."
+          "en": "| Symptom | Missing | First step |\n|---|---|---|\n| You do not know what the next chapter contains | A stage goal or consequence | State what the protagonist must accomplish next |\n| Events happen but feel flat | Opposition capable of counteraction | Give the opposing side its own goal and leverage |\n| Every chapter feels repetitive | The strategy never changes | Make the old method fail and force another approach |\n| You know the plot but cannot form sentences | A scene-action skeleton | List entry state, action, reaction, and result |\n| You cannot bear to touch the draft | Attention or energy is exhausted | Reduce the task to one scene and pause to recover if needed |\n\nWriter’s block is not one fault. Polishing cannot repair a structural problem, and fatigue should not be interpreted as an inability to write."
         }
       },
       {
@@ -2606,8 +2613,8 @@
           "en": "Original Example: A Pharmacy Apprentice Stalls During a Search for Medicine"
         },
         "body": {
-          "zh": "**卡住的版本**：学徒阿岑发现一包解毒药贴错标签，焦急地在集市找人。他问了几家摊贩，都说没看见。\n\n这里目标已经成立，缺口是有策略的阻力与能改变局面的询问。\n\n**诊断后的骨架**：\n\n- 目标：开市钟响前找回药包，避免病人误服。\n- 反对力量：掌柜若承认失误会被吊销经营资格，于是抢先散布“学徒偷药”的说法。\n- 旧策略失效：阿岑公开询问，摊贩反而把他当贼躲开。\n- 新策略：他不再找药包，而是追查只有自家药铺使用的蓝蜡封口。\n- 局部结果：他在早点摊找到被拆下的蓝蜡，却发现药已被送往城外义诊。\n- 下一步压力：他必须借掌柜最不愿外借的快马，而掌柜握有报官的筹码。\n\n现在下一章不靠随机事故启动，而由本章的局部发现与对手反制自然产生。",
-          "en": "**Blocked version:** Apprentice A-Cen discovers a package of antidote with the wrong label and anxiously searches the market. Several vendors say they have not seen it.\n\nThe goal exists. What is missing is strategic opposition and a question that can change the situation.\n\n**Diagnosed skeleton:**\n\n- Goal: recover the package before the market bell so a patient does not take it by mistake.\n- Opposition: admitting the error could cost the owner the shop’s license, so he spreads the story that the apprentice stole the medicine.\n- Old strategy fails: when A-Cen asks publicly, vendors avoid him as a thief.\n- New strategy: stop searching for the package and trace the blue-wax seal used only by his shop.\n- Partial result: he finds the discarded blue wax at a breakfast stall, but the medicine has already left for a free clinic outside the city.\n- Next pressure: he needs the owner’s fastest horse, while the owner can still report him to the authorities.\n\nThe next chapter now grows from this chapter’s discovery and the opponent’s counteraction rather than a random accident."
+          "zh": "以下为原创情节诊断，不提供用药判断。学徒阿岑发现一包待交付药物的标签与本店记录不符，想在交付前找回核对。他只知道记录矛盾，不因闻到气味就能判断里面是什么。\n\n初稿让他逐摊询问，全是“没看见”。修改后先建立掌柜的利益：怕交货差错影响信誉，便声称阿岑擅自取走包裹。阿岑原先公开询问的办法因此失效。\n\n新策略是查本店蓝蜡封口和批次记号。他在早点摊看到相似碎蜡，但它只是询问依据；摊主的交接便条和装车人确认，才说明对应包裹已经出城。仍需核对完整标签，不能把相似蜡块写成全部真相。\n\n下一步是追上这次运输。他可以争取掌柜的快马，也可以求已建立的驿站转达暂缓交付；选择取决于时间与他能提供的凭据。两条路都来自已有角色和通路，不临时降下新助手。卡点从“再问一家”变成有条件的策略选择。",
+          "en": "This original plot diagnosis offers no medication judgment. Apprentice Acen finds a delivery label inconsistent with shop records and wants the parcel checked before handover. He knows a discrepancy, not contents identifiable by smell.\n\nThe first draft repeats unanswered stall inquiries. Establish the shopkeeper’s interest: fearing a damaged reputation, he alleges that Acen took the parcel. Public questioning now fails for a reason.\n\nAcen checks shop wax and batch marks. Similar wax at a stall justifies inquiry; a handover note and loader’s confirmation identify the outbound parcel. The full label still needs checking. A wax fragment is not the entire truth.\n\nHe can seek the shopkeeper’s horse or ask an already established relay station to pause delivery. Time and evidence determine the choice. Both routes use known people and access, not a new helper. The block becomes a conditional strategy choice rather than another identical question."
         }
       },
       {
@@ -2617,8 +2624,8 @@
           "en": "When You Know the Plot but Cannot Draft the Prose"
         },
         "body": {
-          "zh": "把“写好这一章”改成三个小动作：先写人物进入场景时的位置、持物和当下目的；再只写会改变局面的动作与反应；最后写结果如何迫使下一步。暂时跳过景物润色和漂亮转场。\n\n例如先写：“阿岑冲到早点摊—看见蓝蜡—摊主藏手—他用药味指出蜡来自毒柜—摊主承认包裹已上车。”骨架成立后，再补气味、语气和人物细节。若骨架本身无因果，说明仍是剧情卡，不是文笔卡。",
-          "en": "Replace “write this chapter well” with three smaller tasks. Record the character’s position, held object, and immediate purpose on entering the scene. Then write only actions and reactions that change the situation. Finally state how the result forces the next move. Skip atmospheric polish and elegant transitions for now.\n\nFor example: “A-Cen runs to the breakfast stall → sees blue wax → the vendor hides his hand → A-Cen identifies the wax by the medicine smell → the vendor admits the package is already on a cart.” Once the skeleton works, add smell, tone, and character detail. If the skeleton has no causality, the block is still in the plot rather than the prose."
+          "zh": "知道剧情却写不出句子时，先列进入状态、关键动作、对方反应与结果。暂时跳过景物润色，保留观察和结论之间的连接。\n\n例如：“阿岑看到相似蓝蜡—问出处—摊主拿出交接便条—装车人确认包裹去向—他决定向驿站求助。”每个箭头都有依据；“看见蜡就知道包裹在城外”则缺少中间证据。\n\n动作骨架成立后再补声口、气氛与细节。若还没有目标、信息或选择，继续修结构，不用润色掩盖缺口。",
+          "en": "When the plot is known but prose stalls, list the entering state, key action, response and result. Skip decorative polishing while retaining links between observation and conclusion.\n\nFor example: Acen sees similar wax, asks its origin, reads a handover note, gets the loader’s confirmation, and chooses the relay station. Each step has a basis. Seeing wax and instantly knowing an out-of-town location does not.\n\nAdd voice and atmosphere once the skeleton works. Missing goals, facts or choices still require structural repair."
         }
       },
       {
@@ -2629,7 +2636,7 @@
         },
         "body": {
           "zh": "| 做法 | 为什么恶化 | 替代方案 |\n|---|---|---|\n| 突然增加陌生反派 | 新问题没有旧因 | 从已有结果中找受损者 |\n| 临时给主角新能力 | 困境被绕过 | 让已有能力换一种用法并付代价 |\n| 重复上一轮冲突 | 人物策略和结果没变 | 封住旧路，要求新选择 |\n| 一直改开头 | 不面对当前缺口 | 只修与下一步因果相关的上游节点 |\n| 强迫疲惫时完成整章 | 质量和判断一起下降 | 留下一条可接续的动作骨架后休息 |\n\n当你能写出“当前目标—有效阻力—策略变化—局部结果—新压力”，卡点就已经从模糊焦虑变成可修改的问题。",
-          "en": "| Response | Why it worsens the block | Alternative |\n|---|---|---|\n| Add an unfamiliar villain | The new problem has no old cause | Find who was harmed by an existing result |\n| Give the protagonist a new ability | The dilemma is bypassed | Use an established ability differently and attach a cost |\n| Repeat the previous conflict | Strategy and result remain unchanged | Close the old route and require a new choice |\n| Keep rewriting the opening | The current gap remains untouched | Repair only upstream beats that affect the next causal step |\n| Force an entire chapter while exhausted | Quality and judgment decline together | Leave a resumable action skeleton, then rest |\n\nOnce you can write “current goal → effective opposition → strategy change → partial result → new pressure,” the block has become a specific, repairable problem."
+          "en": "| Response | Effect | Instead |\n|---|---|---|\n| Add an unfamiliar villain | The new problem has no old cause | Find who was harmed by an existing result |\n| Give the protagonist a new ability | The dilemma is bypassed | Use an established ability differently and attach a cost |\n| Repeat the previous conflict | Strategy and result remain unchanged | Close the old route and require a new choice |\n| Keep rewriting the opening | The current gap remains untouched | Repair only upstream beats that affect the next causal step |\n| Force an entire chapter while exhausted | Quality and judgment decline together | Leave a resumable action skeleton, then rest |\n\nOnce you can write “current goal → effective opposition → strategy change → partial result → new pressure,” the block has become a specific, repairable problem."
         }
       }
     ],
@@ -2673,10 +2680,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "主线目标、卡文与循环",
+          "en": "Throughline goals, blocks and loops"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/plot-core-methods.md"
+      },
+      {
+        "label": {
+          "zh": "驱动力、阻力与场景冲突",
+          "en": "Drives, resistance and scene conflict"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/outline-conflict.md"
       }
     ]
   },
@@ -2736,7 +2750,7 @@
         },
         "body": {
           "zh": "| 故事重心 | 适合的结构 | 何时停下 |\n|---|---|---|\n| 事业成长 | 情境—冲突—行动 | 在行动即将改变局面处 |\n| 轻松或甜感 | 情境—转折—一次成功 | 让读者先尝到主要情绪 |\n| 强悬疑 | 情境—矛盾证据 | 留下能重排意义的问题 |\n| 强压迫关系 | 情境—冲突—反抗—受挫 | 在主角准备换策略处 |\n| 复合类型 | 一次局部成功—新的未知 | 同时给安全感和好奇心 |\n\n结构不是越复杂越好。连续抛出身份、世界观、阴谋和感情谜题，会让简介像谜语。只保留能代表正文主要体验的一条。",
-          "en": "| Story focus | Useful structure | Where to stop |\n|---|---|---|\n| Career growth | Situation → conflict → action | Just before the action changes the situation |\n| Light or sweet tone | Situation → turn → one success | Give readers an early taste of the main emotion |\n| Strong mystery | Situation → contradictory evidence | Leave a question capable of rearranging meaning |\n| Oppressive relationship | Situation → conflict → resistance → setback | When the protagonist prepares to change strategy |\n| Hybrid | One partial success → a new unknown | Offer security and curiosity together |\n\nMore complexity is not automatically better. A sequence of identity, worldbuilding, conspiracy, and relationship mysteries makes the blurb read like a riddle. Keep the one line that best represents the prose’s main experience."
+          "en": "| Focus | Structure | Stop |\n|---|---|---|\n| Career growth | Situation → conflict → action | Just before the action changes the situation |\n| Light or sweet tone | Situation → turn → one success | Give readers an early taste of the main emotion |\n| Strong mystery | Situation → contradictory evidence | Leave a question capable of rearranging meaning |\n| Oppressive relationship | Situation → conflict → resistance → setback | When the protagonist prepares to change strategy |\n| Hybrid | One partial success → a new unknown | Offer security and curiosity together |\n\nMore complexity is not automatically better. A sequence of identity, worldbuilding, conspiracy, and relationship mysteries makes the blurb read like a riddle. Keep the one line that best represents the prose’s main experience."
         }
       },
       {
@@ -2746,8 +2760,8 @@
           "en": "Original Example: “Glazing Regret”"
         },
         "body": {
-          "zh": "**正文卖点**：陶瓷修复师能从裂纹里辨认器物最后一次破损的方式，却无法知道人的动机。\n\n**行动型版本**：\n\n> 宋遥接手母亲留下的旧物修复铺，只想还清欠款关门。开业第一天，一只被认定死于意外的旧茶盏告诉她：它是在主人争执时被人刻意摔碎的。此后，每件送来的残器都牵着一段被说错的往事。宋遥决定只修物、不判人，直到父亲失踪前修过的最后一只碗被送回柜台。\n\n**成功加悬疑版本**：\n\n> 宋遥修好了全城无人敢接的百片瓷屏，也因此保住母亲的铺子。庆功当晚，瓷屏裂纹里浮出的却不是破损现场，而是她父亲写下的一句警告：别相信送屏来的人。\n\n前者适合突出事业行动，后者先给能力兑现，再把成功转成新问题。两版都没有罗列后续案件，也没有把能力夸成“看见全部真相”。",
-          "en": "**Core appeal in the prose:** A ceramics restorer can identify how an object was last broken from its cracks, but cannot know a person’s motive.\n\n**Action-led version:**\n\n> Song Yao inherits her mother’s antique-restoration shop and wants only to pay its debts and close it. On opening day, an old teacup said to have shattered by accident reveals that someone deliberately smashed it during an argument between its owners. Every damaged object that follows is tied to a past told incorrectly. Song Yao decides to repair objects, not judge people—until the last bowl her father repaired before he disappeared returns to the counter.\n\n**Success-plus-mystery version:**\n\n> Song Yao restores a hundred-piece porcelain screen no one else in the city will touch and saves her mother’s shop. On the celebration night, the cracks reveal not the moment of damage but a warning left by her father: Do not trust the person who brought the screen.\n\nThe first version emphasizes professional action. The second demonstrates the ability, then turns success into a new problem. Neither lists later cases or inflates the ability into “seeing the whole truth.”"
+          "zh": "以下是原创小说设定与文案，不是已验证的读者效果。宋遥触碰残器能看到最后破损的一瞬，不能读取内心，也不能从裂纹得到任意文字；父亲失踪线与旧包装另有实体证据。\n\n**行动型版本**：\n\n> 宋遥接手母亲的修复铺，只想还清欠款关门。第一天送来的茶盏被说成意外碎裂，她看到的却是一只手把它推落桌边，另一只手同时拿走钥匙。她不知道那是谁，更不知道为什么。此后每件残器都带来一段需要另行核对的往事，直到父亲失踪前修过的碗回到柜台。\n\n**成功加悬疑版本**：\n\n> 宋遥修好百片瓷屏，收到约定尾款，终于付清本期铺租。清理旧包装时，她发现一张像父亲笔迹的纸条：别相信送屏来的人。而她刚才看到的破损片段里，这张纸正被那人塞进包装。\n\n第一版停在行动与未知，第二版先兑现本期收入再提出同一能力范围内的问题。纸条是实际找到的物件，不是能力突然升级；“像父亲笔迹”仍要核对，不直接证明警告真实。书名、简介与正文应共享这些边界。",
+          "en": "This original premise and copy have no tested audience result. Touching a damaged object lets Song Yao see its final breakage instant, not thoughts or arbitrary text. Her missing father’s thread has separate physical evidence.\n\n**Action-led version:**\n\n> Song Yao inherits a restoration shop and plans to repay its debts and close it. A teacup supposedly broke by accident. She sees one hand push it from a table while another takes a key. She knows neither who nor why. Each damaged object brings a moment needing further checks—until the last bowl her father repaired returns.\n\n**Success-plus-mystery version:**\n\n> Song restores a hundred-piece porcelain screen, receives the agreed balance and pays this period’s rent. In its old wrapping she finds a note resembling her father’s handwriting: Do not trust the person who brought the screen. In the breakage moment, that person was putting this note into the wrapping.\n\nThe first stops at action and uncertainty; the second delivers income before a bounded mystery. The note is physically found, not an upgraded power. Resemblance is not proof of authorship. Title, blurb and prose share the limits."
         }
       },
       {
@@ -2758,7 +2772,7 @@
         },
         "body": {
           "zh": "| 失败 | 读者感受 | 修正 |\n|---|---|---|\n| 从世界创世史讲起 | 不知道要跟谁走 | 第一段就给主角和变化 |\n| 只写“命运齿轮转动” | 看不见具体行动 | 写清主角接下来要做什么 |\n| 把所有反转都剧透 | 没有发现空间 | 只揭一次局部结果，保留行动问题 |\n| 一味藏信息 | 不知道故事卖什么 | 至少交代冲突和独特手段 |\n| 简介比正文更刺激 | 入文后货不对板 | 用正文早期能兑现的卖点 |\n| 形容词堆满 | 情绪没有事实支撑 | 用处境、选择和代价代替评价 |",
-          "en": "| Failure | Reader experience | Fix |\n|---|---|---|\n| Begin with the creation history of the world | No one knows whom to follow | Put the protagonist and change in the first paragraph |\n| Say only that “the wheels of fate turn” | No concrete action is visible | State what the protagonist does next |\n| Spoil every twist | Nothing remains to discover | Reveal one partial result and preserve an action-driving question |\n| Hide everything | The story’s appeal is unknown | Establish at least the conflict and distinctive method |\n| Make the blurb more exciting than the prose | The book feels like a mismatch | Promise what the early prose can deliver |\n| Stack adjectives | Emotion lacks factual support | Use situation, choice, and cost instead |"
+          "en": "| Failure | Effect | Fix |\n|---|---|---|\n| Begin with the creation history of the world | No one knows whom to follow | Put the protagonist and change in the first paragraph |\n| Say only that “the wheels of fate turn” | No concrete action is visible | State what the protagonist does next |\n| Spoil every twist | Nothing remains to discover | Reveal one partial result and preserve an action-driving question |\n| Hide everything | The story’s appeal is unknown | Establish at least the conflict and distinctive method |\n| Make the blurb more exciting than the prose | The book feels like a mismatch | Promise what the early prose can deliver |\n| Stack adjectives | Emotion lacks factual support | Use situation, choice, and cost instead |"
         }
       }
     ],
@@ -2802,10 +2816,10 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "简介类型、组合与阅读承诺",
+          "en": "Blurb types, combinations and reading promises"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-readers.md"
       }
     ]
   },
@@ -2982,8 +2996,8 @@
           "en": "Reusable Short-Story Outline Template"
         },
         "body": {
-          "zh": "> **暂定标题**：\n>\n> **一句话梗概**：{谁}因{困境}采取{关键行动}，最终{核心兑现}，让读者感到{情绪落点}。\n>\n> **主角当下最想要**：\n>\n> **阻挡他的力量**：对方想要什么，有什么真实筹码？\n>\n> **核心兑现**：结尾要证明、推翻或完成什么？\n>\n> **提前建立**：结尾使用的人物、物件、信息或能力，分别在哪里出现？\n\n逐节使用轻量表：\n\n| 段落功能 | 主事件 | 状态改变 | 因果与后果 | 读者新知 | 承接 |\n|---|---|---|---|---|---|\n| 开头/铺垫/升级/转折/结尾 | 谁做了什么 | 信息、风险、关系、资源、决定或行动改变了什么 | 为什么发生，造成什么 | 读者现在多知道什么 | 下一节为何必须发生 |\n\n对话、回忆和气氛只有在改变选择或读者理解时才单列；否则把它们放进主事件，不要让形式冒充推进。",
-          "en": "> **Working title:**\n>\n> **One-sentence premise:** {Who} responds to {predicament} with {key action}, ultimately {core payoff}, leaving readers with {emotional landing}.\n>\n> **What the protagonist wants most right now:**\n>\n> **Opposing force:** What does the other side want, and what real leverage does it possess?\n>\n> **Core payoff:** What must the ending prove, overturn, or complete?\n>\n> **Establish in advance:** Where do the people, objects, information, or abilities used by the ending first appear?\n\nUse this lightweight table section by section:\n\n| Section function | Main event | State change | Cause and consequence | New reader knowledge | Handoff |\n|---|---|---|---|---|---|\n| Opening / setup / escalation / turn / ending | Who does what | What changes in information, risk, relationship, resources, decision, or action | Why it happens and what it causes | What readers now know | Why the next section must happen |\n\nList dialogue, memory, or atmosphere separately only when it changes a choice or the reader’s understanding. Otherwise include it in the main event; do not mistake formatting for progress."
+          "zh": "手写大纲先填：主角与困境、最后兑现什么、读者情绪、结尾依赖的早期人物或物件。\n\n| 功能 | 主事件与变化 | 因果与承接 |\n|---|---|---|\n| 开头、铺垫、升级、转折或结尾 | 谁做什么，信息、关系、风险或行动如何变 | 为什么发生，造成什么，下一步是什么 |\n\n这是作者手写简表。当前 skill 的正式小节大纲有完整字段，包括人物变化、读者新知、场景、对白作用与字数；直接使用 skill 时让它按原生格式生成，不把本页三列当成它的交付文件。\n\n无反转故事可写报应、和解或关系兑现，不硬添秘密。没有独立关系变化时写实际改变的信息或行动；没有对白时写由什么承担推进。",
+          "en": "For a manual outline, record protagonist and problem, final payoff, intended feeling, and early setup for the ending.\n\n| Beat | Change | Cause / next |\n|---|---|---|\n| Opening, setup, escalation, turn or ending | Who acts; what changes | Why, consequence and next step |\n\nThis is a compact manual sheet. The skill’s formal section outline includes fuller character, reader-knowledge, scene, dialogue and length fields. Let the skill generate its native format; this three-column table is not its delivery file.\n\nWithout a twist, plan justice, reconciliation or relationship payoff. Record actual information or action when relationships do not change; identify the carrier when there is no dialogue."
         }
       },
       {
@@ -2993,8 +3007,8 @@
           "en": "Original Example: “The Salt Left Behind”"
         },
         "body": {
-          "zh": "**一句话梗概**：新来的夜班保安周苒清理楼道物品时，发现独居老人门前放着两包标有连续日期的盐；她原本准备按规定收走，却因邻居的解释改为敲门查问，最终发现老人摔倒未能求救，情绪从不耐烦落到互助。\n\n**先定结尾**：周苒不再把门口日用品一概当作杂物，和住户约定有人负责联系、无人回应时及时查问的互助办法。倒推需要提前建立：谁送盐、为什么写日期、没取走为何值得担心。\n\n| 功能 | 主事件 | 状态改变 | 因果与后果 | 读者新知 | 承接 |\n|---|---|---|---|---|---|\n| 开头 | 周苒收到楼道杂物投诉，在老人门前发现两包盐，袋上写着昨天和今天的日期 | 她决定收走并登记 | 日期显示物品分两天送来 | 昨天那包始终没有动过 | 对门邻居阻止她清理 |\n| 铺垫 | 邻居说昨天老人托她买盐，她送到后老人隔门答应稍后取；今天看到盐还在，误以为老人没注意，又放了一包并写上日期提醒 | “杂物”变成未完成的日常约定 | 老人昨天还答过话，后来为何没开门成了问题 | 两包盐来自同一人，日期就是送达时间 | 周苒决定先联系老人 |\n| 升级 | 电话在门内响，却始终无人接听；周苒敲门后听见微弱应答 | 她从清理物品转为求助救援 | 不能再用外出解释无人接听 | 老人在屋内，需要帮助 | 她联系救援人员并留在门口回应 |\n| 转折 | 救援人员打开门，发现老人摔倒后无法起身，也够不到手机 | 盐袋的含义从占道物品变为异常迹象 | 邻居以为对方只是忘记，老人却一直无法开门 | 昨天的回应与此后的沉默形成完整时间线 | 周苒和邻居协助联系家属 |\n| 结尾 | 老人得到救助，周苒与住户商量后续联系办法 | 生硬执行转为有责任人的互助 | 没取走的物品会引出一次查问，而不只是一次清理 | 周苒仍清理楼道，但会先查明异常 | 邻居收起第二包盐，记下负责联系的人 |\n\n结尾的发现依赖开头已经出现的日期和未取物品；电话、敲门进一步改变判断，救助由人物连续行动促成。盐袋只是异常线索，不能单凭它断定老人出了事。",
-          "en": "**One-sentence premise:** While clearing objects from an apartment corridor, new night-shift security guard Zhou Ran finds two bags of salt marked with consecutive dates outside an older resident’s door. She intends to remove them under the rules, but a neighbor’s explanation leads her to knock and investigate. She discovers the resident fell and could not call for help, moving the emotion from irritation to mutual care.\n\n**Set the ending first:** Zhou Ran stops treating every daily object outside a door as mere clutter. She and the residents agree on a mutual-aid process: one person maintains contact, and an unanswered check prompts an inquiry. Work backward to establish who delivered the salt, why the dates were written, and why an uncollected bag is concerning.\n\n| Function | Main event | State change | Cause and consequence | New reader knowledge | Handoff |\n|---|---|---|---|---|---|\n| Opening | Zhou Ran receives a corridor-clutter complaint and finds two bags of salt outside the resident’s door, dated yesterday and today | She decides to remove and log them | The dates show two separate deliveries | Yesterday’s bag never moved | The neighbor across the hall stops her from clearing them |\n| Setup | The neighbor says the resident asked her to buy salt yesterday and answered through the door that she would collect it later. Seeing it still there today, the neighbor assumes she forgot and leaves another dated bag | “Clutter” becomes an unfinished everyday arrangement | The resident answered yesterday; why has she not opened the door since? | Both bags came from the same person, and the dates record delivery | Zhou Ran decides to contact the resident first |\n| Escalation | A phone rings inside with no answer. After Zhou Ran knocks, she hears a faint response | She shifts from clearing objects to arranging help | Absence can no longer explain the silence | The resident is inside and needs help | Zhou Ran calls rescuers and stays at the door to answer her |\n| Turn | Rescuers open the door and find the resident unable to rise after a fall and unable to reach her phone | The salt changes from an obstruction into an anomaly | The neighbor thought she had forgotten; in fact, she could not open the door | Yesterday’s response and the silence afterward form a complete timeline | Zhou Ran and the neighbor contact the family |\n| Ending | The resident receives help, and Zhou Ran discusses a future contact process with the residents | Rigid enforcement becomes mutual aid with clear responsibility | An uncollected object prompts a check rather than only removal | Zhou Ran still clears the corridor, but investigates anomalies first | The neighbor removes the second bag and records the designated contact person |\n\nThe ending depends on the dates and uncollected object established at the beginning. The phone and knock revise the judgment, and rescue follows from a continuous chain of character actions. The salt is only an anomalous clue; it cannot prove by itself that something happened to the resident."
+          "zh": "**一句话梗概**：新来的夜班保安周苒清理楼道物品时，发现独居老人门前放着两包标有连续日期的盐；她原本准备按规定收走，却因邻居的解释改为敲门查问，最终发现老人摔倒未能求救，情绪从不耐烦落到互助。\n\n**先定结尾**：周苒不再把门口日用品一概当作杂物，和住户约定有人负责联系、无人回应时及时查问的互助办法。倒推需要提前建立：谁送盐、为什么写日期、没取走为何值得担心。\n\n| 功能 | 事件与变化 | 原因与承接 |\n|---|---|---|\n| 开头 | 楼道投诉后，周苒见两包盐标着昨天、今天，准备清走 | 昨天的没取；邻居阻止 |\n| 铺垫 | 老人昨日托买盐并答应稍后取；邻居误以为忘记，今天又放一包 | 日期记送达，约定未完成；先联系老人 |\n| 升级 | 门内电话响但无人接；敲门听到微弱回应 | 确认有人需帮助；联系救援并留守 |\n| 转折 | 救援人员发现老人摔倒，不能起身或够到手机 | 回应后的沉默有了解释；协助联系家属 |\n| 结尾 | 老人获救；住户约定联系负责人，邻居收起多放的盐 | 未取物引出查问；清理仍做，先核查异常 |\n\n结尾的发现依赖开头已经出现的日期和未取物品；电话、敲门进一步改变判断，救助由人物连续行动促成。盐袋只是异常线索，不能单凭它断定老人出了事。",
+          "en": "**One-sentence premise:** While clearing objects from an apartment corridor, new night-shift security guard Zhou Ran finds two bags of salt marked with consecutive dates outside an older resident’s door. She intends to remove them under the rules, but a neighbor’s explanation leads her to knock and investigate. She discovers the resident fell and could not call for help, moving the emotion from irritation to mutual care.\n\n**Set the ending first:** Zhou Ran stops treating every daily object outside a door as mere clutter. She and the residents agree on a mutual-aid process: one person maintains contact, and an unanswered check prompts an inquiry. Work backward to establish who delivered the salt, why the dates were written, and why an uncollected bag is concerning.\n\n| Beat | Change | Cause / next |\n|---|---|---|\n| Opening | Corridor complaint; two salt bags dated yesterday and today; Zhou plans removal | Yesterday’s is untouched; neighbor intervenes |\n| Setup | Resident requested salt and answered yesterday; neighbor assumes she forgot, leaves another bag today | Dates mark delivery; promise unfulfilled; contact resident |\n| Escalation | Phone rings inside; no answer; faint reply to knocking | Someone needs help; call rescuers and stay |\n| Turn | Rescuers find her unable to rise after a fall or reach her phone | Silence explained; help contact family |\n| Ending | Resident helped; neighbors agree a named contact and remove spare bag | Uncollected items prompt checks; corridor clearing continues |\n\nThe ending depends on the dates and uncollected object established at the beginning. The phone and knock revise the judgment, and rescue follows from a continuous chain of character actions. The salt is only an anomalous clue; it cannot prove by itself that something happened to the resident."
         }
       },
       {
@@ -3060,10 +3074,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "短篇核心框架与情绪倒推",
+          "en": "Short-story framework and backward emotional planning"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/workflow-design.md"
+      },
+      {
+        "label": {
+          "zh": "正式小节大纲与因果检查",
+          "en": "Formal section outline and causal checks"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/writing-workflow.md"
       }
     ]
   },
@@ -3509,7 +3530,7 @@
         },
         "body": {
           "zh": "| 章节作用 | 主要交付 | 常见力度 |\n|---|---|---|\n| 高压兑现 | 大冲突、反转或重要结果 | 高 |\n| 普通推进 | 目标向前一步，出现新阻力 | 中 |\n| 试错成长 | 新方法失败或能力边界被看见 | 中 |\n| 关系回收 | 先前事件改变人物关系 | 中低 |\n| 低压生活 | 展示人物余韵、恢复或小收益 | 低 |\n| 信息整理 | 把零散线索变成下一步决定 | 低到中 |\n\n这些是功能，不是配额。一章可以同时完成推进和关系变化；高潮后允许有低压收益，让前一轮结果被感受到。真正的红线是连续多章没有新变化，或所有章节都用同一强度。",
-          "en": "| Chapter function | Primary delivery | Typical intensity |\n|---|---|---|\n| High-pressure payoff | Major conflict, twist, or important result | High |\n| Ordinary progress | The goal advances one step and new resistance appears | Medium |\n| Learning through failure | A new method fails or an ability limit becomes visible | Medium |\n| Relationship payoff | An earlier event changes a relationship | Medium-low |\n| Low-pressure life | Aftereffects, recovery, or a small gain | Low |\n| Information synthesis | Scattered clues become a next decision | Low to medium |\n\nThese are functions, not quotas. One chapter may advance the plot and change a relationship. After a climax, a low-pressure gain lets readers feel the previous result. The real warning signs are several consecutive chapters without a new change, or every chapter using the same intensity."
+          "en": "| Role | Delivery | Force |\n|---|---|---|\n| High-pressure payoff | Major conflict, twist, or important result | High |\n| Ordinary progress | The goal advances one step and new resistance appears | Medium |\n| Learning through failure | A new method fails or an ability limit becomes visible | Medium |\n| Relationship payoff | An earlier event changes a relationship | Medium-low |\n| Low-pressure life | Aftereffects, recovery, or a small gain | Low |\n| Information synthesis | Scattered clues become a next decision | Low to medium |\n\nThese are functions, not quotas. One chapter may advance the plot and change a relationship. After a climax, a low-pressure gain lets readers feel the previous result. The real warning signs are several consecutive chapters without a new change, or every chapter using the same intensity."
         }
       },
       {
@@ -3519,8 +3540,8 @@
           "en": "Original Example: The Rise and Fall of a Wildfire-Lookout Sequence"
         },
         "body": {
-          "zh": "主角程岚在林区寻找被人为改写的火险记录。下面的序列不提供固定章数，只示范高低如何由因果连接：\n\n| 章节功能 | 发生的变化 | 为什么放在这里 |\n|---|---|---|\n| 高压 | 她误判烟点，救援队扑空，值班权被收回 | 先让能力边界和代价落地 |\n| 信息整理 | 她核对风向与旧电台记录，决定查废弃瞭望塔 | 把失败转成下一步行动 |\n| 普通推进 | 上塔途中发现新铺的通信线，线却通向伐木区 | 线索推进并改变怀疑对象 |\n| 关系回收 | 老护林员承认曾替人隐瞒一次误报 | 前一章证据迫使关系变化 |\n| 高压兑现 | 两人用旧电台抢先报出真实火线，阻止错误调度 | 能力、关系和主线同时兑现 |\n| 低压收益 | 天亮后，她重新拿到值班钥匙，却发现钥匙圈少了一枚 | 给结果以重量，再留下轻压力 |\n\n低压章仍有“钥匙少了一枚”的信息变化，高压章集中兑现此前积累，不能只加速动作。",
-          "en": "Protagonist Cheng Lan searches a forest district for wildfire-risk records that someone altered. The sequence below does not prescribe a chapter count; it demonstrates how cause and effect connect high and low intensity.\n\n| Chapter function | Change that occurs | Why it belongs here |\n|---|---|---|\n| High pressure | She misidentifies a smoke source, sends rescuers to the wrong place, and is removed from duty | Establish the limit of her ability and its cost |\n| Information synthesis | She checks wind direction against old radio logs and decides to search an abandoned lookout tower | Convert failure into the next action |\n| Ordinary progress | On the climb, she finds a newly installed communication line leading toward a logging area | Advance the clue and change the suspected party |\n| Relationship payoff | An older ranger admits covering up one false alarm | Evidence from the previous chapter forces a relationship change |\n| High-pressure payoff | They use the old radio to report the actual fire front before anyone else and prevent a mistaken deployment | Deliver ability, relationship, and main plot together |\n| Low-pressure gain | At dawn, she receives the duty keys again and finds one key missing from the ring | Give the result weight while leaving lighter pressure |\n\nThe low-pressure chapter still changes information through the missing key. The high-pressure chapter concentrates earlier accumulation rather than merely accelerating action."
+          "zh": "原创林区故事中，程岚追查被改写的巡查记录。以下只比较叙事力度，不提供火场操作方法或已执行的测试。\n\n| 作用 | 本轮变化 | 承接理由 |\n|---|---|---|\n| 高压 | 她误报位置，负责人暂停她单独提交 | 让信息错误有后果 |\n| 整理 | 她比对旧电台与巡查记录，申请到旧塔核对 | 失败产生调查目标 |\n| 推进 | 发现新线接向伐木区 | 是待查线索，不直接定责 |\n| 关系 | 老护林员交出原记录，承认自己改过一项 | 具体承认改变信任 |\n| 兑现 | 两人递交可核对的新报告，接收人核实后更新安排 | 选择与实际响应相连 |\n| 低压 | 负责人恢复她有限的记录提交资格，两人整理工具 | 让本轮收益被感受到 |\n\n恢复资格来自核实与明确决定，不是主角报完便自动拿回所有权限。记录全案仍需继续查；低压段可以让人物休息、修复合作，不必再塞一把神秘缺钥匙。\n\n高低由前一轮后果连接。若安静场里读者终于感到获得信任，它就有功能；不要只按事故数量判断是否推进。",
+          "en": "In this original forest story, Cheng Lan investigates altered patrol records. The sequence compares narrative intensity; it is neither fire-response procedure nor a tested event.\n\n| Role | Change | Reason |\n|---|---|---|\n| Pressure | Wrong location report; independent submissions paused | Error has a cost |\n| Review | Compare radio and patrol records; request a tower check | Failure creates a goal |\n| Progress | New line leads toward logging area | A clue, not guilt |\n| Relationship | Ranger provides originals and admits one alteration | Specific admission changes trust |\n| Payoff | Submit checkable report; receiver verifies and updates plans | Action has an enacted response |\n| Quiet gain | Supervisor restores limited reporting; tools are sorted | Let the result be felt |\n\nRestoration follows verification and a decision, not the report alone. The full inquiry remains open. Quiet scenes can support rest and renewed cooperation without another missing-key mystery.\n\nConsequences connect high and low. Feeling newly earned trust serves a purpose. Accident counts alone do not measure progression."
         }
       },
       {
@@ -3531,7 +3552,7 @@
         },
         "body": {
           "zh": "注水的标准是删掉后是否损失有效变化，不是描写长或对话多。人物余韵也有价值：删掉一段后人物少了一层，就应保留；若只少了重复说明，可以压缩。\n\n| 症状 | 检查 | 修改 |\n|---|---|---|\n| 对话很长 | 有没有新信息、决定或权力变化 | 保留交锋，删重复立场 |\n| 回忆很多 | 是否提供当下未知的新角度 | 无新意就压成一句或删除 |\n| 办事流程完整 | 卡点有没有逼出选择或代价 | 只留改变局面的步骤 |\n| 同一情绪反复 | 后一段是否增加新后果 | 留最有信息的一处 |\n| 描写很细 | 细节是否影响判断、气氛或行动 | 留功能细节，删装饰性重复 |",
-          "en": "Filler is material whose removal loses no meaningful change, not simply long description or extended dialogue. Aftereffects matter: if deleting a passage removes a layer from a character, retain it. If it removes only repeated explanation, compress it.\n\n| Symptom | Check | Revision |\n|---|---|---|\n| Long dialogue | Does it add information, a decision, or a shift of power? | Keep the confrontation; remove repeated positions |\n| Many flashbacks | Do they offer an angle unknown in the present? | Compress to one sentence or delete when nothing is new |\n| Every procedural step appears | Does a bottleneck force a choice or cost? | Keep only steps that change the situation |\n| The same emotion repeats | Does the later passage add a consequence? | Keep the instance with the most information |\n| Dense description | Does the detail affect judgment, atmosphere, or action? | Keep functional detail and remove ornamental repetition |"
+          "en": "Filler is material whose removal loses no meaningful change, not simply long description or extended dialogue. Aftereffects matter: if deleting a passage removes a layer from a character, retain it. If it removes only repeated explanation, compress it.\n\n| Issue | Check | Fix |\n|---|---|---|\n| Long dialogue | Does it add facts, a decision, or a shift of power? | Keep the clash; remove repeated positions |\n| Many flashbacks | Do they offer an angle unknown in the present? | Compress to one sentence or delete when nothing is new |\n| Every procedural step appears | Does a bottleneck force a choice or cost? | Keep only steps that change the situation |\n| The same emotion repeats | Does the later passage add a consequence? | Keep the instance that adds the most |\n| Dense description | Does the detail affect judgment, atmosphere, or action? | Keep functional detail and remove ornamental repetition |"
         }
       },
       {
@@ -3541,8 +3562,8 @@
           "en": "How to Fix Pacing That Is Too Slow or Too Fast"
         },
         "body": {
-          "zh": "**太慢**：找到下一次真正改变局面的节点，把无关流程压到它之前；让阻力更早行动，或把分散在多章的同一轮交锋合并。\n\n**太快**：检查关键变化有没有中间台阶。关系突然亲密、能力突然成熟、真相公布后无人行动，都需要补人物选择、代价与余波，不靠加风景拖延。\n\n**全程紧张**：在一次兑现后安排必要的停顿，让人物盘点损失、调整关系或领取小收益。静场也要留着未决信息或环境压力，避免完全停机。\n\n章尾落在具体变化上，并把下一章会接住的决定或发现交出去。章尾句式本身见[章尾钩子](/oh-story/chapter-ending-hooks)。",
-          "en": "**Too slow:** Find the next beat that truly changes the situation and compress the irrelevant process leading to it. Let resistance act sooner, or combine one exchange scattered across several chapters.\n\n**Too fast:** Check whether major changes have intermediate steps. Sudden intimacy, an ability that matures instantly, or a revealed truth that prompts no action needs character choice, cost, and aftermath. Do not slow it merely by adding scenery.\n\n**Tense throughout:** After a payoff, give characters the necessary pause to count losses, adjust relationships, or receive a small gain. A quiet scene should retain unresolved information or environmental pressure so the story does not stop completely.\n\nEnd the chapter on a concrete change and hand off the decision or discovery the next chapter will take up. For sentence-level placement, see [chapter-ending hooks](/oh-story/chapter-ending-hooks)."
+          "zh": "**太慢**：找到下一次真正改变局面的节点，把无关流程压到它之前；让阻力更早行动，或把分散在多章的同一轮交锋合并。\n\n**太快**：检查关键变化有没有中间台阶。关系突然亲密、能力突然成熟、真相公布后无人行动，都需要补人物选择、代价与余波，不靠加风景拖延。\n\n**全程紧张**：在一次兑现后安排必要的停顿，让人物盘点损失、调整关系或领取小收益。静场可以回应已有承诺、让关系缓和或让收益被感受到，无需再加新压力。\n\n章尾落在具体变化上，并把下一章会接住的决定或发现交出去。章尾句式本身见[章尾钩子](/oh-story/chapter-ending-hooks)。",
+          "en": "**Too slow:** Find the next beat that truly changes the situation and compress the irrelevant process leading to it. Let resistance act sooner, or combine one exchange scattered across several chapters.\n\n**Too fast:** Check whether major changes have intermediate steps. Sudden intimacy, an ability that matures instantly, or a revealed truth that prompts no action needs character choice, cost, and aftermath. Do not slow it merely by adding scenery.\n\n**Tense throughout:** After a payoff, give characters the necessary pause to count losses, adjust relationships, or receive a small gain. A quiet scene can pay off earlier promises, repair relationships or let rewards register without adding new pressure.\n\nEnd the chapter on a concrete change and hand off the decision or discovery the next chapter will take up. For sentence-level placement, see [chapter-ending hooks](/oh-story/chapter-ending-hooks)."
         }
       }
     ],
@@ -3587,10 +3608,10 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "推进、低压收益与代价取舍",
+          "en": "Progression, quiet gains and optional costs"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/reader-contract-and-progression.md"
       }
     ]
   },
@@ -4165,8 +4186,8 @@
           "en": "Common Ways to Construct a Web-Fiction Title"
         },
         "body": {
-          "zh": "| 方法 | 组合方式 | 原创候选 |\n|---|---|---|\n| 身份反差 | 低位身份 + 超出预期的能力或任务 | 《被停职的树医，接手了全城古树》 |\n| 核心手段 | 独特能力 + 持续行动 | 《我能听见树根里的旧声音》 |\n| 主线事件 | 开局变化 + 长期目标 | 《市政广场倒树后，我查到了地下城》 |\n| 主线加回报 | 要做的事 + 会得到的满足 | 《修复百年古树，从揭穿假报告开始》 |\n| 反差词 | 两个看似冲突的身份或行为 | 《最怕树的树医》 |\n\n方法只负责产生方向，不能保证成品。书名里的能力、身份和事件必须在正文较早阶段出现，并持续参与主线。",
-          "en": "| Method | Combination | Original candidate |\n|---|---|---|\n| Identity contrast | Low-status identity + unexpected ability or task | *The Suspended Arborist Takes Charge of Every Ancient Tree in the City* |\n| Core method | Distinctive ability + continuing action | *I Can Hear Old Voices in Tree Roots* |\n| Main-plot event | Opening change + long-term goal | *After the Tree Fell in the Civic Square, I Found the Underground City* |\n| Plot plus reward | What must be done + the satisfaction it will deliver | *Restoring a Century-Old Tree, Starting with the False Report* |\n| Contradictory terms | Two apparently incompatible identities or behaviors | *The Arborist Who Fears Trees Most* |\n\nThese methods generate directions, not guaranteed final titles. Any ability, identity, or event named in the title must appear early enough in the story and continue to drive the main plot."
+          "zh": "| 方法 | 组合方式 | 原创候选 |\n|---|---|---|\n| 身份反差 | 低位身份 + 超出预期的能力或任务 | 《被停职的树医，接手了全城古树》 |\n| 核心手段 | 独特能力 + 持续行动 | 《我能听见树根里的旧声音》 |\n| 主线事件 | 开局变化 + 长期目标 | 《市政广场倒树后，我查到了地下城》 |\n| 主线加回报 | 要做的事 + 会得到的满足 | 《修复百年古树，从揭穿假报告开始》 |\n| 反差词 | 两个看似冲突的身份或行为 | 《最怕树的树医》 |\n\n方法只负责产生方向，不能保证成品。书名里的能力、身份和事件必须在正文较早阶段出现，并持续参与主线。\n\n这些方向对应方法卡中的身份、反差和主线加回报，不是已测出的点击排名。下面的书名均为本页原创候选；平台现行要求另查，不套用固定流量比例。",
+          "en": "| Method | Pattern | Candidate |\n|---|---|---|\n| Identity contrast | Low-status identity + unexpected ability or task | *The Suspended Arborist Takes Charge of Every Ancient Tree in the City* |\n| Core method | Distinctive ability + continuing action | *I Can Hear Old Voices in Tree Roots* |\n| Main-plot event | Opening change + long-term goal | *After the Tree Fell in the Civic Square, I Found the Underground City* |\n| Plot plus reward | What must be done + the reward it offers | *Restoring a Century-Old Tree, Starting with the False Report* |\n| Opposites | Two apparently opposed identities or behaviors | *The Arborist Who Fears Trees Most* |\n\nThese methods generate directions, not guaranteed final titles. Any ability, identity, or event named in the title must appear early enough in the story and continue to drive the main plot.\n\nThese directions adapt identity, contrast and throughline-plus-payoff methods, not measured click rankings. Candidates are original to this page. Check current platform requirements rather than relying on a fixed traffic ratio."
         }
       },
       {
@@ -4243,10 +4264,10 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "身份、反差、主线与回报命名法",
+          "en": "Identity, contrast, throughline and payoff naming"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-readers.md"
       }
     ]
   },
@@ -4574,8 +4595,8 @@
           "en": "Original redesign: public proof in an island water crisis"
         },
         "body": {
-          "zh": "抽象功能：主角长期被当成外行；集体危机中，权威方案失败；主角用一项早已建立的专业能力公开验真，获得行动权，同时让既得利益者开始反制。\n\n原创实现：海岛淡水变咸，返乡的管线测绘员顾遥被村委当成只会画图的学生。承包商坚持加深水井，她根据旧地形图判断咸水来自破裂的地下管。她没有当众背身份，而是关闭一段阀门，让三处水表按预判依次停转，证明漏点位置。村民把抢修调度权交给她，承包商则趁夜转移维修记录。\n\n这里保留“被低估—公开验真—取得行动权—利益反制”的情绪与功能，职业、环境、证据链、关系和后续问题均重新生成。",
-          "en": "Abstract function: the protagonist has long been dismissed as an amateur. During a shared crisis, the authority’s solution fails. The protagonist publicly demonstrates expertise already established in the story, gains the right to act, and provokes resistance from someone with an interest to protect.\n\nOriginal version: an island’s fresh water turns salty. Gu Yao, a pipeline surveyor returning home, is dismissed by the village committee as a student who only draws maps. A contractor insists on deepening the well. Using old topographic maps, she concludes that the salt water is entering through a ruptured underground pipe. Instead of reciting her credentials in public, she closes the valve for one section of the network; three water meters stop in the sequence she predicted, demonstrating the location of the leak. The villagers put her in charge of coordinating repairs. That night, the contractor moves the maintenance records elsewhere.\n\nThis retains the emotional and dramatic progression—underestimation, public proof, authority to act, resistance from vested interests—while redesigning the profession, environment, evidence chain, relationships and next problem."
+          "zh": "抽象功能是被低估者用已建立的专业判断解决一个可验证问题，获得有限参与资格，又招来利益反制。下面的渡口为原创场景，不来自真实参考作品。\n\n返乡排程员顾遥被当作只会画表的学生。渡口名单反复显示超额，管理员想增加班船，但当天可用班次已经受已定条件限制。顾遥比对售票点交来的两份清单，发现同一编号、同一付款被计入两次；请持票人确认只买了一张，再请售票人核对原记录。\n\n这些只证明这笔重复登记，不证明所有超额都由同一人造成。管理员让她参与当前票单复核，不把全渡口调度权交出。核对后的名单实际替换旧版，候船人按确认班次接到通知。售票点负责人因登记权受限，开始藏起另一份旧账，后续有新阻力。\n\n带过去的是认可、证明与反制的功能，原句、道具动作链、人物关系与事件素材都重新设计。先看新场景的因果是否独立成立，不把改几个名字当成原创。",
+          "en": "The abstract function is an underestimated person using established expertise to resolve a checkable problem, gaining limited participation and provoking resistance. This original ferry scene comes from no real reference work.\n\nReturning scheduler Gu Yao is dismissed as a student who draws tables. Lists repeatedly appear over capacity. The manager considers extra sailings, but established constraints limit them. Gu compares two ticket lists: one number and payment appear twice. The passenger confirms buying one ticket; the seller checks the original entry.\n\nThat proves this duplicate, not the cause of every excess. The manager lets Gu join the present list review without granting control of the whole ferry. The checked list replaces the old version and passengers receive confirmed departures. Losing record control, the seller hides another old ledger, creating further resistance.\n\nCarry over recognition, proof and counteraction as functions. Rebuild prose, props, relationships and events. The new scene needs independent causality; renamed characters do not supply it."
         }
       },
       {
@@ -4641,10 +4662,10 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "抽象功能、可替换项与不可照搬",
+          "en": "Abstract functions, replaceable roles and prohibited copying"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-analyze/references/stage3-plot-rhythm.md"
       }
     ]
   },
@@ -4832,8 +4853,8 @@
           "en": "Original example: naive selflessness or a principled choice?"
         },
         "body": {
-          "zh": "灾后粮站只剩一车药，主角叶舟决定分给刚袭击过营地的邻村。若他只说“大家都不容易”，还隐瞒风险让同伴承担，读者会觉得选择廉价。\n\n修复后，叶舟掌握一条关键信息：邻村水井污染，病人若涌入营地会造成更大传染。他提出交换——送出半车药，对方交出水样与备用发电机；他亲自随车承担谈判风险，并公开让营地表决剩余配额。邻村若反悔，他失去的是自己的队长资格。\n\n善良仍在，但目标、判断、交换与代价完整。问题不在救人，而在选择是否有边界、是否由本人承担后果。",
-          "en": "At a post-disaster supply station, only one truckload of medicine remains. Protagonist Ye Zhou decides to share it with a neighboring village that recently attacked the camp. If he merely says “everyone is struggling” while hiding the risk and making his companions bear it, the choice feels cheap.\n\nIn the revised version, Ye Zhou has crucial information: the neighboring village’s well is contaminated, and patients arriving at the camp would create a greater risk of infection. He proposes an exchange—half the medicine for water samples and a spare generator. He travels with the truck himself to bear the negotiation risk and openly lets the camp vote on the remaining allocation. If the village breaks the agreement, he loses his position as team leader.\n\nHis kindness remains, but now the goal, judgment, exchange and cost are fully established. Helping people is not the problem. The questions are whether the choice has boundaries and whether the person making it bears the consequences."
+          "zh": "以下为原创灾后营地剧情，不是救灾操作方案。营地只剩一套备用照明组，叶舟想借给曾抢过粮的邻村。他不能只说“大家都难”，就让同伴失去夜间备用条件；自己随车也不能替全体同意。\n\n先建立眼前利益：两处居民都需用同一渡口运物，邻村有可用的船和人手，但夜间搬运缺光。叶舟提出限时借用，营地保留本夜必要照明，邻村先交付约定的运输名额并接受归还时间；这些是本故事已定安排，不是万能安全措施。\n\n营地成员看过资源分配与风险，明确同意有限方案。邻村实际确认名单、交出相应运输凭据后，叶舟才随器材出发；到场双方清点交接。渡运还没完成，不能把一份承诺写成全部物资已经送达。\n\n善意保留了，但选择依据、谁同意、谁承担什么、何时停止和本轮结果都可见。更大的风险仍需后续行动结算，不靠主角一句“出事我负责”取消同伴的损失。",
+          "en": "This original camp plot is not a disaster-response procedure. Only one spare lighting set remains. Ye Zhou wants to lend it to a village that previously took food. “Everyone struggles” cannot decide away the camp’s backup; accompanying it cannot substitute for others’ agreement.\n\nEstablish a shared interest: both groups need the same ferry for supplies. The village has a boat and crew but lacks light for night loading. Ye proposes a time-limited loan while the camp retains its necessary lights. The village must first confirm transport places and a return time. These are fictional arrangements, not universal safety measures.\n\nMembers review allocation and risk and explicitly accept the bounded plan. Only after the village supplies agreed transport records does Ye accompany the equipment. They inventory handover on arrival. Transport remains unfinished; a promise is not delivered supplies.\n\nKindness retains grounds, affected people’s choice, responsibilities, stopping conditions and a visible local result. Later risks still need settlement. “I take responsibility” cannot erase companions’ losses."
         }
       },
       {
@@ -4899,10 +4920,10 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "读者契约、人物选择与收益归属",
+          "en": "Reader promises, agency and ownership of gains"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/reader-contract-and-progression.md"
       }
     ]
   },
@@ -5186,8 +5207,8 @@
       "en": "Sweet beats prove change: affection targets one person, care alters choices, and brief misunderstandings prompt responses. Includes a method and example."
     },
     "answer": {
-      "zh": "甜宠文写不腻，靠每个糖点推进关系。小物件体现“只对你例外”，共同麻烦迫使双方选择，嘴硬与行动形成拉扯；同一种脸红、送礼或吃醋不要反复打卡。甜之后保留现实小压力，让下一次靠近有新的理由。",
-      "en": "Sweet romance stays fresh when every affectionate beat advances the relationship. A small object can show “you are the exception,” a shared problem can force both characters to choose, and guarded words can contrast with caring actions. Do not repeatedly check the same boxes of blushing, gifts, or jealousy. After a sweet moment, retain a little real-world pressure so the next step closer has a new reason."
+      "zh": "甜宠文的关键糖点让读者看见特别的关注、被接受的帮助或双方愿意靠近的选择。日常照顾可以重复形成习惯，重要转折再改变关系；不用每节硬塞升级。共同任务、嘴硬与行动的反差，都要尊重双方目标和真实回应。",
+      "en": "Key sweet beats reveal special attention, accepted help or mutual steps closer. Repeated daily care can establish a habit; important turns change the relationship. Shared tasks and guarded words paired with kindness still need independent goals and actual responses."
     },
     "sections": [
       {
@@ -5219,8 +5240,8 @@
           "en": "Original Example: The Late-Night Bakery"
         },
         "body": {
-          "zh": "学徒陶真和夜班配送员陈望总在凌晨交接。陶真怕别人碰失败品，陈望却每次把最丑的面包买走，说“反正路上会压扁”。\n\n强制同框来自冷库故障，两人必须在天亮前把原料转移。陶真坚持先救昂贵奶油，陈望发现她真正担心的是师父留下的一盒老酵种。他没有替她决定，只把自己的配送保温箱腾空，让她选择装什么。\n\n第二天店里传言陈望为追她耽误送货。陶真第一次在众人面前说：“路线是我改的，罚款算我一半。”陈望仍嘴硬：“你先把欠我的丑面包烤出来。”\n\n甜点从私下投喂推进到共同承担，再变成公开站队。关系每次向前一步，人物的工作目标仍在。",
-          "en": "Apprentice Tao Zhen and night-shift courier Chen Wang always cross paths during the predawn handoff. Tao Zhen hates anyone touching the failed loaves. Chen Wang buys the ugliest one every time, saying, “It would only get squashed on the road anyway.”\n\nA cold-storage failure forces them into the same task: moving the ingredients before dawn. Tao Zhen insists on saving the expensive cream first, but Chen Wang realizes that what truly worries her is a box of old starter left by her mentor. He does not decide for her. He empties his insulated delivery box and lets her choose what goes inside.\n\nThe next day, a rumor spreads through the shop that Chen Wang delayed his route to pursue her. For the first time, Tao Zhen says in front of everyone, “I changed the route. I’ll pay half the penalty.” Chen Wang remains guarded: “First bake the ugly bread you owe me.”\n\nThe sweetness moves from private gifts of food to shared responsibility and then to taking a public side. The relationship advances each time, while both characters’ work goals remain intact."
+          "zh": "以下是原创故事。学徒陶真与夜班配送员陈望常在凌晨交接。陈望总买卖相差但正常出售的面包，说“反正路上会压扁”。陶真逐渐愿意留一只给他，这是稳定习惯，不必每次购买都升一次关系。\n\n展示会前，店里取样桌的支撑坏了。陈望已经完成最后一单，原本要去吃早饭。陶真问他能否用空配送箱帮搬样品，并说明时间与费用；他同意推迟早饭，陶真自己安排剩余工作，不把他的配送任务改掉。\n\n后来有人说陈望为了追她耽误客户。陶真说明帮助发生在订单结束后，拿出交接记录；陈望也确认是自己答应的。两人各自回应，不让女主替他宣布承担一项不存在的罚款。\n\n收工后陈望说：“箱子还了，早饭呢？”陶真答：“这次我请，想吃什么你选。”公开澄清保住工作，私人邀请才是新的靠近；接受帮忙与答应约会仍是两件事。甜来自自愿选择和接住对方的话，不靠牺牲第三方工作。",
+          "en": "In this original story, apprentice Tao Zhen and courier Chen Wang meet before dawn. He buys ordinary, sellable loaves with poor shapes: “They’ll get squashed anyway.” She starts reserving one. A stable habit need not advance the relationship with every purchase.\n\nBefore a display, the sample table loses its support. Chen has completed his last delivery and plans breakfast. Tao asks for help moving samples in his empty box, stating time and payment. He agrees to postpone breakfast; she organizes the remaining work without changing his deliveries.\n\nSomeone claims he delayed customers to pursue her. Tao explains that the help followed the completed orders and shows handover records. Chen confirms his choice. Each responds; she does not assign him a nonexistent fine.\n\nAfter work he asks, “Box returned. What about breakfast?” She offers to treat him and lets him choose. Public clarification protects work; a personal invitation adds closeness. Accepting help and accepting a date remain distinct. Sweetness follows voluntary choice and response rather than sacrifice of someone else’s job."
         }
       },
       {
@@ -5286,10 +5307,10 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "特别关注、共同任务与不强制逐节糖点",
+          "en": "Special attention, shared tasks and flexible sweet beats"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/genre-styles/甜宠.md"
       }
     ]
   },
@@ -5735,8 +5756,8 @@
           "en": "How Do Essential Period Details Become Plot?"
         },
         "body": {
-          "zh": "年代细节有三种有效用途：**设门槛、给通路、记人情**。介绍信能决定人物能否顺利办事；有限的票证迫使家庭决定先满足谁；工作或住房的安排会改变一个人在熟人社会里的位置。\n\n写场景前先做一张小表：\n\n| 细节 | 人物想用它做什么 | 谁能批准或阻拦 | 结果改变什么 |\n|---|---|---|---|\n| 一张介绍信 | 去外地参加招工考核 | 单位负责人 | 行程与名声 |\n| 一份工作名额 | 获得稳定收入 | 家庭与单位 | 家庭话语权 |\n| 一张布票 | 做体面的面试衣服 | 掌管家用的人 | 机会与人情债 |\n\n物件进入选择后，年代感与剧情会同时成立。只摆搪瓷缸、收音机和供销社，画面有年代，人物仍没有事做。",
-          "en": "Period details have three effective uses: **set a barrier, open a route, and record a favor**. A letter of introduction may determine whether someone can complete an errand. Limited ration coupons force a family to decide whose need comes first. The allocation of a job or home changes a person’s standing in a close-knit community.\n\nBefore writing a scene, make a small table:\n\n| Detail | What the character wants to do with it | Who can approve or block it | What the result changes |\n|---|---|---|---|\n| A letter of introduction | Travel elsewhere for a recruitment assessment | Head of the work unit | Travel plans and reputation |\n| A job opening | Gain a stable income | Family and work unit | Influence within the family |\n| A cloth coupon | Make respectable interview clothes | Whoever controls household supplies | Opportunity and a debt of favor |\n\nOnce objects enter choices, period atmosphere and plot work together. Enamel mugs, radios, and supply-and-marketing cooperatives may evoke an era, but characters still have nothing to do if those objects remain decoration."
+          "zh": "年代细节有三种有效用途：**设门槛、给通路、记人情**。介绍信能决定人物能否顺利办事；有限的票证迫使家庭决定先满足谁；工作或住房的安排会改变一个人在熟人社会里的位置。\n\n写场景前先做一张小表：\n\n| 细节 | 用途 | 批准与结果 |\n|---|---|---|\n| 一张介绍信 | 去外地参加招工考核 | 单位负责人；行程与名声 |\n| 一份工作名额 | 获得稳定收入 | 家庭与单位；家庭话语权 |\n| 一张布票 | 做体面的面试衣服 | 掌管家用的人；机会与人情债 |\n\n物件进入选择后，年代感与剧情会同时成立。只摆搪瓷缸、收音机和供销社，画面有年代，人物仍没有事做。",
+          "en": "Period details have three effective uses: **set a barrier, open a route, and record a favor**. A letter of introduction may determine whether someone can complete an errand. Limited ration coupons force a family to decide whose need comes first. The allocation of a job or home changes a person’s standing in a close-knit community.\n\nBefore writing a scene, make a small table:\n\n| Detail | Action | Result |\n|---|---|---|\n| A referral letter | Travel elsewhere for a job assessment | Head of the work unit; Travel plans and reputation |\n| A job opening | Gain a stable income | Family and work unit; Influence within the family |\n| A cloth coupon | Make suitable interview clothes | Whoever controls household supplies; A chance and a favor owed |\n\nOnce objects enter choices, period atmosphere and plot work together. Enamel mugs, radios, and supply-and-marketing cooperatives may evoke an era, but characters still have nothing to do if those objects remain decoration."
         }
       },
       {
@@ -5757,8 +5778,8 @@
           "en": "Original Example: The Empty Apprenticeship in the Sewing Group"
         },
         "body": {
-          "zh": "架空的柳桥县服装社空出一个学徒名额。陶芷岑会踩缝纫机，姑妈却想把名额留给表姐，并把家里的布票锁进柜子，让陶芷岑连参加考核的白衬衫都做不成。\n\n陶芷岑没有围着柜子争吵。她先替邻居修好一批开线的校服，换来几块颜色不同的余布；再请退休裁缝教她把余布拼成领口一致的样衣。考核当天，负责人先看见颜色不一的拼布，又看见一套能节省边角料的裁法。\n\n姑妈随后散布“她偷拿公家布料”的话。陶芷岑拿出每块余布的来源和邻居签下的修补清单，请服装社当场核对。名额落定后，邻居对她的评价也变了。\n\n这个例子用布票设门槛，用熟人关系开通路，用清单完成名声结算。细节一直参与因果，没有变成陈列。",
-          "en": "In the fictional county of Liuqiao, a clothing cooperative has one vacant apprenticeship. Tao Zhicen can operate a sewing machine, but her aunt wants the place for Tao’s cousin. The aunt locks the family’s cloth coupons in a cabinet, preventing Tao from even making the white blouse required for the assessment.\n\nTao does not argue beside the cabinet. She first repairs a batch of school uniforms with split seams for a neighbor and receives several mismatched remnants in return. Then she asks a retired tailor to teach her how to piece them into a sample garment with a consistent collar. On assessment day, the supervisor first notices the different colors, then sees a cutting method that saves scraps.\n\nThe aunt spreads a rumor that Tao stole cooperative-owned cloth. Tao produces records showing where every remnant came from, along with the repair list signed by the neighbors, then asks the cooperative to verify them on the spot. Once the apprenticeship is awarded, the neighbors’ judgment of her changes too.\n\nThe cloth coupons create the barrier, community ties open a route, and the list settles the reputational account. Every detail participates in cause and effect rather than becoming a display."
+          "zh": "以下是架空柳桥县的原创考核，不对应真实年代招工政策。服装社公告招一名学徒，要求带一件本人缝制样衣并参加现场实操，不规定必须纯白。姑妈想把机会留给表姐，锁起家中布票，又声称“不是白衬衣就不收”。\n\n陶芷岑先到服装社确认公告，才决定做拼布样衣。她替邻居修私人购买的校服，约定以邻居自有余布作为报酬；记录每块来源。退休裁缝教她节省边角料，她仍要自己完成缝制。\n\n考核先验样衣资格，再让各候选按同一要求实际裁缝。负责人按事先公布的标准评定，宣布陶芷岑获得名额。拼布展示本领，不是临时修改考核规则替她破例。\n\n姑妈后来指称余布是公家材料。陶芷岑递交修补清单，邻居到场确认拥有并交付的布；服装社核对后在结果说明中澄清本次来源。到场者获得同样信息，不意味着全县流言瞬间消失。她拿到工作机会，同时还要面对亲属不愿放手的关系后果。",
+          "en": "This original Liuqiao assessment makes no claim about real hiring policy. A clothing cooperative seeks an apprentice with a self-made garment and a practical test, without requiring white fabric. An aunt locks the household coupons and falsely insists that only a white blouse qualifies.\n\nTao checks the notice at the cooperative before choosing patchwork. She repairs neighbors’ privately owned uniforms for agreed remnants they own, recording each source. A retired tailor teaches economical cutting; Tao still sews the garment herself.\n\nStaff verify eligibility, then candidates perform the same practical task. The assessor applies announced criteria and awards Tao the place. Patchwork shows skill rather than causing a last-minute exemption.\n\nThe aunt alleges public cloth theft. Tao supplies repair records; neighbors confirm ownership and transfer. After checking, the cooperative clarifies this batch’s sources in the result notice. Those present learn it; county-wide rumor does not vanish instantly. Work opportunity changes while family resistance remains."
         }
       },
       {
@@ -5824,15 +5845,8 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
-        },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
-      },
-      {
-        "label": {
-          "zh": "题材写作方法",
-          "en": "Genre writing method"
+          "zh": "时代细节、办事流程与人情结算",
+          "en": "Period details, processes and social consequences"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-prose-cards/年代.md"
       }
@@ -5893,8 +5907,19 @@
           "en": "Original Example: The Winter-Clothing Seal-Tag Case"
         },
         "body": {
-          "zh": "尚衣局女史姜遥负责核对新到的冬衣。贵妃身边的掌事指控她私换上等狐领，物证是一只剪开的封签，证人是当夜值门的小内侍。若按“偷盗御物”定性，姜遥连解释的资格都没有。\n\n姜遥先承认封签经过自己手，却请掌事说明为何当夜绕过尚衣局的复核门。她不急着证明清白，而是把事件改成“有人违反入库程序”。随后她请人取来火漆模具登记册：被剪开的封签印纹来自已经停用的旧模，现有库门根本用不上。\n\n小内侍临场改口，说自己只看见一个披斗篷的人。姜遥没有逼他指认，转而请求保护当夜所有值门者，并暂停掌事的库房钥匙。裁决只暂时收钥匙，没有立刻惩处贵妃一方，却让姜遥取得复核权，也保住了会继续提供信息的人。\n\n这个回合的胜负落在程序权限上，后续仍有反制空间。",
-          "en": "Jiang Yao, a female clerk in the Imperial Wardrobe Bureau, inspects a new shipment of winter clothing. A chief attendant serving the Noble Consort accuses her of swapping a superior fox-fur collar. The physical evidence is a cut seal tag, and the witness is a young eunuch who guarded the gate that night. If the case is classified as “theft of imperial property,” Jiang Yao will have no standing even to explain.\n\nJiang Yao admits that the seal tag passed through her hands, then asks the chief attendant why the shipment bypassed the bureau’s verification gate that night. Instead of immediately proving innocence, she reframes the issue as “someone violated intake procedure.” She then asks for the register of sealing-wax molds. The pattern on the cut seal tag came from a retired mold that the current storeroom gate could not have used.\n\nThe young eunuch changes his testimony, saying only that he saw a cloaked figure. Jiang Yao does not force him to identify anyone. She requests protection for everyone who guarded the gate that night and asks that the chief attendant’s storeroom access be suspended. The ruling merely revokes the chief attendant’s storeroom access for now and does not immediately punish the Noble Consort’s faction. Yet Jiang Yao gains verification authority and protects people who can continue supplying information.\n\nThe outcome of this round lies in procedural authority, leaving room for later countermoves."
+          "zh": "以下职位与流程是原创设定。尚衣局女史姜遥核对冬衣，贵妃掌事拿一只剪开封签指控她换走狐领，要求立即移交处置。已定流程允许尚衣总管在定性前受理入库异议；姜遥可以呈报，却不能自己传人、取走别人的钥匙。\n\n姜遥指出封签纹样与本批入库单不一致，请求核对。总管准许，由掌册人取登记册、保管人当场出示封签。比对确认它使用旧模纹样，不是本批登记纹样。这只证明物证来路需要查，尚不证明掌事故意调包。\n\n值门小内侍承认只看见斗篷，先前指认来自猜测。姜遥请求保存证词、暂缓库房出入。总管批准封库复核，由库吏清点并收存相关钥匙，安排小内侍留在总管处等候再问，实际挡住被私下调走的通路。\n\n姜遥获准参与这批衣物的复核，不自动拥有永久管库权。贵妃一方没有当场被定罪，仍可提出解释与反制。回合改变的是物证处理、暂时通路和发言位置，而不是一句反问就结束全案。",
+          "en": "These posts and procedures are invented. Wardrobe clerk Jiang Yao faces an accusation based on a cut seal tag. The consort’s attendant demands immediate punishment. Established procedure lets the bureau head hear intake objections before classification. Jiang may submit an objection, not summon people or take their keys.\n\nShe notes that the pattern differs from this batch’s intake sheet. The head authorizes comparison; the register keeper brings records and the custodian presents the tag. Its retired-mold pattern is not the registered batch pattern. That questions provenance without proving deliberate substitution by the attendant.\n\nThe gate witness admits seeing only a cloak; the earlier identification was a guess. Jiang requests preserved testimony and a pause on access. The head orders a sealed review. A clerk inventories and stores relevant keys; the witness waits at the head’s office rather than being privately reassigned.\n\nJiang joins this shipment’s review, gaining no permanent warehouse command. The faction is not convicted and can still explain or counter. The turn changes evidence handling, access and standing; a clever question does not settle the case."
+        }
+      },
+      {
+        "id": "evidence-limit",
+        "heading": {
+          "zh": "让裁决对应已经证明的范围",
+          "en": "Match the ruling to proved facts"
+        },
+        "body": {
+          "zh": "| 依据 | 支持什么 | 本轮处理 |\n|---|---|---|\n| 封签与本批登记不符 | 来路需要复核 | 保全物证，查交接 |\n| 证人撤回确定指认 | 原指认不足 | 保存证词，继续询问 |\n| 总管签准封库 | 暂停出入有来源 | 库吏实际收存钥匙 |\n\n胜利可以只是阻止仓促定性、争到复核或保住信息通路。后续惩处需要后续证据，不把疑点直接写成全部真相。",
+          "en": "| Basis | Supports | Action now |\n|---|---|---|\n| Tag differs from batch record | Provenance needs review | Preserve it; check handover |\n| Witness retracts certainty | Identification is insufficient | Retain testimony; ask further |\n| Head authorizes sealing | Access pause has authority | Clerk stores the keys |\n\nVictory can prevent a rushed label or secure review and information access. Later punishment requires later evidence; a doubt is not the entire truth."
         }
       },
       {
@@ -5960,15 +5985,8 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
-        },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
-      },
-      {
-        "label": {
-          "zh": "题材写作方法",
-          "en": "Genre writing method"
+          "zh": "规矩、物证、场合与可执行裁决",
+          "en": "Rules, evidence, setting and enacted rulings"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-prose-cards/宫斗宅斗.md"
       }
@@ -6029,8 +6047,8 @@
           "en": "Original Example: The Conservator Whose Name Was Erased"
         },
         "body": {
-          "zh": "文物修复师许蓁与伴侣周淮共同经营一间工作室。许蓁修复了一批受潮戏服，周淮为了拿下赞助，在发布会上把核心方案说成团队集体成果，并让她暂时别署名，理由是赞助人更信任“成熟负责人”。\n\n许蓁发现合同还把她的工艺记录列为工作室永久资产。她没有等下一次道歉，带走个人工具，正式要求工作室停用并删除争议材料，并接受另一家博物馆的驻场工作。离场让她从幕后助手重新变成独立修复师。\n\n周淮的追悔从失去订单开始，却不能停在“我离不开你”。他要公开更正署名，放弃争议合同，赔偿因此产生的损失，并把是否合作的决定交回许蓁。最终许蓁接受职业澄清，拒绝恢复伴侣关系。\n\n旧伤是作品与选择权被夺走，证明也逐项对应作品与选择权。",
-          "en": "Textile conservator Xu Zhen runs a studio with her partner, Zhou Huai. Xu restores a group of water-damaged opera costumes. To secure sponsorship, Zhou describes the core method at a launch event as a collective achievement and asks her to leave her name off temporarily, claiming that the sponsor trusts a “seasoned person in charge.”\n\nXu discovers that the contract also classifies her process records as permanent studio assets. She does not wait for another apology. She takes her personal tools, formally demands that the studio stop using and delete the disputed materials, and accepts an on-site position at another museum. Leaving restores her identity as an independent conservator rather than a backstage assistant.\n\nZhou’s remorse begins when he loses commissions, but it cannot stop at “I cannot live without you.” He must correct the professional record publicly, abandon the disputed contract, compensate the resulting losses, and return the decision about any collaboration to Xu. In the end, Xu accepts the correction of her professional record and refuses to resume the romantic relationship.\n\nThe old wounds were the seizure of her work and her right to choose. Each proof therefore addresses the work and that right."
+          "zh": "以下是原创合作关系设定。修复师许蓁与周淮经营工作室，已约定个人工艺笔记由本人管理，对外采用须本人确认，项目署名按实际贡献。周淮为拿赞助，把她完成的受潮戏服方案说成集体成果，又在未征得同意时承诺赞助方永久使用她的笔记。\n\n许蓁带走自己的工具，提出停用争议材料，并获得已接洽博物馆的驻场确认。请求不自动等于执行：工作室先停发相关介绍，保留争议清单待核对；她交接已经负责的项目，不把“离开”写成一夜清空所有合同。\n\n周淮公开更正署名，赞助方确认改正宣传与本次授权范围；工作室按清单停止使用未确认笔记，并承担谈定的退费与延期成本。这些在故事里实际发生，不能只由他许诺“以后尊重你”。已经交付到外部的版本也须说明怎样处理，不能一句删除就消失。\n\n许蓁核对澄清与停用结果后接受职业更正，仍拒绝恢复伴侣关系。补偿回应成果与选择权，既不替她原谅，也不把失去订单当成理解旧伤的全部证明。所有约定为剧情设计，不提供现实合同判断。",
+          "en": "This original partnership establishes that personal method notes remain under their author’s control, external use needs confirmation and credit follows contribution. Zhou Huai presents Xu Zhen’s costume work as collective and promises permanent note use without her agreement.\n\nXu takes her own tools, requests a pause on disputed use and receives confirmation of a museum position already discussed. Requests do not enact themselves: the studio stops the relevant promotion and retains a dispute list for review. She hands over current duties rather than magically clearing every contract overnight.\n\nZhou publicly corrects credit. The sponsor confirms revised promotion and this permission scope. The studio stops unconfirmed note use and bears agreed refund and delay costs. These actions occur; “I’ll respect you” does not replace them. External versions also need a stated disposition, not deletion by assertion.\n\nXu checks the correction and pause, accepts professional clarification and declines the romantic relationship. Remedies address work and choice without choosing forgiveness for her. Lost orders alone do not prove understanding. The fictional agreements provide no real contract judgment."
         }
       },
       {
@@ -6041,7 +6059,7 @@
         },
         "body": {
           "zh": "把旧伤写成一张对应表：\n\n| 当初的伤害 | 有效证明 | 无效替代 |\n|---|---|---|\n| 在公开场合否认她 | 公开纠正并承担声誉损失 | 私下说爱 |\n| 擅自替她做决定 | 提供选项并尊重拒绝 | 安排更昂贵的生活 |\n| 占用她的成果 | 归还署名、收益与控制权 | 送礼物 |\n| 危机时牺牲她 | 下一次承担自己的责任 | 指责第三者误导 |\n\n每次证明都会付成本，也会让受伤者拥有更多自由。她没有义务因为成本高就回头。",
-          "en": "Turn the old harm into a correspondence table:\n\n| Original harm | Effective proof | Ineffective substitute |\n|---|---|---|\n| Denying her in public | Correct the record publicly and bear the reputational loss | Saying “I love you” in private |\n| Making decisions for her | Offer options and respect refusal | Arrange a more expensive life |\n| Taking her work | Restore credit, income, and control | Give presents |\n| Sacrificing her in a crisis | Take responsibility the next time | Blame a third party for misleading him |\n\nEvery proof carries a cost and gives the injured person more freedom. She is not obliged to return because the cost was high."
+          "en": "Turn the old harm into a correspondence table:\n\n| Harm | Proof | Not enough |\n|---|---|---|\n| Denying her in public | Correct the record publicly and bear the reputational loss | Saying “I love you” in private |\n| Making decisions for her | Offer options and respect refusal | Arrange a more expensive life |\n| Taking her work | Restore credit, income, and control | Give presents |\n| Sacrificing her in a crisis | Take responsibility the next time | Blame a third party for misleading him |\n\nEvery proof carries a cost and gives the injured person more freedom. She is not obliged to return because the cost was high."
         }
       },
       {
@@ -6096,17 +6114,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "伤害、离场、追悔与新生活结构",
+          "en": "Harm, departure, remorse and new life"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/long-genre-catalog.md"
       },
       {
         "label": {
-          "zh": "题材写作方法",
-          "en": "Genre writing method"
+          "zh": "投入、意义变化与可信反应",
+          "en": "Investment, changed meaning and credible response"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-prose-cards/豪门总裁.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/emotional-methods.md"
       }
     ]
   },
@@ -6144,7 +6162,7 @@
         },
         "body": {
           "zh": "检查三个问题：谁作决定，拒绝要付什么代价，结果由谁承担。\n\n| 行为 | 照料写法 | 控制写法 |\n|---|---|---|\n| 安排接送 | 给出司机、报销或自行前往等选项 | 取消对方行程，命令必须坐车 |\n| 处理职场冲突 | 提供法律与资源支持，由对方选择使用 | 直接让对方离职或调走同事 |\n| 公开关系 | 先商量公开范围与时机 | 当众宣布身份逼对方接受 |\n| 解决家庭麻烦 | 询问目标，承担被请求的部分 | 用钱买断关系并要求感激 |\n\n“为你好”需要落到对方真正想保住的目标。资源越强，越要写清边界。",
-          "en": "Ask three questions: Who decides? What does refusal cost? Who bears the result?\n\n| Action | Written as care | Written as control |\n|---|---|---|\n| Arranging transportation | Offer a driver, reimbursement, or independent travel | Cancel the other person’s plans and order them into the car |\n| Handling a workplace conflict | Offer legal and material support, leaving the choice to the other person | Make them quit or transfer a colleague without consent |\n| Making the relationship public | Agree on the scope and timing first | Announce the relationship publicly and force acceptance |\n| Solving a family problem | Ask what outcome is wanted and take on the requested part | Buy off the relationship and demand gratitude |\n\n“For your own good” must serve the goal the other person truly wants to preserve. The greater the resources, the clearer the boundaries must be."
+          "en": "Ask three questions: Who decides? What does refusal cost? Who bears the result?\n\n| Act | Care | Control |\n|---|---|---|\n| Arranging travel | Offer a driver, travel costs, or travel on their own | Cancel the other person’s plans and order them into the car |\n| Handling a workplace conflict | Offer legal and material support, leaving the choice to the other person | Make them quit or transfer a colleague without consent |\n| Going public as a couple | Agree on the scope and timing first | Announce the couple publicly and force acceptance |\n| Solving a family problem | Ask what outcome is wanted and take on the requested part | Buy off family ties and demand gratitude |\n\n“For your own good” must serve the goal the other person truly wants to preserve. The greater the resources, the clearer the boundaries must be."
         }
       },
       {
@@ -6165,8 +6183,8 @@
           "en": "Original Example: Veto Power in a Marriage Contract"
         },
         "body": {
-          "zh": "建筑顾问梁乔为保住母亲经营的旧戏院，与投资集团负责人程屿签下一年联姻协议。程屿负责阻止家族强拆，梁乔配合必要的公开活动。协议看似互惠，程屿却习惯替人决定：他取消梁乔的外地勘察，派人接管戏院账目，还把“保护她”当理由。\n\n梁乔没有靠一次争吵解决。她提出协议修订：双方各自保留职业决定权；涉及戏院的资金支出需要共同签字；任何公开关系安排都有一次无责否决。程屿若拒绝，她会退出联姻并公开项目利益冲突。\n\n转折发生在旧戏院屋顶险情。程屿掌握资金，梁乔掌握建筑判断。他没有封馆后替她宣布方案，而是提供三个可承担的预算选择，并在董事会接受延期损失。梁乔选择最安全的修复方式，也主动陪他面对家族问责。\n\n偏爱通过“把决定权交还给你，并承担我的代价”显现，关系由契约合作走向信任。",
-          "en": "Architectural consultant Liang Qiao signs a one-year marriage contract with investment-group head Cheng Yu to preserve the old theater run by her mother. Cheng will stop his family from forcing its demolition, while Liang will attend necessary public events. The arrangement appears reciprocal, but Cheng habitually decides for others: he cancels Liang’s out-of-town survey, sends someone to take over the theater’s accounts, and calls it “protecting her.”\n\nLiang does not resolve this through one argument. She proposes an amendment: each party retains authority over career decisions; spending involving the theater requires both signatures; and either person may veto any public presentation of the relationship once without penalty. If Cheng refuses, she will leave the marriage arrangement and disclose the project’s conflict of interest.\n\nThe turning point comes when the old theater’s roof becomes unsafe. Cheng controls the funding; Liang holds the architectural judgment. Instead of closing the building and announcing a solution for her, he offers three financially viable options and accepts the cost of delay before the board. Liang chooses the safest repair and voluntarily stands beside him when his family demands answers.\n\nAffection appears as “returning your right to decide while bearing my own cost.” The relationship moves from contractual cooperation toward trust."
+          "zh": "以下为原创关系与项目安排。梁乔是建筑顾问，母亲经营旧戏院；投资负责人程屿能推动续租和修缮资金，不能替母亲转让经营权。梁乔与他约定一年联姻期间参加有限公开活动，但职业事务仍由本人决定。\n\n程屿越界通知外地客户梁乔不接勘察，客户另找人，给她造成实际损失；又想派人接管戏院账目。梁乔提出修订，并不是说完就生效：程屿明确接受职业不干预、公开安排先征同意；母亲也拒绝交出账目。程屿撤回接管指令，向客户更正自己无权代表她，订单是否恢复由客户决定。\n\n转折围绕已计划的普通修缮排期。投资团队确认费用范围与可选排期，母亲决定经营取舍，梁乔比较项目方案；程屿不替两人宣布。选定延期方案后，团队确认承担约定成本，执行方排入新日期，戏院按计划公告调整。\n\n梁乔看见的是接受边界之后的连续行动，才主动问程屿是否需要她一起解释项目取舍；他接受。信任由协商与兑现建立，不靠资源一给就默认原谅，更不靠婚恋协议替第三方作决定。",
+          "en": "In this original arrangement, consultant Liang Qiao’s mother operates an old theater. Cheng Yu can advance lease renewal and repair funding, not transfer the mother’s operating rights. His one-year marriage arrangement with Liang covers limited public events while careers remain independent.\n\nHe wrongly tells a client that Liang will decline a survey; the client replaces her, causing a real loss. He also proposes taking the theater accounts. Liang’s amendment does not enact itself: Cheng explicitly accepts career boundaries and consent for public plans. Her mother refuses the account takeover. Cheng cancels the instruction and corrects his claim to represent Liang; the client decides whether work returns.\n\nThe turn concerns planned routine repairs. The team confirms budgets and dates; the mother decides operating trade-offs, Liang compares plans and Cheng does not announce for them. The team accepts agreed delay costs, the contractor schedules the new date and the theater updates its notice.\n\nAfter seeing repeated enactment of boundaries, Liang offers to explain the project trade-offs alongside Cheng; he accepts. Trust follows negotiation and delivery, not automatic forgiveness for resources or a romance agreement deciding for third parties."
         }
       },
       {
@@ -6232,15 +6250,8 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
-        },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
-      },
-      {
-        "label": {
-          "zh": "题材写作方法",
-          "en": "Genre writing method"
+          "zh": "权力差、选择与关系中的分寸",
+          "en": "Power differences, choice and boundaries"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-prose-cards/豪门总裁.md"
       }
@@ -6291,7 +6302,7 @@
         },
         "body": {
           "zh": "| 切法 | 主角知道 | 新阻力 |\n|---|---|---|\n| 知道结果 | 谁获利、谁受损 | 不知道手段与时间 |\n| 只知亲历 | 自己见过和后来听说的事 | 场外同盟仍是空白 |\n| 旧时间线 | 原来会发生什么 | 一旦干预，对手会改计划 |\n| 记忆有缺口 | 关键人物或顺序的片段 | 错记会产生代价 |\n\n选一两种长期使用。前期让记忆创造优势，中期让偏离形成新问题，后期靠今生建立的能力、证据与盟友完成清算。",
-          "en": "| Boundary | What the protagonist knows | New resistance |\n|---|---|---|\n| Knows the outcome | Who benefited and who suffered | Does not know the method or timing |\n| Knows only personal experience | What they saw and later heard | Offstage alliances remain unknown |\n| Knows the old timeline | What originally happened | Once they intervene, the opponent changes plans |\n| Memory has gaps | Fragments involving crucial people or sequence | Remembering incorrectly creates a cost |\n\nChoose one or two boundaries and use them throughout. Let memory create an advantage early, divergence produce new problems in the middle, and abilities, evidence, and allies built in this life complete the reckoning at the end."
+          "en": "| Limit | Known | Resistance |\n|---|---|---|\n| Knows the outcome | Who benefited and who suffered | Does not know the method or timing |\n| Knows only personal experience | What they saw and later heard | Offstage alliances remain unknown |\n| Knows the old timeline | What originally happened | Once they intervene, the opponent changes plans |\n| Memory has gaps | Fragments involving crucial people or sequence | Remembering incorrectly creates a cost |\n\nChoose one or two boundaries and use them throughout. Let memory create an advantage early, divergence produce new problems in the middle, and abilities, evidence, and allies built in this life complete the reckoning at the end."
         }
       },
       {
@@ -6301,8 +6312,8 @@
           "en": "Original Example: The Ceramics Inspector Who Refuses to Sign"
         },
         "body": {
-          "zh": "质检员苏芮重生在陶厂出口批次签字前。前世她在主管催促下签了“抽检合格”，数周后整批釉面开裂，她承担责任离职；真正获利的人收购了停产后的厂房。\n\n这一次，她拒绝签字，并保留同批试片。她只知道“这批货会开裂”和最终收购者，不知道缺陷来自配方、窑温还是运输。拒签让原时间线立刻偏离：主管改成分批出货，对手也开始销毁记录。\n\n苏芮先用前世记忆挡住第一笔损失，再靠今生行动追查。小对手是改检验表的班长，中层对手控制原料采购，最终获利者通过债务推动收购。每清算一层，上一层留下的证据会暴露更高层，却也让对方更早防备。\n\n结局的关键证据来自她今生建立的交叉留样制度，而非突然恢复的新记忆。重生给她起跑优势，胜利仍由这一世的选择完成。",
-          "en": "Quality inspector Su Rui is reborn just before signing off on a ceramics factory’s export batch. In her previous life, a supervisor pressured her to certify that the sample inspection had passed. Weeks later, the glaze across the batch cracked, she took the blame and resigned, and the true beneficiary bought the factory after production stopped.\n\nThis time, she refuses to sign and preserves test pieces from the same batch. She knows only that “this shipment will crack” and who ultimately acquired the factory; she does not know whether the defect came from the formula, kiln temperature, or shipping. Her refusal immediately changes the old timeline. The supervisor switches to shipping the order in smaller batches, and the opponents begin destroying records.\n\nSu first uses past-life memory to stop the initial loss, then investigates through present-life action. The minor opponent is the shift leader who alters inspection sheets. A middle-level opponent controls raw-material purchasing. The ultimate beneficiary drives the acquisition through debt. Holding each layer to account exposes evidence pointing upward while warning the next opponent earlier.\n\nThe decisive evidence comes from the system of retaining duplicate samples for cross-checking she establishes in this life, not a newly recovered memory. Rebirth gives her an advantage at the start; choices made now still earn the victory."
+          "zh": "以下为原创陶厂剧情，没有真实检测报告。质检员苏芮回到出口批次签字前。前世她签了合格，后续货物开裂，她离职；后来一家公司买下厂房。她知道结果与收购者，不知道缺陷原因，也不能仅凭收购获利就认定对方策划过缺陷。\n\n今生她拒绝签无依据的合格单，按已有流程封存同批试片并申请复检。这先改变她自己的责任记录，不保证所有货物都停运。主管换人签批、分批出货，产生新的时间线和记录；她不能继续把旧日期当可靠预告。\n\n复检确认送检样品存在问题，追查范围仍需采购、生产和交接记录。调查组取得班长改表的原件对照、采购替换的签收记录，以及收购方参与压价的往来资料，分别核对责任。样品只能提供产品问题的依据，不能独自证明谁操纵债务。\n\n厂内按已定流程撤去被确认违规者的相关权限，重新审核出货；收购方案也因新查明的资料进入复核，没有按旧条件成交。苏芮保住本人记录和新的工作选择。胜利来自今生保存、递交、复核与实际决定，反派层数和收尾方式不按固定章数套用。",
+          "en": "This original factory plot includes no real test report. Su Rui returns before export sign-off. Previously she certified a batch, later cracking cost her the job, and a company eventually bought the premises. She knows the outcome and buyer, not the cause. Benefit alone does not prove the buyer planned the defect.\n\nShe refuses unsupported certification, seals batch samples under existing procedure and requests retesting. That changes her record, not every shipment. The supervisor finds another signer and splits dispatch, creating a new timeline. Old dates cease to be reliable predictions.\n\nRetesting finds a problem in the submitted samples. Attribution still needs purchase, production and handover records. An investigation compares altered forms, substitution receipts and communications about the buyer’s price pressure. Samples support a product finding, not debt manipulation by themselves.\n\nUnder established procedure, confirmed violators lose relevant authority and dispatch is reviewed. Newly found documents trigger review of the acquisition, which does not proceed on the old terms. Su protects her record and future work. Present-life preservation, submission, review and enacted decisions earn the result; no fixed chapter quota defines villain layers."
         }
       },
       {
@@ -6368,17 +6379,10 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "有限前世信息、层级博弈与新生活",
+          "en": "Limited prior-life information, layered conflict and new life"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
-      },
-      {
-        "label": {
-          "zh": "题材写作方法",
-          "en": "Genre writing method"
-        },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-prose-cards/现言脑洞.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/long-genre-catalog.md"
       }
     ]
   },
@@ -7812,8 +7816,8 @@
           "en": "Original Comparison: A Neighbourhood Bakery in Debt"
         },
         "body": {
-          "zh": "共同前提：秦遥继承一家欠债的社区面包房，债主给她一个月处理。\n\n**短篇写法**：主线只追问“她会卖店还债，还是保住母亲留下的公共烤炉”。人物集中在秦遥、债主和依赖烤炉的邻居。每场都改变估价、债务或她的选择。结尾用一次公开拍卖，让她用邻居预订款买回设备，同时接受店面被收走的代价。核心变化已经完成。\n\n**长篇写法**：保留面包房经营循环。第一阶段解决现金流，第二阶段面对供应商控制，第三阶段处理新分店与旧社区的利益冲突。学徒、竞争店主和房东各有独立目标；每次经营胜利都会扩大规模，也制造新的责任与关系债。\n\n同一设定通过“单次选择”或“可升级循环”获得不同结构。这个例子是为方法设计的虚构场景。",
-          "en": "Shared premise: Qin Yao inherits a neighbourhood bakery burdened with debt. The creditor gives her a month to deal with it.\n\n**As a short story:** The main question is whether she will sell the shop to pay the debt or preserve the communal oven her mother left behind. The cast centres on Qin Yao, the creditor and the neighbours who depend on the oven. Every scene changes the valuation, the debt or her choice. At the end, a public auction lets her buy back the equipment using the neighbours’ advance payments for orders, while accepting the loss of the premises. The central change is complete.\n\n**As a novel:** Keep the bakery’s recurring business challenges. The first phase addresses cash flow; the second tackles a supplier’s control; the third explores a conflict of interest between a new branch and the original neighbourhood. An apprentice, a rival bakery owner and the landlord each have independent goals. Every business success expands the operation while creating new responsibilities and obligations to others.\n\nThe same premise yields different structures depending on whether it centres on a single choice or a cycle that can escalate. This fictional scenario was designed to illustrate the method."
+          "zh": "以下是原创面包房结构方案，不是经营或债务建议。秦遥继承欠债店铺，债主给她一个月提出双方能接受的处理安排。\n\n**短篇**围绕“保店面还是保公共烤炉”的一次取舍。秦遥与债主谈定售出店面的清偿范围，烤炉单独列入可购买设备；社区先同意提供可使用的场地。邻居购买的是明确日期、数量的预订单，也接受若场地未落实就退款，不能把钱当无条件捐助。\n\n她把预订收入先留出原料和履约费用，再用足以支付设备价款的余款购买烤炉，完成设备交接与搬入，实际交付首批预订。原店面失去，后续订单仍需做，短篇核心结果是她选择的公共烤炉有了可用去处，不是全部债务或人生问题自动消失。\n\n**长篇**保留经营循环：当前现金流决定能接哪些订单，供应条件改变成本与办法，新的场地或分店改变职责和关系。每阶段先完成一个局部目标，再从结果生出不同问题；也可缩小经营而非每赢一次都扩大规模。\n\n同一前提因承诺距离不同获得不同篇幅。只有不断重复保店危机，不足以把短篇变成长篇。",
+          "en": "This original bakery outline gives no business or debt advice. Qin Yao inherits a shop in debt and has a month to propose an arrangement both sides can accept.\n\n**Short story:** Focus on keeping the premises or communal oven. Qin agrees with the creditor on what a premises sale settles; the oven is separately available. The community first confirms a usable space. Neighbors buy orders with dates and quantities, accepting refunds if the space fails; their money is not an unconditional donation.\n\nShe reserves ingredient and fulfillment costs from the order income, then uses a remainder sufficient to pay for the oven, completes equipment handover and relocation, and delivers the first batch. The old premises are lost and remaining orders still bind her. The oven has a usable home; not every debt or life problem vanishes.\n\n**Novel:** Keep the operating loop. Cash flow affects orders, supplies change costs and methods, and new spaces change duties and relationships. Settle a local goal, then derive a different problem. Success may mean reducing scope rather than always expanding.\n\nPromise distance shapes length. Repeating the same rescue-the-shop crisis does not create a novel."
         }
       },
       {
@@ -7879,10 +7883,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "短篇核心框架与兑现",
+          "en": "Short-story framework and payoff"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/workflow-design.md"
+      },
+      {
+        "label": {
+          "zh": "长篇主线与可重复循环",
+          "en": "Novel throughlines and recurring loops"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/plot-core-methods.md"
       }
     ]
   },
@@ -12494,8 +12505,8 @@
           "en": "Original Example: The Fourth Bowl at Echo Well"
         },
         "body": {
-          "zh": "以下“回声井祭”为本文虚构民俗。山村每年封井前，三户守井人各把一只空碗倒扣在井台上。老规矩说，日落后不能摆第四只碗，也不能隔井喊活人的全名。村里人平时从不解释，只会把多余餐具收进屋。\n\n返乡的地质测绘员乔棠发现叔父偷偷摆了第四只碗。叔父说今年枯水，想借仪式逼另外三户公开私藏的水券。第一晚，第四只碗里出现湿泥；第二晚，井下用乔棠母亲的声音叫她全名；第三天，村里一个孩子开始回答井中每次呼喊，却忘了家人真正的称呼。\n\n乔棠没有照着长辈给的“闭门等天亮”办法结束故事。她查到三户守井人多年来用“不许喊名”掩盖夜间偷换取水次序，叔父摆碗既想揭露不公，也知道第四只碗会把当年落井者的名字带回来。最终仪式要求有人隔井报出真正欠下的名字。乔棠选择公开取水簿，由活人逐个承认改过的次序，不让孩子替大人应答。\n\n异常始终围绕碗、名字与取水旧账升级。真正的恐惧既有井中回声，也有熟人默认让孩子承担后果。这个例子是创作设计，没有执行或民俗依据。",
-          "en": "The “Echo Well ritual” below is invented for this article. Before the mountain village seals its well each year, each of the three well-keeping households places one empty bowl upside down on the stone rim. The old rule says that after sunset, no one may set out a fourth bowl or call a living person’s full name across the well. Villagers never explain it in daily life; they simply carry extra tableware indoors.\n\nQiao Tang, a geological surveyor returning home, discovers that her uncle secretly placed a fourth bowl. He says the water is low this year and wants to use the ritual to force the other three households to disclose the water vouchers they have hidden. On the first night, wet mud appears inside the fourth bowl. On the second, the well calls Qiao Tang’s full name in her mother’s voice. On the third day, a village child begins answering every call from the well but forgets how to address family members properly.\n\nQiao Tang does not end the story by following the elders’ instruction to “shut the door and wait until morning.” She learns that for years the three well-keeping households used the ban on calling names to conceal secret alterations to the nighttime order for drawing water. Her uncle set out the bowl to expose the injustice, while knowing that the fourth bowl would also bring back the name of someone who once fell into the well. The final ritual requires someone to speak across the well the name that is truly owed. Qiao Tang chooses to publish the water ledger and make the living acknowledge every altered turn themselves rather than let the child answer for the adults.\n\nThe anomalies keep escalating through bowls, names, and the old water debt. The horror lies both in the echo from the well and in familiar people silently allowing a child to bear the consequence. This is a creative design, not based on an actual practice or folklore source."
+          "zh": "下面的守井习俗纯属原创，不对应真实传统。三户守井人封井前各放一只倒扣空碗；地方禁忌是日落后不添第四只碗，不隔井喊活人全名。旧取水簿上早有“欠水由本人归还，不得代认”的字样，邻人却只让孩子记住“不许问”。\n\n乔棠返乡后，叔父为了逼三户公开取水份额，明知风险仍摆第四只碗。第一晚碗里出现湿泥；第二晚井里用母亲的声音叫乔棠；孩子替她答了一声，此后总把家人的称呼喊错。怪事沿碗、名字与代认加深，而非另换怪物。\n\n乔棠比对取水簿和三户留下的券，找到成年人改过次序的记录。叔父也承认自己早知道碗会引来旧账，却想让别人先出面。她让孩子离开井边，在屋内逐项询问实际取水人；三户在核对后签下返还名单，并把约定份额交回。承认和返还都有实际动作，不让孩子替大人报名字。\n\n她没有在结尾发明隔井喊名的解法。孩子被接回家，不再替井声应答；第四只碗仍有湿泥，井里开始叫叔父。现实旧账已有结算，超自然危险仍在，这个阴冷结尾不声称一本公开账簿便能解除一切诅咒。",
+          "en": "The well customs are invented, not a real tradition. Three keeper households place inverted bowls before sealing the well. After sunset, no fourth bowl and no living person’s full name across the well. The old water ledger already says debts must be returned and acknowledged by the debtor, never a substitute. Neighbors tell children only not to ask.\n\nReturning Qiao Tang finds that her uncle added a fourth bowl to force disclosure of water shares, despite knowing the risk. Mud appears; the well calls Qiao in her mother’s voice. A child answers for her and then confuses family names. Bowls, names and substitution sustain one chain.\n\nQiao compares the ledger with households’ vouchers and finds altered turns. Her uncle admits expecting someone else to face the old debt. She takes the child away and questions the actual users indoors. After comparison, the households sign a return list and hand back agreed shares. Adults enact acknowledgment and return instead of making a child answer.\n\nNo new name-calling cure appears at the ending. The child returns home and stops answering; mud remains in the fourth bowl and the well calls the uncle. The worldly debt has a result while supernatural danger remains. A published ledger is not proof that every curse is lifted."
         }
       },
       {
@@ -12561,10 +12572,10 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "禁忌、应验、旧账与收尾",
+          "en": "Taboo, consequences, old debts and endings"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/genre-styles/民俗怪谈.md"
       }
     ]
   },
@@ -12870,8 +12881,8 @@
           "en": "Advance Through Countermoves, Not One-Sided Difficulty"
         },
         "body": {
-          "zh": "| 回合 | A方行动 | B方反制 | 结算必须改变 |\n|---|---|---|---|\n| 试探 | 用低成本办法争取结果 | 暴露一项限制或条件 | 信息与立场 |\n| 加码 | 投入更重要的筹码 | 改规则、联盟或证据解释 | 资源与可选方案 |\n| 锁死 | 迫使对方公开选择 | 承担损失或反向揭底 | 关系与退路 |\n| 决断 | 在剩余选项中行动 | 给出最后回应 | 不可逆结果 |\n\n不要求每个故事固定四轮。表格只检查双方是否会学习，以及每次交手是否留下东西；能在两轮完成的冲突无需拉长。",
-          "en": "| Round | Side A’s move | Side B’s countermove | What the resolution must change |\n|---|---|---|---|\n| Probe | Pursue the result with a low-cost method | Reveal a constraint or condition | Information and positions |\n| Raise | Commit more important leverage | Change the rules, alliance, or interpretation of evidence | Resources and available options |\n| Lock-in | Force the other side to choose publicly | Accept a loss or expose the other side in return | Relationships and escape routes |\n| Decision | Act among the remaining options | Give a final response | An irreversible outcome |\n\nA story does not need exactly four rounds. The table only checks whether both sides learn and whether each exchange leaves something changed. A conflict that can finish in two rounds should not be stretched."
+          "zh": "| 回合 | 行动与反制 | 改变 |\n|---|---|---|\n| 试探 | 用低成本办法争取结果；对方：暴露一项限制或条件 | 信息与立场 |\n| 加码 | 投入更重要的筹码；对方：改规则、联盟或证据解释 | 资源与可选方案 |\n| 锁死 | 迫使对方公开选择；对方：承担损失或反向揭底 | 关系与退路 |\n| 决断 | 在剩余选项中行动；对方：给出最后回应 | 不可逆结果 |\n\n不要求每个故事固定四轮。表格只检查双方是否会学习，以及每次交手是否留下东西；能在两轮完成的冲突无需拉长。\n\n此表是本页用于核对的简表，不是 skill 的固定四轮交付格式。有限同意可能只改变一次复查资格，不必每轮都制造不可逆损失。",
+          "en": "| Round | Move and reply | Change |\n|---|---|---|\n| Probe | Pursue the result with a low-cost method; reply: Reveal a constraint or condition | Information and positions |\n| Raise | Commit more important leverage; reply: Change the rules, alliance, or interpretation of evidence | Resources and available options |\n| Lock-in | Force the other side to choose publicly; reply: Accept a loss or expose the other side in return | Relationships and escape routes |\n| Decision | Act among the remaining options; reply: Give a final response | An irreversible outcome |\n\nA story does not need exactly four rounds. The table only checks whether both sides learn and whether each exchange leaves something changed. A conflict that can finish in two rounds should not be stretched.\n\nThis editorial worksheet is not the skill’s fixed four-round output. Limited agreement can change review access without an irreversible loss in every round."
         }
       },
       {
@@ -12948,10 +12959,10 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "矛盾、场景冲突与驱动力",
+          "en": "Contradiction, scene conflict and drives"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/outline-conflict.md"
       }
     ]
   },
@@ -12989,7 +13000,7 @@
         },
         "body": {
           "zh": "| 承诺类型 | 高潮中怎样到场 |\n|---|---|\n| 外部目标 | 有一个可判断完成或失败的结果 |\n| 能力线 | 主角使用已建立、有限制的办法 |\n| 关系线 | 关键人物按自己的立场帮助、拒绝或提出条件 |\n| 证据线 | 早先埋下的信息改变最终选项，不临时救场 |\n| 代价线 | 主角不能同时保住两项重要东西 |\n| 人物弧 | 最终行动与早期惯用办法形成可见对照 |\n\n不是每部小说都要六项齐全。只列本书已经持续承诺的线，高潮负责让它们碰撞，而非临时增加更大的敌人。",
-          "en": "| Type of promise | How it arrives in the climax |\n|---|---|\n| External goal | A result that can clearly succeed or fail |\n| Ability thread | The protagonist uses an established method with known limits |\n| Relationship thread | A key person helps, refuses, or sets conditions from their own position |\n| Evidence thread | Earlier information changes the final options instead of arriving as a last-minute rescue |\n| Cost thread | The protagonist cannot preserve two important things at once |\n| Character arc | The final action visibly contrasts with the protagonist’s earlier habitual approach |\n\nNot every novel needs all six. List only the threads the book has consistently promised. The climax makes those threads collide rather than introducing a suddenly larger enemy."
+          "en": "| Promise | Payoff |\n|---|---|\n| External goal | A result that can clearly succeed or fail |\n| Ability thread | The protagonist uses an established method with known limits |\n| Relationship thread | A key person helps, refuses, or sets conditions from their own position |\n| Evidence thread | Earlier information changes the final options instead of arriving as a last-minute rescue |\n| Cost thread | The protagonist cannot preserve two important things at once |\n| Character arc | The final action visibly contrasts with the protagonist’s earlier habitual approach |\n\nNot every novel needs all six. List only the threads the book has consistently promised. The climax makes those threads collide rather than introducing a suddenly larger enemy."
         }
       },
       {
@@ -13010,8 +13021,8 @@
           "en": "Original Example: The Factory Footage That Was Cut"
         },
         "body": {
-          "zh": "档案修复师周韫筹备一场旧工厂纪录片公开放映。她想让被删去的夜班工人影像重新进入城市档案；赞助方只同意播放“技术发展”版本，并承诺承担修复库房的费用。前文已建立三项条件：原始胶片最后一卷有划伤，年轻放映员罗格只学会手动换卷，老工人彭姨愿意作证却不愿被包装成受害者。\n\n**进入**：首映当晚，周韫拿到修复后的两版拷贝。彭姨到场，罗格负责放映；赞助方要求她签字确认使用删减版。\n\n**收紧**：赞助方要求当场签字，才拨付此前答应的库房维修款。若拒绝，胶片的长期保存会失去资金；若接受，缺失影像继续不在公开记录里。\n\n**短暂可行**：周韫可以先播删减版，私下把完整拷贝交给彭姨。但这保住了物件，没完成“进入公共档案”的承诺，也替彭姨决定了影像只能秘密存在。\n\n**最终选择**：她不偷换影片，而是在台上说明两版差异，把播放决定交回影像中的当事人。彭姨要求播放完整段落，但删去主持人准备的煽情旁白。罗格必须用前文练过的手动换卷完成切换。\n\n**结算**：完整影像进入当晚公开记录，维修款被撤回，库房问题仍在。彭姨没有拥抱周韫，只把自己保存的排班册交给档案馆，并注明谁可以查阅。高潮同时兑现修复技术、放映训练、证人边界和资金代价，没有把所有问题一次解决。",
-          "en": "Archive conservator Zhou Yun is preparing a public screening of a documentary about an old factory. She wants footage of night-shift workers that was cut from the film restored to the city archive. The sponsor will approve only a “technological progress” version and has promised to fund repairs to the archive storage room. Three conditions have already been established: the final reel of original film is scratched; young projectionist Luo Ge has learned only manual reel changes; and former worker Aunt Peng is willing to testify but refuses to be packaged as a victim.\n\n**Arrival:** On premiere night, Zhou Yun receives two restored cuts. Aunt Peng attends, Luo Ge runs the projector, and the sponsor demands that Zhou Yun sign approval for the shortened version.\n\n**Tightening:** The sponsor will release the previously promised storage-room funds only if she signs immediately. Refusal endangers the film’s long-term preservation. Acceptance keeps the missing footage out of the public record.\n\n**Briefly viable option:** Zhou Yun could screen the shortened cut and privately give Aunt Peng a complete copy. That preserves the object but does not fulfill the promise to place it in the public archive. It also decides on Aunt Peng’s behalf that the footage may exist only in secret.\n\n**Final choice:** Instead of secretly swapping the film, Zhou Yun explains the difference between the two cuts onstage and returns the screening decision to the people shown in the footage. Aunt Peng asks for the complete segment but removes the sentimental voice-over prepared by the host. Luo Ge must execute the switch with the manual reel change established earlier.\n\n**Resolution:** The complete footage enters the public record that night, the repair funding is withdrawn, and the storage problem remains. Aunt Peng does not embrace Zhou Yun. She hands her preserved shift roster to the archive and specifies who may consult it. The climax fulfills the restoration craft, projection training, witness’s boundaries, and financial cost together without solving every problem at once."
+          "zh": "以下为原创档案放映故事。周韫要让夜班工人影像进入公共档案。前文已建立：完整拷贝修复完成，相关当事人与保管方已确认可公开；展映负责人周韫选择版本，赞助方能撤维修款但不能替她定节目；罗格练过手动换卷。彭姨愿意出席，却不接受被主持人煽情描述。\n\n**进入与收紧**：首映当晚，赞助方要求确认删减版才拨维修款。周韫面临保存资源与公开承诺的冲突。完整胶片存在，不等于公众已经能查阅。\n\n**看似可行**：私下交一份拷贝给彭姨保住物件，却没完成公共档案目标，也没有解决长期保存资金。\n\n**选择与执行**：周韫按已有展映权决定播完整段落，说明两版区别。彭姨拒绝的是主持人给她的个人介绍词，主持人接受并省去那句口播；她不代表其他当事人临时授权全片。罗格实际按已练方式换卷，观众看见被删段落。\n\n**结算**：赞助方撤回维修款，库房问题仍在。展映记录注明实际版本；次日档案馆依前文约定接收完整拷贝并完成登记，才兑现归档。彭姨交来排班册并说明查阅范围。高潮用前置条件与主动选择兑现，放映、归档和关系回应各有动作，没一夜解决全部资源问题。",
+          "en": "This original archive story aims to place night-shift footage in public records. Establish beforehand that restoration and relevant public-use confirmations are complete; Zhou Yun has program choice, the sponsor controls repair funding, and Luo Ge has practiced manual changes. Aunt Peng attends but rejects a sentimental personal introduction.\n\n**Arrival and pressure:** Funding depends on the shortened cut. Zhou faces the resource-versus-public-promise conflict. Possessing the full reel is not public access.\n\n**Seemingly viable:** A private copy for Peng preserves an object without fulfilling the archive goal or funding its storage.\n\n**Choice and enactment:** Zhou uses established program authority to select the full segment and explain the difference. Peng refuses her personal introduction, which the host omits; she does not authorize everyone’s footage on their behalf. Luo executes the practiced reel change and the audience sees the segment.\n\n**Settlement:** Repair funding is withdrawn. Screening records identify the version; the next day the archive receives and registers the copy under the prior arrangement, completing that promise. Peng supplies a roster with access limits. Planted conditions and active choice deliver screening, registration and response separately, without solving all resources overnight."
         }
       },
       {
@@ -13043,8 +13054,8 @@
           "en": "Common Climax Failures and Fixes"
         },
         "body": {
-          "zh": "| 失效 | 修正 |\n|---|---|\n| 临时获得新能力解决危机 | 提前建立能力边界，或改用已有资源组合 |\n| 所有配角只来鼓掌 | 让他们带着独立立场提供条件或拒绝 |\n| 反派忽然变笨 | 让最终破局来自前文信息与主角代价 |\n| 只赢外部目标，人物没有选择 | 把一直逃避的价值冲突带进现场 |\n| 胜利后立刻结束 | 给资源、关系和新秩序一个具体落点 |\n| 为反转再翻一次 | 只有新理解会改变结算时才保留反转 |",
-          "en": "| Failure | Fix |\n|---|---|\n| A new ability appears at the last minute and solves the crisis | Establish the ability and its limits earlier, or combine existing resources |\n| Every supporting character arrives only to applaud | Give each an independent position from which to offer conditions or refuse |\n| The antagonist suddenly becomes foolish | Let established information and the protagonist’s cost create the breakthrough |\n| The external goal is won, but the protagonist makes no choice | Bring the value conflict they have kept avoiding into the scene |\n| The story ends immediately after victory | Give resources, relationships, and the new order a concrete landing point |\n| One more twist exists only to reverse the result again | Keep it only if the new understanding changes the resolution |"
+          "zh": "| 失效 | 修正 |\n|---|---|\n| 临时获得新能力解决危机 | 提前建立能力边界，或改用已有资源组合 |\n| 所有配角只来鼓掌 | 让他们带着独立立场提供条件或拒绝 |\n| 反派忽然变笨 | 让最终破局来自前文信息与主角代价 |\n| 前文承诺的价值选择没有回应 | 让已建立的两难进入行动，不临时强添 |\n| 胜利后立刻结束 | 给资源、关系和新秩序一个具体落点 |\n| 为反转再翻一次 | 只有新理解会改变结算时才保留反转 |",
+          "en": "| Failure | Fix |\n|---|---|\n| A new ability appears at the last minute and solves the crisis | Establish the ability and its limits earlier, or combine existing resources |\n| Every supporting character arrives only to applaud | Give each an independent position from which to offer conditions or refuse |\n| The antagonist suddenly becomes foolish | Let established information and the protagonist’s cost create the breakthrough |\n| A promised value choice is left unanswered | Put the established dilemma into action rather than inventing one |\n| The story ends immediately after victory | Give resources, relationships, and the new order a concrete landing point |\n| One more twist exists only to reverse the result again | Keep it only if the new understanding changes the resolution |"
         }
       }
     ],
@@ -13088,10 +13099,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "高潮类型与反推角色、背景、故事线、情绪",
+          "en": "Climax types and backward planning"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/outline-rhythm.md"
+      },
+      {
+        "label": {
+          "zh": "兑现、选择与制度回应",
+          "en": "Payoff, agency and institutional response"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/reader-contract-and-progression.md"
       }
     ]
   },
@@ -15137,8 +15155,8 @@
           "en": "What Is a Story Lead-In, and Where Does It Belong?"
         },
         "body": {
-          "zh": "导语在本文中指正文最前面的引子，它本身就是第一场的开头。不同投稿入口可能把同一位置称作导语或简介，写作任务仍然相同：让读者进入人物、冲突和下一步行动。\n\n导语结束后直接接正文。若导语写“我在婚礼上收到一把陌生钥匙”，正文下一段就应继续婚礼现场、钥匙来源或人物的选择，不能重新从童年、天气和家庭背景讲起。",
-          "en": "Here, “lead-in” means the opening paragraphs of the story itself—not a promotional blurb. Some submission forms use different labels, such as “lead-in” or “introduction,” for this field; the writing task is the same: bring readers into a character, conflict, and next action.\n\nThe narrative continues directly after the lead-in. If it says, “At my wedding, I received a key from a stranger,” the next paragraph should continue the wedding scene, the key’s origin, or the character’s choice. It should not restart from childhood, the weather, or family history."
+          "zh": "导语在本文中指正文最前面的引子，它本身就是第一场的开头。不同投稿入口可能把同一位置称作导语或简介，写作任务仍然相同：让读者进入人物、冲突和下一步行动。\n\n导语结束后直接接正文。若导语写“我在婚礼上收到一把陌生钥匙”，正文下一段就应继续婚礼现场、钥匙来源或人物的选择，不能重新从童年、天气和家庭背景讲起。\n\n这里采用 Oh Story 的通俗短篇导语框架，不是给所有小说开头设统一检查项。方法中的默认长度随投稿要求调整，不能保证过稿；长期小说开篇另按人物、卖点与场景决定。",
+          "en": "Here, “lead-in” means the opening paragraphs of the story itself—not a promotional blurb. Some submission forms use different labels, such as “lead-in” or “introduction,” for this field; the writing task is the same: bring readers into a character, conflict, and next action.\n\nThe narrative continues directly after the lead-in. If it says, “At my wedding, I received a key from a stranger,” the next paragraph should continue the wedding scene, the key’s origin, or the character’s choice. It should not restart from childhood, the weather, or family history.\n\nThis uses Oh Story’s commercial short-fiction lead-in framework rather than a universal opening checklist. Default length follows submission requirements and guarantees no acceptance; a novel opening follows its characters, appeal and scene."
         }
       },
       {
@@ -15149,7 +15167,7 @@
         },
         "body": {
           "zh": "| 维度 | 要写出的内容 | 自查问题 |\n|---|---|---|\n| 起因 | 悲剧源头、荒诞开端或迫使人物行动的事件 | 今天为什么偏偏出事？ |\n| 核心冲突 | 人物正在被谁算计、剥夺、误解或逼迫 | 她眼前必须解决什么？ |\n| 人设底色 | 清醒、底牌、原则或敢做的选择 | 她除了受苦，还会做什么？ |\n| 情绪反转 | 最后一拍改变读者对局面的理解 | 下一段非看不可的问题是什么？ |\n\n四项不必平均分配。开头可以用一件事同时承担起因和冲突，再用人物动作显出底色，最后把未兑现的反转留给正文。",
-          "en": "| Dimension | What to establish | Self-check |\n|---|---|---|\n| Inciting cause | The source of a tragedy, an absurd beginning, or an event forcing action | Why did something go wrong today in particular? |\n| Central conflict | Who is manipulating, depriving, misjudging, or pressuring the character? | What must they solve right now? |\n| Character foundation | Clear thinking, a hidden resource, a principle, or a choice they dare to make | Besides suffering, what will they do? |\n| Emotional turn | A final beat that changes how readers understand the situation | Which question makes the next paragraph necessary? |\n\nThe four parts need not receive equal space. One event can carry both cause and conflict, a character action can reveal their foundation, and the promised turn can remain for the continuing scene to fulfill."
+          "en": "| Part | Establish | Check |\n|---|---|---|\n| Inciting cause | The source of a tragedy, an absurd beginning, or an event forcing action | Why did something go wrong today in particular? |\n| Central conflict | Who is manipulating, depriving, misjudging, or pressuring the character? | What must they solve right now? |\n| Character foundation | Clear thinking, a hidden resource, a principle, or a choice they dare to make | Besides suffering, what will they do? |\n| Emotional turn | A final beat that changes how readers understand the situation | Which question makes the next paragraph necessary? |\n\nThe four parts need not receive equal space. One event can carry both cause and conflict, a character action can reveal their foundation, and the promised turn can remain for the continuing scene to fulfill."
         }
       },
       {
@@ -15160,7 +15178,7 @@
         },
         "body": {
           "zh": "具体物件让冲突可见，信息差让读者比施压者多知道半步，留白钩子把这半步变成下一段行动。\n\n| 元素 | 写法 | 空泛写法 |\n|---|---|---|\n| 具体物件 | 能被拿走、撕毁、调换、展示或藏起的东西 | “一份重要证据” |\n| 信息差 | 明确谁知道、谁不知道，以及差异会改变什么 | “我还有秘密” |\n| 留白钩子 | 停在即将发生的选择、核对或揭示前 | “一切才刚刚开始” |\n\n物件要进入人物动作。若戒指、车票或录音笔只在第一句出现，后面再也不影响冲突，它只是装饰。",
-          "en": "A concrete object makes conflict visible. An information gap lets readers know half a step more than the person applying pressure. An open hook turns that half step into the next action.\n\n| Element | Effective approach | Vague approach |\n|---|---|---|\n| Concrete object | Something that can be taken, torn, swapped, displayed, or hidden | “An important piece of evidence” |\n| Information gap | Specify who knows what, who does not, and what the difference changes | “I still have a secret” |\n| Open hook | Stop just before a choice, verification, or reveal | “Everything was only beginning” |\n\nThe object must enter character action. If a ring, ticket, or recorder appears only in the first sentence and never affects the conflict again, it is decoration."
+          "en": "A concrete object makes conflict visible. An information gap lets readers know half a step more than the person applying pressure. An open hook turns that half step into the next action.\n\n| Part | Use | Avoid |\n|---|---|---|\n| Concrete object | Something that can be taken, torn, swapped, displayed, or hidden | “An important piece of evidence” |\n| Information gap | Specify who knows what, who does not, and what the difference changes | “I still have a secret” |\n| Open hook | Stop just before a choice, verification, or reveal | “Everything was only beginning” |\n\nThe object must enter character action. If a ring, ticket, or recorder appears only in the first sentence and never affects the conflict again, it is decoration."
         }
       },
       {
@@ -15193,7 +15211,7 @@
         },
         "body": {
           "zh": "| 问题 | 读者得到的内容 | 修改方法 |\n|---|---|---|\n| 先讲多年背景 | 还没进入今天的事件 | 从会迫使人物行动的当天切入 |\n| 只有惨，没有后手 | 人物只能被动承受 | 加一个已做出的准备、原则或选择 |\n| 用抽象情绪代替事件 | 只知道“痛苦、绝望” | 换成具体物件、对白和阻拦动作 |\n| 开头就讲完底牌 | 后文只剩重复验证 | 只露出底牌的一角，保留兑现过程 |\n| 结尾喊口号 | 没有明确下一步 | 停在即将打开、交出、核对或拒绝的动作前 |\n| 导语后重新开场 | 同一信息讲了两遍 | 让下一段继承现场、持物和人物决定 |\n\n删改时逐句问：这句话是否推动当前事件、刻画人物选择或抬高钩子。三者都没有，就把必要背景移到后文需要它的地方。",
-          "en": "| Problem | What readers receive | Revision |\n|---|---|---|\n| Years of background come first | The event of today has not begun | Start on the day something forces the character to act |\n| The character suffers with no countermove | They can only endure passively | Add a preparation already made, a principle, or a choice |\n| Abstract emotion replaces an event | Readers know only “pain” or “despair” | Use a concrete object, dialogue, and an obstructing action |\n| The opening reveals the entire hidden advantage | Later scenes can only repeat confirmation | Show one corner of the advantage and preserve how it pays off |\n| The ending announces a slogan | There is no definite next step | Stop before an object is opened, surrendered, checked, or refused |\n| The story restarts after the lead-in | The same information appears twice | Make the next paragraph inherit the location, held object, and decision |\n\nDuring revision, ask of every sentence: Does it advance the current event, reveal a character choice, or intensify the hook? If it does none of these, move any necessary background to the later point where it becomes relevant."
+          "en": "| Issue | Effect | Fix |\n|---|---|---|\n| Years of background come first | The event of today has not begun | Start on the day something forces the character to act |\n| The character suffers with no countermove | They can only endure passively | Add a prior step, a principle, or a choice |\n| Abstract emotion replaces an event | Readers know only “pain” or “despair” | Use a concrete object, dialogue, and an action that blocks them |\n| The opening reveals the entire hidden advantage | Later scenes can only repeat what is known | Show one corner of the advantage and preserve how it pays off |\n| The ending announces a slogan | There is no definite next step | Stop before an object is opened, surrendered, checked, or refused |\n| The story restarts after the lead-in | The same information appears twice | Make the next paragraph inherit the location, held object, and decision |\n\nDuring revision, ask of every sentence: Does it advance the current event, reveal a character choice, or intensify the hook? If it does none of these, move any necessary background to the later point where it becomes relevant."
         }
       }
     ],
@@ -15247,10 +15265,10 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "投稿导语与正文承接",
+          "en": "Submission lead-ins and continuation into prose"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/submission-craft.md"
       }
     ]
   },
