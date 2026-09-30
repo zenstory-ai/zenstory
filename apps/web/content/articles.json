@@ -5453,7 +5453,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "短剧集尾钩子怎么写：本集有结果，下集有事做",
       "en": "How to Write Episode-End Hooks: Give This Episode a Result, the Next a Task"
@@ -5467,8 +5467,8 @@
       "en": "Build hooks from six changes: choices, new evidence, countermoves, spent resources, authority shifts, and blocked routes. Includes a rewrite and handoff."
     },
     "answer": {
-      "zh": "先用一句话写清本集已经改变什么，再问这个结果让谁必须采取新行动。集尾可以停在行动将要开始、代价即将兑现或出口已经变化的时刻。剪掉黑屏和悬疑音效后，观众仍能说出下集要解决什么，钩子才有具体内容。",
-      "en": "First state in one sentence what changed during the episode, then ask who must take a new action because of that result. End as an action is about to begin, a cost is about to come due, or an available way forward has changed. If viewers can still name the next episode’s concrete problem after you remove the cut to black and suspense cue, the hook has substance."
+      "zh": "先写清本集已经给观众什么，再决定如何结束。需要继续压力时，让它来自已有结果、选择或信息，并准备下一集承接；也可以停在完整情绪落点。黑屏和音效帮助表达，但不能替代观众已理解的人物处境。",
+      "en": "State what the episode has delivered before choosing its ending. If further pressure is needed, grow it from an established result, choice or fact and prepare the next response. A complete emotional landing can also end an episode. Blackout and sound effects express a situation; they do not create audience investment by themselves."
     },
     "sections": [
       {
@@ -5478,8 +5478,8 @@
           "en": "Six Directions for an Episode-End Hook"
         },
         "body": {
-          "zh": "| 本集的结果 | 集尾继续往哪里推 | 原创小例子 |\n|---|---|---|\n| 人物作出选择 | 接下来必须履行的承诺 | 她争取到共同参赛资格，搭档把最难的一段任务交给她 |\n| 证据改变理解 | 旧信息出现另一种解释 | 师徒找回被撤走的样品，却发现底座上的旧修补痕与失窃前不同 |\n| 主角暴露策略 | 对手针对刚才的做法反制 | 主角通过临时换班接近仓库，对手随即取消换班权限 |\n| 成功消耗资源 | 已经形成的损失开始影响行动 | 两人赶上最后一班船，才发现为付船费卖掉的工具正是修复货物所需 |\n| 新事实改变权限 | 有人终于能够拒绝、进入或公开 | 学徒得到正式参展名额，当着师父的面拿走一直由他代管的作品 |\n| 路线或安全条件变化 | 刚取得的进展引出新的阻碍 | 众人清开倒塌通道，前方的水却已经漫过原定出口 |\n\n这些方向来自 Drama Skills 的集尾方法，按故事需要选用即可。接连两集使用同类钩子也能成立，只要推动了不同的局面。不要为了轮换类型，临时塞入与人物选择无关的陌生人或秘密。",
-          "en": "| This episode’s result | Where the ending can push next | Original miniature example |\n|---|---|---|\n| A character makes a choice | The promise they must now fulfill | She secures a shared place in the competition, and her partner assigns her the hardest part |\n| Evidence changes understanding | Old information gains a different interpretation | A mentor and apprentice recover the removed sample, only to find that an old repair mark on its base differs from before the theft |\n| The protagonist exposes a strategy | The opponent counters the method just used | The protagonist reaches the warehouse by swapping shifts; the opponent immediately revokes shift-swap privileges |\n| Success consumes a resource | The loss already incurred begins to affect action | They catch the last ferry, then realize the tool sold to pay the fare is the one needed to repair the cargo |\n| A new fact changes authority | Someone can finally refuse, enter, or speak publicly | An apprentice receives an official exhibition place and, in front of her mentor, takes back the work he had been holding for her |\n| The route or safety conditions change | Recent progress creates a new obstacle | The group clears the collapsed passage, but water has already risen above the planned exit |\n\nThese directions come from the Drama Skills approach to episode endings; choose what the story needs. Two consecutive episodes may use the same type of hook if they change different situations. Do not add an unrelated stranger or secret merely to rotate hook types."
+          "zh": "| 本集结果 | 方向与例子 |\n| --- | --- |\n| 人物作出选择 | 接下来必须履行的承诺；例如：她争取到共同参赛资格，搭档把最难的一段任务交给她 |\n| 证据改变理解 | 旧信息出现另一种解释；例如：师徒找回被撤走的样品，却发现底座上的旧修补痕与失窃前不同 |\n| 主角暴露策略 | 对手针对刚才的做法反制；例如：主角通过临时换班接近仓库，对手随即取消换班权限 |\n| 成功消耗资源 | 已经形成的损失开始影响行动；例如：两人赶上最后一班船，才发现为付船费卖掉的工具正是修复货物所需 |\n| 新事实改变权限 | 有人终于能够拒绝、进入或公开；例如：学徒得到正式参展名额，当着师父的面拿走一直由他代管的作品 |\n| 路线或安全条件变化 | 刚取得的进展引出新的阻碍；例如：众人清开倒塌通道，前方的水却已经漫过原定出口 |\n\n这张作者手写选项表依照 Drama Skills 的“出去压力来自本集结果”整理，不是 skill 的固定六类钩子。按本集需要选用。接连两集使用同类钩子也能成立，只要推动了不同的局面。不要为了轮换类型，临时塞入与人物选择无关的陌生人或秘密。",
+          "en": "| Result | Next, with example |\n| --- | --- |\n| A character makes a choice | The promise they must now fulfill; example: She secures a shared place in the competition, and her partner assigns her the hardest part |\n| Evidence changes understanding | Old information gains a different interpretation; example: A mentor and apprentice recover the removed sample, only to find that an old repair mark on its base differs from before the theft |\n| The protagonist exposes a strategy | The opponent counters the method just used; example: The protagonist reaches the warehouse by swapping shifts; the opponent immediately revokes shift-swap privileges |\n| Success consumes a resource | The loss already incurred begins to affect action; example: They catch the last ferry, then realize the tool sold to pay the fare is the one needed to repair the cargo |\n| A new fact changes authority | Someone can finally refuse, enter, or speak publicly; example: An apprentice receives an official exhibition place and, in front of her mentor, takes back the work he had been holding for her |\n| The route or safety conditions change | Recent progress creates a new obstacle; example: The group clears the collapsed passage, but water has already risen above the planned exit |\n\nThis manual table applies the episode-result principle; it is not a fixed six-type native hook list. Two consecutive episodes may use the same type of hook if they change different situations. Do not add an unrelated stranger or secret merely to rotate hook types."
         }
       },
       {
@@ -5500,8 +5500,8 @@
           "en": "Original Rewrite: The Exhibit Is Repaired, but a New Dispute Begins"
         },
         "body": {
-          "zh": "**本集前提**：纸艺师孟溪临时替同事修补展览上的纸雕。她愿意帮忙，但双方约好修补完成后，展签要注明她的修复工作。同事答应了。\n\n**本集行动**：孟溪使用自己的备用纸料补上破损，观众看见纸雕重新立稳。同事接过作品，却把只写着自己名字的旧展签放回原处。\n\n**空心集尾**：\n\n> 孟溪盯着展签，眼里闪过不敢置信。她抬起手——黑屏。\n\n这里虽然存在署名冲突，停点却只冻结情绪。改写时可以让孟溪先明确作出决定，再让这个决定产生下一集压力。\n\n**有行动的集尾**：\n\n> 孟溪拿出预先写好的修复说明，放在旧展签旁。\n>\n> 同事按住纸边：“主办方只收一份展签。你坚持加这一行，我们就得把作品先撤下来重新登记。”\n>\n> 孟溪转身对正要合上展柜的工作人员说：“请先等等，我们要改署名。”\n\n主办方“一份展签、变更需重新登记”的安排应在前文交接时出现，不能到这里才临时变成限制。孟溪本集完成了修复，也作出了争取认可的选择；她开口要求暂停入柜，让“忍下去就能继续展出”的旧路径真正改变。\n\n下一集的任务是与同事、工作人员处理变更，让修复劳动得到确认，同时承担可能错过当前入柜批次的后果。不能一开场就说“她只是开玩笑”，也不能让工作人员无缘无故替双方把争执全部解决。",
-          "en": "**Episode premise**: Paper artist Meng Xi temporarily repairs a colleague’s damaged paper sculpture for an exhibition. She agrees to help on the condition that the display label credit her restoration work. The colleague agrees.\n\n**Action in the episode**: Meng Xi patches the damage with her own reserve paper, and viewers see the sculpture standing securely again. Her colleague accepts the work, then puts back the old display label bearing only the colleague’s name.\n\n**Empty ending**:\n\n> Meng Xi stares at the label in disbelief. She raises her hand—cut to black.\n\nThe restoration-credit conflict exists, but the stopping point merely freezes an emotion. A stronger version lets Meng Xi make a clear decision first, then turns that decision into pressure for the next episode.\n\n**Ending with action**:\n\n> Meng Xi places the restoration note she prepared beside the old display label.\n>\n> Her colleague pins down its edge. “The organizer accepts only one label. If you insist on adding that line, we’ll have to remove the work and register it again.”\n>\n> Meng Xi turns to the staff member about to close the display case. “Please wait. We need to change the credit.”\n\nThe organizer’s one-label rule and re-registration requirement must appear during the earlier handoff; they cannot materialize here as a new restriction. Meng Xi has completed the repair and chosen to seek recognition. By asking the staff to stop before the case is closed, she truly changes the old route of “stay quiet and the work can remain on display.”\n\nThe next episode’s task is to negotiate the change with her colleague and the staff, secure acknowledgment of her restoration work, and bear the risk of missing the current installation slot. It cannot open by claiming she was joking, nor can a staff member solve the entire dispute for both parties without reason."
+          "zh": "原创前提：孟溪替同事修纸雕，约定展签注明修复贡献。交接时工作人员已说明：每件作品一张展签，现场可暂停入柜改签；修订稿须在次日九点核对，赶上展览开门。工作人员负责保管与登记，不代作者决定署名。\n\n孟溪补好纸雕，同事却放回只写自己名字的旧签。本集先交付修复成功，再让已建立的承诺成为争执。\n\n**弱停点**只写她震惊、抬手、切黑，观众还不知道她准备怎样处理。\n\n**行动与响应的停点**：\n\n> 孟溪把修复说明放在旧签旁：“请先等等，我们要改署名。”\n>\n\n> 工作人员停下关柜，把纸雕移回待登记台：“我先暂停入柜。你们明早九点前交一份共同确认的展签。”\n>\n\n> 同事拿回旧签：“你真要为这一行耽误？”\n>\n\n> 孟溪把修复说明推到两人中间：“我们现在就把这一行写清楚。”\n\n暂停由工作人员实际执行，署名却尚未解决。下一集先写两人怎样谈、能否按已定时段提交，再写核对与入柜结果。暂停不等于必定错过展览，也不等于孟溪已获得认可；后果按接下来的真实行动兑现。\n\n若本集选择安静收束，也可先让同事确认署名、工作人员实际收件，再停在两人共同搬好展品的余味，不必硬加新事故。",
+          "en": "Original setup: Meng Xi repairs a colleague’s paper sculpture on a promise of repair credit. At intake, staff explain one label per work, with on-site storage paused for revisions. A shared revision must be checked by nine next morning to make opening. Staff manage custody and records, not author credit decisions.\n\nMeng fixes the sculpture, but the colleague replaces the old sole-name label. The episode delivers repair before the established promise becomes a dispute.\n\n**Weak stop:** shock, raised hand, blackout, without showing what she will do.\n\n**An act and response:**\n\n> Meng placed the repair note beside the old label. “Wait, please. We need to change the credit.”\n>\n\n> Staff stopped closing the case and moved the sculpture to the pending table. “I’ll pause intake. Bring a label you both confirm by nine tomorrow.”\n>\n\n> The colleague took the old label. “You’d delay this for one line?”\n>\n\n> Meng pushed the note between them. “Let’s write that line properly now.”\n\nStaff actually pause intake; credit remains unresolved. Next show the negotiation, timely submission, review and intake result. A pause proves neither missed opening nor recognition; later actions settle those consequences.\n\nFor a quiet landing, the colleague could confirm the credit and staff actually receive the label, leaving the shared work as the final feeling. No unrelated accident is required."
         }
       },
       {
@@ -5511,8 +5511,8 @@
           "en": "How Should the Next Episode Pay Off the Hook?"
         },
         "body": {
-          "zh": "先接观众刚得到的具体问题，再引入新事件。\n\n| 上集留下的期待 | 下集先交付什么 | 容易落空的接法 |\n|---|---|---|\n| 人物公开作出决定 | 受影响者的回应，以及决定带来的行动 | 立刻跳去无关人物，长期不处理决定 |\n| 关键证据出现异常 | 谁看见异常，能据此改变哪一步 | 不再提证据，只重复“真相很复杂” |\n| 退路被封 | 人物试探替代路线或改变目标 | 下一集把封路当作不存在 |\n| 得到机会但欠下代价 | 展示交换条件怎样影响计划 | 所有承诺都自动免除 |\n\n承接可以给部分答案。例如工作人员说明如何改展签，解决流程上的疑问；同事仍不愿承认孟溪的贡献，关系问题继续推进。这样既兑现上集的问题，也保留新的行动空间。",
-          "en": "Address the specific question the audience just received before introducing a new event.\n\n| Expectation left by the last episode | What the next episode should deliver first | A handoff that breaks the promise |\n|---|---|---|\n| A character makes a public decision | The response from those affected and the action caused by the decision | Immediately switching to unrelated characters and leaving the decision unresolved |\n| Key evidence appears abnormal | Who sees the anomaly and what step it changes | Never mentioning the evidence again and only repeating that “the truth is complicated” |\n| The escape route closes | The character tests an alternative route or changes the goal | Treating the blocked route as if it never existed |\n| An opportunity comes with a debt | How the exchange condition changes the plan | Automatically waiving every promise |\n\nThe handoff may provide a partial answer. A staff member can explain the procedure for changing the label, resolving the procedural question, while the colleague still refuses to acknowledge Meng Xi’s contribution and the relationship conflict continues. This pays off the previous episode while preserving room for new action."
+          "zh": "先接观众刚得到的具体问题，再引入新事件。\n\n| 期待 | 回应 | 避免 |\n|---|---|---|\n| 人物公开作出决定 | 受影响者的回应，以及决定带来的行动 | 立刻跳去无关人物，长期不处理决定 |\n| 关键证据出现异常 | 谁看见异常，能据此改变哪一步 | 不再提证据，只重复“真相很复杂” |\n| 退路被封 | 人物试探替代路线或改变目标 | 下一集把封路当作不存在 |\n| 得到机会但欠下代价 | 展示交换条件怎样影响计划 | 所有承诺都自动免除 |\n\n承接可以给部分答案。例如工作人员说明如何改展签，解决流程上的疑问；同事仍不愿承认孟溪的贡献，关系问题继续推进。这样既兑现上集的问题，也保留新的行动空间。",
+          "en": "Address the specific question the audience just received before introducing a new event.\n\n| Promise | Response | Avoid |\n|---|---|---|\n| A character makes a public decision | The response from those affected and the action caused by the decision | Immediately switching to unrelated characters and leaving the decision unresolved |\n| Key evidence appears abnormal | Who sees the anomaly and what step it changes | Never mentioning the evidence again and only repeating that “the truth is complicated” |\n| The escape route closes | The character tests an alternative route or changes the goal | Treating the blocked route as if it never existed |\n| An opportunity comes with a debt | How the exchange condition changes the plan | Automatically waiving every promise |\n\nThe handoff may provide a partial answer. A staff member can explain the procedure for changing the label, resolving the procedural question, while the colleague still refuses to acknowledge Meng Xi’s contribution and the relationship conflict continues. This pays off the previous episode while preserving room for new action."
         }
       },
       {
@@ -5578,8 +5578,8 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "单集兑现、出去压力与风格选择",
+          "en": "Episode delivery, outgoing pressure and style"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/episode-design.md"
       }
@@ -8934,22 +8934,22 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
-      "zh": "短剧台词怎么写：让每句话改变现场",
-      "en": "Writing Micro-Drama Dialogue: Make Every Line Change the Scene"
+      "zh": "短剧台词怎么写：目标、回应与潜台词",
+      "en": "Micro-Drama Dialogue: Goals, Responses and Subtext"
     },
     "seo_title": {
-      "zh": "短剧台词怎么写｜ZenStory",
-      "en": "How to Write Micro-Drama Dialogue | ZenStory"
+      "zh": "短剧台词怎么写：目标、回应与潜台词",
+      "en": "Micro-Drama Dialogue: Goals, Responses and Subtext"
     },
     "description": {
       "zh": "从人物议程、潜台词风险、可见锚点和策略变化写短剧对白，附交换说话者测试与原创对谈。",
       "en": "Build dialogue from agendas, subtext risks, visible anchors and tactical shifts. Includes a speaker-swap test and an original exchange."
     },
     "answer": {
-      "zh": "短剧台词先写说话者想让对方做什么，再选择字面表达。对方反制后，人物要换策略、付代价或退出；潜台词来自不能直说的风险，并由动作、称呼、物件或公开范围给观众推断依据。关键台词之后要有可见行为变化。",
-      "en": "Before choosing the words of a line, decide what the speaker wants the other person to do. When the other person counters, the speaker must change tactics, pay a cost or withdraw. Subtext grows from the risk of speaking openly. Actions, forms of address, objects and who can hear the exchange give viewers evidence to infer what remains unsaid. A key line should lead to a visible change in behaviour."
+      "zh": "短剧台词先看人物在这段关系里想做什么，再选择字面表达。重要对白检查议程、上一动作的回应和结果；换策略、付代价或退出是常用方法，仪式、喜剧或情绪表达也可以有意重复。潜台词需要隐瞒或回避的理由，中立信息可以直说。",
+      "en": "Start dialogue with what a person wants to do within this relationship. Review important exchanges for agenda, response and outcome. Changing tactics, paying a cost or leaving are common options; ritual, comedy and emotion can use deliberate repetition. Subtext needs a reason for concealment or evasion; neutral information can be direct."
     },
     "sections": [
       {
@@ -8981,8 +8981,8 @@
           "en": "Original Example: The Removed Exhibition Panel"
         },
         "body": {
-          "zh": "原创场景：策展人苏禾要保住学生作品，场地方罗致要求她代作者签“自愿撤展”。此前已明确苏禾只能办理作品交接，不能代作者作撤展决定。\n\n> 罗致把笔放到表格上：“签完，作品今晚还能入库。”\n>\n> 苏禾：“交接单我签。撤展要作者来。”\n>\n> 罗致翻到签名页：“你现在先保住东西。”\n>\n> 苏禾把自己的交接单放在旁边：“你可以登记谁送来的。这一张，我不代签。”\n\n罗致用保管机会诱导撤展签字；苏禾接受实际交接责任，拒绝超出权限的决定。终点是她没有签撤展表，不等于作品已入库、对方已让步或她已失去职位。下一拍须让罗致接受、拒绝或提出实际条件。若作者要职业代价，另建立真实触发与结果，不能只在分析里宣布。",
-          "en": "Original scene: curator Su He wants to preserve a student’s work. Venue representative Luo Zhi asks her to sign a voluntary-withdrawal form for the artist. It is already established that Su can handle delivery but cannot choose withdrawal for the artist.\n\n> Luo places a pen on the form. “Sign and it can go into storage tonight.”\n>\n> Su: “I sign delivery. Withdrawal needs the artist.”\n>\n> Luo turns to the signature page. “Keep the work safe first.”\n>\n> Su places her delivery sheet beside it. “Record who brought it. I will not sign this for them.”\n\nLuo trades storage access for a withdrawal signature. Su accepts delivery responsibility but refuses the unrelated decision. The ending establishes refusal, not completed storage, concession or job loss. A next beat must supply Luo’s response. A professional cost needs an actual trigger and result rather than an analytical claim."
+          "zh": "原创场景：策展人苏禾要保住学生作品，场地方罗致要求她代作者签“自愿撤展”。此前已明确苏禾只能办理作品交接，不能代作者作撤展决定。\n\n> 罗致把笔放到表格上：“签完，作品今晚还能入库。”\n>\n\n> 苏禾：“交接单我签。撤展要作者来。”\n>\n\n> 罗致翻到签名页：“你现在先保住东西。”\n>\n\n> 苏禾把自己的交接单放在旁边：“你可以登记谁送来的。这一张，我不代签。”\n\n罗致用保管机会诱导撤展签字；苏禾接受实际交接责任，拒绝超出权限的决定。终点是她没有签撤展表，不等于作品已入库、对方已让步或她已失去职位。下一拍须让罗致接受、拒绝或提出实际条件。若作者要职业代价，另建立真实触发与结果，不能只在分析里宣布。",
+          "en": "Original scene: curator Su He wants to preserve a student’s work. Venue representative Luo Zhi asks her to sign a voluntary-withdrawal form for the artist. It is already established that Su can handle delivery but cannot choose withdrawal for the artist.\n\n> Luo places a pen on the form. “Sign and it can go into storage tonight.”\n>\n\n> Su: “I sign delivery. Withdrawal needs the artist.”\n>\n\n> Luo turns to the signature page. “Keep the work safe first.”\n>\n\n> Su places her delivery sheet beside it. “Record who brought it. I will not sign this for them.”\n\nLuo trades storage access for a withdrawal signature. Su accepts delivery responsibility but refuses the unrelated decision. The ending establishes refusal, not completed storage, concession or job loss. A next beat must supply Luo’s response. A professional cost needs an actual trigger and result rather than an analytical claim."
         }
       },
       {
@@ -8992,8 +8992,8 @@
           "en": "Four Revision Tests"
         },
         "body": {
-          "zh": "标注每句在逼问、遮掩、交换、划界还是验证；检查它是否回应上一动作；删除人物共同已知的说明；交换说话者后，若情节仍成立，就补入各自目标、证据观和关系风险。最后朗读，确认打断、沉默和动作都有行动原因。\n\n对白写完后遮住人名快速读一遍，再对照相邻动作。辨认说话者的依据应来自他关注的证据、愿意承担的代价和面对听者的关系策略。若只靠口头禅区分，换掉词汇后声音会再次混在一起。\n\n修订后的句子还要服从本场既定结果。金句再锋利，也不能偷偷改掉人物选择。",
-          "en": "Label what each line does: press for an answer, conceal, trade, set a boundary or verify. Check whether it responds to the preceding action. Remove explanations of what both characters already know. Swap the speakers; if the scene still works, add their distinct goals, attitudes towards evidence and relationship risks. Finally, read it aloud to check that interruptions, silences and actions all have a purpose.\n\nOnce the dialogue is written, hide the names and read it quickly, then compare it with the surrounding actions. A speaker should be recognisable through the evidence they attend to, the costs they will accept and the tactics they use in this relationship. If catchphrases are the only distinction, replacing those words will make the voices blur again.\n\nRevised lines must still serve the scene’s established result. However sharp a line sounds, it must not quietly change the character’s choice."
+          "zh": "下面是作者手写审读方法，可挑与本场有关的项：\n\n- 重要句子在请求、试探、交换、划界，还是表达情绪？\n- 对方是否接住上一动作；中立说明是否可以直接说？\n- 重复是在拖延，还是在累积仪式、喜剧、创伤或关系效果？\n- 交换说话者后，是否失去各自目标、证据观或关系位置？\n\n遮住人名快读，再对照相邻动作。人物声音不只靠口头禅，也来自他关注什么、怎样对这个听者说话。朗读时检查停顿、打断和动作有没有遮掉必需信息；不要求每句都改变权力，或每个沉默都新增证据。\n\n修订仍服从已接受的场景结果。锋利金句若让人物突然作出另一选择，应回到故事层决定，不悄悄改过去。",
+          "en": "This manual author review can use only the questions relevant to the scene:\n\n- Does an important line request, test, trade, set a boundary or express emotion?\n- Does the listener address the prior act? Can neutral information be direct?\n- Does repetition delay, or build ritual, comedy, trauma or relationship effects?\n- Would swapping speakers lose their goals, evidence preferences or relationship positions?\n\nHide names for a quick reading, then compare adjacent actions. Voice comes from attention and the particular listener, beyond catchphrases. Read aloud for pauses, interruptions and movements that obscure necessary information. Every sentence need not change power, and every silence need not add evidence.\n\nHonor the accepted scene result. If a sharp line changes a character’s decision, resolve that at story level rather than silently rewriting it."
         }
       },
       {
@@ -9003,8 +9003,8 @@
           "en": "Turn an explanatory line into an exchange"
         },
         "body": {
-          "zh": "解释式：“我之所以撤下展板，是因为你没有得到使用这些照片的授权。”\n\n场景式：\n\n> 甲把展板抱回门口：“你凭什么拿走？”\n> 乙拦住：“授权书呢？”\n> 甲：“明天补。”\n> 乙：“那明天再挂。”\n\n身份、争议和阻力都在对话中出现。动作负责展板去向，台词负责争取与拒绝，别让每句话再解释人物情绪。读一遍实际时长，给“拿回”“拦住”的动作留空间。",
-          "en": "Explanation: “I removed the display because you lack permission to use the photos.”\n\nExchange:\n\n> A brings the board back to the door. “Why take it?”\n> B blocks the doorway. “Where’s the permission?”\n> A: “Tomorrow.”\n> B: “Hang it tomorrow.”\n\nDialogue carries the dispute; action carries the board’s movement. Read it aloud and leave time for bringing and blocking rather than adding emotion explanations."
+          "zh": "解释式：“我之所以撤下展板，是因为你没有得到使用这些照片的授权。”\n\n场景式：\n\n> 甲把展板抱回门口：“你凭什么拿走？”\n\n> 乙拦住：“授权书呢？”\n\n> 甲：“明天补。”\n\n> 乙：“那明天再挂。”\n\n身份、争议和阻力都在对话中出现。动作负责展板去向，台词负责争取与拒绝，别让每句话再解释人物情绪。读一遍实际时长，给“拿回”“拦住”的动作留空间。",
+          "en": "Explanation: “I removed the display because you lack permission to use the photos.”\n\nExchange:\n\n> A brings the board back to the door. “Why take it?”\n\n> B blocks the doorway. “Where’s the permission?”\n\n> A: “Tomorrow.”\n\n> B: “Hang it tomorrow.”\n\nDialogue carries the dispute; action carries the board’s movement. Read it aloud and leave time for bringing and blocking rather than adding emotion explanations."
         }
       },
       {
@@ -9022,22 +9022,22 @@
     "faq": [
       {
         "q": {
-          "zh": "短剧方法需要固定时长或固定集数吗？",
-          "en": "Does this method require a fixed runtime or episode count?"
+          "zh": "每轮对白都必须换策略或付代价吗？",
+          "en": "Must every exchange change tactics or impose a cost?"
         },
         "a": {
-          "zh": "不需要。先让目标、反制、转向和结果成立，再按项目已经接受的篇幅与制作条件调整容量。",
-          "en": "No. First make the goal, countermove, change of direction and result work. Then adjust the amount of material to the length and production conditions already agreed for the project."
+          "zh": "不是。skill 把它列为交锋中的常用做法。有意重复可以表现仪式、创伤、压迫或喜剧；中立说明和情绪表达也不必硬加对抗。重要的是它符合本场人物与作用。",
+          "en": "No. The skill labels this a common confrontation method. Repetition can serve ritual, trauma, pressure or comedy; neutral facts and emotional expression need no forced opposition. Match the character and scene function."
         }
       },
       {
         "q": {
-          "zh": "可以直接套用表格吗？",
-          "en": "Can I use the table as-is?"
+          "zh": "对白自然度能靠表格判断吗？",
+          "en": "Can a table establish natural dialogue?"
         },
         "a": {
-          "zh": "表格用于发现缺口。正文仍要写成人物可执行的行动、对白与后果，空字段无需硬填。",
-          "en": "The table is for finding gaps. The prose still needs actions characters can perform, dialogue, and consequences; leave irrelevant fields blank rather than forcing them in."
+          "zh": "表格帮助查目标与因果，仍要按人物口吻实际朗读，给停顿、动作和听者响应留时间。",
+          "en": "A table checks goals and causality. Still read in the character’s voice, leaving room for pauses, action and the listener’s response."
         }
       }
     ],
@@ -9059,8 +9059,8 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "对白策略、规则分级与反向条件",
+          "en": "Dialogue tactics, defaults and counterconditions"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-write/references/dialogue-craft.md"
       }
@@ -10753,7 +10753,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "镜头运动怎么设计：推拉摇移都要有叙事动机",
       "en": "Designing Camera Movement: Give Every Move a Story Motive"
@@ -10778,8 +10778,8 @@
           "en": "Define the Change Before Naming a Camera Move"
         },
         "body": {
-          "zh": "| 想让观众获得的变化 | 可考虑 | 不应自动使用 |\n|---|---|---|\n| 从说话者发现画外证据 | 摇镜或俯仰，把注意交过去 | 为了活泼无目标地左右摆动 |\n| 更靠近一个无法回避的决定 | 缓慢前移 | 每句重话都机械推近 |\n| 人物与关系突然疏远 | 后移或人物离机 | 仅用变焦替代真实空间变化 |\n| 行走本身体现追赶、逃避或控制 | 跟拍 | 人物只是从门走到桌边也全程跟 |\n| 原地关系被重新看懂 | 有理由的环绕 | 因为“高级感”绕人物一圈 |\n| 让观众观察等待、受困或仪式 | 固定机位 | 害怕静止就补漂移 |\n\n先写运动的终点信息。例如“摇到柜台下方露出一只仍在震动的手机”，比“镜头自然摇动”清楚；若摇完没有新事实，运动大概率可以删。",
-          "en": "| Change you want viewers to experience | Consider | Do not use automatically |\n|---|---|---|\n| Discover evidence outside the speaker’s eyeline | Shift attention to a defined point with a pan or tilt | Wandering side to side for energy without a target |\n| Move closer to a decision that cannot be avoided | A slow push-in | Pushing closer mechanically on every serious line |\n| Make a character or relationship suddenly feel more distant | Pull back or let the character move away from camera | Using a zoom as a substitute for an actual change in spatial relationships |\n| Show pursuit, escape or control through the act of walking | Tracking | Following someone all the way from the door to the table when the walk has no strategy |\n| Reframe an already established relationship | A motivated orbit | Circling a character just for a “premium” look |\n| Let viewers observe waiting, confinement or ritual | A static camera | Adding drift because stillness feels uncomfortable |\n\nFirst, write the information revealed at the end of the move. “Pan down to reveal a phone still vibrating beneath the counter” is clearer than “the camera pans naturally.” If the move reveals no new fact, it can probably be cut."
+          "zh": "| 目的 | 机位与取舍 |\n| --- | --- |\n| 从说话者发现画外证据 | 摇镜或俯仰，把注意交过去；取舍：为了活泼无目标地左右摆动 |\n| 更靠近一个无法回避的决定 | 缓慢前移；取舍：每句重话都机械推近 |\n| 人物与关系突然疏远 | 后移或人物离机；取舍：仅用变焦替代真实空间变化 |\n| 行走本身体现追赶、逃避或控制 | 跟拍；取舍：人物只是从门走到桌边也全程跟 |\n| 原地关系被重新看懂 | 有理由的环绕；取舍：因为“高级感”绕人物一圈 |\n| 让观众观察等待、受困或仪式 | 固定机位；取舍：害怕静止就补漂移 |\n\n先写运动的落点和预期效果。例如“向下俯到柜台上仍在震动的手机”，比“镜头自然移动”清楚；若移动没有增加本书需要的注意、压力、关系或节奏效果，可以比较固定或切镜；不要求每次都揭示新事实。",
+          "en": "| Purpose | Choice and caution |\n| --- | --- |\n| Discover evidence outside the speaker’s eyeline | Shift attention to a defined point with a pan or tilt; caution: Wandering side to side for energy without a target |\n| Move closer to a decision that cannot be avoided | A slow push-in; caution: Pushing closer mechanically on every serious line |\n| Make a character or relationship suddenly feel more distant | Pull back or let the character move away from camera; caution: Using a zoom as a substitute for an actual change in spatial relationships |\n| Show pursuit, escape or control through the act of walking | Tracking; caution: Following someone all the way from the door to the table when the walk has no strategy |\n| Reframe an already established relationship | A motivated orbit; caution: Circling a character just for a “premium” look |\n| Let viewers observe waiting, confinement or ritual | A static camera; caution: Adding drift because stillness feels uncomfortable |\n\nState the intended landing and effect first. “Tilt down to the phone vibrating on the counter” is clearer than “the camera moves naturally.” Compare a static frame or cut if the move adds no intended attention, pressure, relationship or rhythm. It need not reveal a new fact every time."
         }
       },
       {
@@ -10800,8 +10800,8 @@
           "en": "Original Example: Two Umbrellas at Lost Property"
         },
         "body": {
-          "zh": "社区失物招领处，值班员叶明把一把黑伞递给来领伞的顾客。顾客展开伞，内侧却缝着幼儿园姓名贴；真正的伞仍靠在远处墙边。\n\n- **开场固定中景**：柜台、两人和待领物架都在关系里，叶明递伞。此时不跟着手来回移动，让观众先看清错误交接。\n- **摇镜有明确终点**：顾客说“这不是我的”，把伞内侧转向叶明。镜头从两人摇到姓名贴，让注意从争执转到证据；到达后停一拍。\n- **后移改变认识**：叶明抬眼寻找，镜头随他的视线轻轻后移，把墙边另一把伞纳入同一空间。后移用于让观众发现解决线索一直在现场，不承担制造宏大感。\n- **最后固定**：叶明没有立刻取伞，而是先核对登记本。固定机位让他的谨慎选择落住。\n\n若全程用环绕，姓名贴、另一把伞与登记动作都会在运动中争抢注意；“镜头很忙”不等于场面更有张力。",
-          "en": "At a community lost-property desk, attendant Ye Ming hands a black umbrella to someone claiming it. The customer opens it; a kindergarten name label is sewn inside. The correct umbrella remains against the far wall.\n\n- **Begin on a static medium shot:** Keep the desk, both people and the shelf of items in the same spatial relationship as Ye Ming hands over the umbrella. Do not chase the hands yet; let viewers first see the mistaken handoff.\n- **Tilt to a defined endpoint:** The customer says, “This isn’t mine,” and turns the umbrella’s inside towards Ye Ming. Tilt down from the two people to the label, moving attention from their disagreement to the evidence. Hold when you arrive.\n- **Pull back to change what viewers know:** Ye Ming looks up to search. Ease back with his eyeline to bring the other umbrella by the wall into the same frame. The pullback lets viewers discover the clue was present all along; it is not there to make the shot feel grand.\n- **End static:** Ye Ming does not immediately take the umbrella. He checks the logbook first. A static camera lets the cautious choice register.\n\nIf the camera circles throughout, the label, the second umbrella and the logbook action all compete for attention. A busy camera does not automatically make a scene more tense."
+          "zh": "原创场景：失物处的柜台与墙边伞架已在全景里建立。顾客带登记回执来领黑伞；回执记录手柄蓝色布环。两把外形相近的黑伞，一把红环、一把蓝环。\n\n- **固定中景**：叶明递出红环伞，顾客接住并把手柄抬到胸前。“我的环是蓝色的。”机位让两人的交接关系可见。\n- **向下俯仰并停住**：顾客把红环转向叶明，镜头从两人脸部轻轻俯向胸前手柄。红环清楚进入构图后停住；不靠摇镜自动把细小文字放大，也不继续移动丢掉物件。\n- **后移纳入空间**：叶明看向已建立的墙边伞架，摄影机后移，把蓝环伞与柜台关系纳入。它给出待核对的候选，不仅凭同色就宣布归属。\n- **固定收束**：叶明对照登记回执与该伞的登记号，确认相符，取来交给顾客；顾客核对后收下。固定机位让归还动作读清。\n\n镜头变化服务辨认、寻找与核对。若原地环绕遮住色环或错过接收，就先改变运镜实现；作者另有现场感或节奏目的，也可比较其他机位，不机械套这四镜。",
+          "en": "Original scene: a wide shot establishes the lost-property counter and wall rack. A claimant brings a receipt describing a black umbrella with a blue cloth loop. Two similar black umbrellas have red and blue loops.\n\n- **Static medium:** Ye Ming hands over the red-loop umbrella. The claimant receives it and lifts the handle to chest level: “Mine has a blue loop.” Their handoff stays readable.\n- **Tilt down and hold:** The claimant turns the red loop toward Ye. The camera tilts from faces to the chest-level handle, then holds once the loop is clear. A pan does not magically enlarge tiny lettering; continued movement must not lose the object.\n- **Pull back for space:** Ye looks toward the established rack. Pulling back includes the blue-loop umbrella in relation to the counter. This supplies a candidate rather than proving ownership by color alone.\n- **Static landing:** Ye matches the receipt and umbrella’s registered number, brings it over and hands it to the claimant, who checks and accepts it. The frame keeps return readable.\n\nMovement serves recognition, search and checking. If an orbit masks the loop or misses receipt, change its realization. Other accepted documentary or rhythmic purposes can support different camera choices; these four shots are not a formula."
         }
       },
       {
@@ -10811,8 +10811,8 @@
           "en": "Write Camera Moves as Executable Instructions"
         },
         "body": {
-          "zh": "> 起点：固定中景保持柜台两人关系。触发：顾客把伞内侧转向镜头，露出姓名贴。摄影机：沿她的动作向下轻摇，止于姓名贴清楚可读的构图。到达后：保持片刻，让叶明看清；不继续漂移，不改变伞的持有人。\n\n一句有效运镜至少包括起点、触发、方向、终点信息和落住状态。若人物同时移动，再写清摄影机跟谁、与谁保持距离，以及运动结束时的空间关系。",
-          "en": "> **Start:** Static medium shot preserves the spatial relationship between the two people at the counter. **Trigger:** The customer turns the inside of the umbrella towards camera, revealing the name label. **Camera:** Tilt down gently with the movement and stop on a composition where the label is legible. **After arrival:** Hold briefly so Ye Ming can read it. Do not continue drifting or change who is holding the umbrella.\n\nA useful camera instruction states at least the start, trigger, direction, information at the endpoint and how the shot settles. If a character also moves, say whom the camera follows, what distance it maintains and the spatial relationship at the end of the move."
+          "zh": "这段是作者手写提示，不是实际生成结果：\n\n> 起点：柜台两人中景，顾客已接住红环伞，手柄在胸前。触发：她把手柄转向叶明。摄影机：从脸部向下轻俯，停在红环与握柄清楚可见的构图，保持到叶明看清。顾客持续握伞；伞架和两人位置沿用已定布局。\n\n写起点、触发、路径、落点和落住状态，取本镜需要的项。画幅或物件尺度不足以读清时，回分镜调景别；不要在视频提示词里偷偷新增镜头或把固定与移动写在同一时段。\n\n具体运镜术语按目标模型已确认的写法选择；源分镜已经确定摄影机时，本层落实区间，不自行换掉。生成后比较实际画面，文字明确不保证结果正确。",
+          "en": "This manual author prompt is not generated footage:\n\n> Start on a medium counter two-shot. The claimant already holds the red-loop umbrella at chest level. As she turns the handle toward Ye, tilt down from their faces and stop with loop and grip clear. Hold until Ye can read it. She retains the umbrella; rack and people keep the established layout.\n\nSpecify the start, trigger, path, endpoint and landing needed here. If scale cannot carry the information, revise framing upstream. Do not add a new shot in the video prompt or demand static and moving behavior over the same interval.\n\nChoose terms supported by the target model’s accepted wording. Implement an established storyboard camera rather than replacing it. Compare generated frames afterward; clear prose does not guarantee correct output."
         }
       },
       {
@@ -10852,8 +10852,8 @@
     "skill": {
       "name": "short-drama-storyboard",
       "text": {
-        "zh": "在 Claude Code 中说：“用 /short-drama-storyboard 检查这场戏的摄影机行为；逐镜说明注意或关系发生了什么变化，再决定固定、摇、推拉、跟拍或切镜，并写清运动终点。”Codex 中使用 `$short-drama-storyboard`。",
-        "en": "In Claude Code, say: “Use /short-drama-storyboard to review the camera behaviour in this scene. For each shot, explain what changes in attention or relationships, then choose a static frame, pan, tilt, push, pull, tracking move or cut. Specify where each move ends.” In Codex, use `$short-drama-storyboard`."
+        "zh": "用 $short-drama-storyboard 按本场注意、压力、关系与节奏选择摄影机，写清起点、触发、路径和落点；不要求每镜都揭示新事实。视频提示词落实已确认行为，复杂构图回分镜修，实际生成后核对。",
+        "en": "Use $short-drama-storyboard to choose camera behavior by attention, pressure, relationship and rhythm. State the start, trigger, path and landing without requiring new facts in every shot. Video prompts implement the accepted behavior; revise framing upstream and inspect actual results."
       },
       "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/SKILL.md"
     },
@@ -10867,10 +10867,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "景别、注意与逐镜运镜",
+          "en": "Framing, attention and camera choices"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/shot-craft.md"
+      },
+      {
+        "label": {
+          "zh": "摄影机区间与声音连续",
+          "en": "Camera intervals and audio continuity"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/camera-audio-continuity.md"
       }
     ]
   },
@@ -11011,7 +11018,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "短剧声音怎么设计：原声、环境声、配乐与留白",
       "en": "How to Design Sound for Short Drama: Dialogue and Music"
@@ -11037,7 +11044,7 @@
         },
         "body": {
           "zh": "| 职责 | 写作问题 |\n|---|---|\n| 建立空间 | 观众先听见什么，能判断声源远近或画外存在吗 |\n| 建立秩序 | 哪个反复声代表日常流程、权力或人物习惯 |\n| 提供证据 | 哪个声音会改变人物或观众的判断 |\n| 施加压力 | 声音怎样靠近、持续、被遮住或突然停止 |\n| 主动留白 | 哪些声源退开，让台词、呼吸、物件或选择被听见 |\n| 连接场次 | 前场声音如何带入下一场，又不提前泄露信息 |\n\n空调、车流、鸟鸣不必每场列一遍。只有改变注意、空间感或人物压力的声音，才值得成为剧本里的事件。",
-          "en": "| Job | Question to answer |\n|---|---|\n| Establish space | What does the audience hear first? Can they judge the source’s distance or presence off-screen? |\n| Establish order | Which recurring sound represents a routine, authority or a character’s habit? |\n| Provide evidence | Which sound changes a character’s or viewer’s judgment? |\n| Apply pressure | Does the sound approach, persist, become muffled or stop suddenly? |\n| Deliberately leave space | Which sources recede so dialogue, breathing, an object or a choice can be heard? |\n| Connect scenes | How can a sound carry into the next scene without revealing too much too early? |\n\nYou do not need to list air conditioning, traffic and birds in every scene. Only give a sound its own script event when it changes attention, spatial perception or pressure on a character."
+          "en": "| Job | Question |\n|---|---|\n| Establish space | What does the audience hear first? Can they judge the source’s distance or presence off-screen? |\n| Establish order | Which recurring sound represents a routine, authority or a character’s habit? |\n| Provide evidence | Which sound changes a character’s or viewer’s judgment? |\n| Apply pressure | Does the sound approach, persist, become muffled or stop suddenly? |\n| Deliberately leave space | Which sources recede so dialogue, breathing, an object or a choice can be heard? |\n| Connect scenes | How can a sound carry into the next scene without revealing too much too early? |\n\nYou do not need to list air conditioning, traffic and birds in every scene. Only give a sound its own script event when it changes attention, spatial perception or pressure on a character."
         }
       },
       {
@@ -11047,8 +11054,8 @@
           "en": "In a Silence, Specify What Gives Way to What"
         },
         "body": {
-          "zh": "“全场安静”往往过于笼统。现实中的沉默可以分层：近处人先停话，远处机器仍运转；配乐撤出，但鞋底摩擦和吞咽变得清楚；一个角色故意继续制造噪声，掩饰自己已经听懂。\n\n可复制句式：\n\n> 当___发生后，___声逐渐／立即撤出，保留___作为空间底层；留白让___被听见。直到___这个可见事件发生，___声恢复／改变距离。\n\n这里必须有触发与恢复条件。只写“停顿三秒”没有说明停掉什么，也没有说明这段空白为何存在。",
-          "en": "“The whole place goes silent” is often too vague. Silence in a real space can be layered: people nearby stop talking while distant machinery continues; music drops out while shoes scrape and someone swallows; a character deliberately makes noise to hide that they have understood.\n\n**Reusable structure:**\n\n> After ___ happens, the sound of ___ gradually / immediately withdraws, leaving ___ as the spatial bed. This space lets ___ be heard. When the visible event ___ happens, the sound of ___ returns / changes distance.\n\nSpecify what triggers the withdrawal and what allows sound to return. “Pause for three seconds” does not say what stops or why the gap exists."
+          "zh": "“全场安静”可能是一种风格，也可以分层设计：近处人停话，远处机器仍运转；配乐撤出，鞋底摩擦更清楚；有人继续制造噪声，掩饰紧张。\n\n下面是手写句式，可删不适用项：\n\n> 当___发生，___声撤出，保留___；这一留白让观众注意___。若声音要恢复，由___触发；若整场在留白里结束，也写清收束。\n\n重点是声源与注意的安排，不是固定静音秒数。没有恢复也可以成立，不必为填表新增一次机器启动。",
+          "en": "Total silence can be a style choice, or sound can leave space in layers: nearby speech stops while distant machinery continues; music withdraws and shoes become audible; someone keeps making noise to conceal nerves.\n\nThis manual sentence can omit irrelevant parts:\n\n> When ___ happens, ___ recedes and ___ remains, drawing attention to ___. If sound returns, ___ triggers it; if the scene ends in silence, state that ending.\n\nArrange sources and attention rather than a fixed silence duration. A scene need not restore sound; do not invent a machine restart just to fill a field."
         }
       },
       {
@@ -11058,8 +11065,8 @@
           "en": "Original Example: A Laundromat at Midnight"
         },
         "body": {
-          "zh": "店主程鸢准备关门，最后一位顾客戴宁坚持等烘干机结束。滚筒里却传出一枚金属物反复撞击的声音；戴宁说口袋里没有东西。\n\n1. **开场秩序**：只有戴宁面前的一台烘干机仍在低频运转，其余机器已经停下，规律的滚筒声充满临关门的店面。\n2. **异常出现**：这台机器每转一圈响一次金属撞击。不加通用“悬疑音效”；让既有机器声里出现可定位的差异。\n3. **主动留白**：程鸢按下这台机器的暂停键。滚筒声撤出，保留街外远处车辆；金属物最后滚落一下。这个留白让两人确认物件确实在机器里。\n4. **人物分层**：程鸢不说话，戴宁却连续整理桌上的衣架，用塑料碰撞声遮住自己的紧张。\n5. **恢复条件**：程鸢打开门、取出一枚陌生钥匙后，不立即恢复机器声；等戴宁承认衣服不是自己的，程鸢关好机门，重新启动这台机器。\n\n声音的开始、撤出和恢复都跟可见行动相连。若用一声通用“惊吓冲击”盖住金属落地，真正的证据反而难以听清。",
-          "en": "Owner Cheng Yuan is about to close the laundromat. The last customer, Dai Ning, insists on waiting for a dryer cycle to finish. Something metal keeps knocking inside the drum. Dai Ning says there is nothing in their pocket.\n\n1. **Opening order:** Only the dryer in front of Dai Ning is still running, with a low-frequency rumble. The other machines have stopped, leaving the regular drum rhythm to fill the shop as it prepares to close.\n2. **The anomaly appears:** This machine makes one metallic knock on every rotation. Do not add a generic “suspense effect”; make the difference audible within the existing machine sound.\n3. **Deliberately leave space:** Cheng Yuan presses pause on this dryer. The drum sound drops out, leaving distant traffic outside. The metal object gives one final roll. This gap lets both characters confirm that something is inside the machine.\n4. **Different character layers:** Cheng Yuan says nothing. Dai Ning keeps rearranging hangers on the table, using the plastic clatter to conceal their nerves.\n5. **Condition for return:** Cheng Yuan opens the door and removes an unfamiliar key. Do not immediately restore the machine sound. Wait until Dai Ning admits the clothes are not theirs; Cheng Yuan closes the dryer and starts it again.\n\nThe start, withdrawal and return of each sound are tied to visible actions. If a generic “shock hit” covers the metal object’s final roll, the evidence becomes harder to hear."
+          "zh": "原创洗衣店场景：店主程鸢准备关门，最后一位顾客戴宁等一件外套烘干。只有这台机器仍运转。前文交代本故事中机器可暂停，待滚筒停稳后开门；街外车流持续。\n\n1. **秩序声**：滚筒规律运转，建立尚未完成的等待。\n2. **异常**：每转一圈多一次金属碰撞。戴宁说自己查过口袋；声音让这句话受到质疑，却不证明钥匙属于谁或她在偷衣服。\n3. **留白**：程鸢按暂停，等滚筒停稳。机器声退开，远车流仍在；物件最后滚动一下，让观众注意来源。\n4. **响应**：戴宁停下整理衣架，程鸢打开机门，取出钥匙。可见取出才确认钥匙在外套或滚筒内，不只靠一声响便宣布真相。\n5. **恢复**：戴宁说“这是朋友的外套，我只查了外袋”，接过钥匙，翻查内袋后请求继续烘干。程鸢确认口袋已清空，关门重启，规律机器声回来。\n\n本场交付的是发现钥匙、澄清检查范围与恢复烘干；钥匙用途仍可留到后场。通用冲击音若盖住关键响声，会损害这一设计；作者想用配乐时，也先保证观众需要听见的事实清楚。",
+          "en": "Original laundromat scene: owner Cheng Yuan is closing while Dai Ning waits for a coat to dry. Only this machine runs. Earlier setup establishes that this story’s dryer can pause and open after its drum stops. Outside traffic continues.\n\n1. **Order:** The regular drum establishes unfinished waiting.\n2. **Anomaly:** A metallic knock recurs with rotation. Dai says the pockets were checked. Sound challenges that claim but proves neither ownership nor theft.\n3. **Space:** Cheng pauses and waits for the drum to stop. Machine noise recedes; traffic remains. One last roll draws attention to the source.\n4. **Response:** Dai stops handling hangers. Cheng opens the door and removes a key. Visible removal confirms its presence in the coat or drum; sound alone does not resolve the truth.\n5. **Return:** “It’s my friend’s coat. I checked only the outer pockets.” Dai takes the key, checks inside and asks to continue drying. Cheng confirms empty pockets, closes and restarts. The regular machine sound returns.\n\nThe scene delivers discovery, the scope of the earlier check and resumed drying. The key’s purpose can remain open. A generic hit masking the key sound would harm this design; music can still work if necessary audible facts remain clear."
         }
       },
       {
@@ -11080,63 +11087,8 @@
           "en": "Common Sound Problems and Fixes"
         },
         "body": {
-          "zh": "| 失败 | 修正 |\n|---|---|\n| 每镜都列完整环境音 | 按整场设计进入、撤出、恢复和转向，逐镜只落实变化 |\n| 所有转折都加冲击音 | 优先让证据本身、人物动作或留白承担转折 |\n| 配乐一停就叫沉默 | 写清仍保留的空间声，以及留白给谁让路 |\n| 静音期间人物表演空白 | 配合目光、呼吸、停手或选择，让声音不替代表演 |\n| 下一场声音提前透露身份 | 换成不越过信息权限的共同声源，或取消声音桥 |",
-          "en": "| Problem | Fix |\n|---|---|\n| Listing complete ambience in every shot | Design entrance, withdrawal, return and shifts across the whole scene; specify only changes shot by shot |\n| Adding an impact sound to every turn | Let the evidence itself, a character’s action or a deliberate gap carry the turn first |\n| Calling it silence whenever music stops | Specify which spatial sounds remain and what the gap makes room for |\n| Characters stop performing when sound drops | Use eyelines, breath, still hands or choices; sound must not replace performance |\n| The next scene’s sound reveals an identity too early | Choose a shared source that respects information boundaries, or drop the bridge |"
-        }
-      },
-      {
-        "id": "music-continuity-across-shots-music-state-table",
-        "heading": {
-          "zh": "用四种状态写清每镜配乐位置",
-          "en": "Use Four States to Map Music Across Shots"
-        },
-        "body": {
-          "zh": "把下表复制到分镜或剪辑单。记录的是这镜与同一条配乐轨的关系，不是为每镜重新选一段音乐。\n\n| 镜头 | 配乐状态 | 与对白的关系 | 画内声源 | 接点备注 |\n|---|---|---|---|---|\n| A01 | 进入 | 尚无对白 | 投影机风扇持续 | 第一组星点出现时进入，并延续到下一镜 |\n| A02 | 延续；对白处让位 | 台词前短暂压低，话音落下后恢复 | 风扇声仍在 | 不在切点重启音乐；记下让位的台词 |\n| A03 | 延续后退出 | 无对白 | 风扇声随画面保留 | 星图稳定后退出，风扇不随配乐一起消失 |\n\n状态只用来明确交接：**延续**表示同一轨道越过剪点；**进入**标出该轨道从何处开始；**退出**写清它在哪里结束；**让位**指出对白期间如何暂时降低存在感、何时恢复。让位不是删除对白或环境声，也不要自定通用的音量百分比。\n\n剪点两侧要能对上：前镜写“延续到下一镜”，后镜就不能又写成“从头进入”。若有意换曲或中断，直接标成有意变化，并写清对应事件。",
-          "en": "Copy this table into the storyboard or edit sheet. It records each shot's relationship to one score track, not a new music choice for every shot.\n\n| Shot | Music state | Relation to dialogue | Diegetic source | Cut note |\n|---|---|---|---|---|\n| A01 | Enters | No dialogue yet | Projector fan continues | Enter when the first stars appear; carry the score into the next shot |\n| A02 | Continues; yields under dialogue | Briefly lower it before the line; restore after the line ends | Fan remains audible | Do not restart at the cut; note which line gets room |\n| A03 | Continues, then exits | No dialogue | Fan remains with the image | Exit after the star pattern stabilizes; do not remove the fan with the score |\n\nUse the states to make handoffs explicit: **continues** means the same track crosses the cut; **enters** identifies where it begins; **exits** says where it ends; **yields** marks where it should become less prominent under dialogue and when it returns. Yielding does not mean deleting dialogue or ambience, and it does not require a universal volume percentage.\n\nThe two sides of a cut must agree: if the outgoing shot says “continues into the next shot,” the incoming shot must not also say “starts from the beginning.” If a change or break is intentional, label it as intentional and name the event that motivates it."
-        }
-      },
-      {
-        "id": "music-continuity-across-shots-planetarium-example",
-        "heading": {
-          "zh": "原创示例：天文馆开门前的试映",
-          "en": "Original Example: A Planetarium Test Before Opening"
-        },
-        "body": {
-          "zh": "下面是为说明表格而设计的虚构示例，不是实际生成、剪辑或试听结果。小型天文馆的技术员在开门前检查新星图：\n\n1. **A01，全景**：圆顶先是暗的。第一组星点亮起时，观众专属配乐进入；投影机风扇作为画内环境声持续。\n2. **A02，镜头转到调焦环**：同一条配乐越过切点继续。技术员说：“木星边缘还在发虚。”台词期间配乐让位，风扇声仍在；话音结束后按计划恢复。\n3. **A03，回到圆顶全景**：配乐从 A02 延续过来，星图稳定后退出；风扇声继续留在画面空间里。\n\n这里的配乐交接是 A01 进入 → A02 延续并给对白让位 → A03 延续后退出。若 A02 文件已带配乐，先确认它是否有独立音轨：能单独处理时只处理配乐层，再把同一条音乐放到序列时间线上；若音乐已与台词或风扇声混在一起，就把素材问题退回制作阶段，不要假定后期能无损剥离。表格表达的是计划，实际剪好后仍要回听接点。",
-          "en": "This fictional example was designed to explain the table; it is not a real generation, edit, or listening result. Before opening, a technician at a small planetarium checks a new star projection:\n\n1. **A01, wide shot:** The dome is dark. Audience-only score enters when the first stars appear; the projector fan continues as in-scene ambience.\n2. **A02, close-up of the focus ring:** The same score carries across the cut. The technician says, “Jupiter's edge is still out of focus.” The score yields under the line while the fan remains; it returns afterward as planned.\n3. **A03, back to the wide dome:** The score continues from A02 and exits after the star pattern stabilizes; the fan remains part of the space.\n\nThe score handoff is A01 enters → A02 continues and yields to dialogue → A03 continues, then exits. If A02's file already contains score, first check whether it is a separate track: remove only that layer if it can be handled separately, then place one track on the sequence timeline. If music is mixed with the line or fan, return the material issue to production rather than assuming it can be cleanly separated later. The table describes intent. Replay the cuts after the edit is made."
-        }
-      },
-      {
-        "id": "ai-video-ambient-sound-continuity-ambience-state-table",
-        "heading": {
-          "zh": "按地点、视角和底声状态填表",
-          "en": "Map Location, View, and Ambience State"
-        },
-        "body": {
-          "zh": "把这张表加入分镜或剪辑记录。每行只记这一镜实际需要的环境声，不把所有可听见的东西都塞进“底噪”。\n\n| 镜头 | 地点/视角 | 持续底声 | 相对层级 | 状态与变化原因 | 拼接后听到什么 |\n|---|---|---|---|---|---|\n| A01 | 阅读室全景 | 通风声、窗外远雨 | 低、稳定 | 进入；场景开始 | 待实际回听 |\n| A02 | 同一阅读室，回收口近景 | 同样的通风声和远雨 | 与 A01 接近 | 延续；无空间变化 | 待实际回听 |\n| A03 | 转向走廊的门口 | 室内声逐渐远；走廊人声进入 | 依视角变化 | 因开门并转向走廊而变化 | 待实际回听 |\n\n**延续**表示同一空间的底声跨过剪点继续；**进入**标记一个持续声源开始变得可闻；**退出**标明底声何时结束。若场景或 Location/View 变了，写出变化原因和对应可见事件；若没有变化理由，就不要让同一空间在每个生成镜头里各自换一套房间底噪。相对层级用“稳定、远一些、被门隔住”等项目可理解的描述，不套通用分贝值。\n\n`拼接后听到什么` 一栏必须在实际播放相邻素材后填写。规划阶段可先写“待实际回听”，不能预填“已连续”。",
-          "en": "Add this table to the storyboard or edit record. Each row notes only the ambience needed in that shot; do not put every audible sound under “background noise.”\n\n| Shot | Location/view | Recurring ambience | Relative prominence | State and reason for change | What the join actually sounds like |\n|---|---|---|---|---|---|\n| A01 | Reading-room wide | Ventilation, distant rain at the window | Low, steady | Enters; scene begins | Awaiting listen-through |\n| A02 | Same reading room, close on return slot | Same ventilation and distant rain | Similar to A01 | Continues; no spatial change | Awaiting listen-through |\n| A03 | Doorway looking into corridor | Interior bed recedes; corridor voices enter | Changes with the view | Changes because the door opens and view turns to corridor | Awaiting listen-through |\n\n**Continues** means the bed carries across a cut in the same space; **enters** marks when a continuous source becomes audible; **exits** records where the bed ends. If the scene or Location/View changes, state the reason and the visible event that motivates it. Without such a reason, do not let each generated shot of the same space acquire a different room tone. Describe relative prominence in terms the project understands—“steady,” “farther away,” or “muffled by the door”—rather than applying a universal decibel value.\n\nFill in `What the join actually sounds like` only after playing the adjacent media. During planning, write “awaiting listen-through”; do not prefill “continuous.”"
-        }
-      },
-      {
-        "id": "ai-video-ambient-sound-continuity-library-example",
-        "heading": {
-          "zh": "原创示例：开门前的社区图书馆",
-          "en": "Original Example: A Community Library Before Opening"
-        },
-        "body": {
-          "zh": "这是为说明表格而设计的虚构例子，不是实际生成或试听结果。管理员在开门前把一本书放入回收口：\n\n1. **A01，阅读室全景**：房间里有稳定的通风声，窗外下着远雨。它们是本场的环境底声。\n2. **A02，回收口近景**：视角仍在同一阅读室，通风声与远雨应继续，不能因为切成另一个生成文件就突然换房间质感。书落入箱中的短促声跟随动作，是事件音效，不是持续底声。\n3. **A03，走廊门口**：管理员打开门，画面转向走廊。此时走廊里的人声才进入；阅读室底声可以因门和视角改变而退远。表里写明变化由“开门并转向走廊”触发。\n\n如果 A02 的房间底声在拼接时忽然更响、变成完全不同的设备声，先判断这是有意的空间变化还是独立生成造成的接缝；记录第一处异常，并按项目确认的方式修正该镜环境素材或接续。不要为补背景声发明剧本没有的广播、人物或事件。示例中的 `待实际回听` 只是提醒，不能当成已经完成的试听记录。",
-          "en": "This fictional example was designed to explain the table; it is not a real generation or listening result. Before opening, a library attendant puts a book into the return slot:\n\n1. **A01, reading-room wide:** Steady ventilation fills the room, with distant rain outside the window. These are the scene's ambient bed.\n2. **A02, close on the return slot:** The view is still inside the same reading room, so ventilation and distant rain should continue; a new generated file should not suddenly sound like a different room. The brief thud of the book landing follows the action and is an event effect, not a continuous bed.\n3. **A03, doorway to the corridor:** The attendant opens the door and the view turns into the corridor. Voices there enter only now; the reading-room bed may recede because the door and viewpoint have changed. Record “door opens and view turns to corridor” as the cause.\n\nIf A02's room tone suddenly gets louder or changes to a different machine sound in the edit, first decide whether this is an intentional spatial change or a seam between independently generated shots. Record the first mismatch, then repair that shot's ambience or the handoff using the project's accepted method. Do not invent an announcement, person, or event that the script does not contain just to fill the background. `Awaiting listen-through` in the example is a reminder, not a claim that anyone has checked the audio."
-        }
-      },
-      {
-        "id": "ai-video-ambient-sound-continuity-common-ambience-errors",
-        "heading": {
-          "zh": "环境底声接缝常见错误",
-          "en": "Common Ambient-Bed Continuity Errors"
-        },
-        "body": {
-          "zh": "| 问题 | 修正方向 |\n|---|---|\n| 同一房间的每个镜头都像换了一个空间 | 让相邻镜头保留同一组持续声源和相近的相对层级；回听拼接结果 |\n| 把一次书本落地声写进整场底声 | 将持续环境声与有明确触发动作的事件音效分开标注 |\n| 还没开门，走廊人声已进入 | 把声音变化与实际地点/视角转移及可见原因对齐 |\n| 只用“环境声保持一致”，没有列声源 | 写清本场哪些连续声源需要留下，以及谁负责每镜实现 |\n| 导出完成就当成环境声验收 | 回听实际相邻剪点并记录结果；尚未回听就标待检查 |",
-          "en": "| Problem | Repair direction |\n|---|---|\n| Each shot of the same room sounds like a different space | Keep the same recurring sources and similar relative prominence across neighbors; replay the joined cut |\n| A one-time book drop is listed as part of the whole-scene bed | Record continuous ambience separately from an event effect with a specific trigger |\n| Corridor voices enter before the door opens | Align the sound change with the actual location/view transition and visible cause |\n| The notes say only “keep ambience consistent” | Name the recurring sources that should remain and who implements them in each shot |\n| Export completion is treated as ambience approval | Replay the actual adjacent cuts and record the result; mark it pending until someone listens |"
+          "zh": "| 问题 | 修订方向 |\n|---|---|\n| 每镜复制完整声音清单 | 先按整场安排，逐镜落实变化 |\n| 声音盖过关键证据 | 保住观众必须听清的事实 |\n| 配乐一停就说完全无声 | 说明留下哪些空间声或选择彻底静默 |\n| 声音替人物作决定 | 回到动作、对白与实际响应 |\n| 声音桥越过信息权限 | 换声源、延后或取消桥接 |\n\n跨镜实际混音另见[配乐接续](/drama-skills/music-continuity-across-shots)与[环境底声接续](/drama-skills/ai-video-ambient-sound-continuity)。主篇先确定观众该注意什么，不把写下声音方案当成已试听成片。",
+          "en": "| Problem | Revision |\n|---|---|\n| A complete sound list repeats each shot | Design the scene, then implement changes |\n| Sound masks key evidence | Keep necessary facts audible |\n| Music stopping is called total silence | State remaining room sound or choose complete silence |\n| Sound makes the decision for a character | Return to acts, speech and actual response |\n| A bridge exceeds information scope | Change its source, delay or remove it |\n\nSee [score continuity](/drama-skills/music-continuity-across-shots) and [ambience joins](/drama-skills/ai-video-ambient-sound-continuity) for mixing across cuts. First decide audience attention; a written plan is not an auditioned film."
         }
       }
     ],
@@ -11171,19 +11123,32 @@
       "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-write/SKILL.md"
     },
     "related": [
-      "/drama-skills/novel-to-short-drama",
-      "/drama-skills/script-to-storyboard",
-      "/drama-skills/image-to-video-prompts",
-      "/drama-skills"
+      "/drama-skills/music-continuity-across-shots",
+      "/drama-skills/ai-video-ambient-sound-continuity",
+      "/drama-skills/short-drama-inner-monologue"
     ],
     "topic": "ai-video",
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "场次声音职责与交接",
+          "en": "Scene sound purpose and handoff"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-write/references/scene-sound-dramaturgy.md"
+      },
+      {
+        "label": {
+          "zh": "摄影机区间与声音连续",
+          "en": "Camera intervals and audio continuity"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/camera-audio-continuity.md"
+      },
+      {
+        "label": {
+          "zh": "实际声音处理与验收",
+          "en": "Audio treatment and output review"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/sound-and-subtitles.md"
       }
     ]
   },
@@ -11195,7 +11160,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "短剧台词节奏怎么设计：对白、动作与反应一起排",
       "en": "How to Time Short-Drama Dialogue with Action and Reaction"
@@ -11231,8 +11196,8 @@
           "en": "Use Relative Beats When You Have No Measured Audio"
         },
         "body": {
-          "zh": "可先这样写：\n\n> 开头保留一拍：甲仍在完成___。\n> 触发后：乙开口说完整原句___，同时只进行可并行的___。\n> 话音落下后：甲先___，再回答___。\n> 结尾：保留甲／乙的___反应，落到___状态。\n\n相对节拍给表演与剪辑留出弹性。只有项目真的需要精确时间、且镜长已经接受时，才把阶段写成秒段；各段应覆盖完整时长，不能超出，也不能留一截让执行端自行填动作。",
-          "en": "Start with a template like this:\n\n> Hold one beat at the opening: A is still finishing ___.\n> After the trigger: B speaks the complete line ___ while performing only the parallel action ___.\n> After B finishes: A first ___, then answers ___.\n> At the end: hold on A’s/B’s ___ reaction, landing on the state ___.\n\nRelative beats leave flexibility for performance and editing. Convert the phases into timed seconds only when the project truly needs precise timing and the shot length is already accepted. Those phases must cover the entire duration without exceeding it or leaving an unused fragment for production to fill with invented action."
+          "zh": "没有实测音频时，先写相对链，下面是作者手写输入句式：\n\n> 开头甲仍在___；触发后乙说完整原句___，同时做可并行的___；话音落下后甲___，再回答___；最终停在___状态。\n\n需要时可加一两个保持锚点，其他过程仍用相对先后。只有制作确实需要按秒对齐且镜长已确认时，才写完整秒段：顺序阶段覆盖已接受时长，重叠关系明确，不超时也不把余量留给未定义动作。\n\n这些秒点是计划，不保证生成精确落在该处。拿到实际录音或素材后再核对。",
+          "en": "Without measured audio, start with a relative chain. This manual author sentence is a brief:\n\n> A begins by ___; after the cue, B says the complete line ___ while doing compatible action ___; after the last word, A ___ and answers ___; end at state ___.\n\nAdd one or two hold anchors if useful, retaining relative order elsewhere. Use full timed phases only when production needs precise alignment and duration is accepted. Sequential phases cover that duration; mark overlaps, avoid overrun and assign spare time rather than leave undefined action.\n\nThese times are plans, not guaranteed generation landing points. Compare actual recordings or footage afterward."
         }
       },
       {
@@ -11242,8 +11207,8 @@
           "en": "Original Example: A Blank Page at the Copy Shop"
         },
         "body": {
-          "zh": "实习生林琅要在截止前复印申请表，店员于莱发现原件第二页是空白。林琅坚持说导师已经签过。关键是让“空白页”逐步改变两人的行动，而非赶完三句对白。\n\n**原句**：\n\n> 林琅：老师签过了，你先复印。\n> 于莱：签名在哪一页？\n> 林琅：第二页。\n\n**节奏安排**：开头于莱不说话，先把第二页翻到正面并停住。林琅看到她停手后说第一句，边说边把零钱推过去；推零钱能与说话并行。于莱没有接钱，等第一句结束才把空白页转向林琅，问“签名在哪一页？”林琅先低头确认，再答“第二页”；回答后手指从零钱上收回。结尾留给于莱把两页对齐、暂不启动机器。\n\n若于莱在林琅第一句中途就问，同时又翻页、接钱、按机器，信息与动作会互相遮挡。简化到“转页—问—认出—停机”，节奏反而更有压力。",
-          "en": "Intern Lin Lang needs to copy an application before the deadline. Clerk Yu Lai discovers that page two of the original is blank. Lin Lang insists that the adviser already signed it. The goal is to let the blank page change both characters’ actions step by step, not to rush through three lines.\n\n**Original lines**:\n\n> Lin Lang: My adviser signed it. Just make the copy.\n> Yu Lai: Which page has the signature?\n> Lin Lang: Page two.\n\n**Timing**: At the opening, Yu Lai says nothing. She turns page two face up and stops. Once Lin Lang sees her stop, Lin speaks the first line while pushing some change across the counter; pushing the coins can run in parallel with the line. Yu Lai does not take the money. She waits for the line to end, turns the blank page toward Lin Lang, and asks, “Which page has the signature?” Lin Lang looks down to check before answering, “Page two.” After the answer, Lin’s fingers withdraw from the coins. The ending holds on Yu Lai aligning the two pages without starting the machine.\n\nIf Yu Lai asks midway through Lin Lang’s first line while also turning the page, taking the money, and pressing the machine controls, information and action obscure one another. Reducing the sequence to “turn the page, ask, recognize, do not start the machine” creates more pressure."
+          "zh": "原创前提：林琅拿着刚打印的申请表到复印店，以为导师签过第二页，但还没有检查这份打印件。店员于莱翻页发现空白；机器尚未启动。\n\n**供本例使用的原句**：\n\n> 林琅：老师签过了，你先复印。\n>\n\n> 于莱：签名在哪一页？\n>\n\n> 林琅：第二页——怎么是空白的？\n\n**节拍设计**：于莱先把第二页翻到正面，停手。林琅看到她停下，却尚未看清页面，边说第一句边推零钱；这两个动作可以并行。于莱没接钱，等第一句结束才把空页转向林琅并问。林琅低头看清后回答，后半句的疑问来自她刚获得的信息。她收回零钱，拿起原件准备向导师核对；于莱把两页对齐，机器仍未启动。\n\n结尾交付的是发现所持打印件没有签名、暂停复印与新的核对选择，不是已经取得有效申请表。三句可以有停顿，也可以按本书需要更快；不给未录过的台词假造秒数。\n\n若于莱一边抢话、一边翻页接钱启动机器，关键的“看清空白”容易被遮住。优先让转页、接收信息与回应可读，再安排表演强度。",
+          "en": "Original setup: Lin Lang brings a freshly printed application, believing the mentor signed page two, without checking this printout. Clerk Yu Lai discovers it is blank. The copier has not started.\n\n**Lines for this example:**\n\n> Lin: “The teacher signed it. Copy it first.”\n>\n\n> Yu: “Which page has the signature?”\n>\n\n> Lin: “The second—why is it blank?”\n\n**Beat plan:** Yu turns page two face-up and stops. Lin notices the pause without yet reading the page, says the first line and slides money forward; those acts can overlap. Yu does not take it. After the line, Yu turns the blank page to Lin and asks. Lin looks, then answers; the latter question reflects newly seen information. Lin withdraws the money and takes the original to check with the mentor. Yu aligns the pages; the machine still has not started.\n\nThe scene delivers discovery, paused copying and a new checking choice, not an acquired valid application. Use pauses or greater speed as the work needs; do not invent measured seconds for unrecorded dialogue.\n\nInterrupting while turning pages, taking money and starting the machine may mask the crucial recognition. Keep page reveal, reception and response legible before adjusting intensity."
         }
       },
       {
@@ -11310,10 +11275,24 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "完整对白与共同时间预算",
+          "en": "Complete speech and shared time budget"
         },
-        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/SKILL.md"
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/performance-action-timing.md"
+      },
+      {
+        "label": {
+          "zh": "起点、动作和摄影机落点",
+          "en": "Start, motion and camera landing"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
+      },
+      {
+        "label": {
+          "zh": "对白回应与反向条件",
+          "en": "Dialogue response and counterconditions"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-write/references/dialogue-craft.md"
       }
     ]
   },
@@ -32499,6 +32478,597 @@
       "/drama-skills/reference-image-roles",
       "/drama-skills/reroll-or-rewrite",
       "/drama-skills/storyboard-a-group-confrontation"
+    ]
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "music-continuity-across-shots",
+    "topic": "ai-video",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-28",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI视频配乐在剪辑点重启怎么办：跨镜头接续表",
+      "en": "How to Keep Music Continuous Across AI-Generated Video Shots"
+    },
+    "seo_title": {
+      "zh": "AI视频配乐怎么跨镜头接续",
+      "en": "AI Video Music Continuity Across Shots"
+    },
+    "description": {
+      "zh": "分别生成的镜头一拼接，配乐就重启或硬切？用逐镜状态表把观众专属配乐放回时间线，标清延续、进入、退出和对白让位，再回听实际成片接点。",
+      "en": "Does music restart or hard-cut when separately generated shots are joined? Map its entry, exit, continuation, or dialogue ducking, then replay the joined cut."
+    },
+    "answer": {
+      "zh": "镜头一拼接配乐就重启，先分清观众专属配乐与画内声音。通常把同一条配乐安排在整段剪辑时间线上，逐镜写进入、延续、让对白和退出；素材里已混入的音乐则先查能否独立处理。提示词中的方案不等于已经混好，最后要回听成片接点。",
+      "en": "If music restarts at each cut, distinguish audience-only score from sound in the scene. Usually place one score on the sequence timeline and map entry, continuation, dialogue space and exit. First check whether music baked into footage can be treated separately. A prompt is a plan; listen to the actual joined output."
+    },
+    "sections": [
+      {
+        "id": "separate",
+        "heading": {
+          "zh": "先分清配乐与画内声源",
+          "en": "Separate score from scene sound"
+        },
+        "body": {
+          "zh": "观众听见、人物听不见的衬乐是配乐层。收音机、手机铃声、现场演奏等属于画内或画外的场景声源，要随地点、距离和剧情动作变化。\n\nDrama Skills 默认把配乐实现留给时间线，避免每个生成文件各自起奏。逐镜仍应写配乐意图。如果项目已明确接受单镜自带音乐或整段统一交付，沿用该方案，不把“单镜有音乐”一律判错。音乐多少、强弱和是否使用，按本场体验选择。",
+          "en": "Audience-only underscore belongs to the score layer. A radio, ringtone or live performance belongs to the scene and follows location, distance and story action.\n\nDrama Skills normally leaves score realization to the sequence timeline, so individual files do not each begin a new piece. Per-shot musical intent still matters. Honor an accepted baked-music or single-container approach when that is the project’s choice. Density, strength and whether to use music follow the scene’s experience."
+        }
+      },
+      {
+        "id": "map",
+        "heading": {
+          "zh": "把音乐写成跨镜接续",
+          "en": "Map the music across cuts"
+        },
+        "body": {
+          "zh": "先看相邻镜之间需要连续、主动断开，还是让一句话成为焦点。下面是作者手写表，不是已经执行的混音报告。\n\n| 状态 | 要写清什么 | 回听什么 |\n|---|---|---|\n| 进入 | 从哪个事件起，同一条音乐的哪个位置 | 是否抢过必要台词或提前泄露情绪 |\n| 延续 | 与前镜使用同一时间线位置 | 切点有没有重新起奏或突然换曲 |\n| 让位 | 哪段对白需要更清楚，何时恢复 | 台词、环境与音乐的相对关系 |\n| 退出 | 由何事件结束，怎样收尾 | 尾音是否被无意截断 |\n\n硬切音乐也可以有叙事用途，例如突然失去安全感；说明意图，再用实际听感判断。不要为了“平滑”消除作者需要的断裂。",
+          "en": "Decide whether neighboring shots need continuity, an intentional stop or space for a line. This manual author table is a plan, not an executed mix report.\n\n| State | Specify | Listen for |\n|---|---|---|\n| Enter | Trigger and position in the chosen track | A line masked or emotion revealed too early |\n| Continue | Same timeline position across the cut | Restart, sudden new music or level jump |\n| Yield | Dialogue span and recovery point | Relative voice, room and music levels |\n| Exit | Trigger and ending shape | An accidentally chopped tail |\n\nA hard music cut can serve the story, such as a sudden loss of safety. State that intent and judge the actual listening result. Smoothing should not erase the desired break."
+        }
+      },
+      {
+        "id": "example",
+        "heading": {
+          "zh": "原创例子：天文馆的三镜试映",
+          "en": "Original example: a three-shot dome test"
+        },
+        "body": {
+          "zh": "以下是剪辑设计示例，尚未生成或试听。技术员在开门前调星图；投影机风扇是已设定的场景声源，配乐 M1 是这个示例项目选用的观众专属音乐。\n\n| 镜头 | 画面与声音 | 配乐位置 |\n|---|---|---|\n| A01 | 暗圆顶亮起第一组星点；风扇持续 | 星点亮起时进入 M1 |\n| A02 | 调焦环近景；技术员说“木星边缘还在发虚” | 延续 M1，在这句台词期间让位 |\n| A03 | 星图稳定；回圆顶全景 | 延续后退出；风扇仍在空间中 |\n\n配乐让位不是把所有声音关闭。技术员必须能被听清，风扇是否保留、退远多少，服从场景已确定的声音方案。\n\n若 A02 自带音乐，先检查是否有可独立处理的音轨。能处理时，在该音乐层上调整，再接序列中的 M1；若音乐、台词和风扇已混成一个文件，先评估实际可用性。无法保住完整台词时回制作阶段补素材，不能假设能无损剥离。",
+          "en": "This is an edit design, not generated or auditioned footage. A technician adjusts the star map before opening. The projector fan is an established scene sound; M1 is the example project’s audience-only score.\n\n| Shot | Content | Score |\n|---|---|---|\n| A01 | First stars appear on a dark dome; fan continues | Enter M1 with the stars |\n| A02 | Focus-ring detail; “Jupiter’s edge is still blurry” | Continue M1 and yield for this line |\n| A03 | Stable stars, wide dome view | Continue then exit; fan remains |\n\nYielding score does not mute all sound. Keep the line intelligible; preserve or reduce the fan according to the accepted scene plan.\n\nIf A02 contains music, inspect whether that layer can be treated separately. If so, adjust it and join timeline M1. If music, speech and fan share one baked file, assess the actual usable material. Request replacement footage when the complete line cannot be preserved; do not assume lossless separation."
+        }
+      },
+      {
+        "id": "execute",
+        "heading": {
+          "zh": "从方案到实际混音",
+          "en": "From plan to an actual mix"
+        },
+        "body": {
+          "zh": "这个固定版本的内置 render 保留原声，`声音` 行记录方案，不执行配乐进出、交叉淡入或对白压低。需要这些处理时，用外部剪辑或混音工具完成，记录所用素材、音乐位置、处理区间和实际输出，再回到成片验收。\n\n连听 A01→A02、A02→A03，检查音乐位置、台词完整性与风扇空间是否相接。整片响度合适也不等于每句都清楚。重出某个视频后，再查该处接点；不把旧试听结果沿用到新文件。\n\n环境声的变化另见[同场底声接续](/drama-skills/ai-video-ambient-sound-continuity)；场景为什么需要音乐或留白，见[声音设计主篇](/drama-skills/scene-sound-and-silence)。",
+          "en": "In this pinned version, built-in render retains source audio. Its sound line records intent; it does not execute score entry/exit, crossfades or dialogue ducking. Use an external edit or mix tool when needed, record source material, track position, treatment spans and actual output, then review the finished sequence.\n\nListen across A01→A02 and A02→A03 for track position, complete speech and fan space. An acceptable overall level does not prove each line is clear. Recheck a join when a shot is regenerated rather than carrying an old listening result onto a new file.\n\nSee [room-tone continuity](/drama-skills/ai-video-ambient-sound-continuity) for ambience, and [scene sound design](/drama-skills/scene-sound-and-silence) for why music or silence belongs here."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "每个镜头都不能带音乐吗？",
+          "en": "Must every shot be music-free?"
+        },
+        "a": {
+          "zh": "不是。时间线实现是默认方案；已接受的单镜音乐或统一交付可以保留。先区分场景声源与配乐，再检查实际接缝。",
+          "en": "No. Timeline score is a default; accepted baked music or unified delivery can remain. Separate scene sound from score and check actual joins."
+        }
+      }
+    ],
+    "skill": {
+      "name": "short-drama-edit",
+      "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/SKILL.md",
+      "text": {
+        "zh": "用 $short-drama-edit 检查已存在的素材、剧本和剪辑单。逐镜区分场景声源与配乐，列进入、延续、让位和退出；标明需要外部混音的区间，实际处理后回听成片。没有媒体或输出时只交方案，不写试听通过。",
+        "en": "Use $short-drama-edit with existing footage, script and edit list. Separate scene sound and score; map entry, continuation, dialogue space and exit. Identify external mixing work and review the actual output afterward. Without media or output, deliver a plan rather than an audition pass."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "配乐与环境声的跨镜边界",
+          "en": "Cross-shot music and ambience"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/camera-audio-continuity.md"
+      },
+      {
+        "label": {
+          "zh": "声音接缝、字幕与实际混音",
+          "en": "Audio seams, captions and enacted mixing"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/sound-and-subtitles.md"
+      },
+      {
+        "label": {
+          "zh": "按信息和表演选入出点",
+          "en": "Choose cuts by information and performance"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/cut-craft.md"
+      }
+    ],
+    "related": [
+      "/drama-skills/scene-sound-and-silence",
+      "/drama-skills/ai-video-ambient-sound-continuity",
+      "/drama-skills/ai-short-drama-edit-list-template"
+    ]
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "ai-video-ambient-sound-continuity",
+    "topic": "ai-video",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-28",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI视频换镜后环境声忽变怎么办：同场底声检查表",
+      "en": "AI Video Room Tone Jumps Between Shots: A Checklist"
+    },
+    "seo_title": {
+      "zh": "AI视频环境底声接续检查表",
+      "en": "AI Video Room-Tone Continuity Guide"
+    },
+    "description": {
+      "zh": "同一场景的AI镜头拼接后，风扇、雨声或远处人声忽然改变？逐镜记录地点/视角与底声状态，查明变化原因，再回听实际剪点。",
+      "en": "Does ambience jump between AI-generated shots of the same space? Track location/view and recurring sound, explain changes, then replay the actual cut."
+    },
+    "answer": {
+      "zh": "同场景换镜后像换了房间，先比较地点、视角与持续底声。风扇、远雨等连续成分通常应接上；开门、换距离或作者安排的留白可以改变声音，但要有来处。把底声与一次性事件音效分开，按实际素材修接点，再回听成片。",
+      "en": "If a cut sounds like a different room, compare location, view and recurring ambience. Fan or distant rain usually continues; a door, changed distance or intended silence can alter it for a reason. Separate room tone from event effects, treat the actual join and listen to the finished cut."
+    },
+    "sections": [
+      {
+        "id": "layers",
+        "heading": {
+          "zh": "底声、事件音效与配乐分开",
+          "en": "Separate ambience, effects and score"
+        },
+        "body": {
+          "zh": "底声让观众感到空间仍然存在：持续通风声、远雨、街道背景。书落箱、门扣响是与动作对应的事件音效；观众专属配乐则属于另一层。\n\n同场延续是默认，不是声波必须一模一样。视角接近或远离声源、门开合、机器启动、主动留白都可能让声音改变；先对照剧本和声音方案，不把有意变化“修平”。没有故事职责的底声也无需逐项登记。",
+          "en": "Ambience keeps a space present: ventilation, distant rain or street background. A book landing or latch clicking is an event effect tied to action. Audience-only music is another layer.\n\nSame-scene continuity is a default, not identical waveforms. Distance, doors, a machine starting or intended silence can change sound. Check script and sound intent before smoothing a deliberate change. Background with no story role need not become an exhaustive inventory."
+        }
+      },
+      {
+        "id": "map",
+        "heading": {
+          "zh": "按地点与变化原因检查",
+          "en": "Check location and reason for change"
+        },
+        "body": {
+          "zh": "下面是手写比较表，用实际接镜填写：\n\n| 镜头 | 持续成分 | 变化原因 |\n|---|---|---|\n| 前镜 | 主要底声及远近感 | 当前门窗、声源与人物位置 |\n| 后镜 | 延续、进入或退出什么 | 同场换景别，还是地点/距离改变 |\n| 接点 | 第一处听感异常 | 是有意声音变化，还是素材接缝 |\n\n不要只听单个文件。相邻素材各自合理，接在一起仍可能底噪忽高忽低、混响突变。先标出时间和听见的变化，再决定修哪一层；“不自然”不足以指导补素材。",
+          "en": "Fill this manual comparison from the joined material:\n\n| Shot | Sound | Reason |\n|---|---|---|\n| Before | Main ambience and sense of distance | Doors, sources and positions |\n| After | What continues, enters or leaves | New framing, place or distance |\n| Join | First audible problem | Intended change or a material seam |\n\nDo not review only individual files. Each can sound plausible while the join jumps in noise or reverberation. Mark the time and audible change before choosing a layer to repair; “unnatural” is too vague for replacement work."
+        }
+      },
+      {
+        "id": "example",
+        "heading": {
+          "zh": "原创例子：图书馆回收口",
+          "en": "Original example: a library return slot"
+        },
+        "body": {
+          "zh": "以下为声音设计例子，未生成或试听。阅读室通风设备持续运转，窗外有远雨；走廊已有正在交谈的人，关门时只隐约听见。\n\n| 镜头 | 画面 | 底声与事件 |\n|---|---|---|\n| A01 | 管理员拿书走到回收口 | 通风与远雨持续，走廊人声被门隔远 |\n| A02 | 书滑入箱内的近景 | 同一房间底声延续；落书声跟动作出现 |\n| A03 | 管理员开门，视角转向走廊 | 人声随门打开更清楚，阅读室底声退远 |\n\nA02 不因换了生成文件就换设备声；落书声也不循环成新的底噪。A03 的变化有开门与视角的依据，不必与 A01 同响度。\n\n如果 A01→A02 突然像换了大厅，先比较实际素材：是底声换了、混响变了，还是一段多带音乐？按已确认的声音方案修正。需要补底声时，从项目真实可用的声音素材选择，不发明广播或新人物来填空。",
+          "en": "This sound design has not been generated or auditioned. Ventilation runs in the reading room, rain is distant, and established corridor conversation is faint through the closed door.\n\n| Shot | Content | Sound |\n|---|---|---|\n| A01 | Librarian brings a book to the return slot | Fan and rain continue; door distances voices |\n| A02 | Book slides into the box | Same room ambience; landing sound follows action |\n| A03 | Door opens, view turns to corridor | Voices become clearer; reading-room sound recedes |\n\nA02 does not acquire a new machine sound because it is a different file. The book impact does not loop into new room tone. A03 has a door and view change, so it need not match A01’s level.\n\nIf A01→A02 suddenly sounds like a hall, inspect the actual clips: changed ambience, reverberation or added music? Repair according to the accepted plan. Choose additional ambience from available project sounds rather than inventing a broadcast or new person."
+        }
+      },
+      {
+        "id": "repair",
+        "heading": {
+          "zh": "修接点，再回听整段",
+          "en": "Treat the join, then listen to the sequence"
+        },
+        "body": {
+          "zh": "可比较连续环境底、交叉淡入或保留声音另配画面的方案，按本场需要选择。已经与对白混在一起的底噪不能假定可独立替换；必要信息无法保住时，应补素材。\n\n本版本内置 render 保留原声，不因剪辑单写了“环境声延续”就自动做交叉淡入或静音。外部处理完成后记录区间、所用文件和实际输出，回听接点两侧与整段，确认台词和有意义的静默都保住。整片响度统一不能替代这个检查。\n\n主篇说明[声音与留白的剧情职责](/drama-skills/scene-sound-and-silence)；配乐突然起奏另见[跨镜配乐接续](/drama-skills/music-continuity-across-shots)。",
+          "en": "Compare a continuous ambience bed, crossfade or retained audio over a different image according to scene needs. Noise mixed with speech is not automatically separable; request material when necessary information cannot be preserved.\n\nThis version’s render retains source audio. Writing “ambience continues” does not execute a crossfade or mute. After external treatment, record spans, files and actual output. Listen across both sides and the sequence, preserving speech and meaningful silence. Overall level normalization does not replace this review.\n\nThe main guide covers [sound and silence as story choices](/drama-skills/scene-sound-and-silence). See [score continuity](/drama-skills/music-continuity-across-shots) for music restarts."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "同场景的底声必须完全相同吗？",
+          "en": "Must same-scene ambience be identical?"
+        },
+        "a": {
+          "zh": "不必。声源距离、门窗、视角或主动留白可以改变声音。检查变化是否有依据、是否保住剧情信息，别机械拉成同一响度。",
+          "en": "No. Distance, doors, view or intended silence can change sound. Check the reason and story information rather than forcing equal levels."
+        }
+      }
+    ],
+    "skill": {
+      "name": "short-drama-edit",
+      "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/SKILL.md",
+      "text": {
+        "zh": "用 $short-drama-edit 回听已有相邻素材，记录持续底声、地点/视角、变化事件和第一处异常。区分底声、事件音效与配乐，比较修接点或补素材；需要外部处理时记录实际输出，再回听成片。",
+        "en": "Use $short-drama-edit to audition existing adjacent clips. Record recurring ambience, location/view, triggering changes and first audible problem. Separate ambience, event effects and score. Compare seam treatment and replacement footage, recording actual external output before reviewing the sequence."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "配乐与环境声的跨镜边界",
+          "en": "Cross-shot music and ambience"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/camera-audio-continuity.md"
+      },
+      {
+        "label": {
+          "zh": "声音接缝、字幕与实际混音",
+          "en": "Audio seams, captions and enacted mixing"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/sound-and-subtitles.md"
+      },
+      {
+        "label": {
+          "zh": "按信息和表演选入出点",
+          "en": "Choose cuts by information and performance"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/cut-craft.md"
+      }
+    ],
+    "related": [
+      "/drama-skills/scene-sound-and-silence",
+      "/drama-skills/music-continuity-across-shots",
+      "/drama-skills/ai-short-drama-edit-list-template"
+    ]
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "add-and-time-short-drama-subtitles",
+    "topic": "ai-video",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "短剧字幕怎么加：台词、时间与画面避让",
+      "en": "Short-Drama Subtitles: Text, Timing and Placement"
+    },
+    "seo_title": {
+      "zh": "短剧字幕怎么加：台词、时间与画面避让",
+      "en": "Short-Drama Subtitles: Text, Timing and Placement"
+    },
+    "description": {
+      "zh": "字幕错字、慢半拍或挡住证据？按剧本确认文字，区分素材时间与剪辑时间，重测发声并检查成片阅读和画面遮挡。",
+      "en": "Fix wrong, late or obstructive captions: verify script text, locate speech, convert clip timing and review readability in the finished cut."
+    },
+    "answer": {
+      "zh": "短剧字幕先按剧本确认文字，再从实际声音定位，最后对齐剪辑后的时间和画面。转写帮助找位置，不自动改剧本；重出素材或调整入点后要重新对齐。烧录成功不等于可读，还要检查折行、遮挡与逐句完整性。",
+      "en": "Start subtitles with approved script text, locate the actual speech, then align it with the edited time and frame. Transcription helps locate lines; it does not rewrite the script. Regeneration or new cut points require realignment. Successful burning is not proof of readable, complete captions."
+    },
+    "sections": [
+      {
+        "id": "text",
+        "heading": {
+          "zh": "先确认文字来自哪里",
+          "en": "Establish the text source"
+        },
+        "body": {
+          "zh": "Drama Skills 的字幕文字以《剧本.md》为准。转写可辅助定位，但同音字、名字和低声台词要回听核对；不能悄悄把识别结果当作新版本台词。\n\n若实际录音说错或漏字，先判断要重出素材，还是由作者修改剧本并同步。字幕写正确却声音仍错，观众会接收到两套信息。允许有意的声画差异时，应由创作者明确设计。\n\n[AI画面文字乱码](/drama-skills/text-in-ai-frames)解决生成画面里的字；本篇处理后期字幕的文字、时间与阅读。",
+          "en": "Drama Skills uses the screenplay as the caption text source. Transcription can locate speech, but replay names, homophones and quiet lines. Do not silently treat recognition output as revised dialogue.\n\nWhen audio says a wrong word or omits one, choose replacement media or an author-approved script revision with synchronization. Correct captions over wrong speech present two versions. A deliberate discrepancy needs an explicit creative design.\n\n[Generated text errors](/drama-skills/text-in-ai-frames) concern lettering inside generated images. This guide concerns captions added during editing."
+        }
+      },
+      {
+        "id": "time",
+        "heading": {
+          "zh": "分清素材、剪辑段与成片时间",
+          "en": "Separate source, cut and sequence time"
+        },
+        "body": {
+          "zh": "先记发声在源文件中的区间，再减去本段入点。字幕相对本 CUT 入点；拼到成片后，还要加上前面实际渲染段落的时长。\n\n假设回听某素材得到：入点 3.00 秒，完整台词从 3.40 到 6.60 秒，出点 7.80 秒。下表只是时间换算示例，不是实测报告。\n\n| 项目 | 时间 | 含义 |\n|---|---|---|\n| 源素材 | 3.40—6.60 秒 | 这句话在原文件里的位置 |\n| 当前段 | 0.40—3.60 秒 | 减去入点 3.00 秒后的字幕位置 |\n| 成片预计 | 2.40—5.60 秒 | 假设前面实际使用段为 2.00 秒 |\n\n最终累计用渲染后各段的实际时长，避免帧边界取整造成偏移。重出视频后，哪怕台词没改，发声位置也可能变；重新回听相关句子。",
+          "en": "Locate speech in the source file, then subtract the cut’s in-point. Caption time is relative to this CUT. For the sequence, add preceding rendered durations.\n\nSuppose the in-point is 3.00s, a complete line occupies 3.40–6.60s, and the out-point is 7.80s. This illustrates conversion, not an actual measurement report.\n\n| Space | Time | Meaning |\n|---|---|---|\n| Source | 3.40–6.60s | Speech in the original file |\n| Cut | 0.40–3.60s | After subtracting the 3.00s in-point |\n| Sequence | 2.40–5.60s | If preceding used material actually lasts 2.00s |\n\nUse final rendered segment durations for accumulation to avoid frame-rounding drift. A regenerated clip can change speech position even with unchanged words; replay affected lines."
+        }
+      },
+      {
+        "id": "example",
+        "heading": {
+          "zh": "原创例子：字幕别挡住交接",
+          "en": "Original example: leave the handoff visible"
+        },
+        "body": {
+          "zh": "示例剧本中，阿岚把蓝色钥匙圈放进邻居掌心，说：“这把开侧门，关门后放回蓝盒。”邻居收起钥匙并点头。钥匙交接和蓝盒都是已经建立的剧情信息。\n\n坏字幕把整句一次塞在画面中央，既挡住交接又挤掉蓝盒。可先从实际发声和停顿定位，分成先后可读的字幕，再检查人物手、盒子和平台界面附近是否有空间。不要为了排版把“侧门”改成“正门”，也不凭空加“千万别告诉别人”。\n\n若字放到下方仍遮住手，比较上移、调整画面或用其他已批准镜头的方案。该版本内置字幕样式统一，不支持 CUT 内逐镜位置指令；复杂避让要在外部字幕编辑器或字幕层完成，检查实际输出。",
+          "en": "In the sample script, Alan places a blue key ring in a neighbor’s palm: “This opens the side door. Put it back in the blue box after closing.” The neighbor pockets it and nods. The handoff and box are established story information.\n\nA single central caption covers both hand and box. Locate real speech and pauses, display readable successive captions, then check hands, box and interface space. Do not change “side door” to “front door” for layout or invent “tell nobody.”\n\nIf lower placement still masks the hand, compare moving text, adjusting framing or using another approved shot. This version’s built-in captions use a uniform style without per-CUT placement instructions. Use an external editor or subtitle layer for complex avoidance and inspect the output."
+        }
+      },
+      {
+        "id": "review",
+        "heading": {
+          "zh": "按成片核对，不只看字幕文件",
+          "en": "Review the finished picture and sound"
+        },
+        "body": {
+          "zh": "逐句回听文字与声音，抽帧查字号、先后显示、关键字被拆开与画面遮挡，再正常速度完整播放。长句拆分方式和字幕样式是项目工具选择，不是所有短剧的统一规范。\n\n把错误分开处理：文字错回剧本与录音核对；时间错重测发声并检查入点；挡画面改排版或镜头；漏一句检查是否被剪掉。重剪或重出后，不沿用旧对齐结论。\n\n字幕可按作品需要选择硬字幕、独立字幕或无字幕；用户已接受的交付要求仍要落实。剪辑单填写见[素材与剪点模板](/drama-skills/ai-short-drama-edit-list-template)。",
+          "en": "Replay each line against text, inspect frames for size, order, split key words and occlusion, then watch at normal speed. Long-line splitting and caption styling are project/tool choices, not universal short-drama rules.\n\nTreat errors by cause: check words against script and audio; remeasure timing and in-points; change layout or picture for occlusion; inspect a cut for a missing line. Do not carry old alignment findings onto new edits or regenerated footage.\n\nHard captions, separate subtitles or none can follow the work’s needs while honoring agreed delivery requirements. See the [edit-list template](/drama-skills/ai-short-drama-edit-list-template)."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "转写正确就能直接当字幕吗？",
+          "en": "Can a correct transcript serve directly as captions?"
+        },
+        "a": {
+          "zh": "仍需按剧本核对文字、定位实际发声，并换算剪辑时间。识别正确不代表字幕时间、阅读速度和遮挡都合适。",
+          "en": "Still verify script text, actual speech and edited timing. Accurate recognition does not establish readable timing or unobstructed placement."
+        }
+      }
+    ],
+    "skill": {
+      "name": "short-drama-edit",
+      "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/SKILL.md",
+      "text": {
+        "zh": "用 $short-drama-edit 检查已存在素材与剧本字幕。逐句保留原文，定位发声，换算本CUT时间；重出和改入点后重新对齐。复杂避让交外部字幕处理，输出后回听并抽帧检查，不把转写正确当交付完成。",
+        "en": "Use $short-drama-edit with existing footage and screenplay. Preserve line text, locate speech and convert to CUT-relative times; realign after regeneration or changed in-points. Handle complex placement externally and review actual output audio and frames."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "声音接缝、字幕与实际混音",
+          "en": "Audio seams, captions and enacted mixing"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/sound-and-subtitles.md"
+      },
+      {
+        "label": {
+          "zh": "按信息和表演选入出点",
+          "en": "Choose cuts by information and performance"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/cut-craft.md"
+      }
+    ],
+    "related": [
+      "/drama-skills/text-in-ai-frames",
+      "/drama-skills/ai-video-lip-sync",
+      "/drama-skills/ai-short-drama-edit-list-template"
+    ]
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "choose-ai-video-in-and-out-points",
+    "topic": "ai-video",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI视频开头结尾怎么剪：保留动作完成与反应",
+      "en": "Where to Trim an AI Video: Actions and Reactions"
+    },
+    "seo_title": {
+      "zh": "AI视频开头结尾怎么剪：保留动作完成与反应",
+      "en": "Where to Trim an AI Video: Actions and Reactions"
+    },
+    "description": {
+      "zh": "素材开头等太久、结尾漂移或重复动作？先标可用区间，再按台词、动作结果和反应选入出点，避免剪掉剧情信息。",
+      "en": "Trim waiting, drift and repeated motion by marking usable spans, then choosing cuts that preserve complete speech, action results and reactions."
+    },
+    "answer": {
+      "zh": "先看完整素材、标可用区间，再按故事信息选入出点。起始静止可能是无用等待，也可能是必要反应；结尾应让观众读到动作结果，并避开无意回弹或漂移。缺失的关键动作要补素材，不能靠剪短假装完成。",
+      "en": "Watch the complete source and mark usable spans before choosing story cuts. Initial stillness may be dead waiting or a needed reaction. End after the action result reads, before unwanted rebound or drift. Missing essential action needs material, not a shorter cut that pretends it happened."
+    },
+    "sections": [
+      {
+        "id": "usable",
+        "heading": {
+          "zh": "可用区间与选中的剪辑段分开",
+          "en": "Separate usable spans from chosen cuts"
+        },
+        "body": {
+          "zh": "第一次完整播放，记录缺陷在哪里：身份或道具变化、动作回弹、无意重复、画面发白、台词错位。静止、暗部、停顿不自动算废片，先看它们是否符合本镜职责。\n\n可用区间是观察，入出点是选择。一个文件前八秒都可用，也可能只取其中四秒；一句话需要呼吸和回应时，也可以保留比动作更长的尾部。\n\n生成不符合意图时，是否重抽、改提示词或补拍见[生成修订分流](/drama-skills/reroll-or-rewrite)。本篇讨论已经有素材后，具体保留哪里。",
+          "en": "On the first full playback, locate identity/prop changes, rebound, accidental repetition, bleaching and speech errors. Stillness, darkness and pauses are not automatically unusable; compare their shot purpose.\n\nA usable span is an observation; in/out points are a choice. Eight usable seconds may yield a four-second cut. A line needing breath and response may retain a longer tail.\n\nSee [generation revision choices](/drama-skills/reroll-or-rewrite) for rerolling, rewriting or pickups. This guide chooses the retained interval once material exists."
+        }
+      },
+      {
+        "id": "example",
+        "heading": {
+          "zh": "原创剪点例子：接过再松手",
+          "en": "Original cut example: receive, then release"
+        },
+        "body": {
+          "zh": "下面是假设素材供作者比较的剪点设计，不是实际生成结果。分镜要求：小乔把修好的木偶交给阿梅，阿梅接稳后小乔松手，阿梅点头。分镜没有台词。\n\n| 素材段 | 假设可见内容 | 取舍 |\n|---|---|---|\n| 0.00—0.80 秒 | 尚未开始交接 | 看本场是否需要等待，不自动保留 |\n| 0.80—4.00 秒 | 小乔递出，阿梅接稳，小乔松手 | 保留完整因果 |\n| 4.00—5.20 秒 | 阿梅看木偶并点头 | 留出观众读到接收结果的时间 |\n| 5.20—6.40 秒 | 持物稳定 | 只保留需要的余味 |\n| 6.40 秒后 | 木偶漂移，交接动作重复 | 不用这一缺陷段 |\n\n可比较入点 0.60、出点 5.40 秒的方案：动作前有一点准备，接稳和点头完整。它是示例候选，不是统一秒数。若从 3.50 秒开始，观众可能只见手已松开；若 3.80 秒结束，则接收尚未读清。\n\n下一镜阿梅应继续持木偶。删掉漂移并没有自动证明接镜连续，还要把下一镜起点并排核对。",
+          "en": "This hypothetical material supports a cut-design comparison, not an actual generated result. The storyboard requires Xiao Qiao to hand repaired puppet to Amei, release after Amei supports it, then Amei nods. There is no dialogue.\n\n| Span | Content | Choice |\n|---|---|---|\n| 0.00–0.80s | Transfer has not started | Keep waiting only if the scene needs it |\n| 0.80–4.00s | Offer, secure grip, release | Preserve the causal chain |\n| 4.00–5.20s | Amei looks and nods | Let the receipt register |\n| 5.20–6.40s | Stable hold | Retain the needed aftereffect |\n| After 6.40s | Puppet drifts; handoff repeats | Exclude this defect span |\n\nCompare an in-point of 0.60s and out-point of 5.40s: brief preparation plus complete receipt and nod. These are candidate values, not universal seconds. Starting at 3.50s may show only a released hand; ending at 3.80s may lose clear receipt.\n\nAmei should still hold the puppet in the next shot. Removing drift does not prove continuity; compare the next accepted start."
+        }
+      },
+      {
+        "id": "speech",
+        "heading": {
+          "zh": "有台词时先保完整发声",
+          "en": "Protect complete speech first"
+        },
+        "body": {
+          "zh": "先定位属于本句的实际发声，不被前后杂音拖长。留多少开口准备、呼吸和句后反应，按本场表演决定；skill 的大约留量是工作默认，不是全片配额。\n\n一句话中可以切画面，但音轨要连续，说话人和叙事关系清楚。该版本内置 render 同步裁声音与画面；保留完整声音另配画面时，需要外部剪辑处理并记录区间。不要为方便剪镜把原台词擅自拆改。\n\n调整入点后重新核对字幕相对时间，具体见[短剧字幕对齐](/drama-skills/add-and-time-short-drama-subtitles)。",
+          "en": "Locate the actual speech of this line rather than extending it for unrelated noise. Choose lead-in, breath and reaction by performance. The skill’s approximate padding is a working default, not a whole-film quota.\n\nPicture may cut during a line if audio remains continuous and speaker/story relations stay clear. This version’s render trims sound and image together; retained audio over different picture requires external editing and recorded spans. Do not rewrite the line just to simplify cutting.\n\nRecheck caption-relative times after changing the in-point; see [subtitle alignment](/drama-skills/add-and-time-short-drama-subtitles)."
+        }
+      },
+      {
+        "id": "missing",
+        "heading": {
+          "zh": "缺关键过程时，剪辑能做什么",
+          "en": "When necessary material is missing"
+        },
+        "body": {
+          "zh": "可用段已经完整承载信息，可以缩短；其他已拍镜头能交代缺口，可以比较换镜或改镜序。必需的接触、选择、台词或反应没有出现，则列缺口补素材。\n\n叠化不能补出从未发生的交接，冻结最后一帧也不能自动成为接稳。必要过程可以换实现方式，但要回到分镜确认，而不是剪辑偷偷改事实。\n\n整段正常速度回看，再检查相邻镜头、声音和字幕。目标时长若只是参考，报告实际差异；若作者明确要求固定交付时长，就继续调整或说明缺什么，不自行降为参考。",
+          "en": "Shorten when the usable span fully carries the information. Compare another existing shot or a reordered sequence when it can supply the gap. If necessary contact, choice, speech or reaction never appears, list the gap and request material.\n\nA dissolve cannot create a missing handoff, and a frozen frame does not establish secure receipt. An alternative realization needs storyboard approval rather than a silent change of story facts.\n\nWatch the sequence at normal speed, then check joins, sound and captions. Report differences from a reference duration; honor a fixed delivery duration or identify missing material rather than downgrading it to a reference."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "必须把开头静止和句后停顿都剪掉吗？",
+          "en": "Must all initial stillness and trailing pauses be cut?"
+        },
+        "a": {
+          "zh": "不必。等待、反应和留白可能正是本镜的作用。只有没有新作用的等待或无意重复才考虑删，按正常速度的实际观看判断。",
+          "en": "No. Waiting, response and silence may be the shot’s purpose. Consider removing waiting or accidental repetition only when it adds no intended function, judged at normal playback speed."
+        }
+      }
+    ],
+    "skill": {
+      "name": "short-drama-edit",
+      "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/SKILL.md",
+      "text": {
+        "zh": "用 $short-drama-edit 看完整现有素材，分别记录可用区间和选中的入出点。保留本镜信息、完整发声与结果，核对下一镜起点；列需要补拍的缺口，重剪后复查字幕和声音。",
+        "en": "Use $short-drama-edit to watch existing sources fully and record usable spans separately from chosen cuts. Preserve shot information, complete speech and outcomes, compare the next start, list pickups and recheck captions/audio after trimming."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "生成素材的可用区间",
+          "en": "Usable generated-footage intervals"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/generated-footage.md"
+      },
+      {
+        "label": {
+          "zh": "按信息和表演选入出点",
+          "en": "Choose cuts by information and performance"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/cut-craft.md"
+      },
+      {
+        "label": {
+          "zh": "声音接缝、字幕与实际混音",
+          "en": "Audio seams, captions and enacted mixing"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/sound-and-subtitles.md"
+      }
+    ],
+    "related": [
+      "/drama-skills/reroll-or-rewrite",
+      "/drama-skills/ai-short-drama-edit-list-template",
+      "/drama-skills/add-and-time-short-drama-subtitles"
+    ]
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "stop-unwanted-ai-video-camera-drift",
+    "topic": "ai-video",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI视频镜头乱动怎么办：固定机位与运镜区间",
+      "en": "AI Video Camera Drift: Lock or Time the Move"
+    },
+    "seo_title": {
+      "zh": "AI视频镜头乱动怎么办：固定机位与运镜区间",
+      "en": "AI Video Camera Drift: Lock or Time the Move"
+    },
+    "description": {
+      "zh": "本想固定，成片却推近或环绕？先查已定运镜与提示词冲突，再写机位、允许动作和保持区间，逐帧核对实际结果。",
+      "en": "Wanted a still camera but got a push or orbit? Check accepted motion, resolve prompt conflicts and specify framing, allowed action and hold intervals."
+    },
+    "answer": {
+      "zh": "先确认分镜本来要固定还是移动，再改视频提示词。本来固定，就写清构图、保持区间及画内允许动作；本来移动，就写触发、路径和落点。固定机位不等于人物冻结，写得明确也不保证生成正确，仍要检查实际镜头。",
+      "en": "First confirm whether the storyboard wants a static or moving camera. For static framing, state its interval and permitted action; for movement, state trigger, path and landing. A fixed camera does not freeze the actor, and precise wording still needs actual-output review."
+    },
+    "sections": [
+      {
+        "id": "diagnose",
+        "heading": {
+          "zh": "先查意图，别直接锁死",
+          "en": "Check intent before locking"
+        },
+        "body": {
+          "zh": "如果分镜已安排人物跟拍、揭示或关系变化，不要为了消除漂移自行改成固定。先判断成片是在执行已定运镜，还是多了不需要的运动。\n\n同一区间同时写“完全固定”和“缓慢环绕”有明确冲突；人物走动而机位不动却不一定矛盾，只要固定构图能承载动作与终点。没有写运镜也不等于自动固定：补选择时回分镜确认。\n\n运镜的叙事选择见[推拉摇移主篇](/drama-skills/motivated-camera-movement)；这里处理已选行为怎样落实进提示词。",
+          "en": "Do not replace accepted tracking, reveals or relationship moves with a lock just to eliminate drift. Determine whether the output follows the plan or adds unwanted motion.\n\n“Fully locked” and “slow orbit” conflict over the same interval. An actor moving under a static camera may be fine if framing carries action and endpoint. A blank camera field is not automatically static; confirm a supplied choice with the storyboard.\n\nSee [motivated movement](/drama-skills/motivated-camera-movement) for the creative choice. This guide implements the selected behavior in a video prompt."
+        }
+      },
+      {
+        "id": "example",
+        "heading": {
+          "zh": "原创提示：机位不动，人物仍表演",
+          "en": "Original prompt: still camera, active performance"
+        },
+        "body": {
+          "zh": "示例分镜已确定：阿蕊坐窗边等待，听到门铃后看向画外门口，最终仍坐着。固定中近景、平视、桌边与窗框作为空间参照；窗帘原本轻摆。下面是手写提示，未生成结果。\n\n**含糊版**：“电影感固定镜头，轻轻漂浮环绕，人物听见门铃，整个画面保持静止。”机位同时固定和环绕，还把表演与窗帘一并冻住。\n\n**修订候选**：\n\n> 固定中近景，平视，桌边与窗框持续留在已定构图中；全镜保持此机位。阿蕊起初等待并自然呼吸，既定门铃响起后，她抬眼看向画外门口，最终仍坐在原位。画内保留她的呼吸、转头与窗帘轻摆；摄影机不跟随转头，结束构图沿用起点。\n\n这里把“机位保持”与“画内运动”分开。门铃是示例剧本已有声音，不为让她转头新增第二个人或另一次事件。真实参考帧若已承载外貌与室内细节，就不用重复写满装修。",
+          "en": "The sample storyboard fixes this plan: Arui sits by a window, hears a doorbell and looks toward an off-screen doorway, remaining seated. Eye-level medium close framing keeps table edge and window as spatial anchors; the curtain already moves gently. This manual prompt has not been generated.\n\n**Vague:** “Cinematic locked camera, gently floating orbit, she hears the bell, keep the entire picture still.” It demands both lock and orbit while freezing performance and curtain.\n\n**Revision candidate:**\n\n> Hold the accepted eye-level medium close framing throughout, keeping table edge and window in place. Arui waits and breathes naturally. At the established doorbell, she looks toward the off-screen doorway and remains seated. Her breathing, head turn and gentle curtain movement continue inside the frame. The camera does not follow her turn; end framing matches the start.\n\nSeparate camera hold from action within the image. The bell exists in this sample script; add no extra person or event to cause the turn. When a real reference already supplies looks and interior detail, do not restate all the decoration."
+        }
+      },
+      {
+        "id": "interval",
+        "heading": {
+          "zh": "需要移动时，把区间写清",
+          "en": "If movement is wanted, mark its interval"
+        },
+        "body": {
+          "zh": "镜头可以先固定、再移动、最后停住，前提是分镜已接受这些阶段。用“门铃响起后开始”“她停在门边时结束”等触发与地标，比只写“适当推进”清楚。\n\n如果制作需要秒段，使用已确认时长并说明顺序或重叠；只加一两个保持锚点时，不必把整镜变成秒表。相机与人物速度可以不同，写清谁跟谁、最终构图是什么，不为了速度一致改掉原设计。\n\n具体术语按目标模型已确认的写法，不把另一个模型上用过的词当通用保证。",
+          "en": "A shot can hold, move, then land if those phases are accepted upstream. Triggers and landmarks such as “after the bell” or “when she reaches the door” are clearer than “push suitably.”\n\nFor explicit timed phases, use the accepted duration and state order or overlap. One or two hold anchors need not turn the whole shot into a stopwatch. Actor and camera speeds may differ; state who follows whom and the final frame rather than revising the design to equalize speed.\n\nUse wording supported by the chosen target rather than treating another model’s term as a universal guarantee."
+        }
+      },
+      {
+        "id": "review",
+        "heading": {
+          "zh": "用实际画面确认问题在哪",
+          "en": "Find the issue in actual frames"
+        },
+        "body": {
+          "zh": "比较开头、变化处与结尾：桌边、窗框等空间参照是否整体改变位置，景别是否意外变紧，人物是否完成约定动作。身体转头、衣服变化或背景变形不一定都是运镜，先定位具体异常。\n\n| 异常 | 下一步 |\n|---|---|\n| 固定与移动同时出现 | 先消除同一区间冲突 |\n| 文本只写“固定”但构图含糊 | 补机位、保持区间与允许动作 |\n| 运动正确但错过关键反应 | 调触发或落点，必要时回分镜改构图 |\n| 机位稳定，人物或背景仍变形 | 分开处理身份、资产或动作问题 |\n| 提示已清楚，结果仍漂移 | 比较重出、可用片段或补素材，不假称已经修好 |\n\n这是一张诊断表，不是成功率测试。记录哪段出现什么变化，再按[重抽或修订分流](/drama-skills/reroll-or-rewrite)选择下一步。",
+          "en": "Compare start, change point and end: do table/window anchors shift together, does framing tighten unexpectedly, and does the actor perform the agreed action? A head turn, clothing change or warped background is not necessarily camera movement; locate the actual issue.\n\n| Issue | Next step |\n|---|---|\n| Lock and move coexist | Resolve their same-interval conflict |\n| “Fixed” leaves framing vague | Add viewpoint, interval and allowed action |\n| Correct move misses a reaction | Adjust trigger/landing; revise framing if needed |\n| Stable camera, warped actor or background | Treat identity, assets or action separately |\n| Clear wording still drifts | Compare replacement, usable spans or pickups |\n\nThis diagnostic table is not a success-rate test. Record the span and change, then use [reroll or revision choices](/drama-skills/reroll-or-rewrite)."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "固定镜头是不是要求人物完全不动？",
+          "en": "Does a fixed camera require a motionless actor?"
+        },
+        "a": {
+          "zh": "不是。固定的是摄影机机位与构图关系，人物表演和已确定的环境运动仍可发生。把允许动作与保持项分别写清。",
+          "en": "No. Camera position and framing remain fixed; performance and accepted environmental movement can continue. Specify permitted action separately from what stays fixed."
+        }
+      }
+    ],
+    "skill": {
+      "name": "short-drama-video-prompts",
+      "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/SKILL.md",
+      "text": {
+        "zh": "用 $short-drama-video-prompts 检查已接受分镜的摄影机行为。分清固定区间与移动区间，写机位、触发、路径、落点和画内允许动作；不改既定事实，实际生成后核对空间参照与表演。",
+        "en": "Use $short-drama-video-prompts with the accepted storyboard. Separate hold/move intervals and state framing, trigger, path, endpoint and permitted in-frame action. Preserve story facts and review spatial anchors and performance in actual output."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "固定与移动摄影机的区间",
+          "en": "Static and moving camera intervals"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/camera-audio-continuity.md"
+      },
+      {
+        "label": {
+          "zh": "起点、动作和摄影机落点",
+          "en": "Start, motion and camera landing"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
+      }
+    ],
+    "related": [
+      "/drama-skills/motivated-camera-movement",
+      "/drama-skills/reroll-or-rewrite",
+      "/drama-skills/choose-ai-video-in-and-out-points"
     ]
   }
 ]

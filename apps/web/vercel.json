@@ -17,26 +17,6 @@
       "permanent": true
     },
     {
-      "source": "/drama-skills/music-continuity-across-shots",
-      "destination": "https://zenstory.ai/drama-skills/scene-sound-and-silence",
-      "permanent": true
-    },
-    {
-      "source": "/zh/drama-skills/music-continuity-across-shots",
-      "destination": "https://zenstory.ai/zh/drama-skills/scene-sound-and-silence",
-      "permanent": true
-    },
-    {
-      "source": "/drama-skills/ai-video-ambient-sound-continuity",
-      "destination": "https://zenstory.ai/drama-skills/scene-sound-and-silence",
-      "permanent": true
-    },
-    {
-      "source": "/zh/drama-skills/ai-video-ambient-sound-continuity",
-      "destination": "https://zenstory.ai/zh/drama-skills/scene-sound-and-silence",
-      "permanent": true
-    },
-    {
       "source": "/oh-story/write-a-novel-epilogue",
       "destination": "https://zenstory.ai/oh-story/write-a-satisfying-novel-ending",
       "permanent": true
