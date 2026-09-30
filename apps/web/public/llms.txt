@@ -274,6 +274,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [AI Video Camera Drift: Lock or Time the Move](https://zenstory.ai/drama-skills/stop-unwanted-ai-video-camera-drift) — Wanted a still camera but got a push or orbit? Check accepted motion, resolve prompt conflicts and specify framing, allowed action and hold intervals.
 - [Fix Deformed Hands in AI Video](https://zenstory.ai/drama-skills/fix-deformed-hands-in-ai-video) — Locate hand defects in references, motion and object contact. Reduce competing fine actions while preserving required technique and story facts.
 - [Fix Slow Actions in AI Video](https://zenstory.ai/drama-skills/fix-slow-actions-in-ai-video) — Separate deliberate waiting, delayed starts and stretched motion. Plan beats within the accepted duration and select usable footage from actual results.
+- [How to Write Negative Prompts for AI Video](https://zenstory.ai/drama-skills/write-negative-prompts-for-ai-video) — Tie exclusions to the shot’s actual states, text, and sound requirements. Includes a before-and-after example and a reference-image check.
+- [How to Direct Multiple Characters in AI Video](https://zenstory.ai/drama-skills/direct-multiple-characters-in-ai-video) — Avoid identical reactions in group shots. Use character goals, knowledge timing, and framing. Includes an original rehearsal scene and attention worksheet.
 
 ### Interactive stories and games / 互动故事与游戏
 - [Interactive stories and games](https://zenstory.ai/guides/interactive-games) — Turn a novel into player actions, branching stories, and a playable game.
@@ -335,6 +337,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Keep AI Edit Revisions Local](https://zenstory.ai/video-recap/revise-one-part-of-ai-edit) — Locate feedback by shot, sentence and time range, and record what this revision keeps. Includes a change list to prevent a small edit becoming a remake.
 - [How to Dub an English Video into Chinese](https://zenstory.ai/video-recap/translate-an-english-video-into-chinese) — Verify the English transcript and sentence translations before dubbing into the original windows. Includes an original demo and current workflow limits.
 - [Fix Automatic Subtitle Errors in a Video Recap](https://zenstory.ai/video-recap/fix-automatic-subtitle-errors) — Correct names and negation against actual speech. Separate narration, dialogue and burned text, then choose the right subtitle source and clock.
+- [How to Make a Video with Original Audio and No Voiceover](https://zenstory.ai/video-recap/make-a-video-with-original-audio-and-no-voiceover) — Choose processed source audio, copying an adopted track, or pairing a new picture with a locked mix. Includes an operation request and listening checks.
 
 
 ## Workbench docs

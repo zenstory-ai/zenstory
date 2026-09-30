@@ -2068,7 +2068,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "图生视频提示词怎么写：参考帧减法与 8 类运动难题",
       "en": "Image-to-Video Prompts: Reference Subtraction + 8 Motion Problems"
@@ -2093,8 +2093,8 @@
           "en": "The Image-to-Video Prompt Formula: Start with an Information-Deletion Table"
         },
         "body": {
-          "zh": "图生视频的输入里已经有一张真实参考图。先逐项决定“由图片承担”还是“运动文字仍需承担”，避免把提示词写成第二份静态画面说明。\n\n| 参考帧信息 | 通常由图片承担 | 运动文字仍需保留的条件 | 示例 |\n|---|---|---|---|\n| 脸、发型、完整服装 | 是 | 某个局部参与动作或必须保持 | 右袖口被左手拉住，动作结束后仍卷到肘下 |\n| 场景装修、基础光线 | 是 | 环境物参与变化或限制路径 | 门向内开，人物只能从桌角与门之间侧身通过 |\n| 静态构图、人物站位 | 是 | 摄影机移动或人物换位会改变关系 | 人物从画面左侧走到门内，终点仍露出右侧空桌 |\n| 双手、持物、接触 | 否 | 直接决定动作是否可执行 | 左手扶杯碟，右手握壶柄，收腕后两手各自保持 |\n| 目光和注意对象 | 否 | 触发表演或终点需要 | 先看签名，再抬眼看递纸的人 |\n| 遮挡、画外进入路径 | 否 | 物体会消失后再出现 | 文件从柜门后移出，露出顺序要写清 |\n| 画面文字和固定标记 | 视项目要求 | 文字表面移动、被遮挡或必须保持时 | 标签始终贴在盒盖中央，盒盖转动时随表面移动 |\n\n删减测试：把一句静态描述删掉，再问“参考图能否唯一回答这件事，并且动作结果保持不变”。能回答就删；会导致左右手、接触对象、遮挡路径或终点出现多种解释，就留下最短的运动事实。",
-          "en": "An image-to-video request already includes a real reference image. Decide item by item whether the image can carry the information or the motion prompt must still carry it. This prevents the prompt from becoming a second static-image description.\n\n| Information in the reference frame | Usually carried by the image? | Keep it in the motion prompt when… | Example |\n|---|---|---|---|\n| Face, hairstyle, complete outfit | Yes | A local feature participates in the action or must remain fixed | The left hand grips the right cuff; the sleeve remains rolled below the elbow at the end |\n| Set decoration and baseline lighting | Yes | The environment changes or constrains the path | The door opens inward, so the character must turn sideways between the table corner and the door |\n| Static composition and starting positions | Yes | Camera motion or a character’s relocation changes the relationship | The character moves from frame left through the doorway; the empty table remains visible on the right at the end |\n| Hands, held objects, and contact | No | These directly determine whether the action is executable | The left hand supports the saucer; the right hand holds the pot handle; after pouring, each hand keeps its own object |\n| Gaze and object of attention | No | They trigger performance or define the end state | Look at the signature first, then raise the eyes toward the person offering the paper |\n| Occlusion and off-screen entry path | No | An object disappears and then reappears | The folder moves from behind the cabinet door; specify the order in which it becomes visible |\n| Visible text and fixed markings | Depends on the project | The text-bearing surface moves, becomes occluded, or must stay fixed | The label remains centered on the lid and turns with the lid’s surface |\n\nDeletion test: remove one static description, then ask, “Can the reference image answer this in only one way while preserving the action’s result?” If yes, delete it. If deletion makes the active hand, contact object, occlusion path, or endpoint ambiguous, retain the shortest motion fact that resolves the ambiguity."
+          "zh": "图生视频的输入里已经有一张真实参考图。先逐项决定“由图片承担”还是“运动文字仍需承担”，避免把提示词写成第二份静态画面说明。\n\n| 检查项 | 内容 |\n|---|---|\n| 脸、发型、完整服装 | 图片：是；运动条件：某个局部参与动作或必须保持；示例：右袖口被左手拉住，动作结束后仍卷到肘下 |\n| 场景装修、基础光线 | 图片：是；运动条件：环境物参与变化或限制路径；示例：门向内开，人物只能从桌角与门之间侧身通过 |\n| 静态构图、人物站位 | 图片：是；运动条件：摄影机移动或人物换位会改变关系；示例：人物从画面左侧走到门内，终点仍露出右侧空桌 |\n| 双手、持物、接触 | 图片：否；运动条件：直接决定动作是否可执行；示例：左手扶杯碟，右手握壶柄，收腕后两手各自保持 |\n| 目光和注意对象 | 图片：否；运动条件：触发表演或终点需要；示例：先看签名，再抬眼看递纸的人 |\n| 遮挡、画外进入路径 | 图片：否；运动条件：物体会消失后再出现；示例：文件从柜门后移出，露出顺序要写清 |\n| 画面文字和固定标记 | 图片：视项目要求；运动条件：文字表面移动、被遮挡或必须保持时；示例：标签始终贴在盒盖中央，盒盖转动时随表面移动 |\n\n删减测试：把一句静态描述删掉，再问“参考图能否唯一回答这件事，并且动作结果保持不变”。能回答就删；会导致左右手、接触对象、遮挡路径或终点出现多种解释，就留下最短的运动事实。",
+          "en": "An image-to-video request already includes a real reference image. Decide item by item whether the image can carry the information or the motion prompt must still carry it. This prevents the prompt from becoming a second static-image description.\n\n| Item | Details |\n|---|---|\n| Face, hairstyle, complete outfit | Image: Yes; Motion condition: A local feature participates in the action or must remain fixed; Example: The left hand grips the right cuff; the sleeve remains rolled below the elbow at the end |\n| Set decoration and baseline lighting | Image: Yes; Motion condition: The environment changes or constrains the path; Example: The door opens inward, so the character must turn sideways between the table corner and the door |\n| Static composition and starting positions | Image: Yes; Motion condition: Camera motion or a character’s relocation changes the relationship; Example: The character moves from frame left through the doorway; the empty table remains visible on the right at the end |\n| Hands, held objects, and contact | Image: No; Motion condition: These directly determine whether the action is executable; Example: The left hand supports the saucer; the right hand holds the pot handle; after pouring, each hand keeps its own object |\n| Gaze and object of attention | Image: No; Motion condition: They trigger performance or define the end state; Example: Look at the signature first, then raise the eyes toward the person offering the paper |\n| Occlusion and off-screen entry path | Image: No; Motion condition: An object disappears and then reappears; Example: The folder moves from behind the cabinet door; specify the order in which it becomes visible |\n| Visible text and fixed markings | Image: Depends on the project; Motion condition: The text-bearing surface moves, becomes occluded, or must stay fixed; Example: The label remains centered on the lid and turns with the lid’s surface |\n\nDeletion test: remove one static description, then ask, “Can the reference image answer this in only one way while preserving the action’s result?” If yes, delete it. If deletion makes the active hand, contact object, occlusion path, or endpoint ambiguous, retain the shortest motion fact that resolves the ambiguity."
         }
       },
       {
@@ -2104,8 +2104,8 @@
           "en": "Compare Start and End States: Write Only What Changes"
         },
         "body": {
-          "zh": "先把参考帧起点和分镜终点放在同一张差异表中。动作句负责解释每项差异怎样发生；没有变化的字段只在容易漂移时写成保持项。\n\n| 字段 | 起点（从参考帧读） | 终点（从分镜读） | 提示词要补的变化 |\n|---|---|---|---|\n| 姿态／重心 | 坐着，重心在椅面 | 站直，重心落到双脚 | 右手撑桌，身体先前倾再站直 |\n| 目光 | 看桌面照片 | 看门外来人 | 门响触发抬眼，头部随后转向门口 |\n| 双手／持物 | 右手压照片，左手扶桌 | 照片留桌上，右手空置 | 右手先松开照片再撑桌，禁止照片随手带起 |\n| 相对位置 | 椅前、桌后 | 椅右侧、仍在桌后 | 起身后向画面右侧移半步 |\n| 可见状态 | 门关闭，来人不入画 | 门开约三十度，人物停在门外 | 门先开，来人只露肩部轮廓 |\n| 保持项 | 桌上水杯、照片方向 | 两项不变 | 水杯不移动，照片仍正面朝上 |\n\n可复制差异卡：\n\n> 起点：姿态___；目光___；左手___；右手／持物___；相对位置___；可见状态___。\n> 终点：姿态___；目光___；左手___；右手／持物___；相对位置___；可见状态___。\n> 保持项：___。\n> 变化链：因___，先___，再___，最终___。\n\n起点和终点来自已有参考帧与分镜边界。缺少终点时先补分镜，提示词不代替故事环节发明结尾。",
-          "en": "Put the reference-frame start state and the storyboard endpoint into one difference table. Action sentences explain how every difference occurs. Mention an unchanged field only when it is likely to drift.\n\n| Field | Start state from the reference frame | End state from the storyboard | Change the prompt must add |\n|---|---|---|---|\n| Posture / center of gravity | Seated, weight on the chair | Standing upright, weight on both feet | Press the right hand on the table, lean forward, then stand upright |\n| Gaze | Looking at the photo on the table | Looking at the visitor beyond the door | The sound at the door triggers an upward glance, then the head turns toward the doorway |\n| Hands / held object | Right hand presses the photo; left hand rests on the table | Photo remains on the table; right hand is empty | Release the photo before bracing on the table; do not lift the photo |\n| Relative position | In front of the chair and behind the table | To the right of the chair and still behind the table | After standing, move half a step toward frame right |\n| Visible state | Door closed; visitor off-screen | Door open about thirty degrees; visitor remains outside | Door opens first; only the visitor’s shoulder outline enters view |\n| Preserve | Water glass on the table; orientation of the photo | Both remain unchanged | The glass does not move; the photo remains face up |\n\nReusable difference card:\n\n> Start: posture___; gaze___; left hand___; right hand / held object___; relative position___; visible state___.\n> End: posture___; gaze___; left hand___; right hand / held object___; relative position___; visible state___.\n> Preserve: ___.\n> Change chain: Because of ___, first ___, then ___, and finally ___.\n\nThe start and end states come from the existing reference frame and storyboard boundaries. If the endpoint is missing, complete the storyboard first. A prompt should not invent an ending that belongs to story development."
+          "zh": "先把参考帧起点和分镜终点放在同一张差异表中。动作句负责解释每项差异怎样发生；没有变化的字段只在容易漂移时写成保持项。\n\n| 检查项 | 内容 |\n|---|---|\n| 姿态／重心 | 起点：坐着，重心在椅面；终点：站直，重心落到双脚；变化：右手撑桌，身体先前倾再站直 |\n| 目光 | 起点：看桌面照片；终点：看门外来人；变化：门响触发抬眼，头部随后转向门口 |\n| 双手／持物 | 起点：右手压照片，左手扶桌；终点：照片留桌上，右手空置；变化：右手先松开照片再撑桌，禁止照片随手带起 |\n| 相对位置 | 起点：椅前、桌后；终点：椅右侧、仍在桌后；变化：起身后向画面右侧移半步 |\n| 可见状态 | 起点：门关闭，来人不入画；终点：门开约三十度，人物停在门外；变化：门先开，来人只露肩部轮廓 |\n| 保持项 | 起点：桌上水杯、照片方向；终点：两项不变；变化：水杯不移动，照片仍正面朝上 |\n\n可复制差异卡：\n\n> 起点：姿态___；目光___；左手___；右手／持物___；相对位置___；可见状态___。\n> 终点：姿态___；目光___；左手___；右手／持物___；相对位置___；可见状态___。\n> 保持项：___。\n> 变化链：因___，先___，再___，最终___。\n\n起点和终点来自已有参考帧与分镜边界。缺少终点时先补分镜，提示词不代替故事环节发明结尾。",
+          "en": "Put the reference-frame start state and the storyboard endpoint into one difference table. Action sentences explain how every difference occurs. Mention an unchanged field only when it is likely to drift.\n\n| Item | Details |\n|---|---|\n| Posture / center of gravity | Start: Seated, weight on the chair; End: Standing upright, weight on both feet; Change: Press the right hand on the table, lean forward, then stand upright |\n| Gaze | Start: Looking at the photo on the table; End: Looking at the visitor beyond the door; Change: The sound at the door triggers an upward glance, then the head turns toward the doorway |\n| Hands / held object | Start: Right hand presses the photo; left hand rests on the table; End: Photo remains on the table; right hand is empty; Change: Release the photo before bracing on the table; do not lift the photo |\n| Relative position | Start: In front of the chair and behind the table; End: To the right of the chair and still behind the table; Change: After standing, move half a step toward frame right |\n| Visible state | Start: Door closed; visitor off-screen; End: Door open about thirty degrees; visitor remains outside; Change: Door opens first; only the visitor’s shoulder outline enters view |\n| Preserve | Start: Water glass on the table; orientation of the photo; End: Both remain unchanged; Change: The glass does not move; the photo remains face up |\n\nReusable difference card:\n\n> Start: posture___; gaze___; left hand___; right hand / held object___; relative position___; visible state___.\n> End: posture___; gaze___; left hand___; right hand / held object___; relative position___; visible state___.\n> Preserve: ___.\n> Change chain: Because of ___, first ___, then ___, and finally ___.\n\nThe start and end states come from the existing reference frame and storyboard boundaries. If the endpoint is missing, complete the storyboard first. A prompt should not invent an ending that belongs to story development."
         }
       },
       {
@@ -2126,8 +2126,8 @@
           "en": "Local Deformation and Occlusion: Define the Target Area and What Must Stay Fixed"
         },
         "body": {
-          "zh": "参考图里多个对象靠得很近时，“让它消失”“把地面折起来”会把变化范围交给执行端决定。先填四格：\n\n| 格 | 要回答什么 | 纸图折叠例 |\n|---|---|---|\n| 触发 | 哪个动作或声音开始变化 | 中央红线从近端亮起 |\n| 目标范围 | 哪一块表面沿什么路径变 | 只限红线以内纸面，由近端向远端折叠 |\n| 结束状态 | 最后留下、露出或占据什么 | 中央形成连续窄脊 |\n| 保持项 | 同框哪些对象维持位置和数量 | 四角金属块、红线外纸面、桌沿全部不动 |\n\n填充后的提示词：\n\n> 从纸图平铺、四角由金属块压住的参考帧开始。中央红线从近端亮起后，只有红线以内的纸面沿线向上折起，折叠由近端推进到远端，最终形成连续窄脊。四角金属块、红线外纸面和桌沿的位置、数量保持不变。摄影机固定俯视，完整保留变化边界。\n\n当遮挡关系参与变化，同样写出“先被什么挡住、从哪一侧重新出现、出现到什么程度”。这比堆叠通用负面词更直接。",
-          "en": "When several objects sit close together in the reference image, instructions such as “make it disappear” or “fold the ground upward” leave the generation process to decide the affected area. Fill these four fields first:\n\n| Field | Question to answer | Paper-diagram example |\n|---|---|---|\n| Trigger | Which action or sound begins the change? | The central red line lights from its near end |\n| Target area | Which surface changes, along what path? | Only the paper inside the red line folds from near to far |\n| End state | What remains, becomes visible, or occupies the area? | A continuous narrow ridge forms down the center |\n| Preserve | Which nearby objects keep their position and count? | The four corner weights, paper outside the red line, and table edge remain still |\n\nCompleted prompt:\n\n> Begin from the reference frame with the paper diagram lying flat and metal weights holding all four corners. After the central red line lights from the near end, only the paper inside that line folds upward along it. The fold advances from near to far and ends as one continuous narrow ridge. The four metal corner weights, the paper outside the red line, and the table edge retain their positions and number. The camera remains fixed overhead, keeping the entire changing boundary visible.\n\nWhen the occlusion relationship changes, also state what blocks the object first, from which side it reappears, and how far it emerges. This is more direct than stacking generic negative prompts."
+          "zh": "参考图里多个对象靠得很近时，“让它消失”“把地面折起来”会把变化范围交给执行端决定。先填四格：\n\n| 检查项 | 内容 |\n|---|---|\n| 触发 | 检查：哪个动作或声音开始变化；示例：中央红线从近端亮起 |\n| 目标范围 | 检查：哪一块表面沿什么路径变；示例：只限红线以内纸面，由近端向远端折叠 |\n| 结束状态 | 检查：最后留下、露出或占据什么；示例：中央形成连续窄脊 |\n| 保持项 | 检查：同框哪些对象维持位置和数量；示例：四角金属块、红线外纸面、桌沿全部不动 |\n\n填充后的提示词：\n\n> 从纸图平铺、四角由金属块压住的参考帧开始。中央红线从近端亮起后，只有红线以内的纸面沿线向上折起，折叠由近端推进到远端，最终形成连续窄脊。四角金属块、红线外纸面和桌沿的位置、数量保持不变。摄影机固定俯视，完整保留变化边界。\n\n当遮挡关系参与变化，同样写出“先被什么挡住、从哪一侧重新出现、出现到什么程度”。这比堆叠通用负面词更直接。",
+          "en": "When several objects sit close together in the reference image, instructions such as “make it disappear” or “fold the ground upward” leave the generation process to decide the affected area. Fill these four fields first:\n\n| Item | Details |\n|---|---|\n| Trigger | Check: Which action or sound begins the change?; Example: The central red line lights from its near end |\n| Target area | Check: Which surface changes, along what path?; Example: Only the paper inside the red line folds from near to far |\n| End state | Check: What remains, becomes visible, or occupies the area?; Example: A continuous narrow ridge forms down the center |\n| Preserve | Check: Which nearby objects keep their position and count?; Example: The four corner weights, paper outside the red line, and table edge remain still |\n\nCompleted prompt:\n\n> Begin from the reference frame with the paper diagram lying flat and metal weights holding all four corners. After the central red line lights from the near end, only the paper inside that line folds upward along it. The fold advances from near to far and ends as one continuous narrow ridge. The four metal corner weights, the paper outside the red line, and the table edge retain their positions and number. The camera remains fixed overhead, keeping the entire changing boundary visible.\n\nWhen the occlusion relationship changes, also state what blocks the object first, from which side it reappears, and how far it emerges. This is more direct than stacking generic negative prompts."
         }
       },
       {
@@ -2186,16 +2186,31 @@
       "/drama-skills/seedance-prompts",
       "/drama-skills/script-to-storyboard",
       "/drama-skills/character-turnaround-prompt",
-      "/drama-skills"
+      "/drama-skills",
+      "/drama-skills/write-negative-prompts-for-ai-video"
     ],
     "topic": "ai-video",
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "图生参考减法、起终点与变化字段",
+          "en": "Reference subtraction, boundaries, and motion fields"
         },
-        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/generability.md"
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
+      },
+      {
+        "label": {
+          "zh": "可复制正文、文字与局部变换保持",
+          "en": "Copyable body, text, and selective preservation"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/production-prompt-grammar.md"
+      },
+      {
+        "label": {
+          "zh": "接触顺序与动作可执行性",
+          "en": "Contact order and action feasibility"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/performance-action-timing.md"
       }
     ]
   },
@@ -2456,8 +2471,8 @@
           "en": "How many times should I reroll the same prompt?"
         },
         "a": {
-          "zh": "没有跨项目通用次数。根据成本和风险预先设上限；一旦同一缺陷稳定复现，就停止重抽，改结构或实现路径。",
-          "en": "There is no universal number. Set a limit in advance from cost and risk. Once the same defect repeats consistently, stop rerolling and change the structure or execution path."
+          "zh": "没有跨项目通用次数，先按成本与风险设上限。同一缺陷反复出现时，停止无信息的原样重抽，核对输入、参考、配置与可能的模型限制，再试能解释的最小修改。复现是排查线索，不自动证明结构是唯一原因；改动后的输出还要实际比较。",
+          "en": "There is no cross-project count; set a limit according to cost and risk. When the same defect recurs, stop uninformative identical retries and check inputs, references, settings, and possible model limits. Try an explainable minimal change. Recurrence guides investigation without proving a unique structural cause; compare the actual revised output."
         }
       }
     ],
@@ -8186,7 +8201,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "视频切片标题和花字怎么写：承诺、证据与分工",
       "en": "Writing Clip Titles and On-Screen Text That the Video Supports"
@@ -8222,8 +8237,8 @@
           "en": "Give Each Text Layer a Different Job"
         },
         "body": {
-          "zh": "| 文字层 | 主要工作 | 避免什么 |\n|---|---|---|\n| 常驻标题 | 让陌生观众看懂处境与本片回报 | 堆人名、术语和未呈现结果 |\n| 封面字 | 结合封面帧聚焦一个看点 | 重复两行常驻标题 |\n| 发布标题 | 补关系、背景或观看邀请 | 把整段解说搬过来 |\n| 花字 | 补必要前提、观察方向或克制批注 | 重复对白、遮挡动作 |\n| 时空提示 | 说明当前、往事、地点或来源 | 提前跟着跨场旁白切换 |\n| 对白与旁白字幕 | 忠实承载可听见的话 | 被宣发文案擅自改写 |\n\n画面已经清楚，花字可以为空。少一层重复文字，观众更容易看见真正的动作和表演。",
-          "en": "| Text layer | Main job | Avoid |\n|---|---|---|\n| Persistent on-screen title | Establish the situation and this clip’s payoff for unfamiliar viewers | Piling up names, jargon or results not shown |\n| Cover text | Work with the cover frame to highlight one point of interest | Repeating a two-line persistent title |\n| Post title | Add relationship context, background or an invitation to watch | Copying the entire narration into it |\n| On-screen annotations | Supply essential context, direct attention or add restrained commentary | Repeating dialogue or covering the action |\n| Time and place labels | Identify the present, a past event, a location or a source | Switching early because narration has already moved to another scene |\n| Dialogue and narration subtitles | Faithfully represent the audible words | Being rewritten to serve promotional copy |\n\nWhen the image is already clear, leave annotations out. Removing a redundant layer of text makes the actual action and performances easier to see."
+          "zh": "| 检查项 | 内容 |\n|---|---|\n| 常驻标题 | 主要工作：让陌生观众看懂处境与本片回报；避免什么：堆人名、术语和未呈现结果 |\n| 封面字 | 主要工作：结合封面帧聚焦一个看点；避免什么：重复两行常驻标题 |\n| 发布标题 | 主要工作：补关系、背景或观看邀请；避免什么：把整段解说搬过来 |\n| 花字 | 主要工作：补必要前提、观察方向或克制批注；避免什么：重复对白、遮挡动作 |\n| 时空提示 | 主要工作：说明当前、往事、地点或来源；避免什么：提前跟着跨场旁白切换 |\n| 对白与旁白字幕 | 主要工作：忠实承载可听见的话；避免什么：被宣发文案擅自改写 |\n\n画面已经清楚，花字可以为空。少一层重复文字，观众更容易看见真正的动作和表演。",
+          "en": "| Item | Details |\n|---|---|\n| Persistent on-screen title | Main job: Establish the situation and this clip’s payoff for unfamiliar viewers; Avoid: Piling up names, jargon or results not shown |\n| Cover text | Main job: Work with the cover frame to highlight one point of interest; Avoid: Repeating a two-line persistent title |\n| Post title | Main job: Add relationship context, background or an invitation to watch; Avoid: Copying the entire narration into it |\n| On-screen annotations | Main job: Supply essential context, direct attention or add restrained commentary; Avoid: Repeating dialogue or covering the action |\n| Time and place labels | Main job: Identify the present, a past event, a location or a source; Avoid: Switching early because narration has already moved to another scene |\n| Dialogue and narration subtitles | Main job: Faithfully represent the audible words; Avoid: Being rewritten to serve promotional copy |\n\nWhen the image is already clear, leave annotations out. Removing a redundant layer of text makes the actual action and performances easier to see."
         }
       },
       {
@@ -8244,8 +8259,8 @@
           "en": "Original Example: The Recorder That Was Never Handed Over"
         },
         "body": {
-          "zh": "虚构切片内容：实习记者在发布会前拿到一支录音笔，里面有导师要求他删掉关键提问的语音。他走上台，先关闭直播提词器，再按下录音笔播放键。片段结束在导师起身离席，调查结果尚未出现。\n\n可用分工：\n\n- 常驻标题：`导师让他删掉问题，他在发布会放出了录音`\n- 封面字：`删掉问题，还是放出录音？`\n- 发布标题：`实习记者把职业选择摆到了台前`\n- 花字：只在提词器熄灭时标注`他主动关掉了预设稿`，其余对白保持干净。\n\n“导师被查处”“他揭开全部黑幕”都超出片内证据。这个例子是为方法设计的虚构切片，没有真实发布数据或观看结果。",
-          "en": "Fictional clip: Before a press conference, a trainee reporter obtains a recorder containing a voice message from his mentor telling him to remove a key question. He goes on stage, switches off the teleprompter for the livestream, then presses play on the recorder. The clip ends as the mentor gets up and leaves. No investigation result has been shown.\n\nOne way to divide the copy:\n\n- Persistent title: `His mentor told him to drop the question. He played the recording at the press conference.`\n- Cover text: `Drop the question—or play the recording?`\n- Post title: `A trainee reporter puts his career choice in the spotlight.`\n- Annotation: Only when the teleprompter goes dark, add `He chose to switch off the prepared script.` Leave the rest of the dialogue free of annotations.\n\n“His mentor was investigated and punished” and “He exposed the entire cover-up” go beyond the evidence in the clip. This fictional segment was designed to illustrate the method; it has no real publishing data or viewing results."
+          "zh": "以下为虚构短片方案，不描述真实发布会操作。片中已交代：实习记者获得一个提问时段，台上的控制屏与音频接口在该时段交由他使用；他拿到录音笔后先听过内容。导师的原话是“把这道问题删掉”，不据此直接断言违法或全部真相。\n\n切片中，记者走上台，关闭预设提词画面，接入录音笔并开始播放。观众实际听见导师要求删掉问题的同一句原话；导师起身离席。片段没有调查或处置结果。\n\n- 常驻标题：`导师让他删掉问题，他在发布会放出了录音`\n- 封面字：`删掉问题，还是放出录音？`\n- 发布标题：`实习记者把职业选择摆到了台前`\n- 花字：若提词画面熄灭的意义不清，可在对应位置补`他主动关掉了预设稿`；画面与原声已清楚时不加。\n\n标题里的“放出”由实际可听播放支撑，不能只拍到按键就宣布录音公开。“导师被查处”“他揭开全部黑幕”超出本片结果。设备权限是这个原创故事的前置安排，不是记者在任何发布会都能控制屏幕或广播的常识。",
+          "en": "This is a fictional short-film plan, not a description of real press-conference practice. The story establishes a question slot during which the intern controls the onstage display and audio input. He has listened to the recorder before going up. The mentor’s words are “Remove that question”; they do not by themselves prove illegality or the whole truth.\n\nIn the clip, the intern goes onstage, turns off the prepared prompt display, connects the recorder, and starts playback. Viewers actually hear the same instruction to remove the question. The mentor leaves. No investigation or disciplinary outcome appears.\n\n- Persistent title: `His mentor told him to cut the question. He played the recording onstage.`\n- Cover: `Cut the question—or play the recording?`\n- Publishing title: `An intern puts his professional choice onstage.`\n- Note: if the darkened prompt display needs explanation, add `He turned off the prepared script` at that moment. Omit it if picture and sound are already clear.\n\n“Played” is supported by audible playback, not merely a button press. “The mentor was punished” or “He exposed the whole conspiracy” exceeds this clip. Device access is this fictional story’s setup, not a general entitlement for journalists at press conferences."
         }
       },
       {
@@ -8268,6 +8283,17 @@
         "body": {
           "zh": "| 问题 | 修正 |\n|---|---|\n| 把人物许诺写成既成事实 | 写他做出的选择和当前结果 |\n| 单向凝望直接写成相爱 | 写可见动作与关系变化 |\n| 受伤直接写成死亡或胜负 | 承诺只到证据呈现的程度 |\n| 每层文字重复同一句话 | 按处境、画面焦点、背景、补充信息分工 |\n| 花字越加越多 | 没有必要信息就撤掉 |\n| 用包装遮住结构问题 | 把需要改镜头或声音的问题单独处理 |",
           "en": "| Problem | Fix |\n|---|---|\n| Presenting a character’s promise as an accomplished fact | Describe the choice they make and the current result |\n| Treating a one-sided gaze as proof of mutual love | Describe visible actions and changes in the relationship |\n| Treating an injury as proof of death, victory or defeat | Promise no more than the evidence establishes |\n| Repeating the same sentence in every text layer | Divide the work: situation, visual focus, background and supplementary information |\n| Adding more and more annotations | Remove any that supply no necessary information |\n| Using promotional text to conceal structural problems | Address problems that require changes to shots or sound separately |"
+        }
+      },
+      {
+        "id": "adopt-the-edit",
+        "heading": {
+          "zh": "AI改完文案，怎样回填才不改乱成片？",
+          "en": "How do you apply AI copy revisions without changing the video?"
+        },
+        "body": {
+          "zh": "本文采用 Video Recap 的宣发文案方法：返修提案与工程采用分开。先确认建议针对哪版成片；如果剪点、换序或声音已变，把建议重新对到当前画面，不拿旧全文覆盖。\n\n| 采用项 | 本轮明确决定 |\n|---|---|\n| 常驻标题 | 替换为已选文字，保留原样式与位置；需要改样式时另写。 |\n| 花字 | 逐条说明保留、新增、替换或删除；“不新增”不等于清空旧花字轨。 |\n| 字幕与声音 | 本轮未授权修改就保留；文案建议不能替代原话。 |\n| 时间位置 | 提案先写对应画面；进工程前核当前成片的真实帧位置。 |\n\n例如外部模型回复“这条不需要新花字”，只能说明不新增，不能顺手删掉原有时空提示。仅查看字幕或工程得到的时间窗还是建议；实际画面尚未核对时不要称已看片。\n\n回填后核改了哪几项、未改层是否保留。工程修改并不等于成片更新；渲染后再检查新字是否出现、是否遮挡动作、是否给观众重复信息。",
+          "en": "This article uses Video Recap’s promotional-copy method: revision proposals and adopted project edits are separate. Confirm which delivery the suggestions concern. If cuts, order, or sound changed, map them to the current picture instead of overwriting it with an old full draft.\n\n| Item | Adopted decision |\n|---|---|\n| Persistent title | Replace with selected words while retaining style and placement unless separately changed. |\n| Notes | Mark each as keep, add, replace, or delete. “No additions” does not clear the old note track. |\n| Subtitles and sound | Preserve unless this request changes them; promotional copy cannot replace spoken words. |\n| Timing | Locate the corresponding picture in the proposal, then check real frame positions before applying. |\n\nIf an external model says no new notes are needed, that means no additions, not deletion of an existing time/place cue. A window derived only from subtitles or project data remains a suggestion. Do not claim to have viewed footage before checking it.\n\nAfter applying, compare adopted edits and retained layers. An edited project is not an updated delivery. Render, then check that the new words appear, do not cover action, and do not duplicate information."
         }
       }
     ],
@@ -8296,8 +8322,8 @@
     "skill": {
       "name": "video-recap",
       "text": {
-        "zh": "在 Claude Code 里说：“用 /video-recap 为这些切片分别写常驻标题、封面字、发布标题和必要花字；先列观看理由与片内证据，各层分工，不提前宣布未呈现结果。”",
-        "en": "In Claude Code, say: “Use /video-recap to write a persistent on-screen title, cover text, post title and any necessary annotations for each of these clips. First list the reason to watch and the evidence within each clip. Give the text layers distinct jobs, and do not announce results that have not been shown.”"
+        "zh": "请用 video-script 修订这条切片文案：先定位本片观看理由与兑现位置，再分别给常驻标题、封面、发布标题和必要花字。标出原文、建议、片内依据与采用范围；保留未改字幕、剪点和声音，时间窗未核真实画面时写提案。",
+        "en": "Use video-script to revise this clip’s promotional copy. Locate its viewing reason and payoff, then separate persistent, cover, publishing, and necessary note text. List original, proposal, footage evidence, and adopted scope. Preserve unchanged subtitles, cuts, and sound; label unverified timing as proposed."
       },
       "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-recap/SKILL.md"
     },
@@ -34621,6 +34647,355 @@
       "/oh-story/angst-fiction",
       "/oh-story/write-a-betrayal-that-feels-earned",
       "/oh-story/emotion-on-the-page"
+    ]
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "write-negative-prompts-for-ai-video",
+    "topic": "ai-video",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI视频负面提示词怎么写：留下必要限制，别堆禁令",
+      "en": "How to Write Negative Prompts for AI Video"
+    },
+    "seo_title": {
+      "zh": "AI视频负面提示词怎么写：留下必要限制，别堆禁令",
+      "en": "How to Write Negative Prompts for AI Video"
+    },
+    "description": {
+      "zh": "把负面提示词对应到本镜的具体状态，保留文字与声音要求。附精简前后示例、限制检查表和参考图处理方法。",
+      "en": "Tie exclusions to the shot’s actual states, text, and sound requirements. Includes a before-and-after example and a reference-image check."
+    },
+    "answer": {
+      "zh": "先写清起点、动作与终点，再检查哪些限制能保护这段内容。保留具体、适用且不冲突的排除条件；把“不要变形”等泛用词换成可检查的持物或保持状态。否定句可以使用，但它不能擦除参考图里的内容，也不能覆盖剧情必须出现的文字、声音或人物。",
+      "en": "Write the start, action, and end before checking which exclusions protect them. Keep specific, applicable conditions that do not conflict. Replace generic defect labels with observable holding or preserved states. Negative clauses are allowed, but cannot erase reference pixels or override text, sound, or people required by the story."
+    },
+    "sections": [
+      {
+        "id": "classify",
+        "heading": {
+          "zh": "先分清限制在保护什么",
+          "en": "Identify what each restriction protects"
+        },
+        "body": {
+          "zh": "Drama Skills 的制作审查要求限制服从当前镜头的内容，避免反复失败后永久增加全局禁令。它也明确否定句本身不是缺陷；不能推断模型一定会把“不要”的内容生成出来。\n\n| 提示词里的句子 | 怎样处理 |\n|---|---|\n| 不要多余人物 | 先确认本镜应出现谁、谁能入画；写明人数与入画路径。 |\n| 不要道具乱动 | 指出需要保持的物件、位置与持有人；别限制剧情本来需要的交接。 |\n| 不要任何文字 | 核对有无证据标签或屏显文字义务；有的话改成允许范围，字幕层另说。 |\n| 不要噪声 | 分清环境底声、动作声与不需要的声音；不能顺手删掉敲门触发。 |\n| 不要模糊、高质量 | 先说明观众必须看清什么；必要时调整构图或制作方式。 |\n\n限制不是越少越好。留下对本镜有用的句子，删掉与本镜无关、互相冲突或只是在喊“做得更好”的词。",
+          "en": "Drama Skills makes restrictions subordinate to the current shot, rather than adding a permanent global ban after each failure. It also states that a negative clause is not itself a defect; do not assume a model necessarily generates what the clause excludes.\n\n| Clause | Treatment |\n|---|---|\n| No extra people | Establish who appears and who may enter. Specify the intended count and entry path. |\n| No drifting props | Name the object, position, and holder to preserve; do not forbid a required handoff. |\n| No text anywhere | Check required evidence labels or displays. Define permitted text separately from subtitles. |\n| No noise | Distinguish ambience, action cues, and unwanted sound. Keep a knock that triggers the action. |\n| No blur; high quality | State what viewers must read. Change framing or production method when needed. |\n\nFewer is not automatically better. Keep conditions useful to this shot; remove unrelated, contradictory, or merely aspirational wording."
+        }
+      },
+      {
+        "id": "worked-example",
+        "heading": {
+          "zh": "原创改写：关闭档案盒，保留纸签",
+          "en": "Original rewrite: close the archive box and keep its label"
+        },
+        "body": {
+          "zh": "以下为原创镜头方案，未送入生成服务。已确认：管理员独自坐在桌后，档案盒打开；盖子上的纸签写着“待复核”，镜头结束时盒盖关闭，纸签仍可见。没有对白，保留盒盖合上的声音。\n\n**堆禁令的写法**：\n\n> 不要多人，不要多手，不要任何文字，不要噪声，不要变形，不要改造型。管理员自然地关上盒子，电影感。\n\n它与需要保留的纸签、合盖声冲突，也没说动作从哪里开始。\n\n**改写后的动作段**：\n\n> 从管理员独自坐在桌后、档案盒打开的起点开始。管理员左手扶住盒身，右手压下盒盖；盖子闭合后，两手离开盒子，停在桌边。摄影机固定，盒子与纸签保持可见。盒子留在原位，纸签随盖面移动，闭合后仍在盖面中央。没有对白或字幕；保留一次合盖声。纸签是唯一允许的文字区域，文字内容为“待复核”，不新增其他字样。\n\n这是提示词设计，不保证字形或动作实际正确。若本项目采用后期加字，先在分镜与文字方案里确认承载区和完成方式，再相应改写；不能把空白纸签说成已经有可读证据。",
+          "en": "This original shot design has not been generated. Established facts: one administrator sits behind a table with an open archive box. Its lid label reads “Pending Review.” At the end the lid is shut and the label remains visible. There is no dialogue; retain the closure sound.\n\n**Restriction pile:**\n\n> No crowds, extra hands, text, noise, deformation, or look changes. The administrator closes the box naturally, cinematic.\n\nIt contradicts the required label and closure sound, while leaving the starting action vague.\n\n**Revised action passage:**\n\n> Begin with the administrator alone behind the table and the archive box open. The left hand steadies the box while the right lowers the lid. Once it closes, both hands leave the box and rest by the table edge. The camera stays fixed with box and label visible. The box remains in place; the label moves with the lid and ends centered on its surface. No dialogue or subtitles; retain one lid-closing sound. The label is the only permitted text area and reads “Pending Review”; add no other writing.\n\nThis is a prompt design, not proof of correct lettering or motion. If the project uses lettering in post, first confirm its surface and completion method in the storyboard and text plan, then revise accordingly. A blank label is not already readable evidence."
+        }
+      },
+      {
+        "id": "reference",
+        "heading": {
+          "zh": "限制词不能替参考图做清理",
+          "en": "Restrictions cannot clean reference pixels"
+        },
+        "body": {
+          "zh": "参考图本身带旧字幕、标牌或多余人物时，先检查输入。裁切、局部清理、遮罩或换图，选择哪种取决于是否会破坏角色身份、场景布局与构图。处理后重新看图，不以“已经加了 no-text”代替观察。\n\n纸签需要可读，而参考图上是另一版字样时，记录准确差异。不能同时把它当文字依据，又要求模型完全无视它。角色、构图和文字可以来自不同参考用途，绑定时说明各自能决定什么。\n\n对已经正确的外貌与背景，避免在运动正文里重新写整套描述。图生视频的静态删减方法见[图生视频提示词](/drama-skills/image-to-video-prompts)。本页重点是排除条件是否保护或破坏本镜职责。",
+          "en": "If a reference already contains old subtitles, signage, or unwanted people, inspect the input first. Choose cropping, local cleanup, masking, or replacement according to the effect on identity, geography, and composition. Inspect the treated image; adding “no text” is not an observation.\n\nIf the required label differs from the reference, record that difference. Do not treat the image as authoritative lettering while asking the model to ignore it. Identity, composition, and text references may have different roles; state what each may control.\n\nAvoid rewriting an already correct appearance and background in motion prose. See [image-to-video prompts](/drama-skills/image-to-video-prompts) for static-information subtraction. This page focuses on whether exclusions protect or damage the shot’s purpose."
+        }
+      },
+      {
+        "id": "compare",
+        "heading": {
+          "zh": "每次只比较能解释的修改",
+          "en": "Compare changes you can explain"
+        },
+        "body": {
+          "zh": "回看输出后，先写真实观察，例如“盒盖关闭后纸签消失”，再定位可能的输入冲突。下一版保留正确的人物、机位与动作，改纸签保持要求或对应参考；需要联动时说明原因。记录用的是哪版输入，而不是只记“加了负面词”。\n\n无实际输出时只做文字检查：起点与终点能接上吗，禁令有无删掉剧情内容，参考与文字方案有无矛盾。没有跨模型通用的禁令数量、英文词表或必然有效的句式。具体约束要按当前项目与目标模型的已知条件比较。",
+          "en": "After viewing an output, record an observation such as “the label disappears after closure,” then investigate input conflicts. Preserve correct identity, framing, and action; change the label’s holding requirement or relevant reference. Explain linked changes when needed. Record the input version instead of merely “added negative words.”\n\nWithout an output, review text only: can start reach end, do exclusions remove story content, and do references agree with text policy? There is no cross-model quota, English word list, or guaranteed phrasing. Compare constraints against the current project and known target-model conditions."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "负面提示词必须全部改成正面描述吗？",
+          "en": "Must every negative prompt become a positive statement?"
+        },
+        "a": {
+          "zh": "不必。必要的排除条件可以直接保留，尤其是字幕、声音层或不允许新增的内容。关键是适用、可检查、不冲突，并且正文已经写出人物实际做什么。",
+          "en": "No. Keep necessary exclusions, especially for subtitle or sound layers and content that must not be added. They should be applicable, testable, and consistent, while the main passage states what actually happens."
+        }
+      }
+    ],
+    "skill": {
+      "name": "short-drama-video-prompts",
+      "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/SKILL.md",
+      "text": {
+        "zh": "用 short-drama-video-prompts 检查这条提示词的限制：逐条对应本镜义务，保留必要排除，移除无关禁令；核对参考图像素、可读文字、声音与起终点。不凭词表推断生成结果，不新增剧情。",
+        "en": "Use short-drama-video-prompts to review each restriction against this shot’s obligations. Keep necessary exclusions and remove unrelated bans. Check reference pixels, readable text, sound, and boundaries. Infer no generated result from a word list and add no story facts."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "正文语法、文字政策与适用限制",
+          "en": "Prompt grammar, text policy, and scoped restrictions"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/production-prompt-grammar.md"
+      },
+      {
+        "label": {
+          "zh": "负面补丁与内容保留检查",
+          "en": "Restriction piles and content preservation"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-review/references/production-quality-gates.md"
+      }
+    ],
+    "related": [
+      "/drama-skills/image-to-video-prompts",
+      "/drama-skills/text-in-ai-frames",
+      "/drama-skills/reroll-or-rewrite"
+    ]
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "direct-multiple-characters-in-ai-video",
+    "topic": "ai-video",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI视频多人表演怎么写：谁先反应，谁保持不动",
+      "en": "How to Direct Multiple Characters in AI Video"
+    },
+    "seo_title": {
+      "zh": "AI视频多人表演怎么写：谁先反应，谁保持不动",
+      "en": "How to Direct Multiple Characters in AI Video"
+    },
+    "description": {
+      "zh": "多人同框不用全员同时震惊。按人物立场、知情时机与景别安排反应，附原创排练场景和注意转移表。",
+      "en": "Avoid identical reactions in group shots. Use character goals, knowledge timing, and framing. Includes an original rehearsal scene and attention worksheet."
+    },
+    "answer": {
+      "zh": "多人表演先选本镜真正承担变化的人，再核对每人何时看见或听见触发。让反应从各自目的出发，选择当前景别能读到的动作；其他人可以维持原状态。注意只在确实转移时交接，不把一群人排成同步转头的情绪队列。",
+      "en": "Choose who actually changes in this shot, then establish when each person sees or hears the trigger. Derive reactions from individual goals and make them readable in the chosen framing. Others may keep their state. Transfer attention only when it genuinely shifts, instead of choreographing synchronized emotional turns."
+    },
+    "sections": [
+      {
+        "id": "different-reactions",
+        "heading": {
+          "zh": "先区分立场，不只分配不同表情",
+          "en": "Differentiate positions before expressions"
+        },
+        "body": {
+          "zh": "Drama Skills 的表演方法要求多人反应来自立场、接收信息与空间关系。它不要求每个人都填一套情绪弧，也不让旁观者为“画面丰富”反复做动作。\n\n写三件事：本场谁想维持什么，哪项信息真的到达他，接收后是否需要改变行动。同一句消息，知情者可能继续掩饰，不知情者才停下手中事；无关的人也可以不反应。差异要由剧本支持，不能为分工发明秘密。\n\n先规划表演，再用稳定人物名称和已采用的参考绑定说明是谁。人物数正确与反应有区别是两项检查，后者不能靠多加“甲惊讶、乙愤怒、丙感动”解决。",
+          "en": "Drama Skills derives group reactions from positions, received information, and space. It does not require an emotional arc for every person or repeated background business to enrich the image.\n\nWrite what each wants to maintain, what information actually reaches them, and whether action should change. A person who already knows may keep masking; someone learning now may stop working. An uninvolved person may not react. Ground differences in the script rather than inventing secrets to distribute roles.\n\nPlan performance, then identify people through stable names and adopted reference bindings. Correct person count and distinct reactions are separate checks. The latter is not solved by adding “A shocked, B angry, C moved.”"
+        }
+      },
+      {
+        "id": "worked-example",
+        "heading": {
+          "zh": "原创场景：排练室的一句请求",
+          "en": "Original scene: a request in the rehearsal room"
+        },
+        "body": {
+          "zh": "原创剧本已确定：林教练正在收起试听名单；助教程晓已知道门外新人想报名，仍等新人自己开口；学员周宁只想把自己的热身做完。固定中景能看见教练的桌面双手、助教靠门的位置与学员的上半身。新人暂不入画，声音清楚传入。\n\n坏写法是：“新人说要报名，三人同时震惊，停下动作，转头看门，气氛逐渐紧张。”这忽略谁原本知道，也给与本场无关的学员加了情绪。\n\n可写成下面这段表演安排，配合既有身份、空间与声音配置使用：\n\n> 新人在门外问：“现在还能试一节吗？”林教练听见后停止合上名单，手仍扶着封面，目光转向门口。程晓保持靠门的位置，不抢先回答。周宁继续原来的热身。林教练说：“可以，先等我把位置空出来。”程晓听见明确答复后才向一侧让路。结尾教练把名单留在桌上，门口通道让开，新人仍在门外。\n\n教练承担本镜的接收与接受；助教等待答复再行动；学员保持原状态。新人是否走进来由下一镜接续，不在这段末尾凭空坐好。全员听到同一句话，不代表全员都需要明显改变。",
+          "en": "Established original script: Coach Lin is closing the trial-class list. Assistant Cheng knows the newcomer outside wants to join, but waits for them to ask. Student Zhou wants to finish warming up. A fixed medium shot shows the coach’s hands at the table, the assistant near the door, and Zhou’s upper body. The newcomer stays offscreen with clearly audible speech.\n\nWeak direction: “The newcomer asks to join. All three are shocked, stop, and turn toward the door as tension rises.” It ignores prior knowledge and assigns an irrelevant emotion to Zhou.\n\nUse this performance passage alongside the established identity, space, and sound plan:\n\n> From outside, the newcomer asks, “Can I still try one class?” Coach Lin hears the question and stops closing the list, keeping a hand on the cover and looking toward the door. Cheng remains near the door without answering first. Zhou continues the established warm-up. Lin says, “Yes. Give me a moment to clear a space.” Only after that response does Cheng step aside. End with the list on the table and the doorway clear; the newcomer remains outside.\n\nThe coach receives and accepts. The assistant waits for an answer, then acts. The student maintains a state. Entry belongs to the next shot; the newcomer does not suddenly become seated here. Hearing the same sentence does not require everyone to change visibly."
+        }
+      },
+      {
+        "id": "attention",
+        "heading": {
+          "zh": "注意转移只写真实发生的几步",
+          "en": "Record only genuine attention transfers"
+        },
+        "body": {
+          "zh": "| 本镜时点 | 注意与可见依据 |\n|---|---|\n| 问句传入 | 观众先听新人，教练停手把注意转向门口；声源位置已建立。 |\n| 教练回答 | 观众听见是否接受，助教仍等待；不再加一轮全员转头。 |\n| 助教让路 | 动作完成接受的空间后果，教练与名单仍可见。 |\n\n这些是本例真正需要的转移，不是每场必须三步。只有教练听见门响停手的镜头，可以写到这里就结束。多人分工也不等于轮流给每人一个特写。\n\n若助教的小幅让路在远景不可读，先看能否选择更明确的已接受动作；需要改景别或镜头边界时回分镜。不用加“明显、强烈、情绪爆发”代替画面条件。",
+          "en": "| Moment | Attention and evidence |\n|---|---|\n| Request arrives | The offscreen voice draws attention; the coach stops and looks toward the established doorway. |\n| Coach answers | Viewers hear acceptance while the assistant waits; no extra round of group head-turns. |\n| Assistant moves | Clearing the path supplies the spatial consequence, with coach and list still visible. |\n\nThese are this example’s transfers, not three compulsory stages. A shot needing only a coach to hear a door and stop can end there. Group direction also need not give everyone a close-up.\n\nIf a small step is unreadable in a wide shot, consider a clearer accepted action. Changes to framing or boundaries return to the storyboard. “Obvious,” “intense,” or “emotional explosion” cannot replace visibility."
+        }
+      },
+      {
+        "id": "check",
+        "heading": {
+          "zh": "检查不同步是否仍符合故事",
+          "en": "Check that differences still fit the story"
+        },
+        "body": {
+          "zh": "先查信息：不知道的人有没有提前反应，早已知道的人是否无故重新震惊。再查身份与指代：同一个人是否始终对应同一参考，动作是否串到另一个人。最后查终点：让路、停手或继续工作是否真实完成并能接下一镜。\n\n上述示例是纸面设计，未声明生成成功。实际回看片段时记录哪一时刻谁做错了什么；下一版只改相关触发、动作或绑定，保留正确部分。若同框装不下必要对白、动作与反应，先请求拆镜或延长，不靠所有人加速来赶完。",
+          "en": "Check knowledge first: does someone react before learning, or become shocked again despite already knowing? Check identity next: does each person retain one reference, and do actions belong to the correct actor? Finally check the end: are the path-clearing, stopped hand, or continued work enacted and usable by the next shot?\n\nThis is a paper design, not a successful generation claim. When viewing footage, record who does what incorrectly and when. Change the relevant trigger, action, or binding while preserving correct parts. If necessary dialogue, action, and reactions will not fit, request a split or extension rather than accelerating everyone."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "多人镜头里可以有人完全不动吗？",
+          "en": "Can someone remain still in a group shot?"
+        },
+        "a": {
+          "zh": "可以。保持状态需要符合已有立场和场面；没有接收新信息或没有行动理由的人，不必为了齐全增加反应。主剧情的关键接收与后果仍要能读到。",
+          "en": "Yes. Maintaining a state should fit the established position and scene. Someone without new information or a reason to act need not gain a reaction for completeness. Keep crucial reception and consequences legible."
+        }
+      }
+    ],
+    "skill": {
+      "name": "short-drama-video-prompts",
+      "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/SKILL.md",
+      "text": {
+        "zh": "用 short-drama-video-prompts 规划多人表演：先列各自目的与已知信息，只写真正变化的人，保留未变状态；核对触发时机、当前景别、稳定身份绑定和下一镜终点，不用全员同步反应。",
+        "en": "Use short-drama-video-prompts to plan group performance. List goals and existing knowledge, direct only actual changes, and preserve unchanged states. Check trigger timing, framing, stable identity bindings, and the next boundary. Avoid compulsory synchronized reactions."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "多人表演与注意交接",
+          "en": "Group performance and attention transfers"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/performance-action-timing.md"
+      },
+      {
+        "label": {
+          "zh": "身份指代与稳定绑定",
+          "en": "Identity references and stable bindings"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/production-prompt-grammar.md"
+      }
+    ],
+    "related": [
+      "/drama-skills/character-performance-prompts",
+      "/drama-skills/storyboard-a-group-confrontation",
+      "/drama-skills/fix-extra-people-in-ai-video"
+    ]
+  },
+  {
+    "owner": "video-recap",
+    "slug": "make-a-video-with-original-audio-and-no-voiceover",
+    "topic": "video-recaps",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "视频不加旁白怎么做：先选原声处理方式",
+      "en": "How to Make a Video with Original Audio and No Voiceover"
+    },
+    "seo_title": {
+      "zh": "视频不加旁白怎么做：先选原声处理方式",
+      "en": "Make a Video with Original Audio and No Voiceover"
+    },
+    "description": {
+      "zh": "不加旁白也要明确声音决定。区分处理原声、复制已采用音轨与换画保留混音，附操作请求和回听检查。",
+      "en": "Choose processed source audio, copying an adopted track, or pairing a new picture with a locked mix. Includes an operation request and listening checks."
+    },
+    "answer": {
+      "zh": "先确认当前声音是否已经完整可用。需要调整原声音量或加入已选配乐时，选择原声混音；要保留已采用音轨时，选择符合条件的音频复制。video-assemble 默认仍是旁白模式，必须显式选择无旁白方式；不需要生成空配音来绕过输入要求。",
+      "en": "First decide whether the current soundtrack is already complete. Use source mixing to adjust source gain or add chosen music; use supported audio copying to preserve an adopted track. video-assemble still defaults to narration, so select a non-narration mode explicitly instead of inventing empty voiceover data."
+    },
+    "sections": [
+      {
+        "id": "choose",
+        "heading": {
+          "zh": "先把“不加旁白”说成具体声音决定",
+          "en": "Make the sound decision explicit"
+        },
+        "body": {
+          "zh": "没有旁白不代表没有声音设计。原对白、动作声、环境声与沉默可以承担内容；选择保留哪些，再决定怎样合成。\n\n| 需求 | video-assemble 的实际方式 |\n|---|---|\n| 调整当前原声音量，或加入已选音乐 | `source-mix`：不生成旁白，但会按配置处理声音，包含末级响度或限幅处理。 |\n| 原音轨已采用，要求原编码音频不被处理 | `adopted-packet-copy`：复制符合条件的 AAC 流，核对音频包与时间，不再混音。 |\n| 新画面与另一文件中的完整混音配对 | 先用独立配对方法，不把新画面的原声冒充已采用混音。 |\n\n`source-mix` 不是冻结音轨。“没配音”也不等于“声音没变化”。复制方式支持的输入较窄，必须核对实际编码、选中音轨和音画区间，不能只凭扩展名判断。",
+          "en": "No voiceover does not mean no sound design. Dialogue, action sound, ambience, and silence can carry content. Decide what to keep before choosing assembly.\n\n| Need | Actual route |\n|---|---|\n| Adjust source level or add selected music | `source-mix`: creates no narration, but processes sound according to settings, including the configured final loudness or limiter stage. |\n| Preserve an adopted encoded audio track | `adopted-packet-copy`: copies a supported AAC stream and verifies its packets and clock without mixing. |\n| Pair new picture with a complete mix in another file | Use the separate pairing method; do not substitute the new picture’s source audio for that mix. |\n\n`source-mix` is not frozen audio. “No voiceover” does not mean “unchanged soundtrack.” Copying has narrower input support: inspect codec, selected stream, and picture/audio intervals rather than relying on a filename extension."
+        }
+      },
+      {
+        "id": "request",
+        "heading": {
+          "zh": "给执行者一段不含糊的请求",
+          "en": "Give the operator an unambiguous request"
+        },
+        "body": {
+          "zh": "下面是一份可填写的操作请求，不是可直接运行的脚本：\n\n> 当前输入：___；当前采用版本：___。\n> 不增加旁白，不读取旧 TTS 当作新声音。\n> 需要：处理原声 / 保留已采用完整音轨，两者选一。\n> 保留音轨：___；如有多音轨，先试听确认说话声所在轨。\n> 音量或配乐决定：___；未选择新音乐就不追加 BGM。\n> 画面范围与字幕要求：___；导出新候选，不覆盖已采用成片。\n> 完成后说明实际处理，并回听原话、接点与尾声。\n\n默认入口是 `narration`。选无旁白时明确 `--audio-mode source-mix` 或 `--audio-mode adopted-packet-copy`；`--audio-stream-index` 选择的是零起点的音频流序号。音轨复制不能同时带 TTS、配乐配置或不支持的编码；输入不符合时先报告，别自动改成混音后仍称复制成功。",
+          "en": "This fillable request is an operation brief, not a runnable script:\n\n> Input and adopted version: ___.\n> Add no voiceover; do not use old TTS as new audio.\n> Choose one: process source audio / preserve an adopted complete track.\n> Selected audio: ___; listen to identify the dialogue track if there are several.\n> Level or music decision: ___; add no BGM without a selection.\n> Picture range and subtitle requirements: ___; export a new candidate without overwriting the adopted delivery.\n> Report actual processing, then listen to speech, edit joins, and the ending.\n\nThe default entry is `narration`. Explicitly choose `--audio-mode source-mix` or `--audio-mode adopted-packet-copy`. `--audio-stream-index` is a zero-based audio-stream ordinal. Copying rejects TTS, configured BGM, and unsupported codecs. Report incompatible inputs rather than silently mixing and calling it a successful copy."
+        }
+      },
+      {
+        "id": "example",
+        "heading": {
+          "zh": "原创示例：保留一段手工修补的原声",
+          "en": "Original example: keep the sound of a repair demonstration"
+        },
+        "body": {
+          "zh": "假设素材是一段手工修补示范：老师先说明针法，停下说话做示范，最后让学员试一次。原声已经包含完整解释与操作声，不需要另配解说。\n\n若要稍调声音并加已经选好的轻音乐，使用 `source-mix`，明确保留老师原话与学员回应。导出后回听示范期间的操作声有没有被盖住，不把无说话段当作需要音乐填满的空白。\n\n若现有 AAC 音轨已经完成混音并采用，要求只变画面包装，就先判断复制条件；通过后保留这条声音，不再叠音乐或跑一遍响度处理。实际包校验通过只能证明复制满足合同，还需要听完整片段判断内容是否正确、是否选中了目标轨。\n\n这里是制作决策示例，没有运行或听审结果。若既要删改画面时长又要保持另一版声音，先重新解决音画区间，不用截掉音频尾部让两者勉强相等。",
+          "en": "Suppose a repair demonstration has the teacher explain a stitch, demonstrate without speaking, then let a learner try. Existing sound contains the explanation and operation sounds; no new narration is needed.\n\nTo adjust audio and add already selected quiet music, use `source-mix` while preserving the teacher’s words and learner’s response. Listen afterward for masked operation sounds. The wordless demonstration is not an empty space that must be filled with music.\n\nIf an existing AAC track is already mixed and adopted, and only picture packaging should change, check copying eligibility. If it passes, keep that track without extra music or another loudness pass. Packet verification proves the copy contract, but full listening still checks content and whether the intended stream was selected.\n\nThis is a decision example, not an executed or listened-to result. If picture duration changes while another version’s sound must remain, resolve the intervals first rather than trimming an audio tail to force equality."
+        }
+      },
+      {
+        "id": "delivery",
+        "heading": {
+          "zh": "导出后核对处理记录和实际声音",
+          "en": "Check processing records and the actual soundtrack"
+        },
+        "body": {
+          "zh": "先看 `assembly_qc.json` 实际采用的模式、音轨与处理，再正常速度听开头、原对白、每个接点和结尾。不加旁白的片也可能选错轨、叠上旧配音、截断句尾或多处理一次已定混音。\n\n想导出剪映草稿时另核能力：当前无旁白导出只支持所选音频流 0，其他选择会失败，不能默认换回 0。字幕和包装也要作为独立需求说明，不因没生成 TTS 就假定全部旧字幕都已消失。\n\n原片字幕、旁白字幕与新标题是不同层；保留或删除哪一层按本次决定落实。只检查到文件或包时，记录技术结果，别把它叫成已回听或已完成内容验收。",
+          "en": "Inspect `assembly_qc.json` for the actual mode, stream, and processing, then listen at normal speed to the opening, dialogue, joins, and ending. A video without new narration can still select the wrong track, retain old voiceover, cut a sentence, or process an adopted mix again.\n\nFor a JianYing draft, check its separate boundary: non-narration export currently supports selected audio stream 0 only. Other selections fail rather than silently reverting to 0. State subtitle and packaging requirements separately; absence of new TTS does not remove every old subtitle.\n\nSource subtitles, narration subtitles, and new titles are different layers. Implement which to retain or remove according to this request. File or packet checks are technical evidence, not a listening or content-acceptance record."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "保留原声是不是就是无损导出？",
+          "en": "Does retaining source audio mean a lossless export?"
+        },
+        "a": {
+          "zh": "不一定。source-mix 会处理并编码声音；符合条件的 adopted-packet-copy 可以复制音频包，但画面仍可能重编码。要明确哪一条流保持什么，再核输出，不把整部视频都称无损。",
+          "en": "Not necessarily. source-mix processes and encodes audio. Supported adopted-packet-copy preserves audio packets, while picture may still be re-encoded. Specify which stream preserves what and verify the result; do not call the entire video lossless."
+        }
+      }
+    ],
+    "skill": {
+      "name": "video-assemble",
+      "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/SKILL.md",
+      "text": {
+        "zh": "请按 video-assemble 的无旁白方式处理：先确认原声是否已采用，再选择 source-mix 或 adopted-packet-copy。列实际音轨、配乐/音量决定及输入限制；不生成空TTS、不默认叠BGM，导出新候选并说明还需回听的内容。",
+        "en": "Use video-assemble without narration. First determine whether the soundtrack is adopted, then choose source-mix or adopted-packet-copy. State the selected stream, music/level decisions, and input limits. Create no empty TTS, add no default BGM, export a new candidate, and identify listening still needed."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "无旁白音频模式与复制边界",
+          "en": "Non-narration modes and copying boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/audio-modes.md"
+      },
+      {
+        "label": {
+          "zh": "输入、默认模式与合成入口",
+          "en": "Inputs, default mode, and assembly entry"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "独立画面与已采用音轨配对",
+          "en": "Pairing picture with an adopted track"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/pair-media.md"
+      }
+    ],
+    "related": [
+      "/video-recap/original-audio-and-narration",
+      "/video-recap/keep-audio-when-changing-video",
+      "/video-recap/background-music-overpowers-voice"
     ]
   }
 ]
