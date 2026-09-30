@@ -85,6 +85,12 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Write Character Backstory Without Stopping the Story](https://zenstory.ai/oh-story/write-character-backstory) — Connect a character’s past to a present choice, then decide what the reader needs now. Includes an original scene, a reveal plan and revision checks.
 - [How to Write Supporting Characters Who Have Their Own Goals](https://zenstory.ai/oh-story/write-a-memorable-supporting-character) — Give supporting characters a story function, a goal of their own and a planned exit. Includes character cards and three choices in one conflict.
 - [Dialogue Tags and Action Beats: When to Use Each](https://zenstory.ai/oh-story/write-natural-dialogue-tags) — Use tags to identify speakers and action beats to change the scene. Original before-and-after examples address unclear attribution and repetitive gestures.
+- [How to Write an Overpowered Protagonist](https://zenstory.ai/oh-story/write-an-overpowered-protagonist) — Keep a powerful lead capable while changing the obstacles. Use noncombat constraints, conflicting goals and consequences instead of sudden incompetence.
+- [How to Write Subtext in Fiction Dialogue](https://zenstory.ai/oh-story/write-subtext-in-dialogue) — Define what a speaker wants and why they cannot say it directly. Includes original public and private exchanges, supporting actions and revision checks.
+- [How to Write a Believably Smart Character](https://zenstory.ai/oh-story/write-a-smart-character) — Show intelligence through observation, adaptation and verifiable action. Includes an original scene and checks against unsupported insight or foolish opponents.
+- [How to Write a Character With Contrasting Traits](https://zenstory.ai/oh-story/write-character-contrast) — Connect public impressions, behavior and inner motives. Includes an original character card and checks that distinguish contrast from inconsistency.
+- [How to Write a Worthy Rival](https://zenstory.ai/oh-story/write-a-worthy-rival) — Give rivals independent goals, demonstrated respect and a conflict neither can easily abandon. Includes an original competition and a limited-cooperation plan.
+- [How to Design Characters for a Short Drama](https://zenstory.ai/drama-skills/short-drama-character-design) — Turn biography into goals, protected values, habitual strategies and costs. Includes an original character card and a scene testing those traits.
 
 ### Choose and write a genre / 题材与类型写法
 - [Choose and write a genre](https://zenstory.ai/guides/genres) — Choose a genre and learn the story patterns it needs.
@@ -119,6 +125,9 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Write Folk Horror: One Taboo, Human Ties, and Consequences](https://zenstory.ai/oh-story/folk-horror-fiction) — Embed one taboo in kinship, ritual, and practical interests, then escalate one causal chain. Includes a fictional well ritual and rules-horror comparison.
 - [Fanqie vs Qidian Writing Styles: Two AI Briefs](https://zenstory.ai/oh-story/fanqie-vs-qidian) — Turn one original premise into pace-first and immersion-first AI briefs, then compare opening focus, anticipation, and information order.
 - [How to Write a Protagonist Who Hides Their Strength](https://zenstory.ai/oh-story/hidden-strength-loop) — Plan a secretly powerful protagonist with a repeatable loop, a three-party information card, an original example, and a bounded AI prompt.
+- [How to Write a Cultivation Arc in Xianxia Fiction](https://zenstory.ai/oh-story/write-a-xianxia-novel) — Build cultivation around resources, costs and changed circumstances. Includes an original sect trial, a progression worksheet and ways to introduce ranks.
+- [How to Write a Campus Romance](https://zenstory.ai/oh-story/write-a-campus-novel) — Use schoolwork, clubs and peer pressure to move a romance beyond blushing. Includes dialogue, a relationship worksheet and repairs for misunderstandings.
+- [How to Connect Arcs in an Infinite-Flow Novel](https://zenstory.ai/oh-story/write-an-infinite-flow-novel) — Connect self-contained scenario arcs to an ongoing real-world objective. Includes an original dual-line outline and repairs for resets and unused rewards.
 
 ### Revise your novel / 小说改稿与去 AI 味
 - [Revise your novel](https://zenstory.ai/guides/revision) — Fix weak prose, continuity mistakes, and chapters that stall.
@@ -138,6 +147,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Fix Repetitive Actions in AI Fiction](https://zenstory.ai/oh-story/ai-repeated-actions) — Fix AI fiction that repeats one beat as action, bodily reaction, and explanation. Use a mark-and-merge worksheet, example, checklist, and prompt.
 - [How to Check AI Fiction for Continuity Errors](https://zenstory.ai/oh-story/ai-fiction-consistency-check) — Audit AI-assisted fiction for factual, rule, timeline, causal, and cost conflicts. Cite both sides, separate evidence from severity, and recheck later chapters.
 - [How to Fix Plot Logic With Cause and Effect](https://zenstory.ai/oh-story/build-a-cause-and-effect-plot) — Turn an event list into a causal chain. Check knowledge, choices and outcomes with an original investigation example and a revision table.
+- [How to Fix Character Continuity in a Short Drama](https://zenstory.ai/drama-skills/short-drama-character-memory) — Track goals, knowledge, relationships and unpaid costs between episodes. Includes a handoff example and repairs for unexplained knowledge or reset states.
 
 ### Short-drama scripts / 短剧改编与剧本
 - [Short-drama scripts](https://zenstory.ai/guides/short-drama) — Adapt a story into episodes, scenes, and shootable dialogue.
@@ -161,6 +171,13 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [Merge Scenes for Short Drama: Fewer Locations, Intact Causality](https://zenstory.ai/drama-skills/adaptation-scene-compression) — Map choices, evidence, relationships, and causal functions, then test time, agendas, information order, and reaction space. Includes a contest example.
 - [How to Develop an Idea into a Short-Drama Series](https://zenstory.ai/drama-skills/idea-to-creative-brief) — Separate a premise from a story engine, compare two mechanisms in a compact brief, build an engine card, and test three rounds for real state change.
 - [Vertical Drama Script Format: A Scene and Dialogue Template](https://zenstory.ai/drama-skills/vertical-drama-script-format) — Use this Markdown template for scene headings, action, dialogue, and production cues. Choose a format, then check AI edits against the source.
+- [How to Write a Rebirth Short Drama](https://zenstory.ai/drama-skills/rebirth-short-drama) — Turn past-life knowledge into present action. Plan the first changed choice, audience knowledge, diverging memories and practical flashback production.
+- [How to Write a Second-Chance Romance Drama](https://zenstory.ai/drama-skills/second-chance-romance-drama) — Make the old rupture specific and answer it through present action. Includes a repair worksheet, knowledge plan and practical use of recurring objects.
+- [How to Write a Short-Drama Plot Twist](https://zenstory.ai/drama-skills/short-drama-plot-twists) — Distinguish revelation, reversal and an ending hook. Use established facts to change a plan, with an original evidence scene and a payoff worksheet.
+- [How to Write a Family Short-Drama Series](https://zenstory.ai/drama-skills/write-a-family-drama-short-series) — Turn care, financial dependence and disputed history into action. Includes an original family scene, witness roles and concrete changes in boundaries.
+- [How to Write a Workplace Comedy Short Drama](https://zenstory.ai/drama-skills/write-a-workplace-short-drama) — Build workplace comedy from process gaps, permissions and responsibility. Includes an original repair scene with visible proof and credible coworkers.
+- [How to Write a Rules-Horror Short Drama](https://zenstory.ai/drama-skills/rules-horror-short-drama) — Make horror rules visible through tests, spatial changes and limited resources. Includes an original corridor scene and checks for lights, cast and props.
+- [How to Write a Low-Budget Short Drama](https://zenstory.ai/drama-skills/low-budget-short-drama) — Review locations, cast, past settings, prop states and tested capabilities. Includes substitutions that preserve information, choices and results.
 
 ### Storyboards and AI video / 分镜与 AI 视频
 - [Storyboards and AI video](https://zenstory.ai/guides/ai-video) — Plan shots, keep characters consistent, and improve generated footage.
@@ -212,6 +229,9 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Write Video-Game Dialogue That Fits Play](https://zenstory.ai/novel-to-game/write-video-game-dialogue) — Keep lines tied to character goals and game state, avoid narrating visible actions, and test dialogue in the actual interaction.
 - [How to Tell a Story Through a Game Environment](https://zenstory.ai/novel-to-game/tell-a-game-story-through-the-environment) — Use object placement, damage, access, and repeated locations to show what happened and what players can infer.
 - [How to Playtest a Novel-to-Game Adaptation](https://zenstory.ai/novel-to-game/playtest-a-novel-game-adaptation) — Test whether players understand the game's goals, source identity, choices, and story feedback without relying on your explanation.
+- [How to Plan a Branching Game Story](https://zenstory.ai/novel-to-game/map-a-branching-game-story) — Choose a branch structure and preserve consequences at shared scenes. Includes an original investigation map, state variants and a practical content budget.
+- [How to Design a Relationship System for a Game](https://zenstory.ai/novel-to-game/design-a-relationship-system) — Define how trust and promises alter behavior before adding affinity scores. Includes concrete states, threshold checks and responses beyond repeated gifts.
+- [How to Prototype a Narrative Game](https://zenstory.ai/novel-to-game/prototype-a-story-driven-game-vertical-slice) — Test knowledge, choices and consequences in one complete scene before expansion. Includes an original scope, contrasting play paths and local failure diagnosis.
 
 ### Video scripts and editing / 视频解说与剪辑
 - [Video scripts and editing](https://zenstory.ai/guides/video-recaps) — Write narration from footage, edit a story, and finish audio and subtitles.
