@@ -772,7 +772,7 @@
       "en"
     ],
     "published_on": "2026-09-23",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "角色三视图提示词怎么写（附模板与 6 个范例）",
       "en": "Character turnaround sheet prompt template for AI, with 6 examples"
@@ -830,8 +830,8 @@
           "en": "What identifies a character in side and back views"
         },
         "body": {
-          "zh": "正面看得到整张脸，侧面只剩侧脸，背面看不到脸。逐个视图问一遍：观众凭什么认出她？\n\n- 正面：脸型、五官的相对位置、正面可见的配饰。\n- 侧面：面部侧轮廓、上背弧度和站姿重心、发型剪影；痣或胎记只在它所在的那一侧看得见，要写明画左侧面还是右侧面。\n- 背面：发际形状和发型剪影、肩背线的宽窄与重心、后颈的永久痕迹。\n\n锚点必须在那个视图里真的看得见。眉距、瞳色、唇形这类只在正脸看得清的特征撑不起侧面和背面；Drama Skills 做人物设定时，要求侧面和背面各有至少一条认得出的锚点。全身视图靠体态和轮廓认人，面部小标记留给近景和头肩板。\n\n视图之间常见的毛病是变脸、换衣服、配饰挪位置，比如右臂的袖套到背面跑到左臂；把佩戴位置和相对大小写进三个视图共用的造型句。跨镜头的连续性见 [AI 短剧角色一致性](/drama-skills/character-consistency)。\n\n漫剧如果主要靠剪影认人，锚点不换，只换画法：发际形状落到发型剪影的缺口上，体态落到肩背重心上。找不到可靠画法时交回创作者，别换一个更好画的身份。",
-          "en": "The front view shows the face, the side a profile, the back none. Ask of each view what lets the audience recognize the character there.\n\n- Front: face shape, feature layout, accessories seen from the front.\n- Side: profile, upper-back curve and posture, hair silhouette; a mole or birthmark shows only on its own side, so name the profile.\n- Back: hairline shape and hair silhouette, shoulder line and weight, permanent marks on the nape.\n\nAn anchor counts only if that view shows it. Face-on features such as brow spacing or lip shape cannot carry the side and back; Drama Skills asks for at least one anchor for each. Full-body views read build and outline; small facial marks belong to close-ups.\n\nDrift between views is a common failure, such as a sleeve protector that jumps arms; pin accessory positions in the shared look sentence. For consistency across shots, see [character consistency in AI short drama](/drama-skills/character-consistency).\n\nIn a silhouette-driven motion comic, keep the anchors and redraw them (hairline as a notch in the hair shape, posture as shoulder weight), or ask the creator."
+          "zh": "正面看得到整张脸，侧面只剩侧脸，背面看不到脸。逐个视图问一遍：观众凭什么认出她？\n\n- 正面：脸型、五官的相对位置、正面可见的配饰。\n- 侧面：面部侧轮廓、上背弧度和站姿重心、发型剪影；痣或胎记只在它所在的那一侧看得见，要写明画左侧面还是右侧面。\n- 背面：发际形状和发型剪影、肩背线的宽窄与重心、后颈的永久痕迹。\n\n锚点必须在那个视图里真的看得见。眉距、瞳色、唇形这类只在正脸看得清的特征撑不起侧面和背面；为当前用途检查侧面与背面是否确实有可辨认依据，不把“每面至少一个”当成统一配额。全身视图靠体态和轮廓认人，面部小标记留给近景和头肩板。\n\n视图之间常见的毛病是变脸、换衣服、配饰挪位置，比如右臂的袖套到背面跑到左臂；把佩戴位置和相对大小写进三个视图共用的造型句。跨镜头的连续性见 [AI 短剧角色一致性](/drama-skills/character-consistency)。\n\n漫剧如果主要靠剪影认人，锚点不换，只换画法：发际形状落到发型剪影的缺口上，体态落到肩背重心上。找不到可靠画法时交回创作者，别换一个更好画的身份。",
+          "en": "The front view shows the face, the side a profile, the back none. Ask of each view what lets the audience recognize the character there.\n\n- Front: face shape, feature layout, accessories seen from the front.\n- Side: profile, upper-back curve and posture, hair silhouette; a mole or birthmark shows only on its own side, so name the profile.\n- Back: hairline shape and hair silhouette, shoulder line and weight, permanent marks on the nape.\n\nAn anchor counts only if that view shows it. Face-on features such as brow spacing or lip shape cannot carry the side and back; Check each chosen view for recognizable evidence serving its purpose, without a universal per-view quota. Full-body views read build and outline; small facial marks belong to close-ups.\n\nDrift between views is a common failure, such as a sleeve protector that jumps arms; pin accessory positions in the shared look sentence. For consistency across shots, see [character consistency in AI short drama](/drama-skills/character-consistency).\n\nIn a silhouette-driven motion comic, keep the anchors and redraw them (hairline as a notch in the hair shape, posture as shoulder weight), or ask the creator."
         }
       },
       {
@@ -853,7 +853,7 @@
         },
         "body": {
           "zh": "每种光让一类结构看得清，同时压掉另一类，所以先问这张板要比较什么。\n\n| 要比较什么 | 选什么光 | 代价 |\n|---|---|---|\n| 五官相对位置、妆面、服色和图案 | 均匀正面光 | 颧骨、鼻梁、下颌的体积变平 |\n| 骨骼体积和轮廓起伏 | 侧光或高位斜侧光 | 暗侧细节丢失，左右不对称被放大 |\n| 布料纹理、肤质 | 大面积柔光 | 轮廓边界变软 |\n| 磨损、金属反光、工艺痕迹 | 小面积硬光 | 过渡丢失，瑕疵被放大 |\n| 发型剪影、服装廓形 | 轮廓光或逆光边缘光 | 面部信息被压掉，不能单独当身份板 |\n\n顶光让眼窝、鼻下、颌下的纵向结构可比较，代价是暗区里的识别细节和服装层次会丢；底光颠倒日常明暗，做识别板时不用。状态板可以用场景里的实际光源，光向要和已确认的场景一致。\n\n光型只按要比较的内容挑，“女角色一律柔光、男角色一律侧光”这类按性别、年龄、贫富或题材套用的默认，先删掉。强戏剧阴影遮住脸或服装结构的图，不能当识别板。",
-          "en": "Pick light by what the sheet must compare; each setup reveals one structure and hides another.\n\n| What to compare | Lighting | Trade-off |\n|---|---|---|\n| Feature layout, makeup, clothing colors | Even front light | Face volume flattens |\n| Bone structure and contour | Side or high three-quarter light | Shadow-side detail lost |\n| Fabric and skin texture | Large soft light | Outlines soften |\n| Wear, metal, craft marks | Small hard light | Flaws exaggerated |\n| Hair and garment silhouette | Rim or backlight | Face detail lost |\n\nTop light makes the eye sockets, nose and jaw comparable but loses detail and clothing layers in shadow; skip under-lighting for identity sheets. A state sheet may use the scene's practical light if its direction matches the approved location.\n\nDelete defaults keyed to gender, age, wealth or genre, such as \"soft light for women, side light for men\". Dramatic shadows over the face or clothing structure disqualify an identity sheet."
+          "en": "Pick light by what the sheet must compare; each setup reveals one structure and hides another.\n\n| Compare | Light | Cost |\n|---|---|---|\n| Feature layout, makeup, clothing colors | Even front light | Face volume flattens |\n| Bone structure and contour | Side or high three-quarter light | Shadow-side detail lost |\n| Fabric and skin texture | Large soft light | Outlines soften |\n| Wear, metal, craft marks | Small hard light | Flaws exaggerated |\n| Hair and garment silhouette | Rim or backlight | Face detail lost |\n\nTop light makes the eye sockets, nose and jaw comparable but loses detail and clothing layers in shadow; skip under-lighting for identity sheets. A state sheet may use the scene's practical light if its direction matches the approved location.\n\nDelete defaults keyed to gender, age, wealth or genre, such as \"soft light for women, side light for men\". Dramatic shadows over the face or clothing structure disqualify an identity sheet."
         }
       },
       {
@@ -874,8 +874,8 @@
           "en": "Common turnaround prompt mistakes and fixes"
         },
         "body": {
-          "zh": "- 一张板里出现两套衣服、两种发长或干湿并存：只绑一套造型，其他造型拆成独立条目。\n- 手持道具和当下表情写进了身份：道具需要反复识别时才单独建板，表情交给分镜；身份板表情平静或低强度。\n- 表单字段直接贴进正文，比如“角色：船老大／年龄：60”：改写成自然描述。\n- 生成结果漂移后原样重发同一段描述：先判断是身份、构图、文字还是状态出了问题，再改对应的那一句。\n\n发出前用这张清单过一遍：\n\n- [ ] 第一句写了用途和角色名\n- [ ] 身份锚点换衣服后仍然成立\n- [ ] 整张板只有一套造型\n- [ ] 每个视图都有看得见的锚点\n- [ ] 光线对应要比较的内容\n- [ ] 写了画面内无标签、箭头、尺寸标注和图注\n- [ ] 没有与身份冲突的模板审美句",
-          "en": "- Two outfits, two hair lengths, or wet and dry on one sheet: bind one look and split the rest into separate entries.\n- A hand prop or passing expression in the identity: give the prop its own sheet only if later shots must recognize it; expressions go to the storyboard.\n- Form fields pasted in, such as \"Role: captain / Age: 60\": rewrite them as plain description.\n- Drifting output answered by resending the same prompt: find whether identity, composition, text or state failed, and fix that sentence.\n\nChecklist before sending:\n\n- [ ] First sentence states purpose and name\n- [ ] Anchors survive a costume change\n- [ ] One look on the sheet\n- [ ] Every view has a visible anchor\n- [ ] Lighting matches the comparison\n- [ ] No labels, arrows, dimension marks or captions\n- [ ] No template phrase conflicts with identity"
+          "zh": "- 一张板里出现两套衣服、两种发长或干湿并存：只绑一套造型，其他造型拆成独立条目。\n- 手持道具和当下表情写进了身份：道具需要反复识别时才单独建板，表情交给分镜；识别板常用平静表情，但表演测试可以按用途给出表情范围，不把不同剧情时刻混成一张姿态。\n- 表单字段直接贴进正文，比如“角色：船老大／年龄：60”：改写成自然描述。\n- 生成结果漂移后原样重发同一段描述：先判断是身份、构图、文字还是状态出了问题，再改对应的那一句。\n\n发出前用这张清单过一遍：\n\n- [ ] 第一句写了用途和角色名\n- [ ] 身份锚点换衣服后仍然成立\n- [ ] 整张板只有一套造型\n- [ ] 每个视图都有看得见的锚点\n- [ ] 光线对应要比较的内容\n- [ ] 写了画面内无标签、箭头、尺寸标注和图注\n- [ ] 没有与身份冲突的模板审美句",
+          "en": "- Two outfits, two hair lengths, or wet and dry on one sheet: bind one look and split the rest into separate entries.\n- A hand prop or passing expression in the identity: give the prop its own sheet only if later shots must recognize it; expressions go to the storyboard.\n- Form fields pasted in, such as \"Role: captain / Age: 60\": rewrite them as plain description.\n- Drifting output answered by resending the same prompt: find whether identity, composition, text or state failed, and fix that sentence.\n\nChecklist before sending:\n\n- [ ] First sentence states purpose and name\n- [ ] Anchors survive a costume change\n- [ ] One look on the sheet\n- [ ] Every view has a visible anchor\n- [ ] Lighting matches the comparison\n- [ ] No labels, arrows, dimension marks or captions\n- [ ] No template phrase conflicts with identity\n\nA calm expression often serves recognition. A performance test may use a chosen expression range, without mixing incompatible story moments into one pose."
         }
       }
     ],
@@ -930,10 +930,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "参考板用途、版式与布光决策",
+          "en": "Reference-sheet purpose, layout and lighting"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-image-prompts/references/production-sheet-recipes.md"
+      },
+      {
+        "label": {
+          "zh": "单一身份与当前造型",
+          "en": "Single identity and current look"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-image-prompts/references/character-and-look.md"
       }
     ]
   },
@@ -1586,7 +1593,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "网文爽点有哪些、怎么写：用倒推法完成铺垫与兑现",
       "en": "How to Write Satisfying Payoff Beats in Web Fiction"
@@ -1611,8 +1618,8 @@
           "en": "What Is a Payoff Beat, and What Are the Six Common Types?"
         },
         "body": {
-          "zh": "爽点是前文积累的期待得到兑现，人物处境、关系或资源随之改变。打脸只是其中一种表现，读者也会从目标完成、能力成长、被人认可、失而复得中获得满足。下面用同一个原创设定对照六种写法：药圃学徒尹砚能听见灵植根系的回声，她要通过考核进入内园寻找失踪师父的记录。\n\n| 类型 | 同一情节怎样改写 |\n|---|---|\n| 能力碾压 | 众人找不到枯萎原因，尹砚沿根系回声锁定东渠毒盐 |\n| 目标达成 | 她救活试种垄，拿到进入内园的临时通行牌 |\n| 收获盘点 | 她清点获救药苗，拼出师父留下的三种诊植标记 |\n| 态度转变 | 原先拒绝作证的药农主动排队，请她检查自家病株 |\n| 身份揭示 | 执事看到她的诊植手势，认出她是失踪园主暗中培养的继承人 |\n| 情感圆满 | 她在内园找到师父留给自己的完整诊植册，确认两人的传承从未中断 |\n\n挑类型时先问：这一段承诺给读者什么满足？答案要落成拿到资格、改变关系、揭开身份或获得资源等可见结果。只写“主角赢得很爽”还不能进入细纲。",
-          "en": "A payoff beat delivers an expectation built in earlier chapters and changes the character’s situation, relationships, or resources. A public comeuppance is only one form. Readers may also find satisfaction in a completed goal, visible growth, recognition, or the recovery of something lost.\n\nThe examples below use one original premise in six ways. Yin Yan, an apprentice in a medicinal-herb garden, can hear echoes from spirit-plant roots. She must pass an assessment and enter the inner garden to find records left by her missing mentor.\n\n| Type | Rewriting the same plot |\n|---|---|\n| Superior ability | No one else can find the cause of the withering plants; Yin Yan follows the root echoes to poisonous salt in the east channel |\n| Goal achieved | She saves the trial bed and receives a temporary pass to the inner garden |\n| Gains tallied | She inventories the rescued seedlings and pieces together three diagnostic marks left by her mentor |\n| Attitude changed | Growers who refused to testify now line up and ask her to inspect their diseased plants |\n| Identity revealed | A steward recognizes her diagnostic gesture and realizes she is the successor secretly trained by the missing garden master |\n| Emotional fulfillment | In the inner garden, she finds the complete diagnostic manual her mentor left for her and learns their line of teaching was never broken |\n\nWhen choosing a type, ask: what satisfaction does this passage promise the reader? The answer must become a visible result—winning access, changing a relationship, revealing an identity, or obtaining a resource. “The protagonist wins and it feels great” is not yet specific enough for a beat outline."
+          "zh": "爽点是前文积累的期待得到兑现，人物处境、关系或资源随之改变。Oh Story 用六类帮助选定满足方式，不要求一场同时出现六种。打脸只是其中一种表现，完成目标、确认成长和获得珍视也能让读者满足。\n\n以下是同一原创药圃故事的六种候选走向，不是已经全部发生的剧情：学徒尹砚能辨听灵植健康与灼伤根系的回声，想通过考核进入内园寻找失踪师父的记录。\n\n| 类型 | 候选兑现 |\n|---|---|\n| 能力碾压 | 对手只会猜病因，她辨出受伤根集中的东渠并完成验证 |\n| 目标达成 | 试种苗恢复后，执事按既定考核授临时通行牌 |\n| 收获盘点 | 清点获救药苗，实际找到前文建立的三张诊植标签 |\n| 态度转变 | 原先不信她的药农看过检验，带病株请她诊断 |\n| 身份揭示 | 执事核对已有师徒登记，确认她是师父收录的弟子 |\n| 情感圆满 | 找到署名留给自己的诊植册，看见师父珍视这段传承 |\n\n诊植手势可以触发查证，不能单独证明继承资格。找到师父留下的册子能兑现被珍视，也不等于师父已经平安归来。挑类型时先写具体满足，不用一句“主角赢得很爽”替代结果。",
+          "en": "A payoff delivers accumulated anticipation through a change in situation, relationships or resources. Oh Story offers six categories for choosing the satisfaction; a scene need not contain all six. Comeuppance is one form, while achieving a goal, confirming growth or receiving care can also satisfy.\n\nThese are alternative directions for one original garden story, not events that have all happened. Apprentice Yin Yan hears differences between healthy and burned magical roots. She wants to pass a test and enter the inner garden to find her missing mentor’s records.\n\n| Type | Possible delivery |\n|---|---|\n| Ability dominance | Locates injured roots near the east channel and verifies what others only guess |\n| Goal achieved | Steward awards the promised temporary pass after seedlings recover |\n| Gains counted | Finds three previously established diagnostic tags among rescued plants |\n| Attitude changed | A skeptical grower witnesses the test and brings a sick plant |\n| Identity revealed | Existing apprenticeship register confirms her enrollment |\n| Emotional fulfillment | Finds a notebook addressed to her, showing the mentor valued their bond |\n\nA diagnostic gesture can prompt a check, not prove inheritance rights. Finding a notebook delivers care without proving the mentor has returned safely. Name the concrete satisfaction rather than “she wins spectacularly.”"
         }
       },
       {
@@ -1623,7 +1630,7 @@
         },
         "body": {
           "zh": "Oh Story 的编辑方法先选爽点类型，再设计期待点，最后补铺垫。落进细纲时，可以把三步展开成下面这张倒推表：\n\n| 倒推项 | 要回答的问题 | 写进细纲的内容 |\n|---|---|---|\n| 兑现 | 读者最后亲眼看见什么变化？ | 动作、结果、归属变化 |\n| 期待 | 主角想得到什么，读者在等什么？ | 明确目标与承诺 |\n| 缺口 | 什么阻止目标立刻实现？ | 对手、规则、误判或代价 |\n| 铺垫 | 哪些事实让兑现可信？ | 能力证据、关系承诺、物件、信息差 |\n| 反应 | 谁最有资格确认结果的分量？ | 对手失去筹码、权威改口、受益者行动 |\n| 衔接 | 这次结果打开什么新行动？ | 新目标、新债务或更高层阻碍 |\n\n写的时候从“兑现”一行往上推，排章节时再按“铺垫—加压—释放—反应—衔接”的阅读顺序落地。这样能提前发现两类空心爽点：结果只停在口头夸奖，或主角突然拿出前文没有建立的能力。",
-          "en": "Oh Story’s editing method begins by choosing the kind of payoff, then identifying the expectation, and finally adding the setup. In a beat outline, expand those three moves into this backward-planning table:\n\n| Work backward from | Question to answer | What belongs in the beat outline |\n|---|---|---|\n| Delivery | What change does the reader finally witness? | Action, outcome, and change of ownership or status |\n| Expectation | What does the protagonist want, and what is the reader waiting for? | A clear goal and promise |\n| Gap | What prevents the goal from being achieved immediately? | An opponent, rule, mistaken judgment, or cost |\n| Setup | What facts make the delivery credible? | Evidence of ability, a relationship promise, an object, or an information gap |\n| Reaction | Who is best placed to confirm the result’s weight? | An opponent loses leverage, an authority revises a decision, or a beneficiary acts |\n| Handoff | What new action does this result open? | A new goal, debt, or higher-level obstacle |\n\nDesign upward from the “Delivery” row. When arranging chapters, restore the reading order: setup → pressure → release → reaction → handoff. This exposes two hollow payoffs early: a result that stops at verbal praise, and an ability that appears without any prior foundation."
+          "en": "Oh Story’s editing method begins by choosing the kind of payoff, then identifying the expectation, and finally adding the setup. In a beat outline, expand those three moves into this backward-planning table:\n\n| Item | Question | Outline |\n|---|---|---|\n| Delivery | What change does the reader finally witness? | Action, outcome, and change of ownership or status |\n| Expectation | What does the protagonist want, and what is the reader waiting for? | A clear goal and promise |\n| Gap | What prevents the goal from being achieved immediately? | An opponent, rule, mistaken judgment, or cost |\n| Setup | What facts make the delivery credible? | Evidence of ability, a relationship promise, an object, or an information gap |\n| Reaction | Who is best placed to confirm the result’s weight? | An opponent loses leverage, an authority revises a decision, or a beneficiary acts |\n| Handoff | What new action does this result open? | A new goal, debt, or higher-level obstacle |\n\nDesign upward from the “Delivery” row. When arranging chapters, restore the reading order: setup → pressure → release → reaction → handoff. This exposes two hollow payoffs early: a result that stops at verbal praise, and an ability that appears without any prior foundation."
         }
       },
       {
@@ -1633,8 +1640,8 @@
           "en": "Complete Example: Turn One Comeuppance Line into a Deliverable Payoff"
         },
         "body": {
-          "zh": "本页原创故事：药圃学徒尹砚能听见灵植根系的回声。师父失踪后，她要通过药圃考核，拿到内园通行牌，寻找师父的诊植记录。\n\n**原细纲：**\n\n> 对手嘲笑尹砚不会种药。尹砚使用能力，让整片枯田瞬间复苏，所有人震惊，她通过考核。\n\n期待和铺垫没有落地：通行牌的重要性没写，整片复苏超出能力边界，“所有人震惊”也没改变局面。\n\n**倒推后的爽点表：**\n\n| 项目 | 本例设计 |\n|---|---|\n| 兑现 | 找出东渠毒盐，救活一垄试种苗，获得七天代管资格和临时通行牌 |\n| 期待 | 进入内园寻找师父记录；失败就被赶出药圃 |\n| 缺口 | 对手归咎于她养护失误，执事只接受现场证据 |\n| 铺垫 | 鸟群避开东渠；她能分辨健康根与灼伤根；旧水闸最近换锁 |\n| 释放 | 开沟后蓝色盐水渗出，净水流入试种垄，幼苗重新挺立 |\n| 反应 | 对手说漏新锁位置；执事改判责任；药农排队请她诊断 |\n| 衔接 | 上游仍在投盐，她要边救圃边找源头 |\n\n**改写后的释放场景：**\n\n> 尹砚把手掌贴在试种垄边缘。细根的回声全朝东边断掉。\n> 她问执事：“若我挖开东渠，找到外来的东西，考核还算数吗？”\n> 对手笑道：“东渠换了新锁，你连——”话到一半，他停住了。\n> 窄沟开到第三尺，泛蓝的水从土缝里冒出来。尹砚引来净水，只浇那一垄。贴地的幼苗重新挺起叶尖。\n> 执事划掉“养护失误”，写下“水源受污”，把临时通行牌压在纸角。\n> 圃外的药农没有鼓掌。他们提着病株，排到了尹砚面前。\n\n能力边界、责任改判和新事业线都落到了动作上，下一章的追查也由这次胜利直接产生。",
-          "en": "Original story for this page: Yin Yan, an apprentice in a medicinal-herb garden, can hear echoes from spirit-plant roots. After her mentor disappears, she must pass the garden assessment, obtain a pass to the inner garden, and search for her mentor’s diagnostic records.\n\n**Original beat outline:**\n\n> An opponent mocks Yin Yan for not knowing how to grow medicinal plants. Yin Yan uses her power to revive the entire withered field instantly. Everyone is shocked, and she passes the assessment.\n\nNeither the expectation nor the setup lands. The importance of the pass is missing, reviving the whole field exceeds the stated ability, and “everyone is shocked” does not change the situation.\n\n**Payoff table after working backward:**\n\n| Item | Design for this example |\n|---|---|\n| Delivery | Find poisonous salt in the east channel, save one trial bed, and receive seven days of caretaker authority plus a temporary pass |\n| Expectation | Enter the inner garden to find the mentor’s records; failure means expulsion from the garden |\n| Gap | An opponent blames Yin Yan’s maintenance, while the steward accepts only evidence found on site |\n| Setup | Birds avoid the east channel; Yin Yan can distinguish healthy roots from burned ones; the old sluice has recently received a new lock |\n| Release | Blue salt water seeps out when the channel is opened; clean water reaches the trial bed, and the seedlings stand upright again |\n| Reaction | The opponent lets slip where the new lock is; the steward revises the ruling; growers line up for Yin Yan’s diagnosis |\n| Handoff | Someone is still adding salt upstream, so she must save the garden while tracing the source |\n\n**Rewritten release scene:**\n\n> Yin Yan pressed her palm to the edge of the trial bed. Every fine-root echo broke off toward the east.\n> She asked the steward, “If I open the east channel and find something introduced from outside, does the assessment still count?”\n> Her opponent laughed. “The east channel has a new lock. You can’t even—” He stopped halfway through the sentence.\n> At the third foot of the narrow trench, blue-tinged water seeped from the soil. Yin Yan brought in clean water and irrigated only that bed. Seedlings flattened against the ground lifted their leaf tips again.\n> The steward struck out “maintenance failure,” wrote “contaminated water source,” and set the temporary pass on the corner of the paper.\n> The growers outside did not applaud. They carried their diseased plants over and formed a line in front of Yin Yan.\n\nThe ability boundary, revised responsibility, and new line of work all become actions. The next chapter’s investigation grows directly from this victory."
+          "zh": "本页为原创虚构故事。先建立两项条件：尹砚只能辨听健康根与灼伤根，不能凭回声判断化学成分，更不能让整片枯田瞬间复苏；本书此前已展示“灼蓝盐”的检验反应、过量伤根及更换净水后试苗恢复的规则。执事有授牌权限，已宣布成功诊断并恢复试种苗者，可得到七日监督代管任务和内园临时通行牌。\n\n**原细纲：**\n\n> 对手嘲笑尹砚不会种药。她使用能力，让整片枯田瞬间复苏，所有人震惊，她通过考核。\n\n这超过能力边界，考核和通行牌也只停在一句宣布。\n\n**手写倒推表：**\n\n| 项目 | 本例设计 |\n|---|---|\n| 兑现 | 恢复一垄试种苗；实际领取七日任务和临时牌 |\n| 期待 | 进入内园找师父记录；本次不通过则须另等考核 |\n| 阻碍 | 对手认定养护失误，执事要求验证 |\n| 铺垫 | 回声辨伤，已知检验法、恢复规则与授牌条件 |\n| 释放 | 对照东渠水和净水；换水后试苗恢复 |\n| 反应 | 执事改判并授牌；药农带病株求助 |\n| 未结 | 污染从哪来、是否有人故意造成，仍要查 |\n\n**原创释放场景：**\n\n> 尹砚把手掌贴在垄边。东头的细根都发出同一种灼伤回声。\n>\n> “先验水。”她请执事看着，把东渠水和井水分装进两个白碟。按先前学过的检验法，只有东渠那一碟出现灼蓝盐反应。\n>\n> 执事允她停用这路水，试种垄改接净水。第二天复查，叶片挺了起来，新根的回声恢复。执事把“养护失误”改成“东渠水含伤根盐”，写下七日监督代管任务，将临时牌交到她手里。\n>\n> 圃外的老药农指着获救的苗，把自己的病株放在她面前：“这株也请你看看。”\n\n这里兑现诊断、试苗恢复和实际授牌，没有因此认定某个对手就是投盐者，也没有宣称整片药圃全部恢复。眼前回报先落地，再从尚未解决的水源问题续写。",
+          "en": "This original fictional story establishes two conditions first. Yin can distinguish healthy from burned magical roots, not identify chemicals by sound or instantly revive a field. Earlier scenes establish a test for fictional blue-burning salt, its root damage and seedling recovery after clean water replaces it. The steward can award passes and has promised a seven-day supervised assignment and temporary inner-garden access for a verified diagnosis and restored trial seedlings.\n\n**Original outline:**\n\n> The rival mocks Yin. She uses her ability, instantly revives the whole field, astonishes everyone and passes.\n\nThis exceeds her ability and leaves the assessment and pass as a bare announcement.\n\n**Manual planning table:**\n\n| Item | This design |\n|---|---|\n| Delivery | Restore one trial bed; receive assignment and pass |\n| Anticipation | Seek mentor’s records; failure means waiting for another test |\n| Obstacle | Rival blames care; steward requires verification |\n| Setup | Root hearing, established test, recovery rule and award criteria |\n| Release | Compare channel and well water; seedlings recover after replacement |\n| Reactions | Steward revises finding and awards pass; grower requests help |\n| Open issue | Source and intent of contamination remain unknown |\n\n**Original release scene:**\n\n> Yin pressed her palm beside the bed. Roots at the east end gave the same burned echo.\n>\n> “Test the water first.” With the steward watching, she filled two white dishes, one from the channel, one from the well. Using the test learned earlier, only the channel sample showed the blue-burning salt reaction.\n>\n> The steward allowed her to disconnect that supply and use clean water. At the next day’s check, leaves stood up and new roots sounded healthy. He replaced “care failure” with “root-damaging salt in east-channel water,” wrote the supervised seven-day assignment and put the pass into her hand.\n>\n> Outside, an older grower pointed at the restored seedlings and set his own sick plant before her. “Would you check this one?”\n\nThe scene delivers diagnosis, trial recovery and an actual award. It does not identify a deliberate poisoner or restore the whole garden. Pay off the immediate promise, then continue from the unresolved source."
         }
       },
       {
@@ -1644,8 +1651,8 @@
           "en": "Why a Comeuppance Scene Can Still Feel Flat: Check the Reactions"
         },
         "body": {
-          "zh": "爽点释放后，安排三类人按各自利益行动：受损者失去筹码，裁决者改变决定，受益者带来新机会。三层的身份和动作各不相同，反应才能把结果的分量传给读者。\n\n可复制检查表：\n\n- [ ] 主角的行动产生了可验证结果\n- [ ] 对手失去一种具体筹码，或被迫换策略\n- [ ] 有资格判断结果的人改变了决定\n- [ ] 受益者用行动表达认可\n- [ ] 反应带来资源、关系、名声或风险中的一项变化\n- [ ] 新压力在旧回报落地后出现\n\n若正文只有“所有人都惊呆了”，回到后三项补动作。反应已经完成改判、资源归属和新行动时，就可以收束。",
-          "en": "After the payoff lands, let three kinds of people act from their own interests: the losing party gives up leverage, the adjudicator changes a decision, and the beneficiary creates a new opportunity. Because the three roles act differently, their reactions communicate the result’s weight.\n\nReusable checklist:\n\n- [ ] The protagonist’s action produces a verifiable result\n- [ ] The opponent loses specific leverage or must change strategy\n- [ ] Someone qualified to judge the outcome revises the decision\n- [ ] A beneficiary expresses recognition through action\n- [ ] The reaction changes a resource, relationship, reputation, or risk\n- [ ] New pressure appears after the old reward has landed\n\nIf the prose contains only “Everyone was stunned,” return to the last three items and add actions. End the reaction sequence once it has revised the judgment, reassigned resources, and initiated the next action."
+          "zh": "先选本场确实相关的人，让反应改变后续选择。尹砚的执事掌握考核与授牌，药农决定是否委托诊断；如果对手不在现场，不必为了凑齐三层观众把他硬塞进来。可以直接写赞叹，也可以写安静的认可，依本书声音选择。\n\n- [ ] 主角完成了所承诺的结果\n- [ ] 有权判断或分配的人实际改变了决定\n- [ ] 需要交付的资源、资格或关系已经落地\n- [ ] 各人按自己的关切响应，没有统一旁白\n- [ ] 下一步来自已有条件，未抹掉眼前回报\n\n对手未必每场都出现；新压力也无需每次紧接着打断喜悦。确认结果和反应已有分量后，可以给人物停留、庆祝或余味。",
+          "en": "Choose people who are relevant to this payoff and let responses affect later choices. Yin’s steward controls assessment and passes; the grower decides whether to request a diagnosis. If the rival is absent, do not insert them merely to fill three audience tiers. Direct praise and quiet recognition are both valid within the book’s voice.\n\n- [ ] The promised result is accomplished\n- [ ] A relevant decision-maker actually changes a decision\n- [ ] The promised resource, status or relationship lands\n- [ ] People respond through their own concerns\n- [ ] A next step uses existing conditions without erasing this reward\n\nA rival need not attend every scene, and a new pressure need not immediately interrupt every joy. Once the result carries weight, allow celebration or an aftereffect."
         }
       },
       {
@@ -1655,8 +1662,8 @@
           "en": "How to Escalate Consecutive Payoff Beats Across Four Dimensions"
         },
         "body": {
-          "zh": "连续写同一种打脸，很快会变成重复。Oh Story 的大纲检查要求后一个爽点在影响力、层级、收获、认知中至少一项超过前一个。它是排纲用的比较方法，重点在状态升级。\n\n| 爽点 | 影响力 | 层级 | 收获 | 认知变化 |\n|---|---|---|---|---|\n| 找出东渠毒盐 | 一垄试种苗 | 外园考核 | 七天代管资格 | 尹砚能诊断根系问题 |\n| 保住整片药圃 | 全体药农生计 | 外园经营 | 正式通行牌 | 污染来自人为布置 |\n| 在内园公开诊植记录 | 宗门药材供应 | 长老决策 | 师父研究的处置权 | 师父失踪与宗门旧案相连 |\n\n第二个爽点扩大影响范围和收获，第三个提高决策层级并改变主线认知。升级来自结果结构，少用“更震惊”“更强大”一类形容词硬抬强度。",
-          "en": "Repeatedly writing the same kind of comeuppance soon becomes monotonous. Oh Story’s outline check asks the later payoff to exceed the earlier one in at least one of four dimensions: reach, level, gain, or understanding. This is a planning comparison, not a rigid formula; its purpose is to show a change of state.\n\n| Payoff | Reach | Level | Gain | Change in understanding |\n|---|---|---|---|---|\n| Find poisonous salt in the east channel | One trial bed | Outer-garden assessment | Seven days of caretaker authority | Yin Yan can diagnose root problems |\n| Save the whole medicinal garden | Every grower’s livelihood | Outer-garden management | A permanent entry pass | The contamination was deliberately arranged |\n| Publish the diagnostic records in the inner garden | The sect’s medicinal supply | The elders’ decision-making | Authority over the mentor’s research | The mentor’s disappearance is tied to an old sect case |\n\nThe second payoff expands the reach and gain. The third raises the decision-making level and changes the story’s central understanding. The escalation comes from the structure of the result, not adjectives such as “more shocking” or “more powerful.”"
+          "zh": "比较影响范围、判断者分量、实际收获和人物认知，能发现“又让同一批人震惊一次”的重复。它是排纲参照，不要求每个日常小满足都比上一场更大。\n\n| 后续候选 | 变化 | 仍需建立 |\n|---|---|---|\n| 扩大净水替换 | 一垄到更多受损区域 | 水量、人手与实际恢复检查 |\n| 获得正式通行 | 临时任务到稳定资格 | 既定条件、核验与实际授予 |\n| 取得师父档案 | 从症状处理到失踪线索 | 合法访问范围、记录内容与未知 |\n\n上表是未来设计，不是本场已经兑现的收获。正式资格和档案访问各有条件，不因会诊植就自动掌握研究处置权。调整结构和结果，比反复写“更震惊”更有用。",
+          "en": "Compare reach, decision-maker weight, actual gains and changed understanding to detect another identical round of astonishment. This is an outline aid, not a requirement that every quiet satisfaction outgrow the previous scene.\n\n| Option | Change | Setup |\n|---|---|---|\n| Expand clean-water use | One bed to more affected ground | Supply, labor and recovery checks |\n| Earn ongoing entry | Temporary task to stable status | Prior criteria, assessment and actual award |\n| Access mentor’s file | Plant symptoms to disappearance clues | Authorized scope, contents and unknowns |\n\nThese are future designs, not gains already delivered. Ongoing access and archive rights have their own conditions. Diagnostic ability does not automatically grant control of research. Change structure and results rather than repeat “more astonished.”"
         }
       },
       {
@@ -1667,7 +1674,7 @@
         },
         "body": {
           "zh": "| 问题 | 为什么空 | 修正动作 |\n|---|---|---|\n| 只写羞辱和还嘴 | 胜负没落到目标上 | 同时改变资格、资源或关系 |\n| 铺垫反复加压 | 新段落没有新信息 | 每轮增加证据、代价或选择 |\n| 能力临时出现 | 兑现缺少基础 | 提前解决小问题并写清边界 |\n| 全员同一种震惊 | 角色像统一旁白 | 分别写对手、裁决者和受益者的行动 |\n| 每次只抬数值 | 结果结构不变 | 换一个维度升级 |",
-          "en": "| Problem | Why it feels hollow | Corrective action |\n|---|---|---|\n| Only humiliation and a verbal retort | Victory never reaches the goal | Also change access, resources, or a relationship |\n| Setup repeats the same pressure | New passages add no new information | Add evidence, a cost, or a choice in each round |\n| The ability appears on demand | The delivery has no foundation | Solve a smaller problem earlier and establish the boundary |\n| Everyone shows the same shock | Characters become a single chorus | Separate the opponent’s, adjudicator’s, and beneficiary’s actions |\n| Every escalation only raises a number | The result structure stays unchanged | Escalate through another dimension |"
+          "en": "| Problem | Gap | Fix |\n|---|---|---|\n| Only humiliation and a verbal retort | Victory never reaches the goal | Also change access, resources, or a relationship |\n| Setup repeats the same pressure | New passages add no new information | Add evidence, a cost, or a choice in each round |\n| The ability appears on demand | The delivery has no foundation | Solve a smaller problem earlier and establish the boundary |\n| Everyone shows the same shock | Characters become a single chorus | Separate the opponent’s, adjudicator’s, and beneficiary’s actions |\n| Every escalation only raises a number | The result structure stays unchanged | Escalate through another dimension |"
         }
       },
       {
@@ -1677,8 +1684,8 @@
           "en": "A Reusable Brief for AI-Assisted Payoff Design"
         },
         "body": {
-          "zh": "把下面内容交给 AI，让它先填表，再写场景：\n\n```text\n故事承诺：\n主角目标：\n爽点类型：六类中选一\n可见结果：\n能力与边界：\n已有铺垫：\n阻碍者及筹码：\n裁决者：\n必须改变的资源或关系：\n上一轮的影响力 / 层级 / 收获 / 认知：\n下一步压力：\n\n请输出倒推表、五个情节点、三类角色的反应和升级维度。不要新增能力或关键证据。\n```\n\n人工复核四项：结果能否用动作说清；铺垫是否出现；反应是否改变决定；新压力是否由胜利产生。长篇项目可先让 AI 只补对应章节细纲，确认后再写正文。",
-          "en": "Give the following material to AI and ask it to fill the table before drafting a scene:\n\n```text\nStory promise:\nProtagonist’s goal:\nPayoff type: choose one of the six types\nVisible result:\nAbility and limits:\nExisting setup:\nObstacle and its leverage:\nAdjudicator:\nResource or relationship that must change:\nPrevious round’s reach / level / gain / understanding:\nNext pressure:\n\nProduce the backward-planning table, five plot beats, the reactions of the three character roles, and the escalation dimension. Do not add a new ability or key evidence.\n```\n\nReview four points yourself: can action make the result clear; has the setup appeared; do the reactions change a decision; and does the new pressure arise from the victory? For a long-form project, ask AI to complete only the corresponding chapter’s beat outline first, then draft the prose after you approve it."
+          "zh": "下面是作者手写输入表，可按当前场景删减，不是 skill 的固定交付格式：\n\n> **故事承诺与主角目标**：\n> **本次满足方式**：\n> **可见结果**：\n> **能力、权限与范围**：\n> **已有铺垫与验证条件**：\n> **阻碍与各人关切**：\n> **需要实际交付的资格、资源或关系**：\n> **结果留下的未结事项**：\n> **表达要求**：\n\n请先倒推需要的铺垫，再按阅读顺序安排情节点与相关人物反应；数量按本场需要，不固定五点或三层。不要新增关键能力和证据。人工复核结果是否发生、铺垫是否已出现、反应是否有权限、新条件是否来自本场。长篇项目先确认细纲，再生成正文。",
+          "en": "This manual brief can be shortened for the scene; it is not a fixed skill deliverable:\n\n> **Story promise and protagonist’s goal:**\n> **Kind of satisfaction:**\n> **Visible result:**\n> **Ability, authority and scope:**\n> **Existing setup and verification conditions:**\n> **Obstacle and individual concerns:**\n> **Status, resource or relationship to deliver:**\n> **Open issues after the result:**\n> **Voice requirements:**\n\nWork backward to needed setup, then place beats and relevant reactions in reading order. Use as many as the scene needs, without a five-beat or three-tier quota. Add no key ability or evidence. Check enacted results, established setup, decision authority and the origin of new conditions. Confirm a long-form beat outline before drafting prose."
         }
       }
     ],
@@ -1707,8 +1714,8 @@
     "skill": {
       "name": "story-long-write",
       "text": {
-        "zh": "在 Oh Story 项目里运行 `/story-long-write`，说“只补第 N 章细纲”，并贴上本页的爽点倒推表。确认期待、铺垫、释放、反应和新压力都落在细纲后，再说“写第 N 章”生成正文。",
-        "en": "In an Oh Story project, run `/story-long-write`, say “Only complete the beat outline for Chapter N,” and paste in the backward-planning table from this page. Confirm that expectation, setup, release, reaction, and new pressure all appear in the outline before asking it to “Write Chapter N” and generate the prose."
+        "zh": "用 $story-long-write 只修这一章的爽点细纲。先选本次满足方式，倒推期待与铺垫，再核对实际结果、相关人物反应和权限；不固定情节点数，不自动给每个人一层震惊。确认后再写正文。",
+        "en": "Use $story-long-write to revise only this chapter’s payoff outline. Choose the satisfaction, work backward to anticipation and setup, then check enacted results, relevant responses and authority. Use no fixed beat count or audience tiers. Confirm the outline before prose."
       },
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
     },
@@ -1723,10 +1730,24 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "六类爽点与倒推设计",
+          "en": "Six payoff types and backward design"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/commercial-core-methods.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/plot-emotion-system.md"
+      },
+      {
+        "label": {
+          "zh": "认知变化与反应层",
+          "en": "Changed understanding and reactions"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/outline-conflict.md"
+      },
+      {
+        "label": {
+          "zh": "作者要求、文风与事实边界",
+          "en": "Author choices, style and facts"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ]
   },
@@ -2168,7 +2189,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "首尾帧生成视频怎么用：判断、写法与避坑",
       "en": "How to Use First and Last Frames for AI Video"
@@ -2226,8 +2247,8 @@
           "en": "Original Example: Opening an Umbrella on a Rainy Night"
         },
         "body": {
-          "zh": "**镜头目的**：送伞人离开后，周姨决定追出去。\n\n**首帧**：窄巷屋檐下，中景。周姨站在门内一步，右手握着合拢的深蓝伞柄，伞尖落地；门外雨幕占画面右侧，暖色门灯从左后方照亮她的侧脸。她看向空巷。\n\n**尾帧**：同一机位与光位。周姨站到门槛外，深蓝伞已在头顶完全撑开，身体朝巷口，门仍敞着；雨幕被伞沿切开。\n\n**运动描述**：她跨出门槛并撑伞，摄影机保持不动；身份、服装、门的位置和光源方向保持。\n\n这里观众只需看懂“她决定出门”，撑伞的精确手法不是剧情证据。若改成“伞骨夹住藏在里面的钥匙，钥匙掉落后被人踩住”，中间过程承担揭示，就应拆镜展示。",
-          "en": "**Shot purpose:** After the person who delivered the umbrella leaves, Aunt Zhou decides to follow.\n\n**First frame:** Medium shot beneath the eaves of a narrow alley. Aunt Zhou stands one step inside the doorway, holding the handle of a closed dark-blue umbrella in her right hand, its tip on the ground. Rain beyond the doorway fills the right side of frame. A warm doorway light from the rear left illuminates the side of her face. She looks into the empty alley.\n\n**Last frame:** Same camera and light position. Aunt Zhou stands outside the threshold with the dark-blue umbrella fully open above her head. Her body faces down the alley, and the door remains open. The umbrella edge cuts across the rain.\n\n**Motion description:** She steps across the threshold and opens the umbrella. The camera remains still. Identity, clothing, door position, and light direction stay unchanged.\n\nThe audience only needs to understand that she decided to go out. The exact mechanics of opening the umbrella are not evidence in the story. If the scene instead says, “The umbrella rib catches a key hidden inside; the key falls and someone steps on it,” the intermediate action carries the reveal and should be shown in a separate shot."
+          "zh": "**镜头目的**：送伞人离开后，周姨作出追出去的选择，并走到门外；本镜尚未追上对方。剧本与分镜已规定下面起终状态，文字是原创设计，未生成视频。\n\n**首帧**：窄巷屋檐下，中景。周姨站在门内一步，右手握合拢的深蓝伞柄，伞尖落地。门外雨幕在画面右侧，暖色门灯从左后方照亮侧脸。她看向空巷，伞尚未打开。\n\n**尾帧**：同一机位与光位。周姨站在门槛外，右手仍握深蓝伞柄，伞在头顶完全撑开；身体与目光朝巷口，门仍敞着。这里只投影既定终点，不额外加入送伞人或“追上”结果。\n\n**运动描述**：周姨先提起合拢的伞，在已建立有足够空间的门内站位撑开，再跨出门槛，在巷口方向站定。摄影机固定；身份、服装、门的位置与门灯方向保持。最终右手握柄、伞在头顶、人物在门外，下一镜可接这个状态。\n\n观众需要看懂她选择出门，撑伞的精确手法不是剧情证据。若伞骨夹着钥匙，钥匙掉落又被人踩住，过程承担揭示，另拆镜头展示，不能只交两张图。\n\n输入尾帧画得正确，仍不证明生成视频实现了撑伞与跨门。下一步必须看实际中间动作和末帧，不能把这份设计称作已通过的视频。",
+          "en": "**Purpose:** after the umbrella giver leaves, Aunt Zhou chooses to follow and steps outside. She has not caught up. The accepted script and storyboard establish these boundaries. This original design has not been generated.\n\n**Start frame:** medium shot under a narrow alley’s eaves. Zhou stands one step inside, holding a closed dark-blue umbrella in her right hand, its tip on the ground. Rain lies screen right; warm door light comes from behind left. She looks into the empty alley. The umbrella is closed.\n\n**End frame:** same camera and light. Zhou stands outside the threshold, right hand still on the handle, umbrella fully open overhead. Body and gaze face the alley entrance; the door stays open. This projects the accepted end without adding the giver or a completed reunion.\n\n**Motion:** Zhou lifts the closed umbrella, opens it in her inside position where sufficient room is already established, then crosses the threshold and settles facing the alley. Fixed camera; identity, outfit, door and light remain. End with right hand on handle, open umbrella overhead and Zhou outside, ready for the next shot.\n\nViewers need the choice to leave, not an exact umbrella-opening technique. If a hidden key falls from the ribs and someone steps on it, the path reveals information and needs explicit shot coverage rather than just two pictures.\n\nA correct input end frame does not prove generated opening and threshold crossing. Inspect actual intermediate action and final frame; this design is not a passed video."
         }
       },
       {
@@ -2238,7 +2259,18 @@
         },
         "body": {
           "zh": "| 失败 | 后果 | 修正 |\n|---|---|---|\n| 首帧已经写“打翻后的水迹” | 终点事实提前出现 | 删除尚未发生的结果，只保留起点 |\n| 尾帧人物持物与剧本终点不同 | 两套终点互相争夺 | 以镜头终点为准重写尾帧 |\n| 两端差异过大 | 中间运动自由度过高 | 缩小变化或拆镜 |\n| 关键动作只藏在两帧之间 | 可能没被清楚呈现 | 让动作落在边界，或另设镜头 |\n| 两帧分别独立设计构图 | 方位、轴线和光位跳变 | 先定同一空间关系与保持项 |\n| 静帧里写“先、再、随后” | 一张图承载时间序列 | 每帧只写可冻结的一瞬 |",
-          "en": "| Failure | Consequence | Correction |\n|---|---|---|\n| The first frame already includes “water left after the spill” | An end-state fact appears too early | Remove results that have not happened and retain only the starting state |\n| The object held in the last frame conflicts with the script’s endpoint | Two endpoint definitions compete | Rewrite the last frame from the shot endpoint |\n| The difference between the frames is too large | The intermediate motion has too much freedom | Reduce the change or split the shot |\n| A crucial action exists only between the frames | It may never appear clearly | Put the action on a boundary or give it another shot |\n| Each frame receives an independently designed composition | Direction, axis, and light position jump | Define one spatial relationship and its preservation constraints first |\n| A still-frame description says “first, then, afterward” | One image is asked to carry a time sequence | Describe only one freezable instant per frame |"
+          "en": "| Issue | Effect | Fix |\n|---|---|---|\n| Start frame shows spilled water | End appears early | Keep only start facts |\n| Held object differs from accepted end | Two end states compete | Use the shot’s accepted end |\n| Large gap between frames | Motion path too free | Reduce change or split shot |\n| Key action only lies between frames | Action may be missed | Give it clear shot coverage |\n| Each frame uses its own layout | Axis and light jump | Use shared space, direction and light |\n| Still says “first, then, afterward” | One image carries a sequence | Freeze one instant |"
+        }
+      },
+      {
+        "id": "output-check",
+        "heading": {
+          "zh": "尾帧不自证结果：生成后看什么",
+          "en": "The input end frame does not certify the output"
+        },
+        "body": {
+          "zh": "| 核对 | 雨夜镜头要看什么 |\n|---|---|\n| 开始 | 伞仍合拢，周姨在门内，未提前到终点 |\n| 中间 | 同一周姨实际开伞并跨门，不靠物件瞬移 |\n| 最后 | 人物门外、伞已开、右手持柄、方向正确 |\n| 连续 | 身份、服装、门和光位可接下一镜 |\n\n如果实际结尾仍在门内，或伞柄换到另一只手，按已定终点修正或重做，不以输入尾帧覆盖观察结果。若最终视频用了不同但可接受的结尾，先让剧本与分镜确认变更，并同步下一镜；别只在提示词里另立一个终点。",
+          "en": "| Check | Rain-scene evidence |\n|---|---|\n| Start | Closed umbrella; Zhou inside, no premature end |\n| Middle | Same Zhou opens umbrella and crosses, without teleportation |\n| End | Outside, open umbrella, right hand on handle, intended direction |\n| Continuity | Identity, outfit, door and lighting match next shot |\n\nIf output ends inside or switches the handle to another hand, repair against the accepted end rather than substitute the input picture for observation. If a different ending is acceptable, confirm it in script and storyboard and update the next shot, instead of creating a separate ending only in prompt text."
         }
       }
     ],
@@ -2282,10 +2314,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "首尾边界、插值取舍与终点验证",
+          "en": "Start/end boundaries, interpolation and end checks"
         },
-        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/SKILL.md"
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/keyframe-craft.md"
+      },
+      {
+        "label": {
+          "zh": "起终状态与实际交付",
+          "en": "Motion state and delivery"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
       }
     ]
   },
@@ -3225,7 +3264,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "打脸剧情怎么写：让反应真正改变局面",
       "en": "How to Write a Face-Slapping Scene That Changes the Situation"
@@ -3268,12 +3307,12 @@
       {
         "id": "worked-example",
         "heading": {
-          "zh": "原创范例：旧桥载重验收",
-          "en": "Original Example: The Old Bridge Load Test"
+          "zh": "原创范例：试剪结果改变任务与署名",
+          "en": "Original example: a trial cut changes tasks and credit"
         },
         "body": {
-          "zh": "镇上旧桥修复验收，承包商认定临时工岑禾只会补漆，当众拒绝她查看主梁。低估有依据：她没有公开资历，承包商也怕停工赔款。\n\n岑禾不争称号，只把一枚粉笔塞进梁缝，要求试车先减半载重。车刚上桥，粉笔应声折断，裂缝扩到承包商刚刷过的新漆下。她沿铆钉锈迹指出受力方向，又拿出三天前拍下的水位线，证明桥墩沉降仍在继续。\n\n反应按利益展开：司机拒绝继续上桥；监理收回验收章，要求开梁检查；材料商发现承包商隐瞒用量，暂停供货；承包商不再只丢脸，他失去工期主动权并开始销毁记录。岑禾获得的是临时检测授权，同时招来下一步反制。\n\n这场戏的爽感来自判断被事实击穿，后续动力来自权力和资源重新分配。",
-          "en": "During acceptance testing for a restored town bridge, the contractor assumes temporary worker Cen He can only touch up paint and publicly refuses to let her inspect the main beam. The underestimation has a basis: she has not disclosed her qualifications, and the contractor fears compensation for a work stoppage.\n\nCen He does not argue about titles. She wedges a piece of chalk into a beam crack and asks that the test vehicle carry half its planned load. As soon as the vehicle enters the bridge, the chalk snaps and the crack spreads beneath fresh paint applied by the contractor. She traces the load direction through rust marks on the rivets, then produces a photograph of the waterline from three days earlier, proving that the pier is still settling.\n\nReactions follow interests. The driver refuses to continue. The inspector withdraws the acceptance stamp and orders the beam opened up for inspection. A materials supplier discovers that the contractor concealed quantities and suspends deliveries. The contractor is no longer merely embarrassed: he loses control of the schedule and begins destroying records. Cen He receives temporary inspection authority and also draws the next countermove.\n\nThe satisfaction comes from facts shattering the judgment. The next movement comes from a redistribution of power and resources."
+          "zh": "校园剧组要剪一段四十秒以内的预告。制片郑遥负责确认素材与最终采用，剪辑负责人许简分配任务。岑禾一直整理素材，但前文已写过她剪过练习片；这次她想争取对白段的剪辑署名。\n\n许简因她没做过正式对白片，只肯给她空镜整理：“对白声画对不上，来不及返工。”担心工期有理由，认定岑禾一定做不了则超出了已知事实。\n\n郑遥同意先试剪一段，交给她已经获准使用的画面和同期录音。标准事先写清：四十秒以内，保留指定的三句对白，声画衔接可观看，不能用无关台词代替。许简继续负责其他段落。\n\n岑禾提交了三十八秒版本。放映时，三句对白都在指定的位置，人物开口与声音相接，最后一句落下后才切到剧名。郑遥拿着原稿逐句核对，确认这段达到约定要求，选用文件，并在项目署名表中把这段剪辑作者改为岑禾。\n\n许简把这段从自己的待办里划掉，交给她后续修订；演员按制片的安排补交最后一张已获准的剧照。岑禾实际拿到一段任务和署名，许简失去的是独占这段剪辑的安排权。全片质量尚未验证，下一段能否做好也仍需检验。\n\n兑现来自已经展示的成片和郑遥实际作出的采用决定。没有靠自报履历让所有人服气，也没有把一次试剪成功直接写成职业声望。",
+          "en": "A campus drama team needs a trailer under forty seconds. Producer Zheng Yao approves assets and the final version; editor Xu Jian assigns tasks. Cen He sorts material, but earlier scenes established her practice edits. She wants credit for editing the dialogue segment.\n\nXu offers only scenic-shot sorting: “Dialogue will drift out of sync. We have no time for another pass.” Cen has never delivered a formal dialogue film, so the deadline concern makes sense; certainty that she cannot do it goes beyond the evidence.\n\nZheng approves a trial and supplies cleared picture and production sound. Criteria are established first: under forty seconds, all three specified lines, watchable sound-picture continuity and no substituted dialogue. Xu keeps the other segments.\n\nCen submits thirty-eight seconds. In playback, all three lines appear in their assigned places, voices meet the visible speakers, and the title follows the last line. Zheng checks the script, accepts the segment, chooses the file and changes its editing credit to Cen in the project sheet.\n\nXu crosses the segment off his own task list and gives Cen its revisions. Under Zheng’s arrangement, an actor supplies the last cleared still. Cen gains an actual task and credit; Xu loses exclusive control of this segment. Neither the whole film nor Cen’s next segment has been validated.\n\nThe payoff rests on the displayed cut and enacted acceptance, rather than a résumé, universal admiration or instant professional fame."
         }
       },
       {
@@ -3283,8 +3322,8 @@
           "en": "How to Show Onlookers’ Shock Without Repeating Yourself"
         },
         "body": {
-          "zh": "给每个有镜头的人一个自己的账：\n\n| 人物 | 他在乎什么 | 看见结果后的动作 |\n|---|---|---|\n| 普通目击者 | 安全 | 退下桥面、叫停车辆 |\n| 同行 | 专业判断 | 复核数据、改口请教 |\n| 掌权者 | 责任与成本 | 暂停验收、重新授权 |\n| 利益受损者 | 地位或收益 | 遮掩证据、改变策略 |\n\n一句沉默、一次撤章或一张被改写的报价单，常比连续的惊叹更有力。最重要的一层反应，应落在以后还有戏、且能改变主角处境的人身上。",
-          "en": "Give everyone in the scene a stake of their own:\n\n| Character | What matters to them | Action after seeing the result |\n|---|---|---|\n| Ordinary witness | Safety | Step off the bridge and stop vehicles |\n| Peer professional | Expert judgment | Recheck the data and ask for guidance |\n| Decision-maker | Responsibility and cost | Pause acceptance and grant new authority |\n| Party that loses | Position or revenue | Hide evidence and change strategy |\n\nSilence, a withdrawn stamp, or a revised quote often carries more force than repeated exclamations. Put the most important reaction on someone who remains active later and can change the protagonist’s circumstances."
+          "zh": "给有镜头的人一项与结果相关的关切，不必固定凑齐三层观众。沿用试剪例子：\n\n| 人物 | 关切 | 实际反应 |\n|---|---|---|\n| 演员 | 台词是否保留 | 对照三句对白，按安排补剧照 |\n| 制片 | 成片与时间 | 确认采用并更新署名 |\n| 剪辑负责人 | 工期与分工 | 撤下自己的本段待办，交后续修订 |\n\n反应的动作要在此人的权限内。演员可以确认自己的对白，最终采用由已建立的制片决定；别让围观者一句“太好了”自动成为合同或任命。\n\n震惊、赞叹和直接夸奖都可以写。它们的分量来自谁在什么条件下改了判断；已有采用与署名后，无需再排一长串赞美。",
+          "en": "Give each relevant observer a concern tied to the result, without forcing three audience tiers. In the trial-cut example:\n\n| Person | Concern | Response |\n|---|---|---|\n| Actor | Retained dialogue | Checks three lines; supplies arranged still |\n| Producer | Cut and deadline | Accepts file; updates credit |\n| Editing lead | Schedule and duties | Removes own segment task; hands over revisions |\n\nKeep actions within established authority. The actor can check their dialogue; the producer decides acceptance. An observer’s praise does not automatically become a contract or appointment.\n\nShock and direct praise are valid. Their weight comes from who changes a judgment and under what conditions. After acceptance and credit, an extended queue of admirers may add little."
         }
       },
       {
@@ -3324,25 +3363,31 @@
     "skill": {
       "name": "story-long-write",
       "text": {
-        "zh": "在 Claude Code 里说：“用 /story-long-write 只设计这场打脸戏，写清错误判断、标价人、主角验证行动、每个在场者的利益反应和局面变化，不写正文”（Codex 里写作 `$story-long-write`）。",
-        "en": "In Claude Code, say: “Use `/story-long-write` only to design this face-slapping scene. Record the false judgment, qualified evaluator, protagonist’s verifying action, each witness’s interest-driven reaction, and the resulting change in the situation. Do not draft the prose.” In Codex, write `$story-long-write`."
+        "zh": "用 $story-long-write 检查这场打脸的低估依据、预先标准、验证动作和实际结果。按各人的关切与权限写反应，保留本书表达方式；一次局部成功不自动证明全部能力。先修细纲，再决定是否写正文。",
+        "en": "Use $story-long-write to check the basis of the low estimate, prior criteria, verification and enacted result. Give each observer concerns and established authority. Preserve the book’s style; one local success does not prove every ability. Revise the outline first."
       },
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
     },
     "related": [
       "/oh-story/satisfaction-beats",
       "/oh-story/character-motivation",
-      "/oh-story/chapter-ending-hooks",
-      "/oh-story"
+      "/oh-story/chapter-ending-hooks"
     ],
     "topic": "plot-and-outline",
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "舞台、认知差与反应传递",
+          "en": "Stage, recognition gaps and reactions"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/commercial-core-methods.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-combat-face.md"
+      },
+      {
+        "label": {
+          "zh": "作者要求、文风与事实边界",
+          "en": "Author choices, style and facts"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ]
   },
@@ -4307,7 +4352,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "追读下降怎么办：检查期待、进展与章尾",
       "en": "Readers Stop Returning? Fix Your Web Novel’s Pacing"
@@ -4321,8 +4366,8 @@
       "en": "Diagnose a sagging serial through short-term questions, arc goals and the whole-story promise. Restore progress without abandoning the original appeal."
     },
     "answer": {
-      "zh": "追读下降时先检查读者正在等什么。短期期待负责下一步，阶段期待负责本卷结果，长期期待负责全书方向；一条兑现前，另一条应已开始运行。中期疲软通常来自麻烦消失、旧承诺长期无进展、支线与核心卖点脱节，或连续开新谜团却不回答旧问题。",
-      "en": "When readers stop returning, first check what the story is asking them to wait for. Short-term anticipation concerns the next step; arc-level anticipation concerns the volume’s outcome; long-term anticipation concerns the whole story. Before one thread pays off, another should already be moving. A sagging middle often follows vanished obstacles, promises that make no progress, subplots detached from the central appeal, or new mysteries that never answer old questions."
+      "zh": "追读下降时先检查读者正在等什么，以及已有承诺怎样得到进度。短期期待指向眼前行动，阶段期待指向这一单元的目标，长期期待保留全书方向。中期疲软可能来自旧承诺停滞、支线偏离核心体验或持续开谜团而不给局部答案；不需要每章机械凑齐固定数量。",
+      "en": "When reader retention falls, inspect what readers await and how existing promises progress. Short expectations concern immediate action, arc expectations the unit’s goal, and long expectations the book’s direction. A sagging middle may stall old promises, drift from its core appeal or keep opening mysteries without local answers. Use no fixed per-chapter count."
     },
     "sections": [
       {
@@ -4332,8 +4377,8 @@
           "en": "What does “two long threads and one short” mean?"
         },
         "body": {
-          "zh": "“两长一短”是同时保留不同距离的期待：一条很快能回应的问题，两条更长的阶段或全书期待。它是排查工具，不要求每章机械维持固定数量。\n\n| 距离 | 读者在等什么 | 合格进展 |\n|---|---|---|\n| 短期 | 下一章或下一场会怎样 | 行动、局部答案、风险落地 |\n| 阶段 | 这一卷能否完成目标 | 门槛被跨过、策略变化、对手受损 |\n| 长期 | 全书承诺最终怎样兑现 | 真相推进、能力边界扩大、关系方向明确 |\n\n当短期问题解决时，阶段线仍应继续运动；阶段高潮落下前，新的阶段问题应已有来源。",
-          "en": "This diagnostic keeps expectations at different distances: one question due for an answer soon, plus two longer arc-level or whole-story threads. It is a way to inspect the story, not a quota to maintain mechanically in every chapter.\n\n| Distance | What the reader is waiting for | Meaningful progress |\n|---|---|---|\n| Short-term | What happens in the next chapter or scene? | An action, a partial answer, or a risk becoming real |\n| Arc-level | Will this volume’s goal be achieved? | A threshold crossed, a strategy changed, or an opponent weakened |\n| Long-term | How will the story’s central promise pay off? | Progress toward the truth, an expansion of what the protagonist can do, or a clearer relationship direction |\n\nWhen a short-term question is answered, the arc-level thread should still be moving. Before one arc concludes, the next arc’s problem should already have been seeded."
+          "zh": "Oh Story 的排纲参考用一个当前目标和一至两个远期目标提醒作者：解决眼前问题时，读者还知道故事往哪里去。公开教程按短期、阶段与全书三个距离拆开检查，方便填表；不是每章必须同时维持固定数量。\n\n| 距离 | 读者在等什么 | 有效进展 |\n|---|---|---|\n| 短期 | 下一场要解决的事 | 行动、局部答案、风险落地 |\n| 阶段 | 这一单元的目标 | 门槛跨过、策略改变、找到证据 |\n| 长期 | 全书承诺 | 真相推进、关系方向或能力成长 |\n\n一条线可以在几章里暂居背景。关键是主要承诺有进度，近期兑现没有被随手抹掉；结尾可以安心收束，无需再开一个秘密。",
+          "en": "Oh Story’s outline reference uses a current goal and one or two distant goals to keep direction visible as an immediate problem resolves. This tutorial separates short, arc and whole-story distances for a manual check; it does not require a fixed simultaneous count in every chapter.\n\n| Distance | Anticipation | Progress |\n|---|---|---|\n| Short | Next scene’s task | Action, local answer or enacted risk |\n| Arc | This unit’s goal | Crossed barrier, changed strategy or evidence |\n| Whole story | Central promise | Truth, relationship direction or growth |\n\nA thread may sit in the background for several chapters. Major promises need progress without casually erasing recent delivery. An ending can close peacefully without opening another secret."
         }
       },
       {
@@ -4354,8 +4399,8 @@
           "en": "Original example: a late-night radio story loses momentum"
         },
         "body": {
-          "zh": "故事卖点是失眠主播通过匿名来电寻找失踪姐姐。前段每个来电都提供一块线索；中段主角获得完整通话数据库后，查找难度突然消失，连续几章变成访问听众，读者不再知道要等什么。\n\n修复时不加随机绑架。先恢复三层期待：短期，数据库里一段录音的背景钟声来自哪座车站；阶段，主角能否证明姐姐曾主动改过节目时间；长期，姐姐究竟在保护谁。查钟声得到车站停运记录，局部回答短期问题，同时发现节目时间修改发生在停运之后，阶段目标因此改变。\n\n每次回应给一个结果，再让结果自然改变更长的期待。故事重新运动，仍围绕“匿名来电与姐姐失踪”这个核心。",
-          "en": "The story’s appeal is an insomniac radio host searching for a missing sister through anonymous calls. Early on, each call contributes a clue. In the middle, the host gains access to the complete call database, and the search suddenly becomes easy. Several chapters turn into visits to listeners; readers no longer know what they are waiting for.\n\nDo not repair this by adding a random kidnapping. Rebuild the three distances of anticipation first. Short-term: which station’s clock can be heard in the background of one recording? Arc-level: can the host prove that the sister deliberately changed the broadcast time? Long-term: whom was the sister protecting? Tracing the chime leads to the station’s closure records, partly answering the short-term question. It also reveals that the broadcast-time change happened after the closure, changing the arc-level objective.\n\nEach answer delivers a concrete result, then lets that result naturally change a longer-term expectation. The story moves again while staying centered on anonymous calls and the sister’s disappearance."
+          "zh": "原创故事的卖点是主播通过匿名来电寻找失踪姐姐。前段来电推动调查；中段拿到旧节目录音库，作者就把调查写成随意访问听众，却没有交代录音怎样缩小问题。数据库不是全部真相，也不会自动提供来电人的身份。\n\n先为这段建立能执行的查证途径：旧站资料员有当年的钟声录音与停运公告，电台档案员有节目修改登记；主播可以申请查阅这些公开和已授权记录。姐姐是否在车站、是谁来电，都仍未知。\n\n| 距离 | 本段等待 | 实际交付 |\n|---|---|---|\n| 短期 | 来电里钟声用了什么声音 | 资料员播放旧站录音，主播核对两者相符 |\n| 阶段 | 节目何时改过时间 | 查到登记日期在车站停运之后 |\n| 长期 | 姐姐为何失踪、在保护谁 | 尚未回答，但修改记录给调查一个新方向 |\n\n具体写进正文：主播带片段去资料室，资料员调出旧站的固定报时录音；对照后确认声音相符，又拿出停运日期。主播再去电台查到节目修改登记，把两项日期并排记下。现在可以问“停运后为何把节目挪到这个时间”，并继续查修改内容与经办记录。\n\n钟声相符只说明相同录音来源可解释来电声音，不证明来电者或姐姐身在车站，也不证明通话发生在停运前；登记日期不等于姐姐亲自修改。局部查证已经发生，姐姐的动机仍是待解问题。这样给旧期待进度，无需临时添加绑架。",
+          "en": "In this original story, a broadcaster follows anonymous calls to find a missing sister. Early calls advance the search. After acquiring old program recordings, the draft drifts into casual listener visits without showing how the archive narrows questions. A recording database is neither complete truth nor automatic caller identification.\n\nEstablish available checks: a former station archivist has a clock recording and closure notice; the radio archivist keeps schedule-change records. The broadcaster may request these public and authorized records. The sister’s whereabouts and caller identity remain unknown.\n\n| Scope | Question | Result |\n|---|---|---|\n| Short | What sound appears in the call? | Archivist plays old station recording; broadcaster compares a match |\n| Arc | When did the schedule change? | Finds an entry dated after station closure |\n| Whole story | Why did the sister vanish, and whom is she protecting? | Still open; change record offers a new direction |\n\nIn prose, the broadcaster takes the clip to the archive. The archivist plays the station’s recorded time signal and supplies the closure date. At the radio archive, the broadcaster finds the schedule-change entry and writes the two dates together. The next question becomes why the program moved to that time after closure, followed by checks of the change and who processed it.\n\nA sound match permits the same recording to explain the call; it does not locate the caller or sister at the station or date the call before closure. An entry date does not show that the sister personally changed it. The local checks have happened while her motive remains open, giving an old promise progress without an invented kidnapping."
         }
       },
       {
@@ -4365,8 +4410,8 @@
           "en": "Repair a sagging middle"
         },
         "body": {
-          "zh": "- 写出开篇承诺的主要阅读回报，删除长期偏离它的支线。\n- 列出尚未兑现的承诺，为最久的一条安排阶段利息：新证据、局势变化、局部胜利或更明确的目标。\n- 检查主角升级是否抹平了所有阻力；给能力增加更高层问题、代价或新使用场景。\n- 把新地图与旧问题连起来，让进入新环境成为旧选择的后果。\n- 回收一个短期问题后再开启下一个，避免连续抬问却没有答案。\n\n急救不等于立刻上大高潮。先让读者重新知道“眼下等什么、这一步离大目标近了多少”。",
-          "en": "- Write down the main reading reward promised by the opening. Remove subplots that spend too long away from it.\n- List outstanding promises. Give the oldest one an interim payoff: new evidence, a changed situation, a partial victory or a clearer objective.\n- Check whether the protagonist’s advancement erased every obstacle. Introduce a higher-order problem, a cost or a new situation in which the ability must be used.\n- Connect a new setting to the old problem. Entering the new environment should follow from an earlier choice.\n- Resolve a short-term question before opening the next, rather than repeatedly raising questions without answers.\n\nRepair does not require an immediate major climax. First restore the reader’s sense of “what am I waiting for now, and how much closer does this step bring us to the larger goal?”"
+          "zh": "- 写清开篇承诺，再查长期偏离的支线；有作用的日常可以保留，不因压力低就删除。\n- 列尚未兑现的主要问题，为停滞的一条安排可见进度：证据、关系变化、局部成果或目标澄清。\n- 检查升级是否抹平全部阻力。后续限制应来自已建立的规则与条件，不临时收回能力。\n- 换地点时，让旧问题决定为什么去、去查什么，别把旧债留在身后。\n- 看每次延后给了什么，不要求每章固定回答一个、再开一个。\n\n先让读者知道眼下等什么、这一步离大目标近在哪里。方法诊断故事内部的进展，实际追读变化仍要结合发布数据和读者反馈判断。",
+          "en": "- State the opening promise and check drifting subplots. Keep useful everyday scenes rather than cut them for low pressure alone.\n- List major open questions and give a stalled one visible progress: evidence, relationship change, local success or a clearer goal.\n- Check whether growth removed every obstacle. Later limits should follow established conditions, without arbitrarily revoking ability.\n- Let an old question explain a location change and the task there.\n- Check what each delay delivers rather than require one answer and one new question in every chapter.\n\nClarify what readers await now and how this step advances the larger aim. This diagnoses story progress; actual retention changes need publication data and reader feedback."
         }
       },
       {
@@ -4412,19 +4457,32 @@
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
     },
     "related": [
-      "/oh-story/outline-to-chapter",
+      "/oh-story/web-serial-pacing",
       "/oh-story/chapter-ending-hooks",
-      "/oh-story/long-novel-continuity",
-      "/oh-story"
+      "/oh-story/long-novel-continuity"
     ],
     "topic": "revision",
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "近远目标与单元衔接",
+          "en": "Near and distant goals, linked story units"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/plot-core-methods.md"
+      },
+      {
+        "label": {
+          "zh": "核心卖点偏移诊断",
+          "en": "Diagnosing a drift from the central appeal"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/commercial-core-methods.md"
+      },
+      {
+        "label": {
+          "zh": "作者要求、文风与事实边界",
+          "en": "Author choices, style and facts"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ]
   },
@@ -4705,7 +4763,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "主角被配角抢戏怎么办：让主角决定剧情走向",
       "en": "How to Keep Your Protagonist at the Center of the Story"
@@ -4748,12 +4806,12 @@
       {
         "id": "worked-example",
         "heading": {
-          "zh": "原创范例：救援队里的技术员",
-          "en": "Original example: a rescue-team technician"
+          "zh": "原创范例：合作完成社区录音展",
+          "en": "Original example: a community audio exhibition"
         },
         "body": {
-          "zh": "山谷通信中断，技术员陆弦提出用废弃索道架临时中继。队长否决风险，资深队员却偷偷按她的图纸搭成装置，并在群众面前得到全部称赞。若剧情到此结束，陆弦失去因果与结算。\n\n修复无需让她独自完成所有体力活。她主动修改方案，用自己的定位器承担信号盲区风险；资深队员负责高空安装。突发落石后，是她判断放弃主线路径，授权队员切换备用点。救援成功时，队员公开说明方案来源，而陆弦交换到后续通信调度权。\n\n配角仍有能力和高光，主角则拥有方案、关键转向、风险与可见收益。",
-          "en": "Communications fail in a valley. Technician Lu Xian proposes using an abandoned cableway to mount a temporary relay. The captain rejects the risk, but a veteran secretly builds the device from her plans and receives all the public praise. If the story ends there, Lu Xian loses control of both the turning point and its payoff.\n\nRepairing the scene does not require her to do all the physical work alone. She revises the plan herself, committing her own locator and taking the risk of a signal blind spot; the veteran handles installation at height. After a sudden rockfall, she decides to abandon the main route and authorizes the team member to switch to the backup site. When the rescue succeeds, the veteran publicly credits her with the plan. Lu Xian’s negotiated payoff is authority over subsequent communications dispatch.\n\nThe supporting character retains skill and a moment to shine. The protagonist owns the plan, the decisive change of direction, the risk and a visible reward."
+          "zh": "许澄要把自己采访的社区夜班生活做成录音展，目标是让居民听见平常被忽略的劳动。展览负责人罗清决定采用版本和公开署名；队友孟予负责设备、音量与播放测试，许澄负责内容，受访者确认公开范围。\n\n**抢走主角行动的版本**：设备临时不足，孟予独自改好播放方案，又替许澄挑了全部录音、解决隐私问题，负责人只夸孟予。许澄一直在旁边，却既没选择内容，也没影响结果。\n\n**保留合作的修订**：两组耳机只剩一组能用。许澄主动把长篇合辑改成一段两分钟主片，按已建立的受访者意愿保留夜班交接与回家路。罗清批准短版安排，孟予据此调整设备并试播。\n\n试听时，一位受访者发现旧录音里仍报了她的住址。许澄暂停这版，提出删去地址、保留其余自愿公开内容；对方听过修订后明确同意。孟予完成导出和试听，罗清确认采用最终文件，现场播放了两分钟主片。录音里的夜班交接听清了，住址没有播出。\n\n罗清在已约定的展签上列许澄为采访与内容编辑、孟予为播放技术。两人都拿到对应贡献的实际署名，许澄在资源变少时选择怎样保住自己的故事，也承担删减；受访者保留是否公开的决定权。合作无需变成主角一个人修机器，署名也不自动带来下一场展览的调度权。",
+          "en": "Xu Cheng wants a recorded exhibition of neighborhood night work, so residents hear overlooked labor. Organizer Luo Qing chooses the version and public credits. Teammate Meng Yu handles equipment, volume and playback; Xu edits content, while interviewees decide what may be public.\n\n**Agency lost:** equipment is short, so Meng redesigns playback, selects all recordings and solves privacy concerns alone. Luo praises only Meng. Xu is present but changes neither choices nor results.\n\n**Cooperation repaired:** only one of two headphone sets works. Xu proposes a two-minute main piece instead of the long compilation, retaining shift handover and the journey home within established interview permissions. Luo approves the shorter plan; Meng adapts and tests playback.\n\nDuring listening, an interviewee notices that an old recording still includes her address. Xu stops that version and proposes removing the address while preserving the rest of the agreed public material. After hearing the revision, the interviewee explicitly agrees. Meng exports and tests it; Luo accepts the final file. The two-minute piece actually plays: the handover is audible and the address is absent.\n\nThe previously agreed exhibition label credits Xu for interviews and content editing and Meng for playback. Each receives enacted credit for their contribution. Xu chooses how to preserve her story with fewer resources and accepts cuts; the interviewee retains the public-use decision. Cooperation need not make Xu repair every device, nor does credit automatically give her authority over future exhibitions."
         }
       },
       {
@@ -4804,25 +4862,38 @@
     "skill": {
       "name": "story-long-write",
       "text": {
-        "zh": "在 Claude Code 里说：“用 /story-long-write 对这个关键节点做四问审计：谁发起、谁作关键选择、谁承担后果、收益结算给谁；按题材契约修复主角主动性，不削弱配角，不写正文”（Codex 里写作 `$story-long-write`）。",
-        "en": "In Claude Code, ask: “Use /story-long-write to audit this pivotal moment: who initiates it, who makes the crucial choice, who bears the consequences, and who receives the reward? Restore protagonist agency in line with the genre’s promise without weakening the supporting cast. Do not draft prose.” In Codex, use `$story-long-write`."
+        "zh": "用 $story-long-write 检查这个关键节点：谁发起、谁作选择、谁承担后果、各人的收益与认可怎样实际落地。按本书是个人、合作或群像故事来分配主角与配角贡献，不临时给主角未建立的权限。先修细纲。",
+        "en": "Use $story-long-write to check who initiates this moment, chooses, bears consequences and actually receives each result or credit. Allocate contributions for the book’s individual, cooperative or ensemble promise. Give the protagonist no unestablished authority. Revise the outline first."
       },
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
     },
     "related": [
       "/oh-story/character-motivation",
       "/oh-story/outline-to-chapter",
-      "/oh-story/long-novel-continuity",
-      "/oh-story"
+      "/oh-story/long-novel-continuity"
     ],
     "topic": "characters-and-dialogue",
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "独立目标、人物反应与合作关系",
+          "en": "Independent goals, reactions and cooperation"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-relations.md"
+      },
+      {
+        "label": {
+          "zh": "主角所得与人物利益",
+          "en": "Protagonist gains and individual interests"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-basics.md"
+      },
+      {
+        "label": {
+          "zh": "作者要求、文风与事实边界",
+          "en": "Author choices, style and facts"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ]
   },
@@ -11498,7 +11569,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "群像小说怎么写：让人物各有用处，关系互相推动",
       "en": "How to Write an Ensemble Cast with Distinct Roles and Relationships"
@@ -11523,8 +11594,8 @@
           "en": "Map Relationships Through Action Before Writing Character Biographies"
         },
         "body": {
-          "zh": "为当前故事单元填这张表，先处理真正会影响结果的人。\n\n| 人物 | 当下要争取什么 | 能改变局面的条件 | 与谁发生关系 | 本次出场后的变化 |\n|---|---|---|---|---|\n| 姓名或称呼 | 一个可行动的目标 | 信息、技术、资源、权限或承诺 | 帮助、竞争、限制、依赖 | 哪个决定因此改变 |\n\n同一个人可以既提供帮助又提出条件。关系类型用于找到冲突，不必把人永远固定成“队友”或“坏人”。重要人物应有自己的动作，离开主角视线也有正在推进的事。",
-          "en": "Fill out this table for the current story unit, beginning with the people who can actually affect the result.\n\n| Character | What they want now | What lets them change the situation | How they relate to others | What changes after this appearance |\n|---|---|---|---|---|\n| Name or form of address | One actionable goal | Information, skill, resources, authority, or a promise | Help, competition, restriction, or dependence | Which decision changes as a result |\n\nThe same person may offer help while imposing a condition. Relationship types help you locate conflict; they do not permanently label someone a “teammate” or “villain.” Important characters should take actions of their own and keep advancing something even outside the protagonist’s view."
+          "zh": "为当前故事单元写清每个人想改变什么、手里有什么、会帮助或限制谁。先处理真正影响结果的人，不急着填全部小传。\n\n| 人物 | 目标与关系 | 行动结果 |\n|---|---|---|\n| 姓名或称呼 | 要争取什么，能提供什么，受谁限制 | 哪个决定被实际改变 |\n\n这是手写行动表，不是 skill 的固定格式。关系可从竞争、合作、亲密和权威四个方向观察，同一对人可以兼有几种：亲属不等于对方有经营权限，合作也不等于私人误解已解决。\n\n重要人物有自己的关切和动作。一个人可以帮助主角，同时提出条件；关系类型用于设计选择，不必永久固定为队友或坏人。",
+          "en": "For the current unit, identify what each person wants to change, what they can offer and whom they help or constrain. Start with people affecting the result rather than full biographies.\n\n| Person | Goal and ties | Change |\n|---|---|---|\n| Name or role | What they seek, offer and face | Which decision actually changes |\n\nThis manual action table is not a fixed skill output. Observe competition, alliance, intimacy and authority. A pair may combine several: family ties do not grant business authority, and cooperation does not resolve every private misunderstanding.\n\nImportant people have their own concerns and actions. They can assist the protagonist while setting conditions; a relation type helps design choices without permanently labeling someone ally or villain."
         }
       },
       {
@@ -11545,8 +11616,8 @@
           "en": "Original Example: An Exhibition of Old Community Maps"
         },
         "body": {
-          "zh": "社区准备展出居民手绘的旧街地图，展板有限，只能选一部分。策展志愿者陆棠希望保住不同年代的迁居记忆；资料管理员马叔坚持每个地名都有可追溯出处；印刷店老板邵芸已经排好机器，只接受一次集中修改；学生阿澄想保留奶奶标错的渡口，因为那张图记录的是她当年的认路方式。\n\n| 人物 | 有效行动 | 给别人带来的变化 |\n|---|---|---|\n| 马叔 | 标出渡口名称与旧记录冲突，暂缓签认 | 阿澄必须说明为何保留错名 |\n| 阿澄 | 请奶奶录下认路经过，提出标注“个人记忆” | 陆棠发现可以把记忆与地理事实分层展示 |\n| 邵芸 | 同意做双层说明，但要求在开机前统一版本 | 大家必须当场决定哪些修改值得保留 |\n| 陆棠 | 舍弃自己准备的装饰板，腾出事实对照区 | 阿澄的图得以保留，马叔可签认客观说明 |\n\n这组人没有轮流做自我介绍。他们围绕同一张图提出不同要求，彼此的行动迫使方案变化。下一次邵芸出场若只重复催交稿，信息没有增长；可以让她带回试印中无法读清的细线，促成具体取舍。这个新增问题来自她已建立的印刷职责，无需临时给她一段身世抢占篇幅。",
-          "en": "A community plans to exhibit residents’ hand-drawn maps of the old neighborhood, but limited display boards mean only some can be selected. Volunteer curator Lu Tang wants to preserve memories of relocation from different decades. Records manager Uncle Ma insists that every place name have a traceable source. Print-shop owner Shao Yun has already scheduled the press and will accept only one consolidated round of changes. Student Ah Cheng wants to keep the ferry crossing her grandmother labeled incorrectly because the map records how her grandmother found her way at the time.\n\n| Character | Effective action | Change imposed on others |\n|---|---|---|\n| Uncle Ma | Flags the conflict between the ferry name and the old records, withholding approval | Ah Cheng must explain why the incorrect name should remain |\n| Ah Cheng | Asks her grandmother to record how she navigated and proposes the label “personal memory” | Lu Tang realizes that memory and geographic fact can be displayed on separate layers |\n| Shao Yun | Agrees to a two-layer explanation but requires one final version before the press starts | Everyone must decide on the spot which changes deserve to remain |\n| Lu Tang | Drops the decorative panel she prepared to make room for a factual comparison area | Ah Cheng’s map can remain, and Uncle Ma can approve the objective note |\n\nThese characters do not introduce themselves one by one. They make different demands around the same map, and each action forces the plan to change. If Shao Yun’s next appearance only repeats a demand for the final files, the scene adds nothing new. Instead, she might bring back a proof showing that the thin lines are unreadable, forcing a concrete trade-off. The new problem follows from her established printing responsibility; she does not need a sudden backstory that steals the scene."
+          "zh": "社区准备展出居民手绘的旧街地图，展板有限。策展志愿者陆棠想保留不同年代的迁居记忆；资料管理员马叔负责审核客观地名说明；印刷店老板邵芸要求内容统一提交，不接逐人分头修改；学生阿澄想保留奶奶标错的渡口，呈现她当年的认路方式。前文已建立陆棠可以调整展板，印前稿由各项负责人确认后交邵芸，开机前允许试印校正。\n\n| 人物 | 有效行动 | 给别人的变化 |\n|---|---|---|\n| 马叔 | 标出与旧记录相冲突的渡口名，暂不签认 | 阿澄要解释为何保留错名 |\n| 阿澄 | 请奶奶录下认路经过，取得同意后提出标“个人记忆” | 陆棠看到事实与记忆可分层 |\n| 邵芸 | 接受双层说明，但要求开机前统一版本 | 大家须按期限完成取舍 |\n| 陆棠 | 撤掉自己的装饰板，换成事实对照区 | 给阿澄地图留下空间 |\n\n还要把计划写到实际结果：马叔核对了客观说明，在这部分签认；阿澄与奶奶确认“个人记忆”标签，保留原地图的错名。陆棠把两部分并到一个印前文件，按约定取得确认并交邵芸。邵芸试印后，发现地图细线看不清；她带回试样，大家改粗线条、再确认，最终她印出了可读版本。\n\n“个人记忆”没有改写地理事实，马叔也没有为奶奶的记忆真实性一并作证。人物围绕同一问题提出不同要求，彼此行动改变了方案；下一次回归带来已建立职责里的具体新条件，而非重复催交稿或突然讲一段身世。",
+          "en": "A community exhibition has limited boards for residents’ hand-drawn street maps. Curator Lu Tang wants migration memories; archive keeper Ma reviews factual place labels; printer Shao requires one combined content submission rather than piecemeal edits; student A Cheng wants to retain her grandmother’s wrong ferry name as a record of how she found her way. Earlier scenes establish Lu’s control of board layout and confirmation by relevant owners before print submission, with proof corrections allowed before printing.\n\n| Person | Action | Effect on others |\n|---|---|---|\n| Ma | Flags ferry name against old records; withholds approval | A Cheng must explain retaining it |\n| A Cheng | Records grandmother’s account with permission; proposes “personal memory” label | Lu sees facts and recollection can coexist |\n| Shao | Accepts layered explanation with a single final file | Group must decide before printing |\n| Lu | Replaces own decorative board with fact comparison | Makes room for the map |\n\nCarry plans into results. Ma checks and approves the factual labels. A Cheng and her grandmother confirm the memory label, preserving the original map’s mistaken name. Lu combines the parts, obtains agreed confirmation and sends the file to Shao. A proof reveals unreadable fine lines. Shao brings it back; the group thickens them and confirms the repair before she prints a readable version.\n\nThe memory label does not change geographic facts, and Ma’s approval does not verify the grandmother’s recollection. Distinct concerns change one shared plan. A returning character brings a concrete condition from an established role rather than repeats a deadline or introduces unrelated biography."
         }
       },
       {
@@ -11594,17 +11665,23 @@
     "related": [
       "/oh-story/character-motivation",
       "/oh-story/character-dialogue",
-      "/oh-story/chapter-outline-template",
-      "/oh-story"
+      "/oh-story/chapter-outline-template"
     ],
     "topic": "characters-and-dialogue",
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "角色辨识与行动",
+          "en": "Recognizing characters through action"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-basics.md"
+      },
+      {
+        "label": {
+          "zh": "关系类型与独立目标",
+          "en": "Relationship types and independent goals"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-relations.md"
       }
     ]
   },
@@ -32216,6 +32293,138 @@
       "/oh-story/outline-to-chapter",
       "/oh-story/long-novel-continuity",
       "/oh-story/import-and-continue"
+    ]
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "fix-extra-people-in-ai-video",
+    "topic": "ai-video",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI视频多出人物、角色分身怎么办：人数与入画路径",
+      "en": "Extra People or Duplicate Characters in AI Video"
+    },
+    "seo_title": {
+      "zh": "AI视频多出人物、角色分身怎么办：人数与入画路径",
+      "en": "Extra People or Duplicate Characters in AI Video"
+    },
+    "description": {
+      "zh": "AI视频多出陌生人、同一角色变成两个人，怎样定位？检查参考图职责、实际可见人数与遮挡进出，附原创修订示例。",
+      "en": "Check reference roles, visible cast and entry paths when AI video adds people or duplicates a character. Includes an original prompt repair."
+    },
+    "answer": {
+      "zh": "先定位多出来的人在哪一刻出现：输入图已经有、背景被带入，还是人物遮挡后重新出现时多了一份。把本镜实际可见者、画外者、入画与出画分别写清，并核对参考图只承担被指定的职责。保持人数要对应剧情，不能用“不要多人”抹掉本来就有的配角。",
+      "en": "Find when the extra person appears: already in the input, imported from a background, or duplicated after occlusion. Specify visible cast, off-screen people and entries or exits, and restrict each reference to its assigned role. Count constraints must preserve the scene’s actual supporting cast."
+    },
+    "sections": [
+      {
+        "id": "locate",
+        "heading": {
+          "zh": "先分清多了谁、何时多出来",
+          "en": "Locate who was added and when"
+        },
+        "body": {
+          "zh": "先回看输入与输出，不用一句“模型分身了”代替观察：\n\n| 观察 | 先查什么 |\n|---|---|\n| 首帧已有陌生人 | 实际起始图是否符合分镜 |\n| 风格图里的模特出现在本镜 | 参考是否被当成整图复制 |\n| 遮挡后原人和新身影同时在场 | 身份、路径和再次出现的状态 |\n| 一个人走出画面后又多一人回来 | 出画、回归与新人物是否区分 |\n| 镜子里也有同一人 | 是否为剧本已有反射，别误删 |\n\n表里是排查方向，不是凭缺陷就认定的技术原因。没有实际输出时只能指出要求含混，不称某次生成已经失败。",
+          "en": "Review inputs and output rather than label everything “duplication.”\n\n| Observation | First check |\n|---|---|\n| Extra person in first frame | Actual start image against storyboard |\n| Style-image model enters scene | Role mistakenly treated as full-image copying |\n| Original and extra figure coexist after occlusion | Identity, route and reappearance state |\n| Exit followed by another person returning | Distinguish return from new entry |\n| Same person appears in mirror | Established reflection, not necessarily extra cast |\n\nThese are diagnostic directions, not proven technical causes. Without output, flag ambiguous requirements rather than claim a failed generation."
+        }
+      },
+      {
+        "id": "cast-card",
+        "heading": {
+          "zh": "把在场、画外与进出分开",
+          "en": "Separate visible, off-screen and entering cast"
+        },
+        "body": {
+          "zh": "不用把整集人物名单塞进这一镜。只列本镜看得见的人，以及影响动作或声音的画外者。\n\n下面是手写排查卡，不是 skill 原生产物。原创场景：修衣店内，店主叶青绕过衣架，回到试衣镜旁；顾客唐真始终坐在前景，送货员只在门外喊话。\n\n| 对象 | 本镜位置与变化 |\n|---|---|\n| 叶青 | 从画面右侧衣架后绕过，仍是同一店主 |\n| 唐真 | 前景坐着，全程留在画面内 |\n| 送货员 | 门外声源，不在本镜入画 |\n| 可见人数 | 起点两人；叶青全身被挡时仅唐真可见；终点仍是这两人 |\n| 不变条件 | 地点、服装、唐真的位置，衣架外其他人物不新增 |\n\n遮挡会改变某一刻看得见的人数，不等于故事里人物消失；因此“始终两张脸完整可见”与衣架遮挡互相冲突。下一镜若拍送货员，再按新镜头更新可见名单。",
+          "en": "Do not paste the episode’s full cast into a shot. List visible people and off-screen participants affecting action or sound.\n\nThis manual check card is not a native skill output. In an original alterations-shop scene, owner Ye Qing passes behind a garment rack and returns beside the fitting mirror. Customer Tang Zhen stays seated in the foreground. A courier calls only from outside.\n\n| Entry | Position and change |\n|---|---|\n| Ye | Passes behind right-side rack; same owner returns |\n| Tang | Seated in foreground throughout |\n| Courier | Outside voice; no on-screen entry in this shot |\n| Visible count | Two at start; only Tang visible during full occlusion; same two at end |\n| Preserved facts | Location, outfits and Tang’s position; no added people beyond rack |\n\nOcclusion changes visible count without removing a person from the story. “Two fully visible faces throughout” would contradict it. If the next shot shows the courier, update that shot’s visible cast."
+        }
+      },
+      {
+        "id": "reference",
+        "heading": {
+          "zh": "人物板、风格图与首帧不能混用",
+          "en": "Keep character sheets, style images and start frames distinct"
+        },
+        "body": {
+          "zh": "多视图人物板展示同一人的不同观察面，不代表本镜要出现三个相同的人。它可提供身份与造型；本镜起始帧另按分镜写出实际人数、位置与持物。没有合适起始图时，先准备与本镜对应的画面，或按已选择的参考模式补足文字，不把人物板冒充现场首帧。\n\n风格图只借色彩、材质与视觉语言。图里有路人，不能因此把路人带进修衣店；地理图里的临时人物也不自动成为本镜角色。若输入图本身与已定人数冲突，先修输入或更换正确参考，负面词不能把已有像素风险变成已修好。\n\n正式项目按已选模型的参考方式绑定稳定身份。不要把示例角色名当成各个平台统一支持的锁人参数；具体格式由[参考图职责](/drama-skills/reference-image-roles)与当前模型配置决定。",
+          "en": "A multi-view character sheet shows several views of one person, not three identical people in the shot. It can provide identity and look; the actual start frame follows the storyboard’s visible count, positions and held objects. Prepare a matching start image or supply the chosen reference mode’s required text rather than use the sheet as a scene frame.\n\nA style image supplies color, material and visual language. Its passerby does not belong in this shop, and temporary people in a geography image do not automatically become cast. Fix an input conflicting with the scene; negative wording does not establish that existing pixel risks are repaired.\n\nBind stable identities through the chosen model’s reference method. Example character names are not universal identity-lock parameters. Follow the reference-role guide and current project profile."
+        }
+      },
+      {
+        "id": "example",
+        "heading": {
+          "zh": "原创提示词修订：衣架后的同一店主",
+          "en": "Original repair: the same owner behind the rack"
+        },
+        "body": {
+          "zh": "分镜已规定叶青绕衣架回到镜旁，送货员只在门外说话；镜子留在同一位置，但这次取景不显人物镜像。以下是设计对照，未送生成服务。\n\n**含混写法**：\n\n> 参考人物板和时尚店铺照片。她走到衣架后，另一个人走出来，门口有人喊“货到了”，画面始终两个人，不要分身。\n\n“另一个人”与同一店主矛盾，门口喊话也没有区分画外声源；持续可见人数又与遮挡冲突。\n\n**修订写法**：\n\n> 从已确认的起始帧开始，叶青在衣架右侧，唐真坐在前景。门外送货员先喊：“货到了。”送货员保持画外，不入画。叶青转头看门口，随后沿衣架后方绕向试衣镜旁；叶青被衣架完整挡住时，只有唐真可见。叶青从衣架靠镜子的一侧重新出现，仍是同一叶青，衣着与起始帧一致。最终叶青站在镜旁，唐真仍坐在原位。机位固定，看清绕行前后是同一店主；店内只保留这两名人物，不新增路人。本机位不拍人物镜像。\n\n身份、路径、画外声音和终点分别落地，没有把送货员从故事删掉。正式提交时还要按已接受参考映射绑定叶青和唐真；这段自然语言不替代挂图配置。",
+          "en": "The accepted storyboard has Ye pass behind the rack and return beside the mirror; the courier speaks outside. The mirror stays fixed, but this framing shows no character reflection. This is an ungenerated design comparison.\n\n**Ambiguous:**\n\n> Reference the character board and fashion-shop photo. She goes behind the rack; another person comes out. Someone at the door calls “Delivery.” Always two people, no duplicates.\n\n“Another person” contradicts a returning owner. The voice lacks an off-screen distinction, and continuous visible count conflicts with occlusion.\n\n**Revised:**\n\n> Begin with the accepted start frame: Ye Qing stands right of the rack; Tang Zhen sits in the foreground. The courier first calls from outside, “Delivery.” The courier stays off screen. Ye looks toward the door, then passes behind the rack toward the fitting mirror. While Ye is fully hidden, only Tang is visible. Ye reappears on the mirror side of the rack as the same Ye in the same outfit. End with Ye beside the mirror and Tang seated in the original place. Fixed camera makes the route readable. Retain these two people in the shop without added passersby. This framing shows no character reflection.\n\nIdentity, route, off-screen voice and end state are distinct without deleting the courier from the story. Bind Ye and Tang to accepted references when submitting; natural-language text does not replace image mapping."
+        }
+      },
+      {
+        "id": "verify",
+        "heading": {
+          "zh": "生成后沿遮挡前后逐段核对",
+          "en": "Check output around occlusion"
+        },
+        "body": {
+          "zh": "回看起点、遮挡前、遮挡中、重新出现及终点。脸、服装、站位和人数是否连续？原身影是否仍留在衣架前，新身影却又走出来？送货员是否越过了本镜画外范围？只写实际可见缺陷及出现时刻，不把整镜笼统记成失败。\n\n参考和边界清楚、缺陷只偶发时，可以在预算内重试；同处反复出现，就调整本次要求或拆出更可读的绕行镜头。拆镜先修分镜，保持同一店主、声音时机和终点义务，别为避免分身把人物移动删掉。\n\n一次提示词修订不等于视频已修好。只有实际结果里多余人物消失、原定角色和剧情仍保留，才能作为可用版本；处置选择另见[重抽、改写还是补拍](/drama-skills/reroll-or-rewrite)。",
+          "en": "Review start, pre-occlusion, hidden interval, reappearance and end. Check identity, outfit, position and count. Does an original figure remain before the rack while another emerges? Does the courier enter contrary to the shot? Record the visible defect and moment instead of marking the whole shot simply “failed.”\n\nIf inputs and boundaries are clear and the defect is occasional, retry within budget. If it recurs at the same point, revise requirements or split the route into clearer shots. Revise the storyboard first while preserving the owner, voice timing and end obligation rather than deleting movement.\n\nA prompt repair is not a repaired video. Accept only output that removes the extra person while retaining intended cast and story. The reroll-or-rewrite guide covers routing choices."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "只写“不要多人、不要分身”有用吗？",
+          "en": "Is “no extra people, no duplicates” enough?"
+        },
+        "a": {
+          "zh": "它可以是必要的排除说明，但不能替代正确输入和具体状态。先写本镜原定可见者、画外者及遮挡进出，再保护不参与变化的人物；若原场景就有两人，不要改成“只能一人”解决。",
+          "en": "It can be a useful exclusion, but does not replace correct inputs and concrete state. Specify intended visible cast, off-screen participants and occlusion paths. Do not force a two-person scene down to one."
+        }
+      }
+    ],
+    "skill": {
+      "name": "short-drama-video-prompts",
+      "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/SKILL.md",
+      "text": {
+        "zh": "用 $short-drama-video-prompts 检查这一镜多出人物的风险。先核对已接受分镜、实际参考图职责、可见名单和画外声音；沿遮挡进出写同一身份与终点，保留原剧情。若有真实输出，只报告看见的缺陷；先修提示词，不生成视频。",
+        "en": "Use $short-drama-video-prompts to check extra-cast risks against accepted storyboard, reference roles, visible cast and off-screen voices. Preserve identity along occlusion and the required end state. Report only observed defects when output exists. Revise text without generating video."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "参考图职责与人数边界",
+          "en": "Reference roles and cast boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama/references/reference-roles.md"
+      },
+      {
+        "label": {
+          "zh": "多人指代与本镜可见状态",
+          "en": "Multi-person references and shot-local state"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/production-prompt-grammar.md"
+      },
+      {
+        "label": {
+          "zh": "关键帧的可见角色与边界",
+          "en": "Visible cast and keyframe boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/keyframe-craft.md"
+      }
+    ],
+    "related": [
+      "/drama-skills/reference-image-roles",
+      "/drama-skills/reroll-or-rewrite",
+      "/drama-skills/storyboard-a-group-confrontation"
     ]
   }
 ]

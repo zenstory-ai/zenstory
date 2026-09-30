@@ -258,6 +258,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Storyboard Ball Sports for AI Video](https://zenstory.ai/drama-skills/storyboard-ai-video-ball-sports) — Keep the ball’s origin, controller and transfer readable. Includes an original pass sequence and repairs for teleporting objects or reversed movement.
 - [How to Fix Object Handoffs in AI Video](https://zenstory.ai/drama-skills/fix-object-handoffs-in-ai-video) — Specify approach, contact, release and new possession. Includes an original handover prompt and repairs for conflicting hands or duplicated objects.
 - [Replay an AI Drama Action from Multiple Angles](https://zenstory.ai/drama-skills/replay-an-action-from-multiple-angles) — Replay a peak action deliberately without repeating its result. An original reveal plan covers the primary shot, shared states and the next shot.
+- [Extra People or Duplicate Characters in AI Video](https://zenstory.ai/drama-skills/fix-extra-people-in-ai-video) — Check reference roles, visible cast and entry paths when AI video adds people or duplicates a character. Includes an original prompt repair.
 
 ### Interactive stories and games / 互动故事与游戏
 - [Interactive stories and games](https://zenstory.ai/guides/interactive-games) — Turn a novel into player actions, branching stories, and a playable game.
