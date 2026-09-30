@@ -22009,8 +22009,8 @@
           "en": "A filled prompt that separates decisions from freedom"
         },
         "body": {
-          "zh": "以下故事为原创示例；字数范围是作者的本次要求，不是通用标准。\n\n> 本次只写第 4 章正文，中文 1800—2200 字，不接着写第 5 章。视角跟随修车师傅罗宁。\n>\n> 上一章停点：阿民提出先交三辆车，罗宁压住钥匙，要求试车后再走。\n>\n> 必须发生：阿民解释比赛开场时间；罗宁让学徒先做已安排的基础检查，发现第二辆刹车线松动，尚不安排它试骑；罗宁复查首辆与第三辆，确认本例已设交付条件满足；他说明延误原因，阿民实际接受先交这两辆。不要改变这个结果。\n>\n> 人物状态：罗宁知道修不完会失去部分工钱，但不肯放走不安全的车；小陶会做基础检查，尚不能独立签最终验收；阿民知道比赛安排，不知道罗宁旧事故。钥匙仍在柜台上，三辆车尚未交付。\n>\n> 暂不揭示：不要在本章说出罗宁旧事故的完整经过，也不要让阿民突然知道它。\n>\n> 可以补：基础检查与已允许试车中的短动作、与检修有关的一次性物件细节。新增长期人物、改事故真相或改交付结果，先列建议，不写进正文。\n>\n> 文风参考：附上我自己写的短段。保留对话的自然语气，不给每句配动作，也不用结尾感悟替人物收场。章尾停在阿民准备带走两辆车时，接到比赛地点临时更改的电话。\n>\n> 交付后对照必发生事项逐项指出落点；缺必要事实时先列待补项。\n\n在能读取文件的工作区，提供真实文件路径并明确要读取；在普通聊天里，贴相关摘录。路径名本身不能代替内容，也不要假定模型看过未提供的文件。\n\n本例检查顺序是作者已选情节，不是自行车维修教程。学徒发现问题不自动获得最终验收能力；阿民接收意愿也不替代罗宁实际复查。章尾仍停在准备带走两辆、接到地点变更电话，不提前宣布已经骑到新地点。",
-          "en": "This is an original story example. The length range is this author’s request, not a universal standard.\n\n> Write chapter 4 only, in 900–1,200 English words, following bicycle mechanic Luo Ning. Do not continue into chapter 5.\n>\n> Previous stopping point: Min asked to take three bikes. Luo stopped the keys and required test rides first.\n>\n> Required events: Min explains the race start time; Luo has the apprentice perform the arranged basic checks, identifying a loose brake cable on the second bike before any ride of that bike; Luo rechecks the first and third against the example’s established delivery conditions; he explains the delay, and Min actually accepts those two first. Preserve this outcome.\n>\n> Current state: Luo risks losing part of his fee but will not release an unsafe bike. Tao can perform basic checks but cannot sign final acceptance alone. Min knows the race arrangements, not Luo’s old accident. The keys remain on the counter; no bike has been delivered.\n>\n> Do not reveal: the complete old accident or knowledge of it that Min does not have.\n>\n> May invent: brief actions in the basic checks or already authorized tests, plus one-use repair details. Suggest, rather than silently add, recurring characters, a changed accident truth or a different delivery outcome.\n>\n> Style: use my attached original sample. Keep natural dialogue; do not attach gestures to every line or end with a moral summary. Stop as Min prepares to take two bikes and receives a call changing the race venue.\n>\n> After the draft, identify where each required event appears. List missing necessary facts before drafting if needed.\n\nIn a workspace with file access, supply real paths and ask for them to be read. In ordinary chat, supply relevant excerpts. A path name alone does not give access to its contents.\n\nThis check order is an author’s plot choice, not a bicycle repair tutorial. Finding a fault does not give the apprentice final acceptance capability, and Min’s willingness does not replace Luo’s recheck. The ending remains at preparation to take two bikes and the venue-change call, without declaring arrival at the new venue."
+          "zh": "以下故事为原创示例；字数范围是作者的本次要求，不是通用标准。\n\n> 本次只写第 4 章正文，中文 1800—2200 字，不接着写第 5 章。视角跟随修车师傅罗宁。\n>\n> 上一章停点：阿民提出先交三辆车，罗宁压住钥匙，要求试车后再走。\n>\n> 必须发生：阿民解释比赛开场时间；罗宁让学徒先做已安排的基础检查，发现第二辆刹车线松动，尚不安排它试骑；首辆与第三辆通过基础检查后，罗宁亲自复查并完成上一章要求的试车，确认本例已设交付条件满足；他说明延误原因，阿民实际接受先交这两辆。不要改变这个结果。\n>\n> 人物状态：罗宁知道修不完会失去部分工钱，但不肯放走不安全的车；小陶会做基础检查，尚不能独立签最终验收；阿民知道比赛安排，不知道罗宁旧事故。钥匙仍在柜台上，三辆车尚未交付。\n>\n> 暂不揭示：不要在本章说出罗宁旧事故的完整经过，也不要让阿民突然知道它。\n>\n> 可以补：基础检查与已允许试车中的短动作、与检修有关的一次性物件细节。新增长期人物、改事故真相或改交付结果，先列建议，不写进正文。\n>\n> 文风参考：附上我自己写的短段。保留对话的自然语气，不给每句配动作，也不用结尾感悟替人物收场。章尾停在阿民准备带走两辆车时，接到比赛地点临时更改的电话。\n>\n> 交付后对照必发生事项逐项指出落点；缺必要事实时先列待补项。\n\n在能读取文件的工作区，提供真实文件路径并明确要读取；在普通聊天里，贴相关摘录。路径名本身不能代替内容，也不要假定模型看过未提供的文件。\n\n本例检查顺序是作者已选情节，不是自行车维修教程。学徒发现问题不自动获得最终验收能力；阿民接收意愿也不替代罗宁实际复查与已要求的试车；第二辆未修好、未通过检查时不让它进入试骑。章尾仍停在准备带走两辆、接到地点变更电话，不提前宣布已经骑到新地点。",
+          "en": "This is an original story example. The length range is this author’s request, not a universal standard.\n\n> Write chapter 4 only, in 900–1,200 English words, following bicycle mechanic Luo Ning. Do not continue into chapter 5.\n>\n> Previous stopping point: Min asked to take three bikes. Luo stopped the keys and required test rides first.\n>\n> Required events: Min explains the race start time; Luo has the apprentice perform the arranged basic checks, identifying a loose brake cable on the second bike before any ride of that bike; after the first and third pass their basic checks, Luo personally rechecks them and carries out the test rides required in the previous chapter against the example’s established delivery conditions; he explains the delay, and Min actually accepts those two first. Preserve this outcome.\n>\n> Current state: Luo risks losing part of his fee but will not release an unsafe bike. Tao can perform basic checks but cannot sign final acceptance alone. Min knows the race arrangements, not Luo’s old accident. The keys remain on the counter; no bike has been delivered.\n>\n> Do not reveal: the complete old accident or knowledge of it that Min does not have.\n>\n> May invent: brief actions in the basic checks or already authorized tests, plus one-use repair details. Suggest, rather than silently add, recurring characters, a changed accident truth or a different delivery outcome.\n>\n> Style: use my attached original sample. Keep natural dialogue; do not attach gestures to every line or end with a moral summary. Stop as Min prepares to take two bikes and receives a call changing the race venue.\n>\n> After the draft, identify where each required event appears. List missing necessary facts before drafting if needed.\n\nIn a workspace with file access, supply real paths and ask for them to be read. In ordinary chat, supply relevant excerpts. A path name alone does not give access to its contents.\n\nThis check order is an author’s plot choice, not a bicycle repair tutorial. Finding a fault does not give the apprentice final acceptance capability, and Min’s willingness does not replace Luo’s recheck or the required rides; the second bike does not enter a ride before its fault is repaired and checks are passed. The ending remains at preparation to take two bikes and the venue-change call, without declaring arrival at the new venue."
         }
       },
       {
@@ -36585,6 +36585,145 @@
       "/oh-story/mystery-novel",
       "/oh-story/rules-horror",
       "/oh-story/use-sensory-details-in-fiction"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "novel-chapter-titles",
+    "topic": "plot-and-outline",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "小说章节名怎么起：突出本章重点，别提前揭晓",
+      "en": "How to Name Novel Chapters Without Spoiling the Reveal"
+    },
+    "seo_title": {
+      "zh": "小说章节名怎么起：突出本章重点，别提前揭晓",
+      "en": "How to Name Novel Chapters Without Spoiling the Reveal"
+    },
+    "description": {
+      "zh": "从章节实际内容选章名，用重点动作、关键台词或意象形成期待。含修车店标题对照、剧透检查与文件同步方法。",
+      "en": "Choose chapter titles from actual actions, lines, or motifs. Compare workshop examples, check spoilers and repeats, and preserve manuscript naming."
+    },
+    "answer": {
+      "zh": "先用一句话说清这一章让读者经历什么，再从关键动作、台词、矛盾或意象中提炼标题。检查正文是否兑现它、是否提前说破本章要保留的答案，以及与邻章是否重复。章名可以简洁平实，也可以带悬念；不要为起名补剧情，选定后按项目原格式同步标题与文件名。",
+      "en": "State what readers experience in the chapter, then extract a title from its action, line, conflict, or motif. Check delivery, spoilers, and repetition with nearby titles. Plain or suspenseful names can both work. Do not invent plot to justify a title; preserve the manuscript’s naming format when applying the choice."
+    },
+    "sections": [
+      {
+        "id": "book-title-or-chapter-title",
+        "heading": {
+          "zh": "书名介绍整部作品，章名服务眼前这一章",
+          "en": "A Book Title Introduces the Work; a Chapter Title Serves This Chapter"
+        },
+        "body": {
+          "zh": "[网文书名](/oh-story/novel-titles)需要表达整部作品的卖点；章名只需给本章一个准确的入口。给每章都写“全城震惊”“惊天秘密”，容易让不同内容变成同一承诺；安静的相处、整理线索或一次小选择也值得有自己的名字。\n\nOh Story 的章节名策略从本章有辨识度的台词、冲突信息取标题；章级钩子方法再按情绪和章节功能选择牵引。本文把两者用于作者选章名，不把项目里偏爽文的强标题建议当成所有文学风格的硬规则。全书统一用数字、地点或人物名也可以，只要作者已经选择这种形式。\n\n先确认本书的习惯：是否每章都起名，标题偏叙事、意象还是直白信息，编号怎样写。不因 AI 能给二十个候选就改变全书格式。",
+          "en": "A [novel title](/oh-story/novel-titles) presents the whole work’s attraction. A chapter title supplies an accurate entrance to this chapter. Repeated promises of shocking secrets can flatten different chapters; quiet companionship, organizing clues, and a small decision can each have an appropriate name.\n\nOh Story’s naming strategy draws on a distinctive line or conflict in the chapter. Its hook method considers emotion and chapter function. This article applies those methods to title selection without making forceful web-serial titles mandatory for every literary style. Numbers, places, or character names can also work when the author chooses that form consistently.\n\nCheck whether the book names chapters, what style it uses, and how numbering works. Twenty AI suggestions are not a reason to change the whole manuscript’s format."
+        }
+      },
+      {
+        "id": "extract-title-material",
+        "heading": {
+          "zh": "从已写内容提炼，不从空泛词库拼标题",
+          "en": "Extract Material From the Chapter"
+        },
+        "body": {
+          "zh": "先写一句本章作用，再圈能承担它的材料：\n\n| 取材方向 | 怎样使用 |\n|---|---|\n| 关键动作 | 用本章真正发生的选择或阻力；“先检查”比只写“困难”更具体。 |\n| 台词 | 选择有辨识度且确实出现的话，必要时缩短；改写后仍准确，不冒充逐字引用。 |\n| 冲突信息 | 点出两种要求碰撞的地方，保留读者想看的解决过程。 |\n| 意象或物件 | 用正文已经让读者理解的物件，不临时加一把刀来配标题。 |\n| 时间、地点或人物 | 可以清楚定位；本书若惯用这类平实标题，保持一致。 |\n\n这张表是作者取材卡，不是 skill 原生字段。无需每章用不同一类，也不把标题控制在统一字数；先看目录是否容易辨认，再看它与正文是否对应。一个好标题不负责替平淡章节编出高潮。",
+          "en": "Write one sentence describing the chapter’s function, then identify material that carries it:\n\n| Material | Use |\n|---|---|\n| Key action | Name an actual choice or obstacle; “Check First” is more specific than “Difficulty.” |\n| A line | Select recognizable speech that appears in the text. A shortened paraphrase must stay accurate without posing as an exact quote. |\n| Conflict | Point to competing demands while leaving their resolution worth reading. |\n| Motif or object | Use something already meaningful in the prose, rather than adding a knife to justify the name. |\n| Time, place, or person | Orient readers clearly; keep this straightforward form if it is the book’s established style. |\n\nThis is an editorial selection card, not a native skill format. Neither rotating categories every chapter nor enforcing one title length is required. Check distinguishability in the contents and correspondence with the prose. A title cannot invent a climax for a quiet chapter."
+        }
+      },
+      {
+        "id": "workshop-title-comparison",
+        "heading": {
+          "zh": "原创对照：同一章可以有不同准确入口",
+          "en": "Original Comparison: Different Accurate Entrances to One Chapter"
+        },
+        "body": {
+          "zh": "沿用本文原创修车店章节安排：阿民想先取三辆车；罗宁要求基础检查，第二辆出现问题；罗宁复查首辆与第三辆并完成已要求的试车后，阿民接受先交这两辆。章尾准备离开时，他接到比赛地点变更电话。钥匙只是交付的物件，不是隐藏宝物。本表比较作者候选，没有实际重命名书稿。\n\n| 候选 | 取舍 |\n|---|---|\n| 修车 | 准确但较宽；若全书用平实事务名，可以保留。想突出本章的交付矛盾时再具体化。 |\n| 先检查，再拿钥匙 | 指向本章反复协商的条件，正文有兑现；不提前透露地点电话。 |\n| 两辆，还是三辆？ | 把数量与交付选择放在标题里，适合希望读者关注谈判结果的安排。 |\n| 先交两辆 | 提前说出局部结果。若看点是怎样达到这个结果，可以用；若本章悬念正是能交几辆，就选上一项。 |\n| 刹车松了，比赛也换了地方 | 把发现和章尾变化一起说完；本例想保留电话的意外，就不选。 |\n| 钥匙里的惊天秘密 | 正文没有这种秘密，不能靠标题制造虚假承诺。 |\n\n本例选“先检查，再拿钥匙”：它承诺交付条件的碰撞，而不是事故真相或比赛新地点。选择是在这份已设章节内容中作出，不是所有修车题材都必须如此命名。",
+          "en": "The original workshop chapter has an established plan: Min wants three bikes; Luo requires basic checks, the second has a fault, and Luo rechecks the first and third and completes their required test rides. Min accepts those two first. As he prepares to leave, a call changes the race venue. Keys serve the handover rather than containing a hidden treasure. These are editorial candidates, not actual manuscript renames.\n\n| Candidate | Decision |\n|---|---|\n| Repairs | Accurate but broad. Keep it if the book uses plain activity names; become more specific when the handover conflict is the emphasis. |\n| Check First, Then Take the Keys | Names the condition negotiated in the chapter and fulfilled in the prose, without exposing the venue call. |\n| Two Bikes or Three? | Foregrounds quantity and the receiving choice when the negotiation’s result is the attraction. |\n| Two Bikes First | Reveals the local outcome. It can work when readers care how it happens; avoid it if the chapter’s central suspense is the number delivered. |\n| Loose Brakes and a New Race Venue | Gives away both discovery and the closing change. Reject it when preserving the call’s surprise. |\n| The Shocking Secret in the Keys | Promises a secret absent from the chapter; reject the invented attraction. |\n\nThe example selects “Check First, Then Take the Keys,” promising a collision over handover conditions rather than the old accident’s truth or new venue. This choice belongs to the established chapter, not a universal naming rule for repair stories."
+        }
+      },
+      {
+        "id": "spoilers-and-repeat-check",
+        "heading": {
+          "zh": "检查剧透、重名和目录里的辨识度",
+          "en": "Check Spoilers, Repetition, and the Contents"
+        },
+        "body": {
+          "zh": "标题可以透露部分结果，不是每个信息都必须保密。先问：这一章的阅读兴趣在“会怎样”还是“怎样做到”？如果读者主要在猜投诉是谁递的，直接用“同事递的投诉”会提前替场景作答；如果正文从开头已告诉他们，就不必假装这个答案仍是秘密。\n\n把候选放到前后几章的标题之间读。三个连续的“真相”“更大的真相”“最终真相”难以辨认，优先回到各章的实际材料；故意复现一个意象也可保留，区别由上下文与本章内容承担。\n\n- [ ] 标题的动作、台词或物件在本章有依据\n- [ ] 没有提前泄露作者本次想保留的身份或反转\n- [ ] 没把另一章才发生的事借来招徕\n- [ ] 与现有章名重名时，确认是有意重复还是需要修改\n- [ ] 标题提出的期待，正文确实有相应内容\n\n不宣称换标题就能提高追读。标题准确后，仍要读正文的事件、关系与节奏；不能只优化目录。",
+          "en": "A title may reveal part of an outcome. Ask whether the attraction is what will happen or how it happens. If readers are guessing who submitted a complaint, naming the coworker answers the scene early. If the opening already tells them, the title need not pretend that fact remains secret.\n\nRead candidates among nearby chapter names. “The Truth,” “A Bigger Truth,” and “The Final Truth” may be hard to distinguish; return to each chapter’s material. Deliberate recurrence of a motif can remain when context and content provide the difference.\n\n- [ ] The action, line, or object has support in this chapter.\n- [ ] The title preserves the identity or turn the author wants withheld here.\n- [ ] It does not borrow an event that occurs only in another chapter.\n- [ ] A duplicate name is either intentional or revised.\n- [ ] The prose contains what the title leads readers to expect.\n\nChanging a name does not establish improved retention. Once the title is accurate, still review events, relationships, and pace rather than optimizing only the contents."
+        }
+      },
+      {
+        "id": "apply-and-sync",
+        "heading": {
+          "zh": "选定后再同步章名，保留原编号与格式",
+          "en": "Apply the Choice Without Changing the Manuscript’s Format"
+        },
+        "body": {
+          "zh": "Oh Story 的单章流程在标题预检发现重名或明显重复时，按核心事件调整，并同步细纲标题和正文文件名；长篇格式要求标题、编号和文件名服从项目既有格式。这里提供的是作者选名方法，不运行批量改名，也不假定替换文件名就已更新所有链接。\n\n实际改已有章节时，先记录旧章号、标题和路径，再列出确实引用它的目录、链接或索引。按当前项目约定修改相关位置，检查是否还能打开正确章节；工具输出成功不代替这项检查。未接受的新标题留作候选，不改正文事件来适配它。\n\n> 只为〔指定章节〕提出章名。先读取本章正文或已选细纲、现有章名和原格式，概括阅读重点；从实际动作、台词、矛盾或意象取候选，每项附正文依据、透露了什么和为何适合。不要补剧情，不替未写章节命名，不用相同的“惊天秘密”句式批量套。先给候选，等我选定后再按原编号和文件约定改相关位置。\n\n书名、章名和章尾钩子可以配合，但各自解决不同问题；需要改故事承诺时回到[章尾钩子](/oh-story/chapter-ending-hooks)或[章节细纲](/oh-story/chapter-outline-template)，不用换章名掩盖正文缺口。",
+          "en": "Oh Story’s chapter workflow adjusts a duplicate or obviously repeated title from the core event and synchronizes the outline title and prose filename. Its long-form format follows the project’s established title, numbering, and file convention. This article selects names; it neither runs batch renames nor assumes renaming a file updates every link.\n\nFor an existing chapter, record the old number, title, and path. Identify actual references in contents, links, or indexes, update the relevant locations under the project’s convention, and check that the correct chapter still opens. An unaccepted candidate stays a proposal rather than changing events to fit its name.\n\n> Suggest names only for [the specified chapter]. Read its prose or accepted outline, existing names, and format. State the reading emphasis, then draw candidates from actual actions, lines, conflicts, or motifs. Give evidence, what each reveals, and why it fits. Add no plot, name no unwritten chapters, and avoid one repeated shocking-secret formula. Present candidates first; apply the chosen name to relevant locations only after selection, preserving numbering and file conventions.\n\nBook names, chapter names, and ending hooks can cooperate while serving different tasks. Return to [chapter hooks](/oh-story/chapter-ending-hooks) or the [chapter outline](/oh-story/chapter-outline-template) when the story promise needs work, rather than using a name to hide missing prose."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "小说每一章都必须有标题吗？",
+          "en": "Does every novel chapter need a title?"
+        },
+        "a": {
+          "zh": "不必须。按作品和交付格式选择数字、人物名、地点或独立章名；先保持全书一致。要起名时从本章真实内容取材，不为满足“每章一个爆点标题”增加反转。",
+          "en": "No. Choose numbers, character names, locations, or individual titles according to the work and its delivery format. Keep the book consistent and name actual chapter content without adding a twist to satisfy a dramatic-title quota."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "可以请 story-long-write 先只讨论指定章名：提供正文或已选细纲、近邻标题和格式，取本章材料并说明剧透范围，不写正文；选定后再同步实际需要修改的位置。",
+        "en": "Ask story-long-write to discuss names for specified chapters from prose or an accepted outline, nearby titles, and the existing format. Explain spoilers and stop before prose; apply the selected names only to locations that need updating."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "从本章台词和冲突取名",
+          "en": "Naming from chapter lines and conflict"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/outline-methods.md"
+      },
+      {
+        "label": {
+          "zh": "章节功能与信息牵引",
+          "en": "Chapter function and information hooks"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/long-chapter-hooks.md"
+      },
+      {
+        "label": {
+          "zh": "重名预检与标题同步",
+          "en": "Duplicate precheck and title synchronization"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-chapter.md"
+      },
+      {
+        "label": {
+          "zh": "标题编号与项目既有格式",
+          "en": "Title numbering and established project format"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/long-format.md"
+      }
+    ],
+    "related": [
+      "/oh-story/novel-titles",
+      "/oh-story/chapter-ending-hooks",
+      "/oh-story/chapter-outline-template"
     ]
   }
 ]

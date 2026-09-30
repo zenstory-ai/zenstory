@@ -74,6 +74,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Develop a Recurring Object in a Novel](https://zenstory.ai/oh-story/recurring-object-in-fiction) — Develop an object through practical use and changing character choices. Includes an original key example and a recurrence planning table.
 - [How to Write Multiple Factions in a Novel](https://zenstory.ai/oh-story/write-multiple-factions-in-a-novel) — Give factions independent reasons to act on one event. Includes an original alliance map and repairs for passive observers or unexplained support.
 - [Organize Your Novel’s Timeline and Reveals](https://zenstory.ai/oh-story/organize-a-novel-timeline) — Separate event chronology, manuscript order and reader knowledge. Use relative time and a worked flashback example without inventing dates.
+- [How to Name Novel Chapters Without Spoiling the Reveal](https://zenstory.ai/oh-story/novel-chapter-titles) — Choose chapter titles from actual actions, lines, or motifs. Compare workshop examples, check spoilers and repeats, and preserve manuscript naming.
 
 ### Characters and dialogue / 人物与对白
 - [Characters and dialogue](https://zenstory.ai/guides/characters-and-dialogue) — Build believable motives, distinct voices, and relationships.
