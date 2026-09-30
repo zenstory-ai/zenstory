@@ -30173,8 +30173,8 @@
           "en": "A four-step paragraph revision"
         },
         "body": {
-          "zh": "1. 写出每段正在完成的事；一段混进两个行动目标时，找实际转换处。\n2. 在新信息、换说话者或注意对象改变处试着断段，检查上段是否已完成必要交代。\n3. 合并同一动作或推理里的连续碎段，让句子保持自然连接。\n4. 朗读并在实际阅读界面查看，确认归属、重点与推进仍清楚。\n\n只加换行不能修复缺因果或漏人物的问题。若“登记本还在前台”没有此前依据，可以让人物提出询问，不要因排版更顺就把猜测写成事实。给 AI 的任务也应限定为分段与必要连接，保留事件、角色和关键信息，不让它顺手改剧情。",
-          "en": "1. State what each paragraph accomplishes; locate the real transition if it mixes different action goals.\n2. Try breaks at new information, speaker changes or shifts of attention. Check that the preceding unit is complete.\n3. Merge fragments belonging to the same action or inference, retaining natural sentence connections.\n4. Read aloud and inspect the actual reading view for attribution, emphasis and forward movement.\n\nLine breaks cannot repair missing causality or participants. If the register’s location is uncertain, let the character ask rather than convert a guess into fact. An AI paragraphing task should preserve events, characters and essential information instead of redesigning the scene."
+          "zh": "1. 写出每段正在完成的事；一段混进两个行动目标时，找实际转换处。\n2. 在新信息、换说话者或注意对象改变处试着断段，检查上段是否已完成必要交代。\n3. 合并同一动作或推理里的连续碎段，让句子保持自然连接。\n4. 朗读并在实际阅读界面查看，确认归属、重点与推进仍清楚。\n\n只加换行不能修复缺因果或漏人物的问题。若“登记本还在前台”没有此前依据，可以让人物提出询问，不要因排版更顺就把猜测写成事实。给 AI 的任务也应限定为分段与必要连接，保留事件、角色和关键信息，不让它顺手改剧情。\n\n本页断段是这段场面的可选安排。段长、停顿标点和对白落法按当前请求与本书文风取舍，通用参考的默认值不是所有小说的统一格式。明确采用的连贯长段或重复节奏可保留；前提仍是读得清楚、发言归属和原有信息顺序没有被改变。",
+          "en": "1. State what each paragraph accomplishes; locate the real transition if it mixes different action goals.\n2. Try breaks at new information, speaker changes or shifts of attention. Check that the preceding unit is complete.\n3. Merge fragments belonging to the same action or inference, retaining natural sentence connections.\n4. Read aloud and inspect the actual reading view for attribution, emphasis and forward movement.\n\nLine breaks cannot repair missing causality or participants. If the register’s location is uncertain, let the character ask rather than convert a guess into fact. An AI paragraphing task should preserve events, characters and essential information instead of redesigning the scene.\n\nThese breaks are one arrangement for this passage. Paragraph length, pause punctuation and dialogue placement follow the current request and book style; reference defaults are not a universal format. Retain an intentionally continuous long paragraph or repeated rhythm when effective, while preserving clear attribution and the original information order."
         }
       }
     ],
@@ -30205,6 +30205,13 @@
           "en": "Paragraphing and natural rhythm"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
+      },
+      {
+        "label": {
+          "zh": "分段、停顿与作者文风",
+          "en": "Paragraphs, pauses and author style"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ],
     "related": [
@@ -30269,8 +30276,8 @@
           "en": "Map attribution in a group scene"
         },
         "body": {
-          "zh": "| 本段动作 | 行动者 | 对象或接收者 | 是否需要点名 |\n|---|---|---|---|\n| 接卡、翻背面 | 陶岚 | 借书卡 | 开头点名，连续动作不反复点名 |\n| 表示换卡 | 林菁 | 陶岚 | 发言对象可由已建立的交流判断 |\n| 递信封 | 周姨 | 林菁 | 两端都需明确 |\n| 拒绝接信封 | 林菁 | 周姨 | 上句有多人，重新点名 |\n\n这张表是改稿时的归属检查，不进入小说正文。写完再从普通读者角度顺读，确认代词最近的候选对象是否与作者意图相同。\n\n身份称呼也能帮忙，但要自然。读者已认识“管理员周姨”，不必每次换成“那位年长的图书室管理者”绕开姓名；换称呼不能让读者以为来了第四个人。",
-          "en": "| Action | Actor | Object or recipient | Naming choice |\n|---|---|---|---|\n| Take and turn card | Tao Lan | Library card | Name initially; connect subsequent actions |\n| Request replacement | Lin Jing | Tao Lan | Use the established exchange |\n| Offer envelope | Mrs. Zhou | Lin Jing | Make both ends clear |\n| Refuse envelope | Lin Jing | Mrs. Zhou | Reset after multiple possible subjects |\n\nThis editing map stays outside the prose. Read the revision normally and check whether the nearest plausible pronoun referent matches the intended actor.\n\nRole descriptions can help when natural. Replacing a familiar name with a long epithet on every appearance makes identification harder. A change of address should not suggest an additional person has entered."
+          "zh": "| 本段动作 | 归属与点名 |\n|---|---|\n| 接卡、翻背面 | **行动者：**陶岚；**对象或接收者：**借书卡；**是否需要点名：**开头点名，连续动作不反复点名 |\n| 表示换卡 | **行动者：**林菁；**对象或接收者：**陶岚；**是否需要点名：**发言对象可由已建立的交流判断 |\n| 递信封 | **行动者：**周姨；**对象或接收者：**林菁；**是否需要点名：**两端都需明确 |\n| 拒绝接信封 | **行动者：**林菁；**对象或接收者：**周姨；**是否需要点名：**上句有多人，重新点名 |\n\n这张表是改稿时的归属检查，不进入小说正文。写完再从普通读者角度顺读，确认代词最近的候选对象是否与作者意图相同。\n\n身份称呼也能帮忙，但要自然。读者已认识“管理员周姨”，不必每次换成“那位年长的图书室管理者”绕开姓名；换称呼不能让读者以为来了第四个人。",
+          "en": "| Action | Attribution |\n|---|---|\n| Take and turn card | **Actor:** Tao Lan. **Object or recipient:** Library card. **Naming choice:** Name initially; connect subsequent actions. |\n| Request replacement | **Actor:** Lin Jing. **Object or recipient:** Tao Lan. **Naming choice:** Use the established exchange. |\n| Offer envelope | **Actor:** Mrs. Zhou. **Object or recipient:** Lin Jing. **Naming choice:** Make both ends clear. |\n| Refuse envelope | **Actor:** Lin Jing. **Object or recipient:** Mrs. Zhou. **Naming choice:** Reset after multiple possible subjects. |\n\nThis editing map stays outside the prose. Read the revision normally and check whether the nearest plausible pronoun referent matches the intended actor.\n\nRole descriptions can help when natural. Replacing a familiar name with a long epithet on every appearance makes identification harder. A change of address should not suggest an additional person has entered."
         }
       },
       {
@@ -30280,8 +30287,8 @@
           "en": "Repair ambiguity rather than meeting a name quota"
         },
         "body": {
-          "zh": "先圈出连续以同一姓名开头的句子，判断是否确属同一行动链；若中途没有换人、换视角或需要强调，就用代词、承接或合句修顺。\n\n再圈出“他、她、对方、那人”，从当前段落向前找归属。存在两个同样合理的候选时，恢复最短的必要姓名或角色称呼。最后核对持物、递交和拒绝这些动作，避免省主语使物件看似换了主人。\n\n不要把所有名字都改成代词，也不要为避免代词重复塞入皱眉、抬眼等动作。归属已经清楚且节奏自然，就可以停改；人物声音与对白提示语的问题，另按相应方法处理。",
-          "en": "Circle consecutive sentences beginning with the same name. If they form one action chain without a participant or viewpoint change, connect them with pronouns, grammatical continuation or a combined sentence.\n\nThen inspect “he,” “she,” “the other person” and similar references. When two candidates are equally plausible, restore the shortest necessary name or role. Check possession, handoffs and refusals so omitted subjects do not accidentally move objects between people.\n\nDo not replace every name with a pronoun or add decorative gestures to evade repetition. Stop when attribution and rhythm are clear. Distinct dialogue voices and speech tags require their own checks."
+          "zh": "先圈出连续以同一姓名开头的句子，判断是否确属同一行动链；若中途没有换人、换视角或需要强调，就用代词、承接或合句修顺。\n\n再圈出“他、她、对方、那人”，从当前段落向前找归属。存在两个同样合理的候选时，恢复最短的必要姓名或角色称呼。最后核对持物、递交和拒绝这些动作，避免省主语使物件看似换了主人。\n\n不要把所有名字都改成代词，也不要为避免代词重复塞入皱眉、抬眼等动作。归属已经清楚且节奏自然，就可以停改；人物声音与对白提示语的问题，另按相应方法处理。\n\n有意反复点名可能形成仪式、讽刺或叙述者语气。按当前请求与本书文风判断它是否有效，不因通用参考建议就一律替换；文风选择仍不能改变谁拿了什么、谁拒绝或谁已知情。",
+          "en": "Circle consecutive sentences beginning with the same name. If they form one action chain without a participant or viewpoint change, connect them with pronouns, grammatical continuation or a combined sentence.\n\nThen inspect “he,” “she,” “the other person” and similar references. When two candidates are equally plausible, restore the shortest necessary name or role. Check possession, handoffs and refusals so omitted subjects do not accidentally move objects between people.\n\nDo not replace every name with a pronoun or add decorative gestures to evade repetition. Stop when attribution and rhythm are clear. Distinct dialogue voices and speech tags require their own checks.\n\nDeliberate name repetition may create ritual, irony or a narrator's voice. Judge it against the request and book style before replacing it under a generic rule. Style still cannot change possession, refusals or knowledge."
         }
       }
     ],
@@ -30312,6 +30319,13 @@
           "en": "Names and subject rhythm"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
+      },
+      {
+        "label": {
+          "zh": "文风选择与事实归属",
+          "en": "Style choice and factual attribution"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ],
     "related": [
@@ -31366,6 +31380,17 @@
         "body": {
           "zh": "> **改动章与事实：**原来如何，现在哪里不同？\n>\n> **影响表：**每处后文依赖、位置与原句依据。\n>\n> **作者裁定：**保留哪个事实；哪些章这轮获准修改？\n>\n> **复读范围：**改动章衔接、受影响后文和最后已写章状态。\n\n先留原稿。局部改稿检查前章末段与后章开头；整章重写需要更完整的相邻上下文。修后重走影响表，确认每个关闭项能找到新的正文依据。\n\n若后文已经因另一事件获得同一信息，就注明来源，不扩大修订。若一个依赖尚未处理，明确留在清单上。更新设定集可以帮助续写，但不能让现存错误对白自动消失。",
           "en": "A repair brief names the original and revised fact, each dependent passage and its evidence, the author’s chosen authority, approved chapters, and the reread range.\n\nKeep the original. Local changes need neighboring transitions; whole-chapter rewrites require fuller adjacent context. Revisit the impact table and close items only with evidence in revised prose.\n\nIf another existing event supplies the same knowledge, record it rather than enlarging the edit. Leave unresolved dependencies visible. Updating notes supports continuation but cannot repair an incorrect line already in the manuscript."
+        }
+      },
+      {
+        "id": "chosen-repair",
+        "heading": {
+          "zh": "完整修法：先问，再看见，再限制后文结论",
+          "en": "A Complete Repair: Ask, See, Then Bound Later Claims"
+        },
+        "body": {
+          "zh": "接着上例，假设作者选定：第六章仍不让池遥读到内页，第九章才获得代领信息。这次批准修改第九、十、十二章相关段落，并明确周姨原有职责允许她当面核对自己经手的一条；池遥没有自由翻阅整本的权限。她要追的是这批工具的去向，不能预先知道谁代领。下面是本页原创改稿示范，不是已执行的项目修订。\n\n**第九章候选：**\n\n> “你们收发工具都记在那本里吗？”池遥指了指柜门，“能帮我查一下上周这批工具的收发吗？我没看过内页。”\n>\n> “哪些工具？”周姨问。\n>\n> 池遥指明自己要找的工具。周姨打开柜门，把本子翻到相应的一行，指给她看：“这一次是我领的。”\n>\n> 池遥看清工具名称、日期和签名。“领走以后交给谁了？”\n>\n> “值班长。”周姨合上本子，放回柜中。\n\n这里周姨实际回应、出示，池遥才有已见记录；她没有看全本，也没有据此知道工具最终去了哪里。问题按已有的查找目标提出，不先把谁代领塞进问题；工具名称对上之后，记录才与这批工具有关。周姨的“值班长”是她当面作出的说法，还不是已独立核验的交接。\n\n**第十章承接：**\n\n> 池遥在笔记上写下：“见到周姨代领记录；她说后来交给值班长，未核。”她把下一次询问留给值班长，没有再把代领等同于拿走不还。\n\n**第十二章当面说明：**\n\n> 周姨和器材负责人都在场。池遥把笔记摊在桌上：“我看见的只有周姨代领那条。后面的去向还没核到，不能说东西现在就在她手里。”器材负责人复述了要核对的交接，表示先问值班长并核对记录。\n\n负责人接受的是下一步核对，不是已经查明去向。这三人听到了说明，未在场的人仍不能默认知情。\n\n| 位置 | 改后正文与当前边界 |\n|---|---|\n| 第六章 | 值班本被锁起；池遥未见内页，读者也未从这场得到代领内容 |\n| 第九章 | 实际看见一条签名并听到回应；没有得到全本或完整去向 |\n| 第十章 | 怀疑改为待核交接；下一次询问仍是计划 |\n| 第十二章 | 当场说明已见与未核；现持工具者仍未知，本子由周姨收回 |\n\n这样改，删掉旧获知机会并没有让后文凭空消失，而是把后文改成新的获知、反应和说明。真实稿件要逐项引用修改后的章段，扫描至最后已写章；更新笔记不能代替修掉旧对白。若原稿已有别的独立获知机会，保留那条有效来源，不再套用本例新增一次查问。",
+          "en": "Continue the register example. Suppose the author chooses to keep Chi ignorant of its contents in chapter six and let her learn the collection entry in chapter nine. This pass permits the dependent passages in chapters nine, ten and twelve to change. It also establishes that Zhou's existing duties let her show her own entry; Chi cannot browse the whole book. She is tracing these tools, without knowing in advance who collected them. This is an original editorial demonstration, not an executed project revision.\n\n**Chapter-nine candidate:**\n\n> “Do you record tool handoffs in that book?” Chi pointed to the cabinet. “Could you check last week's receipt and return of these tools? I haven't seen the pages.”\n>\n> “Which tools?” Zhou asked.\n>\n> Chi identified the tools she was tracing. Zhou opened the cabinet, found the matching line and pointed to it. “I collected this one.”\n>\n> Chi read the tool names, date and signature. “Who got the tools afterward?”\n>\n> “The duty supervisor.” Zhou closed the book and returned it to the cabinet.\n\nAn actual response and showing now precede Chi's knowledge. One entry establishes neither the whole register nor the tools' final destination. The question follows an established search goal without presuming who collected the tools. Matching tool names connect this entry to the objects being traced. Zhou's statement about the supervisor remains a reported handoff, not independent verification.\n\n**Chapter-ten continuation:**\n\n> Chi wrote: “Saw Zhou's collection entry. She says she passed the tools to the duty supervisor; unchecked.” She left a question for the supervisor rather than treating collection as proof that Zhou had kept them.\n\n**Chapter-twelve conversation:**\n\n> Zhou and the equipment officer were present. Chi opened her notes. “All I saw was Zhou's collection entry. I haven't traced what happened afterward. I can't say she has the tools now.” The equipment officer repeated the handoff to investigate and agreed to ask the duty supervisor and check the records first.\n\nAgreement to check does not establish the destination. These three heard the explanation; absent people do not acquire it automatically.\n\n| Passage | Revised evidence and limits |\n|---|---|\n| Chapter six | Locked register; Chi has not read it, and this scene gives readers no collection details. |\n| Chapter nine | One signed entry is seen and a reply heard; the whole book and complete destination remain unknown. |\n| Chapter ten | Suspicion becomes an unchecked handoff; the next question is still planned. |\n| Chapter twelve | Seen and unchecked facts are stated to those present; current tool possession is unknown, and Zhou has taken the register back. |\n\nRemoving the old opportunity now changes later acquisition, response and explanation rather than erasing their dependencies. In a real manuscript, cite the revised passages and trace through the written endpoint. Notes cannot fix an old line left in the prose. Retain a different valid acquisition already in the manuscript instead of automatically adding this inquiry."
         }
       }
     ],
@@ -34440,6 +34465,17 @@
           "zh": "下面是人工修订清单，可由作者或审稿结果填写，不是新的 skill 数据格式。\n\n| 项目 | 记录 |\n|---|---|\n| 首要问题 | 位置、原句和读者影响 |\n| 原因 | 定位、事件设计或表达；仍不确定的注明缺证 |\n| 本轮决定 | 选定改法、获准范围和不可改事实 |\n| 验收 | 改后哪项条件成立，哪些后文仍要检查 |\n\n先处理妨碍理解或破坏主要因果的问题；可选文风意见放后面。文字漂亮不代表剧情成立，剧情成立也不代表每个作者都必须采用同一种文风。\n\n当选定问题解决、事件边界保持、衔接复读没有发现新断裂时，结束这轮。暂未处理的建议留在清单上，别为了“再好一点”循环重写。需要多章事实同步时，再使用[后文修订检查](/oh-story/sync-later-chapters-after-a-revision)。",
           "en": "This manual revision list can be filled from author notes or review findings. It is not a new skill data format.\n\n| Item | Record |\n|---|---|\n| Main problem | Location, quotation and reader effect |\n| Cause | Direction, event design or expression; note missing evidence |\n| Decision | Chosen repair, authorized scope and protected facts |\n| Acceptance | Which condition now works and what later passages need checking |\n\nAddress problems blocking understanding or major causality before optional style changes. Attractive prose does not prove sound plot, and sound plot does not require every author to share a style.\n\nEnd the pass when the selected problem is resolved, event boundaries remain intact and neighboring passages introduce no new break. Keep deferred suggestions on the list rather than rewriting indefinitely. Use [later revision checks](/oh-story/sync-later-chapters-after-a-revision) when changed facts affect multiple chapters."
         }
+      },
+      {
+        "id": "complete-revision",
+        "heading": {
+          "zh": "把借场地改法写成真正发生的场面",
+          "en": "Write the Chosen Hall Repair as a Complete Scene"
+        },
+        "body": {
+          "zh": "接上文，假设作者选定借用成立，已确认馆务员有权批准今晚的使用，并批准新增以下时间条件：六点进场、七点四十五散场、八点前清理和交还；明早已有另一组使用。下面是原创改后片段，展示先改事件再改表达，不是一次模型运行报告。\n\n> “明早有人用，不能把清理留给他们。”馆务员说。\n>\n> “我们只借今晚六点到八点，”许韵说，“七点四十五散场。台上和椅子下面都由我们清理，椅子放回标线内。八点前请你检查，再收钥匙。”\n>\n> 馆务员看过今晚的空档。“只批这一晚。八点要交回来，明天不能再用。”\n>\n> “好。”许韵记下时间，接过钥匙。\n>\n> 晚上七点五十五，椅子已摆回标线内。馆务员沿最后一排检查，指出椅脚旁还有一个纸杯。许韵捡起来，放进垃圾袋，连同其他垃圾带到门外的分类桶。馆务员再看了那处，伸手接回钥匙，锁上门。\n\n提议解决的是原来拒绝的条件，馆务员实际同意才取得钥匙。晚上的检查、处理漏杯、交还说明本轮兑现了什么；“演出成功”“以后随时可用”“双方产生私人交情”都不是这个结果。时间表可按真实稿件改，不能靠精确分钟掩盖根本没有清场能力。\n\n| 修订层级 | 这次实际改什么 |\n|---|---|\n| 事件设计 | 作者选择可借用，明确原有批准权、清理及交还条件；也可另选拒绝路线 |\n| 场景交付 | 写出提议、限定同意、取得钥匙与晚上的复查交还 |\n| 文字表达 | 合并反复恳求，保留影响答复的条件；不另加感动或私交解释 |\n| 后文依赖 | 今晚使用已结束、钥匙已交回；下一次仍需重新申请，不拥有整周场地 |\n\n如果问题稿的后文只写“她终于有场地了”，可保留并明确今晚；若写“周末每晚都能排练”，必须修掉或另建立新的许可。不要先把那句润色得更激动，再忘了它仍依赖一个不存在的使用权。\n\n实际修稿时，先固定作者选定的事实，把候选场面放回前后段落，再按问题复读。案例只证明这次条件与交还，不要求每个借物、求助场景都逐步展开：无关的熟悉流程仍可概述。",
+          "en": "Continue the refusal example. Suppose the author chooses permission, confirms the caretaker's existing authority, and approves these conditions: enter at six, audience leaves at 7:45, cleanup and return by eight, with another group already booked for the following morning. This original revised passage shows event repair followed by expression work; it is not a model-run report.\n\n> “Someone needs it tomorrow morning. We can't leave the cleanup to them,” the caretaker said.\n>\n> “Only six to eight tonight,” Xu Yun said. “Everyone leaves by 7:45. We'll clear the stage and beneath the chairs, then put the chairs inside the marked lines. You can inspect before eight and take the key back.”\n>\n> He checked the free slot. “Tonight only. Return it by eight. This doesn't include tomorrow.”\n>\n> “Agreed.” Xu noted the times and accepted the key.\n>\n> At 7:55 the chairs were back inside the lines. Checking the final row, the caretaker pointed to a paper cup by a chair leg. Xu picked it up and took it with the other rubbish to the sorting bins outside. He checked the spot again, took back the key and locked the door.\n\nThe offer addresses the reasons for refusal. Actual permission precedes receiving the key. Inspection, removing the missed cup and returning the key establish this limited result, without proving a successful show, unrestricted future access or a personal bond. Adapt times to the manuscript; precise minutes cannot replace a feasible cleanup plan.\n\n| Layer | What this pass changes |\n|---|---|\n| Event design | The author chooses permission with existing authority, cleanup and return conditions; refusal remains a separate possible route. |\n| Scene delivery | Show proposal, limited approval, key receipt, later inspection and return. |\n| Expression | Combine repeated pleas while preserving conditions; invent no private friendship or emotional explanation. |\n| Later dependencies | Tonight's use has ended and the key is back; another booking needs permission, rather than treating this as a week's access. |\n\nA later “She finally had a venue” can remain when it means tonight. “They could rehearse every night that weekend” needs correction or a genuinely new permission. Polishing its excitement first would leave the nonexistent entitlement intact.\n\nFix the author's chosen events, place the candidate in neighboring prose and reread against the initial problem. This example checks particular conditions and return; it does not require every borrowing or request scene to dramatize a familiar process in full. Irrelevant steps can still be summarized."
+        }
       }
     ],
     "faq": [
@@ -34497,13 +34533,6 @@
           "en": "Chapter revision scope and joins"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-revision.md"
-      },
-      {
-        "label": {
-          "zh": "文风与事实分别裁决",
-          "en": "Separate style from facts"
-        },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ],
     "related": [
