@@ -42691,5 +42691,580 @@
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ]
+  },
+  {
+    "owner": "video-recap",
+    "slug": "fix-repeated-lines-in-ai-voiceover",
+    "topic": "video-recaps",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI配音重复一句怎么办：文稿、音频和放置分别查",
+      "en": "How to Fix Repeated Lines in AI Voiceover"
+    },
+    "seo_title": {
+      "zh": "AI配音重复一句怎么办",
+      "en": "Fix Repeated AI Voiceover Lines"
+    },
+    "description": {
+      "zh": "分清文案重复、分段音频错用和成片重复放置。附两段旁白的完整排查方案，删重之后也要补回本来该说的内容。",
+      "en": "Separate repeated text, reused segment audio, and duplicate placement. Includes a repair plan that restores the intended second line."
+    },
+    "answer": {
+      "zh": "先听出重复发生在哪里，再比对当前请求文字、单段声音和成片放置。文字重复，先修稿；单段内部多念一次，修该段合成；两个窗口用了同一个旧音频，换回各自选定文件；成片多放一次，修时间线。别只删掉多出来的声音，却把本来要说的下一句也留成空缺。",
+      "en": "Locate the repetition, then compare current request text, individual audio, and final placement. Repair duplicated writing, repetition inside one recording, a reused old file, or an extra timeline instance at its own layer. Removing the extra sound must not leave the intended next line missing."
+    },
+    "sections": [
+      {
+        "id": "locate",
+        "heading": {
+          "zh": "重复是先后多说一次，还是同时有两路人声",
+          "en": "Locate the Repetition Before Deleting It"
+        },
+        "body": {
+          "zh": "先正常速度听当前成片，记下重复的时间和字词，再单听相应分段。先后出现同一句，可能是文稿、文件或放置重复；同时两路声音叠着说，则还要核原声与旁白是否都在说同一内容。\n\n字幕出现两次不等于声音也出现两次；反过来，字幕只一条也不能证明混音只放了一段。作者有意让人物复述、回放或回声，可以保留，先明确这是不是本次选定效果。",
+          "en": "Listen at normal speed and note the repeated words and times, then hear the individual segment. Sequential repetition may come from text, files, or placement. Simultaneous voices also require checking original sound and narration carrying the same content.\n\nTwo subtitle cues do not prove two spoken instances; one cue does not prove one mixed segment. Chosen repetition, replay, or echo can remain. Establish whether it is intentional before removal."
+        }
+      },
+      {
+        "id": "layers",
+        "heading": {
+          "zh": "在哪一层出现，就修哪一层",
+          "en": "Repair the Layer Where It Appears"
+        },
+        "body": {
+          "zh": "| 对照结果 | 优先处理 |\n|---|---|\n| 送入TTS的文字已经重复 | 修当前文稿，保留必要前提与回应 |\n| 请求一次，单段音频念了两次 | 只重做或替换这段，再实际听 |\n| 第二段误用了第一段文件 | 核来源，采用第二段应有音频 |\n| 两个分段都正常，成片多放一次 | 查当前轨道与放置实例 |\n| 原声和旁白同时复述 | 回声音分工，不靠删关键词掩盖冲突 |\n\n所引分段缓存核文字、设置与WAV的大小/修改时间，不从声音听写。采用记录核选定顺序和文字；如果错误文字恰好也被“选定”，或正确记录指向读错的文件，字符串检查不能替你发现语义重复。",
+          "en": "| Comparison | First repair |\n|---|---|\n| Submitted text repeats | Revise the current script, retaining necessary premise and reply. |\n| One request, two spoken instances inside one file | Redo or replace that segment and listen. |\n| The second segment uses the first file | Trace provenance and select the intended second audio. |\n| Both segments are right, the export adds an instance | Check current tracks and placements. |\n| Original sound and narration restate together | Revisit sound ownership rather than dropping keywords. |\n\nThe cited cache compares text, settings, and WAV size/mtime; it does not transcribe sound. Adoption checks selected order and words. Wrong words selected consistently, or correct records pointing to wrong speech, cannot be diagnosed by string checks alone."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "纸面排查：第二窗不能只是删空",
+          "en": "Paper Repair: Restore the Second Window’s Words"
+        },
+        "body": {
+          "zh": "原创解说方案有两段中文：0–4秒“她把名单折了回去。”，4–8秒“门外有人敲了两下。”。这是示意窗口，尚无实际语音，能否放下待核。假设成片第二窗又念第一句，排查计划如下。\n\n| 要比对的层 | 本例假设与处理 |\n|---|---|\n| 定稿与请求 | 两句本来不同，先保留原文字与窗口 |\n| 单段音频 | 假设第一段正确，第二段手动导入了旧第一句文件 |\n| 修问题段 | 换成选定第二句的音频；缺候选就生成这一句并试听，不重做第一段 |\n| 放入成片 | 核实际采用两份不同用途文件，再连听折名单与敲门句 |\n\n若只删除4–8秒重复放置，第二句仍然没说出，不能宣布已完成。换好后还要查第二句尾字、句间接续、音色与字幕；新声音时长变化时，邻接位置也要核。\n\n本例没有音频、合成或试听结果。使用仓库采用路径时，让选定文本/顺序匹配当前元数据，并核实际混音输入；这种匹配表示选择被消费，不表示音频已经按文字念对。",
+          "en": "Original plan: two Chinese segments, 0–4 seconds “她把名单折了回去。” (she folds the list back), and 4–8 seconds “门外有人敲了两下。” (someone knocks twice outside). These are illustrative windows without actual audio or proven fit. Suppose the second window repeats the first sentence.\n\n| Layer | Hypothesis and repair |\n|---|---|\n| Chosen/requested text | The lines differ; preserve both and their windows. |\n| Individual audio | Assume the first is correct, while an old first-line file was manually imported for the second. |\n| Problem segment | Select the intended second audio; if absent, generate and hear only that line. |\n| Export | Check the actual files serving both purposes, then listen through the two lines. |\n\nDeleting the repeated 4–8-second placement alone leaves the second sentence missing. After replacement, check its ending, joins, voice, and subtitles. Changed duration requires checking adjacent positions too.\n\nNo audio, synthesis, or listening exists in this example. On the repository adoption path, match chosen text/order to current metadata and inspect consumed inputs. Matching establishes consumption, not that the recording spoke those words correctly."
+        }
+      },
+      {
+        "id": "preserve",
+        "heading": {
+          "zh": "保留该保留的复述与原声",
+          "en": "Keep Repetition That Has a Purpose"
+        },
+        "body": {
+          "zh": "人物重复一遍才改变回应、回放让观众比对线索，或作者选了回声，都不该机械删掉。若原对白完整呈现决定，就让它有空间，旁白只补必要连接；同一句内容被两路声音无意争抢时，再改声音安排。\n\n局部修订保护未受影响文件。不要删全缓存试运气，也不要为删重改掉数量、否定或先后条件。定稿里真有重复而作者允许改，就明确改哪句，再同步请求、字幕与采用选择。",
+          "en": "A repeated line may change a reply; replay may enable comparison; echo may be chosen. Do not remove these mechanically. Give an original decision-making line room, with narration providing necessary connections. Revise ownership when two tracks unintentionally compete.\n\nProtect unaffected files in a local repair. Avoid wiping caches or losing numbers, negation, or conditions. When a script repetition is authorized for removal, name the changed line and synchronize requests, subtitles, and chosen inputs."
+        }
+      },
+      {
+        "id": "review",
+        "heading": {
+          "zh": "最后核内容完整，再听整片",
+          "en": "Check Completeness Before the Final Listen"
+        },
+        "body": {
+          "zh": "**复查顺序：**单听问题段，连听前后段，正常速度看听当前成片。确认该重复已处理、下一句没有缺失、原声重要回应仍在；未听的项目留待听，不从字幕预填通过。\n\n可把定稿、实际请求、采用文件、成片时间和实听内容并排记录。这是编辑排查表，不是新的自动语音验真工具。原声被剪断或输入漏字，各回相应教程，不把所有声音错误都用“删一句”处理。",
+          "en": "**Review:** hear the problem segment, its neighbors, then the current export at normal speed. Confirm repetition is resolved, the next line remains, and important original replies survive. Leave unlistened checks unresolved rather than inferring a pass from subtitles.\n\nRecord chosen text, request, selected file, output time, and heard content side by side. This editorial aid is not a new automatic speech-verification tool. Original dialogue cuts and missing input words need their own repairs rather than deleting one line for every fault."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "文字没重复，为什么声音还会重复？",
+          "en": "Why can audio repeat when text does not?"
+        },
+        "a": {
+          "zh": "单段合成可能多念，手动导入可能用了旧文件，时间线也可能多放一次。对照实际声音与当前输入逐层查，文字相同或不同都不能代替试听。",
+          "en": "A recording may repeat, an import may reuse an old file, or a timeline may add an instance. Compare actual sound with current inputs; text alone cannot replace listening."
+        }
+      },
+      {
+        "q": {
+          "zh": "直接删掉第二次播放可以吗？",
+          "en": "Can I simply delete the second playback?"
+        },
+        "a": {
+          "zh": "它本来就是多余实例时可以；若那里原本有另一句，就要恢复正确内容。有意回放或人物复述则按本次创作选择保留。",
+          "en": "Yes if it is an extra instance. If another line belongs there, restore it. Preserve intended replay or character repetition according to the chosen edit."
+        }
+      }
+    ],
+    "skill": {
+      "name": "video-voiceover",
+      "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/SKILL.md",
+      "text": {
+        "zh": "在现有 Video Recap 流程里提供重复位置、当前定稿与分段文件，要求按 video-voiceover 和下游采用记录排查。先给原因与最小修法，只重做点名段；保留其他文字、声音与画面，最后核实际输入并回听，不用字幕或请求文字代替实听。",
+        "en": "In the existing Video Recap flow, provide the repeated location, chosen text, and segment files. Ask for a minimal diagnosis using video-voiceover and downstream input records. Redo only named segments, retain unaffected text, audio, and picture, then check actual consumption and listen."
+      }
+    },
+    "related": [
+      "/video-recap/fix-missing-words-in-ai-voiceover",
+      "/video-recap/fix-inconsistent-ai-voiceover-voices",
+      "/video-recap/keep-audio-when-changing-video"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "分段请求文字、缓存与文件记录",
+          "en": "Segment text, cache, and file records"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/scripts/voiceover.py"
+      },
+      {
+        "label": {
+          "zh": "选定顺序、文字与实际混音输入",
+          "en": "Chosen order, text, and consumed mix inputs"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/narration-adoption.md"
+      },
+      {
+        "label": {
+          "zh": "分段放置与声音分工",
+          "en": "Segment placement and sound ownership"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/SKILL.md"
+      }
+    ]
+  },
+  {
+    "owner": "video-recap",
+    "slug": "fix-pitch-changes-after-speeding-audio",
+    "topic": "video-recaps",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "视频变速后声音变调怎么办：分清速度和音高",
+      "en": "How to Fix Pitch Changes After Speeding Audio"
+    },
+    "seo_title": {
+      "zh": "视频变速后声音变调怎么办",
+      "en": "Fix Pitch Changes After Speeding Audio"
+    },
+    "description": {
+      "zh": "先定位变调发生在原声、配音还是整体播放。附十秒到八秒的速度方案，核实际滤镜、累计速度与最终试听。",
+      "en": "Locate pitch changes in source audio, narration, or playback. Includes a ten-to-eight-second plan checking filters, cumulative speed, and listening."
+    },
+    "answer": {
+      "zh": "先回到正常播放速度，比较变速前后的单独音轨，确认是哪路声音变尖或变低。画面速度、语音节奏和音高是不同选择：只加速画面不能假定旁白也要加速。需要语音提速时，核实际处理方式与累计倍率，保全字词，再听最终声音；时长合格不自动等于自然。",
+      "en": "Return playback to normal speed and compare each track before and after processing. Picture speed, speech tempo, and pitch are distinct choices; faster picture need not require faster narration. Check actual processing and cumulative factors, preserve complete words, and listen. Fitting duration does not establish natural delivery."
+    },
+    "sections": [
+      {
+        "id": "locate",
+        "heading": {
+          "zh": "先查播放速度，再查哪条音轨变了",
+          "en": "Check Playback, Then Isolate the Track"
+        },
+        "body": {
+          "zh": "播放器本身以倍速播放、原声整体被加速、配音被单独提速、TTS请求已经带不同语气或音高，听起来可能相似，修法却不同。先恢复播放器常速，单听原声与配音，再与处理前版本比较。\n\n“声音变尖”不一定是同一技术原因。别立刻换声线或重写文稿；原稿和原声音还在时，先定位是哪一步改变。视频画面只做快进，声音可按创作安排独立铺设，也可选择同速变化。",
+          "en": "A fast player, sped-up source sound, separately accelerated narration, or different TTS delivery can sound similar but need different repairs. Restore normal playback, isolate source and narration, and compare with prior versions.\n\nA higher-sounding voice need not have one technical cause. Do not immediately change narrator or rewrite the script. Find the operation first. Picture can accelerate while sound is placed separately, or both can intentionally change together."
+        }
+      },
+      {
+        "id": "method",
+        "heading": {
+          "zh": "不要把改采样率和改节奏混成一件事",
+          "en": "Distinguish Rate Reinterpretation From Tempo Processing"
+        },
+        "body": {
+          "zh": "[FFmpeg官方滤镜文档](https://ffmpeg.org/ffmpeg-filters.html#asetrate)说明，`asetrate`不改PCM数据而改变采样率解释，会同时影响速度和音高；[atempo](https://ffmpeg.org/ffmpeg-filters.html#atempo)用于处理音频节奏。它们不是同一个操作，也不要把正常格式重采样都叫变调。\n\n所引 Video Recap 的普通旁白提速使用`atempo`，以避免把音高跟着播放速率一起搬动。选了节奏处理仍须听重音、字尾和音色，不能保证任何倍率都自然。\n\nTTS阶段的语速、全段提速与段内适配分别核。若已有两次节奏处理，倍率要相乘看实际路径；别只看最后一个设置。",
+          "en": "The [official FFmpeg documentation](https://ffmpeg.org/ffmpeg-filters.html#asetrate) describes `asetrate` as reinterpreting sample rate without changing PCM data, affecting speed and pitch. [atempo](https://ffmpeg.org/ffmpeg-filters.html#atempo) processes audio tempo. These are different operations; ordinary format resampling should not all be called pitch shifting.\n\nThe cited Video Recap narration path uses `atempo` to avoid moving pitch with playback rate. Tempo processing still needs listening for emphasis, endings, and voice texture; no arbitrary factor is guaranteed natural.\n\nCheck TTS speed, global acceleration, and segment fitting separately. Successive tempo factors multiply; the final setting alone does not describe the actual path."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "纸面方案：十秒旁白放入八秒画面",
+          "en": "Paper Plan: Ten Seconds of Narration in Eight Seconds"
+        },
+        "body": {
+          "zh": "本例作者已选八秒画面，原中文旁白是“她把名单折了回去，门外响起两下敲门声。”。假设未加速候选长十秒，需完整保留文字；这里没有生成或试听声音。\n\n1. 保留原候选和八秒画面，不再把画面额外加速。\n2. 作者选择只试旁白1.25倍节奏处理，理论`10 / 1.25 = 8`秒；这是计算，不是实际输出时长。\n3. 本例没有额外TTS提速或段内适配。若通过所引采用路径，独立速度策略选`global_atempo=1.25`、`bounded_segment_fit=false`、`segment_tempo_max=1.0`，累计软/硬上限均1.25；实际消费者接受合法独立策略，不是让环境默认覆盖已选方案。\n4. 处理后测实际时长、核完整句尾和选定文件进入混音，再正常速度听成片。输出若仍超窗，不裁尾，也不偷偷再加速。\n\n若1.25的候选读起来不合适，作者可以扩大画面窗口，或明确允许改这句旁白；原画面不能改、文字也不能改且速度不可接受时，当前安排就尚未解决。参数通过不等于这一句已经自然或已经可放。",
+          "en": "The author chooses eight seconds of picture and the exact Chinese line “她把名单折了回去，门外响起两下敲门声。” (she folds the list back; two knocks sound outside). Assume an unaccelerated candidate lasts ten seconds and all words must remain. No audio is generated or heard here.\n\n1. Preserve the original candidate and eight-second picture, without another picture speed pass.\n2. Try narration tempo alone at 1.25: theoretical `10 / 1.25 = 8` seconds, not a measured output duration.\n3. This plan has no added TTS acceleration or segment fit. On the cited adoption path, independently select `global_atempo=1.25`, `bounded_segment_fit=false`, `segment_tempo_max=1.0`, and cumulative soft/hard limits of 1.25. The actual consumer accepts valid independently declared policies; ambient defaults do not choose one for you.\n4. Measure the result, check the full ending and consumed candidate, then listen to the export at normal speed. An overlong output cannot be trimmed or secretly sped up again.\n\nIf this delivery is unsuitable, the author can enlarge the picture window or authorize a line edit. Fixed picture, fixed words, and unacceptable speed leave the arrangement unresolved. Valid parameters do not establish natural delivery or actual fit."
+        }
+      },
+      {
+        "id": "path",
+        "heading": {
+          "zh": "先认出当前分支，不把所有声音都套同一开关",
+          "en": "Identify the Actual Audio Path"
+        },
+        "body": {
+          "zh": "普通旁白路径会处理速度与适配；已采用的独立策略按所引reference和消费者代码执行，保守默认是原速且不段内适配。默认不等于只有这一种合法选择。\n\n显式完整声音混音分支跳过旧的速度/适配步骤。若走的是这个分支，修改旧`narration_speed`不会兑现旁白加速；要回已选输入与放置安排。冻结音频的画面修订也不应暗中改变声音。先核实际分支，再核操作记录与成片。",
+          "en": "The ordinary narration path processes speed and fitting. Independently adopted policies follow the cited reference and consumer code, with conservative defaults of original speed and no segment fit. A default is not the only valid selection.\n\nThe explicit full-sound branch bypasses legacy speed/fitting. Changing the old `narration_speed` there will not accelerate narration; revisit selected inputs and placements. A frozen-audio picture revision should not secretly alter sound. Identify the branch before checking operation records and the export."
+        }
+      },
+      {
+        "id": "review",
+        "heading": {
+          "zh": "时长、字词和听感分别复查",
+          "en": "Review Duration, Words, and Sound Separately"
+        },
+        "body": {
+          "zh": "| 问题 | 先查什么 |\n|---|---|\n| 播放器倍速造成误判 | 回常速与同一设备比较 |\n| 只想快一点却改变音高 | 核实际变速方法与滤镜 |\n| 总倍率比想象高 | 查TTS、全段和段内实际处理 |\n| 为了适配截掉字尾 | 回完整输入，解决窗口与速度选择 |\n| 记录显示采用就认定听感好 | 单听候选、连听接点、听当前成片 |\n\n记录保留文字、速度决定、实际处理文件与听到的问题。没有试听就留待听，不把理论八秒或合格参数填成听感通过。",
+          "en": "| Problem | First check |\n|---|---|\n| Player speed misleads comparison | Restore normal playback on the same device. |\n| Faster tempo changes pitch unexpectedly | Inspect the actual method and filters. |\n| More acceleration than expected | Check TTS, global, and segment operations. |\n| Fitting drops the ending | Restore complete input and revisit window/speed. |\n| Adoption is treated as good sound | Hear the candidate, joins, and current export. |\n\nRetain text, the speed decision, actual processed file, and heard problems. Leave listening unresolved when absent; theoretical eight seconds and valid settings are not a listening pass."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "用不变调提速就一定自然吗？",
+          "en": "Does pitch-preserving acceleration guarantee natural speech?"
+        },
+        "a": {
+          "zh": "不一定。重音、停顿、字尾和整体语气仍可能不合适。只把速度与音高分开还不够，实际候选和成片都要听。",
+          "en": "No. Emphasis, pauses, endings, and delivery may still be unsuitable. Separating tempo and pitch is useful, but the actual candidate and export still need listening."
+        }
+      },
+      {
+        "q": {
+          "zh": "画面加速，配音必须跟着加速吗？",
+          "en": "Must narration speed up with the picture?"
+        },
+        "a": {
+          "zh": "不必。按声音安排选择。若配音单独铺设，可保原速并调整窗口；若确要同速，核完整文字、累计倍率和实际音画关系。",
+          "en": "No. Follow the sound plan. Separately placed narration can retain speed with a revised window. A chosen shared speed still needs complete words, cumulative factors, and actual alignment checks."
+        }
+      }
+    ],
+    "skill": {
+      "name": "video-assemble",
+      "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/SKILL.md",
+      "text": {
+        "zh": "在 Video Recap 流程里提供原音轨、目标窗口、已选速度与问题成片，要求按 video-assemble 的实际声音分支排查。保留未点名轨道和画面，不暗加二次提速、不裁尾；先说明处理方案，再核实际消费文件、时长与试听。",
+        "en": "In the Video Recap flow, provide original audio, target window, selected speed, and the faulty export. Ask for diagnosis against the actual video-assemble audio path. Preserve other tracks and picture, add no hidden second speed pass or tail cut, then check consumed files, duration, and sound."
+      }
+    },
+    "related": [
+      "/video-recap/fit-voiceover-to-a-picture-edit",
+      "/video-recap/fix-robotic-ai-voiceover-delivery",
+      "/video-recap/keep-audio-when-changing-video"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "实际atempo处理与不裁尾适配",
+          "en": "Actual atempo processing and no-trim fitting"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/scripts/narration_audio.py"
+      },
+      {
+        "label": {
+          "zh": "独立选定速度策略与消费记录",
+          "en": "Independently selected tempo policy and consumption"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/narration-adoption.md"
+      },
+      {
+        "label": {
+          "zh": "完整声音分支跳过旧变速",
+          "en": "Explicit full-sound bypasses legacy speed changes"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/explicit-audio-mix.md"
+      },
+      {
+        "label": {
+          "zh": "独立速度策略的实际校验",
+          "en": "Actual independent tempo-policy validation"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/scripts/adoption/narration_binding.py"
+      }
+    ]
+  },
+  {
+    "owner": "novel-to-game",
+    "slug": "fix-a-story-game-that-cannot-progress",
+    "topic": "interactive-games",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "叙事游戏卡关怎么办：分清缺提示和无路可走",
+      "en": "How to Fix a Story Game That Cannot Progress"
+    },
+    "seo_title": {
+      "zh": "叙事游戏卡关怎么办",
+      "en": "Fix a Story Game That Cannot Progress"
+    },
+    "description": {
+      "zh": "从玩家当前状态检查可达行动，分清没看懂、明确失败与意外死路。附修复重复借钥匙条件的完整纸面路径。",
+      "en": "Check reachable actions from the current state, distinguishing unclear guidance, declared failure, and an unintended dead end. Includes a key-loan repair."
+    },
+    "answer": {
+      "zh": "先从玩家当前持物、位置、已完成行动和可用选项出发，看是否还存在合法推进路径。有路径但看不懂，修提示和反馈；规则明确本轮已结束，给约定的恢复；状态显示可继续却没有路，修造成死路的条件。多塞提示不能替代恢复一条真正可执行的路。",
+      "en": "Check possession, position, completed actions, and available options for a legal path forward. If it exists but is unclear, improve guidance. A declared ended run needs its specified recovery. A supposedly continuing state without a path needs repaired conditions; more hints cannot create an executable route."
+    },
+    "sections": [
+      {
+        "id": "diagnose",
+        "heading": {
+          "zh": "先看有路，只是没看出来，还是根本没路",
+          "en": "Distinguish Hidden Guidance From No Legal Route"
+        },
+        "body": {
+          "zh": "玩家不知道下一步，不一定是规则断了。先用当前可见信息和合法行动走读，不看作者藏着的答案：目标是否可读、必要物件在哪里、前置条件是否能满足、反馈是否指出还缺什么。\n\n三种情况不要混修：有路但提示不足；本轮按设计已经失败；本轮仍显示进行中却再也满足不了主任务。第三种常被称为软锁，但本页用具体状态说明，不靠术语代替诊断。",
+          "en": "Not knowing the next step does not necessarily mean broken rules. Walk from visible information and legal actions without relying on the author’s hidden answer: readable goal, necessary objects, satisfiable conditions, and useful feedback.\n\nSeparate an existing route with poor guidance, a deliberately failed run, and a supposedly active run unable to reach its main task. The last is often called a softlock; identify its specific state rather than stopping at the term."
+        }
+      },
+      {
+        "id": "trace",
+        "heading": {
+          "zh": "用刚才的操作追到第一个断点",
+          "en": "Trace the First Broken Condition"
+        },
+        "body": {
+          "zh": "| 记录 | 要找的断点 |\n|---|---|\n| 初态与操作 | 哪一步之后可用路消失 |\n| 当前持物 | 拿着、放回与曾经拿过是否混用 |\n| 前置条件 | 缺的资源/许可能否再获得 |\n| 当前结果 | 已结束、仍进行还是只损失可选内容 |\n| 恢复 | 从当前状态怎样真的再推进 |\n\nNovelToGame 的模型方法分开“发生过什么”和“现在是什么”，规则对实际位置、归属与权限结算。这里的表是编辑排查工具，不要求项目再造一套存档文件。只改提示文案，不会自动改变错误的行动条件。",
+          "en": "| Record | Break to locate |\n|---|---|\n| Initial state and actions | The step after which all routes vanish. |\n| Possession | Held, returned, and previously acquired conflated. |\n| Preconditions | Whether a missing resource/access can still be obtained. |\n| Outcome | Ended, continuing, or merely missing an optional result. |\n| Recovery | An actual next path from this state. |\n\nNovelToGame separates past events from current state and commits position, ownership, and access through rules. This editorial aid does not require a new save format. Changing a hint does not repair an action condition."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "原创路径：钥匙已还，可以在本次许可内再借",
+          "en": "Original Repair Path: Borrow Again Within the Same Visit"
+        },
+        "body": {
+          "zh": "纸面档案室游戏的目标是进入展柜区看一张公开展签。开放来访期间，柜台员允许玩家借一把展柜区入口门钥匙，用完需还；本次许可持续到玩家离场，柜台员始终在场。钥匙初在柜台，展柜区入口门锁着，展签尚未看。玩家先借到钥匙，却在开门前选择归还。\n\n旧候选条件把“曾借过一次”当成不能再借。当前钥匙已回柜、玩家没持钥匙、许可仍在，界面却只显示继续找，没有开门或借钥匙的路；本轮又未结束。错误在行动条件，不是玩家没发现一条秘密捷径。\n\n**纸面修法与完整路径：**\n\n1. 不清除第一次借还历史。再借读取当前许可有效、柜台员在场、钥匙在柜台且玩家未持有；这些都成立才可选。\n2. 玩家再次请求，柜台员实际把同一把钥匙交到手上；钥匙离柜，不复制新钥匙。\n3. 玩家到入口门，用持有钥匙开门，实际进入展柜区查看展签，主任务记录完成。\n4. 玩家回柜台归还钥匙，钥匙回柜、持物清空。离开档案室，本次许可结束。\n\n**相邻反例：**尚持钥匙再点“借”，不再给一把；已离场的旧借用入口不能恢复本次权限。若设计以后可再来访，按新来访重新处理，而不是把已结束许可暗中复活。\n\n这条修订保留先前归还事实、主任务和同次许可，没有免费送物或全局重开。它是未实现纸面规则走读；构建后还须重放卡住序列与反例，再观察玩家能否看懂新的反馈。",
+          "en": "Paper archive game: visit the display area to read one public label. During an open visit, the attendant permits borrowing one exhibit-area door key until departure and stays present. Initially the key is at the counter, the area door is locked, and the label unread. The player borrows but returns the key before opening that door.\n\nA candidate wrongly treats “borrowed once” as permanently disabling borrowing. The key is back, the player holds none, and permission remains, but the interface only says keep looking. No opening or borrowing route exists, and the run is not ended. The fault is a condition, not a missed secret shortcut.\n\n**Paper repair and complete path:**\n\n1. Preserve the first loan/return history. Borrowing reads current permission, attendant presence, key at counter, and no key held; all must hold.\n2. Ask again; the attendant actually hands over the same key, removing it from the counter without duplication.\n3. Use the held key at the area door, actually enter the exhibit area and read the label, and complete the main task.\n4. Return the key at the counter, clearing possession; leave and end this visit’s permission.\n\n**Adjacent counterexamples:** another borrow while holding the key grants nothing; an old borrowing entry after departure cannot restore ended permission. Any later visit follows a newly defined visit rather than secretly reviving the old one.\n\nThe repair preserves the earlier return, objective, and visit limit without free items or a global reset. It is unimplemented paper reasoning. After building, replay the stuck sequence and counterexamples, then assess whether players understand the feedback."
+        }
+      },
+      {
+        "id": "repair",
+        "heading": {
+          "zh": "恢复路径不能抹掉已经成立的后果",
+          "en": "Preserve Established Consequences in Recovery"
+        },
+        "body": {
+          "zh": "意外死路可以修条件、补原设计漏掉的可达入口，或明确调整恢复规则。选择哪种取决于原作与玩家承诺；不要每次直接回填所有资源、恢复被拒绝的机会或抹去旧选择。\n\n明确的失败也不是都要取消。若本轮按设计已结束，显示原因与约定恢复，见[失败与重开](/novel-to-game/game-failure-and-restart)。如果主任务能继续而可选访谈没了，也不应为了“不能拿满”把它误判成卡死。",
+          "en": "Repair unintended dead ends through conditions, an omitted reachable entry, or an explicitly revised recovery rule according to the source and player promise. Do not refill every resource, reopen refusals, or erase choices by default.\n\nDeliberate failure can remain with cause and declared recovery; see [failure and restart](/novel-to-game/game-failure-and-restart). Losing an optional interview while the main task continues is not an automatic dead end merely because everything cannot be collected."
+        }
+      },
+      {
+        "id": "review",
+        "heading": {
+          "zh": "修后走原失败序列，再走会揭错的另一条",
+          "en": "Replay the Failure and a Distinguishing Neighbor"
+        },
+        "body": {
+          "zh": "重放提前还钥匙的原序列，再走持钥匙重复借、离场再借等相邻路径。核结果、持物、权限与可用行动，不能只看新按钮出现。若修改了变量语义或行动效果，存档/日志兼容也需按实际版本处理。\n\n提示问题则找真实玩家观察：是否认出目标、注意到反馈、知道下一步。规则可达和提示好懂各自验证，不把纸面能走通当作试玩通过。",
+          "en": "Replay the early-return sequence, then neighboring cases such as another loan while holding the key or after departure. Check outcome, possession, permission, and actions beyond a visible new button. Changed variable meanings or action effects need explicit save/log compatibility handling.\n\nFor guidance, observe actual players noticing the goal, feedback, and next step. Reachability and understandable guidance need distinct evidence; a coherent paper route is not a successful playtest."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "玩家说卡住了，就该多给提示吗？",
+          "en": "Should every report of being stuck get more hints?"
+        },
+        "a": {
+          "zh": "先查有没有合法推进路。有路但没看懂才修提示；如果条件已把所有路径封死，需要修规则或明示恢复，多写一句提示不能让动作变得可执行。",
+          "en": "Check whether a legal route exists. Improve guidance when it does; broken conditions need repaired rules or declared recovery, not another hint for an unavailable action."
+        }
+      },
+      {
+        "q": {
+          "zh": "不能拿到所有可选内容算卡死吗？",
+          "en": "Is losing optional content a dead end?"
+        },
+        "a": {
+          "zh": "不一定。主任务继续、弱结果或软失败可能是选定设计。分清失去什么与本轮是否还能到达一个允许的结果，不默认全收集是唯一有效结局。",
+          "en": "Not necessarily. Continued main progress, a weaker outcome, or soft failure may be intentional. Check what is lost and whether a permitted outcome remains, without requiring total collection."
+        }
+      }
+    ],
+    "skill": {
+      "name": "game-world-design",
+      "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/SKILL.md",
+      "text": {
+        "zh": "把选定概念、当前关卡规则、卡住前的操作和状态交给 game-world-design。先区分认知、失败与意外不可达，给最小修法及原路径/相邻反例；保留既有持物、权限和已发生历史，不凭空送钥匙或清空全部进度。",
+        "en": "Give game-world-design the selected concept, level rules, action sequence, and stuck state. Distinguish guidance, failure, and unintended unreachability; propose a minimal repair with the failing path and adjacent counterexample. Preserve possession, access, and history without free keys or a full reset."
+      }
+    },
+    "related": [
+      "/novel-to-game/game-failure-and-restart",
+      "/novel-to-game/design-locked-options-in-a-story-game",
+      "/novel-to-game/readable-gameplay-feedback"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "当前状态、可用行动与局部修订",
+          "en": "Current state, available actions, and local repair"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/world-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "当前状态与历史分开、真实前置",
+          "en": "Separate current state/history and actual preconditions"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
+      },
+      {
+        "label": {
+          "zh": "原失败路径及相邻反例",
+          "en": "Failing path and adjacent counterexample"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-qa/references/test-design-method.md"
+      }
+    ]
+  },
+  {
+    "owner": "novel-to-game",
+    "slug": "connect-game-combat-results-to-the-story",
+    "topic": "interactive-games",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "游戏战斗结果怎么接剧情：胜负、奖励与人物回应",
+      "en": "How to Connect Combat Results to a Game Story"
+    },
+    "seo_title": {
+      "zh": "游戏战斗结果怎么接剧情",
+      "en": "Connect Combat Results to a Game Story"
+    },
+    "description": {
+      "zh": "让战后剧情读取实际胜负、玩家选择和已经交付的奖励。附两条比试后续路径，打赢不自动改写成输，也不保证所有问题都解决。",
+      "en": "Make aftermath read actual results, choices, and delivered rewards. Includes two tournament paths without rewriting victory or making it solve every problem."
+    },
+    "answer": {
+      "zh": "先说明这一战的是什么、玩家能改变什么，再让战后场景读取已经结算的胜负与选择。胜利可以拿到席位但仍有别的困难，败战也可以保留实际完成的事；它们都不能被过场一句话改写。奖励、持物和人物反应分别落地，不让旁白替规则补结算。",
+      "en": "Establish what the fight contests and what the player can change, then make aftermath read committed results and choices. Victory may win a place without solving unrelated difficulties; defeat may retain completed acts. A cutscene cannot rewrite either. Deliver rewards, possession, and reactions rather than settling them by narration."
+    },
+    "sections": [
+      {
+        "id": "promise",
+        "heading": {
+          "zh": "先把这一战的承诺说清",
+          "en": "State What This Fight Can Decide"
+        },
+        "body": {
+          "zh": "胜负决定什么：得到名额、守住物件、撑到同伴离开，还是只争一口气？不要按钮写“击败对手”，规则算玩家获胜，过场却无依据地说“你从没赢过”。另一项困难可以继续，但本战结果应被承认。\n\nNovelToGame 的世界方法要求动作改变状态与后续选择，叙事方法让人物具体回应玩家做过的事。本文处理战后读取，不提供适用于所有题材的战斗数值模板，也不要求没有战斗的原作加一套战斗。",
+          "en": "What does this fight decide: a place, an object, time for a companion, or pride? Do not promise defeating an opponent, commit victory, then claim the player never won. Another problem can continue while this result is acknowledged.\n\nNovelToGame connects actions to state and subsequent choices, with characters responding to actual conduct. This page concerns aftermath reads, not a universal combat balance template or compulsory combat in adaptations without it."
+        }
+      },
+      {
+        "id": "read",
+        "heading": {
+          "zh": "战后要读哪些已发生事实",
+          "en": "Read Committed Facts in the Aftermath"
+        },
+        "body": {
+          "zh": "| 事实 | 后续怎样使用 |\n|---|---|\n| 胜负与目标 | 席位、路线或资格是否按实际结果开放 |\n| 玩家行动 | 有无保住同伴、承诺、物件或披露信息 |\n| 资源与持物 | 奖励是否实际交到手，消耗是否保留 |\n| 在场人物 | 谁看见结果，谁需要后来才获知 |\n\n可以汇流到同一场景，但换对白、持物和可用行动时按所选路径读。看见“胜利”字样不是所有奖励已到账，人物称赞也不是所有关系已经修复。",
+          "en": "| Fact | Later use |\n|---|---|\n| Outcome and objective | Places, routes, or eligibility opened by the actual result. |\n| Player conduct | Protected people, commitments, objects, or revealed information. |\n| Resources and possession | Actual reward delivery and retained costs. |\n| Witnesses | Who saw it and who must learn afterward. |\n\nBranches can meet in one scene with history-specific dialogue, objects, and actions. A victory label is not all rewards delivered; praise is not every relationship repaired."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "原创战后路径：赢了有席位，输了仍有自己的事做",
+          "en": "Original Aftermath Paths: A Place Won or a Different Role"
+        },
+        "body": {
+          "zh": "原创武艺社游戏里，玩家与顾平争一个公开演示席位。规则先明示：每个有效得分一分，先到两分结束；最多三回合，届时高分胜，平分则无人取得本轮席位。本例成功应对攻势使玩家得一分，失误使顾平得一分，未判有效得分的回合双方不加分。这是本例约定，不是通用比武规则。玩家与顾平原本约好，不论谁演示，另一人负责已分好的展架准备。\n\n下表是从同一初态分别安排的纸面路径：A选择两次有效应对，规则结算2比0；B两次应对失误，规则结算0比2。这里不模拟动作、碰撞或真实操作手感，重点是已经选定的结果怎样进入剧情。\n\n| 路径 | 战后实际安排 |\n|---|---|\n| A：玩家获胜 | 裁判确认玩家拿席位，把唯一的演示牌递给玩家，玩家接稳持有。顾平没有拿同一牌，按原约去摆自己负责的展架；他祝贺但表示今天仍要独自练习，不自动成为全程追随者 |\n| B：顾平获胜 | 裁判把演示牌交给顾平，玩家无牌；玩家去摆自己负责的展架，顾平仍按原约完成他的准备部分。对话承认玩家输了本轮，不说玩家以后都没机会 |\n\n两条后文都可进入社团准备室：A读取玩家持牌及席位，开放“准备演示”；B读取顾平持牌，玩家只能继续当前展架任务，不能点出并未得到的演示资格。各人实际完成哪项准备，再写入后续活动，不由一句“都准备好了”包办。\n\nA保住比试胜利，也保留顾平的独立安排；B失去席位，但不是全部生活被取消。重复点击领奖不得复制唯一演示牌；汇流不借另一条路径的奖牌或胜利。全部是未构建纸面方案，尚未验证战斗乐趣或运行时状态。",
+          "en": "Original martial-arts club game: the player and Gu Ping contest one public demonstration place. Visible rules give one point per valid score, end at two points, or compare scores after at most three rounds; a tie awards neither person the place this time. In this example, a successful response to an attack scores for the player; an error scores for Gu; a round without a valid score adds nothing. This is the example’s rule, not a universal contest rule. Both previously agreed to do their assigned display-stand preparation regardless of who demonstrates.\n\nThese paper paths start independently from the same state. A chooses two valid responses and commits 2–0; B makes two response errors and commits 0–2. Movement, collision, and real controls are not simulated here; the focus is aftermath use of the chosen outcomes.\n\n| Path | Aftermath arrangement |\n|---|---|\n| A: Player wins | The referee confirms the place and actually hands over the unique demonstration token; the player holds it. Gu holds no duplicate. He undertakes his assigned stand work, congratulates the player, but keeps his independent practice today. |\n| B: Gu wins | The referee gives Gu the token; the player has none. The player does their assigned stand work, and Gu keeps his preparation commitment too. Dialogue acknowledges this loss without declaring every future chance closed. |\n\nBoth can reach the preparation room. A reads the player’s token/place and offers preparation for demonstration. B reads Gu’s token; the player continues stand work without an unearned demonstration action. Record actual completion of each assigned task rather than asserting everything ready.\n\nA preserves victory and Gu’s own plans; B loses the place without cancelling the rest of life. Repeated reward collection cannot duplicate the unique token, and convergence cannot borrow another branch’s outcome. This unbuilt paper plan verifies no combat enjoyment or runtime state."
+        }
+      },
+      {
+        "id": "fixed-outcome",
+        "heading": {
+          "zh": "原作已定结果，也要明确玩家的可玩目标",
+          "en": "Clarify Agency When the Source Fixes an Outcome"
+        },
+        "body": {
+          "zh": "原作若选定这场守不住，可把本场玩家目标写成带出证据、保护同伴或决定撤离办法；这些结果必须真的有差异，并在后文读取。不能继续承诺“打赢可守住”，又把所有打法都改成同一败局。\n\n如果改编概念允许胜负改写，再给真正对应的后续，不让原小说结果无条件覆盖玩家。是否保留原结果，是上游选择；战后对白不能暗中替作者改变这个边界。",
+          "en": "If the source fixes loss of a position, a playable objective may concern evidence, a companion, or withdrawal. Those results need genuine differences and later reads. Do not still promise winning the position while rewriting every strategy as the same defeat.\n\nIf the chosen adaptation permits changed outcomes, provide corresponding consequences rather than unconditionally restoring the novel. Keeping the source result is an upstream choice; aftermath dialogue cannot silently alter that boundary."
+        }
+      },
+      {
+        "id": "review",
+        "heading": {
+          "zh": "分开核胜负、奖励、人物与下一步",
+          "en": "Check Outcome, Reward, Character, and Next Action"
+        },
+        "body": {
+          "zh": "从本轮初态走到结算，再进共享战后场景，核真实胜负、持物、资源、见证与可用动作。至少用一条相邻结果揭露串线；有平局、撤退或不同目标完成状态时，也按本作规则检查。\n\n奖励只发一次，事件历史保留发生过什么。文本叫法改了不等于状态改了；构建后看实际提交与反馈，角色是否动人、战斗是否好玩另看试玩，不拿结果对齐代替全部质量。",
+          "en": "Trace initial state through resolution into the shared aftermath, checking actual outcome, objects, resources, witnesses, and actions. Use a neighboring result to expose contamination; ties, retreats, or distinct objective states follow this game’s rules too.\n\nDeliver rewards once and retain event history. A changed label is not changed state. After building, inspect actual commits and feedback; character appeal and combat enjoyment need playtest evidence beyond aligned results."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "玩家打赢后，剧情还能安排困难吗？",
+          "en": "Can difficulties continue after victory?"
+        },
+        "a": {
+          "zh": "可以。承认本战实际赢了、发放应得结果，再让已有其他问题继续。别把新困难写成这次胜利从未发生，也别让胜利自动解决无关冲突。",
+          "en": "Yes. Acknowledge the victory and its earned result while other established problems continue. Do not erase this win or make it solve unrelated conflicts."
+        }
+      },
+      {
+        "q": {
+          "zh": "小说原作必败，还能改成有选择的游戏吗？",
+          "en": "Can a fixed defeat still support choices?"
+        },
+        "a": {
+          "zh": "可以，但需在概念里明确玩家能改变的目标，让保人、保物或撤离选择有真实后果。不能宣传玩家能改胜负，却在过场无条件抹掉结果。",
+          "en": "Yes, with a clear playable objective and real consequences for people, objects, or withdrawal. Do not promise outcome agency and erase it unconditionally in a cutscene."
+        }
+      }
+    ],
+    "skill": {
+      "name": "game-world-design",
+      "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/SKILL.md",
+      "text": {
+        "zh": "把原作边界、选定战斗目标、胜负规则与战后场景交给 game-world-design。核各结果怎样改变后续动作、人物回应和物件，保留玩家已提交行为；只修断开的读取点，不替实现重造战斗系统，也不把纸面分支称为试玩结论。",
+        "en": "Give game-world-design the source limits, chosen objective, outcome rules, and aftermath. Check actions, replies, and objects for each result, preserving committed player conduct. Repair disconnected reads without redesigning the combat system or claiming a paper branch is playtested."
+      }
+    },
+    "related": [
+      "/novel-to-game/gameplay-core-loop",
+      "/novel-to-game/design-rewards-in-a-story-game",
+      "/novel-to-game/design-multiple-endings-in-a-game"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "类型规则、世界响应与后续决策",
+          "en": "Genre rules, world responses, and later decisions"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/world-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "因果权、结算权与人物回响",
+          "en": "Causal agency, outcome agency, and character callbacks"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/narrative-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "胜负、持物与事件由规则提交",
+          "en": "Rules commit outcomes, possession, and events"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
+      }
+    ]
   }
 ]

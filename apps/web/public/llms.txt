@@ -77,7 +77,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Name Novel Chapters Without Spoiling the Reveal](https://zenstory.ai/oh-story/novel-chapter-titles) — Choose chapter titles from actual actions, lines, or motifs. Compare workshop examples, check spoilers and repeats, and preserve manuscript naming.
 - [How to Weave Multiple Storylines in a Novel](https://zenstory.ai/oh-story/weave-multiple-storylines-in-a-novel) — Give each storyline a present question, then choose returns and intersections. Includes a complete two-location passage and a timing worksheet.
 - [How to Write a Chase Scene](https://zenstory.ai/oh-story/write-a-chase-scene) — Establish the objective and route, then show choices changing pursuit. Includes an original warehouse chase without a last-minute exit or frozen pursuer.
-- [How to Write a Countdown Plot](https://zenstory.ai/oh-story/write-a-countdown-plot) — Build urgency from a clear deadline, task duration, and consequences. Includes an original photography-submission timeline without empty numbers or a convenient extension.
+- [How to Write a Countdown Plot](https://zenstory.ai/oh-story/write-a-countdown-plot) — Build urgency from a clear cutoff, task duration, and consequences. Includes an original submission timeline without convenient extensions.
 
 ### Characters and dialogue / 人物与对白
 - [Characters and dialogue](https://zenstory.ai/guides/characters-and-dialogue) — Build believable motives, distinct voices, and relationships.
@@ -357,6 +357,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Design a Game Opening Tutorial](https://zenstory.ai/novel-to-game/design-a-game-opening-tutorial) — Teach one core action through visible information, a recoverable mistake, and feedback. Includes a complete opening delivery task and playtest questions.
 - [How to Design Rewards in a Story Game](https://zenstory.ai/novel-to-game/design-rewards-in-a-story-game) — Design rewards around later actions and check award, use, and callbacks. Includes two poster-stall upgrade paths beyond a larger number.
 - [How to Design Exploration Routes in a Story Game](https://zenstory.ai/novel-to-game/design-exploration-routes-in-a-story-game) — Connect readable landmarks, a main route, and optional routes to the current goal. Includes a sketchbook-return path with a remembered favor.
+- [How to Fix a Story Game That Cannot Progress](https://zenstory.ai/novel-to-game/fix-a-story-game-that-cannot-progress) — Check reachable actions from the current state, distinguishing unclear guidance, declared failure, and an unintended dead end. Includes a key-loan repair.
+- [How to Connect Combat Results to a Game Story](https://zenstory.ai/novel-to-game/connect-game-combat-results-to-the-story) — Make aftermath read actual results, choices, and delivered rewards. Includes two tournament paths without rewriting victory or making it solve every problem.
 
 ### Video scripts and editing / 视频解说与剪辑
 - [Video scripts and editing](https://zenstory.ai/guides/video-recaps) — Write narration from footage, edit a story, and finish audio and subtitles.
@@ -389,6 +391,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Fix Music Swells Between Voiceover Lines](https://zenstory.ai/video-recap/fix-music-swells-between-voiceover-lines) — Separate uneven voice segments from music repeatedly recovering in pauses. Includes a ducking-window example, short gaps, and intentional longer breaks.
 - [How to Fix Inconsistent AI Voiceover Voices](https://zenstory.ai/video-recap/fix-inconsistent-ai-voiceover-voices) — Locate the audible change, then check requested voices, cached segments, and files used in the export. Includes a three-segment repair plan.
 - [How to Improve Robotic AI Voiceover Delivery](https://zenstory.ai/video-recap/fix-robotic-ai-voiceover-delivery) — Check script flow, segmentation, supported delivery controls, and later speed changes. Includes a bounded example with exact text preserved.
+- [How to Fix Repeated Lines in AI Voiceover](https://zenstory.ai/video-recap/fix-repeated-lines-in-ai-voiceover) — Separate repeated text, reused segment audio, and duplicate placement. Includes a repair plan that restores the intended second line.
+- [How to Fix Pitch Changes After Speeding Audio](https://zenstory.ai/video-recap/fix-pitch-changes-after-speeding-audio) — Locate pitch changes in source audio, narration, or playback. Includes a ten-to-eight-second plan checking filters, cumulative speed, and listening.
 
 
 ## Workbench docs
