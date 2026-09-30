@@ -213,6 +213,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [Fix a Novel That Reads Like a Screenplay](https://zenstory.ai/oh-story/fix-a-novel-that-reads-like-a-screenplay) — Distinguish intentional dialogue-heavy style from leaked camera and scene instructions. Restore viewpoint, choices and actual actions.
 - [How to Revise a Novel Outline Mid-Draft](https://zenstory.ai/oh-story/revise-a-novel-outline-mid-draft) — Separate established facts from future plans before changing an outline. Includes a mid-draft example, a candidate scene, and a bounded AI request.
 - [How to Stop AI Fiction from Revealing Future Plot Too Soon](https://zenstory.ai/oh-story/stop-ai-fiction-from-revealing-future-plot) — Specify the current payoff, protected later revelations, and stopping point. Includes an album-story repair and a focused revision brief.
+- [How to Write Clear Action Sequences in Fiction](https://zenstory.ai/oh-story/write-clear-action-sequences-in-fiction) — Check positions, held objects, and action order, then supply necessary connections. Includes a complete scene without an inventory of every movement.
 
 ### Book covers / 小说封面
 - [Book covers](https://zenstory.ai/guides/book-covers) — Plan cover art and lettering, then check upload crops and thumbnail readability.
