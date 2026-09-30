@@ -8482,7 +8482,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "复仇打脸短剧怎么写：每次翻盘都拿回一项权力",
       "en": "Writing Revenge Micro-Dramas: Win Back Power with Every Reversal"
@@ -8492,12 +8492,12 @@
       "en": "How to Write a Revenge Micro-Drama | ZenStory"
     },
     "description": {
-      "zh": "把旧账写成可核对损失，让翻盘改变签字权、货源、名单或公开解释权，并控制公开场面成本。",
-      "en": "Make past losses verifiable. Let each reversal change sign-off rights, supplies, lists or who can explain events publicly. Keep public scenes affordable."
+      "zh": "写清旧损失、对手手段和证据范围，让反击得到实际回应。附钟表返修案例，区分受理、预约与最终恢复。",
+      "en": "Define the earlier loss, leverage, and evidence. Build an actual response with a watch-return example that separates registration, review, and restoration."
     },
     "answer": {
-      "zh": "复仇短剧先把主角曾失去的东西写成可核对旧账，再让每次反击拿回一项能继续使用的权力。对手必须拥有程序、资金、关系或舆论等真实手段，并在受挫后学习；翻盘后的见证者要改变签字、供货、站队或行动。",
-      "en": "Start a revenge micro-drama with a verifiable account of what the protagonist lost. Each counterattack should reclaim a form of power they can use again. Give the opponent real means of control—procedures, money, relationships or public opinion—and let them learn from setbacks. After a reversal, witnesses should change what they sign, what they supply, whom they support or what they do."
+      "zh": "复仇打脸先写清主角失去了什么、对手怎样维持剥夺，再让反击产生观众能核对的回应：记录更正、受理恢复、证人表态或一件旧物归还。证据要支持本次结论，执行回应的人要有相应权限。申请复核、获得复核和最终恢复资格是不同结果；情绪回报也可以低调，不必每集扩大惩罚。",
+      "en": "Start with what was taken from the protagonist and how the opponent keeps it that way. Then make a countermove produce a response viewers can verify: a corrected record, an accepted request, a witness taking a position, or a returned object. Evidence must support the conclusion, and the person acting must have the authority to do so. Requesting review, obtaining review, and regaining a qualification are different outcomes; a payoff can also be quiet rather than escalating punishment every episode."
     },
     "sections": [
       {
@@ -8507,8 +8507,8 @@
           "en": "List Past Losses and Present Forms of Control"
         },
         "body": {
-          "zh": "| 旧损失 | 对手仍能使用的手段 | 本次可见偿还 |\n|---|---|---|\n| 被划出供应名单 | 采购签字权 | 签字被驳回、名单恢复 |\n| 作品署名被拿走 | 展示与解释权 | 展签更正、旧稿公开核验 |\n| 探视被阻断 | 日程与门禁 | 约定落字、门禁权限改变 |\n\n羞辱只能显示态度，权力变化才能推动下一集。主角每次出手也要消耗证据、暴露身份或牵连要保护的人。",
-          "en": "| Past loss | A means of control the opponent still has | Visible redress this time |\n|---|---|---|\n| Removal from the supplier list | Procurement sign-off authority | The sign-off is rejected and the supplier is reinstated |\n| Losing credit for creative work | Control over its display and public explanation | The exhibition label is corrected and an earlier draft is checked publicly |\n| Being denied visits | Control over schedules and entry access | The arrangement is put in writing and access permissions change |\n\nHumiliation shows an attitude; a shift in power gives the next episode something to build on. Each move should also cost the protagonist evidence, expose their identity or implicate someone they are trying to protect."
+          "zh": "| 旧损失 | 本次核对 |\n|---|---|\n| 被划出供应名单 | 谁能更正名单？拒绝依据是否失效？只受理申诉还是名单已恢复？ |\n| 作品署名被拿走 | 原稿证明哪项贡献？谁负责展签？更正请求与实际换签分开记录。 |\n| 约好的见面被取消 | 谁控制本次安排？新的约定是否得到回应，实际见面是否发生？ |\n\n先让剥夺具体，再选择反击。羞辱可以建立态度和情绪，权力、关系或事实回应则帮助下一段继续。主角出手可能暴露底牌、花掉机会或牵连关系；代价应来自已建立的处境，不是每次赢了就强加一项新损失。人物可以享受一次胜利，也可以先处理余波。",
+          "en": "| Earlier loss | Check this response |\n|---|---|\n| Removed from a supplier list | Who can correct it? Has the reason for exclusion failed? Was an appeal merely accepted, or was the list actually restored? |\n| Credit taken for a work | Which contribution does the original prove? Who controls the label? Record a request separately from an actual replacement. |\n| An agreed meeting canceled | Who controls this arrangement? Has the new proposal been answered, and has the meeting happened? |\n\nMake the deprivation specific before choosing the response. Humiliation can establish attitude and emotion; changes in power, relationships, or acknowledged facts help the next passage continue. A countermove may reveal leverage, use an opportunity, or strain a relationship. Derive that cost from the established situation rather than adding a new loss to every win. Characters may enjoy a victory or spend time dealing with its aftermath."
         }
       },
       {
@@ -8518,19 +8518,19 @@
           "en": "Make the Reversal Convincing on Screen"
         },
         "body": {
-          "zh": "先建立能拍到的判断标准，再让主角用行动穿过它。见证者按功能选择：能拍板、能作证、有利益、纯旁观。重点给前三类反应。大型宴会可换成走廊、柜台、地库或玻璃隔断外的工位区，让少量见证人完成公开裁决；文件原件、复印件和涂改件需要在画面上可区分。",
-          "en": "Establish a standard the camera can show, then have the protagonist meet that standard through action. Choose witnesses by function: decision-makers, people who can testify, interested parties and mere onlookers. Give most attention to the first three groups’ reactions. Replace a large banquet with a corridor, a service counter, an underground car park or a workspace beyond a glass partition. A small number of witnesses can make the decision public. Original documents, copies and altered versions must be visually distinguishable."
+          "zh": "先建立能拍到的判断依据，再让主角行动。见证者按功能选择：能决定本次事项、能核对事实、有利益、纯旁观。柜员能登记，不一定能撤销资格；经理能改店内排班，不一定能替外部机构裁决。先写清本例的权限和规则，再拍执行回应。\n\n宴会可以换成走廊、柜台或玻璃隔断外的工位区，让少量见证人完成同样的公开功能。原件、复印件和被改过的版本须可分辨；旧章、截图或故障视频也只证明它实际包含的事实，不因看起来有说服力就证明全部旧账。",
+          "en": "Establish a visible basis for judgment, then let the protagonist act. Choose witnesses by function: someone who can decide this matter, verify a fact, has a stake, or merely watches. A clerk may register a case without being able to revoke a qualification; a manager may change an internal roster without deciding for an outside institution. Define the authority and rules in this example before showing a response.\n\nA corridor, counter, or workstation behind glass can perform the public function of a banquet with fewer witnesses. Make originals, copies, and altered versions distinguishable. A stamp, screenshot, or fault video proves only what it contains; persuasive appearance does not settle every earlier grievance."
         }
       },
       {
         "id": "example",
         "heading": {
-          "zh": "原创范例：被注销的维修资格",
-          "en": "Original Example: The Deleted Repair Certification"
+          "zh": "原创范例：被拒收的返修表",
+          "en": "Original example: a returned watch refused at the counter"
         },
         "body": {
-          "zh": "钟表维修师唐芮曾被合伙人删除认证记录。她没有在发布会上报出头衔，而是在售后柜台要求对方按现行规则接收一只返修表。合伙人认定她无权拆机；她请柜员扫描旧保修章，系统显示这批编号只能由原校准人复核。柜员暂停合伙人的决定结果的机会限，等认证中心核对。\n\n唐芮拿回的是一次正式复核权，同时暴露了旧章仍在手里。对手下一集会封锁编号查询，反制来自刚才的结果。",
-          "en": "Watch repairer Tang Rui’s former business partner deleted her certification records. Instead of announcing her credentials at a launch event, she goes to the after-sales counter and asks for a watch to be accepted for further repairs under the current rules. Her former partner insists that she has no authority to open the watch. She asks the clerk to scan an old warranty stamp. The system shows that watches in this serial-number range can only be rechecked by the person who originally calibrated them. The clerk suspends the former partner’s settlement privileges pending verification by the certification centre.\n\nTang Rui has regained the right to one formal recheck, while revealing that she still has the old stamp. In the next episode, her opponent will block serial-number lookups. That countermove grows out of what just happened."
+          "zh": "以下是虚构维修店与复核流程，不代表真实行业制度。唐芮曾负责一批钟表的初次校准。她离店后，合伙人彭旭从店内售后名单删去她的名字，又告诉客人那批表没有可联系的原校准人。原始纸质校准页由合作服务站保存，唐芮手中的保修单保留了服务站编号及她的签名；这张单据本身不授予拆机资格。\n\n柜台已张贴本例规则：涉及原校准记录的争议须登记并送服务站核对；核对前不得把“无原校准人”作为结案理由。客人来问一只返修表，彭旭准备按这个理由拒收。唐芮请客人同意提交保修单，再要求柜员按规则受理。柜员登记后联系服务站，不是扫描旧章就立刻判她胜。\n\n服务站调出同编号原始页，确认唐芮是记录中的校准人，回传核对结果并约她与客人周五共同复核这只表。柜员把受理单上的“无原校准人”划去，改为“已联系唐芮，周五复核”，客人拿到副联。她实际拿回的是这一只表的正式复核参与机会；周五尚未到来，表没修好，其他记录和她的职业资格也没有被一并裁决。\n\n彭旭得知她仍保存旧保修单，开始拒绝借出店内编号册。这个反制限制她下一次查询，却不能撤销服务站已经发出的预约；下一段需要处理新的取证路径，而不是把本次受理再演一遍。",
+          "en": "This shop and review procedure are fictional, not a statement of real industry rules. Tang Rui originally calibrated a batch of watches. After she left, her partner Peng Xu removed her name from the shop's after-sales roster and told customers there was no original calibrator to contact. A partner service center retains the original paper calibration pages. Tang has a warranty slip with its record number and her signature; the slip grants no permission to disassemble a watch.\n\nThe counter displays this example's rule: a dispute about an original calibration record must be registered and sent to the center for verification. Until then, “no original calibrator” cannot close the case. When a customer brings a returned watch, Peng prepares to refuse it on that basis. Tang asks the customer to authorize submission of the slip, then asks the clerk to register the case. The clerk contacts the center rather than declaring her the winner after scanning a stamp.\n\nThe center retrieves the original page with the matching number, confirms Tang as the recorded calibrator, and sends a response inviting her and the customer to review this watch on Friday. The clerk crosses out “no original calibrator,” records “Tang Rui contacted; Friday review,” and gives the customer a copy. Tang has regained a formal opportunity to participate in this one review. Friday has not arrived; the watch is not repaired, and neither other records nor her professional qualifications have been decided.\n\nPeng now knows she kept an old warranty slip and refuses to lend the shop's number book. That limits her next search but cannot cancel the center's existing invitation. The next passage must address a new evidence route rather than replay this registration."
         }
       },
       {
@@ -8540,8 +8540,8 @@
           "en": "Keep Repeated Comeuppances from Feeling Repetitive"
         },
         "body": {
-          "zh": "让对手改变口径、渠道或替罪人；让每次回报使用不同货币结算，如程序、名声、关系、资源；早期给小额兑现，中期让有效手段伤及主角要保护的人；结尾让最初剥夺以新形式回来，迫使主角选择完整清算或接受有限偿还。\n\n复查每次翻盘时，再写一行“对手下一步还能做什么”。答案若仍和上次一样，说明权力没有真正移动；答案若只能靠突然出现的新大人物，说明前面的裁决没有建立。让对手利用剩余资源反击，主角的胜利才会成为后续剧情的原因。",
-          "en": "Let the opponent change their story, their channels of influence or their scapegoat. Make each payoff take a different form: procedural authority, reputation, relationships or resources. Deliver modest gains early on. In the middle, let a method that works also hurt someone the protagonist wants to protect. At the end, bring back the original deprivation in a new form, forcing a choice between settling the whole account and accepting limited redress.\n\nFor each reversal, add one line: “What can the opponent still do next?” If the answer is unchanged from last time, power has not really shifted. If the only answer requires a newly introduced powerful figure, the earlier decision has not been properly established. Let the opponent counterattack using their remaining resources, so the protagonist’s victory becomes a cause of what happens next."
+          "zh": "让对手根据已经看到的结果改口径、换渠道或利用剩余资源；结算也可从程序转到署名、关系或一件旧物。中段若要让有效手段伤及保护对象，先建立因果与人物选择，别为了升级临时加害。\n\n复查时问“对手下一步还能做什么”。他可以保留原有资源，并不需要每次都被彻底剥夺；重要的是他是否理解刚才发生了什么、接下来的策略是否合理。结尾可以完整清算、接受有限偿还或转向新的生活，由作者选择。休整和回味胜利也有节奏功能。",
+          "en": "Let the opponent change an explanation, channel, or use of remaining resources in response to what has happened. Payoffs may move from procedure to credit, relationships, or a returned object. If a successful method later harms someone the protagonist protects, establish the cause and choice instead of inventing harm solely to escalate.\n\nAsk what the opponent can still do. They may retain resources; every exchange need not strip them of everything. Check whether they understand the latest result and whether their next strategy makes sense. Full reckoning, limited restitution, or moving toward a new life are author choices. Rest and enjoying a win can serve the rhythm too."
         }
       },
       {
@@ -8551,38 +8551,28 @@
           "en": "Turn one reversal into four shootable steps"
         },
         "body": {
-          "zh": "| 步骤 | 场景里实际发生什么 |\n|---|---|\n| 压迫 | 经理把注销资格的通知放到服务台，客人停止排队 |\n| 行动 | 主角要求公开查看维修原始记录 |\n| 证据 | 客人拿出同一台机器此前的故障视频，对上日期 |\n| 结果 | 经理交回服务权限；主角接下第一位顾客 |\n\n旁人震惊只是反应，真正翻盘落在主角重新能做什么。下一轮挑战可以是对方拒交零件，不要再次重演注销资格。",
-          "en": "| Step | What happens on screen |\n|---|---|\n| Pressure | The manager posts a revoked license; customers stop queuing |\n| Action | The repairer demands the original service record |\n| Evidence | A customer’s fault video matches the recorded date |\n| Result | Service access is restored; the repairer takes a customer |\n\nReaction supports the win; restored ability to act makes it real. The next challenge might withhold parts rather than revoke the same license again."
+          "zh": "| 步骤 | 同一只表的可拍回应 |\n|---|---|\n| 拒绝 | 彭旭按“无原校准人”拒收；客人仍拿着表和保修单。 |\n| 行动 | 客人同意提交，唐芮指向已张贴规则，柜员登记并联系服务站。 |\n| 核对 | 服务站回传同编号原始页的核对结果；柜员读到唐芮的名字。 |\n| 局部结果 | 柜员更正受理原因、写下周五预约并交出副联。 |\n\n这是本文的编辑检查表，不是技能规定的四步分集格式。故障视频可以证明故障发生，不能单独证明谁有复核权限；客人震惊也不能代替正式受理。镜头收在副联交到客人手里，仍允许唐芮有情绪反应，不要求立刻进入下一次惩罚。",
+          "en": "| Step | Response |\n|---|---|\n| Refusal | Peng invokes “no original calibrator”; the customer still holds the watch and slip. |\n| Action | The customer agrees to submission. Tang points to the posted rule; the clerk registers the case and contacts the center. |\n| Verification | The center sends its finding from the matching original page; the clerk reads Tang's name. |\n| Local result | The clerk corrects the reason, records Friday's appointment, and hands over the copy. |\n\nThis is an editorial worksheet, not a required four-step episode format. A fault video can establish a fault, not authority to conduct review. A shocked customer cannot replace actual registration. Ending on the copy being handed over still leaves room for Tang's emotional response; the script need not rush into another punishment."
         }
       }
     ],
     "faq": [
       {
         "q": {
-          "zh": "短剧方法需要固定时长或固定集数吗？",
-          "en": "Does this method require a fixed runtime or episode count?"
+          "zh": "申请复核算翻盘吗？",
+          "en": "Can obtaining a review be a payoff?"
         },
         "a": {
-          "zh": "不需要。先让目标、反制、转向和结果成立，再按项目已经接受的篇幅与制作条件调整容量。",
-          "en": "No. First make the goal, countermove, change of direction and result work. Then adjust the amount of material to the length and production conditions already agreed for the project."
-        }
-      },
-      {
-        "q": {
-          "zh": "可以直接套用表格吗？",
-          "en": "Can I use the table as it is?"
-        },
-        "a": {
-          "zh": "表格用于发现缺口。正文仍要写成人物可执行的行动、对白与后果，空字段无需硬填。",
-          "en": "Use the table to find gaps. The script still needs actions the characters can perform, dialogue and consequences. Do not force an entry into a field you do not need."
+          "zh": "可以，若之前被堵住的正式受理确实恢复，且这就是本段的承诺。明确它只解决受理或参与，不把预约写成复核完成、维修成功或永久资格恢复。",
+          "en": "Yes, if previously blocked access is actually restored and that is this passage's promise. Specify that the result concerns registration or participation; an appointment is not a completed review, successful repair, or permanently restored qualification."
         }
       }
     ],
     "skill": {
       "name": "short-drama-develop",
       "text": {
-        "zh": "在 Claude Code 里说：“用 /short-drama-develop 按本文方法处理我的短剧，保留已有事实，不添加固定集数或平台规则”（Codex 中使用对应 skill）。",
-        "en": "In Claude Code, say: “Use /short-drama-develop to work on my micro-drama using this article’s method. Preserve the established facts and do not add a fixed episode count or platform rules.” In Codex, use the corresponding skill."
+        "zh": "用 /short-drama-develop（Codex 中用 $short-drama-develop）检查我的复仇短剧：逐项写旧损失、对手手段、证据能支持的结论、谁能执行回应、已发生的局部结果及下一次反制。保留作者的结局和情绪节奏，不把每次反击强制写成新牺牲；本轮不写剧本正文。",
+        "en": "Use /short-drama-develop ($short-drama-develop in Codex) to check my revenge drama: earlier loss, the opponent's means, the conclusion supported by evidence, who can act, the actual local result, and the next countermove. Preserve the author's ending and emotional rhythm without adding a new sacrifice to every response. Do not draft the script in this pass."
       },
       "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/SKILL.md"
     },
@@ -8596,8 +8586,22 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "复仇打脸题材卡",
+          "en": "Revenge genre card"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/genre-cards/复仇打脸.md"
+      },
+      {
+        "label": {
+          "zh": "循环的变化与耗尽",
+          "en": "Changing and exhausting a loop"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/mechanism-loop.md"
+      },
+      {
+        "label": {
+          "zh": "开发范围与默认建议",
+          "en": "Development scope and defaults"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/SKILL.md"
       }
@@ -8611,7 +8615,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "萌宝短剧怎么写：让孩子拥有自己的目标",
       "en": "Writing Secret-Baby Dramas: Give the Child a Goal of Their Own"
@@ -8621,12 +8625,12 @@
       "en": "How to Write a Secret-Baby Micro-Drama | ZenStory"
     },
     "description": {
-      "zh": "固定四层信息权限，让孩子按自己的目标行动，并让血缘揭示落实为签字、接送或监护责任变化。",
-      "en": "Define four layers of knowledge, give the child an independent goal, and turn a parentage reveal into changes in signing, pickups or care responsibilities."
+      "zh": "给孩子自己的目标，区分各人知情与实际回应。附科学展场景，写清孩子意愿如何影响成人安排。",
+      "en": "Give the child a goal, track who knows what, and show adult responses. A science-fair scene demonstrates how a child's preference changes an arrangement."
     },
     "answer": {
-      "zh": "萌宝短剧先固定孩子掌握的事实、守秘者掌握的事实、关系另一方的认知和旁人相信的版本，再给孩子一个与成年人不完全相同的具体目标。孩子的行动要改变成年人的处境；血缘或身世揭示之后，必须有人改变签字、接送、探视、监护或公开称呼，关系才真正推进。",
-      "en": "For a secret-baby micro-drama, establish what the child knows, what the person keeping the secret knows, what the other person in the relationship understands and what everyone else believes. Then give the child a specific goal that does not wholly match the adults’ goals. The child’s actions should change the adults’ situation. After a reveal about parentage or origins, the story must visibly change who signs, who picks the child up, who may visit, who assumes responsibility for their care, or how people address one another in public. That is how the relationship moves forward."
+      "zh": "萌宝短剧先给孩子一个自己的目标，再固定孩子、守秘者、被瞒者和旁人分别知道什么。孩子可以提问、拒绝或求助，迫使大人回应；揭示身世后还要写谁真的改变了照料或安排。孩子的意见、活动联系人、访客身份和法定监护是不同事项，不因一张表或一句认亲自动合并。",
+      "en": "Give the child a goal of their own, then distinguish what the child, secret keeper, person kept in the dark, and bystanders know. Questions, refusal, or asking for help can force adults to respond. After a parentage reveal, show who actually changes care or an arrangement. The child's preference, an event contact, visitor status, and legal guardianship are separate matters; a form or acknowledgment does not merge them."
     },
     "sections": [
       {
@@ -8636,8 +8640,8 @@
           "en": "Establish Four Layers of Knowledge"
         },
         "body": {
-          "zh": "分别写孩子掌握哪些事实、守秘者握有哪些信息、关系另一方如何理解、旁人相信哪套说法。孩子可以全知、半知或误信，选定后保持一致。隐瞒需要具体理由和正在造成的损失；“怕说了会乱”无法支撑连续剧情。",
-          "en": "Write down the facts the child knows, the information held by the person keeping the secret, the other person’s understanding of the relationship and the version believed by outsiders. The child may know everything, know part of the truth or believe something false. Once you choose, stay consistent. Concealment needs a specific reason and a loss it is currently causing. “Telling them would make things complicated” cannot sustain an ongoing plot."
+          "zh": "先列各人知道的事实、相信的版本、还没得到的答案，以及下一步怎样得到信息。可以是全知、半知或误信；后续允许通过真实对话、记录或观察改变认知，不要无来源地突然“早就知道”。隐瞒须有具体理由及影响，理由可以被理解，也仍要接受人物追问。\n\n萌宝是广义题目。本文以身世尚未向孩子公开的分支示范；若一家人本来都知道关系，就把重点放在照料、承诺和孩子意愿，不必为了套方法新增血缘秘密。相认不自动带来复合或原谅。",
+          "en": "List what each person knows, believes, still needs answered, and how they could learn it. A character may be fully informed, partly informed, or mistaken. Later dialogue, records, or observation can change that state; do not suddenly claim they knew all along without a source. Give concealment a specific reason and effect. An understandable reason can still be questioned.\n\nStories centered on a child cover more than hidden parentage. This example uses a relationship not yet disclosed to the child. If everyone already knows the family relationship, focus on care, promises, and the child's wishes rather than inventing a bloodline secret to fit the method. Acknowledgment does not automatically mean reconciliation or forgiveness."
         }
       },
       {
@@ -8647,19 +8651,19 @@
           "en": "Let the Child Pursue Their Own Outcome"
         },
         "body": {
-          "zh": "孩子的目标可以是留在学校、让某人参加家长会、保护一个照料者或查清一句谎话。成年人争血缘时，孩子可能更在意谁能按时接他、谁尊重他的选择。让他通过藏起签到表、拨出手表电话或拒绝改紧急联系人采取行动，避免只负责卖萌和说金句。",
-          "en": "The child might want to stay at their school, have someone attend a parent–teacher meeting, protect a caregiver or find out the truth behind a lie. While adults argue about biological ties, the child may care more about who arrives on time to collect them and who respects their choices. Let them act by hiding a sign-in sheet, calling someone on their smartwatch or refusing to change their emergency contact. Give them more to do than look cute and deliver quotable lines."
+          "zh": "孩子可以想保留原来的学校、邀请熟悉的人看作品、保护照料者或弄清一句话。他的关心未必与成年人争名分重合。行动可以是打电话、把作品带给对方看、提出问题或拒绝一个安排，按这个孩子的年龄、经验和性格选择。\n\n藏起表格只会改变大人目前看到的材料，不等于撤销已提交登记；空着联系人不等于孩子有权决定监护。写清成人谁收到意见、谁能处理本次事项、是否实际回应。孩子也可以先只争到被认真听见，不必一场完成所有关系结算。",
+          "en": "The child may want to stay at a familiar school, invite someone to see their work, protect a caregiver, or understand a statement. That concern need not match the adults' dispute over status. Calling, showing a project, asking a question, or refusing an arrangement are possible actions; choose them for this child's age, experience, and character.\n\nHiding a form changes what an adult currently sees; it does not cancel a submitted registration. A blank contact field does not give the child authority over guardianship. Show who receives the preference, who handles this particular matter, and whether they respond. Being seriously heard can be a local result without settling the whole relationship in one scene."
         }
       },
       {
         "id": "example",
         "heading": {
-          "zh": "原创范例：科学展的监护人栏",
-          "en": "Original Example: The Guardian Field on a Science-Fair Form"
+          "zh": "原创范例：科学展的联系人与访客",
+          "en": "Original example: a science fair contact and visitor"
         },
         "body": {
-          "zh": "女孩米粒想让一直照顾她的姨父参加科学展，母亲却准备在报名表上填刚出现的生父。米粒没有撮合大人，她把需要监护人协助的实验改成个人项目，并把原登记表藏进作品箱。她重新填写个人项目登记表，暂时空着紧急联系人一栏。生父看到新表上的空栏，主动提出签字；姨父拒绝代替孩子决定。最终米粒自己把两人叫到学校，要求保留姨父为紧急联系人，生父先从普通访客开始。\n\n揭示没有自动带来团圆，行动权限发生了可见变化。",
-          "en": "Mili wants her uncle, her aunt’s husband who has always cared for her, to attend the science fair. Her mother instead plans to put her biological father, who has only just entered their lives, on the registration form. Mili does not try to bring the adults together. She changes an experiment requiring a guardian’s help into an individual project and hides the original form in her project box. She fills out a new form for the individual project, temporarily leaving the emergency-contact field blank. Her biological father sees the blank field and offers to sign; her uncle refuses to decide on the child’s behalf. In the end, Mili herself asks both men to come to the school. She wants her uncle to remain her emergency contact and her biological father to start as an ordinary visitor.\n\nThe revelation does not automatically reunite the family. Instead, there is a visible change in who is allowed to do what."
+          "zh": "以下学校和表格规则仅为虚构案例。科学展允许合作演示或个人作品，均由家长提交活动联系人；个人作品也可以有普通访客，联系人与访客不改变监护关系。米粒想让长期照料她的姨父来看模型。母亲正想换成刚回到城里的生父陪她，担心再次谈起当年的分别，所以只向米粒介绍他是旧朋友。今天母亲带他到家中，一起填报名表。\n\n本场前，母亲与生父知道两人的关系，米粒只知道这位叔叔来过两次，姨父也未被告知身世。母亲和生父已有的确认是本例前提，不靠相似长相或登记栏推出血缘。\n\n米粒把尚未提交的合作表放进作品箱，另填个人作品题目。她不是独自换掉有效报名：母亲看到两张表，问她为什么改。米粒说：“你们换一个人来，我还得再教他一遍。姨父知道电池放哪里。”母亲把表拿出来，向她说明这位叔叔是生父，也承认自己还没问过她想和谁展示。米粒听完仍要请姨父来；她不立刻称呼父亲，也没有答应让他代替姨父。\n\n母亲当着米粒给姨父打电话，说明身世和邀请，姨父答应到场并继续做本次联系人。生父听见米粒的意思，同意先以普通访客来，不抢着签合作演示栏。母亲按本例规则提交个人作品与姨父已确认的联系方式；老师核对后完成登记，并把普通访客时间发给生父。\n\n展览当天，姨父按登记时间到场，生父在访客时段进来。米粒把开关交给姨父，自己讲解，结束后才让生父看模型背面。实际结果是她的邀请被采纳，两位成人依新的安排到场；这没有裁决监护、抚养或今后的亲疏，也没有自动带来团圆。",
+          "en": "The school and form rules here are fictional. This science fair allows a joint demonstration or an individual project, with a parent submitting the event contact for either. Individual projects may also have ordinary visitors; contact and visitor roles do not change guardianship. Mi Li wants the uncle who has long cared for her to see her model. Her mother plans to have the recently returned birth father accompany her instead. Reluctant to revisit their separation, she has introduced him only as an old friend. Today she has brought him home to fill in the form together.\n\nBefore this scene, the mother and birth father know the relationship. Mi Li knows only that this man has visited twice, and the uncle has not been told about the parentage. The adults' prior confirmation is a premise of this example, not a conclusion drawn from resemblance or a form field.\n\nMi Li puts the unsubmitted joint form in her project box and fills in an individual-project title. She has not changed a valid registration by herself. Her mother sees both forms and asks why. Mi Li says, “If you send someone else, I have to teach him again. Uncle knows where the batteries go.” Her mother takes out the form, explains that the visitor is her birth father, and admits she had not asked whom Mi Li wanted to demonstrate with. Mi Li still asks her uncle to come. She neither immediately calls the visitor Dad nor agrees that he will replace her uncle.\n\nIn front of Mi Li, her mother calls the uncle, explains the relationship and invitation, and receives his agreement to attend and remain this event's contact. The birth father hears Mi Li's preference and agrees to come first as an ordinary visitor instead of signing the joint-demonstration field. Her mother submits the individual project and the uncle's confirmed contact details under the example's rules. The teacher checks them, registers the project, and sends the visitor hours to the father.\n\nOn the day, the uncle arrives at the registered time and the father comes during visitor hours. Mi Li gives her uncle the switch, explains the model herself, and only afterward lets the father see its back. Her invitation has been accepted and both adults have attended under the new arrangement. This settles neither guardianship nor future closeness, and does not automatically create a reunion."
         }
       },
       {
@@ -8669,8 +8673,8 @@
           "en": "Balance the Child’s Role with Production Needs"
         },
         "body": {
-          "zh": "集中孩子必须在场的场次，让高情绪信息更多由动作、画、手表录音或随身物件承担；关键事实准备不依赖长台词的载体。成人争执不靠孩子反复生病升级。报告、签到表等关键道具要保证内容可读；动画形态也需按儿童认知和反应节奏写动作。\n\n复查时把成人线和孩子线分别写一句目标。两句完全相同，孩子仍可能只是道具；让孩子争取自己的日常结果，再看他的行动怎样迫使成人表态。结尾还要检查孩子的意见是否真正改变安排，避免成人和解后自动替他决定。",
-          "en": "Group together the scenes in which the child must be present. Let actions, drawings, smartwatch recordings or personal objects carry more of the emotionally charged information. Prepare ways to convey key facts without relying on long speeches. Do not escalate adult disputes by repeatedly making the child ill. Keep important props such as reports and sign-in sheets legible. Even in animation, write actions to fit a child’s understanding and pace of response.\n\nDuring review, write one sentence stating the adults’ goal and another stating the child’s. If they are identical, the child may still be functioning as a plot device. Let the child pursue an outcome that matters in daily life, then examine how their actions force the adults to take a position. At the ending, check whether the child’s wishes actually change the arrangements. Do not let the adults automatically decide for the child simply because they have reconciled."
+          "zh": "先按项目实际可用的儿童表演、时段和场地安排场次。具体工时与拍摄要求另查适用规定，不从本例推算。关键信息可以由动作、画、已有通话或随身物件承载，不因长台词难拍就编造新事实。孩子可以说话、玩笑、沉默或哭；选择要符合人物，而不是只留动作。\n\n联系人表、签到或报告等若承担剧情，须保证本镜需要的信息可读。动画形态同样要考虑这个孩子的反应与表达，不默认套成人节奏。成人与孩子各写一句目标，再检查孩子的意见是否被接收并真的影响安排；温柔照料与一起玩也可以交付关系回报，不必每场再揭一个秘密。",
+          "en": "Plan around the child performance, times, and locations actually available to the project. Check applicable requirements separately rather than deriving work-hour limits from this example. Actions, drawings, existing calls, or carried objects can hold key information; difficulty filming a long speech is no reason to invent facts. The child may talk, joke, pause, or cry according to character, not a rule permitting only physical action.\n\nIf a contact form, attendance sheet, or report carries the plot, keep the required information readable. Animation still needs this child's way of reacting and expressing themselves rather than an assumed adult rhythm. Write an adult goal and a child goal, then check whether the child's preference was received and changed the arrangement. Care or playing together can deliver relationship value without revealing another secret in every scene."
         }
       },
       {
@@ -8680,38 +8684,28 @@
           "en": "Let the child make a decision before revealing identity"
         },
         "body": {
-          "zh": "孩子想参加科学展，却缺一位能到现场的监护人。他自己打电话给曾帮忙修模型的成年人，要求对方来看展。成年人答应之前，先问展览时间；孩子拿出名单，旁边留下一个未填的关系栏。\n\n这一场先完成孩子的目标，再留下身份问题。后面的认亲需要成人过去的事实支持，不能仅靠外貌相似就宣布亲子关系。给每场孩子戏写三项：他想得到什么、亲自做了什么、结果怎样改变下场。",
-          "en": "The child wants to enter a science exhibition but needs an adult present. They call the person who helped repair the model and invite them. The adult asks about the time; the child shows a list with the relationship field still blank. The scene completes the child’s goal before introducing identity. A later reveal needs established facts, not resemblance alone. Record desire, action, and outcome for each child-centered scene."
+          "zh": "| 本场检查 | 科学展中的落实 |\n|---|---|\n| 孩子想要什么 | 让懂模型的姨父来看；不是替母亲选择伴侣。 |\n| 亲自做了什么 | 提出个人作品并解释原因；藏表没有自动改登记。 |\n| 谁接收与回应 | 母亲说明事实、打电话并提交；两位成人分别答应。 |\n| 哪项已经发生 | 老师登记；展览当天两人实际到场。监护与后续关系仍未裁决。 |\n\n这是本文的场景检查表，不是原生技能文件格式。身世揭示要有故事已经建立的事实依据；如果选择留作悬念，就保留未知，不由称呼或相似外貌当场证明。",
+          "en": "| Scene check | What happens at the fair |\n|---|---|\n| Child's goal | Invite the uncle who knows the model; not choose a partner for her mother. |\n| Child's action | Suggest an individual project and explain why; hiding a form changes no registration by itself. |\n| Adult response | The mother explains, calls, and submits; each adult agrees to a role. |\n| Actual result | The teacher registers the project and both adults attend. Guardianship and later relationships remain undecided. |\n\nThis is an editorial scene worksheet, not a native skill file format. A parentage reveal needs facts already established in the story. If it remains a mystery, keep the uncertainty rather than letting a name or resemblance prove it immediately."
         }
       }
     ],
     "faq": [
       {
         "q": {
-          "zh": "短剧方法需要固定时长或固定集数吗？",
-          "en": "Does this method require a fixed runtime or episode count?"
+          "zh": "孩子说不想认亲，就能改变所有手续吗？",
+          "en": "Does a child's refusal decide every formal arrangement?"
         },
         "a": {
-          "zh": "不需要。先让目标、反制、转向和结果成立，再按项目已经接受的篇幅与制作条件调整容量。",
-          "en": "No. First make the goal, countermove, change of direction and result work. Then adjust the amount of material to the length and production conditions already agreed for the project."
-        }
-      },
-      {
-        "q": {
-          "zh": "可以直接套用表格吗？",
-          "en": "Can I use the table as-is?"
-        },
-        "a": {
-          "zh": "表格用于发现缺口。正文仍要写成人物可执行的行动、对白与后果，空字段无需硬填。",
-          "en": "The table is for finding gaps. The prose still needs actions characters can perform, dialogue, and consequences; leave irrelevant fields blank rather than forcing them in."
+          "zh": "不能这样跳写。先区分孩子表达的意愿、本次活动安排、已经确认的关系与需要另行处理的事项。本文只写虚构科学展的联系人和访客，实际法律或平台规定需另外核对。",
+          "en": "Do not skip those distinctions. Separate the child's preference, this event's arrangement, established relationships, and matters requiring a different process. This example addresses only a fictional fair's contact and visitor roles; verify real legal or platform requirements separately."
         }
       }
     ],
     "skill": {
       "name": "short-drama-develop",
       "text": {
-        "zh": "在 Claude Code 里说：“用 /short-drama-develop 按本文方法处理我的短剧，保留已有事实，不添加固定集数或平台规则”（Codex 中使用对应 skill）。",
-        "en": "In Claude Code, say: “Use /short-drama-develop to work on my micro-drama using this article’s method. Preserve the established facts and do not add a fixed episode count or platform rules.” In Codex, use the corresponding skill."
+        "zh": "用 /short-drama-develop（Codex 中用 $short-drama-develop）规划我的萌宝短剧：保留已定家庭事实，列各人知道与误信、孩子自己的目标、亲自行动、成人实际回应及关系结果。身世、联系人与监护分开；不默认团圆，不写单集正文。",
+        "en": "Use /short-drama-develop ($short-drama-develop in Codex) to plan my child-centered drama. Preserve established family facts; distinguish knowledge and mistaken beliefs, the child's goal and action, adult responses, and the relationship result. Separate parentage, contact roles, and guardianship. Do not assume a reunion or draft the episode script."
       },
       "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/SKILL.md"
     },
@@ -8725,8 +8719,15 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "亲子隐秘题材卡",
+          "en": "Hidden-parentage genre card"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/genre-cards/亲子隐秘.md"
+      },
+      {
+        "label": {
+          "zh": "开发范围与作者选择",
+          "en": "Development scope and creator choices"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/SKILL.md"
       }
@@ -10852,7 +10853,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "短剧灯光提示词怎么写：从光源、职责到跨镜连续",
       "en": "Micro-Drama Lighting: Source, Narrative Job and Continuity"
@@ -10877,8 +10878,8 @@
           "en": "Decide What the Lighting Needs to Tell"
         },
         "body": {
-          "zh": "同一个房间不需要每镜都一样亮，但每镜都要服务当前信息。先把职责归到下表，再决定亮暗。\n\n| 本镜职责 | 需要保住 | 可采用的光线选择 |\n|---|---|---|\n| 读表情 | 眼睛、嘴角或呼吸变化 | 面部保留层次，暗侧仍能辨认关键表演 |\n| 看证据 | 物件形状、刻痕或文字 | 让证据与桌面产生局部对比，不必把全屋照亮 |\n| 暂扣身份 | 轮廓存在，但脸不被认出 | 让人物落在暗区或形成剪影，同时守住既有光源方向 |\n| 建立空间 | 门窗、通道和人物层次 | 用前后景亮度或色彩层级分开空间 |\n\n“阴暗、氛围感强”没有说明观众该看哪里。先写职责，才能判断脸被压暗是设计还是错误。",
-          "en": "Brightness can vary from shot to shot in the same room; each shot should still serve the information being conveyed. Classify the job first, then decide how light or dark the image should be.\n\n| Job of the shot | What must remain visible | Possible lighting choice |\n|---|---|---|\n| Read an expression | Eyes, the corner of a mouth or a change in breathing | Preserve facial shape; keep the key performance legible on the shadow side |\n| See evidence | An object’s shape, engraving or writing | Create local contrast between the evidence and the tabletop without lighting the entire room |\n| Withhold identity for now | A visible outline without a recognisable face | Place the figure in shadow or silhouette while preserving the established light-source direction |\n| Establish space | Doors, windows, passageways and the characters’ depth | Separate layers of space through differences in brightness or colour |\n\n“Dark, atmospheric lighting” does not tell the audience where to look. Decide the shot’s job first so you can tell whether a darkened face is intentional or a mistake."
+          "zh": "同一个房间不需要每镜都一样亮，但每镜都要服务当前信息。先把职责归到下表，再决定亮暗。\n\n| 职责 | 保留与选择 |\n|---|---|\n| 读表情 | 需要保住: 眼睛、嘴角或呼吸变化; 可采用的光线选择: 面部保留层次，暗侧仍能辨认关键表演 |\n| 看证据 | 需要保住: 物件形状、刻痕或文字; 可采用的光线选择: 让证据与桌面产生局部对比，不必把全屋照亮 |\n| 暂扣身份 | 需要保住: 轮廓存在，但脸不被认出; 可采用的光线选择: 让人物落在暗区或形成剪影，同时守住既有光源方向 |\n| 建立空间 | 需要保住: 门窗、通道和人物层次; 可采用的光线选择: 用前后景亮度或色彩层级分开空间 |\n\n“阴暗、氛围感强”没有说明观众该看哪里。先写职责，才能判断脸被压暗是设计还是错误。",
+          "en": "Brightness can vary from shot to shot in the same room; each shot should still serve the information being conveyed. Classify the job first, then decide how light or dark the image should be.\n\n| Job | Keep and light |\n|---|---|\n| Read an expression | What must remain visible: Eyes, the corner of a mouth or a change in breathing; Possible lighting choice: Preserve facial shape; keep the key performance legible on the shadow side |\n| See evidence | What must remain visible: An object’s shape, engraving or writing; Possible lighting choice: Create local contrast between the evidence and the tabletop without lighting the entire room |\n| Withhold identity for now | What must remain visible: A visible outline without a recognisable face; Possible lighting choice: Place the figure in shadow or silhouette while preserving the established light-source direction |\n| Establish space | What must remain visible: Doors, windows, passageways and the characters’ depth; Possible lighting choice: Separate layers of space through differences in brightness or colour |\n\n“Dark, atmospheric lighting” does not tell the audience where to look. Decide the shot’s job first so you can tell whether a darkened face is intentional or a mistake."
         }
       },
       {
@@ -10899,8 +10900,8 @@
           "en": "Original Example: A Warranty Slip in a Watch Shop at Night"
         },
         "body": {
-          "zh": "场景：修表师温岑在打烊后的铺子里核对一张保修单。店内顶灯已经关闭，只剩工作台灯和街外招牌反光。学徒站在门边，暂时不知道单据上的签名是自己父亲。\n\n**镜头一，先让证据可读**：中近景看温岑与工作台。提示写“暖色台灯位于画面右下方，保修单与温岑手指受光；她面向镜头的一侧脸颊有柔和亮度，眼睛可辨。门边学徒落在较暗的冷色招牌反光里，轮廓与门框分开，脸部细节暂不强调。”\n\n**镜头二，注意转到学徒**：反打仍沿用台灯在空间中的位置，不把它搬到学徒正面。写“画面左后方的台灯余光勾出学徒靠近桌边后的手背；街外冷色反光保留在他脸侧，签名被念出后眼睛与停住的呼吸可辨。”\n\n变化的是注意中心和取景，不是店里突然多了一盏灯。若第二镜为了“好看”变成均匀正面光，空间事实和揭示节奏都会断。",
-          "en": "Scene: After closing, watchmaker Wen Cen checks a warranty slip in her shop. The overhead light is off; only the workbench lamp and reflections from a sign outside remain. The apprentice stands near the door and does not yet know that the signature on the slip is his father’s.\n\n**Shot 1 — Make the evidence legible:** A medium close shot of Wen Cen and the workbench. Prompt: “A warm bench lamp sits at the lower right of the frame, illuminating the warranty slip and Wen Cen’s fingers. The cheek facing camera has soft light; her eyes are legible. The apprentice by the door falls into cooler, dimmer reflected light, his outline separated from the doorframe; do not emphasise facial detail yet.”\n\n**Shot 2 — Shift attention to the apprentice:** In the reverse shot, keep the lamp in the same place in the room; do not move it in front of the apprentice. Prompt: “Spill from the bench lamp at the back left of the frame catches the apprentice’s hand as he moves closer to the table. Cool reflections from the street remain along the side of his face. Once the signature is read aloud, his eyes and the tension around them remain visible as he holds his breath.”\n\nThe framing and point of attention change, not the number of lamps in the shop. If the second shot uses even frontal light just to look attractive, both the spatial facts and the timing of the reveal break."
+          "zh": "场景：修表师温岑在打烊后的铺子里核对一张保修单。店内顶灯已经关闭，只剩工作台灯和街外招牌反光。学徒站在门边，暂时不知道单据上的签名是自己父亲。\n\n**镜头一，先让证据可读**：中近景看温岑与工作台。提示写“暖色台灯位于画面右下方，保修单与温岑手指受光；她面向镜头的一侧脸颊有柔和亮度，眼睛可辨。门边学徒落在较暗的冷色招牌反光里，轮廓与门框分开，脸部细节暂不强调。”\n\n**镜头二，注意转到学徒**：反打仍沿用台灯在空间中的位置，不把它搬到学徒正面。写“画面左后方的台灯余光勾出学徒靠近桌边后的手背；街外冷色反光保留在他脸侧，温岑实际读出签名后眼睛与屏住呼吸时停下的动作与眼睛仍可辨。”\n\n变化的是注意中心和取景，不是店里突然多了一盏灯。若第二镜为了“好看”变成均匀正面光，空间事实和揭示节奏都会断。\n\n两个提示中的左右均指画面；反打后的画面方位须由实际机位与人物站位确认，本例的左后方不是所有反打的固定规则。提示是待检查的意图，不保证生成结果。串看时核对台灯是否真在同一空间位置、人物是否已走到桌边、必要文字与反应是否读得清；错误光向回上游修订。",
+          "en": "Scene: After closing, watchmaker Wen Cen checks a warranty slip in her shop. The overhead light is off; only the workbench lamp and reflections from a sign outside remain. The apprentice stands near the door and does not yet know that the signature on the slip is his father’s.\n\n**Shot 1 — Make the evidence legible:** A medium close shot of Wen Cen and the workbench. Prompt: “A warm bench lamp sits at the lower right of the frame, illuminating the warranty slip and Wen Cen’s fingers. The cheek facing camera has soft light; her eyes are legible. The apprentice by the door falls into cooler, dimmer reflected light, his outline separated from the doorframe; do not emphasise facial detail yet.”\n\n**Shot 2 — Shift attention to the apprentice:** In the reverse shot, keep the lamp in the same place in the room; do not move it in front of the apprentice. Prompt: “Spill from the bench lamp at the back left of the frame catches the apprentice’s hand as he moves closer to the table. Cool reflections from the street remain along the side of his face. After Wen Cen actually reads the signature aloud, his eyes and the tension around them remain visible as he holds his breath.”\n\nThe framing and point of attention change, not the number of lamps in the shop. If the second shot uses even frontal light just to look attractive, both the spatial facts and the timing of the reveal break.\n\nLeft and right in these prompts mean screen direction. Confirm the reverse shot's direction from the actual camera and blocking; back left is not a universal reverse-shot rule. A prompt states an intention, not a guaranteed generation result. Review the shots together for the same lamp position, the apprentice's move to the table, and readable required text and reaction. Fix an incorrect source direction upstream."
         }
       },
       {
@@ -10910,8 +10911,8 @@
           "en": "How to Fix Common Lighting-Prompt Failures"
         },
         "body": {
-          "zh": "| 失败写法 | 为什么失效 | 修正 |\n|---|---|---|\n| 电影感布光，质感高级 | 没有光源、方向或画面结果 | 写实际光源与必须读到的表面、脸或证据 |\n| 所有人都有轮廓光 | 把一种效果当成默认配置 | 只有需要与背景分离时才写，且说明光从何处来 |\n| 每镜亮度数值完全一致 | 景别和视角变化仍会改变画面亮度 | 保持光源关系与色调逻辑，比较可对应的脸、衣物和墙面 |\n| 参考板很亮，所以夜戏也照亮 | 角色板照明只为看清形制 | 明确参考图管身份，本镜灯光按场景事实设计 |\n| 为神秘感压黑全部脸 | 同时丢掉必须读的反应 | 指定哪张脸暂扣、哪项表演仍须可见 |",
-          "en": "| Weak prompt | Why it fails | Revision |\n|---|---|---|\n| Cinematic lighting, premium texture | Gives no source, direction or visible result | Name the actual source and the surface, face or evidence that must be readable |\n| Everyone gets a rim light | Treats one effect as a default setting | Add it only when separation from the background is needed, and state where the light comes from |\n| Use exactly the same brightness in every shot | Shot size and viewpoint still change perceived brightness | Preserve source relationships and colour logic; compare corresponding faces, clothing and walls |\n| The reference board is bright, so light the night scene brightly too | Reference-character lighting exists to show design clearly | Specify that the reference controls identity, while the shot’s lighting follows the scene facts |\n| Darken every face for mystery | Also hides reactions that need to be read | Specify whose identity is withheld and which performance must remain visible |"
+          "zh": "| 写法 | 问题与修正 |\n|---|---|\n| 电影感布光，质感高级 | 为什么失效: 没有光源、方向或画面结果; 修正: 写实际光源与必须读到的表面、脸或证据 |\n| 所有人都有轮廓光 | 为什么失效: 把一种效果当成默认配置; 修正: 只有需要与背景分离时才写，且说明光从何处来 |\n| 每镜亮度数值完全一致 | 为什么失效: 景别和视角变化仍会改变画面亮度; 修正: 保持光源关系与色调逻辑，比较可对应的脸、衣物和墙面 |\n| 参考板很亮，所以夜戏也照亮 | 为什么失效: 角色板照明只为看清形制; 修正: 明确参考图管身份，本镜灯光按场景事实设计 |\n| 为神秘感压黑全部脸 | 为什么失效: 同时丢掉必须读的反应; 修正: 指定哪张脸暂扣、哪项表演仍须可见 |",
+          "en": "| Prompt | Issue and fix |\n|---|---|\n| Cinematic lighting, premium texture | Why it fails: Gives no source, direction or visible result; Revision: Name the actual source and the surface, face or evidence that must be readable |\n| Everyone gets a rim light | Why it fails: Treats one effect as a default setting; Revision: Add it only when separation from the background is needed, and state where the light comes from |\n| Use exactly the same brightness in every shot | Why it fails: Shot size and viewpoint still change perceived brightness; Revision: Preserve source relationships and colour logic; compare corresponding faces, clothing and walls |\n| The reference board is bright, so light the night scene brightly too | Why it fails: Reference-character lighting exists to show design clearly; Revision: Specify that the reference controls identity, while the shot’s lighting follows the scene facts |\n| Darken every face for mystery | Why it fails: Also hides reactions that need to be read; Revision: Specify whose identity is withheld and which performance must remain visible |"
         }
       },
       {
@@ -10921,8 +10922,8 @@
           "en": "Four Steps from Storyboard to Review"
         },
         "body": {
-          "zh": "1. 圈出本镜唯一最重要的脸、动作或证据。\n2. 从场景设定列出现有光源与开关状态，不临时造灯。\n3. 写方向加结果，再写主体与背景如何分开。\n4. 串看相邻镜：光源方向或剧情光态错了就回上游修；轻微曝光、白平衡差异才考虑后期校正。\n\n需要生成提示时，把这一页的灯光句与人物、场景、动作要求合并；不要让一串灯光词盖住镜头职责。",
-          "en": "1. Circle the single most important face, action or piece of evidence in the shot.\n2. List the existing light sources and switch states from the scene description; do not invent a lamp at the last minute.\n3. State direction and visible result, then how the subject separates from the background.\n4. Review adjacent shots together. If light direction or the story’s lighting state is wrong, fix it upstream. Reserve post-production correction for minor exposure or white-balance differences.\n\nWhen generating a prompt, combine the lighting sentence with the character, scene and action requirements. Do not let a string of lighting terms obscure the shot’s purpose."
+          "zh": "1. 圈出本镜主要需要读到的脸、动作或证据；相关反应或空间可以同时保留。\n2. 从场景设定列出现有光源与开关状态，不临时造灯。\n3. 写方向加结果，再写主体与背景如何分开。\n4. 串看相邻镜：光源方向或剧情光态错了就回上游修；轻微曝光、白平衡差异才考虑后期校正。\n\n需要生成提示时，把这一页的灯光句与人物、场景、动作要求合并；不要让一串灯光词盖住镜头职责。",
+          "en": "1. Circle the main face, action, or evidence the shot needs to convey; related reactions or spatial information may remain.\n2. List the existing light sources and switch states from the scene description; do not invent a lamp at the last minute.\n3. State direction and visible result, then how the subject separates from the background.\n4. Review adjacent shots together. If light direction or the story’s lighting state is wrong, fix it upstream. Reserve post-production correction for minor exposure or white-balance differences.\n\nWhen generating a prompt, combine the lighting sentence with the character, scene and action requirements. Do not let a string of lighting terms obscure the shot’s purpose."
         }
       }
     ],
@@ -10966,10 +10967,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "光的设计",
+          "en": "Lighting design"
         },
-        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/SKILL.md"
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/lighting-craft.md"
+      },
+      {
+        "label": {
+          "zh": "镜头职责与揭示",
+          "en": "Shot responsibilities and reveals"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/shot-craft.md"
       }
     ]
   },
@@ -12352,7 +12360,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "电竞小说怎么写：让规则、操作与团队反馈决定胜负",
       "en": "Esports Fiction: Rules, Plays & Team Feedback Decide the Match"
@@ -12399,8 +12407,8 @@
           "en": "Original Example: The Last Relay Tower in Magnetic Rails"
         },
         "body": {
-          "zh": "虚构团队竞技游戏《磁轨阵》中，两队要连接三座中继塔，把能量送回基地。决胜局只剩北塔未归属。程未所在队伍落后一分，队友催他抢塔；对手的主力却始终没在小地图出现。\n\n程未注意到南侧废轨每隔数秒会亮一次，说明对手正借旧线路蓄能，等他们全员北上后切断退路。他没有开启冷却最长的突进技能抢塔，而是故意让侦察单位在北塔暴露，自己保留位移，沿废轨退回中段。\n\n对手果然现身截断北路。程未用保留的位移越过封锁，关闭南侧蓄能节点；队友失去抢塔人数优势，却重新获得两条补给线。接下来他们不靠一次“神操作”直接获胜，而是用补给优势逼对手分兵，再回北塔完成占领。\n\n这段胜负可复盘：信号是周期亮轨，取舍是暂缓抢塔，操作是保留位移拆节点，结果先改变地图资源，再改变比分。",
-          "en": "In the fictional team game *Magnetic Rails*, two teams must connect three relay towers and send energy back to base. In the deciding game, only the north tower remains unclaimed. Cheng Wei’s team trails by one point, and his teammates urge him to rush the tower. The opponent’s key player, however, has not appeared on the minimap.\n\nCheng Wei notices that the abandoned south rail lights up every few seconds. The signal means the opponent is charging through an old line and waiting to cut off the retreat once Cheng Wei’s entire team moves north. Instead of using his longest-cooldown dash to seize the tower, he deliberately exposes a scout unit at the north tower, keeps his mobility option, and retreats along the abandoned rail toward the center.\n\nThe opponent appears and blocks the northern route as expected. Cheng Wei uses the preserved dash to cross the blockade and shuts down the southern charging node. His team loses its numerical advantage at the tower but regains two supply routes. They do not win immediately through one miraculous play. They use the supply advantage to force the opponent to split, then return north and complete the capture.\n\nThe result can be reconstructed: the recurring rail light is the signal, delaying the tower is the trade-off, preserving mobility to dismantle the node is the execution, and the outcome changes map resources before it changes the score."
+          "zh": "这是虚构游戏《磁轨阵》，不对应真实赛事。先到6分获胜；三座塔连续接通本队基地后，一次完整送能记2分，中断线路则不计这次送能。本段我方2分、对方4分，南塔与中塔已在我方控制下，北塔中立。需要夺北塔并守住送能，才能先追平；占塔本身不加这2分。\n\n本例通过完成塔基面板连接取得塔的控制权。地图还有东、西两条北塔至中段的补给通道。对方若在南侧废轨节点完成蓄能，可关闭这两条通道上的门；有人关闭节点，门才重新打开。节点蓄能时轨灯会周期闪亮，双方都能看见。中段至节点有一处普通步行跨不过的断轨，程未尚未使用的短距位移能跨过去，使用后需等冷却。本例先交代这些规则，不能等翻盘时才补。\n\n程未发现亮轨，对手主力却没在己方可见区域出现。他只能判断节点在蓄能，不能据此断言对方全员埋伏或知道其目的。他在队内说：“北边先别全进，我去停节点。”队友答应留一人在中段，另两人跟侦察单位试探北塔。他放弃跟队抢塔，保留位移，沿废轨退到中段。\n\n侦察单位到北塔后，对手主力实际现身拦截，两条通道的门也关上。程未从中段用位移跨断轨到节点，完成关闭；队友看到门重新打开，才从两条路交替支援北塔。一人从东通道牵住对手，另一人从西通道进入塔基，完成面板连接。北塔被夺后，对手转攻中塔，留守队友报告这个变化；北侧一人回援，另一人守北塔，程未留在节点附近避免它立刻被重新启动。\n\n屏幕出现本次完整送能记录，我方从2分变4分，比分4:4。到这里只追平，没有宣布最终获胜。对手仍有下一轮反制，程未的位移还在冷却。信号、取舍、执行、配合和结算都可核对：亮轨提示节点状态，关闭节点恢复通道，队友实际使用通道，守住完整线路后才得到分数。",
+          "en": "This is the fictional game Magnetic Rail Array, not a real event. The first team to six points wins. One complete energy delivery through all three towers to a team's base scores two; an interrupted route scores nothing for that delivery. Here the protagonists have two points and their opponents four. They control the south and middle towers; the north tower is neutral. Capturing it and protecting a delivery would draw level. Capture alone does not award those two points.\n\nCompleting the tower-base panel connection grants control in this example. East and west supply passages connect the north tower to the middle area. Opponents can charge a node on the disused southern rail to close gates on both passages; shutting down the node reopens them. Its rail lights pulse while charging, visible to either side. A gap between the middle area and node cannot be crossed on foot, but Cheng Wei's unused short dash can cross it and then enters cooldown. Establish these rules before the reversal rather than adding them when needed.\n\nCheng sees the pulsing rail while the opposing lead player is absent from his team's visible area. The pulse establishes charging, not an entire ambush or the opponents' intention. He says over team comms, “Don't all go north. I'll stop the node.” His teammates agree to keep one player in the middle while two follow the scout toward the north tower. He gives up joining the rush, keeps his dash, and returns along the disused rail to the middle.\n\nAfter the scout reaches north, the opposing lead player actually appears to intercept it and the passage gates close. Cheng dashes across the gap from the middle to the node and shuts it down. His teammates see the gates reopen, then use alternating passages to support north. One player engages the opponent from the east passage while the other reaches the tower base from the west and completes the panel connection. After north is taken, the opposition turns toward the middle tower. The teammate stationed there reports this; one northern player returns to help, the other guards north, and Cheng stays near the node to prevent immediate reactivation.\n\nThe display records a complete delivery: their score rises from two to four, making it 4–4. This is a draw so far, not a declared final victory. The opponents retain a countermove and Cheng's dash is still cooling down. The signal, trade-off, execution, coordination, and result are checkable: pulsing shows node state, shutdown restores passages, teammates actually use them, and only a protected complete route produces points."
         }
       },
       {
@@ -12410,8 +12418,8 @@
           "en": "Teammates, Opponents, Commentators, and Spectators See Different Layers"
         },
         "body": {
-          "zh": "队友关心配合是否接得上、谁承担失误；对手关心暴露了什么习惯、下一轮如何封堵；解说负责指出赛点与规则影响；观众只提供公开反馈的一部分。四种声音不能都在重复“太强了”。\n\n训练章也要有目标和反馈，但不必硬塞比赛。可以修正一个读图盲点、重排沟通顺序、暴露队内职责冲突，或让旧打法在模拟对抗中失败。成长落在决策和协作变化上，不只落在数值增加。",
-          "en": "Teammates care whether the team can follow through and who bears the cost of a mistake. Opponents care which habit was exposed and how to block it next time. Commentators identify match point and the effect of rules. Spectators provide only part of the public reaction. All four voices should not repeat “That was incredible.”\n\nTraining chapters also need objectives and feedback, but do not need a full match forced into them. They can correct a blind spot in map reading, reorder communication, expose a conflict in team responsibilities, or make an old tactic fail during a scrimmage. Growth appears in decisions and cooperation, not only in higher numbers."
+          "zh": "队友关心配合是否接得上、谁承担失误；对手关心暴露了什么习惯、下一轮如何封堵；解说负责指出赛点与规则影响；观众只提供公开反馈的一部分。四种声音不能都在重复“太强了”。\n\n训练章也要有目标和反馈，但不必硬塞比赛。可以修正一个读图盲点、重排沟通顺序、暴露队内职责冲突，或让旧打法在模拟对抗中失败。成长落在决策和协作变化上，不只落在数值增加。\n\n题材卡的目标、操作和反馈是起步参考，不是每章必须三项齐全。休整、陪伴或关系余波可以另有作用；本书文风与作者当前选择优先，因果、既有规则和信息边界仍需核对。",
+          "en": "Teammates care whether the team can follow through and who bears the cost of a mistake. Opponents care which habit was exposed and how to block it next time. Commentators identify match point and the effect of rules. Spectators provide only part of the public reaction. All four voices should not repeat “That was incredible.”\n\nTraining chapters also need objectives and feedback, but do not need a full match forced into them. They can correct a blind spot in map reading, reorder communication, expose a conflict in team responsibilities, or make an old tactic fail during a scrimmage. Growth appears in decisions and cooperation, not only in higher numbers.\n\nThe genre card's goals, actions, and feedback are starting references, not a required trio in every chapter. Rest, companionship, and relationship aftermath may serve other functions. The book's style and the author's current choices take precedence, while causality, established rules, and information boundaries still need checking."
         }
       },
       {
@@ -12451,8 +12459,8 @@
     "skill": {
       "name": "story-long-write",
       "text": {
-        "zh": "在 Claude Code 里说：“用 /story-long-write 规划这部虚构电竞长篇，先定义本场目标、关键规则、限制、信息差和团队职责，再把决胜段写成信号—取舍—执行—反制—结算，不写完整正文”（Codex 里使用 `$story-long-write`）。",
-        "en": "In Claude Code, say: “Use `/story-long-write` to plan this fictional esports novel. Define the match objective, key rules, constraints, information gaps, and team responsibilities, then structure the decisive passage as signal → trade-off → execution → counter → resolution. Do not write the full prose.” In Codex, use `$story-long-write`."
+        "zh": "用 /story-long-write（Codex 中用 $story-long-write）检查我的虚构电竞比赛方案：按本书文风列关键规则、目标、可见信号与未知、选择、队内回应和实际结算。指出需要先建立的规则及从猜测跳到事实的位置；这轮只交修改建议，不写完整正文。",
+        "en": "Use /story-long-write ($story-long-write in Codex) to check my fictional esports match plan in the book's chosen style. Identify key rules, the goal, visible signals and unknowns, choices, team responses, and actual scoring. Flag rules that need earlier establishment and guesses presented as facts. Return revision advice rather than a complete prose draft in this pass."
       },
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
     },
@@ -12466,17 +12474,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "游戏体育正文提示卡",
+          "en": "Games and sports prose card"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-prose-cards/游戏体育.md"
       },
       {
         "label": {
-          "zh": "题材写作方法",
-          "en": "Genre writing method"
+          "zh": "文风与默认建议裁决",
+          "en": "Style and default-method resolution"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-prose-cards/游戏体育.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ]
   },
@@ -13460,7 +13468,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "身体互换短剧怎么写：让身份限制改变完成任务的方法",
       "en": "How to Write a Body-Swap Short Drama: Make Identity Change the Method"
@@ -13474,8 +13482,8 @@
       "en": "Tie an external task to identity permissions, recognition cues, and the cost of exposure. Includes an identity map and an original beat-by-beat example."
     },
     "answer": {
-      "zh": "先给人物一件换不换身体都必须处理的事，再让当前身份缺少完成它的权限或能力。每次解围先推进任务，再留下被误认后的关系后果。观众需要知道谁在谁的身体里、谁相信哪种身份，以及怀疑者依据什么改变判断；这些信息要通过行动和可见证据呈现。",
-      "en": "Give the characters a task they would need to handle even without the body swap, then make their current identities lack the permission or ability required to complete it. Each escape should first advance the task and then leave a relationship consequence caused by mistaken identity. The audience must know who inhabits which body, who believes which identity, and what evidence changes a skeptic’s judgment. Show that information through action and visible evidence."
+      "zh": "先给人物一件换不换身体都要处理的事，再让当前外形、身份期待、能力或权限改变完成方法。明确意识在谁的身体、技能和记忆按什么规则变化，以及各人知道或误信什么；随后写实际行动、任务结果和错认留下的关系余波。观众可以早知互换，角色仍需按自己的信息作决定。",
+      "en": "Give the characters a task that matters with or without the swap, then let appearance, identity expectations, ability, or authority change how they can do it. Define whose mind occupies each body, how skills and memory work, and what people know or mistakenly believe. Show action, the task result, and relationship consequences of misidentification. The audience may know the swap early while characters decide from their own information."
     },
     "sections": [
       {
@@ -13507,8 +13515,8 @@
           "en": "Original Example: The Opening Tour After a Body Swap"
         },
         "body": {
-          "zh": "架空故事中，展览讲解员季棠与模型修复师罗简互换身体。记忆和专业知识跟随意识，外形与声音留在身体，两人已向观众确认这一规则。开幕前发现展柜里的桥梁模型少装了一处连接件，必须先修正再开放；现场负责人只允许登记在册的修复师进入围栏。\n\n| 推进 | 任务怎样变化 | 身份留下什么后果 |\n|---|---|---|\n| 季棠身在罗简身体，获准进围栏 | 能接近模型，却不知道零件该装在哪 | 负责人要求她解释修复步骤，她开始露怯 |\n| 罗简身在季棠身体，在围栏外借导览图指点位置 | 季棠照着明确指示完成装配，模型可开放 | 同事发现平时负责讲解的人突然懂了内部构造 |\n| 两人想恢复当天分工，却仍被按外形安排 | 负责人让季棠继续检查其他展品，罗简要上台讲开场词 | 解决模型故障只换来更难维持的角色期待 |\n\n开幕词中有季棠与志愿者约定的临场交接，罗简并不知道。季棠决定先向负责人说明两人暂时无法按原岗位工作，请求暂停换班安排，并让对方现场分别核验两人的知识。她必须承担导览延误和被质疑的后果，不能再靠对方认错人获得便利。\n\n这一段不要求负责人立刻相信超自然解释。可见的结果是：两人被重新分配到能胜任的工作，同事开始追问刚才的反常。修复任务已经完成，身份问题却进入了更难回避的关系阶段。",
-          "en": "In this fictional story, exhibition guide Ji Tang and model conservator Luo Jian swap bodies. Memory and professional knowledge follow consciousness; appearance and voice remain with the body. The story has already confirmed these rules for the audience. Before opening, they discover that a connector is missing from the bridge model inside a display case. It must be repaired before visitors enter, but the site manager allows only the registered conservator inside the barrier.\n\n| Beat | How the task changes | Consequence left by identity |\n|---|---|---|\n| Ji Tang, in Luo Jian’s body, is admitted inside the barrier | She can reach the model but does not know where the part belongs | The manager asks her to explain the repair procedure, exposing her uncertainty |\n| Luo Jian, in Ji Tang’s body, uses the tour diagram to direct her from outside | Following precise instructions, Ji Tang completes the assembly and the exhibit can open | A coworker notices that the usual guide suddenly understands the internal structure |\n| They try to resume their usual duties but are still assigned by appearance | The manager tells Ji Tang to inspect more exhibits and expects Luo Jian to deliver the opening remarks | Fixing the model only creates harder role expectations to maintain |\n\nThe opening remarks include an improvised handoff that Ji Tang arranged with a volunteer, which Luo Jian does not know. Ji Tang decides to tell the manager that neither of them can temporarily perform the role expected of their appearance. She asks the manager to suspend the shift assignments and test each person’s knowledge separately on the spot. She must accept a delayed tour and the resulting doubt rather than continue benefiting from being mistaken for someone else.\n\nThe manager need not immediately believe a supernatural explanation. The visible result is that both are reassigned to work they can perform, while coworkers begin questioning the earlier anomalies. The repair task is complete, but the identity problem has entered a harder-to-avoid relationship stage."
+          "zh": "架空故事中，讲解员季棠与模型修复师罗简互换身体。记忆和专业知识跟随意识，外形与声音留在身体；本例两人的手部活动能力未受影响，但季棠并不会因此自动掌握修复经验。观众从此前场景已知道互换，现场负责人还按外形认人。\n\n开幕前，桥梁展示模型的一枚塑料连接件松脱。只需按图把它扣回有C标记的槽位，再检查模型稳定，不涉及复杂修复。现场规则只允许已登记修复师进入围栏，其他人可在外提供信息；开幕须等负责人完成检查。\n\n| 推进 | 任务与身份后果 |\n|---|---|\n| 季棠在罗简身体里进入围栏 | 她获准接近模型，但不会定位。负责人问槽位，她答不上来；权限没有替她补知识。 |\n| 罗简在季棠身体里从围栏外指图 | 他指明C槽与扣合方向。季棠依次确认标记、照指示扣回，负责人检查稳定后开放模型。同事看见“讲解员”提供内部知识，但这不证明互换。 |\n| 原来的岗位期待继续 | 负责人让罗简外形的人继续查展品，让季棠外形的人讲开幕词。任务完成没有消除身份错认。 |\n\n罗简不知道季棠与志愿者约定的临场交接。季棠说明两人今天无法按惯常分工，提出先核验能力再安排；她没有要求负责人立刻相信超自然解释。负责人实际暂停换班，拿导览卡分别提问，再让两人指出另一处模型的编号。季棠回答导览流程，罗简说明模型位置；负责人据此同意本次由能回答导览问题的人讲解，另一人在围栏外协助检查，其余模型的入内检查由负责人亲自完成。\n\n季棠随后向志愿者说明本次谁负责导览，两人与志愿者实际试了一次开场交接，再开始导览。本次先核验耽误了开场，同事仍会追问；结果是本次岗位得到有条件调整，不是所有人已承认互换、获得永久新权限或解决了关系问题。",
+          "en": "In this fictional story, exhibition guide Ji Tang swaps bodies with model restorer Luo Jian. Memory and professional knowledge follow the mind; appearance and voice stay with the body. Neither person loses ordinary hand movement, but Ji does not automatically gain restoration experience. The audience learned about the swap earlier; the supervisor still identifies them by appearance.\n\nBefore opening, a plastic connector comes loose on a bridge display model. The task is simply to clip it into the diagram's slot marked C and check stability, not perform a complex restoration. This exhibition allows only the registered restorer inside the barrier; others may offer information from outside. Opening waits for the supervisor's inspection.\n\n| Step | Task and identity |\n|---|---|\n| Ji enters in Luo's body | She is allowed near the model but cannot locate the socket. When the supervisor asks, she cannot answer; permission has supplied no knowledge. |\n| Luo points from outside in Ji's body | He identifies slot C and the clipping direction. Ji checks the mark, follows his instructions, and the supervisor checks stability before opening the model. A colleague sees the “guide” supplying internal knowledge, which does not prove a swap. |\n| Old job expectations continue | The supervisor assigns Luo's appearance more inspection work and Ji's appearance the opening speech. Completing the task has not ended misidentification. |\n\nLuo does not know Ji's agreed cue with the volunteers. Ji explains that they cannot use their usual division of work today and requests a skills check first, without asking the supervisor to believe a supernatural explanation. The supervisor actually pauses the changeover, asks each person questions from the tour card, and asks them to identify another model's number. Ji answers about the tour; Luo identifies the model. On that basis the supervisor agrees, for this occasion, that the person who answered the tour questions will guide and the other will assist checks from outside. The supervisor personally completes the remaining checks inside the barrier.\n\nJi then tells the volunteer who will guide this time, and they rehearse the opening handoff once together before starting the tour. The checks have delayed opening and colleagues still have questions. The result is a conditional adjustment to today's duties, not universal belief in the swap, permanent new authority, or a resolved relationship."
         }
       },
       {
@@ -13529,8 +13537,8 @@
           "en": "Check Whether the Middle Merely Repeats Misrecognition"
         },
         "body": {
-          "zh": "每段结束问：任务推进了哪一步？谁因误认作出新决定？谁的怀疑多了一条依据？人物为保密承担了什么？\n\n如果只换地点重演同一个笑话，可以缩短。下一段应让上一段留下的承诺、追问或责任继续起作用。结尾可以恢复原状，也可以继续互换，但人物必须处理已经造成的关系后果；换回身体不会自动撤销代替别人许下的话。",
-          "en": "At the end of each segment, ask: How did the task advance? Who made a new decision because of mistaken identity? What new evidence does a skeptic have? What did the characters bear in order to keep the secret?\n\nIf the segment merely repeats the same joke in a new location, shorten it. The next segment should carry forward a promise, question, or responsibility left by the last one. The ending may restore the original bodies or leave the swap in place, but the characters must address the relationship consequences already created. Returning to their bodies does not automatically revoke promises made while standing in for one another."
+          "zh": "每段结束可检查：任务推进或失败了什么？谁因误认作出决定？怀疑来自哪项观察，是否仍不够证明？人物承诺了什么，实际回应是什么？这些问题帮助找因果缺口，不要求每段全有新信息、新损失和新笑点。\n\n若只换地点重复同一个笑话，可以缩短；若重复用于节奏、人物习惯或关系回味，则检查它是否仍有作用。上一段留下的承诺、追问和责任要承接；结尾可以恢复原状或继续互换，换回身体也不会自动撤销替别人许下的话。",
+          "en": "At a passage's end, ask what advanced or failed, who decided something because of misidentification, what observation created suspicion and what it still cannot prove, and what was promised versus answered. These questions locate causal gaps; they do not demand new information, a new loss, and a new joke in every passage.\n\nChanging locations to repeat the same gag may call for compression. Repetition used for rhythm, habit, or enjoying a relationship should be judged by its function. Carry forward promises, questions, and responsibilities. The ending may restore the bodies or continue the swap; changing back does not automatically cancel promises made in someone else's name."
         }
       }
     ],
@@ -13574,8 +13582,15 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "身份错位题材卡",
+          "en": "Identity-displacement genre card"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/genre-cards/身份错位.md"
+      },
+      {
+        "label": {
+          "zh": "开发范围与默认建议",
+          "en": "Development scope and defaults"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/SKILL.md"
       }
@@ -17147,7 +17162,7 @@
       "en"
     ],
     "published_on": "2026-09-27",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "短剧只有一个点子怎么写：人物、冲突与分集计划",
       "en": "How to Develop an Idea into a Short-Drama Series"
@@ -17183,8 +17198,8 @@
           "en": "Write a Compact Creative Brief First"
         },
         "body": {
-          "zh": "创作简报只记录会约束后续选择的决定。未知项写“待确认”，不要用大段世界观填空，也不要替创作者猜答案。可以先填写这些字段：\n\n| 字段 | 本例工作答案 |\n|---|---|\n| 原始点子 | 周遥代班管理社区服务站，希望每项求助都有着落 |\n| 观众反复获得的回报 | 看见一条看似公平的处理办法解决眼前问题，又暴露新的利益与关系代价 |\n| 主题张力 | 一视同仁的公平 ↔ 对具体处境的照顾 |\n| 语气与边界 | 现实、温和但不回避利益冲突；不把求助者写成笑料或恶人 |\n| 焦点人物与追求 | 周遥要维持服务承诺，并证明自己有能力独立协调 |\n| 昂贵阻力 | 志愿时数和服务名额有限；居民掌握不同证据与公共影响力，任何例外都可能成为先例 |\n| 独特矛盾 | 周遥越公开规则，越容易被人据此挑战；越私下通融，越损害规则可信度 |\n| 终止性转变 | 当分配权变成居民共同承担的责任，或周遥不再以“我必须让所有人满意”行动，旧引擎就会变形 |\n\n再补上项目实际已有的语言、观看场景、可用人物与场地规模、难以承受的制作元素，以及结局承诺或禁区。这里只确认项目方向，不写对白、场面调度、首集开场或分集节点。若一句字段不能影响人物选择或内容边界，就先删掉，而不是把简报扩成设定百科。",
-          "en": "A creative brief records only decisions that constrain later choices. Mark unknowns as “to be confirmed” instead of filling the page with lore or guessing on the creator's behalf. Start with these fields:\n\n| Field | Working answer for this example |\n|---|---|\n| Original idea | Zhou Yao runs the neighborhood service center temporarily and wants every request to find an answer |\n| Repeatable audience reward | A seemingly fair rule solves the immediate problem, then exposes a new cost in interests or relationships |\n| Thematic tension | Equal treatment versus care for a particular circumstance |\n| Tone and boundaries | Realistic and humane without avoiding material conflict; people seeking help are neither jokes nor villains |\n| Focus and pursuit | Zhou Yao wants to preserve the center's service promise and prove she can coordinate on her own |\n| Costly resistance | Volunteer hours and service slots are limited; residents hold different evidence and public influence, and any exception may become precedent |\n| Distinctive contradiction | The more openly Zhou Yao states a rule, the easier it is to challenge through that rule; the more she makes private exceptions, the less credible the system becomes |\n| Terminal change | The old engine transforms once allocation becomes a responsibility residents share, or once Zhou Yao stops acting from “I must satisfy everyone” |\n\nAdd only the project's real constraints: primary language, viewing context, feasible cast and locations, unaffordable production elements, and any ending promise or prohibited outcome. This stage confirms direction. It does not write dialogue, stage scenes, design an opening episode, or map episode beats. If a field cannot affect a character choice or a content boundary, remove it for now rather than turning the brief into an encyclopedia."
+          "zh": "创作简报只记录会约束后续选择的决定。未知项写“待确认”，不要用大段世界观填空，也不要替创作者猜答案。可以先填写这些字段：\n\n| 字段 | 本例工作答案 |\n|---|---|\n| 原始点子 | 周遥代班管理社区服务站，希望每项求助都有着落 |\n| 观众反复获得的回报 | 看见一条看似公平的处理办法解决眼前问题，又暴露新的利益与关系代价 |\n| 主题张力 | 一视同仁的公平 ↔ 对具体处境的照顾 |\n| 语气与边界 | 现实、温和但不回避利益冲突；不把求助者写成笑料或恶人 |\n| 焦点人物与追求 | 周遥要维持服务承诺，并证明自己有能力独立协调 |\n| 昂贵阻力 | 志愿时数和服务名额有限；居民掌握不同证据与公共影响力，任何例外都可能成为先例 |\n| 独特矛盾 | 周遥越公开规则，越容易被人据此挑战；越私下通融，越损害规则可信度 |\n| 终止性转变 | 当分配权变成居民共同承担的责任，或周遥不再以“我必须让所有人满意”行动，旧引擎就会变形 |\n\n再补上项目实际已有的语言、观看场景、可用人物与场地规模、难以承受的制作元素，以及结局承诺或禁区。这里只确认项目方向，不写对白、场面调度、首集开场或分集节点。若一句字段不能影响人物选择或内容边界，就先删掉，而不是把简报扩成设定百科。\n\n本文表格是供作者比较的节选，不是原生文件的完整复制。技能会按入口起草creative-brief.md与story-engine.md，已有方向可直接深化；项目需要的来源、人物与接受记录仍按实际文件补全，不把本文每个示例字段硬填给所有作品。",
+          "en": "A creative brief records only decisions that constrain later choices. Mark unknowns as “to be confirmed” instead of filling the page with lore or guessing on the creator's behalf. Start with these fields:\n\n| Field | Example |\n|---|---|\n| Original idea | Zhou Yao runs the neighborhood service center temporarily and wants every request to find an answer |\n| Repeatable audience reward | A seemingly fair rule solves the immediate problem, then exposes a new cost in interests or relationships |\n| Thematic tension | Equal treatment versus care for a particular circumstance |\n| Tone and boundaries | Realistic and humane without avoiding material conflict; people seeking help are neither jokes nor villains |\n| Focus and pursuit | Zhou Yao wants to preserve the center's service promise and prove she can coordinate on her own |\n| Costly resistance | Volunteer hours and service slots are limited; residents hold different evidence and public influence, and any exception may become precedent |\n| Distinctive contradiction | The more openly Zhou Yao states a rule, the easier it is to challenge through that rule; the more she makes private exceptions, the less credible the system becomes |\n| Terminal change | The old engine transforms once allocation becomes a responsibility residents share, or once Zhou Yao stops acting from “I must satisfy everyone” |\n\nAdd only the project's real constraints: primary language, viewing context, feasible cast and locations, unaffordable production elements, and any ending promise or prohibited outcome. This stage confirms direction. It does not write dialogue, stage scenes, design an opening episode, or map episode beats. If a field cannot affect a character choice or a content boundary, remove it for now rather than turning the brief into an encyclopedia.\n\nThese tables are editorial excerpts for comparison, not complete copies of native files. The skill drafts creative-brief.md and story-engine.md for the relevant entry point and can deepen an already chosen direction. Complete the source, character, and acceptance information the actual project needs; do not force every example field on every work."
         }
       },
       {
@@ -17194,8 +17209,8 @@
           "en": "Compare Two Mechanisms, Not Two Labels"
         },
         "body": {
-          "zh": "候选方向要改变主角策略、对抗来源、代价或冲突如何再生。下面两条都保留社区服务点子，但驱动方式不同：\n\n| | 方向 A：公开分配规则 | 方向 B：互助信用网络 |\n|---|---|---|\n| 主角策略 | 周遥公布优先标准、申请依据和变更理由，用可解释的排序分配有限服务 | 周遥不再单独分配，而是把求助者与可提供技能、时间的人配对，让“受助”同时产生可选择的互助承诺 |\n| 对抗机制 | 居民补充证明、重述紧急程度、联合质疑例外；每次判定都会制造可援引的先例 | 参与者隐瞒能力、拒绝欠情、转让承诺或结成小圈；网络中的债务与信任不断改写配对可能 |\n| 核心代价 | 周遥承担公开裁决的声誉与关系代价，规则越清楚，争议也越能精确攻击其漏洞 | 周遥接触更多私人处境，若配对失败会同时损害双方信任，还可能让互助变成道德压力 |\n| 反复回报 | 观众看见一次公平判断怎样重新分配资源、话语权和规则解释权 | 观众看见一次互助交换怎样生成新联盟、新债务或拒绝关系 |\n| 终止条件 | 分配权被共同治理取代，或周遥放弃单人裁判身份 | 互助不再依赖周遥居中担保，或社区拒绝用关系债务交换服务 |\n\n方向 B 不是把“排队表”改叫“互助表”。它让周遥从裁判变成撮合者，对抗从规则争议变成债务与信任，失败成本也从公共合法性转向私人关系和隐私。\n\n本例选择**方向 A**，因为它最直接承载“公平与照顾难以兼得”的主题张力，也能用同一处普通服务站呈现权力、证据和联盟的变化。方向 B 留作未选方案，不应在后续悄悄混进既定引擎；若创作者想组合两者，需要重新确认代价和终止条件。",
-          "en": "Candidate directions must change the protagonist's method, the source of opposition, the cost, or the way conflict regenerates. Both options below preserve the neighborhood-service premise, but they run on different mechanisms:\n\n| | Direction A: public allocation rules | Direction B: a mutual-aid credit network |\n|---|---|---|\n| Protagonist's method | Zhou Yao publishes priority criteria, required evidence, and reasons for changes, then allocates scarce services through an explainable order | Instead of allocating alone, Zhou Yao matches people who need help with people who can offer time or skills, allowing assistance to create an optional reciprocal commitment |\n| Opposition mechanism | Residents add evidence, reframe urgency, or organize challenges to exceptions; every ruling creates a precedent others can cite | Participants hide capabilities, reject social debt, transfer commitments, or form cliques; debt and trust continually reshape which matches are possible |\n| Central cost | Zhou Yao absorbs the reputational and relational cost of public judgment; the clearer the rule, the more precisely its gaps can be attacked | Zhou Yao learns more private circumstances; a failed match damages trust on both sides and may turn mutual aid into moral pressure |\n| Repeatable reward | Viewers see one fairness decision redistribute resources, voice, and authority to interpret the rules | Viewers see one exchange create a new alliance, obligation, or refusal |\n| Terminal condition | Shared governance replaces unilateral allocation, or Zhou Yao gives up the role of sole judge | Mutual aid no longer depends on Zhou Yao's guarantee, or the community rejects trading services through relational debt |\n\nDirection B is not the same queue renamed as a mutual-aid list. It changes Zhou Yao from judge to matchmaker, moves opposition from rule disputes to debt and trust, and shifts the cost of failure from public legitimacy to private relationships and privacy.\n\nThis example selects **Direction A** because it carries the tension between equal treatment and particular care most directly, while allowing changes in power, evidence, and alliances to remain visible in one ordinary service center. Direction B stays unselected and should not leak into the accepted engine. Combining them would require the creator to reconsider the costs and terminal condition."
+          "zh": "候选方向要改变主角策略、对抗来源、代价或冲突如何再生。下面两条都保留社区服务点子，但驱动方式不同：\n\n| 项目 | 两种方向 |\n|---|---|\n| 主角策略 | 方向 A：公开分配规则: 周遥公布优先标准、申请依据和变更理由，用可解释的排序分配有限服务; 方向 B：互助信用网络: 周遥不再单独分配，而是把求助者与可提供技能、时间的人配对，让“受助”同时产生可选择的互助承诺 |\n| 对抗机制 | 方向 A：公开分配规则: 居民补充证明、重述紧急程度、联合质疑例外；每次判定都会制造可援引的先例; 方向 B：互助信用网络: 参与者隐瞒能力、拒绝欠情、转让承诺或结成小圈；网络中的债务与信任不断改写配对可能 |\n| 核心代价 | 方向 A：公开分配规则: 周遥承担公开裁决的声誉与关系代价，规则越清楚，争议也越能精确攻击其漏洞; 方向 B：互助信用网络: 周遥接触更多私人处境，若配对失败会同时损害双方信任，还可能让互助变成道德压力 |\n| 反复回报 | 方向 A：公开分配规则: 观众看见一次公平判断怎样重新分配资源、话语权和规则解释权; 方向 B：互助信用网络: 观众看见一次互助交换怎样生成新联盟、新债务或拒绝关系 |\n| 终止条件 | 方向 A：公开分配规则: 分配权被共同治理取代，或周遥放弃单人裁判身份; 方向 B：互助信用网络: 互助不再依赖周遥居中担保，或社区拒绝用关系债务交换服务 |\n\n方向 B 不是把“排队表”改叫“互助表”。它让周遥从裁判变成撮合者，对抗从规则争议变成债务与信任，失败成本也从公共合法性转向私人关系和隐私。\n\n本例选择**方向 A**，因为它最直接承载“公平与照顾难以兼得”的主题张力，也能用同一处普通服务站呈现权力、证据和联盟的变化。方向 B 留作未选方案，不应在后续悄悄混进既定引擎；若创作者想组合两者，需要重新确认代价和终止条件。",
+          "en": "Candidate directions must change the protagonist's method, the source of opposition, the cost, or the way conflict regenerates. Both options below preserve the neighborhood-service premise, but they run on different mechanisms:\n\n| Item | Two directions |\n|---|---|\n| Protagonist's method | Direction A: public allocation rules: Zhou Yao publishes priority criteria, required evidence, and reasons for changes, then allocates scarce services through an explainable order; Direction B: a mutual-aid credit network: Instead of allocating alone, Zhou Yao matches people who need help with people who can offer time or skills, allowing assistance to create an optional reciprocal commitment |\n| Opposition mechanism | Direction A: public allocation rules: Residents add evidence, reframe urgency, or organize challenges to exceptions; every ruling creates a precedent others can cite; Direction B: a mutual-aid credit network: Participants hide capabilities, reject social debt, transfer commitments, or form cliques; debt and trust continually reshape which matches are possible |\n| Central cost | Direction A: public allocation rules: Zhou Yao absorbs the reputational and relational cost of public judgment; the clearer the rule, the more precisely its gaps can be attacked; Direction B: a mutual-aid credit network: Zhou Yao learns more private circumstances; a failed match damages trust on both sides and may turn mutual aid into moral pressure |\n| Repeatable reward | Direction A: public allocation rules: Viewers see one fairness decision redistribute resources, voice, and authority to interpret the rules; Direction B: a mutual-aid credit network: Viewers see one exchange create a new alliance, obligation, or refusal |\n| Terminal condition | Direction A: public allocation rules: Shared governance replaces unilateral allocation, or Zhou Yao gives up the role of sole judge; Direction B: a mutual-aid credit network: Mutual aid no longer depends on Zhou Yao's guarantee, or the community rejects trading services through relational debt |\n\nDirection B is not the same queue renamed as a mutual-aid list. It changes Zhou Yao from judge to matchmaker, moves opposition from rule disputes to debt and trust, and shifts the cost of failure from public legitimacy to private relationships and privacy.\n\nThis example selects **Direction A** because it carries the tension between equal treatment and particular care most directly, while allowing changes in power, evidence, and alliances to remain visible in one ordinary service center. Direction B stays unselected and should not leak into the accepted engine. Combining them would require the creator to reconsider the costs and terminal condition."
         }
       },
       {
@@ -17216,8 +17231,8 @@
           "en": "Stress-Test the Engine for Real State Change"
         },
         "body": {
-          "zh": "下面三轮只用于检验引擎，不是三集大纲，也不是必须采用的剧情。每一轮都从上一轮留下的状态出发：\n\n| 检验轮次 | 触发与选择 | 反制与局部结果 | 留给下一轮的人物处境变化 |\n|---|---|---|---|\n| 第一轮：资源 | 陪诊与临时托管同时争夺仅剩的志愿时数；周遥按“无替代路径优先”安排陪诊 | 托管申请者指出自己的替代人选会因此误工；陪诊完成，但志愿时数见底 | **资源改变：** 当日余量归零；**关系改变：** 未获服务者开始联合质疑“替代路径”的定义 |\n| 第二轮：知识与解释权 | 联合者提交新材料，证明一次托管能保障数名夜班家长按时到岗；周遥据此修订“影响人数”的标准，并开通公开的申诉复核入口 | 先前受益者担心已完成的决定会被追溯推翻，社区委员要求每项申诉都记录依据与处理状态；入口开始接收申请 | **知识改变：** “影响人数”有了新的可验证含义；**权力改变：** 周遥失去单独解释规则的空间，委员取得复核入口；**流程改变：** 后续争议必须进入可追踪的待处理队列 |\n| 第三轮：申诉与共同责任 | 新入口收到两项相关事项：托管申请者按修订后的标准申请下一批可用时数；先前受益者要求在没有新证据时，不要把已完成的陪诊决定重新认定为无依据。两项进入同一复核议程，但不是争抢同一批时数；当日志愿时数仍为零，未来托管申请继续等待 | 周遥若继续单独裁决，就会让“公开复核”变成个人解释。组织起来的求助者愿意参与审议，但要求能质疑缺乏依据的例外；先前受益者要求把既往服务记录与未来资源排序分开处理。委员据此明确规则：没有新证据不追溯改写已完成服务，后续申请依修订后的标准排队 | **资源继承：** 当日余量仍为零，未来托管申请继续等待；已完成的陪诊保持为有效既往记录。**关系改变：** 质疑者与既有受益者共同进入审议。**权力改变：** 复核规则与未来分配责任由多人承担。**人物改变：** 周遥必须用共享责任取代独自兜底 |\n\n读完后做四项检查：\n\n1. 后一轮是否必须继承前一轮的资源、知识、权力或关系，除非新的选择与结果有因果地改写它？\n2. 对抗力量是否从结果中学习并改变策略，而不只是提高音量？\n3. 主角的办法是否既解决问题又制造她在意的代价？\n4. 能否指出一种人物、事实或关系变化，会让这套旧回路自然终止或变形？\n\n若答案是否定的，回到方向或引擎卡修订；不要靠添加陌生反派、秘密身份或更多设定遮住断裂。通过测试并由创作者接受后，这份简报和引擎才能作为后续依据。下一步若要安排每集的进入状态、局部结果和交接，再使用[短剧分集大纲](/drama-skills/episode-outline-template)；若要检查单集内部怎样完成一次因果人物处境变化，可参考[短剧一集结构](/drama-skills/episode-structure)；若要把已定结果写成可表演场景，再进入[短剧剧本写作](/drama-skills/screenwriting)。本页到此停止，不预写分集或首集钩子。",
-          "en": "The three rounds below test the engine. They are not a three-episode outline or mandatory plot. Each round starts from the state left by the previous one:\n\n| Test round | Trigger and choice | Countermove and local result | State carried forward |\n|---|---|---|---|\n| Round one: resources | A medical escort and temporary childcare compete for the last volunteer hours. Zhou Yao applies “no available alternative comes first” and assigns the escort | The childcare applicant shows that the supposed alternative would miss work. The escort is completed, but the volunteer pool is exhausted | **Resource change:** no hours remain that day. **Relationship change:** rejected applicants organize around a challenge to the meaning of “available alternative” |\n| Round two: knowledge and interpretive authority | The group submits evidence that one childcare assignment would keep several night-shift parents at work. Zhou Yao revises the meaning of “number affected” and opens a public appeal-and-review channel | The earlier beneficiary worries that a completed decision could be reversed retroactively, while a committee member demands that every appeal record its basis and status. The channel begins accepting cases | **Knowledge change:** “number affected” gains a new verifiable meaning. **Power change:** Zhou Yao loses room to interpret the rule alone, and the committee gains a review role. **Process change:** later disputes must enter a trackable pending queue |\n| Round three: appeals and shared responsibility | The new channel receives two related matters: the childcare applicant requests the next available hours under the revised criteria; the earlier escort recipient asks that the completed service not be relabeled unjustified without new evidence. They enter one review agenda but do not compete for the same hours. Today's pool remains empty, so the future childcare request stays queued | If Zhou Yao rules alone again, public review becomes another form of personal discretion. The organized applicants will join the review only if they can challenge unsupported exceptions; the earlier recipient asks reviewers to keep the completed service record separate from future allocation. The committee sets a rule: absent new evidence, completed service is not rewritten retroactively, while future requests follow the revised criteria | **Resource state carried forward:** no hours remain that day, so the future childcare request stays queued; the completed escort remains a valid past record. **Relationship change:** challengers and an existing beneficiary enter shared review. **Power change:** responsibility for review and future allocation is shared. **Character change:** Zhou Yao must replace solitary rescue with shared responsibility |\n\nNow ask four questions:\n\n1. Must each later round inherit a resource, knowledge, power, or relationship state from the previous one unless a new choice and result causally revise it?\n2. Does the opposing force learn from results and change its method rather than merely becoming louder?\n3. Does the protagonist's method solve a problem while creating a cost she genuinely cares about?\n4. Can you name a change in character, fact, or relationship that would naturally end or transform the old loop?\n\nIf not, revise the direction or engine card. Do not hide the break by adding an unrelated villain, secret identity, or more lore. Once the test passes and the creator accepts the brief and engine, they can guide downstream work. Use the [short-drama episode outline](/drama-skills/episode-outline-template) only when you are ready to assign entry states, local results, and handoffs to episodes. Consult [short-drama episode structure](/drama-skills/episode-structure) when testing how one episode completes a causal state change. Move to [short-drama screenwriting](/drama-skills/screenwriting) only after those results are defined and you are ready for playable scenes. This guide stops here; it does not prewrite episodes or an opening hook."
+          "zh": "下面三轮只用于检验引擎，不是三集大纲，也不是必须采用的剧情。每一轮都从上一轮留下的状态出发：\n\n| 轮次 | 连续结果 |\n|---|---|\n| 第一轮：资源 | 触发与选择: 陪诊与临时托管同时争夺仅剩的志愿时数；周遥按“无替代路径优先”安排陪诊; 反制与局部结果: 托管申请者指出自己的替代人选会因此误工；陪诊完成，但志愿时数见底; 留给下一轮的人物处境变化: **资源改变：** 当日余量归零；**关系改变：** 未获服务者开始联合质疑“替代路径”的定义 |\n| 第二轮：知识与解释权 | 触发与选择: 联合者提交新材料，证明一次托管能保障数名夜班家长按时到岗；周遥据此修订“影响人数”的标准，并开通公开的申诉复核入口; 反制与局部结果: 先前受益者担心已完成的决定会被追溯推翻，社区委员要求每项申诉都记录依据与处理状态；入口开始接收申请; 留给下一轮的人物处境变化: **知识改变：** “影响人数”有了新的可验证含义；**权力改变：** 周遥失去单独解释规则的空间，委员取得复核入口；**流程改变：** 后续争议必须进入可追踪的待处理队列 |\n| 第三轮：申诉与共同责任 | 触发与选择: 新入口收到两项相关事项：托管申请者按修订后的标准申请下一批可用时数；先前受益者要求在没有新证据时，不要把已完成的陪诊决定重新认定为无依据。两项进入同一复核议程，但不是争抢同一批时数；当日志愿时数仍为零，未来托管申请继续等待; 反制与局部结果: 周遥若继续单独裁决，就会让“公开复核”变成个人解释。组织起来的求助者愿意参与审议，但要求能质疑缺乏依据的例外；先前受益者要求把既往服务记录与未来资源排序分开处理。委员据此明确规则：没有新证据不追溯改写已完成服务，后续申请依修订后的标准排队; 留给下一轮的人物处境变化: **资源继承：** 当日余量仍为零，未来托管申请继续等待；已完成的陪诊保持为有效既往记录。**关系改变：** 质疑者与既有受益者共同进入审议。**权力改变：** 复核规则与未来分配责任由多人承担。**人物改变：** 周遥必须用共享责任取代独自兜底 |\n\n读完后做四项检查：\n\n1. 后一轮是否必须继承前一轮的资源、知识、权力或关系，除非新的选择与结果有因果地改写它？\n2. 对抗力量是否从结果中学习并改变策略，而不只是提高音量？\n3. 主角的办法是否既解决问题又制造她在意的代价？\n4. 能否指出一种人物、事实或关系变化，会让这套旧回路自然终止或变形？\n\n若答案是否定的，回到方向或引擎卡修订；不要靠添加陌生反派、秘密身份或更多设定遮住断裂。通过测试并由创作者接受后，这份简报和引擎才能作为后续依据。下一步若要安排每集的进入状态、局部结果和交接，再使用[短剧分集大纲](/drama-skills/episode-outline-template)；若要检查单集内部怎样完成一次因果人物处境变化，可参考[短剧一集结构](/drama-skills/episode-structure)；若要把已定结果写成可表演场景，再进入[短剧剧本写作](/drama-skills/screenwriting)。本页到此停止，不预写分集或首集钩子。",
+          "en": "The three rounds below test the engine. They are not a three-episode outline or mandatory plot. Each round starts from the state left by the previous one:\n\n| Round | Carried results |\n|---|---|\n| Round one: resources | Trigger and choice: A medical escort and temporary childcare compete for the last volunteer hours. Zhou Yao applies “no available alternative comes first” and assigns the escort; Countermove and local result: The childcare applicant shows that the supposed alternative would miss work. The escort is completed, but the volunteer pool is exhausted; State carried forward: **Resource change:** no hours remain that day. **Relationship change:** rejected applicants organize around a challenge to the meaning of “available alternative” |\n| Round two: knowledge and interpretive authority | Trigger and choice: The group submits evidence that one childcare assignment would keep several night-shift parents at work. Zhou Yao revises the meaning of “number affected” and opens a public appeal-and-review channel; Countermove and local result: The earlier beneficiary worries that a completed decision could be reversed retroactively, while a committee member demands that every appeal record its basis and status. The channel begins accepting cases; State carried forward: **Knowledge change:** “number affected” gains a new verifiable meaning. **Power change:** Zhou Yao loses room to interpret the rule alone, and the committee gains a review role. **Process change:** later disputes must enter a trackable pending queue |\n| Round three: appeals and shared responsibility | Trigger and choice: The new channel receives two related matters: the childcare applicant requests the next available hours under the revised criteria; the earlier escort recipient asks that the completed service not be relabeled unjustified without new evidence. They enter one review agenda but do not compete for the same hours. Today's pool remains empty, so the future childcare request stays queued; Countermove and local result: If Zhou Yao rules alone again, public review becomes another form of personal discretion. The organized applicants will join the review only if they can challenge unsupported exceptions; the earlier recipient asks reviewers to keep the completed service record separate from future allocation. The committee sets a rule: absent new evidence, completed service is not rewritten retroactively, while future requests follow the revised criteria; State carried forward: **Resource state carried forward:** no hours remain that day, so the future childcare request stays queued; the completed escort remains a valid past record. **Relationship change:** challengers and an existing beneficiary enter shared review. **Power change:** responsibility for review and future allocation is shared. **Character change:** Zhou Yao must replace solitary rescue with shared responsibility |\n\nNow ask four questions:\n\n1. Must each later round inherit a resource, knowledge, power, or relationship state from the previous one unless a new choice and result causally revise it?\n2. Does the opposing force learn from results and change its method rather than merely becoming louder?\n3. Does the protagonist's method solve a problem while creating a cost she genuinely cares about?\n4. Can you name a change in character, fact, or relationship that would naturally end or transform the old loop?\n\nIf not, revise the direction or engine card. Do not hide the break by adding an unrelated villain, secret identity, or more lore. Once the test passes and the creator accepts the brief and engine, they can guide downstream work. Use the [short-drama episode outline](/drama-skills/episode-outline-template) only when you are ready to assign entry states, local results, and handoffs to episodes. Consult [short-drama episode structure](/drama-skills/episode-structure) when testing how one episode completes a causal state change. Move to [short-drama screenwriting](/drama-skills/screenwriting) only after those results are defined and you are ready for playable scenes. This guide stops here; it does not prewrite episodes or an opening hook."
         }
       }
     ],
@@ -17281,10 +17296,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "开发入口与文件归属",
+          "en": "Development entry points and files"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "机制循环与耗尽",
+          "en": "Mechanism loops and exhaustion"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/mechanism-loop.md"
       }
     ]
   },
