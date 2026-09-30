@@ -22242,7 +22242,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "AI视频口型对不上怎么办：先查说话人、声音类型与时长",
       "en": "AI Video Lip Sync Problems: Check Speaker, Audio Role and Timing"
@@ -22267,8 +22267,8 @@
           "en": "Distinguish three different audio roles"
         },
         "body": {
-          "zh": "drama-skills 的声音方法分别处理画内对白、画外声和旁白。提示词里只写“她说”，却同时要求她闭嘴思考，可能给出互相冲突的目标。\n\n| 声音 | 画面需要什么 | 例子 |\n|---|---|---|\n| 画内对白 | 对应人物的开口、表演和完整台词 | 店主面对客户说“试车后再交钥匙” |\n| 画外说话 | 声音来自不在画面或口部不可见的人，方向与场景一致 | 镜头拍店主，客户在对面画外提问 |\n| 旁白或内心独白 | 不要求画中人物用嘴说出这一句 | 店主看钥匙，听见其回忆旁白 |\n\n同一句话跨镜时，注明在哪一镜开始、下一镜是画外继续还是已经结束。不要前镜写“说完”，后镜又让这句从头出现。",
-          "en": "drama-skills handles visible dialogue, off-screen speech and voiceover separately. “She says” conflicts with an instruction that she silently thinks with her lips closed.\n\n| Audio role | Visual requirement | Example |\n|---|---|---|\n| Visible dialogue | The right person speaks and performs the complete line | The mechanic faces the customer and says the keys follow the test ride |\n| Off-screen speech | Voice belongs to someone outside the frame or with mouth unseen; spatial direction remains coherent | The camera stays on the mechanic while the customer asks from opposite them |\n| Voiceover or inner thought | The visible person need not mouth the line | The mechanic looks at a key under recollection voiceover |\n\nFor a line continuing across shots, specify where it starts, where it continues off-screen and where it ends. Do not finish it in one prompt and restart it in the next."
+          "zh": "drama-skills 的声音方法分别处理画内对白、画外声和旁白。提示词里只写“她说”，却同时要求她闭嘴思考，可能给出互相冲突的目标。\n\n| 项目 | 记录 |\n|---|---|\n| 画内对白 | 画面需要什么：对应人物的开口、表演和完整台词；例子：店主面对客户说“试车后再交钥匙” |\n| 画外说话 | 画面需要什么：声音来自不在画面或口部不可见的人，方向与场景一致；例子：镜头拍店主，客户在对面画外提问 |\n| 旁白或内心独白 | 画面需要什么：不要求画中人物用嘴说出这一句；例子：店主看钥匙，听见其回忆旁白 |\n\n同一句话跨镜时，注明在哪一镜开始、下一镜是画外继续还是已经结束。不要前镜写“说完”，后镜又让这句从头出现。\n\n声音登记还包括每句实际语种与逐字原文，不能从提示词正文语言推断。若音频本身说错语言或改了句子，先看[发声语种与台词检查](/drama-skills/fix-wrong-spoken-language-in-ai-video)，再做本页口型核对。",
+          "en": "drama-skills handles visible dialogue, off-screen speech and voiceover separately. “She says” conflicts with an instruction that she silently thinks with her lips closed.\n\n| Item | Record |\n|---|---|\n| Visible dialogue | Visual requirement: The right person speaks and performs the complete line; Example: The mechanic faces the customer and says the keys follow the test ride |\n| Off-screen speech | Visual requirement: Voice belongs to someone outside the frame or with mouth unseen; spatial direction remains coherent; Example: The camera stays on the mechanic while the customer asks from opposite them |\n| Voiceover or inner thought | Visual requirement: The visible person need not mouth the line; Example: The mechanic looks at a key under recollection voiceover |\n\nFor a line continuing across shots, specify where it starts, where it continues off-screen and where it ends. Do not finish it in one prompt and restart it in the next.\n\nRecord each line’s actual language and verbatim wording rather than inferring them from instruction language. If the audio uses the wrong language or changes the line, first use the [language and dialogue check](/drama-skills/fix-wrong-spoken-language-in-ai-video), then inspect lip sync here."
         }
       },
       {
@@ -22300,8 +22300,8 @@
           "en": "Match the repair to the failure"
         },
         "body": {
-          "zh": "| 现象 | 优先核对 | 处理 |\n|---|---|---|\n| 错的人在动嘴 | 说话人归属、同框人物与台词顺序 | 写清声源，必要时改取景 |\n| 旁白时人物张嘴 | 是否把旁白误写成对白 | 调整分镜或注明闭嘴，再看实际画面 |\n| 台词尾巴没说完 | 完整发声时长是否超窗口 | 延长、拆镜或先修剧本，不悄悄删字 |\n| 台词重复跨两个镜头 | 前后镜开始、延续与结束关系 | 对齐相邻提示词和剪辑声音段 |\n\n回听完整台词，再按正常速度看画内开口与声音是否对应，检查切镜处有没有多说、少说或声源跳变。仅检查提示词、字幕文本或一张截图，都不能证明口型同步。",
-          "en": "| Symptom | Check first | Repair |\n|---|---|---|\n| The wrong person mouths the line | Speaker ownership and visible cast | Clarify the source; revise framing if needed |\n| A face speaks during voiceover | Voiceover mislabeled as dialogue | Revise the shot or specify closed lips, then inspect output |\n| The last words disappear | Full speech duration versus available window | Extend, split or revise the script without silently dropping words |\n| A line repeats in two shots | Start, continuation and ending across prompts | Align prompts and the edited audio |\n\nListen to the full line, then watch at normal speed for mouth/audio correspondence and extra or missing words at cuts. Prompt text, subtitles and a still image cannot establish synchronization."
+          "zh": "| 项目 | 记录 |\n|---|---|\n| 错的人在动嘴 | 优先核对：说话人归属、同框人物与台词顺序；处理：写清声源，必要时改取景 |\n| 旁白时人物张嘴 | 优先核对：是否把旁白误写成对白；处理：调整分镜或注明闭嘴，再看实际画面 |\n| 台词尾巴没说完 | 优先核对：完整发声时长是否超窗口；处理：延长、拆镜或先修剧本，不悄悄删字 |\n| 台词重复跨两个镜头 | 优先核对：前后镜开始、延续与结束关系；处理：对齐相邻提示词和剪辑声音段 |\n\n回听完整台词，再按正常速度看画内开口与声音是否对应，检查切镜处有没有多说、少说或声源跳变。仅检查提示词、字幕文本或一张截图，都不能证明口型同步。",
+          "en": "| Item | Record |\n|---|---|\n| The wrong person mouths the line | Check first: Speaker ownership and visible cast; Repair: Clarify the source; revise framing if needed |\n| A face speaks during voiceover | Check first: Voiceover mislabeled as dialogue; Repair: Revise the shot or specify closed lips, then inspect output |\n| The last words disappear | Check first: Full speech duration versus available window; Repair: Extend, split or revise the script without silently dropping words |\n| A line repeats in two shots | Check first: Start, continuation and ending across prompts; Repair: Align prompts and the edited audio |\n\nListen to the full line, then watch at normal speed for mouth/audio correspondence and extra or missing words at cuts. Prompt text, subtitles and a still image cannot establish synchronization."
         }
       }
     ],
@@ -22354,7 +22354,8 @@
     "related": [
       "/drama-skills/dialogue-timing",
       "/drama-skills/character-performance-prompts",
-      "/drama-skills/reroll-or-rewrite"
+      "/drama-skills/reroll-or-rewrite",
+      "/drama-skills/fix-wrong-spoken-language-in-ai-video"
     ]
   },
   {
@@ -23461,7 +23462,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "破镜重圆短剧怎么写：让复合有行动证据",
       "en": "How to Write a Second-Chance Romance Drama"
@@ -23475,8 +23476,8 @@
       "en": "Make the old rupture specific and answer it through present action. Includes a repair worksheet, knowledge plan and practical use of recurring objects."
     },
     "answer": {
-      "zh": "先写清两人当年因为什么分开、损失是什么，再给现在必须相处的真实理由。每次新事实或行动都要改变关系位置，而不是重复同一场争吵。解释能补足真相，补偿与可靠行动才能证明旧问题是否改变；结局可以复合，也可以原谅后各自前行。",
-      "en": "Specify why they separated and what was lost, then give them a credible reason to interact now. Each new fact or action should change their relationship instead of repeating an argument. Explanation clarifies the past; repair and reliable conduct demonstrate change. The ending can be reunion or forgiveness followed by separate lives."
+      "zh": "先写具体分离与当时损失，再给双方愿意参与或确实受既有条件限制的重逢理由。新事实和行动可以改关系，也可以让人物停留、犹豫或确认边界，不要求每场都升级。解释不自动撤销损失；对应旧问题的选择与对方回应，才让重新靠近有依据。结局按双方选择和作品承诺写。",
+      "en": "Establish the separation and losses, then a meeting both choose or one grounded in existing constraints. New facts and conduct may alter contact, leave hesitation, or confirm a boundary without an upgrade in every scene. Explanation does not undo harm. Choices answering the old problem and genuine responses support renewed closeness; follow both choices and the story’s promise."
     },
     "sections": [
       {
@@ -23486,8 +23487,8 @@
           "en": "Establish the rupture and a present shared task"
         },
         "body": {
-          "zh": "Drama Skills 的破镜重圆方法用“重新证明”组织情绪回报。它讨论关系如何修复，不等于必须写成一方受虐、另一方长久追求，也不默认所有旧伤都该被原谅。\n\n原创设定：木偶剧演员江禾与搭档程遇曾经恋爱。巡演发生设备事故时，程遇为了保住赞助，公开把未经核查的责任推给江禾；她失去工作并离开。几年后，剧团要修复那套木偶，双方因已经签下的项目分工重新合作。\n\n关键不是“他其实还爱她”，而是三件具体事实：公开指责造成职业损失；他目前仍担心承认错误会影响合同；修复项目需要两人的不同技术。\n\n如果一个电话就能解释全部，而且解释后没有现实损失或新的选择，就不必拖成多集误会。让他尝试解释，再面对解释不能撤销的后果，故事会更有分量。",
-          "en": "Drama Skills organizes this genre around renewed proof. Repair does not require one partner to suffer while the other pursues them, and not every old injury should be forgiven.\n\nOriginal premise: puppet performer Jiang He once dated her collaborator Cheng Yu. After a touring equipment accident, Cheng publicly blamed her without verification to protect a sponsor. She lost work and left. Years later, a contracted restoration project brings them together because each supplies a different technical skill.\n\nThe important facts are not merely that he still loves her: the accusation damaged her career, he still fears admitting fault will affect the contract, and the restoration needs both people.\n\nIf one call explains everything and leaves no loss or choice, do not stretch it into many episodes. Let him explain, then face consequences the explanation cannot undo."
+          "zh": "Drama Skills 的破镜重圆方法用“重新证明”组织情绪回报。它讨论关系如何修复，不等于必须写成一方受虐、另一方长久追求，也不默认所有旧伤都该被原谅。\n\n原创设定：木偶剧演员江禾与搭档程遇曾经恋爱。巡演发生设备事故时，程遇为了保住赞助，公开把未经核查的责任推给江禾；她失去工作并离开。几年后，剧团要修复那套木偶，双方分别知情并接受项目分工，选择重新合作。\n\n关键不是“他其实还爱她”，而是三件具体事实：公开指责造成职业损失；他目前仍担心承认错误会影响合同；修复项目需要两人的不同技术。\n\n如果一个电话就能解释全部，而且解释后没有现实损失或新的选择，就不必拖成多集误会。让他尝试解释，再面对解释不能撤销的后果，故事会更有分量。",
+          "en": "Drama Skills organizes this genre around renewed proof. Repair does not require one partner to suffer while the other pursues them, and not every old injury should be forgiven.\n\nOriginal premise: puppet performer Jiang He once dated her collaborator Cheng Yu. After a touring equipment accident, Cheng publicly blamed her without verification to protect a sponsor. She lost work and left. Years later, both knowingly accept separate roles in a restoration project requiring their different skills.\n\nThe important facts are not merely that he still loves her: the accusation damaged her career, he still fears admitting fault will affect the contract, and the restoration needs both people.\n\nIf one call explains everything and leaves no loss or choice, do not stretch it into many episodes. Let him explain, then face consequences the explanation cannot undo."
         }
       },
       {
@@ -23497,19 +23498,19 @@
           "en": "Make repair answer the specific injury"
         },
         "body": {
-          "zh": "| 旧问题 | 只有表态 | 可观察的改变 |\n|---|---|---|\n| 未核实就公开归责 | “我当年是为你好” | 核查事故记录，承认自己的判断，并在原传播范围更正 |\n| 为保合同牺牲对方 | “现在你最重要” | 接受更正可能影响合同，把代价留给自己承担 |\n| 把合作控制在自己手里 | “你可以相信我” | 把修复方案的决定权与署名权按事实还给江禾 |\n\n这些行动不能自动换来复合。江禾可以接受更正，仍选择只做职业合作。她是否愿意重新亲近，是自己的决定。\n\n把一件旧物放回关键场面：当年断裂的木偶手指，曾被用来证明“她操作失误”；现在修复时，内部磨损证据说明事故早已发生。旧物承载事实，但不替程遇承担责任。他仍需说明自己为何未经核查就归责。",
-          "en": "| Old problem | Words alone | Observable change |\n|---|---|---|\n| Public blame without verification | “I meant well” | Investigate the record, admit his judgment and correct it where the accusation spread |\n| Sacrificing her to protect the contract | “You matter most now” | Accept the contractual risk of correction and bear his own cost |\n| Controlling their collaboration | “Trust me” | Restore her actual decision and credit rights |\n\nThese actions do not purchase reunion. Jiang may accept correction and choose only professional cooperation. Renewed closeness remains her decision.\n\nUse a recurring object: the puppet’s broken finger once supposedly proved her mistake. During restoration, internal wear shows that the failure predated her use. The object supplies evidence, but does not absolve Cheng. He must still answer for blaming her without checking."
+          "zh": "| 旧问题 | 表态与实际改变 |\n|---|---|\n| 未核实就公开归责 | 只有表态：“我当年是为你好”；可观察的改变：核查事故记录，承认自己的判断，并在原发布渠道更正 |\n| 为保合同牺牲对方 | 只有表态：“现在你最重要”；可观察的改变：接受更正可能影响合同，把代价留给自己承担 |\n| 把合作控制在自己手里 | 只有表态：“你可以相信我”；可观察的改变：把修复方案的决定权与署名权按事实还给江禾 |\n\n这些行动不能自动换来复合。江禾可以接受更正，仍选择只做职业合作。她是否愿意重新亲近，是自己的决定。\n\n把一件旧物放回关键场面：当年断裂的木偶手指，曾被用来证明“她操作失误”；现在拆开时，磨损先引出核查；对照事故前同一木偶的检修照片与当班记录，才确认这处磨损在她上台前已被记录，不以今日痕迹单独推断故障年代或完整事故原因。旧物承载事实，但不替程遇承担责任。他仍需说明自己为何未经核查就归责。",
+          "en": "| Old problem | Words and actual change |\n|---|---|\n| Public blame without verification | Words alone: “I meant well”; Observable change: Investigate the record, admit his judgment and correct it through the original publication channel |\n| Sacrificing her to protect the contract | Words alone: “You matter most now”; Observable change: Accept the contractual risk of correction and bear his own cost |\n| Controlling their collaboration | Words alone: “Trust me”; Observable change: Restore her actual decision and credit rights |\n\nThese actions do not purchase reunion. Jiang may accept correction and choose only professional cooperation. Renewed closeness remains her decision.\n\nUse a recurring object: the puppet’s broken finger once supposedly proved her mistake. During restoration, wear prompts a check. Pre-accident photographs of the same puppet and the shift record establish that this wear was recorded before her performance. Present traces alone do not date the failure or establish the complete accident cause. The object supplies evidence, but does not absolve Cheng. He must still answer for blaming her without checking."
         }
       },
       {
         "id": "facts-change-position",
         "heading": {
-          "zh": "信息分层，每揭开一层都改变关系",
-          "en": "Let each information layer change the relationship"
+          "zh": "信息分层：推进理解，不把新事实直接写成复合",
+          "en": "Layer Information without Equating Clarification with Reunion"
         },
         "body": {
-          "zh": "先分清四种知情：完整事实、亲历片段、误信版本、知道却暂未说出的原因。不要让所有人一集知情、一集又忘记。\n\n本例可安排：\n\n1. 江禾知道自己按规范操作；程遇以为赞助方已经查明责任；观众先看到公开指责。\n2. 修复时发现旧磨损，两人的“操作失误”争论改变为“当年是谁做了核查”。\n3. 程遇找到自己当年未打开的检修邮件，承认有过选择与疏忽。\n4. 他公开更正后，江禾才决定是否接受新的合作关系。\n\n每一层增加事实或行动，不只是两人再哭一次。若知情者暂不说，要说明他维护的利益、会付的代价与采取的行动；不能永远靠门外有人、电话打断拖延。\n\n最后一层真相应对上最初断裂。即使事故不是程遇制造的，他当年的归责仍需处理，不能拿“其实是别人”取消全部责任。",
-          "en": "Track complete facts, witnessed fragments, mistaken versions and the reason someone withholds knowledge. Do not let characters alternate between knowing and forgetting.\n\nPossible sequence:\n\n1. Jiang knows she followed the procedure; Cheng believes the sponsor verified fault; viewers see the public accusation.\n2. Old wear changes their argument from operator error to who checked the equipment.\n3. Cheng finds a maintenance email he never opened and admits his own choice and neglect.\n4. After his public correction, Jiang decides whether to accept a new working relationship.\n\nEach layer adds a fact or action rather than another tearful repetition. A withholding character needs a concrete interest, cost and behavior. Constant interruptions cannot sustain the delay.\n\nThe final truth must meet the initial rupture. Even if Cheng did not cause the mechanical fault, responsibility for his accusation remains. Another culprit cannot erase it."
+          "zh": "先分清四种知情：完整事实、亲历片段、误信版本、知道却暂未说出的原因。不要让所有人一集知情、一集又忘记。\n\n本例可安排：\n\n1. 江禾知道自己按规范操作；程遇以为赞助方已经查明责任；观众先看到公开指责。\n2. 修复时发现磨损，对照事故前检修照片与当班记录；争论由“她操作失误”转向“当年是谁做了核查”。\n3. 程遇找到自己当年未打开的检修邮件，承认有过选择与疏忽。\n4. 他公开更正后，江禾决定是否继续此次合作，以及接受怎样的分工；不自动恢复恋爱关系。\n\n每一层增加事实或行动，不只是两人再哭一次。若知情者暂不说，要说明他维护的利益、会付的代价与采取的行动；不能永远靠门外有人、电话打断拖延。\n\n最后一层真相应对上最初断裂。即使事故不是程遇制造的，他当年的归责仍需处理，不能拿“其实是别人”取消全部责任。\n\n本例更正可以落成一场完整戏：程遇向原剧团说明自己未经核实就归责，提交照片、记录与原邮件。团方收到并在原发布页撤下对江禾的单方归责，发布更正；项目负责人按现有分工在修复册分列两人贡献，江禾确认自己的署名。她答应继续此次修复，仍明确只作合作。这些是本例后来实际发生的回应，不等于过去失去的工作已全部恢复，也不等于已经复合。",
+          "en": "Track complete facts, witnessed fragments, mistaken versions and the reason someone withholds knowledge. Do not let characters alternate between knowing and forgetting.\n\nPossible sequence:\n\n1. Jiang knows she followed the procedure; Cheng believes the sponsor verified fault; viewers see the public accusation.\n2. Wear prompts comparison with pre-accident maintenance photographs and the shift record; their argument moves from her alleged error to who checked the equipment.\n3. Cheng finds a maintenance email he never opened and admits his own choice and neglect.\n4. After his public correction, Jiang decides whether to continue this project and under what division of work, without automatically restoring romance.\n\nEach layer adds a fact or action rather than another tearful repetition. A withholding character needs a concrete interest, cost and behavior. Constant interruptions cannot sustain the delay.\n\nThe final truth must meet the initial rupture. Even if Cheng did not cause the mechanical fault, responsibility for his accusation remains. Another culprit cannot erase it.\n\nComplete the correction as a scene: Cheng tells the original troupe he assigned blame without verification and supplies the photographs, record, and email. The troupe receives them, removes the unilateral attribution on its original page, and posts a correction. The project lead lists each contribution in the restoration booklet; Jiang confirms her credit. She agrees to continue this project as work only. These are later enacted responses in the example, not restoration of every lost job or romantic reunion."
         }
       },
       {
@@ -23519,8 +23520,8 @@
           "en": "Limit past settings and preserve a real ending choice"
         },
         "body": {
-          "zh": "先选一个必须看见的旧场景，例如当年公开归责；其余用当下木偶、检修邮件与人物行动承载。回忆里的旧造型、旧舞台和道具状态，都要单独记录，不能随每次争吵无限增加。\n\n木偶手指有断裂、拆开、修复后三种状态，按剧情顺序使用。旧录像里仍是当年状态，不随今生修复改变。可读邮件内容由后期控制，只露出这场需要核验的信息。\n\n结局前问两件事：旧损失处理到哪里，人物现在愿意什么。可以重新在一起，也可以共同完成修复后分开。若选择复合，提前给双方新的相处行动，不能只凭最后一句道歉；若选择分开，也交代已经完成的更正与职业恢复。\n\n修订时优先删：同一事实下反复争吵、只为添乱的第三者、没有新信息的闪回、替被伤害者自动原谅的台词。",
-          "en": "Choose one past scene that must be seen, such as the public accusation. Let the present puppet, email and conduct carry the rest. Record old costumes, stage and prop states separately instead of expanding past settings with every argument.\n\nThe finger has broken, opened and repaired states. Use them in order; old footage retains its original state after the present repair. Control legible email text in post-production and show only information needed for this scene.\n\nBefore the ending, ask how far the damage has been repaired and what each person wants now. They may reunite or finish the project and separate. Reunion needs new mutual behavior before the final apology; separation should still acknowledge correction and career repair already achieved.\n\nCut repeated arguments based on unchanged facts, third parties with no objective, flashbacks with no new information and dialogue that automatically forgives on the injured person’s behalf."
+          "zh": "先选一个必须看见的旧场景，例如当年公开归责；其余用当下木偶、检修邮件与人物行动承载。回忆里的旧造型、旧舞台和道具状态，都要单独记录，不能随每次争吵无限增加。\n\n木偶手指有断裂、拆开、修复后三种状态，按剧情顺序使用。旧录像里仍是当年状态，不随今生修复改变。可读邮件内容由后期控制，只露出这场需要核验的信息。\n\n结局前问两件事：旧损失处理到哪里，人物现在愿意什么。可以重新在一起，也可以共同完成修复后分开。若选择复合，提前给双方新的相处行动，不能只凭最后一句道歉；若选择分开，也交代更正与职业修复实际做到哪里，不把撤下归责直接说成全部工作恢复。\n\n修订时优先删：同一事实下反复争吵、只为添乱的第三者、没有新信息的闪回、替被伤害者自动原谅的台词。",
+          "en": "Choose one past scene that must be seen, such as the public accusation. Let the present puppet, email and conduct carry the rest. Record old costumes, stage and prop states separately instead of expanding past settings with every argument.\n\nThe finger has broken, opened and repaired states. Use them in order; old footage retains its original state after the present repair. Control legible email text in post-production and show only information needed for this scene.\n\nBefore the ending, ask how far the damage has been repaired and what each person wants now. They may reunite or finish the project and separate. Reunion needs new mutual behavior before the final apology; an ending apart should clarify the actual correction and career repair without equating removal of blame with every job restored.\n\nCut repeated arguments based on unchanged facts, third parties with no objective, flashbacks with no new information and dialogue that automatically forgives on the injured person’s behalf."
         }
       }
     ],
@@ -23557,16 +23558,24 @@
     "sources": [
       {
         "label": {
-          "zh": "关系断裂、重新证明与制作取舍",
-          "en": "Rupture, renewed proof and production choices"
+          "zh": "断裂、重新证明与制作取舍",
+          "en": "Rupture, renewed proof, and production choices"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/genre-cards/破镜重圆.md"
+      },
+      {
+        "label": {
+          "zh": "回报落点与创作者选择",
+          "en": "Payoff destination and creator choices"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-develop/references/story-craft.md"
       }
     ],
     "related": [
       "/drama-skills/coincidence-and-misunderstanding",
       "/drama-skills/micro-drama-dialogue",
-      "/oh-story/write-a-slow-burn-romance"
+      "/oh-story/write-a-slow-burn-romance",
+      "/oh-story/write-a-second-chance-romance"
     ]
   },
   {
@@ -36878,6 +36887,267 @@
         "label": {
           "zh": "具体投入、意义变化与真实回应",
           "en": "Specific investment, changing meaning, and credible response"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/emotional-methods.md"
+      },
+      {
+        "label": {
+          "zh": "作者文风与事实边界",
+          "en": "Author voice and factual boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      }
+    ]
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "fix-wrong-spoken-language-in-ai-video",
+    "topic": "ai-video",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI视频说错语言怎么办：提示词语言、台词与声音分开检查",
+      "en": "AI Video Speaking the Wrong Language? Check Prompts, Dialogue, and Audio"
+    },
+    "seo_title": {
+      "zh": "AI视频说错语言怎么办：提示词语言、台词与声音分开检查",
+      "en": "AI Video in the Wrong Language? Fix Dialogue and Audio"
+    },
+    "description": {
+      "zh": "把提示词语言和角色实际说话的语种分开，逐句保住原文、说话人与声源。附中英文提示词对照和生成后回听检查表。",
+      "en": "Separate prompt language from spoken dialogue. Preserve verbatim lines and speaker roles, then check the actual audio with a bilingual worked example."
+    },
+    "answer": {
+      "zh": "先核对剧本要求角色说什么语言，再检查视频提示词是否把这项要求逐句写清。英文提示词不代表人物要说英语，中文字幕也不能证明声音是中文。把说话人、声源、语种和逐字台词一起登记；生成后回听实际语种、漏词、改词和切点。只改提示词、补字幕或写“必须正确”，都还不是已经修好。",
+      "en": "Check the script’s spoken language, then make it explicit for each line in the video prompt. English instructions do not mean English dialogue, and Chinese subtitles do not establish Chinese audio. Record speaker, audio role, language, and verbatim text together; listen for language, omissions, substitutions, and cuts after generation. Revised instructions or subtitles alone do not prove the audio is fixed."
+    },
+    "sections": [
+      {
+        "id": "three-languages",
+        "heading": {
+          "zh": "先分清提示词、台词与字幕三种语言",
+          "en": "Separate Instruction, Dialogue, and Subtitle Languages"
+        },
+        "body": {
+          "zh": "| 层次 | 由什么决定 |\n|---|---|\n| 视频提示词正文 | 按项目已选的模型方言、提示词语言和创作者要求书写，不固定为英文。 |\n| 人物实际说话 | 由剧本与声音方向决定；在每句旁标明语种、准确文字与说话人。 |\n| 字幕或解释翻译 | 按字幕交付与读者需要安排，不能反过来替换实际台词。 |\n\n例如英文正文描述镜头，角色仍可说剧本中的普通话。英文文章为读者提供解释译文时，要与可复制的逐字台词分开；把两个版本一起塞进生成指令，可能把本来只要一句的声音计划变成两句。原 skill 明确区分视频正文语言和对白、旁白、画外声的口语语言，但不保证每次生成都能遵守。",
+          "en": "| Layer | What determines it |\n|---|---|\n| Video instructions | The project’s chosen model dialect, prompt language, and creator direction; English is not mandatory. |\n| Spoken dialogue | The script and sound direction. Label language, exact wording, and speaker per line. |\n| Subtitles or explanatory translation | The delivery plan or reader’s needs. These do not replace spoken text. |\n\nEnglish camera instructions can accompany the script’s Mandarin dialogue. In an English tutorial, keep an explanatory translation outside the copyable verbatim line. Putting both versions in the generation instruction can turn one intended utterance into two. The skill explicitly separates instruction language from dialogue, voiceover, and off-screen speech, without guaranteeing compliance in every output."
+        }
+      },
+      {
+        "id": "line-card",
+        "heading": {
+          "zh": "逐句检查四件事，不只在末尾写“中文”",
+          "en": "Check Four Things per Line Instead of a Final “Chinese” Tag"
+        },
+        "body": {
+          "zh": "| 检查 | 填什么 |\n|---|---|\n| 谁说 | 角色名字或稳定标识，不写含糊的“有人说”。 |\n| 从哪里说 | 画内对白、画外说话或旁白；不把旁白当成画中人开口。 |\n| 用什么语言 | 本句需要的语种或剧本已选方言，不从正文语言猜。 |\n| 逐字说什么 | 保留原句、否定、数字、姓名与条件；需要改句先修剧本。 |\n\n这是一张读者检查卡，不是完整原生视频文档。停顿、叹气、插话或重叠发声只在剧本已有时加入；没有就不要为填声音层而加新对白。相邻两句之间写清是已有环境底声、静默还是另一角色接话。",
+          "en": "| Check | Record |\n|---|---|\n| Speaker | A name or stable identity, rather than “someone speaks.” |\n| Audio role | Visible dialogue, off-screen speech, or voiceover. Voiceover does not make the visible person speak. |\n| Language | This line’s intended language or scripted dialect, not an inference from instruction language. |\n| Verbatim text | Preserve negation, numbers, names, and conditions. Revise the script first if wording must change. |\n\nThis reader checklist is not the complete native video document. Add pauses, sighs, interruptions, or overlapping speech only when established; do not invent dialogue to fill sound layers. Between lines, identify the established ambience, silence, or the next speaker."
+        }
+      },
+      {
+        "id": "bilingual-example",
+        "heading": {
+          "zh": "原创对照：英文镜头指令，普通话对白",
+          "en": "Original Comparison: English Instructions with Mandarin Speech"
+        },
+        "body": {
+          "zh": "虚构剧场搬箱场景：林予在桌左，周言在桌右，蓝箱和红箱都在桌上。两人双手空着；本场只有既有空调底声，无配乐。林予先用普通话说“蓝箱留下，红箱搬出去。”周言听完回答“我只搬红箱。”然后搬走红箱，蓝箱仍在桌上。这里仅展示提示词计划，没有声称已经生成视频。\n\n**不完整写法**：“English cinematic scene. Lin gives instructions, Zhou agrees. Chinese subtitles.” 它没有逐字原句，也没有明确实际语种，字幕要求不能补上声音要求。\n\n**中文正文示例**：\n\n> 固定双人中景，保持桌左林予、桌右周言及两箱位置。林予画内对白，口语语言为普通话，逐字说：“蓝箱留下，红箱搬出去。”周言此时听、不说话。林予说完后，周言画内对白，普通话逐字说：“我只搬红箱。”周言话音落下再用双手抱起红箱离开，蓝箱留桌。两句之间保持已建立的空调底声，不另加旁白、新台词或配乐。完整发声、顺序动作和末尾状态须在实际镜长内可完成。\n\n**英文正文中的对应声音段**：\n\n> Lin Yu, visible dialogue, spoken Mandarin, verbatim: “蓝箱留下，红箱搬出去。” Zhou Yan listens without speaking. After Lin finishes, Zhou Yan, visible dialogue, spoken Mandarin, verbatim: “我只搬红箱。” After Zhou finishes, he lifts the red box with both hands and leaves; the blue box stays on the table. Between lines, retain the established air-conditioning ambience. Add no voiceover, other dialogue, or music.\n\n两段保留同一组实际台词，不把中文原句翻译成另一组要发声的词。时长仍需按完整台词、停顿、搬箱距离与反应核对；本页不给所有模型一个通用秒数或每秒字数。模型若不支持本任务所需的声音路线，另选已确认的制作方案，不靠字幕假装声音正确。",
+          "en": "Fictional box-moving scene: Lin Yu stands left of the table and Zhou Yan right. Blue and red boxes are on the table, both people’s hands are free, and the established sound is air-conditioning with no music. Lin speaks in Mandarin; Zhou answers in Mandarin, then takes the red box while the blue remains. These are prompt plans, not generated-video results.\n\n**Incomplete:** “English cinematic scene. Lin gives instructions, Zhou agrees. Chinese subtitles.” This omits both verbatim lines and the actual spoken language. A subtitle request does not supply the audio requirement.\n\n**Copyable English-language passage:**\n\n> Locked two-person medium view, preserving Lin Yu on the table’s left, Zhou Yan on its right, and both boxes. Lin Yu, visible dialogue, spoken Mandarin, verbatim: “蓝箱留下，红箱搬出去。” Zhou listens without speaking. After Lin finishes, Zhou Yan, visible dialogue, spoken Mandarin, verbatim: “我只搬红箱。” After Zhou finishes, he lifts the red box with both hands and leaves; the blue box stays on the table. Between lines, retain the established air-conditioning ambience. Add no voiceover, other dialogue, or music. The complete speech, ordered movement, and ending must fit the actual shot duration.\n\nFor readers only, the lines mean “Leave the blue box; take the red box out” and “I’ll take only the red box.” Those explanations are not additional spoken dialogue. A Chinese instruction passage would retain the same two Mandarin lines, speakers, order, and sound roles rather than create translated utterances.\n\nCheck duration against full speech, pauses, carrying distance, and response. This page supplies no universal seconds or words-per-second rule. If the chosen production route does not support the required audio, choose another confirmed route instead of treating correct subtitles as correct sound."
+        }
+      },
+      {
+        "id": "locate-the-error",
+        "heading": {
+          "zh": "生成后：先确认错在原素材还是剪辑",
+          "en": "After Generation: Locate the Error in Source Media or Editing"
+        },
+        "body": {
+          "zh": "先对原视频逐句回听，再对成片回听。字幕和自动转写用于查位置，不覆盖剧本，也不替代耳朵听到的内容。\n\n| 现象 | 下一步 |\n|---|---|\n| 原素材已经换成另一种语言 | 回看逐句语种与原句，重出相关素材；再回听，不承诺添一个标签必修好。 |\n| 声音是正确语种，但否定、数字或条件变了 | 对照剧本标出差异，修对应句和生成方案，不让错误音频成为新剧本。 |\n| 原素材完整，成片只剩半句 | 核对源发声区间与剪辑入出点，保留首尾；不是字幕补上后便算完整。 |\n| 自动转写错，实际音频正确 | 回听确认，按剧本文字修字幕或转写记录，不为识别错误重做正确声音。 |\n| 重出后字幕时间错位 | 重测新素材发声位置，更新入出点与字幕时间，再查成片。 |\n\n需要替换音轨、静音或独立配音时，用实际支持的外部工具执行并核对输出。套件内置剪辑渲染默认保留原声，不解析 CUT 的声音说明来自动静音或替换；写了“改成中文配音”不等于已完成。替换后的画内对白还要检查口型，相关步骤见[口型同步教程](/drama-skills/ai-video-lip-sync)。",
+          "en": "Listen line by line to the source video, then the edited output. Subtitles and transcription help locate speech; they neither override the script nor replace listening.\n\n| Symptom | Next step |\n|---|---|\n| The source already uses the wrong language | Recheck per-line language and text, regenerate the affected material, and listen again. One added tag does not guarantee repair. |\n| Language is right, but a negation, number, or condition changes | Mark the discrepancy against the script and repair that line or production plan. Wrong audio does not become a new script. |\n| Source speech is complete, but the edit retains half a line | Check source speaking intervals and edit boundaries, preserving the beginning and end. Subtitles cannot supply missing sound. |\n| Transcription is wrong while the audio is correct | Confirm by listening and correct subtitles or the transcript from the script rather than rebuilding correct speech. |\n| Regeneration shifts subtitle timing | Measure the new source’s speech positions, update cut and subtitle timing, and inspect the output. |\n\nExecute replacement audio, muting, or separate voice production with tools that actually support it, then inspect the output. The bundled editor preserves source audio and does not interpret CUT sound notes as automatic muting or replacement. “Use Mandarin dubbing” is not completed dubbing. Check lip sync after replacing visible dialogue; see the [lip-sync guide](/drama-skills/ai-video-lip-sync)."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "英文提示词一定会生成英文对白吗？",
+          "en": "Do English prompts require English dialogue?"
+        },
+        "a": {
+          "zh": "不一定。提示词正文和实际台词是两层要求。按剧本逐句写清语种和原文，再看真实输出；能否稳定完成还取决于具体制作路线与素材。",
+          "en": "No. Instructions and spoken dialogue are separate requirements. Specify each line’s script language and wording, then inspect actual output. Reliability still depends on the production route and material."
+        }
+      }
+    ],
+    "skill": {
+      "name": "short-drama-video-prompts",
+      "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/SKILL.md",
+      "text": {
+        "zh": "用 $short-drama-video-prompts 检查这段视频提示词：保持原剧本，把提示词正文语言与每句口语语种分开，核对说话人、画内/画外/旁白性质和逐字文字。只改请求范围，不自动翻译台词。列出生成后要回听的差异；需静音或替换音轨时明确实际工具，不称已经完成。",
+        "en": "Use $short-drama-video-prompts to inspect this passage while preserving the script. Separate instruction language from each line’s spoken language; check speaker, visible/off-screen/voiceover role, and verbatim text. Revise only the requested scope without translating dialogue automatically. List differences to listen for; identify actual tools for muting or audio replacement without reporting them as completed."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "正文语言与口语语言的区别",
+          "en": "Instruction versus spoken language"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "逐句语种、原文与声音时间线",
+          "en": "Per-line language, wording, and audio timeline"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
+      },
+      {
+        "label": {
+          "zh": "精确对白、旁白与跨镜延续",
+          "en": "Exact dialogue, voiceover, and continuation"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/camera-audio-continuity.md"
+      },
+      {
+        "label": {
+          "zh": "原声、转写、字幕与混音执行范围",
+          "en": "Source audio, transcription, subtitles, and mixing scope"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/sound-and-subtitles.md"
+      }
+    ],
+    "related": [
+      "/drama-skills/ai-video-lip-sync",
+      "/drama-skills/dialogue-timing",
+      "/drama-skills/cut-away-during-continuous-dialogue",
+      "/drama-skills/choose-distinct-short-drama-voices"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "write-a-second-chance-romance",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-30",
+    "title": {
+      "en": "How to Write a Second-Chance Romance Readers Believe",
+      "zh": "破镜重圆怎么写可信：让旧问题被解决，而非遗忘"
+    },
+    "seo_title": {
+      "en": "Write a Second-Chance Romance",
+      "zh": "破镜重圆怎么写"
+    },
+    "description": {
+      "zh": "分清旧误会、真实伤害与分离后的变化，用回忆、当前选择和双方回应写可信复合。附原创小说片段、关系检查表与失败修法。",
+      "en": "Separate misunderstanding, harm, and change after separation. Includes an original prose scene, a repair worksheet, and checks for a believable reunion."
+    },
+    "answer": {
+      "zh": "先写两人为何分开，以及当时的理解与实际伤害分别是什么。重逢后的解释可以改认知，可靠选择与对方回应才让读者相信相处变了。分开记录“还有感情”和“同意重新交往”；回忆用来重读旧事，不替人物自动原谅。结局按作品承诺与双方选择写，不强制受伤的一方也要被改造成另一个人。",
+      "en": "Establish why they separated, distinguishing what they believed from the harm that occurred. Explanation may change understanding; reliable choices and the other person’s response make changed contact believable. Track lingering affection separately from agreement to date again. Use memory to reinterpret the past without automatic forgiveness, and follow the book’s promise and both choices rather than forcing the injured person to become someone else."
+    },
+    "sections": [
+      {
+        "id": "what-broke",
+        "heading": {
+          "zh": "把“当年没说清”与“当年真的做错”分开",
+          "en": "Separate an Unexplained Past from Actual Harm"
+        },
+        "body": {
+          "zh": "一句“其实我一直爱你”不能回答所有分离。先区分：两人误解了同一件事，外部条件让他们分开，还是一人确实替另一人做了决定、失约或伤害。解释分别能改什么，损失又有哪些已经无法撤销？\n\n不必给每次重逢加秘密或第三者。若双方当年没有过错，重新认识现在的彼此也能成为故事；若确有伤害，查清事实之后仍要接住当事人的回答。\n\n本页将人物关系方法中的独立目标、好感与社会关系两条进度、基于既有人设的局部变化，以及情绪方法中的具体投入和可信回应，组合成复合检查。它是作者编辑方法，不是 skill 的原生“破镜重圆公式”。",
+          "en": "“I always loved you” cannot answer every separation. Distinguish misunderstanding, outside circumstances, and actual decisions made for someone else, broken promises, or harm. What can explanation change, and which losses cannot simply be undone?\n\nReunion need not acquire a secret or third party. Without past wrongdoing, meeting each other as changed people can carry the story. With harm, clarification still needs the affected person’s answer.\n\nThis page combines the relationship methods’ independent goals, separate affection and social progress, and local change grounded in established character with the emotional methods’ specific investment and credible response. It is an editorial approach, not the skill’s native second-chance formula."
+        }
+      },
+      {
+        "id": "repair-card",
+        "heading": {
+          "zh": "复合检查表：别把道歉直接跳成确认关系",
+          "en": "A Repair Worksheet: Do Not Jump from Apology to Dating"
+        },
+        "body": {
+          "zh": "| 记录 | 要写清什么 |\n|---|---|\n| 旧相处 | 为什么曾经愿意在一起？留一个具体而可信的体验。 |\n| 分离 | 谁知道什么、怎样判断、实际做了什么？别把误会和行为混成一项。 |\n| 当前目标 | 没有复合结果时，两人仍各自要做什么？重逢是否符合这些目标？ |\n| 改变 | 哪个当前选择回应了旧问题？这次对方有没有听见、看见或收到？ |\n| 对方回应 | 接受说明、继续合作、约会或拒绝分别是不同决定。 |\n| 新相处 | 双方答应了什么，实际相处又走到哪里？不用一句“从此再无问题”封口。 |\n\n不用一次写满，也不要求相处每场升级。人物的变化可以是原有长处获得新的边界：仍擅长安排，但不再代替伴侣决定。犯错者承担对应责任，不为追求“双向成长”把受伤者改写成同样有错。",
+          "en": "| Record | Clarify |\n|---|---|\n| Earlier bond | Why did they want to be together? Keep a specific, credible experience. |\n| Separation | Who knew what, how did they interpret it, and what did they actually do? Belief and conduct are distinct. |\n| Present goal | What does each want without reunion? Does meeting again fit those goals? |\n| Change | Which current choice answers the old problem? Has the other person seen, heard, or received it? |\n| Response | Accepting an explanation, working together, dating, and refusing are different decisions. |\n| New contact | What have both agreed, and how far has actual interaction gone? “No more problems” cannot replace contact. |\n\nDo not fill everything at once or upgrade the relationship in every scene. Change may give an old strength a boundary: someone remains good at planning while ceasing to decide for a partner. Responsibility follows conduct; “mutual growth” need not make the injured person equally at fault."
+        }
+      },
+      {
+        "id": "prose-example",
+        "heading": {
+          "zh": "完整原创片段：同一句“我替你想好了”，如今怎样回答",
+          "en": "Complete Original Prose: Answering “I Planned It for You” Differently"
+        },
+        "body": {
+          "zh": "虚构小说中，编辑沈晓与插画师周衡分开一年。过去他常帮她整理出行细节，她曾喜欢那种被照顾的轻松；后来他未经询问，向邀请方说她不接受外地驻留，错过的名额已给别人。她在看见往来邮件后分手，原因不是不知道他爱她，而是不接受自己的去留由他决定。\n\n一年后，两人分别接受朋友组织的小册子项目：沈晓交文字，周衡交插画。双方都知道会合作，沈晓明确只谈项目。她又收到新的驻留邀请，出发日期在册子交稿前；这个机会来自她自己的申请，与周衡无关。\n\n> 周衡把版面样张推到她面前。“你出发后，校样我可以替你看。”\n>\n> 沈晓没接。他以前也这样把车票摊在桌上，连转车时该买什么都算好了。那时她把不用再想的晚上叫作安心；后来才知道，他会把同一份安心延伸到她没交出去的决定。\n>\n> “插画部分你看，”她说，“文字我自己看。”\n>\n> 他把已写上的“我统一确认”划掉，重新分开两人的部分。“好。你什么时候方便，我按你回信的时间排。”\n>\n> “驻留我会去。”\n>\n> 周衡停了一会儿。“知道。我当年说你不去，是我想让你留下，不是邀请方误会。那个名额补不回来。我已经向他们更正了我代你答复这件事，请他们以后直接找你。回信转给了你。”\n>\n> “我收到了。”沈晓说。邀请方回复已修改联系备注，没有承诺恢复旧名额。她那天读完，合上邮件做了自己的申请；此刻不需要再听一个更动人的理由。\n>\n> 她指了指样张。“下周三我在路上。文字校样周四发我，我当天回。你若赶不上，也先告诉我。”\n>\n> “周四发。来不及我会说，不替你确认。”\n\n**回应后来发生，不能只停在这段答应。** 周四沈晓收到文字校样，回复了一处段落调整。周衡依她的回复更新版面，再发她确认；没有因印厂催促替她点头。插画由他负责，文字由她负责，朋友组织者收到各自确认后才交印。这项合作完成了新边界，没有自动恢复恋爱。\n\n驻留一个月后，两人已按沈晓愿意的频率通话。她说：“回来后我想和你约会，重新开始，但我的去留还是我决定。”周衡回答“我愿意”，没有把这句话当作她放弃驻留。她回来后，两人实际去了一次约好的晚饭，谈了新的工作安排；她没有搬回去，他们也没有宣称全部旧伤消失。\n\n这段回忆让读者重读“照顾”的旧意义，不复述整个恋爱史；当前协商、校样回应和双方确认各有落点。她重新靠近不靠替他开脱，也不需要否定过去所有温暖。若作者要写最终分开，保留已完成的更正与合作，把约会一段改成双方选择；不能仍称已经复合。",
+          "en": "In this fictional novel, editor Shen Xiao and illustrator Zhou Heng separated a year ago. He used to organize travel details, and she liked the ease of being cared for. Later he told a residency organizer she would not attend without asking her. The place went to someone else. She read the correspondence and ended the relationship because her movements were being decided for her, not because she doubted his love.\n\nA year later, both separately accept a friend’s booklet project: her text, his illustrations. Both know they will collaborate; Shen has specified work contact only. A new residency invitation, from her own application, has a departure date before the booklet deadline. Zhou did not obtain it for her.\n\n> Zhou pushed the layout toward her. “Once you leave, I can check the proofs for you.”\n>\n> Shen did not take it. He had once spread tickets across the table like this, planning even what to buy between trains. Back then she called an evening with nothing left to arrange peace. Later she learned he could extend that peace into decisions she had never handed over.\n>\n> “You check the illustrations,” she said. “I’ll check my text.”\n>\n> He crossed out “I confirm everything” and separated their portions. “All right. Tell me when you can reply, and I’ll plan around that.”\n>\n> “I’m going to the residency.”\n>\n> He paused. “I know. I told them you wouldn’t because I wanted you to stay. They didn’t misunderstand. I can’t restore that place. I corrected the reply I made for you and asked them to contact you directly in future. I forwarded their answer.”\n>\n> “I received it.” The organizer had changed the contact note, not promised the old place back. After reading it she had closed the message and made her own application. She did not need a more moving excuse now.\n>\n> She pointed to the layout. “I’m traveling next Wednesday. Send the text proof Thursday and I’ll reply that day. Tell me first if you can’t make it.”\n>\n> “Thursday. If I’m late, I’ll say so. I won’t confirm for you.”\n\n**The later response matters beyond this agreement.** On Thursday Shen receives the text proof and requests a paragraph adjustment. Zhou updates the layout from her reply and sends it for confirmation instead of agreeing for her when the printer asks. Each confirms their own contribution before the friend sends it to print. Work establishes a new boundary; it does not automatically restore romance.\n\nA month into the residency, they have been calling at a frequency Shen welcomes. She says she wants to date again after returning, with her movement still her own decision. Zhou agrees without treating that as cancellation of the residency. On her return they actually share an arranged dinner and discuss current work. She has not moved back in, and neither declares every old hurt gone.\n\nMemory lets readers reinterpret care without retelling the whole relationship. Present discussion, proof replies, and mutual confirmation each have a place. Shen need not excuse Zhou to approach him or deny all past warmth. For an ending apart, retain correction and professional cooperation and rewrite the dating section around both choices; do not still report reunion."
+        }
+      },
+      {
+        "id": "failures",
+        "heading": {
+          "zh": "复合显得勉强，先修哪一处",
+          "en": "Where to Repair a Reunion That Feels Forced"
+        },
+        "body": {
+          "zh": "| 问题 | 修法 |\n|---|---|\n| 只有痛哭和表白，没有旧问题的回应 | 找一个对应旧问题的真实选择，接另一方回答；不必新增巨大牺牲。 |\n| 真相全推给第三人，行为责任消失 | 分开写谁提供错误信息、谁作决定及其实际影响。 |\n| 一句道歉马上变同居或结婚 | 分开好感与关系确认，补符合当前阶段的相处。 |\n| 回忆每次原样重播 | 检查新理解或情绪体验，压缩无作用的重复。 |\n| 所有改变都由受伤者完成 | 将对应责任放回行为者，不用“你也成长了”抹平过错。 |\n| 修复全是办事流程，读者感受不到靠近 | 保留具体相处、迟疑、声音或直接情绪；流程只留故事需要的部分。 |\n\n先修最影响相信的一处，不把整本小说写成逐条验收。双方可仍保有分歧，也可以在一个温暖场景里稳定相处。",
+          "en": "| Problem | Repair |\n|---|---|\n| Tears and confession never answer the old problem | Show a corresponding choice and the other person’s answer without requiring enormous sacrifice. |\n| A third party takes all blame and conduct disappears | Separate who supplied misinformation, who decided, and what it did. |\n| Apology instantly becomes living together or marriage | Separate affection from confirmation and show contact suited to the present stage. |\n| Each memory replays unchanged | Check new understanding or emotional experience; compress repetition without function. |\n| The injured person does all the changing | Return responsibility to conduct rather than erasing fault through “you grew too.” |\n| Repair is all procedure, with no felt closeness | Preserve shared experience, hesitation, voice, or direct feeling; retain only procedures the story needs. |\n\nRepair the weakest basis for belief first rather than turning the novel into an inspection. Differences may remain, and a warm scene can sustain stable contact."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "破镜重圆必须两个人都改变吗？",
+          "en": "Must both people change for a reunion?"
+        },
+        "a": {
+          "zh": "不必同等改变或同等有错。源方法提供基于旧人设的双向变化作为选择；实际责任、愿望和关系进度按这两个人来写，不强迫受伤者替另一人完成成长。",
+          "en": "They need not change equally or share blame equally. The source offers mutual change grounded in established character as an option. Write responsibility, wishes, and relationship progress for these people without making the injured partner perform the other’s growth."
+        }
+      },
+      {
+        "q": {
+          "zh": "结尾可以不复合吗？",
+          "en": "Can they stay apart at the end?"
+        },
+        "a": {
+          "zh": "可以按作者选择写，但要对照作品已建立的承诺。若复合是核心期待，分开结局应有充分的过程与落点；接受道歉、原谅和同意交往不是同一件事。",
+          "en": "Follow the author’s chosen ending while checking the promise established by the book. If reunion is central to that promise, an ending apart needs adequate development and a clear resolution. Accepting an apology, forgiving, and agreeing to date are different."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "text": {
+        "zh": "用 $story-long-write 检查这段破镜重圆小说，附旧分离、已发生损失、当前知情和作者选定结局。检查回忆是否增加理解、行为变化是否对应旧问题、另一方是否真实回应，以及好感与关系确认是否混淆。保留本书文风和独立目标，不自动改成复合，不强迫双方同等有错；只处理点名片段。",
+        "en": "Use $story-long-write to review this second-chance passage with the separation, actual losses, present knowledge, and chosen ending. Check the memory’s function, behavior answering the old problem, genuine response, and affection versus relationship confirmation. Preserve voice and independent goals without assuming reunion or equal blame. Revise only the named passage."
+      },
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
+    },
+    "related": [
+      "/oh-story/romance-subplot",
+      "/oh-story/write-a-slow-burn-romance",
+      "/oh-story/flashbacks-in-fiction",
+      "/drama-skills/second-chance-romance-drama"
+    ],
+    "topic": "characters-and-dialogue",
+    "sources": [
+      {
+        "label": {
+          "zh": "独立目标、关系进度与人物变化",
+          "en": "Independent goals, relationship progress, and character change"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-relations.md"
+      },
+      {
+        "label": {
+          "zh": "具体投入、意义变化与可信回应",
+          "en": "Investment, changing meaning, and credible response"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/emotional-methods.md"
       },
