@@ -2750,7 +2750,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "写小说卡文了怎么办：先诊断，再写下一步",
       "en": "Stuck Writing a Novel? Diagnose the Block and Write the Next Step"
@@ -2764,8 +2764,8 @@
       "en": "Diagnose goal, resistance, causality, scene or energy. Ask what the next step changes to find one writable action; avoid new lore and random accidents."
     },
     "answer": {
-      "zh": "卡文时不要先逼自己多写。先用一句话回答“主角当前要完成什么”，再检查阻力是否会真实反制、上一段结果是否制造了下一步、当前场景是否必须发生。找不到答案就修大纲；答案清楚但句子出不来就先写动作骨架；持续疲惫则缩小任务并休息，别用新角色或天降事故掩盖问题。",
-      "en": "When you are stuck on a novel, do not force more words. State in one sentence what the protagonist must accomplish now. Check whether the opposition can truly counter, whether the previous result creates the next move, and whether this scene must happen. If you cannot answer, repair the outline. If the answer is clear but sentences will not come, write an action skeleton. If exhaustion persists, reduce the task and rest. Do not hide the problem behind a new character or an arbitrary accident."
+      "zh": "卡文先分清是不知道下一步、场景作用不明、句子写不出，还是精力不足。回看已有目标、相处、线索与上一场结果，选择本场真正需要的任务或体验；结构缺口先补纲，剧情清楚时可先列动作骨架，疲惫时缩小任务并休息。别为继续写而强造事故，也不必让每个日常场景都变成对抗。",
+      "en": "First distinguish a missing next step, an unclear scene purpose, difficulty forming prose, and low energy. Review established goals, relationships, clues, and the previous result to choose the task or experience this passage needs. Repair structural gaps in the outline; use an action skeleton when the plot is clear, and reduce the task or rest when tired. Continuing does not require an invented accident or conflict in every everyday scene."
     },
     "sections": [
       {
@@ -2775,8 +2775,8 @@
           "en": "First Diagnose What Kind of Writer’s Block You Have"
         },
         "body": {
-          "zh": "| 症状 | 真正缺的东西 | 先做什么 |\n|---|---|---|\n| 不知道下一章写什么 | 阶段目标或后果 | 写出主角下一步必须完成的事 |\n| 有事件但很平 | 能反制的阻力 | 给对方自己的目标和筹码 |\n| 每章都像重复 | 策略没有变化 | 让旧方法失效，迫使主角换办法 |\n| 知道剧情却写不出句子 | 场景动作骨架 | 先列进入状态、动作、反应、结果 |\n| 什么都不想碰 | 注意力或精力耗尽 | 把任务缩成一个场景，必要时停写恢复 |\n\n“卡文”不是单一故障。结构问题靠润色解决不了，疲劳也不该被解释成作者不会写。",
-          "en": "| Symptom | Missing | First step |\n|---|---|---|\n| You do not know what the next chapter contains | A stage goal or consequence | State what the protagonist must accomplish next |\n| Events happen but feel flat | Opposition capable of counteraction | Give the opposing side its own goal and leverage |\n| Every chapter feels repetitive | The strategy never changes | Make the old method fail and force another approach |\n| You know the plot but cannot form sentences | A scene-action skeleton | List entry state, action, reaction, and result |\n| You cannot bear to touch the draft | Attention or energy is exhausted | Reduce the task to one scene and pause to recover if needed |\n\nWriter’s block is not one fault. Polishing cannot repair a structural problem, and fatigue should not be interpreted as an inability to write."
+          "zh": "| 项目 | 诊断与处理 |\n|---|---|\n| 不知道下一章写什么 | 真正缺的东西：阶段目标或后果；先做什么：写出主角下一步必须完成的事 |\n| 有事件但很平 | 真正缺的东西：能反制的阻力；先做什么：给对方自己的目标和筹码 |\n| 每章都像重复 | 真正缺的东西：策略没有变化；先做什么：检查是否重复同一作用；可换策略、展开新理解或压缩已知过程 |\n| 知道剧情却写不出句子 | 真正缺的东西：场景动作骨架；先做什么：先列进入状态、动作、反应、结果 |\n| 什么都不想碰 | 真正缺的东西：注意力或精力耗尽；先做什么：把任务缩成一个场景，必要时停写恢复 |\n\n“卡文”不是单一故障。结构问题靠润色解决不了，疲劳也不该被解释成作者不会写。",
+          "en": "| Item | Diagnosis and response |\n|---|---|\n| You do not know what the next chapter contains | Missing: A stage goal or consequence; First step: State what the protagonist must accomplish next |\n| Events happen but feel flat | Missing: Opposition capable of counteraction; First step: Give the opposing side its own goal and leverage |\n| Every chapter feels repetitive | Missing: The strategy never changes; First step: Check repeated function; change strategy, deepen understanding, or compress a known process |\n| You know the plot but cannot form sentences | Missing: A scene-action skeleton; First step: List entry state, action, reaction, and result |\n| You cannot bear to touch the draft | Missing: Attention or energy is exhausted; First step: Reduce the task to one scene and pause to recover if needed |\n\nWriter’s block is not one fault. Polishing cannot repair a structural problem, and fatigue should not be interpreted as an inability to write."
         }
       },
       {
@@ -2786,8 +2786,8 @@
           "en": "Find the Next Move with Five Questions"
         },
         "body": {
-          "zh": "1. **主角现在要完成哪一件事？** “变强”太宽，改成“在开市前追回被贴错标签的解毒药”。\n2. **谁或什么不允许他顺利完成？** 阻力要能行动，例如药铺掌柜为了保住执照，拒绝承认标签出错。\n3. **上一场的结果改变了什么？** 若什么都没变，这一场可能没有完成任务。\n4. **原办法为什么失效？** 让人物换策略，别把同一争吵再写一次。\n5. **下一场结束后，局面必须哪里不同？** 信息、关系、资源、风险或决定至少有一项真正改变。\n\n五问答完，先写“因为 A，所以主角做 B；B 引来反制 C；C 迫使他选择 D”。这条因果骨架比临时搜索十个新点子更能续上正文。",
-          "en": "1. **What one thing must the protagonist accomplish now?** “Become stronger” is too broad; use “recover the mislabeled antidote before the market opens.”\n2. **Who or what prevents easy success?** Opposition must act. The apothecary owner refuses to admit the labeling error because it could cost the shop its license.\n3. **What did the previous scene’s result change?** If nothing changed, that scene may not have completed a job.\n4. **Why does the old method fail?** Force a new strategy instead of repeating the same argument.\n5. **What must be different when the next scene ends?** Change information, relationship, resources, risk, or a decision.\n\nThen write: “Because A, the protagonist does B; B draws counteraction C; C forces choice D.” This causal skeleton reconnects the draft more reliably than searching for ten unrelated ideas."
+          "zh": "以下五问用于已经需要推进任务或对抗的场景，不是所有章节的必填表：\n\n1. **人物本场要完成什么？** 把“追查差错”缩到“交付前核对一个标签不符的包裹”。\n2. **什么使这件事难办？** 可以是对方利益、路线、时间或缺失信息，不必都有人恶意阻拦。\n3. **上一场留下什么？** 新事实、未答请求、关系体验或一个结果，都可成为承接。\n4. **原办法还有效吗？** 有效就可继续；若只是重复已读过的过程，考虑压缩、换观察或另选方法。\n5. **本场怎样完成作用？** 需要行动结果时写清信息与回应；需要等待、气氛或陪伴时，不强添新惩罚。\n\n对抗型骨架可以写“因为A，所以人物做B；对方回应C；人物选择D”。不是所有段落都要硬配反制。这里的五问是编辑诊断，不是原生细纲格式。",
+          "en": "These five questions fit a scene that already needs task progress or opposition; they are not a required form for every chapter:\n\n1. **What should the person accomplish here?** Narrow “investigate the error” to “check one discrepant parcel before delivery.”\n2. **What makes it difficult?** Interests, routes, time, or missing information may matter without malicious interference.\n3. **What does the previous scene leave?** A fact, unanswered request, relationship experience, or result can provide the connection.\n4. **Does the earlier method still work?** Continue if it does. If it repeats a process readers already know, compress it, change the observation, or choose another method.\n5. **How will this passage fulfill its purpose?** For an action result, clarify information and response. For waiting, atmosphere, or companionship, do not add punishment merely to create change.\n\nAn adversarial skeleton may read “Because A, the person does B; the other side responds C; the person chooses D.” Not every paragraph needs a countermove. These are editorial diagnostic questions, not the native outline format."
         }
       },
       {
@@ -2797,8 +2797,8 @@
           "en": "Original Example: A Pharmacy Apprentice Stalls During a Search for Medicine"
         },
         "body": {
-          "zh": "以下为原创情节诊断，不提供用药判断。学徒阿岑发现一包待交付药物的标签与本店记录不符，想在交付前找回核对。他只知道记录矛盾，不因闻到气味就能判断里面是什么。\n\n初稿让他逐摊询问，全是“没看见”。修改后先建立掌柜的利益：怕交货差错影响信誉，便声称阿岑擅自取走包裹。阿岑原先公开询问的办法因此失效。\n\n新策略是查本店蓝蜡封口和批次记号。他在早点摊看到相似碎蜡，但它只是询问依据；摊主的交接便条和装车人确认，才说明对应包裹已经出城。仍需核对完整标签，不能把相似蜡块写成全部真相。\n\n下一步是追上这次运输。他可以争取掌柜的快马，也可以求已建立的驿站转达暂缓交付；选择取决于时间与他能提供的凭据。两条路都来自已有角色和通路，不临时降下新助手。卡点从“再问一家”变成有条件的策略选择。",
-          "en": "This original plot diagnosis offers no medication judgment. Apprentice Acen finds a delivery label inconsistent with shop records and wants the parcel checked before handover. He knows a discrepancy, not contents identifiable by smell.\n\nThe first draft repeats unanswered stall inquiries. Establish the shopkeeper’s interest: fearing a damaged reputation, he alleges that Acen took the parcel. Public questioning now fails for a reason.\n\nAcen checks shop wax and batch marks. Similar wax at a stall justifies inquiry; a handover note and loader’s confirmation identify the outbound parcel. The full label still needs checking. A wax fragment is not the entire truth.\n\nHe can seek the shopkeeper’s horse or ask an already established relay station to pause delivery. Time and evidence determine the choice. Both routes use known people and access, not a new helper. The block becomes a conditional strategy choice rather than another identical question."
+          "zh": "以下为原创情节诊断，不提供用药判断。学徒阿岑对照本店留存标签副签与发货记录，发现一个已装车包裹的登记不符，想在收件人领走前找回核对。他只知道记录矛盾，不因气味或外观判断内容。包裹随本店早班车送出，前文已建立掌柜的快马和沿路驿站可传递递件询问的通路。\n\n初稿让他逐摊问，全是“没看见”。修改后先接人物利益：掌柜怕交货差错影响信誉，向早点摊主声称阿岑擅自取走包裹。阿岑再问时，摊主不愿卷入，先不肯拿出便条。旧办法的困难来自已经发生的回应，不是旁白宣布所有人都听过指控。\n\n阿岑在摊边看到相似蓝蜡，只以它为询问依据。他出示本店留存副签，说明要核对车次与去向，不让摊主替他判断内容。摊主拿出记录交接的便条：对应批次在本摊换过车。阿岑再问当时装车人，对方确认便条里的包裹随这趟车出城。批次和交接记录共同支持运输去向，完整标签仍要在实物上核对。\n\n接下来有两条已有路线：找掌柜借快马追车，或向沿路驿站传询。阿岑选择驿站，带着副签、便条和车次说明找到已出场的当班人，请他转达“暂缓交付并留件核对”。当班人答应收下递件询问，按当班转送流程登记，并把本地收件回执交给阿岑。请求确实进入转送，但目的地是否收到、是否留住实物尚未有回复；回执不等于已暂停交付。\n\n这样，卡点从“再问一家”变成有凭据的策略选择和可接续的下一步。下一章可以接等待目的地回复，也可以处理掌柜的回应；不必为了再制造压力临时加一个劫车反派。",
+          "en": "This original plot diagnosis offers no medication judgment. Apprentice Acen compares the shop’s retained label copy with dispatch records and finds a discrepancy for a parcel already loaded. He wants it checked before collection, without identifying contents by smell or appearance. The parcel left on the shop’s morning cart. Earlier scenes establish the shopkeeper’s horse and relay stations able to forward parcel inquiries along the route.\n\nThe first draft repeats unanswered stall questions. Connect the shopkeeper’s interest: fearing reputational damage, he tells the breakfast-stall owner Acen took the parcel without permission. When Acen returns, the owner initially withholds the handover note rather than become involved. A response actually creates difficulty; narration does not claim everyone has heard the accusation.\n\nSimilar blue wax beside the stall gives Acen a reason to ask, not a conclusion. He shows the retained shop copy and requests a cart and route check rather than asking the owner to judge contents. The owner produces a handover note: that batch changed carts at the stall. Acen then asks the loader present at the handover, who confirms the noted parcel left the city on this cart. Batch and handover records support the route; the full label still needs checking on the object.\n\nTwo established routes remain: ask to borrow the shopkeeper’s horse and follow, or send an inquiry through the relay. Acen chooses the station. With the copy, note, and cart description, he asks the already introduced attendant to forward a request to hold delivery for checking. The attendant accepts the inquiry, logs it in the established forwarding process, and gives Acen a local receipt. Forwarding has begun; receipt at the destination and a hold on the actual parcel remain unconfirmed. A local receipt does not establish stopped delivery.\n\nThe block becomes an evidenced strategy choice and a next step the story can continue, rather than another identical question. The next chapter may follow the awaited reply or the shopkeeper’s response without inventing a cart-raiding villain to renew pressure."
         }
       },
       {
@@ -2808,8 +2808,8 @@
           "en": "When You Know the Plot but Cannot Draft the Prose"
         },
         "body": {
-          "zh": "知道剧情却写不出句子时，先列进入状态、关键动作、对方反应与结果。暂时跳过景物润色，保留观察和结论之间的连接。\n\n例如：“阿岑看到相似蓝蜡—问出处—摊主拿出交接便条—装车人确认包裹去向—他决定向驿站求助。”每个箭头都有依据；“看见蜡就知道包裹在城外”则缺少中间证据。\n\n动作骨架成立后再补声口、气氛与细节。若还没有目标、信息或选择，继续修结构，不用润色掩盖缺口。",
-          "en": "When the plot is known but prose stalls, list the entering state, key action, response and result. Skip decorative polishing while retaining links between observation and conclusion.\n\nFor example: Acen sees similar wax, asks its origin, reads a handover note, gets the loader’s confirmation, and chooses the relay station. Each step has a basis. Seeing wax and instantly knowing an out-of-town location does not.\n\nAdd voice and atmosphere once the skeleton works. Missing goals, facts or choices still require structural repair."
+          "zh": "知道剧情却写不出句子时，先列进入状态、关键动作、对方反应与结果。暂时跳过景物润色，保留观察和结论之间的连接。\n\n例如：“阿岑看到相似蓝蜡—出示副签询问—摊主拿出便条—装车人确认运输—向驿站请求转询—当班人登记并交回执，目的地回复仍待。”每个箭头都有依据；“看见蜡就知道包裹在城外”则缺少中间证据。\n\n动作骨架成立后再补声口、气氛与细节。若还没有目标、信息或选择，继续修结构，不用润色掩盖缺口。",
+          "en": "When the plot is known but prose stalls, list the entering state, key action, response and result. Skip decorative polishing while retaining links between observation and conclusion.\n\nFor example: Acen sees similar wax, shows the label copy, reads the note, gets the loader’s route confirmation, requests relay forwarding, and receives a local receipt while the destination reply remains pending. Each step has a basis. Seeing wax and instantly knowing an out-of-town location does not.\n\nAdd voice and atmosphere once the skeleton works. Missing goals, facts or choices still require structural repair."
         }
       },
       {
@@ -2819,8 +2819,8 @@
           "en": "Common Fixes That Make Writer’s Block Worse"
         },
         "body": {
-          "zh": "| 做法 | 为什么恶化 | 替代方案 |\n|---|---|---|\n| 突然增加陌生反派 | 新问题没有旧因 | 从已有结果中找受损者 |\n| 临时给主角新能力 | 困境被绕过 | 让已有能力换一种用法并付代价 |\n| 重复上一轮冲突 | 人物策略和结果没变 | 封住旧路，要求新选择 |\n| 一直改开头 | 不面对当前缺口 | 只修与下一步因果相关的上游节点 |\n| 强迫疲惫时完成整章 | 质量和判断一起下降 | 留下一条可接续的动作骨架后休息 |\n\n当你能写出“当前目标—有效阻力—策略变化—局部结果—新压力”，卡点就已经从模糊焦虑变成可修改的问题。",
-          "en": "| Response | Effect | Instead |\n|---|---|---|\n| Add an unfamiliar villain | The new problem has no old cause | Find who was harmed by an existing result |\n| Give the protagonist a new ability | The dilemma is bypassed | Use an established ability differently and attach a cost |\n| Repeat the previous conflict | Strategy and result remain unchanged | Close the old route and require a new choice |\n| Keep rewriting the opening | The current gap remains untouched | Repair only upstream beats that affect the next causal step |\n| Force an entire chapter while exhausted | Quality and judgment decline together | Leave a resumable action skeleton, then rest |\n\nOnce you can write “current goal → effective opposition → strategy change → partial result → new pressure,” the block has become a specific, repairable problem."
+          "zh": "| 项目 | 诊断与处理 |\n|---|---|\n| 突然增加陌生反派 | 为什么恶化：新问题没有旧因；替代方案：从已有结果中找受损者 |\n| 临时给主角新能力 | 为什么恶化：困境被绕过；替代方案：检查已有能力的用途和限制；确有消耗才保留，不强添损失 |\n| 重复上一轮冲突 | 为什么恶化：人物策略和结果没变；替代方案：先查是否无作用重复；有效的旧路可继续，不强行封死 |\n| 一直改开头 | 为什么恶化：不面对当前缺口；替代方案：只修与下一步因果相关的上游节点 |\n| 强迫疲惫时完成整章 | 为什么恶化：质量和判断一起下降；替代方案：留下一条可接续的动作骨架后休息 |\n\n当你能说清本场要提供什么体验或完成哪一步，以及还缺哪项连接，就有了可修改的具体问题。对抗场景可查目标、阻力、策略和结果；奖励或日常场景不用再接“新压力”。",
+          "en": "| Item | Diagnosis and response |\n|---|---|\n| Add an unfamiliar villain | Effect: The new problem has no old cause; Instead: Find who was harmed by an existing result |\n| Give the protagonist a new ability | Effect: The dilemma is bypassed; Instead: Check established uses and limits, preserving actual costs without inventing loss |\n| Repeat the previous conflict | Effect: Strategy and result remain unchanged; Instead: Repair repetition without function; an effective old route may continue |\n| Keep rewriting the opening | Effect: The current gap remains untouched; Instead: Repair only upstream beats that affect the next causal step |\n| Force an entire chapter while exhausted | Effect: Quality and judgment decline together; Instead: Leave a resumable action skeleton, then rest |\n\nOnce you can identify this passage’s experience or task and the missing connection, the block becomes a repairable problem. An adversarial scene may need goals, resistance, strategy, and results; a reward or everyday scene need not add new pressure."
         }
       }
     ],
@@ -2849,8 +2849,8 @@
     "skill": {
       "name": "story-long-write",
       "text": {
-        "zh": "在 Claude Code 里说：“用 /story-long-write 帮我诊断卡文，不续写正文。依次检查当前目标、有效阻力、因果、策略变化和下一步状态改变，只给最小修复方案”（Codex 里写作 `$story-long-write`）。",
-        "en": "In Claude Code, say: “Use `/story-long-write` to diagnose why I am stuck without continuing the prose. Check the current goal, effective resistance, causality, change of strategy, and next state change in order. Give only the smallest repair plan.” In Codex, write `$story-long-write`."
+        "zh": "用 /story-long-write（Codex 用 $story-long-write）诊断这处卡文，不续写正文。附上一场结果、现有章纲和想保留的体验，先分结构、表达与任务过大，再指出缺失的具体连接。只给本场必要修法，不强制封旧路、加反派、增加损失或改整本大纲。",
+        "en": "Use /story-long-write, or $story-long-write in Codex, to diagnose this block without drafting prose. Supply the previous result, current outline, and intended experience. Distinguish structure, expression, and an oversized task, then identify the missing connection. Give only necessary repairs without requiring a closed route, new villain, loss, or a book-level rewrite."
       },
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
     },
@@ -2864,17 +2864,24 @@
     "sources": [
       {
         "label": {
-          "zh": "主线目标、卡文与循环",
-          "en": "Throughline goals, blocks and loops"
+          "zh": "卡文、循环与阶段目标",
+          "en": "Blocks, loops, and stage goals"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/plot-core-methods.md"
       },
       {
         "label": {
-          "zh": "驱动力、阻力与场景冲突",
-          "en": "Drives, resistance and scene conflict"
+          "zh": "驱动力、阻力与因果",
+          "en": "Drives, resistance, and causality"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/outline-conflict.md"
+      },
+      {
+        "label": {
+          "zh": "表达取舍服从本书选择",
+          "en": "Expression follows the book"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ]
   },
@@ -3988,8 +3995,8 @@
       "en": "Give antagonists goals, resources, judgment, and adaptive strategies. Match depth to their role; let action and stable weaknesses decide the outcome."
     },
     "answer": {
-      "zh": "小说反派不降智，关键是让他从自己的信息和利益出发做最合理的选择。他要有可执行目标、真实筹码、稳定弱点和面对失败后的反制。出场越久，动机与理念越需要展开；主角获胜应利用已建立的限制，不能等反派突然忘掉能力。",
-      "en": "To keep an antagonist intelligent, have them make the most reasonable choice available from their own information and interests. Give them an actionable goal, real leverage, a stable weakness, and a response to failure. The longer they remain in the story, the more fully their motives and worldview need to develop. The protagonist should win by exploiting established limits, not because the antagonist suddenly forgets an ability."
+      "zh": "让反派从自己的目标、信息和性格出发选择，而不是在主角需要赢时忽然忘掉能力。用实际行动显示他掌握的筹码和限制；失败后可以换办法，也可能因稳定偏见再次误判。深度按剧情分量取舍，不要求每个反派都有悲惨过去、一次胜利或同一种致命弱点。",
+      "en": "Let an antagonist choose from their own goals, information, and character instead of forgetting an ability when the protagonist needs to win. Show leverage and limits through actual action. They may change tactics after failure or misjudge again through an established bias. Match depth to story weight without requiring every antagonist to have a tragic past, one victory, or the same kind of fatal flaw."
     },
     "sections": [
       {
@@ -3999,8 +4006,8 @@
           "en": "How Much Depth Does an Antagonist Need?"
         },
         "body": {
-          "zh": "反派深度由他承担的剧情分量决定。一次性阻碍只需鲜明欲望和手段；一卷主要对手要有可信动机、资源、一次真实胜利与能被利用的缺陷；跨卷对手还要与主角形成价值选择上的冲突。\n\n给短期反派硬塞悲惨童年不会自动立体，给长期反派只留“嫉妒主角”又撑不起对抗。先问他要挡住主角多久、代表哪种压力，再决定展开多少。",
-          "en": "An antagonist’s depth should match the amount of story they carry. A one-time obstacle needs only a vivid desire and a method. A volume’s main opponent needs a credible motive, resources, one genuine victory, and a flaw that can be exploited. An opponent who spans several volumes should also oppose the protagonist through a conflict of values and choices.\n\nGiving a short-term antagonist a tragic childhood does not automatically make them rounded. Leaving a long-term antagonist with nothing but “jealousy of the protagonist” cannot sustain the conflict. First ask how long this character must obstruct the protagonist and what kind of pressure they represent, then decide how much to develop."
+          "zh": "反派深度由他承担的剧情分量决定。一次性阻碍只需鲜明欲望和手段；一卷主要对手通常需要展开动机、资源和限制，让读者看见阻力真实有效；跨卷对手可以进一步展开理念及选择的差异。一次胜利或价值对立是可用设计，不是所有类型的必填项。\n\n给短期反派硬塞悲惨童年不会自动立体，给长期反派只留“嫉妒主角”又撑不起对抗。先问他要挡住主角多久、代表哪种压力，再决定展开多少。",
+          "en": "An antagonist’s depth should match the amount of story they carry. A one-time obstacle needs only a vivid desire and a method. A volume’s main opponent usually needs developed motives, resources, and limits that make the resistance tangible. A recurring opponent may also develop differences in values and choices. A prior victory or value conflict is a useful design option rather than a universal requirement.\n\nGiving a short-term antagonist a tragic childhood does not automatically make them rounded. Leaving a long-term antagonist with nothing but “jealousy of the protagonist” cannot sustain the conflict. First ask how long this character must obstruct the protagonist and what kind of pressure they represent, then decide how much to develop."
         }
       },
       {
@@ -4010,8 +4017,8 @@
           "en": "Five Elements of a Believable Antagonist"
         },
         "body": {
-          "zh": "> **目标**：他想让什么局面成立？\n>\n\n> **理由**：为什么这对他重要，从他的视角怎样说得通？\n>\n\n> **筹码**：资源、权力、技能、信息或关系中，他真实掌握什么？\n>\n\n> **常用策略**：压力来临时，他习惯怎样处理？\n>\n\n> **致命弱点**：哪项长处用过头会让他犯错？\n\n再补一条信息边界：他知道什么、不知道什么、为什么会得出当前判断。聪明人也会犯错，但错误要来自有限信息、价值偏好或稳定性格。",
-          "en": "> **Goal**: What state of affairs do they want to create?\n>\n\n> **Reason**: Why does it matter to them, and how does it make sense from their point of view?\n>\n\n> **Leverage**: What resources, authority, skills, information, or relationships do they actually control?\n>\n\n> **Usual strategy**: How do they habitually respond under pressure?\n>\n\n> **Fatal weakness**: Which strength, taken too far, will make them commit an error?\n\nAdd an information boundary: what do they know, what do they not know, and why have they reached their current conclusion? Intelligent people can make mistakes, but those mistakes should come from limited information, values, or a stable trait."
+          "zh": "> **目标**：他想让什么局面成立？\n>\n\n> **理由**：为什么这对他重要，从他的视角怎样说得通？\n>\n\n> **筹码**：资源、权力、技能、信息或关系中，他真实掌握什么？\n>\n\n> **常用策略**：压力来临时，他习惯怎样处理？\n>\n\n> **致命弱点**：哪项长处用过头会让他犯错？\n\n再补一条信息边界：他知道什么、不知道什么、为什么会得出当前判断。聪明人也会犯错，但错误要来自有限信息、价值偏好或稳定性格。\n\n这五项是本文整理的编辑卡，不是原生角色设定模板。资料中的“长处过度成为弱点”可用于偏执型对手；败因也可以来自公开限制、有限资源、错失合作或主角的有效准备，不需要临时添一个致命缺陷。",
+          "en": "> **Goal**: What state of affairs do they want to create?\n>\n\n> **Reason**: Why does it matter to them, and how does it make sense from their point of view?\n>\n\n> **Leverage**: What resources, authority, skills, information, or relationships do they actually control?\n>\n\n> **Usual strategy**: How do they habitually respond under pressure?\n>\n\n> **Fatal weakness**: Which strength, taken too far, will make them commit an error?\n\nAdd an information boundary: what do they know, what do they not know, and why have they reached their current conclusion? Intelligent people can make mistakes, but those mistakes should come from limited information, values, or a stable trait.\n\nThese five elements form this page’s editorial card, not the native character-setting template. The source’s strength-becoming-weakness method fits an obsessive opponent. Defeat may also follow established limits, scarce resources, lost cooperation, or the protagonist’s preparation; do not add a fatal flaw merely to fill a field."
         }
       },
       {
@@ -4032,8 +4039,8 @@
           "en": "How Can an Antagonist Counter the Protagonist Intelligently?"
         },
         "body": {
-          "zh": "把对抗写成逐步升级的判断：\n\n- **直接应对**：主角公开证据，反派质疑来源或切断渠道。\n- **预判反制**：反派知道主角会找证人，提前改变证人的利益。\n- **反预判**：反派故意保留一条可查路径，引导主角暴露真正底牌。\n\n不是每个小反派都要三层计谋。对手越重要，越应根据上一轮结果学习；每次只重复威胁或派人送败绩，才会显得降智。",
-          "en": "Write the conflict as a sequence of escalating judgments:\n\n- **Direct response**: The protagonist publishes evidence; the antagonist challenges its source or cuts off the channel.\n- **Anticipatory countermove**: Knowing the protagonist will seek a witness, the antagonist changes what that witness stands to gain or lose.\n- **Counter-anticipation**: The antagonist deliberately leaves one discoverable path open, using it to make the protagonist reveal their real leverage.\n\nNot every minor antagonist needs three layers of strategy. The more important the opponent, the more they should learn from the previous result. Repeating threats or sending subordinates to suffer defeat every time is what makes an antagonist look foolish."
+          "zh": "把对抗写成逐步升级的判断：\n\n- **直接应对**：主角公开证据，反派质疑来源或切断渠道。\n- **预判反制**：反派知道主角会找证人，提前改变证人的利益。\n- **反预判**：反派故意保留一条可查路径，引导主角暴露真正底牌。\n\n不是每个小反派都要三层计谋。对手越重要，越应根据上一轮结果学习；每次只重复威胁或派人送败绩，才会显得降智。\n\n这三层也不是每个反派都要完成的升级表。预判先核对他怎样知道主角会找谁、能影响什么；留下可查路径不保证主角一定上钩。档案官例里，他已经收到乔澜提交的材料，才能据此要求逐户对应，并非读到了她未说出口的全部计划。",
+          "en": "Write the conflict as a sequence of escalating judgments:\n\n- **Direct response**: The protagonist publishes evidence; the antagonist challenges its source or cuts off the channel.\n- **Anticipatory countermove**: Knowing the protagonist will seek a witness, the antagonist changes what that witness stands to gain or lose.\n- **Counter-anticipation**: The antagonist deliberately leaves one discoverable path open, using it to make the protagonist reveal their real leverage.\n\nNot every minor antagonist needs three layers of strategy. The more important the opponent, the more they should learn from the previous result. Repeating threats or sending subordinates to suffer defeat every time is what makes an antagonist look foolish.\n\nThese are not three mandatory levels for every antagonist. Before anticipation, check how the opponent knows whom the protagonist will seek and what they can influence. An open trail does not guarantee the protagonist follows it. In the archivist example, Shen has received Qiao’s submitted material before requesting household mapping; he has not read her unspoken plans."
         }
       },
       {
@@ -4055,8 +4062,8 @@
           "en": "Must an antagonist defeat the protagonist at least once?"
         },
         "a": {
-          "zh": "承担一整段主线的反派最好造成一次真实损失，证明威胁有效。只出现一两个场景的小障碍无需强行拉长胜负。",
-          "en": "An antagonist who carries a substantial stretch of the main plot should usually cause one genuine loss, proving the threat is real. A minor obstacle that appears in only one or two scenes does not need an artificially prolonged contest."
+          "zh": "不一定。源方法把一次真实胜利用作建立威胁的常用办法；也可通过有效阻碍、已经造成的影响或既有能力证明压力。按本书类型决定，不为满足次数硬添主角受损。",
+          "en": "No. The source uses a genuine victory as a common way to establish threat. Effective obstruction, an already visible impact, or an established ability can also demonstrate pressure. Choose for the book rather than adding protagonist loss to meet a count."
         }
       },
       {
@@ -4065,16 +4072,16 @@
           "en": "How can I write the antagonist’s viewpoint without spoiling the mystery?"
         },
         "a": {
-          "zh": "只展示他当下要做的事、掌握的信息和愿意支付的代价，保留终极意图。反派视角应增加压力或信息差，避免完整复述计划。",
-          "en": "Show only what they are doing now, the information they possess, and the cost they are willing to pay. Withhold the ultimate intention. An antagonist viewpoint should increase pressure or an information gap, not recite the entire plan."
+          "zh": "先选读者要等待什么。可以保留终极意图，也可以明示一项计划，让读者等待主角怎样应对；后者正是信息差方法。按本书视角选择可展示内容，避免用空泛“那件事”代替全部行动，也不要突然掐掉贴近视角本应呈现的关键判断。",
+          "en": "Choose what readers should await. You may withhold an ultimate intention or reveal a plan so they anticipate the protagonist’s response; the latter is the source’s information-gap method. Select content for the book’s viewpoint without replacing every action with “that thing” or abruptly suppressing a key judgment a close viewpoint should convey."
         }
       }
     ],
     "skill": {
       "name": "story-long-write",
       "text": {
-        "zh": "在 Claude Code 里说：“用 /story-long-write 检查这个反派的目标、理由、筹码、信息边界、常用策略和致命弱点，并模拟他根据主角行动作出的下一步反制，不写正文”（Codex 里写作 `$story-long-write`）。",
-        "en": "In Claude Code, say: “Use `/story-long-write` to inspect this antagonist’s goal, reason, leverage, information boundary, usual strategy, and fatal weakness, then simulate the next countermove they would make in response to the protagonist. Do not write prose.” In Codex, write `$story-long-write`."
+        "zh": "用 /story-long-write（Codex 用 $story-long-write）检查这个反派的目标、理由、真实筹码、知情范围与常用策略。根据他已看见或实际获知的主角行动提出下一步应对；缺陷、胜利和隐藏意图按本书需要判断，不为模板硬添。只交设计，不写正文。",
+        "en": "Use /story-long-write, or $story-long-write in Codex, to check this antagonist’s goal, reason, actual leverage, knowledge, and usual strategy. Propose a response to protagonist actions they have seen or actually learned about. Assess flaws, victories, and hidden intentions for this book without inventing them to fill a template. Deliver design only, not prose."
       },
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
     },
@@ -4088,17 +4095,24 @@
     "sources": [
       {
         "label": {
-          "zh": "反派内在逻辑、分量与弱点",
-          "en": "Antagonist logic, weight and weakness"
+          "zh": "反派分量、内在逻辑与限制",
+          "en": "Antagonist weight, logic, and limits"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-basics.md"
       },
       {
         "label": {
-          "zh": "筹码、对抗与驱动力",
-          "en": "Leverage, opposition and drives"
+          "zh": "筹码、对抗与反派视角信息差",
+          "en": "Leverage, opposition, and antagonist viewpoint"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/outline-conflict.md"
+      },
+      {
+        "label": {
+          "zh": "默认设计服从本书选择",
+          "en": "Default methods follow the book"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ]
   },
@@ -4124,8 +4138,8 @@
       "en": "Set outcome, advantage, and cost. Use mind, body, skill, and setting; show key-action consequences, compress repeats, and land the heaviest beat briefly."
     },
     "answer": {
-      "zh": "打斗场面先定这场战斗为何发生、谁赢、凭什么赢、付出什么代价，再写动作。每一轮攻防都要改变距离、伤势、资源、信息或心理优势；招式服务胜负逻辑和人物性格。重复招式只写新结果，关键转折给足中间过程，最重的一击用短段落落下。",
-      "en": "Before writing a fight scene, decide why the fight occurs, who wins, why they win, and what the victory costs. Each exchange should change distance, injury, resources, information, or psychological advantage. Techniques should serve the logic of victory and the fighters’ personalities. For repeated moves, write only the new result; show the full chain for crucial turns, and land the heaviest beat in a short paragraph."
+      "zh": "先定这场战斗为何发生、要达到什么结果、胜负依据与已有消耗，再安排动作。把关键攻防的距离、位置、持物和双方回应写清；反复招式按新效果取舍，重要转折给足中间过程。伤势、反转、旁观反应和短句都按这场戏及本书文风选择，不为让打斗合格而额外制造损失。",
+      "en": "Decide why the fight happens, the intended result, what determines it, and established costs before arranging moves. Make distance, position, held objects, and both sides’ responses clear in consequential exchanges. Select repeated moves for their new effects and show the chain at major turns. Choose wounds, reversals, spectator reactions, and sentence length for this scene and voice rather than adding loss to qualify as a fight."
     },
     "sections": [
       {
@@ -4135,8 +4149,8 @@
           "en": "What Should You Decide Before Writing a Fight?"
         },
         "body": {
-          "zh": "先确定结果类型：强者碾压、以弱胜强、暂时逃脱，或胜利后进入更危险阶段。然后写胜因：力量差、信息差、环境、装备、心态或愿意支付的代价。\n\n结果和胜因明确后，每个动作都有筛选标准：它是否建立优势、改变优势、揭露底牌或支付代价？纯粹换招式名称却不改变局面，会让打斗变成流水账。",
-          "en": "First choose the type of outcome: a stronger fighter overwhelms the opponent, an underdog wins, someone escapes for now, or victory leads into greater danger. Then identify the deciding advantage: disparity in strength or information, the environment, equipment, mindset, or a cost one fighter is willing to pay.\n\nOnce the outcome and deciding advantage are clear, every move has a test: does it establish an advantage, reverse one, reveal a hidden card, or pay a cost? Merely changing the names of techniques without changing the situation turns the fight into a list."
+          "zh": "先确定结果类型：强者碾压、以弱胜强、暂时逃脱，或胜利后进入更危险阶段。然后写胜因：力量差、信息差、环境、装备、心态或愿意支付的代价。\n\n结果和胜因明确后，每个动作都有筛选标准：它是否建立空间与能力、推进攻防、改变优势、表现人物或交付本场体验？纯粹换招式名称却不改变局面，会让打斗变成流水账。\n\n结果可以是取得一个物件、撑到同伴离开、停战或完成比赛，不一定击杀，也不一定胜后再添更大危险。源方法的结果先定和心体技适合作为准备；每轮必须反转、受伤或惊叹不作跨题材配额。",
+          "en": "First choose the type of outcome: a stronger fighter overwhelms the opponent, an underdog wins, someone escapes for now, or victory leads into greater danger. Then identify the deciding advantage: disparity in strength or information, the environment, equipment, mindset, or a cost one fighter is willing to pay.\n\nOnce the outcome and deciding advantage are clear, every move has a test: does it establish space or ability, advance the exchange, change advantage, reveal character, or deliver this scene’s experience? Merely changing the names of techniques without changing the situation turns the fight into a list.\n\nThe outcome may be gaining an object, holding until an ally leaves, a ceasefire, or completing a match. It need not be a kill or victory followed by greater danger. The source’s outcome-first and mind/body/skill methods are useful preparation; reversals, injury, or amazement are not quotas for every exchange across genres."
         }
       },
       {
@@ -4146,8 +4160,8 @@
           "en": "Build Attacks and Defenses from Mind, Body, Skill, and Setting"
         },
         "body": {
-          "zh": "| 维度 | 可写内容 | 怎样参与胜负 |\n|---|---|---|\n| 心 | 判断、意志、恐惧、急躁 | 错判距离、提前交底、敢于换伤 |\n| 体 | 力量、速度、耐力、伤势 | 决定动作能否继续和代价多大 |\n| 技 | 熟练招式、首次底牌、克制关系 | 改变攻防方法 |\n| 环境 | 地形、天气、遮挡、第三方 | 提供限制与可利用条件 |\n\n能力越抽象，因果越要清楚。读者不必懂每个招名，但要知道为何上一招有效、下一招为何被迫改变。",
-          "en": "| Part | Content | Effect |\n|---|---|---|\n| Mind | Judgment, will, fear, impatience | Misjudging distance, revealing a trump card too early, daring to trade injuries |\n| Body | Strength, speed, stamina, wounds | Determines whether an action can continue and what it costs |\n| Skill | Practiced techniques, a newly revealed trump card, counters | Changes the method of attack or defense |\n| Setting | Terrain, weather, cover, third parties | Creates limits and exploitable conditions |\n\nThe more abstract an ability is, the clearer its cause and effect must be. Readers need not know every technique’s name. They should understand why the last move worked and why the next one must change."
+          "zh": "| 维度 | 记录 |\n|---|---|\n| 心 | 可写内容：判断、意志、恐惧、急躁；怎样参与胜负：错判距离、提前交底、敢于换伤 |\n| 体 | 可写内容：力量、速度、耐力、伤势；怎样参与胜负：决定动作能否继续和代价多大 |\n| 技 | 可写内容：熟练招式、首次底牌、克制关系；怎样参与胜负：改变攻防方法 |\n| 环境 | 可写内容：地形、天气、遮挡、第三方；怎样参与胜负：提供限制与可利用条件 |\n\n能力越抽象，因果越要清楚。读者不必懂每个招名，但要知道为何上一招有效、下一招为何被迫改变。",
+          "en": "| Dimension | Record |\n|---|---|\n| Mind | Content: Judgment, will, fear, impatience; Effect: Misjudging distance, revealing a trump card too early, daring to trade injuries |\n| Body | Content: Strength, speed, stamina, wounds; Effect: Determines whether an action can continue and what it costs |\n| Skill | Content: Practiced techniques, a newly revealed trump card, counters; Effect: Changes the method of attack or defense |\n| Setting | Content: Terrain, weather, cover, third parties; Effect: Creates limits and exploitable conditions |\n\nThe more abstract an ability is, the clearer its cause and effect must be. Readers need not know every technique’s name. They should understand why the last move worked and why the next one must change."
         }
       },
       {
@@ -4157,8 +4171,8 @@
           "en": "Original Example: A Short-Blade Fight in a Salt Warehouse"
         },
         "body": {
-          "zh": "以下是原创盐仓打斗。负伤巡检贺砚舟要取到账册并送到仓外接应处，不求击杀。前文已让读者看见吊挂的盐袋、地面少量积水、通向外梯的浅排水槽和等候的同伴；这些不是反转时才出现的逃生条件。\n\n**第一轮**：走私头目的长刀占住距离，贺砚舟前冲被挡回，旧伤裂开。硬闯失败，他注意到对方始终用左手护住怀里的账册。\n\n**改变策略**：他踢倒地上的一袋盐，使狭窄湿地难以站稳，再退到吊袋旁。下一轮不继续追刀，而是割断已出现的吊绳。对手侧身避袋并护住账册，失去原先稳定的站位。\n\n**取舍与结果**：贺砚舟贴近扯走账册，肩侧挨了一刀。他沿已建立的浅槽跨到外梯，把账册递给等候同伴；同伴实际接住并按事先约定先送走。他留在梯口挡住追来的一步，伤势使他不能继续硬拼。\n\n仓门又响了。\n\n账册交接完成，贺砚舟本人尚未脱离追赶；不能把到达接应点直接写成彻底安全。本例用目标差异、观察、环境与代价改变优势，最后短句突出追赶仍在。另一种文风可以用不同句长，重点是局部结果与余波清楚。",
-          "en": "In this original salt-warehouse fight, injured inspector He Yanzhou must get a ledger to the waiting ally outside, not kill the smuggler. Earlier prose establishes suspended salt sacks, a little water on the floor, a shallow drainage channel leading to outside steps and the ally. These are not last-minute exits.\n\n**First exchange:** The opponent’s long blade controls distance. He’s rush is blocked and his old injury reopens. He notices the opponent’s left hand repeatedly protecting the ledger.\n\n**New strategy:** He spills a floor sack onto the narrow wet area and retreats beside a suspended sack. Rather than pursue the blade again, he cuts the already established rope. The opponent dodges the falling sack while protecting the book and loses the stable position.\n\n**Tradeoff and result:** He takes the ledger at close range and receives a shoulder cut. He crosses along the established shallow channel to the steps and hands it to the waiting ally. The ally actually receives it and leaves with it as agreed. He holds the step against pursuit; his injury prevents another forceful contest.\n\nThe warehouse door struck again.\n\nThe handoff is complete, but He remains pursued: reaching the ally is not total safety. Goal difference, observation, environment and cost change the advantage. The final short line emphasizes continuing pursuit; another voice may use different length while making result and aftermath clear."
+          "zh": "以下是原创盐仓打斗。负伤巡检贺砚舟要取到账册并送到仓外接应处，不求击杀。他右手持短刀，左手空着；走私头目右手持长刀，账册在敞开的衣襟内，由左手护住。前文已让读者看见地上的开口盐袋、少量积水、吊袋承重绳沿柱垂到肩高系结点、结点上方可达的绳段、通向外梯的浅排水槽和等候同伴；这些不是反转时才出现的条件。\n\n**第一轮**：头目的长刀占住距离，贺砚舟前冲被挡回，旧伤裂开。硬闯失败，他注意到对方始终用左手护住账册，而不是把两手都投入攻防。\n\n**改变策略**：他踢倒开口盐袋，再退到吊袋旁。袋身横进狭窄通路，对手绕开它，没能直接沿原来的站位追近；不以“盐落到湿地必然使人滑倒”作胜因。贺砚舟右手短刀割断已建立、够得着的结点上方承重绳段。对手侧身避开落袋，左手仍护着衣襟，原先由长刀保持的距离被拉近。\n\n**取舍与结果**：趁这次靠近，贺砚舟左手抓住露出的账册边角，从衣襟里扯出；肩侧同时挨了一刀。他左手持账册、右手仍持短刀，沿已建立的浅槽跨到外梯，把账册递给等候同伴。同伴双手接稳，他才松手；同伴按事先约定先送走账册。他留在梯口挡住追来的一步，伤势使他不能继续硬拼。\n\n仓门又响了。\n\n账册交接完成，贺砚舟本人尚未脱离追赶；到达接应点不直接等于彻底安全。本例用目标差异、观察、已建立空间与实际代价改变优势，最后短句突出追赶仍在。另一种文风可以采用不同句长，重点是本轮结果与余波清楚。",
+          "en": "In this original salt-warehouse fight, injured inspector He Yanzhou must get a ledger to a waiting ally outside, not kill the smuggler. He holds a short blade in his right hand, leaving his left free. The smuggler holds a long blade in the right hand and guards a ledger inside an open jacket with the left. Earlier prose establishes an open floor sack, a little water, a suspended sack’s supporting rope running down a post to a shoulder-height tie, with the loaded section above the tie within reach, a shallow channel leading to outside steps, and the ally. These conditions do not appear only at the reversal.\n\n**First exchange:** The long blade controls distance. He Yanzhou’s rush is blocked and his old injury reopens. He notices the opponent keeps the left hand over the book rather than using both hands in the exchange.\n\n**New strategy:** He kicks over the open floor sack and retreats beside the hanging one. The fallen sack blocks the narrow route, making the opponent step around it instead of following directly from the previous position. The outcome does not depend on salt making a wet floor inevitably slippery. With the short blade in his right hand, He Yanzhou cuts the established, reachable loaded section above the tie. The opponent sidesteps the falling sack, still guarding the jacket with the left hand. The distance maintained by the long blade closes.\n\n**Tradeoff and result:** At close range, He Yanzhou’s left hand catches the ledger’s exposed corner and pulls it from the jacket; he receives a shoulder cut. Ledger in the left hand and blade still in the right, he follows the established shallow channel to the steps and offers the book to the ally. The ally takes it securely in both hands before He releases it, then leaves with it as agreed. He holds the step against one pursuing advance; injury prevents another forceful contest.\n\nThe warehouse door struck again.\n\nThe handoff is complete, but He remains pursued. Reaching the ally is not total safety. Goal difference, observation, established space, and actual cost change the advantage. The final short line emphasizes continuing pursuit; another voice may use different sentence length while making this result and aftermath clear."
         }
       },
       {
@@ -4179,8 +4193,8 @@
           "en": "Common Fight-Scene Failures and Fixes"
         },
         "body": {
-          "zh": "| 失败 | 修正 |\n|---|---|\n| 招式很多，局面不变 | 每轮至少改变一种优势或代价 |\n| 临到反转才出现新能力 | 提前建立底牌或可推断条件 |\n| 双方长期势均力敌 | 让优势易手，迫使一方换目标或策略 |\n| 只写视觉特效 | 补距离、伤势、资源和选择后果 |\n| 角色边打边长篇解释 | 只留影响当前判断的信息 |\n| 前文已建立的损耗在结束后消失 | 保留实际伤势、消耗或暴露；碾压不必强添负伤 |\n| 每招都同样详写 | 首次与关键招详写，重复招压缩 |\n\n这页解决攻防和胜负逻辑；若问题是“怎样让胜利产生满足”，继续看[爽点写法](/oh-story/satisfaction-beats)。",
-          "en": "| Failure | Fix |\n|---|---|\n| Many techniques, no change in the situation | Change at least one advantage or cost in every exchange |\n| A new ability appears only at the reversal | Establish the trump card or an inferable condition earlier |\n| The fighters remain evenly matched for too long | Let the advantage change hands and force one side to change goal or strategy |\n| Only visual effects are described | Add distance, injury, resources, and the consequences of choices |\n| Characters explain at length while fighting | Keep only information that affects the present judgment |\n| Established costs disappear afterward | Keep actual costs; a decisive win need not invent injury |\n| Every move gets equal detail | Expand first uses and crucial moves; compress repetitions |\n\nThis page covers attack-and-defense logic and the reason for victory. If the problem is making a victory satisfying, continue to [how to write payoff beats](/oh-story/satisfaction-beats)."
+          "zh": "| 失败 | 修正 |\n|---|---|\n| 招式很多，局面不变 | 关键攻防写清作用；重复无新效果才压缩，不强制每招升级 |\n| 临到反转才出现新能力 | 提前建立底牌或可推断条件 |\n| 双方长期势均力敌 | 检查是否仍有策略、耐力、情绪或等待的变化；无作用的重复才改 |\n| 只写视觉特效 | 补距离、伤势、资源和选择后果 |\n| 角色边打边长篇解释 | 只留影响当前判断的信息 |\n| 前文已建立的损耗在结束后消失 | 保留实际伤势、消耗或暴露；碾压不必强添负伤 |\n| 每招都同样详写 | 首次与关键招详写，重复招压缩 |\n\n这页解决攻防和胜负逻辑；若问题是“怎样让胜利产生满足”，继续看[爽点写法](/oh-story/satisfaction-beats)。",
+          "en": "| Failure | Fix |\n|---|---|\n| Many techniques, no change in the situation | Make consequential exchanges count; compress repetition without new effect rather than escalating every blow |\n| A new ability appears only at the reversal | Establish the trump card or an inferable condition earlier |\n| The fighters remain evenly matched for too long | Check strategy, stamina, feeling, or purposeful waiting; repair repetition without function |\n| Only visual effects are described | Add distance, injury, resources, and the consequences of choices |\n| Characters explain at length while fighting | Keep only information that affects the present judgment |\n| Established costs disappear afterward | Keep actual costs; a decisive win need not invent injury |\n| Every move gets equal detail | Expand first uses and crucial moves; compress repetitions |\n\nThis page covers attack-and-defense logic and the reason for victory. If the problem is making a victory satisfying, continue to [how to write payoff beats](/oh-story/satisfaction-beats)."
         }
       }
     ],
@@ -4209,8 +4223,8 @@
     "skill": {
       "name": "story-long-write",
       "text": {
-        "zh": "在 Claude Code 里说：“用 /story-long-write 只设计这场打斗，先定结果、胜因、目标和代价，再按心、体、技、环境排出会改变局面的攻防节点，不写正文”（Codex 里写作 `$story-long-write`）。",
-        "en": "In Claude Code, say: “Use `/story-long-write` only to design this fight. Decide its outcome, deciding advantage, goal, and cost first, then arrange attack-and-defense beats across mind, body, skill, and setting that each change the situation. Do not write prose.” In Codex, write `$story-long-write`."
+        "zh": "用 /story-long-write（Codex 用 $story-long-write）只设计这场打斗，附原定结果、已有能力、空间和本书文风。检查目标与胜因，按需要组织心、体、技和环境，写清关键攻防、持物与实际结果。不强制每招反转、受伤或新增损失，本轮不写正文。",
+        "en": "Use /story-long-write, or $story-long-write in Codex, only to plan this fight with its intended outcome, established abilities, space, and voice. Check the goal and deciding advantage; use mind, body, skill, and setting as needed. Clarify consequential exchanges, held objects, and actual results without demanding a reversal, wound, or new loss from every move. Do not draft prose."
       },
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
     },
@@ -4260,8 +4274,8 @@
       "en": "Explain rules when they shape choices. Use action results, brief conflict dialogue, and in-scene carriers; cut exposition. Includes an original rewrite."
     },
     "answer": {
-      "zh": "小说设定要跟着人物眼前的问题出现。新规则第一次登场时，先给一个读者能抓住的锚点：角色怎样使用、害怕或误判它，以及立刻造成什么后果；来历和完整原理留到真正改变选择时再补。删解释腔时保留必要承接，避免只扔陌生名词。",
-      "en": "Introduce worldbuilding through the problem directly in front of the character. When a new rule first appears, give readers an anchor they can grasp: how the character uses, fears, or misjudges it, and what immediate consequence follows. Save its origin and full workings until they change a choice. When removing expository prose, preserve the links readers need instead of leaving only unfamiliar terms."
+      "zh": "先判断读者此刻需要理解什么，再选择短说明、行动反馈、对话或场内载体。新规则和陌生词要有可理解的意义，但不必每次都制造事故；气氛、好奇与人物体验也可以支持交代。保留因果和信息边界，把无作用的重复压缩，不为藏说明另造世界规则。",
+      "en": "Identify what readers need to understand now, then choose brief narration, action feedback, dialogue, or an in-scene carrier. Give new rules and terms understandable meaning without making every mention cause an accident. Atmosphere, curiosity, and character experience can also justify explanation. Preserve causality and information boundaries while cutting repetition without inventing lore to conceal exposition."
     },
     "sections": [
       {
@@ -4271,8 +4285,8 @@
           "en": "When Does Worldbuilding Feel Natural?"
         },
         "body": {
-          "zh": "当设定改变人物的目标、策略、风险或判断时交代。人物正赶着过城门，读者需要知道通行规则怎样卡住他；至于规则源于哪场百年前战争，可以等它影响后续选择时再说。\n\n每次只回答当前行动所需的问题：这是什么、眼下能做什么、违反会有什么可感知后果。全貌可以分批建立。开篇的信息优先级应让位于危机、人设和目标，避免角色还没行动，世界说明已经讲完。",
-          "en": "Explain a setting element when it changes a character’s goal, strategy, risk, or judgment. If a character is rushing through a city gate, readers need to know how the entry rule obstructs them. The century-old war that created the rule can wait until it affects a later choice.\n\nAnswer only what the present action requires: What is this? What can the character do right now? What perceptible consequence follows from breaking the rule? Build the full picture in stages. At the opening, crisis, characterization, and goals take priority over information; do not finish explaining the world before the character has acted."
+          "zh": "当设定改变人物的目标、策略、风险或判断时交代。人物正赶着过城门，读者需要知道通行规则怎样卡住他；至于规则源于哪场百年前战争，可以等它影响后续选择时再说。\n\n每次只回答当前行动所需的问题：这是什么、眼下能做什么、违反会有什么可感知后果。全貌可以分批建立。开篇的信息优先级应让位于危机、人设和目标，避免角色还没行动，世界说明已经讲完。\n\n这是行动场景的常用取舍，不是所有开篇都必须先有危机。若本书以地点气氛、日常体验或叙述声音开场，可以先给有作用的说明；仍要避免一口气堆满无从理解的术语。",
+          "en": "Explain a setting element when it changes a character’s goal, strategy, risk, or judgment. If a character is rushing through a city gate, readers need to know how the entry rule obstructs them. The century-old war that created the rule can wait until it affects a later choice.\n\nAnswer only what the present action requires: What is this? What can the character do right now? What perceptible consequence follows from breaking the rule? Build the full picture in stages. At the opening, crisis, characterization, and goals take priority over information; do not finish explaining the world before the character has acted.\n\nThis is a common approach for action scenes, not a requirement that every opening begin with crisis. A book centered on place, everyday experience, or narrative voice may start with useful explanation while avoiding a pile of terms readers cannot interpret."
         }
       },
       {
@@ -4293,8 +4307,8 @@
           "en": "Original Rewrite: A City with a Memory Tax"
         },
         "body": {
-          "zh": "以下是原创城市设定：成年居民每月缴一段自己选定的记忆，蓝晶存储该片段；收走的是选定时刻的画面与声音，关于经历的概括和技能仍在。欠缴暂不能通过公共车站闸门。\n\n**说明版**：\n\n> 临川居民每月缴一段记忆。蓝晶存储选中的片段，欠缴不能乘公共交通。这项制度来自百年前资源战争。\n\n若场景是闻夏赶末班车，当前先要知道她怎样过闸，以及代价是什么。\n\n**行动版**：\n\n> 闸门没开。屏上显示“本月未缴”，下方亮着选择记忆的提示。末班车已进站，闻夏把蓝晶按上额角，选中母亲教她系鞋带的那一刻。\n>\n\n> 画面被收进蓝晶，屏上变成“本月已缴”，闸门亮绿。她走过闸口，蹲下系好散开的鞋带；动作还会，母亲当时说的那句话却再也想不起。\n\n选择、收取和通行反馈构成规则的本轮演示。系鞋带能力仍在，生活细节显出失去关系记忆的分量，不把一个片段消失推成全部技能删除。战争背景可留到影响决定时再讲；也可以按文风用短说明补足。",
-          "en": "Original city premise: adults pay one chosen memory each month into a blue crystal. The selected moment’s image and sound are removed; summary knowledge and skills remain. An unpaid month blocks entry through public-station gates.\n\n**Exposition:**\n\n> Linchuan residents pay a memory each month. A crystal stores the chosen episode; unpaid residents cannot use public transport. The system began after a resource war a century ago.\n\nFor Wen Xia racing for the last train, first explain entry and cost.\n\n**In action:**\n\n> The gate stayed shut. “This month unpaid” appeared above a memory-selection prompt. The last train had arrived. Wen pressed the crystal to her temple and chose the moment her mother taught her to tie her shoes.\n>\n\n> The image entered the crystal. “Paid” replaced the warning and the gate turned green. Beyond it she knelt to tie a loose lace. The movement remained; her mother’s words from that moment would not return.\n\nChoice, collection and entry feedback demonstrate this round of the rule. The skill remains while the everyday act gives a relationship memory weight. A lost episode has not become deletion of all skills. History can wait until a choice needs it, or be supplied briefly in the book’s voice."
+          "zh": "以下是原创城市设定：成年居民每月缴一段自己选定的记忆，蓝晶存储该片段；收走的是选定时刻的画面与声音，关于经历的概括和技能仍在。欠缴暂不能通过公共车站闸门。\n\n**说明版**：\n\n> 临川居民每月缴一段记忆。蓝晶存储选中的片段，欠缴不能通过公共车站闸门。这项制度来自百年前资源战争。\n\n若场景是闻夏赶末班车，当前先要知道她怎样过闸，以及代价是什么。\n\n**行动版**：\n\n> 闸门没开。屏上显示“本月未缴”，下方亮着选择记忆的提示。末班车已进站，闻夏把蓝晶按上额角，选中母亲教她系鞋带的那一刻。\n>\n\n> 画面被收进蓝晶，屏上变成“本月已缴”，闸门亮绿。她走过闸口，把蓝晶收回口袋，蹲下系好散开的鞋带；动作还会，母亲当时说的那句话却再也想不起。\n\n选择、收取和通行反馈构成规则的本轮演示。系鞋带能力仍在，生活细节显出失去关系记忆的分量，不把一个片段消失推成全部技能删除。战争背景可留到影响决定时再讲；也可以按文风用短说明补足。",
+          "en": "Original city premise: adults pay one chosen memory each month into a blue crystal. The selected moment’s image and sound are removed; summary knowledge and skills remain. An unpaid month blocks entry through public-station gates.\n\n**Exposition:**\n\n> Linchuan residents pay a memory each month. A crystal stores the chosen episode; an unpaid month blocks public-station gate entry. The system began after a resource war a century ago.\n\nFor Wen Xia racing for the last train, first explain entry and cost.\n\n**In action:**\n\n> The gate stayed shut. “This month unpaid” appeared above a memory-selection prompt. The last train had arrived. Wen pressed the crystal to her temple and chose the moment her mother taught her to tie her shoes.\n>\n\n> The image entered the crystal. “Paid” replaced the warning and the gate turned green. Beyond it she returned the crystal to her pocket and knelt to tie a loose lace. The movement remained; her mother’s words from that moment would not return.\n\nChoice, collection and entry feedback demonstrate this round of the rule. The skill remains while the everyday act gives a relationship memory weight. A lost episode has not become deletion of all skills. History can wait until a choice needs it, or be supplied briefly in the book’s voice."
         }
       },
       {
@@ -4311,12 +4325,12 @@
       {
         "id": "mistakes",
         "heading": {
-          "zh": "三种隐蔽解释腔与修正",
+          "zh": "五种隐蔽解释腔与修正",
           "en": "Disguised Exposition and How to Fix It"
         },
         "body": {
-          "zh": "| 隐蔽写法 | 问题 | 修正 |\n|---|---|---|\n| “他想起老师曾说……”后接整页规则 | 回忆暂停现场 | 只保留会改变当前选择的一句 |\n| 两个本地人互问常识 | 对话为读者服务，人物失真 | 让双方因利益不同争论规则怎么用 |\n| 每次动作后总结“这意味着……” | 把读者刚看懂的事再翻译 | 让人物直接处理后果 |\n| 一口气介绍多个专名 | 没有记忆锚点 | 先给当前冲突必需的一个 |\n| 去解释时删成名词清单 | 读者无法判断分量 | 给首次出现的词一个动作或后果 |\n\n如果一段设定删掉后不影响人物眼前决定，可以推迟；如果删掉会让因果断裂，就把它压进最靠近选择的位置。",
-          "en": "| Form | Issue | Fix |\n|---|---|---|\n| “He remembered what his teacher once said…” followed by a page of rules | The memory pauses the scene | Keep only the sentence that changes the present choice |\n| Two locals ask each other about common knowledge | The dialogue serves the reader and makes the characters feel false | Let them argue over how the rule should be used because their interests differ |\n| Every action is followed by “This meant…” | The narration retranslates what readers just understood | Have the character deal directly with the consequence |\n| Several proper nouns arrive at once | Readers have no memory anchor | Introduce the one required by the current conflict first |\n| Cutting exposition leaves a list of nouns | Readers cannot judge their significance | Give each term, when first introduced, an action or consequence |\n\nIf removing a piece of worldbuilding does not affect the character’s immediate decision, postpone it. If removing it breaks cause and effect, compress it into the point nearest the choice."
+          "zh": "| 写法 | 问题与修正 |\n|---|---|\n| “他想起老师曾说……”后接整页规则 | 问题：回忆暂停现场；修正：保留本段信息、气氛或人物理解真正需要的内容 |\n| 两个本地人互问常识 | 问题：对话为读者服务，人物失真；修正：让对话有真实问答、商量或分歧；若都已知道，短说明也可 |\n| 每次动作后总结“这意味着……” | 问题：把读者刚看懂的事再翻译；修正：让人物直接处理后果 |\n| 一口气介绍多个专名 | 问题：没有记忆锚点；修正：先给当前冲突必需的一个 |\n| 去解释时删成名词清单 | 问题：读者无法判断分量；修正：给首次出现的词一个动作或后果 |\n\n删去一段设定前，检查信息、气氛、人物体验与叙述声口是否有损失。无作用才推迟或压缩；删后因果断裂时，把所需说明放回读者最需要的位置。",
+          "en": "| Form | Issue and fix |\n|---|---|\n| “He remembered what his teacher once said…” followed by a page of rules | Issue: The memory pauses the scene; Fix: Keep what this passage needs for information, atmosphere, or character understanding |\n| Two locals ask each other about common knowledge | Issue: The dialogue serves the reader and makes the characters feel false; Fix: Give dialogue a genuine question, discussion, or disagreement; brief narration can work when both already know |\n| Every action is followed by “This meant…” | Issue: The narration retranslates what readers just understood; Fix: Have the character deal directly with the consequence |\n| Several proper nouns arrive at once | Issue: Readers have no memory anchor; Fix: Introduce the one required by the current conflict first |\n| Cutting exposition leaves a list of nouns | Issue: Readers cannot judge their significance; Fix: Give each term, when first introduced, an action or consequence |\n\nBefore cutting, check the effect on information, atmosphere, character experience, and narrative voice. Delay or compress a passage without function. If its removal breaks causality, restore the explanation where readers need it."
         }
       }
     ],
