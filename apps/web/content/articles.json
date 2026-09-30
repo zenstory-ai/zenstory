@@ -28691,5 +28691,1089 @@
       "/drama-skills/match-ai-video-shot-color",
       "/video-recap/subtitle-layout-and-line-breaks"
     ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "write-a-fiction-paragraph",
+    "topic": "revision",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "小说怎么分段：跟着动作、信息和说话者走",
+      "en": "How to Break Fiction into Readable Paragraphs"
+    },
+    "seo_title": {
+      "zh": "小说怎么分段：跟着动作、信息和说话者走",
+      "en": "How to Break Fiction into Readable Paragraphs"
+    },
+    "description": {
+      "zh": "按新动作、信息与说话者拆段，保留连续推理。附原创片段、分段理由和长段、碎段的修订步骤。",
+      "en": "Break paragraphs at meaningful changes without fragmenting a continuous thought. Includes an original passage and repairs for dense or choppy prose."
+    },
+    "answer": {
+      "zh": "先看一段是否完成同一件事。动作目标、关注物件、信息或说话者改变时，考虑另起一段；同一条推理与情绪仍在展开，就保留连续性。长短只是发现问题的线索，不能按固定字数切段，也不必把每句都写成一段。",
+      "en": "Ask whether the paragraph develops one continuous unit. Consider a new paragraph when the action, object of attention, information or speaker changes. Keep a connected inference or emotion together. Length helps diagnose problems; it does not supply a universal word limit."
+    },
+    "sections": [
+      {
+        "id": "meaningful-breaks",
+        "heading": {
+          "zh": "先找变化，再找换行处",
+          "en": "Find changes before inserting breaks"
+        },
+        "body": {
+          "zh": "Oh Story 的行文方法把新动作、新物件、新信息、对白和视线变化作为分段线索。先在稿子上标出这些位置，再判断是否真的需要停顿，不把每个动词都当成一个新段。\n\n原创场景：社区剧场的管理员叶舒在收拾失物箱，准备把无人认领的雨伞捐走。她拿起一把旧伞，发现柄上刻着昨日失联演员的名字。志愿者说这把伞今早才被送来，两人于是改变计划，去查门口登记。\n\n这场有“正常整理—发现识别信息—另一人补充时间—改变行动”几个单位。分段让变化容易被读到；装箱、拿伞和查看伞柄的连续动作则可以放在同一段，不用切成逐项记录。",
+          "en": "Oh Story uses new actions, objects, information, dialogue and shifts of attention as paragraphing cues. Mark those points first, then decide whether each needs a pause. Every verb need not start a paragraph.\n\nOriginal scene: theater caretaker Ye Shu is sorting unclaimed umbrellas for donation. One handle bears the name of an actor who disappeared yesterday. A volunteer says that umbrella arrived this morning. They stop packing and check the entrance register.\n\nThe units are routine sorting, recognition, new timing evidence and a changed plan. Breaks make those developments visible. Picking up an umbrella and examining its handle can remain a connected action rather than a list of isolated movements."
+        }
+      },
+      {
+        "id": "worked-passage",
+        "heading": {
+          "zh": "示例：换行揭示哪一步变了",
+          "en": "Example: let breaks expose the progression"
+        },
+        "body": {
+          "zh": "**拥挤版：**\n\n> 叶舒把纸箱拉到脚边，拎起最后一把伞，柄上刻着“沈行”。昨天的值班表里也有这个名字，她把箱盖放回地上。志愿者问她怎么不装了，她说先别捐，志愿者说这把伞是今早送来的，她让他一起去查登记。\n\n**分段版：**\n\n> 叶舒把纸箱拉到脚边，拎起最后一把伞。柄上刻着“沈行”——昨天的值班表里也有这个名字。她把箱盖放回地上。\n>\n> “怎么不装了？”志愿者问。\n>\n> “这把先留下。”\n>\n> “今早送来的，就放在门口。”\n>\n> 叶舒将伞靠在桌边。“登记本还在前台？我们去看看。”\n\n第一段保留发现与初步判断的连贯性。换说话者时换段，最后用动作点明发言归属和新计划。换行后仍要顺读一遍，确认读者无需回头猜谁在说话。",
+          "en": "**Dense draft:**\n\n> Ye Shu pulled the box closer and lifted the last umbrella. “Shen Xing” was carved into its handle, a name she had seen on yesterday’s roster. She set the lid down. The volunteer asked why she had stopped. She said to keep this one. He said it had arrived that morning, and she asked him to check the register with her.\n\n**Paragraph revision:**\n\n> Ye Shu pulled the box closer and lifted the last umbrella. “Shen Xing” was carved into its handle—the name on yesterday’s roster. She set the lid down.\n>\n> “Why stop?” the volunteer asked.\n>\n> “Keep this one.”\n>\n> “It arrived this morning. Someone left it by the entrance.”\n>\n> Ye Shu leaned the umbrella against the desk. “Is the register still at reception? Let’s look.”\n\nDiscovery and inference stay together. Speaker changes receive breaks; the final action identifies the speaker and launches the next step. Read the result normally to check that readers can follow attribution without backtracking."
+        }
+      },
+      {
+        "id": "continuous-thought",
+        "heading": {
+          "zh": "推理和情绪链不要机械切碎",
+          "en": "Keep a continuous inference intact"
+        },
+        "body": {
+          "zh": "同一个人比较伞柄与名单，再得出初步判断，属于尚未结束的推理。把“她看名字”“她想起名单”“她怀疑有人来过”各切一段，未必更清楚，反而可能把所有步骤抬成同等重点。\n\n需要独立强调的关键发现，可以短段承接；普通过渡不必都这样写。对话中也不是每个停顿都要换段，仍由同一人连续说的一句请求，可以保持完整。\n\n先读含义，再看长短。如果长段正在细写一项决定，保留它；如果短段连着几个都只完成拿、放、走这一串动作，合并后再读。手机屏幕可帮助发现拥挤，但不能替代对叙事单位的判断。",
+          "en": "Comparing the carved name with the roster and forming an initial inference is one unfolding thought. Giving every mental step its own paragraph can grant equal weight to details that belong together.\n\nA decisive discovery can deserve a short standalone paragraph. Ordinary transitions need not receive the same emphasis. A pause inside one speaker’s request does not necessarily create a new paragraph either.\n\nRead meaning before measuring length. Keep a longer paragraph developing one decision; merge tiny neighboring paragraphs that merely describe taking, placing and walking. A phone viewport can expose density, but it cannot decide where an idea ends."
+        }
+      },
+      {
+        "id": "revision-pass",
+        "heading": {
+          "zh": "四步修订长段与碎段",
+          "en": "A four-step paragraph revision"
+        },
+        "body": {
+          "zh": "1. 写出每段正在完成的事；一段混进两个行动目标时，找实际转换处。\n2. 在新信息、换说话者或注意对象改变处试着断段，检查上段是否已完成必要交代。\n3. 合并同一动作或推理里的连续碎段，让句子保持自然连接。\n4. 朗读并在实际阅读界面查看，确认归属、重点与推进仍清楚。\n\n只加换行不能修复缺因果或漏人物的问题。若“登记本还在前台”没有此前依据，可以让人物提出询问，不要因排版更顺就把猜测写成事实。给 AI 的任务也应限定为分段与必要连接，保留事件、角色和关键信息，不让它顺手改剧情。",
+          "en": "1. State what each paragraph accomplishes; locate the real transition if it mixes different action goals.\n2. Try breaks at new information, speaker changes or shifts of attention. Check that the preceding unit is complete.\n3. Merge fragments belonging to the same action or inference, retaining natural sentence connections.\n4. Read aloud and inspect the actual reading view for attribution, emphasis and forward movement.\n\nLine breaks cannot repair missing causality or participants. If the register’s location is uncertain, let the character ask rather than convert a guess into fact. An AI paragraphing task should preserve events, characters and essential information instead of redesigning the scene."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "网文一定要一句一段吗？",
+          "en": "Does web fiction require one sentence per paragraph?"
+        },
+        "a": {
+          "zh": "不必。对白、关键发现可以单独成段，连续动作、推理或情绪可以保留句群。按完整含义和阅读重点决定，不按句数凑格式。",
+          "en": "No. Dialogue or a decisive discovery may stand alone, while a connected action, inference or emotion can remain a sentence group. Use meaning and emphasis rather than a sentence quota."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 检查这段分段，标出新动作、信息与说话者；合并同一推理的碎段，保留剧情与事实，解释每处必要调整。",
+        "en": "Use $story-long-write to review paragraph breaks, identifying action, information and speaker changes. Merge fragments of one inference, preserve facts and explain necessary changes."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "分段与自然节奏",
+          "en": "Paragraphing and natural rhythm"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
+      }
+    ],
+    "related": [
+      "/oh-story/over-edited-prose",
+      "/oh-story/write-a-scene-that-changes-the-story",
+      "/oh-story/write-natural-dialogue-tags"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "clear-character-names-and-pronouns",
+    "topic": "revision",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "小说人名反复出现怎么办：名字、代词与多人指代",
+      "en": "How to Use Character Names and Pronouns Clearly"
+    },
+    "seo_title": {
+      "zh": "小说人名反复出现怎么办：名字、代词与多人指代",
+      "en": "How to Use Character Names and Pronouns Clearly"
+    },
+    "description": {
+      "zh": "用名字重建主语，用代词连接同一动作。附原创多人片段与改前改后对照，避免省名字后反而分不清人物。",
+      "en": "Use names to reset attribution and pronouns to carry a continuous action. Includes an original group scene and a before-and-after revision."
+    },
+    "answer": {
+      "zh": "同一人的连续行动，不必每句重复名字；段首、人物插入、视角改变或动作归属可能混淆时，再点名。多人同场不要为了少写姓名连用含混的“他、她”。修改目标是读者顺读就知道谁做了什么，名字出现次数不能代替这个判断。",
+      "en": "Avoid repeating a name for every action by the same person. Re-establish it at paragraph openings, interruptions, viewpoint changes or ambiguous attribution. In group scenes, reducing names must not produce confusing pronouns. Readers should identify each action without counting name occurrences."
+    },
+    "sections": [
+      {
+        "id": "name-function",
+        "heading": {
+          "zh": "姓名承担归属与强调",
+          "en": "Names establish attribution and emphasis"
+        },
+        "body": {
+          "zh": "Oh Story 的主语节奏方法区分“重建主语”和“给每句贴名字”。在场景开始，读者需要知道谁在行动；当同一个人继续拿、检查、交还物品时，代词或自然承接就能保持归属。\n\n需要重新点名的情况包括：另一人插入、关注对象变了、视角回到主角、关键行动可能被读作旁人的动作。名字也可以强调一次重要决定，但不必把每个无关动作都强调。\n\n原创场景中，陶岚在社区图书室分拣退书，林菁递回借书卡，管理员周姨拿来一只信封。三人都有可执行动作，仅用“她”串起整段，就会把卡和信封的交接混在一起。",
+          "en": "Oh Story distinguishes resetting a subject from labeling every sentence. A scene opening establishes who acts. That person’s continuous handling of an object can then use a pronoun or a natural grammatical connection.\n\nName the actor again when another participant interrupts, attention shifts, viewpoint returns or an important action could be attributed elsewhere. A name can emphasize a decision without emphasizing every routine movement.\n\nOriginal scene: Tao Lan sorts returned books, Lin Jing hands back a library card, and Mrs. Zhou brings an envelope. Each woman performs actions. A chain of “she” references can obscure who receives which object."
+        }
+      },
+      {
+        "id": "worked-revision",
+        "heading": {
+          "zh": "示例：省掉重复，不省掉交接",
+          "en": "Example: remove repetition without losing a handoff"
+        },
+        "body": {
+          "zh": "**重复版：**“陶岚接过借书卡。陶岚翻到背面。陶岚发现签名被划掉。陶岚看向林菁。林菁说要换新卡。周姨把信封递给她。她没有接。”\n\n前半段一直报名字，后半段却在重要交接处失去归属。\n\n**改后：**\n\n> 陶岚接过借书卡，翻到背面。签名被划掉了。她把卡放在林菁面前：“要换一张？”\n>\n> 林菁点头。周姨从柜台后拿来信封，递向林菁。\n>\n> 林菁没有接。“先让我把借的书还完。”\n\n第一段用姓名建立行动者，后续“她”仍指陶岚；第二段明确新动作是谁对谁做。第三段重新点名，避免被读成周姨拒绝拿信封。这里的换行服务归属，不能只删除名字而保留原先含混的动作排列。",
+          "en": "**Repetitive draft:** “Tao Lan took the card. Tao Lan turned it over. Tao Lan noticed the crossed-out signature. Tao Lan looked at Lin Jing. Lin Jing asked for a new card. Mrs. Zhou handed her an envelope. She did not take it.”\n\nThe routine sequence repeats names, while the consequential handoff becomes ambiguous.\n\n**Revision:**\n\n> Tao Lan took the card and turned it over. The signature was crossed out. She set it before Lin Jing. “Need a replacement?”\n>\n> Lin Jing nodded. Mrs. Zhou brought an envelope from behind the counter and offered it to Lin Jing.\n>\n> Lin Jing did not take it. “Let me return the borrowed books first.”\n\nThe opening name establishes the continuous actor. The handoff names its recipient; the final paragraph resets the subject to prevent a mistaken refusal by Mrs. Zhou. Paragraphing supports attribution rather than simply concealing repeated names."
+        }
+      },
+      {
+        "id": "attribution-map",
+        "heading": {
+          "zh": "多人场景先记动作归属",
+          "en": "Map attribution in a group scene"
+        },
+        "body": {
+          "zh": "| 本段动作 | 行动者 | 对象或接收者 | 是否需要点名 |\n|---|---|---|---|\n| 接卡、翻背面 | 陶岚 | 借书卡 | 开头点名，连续动作不反复点名 |\n| 表示换卡 | 林菁 | 陶岚 | 发言对象可由已建立的交流判断 |\n| 递信封 | 周姨 | 林菁 | 两端都需明确 |\n| 拒绝接信封 | 林菁 | 周姨 | 上句有多人，重新点名 |\n\n这张表是改稿时的归属检查，不进入小说正文。写完再从普通读者角度顺读，确认代词最近的候选对象是否与作者意图相同。\n\n身份称呼也能帮忙，但要自然。读者已认识“管理员周姨”，不必每次换成“那位年长的图书室管理者”绕开姓名；换称呼不能让读者以为来了第四个人。",
+          "en": "| Action | Actor | Object or recipient | Naming choice |\n|---|---|---|---|\n| Take and turn card | Tao Lan | Library card | Name initially; connect subsequent actions |\n| Request replacement | Lin Jing | Tao Lan | Use the established exchange |\n| Offer envelope | Mrs. Zhou | Lin Jing | Make both ends clear |\n| Refuse envelope | Lin Jing | Mrs. Zhou | Reset after multiple possible subjects |\n\nThis editing map stays outside the prose. Read the revision normally and check whether the nearest plausible pronoun referent matches the intended actor.\n\nRole descriptions can help when natural. Replacing a familiar name with a long epithet on every appearance makes identification harder. A change of address should not suggest an additional person has entered."
+        }
+      },
+      {
+        "id": "repair-check",
+        "heading": {
+          "zh": "按含混位置修改，不按次数删名",
+          "en": "Repair ambiguity rather than meeting a name quota"
+        },
+        "body": {
+          "zh": "先圈出连续以同一姓名开头的句子，判断是否确属同一行动链；若中途没有换人、换视角或需要强调，就用代词、承接或合句修顺。\n\n再圈出“他、她、对方、那人”，从当前段落向前找归属。存在两个同样合理的候选时，恢复最短的必要姓名或角色称呼。最后核对持物、递交和拒绝这些动作，避免省主语使物件看似换了主人。\n\n不要把所有名字都改成代词，也不要为避免代词重复塞入皱眉、抬眼等动作。归属已经清楚且节奏自然，就可以停改；人物声音与对白提示语的问题，另按相应方法处理。",
+          "en": "Circle consecutive sentences beginning with the same name. If they form one action chain without a participant or viewpoint change, connect them with pronouns, grammatical continuation or a combined sentence.\n\nThen inspect “he,” “she,” “the other person” and similar references. When two candidates are equally plausible, restore the shortest necessary name or role. Check possession, handoffs and refusals so omitted subjects do not accidentally move objects between people.\n\nDo not replace every name with a pronoun or add decorative gestures to evade repetition. Stop when attribution and rhythm are clear. Distinct dialogue voices and speech tags require their own checks."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "两名同性别角色同场就不能用代词吗？",
+          "en": "Can same-gender characters use pronouns in one scene?"
+        },
+        "a": {
+          "zh": "可以。已经建立同一人的连续动作时，代词很自然。换行动者、交接物品或有多个合理归属时再点名，不必每句都重复双方姓名。",
+          "en": "Yes. Pronouns work naturally within an established action chain. Name the actor when action changes, objects pass hands or multiple referents become plausible."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 检查人物姓名与代词的归属。保留动作和物件流向，只修重复报名字与含混指代，并解释必要点名的位置。",
+        "en": "Use $story-long-write to check names and pronoun attribution. Preserve actions and object handoffs; repair repeated labels and ambiguity, explaining necessary subject resets."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "姓名与主语节奏",
+          "en": "Names and subject rhythm"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
+      }
+    ],
+    "related": [
+      "/oh-story/write-a-fiction-paragraph",
+      "/oh-story/write-natural-dialogue-tags",
+      "/oh-story/ensemble-cast"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "numbers-in-fiction",
+    "topic": "characters-and-dialogue",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-26",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "小说里的数字怎么写：让金额、时间和数量有分量",
+      "en": "How to Give Numbers Meaning in Fiction"
+    },
+    "seo_title": {
+      "zh": "小说里的数字怎么写：让金额、时间和数量有分量",
+      "en": "How to Give Numbers Meaning in Fiction"
+    },
+    "description": {
+      "zh": "把金额、时间与数量连到人物已知的生活代价。附原创预算场景、数字含义表与夸大金额的修订方法。",
+      "en": "Connect money, time and quantities to established character costs. Includes an original budget scene and a practical meaning table."
+    },
+    "answer": {
+      "zh": "关键数字先写准确，再说明它能换来什么、会挤掉什么。读者不认识一种货币或等级时，用已经看过人物付代价的资源帮助理解；无需每个数字都解释。数值变化只有改变选择、关系或计划，才获得叙事分量。",
+      "en": "Make consequential numbers specific, then connect them to what they can buy or displace. For unfamiliar currencies or units, use a resource readers have already seen a character spend. Explain selectively: numerical changes matter when they change a choice, relationship or plan."
+    },
+    "sections": [
+      {
+        "id": "concrete-cost",
+        "heading": {
+          "zh": "让数字落回人物能用掉的东西",
+          "en": "Return numbers to usable character resources"
+        },
+        "body": {
+          "zh": "Oh Story 的数字写法强调具体金额、年限与变化，以及“二次锚定”：数字出现后，折回人物能用它做的事。换算对象优先选读者已经理解其代价的资源，而不是另引一个陌生的大数字。\n\n原创故事里，旧货店老板何宁已经攒下九百元用于修屋顶，师傅说修好可避免下雨时停业。妹妹的考试报名费需要六百元。钱不多，但两项用途不能同时完成，读者可以理解她为什么要作选择。\n\n九百元的分量来自此前漏雨、关店与攒钱的经历。无需借现实价格宣称它普遍够修屋顶；这是本文虚构故事内部已建立的报价和预算。",
+          "en": "Oh Story’s number method uses specific amounts, elapsed time and change, then anchors a number again in what the character can do with it. Prefer a resource whose cost readers already understand over another unfamiliar large number.\n\nIn an original story, secondhand-shop owner He Ning has saved 900 units to repair the roof. The established quote would let her stay open during rain. Her sister’s exam registration costs 600. The budget cannot cover both, making the decision legible.\n\nThe 900 matters because readers have seen leaks, closures and saving. These are fictional prices established within the story, not claims about real repair or education costs."
+        }
+      },
+      {
+        "id": "meaning-table",
+        "heading": {
+          "zh": "记录变化怎样改变计划",
+          "en": "Track what a numerical change does to the plan"
+        },
+        "body": {
+          "zh": "| 数字 | 已建立的用途 | 本场变化 | 人物下一步 |\n|---|---|---|---|\n| 修屋顶预算九百元 | 下雨也能开店 | 挪出六百元报名费后只剩三百元 | 先修最严重的一角，并说明其余仍会漏 |\n| 每周两个雨天停业 | 已出现的营业损失 | 临时修补后可少关一天 | 多出的营业机会用于继续攒钱 |\n| 报名截止还剩一天 | 已确认的交费窗口 | 不能等下一次进货收入 | 现在决定是否挪用修屋顶款 |\n\n表里每项数字都连到动作。若只写“她付了六百，余三百，收入翻倍”，数字会连续出现却没有可以感知的结果。保留影响选择的数值，其余账务用概述就足够。\n\n时间也需要落回机会。一天期限如果没人说明何时结束，或到期仍能随便报名，就没有真正限制下一步。",
+          "en": "| Number | Established use | Change | Next action |\n|---|---|---|---|\n| 900 for roof work | Stay open during rain | Paying 600 leaves 300 | Repair the worst corner; acknowledge remaining leaks |\n| Two rainy closure days each week | Previously shown lost trade | A patch saves one closure day | Use the extra trading opportunity to rebuild savings |\n| One day before registration closes | Confirmed payment window | Next delivery income arrives too late | Decide now whether to redirect roof funds |\n\nEach figure changes an action. “Paid 600, left 300, doubled income” can pile up arithmetic without a visible consequence. Retain decision-relevant values; summarize incidental bookkeeping.\n\nTime similarly needs an opportunity boundary. A deadline that remains negotiable after expiry does not meaningfully limit the next move."
+        }
+      },
+      {
+        "id": "worked-scene",
+        "heading": {
+          "zh": "示例：不靠金额变大制造分量",
+          "en": "Example: weight need not come from a larger amount"
+        },
+        "body": {
+          "zh": "**空泛写法：**“何宁付出巨额费用支持妹妹，心里既骄傲又难过。”这句告诉读者金额和感受很重，却没有说明她失去了什么。\n\n**改后片段：**\n\n> 何宁把六百元报名费转出去，将修屋顶的信封重新封好。里面还剩三百。她给师傅发消息：“靠收银台那一角先修，货架上方等下个月。”雨天停业的纸牌还贴在门后，她没有揭。\n\n修补范围缩小和告示仍留着，把数字落到生活上。无需再解释她牺牲了多少，也不必让妹妹立刻哭着保证回报。后续可以写她们怎样共同处理漏雨和考试，关系因选择获得变化。\n\n如果故事里另一人只给一元帮助，反差可以很强，但需要此前已有的承诺和关系依据。极小数与极大数并置本身，不会自动证明谁冷酷。",
+          "en": "**Vague draft:** “He Ning paid an enormous sum for her sister, feeling proud and sad.” It asserts weight without showing what she gives up.\n\n**Revision:**\n\n> He Ning transferred the 600 registration fee and resealed the roof envelope. Three hundred remained. She messaged the contractor: “Fix the corner above the till first. The shelves can wait until next month.” The rain-closure sign still hung behind the door. She left it there.\n\nA reduced repair scope and retained sign translate the number into daily consequences. The sister need not immediately cry or promise repayment; later cooperation can show how this decision changes their relationship.\n\nA token contribution could provide contrast, but its meaning depends on established promises and relationships. Juxtaposing tiny and huge numbers does not automatically establish cruelty."
+        }
+      },
+      {
+        "id": "number-revision",
+        "heading": {
+          "zh": "检查数字是否只是在变大",
+          "en": "Check whether figures merely keep growing"
+        },
+        "body": {
+          "zh": "圈出正文中的金额、时长、数量和排名，各写一句“它改变了什么”。只提供装饰性精确感的数字可以概述；决定选择的数字则检查前后单位、总额和剩余是否一致。\n\n陌生资源可以换算成读者看过的生活用途，但不应把每项设定都讲成价格表。首次理解后，后文只在用途或价值关系改变时补充。若写“大笔奖金”，读者已知道足以还掉债务，也未必需要精确到个位。\n\n用数字写伤害或奖励时，避免只把金额一章章加倍。让失去的机会、能够承担的责任或关系条件变化。最后核对人物是否实际采取了对应行动，而不是由旁白宣布“这数字震撼了所有人”。",
+          "en": "Circle amounts, durations, quantities and rankings. State what each changes. Summarize ornamental precision; check units, totals and remaining resources for values that drive decisions.\n\nTranslate unfamiliar resources into established uses without turning the world into a price list. After the first clear explanation, add detail when uses or value relationships change. A prize already known to cover a debt may not need unit-level precision.\n\nFor rewards or harm, avoid simply doubling amounts each chapter. Change available opportunities, responsibilities or relationship conditions. Verify that characters act on the value rather than relying on narration to declare universal amazement."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "小说里的钱一定要写具体金额吗？",
+          "en": "Must fictional money always have an exact amount?"
+        },
+        "a": {
+          "zh": "不必。金额影响选择或前后核算时值得写具体；只说明日常开销、且具体数额没有作用时，可以概述。先保证读者知道人物能做什么。",
+          "en": "No. Use an exact amount when it changes a choice or requires consistent accounting. Summarize incidental spending when precision adds no useful meaning."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 检查本段金额、时间与数量，说明各自改变的选择，把关键陌生数字连到已建立的生活代价；不改世界价格和人物预算。",
+        "en": "Use $story-long-write to review amounts, time and quantities. Connect consequential unfamiliar figures to established costs without changing world prices or character budgets."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "数字与生活代价",
+          "en": "Numbers and practical stakes"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
+      }
+    ],
+    "related": [
+      "/oh-story/create-emotional-stakes-in-fiction",
+      "/oh-story/system-panel-template",
+      "/oh-story/ai-fiction-consistency-check"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "recurring-object-in-fiction",
+    "topic": "plot-and-outline",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-26",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "小说信物怎么写：让同一件东西的意义发生变化",
+      "en": "How to Develop a Recurring Object in a Novel"
+    },
+    "seo_title": {
+      "zh": "小说信物怎么写：让同一件东西的意义发生变化",
+      "en": "How to Develop a Recurring Object in a Novel"
+    },
+    "description": {
+      "zh": "用物件的实际用途与人物选择建立意义变化。附原创钥匙案例和贯穿表，避免反复出现却没有作用。",
+      "en": "Develop an object through practical use and changing character choices. Includes an original key example and a recurrence planning table."
+    },
+    "answer": {
+      "zh": "先让物件在生活里有用，再安排不同处境改变人物怎样使用、保留或交还它。重复出现应带来新的关系或理解，不只是提醒读者它很重要。可以按初始意义、转折意义与最后选择规划，但不必强求所有小说恰好出现三次。",
+      "en": "Give the object a practical place in the story, then let changed circumstances alter how characters use, keep or return it. Recurrence should develop a relationship or understanding. Initial meaning, changed meaning and a final choice form a useful plan rather than a mandatory three-appearance quota."
+    },
+    "sections": [
+      {
+        "id": "practical-object",
+        "heading": {
+          "zh": "先有用途，才有情感附着",
+          "en": "Establish use before emotional meaning"
+        },
+        "body": {
+          "zh": "Oh Story 的贯穿道具方法用初始意义、转折意义和结尾意义组织物件。本文把这三次变化作为规划支点，重点看每次的作用；不同长度的故事可以增加、减少或合并出现。\n\n原创故事：成年女儿孟雨每次回母亲家都用自己的门钥匙。它最初代表“我随时能回来”；母亲后来未经同意搬动她留在旧房间的工作资料，双方发生争执。钥匙仍能开门，但孟雨开始选择先打电话。\n\n物件必须有可执行用途。读者先看见开门、进屋与存放资料，才理解信任为何受影响。若首次出场就写“钥匙象征她们不可割舍的羁绊”，意义由作者宣布，人物还没有建立它。",
+          "en": "Oh Story organizes recurring objects through initial, turning-point and ending meanings. Here these are planning anchors, not a compulsory appearance count. Stories can add, combine or omit recurrences according to their length.\n\nOriginal story: adult daughter Meng Yu uses her key whenever she visits her mother. It initially means she can always return. Later, her mother moves work documents kept in the old bedroom without asking. The key still works, but Meng Yu begins calling before visits.\n\nPractical use establishes attachment. Readers see access and stored documents before trust changes. Announcing that the key symbolizes an unbreakable bond on its first appearance substitutes author commentary for experience."
+        }
+      },
+      {
+        "id": "recurrence-plan",
+        "heading": {
+          "zh": "贯穿表记录使用方式的变化",
+          "en": "Plan changes in use"
+        },
+        "body": {
+          "zh": "| 出现位置 | 物件实际发生什么 | 人物选择 | 意义变化 |\n|---|---|---|---|\n| 开篇回家 | 孟雨直接用钥匙开门 | 不必先确认来访时间 | 默认亲密与自由进入 |\n| 争执后 | 她在门口拿出钥匙，又放回包里 | 打电话问现在是否方便 | 能进入不等于愿意继续默认规则 |\n| 关系重新协商后 | 钥匙留在包里，母亲从屋内开门 | 双方确认今后先约时间、资料不擅自移动 | 亲密可以保留，边界需要明确 |\n\n结尾没有丢钥匙，关系也可以改变。物件意义来自使用方式与双方条件，而非必须损坏、焚烧或扔掉。\n\n表里不只记“再次出现”，还记新作用。中段若只是又拿出钥匙并感慨一遍，没有新的选择，可以压成一句或移除这次强调。",
+          "en": "| Position | Object use | Choice | Changed meaning |\n|---|---|---|---|\n| Opening visit | Meng Yu unlocks the door | Arrives without arranging a time | Assumed closeness and access |\n| After the dispute | She takes out the key, then returns it to her bag | Calls to ask whether a visit is convenient | Possible access no longer implies accepted terms |\n| After renegotiation | The key stays in her bag; her mother opens the door | Both agree on visits and document boundaries | Closeness survives with explicit limits |\n\nAn ending need not destroy or discard the object. Use and relationship terms can change its meaning.\n\nRecord a new function, not merely another appearance. If a middle recurrence only repeats an earlier reflection, shorten it or remove the emphasis."
+        }
+      },
+      {
+        "id": "scene-not-caption",
+        "heading": {
+          "zh": "让动作完成含义，少写解释字幕",
+          "en": "Let action carry meaning"
+        },
+        "body": {
+          "zh": "**生硬版：**“她拿出钥匙，意识到钥匙不再代表爱，而是控制。她决定找回自己。”这句把复杂关系压成抽象结论，也替读者提前判定母亲。\n\n**改后片段：**\n\n> 孟雨站在门外，钥匙已经插进锁孔。屋里传来母亲整理东西的声响。她把钥匙抽出来，拨了电话：“我来拿资料。你现在方便吗？”\n\n动作显示她不再默认进入，也没有声称亲情消失。母亲如何回答、双方是否真守住约定，仍需后续事件证明。\n\n读者不一定要准确说出作者笔记里的象征词，只需理解这次行动与此前不同。确有背景缺口时可以补必要叙述；已经能读懂的意义不必每次翻译一遍。",
+          "en": "**Heavy-handed draft:** “She realized the key no longer meant love but control, and decided to reclaim herself.” It compresses a complicated relationship into an abstract verdict.\n\n**Revision:**\n\n> Meng Yu stood outside with the key already in the lock. Inside, her mother was moving things. She withdrew it and called. “I’m here for my documents. Is now convenient?”\n\nThe action withdraws automatic access without declaring that affection has vanished. The mother’s response and later behavior must still establish whether the agreement holds.\n\nReaders need not reproduce the symbolic label in your notes. They need to understand the changed behavior. Add essential missing context, but avoid translating an already legible meaning after every recurrence."
+        }
+      },
+      {
+        "id": "motif-vs-clue",
+        "heading": {
+          "zh": "区分关系意义与隐藏线索",
+          "en": "Distinguish recurring meaning from a hidden clue"
+        },
+        "body": {
+          "zh": "伏笔常在后来支持一个事实揭示；贯穿信物可以从头到尾没有秘密，只通过使用方式积累情感变化。同一物件也可兼任两者，但每次出现要清楚承担哪项任务。\n\n检查三件事：物件是否符合人物生活；再次出现是否增加新的选择或理解；拿掉解释句后读者是否仍能跟上关系变化。不要为了“回收”突然让普通钥匙解开此前从未提过的密室，那属于临时新增功能。\n\n其他可选物件包括日常工具、礼物、旧衣和记录本。挑与本故事行动相关的一个即可；数量增加不会自动形成深度。后期修订时同时查持有人和损坏状态，意义变化不能靠物件无原因复制来实现。",
+          "en": "Foreshadowing often supports a later factual revelation. A recurring keepsake can contain no secret at all, accumulating emotional meaning through use. One object can serve both purposes if each appearance has a clear task.\n\nCheck whether it belongs naturally in these lives, whether recurrence adds a choice or understanding, and whether readers follow the relationship without explanatory commentary. Do not invent an unmentioned secret-room function merely to manufacture a payoff.\n\nTools, gifts, clothing and notebooks can all work. Choose an object tied to this story’s actions rather than maximizing the number of symbols. Track ownership and damage during revision: meaning should not depend on unexplained duplicate objects."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "信物最后一定要毁掉才有力量吗？",
+          "en": "Must a keepsake be destroyed for a strong ending?"
+        },
+        "a": {
+          "zh": "不必。归还、停止使用、继续保留或换一种使用方式，都能表达关系变化。选择要来自人物的新行动与条件，而不是固定结尾公式。",
+          "en": "No. Returning, retaining, retiring or differently using it can express change. Let the choice follow the character’s behavior and new terms rather than an ending formula."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 为本故事整理一个贯穿物件，记录实际用途、各次选择与意义变化；保留事实，不按固定次数补场景，也不逐句解释象征。",
+        "en": "Use $story-long-write to plan one recurring object through practical use, choices and changing meaning. Preserve facts without forcing appearance counts or explaining every symbol."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "贯穿物件的意义变化",
+          "en": "Changing meanings of recurring objects"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
+      }
+    ],
+    "related": [
+      "/oh-story/foreshadowing-and-suspense",
+      "/oh-story/write-theme-without-preaching",
+      "/oh-story/write-a-satisfying-novel-ending"
+    ]
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "choose-distinct-short-drama-voices",
+    "topic": "ai-video",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "AI短剧配音怎么选：角色音色与本场表演分开定",
+      "en": "How to Cast Distinct Voices for an AI Short Drama"
+    },
+    "seo_title": {
+      "zh": "AI短剧配音怎么选：角色音色与本场表演分开定",
+      "en": "How to Cast Distinct Voices for an AI Short Drama"
+    },
+    "description": {
+      "zh": "用实际试音挑角色声音，区分稳定音色与临时情绪。附原创人物声音表、对比试听与专名读法检查。",
+      "en": "Choose character voices through actual auditions, separating stable identity from scene performance. Includes an original casting table and listening checks."
+    },
+    "answer": {
+      "zh": "先给每个角色选实际声音参考，再用相同台词比较最容易混淆的人。记录音区、句尾、节奏和口音等可听差异；哭、喘、低声说话留给本场表演。文字判据帮助选型与验收，不能代替音频，也不保证生成后仍是同一声音。",
+      "en": "Select an actual voice reference for each character and compare easily confused candidates using the same lines. Record audible differences such as register, endings, pace and accent. Crying, breathlessness or whispering belong to scene performance. Written criteria support selection; generated dialogue still needs listening."
+    },
+    "sections": [
+      {
+        "id": "identity-performance",
+        "heading": {
+          "zh": "先分清“是谁”与“这次怎么说”",
+          "en": "Separate identity from this performance"
+        },
+        "body": {
+          "zh": "short-drama-assets 的声音方法用一个问题判断身份：角色平静地说一句普通台词时，这个特征还在吗？仍在的音色、口音或习惯节奏可以作为基础；奔跑后的气喘、某句重音和情绪音量则属于表演。\n\n原创短剧中，社区广播员周岚与修理师傅邵河都需要克制的成年声音。不能只给两人写“沉稳、有磁性”；两条预置声音如果听起来相同，观众在画外对白里会分不清谁在说。\n\n有配音演员就用实际试音；使用预置音色时，记录所选音色 ID，并合成代表性台词作为参考。尚未选到时写“待选型”，不要让一段形容词看起来像已确认的声音。",
+          "en": "short-drama-assets asks whether a feature remains when the character calmly says an ordinary line. Timbre, accent and habitual pacing may form identity. Breathlessness after running, sentence emphasis and emotional volume belong to performance.\n\nOriginal drama: community broadcaster Zhou Lan and repair worker Shao He both need restrained adult voices. Giving both “calm, resonant” descriptions does not distinguish them. Similar presets can make off-screen dialogue unintelligible as an exchange.\n\nUse actual actor auditions or record a selected preset ID and synthesize representative lines. Mark an unselected voice as pending instead of treating adjectives as a confirmed sound."
+        }
+      },
+      {
+        "id": "casting-table",
+        "heading": {
+          "zh": "对比最容易混的两个人",
+          "en": "Compare the easiest pair to confuse"
+        },
+        "body": {
+          "zh": "| 项目 | 周岚的候选方向 | 邵河的候选方向 |\n|---|---|---|\n| 基础节奏 | 报时清楚，句间短停顿 | 想好操作步骤再开口，停顿稍长 |\n| 句尾 | 收住，不拖长 | 稍有下落，但不拉成夸张尾音 |\n| 本场变化 | 播报中断时短促催问 | 手忙时可以喘，平静场不保留气喘 |\n| 过头信号 | 每句都像正式播音 | 每句话都刻意低沉、缓慢 |\n\n两人各试听“先关电源，再开盖”“你把钥匙放哪了”“我明早再来”这组原创测试句，比较普通说明、询问和承诺。再用一条有情绪的台词看声音是否仍可识别，而不是情绪一变就像换了人。\n\n表是本项目的候选选择，不代表职业必有某种音色。依据实际声音选，不按预置名称、音高数值或年龄标签直接判定。",
+          "en": "| Feature | Zhou Lan candidate | Shao He candidate |\n|---|---|---|\n| Baseline rhythm | Clear announcements with brief pauses | Takes a slightly longer pause before an instruction |\n| Endings | Closes without stretching | Falls gently without an exaggerated tail |\n| Scene variation | Brief urgency during an interruption | May sound winded while working, not in calm scenes |\n| Excess | Every line sounds like formal broadcasting | Artificially low and slow delivery throughout |\n\nAudition both with the same original lines: “Switch off the power before opening it,” “Where did you leave the key?” and “I’ll come back tomorrow.” Compare instructions, questions and promises; then test emotion without losing recognizable identity.\n\nThese are project-specific candidates, not occupational stereotypes. Choose by actual sound rather than preset names, pitch scores or age labels."
+        }
+      },
+      {
+        "id": "reference-scope",
+        "heading": {
+          "zh": "参考只负责被选中的用途",
+          "en": "Limit what the reference controls"
+        },
+        "body": {
+          "zh": "一段参考如果用于音色，说明只借音色，不继承试音时的哭腔、房间混响或伴奏。需要另借口音或节奏时，分别记录用途。负面提示不会自动清掉参考里已有的底噪；不合适就换、重录或先处理素材。\n\n声音记录保留参考路径、允许借用的特征、排除的表演与录音因素、确认读法。专名不在试听句里时，另列“周岚、邵河、潮声台”等名字的创作者确认读法，后续逐集沿用。\n\n伪装身份或多年后的声音变化若持续多场，可以登记有效范围明确的变体；一场低声说话仍由配音本处理，不重写基础音色。参考的实际使用范围也随选型确认。",
+          "en": "For a timbre reference, specify that its crying, room reverberation and accompaniment are not part of the character. Record accent or pacing uses separately. A negative instruction cannot remove noise already embedded in the source; replace, rerecord or process unsuitable material.\n\nKeep the reference path, borrowed traits, excluded performance and recording features, and accepted pronunciations. Names absent from auditions need separate creator-confirmed readings that remain consistent across episodes.\n\nA disguise or later-life voice sustained across scenes may need a bounded variant. One whispered scene belongs in the performance script, leaving the baseline intact. Confirm the reference’s permitted use while selecting it."
+        }
+      },
+      {
+        "id": "listen-results",
+        "heading": {
+          "zh": "选型成立后仍要回听成片",
+          "en": "Listen after casting and generation"
+        },
+        "body": {
+          "zh": "先听无画面版本，检查能否分清角色；再连画面听，检查说话者、人物表演与场景是否相符。文件名和引用路径只能说明绑定了素材，不能证明已经听过。\n\n若两人仍易混，先换实际候选，不再堆“更成熟、更有力量”等形容词。若只有一场失去辨识度，检查情绪、语速和音量要求是否压过基础特征。专名读错则修确认读法与对应台词，不必重选全剧音色。\n\n短参考用于选型或模型绑定，不能直接当不同台词的成品音轨。生成每句实际内容后，回听普通对白、激烈对白和画外音，确认稳定性与区分度都保住。",
+          "en": "Listen without picture for character distinction, then with picture for speaker, performance and scene fit. A filename or bound path proves selection, not completed listening.\n\nIf the pair remains confusing, change the actual candidate rather than adding stronger adjectives. If only one scene loses identity, inspect whether emotional pace or volume overwhelms baseline traits. Correct a mispronounced name in the accepted reading and relevant lines without recasting the entire drama.\n\nAn audition excerpt is a selection or binding reference, not a finished track for different dialogue. Listen to generated ordinary, intense and off-screen lines to verify stable and distinguishable voices."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "没有真人试音能选角色声音吗？",
+          "en": "Can I cast voices without actor auditions?"
+        },
+        "a": {
+          "zh": "可以选可用于本项目的预置音色，并合成同一组代表台词对比试听。保留实际音色 ID 与参考，不用文字描述代替；后续生成仍需回听。",
+          "en": "Yes. Compare suitable presets using the same representative lines. Keep the actual preset ID and audio reference rather than substituting a description; listen again after production."
+        }
+      }
+    ],
+    "skill": {
+      "name": "short-drama-assets",
+      "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-assets/SKILL.md",
+      "text": {
+        "zh": "用 $short-drama-assets 整理角色声音选型表，区分基础音色与本场表演，列易混角色、试听判据、参考用途和专名确认读法。未听过的声音不要标为已试听。",
+        "en": "Use $short-drama-assets to build a casting table with baseline identity, scene performance, confusing pairs, audition criteria, reference scope and accepted name pronunciations."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "声音选型与参考用途",
+          "en": "Voice casting and reference scope"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-assets/references/voice-direction.md"
+      }
+    ],
+    "related": [
+      "/drama-skills/scene-sound-and-silence",
+      "/drama-skills/ai-video-lip-sync",
+      "/novel-to-game/game-voice-assets"
+    ]
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "match-ai-drama-visuals-to-the-era",
+    "topic": "ai-video",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "AI短剧画面年代不对怎么办：从剧情事实定设备与陈设",
+      "en": "How to Fix the Wrong Era in AI Drama Images"
+    },
+    "seo_title": {
+      "zh": "AI短剧画面年代不对怎么办：从剧情事实定设备与陈设",
+      "en": "How to Fix the Wrong Era in AI Drama Images"
+    },
+    "description": {
+      "zh": "从年份、设备与传播方式确认时代，再检查场所、服装和道具。附原创社区办公室案例，避免现代故事被画成旧年代。",
+      "en": "Anchor the era in story facts before checking devices, furnishings and clothing. Includes an original office example and selective repairs."
+    },
+    "answer": {
+      "zh": "先从原著和剧本确认年份或年代，再把会随时代变化的设备、制服、家具与灯光写具体。机构场所不自动等于老旧，某件旧物也不代表整个场景属于过去。年代未定时交给创作者决定，再同步资产与提示词。",
+      "en": "Establish the year or era from the story, then specify era-sensitive devices, uniforms, furnishings and lighting. An institutional location is not automatically old; one worn object does not move the whole scene into the past. Resolve an unspecified era before propagating it to assets and prompts."
+    },
+    "sections": [
+      {
+        "id": "story-evidence",
+        "heading": {
+          "zh": "先看剧情如何证明年代",
+          "en": "Start with story evidence"
+        },
+        "body": {
+          "zh": "short-drama-assets 的时代方法优先读取写明的年份、设备、传播平台，以及年龄与事件能推出的时间。地点名称只是场所类型，不能单独决定年代。\n\n原创短剧设定在二〇二四年：社区志愿者用智能手机收集居民反馈，把文件从 U 盘复制到办公室电脑。初稿图片却出现 CRT 显示器、拨号电话和泛黄档案柜，现代情节与视觉线索冲突。\n\n先记“二〇二四年，现代社区办公室”，再列实际需要的设备形制。故事没有给年份或可靠线索时，问创作者想要的时代，不能因“办公室”默认画成八九十年代。",
+          "en": "short-drama-assets anchors era in stated years, devices, communication platforms, or time inferred from ages and events. A location category alone cannot establish it.\n\nOriginal drama set in 2024: volunteers collect feedback by smartphone and transfer a file from a USB drive to an office computer. Draft images instead show a CRT display, rotary phone and universally yellowed cabinetry, conflicting with the contemporary actions.\n\nRecord the accepted year and modern community-office setting, then specify the equipment the scene needs. If the story has no reliable temporal evidence, resolve the intended era with the creator instead of deriving it from “office.”"
+        }
+      },
+      {
+        "id": "era-table",
+        "heading": {
+          "zh": "将时代落实到会改变外观的条目",
+          "en": "Apply the era where appearance changes"
+        },
+        "body": {
+          "zh": "| 条目 | 本故事的已定方向 | 修订重点 |\n|---|---|---|\n| 办公电脑 | 液晶显示器，能连接 U 盘 | 删无依据的 CRT、老式主机词 |\n| 手机 | 全面屏智能手机 | 不生成与扫码行动冲突的按键机 |\n| 办公桌椅 | 本项目已选的白色桌面、网面椅 | 不因机构场所整体加灰旧滤镜 |\n| 照明 | 已接受的顶灯与窗光 | 与时间、光源方向一致 |\n| 一只旧茶缸 | 剧本明确是退休居民带来的旧物 | 保留这件物的磨损，不扩散到全屋 |\n\n这些选择是本文原创项目的视觉方向，不能当成所有现代办公室的标准配置。时代会约束范围，具体装修仍由故事地点与创作者决定。\n\n写“显示器”容易留下不必要的生成空白，写已选的形制更明确。只补影响画面的部分，不需要为每个背景物件写一段历史。",
+          "en": "| Item | Accepted direction in this story | Repair |\n|---|---|---|\n| Computer | LCD display with USB access | Remove unsupported CRT or old-machine cues |\n| Phone | Full-screen smartphone | Avoid a keypad phone incompatible with the action |\n| Furniture | Accepted white desk and mesh chair | Do not age the entire room because it is an institution |\n| Light | Accepted ceiling source and window light | Preserve time and source direction |\n| Old mug | A retired resident’s explicitly old possession | Keep its wear local to that object |\n\nThese choices belong to the original example, not every modern office. Era constrains possibilities; location and creator choices determine the actual interior.\n\n“Display” can leave avoidable ambiguity where an accepted form exists. Specify consequential details without writing a history for every background object."
+        }
+      },
+      {
+        "id": "prompt-repair",
+        "heading": {
+          "zh": "从资产开始修，不只改一句提示词",
+          "en": "Repair the asset direction before downstream prompts"
+        },
+        "body": {
+          "zh": "先把项目时代与设备条目修正，再读取已经引用这些条目的图片和视频提示词。保留人物身份、空间布局和本镜动作，只替换没有剧情依据的“复古、老式、积灰”等词及对应形制。\n\n示例修订目标：“二〇二四年的社区办公室，已确认的液晶显示器和网面椅；同一窗户位置与顶灯；保留居民带来的旧茶缸。”这比“不要老旧、不要复古”更清楚地说明要留下什么。\n\n若剧本确实写旧电脑在现代场景里被继续使用，旧有了来源就可以保留。年代核对不是把所有物件强制更新，也不是禁止创作者选择复古美术。",
+          "en": "Correct the project era and equipment entries first, then inspect existing image and video prompts using them. Preserve character identity, room geometry and shot action while replacing unsupported aging cues and forms.\n\nExample repair direction: “Community office in 2024, using the accepted LCD display and mesh chair; preserve the window and ceiling-light positions and the resident’s old mug.” This establishes what to keep more clearly than a string of negative adjectives.\n\nAn explicitly old computer can remain in a contemporary setting. Era review does not require new objects everywhere or prohibit an intentional retro visual choice."
+        }
+      },
+      {
+        "id": "check-output",
+        "heading": {
+          "zh": "看实际画面中的时代线索",
+          "en": "Review the actual visual evidence"
+        },
+        "body": {
+          "zh": "抽看人物用手机、电脑或关键道具的镜头，以及同一地点的不同机位。提示词已经正确，不代表画面设备、衣服和陈设自动正确；画面出现错误形制时定位到具体物件，再决定局部编辑或重出。\n\n核对三件事：设备能否完成剧本动作；同地点时代线索是否一致；旧物的磨损是否有单独来源。现代手机与旧茶缸可以共存，扫描纸质文件也不自动意味着过去。\n\n若修改了时代本身，服装、道具与相关场景要重新检查；若只修一台显示器，别连人物造型和整栋楼一起重做。记录已变更的事实与现有使用方，下一轮生成沿用同一个决定。",
+          "en": "Inspect device-use shots and multiple views of the same location. Correct wording does not prove correct generated equipment or clothing. Locate the mistaken form in the actual image, then choose a local edit or replacement.\n\nCheck that devices support the scripted action, temporal cues agree across the location, and wear has a specific source. A modern phone can coexist with an old mug; scanning paper does not imply a historical setting.\n\nChanging the era itself requires a broader clothing, prop and location review. Fixing one display should not automatically redesign people and buildings. Record the accepted change and existing dependent assets for subsequent production."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "现代故事里能用旧家具吗？",
+          "en": "Can a modern story include old furniture?"
+        },
+        "a": {
+          "zh": "可以。旧应是这件家具的状态或创作者明确的美术选择，不应无依据把整个地点和所有设备都带回过去。",
+          "en": "Yes. Age can belong to that item or an explicit visual choice without moving every device and the entire location into the past."
+        }
+      }
+    ],
+    "skill": {
+      "name": "short-drama-assets",
+      "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-assets/SKILL.md",
+      "text": {
+        "zh": "用 $short-drama-assets 从剧本事实确认时代，检查设备、服装和陈设形制；保留有来源的旧物，只修无依据的年代冲突并同步已有提示词。",
+        "en": "Use $short-drama-assets to establish the era from script facts and check device, clothing and furnishing forms. Preserve justified old objects and update existing prompts for actual conflicts."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "时代依据与具体形制",
+          "en": "Era evidence and concrete forms"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-assets/references/era-anchors.md"
+      }
+    ],
+    "related": [
+      "/drama-skills/ai-video-location-consistency",
+      "/drama-skills/prop-reference-image",
+      "/drama-skills/local-image-edit-prompts"
+    ]
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "update-storyboards-after-script-changes",
+    "topic": "revision",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "短剧剧本改了，分镜要重做吗：按受影响事实同步",
+      "en": "How to Update Storyboards After a Script Change"
+    },
+    "seo_title": {
+      "zh": "短剧剧本改了，分镜要重做吗：按受影响事实同步",
+      "en": "How to Update Storyboards After a Script Change"
+    },
+    "description": {
+      "zh": "从改动事实找到已有资产、分镜和提示词的使用处。附原创伤势调整案例与影响表，避免只修一镜或整集无差别重做。",
+      "en": "Trace changed script facts to existing assets, storyboards and prompts. Includes an original injury-timing example and a selective update table."
+    },
+    "answer": {
+      "zh": "先写清改前、改后与生效范围，再找已有文档中谁依赖这条事实。对白或名称的小修可能只更新文本；伤势、持物、知情或场景光态改变，需同步相关造型与镜头边界。逐项复查受影响内容，不凭“整集更新了”判断完成。",
+      "en": "Record the old fact, new fact and effective range, then find existing documents that depend on it. A wording or display-name edit may affect text only; injury, possession, knowledge or lighting changes can affect looks and shot boundaries. Review the affected uses rather than treating a blanket update as completion."
+    },
+    "sections": [
+      {
+        "id": "change-first",
+        "heading": {
+          "zh": "先确认改的是哪条事实",
+          "en": "Identify the changed fact"
+        },
+        "body": {
+          "zh": "short-drama-assets 的变化记录要求写清前态、后态、原因、生效范围和已有使用方。它区分视觉事实、人物故事状态与镜头瞬间动作：故事事实由开发或剧本确定，资产和分镜引用，不各写一个版本。\n\n原创短剧原稿：送货员许乔在 SC003 跌倒，左膝受伤；SC004 走进仓库时仍有明显跛行。修订稿将跌倒移到 SC006。不是把 SC003 一句删除就完成，SC004–SC005 的包扎、步态和参考图也依赖了旧事实。\n\n先记录“受伤起点从 SC003 改为 SC006；此前无伤；之后沿用已定伤势”，再检查现有使用方。若作者只是修改一句情绪表达，不能自动推断伤势也变了。",
+          "en": "short-drama-assets records before, after, cause, effective range and existing uses. It separates visual facts, story state and transient shot actions. Development or writing establishes the story; assets and storyboards reference it rather than creating competing versions.\n\nOriginal drama: courier Xu Qiao falls in SC003 and injures her left knee. She limps into the warehouse in SC004. Revision moves the fall to SC006. Deleting one script line leaves earlier bandaging, gait and references dependent on the old event.\n\nRecord that the injury begins in SC006, is absent before it, and follows the accepted condition afterward. A wording change alone does not authorize an unrelated injury change."
+        }
+      },
+      {
+        "id": "impact-table",
+        "heading": {
+          "zh": "列出已有内容真正依赖了什么",
+          "en": "Map actual dependencies"
+        },
+        "body": {
+          "zh": "| 现有内容 | 读取的旧事实 | 本次需要处理 |\n|---|---|---|\n| SC004 造型条目 | 左膝包扎已生效 | 改用受伤前造型，保留衣服与身份 |\n| SC004 行走分镜 | 行走受左膝疼痛限制 | 更新起止步态和表演，不改地点布局 |\n| SC005 图片、视频提示词 | 膝盖包扎与跛行 | 删过早出现的伤势描述，重查实际画面 |\n| SC006 跌倒分镜 | 原本尚无跌倒动作 | 按新剧本建立受伤动作及后态 |\n| SC007 之后 | 已经受伤 | 确认与新起点衔接，其他事实不自动变化 |\n\n表里的使用方须确实已经存在。尚未制作的画面只注明今后要用的事实，不为了显得完整预造空记录。\n\n重新搜索当前文档的伤势与造型引用，不能只复用上轮影响清单。镜头改过以后，真实依赖也可能增加、减少或移位。",
+          "en": "| Existing content | Old dependency | Necessary update |\n|---|---|---|\n| SC004 look | Bandage already active | Use the pre-injury look, preserving clothing and identity |\n| SC004 walking shot | Pain-limited gait | Update performance and boundaries, not room geometry |\n| SC005 prompts | Bandage and limp | Remove premature injury cues; review actual images |\n| SC006 fall shot | No fall previously here | Establish the revised event and resulting condition |\n| SC007 onward | Injury already present | Check connection to the new onset; preserve other facts |\n\nList actual existing users. For unmade content, state the required fact without manufacturing empty records.\n\nSearch current references again. An old impact list can become inaccurate as shots are added, deleted or moved."
+        }
+      },
+      {
+        "id": "update-order",
+        "heading": {
+          "zh": "按事实、状态、镜头、提示词更新",
+          "en": "Update from facts to production uses"
+        },
+        "body": {
+          "zh": "先确认剧本中的新发生位置与结果；资产记录同步伤势何时生效，分镜同步受影响镜头的开始和结束状态，最后更新依赖它们的图片与运动提示词。实际素材若仍表现旧状态，也需列入待修内容。\n\n提示词修订不能倒过来重写剧本。例如为了复用一张带包扎图，不能悄悄把人物设为早已受伤。创作者若决定保留旧素材，需要先接受相应故事调整，再同步其它使用方。\n\n只有显示名称变了、物件身份和事实都没变时，通常更新文本即可。只改构图也不自动改资产。按此次改变判断范围，而不是把每次修订都当整集重制。",
+          "en": "Confirm the event and result in the script; update the injury’s effective range in assets, affected shot start/end states in the storyboard, and then dependent image and motion prompts. Rendered footage still showing the old condition joins the repair list.\n\nA prompt edit must not reverse this ownership. Reusing a bandaged image does not justify silently making the injury occur earlier. If the creator chooses a story change to retain footage, accept that change before propagating it.\n\nA display-name-only edit usually updates text when identity and facts remain unchanged. A composition change does not automatically redesign assets. Derive scope from this change rather than treating every revision as a remake."
+        }
+      },
+      {
+        "id": "close-change",
+        "heading": {
+          "zh": "复查边界，再关闭修改",
+          "en": "Verify boundaries before closing the change"
+        },
+        "body": {
+          "zh": "顺着改动范围检查受伤前最后一镜、跌倒镜与受伤后第一镜：衣服、伤处、步态和持物是否接得上，伤势有没有提前出现，是否又无原因恢复。\n\n本集没提伤势，不等于已治疗。若需要恢复，找剧本里的治疗或时间依据；没有依据就记录需要创作者决定的连续性问题，不在下游自行补设定。闪回使用过去状态，也不覆盖当前状态。\n\n完成记录写具体结果：“SC004–SC005 已换成无伤版本，SC006 建立受伤后态，SC007 引用一致”。它比“全部已更新”更能支持下一轮工作。最后正常速度看受影响段落，确认文档一致也落实到了画面。",
+          "en": "Review the last pre-injury shot, the fall and the first post-injury shot. Check clothing, injury, gait and possession for continuity, premature injury or unexplained recovery.\n\nAn episode’s silence about injury does not establish treatment. Find an accepted recovery or elapsed-time basis; otherwise leave a creator decision rather than inventing one downstream. Flashbacks use historical states without overwriting the present.\n\nClose with a concrete result: “SC004–SC005 use uninjured versions; SC006 establishes the injury; SC007 agrees.” Play the affected sequence at normal speed to confirm that consistent documents also produced consistent footage."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "只改角色名字也要重出素材吗？",
+          "en": "Does renaming a character require new footage?"
+        },
+        "a": {
+          "zh": "如果只是显示名称改变，身份与视觉事实没变，通常只需更新对应文本和引用。画面含必须改的可读姓名时，再定位那处素材；不自动重做无关分镜。",
+          "en": "Usually not when only a display name changes and identity and visual facts remain intact. Update text and references; locate any visible name that must change without remaking unrelated shots."
+        }
+      }
+    ],
+    "skill": {
+      "name": "short-drama-assets",
+      "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-assets/SKILL.md",
+      "text": {
+        "zh": "用 $short-drama-assets 记录这次剧本修订的前态、后态、来源与有效范围，搜索现有资产、分镜及提示词的实际使用方，列出需要同步的事实并复查边界。",
+        "en": "Use $short-drama-assets to record before/after facts, source and effective range. Find actual existing asset, storyboard and prompt dependencies, then check affected boundaries."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "变化记录与修订影响",
+          "en": "Change records and revision impact"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-assets/references/continuity-delta.md"
+      }
+    ],
+    "related": [
+      "/drama-skills/shot-continuity-checklist",
+      "/drama-skills/character-look-variants",
+      "/drama-skills/short-drama-character-memory"
+    ]
+  },
+  {
+    "owner": "video-recap",
+    "slug": "add-a-brand-frame-to-video",
+    "topic": "ai-video",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "视频边框和Logo怎么加：先锁音画，再检查遮挡",
+      "en": "How to Add a Video Frame and Logo Without Obstruction"
+    },
+    "seo_title": {
+      "zh": "视频边框和Logo怎么加：先锁音画，再检查遮挡",
+      "en": "How to Add a Video Frame and Logo Without Obstruction"
+    },
+    "description": {
+      "zh": "将静态边框、标题条与Logo作为独立图层，按实际画布定位。附原创包装布局、遮挡检查与声音保留方法。",
+      "en": "Place static frames, title bars and logos as separate layers on the actual canvas. Includes an original layout and obstruction and audio checks."
+    },
+    "answer": {
+      "zh": "先确认无包装母版的画面、旁白和混音，再叠静态透明图层。布局画布与输出画幅一致，位置避开脸、动作、证据与字幕；动效另用完整动画素材。合成后查看亮暗场景和最终文件，确认包装可读、内容不被挡、声音没有意外变化。",
+      "en": "Lock picture, narration and mix before adding static transparent layers. Match the output canvas and avoid faces, actions, evidence and captions. Supply actual animation when needed. Inspect bright and dark scenes and the final file for readability, obstruction and unintended audio changes."
+    },
+    "sections": [
+      {
+        "id": "master-first",
+        "heading": {
+          "zh": "先定内容，再投入包装",
+          "en": "Lock content before packaging"
+        },
+        "body": {
+          "zh": "video-assemble 的包装方法先锁音画，再做边框、字幕与图层。剪点和声音仍在反复变化时，先不要精修动画，否则一轮改稿就可能让文字时段和画面位置失效。\n\n原创视频展示修复一只旧收音机，采用竖屏。创作者想保留上方栏目名、角落 Logo 和轻薄边框。首先确认旁白与操作画面：拆盖、查看故障、换件、试听结果。包装的任务是稳定识别，不是每个空位都加效果。\n\n记录输出宽高和已经接受的栏目文案。边框是整片不动的透明图片，可以单独叠加；标题动画若需渐显，就准备动画输出，而不是把静态图片声明成动效。",
+          "en": "video-assemble recommends locking picture and sound before packaging. If cuts and audio are still changing, detailed animation can become stale after the next edit.\n\nOriginal vertical video shows an old radio repair: opening, diagnosis, replacement and a listening result. The creator wants a program title, corner logo and light frame. Their purpose is consistent recognition, not filling every empty area with effects.\n\nRecord the actual output dimensions and accepted title. A stationary transparent frame can be a separate image layer. A fading title requires rendered animation rather than an animated label attached to a still image."
+        }
+      },
+      {
+        "id": "layout-example",
+        "heading": {
+          "zh": "为内容留位置，别只看空白处",
+          "en": "Reserve space for content"
+        },
+        "body": {
+          "zh": "| 图层 | 本例的位置与作用 | 需要避开的内容 |\n|---|---|---|\n| 轻薄边框 | 沿画布边缘建立栏目识别 | 不能盖住手部移到边缘的操作 |\n| 栏目名 | 上方已留的标题区 | 不覆盖收音机盖上的关键标记 |\n| Logo | 创作者确认的角落位置 | 与解说字幕、指示箭头错开 |\n| 解说字幕 | 按实际台词与阅读宽度排 | 留出拆件近景的关键区域 |\n\n这些位置是本项目布局选择，不是所有平台的固定安全区。用实际画幅看开头、近景、亮背景、暗背景和长字幕，必要时缩减边框或移动 Logo。\n\n不要只拿一张空背景试排版。收音机在后半段移动到右下，原本看似空的角落会变成关键动作区；这时改包装位置，比遮住操作更合适。",
+          "en": "| Layer | Role in this example | Avoid |\n|---|---|---|\n| Light frame | Identity around the canvas edge | Hands moving toward the edge |\n| Program title | Reserved upper title region | Important marks on the radio cover |\n| Logo | Creator-approved corner | Captions and instruction arrows |\n| Narration captions | Actual speech and reading width | Important areas in repair close-ups |\n\nThese positions belong to the example, not a universal platform safe area. Inspect opening, close-up, bright, dark and long-caption frames in the actual aspect ratio.\n\nDo not design against an empty background alone. The radio moves into the lower-right corner later, making a previously empty logo position important action space. Move or reduce packaging to retain the instruction."
+        }
+      },
+      {
+        "id": "separate-layers",
+        "heading": {
+          "zh": "保持图层与画布关系明确",
+          "en": "Keep layers and canvas geometry explicit"
+        },
+        "body": {
+          "zh": "静态图片保留透明背景，写清每层的本地路径与画布内矩形位置。画布尺寸必须等于成片尺寸，矩形不能越界；不靠合成后整体拉伸来掩盖比例错误。图层顺序也要明确，避免 Logo、画面说明与字幕互相盖住。\n\n本版本 video-assemble 支持 packaging_layers.json 记录整片静态图片与位置，合成时叠加，剪映草稿里可保留独立图片轨。需要修改品牌图时替换对应素材和记录，不把整个包装烙在一张不可分的背景图上。\n\n渐显、移动或其它逐帧变化使用项目渲染器输出，再经 foreground-compose 合成。该合成器接收已经画好的图层，不负责设计字体、生成文案或把任意模板变成动画。",
+          "en": "Use transparent images and explicit local paths and rectangles inside the actual canvas. The canvas must match the final dimensions and placements must remain in bounds. Final stretching cannot repair an incorrect aspect ratio. Make layer order explicit to avoid collisions with annotations and captions.\n\nThis version of video-assemble supports whole-video static image placement through packaging_layers.json, with independent image tracks in an exported Jianying draft. Replace the relevant asset when changing a brand element rather than flattening every element into one background.\n\nFor fades or movement, render the animation at project level and compose the resulting frames. foreground-compose overlays already rendered pixels; it does not design fonts, generate copy or animate arbitrary templates."
+        }
+      },
+      {
+        "id": "final-playback",
+        "heading": {
+          "zh": "在最终文件中检查包装",
+          "en": "Review packaging in the final file"
+        },
+        "body": {
+          "zh": "先抽检代表帧，再完整播放实际最终视频。静态图在第一帧正确，不代表后面的手部、证据特写和字幕都未被挡。对比无包装母版，确认添加的是识别层，没有意外裁掉画面或引入不需要的声音处理。\n\n如果标题在暗背景清楚、亮背景消失，可以调整描边、阴影或底板；如果这些都压住画面内容，就减少装饰或改位置。包装价值来自稳定可读，效果多不等于完成度高。\n\n需要保留已定音轨时在任务里明确提出，并使用适合该锁定母版的合成路径；工具记录和正常回听各核对自己的问题。最终还要看第一帧、最后一帧和片尾是否残留 Logo 或字幕。",
+          "en": "Inspect representative frames, then play the actual final video. Correct first-frame placement does not prove later hands, evidence close-ups or captions remain unobstructed. Compare the unwrapped master for accidental cropping or unwanted sound processing.\n\nIf a title disappears on bright backgrounds, try an outline, shadow or backing. If those obscure content, reduce decoration or reposition it. Stable readability matters more than effect count.\n\nExplicitly request preservation of adopted audio and use a compatible composition path. Technical records and normal listening address different checks. Review the first and last frames for unintended lingering logos or captions."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "每个静态Logo都要做成逐帧动画吗？",
+          "en": "Must every static logo become a frame sequence?"
+        },
+        "a": {
+          "zh": "不必。整片固定的透明图片可以走静态包装图层；确实需要渐显或运动时，才准备完整动画序列，并按目标画布与时间线合成。",
+          "en": "No. A fixed transparent image can use the static packaging path. Supply a complete animation sequence when a fade or movement is actually required."
+        }
+      }
+    ],
+    "skill": {
+      "name": "video-assemble",
+      "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/SKILL.md",
+      "text": {
+        "zh": "请用 $video-recap 在已锁定母版上加静态栏目边框和 Logo。先确认画布、独立图层位置与遮挡检查，保留已采用声音，输出后看亮暗场景及首尾帧。",
+        "en": "Use $video-recap to add a static program frame and logo to a locked master. Confirm canvas and independent layer placement, preserve adopted audio, then inspect bright/dark scenes and boundary frames."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "包装顺序与静态图层",
+          "en": "Packaging order and static layers"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/packaging.md"
+      },
+      {
+        "label": {
+          "zh": "动画图层合成范围",
+          "en": "Rendered foreground composition"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/foreground-compose.md"
+      }
+    ],
+    "related": [
+      "/video-recap/subtitle-layout-and-line-breaks",
+      "/video-recap/keep-audio-when-changing-video",
+      "/video-recap/clip-titles"
+    ]
+  },
+  {
+    "owner": "video-recap",
+    "slug": "replace-a-black-video-tail-with-an-endcard",
+    "topic": "ai-video",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "视频片尾黑屏怎么处理：最后一镜与片尾卡分开检查",
+      "en": "How to Replace an Unintended Black Video Tail"
+    },
+    "seo_title": {
+      "zh": "视频片尾黑屏怎么处理：最后一镜与片尾卡分开检查",
+      "en": "How to Replace an Unintended Black Video Tail"
+    },
+    "description": {
+      "zh": "判断黑尾是有意停顿还是未完成片尾，再提供真实静态或动画素材。附原创片尾区间表与首尾、音轨检查。",
+      "en": "Distinguish an intentional pause from an unfinished tail, then supply the intended still or animated endcard. Includes an original timing plan and checks."
+    },
+    "answer": {
+      "zh": "先定位实际视频的最后内容帧、声音结束与黑尾范围，确认黑场是否有意。需要片尾卡时，提供覆盖目标区间的实际素材；静态卡用静图，渐显或动画用完整序列。不要默认复制最后一帧，也不要为消黑尾截掉仍需听完的词或音乐。",
+      "en": "Locate the final content frame, audio ending and black-tail interval, then establish whether the black is intentional. Supply an actual endcard covering the intended range: a still for a static card, a full sequence for a fade or animation. Do not freeze a frame or cut required audio by default."
+    },
+    "sections": [
+      {
+        "id": "diagnose-tail",
+        "heading": {
+          "zh": "先确认黑尾来自哪个决定",
+          "en": "Identify the intended ending"
+        },
+        "body": {
+          "zh": "video-assemble 的配对与前景合成方法会保留已有画面区间；成功合成不代表自动生成了品牌片尾。黑尾如果原本就在锁定母版中，它可以被忠实保留到输出。\n\n原创教程母版的主要内容在第九秒结束，最后一秒保留给栏目片尾。旁白在九点四秒结束，成片却只有黑画面。先确认这段是待补的片尾区间，而不是创作者希望保留的黑场停顿。\n\n如果黑尾来自上游剪辑遗漏，先修时间线；若它是已留出的片尾区间，就准备片尾素材。文件总时长与音轨时长相近只能说明兼容，不能证明结尾感受合适。",
+          "en": "video-assemble’s pairing and foreground paths preserve an existing picture interval; successful composition does not automatically create a branded ending. A black tail in the locked master can survive faithfully into the result.\n\nOriginal tutorial: content ends at nine seconds, with one second reserved for a program card. Narration ends at 9.4 seconds, but the output shows only black. First establish that this is an unfinished card interval rather than an intentional pause.\n\nRepair an upstream omission in the timeline, or provide media for the accepted reserved range. Compatible picture and audio durations do not prove the ending works editorially."
+        }
+      },
+      {
+        "id": "range-example",
+        "heading": {
+          "zh": "把片尾卡放进明确区间",
+          "en": "Place the card in an explicit interval"
+        },
+        "body": {
+          "zh": "| 本例区间 | 内容 | 必须保住 |\n|---|---|---|\n| 零至九秒 | 已锁定的教程画面与包装 | 不重排操作、不改旁白 |\n| 九至十秒 | 栏目片尾卡 | 旁白末句与已定混音继续完整播放 |\n| 十秒以后 | 本例没有交付内容 | 不凭空增加黑帧或静音尾巴 |\n\n这是本文虚构十秒母版的安排，不是建议所有片尾都做一秒。片尾时长应跟可读文案、声音和已接受的交付要求一起决定；需要延长母版时先重定时间线，而非让合成器暗中补时长。\n\n用帧区间交接时，明确起点包含、终点不包含。三十帧每秒的本例中，片尾覆盖输出帧 270 到 300 之前，避免前景层与片尾层重叠一帧或漏一帧。",
+          "en": "| Example interval | Content | Preserve |\n|---|---|---|\n| 0–9 seconds | Locked tutorial and packaging | Action order and narration |\n| 9–10 seconds | Program endcard | Complete final words and adopted mix |\n| After 10 seconds | No accepted content | No invented black or silent extension |\n\nThis is a fictional ten-second master, not a one-second recommendation for all cards. Set duration with reading needs, audio and delivery requirements. If extension is necessary, revise the timeline instead of expecting hidden padding.\n\nFor frame handoff, include the start and exclude the end. At 30 fps, this card occupies output frames 270 through 299. Explicit bounds prevent a missing or duplicated boundary frame."
+        }
+      },
+      {
+        "id": "still-or-motion",
+        "heading": {
+          "zh": "静图和动画不能互相冒充",
+          "en": "Use actual still or animated assets"
+        },
+        "body": {
+          "zh": "整段确实静止时，可以使用完整画布的片尾 PNG。若交付设计包含淡入、文字运动或其它变化，需要渲染全部片尾帧；冻结最后一张不能还原渐显过程。\n\n本版本 foreground-compose 接收调用方已经渲染好的全画布 RGBA 序列，或明确的静态片尾素材。它不生成文案、字体或品牌动画，也不会在素材缺失时自动重复最后一帧填空。前景结束应接片尾开始，片尾结束应到达已确认的母版结束。\n\n没有片尾需求时，前景可以覆盖完整母版，并明确没有片尾区间。不要保留一段空白范围，再把“无片尾”当成自动填充黑场的指令。",
+          "en": "Use a full-canvas PNG when the intended card is genuinely static. For a fade, moving text or other change, render every endcard frame; freezing the last image cannot reproduce the animation.\n\nThis version of foreground-compose accepts caller-rendered full-canvas RGBA sequences or an explicit still card. It does not generate copy, fonts or branding animation, and does not fill missing media by repeating a frame. Foreground and card ranges must meet, with the card ending at the verified master endpoint.\n\nWhen no card is wanted, the foreground can cover the full master. Do not reserve an uncovered tail and expect “no endcard” to create an implicit filler."
+        }
+      },
+      {
+        "id": "ending-review",
+        "heading": {
+          "zh": "检查最后一秒，也回听最后一句",
+          "en": "Inspect the tail and listen to the last line"
+        },
+        "body": {
+          "zh": "看片尾切入前后帧，确认没有未覆盖黑帧、上一镜残影或字幕突然跳回；再正常速度播放，判断片尾卡是否有足够阅读时间，以及淡入是否实际发生。\n\n回听末句和音乐收尾。不能用“以最短音画结束”为快捷修法截掉必要尾音；若片尾需要改长度，要重新确认声音与画面区间，保留创作者已接受的内容。\n\n输出文件存在只说明渲染得到一个结果。若工具帧数检查通过却仍见黑尾，回查素材是否本身带黑、透明层是否未覆盖、图卡是否放错范围。明确是哪项内容需修，再输出新的候选版本供检查。",
+          "en": "Inspect frames around the card entry for uncovered black, leftover image or captions that jump back. Play at normal speed to assess reading time and whether the intended fade actually occurs.\n\nListen to the final words and musical ending. Cutting to the shorter stream can remove required sounds. If duration changes, confirm both intervals again while preserving accepted content.\n\nA rendered file is a result, not proof of a finished ending. If frame counts pass but black remains, inspect black pixels in the asset, uncovered transparent regions or misplaced ranges. Locate the failed content and produce a revised candidate."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "有黑场就一定是导出错误吗？",
+          "en": "Is every black ending an export error?"
+        },
+        "a": {
+          "zh": "不是。黑场可以是有意停顿、留白或声音继续的选择。先核对创作意图和实际区间；只有缺少已要求的内容或出现意外帧时，才按问题修。",
+          "en": "No. Black may be an intentional pause or space for continuing sound. Check the intended range; repair missing required content or unintended frames."
+        }
+      }
+    ],
+    "skill": {
+      "name": "video-assemble",
+      "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/SKILL.md",
+      "text": {
+        "zh": "请用 $video-recap 检查最终视频黑尾，确认内容结束、声音结束与预留片尾区间。需要图卡时使用实际静图或完整动画，保留已采用音轨并复查边界帧。",
+        "en": "Use $video-recap to inspect a black tail against content, audio and reserved card ranges. Supply an actual still or full animation when needed, preserve adopted audio and check boundary frames."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "片尾素材与帧区间",
+          "en": "Endcard assets and frame ranges"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/foreground-compose.md"
+      },
+      {
+        "label": {
+          "zh": "包装与最终播放检查",
+          "en": "Packaging and final playback"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/packaging.md"
+      }
+    ],
+    "related": [
+      "/video-recap/fix-flash-frames",
+      "/video-recap/add-a-brand-frame-to-video",
+      "/video-recap/keep-audio-when-changing-video"
+    ]
+  },
+  {
+    "owner": "novel-to-game",
+    "slug": "put-ai-media-assets-into-a-story-game",
+    "topic": "interactive-games",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-29",
+    "title": {
+      "zh": "AI生成的图片和视频怎么放进游戏：保存、接入与失败处理",
+      "en": "How to Integrate AI Media into a Story Game"
+    },
+    "seo_title": {
+      "zh": "AI生成的图片和视频怎么放进游戏：保存、接入与失败处理",
+      "en": "How to Integrate AI Media into a Story Game"
+    },
+    "description": {
+      "zh": "将生成素材保存为稳定游戏资源，按状态触发并保留备用表达。附原创渡船场景资产表与加载失败检查。",
+      "en": "Save generated media as stable game assets, connect it to state triggers and retain a fallback. Includes an original ferry scene and failure checks."
+    },
+    "answer": {
+      "zh": "生成完成后，把已确认素材保存到项目可用的稳定位置，再按游戏状态触发。记录角色、场景和剧情事实，检查首中尾帧与前后边界；为可选媒体准备静帧或低动效备用。临时任务页和下载地址不能代替正式资产，播放成功也不能代替玩法结果。",
+      "en": "Save accepted media in stable project locations and trigger it from game state. Track character, location and story facts, checking representative frames and boundaries. Provide a still or low-motion fallback for optional media. Temporary task pages are not production assets, and playback does not establish a gameplay outcome."
+    },
+    "sections": [
+      {
+        "id": "choose-carrier",
+        "heading": {
+          "zh": "先判断这段体验是否适合预渲染",
+          "en": "Decide what prerecorded media can carry"
+        },
+        "body": {
+          "zh": "game-build 的动态媒体方法适用于美术方向已选择的视频过场、环境循环或关键帧演出。固定构图的短表现可以用预渲染；玩家输入会改变视角、位置、碰撞或战术信息时，需要对应的实时场景，不能用视频假装交互。\n\n原创游戏中，玩家决定是否点亮渡口的信号灯。点亮结果已经由规则确认后，一段短视频表现对岸船只回应，随后继续交互。船只是否来接人由游戏状态决定，视频负责呈现它，不在生成时临时改结果。\n\n如果玩家需要随时转头查两侧水道，这就超出固定视频承担的范围。先明确体验，再选择素材，不能因为生成了一段好看的视频就让玩法迁就它。",
+          "en": "game-build’s media method applies when art direction has chosen cutscenes, environment loops or keyframe performance. A fixed-view short presentation can be prerecorded. Player-controlled perspective, movement, collision or tactical information requires appropriate real-time behavior.\n\nOriginal game: the player chooses to light a ferry signal. Rules confirm the result before a short clip shows a boat responding; interaction then resumes. Game state decides whether the boat comes. Generated media presents that result rather than inventing it.\n\nIf the player must freely turn to inspect both channels, a fixed clip cannot carry that interaction. Choose the experience first instead of reshaping gameplay around an attractive generated asset."
+        }
+      },
+      {
+        "id": "asset-record",
+        "heading": {
+          "zh": "保存实际文件与接入条件",
+          "en": "Keep the actual file and its trigger"
+        },
+        "body": {
+          "zh": "| 记录项 | 本例填写 |\n|---|---|\n| 稳定资源名 | ferry-response，保存到项目媒体目录 |\n| 触发条件 | 信号已点亮、渡船仍可响应、此前未播放 |\n| 已锁事实 | 同一渡口、船在对岸、信号灯已亮 |\n| 允许变化 | 船灯回应，短距离驶近 |\n| 起止边界 | 开始在对岸；结束仍未靠岸，进入等待选择 |\n| 备用表达 | 同状态静帧与一句船只回应的事件文本 |\n\n记录还包括时长、所用参考、输出路径、来源和当前状态。输出立即保存，不把供应商任务页、缓存或可能失效的下载链接当成项目资源。\n\n资源名稳定便于接入，但替换文件后仍要确认它符合已定事实。不能只凭相同文件名把另一处渡口或提前靠岸的素材当同一个结果。",
+          "en": "| Record | Example |\n|---|---|\n| Stable resource | ferry-response in the project media directory |\n| Trigger | Signal lit, boat able to respond, not previously played |\n| Locked facts | Same landing; boat across the water; signal on |\n| Allowed motion | Boat answers with a light and approaches briefly |\n| Boundaries | Starts across the water; ends before docking, returning to a waiting choice |\n| Fallback | Same-state still and a short response event |\n\nAlso record duration, references, output path, provenance and status. Save actual files promptly; supplier task pages, caches and temporary download links do not serve as project assets.\n\nStable naming supports integration, but replacement media must still match accepted facts. A clip from another landing or showing premature docking is not equivalent merely because its filename matches."
+        }
+      },
+      {
+        "id": "continuity-review",
+        "heading": {
+          "zh": "先低成本检查事实，再产最终素材",
+          "en": "Review facts before final production"
+        },
+        "body": {
+          "zh": "先锁角色、场景、道具与本次临时状态，再用草稿检查身份、构图、动作和边界。已有参考时描述本镜的变化，不重新设计外观；分辨率更高也不会自动修复船位或人物身份漂移。\n\n抽看首、中、尾代表帧，再正常播放。船应从已定位置开始，不凭空多一艘；结尾不能已靠岸却让后续文字仍说在等待。上一段结束与下一段开始也要能衔接。\n\n失败定位到具体事实后再补素材或改受控变化。主观喜欢另一种画风可以成为美术取舍，但不能用“画面更好看”掩盖对游戏结果的改写。",
+          "en": "Lock identity, location, props and temporary state, then test framing, motion and boundaries with a low-cost draft. Existing references support controlled changes; higher resolution does not repair boat-position or identity drift.\n\nInspect first, middle and last frames, then play normally. The boat starts where established, no extra vessel appears, and the ending cannot show docking while subsequent text still asks the player to wait. Connect adjacent media boundaries too.\n\nLocate the failed fact before regenerating. A preferred visual style is an art decision, but visual appeal does not justify changing a gameplay result."
+        }
+      },
+      {
+        "id": "failure-path",
+        "heading": {
+          "zh": "素材加载失败后仍有明确下一步",
+          "en": "Define behavior when media fails"
+        },
+        "body": {
+          "zh": "接入时明确预载、播放、跳过、失焦、静音与资源释放。目标环境不能解码素材时，在构建阶段转换到支持格式，不等玩家运行后临时请求供应商。\n\n本例的视频是表现层，可降级为已登记的静帧与事件文本。模拟加载失败，确认信号结果、玩家可见信息和下一步等待选项仍保留，返回交互时不再发一次奖励。备用不是只显示“加载失败”后永远卡住。\n\n若 brief 已把某条媒体列为不可缺少的玩家效果，就不能静默换成静帧并声称完成。显示明确错误，回到相应构建环节解决。正常路径与失败路径各走一遍，看资产是否真的服务可玩流程。",
+          "en": "Specify preloading, playback, skip, focus loss, mute and resource release. Convert unsupported media during the build rather than requesting a supplier while the player is running the game.\n\nHere video is optional presentation, with an accepted still and event-text fallback. Simulate a load failure and confirm the signal result, necessary information and waiting choice remain available, without issuing a second reward on return. A permanent loading error is not a usable fallback.\n\nIf the brief makes a media effect indispensable, do not silently replace it and claim completion. Show a clear error and resolve the relevant build issue. Walk both normal and failed-media paths to verify that the asset supports play."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "生成视频能直接替代玩家操作吗？",
+          "en": "Can a generated clip replace player interaction?"
+        },
+        "a": {
+          "zh": "固定镜头的表现段可以使用视频；玩家会改变视角、位置或规则结果时，需要真实交互。先由游戏规则确认结果，再用素材表现，不能让视频内容替规则裁决。",
+          "en": "A clip can carry a fixed presentation. Player-controlled perspective, position or rule outcomes need real interaction. Commit results through game rules, then present them in media."
+        }
+      }
+    ],
+    "skill": {
+      "name": "game-build",
+      "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/SKILL.md",
+      "text": {
+        "zh": "用 $game-build 接入已确认的动态媒体，记录稳定路径、触发条件、事实锁与起止边界；为可降级素材准备备用表达，并验证播放、跳过与加载失败后的合法状态。",
+        "en": "Use $game-build to integrate accepted media with stable paths, triggers, locked facts and boundaries. Register fallbacks and verify legal states after playback, skipping and load failure."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "动态媒体保存、连续性与失败处理",
+          "en": "Media storage, continuity and failure handling"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/generative-media-pipeline.md"
+      }
+    ],
+    "related": [
+      "/novel-to-game/design-skippable-game-cutscenes",
+      "/novel-to-game/game-voice-assets",
+      "/novel-to-game/playtest-a-novel-game-adaptation"
+    ]
   }
 ]

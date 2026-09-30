@@ -17,7 +17,7 @@ test('published articles link immutable specialist skill files and have explicit
   const repos = {'oh-story':'oh-story-claudecode', 'drama-skills':'drama-skills', 'novel-to-game':'novel-to-game', 'video-recap':'video-recap-skills', dsh:'oh-story-dsh'}
   const skills = {
     'oh-story':['story-setup','story-import','story-long-write','story-short-write','story-long-analyze','story-review','story-deslop','story-cover'],
-    'drama-skills':['short-drama','short-drama-develop','short-drama-write','short-drama-novel-analyze','short-drama-image-prompts','short-drama-video-prompts','short-drama-storyboard','short-drama-review','short-drama-edit'],
+    'drama-skills':['short-drama','short-drama-develop','short-drama-write','short-drama-novel-analyze','short-drama-image-prompts','short-drama-video-prompts','short-drama-storyboard','short-drama-review','short-drama-edit','short-drama-assets'],
     'novel-to-game':['novel-to-game','game-concept','game-world-design','game-build','game-qa','game-art-direction'],
     'video-recap':['video-recap','video-script','video-cut','video-assemble','video-voiceover'], dsh:['novel-to-game']
   }

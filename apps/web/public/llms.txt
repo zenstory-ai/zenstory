@@ -71,6 +71,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Make Readers Care About the Outcome](https://zenstory.ai/oh-story/create-emotional-stakes-in-fiction) — Connect a goal to visible investment and meaningful loss. Includes an original night-school story and repairs that do not rely on adding tragedy.
 - [How to Write a Complete Fiction Scene](https://zenstory.ai/oh-story/write-a-scene-that-changes-the-story) — Turn a scene goal, obstacle, judgment and result into continuous prose. Includes an original lost-property scene, a detail plan and revision checks.
 - [How to Decide Whether Your Novel Needs a Prologue](https://zenstory.ai/oh-story/write-a-novel-prologue) — Test whether a prologue supplies necessary narrative context. Includes an original ferry story, keep-or-merge comparisons and exposition repairs.
+- [How to Develop a Recurring Object in a Novel](https://zenstory.ai/oh-story/recurring-object-in-fiction) — Develop an object through practical use and changing character choices. Includes an original key example and a recurrence planning table.
 
 ### Characters and dialogue / 人物与对白
 - [Characters and dialogue](https://zenstory.ai/guides/characters-and-dialogue) — Build believable motives, distinct voices, and relationships.
@@ -98,6 +99,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Fix Out-of-Character Fanfiction](https://zenstory.ai/oh-story/write-fanfiction-that-fits-the-characters) — Separate canon behavior, its triggers and your changes. Includes a fictional-canon comparison and a method for repairing choices without freezing growth.
 - [How to Write a Believable Betrayal](https://zenstory.ai/oh-story/write-a-betrayal-that-feels-earned) — Build betrayal from established trust and character choices, then change what happens next. Includes an original theater story and a trust-evidence table.
 - [How to Write a Romance Confession Scene](https://zenstory.ai/oh-story/write-a-romance-confession-scene) — Design a confession around relationship progress, personal agendas and a real response. Includes an original choir scene and before-and-after dialogue.
+- [How to Give Numbers Meaning in Fiction](https://zenstory.ai/oh-story/numbers-in-fiction) — Connect money, time and quantities to established character costs. Includes an original budget scene and a practical meaning table.
 
 ### Choose and write a genre / 题材与类型写法
 - [Choose and write a genre](https://zenstory.ai/guides/genres) — Choose a genre and learn the story patterns it needs.
@@ -160,6 +162,9 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Check AI Fiction for Continuity Errors](https://zenstory.ai/oh-story/ai-fiction-consistency-check) — Audit AI-assisted fiction for factual, rule, timeline, causal, and cost conflicts. Cite both sides, separate evidence from severity, and recheck later chapters.
 - [How to Fix Plot Logic With Cause and Effect](https://zenstory.ai/oh-story/build-a-cause-and-effect-plot) — Turn an event list into a causal chain. Check knowledge, choices and outcomes with an original investigation example and a revision table.
 - [How to Fix Character Continuity in a Short Drama](https://zenstory.ai/drama-skills/short-drama-character-memory) — Track goals, knowledge, relationships and unpaid costs between episodes. Includes a handoff example and repairs for unexplained knowledge or reset states.
+- [How to Break Fiction into Readable Paragraphs](https://zenstory.ai/oh-story/write-a-fiction-paragraph) — Break paragraphs at meaningful changes without fragmenting a continuous thought. Includes an original passage and repairs for dense or choppy prose.
+- [How to Use Character Names and Pronouns Clearly](https://zenstory.ai/oh-story/clear-character-names-and-pronouns) — Use names to reset attribution and pronouns to carry a continuous action. Includes an original group scene and a before-and-after revision.
+- [How to Update Storyboards After a Script Change](https://zenstory.ai/drama-skills/update-storyboards-after-script-changes) — Trace changed script facts to existing assets, storyboards and prompts. Includes an original injury-timing example and a selective update table.
 
 ### Short-drama scripts / 短剧改编与剧本
 - [Short-drama scripts](https://zenstory.ai/guides/short-drama) — Adapt a story into episodes, scenes, and shootable dialogue.
@@ -233,6 +238,10 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Cut Away During Continuous Dialogue](https://zenstory.ai/drama-skills/cut-away-during-continuous-dialogue) — Locate the spoken line before cutting to a useful reaction or object. Includes an original key-return scene, interval table and workflow limits.
 - [How to Storyboard a Single-Room Short Drama](https://zenstory.ai/drama-skills/storyboard-a-single-room-short-drama) — Stage a one-room scene through exits, object control and character purposes. Includes an original locker-room scene and repairs for pointless movement.
 - [AI Short-Drama Edit List Template](https://zenstory.ai/drama-skills/ai-short-drama-edit-list-template) — Record footage, boundaries, reasons, subtitles and sound treatment in one edit list. Includes an original example and timing-update checks.
+- [How to Cast Distinct Voices for an AI Short Drama](https://zenstory.ai/drama-skills/choose-distinct-short-drama-voices) — Choose character voices through actual auditions, separating stable identity from scene performance. Includes an original casting table and listening checks.
+- [How to Fix the Wrong Era in AI Drama Images](https://zenstory.ai/drama-skills/match-ai-drama-visuals-to-the-era) — Anchor the era in story facts before checking devices, furnishings and clothing. Includes an original office example and selective repairs.
+- [How to Add a Video Frame and Logo Without Obstruction](https://zenstory.ai/video-recap/add-a-brand-frame-to-video) — Place static frames, title bars and logos as separate layers on the actual canvas. Includes an original layout and obstruction and audio checks.
+- [How to Replace an Unintended Black Video Tail](https://zenstory.ai/video-recap/replace-a-black-video-tail-with-an-endcard) — Distinguish an intentional pause from an unfinished tail, then supply the intended still or animated endcard. Includes an original timing plan and checks.
 
 ### Interactive stories and games / 互动故事与游戏
 - [Interactive stories and games](https://zenstory.ai/guides/interactive-games) — Turn a novel into player actions, branching stories, and a playable game.
@@ -267,6 +276,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Design Skippable Game Cutscenes](https://zenstory.ai/novel-to-game/design-skippable-game-cutscenes) — Make cutscenes read confirmed state and define boundaries and fallbacks. Includes an original lighthouse sequence and skip-path checks.
 - [How to Write Clear Interactive Story Choices](https://zenstory.ai/novel-to-game/write-clear-interactive-story-choices) — Make options state real actions, with distinct cost cues and responses. Includes an original testimony scene and boundaries for hidden consequences.
 - [How to Design Deadlines in a Story Game](https://zenstory.ai/novel-to-game/design-time-limits-in-a-story-game) — Define time advancement, commitments and visible deadline consequences. Includes an original ferry task and checks for early or repeated triggers.
+- [How to Integrate AI Media into a Story Game](https://zenstory.ai/novel-to-game/put-ai-media-assets-into-a-story-game) — Save generated media as stable game assets, connect it to state triggers and retain a fallback. Includes an original ferry scene and failure checks.
 
 ### Video scripts and editing / 视频解说与剪辑
 - [Video scripts and editing](https://zenstory.ai/guides/video-recaps) — Write narration from footage, edit a story, and finish audio and subtitles.

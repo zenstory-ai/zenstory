@@ -7,26 +7,6 @@
   "framework": "vite",
   "redirects": [
     {
-      "source": "/oh-story/recurring-object-in-fiction",
-      "destination": "https://zenstory.ai/oh-story/emotion-on-the-page",
-      "permanent": true
-    },
-    {
-      "source": "/zh/oh-story/recurring-object-in-fiction",
-      "destination": "https://zenstory.ai/zh/oh-story/emotion-on-the-page",
-      "permanent": true
-    },
-    {
-      "source": "/oh-story/numbers-in-fiction",
-      "destination": "https://zenstory.ai/oh-story/show-vs-tell-fiction",
-      "permanent": true
-    },
-    {
-      "source": "/zh/oh-story/numbers-in-fiction",
-      "destination": "https://zenstory.ai/zh/oh-story/show-vs-tell-fiction",
-      "permanent": true
-    },
-    {
       "source": "/video-recap/subtitle-packaging-order",
       "destination": "https://zenstory.ai/video-recap/subtitle-layout-and-line-breaks",
       "permanent": true
