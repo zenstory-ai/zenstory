@@ -365,6 +365,9 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Combine Landscape and Portrait Videos](https://zenstory.ai/video-recap/combine-landscape-and-portrait-videos) — Choose a canvas for mixed video orientations, distinguish fitting from cropping, and check people, objects, subtitles, and cuts with a worked example.
 - [How to Fix Dialogue Cut Off by a Video Edit](https://zenstory.ai/video-recap/fix-dialogue-cut-off-in-video) — Distinguish clipped speech, masking, and missing source audio. Restore complete source dialogue with an original borrowing example and updated output timing.
 - [How to Fix Uneven Volume Between AI Voiceover Segments](https://zenstory.ai/video-recap/fix-uneven-ai-voiceover-volume) — Separate segment levels, peak guards, and final mixing. Includes gain examples and listening checks without confusing RMS targets with measured LUFS.
+- [How to Fix Missing Words in AI Voiceover](https://zenstory.ai/video-recap/fix-missing-words-in-ai-voiceover) — Find whether words were shortened, omitted by TTS, or lost in assembly. Compare approved text, segment audio, and the current video.
+- [How to Fix Long Pauses Between AI Voiceover Lines](https://zenstory.ai/video-recap/fix-long-pauses-in-ai-voiceover) — Separate silence inside a WAV, authored windows, pause settings, and actual placement. Includes a timing example that preserves intentional sound.
+- [How to Fix a Video Export with No Sound](https://zenstory.ai/video-recap/fix-a-video-export-with-no-sound) — Check the current version, source streams, edited intermediate, voiceover segments, and final audio mode. A silence track cannot restore missing sound.
 
 
 ## Workbench docs

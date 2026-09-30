@@ -26824,7 +26824,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "改视频画面怎么保留已定配音和混音",
       "en": "How to Keep Approved Audio When Changing Picture"
@@ -26860,8 +26860,8 @@
           "en": "Select the two actual inputs"
         },
         "body": {
-          "zh": "| 输入 | 本例决定 | 需要核对 |\n|---|---|---|\n| 新画面 | 已独立渲染的 picture.mp4 | 实际帧率、起点、时长与画面内容 |\n| 已定声音 | 旧成片选中的完整 AAC 音轨 | 确认选中哪一路，包含哪些配音、原声与音乐 |\n| 输出 | 新目录里的配对候选 | 不覆盖旧画面、旧混音与已采用版本 |\n\n在引用版本中，音轨序号按 `a:N` 计数；旧成片有多路声音时，不能仅凭文件名认为第一路正确。新画面的自带声音会被忽略，声音提供者的画面也会被忽略。\n\n保留完整混音时，不要再生成 TTS 或叠一次 BGM，否则重复处理就破坏了保留目标。",
-          "en": "| Input | Example selection | Check |\n|---|---|---|\n| New picture | Independently rendered picture.mp4 | Actual frame rate, start, duration and content |\n| Retained sound | Selected complete AAC track from the old master | Which stream and which voice, source sound and music it contains |\n| Output | Paired candidate in a new directory | Old inputs and adopted version remain available |\n\nThe cited version counts audio streams as a:N. Multiple tracks require explicit selection, not assumptions from filenames. The new picture’s audio and the donor’s video are ignored.\n\nDo not regenerate TTS or add BGM when retaining a complete soundtrack; that would process it again."
+          "zh": "| 输入 | 判断与处理 |\n|---|---|\n| 新画面 | **本例决定：** 已独立渲染的 picture.mp4 **需要核对：** 实际帧率、起点、时长与画面内容 |\n| 已定声音 | **本例决定：** 旧成片选中的完整 AAC 音轨 **需要核对：** 确认选中哪一路，包含哪些配音、原声与音乐 |\n| 输出 | **本例决定：** 新目录里的配对候选 **需要核对：** 不覆盖旧画面、旧混音与已采用版本 |\n\n在引用版本中，音轨序号按 `a:N` 计数；旧成片有多路声音时，不能仅凭文件名认为第一路正确。新画面的自带声音会被忽略，声音提供者的画面也会被忽略。\n\n保留完整混音时，不要再生成 TTS 或叠一次 BGM，否则重复处理就破坏了保留目标。",
+          "en": "| Input | Record |\n|---|---|\n| New picture | **Example selection:** Independently rendered picture.mp4 **Check:** Actual frame rate, start, duration and content |\n| Retained sound | **Example selection:** Selected complete AAC track from the old master **Check:** Which stream and which voice, source sound and music it contains |\n| Output | **Example selection:** Paired candidate in a new directory **Check:** Old inputs and adopted version remain available |\n\nThe cited version counts audio streams as a:N. Multiple tracks require explicit selection, not assumptions from filenames. The new picture’s audio and the donor’s video are ignored.\n\nDo not regenerate TTS or add BGM when retaining a complete soundtrack; that would process it again."
         }
       },
       {
@@ -26871,8 +26871,8 @@
           "en": "Know what pairing preserves and cannot repair"
         },
         "body": {
-          "zh": "对应方法是 `video-assemble` 下的 `scripts/pair_media.py`，由明确的两输入计划运行。当前引用实现接受 MP4 家族容器中的 H.264/HEVC 零起点恒定帧率画面与满足时钟要求的连续 AAC 音轨，复制压缩流而非重新混音。\n\n它不自动偏移、变速、裁切、补静音、标准化或用 shortest 截尾。格式或时钟不符合条件时，回上游准备合适输入，不把失败解释成已保留成功。\n\n首尾容差用于检查容器相容，不能证明一句台词对上一次嘴部动作。流与解码检查通过后，仍需正常速度观看与完整听审。",
-          "en": "The method is scripts/pair_media.py under video-assemble, driven by an explicit two-input plan. The cited implementation accepts suitable MP4-family H.264/HEVC zero-origin constant-rate picture and contiguous AAC audio, copying compressed streams instead of remixing.\n\nIt does not infer offset, speed changes, trimming, padding, normalization or shortest-stream truncation. Prepare suitable upstream inputs when format or timing fails; a failure is not successful preservation.\n\nEndpoint tolerance checks container compatibility, not alignment between a spoken line and mouth movement. Stream and decode checks still require normal-speed viewing and complete listening."
+          "zh": "对应方法是 `video-assemble` 下的 `scripts/pair_media.py`，由明确的两输入计划运行。当前引用实现接受 MP4 家族容器中的 H.264/HEVC 零起点恒定帧率画面与满足时钟要求的连续 AAC 音轨，复制压缩流而非重新混音。\n\n它不自动偏移、变速、裁切、补静音、标准化或用 shortest 截尾。格式或时钟不符合条件时，回上游准备合适输入，不把失败解释成已保留成功。\n\n首尾容差用于检查容器相容，不能证明一句台词对上一次嘴部动作。流与解码检查通过后，仍需正常速度观看与完整听审。\n\n只做输入检查的计划记录会是PLANNED，不产生配对视频；实际配对并通过检查才记录PAIR_RENDERED。FAILED记录不能当候选成功使用，早期输入错误也应按错误处理。计划目录不能复用成渲染目录，继续使用新的输出目录，保留已采用文件。",
+          "en": "The method is scripts/pair_media.py under video-assemble, driven by an explicit two-input plan. The cited implementation accepts suitable MP4-family H.264/HEVC zero-origin constant-rate picture and contiguous AAC audio, copying compressed streams instead of remixing.\n\nIt does not infer offset, speed changes, trimming, padding, normalization or shortest-stream truncation. Prepare suitable upstream inputs when format or timing fails; a failure is not successful preservation.\n\nEndpoint tolerance checks container compatibility, not alignment between a spoken line and mouth movement. Stream and decode checks still require normal-speed viewing and complete listening.\n\nInput-check-only planning records PLANNED and creates no paired video. Actual pairing that passes checks records PAIR_RENDERED. A FAILED record is not a successful candidate; early input errors also remain errors. Do not reuse a planned directory as the render directory; choose a new output directory and retain adopted files."
         }
       },
       {
@@ -26921,6 +26921,13 @@
           "en": "Audio processing and preservation modes"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/audio-modes.md"
+      },
+      {
+        "label": {
+          "zh": "明确两输入配对与结果状态",
+          "en": "Explicit two-input pairing and result states"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/scripts/pair_media.py"
       }
     ],
     "related": [
@@ -27071,7 +27078,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "AI剪辑只改一处，其他地方也变了怎么办",
       "en": "How to Keep AI Edit Revisions Local"
@@ -27107,8 +27114,8 @@
           "en": "Record changes and retained decisions together"
         },
         "body": {
-          "zh": "| 层 | 本轮改动 | 本轮保留 |\n|---|---|---|\n| 故事 | 补回交信理由，不换主线 | 跟随收件人的认知顺序 |\n| 画面 | 恢复指定源片区间 | 其余镜头顺序与反应 |\n| 旁白 | 必要时只改对应句 | 其余已定文案与声线 |\n| 声音 | 为恢复对白腾出位置 | 已定音乐与其他原声 |\n| 字幕 | 更新受影响的行与位置 | 其余样式、版式与文字 |\n\n不同层会有依赖：恢复对白若延长成片，需要检查后续位置。保留不等于忽略依赖，而是明确报告必须移动的范围，不趁机重写其他内容。",
-          "en": "| Layer | Change | Retain |\n|---|---|---|\n| Story | Restore the handoff reason | Recipient’s recognition order |\n| Picture | Restore a specified source interval | Other shot order and reactions |\n| Narration | Revise only the affected sentence if necessary | Other text and voice |\n| Sound | Make room for restored dialogue | Adopted music and other source passages |\n| Subtitles | Update affected cues and positions | Other wording and styling |\n\nDependencies still matter. Added dialogue may move later positions. Retaining decisions means identifying required movement rather than using it as an excuse to rewrite unrelated content."
+          "zh": "| 层 | 判断与处理 |\n|---|---|\n| 故事 | **本轮改动：** 补回交信理由，不换主线 **本轮保留：** 跟随收件人的认知顺序 |\n| 画面 | **本轮改动：** 恢复指定源片区间 **本轮保留：** 其余镜头顺序与反应 |\n| 旁白 | **本轮改动：** 必要时只改对应句 **本轮保留：** 其余已定文案与声线 |\n| 声音 | **本轮改动：** 为恢复对白腾出位置 **本轮保留：** 已定音乐与其他原声 |\n| 字幕 | **本轮改动：** 更新受影响的行与位置 **本轮保留：** 其余样式、版式与文字 |\n\n不同层会有依赖：恢复对白若延长成片，需要检查后续位置。保留不等于忽略依赖，而是明确报告必须移动的范围，不趁机重写其他内容。",
+          "en": "| Layer | Record |\n|---|---|\n| Story | **Change:** Restore the handoff reason **Retain:** Recipient’s recognition order |\n| Picture | **Change:** Restore a specified source interval **Retain:** Other shot order and reactions |\n| Narration | **Change:** Revise only the affected sentence if necessary **Retain:** Other text and voice |\n| Sound | **Change:** Make room for restored dialogue **Retain:** Adopted music and other source passages |\n| Subtitles | **Change:** Update affected cues and positions **Retain:** Other wording and styling |\n\nDependencies still matter. Added dialogue may move later positions. Retaining decisions means identifying required movement rather than using it as an excuse to rewrite unrelated content."
         }
       },
       {
@@ -27120,6 +27127,17 @@
         "body": {
           "zh": "对应 skill 用风格记录保存表达、节奏与字幕意见，用音画记录保存镜头和声音意见；只有主线改变才更新故事计划。删掉一段时也删掉过期的计划描述，别让下一轮按旧计划重新补回来。\n\n给 AI 的指令可以写：“本轮只恢复指定对白与其必要时长。先列影响范围；不能保留的时间位置说明原因，其他文字和声音决定继续沿用。”具体文件由制作流程维护，作者不用把内部字段当成创作主题。\n\n若最新意见与旧决定冲突，以明确的新意见为准，并留下这次实际采纳的选择。含糊反馈先在现有版本上提一个具体局部办法，别自动扩成全片改风格。",
           "en": "The skill records expression, rhythm and subtitle feedback in the style record, and shot/sound feedback in the audiovisual record. Update the story plan only for a changed storyline. Remove obsolete plan descriptions when deleting material so later runs do not restore it.\n\nA useful instruction: “Restore only this dialogue and its necessary duration. Identify affected positions and explain unavoidable movement; retain other wording and sound decisions.” The production workflow owns the files; authors need not use internal fields as creative subjects.\n\nExplicit latest decisions supersede old ones. For vague feedback, propose a concrete local repair on the existing version instead of automatically restyling the whole film."
+        }
+      },
+      {
+        "id": "complete-local-plan",
+        "heading": {
+          "zh": "同样八秒，补回理由而不移动后半片",
+          "en": "An Eight-Second Repair That Keeps Later Positions"
+        },
+        "body": {
+          "zh": "以下是纸面练习，没有剪切或听审结果。当前成片16–20秒用原片30–34秒的走路镜头，其中33.2–34秒只是重复；20–24秒用原片40–44秒的交信，21秒发生交接。原片39.2–40秒已有完整的“交给周秘书”及自然句界，却被旧入点删掉。\n\n| 片段 | 原安排与候选 |\n|---|---|\n| 走路 | 原片30–34 → 输出16–20；候选原片30–33.2 → 输出16–19.2，保留必要接近与空间 |\n| 交信 | 原片40–44 → 输出20–24；候选原片39.2–44 → 输出19.2–24，先听名字，再看原来的交接与接收反应 |\n| 24秒之后 | 输出落点不变；未改旁白文字和WAV继续沿用，字幕只核受影响位置 |\n\n3.2加4.8仍为8秒，后半片不用因这次方案统一平移。实际素材若没有可删的重复走路，不能照抄这组数；应改用延长并明确报告依赖，或另找已有完整前提。不能删掉进入场景所需的动作凑秒数。\n\n在同一剪辑计划中，把姓名39.2–40秒记为必须保留的audio证据，把交接与接收所需40–44秒记为video证据，保留前提在回应之前的关系。只有源片真的包含这些时刻时才能填写；剪点检查支持覆盖和顺序，不保证观众实际听清。\n\n这次新增原对白会改变19.2–20秒的局部声音。继续沿用已选音乐、原起点和其他声音决定，再实听是否遮盖姓名；若需要改变此处音乐增益，要报告这个局部依赖。不要声称已定整条混音的编码包完全未变。若任务要求完整混音冻结，这种补原对白方案就不相容，需要先重新确定修订目标。\n\n候选完成后，先听名字、看实际交接与反应，再比较16秒前和24秒后的未改内容。总时长相同只说明时钟安排，不能替代源素材、声音与字幕检查。",
+          "en": "This is a paper exercise without a rendered or listened-to result. Output 16–20 uses source 30–34 of walking; source 33.2–34 is repetitive. Output 20–24 uses source 40–44 for a letter handover at output 21. Source 39.2–40 already contains the complete “Give it to Secretary Zhou” at a natural boundary, omitted by the old in-point.\n\n| Clip | Old plan and candidate |\n|---|---|\n| Walking | Source 30–34 → output 16–20; candidate source 30–33.2 → 16–19.2, retaining necessary approach and space. |\n| Letter | Source 40–44 → output 20–24; candidate source 39.2–44 → 19.2–24, naming first, then the original handover and recipient reaction. |\n| After 24 | Positions remain; retain unchanged narration text and WAVs, checking affected captions only. |\n\n3.2 plus 4.8 remains eight seconds, so this proposal need not shift the later video. Without genuinely disposable walking, do not copy the numbers. Extend with declared dependencies or select another existing complete premise. Do not remove necessary approach just to fit.\n\nIn the same cut plan, protect source 39.2–40 as audio evidence and the needed 40–44 handover/reception as video evidence, keeping premise before reply. Enter only moments actually present. Coverage and ordering checks do not prove audible clarity.\n\nRestored dialogue changes sound at 19.2–20. Retain chosen music, its original start, and other sound decisions, then listen for masking. Report any necessary local music-gain change. This is not an unchanged encoded full mix. A requirement to freeze the whole mix is incompatible with adding dialogue and needs a different revision target.\n\nAfter producing the candidate, hear the name, watch the handover and reply, then compare unaffected content before 16 and after 24. Equal length establishes a clock plan rather than complete source, audio, or caption verification."
         }
       },
       {
@@ -28600,7 +28618,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "英文视频怎么翻译配音成中文：逐句对齐原画面",
       "en": "How to Dub an English Video into Chinese"
@@ -28614,8 +28632,8 @@
       "en": "Verify the English transcript and sentence translations before dubbing into the original windows. Includes an original demo and current workflow limits."
     },
     "answer": {
-      "zh": "先确认素材适合所用配音流程，再逐句核对英文原文、中文含义与原时间窗。用自然中文保留信息和重复，不把翻译改成解说。生成后回听每句并检查相邻接点。这里引用的 video-recap 版本只支持单说话者整轨替换，不分离背景音乐。",
-      "en": "Check that the material fits the dubbing workflow, then verify each English sentence, Chinese meaning and original time window. Preserve information and repetition in natural Chinese rather than turning translation into commentary. Listen to sentences and joins afterward. The cited version supports one speaker and whole-track replacement, without music separation."
+      "zh": "先逐句核对英文原文、中文含义与原时间窗，保留信息和重复，不暗改成解说。所引单说话者整轨替换流程不分离背景音乐，超窗适配超过上限还会裁尾；生成后须对照raw与fitted回听整句，不能仅凭时长判断完整。",
+      "en": "Verify each source line, Chinese meaning, and original window without turning translation into commentary. The cited single-speaker full-track replacement does not separate background music, and over-cap fitting trims tails. Compare raw with fitted speech; duration alone proves no complete line."
     },
     "sections": [
       {
@@ -28636,8 +28654,8 @@
           "en": "Preserve meaning, repetition and source windows"
         },
         "body": {
-          "zh": "以下是为本文设计的虚构工具演示，不是已生成的配音结果。\n\n| 原声时间窗 | 英文内容 | 中文译文 | 检查 |\n|---|---|---|---|\n| 0–3 秒 | Keep the lid open until the light goes out. | 灯熄灭前，别合上盖子。 | 保留时间条件与否定关系 |\n| 3–5 秒 | Not yet. | 还不行。 | 不能因为重复提醒而删掉 |\n| 5–8 秒 | Now close it, then press the blue button. | 现在合盖，再按蓝色按钮。 | 保留先后与颜色 |\n\n每句沿用原时间窗，相邻句不重叠。中文可以调整语序，让意思自然，但不能把“灯灭前别合盖”缩成“合盖”，也不能把下一句的指令提前说完。\n\n可复制记录项：原文、已核对译文、开始、结束、时长、疑点、实听结果。没有试听的格子写“待检查”，不要预填“已同步”。",
-          "en": "This original demonstration is a planning example, not a generated dub.\n\n| Source window | English | Chinese translation | Check |\n|---|---|---|---|\n| 0–3 seconds | Keep the lid open until the light goes out. | 灯熄灭前，别合上盖子。 | Preserve the condition and negation |\n| 3–5 seconds | Not yet. | 还不行。 | Retain the repeated warning |\n| 5–8 seconds | Now close it, then press the blue button. | 现在合盖，再按蓝色按钮。 | Preserve order and color |\n\nReuse the original sentence windows without overlap. Natural Chinese can reorder phrasing, but must not reverse the instruction or announce the next action early.\n\nRecord original text, approved translation, start, end, duration, doubts and listening result. Mark untested entries as pending, not synchronized."
+          "zh": "以下是为本文设计的虚构工具演示，不是已生成的配音结果。\n\n| 原声时间窗 | 判断与处理 |\n|---|---|\n| 0–3 秒 | **英文内容：** Keep the lid open until the light goes out. **中文译文：** 灯熄灭前，别合上盖子。 **检查：** 保留时间条件与否定关系 |\n| 3–5 秒 | **英文内容：** Not yet. **中文译文：** 还不行。 **检查：** 不能因为重复提醒而删掉 |\n| 5–8 秒 | **英文内容：** Now close it, then press the blue button. **中文译文：** 现在合盖，再按蓝色按钮。 **检查：** 保留先后与颜色 |\n\n每句沿用原时间窗，相邻句不重叠。中文可以调整语序，让意思自然，但不能把“灯灭前别合盖”缩成“合盖”，也不能把下一句的指令提前说完。\n\n可复制记录项：原文、已核对译文、开始、结束、时长、疑点、实听结果。没有试听的格子写“待检查”，不要预填“已同步”。",
+          "en": "This original demonstration is a planning example, not a generated dub.\n\n| Source window | Record |\n|---|---|\n| 0–3 seconds | **English:** Keep the lid open until the light goes out. **Chinese translation:** 灯熄灭前，别合上盖子。 **Check:** Preserve the condition and negation |\n| 3–5 seconds | **English:** Not yet. **Chinese translation:** 还不行。 **Check:** Retain the repeated warning |\n| 5–8 seconds | **English:** Now close it, then press the blue button. **Chinese translation:** 现在合盖，再按蓝色按钮。 **Check:** Preserve order and color |\n\nReuse the original sentence windows without overlap. Natural Chinese can reorder phrasing, but must not reverse the instruction or announce the next action early.\n\nRecord original text, approved translation, start, end, duration, doubts and listening result. Mark untested entries as pending, not synchronized."
         }
       },
       {
@@ -28647,8 +28665,8 @@
           "en": "Preserve meaning before judging spoken duration"
         },
         "body": {
-          "zh": "该版本以约每秒五个中文字作为译文长度参考，但数字、英文名称、停顿和音色都会影响实际时长，不能当所有句子的硬上限。先用自然中文去掉翻译造成的冗余，不删原文必要信息，也不擅自合并句子。\n\n例如“在指示灯仍然保持点亮状态的这段时间里面，不要将盖子进行关闭”可改成“灯亮着时，别合盖”。这是语句简洁化；把完整提醒删掉则改变内容。\n\n模式会逐句合成并贴回原线，只有将覆盖下一句时才局部加速。仍要检查加速后是否听得清、与动作是否对应。若保留完整含义后仍无法自然说完，记录具体句子与时间冲突，调整方案；不要裁掉语尾假装完成。",
-          "en": "The version uses roughly five Chinese characters per second as a drafting reference. Numbers, English names, pauses and voice affect actual duration, so it is not a universal ceiling. Remove translation-induced redundancy without dropping source information or merging sentences.\n\nA verbose phrase meaning “during the period in which the indicator remains illuminated, do not perform closure” can become “while the light is on, do not close it.” That simplifies phrasing; removing the warning changes content.\n\nThe mode synthesizes sentences separately and accelerates locally only when a sentence would cover the next. Check intelligibility and alignment with actions afterward. If complete meaning still cannot fit naturally, record the exact conflict and revise the plan rather than cutting the sentence ending."
+          "zh": "该版本以约每秒五个中文字作为译文长度参考，但数字、英文名称、停顿和音色都会影响实际时长，不能当所有句子的硬上限。先用自然中文去掉翻译造成的冗余，不删原文必要信息，也不擅自合并句子。\n\n例如“在指示灯仍然保持点亮状态的这段时间里面，不要将盖子进行关闭”可改成“灯亮着时，别合盖”。这是语句简洁化；把完整提醒删掉则改变内容。\n\n实际实现逐句锚定start，空间按本句end与下一句start的较早者计算，并设0.4秒下限；不是只在越过下一句时才处理。短于空间且在容差内的WAV保持节奏，超出时局部加速。\n\n重要边界：引用版本的压缩上限为2倍。仍超出时，会对加速后的音频裁到窗口并淡出；所以输出时长符合窗口，可能仍丢了语尾。不要把“已导出”或拟合时长当整句已保留。\n\n纸面例：原WAV长5秒、可用空间2秒，所需压缩2.5倍超过上限；先2倍得到约2.5秒，再裁到2秒，最后0.5秒可能含必要内容。此例未合成或听审，实际丢哪些字必须回听。\n\n保留完整含义仍说不完时，回修具体译句或重新确定时间方案，再检查raw与fitted两份声音。普通解说旁白的批准稿保护与dub不是同一路径，不能假定加一个保护要求就让dub自动阻断所有裁尾。",
+          "en": "The version uses roughly five Chinese characters per second as a drafting reference. Numbers, English names, pauses and voice affect actual duration, so it is not a universal ceiling. Remove translation-induced redundancy without dropping source information or merging sentences.\n\nA verbose phrase meaning “during the period in which the indicator remains illuminated, do not perform closure” can become “while the light is on, do not close it.” That simplifies phrasing; removing the warning changes content.\n\nThe implementation anchors each line at its start and computes room using the earlier of that line’s end and the next start, with a 0.4-second minimum. It does not wait only for overlap with the next line. A WAV within room and tolerance retains its pace; an overlong one is compressed locally.\n\nThe cited version caps compression at 2×. If that remains insufficient, it trims the compressed audio to room and fades the tail. A fitted duration can therefore lose final words. Export success or matching duration is not complete-sentence proof.\n\nPaper example: a five-second raw WAV in two seconds of room needs 2.5×. The cap first produces roughly 2.5 seconds, then trimming reduces it to two; the lost half-second may contain necessary content. No audio was generated or listened to here; actual lost words require listening.\n\nIf the complete meaning still cannot fit, revise the specific translation or timing plan and compare raw with fitted audio. Ordinary narration’s approved-text policy and dub are separate paths; a protection request does not automatically make dub block every tail trim."
         }
       },
       {
@@ -28658,8 +28676,8 @@
           "en": "Review against source speech, actions and joins"
         },
         "body": {
-          "zh": "逐句核对三个问题：有没有译错或漏掉条件；中文实际说完了吗；画面中的操作是否仍在正确时刻发生。随后连播相邻句，听有没有重叠、突兀空白或语气突然变样。\n\n若英文转写有误，先修原文和译文；若只是某句超窗，定位该句，不整片统一加速；若原背景音乐消失，回查整轨替换的模式选择，不把问题误判成音量设置。\n\n通过文件校验与完成导出不等于翻译准确或听感自然。保留已核对的逐句表和实际试听记录，方便只修问题位置。这篇处理的是跨语言忠实翻译；已有中文文案超出画面时间窗，另见配音超时指南。",
-          "en": "Check each sentence for lost conditions, complete delivery and correspondence with the action. Then play neighboring sentences together for overlap, awkward gaps or abrupt delivery changes.\n\nFor faulty transcription, repair the source text and translation first. For one overlong sentence, locate it rather than accelerating the entire video. If background music disappears, revisit whole-track replacement instead of diagnosing only a volume setting.\n\nSuccessful export does not prove faithful translation or natural delivery. Keep the verified sentence table and listening notes so revisions can stay local. This guide concerns faithful cross-language dubbing; fitting an existing Chinese script to a picture edit is a separate question."
+          "zh": "逐句核对三个问题：有没有译错或漏掉条件；中文实际说完了吗；画面中的操作是否仍在正确时刻发生。随后连播相邻句，听有没有重叠、突兀空白或语气突然变样。\n\n若英文转写有误，先修原文和译文；若只是某句超窗，定位该句，不整片统一加速；若原背景音乐消失，回查整轨替换的模式选择，不把问题误判成音量设置。\n\n通过文件校验与完成导出不等于翻译准确或听感自然。保留已核对的逐句表和实际试听记录，方便只修问题位置。这篇处理的是跨语言忠实翻译；已有中文文案超出画面时间窗，另见配音超时指南。\n\ndub的输入门禁能阻止空行、重叠和越界安排；它在合成前记录文字与时长风险，不能证明生成的发音或裁尾后内容完整。回听每句的条件、否定与最后音节，再核对画面。",
+          "en": "Check each sentence for lost conditions, complete delivery and correspondence with the action. Then play neighboring sentences together for overlap, awkward gaps or abrupt delivery changes.\n\nFor faulty transcription, repair the source text and translation first. For one overlong sentence, locate it rather than accelerating the entire video. If background music disappears, revisit whole-track replacement instead of diagnosing only a volume setting.\n\nSuccessful export does not prove faithful translation or natural delivery. Keep the verified sentence table and listening notes so revisions can stay local. This guide concerns faithful cross-language dubbing; fitting an existing Chinese script to a picture edit is a separate question.\n\nDub’s input gate blocks empty, overlapping, and out-of-range lines and records text/timing risks before synthesis. It proves neither generated pronunciation nor content after trimming. Listen to conditions, negatives, and the final syllable, then check the picture."
         }
       }
     ],
@@ -28690,6 +28708,20 @@
           "en": "Sentence-level English-to-Chinese dubbing and scope"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-recap/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "逐句时间适配、压缩上限与裁尾",
+          "en": "Per-line fit, compression cap, and tail trimming"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/scripts/dub.py"
+      },
+      {
+        "label": {
+          "zh": "普通旁白保护与dub的边界",
+          "en": "Ordinary narration protection and dub boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/SKILL.md"
       }
     ],
     "related": [
@@ -39120,6 +39152,423 @@
       "/oh-story/ceo-romance",
       "/oh-story/write-a-love-triangle",
       "/drama-skills/coincidence-and-misunderstanding"
+    ]
+  },
+  {
+    "owner": "video-recap",
+    "slug": "fix-missing-words-in-ai-voiceover",
+    "topic": "video-recaps",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI配音漏读怎么办：对照定稿、分段声音与成片",
+      "en": "How to Fix Missing Words in AI Voiceover"
+    },
+    "seo_title": {
+      "zh": "AI配音漏读怎么办：对照定稿、分段声音与成片",
+      "en": "How to Fix Missing Words in AI Voiceover"
+    },
+    "description": {
+      "zh": "分开自动缩稿、TTS漏读和合成漏段。用原定文案、分段WAV与当前成片逐层定位，不拿完整字幕或spoken_text当已听清。",
+      "en": "Find whether words were shortened, omitted by TTS, or lost in assembly. Compare approved text, segment audio, and the current video."
+    },
+    "answer": {
+      "zh": "先确认哪句话在当前成片里缺了，再对照送给TTS的文字和分段音频。文字已经变短，回查缩稿；文字完整而WAV漏读，修该段合成；WAV完整而成片缺失，查落点与混音。批准稿保护能阻止自动删字，不能保证供应商实际读全；字幕与元数据也不能代替回听。",
+      "en": "Locate the missing phrase in the current video, then compare the text sent to TTS and its segment audio. Shortened text points upstream; complete text with missing speech points to synthesis; a complete WAV missing from the video points to placement or mix. Approved-text protection blocks automatic shortening, not provider omissions. Captions and metadata do not replace listening."
+    },
+    "sections": [
+      {
+        "id": "locate-the-loss",
+        "heading": {
+          "zh": "先确认漏在哪一层",
+          "en": "Locate the Layer Where Speech Is Lost"
+        },
+        "body": {
+          "zh": "听当前采用成片，写下缺的是哪个字、哪句以及时间；再单听对应分段。不要先重生成整片，否则未点名的配音、音色和节奏也可能一起改变。\n\n| 对照结果 | 下一步 |\n|---|---|\n| 定稿完整，送给TTS的文字变短 | 检查实际文案、清理与自动缩稿；不要用旧定稿解释当前合成 |\n| 请求文字完整，分段WAV漏字 | 问题已进入合成音频；只重做或替换已点名段，再回听 |\n| WAV读全，成片缺这一段或语尾 | 核对当前用到的文件、放置起止、混音与安全适配结果 |\n| 字幕完整，声音漏读 | 字幕展示文字，不证明这几个字已经说出 |\n\nVideo Recap 的分段记录保留原稿、请求文字与WAV路径。这里的 `spoken_text` 是送入TTS的文字证据，并非从WAV重新听写得出的证明。即使字符串与定稿一致，仍须听音频。",
+          "en": "Listen to the adopted video and identify the word, phrase, and time, then listen to its segment separately. Do not regenerate everything before locating the fault.\n\n| Comparison | Next step |\n|---|---|\n| Approved text is complete; the TTS request is shorter | Check current text, cleanup, and shortening instead of using an old draft to describe this synthesis. |\n| Request is complete; the WAV omits words | Repair the specified synthesis and listen again. |\n| WAV is complete; the video omits it or its tail | Check consumed files, actual placement, mix, and fit results. |\n| Caption is complete; speech is not | Displayed text proves no utterance. |\n\nVideo Recap records authored text, the TTS request, and the WAV path. `spoken_text` is requested-text evidence, not a transcription recovered from the WAV. Even a matching string still needs listening."
+        }
+      },
+      {
+        "id": "protect-the-approved-text",
+        "heading": {
+          "zh": "保护定稿能防什么",
+          "en": "What Approved-Text Protection Actually Prevents"
+        },
+        "body": {
+          "zh": "所引版本的普通旁白路径可能在超窗时按句界缩稿，记录 `truncated`。已经采用且不允许改字的文案，要明确使用批准稿保护；仅在请求里说“不要漏字”不能当作已经启用。\n\n`--preserve-approved-text` 保留作者原文与清理后的请求文字。整句超出可用窗口及语速预算时阻断，必需段失败不能被部分成功策略降级交付；只有舞台提示、清理后没有实读文字的段也会报错。失败后不要拿归档的旧成功元数据冒充本轮完成。\n\n这保护的是输入文字与处理策略，未保证模型发音正确、每个字都可听见或混音没有遮盖。格式清理、自动缩稿、供应商音频和下游放置分别核对。授权改稿时也只改具体句，保留否定、数量和条件。",
+          "en": "The cited ordinary narration path may shorten an overlong segment at a sentence boundary and mark `truncated`. Adopted text that must remain exact needs the explicit approved-text policy; asking “do not omit words” is not proof it was enabled.\n\n`--preserve-approved-text` retains authored text and the cleaned request. A complete line exceeding its window and tempo budget blocks the run; required failure cannot become a deliverable partial result. A segment containing only removed stage cues also fails. An archived earlier success does not represent this failed run.\n\nThe policy protects input text and processing, not correct pronunciation, audible words, or an unobscured mix. Check cleanup, shortening, provider audio, and placement separately. Authorized rewriting remains local and preserves negation, quantities, and conditions."
+        }
+      },
+      {
+        "id": "negative-word-example",
+        "heading": {
+          "zh": "纸面例：漏掉一个否定，意思就反了",
+          "en": "Paper Example: One Missing Negative Reverses Meaning"
+        },
+        "body": {
+          "zh": "以下是排查练习，没有生成或试听音频。定稿是“灯还亮着，先不要合盖”，字幕也显示这句。\n\n| 假设观察 | 判断与处理 |\n|---|---|\n| 请求文字只有“先合盖” | 文案已改变；恢复必要条件与否定，解决窗口冲突后再合成 |\n| 请求文字完整，假设WAV只读“先合盖” | 字符串通过仍不能交付；重做该段并听“不要”是否清楚 |\n| 假设WAV读全，成片缺了开头 | 查当前音频落点与可用空间，不重写全文掩盖合成错误 |\n| 文件缺失或无安全放置 | 未放置就是未完成；补有效段或修时间方案，再查当前结果 |\n\n最后把原句、实际请求、实际听到的内容和处理状态分别记下。未听过就写待听，不能照着定稿预填实听栏。否定词、数字、人名和先后条件优先核对；不要为了保住秒数截掉关键词。",
+          "en": "This diagnostic exercise contains no generated or listened-to media. The approved line is “The light is still on; do not close the lid yet,” also shown in the caption.\n\n| Assumed result | Check and repair |\n|---|---|\n| The request says only “Close the lid” | Text changed; restore the condition and negative, resolve the window, then synthesize. |\n| Request is complete; assume the WAV says only “Close it” | Matching text is insufficient; remake the segment and listen for the negative. |\n| Assume WAV is complete; the video loses its opening | Check placement and available room instead of rewriting everything. |\n| File is missing or no safe placement exists | Unplaced is incomplete; supply valid audio or repair timing and inspect the new result. |\n\nRecord approved wording, actual request, audible speech, and status separately. An unheard result stays unchecked rather than being copied from the script into a listening field. Prioritize negatives, numbers, names, and ordering conditions."
+        }
+      },
+      {
+        "id": "local-repair",
+        "heading": {
+          "zh": "只修问题段，再听接点与整片",
+          "en": "Repair the Segment, Then Check Joins and the Full Video"
+        },
+        "body": {
+          "zh": "保留未受影响的文案与声音，重新生成或采用问题段后，核对该WAV是否成为当前合成输入。音频时长变了，就检查下一句、动作和字幕的位置；缓存存在不等于本轮已使用，生成成功也不等于已经放入成片。\n\n先单听问题句，再连播前后句，最后正常速度听成片。记录实际缺词是否修复，新的句尾是否被裁、音色和音量是否接得上。ASR可帮定位可疑词，仍要回听；有争议的读音不要让识别文本替你定稿。\n\n这篇处理语音内容缺失。原声对白被剪点截断、字幕转写错误、声音被音乐盖住分别回对应教程，不把所有“听不见”都当同一种漏读。",
+          "en": "Retain unaffected wording and audio, then confirm the repaired WAV is consumed by the current assembly. A changed duration needs checks of the next line, action, and captions. A cache is not proof of current use; synthesis is not placement.\n\nListen to the segment, its joins, and the full video at normal speed. Record whether the missing words returned and whether the tail, voice, or level now breaks. ASR can locate suspect wording but still requires listening, especially for disputed pronunciation.\n\nThis page addresses missing speech content. Source dialogue cut at an edit, incorrect captions, and music masking speech have separate diagnoses."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "字幕有这句话，就能证明配音没漏读吗？",
+          "en": "Does a complete caption prove the voiceover is complete?"
+        },
+        "a": {
+          "zh": "不能。字幕可以来自定稿，而不是音频。对照当前分段与成片实听，分别记录文字一致和声音完整。",
+          "en": "No. Captions may come from the draft rather than audio. Check the current segment and video, recording text matching separately from audible completeness."
+        }
+      },
+      {
+        "q": {
+          "zh": "开启批准稿保护后，还需要听吗？",
+          "en": "Do I still listen after protecting the approved text?"
+        },
+        "a": {
+          "zh": "需要。保护阻止处理流程自动删改，供应商漏读、错误文件、放置和混音问题仍需核对。",
+          "en": "Yes. Protection blocks processing changes; provider omissions, wrong files, placement, and mixing still need checks."
+        }
+      }
+    ],
+    "skill": {
+      "name": "video-recap",
+      "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-recap/SKILL.md",
+      "text": {
+        "zh": "请 video-recap 只排查下述配音或合成问题。先确认当前采用文件与具体时间，列出能观察的事实、缺失证据和最小修订；保留定稿、未受影响声音与画面。未生成或未听审的部分标待检查，不把元数据当实听通过。",
+        "en": "Ask video-recap to diagnose this specified voiceover or assembly problem. Identify current media and time, observations, missing evidence, and a limited repair. Preserve approved text and unaffected sound and picture; mark ungenerated or unheard parts unchecked rather than treating metadata as listening approval."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "批准稿保护与部分成功边界",
+          "en": "Approved-text and partial-result boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "保护策略与超窗阻断",
+          "en": "Protection policy and duration blocking"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/scripts/approved_text_policy.py"
+      },
+      {
+        "label": {
+          "zh": "请求文字与分段音频记录",
+          "en": "Requested text and segment records"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/scripts/voiceover.py"
+      },
+      {
+        "label": {
+          "zh": "缺文件、放置与安全适配",
+          "en": "Missing files, placement, and fit"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/scripts/narration_audio.py"
+      }
+    ],
+    "related": [
+      "/video-recap/fit-voiceover-to-a-picture-edit",
+      "/video-recap/fix-dialogue-cut-off-in-video",
+      "/video-recap/fix-automatic-subtitle-errors",
+      "/video-recap/fix-uneven-ai-voiceover-volume"
+    ]
+  },
+  {
+    "owner": "video-recap",
+    "slug": "fix-long-pauses-in-ai-voiceover",
+    "topic": "video-recaps",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI配音句间停顿太长怎么办：先查音频，再查时间线",
+      "en": "How to Fix Long Pauses Between AI Voiceover Lines"
+    },
+    "seo_title": {
+      "zh": "AI配音句间停顿太长怎么办：先查音频，再查时间线",
+      "en": "How to Fix Long Pauses Between AI Voiceover Lines"
+    },
+    "description": {
+      "zh": "区分WAV自带静音、文案窗口、呼吸设置和合成落点。用一段时间演算排查空白，不把所有停顿删光或让旁白提前泄露画面。",
+      "en": "Separate silence inside a WAV, authored windows, pause settings, and actual placement. Includes a timing example that preserves intentional sound."
+    },
+    "answer": {
+      "zh": "先单听分段WAV，再看这句实际结束与下句实际开始。WAV尾部静音、未用完的窗口和作者特意留白可以叠加；只减pause_after_ms未必让下一句提前。判断停顿是否承担原声、动作或情绪，再只修无作用的部分。收紧旁白不能越过画面信息和已采用声音的时间。",
+      "en": "Listen to the segment, then compare its actual end with the next line’s actual start. WAV silence, unused window time, and intentional gaps can add up; reducing pause_after_ms need not move the next line. Retain pauses serving dialogue, action, or feeling, and repair only idle space without advancing narration beyond picture information or adopted sound."
+    },
+    "sections": [
+      {
+        "id": "which-gap",
+        "heading": {
+          "zh": "先问：是旁白停了，还是整片真的无声",
+          "en": "Is Narration Paused, or Is the Whole Mix Silent?"
+        },
+        "body": {
+          "zh": "原对白、操作声、环境声和沉默可以承担一段内容。听见旁白停下来，不代表应该补满；画面上一个决定尚未完成，提前讲下一步也会破坏理解。\n\n| 空白来自哪里 | 怎样定位 |\n|---|---|\n| 分段WAV内部 | 单听开头、句中与尾部；文件时长不等于最后一个音节的位置 |\n| 输入的时间窗口 | 看上一段end与下一段start，确认作者是否有意留出原声 |\n| 合成设置与实际落点 | 看实际place起止；入场延迟、上一句停顿和收紧策略可能参与 |\n| 无旁白但仍有场内声音 | 连同画面判断其职责，不按旁白密度一律删除 |\n\n先找哪一种问题，再选合成、时间线或剪辑修订。别为了“流畅”整片加速或把所有停顿归零。",
+          "en": "Dialogue, operation sounds, ambience, and silence may carry a passage. Narration stopping does not mean it needs filling. Explaining the next step before a visible decision finishes can harm understanding.\n\n| Gap source | How to locate it |\n|---|---|\n| Inside the WAV | Listen to its opening, interior, and tail; duration is not the last syllable’s position. |\n| Authored window | Compare the previous end and next start; check whether source sound was deliberately left room. |\n| Assembly and placement | Inspect actual starts and ends; delay, prior pause, and tightening may participate. |\n| No narration, other sound present | Judge its job with the picture rather than deleting it for narration density. |\n\nChoose synthesis, timeline, or edit repair after locating the cause. Neither global speed-up nor zero pauses is a universal solution."
+        }
+      },
+      {
+        "id": "pause-setting",
+        "heading": {
+          "zh": "为什么改段尾停顿可能没有用",
+          "en": "Why Changing the Pause Field May Not Solve It"
+        },
+        "body": {
+          "zh": "所引旁白合成先用段长减去 `pause_after_ms` 来估计语音空间，并有最小空间限制；这不是已经听到的停顿测量。下游另按实际音频、入场延迟和前段结束放置。\n\n关闭段内收紧或进入新段落时，下一句仍尊重作者起点与入场条件；段内收紧则比较前句实际收尾、短间隔与允许提前的下限，不单靠上一句的pause字段。作者留出较长间隙时会视为新段，不自动把所有话挤到前面。\n\n因此，要核对当前实际使用的策略与放置结果，不只修改一个数字。若声音已经采用为完整混音，重新收紧会改变它；按本轮授权选择修订，不在“保留已定声音”的任务里偷偷重放置。",
+          "en": "The cited synthesis estimates room from segment length minus `pause_after_ms`, with a minimum-room floor. That is a budget, not a measurement of audible silence. Assembly separately places audio using its duration, entry delay, and the prior segment’s end.\n\nWith tightening disabled or a new run starting, the next line still honors its authored start and entry conditions. Within a tightened run, placement compares the previous actual end, a short gap, and the earliest permitted start; the prior pause field alone does not control it. A sufficiently large authored gap starts a new run rather than pulling every sentence forward.\n\nInspect the actual policy and placement instead of changing one number. Re-tightening changes an adopted complete mix; follow the authorized repair scope rather than silently re-placing retained sound."
+        }
+      },
+      {
+        "id": "timing-example",
+        "heading": {
+          "zh": "纸面演算：四点二秒空白从哪里来",
+          "en": "Paper Timing Example: Where 4.2 Seconds Come From"
+        },
+        "body": {
+          "zh": "以下假设关闭收紧、没有入场延迟且不变速，没有生成或听审媒体。A窗口10–13秒，WAV放在10–12.4秒；假设最后音节在11.8秒，后面0.6秒为WAV尾部静音。B窗口16–19秒，放置与开口都从16秒开始。A的段尾pause为0.3秒。\n\n| 区间 | 意义 |\n|---|---|\n| 11.8–12.4 | A的WAV尾部静音，0.6秒 |\n| 12.4–13 | A窗口尚未用完，0.6秒 |\n| 13–16 | 两个作者窗口之间的留白，3秒 |\n| 11.8–16 | 旁白听觉间隙合计4.2秒；是否整片静音另听其他轨 |\n\n前段文件结束12.4秒，加0.3秒仍只到12.7，早于B原定16秒。将pause减到0并不能单独把B移到13秒；假定的三秒作者留白仍在。\n\n若13–16秒保留必要原对白，就保持它。若实际素材只是重复工具展示、确实没有需要等待的信息，可以提出删这三秒画面，同时重算B及后续落点与字幕；不是只让B提前说、画面却仍在旧时刻。先确认源素材与表达要求，再制作候选。",
+          "en": "Assume tightening is off, with no entry delay or speed change. No media was generated or listened to. A’s window is 10–13, its WAV placed at 10–12.4. Assume the final syllable is at 11.8, followed by 0.6 seconds of WAV silence. B’s window is 16–19, with placement and speech beginning at 16. A has a 0.3-second pause field.\n\n| Interval | Meaning |\n|---|---|\n| 11.8–12.4 | A’s WAV tail silence: 0.6 seconds |\n| 12.4–13 | Unused A window: 0.6 seconds |\n| 13–16 | Authored gap: 3 seconds |\n| 11.8–16 | Narration gap totals 4.2; other tracks determine whether the whole mix is silent. |\n\nThe preceding file ends at 12.4; adding 0.3 reaches only 12.7, before B’s authored 16. Zeroing the pause alone does not move B to 13; the three-second authored gap remains.\n\nRetain necessary source dialogue at 13–16. If actual footage only repeats a tool display and no information needs waiting, propose removing those three picture seconds and recalculating B, later placements, and captions. Do not merely advance speech while the picture stays on its old clock. Confirm source footage and expression before producing a candidate."
+        }
+      },
+      {
+        "id": "listen-after-repair",
+        "heading": {
+          "zh": "修后听三处，再连画面看",
+          "en": "Listen at Three Places, Then Watch"
+        },
+        "body": {
+          "zh": "单听问题段，确认没有为了去静音截掉吸气、语尾或轻声字；连听前后句，确认间隔和音色自然；看当前成片，确认下一步信息没有抢在动作或原话之前。\n\n更新实际放置记录和受影响字幕，保留未改内容。还没做候选时只记录拟改方案，做完后再写实际起止；同一组配置也不证明听感一致。\n\n长停顿不一定坏。有意义的等待可以保留，机械空白才需要修；目标是该快的地方连贯，该让观众理解和感受的地方留得住。",
+          "en": "Listen to the segment for breaths, soft syllables, and tails lost by silence removal; listen across joins for pacing and voice; watch the current video for narration arriving before an action or original line.\n\nUpdate actual placement and affected captions while retaining unchanged content. A proposed edit remains a proposal until a candidate exists; matching configuration does not prove matching listening quality.\n\nLong pauses can work. Retain meaningful waiting and repair idle space so continuity and time for understanding coexist."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "把pause_after_ms设成0就会没有停顿吗？",
+          "en": "Does zero pause_after_ms remove every pause?"
+        },
+        "a": {
+          "zh": "不会。WAV内部静音、作者窗口、入场延迟与收紧策略仍可能参与。看实际声音与放置，不只看字段。",
+          "en": "No. WAV silence, authored windows, entry delay, and tightening may still matter. Inspect sound and placement, not just the field."
+        }
+      },
+      {
+        "q": {
+          "zh": "能把所有句子提前排紧吗？",
+          "en": "Can I pull every line earlier?"
+        },
+        "a": {
+          "zh": "先看原声、动作和信息揭示。需要保留的间隙不能被挤掉；重剪画面时也要重算声音与字幕。",
+          "en": "Check source speech, action, and revelation first. Retain necessary gaps, and recalculate sound and captions when picture is recut."
+        }
+      }
+    ],
+    "skill": {
+      "name": "video-recap",
+      "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-recap/SKILL.md",
+      "text": {
+        "zh": "请 video-recap 只排查下述配音或合成问题。先确认当前采用文件与具体时间，列出能观察的事实、缺失证据和最小修订；保留定稿、未受影响声音与画面。未生成或未听审的部分标待检查，不把元数据当实听通过。",
+        "en": "Ask video-recap to diagnose this specified voiceover or assembly problem. Identify current media and time, observations, missing evidence, and a limited repair. Preserve approved text and unaffected sound and picture; mark ungenerated or unheard parts unchecked rather than treating metadata as listening approval."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "分段窗口与段尾停顿契约",
+          "en": "Segment windows and pause contract"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "合成预算与分段记录",
+          "en": "Synthesis budget and segment records"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/scripts/voiceover.py"
+      },
+      {
+        "label": {
+          "zh": "实际入场与段内收紧",
+          "en": "Actual starts and within-run tightening"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/scripts/narration_audio.py"
+      },
+      {
+        "label": {
+          "zh": "声音分工与有意义的停留",
+          "en": "Sound roles and purposeful holds"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-script/references/creative-editing-playbook.md"
+      }
+    ],
+    "related": [
+      "/video-recap/fit-voiceover-to-a-picture-edit",
+      "/video-recap/editing-rhythm",
+      "/video-recap/subtitle-timing-evidence",
+      "/video-recap/keep-audio-when-changing-video"
+    ]
+  },
+  {
+    "owner": "video-recap",
+    "slug": "fix-a-video-export-with-no-sound",
+    "topic": "video-recaps",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "导出视频没有声音怎么办：从原片、选段到合成逐层查",
+      "en": "How to Fix a Video Export with No Sound"
+    },
+    "seo_title": {
+      "zh": "导出视频没有声音怎么办：从原片、选段到合成逐层查",
+      "en": "How to Fix a Video Export with No Sound"
+    },
+    "description": {
+      "zh": "先确认打开的版本，再查原片音轨、剪后中间片、分段配音与最终模式。静音补轨能保证拼接，不能恢复未录下的声音。",
+      "en": "Check the current version, source streams, edited intermediate, voiceover segments, and final audio mode. A silence track cannot restore missing sound."
+    },
+    "answer": {
+      "zh": "先排除播放器选错版本、音轨或输出设备，再逐层对比原片、剪后中间片、分段配音与成片。文件有音轨不等于其中有可听声音；多源剪切会给无声素材补静音，合成模式又决定用原声、配音还是已采用混音。找到声音首次消失的一层，只修该层与必要依赖。",
+      "en": "First check version, player track, and output device, then compare source, edited intermediate, voiceover segments, and final video. An audio stream need not contain audible sound. Multi-source cuts pad silent material, and assembly mode chooses source, narration, or an adopted mix. Repair where sound first disappears and its necessary dependencies."
+    },
+    "sections": [
+      {
+        "id": "version-and-playback",
+        "heading": {
+          "zh": "先确认正在听哪份文件",
+          "en": "Confirm Which File You Are Hearing"
+        },
+        "body": {
+          "zh": "打开当前采用版本，确认播放器音量、选中音轨和输出设备；用一份已知能正常听见的文件作对照。别把旧预览、只有画面的候选或另一路音轨当成当前交付。对照文件也无声时，先处理播放环境。\n\n同一视频有多音轨时，要实际听目标轨内容。序号只是位置，不代表第0轨一定是对白。记录具体文件和时间；“能打开”“有audio字段”均不证明听到了目标声音。",
+          "en": "Open the adopted version and check player volume, selected track, and output device against a known audible file. An old preview, picture-only candidate, or another track is not the delivery. If the reference is also silent, address playback first.\n\nListen to the intended track in a multi-track file. An ordinal is a position, not proof track zero contains dialogue. Record file and time; opening it or finding an audio field proves no audible target sound."
+        }
+      },
+      {
+        "id": "trace-the-pipeline",
+        "heading": {
+          "zh": "找声音第一次消失的位置",
+          "en": "Find Where Sound First Disappears"
+        },
+        "body": {
+          "zh": "| 比较位置 | 查什么 |\n|---|---|\n| 原片 | 是否有目标音轨，选段处是否实际录到声音 |\n| 剪后中间片 | 所用源与区间是否正确；某源无轨时是否补了静音 |\n| 分段WAV或已采用完整混音 | 文件存在、声音内容完整，且本轮确实使用了它 |\n| 当前成片 | 实际采用哪种声音模式、哪一路、是否被压低或遮盖 |\n\nVideo Recap 的源探测查询音轨并检查进程返回结果。探测执行失败与成功确认没有目标轨不是同一事实，先看错误；不要把无法读取直接写成原片没录音。[ffprobe 文档](https://ffmpeg.org/ffprobe.html)说明它查询媒体流信息，打开失败会返回错误。探到音轨也仍需实际播放。\n\n原片没有录到的声音不能靠放大音量恢复。若可用原声完整而中间片丢了，修选段或路由；若WAV缺失、合成标未放置，先解决具体段，不再加音乐掩盖。",
+          "en": "| Comparison | Check |\n|---|---|\n| Source | Intended stream and actually recorded sound at the selected interval |\n| Edited intermediate | Consumed source and interval; silence padding for a source without audio |\n| Segment WAV or adopted full mix | Existing, complete content actually consumed this run |\n| Current video | Actual mode, selected stream, and attenuation or masking |\n\nVideo Recap queries streams and checks the probe process result. Failed probing and successful confirmation of no target stream are different observations; inspect errors before declaring no recording. The [ffprobe documentation](https://ffmpeg.org/ffprobe.html) describes stream inspection and errors when input cannot be opened. A detected stream still needs playback.\n\nGain cannot recover unrecorded speech. Repair selection or routing if the source is complete but the intermediate loses it. Address a missing or unplaced WAV locally rather than adding music to hide it."
+        }
+      },
+      {
+        "id": "silent-source-example",
+        "heading": {
+          "zh": "纸面例：有一段无声，不等于整片丢声",
+          "en": "Paper Example: One Silent Source Is Not a Silent Whole"
+        },
+        "body": {
+          "zh": "以下是假设素材与检查结果，没有渲染或听审。A选3秒，含已录对白；B选2秒，没有音轨；C选3秒，含已录环境声。按A、B、C拼接，共8秒。\n\n| 输出区间 | 预期与待检查 |\n|---|---|\n| 0–3 | 来自A的对白；需回听所选源区间与中间片 |\n| 3–5 | B的等长静音补轨；不会自动出现原本未录的声音 |\n| 5–8 | 来自C的环境声；不能因B无声把C一并丢掉 |\n\n所引多源剪切实现逐源处理：有音轨就截对应音频，没有就补该段长度的静音，然后拼接。最终可以有一条连续音轨，其中一段仍安静。\n\n若实际整段0–8都无声，不能只归咎B；继续比较A、C原声、中间片与最终模式。若只缺B，要看原片是否有声音可用，或本场本就需要静默。需要另配声音时单独作创作决定，不冒充找回原录音。",
+          "en": "These are hypothetical sources and checks, without rendering or listening. A supplies three seconds with recorded dialogue; B supplies two with no audio stream; C supplies three with ambience. A–B–C totals eight seconds.\n\n| Output | Expectation and pending check |\n|---|---|\n| 0–3 | A’s dialogue; listen to its selected source interval and intermediate. |\n| 3–5 | B’s equal-length silence padding; unrecorded sound does not appear automatically. |\n| 5–8 | C’s ambience; B being silent should not discard C. |\n\nThe cited multi-source renderer handles each source separately: trim existing audio, or create equal-length silence, then concatenate. A continuous audio track can contain a silent passage.\n\nIf all 0–8 is actually silent, B alone is not the explanation. Compare A/C source audio, the intermediate, and final mode. For B alone, check available source sound or intended silence. Newly designed sound is a separate decision, not recovered recording."
+        }
+      },
+      {
+        "id": "mode-and-result",
+        "heading": {
+          "zh": "核对实际模式，再听最终文件",
+          "en": "Check the Actual Mode, Then Hear the Delivery"
+        },
+        "body": {
+          "zh": "旁白模式需要有效分段并放入时间线；原声混音不生成旁白，但会处理选中原声；已采用AAC音轨复制有编码、区间与输入限制，选错轨会复制错内容。无旁白模式必须显式选择，不能把空TTS当成完成配音。\n\n已采用音轨复制遇到错误不自动改成原声混音；新画面要配旧完整混音时走明确配对，再核对输出轨。模式切换可能改变声音处理，不能只改名字后声称旧混音仍完整保留。\n\n修复后单听目标区间，再连听每个接点和尾部，最后看完整成片。记录哪一层的问题被实际修好，哪些仍待听；流检查、包复制和正常播放分别证明不同的事。",
+          "en": "Narration needs valid placed segments. Source-mix creates no narration but processes the selected source audio. Adopted AAC copy has codec, interval, and input constraints; a wrong selected stream copies wrong content. Choose no-narration explicitly rather than using empty TTS as completed speech.\n\nA copy failure does not authorize a silent switch to mixing. Pair new picture with an old complete mix explicitly, then check output selection. Changing modes may change processing; a renamed mode proves no retained mix.\n\nAfter repair, listen to the target interval, joins, and tail, then watch the full video. Record which layer was repaired and what remains unheard. Stream inspection, packet copying, and playback prove different things."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "文件显示有音轨，为什么还是没声？",
+          "en": "Why can a file have an audio stream yet sound silent?"
+        },
+        "a": {
+          "zh": "音轨可能包含静音、不是目标内容，或被播放/混音设置影响。检查选中轨并实际听，再定位源与输出差异。",
+          "en": "It may contain silence or different content, or playback/mix settings may affect it. Listen to the selected track and compare source with output."
+        }
+      },
+      {
+        "q": {
+          "zh": "多视频中一段没有声音，会让其他段也静音吗？",
+          "en": "Does one silent source silence every clip?"
+        },
+        "a": {
+          "zh": "所引多源实现分别处理，各段无声时补等长静音。有声来源仍应保留；实际整片无声需继续查区间、探测与合成模式。",
+          "en": "The cited multi-source implementation pads each missing-audio segment separately. Other audio should remain; a fully silent result still needs interval, probe, and mode checks."
+        }
+      }
+    ],
+    "skill": {
+      "name": "video-recap",
+      "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-recap/SKILL.md",
+      "text": {
+        "zh": "请 video-recap 只排查下述配音或合成问题。先确认当前采用文件与具体时间，列出能观察的事实、缺失证据和最小修订；保留定稿、未受影响声音与画面。未生成或未听审的部分标待检查，不把元数据当实听通过。",
+        "en": "Ask video-recap to diagnose this specified voiceover or assembly problem. Identify current media and time, observations, missing evidence, and a limited repair. Preserve approved text and unaffected sound and picture; mark ungenerated or unheard parts unchecked rather than treating metadata as listening approval."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "音轨探测返回条件",
+          "en": "Audio-stream probe conditions"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-cut/scripts/media_geometry.py"
+      },
+      {
+        "label": {
+          "zh": "逐源声音与静音补轨",
+          "en": "Per-source sound and silence padding"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-cut/scripts/cut_render.py"
+      },
+      {
+        "label": {
+          "zh": "原声、旁白与音轨复制模式",
+          "en": "Source, narration, and copied audio modes"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/audio-modes.md"
+      },
+      {
+        "label": {
+          "zh": "缺WAV与实际放置状态",
+          "en": "Missing WAVs and placement state"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/scripts/narration_audio.py"
+      }
+    ],
+    "related": [
+      "/video-recap/make-a-video-with-original-audio-and-no-voiceover",
+      "/video-recap/keep-audio-when-changing-video",
+      "/video-recap/background-music-overpowers-voice",
+      "/video-recap/fix-missing-words-in-ai-voiceover"
     ]
   }
 ]
