@@ -19851,7 +19851,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "en": "How to Write a Satisfying Novel Ending",
       "zh": "小说结尾怎么写才满足：兑现承诺，也留下余味"
@@ -19887,8 +19887,8 @@
           "en": "A worksheet for the final scenes"
         },
         "body": {
-          "zh": "| 开篇问题 | 成立条件 | 实际结果 |\n|---|---|---|\n| 许遥能否保住修理铺 | 老客已说清：核对零件去向后才会付清尾款；尾款足以覆盖本次租金 | 她出示实际记录，客户核对并付款，租金按时付清 |\n| 是否继续替家人承担新债 | 家人要求她签下一笔借据；她已开始独立接单 | 她拒绝新借据，姐姐撤回以后担保，关系留下裂痕 |\n\n这两行是原创案例的前置设定，不是“有证据就能解决一切”的通用结论。若收入仍不足，保店还欠一个真实方案；拒绝新债也不会抹掉过去已经承担的债。\n\n填写自己的主线时，先补成立条件，再安排行动、接受与实际完成。不用结尾一段解释代替付款、交接或离场。",
-          "en": "| Question | Prior condition | Result |\n|---|---|---|\n| Can Xu keep her repair shop? | Customers will pay the balance after verifying missing parts; it covers this rent payment | She supplies records, customers verify and pay, and rent is paid |\n| Will she assume another family debt? | Family requests a new signed loan; she has begun independent work | She refuses; her sister withdraws future backing, leaving a relationship rupture |\n\nThese are the original example’s prerequisites, not a rule that evidence solves everything. Insufficient income still needs a real solution. Refusing new debt does not erase prior obligations.\n\nFill conditions before action, acceptance and completion. An explanatory closing paragraph cannot substitute for payment, transfer or departure."
+          "zh": "| 问题 | 记录 |\n|---|---|\n| 许遥能否保住修理铺 | 成立条件: 老客已说清：核对零件去向后才会付清尾款；尾款足以覆盖本次租金; 实际结果: 她出示实际记录，客户核对并付款，租金按时付清 |\n| 是否继续替家人承担新债 | 成立条件: 家人要求她签下一笔借据；她已开始独立接单; 实际结果: 她拒绝新借据，姐姐撤回以后担保，关系留下裂痕 |\n\n这两行是原创案例的前置设定，不是“有证据就能解决一切”的通用结论。若收入仍不足，保店还欠一个真实方案；拒绝新债也不会抹掉过去已经承担的债。\n\n填写自己的主线时，先补成立条件，再安排行动、接受与实际完成。不用结尾一段解释代替付款、交接或离场。\n\n这张两列表是作者检查本例的工作表，不是原生卷纲格式。Oh Story 的收尾方法检查主线结果、人物后续影响与余韵；卷级方法同时区分主角的关键贡献和其他人的执行。老客亲自核对付款，不会削弱许遥提供记录与拒签的选择。",
+          "en": "| Question | Record |\n|---|---|\n| Can Xu keep her repair shop? | Prior condition: Customers will pay the balance after verifying missing parts; it covers this rent payment; Result: She supplies records, customers verify and pay, and rent is paid |\n| Will she assume another family debt? | Prior condition: Family requests a new signed loan; she has begun independent work; Result: She refuses; her sister withdraws future backing, leaving a relationship rupture |\n\nThese are the original example’s prerequisites, not a rule that evidence solves everything. Insufficient income still needs a real solution. Refusing new debt does not erase prior obligations.\n\nFill conditions before action, acceptance and completion. An explanatory closing paragraph cannot substitute for payment, transfer or departure.\n\nThis two-column table is an editorial worksheet, not the native volume outline. Oh Story’s closure methods check the central outcome, character aftermath, and afterglow; its volume method distinguishes the protagonist’s key contribution from other people’s execution. Customers checking and paying do not diminish Xu’s decision to present records or refuse the new loan."
         }
       },
       {
@@ -19909,8 +19909,8 @@
           "en": "Open endings still answer the central question"
         },
         "body": {
-          "zh": "开放式结局可以不说姐姐会不会回来，却应回答店铺保没保住、主角会怎样经营。悬疑可以留下关系或道德问题，不应把主要案件的必要线索藏到正文之外。系列小说在本卷给出一次完整结果，再打开下卷的新问题。\n\n- [ ] 最后行动由核心人物完成\n- [ ] 关键解决办法此前已经出现\n- [ ] 胜利和损失都能从场景中看见\n- [ ] 删掉总结段，读者仍知道主线答案",
-          "en": "An open ending may leave the sister’s return undecided while answering whether the shop survives. A series volume should settle its own central conflict before opening another.\n\n- [ ] The central character performs the decisive action\n- [ ] The solution has earlier setup\n- [ ] Both gains and losses are visible\n- [ ] Removing the summary paragraph does not hide the main answer"
+          "zh": "开放式结局可以不说姐姐会不会回来，却应回答店铺保没保住、主角会怎样经营。悬疑可以留下关系或道德问题，不应把主要案件的必要线索藏到正文之外。系列小说在本卷给出一次完整结果，再打开下卷的新问题。\n\n- [ ] 核心人物作出关键选择或不可替代的贡献；其他人的执行与回应有依据\n- [ ] 关键解决办法此前已经出现\n- [ ] 实际结果及作品已经建立的代价能从正文中确认，不为结尾另加牺牲\n- [ ] 删掉总结段，读者仍知道主线答案",
+          "en": "An open ending may leave the sister’s return undecided while answering whether the shop survives. A series volume should settle its own central conflict before opening another.\n\n- [ ] The central character makes a key choice or irreplaceable contribution; others’ actions and replies have support\n- [ ] The solution has earlier setup\n- [ ] The actual outcome and established costs are supported in the prose, without adding a sacrifice merely for the ending\n- [ ] Removing the summary paragraph does not hide the main answer"
         }
       },
       {
@@ -19954,9 +19954,16 @@
       {
         "label": {
           "zh": "核心结果、余波与结尾留白",
-          "en": "Core outcome, aftermath and ending space"
+          "en": "Core outcome, aftermath, and ending space"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/outline-methods.md"
+      },
+      {
+        "label": {
+          "zh": "卷收尾与主角关键贡献",
+          "en": "Volume closure and the protagonist’s key contribution"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-volume.md"
       }
     ]
   },
@@ -19968,7 +19975,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "en": "Show vs. Tell in Fiction: When to Use Each",
       "zh": "小说描写怎么写：场景展开与概述的取舍"
@@ -19993,8 +20000,8 @@
           "en": "Dramatize important choices; summarize repeated process"
         },
         "body": {
-          "zh": "展示让读者经历人物发现、犹豫和决定；概述压缩已经能推断的过程。冲突转折、关系变化和有分量的发现通常值得写成场景；赶路、例行工作与重复练习可以一句带过。篇幅有限时，先把字数留给读者需要亲自感受的时刻。\n\n“她听烦了”可以直接写。为避开情绪词而追加攥拳、抿唇、移开目光，常会重复已经成立的信息。",
-          "en": "Showing lets readers experience discovery, hesitation, and decision. Telling compresses what they can already infer. Dramatize turning points and meaningful relationship changes; summarize routine travel or practice. “She was tired of hearing it” may be clearer than adding a fist, a lip movement, and an averted gaze that all repeat the same emotion."
+          "zh": "展示让读者经历人物发现、犹豫和决定；概述压缩已经能推断的过程。冲突转折、关系变化和有分量的发现通常值得写成场景；赶路、例行工作与重复练习可以一句带过。篇幅有限时，先把字数留给读者需要亲自感受的时刻。\n\n“她听烦了”可以直接写。为避开情绪词而追加攥拳、抿唇、移开目光，常会重复已经成立的信息。\n\n例行劳动和赶路也可能正是这部作品的看点。人物关系、地方气氛或读者想体验的生活细节值得停留时，可以展开；只有上下文已经满足需要、重复过程无新增体验时才压缩，不按“日常”类别一律略写。",
+          "en": "Showing lets readers experience discovery, hesitation, and decision. Telling compresses what they can already infer. Dramatize turning points and meaningful relationship changes; summarize routine travel or practice. “She was tired of hearing it” may be clearer than adding a fist, a lip movement, and an averted gaze that all repeat the same emotion.\n\nRoutine work and travel can themselves be the attraction. Expand when relationships, atmosphere, or the life readers want to experience warrant attention. Compress when context already supplies what is needed and repetition adds no experience; the routine category alone does not require summary."
         }
       },
       {
@@ -20004,8 +20011,8 @@
           "en": "Decide paragraph by paragraph"
         },
         "body": {
-          "zh": "| 段落任务 | 合适做法 | 检查问题 |\n|---|---|---|\n| 首次发现对方说谎 | 展开证物、问答与反应 | 读者能否自己发现矛盾 |\n| 第五天继续查同一类资料 | 概述结果 | 有没有新信息需要展开 |\n| 角色决定结束合作 | 写决定与实际行动 | 删掉情绪解释还看得懂吗 |\n| 过场交代疲劳 | 可以直写 | 身体细节是否会影响下一步 |\n\n先标每段在完成什么，再选择写法。展示与概述不是好坏等级。",
-          "en": "| Purpose | Approach | Check |\n|---|---|---|\n| Discover a lie | Show the object, questions, and response | Can readers notice the mismatch? |\n| Continue routine research | Summarize the result | Is any new discovery worth a scene? |\n| End a partnership | Show the decision and action | Does it work without emotion labels? |\n| Establish fatigue between scenes | Tell briefly | Does a physical detail change the next action? |\n\nChoose by function, not by treating showing as automatically superior."
+          "zh": "| 项目 | 记录 |\n|---|---|\n| 首次发现对方说谎 | 合适做法: 展开证物、问答与反应; 检查问题: 读者能否自己发现矛盾 |\n| 第五天继续查同一类资料 | 合适做法: 概述结果; 检查问题: 有没有新信息需要展开 |\n| 角色决定结束合作 | 合适做法: 写决定与实际行动; 检查问题: 删掉情绪解释还看得懂吗 |\n| 过场交代疲劳 | 合适做法: 可以直写; 检查问题: 细节是否增加感受、人物理解或下一步信息 |\n\n先标每段在完成什么，再选择写法。展示与概述不是好坏等级。",
+          "en": "| Item | Record |\n|---|---|\n| Discover a lie | Approach: Show the object, questions, and response; Check: Can readers notice the mismatch? |\n| Continue routine research | Approach: Summarize the result; Check: Is any new discovery worth a scene? |\n| End a partnership | Approach: Show the decision and action; Check: Does it work without emotion labels? |\n| Establish fatigue between scenes | Approach: Tell briefly; Check: Does detail add feeling, character understanding, or useful information? |\n\nChoose by function, not by treating showing as automatically superior."
         }
       },
       {
@@ -20015,8 +20022,8 @@
           "en": "Original rewrite: replace explanation with a consequential action"
         },
         "body": {
-          "zh": "改写前：\n\n> 林冬非常愤怒。他觉得合伙人背叛了自己，双手握紧，心中充满失望。\n\n改写后：\n\n> 林冬把“共同签字”那一栏划掉，推回合同。“你既然已经替我答应，就用你的名字签。”\n\n动作让合作权限发生变化，读者也知道他在追究什么。如果上一段已经充分呈现背叛，后面无需补一句“他终于决定维护尊严”。\n\n压缩时间则可以写：“接下来三天，他按旧收据找回了四位顾客。第五位始终不肯开门。”只有第五位的新阻力需要展开。",
-          "en": "Before:\n\n> Lin Dong was furious. He felt betrayed, clenched his hands, and filled with disappointment.\n\nAfter:\n\n> Lin Dong crossed out “joint signatures” and slid the contract back. “You already agreed for me. Sign your own name.”\n\nThe action changes authority and identifies the grievance. No concluding lesson is needed. To compress time: “Over three days he traced four customers through the receipts. The fifth would not open the door.” Expand that new obstacle."
+          "zh": "以下是本文原创对照。两版共用前提：桌上是尚未签署的合作草稿，林冬不接受共同署名；合伙人已口头替他答应，但是否形成外部安排尚未在本段交代。这里比较表达方式，不是在真实书稿中自动补设定。\n\n改写前：\n\n> 林冬非常愤怒。他觉得合伙人背叛了自己，双手握紧，心中充满失望。\n\n改写后：\n\n> 林冬把“共同签字”那一栏划掉，推回合同。“你既然已经替我答应，就用你的名字签。”\n\n动作明确了林冬拒绝共同署名，读者也知道他在追究什么。草稿上划线不自动改变已成立的协议，也不证明合伙人已经撤回对外承诺。若下一场需要合作真正结束，再写对方实际回应和作品已设的办理结果。如果上一段已经充分呈现背叛，后面无需补一句“他终于决定维护尊严”。\n\n压缩时间则可以写：“接下来三天，他按旧收据找回了四位顾客。第五位始终不肯开门。”只有第五位的新阻力需要展开。",
+          "en": "This is an original comparison. Both versions share a premise: the document is an unsigned partnership draft, and Lin Dong refuses joint signing. His partner has spoken for him, but this passage does not establish any completed outside arrangement. The comparison changes expression rather than silently adding facts to a real manuscript.\n\nBefore:\n\n> Lin Dong was furious. He felt betrayed, clenched his hands, and filled with disappointment.\n\nAfter:\n\n> Lin Dong crossed out “joint signatures” and slid the contract back. “You already agreed for me. Sign your own name.”\n\nThe action makes Lin’s refusal to sign jointly clear and identifies the grievance. Crossing out an unsigned draft does not change an established agreement or prove that the partner withdrew an outside promise. If the next scene needs the partnership to have ended, establish the other person’s reply and the process defined by the story. No concluding lesson is needed. To compress time: “Over three days he traced four customers through the receipts. The fifth would not open the door.” Expand that new obstacle."
         }
       },
       {
@@ -20037,8 +20044,8 @@
           "en": "Counterexample: showing can add repetition"
         },
         "body": {
-          "zh": "假设林冬上一段已经拒绝合同，对方却继续解释同一理由。原句“他听烦了，打断对方，问谁负责撤回安排”可以保留。若改成攥拳、皱眉、深呼吸、压下愤怒，再问同一句，未必增加理解，只会推迟新行动。\n\n| 修改候选 | 留下什么 | 判断 |\n|---|---|---|\n| 直接写听烦并追问 | 低强度感受与新要求 | 准确且不重复，可以保留 |\n| 补一串身体表情 | 仍是相同追问 | 没有新信息，不因“展示”而保留 |\n| 追问使责任人改变计划 | 新选择与实际结果 | 值得展开对方如何接收、回应 |\n\n这就是 Oh Story 情绪方法中的选择：上下文足够就不补，直写准确就直写，需要感受变化才展开。气氛细节也可以有价值，但要改变读者理解或当下体验，不必每处都强行引发一个新事件。",
-          "en": "Suppose Lin has already rejected the contract and the other person repeats the explanation. “He was tired of hearing it. He interrupted and asked who would withdraw the arrangement” can stay. Fists, frowns, deep breaths and suppressed anger before the same question may only delay it.\n\n| Candidate | What remains | Judgment |\n|---|---|---|\n| Direct irritation and question | Modest feeling plus a new demand | Accurate and not redundant |\n| A chain of bodily signals | The same question | No added information merely from showing |\n| Question changes the responsible person’s plan | A new choice and result | Expand reception and response |\n\nOh Story allows omission when context suffices and direct emotion when precise. Atmospheric detail may change understanding or experience without forcing a new plot event every time."
+          "zh": "假设林冬上一段已经拒绝合同，对方却继续解释同一理由。原句“他听烦了，打断对方，问谁负责撤回安排”可以保留。若改成攥拳、皱眉、深呼吸、压下愤怒，再问同一句，未必增加理解，只会推迟新行动。\n\n| 项目 | 记录 |\n|---|---|\n| 直接写听烦并追问 | 留下什么: 低强度感受与新要求; 判断: 准确且不重复，可以保留 |\n| 补一串身体表情 | 留下什么: 仍是相同追问; 判断: 没有新信息，不因“展示”而保留 |\n| 追问使责任人改变计划 | 留下什么: 新选择与实际结果; 判断: 值得展开对方如何接收、回应 |\n\n这就是 Oh Story 情绪方法中的选择：上下文足够就不补，直写准确就直写，需要感受变化才展开。气氛细节也可以有价值，但要改变读者理解或当下体验，不必每处都强行引发一个新事件。",
+          "en": "Suppose Lin has already rejected the contract and the other person repeats the explanation. “He was tired of hearing it. He interrupted and asked who would withdraw the arrangement” can stay. Fists, frowns, deep breaths and suppressed anger before the same question may only delay it.\n\n| Item | Record |\n|---|---|\n| Direct irritation and question | What remains: Modest feeling plus a new demand; Judgment: Accurate and not redundant |\n| A chain of bodily signals | What remains: The same question; Judgment: No added information merely from showing |\n| Question changes the responsible person’s plan | What remains: A new choice and result; Judgment: Expand reception and response |\n\nOh Story allows omission when context suffices and direct emotion when precise. Atmospheric detail may change understanding or experience without forcing a new plot event every time."
         }
       }
     ],
@@ -20092,7 +20099,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "en": "How to Plan a Novel Series Without Losing Momentum",
       "zh": "长篇系列怎么规划：每一卷有回报，也有新问题"
@@ -20117,8 +20124,8 @@
           "en": "Make series direction and current-volume payoff work"
         },
         "body": {
-          "zh": "Oh Story 的分卷方法同时记全书阶段与每卷起始、结束状态；卷纲还记录当前承诺、可释放的信息与需要保留的后续内容。本页用于长篇的分卷或连续故事规划，不把参考比例当固定篇幅公式。\n\n沿用原创修钟师系列：全系列讨论责任与信任，最终目标是让危险信息能被共同维护。第一卷仍有独立任务——修好镇上的报警钟并取得检修资格，不能等第三卷才第一次让读者得到结果。\n\n每卷提两问：这次读者等什么兑现？结果怎样改变下一卷的起点？只加新地图、新反派却不读取旧后果，系列会像反复重开。",
-          "en": "Oh Story tracks whole-story stages and each volume’s start/end states, current promise, releasable information and reserved developments. Apply this to volumes or continuing stories without treating reference proportions as fixed lengths.\n\nOriginal clock-repair series concerns responsibility and trust, ending with shared maintenance of danger information. Volume one still repairs the town alarm and earns a license; readers should not wait until volume three for the first payoff.\n\nAsk what this volume delivers and how its result changes the next starting point. New locations and opponents without inherited consequences make a series feel repeatedly reset."
+          "zh": "Oh Story 的分卷方法同时记全书阶段与每卷起始、结束状态；卷纲还记录当前承诺、可释放的信息与需要保留的后续内容。本页用于长篇的分卷或连续故事规划，不把参考比例当固定篇幅公式。\n\n沿用原创修钟师许遥的系列计划：全系列讨论责任与信任，最终目标是让危险信息能被共同维护。下文三卷是待展开的虚构规划，不是已写正文或一次真实应急行动；资格、设备与撤离规则均属于本例。第一卷仍有独立任务——修好镇上的报警钟并取得检修资格，不能等第三卷才第一次让读者得到结果。\n\n每卷提两问：这次读者等什么兑现？结果怎样改变下一卷的起点？只加新地图、新反派却不读取旧后果，系列会像反复重开。",
+          "en": "Oh Story tracks whole-story stages and each volume’s start/end states, current promise, releasable information and reserved developments. Apply this to volumes or continuing stories without treating reference proportions as fixed lengths.\n\nThe original series plan follows clock repairer Xu Yao through responsibility and trust toward shared maintenance of danger information. The three volumes below are fictional proposals awaiting prose, not completed chapters or a real emergency operation; their qualification, equipment, and evacuation rules belong to the example. Volume one still repairs the town alarm and earns a license; readers should not wait until volume three for the first payoff.\n\nAsk what this volume delivers and how its result changes the next starting point. New locations and opponents without inherited consequences make a series feel repeatedly reset."
         }
       },
       {
@@ -20128,8 +20135,8 @@
           "en": "Map goal, choice, result and inheritance"
         },
         "body": {
-          "zh": "| 卷 | 本卷目标与关键选择 | 兑现结果 | 下一卷继承 |\n|---|---|---|---|\n| 一 | 修复报警钟；失误后请助手复核 | 钟恢复，取得资格 | 承担夜间警报责任，留下待查误报 |\n| 二 | 查误报；是否分享旧水闸记录 | 找到故障及被隐瞒的来源 | 居民要求公开危险范围，汛期逼近 |\n| 三 | 洪水前撤离；是否公开最坏情况 | 协调撤离，检验长期责任选择 | 记录改为多人共同维护，回应全系列问题 |\n\n表格是本例的总体计划，不是每卷都必须同等长度。能力与关系可以一起增长，也可以取得资格却失去信任；重要的是新起点来自已完成的选择。\n\n本卷失败也能推进，但需有具体结果和下一步。不能把所有失败都当“尚未真正开始”，无限延期已经建立的期待。",
-          "en": "| Volume | Goal and key choice | Delivered result | Inherited condition |\n|---|---|---|---|\n| One | Repair alarm; request verification after a mistake | Clock restored, license earned | Night-alarm duty and unexplained false alarms |\n| Two | Trace alarms; share old sluice records? | Fault and concealment established | Public demand for risk information as floods approach |\n| Three | Evacuate; disclose worst-case risk? | Evacuation and responsibility tested | Shared records answer the series question |\n\nThis plan does not require equal lengths. Qualification may grow while trust falls; the next starting point must follow completed choices.\n\nFailure can advance the story through a concrete result and next action. It cannot indefinitely postpone every established expectation by claiming the real story has not begun."
+          "zh": "| 卷 | 计划记录 |\n|---|---|\n| 一 | 目标与选择：修复报警钟机械部分；失误后主动请助手复核。拟写的实际结果：助手复核，站长按本例已设标准验收并发检修资格；机械故障修好。继承：承担夜间报警钟维护，另有来自独立水闸输入端的误报待查；不把新误报写成旧维修无效。 |\n| 二 | 目标与选择：比对输入端测试和旧水闸记录，决定是否公开。拟写的实际结果：记录及本次测试确认输入问题；姐姐承认曾替前任站长隐瞒相关记录，许遥公开后，居民实际向现任站长要求说明危险范围。继承：汛期将至，输入维修来不及在本例窗口前完成；公开不自动等于已经得到撤离协作。 |\n| 三 | 目标与选择：把已确认的问题和仍未知的范围同时交给站长，承担公开给关系带来的后果。拟写的实际结果：站长核对材料，按本例已有预案发通知并组织路线；居民回应后，许遥与助手完成分配给他们的通知和到达核对，住户实际到达约定安全地点。继承：姐姐暂不支持她，两名助手同意共管检修记录并实际接收副本，回应全系列问题。 |\n\n表格是本例总体计划，不是原生卷纲或每卷同长的要求。验收、回应、执行需要在以后正文中成立；目前不能把计划表当已完成记录。许遥的贡献是复核、调查、公开与完成所领任务，制度决定和居民选择分别由相关人作出。\n\n本卷失败也能推进，但需有具体结果和下一步。不能把所有失败都当“尚未真正开始”，无限延期已经建立的期待。",
+          "en": "| Volume | Planned record |\n|---|---|\n| One | Goal and choice: repair the alarm clock’s mechanism and ask an assistant to verify after a mistake. Proposed enacted result: the assistant verifies; the supervisor accepts the work under the example’s established standard and issues maintenance qualification. Inheritance: night maintenance duty, with unexplained alerts from a separate sluice input; those alerts do not undo the mechanism repair. |\n| Two | Goal and choice: compare input tests with old sluice records and decide whether to disclose them. Proposed enacted result: the records and current test establish the input problem; the sister acknowledges hiding relevant records for the previous supervisor. After Xu discloses them, residents actually ask the current supervisor to explain the risk area. Inheritance: flood season approaches, and input repair cannot finish before this story’s window. Publication does not establish evacuation cooperation. |\n| Three | Goal and choice: give the supervisor both the confirmed problem and the unresolved risk boundary, accepting the relationship consequences of disclosure. Proposed enacted result: the supervisor checks the material, issues notices, and organizes routes under the example’s existing plan. After residents respond, Xu and the assistants perform their assigned notification and arrival checks; residents reach the agreed safe destination. Inheritance: the sister withholds support; two assistants agree to share record maintenance and receive copies, answering the series question. |\n\nThis is an overall editorial plan, not a native volume outline or an equal-length formula. Verification, replies, and execution still need to be established in future prose; this table is not a completed event record. Xu contributes verification, inquiry, disclosure, and assigned work. Institutional decisions and residents’ choices remain with the respective actors.\n\nFailure can advance the story through a concrete result and next action. It cannot indefinitely postpone every established expectation by claiming the real story has not begun."
         }
       },
       {
@@ -20139,8 +20146,8 @@
           "en": "Advance questions that remain open"
         },
         "body": {
-          "zh": "| 待回应事项 | 读者目前知道 | 本卷应给进展 | 预定回应 |\n|---|---|---|---|\n| 报警误报 | 钟修好后仍误响 | 确认不是当前机械故障 | 第二卷调查来源 |\n| 姐姐为何隐瞒 | 已见她保护旧记录 | 显示她承担的一项现实代价 | 第二、三卷随行动补齐 |\n| 共同维护记录 | 助手已参与复核 | 后续真的读取与修正记录 | 最终卷形成稳定做法 |\n\n只跟踪读者有理由期待的事项，不把所有物件都变成秘密。延期时补取证、关系变化或阶段结果，不能只用更大的谜团替换旧问题。\n\n本卷核心任务要收束；已完成的修钟不能在下一卷无原因失效。新的故障可以存在，但应有新来源，并保留人物此前学到的办法与关系。",
-          "en": "| Open item | Current knowledge | Needed progress | Planned response |\n|---|---|---|---|\n| False alarms | Repaired mechanism still misfires | Exclude the current mechanical cause | Volume two investigation |\n| Sister’s concealment | She protects old records | Show a practical cost she carries | Later actions across two and three |\n| Shared records | Assistants help verify | They actually use and correct records | Stable final practice |\n\nTrack justified expectations, not every object as a secret. Delay with evidence, relationship change or partial outcome rather than substituting a larger mystery.\n\nResolve the volume’s central task. The repaired clock must not fail without a cause merely to restart the old plot. New faults should preserve previous learning and relationships."
+          "zh": "| 事项 | 记录 |\n|---|---|\n| 报警误报 | 读者目前知道: 机械维修已验收，独立输入仍可能触发误报; 本卷应给进展: 比对本次测试和旧记录，分清机械与输入; 预定回应: 第二卷确认输入问题及隐瞒记录 |\n| 姐姐为何隐瞒 | 读者目前知道: 已见她保护旧记录，动机尚未写明; 本卷应给进展: 通过她的实际回应补原因，不由保护记录推定全部动机; 预定回应: 第二卷回应；第三卷保留关系后果 |\n| 共同维护记录 | 读者目前知道: 助手已参与复核; 本卷应给进展: 后续真的读取与修正记录; 预定回应: 最终卷形成稳定做法 |\n\n只跟踪读者有理由期待的事项，不把所有物件都变成秘密。延期时补取证、关系变化或阶段结果，不能只用更大的谜团替换旧问题。\n\n本卷核心任务要收束；已完成的修钟不能在下一卷无原因失效。新的故障可以存在，但应有新来源，并保留人物此前学到的办法与关系。",
+          "en": "| Item | Record |\n|---|---|\n| False alarms | Current knowledge: Mechanism repair is accepted; a separate input may still trigger false alerts; Needed progress: Compare current tests and old records, separating mechanism from input; Planned response: Volume two establishes the input problem and concealed records |\n| Sister’s concealment | Current knowledge: She protects old records; her motive remains unwritten; Needed progress: Establish reasons through her reply, without deriving a full motive from custody; Planned response: A reply in volume two; relationship consequences in three |\n| Shared records | Current knowledge: Assistants help verify; Needed progress: They actually use and correct records; Planned response: Stable final practice |\n\nTrack justified expectations, not every object as a secret. Delay with evidence, relationship change or partial outcome rather than substituting a larger mystery.\n\nResolve the volume’s central task. The repaired clock must not fail without a cause merely to restart the old plot. New faults should preserve previous learning and relationships."
         }
       },
       {
@@ -20150,8 +20157,8 @@
           "en": "Check delivered facts before changing future plans"
         },
         "body": {
-          "zh": "中途缩减卷数或增加新阶段，先列已写状态、已给回报和未回应事项，再调整未来节点。角色退出、地图更换与能力变化都要说明怎样继承旧责任，不能回头撤销已经支付的代价。\n\n给 AI 的输入包括本卷结果、人物当前目标与关系、物件去向、未回收期待。让它提出下一卷行动，并逐项说明从何继承；作者选定后再展开卷纲与细纲，不一口气重写全系列。\n\n最后检查当前卷的开局与结尾能否独立理解，系列主问题是否仍在发展。若新阶段只是重复“又被看不起—再证明一次”，保留能带来新资格、责任或冲突的变化，删无新作用的重复。",
-          "en": "When reducing volumes or adding a stage, list established states, delivered payoffs and open expectations before changing future nodes. Exits, locations and abilities must inherit responsibility without canceling paid costs.\n\nGive AI current outcomes, aims, relationships, object custody and open promises. Ask for proposed next-volume actions with their inherited causes. Select a direction before expanding volume and chapter plans rather than rewriting the entire series.\n\nCheck the current opening and ending for coherence and the series question for development. Replace repetitions of dismissal and proof with new responsibilities, qualification or conflict that actually follow earlier results."
+          "zh": "中途缩减卷数或增加新阶段，先列已写状态、已给回报和未回应事项，再调整未来节点。角色退出、地图更换与能力变化都要说明怎样继承旧责任，不能回头撤销已经支付的代价。\n\n给 AI 的输入包括本卷结果、人物当前目标与关系、物件去向、未回收期待。让它提出下一卷行动，并逐项说明从何继承；作者选定后再展开卷纲与细纲，不一口气重写全系列。\n\n最后检查当前卷的开局与结尾能否独立理解，系列主问题是否仍在发展。若新阶段只是重复“又被看不起—再证明一次”，保留带来新资格、责任、关系或体验的变化；已经形成的日常与相处也可有价值，重复是否删看实际作用，不要求每卷再晋升一次。",
+          "en": "When reducing volumes or adding a stage, list established states, delivered payoffs and open expectations before changing future nodes. Exits, locations and abilities must inherit responsibility without canceling paid costs.\n\nGive AI current outcomes, aims, relationships, object custody and open promises. Ask for proposed next-volume actions with their inherited causes. Select a direction before expanding volume and chapter plans rather than rewriting the entire series.\n\nCheck the current opening and ending for coherence and the series question for development. Retain developments in responsibility, qualification, relationships, or experience that follow earlier results. Established daily life and companionship can also have value; judge repetition by its function without requiring another promotion in every volume."
         }
       }
     ],
@@ -20205,7 +20212,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "en": "How to Write a Novel Synopsis That Shows the Whole Story",
       "zh": "小说投稿梗概怎么写：讲清主线、转折和结局"
@@ -20241,8 +20248,8 @@
           "en": "Extract direction-changing nodes from an event list"
         },
         "body": {
-          "zh": "| 梗概部分 | 要讲清的变化 | 删掉什么不会伤主线 |\n|---|---|---|\n| 开局 | 主角处境、目标与触发 | 无关家谱和完整世界史 |\n| 尝试 | 采取哪种办法，为何受阻 | 重复同一困难的过程 |\n| 转折 | 哪项新事实令旧计划失效 | 只说“事情反转了”的空话 |\n| 高潮 | 主角最后选择、行动与代价 | 与胜负无关的场景装饰 |\n| 收束 | 主线结果与人物的新做法 | 另起悬念代替结果 |\n\n这不是固定五段配额，而是检查是否漏了因果。把“修钟、找记录、争吵、洪水”逐项串起来，还需说明为什么查记录、争吵怎样改变行动、洪水为何使原办法来不及。",
-          "en": "| Function | Explain | Remove without harming the spine |\n|---|---|---|\n| Opening | Situation, goal and trigger | Unrelated genealogy or world history |\n| Attempt | Strategy and resistance | Repeated versions of one obstacle |\n| Turn | New fact invalidating the plan | Abstract “everything changes” |\n| Climax | Final choice, action and cost | Decorative detail unrelated to outcome |\n| Resolution | Main result and changed behavior | A new mystery replacing resolution |\n\nThese are coverage functions, not a five-paragraph quota. “Repair clock, find records, argue, flood” still needs reasons for inquiry, consequences of the argument and a deadline defeating the old strategy."
+          "zh": "| 部分 | 记录 |\n|---|---|\n| 开局 | 要讲清的变化: 主角处境、目标与触发; 删掉什么不会伤主线: 无关家谱和完整世界史 |\n| 尝试 | 要讲清的变化: 采取哪种办法，为何受阻; 删掉什么不会伤主线: 重复同一困难的过程 |\n| 转折 | 要讲清的变化: 哪项新事实令旧计划失效; 删掉什么不会伤主线: 只说“事情反转了”的空话 |\n| 高潮 | 要讲清的变化: 主角最后选择、行动与代价; 删掉什么不会伤主线: 与胜负无关的场景装饰 |\n| 收束 | 要讲清的变化: 主线结果与人物的新做法; 删掉什么不会伤主线: 另起悬念代替结果 |\n\n这不是固定五段配额，而是检查是否漏了因果。把“修钟、找记录、争吵、洪水”逐项串起来，还需说明为什么查记录、争吵怎样改变行动、洪水为何使原办法来不及。",
+          "en": "| Part | Record |\n|---|---|\n| Opening | Explain: Situation, goal and trigger; Remove without harming the spine: Unrelated genealogy or world history |\n| Attempt | Explain: Strategy and resistance; Remove without harming the spine: Repeated versions of one obstacle |\n| Turn | Explain: New fact invalidating the plan; Remove without harming the spine: Abstract “everything changes” |\n| Climax | Explain: Final choice, action and cost; Remove without harming the spine: Decorative detail unrelated to outcome |\n| Resolution | Explain: Main result and changed behavior; Remove without harming the spine: A new mystery replacing resolution |\n\nThese are coverage functions, not a five-paragraph quota. “Repair clock, find records, argue, flood” still needs reasons for inquiry, consequences of the argument and a deadline defeating the old strategy."
         }
       },
       {
@@ -20252,8 +20259,8 @@
           "en": "Original synopsis: retain choices and achievable results"
         },
         "body": {
-          "zh": "> 修钟师许遥想保住检修资格，追查报警钟误报。旧记录显示姐姐曾替前任站长隐瞒水闸故障。许遥先想私下补修，却发现工期赶不上汛期。她公开记录，借居民协助完成撤离，失去姐姐的支持，也保住下游住户。洪水退后，她把检修记录交给两名助手共同维护。\n\n这段包含目标、发现、失效办法、关键选择与后续行为。“居民协助”需要正文或大纲中有可成立的取得过程；梗概可以概述，但不能凭压缩跳过一个原稿根本没有的解决条件。\n\n姓名只保留辨认主要行动者所需。姐姐和前任站长按关系称呼足以理解时，不必引入更多名字与职务，免得短稿成为人名表。",
-          "en": "Original example:\n\n> Clock repairer Xu Yao investigates false alarms to retain her maintenance license. Records reveal that her sister hid a sluice fault for the former supervisor. Private repair cannot finish before flood season. Xu Yao publishes the records and secures residents’ help with evacuation, losing her sister’s support while protecting downstream homes. Afterward, she shares maintenance records with two assistants.\n\nIt retains aim, discovery, failed strategy, choice and later behavior. The manuscript or plan still needs a viable process for obtaining residents’ help. Summary can compress a process, not invent a missing condition.\n\nKeep names necessary for principal action. Relationship labels can identify the sister and former supervisor without turning a short document into a cast list."
+          "zh": "下面是本文原创的虚构规划梗概，不是对已写小说执行提取后的结果。本例已设：许遥负责报警钟检修；机械维修已验收，另一个水闸输入端仍有问题；现任站长有本例撤离预案的组织职责。\n\n> 修钟师许遥为查清误报，比对输入测试和旧水闸记录；姐姐承认曾替前任站长隐瞒相关记录。许遥原想先补修再解释，却发现输入维修赶不上汛期窗口。她把记录和未确定的危险范围一起公开，失去姐姐的支持；现任站长核对材料后启动已有预案，居民实际回应。许遥与两名助手完成分配到的通知和到达核对，住户到达约定安全地点。之后，两名助手接受检修记录副本，开始共同维护。\n\n梗概保留目标、依据、旧办法失效、关键选择、组织者回应和实际结果。公开材料与住户安全之间还有核对、组织、居民回应和执行，不能用“获得帮助”替一部原稿补出不存在的解决条件。本例的资格验收、预案与回应均为明确选择的新设计；从真实正文提炼时，只能写材料支持的内容，没写出来的仍标计划。\n\n姓名只保留辨认主要行动者所需。姐姐和前任站长按关系称呼足以理解时，不必引入更多名字与职务，免得短稿成为人名表。",
+          "en": "This is an original fictional planning synopsis, not an extraction from completed prose. The example establishes that Xu Yao maintains the alarm clock, its mechanism repair has been accepted, a separate sluice input remains faulty, and the current supervisor organizes the example’s existing evacuation plan.\n\n> To trace false alerts, clock repairer Xu Yao compares input tests with old sluice records. Her sister acknowledges concealing relevant records for the former supervisor. Xu first hopes to repair the input before explaining, but the repair cannot finish before the flood-season window. She discloses the records alongside the unresolved risk boundary, losing her sister’s support. The current supervisor checks the material and activates the existing plan; residents respond. Xu and two assistants complete assigned notifications and arrival checks, and residents reach the agreed safe destination. Afterward, the assistants receive maintenance-record copies and begin shared upkeep.\n\nThe synopsis retains aim, evidence, the failed strategy, the key choice, an organizer’s response, and the enacted result. Disclosure and residents’ safety are connected through verification, organization, replies, and execution. “Secures help” cannot supply a condition missing from the manuscript. Acceptance, the plan, and replies are explicit new design choices in this example; extraction from actual prose uses only supported facts and marks unwritten events as plans.\n\nKeep names necessary for principal action. Relationship labels can identify the sister and former supervisor without turning a short document into a cast list."
         }
       },
       {
@@ -20275,8 +20282,8 @@
           "zh": "投稿梗概要透露结局吗？"
         },
         "a": {
-          "en": "Yes. A synopsis is for evaluating the complete story, so include the resolution and its consequence. Keep the suspense for the novel’s readers, not for a professional reviewing the submission.",
-          "zh": "要。梗概用于评估完整故事，应写出解决方式及后果。悬念留给小说读者，不必留给审核投稿的编辑。"
+          "zh": "若当前入口要完整故事梗概，通常应交代解决方式和后果，不用“能否成功”代替结局。若入口明确要求部分章节、阶段梗概或另一种介绍，就按它的材料范围准备。先核实际要求，未写内容标计划；本文的方法不裁定投稿资格。",
+          "en": "A requested full-story synopsis generally includes resolution and consequences rather than ending with a teaser. If the actual destination requests selected chapters, an interim synopsis, or a different introduction, follow that scope. Check its requirements first and label unwritten material as planned; this craft method does not determine submission eligibility."
         }
       }
     ],
@@ -20354,8 +20361,8 @@
           "en": "Plan four relationship changes"
         },
         "body": {
-          "zh": "| 阶段 | 可见行动 | 留下的阻力 |\n|---|---|---|\n| 初识 | 两人能完成一次合作 | 仍不愿解释私人需求 |\n| 信任 | 主角把关键工具交给对方 | 对方可能因工作离开 |\n| 亲近 | 一方主动承认自己的失误 | 公开关系会影响共同项目 |\n| 选择 | 各自承担一项真实代价 | 接受关系，也保留独立目标 |\n\n阶段是规划工具，不要求每对人物按固定章数完成。",
-          "en": "| Stage | Action | Obstacle |\n|---|---|---|\n| Meeting | Complete a job together | Private needs remain hidden |\n| Trust | Lend an essential tool | One may leave for another job |\n| Intimacy | Admit a personal mistake | Public commitment affects the shared project |\n| Choice | Each accepts a real cost | Love develops alongside independent goals |\n\nThese are planning markers, not a fixed chapter formula."
+          "zh": "| 时点 | 记录 |\n|---|---|\n| 初识 | 可见行动: 两人能完成一次合作; 留下的阻力: 仍不愿解释私人需求 |\n| 信任 | 可见行动: 主角把关键工具交给对方; 留下的阻力: 对方可能因工作离开 |\n| 亲近 | 可见行动: 一方主动承认自己的失误; 留下的阻力: 公开关系会影响共同项目 |\n| 选择 | 可见行动: 双方说清意愿，决定是否继续靠近; 留下的阻力: 独立目标仍在；有已设冲突时回应，不强加牺牲 |\n\n阶段是规划工具，不要求每对人物按固定章数完成。",
+          "en": "| Moment | Record |\n|---|---|\n| Meeting | Action: Complete a job together; Obstacle: Private needs remain hidden |\n| Trust | Action: Lend an essential tool; Obstacle: One may leave for another job |\n| Intimacy | Action: Admit a personal mistake; Obstacle: Public commitment affects the shared project |\n| Choice | Action: Each states willingness and decides whether to grow closer; Obstacle: Keep independent goals; address established conflict without imposing sacrifice |\n\nThese are planning markers, not a fixed chapter formula."
         }
       },
       {
@@ -20365,8 +20372,8 @@
           "en": "Original scene: intimacy through an offered choice"
         },
         "body": {
-          "zh": "气象站技术员乔岚每次都替搭档排好夜班，认为这叫照顾。搭档此前拒绝过，因为要留时间照顾母亲。她终于把排班表递过去：“周四还空着，你先选。”\n\n这是一次小进展：她停止替对方决定，也表明记住了他的需要。后面的亲近可以从两人共同修改排班开始，不必立刻加拥抱或表白。冲突仍在——乔岚即将调离，需要决定是否愿意让对方知道。",
-          "en": "Qiao Lan always assigns her partner’s night shifts, believing it helpful. He has refused because he cares for his mother. This time she passes him the schedule: “Thursday is still open. Choose first.” The change is small but meaningful: she remembers his needs and stops deciding for him. The coming transfer remains unresolved, giving the relationship a new decision."
+          "zh": "下面是原创虚构场景。气象站技术员乔岚以往替搭档拟好夜班，认为这叫照顾；站长确认后才是正式排班。搭档此前拒绝她的提案，因为要留时间照顾母亲。这次她递过空白处还未填完的草案：“周四还空着，你先选。”\n\n搭档看了表：“周四我得陪母亲，周五可以。你周五有安排吗？”乔岚说周五晚要去办调动手续。两人把周六写成共同提交给站长的候选，不把它当已批准班次。\n\n这次小进展不只是她递了表：她记得对方的需求并交还选择，对方也实际愿意一起讨论。讨论排班不表示愿意恋爱，也不保证站长接受。乔岚已说要办调动手续，搭档知道这件事；剩下未说的是调离日期和是否愿意保持联系。下一场不再让他全然不知道调动，而可以让她说明日期，再看他怎样回应。无需立刻加拥抱或表白。",
+          "en": "This is an original fictional scene. Weather-station technician Qiao Lan used to propose her partner’s night shifts, considering it care; only the supervisor’s confirmation made a roster official. He previously refused her proposal because he needed time to care for his mother. This time she passes him the unfinished draft: “Thursday is still open. Choose first.”\n\nHe reads it. “I’m with my mother Thursday. Friday works. Do you have plans then?” Qiao says she has transfer paperwork on Friday evening. Together they enter Saturday as a candidate to submit to the supervisor, without treating it as approved.\n\nThe small development goes beyond offering the sheet: she remembers his needs and returns choice, and he actually agrees to discuss it. Scheduling cooperation is not romantic willingness or guaranteed approval. He now knows she has transfer paperwork; the date and whether she wants continued contact remain unspoken. The next scene can disclose the date and await his reply, rather than resetting his knowledge to no transfer at all. Neither a hug nor a confession is necessary."
         }
       },
       {
@@ -20376,8 +20383,8 @@
           "en": "Check whether tension leaves a lasting result"
         },
         "body": {
-          "zh": "把最近五场关系戏各写一句“之前怎样，之后怎样”。五句都只有“心动但没说”，就补一次实际选择，而非更多心跳描写。人物可以后退，但后退要有新原因；已经知道对方的处境，就不能重新依赖同一误会。\n\n给 AI 两人的独立目标、已发生的关系事件和下一阶段阻力，要求规划一场只推进一步的互动，明确哪项信任被建立、哪项边界仍保留。",
-          "en": "Summarize the before and after of five recent relationship scenes. If all say “attracted but silent,” add a practical choice. Retreat needs a new cause; known circumstances should not fuel the same misunderstanding again. Ask AI for one scene that advances one piece of trust while preserving a specified boundary."
+          "zh": "把最近五场关系戏各写一句“之前怎样，之后怎样”。若五句都只是同一条“心动但没说”，且这一段需要新的关系转向，就合并重复或补实际选择。五场安静相处若让读者感受到新的生活细节与既有亲近，可以保留，不因没有升级就判无效。人物可以后退，但后退要有新原因；已经知道对方的处境，就不能重新依赖同一误会。\n\n给 AI 两人的独立目标、已发生的关系事件和下一阶段阻力，要求先说明这场要让读者体验什么，再规划互动；有关系转向时，写实际回应与仍保留的边界，不用固定“一场一步”配额。",
+          "en": "Summarize the before and after of five recent relationship scenes. If all merely repeat the same unspoken attraction while this stretch needs a relationship turn, combine repetition or add a practical choice. Five quiet encounters can remain when they offer fresh everyday experience and established closeness; absence of escalation alone does not make them ineffective. Retreat needs a new cause; known circumstances should not fuel the same misunderstanding again. Ask AI to identify the experience this scene should offer before proposing the interaction. For a relationship turn, specify the actual reply and retained boundary without a one-step-per-scene quota."
         }
       },
       {
@@ -20387,8 +20394,8 @@
           "en": "Track status and willingness separately"
         },
         "body": {
-          "zh": "| 本例时点 | 外在关系 | 双方此刻接受什么 |\n|---|---|---|\n| 一起值班 | 工作搭档 | 能合作，不代表愿意解释家庭情况 |\n| 乔岚把排班选择交还 | 仍是搭档 | 对方愿意一起讨论班次，未表示恋爱意愿 |\n| 乔岚告知调离 | 身份未变 | 是否联系与如何继续，都需要对方回应 |\n\nOh Story 的关系方法把社会关系与实际好感分开。本文将它用作行为边界检查，不用好感数值推算谁“应当”接受亲密动作。\n\n乔岚有调离压力，可以暂缓告白，但不能把对方当已承诺等她的人。需要后退时，写新压力如何改变选择，并保留旧信任：担心远距离与不相信对方，是两个不同问题。",
-          "en": "| Moment | Status | Behavior |\n|---|---|---|\n| Shared shifts | Coworkers | Cooperation, not automatic family disclosure |\n| Qiao returns scheduling choice | Still coworkers | Shared planning, not stated romantic interest |\n| Qiao reveals transfer plans | Same status | Continued contact needs the other person’s response |\n\nOh Story separates social status and affection. Use that distinction to check behavior boundaries rather than calculate entitlement to intimacy.\n\nA transfer may delay confession, but Qiao cannot treat her colleague as someone who promised to wait. A setback should show new pressure while preserving established trust: concern about distance differs from distrust."
+          "zh": "| 时点 | 记录 |\n|---|---|\n| 一起值班 | 外在关系: 工作搭档; 双方此刻接受什么: 能合作，不代表愿意解释家庭情况 |\n| 双方讨论候选班次 | 外在关系: 仍是搭档; 双方此刻接受什么: 对方提出周五，听见乔岚的安排后共同拟周六；尚待站长确认，未表示恋爱意愿 |\n| 乔岚说要办调动手续 | 外在关系: 身份未变; 双方此刻接受什么: 搭档已知道调动，日期和继续联系尚未谈；后续不重置这项知情 |\n\nOh Story 的关系方法把社会关系与实际好感分开。本文将它用作行为边界检查，不用好感数值推算谁“应当”接受亲密动作。\n\n乔岚有调离压力，可以暂缓告白，但不能把对方当已承诺等她的人。需要后退时，写新压力如何改变选择，并保留旧信任：担心远距离与不相信对方，是两个不同问题。",
+          "en": "| Moment | Record |\n|---|---|\n| Shared shifts | Status: Coworkers; Behavior: Cooperation, not automatic family disclosure |\n| They discuss a candidate shift | Status: Still coworkers; Behavior: He suggests Friday, hears her conflict, and joins a Saturday proposal; supervisor approval and romantic willingness are not established |\n| Qiao mentions transfer paperwork | Status: Same status; Behavior: He knows of the transfer; date and continued contact remain unspoken, without resetting that knowledge later |\n\nOh Story separates social status and affection. Use that distinction to check behavior boundaries rather than calculate entitlement to intimacy.\n\nA transfer may delay confession, but Qiao cannot treat her colleague as someone who promised to wait. A setback should show new pressure while preserving established trust: concern about distance differs from distrust."
         }
       }
     ],
@@ -20420,8 +20427,8 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "社会关系、真实好感与独立目标",
+          "en": "Social status, actual affection, and independent goals"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-relations.md"
       }
