@@ -28,6 +28,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [Continue your unfinished novel with AI: import into Oh Story](https://zenstory.ai/oh-story/import-and-continue) — If you already have 10 to 20 chapters, do not ask an empty chat to continue in the same style. Run Oh Story's story-import: it rebuilds the manuscript as a writing project, keeps the original prose, and generates settings, outlines and continuity records from it. Inferred facts go on a review list, and the manuscript stays the evidence you check them against. Then request the next chapter by name. The harbor-radio example below shows a continuation paying off a decision the last chapter already made. Intentions that never reached the page come from you: put them in the next-chapter plan, and check the new chapter's voice against your last original chapters.
 - [How to write a book with Claude Code or Codex: install to chapter one](https://zenstory.ai/oh-story/claude-code-novel-writing) — To write a book with Claude Code or Codex, install the Oh Story skill pack, run /story-setup, start a fresh session and draft chapter one in Markdown.
 - [How to Prompt AI to Write a Novel Chapter](https://zenstory.ai/oh-story/ai-novel-writing-prompts) — Give the AI a defined task, chapter beats, current character state and limits on what may be revealed. Includes a filled prompt and focused revision requests.
+- [How to Draft Several Novel Chapters with AI](https://zenstory.ai/oh-story/batch-draft-novel-chapters-with-ai) — Plan bounded chapter batches with a shared goal, reveal limits and per-chapter changes. Includes a three-chapter example and a batch-end review.
 
 ### Outlines and plot / 小说大纲与情节
 - [Outlines and plot](https://zenstory.ai/guides/plot-and-outline) — Plan openings, chapters, suspense, pacing, and endings.
@@ -101,6 +102,9 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Write a Believable Betrayal](https://zenstory.ai/oh-story/write-a-betrayal-that-feels-earned) — Build betrayal from established trust and character choices, then change what happens next. Includes an original theater story and a trust-evidence table.
 - [How to Write a Romance Confession Scene](https://zenstory.ai/oh-story/write-a-romance-confession-scene) — Design a confession around relationship progress, personal agendas and a real response. Includes an original choir scene and before-and-after dialogue.
 - [How to Give Numbers Meaning in Fiction](https://zenstory.ai/oh-story/numbers-in-fiction) — Connect money, time and quantities to established character costs. Includes an original budget scene and a practical meaning table.
+- [How to Introduce a Fiction Character Readers Remember](https://zenstory.ai/oh-story/introduce-a-fiction-character) — Introduce a character through a task, a memorable detail and a choice. Includes an original rehearsal scene and a compact planning card.
+- [How to Describe Character Appearance in Fiction](https://zenstory.ai/oh-story/describe-character-appearance) — Choose visible traits through viewpoint and attention rather than listing features. Includes an original scene and before-and-after descriptions.
+- [How to Write Interior Monologue That Changes a Choice](https://zenstory.ai/oh-story/write-interior-monologue) — Separate observations, guesses, memories and decisions in interior monologue. Includes an original cancellation scene and knowledge checks.
 
 ### Choose and write a genre / 题材与类型写法
 - [Choose and write a genre](https://zenstory.ai/guides/genres) — Choose a genre and learn the story patterns it needs.
@@ -169,6 +173,9 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Update Storyboards After a Script Change](https://zenstory.ai/drama-skills/update-storyboards-after-script-changes) — Trace changed script facts to existing assets, storyboards and prompts. Includes an original injury-timing example and a selective update table.
 - [How to Check Later Chapters After Revising a Novel](https://zenstory.ai/oh-story/sync-later-chapters-after-a-revision) — Trace a revised fact through written chapters. Check clues, knowledge and object ownership with an original example and a downstream-impact worksheet.
 - [How to Revise a Formulaic AI Drama](https://zenstory.ai/drama-skills/revise-a-formulaic-ai-drama) — Locate repetition in causality, strategy, expression and shots. Includes an original diagnostic table and exceptions for deliberate recurring forms.
+- [Sensory Details in Fiction: Attention Before Quantity](https://zenstory.ai/oh-story/use-sensory-details-in-fiction) — Choose sensory detail through task, perceptual access and purpose. An original backstage revision shows when to use one sense or omit decoration.
+- [Sentence Length in Fiction: Flow, Pauses and Emphasis](https://zenstory.ai/oh-story/vary-sentence-length-in-fiction) — Vary sentence length for continuity, emphasis and pause while preserving facts. Compare three original versions of a string breaking on stage.
+- [AI Fiction Research: Verify Sources and Scope](https://zenstory.ai/oh-story/verify-research-for-ai-fiction) — Check dates, original sources and claim scope before using AI research. Includes a real official-notice check and a reusable research note.
 
 ### Short-drama scripts / 短剧改编与剧本
 - [Short-drama scripts](https://zenstory.ai/guides/short-drama) — Adapt a story into episodes, scenes, and shootable dialogue.

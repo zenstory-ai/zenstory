@@ -3763,7 +3763,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "小说反派怎么写不降智：目标、筹码与反制",
       "en": "How to Write a Smart Antagonist: Goals, Leverage, and Countermoves"
@@ -3810,8 +3810,8 @@
           "en": "Original Example: The Waterway Archivist"
         },
         "body": {
-          "zh": "主角乔澜想公开旧城区真实用水量，阻止居民被迫搬迁。档案官沈砚秋的目标是让全城执行统一配水，因为他亲历过一次争水冲突，认定“允许例外就会有人先渴死”。\n\n他的筹码是历史数据、审批权和对各区管线的熟悉；常用策略是用程序拖住异议，再用局部缺水证明集中权力必要。他先赢一次：乔澜公开一份未经核实的旧表，沈砚秋拿出修订记录，使她失去居民信任。\n\n他没有为了追杀主角而停掉全城供水。相反，他按自己的目标压缩所有街区的自主配额，客观上把主角所在社区逼入绝境。乔澜最终发现他的弱点：他过度信赖能进入档案的数字，忽视居民长期用私人蓄水池补缺。她用连续实测推翻模型，迫使听证会重开。\n\n主角赢在更完整的证据与现场行动，反派输在已建立的认知偏好。",
-          "en": "The protagonist, Qiao Lan, wants to publish the old district’s true water-use figures and stop the forced relocation of its residents. Archivist Shen Yanqiu wants the whole city to follow a unified water-allocation system. Having lived through a dispute over water, he believes that “if exceptions are allowed, someone will be the first to die of thirst.”\n\nHis leverage consists of historical data, approval authority, and detailed knowledge of every district’s pipelines. His usual strategy is to stall objections through procedure, then cite local shortages as proof that centralized control is necessary. He wins once: Qiao Lan releases an unverified historical data sheet, and Shen Yanqiu produces its revision record, costing her the residents’ trust.\n\nHe does not shut off the city’s water simply to hunt the protagonist. Following his own goal, he reduces every neighborhood’s discretionary quota, which drives Qiao Lan’s community into crisis. She eventually finds his weakness: he relies too heavily on figures that make it into the archive and overlooks the private cisterns residents have long used to cover shortages. Her continuous field measurements overturn his model and force the hearing to reopen.\n\nThe protagonist wins through fuller evidence and action on the ground. The antagonist loses because of a cognitive bias established in advance."
+          "zh": "原创城镇故事中，乔澜要保住老街取水点。档案官沈砚秋亲历过争水，想把分散站点并入统一安排。他管记录初核与方案建议，停站由配水会决定；前文明确补齐两周服务记录可申请复核。这是本故事的制度，不是现实供水规则。\n\n沈的筹码是完整档案和他人信赖的统计口径，弱点是把“记录里没有”当作“需求不存在”。他先赢一轮：乔澜提交未核实旧表，沈拿出修订记录；配水会撤下那份材料，两位邻居暂不愿为它作证。\n\n乔澜随后发现，一次领水有时由一人代几户，不等于只有一户使用。她核对两周代领记录、各户确认和站点实际领取，证明当前次数没有表达全部服务户数。它还不能证明所有配额计算都错，也不能凭私家存水推算无限自给。\n\n她带齐记录请求复核。配水会接受这项具体差异，实际暂缓停站并安排补核服务范围，才算本轮改变。沈失去的是“只按领取次数足够”的依据，没有突然变笨或丢掉全部权力；他转而要求代领对象逐户对应，继续形成新的阻力。\n\n主角得到有限进展，最终保留站点仍待后续。对手的损失与他的已建认知偏好相连，而不是一份新资料瞬间推翻全城制度。",
+          "en": "In this original town, Qiao Lan wants to retain an old-street water pickup point. Archivist Shen Yanqiu witnessed a dispute and favors consolidation. He reviews records and recommends plans; a distribution council decides closure. Earlier scenes establish that two weeks of service records allow a review request. These are fictional institutional conditions.\n\nHis leverage is trusted archive data. His weakness is equating absence from records with absence of need. He wins first: Qiao submits an unchecked old table; he supplies revision records, the council excludes it, and two neighbors withdraw support for that table.\n\nQiao finds that one collection may serve several households. She checks two weeks of proxy records, household confirmations and actual collections. Counts do not express all households served. That does not prove every quota calculation wrong or infer unlimited self-supply from private tanks.\n\nShe brings the records and requests review. The council accepts this specific discrepancy, pauses closure and orders service coverage rechecked. This is the enacted local change. Shen loses the claim that collection counts suffice, not his intelligence or every power. He asks for proxy entries to map to households, creating further resistance.\n\nQiao gains limited progress; permanent retention remains unresolved. The opponent loses through an established bias, not one document overturning an entire city system."
         }
       },
       {
@@ -3877,10 +3877,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "反派内在逻辑、分量与弱点",
+          "en": "Antagonist logic, weight and weakness"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-basics.md"
+      },
+      {
+        "label": {
+          "zh": "筹码、对抗与驱动力",
+          "en": "Leverage, opposition and drives"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/outline-conflict.md"
       }
     ]
   },
@@ -3892,7 +3899,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "打斗场面怎么写：先定胜负，再安排动作",
       "en": "How to Write a Fight Scene: Decide the Outcome Before the Moves"
@@ -3929,7 +3936,7 @@
         },
         "body": {
           "zh": "| 维度 | 可写内容 | 怎样参与胜负 |\n|---|---|---|\n| 心 | 判断、意志、恐惧、急躁 | 错判距离、提前交底、敢于换伤 |\n| 体 | 力量、速度、耐力、伤势 | 决定动作能否继续和代价多大 |\n| 技 | 熟练招式、首次底牌、克制关系 | 改变攻防方法 |\n| 环境 | 地形、天气、遮挡、第三方 | 提供限制与可利用条件 |\n\n能力越抽象，因果越要清楚。读者不必懂每个招名，但要知道为何上一招有效、下一招为何被迫改变。",
-          "en": "| Dimension | What it includes | How it affects the outcome |\n|---|---|---|\n| Mind | Judgment, will, fear, impatience | Misjudging distance, revealing a trump card too early, daring to trade injuries |\n| Body | Strength, speed, stamina, wounds | Determines whether an action can continue and what it costs |\n| Skill | Practiced techniques, a newly revealed trump card, counters | Changes the method of attack or defense |\n| Setting | Terrain, weather, cover, third parties | Creates limits and exploitable conditions |\n\nThe more abstract an ability is, the clearer its cause and effect must be. Readers need not know every technique’s name. They should understand why the last move worked and why the next one must change."
+          "en": "| Part | Content | Effect |\n|---|---|---|\n| Mind | Judgment, will, fear, impatience | Misjudging distance, revealing a trump card too early, daring to trade injuries |\n| Body | Strength, speed, stamina, wounds | Determines whether an action can continue and what it costs |\n| Skill | Practiced techniques, a newly revealed trump card, counters | Changes the method of attack or defense |\n| Setting | Terrain, weather, cover, third parties | Creates limits and exploitable conditions |\n\nThe more abstract an ability is, the clearer its cause and effect must be. Readers need not know every technique’s name. They should understand why the last move worked and why the next one must change."
         }
       },
       {
@@ -3939,8 +3946,8 @@
           "en": "Original Example: A Short-Blade Fight in a Salt Warehouse"
         },
         "body": {
-          "zh": "**结果**：负伤的巡检贺砚舟要拖住走私头目，等潮水漫进盐仓迫使对方离开暗门；他不求击杀，只求拿到账册并活着出去。\n\n**动作链**：对手长刀占距离，贺砚舟第一次前冲被刀背撞回，旧伤裂开。这个失败告诉读者“硬闯不行”。他踢倒盐袋，盐粒铺地，随后故意让对手逼到潮湿木板上。对手步法更强，却怕账册沾水，一直用左手护怀。贺砚舟看见这个限制，第二次不攻人，短刀割断吊盐袋的绳。\n\n盐袋坠下，对手本能侧身护账册，脚下在湿盐上打滑。贺砚舟挨了一刀，贴身扯走账册，转身跳入已经涨水的排渠。\n\n门后传来刀尖刮木的声音。\n\n最后一句最短，因为最重的余波是对手仍在追。胜负来自目标差异、环境和代价，人物性格也在“愿意挨刀换证据”中显出来。",
-          "en": "**Outcome**: The wounded inspector He Yanzhou must delay a smuggling chief until the tide floods the salt warehouse and forces the man away from a hidden door. He is not trying to kill him; he wants the ledger and a way out alive.\n\n**Chain of action**: The opponent’s long saber controls the distance. He Yanzhou’s first rush is knocked back by the flat of the blade, reopening an old wound. The failure tells readers that he cannot force his way through. He kicks over a salt sack, spreading grains across the floor, then deliberately lets the opponent drive him onto damp boards. The opponent has better footwork but fears the ledger inside his clothing will get wet, so he keeps guarding it with his left hand. Seeing that constraint, He Yanzhou’s second attack targets neither man nor weapon: his short blade cuts the rope holding a suspended salt sack.\n\nThe sack falls. The opponent instinctively turns to shield the ledger and slips on the wet salt. He Yanzhou takes a cut, closes the distance, tears away the ledger, and jumps into a drainage channel already filling with the tide.\n\nFrom behind the door comes the scrape of a blade tip against wood.\n\nThe final sentence is shortest because the heaviest aftershock is that the opponent is still pursuing him. The outcome follows from different goals, the setting, and a cost; the willingness to take a wound for evidence also reveals character."
+          "zh": "以下是原创盐仓打斗。负伤巡检贺砚舟要取到账册并送到仓外接应处，不求击杀。前文已让读者看见吊挂的盐袋、地面少量积水、通向外梯的浅排水槽和等候的同伴；这些不是反转时才出现的逃生条件。\n\n**第一轮**：走私头目的长刀占住距离，贺砚舟前冲被挡回，旧伤裂开。硬闯失败，他注意到对方始终用左手护住怀里的账册。\n\n**改变策略**：他踢倒地上的一袋盐，使狭窄湿地难以站稳，再退到吊袋旁。下一轮不继续追刀，而是割断已出现的吊绳。对手侧身避袋并护住账册，失去原先稳定的站位。\n\n**取舍与结果**：贺砚舟贴近扯走账册，肩侧挨了一刀。他沿已建立的浅槽跨到外梯，把账册递给等候同伴；同伴实际接住并按事先约定先送走。他留在梯口挡住追来的一步，伤势使他不能继续硬拼。\n\n仓门又响了。\n\n账册交接完成，贺砚舟本人尚未脱离追赶；不能把到达接应点直接写成彻底安全。本例用目标差异、观察、环境与代价改变优势，最后短句突出追赶仍在。另一种文风可以用不同句长，重点是局部结果与余波清楚。",
+          "en": "In this original salt-warehouse fight, injured inspector He Yanzhou must get a ledger to the waiting ally outside, not kill the smuggler. Earlier prose establishes suspended salt sacks, a little water on the floor, a shallow drainage channel leading to outside steps and the ally. These are not last-minute exits.\n\n**First exchange:** The opponent’s long blade controls distance. He’s rush is blocked and his old injury reopens. He notices the opponent’s left hand repeatedly protecting the ledger.\n\n**New strategy:** He spills a floor sack onto the narrow wet area and retreats beside a suspended sack. Rather than pursue the blade again, he cuts the already established rope. The opponent dodges the falling sack while protecting the book and loses the stable position.\n\n**Tradeoff and result:** He takes the ledger at close range and receives a shoulder cut. He crosses along the established shallow channel to the steps and hands it to the waiting ally. The ally actually receives it and leaves with it as agreed. He holds the step against pursuit; his injury prevents another forceful contest.\n\nThe warehouse door struck again.\n\nThe handoff is complete, but He remains pursued: reaching the ally is not total safety. Goal difference, observation, environment and cost change the advantage. The final short line emphasizes continuing pursuit; another voice may use different length while making result and aftermath clear."
         }
       },
       {
@@ -3950,8 +3957,8 @@
           "en": "How Do You Keep Fight Actions Clear?"
         },
         "body": {
-          "zh": "每一拍写三件事即可：谁主动、对方怎样应对、局面哪里改变。关键动作给出起点、中间碰撞和结果；常用招式再次出现时，直接写它造成的新效果。\n\n打斗节奏可以急—缓—急。缓拍可以是一次观察、换气、对峙或错误判断，用来让下一轮选择成立；别插入长篇回忆。心理活动只保留会改变策略的部分，例如“他不再追刀，改盯对方护住的左肋”。\n\n断段跟随新动作、新信息和视线变化。全场最重的一击、认输或代价可以单句成段，别用最长一段解释它多重要。",
-          "en": "Each beat needs only three things: who initiates, how the other person responds, and what changes. For a crucial action, show the starting position, the collision in the middle, and the result. When a familiar move appears again, go straight to its new effect.\n\nA fight can move fast, then slow, then fast. A slower beat may be an observation, a breath, a standoff, or a mistaken judgment that makes the next choice possible; do not interrupt the scene with a long memory. Keep only thoughts that change strategy, such as: “He stopped following the blade and watched the left side his opponent kept protecting.”\n\nStart a new paragraph when the action, information, or line of sight changes. The fight’s heaviest strike, surrender, or cost may stand alone as one sentence. Do not spend the longest paragraph explaining why it matters."
+          "zh": "关键一轮写清谁主动、对方怎样回应、局面怎样改变。动作需要可跟随的起点、接触或避让及结果；常用招式重复出现时，可只写它这次造成的新效果。并非每一击都必须单独反转。\n\n观察、换气、对峙或错误判断可以构成缓拍，只保留影响策略的心理。起伏按本场任务，不硬塞回忆或固定“急—缓—急”。断句和分段跟随注意与变化，重大一击可以单独停顿，也可以按本书声口连着写。",
+          "en": "For a consequential exchange, identify the move, reply and changed situation. Keep the start, contact or evasion and result followable. A repeated technique can be compressed to its new effect; each individual blow need not produce a reversal.\n\nObservation, breath, standoff or a wrong guess can make a quieter beat. Keep thoughts affecting strategy. Follow the scene rather than forcing flashbacks or a fixed fast-slow-fast pattern. Sentence and paragraph breaks follow attention and change; an important hit may be isolated or connected in the book’s voice."
         }
       },
       {
@@ -3961,8 +3968,8 @@
           "en": "Common Fight-Scene Failures and Fixes"
         },
         "body": {
-          "zh": "| 失败 | 修正 |\n|---|---|\n| 招式很多，局面不变 | 每轮至少改变一种优势或代价 |\n| 临到反转才出现新能力 | 提前建立底牌或可推断条件 |\n| 双方长期势均力敌 | 让优势易手，迫使一方换目标或策略 |\n| 只写视觉特效 | 补距离、伤势、资源和选择后果 |\n| 角色边打边长篇解释 | 只留影响当前判断的信息 |\n| 胜利没有代价 | 让消耗、伤势、暴露或关系后果延续 |\n| 每招都同样详写 | 首次与关键招详写，重复招压缩 |\n\n这页解决攻防和胜负逻辑；若问题是“怎样让胜利产生满足”，继续看[爽点写法](/oh-story/satisfaction-beats)。",
-          "en": "| Failure | Fix |\n|---|---|\n| Many techniques, no change in the situation | Change at least one advantage or cost in every exchange |\n| A new ability appears only at the reversal | Establish the trump card or an inferable condition earlier |\n| The fighters remain evenly matched for too long | Let the advantage change hands and force one side to change goal or strategy |\n| Only visual effects are described | Add distance, injury, resources, and the consequences of choices |\n| Characters explain at length while fighting | Keep only information that affects the present judgment |\n| Victory has no cost | Carry forward depletion, injury, exposure, or a relational consequence |\n| Every move gets equal detail | Expand first uses and crucial moves; compress repetitions |\n\nThis page covers attack-and-defense logic and the reason for victory. If the problem is making a victory satisfying, continue to [how to write payoff beats](/oh-story/satisfaction-beats)."
+          "zh": "| 失败 | 修正 |\n|---|---|\n| 招式很多，局面不变 | 每轮至少改变一种优势或代价 |\n| 临到反转才出现新能力 | 提前建立底牌或可推断条件 |\n| 双方长期势均力敌 | 让优势易手，迫使一方换目标或策略 |\n| 只写视觉特效 | 补距离、伤势、资源和选择后果 |\n| 角色边打边长篇解释 | 只留影响当前判断的信息 |\n| 前文已建立的损耗在结束后消失 | 保留实际伤势、消耗或暴露；碾压不必强添负伤 |\n| 每招都同样详写 | 首次与关键招详写，重复招压缩 |\n\n这页解决攻防和胜负逻辑；若问题是“怎样让胜利产生满足”，继续看[爽点写法](/oh-story/satisfaction-beats)。",
+          "en": "| Failure | Fix |\n|---|---|\n| Many techniques, no change in the situation | Change at least one advantage or cost in every exchange |\n| A new ability appears only at the reversal | Establish the trump card or an inferable condition earlier |\n| The fighters remain evenly matched for too long | Let the advantage change hands and force one side to change goal or strategy |\n| Only visual effects are described | Add distance, injury, resources, and the consequences of choices |\n| Characters explain at length while fighting | Keep only information that affects the present judgment |\n| Established costs disappear afterward | Keep actual costs; a decisive win need not invent injury |\n| Every move gets equal detail | Expand first uses and crucial moves; compress repetitions |\n\nThis page covers attack-and-defense logic and the reason for victory. If the problem is making a victory satisfying, continue to [how to write payoff beats](/oh-story/satisfaction-beats)."
         }
       }
     ],
@@ -3973,8 +3980,8 @@
           "en": "How do I keep a cultivation battle from becoming a pile of effects?"
         },
         "a": {
-          "zh": "先写能力之间的规则关系：谁能影响什么、需要什么条件、被什么克制。每轮让规则或资源发生变化，再选一两个能看懂的视觉结果承载它。",
-          "en": "First define how the abilities interact: what each can affect, what conditions it requires, and what counters it. Change a rule or resource in each exchange, then express that change through one or two visual results readers can understand."
+          "zh": "先建立能力关系：谁能影响什么，需要什么条件，被什么克制。攻防通过这些既有规则改变优势、资源或选择，再用可理解的画面承载；不为反转临时改规则，也不必每一击都重新结算全部资源。",
+          "en": "Establish what abilities affect, require and counter. Exchanges use those rules to change advantage, resources or choices, expressed in readable images. Do not invent new rules for a reversal or recalculate every resource after every blow."
         }
       },
       {
@@ -4006,10 +4013,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "结果先定、心体技与战斗节奏",
+          "en": "Outcome first, mind/body/skill and fight pacing"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-combat-face.md"
+      },
+      {
+        "label": {
+          "zh": "表达默认值服从本书文风",
+          "en": "Expression defaults follow the book"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ]
   },
@@ -4021,7 +4035,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "小说设定怎么自然交代：让规则进入行动",
       "en": "How to Explain Worldbuilding Naturally Through Action"
@@ -4057,8 +4071,8 @@
           "en": "Use Three Carriers for Worldbuilding"
         },
         "body": {
-          "zh": "1. **有代价的行动**：人物试一次，规则通过成功或失败显出来。\n2. **有立场的对话**：角色为了说服、拒绝或欺骗而提到规则，不让两个人互相背百科。\n3. **场内载体**：门牌、账单、公告、工具和伤痕本来就在场，人物要处理它们。\n\n三种载体都要服务当前冲突。专门安排路人提问、角色自言自语复习常识、旁白在高潮前暂停讲历史，仍然是解释，只是换了外壳。",
-          "en": "1. **A costly action**: A character tries something, and success or failure reveals the rule.\n2. **Dialogue driven by a viewpoint or interest**: Characters mention a rule to persuade, refuse, or deceive, rather than reciting an encyclopedia to each other.\n3. **An in-scene carrier**: A sign, bill, notice, tool, or scar is present for a reason, and the character must deal with it.\n\nAll three carriers must serve the current conflict. Arranging for a passerby to ask a convenient question, having a character rehearse common knowledge aloud, or pausing before the climax for a narrated history lesson remains exposition in disguise."
+          "zh": "1. **行动与反馈**：人物做一件事，规则通过成功、失败或明确提示出现；需要风险与代价时先建立，不必每次试探都受伤。\n2. **有立场的对话**：角色为了询问、说服、拒绝或欺骗而提到规则，不让两个已知者只为读者背百科。\n3. **场内载体**：本来存在的公告、工具、账单或记录，人物正在处理它们。\n\n载体要符合场景与文风。气氛、好奇或理解当前选择都能成为交代理由；直接用一句旁白也可以，避免只为藏说明而强造问答。",
+          "en": "1. **Action and feedback:** A rule appears through success, failure or a clear response. Establish risk or cost when needed; every test need not cause injury.\n2. **Interested dialogue:** Speakers inquire, persuade, refuse or deceive rather than recite shared knowledge for the reader.\n3. **In-scene carriers:** Existing notices, tools, bills or records are being handled.\n\nChoose carriers for the scene and voice. Atmosphere, curiosity and understanding a choice are valid reasons to explain. A direct narrative sentence can work; do not force a question merely to hide exposition."
         }
       },
       {
@@ -4068,8 +4082,8 @@
           "en": "Original Rewrite: A City with a Memory Tax"
         },
         "body": {
-          "zh": "**解释版**：\n\n> 临川城实行记忆税。每个成年居民每月都要上交一段记忆，税务塔会把记忆储存在蓝晶里。欠税者不能乘坐公共交通，这是百年前资源战争后制定的制度。\n\n信息完整，却没有人物和当下问题。\n\n**行动版**：\n\n> 闸门扫过闻夏的太阳穴，没有开。屏上跳出一行红字：本月记忆未缴。\n>\n> 末班车已经进站。她把蓝晶按上额角，母亲教她系鞋带的那段画面闪了一下，像被谁从中间抽走。闸门亮绿。\n>\n> 她站在原地，低头看着散开的鞋带。\n\n读者立即知道蓝晶收取记忆、欠缴会拦住通行、失去记忆有生活后果。百年前战争仍可暂缓，因为它还不影响闻夏赶车的选择。",
-          "en": "**Expository version**:\n\n> Linchuan imposes a memory tax. Every adult resident must surrender one memory each month, and the tax tower stores those memories in blue crystals. Anyone in arrears is barred from public transit. The system was established after a resource war a century ago.\n\nThe information is complete, but there is no character and no immediate problem.\n\n**Action-led version**:\n\n> The gate scanned Wen Xia’s temple and stayed shut. Red text appeared on the screen: MEMORY PAYMENT OVERDUE.\n>\n> The last train was already pulling in. She pressed a blue crystal to her forehead. The memory of her mother teaching her to tie her shoes flickered, as though someone had pulled out its middle. The gate turned green.\n>\n> She stood where she was, looking down at her loose shoelaces.\n\nReaders immediately learn that a blue crystal collects memories, unpaid tax blocks passage, and losing a memory has an everyday consequence. The century-old war can wait because it does not yet affect Wen Xia’s choice as she tries to catch the train."
+          "zh": "以下是原创城市设定：成年居民每月缴一段自己选定的记忆，蓝晶存储该片段；收走的是选定时刻的画面与声音，关于经历的概括和技能仍在。欠缴暂不能通过公共车站闸门。\n\n**说明版**：\n\n> 临川居民每月缴一段记忆。蓝晶存储选中的片段，欠缴不能乘公共交通。这项制度来自百年前资源战争。\n\n若场景是闻夏赶末班车，当前先要知道她怎样过闸，以及代价是什么。\n\n**行动版**：\n\n> 闸门没开。屏上显示“本月未缴”，下方亮着选择记忆的提示。末班车已进站，闻夏把蓝晶按上额角，选中母亲教她系鞋带的那一刻。\n>\n> 画面被收进蓝晶，屏上变成“本月已缴”，闸门亮绿。她走过闸口，蹲下系好散开的鞋带；动作还会，母亲当时说的那句话却再也想不起。\n\n选择、收取和通行反馈构成规则的本轮演示。系鞋带能力仍在，生活细节显出失去关系记忆的分量，不把一个片段消失推成全部技能删除。战争背景可留到影响决定时再讲；也可以按文风用短说明补足。",
+          "en": "Original city premise: adults pay one chosen memory each month into a blue crystal. The selected moment’s image and sound are removed; summary knowledge and skills remain. An unpaid month blocks entry through public-station gates.\n\n**Exposition:**\n\n> Linchuan residents pay a memory each month. A crystal stores the chosen episode; unpaid residents cannot use public transport. The system began after a resource war a century ago.\n\nFor Wen Xia racing for the last train, first explain entry and cost.\n\n**In action:**\n\n> The gate stayed shut. “This month unpaid” appeared above a memory-selection prompt. The last train had arrived. Wen pressed the crystal to her temple and chose the moment her mother taught her to tie her shoes.\n>\n> The image entered the crystal. “Paid” replaced the warning and the gate turned green. Beyond it she knelt to tie a loose lace. The movement remained; her mother’s words from that moment would not return.\n\nChoice, collection and entry feedback demonstrate this round of the rule. The skill remains while the everyday act gives a relationship memory weight. A lost episode has not become deletion of all skills. History can wait until a choice needs it, or be supplied briefly in the book’s voice."
         }
       },
       {
@@ -4079,8 +4093,8 @@
           "en": "Do Not Remove the Reader’s Anchors When Cutting Exposition"
         },
         "body": {
-          "zh": "锚点让陌生词在第一次出现时拥有当前意义。它可以是一句白话、一个动作结果或半句对话。\n\n| 只有名词 | 有锚点 |\n|---|---|\n| 他拿出潮印 | 他把潮印贴上船门，门缝里的水立刻退开 |\n| 她触犯了静默律 | 钟响后她仍喊出名字，巡灯同时转向她 |\n| 他是灰阶 | 柜员看到他腕上的灰线，把贷款表收了回去 |\n\n锚点只解释此刻作用，不替读者写完整词典。后续每次设定出现，都让它增加新用途、限制或代价，避免原地重复定义。",
-          "en": "An anchor gives an unfamiliar term an immediate meaning the first time it appears. It may be a plain-language explanation, the result of an action, or half a line of dialogue.\n\n| Term alone | Term with an anchor |\n|---|---|\n| He took out a tide seal | He pressed the tide seal to the ship’s door, and the water in the gap immediately receded |\n| She broke the Law of Silence | She called out a name after the bell, and every patrol lamp turned toward her |\n| He was Gray Rank | The clerk saw the gray line on his wrist and withdrew the loan form |\n\nAn anchor explains only what the term does now; it does not write the whole dictionary for the reader. Each later appearance should add a new use, limit, or cost instead of repeating the same definition."
+          "zh": "锚点让陌生词在第一次出现时拥有当前意义。它可以是一句白话、一个动作结果或半句对话。\n\n| 只有名词 | 有锚点 |\n|---|---|\n| 他拿出潮印 | 他把潮印贴上船门，门缝里的水立刻退开 |\n| 她触犯了静默律 | 钟响后她仍喊出名字，巡灯同时转向她 |\n| 他是灰阶 | 柜员看到他腕上的灰线，把贷款表收了回去 |\n\n锚点只解释此刻作用，不替读者写完整词典。后续在理解需要时提醒旧作用，在剧情确有变化时补新用途、限制或代价；不是每次出现都升级。",
+          "en": "An anchor gives an unfamiliar term an immediate meaning the first time it appears. It may be a plain-language explanation, the result of an action, or half a line of dialogue.\n\n| Term alone | Term with an anchor |\n|---|---|\n| He took out a tide seal | He pressed the tide seal to the ship’s door, and the water in the gap immediately receded |\n| She broke the Law of Silence | She called out a name after the bell, and every patrol lamp turned toward her |\n| He was Gray Rank | The clerk saw the gray line on his wrist and withdrew the loan form |\n\nAn anchor explains only what the term does now; it does not write the whole dictionary for the reader. Later appearances can remind readers of an established use or add a real change; they need not invent a new power, limit or cost each time."
         }
       },
       {
@@ -4091,7 +4105,7 @@
         },
         "body": {
           "zh": "| 隐蔽写法 | 问题 | 修正 |\n|---|---|---|\n| “他想起老师曾说……”后接整页规则 | 回忆暂停现场 | 只保留会改变当前选择的一句 |\n| 两个本地人互问常识 | 对话为读者服务，人物失真 | 让双方因利益不同争论规则怎么用 |\n| 每次动作后总结“这意味着……” | 把读者刚看懂的事再翻译 | 让人物直接处理后果 |\n| 一口气介绍多个专名 | 没有记忆锚点 | 先给当前冲突必需的一个 |\n| 去解释时删成名词清单 | 读者无法判断分量 | 给首次出现的词一个动作或后果 |\n\n如果一段设定删掉后不影响人物眼前决定，可以推迟；如果删掉会让因果断裂，就把它压进最靠近选择的位置。",
-          "en": "| Disguised exposition | Problem | Fix |\n|---|---|---|\n| “He remembered what his teacher once said…” followed by a page of rules | The memory pauses the scene | Keep only the sentence that changes the present choice |\n| Two locals ask each other about common knowledge | The dialogue serves the reader and makes the characters feel false | Let them argue over how the rule should be used because their interests differ |\n| Every action is followed by “This meant…” | The narration retranslates what readers just understood | Have the character deal directly with the consequence |\n| Several proper nouns arrive at once | Readers have no memory anchor | Introduce the one required by the current conflict first |\n| Cutting exposition leaves a list of nouns | Readers cannot judge their significance | Give each term, when first introduced, an action or consequence |\n\nIf removing a piece of worldbuilding does not affect the character’s immediate decision, postpone it. If removing it breaks cause and effect, compress it into the point nearest the choice."
+          "en": "| Form | Issue | Fix |\n|---|---|---|\n| “He remembered what his teacher once said…” followed by a page of rules | The memory pauses the scene | Keep only the sentence that changes the present choice |\n| Two locals ask each other about common knowledge | The dialogue serves the reader and makes the characters feel false | Let them argue over how the rule should be used because their interests differ |\n| Every action is followed by “This meant…” | The narration retranslates what readers just understood | Have the character deal directly with the consequence |\n| Several proper nouns arrive at once | Readers have no memory anchor | Introduce the one required by the current conflict first |\n| Cutting exposition leaves a list of nouns | Readers cannot judge their significance | Give each term, when first introduced, an action or consequence |\n\nIf removing a piece of worldbuilding does not affect the character’s immediate decision, postpone it. If removing it breaks cause and effect, compress it into the point nearest the choice."
         }
       }
     ],
@@ -4120,8 +4134,8 @@
     "skill": {
       "name": "story-long-write",
       "text": {
-        "zh": "在 Claude Code 里说：“用 /story-long-write 检查这段设定交代，保留影响当前选择的锚点，把作者说明改成行动后果、有立场的对话或场内载体；不新增世界观，不改剧情”（Codex 里写作 `$story-long-write`）。",
-        "en": "In Claude Code, say: “Use `/story-long-write` to inspect this worldbuilding passage. Keep the anchors that affect the current choice, and turn authorial explanation into action consequences, dialogue driven by a viewpoint or interest, or information carried by the scene. Do not add lore or change the plot.” In Codex, write `$story-long-write`."
+        "zh": "用 $story-long-write 检查这段设定交代，先锁定既有规则与剧情，保留理解当前选择所需信息；按本书文风选择短说明、行动反馈、对话或场内载体，不为藏解释强造冲突，也不新增世界观。",
+        "en": "Use $story-long-write to review this lore passage. Fix established rules and plot first, then keep what the current choice needs. Use brief explanation, action feedback, dialogue or scene carriers for the book’s voice, without forced conflict or new lore."
       },
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
     },
@@ -4135,10 +4149,24 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "动态设定、交互与叙述取舍",
+          "en": "Dynamic lore, interaction and narrative choices"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-craft.md"
+      },
+      {
+        "label": {
+          "zh": "规则演示、感知与后果",
+          "en": "Rule demonstration, perception and consequences"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
+      },
+      {
+        "label": {
+          "zh": "表达默认值服从本书文风",
+          "en": "Expression defaults follow the book"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ]
   },
@@ -5064,7 +5092,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "世情文怎么写：小恶累积、证据清算",
       "en": "How to Write Social and Family Drama: Let Small Wrongs Build to an Evidence-Based Reckoning"
@@ -5111,8 +5139,8 @@
           "en": "Original Example: The Breakfast Stall’s Unpaid Tab"
         },
         "body": {
-          "zh": "程姨在菜场开早餐铺，妹妹一家每天拿走二十份早餐，口头说月底结账。最初只是忘付一两次，接着妹妹让同事也来记账，母亲则劝程姨：“一家人，算那么清做什么。”\n\n程姨不再当场争吵。她给每份餐贴同一编号，保留配送群记录，还让妹妹签收公司团餐。月底，妹妹反过来说早餐是程姨自愿送的，并要求分走铺面租金。\n\n清算发生在家族聚餐。程姨拿出签收单、原料发票和妹妹用团餐报销的流水，先向公司追回款项，再通知房东续约只写自己名字。帮妹妹说话的亲戚发现自己的名字也被填进虚假签收表，立刻改口。\n\n结尾不写长篇报应。第二天，程姨把“亲友免费”小牌翻过去，背面是新打印的价目表。",
-          "en": "Aunt Cheng runs a breakfast stall at the market. Her younger sister’s family takes twenty breakfasts every day, promising verbally to settle the bill at the end of the month. At first they forget to pay once or twice. Then the sister sends coworkers to add meals to the tab, while their mother tells Aunt Cheng, “We’re family. Why count every little thing?”\n\nAunt Cheng stops arguing on the spot. She gives every meal a matching number, keeps the delivery-group chat records, and has her sister sign for the company’s group orders. At month’s end, the sister claims Aunt Cheng offered the food freely and demands a share in the stall’s lease.\n\nThe reckoning comes at a family dinner. Aunt Cheng presents the signed receipts, ingredient invoices, and reimbursement transactions showing that her sister claimed the group meals as business expenses. She first recovers payment from the company, then tells the landlord that the renewal will bear only her own name. Relatives who defended the sister discover that their names were also entered on false receipts and immediately change sides.\n\nThe ending does not list punishments at length. The next morning, Aunt Cheng turns over the little sign that says “Free for Friends and Family.” On the back is a newly printed price list."
+          "zh": "以下是原创家庭短篇，交易安排是本故事前提。程姨独自经营早餐铺，租约一直只与她订，妹妹没有出资或分成约定。门口写的是“亲友可记账”，每份十元；妹妹在配送群说“先记我的账，月底我结”。\n\n前五天每天五份，后来给同事带餐，后五天每天二十份：共一百二十五份，一千二百五十元。程姨保留逐日领餐和群内确认。母亲仍劝她别计较，妹妹月底却说这些是自愿送的，还要把续租名字加上自己，说带客也算投入。\n\n公司餐费核对人联系程姨时，她如实说明这批账尚未付；对方暂停按“已结清”处理，另查妹妹提交的凭据。公司没有因此自动替妹妹偿还个人欠款，报销去向与责任也未凭本轮直接定罪。\n\n家族聚餐时，程姨对照妹妹自己的确认，报清份数与价款。名单中两位亲戚表示自己没有领餐，拒绝继续为这笔账背书。妹妹当场转来一千二百五十元，程姨确认到账，才写本轮款项收回。\n\n程姨也拒绝把带客等同于未经约定的合伙；房东按既有独租安排与她实际完成续签，而非她一声通知就删掉别人的合同权益。第二天，她把“可记账”翻到背面的现结价目表，妹妹再要餐时先付款。报销核查仍在继续，故事只兑现已发生的付款、续租与新边界。",
+          "en": "This original family story establishes its own trading arrangement. Aunt Cheng runs the breakfast shop alone; the lease has always been hers, with no investment or profit-sharing agreement with her sister. The sign offers relatives credit, not free meals. Portions cost ten yuan. Her sister writes in the delivery group: “Put it on my account; I’ll pay at month end.”\n\nFive portions a day for five days, then twenty a day for five days including colleagues, total 125 portions and 1,250 yuan. Cheng keeps daily receipt confirmations. Their mother asks her not to argue. At month end the sister calls the meals gifts and wants her name added to the renewed lease, counting referrals as investment.\n\nWhen the company’s meal-expense checker contacts Cheng, she states that the bill remains unpaid. The checker pauses treating it as settled and investigates the submitted proof. The company does not automatically pay a personal debt; this does not establish every reimbursement fact or legal responsibility.\n\nAt the family meal, Cheng compares the sister’s confirmations with quantities and price. Two relatives named on the list say they received no meals and stop backing this bill. The sister transfers 1,250 yuan; Cheng confirms receipt before the story calls it recovered.\n\nCheng declines to turn referrals into an unagreed partnership. The landlord actually renews the established sole tenancy with her; she has not erased another tenant’s rights by announcement. Next day the credit sign becomes a pay-now price list, and the sister pays before taking another order. The expense inquiry remains pending; payment, renewal and a new boundary are the completed results."
         }
       },
       {
@@ -5122,8 +5150,8 @@
           "en": "How Do You Write the Cool Restraint of Keeping Accounts?"
         },
         "body": {
-          "zh": "金额和物件要服务清算，来源清楚，前后能对上。主角说话可以平静，重点是把规则与后果说完；帮凶则用“别伤感情”“她也不容易”推动压力。多个声音同场，能显出这套索取怎样被维持。\n\n冷不等于人物毫无情绪。让心寒落在行动：停止垫钱、收回钥匙、改掉紧急联系人。少写连续哭喊，也别让主角只靠骂赢。",
-          "en": "Money and objects should serve the reckoning: their sources are clear, and earlier details match the final account. The protagonist can speak calmly; the point is to finish stating the rule and its consequence. Enablers add pressure with lines such as “don’t damage the relationship” or “she has it hard too.” Several voices in one scene can reveal how the system of extraction is maintained.\n\nRestraint does not mean the character has no emotion. Put the disillusionment into action: stop advancing money, take back a key, or change the emergency contact. Avoid uninterrupted crying and shouting, and do not let the protagonist win through insults alone."
+          "zh": "钱数与物件服务于已经建立的关系：先说谁买、谁承诺付、谁能核对，再写收回或失去什么。上例账本能证明份数和确认，付款还需要实际转账；租约要有既定主体和对方响应，不由主角单方面扩权。\n\n帮凶可以出于面子、依赖或利益劝忍，也可以在某一件事上改变立场。无需让所有亲戚瞬间一起悔悟。主角心寒可以直写，也可以落在停止记账、拒绝新要求等动作；不靠连续骂赢替代结果。",
+          "en": "Amounts and objects serve established relationships: who ordered, promised payment and can verify? A ledger supports quantities and confirmations; recovery still needs actual payment. A lease needs established parties and an enacted response, not expanded protagonist authority.\n\nEnablers may protect face, dependence or interest and change position on one specific matter. They need not all repent at once. Hurt can be stated directly or appear in ending credit and refusing new demands; shouting does not replace results."
         }
       },
       {
@@ -5178,10 +5206,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "日常索取、冷账对白与清算节奏",
+          "en": "Everyday demands, accounting dialogue and reckoning"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/genre-styles/世情打脸.md"
+      },
+      {
+        "label": {
+          "zh": "世情核心冲突与结构",
+          "en": "Social-drama conflict and structure"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/long-genre-catalog.md"
       }
     ]
   },
@@ -7448,7 +7483,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "小说情绪描写怎么写：让感受改变行动",
       "en": "How to Write Emotion in Fiction: Let Feeling Change Action"
@@ -7462,8 +7497,8 @@
       "en": "Ground emotion in a choice, line of dialogue, strategy, or cost before adding an object, physical detail, or direct statement. Avoid performing it twice."
     },
     "answer": {
-      "zh": "小说里的情绪要进入行动链：人物因这份感受改变选择、说法、策略或愿意付出的代价。上下文已经清楚时可以留白；需要落地时，优先写后续选择，再用场内物件、有效身体细节或直接陈述补足。每个情绪节拍选择一个主要载体。",
-      "en": "Emotion belongs in the action chain: because of what a character feels, they change a choice, wording, strategy, or cost they are willing to bear. When context already makes the feeling clear, leave room for it. When it needs grounding, write the resulting choice first, then add a relevant object, consequential physical detail, or direct statement. Give each emotional beat one primary carrier."
+      "zh": "情绪可以由选择、对白、场内物件、身体变化或一句直写承载，也可以让已经成立的上下文自己说话。先问读者此处还缺什么理解；情绪推动剧情时写清它怎样改变人物的行动，不推动时可保留必要的体验和停顿。避免用几种方式重复解释同一种感受。",
+      "en": "Emotion can appear through choice, dialogue, objects, physical change or direct statement—or remain clear from context alone. Ask what understanding is missing. When emotion drives action, show the connection; otherwise retain useful experience or pause. Avoid explaining one feeling several ways."
     },
     "sections": [
       {
@@ -7484,8 +7519,8 @@
           "en": "Answer Four Questions Before Writing the Emotion"
         },
         "body": {
-          "zh": "- 人物此刻想得到什么？\n- 新事件让哪一种可能变好或变坏？\n- 他因此改变哪个可见选择？\n- 这个选择给下一场留下什么后果？\n\n例如角色得知比赛资格被取消，“难过”只是标签。她删掉已经写好的致谢词、转身去找报名原件，或决定替队友保住名额，分别会打开不同剧情。情绪通过行动分流，人物也随之具体。",
-          "en": "- What does the character want right now?\n- Which possibility becomes better or worse after the new event?\n- Which visible choice changes as a result?\n- What consequence does that choice leave for the next scene?\n\nSuppose a character learns that her competition entry has been disqualified. “Sadness” is only a label. Deleting the acceptance speech she already wrote, turning back to find the original application, or deciding to preserve a teammate’s place each opens a different plot. Action gives the emotion a direction and makes the character more specific."
+          "zh": "当这一处情绪要推动行动时，用四问定位：人物想得到什么；新事件使什么可能变好或变坏；他因此改变哪个选择；选择留下什么后续。若本段只是让读者体会余波，不必强造新任务。\n\n例如比赛资格被取消，人物可能去找报名原件，也可能先替队友准备出场衣服；不同选择对应不同关切。若她只是此刻说不出话，场景可以停在这份失落，不再用旁白重复“她很难过”。",
+          "en": "When emotion needs to drive action, ask what the person wants, what the event changes, which choice follows and what it leaves. A passage offering aftermath need not manufacture another task.\n\nAfter losing entry to a competition, a character might retrieve the application or prepare a teammate’s costume. Different choices reveal different concerns. If they cannot speak yet, the passage can pause there without repeating “very sad.”"
         }
       },
       {
@@ -7495,8 +7530,8 @@
           "en": "Original Example: The Canceled Birthday Cake"
         },
         "body": {
-          "zh": "烘焙店学徒许棠熬夜做完一只定制蛋糕，顾客早晨突然取消订单。她的师傅正准备把蛋糕切开做试吃。\n\n若只写“许棠鼻子一酸，眼眶泛红”，读者知道她难过，却不知道这份难过会做什么。\n\n改写时选择“策略”作为载体：\n\n> 许棠没去拿刀。她把写着名字的糖牌揭下来，换成“今天也值得庆祝”，随后把蛋糕搬到隔壁的夜班护士站。回店时，空盒里压着一张临时加单。\n\n她保护劳动成果，也改变了销售办法。情绪、性格和下一步同时落地。若后文只需要停顿，则可以更短：“她舍不得切。”这个例子是为方法设计的虚构场景。",
-          "en": "Bakery apprentice Xu Tang stays up all night to finish a custom cake. The customer cancels the order the next morning, just as her mentor is about to cut the cake into samples.\n\nIf the scene says only that Xu Tang’s nose stings and her eyes fill, readers know she is upset but not what the feeling will make her do.\n\nUse **strategy** as the carrier instead:\n\n> Xu Tang did not take the knife. She lifted off the sugar plaque bearing the customer’s name and replaced it with one that read, “Today is worth celebrating too.” Then she carried the cake to the night-shift nurses next door. When she returned to the bakery, a note for a rush order lay inside the empty cake box.\n\nShe protects the value of her work and changes how she finds a recipient for it. Emotion, character, and the next step arrive together. If the later story needs only a pause, the beat can be shorter: “She couldn’t bear to cut it.” This is a fictional scene designed to demonstrate the method."
+          "zh": "原创场景中，顾客取消一只已做好的生日蛋糕，学徒许棠不愿自己的熬夜只换来一句“切了做试吃吧”。店内已明确由师傅决定产品处置，她不能私自拿走。\n\n只写“她眼眶泛红”能表现感受，却没写此处准备怎样改变办法。\n\n> “先别切成散块，”许棠说，“去掉糖牌，改成试吃盒。隔壁夜班小组上次问过加餐，能给他们带一盒吗？”\n>\n> 师傅答应，她才分装。小组领班尝过后问次日晚班十二份的价格；许棠带回需求，师傅核对备料后确认接单。\n\n她没有保住原定制订单，但获得一个由自己提出的新用途。赠送、询价和接单各有行动，试吃不自动产生购买。情绪若只需停顿，一句“她舍不得切”也成立，不必每次补整条经营线。",
+          "en": "In this original scene, a customer cancels a completed birthday cake. Apprentice Xu Tang does not want her overnight labor dismissed as samples. The established shop arrangement gives her mentor control of product disposition; she cannot take it away herself.\n\n“Her eyes filled” conveys feeling but not the strategy this scene needs.\n\n> “Before we cut random pieces,” Xu said, “could we remove the name plaque and make sample boxes? The night-shift group next door asked about snacks last time. May I take them one?”\n>\n> Her mentor agreed. Xu packed it. After tasting it, the group coordinator asked the price for twelve portions the next night. Xu brought back the request; the mentor checked supplies and accepted the order.\n\nThe old order stays canceled, but her proposal gives the work a new use. Gift, inquiry and accepted order each happen on the page. A sample does not guarantee a sale. If only a pause is needed, “She hated to cut it” can suffice without a business subplot."
         }
       },
       {
@@ -7522,58 +7557,14 @@
         }
       },
       {
-        "id": "recurring-object-in-fiction-choose",
+        "id": "related-techniques",
         "heading": {
-          "zh": "先选能被人物真正使用的物件",
-          "en": "Choose an Object the Characters Will Actually Use"
+          "zh": "按实际问题选择后续方法",
+          "en": "Choose the next method by the problem"
         },
         "body": {
-          "zh": "好用的贯穿物件具有三项条件：人物会自然接触；动作能改变它的位置、状态或归属；它与一段具体关系或生活任务相连。纪念品可以成立，日常工具也可以成立。\n\n| 物件基础 | 后续可发生的动作 | 可承载的关系变化 |\n|---|---|---|\n| 工具 | 借用、教会、收回、修好、转交 | 信任、控制、接班、独立 |\n| 衣物 | 穿上、改尺寸、归还、留下 | 照料、身份、边界 |\n| 票据或卡片 | 保存、使用、作废、重新填写 | 承诺、债务、共同决定 |\n| 日常容器 | 装入、倒空、分给别人、停止使用 | 习惯、家庭分工、告别 |\n\n只因“很有象征感”选一个人物平时不会碰的物件，后续容易靠旁白解释。先让它参与生活，再让意义从动作中长出来。",
-          "en": "A useful recurring object has three qualities: characters naturally encounter it; their actions can change its location, condition, or ownership; and it connects to a specific relationship or practical task. A keepsake can work, and so can an everyday tool.\n\n| Object basis | Possible later actions | Relationship changes it can carry |\n|---|---|---|\n| Tool | Borrow, teach someone to use, reclaim, repair, pass on | Trust, control, succession, independence |\n| Clothing | Wear, resize, return, keep | Care, identity, boundaries |\n| Ticket or card | Save, use, void, fill out again | Promise, debt, joint decision |\n| Everyday container | Fill, empty, share, stop using | Habit, household roles, farewell |\n\nIf you choose an object only because it “feels symbolic,” even though the characters would never handle it, later scenes will depend on narration to explain it. Let the object participate in daily life first, then let meaning grow from action."
-        }
-      },
-      {
-        "id": "recurring-object-in-fiction-arc",
-        "heading": {
-          "zh": "物件意义怎样发生变化",
-          "en": "How an Object’s Meaning Changes"
-        },
-        "body": {
-          "zh": "为每次重要出现写四项：当前谁控制它；人物拿它做什么；这个动作改变了哪段关系；读者现在如何重新理解它。\n\n变化可以来自新用途，也可以来自同一动作换了做法。第一次替别人修好工具是照料，冲突后未经允许再次修理可能变成越界；最后把选择权交还，才可能把“替你做”改成“相信你会做”。意义由人物关系与后果决定，物件本身无需突然藏着秘密。",
-          "en": "For every important appearance, record four things: who currently controls the object, what the character does with it, which relationship that action changes, and how readers now reinterpret it.\n\nMeaning can change through a new use or through a different way of performing the same action. Repairing someone’s tool the first time may be care; repairing it again without permission after a conflict may become a boundary violation. Returning the choice to its owner can turn “I will do this for you” into “I trust you to do it.” Meaning comes from relationships and consequences. The object itself does not need to conceal a sudden secret."
-        }
-      },
-      {
-        "id": "recurring-object-in-fiction-example",
-        "heading": {
-          "zh": "原创范例：绿柄螺丝刀",
-          "en": "Original Example: The Green-Handled Screwdriver"
-        },
-        "body": {
-          "zh": "乔栩跟母亲闻岑经营一家老收音机修理铺。那把绿柄螺丝刀一直放在母亲围裙口袋里。\n\n**第一次**，乔栩独立接到一台校园广播机。闻岑把螺丝刀递给她，却站在工作台旁逐步报拆卸顺序。乔栩完成维修，物件同时意味着认可与仍未松开的控制。\n\n**第二次**，乔栩为听力不好的老人加装更大的旋钮。闻岑认为改动会降低收藏价值，用绿柄螺丝刀把旋钮拆回原样。两人争执的重点不在工具归谁，而在修理到底服务物件还是使用者。螺丝刀从“允许你动手”变成“我有权撤销你的决定”。\n\n**最后一次**，老人带着使用记录回来，证明新旋钮让他重新听完每晚节目。闻岑没有道歉式长谈，只把拆下的旋钮和绿柄螺丝刀放到乔栩工位：“你的单子，你定。”乔栩先把改装理由写进维修卡，再重新装上旋钮。\n\n螺丝刀没有揭示隐藏真相，也不必损坏或丢弃。三次动作改变的是授权方式：带着监督的许可、越界收回、承担记录责任后的决定权。若故事在第二次便结束于分歧，完全可以只出现两次；这里第三次存在，是因为关系确实完成了新的行动。",
-          "en": "Qiao Xu and her mother, Wen Cen, run a repair shop for old radios. The green-handled screwdriver always sits in her mother’s apron pocket.\n\n**First appearance:** Qiao Xu takes an independent job, repairing a school public-address unit. Wen Cen hands her the screwdriver but stands beside the bench and calls out every disassembly step. Qiao Xu completes the repair. The object means both recognition and control that has not yet loosened.\n\n**Second appearance:** Qiao Xu fits a larger tuning knob for an older customer with hearing difficulties. Believing the modification reduces the radio’s collectible value, Wen Cen uses the green-handled screwdriver to remove the knob and restore the original. Their argument is not about who owns the tool; it is about whether repair serves the object or its user. The screwdriver changes from “permission to work” into “my authority to reverse your decision.”\n\n**Final appearance:** The customer returns with a usage log showing that the larger knob let him listen to his evening program again. Wen Cen does not deliver a long apologetic speech. She places the removed knob and green-handled screwdriver at Qiao Xu’s station. “Your work order. Your call.” Qiao Xu records the reason for the modification on the repair card, then reinstalls the knob.\n\nThe screwdriver reveals no hidden truth and need not break or disappear. The three actions change the form of authorization: supervised permission, an overreaching reversal, and decision-making authority paired with responsibility for the record. If the story ended at the disagreement, two appearances could be enough. The third exists here because the relationship completes a genuinely new action."
-        }
-      },
-      {
-        "id": "recurring-object-in-fiction-distinguish",
-        "heading": {
-          "zh": "贯穿物件和伏笔有什么不同",
-          "en": "How a Recurring Object Differs from Foreshadowing"
-        },
-        "body": {
-          "zh": "伏笔先放置一个事实迹象，后文揭示时读者重新理解真相；贯穿物件可以没有秘密，它通过反复进入人物选择而改变情感含义。两者也能重合，但要分清当前职责。\n\n例如螺丝刀柄里藏着一张旧收据，前文露出松动接缝，后面找到收据，这部分是伏笔。母女怎样借用、收回和交还螺丝刀，这部分是关系物件。若每次出现都只强调“它似乎很重要”，既没有眼前用途，也没有后来兑现，物件只剩提示牌。",
-          "en": "Foreshadowing plants a factual sign that readers reinterpret when the truth is revealed later. A recurring object can contain no secret at all; its emotional meaning changes because it repeatedly enters character choices. The two functions can overlap, but distinguish which job it is doing now.\n\nSuppose a loose seam in the screwdriver handle hints at an old receipt hidden inside, and the receipt is later found. That is foreshadowing. The way mother and daughter borrow, reclaim, and return the screwdriver is the object’s relationship function. If every appearance merely insists that the object “seems important,” with neither a present use nor a later payoff, it becomes only a signpost."
-        }
-      },
-      {
-        "id": "recurring-object-in-fiction-repair",
-        "heading": {
-          "zh": "贯穿物件常见失败与修正",
-          "en": "Common Recurring-Object Failures and Fixes"
-        },
-        "body": {
-          "zh": "| 失败 | 修正 |\n|---|---|\n| 每次出现都重复同一段回忆 | 让人物对它采取不同动作 |\n| 只在开头和结尾各提一次 | 在关系真正变化的节点让物件参与选择 |\n| 靠旁白宣布“意义不同了” | 写归属、用法、状态或拒绝发生变化 |\n| 为凑次数安排无作用露面 | 删除；次数跟随完整变化 |\n| 物件突然拥有关键秘密 | 提前建立秘密来源，或保留纯关系功能 |\n| 结尾必须丢掉、烧掉才有力 | 根据人物选择，也可修好、继续使用或转交 |",
-          "en": "| Failure | Fix |\n|---|---|\n| Every appearance repeats the same memory | Let characters take different actions with the object |\n| The object is mentioned only once at the beginning and once at the end | Make it participate in a choice at real relationship turning points |\n| Narration announces that “its meaning had changed” | Change ownership, use, condition, or refusal |\n| Appearances are added to reach a target count | Delete them; let a complete change determine the count |\n| The object suddenly contains a crucial secret | Establish where the secret came from, or keep the object purely relational |\n| The ending must destroy or discard the object to feel powerful | Depending on the choice, it may instead be repaired, kept in use, or passed on |"
+          "zh": "本页处理一处情绪怎样落地。跨多场景让同一物件改变意义，另看[小说信物](/oh-story/recurring-object-in-fiction)；让心理判断通向选择，另看[心理描写](/oh-story/write-interior-monologue)。不用在情绪段里同时套上全部方法。",
+          "en": "This page concerns one emotional passage. A recurring object’s changing meaning and thought leading to choice have separate guides; do not force every technique into the same passage."
         }
       }
     ],
@@ -7594,33 +7585,39 @@
           "en": "Can I show several layers when the emotion is complicated?"
         },
         "a": {
-          "zh": "先找当前场景必须结算的一层，让它决定人物此刻的选择。其余层留给后续行动逐步显露，读者会感到复杂，而非收到一串标签。",
-          "en": "First choose the layer the current scene must resolve and let it determine the character’s immediate choice. Allow other layers to emerge through later actions. Readers will experience complexity rather than receive a list of labels."
+          "zh": "可以让矛盾感受并存，先选本段对理解最重要的一层，再让其他层在迟疑、判断或后续选择里显露。复杂不等于一口气贴满标签，也不要求这一场立刻解决全部感受。",
+          "en": "Contradictory feelings can coexist. Give the layer most important to understanding this passage room, letting others appear through hesitation, judgment or later choices. Complexity need not be a list of labels or resolve every feeling now."
         }
       }
     ],
     "skill": {
       "name": "story-long-write",
       "text": {
-        "zh": "在 Claude Code 里说：“用 /story-long-write 修改这个情绪场景，先判断上下文是否已成立，再让情绪改变人物的选择、对白、策略或代价；每个节拍只选一个主要载体”（Codex 里写作 `$story-long-write`）。",
-        "en": "In Claude Code, say: “Use `/story-long-write` to revise this emotional scene. First decide whether context has already established the feeling, then make the emotion change the character’s choice, dialogue, strategy, or cost. Use only one primary carrier for each beat.” In Codex, use `$story-long-write`."
+        "zh": "用 $story-long-write 修订这个情绪场景，先看上下文是否已清楚；保留必要体验、停顿与本书文风。需要推动剧情时写清选择及实际响应，删同一情绪的重复解释，不强制把每个感受变成任务。",
+        "en": "Use $story-long-write to revise this emotional scene. Check context first, preserving useful experience, pause and voice. Where it drives the plot, show choice and actual response. Remove repeated explanation without turning every feeling into a task."
       },
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
     },
     "related": [
-      "/oh-story/character-motivation",
-      "/oh-story/character-dialogue",
-      "/oh-story/preserve-author-voice",
-      "/oh-story"
+      "/oh-story/recurring-object-in-fiction",
+      "/oh-story/write-interior-monologue",
+      "/oh-story/character-dialogue"
     ],
     "topic": "characters-and-dialogue",
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "情绪落地、删除测试与直接陈述",
+          "en": "Emotion placement, deletion tests and direct statement"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
+      },
+      {
+        "label": {
+          "zh": "表达默认值服从本书文风",
+          "en": "Expression defaults follow the book"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ]
   },
@@ -31323,6 +31320,902 @@
       "/drama-skills/shot-continuity-checklist",
       "/drama-skills/image-to-video-prompts",
       "/drama-skills/ai-short-drama-edit-list-template"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "introduce-a-fiction-character",
+    "topic": "characters-and-dialogue",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "小说人物第一次出场怎么写：特征、目标与选择",
+      "en": "How to Introduce a Fiction Character Readers Remember"
+    },
+    "seo_title": {
+      "zh": "小说人物第一次出场怎么写：特征、目标与选择",
+      "en": "How to Introduce a Fiction Character Readers Remember"
+    },
+    "description": {
+      "zh": "人物登场不必先报设定表。用当前任务、少量可辨认特征和一次有意义的选择，附原创排练场景与出场卡。",
+      "en": "Introduce a character through a task, a memorable detail and a choice. Includes an original rehearsal scene and a compact planning card."
+    },
+    "answer": {
+      "zh": "人物第一次出场先让读者认清“谁在做什么”，再用少量特征建立记忆，用面对眼前压力的选择显出性格。身份、经历和能力按当前需要进入，不必在第一段把设定表倒完；登场也不一定要大事件或惊艳所有人。",
+      "en": "First establish who is doing what, then use a few memorable details and a choice under immediate pressure. Bring in identity, history and ability as needed. An entrance need not recite a character sheet, stage a crisis or impress everyone."
+    },
+    "sections": [
+      {
+        "id": "first-task",
+        "heading": {
+          "zh": "先给人物一个正在做的任务",
+          "en": "Give the character an immediate task"
+        },
+        "body": {
+          "zh": "先定视角：谁第一次看见这个人，认识到什么程度？同事介绍能提供姓名和身份；陌生人只能看见行为，不能凭外貌知道履历或内心。\n\n再选本场任务。领唱要带完一段排练，房客要搬进一个房间，店主在给第一位顾客找零钱。任务给特征一个出现位置：不是“他很细心”，而是他在时间有限时决定先处理哪个问题。\n\n压力可以很小。保留一分钟给新人练习，也能显出优先顺序。若任务无需抉择，可以先给一个清楚动作，等真正有选择时再深化；不要为了立人设硬造冲突。",
+          "en": "Fix the viewpoint and degree of familiarity. An introduction can supply name and role; a stranger sees behavior, not a résumé or private thoughts.\n\nChoose the immediate task: lead a rehearsal, move into a room or serve the first customer. It gives details a place to appear. Rather than “careful,” show what the person prioritizes with limited time.\n\nPressure can be small. Giving a newcomer one minute to practice can reveal priorities. If no choice is needed, establish a clear action and deepen character later instead of forcing conflict."
+        }
+      },
+      {
+        "id": "entrance-card",
+        "heading": {
+          "zh": "出场卡：只填本场需要的内容",
+          "en": "A scene-specific entrance card"
+        },
+        "body": {
+          "zh": "这是作者手写卡，不是 skill 固定交付格式。以新领唱夏禾进入社区乐队为例：\n\n| 项目 | 本场填写 |\n|---|---|\n| 谁认识她 | 团长向鼓手介绍姓名与领唱身份 |\n| 当前任务 | 在十分钟内排完副歌 |\n| 记忆点 | 蓝布琴袋，不再同时堆身高、发色与履历 |\n| 眼前压力 | 新鼓手说自己怕跟不上，整首重练会超时 |\n| 选择与响应 | 夏禾只陪练入拍那一句；鼓手随后按标记进入 |\n| 暂不交代 | 她怎样学琴、为什么换乐队 |\n\n记忆点不必都是外貌，也可以是说话关注点或工具用法。初次出场少写几项，后续在需要时补，别把“有辨识度”变成反复念标签。",
+          "en": "This manual card is not a fixed skill output. For new lead singer Xia He joining a community band:\n\n| Item | This scene |\n|---|---|\n| Known identity | Leader introduces her name and role |\n| Task | Finish the chorus within ten minutes |\n| Memory cue | Blue fabric guitar bag |\n| Pressure | New drummer fears missing the entry; a full restart would overrun |\n| Choice and reply | Practice only the entry phrase; drummer enters on the mark |\n| Withheld history | Training and reason for changing bands |\n\nA memory cue can be appearance, conversational focus or tool use. Introduce a few details, then develop them when needed rather than repeating labels."
+        }
+      },
+      {
+        "id": "worked-example",
+        "heading": {
+          "zh": "原创范例：新领唱进排练室",
+          "en": "Original example: a new singer joins rehearsal"
+        },
+        "body": {
+          "zh": "鼓手周泽是本场视角人物。团长已经说明夏禾来担任领唱，墙上的排练表只剩十分钟。以下为原创文字。\n\n**设定表式开场**：\n\n> 夏禾二十六岁，性格温柔而果断，学琴多年，善于照顾新人，曾在别的乐队担任领唱。\n\n**放进场景**：\n\n> 团长介绍完，夏禾把蓝布琴袋放在周泽旁边。她翻到副歌，问他从哪一拍进。\n>\n> “标记这里。”周泽指了指谱，“我怕又跟不上。”\n>\n> 夏禾看了眼钟：“整首不重来。我们只过入拍那句，好吗？”\n>\n> 周泽点头。她唱了一遍，他在标记处敲下鼓槌。第二遍接进副歌时，她继续唱，没有再停。\n\n读者见到身份、一个特征和一项取舍；新人有自己的顾虑与实际响应。她不是宣布“我善于照顾人”，也没有凭一句话让周泽掌握整首曲子。本场只兑现一次入拍。",
+          "en": "Drummer Zhou Ze is the viewpoint. The leader has introduced Xia as lead singer; ten minutes remain on the rehearsal schedule. This scene is original.\n\n**Character-sheet version:**\n\n> Xia was twenty-six, kind but decisive, an experienced musician who looked after newcomers.\n\n**In the scene:**\n\n> After the introduction, Xia put her blue guitar bag beside Zhou. She turned to the chorus and asked where he entered.\n>\n> “At this mark,” he said. “I’m afraid I’ll miss it again.”\n>\n> She glanced at the clock. “No full restart. Shall we try just that phrase?”\n>\n> He nodded. She sang it once; his stick landed on the mark. On the second pass she carried on into the chorus.\n\nReaders get identity, one detail and a tradeoff. Zhou has a concern and an enacted response. Xia does not announce her kindness or make him master the entire song: this scene pays off one entry."
+        }
+      },
+      {
+        "id": "multiple-entrances",
+        "heading": {
+          "zh": "多人登场时分批给名字与作用",
+          "en": "Stagger names and functions"
+        },
+        "body": {
+          "zh": "同场有六个人，不等于第一段要给六份简历。先跟随正在影响眼前任务的人；其他人可按关系或动作暂称，等参与选择时再给姓名。具体人数按场景需要，不套“有台词者只能几个”的固定上限。\n\n同名、同职业或同一阵营的角色，可以分别用不同任务建立注意点。若读者混淆，先查每人是否真的在做不同的事，再改称呼。指代问题另见[人名与代词](/oh-story/clear-character-names-and-pronouns)，配角的长期功能另见[配角设计](/oh-story/write-a-memorable-supporting-character)。",
+          "en": "Six people in a room do not require six biographies in the opening paragraph. Follow those affecting the immediate task; identify others by relationship or action until their participation needs a name. Use the scene’s needs rather than a fixed speaker limit.\n\nSeparate similar roles by their tasks. If readers confuse them, check their actions before changing names. Names and pronouns, and a supporting character’s long-term function, have separate guides."
+        }
+      },
+      {
+        "id": "repair",
+        "heading": {
+          "zh": "人物出场常见失败与修正",
+          "en": "Common entrance failures"
+        },
+        "body": {
+          "zh": "| 失败 | 修正 |\n|---|---|\n| 姓名与履历连续堆满 | 只留当前辨认和行动所需信息 |\n| 所有人都夸新角色 | 让不同人按自己的任务响应 |\n| 一个动作证明全部性格 | 先建立局部印象，后续再检验 |\n| 陌生视角知道全部过去 | 改成已听介绍、直接观察或保留未知 |\n| 为显厉害强造大危机 | 用本场本来存在的压力给一次选择 |\n\n初次印象可以被后文修正。反差另见[人物反差](/oh-story/write-character-contrast)；登场本身不必立刻揭出全部秘密。",
+          "en": "| Failure | Fix |\n|---|---|\n| Name followed by a résumé | Keep identity and action needed now |\n| Everyone praises the newcomer | Give observers their own concerns |\n| One act proves the whole personality | Establish a local impression, test it later |\n| A stranger knows private history | Use an introduction, observation or unknown |\n| A forced crisis makes them impressive | Use pressure already in the scene |\n\nLater scenes can revise first impressions. An entrance need not expose every secret."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "人物第一次出场一定要写外貌吗？",
+          "en": "Must a first appearance describe looks?"
+        },
+        "a": {
+          "zh": "不一定。一个清楚的任务、称呼或有辨识度的选择也能建立记忆。外貌有用时先取少量可见特征，不用把完整设定表搬进正文。",
+          "en": "No. A task, form of address or distinctive choice can establish memory. Use a few visible features when they help, without copying the full character sheet."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 为这个人物试写首次出场。先确认视角、当前任务、已知身份与场景结果，用少量特征和一次有意义的选择建立印象；不补陌生视角不知道的履历，不强造危机。说明哪些信息暂留后文。",
+        "en": "Use $story-long-write for this first appearance. Confirm viewpoint, task, known identity and scene outcome. Use a few details and a meaningful choice without inventing private history or a crisis. Explain what stays for later."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "出场记忆点与选择立人设",
+          "en": "Memory cues and character through choice"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-basics.md"
+      },
+      {
+        "label": {
+          "zh": "文风优先与事实边界",
+          "en": "Style priority and factual boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      }
+    ],
+    "related": [
+      "/oh-story/write-a-memorable-supporting-character",
+      "/oh-story/write-character-contrast",
+      "/oh-story/clear-character-names-and-pronouns"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "describe-character-appearance",
+    "topic": "characters-and-dialogue",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "小说人物外貌怎么写：少量特征，跟着视角进入",
+      "en": "How to Describe Character Appearance in Fiction"
+    },
+    "seo_title": {
+      "zh": "小说人物外貌怎么写：少量特征，跟着视角进入",
+      "en": "How to Describe Character Appearance in Fiction"
+    },
+    "description": {
+      "zh": "人物外貌描写怎样避免眼睛、头发和身材清单？按视角与当下注意选择特征，附改衣师原创场景及删改对照。",
+      "en": "Choose visible traits through viewpoint and attention rather than listing features. Includes an original scene and before-and-after descriptions."
+    },
+    "answer": {
+      "zh": "人物外貌先选当前视角会注意到的少量特征，让它们进入站位、任务或交流。设定卡可以写全，正文按需要分次给。外表能建立印象和记忆，却不能单凭穿着、伤痕或五官证明性格、贫富和过去。",
+      "en": "Choose the few visible traits this viewpoint would notice, and place them in action or interaction. A character sheet can be complete while prose reveals details gradually. Looks create impressions and memory; clothing, scars and features do not by themselves prove personality, wealth or history."
+    },
+    "sections": [
+      {
+        "id": "select",
+        "heading": {
+          "zh": "从“谁在看”决定写什么",
+          "en": "Choose through the observer"
+        },
+        "body": {
+          "zh": "先问看的人认识对方吗、此刻在等什么、距离是否足以看清。第一次见改衣师的顾客可能注意围裙和量尺；远处只见轮廓的人不能同时看清瞳色与细小疤痕。亲近的人可以注意今天的变化，不必重复读者已知的身高与发色。\n\nOh Story 的人物卡用外貌关键词帮助记忆；那是设计时的候选，不是每次出场照抄的正文。挑能建立本次印象的特征，其余留在设定或后续。",
+          "en": "Ask whether the observer knows the person, what they are waiting for and how much they can see. A customer meeting an alterations specialist may notice apron and tape measure; a distant silhouette cannot also disclose eye color and tiny scars. A familiar observer may notice today’s change rather than repeat established features.\n\nOh Story’s character card uses appearance keywords as memory aids. They are design candidates, not a passage to paste into every entrance."
+        }
+      },
+      {
+        "id": "worksheet",
+        "heading": {
+          "zh": "外貌记录：可见事实与主观印象分开",
+          "en": "Separate visible facts from impressions"
+        },
+        "body": {
+          "zh": "| 项目 | 改衣店场景填写 |\n|---|---|\n| 视角与关系 | 许湄第一次见店员介绍的林柯 |\n| 当前关注 | 裙摆太长，想赶上周末演出 |\n| 可见特征 | 黑围裙边有白粉痕，眼镜架在头顶 |\n| 怎么进入动作 | 林柯俯身看裙摆，才放下眼镜 |\n| 不可直接推出 | 粉痕不证明家境，眼镜不证明严厉 |\n\n这是手写取材表。一个特征有时只承担气氛或记忆，无需强加伏笔；关键是别把观察变成无依据的定性。",
+          "en": "| Item | Alterations scene |\n|---|---|\n| Viewpoint | Xu Mei first meets Lin Ke after an introduction |\n| Concern | Hem too long for weekend performance |\n| Visible traits | White marks on black apron; glasses on head |\n| Action | Lin lowers glasses to inspect the hem |\n| Not established | Marks do not prove poverty; glasses do not prove severity |\n\nThis is a manual selection sheet. A trait can serve atmosphere or memory without becoming a clue. Keep observation distinct from unsupported judgment."
+        }
+      },
+      {
+        "id": "worked-example",
+        "heading": {
+          "zh": "原创对照：把清单放回交流",
+          "en": "Original comparison: description inside interaction"
+        },
+        "body": {
+          "zh": "许湄来改演出裙，店员已介绍林柯的名字和工作。下面两版取同一组可见特征。\n\n**清单版**：\n\n> 林柯头发短，戴细框眼镜，穿黑围裙，围裙边有白粉痕。她看起来精明能干。\n\n**场景版**：\n\n> 林柯把架在头顶的细框眼镜放下来，俯身看许湄的裙摆。黑围裙边的两道白粉痕随着她蹲下折了进去。\n>\n> “周末穿？”她问。\n>\n> 许湄点头。林柯拿起量尺：“先看看你打算配哪双鞋。”\n\n外貌跟随动作出现，话题仍是当前任务。取掉“精明能干”，读者仍可形成自己的印象；这几句还没有证明修改已完成、周末一定能交衣。若后文需要发型，等它进入注意范围再补。",
+          "en": "Xu has come to alter a performance dress; a staff member has introduced Lin’s name and role. Both versions use the same visible features.\n\n**List:**\n\n> Lin had short hair, fine-framed glasses and a black apron with white marks. She looked capable.\n\n**Scene:**\n\n> Lin lowered the fine-framed glasses from her head and bent to inspect Xu’s hem. Two white marks at the edge of her black apron folded out of view as she crouched.\n>\n> “For the weekend?”\n>\n> Xu nodded. Lin picked up the tape. “Let’s see which shoes you’ll wear.”\n\nAppearance enters through action; the conversation stays on the task. Readers can form an impression without “capable.” Neither passage proves a finished alteration or promised delivery. Add the haircut later if attention needs it."
+        }
+      },
+      {
+        "id": "beauty-and-repetition",
+        "heading": {
+          "zh": "漂亮、特殊与重复出场怎么处理",
+          "en": "Beauty, distinctive traits and reappearances"
+        },
+        "body": {
+          "zh": "可以直接写“漂亮”，尤其当叙述声音如此说话。需要具体画面时，再选观察者真正注意的一两项；不用把鼻梁、睫毛、嘴唇逐项赞美，也不靠“所有人都看呆”证明美。\n\n重逢写新变化或新的注意：第一次见围裙上的粉痕，后来注意她为正式演出换了外套。别每次重复同一段外貌；稳定特征在有辨认需求时提醒即可。伤痕、衣着和身体差异不自动说明善恶或能力，过去若重要要另有建立。",
+          "en": "“Beautiful” can be a valid direct judgment in this narrative voice. Add one or two noticed features when a concrete image helps, rather than praising every facial part or making everyone stare.\n\nAt a reappearance, show change or changed attention: the observer who noticed an apron before may now notice formal clothing. Remind readers of stable traits when recognition needs them. Scars, clothing and bodily differences do not establish morality or ability; relevant history needs separate setup."
+        }
+      },
+      {
+        "id": "repair",
+        "heading": {
+          "zh": "外貌描写自查",
+          "en": "Appearance revision checks"
+        },
+        "body": {
+          "zh": "| 问题 | 改法 |\n|---|---|\n| 像证件资料 | 把当前未被注意的字段移回设定 |\n| 距离与细节不相容 | 只写此处可见程度 |\n| 每次登场复制同一段 | 留辨认所需的一项，补实际变化 |\n| 用五官给性格判词 | 区分视角偏见与故事事实 |\n| 所有好看的人都一样 | 换观察重点与表达声音，不堆新形容词 |\n\n若问题是整个第一次登场的信息过载，另看[人物登场](/oh-story/introduce-a-fiction-character)。",
+          "en": "| Problem | Revision |\n|---|---|\n| Reads like an ID form | Move unnoticed fields back to the sheet |\n| Detail exceeds viewing distance | Keep what can be seen here |\n| Same paragraph at every entrance | Keep a recognition cue and actual change |\n| Features become a personality verdict | Separate viewpoint bias from fact |\n| All attractive characters look alike | Change attention and voice, not adjective count |\n\nFor the whole first-appearance sequence, use the character-introduction guide."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "外貌描写要写几个特征？",
+          "en": "How many appearance traits should I describe?"
+        },
+        "a": {
+          "zh": "没有统一数量。人物卡可以准备几个关键词，正文只取当前视角注意到、对这次印象有用的内容。远近、熟悉程度和文风比数量更重要。",
+          "en": "There is no universal count. Prepare candidate keywords in the sheet, then use what this viewpoint notices and this impression needs. Distance, familiarity and voice matter more than quantity."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 改这段外貌描写。按已有视角、距离和当前任务选可见特征，保留人物事实，删重复清单与无依据的性格判断。不要改人物长相或用新经历解释原描写。",
+        "en": "Use $story-long-write to revise this appearance passage. Select visible traits for the established viewpoint, distance and task. Preserve appearance facts; remove repeated lists and unsupported verdicts without inventing history."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "人物卡的外貌记忆点",
+          "en": "Appearance memory cues in character cards"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-basics.md"
+      },
+      {
+        "label": {
+          "zh": "动态细节与视角取材",
+          "en": "Dynamic detail and viewpoint selection"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-craft.md"
+      },
+      {
+        "label": {
+          "zh": "文风优先与事实边界",
+          "en": "Style priority and factual boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      }
+    ],
+    "related": [
+      "/oh-story/introduce-a-fiction-character",
+      "/oh-story/write-character-contrast",
+      "/oh-story/narrative-point-of-view"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "write-interior-monologue",
+    "topic": "characters-and-dialogue",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "小说心理描写怎么写：把判断写进眼前选择",
+      "en": "How to Write Interior Monologue That Changes a Choice"
+    },
+    "seo_title": {
+      "zh": "小说心理描写怎么写：把判断写进眼前选择",
+      "en": "How to Write Interior Monologue That Changes a Choice"
+    },
+    "description": {
+      "zh": "心理描写不只是情绪标签。把观察、猜测、记忆和决定分开，附临时取消约会的原创两版及知识边界检查。",
+      "en": "Separate observations, guesses, memories and decisions in interior monologue. Includes an original cancellation scene and knowledge checks."
+    },
+    "answer": {
+      "zh": "心理描写要让读者跟随人物怎样理解眼前事情、比较选项并决定下一步。需要慢想时可以展开，需要快走时用半句判断或略过。人物的猜测可以错，但不能在限知视角里把他不知道的他人动机写成事实；已有行动也不必再由内心解释一遍。",
+      "en": "Interior monologue lets readers follow interpretation, alternatives and choice. Expand deliberation when needed; compress it to a phrase or omit it when action is clear. A character can guess wrongly, but limited viewpoint cannot turn unknown motives into facts or explain an already clear action again."
+    },
+    "sections": [
+      {
+        "id": "thought-versus-emotion",
+        "heading": {
+          "zh": "心理描写和情绪描写各解决什么",
+          "en": "Thought and emotion have different jobs"
+        },
+        "body": {
+          "zh": "“她失望”说明感受；“这是拒绝，还是临时有事？要不要问？”说明判断与选项。两者可以同段出现，不必每次都齐全。\n\n先问此处需要让读者理解什么：误判的依据、犹豫的原因、记忆怎样改变当下，还是一项尚未说出口的决定？若读者已经从对白与行动看懂，就无需完整复述。感受怎样落地另见[情绪描写](/oh-story/emotion-on-the-page)，本页侧重思考过程。",
+          "en": "“She was disappointed” conveys feeling. “Was this a refusal or a change of plans? Should she ask?” conveys interpretation and options. Both can share a passage, but neither is mandatory.\n\nWhat needs explanation here: the basis of a wrong guess, hesitation, memory affecting the present, or an unspoken decision? If dialogue and action make it clear, do not repeat it. This guide concerns thought; emotion has its own guide."
+        }
+      },
+      {
+        "id": "knowledge-card",
+        "heading": {
+          "zh": "心理段先分清四种信息",
+          "en": "Sort four kinds of information"
+        },
+        "body": {
+          "zh": "朋友发来“今晚不来了”。以等候的沈意为视角，手写记录可以是：\n\n| 类别 | 此处内容 |\n|---|---|\n| 已见事实 | 收到取消消息，没有说明原因 |\n| 自己记得 | 上周朋友说临时加班；本周原因仍未知 |\n| 主观猜测 | 是忙，还是不想见自己？ |\n| 可选行动 | 追问、暂不问、说明自己的安排 |\n\n“她又在躲我”可以是沈意的猜测，语境要让读者知道这不是全知宣布。不要临时补“她早已知道朋友在加班”来修知识越界；让消息、回忆或实际观察按正文顺序进入。",
+          "en": "A friend texts “I can’t come tonight.” For waiting Shen Yi, a manual note can separate:\n\n| Kind | This passage |\n|---|---|\n| Observed | Cancellation received, no reason given |\n| Remembered | Friend mentioned overtime last week; today unknown |\n| Guessed | Busy, or avoiding me? |\n| Available action | Ask, wait or state her own plans |\n\n“She’s avoiding me again” can be a biased thought if context marks it as such. Do not repair overreach by inventing prior knowledge of today’s overtime. Let evidence enter in story order."
+        }
+      },
+      {
+        "id": "worked-example",
+        "heading": {
+          "zh": "原创对照：让念头通向一个行动",
+          "en": "Original comparison: thought leading to action"
+        },
+        "body": {
+          "zh": "沈意在家准备了两人的晚饭。朋友只发来取消消息；上周加班的事曾在前文建立。\n\n**解释过满**：\n\n> 沈意很失望，觉得朋友不重视她。她想起上周朋友加班，但认定今天也是借口。她知道朋友不愿和她吃饭，于是决定不问了。\n\n最后一个“知道”越过证据，前几句也替读者把感受说了数遍。\n\n**保留判断过程**：\n\n> 今晚也加班？上周她说是在办公室加班，可这回只有“不来了”。沈意看着已经摆好的第二只碗，想把“你到底什么意思”发过去，又改成：“我先吃了。你有空时再说。”\n>\n> 对方回：“临时加班，对不起，位置不用给我留。”沈意把第二只碗收回橱柜。\n\n她从有限信息作猜测，选择没有逼对方立刻解释的回复。后面的消息带来对方说出的理由；这段仍未证明全部隐情，却足以支持收起碗。本例不是“正确沟通”的万能示范，重点是念头怎样接到本人的选择。",
+          "en": "Shen has prepared dinner for two. The cancellation gives no reason; last week’s overtime is established earlier.\n\n**Overexplained:**\n\n> Shen was disappointed and felt unimportant. She remembered last week’s overtime but decided today was another excuse. She knew her friend did not want dinner with her and chose not to ask.\n\n“Knew” exceeds the evidence; the opening also explains the feeling repeatedly.\n\n**Follow the judgment:**\n\n> Overtime again? Last week she had said she was working late at the office. This time there was only “I can’t come.” Shen looked at the second bowl, started to type “What do you mean?” and changed it to “I’ll eat now. Tell me when you have time.”\n>\n> “Last-minute overtime, sorry. Don’t keep a place for me,” came the reply. Shen put the second bowl away.\n\nShe guesses from limited evidence and chooses a reply. The later text supplies a stated reason, not proof of every hidden fact, but supports putting away the bowl. This is a thought-to-choice example, not a universal communication prescription."
+        }
+      },
+      {
+        "id": "length-and-voice",
+        "heading": {
+          "zh": "内心独白写多长，怎样融入文风",
+          "en": "Length and narrative voice"
+        },
+        "body": {
+          "zh": "追逐或即时决断可以只留影响下一步的判断；复杂取舍、推理或强内省文风，可以给完整思考链。长度看这段是否新增条件、比较或转向，不看固定行数。\n\n念头可以用第一人称原话、贴近人物的第三人称，或叙述者转述。先选本书既有表达，不临时混用字体、引号和人称让读者失去说话者。Oh Story 的深度限知半句念头是默认写法之一，本书明确需要长独白时按文风调整；事实与透露范围仍保留。",
+          "en": "A chase or instant decision may need only the thought changing the next move. A complex dilemma, inference or introspective voice can sustain a full chain. Judge new conditions, comparisons and turns rather than a fixed line count.\n\nUse direct first-person thought, close third person or narrative summary according to the book. Avoid unexplained shifts in typography and person. Oh Story’s brief close-viewpoint thought is one default; an established long-monologue voice can override it while retaining facts and reveal boundaries."
+        }
+      },
+      {
+        "id": "repair",
+        "heading": {
+          "zh": "心理描写冗长或越界怎么改",
+          "en": "Repair repetition and overreach"
+        },
+        "body": {
+          "zh": "| 问题 | 修正 |\n|---|---|\n| 思考反复得出同一结论 | 留一个最有分量的判断，接下一步 |\n| 无依据读出别人真实动机 | 标为猜测，或补已有可用证据 |\n| 每个动作后都解释为何 | 只保留会改变理解的原因 |\n| 推理像作者讲解题目 | 保留人物的有限信息、偏好与盲点 |\n| 怕直写而全改成身体反应 | 需要判断就写判断，不换成无效微动作 |\n\n改前后核对：同一组事实是否仍成立，人物为什么选这一步是否更清楚。不要为了省字把关键推理台阶删掉。",
+          "en": "| Problem | Revision |\n|---|---|\n| Thought repeats one conclusion | Keep the strongest judgment and next move |\n| Reads another person’s motive without evidence | Mark a guess or use established evidence |\n| Every act gets an explanation | Keep reasons changing understanding |\n| Reasoning sounds like an answer key | Retain limited knowledge, preferences and blind spots |\n| Direct thought replaced with bodily gestures | Write the needed judgment, not empty motion |\n\nCompare the facts and reasons before and after. Brevity should not remove necessary inference steps."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "心理描写一定要变成动作吗？",
+          "en": "Must every thought become an action?"
+        },
+        "a": {
+          "zh": "不用。判断、记忆或犹豫本身可以承担理解和情绪作用。只是当一段反复解释相同感受、又不增加认知时，需要删重；如果它决定行动，应把连接写清。",
+          "en": "No. Judgment, memory and hesitation can serve understanding or feeling. Remove repeated explanations that add nothing; show the connection when thought determines action."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 审读这段心理描写。分别标事实、记忆、猜测与选择；保留必要推理和本书内省文风，删重复解释。不能把别人的未知动机写成主角已知，也不新增经历来弥补越界。",
+        "en": "Use $story-long-write to review this interior passage. Separate fact, memory, guess and choice. Preserve necessary inference and voice; remove repetition without turning unknown motives into knowledge or inventing experiences."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "深度限知与念头融入动作",
+          "en": "Close viewpoint and thought within action"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
+      },
+      {
+        "label": {
+          "zh": "画面、思想与叙述的分工",
+          "en": "Image, thought and narrative functions"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-craft.md"
+      },
+      {
+        "label": {
+          "zh": "文风优先与事实边界",
+          "en": "Style priority and factual boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      }
+    ],
+    "related": [
+      "/oh-story/emotion-on-the-page",
+      "/oh-story/narrative-point-of-view",
+      "/oh-story/write-a-smart-character"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "use-sensory-details-in-fiction",
+    "topic": "revision",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "小说感官描写怎么写：让人物的注意带着细节走",
+      "en": "Sensory Details in Fiction: Attention Before Quantity"
+    },
+    "seo_title": {
+      "zh": "小说感官描写怎么写：让人物的注意带着细节走",
+      "en": "Sensory Details in Fiction: Attention Before Quantity"
+    },
+    "description": {
+      "zh": "感官描写不必把五感写满。按人物任务、可感知条件和段落作用选细节，附后台候场的原创改写与取舍表。",
+      "en": "Choose sensory detail through task, perceptual access and purpose. An original backstage revision shows when to use one sense or omit decoration."
+    },
+    "answer": {
+      "zh": "感官描写先问人物正在注意什么、这个细节让读者感到或理解什么，再选择声音、触感、气味、味道与视觉。可以只用一种感官，也可以织进连续行动；不为“五感齐全”添加本场无用的信息，更不能把闻到、听到的线索直接写成已证实的原因。",
+      "en": "Ask what the character attends to and what the detail contributes to understanding or experience. Choose sound, touch, smell, taste or sight as needed. One sense can be enough. Do not fill a five-sense quota or treat a sensory clue as a confirmed cause."
+    },
+    "sections": [
+      {
+        "id": "select",
+        "heading": {
+          "zh": "感官选择先看任务与可感知条件",
+          "en": "Choose by task and perceptual access"
+        },
+        "body": {
+          "zh": "紧张的候场者可能听台词，饥饿的人更注意食物，熟悉的房间也可能因气味改变而被重新看见。这是人物的注意，不是作者给每段配一组感官。\n\n先定位置、距离、遮挡与已有经验。隔帘能听见声音，不一定能看见动作；熟悉的声线可产生猜测，身份仍需其他依据。感官也可只承担气氛与记忆，不必每一处都触发大转折。\n\n环境如何参与任务另见[环境描写](/oh-story/environment-description)；本页聚焦选哪一种感知、怎样放进文字。",
+          "en": "A waiting performer may attend to a line; a hungry person to food; a familiar room may feel altered by its smell. This is character attention, not a sensory set assigned to each paragraph.\n\nFix position, distance, barriers and experience. Hearing through a curtain does not reveal the action beyond it. A familiar voice can prompt a guess, with identity requiring other support. Detail may serve atmosphere or memory without triggering a major turn.\n\nEnvironment interacting with a task has a separate guide; this page concerns selection and placement of perception."
+        }
+      },
+      {
+        "id": "detail-card",
+        "heading": {
+          "zh": "取舍表：一处细节承担什么",
+          "en": "A sensory selection sheet"
+        },
+        "body": {
+          "zh": "原创场景：简声在小剧场候场，已经排练过，指定台词才是她的入场信号。\n\n| 候选 | 本场作用 | 取舍 |\n|---|---|---|\n| 帘外灯光明灭 | 她看不清舞台，不能用灯判定入场 | 简写遮挡 |\n| 舞台上指定台词 | 她确认轮到自己 | 详写听清的那句 |\n| 衣摆潮冷 | 雨后候场的身体体验 | 点到即可 |\n| 远处甜香 | 与此处注意和气氛无关 | 省略 |\n\n同一种声音也能有多个作用，但不要用五种方式重复“她很紧张”。要增细节时先看缺的是判断台阶还是气氛，而非感官种类。",
+          "en": "Original scene: Jian Sheng waits backstage after rehearsal. A specified spoken line is her entrance cue.\n\n| Candidate | Role | Choice |\n|---|---|---|\n| Changing light beyond curtain | Cannot show the stage clearly | Brief barrier detail |\n| Rehearsed line on stage | Confirms her entrance | Make it audible |\n| Cold, damp hem | Rainy waiting experience | Brief texture |\n| Distant sweetness | Adds nothing here | Omit |\n\nOne sound can serve several purposes. Do not repeat “nervous” through five senses. Diagnose missing inference or atmosphere before adding detail."
+        }
+      },
+      {
+        "id": "worked-example",
+        "heading": {
+          "zh": "原创对照：不用凑满五种感觉",
+          "en": "Original comparison: no five-sense quota"
+        },
+        "body": {
+          "zh": "**堆叠版**：\n\n> 灯很亮，空气有木头的气味，裙摆很冷，远处有人咳嗽，嘴里像有苦味。简声非常紧张。\n\n**选择后的版本**：\n\n> 潮冷的裙摆贴着简声的小腿。她隔着帘缝看见一道光移过去，仍没动；排练时说好，要等那句台词。\n>\n> “你终于来了。”声音从台上传来。\n>\n> 简声掀开帘子，走进亮处。\n\n这里触感留下候场体验，声音完成入场判断；光只说明她能看到的范围。没有补香味和味道，也没说闻到木头便知道台上发生什么。台词与入场约定提前建立，行动没有靠一声不明响动跳到正确结论。",
+          "en": "**Stacked:**\n\n> The lights were bright. Wood scented the air. Her hem was cold. Someone coughed; her mouth tasted bitter. Jian was very nervous.\n\n**Selected:**\n\n> The cold, damp hem touched Jian’s calf. A strip of light moved beyond the curtain gap. She stayed where she was; rehearsal had fixed the spoken cue.\n>\n> “At last, you’re here,” came the voice from the stage.\n>\n> She lifted the curtain and stepped into the light.\n\nTouch carries the waiting experience; sound supports the entrance decision. Light establishes what she can see. Smell and taste add nothing. The cue was established before the action rather than inferred from an unexplained noise."
+        }
+      },
+      {
+        "id": "precision",
+        "heading": {
+          "zh": "让名词和动词承担感觉",
+          "en": "Use precise nouns and verbs"
+        },
+        "body": {
+          "zh": "“很响”“很香”“很冷”可以直接用；需要更清楚的画面时，再写声音来自哪里、触感落在哪里、它怎样与正在做的事相遇。不是越复杂越好，人物此刻也不一定有条件分辨味道的层次。\n\n推断与感知分开：闻到焦味是观察，判断哪件东西烧了还需看见或查问；看见潮湿不证明谁刚来过。涉及专业判断时，不让人物凭一种感官突然获得未建立的技能。",
+          "en": "“Loud,” “sweet” and “cold” can be enough. When precision helps, name the source, contact point or relation to the ongoing action. Complexity is not a goal; the character may lack time or experience to distinguish layers.\n\nSeparate perception from inference. A burning smell is observed; what burned needs sight or inquiry. Dampness does not prove who visited. A sense should not grant an unestablished professional skill."
+        }
+      },
+      {
+        "id": "repair",
+        "heading": {
+          "zh": "感官描写常见修订",
+          "en": "Common sensory revisions"
+        },
+        "body": {
+          "zh": "| 问题 | 修改 |\n|---|---|\n| 每段固定写五感 | 留本场注意到且有作用的几处 |\n| 声音、气味都重复同一情绪 | 留最有分量的一处 |\n| 感觉只在动作后补标签 | 放入观察、判断或体验发生的位置 |\n| 一闻一听就知道完整真相 | 加验证，或保留为猜测 |\n| 为精简把气氛也删净 | 保留确实影响阅读体验的细节 |\n\n朗读改后段落，看感觉是否与行动连在一起。不要把“发生、感知、反应”拆成三段，把同一瞬间写三遍。",
+          "en": "| Problem | Revision |\n|---|---|\n| Five senses in every paragraph | Keep relevant attention and purpose |\n| Several senses repeat one emotion | Keep the strongest detail |\n| Detail labels an action afterward | Place it where perception occurs |\n| One smell proves the whole truth | Verify or retain a guess |\n| Compression removes all atmosphere | Keep detail affecting the reading experience |\n\nRead aloud for continuity. Event, perception and response need not become three paragraphs repeating one instant."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "感官描写至少要写几种感觉？",
+          "en": "How many senses must a passage use?"
+        },
+        "a": {
+          "zh": "没有最低数量。按当前人物的注意、场景条件与段落作用选择。一种声音足以完成入场判断；需要气氛或身体体验时再补有效细节。",
+          "en": "There is no minimum. Choose by attention, access and purpose. One sound can support an entrance decision; add useful atmosphere or texture when needed."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 修改这段感官描写，先确认视角、位置、任务与已有经验，选真正影响理解或体验的细节，保持事实和行动顺序。不按五感凑数，不把线索改成确定结论，不堆同一瞬间的反应。",
+        "en": "Use $story-long-write to revise sensory detail. Confirm viewpoint, position, task and experience. Keep details affecting understanding or experience while preserving facts and order. Do not fill a sensory quota, turn clues into certainty or stack reactions."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "按需感知、连续场景与疏密",
+          "en": "Relevant perception, scene continuity and density"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
+      },
+      {
+        "label": {
+          "zh": "五感、动态描写与文风默认值",
+          "en": "Senses, dynamic description and style defaults"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-craft.md"
+      },
+      {
+        "label": {
+          "zh": "文风优先与事实边界",
+          "en": "Style priority and factual boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      }
+    ],
+    "related": [
+      "/oh-story/environment-description",
+      "/oh-story/emotion-on-the-page",
+      "/oh-story/show-vs-tell-fiction"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "vary-sentence-length-in-fiction",
+    "topic": "revision",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "小说句子长短怎么安排：连贯推进，关键处停顿",
+      "en": "Sentence Length in Fiction: Flow, Pauses and Emphasis"
+    },
+    "seo_title": {
+      "zh": "小说句子长短怎么安排：连贯推进，关键处停顿",
+      "en": "Sentence Length in Fiction: Flow, Pauses and Emphasis"
+    },
+    "description": {
+      "zh": "长短句怎样影响小说读感？先保住动作与因果，再按强调和停顿调整。附断弦场景的同事实三版与朗读检查。",
+      "en": "Vary sentence length for continuity, emphasis and pause while preserving facts. Compare three original versions of a string breaking on stage."
+    },
+    "answer": {
+      "zh": "长短句先服从这段正在交付的信息和情绪：连贯动作可以在句内接起来，新事实或关键选择可以单独停顿。长句不一定慢，短句不一定紧张；不用每句交替长短，也不靠删掉主语、因果和中间动作制造速度。",
+      "en": "Let length serve information and feeling. Connect continuing actions within a sentence; pause on a new fact or important choice. Long need not mean slow, short need not mean tense. Avoid mechanical alternation or speed created by deleting subjects, causes and steps."
+    },
+    "sections": [
+      {
+        "id": "sentence-jobs",
+        "heading": {
+          "zh": "先分句子的任务，不先数长度",
+          "en": "Identify sentence jobs before counting"
+        },
+        "body": {
+          "zh": "一句在讲同一动作过程时，用合适连接说明先后、因果或转向；信息过载或注意对象改变时，分句能帮助读者跟上。关键一句需要被注意时，可以给它独立位置，不必扩大成最长一段。\n\nOh Story 的正文方法强调句子连续和疏密起伏；具体长短、标点与停顿按本书文风调整。中文连接词和英文从句结构不同，不把一种语言的字符阈值直接套给另一种。",
+          "en": "Connect a continuing action with the right sequence, cause or turn. Split when information overload or changed attention makes following difficult. Give a crucial fact its own position rather than the longest paragraph.\n\nOh Story emphasizes continuity and varied density. Length, punctuation and pause follow the book’s voice. Chinese connectors and English clauses differ; a character-count threshold does not transfer directly."
+        }
+      },
+      {
+        "id": "same-facts",
+        "heading": {
+          "zh": "同一事实，比较三种读感",
+          "en": "Compare three rhythms with the same facts"
+        },
+        "body": {
+          "zh": "原创事实：青禾在演出中断了一根琴弦；她停拨，看向鼓手；鼓手仍按原拍敲鼓边；她接着唱完副歌，台下鼓掌。比较节奏时不额外发明事故、救场者或新结果。\n\n**句句同重**：\n\n> 琴弦断了。青禾停拨。她看向鼓手。鼓手敲鼓边。原来的拍子还在。青禾继续唱。她唱完副歌。台下响起掌声。\n\n**信息挤在一口气里**：\n\n> 琴弦断了，青禾停拨并看向鼓手，鼓手继续按原来的拍子敲鼓边，所以她接着唱完副歌，而台下响起掌声。\n\n**按变化分轻重**：\n\n> 琴弦断了。\n>\n> 青禾停拨，看向鼓手；鼓边仍按原拍响着。她顺着那拍子接着唱，直到副歌结束，台下响起掌声。\n\n第三版把断弦停出来，后续动作仍连贯。它没有比前两版多一个转折，优势来自注意分配。若文风需要一口气的慌乱，第二版可继续调整后采用，不能只按长度判错。",
+          "en": "Original facts: Qing He breaks a guitar string during a performance, stops picking and looks to the drummer. The drummer maintains the beat on the rim. She finishes the chorus; the audience applauds. No new accident, helper or result is added.\n\n**Equal weight:**\n\n> The string snapped. Qing stopped picking. She looked at the drummer. He tapped the rim. The beat continued. She sang on. She finished the chorus. The audience applauded.\n\n**One breath:**\n\n> The string snapped and Qing stopped picking and looked at the drummer, who kept the beat on the rim, so she sang through the end of the chorus and then the audience applauded.\n\n**Weighted by change:**\n\n> The string snapped.\n>\n> Qing stopped picking and looked at the drummer; the rim still carried the beat. She followed it through the end of the chorus, and applause rose from the audience.\n\nThe third isolates the break and connects the response. It adds no plot turn: attention changes. An intentionally breathless voice may adapt the second version; length alone does not make it wrong."
+        }
+      },
+      {
+        "id": "worksheet",
+        "heading": {
+          "zh": "句长修订表：事实先锁定",
+          "en": "A revision sheet with facts fixed"
+        },
+        "body": {
+          "zh": "| 位置 | 本段任务 | 处理 |\n|---|---|---|\n| 断弦 | 新变化，需要被注意 | 单独停一拍 |\n| 停拨、看鼓手 | 同一反应过程 | 连在一句，主语明确 |\n| 鼓边原拍 | 新依据支持下一步 | 与她的注意连接 |\n| 唱完、掌声 | 当前结果与外部回应 | 收束，不再解释“她成功了” |\n\n这是朗读与修订用简表，不是每段都要四句。若长句有几个不相关的信息，先删重复或移动背景，再拆；不要仅按字数切断完整推理。",
+          "en": "| Place | Job | Treatment |\n|---|---|---|\n| Broken string | New fact | Isolate a beat |\n| Stop and look | Continuing response | Connect with clear subject |\n| Continuing rhythm | Basis for next move | Link to attention |\n| Chorus and applause | Result and reply | Close without another success summary |\n\nThis manual sheet does not require four sentences in every passage. Remove repetition or move background before splitting unrelated information. Do not cut a complete inference merely at a word count."
+        }
+      },
+      {
+        "id": "read-aloud",
+        "heading": {
+          "zh": "朗读检查哪里卡、哪里该停",
+          "en": "Read aloud for strain and emphasis"
+        },
+        "body": {
+          "zh": "读时问：主语有没有丢，前后动作怎样相接，哪里是转向，哪一句才最值得停？喘不过来可能是修饰和并列项过多；读得一顿一顿可能是同一动作链被拆散。\n\n可以先标原有连接，再改变句号位置。每次调整后核对事实：唱完副歌之后才有掌声，不能为了顺口把回应提前到过程里。如果问题是分段，见[小说分段](/oh-story/write-a-fiction-paragraph)；如果已经被删成碎句，见[过度去 AI 味修复](/oh-story/over-edited-prose)。",
+          "en": "Check subjects, links, turns and the fact worth pausing on. Strain may come from too many modifiers or list items; choppiness may come from a single action chain split apart.\n\nMark existing connections before moving full stops, then check facts. Applause follows the completed chorus; smoothing prose must not move it into the performance. Paragraph structure and repairing overedited fragments have separate guides."
+        }
+      },
+      {
+        "id": "repair",
+        "heading": {
+          "zh": "长短句常见误用",
+          "en": "Common misuses"
+        },
+        "body": {
+          "zh": "| 误用 | 修正 |\n|---|---|\n| 每句长度都差不多 | 按信息变化调轻重 |\n| 强制一长一短交替 | 回到实际动作和停顿 |\n| 长句像动作逗号清单 | 用真实先后、因果与转向连接 |\n| 为快删掉指代和原因 | 补必要连接，不补无用动作 |\n| 所有短句都单独成段 | 只在需要强调时留独立位置 |\n\n有意的重复节奏可以保留，例如仪式、喜剧或强烈情绪。检查它是否产生预期效果，而不是用统一句长标准压平全书。",
+          "en": "| Misuse | Revision |\n|---|---|\n| Every sentence has equal weight | Follow changes in information |\n| Forced long-short alternation | Follow real action and pause |\n| Long sentence is an action list | Connect actual sequence, cause and turn |\n| Speed removes pronouns or reasons | Restore needed links, not extra gestures |\n| Every short sentence gets a paragraph | Reserve isolation for useful emphasis |\n\nDeliberate recurring rhythm can serve ritual, comedy or intense feeling. Judge its effect rather than flattening it with one standard."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "短句是不是更有紧张感？",
+          "en": "Do short sentences automatically create tension?"
+        },
+        "a": {
+          "zh": "不一定。短句能强调新事实，也可能把连续过程打碎。紧张感还来自目标、阻力、未决问题与人物选择；句长只是注意和停顿的工具。",
+          "en": "No. Short sentences can emphasize a new fact or fragment a continuing process. Tension also needs goals, resistance, uncertainty and choice; length controls attention and pause."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 只调整这段的句长和连接。先列不可改变的动作顺序与结果，再标强调、转向和连贯推进处。保留本书文风、主语与因果，不为配长短句新增反应或改写剧情。",
+        "en": "Use $story-long-write to adjust sentence length and links only. Fix action order and results first, then mark emphasis, turns and continuity. Preserve voice, subjects and causality without new reactions or plot changes."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "句子连接、分段与疏密",
+          "en": "Sentence links, paragraphs and density"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
+      },
+      {
+        "label": {
+          "zh": "文笔中的精准、节奏与画面",
+          "en": "Precision, rhythm and image in prose"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-craft.md"
+      },
+      {
+        "label": {
+          "zh": "文风优先与事实边界",
+          "en": "Style priority and factual boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      }
+    ],
+    "related": [
+      "/oh-story/write-a-fiction-paragraph",
+      "/oh-story/over-edited-prose",
+      "/oh-story/web-serial-pacing"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "verify-research-for-ai-fiction",
+    "topic": "revision",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI写小说资料乱编怎么办：查原始来源，分清范围",
+      "en": "AI Fiction Research: Verify Sources and Scope"
+    },
+    "seo_title": {
+      "zh": "AI写小说资料乱编怎么办：查原始来源，分清范围",
+      "en": "AI Fiction Research: Verify Sources and Scope"
+    },
+    "description": {
+      "zh": "AI生成的年代、场所规则和职业细节不能直接当事实。用日期、原始来源、分歧与待核实项整理，附官方公告核查例。",
+      "en": "Check dates, original sources and claim scope before using AI research. Includes a real official-notice check and a reusable research note."
+    },
+    "answer": {
+      "zh": "先把 AI 给出的段落拆成可核查的事实问题，确认故事发生的时间、地点和人物身份，再读原始来源，而不只看搜索摘要。区分已支持、存在分歧与尚未找到依据的部分；研究材料提供事实与限制，人物怎样选择仍由故事决定。",
+      "en": "Split AI-generated research into checkable questions with story date, place and role. Read original sources rather than only search snippets. Separate supported, disputed and unsupported claims. Research supplies facts and limits; the story still decides character choices."
+    },
+    "sections": [
+      {
+        "id": "questions",
+        "heading": {
+          "zh": "先问一个能核查的问题",
+          "en": "Ask a checkable question first"
+        },
+        "body": {
+          "zh": "“这个职业怎样写真实”太宽，改成“故事日期内，哪种身份能做这项操作”“这处真实场所当时从哪个入口向公众开放”。人、时间和适用范围写全，能避免把今天的规则套到过去、把访客规定套给工作人员。\n\n把真实事实与虚构设定分开。魔法凭证可以由作者设定；真实机构的公开规则需要来源。故事采用改编时明确它是本作设定，不把艺术处理列成查证结果。外部事实核查与书内连续性不同，后者见[前后矛盾检查](/oh-story/ai-fiction-consistency-check)。",
+          "en": "“Make this profession realistic” is broad. Ask what a specified role could do on the story date, or which entrance a real venue then opened to the public. Date, actor and scope prevent applying present rules to the past or visitor rules to employees.\n\nSeparate real facts from fictional premises. Authors can invent a magic pass; a real institution’s public rule needs a source. Mark adaptation as this story’s premise, not a researched finding. External research differs from internal continuity."
+        }
+      },
+      {
+        "id": "source-workflow",
+        "heading": {
+          "zh": "读原文，检查独立性与适用关系",
+          "en": "Read originals and check independence"
+        },
+        "body": {
+          "zh": "1. **先找原始发布者**：机构公告、原始文献、实物资料或明确的专业记录，按问题选择。\n2. **打开全文**：看发布日期、正文条件和更新，不把摘要的一句话当完整规则。\n3. **查其他来源**：按来源实际出处判断独立性。多家转载同一公告，不能算几份独立证明。\n4. **处理差异**：先分时间、地区、对象、常规与例外，再判断是否真的矛盾。\n5. **留缺口**：没查到的写“待核实”，不要让 AI 编一个出处填空。\n\nOh Story 的资料研究方法要求完整调研交叉独立来源、记录分歧和置信度。单一原始公告可以说明“机构发布了什么”，但不能因此宣称已经完成多源调查，或推断公告外的事实。",
+          "en": "1. Find the original issuer: an institutional notice, original document, object record or professional account suited to the question.\n2. Read the full page, including date, conditions and updates; a snippet is not the rule.\n3. Seek other sources and trace independence. Several copies of one notice remain one origin.\n4. Resolve differences in date, region, actor and exception before calling them contradictions.\n5. Leave gaps unresolved rather than inventing a citation.\n\nOh Story’s research method requires independent cross-checks, disagreements and confidence reporting for a full investigation. One original notice can establish what an institution announced; it does not complete a multi-source investigation or prove facts outside the notice."
+        }
+      },
+      {
+        "id": "worked-example",
+        "heading": {
+          "zh": "实查示例：日期改变了常规判断",
+          "en": "Verified example: date changes the default"
+        },
+        "body": {
+          "zh": "假设小说中的游客打算在 2026 年 7 月 27 日参观故宫。AI 只凭“周一闭馆”的印象，就把剧情写成他到门口一定被拒。\n\n本页于 2026 年 9 月 30 日读取[故宫博物院当日专项公告](https://www.dpm.org.cn/announce_detail/379398.html)：院方宣布那个周一免费开放，但仍需实名预约。这里支持的是公告内容，不能把“免费”写成“无需预约”，也不能证明角色本人已预约或工作人员后台通行权。\n\n| 记录 | 本例内容 |\n|---|---|\n| 具体问题 | 当日是否有周一开放例外 |\n| 原始依据 | 院方 2026 年 7 月 23 日专项公告 |\n| 可支持 | 公告规定当日免费开放且须预约 |\n| 未支持 | 角色已获预约、所有区域可进入、后台权限 |\n| 独立性 | 一份原始公告，未称完成多源调查 |\n\n作者据此可以修改“仅因周一被拦”的依据，并在故事内建立角色的预约状态。尚未核实的其他权限另查；不为保住旧剧情随意补一张万能工作证。这个例子只核查一项公开声明，不冒充整个故事的已完成调研报告。",
+          "en": "Suppose a fictional visitor plans to enter Beijing’s Palace Museum on 27 July 2026. An AI draft assumes Monday closure means certain refusal.\n\nOn 30 September 2026, this page checked the [museum’s date-specific announcement](https://www.dpm.org.cn/announce_detail/379398.html). It announced free opening on that Monday, with a real-name reservation still required. Free did not mean unreserved, and the notice did not establish the character’s booking or staff-only access.\n\n| Record | This check |\n|---|---|\n| Question | Was there a Monday exception that date? |\n| Original | Museum notice dated 23 July 2026 |\n| Supported | Announced free opening with reservation |\n| Not supported | Personal booking, every area, backstage rights |\n| Independence | One original notice, not a full cross-check |\n\nRevise refusal based solely on Monday and establish the booking in the fiction. Research other access separately, without inventing an all-purpose staff pass to save the old plot. This is one public-statement check, not a completed investigation of the whole story."
+        }
+      },
+      {
+        "id": "research-note",
+        "heading": {
+          "zh": "资料卡怎样转交给写作",
+          "en": "Hand research to the writer"
+        },
+        "body": {
+          "zh": "> **问题与范围**：故事时间、地点、身份、要写的动作。\n>\n> **支持事实**：一句结论，附对应原始页面与位置。\n>\n> **条件与例外**：适用于谁，何时有效，哪里不覆盖。\n>\n> **分歧与缺口**：不同说法分别有何依据，下一步查什么。\n>\n> **创作选择**：作者准备使用哪项，哪些仍是本作虚构。\n\n研究者不要把“查不到”润成确定知识；写作者不要把来源里的一条条件扩成万能规则。资料影响已写剧情时，先列受影响的具体段落，再选择保留事实、改场景或明确虚构改编。",
+          "en": "Record the question and story scope; supported claims with original page locations; conditions and exceptions; disagreements and next checks; and which facts or fictional adaptations the author chooses.\n\nDo not turn “not found” into certainty or one condition into a universal rule. If research affects existing prose, identify the specific passages before choosing to retain the fact, revise the scene or establish a fictional adaptation."
+        }
+      },
+      {
+        "id": "repair",
+        "heading": {
+          "zh": "资料幻觉常见问题",
+          "en": "Common research hallucinations"
+        },
+        "body": {
+          "zh": "| 问题 | 修正 |\n|---|---|\n| 链接标题像真，页面不存在 | 打开原页，缺来源就撤下结论 |\n| 只读搜索摘要 | 回到全文与适用条件 |\n| 多家转载被当独立查证 | 追溯共同原始出处 |\n| 今日规则套到历史日期 | 查当时版本与专项公告 |\n| 公开参观信息证明后台权限 | 按身份重新提问，保留未知 |\n| 专业细节被一句口述定论 | 分清经验描述与明确制度依据 |\n\n工具暂时无法查到资料，就保留查询和缺口；不要让“先写完”变成编造研究结果。",
+          "en": "| Problem | Revision |\n|---|---|\n| Plausible title, missing page | Open the original; withdraw unsupported claims |\n| Search snippet only | Read full conditions |\n| Reprints treated as independent | Trace the shared origin |\n| Today’s rule applied to another date | Check the relevant version and notice |\n| Visitor rule proves staff access | Reask for the actor and preserve unknowns |\n| One account settles professional detail | Distinguish experience from institutional evidence |\n\nWhen tools cannot retrieve material, retain questions and gaps instead of fabricating a result to finish the draft."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "两个网站说的一样，算查证完成吗？",
+          "en": "Do two agreeing websites finish verification?"
+        },
+        "a": {
+          "zh": "先看它们是否独立、是否适用同一时间与对象，是否真正支持要写的动作。转载数量不能替代原始依据；不在来源范围内的权限或结果仍待核实。",
+          "en": "Check independence, matching time and actor, and whether they support the planned action. Reprint counts do not replace original evidence; permissions or outcomes outside scope remain unknown."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 讨论这场景的资料需求，不写正文。列故事日期、地点、人物身份和可核查问题；研究时读原始页面、交叉独立来源、列分歧与缺口。找不到依据不补造，最后分清研究事实与本作设定。",
+        "en": "Use $story-long-write to discuss research needs without drafting prose. List date, place, role and checkable questions. Read originals, cross-check independent sources and report disagreements and gaps. Separate researched facts from fictional premises without invented evidence."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "研究场景、独立来源、事实与创作边界",
+          "en": "Research scope, independent sources and facts versus creation"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-setup/references/templates/agents/story-researcher.md"
+      }
+    ],
+    "related": [
+      "/oh-story/historical-fiction",
+      "/oh-story/ai-fiction-consistency-check",
+      "/oh-story/review-and-revise"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "batch-draft-novel-chapters-with-ai",
+    "topic": "getting-started",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI连续写多章怎么安排：分批目标与写后核对",
+      "en": "How to Draft Several Novel Chapters with AI"
+    },
+    "seo_title": {
+      "zh": "AI连续写多章怎么安排：分批目标与写后核对",
+      "en": "How to Draft Several Novel Chapters with AI"
+    },
+    "description": {
+      "zh": "AI批量续写不是一次生成越多越好。用有限章节范围、阶段目标、透露边界和每章变化衔接，附三章计划与批末检查。",
+      "en": "Plan bounded chapter batches with a shared goal, reveal limits and per-chapter changes. Includes a three-chapter example and a batch-end review."
+    },
+    "answer": {
+      "zh": "先限定本批章节和一个阶段推进目标，分清每章要兑现什么、哪些事实此时不能透露，再按故事顺序逐章写。上一章的实际结果决定下一章进入状态；写完核对这几章的累积进展、旧承诺和知情边界，不能只按总字数判断批量续写成功。",
+      "en": "Bound the chapter range and shared progress goal. Give each chapter a payoff and reveal limits, then draft in story order. Actual results set the next chapter’s entry state. Review accumulated progress, old promises and knowledge boundaries rather than judging a batch by word count alone."
+    },
+    "sections": [
+      {
+        "id": "ready",
+        "heading": {
+          "zh": "批量续写前先具备什么",
+          "en": "Prerequisites for a chapter batch"
+        },
+        "body": {
+          "zh": "已经有正文、当前人物状态和可执行细纲，才适合续写多章。只有一个点子先做大纲；已有散稿但没有结构和追踪，先[导入已有书稿](/oh-story/import-and-continue)，不要把聊天记忆当完整前史。\n\n先核对从哪章开始。若第七章计划已成正文，就不要又生成第二份第七章。细纲只给“主角找到真相”而没有行动与因果时，先补足，不用连续生成来掩盖缺口。\n\n本页讲一个批次怎样接稳，人物和伏笔长期维护见[长篇连续性](/oh-story/long-novel-continuity)。",
+          "en": "Several chapters suit a project with existing prose, current character state and executable outlines. Plan an idea first; import a loose manuscript before treating chat memory as history.\n\nCheck the first unwritten chapter. Do not generate another Chapter Seven if it already exists. An outline saying only “finds the truth” needs action and causality before a batch can consume it.\n\nThis page concerns one batch; long-term character and clue maintenance has a separate guide."
+        }
+      },
+      {
+        "id": "batch-card",
+        "heading": {
+          "zh": "本批任务卡：阶段与单章分开",
+          "en": "Separate batch goal from chapter jobs"
+        },
+        "body": {
+          "zh": "原创故事中，林岑负责一场社区露天电影。第六章已拿到场地同意；本批目标是落实可行放映安排，不能提前写“大家已看完电影”。\n\n| 章 | 本章任务与结果 | 后续承接 |\n|---|---|---|\n| 7 | 核对设备与时间，发现借来的幕布太宽 | 现有场地不能直接用原方案 |\n| 8 | 比较缩幕与换场，借出方同意换较窄幕布并实际交接 | 获得可用物件，仍需试映 |\n| 9 | 现场试映，接收人确认画面与开场时间 | 本轮方案可用；正式观众场仍在后面 |\n\n这是手写计划，不是 skill 原生细纲格式。每章仍需要场景、选择、反制与篇幅安排；三行不能替代可执行细纲。后续秘密若尚未解锁，写进“本批不得透露”，不为提速先揭底。",
+          "en": "In this original story, Lin Cen organizes an outdoor community film. Chapter Six established venue consent. This batch must make the screening arrangement workable, not claim the audience has already watched it.\n\n| Chapter | Job and result | Carryover |\n|---|---|---|\n| 7 | Check equipment and time; borrowed screen too wide | Current plan does not fit |\n| 8 | Compare resizing and moving; lender agrees and hands over narrower screen | Object available; trial still needed |\n| 9 | Trial at venue; responsible host confirms picture and start time | Plan works; public event remains later |\n\nThis manual plan is not the native chapter-outline format. Each row needs scenes, choices, resistance and space; it does not replace executable outlines. Mark unreleased secrets explicitly rather than spoiling them for speed."
+        }
+      },
+      {
+        "id": "serial",
+        "heading": {
+          "zh": "逐章接结果，不并排编出几条前史",
+          "en": "Carry actual results forward in order"
+        },
+        "body": {
+          "zh": "写第八章前，按第七章正文实际结果更新：知道幕布尺寸不合，不等于已经换到新的。第八章若只得到口头许可而未交接，第九章不能直接写新幕布已挂好，除非补出交接或把它留作新的阻碍。\n\n在固定版本的 Oh Story 工作流里，章节按序写并在每章后提交状态；其单轮上限是三章，这是该工具流程，不是所有作者的日更标准。长请求分到后续批次，不靠一次开更多窗口生成互相矛盾的结果。作者自己写时也可以借这个原则：先确认上一章发生了什么，再接下一章。\n\n文中选择了哪一个场地、谁拿着设备、哪些人知道变化，只记会影响后续的实际事实。不要把未接受的方案写成已完成状态。",
+          "en": "Before Chapter Eight, carry the actual Chapter Seven result: knowing the screen does not fit is not having a replacement. If Eight gains only verbal consent without handover, Nine cannot begin with the new screen installed unless that step is supplied or remains an obstacle.\n\nThe pinned Oh Story workflow drafts sequentially and commits state after each chapter, with a three-chapter per-turn ceiling. That is a tool workflow, not every writer’s daily quota. Split longer requests into later batches rather than generating conflicting results in parallel. Manual writers can borrow the principle of checking what actually happened before continuing.\n\nRecord relevant selected venue, held equipment and known changes. Unaccepted plans are not completed state."
+        }
+      },
+      {
+        "id": "batch-check",
+        "heading": {
+          "zh": "批末检查累积结果与下一步",
+          "en": "Review accumulated results at batch end"
+        },
+        "body": {
+          "zh": "本轮三章连起来，林岑是不是从“有场地”走到“有经过试映的安排”？每章是否消费了上一章结果，而非反复谈同一尺寸问题？谁的功劳、资源和知识发生了什么变化？旧承诺有没有被另一个更大的谜题盖住？\n\n再核对标题是否重复、伏笔与角色状态是否对得上、哪些细纲内容没写成。字数是交付的一部分，但多写三千字不能替代少掉的试映或回应。\n\n给下一批写一个准确入口：正式观众场尚未开始，设备已交接并试过，主持人已确认时间。不要把“候选方案”在摘要里升级为“活动圆满结束”。",
+          "en": "Do the three chapters move Lin from venue consent to a tested arrangement? Does each consume the previous result instead of repeating screen dimensions? Whose credit, resources and knowledge change? Has a new mystery displaced an old promise?\n\nCheck repeated titles, clues, character state and unconsumed outline items. Length matters to delivery, but extra words do not replace the missing trial or response.\n\nLeave an accurate next-batch entry: public screening not started, equipment handed over and tested, host confirmed the time. A candidate plan must not become a successful event in the summary."
+        }
+      },
+      {
+        "id": "prompt-and-repair",
+        "heading": {
+          "zh": "可复制的批次请求与常见修复",
+          "en": "A bounded request and common repairs"
+        },
+        "body": {
+          "zh": "> 用 $story-long-write 续写第7—9章，按已有细纲顺序推进本批放映准备。保留第6章已获场地同意的事实；第8章物件交接前不写已持有，第9章只完成试映，不提前写正式观众场。每章说明实际完成、未完成和对下一章的影响。缺细纲先报告，不另编结局；本批后停止。\n\n把章节号和事实换成自己的项目，不把本文三行计划当正式细纲。若只想讨论，明确“不写正文”。\n\n| 问题 | 修复 |\n|---|---|\n| 连续几章都重复一项准备 | 合并重复，把下一步真实变化给细纲 |\n| 某章未写成却跳到已完成 | 补缺口，或改下一章进入状态 |\n| 批末摘要泄露后期秘密 | 按当前读者认知重新记录 |\n| 标题重复、角色忽然回到旧状态 | 核对本批与已有正文，修事实后再续 |\n\n日更安排也要留出改稿与恢复精力的空间。减少批次范围比靠注水凑量更能保住判断。",
+          "en": "Ask $story-long-write to draft Chapters 7–9 in the established outline order. Keep Chapter Six’s consent, require handover before possession, end Nine at the trial rather than the public event, report actual and missing results, and stop after the batch. Missing outlines should be reported, not replaced with a new ending.\n\nReplace numbers and facts with your project. The three-row example is not a formal outline. Say “discussion only, no prose” if that is the task.\n\n| Problem | Repair |\n|---|---|\n| Several chapters repeat one preparation | Merge repetition; plan the next real change |\n| Unwritten step treated as complete | Supply it or revise the next entry state |\n| Summary exposes future secrets | Use current reader knowledge |\n| Duplicate titles or old character state | Reconcile with existing prose before continuing |\n\nAllow room for revision and rest. A smaller batch preserves judgment better than padding a quota."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "让AI一次写十章会更省事吗？",
+          "en": "Is requesting ten chapters at once more efficient?"
+        },
+        "a": {
+          "zh": "要看工作流和细纲成熟度。这里的固定版本单轮最多三章，长范围拆批；关键是逐章保住因果、信息边界与状态，不把少核对等同于高效率。",
+          "en": "It depends on the workflow and outline readiness. The pinned version caps a turn at three chapters and splits longer ranges. Preserve causality, reveal boundaries and state rather than equating fewer checks with efficiency."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 按已有细纲续写本批指定章节。先确认起止章与阶段目标，按实际上一章结果串行推进；保持信息解锁边界，逐章更新有效变化，批末核对累积兑现与缺口后停止。",
+        "en": "Use $story-long-write for the specified batch in outline order. Confirm range and shared goal, carry actual previous results forward, preserve reveal limits, update relevant changes and review accumulated payoffs and gaps before stopping."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "日更批次、串行写作与批末核对",
+          "en": "Chapter batching, sequential drafting and batch review"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-daily.md"
+      },
+      {
+        "label": {
+          "zh": "场景展开、因果与有效变化",
+          "en": "Scene expansion, causality and useful change"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
+      }
+    ],
+    "related": [
+      "/oh-story/outline-to-chapter",
+      "/oh-story/long-novel-continuity",
+      "/oh-story/import-and-continue"
     ]
   }
 ]
