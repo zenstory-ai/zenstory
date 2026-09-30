@@ -80,6 +80,21 @@
     ]
   },
   {
+    "slug": "book-covers",
+    "title": {
+      "zh": "小说封面",
+      "en": "Book covers"
+    },
+    "description": {
+      "zh": "设计封面构图与书名字体，检查上传裁剪和缩略图辨识。",
+      "en": "Plan cover art and lettering, then check upload crops and thumbnail readability."
+    },
+    "featured": [
+      "novel-cover-prompts",
+      "fix-cropped-book-cover-text"
+    ]
+  },
+  {
     "slug": "short-drama",
     "title": {
       "en": "Short-drama scripts",

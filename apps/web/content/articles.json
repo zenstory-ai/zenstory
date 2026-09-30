@@ -5165,7 +5165,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "短篇付费卡点怎么设计：先定断点，再倒推",
       "en": "Where to Put a Short Story’s Paywall: Work Back from the Payoff"
@@ -5179,8 +5179,8 @@
       "en": "Hooks: unfinished action, a key object changing hands, a relationship turn or a dilemma. Plan the payoff, then work back to the setup, choices and costs."
     },
     "answer": {
-      "zh": "短篇付费卡点是免费试读与后续正文的分界，强卡点要改变读者对结果、关系或代价的预测。先写清付费后第一段怎样回应，再把断点放在未完成动作、证据即将易手、关系刚转向或人物必须选择的一刻；免费段完成处境、选择与代价，核心兑现留在后面。",
-      "en": "A short-story paywall separates the free preview from the rest of the text. A strong hook changes what readers predict about an outcome, relationship or cost. First decide how the opening passage after the paywall will respond. Then place the break at an unfinished action, an impending transfer of evidence, a relationship turn or a moment that demands a choice. Establish the situation, choices and costs in the free section while reserving the central payoff for later."
+      "zh": "短篇付费卡点是免费试读与后续正文的分界。先写清后续要回应哪个未完成动作、证据变化或人物选择，再倒推免费段必须交代的处境、关系和条件。免费段应已有值得读的进展，断点留下真实承诺，付费后接着兑现；位置按故事与实际发布边界选择，不能仅凭卡点设计保证转化。",
+      "en": "A short-story paywall separates the free preview from the paid continuation. First identify the unfinished action, evidence change, or character choice the continuation must answer, then work backward to the situation, relationships, and conditions needed before it. Give the free section meaningful progress, leave a genuine promise at the break, and continue its payoff afterward. Choose the position within the story and actual publishing constraints; a planned hook alone cannot guarantee conversion."
     },
     "sections": [
       {
@@ -5201,19 +5201,19 @@
           "en": "Work backward from the breakpoint"
         },
         "body": {
-          "zh": "1. 写出核心兑现：读者付费后最先得到什么答案、反击或后果。\n2. 找到兑现前最后一个不可逆瞬间，把断点放在那里。\n3. 倒推免费段需要建立的处境、关系、证据和代价。\n4. 检查免费段已有局部进展，避免只有受苦和提问。\n5. 写付费后第一段，确保它接着动作或选择走，别换场绕开。\n\n卡点的力量来自前因与后果；只截断一句普通对话，读者并没有必须知道的变化。",
-          "en": "1. Define the central payoff: the first answer, counterattack or consequence readers will receive after paying.\n2. Find the last irreversible moment before that payoff and place the break there.\n3. Work backward to establish the necessary situation, relationships, evidence and costs in the free section.\n4. Check that the free section already offers some progress, rather than only suffering and questions.\n5. Write the first passage after the paywall. Continue the action or choice instead of cutting elsewhere to evade it.\n\nA hook draws its force from causes and consequences. Cutting off an ordinary conversation does not create a change readers urgently need to understand."
+          "zh": "1. 写出核心兑现：读者付费后最先得到什么答案、反击或后果。\n2. 比较兑现前的候选位置：哪一处已有足够前因，又留下一个具体、未完成的行动或待解释的变化？不必强造不可逆损失。\n3. 倒推免费段需要建立的处境、关系、证据和代价。\n4. 检查免费段已有局部进展，避免只有受苦和提问。\n5. 写付费后第一段，确保它接着动作或选择走，别换场绕开。\n\n卡点的力量来自前因与后果；只截断一句普通对话，读者并没有必须知道的变化。",
+          "en": "1. Define the central payoff: the first answer, counterattack or consequence readers will receive after paying.\n2. Compare candidate points before the payoff: which has enough setup and leaves a specific unfinished action or change to explain? Do not manufacture an irreversible loss just to create the break.\n3. Work backward to establish the necessary situation, relationships, evidence and costs in the free section.\n4. Check that the free section already offers some progress, rather than only suffering and questions.\n5. Write the first passage after the paywall. Continue the action or choice instead of cutting elsewhere to evade it.\n\nA hook draws its force from causes and consequences. Cutting off an ordinary conversation does not create a change readers urgently need to understand."
         }
       },
       {
         "id": "worked-example",
         "heading": {
-          "zh": "原创范例：洗衣店里的借据",
-          "en": "Original example: an IOU in a laundry shop"
+          "zh": "原创范例：洗衣店周年展板的署名",
+          "en": "Original Example: Credit on a Laundry Anniversary Display"
         },
         "body": {
-          "zh": "林葵替母亲经营社区洗衣店，舅舅带着亲戚上门，声称店面是外公留给全家的。免费段先完成处境：舅舅拿出一张旧借据，邻居也劝她“都是一家人”；林葵没有只受辱，她核对纸张水印，发现借据年份与印厂启用时间对不上。\n\n她请舅舅当众按手印确认原件，并把纸送进蒸汽熨台。受热后，借据背面显出洗衣店旧编号。舅舅伸手抢纸，林葵先一步按下透明护罩。\n\n护罩刚落，母亲从门外说：“那编号，是你当年偷走的另一张单子。”\n\n卡点落在证据归属已锁定、母亲即将改变解释权的一刻。付费后立刻回应编号来源，再展开清算；没有把全部反击提前放完。",
-          "en": "Lin Kui runs a neighborhood laundry for her mother. Her uncle arrives with relatives and claims that their grandfather left the premises to the whole family. The free section first establishes the situation: he produces an old IOU, and neighbors urge her to remember that they are family. Lin Kui does more than endure humiliation. She checks the paper’s watermark and finds that the date on the IOU does not match when the printing plant began operating.\n\nShe asks her uncle to press his fingerprint onto the document in front of everyone to confirm it is the original, then places the paper on the steam press. As it heats, an old laundry ticket number appears on the back. Her uncle reaches to snatch it, but Lin Kui lowers the transparent protective cover first.\n\nJust as the cover closes, her mother calls from the doorway: “That number belongs to another slip you stole all those years ago.”\n\nThe break falls when control of the evidence has been secured and the mother is about to change how it is understood. Immediately after the paywall, explain where the number came from, then move into the reckoning. The full counterattack has not already been delivered for free."
+          "zh": "下面是原创虚构短篇设计，不是真实店铺纠纷或产权判断。\n\n林葵替母亲打理社区洗衣店，并负责周年展板。已有约定是：展板中每一项具体贡献由当事人核对，林葵收到双方确认后才交付印制。舅舅拿来一张旧单复印件，说“当年第一台机器的钱全是我垫的”，要求把这一项署名只写成自己。母亲此前说自己支付了机器款；双方说法仍有冲突。\n\n**免费段的进展：** 林葵不把任一说法直接印上板。她看到复印件只剩金额和舅舅姓名，项目栏被截掉，但单号 017 仍在；店里已整理好的收据目录列有 017，原件保存在母亲手中的文件夹。林葵打电话说明缺了哪一栏，请母亲带原件来；母亲答应。她同时通知已预约的打印店暂缓这一页，店员实际回复，取消当天该页的排版名额，改到次日。这是她为核对选择承担的真实延后。\n\n舅舅到场，坚持自己的金额说法。母亲也已经来到店里，拿出前文提过的文件夹，将 017 原件交到林葵手上。纸上的项目栏朝着桌面，林葵刚把它翻过来——免费段在这里结束。\n\n断点欠读者的是：**这笔钱实际登记为什么，林葵将怎样处理相冲突的署名请求？** 原件、持有人与调取过程已出现，不会在付费后突然补一张此前不存在的关键纸。\n\n**付费后第一段可以直接回应：**\n\n> 原件上写着“设备运费暂垫”，金额与复印件相同。林葵把项目栏指给两人看：“这张只能支持运费，不能写成整台机器的款项。”舅舅看完，点头说：“这一项就写运费是我垫的。”母亲也确认。林葵当场改这一行，把次日校样发给两人。\n\n本次回应完成的是这张单据所支持的展板表述，未凭一张收据解决全部经营贡献，更没有裁定店铺归属。免费段已有主动查证和实际延期，付费后有答案和人物动作；剩下的关系清算仍有展开空间。",
+          "en": "This is an original fictional story design, not a real business dispute or a property judgment.\n\nLin Kui helps her mother run a neighborhood laundry and prepares its anniversary display. An established agreement requires the people involved to verify each specific contribution before Lin submits the page for printing. Her uncle brings a copied receipt, says he paid the entire cost of the first machine, and requests sole credit for that item. Her mother has previously said she paid for the machine. Their accounts remain in conflict.\n\n**Progress in the free section:** Lin prints neither account as fact. The copy contains an amount and her uncle’s name, but its item field was cropped off. Receipt number 017 remains; the shop’s existing catalog lists it, and her mother holds the original in a folder. Lin calls, identifies the missing field, and requests the original. Her mother agrees to bring it. Lin also asks the booked printer to hold this page. The printer actually replies, releasing that day’s layout slot and moving the page to tomorrow. Verification has caused a concrete delay.\n\nHer uncle arrives and repeats his claim. Her mother also arrives with the previously introduced folder and hands original 017 to Lin. Its item field faces the table. Lin begins turning it over—and the free section ends.\n\nThe break owes the reader an answer: **what does this amount actually record, and how will Lin handle the conflicting credit requests?** The original, its holder, and its retrieval have already appeared. The paid continuation will not suddenly introduce a previously nonexistent decisive document.\n\n**The first paid passage can answer directly:**\n\n> The item reads “Equipment freight advanced temporarily,” with the same amount as the copy. Lin points it out: “This supports freight costs, not payment for the entire machine.” Her uncle reads it and nods. “For this item, credit me with advancing the freight.” Her mother confirms too. Lin changes that line and sends both of them the next day’s proof.\n\nThis resolves the display wording supported by this receipt. One receipt has not settled every operating contribution or the ownership of the shop. The free section provides active verification and an actual delay; the continuation supplies an answer and actions, while leaving room for the relationship’s consequences."
         }
       },
       {
@@ -5223,8 +5223,8 @@
           "en": "How many words should come before the paywall?"
         },
         "body": {
-          "zh": "没有跨平台和篇幅通用的字数。用自己的大纲定位：先找核心兑现，再向前找到最后一个不可逆选择或证据变化；确认免费段已经让读者理解处境、人物目标和损失，卡点后仍有足够空间完成回应与结算。\n\n已有稿件可逐节写一句“这一节改变了什么”，寻找预测真正变化、但答案尚未交付的位置。平台若规定试读范围，以发布时的官方要求为外部边界，再在范围内选择最强的真实断点。",
-          "en": "There is no universal word count across platforms and story lengths. Locate it in your own outline: find the central payoff, then move backward to the last irreversible choice or change in evidence. Make sure the free section lets readers understand the situation, the character’s goal and the loss at stake, while leaving enough room after the break to deliver the response and consequences.\n\nFor an existing draft, summarize each section with “what changed here?” Look for a point that genuinely changes predictions before supplying the answer. If a publishing platform specifies a preview range, use its official requirements at publication time as the outer constraint, then choose the strongest genuine breakpoint within it."
+          "zh": "没有跨平台和篇幅通用的字数。用自己的大纲定位：先找核心兑现，再向前比较能留下具体未完成行动、证据变化或两难选择的位置；确认免费段已经让读者理解处境、人物目标和损失，卡点后仍有足够空间完成回应与结算。\n\n已有稿件可逐节写一句“这一节改变了什么”，寻找预测真正变化、但答案尚未交付的位置。平台若规定试读范围，以发布时的官方要求为外部边界，再在范围内选择最强的真实断点。",
+          "en": "There is no universal word count across platforms and story lengths. Locate it in your own outline: find the central payoff, then compare earlier points with a concrete unfinished action, evidence change, or dilemma. Make sure the free section lets readers understand the situation, the character’s goal and the loss at stake, while leaving enough room after the break to deliver the response and consequences.\n\nFor an existing draft, summarize each section with “what changed here?” Look for a point that genuinely changes predictions before supplying the answer. If a publishing platform specifies a preview range, use its official requirements at publication time as the outer constraint, then choose the strongest genuine breakpoint within it."
         }
       },
       {
@@ -5264,8 +5264,8 @@
     "skill": {
       "name": "story-short-write",
       "text": {
-        "zh": "在 Claude Code 里说：“用 /story-short-write 只设计短篇付费卡点，先写付费后的核心回应，再倒推免费段的处境、选择、代价和最后不可逆瞬间，不写完整正文”（Codex 里写作 `$story-short-write`）。",
-        "en": "In Claude Code, ask: “Use /story-short-write to design only the short story’s paywall hook. First write the central response after the paywall, then work backward through the free section’s situation, choices, costs and final irreversible moment. Do not draft the complete story.” In Codex, use `$story-short-write`."
+        "zh": "在 Claude Code 中用 `/story-short-write`（Codex 中用 `$story-short-write`），先给已有设定与小节大纲，要求只比较付费断点：每个候选已有的前因、尚欠的具体回应，以及付费后第一段。按你确认的试读边界选择，不强加新证据、新损失或完整正文；最终把选定位置写回大纲。",
+        "en": "Use `/story-short-write` in Claude Code or `$story-short-write` in Codex with the established setup and section outline. Request only a comparison of paywall candidates: existing setup, the specific response still owed, and the first paid passage. Choose within your confirmed preview constraints without adding evidence, losses, or a full draft; record the chosen point in the outline."
       },
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/SKILL.md"
     },
@@ -5279,10 +5279,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "付费点与反推法",
+          "en": "Paywall and backward planning"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/submission-craft.md"
+      },
+      {
+        "label": {
+          "zh": "真实断点与揭示后果",
+          "en": "Genuine breakpoints and reveal consequences"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/short-reversal.md"
       }
     ]
   },
@@ -6762,7 +6769,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "网文流派有哪些：先看每种流派的核心循环",
       "en": "Web-Fiction Subgenres Explained Through Their Core Loops"
@@ -6787,8 +6794,8 @@
           "en": "Common Web-Fiction Subgenres and Their Core Loops"
         },
         "body": {
-          "zh": "| 流派 | 核心循环 | 主要回报 | 常见失效 |\n|---|---|---|---|\n| 凡人流 | 观察风险→准备→取舍→保住收益 | 谨慎与判断赢过强敌 | 嘴上谨慎，行动总靠冒险 |\n| 无限流 | 进入副本→摸规则→解题→带回变化 | 新世界、新难题与长期主线推进 | 副本互不影响，像短篇拼盘 |\n| 规则怪谈 | 观察→试探→记录→复用 | 限制被摸清，代价被躲过 | 规则临时改写 |\n| 都市高武 | 训练→对抗→获得资源→进入更高层地图 | 实力与社会位置同步上升 | 换地图后旧人物与目标清空 |\n| 脑洞／系统文 | 独特机制→制造问题→选择用法→承担代价 | 看同一机制玩出新组合 | 功能单一，重复同一种解法 |\n| 重生复仇 | 利用旧信息→改写选择→时间线偏离→重新博弈 | 命运被主动改写 | 主角全知，对手不学习 |\n| 年代文 | 现实缺口→经营资源与人情→获得生活改善 | 在限制中逐步改命 | 物件堆砌，现实账不动 |\n| 追妻火葬场 | 伤害→离场→追悔→证明与选择 | 关系权力翻转与迟到清算 | 只有虐和道歉，没有离场与证明 |\n\n这张表按写作发动机归纳，实际作品可以组合流派。组合时确定一个主循环，其他元素负责提供场景、人物或变奏。",
-          "en": "| Subgenre | Core loop | Main reward | Common failure |\n|---|---|---|---|\n| Mortal-flow | Observe risks → prepare → make trade-offs → preserve gains | Caution and judgment defeat stronger enemies | The protagonist claims to be cautious but always acts through reckless gambles |\n| Infinite-flow | Enter a scenario → discover its rules → solve it → bring back a change | New worlds, new problems, and progress in the long plot | Scenarios never affect one another and feel like an anthology |\n| Rules horror | Observe → test → record → reuse | Restrictions become legible and costs can be avoided | Rules are rewritten whenever convenient |\n| Urban high martial arts | Train → confront → obtain resources → enter a higher-tier map | Strength and social position rise together | A new map erases old characters and goals |\n| High-concept or system fiction | Distinctive mechanism → problem → choice of use → cost | New combinations built from the same mechanism | One function leads to the same solution every time |\n| Rebirth revenge | Use old information → rewrite a choice → diverge the timeline → compete anew | Fate is actively rewritten | The protagonist knows everything and opponents never learn |\n| Period web fiction (年代文) | Practical shortage → manage resources and favors → improve daily life | Gradually change one’s fate within constraints | Objects accumulate while practical ledgers stand still |\n| Groveling romance | Harm → departure → remorse → proof and choice | A reversal of relational power and a belated reckoning | Suffering and apology appear without departure or proof |\n\nThis table groups stories by their writing engines. A work may combine subgenres. Choose one primary loop; let other elements supply settings, characters, or variations."
+          "zh": "下面是编辑依据 skill 归纳的常见写作方向，用于比较重复体验，不是平台官方分类或当前热度排名。“年代文”等题材标签与“系统流”等机制标签并不在同一层级，实际选型可交叉使用。\n\n| 方向 | 循环与取舍 |\n|---|---|\n| 凡人流 | **核心循环：** 观察风险→准备→取舍→保住收益；**主要回报：** 谨慎与判断赢过强敌；**常见失效：** 嘴上谨慎，行动总靠冒险 |\n| 无限流 | **核心循环：** 进入副本→摸规则→解题→带回变化；**主要回报：** 新世界、新难题与长期主线推进；**常见失效：** 副本互不影响，像短篇拼盘 |\n| 规则怪谈 | **核心循环：** 观察→试探→记录→复用；**主要回报：** 限制被摸清，代价被躲过；**常见失效：** 规则临时改写 |\n| 都市高武 | **核心循环：** 训练→对抗→获得资源→进入更高层地图；**主要回报：** 实力与社会位置同步上升；**常见失效：** 换地图后旧人物与目标清空 |\n| 脑洞／系统文 | **核心循环：** 独特机制→制造问题→选择用法→承担代价；**主要回报：** 看同一机制玩出新组合；**常见失效：** 功能单一，重复同一种解法 |\n| 重生复仇 | **核心循环：** 利用旧信息→改写选择→时间线偏离→重新博弈；**主要回报：** 命运被主动改写；**常见失效：** 主角全知，对手不学习 |\n| 年代文 | **核心循环：** 现实缺口→经营资源与人情→获得生活改善；**主要回报：** 在限制中逐步改命；**常见失效：** 物件堆砌，现实账不动 |\n| 追妻火葬场 | **核心循环：** 伤害→离场→追悔→证明与选择；**主要回报：** 关系权力翻转与迟到清算；**常见失效：** 只有虐和道歉，没有离场与证明 |\n\n这张表按写作发动机归纳，实际作品可以组合流派。组合时确定一个主循环，其他元素负责提供场景、人物或变奏。",
+          "en": "This editorial comparison uses the skill’s methods to distinguish recurring reading experiences. It is not an official platform taxonomy or a current popularity ranking. Setting labels such as period fiction and mechanism labels such as system fiction describe different dimensions and can overlap.\n\n| Type | Loop and tradeoffs |\n|---|---|\n| Cautious cultivation (凡人流) | **Core loop: ** Observe risks → prepare → make trade-offs → preserve gains; **Main reward: ** Caution and judgment defeat stronger enemies; **Common failure: ** The protagonist claims to be cautious but always acts through reckless gambles |\n| Scenario-based survival (无限流) | **Core loop: ** Enter a scenario → discover its rules → solve it → bring back a change; **Main reward: ** New worlds, new problems, and progress in the long plot; **Common failure: ** Scenarios never affect one another and feel like an anthology |\n| Rules horror | **Core loop: ** Observe → test → record → reuse; **Main reward: ** Restrictions become legible and costs can be avoided; **Common failure: ** Rules are rewritten whenever convenient |\n| Urban high martial arts | **Core loop: ** Train → confront → obtain resources → enter a higher-tier map; **Main reward: ** Strength and social position rise together; **Common failure: ** A new map erases old characters and goals |\n| High-concept or system fiction | **Core loop: ** Distinctive mechanism → problem → choice of use → cost; **Main reward: ** New combinations built from the same mechanism; **Common failure: ** One function leads to the same solution every time |\n| Rebirth revenge | **Core loop: ** Use old information → rewrite a choice → diverge the timeline → compete anew; **Main reward: ** Fate is actively rewritten; **Common failure: ** The protagonist knows everything and opponents never learn |\n| Period web fiction (年代文) | **Core loop: ** Practical shortage → manage resources and favors → improve daily life; **Main reward: ** Gradually change one’s fate within constraints; **Common failure: ** Objects accumulate while practical ledgers stand still |\n| Groveling romance | **Core loop: ** Harm → departure → remorse → proof and choice; **Main reward: ** A reversal of relational power and a belated reckoning; **Common failure: ** Suffering and apology appear without departure or proof |\n\nThis table groups stories by their writing engines. A work may combine subgenres. Choose one primary loop; let other elements supply settings, characters, or variations."
         }
       },
       {
@@ -6799,7 +6806,7 @@
         },
         "body": {
           "zh": "凡人流通常让主角以普通或较弱的起点进入高风险世界，靠观察、准备、利弊权衡和及时退让生存。爽点来自判断与准备形成优势，实力成长服务生存选择。\n\n写凡人流要让“谨慎”进入动作：提前准备退路，收益与风险一起计算，见到超出承受范围的敌人会撤退，配角也有自己的利益。主角每次全凭运气进入绝境，再靠隐藏底牌获胜，谨慎只剩标签。",
-          "en": "Mortal-flow fiction usually gives the protagonist an ordinary or relatively weak starting point in a high-risk world. Survival depends on observation, preparation, weighing costs and benefits, and retreating in time. Satisfaction comes from judgment and preparation creating an advantage; growth in strength serves survival choices.\n\nCaution must appear in action. The protagonist prepares an exit, calculates reward together with risk, retreats from an enemy beyond their capacity, and deals with supporting characters who have interests of their own. If every crisis begins through luck and ends through a hidden trump card, “cautious” is only a label."
+          "en": "Cautious cultivation fiction (凡人流) usually gives the protagonist an ordinary or relatively weak starting point in a high-risk world. Survival depends on observation, preparation, weighing costs and benefits, and retreating in time. Satisfaction comes from judgment and preparation creating an advantage; growth in strength serves survival choices.\n\nCaution must appear in action. The protagonist prepares an exit, calculates reward together with risk, retreats from an enemy beyond their capacity, and deals with supporting characters who have interests of their own. If every crisis begins through luck and ends through a hidden trump card, “cautious” is only a label."
         }
       },
       {
@@ -6821,7 +6828,7 @@
         },
         "body": {
           "zh": "共同开头：药材仓学徒周岩发现一批货的标签与实物对不上。\n\n- **凡人流**：他不急着举报，先确认谁能改账、货物流向和安全退路，用小批次试探对手反应。\n- **规则怪谈**：仓库夜班守则要求标签错误的货必须原位封存，另一条却要求天亮前清空过期货，冲突迫使他验证规则。\n- **脑洞系统文**：他能看见药材“下一次被使用的结果”，能力有次数与误判代价，选择把机会用在哪一箱成为核心。\n- **年代文**：标签错误牵动采购指标、工位责任与熟人担保，他要在办事流程和人情账里自证。\n\n故事表面仍是错货，读者持续等待的东西已经不同。流派由长期循环决定，场景装饰无法单独决定。",
-          "en": "Shared opening: Zhou Yan, an apprentice in a medicinal-herb warehouse, discovers that the labels on a shipment do not match the contents.\n\n- **Mortal-flow**: He does not report it immediately. First he learns who can alter the accounts, where the goods travel, and how he can leave safely, then tests the opponent’s response with a small batch.\n- **Rules horror**: The night-shift rules require mislabeled goods to remain sealed in place, while another rule requires expired goods to be cleared before dawn. The contradiction forces him to test the rules.\n- **High-concept system fiction**: He can see “the result of the next use” of each herb. The ability has limited uses and a cost for misreading, so choosing which crate deserves a use becomes central.\n- **period web fiction**: The labeling error affects purchasing quotas, responsibility for workstations, and guarantees among acquaintances. He must prove himself through procedures and debts of favor.\n\nThe visible problem remains mislabeled goods, but what readers keep waiting for has changed. A subgenre is defined by its long-running loop; surface decoration cannot decide it alone."
+          "en": "Shared opening: Zhou Yan, an apprentice in a medicinal-herb warehouse, discovers that the labels on a shipment do not match the contents.\n\n- **Cautious cultivation (凡人流)**: He does not report it immediately. First he learns who can alter the accounts, where the goods travel, and how he can leave safely, then tests the opponent’s response with a small batch.\n- **Rules horror**: The night-shift rules require mislabeled goods to remain sealed in place, while another rule requires expired goods to be cleared before dawn. The contradiction forces him to test the rules.\n- **High-concept system fiction**: He can see “the result of the next use” of each herb. The ability has limited uses and a cost for misreading, so choosing which crate deserves a use becomes central.\n- **period web fiction**: The labeling error affects purchasing quotas, responsibility for workstations, and guarantees among acquaintances. He must prove himself through procedures and debts of favor.\n\nThe visible problem remains mislabeled goods, but what readers keep waiting for has changed. A subgenre is defined by its long-running loop; surface decoration cannot decide it alone."
         }
       },
       {
@@ -6832,7 +6839,7 @@
         },
         "body": {
           "zh": "可以混搭。先写一句主承诺，再标明每个元素的职责。例如“凡人流规则怪谈”可以让谨慎取舍做主循环，规则副本提供不断变化的风险；“年代重生文”让现实经营做主循环，前世信息只提供有限优势。\n\n每个大段检查：主循环有没有推动，配角和资源是否从上一段继承，新元素有没有改变选择。若删掉某个标签后主线完全不受影响，这个标签只是宣传装饰；若多个循环争夺结算，读者会难以判断下一步期待。",
-          "en": "Yes. Write one primary promise, then state what each element contributes. A “mortal-flow rules-horror” story may use cautious trade-offs as its primary loop while rule-bound scenarios supply changing risks. A rebirth story set in a period setting can make practical management its primary loop, while knowledge from a previous life offers only a limited advantage.\n\nFor each major section, check whether the primary loop advances, whether supporting characters and resources carry over, and whether the new element changes a choice. If removing a label leaves the main plot untouched, that label is promotional decoration. If several loops compete to provide the resolution, readers may not know what to anticipate next."
+          "en": "Yes. Write one primary promise, then state what each element contributes. A “cautious cultivation with rules horror” story may use cautious trade-offs as its primary loop while rule-bound scenarios supply changing risks. A rebirth story set in a period setting can make practical management its primary loop, while knowledge from a previous life offers only a limited advantage.\n\nFor each major section, check whether the primary loop advances, whether supporting characters and resources carry over, and whether the new element changes a choice. If removing a label leaves the main plot untouched, that label is promotional decoration. If several loops compete to provide the resolution, readers may not know what to anticipate next."
         }
       }
     ],
@@ -6844,7 +6851,7 @@
         },
         "a": {
           "zh": "题材说明故事世界与主要矛盾，如年代、宫斗、修仙；流派更强调反复运转的阅读机制，如凡人流、无限流、系统流。实际使用中两者经常组合。",
-          "en": "A subject describes the story world and major conflict, such as a period setting, palace intrigue, or cultivation. A subgenre emphasizes a repeated reading mechanism, such as mortal-flow, infinite-flow, or system fiction. Stories often combine the two."
+          "en": "A subject describes the story world and major conflict, such as a period setting, palace intrigue, or cultivation. A subgenre emphasizes a repeated reading mechanism, such as cautious cultivation (凡人流), scenario-based survival (无限流), or system fiction. Stories often combine the two."
         }
       },
       {
@@ -6862,7 +6869,7 @@
       "name": "story-long-write",
       "text": {
         "zh": "在 Claude Code 里说：“用 /story-long-write 比较我的点子适合凡人流、无限流、规则怪谈、系统流或重生文中的哪种核心循环，列出每轮选择、回报、长期变化和失效风险，不写完整正文”（Codex 里写作 `$story-long-write`）。",
-        "en": "In Claude Code, say: “Use `/story-long-write` to compare whether my idea best fits the core loop of mortal-flow, infinite-flow, rules horror, system fiction, or rebirth fiction. List the choice, reward, lasting change, and failure risk in each cycle. Do not write the full prose.” In Codex, write `$story-long-write`."
+        "en": "In Claude Code, say: “Use `/story-long-write` to compare whether my idea best fits the core loop of cautious cultivation (凡人流), scenario-based survival (无限流), rules horror, system fiction, or rebirth fiction. List the choice, reward, lasting change, and failure risk in each cycle. Do not write the full prose.” In Codex, write `$story-long-write`."
       },
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
     },
@@ -6876,10 +6883,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "长篇题材目录",
+          "en": "Long-form genre catalog"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/long-genre-catalog.md"
+      },
+      {
+        "label": {
+          "zh": "剧情循环设计",
+          "en": "Plot loop design"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/plot-core-methods.md"
       }
     ]
   },
@@ -7879,7 +7893,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "盐言故事怎么写：用有限视角推进误判与反转",
       "en": "How to Write Yanyan-Style Stories: Limited Viewpoint and Fair Twists"
@@ -7893,8 +7907,8 @@
       "en": "Use an urgent first-person goal, limited information, an everyday anomaly, and recovered evidence so a twist changes the meaning of earlier facts."
     },
     "answer": {
-      "zh": "盐言式故事常用贴近人物的第一人称，让读者与叙述者共享有限信息。开头给人物一个急迫目标，再放入能被看见却暂时无法解释的日常异常；后续靠行动取得新证据，让反转重新解释旧细节，并迫使人物做出有代价的选择。",
-      "en": "In this article, “Yanyan story” refers to the Chinese label 盐言故事 for compact, plot-driven short fiction. These stories often stay close to a first-person narrator so readers share the character’s limited information. Give the narrator an urgent goal, then introduce an ordinary object or record that looks wrong but cannot yet be explained. Let action uncover new evidence. The twist should reinterpret earlier details and force a costly choice rather than merely add a surprise."
+      "zh": "本文以盐言故事相关的 skill 写法为参考，采用第一人称、真诚误判与可回溯的反转。先给叙述者一个当前目标，再让旧细节经主动核实获得新解释，最后写判断改变后的选择与后果。这是一种可选写法；视角、情绪和结尾仍服从作者与本篇约定，不把平台作品写成同一模板。",
+      "en": "This guide draws on the skill’s Yanyan-oriented methods and uses first person, a sincere mistaken judgment, and a reveal that can be traced back. Give the narrator a present goal, let active verification reinterpret earlier details, and show the resulting choice and consequence. This is one approach; viewpoint, emotion, and ending follow the author’s agreement for the piece rather than a uniform platform template."
     },
     "sections": [
       {
@@ -7904,8 +7918,8 @@
           "en": "Build Four Narrative Components First"
         },
         "body": {
-          "zh": "| 部件 | 写作问题 | 作用 |\n|---|---|---|\n| 当前目标 | “我”现在非办成什么不可？ | 防止开头只讲背景 |\n| 个人盲区 | “我”因身份、愿望或偏见看漏什么？ | 建立有限视角 |\n| 日常异常 | 哪件普通东西出现了不合常理的变化？ | 产生可追查的问题 |\n| 代价选择 | 真相出现后，“我”要放弃什么？ | 让反转改变人物 |\n\n本篇采用叙述者真诚误判的写法，盲区必须符合人物处境，不能中途改成明知真相却装不知道。悬疑中的凶手叙述者可以采用如实记录动作、暂不解释动机的另一种安排，见[不可靠叙述者的两种写法](/oh-story/write-an-unreliable-narrator)。",
-          "en": "“Yanyan story” is the Chinese label used here for this kind of compact short fiction. Start with four components:\n\n| Component | Writing question | Function |\n|---|---|---|\n| Immediate goal | What must “I” accomplish now? | Prevents the opening from becoming background summary |\n| Personal blind spot | What does “I” overlook because of identity, desire, or bias? | Establishes limited viewpoint |\n| Everyday anomaly | What ordinary object has changed in a way that does not make sense? | Creates a question that can be investigated |\n| Costly choice | Once the truth appears, what must “I” give up? | Lets the twist change the character |\n\nThis article uses sincere misjudgment: the blind spot must fit the narrator, who cannot abruptly turn out to have known the truth all along. A suspense culprit can instead report actions truthfully while withholding motive; see [two approaches to unreliable narration](/oh-story/write-an-unreliable-narrator)."
+          "zh": "| 部件 | 判断 |\n|---|---|\n| 当前目标 | **写作问题：** “我”现在非办成什么不可？；**作用：** 防止开头只讲背景 |\n| 个人盲区 | **写作问题：** “我”因身份、愿望或偏见看漏什么？；**作用：** 建立有限视角 |\n| 日常异常 | **写作问题：** 哪件普通东西出现了不合常理的变化？；**作用：** 产生可追查的问题 |\n| 代价选择 | **写作问题：** 真相出现后，“我”要放弃什么？；**作用：** 让反转改变人物 |\n\n本篇采用叙述者真诚误判的写法，盲区必须符合人物处境，不能中途改成明知真相却装不知道。悬疑中的凶手叙述者可以采用如实记录动作、暂不解释动机的另一种安排，见[不可靠叙述者的两种写法](/oh-story/write-an-unreliable-narrator)。",
+          "en": "“Yanyan story” is the Chinese label used here for this kind of compact short fiction. Start with four components:\n\n| Part | Check |\n|---|---|\n| Immediate goal | **Writing question: ** What must “I” accomplish now?; **Function: ** Prevents the opening from becoming background summary |\n| Personal blind spot | **Writing question: ** What does “I” overlook because of identity, desire, or bias?; **Function: ** Establishes limited viewpoint |\n| Everyday anomaly | **Writing question: ** What ordinary object has changed in a way that does not make sense?; **Function: ** Creates a question that can be investigated |\n| Costly choice | **Writing question: ** Once the truth appears, what must “I” give up?; **Function: ** Lets the twist change the character |\n\nThis article uses sincere misjudgment: the blind spot must fit the narrator, who cannot abruptly turn out to have known the truth all along. A suspense culprit can instead report actions truthfully while withholding motive; see [two approaches to unreliable narration](/oh-story/write-an-unreliable-narrator)."
         }
       },
       {
@@ -7926,8 +7940,8 @@
           "en": "Original Example: An “Outstanding” Claim Ticket at a Tailor Shop"
         },
         "body": {
-          "zh": "“我”准备清空母亲留下的裁缝铺，已约好收旧设备的人周五上门。抽屉里，一张写着“未交”的取衣单夹在账本中。我以为有人拖着不付钱，决定在关店前把账讨回来。\n\n开场把能看见的事实都给读者：取衣单只有“未交”两字，没有“未付”；账本对应一栏标着“已收定金”，客人的联系方式就在单据上；柜后挂着一件已裁好、袖口尚未完成的外套。我心里只想着回收现金，仍把“未交”理解成对方没交钱。\n\n我打电话催款，客人没有回避，只问衣服什么时候能取。她发来的旧聊天记录与账本对得上：余款约定取衣时再付，母亲住院前答应完成的正是柜后那件外套。她一直在等通知，不知道店将关闭。此时我重新读那张单子，才承认“未交”指衣服还没有交出去。\n\n我可以退回定金直接结束，也可以处理母亲没完成的这笔委托。我向客人道歉，说明自己不会缝制，征得她同意后把衣服交给另一位裁缝收尾，并自己补上超出余款的工费。为等对方上门核对半成品，我取消了周五整体清空的预约；原收购方不再保留当天的打包报价，我接受设备单卖带来的额外时间和更低收入。\n\n反转没有新增一个隐藏债主，只纠正了我的账目解释。取衣单、定金记录和半成品早已出现，电话核实让旧事实连成另一条因果；最后的补救和损失来自我实际作出的决定。这个例子是为方法设计的虚构场景。",
-          "en": "The narrator plans to clear out the tailor shop left by their mother. A used-equipment buyer is scheduled to arrive Friday. Inside a ledger drawer, the narrator finds a garment claim ticket marked **OUTSTANDING** and assumes a customer still owes money, so they decide to collect the debt before closing the shop.\n\nThe opening gives readers every visible fact. The ticket says only **OUTSTANDING**, not “unpaid.” The corresponding ledger entry says **deposit received**, and the customer’s contact details are printed on the ticket. Behind the counter hangs a cut jacket with unfinished cuffs. Focused on recovering cash, the narrator interprets “outstanding” as an unpaid balance rather than work still awaiting completion.\n\nWhen the narrator calls to demand payment, the customer does not evade the subject. She asks when the jacket will be ready. Her old messages match the ledger: the remaining balance was due on collection, and the jacket behind the counter is the commission the narrator’s mother promised to finish before entering the hospital. The customer has been waiting for notice and does not know the shop is closing. Only then does the narrator reread **OUTSTANDING** as a job that has not yet been completed and handed over.\n\nThe narrator can refund the deposit and close the matter, or take responsibility for the unfinished commission. They apologize, explain that they cannot sew, and—with the customer’s consent—transfer the jacket to another tailor for completion. They personally pay the labor cost beyond the remaining balance. To let the customer inspect the unfinished garment in person, they cancel Friday’s full clearance. The original buyer withdraws the offer to buy the whole lot of equipment that day, so the equipment must be sold separately for less money and more time.\n\nThe reversal introduces no hidden creditor. It corrects the narrator’s reading of an existing record. The ticket, deposit entry, and unfinished garment were present from the beginning; the phone call connects them into a different causal chain. The repair and loss follow from the narrator’s actual choice. This is a fictional scene designed to demonstrate the method."
+          "zh": "“我”准备清空母亲留下的裁缝铺，已约好收旧设备的人周五上门。抽屉里，一张写着“未交”的取衣单夹在账本中。我以为有人拖着不付钱，决定在关店前把账讨回来。\n\n开场把能看见的事实都给读者：取衣单只有“未交”两字，没有“未付”；账本对应一栏标着“已收定金”，客人的联系方式就在单据上；柜后挂着一件已裁好、袖口尚未完成的外套。我心里只想着回收现金，仍把“未交”理解成对方没交钱。\n\n我打电话催款，客人没有回避，只问衣服什么时候能取。她发来的旧聊天记录与账本对得上：余款约定取衣时再付，母亲住院前答应完成的正是柜后那件外套。她一直在等通知，不知道店将关闭。此时我重新读那张单子，才承认“未交”指衣服还没有交出去。\n\n我可以退回定金直接结束，也可以处理母亲没完成的这笔委托。我向客人道歉，说明自己不会缝制，先征得客人同意，又联系另一位裁缝；对方确认能接这件半成品并报出工费后，我实际把衣服交过去，自己支付超出余款的部分。为等对方上门核对半成品，我取消了周五整体清空的预约；原收购方不再保留当天的打包报价，后来设备分批售出，总收入确实低于原打包报价，也多花了时间。\n\n反转没有新增一个隐藏债主，只纠正了我的账目解释。取衣单、定金记录和半成品早已出现，电话核实让旧事实连成另一条因果；最后的补救和损失来自我实际作出的决定。这个例子是为方法设计的虚构场景。",
+          "en": "The narrator plans to clear out the tailor shop left by their mother. A used-equipment buyer is scheduled to arrive Friday. Inside a ledger drawer, the narrator finds a garment claim ticket marked **OUTSTANDING** and assumes a customer still owes money, so they decide to collect the debt before closing the shop.\n\nThe opening gives readers every visible fact. The ticket says only **OUTSTANDING**, not “unpaid.” The corresponding ledger entry says **deposit received**, and the customer’s contact details are printed on the ticket. Behind the counter hangs a cut jacket with unfinished cuffs. Focused on recovering cash, the narrator interprets “outstanding” as an unpaid balance rather than work still awaiting completion.\n\nWhen the narrator calls to demand payment, the customer does not evade the subject. She asks when the jacket will be ready. Her old messages match the ledger: the remaining balance was due on collection, and the jacket behind the counter is the commission the narrator’s mother promised to finish before entering the hospital. The customer has been waiting for notice and does not know the shop is closing. Only then does the narrator reread **OUTSTANDING** as a job that has not yet been completed and handed over.\n\nThe narrator can refund the deposit and close the matter, or take responsibility for the unfinished commission. They apologize and explain that they cannot sew. With the customer’s consent, they contact another tailor, who confirms they can accept this unfinished coat and quotes a fee. The narrator actually hands over the coat and pays the portion beyond the remaining balance. To let the customer inspect the unfinished garment in person, they cancel Friday’s full clearance. The original buyer no longer holds the quote for that day. The equipment is later sold in separate batches; the total is actually below the original bundle quote, and selling it takes more time.\n\nThe reversal introduces no hidden creditor. It corrects the narrator’s reading of an existing record. The ticket, deposit entry, and unfinished garment were present from the beginning; the phone call connects them into a different causal chain. The repair and loss follow from the narrator’s actual choice. This is a fictional scene designed to demonstrate the method."
         }
       },
       {
@@ -7994,17 +8008,31 @@
     "sources": [
       {
         "label": {
-          "zh": "视角反转与信息边界",
-          "en": "Viewpoint reversal and knowledge boundaries"
+          "zh": "投稿基调与断点",
+          "en": "Submission tone and breakpoints"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/submission-craft.md"
+      },
+      {
+        "label": {
+          "zh": "反转与旧线索重解释",
+          "en": "Reversal and reinterpretation"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/short-reversal.md"
       },
       {
         "label": {
-          "zh": "悬疑叙述者的动机隐瞒",
-          "en": "Withheld motives in suspense narration"
+          "zh": "悬疑写法",
+          "en": "Mystery writing"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/genre-styles/悬疑.md"
+      },
+      {
+        "label": {
+          "zh": "作者文风裁决",
+          "en": "Author style resolution"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/style-resolution.md"
       }
     ]
   },
@@ -9522,7 +9550,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "网文写什么题材好：从兴趣、承诺到试写验证",
       "en": "Choosing a Web-Fiction Genre: From Interest to a Trial Scene"
@@ -9569,8 +9597,8 @@
           "en": "Original Example: An Urban Mystery About Restoring Records"
         },
         "body": {
-          "zh": "作者熟悉社区档案整理，也喜欢亲属秘密。初始想法“主角能从旧纸张看见过去”很宽。整理后承诺变成：每个单元用一份被改写的公共记录，迫使一个家庭重新选择要公开什么。\n\n发动机可以变化：住址注销影响继承、旧名单影响荣誉、借阅记录影响证词。试写只写主角在拆迁登记处发现同一户号有两种墨水，并决定暂缓盖章。若这一场只能解释能力、没有人物因此改变行动，题材还需调整。",
-          "en": "The author knows community archive work and enjoys family secrets. The initial idea, “The protagonist can see the past through old sheets of paper,” is broad. After refinement, the promise becomes: each story unit uses an altered public record to force a family to reconsider what to make public.\n\nThe engine can vary: a cancelled address registration affects inheritance, an old list affects an honour, and a borrowing record affects testimony. For the trial draft, write only the protagonist discovering two different inks under the same household number at a demolition registration office and choosing to postpone stamping the record. If the scene merely explains the ability without anyone changing their actions because of it, the concept still needs adjustment."
+          "zh": "以下是原创选题练习，没有市场调研或真实档案审核结果。\n\n作者熟悉社区资料整理，也喜欢亲属秘密。初始想法“主角能从旧纸张看见过去”很宽。先把承诺收窄为：主角核对一份公共记录时，发现旧说法与现有材料的差异，相关家庭再选择哪些经历愿意说明。能否公开、谁有决定权都要按本书事实建立，不因主角好奇便自动获得。\n\n候选单元可以各有不同压力：旧住址记录与当事人口述不一致，旧名单遗漏一位参与者，借阅记录和一位证人的说法对不上。这些是待发展方向，差异本身不证明哪一方造假；每个单元还需要可取得的信息、人物选择与具体后果。\n\n首段试写设定主角是整理副本的新职员，只能签字确认“副本与原件一致”，没有替他人改原始记录的权限。本次他在同一户号旁看见两种墨水，尚不知道形成原因，于是暂不签自己的核对栏，找出对应原件比较；原件也有两种墨水。他据此撤回“可能是抄错”的初步解释，按已建立的工作分工向主管提出联系登记人核对。主管实际同意接手联系，是否联系上和对方怎样解释留到后文。\n\n这场验证了两件事：异常可以推动具体查证，查证又改变下一步判断。它尚未验证整个长篇有多少单元，也没有证明这一题材会卖。若正文只讲能力、却没有可追踪的选择或人物体验，就继续调整；不要求每一场都出现新权限或重大损失。",
+          "en": "This is an original selection exercise, without market research or an actual archive review.\n\nThe author knows community record work and enjoys family secrets. The initial premise—someone can see the past through old paper—is broad. Narrow the promise: while comparing a public record, the protagonist finds a difference between an old account and available material, and a family chooses which experiences to explain. Establish who can disclose what within the book’s facts; curiosity does not automatically grant access.\n\nCandidate units can apply different pressures: an old address differs from a resident’s account; a participant is missing from an old list; a borrowing record conflicts with a witness. These are directions to develop, not proof that anyone falsified something. Each unit still needs obtainable information, character choices, and consequences.\n\nIn the trial scene, the protagonist is a new employee checking a copy. He may sign only that the copy matches the original; he cannot alter another person’s original record. Seeing two inks beside one household number, he does not yet know their cause. He leaves his own verification box unsigned and compares the original, which also contains both inks. He withdraws his first “perhaps a copying error” explanation and asks the supervisor to contact the registrant under the established division of work. The supervisor actually agrees to handle that contact. Reaching the person and obtaining an explanation remain later events.\n\nThis trial shows that an anomaly can prompt verification, which changes the next judgment. It has not established enough units for a whole novel or proved market demand. If the prose only explains the ability without a traceable choice or character experience, keep adjusting; every scene need not produce new authority or a major loss."
         }
       },
       {
@@ -9599,22 +9627,22 @@
     "faq": [
       {
         "q": {
-          "zh": "这种方法需要固定章节数吗？",
-          "en": "Does this method require a fixed number of chapters?"
+          "zh": "只喜欢一个点子，能直接写成长篇吗？",
+          "en": "Can one appealing premise support a whole novel?"
         },
         "a": {
-          "zh": "不需要。章节与阶段由故事实际变化决定，表格只帮助检查因果、资源与关系是否前进。",
-          "en": "No. Let actual changes in the story determine chapters and stages. The table only helps check whether causality, resources, and relationships are moving forward."
+          "zh": "先比较它能否产生不同选择、人物回应和持续后果。只够一场惊喜时，可以先写短篇或缩小范围；不要靠不断增加新能力把不足掩盖过去。试写能帮助判断写法，不证明市场需求。",
+          "en": "Compare whether it generates different choices, character responses, and lasting consequences. If it supports only one surprise, try a short piece or reduce scope instead of continually adding powers. A trial helps assess the writing, not market demand."
         }
       },
       {
         "q": {
-          "zh": "可以直接套用示例情节吗？",
-          "en": "Can I reuse the example plot directly?"
+          "zh": "选题一定要先看榜单吗？",
+          "en": "Must genre selection start with rankings?"
         },
         "a": {
-          "zh": "示例用于展示方法。应替换故事发动机、人物选择与后果，避免只改姓名和场景。",
-          "en": "The example demonstrates the method. Replace the story engine, character choices and consequences rather than merely changing names and locations."
+          "zh": "不一定。作者知识、兴趣和已有故事可以先形成候选；若要判断当前平台受众，再核对有日期、范围和出处的样本。未做这一步时，把题材结论写成创作假设，不写成热度或签约预测。",
+          "en": "No. Your knowledge, interests, and existing story can produce candidates first. If you want to assess a platform’s current audience, inspect dated samples with clear scope and sources. Without that evidence, treat the genre choice as a creative hypothesis, not a popularity or contract prediction."
         }
       }
     ],
@@ -9636,10 +9664,24 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "题材知识匹配与卖点验证",
+          "en": "Knowledge fit and premise verification"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/long-genre-mechanics.md"
+      },
+      {
+        "label": {
+          "zh": "样本与题材边界",
+          "en": "Samples and genre boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-readers.md"
+      },
+      {
+        "label": {
+          "zh": "持续循环",
+          "en": "Sustained plot loops"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/plot-core-methods.md"
       }
     ]
   },
@@ -9909,7 +9951,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "科幻末世小说怎么写：资源、规则与信任同时倒计时",
       "en": "Writing Apocalyptic Sci-Fi: Resources, Rules and Trust Under Pressure"
@@ -9923,8 +9965,8 @@
       "en": "Connect disaster patterns, resource use and group trust through choices. Make every survival gain bring depletion or exposure."
     },
     "answer": {
-      "zh": "科幻末世文先建立一项可观察的灾变规律和一个立即影响选择的资源缺口。人物通过试错确认规则，每次求生行动都消耗水、电、药、时间或信任；得到资源时也会暴露位置、扩大队伍或触发基地制度，让危险持续变形。",
-      "en": "Begin apocalyptic science fiction with an observable disaster pattern and a resource shortage that immediately affects choices. Characters establish the rules through trial and error. Every attempt to survive uses water, power, medicine, time or trust. Acquiring resources can also expose a location, expand the group or bring base regulations into play, continually changing the shape of the danger."
+      "zh": "科幻末世文可以先建立可观察的灾变规律和立即影响行动的资源缺口，让人物根据有限证据试错。水、电、时间与队伍信任怎样限制选择，需要有前后连续性；得到资源后再判断它改变了哪些机会或风险，不必每次强加新损失。科技和灾害规律服从本书设定，角色推测与已经确认的事实分开。",
+      "en": "Start a science-fiction survival story with an observable disaster pattern and a resource gap affecting immediate choices. Let characters test limited evidence. Water, power, time, and trust should constrain action consistently; when resources arrive, identify changed opportunities or risks without forcing a new loss every time. Technology and disaster rules follow the book’s setup, with character hypotheses kept separate from confirmed facts."
     },
     "sections": [
       {
@@ -9934,8 +9976,8 @@
           "en": "Define the Story Engine"
         },
         "body": {
-          "zh": "三条线同时运转：外部灾变怎样变化，资源按什么速度消耗，队伍中谁愿意承担风险。科技或能力必须说明适用条件与代价。设定解释跟随试错：人物先依据有限证据行动，结果再修正规则，避免开篇用百科全书宣布世界。",
-          "en": "Keep three strands moving together: how the external disaster changes, how quickly resources are consumed and who in the group will take risks. Establish the conditions and costs of technology or special abilities. Explain the setting through trial and error: characters act on limited evidence, then use the result to revise their understanding of the rules. Avoid opening with an encyclopaedic announcement of the world."
+          "zh": "三条线同时运转：外部灾变怎样变化，资源按什么速度消耗，队伍中谁愿意承担风险。科技或能力必须说明适用条件与代价。设定解释跟随试错：人物先依据有限证据行动，结果再修正规则，避免开篇用百科全书宣布世界。\n\n题材卡强调生存压力，本书仍可安排安全恢复、关系回收或单纯得到补给的段落。危险与消耗在需要它们的行动中保持一致，不能为了“每章都有代价”临时削掉已经确认的收益。",
+          "en": "Keep three strands moving together: how the external disaster changes, how quickly resources are consumed and who in the group will take risks. Establish the conditions and costs of technology or special abilities. Explain the setting through trial and error: characters act on limited evidence, then use the result to revise their understanding of the rules. Avoid opening with an encyclopaedic announcement of the world.\n\nThe genre card emphasizes survival pressure, but a book can still include safe recovery, relationship payoff, or a straightforward supply gain. Keep danger and consumption consistent where relevant rather than inventing losses to meet a per-chapter quota."
         }
       },
       {
@@ -9945,8 +9987,8 @@
           "en": "Keep Progressing Without Repetition"
         },
         "body": {
-          "zh": "| 获得 | 同时带来的问题 |\n|---|---|\n| 新水源 | 位置暴露、净化负担 |\n| 避难所名额 | 规则约束、队伍取舍 |\n| 能源设备 | 噪声、维护、使用权限 |\n| 新成员 | 技能增加、信任成本上升 |\n\n每次循环至少改变规则认知、资源余量、队伍结构或退路。连续打怪却不改变这些状态，只会变成重复动作。",
-          "en": "| Gain | Problems it also brings |\n|---|---|\n| A new water source | An exposed location and the burden of purification |\n| Places in a shelter | Rules to comply with and choices about the group |\n| Energy equipment | Noise, maintenance and permission to use it |\n| A new member | More skills, but a higher cost of building trust |\n\nEach cycle should change at least one of these: understanding of the rules, remaining resources, group composition or ways out. Repeated monster fights that leave all these states unchanged become repetitive action."
+          "zh": "| 获得 | 可能的后果 |\n|---|---|\n| 新水源 | 位置暴露、净化负担 |\n| 避难所名额 | 规则约束、队伍取舍 |\n| 能源设备 | 噪声、维护、使用权限 |\n| 新成员 | 技能增加、信任成本上升 |\n\n这张表列出可能的后果，不要求每次获得都同时出现对应损失。检查当前循环改变了哪些规则认知、资源余量、队伍关系或退路。连续打怪却不改变这些状态，只会变成重复动作。",
+          "en": "| Gain | Possible effects |\n|---|---|\n| A new water source | An exposed location and the burden of purification |\n| Places in a shelter | Rules to comply with and choices about the group |\n| Energy equipment | Noise, maintenance and permission to use it |\n| A new member | More skills, but a higher cost of building trust |\n\nThese are possible effects, not compulsory losses attached to every gain. Check which understanding, resources, relationships, or routes change in the current loop. Repeated monster fights that leave all these states unchanged become repetitive action."
         }
       },
       {
@@ -9956,8 +9998,8 @@
           "en": "Original Example"
         },
         "body": {
-          "zh": "极寒后的地下交通站只剩一块有电的便携电池，够广播终端短时工作。终端面板标着“定位请求会自动回传站点编号”。工程师乔岚此前见过另一站发出请求后，巡查机沿隧道抵达；她怀疑所谓安全广播正在追踪求救者，但还不知道回传能否中断。队伍急需终端里的药库路线。\n\n她把终端和电池带到已经撤空的站台，其他人留在不联网的维修间。接通后，屏幕先显示本站编号“已发送”，再出现药库坐标；她记下坐标立刻拔电。稍后，巡查机停在撤空站台逐个扫描出口。这个结果支持“发出的编号会引来巡查，拔电不能撤回已经发送的信息”，却还无法证明维修间已暴露。\n\n队伍拿到了路线，也失去了站台这条近路。有人指责乔岚擅自拿撤离口试验，她必须说明自己实际看见了什么，并接受下一次联网由队伍共同决定。能源、可走路线和决定权都进入下一段求生冲突。",
-          "en": "After extreme cold, an underground transit station has just one portable battery with any charge left, enough to run a broadcast terminal briefly. The panel reads: “Location requests automatically transmit the station ID.” Engineer Qiao Lan previously saw a patrol machine arrive through the tunnel after another station sent a request. She suspects that the supposed safety broadcast tracks people seeking help, but does not yet know whether she can interrupt the transmission. The group urgently needs the route to a medicine depot stored in the terminal.\n\nShe takes the terminal and battery to an evacuated platform; everyone else stays in an offline maintenance room. Once connected, the screen first marks their station ID as “Sent,” then displays the depot coordinates. She notes the coordinates and immediately disconnects the power. Later, a patrol machine stops at the empty platform and scans its exits one by one. This supports the conclusion that a transmitted ID draws a patrol and that disconnecting power cannot retract information already sent. It does not yet prove that the maintenance room has been exposed.\n\nThe group gains a route but loses the platform as a shortcut. Someone accuses Qiao Lan of experimenting with an escape route without their agreement. She must explain what she actually observed and accept that the group will decide together before the next connection. Power, available routes and decision-making authority all carry into the next survival conflict."
+          "zh": "以下为原创虚构设定与纸面案例，不是实测通讯或求生方案。\n\n极寒后的地下交通站只剩一块有电的便携电池，够广播终端短时工作。终端标着“定位请求会自动回传站点编号”。工程师乔岚此前见过另一站发请求后有巡查机抵达，因此怀疑求救信号与巡查有关；她并不知道两者是否存在直接指令关系，也不知道断电能否停止已经发出的信息。队伍需要终端里的药库路线，尚未取得药品。\n\n乔岚没有与所有人商量，就把终端和电池带到已撤空的站台；其他人留在不联网的维修间。屏幕先显示本站编号“已发送”，再出现药库坐标，她记下后拔电。随后巡查机进入站台，停在这条撤离近路的入口扫描，队伍暂时不能从这里隐蔽离开。\n\n这个结果支持继续调查“定位请求与巡查的关联”，并说明至少本次断电没有阻止巡查到来。它不能证明巡查系统的全部用途、维修间已经暴露，或坐标里的药品仍在。路线到手与药品到手也属于两步。\n\n队员指出她擅自把撤离口用作试验。乔岚承认没有预先商量，分别说明面板文字、自己见过的两次巡查和仍未知的部分，提出下次联网先由队伍一起判断地点与退路。在场队员实际同意这一约定；他们转去检查另一条已知但较长的出口，是否能通行留到下一段。\n\n本段同时留下电池使用、目前被占的入口与新的讨论约定。风险来自具体行动和可见回应，没有把一次局部观察升级成主角知道整个系统真相。",
+          "en": "This is an original fictional setup and paper example, not a tested communications or survival plan.\n\nAfter extreme cold, an underground station has one portable battery with enough power to run a broadcast terminal briefly. Its panel says a location request automatically sends the station identifier. Engineer Qiao Lan once saw patrol machines arrive after another station made a request, so she suspects a connection. She does not know whether the request directly commands patrols or whether disconnection can halt an already sent message. The team needs the terminal’s route to a medicine store; it has not obtained medicine.\n\nWithout consulting everyone, Qiao carries the terminal and battery to the evacuated platform; the others remain in an offline repair room. The screen first marks the station identifier “Sent,” then displays coordinates. She records them and unplugs the battery. A patrol subsequently enters the platform and scans the entrance used as a short evacuation route. The team cannot currently leave unnoticed through it.\n\nThis supports investigating the association between location requests and patrols and shows that disconnection did not prevent this arrival. It does not establish the system’s entire purpose, exposure of the repair room, or medicine still present at the coordinates. Obtaining a route and obtaining medicine are separate actions.\n\nA teammate objects to Qiao using the exit for an experiment without consultation. She acknowledges that choice, separates the panel message and two observed patrol arrivals from what remains unknown, and proposes deciding the location and retreat together before the next connection. The teammates present actually agree. They turn to inspect another known, longer exit; whether it is passable remains for the next passage.\n\nThe scene carries forward battery use, a presently occupied entrance, and an agreed discussion rule. Risk comes from specific actions and visible responses, without making a local observation reveal the whole system."
         }
       },
       {
@@ -10012,17 +10054,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "科幻末世正文方法",
+          "en": "Science-fiction survival prose"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-prose-cards/科幻末世.md"
       },
       {
         "label": {
-          "zh": "题材写作方法",
-          "en": "Genre writing method"
+          "zh": "作者与本书文风",
+          "en": "Author and book style"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-prose-cards/科幻末世.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ]
   },
@@ -10428,7 +10470,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "小说封面提示词怎么写：题材、构图和文字分层",
       "en": "Writing Novel-Cover Prompts: Separate Genre, Composition and Text"
@@ -10453,8 +10495,8 @@
           "en": "Turn the Genre into Visual Evidence"
         },
         "body": {
-          "zh": "| 题材承诺 | 主体证据 | 背景证据 | 色彩与光线 |\n|---|---|---|---|\n| 玄幻成长 | 人物、法器、资格徽记 | 山门、试炼场、远层势力 | 深色环境配一处能量焦点 |\n| 都市脑洞 | 普通人和异常物件 | 办公室、街道、账单或屏幕 | 现实冷色配异常亮色 |\n| 悬疑追查 | 证物、背影、受限空间 | 雨夜、档案室、空房 | 高反差与局部照明 |\n| 情感关系 | 两人的距离和视线 | 共享空间或分隔物 | 与关系温度一致 |\n\n题材元素只保留最能证明承诺的一两项，避免把所有梗都塞上封面。",
-          "en": "| Genre promise | Evidence in the subject | Evidence in the background | Colour and lighting |\n|---|---|---|---|\n| Fantasy progression | A character, magical artefact or mark of rank | A mountain gate, trial grounds or distant faction | Dark surroundings with one point of energy |\n| Urban speculative fiction | An ordinary person and an anomalous object | An office, street, bill, or screen | Cool realistic colours with one anomalous bright accent |\n| Mystery investigation | Evidence, a figure seen from behind or a confined space | A rainy night, archive room or empty house | High contrast and localised lighting |\n| Emotional relationship | The distance and eyelines between two people | A shared space or something separating them | Lighting and colour temperature suited to the relationship |\n\nKeep only the one or two elements that best prove the genre promise. Do not crowd the cover with every story idea."
+          "zh": "这些是编辑依据风格库整理的候选，不是每类故事唯一的配色。先服从本书气质与作者选择，再比较哪种画面最清楚。\n\n| 承诺 | 视觉选择 |\n|---|---|\n| 玄幻成长 | **主体证据：** 人物、法器、资格徽记；**背景证据：** 山门、试炼场、远层势力；**色彩与光线：** 深色环境配一处能量焦点 |\n| 都市脑洞 | **主体证据：** 普通人和异常物件；**背景证据：** 办公室、街道、账单或屏幕；**色彩与光线：** 现实冷色配异常亮色 |\n| 悬疑追查 | **主体证据：** 证物、背影、受限空间；**背景证据：** 雨夜、档案室、空房；**色彩与光线：** 高反差与局部照明 |\n| 情感关系 | **主体证据：** 两人的距离和视线；**背景证据：** 共享空间或分隔物；**色彩与光线：** 与关系温度一致 |\n\n题材元素只保留最能证明承诺的一两项，避免把所有梗都塞上封面。",
+          "en": "These are editorial options drawn from the style library, not the only palette for each genre. Follow the book’s tone and the creator’s choices, then compare which picture communicates most clearly.\n\n| Promise | Visual choices |\n|---|---|\n| Fantasy progression | **Evidence in the subject: ** A character, magical artefact or mark of rank; **Evidence in the background: ** A mountain gate, trial grounds or distant faction; **Colour and lighting: ** Dark surroundings with one point of energy |\n| Urban speculative fiction | **Evidence in the subject: ** An ordinary person and an anomalous object; **Evidence in the background: ** An office, street, bill, or screen; **Colour and lighting: ** Cool realistic colours with one anomalous bright accent |\n| Mystery investigation | **Evidence in the subject: ** Evidence, a figure seen from behind or a confined space; **Evidence in the background: ** A rainy night, archive room or empty house; **Colour and lighting: ** High contrast and localised lighting |\n| Emotional relationship | **Evidence in the subject: ** The distance and eyelines between two people; **Evidence in the background: ** A shared space or something separating them; **Colour and lighting: ** Lighting and colour temperature suited to the relationship |\n\nKeep only the one or two elements that best prove the genre promise. Do not crowd the cover with every story idea."
         }
       },
       {
@@ -10475,8 +10517,8 @@
           "en": "Original Example: The Ledger of Fog Harbor"
         },
         "body": {
-          "zh": "这是一本都市悬疑：档案员能听见被涂改记录留下的声音。提示词可写：\n\n> 竖版悬疑小说封面，一名年轻档案员侧身站在狭长档案库中央，手中摊开的登记簿浮出细弱声波纹；前景是被红笔覆盖的姓名栏，中景是人物与台灯，远景的金属档案架消失在雾中；墨蓝和灰白为主色，只用暗红标记涂改处；单一冷光从上方照亮书页；顶部留出大面积干净标题区，底部留作者名区；克制的插画海报感，无水印、无额外文字。\n\n书名和署名应在单独排版阶段按真实内容添加。",
-          "en": "This is an urban mystery about an archivist who can hear the sounds left behind in altered records. A prompt might read:\n\n> Vertical mystery-novel cover. A young archivist stands in profile in the centre of a narrow records archive. Faint sound waves rise from an open ledger in their hands. In the foreground, a name field is crossed out in red ink; in the midground are the archivist and a desk lamp; in the background, metal filing shelves fade into mist. Ink blue and grey-white dominate, with dark red only to mark the altered entry. A single cool light from above illuminates the page. Leave a large, clean title area at the top and an author-name area at the bottom. Restrained illustrated-poster style. No watermark or extra text.\n\nAdd the actual title and byline during a separate layout step."
+          "zh": "这是一本都市悬疑：档案员能听见被涂改记录留下的声音。提示词可写：\n\n> 竖版悬疑小说封面，一名年轻档案员侧身站在狭长档案库中央，手中摊开的登记簿浮出细弱声波纹；前景是被红笔覆盖的姓名栏，中景是人物与台灯，远景的金属档案架消失在雾中；墨蓝和灰白为主色，只用暗红标记涂改处；单一冷光从上方照亮书页；顶部留出大面积干净标题区，底部留作者名区；克制的插画海报感，无水印、无额外文字。\n\n这个示例主动选择无字底图，书名和署名另行按准确内容排版。`story-cover` 默认直接生成包含书名与署名的封面；若采用本例替代流程，需要明确提出“无字底图、后期排版”，不能把无字图称为已经交付的完整封面。",
+          "en": "This is an urban mystery about an archivist who can hear the sounds left behind in altered records. A prompt might read:\n\n> Vertical mystery-novel cover. A young archivist stands in profile in the centre of a narrow records archive. Faint sound waves rise from an open ledger in their hands. In the foreground, a name field is crossed out in red ink; in the midground are the archivist and a desk lamp; in the background, metal filing shelves fade into mist. Ink blue and grey-white dominate, with dark red only to mark the altered entry. A single cool light from above illuminates the page. Leave a large, clean title area at the top and an author-name area at the bottom. Restrained illustrated-poster style. No watermark or extra text.\n\nThis example deliberately chooses a text-free background and separate layout with exact lettering. `story-cover` normally generates a complete cover including the title and byline. Specify the text-free alternative if you want it; a bare background is not a finished cover."
         }
       },
       {
@@ -10486,8 +10528,8 @@
           "en": "What to Check After Generating or Designing"
         },
         "body": {
-          "zh": "缩小到手机缩略图，检查主体与题材是否仍可识别；确认标题区域没有复杂高光和人物面部；核对人物数量、持物、时代服装和故事设定；确认画面没有多余字样、水印或错误符号；检查作者拥有输入素材和最终用途所需的权利。\n\n构图失败时先减少元素、扩大主体或清理文字区。风格词堆得再多，也不能补救阅读承诺不清和信息层级混乱。",
-          "en": "Reduce the cover to a phone-sized thumbnail and check that the subject and genre are still recognisable. Make sure complex highlights and faces do not intrude on the title area. Check the number of characters, what they are holding, period clothing and consistency with the story. Look for stray lettering, watermarks or incorrect symbols. Confirm you have the rights needed for the input materials and the final use.\n\nIf the composition does not work, first remove elements, enlarge the subject or clear the text area. More style keywords will not fix an unclear reading promise or a confused information hierarchy."
+          "zh": "缩小到手机缩略图，检查主体与题材是否仍可识别；确认标题区域没有复杂高光和人物面部；核对人物数量、持物、时代服装和故事设定；确认画面没有多余字样、水印或错误符号；检查作者拥有输入素材和最终用途所需的权利。\n\n构图失败时先减少元素、扩大主体或清理文字区。风格词堆得再多，也不能补救阅读承诺不清和信息层级混乱。\n\n预留文字区仍须在实际上传版核对。画幅不一致时可能裁掉标题或署名，具体检查见[封面书名被裁掉怎么办](/oh-story/fix-cropped-book-cover-text)。",
+          "en": "Reduce the cover to a phone-sized thumbnail and check that the subject and genre are still recognisable. Make sure complex highlights and faces do not intrude on the title area. Check the number of characters, what they are holding, period clothing and consistency with the story. Look for stray lettering, watermarks or incorrect symbols. Confirm you have the rights needed for the input materials and the final use.\n\nIf the composition does not work, first remove elements, enlarge the subject or clear the text area. More style keywords will not fix an unclear reading promise or a confused information hierarchy.\n\nCheck reserved lettering areas in the actual upload version. A different aspect ratio can crop the title or byline; see [fixing cropped cover text](/oh-story/fix-cropped-book-cover-text)."
         }
       }
     ],
@@ -10526,14 +10568,21 @@
       "/oh-story/claude-code-novel-writing",
       "/oh-story"
     ],
-    "topic": "plot-and-outline",
+    "topic": "book-covers",
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "封面生成、导出与检查",
+          "en": "Cover generation, export, and review"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-cover/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "题材构图与文字风格",
+          "en": "Genre composition and lettering"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-cover/references/cover-styles.md"
       }
     ]
   },
@@ -12439,7 +12488,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "娱乐圈小说怎么写：才华展示必须换来职业后果",
       "en": "Entertainment-Industry Fiction: Turn Talent into Career Consequences"
@@ -12464,8 +12513,8 @@
           "en": "A Complete Chain from Doubt to Career Consequence"
         },
         "body": {
-          "zh": "| 环节 | 要写清 |\n|---|---|\n| 被质疑 | 谁怀疑什么，为什么这项怀疑会影响工作 |\n| 展示任务 | 试镜、排练、录制或现场事故要求人物具体做什么 |\n| 能力证据 | 角色做了哪些可观察选择，而非作者说“有天赋” |\n| 分层反馈 | 同行、导演、经纪与公众分别看见什么 |\n| 资源后果 | 角色、排练权、合同条件、合作信任或新门槛怎样变化 |\n\n“全网沸腾”不是职业结算。即便舆论逆转，人物也要面对下一项具体工作和公开责任。",
-          "en": "| Link | What to establish |\n|---|---|\n| Doubt | Who doubts what, and why does the doubt affect the work? |\n| Demonstration task | What must the character specifically do in an audition, rehearsal, recording, or live accident? |\n| Evidence of ability | Which observable choices does the character make, rather than the narrator declaring talent? |\n| Layered feedback | What do peers, director, agent, and public each see? |\n| Resource consequence | How do the role, rehearsal authority, contract terms, collaborative trust, or next threshold change? |\n\n“The whole internet explodes” is not a career resolution. Even after public opinion reverses, the character still faces another concrete job and public responsibility."
+          "zh": "| 环节 | 要写清 |\n|---|---|\n| 被质疑 | 谁怀疑什么，为什么这项怀疑会影响工作 |\n| 展示任务 | 试镜、排练、录制或现场事故要求人物具体做什么 |\n| 能力证据 | 角色做了哪些可观察选择，而非作者说“有天赋” |\n| 分层反馈 | 同行、导演、经纪与公众分别看见什么 |\n| 资源后果 | 角色、排练权、合同条件、合作信任或新门槛怎样变化 |\n\n“全网沸腾”不是职业结算。即便舆论逆转，人物也要面对下一项具体工作和公开责任。\n\n这是一种组织事业进展的检查方式，不要求每场都完整走完四环、拿到更高职位或出现公开评价。失败、试排和关系回收也可以有效；只要本段职责与本书承诺清楚，就不用为配额增加热搜或合同。",
+          "en": "| Link | What to establish |\n|---|---|\n| Doubt | Who doubts what, and why does the doubt affect the work? |\n| Demonstration task | What must the character specifically do in an audition, rehearsal, recording, or live accident? |\n| Evidence of ability | Which observable choices does the character make, rather than the narrator declaring talent? |\n| Layered feedback | What do peers, director, agent, and public each see? |\n| Resource consequence | How do the role, rehearsal authority, contract terms, collaborative trust, or next threshold change? |\n\n“The whole internet explodes” is not a career resolution. Even after public opinion reverses, the character still faces another concrete job and public responsibility.\n\nThis is a way to organize career progress, not a requirement that every scene complete all four steps, win a higher position, or receive public attention. Failure, rehearsal, and relationship payoff can be useful too. When the passage’s purpose and the book’s promise are clear, do not add trending news or a contract merely to meet a quota."
         }
       },
       {
@@ -12486,8 +12535,8 @@
           "en": "Original Example: An Old Umbrella in a Waiting-Room Audition"
         },
         "body": {
-          "zh": "新人演员闻栀试镜一名长期等不到家人归来的车站管理员。她此前因网络片段被评价为“只会哭”，选角导演要求所有候选人使用同一把坏伞，在没有对白的情况下完成等待、认错人和继续值班。\n\n闻栀没有一上来流泪。她先把伞放在失物架最显眼的位置，每次门响都抬头，却继续给旅客盖章。第三次门响时，她已经伸手去拿伞，看清来人后把手转向旁边的登记簿，盖章位置却偏了一格。最后她没有抱住伞，而是把伞挪回原位，重新对齐登记簿。\n\n能力证据来自重复动作里的变化：期待、误认、掩饰和回到职责。导演没有当场宣布她是天才，而是让她进入搭戏轮，检验她能否接住另一名演员；制片则要求团队确认这段无对白表演是否适合整体节奏。她得到的是下一轮机会与更高要求。原来的舆论标签没有凭空消失，后续公开物料怎样使用这段表演仍会带来风险。",
-          "en": "New actor Wen Zhi auditions for a station attendant who has long been waiting for a family member to return. An online clip previously earned her the label “she can only cry.” The casting director gives every candidate the same broken umbrella and asks them to perform waiting, mistaking a stranger for the expected person, and returning to work without dialogue.\n\nWen Zhi does not begin with tears. She places the umbrella in the most visible spot on the lost-property rack. Whenever the door chime sounds, she looks up but continues stamping travelers’ forms. At the third sound, she has already reached for the umbrella. When she sees the wrong person, her hand moves to the register instead, but the stamp lands one box off. At the end, she does not embrace the umbrella. She returns it to its place and realigns the register.\n\nThe evidence of ability lies in changes within repeated actions: expectation, misrecognition, concealment, and return to duty. The director does not declare her a genius on the spot. She advances to a scene-partner round to test whether she can respond to another actor. The producer asks the team to confirm whether the wordless performance fits the project’s overall rhythm. She gains another opportunity and higher expectations. Her public label does not disappear by magic, and later use of the performance in promotional material still carries risk."
+          "zh": "以下是原创虚构试镜，任务、道具与晋级安排只属于本例。\n\n新人演员闻栀试镜一名长期等不到家人归来的车站管理员。她此前因网络片段被评价为“只会哭”，选角导演给所有候选人同一套失物架、登记簿、印章、旅客表格和坏伞，要求他们，在没有对白的情况下完成等待、认错人和继续值班。\n\n闻栀没有一上来流泪。她先把伞放在失物架最显眼的位置，每次门响都抬头，却继续给旅客盖章。第三次门响时，她已经伸手去拿伞，看清来人后把手转向旁边的登记簿，盖章位置却偏了一格。最后她没有抱住伞，而是把伞挪回原位，重新对齐登记簿。\n\n能力证据来自重复动作里的变化：期待、误认、掩饰和回到职责。导演没有当场宣布她是天才，而是让她进入搭戏轮，检验她能否接住另一名演员；制片则要求团队确认这段无对白表演是否适合整体节奏。她得到的是下一轮机会与更高要求。原来的舆论标签没有凭空消失，后续公开物料怎样使用这段表演仍会带来风险。",
+          "en": "This is an original fictional audition. Its task, props, and advancement arrangement belong to this example.\n\nNew actor Wen Zhi auditions for a station attendant who has long been waiting for a family member to return. An online clip previously earned her the label “she can only cry.” The casting director gives every candidate the same lost-property rack, register, stamp, traveler forms, and broken umbrella, and asks them to perform waiting, mistaking a stranger for the expected person, and returning to work without dialogue.\n\nWen Zhi does not begin with tears. She places the umbrella in the most visible spot on the lost-property rack. Whenever the door chime sounds, she looks up but continues stamping travelers’ forms. At the third sound, she has already reached for the umbrella. When she sees the wrong person, her hand moves to the register instead, but the stamp lands one box off. At the end, she does not embrace the umbrella. She returns it to its place and realigns the register.\n\nThe evidence of ability lies in changes within repeated actions: expectation, misrecognition, concealment, and return to duty. The director does not declare her a genius on the spot. She advances to a scene-partner round to test whether she can respond to another actor. The producer asks the team to confirm whether the wordless performance fits the project’s overall rhythm. She gains another opportunity and higher expectations. Her public label does not disappear by magic, and later use of the performance in promotional material still carries risk."
         }
       },
       {
@@ -12553,17 +12602,24 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "娱乐圈正文方法",
+          "en": "Entertainment-industry prose"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-prose-cards/星光璀璨.md"
       },
       {
         "label": {
-          "zh": "题材写作方法",
-          "en": "Genre writing method"
+          "zh": "文娱事业线",
+          "en": "Entertainment career plots"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-prose-cards/星光璀璨.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/long-genre-catalog.md"
+      },
+      {
+        "label": {
+          "zh": "作者与本书文风",
+          "en": "Author and book style"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ]
   },
@@ -12575,7 +12631,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "都市日常文怎么写不流水账：小事也要改变生活",
       "en": "Urban Slice-of-Life Fiction: How to Avoid a Daily Log"
@@ -12589,8 +12645,8 @@
       "en": "Connect bills, work, neighbors, and family through a life goal, leaving changes in relationships, resources, or next steps. Includes repair-table example."
     },
     "answer": {
-      "zh": "都市日常文可以低压，但不能无目标。先给人物一个可持续的生活愿望，再把每章落到具体小问题、现实成本、熟人互动和可见余波。吃饭、通勤、缴费与串门只有改变关系、钱、工作或下一步选择时，才构成剧情。",
-      "en": "Urban slice-of-life fiction can be low pressure, but it cannot be aimless. Give the character a long-term life goal, then ground each chapter in a concrete small problem, real-world cost, interaction with people the character knows, and visible aftermath. Meals, commutes, bills, and visits become plot only when they change a relationship, money, work, or the next choice."
+      "zh": "都市日常文可以从一个生活愿望组织小事件：小店能否稳定开下去、家人是否愿意沟通、工作能否更可控。围绕费用、时间、熟人关系和服务边界，让选择产生可读的结果或余波。吃饭、通勤和串门也可以承载陪伴、气氛与节奏；删改前先判断它们对这本书的体验有何作用，不为每章配额强造冲突。",
+      "en": "Organize everyday urban fiction around a wish: keeping a shop open, restoring family communication, or gaining control over work. Use costs, time, familiar relationships, and service boundaries to give choices readable results or consequences. Meals, commutes, and visits can also carry companionship, atmosphere, and rhythm. Assess their contribution to this book’s experience before cutting or inventing conflict for a chapter quota."
     },
     "sections": [
       {
@@ -12600,8 +12656,8 @@
           "en": "Give Everyday Life a Long-Term Direction"
         },
         "body": {
-          "zh": "生活目标不必宏大，但要能判断进退，例如让小店稳定开下去、修复父女关系、转成更可控的工作、在社区建立可信赖的位置。每个小事件都应碰到这条方向。\n\n| 本章小问题 | 现实成本 | 关系对象 | 可见变化 |\n|---|---|---|---|\n| ___临时坏了 | 钱、时间、体力或机会 | 家人、邻居、同事或顾客 | 资源、信任、边界或下一次约定 |\n\n若一顿饭结束后人物目标、关系和处境都没变，它可以压缩成过渡；若这顿饭让某人第一次开口求助，它就承担了剧情。",
-          "en": "A life goal need not be grand. It should let readers judge progress and retreat: keep a small shop stable, repair a father-daughter relationship, move into more controllable work, or become trusted in the neighborhood. Every small event should touch that direction.\n\n| This chapter’s small problem | Practical cost | Relationship involved | Visible change |\n|---|---|---|---|\n| ___ suddenly breaks | Money, time, energy, or opportunity | Family member, neighbor, coworker, or customer | Resource, trust, boundary, or next agreement |\n\nIf a meal ends without changing the character’s goal, relationship, or situation, compress it into a transition. If the meal makes someone ask for help for the first time, it carries plot."
+          "zh": "下面的表是按题材方法整理的编辑工作表，不是每章必须填满的格式。\n\n生活目标不必宏大，但要能判断进退，例如让小店稳定开下去、修复父女关系、转成更可控的工作、在社区建立可信赖的位置。用这条方向判断主要小事件的价值，低压停留也可以承担陪伴与节奏。\n\n| 项目 | 本段填写 |\n|---|---|\n| 小问题 | ___临时坏了；或人物具体期待什么 |\n| 成本 | 钱、时间、体力或机会 |\n| 关系对象 | 家人、邻居、同事或顾客 |\n| 结果或体验 | 资源、信任、边界、下一次约定，或本书需要的陪伴与节奏 |\n\n若一顿饭既没有推进目标与关系，也没有提供这本书需要的生活体验或节奏，它可以压缩成过渡；若这顿饭让某人第一次开口求助，它就承担了剧情。",
+          "en": "The table below is an editorial worksheet based on the genre method, not a format every chapter must fill.\n\nA life goal need not be grand. It should let readers judge progress and retreat: keep a small shop stable, repair a father-daughter relationship, move into more controllable work, or become trusted in the neighborhood. Use that direction to assess major small events; quiet passages can also provide companionship and rhythm.\n\n| Item | Notes |\n|---|---|\n| Small problem | ___ breaks unexpectedly, or the character has a specific expectation |\n| Cost | Money, time, energy, or opportunity |\n| Relationship | Family member, neighbor, coworker, or customer |\n| Result or experience | Resources, trust, boundaries, another agreement, or companionship and rhythm the book needs |\n\nIf a meal advances neither the goal nor relationships and supplies no everyday experience or rhythm the book needs, compress it into a transition. If the meal makes someone ask for help for the first time, it carries plot."
         }
       },
       {
@@ -12622,8 +12678,8 @@
           "en": "Original Example: The Repair Table at the Neighborhood Entrance"
         },
         "body": {
-          "zh": "失业的产品维修员唐澄在小区门口摆了一张周末修理台，长期目标是验证自己能否靠维修服务负担工作室租金。第一天，退休教师鲁姨拿来一盏总灭的阅读灯，却只愿付很少的钱；物业又通知临时摊位下午必须撤走。\n\n唐澄拆开灯后发现问题不在灯泡，而在电线在底座入口反复弯折。她可以迅速换线收钱，也可以解释安全风险、拒绝继续使用旧底座。她选择先用自己的备用线做临时演示，请鲁姨决定是低价停用还是追加材料更换底座。鲁姨舍不得花钱，却提出把闲置储物间借给她每周两天，条件是她也帮几位老人检查家中小电器。\n\n这一章没有暴富：唐澄少收一笔现金，换来稳定场地和新的服务责任；物业少了占道问题，鲁姨从顾客变成介绍人。章尾是一张写了三户门牌的便条，下一章自然进入上门检查，也可能暴露唐澄报价和边界管理的新难题。",
-          "en": "Unemployed product-repair technician Tang Cheng sets up a weekend repair table at the entrance to her residential complex. Her long-term goal is to learn whether repair work can cover the rent on a workshop. On the first day, retired teacher Aunt Lu brings a reading lamp that keeps going out but offers very little money. Property management also says the temporary stall must leave that afternoon.\n\nTang Cheng opens the lamp and finds that the bulb is fine; the wire has repeatedly bent where it enters the base. She can replace the wire quickly and take the money, or explain the safety risk and refuse continued use of the old base. She uses her own spare wire for a temporary demonstration, then asks Aunt Lu to choose between taking the low-cost option of retiring the lamp or paying for materials to replace the base. Aunt Lu hates spending the money but offers Tang an unused storage room two days a week if Tang will also inspect small appliances for several older residents.\n\nThe chapter does not end in sudden wealth. Tang gives up some cash in exchange for a stable space and new service obligations. The property manager no longer has to deal with a blocked walkway, and Aunt Lu changes from customer to referrer. The final image is a note listing three apartment numbers. The next chapter naturally moves into home inspections, which may expose new problems in Tang’s pricing and boundaries."
+          "zh": "以下是原创虚构场景，人物、场地与服务约定用于演示日常叙事取舍。\n\n失业的产品维修员唐澄在小区门口摆周末修理台，想验证服务收入能否负担工作室租金。退休教师鲁姨拿来一只折叠阅读架，底座松动，却只愿付很少的钱；物业按此前已告知的临时摊位约定，提醒下午撤摊。鲁姨另有一间属于自己、目前空置的储物间，这一事实已在此前串门场景出现。\n\n唐澄检查后，按本例已经设定的损坏情况，给出“暂不维修、取回”与“换底座、按材料和工时报价”两种处理。她不把演示成可站立当作已经完成维修，也不先替鲁姨决定多花钱。鲁姨暂不批准换件，转而提议让唐澄每周用储物间两天，条件是帮她介绍来的几位邻居看一看旧物。\n\n唐澄没有立刻把它当成免费店面。她提出每周最多三件初检、换件费用另报，由物主确认后才维修；其他时间不能自动进入房间，也不承诺所有旧物都能修好。鲁姨同意这次试用安排。两人当天一起查看储物间，鲁姨交出用于这两天开门的钥匙；唐澄下午实际撤走门口修理台。阅读架由鲁姨暂时带回，尚未完成维修。\n\n本章得到的是一个已交付的试用场地与有上限的初检责任，未证明工作室已经稳定盈利。鲁姨把三位邻居的联系电话写在便条上，经他们同意后交给唐澄；是否预约、是否产生付费维修留给后文。一个温和协商改变了下周安排，角色仍然需要处理报价和服务边界。",
+          "en": "This is an original fictional scene. Its people, room, and service agreement illustrate choices in everyday storytelling.\n\nUnemployed product repairer Tang Cheng runs a weekend table outside her neighborhood, hoping to see whether service income could cover workshop rent. Retired teacher Aunt Lu brings a folding reading stand with a loose base but can pay little. Under a temporary-stall agreement communicated earlier, property staff remind Tang to clear the table that afternoon. An earlier visiting scene has established that Lu owns a currently unused storage room.\n\nAfter inspection, using the damage established for this example, Tang offers two options: take the stand back without repair, or replace its base at a quoted materials-and-labor price. Showing that it can stand briefly does not constitute a finished repair, and Tang does not decide the extra spending for Lu. Lu does not authorize replacement yet. Instead, she offers use of the room two days each week if Tang examines old objects brought by a few neighbors.\n\nTang does not immediately count this as a free shop. She proposes at most three initial inspections weekly, separately quoted replacement costs requiring each owner’s approval, and no automatic room access on other days. She does not promise every object can be repaired. Lu agrees to the trial. They inspect the room together that day; Lu hands over a key for the agreed access, and Tang actually clears her street table that afternoon. Lu takes the reading stand home for now; it remains unrepaired.\n\nThe chapter delivers trial access and a bounded inspection obligation, not a profitable workshop. With three neighbors’ consent, Lu writes their contact details on a note and gives it to Tang. Bookings and paid repairs remain later possibilities. A quiet negotiation has changed next week’s arrangements while leaving pricing and service boundaries to address."
         }
       },
       {
@@ -12633,8 +12689,8 @@
           "en": "How Can a Long Slice-of-Life Novel Keep Small Problems from Repeating?"
         },
         "body": {
-          "zh": "让问题随生活改善而换级：从“今天有没有收入”变成“订单如何排期”，从“邻居是否相信”变成“信任会不会越过服务边界”，从“家人不支持”变成“谁承担照料与风险”。旧问题解决后产生的新责任，就是日常长篇的升级。\n\n可以轮换四本账：现金与时间、工作稳定性、亲友关系、社区口碑。每章重点写一两本，其余只保留必要连续性。慢章允许没有胜负，却要有一次坦白、拒绝、约定或生活条件的微小变化。",
-          "en": "Let problems rise to a new level as life improves. “Will there be income today?” becomes “How should orders be scheduled?” “Do the neighbors trust her?” becomes “Will trust cross a service boundary?” “The family does not support her” becomes “Who carries care and risk?” New responsibilities created by solved problems are the escalation of a long slice-of-life novel.\n\nRotate among four ledgers: cash and time, work stability, family and friends, and community reputation. Focus each chapter on one or two while preserving only the continuity the others need. A slow chapter may have no victory or defeat, but it should contain one confession, refusal, promise, or small change in living conditions."
+          "zh": "让问题随生活改善而换级：从“今天有没有收入”变成“订单如何排期”，从“邻居是否相信”变成“信任会不会越过服务边界”，从“家人不支持”变成“谁承担照料与风险”。旧问题解决后产生的新责任，就是日常长篇的升级。\n\n可以轮换四本账：现金与时间、工作稳定性、亲友关系、社区口碑。每章重点写一两本，其余只保留必要连续性。慢章可以没有胜负；坦白、拒绝、约定和生活条件变化是可选落点，陪伴和日常体验也能承担本书的阅读回报。",
+          "en": "Let problems rise to a new level as life improves. “Will there be income today?” becomes “How should orders be scheduled?” “Do the neighbors trust her?” becomes “Will trust cross a service boundary?” “The family does not support her” becomes “Who carries care and risk?” New responsibilities created by solved problems are the escalation of a long slice-of-life novel.\n\nRotate among four ledgers: cash and time, work stability, family and friends, and community reputation. Focus each chapter on one or two while preserving only the continuity the others need. A slow chapter can have no victory or defeat. Confession, refusal, promises, and small changes in living conditions are possible outcomes; companionship and everyday experience can also supply the book’s reading payoff."
         }
       },
       {
@@ -12700,17 +12756,24 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "都市日常正文方法",
+          "en": "Urban everyday-life prose"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-prose-cards/都市日常.md"
       },
       {
         "label": {
-          "zh": "题材写作方法",
-          "en": "Genre writing method"
+          "zh": "日常文与循环设计",
+          "en": "Everyday-fiction and loop design"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-prose-cards/都市日常.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/plot-core-methods.md"
+      },
+      {
+        "label": {
+          "zh": "作者与本书文风",
+          "en": "Author and book style"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ]
   },
@@ -18523,7 +18586,7 @@
       "en"
     ],
     "published_on": "2026-09-27",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "扮猪吃虎剧情怎么写：隐藏实力、翻盘与后果",
       "en": "How to Write a Protagonist Who Hides Their Strength"
@@ -18559,8 +18622,8 @@
           "en": "Map the Three Information Positions Before the Action Chain"
         },
         "body": {
-          "zh": "本页只使用一种信息配置：主角知道，读者已经看见证明这项能力存在的证据，但不一定知道它的完整范围，观察主角的配角还不知道。这是本文选择的期待型变体，不是对所有扮猪吃虎故事的通用定义。复制这张卡时，只填写故事已经建立的事实。\n\n| 卡片字段 | 本轮要填写的内容 |\n|---|---|\n| 主角知道 | 他确认自己能做什么、为什么暂不公开、本轮愿意展示到哪一步 |\n| 读者已经看见 | 哪些已展示事实证明这项能力存在、还有什么范围未知；正在等待哪项可见证明 |\n| 观察者还不知道 | 他目前怎样判断主角、依据是什么、什么证据足以迫使他更新判断 |\n| 默默推进 | 主角正在完成的有效准备或阶段目标 |\n| 挑战 | 什么局面检验当前判断；若不处理，会失去什么当前结果 |\n| 可见证明 | 主角用哪项既有本领完成什么可核对结果 |\n| 配角反应 | 哪个观察者怎样改变信任、权限、行动或对抗方式 |\n| 下一步发展 | 这项改变为下一轮带来什么新目标、条件或压力 |\n\n先检查前三栏，再写后五栏。如果读者栏只写“主角很强”，却列不出读者已经见过的证据，期待仍然悬空；如果观察者在证明前后采取同样行动，反应就没有进入剧情；如果下一步与本轮证明毫无关系，这一轮只是独立表演。",
-          "en": "This guide uses one information arrangement: the protagonist knows, the reader has already seen evidence establishing that the competence exists, though not necessarily its full range, and the observing supporting character does not yet know. It is the anticipation variant chosen for this guide, not a universal definition of every hidden-strength story. Copy the card and fill it only with facts the story has already established.\n\n| Card field | What to record for this loop |\n|---|---|\n| Protagonist knows | What they know they can do, why they are not advertising it, and how much they will show in this loop |\n| Reader has seen | Which established facts have shown the reader that the competence exists, what remains unknown about its range, and which visible proof the reader is waiting for |\n| Observer does not yet know | How this character currently judges the protagonist, what supports that judgment, and what evidence could force an update |\n| Quiet progress | The useful preparation or stage objective the protagonist is completing |\n| Challenge | What tests the current judgment, and what immediate result will be lost if no one handles it |\n| Visible proof | Which established ability produces what verifiable result |\n| Observer reaction | Which observer changes trust, access, action, or opposition, and how |\n| Next development | What new goal, condition, or pressure that change creates for the next loop |\n\nCheck the first three rows before planning the remaining five. If the reader row says only “the protagonist is powerful” without listing evidence the reader has already seen, the anticipation has no clear object. If the observer behaves identically before and after the proof, the reaction has not entered the plot. If the next development has no causal connection to the proof, the loop is merely an isolated performance."
+          "zh": "下面的卡片是编辑按 skill 循环整理的纸面工作表，不是原生项目文件格式。\n\n本页只使用一种信息配置：主角知道，读者已经看见证明这项能力存在的证据，但不一定知道它的完整范围，观察主角的配角还不知道。这是本文选择的期待型变体，不是对所有扮猪吃虎故事的通用定义。复制这张卡时，只填写故事已经建立的事实。\n\n| 卡片字段 | 本轮要填写的内容 |\n|---|---|\n| 主角知道 | 他确认自己能做什么、为什么暂不公开、本轮愿意展示到哪一步 |\n| 读者已经看见 | 哪些已展示事实证明这项能力存在、还有什么范围未知；正在等待哪项可见证明 |\n| 观察者还不知道 | 他目前怎样判断主角、依据是什么、什么证据足以迫使他更新判断 |\n| 默默推进 | 主角正在完成的有效准备或阶段目标 |\n| 挑战 | 什么局面检验当前判断；若不处理，会失去什么当前结果 |\n| 可见证明 | 主角用哪项既有本领完成什么可核对结果 |\n| 配角反应 | 哪个观察者怎样改变信任、权限、行动或对抗方式 |\n| 下一步发展 | 这项改变为下一轮带来什么新目标、条件或压力 |\n\n先检查前三栏，再写后五栏。如果读者栏只写“主角很强”，却列不出读者已经见过的证据，期待仍然悬空；如果观察者在证明前后采取同样行动，反应就没有进入剧情；如果下一步与本轮证明毫无关系，这一轮只是独立表演。",
+          "en": "The card below is an editorial worksheet based on the skill’s loop, not a native project file format.\n\nThis guide uses one information arrangement: the protagonist knows, the reader has already seen evidence establishing that the competence exists, though not necessarily its full range, and the observing supporting character does not yet know. It is the anticipation variant chosen for this guide, not a universal definition of every hidden-strength story. Copy the card and fill it only with facts the story has already established.\n\n| Card field | What to record for this loop |\n|---|---|\n| Protagonist knows | What they know they can do, why they are not advertising it, and how much they will show in this loop |\n| Reader has seen | Which established facts have shown the reader that the competence exists, what remains unknown about its range, and which visible proof the reader is waiting for |\n| Observer does not yet know | How this character currently judges the protagonist, what supports that judgment, and what evidence could force an update |\n| Quiet progress | The useful preparation or stage objective the protagonist is completing |\n| Challenge | What tests the current judgment, and what immediate result will be lost if no one handles it |\n| Visible proof | Which established ability produces what verifiable result |\n| Observer reaction | Which observer changes trust, access, action, or opposition, and how |\n| Next development | What new goal, condition, or pressure that change creates for the next loop |\n\nCheck the first three rows before planning the remaining five. If the reader row says only “the protagonist is powerful” without listing evidence the reader has already seen, the anticipation has no clear object. If the observer behaves identically before and after the proof, the reaction has not entered the plot. If the next development has no causal connection to the proof, the loop is merely an isolated performance."
         }
       },
       {
@@ -18647,10 +18710,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "剧情循环与信息差",
+          "en": "Plot loops and information gaps"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/plot-core-methods.md"
+      },
+      {
+        "label": {
+          "zh": "作者与本书文风",
+          "en": "Author and book style"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ]
   },
@@ -18662,7 +18732,7 @@
       "en"
     ],
     "published_on": "2026-09-27",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "双男主感情线怎么写出潜台词：用信息差与行动痕迹",
       "en": "How to Write Subtext Between Two Male Leads"
@@ -18716,12 +18786,12 @@
       {
         "id": "original-example",
         "heading": {
-          "zh": "原创场景：一张被单独保存的校订页",
-          "en": "Original Scene: A Correction Sheet Kept Apart"
+          "zh": "原创场景：待核内容与贡献记录",
+          "en": "Original Scene: Pending Wording and Recorded Credit"
         },
         "body": {
-          "zh": "甲乙曾合编一套口述史录音。上一次校订，乙发现一处录音缺漏；甲将成稿的“校订者”一栏归为项目组，没有列乙的名字，乙因此担心自己的贡献再次被隐去。这次审校会上，甲指着第12句说：“这句改写暂缓采用，等原始录音复核。”他在公开审校表上把乙提出的改写标为“待核”，乙将这项决定理解为甲再次否定他的校订工作。\n\n如果叙述跟随甲的有限视角，读者可以看到散会后的内部目录：甲将“校订者：乙”和“第12句改写：乙提出，录音待核”分别登记。乙此时只看见公开审校表。读者先知道，甲保留了乙作为校订者的贡献，同时把校订内容的核实状态单独标出。\n\n后来乙查看校订记录，发现自己的名字仍在“校订者”一栏，第12句改写则等待复核。乙由此重读甲的公开决定：甲暂缓采用的是校订内容，内部目录仍正式记录了他的工作。结合旧有署名争议与眼前目录，乙可以把这个选择读成归档程序、对过去贡献的重新承认，或两者兼有；甲的完整动机留给后续线索。",
-          "en": "A and B once co-edited a collection of oral-history recordings. During an earlier review, B found a gap in one recording. A credited the finished edition to the project team without listing B in its proofreader field, so B worries that his contribution will disappear again. At a new review, A points to line 12 and says, “We’ll hold this rewrite until the source recording is checked.” He marks B’s proposed wording as pending on the public review sheet, and B reads the decision as another dismissal of his editing work.\n\nWith A as the limited viewpoint, readers can see the internal catalog after the meeting: A enters “proofreader: B” and “line 12 rewrite: proposed by B; source pending verification” as separate fields. B has seen only the public review sheet. Readers learn first that A preserved B’s contribution as proofreader while marking the proposed wording for verification.\n\nLater, B checks the correction record and finds his name still in the proofreader field, with the rewrite of line 12 awaiting review. He rereads A’s public decision: A held the wording while the internal catalog formally recorded B’s work. In light of their earlier credit dispute, B can read the named entry as archival procedure, renewed recognition of his contribution, or both. A’s full motive remains for later evidence to reveal."
+          "zh": "甲乙曾合编一套口述史录音。上一次校订，乙发现一处录音缺漏；甲将成稿的“校订者”一栏归为项目组，没有列乙的名字，乙因此担心自己的贡献再次被隐去。这次审校会上，甲指着第12句说：“这句改写暂缓采用，等原始录音复核。”他在公开审校表上把乙提出的改写标为“待核”，乙将这项决定理解为甲再次否定他的校订工作。\n\n如果叙述跟随甲的有限视角，读者可以看到散会后的内部目录：甲将“校订者：乙”和“第12句改写：乙提出，录音待核”分别登记。乙此时只看见公开审校表。读者先知道，甲保留了乙作为校订者的贡献，同时把校订内容的核实状态单独标出。\n\n散会后甲把这次的共享校订目录链接发给乙。乙打开后查看校订记录，发现自己的名字仍在“校订者”一栏，第12句改写则等待复核。乙由此重读甲的公开决定：甲暂缓采用的是校订内容，内部目录仍正式记录了他的工作。结合旧有署名争议与眼前目录，乙可以把这个选择读成归档程序、对过去贡献的重新承认，或两者兼有；甲的完整动机留给后续线索。\n\n目录记录说明本轮工作被登记，不能替成稿的公开署名作保证，也不能单靠这一项抹平上次争议。若本场还要推进两人的感情，需要作者另给人物选择与回应；不要把“查到名字”直接写成“完全理解并原谅”。",
+          "en": "A and B once co-edited a collection of oral-history recordings. During an earlier review, B found a gap in one recording. A credited the finished edition to the project team without listing B in its proofreader field, so B worries that his contribution will disappear again. At a new review, A points to line 12 and says, “We’ll hold this rewrite until the source recording is checked.” He marks B’s proposed wording as pending on the public review sheet, and B reads the decision as another dismissal of his editing work.\n\nWith A as the limited viewpoint, readers can see the internal catalog after the meeting: A enters “proofreader: B” and “line 12 rewrite: proposed by B; source pending verification” as separate fields. B has seen only the public review sheet. Readers learn first that A preserved B’s contribution as proofreader while marking the proposed wording for verification.\n\nAfter the meeting, A sends B the link to this round’s shared correction catalog. B opens it and checks the correction record and finds his name still in the proofreader field, with the rewrite of line 12 awaiting review. He rereads A’s public decision: A held the wording while the internal catalog formally recorded B’s work. In light of their earlier credit dispute, B can read the named entry as archival procedure, renewed recognition of his contribution, or both. A’s full motive remains for later evidence to reveal.\n\nThe directory shows this round’s work was recorded. It does not guarantee the final public credit or settle the previous dispute by itself. If this scene should advance the relationship further, supply character choices and responses; finding a name alone is not complete understanding or forgiveness."
         }
       },
       {
@@ -18785,10 +18855,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "双男主视差与信物",
+          "en": "Dual-lead information gaps and traces"
         },
-        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/SKILL.md"
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/genre-styles/双男主.md"
+      },
+      {
+        "label": {
+          "zh": "视角与作者文风裁决",
+          "en": "Viewpoint and author style"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-short-write/references/style-resolution.md"
       }
     ]
   },
@@ -35999,6 +36076,119 @@
       "/video-recap/subtitle-layout-and-line-breaks",
       "/video-recap/video-to-narration",
       "/video-recap"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "fix-cropped-book-cover-text",
+    "topic": "book-covers",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "小说封面书名被裁掉怎么办：检查原图、上传版和最终预览",
+      "en": "How to Fix a Book Cover Title That Gets Cropped"
+    },
+    "seo_title": {
+      "zh": "小说封面书名被裁掉怎么办：检查原图、上传版和最终预览",
+      "en": "How to Fix a Book Cover Title That Gets Cropped"
+    },
+    "description": {
+      "zh": "封面出图完整，上传后书名或笔名却少了一截？先找裁剪发生在哪一步，再调整画幅、文字位置和上传版，保留原图并检查缩略预览。",
+      "en": "Locate cropped cover lettering in the original, upload file, and preview. Adjust the canvas or text, preserve the original, and check thumbnail readability."
+    },
+    "answer": {
+      "zh": "小说封面书名被裁掉，先分别检查生成原图、导出的上传版和实际上传预览，找出损失发生在哪一步。输出尺寸与上传要求比例不一致时，居中填满裁剪可能去掉上下或两侧；提示词写了安全区也不保证成图遵守。保留原图，按已确认要求调整画幅或移动文字，另存上传版，再逐字和缩略检查。",
+      "en": "Compare the generated original, exported upload version, and actual upload preview to locate the loss. When aspect ratios differ, filling and center-cropping can remove the top, bottom, or sides. A safe-area instruction does not guarantee the image follows it. Preserve the original, adjust the canvas or lettering to confirmed requirements, save a separate upload version, and check both exact text and thumbnail readability."
+    },
+    "sections": [
+      {
+        "id": "locate",
+        "heading": {
+          "zh": "先找出是哪一步裁掉文字",
+          "en": "Locate the Step That Removes the Text"
+        },
+        "body": {
+          "zh": "把三份画面并排看：原图、准备上传的文件、实际发布界面预览。先辨认问题是文字本身写错、字号太小，还是完整字符被边缘截断。错字要修字，裁剪要修版式；不必为裁剪重写故事题材。\n\n| 位置 | 处理 |\n|---|---|\n| 原图已经缺字 | 调整文字区、构图或准确字样后重做该版本；无字底图另行排字也是作者可选方案 |\n| 原图完整，上传版缺字 | 检查导出是否填满并裁边，确认目标宽高和文字实际位置 |\n| 上传文件完整，界面预览缺字 | 核对实际上传要求与当前预览框；调整给这一用途的版本，再看真实预览，不能只根据原图判断 |\n\n目标宽高以作者确认的交付规格或发布时的官方要求为准。不同用途可能要不同版本；没有确认尺寸时，不把 skill 里的默认出图比例当所有平台的上传标准。",
+          "en": "Compare three images: the original, the file prepared for upload, and the actual publishing preview. Distinguish incorrect lettering, type too small to read, and complete characters cut off at an edge. Fix spelling as spelling and crop loss as layout; there is no need to change the book’s genre for a crop problem.\n\n| Location | Response |\n|---|---|\n| Text is incomplete in the original | Revise the lettering area, composition, or exact text for another version. A text-free background with separate lettering is also an author-selected option |\n| Original is complete; exported file is cropped | Check whether export filled the canvas and cropped its edges, along with target dimensions and actual text positions |\n| Upload file is complete; interface preview is cropped | Check the confirmed upload requirement and current preview frame. Revise the version for that use and inspect the real preview rather than relying on the original |\n\nUse the creator’s confirmed delivery dimensions or official requirements at publication time. Different uses may need different versions. An unconfirmed target cannot be replaced with the skill’s default image ratio as a universal platform standard."
+        }
+      },
+      {
+        "id": "crop",
+        "heading": {
+          "zh": "为什么提示词留了安全区还会被裁",
+          "en": "Why a Safe-Area Prompt Can Still Fail"
+        },
+        "body": {
+          "zh": "`story-cover` 会把比例和文字安全区写进提示词；在需要固定上传像素时，还会导出居中裁剪、缩放的上传版。生成工具实际返回的尺寸可能不同，文字也可能没有留在要求的位置。因此“已写安全区”和“最终未被裁”是两项不同事实。\n\n居中填满保持比例，代价是裁去超过目标画布的边缘；直接拉伸虽能装进尺寸，却会让人物与字形变形。不能只看文件宽高已经正确，就认定封面合格。\n\n先在原图上看出目标比例会留下的范围。书名、笔名和关键主体都应落在实际保留范围内，并有可读的留白。skill 的中心安全区是起点，最终仍检查实际字符位置；不把某个百分比承诺为所有尺寸都安全。",
+          "en": "`story-cover` requests an aspect ratio and safe lettering area in its prompt. When fixed upload pixels are needed, it also exports a resized, center-cropped upload version. Returned dimensions may differ, and lettering may not occupy the requested area. Requesting a safe area and preserving the final text are two different facts.\n\nFilling proportionally preserves shape but crops content extending beyond the target canvas. Direct stretching can meet dimensions while distorting people and letterforms. Correct file dimensions alone do not establish a usable cover.\n\nInspect the region the target ratio will actually retain. Keep the title, byline, and essential subject inside it with readable space. The skill’s central safe-area instruction is a starting point; verify actual character positions rather than treating one percentage as safe for every target."
+        }
+      },
+      {
+        "id": "example",
+        "heading": {
+          "zh": "原创尺寸练习：完整原图不等于完整上传版",
+          "en": "Worked Size Example: A Complete Original Can Produce a Cropped Export"
+        },
+        "body": {
+          "zh": "以下是纸面尺寸练习，没有生成图片或实际上传。练习要求上传文件为 600×800，原图为 1200×1800；这组数字是本例给定规格，不代表某平台当前要求。\n\n如果等比填满目标，原图会先缩到 600×900，再居中去掉顶部和底部各 50 像素。原图中靠近上沿的标题与靠近下沿的笔名，就可能落在被去掉的部分；写进提示词的预留要求不能代替对实际位置的检查。\n\n| 候选修法 | 取舍与检查 |\n|---|---|\n| 保留已有图，重新排字 | 有无字底图或可单独编辑的文字层时，把完整书名与笔名移入最终保留范围；检查原文字是否仍残留。只有扁平图片时，不能声称文字层可直接移动 |\n| 重做构图与画幅 | 明确给定 3:4 目标，保留故事主体，把标题和笔名安排在真实可读区域；新图仍须核对尺寸与每个字 |\n| 另做带留边的版式 | 作者接受留边且目标用途允许时，等比缩小保全图，再统一背景与文字；这是一种主动的排版选择，当前 skill 的居中填满导出不会自动采用它 |\n\n确定一版后另存上传文件，不覆盖原图。在该版实际 600×800 文件上检查书名、笔名和主体，再缩到真实使用的缩略大小；缩略时至少应能认出书名与核心画面，笔名保留完整且符合交付需求。任何版本仍缺字，就回到发生损失的那一步。",
+          "en": "This is a paper geometry exercise, with no generated image or real upload. The exercise requires a 600×800 upload file from a 1200×1800 original. These are given dimensions, not a claim about a platform’s current requirements.\n\nProportional filling first scales the original to 600×900, then center-crops 50 pixels from both top and bottom. A title near the original top or byline near the bottom can fall in those removed areas. Requested margins cannot substitute for checking actual positions.\n\n| Candidate fix | Tradeoff and check |\n|---|---|\n| Keep the art and lay out lettering again | With a text-free background or separately editable type, move exact title and byline inside the retained region. Check for leftover old lettering. A flattened image does not provide movable type layers automatically |\n| Revise composition and canvas | Specify the given 3:4 target, preserve the story’s main subject, and place lettering in an actually readable area. Check dimensions and every character again |\n| Make a padded layout | If the creator accepts padding and the intended use allows it, fit the whole picture and unify background and type. This is a deliberate layout alternative; the current skill’s center-fill export does not adopt it automatically |\n\nSave a separate upload file without overwriting the original. Inspect title, byline, and subject in the actual 600×800 version, then at the intended thumbnail size. The thumbnail should identify the title and main image; the byline must remain complete and meet the delivery need. If text is still missing, return to the step that removed it."
+        }
+      },
+      {
+        "id": "versions",
+        "heading": {
+          "zh": "保留原图，另存上传版再检查",
+          "en": "Preserve the Original and Check a Separate Upload Version"
+        },
+        "body": {
+          "zh": "明确哪张是生成原图、哪张是为某个尺寸导出的版本，保留对应提示词和修改说明。skill 会保存版本并在导出时另存上传版；原图里文字完整，不能代替导出后的复查。\n\n检查顺序可以是：准确书名和笔名 → 文件宽高与比例 → 四边是否截字 → 主体与文字是否互挡 → 缩略图辨识 → 实际上传预览。预览改变后，检查你正在使用的这一版，避免只拿旧截图作证。\n\n如果还没生成或上传，交付应说明这是拟定版式或导出方案。只有看过实际文件和当前预览，才能报告文字完整。",
+          "en": "Identify the generated original and each size-specific export, preserving its prompt and revision notes. The skill saves numbered versions and a separate upload export. Intact text in the original does not replace checking the export.\n\nA useful sequence is exact title and byline, dimensions and ratio, cropped edges, subject–text overlap, thumbnail recognition, and the actual upload preview. When the preview changes, inspect the version now in use instead of relying on an old screenshot.\n\nBefore generation or upload, describe the layout or export as proposed. Report complete lettering only after inspecting the actual file and current preview."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "小说封面尺寸正确，就不会裁字了吗？",
+          "en": "Does a correctly sized cover guarantee the title will not be cropped?"
+        },
+        "a": {
+          "zh": "不保证。文件可以达到正确宽高，同时已经在导出时裁掉字；实际预览也可能使用不同显示框。分别看原图、上传文件和预览，核对完整字样、画幅与真实留白。",
+          "en": "No. An export can have the correct dimensions after already cropping lettering, and a preview can use a different frame. Check the original, upload file, and preview separately for exact text, ratio, and actual margins."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-cover",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-cover/SKILL.md",
+      "text": {
+        "zh": "在 Claude Code 中用 `/story-cover`（Codex 中用 `$story-cover`），提供准确书名、笔名、目标用途、已确认的上传规格、输出目录，以及原图或参考图。说明哪一步出现裁字，要求保留原图并另存修订/上传版；按实际保留范围安排文字，完成后逐字、缩略并在实际上传预览中核对。若暂未上传，先报告文件检查结果和仍待预览的部分。",
+        "en": "Use `/story-cover` in Claude Code or `$story-cover` in Codex with the exact title, byline, intended use, confirmed upload dimensions, output directory, and original or reference image. Identify where cropping occurs and preserve the original while saving a revised/upload version. Place lettering within the retained area, then check exact text, thumbnail appearance, and the actual upload preview. Before upload, report file checks separately from preview checks still pending."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "封面安全区、上传导出与质量检查",
+          "en": "Safe area, upload export, and quality review"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-cover/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "文字与视觉风格",
+          "en": "Lettering and visual style"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-cover/references/cover-styles.md"
+      }
+    ],
+    "related": [
+      "/oh-story/novel-cover-prompts",
+      "/oh-story"
     ]
   }
 ]

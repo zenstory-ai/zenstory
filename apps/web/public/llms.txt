@@ -50,7 +50,6 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [Where to Put a Short Story’s Paywall: Work Back from the Payoff](https://zenstory.ai/oh-story/short-story-paywall) — Hooks: unfinished action, a key object changing hands, a relationship turn or a dilemma. Plan the payoff, then work back to the setup, choices and costs.
 - [Short Stories vs. Novels: Two Structures for One Idea](https://zenstory.ai/oh-story/short-vs-long-fiction) — Compare time to payoff, cast size, scene density, foreshadowing and emotional expression to decide whether your idea suits a short story or a novel.
 - [Organising a Story Bible: Characters, Timelines and Knowledge](https://zenstory.ai/oh-story/story-bible-template) — Maintain stable character facts, current states, relationships, timelines, world rules and open threads separately to reduce continuity conflicts.
-- [Writing Novel-Cover Prompts: Separate Genre, Composition and Text](https://zenstory.ai/oh-story/novel-cover-prompts) — Translate a genre promise into subject, background, colour and light. Treat the title and author name as separate text layers.
 - [How to Write Story Conflict: Make Each Countermove Close an Old Option](https://zenstory.ai/oh-story/story-conflict) — Conflict means incompatible outcomes and opponents who learn and adjust after each round. Includes an original restoration contest and escalation fixes.
 - [How to Write a Climax: Converge Promises and Force a Final Choice](https://zenstory.ai/oh-story/climax-scene) — Bring ability, relationships, evidence, and cost into one action, close escape routes, and resolve the climax through choice. Includes an original example.
 - [How to Write Scene Transitions: Let One Scene Lead into the Next](https://zenstory.ai/oh-story/scene-transitions) — Decide when to jump ahead, then bridge scenes through causality, questions, emotional residue, objects, or sound. Includes a weather-station example.
@@ -185,6 +184,11 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [Get Specific AI Feedback on Your Manuscript](https://zenstory.ai/oh-story/get-specific-ai-manuscript-feedback) — Turn vague criticism into located quotations, reader effects and bounded next steps. Separate necessary fixes, suggestions and author choices.
 - [What to Revise First in a Novel](https://zenstory.ai/oh-story/choose-what-to-revise-first-in-a-novel) — Diagnose story direction, causal design or prose before editing. Includes a change-of-mind example and clear stopping criteria.
 - [Fix a Novel That Reads Like a Screenplay](https://zenstory.ai/oh-story/fix-a-novel-that-reads-like-a-screenplay) — Distinguish intentional dialogue-heavy style from leaked camera and scene instructions. Restore viewpoint, choices and actual actions.
+
+### Book covers / 小说封面
+- [Book covers](https://zenstory.ai/guides/book-covers) — Plan cover art and lettering, then check upload crops and thumbnail readability.
+- [Writing Novel-Cover Prompts: Separate Genre, Composition and Text](https://zenstory.ai/oh-story/novel-cover-prompts) — Translate a genre promise into subject, background, colour and light. Treat the title and author name as separate text layers.
+- [How to Fix a Book Cover Title That Gets Cropped](https://zenstory.ai/oh-story/fix-cropped-book-cover-text) — Locate cropped cover lettering in the original, upload file, and preview. Adjust the canvas or text, preserve the original, and check thumbnail readability.
 
 ### Short-drama scripts / 短剧改编与剧本
 - [Short-drama scripts](https://zenstory.ai/guides/short-drama) — Adapt a story into episodes, scenes, and shootable dialogue.
