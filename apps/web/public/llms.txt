@@ -72,6 +72,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Write a Complete Fiction Scene](https://zenstory.ai/oh-story/write-a-scene-that-changes-the-story) — Turn a scene goal, obstacle, judgment and result into continuous prose. Includes an original lost-property scene, a detail plan and revision checks.
 - [How to Decide Whether Your Novel Needs a Prologue](https://zenstory.ai/oh-story/write-a-novel-prologue) — Test whether a prologue supplies necessary narrative context. Includes an original ferry story, keep-or-merge comparisons and exposition repairs.
 - [How to Develop a Recurring Object in a Novel](https://zenstory.ai/oh-story/recurring-object-in-fiction) — Develop an object through practical use and changing character choices. Includes an original key example and a recurrence planning table.
+- [How to Write Multiple Factions in a Novel](https://zenstory.ai/oh-story/write-multiple-factions-in-a-novel) — Give factions independent reasons to act on one event. Includes an original alliance map and repairs for passive observers or unexplained support.
 
 ### Characters and dialogue / 人物与对白
 - [Characters and dialogue](https://zenstory.ai/guides/characters-and-dialogue) — Build believable motives, distinct voices, and relationships.
@@ -165,6 +166,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Break Fiction into Readable Paragraphs](https://zenstory.ai/oh-story/write-a-fiction-paragraph) — Break paragraphs at meaningful changes without fragmenting a continuous thought. Includes an original passage and repairs for dense or choppy prose.
 - [How to Use Character Names and Pronouns Clearly](https://zenstory.ai/oh-story/clear-character-names-and-pronouns) — Use names to reset attribution and pronouns to carry a continuous action. Includes an original group scene and a before-and-after revision.
 - [How to Update Storyboards After a Script Change](https://zenstory.ai/drama-skills/update-storyboards-after-script-changes) — Trace changed script facts to existing assets, storyboards and prompts. Includes an original injury-timing example and a selective update table.
+- [How to Check Later Chapters After Revising a Novel](https://zenstory.ai/oh-story/sync-later-chapters-after-a-revision) — Trace a revised fact through written chapters. Check clues, knowledge and object ownership with an original example and a downstream-impact worksheet.
+- [How to Revise a Formulaic AI Drama](https://zenstory.ai/drama-skills/revise-a-formulaic-ai-drama) — Locate repetition in causality, strategy, expression and shots. Includes an original diagnostic table and exceptions for deliberate recurring forms.
 
 ### Short-drama scripts / 短剧改编与剧本
 - [Short-drama scripts](https://zenstory.ai/guides/short-drama) — Adapt a story into episodes, scenes, and shootable dialogue.
@@ -203,6 +206,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Write a Gentle Slice-of-Life Short Drama](https://zenstory.ai/drama-skills/healing-slice-of-life-short-drama) — Build gentle stories around a small goal, everyday cost and relationship change. Includes an original umbrella repair and ways to avoid empty warmth.
 - [How to Write a Hidden-Identity Short Drama](https://zenstory.ai/drama-skills/hidden-identity-short-drama) — Connect a hidden identity to a task, recognition tests and relationship consequences. Includes an original acting-director story and knowledge table.
 - [How to Write an Underdog Rise Short Drama](https://zenstory.ai/drama-skills/underdog-rise-short-drama) — Make dismissal concrete, then change judgments through verifiable results. Includes an original repair contest and witness roles beyond applause.
+- [How to Control Suspense with Audience Information](https://zenstory.ai/drama-skills/control-suspense-with-audience-information) — Separate identity, sound and evidence reveals. Plan what viewers know now with an original visitor scene, avoiding hidden essentials or premature disclosure.
 
 ### Storyboards and AI video / 分镜与 AI 视频
 - [Storyboards and AI video](https://zenstory.ai/guides/ai-video) — Plan shots, keep characters consistent, and improve generated footage.
@@ -242,6 +246,9 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Fix the Wrong Era in AI Drama Images](https://zenstory.ai/drama-skills/match-ai-drama-visuals-to-the-era) — Anchor the era in story facts before checking devices, furnishings and clothing. Includes an original office example and selective repairs.
 - [How to Add a Video Frame and Logo Without Obstruction](https://zenstory.ai/video-recap/add-a-brand-frame-to-video) — Place static frames, title bars and logos as separate layers on the actual canvas. Includes an original layout and obstruction and audio checks.
 - [How to Replace an Unintended Black Video Tail](https://zenstory.ai/video-recap/replace-a-black-video-tail-with-an-endcard) — Distinguish an intentional pause from an unfinished tail, then supply the intended still or animated endcard. Includes an original timing plan and checks.
+- [How to Storyboard a Group Confrontation](https://zenstory.ai/drama-skills/storyboard-a-group-confrontation) — Map who protects, pressures, witnesses and decides before placing the cast. Includes an original scene and repairs for conflicting positions and reactions.
+- [How to Storyboard Ball Sports for AI Video](https://zenstory.ai/drama-skills/storyboard-ai-video-ball-sports) — Keep the ball’s origin, controller and transfer readable. Includes an original pass sequence and repairs for teleporting objects or reversed movement.
+- [How to Fix Object Handoffs in AI Video](https://zenstory.ai/drama-skills/fix-object-handoffs-in-ai-video) — Specify approach, contact, release and new possession. Includes an original handover prompt and repairs for conflicting hands or duplicated objects.
 
 ### Interactive stories and games / 互动故事与游戏
 - [Interactive stories and games](https://zenstory.ai/guides/interactive-games) — Turn a novel into player actions, branching stories, and a playable game.
