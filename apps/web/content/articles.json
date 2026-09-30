@@ -11097,8 +11097,19 @@
           "en": "Original Example: A Warranty Slip in a Watch Shop at Night"
         },
         "body": {
-          "zh": "场景：修表师温岑在打烊后的铺子里核对一张保修单。店内顶灯已经关闭，只剩工作台灯和街外招牌反光。学徒站在门边，暂时不知道单据上的签名是自己父亲。\n\n**镜头一，先让证据可读**：中近景看温岑与工作台。提示写“暖色台灯位于画面右下方，保修单与温岑手指受光；她面向镜头的一侧脸颊有柔和亮度，眼睛可辨。门边学徒落在较暗的冷色招牌反光里，轮廓与门框分开，脸部细节暂不强调。”\n\n**镜头二，注意转到学徒**：反打仍沿用台灯在空间中的位置，不把它搬到学徒正面。写“画面左后方的台灯余光勾出学徒靠近桌边后的手背；街外冷色反光保留在他脸侧，温岑实际读出签名后眼睛与屏住呼吸时停下的动作与眼睛仍可辨。”\n\n变化的是注意中心和取景，不是店里突然多了一盏灯。若第二镜为了“好看”变成均匀正面光，空间事实和揭示节奏都会断。\n\n两个提示中的左右均指画面；反打后的画面方位须由实际机位与人物站位确认，本例的左后方不是所有反打的固定规则。提示是待检查的意图，不保证生成结果。串看时核对台灯是否真在同一空间位置、人物是否已走到桌边、必要文字与反应是否读得清；错误光向回上游修订。",
+          "zh": "场景：修表师温岑在打烊后的铺子里核对一张保修单。店内顶灯已经关闭，只剩工作台灯和街外招牌反光。学徒站在门边，暂时不知道单据上的签名是自己父亲。\n\n**镜头一，先让证据可读**：中近景看温岑与工作台。提示写“暖色台灯位于画面右下方，保修单与温岑手指受光；她面向镜头的一侧脸颊有柔和亮度，眼睛可辨。门边学徒落在较暗的冷色招牌反光里，轮廓与门框分开，脸部细节暂不强调。”\n\n**镜头二，注意转到学徒**：反打仍沿用台灯在空间中的位置，不把它搬到学徒正面。写“画面左后方的台灯余光勾出学徒靠近桌边后的手背；街外冷色反光保留在他脸侧，温岑实际读出签名后，学徒的眼睛与呼吸停顿仍可辨。”\n\n变化的是注意中心和取景，不是店里突然多了一盏灯。若第二镜为了“好看”变成均匀正面光，空间事实和揭示节奏都会断。\n\n两个提示中的左右均指画面；反打后的画面方位须由实际机位与人物站位确认，本例的左后方不是所有反打的固定规则。提示是待检查的意图，不保证生成结果。串看时核对台灯是否真在同一空间位置、人物是否已走到桌边、必要文字与反应是否读得清；错误光向回上游修订。",
           "en": "Scene: After closing, watchmaker Wen Cen checks a warranty slip in her shop. The overhead light is off; only the workbench lamp and reflections from a sign outside remain. The apprentice stands near the door and does not yet know that the signature on the slip is his father’s.\n\n**Shot 1 — Make the evidence legible:** A medium close shot of Wen Cen and the workbench. Prompt: “A warm bench lamp sits at the lower right of the frame, illuminating the warranty slip and Wen Cen’s fingers. The cheek facing camera has soft light; her eyes are legible. The apprentice by the door falls into cooler, dimmer reflected light, his outline separated from the doorframe; do not emphasise facial detail yet.”\n\n**Shot 2 — Shift attention to the apprentice:** In the reverse shot, keep the lamp in the same place in the room; do not move it in front of the apprentice. Prompt: “Spill from the bench lamp at the back left of the frame catches the apprentice’s hand as he moves closer to the table. Cool reflections from the street remain along the side of his face. After Wen Cen actually reads the signature aloud, his eyes and the tension around them remain visible as he holds his breath.”\n\nThe framing and point of attention change, not the number of lamps in the shop. If the second shot uses even frontal light just to look attractive, both the spatial facts and the timing of the reveal break.\n\nLeft and right in these prompts mean screen direction. Confirm the reverse shot's direction from the actual camera and blocking; back left is not a universal reverse-shot rule. A prompt states an intention, not a guaranteed generation result. Review the shots together for the same lamp position, the apprentice's move to the table, and readable required text and reaction. Fix an incorrect source direction upstream."
+        }
+      },
+      {
+        "id": "complete-exchange",
+        "heading": {
+          "zh": "补成完整两镜：读出名字，学徒回应，再查看",
+          "en": "Complete the Two Shots: Read, Respond, Then Inspect"
+        },
+        "body": {
+          "zh": "沿用原修表铺例。本页作者选定签名写作“周长安”，是学徒已知的父亲姓名；温岑负责保修单，可以让学徒在桌边查看这张。仅知道同名还不能确认签名由本人所写。本段补足原创演示，不是生成服务输出。\n\n**第一镜，证据与实际朗读：**\n\n> 暖台灯仍在工作台原位置，镜头看清保修单签名所在一行及温岑的手；她指着那一行读：“周长安。”学徒尚在门边，能听到声音，但没有看到签名笔迹。镜头不提前让他拿到单据，也不增加照亮全店的新灯。\n\n**第二镜，按原定反打转到回应：**\n\n> 学徒听见名字，迈向桌边的脚步停住。“这个名字和我父亲一样。能让我看一下签名吗？”温岑把单据转向他，并用台灯照到对应一行。他走完剩下几步，到桌边看清笔迹，说：“很像他的字，我想再核一下这张单子的来历。”单据仍由温岑管理，未交成他可带走的物件。\n\n本轮反打按实际机位投影同一台灯与街外冷色反光，暗侧仍能读到学徒眼睛、说话和停步；靠近后手背与单据可受原台灯余光。屏幕左右按机位确定，不把“画面左后”当固定口诀。台灯照单是同一盏灯的现有使用，地点光源没增加。\n\n| 信息点 | 当前边界 |\n|---|---|\n| 听见名字 | 知道单据有这个签名名称；不等于看过笔迹 |\n| 请求查看 | 是请求，温岑实际转向并出示后才得到查看机会 |\n| 看见笔迹并回应 | 学徒作相似判断、打算再核来历；本轮没有证明签名真实性 |\n| 两镜结束 | 学徒在桌边，单据仍归温岑管理；后续沿用位置和有限知情 |\n\n灯光要帮观众读到真实发生的朗读、回应与出示，不替角色提前完成判断。生成后同时听对白、看实际文字与动作；提示词写清楚不等于字形、反应或空间已经实现。",
+          "en": "Continue the watch-shop example. The author chooses the signature name Zhou Chang’an, known to the apprentice as his father’s name. Wen manages the slip and can let him inspect it at the desk. A matching name does not establish authorship. This completes an original demonstration, not generated output.\n\n**Shot one: evidence and actual reading.**\n\n> The warm lamp remains at its bench position. Frame the signature line and Wen’s hand. Pointing to it, she reads, “Zhou Chang’an.” The apprentice is still by the door: he hears the name without seeing the handwriting. Do not give him the document early or add a lamp lighting the whole shop.\n\n**Shot two: response in the chosen reverse.**\n\n> At the name, the apprentice stops his step toward the bench. “That’s my father’s name. May I see the signature?” Wen turns the slip toward him and uses the bench lamp to illuminate its line. He finishes approaching, sees the handwriting, and says, “It looks like his. I’d like to check where this slip came from.” Wen retains management of the document; it is not handed over for him to take away.\n\nProject the same lamp and cool street reflection through the actual reverse-shot camera. Keep eyes, speech, and the stopped step readable on the shadowed side; after approach, lamp spill can reach hand and paper. Screen directions follow the camera, not a universal back-left formula. Illuminating the slip uses the existing lamp without adding sources.\n\n| Information | Present limit |\n|---|---|\n| Heard name | Knows the signature name, not its handwriting. |\n| Asked to inspect | A request until Wen actually turns and shows the slip. |\n| Saw and replied | Judges similarity and plans to check origin; authenticity is not established. |\n| End of pair | At the bench; document remains managed by Wen, with bounded knowledge. |\n\nLighting makes the actual reading, reply, and showing legible without making a judgment for the character. Review dialogue, displayed text, and action in the result; explicit wording does not establish execution."
         }
       },
       {
@@ -11175,6 +11186,13 @@
           "en": "Shot responsibilities and reveals"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/shot-craft.md"
+      },
+      {
+        "label": {
+          "zh": "对白发生与跨镜信息连续",
+          "en": "Actual dialogue and cross-shot information"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/camera-audio-continuity.md"
       }
     ]
   },
@@ -11940,6 +11958,17 @@
         "body": {
           "zh": "项目视觉方向已经选为“简化线条配合潮湿反光”，现在要验证它是否能支撑剧情：夜班救生员沈羽在闭馆后发现深水区仍有人影，前台管理员从玻璃门外赶来。\n\n**稳定项**：人物外轮廓保持清楚；瓷砖与水面都可反光，但反光边缘软硬不同；背景更低密度；橙色救生浮标始终是可识别色块。\n\n**可变量**：白天训练场景允许更明亮、层次更平；夜间可以加大明暗差，但不吞掉沈羽的工牌轮廓和人影位置。\n\n**三类规格**：人物帧看沈羽转头时眼神与工牌是否仍可读；地点帧看池沿、玻璃门和深水区如何分层；压力帧让前景浮标、池中人影与门外管理员同时存在，检查反光是否把三层粘在一起。\n\n**失效信号**：水面高光盖住人影、所有湿材质都变成同一种亮片、门外人物因低密度处理彻底消失。修正时收敛反光范围和背景密度，不改人物身份、门的位置或剧情里“有人影”的事实。",
           "en": "The project has chosen “simplified linework with wet reflections” and now needs to test whether it can carry the story: after closing, night-shift lifeguard Shen Yu spots a figure in the deep end, while the front-desk attendant hurries over from outside the glass door.\n\n**Stable anchors:** Keep character silhouettes clear. Both tile and water may reflect light, but their reflection edges differ in softness. Keep the background less detailed. The orange rescue float remains a recognizable color accent.\n\n**Variables:** Daytime training scenes may be brighter and flatter. At night, increase the light-dark contrast without obscuring Shen Yu’s badge outline or the figure’s position.\n\n**Three frame specifications:** In the character frame, check whether Shen Yu’s eyes and badge remain legible as they turn. In the location frame, separate the pool edge, glass door and deep end. In the pressure frame, include the foreground float, the figure in the pool and the attendant outside the door; check that reflections do not fuse the three layers.\n\n**Failure signals:** Water highlights cover the figure; every wet material turns into the same glitter; or the lower-density treatment makes the person outside the door disappear. Correct by constraining the reflection range and recalibrating background density. Do not change character identity, the door’s position, or the story fact that someone is in the water."
+        }
+      },
+      {
+        "id": "complete-comparison",
+        "heading": {
+          "zh": "接上例，给两份可直接比较的代表帧提示",
+          "en": "Two Complete Prompts for the Existing Pool Example"
+        },
+        "body": {
+          "zh": "沿用游泳馆例。作者为本轮压力测试选定同一幅构图：沈羽在池沿前景，橙色浮标在她身旁；深水区有人影，管理员在玻璃门外。使用同一身份、造型、地点和已有简化线条方向；工牌只保留已定轮廓，本轮不要求它显示可读姓名。下面只比较水面反光分布，不同时改人物、人数或门的位置。两份均是未出图候选。\n\n**候选A：集中反光。**\n\n> 闭馆后的社区游泳馆压力场景代表帧，沈羽在池沿前景，橙色救生浮标保持在她身旁；深水区人影与玻璃门外管理员均在既定位置。沿用本项目简化线条与潮湿材质语言，人物外轮廓清楚，瓷砖与水面反光有不同边缘，背景细节随远近递减。水面反光集中成较窄片区，避开需要识别人影的轮廓；前景、池中和门外三层分别可读。保留身份、造型、池沿、门与人影事实，不把人影改成新角色，不为风格添灯。工牌保留轮廓，不生成新姓名文字。\n\n**候选B：分散反光。**\n\n> 闭馆后的社区游泳馆压力场景代表帧，沈羽在池沿前景，橙色救生浮标在她身旁；深水区人影与玻璃门外管理员在既定位置。沿用本项目简化线条与潮湿材质语言，人物外轮廓清楚，瓷砖与水面反光有不同边缘，背景细节随远近递减。水面反光呈较广的破碎分布，避开需要识别人影的轮廓；前景、池中和门外三层分别可读。身份、造型、池沿、玻璃门、光源及工牌轮廓均保持，不新增人物、灯或可读姓名。\n\n| 比较问题 | 本轮可以怎样判断 |\n|---|---|\n| 反光分布是否影响人影识别 | 真实出图后看人影是否仍可辨；不是预先宣布B失败 |\n| 三层是否混在一起 | 在同一构图中比较，不把更简单的画面当风格胜利 |\n| 实际输出还改了其他项 | 记录偏离，不能把身份或人数变化计成反光方案优劣 |\n\n文字能指出风险，不能给出画面胜负。若实际结果显示集中反光更适合这场，再按准确候选、参考与制作配置记录该项目选择；不推断所有湿场景都要采用A。",
+          "en": "Continue the pool example. The author selects one pressure-test composition: Shen in the foreground at the pool edge, an orange float beside her, a figure in deep water, and the administrator outside the glass door. Use the same identity, look, geography, and simplified-line direction. The badge retains its chosen outline without newly readable name text. Compare reflection distribution alone, not cast or door placement. Both are ungenerated candidates.\n\n**A: concentrated reflections.**\n\n> After-closing community-pool pressure frame: Shen at the foreground edge, orange rescue float beside her, the deep-water figure and administrator outside the glass door in their chosen positions. Use the project’s simplified lines and wet-material language, clear character outlines, different reflection edges for tile and water, and detail decreasing into depth. Concentrate water highlights into narrower patches away from the figure’s readable outline. Keep foreground, water, and doorway layers distinguishable. Preserve identity, look, pool edge, door, and the figure’s presence; no invented character or lamp. Retain the badge outline without new name text.\n\n**B: distributed reflections.**\n\n> After-closing community-pool pressure frame: Shen at the foreground edge, orange rescue float beside her, the deep-water figure and administrator outside the glass door in their chosen positions. Use the project’s simplified lines and wet-material language, clear character outlines, different reflection edges for tile and water, and detail decreasing into depth. Distribute water highlights into broader broken patches away from the figure’s readable outline. Keep foreground, water, and doorway layers distinguishable. Preserve identity, look, pool edge, glass door, light sources, and badge outline; no added people, lamps, or readable names.\n\n| Question | Assessment |\n|---|---|\n| Does distribution affect recognition? | Inspect actual generated visibility rather than declaring B a failure in advance. |\n| Do layers merge? | Compare the same composition instead of treating a simpler task as superior style. |\n| Did other facts change? | Record deviations; identity or cast changes are not evidence about reflection distribution. |\n\nText identifies risk rather than a winning image. If actual results favor concentrated highlights here, record this project’s choice with the exact candidates, references, and production configuration. Do not generalize A to every wet scene."
         }
       },
       {
@@ -40761,6 +40790,290 @@
           "en": "Ordinary narration and explicit full-mix boundaries"
         },
         "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/audio-modes.md"
+      }
+    ]
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "fix-a-static-subject-in-image-to-video",
+    "topic": "ai-video",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI图生视频人物不动怎么办：分清机位、动作和保持项",
+      "en": "How to Fix a Static Character in Image-to-Video"
+    },
+    "seo_title": {
+      "zh": "AI图生视频人物不动怎么办",
+      "en": "Fix a Static Character in Image-to-Video"
+    },
+    "description": {
+      "zh": "先确认本镜确实需要人物行动，再检查参考起点、动作链和限制。附起身到窗边的完整修订提示及结果核对。",
+      "en": "Check the intended action, starting image, and constraints. Includes a complete stand-and-walk prompt and checks for the actual result."
+    },
+    "answer": {
+      "zh": "先回看实际视频，确认人物是否没有完成本镜需要的动作，而不是只看一张末帧。固定摄影机可以拍移动的人物；保持身份和服装也不等于冻结姿势。检查参考图是否符合起点、正文是否明确谁怎样到终点，以及限制是否把必要动作一起禁止。安静镜头本就允许人物停留，不为了“动起来”添加无关动作。",
+      "en": "Review the actual clip to see whether the required action is missing, rather than judging one final frame. A fixed camera can show a moving character; preserving identity and clothing does not freeze pose. Check the input’s starting state, the actor’s route to the endpoint, and restrictions that forbid needed motion. Quiet shots may deliberately hold; do not add unrelated action just to make them move."
+    },
+    "sections": [
+      {
+        "id": "observe",
+        "heading": {
+          "zh": "先确认动作是真的缺失，还是本来该停住",
+          "en": "Confirm That a Required Action Is Missing"
+        },
+        "body": {
+          "zh": "正常速度播放完整镜头，记录人物开始、中间和结束的位置、姿态与持物。如果起终状态相同，也可能中途做过动作又回来，单看末帧无法判断。先确认播放的是当前生成结果，没有误看参考图或旧版本。\n\n本镜若要求人物从桌前走到窗边，只有窗帘在动就没实现主体动作。若剧本要求人物留在桌前听完一句话，保持坐姿可能完全正确；必要变化可以是目光、声音或安静等待，不必给每个人加起身和手势。\n\n下面处理的是“已选定动作没有发生”。动作确实完成但节奏偏慢，另看[动作太慢的排查](/drama-skills/fix-slow-actions-in-ai-video)。",
+          "en": "Play the entire current clip at normal speed and note starting, intermediate, and ending position, pose, and possession. Identical endpoints may conceal an action followed by a return. Confirm that you are watching the result rather than a reference image or old version.\n\nIf the shot calls for walking from desk to window, moving curtains alone do not satisfy it. If the character should stay seated while listening, that pose may be correct. Gaze, voice, or quiet waiting can carry the shot without compulsory standing or gestures.\n\nThis page handles a chosen action that never happens. For an action that completes too slowly, use the [slow-action guide](/drama-skills/fix-slow-actions-in-ai-video)."
+        }
+      },
+      {
+        "id": "limits",
+        "heading": {
+          "zh": "固定机位和人物不动，是两项不同要求",
+          "en": "Camera Lock and a Stationary Character Are Different Requirements"
+        },
+        "body": {
+          "zh": "| 说明 | 应当保留或改变的内容 |\n|---|---|\n| 摄影机固定 | 机位和取景不漂移；人物可在框内按剧情移动 |\n| 身份与服装保持 | 同一张脸、体态和造型仍可识别；不代表手脚或身体位置冻结 |\n| 起始构图来自图片 | 只规定开始一刻；终点和中间动作仍需说明 |\n| 场景固定地理保持 | 门窗桌椅不换位；人物路线须能在这个空间中走通 |\n\n“画面全部保持静止，她自然走过去”互相冲突。把保持项缩到真正需要保护的事实，不是删掉所有限制。反过来，若机位已规定跟随，不为解决人物不动就擅自改成固定。",
+          "en": "| Instruction | What stays or changes |\n|---|---|\n| Fixed camera | Stable viewpoint and framing; the character may move within it. |\n| Preserve identity and clothing | Recognizable face, build, and look; limbs and position may change. |\n| Starting composition from image | The first moment, not the entire motion or ending. |\n| Preserve geography | Keep doors, windows, and furniture; the route must work within them. |\n\n“Keep everything motionless; she walks naturally” conflicts. Bound preservation to relevant facts instead of removing every constraint. If the shot specifies tracking, do not silently replace it with a lock-off to solve another problem."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "原创改写：坐在桌前，走到窗边，再停下",
+          "en": "Original Repair: Desk, Window, Then a Stop"
+        },
+        "body": {
+          "zh": "本页原创分镜已选定六秒固定中全景：许棠坐在桌前，双手空着放在桌边；椅子到左侧窗前有可通行路线，机位能同时看到起点、路线和终点。听见窗外钟声后，她起身，沿桌子左侧走到窗前，停下看窗外。人物不开窗，没有对白；桌上本子保持原位。这里只给设计示范，没有实际参考图片或生成结果。\n\n**含混提示：**\n\n> 用坐在桌前的图片，人物和构图完全保持不变，窗帘轻轻飘，气氛宁静，她自然走到窗边。\n\n人物保持原位与走到窗边冲突，背景变化又比主体动作具体。\n\n**修订动作段：**\n\n> 从许棠坐在桌前、双手空放桌边的起点开始。窗外钟声传入后，许棠从椅子上站起，沿桌子左侧的可通行路线走向窗前；到窗前后停止前进，目光转向窗外。摄影机在这六秒内固定，完整保留起点到窗前的空间。许棠的身份与服装保持，姿态和位置按上述动作变化；窗、桌、椅和桌上本子保持位置，本子不被拿走。最终许棠站在窗前，双手空着，窗仍关闭。没有对白，不新增开窗或其他动作。\n\n动作顺序、路线、停止与未参与变化的物件都有落点。实际项目中，这段需配合正确起始图和既有参考绑定；一段文字不证明图片已经挂载，也不保证模型完成行动。若起始图把许棠画成站在门边，先纠正输入与分镜差异，不靠长提示把另一张图当成已匹配。",
+          "en": "Original six-second design: a fixed medium-wide shot shows Xu seated at a desk, empty hands at its edge. A passable route leads along the desk’s left side to a window; camera framing includes start, route, and destination. A bell outside prompts her to stand, walk to the window, and stop looking out. No opening the window or dialogue; a notebook stays on the desk. This is a design demonstration without actual input images or generated output.\n\n**Ambiguous version:**\n\n> Use the seated-at-desk image. Keep the character and composition completely unchanged. Curtains drift gently; peaceful atmosphere. She walks naturally to the window.\n\nUnchanged position conflicts with walking, while background movement is more specific.\n\n**Revised action:**\n\n> Start with Xu seated at the desk, empty hands at its edge. After the bell outside, Xu stands from the chair and walks along the clear route on the desk’s left to the window. She stops there and looks outside. Keep the camera fixed for six seconds, showing the route from start to destination. Preserve Xu’s identity and clothing while changing pose and position through this action. Keep the window, desk, chair, and notebook in place; she does not take the notebook. End with Xu standing by the closed window, hands empty. No dialogue, window opening, or added action.\n\nOrder, route, stop, and unaffected objects are explicit. A real project still needs a correct input image and reference binding; text does not establish attachment or execution. If the input shows Xu standing by a door, resolve that mismatch instead of treating it as the specified start."
+        }
+      },
+      {
+        "id": "budget",
+        "heading": {
+          "zh": "先让一个完整动作成立，再决定要不要拆镜",
+          "en": "Make the Required Action Work Before Adding More"
+        },
+        "body": {
+          "zh": "起身、走动和停止的实际时间受距离、步态和空间影响，不按“六秒一定足够”判定。本例明确有可通行路线，仍需看片确认是否自然完成。不能把桌前到窗前的距离临时缩短，或让人物穿过桌子，只为赶到终点。\n\n如果本镜又要长对白、拿本子、开窗和回头回应，先核这些是否本来属于镜头义务。范围或时长不相容时调整分镜，不只把提示词越写越密。若需拆镜，保留同一动作事实和衔接状态，不把补拍结果冒充母版承担了全部过程。",
+          "en": "Actual time depends on distance, gait, and space; six seconds is not guaranteed sufficient. This example establishes a passable route but still needs result review. Do not shorten geography or pass through a desk merely to hit the endpoint.\n\nIf dialogue, collecting the notebook, opening the window, and a response are also requested, check which belong to the shot. Resolve incompatible scope or duration in the storyboard rather than packing more words into the prompt. A split retains action and handoff facts; a supplementary shot cannot claim the master covered every process."
+        }
+      },
+      {
+        "id": "compare",
+        "heading": {
+          "zh": "重新生成后，核对实际变化而不是只看提示词",
+          "en": "Compare Actual Motion After Generation"
+        },
+        "body": {
+          "zh": "| 观察位置 | 本例要确认 |\n|---|---|\n| 起点 | 坐在桌前、双手空、本子在桌上 |\n| 途中 | 实际起身并沿桌左侧行走，不以人物瞬移代替 |\n| 终点 | 窗前站住看外面，未自动开窗或拿走本子 |\n| 保持 | 同一身份与造型，桌窗地理和固定机位未被重做 |\n\n保留能对应准确输入、提示词和结果的观察。只改动作说明后变好了，也不能把一次结果推广成所有模型的固定规律。仍不实现动作时，按当前观察判断是输入、描述、时长或制作能力的问题，再选重试、修稿或其他制作方式。",
+          "en": "| Point | Check in this example |\n|---|---|\n| Start | Seated, empty hands, notebook on desk. |\n| Middle | Actual standing and walking along the left route, not teleportation. |\n| End | Stops at the window looking out without opening it or taking the notebook. |\n| Preservation | Same identity, look, geography, and fixed camera. |\n\nTie observations to the exact input, prompt, and result. One improvement is not a universal model rule. If action remains absent, use current evidence to distinguish input, description, duration, and production capability before retrying, revising, or selecting another implementation."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "固定机位会让人物也固定吗？",
+          "en": "Does a fixed camera require a fixed character?"
+        },
+        "a": {
+          "zh": "不会从创作要求上自动推出。固定的是摄影机位置与取景，主体仍可按既定路线移动。若提示同时写人物姿势完全不变，应把这项冲突单独改清。",
+          "en": "It does not follow from the creative requirement. Camera position and framing stay fixed while the subject may follow a route. Repair a separate instruction that freezes the character’s pose."
+        }
+      },
+      {
+        "q": {
+          "zh": "要不要给每个人都写动作，避免像照片？",
+          "en": "Should everyone move to avoid a photographic look?"
+        },
+        "a": {
+          "zh": "不用。只写本镜必须发生的主体变化，其他人可停留。动作、安静和环境微动都要服务本场，不为动感改掉已有剧情或关系。",
+          "en": "No. Write required subject changes while others may hold. Action, quiet, and ambient motion serve the shot instead of changing plot or relationships merely for activity."
+        }
+      }
+    ],
+    "skill": {
+      "name": "short-drama-video-prompts",
+      "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/SKILL.md",
+      "text": {
+        "zh": "用 $short-drama-video-prompts 检查这个图生视频镜头的人物动作。附已定起终状态、时长、真实参考图用途和实际视频观察。区分固定机位、身份保持与人物姿态变化，找遗漏动作或冲突限制，给可复制的局部改法；不新增剧情、运镜或强制表情。若起始图或时长不支持动作，说明需要改哪个已定条件。",
+        "en": "Use $short-drama-video-prompts to review character motion with the chosen start, end, duration, reference roles, and actual clip observations. Separate camera lock, identity preservation, and pose change. Repair omitted action or conflicting limits without adding plot, camera movement, or compulsory expressions. Identify an input or duration change when the existing conditions cannot support the action."
+      }
+    },
+    "related": [
+      "/drama-skills/image-to-video-prompts",
+      "/drama-skills/stop-unwanted-ai-video-camera-drift",
+      "/drama-skills/fix-slow-actions-in-ai-video"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "起点、有序主体动作与保持项",
+          "en": "Starting state, ordered subject motion, and preservation"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
+      },
+      {
+        "label": {
+          "zh": "固定摄影机与移动主体",
+          "en": "Fixed camera and moving subject"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/camera-audio-continuity.md"
+      },
+      {
+        "label": {
+          "zh": "动作条件、路径与时长",
+          "en": "Action conditions, route, and duration"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/performance-action-timing.md"
+      }
+    ]
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "keep-ai-video-effects-within-the-target",
+    "topic": "ai-video",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI视频特效误改人物和背景怎么办：限定变化对象与范围",
+      "en": "How to Keep AI Video Effects Within Their Target"
+    },
+    "seo_title": {
+      "zh": "AI视频特效误改人物和背景怎么办",
+      "en": "Keep AI Video Effects Within Their Target"
+    },
+    "description": {
+      "zh": "用触发、目标范围、结束状态与保持项写局部特效。附单只碗材质变化的完整提示、检查表和拆镜边界。",
+      "en": "Bound an effect by trigger, target, end state, and preservation. Includes a complete material-change prompt and checks for unaffected objects."
+    },
+    "answer": {
+      "zh": "先指出这次特效只作用于哪个人、物件或区域，写它何时开始、怎样变化、结束后还留下什么，再点名同框需要保留的身份、持物、文字和空间。不要只写“魔法变化，其他不变”。特效没有实现时，可以缩小或分阶段检查，但不能悄悄改掉剧本结果或把邻近物件一并删掉。",
+      "en": "Name the person, object, or region affected, its trigger, change, and remaining end state. Identify unaffected identity, possession, text, and geography. “Magical change, everything else unchanged” is insufficient. Narrow or stage a failed implementation without silently changing the plot result or removing neighboring objects."
+    },
+    "sections": [
+      {
+        "id": "scope",
+        "heading": {
+          "zh": "先找真正变化的对象，别把整幅画面写成特效",
+          "en": "Choose the Target Rather Than Transforming the Whole Frame"
+        },
+        "body": {
+          "zh": "同一画面里，可能只有一只碗变材质、一段墙面打开或一处影像显现。把目标指到能辨认的对象或区域，避免“场景消失”“人物变成光”这类会扩大范围的句子，除非全场变化本来就是剧本选定结果。\n\n源运动方法对局部折叠、消失、替换、破碎、复原或形态改变要求四项：触发、目标范围、结束状态、保持项。这里把它写成作者可用的说明，不需要把内部字段名塞进画面。\n\n目标的变化必须来自已确认剧情与视觉事实。原设定只是光照改变，不应在提示词里擅自写道具换材质、人物受伤或墙体被摧毁。",
+          "en": "One bowl may change material, one wall panel open, or one image appear within a frame. Identify the target instead of saying the scene vanishes or a person becomes light, unless that wider change is already chosen.\n\nThe source requires trigger, target scope, end state, and preservation for partial folding, disappearance, replacement, breakage, restoration, or shape change. This page translates those into creator-facing descriptions rather than internal field names.\n\nUse confirmed story and visual facts. A chosen lighting change does not authorize a new material, injury, or destroyed wall in the prompt."
+        }
+      },
+      {
+        "id": "effect-card",
+        "heading": {
+          "zh": "写清变什么，以及哪些东西必须留下",
+          "en": "Specify What Changes and What Remains"
+        },
+        "body": {
+          "zh": "| 本次效果 | 需要写清 |\n|---|---|\n| 触发 | 已定的动作、声音或状态；不能另发明剧情事件 |\n| 目标与过程 | 哪个表面或物件，怎样开始、扩展或完成 |\n| 结束状态 | 变完后的形状、占位、数量或露出的内容，不只写“完成” |\n| 保持项 | 最容易被误改的同框人物、持物、文字表面和空间锚点 |\n\n保持项也有边界。材质变了，目标物自身的反光可以相应变化；不能要求“陶器变玻璃，但所有光学表现完全不变”。保护不参与特效的事实，不把必要变化一起锁死。",
+          "en": "| Effect element | Specify |\n|---|---|\n| Trigger | Chosen action, sound, or state without inventing an event. |\n| Target and process | Surface or object and how change starts, spreads, or completes. |\n| End | Shape, position, count, or revealed content beyond “finished.” |\n| Preservation | Vulnerable people, held items, text surfaces, and spatial anchors. |\n\nPreservation is bounded too. The target’s reflections may change with its material; ceramic becoming glass cannot require identical optical appearance. Protect unaffected facts without freezing the intended change."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "原创改写：只让桌中间的一只碗变材质",
+          "en": "Original Repair: Change Only the Central Bowl’s Material"
+        },
+        "body": {
+          "zh": "原创奇幻镜头已选定：固定中景，木桌中间有一只空着的白色陶碗，左边放黄铜钥匙，右边铺蓝布；演示者坐在桌后，双手空放桌边。画外短响后，只有陶碗变成透明玻璃碗，形状、数量和占位保持，人物与其他道具没有变化。**材质转变本身已在本例剧本与视觉设定选定，本页只写实现范围，不重新决定道具设计。**无可读文字或对白义务。以下不是实际生成记录。\n\n**过宽写法：**\n\n> 魔法响起，桌上的东西变成透明，人物和背景融合，神秘特效，其他不变。\n\n它把单个目标扩大到所有物件，还写了人物与背景融合。\n\n**局部效果段：**\n\n> 从桌中间的一只空着的白色陶碗开始，黄铜钥匙在桌左，蓝布在桌右，演示者坐在桌后，双手空放桌边。画外一次短响后，仅碗的白色不透明表面逐步转为透明玻璃材质；碗沿、底部和碗所占桌面位置始终保持，不生成第二只碗，也不让碗消失。材质变化后按玻璃呈现局部反光与透视，最终桌中间仍是一只同形、空着的透明碗。钥匙的材质与位置、蓝布的颜色与铺法、人物身份、服装与坐姿，以及桌椅和背景布局保持。摄影机固定；保留一次触发短响，没有对白，不给人物或整个背景附加变形效果。\n\n“同形”指本例已定碗形，不是让模型临时重造；玻璃的具体折射效果仍需制作检查。没有实际参考图时，这只是文字方案；真实项目把这些事实与正确起始图、道具版本和镜头绑定核对后再提交。",
+          "en": "Original fantasy shot: a fixed medium view contains one empty white ceramic bowl at the wooden table’s center, a brass key on the left, and blue cloth on the right. A demonstrator sits behind it, empty hands at the edge. A short off-screen sound triggers only the bowl becoming clear glass, retaining shape, count, and position. **The story and visual setup already choose this material change; this page bounds implementation rather than redesigning the prop.** No readable text or dialogue is required. This is not a generation record.\n\n**Overbroad version:**\n\n> Magic sounds. Things on the table become transparent; person and background merge. Mysterious effect; everything else unchanged.\n\nIt expands one target to every object and expressly transforms the person and background.\n\n**Local effect:**\n\n> Start with one empty white ceramic bowl at the table’s center, the brass key on the left, blue cloth on the right, and the demonstrator seated with empty hands at the edge. After one short off-screen sound, only the bowl’s opaque white surface gradually becomes clear glass. Keep its rim, base, and table position throughout; do not duplicate or remove it. Let local reflection and transparency follow the material change. End with one empty clear bowl of the same chosen shape at the center. Preserve the key’s material and position, cloth color and placement, character identity, clothing and seated pose, and furniture and background layout. Fixed camera; retain the one triggering sound, no dialogue, and no added transformation of the person or background.\n\nThe chosen shape is not permission to redesign it. Specific refraction still needs production review. Without actual input images this is a textual plan; a real submission must match the correct starting image, prop version, and shot binding."
+        }
+      },
+      {
+        "id": "fallback",
+        "heading": {
+          "zh": "扩大禁令之前，先检查范围和阶段",
+          "en": "Check Scope and Stages Before Adding Prohibitions"
+        },
+        "body": {
+          "zh": "如果邻近物件被一起改，先看目标是否写成“桌上所有东西”、动作是否改变整间房、参考图是否已带有其他效果。然后缩到准确目标，按需要把起始、变化和终点分清，并保护最易误改的对象。\n\n文字更具体不保证实现。模型仍把碗连同钥匙吞掉时，可以比较更小变化、增加阶段边界或不同制作方式；如果改法减少了观众必须看见的过程或改变最终状态，先修订分镜义务。不能一边删掉钥匙，一边说原镜头已经完成。\n\n需要拆成前后镜时，记录哪些动作和反应被保留、哪项过程没拍到。若材质逐步变化本身是本镜看点，只给前后两张图不证明这项过程已兑现。",
+          "en": "If neighbors transform too, inspect wording about all table objects, room-wide change, or unrelated effects already in references. Bound the exact target, distinguish start, change, and end when needed, and protect vulnerable objects.\n\nSpecific text cannot guarantee execution. Continued loss of bowl and key may justify smaller changes, stage boundaries, or another production method. If that removes required visible process or alters the end state, revise the storyboard obligation first. Deleting the key cannot count as completing the original shot.\n\nFor separate before-and-after shots, record retained actions and reactions and the omitted process. If gradual change is the attraction, two endpoint images do not establish its execution."
+        }
+      },
+      {
+        "id": "verify",
+        "heading": {
+          "zh": "逐段核目标，再核同框保持项",
+          "en": "Review Both the Target and Unaffected Content"
+        },
+        "body": {
+          "zh": "| 观察 | 本例要求 |\n|---|---|\n| 起点 | 仅一只白陶碗；钥匙、布和人物在已定位置 |\n| 过程 | 变化只在碗材质；碗形与占位连续，不突然换成空桌 |\n| 终点 | 一只同形空玻璃碗；其他物件仍在，人物未被附加特效 |\n| 下镜 | 读取已定的新材质和原有归属/位置，不靠错误生成结果另定状态 |\n\n提示词、生成观察与已接受的镜头边界分别记录。若实际结尾是消失、复制或整屋变透明，不能把它当成新终点直接接下镜；按当前证据修实现，或明确选择新的剧情与分镜版本。",
+          "en": "| Review point | Requirement |\n|---|---|\n| Start | One white ceramic bowl; key, cloth, and person in chosen positions. |\n| Process | Material changes only on the bowl; shape and position remain continuous. |\n| End | One same-shaped empty glass bowl; other objects remain without added character effects. |\n| Next shot | Read the chosen new material and retained ownership and position, not an erroneous generated endpoint. |\n\nKeep the prompt, observed output, and accepted shot boundary distinct. Disappearance, duplication, or a transparent room cannot silently become the next shot’s authority. Repair implementation or explicitly choose a revised story and storyboard."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "写“其他全部不变”够吗？",
+          "en": "Is “everything else unchanged” sufficient?"
+        },
+        "a": {
+          "zh": "它可以总结已经点名的保持项，不能替代目标和范围。优先写清同框最容易误改的人物、道具、文字与空间，再判断有没有遗漏。",
+          "en": "It may summarize named preservation, not replace target and scope. Specify vulnerable people, props, text, and geography before checking omissions."
+        }
+      },
+      {
+        "q": {
+          "zh": "保持项会不会限制特效？",
+          "en": "Can preservation restrict the intended effect?"
+        },
+        "a": {
+          "zh": "会，所以要分清参与与不参与变化的内容。碗材质变化可改变它的反光；保持碗形和桌面占位，不要求所有目标外观永远静止。",
+          "en": "Yes, so distinguish participating and unaffected content. A material change may alter reflections while retaining shape and position; do not freeze every target property."
+        }
+      }
+    ],
+    "skill": {
+      "name": "short-drama-video-prompts",
+      "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/SKILL.md",
+      "text": {
+        "zh": "用 $short-drama-video-prompts 检查这段局部特效。附已定触发、目标物件、起终状态、同框人物与必须保持内容。把范围、变化路径和结束几何写具体，找会误吞邻近物或提前改状态的句子。只修本镜实现，不扩大特效、不重设计道具；若需拆镜或改变结果，列出要协调的分镜范围。",
+        "en": "Use $short-drama-video-prompts to review a local effect with its chosen trigger, target, start and end states, visible cast, and preserved content. Specify scope, path, and end geometry; find language that swallows neighbors or changes state early. Repair implementation without expanding effects or redesigning props. Identify storyboard changes needed for a split or altered result."
+      }
+    },
+    "related": [
+      "/drama-skills/generable-actions",
+      "/drama-skills/prop-reference-image",
+      "/drama-skills/shot-continuity-checklist"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "选择性变换的触发、范围、终点与保持项",
+          "en": "Selective change: trigger, scope, endpoint, and preservation"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
+      },
+      {
+        "label": {
+          "zh": "只读镜头边界与真实结束状态",
+          "en": "Shot boundaries and actual end states"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/camera-audio-continuity.md"
+      },
+      {
+        "label": {
+          "zh": "高风险实现、分镜拆分与等效表达",
+          "en": "Risky implementation, splitting, and equivalent expression"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/generability.md"
       }
     ]
   }
