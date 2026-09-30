@@ -276,6 +276,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [Fix Slow Actions in AI Video](https://zenstory.ai/drama-skills/fix-slow-actions-in-ai-video) — Separate deliberate waiting, delayed starts and stretched motion. Plan beats within the accepted duration and select usable footage from actual results.
 - [How to Write Negative Prompts for AI Video](https://zenstory.ai/drama-skills/write-negative-prompts-for-ai-video) — Tie exclusions to the shot’s actual states, text, and sound requirements. Includes a before-and-after example and a reference-image check.
 - [How to Direct Multiple Characters in AI Video](https://zenstory.ai/drama-skills/direct-multiple-characters-in-ai-video) — Avoid identical reactions in group shots. Use character goals, knowledge timing, and framing. Includes an original rehearsal scene and attention worksheet.
+- [How to Plan a One-Take AI Video Scene](https://zenstory.ai/drama-skills/write-a-one-take-ai-video-scene) — Plan a continuous scene with clear space, actions, sound, and an ending. Includes an original farewell, prompt, timing checks, and when to split.
+- [How to Write AI Video Prompts for Empty Shots](https://zenstory.ai/drama-skills/write-ai-video-establishing-and-empty-shots) — Give empty shots a purpose in place, waiting, or aftermath. Distinguish location references from footage, with a cinema example and sound boundaries.
 
 ### Interactive stories and games / 互动故事与游戏
 - [Interactive stories and games](https://zenstory.ai/guides/interactive-games) — Turn a novel into player actions, branching stories, and a playable game.

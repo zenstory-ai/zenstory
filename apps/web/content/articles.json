@@ -6870,7 +6870,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "AI视频动作崩坏怎么办：保住剧情信息，重写动作实现",
       "en": "When AI Video Actions Break: Preserve Story Facts, Rewrite the Action"
@@ -6895,8 +6895,8 @@
           "en": "First Identify What Makes the Action Difficult"
         },
         "body": {
-          "zh": "Drama Skills 把下面几类写法作为生成项目中的重点检查对象。它们用于定位镜头要求，不等于某种模型能力的固定上限。\n\n| 动作要求 | 提示词里容易含混的地方 | 首先问什么 |\n|---|---|---|\n| 两人同时争一件小物 | 接触位置、先后和最终归属必须同时成立 | 是否必须展示争夺过程，还是只需明确控制权？ |\n| 多步双手配合 | 每一步都依赖前一步准确完成 | 哪一步承载剧情，其余能否拆开？ |\n| “他终于明白了” | 只写内心结论，没有可见依据 | 观众通过哪项新行动知道他改变了判断？ |\n| “没有接、没有按、没有看” | 没说人物此刻实际在做什么 | 哪个正在发生的动作能表达相同选择？ |\n\n先查看真实输出，再标出具体问题：例如物品归属改变、动作跳过关键步骤或两人的手交叠不清。不要只记“效果不好”，也不要没有生成结果就声称某动作已经失败。",
-          "en": "Drama Skills treats the following patterns as priority checks in generative production. They help locate the demand a shot makes; they are not fixed limits of any model.\n\n| Action requirement | What may be ambiguous in a prompt | First question |\n|---|---|---|\n| Two people contest one small object at once | Contact point, sequence, and final possession must all agree | Must viewers see the contest itself, or only understand who controls the object? |\n| Several steps of two-handed coordination | Every step depends on the previous one being completed accurately | Which step carries the story, and can the rest be separated? |\n| “He finally understands” | Only an internal conclusion is stated, with no visible basis | Which new action tells viewers that his judgment changed? |\n| “She does not take it, press it, or look” | The prompt never says what the person is actually doing | Which action in progress can express the same choice? |\n\nInspect the real output first, then name the specific problem: possession changes, a crucial step is skipped, or two people’s hands overlap unclearly. Do not record only “the result is bad,” and do not claim an action failed without generated output."
+          "zh": "Drama Skills 把下面几类写法作为生成项目中的重点检查对象。它们用于定位镜头要求，不等于某种模型能力的固定上限。\n\n| 动作要求 | 方法与检查 |\n|---|---|\n| 两人同时争一件小物 | 提示词里容易含混的地方：接触位置、先后和最终归属必须同时成立 首先问什么：是否必须展示争夺过程，还是只需明确控制权？ |\n| 多步双手配合 | 提示词里容易含混的地方：每一步都依赖前一步准确完成 首先问什么：哪一步承载剧情，其余能否拆开？ |\n| “他终于明白了” | 提示词里容易含混的地方：只写内心结论，没有可见依据 首先问什么：观众通过哪项新行动知道他改变了判断？ |\n| “没有接、没有按、没有看” | 提示词里容易含混的地方：没说人物此刻实际在做什么 首先问什么：哪个正在发生的动作能表达相同选择？ |\n\n先查看真实输出，再标出具体问题：例如物品归属改变、动作跳过关键步骤或两人的手交叠不清。不要只记“效果不好”，也不要没有生成结果就声称某动作已经失败。",
+          "en": "Drama Skills treats the following patterns as priority checks in generative production. They help locate the demand a shot makes; they are not fixed limits of any model.\n\n| Action requirement | Method and check |\n|---|---|\n| Two people contest one small object at once | What may be ambiguous in a prompt: Contact point, sequence, and final possession must all agree First question: Must viewers see the contest itself, or only understand who controls the object? |\n| Several steps of two-handed coordination | What may be ambiguous in a prompt: Every step depends on the previous one being completed accurately First question: Which step carries the story, and can the rest be separated? |\n| “He finally understands” | What may be ambiguous in a prompt: Only an internal conclusion is stated, with no visible basis First question: Which new action tells viewers that his judgment changed? |\n| “She does not take it, press it, or look” | What may be ambiguous in a prompt: The prompt never says what the person is actually doing First question: Which action in progress can express the same choice? |\n\nInspect the real output first, then name the specific problem: possession changes, a crucial step is skipped, or two people’s hands overlap unclearly. Do not record only “the result is bad,” and do not claim an action failed without generated output."
         }
       },
       {
@@ -6917,8 +6917,8 @@
           "en": "Compare Four Rewriting Methods One by One"
         },
         "body": {
-          "zh": "| 方法 | 适用时机 | 检查边界 |\n|---|---|---|\n| 更换承担动作的对象 | 物体或环境变化也能表达同一事实 | 不能把人物主动选择变成偶然事故 |\n| 拆成动作前与动作后 | 过程本身不包含新选择，观众能理解连接 | 偷换、作弊、关键手法等若依赖过程，就不能直接跳过 |\n| 用停留或保持状态 | 重要信息是坚持、拒绝、控制或等待 | 先建立该状态如何出现，避免凭空改变持物 |\n| 用声音配合反应 | 声源已经明确，观众能把声音对应到事件 | 声音不能代替必须看清的身份、字形或物品变化 |\n\n按最小改动比较方案。某个方案改变剧情事实，就换下一个；都不成立时，保留关键动作，改用其他拍摄、动画或后期实现方式。需要改变故事结果时，先修改剧本与分镜，再写新提示词。",
-          "en": "| Method | When it fits | Boundary to check |\n|---|---|---|\n| Change what carries the action | An object or environmental change can express the same fact | Do not turn an active choice into an accident |\n| Split into before and after | The process contains no new choice and viewers can understand the connection | Do not skip a covert substitution, an act of cheating, or another crucial process when the process itself carries information |\n| Use a hold or maintained state | The important fact is persistence, refusal, control, or waiting | Establish how the state began so possession does not change from nowhere |\n| Pair sound with a reaction | The sound source is established and viewers can connect it to the event | Sound cannot replace an identity, written form, or object change that must be seen |\n\nCompare options in order of smallest change. If one changes the story fact, try the next. If none works, keep the crucial action and use another filming, animation, or post-production method. If the story result must change, revise the script and storyboard before writing a new prompt."
+          "zh": "| 方法 | 方法与检查 |\n|---|---|\n| 更换承担动作的对象 | 适用时机：物体或环境变化也能表达同一事实 检查边界：不能把人物主动选择变成偶然事故 |\n| 拆成动作前与动作后 | 适用时机：过程本身不包含新选择，观众能理解连接 检查边界：偷换、作弊、关键手法等若依赖过程，就不能直接跳过 |\n| 用停留或保持状态 | 适用时机：重要信息是坚持、拒绝、控制或等待 检查边界：先建立该状态如何出现，避免凭空改变持物 |\n| 用声音配合反应 | 适用时机：声源已经明确，观众能把声音对应到事件 检查边界：声音不能代替必须看清的身份、字形或物品变化 |\n\n按最小改动比较方案。某个方案改变剧情事实，就换下一个；都不成立时，保留关键动作，改用其他拍摄、动画或后期实现方式。需要改变故事结果时，先修改剧本与分镜，再写新提示词。",
+          "en": "| Method | Method and check |\n|---|---|\n| Change what carries the action | When it fits: An object or environmental change can express the same fact Boundary to check: Do not turn an active choice into an accident |\n| Split into before and after | When it fits: The process contains no new choice and viewers can understand the connection Boundary to check: Do not skip a covert substitution, an act of cheating, or another crucial process when the process itself carries information |\n| Use a hold or maintained state | When it fits: The important fact is persistence, refusal, control, or waiting Boundary to check: Establish how the state began so possession does not change from nowhere |\n| Pair sound with a reaction | When it fits: The sound source is established and viewers can connect it to the event Boundary to check: Sound cannot replace an identity, written form, or object change that must be seen |\n\nCompare options in order of smallest change. If one changes the story fact, try the next. If none works, keep the crucial action and use another filming, animation, or post-production method. If the story result must change, revise the script and storyboard before writing a new prompt."
         }
       },
       {
@@ -6999,6 +6999,20 @@
           "en": "Method used in this article"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/generability.md"
+      },
+      {
+        "label": {
+          "zh": "动作预算、条件与结果",
+          "en": "Action budget, prerequisites, and results"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/performance-action-timing.md"
+      },
+      {
+        "label": {
+          "zh": "起止边界与替代版职责",
+          "en": "Start/end boundaries and replacement responsibilities"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
       }
     ]
   },
@@ -7010,7 +7024,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "AI画面文字乱码怎么办：可读文字、空白区与后期字幕分开处理",
       "en": "Garbled AI Frame Text: Render, Reserve Space, or Add in Post"
@@ -7035,8 +7049,8 @@
           "en": "First Decide What the Text Is Responsible For"
         },
         "body": {
-          "zh": "| 文字的职责 | 可选处理 | 要保住什么 |\n|---|---|---|\n| 店名、日期、消息等需要被读懂 | 明确写出准确内容，或留给后期排字 | 文字内容、位置和剧情需要的读字时机 |\n| 只需要表现有字的纸张或图案 | 使用没有可辨字义的图形布局 | 纸张、版面与大致视觉密度 |\n| 画面不需要任何字 | 承载面留空，检查参考是否夹带文字 | 原有物体轮廓、材质和构图 |\n| 内容还没定稿 | 预留位置，待定稿后再添加 | 可供排字的干净表面与尺寸关系 |\n\n把故事事实与制作方法分开写。例如剧情要求观众看到“周五闭店”，这条事实保持；本次图像可以选择留一块空白告示牌，后期再写入这四个字。空白只是制作中间态，最终镜头仍要让观众读到信息。",
-          "en": "| Function of the text | Possible treatment | What must be preserved |\n|---|---|---|\n| A shop name, date, message, or other text viewers must understand | State the exact text, or reserve it for post-production typography | Content, position, and the story moment when it must be readable |\n| A page or pattern that only needs to look as though it contains writing | Use a graphic layout with no legible semantic content | The paper, layout, and approximate visual density |\n| A frame that needs no text | Leave the supporting surface blank and inspect references for embedded text | The object’s existing silhouette, material, and composition |\n| Content not yet finalized | Reserve a place and add it after approval | A clean surface and suitable size relationship for typography |\n\nSeparate the story fact from the production method. If the story requires viewers to see “Closed Friday,” preserve that fact. This image pass may use a blank notice card and add the words later. Blankness is only an intermediate production state; the final shot must still communicate the information."
+          "zh": "| 文字的职责 | 方法与检查 |\n|---|---|\n| 店名、日期、消息等需要被读懂 | 可选处理：明确写出准确内容，或留给后期排字 要保住什么：文字内容、位置和剧情需要的读字时机 |\n| 只需要表现有字的纸张或图案 | 可选处理：使用没有可辨字义的图形布局 要保住什么：纸张、版面与大致视觉密度 |\n| 画面不需要任何字 | 可选处理：承载面留空，检查参考是否夹带文字 要保住什么：原有物体轮廓、材质和构图 |\n| 内容还没定稿 | 可选处理：预留位置，待定稿后再添加 要保住什么：可供排字的干净表面与尺寸关系 |\n\n把故事事实与制作方法分开写。例如剧情要求观众看到“周五闭店”，这条事实保持；本次图像可以选择留一块空白告示牌，后期再写入这四个字。空白只是制作中间态，最终镜头仍要让观众读到信息。",
+          "en": "| Function of the text | Method and check |\n|---|---|\n| A shop name, date, message, or other text viewers must understand | Possible treatment: State the exact text, or reserve it for post-production typography What must be preserved: Content, position, and the story moment when it must be readable |\n| A page or pattern that only needs to look as though it contains writing | Possible treatment: Use a graphic layout with no legible semantic content What must be preserved: The paper, layout, and approximate visual density |\n| A frame that needs no text | Possible treatment: Leave the supporting surface blank and inspect references for embedded text What must be preserved: The object’s existing silhouette, material, and composition |\n| Content not yet finalized | Possible treatment: Reserve a place and add it after approval What must be preserved: A clean surface and suitable size relationship for typography |\n\nSeparate the story fact from the production method. If the story requires viewers to see “Closed Friday,” preserve that fact. This image pass may use a blank notice card and add the words later. Blankness is only an intermediate production state; the final shot must still communicate the information."
         }
       },
       {
@@ -7048,6 +7062,17 @@
         "body": {
           "zh": "**原要求**：咖啡馆门口，门上清楚写着“周五闭店”，不要任何文字，不要字幕，高质量。\n\n这里“必须读清告示”与“不要任何文字”互相冲突。可以按交付方法选择下面一版。\n\n**方案一：本次直接尝试生成文字**\n\n> 咖啡馆入口近景，玻璃门中部固定一张浅色长方形告示纸，纸上只写“周五闭店”。告示纸完整可见，镜头正对纸面，文字是本镜需要读清的信息。门框和把手位置保持，背景其他区域没有可辨招牌文字，画面外不添加字幕或标题。\n\n**方案二：后期添加准确文字**\n\n> 咖啡馆入口近景，玻璃门中部固定一张空白浅色长方形告示纸，纸面干净、完整可见，没有装饰覆盖或人物遮挡。保留门框、把手和玻璃反光，告示纸正面朝向镜头，供后期加入文字；图像中先不生成字形，画面外不添加字幕或标题。\n\n方案二另记一行后期任务：**在告示纸上添加“周五闭店”，保持纸面透视，让角色看向告示时文字已经出现。** 不把这行后期任务混进生成画面时的“空白纸”要求里。\n\n这两版是写法示例。方案一要核对实际输出是否逐字正确，方案二要核对最终合成是否真的补完文字；选了某条提示词就跳过检查，两条路径都会留下风险。",
           "en": "**Original request**: At a café entrance, the door clearly says “Closed Friday.” No text of any kind, no subtitles, high quality.\n\n“Viewers must read the notice” conflicts with “no text of any kind.” Choose one of the following versions according to the delivery method.\n\n**Option 1: Try to generate the text in this pass**\n\n> Close view of a café entrance. A pale rectangular notice is fixed at the center of the glass door. The notice contains only the words “Closed Friday.” The entire paper is visible, the camera faces it directly, and these words are the information that must be readable in this shot. Preserve the doorframe and handle positions. No other legible sign text appears in the background, and no subtitle or title is added outside the scene.\n\n**Option 2: Add the exact text in post-production**\n\n> Close view of a café entrance. A blank pale rectangular notice is fixed at the center of the glass door. Its clean surface is fully visible, with no decoration or person covering it. Preserve the doorframe, handle, and reflections in the glass. The notice faces the camera so text can be added in post-production. Do not generate letterforms in the image yet, and do not add subtitles or titles outside the scene.\n\nRecord a separate post-production task for option 2: **Add “Closed Friday” to the notice, match the paper’s perspective, and ensure the text is already present when the character looks at it.** Do not mix that post task into the request for blank paper during image generation.\n\nThese are writing examples. For option 1, inspect whether the actual output is correct word for word. For option 2, inspect whether the final composite truly adds the text. Choosing a prompt does not remove the need to check either path."
+        }
+      },
+      {
+        "id": "signature",
+        "heading": {
+          "zh": "姓名能读清，不等于签字已经可用",
+          "en": "A readable name is not an available signature"
+        },
+        "body": {
+          "zh": "如果剧情要求识别某人的正式签字，先确认作者已提供哪种内容：只有签名归属、只有姓名文字，还是已有确认的签名字形。字体排出姓名，不能冒充尚未提供的正式手写字形。\n\n例如，项目验收单需要在后续被人物认出签字，但作者只定了“由谁签”，没给字形。将这项记为待完成；若已有后期排字方案，保留签字区、透视与光照，待确认字形后合成。不要在空白区前安排人物已经辨认成功，也不让模型自行造笔画完成揭示。\n\n本页的“准确生成”或“后期添加”都先依赖准确内容。后期任务写入清单是安排，只有最终镜头真的包含该字形且可读，才能完成这项观看职责。",
+          "en": "If the story requires recognition of a formal signature, distinguish attribution, a person’s written name, and an approved signature shape. Typing the name does not supply an unavailable handwritten signature.\n\nSuppose a project acceptance sheet must later show a recognizable signature, but the author has specified only who signed. Mark the detail incomplete. With an agreed post-production plan, preserve the signing area, perspective, and light for the approved shape. Do not stage successful recognition of a blank area or let invented strokes fulfill the reveal.\n\nBoth direct generation and post-production need exact content first. Listing a compositing task is a plan; its viewing responsibility is delivered only when the final shot actually contains the required readable shape."
         }
       },
       {
@@ -7068,8 +7093,8 @@
           "en": "When AI Video Adds Subtitles, First Identify the Layer"
         },
         "body": {
-          "zh": "“关字幕”可能指几种不同的东西，先看实际文件和制作步骤：\n\n| 字在哪一层 | 先检查 | 对应处理 |\n|---|---|---|\n| 剪辑工程的独立字幕或标题层 | 工程中是否有可单独选择的文字对象 | 按交付需求关闭、删除或修改该层后重新导出 |\n| 输入图片本身 | 首帧、角色板或场景参考是否已经带字 | 处理参考，保留需要的身份和空间事实后再用于生成 |\n| 生成视频画面内部 | 字是否已与像素融在一起 | 评估局部修复、裁切或重新生成；裁切前确认不会丢掉人物与剧情信息 |\n| 影片里的招牌、纸张或屏幕 | 是否是本镜必须读懂的剧情文字 | 按准确生成或后期排字处理，不能当成多余字幕一概删除 |\n\n独立字幕层与已经嵌进画面的字，需要不同操作。具体按钮取决于所用工具；先确定字的来源，再找对应编辑入口，避免为一层字幕重做整段人物表演。",
-          "en": "“Turn off subtitles” may refer to several different things. Inspect the actual file and production steps first:\n\n| Where the text lives | First check | Treatment |\n|---|---|---|\n| A separate subtitle or title layer in the editing project | Whether the project contains a selectable text object | Disable, delete, or edit that layer according to delivery needs, then export again |\n| The input image itself | Whether the first frame, character board, or scene reference already includes text | Treat the reference while preserving required identity and spatial facts, then use it for generation |\n| Inside the generated video pixels | Whether the text is already fused into the image | Evaluate local repair, cropping, or regeneration; before cropping, make sure no character or story information is lost |\n| A sign, paper, or screen inside the story | Whether viewers must read it in this shot | Generate it accurately or add it in post; do not delete it indiscriminately as an unwanted subtitle |\n\nA separate subtitle layer and words embedded in the image require different operations. Exact buttons depend on the tool. Identify the text’s source before finding the corresponding edit control so one subtitle layer does not force a complete redo of a character performance."
+          "zh": "“关字幕”可能指几种不同的东西，先看实际文件和制作步骤：\n\n| 字在哪一层 | 方法与检查 |\n|---|---|\n| 剪辑工程的独立字幕或标题层 | 先检查：工程中是否有可单独选择的文字对象 对应处理：按交付需求关闭、删除或修改该层后重新导出 |\n| 输入图片本身 | 先检查：首帧、角色板或场景参考是否已经带字 对应处理：处理参考，保留需要的身份和空间事实后再用于生成 |\n| 生成视频画面内部 | 先检查：字是否已与像素融在一起 对应处理：评估局部修复、裁切或重新生成；裁切前确认不会丢掉人物与剧情信息 |\n| 影片里的招牌、纸张或屏幕 | 先检查：是否是本镜必须读懂的剧情文字 对应处理：按准确生成或后期排字处理，不能当成多余字幕一概删除 |\n\n独立字幕层与已经嵌进画面的字，需要不同操作。具体按钮取决于所用工具；先确定字的来源，再找对应编辑入口，避免为一层字幕重做整段人物表演。",
+          "en": "“Turn off subtitles” may refer to several different things. Inspect the actual file and production steps first:\n\n| Where the text lives | Method and check |\n|---|---|\n| A separate subtitle or title layer in the editing project | First check: Whether the project contains a selectable text object Treatment: Disable, delete, or edit that layer according to delivery needs, then export again |\n| The input image itself | First check: Whether the first frame, character board, or scene reference already includes text Treatment: Treat the reference while preserving required identity and spatial facts, then use it for generation |\n| Inside the generated video pixels | First check: Whether the text is already fused into the image Treatment: Evaluate local repair, cropping, or regeneration; before cropping, make sure no character or story information is lost |\n| A sign, paper, or screen inside the story | First check: Whether viewers must read it in this shot Treatment: Generate it accurately or add it in post; do not delete it indiscriminately as an unwanted subtitle |\n\nA separate subtitle layer and words embedded in the image require different operations. Exact buttons depend on the tool. Identify the text’s source before finding the corresponding edit control so one subtitle layer does not force a complete redo of a character performance."
         }
       },
       {
@@ -7139,6 +7164,13 @@
           "en": "Method used in this article"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-image-prompts/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "准确文字、呈现方法与输入参考检查",
+          "en": "Exact text, presentation, and input-reference checks"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-image-prompts/references/common-recipe.md"
       }
     ]
   },
@@ -14117,7 +14149,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "短剧证据镜头怎么拍：让观众看清，也看见后果",
       "en": "How to Shoot Evidence Reveals: Make the Proof and Consequences Clear"
@@ -14171,12 +14203,12 @@
       {
         "id": "example",
         "heading": {
-          "zh": "原创范例：药房冰柜里的两张温度签",
-          "en": "Original Example: Two Temperature Logs in a Pharmacy Refrigerator"
+          "zh": "范例：排练室的两份停电记录",
+          "en": "Example: Two Outage Records in a Rehearsal Room"
         },
         "body": {
-          "zh": "社区药房停电后，一批需要低温保存的药品被判定报废。店长拿出一张手写温度签，称停电只持续了十分钟；夜班药师夏禾发现冰柜背面还贴着自动记录纸。\n\n**镜头一，中景双人**：店长站在冰柜与夏禾之间，把手写签举在胸前。职责是建立谁控制证据、谁被挡在外面。\n\n**镜头二，跟随动作的近景**：夏禾不去抢手写签，而是拉开冰柜侧面的检修板；一条记录纸被卡在滚轴上。职责是取得第二项证据，记录纸尚未读清。\n\n**镜头三，记录纸与手写签同框**：纸上的停电区间跨过数小时，手写签只覆盖最后十分钟。若精确时间由后期排字，此镜预留清楚纸面并完成最终合成。职责是让观众完成对照。\n\n**镜头四，双人中景**：排队等药的人停止递处方，店长把手写签降到桌下；夏禾把记录纸留在柜门上，拨打批次冻结电话。职责是让证据改变公开信任和下一行动。\n\n单拍记录纸不足以证明店长故意造假，因此夏禾冻结批次、要求调查，没有直接宣布犯罪动机。",
-          "en": "After a power outage at a community pharmacy, a batch of temperature-sensitive medicine is marked for disposal. The manager produces a handwritten temperature tag and claims the outage lasted only ten minutes. Night pharmacist Xia He notices a strip of automatic recorder paper still attached behind the refrigerator.\n\n**Shot one, medium two-shot:** The manager stands between Xia He and the refrigerator, holding the handwritten tag at chest level. Its job is to establish who controls the evidence and who is being kept away.\n\n**Shot two, close shot following the action:** Instead of grabbing the tag, Xia He opens the refrigerator’s side service panel. A strip of recorder paper is caught in the roller. Its job is to obtain a second piece of evidence; the record is not yet readable.\n\n**Shot three, recorder paper and handwritten tag in the same frame:** The outage interval on the paper spans several hours, while the handwritten tag covers only the final ten minutes. If the exact times will be typeset in post, this shot reserves a clear view of the paper for final compositing. Its job is to let the audience compare the records.\n\n**Shot four, medium two-shot:** People waiting for medicine stop handing over their prescriptions. The manager lowers the handwritten tag beneath the table. Xia He leaves the recorder paper on the refrigerator door and calls to place the batch on hold. Its job is to change public trust and the next action.\n\nThe recorder paper alone does not prove that the manager deliberately falsified anything. Xia He therefore places the batch on hold and requests an investigation rather than declaring a criminal motive."
+          "zh": "**原创设定**：社区排练室一次预订在停电中被打断。管理员周齐拿手写签，说只有最后十分钟停电，应只按十分钟核算补时；预约者陈澜不接受这个解释。工作人员于芮已有查看本室供电日志的职责，日志面板在桌后，记录装置在本例中专门记录这间房的供电区间；补时需值班负责人核对后确认。镜头不把这份日志当成所有设备或整栋楼情况的证明。\n\n**镜头一，三人中景**：周齐在桌前举手写签，于芮能到日志面板，陈澜站桌旁等待核对。建立证据位置、持有与合法的取得途径，不安排她绕过锁去取资料。\n\n**镜头二，跟随于芮的近景**：她调出这次预订日期的日志，将已有打印功能输出的记录拿到桌上。负责取得，日期先核准；尚未要求观众读完全部数字。\n\n**镜头三，两份记录同框**：已定文字版本是日志“16:20–17:20”、手写签“17:10–17:20”。两者在同一日期并排可读，显示日志覆盖一小时、手写签只记最后十分钟。若采用后期排字，先完成这两块承载面的字形、透视和停留，不在空白画面上说已经完成对照。\n\n**镜头四，三人中景**：陈澜指向缺失的前段，拒绝按十分钟结束核算；周齐把手写签放到桌上，没有销毁或换版。于芮按既有流程联系值班负责人，展示两份记录；对方回复先撤下十分钟的暂算，核对此次预订再确认补时。于芮在登记中实际标明待核算。\n\n观众看见依据如何取得、范围怎样不同，以及一次决定真正被改变。日志区间不一致还不能单独证明周齐故意造假；补时待核算也不等于陈澜已经得到补用的一小时。需要把这项回报结清时，后场再写确认、预约和实际使用。",
+          "en": "**Original setup:** A community rehearsal-room booking is interrupted by an outage. Administrator Zhou Qi holds a handwritten slip, claiming only the last ten minutes were affected and should count toward replacement time. Booker Chen Lan disputes it. Staff member Yu Rui already has responsibility for reading this room’s power log at a panel behind the desk. In this fictional setup the device records this room’s supply intervals. A duty lead must check and approve replacement time. The log does not establish conditions in every device or the entire building.\n\n**Shot one, three-person medium:** Zhou holds the slip at the desk; Yu has a route to the log panel; Chen waits beside the desk. Establish location, possession, and an authorized acquisition route rather than breaking into locked records.\n\n**Shot two, closer with Yu:** She selects the booking date and brings the existing panel’s printed record to the desk. This acquires the second source and checks its date without asking viewers to read every number yet.\n\n**Shot three, both records together:** Approved wording is “16:20–17:20” on the log and “17:10–17:20” on the slip, side by side for the same date. One covers an hour, the other its last ten minutes. If text is composited, complete wording, perspective, and reading time on both surfaces rather than announce a comparison over blank papers.\n\n**Shot four, three-person medium:** Chen points to the missing earlier interval and refuses to end the calculation at ten minutes. Zhou sets the slip on the desk without destroying or replacing it. Yu contacts the duty lead under the established procedure and presents both records. The lead replies that the provisional ten-minute figure should be withdrawn while this booking is checked. Yu actually marks recalculation pending in the register.\n\nViewers see acquisition, differing scope, and an enacted decision change. The mismatch alone does not prove deliberate falsification. Pending calculation is not an hour of replacement rehearsal already received. A later scene can deliver approval, booking, and actual use if the story needs that payoff settled."
         }
       },
       {
@@ -14235,6 +14267,20 @@
           "en": "Method used in this article"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "证据揭示与接收后果",
+          "en": "Evidence reveals and recipient consequences"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/blocking-playbooks.md"
+      },
+      {
+        "label": {
+          "zh": "可见性、景别与动作连续",
+          "en": "Visibility, framing, and action continuity"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/shot-craft.md"
       }
     ]
   },
@@ -15520,7 +15566,7 @@
       "en"
     ],
     "published_on": "2026-09-26",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "AI视频人物表情僵硬怎么办：把情绪写成可见反应",
       "en": "How to Address Stiff AI-Video Acting: Make Emotion Visible"
@@ -15545,8 +15591,8 @@
           "en": "Find Where the Performance Breaks Down"
         },
         "body": {
-          "zh": "| 实际观察 | 先检查 | 可尝试的修订 |\n|---|---|---|\n| 听见消息前就露出反应 | 提示词有没有先后顺序 | 明确先接收哪句话，再改变哪个动作 |\n| 从平静突然跳成哭喊 | 中间有没有足够触发 | 保留与信息分量相称的反应，或补已在剧本里的接收过程 |\n| 写了眼神变化，画面看不见 | 景别、遮挡是否允许读到 | 选能看见的手部或身体信号；必须改景别时回到分镜 |\n| 所有人同时露出相同表情 | 是否忽略各自立场与知情先后 | 只写真正需要变化的人，按各自接收的信息安排反应 |\n| 表情在变，人物仍无选择 | 反应有没有改变下一步 | 让变化落在剧本已经规定的动作或决定上 |\n\n没有实际输出时，这张表用于检查设计；拿到视频后再定位哪一项真的发生，不能把预判写成已经观察到的失败。",
-          "en": "| What you observe | Check first | Revision to try |\n|---|---|---|\n| The character reacts before hearing the news | Does the prompt establish the order? | State which line they hear before the action changes |\n| Calmness jumps straight to sobbing | Is there a sufficient trigger in between? | Keep the reaction proportionate to the information, or add a receiving beat already present in the script |\n| The eyes are said to change, but the shot cannot show it | Do framing or occlusion hide the cue? | Choose a visible hand or body cue; if framing must change, revise the storyboard |\n| Everyone shows the same expression at once | Are positions and who-knows-what being ignored? | Give a change only to characters who need one, based on what each receives |\n| The expression changes, but the character makes no choice | Does the reaction affect what happens next? | Land the change in an action or decision already established by the script |\n\nBefore there is an output, use this table to check the design. After viewing a video, identify what actually happened; do not describe a predicted issue as an observed failure."
+          "zh": "| 实际观察 | 方法与检查 |\n|---|---|\n| 听见消息前就露出反应 | 先检查：提示词有没有先后顺序 可尝试的修订：明确先接收哪句话，再改变哪个动作 |\n| 从平静突然跳成哭喊 | 先检查：中间有没有足够触发 可尝试的修订：保留与信息分量相称的反应，或补已在剧本里的接收过程 |\n| 写了眼神变化，画面看不见 | 先检查：景别、遮挡是否允许读到 可尝试的修订：选能看见的手部或身体信号；必须改景别时回到分镜 |\n| 所有人同时露出相同表情 | 先检查：是否忽略各自立场与知情先后 可尝试的修订：只写真正需要变化的人，按各自接收的信息安排反应 |\n| 表情在变，人物仍无选择 | 先检查：反应有没有改变下一步 可尝试的修订：让变化落在剧本已经规定的动作或决定上 |\n\n没有实际输出时，这张表用于检查设计；拿到视频后再定位哪一项真的发生，不能把预判写成已经观察到的失败。",
+          "en": "| What you observe | Method and check |\n|---|---|\n| The character reacts before hearing the news | Check first: Does the prompt establish the order? Revision to try: State which line they hear before the action changes |\n| Calmness jumps straight to sobbing | Check first: Is there a sufficient trigger in between? Revision to try: Keep the reaction proportionate to the information, or add a receiving beat already present in the script |\n| The eyes are said to change, but the shot cannot show it | Check first: Do framing or occlusion hide the cue? Revision to try: Choose a visible hand or body cue; if framing must change, revise the storyboard |\n| Everyone shows the same expression at once | Check first: Are positions and who-knows-what being ignored? Revision to try: Give a change only to characters who need one, based on what each receives |\n| The expression changes, but the character makes no choice | Check first: Does the reaction affect what happens next? Revision to try: Land the change in an action or decision already established by the script |\n\nBefore there is an output, use this table to check the design. After viewing a video, identify what actually happened; do not describe a predicted issue as an observed failure."
         }
       },
       {
@@ -15634,10 +15680,17 @@
     "sources": [
       {
         "label": {
-          "zh": "本文方法来源",
-          "en": "Method used in this article"
+          "zh": "触发、可见通道与表演落点",
+          "en": "Triggers, visible channels, and acting landings"
         },
-        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/generability.md"
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/performance-action-timing.md"
+      },
+      {
+        "label": {
+          "zh": "表演与起止边界",
+          "en": "Acting within start/end boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
       }
     ]
   },
@@ -35315,6 +35368,299 @@
       "/novel-to-game/map-a-branching-game-story",
       "/novel-to-game/design-multiple-endings-in-a-game",
       "/novel-to-game/design-game-randomness"
+    ]
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "write-a-one-take-ai-video-scene",
+    "topic": "ai-video",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI视频一镜到底怎么写：让连续动作有完整落点",
+      "en": "How to Plan a One-Take AI Video Scene"
+    },
+    "seo_title": {
+      "zh": "AI视频一镜到底怎么写：让连续动作有完整落点",
+      "en": "How to Plan a One-Take AI Video Scene"
+    },
+    "description": {
+      "zh": "从连续等待、表演与空间关系判断是否需要一镜到底。附合租房告别案例、完整提示词、拆镜取舍与时长检查，不把一次生成等同于不切镜。",
+      "en": "Plan a continuous scene with clear space, actions, sound, and an ending. Includes an original farewell, prompt, timing checks, and when to split."
+    },
+    "answer": {
+      "zh": "一镜到底是画面连续、不切镜，不是只提交一次生成任务。先确认这场戏为何需要持续观看，再排清人物路线、持物、声音和最后状态；在当前景别下让必要动作都能读到。若关键细节、完整对白或连续性无法容纳，重新安排镜长、调度或切镜，不用“一镜到底”四个字替代设计。",
+      "en": "A one-take scene remains visually continuous without cuts; it is not defined by submitting one generation job. Identify why uninterrupted watching matters, then map routes, props, sound, and the ending. Necessary actions must be readable at the chosen framing. If detail, full speech, or continuity will not fit, revise duration, staging, or cuts rather than treat “one take” as a complete design."
+    },
+    "sections": [
+      {
+        "id": "choose",
+        "heading": {
+          "zh": "什么时候一镜到底有价值",
+          "en": "When an uninterrupted take matters"
+        },
+        "body": {
+          "zh": "连续等待让观众与人物一起承受时间；同框的两人让回应无法被剪掉；一次穿过空间的行动，可以让距离和阻碍真实可见。先选这些观看效果之一，再决定长短。\n\n| 需要保住的效果 | 设计取舍 |\n|---|---|\n| 连续等待或沉默 | 明确等待什么、谁仍在场；不为画面忙碌加无关手势。 |\n| 完整表演 | 让触发、接收与回应在同一时间里成立；不让人物提前知道后面的台词。 |\n| 连续空间 | 路线与遮挡可解释；相机只能看到当前机位能看到的区域。 |\n| 精确证据或不同表演选择 | 可改调度或分镜；需要特写时，不硬把所有信息塞进宽镜。 |\n\n多镜头容器可以在一次生成任务中切几次，它仍是多镜头。一镜到底可以最终只使用一段截取，但采用范围里要保持连续。",
+          "en": "Continuous waiting makes viewers share time with a character. Two people in one frame retain a response that cutting might remove. Moving through space can make distances and obstacles visible. Choose the viewing effect before choosing length.\n\n| Effect | Tradeoff |\n|---|---|\n| Waiting or silence | Define what is awaited and who remains present; avoid unrelated gestures. |\n| Complete performance | Preserve trigger, reception, and response in one timeline without premature knowledge. |\n| Continuous space | Explain routes and occlusions; the camera sees only what its position permits. |\n| Exact evidence or different performances | Reblock or split when needed; do not force close detail into a wide frame. |\n\nA multi-shot container can cut several times in one generation job. It still contains several shots. A long take may be excerpted in editing, provided the selected passage remains continuous."
+        }
+      },
+      {
+        "id": "map",
+        "heading": {
+          "zh": "先排路线、持物与注意",
+          "en": "Map routes, props, and attention"
+        },
+        "body": {
+          "zh": "画一张很简单的平面关系：入口、出口、固定物件、人物起点和可通行路线。再逐拍写动作条件与结果：放下后才松手，空出手后才提另一物；对方听见后才回应。\n\n相机也有自己的路线。固定镜头可以让人走出画面，跟拍可以保住移动者；两者都可用，但同一区间不能既全程固定又全程跟随。若中途转为运动，写出从何时开始、跟谁、停在哪。\n\n动作之间自然共享时间，例如说话时看向对方；互为前提的步骤不能用“同时”压缩。小眼神承担唯一转折而远景看不到时，改成能读到的选择或调整景别，不只是加更多情绪词。",
+          "en": "Sketch entrances, exits, fixed objects, starting positions, and a passable route. For each action, name prerequisites and results: set an object down before releasing it; free a hand before lifting another; hear a line before responding.\n\nThe camera has its own route. A fixed frame may let someone leave it; following can retain a moving person. Both are valid, but cannot govern the same interval simultaneously. A transition to movement needs a trigger, subject, and stopping point.\n\nNaturally parallel channels can share time, such as looking while speaking. Dependent steps cannot be compressed with “simultaneously.” If a tiny glance carries the only turn but a wide frame cannot show it, revise the action or framing rather than add emotion words."
+        }
+      },
+      {
+        "id": "worked-example",
+        "heading": {
+          "zh": "原创案例：离开合租房",
+          "en": "Original example: leaving a shared apartment"
+        },
+        "body": {
+          "zh": "芮蓉已经搬走其他物品，回来归还钥匙；宋夏知道她今天搬离，仍愿意送她到门口。剧本只要求归还、告别和离开，不在本镜解决两人全部关系。芮蓉站在钥匙托盘旁，右手握钥匙，自己的小行李包在脚边；宋夏站在门边，门尚未打开。桌旁到门口是两步可通行路线。\n\n这场选择固定中远景，让托盘、两人、包和门同时可见。关键变化是芮蓉真正松开钥匙、宋夏打开门、她带自己的包离开；无需特写读钥匙刻字，也不让脸部微表情承担唯一信息。\n\n| 阶段 | 连续行动与状态 |\n|---|---|\n| 归还 | 芮蓉把钥匙放入空托盘，松开右手；钥匙留在托盘，没有交到宋夏手里。 |\n| 告别 | 她转向宋夏，短暂停住。宋夏看见钥匙已经放下，打开门，说“路上慢点”。 |\n| 离开 | 芮蓉听完后提起脚边自己的包，沿空出的路线跨过门口离画；宋夏留在门边，钥匙仍在托盘。 |\n\n一镜不断的作用是把松手后的停顿、回应与离开连起来，不用切镜帮两人迅速化解尴尬。钥匙放下支持归还，不能直接证明房租、押金或关系争执已经结清。",
+          "en": "Rui Rong has moved her other belongings and returns the key. Song Xia knows she is moving out today and is willing to see her to the door. The script requires return, farewell, and departure, without resolving their entire relationship. Rui stands beside an empty key tray, key in her right hand and her small travel bag at her feet. Song stands by the closed door. A clear two-step route connects table and doorway.\n\nA fixed medium-wide frame includes the tray, people, bag, and door. The key’s release, the door opening, and Rui leaving with her bag carry the change. No engraved detail needs a close-up; subtle facial movement is not the sole information channel.\n\n| Stage | Continuous action and state |\n|---|---|\n| Return | Rui places the key in the empty tray and releases it. It remains there rather than transferring to Song’s hand. |\n| Farewell | She turns to Song and pauses. Song sees the key set down, opens the door, and says, “Take care on the way.” |\n| Departure | After hearing the line, Rui lifts her own bag and crosses the clear doorway out of frame. Song stays by the door; the key remains in the tray. |\n\nThe uninterrupted take joins the pause after release, the response, and departure without editing away discomfort. Returning the key does not establish settled rent, a deposit, or every relationship dispute."
+        }
+      },
+      {
+        "id": "prompt",
+        "heading": {
+          "zh": "可复制的连续镜头提示词",
+          "en": "A continuous-shot prompt"
+        },
+        "body": {
+          "zh": "以下是上述原创场景的自然语言示例，不是已生成视频。若提供真实起始帧，先核对它符合起点；没有图片输入时，保留完整静态说明。\n\n> 合租房门厅，固定中远景，钥匙桌在画面左侧，门口在右侧，两者之间通道空着。芮蓉在桌旁，右手握一把钥匙，小行李包放在她脚边；宋夏站在尚未打开的门旁。全段保持同一连续镜头。芮蓉把钥匙放入桌上空托盘，松手，转向宋夏停住。宋夏看见钥匙落下后打开门，说：“路上慢点。”芮蓉听完，右手提起自己的包，沿通道走过门口离开画面。结尾保留宋夏站在门边、托盘中一把钥匙的状态。相机固定，不跟到走廊。保留放钥匙、开门、提包的同期声与房间底声；无旁白，不在本镜新增配乐或标题。\n\n持续身份、服装与布局接项目已有参考；不把“钥匙已经在托盘”的尾帧冒充起点。若下一镜要拍走廊，从芮蓉已出门、仍右手持包的状态接，不让她第二次放钥匙。",
+          "en": "This natural-language example describes the original scene rather than a generated result. With an actual starting image, verify its state; without image input, retain the static description.\n\n> Shared-apartment entrance, fixed medium-wide view: key table on the left, door on the right, a clear path between. Rui stands by the table with one key in her right hand and her travel bag at her feet. Song stands beside the closed door. Keep one continuous shot. Rui puts the key in the empty tray, releases it, turns toward Song, and pauses. After seeing the return, Song opens the door and says, “Take care on the way.” Rui hears the line, lifts her bag with her right hand, and walks through the doorway out of frame. End with Song by the door and one key in the tray. The camera stays fixed rather than following into the corridor. Retain key, door, and bag sounds with room ambience. No voiceover; add no score or title within this shot.\n\nUse the project’s established identity, clothing, and layout references. An ending image with the key already returned cannot stand in for the start. A corridor shot continues after Rui exits with the bag still in her right hand, without returning the key again."
+        }
+      },
+      {
+        "id": "timing",
+        "heading": {
+          "zh": "先演一遍，再判断时长",
+          "en": "Rehearse before trusting duration"
+        },
+        "body": {
+          "zh": "先按实际路线、完整台词和停顿排一条时间线。能自然并行的看人与说话共享时间，放钥匙、松手、提包与出门按前提顺序排。给结束状态留下可读时间，不把“最后走出去”当作动作已完成。\n\n本例没有计时演练或声音文件，因此不声称精确需要几秒。选择项目允许的镜长后，用走位或同句同表演录音检验，再回看实际生成；不能只因为提示词写了“十秒内完成”就当作可行。\n\n一处失败可以只剪下合格部分，但若缺掉归还或告别就不再覆盖原场职责。补拍是否替代完整镜头、哪些内容仍由原片承担，要写清；为了缩短而删台词、跳到门外或变成画外音，应先修分镜与剧本。",
+          "en": "Build a timeline from the actual route, full line, and pauses. Looking and speaking may naturally overlap; placement, release, bag pickup, and exit follow their prerequisites. Leave time to read the end state instead of merely declaring departure complete.\n\nThis example has no timed rehearsal or recording and therefore claims no exact duration. Choose a duration allowed by the project, check blocking or a same-line, same-performance recording, then review the actual generation. “Finish within ten seconds” does not establish feasibility.\n\nA failed take may contain usable excerpts, but removing the return or farewell loses a story responsibility. Explain whether pickups replace the whole shot and what the original still covers. Shortening speech, jumping outside, or converting dialogue to voiceover requires a storyboard or script revision first."
+        }
+      },
+      {
+        "id": "repair",
+        "heading": {
+          "zh": "什么时候切开更好",
+          "en": "When splitting serves the scene"
+        },
+        "body": {
+          "zh": "- 必须看清的证据太小：给它独立可读画面，或先重排距离。\n- 表演与行走互相挤占：减少无关动作，仍放不下再延长或拆镜。\n- 一段生成反复在同一位置失败：定位实际失败，比较修改起点、路径、时长或制作方式，不把重抽次数当原因证明。\n- 切开后道具换手：逐项接住持物、位置、视线与门的状态。\n- 为“高级”强保长镜：回到观看效果；连续性有价值就保留，反应与节奏需要不同选择就切。\n\n拆镜增加跨镜一致性工作，一镜到底增加局部失败的替换成本。以这场戏的体验和真实输出取舍，没有所有项目通用的最优方案。",
+          "en": "- Essential evidence is too small: give it readable coverage or adjust distance.\n- Acting and movement compete: remove irrelevant activity, then extend or split if necessary.\n- Generation repeatedly fails at one point: locate the observed defect and compare starting state, route, timing, or production method; retry count does not prove cause.\n- Props switch hands after splitting: match holdings, positions, gaze, and door state.\n- A long take survives only for prestige: return to the viewing effect; retain useful continuity or cut for response and rhythm.\n\nSplitting adds cross-shot continuity work; an uninterrupted generation can cost more to replace after a local failure. Choose using the scene’s experience and actual output rather than one universal optimum."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "一镜到底一定要摄影机移动吗？",
+          "en": "Must a one-take scene move the camera?"
+        },
+        "a": {
+          "zh": "不用。固定机位也可保留完整表演和沉默；是否运动取决于需要持续看见谁、哪项信息和空间关系。",
+          "en": "No. A fixed view can retain complete performance and silence. Movement depends on who, which information, and what spatial relation must remain visible."
+        }
+      }
+    ],
+    "skill": {
+      "name": "short-drama-storyboard",
+      "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/SKILL.md",
+      "text": {
+        "zh": "用 $short-drama-storyboard 只设计这场一镜到底方案：说明连续观看的理由、人物路线、持物、声音、开始与结束状态，保留原剧本选择与台词。与切开方案比较；未测时长注明估计，不生成视频。",
+        "en": "Use $short-drama-storyboard only to plan an uninterrupted scene: explain its viewing purpose, routes, props, sound, start and end. Preserve script choices and exact lines. Compare a cut version, mark unmeasured timing as estimated, and do not generate video."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "一镜到底与切镜取舍",
+          "en": "Uninterrupted takes and cutting"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/shot-craft.md"
+      },
+      {
+        "label": {
+          "zh": "动作、表演与声音预算",
+          "en": "Action, performance, and sound budget"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/performance-action-timing.md"
+      },
+      {
+        "label": {
+          "zh": "起点、变化与终点",
+          "en": "Start, change, and end"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/motion-recipe.md"
+      }
+    ],
+    "related": [
+      "/drama-skills/motivated-camera-movement",
+      "/drama-skills/dialogue-timing",
+      "/drama-skills/shot-continuity-checklist"
+    ]
+  },
+  {
+    "owner": "drama-skills",
+    "slug": "write-ai-video-establishing-and-empty-shots",
+    "topic": "ai-video",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI视频空镜提示词怎么写：场景、声音与叙事作用",
+      "en": "How to Write AI Video Prompts for Empty Shots"
+    },
+    "seo_title": {
+      "zh": "AI视频空镜提示词怎么写：场景、声音与叙事作用",
+      "en": "How to Write AI Video Prompts for Empty Shots"
+    },
+    "description": {
+      "zh": "先判断空镜要建立地点、承载等待还是保留余味。区分空场参考图与动态镜头，附放映厅案例、完整提示词和画外声音边界。",
+      "en": "Give empty shots a purpose in place, waiting, or aftermath. Distinguish location references from footage, with a cinema example and sound boundaries."
+    },
+    "answer": {
+      "zh": "空镜不是删掉人物后堆“电影感”。先写观众要通过这个无人画面知道或感受什么，再确定地点、可见物、变化、声音与结束状态。场景参考图负责可复用布局，视频空镜负责此刻的观看；无人物时不套表演弧，也不凭空增加脚步、对白或神秘访客。静止与留白可以成立，是否保留按叙事和风格判断。",
+      "en": "An empty shot needs more than removing people and adding “cinematic.” Define what viewers should learn or experience, then specify location, visible objects, change, sound, and the ending. A location reference supplies reusable geography; footage supplies this moment’s viewing experience. Without people, omit acting arcs and do not invent footsteps, speech, or mysterious visitors. Stillness and negative space are valid when they serve the story and style."
+    },
+    "sections": [
+      {
+        "id": "purpose",
+        "heading": {
+          "zh": "空镜先有用途，再有画面",
+          "en": "Purpose before a pretty image"
+        },
+        "body": {
+          "zh": "空镜可以交代下一场的地点，让观众与人物一起等待，或在人物离开后保留物件与空间的余味。没有人物不等于没有作用，也不等于每次都必须摇镜、下雨或让窗帘动。\n\n| 用途 | 先明确什么 |\n|---|---|\n| 建立地点 | 入口、出口和关键区域的关系；是否能接住下一镜机位。 |\n| 等待 | 正在等什么、哪些物件承载期待、这一刻还未发生什么。 |\n| 后果或余味 | 前一场已建立哪个选择，留下的空间或物件怎样让人继续感受。 |\n| 纯粹氛围 | 氛围是不是作者有意的段落功能；与节奏、声音和后续转场怎样相接。 |\n\n快节奏对白场里，无台词、无动作又没有职责的空镜可以删；有意保留静止观察时，不为满足“必须变化”硬加剧情。空镜也不必强行承担悬疑。",
+          "en": "An empty shot can establish the next location, sustain waiting, or retain objects and space after departure. No people does not mean no function, nor compulsory pans, rain, or moving curtains.\n\n| Purpose | Define first |\n|---|---|\n| Place | Entrances, exits, and key zones, with a usable next-shot camera relation. |\n| Waiting | What is awaited, objects carrying expectation, and what has not happened yet. |\n| Aftermath | Which established choice leaves a space or object that continues the experience. |\n| Atmosphere | The author’s intended pause and its relation to rhythm, sound, and the next transition. |\n\nIn a fast dialogue scene, an inactive empty insert with no responsibility may be removed. Deliberate still observation does not need invented plot to satisfy a change quota. Empty shots need not manufacture suspense."
+        }
+      },
+      {
+        "id": "reference",
+        "heading": {
+          "zh": "空场参考图和视频空镜分开写",
+          "en": "Separate location plates from footage"
+        },
+        "body": {
+          "zh": "空场参考图通常不放演员，目的是把门窗、通道、物件布局和光源交清楚，方便后面复用。它不会自动替你确定故事此刻的人物离场、门已开或某件物品已归还。\n\n视频空镜则从已定剧情状态开始。剧本中的票留在托盘，起始图就不能让票已经被人拿走；镜头中没有人，画外声音仍可能意味着有人到来，要按已有声音安排处理。\n\n真实参考图可省掉已确定外观的重复说明，仍要写本镜变化与声音；没有图片输入时，把布局、物件与光态写入正文。只看文件名不能断言画面无人、没有文字或布局正确。",
+          "en": "An empty location plate usually excludes performers so doors, paths, objects, and light sources remain reusable. It does not establish that someone has left, a door has opened, or an object has been returned in the story.\n\nFootage starts from the agreed story state. Tickets remaining in a tray cannot disappear in the starting image. Offscreen sound can imply arrival even with nobody visible, so follow the established sound plan.\n\nA real reference may remove repeated appearance descriptions, but still specify motion and sound. Without image input, include layout, objects, and light state in the prompt. A filename cannot prove an image is empty, text-free, or geographically correct."
+        }
+      },
+      {
+        "id": "worked-example",
+        "heading": {
+          "zh": "原创案例：两张还没被取走的票",
+          "en": "Original example: two uncollected tickets"
+        },
+        "body": {
+          "zh": "老放映厅最后一晚，许棠在前一场把两张留给旧友的票放进入口托盘，开启已经装好的放映机，随后走出这个机位的画面。朋友是否会来仍未揭晓。票的意义已由前场说明，不靠本镜读清印字。门厅灯常亮，内厅投影的光能落到半开的内门上。\n\n空镜职责是让观众看见放映已经继续，门厅托盘中的两张票仍在；它只能说明这个观察区间内没有人取票，不能证明朋友永远没来。\n\n| 项目 | 本镜具体安排 |\n|---|---|\n| 构图 | 入口门厅固定中景，前景托盘中两张票，后景半开内门；保留已建立布局。 |\n| 可见变化 | 内厅投影的明暗在门面上缓慢变换；托盘和两张票保持原位，没有手入画。 |\n| 声音 | 延续前镜已开启放映机的声音，保留门厅底声；不新增敲门、脚步或说话。 |\n| 终点 | 两张票还在托盘，内门仍半开，放映仍在进行；下一镜按此状态承接。 |\n\n真正提供时间感的是放映与等待并存，不需要额外雨、飘尘和惊雷。若剧情选择朋友此时到来，那是下一项事件，要另修场面与声音，不能作为“丰富氛围”顺手加入。",
+          "en": "On an old cinema’s final evening, Xu Tang previously placed two tickets for old friends in the entrance tray, started the loaded projector, and moved outside this camera’s view. Whether her friends will arrive remains open. The previous scene establishes the tickets’ meaning; this shot need not read their lettering. Lobby lights stay on; projection light reaches the half-open inner door.\n\nThe empty shot shows the screening continuing while both tickets remain. It establishes no collection within the observed interval, not that the friends never arrive.\n\n| Item | This shot’s arrangement |\n|---|---|\n| Composition | Fixed medium view of the lobby; tray and two tickets foreground, half-open inner door behind; preserve the established layout. |\n| Visible change | Projection brightness changes slowly across the door; tray and tickets remain in place, with no hand entering. |\n| Sound | Continue the established projector sound and lobby ambience without new knocks, footsteps, or speech. |\n| End | Both tickets remain, inner door half-open, screening continuing; the next shot inherits this state. |\n\nProjection and waiting supply time without extra rain, dust, or thunder. If friends arrive now, that is another event requiring scene and sound revision, not an atmospheric embellishment."
+        }
+      },
+      {
+        "id": "prompt",
+        "heading": {
+          "zh": "可复制的空镜提示词",
+          "en": "An empty-shot prompt"
+        },
+        "body": {
+          "zh": "本例是写作示例，尚无生成结果。项目的画幅、镜长与参考图另按已有设定选择。\n\n> 老放映厅入口门厅，沿用已确认的门口、托盘与内门布局。固定中景，前景托盘内有两张未取走的票，后景内门半开；门厅灯常亮，内厅放映的光在门面上缓慢变化。整镜无人或手进入，托盘与两张票不移动，内门不开合。延续前一镜已经启动的放映机声音与门厅底声，无新增脚步、敲门或对白；无旁白，不在本镜新起配乐。票面不要求读清文字，不新增字幕或标题。结尾仍保留两张票、半开的内门与正在放映的状态。\n\n“整镜无人”限定可见画面，不否定已经存在的放映机声。若项目采用完全无声的风格，另明确改变声音方案；不要用笼统“无声音”同时擦掉必须承接的声源。",
+          "en": "This is a writing example without generated footage. Use the project’s established aspect ratio, duration, and references.\n\n> Entrance lobby of the old cinema, preserving the approved entrance, tray, and inner-door layout. Fixed medium view: two uncollected tickets in the foreground tray, inner door half-open behind. Lobby lamps stay on while projection brightness slowly changes across the door. No person or hand enters; tray and tickets remain still, and the inner door does not move. Continue the projector already started in the preceding shot and lobby ambience. Add no footsteps, knocks, or speech. No voiceover or new score within this shot. Ticket lettering need not be legible; add no subtitle or title. End with both tickets, the half-open door, and ongoing projection.\n\n“No person enters” limits visible content without suppressing the established projector. A fully silent style needs a separate sound decision rather than broad “no sound” that also erases required continuity."
+        }
+      },
+      {
+        "id": "check",
+        "heading": {
+          "zh": "回看片段，检查空场与知情范围",
+          "en": "Review emptiness and knowledge scope"
+        },
+        "body": {
+          "zh": "回看实际输出，不只看首帧：\n\n- 人或手是否中途出现，是否偷偷取走票；玻璃反射、门内和前景遮挡也要查。\n- 票的数量、位置与门的开合是否从始至终符合本镜。\n- 画外声音是否凭空引入到来、离开或新事件。\n- 关键区域在手机画面上是否可读；票无需逐字读清，却不能小到看不出仍有两张。\n- 与前后镜相接时，光态、物件和放映机底声是否有无原因的改变。\n\n观众看见这个机位无人，不等于全栋楼无人。角色是否知道托盘里的票还在，也要有看见或其他信息来源；空镜向观众展示不自动成为人物记忆。",
+          "en": "Inspect the actual clip, not only its first frame:\n\n- Does a person or hand appear or collect tickets, including reflections, doorway depth, and foreground occlusion?\n- Do ticket count, position, and door state remain correct throughout?\n- Does offscreen sound invent an arrival, departure, or event?\n- Are relevant objects readable on a phone? Lettering is unnecessary, but two tickets must still be discernible.\n- Do adjacent shots introduce unexplained changes to light, props, or projector ambience?\n\nNobody in this view does not mean nobody in the building. A character needs observation or another source to know tickets remain. Information supplied by an empty shot does not automatically become character memory."
+        }
+      },
+      {
+        "id": "repair",
+        "heading": {
+          "zh": "空镜常见失败怎样修",
+          "en": "Fixes for common empty-shot failures"
+        },
+        "body": {
+          "zh": "| 观察到的问题 | 有范围的修订 |\n|---|---|\n| 自动塞进路人 | 先查参考图空场状态，再限定允许出现的内容；不能只把“无人”重复十遍。 |\n| 静止段落太长 | 判断等待或余味是否仍成立，截短或重新组织交接；不一律加镜头运动。 |\n| 各背景物同时乱动 | 保留真正承担时间感的变化，其余指定保持；必要时简化场景或调整制作。 |\n| 神秘声音带错剧情 | 恢复已有声源和进入时机，删去无来源事件；再听前后镜。 |\n| 只有漂亮景色 | 写清建立空间、等待或余味的用途；确实没有作用时删。 |\n\n有意静止、纯环境纹理或抽象视觉也可以是导演选择；审查它与这段叙事的关系，不用“每镜必有人物反应”否定空镜。",
+          "en": "| Observation | Scoped repair |\n|---|---|\n| An unintended passerby appears | Check the reference’s empty state, then specify permitted content rather than repeat “nobody.” |\n| Stillness lasts too long | Judge waiting or aftermath, shorten or reorganize the handoff, without compulsory movement. |\n| Every background element moves | Retain the change carrying time; hold others, simplify, or change production when needed. |\n| Mysterious sound invents plot | Restore established sources and timing, remove unsupported events, then listen across the cut. |\n| Only attractive scenery remains | Identify place, waiting, or aftermath; remove the shot if it serves none. |\n\nIntentional stillness, environmental texture, or abstraction can be a director’s choice. Review its narrative relationship rather than require a character reaction in every shot."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "空镜一定不能有画外声音吗？",
+          "en": "Must an empty shot exclude offscreen sound?"
+        },
+        "a": {
+          "zh": "可以有。只要声源与剧情已经建立，画外声能承接空间和时间；新增脚步或对白可能改变知情与事件，不能当作装饰随意加入。",
+          "en": "No. Established offscreen sound can carry space and time. New footsteps or speech can change knowledge or events and should not be added as decoration."
+        }
+      }
+    ],
+    "skill": {
+      "name": "short-drama-video-prompts",
+      "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/SKILL.md",
+      "text": {
+        "zh": "用 $short-drama-video-prompts 写这个已定空镜：先列观众用途、地点、物件状态和既有声音，再写固定或运动、可见变化与终点。无人物时省略表演弧，不新增人、文字或剧情事件；提供手填通用提示词，不生成视频。",
+        "en": "Use $short-drama-video-prompts for this agreed empty shot: state viewing purpose, location, object states, and existing sound; then write camera, visible change, and ending. Omit acting arcs without people. Invent no people, text, or story events. Provide a manual natural-language prompt without generating video."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "镜头职责与视觉选择",
+          "en": "Shot purpose and visual choices"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-storyboard/references/shot-craft.md"
+      },
+      {
+        "label": {
+          "zh": "摄影机与环境声音连续性",
+          "en": "Camera and ambient-sound continuity"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/camera-audio-continuity.md"
+      },
+      {
+        "label": {
+          "zh": "无人物镜头省略表演弧",
+          "en": "Omitting acting arcs in shots without people"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-video-prompts/references/performance-action-timing.md"
+      },
+      {
+        "label": {
+          "zh": "场景资产与文字政策",
+          "en": "Location assets and text policy"
+        },
+        "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-image-prompts/references/common-recipe.md"
+      }
+    ],
+    "related": [
+      "/drama-skills/ai-video-location-consistency",
+      "/drama-skills/ai-video-ambient-sound-continuity",
+      "/drama-skills/motivated-camera-movement"
     ]
   }
 ]
