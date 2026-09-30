@@ -56,7 +56,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Write Flashbacks: Make the Past Change a Present Choice](https://zenstory.ai/oh-story/flashbacks-in-fiction) — Trigger a flashback from the present, retrieve only what changes judgment, relationships, or choice, then act on it. Includes a repair-shop example.
 - [How to Write Setting Description: Let Characters Act in the Scene](https://zenstory.ai/oh-story/environment-description) — Choose setting details a character would notice, touch, and act on instead of listing scenery. Includes a greenhouse blackout and revision method.
 - [How to Design a Web-Novel Cheat: Rules, Costs, and Growth](https://zenstory.ai/oh-story/golden-finger) — A hero’s unique lasting edge: information, growth boosts or items. Set triggers, feedback, costs and limits; see five questions and an original ledger case.
-- [How to Design Cultivation Realms, with an Original Progression Table](https://zenstory.ai/oh-story/cultivation-realms) — Build realms around ability, status, ties, and cost. Includes an original five-stage system, breakthrough comparison, capacity check, and scaling fixes.
+- [How to Design Cultivation Realms, with an Original Progression Table](https://zenstory.ai/oh-story/cultivation-realms) — Design cultivation realms through abilities, status, and relationships. Includes a five-stage system, a three-breath shield scene, and progression checks.
 - [How to Write a Short-Story Hook](https://zenstory.ai/oh-story/story-lead-in) — Build opening paragraphs from cause, conflict, character, and emotional turn; add an object, information gap, and open hook. Includes an original rewrite.
 - [How to Write a Subplot That Serves the Main Plot](https://zenstory.ai/oh-story/subplot-mainline-convergence) — Use a function card to connect a subplot’s goal and obstacles to a main-plot change, convergence point, and remove-or-merge test.
 - [How to Outline a Novel Volume](https://zenstory.ai/oh-story/volume-outline-template) — Plan one novel volume with a clear end-state change, connected story lines, causal plot units, an original example, and a restrained AI handoff template.
@@ -131,6 +131,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Write a Believable Misunderstanding](https://zenstory.ai/oh-story/write-a-believable-misunderstanding) — Separate observed facts from inference and allow credible questions and replies. Includes a moving-day scene where clarification leaves a relationship cost.
 - [How to Write a Friendship Arc](https://zenstory.ai/oh-story/write-a-friendship-arc) — Give friends shared habits, independent goals, and credible change. Includes an original photography-show scene without compulsory betrayal or romance.
 - [How to Write an Apology Scene](https://zenstory.ai/oh-story/write-an-apology-scene) — Build an apology from a specific wrong, conversational purpose, and reply. Includes an original cover-credit scene separating admission, repair, and trust.
+- [How to Write a Character Death That Matters](https://zenstory.ai/oh-story/write-a-character-death) — Establish the living character, the cause of death, who knows what, and the changed relationships. Includes original prose and revision checks.
 
 ### Choose and write a genre / 题材与类型写法
 - [Choose and write a genre](https://zenstory.ai/guides/genres) — Choose a genre and learn the story patterns it needs.
@@ -209,6 +210,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [What to Revise First in a Novel](https://zenstory.ai/oh-story/choose-what-to-revise-first-in-a-novel) — Diagnose story direction, causal design or prose before editing. Includes a change-of-mind example and clear stopping criteria.
 - [Fix a Novel That Reads Like a Screenplay](https://zenstory.ai/oh-story/fix-a-novel-that-reads-like-a-screenplay) — Distinguish intentional dialogue-heavy style from leaked camera and scene instructions. Restore viewpoint, choices and actual actions.
 - [How to Revise a Novel Outline Mid-Draft](https://zenstory.ai/oh-story/revise-a-novel-outline-mid-draft) — Separate established facts from future plans before changing an outline. Includes a mid-draft example, a candidate scene, and a bounded AI request.
+- [How to Stop AI Fiction from Revealing Future Plot Too Soon](https://zenstory.ai/oh-story/stop-ai-fiction-from-revealing-future-plot) — Specify the current payoff, protected later revelations, and stopping point. Includes an album-story repair and a focused revision brief.
 
 ### Book covers / 小说封面
 - [Book covers](https://zenstory.ai/guides/book-covers) — Plan cover art and lettering, then check upload crops and thumbnail readability.

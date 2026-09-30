@@ -15592,8 +15592,8 @@
           "en": "Turn the Advantage into Rules That Can Actually Run"
         },
         "body": {
-          "zh": "先把社会身份、身世、金手指和性格放在同一条因果线上：职业决定主角会遇到什么事，身世解释他为什么在意，性格决定他怎样用能力，能力则把这些选择推向更大的冲突。这就是四点统一。四项分开各写一套，金手指就容易成为随身外挂，换任何主角都能用。\n\n下面是按这些方法整理的作者输入表，可删去不适用项：\n\n| 字段 | 要回答的问题 |\n|---|---|\n| 核心功能 | 它稳定地帮助主角完成哪一种事？ |\n| 触发条件 | 主角做什么、处于什么环境或付出什么才能启用？ |\n| 可见反馈 | 读者怎样知道它生效、失败或正在升级？ |\n| 条件与消耗 | 本书设定哪些使用条件或消耗？没有代价可明确写无 |\n| 不能做什么 | 哪类答案、对象、距离或强度超出边界？ |\n| 成长方式 | 新阶段增加功能、精度、范围或组合，而非只放大数字 |\n| 冲突接口 | 当前能解决什么；解决后会暴露哪一层更大矛盾？ |\n\n复杂能力可以拆成碎片逐步获得。每块碎片先解决一个真实冲突，再打开下一项期待；不要把所有功能在开篇一次发完。",
-          "en": "First place social role, personal history, cheat, and personality on the same causal line. The role determines what the protagonist encounters; history explains why it matters; personality determines how the advantage is used; and the advantage pushes those choices into larger conflicts. This is the four-part alignment. If each is designed separately, the cheat becomes a portable plug-in that could belong to any protagonist.\n\nThis author brief organizes those methods; omit fields that do not apply:\n\n| Field | Question to answer |\n|---|---|\n| Core function | What one kind of task does it reliably help complete? |\n| Trigger | What must the protagonist do, encounter, or pay to activate it? |\n| Visible feedback | How do readers know it works, fails, or upgrades? |\n| Conditions | Which conditions or costs apply? State none if no cost is intended |\n| What it cannot do | Which answers, targets, distances, or intensities exceed its boundary? |\n| Growth path | Does a new stage add function, precision, range, or combinations rather than only bigger numbers? |\n| Conflict interface | What can it solve now, and what larger conflict does that solution expose? |\n\nA complex advantage can arrive in fragments. Let each fragment solve a real conflict and open the next expectation. Do not distribute every function in one opening exposition."
+          "zh": "先把社会身份、身世、金手指和性格放在同一条因果线上：职业决定主角会遇到什么事，身世解释他为什么在意，性格决定他怎样用能力，能力则把这些选择推向更大的冲突。这就是四点统一。四项分开各写一套，金手指就容易成为随身外挂，换任何主角都能用。\n\n下面是按这些方法整理的作者输入表，可删去不适用项：\n\n| 字段 | 要回答的问题 |\n|---|---|\n| 核心功能 | 它稳定地帮助主角完成哪一种事？ |\n| 触发条件 | 主角做什么、处于什么环境或付出什么才能启用？ |\n| 可见反馈 | 读者怎样知道它生效、失败或正在升级？ |\n| 条件与消耗 | 本书设定哪些使用条件或消耗？没有代价可明确写无 |\n| 不能做什么 | 哪类答案、对象、距离或强度超出边界？ |\n| 成长方式 | 新阶段增加功能、精度、范围或组合，而非只放大数字 |\n| 冲突接口 | 当前兑现什么目标；之后还有哪些已建立的目标或期待？ |\n\n复杂能力可以按作者选择拆成碎片逐步获得，也可以早期明确已有功能，后续探索新用途。拆分时说明本阶段可做什么、未解锁什么，不为每块碎片强塞新敌人或惩罚。",
+          "en": "First place social role, personal history, cheat, and personality on the same causal line. The role determines what the protagonist encounters; history explains why it matters; personality determines how the advantage is used; and the advantage pushes those choices into larger conflicts. This is the four-part alignment. If each is designed separately, the cheat becomes a portable plug-in that could belong to any protagonist.\n\nThis author brief organizes those methods; omit fields that do not apply:\n\n| Field | Question to answer |\n|---|---|\n| Core function | What one kind of task does it reliably help complete? |\n| Trigger | What must the protagonist do, encounter, or pay to activate it? |\n| Visible feedback | How do readers know it works, fails, or upgrades? |\n| Conditions | Which conditions or costs apply? State none if no cost is intended |\n| What it cannot do | Which answers, targets, distances, or intensities exceed its boundary? |\n| Growth path | Does a new stage add function, precision, range, or combinations rather than only bigger numbers? |\n| Conflict interface | What goal does it deliver now, and which established goals or expectations remain? |\n\nA complex advantage may arrive in fragments, or its existing functions may be clear early while later scenes explore new uses. Specify present and unopened functions if using fragments without attaching a new enemy or penalty to every piece."
         }
       },
       {
@@ -15614,8 +15614,8 @@
           "en": "Original Example: A Cheat That Finds One False Ledger Entry"
         },
         "body": {
-          "zh": "原创设定：河渠仓抄录员闻砚每天日出后第一次翻开的账册里，有一行故意写假的记录会出现灰边，只对他可见。它不指出真数、作者或动机，也不能同一天接着扫描第二册。赈粮不得外售的仓规已在前文建立。\n\n| 项目 | 本例填写 |\n|---|---|\n| 身份与目标 | 抄录员，出身常被欠薪的河工家庭，要还原赈粮去向 |\n| 性格 | 愿意慢查，不凭异象指认谁有罪 |\n| 触发与反馈 | 日出后首册，一行灰边 |\n| 边界 | 不读口供、记忆，也不给真相 |\n| 取舍 | 选错册子失去当天机会；查问可能引起警觉 |\n| 后续成长候选 | 日后能比较两册同笔记录是否同源，须另建解锁条件 |\n\n本次灰边落在“发出一百袋、全数交赈粮车队”。闻砚核对仓门的批次交接：车队签收八十袋，另二十袋记为送往米商；搬运工说明自己按司库指示分车，米商出示了同批二十袋的付款收条。这些记录和响应在查问中实际取得，不让一条车辙独自证明买卖。\n\n闻砚把差异交给仓主。仓主核验该批粮不得外售，要求司库联系米商退回二十袋、退还货款；米商交回，仓主当场按原封签清点并修正去向栏。赈粮追回是眼前结果，司库责任怎样处理仍待后续调查。\n\n**下一天日出后**，闻砚把机会用在上级批准的账册，另一条灰边出现。它仍只是线索，他没有因此获得查所有账或裁决上级的权限。\n\n能力给方向，验证、选册和承担风险由主角完成。一次追回后可以写他给河工送粮的短暂满足，无需马上收回成果。",
-          "en": "Original rule: in the first ledger Wen Yan opens after sunrise each day, one deliberately false line gains a gray edge visible only to him. It gives no true number, author or motive and cannot scan a second book that day. Earlier scenes establish that relief grain cannot be sold.\n\n| Item | This design |\n|---|---|\n| Identity and aim | Clerk from a family of unpaid canal workers; trace relief grain |\n| Character | Investigates patiently rather than convict through an apparition |\n| Trigger and signal | First book after sunrise; one gray line |\n| Limits | No testimony, memory or complete answer |\n| Tradeoff | Wrong book spends the daily chance; inquiries can attract attention |\n| Future growth option | Compare a transaction across books after separately established unlocking conditions |\n\nThe marked line says all one hundred sacks went to the relief convoy. Wen checks batch handover records: the convoy signed for eighty; twenty were recorded for a grain merchant. A porter states that the storekeeper directed the split, and the merchant supplies a receipt for those twenty. Records and responses are actually obtained; one wheel track does not prove a sale.\n\nWen presents the discrepancy to the warehouse head, who checks the no-sale rule and orders the storekeeper to arrange return and repayment. The merchant returns twenty sacks; the head checks the original seals and corrects the destination entry. Grain recovery is delivered; the storekeeper’s responsibility remains under review.\n\n**After sunrise the next day**, Wen chooses a ledger approved by a superior, where another gray line appears. It remains a clue rather than authority to search every book or judge the superior.\n\nThe ability directs attention while Wen chooses, verifies and risks exposure. A recovered reward can stand through a quiet grain-delivery scene without being immediately revoked."
+          "zh": "原创设定：河渠仓抄录员闻砚每天日出后第一次翻开的账册里，有一行故意写假的记录会出现灰边，只对他可见。它不指出真数、作者或动机，也不能同一天接着扫描第二册。赈粮不得外售的仓规已在前文建立。\n\n| 项目 | 本例填写 |\n|---|---|\n| 身份与目标 | 抄录员，出身常被欠薪的河工家庭，要还原赈粮去向 |\n| 性格 | 愿意慢查，不凭异象指认谁有罪 |\n| 触发与反馈 | 日出后首册，一行灰边 |\n| 边界 | 不读口供、记忆，也不给真相 |\n| 取舍 | 选错册子失去当天机会；查问可能引起警觉 |\n| 后续成长候选 | 日后能比较两册同笔记录是否同源，须另建解锁条件 |\n\n本次灰边落在“发出一百袋、全数交赈粮车队”。闻砚核对仓门的批次交接：车队签收八十袋，另二十袋记为送往米商；搬运工说明自己按司库指示分车，米商出示了同批二十袋的付款收条。这些记录和响应在查问中实际取得，不让一条车辙独自证明买卖。\n\n**同一次查验可以写成完整场面：**\n\n> 闻砚把账册翻到灰边那行，手指停在“一百袋”旁。他没提自己看见了什么，只把仓门交接册摊到另一边。\n>\n> “车队这里签了八十。余下的二十，送哪辆车？”\n>\n> 搬运工先看批号。“这批分了两车。司库让我把二十送去米商铺，我送了。”\n>\n> “你知道货款怎么付的吗？”\n>\n> “我只管运。”\n>\n> 闻砚把这句记在旁边，没有填进收款人一栏。到了米商铺，商人取出收条，指给他看同一批号和二十袋的金额。\n>\n> “这张借我抄一份？”\n>\n> 商人应了，闻砚当面抄完，把原条留在铺里。\n\n灰边使他选择核这一笔；搬运工只说明运输，付款记录提供另一部分。能力没有替他得出所有责任结论，原条仍在商人手里。下面的追回需要仓主实际回应。\n\n闻砚把差异交给仓主。仓主核验该批粮不得外售，要求司库联系米商退回二十袋、退还货款；米商交回，仓主当场按原封签清点并修正去向栏。赈粮追回是眼前结果，司库责任怎样处理仍待后续调查。\n\n**下一天日出后**，闻砚把机会用在上级批准的账册，另一条灰边出现。它仍只是线索，他没有因此获得查所有账或裁决上级的权限。\n\n能力给方向，验证、选册和承担风险由主角完成。一次追回后可以写他给河工送粮的短暂满足，无需马上收回成果。",
+          "en": "Original rule: in the first ledger Wen Yan opens after sunrise each day, one deliberately false line gains a gray edge visible only to him. It gives no true number, author or motive and cannot scan a second book that day. Earlier scenes establish that relief grain cannot be sold.\n\n| Item | This design |\n|---|---|\n| Identity and aim | Clerk from a family of unpaid canal workers; trace relief grain |\n| Character | Investigates patiently rather than convict through an apparition |\n| Trigger and signal | First book after sunrise; one gray line |\n| Limits | No testimony, memory or complete answer |\n| Tradeoff | Wrong book spends the daily chance; inquiries can attract attention |\n| Future growth option | Compare a transaction across books after separately established unlocking conditions |\n\nThe marked line says all one hundred sacks went to the relief convoy. Wen checks batch handover records: the convoy signed for eighty; twenty were recorded for a grain merchant. A porter states that the storekeeper directed the split, and the merchant supplies a receipt for those twenty. Records and responses are actually obtained; one wheel track does not prove a sale.\n\n**That investigation can become a complete scene:**\n\n> Wen opened the ledger at the gray-edged line, his finger beside “one hundred sacks.” He said nothing about what he could see and spread the gate handover book alongside it.\n>\n> “The convoy signed for eighty here. Which cart took the other twenty?”\n>\n> The porter checked the batch number. “Two carts for that batch. The storekeeper sent me to take twenty to the merchant. I delivered them.”\n>\n> “Do you know how payment was made?”\n>\n> “I only move the goods.”\n>\n> Wen noted the answer separately, leaving the payee field blank. At the shop, the merchant produced a receipt and pointed out the same batch and the amount for twenty sacks.\n>\n> “May I copy this?”\n>\n> The merchant agreed. Wen copied it there and left the original in the shop.\n\nThe signal directs him to check this entry. The porter describes transport, and the receipt supplies another part. The advantage does not determine all responsibility; the merchant retains the original. Recovery below still requires the warehouse head’s actual response.\n\nWen presents the discrepancy to the warehouse head, who checks the no-sale rule and orders the storekeeper to arrange return and repayment. The merchant returns twenty sacks; the head checks the original seals and corrects the destination entry. Grain recovery is delivered; the storekeeper’s responsibility remains under review.\n\n**After sunrise the next day**, Wen chooses a ledger approved by a superior, where another gray line appears. It remains a clue rather than authority to search every book or judge the superior.\n\nThe ability directs attention while Wen chooses, verifies and risks exposure. A recovered reward can stand through a quiet grain-delivery scene without being immediately revoked."
         }
       },
       {
@@ -15657,8 +15657,8 @@
           "en": "Does adding a cost automatically make a cheat sophisticated?"
         },
         "a": {
-          "zh": "代价的作用是制造选择和边界，不负责装饰复杂度。次数、时间、暴露风险、机会成本或关系后果都可以；只要它真实影响主角策略，就比虚假的掉血数字更有用。",
-          "en": "No. A cost creates choices and boundaries; it is not decorative complexity. Limits on uses, time, exposure risk, opportunity cost, or relationship consequences all work when they truly change the protagonist’s strategy."
+          "zh": "不一定需要额外代价，也不因有代价就更高级。若本书选了次数、时间、暴露风险、机会成本或关系后果，让它真实影响策略；若没有额外消耗，就按已定规则兑现优势，不临时补掉血来装饰复杂度。",
+          "en": "An extra cost is optional and does not automatically add sophistication. If the book chooses use limits, time, exposure, opportunity costs, or relationship consequences, let them affect strategy. With no added consumption, deliver the established advantage rather than invent health loss for decoration."
         }
       }
     ],
@@ -15718,8 +15718,8 @@
       "en": "How to Design Cultivation Realms | ZenStory"
     },
     "description": {
-      "zh": "修仙境界要同时改变能力、待遇、社交圈和代价。附原创五阶体系、突破前后场景、升级台阶容量检查与战力防崩改法。",
-      "en": "Build realms around ability, status, ties, and cost. Includes an original five-stage system, breakthrough comparison, capacity check, and scaling fixes."
+      "zh": "从能力、待遇和关系变化设计修仙境界，按本书规则安排条件与代价。附原创五阶体系、三息保护场面和升级台阶检查。",
+      "en": "Design cultivation realms through abilities, status, and relationships. Includes a five-stage system, a three-breath shield scene, and progression checks."
     },
     "answer": {
       "zh": "设计修仙境界先定突破会改变什么行动，再取名称。比较能力与边界、待遇、可接触的人和需要承担的条件，找出真正的新玩法；不要求每阶四项全部上涨。按终局目标检查升级台阶，避免早期能力直接消耗全书底牌。",
@@ -15755,8 +15755,8 @@
           "en": "Make a Breakthrough Change the Plot: Compare Before and After"
         },
         "body": {
-          "zh": "原创场景：药谷发生地气泄漏，两名药工还在外圃。求救铃在一段地气扰动区后，听砂境季澄只能辨出较弱的流向，不能抵挡冲击；师门让他先看住仓里药箱。前文已建立借力恢复条件：按测绘标记让借力处停用，待复测恢复才可种植。\n\n| 项目 | 突破前 | 引泉后实际结果 |\n|---|---|---|\n| 能力 | 辨路径但不能穿过扰动 | 三息护本人，走到铃旁；不改变整片地气 |\n| 选择 | 可以留仓等待 | 选择示警，实际敲响求救铃 |\n| 响应 | 外圃尚未获通知 | 两名药工听到约定铃号，沿已标路径撤回 |\n| 代价 | 久听可能迷向 | 借力处一块土地失活，季澄标记停种 |\n| 待遇 | 测绘学徒 | 管事收到撤离与失活记录，安排问责和复测，资格待评 |\n\n季澄按标记走到铃旁、敲铃，再等药工实际撤回，才完成本场示警与撤离。三息保护没有直接救全谷，也不凭一次善意免去违令后果。下一章处理复测和师门响应，能力的边界仍保留。",
-          "en": "Original scene: an earth-energy leak threatens a medicinal valley while two workers remain outside. The alarm bell is beyond a disturbed strip. Ji Cheng can hear weaker flow but cannot withstand it; the sect orders him to watch the medicine crates. Earlier scenes establish recovery: mark borrowed ground, leave it unused and resume planting only after a recovery check.\n\n| Item | Before | After |\n|---|---|---|\n| Ability | Detect route, cannot cross disturbance | Three-breath self-shield reaches bell, without changing valley flow |\n| Choice | Stay by crates and wait | Chooses warning and actually rings |\n| Response | Outside workers uninformed | Hear agreed signal and return along marked route |\n| Cost | Long listening can disorient | Small borrowed patch drains; Ji marks no planting |\n| Status | Mapping apprentice | Supervisor receives return and damage records; review and recheck arranged, qualification pending |\n\nJi follows the marks, reaches and rings the bell, then waits for the two workers’ actual return. Only then is this warning and evacuation delivered. Three breaths do not save the entire valley or excuse disobedience. The next chapter can handle recovery checks and the sect’s response while limits remain."
+          "zh": "原创场景：药谷发生地气泄漏，两名药工还在外圃。求救铃在一段地气扰动区后，听砂境季澄只能辨出较弱的流向，不能抵挡冲击；师门让他先看住仓里药箱。前文已建立借力恢复条件：按测绘标记让借力处停用，待复测恢复才可种植。\n\n| 项目 | 突破前 | 引泉后实际结果 |\n|---|---|---|\n| 能力 | 辨路径但不能穿过扰动 | 三息护本人，走到铃旁；不改变整片地气 |\n| 选择 | 可以留仓等待 | 选择示警，实际敲响求救铃 |\n| 响应 | 外圃尚未获通知 | 两名药工听到约定铃号，沿已标路径撤回 |\n| 代价 | 久听可能迷向 | 借力处一块土地失活，季澄标记停种 |\n| 待遇 | 测绘学徒 | 管事收到撤离与失活记录，安排问责和复测，资格待评 |\n\n季澄按标记走到铃旁、敲铃，再等药工实际撤回，才完成本场示警与撤离。三息保护没有直接救全谷，也不凭一次善意免去违令后果。下一章处理复测和师门响应，能力的边界仍保留。\n\n**让三息在场面里有明确起止：**本例另明确季澄此前已突破引泉，扰动带按他刚才实测只有两步宽，铃旁是无冲击的石台；药工撤离用外侧正常路径，不穿这条扰动带。保护从启用起计时，不在等待时无限续上。脚下借力处已因泄漏变薄，本例这次取用使该小块土地失活；三息是保护时限，地气消耗另按这处实际供给判断。\n\n> 季澄沿标记走到带边，先看铃旁的石台。两步，还是刚才测出的宽度。\n>\n> 他借起脚下那缕地气，跨了过去。第二息落到石台上，第三息过后保护散去。他在无冲击处拉响约定的三下铃。\n>\n> 外圃的两人抬起头，沿外侧标记退回来。季澄等到他们进了仓前院，才绕石台后面的正常路返回；那一路没有再借力。\n>\n> 借力处的标记还在，他把停种牌插进去。管事走来问他为什么离仓，他把敲铃、药工回来和失活位置一起说明。\n\n这个片段只兑现两步跨越、三息内到达、实际示警和两人撤回。管事收到说明，复测、问责与资格评定仍待发生；没有把三息保护延长到整段等候，也没有让药工依靠他的单人护罩。",
+          "en": "Original scene: an earth-energy leak threatens a medicinal valley while two workers remain outside. The alarm bell is beyond a disturbed strip. Ji Cheng can hear weaker flow but cannot withstand it; the sect orders him to watch the medicine crates. Earlier scenes establish recovery: mark borrowed ground, leave it unused and resume planting only after a recovery check.\n\n| Item | Before | After |\n|---|---|---|\n| Ability | Detect route, cannot cross disturbance | Three-breath self-shield reaches bell, without changing valley flow |\n| Choice | Stay by crates and wait | Chooses warning and actually rings |\n| Response | Outside workers uninformed | Hear agreed signal and return along marked route |\n| Cost | Long listening can disorient | Small borrowed patch drains; Ji marks no planting |\n| Status | Mapping apprentice | Supervisor receives return and damage records; review and recheck arranged, qualification pending |\n\nJi follows the marks, reaches and rings the bell, then waits for the two workers’ actual return. Only then is this warning and evacuation delivered. Three breaths do not save the entire valley or excuse disobedience. The next chapter can handle recovery checks and the sect’s response while limits remain.\n\n**Give three breaths a clear beginning and end:** This example additionally establishes Ji’s earlier breakthrough. His recent measurement puts the disturbed strip two steps wide; the bell’s stone platform is outside the impacts. Workers use a normal outer return route rather than this strip. The shield’s time starts at activation and does not renew during waiting. The leak has thinned the borrowed patch, and this draw drains it in the example. Three breaths limits protection; depletion depends separately on local supply.\n\n> Ji followed the marks to the edge and checked the stone platform by the bell. Two steps, the width he had just measured.\n>\n> He drew on the thread beneath his feet and crossed. He landed on the platform in the second breath. After the third, the shield faded. Outside the impacts, he pulled the agreed three-stroke alarm.\n>\n> The two workers looked up and followed the outer marks back. Ji waited until they entered the warehouse forecourt, then returned on the normal route behind the platform. He drew no more energy there.\n>\n> The borrowing mark remained. He planted the no-growing sign. When the supervisor asked why he had left the warehouse, he reported the alarm, the workers’ return, and the drained patch.\n\nThis passage delivers the two-step crossing, arrival within three breaths, warning, and two actual returns. The supervisor receives the account; recovery checks, responsibility, and qualification remain pending. Waiting does not extend the shield, and the workers do not receive his self-only protection."
         }
       },
       {
@@ -15766,19 +15766,19 @@
           "en": "Do You Have Enough Stages? Work Backward from the Ending"
         },
         "body": {
-          "zh": "先写终局才需要的资源，再检查中间有没有足够台阶。\n\n| 终局资源 | 解锁阶段 | 前期铺垫 |\n|---|---|---|\n| 头号宿敌的正面对决 | ___ | 手下、盟友、投影、局部目标 |\n| 世界真相 | ___ | 异常、证词、互相冲突的解释 |\n| 最高境界能力 | ___ | 单项能力、局部范围、有限组合 |\n| 身份终点 | ___ | 资格、代理权、暂时认可 |\n| 核心关系定局 | ___ | 合作、试探、站队、一次牺牲 |\n\n再做容量估算：`可用境界或地图台阶 × 每档计划承载的剧情篇幅`要能覆盖全书目标。这个算式只检查“台阶是否明显不够”，不规定每阶必须写同样长。敌人、资源和地图按梯队开放，防止主角前期越级解决终局目标。\n\n单场大胜可以同时破境、得宝和涨声望；真正要守住的是尚未到阶段的终局底牌。",
-          "en": "First list the resources needed only at the ending, then check whether enough steps exist between the beginning and them.\n\n| Resource | Unlock | Earlier |\n|---|---|---|\n| Face the main foe | ___ | Lesser foes, allies, echoes and local goals |\n| Truth of the world | ___ | Anomalies, testimony, and conflicting explanations |\n| Highest-realm ability | ___ | Single abilities, limited range, and restricted combinations |\n| Final identity or position | ___ | Entry rights, delegated authority, and temporary recognition |\n| Final state of the central relationship | ___ | Cooperation, testing, choosing sides, and one sacrifice |\n\nThen estimate capacity: `usable realm or map stages × intended story length per tier` should cover the novel’s target length. This formula checks only whether the staircase is obviously too short; it does not require equal length for every realm. Unlock enemies, resources, and maps by tier so the protagonist cannot resolve endgame objectives before their intended stage.\n\nOne major victory can combine a breakthrough, treasure, and rise in reputation. What must remain protected are the endgame cards that have not reached their stage."
+          "zh": "先写终局才需要的资源，再检查中间有没有足够台阶。\n\n| 终局资源 | 解锁阶段 | 前期铺垫 |\n|---|---|---|\n| 头号宿敌的正面对决 | ___ | 手下、盟友、投影、局部目标 |\n| 世界真相 | ___ | 异常、证词、互相冲突的解释 |\n| 最高境界能力 | ___ | 单项能力、局部范围、有限组合 |\n| 身份终点 | ___ | 资格、代理权、暂时认可 |\n| 核心关系定局 | ___ | 合作、试探、站队或对应选择 |\n\n再做容量估算：`可用境界或地图台阶 × 每档计划承载的剧情篇幅`要能覆盖全书目标。这个算式只检查“台阶是否明显不够”，不规定每阶必须写同样长。敌人、资源和地图按梯队开放，防止主角前期越级解决终局目标。\n\n单场大胜可以同时破境、得宝和涨声望；真正要守住的是尚未到阶段的终局底牌。",
+          "en": "First list the resources needed only at the ending, then check whether enough steps exist between the beginning and them.\n\n| Resource | Unlock | Earlier |\n|---|---|---|\n| Face the main foe | ___ | Lesser foes, allies, echoes and local goals |\n| Truth of the world | ___ | Anomalies, testimony, and conflicting explanations |\n| Highest-realm ability | ___ | Single abilities, limited range, and restricted combinations |\n| Final identity or position | ___ | Entry rights, delegated authority, and temporary recognition |\n| Final state of the central relationship | ___ | Cooperation, testing, choosing sides, or a relevant choice |\n\nThen estimate capacity: `usable realm or map stages × intended story length per tier` should cover the novel’s target length. This formula checks only whether the staircase is obviously too short; it does not require equal length for every realm. Unlock enemies, resources, and maps by tier so the protagonist cannot resolve endgame objectives before their intended stage.\n\nOne major victory can combine a breakthrough, treasure, and rise in reputation. What must remain protected are the endgame cards that have not reached their stage."
         }
       },
       {
         "id": "realm-costs",
         "heading": {
-          "zh": "力量为什么要有代价",
-          "en": "Why Power Needs a Cost"
+          "zh": "若本书设置代价，让它影响实际选择",
+          "en": "Make Chosen Costs Affect Actual Decisions"
         },
         "body": {
-          "zh": "代价让境界进入人物选择。可从四处设计：\n\n| 代价位置 | 会产生的剧情 |\n|---|---|\n| 身体 | 使用次数、恢复窗口、旧伤与修行路线冲突 |\n| 资源 | 丹药、地脉、器物或时间需要争取和分配 |\n| 关系 | 师承、契约、人情债和站队随力量增长 |\n| 规则 | 越强越受门规、天劫、官府或因果约束 |\n\n代价要真实影响策略。若每次写“损耗巨大”，下一章却毫无影响，这条限制不会产生故事。最好让代价落到可见选择：救谁、舍弃什么、向谁求助、欠下哪笔债。",
-          "en": "Costs bring realms into character choices. Design them in four places:\n\n| Location of cost | Plot it can produce |\n|---|---|\n| Body | Usage limits, recovery windows, and conflict between old injuries and the cultivation path |\n| Resources | Pills, ley veins, artifacts, or time that must be secured and allocated |\n| Relationships | Mentorship, contracts, debts of favor, and alliances that grow with power |\n| Rules | Stronger cultivators face tighter constraints from sect rules, heavenly trials, government, or causality |\n\nA cost must truly alter strategy. If every use is described as “hugely draining” but has no effect in the next chapter, the limit produces no story. Make the cost a visible choice: whom to save, what to surrender, whom to ask for help, or which debt to incur."
+          "zh": "代价是可选工具，不是力量“高级”的必要条件。若本书设置代价，可从四处比较：\n\n| 代价位置 | 会产生的剧情 |\n|---|---|\n| 身体 | 使用次数、恢复窗口、旧伤与修行路线冲突 |\n| 资源 | 丹药、地脉、器物或时间需要争取和分配 |\n| 关系 | 师承、契约、人情债和站队随力量增长 |\n| 规则 | 越强越受门规、天劫、官府或因果约束 |\n\n已设定的代价要真实影响策略。若每次写“损耗巨大”，下一章却毫无影响，这条限制不会产生故事。最好让代价落到可见选择：救谁、舍弃什么、向谁求助、欠下哪笔债。\n\n没有额外消耗的体系可以通过熟练度、作用对象、合作与新用途写成长，不需要每阶增加损失。待遇与社交机会也要有实际回应，不靠附赠惩罚证明突破有分量。",
+          "en": "Costs are optional tools rather than requirements for sophisticated power. When the book chooses them, compare four areas:\n\n| Location of cost | Plot it can produce |\n|---|---|\n| Body | Usage limits, recovery windows, and conflict between old injuries and the cultivation path |\n| Resources | Pills, ley veins, artifacts, or time that must be secured and allocated |\n| Relationships | Mentorship, contracts, debts of favor, and alliances that grow with power |\n| Rules | Stronger cultivators face tighter constraints from sect rules, heavenly trials, government, or causality |\n\nAn established cost should actually alter strategy. If every use is described as “hugely draining” but has no effect in the next chapter, the limit produces no story. Make the cost a visible choice: whom to save, what to surrender, whom to ask for help, or which debt to incur.\n\nA system without added consumption can develop through proficiency, targets, cooperation, and new uses without increasing losses each realm. Status and contacts also need actual responses; an attached punishment does not itself give a breakthrough weight."
         }
       },
       {
@@ -43265,6 +43265,304 @@
         },
         "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
       }
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "write-a-character-death",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "小说人物死亡怎么写：生前选择、死因与留下的空缺",
+      "en": "How to Write a Character Death That Matters"
+    },
+    "seo_title": {
+      "zh": "小说人物死亡怎么写",
+      "en": "How to Write a Character Death"
+    },
+    "description": {
+      "zh": "先让读者认识活着的人，再核死亡如何发生、谁知道什么，以及关系和日常怎样改变。附完整原创片段与常见失败修法。",
+      "en": "Establish the living character, the cause of death, who knows what, and the changed relationships. Includes original prose and revision checks."
+    },
+    "answer": {
+      "zh": "先写这个人活着时想要什么、如何与别人相处，再检查死亡的原因、时机和已建立的故事规则。确认死亡与失踪、传闻分开；消息怎样被人物获知，要在文中成立。后续写具体的人与生活如何回应空缺，不把死亡只当主角升级按钮，也不要求所有人哭、复仇或马上释怀。",
+      "en": "Show what the character wanted while alive and how they lived with others. Check the death’s cause, timing, and established rules. Separate a confirmed death from disappearance or rumor, and establish how people learn about it. Let particular relationships and routines respond to the absence without making death an upgrade button or requiring tears, revenge, or immediate acceptance."
+    },
+    "sections": [
+      {
+        "id": "before-death",
+        "heading": {
+          "zh": "先写活着的人，别只铺“他快死了”",
+          "en": "Establish a Person Who Is Alive"
+        },
+        "body": {
+          "zh": "问三个具体问题：他自己还想做什么？别人和他有过怎样的相处？他在压力下会怎样选择？人物可以不讨喜，也不必临终才变得完美。写一个真实相处比连加几段赞美更有用。\n\n本页组合人物目标、退场规划、具体情感投入和可信反应，整理成死亡桥段检查；不是 skill 的专用死亡公式。普通悲伤场景未必有人死亡，本题另外要核“死亡事件本身是否成立”。",
+          "en": "Ask what the character still wanted, what contact others had with them, and how they chose under pressure. They need not be likable or become perfect at the end. An actual shared experience does more than several added tributes.\n\nThis page combines character goals, planned exits, emotional investment, and credible response into an editorial check, not a native death formula. A sad scene need not involve death; this task also checks whether the event itself holds."
+        }
+      },
+      {
+        "id": "cause-and-knowledge",
+        "heading": {
+          "zh": "核死因、可用办法与消息来源",
+          "en": "Check Cause, Available Options, and Knowledge"
+        },
+        "body": {
+          "zh": "| 要核什么 | 具体问法 |\n|---|---|\n| 原因与时机 | 既有局势为何在这里造成死亡？不要到事后才添关键规则 |\n| 人物选择 | 他为何在场、用了什么已知办法？突然变蠢不是唯一解法 |\n| 已有救助 | 本书若已有可用救助或复活手段，此刻为何不能直接解决？ |\n| 确认消息 | 视角人物看见了什么、从谁处获知？失联和传闻仍可未确认 |\n| 后续影响 | 哪段关系、习惯或未完目标发生变化？不必全转成新任务 |\n\n死亡可以突然发生，不要求本人主动选择牺牲。若作品允许复活，就遵守已建立规则；若要改规则，先改相应设定和前文，不让下一章一句“其实没事”抹掉此前的失去。",
+          "en": "| Check | Question |\n|---|---|\n| Cause and timing | Why does the established situation produce death here? Avoid a crucial rule added afterward. |\n| Conduct | Why was the person there, and which known options did they use? Sudden foolishness is not the only route. |\n| Available help | If rescue or resurrection already exists, why can it not resolve this case? |\n| Confirmation | What does the viewpoint witness or learn from whom? Lost contact or rumor may remain unconfirmed. |\n| Aftermath | Which relationship, routine, or unfinished aim changes? It need not all become another task. |\n\nDeath may be sudden without voluntary sacrifice. Follow established resurrection rules if the book has them. A rule change needs corresponding setup rather than an effortless next-chapter reversal erasing the loss."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "完整原创例：小椅子没有替他完成一生",
+          "en": "Complete Original Example: An Unfinished Chair"
+        },
+        "body": {
+          "zh": "虚构故事里，木匠陈伯打算春天回乡种杏树，也在给孙女做小椅。他教徒弟陆禾手艺，却常和陆禾争执该不该接便宜急单。生前一次相处是：\n\n> “椅腿又长了。”陆禾把刨子递过去。\n>\n> 陈伯把他刚刨的那根放回一旁。“留着，下回用。她长得快，你别一回全刨短。”\n>\n> “你回乡后，谁给她改？”\n>\n> “她要是还肯坐，我回来一趟。她要是嫌小，就让她选新的。”\n\n后来的城门失守已有战事铺垫。故事明确写出陈伯在带街坊撤离时遇害，同行的赵婶亲见，陆禾随后看见运回的遗体并听她说明经过；这里是已确认死亡，不是仅凭失联推定。他没能回乡，陆禾也没有凭悲痛突然得到新能力。数日后：\n\n> 陆禾拿起留在桌边的椅腿，想把剩下的都刨成一样长。刨子碰到木头，他停住了。\n>\n> 小满站在门口。“那是我的？”\n>\n> “是。你爷爷还没做完。我可以接着做。”\n>\n> 她看了会儿。“先别。我想把画放在这里。”\n>\n> 陆禾把刨子收进抽屉，腾出桌面。小满摊开自己的画，陈伯的椅腿被挪到一旁。\n>\n> “画的是老家？”\n>\n> “他总说杏树。我没见过。”\n>\n> 陆禾看着纸上的树，没有替她纠正。他也没见过陈伯说的那片院子。\n\n孙女把画放上桌，徒弟实际让出位置，椅子仍未完工。熟悉的指导和回乡愿望都留下了空缺；这次相处没有证明悲伤结束，也没有让小满承担传承手艺的义务。若作者要写战事责任、继续做椅或另一种回应，另按已发生事实展开，不能把本片段当作那些结果已完成。",
+          "en": "In this fictional story, carpenter Chen plans to return home in spring to plant apricot trees and is making a small chair for his granddaughter. He teaches apprentice Lu He, but they often disagree over cheap rush orders. Earlier contact:\n\n> “This leg is too long again.” Lu handed him the plane.\n>\n> Chen set the newly trimmed leg aside. “Keep it for next time. She grows fast. Don’t shorten every one at once.”\n>\n> “Who’ll adjust it after you move home?”\n>\n> “If she still wants the chair, I’ll come back. If it’s too small, let her choose a new one.”\n\nThe later fall of the city gate follows established fighting. The story states that Chen is killed while helping neighbors leave: Mrs. Zhao witnesses it, and Lu subsequently sees the returned body and hears her account. Death is confirmed rather than inferred from lost contact. Chen never returns home; grief gives Lu no sudden new ability. Several days later:\n\n> Lu picked up the leg left by the table, intending to trim the others to match. The plane touched wood. He stopped.\n>\n> Xiaoman stood in the doorway. “Is that mine?”\n>\n> “Yes. Your grandfather didn’t finish. I can carry on.”\n>\n> She watched it. “Not yet. I want to put my drawing here.”\n>\n> Lu put the plane in the drawer and cleared the table. She spread her drawing out; Chen’s chair leg moved aside.\n>\n> “Is that his hometown?”\n>\n> “He always talked about apricot trees. I’ve never seen it.”\n>\n> Lu looked at the trees on the paper without correcting them. He had never seen the courtyard Chen described either.\n\nThe child places the picture and the apprentice actually makes room. The chair remains unfinished. Familiar guidance and the homecoming wish leave an absence. This contact proves neither completed grief nor a duty for Xiaoman to inherit the craft. Accountability for the fighting, completing the chair, or another response needs its own later development rather than being reported as already delivered here."
+        }
+      },
+      {
+        "id": "reaction",
+        "heading": {
+          "zh": "让反应贴合这个人、这段关系",
+          "en": "Fit the Response to the Person and Relationship"
+        },
+        "body": {
+          "zh": "有人当场哭，有人先处理眼前事，有人拒绝继续谈；同一个人也可能先后有不同反应。写清触发与相处，不把反应排成所有人通用的阶段表。必要的直接情绪或内心可以保留，不为“克制”堆满拿杯子、攥手指。\n\n预先告知坏结果再写生前日常，是来源中的一种悲壮写法；突然失去也可成立。选哪一种取决于视角和作者想让读者经历什么，不要求每次都先告别、说遗言或埋一个信物。",
+          "en": "Someone may cry immediately, handle an immediate need, or refuse further talk; one person may respond differently over time. Establish triggers and contact without imposing a universal sequence. Direct feeling or thought can remain; restraint does not require piles of cup-holding and clenched fingers.\n\nThe source offers showing a known bad outcome before warm earlier contact as one tragic technique. Unexpected loss can also work. Choose around viewpoint and desired experience without requiring farewells, last words, or a keepsake every time."
+        }
+      },
+      {
+        "id": "failures",
+        "heading": {
+          "zh": "没有分量时，先修缺的那一环",
+          "en": "Repair the Missing Basis for Impact"
+        },
+        "body": {
+          "zh": "| 问题 | 优先修法 |\n|---|---|\n| 只临死前突然补“大家都爱他” | 找生前真实目标与相处，少加赞美说明 |\n| 既有办法明明可救，却无人想到 | 回查规则、时间与人物所知，不能只说“为了悲剧” |\n| 所有人立即同样哭、同样复仇 | 按不同关系与当前能力写回应 |\n| 下一章忘记这个人 | 在需要时表现已改变的日常或目标，不规定每章提名字 |\n| 复活随口发生，损失全消失 | 核已定规则和实际后果，明确作者是否改了结局 |\n\n先修影响相信的地方，再调表达强度。能否打动读者仍要看整段文本与阅读反馈，死亡人数、哭喊长度和作者自评都不能代替。",
+          "en": "| Problem | First repair |\n|---|---|\n| Everyone suddenly loves the person only at the end | Establish earlier aims and contact rather than add praise. |\n| Available help is inexplicably ignored | Recheck rules, time, and knowledge; “for tragedy” is not a cause. |\n| Everyone instantly cries or seeks revenge alike | Write responses from different ties and present capacities. |\n| The person disappears from the next chapter’s world | Show changed routines or goals when relevant, without a name quota. |\n| Casual resurrection erases all loss | Check established rules and actual consequences, including a changed authorial outcome. |\n\nRepair belief first, then tune expression. Impact still depends on the whole passage and reader response rather than a death count, length of crying, or the author’s own rating."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "重要人物死亡一定要有最后一句话吗？",
+          "en": "Does a major death require last words?"
+        },
+        "a": {
+          "zh": "不必。遗言适合部分场景，突然死亡、消息传来或事后空缺也能承载情绪。看既定死因、视角和节奏，不让所有人临终都解释一生。",
+          "en": "No. Last words suit some scenes; sudden death, news, or later absence can also carry feeling. Follow cause, viewpoint, and pacing without making everyone explain a lifetime at the end."
+        }
+      },
+      {
+        "q": {
+          "zh": "人物死亡后，主角必须改变或复仇吗？",
+          "en": "Must the protagonist transform or seek revenge afterward?"
+        },
+        "a": {
+          "zh": "不必立刻成长或接复仇任务。相处、生活或认知可以有具体变化，也可以暂时停住；死亡不能自动证明新能力、成熟或释怀已经完成。",
+          "en": "Immediate growth or revenge is unnecessary. Contact, routine, or understanding may change, or the person may pause. Death does not prove that ability, maturity, or acceptance has been gained."
+        }
+      }
+    ],
+    "topic": "characters-and-dialogue",
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 审读点名的死亡桥段，附生前片段、已定死因、当前视角知情与后续安排。先核人物是否只为死亡存在、原因是否成立、谁已确认消息和反应是否贴合关系。保留作者选定结果和文风，不加新死亡、复活或自动复仇；先给具体改法，采用后再改点名段。",
+        "en": "Use $story-long-write to review the named death passage with earlier scenes, chosen cause, current knowledge, and aftermath. Check whether the character exists only to die, whether the cause holds, who has confirmation, and how responses fit the relationships. Retain the chosen outcome and voice; add no death, resurrection, or automatic revenge. Propose specific repairs before revising the named passage."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "人物目标、动机与退场规划",
+          "en": "Character aims, motives, and planned exits"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-basics.md"
+      },
+      {
+        "label": {
+          "zh": "具体投入、意义变化与可信反应",
+          "en": "Specific investment, changed meaning, and credible response"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/emotional-methods.md"
+      },
+      {
+        "label": {
+          "zh": "预知失去与场景后反应",
+          "en": "Anticipated loss and scene response"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/emotion-on-page.md"
+      },
+      {
+        "label": {
+          "zh": "本书表达与事实边界",
+          "en": "Book-specific expression and factual boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      }
+    ],
+    "related": [
+      "/oh-story/write-a-sad-scene-in-fiction",
+      "/oh-story/write-a-memorable-supporting-character",
+      "/oh-story/create-emotional-stakes-in-fiction"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "stop-ai-fiction-from-revealing-future-plot",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI写小说提前揭底怎么办：本章停点与后续安排",
+      "en": "How to Stop AI Fiction from Revealing Future Plot Too Soon"
+    },
+    "seo_title": {
+      "zh": "AI写小说提前揭底怎么办",
+      "en": "Stop AI Fiction from Revealing Future Plot Too Soon"
+    },
+    "description": {
+      "zh": "明确本章必须完成、不能提前揭示和停笔的位置，保留眼前回报。附相册故事的越界对照、完整改写片段和返修简报。",
+      "en": "Specify the current payoff, protected later revelations, and stopping point. Includes an album-story repair and a focused revision brief."
+    },
+    "answer": {
+      "zh": "把本章要完成的事、后续才揭示的信息和本次停笔点并列给出，写完逐项对照正文。提前揭底时，只返修越界段和依赖它的当前反应，保留本章应有的进展；不能用删除所有发现来拖慢故事。作者明确决定提前揭示，则同步后续安排，不把新的决定仍标成“按原纲”。",
+      "en": "Give the current chapter’s required payoff, protected later information, and stopping point together, then compare them with the draft. Repair the premature revelation and current reactions depending on it while retaining earned progress. Removing every discovery only stalls the story. If the author chooses an earlier reveal, update the later plan rather than still calling the draft faithful to the old outline."
+    },
+    "sections": [
+      {
+        "id": "diagnose",
+        "heading": {
+          "zh": "先分清提前揭底、局部完成和作者改纲",
+          "en": "Separate Early Revelation From a Present Payoff"
+        },
+        "body": {
+          "zh": "本章找到一条线索、完成一次合作或拿到奖励，并不等于提前大结局。真正要核的是：用了后续才有的证据吗？确认了本轮不能确认的身份或真相吗？越过停笔事件，把下一章也写了吗？\n\n作者主动调整揭示顺序也可以。要改就明确采用新安排；若当前任务只是按原细纲续写，不能因“这样更精彩”自行提前。文风允许旁白评论或切视角，也不等于可以突破已定信息边界。",
+          "en": "Finding a clue, completing cooperation, or earning a reward need not be a premature ending. Check whether the draft uses later evidence, confirms an identity or truth reserved for another stage, or continues into another chapter beyond the stopping event.\n\nAn author may change reveal order. Adopt that plan explicitly. A request to follow the current outline does not authorize acceleration simply because it seems more exciting. Narrator commentary or a viewpoint change does not override established information bounds."
+        }
+      },
+      {
+        "id": "brief",
+        "heading": {
+          "zh": "把“本章要给什么”和“不能给什么”一起写",
+          "en": "State the Payoff and the Protected Information Together"
+        },
+        "body": {
+          "zh": "| 本轮简报 | 第8章相册例 |\n|---|---|\n| 本章完成 | 许桐找到缺失照片、放回相册，并与母亲约定一起查看 |\n| 当前证据 | 原相册空位、照片缺角、背面日期；无人物姓名 |\n| 后续安排 | 第14章取得另一张合影与父亲旧友说明，才确认照片人物 |\n| 本章禁止 | 不提前使用那份说明，不确认身份，不写后续调查结果 |\n| 停笔事件 | 母亲在电话中答应周末一起看之后停止 |\n\n这是作者整理的返修简报，不是新增的原生表单。给AI当前细纲和相关阶段边界即可，不用把整本设定全塞进同一提示。前文已改变时先同步事实；缺失安排留待作者定，不临时猜一个终局。",
+          "en": "| Brief | Album example, chapter 8 |\n|---|---|\n| Present delivery | Xu Tong finds the missing photo, restores it, and arranges to view it with his mother. |\n| Current evidence | Album gap, torn corner, and date; no name. |\n| Later plan | Another group photo and the father’s old friend’s account in chapter 14 establish identity. |\n| Exclusions | No early use of that account, identity confirmation, or later investigation result. |\n| Stop | End after the mother agrees by phone to look together at the weekend. |\n\nThis is an editorial repair brief rather than a new native form. Supply the current outline and relevant stage boundaries without stuffing every setting into one prompt. Synchronize changed earlier facts first; missing decisions remain for the author rather than an invented ending."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "完整改写：找到照片，仍不知道照片里是谁",
+          "en": "Complete Repair: Find the Photo Without Identifying Its Subject"
+        },
+        "body": {
+          "zh": "原创故事中，许桐整理父亲旧相册，上一章已看见一处空位，边角残留半片照片纸。第8章只完成找回和约定。原稿却写“他立刻认出，那就是父亲一直寻找的人”，接着写两人相见；当前材料没有识别依据，且会提前消费后续安排。\n\n按上表返修，保留已经选定的寻照结果，片段可以是：\n\n> 抽屉拉开时，那张照片贴着柜底落了出来。许桐把它捡起，先看背面：日期还在，下面空着。\n>\n> 他翻回正面。父亲站在树边，旁边的人看着镜头。缺掉的角刚好能接上相册里留下的半片纸。\n>\n> 许桐把照片放回空位，压平卷起的边，又拨通母亲的电话。\n>\n> “缺的那张找到了。”\n>\n> “夹好了吗？别再掉了。”\n>\n> “夹好了。爸旁边那个人，你认得吗？”\n>\n> “发我看一眼。”\n>\n> 许桐拍下照片，发了过去。母亲在电话里说收到了，过了一会儿才答：“我不认得。周末你带来，我们一起看。”\n>\n> “好，周末。”\n>\n> 他合上相册，放进准备带走的帆布袋。\n\n照片找到了、放回了，母亲收到照片、听见请求并实际答应一起看；身份仍未确认。本章有明确回报，结尾还有共同查看的期待，不靠把找回也删掉维持悬念。这里不再接“几天后他终于查出”，也不预告人物后来是谁。\n\n若越界稿已经被后文当成事实，返修还要检查相关知情、对白与行动；不能只删一个名字，保留人物已经依此作出的决定。反过来，作者若真想第8章揭晓，需补识别依据并调整第14章功能，而非仍称遵守原安排。",
+          "en": "In this original story, Xu sorts his father’s old album. The previous chapter shows a gap with part of a torn photo corner. Chapter 8 delivers retrieval and an arrangement only. The faulty draft says he immediately recognizes the person his father has been seeking and proceeds to their meeting. Current materials provide no basis for recognition, and the passage consumes later plans.\n\nRetain the chosen retrieval result while repairing the reveal:\n\n> When the drawer opened, the photo slipped down against the cabinet’s base. Xu picked it up and checked the back first: the date remained, with nothing below it.\n>\n> He turned it over. His father stood by a tree; the other person faced the camera. The missing corner fitted the paper left in the album.\n>\n> Xu put the photo back, flattened its curled edge, and called his mother.\n>\n> “I found the missing one.”\n>\n> “Is it secured? Don’t let it fall out again.”\n>\n> “It is. Do you recognize the person beside Dad?”\n>\n> “Send me a picture.”\n>\n> Xu photographed it and sent it. She said she had received it, then answered after a pause: “I don’t recognize them. Bring it at the weekend and we’ll look together.”\n>\n> “All right. This weekend.”\n>\n> He closed the album and put it in the canvas bag he would take.\n\nThe photo is found and restored; the mother receives the picture, hears his request, and agrees to look together. Identity remains unconfirmed. Present progress and an anticipated shared look both survive. Do not continue into a later discovery or announce who the person will be.\n\nIf later chapters already rely on the faulty reveal, check dependent knowledge, dialogue, and conduct. Deleting a name while retaining decisions made from that knowledge is insufficient. If the author truly wants revelation in chapter 8, establish recognition and change chapter 14’s purpose instead of claiming fidelity to the original plan."
+        }
+      },
+      {
+        "id": "repair-prompt",
+        "heading": {
+          "zh": "返修指令要保留眼前回报",
+          "en": "Keep the Current Payoff in the Repair Request"
+        },
+        "body": {
+          "zh": "**可直接改用的简报：**“只返修第8章识别照片人物到结尾的段落。保留找到原照、放回相册、电话中约定一起看；当前人物只有照片与背面日期，没有第14章材料。撤掉身份确认、相见和依赖确认的反应，不写新解释来圆旧句。停在母亲同意后合好相册，保留本书文风；其他段落不改。”\n\n所引流程写前重新核本轮要求，写后检查情节点和提前使用的底牌。这不保证任何模型绝不越界，也不只靠把“禁止剧透”重复十遍。用完成稿逐项核实际写了什么，比只检查提示里有没有禁令更有效。",
+          "en": "**Adaptable brief:** “Revise only chapter 8 from the photo identification to its ending. Keep retrieval, restoration, and the phone arrangement. Characters have the photo and date, without chapter 14 materials. Remove identification, the meeting, and dependent reactions; add no explanation to preserve the faulty claim. Stop with the album closed after the mother’s agreement. Retain the book’s voice and every other passage.”\n\nThe cited workflow rechecks current requirements before drafting and event coverage plus premature endgame use afterward. It cannot guarantee that any model never oversteps; repeating “no spoilers” is insufficient. Compare what the completed prose actually delivers, not merely whether a prompt contains a prohibition."
+        }
+      },
+      {
+        "id": "check",
+        "heading": {
+          "zh": "写完检查：该停，也该完成",
+          "en": "Check Both Completion and the Stopping Point"
+        },
+        "body": {
+          "zh": "逐项找正文落点：本章应有的事件是否实际完成，谁从什么证据获知什么，停笔以后还有没有新场景或远期总结。章尾允许余韵、当下决定或低压期待，不强制悬崖式危机。\n\n若字数不足，先查已批准内容有没有漏；批准内容已写完就按原流程处理当前长度，不用提前写下一章补字。仅删总结但保留越界证据也不算修好；返修后还要核本章与相关后续安排的一致性。",
+          "en": "Locate actual coverage: required events completed, knowledge acquired from specific evidence, and any new scene or distant summary beyond the stopping point. An ending may carry aftermath, a present choice, or gentle anticipation without a forced cliffhanger.\n\nIf the chapter is short, first check omitted approved content. Once that content is complete, handle current length through the existing workflow rather than drafting the next chapter as padding. Removing a summary while keeping premature evidence is insufficient; review current and relevant later continuity after repair."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "限制提前揭底会不会让小说没有进展？",
+          "en": "Will protecting later reveals stall the novel?"
+        },
+        "a": {
+          "zh": "不应删掉本章已定回报。线索、阶段结果与终局确认分别处理：相册例找到照片并约定查看，仍然推进故事，只没有凭缺失依据确认身份。",
+          "en": "Retain the chosen present payoff. Clues, stage results, and final confirmation are different. Finding the photo and arranging a look advances the album story without unsupported identification."
+        }
+      },
+      {
+        "q": {
+          "zh": "作者想提前揭晓，还需要按旧细纲停吗？",
+          "en": "Must the old stopping plan stand if the author wants an earlier reveal?"
+        },
+        "a": {
+          "zh": "作者可以明确改变安排。采用新方案后补足当下依据、调整后续功能与相关知情；这是改纲，不能仍标为严格按旧纲续写。",
+          "en": "The author may change the plan. Adopt it explicitly, establish current evidence, and update later functions and dependent knowledge. That is an outline change rather than strict continuation of the old plan."
+        }
+      }
+    ],
+    "topic": "revision",
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 只返修第N章点名段，附当前细纲、相关后续揭示安排与原稿。先列必须保留、本章不能揭示和停笔事件；只撤越界信息及依赖它的反应，补回原定当前结果，保留其他事实和文风。未授权改纲，不写下一章；完成后逐项报告实际落点。",
+        "en": "Use $story-long-write to revise only the named part of chapter N with its outline, relevant later reveal plan, and draft. List required content, protected information, and the stopping event. Remove premature knowledge and dependent reactions, restoring the intended present payoff. Preserve other facts and voice. Do not change the outline or write the next chapter without authorization; report actual coverage."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "本轮必发生、禁发生与停笔边界",
+          "en": "Current required events, exclusions, and stopping bounds"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
+      },
+      {
+        "label": {
+          "zh": "逐项核情节点与提前底牌",
+          "en": "Coverage checks and premature endgame reveals"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/workflow-chapter.md"
+      },
+      {
+        "label": {
+          "zh": "本章禁放信息与执行范围",
+          "en": "Protected chapter information and execution scope"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writer-prompt-fallback.md"
+      },
+      {
+        "label": {
+          "zh": "表达选择不改变揭露边界",
+          "en": "Expression choices do not alter reveal boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      }
+    ],
+    "related": [
+      "/oh-story/ai-novel-writing-prompts",
+      "/oh-story/revise-a-novel-outline-mid-draft",
+      "/oh-story/sync-later-chapters-after-a-revision"
     ]
   }
 ]
