@@ -351,6 +351,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Design Items for a Story Game](https://zenstory.ai/novel-to-game/design-items-for-a-story-game) — Make items affect available actions. Includes a complete borrowed-flashlight design, failed uses, ownership, and save-state checks.
 - [How to Design Locked Options in a Story Game](https://zenstory.ai/novel-to-game/design-locked-options-in-a-story-game) — Explain current requirements without exposing unknown routes. Includes a permission-and-key example, stale-state handling, and counterchecks.
 - [How to Design a Game Opening Tutorial](https://zenstory.ai/novel-to-game/design-a-game-opening-tutorial) — Teach one core action through visible information, a recoverable mistake, and feedback. Includes a complete opening delivery task and playtest questions.
+- [How to Design Rewards in a Story Game](https://zenstory.ai/novel-to-game/design-rewards-in-a-story-game) — Design rewards around later actions and check award, use, and callbacks. Includes two poster-stall upgrade paths beyond a larger number.
+- [How to Design Exploration Routes in a Story Game](https://zenstory.ai/novel-to-game/design-exploration-routes-in-a-story-game) — Connect readable landmarks, a main route, and optional routes to the current goal. Includes a sketchbook-return path with a remembered favor.
 
 ### Video scripts and editing / 视频解说与剪辑
 - [Video scripts and editing](https://zenstory.ai/guides/video-recaps) — Write narration from footage, edit a story, and finish audio and subtitles.
@@ -381,6 +383,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Fix Long Pauses Between AI Voiceover Lines](https://zenstory.ai/video-recap/fix-long-pauses-in-ai-voiceover) — Separate silence inside a WAV, authored windows, pause settings, and actual placement. Includes a timing example that preserves intentional sound.
 - [How to Fix a Video Export with No Sound](https://zenstory.ai/video-recap/fix-a-video-export-with-no-sound) — Check the current version, source streams, edited intermediate, voiceover segments, and final audio mode. A silence track cannot restore missing sound.
 - [How to Fix Music Swells Between Voiceover Lines](https://zenstory.ai/video-recap/fix-music-swells-between-voiceover-lines) — Separate uneven voice segments from music repeatedly recovering in pauses. Includes a ducking-window example, short gaps, and intentional longer breaks.
+- [How to Fix Inconsistent AI Voiceover Voices](https://zenstory.ai/video-recap/fix-inconsistent-ai-voiceover-voices) — Locate the audible change, then check requested voices, cached segments, and files used in the export. Includes a three-segment repair plan.
+- [How to Improve Robotic AI Voiceover Delivery](https://zenstory.ai/video-recap/fix-robotic-ai-voiceover-delivery) — Check script flow, segmentation, supported delivery controls, and later speed changes. Includes a bounded example with exact text preserved.
 
 
 ## Workbench docs

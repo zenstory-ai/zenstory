@@ -41520,5 +41520,573 @@
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ]
+  },
+  {
+    "owner": "video-recap",
+    "slug": "fix-inconsistent-ai-voiceover-voices",
+    "topic": "video-recaps",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI配音前后音色不一致怎么办：核对声线、分段和实际成片",
+      "en": "How to Fix Inconsistent AI Voiceover Voices"
+    },
+    "seo_title": {
+      "zh": "AI配音前后音色不一致怎么办",
+      "en": "Fix Inconsistent AI Voiceover Voices"
+    },
+    "description": {
+      "zh": "从实际听感定位变化，再核请求声线、旧分段和成片所用文件。附三段旁白修订流程，参数一致不等于音色已验证。",
+      "en": "Locate the audible change, then check requested voices, cached segments, and files used in the export. Includes a three-segment repair plan."
+    },
+    "answer": {
+      "zh": "先定位实际听到的变化，分清音量、语速、情绪与说话者音色。核对每段的请求配置、真实文件和成片使用版本，别只看文件名。统一请求只能减少配置差异，不能证明声学身份一致；更换服务端声线实现后，同名缓存也可能需要重生成，最后仍要串听原段和成片。",
+      "en": "Locate the audible change and separate loudness, speed, emotion, and speaker timbre. Check requests, actual files, and export versions rather than filenames. Consistent requests reduce configuration differences but do not prove acoustic identity. A changed server voice implementation may require regeneration despite the same name; listen to segments and final output."
+    },
+    "sections": [
+      {
+        "id": "locate",
+        "heading": {
+          "zh": "先分清音色变了，还是音量和语气变了",
+          "en": "Distinguish Timbre From Loudness and Delivery"
+        },
+        "body": {
+          "zh": "正常速度连续听问题接点，再单独听前后原分段。记录具体差别：忽然更响、句尾变快、从平静转成激动，还是像换了另一个说话者。情绪变化不必等于声线错误；同一人本就可以改变语气。\n\n若单段已经不一致，先查合成；若单段听来相近，只有成片变化明显，再查放置速度、处理和最终所用文件。没有原段或实际听审时，先列待查项，不能凭元数据判定“确实换人”。音量问题可另看[配音电平排查](/video-recap/fix-uneven-ai-voiceover-volume)。",
+          "en": "Listen continuously across the join at normal speed, then to the source segments separately. Describe louder output, faster endings, emotional change, or an apparent different speaker. Emotion can vary within one voice.\n\nIf inconsistency is present in a segment, inspect synthesis first. If isolated segments sound similar but the export differs, inspect placement speed, processing, and consumed files. Without audio or listening, list unresolved checks rather than certifying a speaker change. Use the [level guide](/video-recap/fix-uneven-ai-voiceover-volume) for loudness."
+        }
+      },
+      {
+        "id": "settings",
+        "heading": {
+          "zh": "同一个声线名，要对应真实请求和文件",
+          "en": "Tie a Voice Name to Requests and Files"
+        },
+        "body": {
+          "zh": "在所引仓库版本中，普通旁白记录实际选择的provider、模型、声线或参考配置；分段缓存核文本、设置与WAV身份。不同路径的配置不能互相冒充：MiMo可用其声线或获授权参考，Fish用其声线ID，自托管IndexTTS用显式配置的voice，不支持本地参考克隆。\n\nIndexTTS的receipt记的是**请求了哪个voice**，不是服务端确实发出了同一个人的声音。服务端把同名voice换成新模型或新声线实现，客户端不会自动察觉；按原文说明使受影响的`tts_segments/*.cache.json`失效，才会重新请求。先保留旧候选和记录，不盲删全部音频。\n\n本页说明这个固定版本的流程，不据此承诺供应商当前全部功能或某种声线效果。",
+          "en": "In the cited repository version, ordinary narration records the selected provider, model, voice, or reference configuration; segment caching checks text, settings, and WAV identity. The paths differ: MiMo uses its voice or an authorized reference, Fish a voice ID, and self-hosted IndexTTS an explicitly configured voice without local reference cloning.\n\nAn IndexTTS receipt records **which voice was requested**, not acoustic delivery of one person. A server may change the implementation behind an unchanged name without client detection. Invalidate affected `tts_segments/*.cache.json` records as documented to request again, preserving prior candidates and records rather than deleting all audio.\n\nThese are fixed-version workflow facts, not promises about every current provider feature or voice result."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "原创核对：三段都选A，第二段却来自旧B稿",
+          "en": "Original Repair Plan: A Chosen Voice and One Old Segment"
+        },
+        "body": {
+          "zh": "原创解说方案有三段已定中文旁白，窗口分别为0–4、4–8、8–12秒；时长只是本例安排，实际语音是否放得下另查。三段文本为“她展开名单”“她停在最后一行”“她把纸折了回去”。作者选择服务里已配置的旁白声线A，当前没有音频或试听结果。\n\n| 段落 | 要核的版本 |\n|---|---|\n| 0–4秒 | 当前A请求及对应候选文件 |\n| 4–8秒 | 曾手动导入的旧B候选，不能只改记录中的名字当成A |\n| 8–12秒 | 当前A请求及对应候选文件 |\n\n**修订顺序：**\n\n1. 保留定稿、三个窗口和旧B文件，定位第二段的实际来源与请求记录。\n2. 用选择的A配置重新合成第二段，不仅重命名旧文件；若服务端A实现已变化，重新判断三段各需重生成的范围。\n3. 实际串听A的前段、新中段与后段，核文字完整和音色接续；不合适的候选继续修，未听就保持待查。\n4. 选定实际候选文件后交给合成，再核最终成片用了这三个文件并正常速度串听。\n\n若使用仓库的旁白采用记录，它要对应明确传入的`tts_meta`与选定文本/请求配置。`BOUND_TO_ADOPTION`表示这些选择进入混音，不表示声学身份或自然度已经通过。纸面顺序没有实际完成任何重合成、绑定或听审。",
+          "en": "Original plan: three chosen Chinese narration segments occupy 0–4, 4–8, and 8–12 seconds. These are illustrative windows, not proven speech fits. Their texts are “她展开名单,” “她停在最后一行,” and “她把纸折了回去” (unfolds the list, stops at its last line, folds it back). The author chooses configured narrator A; no audio or listening exists yet.\n\n| Segment | Version to check |\n|---|---|\n| 0–4 s | Current A request and candidate file. |\n| 4–8 s | A manually imported old B candidate; renaming its record cannot make it A. |\n| 8–12 s | Current A request and candidate file. |\n\n**Repair order:**\n\n1. Preserve text, windows, and old B file; locate the middle segment’s provenance and request record.\n2. Synthesize that segment with the selected A configuration, not just a renamed file. If A’s server implementation changed, reassess regeneration for all affected segments.\n3. Actually listen through the first A, new middle, and final A segments, checking complete words and continuity. Reject unsuitable candidates; retain unresolved status without listening.\n4. Assemble the chosen actual files, verify that the export consumed them, and listen to the final join at normal speed.\n\nRepository narration adoption must match explicitly supplied `tts_meta`, chosen text, and requested configuration. `BOUND_TO_ADOPTION` records consumption, not acoustic identity or naturalness. This paper plan has performed no synthesis, binding, or listening."
+        }
+      },
+      {
+        "id": "preserve",
+        "heading": {
+          "zh": "别用统一音量和强行变速替代声线修订",
+          "en": "Do Not Substitute Level or Speed for Voice Repair"
+        },
+        "body": {
+          "zh": "先保护准确台词、既定声音分工与配音窗口。调音量可能使接点听感更平，却不会把B声线变成A；改变语速也可能造成新的停顿或发音感受，不应默认为修音色的方法。\n\n时间窗不足时，按[配音超时排查](/video-recap/fit-voiceover-to-a-picture-edit)处理。采用保全文本策略后，放不下要回到稿件、窗口或明确的速度预算，不截掉尾字来伪装一致。若作者本来安排不同角色或不同叙述者，先确认这个区别是否应该保留。",
+          "en": "Protect exact text, audio roles, and windows. Level changes may smooth a join but cannot turn voice B into A; speed changes can create new delivery differences and are not a default timbre repair.\n\nUse the [window guide](/video-recap/fit-voiceover-to-a-picture-edit) for overflow. With text preservation, resolve script, window, or explicit tempo budget instead of cutting final words. If multiple characters or narrators are intentional, confirm which differences belong."
+        }
+      },
+      {
+        "id": "review",
+        "heading": {
+          "zh": "最后检查原段与成片，记录具体观察",
+          "en": "Review Segments and Export With Specific Observations"
+        },
+        "body": {
+          "zh": "| 检查 | 能证明什么 |\n|---|---|\n| 请求与缓存记录一致 | 减少配置和旧版本差异，不证明声学身份 |\n| 实际候选串听 | 这组声音的直接观察，不代表所有未来生成 |\n| 合成消费记录 | 哪些文件和策略进入本次成片 |\n| 成片正常速度听审 | 放置与混音后的实际接续体验 |\n\n记录“哪一段、哪个接点、怎样变化”，比“声线PASS”更有用。只听过第二段就不宣布全片一致；选定候选后重新导出，也要核新成片，没有旧试听自动覆盖新版本的保证。",
+          "en": "| Check | Evidence |\n|---|---|\n| Requests and cache agree | Reduced configuration/version differences, not acoustic identity. |\n| Candidate listening | Direct observations of these files, not every future generation. |\n| Consumed-input record | Files and policy used in this export. |\n| Normal-speed export listening | Actual continuity after placement and mixing. |\n\nRecord the segment, join, and audible change instead of “voice PASS.” Listening to only the middle cannot certify the whole video, and a new export needs its own check."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "声线名字一样，就能证明音色一致吗？",
+          "en": "Does the same voice name prove consistent timbre?"
+        },
+        "a": {
+          "zh": "不能。它是请求配置；文件版本、服务端实现和实际声音仍需检查。receipt或合成绑定记录也不代替听审。",
+          "en": "No. It is request configuration. File versions, server implementation, and actual sound still need checking; receipts and binding records do not replace listening."
+        }
+      },
+      {
+        "q": {
+          "zh": "音量统一后还是像换人，要继续加效果吗？",
+          "en": "Should I add effects if matching levels still sounds like a new speaker?"
+        },
+        "a": {
+          "zh": "先回到实际原段、请求声线与采用文件，判断差异来自哪里。不要连续加处理掩盖错误版本；有意的语气变化则按这条内容需要保留。",
+          "en": "Return to source segments, requested voice, and consumed files. Avoid stacked processing hiding a wrong version, while retaining intentional delivery changes."
+        }
+      }
+    ],
+    "skill": {
+      "name": "video-voiceover",
+      "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/SKILL.md",
+      "text": {
+        "zh": "用 $video-voiceover 检查这组已定旁白的声线一致性。附问题段、实际文件、请求provider/voice和缓存记录，保留定稿与时间窗；先指出配置或版本差异及需重生成范围。没有实际听审就不宣布音色一致，不以音量归一化代替声线修订；服务端实现变化另行处理缓存。",
+        "en": "Use $video-voiceover to review voice consistency with problem segments, actual files, requested provider/voice, and cache records. Preserve text and windows; identify configuration or version differences and regeneration scope. Do not certify timbre without listening or substitute normalization for voice repair. Treat server implementation changes as a separate cache issue."
+      }
+    },
+    "related": [
+      "/video-recap/fix-uneven-ai-voiceover-volume",
+      "/video-recap/fit-voiceover-to-a-picture-edit",
+      "/video-recap/keep-audio-when-changing-video"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "声线设置、分段缓存与实际请求",
+          "en": "Voice settings, segment cache, and requests"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/scripts/voiceover.py"
+      },
+      {
+        "label": {
+          "zh": "同名声线的缓存边界与receipt含义",
+          "en": "Named voices, cache limits, and receipt meaning"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/references/index-tts.md"
+      },
+      {
+        "label": {
+          "zh": "成片实际消费的旁白版本",
+          "en": "Narration inputs actually consumed"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/narration-adoption.md"
+      }
+    ]
+  },
+  {
+    "owner": "video-recap",
+    "slug": "fix-robotic-ai-voiceover-delivery",
+    "topic": "video-recaps",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "AI配音太机械怎么办：先改朗读思路，再核语气控制",
+      "en": "How to Improve Robotic AI Voiceover Delivery"
+    },
+    "seo_title": {
+      "zh": "AI配音太机械怎么办",
+      "en": "Improve Robotic AI Voiceover Delivery"
+    },
+    "description": {
+      "zh": "检查朗读稿、拆段、语气控制与后期变速。附准确台词的局部修订示例，区分支持的指令和仍需实际试听的效果。",
+      "en": "Check script flow, segmentation, supported delivery controls, and later speed changes. Includes a bounded example with exact text preserved."
+    },
+    "answer": {
+      "zh": "先听清机械感来自哪里：每句同样停、文字像字幕碎片、语气不合内容，还是后期变速压掉了起伏。把一个连续思路写完整，再使用当前路径真正支持的控制。参数写进请求不等于声音已经自然，生成后既听原段，也听放入画面的版本。",
+      "en": "Identify repeated pauses, subtitle-like fragments, unsuitable tone, or later speed changes flattening delivery. Preserve a continuous thought and use controls actually supported by the selected path. A request instruction does not establish natural output; listen to the original segment and its placed version."
+    },
+    "sections": [
+      {
+        "id": "diagnose",
+        "heading": {
+          "zh": "把“机械”描述成能复查的听感",
+          "en": "Describe What Sounds Mechanical"
+        },
+        "body": {
+          "zh": "“不够自然”太宽。先记问题段与实际现象：句句同一种重音；每个字幕短句都停一次；疑问句像宣读通知；原分段有起伏，放入成片后却明显急促。不同现象对应不同修法。\n\n信息型讲解本来可以平稳，克制旁白也不必处处惊讶。不要把“全程高兴、每句上扬”当成自然标准。只有文字资料时，本页能提供朗读方案和待听点，不能替你判断声音已经机械或已经改善。",
+          "en": "“Unnatural” is broad. Note an actual repeated emphasis, a pause after every subtitle fragment, a question delivered like an announcement, or a lively source that becomes rushed after placement. Different observations need different repairs.\n\nInformational delivery may be steady; restrained narration need not sound surprised everywhere. Constant excitement or rising endings are not universal naturalness standards. With text alone, propose delivery and listening points rather than diagnosing or proving acoustic improvement."
+        }
+      },
+      {
+        "id": "thought",
+        "heading": {
+          "zh": "先让旁白形成一个连续思路",
+          "en": "Keep a Continuous Spoken Thought"
+        },
+        "body": {
+          "zh": "源剪辑方法先决定旁白负责补背景、连接因果、解释已有证据还是转场，再写能一口气听懂的思路。字幕可以拆多个阅读片段，不应反过来把一段朗读拆成句句独立合成。\n\n“她来了。她拿起纸。她看了。她停了。”若只是复述已看清的动作，可以删；若这段确需连接信息，把动作与变化连起来。不能为了更有起伏，凭空加“她知道凶手就是他”。朗读稿的准确事实仍来自素材和已定上下文。\n\n必要的安静、原对白与反应也保留，不靠旁白占满所有空档。",
+          "en": "The source editing method assigns narration a job—context, causal link, evidence-based interpretation, or transition—before writing a comprehensible thought. Subtitles may use several reading cues without turning the spoken passage into separately synthesized fragments.\n\n“She arrives. She lifts the paper. She looks. She stops” may redundantly describe visible actions. If a connection is needed, relate the action to the change without inventing “she knows he is the killer” for excitement. Facts remain grounded in footage and selected context.\n\nRetain useful quiet, dialogue, and reaction rather than filling every gap."
+        }
+      },
+      {
+        "id": "controls",
+        "heading": {
+          "zh": "先核当前路径吃不吃这个语气设置",
+          "en": "Check Whether This Path Consumes the Control"
+        },
+        "body": {
+          "zh": "所引固定版本中，MiMo路径把可选`emotion`放进自然语言user指令，准确朗读文本另放assistant内容。`emotion`不是要求它把“疑虑”二字读出来，也不是声线验证。\n\n同版Fish路径调用没有传入这项`emotion`；不能因输入JSON写了就声称已生效。自托管IndexTTS固定请求只含voice与text，非空emotion/style或非默认rate/pitch会显式失败。遇到不支持的路径，应删除不适用设置或另行选择制作办法，不伪装它会自动理解。\n\n这些只是本仓库适配器行为，不概括供应商所有产品，也不保证支持路径会按指令演出。",
+          "en": "In the cited fixed version, the MiMo path places optional `emotion` in a natural-language user instruction and exact spoken words separately in assistant content. The emotion is not spoken text or voice verification.\n\nThat version’s Fish call does not pass this emotion field, so its presence in JSON does not establish use. Self-hosted IndexTTS sends voice and text only; nonempty emotion/style or nondefault rate/pitch fail explicitly. Remove unsupported settings or select another implementation rather than pretending they are understood.\n\nThese are adapter behaviors, not all provider products or a guarantee of instructed performance."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "原创改法：定稿不变，试一项克制语气",
+          "en": "Original Plan: Keep the Words, Try Restrained Delivery"
+        },
+        "body": {
+          "zh": "纸面方案采用名单展开与折回两个画面，末行阅读这一过渡由已定故事事实支持，本版选择旁白连接。准确台词已选为“她把名单展开，看到最后一行，又折了回去。”没有素材证明她已经认出凶手或知道名单真假，不能加这些心理。窗口暂定六秒，实际可放时长待合成后核对。\n\n本例整体旁白方向是克制说明，既有style与此兼容；若全局风格仍要求夸张喊叫，先协调相关设置，不能声称只改了一个字段。先不用“她。把名单。展开。”的字幕式拆法。若采用所引MiMo路径，可以给同一段以下输入；这里没有生成音频：\n\n- **start**: `0`\n- **end**: `6`\n- **narration**: 她把名单展开，看到最后一行，又折了回去。\n- **emotion**: 克制、疑虑；前半说明动作，末句收住，不夸张喊叫\n\n这里的疑虑是作者选择的旁白表达，不新增人物确定性知识。英文解释对应“she unfolds the list, sees its last line, and folds it back”；示范实际朗读稿仍是上面的中文。\n\n**比较顺序**：保持台词、声线与窗口，比较原候选和这一项语气调整后的候选；实际听重音、停顿、字词完整和末句接续。若当前路径不支持emotion，这份输入不能照搬。若声音超窗，也不能为了完成比较而截断尾字；先按保全文本策略说明稿件、窗口或明确速度预算的选择。参数设计不是试听结论。",
+          "en": "A paper plan uses two pictures, unfolding and folding back. The intervening look at the last line is an established story fact connected by narration in this version. Exact chosen text: “她把名单展开，看到最后一行，又折了回去。” There is no evidence she identified a killer or established authenticity. The provisional six-second window needs an actual fit check.\n\nThe chosen overall narration is restrained explanation, with an existing compatible style. Resolve a global style demanding exaggerated shouting before claiming a one-field change. Avoid subtitle-like chopped utterances. For the cited MiMo path, this is one candidate input without generated audio:\n\n- **start**: `0`\n- **end**: `6`\n- **narration**: 她把名单展开，看到最后一行，又折了回去。\n- **emotion**: 克制、疑虑；前半说明动作，末句收住，不夸张喊叫\n\nThe line means she unfolds the list, sees its last line, and folds it back. The delivery asks for restraint and doubt, explanatory first half and a held-back ending without shouting. That is a chosen narrator tone, not new character certainty; the actual example remains Chinese.\n\n**Comparison:** retain text, voice, and window while changing this delivery instruction alone. Listen for emphasis, pauses, complete words, and the ending. Do not copy this input to a path rejecting emotion. Overflow needs a text-preserving decision about script, window, or explicit tempo budget rather than missing final words. A setting is not a listening result."
+        }
+      },
+      {
+        "id": "listen",
+        "heading": {
+          "zh": "原段好听，还要核放进画面以后怎样",
+          "en": "Check Delivery After Placement Too"
+        },
+        "body": {
+          "zh": "重新生成后，先听原段，再正常速度播放成片。原段顺、成片急，就查后续放置与变速；原段每句都断，就查文本和分段。检查“看起来像改善”是否以漏字、换含义或盖住重要原声为代价。\n\n记录准确候选、参数、文本、时间窗与观察。自然度和感染力是试听意见，不写成机器通过；一条短句适合的语气也不能自动成为整片所有段落的模板。\n\n需要修句间等待时看[停顿排查](/video-recap/fix-long-pauses-in-ai-voiceover)，不要把所有呼吸和安静都删到同样短。",
+          "en": "Listen to the new source segment, then play the export at normal speed. Smooth source but rushed export calls for placement and tempo inspection; fragmented source calls for text and segmentation review. Check whether apparent improvement loses words, changes meaning, or covers essential original sound.\n\nRecord candidate, settings, text, window, and observations. Naturalness and impact remain listening judgments, not machine passes; a good instruction for one line is not every line’s template.\n\nUse the [pause guide](/video-recap/fix-long-pauses-in-ai-voiceover) for excessive waits without removing all breathing and quiet."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "每句都加情绪标签会更自然吗？",
+          "en": "Will emotion tags on every sentence sound more natural?"
+        },
+        "a": {
+          "zh": "不一定。先按这段内容的声音任务选表达，再看当前路径是否支持，最后实际听。平稳说明与克制停顿本身也可以合适。",
+          "en": "Not necessarily. Choose delivery for the passage’s role, check support, then listen. Steady explanation and restrained pauses may be appropriate."
+        }
+      },
+      {
+        "q": {
+          "zh": "字幕拆短，配音也必须一样拆吗？",
+          "en": "Must voiceover use the same short splits as subtitles?"
+        },
+        "a": {
+          "zh": "不用。字幕服务阅读，朗读保留连续思路；拆成多个cue不表示要逐cue重新合成。",
+          "en": "No. Subtitles serve reading while speech preserves thought. Multiple cues do not require separate synthesis for each."
+        }
+      }
+    ],
+    "skill": {
+      "name": "video-voiceover",
+      "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/SKILL.md",
+      "text": {
+        "zh": "用 $video-voiceover 检查这段旁白的朗读设计。附定稿、窗口、分段和实际听感，保留事实与准确台词；只指出连贯表达、当前provider支持的语气控制和后期速度问题。若调整文本或窗口需作者选择，单列出来。不声称写了emotion就自然，也不向不支持的路径塞控制字段。",
+        "en": "Use $video-voiceover to review delivery with chosen text, window, segmentation, and actual observations. Preserve facts and exact lines; identify flow, supported controls, and downstream speed issues. Separate proposed text or window changes for author choice. Do not equate an emotion field with naturalness or send unsupported controls."
+      }
+    },
+    "related": [
+      "/video-recap/recap-script",
+      "/video-recap/fix-long-pauses-in-ai-voiceover",
+      "/video-recap/fit-voiceover-to-a-picture-edit"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "连续朗读思路与声音分工",
+          "en": "Continuous spoken thought and audio roles"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-script/references/creative-editing-playbook.md"
+      },
+      {
+        "label": {
+          "zh": "语气指令、分段与路径差异",
+          "en": "Delivery instructions, segments, and path differences"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/scripts/voiceover.py"
+      },
+      {
+        "label": {
+          "zh": "不支持控制时显式拒绝",
+          "en": "Explicit rejection of unsupported controls"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/references/index-tts.md"
+      }
+    ]
+  },
+  {
+    "owner": "novel-to-game",
+    "slug": "design-rewards-in-a-story-game",
+    "topic": "interactive-games",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "叙事游戏奖励怎么设计：拿到之后，要改变下一步",
+      "en": "How to Design Rewards in a Story Game"
+    },
+    "seo_title": {
+      "zh": "叙事游戏奖励怎么设计",
+      "en": "Design Rewards in a Story Game"
+    },
+    "description": {
+      "zh": "从玩家后续动作设计奖励，核实际发放、使用与回读。附海报摊两种升级的完整路径，不以数值上涨代替能力变化。",
+      "en": "Design rewards around later actions and check award, use, and callbacks. Includes two poster-stall upgrade paths beyond a larger number."
+    },
+    "answer": {
+      "zh": "先说明奖励让玩家多做什么、改变哪项判断或得到什么已承诺回报，再决定是资源、工具、机会还是人物回应。领取要有真实条件，后续规则要读取它；只弹“加四”却没有用途，就还没解释奖励。装饰性纪念物也能成立，前提是作品承诺本来包含收藏或情感回报。",
+      "en": "Specify the action, decision, or promised payoff the reward enables before choosing currency, tools, access, or a character response. Award under actual conditions and read it in later rules. “Plus four” without a use is incomplete. Decorative souvenirs may work when collecting or emotional payoff belongs in the promise."
+    },
+    "sections": [
+      {
+        "id": "purpose",
+        "heading": {
+          "zh": "奖励要回应玩家在这部作品里争取的东西",
+          "en": "Reward What This Game Asks the Player to Pursue"
+        },
+        "body": {
+          "zh": "升级、关系认可、新线索、进入新区域或一件纪念物，都可能有价值。先回到玩家承诺：经营故事希望扩展接单方式，调查故事希望得到可继续验证的线索，人物故事可能希望某人真正记住选择。\n\n源世界方法要求增长带来新的参与手段、空间、人物行为或组合；数值方法要求资源有产出、投入和读取点。收藏本身若是本作体验，就按收藏兑现，不强迫每件纪念物都成为通行钥匙。\n\n别为了显得奖励丰富，新增金币、声望和熟练度三套读数，却没有后续用途。",
+          "en": "Upgrades, recognition, clues, places, or souvenirs may matter. Return to the player promise: a management story may expand ordering, investigation supplies verifiable leads, and a character story may need a remembered choice.\n\nThe world method connects growth to new participation, space, behavior, or combinations; numeric design requires sources, uses, and readers. If collecting itself is the experience, fulfill it without turning every memento into a gate key.\n\nExtra currency, reputation, and skill bars without later uses do not enrich a reward."
+        }
+      },
+      {
+        "id": "award-and-use",
+        "heading": {
+          "zh": "把完成、发放和使用分成实际发生的步骤",
+          "en": "Separate Completion, Award, and Use"
+        },
+        "body": {
+          "zh": "| 步骤 | 要确认 |\n|---|---|\n| 完成条件 | 哪项行动实际成立，是否还有未完成义务 |\n| 发放 | 谁付出或规则提交什么，领取是否已结清 |\n| 当前所得 | 玩家此刻的余额、工具、权限或关系事实 |\n| 后续使用 | 哪项动作读取所得，代价是什么 |\n| 可见回响 | 玩家如何知道收益影响了这一局面 |\n\n“接了订单”不等于送达，“客户答应付款”不等于余额增加，“买了工具”也不等于下一订单完成。一次奖励按本作规则只结一次；如果可重复挣取，应有新的有效任务或已声明的重复规则，不靠旧按钮反复发钱。",
+          "en": "| Step | Check |\n|---|---|\n| Completion | Actual action and any remaining obligation. |\n| Award | What is paid or committed and whether settled. |\n| Holding | Current balance, tool, access, or relationship fact. |\n| Use | Reading action and its cost. |\n| Callback | How its effect becomes visible. |\n\nAccepting an order is not delivery; a payment promise is not balance; buying a tool is not completing the next order. Settle once under chosen rules. Repeat earnings need a new valid job or declared repeat rule rather than an old button generating money."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "原创路径：四枚币，选接散客还是一次带两张海报",
+          "en": "Original Paths: Four Coins and Two Different Upgrades"
+        },
+        "body": {
+          "zh": "原创海报摊游戏中，玩家已有一个背筒，每次可带一张成品。当前海报订单约定验收后支付四枚币，余额初始为零。玩家送到，客户看过并接收成品，实际付四枚币，订单标为已结清。材料库存足以完成下述后续订单，不另藏未说明门槛。\n\n摊边一位顾客想先看完整样图再下单；另有两张已接送货单的成品留在摊上。商店提供两个各价四枚币的升级，下面是**相同领奖状态的两条备选路径**，不能在四币余额下同时购买。\n\n| 选择 | 实际使用与结果 |\n|---|---|\n| 展示架 | 付款四币、余额归零；架子实际装到摊边并摆出已制作样图。顾客看完选了一款，确认新订单。新增接单成立，制作与交付仍待玩家继续 |\n| 双格背筒 | 付款四币、余额归零；新背筒允许同时放两张成品。玩家把两张已接订单海报装入，选择先去近处客户。位置、两件持物与两份未交订单保持分别记录；未抵达验收前不自动结算 |\n\n对照领奖前：没有展示架时这位顾客尚未看样下单；旧背筒一次只能带一张。奖励让玩家决定怎样扩展行动，而不是只把金币数字改成四。\n\n再走两个反例：客户还没实际付款，余额仍为零，两升级均买不了；订单已结清后再按原“收款”，不再加四，反馈显示已结清。这里没有构建、经济演算或试玩结论，四币是本例规则，不是通用奖励价格。",
+          "en": "Original poster-stall design: one carrying tube holds one finished poster. The current order pays four coins after acceptance; balance starts at zero. The player delivers, the customer inspects and accepts, pays four, and the order is marked settled. Existing materials cover the described next jobs without an undisclosed gate.\n\nOne customer wants to see full samples before ordering; two accepted delivery orders have finished posters at the stall. Each upgrade costs four. These are **alternative paths from the same rewarded state**, not two purchases from a four-coin balance.\n\n| Choice | Use and result |\n|---|---|\n| Display stand | Pay four, balance zero; install the stand and display existing samples. The customer selects a design and confirms a new order. Making and delivering it remain player work. |\n| Two-slot tube | Pay four, balance zero; place both finished posters inside and choose the nearer customer first. Position, possession, and unfulfilled orders remain separate; no settlement before arrival and acceptance. |\n\nBefore the reward, that customer had not seen samples and ordered, while the old tube carried one poster. The reward lets the player choose an expansion rather than merely displaying four coins.\n\nTwo counterexamples: before actual payment, zero balance prevents either purchase; pressing the old collection action after settlement awards nothing and reports the settled order. No build, economy simulation, or playtest is claimed. Four coins is this example’s rule, not a universal reward price."
+        }
+      },
+      {
+        "id": "variety",
+        "heading": {
+          "zh": "比较实际局面，不把一种升级写成永远最好",
+          "en": "Compare Situations Without Declaring One Best Upgrade"
+        },
+        "body": {
+          "zh": "两张待送海报让双格背筒立即有用途，正在等样图的顾客让展示架有用途。若本场没有送货需求，背筒可以留待以后；若没有会读取展示的顾客，展示架需要另有已定价值，不能仅靠一句“生意更好了”。\n\n不同升级也可以服务不同偏好，未必必须在每轮数值上互相压倒。若作者宣称有策略取舍，再按[策略比较方法](/novel-to-game/balance-game-numbers-by-comparing-strategies)找真实局面与可观察差异，不能由上表证明长期平衡。\n\n奖励后留时间给玩家使用收益。刚买背筒就立即收走，或每次赚币都加一个同额新债，会削弱已承诺回报；是否安排新压力仍按本作节奏。",
+          "en": "Two waiting deliveries make capacity useful; a customer awaiting samples makes display useful. Without deliveries, the tube may wait. Without a reader for display, the stand needs another chosen value beyond “business improved.”\n\nUpgrades may serve preferences without one numerically dominating each turn. For a promised strategic tradeoff, use [strategy comparison](/novel-to-game/balance-game-numbers-by-comparing-strategies) with real situations and observable differences. This table cannot establish long-term balance.\n\nLet players use the reward. Immediately confiscating a new tool or adding an equal debt after every payment may undermine the payoff; new pressure follows the game’s pacing."
+        }
+      },
+      {
+        "id": "check",
+        "heading": {
+          "zh": "从一次获得走到一次可见使用",
+          "en": "Walk From One Award to One Visible Use"
+        },
+        "body": {
+          "zh": "核对正常领奖、条件未满足与已经结清后三条路径。再沿一种升级走到真正回读所得的场面，记录哪些变化已完成、哪些订单仍未完成。\n\n若奖励只在文案里出现，余额或可用行动不变，要补规则提交；若钱已花掉，购买选项仍可反复成功，要核当前资源与领取历史。旧存档载入也须按本作回滚约定，不让已结奖励偷偷重发。\n\n纸面能查一致性；玩家是否觉得值得、反馈是否看得见以及长期经济是否合适，仍要在实际候选里观察。",
+          "en": "Check valid award, unmet conditions, and already-settled paths, then follow one upgrade to its visible use. Record completed changes and outstanding orders.\n\nA reward existing only in prose needs committed effects. A repeat successful purchase after spending needs current-resource and history checks. Loading follows declared rollback rather than silently duplicating settled rewards.\n\nPaper checks establish consistency, while value, readable feedback, and long-term economy need actual candidate observation."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "奖励一定要给钱或数值吗？",
+          "en": "Must rewards be money or stats?"
+        },
+        "a": {
+          "zh": "不用。新的可问对象、可用行动、角色回应或纪念物都可以；说明它怎样回应本作承诺，并在后续适当读取。",
+          "en": "No. A new contact, action, response, or souvenir may work. Explain how it fulfills the promise and read it where appropriate."
+        }
+      },
+      {
+        "q": {
+          "zh": "升级后必须马上获胜吗？",
+          "en": "Must an upgrade immediately win the next task?"
+        },
+        "a": {
+          "zh": "不必。它可以扩展能力和选择，实际任务仍需玩家完成。别把“可以买”“已买”和“已用成”写成同一结果。",
+          "en": "No. It can expand capability while leaving execution to the player. Available, bought, and successfully used are different outcomes."
+        }
+      }
+    ],
+    "skill": {
+      "name": "game-world-design",
+      "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/SKILL.md",
+      "text": {
+        "zh": "用 $game-world-design 检查这项奖励。附玩家目标、完成条件、领取时点、后续用途与代表路径；写获得前后可做什么和实际反馈。只用已定资源与规则，不加无人读取的新属性。区分纸面设计和实际测试，奖励不自动完成下一任务。",
+        "en": "Use $game-world-design to review the reward with goal, completion condition, award point, use, and representative path. Show actions before and after with feedback. Use established resources and rules, avoid unread stats, and distinguish design from playtesting. A reward does not automatically finish the next task."
+      }
+    },
+    "related": [
+      "/novel-to-game/resource-cost-design",
+      "/novel-to-game/design-items-for-a-story-game",
+      "/novel-to-game/gameplay-core-loop"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "奖励后的决策与世界回应",
+          "en": "Later decisions and world responses"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/world-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "资源产出、投入与读取",
+          "en": "Resource sources, uses, and readers"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/numeric-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "实际提交与持续状态",
+          "en": "Committed effects and persistent state"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
+      }
+    ]
+  },
+  {
+    "owner": "novel-to-game",
+    "slug": "design-exploration-routes-in-a-story-game",
+    "topic": "interactive-games",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "叙事游戏探索路线怎么设计：地标、选择与返回后的变化",
+      "en": "How to Design Exploration Routes in a Story Game"
+    },
+    "seo_title": {
+      "zh": "叙事游戏探索路线怎么设计",
+      "en": "Design Exploration Routes in a Story Game"
+    },
+    "description": {
+      "zh": "围绕当前目标设计可读地标、主路与可选路线。附找回画册的完整路径，检查条件、返回状态和旁路承诺。",
+      "en": "Connect readable landmarks, a main route, and optional routes to the current goal. Includes a sketchbook-return path with a remembered favor."
+    },
+    "answer": {
+      "zh": "先让玩家知道要去哪里、凭什么辨路，再给路线不同的条件、信息或后续义务。每处停留提供一次有用观察或行动，返回时读取已经带回的物件与承诺。地图大小不是探索质量；文本路线只能核因果，真实导航、镜头和操作仍需合适原型验证。",
+      "en": "Establish destination and readable directions, then differentiate route conditions, information, or obligations. Give useful observations or actions at stops and read returned objects and promises. Map size is not exploration quality; textual paths check causality while navigation, camera, and controls need a suitable prototype."
+    },
+    "sections": [
+      {
+        "id": "goal",
+        "heading": {
+          "zh": "先给当前方向，不先画一片大地图",
+          "en": "Start With a Destination the Player Can Read"
+        },
+        "body": {
+          "zh": "“探索整座岛”还不是本段目标。找回自己的画册、去听一位证人的说法、把物件送到某处，都能给这次移动一个方向。地图上的地点要提供判断、行动、气氛或必要空间，不用无作用房间增加面积。\n\n源世界方法要求说明可见范围、主路线、可选风险路线与地标。风险可以是承诺、时间或条件，不必都是受伤。第一屏先让主要方向可见；详细旧地图或日志可以主动打开，别把当前行动埋在百科里。",
+          "en": "“Explore the whole island” is not this segment’s goal. Recovering a sketchbook, hearing a witness, or delivering an object gives movement direction. Places contribute decisions, actions, atmosphere, or necessary space rather than unused area.\n\nThe source world method identifies visible extent, main route, optional risk route, and landmarks. Risk can mean a promise, time, or a condition rather than injury. Show the main direction first, with detailed maps or logs available on demand."
+        }
+      },
+      {
+        "id": "landmarks",
+        "heading": {
+          "zh": "地标要帮玩家辨路，也要按当前事实工作",
+          "en": "Make Landmarks Useful and Consistent"
+        },
+        "body": {
+          "zh": "| 路线项 | 要回答 |\n|---|---|\n| 地标 | 玩家实际能看到什么，怎样区分岔路 |\n| 连接 | 从哪处能到哪处，是否允许双向返回 |\n| 条件 | 门、空间、工具或人物是否允许当前行动 |\n| 停留作用 | 这里提供什么依据、互动或体验 |\n| 返回回读 | 已取物件、开过的路与承诺怎样留下痕迹 |\n\n地图图标已亮不等于玩家自动抵达；看见画册不等于已经拿到。改变路线连接会影响旧路径，需要一起核后续，而不是只改一张示意图。",
+          "en": "| Route element | Question |\n|---|---|\n| Landmark | What is visible and distinguishes a fork? |\n| Link | Which locations connect, and can the player return? |\n| Condition | Does space, tool, gate, or person allow the action? |\n| Stop | What evidence, interaction, or experience is available? |\n| Return | How do retrieved objects, opened routes, and promises persist? |\n\nA lit icon is not arrival; seeing an object is not possession. Link changes affect later paths and need more than an updated diagram."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "原创路径：主路拿画册，捷径多一个回程约定",
+          "en": "Original Paths: A Sketchbook and an Optional Return Favor"
+        },
+        "body": {
+          "zh": "纸面文字冒险中，玩家在旅舍院口，自己的画册昨日留在画室，画室管理员已经告知可以去领取。地图连接是：院口↔公共花园↔画室，另有院口↔画室的私门捷径。院口红木牌写“经花园到画室”，花园石井旁有蓝门方向标；画室门为蓝色。这些地标与目标公开可读。\n\n私门由庄婶管理，她在院口。玩家可以询问捷径，庄婶说：“可以走。回来经过花园，帮我把空竹篮带回来吧。”玩家明确答应后，她打开私门。花园园丁的公开告示已经写明“庄婶空篮可帮带回院口”，篮在告示旁，园丁在场允许带回；不要求玩家凭秘密关系擅取。\n\n| 路径 | 行动与返回结果 |\n|---|---|\n| 公共主路 | 院口按木牌进花园，看石井方向标到蓝门；向管理员领取自己的画册，实际交到手上。原路经花园返回院口；玩家持画册，没有本路径未答应的带篮义务 |\n| 获准捷径 | 先询问并接受带篮约定，走已开的私门到画室；管理员实际交画册。返程走画室→花园，读告示并取得空篮，再到院口递给庄婶。画册仍归玩家，篮实际归还，约定结清 |\n\n两条从同一初态分别走读，不把一条路径的许可或承诺塞进另一条。也可以走公路再自愿帮忙，本表不是强迫只能二选一。捷径缩短去程，却多一个返程义务；玩家先听到条件再答应。\n\n如果走捷径拿了画册直接回院口而未取篮，画册仍已拿到，庄婶会问约定的篮；“拿到画册”不自动结清旁路承诺。全部是未构建纸面设计，不证明导航提示、空间操作或路线取舍已经好玩。",
+          "en": "Paper text-adventure: the player starts at an inn courtyard; their sketchbook was left at the studio yesterday, and its keeper has said they may collect it. Links are courtyard↔public garden↔studio, plus a private courtyard↔studio shortcut. A red courtyard sign directs the garden route; a stone well has a blue-door direction marker, matching the studio door. These landmarks and the destination are public.\n\nZhuang manages the private gate and is present. Asked for access, she says, “You may go. Bring my empty basket back from the garden on your return?” The player explicitly agrees, and she opens the gate. A gardener’s public notice permits returning Zhuang’s basket to the courtyard; it is beside the notice, with the gardener present allowing its return. No secret relationship authorizes taking it.\n\n| Path | Action and returned state |\n|---|---|\n| Public route | Follow the sign to the garden, then the well marker to the blue door. The keeper actually hands over the player’s sketchbook. Return through the garden; possession is retained without an unmade basket promise. |\n| Approved shortcut | Ask, accept the favor, and use the opened gate. Receive the sketchbook. Return studio→garden, read the notice, collect the empty basket, and hand it to Zhuang in the courtyard. The sketchbook remains with the player; the basket is returned and the promise settled. |\n\nWalk these independently from the same initial state, without borrowing permission or promises from another branch. The public route can also include voluntary help; this table does not mandate only two choices. The shortcut shortens the outward route but adds a known return obligation.\n\nReturning directly without collecting the basket retains the acquired sketchbook while Zhuang asks about the promise. Main-object retrieval does not settle it automatically. This unbuilt paper design proves no navigation clarity, spatial control, or enjoyable route tradeoff."
+        }
+      },
+      {
+        "id": "return",
+        "heading": {
+          "zh": "返回不重放第一次介绍，也不抹掉已发生的事",
+          "en": "Return Without Repeating or Resetting History"
+        },
+        "body": {
+          "zh": "再次经过花园时，可以突出还要带回的篮，而不完整重播园丁首次介绍。画册已经在手，画室旧领取按钮不能再生成一本；未经许可先试私门时，则保持原位置并让庄婶说明需要先问。\n\n如果玩家走公共主路，庄婶不能说“你答应的篮呢”，因为这条代表路径没有这个承诺。返回反馈读取实际路径，可以给相同院口不同的回应，但不必为每条路复制一整张地图。\n\n重开、回滚或载入是否恢复路线与物件，另按本作[存档约定](/novel-to-game/design-story-game-saves)处理，不由返回场景自行清空。",
+          "en": "On a return to the garden, emphasize the outstanding basket rather than repeating the entire introduction. An already-held sketchbook cannot be duplicated by an old collection action. Trying the private gate before permission retains position and prompts asking Zhuang.\n\nThe representative public path has no basket promise, so Zhuang cannot demand it as promised. Read actual history for different courtyard replies without copying a complete map per route.\n\nRestart, rollback, and loading follow [save rules](/novel-to-game/design-story-game-saves); returning does not itself reset objects or routes."
+        }
+      },
+      {
+        "id": "check",
+        "heading": {
+          "zh": "先走通，再验证玩家怎样看懂路线",
+          "en": "Check Causality, Then Observe Navigation"
+        },
+        "body": {
+          "zh": "纸面先走主路、捷径和一次缺条件路径，记录位置、持物、地图连接、知情与承诺；重点找未抵达就交物、未许可就穿门、返回后复制物件或串入另一支义务。\n\n若风险只是这些因果，文本沙箱可以先查。若承诺玩家真实走位、视线、相机或地形操作，就要合适引擎原型；能读懂文字不证明转角看得见地标。实际候选里观察玩家最先看哪处、走错后能否找回、拿到目标后是否知道返回，而不由设计表宣称导航完成。\n\n路线太长时，先删没有新作用的停留或重复，不靠自动传送跳过本作本来要玩家判断的部分。",
+          "en": "On paper, walk main, shortcut, and a missing-condition path, recording position, possession, links, knowledge, and promises. Look for transfers before arrival, gates crossed without permission, duplicated objects, or another branch’s obligations.\n\nA text sandbox can check causal risk. Movement, sightlines, camera, or terrain need an appropriate engine prototype; readable prose does not prove a landmark is visible around a corner. Observe attention, recovery from wrong turns, and return direction in the candidate rather than declaring navigation complete from a table.\n\nFor excessive length, remove purposeless stops or repeats instead of teleporting over the promised judgments."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "探索地图越大越好吗？",
+          "en": "Is a larger exploration map better?"
+        },
+        "a": {
+          "zh": "不一定。先看地点是否提供判断、行动、体验或必要连接。没有作用的距离和房间会增加制作与记忆成本。",
+          "en": "Not necessarily. Check decisions, actions, experience, or necessary links. Unused distance and rooms add production and memory cost."
+        }
+      },
+      {
+        "q": {
+          "zh": "返回同一个地点，要写完全不同的新场景吗？",
+          "en": "Does returning require a completely new scene?"
+        },
+        "a": {
+          "zh": "不用。保留空间，读取这次实际持物、知情和承诺，突出变化即可。无关首次介绍可缩短，未发生的分支不能带进来。",
+          "en": "No. Retain space, read actual possession, knowledge, and promises, and emphasize changes. Compress irrelevant introductions without importing an unchosen branch."
+        }
+      }
+    ],
+    "skill": {
+      "name": "game-world-design",
+      "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/SKILL.md",
+      "text": {
+        "zh": "用 $game-world-design 检查这段探索路线。附地图连接、当前目标、已见地标、主路和可选路的条件；从初态走到取物与返回，核实际位置、持物、已知信息和承诺。只补会影响判断的地点，不加空房间凑规模，也不把文字走读当导航体验验证。",
+        "en": "Use $game-world-design to review exploration with map links, goal, seen landmarks, and route conditions. Walk from the initial state through retrieval and return, checking position, possession, knowledge, and promises. Add only decision-relevant places and do not equate text walkthroughs with navigation validation."
+      }
+    },
+    "related": [
+      "/novel-to-game/game-level-pacing",
+      "/novel-to-game/tell-a-game-story-through-the-environment",
+      "/novel-to-game/design-items-for-a-story-game"
+    ],
+    "sources": [
+      {
+        "label": {
+          "zh": "空间路线、地标与局面变化",
+          "en": "Routes, landmarks, and changing situations"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/world-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "知识、物件与返回回响",
+          "en": "Knowledge, objects, and callbacks"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/narrative-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "位置前置与实际归属",
+          "en": "Location conditions and actual possession"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-build/references/playable-model-contract.md"
+      }
+    ]
   }
 ]
