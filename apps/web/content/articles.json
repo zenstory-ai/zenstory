@@ -26804,6 +26804,17 @@
         }
       },
       {
+        "id": "complete-example",
+        "heading": {
+          "zh": "完整八秒例子：保住钥匙句和空柜后的回应",
+          "en": "Complete Eight-Second Example: Keep the Line and the Reply"
+        },
+        "body": {
+          "zh": "沿用上面的原创钥匙与空柜场景，把“该听见什么”写到完整声音交接。这里的秒数是为例子选定的纸面窗口，实际素材中的发声、动作与停顿仍要重测；若完整句放不下，应改窗口，不剪掉尾字。\n\n| 成片时间 | 声音与配乐决定 |\n|---|---|\n| 0—1.5秒 | 保留甲的完整原对白“钥匙在你手里。”；不加独立BGM，旁白不抢这句 |\n| 1.5—3秒 | 乙把钥匙交给甲，甲接过并开柜，柜内为空；保留开柜声与停顿，不用音乐重音假装发现了另一个人 |\n| 3—6秒 | 旁白“他们来找昨晚的值班记录。”；只补本例已确定的来意，压低非关键背景，仍不加BGM |\n| 6—8秒 | 甲转头看乙，乙回应“我没拿走。”；留完整发声与犹豫，不提前用旁白解释是谁拿走记录 |\n\n本候选选择八秒都不额外铺音乐，先恢复人声与停顿的作用，并不要求所有视频无配乐。乙说没拿走是他的否认，不等于已证明清白；空柜也不能证明记录从未放过这里。\n\n在普通入口中，取消独立配乐只会移除额外BGM。如果原素材本身已经把音乐和台词混在同一轨，改 `BGM_VOLUME` 不会单独压低那段素材里的音乐；先找可用干净声音或另行修订实际底轨，不写成原台词已经救回。\n\n若走原片区间重建底轨的方法，要为这些窗口选出对应真实区间。`source_score.py` 只生成原声、音乐及合成底轨和回执；没有另外加音乐的决定可用严格 `score:{\"kind\":\"none\"}`，之后再按完整声音路径加入已采用旁白。它不是一运行就得到最终视频，也不自动替你决定对白。\n\n以后要局部压低音乐，引用版本的 raw 配乐是一个连续播放头与全轨增益、首尾渐变，不能假称它按上表自动逐段duck。可以另行完成所需音乐轨、核实际长度与声音，再作为 frozen 轨采用；已经做好的增益和渐变不能重复加工。最后回听完整八秒，本文没有实际生成或听审这段候选。",
+          "en": "Continue the original key-and-empty-cabinet scene through a complete sound handoff. These times are selected paper windows; remeasure actual speech, action, and pauses in the source. If a whole sentence cannot fit, revise the window rather than removing its ending.\n\n| Time | Sound and music |\n|---|---|\n| 0–1.5 seconds | A’s complete source line, “You have the key.” No additional BGM or competing narration. |\n| 1.5–3 seconds | B hands A the key; A receives it and opens an empty cabinet. Keep its action sound and pause; do not use a musical hit to invent another person’s discovery. |\n| 3–6 seconds | Narration: “They came for last night’s duty records.” Supply the established purpose, lower nonessential background, and add no BGM. |\n| 6–8 seconds | A looks at B. B replies, “I didn’t take them.” Retain the complete voice and hesitation, without narration announcing who removed the records. |\n\nThis candidate omits additional music for all eight seconds to recover speech and pauses. It does not require music-free videos. B’s reply is a denial, not proof of innocence; the empty cabinet does not establish that records were never placed there.\n\nIn the ordinary entry, removing BGM removes only the separately added score. If source music and speech are already mixed in one track, BGM_VOLUME cannot independently lower that embedded music. Find usable clean sound or explicitly revise the actual bed; do not claim the line was recovered merely by changing a setting.\n\nFor source-interval reconstruction, select corresponding real source ranges. `source_score.py` produces source, score, combined beds, and a receipt rather than a final video. The strict `score:{\"kind\":\"none\"}` form expresses no additional score; the full-sound path can then add selected narration. The producer does not choose dialogue for you.\n\nIf later music needs local lowering, the cited raw-score path has one continuous playhead, a whole-score gain, and entry/exit fades. It does not automatically duck each table row. Produce and review the required music track separately, then adopt it as a frozen stem with the required actual length and sound. Do not apply its completed gains and fades again. Finally listen through all eight seconds; this candidate was neither rendered nor heard for the article."
+        }
+      },
+      {
         "id": "settings",
         "heading": {
           "zh": "先确认使用哪条合成路径",
@@ -26867,6 +26878,20 @@
           "en": "Post-mix loudness and line review"
         },
         "url": "https://github.com/zenstory-ai/drama-skills/blob/0afa4ea253cf4d1aa2d134863b15a592547cfb54/skills/short-drama-edit/references/sound-and-subtitles.md"
+      },
+      {
+        "label": {
+          "zh": "原片区间、无额外配乐与冻结音乐轨",
+          "en": "Source intervals, no additional score, and frozen stems"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/source-score.md"
+      },
+      {
+        "label": {
+          "zh": "底轨与已采用旁白的完整声音路径",
+          "en": "Full-sound path for beds and selected narration"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/explicit-audio-mix.md"
       }
     ],
     "related": [
@@ -28807,7 +28832,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "叙事游戏界面信息太多怎么办：先留当前选择",
       "en": "How to Simplify a Story Game Interface"
@@ -28843,8 +28868,19 @@
           "en": "Give each information layer a reason to appear"
         },
         "body": {
-          "zh": "| 层次 | 本例内容 | 出现方式 |\n|---|---|---|\n| 常驻 | 今晚、码头位置、即将关库 | 简短时空与截止提示 |\n| 当前场景 | 药品保冷条件、仓库余量、加班请求 | 紧贴相应安排展示 |\n| 按需档案 | 旧班表、历史货运、完整关系记录 | 可识别的档案入口 |\n\n若旧承诺会让工人拒绝加班，把相关一句回到当前请求附近，不要求玩家从长历史里自行猜到条件。完整记录仍可查看，但本次决定的依据应就地出现。\n\n选项只写独有动作与代价，不在每张卡重复全港规则。选中安排之后再给人物回应和实际结果，避免一开始把所有远期分支结局摊开。",
-          "en": "| Layer | Example | Presentation |\n|---|---|---|\n| Persistent | Tonight, current dock, warehouse closing | Brief orientation and deadline |\n| Current scene | Cold-storage needs, capacity, overtime request | Beside the relevant arrangement |\n| On demand | Old rotas, voyage history, relationship records | A recognizable archive entry |\n\nIf an earlier promise makes workers refuse overtime, bring its relevant sentence beside the request. Do not expect players to infer the condition from a long history. Keep the full record accessible too.\n\nOptions state their distinct action and cost without repeating global rules. Show responses and actual results after selection rather than displaying every distant ending in advance."
+          "zh": "| 层次 | 本例内容与出现方式 |\n|---|---|\n| 常驻 | **内容：** 今晚、码头位置、即将关库 **方式：** 简短时空与截止提示 |\n| 当前场景 | **内容：** 药品保冷条件、仓库余量、加班请求 **方式：** 紧贴相应安排展示 |\n| 按需档案 | **内容：** 旧班表、历史货运、完整关系记录 **方式：** 可识别的档案入口 |\n\n若旧承诺会让工人拒绝加班，把相关一句回到当前请求附近，不要求玩家从长历史里自行猜到条件。完整记录仍可查看，但本次决定的依据应就地出现。\n\n选项只写独有动作与代价，不在每张卡重复全港规则。选中安排之后再给人物回应和实际结果，避免一开始把所有远期分支结局摊开。",
+          "en": "| Layer | Content and presentation |\n|---|---|\n| Persistent | **Content:** Tonight, current dock, warehouse closing **Presentation:** Brief orientation and deadline |\n| Current scene | **Content:** Cold-storage needs, capacity, overtime request **Presentation:** Beside the relevant arrangement |\n| On demand | **Content:** Old rotas, voyage history, relationship records **Presentation:** A recognizable archive entry |\n\nIf an earlier promise makes workers refuse overtime, bring its relevant sentence beside the request. Do not expect players to infer the condition from a long history. Keep the full record accessible too.\n\nOptions state their distinct action and cost without repeating global rules. Show responses and actual results after selection rather than displaying every distant ending in advance."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "完整纸面例子：请求加班，不等于药品已入库",
+          "en": "Complete Paper Example: An Overtime Request Is Not Unloading"
+        },
+        "body": {
+          "zh": "把上面港口场景落实到一条完整路径。以下是原创设计稿，界面文案展示安排与实际结果的区别；不是已完成的交互界面或目标视口测试。\n\n本例20:40，冷库21:00关闭，空位恰可容纳两箱药品；船上也恰为两箱，尚未卸货。船长已提供船上冷藏可保持到明早09:00的依据，冷库明早08:00重新开放，所以等明早是可行的安排，不是把药品丢在露天。现班已结束，今晚卸货需工人自愿加班；本例查看说明与发送请求不推进时钟；工人20:40同意后，已确定的卸货任务耗时十分钟。仅有同意还不算执行。\n\n| 节拍 | 玩家看到、输入与实际变化 |\n|---|---|\n| 进入 | 主屏只留“晚到货船：今晚卸还是明早？”与20:40/关库提示。必要依据紧邻选择：两箱药品、冷库两箱空位、船上保冷至09:00、明早08:00开库、现班结束 |\n| 选择 | “请求今晚加班卸两箱”和“安排明早卸货，今晚留在船上冷藏”。前者先请求、需要同意；后者药品今晚仍在船上 |\n| 提交请求 | 显示“请求已送给当班工人，等待回应”。箱子仍在船上、冷库仍空两位；不亮“卸货完成” |\n| 正常回应 | 在没有冲突承诺的这条历史中，工人说“我们愿意做，先把两箱药品卸完。”实际记录同意，进入执行；同意不等于已移动箱子 |\n| 完成执行 | 到20:50，两箱实际搬入冷库，冷库空位从2变0、船上这批从2变0；显示“药品两箱已入库”再给下一步。不是全部船货都已卸完 |\n| 另一历史的拒绝 | 若玩家此前承诺“今晚不再安排加班”，已核对的那句在请求附近出现。工人拒绝，箱子仍船上、空位仍2；可改选明早，保冷依据仍可复看 |\n\n拒绝路径上选明早，只提交明早的安排；今晚不生成“已入库”，到明早实际卸货时才再核当时空间、人员与保冷情况。正常路径已入库也不能推断工人此后愿意无限加班。\n\n完整班表与旧承诺原文放档案，但影响当前请求的那一句必须可见。人物确实同意或拒绝时再呈现回话，不把所有历史下的答案提前列成剧透。返回选择保留已查证的容量与保冷依据；必要说明用文字和数量补足图标、颜色，不能靠一个绿色圆点表示药品已经安全入库。\n\n真正接入游戏后，在目标视口实际阅读与点击，确认当前正文、选择和必要反馈能一起看清。纸面只说明信息应怎样组织，不能保证这些句子已经在手机上同屏。",
+          "en": "Make the harbor case a complete original design route. The example distinguishes requests from actual results; it is not a working interface or a completed target-viewport test.\n\nIt is 20:40; cold storage closes at 21:00 and has room for exactly two medicine crates. Both crates remain aboard. The captain supplied evidence that onboard refrigeration lasts until 09:00 tomorrow; cold storage reopens at 08:00. This makes waiting viable rather than leaving medicine outdoors. The current shift has ended, so unloading needs voluntary overtime. Reading and sending the request do not advance this example’s clock. The crew agrees at 20:40 on the normal route, after which the defined job takes ten minutes; consent alone does not perform it.\n\n| Beat | Input and outcome |\n|---|---|\n| Enter | Focus on “Late cargo: unload tonight or tomorrow?” with 20:40 and closing time. Beside the choice: two crates, two cold-storage spaces, onboard refrigeration until 09:00, morning opening at 08:00, and the ended shift. |\n| Choose | “Request overtime to unload both tonight” or “Schedule morning unloading; keep them refrigerated aboard tonight.” The first needs consent; the second leaves the crates aboard. |\n| Send request | “Request sent to the current crew; awaiting response.” Both crates remain aboard and both warehouse spaces remain free. No completed-unloading signal. |\n| Normal response | In a history without a conflicting promise, the crew says, “We agree. We’ll unload these two medicine crates first.” Record consent and begin execution; consent has not moved cargo. |\n| Actual completion | At 20:50 both crates enter cold storage. Free spaces change from 2 to 0; this medicine aboard changes from 2 to 0. Show “Two medicine crates stored” and the next action, without declaring all ship cargo unloaded. |\n| Refusal in another history | A verified earlier promise of no more overtime tonight appears beside the request. The crew refuses; crates remain aboard and free spaces remain 2. Morning scheduling is available, with refrigeration evidence accessible again. |\n\nSelecting morning on the refusal route commits a schedule, not tonight’s storage. Recheck then-current space, staff, and refrigeration when morning unloading actually happens. Completed unloading on the normal route does not establish consent to unlimited future overtime.\n\nKeep the full rota and promise in the archive, but display the sentence affecting this request where it matters. Present the actual crew reply after its response rather than listing every history’s answer beforehand. Returning to the choice retains checked capacity and refrigeration evidence. Text and quantities support icons and colors; a green dot alone cannot establish safe storage.\n\nAfter implementation, read and operate the screen in its target viewport and check that current prose, choices, and essential feedback remain readable together. A paper organization does not establish that these sentences fit on a phone."
         }
       },
       {
@@ -44315,6 +44351,276 @@
       "/oh-story/fight-scenes",
       "/oh-story/write-a-chase-scene",
       "/oh-story/create-emotional-stakes-in-fiction"
+    ]
+  },
+  {
+    "owner": "video-recap",
+    "slug": "fix-video-audio-playing-on-one-side",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "视频声音只有一边怎么办：先查声道，再改混音",
+      "en": "How to Fix Video Audio Playing on One Side"
+    },
+    "seo_title": {
+      "zh": "视频声音只有一边怎么办",
+      "en": "Fix One-Sided Video Audio"
+    },
+    "description": {
+      "zh": "区分播放设备、空声道和有意的立体声。附旁白左右声道的完整纸面修订例子，说明响度归一化与复制音轨的边界。",
+      "en": "Separate playback faults, an empty channel, and intentional stereo. Includes a narration repair example and the limits of normalization and stream copy."
+    },
+    "answer": {
+      "zh": "先比较当前成片、所选旁白文件与播放设备，确认声音偏一边发生在哪一层。若本意是居中的单人旁白，却把它存成左边有声、右边为空的立体声，选好有效通道后另存新的正确输入，再按实际路径重新混音。整体加音量不会填补空声道；有意的空间声与左右不同内容不要一起强制合成单声道。",
+      "en": "Compare the current export, selected voice file, and playback device to locate the imbalance. If a centered voice was stored as stereo with only its left channel active, select the valid channel and save a corrected input before remixing. Global gain cannot fill an empty channel. Preserve intentional spatial sound and genuinely different left and right content."
+    },
+    "topic": "video-recaps",
+    "sections": [
+      {
+        "id": "locate",
+        "heading": {
+          "zh": "先确认是一边没声，还是两边内容不同",
+          "en": "Locate the Imbalance Before Changing Channels"
+        },
+        "body": {
+          "zh": "耳机只响一边，不足以证明视频坏了。先用熟悉的正常音频检查同一设备，再比较当前成片在另一副耳机或播放设备上的表现。若别的音频也偏一边，先处理播放端；若只有当前文件异常，继续查素材与混音。设备问题和文件问题也可能同时存在。\n\n在音频编辑器中分开看、听左右通道，比较所选旁白输入与成片中的同一完整句。是所有声音都偏一边，还是只有旁白？一边完全为空、一边明显更轻、或者左右说了不同内容，需要不同处理。轨道名写着“stereo”只说明容器有两个通道，不证明两边都有人声。\n\n本页依据真实混音的声道转换、输入采用与响度处理方法整理排查，不是 skill 自动诊断设备或自动补右声道的功能。导出完全无声与所有分段响度不一致已有独立教程，不重复展开。",
+          "en": "One silent earcup alone does not establish a damaged video. Test familiar working audio on the same device, then compare the current export on another headset or playback device. If other audio also leans to one side, investigate playback first. If this file alone differs, inspect its inputs and mix. Both faults can coexist.\n\nIn an audio editor, inspect and listen to left and right separately. Compare the selected narration input with the same complete sentence in the export. Does every sound lean, or just the voice? Silence, a quieter channel, and different content call for different decisions. A stereo label establishes two channels, not speech in both.\n\nThis editorial diagnostic draws on actual channel conversion, input selection, and loudness methods. The skill does not automatically diagnose hardware or fill the right channel. Separate guides cover an entirely silent export and uneven segment loudness."
+        }
+      },
+      {
+        "id": "channel-choice",
+        "heading": {
+          "zh": "决定保留立体声，还是修正单人旁白输入",
+          "en": "Choose Between Preserving Stereo and Correcting a Voice Input"
+        },
+        "body": {
+          "zh": "| 实际输入 | 对应决定 |\n|---|---|\n| 真正单声道的人声 | 在引用的完整声音混音路径中，左右各按 `1/sqrt(2)` 放置；这是该路径的规则，不是全平台标准 |\n| 左右都有效的立体声 | 该路径分别保留两个通道；有意的人物方位、音乐和环境声可继续不同 |\n| 左有完整旁白，右为空，本意是居中 | 先确认左边确为全部所需台词；用音频编辑器另存由左通道得到的新单声道人声，再采用新输入 |\n| 两边是不同说话者或不同有效内容 | 先决定叙事职责，不能选一边就把另一人删掉 |\n| 超过两个通道 | 引用的完整声音 v1 路径会拒绝，不支持随意提交自定义映射；先另行完成明确转换 |\n\n不要只把文件标记改成“mono”，也别把空右通道复制回左边。新文件应有实际正确的样本与完整台词。若左右都有人声但相互抵消，简单相加还可能让内容变弱；先比较通道，不把所有立体声一键合并。\n\n声音本来有空间位置时，居中不一定更好。修正的是本例意外偏置的旁白，不是把整片音乐、环境和人物方位全部抹平。",
+          "en": "| Actual input | Decision |\n|---|---|\n| Genuine mono voice | The cited full-sound path places it left and right at `1/sqrt(2)` each. This is a path rule, not a universal standard. |\n| Valid stereo | That path preserves both channels independently, including intentional spatial voices, music, and ambience. |\n| Complete voice on the left, empty right; centered delivery intended | Confirm all required speech is on the left, save a new mono voice from that channel in an audio editor, and select the new input. |\n| Different speakers or useful content on each side | Assign their story roles before choosing a channel; do not discard another speaker. |\n| More than two channels | The cited full-sound v1 path rejects this input and offers no arbitrary mapping. Complete an explicit conversion separately first. |\n\nChanging a label to mono does not create correct samples. Copying the empty channel cannot recover speech. A new file must retain complete required words. If two voice channels cancel each other when combined, a simple sum can weaken the result; inspect them before combining.\n\nSpatial placement can be intentional. The repair addresses an accidentally displaced narrator, without flattening every musical, environmental, and character position in the film."
+        }
+      },
+      {
+        "id": "complete-example",
+        "heading": {
+          "zh": "完整纸面例子：左边有旁白，右边只有音乐",
+          "en": "Complete Paper Example: Voice on the Left, Music on Both Sides"
+        },
+        "body": {
+          "zh": "原创八秒解说，旁白是“她推开空柜，才发现昨晚的记录不在这里。”创作决定是让这个讲述者居中；音乐左右都有效。为说明运算，只取一句中同一瞬间的示意样本，下面不是录音测量：\n\n| 步骤 | 输入、处理与结果 |\n|---|---|\n| 原始旁白 | 立体声示意 `(左0.20，右0.00)`；右边为空，不是故意把讲述者放左边 |\n| 直接走完整声音路径 | 立体声分别保留。若底轨该瞬间为 `(0.02，0.02)`、段增益和主增益均为1，示意混音为 `(0.22，0.02)`；右边的音乐不等于右边有旁白 |\n| 给原旁白整体加倍 | 得到 `(0.40，0.00)`，右边仍为空。RMS归一化也是整体乘增益，不会复制有效通道 |\n| 修正输入 | 音频编辑器读取完整有效左通道，另存新的单声道文件，完整句长与台词保留；不覆盖原文件 |\n| 重新采用并混音 | 新单声道示意0.20，经该路径分给两边各约0.1414；加上原底轨，示意两边各约0.1614 |\n| 实际验收 | 重新生成候选，分别听左、右及合起来的完整句，再看正常速度的八秒；这些示意值不能证明输出无失真或可辨 |\n\n仅改文件不够：把新的实际旁白路径交给当前分段元数据，并重新核对采用的文字、顺序和速度策略。确认当前混音真正消费新文件；旧快照、旧路径和旧成片不能冒充修订结果。完整声音路径不会自动裁尾或把放不下的句子缩短。\n\n本例纸面上证明的是空声道不会由整体增益填补，以及选定单声道如何按该路径分到两边。我们没有生成或听过本例声音，因此不声称已经修好耳机表现、音色或最终响度。",
+          "en": "An original eight-second recap says, “She opened the empty cabinet and found last night’s records missing.” The author wants a centered narrator and valid stereo music. The values below represent one illustrative instant, not measured recording samples.\n\n| Step | Input, operation, and result |\n|---|---|\n| Original voice | Illustrative stereo `(left 0.20, right 0.00)`: an empty right channel, not intentional placement. |\n| Direct full-sound mix | Stereo remains independent. With a bed of `(0.02, 0.02)` and segment and master gains of 1, the illustrative sum is `(0.22, 0.02)`. Music on the right does not establish voice there. |\n| Double the voice globally | `(0.40, 0.00)` still has an empty right channel. RMS normalization also applies a global gain rather than copying a valid channel. |\n| Correct the input | Save the complete useful left channel as a new mono file in an audio editor. Preserve the sentence and duration; keep the original. |\n| Select it and remix | Mono 0.20 becomes about 0.1414 on each side through this path. Adding the unchanged bed gives about 0.1614 per side. |\n| Actual review | Render a new candidate; listen to each side and both together through the complete sentence, then watch the eight seconds at normal speed. Illustrative values establish neither intelligibility nor freedom from distortion. |\n\nUpdate the actual voice path in the segment metadata and recheck selected words, order, and tempo policy. Confirm that the current mix consumed the new file. Old snapshots, paths, and exports are not a repaired result. The full-sound path will not cut a sentence ending or automatically shrink a placement that does not fit.\n\nThe paper example establishes only that gain cannot fill silence and how selected mono is distributed on this path. No example audio was produced or heard; headset behavior, voice quality, and final loudness remain unverified."
+        }
+      },
+      {
+        "id": "path-review",
+        "heading": {
+          "zh": "按实际路径复核，不把复制当修复",
+          "en": "Review the Actual Path and Output"
+        },
+        "body": {
+          "zh": "引用的显式完整声音路径将配音直接解码为48 kHz双声道浮点，单声道按等功率放置，立体声保留左右。它不走旧入口的44.1 kHz单声道转换，也不自动归一化或做声道补救。旧旁白入口有不同转换行为，不能拿旧入口听感或记录解释新路径。\n\n`adopted-packet-copy` 保留已选AAC包，不改声道、不调增益。输入已经偏一边，复制后仍可能偏一边；要改声音就应另做明确的新声音版本，不能同时声称音轨原样冻结。复制检查通过也不是人声居中或已听审。\n\n最终检查当前实际文件：完整旁白在两边是否如计划可听，必需对白与空间声是否保留，声音是否新增削波、相位问题或句尾缺失。看绑定记录可核输入与转换，看波形可查信号，听完整句才能评价听感；一个层面的通过不能替另一个层面下结论。",
+          "en": "The cited explicit full-sound path decodes voice directly to 48 kHz stereo float. It distributes mono at equal power and preserves stereo channels. It bypasses the older 44.1 kHz mono conversion and provides no automatic normalization or channel repair. The legacy narration entry behaves differently; its records or listening results do not describe the explicit path.\n\n`adopted-packet-copy` preserves selected AAC packets without channel changes or gain. A one-sided input can remain one-sided. Repair requires an explicitly changed sound version, rather than a simultaneous claim of frozen audio. A successful copy check does not establish centered speech or listening review.\n\nReview the current actual output: the whole voice sentence on both sides as intended, preserved dialogue and spatial cues, and no added clipping, cancellation, or missing ending. Binding records establish consumed inputs and conversion; waveforms reveal signal; complete listening evaluates the experience. These evidence layers do not substitute for each other."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "响度归一化可以把右声道补回来吗？",
+          "en": "Can loudness normalization restore the right channel?"
+        },
+        "a": {
+          "zh": "不能。引用的TTS方法整体乘同一个增益，右边为零仍是零。先修订实际输入通道，再检查重新混音后的结果。",
+          "en": "No. The cited TTS method multiplies samples by one gain; zero remains zero. Correct the actual input channels, then review the new mix."
+        }
+      },
+      {
+        "q": {
+          "zh": "立体声都应该改成单声道吗？",
+          "en": "Should every stereo file become mono?"
+        },
+        "a": {
+          "zh": "不用。有意的空间位置与左右不同的有效内容应按创作决定保留。本例只修正本应居中的单人旁白，不删除其他说话者、音乐或环境信息。",
+          "en": "No. Preserve intentional positioning and distinct useful content. This example corrects a narrator intended at center without discarding other speakers, music, or ambience."
+        }
+      }
+    ],
+    "skill": {
+      "name": "video-assemble",
+      "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/SKILL.md",
+      "text": {
+        "zh": "请用 video-assemble 排查这段旁白偏一边的问题。先核当前输入和实际声道，区分设备与文件；保留原文件，给出新输入的修订决定，再按实际混音路径生成短候选并回听两边。",
+        "en": "Use video-assemble to investigate this one-sided narration. Check the selected input and actual channels, distinguish the device from the file, preserve the original, and select a corrected input before rendering and listening to a short candidate."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "完整声音混音的真实声道矩阵",
+          "en": "Actual full-sound channel matrices"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/explicit-audio-mix.md"
+      },
+      {
+        "label": {
+          "zh": "采用输入、实际快照与路径区别",
+          "en": "Selected inputs, snapshots, and path differences"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/narration-adoption.md"
+      },
+      {
+        "label": {
+          "zh": "TTS整体RMS增益不补空声道",
+          "en": "Global TTS RMS gain does not fill silence"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/scripts/tts_audio.py"
+      },
+      {
+        "label": {
+          "zh": "处理混音与原样复制的边界",
+          "en": "Processed mixes and stream-copy boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-assemble/references/audio-modes.md"
+      }
+    ],
+    "related": [
+      "/video-recap/fix-a-video-export-with-no-sound",
+      "/video-recap/fix-uneven-ai-voiceover-volume",
+      "/video-recap/background-music-overpowers-voice"
+    ]
+  },
+  {
+    "owner": "novel-to-game",
+    "slug": "design-crafting-in-a-story-game",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "叙事游戏合成制作怎么设计：材料、工具与成品",
+      "en": "How to Design Crafting in a Story Game"
+    },
+    "seo_title": {
+      "zh": "叙事游戏合成制作怎么设计",
+      "en": "Design Crafting in a Story Game"
+    },
+    "description": {
+      "zh": "把制作写成条件、材料消耗、工具保留与成品归属。附完整道具间路线和失败演算，不用一句成功对白代替真实结算。",
+      "en": "Define crafting conditions, consumed materials, retained tools, and output ownership. Includes a complete prop-room route and failure cases."
+    },
+    "answer": {
+      "zh": "先确定制作如何支持玩家当前目标，再写一条完整规则：需要哪些材料和工具，确认后扣什么、得到什么、失败或取消时保留什么。用有限库存从初态演算到成品，让界面说明缺项与实际结果。预览不扣料，已提交的一次制作不重复发货，制作完成也不自动等于成品已经交付或任务完成。",
+      "en": "Choose how crafting serves the player’s current goal. Specify required materials and tools, the cost and output on confirmation, and what stays unchanged on failure or cancellation. Trace finite stocks from the initial state to the owned product. Preview costs nothing; one committed craft grants once. Crafting does not automatically deliver the item or complete its quest."
+    },
+    "topic": "interactive-games",
+    "sections": [
+      {
+        "id": "purpose",
+        "heading": {
+          "zh": "先问制作改变了什么选择",
+          "en": "Start With the Choice Crafting Changes"
+        },
+        "body": {
+          "zh": "小说改编的游戏不必默认加入采矿、配方树或装备升级。只有玩家需要通过制作改变当前可做的事，这个系统才有理由占用内容与操作。若点“制作”只是让既定剧情继续，删掉它也没有损失，直接给道具可能更合适。\n\n原创叙事游戏《小剧场开演前》中，玩家是道具管理员。演出负责人先明确需要两块舞台指示牌，玩家要从道具间现有物料做出来，再亲手交给负责人。这个小例子只讲已经选定的制作动作，不证明整个游戏的玩法深度。\n\n本页组合真实方法中的动作前置、资源预算、状态变化、反馈与重开；配方和剧场是原创教学例子，不是仓库内置的制作模板。不要为了“有系统”再补天气、技能树或自动刷新商店。",
+          "en": "A novel adaptation needs no default mining loop, recipe tree, or equipment upgrade. Crafting earns its scope when it changes what the player can do. If pressing Craft merely continues predetermined prose and removing it changes nothing, directly supplying the item may work better.\n\nIn the original story game Before the Little Theater Opens, the player manages props. The production lead has requested two stage signs. The player must make them from available supplies, then hand them over. This small example explains an already selected crafting action, not the depth of the whole game.\n\nThe editorial method combines action preconditions, resource budgets, state changes, feedback, and restart. The theater and recipe are teaching inventions, not a built-in crafting template. Do not add weather, skill trees, or automatically restocked shops just to make more systems."
+        }
+      },
+      {
+        "id": "recipe",
+        "heading": {
+          "zh": "把材料、工具和产物分开写",
+          "en": "Separate Materials, Tools, and the Product"
+        },
+        "body": {
+          "zh": "| 规则项 | 本例确定的含义 |\n|---|---|\n| 当前目标 | 做出两块舞台指示牌；制作与交付是两个动作 |\n| 玩家初态 | 木板2块、颜料1份、刷子1把、成品0块；人在可用道具台旁 |\n| 有限来源 | 货架另有备用颜料1份；拿取后转入玩家库存，货架不自动补货 |\n| 单次配方 | 木板1块＋颜料1份，产出指示牌1块 |\n| 工具条件 | 必须持有刷子；本例刷子可重复用，制作不扣刷子 |\n| 预览与取消 | 显示当前持有、所需数量与产物；未确认时不改库存 |\n| 确认制作 | 重新核材料、刷子与地点；全部满足才一起扣料、加成品，并显示实际余量 |\n| 失败 | 指出实际缺项，库存不变；不能先扣木板，再发现没颜料 |\n| 成品归属 | 先由玩家持有；负责人尚未收到，舞台也尚未安装 |\n\n“颜料一份”是本例为一块指示牌选定的消耗单位，不能拿来当现实涂料用量或通用平衡比。实现若换数量，设计也要同步裁决。工具会磨损、制作会失败或耗时，只有项目已经决定时才补对应规则，不凭常见游戏印象偷偷加上。",
+          "en": "| Rule | This example |\n|---|---|\n| Current goal | Make two stage signs. Crafting and delivery are separate actions. |\n| Player start | Two boards, one paint portion, one brush, no signs; at an available prop bench. |\n| Finite source | One spare paint portion on a shelf. Taking it transfers ownership; the shelf does not refill automatically. |\n| One recipe | One board plus one paint portion produces one sign. |\n| Tool | The player must hold the brush. This example keeps it reusable and does not consume it. |\n| Preview and cancel | Show holdings, requirements, and output without changing inventory before confirmation. |\n| Confirm | Recheck materials, brush, and location. Only when all qualify, debit materials and grant the product together; show actual remaining stock. |\n| Failure | Explain the missing requirement with unchanged inventory. Never debit a board before discovering missing paint. |\n| Ownership | The player holds the product; the lead has not received it, and it has not been installed. |\n\nOne paint portion is the selected game unit for this recipe, not a real painting estimate or universal balance ratio. If implemented quantities change, resolve the design too. Durability, chance, and crafting time need explicit project decisions rather than assumptions borrowed from other games."
+        }
+      },
+      {
+        "id": "complete-path",
+        "heading": {
+          "zh": "完整纸面路线：第一块成功，第二块缺料",
+          "en": "Complete Paper Route: One Success, Then a Shortage"
+        },
+        "body": {
+          "zh": "以下只按上述原创规则走读，不是已经运行的游戏。每个状态写“木板／颜料／刷子／成品”，货架颜料单列，避免把世界里的物料同时算到玩家手里。\n\n| 玩家行动 | 实际状态与可见反馈 |\n|---|---|\n| 查看配方 | 玩家 `2／1／1／0`，货架1。界面显示本次需木板1、颜料1，刷子保留；尚未扣料 |\n| 取消预览 | 仍为 `2／1／1／0`，货架1；不是先制作再把数量退回 |\n| 再开配方并确认第一次 | 条件满足，玩家变 `1／0／1／1`，货架1。显示“做好一块指示牌；还差一块。缺颜料1份” |\n| 尝试再做一块 | 缺颜料，拒绝制作；仍 `1／0／1／1`，货架1。没有第二块成品，也没有扣最后木板 |\n| 去货架拿备用颜料 | 玩家变 `1／1／1／1`，货架0。反馈说明这份已被取走，再点同一空架不发第二份 |\n| 回道具台确认第二次 | 条件满足，玩家变 `0／0／1／2`，货架0；现在两块都在玩家手中 |\n| 再尝试制作 | 缺木板与颜料，保持 `0／0／1／2`。这不是可无限刷牌的来源 |\n| 查看交付入口 | 可以把两块交给负责人；截至此处只是选项可用，还没有交付、安装或宣布开演 |\n\n这条路线让玩家看到“缺料—找已存在的来源—再制作”的连续操作。短缺提示可以指出已知货架；不能替玩家自动拿走颜料，也不能声称未查看的隐藏地点一定有库存。\n\n若玩家输入“我已经做了十块”，它只是叙述候选，不能覆盖库存与实际已提交结果。按钮重复回传同一次完成结果也不再发一块；玩家主动发起下一次制作则重新查条件。本例的制作即时完成，因此不需要另造长任务队列。",
+          "en": "This is a paper walkthrough of the original rules, not a running game. Player stock uses `boards / paint / brush / signs`; shelf paint stays separate so world supplies are not simultaneously counted as owned.\n\n| Action | State and feedback |\n|---|---|\n| Preview | Player `2 / 1 / 1 / 0`, shelf 1. Show one board and one paint required, with the brush retained; no debit. |\n| Cancel | Still `2 / 1 / 1 / 0`, shelf 1. No craft and refund transaction is needed. |\n| Reopen and confirm the first craft | Requirements hold. Player becomes `1 / 0 / 1 / 1`, shelf 1. “One sign made; one more needed. Missing one paint portion.” |\n| Attempt another | Missing paint: reject with `1 / 0 / 1 / 1`, shelf 1 unchanged. No second sign or board debit. |\n| Take the spare paint | Player `1 / 1 / 1 / 1`, shelf 0. The portion was transferred; clicking the empty shelf grants no second portion. |\n| Return and confirm the second craft | Requirements hold. Player `0 / 0 / 1 / 2`, shelf 0. Both signs are now held. |\n| Try again | Missing boards and paint; remain `0 / 0 / 1 / 2`. No infinite source of signs. |\n| Inspect delivery | Handing both to the lead is available. It has not yet happened; neither installation nor opening the show is complete. |\n\nThe route shows shortage, an existing source, and another craft. Feedback can point to the known shelf without taking paint for the player or declaring stock at an unseen hidden location.\n\nTyping “I made ten signs” proposes narration; it cannot override stock and committed results. Replaying the same completion response grants nothing again. A genuinely new craft action rechecks requirements. This example completes crafting immediately and needs no added long-task queue."
+        }
+      },
+      {
+        "id": "failure-restart",
+        "heading": {
+          "zh": "用有区别的失败和重开检查规则",
+          "en": "Check Distinct Failures and Restart"
+        },
+        "body": {
+          "zh": "除了上面的缺颜料，再从另一个明确初态查工具：玩家有木板2、颜料1、没有刷子、成品0，货架1。预览应说明“缺刷子”，确认不得扣料或发牌；若项目提供借工具路线，要写已有来源与借还规则，不让NPC突然送刷子补洞。\n\n在本例，重开这一段回到玩家 `2／1／1／0`、货架1和负责人尚未收到指示牌的状态。制作历史与领料结果同时复位，不能玩家材料回初态而空货架保留，或成品保留再多领材料。真实项目若承诺保留进度，应另选一致的重开位置。\n\n接入原型后，走一次成功、缺料、取消与重开，比较界面提示和实际库存。看到“成功”文字不能证明扣料与归属正确；库存演算正确也不能证明按钮好用、节奏有趣或经济平衡。若制作没有给当前选择增添价值，就回到范围判断，不靠加更多配方掩盖。",
+          "en": "Beyond missing paint, check a distinct tool state: two boards, one paint, no brush, no signs, shelf 1. Preview says the brush is missing; confirmation grants nothing and consumes nothing. A borrowing route needs an established source and return rules, rather than an NPC spontaneously supplying the missing tool.\n\nThis example restarts the segment at player `2 / 1 / 1 / 0`, shelf 1, and no delivered signs. Crafting history and material pickup reset consistently. Do not restore player materials while leaving the shelf empty, or retain products while restoring all supplies. A project promising retained progress needs a different coherent restart point.\n\nIn a prototype, exercise success, shortage, cancellation, and restart, comparing visible feedback with actual inventory. Success prose does not establish correct debits or ownership. Correct arithmetic does not establish usable controls, pacing, fun, or balance. If crafting adds no value to the current choice, reconsider scope instead of hiding the problem under more recipes."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "工具一定要和材料一起消耗吗？",
+          "en": "Must crafting consume its tools?"
+        },
+        "a": {
+          "zh": "不一定。本例刷子是可重复使用的前置条件，木板与颜料才扣除。是否损耗服从已选规则，界面要在确认前说明。",
+          "en": "No. This example retains a reusable brush while consuming boards and paint. Any wear follows explicit rules and must be clear before confirmation."
+        }
+      },
+      {
+        "q": {
+          "zh": "点取消需要把扣掉的材料加回去吗？",
+          "en": "Must cancellation refund materials?"
+        },
+        "a": {
+          "zh": "本例预览不扣料，取消只关闭预览，因此无需退款。确认后的已提交制作是另一个状态；若允许撤销，需明确成品和材料怎样一起恢复，不能只退料又留成品。",
+          "en": "Preview in this example changes no stock, so closing it needs no refund. A committed craft is different. If undo is supported, define how materials and products revert together rather than refunding inputs while keeping outputs."
+        }
+      }
+    ],
+    "skill": {
+      "name": "game-world-design",
+      "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/SKILL.md",
+      "text": {
+        "zh": "请用 game-world-design 设计本场制作动作。说明它为何服务已选核心玩法，写材料来源、工具条件、消耗、成品归属和下一步；演算一次成功、缺料、取消与重开，不另造无用制作系统。",
+        "en": "Use game-world-design to define this crafting action within the chosen core experience. Specify material sources, required tools, consumption, output ownership, and the next action. Trace success, shortage, cancellation, and restart without adding an unnecessary system."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "动作条件、消耗、状态与系统范围",
+          "en": "Action conditions, consumption, states, and system scope"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/world-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "有限来源与可达资源预算",
+          "en": "Finite sources and reachable resource budgets"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/numeric-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "成功、反例与重开路径检查",
+          "en": "Success, boundary, and restart paths"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-qa/references/test-design-method.md"
+      }
+    ],
+    "related": [
+      "/novel-to-game/design-items-for-a-story-game",
+      "/novel-to-game/resource-cost-design",
+      "/novel-to-game/game-failure-and-restart",
+      "/novel-to-game/design-rewards-in-a-story-game"
     ]
   }
 ]

@@ -366,6 +366,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Fix a Story Game That Cannot Progress](https://zenstory.ai/novel-to-game/fix-a-story-game-that-cannot-progress) — Check reachable actions from the current state, distinguishing unclear guidance, declared failure, and an unintended dead end. Includes a key-loan repair.
 - [How to Connect Combat Results to a Game Story](https://zenstory.ai/novel-to-game/connect-game-combat-results-to-the-story) — Make aftermath read actual results, choices, and delivered rewards. Includes two tournament paths without rewriting victory or making it solve every problem.
 - [How to Design Puzzles for a Story Game](https://zenstory.ai/novel-to-game/design-puzzles-for-a-story-game) — Fix the answer and rules, then connect visible clues to a real action. Includes a complete symbol-order puzzle, wrong answers, and an unread-clue route.
+- [How to Design Crafting in a Story Game](https://zenstory.ai/novel-to-game/design-crafting-in-a-story-game) — Define crafting conditions, consumed materials, retained tools, and output ownership. Includes a complete prop-room route and failure cases.
 
 ### Video scripts and editing / 视频解说与剪辑
 - [Video scripts and editing](https://zenstory.ai/guides/video-recaps) — Write narration from footage, edit a story, and finish audio and subtitles.
@@ -400,6 +401,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Improve Robotic AI Voiceover Delivery](https://zenstory.ai/video-recap/fix-robotic-ai-voiceover-delivery) — Check script flow, segmentation, supported delivery controls, and later speed changes. Includes a bounded example with exact text preserved.
 - [How to Fix Repeated Lines in AI Voiceover](https://zenstory.ai/video-recap/fix-repeated-lines-in-ai-voiceover) — Separate repeated text, reused segment audio, and duplicate placement. Includes a repair plan that restores the intended second line.
 - [How to Fix Pitch Changes After Speeding Audio](https://zenstory.ai/video-recap/fix-pitch-changes-after-speeding-audio) — Locate pitch changes in source audio, narration, or playback. Includes a ten-to-eight-second plan checking filters, cumulative speed, and listening.
+- [How to Fix Video Audio Playing on One Side](https://zenstory.ai/video-recap/fix-video-audio-playing-on-one-side) — Separate playback faults, an empty channel, and intentional stereo. Includes a narration repair example and the limits of normalization and stream copy.
 
 
 ## Workbench docs
