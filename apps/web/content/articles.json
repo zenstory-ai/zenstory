@@ -7842,8 +7842,8 @@
           "en": "What Should Carry an Emotional Beat First?"
         },
         "body": {
-          "zh": "按读者需要的信息选择落点：\n\n1. **上下文已经成立**：不再补反应，让事件本身落地。\n2. **情绪改变下一步**：写选择、对白、策略或代价。\n3. **场内物件能承载变化**：人物对物件的用法前后发生改变。\n4. **身体细节会造成后果**：失手、说不出话、动作被打断，身体反应才进入因果。\n5. **直接陈述最准确**：一句“我怕了”可以比一串微动作更有力量。\n\n顺序用于减少重复。一个节拍选中主要载体后，其余细节只保留新增信息。",
-          "en": "Choose the carrier according to what readers need:\n\n1. **Context already establishes the feeling:** Add no further reaction; let the event land.\n2. **The emotion changes the next step:** Show a choice, line of dialogue, strategy, or cost.\n3. **An object in the scene can carry the change:** The character uses the object differently before and after.\n4. **A physical response has a consequence:** A dropped object, loss of speech, or interrupted action enters the causal chain.\n5. **A direct statement is most accurate:** One line such as “I’m scared” can carry more force than a string of tiny gestures.\n\nThis order helps prevent repetition. Once a beat has a primary carrier, retain other details only when they add new information."
+          "zh": "按读者需要的信息选择落点：\n\n1. **上下文已经成立**：不再补反应，让事件本身落地。\n2. **情绪改变下一步**：写选择、对白、策略或代价。\n3. **场内物件能承载变化**：人物对物件的用法前后发生改变。\n4. **身体细节会造成后果**：失手、说不出话、动作被打断，身体反应才进入因果。\n5. **直接陈述最准确**：一句“我怕了”可以比一串微动作更有力量。\n\n顺序用于减少重复。一个节拍选中主要载体后，其余细节只保留新增信息。\n\n这是源方法提供的默认诊断顺序，不是每段都要逐项填完的表。选中载体后，仍按本书文风保留有用的情绪层次、身体体验或停顿；“没有新动作”本身不构成删掉理由。",
+          "en": "Choose the carrier according to what readers need:\n\n1. **Context already establishes the feeling:** Add no further reaction; let the event land.\n2. **The emotion changes the next step:** Show a choice, line of dialogue, strategy, or cost.\n3. **An object in the scene can carry the change:** The character uses the object differently before and after.\n4. **A physical response has a consequence:** A dropped object, loss of speech, or interrupted action enters the causal chain.\n5. **A direct statement is most accurate:** One line such as “I’m scared” can carry more force than a string of tiny gestures.\n\nThis order helps prevent repetition. Once a beat has a primary carrier, retain other details only when they add new information.\n\nThis is the source method’s default diagnostic order, not a form to complete for every paragraph. After choosing a carrier, preserve useful emotional layers, bodily experience, or pauses in the book’s voice. Absence of a new action alone is not a reason to cut."
         }
       },
       {
@@ -7875,8 +7875,8 @@
           "en": "When Can You Name the Emotion Directly?"
         },
         "body": {
-          "zh": "直接写适合三种情形：人物主动承认感受；叙述声音本来坦率；读者需要迅速确定情绪，避免把正常反应猜成别的含义。\n\n有效写法会继续推进关系：\n\n> “我嫉妒你，”她说，“所以这次我不替你签字。”\n\n情绪词与选择绑定。空泛写法只重复标签：“她很嫉妒，心里充满嫉妒与不甘。”删掉后一无所失。",
-          "en": "Direct emotion works well in three situations: the character deliberately admits the feeling, the narrative voice is naturally candid, or readers need quick precision so they do not mistake an ordinary response for something else.\n\nAn effective statement still advances the relationship:\n\n> “I’m jealous of you,” she said. “That’s why I won’t sign for you this time.”\n\nThe emotion word is tied to a choice. A vague version only repeats the label: “She was terribly jealous, filled with jealousy and resentment.” Removing that sentence loses nothing."
+          "zh": "直接写适合三种情形：人物主动承认感受；叙述声音本来坦率；读者需要迅速确定情绪，避免把正常反应猜成别的含义。\n\n需要推动关系时，可以把直写与选择相接：\n\n> “我嫉妒你，”她说，“所以这次我不替你签字。”\n\n情绪词与选择绑定。空泛写法只重复标签：“她很嫉妒，心里充满嫉妒与不甘。”删掉后一无所失。\n\n也可以只写“她很想他”，让叙述停留在已经铺好的分别上；是否有力取决于前后文和声音，不必为了让情绪词合格再补拒绝、损失或争执。",
+          "en": "Direct emotion works well in three situations: the character deliberately admits the feeling, the narrative voice is naturally candid, or readers need quick precision so they do not mistake an ordinary response for something else.\n\nWhen the passage needs to move a relationship, a direct statement can connect to a choice:\n\n> “I’m jealous of you,” she said. “That’s why I won’t sign for you this time.”\n\nThe emotion word is tied to a choice. A vague version only repeats the label: “She was terribly jealous, filled with jealousy and resentment.” Removing that sentence loses nothing.\n\nA passage can also say “She missed him” and linger over an established separation. Its force depends on context and voice; an emotion word need not earn its place through an added refusal, loss, or argument."
         }
       },
       {
@@ -7886,8 +7886,8 @@
           "en": "Common Failures in Emotional Writing and Their Fixes"
         },
         "body": {
-          "zh": "| 失败 | 修正 |\n|---|---|\n| 每种情绪都咬唇、攥拳、眼眶发热 | 找它改变的选择或话术 |\n| 动作、心理、比喻连续解释同一件事 | 每个节拍保留一个主要载体 |\n| 为“含蓄”拒绝直接情绪词 | 在需要准确时直说，并接上后果 |\n| 用天气替人物承担全部情绪 | 让环境影响行动或删掉 |\n| 写了很多感受，下一场完全不受影响 | 把情绪变成策略、关系或代价变化 |\n| 配角只负责衬托主角情绪 | 给配角自己的目标与回应 |",
-          "en": "| Failure | Fix |\n|---|---|\n| Every emotion produces bitten lips, clenched fists, or burning eyes | Find the choice or wording it changes |\n| Action, thought, and metaphor explain the same feeling in sequence | Keep one primary carrier for each beat |\n| Direct emotion words are rejected in the name of subtlety | State the feeling when precision matters, then attach a consequence |\n| Weather carries all the emotion for the character | Let the environment alter action, or remove it |\n| Many feelings are described, but the next scene remains unchanged | Turn the emotion into a change in strategy, relationship, or cost |\n| Supporting characters exist only to reflect the protagonist’s emotion | Give them goals and responses of their own |"
+          "zh": "| 失败 | 修正 |\n|---|---|\n| 每种情绪都咬唇、攥拳、眼眶发热 | 找它改变的选择或话术 |\n| 动作、心理、比喻连续解释同一件事 | 每个节拍保留一个主要载体 |\n| 为“含蓄”拒绝直接情绪词 | 需要准确时可以直说；有行动后果才接，不强配 |\n| 天气与人物感受只是重复标签 | 检查对照、气氛或体验的作用；没有作用才压缩 |\n| 写了很多感受，却看不出本场为何需要 | 先查体验、停顿或关系理解；需推动行动时再补因果 |\n| 配角只负责衬托主角情绪 | 给配角自己的目标与回应 |",
+          "en": "| Failure | Fix |\n|---|---|\n| Every emotion produces bitten lips, clenched fists, or burning eyes | Find the choice or wording it changes |\n| Action, thought, and metaphor explain the same feeling in sequence | Keep one primary carrier for each beat |\n| Direct emotion words are rejected in the name of subtlety | State the feeling when precision matters; attach an action consequence only when the scene has one |\n| Weather and feeling merely repeat labels | Check contrast, atmosphere, or experience before cutting a detail without function |\n| Many feelings appear with no clear purpose in this passage | Check experience, pause, or relationship understanding; add causal links where action depends on the feeling |\n| Supporting characters exist only to reflect the protagonist’s emotion | Give them goals and responses of their own |"
         }
       },
       {
@@ -7909,8 +7909,8 @@
           "en": "Can I still write physical reactions?"
         },
         "a": {
-          "zh": "可以。它带来新信息、动作失败或关系变化时最有效，例如手抖导致钥匙插不进锁。上下文已清楚且细节没有后果时，可以省略。",
-          "en": "Yes. They are strongest when they add information, cause an action to fail, or change a relationship—for example, a shaking hand prevents the key from entering the lock. If context is already clear and the detail has no consequence, omit it."
+          "zh": "可以。它可带来新信息、影响动作，也可让读者体会人物此刻的疼痛、疲惫或紧张。例如手抖使钥匙插不进锁，会直接影响行动；若细节只重复已经清楚的情绪，可以删。无需每处身体体验都再制造事故。",
+          "en": "Yes. A physical response may add information, affect action, or let readers experience this character’s pain, exhaustion, or tension. A shaking hand missing a lock directly affects action. Cut a detail that merely repeats an established feeling; bodily experience need not always cause another accident."
         }
       },
       {
@@ -13999,8 +13999,8 @@
           "en": "First Define the New Function the Flashback Brings Back"
         },
         "body": {
-          "zh": "先问回忆给当前阅读带来什么：信息、关系理解、情绪，还是一个决定。它可以让人物行动，也可以让读者重新理解一句沉默，不必每段都产生新动作。\n\n| 带回什么 | 可以怎样使用 |\n|---|---|\n| 被忽略的事实 | 重新检查怀疑对象或行动方向 |\n| 旧承诺 | 重新理解当前的请求或拒绝 |\n| 某人的一贯做法 | 形成预判，随后由现实验证 |\n| 关系中的误读 | 改变读者对疏远、亲近或遗憾的理解 |\n\n只有人物档案式背景时，可以概述；想让读者亲历过去的关系、情绪或转折时，可以展开。篇幅取决于本书重心，而不是“有回忆就必须推动新事件”。",
-          "en": "Ask what a flashback adds to the present reading: information, a relationship, emotion or a decision. It can prompt action or let readers understand a silence differently; every memory need not produce a new act.\n\n| What returns | Possible use |\n|---|---|\n| Overlooked fact | Recheck a suspect or direction |\n| Old promise | Reinterpret a present request or refusal |\n| Habitual conduct | Form an expectation for reality to test |\n| Misread relationship | Change readers’ understanding of distance, closeness or regret |\n\nDossier-like background may be summarized. Expand when readers should experience a past relationship, emotion or turn. Length follows the book’s focus, rather than a demand that every memory start a new event."
+          "zh": "先问回忆给当前阅读带来什么：信息、关系理解、情绪，还是一个决定。它可以让人物行动，也可以让读者重新理解一句沉默，不必每段都产生新动作。\n\n| 带回什么 | 可以怎样使用 |\n|---|---|\n| 被忽略的事实 | 重新检查怀疑对象或行动方向 |\n| 旧承诺 | 重新理解当前的请求或拒绝 |\n| 某人的一贯做法 | 形成预判，随后由现实验证 |\n| 关系中的误读 | 改变读者对疏远、亲近或遗憾的理解 |\n\n只有人物档案式背景时，可以概述；想让读者亲历过去的关系、情绪或转折时，可以展开。篇幅取决于本书重心，而不是“有回忆就必须推动新事件”。\n\n先分清两种写法：人物回忆只含他当时经历过、后来确实获知或如今能够想起的内容；叙述者切到过去的插叙则按本书视角展开。读者看见一段过去，不代表当前人物也因此知道其中全部事实。以下连接表是编辑用的检查方法，不是原生文件模板。",
+          "en": "Ask what a flashback adds to the present reading: information, a relationship, emotion or a decision. It can prompt action or let readers understand a silence differently; every memory need not produce a new act.\n\n| What returns | Possible use |\n|---|---|\n| Overlooked fact | Recheck a suspect or direction |\n| Old promise | Reinterpret a present request or refusal |\n| Habitual conduct | Form an expectation for reality to test |\n| Misread relationship | Change readers’ understanding of distance, closeness or regret |\n\nDossier-like background may be summarized. Expand when readers should experience a past relationship, emotion or turn. Length follows the book’s focus, rather than a demand that every memory start a new event.\n\nDistinguish a character’s memory from a narrator’s move into an earlier period. Memory stays within what the character experienced, actually learned later, or can now recall; a narrated past scene follows the book’s viewpoint. Readers seeing that scene does not give every present character its facts. The connection checklist is an editorial aid, not a native file template."
         }
       },
       {
@@ -14043,8 +14043,8 @@
           "en": "Why Flashbacks Commonly Interrupt the Plot"
         },
         "body": {
-          "zh": "| 失败 | 修正 |\n|---|---|\n| 角色一见物件就回顾完整人生 | 只取当前选择所需的一个差异 |\n| 回忆重复读者刚看过的事件 | 增加新的视角或压成一句承接 |\n| 过去很动人，回来后一切照旧 | 让它改变判断、话术、行动或代价 |\n| 回忆中继续套回忆 | 选一个明确时段，其他信息概述 |\n| 用大段前史解释世界规则 | 把当前规则放回行动后果，回忆只留人物经验 |\n| 回到现在没有定位 | 重现触发物、未完动作或正在等待的对方 |\n\n修订时把“进入前的当前问题”和“返回后的新动作”并排看。若没有新动作，再检查它是否改变理解、情绪或关系。几项都没有，才考虑删减或换位置。",
-          "en": "| Failure | Fix |\n|---|---|\n| A character sees an object and reviews an entire life | Take only the one difference needed for the present choice |\n| The flashback repeats an event readers just witnessed | Add a new viewpoint or compress it to one bridging sentence |\n| The past is moving, but nothing changes after the return | Let it change judgment, language, action, or cost |\n| One flashback nests another | Choose one clear period and summarize the rest |\n| A long backstory explains all the world’s rules | Put current rules back into the consequences of action; keep only lived experience in the memory |\n| The return to the present has no orientation | Reintroduce the trigger, unfinished action, or waiting person |\n\nDuring revision, place the present question before the flashback beside the new action after it. If there is no new action, check for a changed understanding, emotion or relationship. If none appears, consider trimming or moving it."
+          "zh": "| 失败 | 修正 |\n|---|---|\n| 角色一见物件就回顾完整人生 | 按本场需要的信息、关系或情绪取舍，不顺带复述无关前史 |\n| 回忆重复读者刚看过的事件 | 增加新的视角或压成一句承接 |\n| 回忆很长，却未增加对当前的理解或体验 | 先检查关系、情绪、判断与行动的作用；没有才删减或换位置 |\n| 回忆中继续套回忆 | 选一个明确时段，其他信息概述 |\n| 用大段前史解释世界规则 | 把当前规则放回行动后果，回忆只留人物经验 |\n| 回到现在没有定位 | 重现触发物、未完动作或正在等待的对方 |\n\n修订时把“进入前的当前问题”和“返回后的新动作”并排看。若没有新动作，再检查它是否改变理解、情绪或关系。几项都没有，才考虑删减或换位置。",
+          "en": "| Failure | Fix |\n|---|---|\n| A character sees an object and reviews an entire life | Select for this passage’s information, relationship, or emotion instead of reciting unrelated history |\n| The flashback repeats an event readers just witnessed | Add a new viewpoint or compress it to one bridging sentence |\n| A long flashback adds no understanding or experience of the present | Check its effect on relationships, emotion, judgment, and action; trim or move it when none matters |\n| One flashback nests another | Choose one clear period and summarize the rest |\n| A long backstory explains all the world’s rules | Put current rules back into the consequences of action; keep only lived experience in the memory |\n| The return to the present has no orientation | Reintroduce the trigger, unfinished action, or waiting person |\n\nDuring revision, place the present question before the flashback beside the new action after it. If there is no new action, check for a changed understanding, emotion or relationship. If none appears, consider trimming or moving it."
         }
       }
     ],
@@ -14055,8 +14055,8 @@
           "en": "Can a novel open with a flashback?"
         },
         "a": {
-          "zh": "可以，但读者仍需要知道是谁在何种当前压力下想起它。若开头整段只有过去，先判断直接从过去时段开场是否更清楚，不必把正常叙事硬标成回忆。",
-          "en": "Yes, but readers still need to know who remembers it and under what present pressure. If the opening consists entirely of the past, ask whether beginning directly in that period would be clearer instead of labeling ordinary narration as a flashback."
+          "zh": "可以。若是人物正在回想，给出足够的身份、时段与返回定位；不必先制造危机。若开头整段就在过去，直接从那个时段开始也可以。后文再接现在时，写清时间变化即可，不必硬标“回忆”。",
+          "en": "Yes. If a character is remembering, supply enough identity, timing, and orientation on return without inventing a crisis. If the opening simply takes place in the past, begin directly in that period. Clearly mark the later move to the present rather than forcing a memory label."
         }
       },
       {
@@ -14065,16 +14065,16 @@
           "en": "How is a flashback different from worldbuilding exposition?"
         },
         "a": {
-          "zh": "回忆是某个人经历过、并会影响其当前理解的过去；设定介绍说明世界如何运作。两者可以相遇，但不要借人物想起往事一次讲完所有规则。",
-          "en": "A flashback is a past event someone experienced that changes their present understanding. Worldbuilding exposition explains how the world works. They can overlap, but do not use a character’s memory to deliver every rule at once."
+          "zh": "人物回忆重现其经历或确实获知的过去，叙述者插叙则按本书视角进入过去时段；设定介绍说明世界如何运作。它们可以相遇，但不要借一次回忆讲完所有规则，也不要把读者得知写成人物已经知道。",
+          "en": "A character’s memory recalls lived or actually learned history; a narrated flashback enters an earlier period in the book’s viewpoint. Exposition explains how the world works. They may overlap, but one memory need not explain every rule, and reader knowledge is not automatically character knowledge."
         }
       }
     ],
     "skill": {
       "name": "story-long-write",
       "text": {
-        "zh": "在 Claude Code 里说：“用 /story-long-write 检查这段回忆或插叙，写清当前触发、过去带回的新差异和返回当下后的行动；删去不改变判断与选择的前史，不新增人物经历”（Codex 中使用 `$story-long-write`）。",
-        "en": "In Claude Code, say: “Use `/story-long-write` to inspect this flashback. Identify the present trigger, the new difference retrieved from the past, and the action taken after returning to the present. Remove backstory that does not change judgment or choice, and add no new character history.” In Codex, use `$story-long-write`."
+        "zh": "用 /story-long-write（Codex 用 $story-long-write）局部检查这段回忆或插叙，附前后文、本书视角与需保留的经历。先指出它对信息、关系、情绪或行动的作用，再检查进入过去和返回当前是否清楚。只删无作用的重复；不为满足模板新增经历或强造新动作。",
+        "en": "Use /story-long-write, or $story-long-write in Codex, to inspect this flashback locally with surrounding prose, narrative viewpoint, and history to preserve. Identify its effect on information, relationships, emotion, or action, then check orientation into the past and back. Cut repetition without function; invent no history or action to fill a template."
       },
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
     },
@@ -14087,6 +14087,13 @@
     "sources": [
       {
         "label": {
+          "zh": "回忆触发、篇幅与反注水",
+          "en": "Memory triggers, scope, and avoiding filler"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/writing-craft.md"
+      },
+      {
+        "label": {
           "zh": "过去信息与正文取舍",
           "en": "Past information and prose selection"
         },
@@ -14094,8 +14101,8 @@
       },
       {
         "label": {
-          "zh": "作者要求与事实边界",
-          "en": "Author choices and factual boundaries"
+          "zh": "作者选择与信息边界",
+          "en": "Author choices and information boundaries"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
@@ -14145,8 +14152,8 @@
           "en": "Build Description as Attention, Interaction, and Consequence"
         },
         "body": {
-          "zh": "| 环节 | 检查 |\n|---|---|\n| 注意 | **要写什么**：人物因目标或经验捕捉到的异常；**避免什么**：从天花板到地板逐项扫描 |\n| 交互 | **要写什么**：触碰、绕开、借用、试探或被环境限制；**避免什么**：与本场目标无关的景物清单 |\n| 后果 | **要写什么**：信息、行动、关系或身体状态改变；**避免什么**：描写完立即忘记场景条件 |\n\n五感不是配额。人物要通过湿滑地面时，触感可能比补齐颜色、气味、声音更重要；人物只是停留感受时，取舍也可以围绕气氛。动态变化尤其有效：光线熄灭、风把门推回、地面积水上涨，都能迫使人物重新选择。",
-          "en": "| Stage | Check |\n|---|---|\n| Attention | **What to write:** An anomaly the character catches because of a goal or experience. **What to avoid:** Scanning item by item from ceiling to floor |\n| Interaction | **What to write:** Touching, avoiding, using, testing, or being constrained by the environment. **What to avoid:** A scenery inventory unrelated to the reading goal |\n| Consequence | **What to write:** A change in information, action, relationships, or physical state. **What to avoid:** Forgetting the conditions immediately after describing them |\n\nThe five senses are not a quota. For someone crossing a slippery floor, touch may matter more than filling in color, smell and sound. For someone pausing to experience a place, atmosphere can guide the selection instead. Dynamic changes are especially effective: the lights go out, wind pushes a door closed, or rising water forces the character to choose again."
+          "zh": "| 环节 | 检查 |\n|---|---|\n| 注意 | **要写什么**：人物因目标、经验或此刻心情注意到的细节；**避免什么**：从天花板到地板逐项扫描 |\n| 交互 | **要写什么**：触碰、绕开、借用、试探或被环境限制；**避免什么**：与本场目标无关的景物清单 |\n| 后果 | **要写什么**：信息、行动、关系、身体状态或读者体验受到影响；**避免什么**：描写完立即忘记场景条件 |\n\n五感不是配额。人物要通过湿滑地面时，触感可能比补齐颜色、气味、声音更重要；人物只是停留感受时，取舍也可以围绕气氛。动态变化尤其有效：光线熄灭、风把门推回、地面积水上涨，都能迫使人物重新选择。",
+          "en": "| Stage | Check |\n|---|---|\n| Attention | **What to write:** A detail the character notices because of a goal, experience, or present mood. **What to avoid:** Scanning item by item from ceiling to floor |\n| Interaction | **What to write:** Touching, avoiding, using, testing, or being constrained by the environment. **What to avoid:** A scenery inventory unrelated to the reading goal |\n| Consequence | **What to write:** An effect on information, action, relationships, physical state, or reader experience. **What to avoid:** Forgetting the conditions immediately after describing them |\n\nThe five senses are not a quota. For someone crossing a slippery floor, touch may matter more than filling in color, smell and sound. For someone pausing to experience a place, atmosphere can guide the selection instead. Dynamic changes are especially effective: the lights go out, wind pushes a door closed, or rising water forces the character to choose again."
         }
       },
       {
@@ -14167,8 +14174,8 @@
           "en": "Original Example: A Community Greenhouse After a Blackout"
         },
         "body": {
-          "zh": "下面是为本页设计的虚构场景，展示空间条件怎样改变行动，不是温室养护建议。志愿者高槐音和邻居沈桐一同到社区温室，把靠门的三盘幼苗搬到已经获准借用的隔壁活动室。温室停电，浇水软管横在门槛上，门关不拢；两人各带一盏手电。\n\n只写“温室又冷又黑”有气氛，却没说明人物怎样完成搬运。可以这样写：\n\n> 高槐音把手电放到门边架子上，光只照到最外面的两盘。第三盘藏在架后，她侧过身，才看清盘底已经探出架沿。\n\n> “你先抱这两盘。”她对沈桐说。沈桐一手托一盘，绕过门槛上的软管往活动室走。\n\n> 高槐音没去拉门，先把软管挪到门内，给回来的路腾出地方。她托住第三盘的底部，抱起后用肩膀推门，门这才合上。架子上的手电还亮着，等沈桐回来取。\n\n**条件与结果**：光照范围使第三盘需要另找角度；软管影响通行和关门，先挪开才有合门条件；沈桐的协助在开场已经建立。借用活动室已经获准，搬过去不等于幼苗得到长期安置。稿件若需要更多安全或园艺细节，另行查证，不从这个例子推导。\n\n气味、温度或一段静景也能建立气氛和人物体验，不必每个细节都触发新事件。选择要服务本场阅读目标，而不是凑齐五感。",
-          "en": "This fictional scene demonstrates spatial cause and effect, rather than greenhouse care. Gao Huaiyin and neighbor Shen Tong arrive together to move three trays near the door to a neighboring activity room they already have permission to use. The greenhouse has lost power, a hose crosses the threshold and prevents the door from closing, and each person carries a torch.\n\n“The greenhouse was cold and dark” supplies atmosphere without explaining the task. A scene could read:\n\n> Gao Huaiyin set her torch on the shelf beside the door. Its beam reached only the outer two trays. The third was behind the rack; she turned sideways and saw its base projecting beyond the shelf.\n\n> “Take these two first,” she told Shen Tong. Supporting one tray in each hand, he stepped around the hose and headed to the activity room.\n\n> She left the door alone and moved the hose inside, clearing their return path. She supported the third tray from beneath, lifted it and pushed the door with her shoulder. This time it closed. The torch remained on the shelf, lit for Shen Tong to collect on his return.\n\n**Conditions and results:** limited light changes how she sees the third tray. The hose affects access and closure, so moving it enables the door to close. Shen Tong’s help is established at the start. Permission to use the room does not prove long-term accommodation for the seedlings. Research safety or horticultural details separately if the manuscript needs them.\n\nSmell, temperature and still description can also build atmosphere and experience without triggering new events. Choose details for the reading goal rather than filling a sensory quota."
+          "zh": "下面是为本页设计的虚构场景，展示空间条件怎样改变行动，不是温室养护建议。志愿者高槐音和邻居沈桐一同到社区温室，把靠门的三盘幼苗搬到已经获准借用的隔壁活动室。温室停电，浇水软管横在门槛上，门关不拢；两人各带一盏手电。\n\n只写“温室又冷又黑”有气氛，却没说明人物怎样完成搬运。可以这样写：\n\n> 高槐音把手电放到门边架子上，光只照到最外面的两盘。第三盘藏在架后，她侧过身，才看清盘底已经探出架沿。\n\n> “你先抱这两盘。”她对沈桐说。沈桐先把自己的手电也放在架子上，再一手托一盘，绕过门槛上的软管往活动室走。\n\n> 高槐音没去拉门，先把软管挪到门内，给回来的路腾出地方。她托住第三盘的底部，抱着它走到门外，再侧过身用肩膀把向外开启的门推回门框，门这才合上。两盏手电留在架子上，仍亮着，等沈桐回来取。\n\n**条件与结果**：光照范围使第三盘需要另找角度；软管影响通行和关门，先挪开才有合门条件；沈桐的协助在开场已经建立。借用活动室已经获准，搬过去不等于幼苗得到长期安置。稿件若需要更多安全或园艺细节，另行查证，不从这个例子推导。\n\n气味、温度或一段静景也能建立气氛和人物体验，不必每个细节都触发新事件。选择要服务本场阅读目标，而不是凑齐五感。",
+          "en": "This fictional scene demonstrates spatial cause and effect, rather than greenhouse care. Gao Huaiyin and neighbor Shen Tong arrive together to move three trays near the door to a neighboring activity room they already have permission to use. The greenhouse has lost power, a hose crosses the threshold and prevents the door from closing, and each person carries a torch.\n\n“The greenhouse was cold and dark” supplies atmosphere without explaining the task. A scene could read:\n\n> Gao Huaiyin set her torch on the shelf beside the door. Its beam reached only the outer two trays. The third was behind the rack; she turned sideways and saw its base projecting beyond the shelf.\n\n> “Take these two first,” she told Shen Tong. Shen set his own torch on the shelf too, then supported one tray in each hand, stepped around the hose and headed to the activity room.\n\n> She left the door alone and moved the hose inside, clearing their return path. She supported the third tray from beneath and carried it outside, then turned sideways and pushed the outward-opening door back into its frame with her shoulder. This time it closed. Both torches remained lit on the shelf for Shen Tong to collect on his return.\n\n**Conditions and results:** limited light changes how she sees the third tray. The hose affects access and closure, so moving it enables the door to close. Shen Tong’s help is established at the start. Permission to use the room does not prove long-term accommodation for the seedlings. Research safety or horticultural details separately if the manuscript needs them.\n\nSmell, temperature and still description can also build atmosphere and experience without triggering new events. Choose details for the reading goal rather than filling a sensory quota."
         }
       },
       {
@@ -14178,8 +14185,8 @@
           "en": "How to Cut or Revise Setting Description That Feels Like Padding"
         },
         "body": {
-          "zh": "| 症状 | 修正 |\n|---|---|\n| 开场先写一整段天气，再让人物出现 | 从人物受天气影响的第一个动作进入 |\n| 罗列颜色、声音、气味，彼此无关 | 留下会影响判断或节奏的一两项 |\n| 所有人都注意同样的景色 | 按人物目标与经验筛选细节 |\n| 环境只负责象征人物心情 | 先判断象征是否有效；缺现场依据再补已有细节 |\n| 场景条件写过后不再生效 | 检查是否影响体验或后续；无功能才删 |\n| 为了“不水”把地点删成空白 | 保留行动所需的距离、出口、障碍与可操作物 |\n\n环境少写不等于不写。读者需要知道动作能否发生、危险从哪里来、人物能碰到什么。删的是不参与体验的清单，不是空间因果。",
-          "en": "| Symptom | Fix |\n|---|---|\n| An opening describes a full passage of weather before the character appears | Enter on the character’s first action affected by the weather |\n| Colors, sounds, and smells are listed without connection | Keep the one or two details that alter judgment or rhythm |\n| Everyone notices the same view | Filter details through each character’s goal and experience |\n| The setting only symbolizes a character’s mood | Assess the symbolism; restore existing detail if it lacks support in the scene |\n| A condition never matters after it is described | Check its effect on experience and later events; cut only if it has no function |\n| In avoiding padding, the writer strips the location into a blank | Preserve distances, exits, obstacles, and usable objects required for action |\n\nWriting less setting does not mean writing none. Readers need to know whether an action is possible, where danger comes from, and what the character can reach. Remove the list that does not participate in experience, not the spatial cause and effect."
+          "zh": "| 症状 | 修正 |\n|---|---|\n| 天气开场与人物、气氛和本场重心都无关 | 可从受天气影响的动作进入；若静景有明确作用，也可保留 |\n| 罗列颜色、声音、气味，彼此无关 | 留下会影响判断或节奏的一两项 |\n| 所有人都注意同样的景色 | 按人物目标与经验筛选细节 |\n| 环境只负责象征人物心情 | 先判断象征是否有效；缺现场依据再补已有细节 |\n| 场景条件写过后不再生效 | 检查是否影响体验或后续；无功能才删 |\n| 为了“不水”把地点删成空白 | 保留行动所需的距离、出口、障碍与可操作物 |\n\n环境少写不等于不写。读者需要知道动作能否发生、危险从哪里来、人物能碰到什么。删的是不参与体验的清单，不是空间因果。",
+          "en": "| Symptom | Fix |\n|---|---|\n| A weather opening has no connection to the characters, atmosphere, or scene focus | Consider entering through weather affecting action; keep a still opening when it serves a clear purpose |\n| Colors, sounds, and smells are listed without connection | Keep the one or two details that alter judgment or rhythm |\n| Everyone notices the same view | Filter details through each character’s goal and experience |\n| The setting only symbolizes a character’s mood | Assess the symbolism; restore existing detail if it lacks support in the scene |\n| A condition never matters after it is described | Check its effect on experience and later events; cut only if it has no function |\n| In avoiding padding, the writer strips the location into a blank | Preserve distances, exits, obstacles, and usable objects required for action |\n\nWriting less setting does not mean writing none. Readers need to know whether an action is possible, where danger comes from, and what the character can reach. Remove the list that does not participate in experience, not the spatial cause and effect."
         }
       }
     ],
@@ -36724,6 +36731,149 @@
       "/oh-story/novel-titles",
       "/oh-story/chapter-ending-hooks",
       "/oh-story/chapter-outline-template"
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "write-a-love-triangle",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-30",
+    "title": {
+      "en": "How to Write a Love Triangle Where Every Choice Matters",
+      "zh": "三角恋怎么写有分量：让每段关系代表不同未来"
+    },
+    "seo_title": {
+      "en": "How to Write a Love Triangle",
+      "zh": "三角恋怎么写"
+    },
+    "description": {
+      "zh": "用独立目标、相处证据与关系进度区分三个人，处理争风与选择后的回应。附剧场完整案例、三角关系表和常见失败修法。",
+      "en": "Build distinct bonds and independent goals for three characters. Includes a theater example, a relationship worksheet, and ways to handle jealousy and choice."
+    },
+    "answer": {
+      "zh": "先写三个人各自想过怎样的生活，再用具体相处说明两段关系为何都值得在乎。分别记录“心里有多在意”和“双方确认到哪一步”，别把合作或帮助直接算成恋爱承诺。争风场景可以暂时回到共同任务，但感情问题仍要由人物明确选择、拒绝或约定暂缓，并让另外两人按自己的需要回应。",
+      "en": "Start with the lives all three people want, then show why both bonds matter through specific shared experience. Track felt affection separately from the relationship both people have confirmed; cooperation or help is not a romantic promise. A jealous confrontation can return to a shared task temporarily, while characters still need to choose, refuse, or agree to wait and respond according to their own needs."
+    },
+    "sections": [
+      {
+        "id": "differentiate-the-two-relationships",
+        "heading": {
+          "zh": "先区分两段关系，而非给追求者排分",
+          "en": "Distinguish the Bonds Before Ranking Suitors"
+        },
+        "body": {
+          "zh": "为每段关系找一个只有他们共同经历过的具体片段：曾怎样一起做事、何时被对方理解、在哪件事上仍有分歧。吸引力可以来自熟悉、才华、坦率、幽默或安静陪伴，不必硬分成“安全的人”和“危险的人”。\n\n同样的帮忙，在两段关系里也可能有不同意义。一人知道主角何时需要安静，另一人能接住她说出新想法后的兴奋；差别要有相处支持，不能只给两人贴“稳重”“自由”标签。也不要为了让结局轻松，临时把另一位写成不配被爱的人。\n\n下列做法取自人物关系方法中的独立目标、社会关系与实质好感两条进度，以及多角对抗的收束建议。本文把它们组合成三人编辑表；原资料不是一套完整的三角恋公式。",
+          "en": "Find a specific shared moment for each bond: how they worked together, when one felt understood, and where they still disagree. Attraction may come from familiarity, talent, candor, humor, or quiet companionship. It need not split into a “safe person” and a “dangerous person.”\n\nEven similar help can mean different things. One person recognizes when the protagonist needs quiet; another shares the excitement of a new idea. Establish that difference through experience rather than labels such as “steady” and “free.” Avoid making the unchosen person suddenly unworthy of affection just to simplify the ending.\n\nThe source methods supply independent goals, separate social and emotional progress, and options for containing multi-person rivalry. This page combines them into a three-person editorial worksheet; the source is not a complete love-triangle formula."
+        }
+      },
+      {
+        "id": "give-all-three-agency",
+        "heading": {
+          "zh": "分别记录目标、好感与已确认关系",
+          "en": "Track Goals, Affection, and Confirmed Relationships"
+        },
+        "body": {
+          "zh": "| 记录 | 要问什么 |\n|---|---|\n| 独立目标 | 暂时没有恋爱结果，这个人仍想完成什么？谁有权决定自己的工作、去留或生活？ |\n| 相处证据 | 哪个已发生的片段使这段关系有吸引力？对方是否知道它的意义？ |\n| 关系进度 | 心里有多在意？双方实际确认了什么？一方愿意帮助，不等于同意亲密或交往。 |\n| 真正分歧 | 双方在哪种生活安排、表达方式或价值上需要商量？不能靠第三人突然变坏解决。 |\n| 知情范围 | 谁知道谁的心意，谁只看见合作，谁误把熟悉当成承诺？ |\n| 选择与回应 | 表白、拒绝或暂缓之后，另外两人怎样回答、调整相处？ |\n\n这是作者检查卡，不是原生设定文件。三人不用有相同篇幅，也不用每场都升级关系。重要的是他们的选择来自各自的需要。共同项目可以继续，私人关系也可以减少或结束；不要把“专业合作”写成“已经原谅”。",
+          "en": "| Record | Questions |\n|---|---|\n| Independent goal | Without a romantic outcome yet, what does this person still want? Who decides their work, movement, or way of life? |\n| Shared evidence | Which actual moment gives this bond appeal? Does the other person know its meaning? |\n| Relationship stage | How much affection is felt, and what have both people confirmed? Willingness to help does not imply consent to intimacy or dating. |\n| Real disagreement | Which plans, ways of speaking, or values need discussion? A third person’s sudden villainy cannot solve them. |\n| Knowledge | Who knows whose feelings, who only sees cooperation, and who mistakes familiarity for a promise? |\n| Choice and response | After a confession, refusal, or pause, how do the others answer and adjust contact? |\n\nThis is an author’s checklist, not a native setting file. The three people need neither equal page counts nor a relationship upgrade in every scene. Their decisions should follow their needs. Shared work may continue as private closeness lessens or ends; professional cooperation does not establish forgiveness."
+        }
+      },
+      {
+        "id": "contain-the-confrontation",
+        "heading": {
+          "zh": "争风场景怎样收住，又不取消问题",
+          "en": "Contain Jealousy Without Erasing the Question"
+        },
+        "body": {
+          "zh": "人物关系资料给出三种收束方向，适合需要继续共同做事、且没有不可调和伤害的场景：\n\n| 方向 | 怎样使用与限制 |\n|---|---|\n| 回到事业或共同目标 | 让眼前讨论回到排练、比赛或任务；各自贡献不换算成赢得恋爱的分数。之后仍需处理真实心意。 |\n| 已有外部事件迫使合作 | 事件若本就在前文铺好，可以让三人先一致应对；不要凭空加事故，也不能借合作宣布旧伤已消失。 |\n| 克制地结束争执 | 短句、明确边界或暂缓能收住本场；不是假装没有说过伤人的话。 |\n\n这些是选择，不要求三种都用。若有人已经背叛、威胁或伤害另一人，先接住相应后果。主角可以拒绝成为两人竞赛的奖品，也可以承认自己还没想清楚；暂缓要让对方能答应或离开，不是无限期占住两个承诺。",
+          "en": "The relationship reference offers three ways to contain rivalry when people need to keep working together and no irreconcilable harm has occurred:\n\n| Direction | Use and limit |\n|---|---|\n| Return to work or a shared goal | Bring the immediate discussion back to rehearsal, a match, or a task. Contributions are not points that purchase romance. The feelings still need attention later. |\n| An established outside event requires cooperation | An event already prepared in the story may make everyone respond together. Do not invent an accident or declare old hurt gone because they cooperated. |\n| End the exchange with restraint | A brief reply, clear boundary, or pause can end this confrontation without pretending hurtful words were never spoken. |\n\nChoose what fits rather than using all three. Betrayal, threats, or harm need their consequences. The protagonist may refuse to be the prize in a contest or admit uncertainty. A pause should leave the others free to agree or leave, rather than indefinitely reserving two commitments."
+        }
+      },
+      {
+        "id": "worked-example",
+        "heading": {
+          "zh": "完整原创范例：排练之后，各自怎样回答",
+          "en": "Complete Original Example: Answers After Rehearsal"
+        },
+        "body": {
+          "zh": "以下是虚构剧场故事。导演林霁要完成社区剧场的二十分钟展演，也已收到外地三个月驻留邀请，去留由她决定。舞台监督许衡是多年朋友，准备留下经营固定演出；声音设计程越将加入六个月巡演。三人目前都未确认恋爱关系。许衡向林霁说过喜欢，她尚未答应；程越还未表白，林霁知道自己对他动心，却不知道他会怎样看待异地。\n\n**两段关系先有实际相处。** 去年冬天，剧场临时换厅，林霁不愿把安静开场改成热闹报幕。许衡重新安排观众入场，给她留下那段安静；散场后，他们一起坐在空厅，听完她说为何舍不得删。她珍惜的不只是他会办事，还有多年里能不急着说话的自在。\n\n这次程越试配开场音乐时，林霁说她想让观众先听见演员脚步。他撤去那一段音乐，和她比较两种版本。她选了没有音乐的版本，他照这个选择重排声音；后来两人常在排练后讨论新的舞台想法。她喜欢那种能把不成熟想法说出来、再一起试的兴奋。两个人都值得在乎，不代表她已向任何一人承诺未来。\n\n**排练中的争风只暂时收住。** 许衡听到驻留消息，说固定演出正在等她，问她是否真的要走。程越接了一句：“也不用一直留在熟悉的地方。”许衡反问：“你自己要巡演，说走就走当然容易。”演员已经在台上等。\n\n林霁没有让他们比谁更为自己牺牲：\n\n> “固定演出、巡演、驻留是三件事。我的去留我会决定，也会分别和你们说。现在先排开场，不在演员面前谈我们之间的事。”\n\n许衡回到舞台调度，程越回到声音台，按林霁已选的版本完成排练。这里采用“回到共同任务”和克制收场；完成排练只解决工作，没有替她选恋人。\n\n**之后分别回答。** 当晚林霁告诉许衡，她珍惜过去的相处，却不想和他交往；她也没有决定留下经营剧场。许衡沉默了一会儿，说固定演出仍会筹备，但以后不再单独等她散场：“我现在做不到像以前一样。”她答应，不要求他立刻祝福。\n\n她随后和程越说清想交往，也说明会接受三个月驻留，不跟他巡演。程越回答：“我也喜欢你。我们各自去，周日晚上通话，先认真试这三个月。”两人明确答应尝试异地，不把程越的巡演或林霁的驻留取消。这个约定还不是已经熬过三个月。\n\n第二天排练，许衡照常完成调度。散场后他和演员一起去吃宵夜，没有再单独留下；林霁没有追上去让他解释心情。程越与她约好周日通话，仍继续自己的巡演准备。友情的距离发生了实际变化，恋爱有了双方答应的开始，三人的工作目标都继续存在。\n\n这不是“熟悉必输、新鲜必赢”的规则。若改成选许衡、两人都不选或开放结局，就要重写相应的相处依据、选择和回应。不能只换结尾姓名，其他段落全留。",
+          "en": "This is a fictional theater story. Director Lin Ji needs to finish a twenty-minute community showcase and has an invitation to a three-month residency elsewhere. She decides whether to go. Longtime friend and stage manager Xu Heng plans to stay and build a regular program. Sound designer Cheng Yue is joining a six-month tour. None has confirmed a romantic relationship. Xu has told Lin he likes her; she has not accepted. Cheng has not confessed. Lin knows she is attracted to him but does not know how he would approach distance.\n\n**Establish both bonds through actual experience.** Last winter, a venue change threatened Lin’s quiet opening. Xu reorganized audience entry so she could keep it. Afterward they sat in the empty hall while she explained why it mattered. She values both his practical help and the ease of years in which they do not have to rush to fill silence.\n\nDuring this production, Cheng tried music for the opening. Lin wanted the audience to hear the actors’ footsteps first. He removed that section, compared both versions with her, and rebuilt the sound around her choice of no opening music. They later spent evenings discussing new stage ideas. She likes being able to voice an unfinished idea and test it together. Both bonds matter; neither establishes a promise of a future together.\n\n**Contain the rehearsal confrontation temporarily.** Hearing about the residency, Xu says their regular program is waiting and asks if Lin really intends to leave. Cheng says, “She needn’t always stay somewhere familiar.” Xu replies, “You’re touring anyway. Easy for you to say.” The actors are waiting onstage.\n\nLin does not ask them to compete in sacrifice:\n\n> “The regular program, the tour, and the residency are three separate things. I’ll decide where I go and speak to each of you. For now, let’s rehearse the opening. We’re not discussing our relationships in front of the actors.”\n\nXu returns to stage coordination and Cheng to sound. They finish rehearsal using Lin’s accepted version. Returning to shared work and ending the exchange with restraint solve the immediate work problem; they do not choose a partner for her.\n\n**Give separate answers afterward.** That evening Lin tells Xu she values their history but does not want to date him, and she has not chosen to stay and run the theater. He is quiet, then says he will keep developing the program but will no longer wait alone after rehearsals. “I can’t be the way I was right now.” She accepts that boundary without asking him to offer immediate congratulations.\n\nShe then tells Cheng she wants to date him and will accept the three-month residency rather than join his tour. He answers, “I like you too. Let’s each go, call on Sunday evenings, and give these three months a serious try.” Both agree to try distance. Neither cancels their work, and an agreement does not establish three months already endured.\n\nAt the next rehearsal, Xu coordinates the stage as usual. Afterward he leaves with the actors for food rather than waiting alone. Lin does not follow to demand an explanation of his feelings. Cheng agrees on their Sunday call and continues preparing for his own tour. The friendship’s distance changes in actual contact, dating has a mutually accepted start, and all three work goals remain.\n\nThis is not a rule that familiarity loses and novelty wins. Choosing Xu, choosing neither, or leaving an open ending would require different supporting experience, decisions, and responses. Swapping only the final name would not suffice."
+        }
+      },
+      {
+        "id": "show-the-consequences-of-choice",
+        "heading": {
+          "zh": "常见失败：问题出在重复、越界还是强行收尾",
+          "en": "Common Failures: Repetition, Unsupported Intimacy, and Forced Closure"
+        },
+        "body": {
+          "zh": "| 失败 | 修法 |\n|---|---|\n| 两人只差外貌或财富，场景完全相同 | 各补具体相处、独立目标与真正分歧；不是把资产换一组数字。 |\n| 主角从头到尾只被追求 | 让她能提问、靠近、拒绝、离开或说明暂缓；选择也可以是独处。 |\n| 帮一次忙便当成相爱 | 分开写帮助发生、对方理解与关系确认，允许误读但别让旁白替双方同意。 |\n| 未被选择的人突然作恶或消失 | 若前文没有准备，保留其真实难过与自有生活，按已经建立的人物回应。 |\n| 共同危机结束，三角恋也自动结束 | 危机只结算实际解决的部分；需要回答的感情问题另接。 |\n| 主角宣布暂缓，所有人只好等 | 让另外两人能回应、设边界或退出；等待要有双方接受的条件。 |\n| 结尾说“大家还是最好的朋友” | 用后续联系说明亲疏变化；专业合作、友谊与恋爱分别成立，不强制皆大欢喜。 |\n\n修稿先找一处重复或缺失，不用同时补所有表格。若读者已经理解两段吸引力，就把篇幅留给真正难说出口的回答；若结局早已定，也可以靠过程中的认识和告别保持投入，不必藏到最后一页。",
+          "en": "| Failure | Repair |\n|---|---|\n| Only appearance or wealth differs; the scenes are identical | Add specific shared experience, independent goals, and real disagreement rather than different asset totals. |\n| The protagonist only receives pursuit | Let them ask, approach, refuse, leave, or propose a pause. Solitude is also a choice. |\n| One favor establishes mutual love | Separate help, its interpretation, and relationship confirmation. Misreading is possible; narration cannot consent for both people. |\n| The unchosen person suddenly turns evil or vanishes | Without prior preparation, retain genuine hurt and an independent life, responding as the established character would. |\n| A shared crisis automatically ends the triangle | Resolve only what the crisis actually settles, then address the feelings that still need answers. |\n| The protagonist pauses and everyone must wait | Let the others respond, set boundaries, or leave. Waiting needs terms they accept. |\n| The ending declares everyone remains best friends | Show later contact and distance. Work, friendship, and romance each need their own basis; universal happiness is not mandatory. |\n\nRepair one repetition or missing link first rather than filling every row at once. If readers already understand both attractions, spend the space on difficult answers. A known ending can still sustain investment through recognition and goodbye without hiding the choice until the last page."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "主角可以两个都不选吗？",
+          "en": "Can the protagonist choose neither person?"
+        },
+        "a": {
+          "zh": "可以。写清这是符合自身需要的选择，并让另外两人回应。如果故事已明确承诺恋爱结果，检查这样的结尾是否兑现或有意改变承诺，不用突然死亡代替回答。",
+          "en": "Yes. Ground the choice in the protagonist’s needs and give both other people responses. If the story explicitly promised a romantic outcome, check whether this ending fulfills or deliberately changes it. Sudden death need not replace an answer."
+        }
+      },
+      {
+        "q": {
+          "zh": "三角恋一定要写两位追求者互相争吗？",
+          "en": "Must both love interests compete openly?"
+        },
+        "a": {
+          "zh": "不必。未说出口的心意、错位的关系进度或主角自己的犹豫都能形成张力。若写公开争风，按人物动机和本场重心决定烈度，不需要每次都升级到破坏对方。",
+          "en": "No. Unspoken feelings, mismatched relationship stages, or the protagonist’s uncertainty can create tension. An open confrontation should follow motivation and scene focus rather than escalating to sabotage every time."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "text": {
+        "zh": "用 /story-long-write（Codex 用 $story-long-write）检查这组三角关系，附三人的独立目标、已有相处、各自知情与已确认关系，以及作者选定的结局。先找两段关系是否重复、亲密行为是否越过已建立阶段、争风场景是否抹掉真实分歧。保留未被选择者的目标与真实回应，不临时丑化、死亡或强迫所有人和解；本轮只交关系方案和点名场景，不展开整本书。",
+        "en": "Use /story-long-write, or $story-long-write in Codex, to review this triangle with independent goals, shared history, knowledge, confirmed relationships, and the author’s chosen ending. Check duplicated bonds, intimacy unsupported by the established stage, and confrontation that erases real disagreement. Preserve the unchosen person’s goals and response without sudden villainy, death, or forced reconciliation. Deliver only the relationship plan and requested scene, not the entire novel."
+      },
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
+    },
+    "related": [
+      "/oh-story/romance-subplot",
+      "/oh-story/write-a-romance-confession-scene",
+      "/oh-story/write-a-slow-burn-romance",
+      "/oh-story/ensemble-cast"
+    ],
+    "topic": "characters-and-dialogue",
+    "sources": [
+      {
+        "label": {
+          "zh": "关系双进度、独立目标与修罗场收束",
+          "en": "Relationship progress, independent goals, and containing rivalry"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-relations.md"
+      },
+      {
+        "label": {
+          "zh": "具体投入、意义变化与真实回应",
+          "en": "Specific investment, changing meaning, and credible response"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/emotional-methods.md"
+      },
+      {
+        "label": {
+          "zh": "作者文风与事实边界",
+          "en": "Author voice and factual boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      }
     ]
   }
 ]

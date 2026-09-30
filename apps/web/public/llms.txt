@@ -111,6 +111,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Write a Family Reconciliation Scene](https://zenstory.ai/oh-story/write-a-family-reconciliation-scene) — Ground family reconciliation in the conflict and both viewpoints, then show changes in judgment and daily life. Includes an original scene and worksheet.
 - [How to Write a Sad Scene in Fiction](https://zenstory.ai/oh-story/write-a-sad-scene-in-fiction) — Write a sad scene through a specific bond, a loss, and a response. Use an original farewell example, revision checks, and a bounded writing prompt.
 - [How to Write a Scary Scene That Builds Dread](https://zenstory.ai/oh-story/write-a-scary-scene) — Build dread through a familiar detail, an observable anomaly, and a character’s choice, with a cinema scene and a revision worksheet.
+- [How to Write a Love Triangle Where Every Choice Matters](https://zenstory.ai/oh-story/write-a-love-triangle) — Build distinct bonds and independent goals for three characters. Includes a theater example, a relationship worksheet, and ways to handle jealousy and choice.
 
 ### Choose and write a genre / 题材与类型写法
 - [Choose and write a genre](https://zenstory.ai/guides/genres) — Choose a genre and learn the story patterns it needs.
