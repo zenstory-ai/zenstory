@@ -31,7 +31,7 @@ test('published articles link immutable specialist skill files and have explicit
     const prefix = article.owner==='dsh' ? 'packages/knowledge/novel-to-game/' : ''
     assert.match(article.skill.url,new RegExp(`^https://github.com/zenstory-ai/${repos[article.owner]}/blob/[a-f0-9]{40}/${prefix}skills/${article.skill.name}/SKILL\\.md$`))
     assert.ok(article.sources?.length,`${article.slug}: missing method source`)
-    for (const source of article.sources) assert.match(source.url,/^https:\/\/github\.com\/zenstory-ai\/[^/]+\/blob\/[a-f0-9]{40}\/(?:packages\/knowledge\/[^/]+\/)?skills\/[^/]+\/(?:SKILL\.md|references\/.+\.md)$/)
+    for (const source of article.sources) assert.match(source.url,/^https:\/\/github\.com\/zenstory-ai\/[^/]+\/blob\/[a-f0-9]{40}\/(?:packages\/knowledge\/[^/]+\/)?skills\/[^/]+\/(?:SKILL\.md|references\/.+\.md|scripts\/.+\.py)$/)
   }
 })
 

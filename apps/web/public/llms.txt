@@ -343,6 +343,7 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Dub an English Video into Chinese](https://zenstory.ai/video-recap/translate-an-english-video-into-chinese) — Verify the English transcript and sentence translations before dubbing into the original windows. Includes an original demo and current workflow limits.
 - [Fix Automatic Subtitle Errors in a Video Recap](https://zenstory.ai/video-recap/fix-automatic-subtitle-errors) — Correct names and negation against actual speech. Separate narration, dialogue and burned text, then choose the right subtitle source and clock.
 - [How to Make a Video with Original Audio and No Voiceover](https://zenstory.ai/video-recap/make-a-video-with-original-audio-and-no-voiceover) — Choose processed source audio, copying an adopted track, or pairing a new picture with a locked mix. Includes an operation request and listening checks.
+- [How to Combine Landscape and Portrait Videos](https://zenstory.ai/video-recap/combine-landscape-and-portrait-videos) — Choose a canvas for mixed video orientations, distinguish fitting from cropping, and check people, objects, subtitles, and cuts with a worked example.
 
 
 ## Workbench docs
