@@ -315,6 +315,8 @@ Guides index: https://zenstory.ai/guides (中文: https://zenstory.ai/zh/guides)
 - [How to Analyze Gameplay References](https://zenstory.ai/novel-to-game/analyze-gameplay-references) — Analyze references by actions, loops, pressure and mastery. Use an original adaptation worksheet to state what to borrow, omit and test.
 - [Balance Game Numbers by Comparing Strategies](https://zenstory.ai/novel-to-game/balance-game-numbers-by-comparing-strategies) — Define what breaks a tradeoff, compare strategies from the same start, then change the situation. Includes repair costs and deadline calculations.
 - [Too Many Game Stats? Keep Those That Affect Choices](https://zenstory.ai/novel-to-game/reduce-unused-game-stats) — Audit generation, spending, rule checks and feedback. Separate strategic resources, story facts and history with a repair-commission example.
+- [How to Stop Game Characters Knowing Secrets Too Early](https://zenstory.ai/novel-to-game/stop-characters-knowing-secrets-too-early) — Separate facts, player knowledge, and character knowledge. Use a private-note example to check disclosure, inference, and merged branches.
+- [How to Design a Second Playthrough for a Story Game](https://zenstory.ai/novel-to-game/design-a-second-playthrough-for-a-story-game) — Choose replay for another route, new judgment, or a different strategy. Keep real tradeoffs and knowledge boundaries without compulsory randomness.
 
 ### Video scripts and editing / 视频解说与剪辑
 - [Video scripts and editing](https://zenstory.ai/guides/video-recaps) — Write narration from footage, edit a story, and finish audio and subtitles.

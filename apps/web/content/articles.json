@@ -20149,7 +20149,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "en": "How to Design Multiple Endings That Reflect Player Choices",
       "zh": "多结局游戏怎么设计：让结局回应玩家一路作出的选择"
@@ -20174,8 +20174,8 @@
           "en": "Choose the facts each ending reads"
         },
         "body": {
-          "zh": "game-world-design 的互动叙事方法让终局回应具体行动，而不只结算隐藏总分。先确定核心冲突，再挑会改变结果的事实：原件是否保留、证人是否同意公开、玩家是否接受了不得公开的交易。\n\n沿用本页原创水站故事：居民需要恢复供水，也想查明失踪维修记录。证人担心公开后失去工作，管理员则愿意用维修资源交换档案原件。两个结局都可能修好水站，但修复来源和记录去向不同。\n\n公开路线必须写出居民得知问题后协作修复的行动；私下路线由交易承诺的资源完成修复。不能只在两种结尾共用“水站已修好”的画面，却不给其中一条路线达成它的过程。",
-          "en": "game-world-design makes outcomes respond to concrete actions rather than only a hidden total. Begin with the central conflict and choose consequential facts: retained original, witness consent, and acceptance of a nonpublication bargain.\n\nIn this page’s original water-station story, residents need restored supply and an explanation of missing maintenance records. The witness risks a job; the administrator offers repair resources for the original archive. Both endings can restore the station through different means.\n\nThe public route needs residents organizing repairs after learning the problem. The private route uses promised resources from the bargain. A shared repaired-station image cannot substitute for an absent repair process."
+          "zh": "game-world-design 的互动叙事方法让终局回应具体行动，而不只结算隐藏总分。先确定核心冲突，再挑会改变结果的事实：原件是否保留、证人是否同意公开、玩家是否接受了不得公开的交易。\n\n沿用原创水站故事，并先把修复条件交代清楚：玩家找到失踪记录的原件；已确认本次故障能由现有技术员与匹配配件处理。管理员同意维修进入，不论由自己或居民组织，但想收回记录。居民储备有配件与人手，愿意在核对记录后一起维修；管理员也有另一套可用资源，提出以交回原件、保留资料私下流转为交换。\n\n证人在公开选择前说明：愿意让这次证词被实名使用，也准备在公开后离开管理员的工作组。这个代价来自她自己的处境与决定，不是资料一公开就自动被开除。若她没有同意，不能先替她宣布。\n\n两路都可以修好水站，但必须分别写出核对、接受安排、领用配件与完成维修。公开本身不修管线，交回原件本身也不等于资源已交付。上述条件是这则虚构游戏的设定，不是现实维修或资料交易的通则。",
+          "en": "game-world-design makes endings read concrete actions instead of only hidden scores. Define the central conflict, then select facts that matter: retaining the original, obtaining the witness’s agreement, and accepting a private exchange.\n\nKeep the original water-station story but establish repair conditions. The player finds the missing record. The fault can be handled by the available technician and suitable parts. The administrator permits repair access whether organized by residents or by the administrator, but wants the record back. Residents have parts and helpers and will repair after checking the record. The administrator has another usable supply and offers it in exchange for return of the original and keeping the material private.\n\nBefore publication, the witness agrees to named use of this testimony and says she plans to leave the administrator’s work group afterward. That cost follows her situation and decision, not automatic dismissal upon publication. Without agreement, the player cannot announce it for her.\n\nBoth routes may restore water, but each needs verification, accepted arrangements, parts delivery, and completed work. Publication does not repair pipes; surrendering a record is not already resource delivery. These are fictional game conditions, not real repair or document-exchange rules."
         }
       },
       {
@@ -20185,8 +20185,8 @@
           "en": "Connect conditions, signals and outcomes"
         },
         "body": {
-          "zh": "| 结局 | 来自玩家行动的条件 | 途中可见依据 | 终局回应 |\n|---|---|---|---|\n| 公开档案 | 保留原件，获得证人同意，决定公布 | 证人说明岗位风险；居民提出协作修复 | 记录公开，居民共同修好水站，证人离岗 |\n| 私下修复 | 接受交易，将原件交给管理员 | 交易明确供给维修资源并禁止公布 | 水站恢复，原件被收回，失踪记录仍未公开 |\n\n每项状态有实际写入场景和读取场景，例如“获得证人同意”产生于一次明确答应，并在公开选择前检查。只看过证词，不等于得到了公开许可。\n\n两种终局条件在本例中互斥：交出唯一原件后，不能再照原路线公布。若另设计副本或改变同意，先写清取得方式与新条件，而非在结尾临时放行。",
-          "en": "| Ending | Action-derived conditions | Earlier evidence | Outcome |\n|---|---|---|---|\n| Public archive | Retain original, obtain consent, publish | Witness states job risk; residents offer repair work | Records public, station repaired collectively, witness leaves job |\n| Private repair | Accept bargain and surrender original | Resources and nonpublication terms are explicit | Supply returns; original withheld; records remain private |\n\nGive states actual write and read scenes. Consent arises from an explicit agreement and is checked before publication; seeing testimony is not permission.\n\nThese routes are exclusive in this example because the only original is surrendered. A copy or revised consent needs an established acquisition and rule, not an unexplained final exception."
+          "zh": "| 结局 | 条件、过程与回应 |\n|---|---|\n| 公开档案 | 条件：保留原件、证人明确同意、玩家决定公布。依据：居民说明配件与人手，证人说明去留。过程：居民核对并接受安排，领配件与技术员完成维修。终局：记录公开，水站恢复；证人交接并离开工作组。 |\n| 私下修复 | 条件：接受交易，实际将原件交给管理员。依据：交易说明资源与不公开范围。过程：管理员交付配件，技术员完成维修。终局：水站恢复，原件被收回，记录仍未公开。 |\n\n每项状态都有产生和读取位置。“获得同意”来自证人明确答应；只看过证词不是公开许可。“完成维修”来自本路实际行动，不能只读到“已安排维修”。\n\n这两条原型路线以原件公开核对或交回为互斥条件，本原型没有制作副本的动作。交回后玩家仍记得读过的内容，却不能继续拿原件当众展示。若允许制作副本、口头公开或撤回同意，就补这些行动与条件，不在末场临时放行。",
+          "en": "| Ending | Path and result |\n|---|---|\n| Public record | Requires retained original, explicit witness agreement, and publication choice. Residents state supplies and help; the witness states her plans. Residents check, accept the arrangement, collect parts, and repair with the technician. The record is public, water restored, and the witness completes handover and leaves the group. |\n| Private repair | Requires accepted exchange and actual return of the original. Terms specify resources and private scope. The administrator delivers parts; the technician repairs. Water returns, the original is retained by the administrator, and the record remains unpublished. |\n\nEvery state needs a creation and a read location. Agreement comes from an explicit response, not merely viewing testimony. Completed repair comes from this route’s actions, not only “repair arranged.”\n\nThese prototype routes use publicly checking the original or returning it as mutually exclusive conditions, with no copying action in this prototype. After surrender, the player still remembers the content but cannot display the original. If copying, oral disclosure, or withdrawn agreement is supported, add its actions and conditions instead of granting it at the ending."
         }
       },
       {
@@ -20196,8 +20196,8 @@
           "en": "Share the location, preserve different histories"
         },
         "body": {
-          "zh": "两个结局都在修复后的水站结束。公开路线中，居民代表收拾维修工具，带来证人的行李；私下路线中，管理员收回原件，让玩家在维修簿上签名。环境部分可共用，人物、称呼、物件和可用行动按历史变化。\n\n私下路线不能让居民感谢玩家“公开了证据”，公开路线也不能让玩家再次交出已经展出的唯一原件。先列终局进入时的物件归属与各人知情，再写台词，比写完后只换几句感谢更可靠。\n\n结局中的代价可以留下余味。证人离岗不必立刻被一份更好工作抵消，记录未公开也不自动等于所有人忘记问题；它们成为本路线的具体结果。",
-          "en": "Both endings use the repaired station. Public-route residents pack repair tools and bring the witness’s luggage. In the private route, the administrator receives the archive and requests a maintenance signature. Reuse the environment while varying people, address, objects and available actions.\n\nThe private route cannot thank the player for publication. The public route cannot surrender the unique original again after displaying it. Establish ownership and knowledge at ending entry before writing dialogue.\n\nCosts can remain: a job loss need not immediately become a better offer, and private records do not mean everyone forgets the issue. Preserve the route’s particular consequences."
+          "zh": "两个结局都在修复后的水站结束。公开路线中，居民代表收拾本路使用的工具，证人完成工作组交接后离开；私下路线中，管理员带着已经收回的原件，向玩家出示本次维修记录。环境可共用，人物、称呼、物件和行动按实际历史变化。\n\n私下路线不能让居民感谢玩家“公开了证据”；公开路线也不能让玩家交出另一条路线才交回的原件。展示不改变持有人，交付才改变归属。先列终局进入时的物件归属与各人知情，再写台词。\n\n代价可以留下余味。证人离开工作组不必立刻被更好工作抵消，记录未公开也不等于所有人忘记问题。水站恢复由此前已完成的维修支撑，终局文件与感谢只是回响，不能代替过程。",
+          "en": "Both endings take place at the restored station. Public-route residents pack the tools used on that route; the witness completes her work-group handover and leaves. Privately, the administrator holds the original already returned and shows the player this repair’s record. Reuse the environment while changing people, address, objects, and actions according to actual history.\n\nPrivate-route residents cannot thank the player for publication. The public route cannot return an original surrendered only on the other route. Display does not change possession; delivery does. Establish ending-entry ownership and knowledge before writing lines.\n\nCosts can remain. Leaving the group need not immediately bring a better job, and private records do not mean everyone forgets the issue. Restoration rests on repair already completed; closing documents and thanks echo the process rather than replacing it."
         }
       },
       {
@@ -20234,7 +20234,8 @@
     },
     "related": [
       "/novel-to-game/meaningful-choices",
-      "/novel-to-game/game-failure-and-restart"
+      "/novel-to-game/game-failure-and-restart",
+      "/novel-to-game/design-a-second-playthrough-for-a-story-game"
     ],
     "topic": "interactive-games",
     "sources": [
@@ -20608,7 +20609,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "en": "How to Write Video-Game Dialogue That Fits Play",
       "zh": "游戏对白怎么写贴合玩法：结合角色声音、状态和操作"
@@ -20622,8 +20623,8 @@
       "zh": "让台词连接人物目标和游戏状态，避免复述画面，并在实际操作中测试。"
     },
     "answer": {
-      "zh": "先写角色要达成什么、知道什么、能用什么筹码，再让台词执行请求、拒绝、交换或承诺。每轮对话改变信息、关系或可用行动，选择后给出相符回应。按具体事件触发台词，并同步字幕与配音，不让 NPC 统一替设计师解释任务。",
-      "en": "Establish each character’s aim, knowledge and leverage, then let lines request, refuse, bargain or promise. Exchanges should change information, relationships or available actions. Trigger dialogue from concrete events and keep text, captions and voice assets on the same revision."
+      "zh": "先写角色要达成什么、知道什么、能用什么筹码，再让关键台词执行请求、拒绝、交换或承诺。主要交锋要有回应与后续影响；寒暄、沉默和日常不用句句升级。按实际事件触发对白，并同步字幕与配音，不让 NPC 统一替设计师解释任务。",
+      "en": "Define goals, knowledge, and leverage, then make crucial lines request, refuse, exchange, or promise. Major exchanges need responses and later effects; greetings, silence, and daily life need no upgrade in every line. Trigger dialogue from actual events and synchronize subtitles and voices without turning every NPC into a task manual."
     },
     "sections": [
       {
@@ -20644,8 +20645,8 @@
           "en": "Use actual events as line conditions"
         },
         "body": {
-          "zh": "| 台词编号 | 说话者与条件 | 台词 | 状态或下一步 |\n|---|---|---|---|\n| G-01 | 园丁；玩家请求钥匙但尚未说明阀门 | “先告诉我你开过哪只阀。” | 开放现场检查与出示记录 |\n| G-02 | 园丁；本场实际见过旧记录 | “这道线是后来加的。钥匙给你，别先开南边。” | 交钥匙，提供顺序依据 |\n| G-03 | 园丁；玩家只检查了现场 | “先让我看你找到的接头。” | 进入核验，尚未交钥匙 |\n\n玩家自己读过文件，不等于园丁见过。G-02 的条件来自“出示记录”的实际行动；不能用无关的好感分数代替这一知识来源。\n\n编号把文案、字幕与语音对应起来，出现条件仍由游戏规则检查。表格是本页纸面设计，不代表已经接入引擎或运行通过。",
-          "en": "| ID | Speaker / condition | Line | State or next step |\n|---|---|---|---|\n| G-01 | Gardener; key requested without valve history | “Tell me which valve you opened.” | Inspection and showing records become available |\n| G-02 | Gardener actually shown the old record | “That line was added later. Take the key. Don’t open south first.” | Key handed over; sequence evidence given |\n| G-03 | Player inspected only the site | “Show me the joint you found first.” | Verification begins; no key yet |\n\nPrivate reading does not inform the gardener. G-02 reads the showing action, not an unrelated affection score.\n\nIDs connect copy, captions and voices; game rules still verify conditions. This is a paper example, not an implemented or tested engine script."
+          "zh": "| 项目 | 记录 |\n|---|---|\n| G-01 | 说话者与条件：园丁；玩家请求钥匙但尚未说明阀门；台词：“先告诉我你开过哪只阀。”；状态或下一步：开放现场检查与出示记录 |\n| G-02 | 说话者与条件：园丁；本场实际见过旧记录；台词：“这道线是后来加的。钥匙给你，别先开南边。”；状态或下一步：交钥匙，提供顺序依据 |\n| G-03 | 说话者与条件：园丁；玩家只检查了现场；台词：“先让我看你找到的接头。”；状态或下一步：进入核验，尚未交钥匙 |\n\n玩家自己读过文件，不等于园丁见过。G-02 的条件来自“出示记录”的实际行动；不能用无关的好感分数代替这一知识来源。\n\n编号把文案、字幕与语音对应起来，出现条件仍由游戏规则检查。表格是本页纸面设计，不代表已经接入引擎或运行通过。",
+          "en": "| Item | Record |\n|---|---|\n| G-01 | Speaker / condition: Gardener; key requested without valve history; Line: “Tell me which valve you opened.”; State or next step: Inspection and showing records become available |\n| G-02 | Speaker / condition: Gardener actually shown the old record; Line: “That line was added later. Take the key. Don’t open south first.”; State or next step: Key handed over; sequence evidence given |\n| G-03 | Speaker / condition: Player inspected only the site; Line: “Show me the joint you found first.”; State or next step: Verification begins; no key yet |\n\nPrivate reading does not inform the gardener. G-02 reads the showing action, not an unrelated affection score.\n\nIDs connect copy, captions and voices; game rules still verify conditions. This is a paper example, not an implemented or tested engine script."
         }
       },
       {
@@ -20657,6 +20658,17 @@
         "body": {
           "zh": "供水暂停，站长说：“恢复以前，谁都不能签供水合格。”园丁说：“北边那排还剩半桶水，别等到根全干。”前者划责任边界，后者提出眼前损失，玩家分别获得权限与期限信息。\n\n若改成两人轮流说“情况很严重，你必须尽快完成任务”，声音会合并，现场也没有新进展。修订时保留各自关注的实物与条件，让反对者能拒绝、要求证据或换策略，不让玩家每句请求都立刻成功。\n\n按钮写玩家真正会说的话，例如“先借我钥匙，我带你去核接头”。不能显示“协商”，执行时却变成威胁。回应先呈现对方反应，再进入确实开放的新动作。",
           "en": "“Nobody signs the water certificate before restoration,” says the supervisor. “The north row has half a bucket left. Don’t wait until the roots dry,” says the gardener. One sets responsibility limits; the other presents immediate loss. Players learn authority and urgency.\n\nReplacing both with “This is serious; finish your quest quickly” removes distinction and progress. Preserve concrete concerns and conditions. Let resistance request evidence, refuse or change strategy instead of granting every request.\n\nButtons should represent actual speech: “Lend me the key; I’ll show you the joint.” A “Negotiate” label must not execute a threat. Show the reaction before offering newly available actions."
+        }
+      },
+      {
+        "id": "cut-explanation",
+        "heading": {
+          "zh": "对白太长时，先找哪句真的改变选择",
+          "en": "For long dialogue, find what changes the choice"
+        },
+        "body": {
+          "zh": "对白方法把台词当人物行动，游戏文案方法保留原作语域与人物不整齐的说话方式。删解释不等于把每句话都剪成标准短句。\n\n继续温室例：园丁需要知道玩家开过哪只阀，玩家需要钥匙。若他先讲温室成立以来的全部供水史、自己为什么负责苗圃、站长为什么谨慎，关键请求会被埋住。先保留“你开过哪只阀”，让玩家回应，再把目前选择确实需要的风险放到所对应的行动旁。旧事可以在玩家主动追问时展开。\n\n不要把园丁的急话“北边那排还剩半桶水”统一修成“请注意目前资源紧张”。前句指出他盯着哪处损失，后句成了通用提示。站长的责任边界与园丁的眼前担忧各自成立，交换说话者后不应全部照旧。\n\n长发言若正在施压、公开证据或改变听者选择，可以保留；沉默与闲聊也能让玩家感受人物。重点是主要交锋有没有重复同一招，而非每句话是否够短、每轮是否都涨一次数值。",
+          "en": "The dialogue method treats lines as character actions; game-copy craft preserves source register and uneven speech. Cutting explanation does not make every sentence a standardized short line.\n\nContinue the greenhouse example: the gardener needs to know which valve the player opened; the player needs a key. A lecture on the entire water history, the gardener’s duties, and the manager’s caution buries that request. Keep “Which valve did you open?” and let the player answer. Place the risk needed now beside its relevant action. History may open through an active follow-up question.\n\nDo not normalize “The north row has half a bucket left” into “Please note resources are limited.” The first names the loss this person watches; the second becomes a generic prompt. The manager’s responsibility boundary and gardener’s immediate concern differ. Swapping speakers should not leave all lines unchanged.\n\nA long speech that applies pressure, exposes evidence, or changes a listener’s choice may remain. Silence and chat can also reveal people. Check whether major exchanges repeat one strategy, not whether every line is short or every round increases a value."
         }
       },
       {
@@ -20693,7 +20705,8 @@
     },
     "related": [
       "/novel-to-game/write-a-visual-novel-script",
-      "/novel-to-game/game-voice-assets"
+      "/novel-to-game/game-voice-assets",
+      "/novel-to-game/stop-characters-knowing-secrets-too-early"
     ],
     "topic": "interactive-games",
     "sources": [
@@ -24336,7 +24349,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "游戏分支剧情怎么规划：汇合点与内容预算",
       "en": "How to Plan a Branching Game Story"
@@ -24361,8 +24374,8 @@
           "en": "Choose structure from experience and budget"
         },
         "body": {
-          "zh": "novel-to-game 的概念方法提供几种互动叙事结构。本篇重点是路线与内容规模；一个选择是否有意义，先看[选择设计指南](/novel-to-game/meaningful-choices)。\n\n| 结构思路 | 适合什么体验 | 主要负担 |\n|---|---|---|\n| 主干有汇合点 | 大事件共享，但关系与立场需保留 | 共享场景的状态变体 |\n| 调查节点可换顺序 | 玩家决定先去哪、先问谁 | 进入条件与线索组合 |\n| 前段决定后半路线 | 选择导向不同核心人物或任务 | 多套后半内容 |\n| 少量完整独立支线 | 短篇、多周目、不同结果 | 很多内容单次看不见 |\n\n原创例子：玩家调查一份丢失的剧院交接册。只做一个夜晚，可以选择先问门卫或先看库房，最后都到交接会议。共享会议不等于选择无效：带回的证据、与谁的承诺及谁愿意作证必须不同。",
-          "en": "novel-to-game’s concept method offers several structures. This article concerns routes and scope; use [meaningful choices](/novel-to-game/meaningful-choices) to evaluate an individual decision.\n\n| Structure | Suitable experience | Main burden |\n|---|---|---|\n| Shared spine with convergence | Shared major events, remembered relationships and positions | State variants in shared scenes |\n| Flexible investigation nodes | Choosing where to go and whom to question first | Entry conditions and clue combinations |\n| Early allocation to later routes | Different central people or tasks | Multiple later sections |\n| A few independent branches | Short, replayable stories with distinct results | Much content unseen in one run |\n\nOriginal example: investigate a missing theater handover book during one night. Ask the guard or inspect storage first, then attend the same meeting. Evidence, promises and willing witnesses must differ at that meeting."
+          "zh": "novel-to-game 的概念方法按体验和预算选择结构。本篇重点是路线与内容规模；一个选择是否有意义，先看[选择设计指南](/novel-to-game/meaningful-choices)。\n\n| 结构 | 适合体验与主要负担 |\n|---|---|\n| 主干有汇合点 | 大事件共享、关系与立场保留；负担在共享场景的状态变体。 |\n| 调查节点可换顺序 | 玩家决定先去哪、先问谁；负担在条件与线索组合。 |\n| 单一主线、局部选择 | 核心事件要被所有玩家看到；用原因、人物回应与可用行动承接选择，分支较浅。 |\n| 前段决定后半路线 | 选择导向不同人物或任务；需要多套后半内容。 |\n| 少量独立支线 | 短篇、多周目、不同结果；很多内容单次看不见。 |\n\n单一终点不意味着所有按钮都无关紧要。玩家可以决定谁参与、怎样取得证据、是否守约，终点相同而原因与后果不同。若只换语气、后文没有影响，就按表达选择说明，不宣传成重大剧情路线。\n\n原创例子：玩家调查一份丢失的剧院交接册。一个夜晚里可先问门卫或查库房，最后到交接会议。共享会议保留带回的证据、承诺与谁愿意作证，不把历史全部清空。",
+          "en": "NovelToGame chooses structures by experience and budget. This page covers routes and scope; use the [choice guide](/novel-to-game/meaningful-choices) to assess a decision’s meaning.\n\n| Structure | Experience and cost |\n|---|---|\n| Shared trunk with merges | Share major events while retaining relations and positions; cost lies in state variants. |\n| Reorderable investigation | Choose where and whom first; cost lies in conditions and clue combinations. |\n| One main line, local choices | Everyone sees core events, while causes, responses, and actions retain choices; branching stays shallow. |\n| Early route assignment | Choices lead to different people or tasks; requires separate later content. |\n| A few separate paths | Short stories, multiple runs, and different results; much content is unseen in one run. |\n\nOne endpoint need not make every button irrelevant. Players can decide who participates, how evidence is obtained, and whether promises are kept; causes and consequences differ even at the same endpoint. If only tone changes with no later effect, describe an expressive choice rather than a major story route.\n\nOriginal example: investigate a missing theater handover book over one night. Ask the gatekeeper or check storage first, then attend the meeting. The shared meeting retains evidence, promises, and willingness to testify rather than erasing history."
         }
       },
       {
@@ -24372,8 +24385,8 @@
           "en": "Map nodes and conditions before writing dialogue"
         },
         "body": {
-          "zh": "本例可以先做四个节点：\n\n> 入口：交接册失踪，玩家知道今晚会议前要核对。\n> 调查 A：问门卫，可得“有人带走箱子”的证词；答应不公开姓名后，记录承诺。\n> 调查 B：查库房，可得搬箱记录；是否把记录交给负责人，改变后续证据持有人。\n> 共享会议：根据证词、物件去向与承诺，出现不同质询和回应。\n\n两个调查节点可换顺序，不代表所有组合都要写完全不同场景。共享动作可以复用，有变化的地方按状态替换。\n\n| 节点 | 进入条件 | 玩家能改变 | 离场记录 |\n|---|---|---|---|\n| 门卫 | 尚未谈过，门卫在场 | 是否承诺匿名、是否追问搬运时间 | 已获证词与具体承诺 |\n| 库房 | 获准进入 | 是否交出搬箱记录 | 看过记录、当前持有人 |\n| 会议 | 调查结束或期限到 | 用何种证据、是否履约 | 谁被说服、关系与未解问题 |\n\n时间压力如果不存在，就不要为制造取舍强行加倒计时。若采用期限，进入条件与未完成节点的后果需一致。",
-          "en": "Start with four nodes:\n\n> Entry: the book is missing and tonight’s meeting sets the investigation window.\n> A: question the guard, obtaining a box-removal statement; record any promise of anonymity.\n> B: inspect storage, obtaining movement records; handing them over changes evidence ownership.\n> Shared meeting: vary questioning and responses according to testimony, ownership and promises.\n\nFlexible order does not require a wholly separate scene for every combination. Reuse shared action and replace the affected passages.\n\n| Node | Entry condition | Player changes | Departure record |\n|---|---|---|---|\n| Guard | Present, not yet questioned | Anonymity promise and timing inquiry | Statement and commitment |\n| Storage | Access permitted | Whether to hand over the record | Seen record and its holder |\n| Meeting | Investigation ends or deadline arrives | Evidence used and promises honored | Persuaded people, relationships and open questions |\n\nDo not add a countdown merely to manufacture tradeoffs. If a deadline is used, node access and consequences for unfinished investigation must be consistent."
+          "zh": "本例可以先做四个节点：\n\n> 入口：交接册失踪，玩家知道今晚会议前要核对。\n> 调查 A：问门卫，可得“有人带走箱子”的证词；答应不公开姓名后，记录承诺。\n> 调查 B：查库房，可得搬箱记录；是否把记录交给负责人，改变后续证据持有人。\n> 共享会议：根据证词、物件去向与承诺，出现不同质询和回应。\n\n两个调查节点可换顺序，不代表所有组合都要写完全不同场景。共享动作可以复用，有变化的地方按状态替换。\n\n| 项目 | 记录 |\n|---|---|\n| 门卫 | 进入条件：尚未谈过，门卫在场；玩家能改变：是否承诺匿名、是否追问搬运时间；离场记录：已获证词与具体承诺 |\n| 库房 | 进入条件：获准进入；玩家能改变：是否交出搬箱记录；离场记录：看过记录、当前持有人 |\n| 会议 | 进入条件：调查结束或期限到；玩家能改变：用何种证据、是否履约；离场记录：谁被说服、关系与未解问题 |\n\n时间压力如果不存在，就不要为制造取舍强行加倒计时。若采用期限，进入条件与未完成节点的后果需一致。",
+          "en": "Start with four nodes:\n\n> Entry: the book is missing and tonight’s meeting sets the investigation window.\n> A: question the guard, obtaining a box-removal statement; record any promise of anonymity.\n> B: inspect storage, obtaining movement records; handing them over changes evidence ownership.\n> Shared meeting: vary questioning and responses according to testimony, ownership and promises.\n\nFlexible order does not require a wholly separate scene for every combination. Reuse shared action and replace the affected passages.\n\n| Item | Record |\n|---|---|\n| Guard | Entry condition: Present, not yet questioned; Player changes: Anonymity promise and timing inquiry; Departure record: Statement and commitment |\n| Storage | Entry condition: Access permitted; Player changes: Whether to hand over the record; Departure record: Seen record and its holder |\n| Meeting | Entry condition: Investigation ends or deadline arrives; Player changes: Evidence used and promises honored; Departure record: Persuaded people, relationships and open questions |\n\nDo not add a countdown merely to manufacture tradeoffs. If a deadline is used, node access and consequences for unfinished investigation must be consistent."
         }
       },
       {
@@ -24383,8 +24396,8 @@
           "en": "Preserve history at convergence"
         },
         "body": {
-          "zh": "会议地点相同，可以保留以下差异：\n\n- 承诺匿名的玩家不能让旁白自动公开门卫姓名；可以选择违约，但要有关系后果。\n- 已把记录交出的玩家不能忽然从包里拿出原件；改成请持有人出示，或使用已保留的副本。\n- 没问过门卫的玩家不能引用他的证词；可以根据其他证据追问。\n- 门卫得到承诺后，可能主动补充一项事实；被违约后则拒绝进一步合作。\n\n汇合不是回到空白状态，而是用较少场景承载不同历史。每项状态都写清在哪里被建立、在哪里被读取、玩家怎样感知结果。没有读取点的分支状态可以删掉，不必为了复杂而保留。\n\n若某条路线的主题与行动完全不同，强行汇合会削弱它，可以选择单独后半段，同时承认增加了内容成本。",
-          "en": "The same meeting can retain these differences:\n\n- Narration cannot automatically reveal a guard’s identity after an anonymity promise. The player may break it, with consequences.\n- A record already surrendered cannot appear in the player’s bag. Ask its holder to present it or use an established copy.\n- Unheard testimony cannot become an available quotation.\n- A respected promise may lead the guard to volunteer more information; a broken one may end cooperation.\n\nConvergence uses fewer scenes while retaining history. Give each state a write point, read point and perceptible result. Remove states nobody reads.\n\nIf a route has a fundamentally different theme and action, a separate later section may preserve it better. Acknowledge the additional scope."
+          "zh": "会议地点相同，可以保留以下差异：\n\n- 承诺匿名的玩家不能让旁白自动公开门卫姓名；可以选择违约，但要有关系后果。\n- 已把记录交出的玩家不能忽然从包里拿出原件；改成请持有人出示，或使用已保留的副本。\n- 没问过门卫的玩家不能引用他的证词；可以根据其他证据追问。\n- 门卫得到承诺后，可能主动补充一项事实；被违约后则拒绝进一步合作。\n\n汇合不是回到空白状态，而是用较少场景承载不同历史。每项状态都写清在哪里被建立、在哪里被读取、玩家怎样感知结果。没有读取点的分支状态可以删掉，不必为了复杂而保留。\n\n若某条路线的主题与行动完全不同，强行汇合会削弱它，可以选择单独后半段，同时承认增加了内容成本。\n\n会议中，持有人出示记录要有实际回应：若玩家已交给负责人，可提出“请把刚才收到的记录放到桌上核对”；负责人接受并出示后，其他在场者才获得其中可见的信息。若负责人拒绝，继续用现有证词或另行请求，不能让资料自动回到玩家包里。\n\n门卫匿名承诺也区分范围：玩家可以谈“有搬箱证词”，不等于取得了公开姓名的许可。原件、知情与公开范围分别读取，才能让共享场景保留不同策略。",
+          "en": "The same meeting can retain these differences:\n\n- Narration cannot automatically reveal a guard’s identity after an anonymity promise. The player may break it, with consequences.\n- A record already surrendered cannot appear in the player’s bag. Ask its holder to present it or use an established copy.\n- Unheard testimony cannot become an available quotation.\n- A respected promise may lead the guard to volunteer more information; a broken one may end cooperation.\n\nConvergence uses fewer scenes while retaining history. Give each state a write point, read point and perceptible result. Remove states nobody reads.\n\nIf a route has a fundamentally different theme and action, a separate later section may preserve it better. Acknowledge the additional scope.\n\nShowing the record at the meeting needs a response. If it was handed to the manager, the player can ask, “Put the record I gave you on the table so we can check.” Only after acceptance and display do attendees acquire its visible contents. Refusal leaves existing testimony or another request available; the document does not return to inventory automatically.\n\nAn anonymity promise also has scope. Mentioning a box-carrying witness does not grant permission to reveal the name. Read possession, knowledge, and disclosure separately so the shared scene retains different strategies."
         }
       },
       {
@@ -24448,7 +24461,8 @@
     "related": [
       "/novel-to-game/meaningful-choices",
       "/novel-to-game/design-multiple-endings-in-a-game",
-      "/novel-to-game/write-a-visual-novel-script"
+      "/novel-to-game/write-a-visual-novel-script",
+      "/novel-to-game/design-a-second-playthrough-for-a-story-game"
     ]
   },
   {
@@ -24460,7 +24474,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "游戏好感度怎么设计：让角色记得具体选择",
       "en": "How to Design a Relationship System for a Game"
@@ -24485,8 +24499,8 @@
           "en": "An affinity bar cannot replace remembered conduct"
         },
         "body": {
-          "zh": "novel-to-game 的互动叙事方法记录具体持久事实，数值方法则要求每个数字有来源、使用与反馈。两者都不默认把关系压成一条暗条。\n\n原创角色：修复游戏里的工匠岑青。她重视自己决定作品如何使用，不喜欢别人替她答应展览方。\n\n| 玩家行为 | 应记住什么 | 后续回应 |\n|---|---|---|\n| 答应先问她再公开方案 | 一项具体承诺 | 后来询问时愿意提供未完成草图 |\n| 未征求意见就公开 | 违背了哪项承诺 | 拒绝让玩家继续代为发言 |\n| 帮她搬材料 | 完成了一次协作 | 工作更快，但不自动消除公开违约 |\n\n三次帮忙不能自动洗掉一次违约。如果本书允许修复关系，就写新的解释、行动与对方选择，不只让总分涨回去。",
-          "en": "novel-to-game’s narrative method records specific persistent facts; its numeric method requires origins, uses and feedback for numbers. Neither assumes every relationship needs a hidden bar.\n\nOriginal character: craftsperson Cen Qing values control over how her work is used and dislikes others accepting exhibition terms for her.\n\n| Player action | Memory | Later response |\n|---|---|---|\n| Promise to ask before publication | A specific commitment | Willingness to share an unfinished sketch when consulted |\n| Publish without asking | The broken commitment | Refuses further representation by the player |\n| Help move materials | A completed collaboration | Work proceeds faster, without erasing the breach |\n\nThree helpful tasks cannot automatically cancel a broken promise. If repair is possible, show explanation, changed action and her own choice rather than restoring a total score."
+          "zh": "novel-to-game 的互动叙事方法记录具体持久事实，数值方法则要求每个数字有来源、使用与反馈。两者都不默认把关系压成一条暗条。\n\n原创角色：修复游戏里的工匠岑青。她重视自己决定作品如何使用，不喜欢别人替她答应展览方。\n\n| 项目 | 记录 |\n|---|---|\n| 答应先问她再公开方案 | 应记住什么：一项具体承诺；后续回应：后来询问时愿意提供未完成草图 |\n| 未征求意见就公开 | 应记住什么：违背了哪项承诺；后续回应：拒绝让玩家继续代为发言 |\n| 帮她搬材料 | 应记住什么：完成了一次协作；后续回应：工作更快，但不自动消除公开违约 |\n\n三次帮忙不能自动洗掉一次违约。如果本作允许修复关系，就写新的解释、行动与对方选择，不只让总分涨回去。",
+          "en": "novel-to-game’s narrative method records specific persistent facts; its numeric method requires origins, uses and feedback for numbers. Neither assumes every relationship needs a hidden bar.\n\nOriginal character: craftsperson Cen Qing values control over how her work is used and dislikes others accepting exhibition terms for her.\n\n| Item | Record |\n|---|---|\n| Promise to ask before publication | Memory: A specific commitment; Later response: Willingness to share an unfinished sketch when consulted |\n| Publish without asking | Memory: The broken commitment; Later response: Refuses further representation by the player |\n| Help move materials | Memory: A completed collaboration; Later response: Work proceeds faster, without erasing the breach |\n\nThree helpful tasks cannot automatically cancel a broken promise. If repair is possible, show explanation, changed action and her own choice rather than restoring a total score."
         }
       },
       {
@@ -24507,8 +24521,8 @@
           "en": "When numbers are needed, calculate the threshold"
         },
         "body": {
-          "zh": "若项目确实要用数值衡量共同工作熟悉度，可以先设计一个原创试算，不把数值当所有游戏的标准：起始为 1，两项独立协作各增加 1，熟悉度达到 3 可解锁更复杂的共同修复。但“未公开违约”仍是另一个明确条件。\n\n| 代表路径 | 熟悉度结果 | 能否合作 |\n|---|---|---|\n| 完成两项协作并守约 | 1 + 1 + 1 = 3 | 可进入共同修复 |\n| 完成一项协作并守约 | 2 | 未达到熟练配合条件，可继续准备 |\n| 完成两项协作却违约 | 3 | 分数够，但须先处理代表权限与信任问题 |\n\n判断门槛是否可达、是否一开始已经满足，以及有没有有意义的另一条路。若只存在唯一固定顺序，就承认这是剧情条件，不假装有复杂数值策略。\n\n关系分数上涨还应带来新行动或回应。只涨显示数字，角色永远同一句话，系统没有兑现。",
-          "en": "If the project needs a measure of working familiarity, test example numbers rather than claiming a universal standard: start at 1; two distinct collaborations add 1 each; familiarity 3 opens a more complex shared repair. An unresolved publication breach remains a separate condition.\n\n| Path | Familiarity | Cooperation |\n|---|---|---|\n| Two collaborations, promise kept | 1 + 1 + 1 = 3 | Shared repair available |\n| One collaboration, promise kept | 2 | More preparation needed |\n| Two collaborations, promise broken | 3 | Numeric condition met; authority and trust still need handling |\n\nCheck reachability, whether the initial state already qualifies and whether another meaningful route exists. A single mandatory sequence is a story condition, not deep numeric strategy.\n\nIncreasing a relationship value should create new action or response. A growing display with unchanged character behavior does not deliver the system."
+          "zh": "若项目确实要用数值衡量共同工作熟悉度，可以先设计一个原创试算，不把数值当所有游戏的标准：起始为 1，两项独立协作各增加 1，熟悉度达到 3 可解锁更复杂的共同修复。但“未公开违约”仍是另一个明确条件。\n\n| 项目 | 记录 |\n|---|---|\n| 完成两项协作并守约 | 熟悉度结果：1 + 1 + 1 = 3；能否合作：可进入共同修复 |\n| 完成一项协作并守约 | 熟悉度结果：2；能否合作：未达到熟练配合条件，可继续准备 |\n| 完成两项协作却违约 | 熟悉度结果：3；能否合作：分数够，但须先处理代表权限与信任问题 |\n\n判断门槛是否可达、是否一开始已经满足，以及有没有有意义的另一条路。若只存在唯一固定顺序，就承认这是剧情条件，不假装有复杂数值策略。\n\n关系分数上涨还应带来新行动或回应。只涨显示数字，角色永远同一句话，系统没有兑现。",
+          "en": "If the project needs a measure of working familiarity, test example numbers rather than claiming a universal standard: start at 1; two distinct collaborations add 1 each; familiarity 3 opens a more complex shared repair. An unresolved publication breach remains a separate condition.\n\n| Item | Record |\n|---|---|\n| Two collaborations, promise kept | Familiarity: 1 + 1 + 1 = 3; Cooperation: Shared repair available |\n| One collaboration, promise kept | Familiarity: 2; Cooperation: More preparation needed |\n| Two collaborations, promise broken | Familiarity: 3; Cooperation: Numeric condition met; authority and trust still need handling |\n\nCheck reachability, whether the initial state already qualifies and whether another meaningful route exists. A single mandatory sequence is a story condition, not deep numeric strategy.\n\nIncreasing a relationship value should create new action or response. A growing display with unchanged character behavior does not deliver the system."
         }
       },
       {
@@ -34996,6 +35010,248 @@
       "/video-recap/original-audio-and-narration",
       "/video-recap/keep-audio-when-changing-video",
       "/video-recap/background-music-overpowers-voice"
+    ]
+  },
+  {
+    "owner": "novel-to-game",
+    "slug": "stop-characters-knowing-secrets-too-early",
+    "topic": "interactive-games",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "互动小说角色提前知道秘密怎么办：先查信息来源",
+      "en": "How to Stop Game Characters Knowing Secrets Too Early"
+    },
+    "seo_title": {
+      "zh": "互动小说角色提前知道秘密怎么办：先查信息来源",
+      "en": "How to Stop Game Characters Knowing Secrets Too Early"
+    },
+    "description": {
+      "zh": "分清世界事实、玩家知道与角色知道。用私信场景检查信息获得、推断和分支汇合，避免NPC读取未见证的秘密。",
+      "en": "Separate facts, player knowledge, and character knowledge. Use a private-note example to check disclosure, inference, and merged branches."
+    },
+    "answer": {
+      "zh": "角色提前知道秘密时，先定位他第一次说出这项信息的地方，再追问谁在何时把什么告诉了他。玩家读过、作者知道或另一条路线发生过，都不等于此人知情。记录实际看见、听见或推断的依据，让对白和可用行动读取这条信息来源。",
+      "en": "Find the first line where a character reveals the secret, then trace who conveyed what and when. Player knowledge, author knowledge, and another route’s events do not make this character informed. Record what was seen, heard, or inferred, and make dialogue and actions read that source."
+    },
+    "sections": [
+      {
+        "id": "three-views",
+        "heading": {
+          "zh": "只给关键秘密分清三种知道",
+          "en": "Separate three kinds of knowledge for crucial secrets"
+        },
+        "body": {
+          "zh": "NovelToGame 的互动叙事方法区分世界实际发生的事、人物所知或所信，以及玩家当前看见的内容。世界方法提醒只对秘密、证词和误判等高风险事实这样管理，不为每件普通物品建一套复杂心智表。\n\n原创场景：玩家在自己的旅店房间读到船长留下的便条，邀请他日落前登船。守门人知道渡船停在码头，却没看过便条，也没有收到船长消息。\n\n| 对象 | 当前依据 |\n|---|---|\n| 世界事实 | 船长确实留下这次邀请，便条在玩家房间。 |\n| 玩家 | 已经读到邀请；可以决定是否告诉守门人。 |\n| 守门人 | 知道船的位置，不知道邀请；不能直接说“既然船长请你去”。 |\n\n故障不在语气不自然，而在这句话使用了角色尚未获得的信息。先修知情条件，再润色台词。",
+          "en": "NovelToGame separates world facts, what characters know or believe, and what players have currently seen. Its world method reserves this tracking for high-risk secrets, testimony, and mistaken beliefs rather than every ordinary object.\n\nOriginal scene: in their inn room, the player reads a captain’s note inviting them aboard before sunset. The gatekeeper knows the boat is at the dock, but has not seen the note or received the captain’s message.\n\n| Party | Current evidence |\n|---|---|\n| World | The captain left this invitation in the player’s room. |\n| Player | Has read it and can choose whether to tell the gatekeeper. |\n| Gatekeeper | Knows the boat’s location, not the invitation; cannot say “Since the captain invited you…” yet. |\n\nThe defect is not awkward tone. The line uses information the character has not acquired. Repair its knowledge condition before polishing wording."
+        }
+      },
+      {
+        "id": "disclose",
+        "heading": {
+          "zh": "说过、看过与相信了，要分开",
+          "en": "Separate being told, seeing evidence, and believing"
+        },
+        "body": {
+          "zh": "| 玩家行动 | 守门人现在能知道什么 |\n|---|---|\n| 只问“后门能通码头吗？” | 玩家想去码头；不能自动知道原因。 |\n| 说“船长邀请我登船” | 听到玩家的说法，是否相信仍取决于人物与上下文。 |\n| 把便条实际给他看 | 看过邀请文字；可以核对、怀疑或据此换策略。 |\n\n“给他看”要在场景里真的发生。玩家只在背包打开便条，不等于守门人也看见；只写按钮而未完成出示，也不能先提交知情变化。便条被遮住或被收回时，按他实际读到的内容记录。\n\n看到邀请不自动等于愿意开后门。守门人自己的规矩、目标与回应决定是否帮助；信息获得和行动许可是两个条件。推断也可以写，但要保留“我猜”“难道”等适合人物的未确认语气，而不是提前变成世界事实。",
+          "en": "| Action | Knowledge acquired |\n|---|---|\n| “Does the back gate lead to the dock?” | The player wants to reach the dock, not automatically why. |\n| “The captain invited me aboard.” | Has heard a claim; belief still depends on character and context. |\n| Actually shows the note | Has seen the invitation text and may check, doubt, or change strategy. |\n\nShowing must actually occur. Opening the note in inventory does not mean the gatekeeper saw it. A button without completed disclosure does not establish knowledge. If the note is obscured or withdrawn, record only what was readable.\n\nSeeing an invitation does not automatically create willingness to open the gate. Rules, goals, and response determine help; knowledge and permission are distinct conditions. Inference is valid too, but retain an appropriate uncertain voice instead of turning it into a world fact."
+        }
+      },
+      {
+        "id": "merge",
+        "heading": {
+          "zh": "同一场景汇合时，不共用全部对白",
+          "en": "Merge the setting without sharing every line"
+        },
+        "body": {
+          "zh": "两条路线都回到旅店门口，可以共用背景与普通招呼，但涉及邀请的对白按历史变化。\n\n**未出示**：守门人可以问“你这么急着去码头，找谁？”\n\n**已读便条**：守门人可以说“便条写着日落前，你还来得及问船长。”前提是当前时刻确实还未日落，且他读到了这一句；它没有替船长承诺仍能登船。\n\n检查台词条件是否读了“守门人见过便条”，而非只读“玩家拿到便条”。在有生成对白的游戏里，给模型本角色可用的信息；规则仍核对候选是否向未见证者泄密。完整后台资料可以用于设计，不应被角色当作自己的记忆。\n\n玩家在前一周目知道答案，也不会自动给本周目的角色补上经历。若剧情明确有记忆继承，先写它的范围；否则沿本次路线记录。",
+          "en": "Both routes may return to the inn entrance and share the background and greeting. Invitation-related lines should differ by history.\n\n**Not shown:** “You’re in a hurry to reach the dock. Who are you looking for?”\n\n**Note read:** “It says before sunset. You still have time to ask the captain.” This requires that sunset has not occurred and the gatekeeper read that sentence. It does not promise boarding on the captain’s behalf.\n\nRead “gatekeeper saw the note,” not merely “player acquired note.” With generated dialogue, supply information available to this character and check candidates for leakage to unwitnessed parties. Complete design facts are not automatically a character’s memory.\n\nA player’s previous playthrough knowledge does not give this run’s characters those experiences. If the fiction explicitly carries memories over, define the scope; otherwise track this route."
+        }
+      },
+      {
+        "id": "test",
+        "heading": {
+          "zh": "用一条没有公开的路线检查修订",
+          "en": "Check the repair with a nondisclosure path"
+        },
+        "body": {
+          "zh": "先走实际出示的路线，检查守门人何时读取文字、后续说法是否与所见一致。再从初态走只问路的路线，确认邀请没有漏进对白、选项或任务日志。\n\n保存定位所需的初态、行动顺序、首次泄密位置与实际回应。若问题来自汇合条件，只修相关读取；若改了信息获得规则，再检查受影响的存档与相邻路线。不要因为一句台词泄密就重写全部人物。\n\n上述案例是纸面设计，不代表已实现或测试通过。自动检查可以找到状态串线，人物是否机敏、怀疑是否可信仍需结合场景和实际试玩判断。",
+          "en": "First follow actual disclosure and check when the gatekeeper reads the words and whether later lines match. Then restart and only ask directions. The invitation should not leak into dialogue, options, or the quest log.\n\nKeep the initial state, action order, first leak location, and actual response needed for diagnosis. A merge-condition defect needs a local read repair; changed acquisition rules need affected saves and neighboring routes checked. One leaking line does not require rewriting every character.\n\nThis example is a paper design, not an implemented or tested result. Automation may detect state contamination; intelligence and credible suspicion still require scene judgment and playtesting."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "角色可以猜到玩家没有公开的秘密吗？",
+          "en": "May a character infer an undisclosed secret?"
+        },
+        "a": {
+          "zh": "可以，但推断要来自他实际掌握的线索，且说法保留不确定性。玩家的私下阅读或作者笔记不是他的观察；猜中也不等于获得了全部细节。",
+          "en": "Yes, from evidence actually available to them, with uncertainty retained. Private player reading and author notes are not their observations. A correct guess does not grant every detail."
+        }
+      }
+    ],
+    "skill": {
+      "name": "game-world-design",
+      "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/SKILL.md",
+      "text": {
+        "zh": "用 game-world-design 检查角色提前知情：列关键事实、玩家所见、各角色实际获得信息的行动，定位首次不成立的台词或选项。区分说法、证据与相信，保留未公开路线，并交 game-qa 检查相邻路径。",
+        "en": "Use game-world-design to check premature knowledge. List crucial facts, player observations, and each character’s actual acquisition action. Locate the first unsupported line or option. Separate claim, evidence, and belief; preserve nondisclosure and have game-qa check neighboring paths."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "三层知识与分支回读",
+          "en": "Knowledge layers and branch reads"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/narrative-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "关键事实与观察者",
+          "en": "Crucial facts and observers"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/world-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "向未见证者泄密的反例",
+          "en": "Unwitnessed-knowledge counterexamples"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-qa/references/test-design-method.md"
+      }
+    ],
+    "related": [
+      "/novel-to-game/write-video-game-dialogue",
+      "/novel-to-game/design-story-game-saves",
+      "/novel-to-game/design-clues-for-a-detective-game-adaptation"
+    ]
+  },
+  {
+    "owner": "novel-to-game",
+    "slug": "design-a-second-playthrough-for-a-story-game",
+    "topic": "interactive-games",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-30",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "叙事游戏二周目怎么设计：答案已知，选择仍有价值",
+      "en": "How to Design a Second Playthrough for a Story Game"
+    },
+    "seo_title": {
+      "zh": "叙事游戏二周目怎么设计：答案已知，选择仍有价值",
+      "en": "How to Design a Second Playthrough for a Story Game"
+    },
+    "description": {
+      "zh": "先决定重玩为了看另一条路线、重新判断还是换策略。保留真实代价与角色记忆边界，不靠强加随机或扩写所有分支。",
+      "en": "Choose replay for another route, new judgment, or a different strategy. Keep real tradeoffs and knowledge boundaries without compulsory randomness."
+    },
+    "answer": {
+      "zh": "二周目先明确玩家为什么愿意再来：看未走路线、用已知信息重新判断，或尝试另一种有代价的选择。不要把“揭开秘密”当成所有重玩的动力，也不要为了复玩给每场加随机。先用一个共享场景和两条不同历史证明再次选择能得到不同回响，再决定扩展范围。",
+      "en": "Define why someone would return: an unvisited route, reconsideration with known information, or another costly choice. A secret reveal cannot carry every replay, and randomness is not compulsory. Prove different responses through one shared scene and two histories before expanding scope."
+    },
+    "sections": [
+      {
+        "id": "replay-reason",
+        "heading": {
+          "zh": "先写第二次会多体验什么",
+          "en": "Define what the second run offers"
+        },
+        "body": {
+          "zh": "NovelToGame 的概念方法按预算选择共享主干、可换调查顺序或少量独立路线；世界方法也承认一次性知识可以构成体验，只有承诺复玩时才需要继续设计重来的价值。一次完整体验已经足够的短篇，不必硬加二周目。\n\n| 重玩理由 | 需要设计与检查的差异 |\n|---|---|\n| 看未走的角色路线 | 人物有独立目标、阻力与回报，不只更换头像。 |\n| 用已知信息重新判断 | 旧场景或线索能获得新含义，行动仍由本次经历支持。 |\n| 尝试另一种取舍 | 得到不同机会，也保留放弃什么，不让第二条路变成全面升级。 |\n\n这些可以组合，但不要求每项都有。先说清本作的承诺，再控制内容成本：共享场景保留不同历史，独立路线只做能兑现的几条。",
+          "en": "NovelToGame chooses shared trunks, reorderable investigation nodes, or a few separate routes according to budget. Its world method also recognizes one-time knowledge as a valid experience. Further replay design is needed when replay is promised; a complete one-sitting story need not add it.\n\n| Replay reason | Difference to design |\n|---|---|\n| Unvisited character route | Independent goals, resistance, and payoff rather than another portrait. |\n| Judgment with known information | Old scenes or clues gain meaning while actions remain grounded in this run. |\n| Another tradeoff | Different opportunities with real relinquishments, not a universally superior second route. |\n\nCombine these if appropriate, without requiring all. Define the promise and control cost: shared scenes retain histories, and separate routes must be deliverable."
+        }
+      },
+      {
+        "id": "worked-example",
+        "heading": {
+          "zh": "原创案例：乐队的两种演出选择",
+          "en": "Original example: two choices for a band’s performance"
+        },
+        "body": {
+          "zh": "原创短篇游戏里，乐队可以选择较早的演出位，也可以等晚场。主办方已明确给出两个时段；鼓手要赶末班车，只能参加早场；主唱想请来听歌的老师晚些才到。乐队也练过不依赖鼓手的安静版，晚场采用它需要成员共同接受。玩家在决定前能问清这些条件。乐队自带可用的录音设备，已决定保存这次演出。\n\n早场保留完整乐队合奏，但老师赶不上；晚场能当面唱给老师听，却放弃本次完整合奏。不是一个“正确选项”配一个惩罚选项，也不把临时加车或突然改时间当免费两全。\n\n第一次玩家可能选择早场，结尾鼓手一起收乐器，主唱随后把实际录下的演出交给老师，老师听完后回应。第二次可以选择晚场：先取得成员对安静版的同意，演出时鼓手已经离开，老师坐在观众席。两条路都完成演出，合奏、在场人物和告别方式不同。\n\n二周目兴趣来自重新选择谁在场与自己看重什么，不依赖藏着时刻表坑玩家。录音须在早场实际完成；老师收到并听过也要有对应场景，不能仅凭“可以发给她”就宣布已听。",
+          "en": "In this original short game, a band may take an early slot or wait for a late one. The organizer has offered both times. The drummer must catch the last bus and can play only early; the singer’s invited teacher arrives later. The band has rehearsed a quiet arrangement without drums, but members must agree to use it. Players can learn these conditions before deciding. The band has working recording equipment and has agreed to record this performance.\n\nEarly preserves the full ensemble but misses the teacher. Late allows a performance for the teacher while giving up this full-band appearance. This is not one correct option with a punishment alternative. An invented extra bus or changed schedule cannot deliver both for free.\n\nOn the first run, the player might choose early. The drummer helps pack instruments; the singer later gives the teacher the actual recording, and the teacher responds after listening. On a second run, players might obtain agreement for the quiet arrangement and choose late. The drummer has left while the teacher sits in the audience. Both routes complete a performance with different music, attendees, and farewells.\n\nReplay comes from reconsidering attendance and values, not hiding a timetable to trap players. Recording must actually occur early; receipt and listening also need scenes. “We could send it” is not evidence that it was heard."
+        }
+      },
+      {
+        "id": "keep-history",
+        "heading": {
+          "zh": "复用场景，别复用不成立的经历",
+          "en": "Reuse scenes without importing an unplayed history"
+        },
+        "body": {
+          "zh": "两条路可以共用演出地点与普通准备过程。早场读取鼓手仍在、老师未到、已决定合奏；晚场读取成员接受安静版、鼓手已离开、老师到场。结尾物件与对白按这些事实变化，不让晚场突然感谢鼓手完成了本次演奏。\n\n玩家记得第一周目的答案，角色通常仍按本周目的信息行动。可以让玩家更早寻找已知线索，但取得物件、建立承诺和获得合作仍需本次实际行动。若明确设计记忆继承或跳读功能，就单独定义保留范围，不默认所有秘密和关系一起继承。\n\n已读场景是否能快进属于另一个交互决定。快进可以减少重复阅读，但状态和选择不能漏结算；实现后按[存档与重开方法](/novel-to-game/design-story-game-saves)检查。",
+          "en": "The venue and ordinary setup may be shared. Early reads drummer present, teacher absent, and ensemble chosen. Late reads accepted quiet arrangement, drummer gone, and teacher arrived. Ending props and lines reflect those facts; the late route cannot thank the drummer for performing this show.\n\nPlayers remember the first answer, while characters usually act on this run’s knowledge. Players may seek a known clue earlier, but acquiring objects, promises, and cooperation still needs current actions. Define the scope of explicit memory carryover or skipping features rather than importing every secret and relationship.\n\nFast-forwarding read scenes is a separate interaction decision. It can reduce repeated reading without skipping state or choice consequences. After implementation, check [saves and restart](/novel-to-game/design-story-game-saves)."
+        }
+      },
+      {
+        "id": "prototype",
+        "heading": {
+          "zh": "先走两条路径，再决定加多少内容",
+          "en": "Walk two paths before expanding"
+        },
+        "body": {
+          "zh": "先做同一初态下的早场与晚场两条纸面路径，逐项查条件、成员答复、实际演出与结尾回响。再实现最小片段，观察玩家第二次是否发现新关系、改变判断或愿意尝试另一种结果。\n\n若第二次只多一句结尾评价，先增加已有选择的后续回响，不急着增加新角色。若秘密揭开后所有取舍都消失，承认它主要是一周目发现体验，或重新设计仍然成立的代价。若不同路线确实需要大量独立内容，缩范围而不是把全部分支展开后留下空结局。\n\n路线可达和历史不串线可以检查；“值得再玩”需要实际玩家反馈，不能由节点数、结局数或机器通过率证明。",
+          "en": "Walk early and late paper paths from the same initial state. Check conditions, member responses, actual performance, and ending echoes. Implement a small slice and observe whether a second run reveals relationships, changes judgment, or invites another outcome.\n\nIf replay adds only a closing evaluation, deepen consequences of existing choices before adding characters. If every tradeoff disappears after the secret is known, acknowledge a mainly first-run discovery experience or redesign costs that still matter. If routes require much independent content, narrow scope instead of expanding every branch into empty endings.\n\nReachability and historical consistency can be checked. “Worth playing again” requires player feedback, not node counts, ending counts, or machine pass rates."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "二周目一定要改变随机结果吗？",
+          "en": "Must a second run change random results?"
+        },
+        "a": {
+          "zh": "不必。探索另一条路线、重新看待同一关系或承担不同代价，都能带来重玩理由。随机只有在改变实际决策且符合本作承诺时才加入，不能替玩家创造有意义的选择。",
+          "en": "No. Another route, a changed view of a relationship, or another cost can justify replay. Add randomness only when it changes decisions and fits the promise; it cannot substitute for meaningful choices."
+        }
+      }
+    ],
+    "skill": {
+      "name": "game-concept",
+      "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-concept/SKILL.md",
+      "text": {
+        "zh": "用 game-concept 规划二周目：说明第二次的体验理由、共享与独立内容及预算，再按 game-world-design 写具体历史与回响。保留本次知情和行动来源，不用额外随机、总分或结局数量证明重玩价值。",
+        "en": "Use game-concept to define the second run’s appeal, shared and separate content, and budget; use game-world-design for concrete history and responses. Preserve current-run knowledge and action sources. Do not prove replay value through extra randomness, total scores, or ending counts."
+      }
+    },
+    "sources": [
+      {
+        "label": {
+          "zh": "叙事结构、独立路线与预算",
+          "en": "Narrative structures, separate routes, and budget"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-concept/references/concept-method.md"
+      },
+      {
+        "label": {
+          "zh": "一次性知识、复玩承诺与决策",
+          "en": "One-time knowledge, replay promise, and decisions"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/world-design-method.md"
+      },
+      {
+        "label": {
+          "zh": "共享场景与历史回响",
+          "en": "Shared scenes and historical echoes"
+        },
+        "url": "https://github.com/zenstory-ai/novel-to-game/blob/ca29145983acead0fc4f7751b80ebc34c68a1200/skills/game-world-design/references/narrative-design-method.md"
+      }
+    ],
+    "related": [
+      "/novel-to-game/map-a-branching-game-story",
+      "/novel-to-game/design-multiple-endings-in-a-game",
+      "/novel-to-game/design-game-randomness"
     ]
   }
 ]
