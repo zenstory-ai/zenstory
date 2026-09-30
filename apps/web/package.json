@@ -46,7 +46,7 @@
     "@opentelemetry/core@>=2 <3": "2.8.0",
     "@protobufjs/utf8": "1.1.1",
     "ajv@<7": "6.14.0",
-    "brace-expansion@<2": "1.1.18",
+    "brace-expansion@<2": "1.1.21",
     "brace-expansion@>=2 <3": "2.1.4",
     "dompurify": "3.4.13",
     "flatted": "3.4.2",
