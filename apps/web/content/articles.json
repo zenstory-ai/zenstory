@@ -1861,8 +1861,8 @@
       "en": "Identity, perspective, motive, timeline, information, or perception twists—or direct emotion. Includes an example, guessability test, and design table."
     },
     "answer": {
-      "zh": "小说反转要让前文事实获得新解释，并迫使人物改变行动。先选身份、视角、动机、时间线、信息或认知中的一种，再写清表层答案、可回看的线索、触发证据、揭示场景和揭示后的选择。无需翻转答案的故事，直接兑现报应、关系或目标。",
-      "en": "A plot twist gives earlier facts a new interpretation and forces characters to change what they do. Choose whether you are twisting identity, perspective, motive, chronology, information, or perception. Then define the apparent answer, clues readers can revisit, triggering evidence, the reveal scene, and the choice that follows. If a story does not need its answer overturned, deliver the promised retribution, relationship change, or completed goal directly."
+      "zh": "小说反转让前文事实获得新解释，并改变人物或读者的理解、选择与感受。先选身份、视角、动机、时间线、信息或认知中的一种，再写表层答案、可回看的线索、触发证据与揭示后的体验。无需翻转答案的故事，直接兑现报应、关系或目标，不强加新秘密与代价。",
+      "en": "A plot twist reinterprets earlier facts and changes understanding, choice, or feeling. Choose identity, perspective, motive, chronology, information, or perception, then plan the apparent answer, revisitable clues, evidence, and the experience after disclosure. A story without a changed answer can fulfill retribution, relationships, or goals without forced secrets or costs."
     },
     "sections": [
       {
@@ -1872,8 +1872,8 @@
           "en": "Six Types of Plot Twist—and When Not to Use One"
         },
         "body": {
-          "zh": "| 类型 | 要翻转什么 | 铺垫与揭示 |\n| --- | --- | --- |\n| 身份反转 | 角色是谁 | 让行为习惯、权限或旧称呼露出裂缝；揭示：在冲突场景中让身份与动机一起暴露 |\n| 视角反转 | 同一件事从谁眼里成立 | 叙述事实真实但不完整，保留另一个观察位置；揭示：用证词、记录或另一人的行动补齐盲区 |\n| 动机反转 | 角色为何这样做 | 表面理由能解释多数行为，少数选择与它冲突；揭示：用高压二选一逼角色暴露真正所求 |\n| 时间线反转 | 事情先后顺序 | 用物件状态、季节、时间戳留下顺序标记；揭示：让一个无法共存的时间事实出现 |\n| 信息反转 | 哪条“事实”被相信 | 让人物依据错误信息做出真实决定，并留下矛盾后果；揭示：新证据推翻旧答案，连锁改变后续行动 |\n| 认知反转 | 读者怎样理解一段关系 | 持续积累同一种感情色彩，同时放入微小反向细节；揭示：一个场景让多段旧行为获得新解释 |\n| 无反转路线 | 故事不翻答案 | 把期待放在报应兑现、关系升温或目标完成上；揭示：直接交付承诺的情绪结果 |\n\n“无反转”也是设计选择。甜、喜剧或报应兑现型故事可以沿着既定期待不断升级，让结果准时落地。硬加秘密会挤掉原有的情绪主线。",
-          "en": "| Type | Change | Method |\n| --- | --- | --- |\n| Identity twist | Who a character is | Let habits, permissions, or an old form of address expose cracks; reveal: Reveal identity and motive together under conflict |\n| View twist | From whose viewpoint the event makes sense | Narrate facts that are true but incomplete, preserving another vantage point; reveal: Fill the blind spot with testimony, a record, or another person’s action |\n| Motive twist | Why a character acts | Let the surface reason explain most behavior while a few choices conflict with it; reveal: Force a hard choice that exposes what the character truly wants |\n| Timeline twist | The order in which events occurred | Leave sequence markers in an object’s condition, the season, or a timestamp; reveal: Introduce a time fact that cannot coexist with the assumed order |\n| Info twist | Which “fact” is believed | Let characters make real decisions from false information and leave contradictory consequences; reveal: Use new evidence to overturn the old answer and change subsequent actions |\n| Perception twist | How readers see a bond | Build one emotional impression while adding small details that point the other way; reveal: Let one scene reread several earlier actions |\n| No-twist route | The answer does not change | Put anticipation into delivered retribution, a warming relationship, or completion of a goal; reveal: Deliver the promised emotional result directly |\n\nChoosing not to twist is also a design decision. Sweet stories, comedies, and retribution plots can keep escalating an established expectation and deliver it on time. Forcing in a secret may crowd out the story’s actual emotional line."
+          "zh": "| 类型 | 设计记录 |\n|---|---|\n| 身份反转 | 要翻转什么：角色是谁；铺垫与揭示：让行为习惯、权限或旧称呼露出裂缝；揭示：在冲突场景中让身份与动机一起暴露 |\n| 视角反转 | 要翻转什么：同一件事从谁眼里成立；铺垫与揭示：叙述事实真实但不完整，保留另一个观察位置；揭示：用证词、记录或另一人的行动补齐盲区 |\n| 动机反转 | 要翻转什么：角色为何这样做；铺垫与揭示：表面理由能解释多数行为，少数选择与它冲突；揭示：用高压二选一逼角色暴露真正所求 |\n| 时间线反转 | 要翻转什么：事情先后顺序；铺垫与揭示：用物件状态、季节、时间戳留下顺序标记；揭示：让一个无法共存的时间事实出现 |\n| 信息反转 | 要翻转什么：哪条“事实”被相信；铺垫与揭示：让人物依据错误信息做出真实决定，并留下矛盾后果；揭示：新证据推翻旧答案，连锁改变后续行动 |\n| 认知反转 | 要翻转什么：读者怎样理解一段关系；铺垫与揭示：持续积累同一种感情色彩，同时放入微小反向细节；揭示：一个场景让多段旧行为获得新解释 |\n| 无反转路线 | 要翻转什么：故事不翻答案；铺垫与揭示：把期待放在报应兑现、关系升温或目标完成上；揭示：直接交付承诺的情绪结果 |\n\n“无反转”也是设计选择。甜、喜剧或报应兑现型故事可以沿着既定期待不断升级，让结果准时落地。硬加秘密会挤掉原有的情绪主线。",
+          "en": "| Type | Design Record |\n|---|---|\n| Identity twist | Change: Who a character is; Method: Let habits, permissions, or an old form of address expose cracks; reveal: Reveal identity and motive together under conflict |\n| View twist | Change: From whose viewpoint the event makes sense; Method: Narrate facts that are true but incomplete, preserving another vantage point; reveal: Fill the blind spot with testimony, a record, or another person’s action |\n| Motive twist | Change: Why a character acts; Method: Let the surface reason explain most behavior while a few choices conflict with it; reveal: Force a hard choice that exposes what the character truly wants |\n| Timeline twist | Change: The order in which events occurred; Method: Leave sequence markers in an object’s condition, the season, or a timestamp; reveal: Introduce a time fact that cannot coexist with the assumed order |\n| Info twist | Change: Which “fact” is believed; Method: Let characters make real decisions from false information and leave contradictory consequences; reveal: Use new evidence to overturn the old answer and change subsequent actions |\n| Perception twist | Change: How readers see a bond; Method: Build one emotional impression while adding small details that point the other way; reveal: Let one scene reread several earlier actions |\n| No-twist route | Change: The answer does not change; Method: Put anticipation into delivered retribution, a warming relationship, or completion of a goal; reveal: Deliver the promised emotional result directly |\n\nChoosing not to twist is also a design decision. Sweet stories, comedies, and retribution plots can keep escalating an established expectation and deliver it on time. Forcing in a secret may crowd out the story’s actual emotional line."
         }
       },
       {
@@ -1883,8 +1883,8 @@
           "en": "How to Write a Plot Twist: Complete the Causal Chain First"
         },
         "body": {
-          "zh": "把反转压成一句话：前文事实被重新组合后，旧解释失效，人物必须采取新行动并承担代价。\n\n| 项目 | 填写内容 |\n|---|---|\n| 表层答案 | 人物当前相信什么，据此做了什么决定 |\n| 线索 | 同时支持表层与真相、能够回看的事实 |\n| 误导 | 人物为何把事实解释错 |\n| 触发证据 | 哪两个旧事实在此刻接上 |\n| 真相 | 新解释如何覆盖全部线索 |\n| 后果 | 谁改变目标、关系或策略 |\n\n只增加答案而不改变选择，揭示会变成说明。让真相夺走旧计划，反转才进入剧情。",
-          "en": "Compress the twist into one sentence: when earlier facts are recombined, the old explanation fails, and the character must take a new action and pay a cost.\n\n| Item | What to fill in |\n|---|---|\n| Apparent answer | What the character currently believes, and what decision follows from it |\n| Clues | Facts that support both the apparent answer and the truth and remain visible in retrospect |\n| Misdirection | Why the character interprets those facts incorrectly |\n| Triggering evidence | Which two earlier facts connect at this moment |\n| Truth | How the new explanation accounts for all the clues |\n| Consequences | Who changes a goal, relationship, or strategy |\n\nIf the reveal adds an answer without changing anyone’s choice, it becomes exposition. Take away the old plan, and the twist enters the plot."
+          "zh": "把反转压成一句话：前文事实被重新组合后，旧解释失效，人物怎样理解、选择或感受这件事因此改变。代价可以是本书已建立的后果，不是每次揭示必须新增损失。\n\n| 项目 | 填写内容 |\n|---|---|\n| 表层答案 | 人物当前相信或期待什么，据此怎样理解或行动 |\n| 线索 | 同时支持表层与真相、能够回看的事实 |\n| 误导 | 人物为何把事实解释错 |\n| 触发证据 | 哪两个旧事实在此刻接上 |\n| 真相 | 新解释如何覆盖全部线索 |\n| 后果 | 谁改变目标、关系或策略 |\n\n若揭示只是复述读者已知，检查它有没有新的意义或体验。真相可以让旧计划失效，也可以让人物理解一段关系、兑现等待中的期待；按本书要交付的体验选，不强迫每次夺走退路。",
+          "en": "Compress the twist into one sentence: recombined earlier facts overturn an explanation and change understanding, choice, or feeling. A cost can be an established consequence rather than a mandatory new loss per reveal.\n\n| Item | What to fill in |\n|---|---|\n| Apparent answer | What the character believes or expects, and how they interpret or act on it |\n| Clues | Facts that support both the apparent answer and the truth and remain visible in retrospect |\n| Misdirection | Why the character interprets those facts incorrectly |\n| Triggering evidence | Which two earlier facts connect at this moment |\n| Truth | How the new explanation accounts for all the clues |\n| Consequences | Who changes a goal, relationship, or strategy |\n\nIf a reveal merely repeats known information, check for new meaning or experience. Truth can invalidate a plan, deepen understanding of a relationship, or fulfill awaited expectations. Choose the book’s experience without requiring a lost option every time."
         }
       },
       {
@@ -1894,8 +1894,8 @@
           "en": "Complete Original Example: A Motive Twist Behind the Missing Photos"
         },
         "body": {
-          "zh": "原创设定：旧纺织厂资料室将搬迁。沈铃受开发方临时雇用整理肖像；厂史整理组管理原件，主持社区说明会并决定搬迁中的记录保留。守门人罗成负责夜间值班，不能单独改变档案管理权。前文展示过原件修复借出须经整理组批准的登记册、袋上的取件号、修复邮资单和返还日期。\n\n沈铃见肖像离袋、罗成夜里抱硬信封走、门房有陌生转账，怀疑他盗卖。开发方让她只交一段取件监控，以续聘为条件；她尚未对照完整借出册。\n\n**弱版反转**让陌生摄影师在会上突然送来答案：“只是修复。”前面无依据，沈铃也无选择。\n\n**可回看的设计**：\n\n| 线索 | 表层解释 | 待核的新解释 |\n|---|---|---|\n| 袋上取件号 | 便于盗卖分类 | 对应已获批的修复借出 |\n| 陌生转账与同额单据 | 出售收入 | 修复和寄复制件的费用报销 |\n| 失效地址肖像被优先处理 | 无人来认，容易卖 | 罗成先找新联系地址 |\n| 硬衬信封 | 运原件 | 保护修复件与复制件，不单独证明用途 |\n\n揭示前，沈铃去找整理组核对。借出审批与取件号相符，费用单据对应修复项目；罗成展示已回来的原件，管理员逐件核还。此前登记过要来核认照片的家属，也按约带来收到的复制件。她辨认母亲，只支持本张肖像联系，不替所有照片证明法定身份或工龄。\n\n**原创揭示片段**：\n\n> 沈铃把两版监控并排放在屏幕上。“这段删掉了管理员交审批单的部分。”\n>\n\n> 她让整理组核对取件号和返还记录，才切到费用单据。代表说：“旧地址早失效了，留着有什么用？”\n>\n\n> “所以先核新地址。”罗成指向已登记的复制件签收。沈铃没有把这句话当作阴谋自白，而是把完整记录交给主持人。\n>\n\n> 主持人确认原件已核还，撤下“疑似失窃、无需保留”的暂记，决定这些肖像连同联系记录一并移交。罗成把钥匙交还现任管理员，没有私授给工人代表。\n\n开发方随后告知沈铃不再续聘，她实际失去这份后续工作；本场不是靠作者说“她保不住了”就算代价落地。她保住的也不是所有旧案的结论，而是完整材料进入正式搬迁记录。盗卖的表层答案翻转，未知责任继续调查。",
-          "en": "Original setting: a former textile factory’s archive is moving. Shen Ling is temporarily hired by the developer to sort portraits. A history group manages originals, hosts a community meeting and decides retention. Night guard Luo Cheng cannot transfer management authority. Earlier scenes show approved restoration loans, item numbers on bags, repair/postage receipts and return dates.\n\nMissing portraits, Luo’s night envelopes and unfamiliar transfers lead Shen to suspect sales. The developer offers renewal if she submits only an extraction clip; she has not checked the full loan register.\n\n**Weak twist:** a stranger suddenly announces “restoration” at the meeting, without setup or a changed choice for Shen.\n\n**Re-readable design:**\n\n| Clue | Surface | Verify |\n|---|---|---|\n| Bag item number | Sorting for sale | Approved restoration loan |\n| Transfers and equal receipts | Sales proceeds | Repair and copy-postage paid-back expenses |\n| Obsolete addresses prioritized | Easy sales without claimants | Search for current family contacts |\n| Rigid envelopes | Carry originals | Protect repair items and copies; alone prove no purpose |\n\nBefore revealing, Shen checks with the history group. Approvals match item numbers and receipts match repairs. Luo shows returned originals; the administrator checks each in. A family member whose visit was registered earlier brings the received copy. Identifying her mother supports that portrait, not every photograph’s legal identity or employment history.\n\n**Original reveal:**\n\n> Shen displayed both edits. “This one removes the administrator handing over the approval.”\n>\n\n> She had the group check item and return entries before showing expenses. The representative said, “Those old addresses are useless. Why keep them?”\n>\n\n> “That’s why we check new ones.” Luo pointed to registered copy deliveries. Shen treated no sentence as a conspiracy confession; she gave the host the complete records.\n>\n\n> After confirming the originals’ return, the host withdrew the provisional “possibly stolen, no retention needed” note and ordered portraits and contacts retained in the transfer. Luo returned keys to the current administrator rather than appoint a workers’ representative.\n\nThe developer later states it will not renew Shen’s job, so that consequence actually lands. What she preserves is complete material in the transfer record, not answers to every old case. The apparent sale flips while other responsibility questions remain open."
+          "zh": "原创设定：旧纺织厂资料室将搬迁。沈铃受开发方临时雇用整理肖像；厂史整理组管理原件，主持社区说明会并决定搬迁中的记录保留。守门人罗成负责夜间值班，不能单独改变档案管理权。前文展示过原件修复借出须经整理组批准的登记册、袋上的取件号、修复邮资单和返还日期。\n\n沈铃见肖像离袋、罗成夜里抱硬信封走、门房有陌生转账，怀疑他盗卖。开发方让她只交一段取件监控，以续聘为条件；她尚未对照完整借出册。\n\n**弱版反转**让陌生摄影师在会上突然送来答案：“只是修复。”前面无依据，沈铃也无选择。\n\n**可回看的设计**：\n\n| 线索 | 设计记录 |\n|---|---|\n| 袋上取件号 | 表层解释：便于盗卖分类；待核的新解释：对应已获批的修复借出 |\n| 陌生转账与同额单据 | 表层解释：出售收入；待核的新解释：修复和寄复制件的费用报销 |\n| 失效地址肖像被优先处理 | 表层解释：无人来认，容易卖；待核的新解释：罗成先找新联系地址 |\n| 硬衬信封 | 表层解释：运原件；待核的新解释：保护修复件与复制件，不单独证明用途 |\n\n揭示前，沈铃去找整理组核对。借出审批与取件号相符，费用单据对应修复项目；罗成展示已回来的原件，管理员逐件核还。此前登记过要来核认照片的家属，也按约带来收到的复制件。她辨认母亲，只支持本张肖像联系，不替所有照片证明法定身份或工龄。\n\n**原创揭示片段**：\n\n> 沈铃把两版监控并排放在屏幕上。“这段删掉了管理员交审批单的部分。”\n>\n\n> 她让整理组核对取件号和返还记录，才切到费用单据。代表说：“旧地址早失效了，留着有什么用？”\n>\n\n> “所以先核新地址。”罗成指向已登记的复制件签收。沈铃没有把这句话当作阴谋自白，而是把完整记录交给主持人。\n>\n\n> 主持人确认原件已核还，撤下“疑似失窃、无需保留”的暂记，决定这些肖像连同联系记录一并移交。罗成把钥匙交还现任管理员，没有私授给工人代表。\n\n开发方随后告知沈铃不再续聘，她实际失去这份后续工作；本场不是靠作者说“她保不住了”就算代价落地。她保住的也不是所有旧案的结论，而是完整材料进入正式搬迁记录。盗卖的表层答案翻转，未知责任继续调查。",
+          "en": "Original setting: a former textile factory’s archive is moving. Shen Ling is temporarily hired by the developer to sort portraits. A history group manages originals, hosts a community meeting and decides retention. Night guard Luo Cheng cannot transfer management authority. Earlier scenes show approved restoration loans, item numbers on bags, repair/postage receipts and return dates.\n\nMissing portraits, Luo’s night envelopes and unfamiliar transfers lead Shen to suspect sales. The developer offers renewal if she submits only an extraction clip; she has not checked the full loan register.\n\n**Weak twist:** a stranger suddenly announces “restoration” at the meeting, without setup or a changed choice for Shen.\n\n**Re-readable design:**\n\n| Clue | Design Record |\n|---|---|\n| Bag item number | Surface: Sorting for sale; Verify: Approved restoration loan |\n| Transfers and equal receipts | Surface: Sales proceeds; Verify: Repair and copy-postage paid-back expenses |\n| Obsolete addresses prioritized | Surface: Easy sales without claimants; Verify: Search for current family contacts |\n| Rigid envelopes | Surface: Carry originals; Verify: Protect repair items and copies; alone prove no purpose |\n\nBefore revealing, Shen checks with the history group. Approvals match item numbers and receipts match repairs. Luo shows returned originals; the administrator checks each in. A family member whose visit was registered earlier brings the received copy. Identifying her mother supports that portrait, not every photograph’s legal identity or employment history.\n\n**Original reveal:**\n\n> Shen displayed both edits. “This one removes the administrator handing over the approval.”\n>\n\n> She had the group check item and return entries before showing expenses. The representative said, “Those old addresses are useless. Why keep them?”\n>\n\n> “That’s why we check new ones.” Luo pointed to registered copy deliveries. Shen treated no sentence as a conspiracy confession; she gave the host the complete records.\n>\n\n> After confirming the originals’ return, the host withdrew the provisional “possibly stolen, no retention needed” note and ordered portraits and contacts retained in the transfer. Luo returned keys to the current administrator rather than appoint a workers’ representative.\n\nThe developer later states it will not renew Shen’s job, so that consequence actually lands. What she preserves is complete material in the transfer record, not answers to every old case. The apparent sale flips while other responsibility questions remain open."
         }
       },
       {
@@ -1905,8 +1905,8 @@
           "en": "How to Keep a Short-Story Ending Twist from Feeling Abrupt"
         },
         "body": {
-          "zh": "把揭示前的材料交给编辑或 AI，暂不提供作者真相，让对方列候选、支持与缺口。它是线索检查，不是“读者肯定猜不出”的证明。\n\n| 候选 | 可见支持 | 仍要查 |\n|---|---|---|\n| 罗成盗卖 | 夜间取件、转账 | 审批与单据为何存在 |\n| 获批修复与找家属 | 取件号、邮资、失效地址 | 借出与返还是否逐件对应 |\n| 开发方想删掉不利材料 | 催交截短监控 | 具体为何删、还有哪些记录 |\n\n最终答案有依据即可，不要求所有候选同样有力；有读者早猜中仍能期待沈铃会怎样选。缺线索就补来源明确的行动和记录，别在结尾加一个万能证人。",
-          "en": "Give pre-reveal material to an editor or AI without the author’s answer. Ask for candidates, support and gaps. This checks clues; it does not prove readers cannot guess.\n\n| Candidate | Support | Gap |\n|---|---|---|\n| Luo sells portraits | Night removals and transfers | Why approvals and receipts exist |\n| Approved repairs and family search | Item numbers, postage, obsolete addresses | Item-by-item loan and return match |\n| Developer removes unwanted records | Demands shortened clip | Why, and what other records exist |\n\nThe true answer needs support, not equally strong alternatives. Readers who guess may still await Shen’s choice. Supply established actions and records rather than a final universal witness."
+          "zh": "把揭示前的材料交给编辑或 AI，暂不提供作者真相，让对方列候选、支持与缺口。它是线索检查，不是“读者肯定猜不出”的证明。\n\n| 候选 | 设计记录 |\n|---|---|\n| 罗成盗卖 | 可见支持：夜间取件、转账；仍要查：审批与单据为何存在 |\n| 获批修复与找家属 | 可见支持：取件号、邮资、失效地址；仍要查：借出与返还是否逐件对应 |\n| 开发方想删掉不利材料 | 可见支持：催交截短监控；仍要查：具体为何删、还有哪些记录 |\n\n最终答案有依据即可，不要求所有候选同样有力；有读者早猜中仍能期待沈铃会怎样选。缺线索就补来源明确的行动和记录，别在结尾加一个万能证人。",
+          "en": "Give pre-reveal material to an editor or AI without the author’s answer. Ask for candidates, support and gaps. This checks clues; it does not prove readers cannot guess.\n\n| Candidate | Design Record |\n|---|---|\n| Luo sells portraits | Support: Night removals and transfers; Gap: Why approvals and receipts exist |\n| Approved repairs and family search | Support: Item numbers, postage, obsolete addresses; Gap: Item-by-item loan and return match |\n| Developer removes unwanted records | Support: Demands shortened clip; Gap: Why, and what other records exist |\n\nThe true answer needs support, not equally strong alternatives. Readers who guess may still await Shen’s choice. Supply established actions and records rather than a final universal witness."
         }
       },
       {
@@ -1916,8 +1916,8 @@
           "en": "Where to Place a Twist: Let the Wrong Belief Drive Action First"
         },
         "body": {
-          "zh": "反转位置跟叙事功能走：先让人物依据表层答案做一次有代价的决定，再让新证据出现，揭示后留出空间展示后果。场景反转要立刻改变选择或关系；单元反转启动下一阶段目标；卷级反转改写主线机制；全书反转完成因果与情绪结算。双层反转之间要有一次基于阶段答案的新行动，避免连续口供式翻答案。",
-          "en": "Place a twist according to its narrative job. First let a character make one costly decision from the apparent answer. Then introduce the new evidence, and leave space after the reveal for its consequences.\n\nA scene-level twist should immediately alter a choice or relationship. An episode-level twist starts the next objective. A volume-level twist rewrites the main story mechanism. A book-level twist completes the causal and emotional settlement. Between two layers of revelation, include an action based on the interim answer; otherwise the scene becomes a sequence of people verbally replacing one answer with another."
+          "zh": "反转位置跟叙事功能走：表层答案可以先支持一次行动、期待或感情判断，新事实到来时再改变它。行动可以带成本，也可以是普通相处；不必为了证明误判有分量先伤害一个人。揭示后给理解与结果留下篇幅。\n\n场景反转可以改变选择或关系体验；单元反转可结束一个问题或启动下一目标；卷级反转影响主线理解；全书反转回应核心因果与情绪。双层反转之间要有基于阶段答案的实际理解或行为，不只连续换口供。已揭晓的部分可以收束，不强制新秘密接力。\n\n来源里的反转类型、暗示数和默认后果用于选方法。作者选择的直说、慢写或无新增损失，可以保留；事实、视角和已建立的证据仍要前后一致。",
+          "en": "Place the twist by its narrative job. An apparent answer can support an action, expectation, or emotional judgment before new facts change it. That action may cost something or simply be ordinary company; no person needs to be hurt merely to make an error seem important. Leave space for understanding and results.\n\nA scene twist can alter a choice or relationship experience; a unit reveal may close a question or begin another goal; a volume reveal changes main-story understanding; a final reveal addresses core causality and emotion. Between nested reveals, establish actual understanding or action under the interim answer rather than successive replaced testimonies. Resolved parts can close without compulsory new secrets.\n\nSource types, hint counts, and default consequences help select methods. Preserve the author’s direct expression, slower pace, or absence of a new loss while keeping facts, viewpoint, and established evidence consistent."
         }
       },
       {
@@ -1927,8 +1927,8 @@
           "en": "Common Plot-Twist Problems and Fixes"
         },
         "body": {
-          "zh": "| 问题 | 修正动作 |\n|---|---|\n| 新人物或新文件在结尾首次出现 | 提前把关键要素放进人物行动 |\n| 选了真诚误判路线，却让视角人物明知真相 | 保持其已知范围；若采用不可靠叙述，提前建立声音与可回看的偏差 |\n| 角色用独白复述设计 | 用选择、证据和关系变化揭示 |\n| 答案变了，人物照旧生活 | 写出旧计划失效后的新选择 |\n| 假线索只为骗读者 | 让它推进支线或制造真实阻碍 |",
-          "en": "| Problem | Corrective action |\n|---|---|\n| A new character or document first appears at the ending | Put the key element into an earlier character action |\n| An honest-error route gives the viewpoint character the answer all along | Keep the agreed knowledge scope; for an unreliable narrator, establish the voice and clues to its bias |\n| A monologue recites the design | Reveal through choice, evidence, and a changed relationship |\n| The answer changes but everyone lives as before | Show the new choice created when the old plan fails |\n| A false clue exists only to trick readers | Make it advance a subplot or create a genuine obstacle |"
+          "zh": "| 问题 | 修正动作 |\n|---|---|\n| 新人物或新文件在结尾首次出现 | 提前把关键要素放进人物行动 |\n| 选了真诚误判路线，却让视角人物明知真相 | 保持其已知范围；若采用不可靠叙述，提前建立声音与可回看的偏差 |\n| 角色用独白复述设计 | 用选择、证据和关系变化揭示 |\n| 揭示只重复已知，没有新理解或体验 | 写清重新理解、选择或情绪怎样兑现；不强制取消原生活 |\n| 假线索只为骗读者 | 让它推进支线或制造真实阻碍 |",
+          "en": "| Problem | Corrective action |\n|---|---|\n| A new character or document first appears at the ending | Put the key element into an earlier character action |\n| An honest-error route gives the viewpoint character the answer all along | Keep the agreed knowledge scope; for an unreliable narrator, establish the voice and clues to its bias |\n| A monologue recites the design | Reveal through choice, evidence, and a changed relationship |\n| The reveal repeats known information without new understanding or experience | Fulfill changed interpretation, choice, or emotion without compulsory loss of the previous life |\n| A false clue exists only to trick readers | Make it advance a subplot or create a genuine obstacle |"
         }
       },
       {
@@ -1950,8 +1950,8 @@
           "en": "Must a plot twist be impossible for readers to guess?"
         },
         "a": {
-          "zh": "反转要给读者猜中的机会。线索可见、表层解释也成立，读者才能在揭示后回看前文。真正的冲击来自新解释同时覆盖旧事实，并改变人物接下来的选择。",
-          "en": "No. Readers need a fair chance to infer it. Visible clues and a plausible surface explanation allow them to look back after the reveal. The strongest impact comes when the new explanation accounts for earlier facts and changes what the characters do next."
+          "zh": "不需要。读者应有依据猜中，揭示后也能回看事实。即使有人猜中，仍可期待人物怎样面对答案，以及相处和感受怎样变化；不靠临时补证据保证所有人意外。",
+          "en": "No. Give readers grounds to infer and revisit the answer. Those who guess can still await how people face it and how company or feeling changes. Do not add late evidence to guarantee universal surprise."
         }
       },
       {
@@ -1960,16 +1960,16 @@
           "en": "How many twists can a short story contain?"
         },
         "a": {
-          "zh": "先把一次主反转写完整：表层答案参与行动，线索可回看，揭示改变选择，后果得到结算。需要双层时，第一层先形成可信的阶段答案，并让人物据此行动，再由第二层解释前两种认知。",
-          "en": "Complete one major twist first: the surface answer drives action, the clues can be revisited, the reveal changes a choice, and the consequences land. If you need two layers, let the first create a credible interim answer that drives action; the second must then reinterpret both earlier understandings."
+          "zh": "先把一次主反转写完整：表层解释能成立，线索可回看，揭示有新理解与体验。需要双层时，第一层形成可信的阶段答案，人物据此理解或行动；第二层要能解释之前的事实，而非无依据地推翻一切。",
+          "en": "Complete one major twist first: a plausible surface explanation, revisitable clues, and changed understanding or experience. For two layers, establish a credible interim answer people interpret or act on; the second must explain earlier facts rather than overturn everything without grounds."
         }
       }
     ],
     "skill": {
       "name": "story-long-write",
       "text": {
-        "zh": "长篇项目运行 `/story-long-write`，说“只讨论这次反转结构”或“只补第 N 章细纲”，贴上反转设计表；短篇项目运行 `/story-short-write`，先确定目标情绪和一次主揭示，再生成小节大纲。确认线索、揭示与后果后再写正文。",
-        "en": "For a long-form project, run `/story-long-write`, say “Discuss only this twist structure” or “Complete only the outline for Chapter N,” and paste in the twist-design table. For a short project, run `/story-short-write`, first set the target emotion and one main reveal, then generate the section outline. Confirm the clues, reveal, and consequences before drafting the prose."
+        "zh": "用 $story-long-write 讨论这次反转结构，附原事实、表层解释、取得证据的途径和选定情绪；只检查细纲或指定片段。核对新解释、人物回应与实际结果，不新增关键人物、能力或证据。按作者文风保留理解和回报，不强制每次付代价或夺走旧计划。",
+        "en": "Use $story-long-write to discuss this twist with facts, apparent interpretation, evidence access, and chosen emotion. Inspect only the outline or named passage. Check reinterpretation, replies, and results without adding decisive people, powers, or evidence. Preserve understanding and payoff under the author’s voice without compulsory costs or lost plans."
       },
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
     },
@@ -3634,8 +3634,8 @@
           "en": "Foreshadowing Problems and Fixes"
         },
         "body": {
-          "zh": "| 问题 | 检查与修正 |\n|---|---|\n| 每次提到物件都加一句意味深长 | 为什么影响阅读：强行提醒读者记住，场景变成提示牌 修改办法：把细节放回人物正在做的事，删去替读者划重点的旁白 |\n| 结尾突然拿出从未出现的证据 | 为什么影响阅读：前文无法支持揭示 修改办法：提前展示它的存在或取得途径，让结尾改变理解而非临时补条件 |\n| 一个小细节承担所有推理 | 为什么影响阅读：从迹象直接跳到动机和真凶 修改办法：明确每条线索能说明什么，再用别的事实补足缺口 |\n| 连续几场只说秘密很大 | 为什么影响阅读：等待没有获得新信息 修改办法：每次延后都交付一次取证、排除、关系变化或局部结果 |\n| 回收后人物照常过日子 | 为什么影响阅读：答案没有改变故事 修改办法：安排一个因揭示而改变的选择，并让人物承担后果 |\n\n修改现有章节时，先圈出已经写进去的异常细节。能支持后面关键事实的保留；纯粹为了神秘而出现、后来也不起作用的，改成普通描写或删去。伏笔越多并不自动让故事更好，重要的是读者回望时能理解它为何在场。",
-          "en": "| Problem | Check and repair |\n|---|---|\n| Every object receives an ominous sentence | Why it hurts reading: The author demands attention and turns the scene into a signboard Revision: Return the detail to a character’s current action and remove emphasis supplied for the reader |\n| The ending produces evidence never seen before | Why it hurts reading: Earlier text cannot support the reveal Revision: Show its existence or route of acquisition earlier, so the ending changes interpretation rather than adding a condition |\n| One tiny detail supports the entire deduction | Why it hurts reading: The story leaps from sign to motive and culprit Revision: Define what each clue proves, then fill the gaps with other facts |\n| Several scenes only repeat that the secret is large | Why it hurts reading: The wait delivers no new information Revision: Every delay should deliver evidence gathering, elimination, relationship change, or a local result |\n| Characters continue unchanged after the payoff | Why it hurts reading: The answer does not alter the story Revision: Make the reveal change a choice and impose a consequence |\n\nWhen revising, circle anomalous details already in the chapter. Keep those that support a later key fact. Rewrite as ordinary description or delete anything added only for mystery and never used. More foreshadowing is not automatically better; what matters is that readers understand why each detail was present when they look back."
+          "zh": "| 问题 | 检查与修正 |\n|---|---|\n| 每次提到物件都加一句意味深长 | 为什么影响阅读：强行提醒读者记住，场景变成提示牌 修改办法：把细节放回人物正在做的事，删去替读者划重点的旁白 |\n| 结尾突然拿出从未出现的证据 | 为什么影响阅读：前文无法支持揭示 修改办法：提前展示它的存在或取得途径，让结尾改变理解而非临时补条件 |\n| 一个小细节承担所有推理 | 为什么影响阅读：从迹象直接跳到动机和真凶 修改办法：明确每条线索能说明什么，再用别的事实补足缺口 |\n| 连续几场只说秘密很大 | 为什么影响阅读：等待没有获得新信息 修改办法：在重要等待节点安排取证、讨论、排除或局部回应；安静体验也可保留，不按每场延后设配额 |\n| 回收后人物照常过日子 | 为什么影响阅读：答案没有改变故事 修改办法：写揭示怎样改变理解、选择或体验，并兑现本书已建立的结果，不强制新增损失 |\n\n修改现有章节时，先圈出已经写进去的异常细节。能支持后面关键事实的保留；只为提示“有秘密”、却没有后续作用的，考虑删改；有气氛、视角或体验作用的普通细节可以保留，不必全部变成关键证据。伏笔越多并不自动让故事更好，重要的是读者回望时能理解它为何在场。",
+          "en": "| Problem | Check and repair |\n|---|---|\n| Every object receives an ominous sentence | Why it hurts reading: The author demands attention and turns the scene into a signboard Revision: Return the detail to a character’s current action and remove emphasis supplied for the reader |\n| The ending produces evidence never seen before | Why it hurts reading: Earlier text cannot support the reveal Revision: Show its existence or route of acquisition earlier, so the ending changes interpretation rather than adding a condition |\n| One tiny detail supports the entire deduction | Why it hurts reading: The story leaps from sign to motive and culprit Revision: Define what each clue proves, then fill the gaps with other facts |\n| Several scenes only repeat that the secret is large | Why it hurts reading: The wait delivers no new information Revision: Use significant waiting points for evidence, discussion, elimination, or a local reply; quiet experience can remain without a change quota per delayed scene |\n| Characters continue unchanged after the payoff | Why it hurts reading: The answer does not alter the story Revision: Show changed understanding, choice, or experience and fulfill established results without a compulsory new loss |\n\nWhen revising, circle anomalous details already in the chapter. Keep those that support a later key fact. Consider revising a detail used only to announce a secret with no later function. Ordinary atmosphere, viewpoint, and experience details can remain without becoming decisive evidence. More foreshadowing is not automatically better; what matters is that readers understand why each detail was present when they look back."
         }
       }
     ],
@@ -3656,8 +3656,8 @@
           "en": "If readers guess the truth early, should I change the ending?"
         },
         "a": {
-          "zh": "先看猜中后还有没有值得追的选择与后果。读者猜到名单被换，仍可能想知道主角会怎样讨回演出机会。如果猜中便等于看完全部内容，可以调整信息顺序或加深人物代价，不必为了意外临时更换真相。",
-          "en": "First ask whether choices and consequences remain worth following. Readers may infer that the list was replaced yet still want to see how the protagonist recovers the performance opportunity. If guessing exhausts the story, adjust information order or deepen the character’s cost; do not replace the truth with a last-minute surprise."
+          "zh": "先看猜中后还有没有值得追的选择与后果。读者猜到名单被换，仍可能想知道主角会怎样讨回演出机会。如果猜中便等于看完全部内容，可以调整信息顺序，或丰富人物选择与体验，不必为了意外临时更换真相。",
+          "en": "First ask whether choices and consequences remain worth following. Readers may infer that the list was replaced yet still want to see how the protagonist recovers the performance opportunity. If guessing exhausts the story, adjust information order or develop choices and experience; do not replace the truth with a last-minute surprise."
         }
       },
       {
@@ -3674,8 +3674,8 @@
     "skill": {
       "name": "story-long-write",
       "text": {
-        "zh": "在 Claude Code 里说：“用 /story-long-write 只检查这段大纲的伏笔和悬念。分别指出读者已经见到的事实、当前可能的解释、揭示的依据及等待期间的进展；保留原有真相，不续写正文。”Codex 中使用 `$story-long-write`。",
-        "en": "In Claude Code, say: “Use `/story-long-write` only to inspect the foreshadowing and suspense in this outline. Separate the facts readers have seen, the explanations currently available, the basis of the reveal, and the progress made while readers wait. Preserve the original truth and do not continue the prose.” In Codex, write `$story-long-write`."
+        "zh": "用 $story-long-write 只检查这段大纲的伏笔与悬念，附原真相、当前视角与作者文风。分开已见事实、可能解释、揭示依据与等待内容，核对取得途径和实际回应。保留气氛与安静体验，不强制每场变化、三条暗示或新损失，不续写正文。",
+        "en": "Use $story-long-write only to inspect foreshadowing and suspense with the truth, viewpoint, and author voice. Separate observed facts, possible explanations, reveal support, and the waiting experience; check access and actual replies. Preserve atmosphere and quiet experience without mandatory scene changes, three-hint counts, or new losses. Do not continue the prose."
       },
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
     },
@@ -3700,6 +3700,13 @@
           "en": "Suspense, setup, and four information orders"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/long-suspense.md"
+      },
+      {
+        "label": {
+          "zh": "作者文风与事实边界",
+          "en": "Author voice and factual boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ]
   },
@@ -6789,8 +6796,8 @@
           "en": "How Should Mystery Information Be Released in Stages?"
         },
         "body": {
-          "zh": "每次揭示完成一项判断，同时提出更窄的问题。先发现“标签与仍在场的画架矛盾”，再追问“已经运走的箱子究竟装了什么”；确认断边吻合后，再打开箱子验证画的去向。\n\n场景可以在异常、查证、证词矛盾、旧线索改义和行动受阻之间交替。读者模型长期没有变化时，悬疑会停滞。章尾先兑现一个发现，再让新事实改变嫌疑、时间或行动方向。",
-          "en": "Each reveal should complete one judgment while raising a narrower question. First discover that the label conflicts with the easel still present. Then ask what the departed crate actually contains. After the torn edges match, open the crate and verify the painting’s destination.\n\nScenes can alternate among anomalies, verification, conflicting testimony, reinterpretation of an old clue, and obstructed action. Suspense stalls when the reader’s model does not change for too long. At a chapter ending, deliver one discovery first, then let the new fact redirect suspicion, timing, or action."
+          "zh": "按本例的判断层次揭示：先发现标签与仍在场的画架矛盾，再查已经运走的箱子；断边吻合使方向更具体，打开箱子才验证画的去向。各条信息支持不同范围，不跳到“谁故意偷画”。\n\n场景可在异常、查证、证词、旧线索改义与人物相处之间交替。长时间反复同一疑问而没有理解、行动或体验，容易停滞；一次等待、陪伴或讨论也可以有价值。按本书需要安排节奏，不给每章强加新证据。\n\n一个问题解答后可以收束，也可以由已出现的新事实指向下一问题。章尾可留调查方向，也可落在找回画作的安心；不要求每次答案都变得更危险或牵出更亲近的人。复杂谜题仍须把已经承诺的关键查证完成。",
+          "en": "Reveal according to this example’s inference layers: the label conflicts with the easel still present; the transported crate needs checking; matching torn edges narrows the direction; opening verifies the painting’s destination. Each fact supports a different scope, without jumping to deliberate theft.\n\nScenes can alternate among anomalies, checking, testimony, reinterpretation, and company. Repeating one question for a long time without understanding, action, or experience can stall, but waiting, companionship, and discussion may also matter. Arrange the book’s rhythm without a new-evidence quota per chapter.\n\nAn answer can close its question or lead to another through facts already introduced. The chapter may end on the next inquiry or the relief of recovering the painting. Every answer needs no greater danger or implication of someone closer. A complex puzzle still must fulfill its promised decisive checks."
         }
       },
       {
@@ -6830,8 +6837,8 @@
     "skill": {
       "name": "story-long-write",
       "text": {
-        "zh": "在 Claude Code 里说：“用 /story-long-write 设计悬疑大纲，先定真相，再建立读者、调查者与真实含义三方线索账本，为每次误导写可推翻依据，摊牌只收旧证据，不写完整正文”（Codex 里写作 `$story-long-write`）。",
-        "en": "In Claude Code, say: “Use `/story-long-write` to design a mystery outline. Establish the truth first, then build a three-part clue ledger recording what the reader sees, how the investigator interprets it, and the true meaning. Give every misdirection an existing fact that can overturn it, and use only earlier evidence in the final reveal. Do not write the full prose.” In Codex, write `$story-long-write`."
+        "zh": "用 $story-long-write 只设计或审阅悬疑细纲，附真相、叙述视角与现有事实。分开读者所见、调查者解释、真实含义和支持范围，检查查证与误导收回。保留原真相与作者文风，允许已解决问题收束，不给每章硬加线索、新秘密或危险，不续写正文。",
+        "en": "Use $story-long-write only to design or review this mystery outline with truth, viewpoint, and existing facts. Separate reader observations, investigator interpretations, true meanings, and evidential scope; check verification and resolved misdirection. Preserve truth and voice, allow solved questions to close, and add no compulsory clues, secrets, or danger per chapter. Do not continue the prose."
       },
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md"
     },
@@ -6849,6 +6856,13 @@
           "en": "Method used in this article"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/long-reversal.md"
+      },
+      {
+        "label": {
+          "zh": "作者文风与事实边界",
+          "en": "Author voice and factual boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ]
   },
@@ -23774,7 +23788,7 @@
       "en"
     ],
     "published_on": "2026-09-29",
-    "updated_on": "2026-09-29",
+    "updated_on": "2026-09-30",
     "title": {
       "zh": "聪明角色怎么写：让读者看见判断与验证",
       "en": "How to Write a Believably Smart Character"
@@ -23799,8 +23813,8 @@
           "en": "Replace the label with a specific problem"
         },
         "body": {
-          "zh": "Oh Story 的人物方法建议用察言观色、临场应变和控场接话呈现聪明，而非旁白夸赞。本篇把这个原则落实成现场判断示例，不把下面的步骤称为 skill 原有的固定公式。\n\n原创场景：展会协调员叶清发现两家参展商争一块展示牌。她要在开场前恢复布展，还要避免把没有责任的人公开羞辱。\n\n先给能见到的事实：两张确认单的场地编号相同，但一张写的是上一版区域；展示牌上还留着旧贴纸；负责搬运的人只收到截图，没收到更新通知。\n\n叶清的优势不是记住所有人名字，而是看出争论对象有两层：场地归属与通知传递。她能先让双方拿出确认时间，不能直接断言某位同事故意陷害。\n\n给人物一项与本场相关的熟练能力即可。不必让同一个人同时精通技术、谈判、法律和所有人的私事。",
-          "en": "Oh Story recommends showing intelligence through reading a situation, adapting and managing an exchange rather than narrator praise. The following scene applies that principle; its steps are not a fixed formula quoted from the skill.\n\nOriginal situation: exhibition coordinator Ye Qing finds two exhibitors arguing over one display sign. She must restore setup before opening without publicly blaming an uninvolved person.\n\nAvailable facts: both confirmation sheets use the same location number, one refers to an earlier layout, an old sticker remains on the sign, and the movers received a screenshot without the update.\n\nHer advantage is separating location allocation from notification. She can ask for confirmation times; she cannot immediately declare that a colleague sabotaged the event.\n\nGive the character one relevant competence. They need not simultaneously master technology, negotiation, law and everybody’s private history."
+          "zh": "Oh Story 的人物方法建议通过察言观色、临场应变和控场接话呈现聪明，而非旁白夸赞。本篇将原则用在现场判断，不把以下步骤称为 skill 原有的固定公式。\n\n原创场景：展会协调员叶清发现两家参展商争一块“A08”位置牌。甲的旧确认单写A08在入口，乙的新确认单写A08在侧廊；最新完整区域图把甲保留在入口、编号改为A03，乙放在侧廊A08。图已由场地负责人确认生效，但搬运员只收到旧截图，牌上还贴着“入口”的旧字条。\n\n叶清先看到两张单与旧贴纸，知道版本不同，却还需要调出完整图、核对生效确认与双方位置。优势在于把“谁抢位置”拆成区域编号和通知传递两个问题，不直接断定某位同事故意陷害。\n\n给人物一项与本场相关的熟练能力即可，不必同时精通技术、谈判、法律和所有人的私事。聪明也可以是知道该向谁核对，而非独自掌握全部答案。",
+          "en": "Oh Story recommends showing intelligence through reading a situation, adapting, and managing an exchange rather than narrator praise. This scene applies that principle rather than quoting a fixed formula.\n\nOriginal situation: exhibition coordinator Ye Qing finds two exhibitors arguing over an A08 location sign. Exhibitor A’s older sheet puts A08 at the entrance; B’s newer sheet puts it in the side corridor. The latest complete plan retains A at the entrance, now numbered A03, and places B at side-corridor A08. The venue lead has approved that plan, but the mover received only an old screenshot and the sign still carries an entrance sticker.\n\nYe first sees the sheets and old sticker. They establish different versions, but she must retrieve the complete plan and check approval and both placements. Her advantage separates numbering from notification without immediately declaring sabotage.\n\nGive her one relevant competence rather than mastery of technology, negotiation, law, and everyone’s private history. Intelligence can include knowing whom to ask instead of possessing every answer alone."
         }
       },
       {
@@ -23810,8 +23824,8 @@
           "en": "Show the judgment without announcing brilliance"
         },
         "body": {
-          "zh": "**弱写法：**\n\n> 叶清是个高情商的人。她一句话就让大家信服：“你们都搞错了。”两家立刻佩服得五体投地。\n\n没有线索与验证，“一句话”只是作者替她安排成功。\n\n**改写：**\n\n> “先别搬牌子。”叶清把两张单子并排，“只看日期，哪张更新？”\n> 左边的人指向下午那张。\n> “这张用的新区域图。你收到的是这张吗？”她把单子递给搬运员。\n> 搬运员翻手机，截图右上角还是旧编号。\n> 叶清把展示牌翻过来：“旧贴纸在这。先按新图把牌子放回，十分钟后我们一起查通知是谁漏收了。”\n\n她用双方都能检查的内容，把“谁抢位置”改成“哪版图实际生效”。先恢复现场，再查传递过程；不是为了显得圆滑而永远不追责。\n\n这场的尴尬被化解，仍留下需要处理的通知问题。旁观者可以配合搬牌，不必全员赞叹。",
-          "en": "**Weak version:**\n\n> Ye had exceptional emotional intelligence. “You’re all mistaken,” she said, and everyone admired her.\n\nWithout evidence and verification, success is supplied by the author.\n\n**Revision:**\n\n> “Don’t move it yet.” Ye aligned the forms. “Which date is later?”\n> One exhibitor pointed to the afternoon copy.\n> “That uses the new plan. Is it the one you received?” She passed it to the mover.\n> His screenshot still had the old number.\n> Ye turned the sign over. “The old sticker is here. Put it according to the new plan first. In ten minutes we’ll check who missed the notice.”\n\nPublicly checkable details change the argument from a stolen place to which layout is valid. She restores the scene before investigating communication; tact does not mean avoiding responsibility forever.\n\nThe immediate embarrassment ends while the notification issue remains. Witnesses can help move the sign instead of uniformly expressing admiration."
+          "zh": "**弱写法：**\n\n> 叶清是个高情商的人。她一句话就让大家信服：“你们都搞错了。”两家立刻佩服得五体投地。\n\n没有线索、核对与接受，“一句话”只是作者替她安排成功。\n\n**改写：**\n\n> “先别搬牌子。”叶清把两张单并排，“这个A08，有一张写入口，一张写侧廊。先查完整图。”\n>\n> 她调出已有区域图，给场地负责人看确认消息。“这版生效了吗？”\n>\n> “生效了。甲仍在入口A03，乙是侧廊A08。”负责人指给两家看。\n>\n> 甲方先问：“入口位置没变？”\n>\n> “没变，只改编号。”\n>\n> “那我接受。给我换A03牌。”\n>\n> 乙方也同意侧廊位置。搬运员翻出旧截图，说：“我按这个摆的。现在十分钟能移过去。”\n>\n> “先按已确认图移，通知哪里漏了，开场后一起查。”叶清说。\n\n搬运员把A08位置牌移到侧廊，按新图替入口放好A03，双方实际检查后继续布展。位置先恢复，漏通知问题仍待核对；不把后来一张单自动视为生效，也不宣布所有人已经原谅。旁观者可以配合，不必全员赞叹。\n\n叶清听见双方担心的位置没有丢，再提出具体办法，能看出控场来自可检查的事实与实际回应。",
+          "en": "**Weak version:**\n\n> Ye had exceptional emotional intelligence. “You’re all mistaken,” she said, and everyone admired her.\n\nWithout evidence, checking, and acceptance, one-line success is supplied by the author.\n\n**Revision:**\n\n> “Don’t move it yet.” Ye aligned the sheets. “This A08 says entrance here and side corridor there. Let’s check the complete plan.”\n>\n> She retrieved the existing plan and showed its confirmation message to the venue lead. “Is this version in effect?”\n>\n> “Yes. A remains at entrance A03; B has side-corridor A08.” The lead pointed out both places.\n>\n> A asked, “The entrance position hasn’t changed?”\n>\n> “Only its number.”\n>\n> “I accept that. Change my sign to A03.”\n>\n> B also accepted the corridor position. The mover opened the old screenshot. “I followed this. I can move it in ten minutes.”\n>\n> “Use the confirmed plan now. After opening, we’ll check where the notice was missed,” Ye said.\n\nThe mover relocates A08 to the corridor and places A03 at the entrance. Both exhibitors check their positions and resume setup. Placement is restored while the notification gap remains for review. A later sheet is not automatically effective, nor has everyone forgiven everything. Witnesses can cooperate without uniform admiration.\n\nYe hears the actual placement concerns and proposes a checkable method. Her management of the exchange rests on facts and replies."
         }
       },
       {
@@ -23821,8 +23835,8 @@
           "en": "Allow uncertainty and revision"
         },
         "body": {
-          "zh": "如果更新单只是草稿，叶清刚才的判断就不够。让她核对负责人确认，再行动。她可以说“先按这版准备，等确认后固定”，把临时安排与最终结论分开。\n\n对手也应有正常理由：参展商担心丢失入口曝光，搬运员怕返工超时，负责通知的人可能在维护自己的工作记录。聪明角色需要处理这些利益，不是让所有人忽然愿意听她指挥。\n\n写判断前检查三项：线索从哪里来，线索能支持到什么程度，验证失败能否换办法。若证据只说明版本不同，别自动升级成某人撒谎；若新事实改变判断，让人物承认并调整，不用旁白偷偷换掉旧说法。",
-          "en": "If the newer sheet is merely a draft, Ye’s conclusion is incomplete. Let her confirm approval before final action. A provisional arrangement can remain explicitly provisional.\n\nOthers have ordinary interests: an exhibitor wants entrance visibility, a mover fears overtime, and the notifier may protect a work record. Intelligence addresses those interests instead of making everyone obedient.\n\nCheck the clue’s origin, the strength of the conclusion and an alternative if verification fails. Different versions do not automatically prove deception. When evidence changes the judgment, let the character acknowledge and revise it rather than silently replacing the old conclusion."
+          "zh": "若采用更新单尚未确认的另一版故事，叶清只能判断版本不同，不能立刻按新图固定位置。她可以核对负责人或先讨论临时准备；后续收到确认再行动。当前完整范例已把生效核对和实际接受写出，不把不同版本的结果混用。\n\n对手也应有正常理由：参展商担心丢失入口曝光，搬运员怕返工超时，负责通知的人可能在维护自己的工作记录。聪明角色需要处理这些利益，不是让所有人忽然愿意听她指挥。\n\n写判断前检查三项：线索从哪里来，线索能支持到什么程度，验证失败能否换办法。若证据只说明版本不同，别自动升级成某人撒谎；若新事实改变判断，让人物承认并调整，不用旁白偷偷换掉旧说法。\n\n来源的“每次完美化解尴尬”是人物技法默认，作者可以写失误后修正、不被所有人喜欢的聪明，或一次普通顺利协作。只要判断有信息与行动依据，不必每场硬加反转。",
+          "en": "In an alternative version where the newer sheet is an unapproved draft, Ye can establish differing versions without fixing placement from it. She can ask the lead or discuss provisional preparation, then act after confirmation. The complete example above enacts approval and acceptance; do not mix the two versions’ outcomes.\n\nOthers have ordinary interests: an exhibitor wants entrance visibility, a mover fears overtime, and the notifier may protect a work record. Intelligence addresses those interests instead of making everyone obedient.\n\nCheck the clue’s origin, the strength of the conclusion and an alternative if verification fails. Different versions do not automatically prove deception. When evidence changes the judgment, let the character acknowledge and revise it rather than silently replacing the old conclusion.\n\nThe source’s perfect resolution of embarrassment is a technique default. An author can show correction after an error, intelligence without universal approval, or ordinary successful cooperation. Ground judgment in information and action without adding a twist to every scene."
         }
       },
       {
@@ -23863,8 +23877,8 @@
       "name": "story-long-write",
       "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
       "text": {
-        "zh": "请 story-long-write 检查这场聪明角色的表现：列可接触线索、判断、验证行动、利益不同的回应与剩余问题。删除无依据全知和对手降智，不新增秘密。",
-        "en": "Ask story-long-write to check accessible clues, judgment, verification, competing interests and unresolved problems. Remove omniscience and foolish opponents without inventing secrets."
+        "zh": "用 $story-long-write 审阅聪明角色场景，附可接触线索、版本生效范围、相关人物目标和已知事实。分开观察、判断、负责人核对、接受与实际执行，查验证失败后能否改法。保留作者文风，不靠对手降智或众人自动服从，也不强制每次完美解围；只改指定范围。",
+        "en": "Use $story-long-write to review an intelligent-character scene with accessible clues, effective-version scope, goals, and facts. Separate observation, judgment, confirmation, acceptance, and execution; check alternatives if verification fails. Preserve voice without foolish opponents, automatic obedience, or compulsory perfect rescue. Revise only the named scope."
       }
     },
     "sources": [
@@ -23874,6 +23888,13 @@
           "en": "Showing intelligence through adaptation and action"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-design-methods.md"
+      },
+      {
+        "label": {
+          "zh": "作者文风与事实边界",
+          "en": "Author voice and factual boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
     ],
     "related": [
@@ -38017,6 +38038,273 @@
         "label": {
           "zh": "作者选择与信息边界",
           "en": "Author choices and information boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      }
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "write-a-time-loop-novel",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-30",
+    "title": {
+      "zh": "时间循环小说怎么写不重复：让重来改变选择与理解",
+      "en": "How to Write a Time-Loop Novel Without Repeating the Same Scene"
+    },
+    "seo_title": {
+      "en": "Write a Time-Loop Novel",
+      "zh": "时间循环小说怎么写"
+    },
+    "description": {
+      "zh": "先定重置时刻、记忆和物件能否保留，再让每轮行动产生不同理解。附原创钟塔四轮对照、完整片段与退出条件检查。",
+      "en": "Define reset timing, retained memory, and object states. Includes four original clock-tower loops, a complete scene, and checks for an earned ending."
+    },
+    "answer": {
+      "zh": "时间循环的新鲜感来自人物带着上轮所知，重新选择这一轮怎样做，而非每天再念一次同样对白。先固定什么重置、什么保留、谁知道循环，再设计每轮要查清或完成的事。重复动作可以概述，改变判断与关系的场面展开；退出条件要提前建立，并由实际结果验证，不靠结尾临时增加能力。",
+      "en": "A time loop stays fresh when a character uses knowledge from earlier rounds to choose differently now, rather than replaying identical dialogue. Fix what resets, what persists, and who knows; then design what each round investigates or accomplishes. Summarize repeated actions and expand changed judgment or relationships. Establish an exit condition beforehand and verify it through results rather than a last-minute power."
+    },
+    "sections": [
+      {
+        "id": "reset-rules",
+        "heading": {
+          "zh": "先固定重置规则，分开记忆与当前事实",
+          "en": "Fix the Reset Rules: Memory Is Not Current State"
+        },
+        "body": {
+          "zh": "都市脑洞方法要求新规则进入可验证的现实场面；连续性方法追踪线索的实际推进与结果；悬念方法按提出问题、提示和答案安排信息。本篇把它们用于循环故事，以下重置表是作者编辑表，不是来源里已有的时间循环专用公式。\n\n| 规则 | 原创钟塔例 |\n|---|---|\n| 重置时刻与范围 | 午夜条件失败，小镇回到同一天06:00 |\n| 保留项 | 新任调钟员顾遥保留记忆；身体回到早晨状态 |\n| 重置项 | 工具、纸张、钟的故障、他人记忆都回到早晨 |\n| 退出条件 | 午夜钟声完整响满十二声，才进入次日 |\n| 信息来源 | 钟塔旧值班日志写明现象；首轮十一声后重置，证实其中一部分 |\n\n日志是提前出现的设定线索，不等于顾遥从开头就验证了一切。他记得上轮照片，不能把那张照片当本轮已经拍好的物件；他记得同伴答应，也不能让重置后的同伴直接承认那个约定。",
+          "en": "Urban-premise craft puts a new rule into testable situations; continuity craft tracks actual progress and results; suspense craft arranges questions, hints, and answers. This article applies them to looping. The following is an editorial worksheet rather than a time-loop formula already present in the sources.\n\n| Rule | Original clock-tower example |\n|---|---|\n| Reset time and scope | If the midnight condition fails, the town returns to 06:00 on the same day |\n| Retained state | New clock attendant Gu Yao retains memory; his body returns to morning state |\n| Reset state | Tools, papers, clock faults, and everyone else’s memories return to morning |\n| Exit condition | A complete twelve-stroke midnight chime permits the next day |\n| Source | An old duty log states the phenomenon; the first eleven-stroke reset verifies part of it |\n\nThe early log is a setting clue, not proof that Gu has verified everything. Remembering a photograph does not produce that photograph in this round. Remembering a colleague’s agreement does not make the reset colleague remember it."
+        }
+      },
+      {
+        "id": "four-rounds",
+        "heading": {
+          "zh": "四轮对照：改变策略，不只增加灾难",
+          "en": "Four Rounds: Different Strategies, Not Just More Disasters"
+        },
+        "body": {
+          "zh": "原设定：旧戏院当晚封闭搬迁，钟塔检修只开放到17:00。日志在早晨值班室可读。顾遥会调钟，卡杆检查则需要另一位熟悉这套装置的当日值班员何雪配合；她下午14:00要离镇。故障不因他记住位置就自动消失。\n\n| 轮次 | 已知、行动与实际结果 |\n|---|---|\n| 第一轮 | 16:00才检查钟，发现末击卡住；何雪已离开。午夜响十一声后回到06:00。 |\n| 第二轮 | 上午提前准备，却想独自完成，发现自己无法同时调钟与检查卡杆；没有修成，再重置。 |\n| 第三轮 | 中午请求何雪相信“昨天已经查过”，却没有本轮检查材料；她不愿照未知判断操作。等他补查后，她已到离镇时间。 |\n| 第四轮 | 09:00重新拍当前故障，让何雪现场核对；两人按已有办法处理，午间试鸣完整，午夜再实际听到十二声。 |\n\n每轮都有同一故障与时刻限制，变化在顾遥怎样使用记忆、取得当下证据和请求合作。何雪拒绝未知操作有自己的理由，并非为了逼主角再失败。第四轮不需要突然找到新高手或让工具穿越。\n\n四轮只是本例的分量。其他故事可以两轮完成一个单元，也可以让一轮主要用于休息、熟悉环境或情感体验；不强制每次重来新增死亡、损失或更强对手。",
+          "en": "Established setup: the old cinema closes for relocation that evening; tower maintenance is accessible until 17:00. The log is available in the morning duty room. Gu can adjust the clock, but checking the catch needs the other on-duty attendant familiar with this mechanism, He Xue, who leaves town at 14:00. Remembering the fault does not repair it.\n\n| Round | Record |\n|---|---|\n| One | Inspection starts at 16:00; the final stroke catches, and Xue has left. Eleven midnight strokes precede a reset to 06:00. |\n| Two | Gu prepares earlier but tries alone; he cannot adjust and check the catch simultaneously. It remains unfixed and resets. |\n| Three | At noon he asks Xue to trust a check from “yesterday,” without current inspection material. She refuses to operate on unknown findings. By his new check, it is time for her to leave. |\n| Four | At 09:00 he photographs the current fault and obtains her on-site check. They use the established method, complete a noon test, and hear twelve actual strokes at midnight. |\n\nThe fault and time limits remain constant. Gu changes how he uses memory, obtains present evidence, and requests cooperation. Xue’s refusal has a reason rather than existing only to force failure. Round four needs neither a sudden expert nor a tool carried through resets.\n\nFour rounds are this example’s scale. Another unit may need two, or devote a round to rest, orientation, or emotional experience. Each return needs no new death, loss, or stronger opponent."
+        }
+      },
+      {
+        "id": "complete-scene",
+        "heading": {
+          "zh": "原创片段：别要求她记得另一个昨天",
+          "en": "Original Scene: Do Not Ask Her to Remember Another Yesterday"
+        },
+        "body": {
+          "zh": "第四轮，顾遥没有再从“我昨夜见过”讲起。他带何雪到当前检修台，让她看得到实际问题。这里用的是本故事已有维护方法，重点是协作与知情，不提供现实设备维修步骤。\n\n> “今天先查末击。”顾遥把刚拍的照片递过去。\n>\n> 何雪看了一眼，又去看台上的卡杆。“这里确实卡住了。你昨天没发现？”\n>\n> 他几乎要说，发现过三次。那三个下午她都不记得。\n>\n> “这次发现了。”他说，“我调钟，你按值班办法查这一处，来得及吗？”\n>\n> “午饭前可以。别再一边调一边伸手查。”\n>\n> “好。你说停，我就停。”\n>\n> 这句话没有让她知道循环，却让两人知道今天各做什么。\n\n两人完成处理，午间试鸣十二声。何雪记下本次检修后按原计划离镇；顾遥在塔外等午夜钟声，这次实际响满十二声。次晨他的手机显示次日日期，时间走过06:01，没有回到同一个06:00。本轮退出由这些结果兑现，午间成功只是中间验证。\n\n何雪记得第四轮的共同工作，没有凭空获得前三轮经历。顾遥可以在后续讲述，她是否相信仍有自己的回答；脱离循环也不要求把她的出行或独立目标取消。",
+          "en": "In round four Gu does not begin with “I saw this last night.” He brings Xue to the current maintenance station where she can check the problem. The fictional method is already established; the scene concerns cooperation and knowledge rather than real equipment instructions.\n\n> “Let’s check the last stroke today.” Gu offered the photograph just taken.\n>\n> Xue looked at it, then at the catch. “It really is stuck. Didn’t you notice yesterday?”\n>\n> He nearly said he had noticed three times. She remembered none of those afternoons.\n>\n> “I’ve noticed this time,” he said. “I adjust; you check this part by the duty method. Is there time?”\n>\n> “Before lunch. Stop trying to adjust and reach in at once.”\n>\n> “Okay. When you say stop, I stop.”\n>\n> That did not tell her about the loop. It told them what each would do today.\n\nThey complete the work and a twelve-stroke noon test. Xue records this maintenance and leaves as planned. Gu waits outside the tower at midnight and actually hears twelve strokes. Next morning his phone shows the next date and time passes 06:01 rather than returning to the same 06:00. Those results fulfill this round’s exit; noon was an intermediate test.\n\nXue remembers round four’s shared work without acquiring earlier rounds. Gu may later tell her, and she still has her own reply. Escape need not cancel her travel or independent goals."
+        }
+      },
+      {
+        "id": "select-scenes",
+        "heading": {
+          "zh": "重复部分概述，新的理解展开",
+          "en": "Summarize Repetition and Expand Changed Understanding"
+        },
+        "body": {
+          "zh": "早晨刷牙、走同一段路、听同一句广播，可以在规则建立后概述：“他又在六点醒来，广播还是昨天那一句。”不必把每轮开场逐字复制。要展开的是旧动作里的新选择：第二轮想靠自己抢时间，第三轮向没有同样记忆的人求助，第四轮先提供当下材料。\n\n同一句对白也可重现，但让主角的理解有区别。“你昨天没发现？”第一次只是责问，后来成为他意识到双方记忆不同的提醒。不要只把对白换词当作剧情变化；反过来，重复原句也不自动等于水文。\n\n悬念可以从“为何重复”转向“怎样合作、午夜是否真正成功”。解答到位时可以收束，不要求退出以后马上接更危险的新循环。",
+          "en": "Once the rule is established, summarize brushing teeth, the same walk, or an identical broadcast: “He woke at six again. The broadcast used yesterday’s words.” Expand new choices within familiar actions: acting alone in round two, asking someone without the same memory in three, and supplying current material in four.\n\nA repeated line can gain meaning. “Didn’t you notice yesterday?” first sounds like criticism, later reminding him that their memories differ. Rewording dialogue alone does not create progress; repeating a line does not automatically create filler.\n\nSuspense may move from why repetition happens to cooperation and whether midnight actually succeeds. When the answer is fulfilled, the story can close without immediately creating a more dangerous loop."
+        }
+      },
+      {
+        "id": "repair",
+        "heading": {
+          "zh": "时间循环写崩时，先查跨轮状态",
+          "en": "Repair a Loop by Checking State Across Rounds"
+        },
+        "body": {
+          "zh": "逐轮列出主角知道什么、本轮已经做什么、别人现在知道什么。若只有主角记忆保留，手机截图、伤口、别人答应过的安排都不能无说明地跨轮保留。若本书选择保留某类物件或伤势，提前写进规则，再检查所有后续场景。\n\n退出条件可以是修复、选择或找到真相，但要可被本书条件支持。若是人物选择，写清谁怎样判断条件达成，不用“他终于成长”代替规则解释。若此前不知道退出条件，后面要有来源、推断和检验，不在最后一句直接宣告“其实只要相爱”。\n\n最后查每轮的价值：新信息、成功尝试、失败理解、情感体验都可以成立。没有新作用的重复可以缩短；稳定陪伴和休息仍按本书体验保留，不为让表格看起来不断升级硬加灾难。",
+          "en": "For each round record what the lead knows, what has happened now, and what others currently know. If only the lead’s memory persists, screenshots, wounds, and other people’s agreements cannot cross rounds without explanation. If this book retains a category of objects or injuries, establish that rule first and apply it consistently.\n\nAn exit can depend on repair, choice, or truth, but must follow the book’s conditions. For a choice-based exit, establish who or what determines completion rather than using “he finally grew” as the rule. An initially unknown condition needs a source, inference, and test later, not a final assertion that love was enough all along.\n\nCheck each round’s value: information, a successful attempt, understanding failure, or emotional experience can work. Shorten useless repetition; retain rest and stable company when they serve the book instead of adding disaster to make a table escalate."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "每轮都必须失败或付更大代价吗？",
+          "en": "Must every loop fail or cost more?"
+        },
+        "a": {
+          "zh": "不必。可以得到局部成功、理解他人或完成当前目标。变化在人物怎样理解与选择，不必用更多惨事证明循环有进展。",
+          "en": "No. A round can achieve partial success, understanding, or the present goal. Changed judgment and choices can matter without escalating calamity."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 审阅时间循环，附重置时刻、保留/重置项、当前知情、退出条件及已写轮次。逐轮区分旧记忆、本轮物件、他人回答与实际结果，检查规则来源和验证。按作者文风展开关键场面、概述重复，不强制每轮失败或新增代价；只改指定范围。",
+        "en": "Use $story-long-write to review this time loop with reset timing, retained states, current knowledge, exit conditions, and written rounds. Separate old memory, current objects, replies, and results; check rule sources and verification. Expand key scenes and summarize repetition under the author’s voice, without mandatory failure or added cost. Revise only the named scope."
+      }
+    },
+    "related": [
+      "/oh-story/organize-a-novel-timeline",
+      "/oh-story/urban-premise-novel",
+      "/oh-story/write-an-infinite-flow-novel"
+    ],
+    "topic": "genres",
+    "sources": [
+      {
+        "label": {
+          "zh": "新规则进入现实场面",
+          "en": "A new rule in concrete situations"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/genre-prose-cards/都市脑洞.md"
+      },
+      {
+        "label": {
+          "zh": "连续性与实际推进",
+          "en": "Continuity and actual progress"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/plot-core-methods.md"
+      },
+      {
+        "label": {
+          "zh": "信息顺序与期待",
+          "en": "Information order and expectation"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/long-suspense.md"
+      },
+      {
+        "label": {
+          "zh": "作者选择与既定信息边界",
+          "en": "Author choices and established information boundaries"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
+      }
+    ]
+  },
+  {
+    "owner": "oh-story",
+    "slug": "write-a-secret-identity-romance",
+    "langs": [
+      "zh",
+      "en"
+    ],
+    "published_on": "2026-09-29",
+    "updated_on": "2026-09-30",
+    "title": {
+      "en": "How to Write a Secret-Identity Romance with Fair Clues",
+      "zh": "身份隐瞒爱情故事怎么写：线索公平，揭晓有后果"
+    },
+    "seo_title": {
+      "en": "Write a Secret-Identity Romance",
+      "zh": "身份隐瞒爱情故事"
+    },
+    "description": {
+      "zh": "分清双方怎样知道真实身份、隐瞒了多久，以及揭晓改变什么。附原创网络笔名案例、可回看线索与揭晓后的实际回应。",
+      "en": "Track who knows the identity, when they learn it, and what disclosure changes. Includes an original pen-name romance, fair clues, and replies after revelation."
+    },
+    "answer": {
+      "zh": "身份隐瞒爱情先写清两个身份分别怎样与对方相处，再让线索提示它们可能属于同一个人。隐瞒者知道多少、为何不说、怎样利用信息，决定揭晓后的问题。真相可以由本人坦白，不必强迫撞破；恋爱继续、暂停或结束，都需要另一人的真实回应，不能用隐藏身份更优秀抵消曾经的隐瞒。",
+      "en": "Establish how each identity relates to the other person, then clues that they may belong to one person. What the concealer knows, why they withhold it, and how they use that knowledge shape the disclosure. They can confess directly rather than be caught. Continuing, pausing, or ending romance needs the other’s actual reply; a more impressive hidden identity cannot erase concealment."
+    },
+    "sections": [
+      {
+        "id": "identity-and-knowledge",
+        "heading": {
+          "zh": "两个身份，四种知情不要混在一起",
+          "en": "Two Identities: Keep Knowledge Separate"
+        },
+        "body": {
+          "zh": "关系方法用网上与现实的双重身份制造期待，反转方法要求先定表面身份、隐藏身份和可回看行为；情绪方法再问这份相处为何珍贵、揭晓改变什么。本篇将它们组合为爱情例，不规定隐瞒者一定是富豪、高手或仇人。\n\n| 要记录的事 | 本例填写 |\n|---|---|\n| 表面与隐藏身份 | 邻居叶斐，也是线上合作朗读者“北桥” |\n| 双方何时知道 | 叶斐三周前听程意公开读出笔名“纸舟”，才认出她；程意尚不知道北桥是叶斐 |\n| 已透露的内容 | 两人线上讨论短篇与个人心情，现实已单独见面两次，尚未确认交往 |\n| 隐瞒如何影响行为 | 他借线上得知的旧唱片喜好送礼，却说只是碰巧 |\n\n若采用程意限知视角，只叙述她的观察、想法和他实际说的话。不能写“他完全不认识纸舟”作为事实，后来又改成早知道；可以让她相信他不知道，再由证据纠正。作者知道不等于她已经知道。",
+          "en": "Relationship craft uses online and offline identities to create expectation; reversal craft establishes public and hidden identities with revisitable behavior; emotional craft asks why the connection matters and what revelation changes. This article combines them for romance without requiring a concealed billionaire, master, or enemy.\n\n| Record | This example |\n|---|---|\n| Public and hidden identities | Neighbor Ye Fei is online reading collaborator “Beiqiao” |\n| When each knows | Three weeks ago Ye heard Cheng Yi publicly read her pen name “Paperboat” and recognized her; Cheng does not know Beiqiao is Ye |\n| Shared information | Online they discuss short fiction and personal feelings; offline they have met alone twice without agreeing to date |\n| Effect of concealment | He uses an online record preference to choose a gift, then calls it coincidence |\n\nIn Cheng’s limited viewpoint, report her observations, thoughts, and his actual words. Do not state as fact that he does not know Paperboat, then later declare he always did. She can believe he does not know and later revise that belief. Author knowledge is not her knowledge."
+        }
+      },
+      {
+        "id": "fair-clues",
+        "heading": {
+          "zh": "线索提示身份，不能独自证明一切",
+          "en": "Clues Suggest Identity Without Proving Everything"
+        },
+        "body": {
+          "zh": "叶斐与程意在线上、现实相处已有两个月，三周前他才把两个身份接上。前文可以展示以下细节：\n\n| 细节 | 能说明与不能说明 |\n|---|---|\n| 北桥与叶斐都说“这里先留一个空行” | 用语相似可引起注意；不是唯一身份证明 |\n| 北桥常说18:40赶末班车，叶斐也有这个下班安排 | 时间有重合；不能单凭排班断言是同一人 |\n| 她只在线上提过的旧唱片，叶斐送给她 | 他取得信息的来源需解释；不自动证明全程监视或所有交流都虚假 |\n\n让这些细节先在正常相处里成立。程意起初把唱片理解为巧合，后来听到相同用语才问来源。若书中一直用双视角，也可早让读者知道他的身份，把期待转到“何时坦白、她会怎样回应”；不必为了惊讶硬藏他视角里正在想着的事实。\n\n线索数量、揭晓位置和是否自我坦白按作者选择。来源的三处暗示与禁止自报身份是默认技法，不能压过本书明确采用的直接告白；仍要保持已知事实一致。",
+          "en": "Ye and Cheng have interacted online and offline for two months; he connected the identities three weeks ago. Earlier scenes can show:\n\n| Detail | Scope |\n|---|---|\n| Both use “Leave a blank line here first” | Similar wording draws attention without unique identification |\n| Beiqiao catches the last bus at 18:40; Ye has the same work schedule | Overlapping times alone do not establish identity |\n| Ye gives the record she mentioned only online | His information source needs explanation; it does not prove total surveillance or make all exchanges false |\n\nLet details first work in ordinary company. Cheng initially reads the record as coincidence and later asks after hearing familiar wording. With two viewpoints, readers may know his identity early and wait for disclosure and her response rather than surprise. Do not suppress facts he is actively considering solely to hide them.\n\nClue count, reveal timing, and direct disclosure follow author choice. The source’s three-hint and no-self-identification techniques are defaults, not overrides of this book’s chosen direct conversation. Established facts still need consistency."
+        }
+      },
+      {
+        "id": "complete-scene",
+        "heading": {
+          "zh": "原创片段：先回答信息从哪里来",
+          "en": "Original Scene: Answer Where the Information Came From"
+        },
+        "body": {
+          "zh": "第三次单独见面，程意听叶斐对她刚写的句子说“这里先留一个空行”。她想起唱片，直接问起。\n\n> “那张唱片，你怎么知道我想找？”\n>\n> 叶斐没有再说碰巧。“你告诉过北桥。”\n>\n> “我没告诉过你。”\n>\n> “北桥就是我。三周前你在读书组说自己叫纸舟，我才知道。”\n>\n> 他从现有账号发来一条消息。程意打开原先两人的对话，看到消息进到同一串记录里；他在她面前输入，又停下来等她看完。\n>\n> “你知道以后，还问我喜不喜欢你。那时我不知道你们是一个人。”\n>\n> “是。我怕你不再跟北桥说话，拖着没讲。唱片也不是巧合。”\n>\n> “我喜欢跟你相处。现在我要先弄明白，是怎样的相处。”\n>\n> “你想先停吗？”\n>\n> “线上合作先停，周末那顿饭也先不约。等我想好再联系。”\n>\n> “好。我不换别的账号来找你。”\n\n账号中的当前消息支持两种身份的对应；他的说明交代获知时点与隐瞒理由，不证明每句过去的话都真实。她已有好感，也确实需要暂停，两者可以同时成立。\n\n两周里叶斐没有另换账号催促。程意后来主动提出散步，他接受，双方实际见面。她问清几次线下话题的信息来源，他逐项回答；她说仍想继续约会，他同意按彼此现在知道的身份相处。两人再约好下一次见面，后来共同表示愿意交往。这里有重新接触与选择，不宣布一次谈话治好全部信任，也不把等待两周当保证复合的配额。",
+          "en": "At their third private meeting, Cheng hears Ye suggest leaving a blank line in her new sentence. Remembering the record, she asks directly.\n\n> “How did you know I wanted that record?”\n>\n> Ye did not call it coincidence again. “You told Beiqiao.”\n>\n> “I didn’t tell you.”\n>\n> “I am Beiqiao. Three weeks ago, when you said you were Paperboat at the group, I realized.”\n>\n> He sent a message from the existing account. Cheng opened their earlier conversation and saw it arrive in the same thread. He typed in front of her, then waited for her to finish reading.\n>\n> “After you knew, you still asked whether I liked you. I didn’t know you were one person.”\n>\n> “Yes. I feared you’d stop talking to Beiqiao and put it off. The record wasn’t coincidence either.”\n>\n> “I like being with you. Now I need to understand what that company was.”\n>\n> “Do you want to stop for now?”\n>\n> “Pause the online work, and don’t arrange the weekend dinner. I’ll contact you when I’ve thought.”\n>\n> “Okay. I won’t use another account to find you.”\n\nThe current account message supports the identity connection. His explanation supplies when he learned it and his reason for concealment, without proving every past statement true. Her attraction and need to pause can coexist.\n\nFor two weeks Ye uses no other account to press her. Cheng later proposes a walk, he accepts, and they actually meet. She asks where several offline topics came from; he answers each. She says she still wants to date, and he accepts company under their now-shared knowledge. They arrange another meeting and later mutually choose a relationship. Renewed contact and choice do not mean one conversation restores all trust. Two weeks is this example’s timing, not a reconciliation quota."
+        }
+      },
+      {
+        "id": "repair",
+        "heading": {
+          "zh": "身份揭晓后，保留双方各自的选择",
+          "en": "After Disclosure, Keep Each Person’s Choices"
+        },
+        "body": {
+          "zh": "先核对隐瞒范围：只是没有说笔名，还是主动编过假信息、利用对方私事或替对方做决定？后果对应本书确实发生的行为，不把所有隐瞒都写成同一种罪，也不因“他为她好”把行为删掉。\n\n再核对回应：惊讶、快乐、失落、愤怒都可能，取决于原相处与人物价值。身份本人解释不等于对方已经接受，旁人起哄也不能替代关系确认。让角色问、回答、暂停或继续，把这一轮选择写到实际往来。\n\n故事可选继续相爱、开放等待或分开。若继续，补对应的新行为；若分开，不必突然把曾经所有温暖都写成骗局。隐藏身份更有地位或能力，可以改变处境，却不能自动换取恋爱与原谅。",
+          "en": "Check the scope of concealment: an unmentioned pen name, invented information, use of private details, or decisions made for someone else have different effects. Address the behavior that actually occurred rather than assigning every concealment the same judgment or erasing it because he meant well.\n\nCheck the reply: surprise, pleasure, disappointment, or anger can fit the earlier relationship and values. An explanation is not acceptance, and bystander teasing cannot confirm romance. Let questions, replies, pauses, and continuation affect actual contact.\n\nThe ending can continue love, remain open, or separate. For continuation, show corresponding new conduct. Separation need not turn every earlier warm encounter into fraud. A prestigious or powerful hidden identity may alter circumstances without automatically purchasing romance or forgiveness."
+        }
+      }
+    ],
+    "faq": [
+      {
+        "q": {
+          "zh": "一定要让身份被别人撞破吗？",
+          "en": "Must someone else expose the identity?"
+        },
+        "a": {
+          "zh": "不必。本人主动坦白同样能形成场景，重要的是信息从何而来、先前线索能否回看，以及对方听见后怎样回答。",
+          "en": "No. Voluntary disclosure can form a scene. Establish the information source, revisitable clues, and the other person’s reply."
+        }
+      }
+    ],
+    "skill": {
+      "name": "story-long-write",
+      "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/SKILL.md",
+      "text": {
+        "zh": "用 $story-long-write 审阅身份隐瞒爱情，附双方身份、获知时点、已透露范围、叙述视角和选定结局。分开线索、推测、身份核验、自认与对方接受；补实际往来。保留作者文风与双方选择，不强制三条暗示、撞破、惩罚或复合，只改指定范围。",
+        "en": "Use $story-long-write to review this secret-identity romance with identities, discovery times, shared information, viewpoint, and ending. Separate clues, inference, verification, admission, and acceptance; check actual contact. Preserve voice and both choices without mandatory three-hint counts, exposure, punishment, or reconciliation. Revise only the named scope."
+      }
+    },
+    "related": [
+      "/oh-story/plot-twists",
+      "/oh-story/write-a-romance-confession-scene",
+      "/oh-story/write-a-mutual-pining-romance"
+    ],
+    "topic": "characters-and-dialogue",
+    "sources": [
+      {
+        "label": {
+          "zh": "双重身份、信息差与独立目标",
+          "en": "Dual identity, information differences, and independent goals"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/character-relations.md"
+      },
+      {
+        "label": {
+          "zh": "身份揭示与可回看的行为",
+          "en": "Identity revelation and revisitable behavior"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/long-reversal.md"
+      },
+      {
+        "label": {
+          "zh": "投入、意义变化与可信回应",
+          "en": "Investment, changed meaning, and credible replies"
+        },
+        "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/emotional-methods.md"
+      },
+      {
+        "label": {
+          "zh": "作者选择与既定信息边界",
+          "en": "Author choices and established information boundaries"
         },
         "url": "https://github.com/zenstory-ai/oh-story-claudecode/blob/4a50d5583590eb7f207037e35136c1168bc02201/skills/story-long-write/references/style-resolution.md"
       }
