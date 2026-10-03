@@ -11,13 +11,27 @@ const guides = content('guides'), articles = content('articles'), topics = conte
 const reading = [...guides, ...articles]
 const routeOf = (item) => `/${item.owner}/${item.slug}`
 const pathOf = (lang, route) => lang === 'zh' ? `/zh${route}` : route
+const OWNED_METHOD_SOURCE = /^https:\/\/github\.com\/zenstory-ai\/[^/]+\/blob\/[a-f0-9]{40}\/(?:packages\/knowledge\/[^/]+\/)?skills\/[^/]+\/(?:SKILL\.md|references\/.+\.(?:md|py|sh)|scripts\/.+\.py|assets\/.+\.md)$/
+const OFFICIAL_METHOD_SOURCES = new Set([
+  'https://kling.ai/quickstart/image-to-video-guide',
+  'https://kling.ai/quickstart/klingai-video-3-model-user-guide',
+  'https://ffmpeg.org/ffprobe.html',
+  'https://ffmpeg.org/ffmpeg-filters.html#tonemap',
+  'https://ffmpeg.org/ffmpeg-filters.html#zscale',
+  'https://ffmpeg.org/ffmpeg-filters.html#setparams',
+  'https://ffmpeg.org/ffmpeg-filters.html#fps',
+  'https://github.com/FFmpeg/FFmpeg/blob/98e92563a3b60dbf6d370fd3491d7f896398e4c1/libavfilter/colorspace.h',
+  'https://github.com/FFmpeg/FFmpeg/blob/98e92563a3b60dbf6d370fd3491d7f896398e4c1/libavfilter/colorspace.c',
+])
+const sourceUrlAllowed = (url) => OWNED_METHOD_SOURCE.test(url) || OFFICIAL_METHOD_SOURCES.has(url)
+const articleSourcesAreValid = (sources) => sources?.some((source) => OWNED_METHOD_SOURCE.test(source.url)) && sources.every((source) => sourceUrlAllowed(source.url))
 
 test('published articles link immutable specialist skill files and have explicit task categories', () => {
   const ids = new Set(topics.map((topic) => topic.slug))
   const repos = {'oh-story':'oh-story-claudecode', 'drama-skills':'drama-skills', 'novel-to-game':'novel-to-game', 'video-recap':'video-recap-skills', dsh:'oh-story-dsh'}
   const skills = {
     'oh-story':['story-setup','story-import','story-long-write','story-short-write','story-long-analyze','story-review','story-deslop','story-cover'],
-    'drama-skills':['short-drama','short-drama-develop','short-drama-write','short-drama-novel-analyze','short-drama-image-prompts','short-drama-video-prompts','short-drama-storyboard','short-drama-review','short-drama-edit','short-drama-assets'],
+    'drama-skills':['short-drama','short-drama-develop','short-drama-write','short-drama-novel-analyze','short-drama-image-prompts','short-drama-video-prompts','short-drama-storyboard','short-drama-review','short-drama-edit','short-drama-assets','short-drama-produce'],
     'novel-to-game':['novel-to-game','game-concept','game-world-design','game-build','game-qa','game-art-direction'],
     'video-recap':['video-recap','video-script','video-cut','video-assemble','video-voiceover'], dsh:['novel-to-game']
   }
@@ -31,8 +45,49 @@ test('published articles link immutable specialist skill files and have explicit
     const prefix = article.owner==='dsh' ? 'packages/knowledge/novel-to-game/' : ''
     assert.match(article.skill.url,new RegExp(`^https://github.com/zenstory-ai/${repos[article.owner]}/blob/[a-f0-9]{40}/${prefix}skills/${article.skill.name}/SKILL\\.md$`))
     assert.ok(article.sources?.length,`${article.slug}: missing method source`)
-    for (const source of article.sources) assert.match(source.url,/^https:\/\/github\.com\/zenstory-ai\/[^/]+\/blob\/[a-f0-9]{40}\/(?:packages\/knowledge\/[^/]+\/)?skills\/[^/]+\/(?:SKILL\.md|references\/.+\.(?:md|py|sh)|scripts\/.+\.py|assets\/.+\.md)$/)
+    assert.ok(article.sources.some((source) => OWNED_METHOD_SOURCE.test(source.url)),`${article.slug}: missing owned method source`)
+    for (const source of article.sources) assert.ok(sourceUrlAllowed(source.url),`${article.slug}: unapproved method source ${source.url}`)
+    assert.ok(articleSourcesAreValid(article.sources),`${article.slug}: invalid method sources`)
   }
+})
+
+test('article source policy permits only pinned owned methods and exact approved provider and FFmpeg references', () => {
+  const owned = 'https://github.com/zenstory-ai/video-recap-skills/blob/0123456789abcdef0123456789abcdef01234567/skills/video-assemble/SKILL.md'
+  const accepted = [owned, ...OFFICIAL_METHOD_SOURCES]
+  const rejected = [
+    'http://ffmpeg.org/ffprobe.html',
+    'https://www.ffmpeg.org/ffprobe.html',
+    'https://ffmpeg.org.evil.example/ffprobe.html',
+    'https://ffmpeg.org@evil.example/ffprobe.html',
+    'https://ffmpeg.org/ffprobe.html?format=json',
+    'https://ffmpeg.org/ffmpeg-filters.html#scale',
+    'https://ffmpeg.org/ffmpeg-filters.html#fps?rate=30',
+    'https://ffmpeg.org/ffmpeg-filters.html#fps_002c-minterpolate',
+    'https://ffmpeg.org/ffmpeg-filters.html',
+    'https://github.com/zenstory-ai/video-recap-skills/blob/main/skills/video-assemble/SKILL.md',
+    'https://github.com/FFmpeg/FFmpeg/blob/master/libavfilter/colorspace.h',
+    'https://github.com/FFmpeg/FFmpeg/blob/main/libavfilter/colorspace.h',
+    'https://github.com/FFmpeg/FFmpeg/blob/0000000000000000000000000000000000000000/libavfilter/colorspace.h',
+    'https://github.com/FFmpeg/FFmpeg/blob/98e92563a3b60dbf6d370fd3491d7f896398e4c1/libavfilter/vf_zscale.c',
+    'https://github.com/FFmpeg/FFmpeg/blob/98e92563a3b60dbf6d370fd3491d7f896398e4c1/libavfilter/colorspace.h?raw=1',
+    'https://github.com/FFmpeg/FFmpeg/blob/98e92563a3b60dbf6d370fd3491d7f896398e4c1/libavfilter/colorspace.h#L27',
+    'https://github.com/FFmpeg-lookalike/FFmpeg/blob/98e92563a3b60dbf6d370fd3491d7f896398e4c1/libavfilter/colorspace.h',
+    'https://github.com.evil.example/FFmpeg/FFmpeg/blob/98e92563a3b60dbf6d370fd3491d7f896398e4c1/libavfilter/colorspace.h',
+    '',
+    'https://example.com/ffprobe.html',
+    'https://kling.ai/quickstart/text-to-video-prompt-guide',
+    'http://kling.ai/quickstart/image-to-video-guide',
+    'https://kling.ai.evil.example/quickstart/image-to-video-guide',
+    'https://kling.ai@evil.example/quickstart/image-to-video-guide',
+    'https://www.kling.ai/quickstart/image-to-video-guide',
+    'https://kling.ai/quickstart/image-to-video-guide?ref=article',
+    'https://kling.ai/quickstart/klingai-video-3-model-user-guide#pricing',
+    'javascript:alert(1)',
+  ]
+  for (const url of accepted) assert.equal(sourceUrlAllowed(url),true,`should accept ${url}`)
+  for (const url of rejected) assert.equal(sourceUrlAllowed(url),false,`should reject ${url}`)
+  assert.equal(articleSourcesAreValid([...OFFICIAL_METHOD_SOURCES].map((url) => ({url}))),false,'official sources cannot replace the owned method source')
+  assert.equal(articleSourcesAreValid(accepted.map((url) => ({url}))),true,'owned and exact official sources should be accepted together')
 })
 
 test('every article belongs to one paginated category; home stays bounded; merged links leave the catalog', (t) => {
@@ -69,6 +124,10 @@ test('every article belongs to one paginated category; home stays bounded; merge
     for(const article of articles.filter((item)=>item.langs.includes(lang))) {
       const html=readFileSync(join(out,pathOf(lang,routeOf(article)),'index.html'),'utf8')
       assert.ok(html.includes(`href="${article.skill.url}"`))
+      for (const source of article.sources) {
+        assert.ok(sourceUrlAllowed(source.url),`${article.slug}: generated an unapproved source`)
+        assert.ok(html.includes(`href="${source.url}"`),`${article.slug}: missing rendered source ${source.url}`)
+      }
     }
   }
   for(const [source,target] of Object.entries(redirects)) {

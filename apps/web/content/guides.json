@@ -1070,7 +1070,7 @@
   {
     "owner": "video-recap",
     "slug": "video-to-narration",
-    "checked_on": "2026-09-29",
+    "checked_on": "2026-10-02",
     "title": {
       "en": "Make a video recap with Chinese narration from local footage",
       "zh": "视频解说怎么做：把本地视频做成有依据的中文解说"
@@ -1093,6 +1093,10 @@
     },
     "steps": {
       "en": [
+        [
+          "Choose the voiceover task first",
+          "Voice synthesis turns a finished script into speech; speech recognition turns existing sound into text. Choose the route for your work: to add Chinese narration to an authorized local video, continue with this guide; for scripted short-drama characters, start with [distinct character voices](https://zenstory.ai/drama-skills/choose-distinct-short-drama-voices); to decide where dialogue, action sounds or silence should remain and where narration belongs, use [original sound and narration](https://zenstory.ai/video-recap/original-audio-and-narration). This guide starts from video. Set the script and its placement before generating speech, then listen to each complete line and watch the assembled scene to check how sound and picture connect."
+        ],
         [
           "Choose the edit shape",
           "Primary route: invoke the installed video-recap skill in its configured host (for hosts exposing that slash name, /video-recap) with a natural-language brief. Use full to retain the source timeline; use cut for a shorter story rendered before narration. State audience, duration, context, subtitles and material that must survive."
@@ -1127,6 +1131,10 @@
         ]
       ],
       "zh": [
+        [
+          "AI配音怎么做：先选自己的任务",
+          "配音把定稿文字变成声音，语音识别把已有声音转成文字。按你要完成的作品选入口：有获准使用的本地视频，想加中文解说，继续本指南；已经写好短剧角色台词，先看[区分角色声音](https://zenstory.ai/drama-skills/choose-distinct-short-drama-voices)；拿不准哪里留对白、动作声或静默，哪里加旁白，先看[原声与旁白分配](https://zenstory.ai/video-recap/original-audio-and-narration)。本指南从视频开始，先确定文案与画面中的落点，再生成声音；合成后逐段听完整句，并回看片段检查声画衔接。"
+        ],
         [
           "先选成片形态",
           "主入口是在已配置宿主中调用安装好的 video-recap skill（宿主若暴露该 slash 名，则用 /video-recap），再提交自然语言简报。原片时间线保持完整、只在合适位置加旁白用 full；长素材要收成短故事用 cut，它先剪片，再按剪后时间轴写稿。说明受众、时长、背景、字幕和必须保留的素材。"
@@ -1206,7 +1214,8 @@
         "[Evidence constrains people, causes and outcomes](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L13-L18)",
         "[Compare story angles and pay off a supported viewer promise](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L32-L56)",
         "[Write narration only when it has a job](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L95-L118)",
-        "[Honor a directed brief and freeze untargeted revision decisions](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L5-L11)"
+        "[Honor a directed brief and freeze untargeted revision decisions](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L5-L11)",
+        "[Voiceover scope, authorized references and capability boundaries](https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/SKILL.md#L12-L91)"
       ],
       "zh": [
         "[运行环境前提与远程 MiMo 配置](https://github.com/zenstory-ai/video-recap-skills/blob/145ecc7c08d3d0dd7dfa3508912a897762263541/README.en.md#L53-L70)",
@@ -1224,7 +1233,8 @@
         "[人物、因果与结果需要证据](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L13-L18)",
         "[比较叙事角度，兑现有依据的观众期待](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L32-L56)",
         "[旁白只在有明确职责时才写](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L95-L118)",
-        "[遵守指定方向与本轮未点名的冻结项](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L5-L11)"
+        "[遵守指定方向与本轮未点名的冻结项](https://github.com/zenstory-ai/video-recap-skills/blob/4b57cda3adc454a78c8c45560211c55e1bc4ca79/skills/video-script/references/creative-editing-playbook.md#L5-L11)",
+        "[配音定位、授权参考音频与能力边界](https://github.com/zenstory-ai/video-recap-skills/blob/e7eb0a82f13aab930f64a669e91ece78b82f65f5/skills/video-voiceover/SKILL.md#L12-L91)"
       ]
     },
     "topic": "video-recaps"
