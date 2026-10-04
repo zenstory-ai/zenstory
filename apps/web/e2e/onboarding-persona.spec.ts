@@ -213,26 +213,29 @@ test.describe("Onboarding gate regression", () => {
     expect(page.url()).not.toContain("/onboarding/persona");
   });
 
-  test("new-user shaped session should be redirected to onboarding route", async ({ page }) => {
+  test("server-required legacy session is redirected from a protected route", async ({ page }) => {
+    // Keep the real legacy account: only the server response should require onboarding.
+    let onboardingReads = 0;
+    await page.route("**/api/v1/persona/onboarding", async (route) => {
+      if (route.request().method() !== "GET") return route.continue();
+      onboardingReads += 1;
+      await route.fulfill({
+        status: 200,
+        json: {
+          required: true, rollout_at: "2026-03-05T16:00:00Z", new_user_window_days: 7,
+          profile: null, recommendations: [],
+        },
+      });
+    });
+
     await gotoWithRetry(page, "/login");
     await page.fill("input#identifier", TEST_EMAIL);
     await page.fill("input#password", TEST_PASSWORD);
     await page.click("button[type='submit']");
     await page.waitForURL(AUTHENTICATED_ROUTE_PATTERN, { timeout: 30000 });
 
-    await page.evaluate((keyPrefix) => {
-      const rawUser = localStorage.getItem("user");
-      if (!rawUser) return;
-
-      const user = JSON.parse(rawUser) as { id?: string; created_at?: string };
-      if (!user.id) return;
-
-      user.created_at = new Date().toISOString();
-      localStorage.setItem("user", JSON.stringify(user));
-      localStorage.removeItem(`${keyPrefix}:${user.id}`);
-    }, PERSONA_KEY_PREFIX);
-
     await gotoWithRetry(page, "/dashboard/projects");
     await expect(page).toHaveURL(/\/onboarding\/persona/, { timeout: 10000 });
+    expect(onboardingReads).toBeGreaterThan(0);
   });
 });

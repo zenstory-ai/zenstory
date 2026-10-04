@@ -170,33 +170,30 @@ test.describe('Authentication', () => {
       expect(page.url()).not.toContain('/onboarding/persona');
     });
 
-    test('new-user login is redirected to persona onboarding', async ({ page }) => {
-      const TEST_EMAIL = TEST_USERS.standard.email;
-      const TEST_PASSWORD = TEST_USERS.standard.password;
-      const nowIso = new Date().toISOString();
-
-      await page.route('**/api/auth/login', async (route) => {
-        const response = await route.fetch();
-        const payload = await response.json();
-        const patchedPayload = {
-          ...payload,
-          user: {
-            ...(payload?.user ?? {}),
-            created_at: nowIso,
-          },
-        };
+    test('server-required login is redirected despite the legacy account age', async ({ page }) => {
+      // Keep the real legacy account: only the server response should require onboarding.
+      let onboardingReads = 0;
+      await page.route("**/api/v1/persona/onboarding", async (route) => {
+        if (route.request().method() !== "GET") return route.continue();
+        onboardingReads += 1;
         await route.fulfill({
-          response,
-          json: patchedPayload,
+          status: 200,
+          json: {
+            required: true, rollout_at: "2026-03-05T16:00:00Z", new_user_window_days: 7,
+            profile: null, recommendations: [],
+          },
         });
       });
 
+      const TEST_EMAIL = TEST_USERS.standard.email;
+      const TEST_PASSWORD = TEST_USERS.standard.password;
       await gotoWithRetry(page, '/login');
       await page.fill('input#identifier', TEST_EMAIL);
       await page.fill('input#password', TEST_PASSWORD);
       await page.click('button[type="submit"]');
 
       await expect(page).toHaveURL(/\/onboarding\/persona/, { timeout: 15000 });
+      expect(onboardingReads).toBeGreaterThan(0);
     });
 
     test('user sees error with invalid credentials', async ({ page }) => {
