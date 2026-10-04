@@ -366,12 +366,22 @@ test.describe('Security - SQL Injection', () => {
     const fileInput = page.locator('input[placeholder*="大纲"]');
     const sqlPayload = "'; DROP TABLE files;--";
     await fileInput.fill(sqlPayload);
+    const submittedTitle = (await fileInput.inputValue()).trim();
+    const creation = page.waitForResponse(resp => {
+      const path = new URL(resp.url()).pathname;
+      return path.startsWith('/api/v1/projects/') && path.endsWith('/files') &&
+        resp.request().method() === 'POST' && resp.request().postDataJSON()?.title === submittedTitle;
+    });
     await fileInput.press('Enter');
-    // Wait for file creation response
-    await page.waitForResponse(resp => resp.url().includes('/api/v1/files') && resp.request().method() === 'POST', { timeout: 5000 }).catch(() => {});
+    const response = await creation;
 
     const serverLeak = page.locator('text=/sqlite|postgres|traceback|internal server error|syntax error at or near/i');
     expect(await serverLeak.count()).toBe(0);
+    expect(response.ok()).toBeTruthy();
+    const createdFile = await response.json();
+    const createdRow = page.locator('.overflow-auto').getByText(createdFile.title, { exact: true }).first();
+    await expect(createdRow).toBeVisible();
+    await createdRow.click();
     await expect(page.locator('[data-editor-scroll-container="true"]')).toBeVisible();
   });
 });
@@ -403,12 +413,22 @@ test.describe('Security - Path Traversal', () => {
     const fileInput = page.locator('input[placeholder*="大纲"]');
     const traversalPath = '../../../etc/passwd';
     await fileInput.fill(traversalPath);
+    const submittedTitle = (await fileInput.inputValue()).trim();
+    const creation = page.waitForResponse(resp => {
+      const path = new URL(resp.url()).pathname;
+      return path.startsWith('/api/v1/projects/') && path.endsWith('/files') &&
+        resp.request().method() === 'POST' && resp.request().postDataJSON()?.title === submittedTitle;
+    });
     await fileInput.press('Enter');
-    // Wait for file creation response
-    await page.waitForResponse(resp => resp.url().includes('/api/v1/files') && resp.request().method() === 'POST', { timeout: 5000 }).catch(() => {});
+    const response = await creation;
 
     const bodyText = (await page.locator('body').textContent()) ?? '';
     expect(bodyText).not.toContain('root:x:0:0');
+    expect(response.ok()).toBeTruthy();
+    const createdFile = await response.json();
+    const createdRow = page.locator('.overflow-auto').getByText(createdFile.title, { exact: true }).first();
+    await expect(createdRow).toBeVisible();
+    await createdRow.click();
     await expect(page.locator('[data-editor-scroll-container="true"]')).toBeVisible();
   });
 
@@ -505,12 +525,27 @@ test.describe('Security - Input Validation', () => {
     // File name with null byte
     const nullByteName = 'test\x00file.txt';
     await fileInput.fill(nullByteName);
+    const submittedTitle = (await fileInput.inputValue()).trim();
+    const creation = page.waitForResponse(resp => {
+      const path = new URL(resp.url()).pathname;
+      return path.startsWith('/api/v1/projects/') && path.endsWith('/files') &&
+        resp.request().method() === 'POST' && resp.request().postDataJSON()?.title === submittedTitle;
+    });
     await fileInput.press('Enter');
-    // Wait for file creation response
-    await page.waitForResponse(resp => resp.url().includes('/api/v1/files') && resp.request().method() === 'POST', { timeout: 5000 }).catch(() => {});
+    const response = await creation;
 
-    // App should handle gracefully - no crashes
-    await expect(page.locator('[data-editor-scroll-container="true"]')).toBeVisible();
+    // Reject embedded NUL at the request boundary, before PostgreSQL sees it.
+    if (submittedTitle.includes('\x00')) {
+      expect(response.status()).toBe(422);
+      await expect(fileInput).toBeVisible();
+    } else {
+      expect(response.ok()).toBeTruthy();
+      const createdFile = await response.json();
+      const createdRow = page.locator('.overflow-auto').getByText(createdFile.title, { exact: true }).first();
+      await expect(createdRow).toBeVisible();
+      await createdRow.click();
+      await expect(page.locator('[data-editor-scroll-container="true"]')).toBeVisible();
+    }
   });
 
   /**

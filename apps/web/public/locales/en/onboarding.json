@@ -101,6 +101,6 @@
       "intermediate": "Balanced guidance optimized for both speed and quality",
       "advanced": "Fewer basics, more high-value decision support"
     },
-    "note": "Note: In this Beta stage, persona data is stored locally on this device and will later support cross-device sync."
+    "note": "Your creator preferences are saved to your account and available across devices."
   }
 }

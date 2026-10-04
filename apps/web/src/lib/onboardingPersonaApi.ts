@@ -33,6 +33,9 @@ export interface PersonaOnboardingUpsertRequest {
   skipped: boolean;
 }
 
+export const personaOnboardingQueryKey = (userId: string) =>
+  ['persona-onboarding', userId] as const;
+
 export const onboardingPersonaApi = {
   getState: () => api.get<PersonaOnboardingState>('/api/v1/persona/onboarding'),
 

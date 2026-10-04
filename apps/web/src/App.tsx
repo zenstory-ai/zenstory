@@ -2,6 +2,7 @@ import React, { Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useParams, useNavigate, useLocation } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import { Layout } from "./components/Layout";
 import { Sidebar } from "./components/sidebar/Sidebar";
 import { Editor } from "./components/Editor";
@@ -22,7 +23,7 @@ import { logger } from "./lib/logger";
 import { fileApi } from "./lib/api";
 import { normalizePlanIntent } from "./lib/authFlow";
 import { clearAuthStorage } from "./lib/apiClient";
-import { shouldRequirePersonaOnboarding } from "./lib/onboardingPersona";
+import { onboardingPersonaApi, personaOnboardingQueryKey } from "./lib/onboardingPersonaApi";
 import type { TreeNodeType } from "./types";
 import { lazyRoute } from "./lib/chunkRecovery";
 import { inspirationsConfig } from "./config/inspirations";
@@ -76,6 +77,15 @@ const AdminRoute = lazyRoute(() => import("./components/AdminRoute"), "AdminRout
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const location = useLocation();
+  const { t } = useTranslation("common");
+  const isOnboardingRoute = location.pathname.startsWith("/onboarding/persona");
+  const isAdminRoute = location.pathname.startsWith("/admin");
+  const shouldCheckOnboarding = Boolean(user && !loading && !isOnboardingRoute && !isAdminRoute);
+  const onboardingState = useQuery({
+    queryKey: personaOnboardingQueryKey(user?.id ?? "anonymous"),
+    queryFn: onboardingPersonaApi.getState,
+    enabled: shouldCheckOnboarding,
+  });
 
   if (loading) {
     return <PageLoader />;
@@ -85,11 +95,28 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  const isOnboardingRoute = location.pathname.startsWith("/onboarding/persona");
-  const isAdminRoute = location.pathname.startsWith("/admin");
-  const shouldRequireOnboarding = !isOnboardingRoute && !isAdminRoute;
+  if (shouldCheckOnboarding && onboardingState.isPending) {
+    return <PageLoader />;
+  }
 
-  if (shouldRequireOnboarding && shouldRequirePersonaOnboarding(user)) {
+  if (shouldCheckOnboarding && onboardingState.isError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4">
+        <div className="space-y-3 text-center" role="alert">
+          <p>{t("errors.network", "网络异常，请重试")}</p>
+          <button
+            type="button"
+            className="rounded-md bg-primary px-4 py-2 text-primary-foreground"
+            onClick={() => void onboardingState.refetch()}
+          >
+            {t("retry", "重试")}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (shouldCheckOnboarding && onboardingState.data?.required) {
     const search = location.search || (typeof window !== "undefined" ? window.location.search : "");
     const hash = location.hash || (typeof window !== "undefined" ? window.location.hash : "");
 

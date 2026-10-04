@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   BarChart3,
@@ -26,7 +27,7 @@ import {
   savePersonaOnboardingData,
   type PersonaExperienceLevel,
 } from "../lib/onboardingPersona";
-import { onboardingPersonaApi } from "../lib/onboardingPersonaApi";
+import { onboardingPersonaApi, personaOnboardingQueryKey } from "../lib/onboardingPersonaApi";
 
 const MAX_PERSONA_SELECTION = 3;
 
@@ -86,6 +87,7 @@ export default function OnboardingPersonaPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
   const locationState = location.state as OnboardingLocationState | null;
   const nextPath = sanitizeNextPath(locationState?.from);
 
@@ -110,52 +112,44 @@ export default function OnboardingPersonaPage() {
   const [hasRestoredProfile, setHasRestoredProfile] = useState(Boolean(existingData));
   const [limitReached, setLimitReached] = useState(false);
   const [saving, setSaving] = useState(false);
+  const personaQueryKey = personaOnboardingQueryKey(user?.id ?? "anonymous");
+  const { data: serverState } = useQuery({
+    queryKey: personaQueryKey,
+    queryFn: onboardingPersonaApi.getState,
+    enabled: Boolean(user),
+  });
 
   useEffect(() => {
     setHasRestoredProfile(Boolean(existingData));
   }, [existingData]);
 
   useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
+    if (!user || !serverState?.profile) return;
 
-    void onboardingPersonaApi
-      .getState()
-      .then((state) => {
-        if (cancelled || !state.profile) return;
+    const profile = serverState.profile;
+    const normalizedPersonas = (profile.selected_personas ?? []).filter(
+      (value): value is PersonaId => PERSONA_OPTIONS.some((option) => option.id === value)
+    );
+    const normalizedGoals = (profile.selected_goals ?? []).filter(
+      (value): value is GoalId => GOAL_OPTIONS.some((option) => option.id === value)
+    );
+    const normalizedLevel: PersonaExperienceLevel =
+      EXPERIENCE_LEVELS.includes(profile.experience_level)
+        ? profile.experience_level
+        : "beginner";
 
-        const profile = state.profile;
-        const normalizedPersonas = (profile.selected_personas ?? []).filter(
-          (value): value is PersonaId => PERSONA_OPTIONS.some((option) => option.id === value)
-        );
-        const normalizedGoals = (profile.selected_goals ?? []).filter(
-          (value): value is GoalId => GOAL_OPTIONS.some((option) => option.id === value)
-        );
-        const normalizedLevel: PersonaExperienceLevel =
-          EXPERIENCE_LEVELS.includes(profile.experience_level)
-            ? profile.experience_level
-            : "beginner";
+    setSelectedPersonas(normalizedPersonas);
+    setSelectedGoals(normalizedGoals);
+    setExperienceLevel(normalizedLevel);
+    setHasRestoredProfile(true);
 
-        setSelectedPersonas(normalizedPersonas);
-        setSelectedGoals(normalizedGoals);
-        setExperienceLevel(normalizedLevel);
-        setHasRestoredProfile(true);
-
-        savePersonaOnboardingData(user.id, {
-          selected_personas: normalizedPersonas,
-          selected_goals: normalizedGoals,
-          experience_level: normalizedLevel,
-          skipped: Boolean(profile.skipped),
-        });
-      })
-      .catch(() => {
-        // keep local fallback data
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
+    savePersonaOnboardingData(user.id, {
+      selected_personas: normalizedPersonas,
+      selected_goals: normalizedGoals,
+      experience_level: normalizedLevel,
+      skipped: Boolean(profile.skipped),
+    });
+  }, [serverState, user]);
 
   const selectedPersonaLabels = useMemo(
     () =>
@@ -233,6 +227,7 @@ export default function OnboardingPersonaPage() {
     };
 
     try {
+      await queryClient.cancelQueries({ queryKey: personaQueryKey });
       const result = await onboardingPersonaApi.save(payload);
       const profile = result.profile;
       if (!profile) {
@@ -245,6 +240,7 @@ export default function OnboardingPersonaPage() {
         experience_level: profile.experience_level,
         skipped: profile.skipped,
       });
+      queryClient.setQueryData(personaQueryKey, result);
       navigate(nextPath, {
         replace: true,
         state: nextPath === "/dashboard" ? { startDashboardCoachmark: true } : undefined,
@@ -516,7 +512,7 @@ export default function OnboardingPersonaPage() {
             <p className="mt-4 text-[11px] text-[hsl(var(--text-tertiary))] leading-relaxed">
               {t(
                 "onboarding:preview.note",
-                "注：当前为 Beta 版本，画像信息先保存在本地设备，后续会升级为跨设备同步。"
+                "创作者偏好会保存到你的账号，并在不同设备间同步。"
               )}
             </p>
           </Card>

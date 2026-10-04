@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 from sqlmodel import Session
 
 import api.files as files_module
 from api.files import (
+    FileCreate,
+    FileUpdate,
     _build_upload_snippets,
     _ensure_material_folder,
     _extract_chapter_segments,
@@ -17,6 +20,33 @@ from api.files import (
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from models import File, Project
+
+
+@pytest.mark.parametrize(
+    ("model", "payload"),
+    [
+        (FileCreate, {"title": "chapter\x00one"}),
+        (FileCreate, {"title": "chapter", "content": "body\x00text"}),
+        (FileUpdate, {"title": "chapter\x00one"}),
+        (FileUpdate, {"content": "body\x00text"}),
+    ],
+)
+def test_file_request_schemas_reject_embedded_nul(model, payload):
+    with pytest.raises(ValidationError):
+        model.model_validate(payload)
+
+
+def test_file_request_schemas_preserve_supported_text_and_optional_updates():
+    title = "第 1 章'; DROP TABLE files; --"
+    content = "第一行\nSecond line 🌙"
+
+    created = FileCreate(title=title, content=content)
+    updated = FileUpdate(title=title, content=content)
+
+    assert created.title == updated.title == title
+    assert created.content == updated.content == content
+    assert FileUpdate().title is None
+    assert FileUpdate().content is None
 
 
 def test_split_content_by_length_prefers_newline_boundaries():

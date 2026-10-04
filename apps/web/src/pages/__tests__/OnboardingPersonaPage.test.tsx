@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockNavigate = vi.fn();
@@ -47,6 +48,7 @@ vi.mock("../../lib/onboardingPersona", () => ({
 }));
 
 vi.mock("../../lib/onboardingPersonaApi", () => ({
+  personaOnboardingQueryKey: (userId: string) => ["persona-onboarding", userId],
   onboardingPersonaApi: {
     getState: (...args: unknown[]) => mockGetState(...args),
     save: (...args: unknown[]) => mockSave(...args),
@@ -74,12 +76,18 @@ vi.mock("react-router-dom", async () => {
 
 import OnboardingPersonaPage from "../OnboardingPersonaPage";
 
-const renderPage = () =>
-  render(
-    <MemoryRouter>
-      <OnboardingPersonaPage />
-    </MemoryRouter>
+let queryClient: QueryClient;
+
+const renderPage = () => {
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <OnboardingPersonaPage />
+      </MemoryRouter>
+    </QueryClientProvider>
   );
+};
 
 describe("OnboardingPersonaPage", () => {
   beforeEach(() => {
@@ -89,6 +97,7 @@ describe("OnboardingPersonaPage", () => {
     mockGetPersonaOnboardingData.mockReturnValue(null);
     mockGetState.mockResolvedValue({ profile: null });
     mockSave.mockImplementation(async (payload) => ({
+      required: false,
       profile: {
         ...payload,
         version: 1,
@@ -160,6 +169,10 @@ describe("OnboardingPersonaPage", () => {
       replace: true,
       state: { startDashboardCoachmark: true },
     });
+    expect(queryClient.getQueryData(["persona-onboarding", "user-onboarding-1"])).toMatchObject({
+      required: false,
+      profile: { skipped: true },
+    });
   });
 
   it("submits selected personas/goals and navigates to source path", async () => {
@@ -186,6 +199,10 @@ describe("OnboardingPersonaPage", () => {
     expect(mockNavigate).toHaveBeenCalledWith("/dashboard/projects", {
       replace: true,
       state: undefined,
+    });
+    expect(queryClient.getQueryData(["persona-onboarding", "user-onboarding-1"])).toMatchObject({
+      required: false,
+      profile: { selected_personas: ["explorer"] },
     });
   });
 

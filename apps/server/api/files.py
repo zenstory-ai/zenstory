@@ -13,7 +13,8 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, Query, UploadFile
 from fastapi import File as FastAPIFile
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic_core import PydanticCustomError
 from services.auth import get_current_active_user
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import load_only
@@ -257,6 +258,16 @@ def _build_draft_chapters(base_title: str, content: str) -> list[tuple[str, str]
 
 
 # Request/Response schemas
+def _reject_embedded_nul(value: str | None) -> str | None:
+    """Reject text PostgreSQL cannot store without otherwise normalizing it."""
+    if value is not None and "\x00" in value:
+        raise PydanticCustomError(
+            "nul_character",
+            "text must not contain NUL characters",
+        )
+    return value
+
+
 class FileCreate(BaseModel):
     """Request body for creating a file."""
     title: str
@@ -265,6 +276,8 @@ class FileCreate(BaseModel):
     parent_id: str | None = None
     order: int = Field(default=0, le=MAX_FILE_ORDER)
     metadata: dict | None = None
+
+    _validate_text_fields = field_validator("title", "content")(_reject_embedded_nul)
 
 
 class FileUpdate(BaseModel):
@@ -297,6 +310,8 @@ class FileUpdate(BaseModel):
             "避免编辑器的防抖自动保存用陈旧整篇快照静默覆盖 AI 的编辑结果。"
         ),
     )
+
+    _validate_text_fields = field_validator("title", "content")(_reject_embedded_nul)
 
 
 class MoveFileRequest(BaseModel):

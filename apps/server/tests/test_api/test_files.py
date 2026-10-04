@@ -1315,6 +1315,61 @@ async def test_create_file_success(client: AsyncClient, db_session):
 
 
 @pytest.mark.integration
+async def test_file_endpoints_reject_embedded_nul_as_request_validation(
+    client: AsyncClient,
+    db_session,
+):
+    """PostgreSQL-incompatible NUL text must fail at the request boundary."""
+    from services.core.auth_service import hash_password
+
+    user = User(
+        username="file_nul_user",
+        email="file-nul-user@example.com",
+        hashed_password=hash_password("password123"),
+        email_verified=True,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    login_response = await client.post(
+        "/api/auth/login",
+        data={"username": user.username, "password": "password123"},
+    )
+    token = login_response.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    project = Project(name="NUL validation project", owner_id=user.id)
+    db_session.add(project)
+    db_session.commit()
+    file = File(
+        project_id=project.id,
+        title="Original title",
+        file_type="draft",
+        content="Original content",
+    )
+    db_session.add(file)
+    db_session.commit()
+
+    create_url = f"/api/v1/projects/{project.id}/files"
+    update_url = f"/api/v1/files/{file.id}"
+    requests = [
+        ("post", create_url, {"title": "bad\x00title"}),
+        ("post", create_url, {"title": "Valid title", "content": "bad\x00content"}),
+        ("put", update_url, {"title": "bad\x00title"}),
+        ("put", update_url, {"content": "bad\x00content"}),
+    ]
+
+    for method, url, payload in requests:
+        response = await client.request(method, url, json=payload, headers=headers)
+        assert response.status_code == 422
+
+    db_session.refresh(file)
+    assert file.title == "Original title"
+    assert file.content == "Original content"
+
+
+@pytest.mark.integration
 async def test_create_file_with_metadata(client: AsyncClient, db_session):
     """Test creating a file with metadata."""
     # Create user

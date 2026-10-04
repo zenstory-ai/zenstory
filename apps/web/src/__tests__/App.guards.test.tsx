@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -20,6 +21,7 @@ const state = vi.hoisted(() => ({
   },
   fileGet: vi.fn(),
   ssoRedirect: vi.fn(),
+  personaGetState: vi.fn(),
 }));
 
 vi.mock("../config/inspirations", () => ({
@@ -115,6 +117,17 @@ vi.mock("../lib/onboardingPersona", () => ({
   },
 }));
 
+vi.mock("../lib/onboardingPersonaApi", async () => {
+  const actual = await vi.importActual<typeof import("../lib/onboardingPersonaApi")>("../lib/onboardingPersonaApi");
+  return {
+    ...actual,
+    onboardingPersonaApi: {
+      ...actual.onboardingPersonaApi,
+      getState: (...args: unknown[]) => state.personaGetState(...args),
+    },
+  };
+});
+
 vi.mock("../lib/ssoRedirect", () => ({
   handleSsoRedirect: (...args: unknown[]) => state.ssoRedirect(...args),
 }));
@@ -208,7 +221,14 @@ import App from "../App";
 
 const renderAppAt = (path: string) => {
   state.initialPath = path;
-  return render(<App />);
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <App />
+    </QueryClientProvider>,
+  );
 };
 
 describe("App route guards", () => {
@@ -227,6 +247,8 @@ describe("App route guards", () => {
     state.project.setSelectedItem.mockReset();
     state.fileGet.mockReset();
     state.ssoRedirect.mockReset();
+    state.personaGetState.mockReset();
+    state.personaGetState.mockResolvedValue({ required: false, profile: null });
   });
 
   it("redirects unauthenticated users from protected routes to login", async () => {
@@ -350,14 +372,15 @@ describe("App route guards", () => {
 
   it("redirects authenticated users to onboarding when required", async () => {
     state.auth.user = { id: "user-1" };
-    state.requireOnboarding = true;
+    state.requireOnboarding = false;
+    state.personaGetState.mockResolvedValue({ required: true, profile: null });
 
     renderAppAt("/dashboard");
 
     await waitFor(() => {
       expect(screen.getByText("Onboarding Persona Page")).toBeInTheDocument();
     });
-    expect(state.shouldRequireCalls).toEqual([{ id: "user-1" }]);
+    expect(state.personaGetState).toHaveBeenCalledTimes(1);
   });
 
   it("does not loop-redirect when already on onboarding route", async () => {
@@ -386,15 +409,81 @@ describe("App route guards", () => {
 
   it("allows authenticated users through when onboarding is not required", async () => {
     state.auth.user = { id: "user-3" };
-    state.requireOnboarding = false;
+    state.requireOnboarding = true;
+    state.personaGetState.mockResolvedValue({ required: false, profile: { version: 1 } });
 
     renderAppAt("/dashboard");
 
     await waitFor(() => {
       expect(screen.getByText("Dashboard Page")).toBeInTheDocument();
     });
-    expect(state.shouldRequireCalls.length).toBeGreaterThan(0);
-    expect(state.shouldRequireCalls).toContainEqual({ id: "user-3" });
+    expect(state.personaGetState).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits for late server persona state instead of redirecting from missing local data", async () => {
+    state.auth.user = { id: "late-user" };
+    state.requireOnboarding = true;
+    let resolveState!: (value: { required: boolean; profile: null }) => void;
+    state.personaGetState.mockReturnValue(new Promise((resolve) => { resolveState = resolve; }));
+
+    renderAppAt("/dashboard");
+    expect(screen.getByText("Page Loader")).toBeInTheDocument();
+    expect(screen.queryByText("Onboarding Persona Page")).not.toBeInTheDocument();
+
+    resolveState({ required: false, profile: null });
+    await waitFor(() => expect(screen.getByText("Dashboard Page")).toBeInTheDocument());
+  });
+
+  it("does not let forged local persona data bypass a server-required state", async () => {
+    state.auth.user = { id: "forged-user" };
+    state.requireOnboarding = false;
+    state.personaGetState.mockResolvedValue({ required: true, profile: null });
+
+    renderAppAt("/dashboard?tab=recent#draft");
+
+    await waitFor(() => expect(screen.getByText("Onboarding Persona Page")).toBeInTheDocument());
+  });
+
+  it("ignores a late persona response from the previously authenticated user", async () => {
+    state.auth.user = { id: "old-user" };
+    let resolveOld!: (value: { required: boolean; profile: null }) => void;
+    state.personaGetState
+      .mockReturnValueOnce(new Promise((resolve) => { resolveOld = resolve; }))
+      .mockResolvedValueOnce({ required: true, profile: null });
+    state.initialPath = "/dashboard";
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = render(
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(state.personaGetState).toHaveBeenCalledTimes(1));
+
+    state.auth.user = { id: "new-user" };
+    view.rerender(
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByText("Onboarding Persona Page")).toBeInTheDocument());
+    resolveOld({ required: false, profile: null });
+    await waitFor(() => expect(screen.getByText("Onboarding Persona Page")).toBeInTheDocument());
+    expect(screen.queryByText("Dashboard Page")).not.toBeInTheDocument();
+  });
+
+  it("keeps a failed persona gate closed and lets the user retry", async () => {
+    state.auth.user = { id: "retry-user" };
+    state.personaGetState
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({ required: false, profile: null });
+
+    renderAppAt("/dashboard");
+
+    const retry = await screen.findByRole("button", { name: /retry|重试/i });
+    expect(screen.queryByText("Dashboard Page")).not.toBeInTheDocument();
+    fireEvent.click(retry);
+    await waitFor(() => expect(screen.getByText("Dashboard Page")).toBeInTheDocument());
   });
 
   it("waits for the route project before selecting a deep-linked file", async () => {
@@ -416,7 +505,11 @@ describe("App route guards", () => {
     expect(state.fileGet).not.toHaveBeenCalled();
 
     state.project.currentProject = { id: "target-project" };
-    view.rerender(<App />);
+    view.rerender(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <App />
+      </QueryClientProvider>,
+    );
 
     await waitFor(() => {
       expect(state.fileGet).toHaveBeenCalledWith("file-1");
