@@ -51,8 +51,16 @@ def _clear_rate_limit_store(monkeypatch):
     _rate_limit_store.clear()
 
 
+@pytest.fixture
+def _client_ip_env(monkeypatch):
+    monkeypatch.delenv("TRUSTED_PROXY_HOPS", raising=False)
+    monkeypatch.delenv("CLIENT_IP_CLOUDFLARE", raising=False)
+    monkeypatch.delenv("CLOUDFLARE_IP_RANGES", raising=False)
+    return monkeypatch
+
+
 @pytest.mark.unit
-def test_get_client_ip_prefers_x_real_ip():
+def test_get_client_ip_ignores_client_supplied_x_real_ip(_client_ip_env):
     request = _build_request(
         headers={
             "X-Real-IP": "198.51.100.8",
@@ -60,39 +68,108 @@ def test_get_client_ip_prefers_x_real_ip():
         },
         client_host="10.0.0.9",
     )
-    assert get_client_ip(request) == "198.51.100.8"
+    # Default: one trusted proxy (Railway edge) appended the rightmost entry.
+    assert get_client_ip(request) == "70.41.3.18"
 
 
 @pytest.mark.unit
-def test_get_client_ip_uses_x_forwarded_for_when_x_real_missing():
+def test_get_client_ip_rejects_spoofed_leftmost_forwarded_entry(_client_ip_env):
+    # A client sending its own X-Forwarded-For cannot pick its rate-limit key:
+    # the edge appends the real peer on the right.
     request = _build_request(
-        headers={"X-Forwarded-For": "203.0.113.1, 70.41.3.18"},
+        headers={"X-Forwarded-For": "1.2.3.4, 198.51.100.9"},
         client_host="10.0.0.9",
     )
-    assert get_client_ip(request) == "203.0.113.1"
+    assert get_client_ip(request) == "198.51.100.9"
 
 
 @pytest.mark.unit
-def test_get_client_ip_ignores_invalid_x_real_and_uses_forwarded():
+def test_get_client_ip_honours_trusted_proxy_hops(_client_ip_env):
+    _client_ip_env.setenv("TRUSTED_PROXY_HOPS", "2")
+    request = _build_request(
+        headers={"X-Forwarded-For": "1.2.3.4, 198.51.100.9, 10.1.1.1"},
+        client_host="10.0.0.9",
+    )
+    assert get_client_ip(request) == "198.51.100.9"
+
+
+@pytest.mark.unit
+def test_get_client_ip_with_fewer_entries_than_hops_uses_leftmost(_client_ip_env):
+    _client_ip_env.setenv("TRUSTED_PROXY_HOPS", "3")
+    request = _build_request(
+        headers={"X-Forwarded-For": "198.51.100.9, 10.1.1.1"},
+        client_host="10.0.0.9",
+    )
+    assert get_client_ip(request) == "198.51.100.9"
+
+
+@pytest.mark.unit
+def test_get_client_ip_zero_hops_uses_socket_peer(_client_ip_env):
+    _client_ip_env.setenv("TRUSTED_PROXY_HOPS", "0")
+    request = _build_request(
+        headers={"X-Forwarded-For": "198.51.100.9"},
+        client_host="10.0.0.9",
+    )
+    assert get_client_ip(request) == "10.0.0.9"
+
+
+@pytest.mark.unit
+def test_get_client_ip_falls_back_to_socket_peer_without_forwarded(_client_ip_env):
+    request = _build_request(client_host="10.0.0.9")
+    assert get_client_ip(request) == "10.0.0.9"
+
+
+@pytest.mark.unit
+def test_get_client_ip_uses_cf_connecting_ip_when_peer_is_cloudflare(_client_ip_env):
     request = _build_request(
         headers={
-            "X-Real-IP": "not-an-ip",
-            "X-Forwarded-For": "invalid, 198.51.100.11",
+            "CF-Connecting-IP": "198.51.100.77",
+            # Cloudflare edge address appended by the Railway edge.
+            "X-Forwarded-For": "198.51.100.77, 172.70.1.2",
         },
         client_host="10.0.0.9",
     )
-    assert get_client_ip(request) == "198.51.100.11"
+    assert get_client_ip(request) == "198.51.100.77"
+
+
+@pytest.mark.unit
+def test_get_client_ip_ignores_forged_cf_connecting_ip(_client_ip_env):
+    # Direct hit on the origin: the peer is not a Cloudflare address.
+    request = _build_request(
+        headers={
+            "CF-Connecting-IP": "1.2.3.4",
+            "X-Forwarded-For": "198.51.100.9",
+        },
+        client_host="10.0.0.9",
+    )
+    assert get_client_ip(request) == "198.51.100.9"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("mode", "expected"),
+    [("always", "1.2.3.4"), ("off", "172.70.1.2")],
+)
+def test_get_client_ip_cloudflare_mode_switch(_client_ip_env, mode, expected):
+    _client_ip_env.setenv("CLIENT_IP_CLOUDFLARE", mode)
+    peer = "172.70.1.2" if mode == "off" else "198.51.100.9"
+    request = _build_request(
+        headers={"CF-Connecting-IP": "1.2.3.4", "X-Forwarded-For": peer},
+        client_host="10.0.0.9",
+    )
+    assert get_client_ip(request) == expected
 
 
 @pytest.mark.unit
 @pytest.mark.parametrize(
     ("headers", "expected"),
     [
-        ({"X-Real-IP": "[2001:db8::1]"}, "2001:db8::1"),
-        ({"X-Real-IP": "198.51.100.12:443"}, "198.51.100.12"),
+        ({"X-Forwarded-For": "[2001:db8::1]"}, "2001:db8::1"),
+        ({"X-Forwarded-For": "198.51.100.12:443"}, "198.51.100.12"),
+        ({"X-Forwarded-For": "not-an-ip"}, "10.0.0.9"),
     ],
 )
-def test_get_client_ip_normalizes_ipv6_and_ipv4_port_formats(headers, expected):
+def test_get_client_ip_normalizes_ipv6_and_ipv4_port_formats(_client_ip_env, headers, expected):
     request = _build_request(headers=headers, client_host="10.0.0.9")
     assert get_client_ip(request) == expected
 
@@ -105,7 +182,7 @@ def test_get_client_ip_falls_back_to_request_client_host():
 
 @pytest.mark.unit
 def test_check_rate_limit_uses_resolved_client_ip_key():
-    request = _build_request(headers={"X-Real-IP": "198.51.100.10"})
+    request = _build_request(headers={"X-Forwarded-For": "198.51.100.10"})
     allowed1, remaining1 = check_rate_limit(request, "auth_login_ip", 1, 60)
     allowed2, remaining2 = check_rate_limit(request, "auth_login_ip", 1, 60)
 
@@ -117,8 +194,8 @@ def test_check_rate_limit_uses_resolved_client_ip_key():
 
 @pytest.mark.unit
 def test_check_rate_limit_can_scope_without_client_ip():
-    request_from_ip1 = _build_request(headers={"X-Real-IP": "198.51.100.11"})
-    request_from_ip2 = _build_request(headers={"X-Real-IP": "198.51.100.12"})
+    request_from_ip1 = _build_request(headers={"X-Forwarded-For": "198.51.100.11"})
+    request_from_ip2 = _build_request(headers={"X-Forwarded-For": "198.51.100.12"})
 
     allowed1, remaining1 = check_rate_limit(
         request_from_ip1,
@@ -200,7 +277,7 @@ class _FakeRedisClient:
 
 @pytest.mark.unit
 def test_check_rate_limit_uses_redis_when_backend_enabled(monkeypatch):
-    request = _build_request(headers={"X-Real-IP": "198.51.100.20"})
+    request = _build_request(headers={"X-Forwarded-For": "198.51.100.20"})
     fake_redis = _FakeRedisClient()
 
     monkeypatch.setenv("RATE_LIMIT_BACKEND", "redis")
@@ -219,7 +296,7 @@ def test_check_rate_limit_uses_redis_when_backend_enabled(monkeypatch):
 
 @pytest.mark.unit
 def test_check_rate_limit_falls_back_to_memory_when_redis_unavailable(monkeypatch):
-    request = _build_request(headers={"X-Real-IP": "198.51.100.30"})
+    request = _build_request(headers={"X-Forwarded-For": "198.51.100.30"})
 
     monkeypatch.setenv("RATE_LIMIT_BACKEND", "redis")
     monkeypatch.setenv("REDIS_URL", "redis://example:6379/0")
@@ -240,7 +317,7 @@ def test_check_rate_limit_falls_back_to_memory_when_redis_unavailable(monkeypatc
 
 @pytest.mark.unit
 def test_check_rate_limit_auto_backend_skips_redis_when_redis_url_missing(monkeypatch):
-    request = _build_request(headers={"X-Real-IP": "198.51.100.31"})
+    request = _build_request(headers={"X-Forwarded-For": "198.51.100.31"})
 
     monkeypatch.setenv("RATE_LIMIT_BACKEND", "auto")
     monkeypatch.delenv("REDIS_URL", raising=False)
@@ -261,7 +338,7 @@ def test_check_rate_limit_auto_backend_skips_redis_when_redis_url_missing(monkey
 
 @pytest.mark.unit
 def test_check_rate_limit_auto_backend_cooldown_skips_second_redis_attempt(monkeypatch):
-    request = _build_request(headers={"X-Real-IP": "198.51.100.32"})
+    request = _build_request(headers={"X-Forwarded-For": "198.51.100.32"})
     calls = {"redis": 0}
 
     monkeypatch.setenv("RATE_LIMIT_BACKEND", "auto")
@@ -300,7 +377,7 @@ class _FakeRedisClientNoTTL(_FakeRedisClient):
 
 @pytest.mark.unit
 def test_check_rate_limit_redis_repairs_missing_ttl(monkeypatch):
-    request = _build_request(headers={"X-Real-IP": "198.51.100.40"})
+    request = _build_request(headers={"X-Forwarded-For": "198.51.100.40"})
     fake_redis = _FakeRedisClientNoTTL()
 
     monkeypatch.setenv("RATE_LIMIT_BACKEND", "redis")

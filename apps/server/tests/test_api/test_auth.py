@@ -898,7 +898,7 @@ async def test_login_identifier_rate_limit_applies_across_ips(client: AsyncClien
             "username": "login_identifier_rate_user",
             "password": "testpassword123",
         },
-        headers={"X-Real-IP": "198.51.100.101"},
+        headers={"X-Forwarded-For": "198.51.100.101"},
     )
     assert first_response.status_code == 200
 
@@ -908,7 +908,7 @@ async def test_login_identifier_rate_limit_applies_across_ips(client: AsyncClien
             "username": "login_identifier_rate_user",
             "password": "testpassword123",
         },
-        headers={"X-Real-IP": "198.51.100.102"},
+        headers={"X-Forwarded-For": "198.51.100.102"},
     )
     assert second_response.status_code == 429
     assert second_response.json().get("detail") == "ERR_AUTH_RATE_LIMIT_EXCEEDED"

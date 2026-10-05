@@ -5,7 +5,8 @@ import logging
 import os
 import time
 from collections import defaultdict
-from ipaddress import ip_address
+from functools import lru_cache
+from ipaddress import IPv4Network, IPv6Network, ip_address, ip_network
 
 from fastapi import Depends, HTTPException, Request, status
 
@@ -44,22 +45,126 @@ def _parse_ip(candidate: str | None) -> str | None:
         return None
 
 
-def get_client_ip(request: Request) -> str:
-    """Extract client IP with Railway-aware proxy header priority."""
-    # Railway sets X-Real-IP to the original client IP.
-    real_ip = _parse_ip(request.headers.get("X-Real-IP"))
-    if real_ip:
-        return real_ip
+# Cloudflare edge ranges (https://www.cloudflare.com/ips/). Used to decide
+# whether CF-Connecting-IP was set by Cloudflare or forged by the client.
+# Override with CLOUDFLARE_IP_RANGES (comma-separated CIDRs) if they change.
+_DEFAULT_CLOUDFLARE_IP_RANGES = (
+    "173.245.48.0/20",
+    "103.21.244.0/22",
+    "103.22.200.0/22",
+    "103.31.4.0/22",
+    "141.101.64.0/18",
+    "108.162.192.0/18",
+    "190.93.240.0/20",
+    "188.114.96.0/20",
+    "197.234.240.0/22",
+    "198.41.128.0/17",
+    "162.158.0.0/15",
+    "104.16.0.0/13",
+    "104.24.0.0/14",
+    "172.64.0.0/13",
+    "131.0.72.0/22",
+    "2400:cb00::/32",
+    "2606:4700::/32",
+    "2803:f800::/32",
+    "2405:b500::/32",
+    "2405:8100::/32",
+    "2a06:98c0::/29",
+    "2c0f:f248::/32",
+)
+_CLOUDFLARE_MODES = {"auto", "always", "off"}
+
+
+def _trusted_proxy_hops() -> int:
+    """How many proxies in front of the app append to X-Forwarded-For.
+
+    Default 1: the Railway edge appends the address that connected to it.
+    0 ignores X-Forwarded-For and uses the socket peer.
+    """
+    raw = os.getenv("TRUSTED_PROXY_HOPS", "1").strip()
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return 1
+
+
+def _cloudflare_mode() -> str:
+    """CF-Connecting-IP policy: auto (only when the peer is a Cloudflare edge), always, off."""
+    mode = os.getenv("CLIENT_IP_CLOUDFLARE", "auto").strip().lower()
+    return mode if mode in _CLOUDFLARE_MODES else "auto"
+
+
+@lru_cache(maxsize=4)
+def _parse_networks(raw: str) -> tuple[IPv4Network | IPv6Network, ...]:
+    networks = []
+    for item in raw.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        try:
+            networks.append(ip_network(item, strict=False))
+        except ValueError:
+            continue
+    return tuple(networks)
+
+
+def _cloudflare_networks() -> tuple[IPv4Network | IPv6Network, ...]:
+    raw = os.getenv("CLOUDFLARE_IP_RANGES", "").strip() or ",".join(_DEFAULT_CLOUDFLARE_IP_RANGES)
+    return _parse_networks(raw)
+
+
+def _is_cloudflare_ip(candidate: str | None) -> bool:
+    if not candidate:
+        return False
+    try:
+        address = ip_address(candidate)
+    except ValueError:
+        return False
+    return any(address in network for network in _cloudflare_networks())
+
+
+def _proxy_peer_ip(request: Request) -> str | None:
+    """Address that connected to our outermost trusted proxy.
+
+    Proxies append to X-Forwarded-For, so only the rightmost ``hops`` entries
+    were written by infrastructure we trust; anything further left came from
+    the client and can be forged.
+    """
+    hops = _trusted_proxy_hops()
+    socket_peer = _parse_ip(request.client.host if request.client else None)
+    if hops == 0:
+        return socket_peer
 
     forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        for token in forwarded.split(","):
-            parsed = _parse_ip(token)
-            if parsed:
-                return parsed
+    entries = [token for token in (forwarded or "").split(",") if token.strip()]
+    if not entries:
+        return socket_peer
 
-    client_host = request.client.host if request.client else None
-    return _parse_ip(client_host) or "unknown"
+    # Fewer entries than hops means every entry was proxy-written; take the
+    # leftmost (closest to the client).
+    index = len(entries) - hops if len(entries) >= hops else 0
+    return _parse_ip(entries[index]) or socket_peer
+
+
+def get_client_ip(request: Request) -> str:
+    """Resolve the client IP without trusting client-controlled headers.
+
+    1. CF-Connecting-IP, when the request came through Cloudflare
+       (CLIENT_IP_CLOUDFLARE=auto checks the proxy peer against Cloudflare's
+       ranges; ``always`` trusts it whenever present; ``off`` ignores it).
+    2. The X-Forwarded-For entry appended by the outermost trusted proxy
+       (TRUSTED_PROXY_HOPS, default 1).
+    3. The socket peer.
+    """
+    peer_ip = _proxy_peer_ip(request)
+
+    mode = _cloudflare_mode()
+    if mode != "off":
+        cf_ip = _parse_ip(request.headers.get("CF-Connecting-IP"))
+        if cf_ip and (mode == "always" or _is_cloudflare_ip(peer_ip)):
+            return cf_ip
+
+    return peer_ip or "unknown"
 
 
 def _get_rate_limit_backend() -> str:
