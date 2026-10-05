@@ -7,6 +7,7 @@ import { Layout } from "./components/Layout";
 import { Sidebar } from "./components/sidebar/Sidebar";
 import { Editor } from "./components/Editor";
 import { ChatPanel } from "./components/ChatPanel";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PageLoader } from "./components/PageLoader";
 import { SEOHelmet } from "./components/Helmet";
 import { SEOProvider } from "./providers/SEOProvider";
@@ -218,13 +219,18 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Verify email wrapper - extracts email from URL params
+// Verify email wrapper - the email comes from navigation state (set by
+// Register; kept across reloads by the browser),
+// then a legacy `?email=` link, then the signed-in user.
 function VerifyEmailWrapper() {
   const { user, loading } = useAuth();
-  const searchParams = new URLSearchParams(window.location.search);
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const stateEmail = (location.state as { email?: unknown } | null)?.email;
+  const emailFromState = typeof stateEmail === 'string' ? stateEmail.trim() : '';
   const emailFromQuery = searchParams.get('email')?.trim() || '';
   const userEmail = user?.email?.trim() || '';
-  const email = emailFromQuery || userEmail;
+  const email = emailFromState || emailFromQuery || userEmail;
   const planIntent = normalizePlanIntent(searchParams.get('plan'));
 
   // If already authenticated and email verified, redirect to dashboard
@@ -411,7 +417,20 @@ function ProjectEditor() {
   }
 
   return (
-    <Layout left={<Sidebar />} middle={<Editor />} right={<ChatPanel />} />
+    <Layout
+      left={<Sidebar />}
+      middle={(
+        // ph-no-capture: manuscript text must never reach analytics capture.
+        <ErrorBoundary area="editor" className="ph-no-capture">
+          <Editor />
+        </ErrorBoundary>
+      )}
+      right={(
+        <ErrorBoundary area="chat" className="ph-no-capture">
+          <ChatPanel />
+        </ErrorBoundary>
+      )}
+    />
   );
 }
 

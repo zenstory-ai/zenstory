@@ -1212,7 +1212,8 @@ export const MessageList = React.memo(
   }
 
   return (
-    <div aria-live="polite" aria-atomic="true">
+    // ph-no-capture: prompts and replies must never reach analytics capture.
+    <div className="ph-no-capture" aria-live="polite" aria-atomic="true">
       {visibleMessages.map((message, index) => (
         <Row
           key={message.id}

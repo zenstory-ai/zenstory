@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import { initAnalytics } from '../lib/analytics'
+import { captureAuthCallbackParams } from '../lib/authCallbackParams'
 import { installChunkRecoveryHandlers } from '../lib/chunkRecovery'
 import { initWebVitalsLogging, initWebVitalsMonitoring } from '../lib/webVitals'
 
@@ -22,6 +23,10 @@ vi.mock('../components/PageLoader', () => ({
 
 vi.mock('../lib/analytics', () => ({
   initAnalytics: vi.fn(),
+}))
+
+vi.mock('../lib/authCallbackParams', () => ({
+  captureAuthCallbackParams: vi.fn(),
 }))
 
 vi.mock('../lib/webVitals', () => ({
@@ -50,5 +55,14 @@ describe('main bootstrap', () => {
     expect(installChunkRecoveryHandlers).toHaveBeenCalledOnce()
     expect(createRoot).toHaveBeenCalledWith(document.getElementById('root'))
     expect(renderMock).toHaveBeenCalledOnce()
+  })
+
+  it('scrubs OAuth callback credentials from the URL before analytics starts', async () => {
+    await import('../main.tsx')
+
+    expect(captureAuthCallbackParams).toHaveBeenCalledOnce()
+    expect(vi.mocked(captureAuthCallbackParams).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(initAnalytics).mock.invocationCallOrder[0],
+    )
   })
 })

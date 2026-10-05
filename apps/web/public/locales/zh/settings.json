@@ -39,6 +39,12 @@
     "zh": "中文",
     "en": "English"
   },
+  "privacy": {
+    "title": "隐私",
+    "analytics": "产品分析与错误追踪",
+    "analyticsDescription": "向 PostHog 发送使用事件和错误信息，帮助我们改进产品。不会发送作品正文、提示词或对话内容。关闭后，该浏览器不再发送任何分析或错误数据。",
+    "privacyLink": "了解详情"
+  },
   "actions": {
     "resetDefault": "恢复默认偏好",
     "cancel": "取消",

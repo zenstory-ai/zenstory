@@ -47,6 +47,8 @@ let isFlushing = false;
 let flushHooksBound = false;
 let pendingHydrated = false;
 let retryTimer: number | null = null;
+/** Access token the backend answered 401 for; no retries until it changes. */
+let rejectedAccessToken: string | null = null;
 const pendingQueue: UpgradeFunnelPayload[] = [];
 
 declare global {
@@ -233,7 +235,7 @@ async function sendUpgradeFunnelToBackend(
   payload: UpgradeFunnelPayload,
   accessToken: string,
   keepalive = false
-): Promise<"accepted" | "drop" | "retry"> {
+): Promise<"accepted" | "drop" | "retry" | "unauthorized"> {
   try {
     const response = await fetch(`${getApiBase()}/api/v1/subscription/upgrade-funnel-events`, {
       method: "POST",
@@ -256,6 +258,11 @@ async function sendUpgradeFunnelToBackend(
 
     if (response.ok) {
       return "accepted";
+    }
+
+    if (response.status === 401) {
+      logger.warn("[upgrade-funnel] backend tracking unauthorized; pausing until next login");
+      return "unauthorized";
     }
 
     if (DROP_STATUS_CODES.has(response.status)) {
@@ -292,7 +299,7 @@ async function flushPendingUpgradeFunnelEvents(options: { keepalive?: boolean } 
   if (isFlushing || pendingQueue.length === 0) return;
 
   const accessToken = getAccessToken();
-  if (!accessToken) return;
+  if (!accessToken || accessToken === rejectedAccessToken) return;
 
   clearRetryTimer();
   isFlushing = true;
@@ -307,11 +314,35 @@ async function flushPendingUpgradeFunnelEvents(options: { keepalive?: boolean } 
         continue;
       }
 
+      if (outcome === "unauthorized") {
+        // An expired token stays expired: stop the 5s retry loop. A new
+        // login stores a different token and flushing resumes.
+        rejectedAccessToken = accessToken;
+        break;
+      }
+
       scheduleRetryFlush();
       break;
     }
   } finally {
     isFlushing = false;
+  }
+}
+
+/**
+ * Drop queued funnel events. Called on logout so one account's pending events
+ * are never sent with the next account's token on a shared browser.
+ */
+export function clearPendingUpgradeFunnelEvents(): void {
+  clearRetryTimer();
+  pendingQueue.length = 0;
+  pendingHydrated = true;
+  rejectedAccessToken = null;
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(PENDING_STORAGE_KEY);
+  } catch {
+    // Ignore storage failures in analytics path.
   }
 }
 

@@ -1,6 +1,6 @@
 {
   "title": "Privacy Policy",
-  "lastUpdated": "Last Updated: February 20, 2026",
+  "lastUpdated": "Last Updated: October 5, 2026",
   "sections": {
     "introduction": {
       "title": "1. Introduction",
@@ -68,20 +68,24 @@
           "title": "4.1 Service Providers",
           "content": "We work with third-party service providers to help us operate our platform, including authentication services and AI service providers. These providers process data only as instructed by us and for the purposes described in this policy."
         },
+        "analytics": {
+          "title": "4.2 Product Analytics and Error Tracking",
+          "content": "We use PostHog (PostHog Cloud, US region) for product analytics and front-end error tracking. We send page views, feature usage events (for example sign-in, project creation, file saves, and whether an AI chat completed), page performance metrics, and front-end error details, together with browser and device information, the page path, and your account ID (not your email or username); PostHog's servers also receive the IP address the request comes from. Before sending, we remove sign-in tokens, email addresses, invite codes, and similar parameters from page URLs. We do not send your manuscript text, prompts, AI conversation content, or uploaded files to PostHog, and session recording is turned off. PostHog stores a random identifier starting with ph_ in your browser's cookies and localStorage to recognize visits from the same browser. This data is transferred to and processed in the United States. You can turn off product analytics at any time under Settings → General; after that, this browser sends nothing to PostHog, including error reports."
+        },
         "aiTraining": {
-          "title": "4.2 AI Model Training",
+          "title": "4.3 AI Model Training",
           "content": "Your content is not used for general model training by default. We only use data for model and writing-quality improvements if you explicitly opt in, with data minimization and de-identification safeguards. You may withdraw consent at any time, and no new training use will occur after withdrawal."
         },
         "legal": {
-          "title": "4.3 Legal Requirements",
+          "title": "4.4 Legal Requirements",
           "content": "We may disclose your information if required by law or in response to valid legal requests."
         },
         "businessTransfer": {
-          "title": "4.4 Business Transfer",
+          "title": "4.5 Business Transfer",
           "content": "In the event of a merger, acquisition, or sale of assets, your information may be transferred."
         },
         "userConsent": {
-          "title": "4.5 With Your Consent",
+          "title": "4.6 With Your Consent",
           "content": "We may share your information with your consent for any other purpose."
         }
       }

@@ -122,6 +122,15 @@ describe('MessageList', () => {
     // MessageList returns null for empty messages, so we just check it doesn't throw
   })
 
+  it('marks the conversation as off-limits to analytics DOM capture', () => {
+    const { container } = render(
+      <MessageList messages={[createMessage({ role: 'user', content: 'private prompt text' })]} />
+    )
+    const root = container.firstElementChild
+    expect(root).toHaveClass('ph-no-capture')
+    expect(root).toHaveTextContent('private prompt text')
+  })
+
   it('replays saved text, tools, handoff and agent selection in observed order without duplicates', () => {
     const timestamp = new Date('2026-10-05T10:00:00Z')
     const tool = { id: 'tool-ordered', tool_name: 'create_file', arguments: {}, status: 'success' as const, result: { title: 'Ordered file' } }

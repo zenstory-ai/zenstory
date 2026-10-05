@@ -198,8 +198,37 @@ describe("Register", () => {
     });
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith("/verify-email?email=test%40example.com&plan=pro");
+      // Email goes through navigation state so it never lands in page URLs.
+      expect(mockNavigate).toHaveBeenCalledWith("/verify-email?plan=pro", {
+        state: { email: "test@example.com" },
+      });
     }, { timeout: 3000 });
+  });
+
+  it("rejects passwords longer than 72 bytes before calling the API", async () => {
+    const user = userEvent.setup();
+    renderWithRoute("/register?code=abcd1234");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("invite-code-input")).toHaveAttribute("data-value", "ABCD-1234");
+    });
+
+    // 25 CJK characters = 75 UTF-8 bytes, though only 25 JS characters.
+    const longPassword = "密".repeat(25);
+    fillRegistrationFields(longPassword);
+    fireEvent.change(screen.getByLabelText("auth:register.passwordLabel"), {
+      target: { value: longPassword },
+    });
+    await acceptTerms(user);
+
+    await act(async () => {
+      fireEvent.submit(screen.getByTestId("register-form"));
+    });
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("auth:errors.passwordTooLong");
+    });
+    expect(mockRegister).not.toHaveBeenCalled();
   });
 
   it("requires invite code by default when optional flag is off", async () => {

@@ -5,6 +5,7 @@ import {
   formatWebVitalAnalyticsProps,
   initWebVitalsLogging,
   initWebVitalsMonitoring,
+  WEB_VITALS_SAMPLE_RATE,
   shouldEnableWebVitalsLogging,
   type WebVitalReporter,
 } from '../webVitals'
@@ -91,6 +92,7 @@ describe('webVitals', () => {
     const didStart = initWebVitalsMonitoring({
       reporters: [reporterSpy as WebVitalReporter],
       track: trackSpy,
+      random: () => 0,
     })
 
     expect(didStart).toBe(true)
@@ -98,5 +100,19 @@ describe('webVitals', () => {
 
     callbacks[0]?.(createMetric('INP'))
     expect(trackSpy).toHaveBeenCalledWith(createMetric('INP'))
+  })
+
+  it('samples page loads: unsampled pages register no reporters', () => {
+    const reporterSpy = vi.fn()
+
+    const didStart = initWebVitalsMonitoring({
+      reporters: [reporterSpy as WebVitalReporter],
+      track: vi.fn(),
+      random: () => WEB_VITALS_SAMPLE_RATE,
+    })
+
+    expect(WEB_VITALS_SAMPLE_RATE).toBeLessThan(1)
+    expect(didStart).toBe(false)
+    expect(reporterSpy).not.toHaveBeenCalled()
   })
 })

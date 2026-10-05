@@ -33,6 +33,7 @@ import { debugContext } from "./debugContext";
 import { resolveApiErrorMessage, toUserErrorMessage, translateError } from "./errorHandler";
 import { logger } from "./logger";
 import i18n from "./i18n";
+import { createAgentStreamTelemetry, type AgentStreamTelemetry } from "./agentStreamTelemetry";
 
 const TRACE_ID_HEADER = "X-Trace-ID";
 
@@ -111,9 +112,33 @@ function parseSSEEvent(eventString: string): SSEEvent | null {
  *   - onError: Error handling with retry capability
  * @returns AbortController for cancelling the stream request
  */
+type AgentStreamCallbacks = Parameters<typeof streamAgentRequest>[1];
+
+/** Report stream outcomes (completed/failed) before handing off to the caller. */
+function withOutcomeTelemetry(
+  callbacks: AgentStreamCallbacks,
+  telemetry: AgentStreamTelemetry,
+): AgentStreamCallbacks {
+  return {
+    ...callbacks,
+    onToolCall: (...args) => {
+      telemetry.noteToolCall();
+      callbacks.onToolCall?.(...args);
+    },
+    onDone: (data) => {
+      telemetry.completed();
+      callbacks.onDone?.(data);
+    },
+    onError: (message, code, retryable) => {
+      telemetry.failed(code, retryable);
+      callbacks.onError?.(message, code, retryable);
+    },
+  };
+}
+
 export function streamAgentRequest(
   request: AgentRequest,
-  callbacks: {
+  rawCallbacks: {
     onThinking?: (message: string, step?: string) => void;
     onThinkingContent?: (content: string, isComplete?: boolean) => void;
     onContext?: (items: AgentContextItem[], tokenCount?: number) => void;
@@ -215,6 +240,8 @@ export function streamAgentRequest(
 ): AbortController {
   const abortController = new AbortController();
   const traceId = generateTraceId();
+  const telemetry = createAgentStreamTelemetry(request.project_id);
+  const callbacks = withOutcomeTelemetry(rawCallbacks, telemetry);
 
   const fetchStream = async (isRetry = false) => {
     try {
@@ -253,6 +280,10 @@ export function streamAgentRequest(
       const responseRequestId = response.headers?.get?.("X-Request-ID") ?? undefined;
       const responseTraceId = response.headers?.get?.(TRACE_ID_HEADER) ?? traceId;
       const responseAgentRunId = response.headers?.get?.("X-Agent-Run-ID") ?? undefined;
+      telemetry.noteResponse(response.status, {
+        requestId: responseRequestId,
+        agentRunId: responseAgentRunId,
+      });
 
       debugContext.set({
         trace_id: responseTraceId,
@@ -334,6 +365,7 @@ export function streamAgentRequest(
 
           const event = parseSSEEvent(eventString);
           if (!event) continue;
+          telemetry.noteEvent();
 
           switch (event.type) {
             case "thinking": {
@@ -732,11 +764,14 @@ export function streamAgentRequest(
       if (!receivedTerminalEvent && !abortController.signal.aborted) {
         const fallbackMessage = i18n.t('chat:stream.connectionInterrupted');
         callbacks.onError?.(fallbackMessage, "STREAM_CLOSED", true);
+      } else if (!receivedTerminalEvent) {
+        telemetry.cancelled();
       }
     } catch (error: unknown) {
       const err = error as { name?: string; message?: string };
       if (err.name === "AbortError") {
         // Request was cancelled, don't call onError
+        telemetry.cancelled();
         return;
       }
       callbacks.onError?.(

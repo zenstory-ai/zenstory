@@ -39,6 +39,12 @@
     "zh": "中文",
     "en": "English"
   },
+  "privacy": {
+    "title": "Privacy",
+    "analytics": "Product analytics and error tracking",
+    "analyticsDescription": "Sends usage events and error reports to PostHog to help us improve the product. Manuscript text, prompts and chat content are never sent. When off, this browser sends no analytics or error data.",
+    "privacyLink": "Learn more"
+  },
   "actions": {
     "resetDefault": "Reset to Default",
     "cancel": "Cancel",

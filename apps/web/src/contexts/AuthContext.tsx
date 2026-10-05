@@ -7,6 +7,7 @@ import { logger } from '../lib/logger';
 import { clearAuthStorage, getApiBase, tryRefreshToken as tryRefreshTokenSingleFlight } from '../lib/apiClient';
 import { identifyUser, resetAnalytics, trackEvent } from '../lib/analytics';
 import { saveOAuthPlanIntent, type PlanIntent } from '../lib/authFlow';
+import { clearPendingUpgradeFunnelEvents } from '../lib/upgradeAnalytics';
 
 export interface User {
   id: string;
@@ -30,7 +31,11 @@ export interface AuthContextType {
   register: (username: string, email: string, password: string, inviteCode?: string) => Promise<{ email: string; email_verified: boolean }>;
   logout: () => void;
   refreshToken: () => Promise<void>;
-  handleOAuthCallback: (accessToken: string, refreshToken: string) => Promise<void>;
+  handleOAuthCallback: (
+    accessToken: string,
+    refreshToken: string,
+    options?: { isNewUser?: boolean },
+  ) => Promise<void>;
   verifyEmail: (email: string, code: string) => Promise<void>;
   resendVerification: (email: string) => Promise<void>;
   googleLogin: (options?: { inviteCode?: string; redirectUrl?: string; planIntent?: PlanIntent | null }) => void;
@@ -79,6 +84,8 @@ const CACHE_KEYS = {
 // Helper to clear auth state (including cache)
 const clearAuthState = (setUser: (user: User | null) => void, reason = 'auth_state_cleared') => {
   clearAuthStorage(reason);
+  // Queued funnel events belong to the account that is signing out.
+  clearPendingUpgradeFunnelEvents();
   setUser(null);
 };
 
@@ -312,6 +319,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const register = async (username: string, email: string, password: string, inviteCode?: string) => {
     const data = await authApi.register({ username, email, password, invite_code: inviteCode });
     trackEvent('register_success', {
+      method: 'password',
       email_verified: data.email_verified,
       invite_code_provided: Boolean(inviteCode?.trim()),
     });
@@ -392,7 +400,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const handleOAuthCallback = async (accessToken: string, refreshToken: string) => {
+  const handleOAuthCallback = async (
+    accessToken: string,
+    refreshToken: string,
+    options: { isNewUser?: boolean } = {},
+  ) => {
     const generation = ++authGenerationRef.current;
     // After OAuth callback, we need to fetch user info using the access token
     const response = await fetch(`${getApiBase()}/api/auth/me`, {
@@ -417,7 +429,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     saveUserCache(user);
 
     setUser(user);
-    trackEvent('oauth_callback_success');
+    const isNewUser = options.isNewUser === true;
+    if (isNewUser) {
+      // Google sign-ups never pass through register(); count them here.
+      trackEvent('register_success', {
+        method: 'google',
+        email_verified: true,
+      });
+    }
+    trackEvent('oauth_callback_success', { is_new_user: isNewUser });
   };
 
   const googleLogin = (options?: { inviteCode?: string; redirectUrl?: string; planIntent?: PlanIntent | null }) => {

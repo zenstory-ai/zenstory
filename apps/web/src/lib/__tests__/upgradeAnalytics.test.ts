@@ -187,4 +187,43 @@ describe("upgradeAnalytics", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it("stops retrying after a 401 until a different token is stored", async () => {
+    localStorage.setItem("access_token", "expired-token");
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValue({ ok: false, status: 401 } as Response);
+
+    analytics.trackUpgradeClick("chat_quota_blocked", "primary", "billing");
+    await flushAsync();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // No 5s retry loop and no retry on focus with the same dead token.
+    await vi.advanceTimersByTimeAsync(30_000);
+    window.dispatchEvent(new Event("focus"));
+    await flushAsync();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(getPendingEvents()).toHaveLength(1);
+
+    // A new login resumes delivery.
+    fetchMock.mockResolvedValue({ ok: true, status: 200 } as Response);
+    localStorage.setItem("access_token", "fresh-token");
+    window.dispatchEvent(new Event("focus"));
+    await flushAsync();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(getPendingEvents()).toHaveLength(0);
+  });
+
+  it("clears queued events so the next account never sends them", async () => {
+    analytics.trackUpgradeExpose("chat_quota_blocked", "modal");
+    await flushAsync();
+    expect(getPendingEvents()).toHaveLength(1);
+
+    analytics.clearPendingUpgradeFunnelEvents();
+
+    expect(localStorage.getItem(PENDING_STORAGE_KEY)).toBeNull();
+    localStorage.setItem("access_token", "other-user-token");
+    window.dispatchEvent(new Event("focus"));
+    await flushAsync();
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
 });

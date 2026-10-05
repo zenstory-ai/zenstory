@@ -154,6 +154,15 @@ export default function PrivacyPolicy() {
 
                 <div>
                   <h3 className="font-semibold text-[hsl(var(--text-primary))] mb-2">
+                    {t('sections.dataSharing.subsections.analytics.title')}
+                  </h3>
+                  <p className="text-[hsl(var(--text-primary))] leading-relaxed text-sm">
+                    {t('sections.dataSharing.subsections.analytics.content')}
+                  </p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-[hsl(var(--text-primary))] mb-2">
                     {t('sections.dataSharing.subsections.aiTraining.title')}
                   </h3>
                   <p className="text-[hsl(var(--text-primary))] leading-relaxed text-sm">
