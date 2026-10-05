@@ -8,17 +8,33 @@ import json
 from datetime import timedelta
 from typing import Any
 
+from sqlalchemy import update
 from sqlmodel import Session, select
 
 from config.datetime_utils import utcnow
-from models.material_models import IngestionJob
+from core.error_codes import ErrorCode
+from models.material_models import IngestionJob, Novel
+from services.material.job_errors import REFUNDABLE_JOB_ERROR_CODES
+from utils.logger import get_logger
 
+logger = get_logger(__name__)
+
+# Pending without a Prefect flow run id: the API never finished dispatching.
 DISPATCH_STALE_AFTER = timedelta(minutes=10)
+# Pending with a flow run id: Prefect accepted the run but no worker started it.
+DISPATCHED_PENDING_STALE_AFTER = timedelta(minutes=30)
 PROCESSING_STALE_AFTER = timedelta(hours=2)
+
+TERMINAL_JOB_STATUSES = frozenset({"completed", "completed_with_errors", "failed"})
+MATERIAL_DECOMPOSE_FEATURE = "material_decompose"
 
 # stage_progress key holding the effective stage map recorded at flow start
 # (keys: config.material_settings.STAGE_KEYS).
 ENABLED_STAGES_KEY = "enabled_stages"
+# stage_progress key holding the job's quota state:
+# {"quota_charged": bool, "quota_refunded": bool, "refund_reason": str}.
+# quota_charged means this job currently holds one material_decompose unit.
+BILLING_KEY = "billing"
 
 
 def _load_stage_progress(raw: str | None) -> dict[str, Any]:
@@ -186,12 +202,112 @@ class IngestionJobsService:
             return None
         return {str(k): bool(v) for k, v in snapshot.items()}
 
+    @staticmethod
+    def get_billing(job: IngestionJob | None) -> dict[str, Any]:
+        """Read the job's quota state; empty for jobs created before it existed."""
+        if job is None:
+            return {}
+        billing = _load_stage_progress(job.stage_progress).get(BILLING_KEY)
+        return dict(billing) if isinstance(billing, dict) else {}
+
+    @staticmethod
+    def set_billing(job: IngestionJob, **fields: Any) -> None:
+        """Merge quota-state fields into the job (caller commits)."""
+        progress = _load_stage_progress(job.stage_progress)
+        billing = progress.get(BILLING_KEY)
+        billing = dict(billing) if isinstance(billing, dict) else {}
+        billing.update(fields)
+        progress[BILLING_KEY] = billing
+        job.stage_progress = json.dumps(progress, ensure_ascii=False)
+
+    def fail_job(
+        self,
+        session: Session,
+        job: IngestionJob,
+        *,
+        error_code: str,
+        stage: str,
+        reason: str,
+        details: dict[str, Any] | None = None,
+        only_if_unchanged: bool = False,
+    ) -> bool:
+        """
+        Mark ``job`` failed with an error code and refund its quota when the code is
+        refundable and the job still holds a charged unit.
+
+        With ``only_if_unchanged`` the write is a compare-and-set on the loaded
+        ``status``/``updated_at``: concurrent readers reconciling the same job
+        cannot both win, so the refund happens at most once. Returns False when
+        another writer changed the job first.
+        """
+        now = utcnow()
+        progress = _load_stage_progress(job.stage_progress)
+        progress["watchdog" if stage in {"dispatch_timeout", "processing_timeout"} else "failed"] = {
+            "status": "failed",
+            "timestamp": now.isoformat(),
+            "reason": reason,
+        }
+        billing = progress.get(BILLING_KEY)
+        billing = dict(billing) if isinstance(billing, dict) else {}
+        refund = error_code in REFUNDABLE_JOB_ERROR_CODES and billing.get("quota_charged") is True
+        if refund:
+            billing.update(
+                {"quota_charged": False, "quota_refunded": True, "refund_reason": error_code}
+            )
+            progress[BILLING_KEY] = billing
+
+        error_details = {"stage": stage, "error_code": error_code, **(details or {})}
+        values = {
+            "status": "failed",
+            "error_message": error_code,
+            "error_details": json.dumps(error_details, ensure_ascii=False),
+            "stage_progress": json.dumps(progress, ensure_ascii=False),
+            "completed_at": now,
+            "updated_at": now,
+        }
+        statement = update(IngestionJob).where(IngestionJob.id == job.id)
+        if only_if_unchanged:
+            statement = statement.where(IngestionJob.status == job.status)
+            if job.updated_at is not None:
+                statement = statement.where(IngestionJob.updated_at == job.updated_at)
+        result = session.exec(statement.values(**values))
+        if result.rowcount != 1:
+            session.rollback()
+            session.refresh(job)
+            return False
+        session.commit()
+
+        if refund:
+            self._release_job_quota(session, job)
+        session.refresh(job)
+        return True
+
+    def _release_job_quota(self, session: Session, job: IngestionJob) -> None:
+        from services.quota_service import quota_service
+
+        novel = session.get(Novel, job.novel_id)
+        if novel is None:
+            return
+        try:
+            quota_service.release_feature_quota(
+                session, novel.user_id, MATERIAL_DECOMPOSE_FEATURE
+            )
+        except Exception:
+            session.rollback()
+            logger.error(
+                "Failed to refund material quota for failed job: job_id=%s",
+                job.id,
+                exc_info=True,
+            )
+
     def reconcile_stale_job(self, session: Session, job: IngestionJob) -> IngestionJob:
         """
         Best-effort reconciliation for stale pending/processing jobs.
 
-        This provides a read-path safety net so obviously orphaned jobs do not
-        stay visible forever as pending/processing.
+        This provides a read-path safety net so orphaned jobs (never dispatched,
+        accepted by Prefect but never started by a worker, or a worker that
+        crashed mid-run) become failed, refund their quota, and can be retried.
+        A flow run that starts after its job was reconciled exits without work.
         """
         now = utcnow()
         last_updated = job.updated_at or job.created_at or now
@@ -202,50 +318,30 @@ class IngestionJobsService:
 
         age = now - last_updated
 
-        if (
-            job.status == "pending"
-            and not job.correlation_id
-            and age >= DISPATCH_STALE_AFTER
-        ):
-            self.update_processed(
-                session,
-                job.id,
-                status="failed",
-                stage="queue",
-                stage_status="failed",
-                stage_data={
-                    "reconciled": True,
-                    "reason": "dispatch_timeout",
-                },
-                error_message="拆解任务调度超时，请重试",
-                error_details={
-                    "stage": "dispatch_timeout",
-                    "message": "Flow dispatch did not complete before timeout",
-                },
-            )
-            session.commit()
-            session.refresh(job)
+        if job.status == "pending":
+            threshold = DISPATCHED_PENDING_STALE_AFTER if job.correlation_id else DISPATCH_STALE_AFTER
+            if age >= threshold:
+                self.fail_job(
+                    session,
+                    job,
+                    error_code=ErrorCode.MATERIAL_DISPATCH_TIMEOUT,
+                    stage="dispatch_timeout",
+                    reason="dispatch_timeout",
+                    details={"reconciled": True, "dispatched": bool(job.correlation_id)},
+                    only_if_unchanged=True,
+                )
             return job
 
         if job.status == "processing" and age >= PROCESSING_STALE_AFTER:
-            self.update_processed(
+            self.fail_job(
                 session,
-                job.id,
-                status="failed",
-                stage="watchdog",
-                stage_status="failed",
-                stage_data={
-                    "reconciled": True,
-                    "reason": "processing_timeout",
-                },
-                error_message="拆解任务处理超时，请重试",
-                error_details={
-                    "stage": "processing_timeout",
-                    "message": "Flow progress stalled beyond timeout",
-                },
+                job,
+                error_code=ErrorCode.MATERIAL_PROCESSING_TIMEOUT,
+                stage="processing_timeout",
+                reason="processing_timeout",
+                details={"reconciled": True},
+                only_if_unchanged=True,
             )
-            session.commit()
-            session.refresh(job)
             return job
 
         return job

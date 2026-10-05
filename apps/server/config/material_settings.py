@@ -25,6 +25,9 @@ class MaterialSettings(BaseSettings):
     # 通用 LLM 参数
     LLM_TEMPERATURE: float = 0.7
     LLM_MAX_TOKENS: int = 64000
+    # 单次 DeepSeek 请求的超时与 SDK 内部重试次数（Prefect 任务重试另计）
+    LLM_REQUEST_TIMEOUT_SECONDS: float = 180.0
+    LLM_SDK_MAX_RETRIES: int = 2
 
     # ============ 并发控制 ============
     MAX_CONCURRENT_WORKFLOWS: int = 3
@@ -32,6 +35,8 @@ class MaterialSettings(BaseSettings):
 
     # ============ 小说处理配置 ============
     NOVEL_MAX_CHARACTERS: int = 50000  # 单章最大字符数
+    # 单次拆解的章节数上限（上传预检与阶段0共用）；超出直接拒绝，不扣额度
+    MAX_CHAPTERS_PER_NOVEL: int = 3000
     MIN_PLOTS_PER_CHAPTER: int = 10
     MAX_PLOTS_PER_CHAPTER: int = 15
     MIN_PLOTS_PER_STORY: int = 3
@@ -69,7 +74,7 @@ class MaterialSettings(BaseSettings):
 
     # ============ 上传配置 ============
     UPLOAD_FOLDER: str = "uploads"
-    MAX_CONTENT_LENGTH: int = 100 * 1024 * 1024  # 100MB
+    MAX_CONTENT_LENGTH: int = 20 * 1024 * 1024  # 20MB，与 api/materials/constants.py 一致
 
     # ============ Redis 配置（用于进度推送）============
     REDIS_HOST: str = "localhost"

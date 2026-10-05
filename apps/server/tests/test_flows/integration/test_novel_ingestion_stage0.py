@@ -91,7 +91,10 @@ class TestExecuteStage0:
         monkeypatch.setattr(
             flow_mod,
             "parse_novel_chapters",
-            lambda _file_path, _encoding: {"chapters": [], "novel_title": "x"},
+            lambda _file_path, _encoding: {
+                "chapters": [{"chapter_number": 1, "title": "c1", "content": "x"}],
+                "novel_title": "x",
+            },
         )
 
         with pytest.raises(ValueError, match="预创建的小说不存在"):
