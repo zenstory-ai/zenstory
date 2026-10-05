@@ -52,6 +52,21 @@ PROJECT_STATUS_TOKEN_RATIO = 0.25
 MIN_PROJECT_STATUS_FIELD_TOKENS = 120
 
 
+DEFAULT_RETRIEVAL_SEMANTIC_TIMEOUT_S = 5.0
+
+
+def _retrieval_semantic_timeout_s() -> float:
+    """上下文组装时语义检索的外层时限（AGENT_RETRIEVAL_SEMANTIC_TIMEOUT_S，秒）。"""
+    raw = (os.getenv("AGENT_RETRIEVAL_SEMANTIC_TIMEOUT_S") or "").strip()
+    if not raw:
+        return DEFAULT_RETRIEVAL_SEMANTIC_TIMEOUT_S
+    try:
+        value = float(raw)
+    except ValueError:
+        return DEFAULT_RETRIEVAL_SEMANTIC_TIMEOUT_S
+    return value if value > 0 else DEFAULT_RETRIEVAL_SEMANTIC_TIMEOUT_S
+
+
 class ContextAssembler:
     """
     Assembles context from project data for AI prompts.
@@ -810,6 +825,9 @@ class ContextAssembler:
                 query=normalized_query,
                 top_k=max(1, int(top_k or 6)),
                 entity_types=None,
+                # 每轮 /stream 组装上下文都会走这里：embedding 服务变慢时语义
+                # 分支到时即放弃，只用词法结果，不让整轮对话卡在「组装上下文」。
+                semantic_timeout_s=_retrieval_semantic_timeout_s(),
             )
         except Exception as e:
             error_reason = str(e)

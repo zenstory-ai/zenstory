@@ -10,6 +10,7 @@ Provides:
 
 import asyncio
 import contextlib
+import functools
 import hashlib
 import json
 import os
@@ -17,6 +18,7 @@ import queue
 import re
 import threading
 import time
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -58,6 +60,21 @@ from models import File
 from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
+
+
+# Chroma 元数据只接受标量（llama-index ChromaVectorStore 默认 flat_metadata=True，
+# 遇到 dict/list 直接 ValueError）。bool 是 int 的子类，同样可以写入。
+_INDEXABLE_METADATA_TYPES = (str, int, float, type(None))
+
+
+def _to_indexable_metadata_value(value: Any) -> Any:
+    """把 file_metadata 里的嵌套 dict/list 等值转成 Chroma 能存的标量。"""
+    if isinstance(value, _INDEXABLE_METADATA_TYPES):
+        return value
+    try:
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+    except (TypeError, ValueError):
+        return str(value)
 
 
 class VectorSearchUnavailableError(RuntimeError):
@@ -125,6 +142,71 @@ def _get_int_env(name: str, default: int, *, min_value: int | None = None) -> in
     if min_value is not None and value < min_value:
         return min_value
     return value
+
+
+def _get_float_env(name: str, default: float, *, min_value: float | None = None) -> float:
+    raw = os.getenv(name)
+    if raw is None:
+        value = default
+    else:
+        try:
+            value = float(raw)
+        except ValueError:
+            value = default
+
+    if min_value is not None and value < min_value:
+        return min_value
+    return value
+
+
+# Zhipu embedding 客户端的网络上限。SDK 默认 300 秒读超时 + 3 次重试：上游挂起
+# （不回包也不断连）时一次 query embedding 能卡住约 20 分钟，期间占着 asyncio
+# 默认 executor 的一条线程。这里显式收紧：连接 3 秒、读 10 秒、最多重试 1 次。
+ZHIPU_EMBEDDING_CONNECT_TIMEOUT_S = _get_float_env(
+    "ZHIPU_EMBEDDING_CONNECT_TIMEOUT_S", 3.0, min_value=0.1
+)
+ZHIPU_EMBEDDING_READ_TIMEOUT_S = _get_float_env(
+    "ZHIPU_EMBEDDING_READ_TIMEOUT_S", 10.0, min_value=0.1
+)
+ZHIPU_EMBEDDING_MAX_RETRIES = min(
+    _get_int_env("ZHIPU_EMBEDDING_MAX_RETRIES", 1, min_value=0), 1
+)
+
+
+def build_zhipu_client_options() -> dict[str, Any]:
+    """ZhipuAiClient 的 timeout / max_retries 参数（单独抽出便于测试）。"""
+    import httpx
+
+    return {
+        "timeout": httpx.Timeout(
+            ZHIPU_EMBEDDING_READ_TIMEOUT_S,
+            connect=ZHIPU_EMBEDDING_CONNECT_TIMEOUT_S,
+        ),
+        "max_retries": ZHIPU_EMBEDDING_MAX_RETRIES,
+    }
+
+
+# 混合检索里语义分支（query embedding + Chroma 查询）的外层时限。调用方传
+# semantic_timeout_s 时语义检索放进专用线程池执行，超时即按语义失败处理、只用
+# 词法结果；工作线程会在上面的客户端超时内自行结束。
+_SEMANTIC_SEARCH_EXECUTOR_WORKERS = _get_int_env(
+    "HYBRID_SEMANTIC_EXECUTOR_WORKERS", 4, min_value=1
+)
+_semantic_search_executor: Any = None
+_semantic_search_executor_lock = threading.Lock()
+
+
+def _get_semantic_search_executor() -> Any:
+    global _semantic_search_executor
+    with _semantic_search_executor_lock:
+        if _semantic_search_executor is None:
+            from concurrent.futures import ThreadPoolExecutor
+
+            _semantic_search_executor = ThreadPoolExecutor(
+                max_workers=_SEMANTIC_SEARCH_EXECUTOR_WORKERS,
+                thread_name_prefix="semantic-search",
+            )
+        return _semantic_search_executor
 
 
 # Semantic search guardrails (embedding safety).
@@ -339,7 +421,7 @@ class ZhipuEmbedding(BaseEmbedding):
         # Local import to avoid hard dependency at import time
         from zai import ZhipuAiClient
 
-        kwargs: dict[str, Any] = {"api_key": self.api_key}
+        kwargs: dict[str, Any] = {"api_key": self.api_key, **build_zhipu_client_options()}
         if self.base_url:
             kwargs["base_url"] = self.base_url
         self._client = ZhipuAiClient(**kwargs)
@@ -567,7 +649,9 @@ class LlamaIndexService:
             "title": title,
         }
         if extra_metadata:
-            metadata.update(extra_metadata)
+            metadata.update(
+                {key: _to_indexable_metadata_value(value) for key, value in extra_metadata.items()}
+            )
 
         # Combine title and content for better retrieval
         text = f"# {title}\n\n{content}" if content else f"# {title}"
@@ -635,36 +719,37 @@ class LlamaIndexService:
             if file_type in counts:
                 counts[file_type] += 1
 
-        # Delete existing collection and recreate
+        # 先在临时 collection 里建好新索引（embedding 失败、某个文件的元数据
+        # 写不进去等任何异常都发生在这一步），成功后才删除旧 collection 并把
+        # 临时 collection 改名接替。失败时只清理临时 collection，旧索引原样保留，
+        # 不会出现「旧的已删、新的没建成」导致整个项目语义检索变空。
         collection_name = self._get_collection_name(project_id)
-        with contextlib.suppress(Exception):
-            self.chroma_client.delete_collection(collection_name)
-
-        # Clear cache (thread-safe)
-        with self._cache_lock:
-            if project_id in self._index_cache:
-                del self._index_cache[project_id]
-
-        # Create new collection
-        chroma_collection = self.chroma_client.create_collection(
-            name=collection_name,
+        staging_name = f"{collection_name}_rebuild_{uuid.uuid4().hex[:12]}"
+        staging_collection = self.chroma_client.create_collection(
+            name=staging_name,
             metadata={"project_id": project_id},
         )
+        try:
+            if documents:
+                vector_store = ChromaVectorStore(chroma_collection=staging_collection)
+                storage_context = StorageContext.from_defaults(vector_store=vector_store)
+                VectorStoreIndex.from_documents(
+                    documents=documents,
+                    storage_context=storage_context,
+                    embed_model=self.embed_model,
+                    show_progress=True,
+                )
+        except BaseException:
+            with contextlib.suppress(Exception):
+                self.chroma_client.delete_collection(staging_name)
+            raise
 
-        # Create vector store and index
-        vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
-        storage_context = StorageContext.from_defaults(vector_store=vector_store)
-
-        if documents:
-            index = VectorStoreIndex.from_documents(
-                documents=documents,
-                storage_context=storage_context,
-                embed_model=self.embed_model,
-                show_progress=True,
-            )
-            # Cache the new index (thread-safe)
-            with self._cache_lock:
-                self._index_cache[project_id] = index
+        with self._cache_lock:
+            with contextlib.suppress(Exception):
+                self.chroma_client.delete_collection(collection_name)
+            staging_collection.modify(name=collection_name)
+            # 缓存里的旧 index 指向已删除的 collection：清掉，下次按名字重新加载。
+            self._index_cache.pop(project_id, None)
 
         duration_ms = (time.time() - start_time) * 1000
 
@@ -1390,9 +1475,13 @@ class LlamaIndexService:
         top_k: int = 10,
         entity_types: list[str] | None = None,
         include_content: bool = False,
+        semantic_timeout_s: float | None = None,
     ) -> list[SearchResult]:
         """
         Perform hybrid search by fusing semantic and lexical retrieval.
+
+        semantic_timeout_s: 语义分支的外层时限（秒）。超时按语义失败处理，
+        只返回词法结果；None 表示不设外层时限（沿用客户端自身的超时）。
         """
 
         from database import create_session
@@ -1409,13 +1498,36 @@ class LlamaIndexService:
         semantic_error: Exception | None = None
         semantic_completed = False
         try:
-            semantic_results = self.semantic_search(
-                project_id=project_id,
-                query=normalized_query,
-                top_k=semantic_candidate_k,
-                entity_types=entity_types,
-                raise_on_error=True,
-            )
+            if semantic_timeout_s is None:
+                semantic_results = self.semantic_search(
+                    project_id=project_id,
+                    query=normalized_query,
+                    top_k=semantic_candidate_k,
+                    entity_types=entity_types,
+                    raise_on_error=True,
+                )
+            else:
+                import contextvars
+                from concurrent.futures import TimeoutError as FutureTimeoutError
+
+                future = _get_semantic_search_executor().submit(
+                    contextvars.copy_context().run,
+                    functools.partial(
+                        self.semantic_search,
+                        project_id=project_id,
+                        query=normalized_query,
+                        top_k=semantic_candidate_k,
+                        entity_types=entity_types,
+                        raise_on_error=True,
+                    ),
+                )
+                try:
+                    semantic_results = future.result(timeout=max(0.0, semantic_timeout_s))
+                except FutureTimeoutError as timeout_exc:
+                    future.cancel()
+                    raise TimeoutError(
+                        f"semantic search exceeded {semantic_timeout_s}s"
+                    ) from timeout_exc
             semantic_completed = True
         except Exception as sem_err:
             semantic_error = sem_err

@@ -25,6 +25,7 @@ from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from core.project_access import verify_project_ownership
 from database import get_session
+from middleware.rate_limit import require_user_rate_limit
 from models import (
     ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED,
     ACTIVATION_EVENT_FIRST_FILE_SAVED,
@@ -48,6 +49,7 @@ from services.file_tree_rules import (
     resolve_new_file_order,
     validate_parent_assignment,
 )
+from services.infra.single_flight_lock import acquire_single_flight, release_single_flight
 from utils.logger import get_logger, log_with_context
 from utils.text_metrics import count_words
 from utils.title_sequence import (
@@ -660,16 +662,32 @@ def get_files(
     return session.exec(query).all()
 
 
-def _rebuild_vector_index_task(project_id: str) -> None:
-    """Background task: rebuild vector index for a project."""
+# 整项目向量重建要对每个文件重新算 embedding（有厂商成本、占同步连接与线程池），
+# 按用户限流，并按项目单飞：同一项目同一时刻只跑一份重建。
+VECTOR_INDEX_REBUILD_RATE_LIMIT_MAX_REQUESTS = 1
+VECTOR_INDEX_REBUILD_RATE_LIMIT_WINDOW_SECONDS = 600
+# 单飞锁的兜底过期时间：持有者崩溃没释放时，到期自动解锁。
+VECTOR_INDEX_REBUILD_LOCK_TTL_SECONDS = 1800
+
+
+def _vector_index_rebuild_lock_name(project_id: str) -> str:
+    return f"vector_index_rebuild:{project_id}"
+
+
+def _rebuild_vector_index_task(project_id: str, lock_token: str | None = None) -> None:
+    """Background task: rebuild vector index for a project, then release its lock."""
     from sqlmodel import Session
 
     from database import sync_engine
     from services.llama_index import get_llama_index_service
 
-    with Session(sync_engine) as s:
-        svc = get_llama_index_service()
-        _ = svc.index_project(s, project_id)
+    try:
+        with Session(sync_engine) as s:
+            svc = get_llama_index_service()
+            _ = svc.index_project(s, project_id)
+    finally:
+        if lock_token:
+            release_single_flight(_vector_index_rebuild_lock_name(project_id), lock_token)
 
 
 @router.post("/projects/{project_id}/vector-index/rebuild")
@@ -678,11 +696,29 @@ def rebuild_vector_index(
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session),
+    _rate_limit: int = Depends(
+        require_user_rate_limit(
+            "vector_index_rebuild",
+            VECTOR_INDEX_REBUILD_RATE_LIMIT_MAX_REQUESTS,
+            VECTOR_INDEX_REBUILD_RATE_LIMIT_WINDOW_SECONDS,
+        )
+    ),
 ):
     """Rebuild vector index in background (fire-and-forget)."""
     verify_project_ownership(project_id, current_user, session)
 
-    background_tasks.add_task(_rebuild_vector_index_task, project_id)
+    lock_token = acquire_single_flight(
+        _vector_index_rebuild_lock_name(project_id),
+        VECTOR_INDEX_REBUILD_LOCK_TTL_SECONDS,
+    )
+    if lock_token is None:
+        raise APIException(
+            error_code=ErrorCode.RESOURCE_CONFLICT,
+            status_code=409,
+            detail="A vector index rebuild for this project is already running",
+        )
+
+    background_tasks.add_task(_rebuild_vector_index_task, project_id, lock_token)
     return {"message": "Vector index rebuild queued", "project_id": project_id}
 
 
