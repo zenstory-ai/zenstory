@@ -12,6 +12,8 @@ const mockToggleNovel = vi.fn()
 const mockToggleEntityType = vi.fn()
 const mockLoadPreview = vi.fn()
 const mockAddMaterial = vi.fn()
+const mockRefreshIfStale = vi.fn()
+const libraryState = vi.hoisted(() => ({ accessDenied: false }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -37,11 +39,21 @@ vi.mock('../../../contexts/MaterialAttachmentContext', () => ({
   }),
 }))
 
+vi.mock('../../subscription/MaterialsUpgradePrompt', () => ({
+  MaterialsUpgradeNotice: ({ source }: { source: string }) => (
+    <div data-testid="materials-upgrade-notice">{source}</div>
+  ),
+}))
+
 vi.mock('../../../contexts/MaterialLibraryContext', () => ({
   useMaterialLibraryContext: () => ({
     isLoading: false,
     isFetching: false,
-    libraries: [
+    error: null,
+    accessDenied: libraryState.accessDenied,
+    refetch: vi.fn(),
+    refreshIfStale: mockRefreshIfStale,
+    libraries: libraryState.accessDenied ? [] : [
       {
         id: 1,
         title: 'Novel One',
@@ -100,6 +112,7 @@ vi.mock('../../../lib/logger', () => ({
 describe('MaterialsPane', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    libraryState.accessDenied = false
     mockAddMaterial.mockReturnValue(true)
     mockGetCharacters.mockResolvedValue([
       { id: 1, name: 'Hero' },
@@ -109,6 +122,21 @@ describe('MaterialsPane', () => {
       results: [{ file_id: 'file-1', title: 'Hero', folder_name: 'Characters', file_type: 'character' }],
       failed_count: 1,
     })
+  })
+
+  it('shows the upgrade notice instead of a load error for plans without the materials library', () => {
+    libraryState.accessDenied = true
+
+    render(<MaterialsPane />)
+
+    expect(screen.getByTestId('materials-upgrade-notice')).toHaveTextContent('editor_materials_pane')
+    expect(screen.queryByText('materials:libraryLoadFailed')).not.toBeInTheDocument()
+  })
+
+  it('refreshes a stale library summary when the pane mounts', () => {
+    render(<MaterialsPane />)
+
+    expect(mockRefreshIfStale).toHaveBeenCalled()
   })
 
   it('keeps the latest material search results when an older request resolves later', async () => {

@@ -17,6 +17,7 @@ const mockGetStoryLines = vi.fn();
 const mockGetRelationships = vi.fn();
 const mockGetGoldenFingers = vi.fn();
 const mockGetWorldView = vi.fn();
+const mockRetry = vi.fn();
 const materialsConfigState = vi.hoisted(() => ({
   relationshipsEnabled: false,
 }));
@@ -91,7 +92,19 @@ vi.mock("../../lib/materialsApi", () => ({
     getRelationships: (...args: unknown[]) => mockGetRelationships(...args),
     getGoldenFingers: (...args: unknown[]) => mockGetGoldenFingers(...args),
     getWorldView: (...args: unknown[]) => mockGetWorldView(...args),
+    retry: (...args: unknown[]) => mockRetry(...args),
   },
+}));
+
+vi.mock("../../lib/errorHandler", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../lib/errorHandler")>()),
+  translateError: (code: string) => `translated:${code}`,
+}));
+
+vi.mock("../../components/subscription/MaterialsUpgradePrompt", () => ({
+  MaterialsUpgradeNotice: ({ source }: { source: string }) => (
+    <div data-testid="materials-upgrade-notice">{source}</div>
+  ),
 }));
 
 import MaterialDetailPage from "../MaterialDetailPage";
@@ -235,6 +248,37 @@ describe("MaterialDetailPage", () => {
     render(<MaterialDetailPage />, { wrapper: createWrapper() });
     expect(await screen.findByText("materials:detail.notFound")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "重试" })).not.toBeInTheDocument();
+  });
+
+  it("shows the upgrade notice instead of a load error when the plan lacks the materials library", async () => {
+    mockGet.mockRejectedValueOnce(new ApiError(402, "ERR_FEATURE_NOT_INCLUDED"));
+
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+
+    expect(await screen.findByTestId("materials-upgrade-notice")).toHaveTextContent("material_detail");
+    expect(screen.queryByText("素材详情加载失败，请重试。")).not.toBeInTheDocument();
+  });
+
+  it("shows the failure reason and a retry entry for a failed decomposition", async () => {
+    mockGet.mockResolvedValue({
+      id: "novel-1",
+      title: "Novel One",
+      status: "failed",
+      error_message: "ERR_MATERIAL_LLM_UNAVAILABLE",
+      chapters_count: 0,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    });
+    mockRetry.mockResolvedValue({ message: "ok", job_id: 2, status: "pending" });
+
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+
+    const banner = await screen.findByRole("alert");
+    expect(banner).toHaveTextContent("拆解失败");
+    expect(banner).toHaveTextContent("translated:ERR_MATERIAL_LLM_UNAVAILABLE");
+
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    await waitFor(() => expect(mockRetry).toHaveBeenCalledWith("novel-1"));
   });
 
   it("shows relationships folder when relationships UI is enabled", async () => {

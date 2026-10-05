@@ -8,7 +8,7 @@ Status: implemented
 
 ## Decision
 
-后端权益是单一真相：`services/subscription/defaults.py` 里免费套餐 `materials_library_access: False`、`material_decompositions: 0`；`core/permissions.py` 把 `material_upload` 与 `material_decompose` 两个动作映射到 `materials_library_access` 权益。无该权益的请求返回 `ERR_FEATURE_NOT_INCLUDED`（"当前套餐暂不包含该功能"）；有权益但月度配额耗尽返回 `ERR_QUOTA_EXCEEDED`。配额判断只看配置值，`-1` 表示无限，代码 never 按套餐名分支。付费套餐的 5 次/月是套餐数据（见 `apps/server/scripts/seed_test_user.py` 的种子），不是代码常量。前端 `MaterialsPage` 对免费用户渲染预览态并发 `materials_teaser_exposed` 事件，对付费用户显示剩余次数；用尽时提示下月恢复且 never 弹升级框。面向用户的计量单位统一为"素材拆解次数"。
+后端权益是单一真相：`services/subscription/defaults.py` 里免费套餐 `materials_library_access: False`、`material_decompositions: 0`；`core/permissions.py` 把 `material_upload` 与 `material_decompose` 两个动作映射到 `materials_library_access` 权益。无该权益的请求返回 `ERR_FEATURE_NOT_INCLUDED`（"当前套餐暂不包含该功能"）；有权益但月度配额耗尽返回 `ERR_QUOTA_EXCEEDED`。配额判断只看配置值，`-1` 表示无限，代码 never 按套餐名分支。付费套餐的 5 次/月是套餐数据（见 `apps/server/scripts/seed_test_user.py` 的种子），不是代码常量。前端 `MaterialsPage` 对免费用户渲染预览态并发 `materials_teaser_exposed` 事件，对付费用户显示剩余次数；用尽时提示下月恢复且 never 弹升级框。编辑器素材侧栏（`useMaterialLibrary`）先读订阅状态的 `materials_library_access`，没有权益时 never 请求 `/materials/library-summary`；摘要接口返回 `ERR_FEATURE_NOT_INCLUDED` 时不重试。侧栏与素材详情页在这两种情况下都显示升级提示（`components/subscription/MaterialsUpgradePrompt.tsx`，沿用素材库付费墙的文案与 `UpgradePromptModal`），不显示「加载失败」。面向用户的计量单位统一为"素材拆解次数"。
 
 来源：3ef311e（初始提交；实施稿 `docs/plans/2026-04-05-materials-paid-entitlements-implementation.md`，已落地）
 

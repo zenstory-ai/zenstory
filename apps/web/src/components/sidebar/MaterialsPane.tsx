@@ -8,6 +8,7 @@ import { materialsApi } from "../../lib/materialsApi";
 import { toast } from "../../lib/toast";
 import type { MaterialEntityType, MaterialSearchResult } from "../../lib/materialsApi";
 import { logger } from "../../lib/logger";
+import { MaterialsUpgradeNotice } from "../subscription/MaterialsUpgradePrompt";
 import {
   ChevronDown,
   ChevronRight,
@@ -53,6 +54,12 @@ export const MaterialsPane: React.FC = () => {
   const { addMaterial } = useMaterialAttachment();
   const materialLib = useMaterialLibraryContext();
   const isLibraryLoading = materialLib.isLoading || (materialLib.isFetching && materialLib.libraries.length === 0);
+  const { refreshIfStale } = materialLib;
+
+  // Decompositions may have finished since the summary was cached.
+  useEffect(() => {
+    refreshIfStale();
+  }, [refreshIfStale]);
 
   // Entity lists state
   const [entityLists, setEntityLists] = useState<Record<string, { id: number; name: string }[]>>({});
@@ -384,6 +391,8 @@ export const MaterialsPane: React.FC = () => {
           <div className="px-2 py-2 text-[hsl(var(--text-secondary))] text-xs italic">
             {t('common:loading')}
           </div>
+        ) : materialLib.accessDenied ? (
+          <MaterialsUpgradeNotice source="editor_materials_pane" className="px-3 py-3" />
         ) : materialLib.error ? (
           <div className="px-3 py-3 text-xs text-[hsl(var(--error))]">
             <p>{t('materials:libraryLoadFailed', { defaultValue: '素材库加载失败，请重试。' })}</p>
