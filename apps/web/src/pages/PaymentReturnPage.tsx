@@ -114,7 +114,7 @@ export default function PaymentReturnPage() {
       <Card variant="outlined" padding="lg" className="mx-auto max-w-xl">
         <ResultHeader icon={<TriangleAlert className="h-10 w-10 text-[hsl(var(--error))]" />} title={t('dashboard:billing.paymentReturnInvalid', '无法确认支付订单')} />
         <p className="mt-3 text-sm text-[hsl(var(--text-secondary))]">
-          {t('dashboard:billing.paymentReturnMissingOrder', '返回链接缺少订单号。为保障账户安全，我们不会根据第三方页面参数直接开通会员。')}
+          {t('dashboard:billing.paymentReturnMissingOrder', '未找到订单信息，请返回订阅页查看。')}
         </p>
         <ReturnActions onBilling={() => navigate('/dashboard/billing')} />
       </Card>
@@ -124,7 +124,7 @@ export default function PaymentReturnPage() {
   if (orderQuery.isLoading) {
     return (
       <Card variant="outlined" padding="lg" className="mx-auto max-w-xl">
-        <ResultHeader icon={<RefreshCw className="h-10 w-10 animate-spin text-[hsl(var(--accent-primary))]" />} title={t('dashboard:billing.paymentChecking', '正在向服务器确认支付结果...')} />
+        <ResultHeader icon={<RefreshCw className="h-10 w-10 animate-spin text-[hsl(var(--accent-primary))]" />} title={t('dashboard:billing.paymentChecking', '正在确认支付结果...')} />
       </Card>
     )
   }
@@ -147,14 +147,14 @@ export default function PaymentReturnPage() {
         <>
           <ResultHeader icon={<CheckCircle2 className="h-10 w-10 text-[hsl(var(--success))]" />} title={t('dashboard:billing.paymentActivated', '支付成功，Pro 已开通')} />
           <p className="mt-3 text-sm text-[hsl(var(--text-secondary))]">
-            {t('dashboard:billing.paymentActivatedHint', '会员权益已经到账，可返回订阅页面查看最新配额。')}
+            {t('dashboard:billing.paymentActivatedHint', '可返回订阅页面查看最新配额。')}
           </p>
         </>
       ) : isFailed ? (
         <>
-          <ResultHeader icon={<TriangleAlert className="h-10 w-10 text-[hsl(var(--error))]" />} title={t('dashboard:billing.paymentFulfillmentRetrying', '支付已确认，正在重试开通会员')} />
+          <ResultHeader icon={<TriangleAlert className="h-10 w-10 text-[hsl(var(--error))]" />} title={t('dashboard:billing.paymentFulfillmentRetrying', '支付已确认，会员暂未开通')} />
           <p className="mt-3 text-sm text-[hsl(var(--text-secondary))]">
-            {t('dashboard:billing.paymentFulfillmentRetryingHint', '系统会自动重试开通，请勿重复付款。可稍后点击刷新；如长时间未开通，请联系支持并提供下方订单号。')}
+            {t('dashboard:billing.paymentFulfillmentRetryingHint', '请勿重复付款，可稍后点击刷新；如长时间未开通，请联系客服并提供下方订单号。')}
           </p>
         </>
       ) : (
@@ -162,8 +162,8 @@ export default function PaymentReturnPage() {
           <ResultHeader icon={<Clock3 className="h-10 w-10 text-[hsl(var(--warning))]" />} title={t('dashboard:billing.paymentPending', '支付结果处理中')} />
           <p className="mt-3 text-sm text-[hsl(var(--text-secondary))]" role="status">
             {timedOut
-              ? t('dashboard:billing.paymentPendingTimeout', '暂未收到到账确认。如果你已经完成付款，请勿重复支付：我们已向支付平台查询该订单，确认到账后会自动开通。也可以稍后点击刷新。')
-              : t('dashboard:billing.paymentPendingHint', '服务器尚未确认到账，页面会在两分钟内自动刷新。如果你已经完成付款，请勿重复支付。')}
+              ? t('dashboard:billing.paymentPendingTimeout', '暂未确认到支付结果。若已付款，请勿重复支付，可稍后点击刷新；长时间未开通请联系客服并提供订单号。')
+              : t('dashboard:billing.paymentPendingHint', '页面会自动刷新。若已付款，请勿重复支付。')}
           </p>
         </>
       )}

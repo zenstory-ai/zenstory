@@ -9,6 +9,7 @@ import { ApiError } from '../../lib/apiClient'
 import { trackEvent } from '../../lib/analytics'
 import type { PaymentCycle, PaymentCheckout } from '../../types/payment'
 
+// Codes whose errors: translation tells the buyer what to do next.
 const PAYMENT_ERROR_CODES = new Set([
   'ERR_PAYMENT_UNAVAILABLE',
   'ERR_PAYMENT_UNSUPPORTED_OPTION',
@@ -20,10 +21,16 @@ const PAYMENT_ERROR_CODES = new Set([
 // Mirrors the backend's upgrade_source validation; anything else would 422 the order.
 const UPGRADE_SOURCE_PATTERN = /^[A-Za-z0-9_:-]{1,64}$/
 
+const VALIDATION_ERROR_CODE = 'ERR_VALIDATION_ERROR'
+
 function paymentErrorCode(cause: unknown): string | null {
   if (!(cause instanceof ApiError)) return null
   const code = cause.errorCode ?? cause.rawMessage
-  return code && PAYMENT_ERROR_CODES.has(code) ? code : null
+  if (code && PAYMENT_ERROR_CODES.has(code)) return code
+  // A rejected request body means this page and the API are on different
+  // releases; reloading the page picks up the matching client.
+  if (cause.status === 422 || code === VALIDATION_ERROR_CODE) return VALIDATION_ERROR_CODE
+  return null
 }
 
 const ZPAY_CHECKOUT_ACTION = 'https://zpayz.cn/submit.php'
@@ -116,14 +123,18 @@ export function PaymentCheckoutModal({
           upgrade_source: upgradeSource,
         })
       } catch {
-        setError(t('dashboard:billing.paymentInvalidCheckout', '支付跳转校验失败，请重试或联系支持'))
+        setError(t('dashboard:billing.paymentInvalidCheckout', '无法跳转到支付宝，请刷新页面后重试'))
       }
     },
     onError: (cause: unknown) => {
       const code = paymentErrorCode(cause)
       trackEvent('checkout_failed', { cycle, error_code: code ?? 'unknown', upgrade_source: upgradeSource })
-      const fallback = t('dashboard:billing.paymentCreateFailed', '创建支付订单失败，请重试')
-      setError(code ? t(`errors:${code}`, fallback) : fallback)
+      const fallback = t('dashboard:billing.paymentCreateFailed', '暂时无法创建订单，请稍后重试')
+      if (code === VALIDATION_ERROR_CODE) {
+        setError(t('dashboard:billing.paymentPageOutdated', '页面已更新，请刷新页面后重试'))
+      } else {
+        setError(code ? t(`errors:${code}`, fallback) : fallback)
+      }
     },
   })
   const isBusy = createOrder.isPending || redirecting
@@ -164,8 +175,6 @@ export function PaymentCheckoutModal({
     >
       <Modal.Body>
         <div className="space-y-4">
-          <p>{t('dashboard:billing.paymentDescription', '选择开通时长，确认后将前往支付宝收银台。')}</p>
-
           <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label={t('dashboard:billing.billingCycleLabel', '选择计费周期')}>
             {(['month', 'year'] as PaymentCycle[]).map((item) => {
               const selected = cycle === item
@@ -205,7 +214,6 @@ export function PaymentCheckoutModal({
               <CreditCard className="h-4 w-4 text-[#1677ff]" />
               <span className="font-medium">{t('dashboard:billing.alipay', '支付宝')}</span>
             </div>
-            <p className="mt-1 text-xs">{t('dashboard:billing.paymentSecureHint', '订单由服务器生成，会员权益以服务器到账确认为准。')}</p>
           </div>
 
           {optionsQuery.isLoading && (

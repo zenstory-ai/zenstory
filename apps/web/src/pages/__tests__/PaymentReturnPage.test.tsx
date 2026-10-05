@@ -67,6 +67,7 @@ describe('PaymentReturnPage', () => {
   it('rejects a return without an order number without calling the API', () => {
     renderPage('?trade_status=TRADE_SUCCESS')
     expect(screen.getByText('无法确认支付订单')).toBeInTheDocument()
+    expect(screen.getByText('未找到订单信息，请返回订阅页查看。')).toBeInTheDocument()
     expect(paymentApi.getOrder).not.toHaveBeenCalled()
   })
 
@@ -77,6 +78,7 @@ describe('PaymentReturnPage', () => {
     renderPage('?out_trade_no=ZP9')
     await act(async () => { await vi.advanceTimersByTimeAsync(0) })
     expect(screen.getByText('支付结果处理中')).toBeInTheDocument()
+    expect(screen.getByText('页面会自动刷新。若已付款，请勿重复支付。')).toBeInTheDocument()
 
     // The old counter-based poll stopped after ~8 seconds; 60 seconds in we must still poll.
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
@@ -85,7 +87,10 @@ describe('PaymentReturnPage', () => {
     expect(paymentApi.syncOrder).not.toHaveBeenCalled()
 
     await act(async () => { await vi.advanceTimersByTimeAsync(61_000) })
-    expect(screen.getByText(/请勿重复支付：我们已向支付平台查询该订单/)).toBeInTheDocument()
+    const timeoutHint = '暂未确认到支付结果。若已付款，请勿重复支付，可稍后点击刷新；长时间未开通请联系客服并提供订单号。'
+    expect(screen.getByText(timeoutHint)).toBeInTheDocument()
+    // Nothing is promised that the page cannot guarantee.
+    expect(screen.queryByText(/自动开通|服务器/)).not.toBeInTheDocument()
     expect(paymentApi.syncOrder).toHaveBeenCalledTimes(1)
     expect(paymentApi.syncOrder).toHaveBeenCalledWith('ZP9')
     expect(trackEvent).toHaveBeenCalledWith('payment_return_result', expect.objectContaining({
@@ -102,7 +107,7 @@ describe('PaymentReturnPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '刷新支付结果' }))
     await act(async () => { await vi.advanceTimersByTimeAsync(10_000) })
     expect(vi.mocked(paymentApi.getOrder).mock.calls.length).toBeGreaterThan(callsAtTimeout + 2)
-    expect(screen.queryByText(/请勿重复支付：我们已向支付平台查询该订单/)).not.toBeInTheDocument()
+    expect(screen.queryByText(timeoutHint)).not.toBeInTheDocument()
   })
 
   it('lets a failed fulfillment refresh into success after Zpay retries', async () => {
@@ -113,7 +118,9 @@ describe('PaymentReturnPage', () => {
       ...pendingOrder, status: 'paid', trade_no: 'trade-9', fulfillment_status: 'succeeded',
     })
     renderPage('?out_trade_no=ZP9')
-    expect(await screen.findByText('支付已确认，正在重试开通会员')).toBeInTheDocument()
+    expect(await screen.findByText('支付已确认，会员暂未开通')).toBeInTheDocument()
+    expect(screen.getByText('请勿重复付款，可稍后点击刷新；如长时间未开通，请联系客服并提供下方订单号。')).toBeInTheDocument()
+    expect(screen.queryByText(/自动重试/)).not.toBeInTheDocument()
     expect(trackEvent).toHaveBeenCalledWith('payment_return_result', expect.objectContaining({ result: 'failed' }))
     fireEvent.click(screen.getByRole('button', { name: '刷新支付结果' }))
     expect(await screen.findByText('支付成功，Pro 已开通')).toBeInTheDocument()

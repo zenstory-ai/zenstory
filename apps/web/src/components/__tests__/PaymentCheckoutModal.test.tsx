@@ -5,6 +5,12 @@ import { PaymentCheckoutModal } from '../subscription/PaymentCheckoutModal'
 import { paymentApi } from '../../lib/paymentApi'
 import { ApiError } from '../../lib/apiClient'
 import { trackEvent } from '../../lib/analytics'
+import zhCommon from '../../../public/locales/zh/common.json'
+import zhDashboard from '../../../public/locales/zh/dashboard.json'
+import zhErrors from '../../../public/locales/zh/errors.json'
+import enCommon from '../../../public/locales/en/common.json'
+import enDashboard from '../../../public/locales/en/dashboard.json'
+import enErrors from '../../../public/locales/en/errors.json'
 
 vi.mock('../../lib/analytics', () => ({ trackEvent: vi.fn() }))
 
@@ -19,15 +25,36 @@ vi.mock('../../lib/paymentApi', async () => {
   }
 })
 
+// When `resources` is set, `t` resolves keys against the shipped locale files.
+const i18nState = vi.hoisted(() => ({ resources: null as Record<string, unknown> | null }))
+
+function lookup(resources: Record<string, unknown>, key: string): unknown {
+  const [namespace, path] = key.split(':')
+  return path.split('.').reduce<unknown>(
+    (node, part) => (node && typeof node === 'object' ? (node as Record<string, unknown>)[part] : undefined),
+    resources[namespace],
+  )
+}
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, fallback: string, options?: { price?: string }) =>
-      key.startsWith('errors:')
+    t: (key: string, fallback: string, options?: { price?: string }) => {
+      if (i18nState.resources) {
+        const value = lookup(i18nState.resources, key)
+        return (typeof value === 'string' ? value : fallback).replace('{{price}}', options?.price ?? '')
+      }
+      return key.startsWith('errors:')
         ? key
-        : options?.price !== undefined ? fallback.replace('{{price}}', options.price) : fallback,
+        : options?.price !== undefined ? fallback.replace('{{price}}', options.price) : fallback
+    },
     i18n: { language: 'zh-CN' },
   }),
 }))
+
+const LOCALES = {
+  zh: { common: zhCommon, dashboard: zhDashboard, errors: zhErrors },
+  en: { common: enCommon, dashboard: enDashboard, errors: enErrors },
+}
 
 function renderModal(initialCycle: 'month' | 'year' = 'month', upgradeSource?: string) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
@@ -48,6 +75,7 @@ function renderModal(initialCycle: 'month' | 'year' = 'month', upgradeSource?: s
 describe('PaymentCheckoutModal', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    i18nState.resources = null
     vi.mocked(paymentApi.getOptions).mockResolvedValue({ enabled: true, payment_methods: ['alipay'] })
   })
 
@@ -65,6 +93,7 @@ describe('PaymentCheckoutModal', () => {
     renderModal()
     expect(await screen.findByText('支付宝')).toBeInTheDocument()
     expect(screen.queryByText(/微信/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/服务器|收银台/)).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('radio', { name: /年付/ }))
     fireEvent.click(screen.getByRole('button', { name: /支付宝支付/ }))
 
@@ -93,7 +122,7 @@ describe('PaymentCheckoutModal', () => {
     await waitFor(() => expect(payButton).toBeEnabled())
     fireEvent.click(payButton)
 
-    expect(await screen.findByText('支付跳转校验失败，请重试或联系支持')).toBeInTheDocument()
+    expect(await screen.findByText('无法跳转到支付宝，请刷新页面后重试')).toBeInTheDocument()
     expect(submit).not.toHaveBeenCalled()
   })
 
@@ -157,7 +186,63 @@ describe('PaymentCheckoutModal', () => {
     const payButton = await screen.findByRole('button', { name: /支付宝支付/ })
     await waitFor(() => expect(payButton).toBeEnabled())
     fireEvent.click(payButton)
-    expect(await screen.findByText('创建支付订单失败，请重试')).toBeInTheDocument()
+    expect(await screen.findByText('暂时无法创建订单，请稍后重试')).toBeInTheDocument()
     expect(screen.queryByText('Some English backend detail')).not.toBeInTheDocument()
+  })
+
+  describe.each([
+    {
+      lang: 'zh' as const,
+      outdated: '页面已更新，请刷新页面后重试',
+      rateLimited: '操作太频繁，请 1 分钟后再试',
+      generic: '暂时无法创建订单，请稍后重试',
+      planUnavailable: '该套餐暂时无法购买，请刷新页面后重试',
+    },
+    {
+      lang: 'en' as const,
+      outdated: 'This page has been updated. Refresh the page and try again.',
+      rateLimited: 'Too many attempts. Please try again in 1 minute.',
+      generic: 'Could not create the order right now. Please try again later.',
+      planUnavailable: 'This plan cannot be purchased right now. Refresh the page and try again.',
+    },
+  ])('create-order errors in shipped $lang copy', ({ lang, outdated, rateLimited, generic, planUnavailable }) => {
+    beforeEach(() => {
+      i18nState.resources = LOCALES[lang]
+    })
+
+    async function failWith(cause: unknown) {
+      vi.mocked(paymentApi.createOrder).mockRejectedValue(cause)
+      renderModal()
+      const payButton = await screen.findByRole('button', { name: /支付宝支付|with Alipay/ })
+      await waitFor(() => expect(payButton).toBeEnabled())
+      fireEvent.click(payButton)
+      return screen.findByRole('alert')
+    }
+
+    it('asks for a reload when the API rejects the request body (page and API versions differ)', async () => {
+      // e.g. an older API answering 422 extra_forbidden for a field a newer page sends
+      const alert = await failWith(new ApiError(422, 'ERR_VALIDATION_ERROR'))
+      expect(alert).toHaveTextContent(outdated)
+      expect(trackEvent).toHaveBeenCalledWith('checkout_failed', expect.objectContaining({ error_code: 'ERR_VALIDATION_ERROR' }))
+    })
+
+    it('tells the buyer when to retry after the per-minute limit', async () => {
+      const alert = await failWith(new ApiError(429, 'ERR_PAYMENT_RATE_LIMITED'))
+      expect(alert).toHaveTextContent(rateLimited)
+    })
+
+    it('asks for a reload when the plan or option is no longer offered', async () => {
+      const alert = await failWith(new ApiError(400, 'ERR_PAYMENT_PLAN_UNAVAILABLE'))
+      expect(alert).toHaveTextContent(planUnavailable)
+    })
+
+    it.each([
+      ['a server error', new ApiError(500, 'ERR_INTERNAL_SERVER_ERROR')],
+      ['a network failure', new TypeError('Failed to fetch')],
+    ])('shows the generic retry message for %s', async (_label, cause) => {
+      const alert = await failWith(cause)
+      expect(alert).toHaveTextContent(generic)
+      expect(trackEvent).toHaveBeenCalledWith('checkout_failed', expect.objectContaining({ error_code: 'unknown' }))
+    })
   })
 })

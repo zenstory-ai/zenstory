@@ -158,8 +158,7 @@
       "material_decompositions": "素材拆解次数",
       "custom_skills": "自定义技能数量",
       "inspiration_copies_monthly": "灵感复用次数"
-    },
-    "redeemSecondaryHint": "已有兑换码？请在下方输入并兑换。在线购买请返回订阅页面。"
+    }
   },
   "points": {
     "comingSoon": "积分功能即将上线",

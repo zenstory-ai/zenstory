@@ -88,8 +88,8 @@
   "ERR_AGENT_FILE_SAVE_FAILED": "保存生成的文件内容失败，请重试",
   "ERR_PAYMENT_UNAVAILABLE": "在线支付暂未开放，你仍可使用兑换码开通。",
   "ERR_PAYMENT_UNSUPPORTED_OPTION": "不支持该支付选项，请刷新页面后重试",
-  "ERR_PAYMENT_PLAN_UNAVAILABLE": "该套餐暂时无法购买，请稍后重试或联系支持",
-  "ERR_PAYMENT_ORDER_CREATE_FAILED": "创建支付订单失败，请重试",
-  "ERR_PAYMENT_RATE_LIMITED": "操作太频繁，请稍后再试",
+  "ERR_PAYMENT_PLAN_UNAVAILABLE": "该套餐暂时无法购买，请刷新页面后重试",
+  "ERR_PAYMENT_ORDER_CREATE_FAILED": "暂时无法创建订单，请稍后重试",
+  "ERR_PAYMENT_RATE_LIMITED": "操作太频繁，请 1 分钟后再试",
   "ERR_PAYMENT_SYNC_FAILED": "暂时无法向支付平台查询订单，请稍后刷新"
 }

@@ -158,8 +158,7 @@
       "material_decompositions": "Material Decompositions",
       "custom_skills": "Custom Skills",
       "inspiration_copies_monthly": "Inspiration Copies"
-    },
-    "redeemSecondaryHint": "Already have a code? Enter it below. Return to billing for online checkout."
+    }
   },
   "points": {
     "comingSoon": "Points feature coming soon",

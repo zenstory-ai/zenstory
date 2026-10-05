@@ -185,6 +185,8 @@ describe("PricingPage", () => {
       expect(screen.getByText("推荐")).toBeInTheDocument();
       expect(screen.getAllByText("可创作体量").length).toBeGreaterThan(0);
     });
+    expect(screen.getByText("支付宝单次支付，不会自动续费")).toBeInTheDocument();
+    expect(screen.queryByText(/服务器/)).not.toBeInTheDocument();
   });
 
   it("covers monthly/yearly switch with annual saving hint", async () => {

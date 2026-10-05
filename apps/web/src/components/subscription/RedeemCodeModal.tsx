@@ -93,10 +93,6 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
             />
           </div>
 
-          <div className="mb-4 rounded-md bg-[hsl(var(--bg-secondary))] px-3 py-2 text-xs text-[hsl(var(--text-secondary))]">
-            {t('settings:subscription.redeemSecondaryHint', '已有兑换码？请在下方输入并兑换。在线购买请返回订阅页面。')}
-          </div>
-
           {error && (
             <div className="mb-4 p-3 bg-[hsl(var(--error)/0.1)] text-[hsl(var(--error))] text-sm rounded-md">
               {error}

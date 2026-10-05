@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Check, ArrowRight, RefreshCw, ReceiptText, ShieldCheck } from "lucide-react";
+import { Check, ArrowRight, RefreshCw, ShieldCheck } from "lucide-react";
 import { PublicHeader } from "../components/PublicHeader";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
@@ -411,17 +411,12 @@ export default function PricingPage() {
           </section>
         )}
 
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {[
             {
               key: "trust-flexible",
               icon: RefreshCw,
               text: t("dashboard:billing.trustFlexible", "支付宝单次支付，不会自动续费"),
-            },
-            {
-              key: "trust-billing",
-              icon: ReceiptText,
-              text: t("dashboard:billing.trustBilling", "下单金额由服务器按所选月付或年付方案确认"),
             },
             {
               key: "trust-security",
