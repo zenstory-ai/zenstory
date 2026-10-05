@@ -10,6 +10,7 @@ import { Card } from "../components/ui/Card";
 import { RedeemCodeModal } from "../components/subscription/RedeemCodeModal";
 import { PaymentCheckoutModal } from "../components/subscription/PaymentCheckoutModal";
 import { subscriptionApi, subscriptionQueryKeys } from "../lib/subscriptionApi";
+import { paymentApi, paymentQueryKeys } from "../lib/paymentApi";
 import {
   getEntitlementMetricDefinitions,
   getLocalizedPlanDisplayName,
@@ -40,7 +41,8 @@ export default function BillingPage() {
   useEffect(() => {
     sessionStorage.removeItem("payment_cycle_intent");
   }, []);
-  const [showPaymentModal, setShowPaymentModal] = useState(() => searchParams.get("plan") === "pro");
+  const [isProPlanIntentHandled, setIsProPlanIntentHandled] = useState(() => searchParams.get("plan") !== "pro");
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showRedeemCodeModal, setShowRedeemCodeModal] = useState(false);
   const attributionSource = useMemo(() => {
     const rawSource = searchParams.get("source");
@@ -96,6 +98,19 @@ export default function BillingPage() {
     queryFn: () => subscriptionApi.getQuota(),
   });
 
+  // Online checkout stays hidden until the server reports Zpay as configured;
+  // until then Pro is activated with redeem codes, as before payments existed.
+  const { data: paymentOptions, isLoading: isPaymentOptionsLoading } = useQuery({
+    queryKey: paymentQueryKeys.options(),
+    queryFn: paymentApi.getOptions,
+    retry: false,
+  });
+  const isCheckoutEnabled = paymentOptions?.enabled === true;
+  // A ?plan=pro deep link opens whichever activation path is available once known.
+  const isProPlanIntentReady = !isProPlanIntentHandled && !isPaymentOptionsLoading;
+  const isPaymentModalOpen = showPaymentModal || (isProPlanIntentReady && isCheckoutEnabled);
+  const isRedeemCodeModalOpen = showRedeemCodeModal || (isProPlanIntentReady && !isCheckoutEnabled);
+
   const usageItems = useMemo(
     () =>
       [
@@ -149,22 +164,41 @@ export default function BillingPage() {
         subtitle={t("dashboard:billing.subtitle", "查看套餐权益、配额使用情况并快速升级")}
         action={
           <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              onClick={() => {
-                trackUpgradeClick(
-                  effectiveUpgradeSource,
-                  "direct",
-                  "checkout",
-                  "page"
-                );
-                setShowPaymentModal(true);
-              }}
-            >
-              {isUpgradableTier
-                ? t("dashboard:billing.ctaBuyPro", "在线购买 Pro")
-                : t("dashboard:billing.ctaRenewPro", "续费 Pro")}
-            </Button>
+            {isCheckoutEnabled ? (
+              <Button
+                size="sm"
+                onClick={() => {
+                  trackUpgradeClick(
+                    effectiveUpgradeSource,
+                    "direct",
+                    "checkout",
+                    "page"
+                  );
+                  setShowPaymentModal(true);
+                }}
+              >
+                {isUpgradableTier
+                  ? t("dashboard:billing.ctaBuyPro", "在线购买 Pro")
+                  : t("dashboard:billing.ctaRenewPro", "续费 Pro")}
+              </Button>
+            ) : (
+              isUpgradableTier && (
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    trackUpgradeClick(
+                      effectiveUpgradeSource,
+                      "direct",
+                      "redeem",
+                      "page"
+                    );
+                    setShowRedeemCodeModal(true);
+                  }}
+                >
+                  {t("dashboard:billing.ctaUpgradePro", "升级专业版")}
+                </Button>
+              )
+            )}
             <Button size="sm" variant="secondary" onClick={() => setShowRedeemCodeModal(true)}>
               {t("settings:subscription.redeemCode", "兑换码")}
             </Button>
@@ -198,7 +232,9 @@ export default function BillingPage() {
             </div>
             {isUpgradableTier && (
               <p className="mt-2 text-xs text-[hsl(var(--text-secondary))]">
-                {t("dashboard:billing.unlockHint", "选择月付或年付后，可通过支付宝在线开通专业版。")}
+                {isCheckoutEnabled
+                  ? t("dashboard:billing.unlockHint", "选择月付或年付后，可通过支付宝在线开通专业版。")
+                  : t("dashboard:billing.unlockHintRedeem", "点击“升级专业版”可直接兑换开通，无需再跳转套餐页。")}
               </p>
             )}
           </div>
@@ -210,8 +246,15 @@ export default function BillingPage() {
           {t("dashboard:billing.activationTitle", "如何开通专业版")}
         </h2>
         <p className="mt-2 text-sm text-[hsl(var(--text-secondary))]">
-          {t("dashboard:billing.activationGuide", "推荐使用支付宝在线购买，支付成功后系统会自动开通或续费。已有兑换码仍可通过上方入口兑换。")}
+          {isCheckoutEnabled
+            ? t("dashboard:billing.activationGuide", "推荐使用支付宝在线购买，支付成功后系统会自动开通或续费。已有兑换码仍可通过上方入口兑换。")
+            : t("dashboard:billing.activationGuideRedeem", "专业版目前通过兑换码开通。已有兑换码可直接兑换；还没有兑换码，请联系下方微信咨询套餐与获取方式。")}
         </p>
+        {!isCheckoutEnabled && (
+          <p className="mt-2 text-sm text-[hsl(var(--text-secondary))]">
+            {t("settings:subscription.wechatGuide", "没有兑换码？可添加微信号获取：AIchuangzuo999")}
+          </p>
+        )}
       </Card>
 
       <Card variant="outlined" padding="lg">
@@ -345,14 +388,20 @@ export default function BillingPage() {
       </Card>
 
       <RedeemCodeModal
-        isOpen={showRedeemCodeModal}
-        onClose={() => setShowRedeemCodeModal(false)}
+        isOpen={isRedeemCodeModalOpen}
+        onClose={() => {
+          setShowRedeemCodeModal(false);
+          setIsProPlanIntentHandled(true);
+        }}
         source={effectiveUpgradeSource}
       />
-      {showPaymentModal && (
+      {isPaymentModalOpen && (
         <PaymentCheckoutModal
           isOpen
-          onClose={() => setShowPaymentModal(false)}
+          onClose={() => {
+            setShowPaymentModal(false);
+            setIsProPlanIntentHandled(true);
+          }}
           initialCycle={paymentCycle}
           monthlyPriceCents={proPlan?.price_monthly_cents}
           yearlyPriceCents={proPlan?.price_yearly_cents}

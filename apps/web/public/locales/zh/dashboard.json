@@ -122,6 +122,8 @@
     "activationTitle": "如何开通专业版",
     "activationGuide": "推荐使用支付宝在线购买，支付成功后系统会自动开通或续费。已有兑换码仍可通过订阅页面兑换。",
     "ctaBuyPro": "在线购买 Pro",
+    "unlockHintRedeem": "点击“升级专业版”可直接兑换开通，无需再跳转套餐页。",
+    "activationGuideRedeem": "专业版目前通过兑换码开通。已有兑换码可直接兑换；还没有兑换码，请联系下方微信咨询套餐与获取方式。",
     "paymentTitle": "支付宝在线开通 Pro",
     "paymentDescription": "选择开通时长，确认后将前往支付宝收银台。",
     "monthlyDuration": "月付 · 30 天",

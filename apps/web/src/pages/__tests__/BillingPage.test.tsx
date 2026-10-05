@@ -17,6 +17,7 @@ let currentSearch = 'source=chat_quota_blocked'
 let statusResponse: Record<string, unknown> = {}
 let catalogResponse: Record<string, unknown> = {}
 let quotaResponse: Record<string, unknown> = {}
+let paymentOptionsResponse: Record<string, unknown> = {}
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -31,6 +32,10 @@ vi.mock('react-i18next', () => ({
           'settings:subscription.redeemCode': 'Redeem Code',
           'dashboard:billing.currentPlan': 'Current plan',
           'dashboard:billing.unlockHint': 'Unlock more features',
+          'dashboard:billing.unlockHintRedeem': 'Redeem to unlock',
+          'dashboard:billing.activationGuide': 'Pay with Alipay',
+          'dashboard:billing.activationGuideRedeem': 'Activate with a redeem code',
+          'settings:subscription.wechatGuide': 'Get a code on WeChat',
           'dashboard:billing.usageTitle': 'Usage',
           'common:error': 'Load failed',
           'common:retry': 'Retry',
@@ -72,6 +77,9 @@ vi.mock('@tanstack/react-query', () => ({
     }
     if (firstKey === 'quota') {
       return quotaResponse
+    }
+    if (firstKey === 'payment-options') {
+      return paymentOptionsResponse
     }
     return statusResponse
   },
@@ -124,6 +132,13 @@ vi.mock('../../lib/subscriptionApi', () => ({
   subscriptionQueryKeys: {
     status: () => ['status'],
     quota: () => ['quota'],
+  },
+}))
+
+vi.mock('../../lib/paymentApi', () => ({
+  paymentApi: {},
+  paymentQueryKeys: {
+    options: () => ['payment-options'],
   },
 }))
 
@@ -196,6 +211,10 @@ describe('BillingPage', () => {
       isLoading: false,
       isError: false,
       refetch: refetchQuota,
+    }
+    paymentOptionsResponse = {
+      data: { enabled: true, payment_methods: ['alipay'] },
+      isLoading: false,
     }
     vi.stubGlobal('location', { assign: assignSpy })
   })
@@ -293,5 +312,54 @@ describe('BillingPage', () => {
 
     expect(container.querySelectorAll('.animate-pulse').length).toBeGreaterThan(0)
     expect(screen.getByRole('button', { name: 'Renew Pro' })).toBeInTheDocument()
+  })
+
+  describe('when online checkout is not configured', () => {
+    beforeEach(() => {
+      paymentOptionsResponse = {
+        data: { enabled: false, payment_methods: [] },
+        isLoading: false,
+      }
+    })
+
+    it('falls back to redeem-code activation with the WeChat guide', async () => {
+      render(<BillingPage />)
+
+      expect(screen.queryByRole('button', { name: 'Buy Pro Online' })).not.toBeInTheDocument()
+      expect(screen.getByText('Redeem to unlock')).toBeInTheDocument()
+      expect(screen.getByText('Activate with a redeem code')).toBeInTheDocument()
+      expect(screen.getByText('Get a code on WeChat')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Upgrade Pro' }))
+      expect(trackUpgradeClick).toHaveBeenCalledWith('chat_quota_blocked', 'direct', 'redeem', 'page')
+      expect(await screen.findByText('Redeem modal')).toBeInTheDocument()
+      expect(screen.queryByText('Payment modal')).not.toBeInTheDocument()
+    })
+
+    it('opens the redeem modal for a selected Pro plan', () => {
+      currentSearch = 'plan=pro'
+      render(<BillingPage />)
+      expect(screen.getByText('Redeem modal')).toBeInTheDocument()
+      expect(screen.queryByText('Payment modal')).not.toBeInTheDocument()
+    })
+
+    it('does not offer online renewal to paid tiers', () => {
+      statusResponse = {
+        ...statusResponse,
+        data: { tier: 'pro', display_name: 'Pro', display_name_en: 'Pro', status: 'active' },
+      }
+      render(<BillingPage />)
+      expect(screen.queryByRole('button', { name: 'Renew Pro' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Upgrade Pro' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Redeem Code' })).toBeInTheDocument()
+    })
+  })
+
+  it('waits for payment options before acting on a selected Pro plan', () => {
+    paymentOptionsResponse = { data: undefined, isLoading: true }
+    currentSearch = 'plan=pro'
+    render(<BillingPage />)
+    expect(screen.queryByText('Payment modal')).not.toBeInTheDocument()
+    expect(screen.queryByText('Redeem modal')).not.toBeInTheDocument()
   })
 })

@@ -122,6 +122,8 @@
     "activationTitle": "How to activate Pro",
     "activationGuide": "Alipay checkout is recommended and activates or renews Pro automatically after payment. Existing redeem codes remain available on the billing page.",
     "ctaBuyPro": "Buy Pro Online",
+    "unlockHintRedeem": "Choose Upgrade to Pro to redeem a code directly, without returning to the pricing page.",
+    "activationGuideRedeem": "Pro is currently activated with redeem codes. Redeem an existing code directly, or contact us on WeChat below to get one.",
     "paymentTitle": "Activate Pro with Alipay",
     "paymentDescription": "Choose a duration, then continue to the Alipay checkout.",
     "monthlyDuration": "Monthly · 30 days",
