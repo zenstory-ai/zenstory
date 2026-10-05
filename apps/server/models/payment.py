@@ -31,6 +31,9 @@ class PaymentOrder(SQLModel, table=True):
     status: str = Field(default="pending", max_length=16, index=True)
     fulfillment_status: str = Field(default="pending", max_length=16, index=True)
     failure_reason: str | None = Field(default=None, max_length=100)
+    # Where the buyer entered checkout (pricing CTA, quota modal, ...); copied into
+    # SubscriptionHistory.event_metadata.upgrade_source when the order is fulfilled.
+    upgrade_source: str | None = Field(default=None, max_length=64)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     paid_at: datetime | None = None
     fulfilled_at: datetime | None = None

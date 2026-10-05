@@ -313,6 +313,24 @@ def check_quota(feature_type: str, session: Session, user_id: str) -> None:
     _check_quota(session, user_id, feature_type)
 
 
+def require_custom_skill_slot(session: Session, user_id: str) -> None:
+    """
+    Gate creating one more custom skill (create or import).
+
+    Call right before inserting the skill and commit the insert in the same
+    transaction: the check holds a write lock until then, so concurrent requests
+    cannot both take the last slot. Owned skills are counted, so deleting a
+    skill frees its slot.
+
+    Raises:
+        QuotaExceededException: If the user already owns the plan's maximum
+    """
+    allowed, used, limit = quota_service.check_custom_skill_slot(session, user_id)
+    if not allowed:
+        session.rollback()
+        raise QuotaExceededException(feature_type="skill_create", used=used, limit=limit)
+
+
 def consume_quota(feature_type: str, session: Session, user_id: str) -> bool:
     """
     Non-decorator quota consumption for manual use.

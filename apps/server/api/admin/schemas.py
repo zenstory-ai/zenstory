@@ -224,6 +224,7 @@ class DashboardStatsResponse(BaseModel):
     total_projects: int
     total_inspirations: int
     pending_inspirations: int
+    # Paid (non-free) subscriptions whose period has not ended.
     active_subscriptions: int
     pro_users: int
     # Commercialization stats
@@ -261,6 +262,14 @@ class UpgradeConversionSourceResponse(BaseModel):
     share: float
 
 
+class UpgradeConversionChannelResponse(BaseModel):
+    """Conversions grouped by how the plan was granted (payment vs. grants)."""
+
+    channel: str
+    conversions: int
+    paid: bool
+
+
 class UpgradeConversionStatsResponse(BaseModel):
     """Upgrade conversion attribution stats for admin dashboard."""
 
@@ -268,8 +277,11 @@ class UpgradeConversionStatsResponse(BaseModel):
     period_start: str
     period_end: str
     total_conversions: int
+    # Conversions backed by an actual payment (Zpay); excludes admin/points/code grants.
+    paid_conversions: int = 0
     unattributed_conversions: int
     sources: list[UpgradeConversionSourceResponse]
+    channels: list[UpgradeConversionChannelResponse] = Field(default_factory=list)
 
 
 class UpgradeFunnelTotalsResponse(BaseModel):

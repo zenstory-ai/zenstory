@@ -8,9 +8,10 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine, inspect, text
-from sqlmodel import SQLModel
+from sqlmodel import Session, SQLModel, select
 
 import models  # noqa: F401
+from models.subscription import SubscriptionPlan
 
 SERVER_DIR = Path(__file__).resolve().parents[2]
 REVISION = "20261005_120000"
@@ -51,8 +52,8 @@ def test_payment_order_migration_round_trip_preserves_other_tables(tmp_path: Pat
     SQLModel.metadata.create_all(engine)
     engine.dispose()
 
-    _alembic(db_url, "stamp", REVISION)
-    _alembic(db_url, "downgrade", "-1")
+    _alembic(db_url, "stamp", "head")
+    _alembic(db_url, "downgrade", DOWN_REVISION)
 
     engine = create_engine(db_url)
     inspector = inspect(engine)
@@ -61,7 +62,7 @@ def test_payment_order_migration_round_trip_preserves_other_tables(tmp_path: Pat
     assert _version(engine) == DOWN_REVISION
     engine.dispose()
 
-    _alembic(db_url, "upgrade", "head")
+    _alembic(db_url, "upgrade", REVISION)
 
     engine = create_engine(db_url)
     inspector = inspect(engine)
@@ -72,4 +73,87 @@ def test_payment_order_migration_round_trip_preserves_other_tables(tmp_path: Pat
     assert "ix_payment_order_status_created_at" in indexes
     assert "user" in inspector.get_table_names()
     assert _version(engine) == REVISION
+    engine.dispose()
+
+
+UPGRADE_SOURCE_REVISION = "20261005_180000"
+PRO_BACKFILL_REVISION = "20261005_180100"
+# Production pro features before the backfill (no custom_skills / inspiration keys).
+PRODUCTION_PRO_FEATURES = {
+    "max_projects": -1,
+    "custom_prompts": True,
+    "export_formats": ["txt"],
+    "material_uploads": 5,
+    "context_window_tokens": 16384,
+    "file_versions_per_file": 100,
+    "material_decompositions": 5,
+    "ai_conversations_per_day": -1,
+    "materials_library_access": True,
+}
+
+
+def _pro_features(engine) -> dict:
+    with Session(engine) as session:
+        plan = session.exec(select(SubscriptionPlan).where(SubscriptionPlan.name == "pro")).one()
+        return dict(plan.features)
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_upgrade_source_and_pro_backfill_round_trip(tmp_path: Path):
+    db_url = f"sqlite:///{tmp_path / 'payment-hardening.db'}"
+    engine = create_engine(db_url)
+    SQLModel.metadata.create_all(engine)
+    engine.dispose()
+    _alembic(db_url, "stamp", "head")
+    _alembic(db_url, "downgrade", REVISION)
+
+    engine = create_engine(db_url)
+    columns = {column["name"] for column in inspect(engine).get_columns("payment_order")}
+    assert "upgrade_source" not in columns
+    with Session(engine) as session:
+        session.add(
+            SubscriptionPlan(
+                name="pro",
+                display_name="专业版",
+                price_monthly_cents=4900,
+                price_yearly_cents=39900,
+                # An operator-set value must survive the backfill.
+                features={**PRODUCTION_PRO_FEATURES, "inspiration_copies_monthly": 250},
+            )
+        )
+        session.add(
+            SubscriptionPlan(
+                name="free",
+                display_name="免费试用",
+                price_monthly_cents=0,
+                price_yearly_cents=0,
+                features={"max_projects": 3},
+            )
+        )
+        session.commit()
+    engine.dispose()
+
+    _alembic(db_url, "upgrade", "head")
+    engine = create_engine(db_url)
+    columns = {column["name"] for column in inspect(engine).get_columns("payment_order")}
+    assert "upgrade_source" in columns
+    assert _version(engine) == PRO_BACKFILL_REVISION
+    upgraded = _pro_features(engine)
+    assert upgraded == {
+        **PRODUCTION_PRO_FEATURES,
+        "custom_skills": 20,
+        "inspiration_copies_monthly": 250,
+    }
+    with Session(engine) as session:
+        free = session.exec(select(SubscriptionPlan).where(SubscriptionPlan.name == "free")).one()
+        assert free.features == {"max_projects": 3}
+    engine.dispose()
+
+    # Downgrade keeps the data (see migration docstring); re-upgrading is a no-op.
+    _alembic(db_url, "downgrade", UPGRADE_SOURCE_REVISION)
+    _alembic(db_url, "downgrade", REVISION)
+    _alembic(db_url, "upgrade", "head")
+    engine = create_engine(db_url)
+    assert _pro_features(engine) == upgraded
     engine.dispose()

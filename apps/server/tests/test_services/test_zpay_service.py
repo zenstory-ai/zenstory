@@ -1,9 +1,11 @@
 """Focused Zpay signing and transactional fulfillment tests."""
 
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from threading import Barrier, Event, Lock
 
+import httpx
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -17,6 +19,7 @@ from services.core.auth_service import hash_password
 from services.subscription.subscription_service import subscription_service
 from services.subscription.zpay_service import (
     CallbackError,
+    PaymentSyncError,
     canonical_signing_string,
     sign_params,
     zpay_service,
@@ -182,7 +185,7 @@ def test_concurrent_distinct_orders_extend_same_user_twice(tmp_path):
 
 
 @pytest.mark.integration
-def test_fulfillment_failure_rolls_back_and_can_retry(
+def test_fulfillment_failure_keeps_payment_fact_and_can_retry(
     tmp_path, monkeypatch: pytest.MonkeyPatch
 ):
     engine = create_engine(
@@ -201,7 +204,11 @@ def test_fulfillment_failure_rolls_back_and_can_retry(
     with factory() as session:
         stored = session.get(PaymentOrder, order.id)
         assert stored is not None
-        assert stored.status == "pending"
+        # Money arrived: the payment fact survives the failed grant.
+        assert stored.status == "paid"
+        assert stored.trade_no == params["trade_no"]
+        assert stored.paid_at is not None
+        assert stored.fulfilled_at is None
         assert stored.fulfillment_status == "failed"
         assert stored.failure_reason == "subscription_fulfillment_failed"
         assert not session.exec(
@@ -211,11 +218,19 @@ def test_fulfillment_failure_rolls_back_and_can_retry(
     monkeypatch.setattr(subscription_service, "create_user_subscription", original)
     with factory() as session:
         assert zpay_service.fulfill_callback(session, params, SETTINGS)
+    # Zpay keeps retrying until it reads "success"; later retries must not regrant.
+    with factory() as session:
+        assert zpay_service.fulfill_callback(session, params, SETTINGS)
     with factory() as session:
         stored = session.get(PaymentOrder, order.id)
         assert stored is not None
+        assert stored.status == "paid"
         assert stored.fulfillment_status == "succeeded"
         assert stored.failure_reason is None
+        histories = session.exec(
+            select(SubscriptionHistory).where(SubscriptionHistory.user_id == user_id)
+        ).all()
+        assert len(histories) == 1
 
 
 @pytest.mark.integration
@@ -313,3 +328,236 @@ def test_provider_trade_number_cannot_fulfill_two_orders(tmp_path):
         assert stored_second is not None
         assert stored_second.status == "pending"
         assert stored_second.fulfillment_status == "failed"
+
+
+# ---------------------------------------------------------------------------
+# Order query compensation (act=order)
+# ---------------------------------------------------------------------------
+
+
+def _provider_response(order, **overrides):
+    payload = {
+        "code": 1,
+        "msg": "查询订单号成功！",
+        "trade_no": "provider-001",
+        "out_trade_no": order.out_trade_no,
+        "type": "alipay",
+        "pid": SETTINGS.pid,
+        "name": order.product_name,
+        "money": "30.00",
+        "status": 1,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _mock_provider(monkeypatch, payload, seen=None):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if seen is not None:
+            seen.append(request)
+        if isinstance(payload, Exception):
+            raise payload
+        return httpx.Response(200, json=payload)
+
+    monkeypatch.setattr(zpay_service, "http_transport", httpx.MockTransport(handler))
+
+
+def _file_engine(tmp_path, name):
+    return create_engine(
+        f"sqlite:///{tmp_path / name}",
+        connect_args={"check_same_thread": False, "timeout": 30},
+    )
+
+
+@pytest.mark.integration
+def test_sync_queries_provider_and_grants_paid_order_once(tmp_path, monkeypatch):
+    factory, user_id, order = _seed(_file_engine(tmp_path, "sync.db"))
+    with factory() as session:
+        stored = session.get(PaymentOrder, order.id)
+        stored.upgrade_source = "pricing_page"
+        session.add(stored)
+        session.commit()
+    seen: list[httpx.Request] = []
+    _mock_provider(monkeypatch, _provider_response(order), seen)
+
+    with factory() as session:
+        stored = session.get(PaymentOrder, order.id)
+        assert zpay_service.sync_order(session, stored, SETTINGS) == "fulfilled"
+
+    request = seen[0]
+    assert f"{request.url.scheme}://{request.url.host}{request.url.path}" == (
+        "https://zpayz.cn/api.php"
+    )
+    assert dict(request.url.params) == {
+        "act": "order",
+        "pid": SETTINGS.pid,
+        "key": SETTINGS.key,
+        "out_trade_no": order.out_trade_no,
+    }
+
+    # The notify that arrives afterwards takes the same idempotent path.
+    with factory() as session:
+        assert zpay_service.fulfill_callback(session, _params(order), SETTINGS)
+    with factory() as session:
+        stored = session.get(PaymentOrder, order.id)
+        assert zpay_service.sync_order(session, stored, SETTINGS) == "already_fulfilled"
+    assert len(seen) == 1
+
+    with factory() as session:
+        stored = session.get(PaymentOrder, order.id)
+        histories = session.exec(
+            select(SubscriptionHistory).where(SubscriptionHistory.user_id == user_id)
+        ).all()
+        assert stored.status == "paid"
+        assert stored.trade_no == "provider-001"
+        assert stored.fulfillment_status == "succeeded"
+        assert len(histories) == 1
+        assert histories[0].event_metadata["settled_via"] == "query"
+        assert histories[0].event_metadata["upgrade_source"] == "pricing_page"
+        assert histories[0].event_metadata["payment_order_id"] == order.id
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("overrides", "outcome"),
+    [
+        ({"status": 0}, "unpaid"),
+        ({"code": -1, "msg": "订单不存在"}, "not_found"),
+    ],
+)
+def test_sync_leaves_unpaid_orders_untouched(tmp_path, monkeypatch, overrides, outcome):
+    factory, user_id, order = _seed(_file_engine(tmp_path, "sync-unpaid.db"))
+    _mock_provider(monkeypatch, _provider_response(order, **overrides))
+    with factory() as session:
+        stored = session.get(PaymentOrder, order.id)
+        assert zpay_service.sync_order(session, stored, SETTINGS) == outcome
+    with factory() as session:
+        stored = session.get(PaymentOrder, order.id)
+        assert stored.status == "pending"
+        assert stored.trade_no is None
+        assert stored.fulfillment_status == "pending"
+        assert not session.exec(
+            select(UserSubscription).where(UserSubscription.user_id == user_id)
+        ).first()
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("overrides", "reason"),
+    [
+        ({"money": "0.01"}, "order_mismatch"),
+        ({"type": "wxpay"}, "order_mismatch"),
+        ({"out_trade_no": "999"}, "order_mismatch"),
+        ({"pid": "other-merchant"}, "order_mismatch"),
+        ({"trade_no": ""}, "invalid_trade_number"),
+    ],
+)
+def test_sync_rejects_provider_answers_that_do_not_match_the_order(
+    tmp_path, monkeypatch, overrides, reason
+):
+    factory, user_id, order = _seed(_file_engine(tmp_path, "sync-mismatch.db"))
+    _mock_provider(monkeypatch, _provider_response(order, **overrides))
+    with factory() as session, pytest.raises(PaymentSyncError) as raised:
+        zpay_service.sync_order(session, session.get(PaymentOrder, order.id), SETTINGS)
+    assert raised.value.reason == reason
+    with factory() as session:
+        stored = session.get(PaymentOrder, order.id)
+        assert stored.status == "pending"
+        assert stored.fulfillment_status == "pending"
+
+
+@pytest.mark.integration
+def test_sync_transport_failure_never_exposes_the_merchant_key(
+    tmp_path, monkeypatch, caplog
+):
+    factory, _user_id, order = _seed(_file_engine(tmp_path, "sync-down.db"))
+    _mock_provider(
+        monkeypatch,
+        httpx.ConnectError(f"connect failed for https://zpayz.cn/api.php?key={SETTINGS.key}"),
+    )
+    with factory() as session, pytest.raises(PaymentSyncError) as raised:
+        zpay_service.sync_order(session, session.get(PaymentOrder, order.id), SETTINGS)
+    assert raised.value.reason == "provider_unavailable"
+    assert raised.value.__cause__ is None
+    assert SETTINGS.key not in str(raised.value)
+    assert SETTINGS.key not in caplog.text
+
+
+@pytest.mark.integration
+def test_sync_racing_notify_grants_exactly_once(tmp_path, monkeypatch):
+    factory, user_id, order = _seed(_file_engine(tmp_path, "sync-race.db"))
+    _mock_provider(monkeypatch, _provider_response(order))
+    barrier = Barrier(2)
+
+    def notify():
+        with factory() as session:
+            barrier.wait(timeout=5)
+            return zpay_service.fulfill_callback(session, _params(order), SETTINGS)
+
+    def sync():
+        with factory() as session:
+            stored = session.get(PaymentOrder, order.id)
+            barrier.wait(timeout=5)
+            try:
+                return zpay_service.sync_order(session, stored, SETTINGS)
+            except PaymentSyncError as exc:
+                # Losing the claim race while the winner commits is reported as
+                # "processing"; the order is still granted exactly once below.
+                return exc.reason
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        notify_future = pool.submit(notify)
+        sync_future = pool.submit(sync)
+        assert notify_future.result(timeout=30) is True
+        assert sync_future.result(timeout=30) in {"fulfilled", "already_fulfilled", "processing"}
+
+    with factory() as session:
+        histories = session.exec(
+            select(SubscriptionHistory).where(SubscriptionHistory.user_id == user_id)
+        ).all()
+        stored = session.get(PaymentOrder, order.id)
+        assert len(histories) == 1
+        assert stored.fulfillment_status == "succeeded"
+
+
+def test_settings_reject_notify_url_on_wrong_path_or_frontend_host():
+    base = {
+        "enabled": True,
+        "pid": "pid",
+        "key": "key",
+        "return_url": "https://zenstory.ai/dashboard/billing/payment-return",
+        "cid": None,
+        "frontend_url": "https://zenstory.ai",
+    }
+    good = PaymentSettings(notify_url="https://api.zenstory.ai/api/v1/payments/zpay/notify", **base)
+    assert good.checkout_enabled
+    assert good.configuration_problems() == []
+
+    wrong_path = PaymentSettings(notify_url="https://api.zenstory.ai/api/v1/payments/zpay/notify/", **base)
+    assert not wrong_path.checkout_enabled
+    assert any("path" in problem for problem in wrong_path.configuration_problems())
+
+    frontend_host = PaymentSettings(notify_url="https://zenstory.ai/api/v1/payments/zpay/notify", **base)
+    assert not frontend_host.checkout_enabled
+    assert any("FRONTEND_URL" in problem for problem in frontend_host.configuration_problems())
+    # Existing orders stay fulfillable: callbacks only need credentials.
+    assert frontend_host.credentials_configured
+
+
+def test_enabled_but_misconfigured_checkout_logs_error(caplog):
+    broken = PaymentSettings(
+        enabled=True, pid="pid", key="", notify_url="", return_url="", cid=None
+    )
+    with caplog.at_level(logging.ERROR):
+        zpay_service.log_configuration_status(broken)
+    records = [r for r in caplog.records if r.levelno == logging.ERROR]
+    assert records
+    problems = records[0].custom_fields["problems"]
+    assert "ZPAY_KEY is missing" in problems
+    assert any("ZPAY_NOTIFY_URL" in problem for problem in problems)
+
+    caplog.clear()
+    zpay_service.log_configuration_status(
+        PaymentSettings(enabled=False, pid="", key="", notify_url="", return_url="", cid=None)
+    )
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
