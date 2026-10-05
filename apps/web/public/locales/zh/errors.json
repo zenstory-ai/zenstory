@@ -75,5 +75,12 @@
 
   "ERR_SKILL_PACKAGE_INVALID": "技能包格式无效",
   "ERR_SKILL_PACKAGE_TOO_LARGE": "技能包或资源文件超出大小限制",
-  "ERR_RESOURCE_CONFLICT": "操作与现有数据冲突，请刷新后重试"
+  "ERR_RESOURCE_CONFLICT": "操作与现有数据冲突，请刷新后重试",
+
+  "ERR_PAYMENT_UNAVAILABLE": "在线支付暂未开放，你仍可使用兑换码开通。",
+  "ERR_PAYMENT_UNSUPPORTED_OPTION": "不支持该支付选项，请刷新页面后重试",
+  "ERR_PAYMENT_PLAN_UNAVAILABLE": "该套餐暂时无法购买，请稍后重试或联系支持",
+  "ERR_PAYMENT_ORDER_CREATE_FAILED": "创建支付订单失败，请重试",
+  "ERR_PAYMENT_RATE_LIMITED": "操作太频繁，请稍后再试",
+  "ERR_PAYMENT_SYNC_FAILED": "暂时无法向支付平台查询订单，请稍后刷新"
 }

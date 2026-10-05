@@ -140,7 +140,10 @@ export default function BillingPage() {
   const isLoading = isStatusLoading || isCatalogLoading || isQuotaLoading;
   const isCatalogPendingState = isCatalogLoading || (isCatalogFetching && sortedPlans.length === 0);
   const hasError = isStatusError || isCatalogError || isQuotaError;
+  // Until the status query resolves we do not know which tier the user is on;
+  // never claim "renew" for someone who may be on the free plan.
   const isUpgradableTier = status?.tier === "free";
+  const isPaidTier = Boolean(status?.tier) && !isUpgradableTier;
 
   return (
     <div className="space-y-6">
@@ -163,7 +166,9 @@ export default function BillingPage() {
             >
               {isUpgradableTier
                 ? t("dashboard:billing.ctaBuyPro", "在线购买 Pro")
-                : t("dashboard:billing.ctaRenewPro", "续费 Pro")}
+                : isPaidTier
+                ? t("dashboard:billing.ctaRenewPro", "续费 Pro")
+                : t("dashboard:billing.ctaProNeutral", "开通或续费 Pro")}
             </Button>
             <Button size="sm" variant="secondary" onClick={() => setShowRedeemCodeModal(true)}>
               {t("settings:subscription.redeemCode", "兑换码")}
@@ -356,6 +361,7 @@ export default function BillingPage() {
           initialCycle={paymentCycle}
           monthlyPriceCents={proPlan?.price_monthly_cents}
           yearlyPriceCents={proPlan?.price_yearly_cents}
+          upgradeSource={effectiveUpgradeSource}
         />
       )}
     </div>

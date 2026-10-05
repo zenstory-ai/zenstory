@@ -58,6 +58,8 @@ export default function AdminDashboard() {
 
   const upgradeTotals = upgradeFunnel?.totals ?? { expose: 0, click: 0, conversion: 0 };
   const upgradeConversionTotal = upgradeConversion?.total_conversions ?? 0;
+  const upgradeConversionPaid = upgradeConversion?.paid_conversions ?? 0;
+  const conversionChannels = upgradeConversion?.channels ?? [];
   const upgradeConversionUnattributed = upgradeConversion?.unattributed_conversions ?? 0;
   const upgradeConversionAttributed = Math.max(upgradeConversionTotal - upgradeConversionUnattributed, 0);
   const upgradeConversionAttributedShare = useMemo(() => {
@@ -181,8 +183,8 @@ export default function AdminDashboard() {
             )}
             <StatsCard
               icon={<CreditCard className="h-5 w-5" />}
-              title={t('admin:dashboard.activeSubscriptions')}
-              value={stats?.active_subscriptions ?? 0}
+              title={t('admin:dashboard.paidProUsers', '付费 Pro 用户')}
+              value={stats?.pro_users ?? 0}
               isLoading={isLoading}
             />
           </div>
@@ -439,10 +441,18 @@ export default function AdminDashboard() {
 
               {!upgradeConversionLoading && !upgradeConversionError && (
                 <div className="mt-3 space-y-3">
-                  <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-5">
+                    <div className="rounded-md border border-[hsl(var(--accent-primary)/0.5)] p-2">
+                      <div className="text-[hsl(var(--text-secondary))]">
+                        {t('admin:dashboard.upgradePaidConversions', 'Paid (Alipay)')}
+                      </div>
+                      <div className="text-[hsl(var(--text-primary))] font-semibold" data-testid="paid-conversions">
+                        {upgradeConversionPaid}
+                      </div>
+                    </div>
                     <div className="rounded-md border border-[hsl(var(--separator-color)/0.5)] p-2">
                       <div className="text-[hsl(var(--text-secondary))]">
-                        {t('admin:dashboard.upgradeConversion', 'Conversion')}
+                        {t('admin:dashboard.upgradeAllConversions', 'All upgrades')}
                       </div>
                       <div className="text-[hsl(var(--text-primary))] font-semibold">
                         {upgradeConversionTotal}
@@ -473,6 +483,23 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                   </div>
+
+                  {conversionChannels.length > 0 && (
+                    <ul className="flex flex-wrap gap-2 text-xs" aria-label={t('admin:dashboard.upgradeChannels', 'Upgrade channels')}>
+                      {conversionChannels.map((item) => (
+                        <li
+                          key={item.channel}
+                          className={`rounded-full border px-2 py-0.5 ${
+                            item.paid
+                              ? 'border-[hsl(var(--accent-primary)/0.6)] text-[hsl(var(--text-primary))]'
+                              : 'border-[hsl(var(--separator-color)/0.6)] text-[hsl(var(--text-secondary))]'
+                          }`}
+                        >
+                          {t(`admin:dashboard.upgradeChannel.${item.channel}`, item.channel)} · {item.conversions}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
 
                   {allConversionSources.length > 0 && (
                     <div className="text-xs text-[hsl(var(--text-secondary))]">

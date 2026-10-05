@@ -75,5 +75,12 @@
 
   "ERR_SKILL_PACKAGE_INVALID": "Invalid skill package",
   "ERR_SKILL_PACKAGE_TOO_LARGE": "Skill package or resource file exceeds the size limit",
-  "ERR_RESOURCE_CONFLICT": "This conflicts with existing data. Please refresh and try again"
+  "ERR_RESOURCE_CONFLICT": "This conflicts with existing data. Please refresh and try again",
+
+  "ERR_PAYMENT_UNAVAILABLE": "Online payment is not available yet. You can still activate with a redemption code.",
+  "ERR_PAYMENT_UNSUPPORTED_OPTION": "This payment option is not supported. Refresh the page and try again.",
+  "ERR_PAYMENT_PLAN_UNAVAILABLE": "This plan cannot be purchased right now. Try again later or contact support.",
+  "ERR_PAYMENT_ORDER_CREATE_FAILED": "Could not create the payment order. Please try again.",
+  "ERR_PAYMENT_RATE_LIMITED": "Too many attempts. Please wait a moment and try again.",
+  "ERR_PAYMENT_SYNC_FAILED": "Could not check the order with the payment provider. Refresh later."
 }

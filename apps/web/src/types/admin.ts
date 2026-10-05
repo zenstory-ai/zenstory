@@ -103,7 +103,9 @@ export interface DashboardStats {
   total_projects: number;
   total_inspirations: number;
   pending_inspirations: number;
+  /** Paid (non-free) subscriptions whose period has not ended. */
   active_subscriptions: number;
+  /** Users on a running Pro subscription. */
   pro_users: number;
   // 商业化统计
   total_points_in_circulation: number;
@@ -134,13 +136,23 @@ export interface UpgradeConversionSource {
   share: number;
 }
 
+export interface UpgradeConversionChannel {
+  /** How the plan was granted: zpay, redemption_code, points_redemption, admin_update, other. */
+  channel: string;
+  conversions: number;
+  /** True only when money was received (Zpay). */
+  paid: boolean;
+}
+
 export interface UpgradeConversionStats {
   window_days: number;
   period_start: string;
   period_end: string;
   total_conversions: number;
+  paid_conversions: number;
   unattributed_conversions: number;
   sources: UpgradeConversionSource[];
+  channels: UpgradeConversionChannel[];
 }
 
 export interface UpgradeFunnelTotals {

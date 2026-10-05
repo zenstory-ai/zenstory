@@ -6,6 +6,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { RedeemCodeModal } from '../subscription/RedeemCodeModal'
 import { subscriptionApi } from '../../lib/subscriptionApi'
 import { handleApiError } from '../../lib/errorHandler'
+import { trackEvent } from '../../lib/analytics'
+
+vi.mock('../../lib/analytics', () => ({ trackEvent: vi.fn() }))
 
 vi.mock('../../lib/subscriptionApi', () => ({
   subscriptionApi: {
@@ -103,5 +106,39 @@ describe('RedeemCodeModal', () => {
         'chat_quota_blocked'
       )
     })
+  })
+
+  it('tracks redemption results without sending the code', async () => {
+    const mockRedeemCode = vi.mocked(subscriptionApi.redeemCode)
+    mockRedeemCode.mockResolvedValueOnce({ success: true, message: 'ok', tier: 'pro', duration_days: 7 })
+
+    render(<RedeemCodeModal isOpen={true} onClose={vi.fn()} source="billing_header_upgrade" />, {
+      wrapper: createWrapper(),
+    })
+    const input = screen.getByPlaceholderText('ERG-XXXX-XXXX-XXXXXXXX')
+    fireEvent.change(input, { target: { value: 'ERG-PRO7D-1234-ABCDEFGH' } })
+    fireEvent.submit(document.querySelector('form')!)
+    await waitFor(() => {
+      expect(trackEvent).toHaveBeenCalledWith('redeem_code_succeeded', {
+        tier: 'pro', duration_days: 7, source: 'billing_header_upgrade',
+      })
+    })
+
+    mockRedeemCode.mockRejectedValueOnce(new Error('Redemption failed'))
+    fireEvent.change(input, { target: { value: 'ERG-PRO7D-1234-ABCDEFGH' } })
+    fireEvent.submit(document.querySelector('form')!)
+    await waitFor(() => {
+      expect(trackEvent).toHaveBeenCalledWith('redeem_code_failed', {
+        reason: 'unknown', source: 'billing_header_upgrade',
+      })
+    })
+
+    fireEvent.change(input, { target: { value: 'not-a-code' } })
+    fireEvent.submit(document.querySelector('form')!)
+    expect(trackEvent).toHaveBeenCalledWith('redeem_code_failed', {
+      reason: 'invalid_format', source: 'billing_header_upgrade',
+    })
+    const serialized = JSON.stringify(vi.mocked(trackEvent).mock.calls)
+    expect(serialized).not.toContain('ERG-PRO7D')
   })
 })

@@ -22,11 +22,11 @@ Common dimensions include:
 - Writing output capacity
 - Deep Agent task runs
 - Parallel project capacity
-- Context window size
+- Custom skills (counts the skills you currently own; deleting one frees a slot)
 - Export capabilities
 - Materials Library access and material decomposition counts (free 0/month, paid 5/month)
 
-Different plans provide different limits and priority levels.
+Different plans provide different limits.
 
 ## 3) Compare Plan Differences
 
@@ -43,7 +43,7 @@ When online payments are enabled, Alipay is the primary way to activate or renew
 - Monthly purchases grant 30 days; yearly purchases grant 365 days. Renewals extend the same plan's expiry
 - Checkout prices come from the backend plan configuration
 - The server confirms payment and grants benefits automatically; the return page only checks order status
-- If an order is still processing, refresh later. Do not pay again if you have already completed payment
+- The return page keeps checking for two minutes; if the order is still processing, the server queries the payment provider once. Do not pay again if you have already completed payment
 - Redemption codes remain available on the Plans & Benefits page as a secondary activation option
 
 Admins can inspect orders, payment status and benefit fulfillment under Payment Orders. Deployments without online payments can still use redemption codes.

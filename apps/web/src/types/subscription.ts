@@ -45,14 +45,12 @@ export interface SubscriptionCatalogEntitlements {
   writing_credits_monthly: number;
   agent_runs_monthly: number;
   active_projects_limit: number;
-  context_tokens_limit: number;
   materials_library_access: boolean;
   material_uploads_monthly: number;
   material_decompositions_monthly: number;
   custom_skills_limit: number;
   inspiration_copies_monthly: number;
   export_formats: string[];
-  priority_queue_level: "standard" | "priority";
 }
 
 export interface SubscriptionCatalogTier {

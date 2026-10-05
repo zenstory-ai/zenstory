@@ -17,6 +17,9 @@ export const paymentApi = {
     api.post<CreatePaymentOrderResponse>('/api/v1/payments/orders', request),
   getOrder: (outTradeNo: string) =>
     api.get<PaymentOrder>(`/api/v1/payments/orders/${encodeURIComponent(outTradeNo)}`),
+  /** Ask the server to query Zpay for this order (compensates a late or lost notify). */
+  syncOrder: (outTradeNo: string) =>
+    api.post<PaymentOrder>(`/api/v1/payments/orders/${encodeURIComponent(outTradeNo)}/sync`),
 }
 
 export default paymentApi
