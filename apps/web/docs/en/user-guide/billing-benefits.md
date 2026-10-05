@@ -37,10 +37,15 @@ In the comparison section, you can review:
 
 ## 4) Upgrade or Redeem
 
-You can unlock more benefits through:
+When online payments are enabled, Alipay is the primary way to activate or renew Pro:
 
-- Direct plan upgrade
-- Redeem code activation
+- Monthly purchases grant 30 days; yearly purchases grant 365 days. Renewals extend the same plan's expiry
+- Checkout prices come from the backend plan configuration
+- The server confirms payment and grants benefits automatically; the return page only checks order status
+- If an order is still processing, refresh later. Do not pay again if you have already completed payment
+- Redemption codes remain available on the Plans & Benefits page as a secondary activation option
+
+Admins can inspect orders, payment status and benefit fulfillment under Payment Orders. Deployments without online payments can still use redemption codes.
 
 > Tip: Choose by your writing goals first (output pace, number of active projects, revision intensity), then compare price cycles.
 
@@ -62,4 +67,4 @@ Yes. Export is currently centered on `.txt`; final availability depends on what 
 
 ---
 
-Last updated: 2026-03-07
+Last updated: 2026-10-05

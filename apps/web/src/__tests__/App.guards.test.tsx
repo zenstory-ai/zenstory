@@ -179,6 +179,14 @@ vi.mock("../pages/BillingPage", () => ({
   default: () => <div>Billing Page</div>,
 }));
 
+vi.mock("../pages/PaymentReturnPage", () => ({
+  default: () => <div>Payment Return Page</div>,
+}));
+
+vi.mock("../pages/admin/PaymentOrderManagement", () => ({
+  default: () => <div>Payment Orders Page</div>,
+}));
+
 vi.mock("../pages/OnboardingPersonaPage", () => ({
   default: () => <div>Onboarding Persona Page</div>,
 }));
@@ -257,6 +265,21 @@ describe("App route guards", () => {
     await waitFor(() => {
       expect(screen.getByText("Login Page")).toBeInTheDocument();
     });
+  });
+
+  it("requires login before viewing a payment return", async () => {
+    renderAppAt("/dashboard/billing/payment-return?out_trade_no=20261005001");
+    expect(await screen.findByText("Login Page")).toBeInTheDocument();
+    expect(screen.queryByText("Payment Return Page")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["/dashboard/billing/payment-return?out_trade_no=20261005001", "Payment Return Page"],
+    ["/admin/payment-orders", "Payment Orders Page"],
+  ])("registers the payment route %s", async (path, page) => {
+    state.auth.user = { id: "user-auth" };
+    renderAppAt(path);
+    expect(await screen.findByText(page)).toBeInTheDocument();
   });
 
   it.each(["/dashboard/inspirations", "/dashboard/inspirations/template-1"])(

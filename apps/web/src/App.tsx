@@ -47,6 +47,7 @@ const MaterialDetailPage = lazyRoute(() => import("./pages/MaterialDetailPage"),
 const DashboardProjects = lazyRoute(() => import("./pages/DashboardProjects"), "DashboardProjects");
 const ProjectDashboardPage = lazyRoute(() => import("./pages/ProjectDashboardPage"), "ProjectDashboardPage");
 const BillingPage = lazyRoute(() => import("./pages/BillingPage"), "BillingPage");
+const PaymentReturnPage = lazyRoute(() => import("./pages/PaymentReturnPage"), "PaymentReturnPage");
 const OnboardingPersonaPage = lazyRoute(() => import("./pages/OnboardingPersonaPage"), "OnboardingPersonaPage");
 
 // Inspiration pages
@@ -62,6 +63,7 @@ const PromptEditor = lazyRoute(() => import("./pages/admin/PromptEditor"), "Prom
 const SkillReviewPage = lazyRoute(() => import("./pages/admin/SkillReviewPage"), "SkillReviewPage");
 const CodeManagement = lazyRoute(() => import("./pages/admin/CodeManagement"), "CodeManagement");
 const SubscriptionManagement = lazyRoute(() => import("./pages/admin/SubscriptionManagement"), "SubscriptionManagement");
+const PaymentOrderManagement = lazyRoute(() => import("./pages/admin/PaymentOrderManagement"), "PaymentOrderManagement");
 const SubscriptionPlanManagement = lazyRoute(() => import("./pages/admin/SubscriptionPlanManagement"), "SubscriptionPlanManagement");
 const AuditLogPage = lazyRoute(() => import("./pages/admin/AuditLogPage"), "AuditLogPage");
 const InspirationManagement = lazyRoute(() => import("./pages/admin/InspirationManagement"), "InspirationManagement");
@@ -503,6 +505,7 @@ function App() {
                       <Route path="materials" element={<MaterialsPage />} />
                       <Route path="skills" element={<SkillsPage />} />
                       <Route path="billing" element={<BillingPage />} />
+                      <Route path="billing/payment-return" element={<PaymentReturnPage />} />
                       <Route path="inspirations" element={inspirationsConfig.enabled ? <InspirationsPage /> : <Navigate to="/dashboard" replace />} />
                       <Route path="inspirations/:inspirationId" element={inspirationsConfig.enabled ? <InspirationDetailPage /> : <Navigate to="/dashboard" replace />} />
                     </Route>
@@ -555,6 +558,7 @@ function App() {
                       <Route path="skills" element={<SkillReviewPage />} />
                       <Route path="codes" element={<CodeManagement />} />
                       <Route path="subscriptions" element={<SubscriptionManagement />} />
+                      <Route path="payment-orders" element={<PaymentOrderManagement />} />
                       <Route path="plans" element={<SubscriptionPlanManagement />} />
                       <Route path="audit-logs" element={<AuditLogPage />} />
                       <Route path="inspirations" element={inspirationsConfig.enabled ? <InspirationManagement /> : <Navigate to="/admin" replace />} />

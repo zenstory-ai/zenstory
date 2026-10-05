@@ -128,7 +128,6 @@
     "redeemTitle": "Redeem Membership",
     "redeem": "Redeem",
     "codeLabel": "Redeem Code",
-    "wechatGuide": "Need a redeem code? Add on WeChat: AIchuangzuo999",
     "codeRequired": "Please enter a redeem code",
     "invalidFormat": "Invalid redeem code format",
     "redeemFailed": "Redemption failed. Please check the redeem code",
@@ -152,7 +151,8 @@
       "material_decompositions": "Material Decompositions",
       "custom_skills": "Custom Skills",
       "inspiration_copies_monthly": "Inspiration Copies"
-    }
+    },
+    "redeemSecondaryHint": "Already have a code? Enter it below. Return to billing for online checkout."
   },
   "points": {
     "comingSoon": "Points feature coming soon",

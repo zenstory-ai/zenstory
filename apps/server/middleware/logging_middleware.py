@@ -170,12 +170,16 @@ class LoggingMiddleware:
         trace_id: str,
     ) -> tuple[dict[str, Any], Receive]:
         """Prepare request logging info and a receive wrapper for optional body capture."""
+        query_params = str(request.query_params)
+        if request.url.path == "/api/v1/payments/zpay/notify":
+            query_params = "[redacted payment callback]"
+
         info = {
             "request_id": request_id,
             "trace_id": trace_id,
             "method": request.method,
             "path": request.url.path,
-            "query_params": str(request.query_params),
+            "query_params": query_params,
             "client_host": self._get_client_host(request),
             "user_agent": request.headers.get("user-agent", "unknown"),
         }

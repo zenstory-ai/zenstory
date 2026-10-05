@@ -55,6 +55,7 @@ import type {
   UserQuotaDetail,
 } from "../types/admin";
 import type { SubscriptionFeatures, SubscriptionPlan } from "../types/subscription";
+import type { PaymentOrder } from "../types/payment";
 
 export type { PendingSkill, SkillReviewStatus } from "../types/admin";
 
@@ -1030,12 +1031,33 @@ export async function getSubscriptions(params?: {
   };
 }
 
-/**
- * Fetch subscription details for a specific user.
- *
- * @param userId - User ID (UUID string)
- * @returns Promise resolving to user's subscription details
- */
+export interface AdminPaymentOrder extends PaymentOrder {
+  username: string;
+  email: string;
+}
+
+export interface PaymentOrdersListResponse {
+  items: AdminPaymentOrder[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export async function getPaymentOrders(params: {
+  page?: number;
+  page_size?: number;
+  status?: "pending" | "paid";
+  search?: string;
+} = {}): Promise<PaymentOrdersListResponse> {
+  const query = new URLSearchParams();
+  if (params.page) query.set("page", String(params.page));
+  if (params.page_size) query.set("page_size", String(params.page_size));
+  if (params.status) query.set("status", params.status);
+  if (params.search) query.set("search", params.search);
+  return api.get<PaymentOrdersListResponse>(`${ADMIN_BASE}/payment-orders?${query.toString()}`);
+}
+
+/** Fetch subscription details for a specific user. */
 export async function getUserSubscription(userId: string): Promise<UserSubscriptionDetailResponse> {
   return api.get<UserSubscriptionDetailResponse>(`${ADMIN_BASE}/subscriptions/${userId}`);
 }
@@ -1723,6 +1745,7 @@ export const adminApi = {
 
   // 订阅管理
   getSubscriptions,
+  getPaymentOrders,
   getUserSubscription,
   updateUserSubscription,
 

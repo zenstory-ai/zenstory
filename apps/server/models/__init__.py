@@ -65,6 +65,7 @@ from .material_models import (
     StoryPlotLink,
     WorldView,
 )
+from .payment import PaymentOrder
 from .persona_profile import UserPersonaProfile
 from .points import (
     CheckInRecord,
@@ -184,6 +185,7 @@ __all__ = [
     "UsageQuota",
     "SubscriptionHistory",
     "AdminAuditLog",
+    "PaymentOrder",
     # Points and check-in models
     "PointsTransaction",
     "CheckInRecord",

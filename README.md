@@ -175,8 +175,17 @@ docker compose exec -e ZENSTORY_ADMIN_EMAIL=you@example.com \
 | 素材库拆解 | 另外运行 Prefect server 和 worker（见 [`apps/server/prefect.yaml`](apps/server/prefect.yaml)），并在套餐里打开素材库权限 |
 | 外部 Agent 接入 | `API_BASE_URL=https://你的服务器/api/v1`（后端地址，写进 `/skill.md`）。设置页按前端的 `VITE_API_BASE_URL` 给出 `npx zenstory login --api-base <后端地址>/api/v1` 和 `<后端地址>/skill.md`；CLI 只接受 https，本机的 `localhost` / `127.0.0.1` 例外 |
 | 兑换码 | `REDEMPTION_CODE_HMAC_SECRET`（至少 32 字符），并先建好 Pro 套餐 |
+| 支付宝在线开通 / 续费 | 后端 `ZPAY_ENABLED=true`、`ZPAY_PID`、`ZPAY_KEY`、`ZPAY_NOTIFY_URL`、`ZPAY_RETURN_URL`，可选 `ZPAY_CID`；先建好 Pro 套餐并设置月付 / 年付价格 |
 
 </details>
+
+### 可选：Zpay 支付宝收款
+
+在线支付默认关闭。启用后，用户可通过支付宝购买 Pro：月付开通 30 天、年付开通 365 天，同套餐续费延长到期时间；兑换码仍保留为次要入口。价格从后端套餐配置读取，管理后台「支付订单」可查看订单和权益发放状态。
+
+商户密钥只配置在后端环境变量中，不要提交到仓库，也不要使用 `VITE_*` 变量。`ZPAY_NOTIFY_URL` 使用公开可访问的后端 HTTPS 地址，例如 `https://api.example.com/api/v1/payments/zpay/notify`；`ZPAY_RETURN_URL` 使用前端 `https://app.example.com/dashboard/billing/payment-return`。两者都不能预设查询参数或片段。生产异步回调应直连后端，不经过前端代理。
+
+上线前先应用数据库迁移并验证 `payment_order` 表存在，再启用支付。会员只在后端验证 Zpay 签名、商户、金额和订单后发放，浏览器返回页不会直接开通会员。关闭新支付时设置 `ZPAY_ENABLED=false`，保留密钥和回调地址以处理已有订单的通知。接口协议见 [Zpay 官方文档](https://zpayz.cn/doc.html)。
 
 <details>
 <summary>不用 Docker，本地开发</summary>

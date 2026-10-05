@@ -48,6 +48,12 @@ vi.mock("../../components/PublicHeader", () => ({
   PublicHeader: () => <div data-testid="public-header" />,
 }));
 
+vi.mock("../../components/subscription/PaymentCheckoutModal", () => ({
+  PaymentCheckoutModal: ({ initialCycle }: { initialCycle: "month" | "year" }) => (
+    <div data-testid="payment-checkout-cycle">{initialCycle}</div>
+  ),
+}));
+
 vi.mock("../../lib/subscriptionApi", () => ({
   subscriptionApi: {
     getCatalog: () => mockGetCatalog(),
@@ -247,6 +253,19 @@ describe("PricingPage", () => {
       expect(screen.getAllByRole("button", { name: /免费开始|Start Free|Create Project Free/i }).length).toBeGreaterThan(0);
       expect(screen.getAllByRole("button", { name: /升级专业版|Upgrade Pro|Upgrade to Pro/i }).length).toBeGreaterThan(0);
     });
+  });
+
+  it("opens checkout with the selected yearly cycle for an authenticated user", async () => {
+    mockUser = { id: "user-1" };
+    mockGetCatalog.mockResolvedValue(createCatalog(createDefaultTiers()));
+
+    render(<PricingPage />, { wrapper: createWrapper() });
+    await waitFor(() => expect(getControlByName(/年付|Yearly/i)).not.toBeNull());
+
+    fireEvent.click(getControlByName(/年付|Yearly/i)!);
+    fireEvent.click(screen.getAllByRole("button", { name: /升级专业版|Upgrade Pro|Upgrade to Pro/i })[0]);
+
+    expect(screen.getByTestId("payment-checkout-cycle")).toHaveTextContent("year");
   });
 
   it("handles empty export format arrays safely", async () => {

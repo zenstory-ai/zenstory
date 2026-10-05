@@ -107,7 +107,7 @@ function DashboardContent() {
     if (location.pathname === "/dashboard/projects") return "projects";
     if (location.pathname === "/dashboard/materials") return "materials";
     if (location.pathname === "/dashboard/skills") return "skills";
-    if (location.pathname === "/dashboard/billing") return "billing";
+    if (location.pathname.startsWith("/dashboard/billing")) return "billing";
     return "home";
   };
   const activeNav = getActiveNav();

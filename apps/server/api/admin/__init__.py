@@ -12,6 +12,7 @@ from .codes import router as codes_router
 from .dashboard import router as dashboard_router
 from .feedback import router as feedback_router
 from .inspirations import router as inspirations_router
+from .payment_orders import router as payment_orders_router
 from .plans import router as plans_router
 from .points import router as points_router
 from .prompts import router as prompts_router
@@ -31,6 +32,7 @@ router.include_router(skills_router)
 router.include_router(inspirations_router)
 router.include_router(feedback_router)
 router.include_router(plans_router)
+router.include_router(payment_orders_router)
 router.include_router(codes_router)
 router.include_router(subscriptions_router)
 router.include_router(dashboard_router)

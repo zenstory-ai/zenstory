@@ -108,6 +108,7 @@ def db_session():
         cleanup_session.exec(Custom("DELETE FROM points_transaction"))
         cleanup_session.exec(Custom("DELETE FROM check_in_record"))
         # Subscription system tables (must come before user due to foreign key constraints)
+        cleanup_session.exec(Custom("DELETE FROM payment_order"))
         cleanup_session.exec(Custom("DELETE FROM admin_audit_log"))
         cleanup_session.exec(Custom("DELETE FROM subscription_history"))
         cleanup_session.exec(Custom("DELETE FROM upgrade_funnel_event"))

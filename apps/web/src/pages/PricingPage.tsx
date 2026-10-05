@@ -21,6 +21,7 @@ import { useIsMobile } from "../hooks/useMediaQuery";
 import type { SubscriptionCatalogTier } from "../types/subscription";
 import { trackUpgradeConversion } from "../lib/upgradeAnalytics";
 import { trackEvent } from "../lib/analytics";
+import { PaymentCheckoutModal } from "../components/subscription/PaymentCheckoutModal";
 
 type BillingCycle = "month" | "year";
 
@@ -36,6 +37,7 @@ export default function PricingPage() {
   const isMobile = useIsMobile();
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("month");
   const [showOnlyDifferences, setShowOnlyDifferences] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const attributionSource = useMemo(() => {
     const rawSource = searchParams.get("source");
     if (!rawSource) {
@@ -77,6 +79,7 @@ export default function PricingPage() {
     [catalog?.tiers]
   );
   const isCatalogLoading = isLoading || (isFetching && sortedPlans.length === 0);
+  const proPlan = sortedPlans.find((plan) => plan.name === "pro");
 
   const formatCurrency = (cents: number): string => {
     const locale = i18n.language?.startsWith("en") ? "en-US" : "zh-CN";
@@ -162,9 +165,10 @@ export default function PricingPage() {
       is_authenticated: Boolean(user),
     });
     if (user) {
-      navigate(withAttributionSource("/dashboard/billing?plan=pro"));
+      setShowPaymentModal(true);
       return;
     }
+    sessionStorage.setItem("payment_cycle_intent", billingCycle);
     if (authConfig.registrationEnabled) {
       navigate(withAttributionSource("/register?plan=pro"));
       return;
@@ -411,10 +415,7 @@ export default function PricingPage() {
           {t("dashboard:billing.activationTitle", "如何开通专业版")}
         </h2>
         <p className="mt-2 text-sm text-[hsl(var(--text-secondary))]">
-          {t("dashboard:billing.activationGuide", "专业版目前通过兑换码开通，暂不支持在线支付。已有兑换码可直接兑换；还没有兑换码，请联系下方微信咨询套餐与获取方式。")}
-        </p>
-        <p className="mt-2 text-sm text-[hsl(var(--text-secondary))]">
-          {t("settings:subscription.wechatGuide", "没有兑换码？可添加微信号获取：AIchuangzuo999")}
+          {t("dashboard:billing.activationGuide", "推荐使用支付宝在线购买，支付成功后系统会自动开通或续费。已有兑换码仍可通过订阅页面兑换。")}
         </p>
       </section>
 
@@ -423,12 +424,12 @@ export default function PricingPage() {
             {
               key: "trust-flexible",
               icon: RefreshCw,
-              text: t("dashboard:billing.trustFlexible", "使用兑换码开通，无需绑定自动续费"),
+              text: t("dashboard:billing.trustFlexible", "支付宝单次支付，不会自动续费"),
             },
             {
               key: "trust-billing",
               icon: ReceiptText,
-              text: t("dashboard:billing.trustBilling", "月付与年付价格供套餐选择参考，开通前确认兑换码对应期限"),
+              text: t("dashboard:billing.trustBilling", "下单金额由服务器按所选月付或年付方案确认"),
             },
             {
               key: "trust-security",
@@ -473,6 +474,16 @@ export default function PricingPage() {
             </Button>
           </div>
         </div>
+      )}
+
+      {showPaymentModal && (
+        <PaymentCheckoutModal
+          isOpen
+          onClose={() => setShowPaymentModal(false)}
+          initialCycle={billingCycle}
+          monthlyPriceCents={proPlan?.price_monthly_cents}
+          yearlyPriceCents={proPlan?.price_yearly_cents}
+        />
       )}
     </div>
   );

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGetCatalog = vi.fn();
 const mockNavigate = vi.fn();
+const mockTrackEvent = vi.fn();
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -32,6 +33,14 @@ vi.mock("../../config/auth", () => ({
 
 vi.mock("../../components/PublicHeader", () => ({
   PublicHeader: () => <div data-testid="public-header" />,
+}));
+
+vi.mock("../../components/subscription/PaymentCheckoutModal", () => ({
+  PaymentCheckoutModal: ({ isOpen }: { isOpen: boolean }) => isOpen ? <div>Payment checkout</div> : null,
+}));
+
+vi.mock("../../lib/analytics", () => ({
+  trackEvent: (...args: unknown[]) => mockTrackEvent(...args),
 }));
 
 vi.mock("../../lib/subscriptionApi", () => ({
@@ -124,7 +133,7 @@ describe("PricingPage attribution", () => {
     });
   });
 
-  it("preserves source param when navigating to billing", async () => {
+  it("preserves attribution when opening checkout for an authenticated user", async () => {
     render(<PricingPage />, { wrapper: createWrapper(["/pricing?source=chat_quota_blocked"]) });
 
     await waitFor(() => {
@@ -133,6 +142,11 @@ describe("PricingPage attribution", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: /升级专业版|Upgrade Pro|Upgrade to Pro/i })[0]);
 
-    expect(mockNavigate).toHaveBeenCalledWith("/dashboard/billing?plan=pro&source=chat_quota_blocked");
+    expect(screen.getByText("Payment checkout")).toBeInTheDocument();
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(mockTrackEvent).toHaveBeenCalledWith(
+      "pricing_upgrade_cta_clicked",
+      expect.objectContaining({ attribution_source: "chat_quota_blocked", is_authenticated: true })
+    );
   });
 });

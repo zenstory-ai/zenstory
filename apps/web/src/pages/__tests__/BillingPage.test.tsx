@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
+import { StrictMode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import BillingPage from '../BillingPage'
 
@@ -25,6 +26,8 @@ vi.mock('react-i18next', () => ({
           'dashboard:billing.title': 'Billing',
           'dashboard:billing.subtitle': 'Manage plans',
           'dashboard:billing.ctaUpgradePro': 'Upgrade Pro',
+          'dashboard:billing.ctaBuyPro': 'Buy Pro Online',
+          'dashboard:billing.ctaRenewPro': 'Renew Pro',
           'settings:subscription.redeemCode': 'Redeem Code',
           'dashboard:billing.currentPlan': 'Current plan',
           'dashboard:billing.unlockHint': 'Unlock more features',
@@ -111,6 +114,11 @@ vi.mock('../../components/subscription/RedeemCodeModal', () => ({
   RedeemCodeModal: ({ isOpen }: { isOpen: boolean }) => (isOpen ? <div>Redeem modal</div> : null),
 }))
 
+vi.mock('../../components/subscription/PaymentCheckoutModal', () => ({
+  PaymentCheckoutModal: ({ isOpen, initialCycle }: { isOpen: boolean; initialCycle: string }) =>
+    (isOpen ? <div data-cycle={initialCycle}>Payment modal</div> : null),
+}))
+
 vi.mock('../../lib/subscriptionApi', () => ({
   subscriptionApi: {},
   subscriptionQueryKeys: {
@@ -151,6 +159,7 @@ vi.mock('../../config/inspirations', () => ({
 describe('BillingPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    sessionStorage.clear()
     inspirationFeature.enabled = true
     currentSearch = 'source=chat_quota_blocked'
     statusResponse = {
@@ -213,11 +222,11 @@ describe('BillingPage', () => {
     expect(screen.getByText('AI conversations')).toBeInTheDocument()
     expect(screen.getByText('2/10')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Upgrade Pro' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Buy Pro Online' }))
     expect(trackUpgradeClick).toHaveBeenCalled()
     expect(assignSpy).not.toHaveBeenCalled()
-    expect(await screen.findByText('Redeem modal')).toBeInTheDocument()
-    expect(trackUpgradeClick).toHaveBeenCalledWith('chat_quota_blocked', 'direct', 'redeem', 'page')
+    expect(await screen.findByText('Payment modal')).toBeInTheDocument()
+    expect(trackUpgradeClick).toHaveBeenCalledWith('chat_quota_blocked', 'direct', 'checkout', 'page')
 
     fireEvent.click(screen.getByRole('button', { name: 'Redeem Code' }))
     expect(await screen.findByText('Redeem modal')).toBeInTheDocument()
@@ -226,7 +235,7 @@ describe('BillingPage', () => {
   it('opens activation directly for a selected Pro plan', () => {
     currentSearch = 'plan=pro&source=billing_header_upgrade'
     render(<BillingPage />)
-    expect(screen.getByText('Redeem modal')).toBeInTheDocument()
+    expect(screen.getByText('Payment modal')).toBeInTheDocument()
     expect(assignSpy).not.toHaveBeenCalled()
   })
 
@@ -258,7 +267,15 @@ describe('BillingPage', () => {
     expect(screen.getByText('No data')).toBeInTheDocument()
   })
 
-  it('renders loading placeholders and hides the upgrade CTA for paid tiers', () => {
+  it('preserves the yearly checkout intent during Strict Mode initialization', () => {
+    sessionStorage.setItem('payment_cycle_intent', 'year')
+    currentSearch = 'plan=pro'
+    render(<StrictMode><BillingPage /></StrictMode>)
+    expect(screen.getByText('Payment modal')).toHaveAttribute('data-cycle', 'year')
+    expect(sessionStorage.getItem('payment_cycle_intent')).toBeNull()
+  })
+
+  it('renders loading placeholders and offers renewal for paid tiers', () => {
     statusResponse = {
       ...statusResponse,
       data: {
@@ -275,6 +292,6 @@ describe('BillingPage', () => {
     const { container } = render(<BillingPage />)
 
     expect(container.querySelectorAll('.animate-pulse').length).toBeGreaterThan(0)
-    expect(screen.queryByRole('button', { name: 'Upgrade Pro' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Renew Pro' })).toBeInTheDocument()
   })
 })

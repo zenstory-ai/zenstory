@@ -22,7 +22,8 @@
     "points": "Points Management",
     "checkIn": "Check-in Stats",
     "referrals": "Referral System",
-    "quota": "Quota Management"
+    "quota": "Quota Management",
+    "paymentOrders": "Payment Orders"
   },
   "admin": {
     "verifyingPermission": "Verifying permissions...",
@@ -503,5 +504,44 @@
     "unlimited": "Unlimited",
     "searchUser": "Search by username or email",
     "noUser": "Enter user ID or search for a user"
+  },
+  "paymentOrders": {
+    "title": "Payment Orders",
+    "subtitle": "Review Alipay orders and membership activation",
+    "refresh": "Refresh",
+    "paymentStatus": "Payment status",
+    "allStatus": "All payment statuses",
+    "search": "Search",
+    "searchPlaceholder": "Merchant order, provider order, user or email",
+    "loadError": "Unable to load payment orders",
+    "orderNumber": "Merchant order",
+    "providerOrderNumber": "Zpay order",
+    "user": "User",
+    "plan": "Plan / period",
+    "amount": "Amount",
+    "paymentMethod": "Payment method",
+    "fulfillmentStatus": "Membership activation",
+    "createdAt": "Created",
+    "paidAt": "Paid",
+    "fulfilledAt": "Activated",
+    "failureReason": "Failure reason",
+    "details": "Details",
+    "alipay": "Alipay",
+    "total": "{{count}} orders",
+    "status": {
+      "pending": "Awaiting payment",
+      "paid": "Paid"
+    },
+    "fulfillment": {
+      "pending": "Pending",
+      "succeeded": "Activated",
+      "failed": "Activation failed"
+    },
+    "cycles": {
+      "month": "Monthly · 30 days",
+      "year": "Yearly · 365 days"
+    },
+    "nextPage": "Next page",
+    "previousPage": "Previous page"
   }
 }

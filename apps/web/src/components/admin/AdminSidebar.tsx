@@ -63,6 +63,12 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ onClose }) => {
       path: "/admin/subscriptions",
     },
     {
+      key: "payment-orders",
+      label: t("sidebar.paymentOrders", "支付订单"),
+      icon: CreditCard,
+      path: "/admin/payment-orders",
+    },
+    {
       key: "plans",
       label: t("sidebar.plans", "订阅计划"),
       icon: Package,

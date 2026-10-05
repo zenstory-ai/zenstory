@@ -34,6 +34,13 @@ test('database application role is separate and limited to runtime data access',
   assert.doesNotMatch(init, /GRANT ALL PRIVILEGES/)
 })
 
+test('owner schema initialization registers payment models before creating tables', () => {
+  const migrate = read('docker-compose.full.yml').split('  migrate:\n')[1].split('\n  redis:')[0]
+  assert.match(migrate, /POSTGRES_OWNER_USER/)
+  assert.match(migrate, /command:.*import models;.*from database import init_db;.*asyncio\.run\(init_db\(\)\)/)
+  assert.match(read('apps/server/models/__init__.py'), /from \.payment import PaymentOrder/)
+})
+
 test('docker environment example contains placeholders, never usable shared secrets', () => {
   const env = read('apps/server/.env.docker.example')
   assert.match(env, /ENVIRONMENT=production/)

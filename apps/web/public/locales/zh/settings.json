@@ -128,7 +128,6 @@
     "redeemTitle": "兑换会员",
     "redeem": "兑换",
     "codeLabel": "兑换码",
-    "wechatGuide": "没有兑换码？可添加微信号获取：AIchuangzuo999",
     "codeRequired": "请输入兑换码",
     "invalidFormat": "兑换码格式不正确",
     "redeemFailed": "兑换失败，请检查兑换码",
@@ -152,7 +151,8 @@
       "material_decompositions": "素材拆解次数",
       "custom_skills": "自定义技能数量",
       "inspiration_copies_monthly": "灵感复用次数"
-    }
+    },
+    "redeemSecondaryHint": "已有兑换码？请在下方输入并兑换。在线购买请返回订阅页面。"
   },
   "points": {
     "comingSoon": "积分功能即将上线",

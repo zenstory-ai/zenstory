@@ -14,7 +14,7 @@ import ast
 import os
 import sys
 from pathlib import Path
-
+from urllib.parse import urlsplit
 
 MIN_SECRET_LENGTH = 32
 LOCALHOST_MARKERS = ("localhost", "127.0.0.1")
@@ -30,6 +30,22 @@ def _load_dotenv_if_available() -> None:
 
 def _is_truthy(value: str | None) -> bool:
     return (value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _is_valid_https_callback_url(value: str | None) -> bool:
+    try:
+        parsed = urlsplit((value or "").strip())
+    except ValueError:
+        return False
+    return (
+        parsed.scheme == "https"
+        and bool(parsed.netloc)
+        and bool(parsed.path)
+        and not parsed.query
+        and not parsed.fragment
+        and not parsed.username
+        and not parsed.password
+    )
 
 
 def _parse_migration_literal(value_node: ast.expr) -> str | list[str] | tuple[str, ...] | None:
@@ -70,9 +86,7 @@ def _extract_revision_fields(path: Path) -> tuple[str | None, str | tuple[str, .
                 revision = parsed
         elif target_name == "down_revision" and value_node is not None:
             parsed = _parse_migration_literal(value_node)
-            if isinstance(parsed, str):
-                down_revision = parsed
-            elif isinstance(parsed, tuple):
+            if isinstance(parsed, (str, tuple)):
                 down_revision = parsed
 
     return revision, down_revision
@@ -183,6 +197,28 @@ def main() -> int:
         "RATE_LIMIT_BACKEND",
         rate_limit_backend or "<unset>",
     )
+
+    if _is_truthy(os.getenv("ZPAY_ENABLED", "false")):
+        missing_or_invalid = []
+        if not os.getenv("ZPAY_PID", "").strip():
+            missing_or_invalid.append("ZPAY_PID")
+        if not os.getenv("ZPAY_KEY", "").strip():
+            missing_or_invalid.append("ZPAY_KEY")
+        if not _is_valid_https_callback_url(os.getenv("ZPAY_NOTIFY_URL")):
+            missing_or_invalid.append("ZPAY_NOTIFY_URL")
+        if not _is_valid_https_callback_url(os.getenv("ZPAY_RETURN_URL")):
+            missing_or_invalid.append("ZPAY_RETURN_URL")
+        all_ok &= _print_result(
+            not missing_or_invalid,
+            "Zpay checkout configuration",
+            (
+                "configured"
+                if not missing_or_invalid
+                else "missing or invalid: " + ", ".join(missing_or_invalid)
+            ),
+        )
+    else:
+        _print_result(True, "Zpay checkout configuration", "disabled")
 
     versions_dir = Path(__file__).resolve().parent.parent / "alembic" / "versions"
     heads = _get_alembic_heads(versions_dir)

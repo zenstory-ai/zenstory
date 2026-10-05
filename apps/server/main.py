@@ -38,6 +38,7 @@ from api.files import router as files_router
 from api.inspirations import router as inspirations_router
 from api.materials import router as materials_router
 from api.oauth import router as oauth_router
+from api.payments import router as payments_router
 from api.points import router as points_router
 from api.persona import router as persona_router
 from api.projects import router as projects_router
@@ -160,6 +161,7 @@ app.include_router(admin_router)
 app.include_router(referral_router)
 app.include_router(persona_router)
 app.include_router(subscription_router)
+app.include_router(payments_router)
 app.include_router(points_router)
 app.include_router(agent_api_keys_router)
 app.include_router(agent_api_router)

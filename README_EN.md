@@ -179,8 +179,17 @@ The writing agents use DeepSeek `deepseek-flash` (DeepSeek-V4.1-Flash) and need 
 | Material-library decomposition | a separate Prefect server and worker (see [`apps/server/prefect.yaml`](apps/server/prefect.yaml)), and the material library enabled on the plan |
 | Connecting outside agents | `API_BASE_URL=https://your-server/api/v1` (the backend address, written into `/skill.md`). Settings derives `npx zenstory login --api-base <backend>/api/v1` and `<backend>/skill.md` from the frontend's `VITE_API_BASE_URL`; the CLI only accepts https, except for `localhost` / `127.0.0.1` |
 | Redemption codes | `REDEMPTION_CODE_HMAC_SECRET` (32+ characters), with the Pro plan created first |
+| Alipay checkout / renewal | backend `ZPAY_ENABLED=true`, `ZPAY_PID`, `ZPAY_KEY`, `ZPAY_NOTIFY_URL`, `ZPAY_RETURN_URL`, and optional `ZPAY_CID`; create the Pro plan and set its monthly / yearly prices first |
 
 </details>
+
+### Optional: Zpay Alipay checkout
+
+Online payments are disabled by default. When enabled, Alipay purchases activate Pro for 30 days (monthly) or 365 days (yearly); renewing the same plan extends its expiry. Redemption codes remain a secondary option. Prices come from the backend plan configuration, and the admin Payment Orders page shows payment and fulfillment status.
+
+Keep merchant credentials in backend environment variables only: never commit them or expose them through `VITE_*`. Set `ZPAY_NOTIFY_URL` to a publicly reachable backend HTTPS endpoint, such as `https://api.example.com/api/v1/payments/zpay/notify`, and `ZPAY_RETURN_URL` to the frontend `https://app.example.com/dashboard/billing/payment-return`. Neither URL may contain a preset query or fragment. Production notifications should reach the backend directly, without a frontend proxy.
+
+Before enabling checkout, apply database migrations and verify that the `payment_order` table exists. Only a backend notification with a valid Zpay signature, merchant, amount and order can grant benefits; the browser return page cannot. To stop new checkouts, set `ZPAY_ENABLED=false` but retain credentials and the notification URL to process existing orders. See the [official Zpay protocol](https://zpayz.cn/doc.html).
 
 <details>
 <summary>Local development without Docker</summary>

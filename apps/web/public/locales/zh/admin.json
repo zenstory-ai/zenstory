@@ -22,7 +22,8 @@
     "points": "积分管理",
     "checkIn": "签到统计",
     "referrals": "邀请系统",
-    "quota": "配额管理"
+    "quota": "配额管理",
+    "paymentOrders": "支付订单"
   },
   "admin": {
     "verifyingPermission": "验证权限中...",
@@ -503,5 +504,44 @@
     "unlimited": "无限制",
     "searchUser": "搜索用户名或邮箱",
     "noUser": "请输入用户 ID 或搜索用户"
+  },
+  "paymentOrders": {
+    "title": "支付订单",
+    "subtitle": "查看支付宝订单与会员开通结果",
+    "refresh": "刷新",
+    "paymentStatus": "支付状态",
+    "allStatus": "全部支付状态",
+    "search": "搜索",
+    "searchPlaceholder": "商户订单号、支付宝订单号、用户或邮箱",
+    "loadError": "支付订单加载失败",
+    "orderNumber": "商户订单号",
+    "providerOrderNumber": "Zpay 订单号",
+    "user": "用户",
+    "plan": "套餐 / 周期",
+    "amount": "金额",
+    "paymentMethod": "支付方式",
+    "fulfillmentStatus": "会员开通",
+    "createdAt": "创建时间",
+    "paidAt": "付款时间",
+    "fulfilledAt": "开通时间",
+    "failureReason": "异常原因",
+    "details": "详情",
+    "alipay": "支付宝",
+    "total": "共 {{count}} 笔订单",
+    "status": {
+      "pending": "待支付",
+      "paid": "已支付"
+    },
+    "fulfillment": {
+      "pending": "待开通",
+      "succeeded": "已开通",
+      "failed": "开通异常"
+    },
+    "cycles": {
+      "month": "月付 · 30 天",
+      "year": "年付 · 365 天"
+    },
+    "nextPage": "下一页",
+    "previousPage": "上一页"
   }
 }

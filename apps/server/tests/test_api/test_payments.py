@@ -1,0 +1,360 @@
+"""Payment checkout, callback, ownership, and admin order tests."""
+
+from datetime import datetime
+
+import pytest
+from httpx import AsyncClient
+from sqlmodel import Session
+
+from models import User
+from models.payment import PaymentOrder
+from models.subscription import SubscriptionPlan, UserSubscription
+from services.core.auth_service import hash_password
+from services.subscription.zpay_service import sign_params
+
+
+@pytest.fixture(autouse=True)
+def zpay_env(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("ZPAY_ENABLED", "true")
+    monkeypatch.setenv("ZPAY_PID", "test-pid")
+    monkeypatch.setenv("ZPAY_KEY", "test-key")
+    monkeypatch.setenv(
+        "ZPAY_NOTIFY_URL", "https://api.example.com/api/v1/payments/zpay/notify"
+    )
+    monkeypatch.setenv(
+        "ZPAY_RETURN_URL", "https://app.example.com/dashboard/billing/payment-return"
+    )
+
+
+def make_user(db_session: Session, name: str, *, admin: bool = False) -> User:
+    user = User(
+        username=name,
+        email=f"{name}@example.com",
+        hashed_password=hash_password("password123"),
+        email_verified=True,
+        is_active=True,
+        is_superuser=admin,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
+
+
+async def login(client: AsyncClient, username: str) -> dict[str, str]:
+    response = await client.post(
+        "/api/auth/login", data={"username": username, "password": "password123"}
+    )
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
+def make_plan(db_session: Session, *, active: bool = True) -> SubscriptionPlan:
+    plan = SubscriptionPlan(
+        name="pro",
+        display_name="专业版",
+        display_name_en="Pro",
+        price_monthly_cents=2900,
+        price_yearly_cents=29000,
+        features={},
+        is_active=active,
+    )
+    db_session.add(plan)
+    db_session.commit()
+    db_session.refresh(plan)
+    return plan
+
+
+@pytest.mark.integration
+async def test_long_admin_display_name_does_not_break_fixed_product_name(
+    client: AsyncClient, db_session: Session
+):
+    user = make_user(db_session, "pay_long_name")
+    plan = make_plan(db_session)
+    plan.display_name = "专业" * 100
+    db_session.add(plan)
+    db_session.commit()
+    headers = await login(client, user.username)
+
+    response = await client.post(
+        "/api/v1/payments/orders",
+        headers=headers,
+        json={"plan_name": "pro", "cycle": "year", "payment_method": "alipay"},
+    )
+    assert response.status_code == 200
+    assert response.json()["order"]["plan_display_name"] == plan.display_name
+    assert response.json()["checkout"]["fields"]["name"] == "ZenStory Pro 年度会员（365天）"
+
+
+def callback_params(order: PaymentOrder, *, trade_no: str = "zpay-123") -> dict[str, str]:
+    params = {
+        "pid": "test-pid",
+        "name": order.product_name,
+        "money": f"{order.amount_cents / 100:.2f}",
+        "out_trade_no": order.out_trade_no,
+        "trade_no": trade_no,
+        "trade_status": "TRADE_SUCCESS",
+        "type": "alipay",
+        "sign_type": "MD5",
+    }
+    params["sign"] = sign_params(params, "test-key")
+    return params
+
+
+@pytest.mark.integration
+async def test_checkout_uses_server_price_and_owner_isolation(
+    client: AsyncClient, db_session: Session
+):
+    owner = make_user(db_session, "pay_owner")
+    other = make_user(db_session, "pay_other")
+    make_plan(db_session)
+    owner_headers = await login(client, owner.username)
+    other_headers = await login(client, other.username)
+
+    response = await client.post(
+        "/api/v1/payments/orders",
+        headers=owner_headers,
+        json={"plan_name": "pro", "cycle": "month", "payment_method": "alipay"},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["order"]["amount_cents"] == 2900
+    assert payload["checkout"]["action"] == "https://zpayz.cn/submit.php"
+    assert payload["checkout"]["method"] == "POST"
+    assert payload["checkout"]["fields"]["money"] == "29.00"
+    assert payload["checkout"]["fields"]["type"] == "alipay"
+    assert payload["order"]["out_trade_no"].isdigit()
+    assert len(payload["order"]["out_trade_no"]) <= 32
+
+    forbidden = await client.get(
+        f"/api/v1/payments/orders/{payload['order']['out_trade_no']}",
+        headers=other_headers,
+    )
+    assert forbidden.status_code == 404
+
+    injected = await client.post(
+        "/api/v1/payments/orders",
+        headers=owner_headers,
+        json={
+            "plan_name": "pro",
+            "cycle": "year",
+            "payment_method": "alipay",
+            "amount_cents": 1,
+        },
+    )
+    assert injected.status_code == 422
+
+
+@pytest.mark.integration
+async def test_disabled_options_and_order_rejection(
+    client: AsyncClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+):
+    user = make_user(db_session, "pay_disabled")
+    make_plan(db_session)
+    headers = await login(client, user.username)
+    monkeypatch.setenv("ZPAY_ENABLED", "false")
+
+    options = await client.get("/api/v1/payments/options")
+    assert options.json() == {"enabled": False, "payment_methods": []}
+    response = await client.post(
+        "/api/v1/payments/orders",
+        headers=headers,
+        json={"plan_name": "pro", "cycle": "month", "payment_method": "alipay"},
+    )
+    assert response.status_code == 503
+
+
+@pytest.mark.integration
+async def test_malformed_callback_url_disables_options_without_error(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("ZPAY_NOTIFY_URL", "https://[invalid/")
+    response = await client.get("/api/v1/payments/options")
+    assert response.status_code == 200
+    assert response.json() == {"enabled": False, "payment_methods": []}
+
+
+@pytest.mark.integration
+async def test_valid_callback_fulfills_once_even_when_checkout_disabled(
+    client: AsyncClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+):
+    user = make_user(db_session, "pay_callback")
+    plan = make_plan(db_session)
+    order = PaymentOrder(
+        out_trade_no="20261005123456000001",
+        user_id=user.id,
+        plan_name=plan.name,
+        plan_display_name=plan.display_name,
+        product_name="ZenStory 专业版 月度会员（30天）",
+        cycle="month",
+        amount_cents=2900,
+        duration_days=30,
+        payment_method="alipay",
+    )
+    db_session.add(order)
+    db_session.commit()
+    db_session.refresh(order)
+    params = callback_params(order)
+    monkeypatch.setenv("ZPAY_ENABLED", "false")
+    monkeypatch.setenv("ZPAY_NOTIFY_URL", "http://invalid.example.com/notify?bad=1")
+    monkeypatch.setenv("ZPAY_RETURN_URL", "not-a-url")
+
+    first = await client.get("/api/v1/payments/zpay/notify", params=params)
+    assert first.status_code == 200
+    assert first.text == "success"
+    db_session.expire_all()
+    from sqlmodel import select
+
+    subscription = db_session.exec(
+        select(UserSubscription).where(UserSubscription.user_id == user.id)
+    ).first()
+    assert subscription is not None
+    assert subscription.plan_id == plan.id
+    original_end = subscription.current_period_end
+
+    duplicate = await client.get("/api/v1/payments/zpay/notify", params=params)
+    assert duplicate.text == "success"
+    db_session.expire_all()
+    subscription = db_session.exec(
+        select(UserSubscription).where(UserSubscription.user_id == user.id)
+    ).first()
+    assert subscription is not None
+    assert subscription.current_period_end == original_end
+
+    conflict = callback_params(order, trade_no="different-trade")
+    assert (await client.get("/api/v1/payments/zpay/notify", params=conflict)).text == "fail"
+
+    duplicate_query = await client.get(
+        "/api/v1/payments/zpay/notify",
+        params=[*params.items(), ("money", params["money"])],
+    )
+    assert duplicate_query.text == "fail"
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("tamper", ["pid", "name", "money", "type", "trade_status"])
+async def test_invalid_callback_never_fulfills(
+    client: AsyncClient, db_session: Session, tamper: str
+):
+    user = make_user(db_session, f"bad_callback_{tamper}")
+    make_plan(db_session)
+    order = PaymentOrder(
+        out_trade_no=f"20261005{len(tamper):024d}",
+        user_id=user.id,
+        plan_name="pro",
+        plan_display_name="专业版",
+        product_name="ZenStory 专业版 年度会员（365天）",
+        cycle="year",
+        amount_cents=29000,
+        duration_days=365,
+        payment_method="alipay",
+    )
+    db_session.add(order)
+    db_session.commit()
+    params = callback_params(order)
+    replacements = {
+        "pid": "other",
+        "name": "different product",
+        "money": "1.00",
+        "type": "wxpay",
+        "trade_status": "WAIT_BUYER_PAY",
+    }
+    params[tamper] = replacements[tamper]
+    params["sign"] = sign_params(params, "test-key")
+
+    response = await client.get("/api/v1/payments/zpay/notify", params=params)
+    assert response.text == "fail"
+    db_session.refresh(order)
+    assert order.status == "pending"
+    assert order.fulfillment_status == "pending"
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("field", "value", "resign"),
+    [
+        ("sign", "not-a-real-signature", False),
+        ("sign", "中文", False),
+        ("money", "29.001", True),
+    ],
+)
+async def test_malformed_signature_or_money_returns_generic_fail(
+    client: AsyncClient,
+    db_session: Session,
+    field: str,
+    value: str,
+    resign: bool,
+):
+    user = make_user(db_session, f"malformed_{field}_{len(value)}")
+    make_plan(db_session)
+    order = PaymentOrder(
+        out_trade_no=f"20261006{len(value):024d}",
+        user_id=user.id,
+        plan_name="pro",
+        plan_display_name="专业版",
+        product_name="ZenStory Pro 月度会员（30天）",
+        cycle="month",
+        amount_cents=2900,
+        duration_days=30,
+        payment_method="alipay",
+    )
+    db_session.add(order)
+    db_session.commit()
+    params = callback_params(order)
+    params[field] = value
+    if resign:
+        params["sign"] = sign_params(params, "test-key")
+
+    response = await client.get("/api/v1/payments/zpay/notify", params=params)
+    assert response.status_code == 200
+    assert response.text == "fail"
+    db_session.refresh(order)
+    assert order.status == "pending"
+
+
+@pytest.mark.integration
+async def test_admin_payment_orders_permissions_filters_and_pagination(
+    client: AsyncClient, db_session: Session
+):
+    admin = make_user(db_session, "payment_admin", admin=True)
+    user = make_user(db_session, "payment_customer")
+    plan = make_plan(db_session)
+    db_session.add_all(
+        [
+            PaymentOrder(
+                out_trade_no=f"2026100511111111111{i}",
+                user_id=user.id,
+                plan_name="pro",
+                plan_display_name=plan.display_name,
+                product_name=f"Order {i}",
+                cycle="month",
+                amount_cents=2900,
+                duration_days=30,
+                payment_method="alipay",
+                status="paid" if i == 1 else "pending",
+                fulfillment_status="succeeded" if i == 1 else "pending",
+                paid_at=datetime.utcnow() if i == 1 else None,
+                fulfilled_at=datetime.utcnow() if i == 1 else None,
+            )
+            for i in range(2)
+        ]
+    )
+    db_session.commit()
+    user_headers = await login(client, user.username)
+    admin_headers = await login(client, admin.username)
+
+    assert (
+        await client.get("/api/admin/payment-orders", headers=user_headers)
+    ).status_code == 403
+    response = await client.get(
+        "/api/admin/payment-orders",
+        headers=admin_headers,
+        params={"status": "pending", "search": "payment_customer", "page_size": 1},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert payload["page"] == 1
+    assert payload["page_size"] == 1
+    assert payload["items"][0]["username"] == user.username
+    assert "sign" not in payload["items"][0]
