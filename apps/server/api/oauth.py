@@ -30,8 +30,9 @@ from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import get_session
 from middleware.rate_limit import get_client_ip
-from models import RefreshTokenRecord, User
+from models import ACTIVATION_EVENT_SIGNUP_SUCCESS, RefreshTokenRecord, User
 from models.referral import InviteCode
+from services.features.activation_event_service import activation_event_service
 from services.features.referral_service import create_referral as create_referral_service
 from services.subscription.subscription_service import subscription_service
 from utils.email_identity import email_identity_matches, normalize_email_identity
@@ -455,6 +456,7 @@ async def google_oauth_callback(
     raw_state_invite = state_payload.get(OAUTH_STATE_INVITE_CODE_KEY)
     normalized_invite_code = _sanitize_invite_code(raw_state_invite)
 
+    is_new_user = False
     if existing_user:
         if not existing_user.is_active:
             log_with_context(
@@ -639,6 +641,32 @@ async def google_oauth_callback(
                     error_type=type(e).__name__,
                 )
 
+        # Activation milestone: signup completed. Never blocks the login.
+        try:
+            activation_event_service.record_once(
+                session,
+                user_id=new_user.id,
+                event_name=ACTIVATION_EVENT_SIGNUP_SUCCESS,
+                event_metadata={
+                    "source": "google_oauth",
+                    "invite_code_provided": bool(normalized_invite_code),
+                    "invite_policy_variant": invite_policy_variant,
+                    "invite_policy_rollout_percent": invite_policy_rollout_percent,
+                    "invite_code_optional": invite_code_optional,
+                },
+            )
+        except Exception as e:
+            session.rollback()
+            log_with_context(
+                logger,
+                logging.WARNING,
+                "Failed to record signup activation event (oauth)",
+                user_id=new_user.id,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+
+        is_new_user = True
         user = new_user
 
     try:
@@ -690,6 +718,10 @@ async def google_oauth_callback(
         "access_token": jwt_access_token,
         "refresh_token": jwt_refresh_token,
     }
+    if is_new_user:
+        # Lets the frontend count the signup; the hash is scrubbed before any
+        # analytics sees the URL.
+        callback_params["new_user"] = "1"
 
     # Append redirect parameter if present in state and passes whitelist validation.
     if redirect_from_state:
