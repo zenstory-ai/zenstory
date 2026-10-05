@@ -19,6 +19,7 @@ from agent.core.stream_errors import (
     stream_error_from_event_data,
 )
 from agent.core.workflow_events import StreamEvent, StreamEventType
+from core.error_handler import APIException
 
 
 def _sse(event: str, data: dict) -> str:
@@ -186,6 +187,16 @@ def _api_status_error(cls, status: int, message: str):
             False,
         ),
         (RuntimeError("(psycopg.errors.UniqueViolation) [SQL: INSERT INTO file ...]"), "ERR_AGENT_RUN_FAILED", True),
+        (
+            APIException(
+                error_code="ERR_SERVICE_UNAVAILABLE",
+                status_code=503,
+                detail={"message": "Writing configuration is unavailable."},
+            ),
+            "ERR_SERVICE_UNAVAILABLE",
+            True,
+        ),
+        (APIException(error_code="ERR_PROJECT_NOT_FOUND", status_code=404), "ERR_PROJECT_NOT_FOUND", False),
     ],
 )
 def test_classify_stream_exception(exc, code, retryable):

@@ -98,6 +98,15 @@ def _is_transport_failure(exc: BaseException) -> bool:
 def classify_stream_exception(exc: BaseException) -> StreamErrorInfo:
     """把运行期异常映射成对外错误码；未知异常一律按内部错误处理。"""
     status = _status_code_of(exc)
+    # 平台自己抛出的 APIException 已经带着对外错误码（例如写作配置缺失时的
+    # ERR_SERVICE_UNAVAILABLE），沿用它，而不是按状态码误判成上游 LLM 故障。
+    from core.error_handler import APIException
+
+    if isinstance(exc, APIException):
+        code = getattr(exc, "error_code", None)
+        if isinstance(code, str) and code.startswith("ERR_"):
+            server_side = status is None or status >= 500
+            return StreamErrorInfo(code, server_side, server_side)
     if status == 429 or type(exc).__name__ == "RateLimitError":
         return StreamErrorInfo(ErrorCode.AGENT_UPSTREAM_RATE_LIMITED, True, True)
     if status is not None and status >= 500:

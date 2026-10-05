@@ -158,6 +158,10 @@ async def test_missing_writing_config_emits_error_without_starting_workflow(clie
     # SSE headers are already sent: the explicit error event, not HTTP 503, is the boundary.
     assert response.status_code == 200
     events = _parse_sse_payload(response.text)
-    assert any(name == "error" and "Writing configuration is unavailable" in str(payload) for name, payload in events)
+    error_payloads = [payload for name, payload in events if name == "error"]
+    assert error_payloads
+    assert any("ERR_SERVICE_UNAVAILABLE" in str(payload) for payload in error_payloads)
+    # 管理员视角的英文配置说明只写日志，不推给前端。
+    assert not any("Writing configuration is unavailable" in str(payload) for payload in error_payloads)
     assert not any(name in ("content", "done") for name, _ in events)
     workflow.assert_not_called()
