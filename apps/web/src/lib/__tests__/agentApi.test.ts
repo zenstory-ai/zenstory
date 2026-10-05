@@ -998,6 +998,23 @@ describe('agentApi', () => {
       expect(result).toEqual([])
     })
 
+    it('stays silent when the suggestion rate limit or daily cap is hit (429)', async () => {
+      const { logger } = await import('../logger')
+      const errorSpy = vi.spyOn(logger, 'error')
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 429,
+        json: async () => ({ detail: 'Rate limit exceeded. Please try again later.' }),
+      })
+      vi.stubGlobal('fetch', mockFetch)
+
+      const result = await fetchSuggestions('test-project')
+
+      expect(result).toEqual([])
+      expect(errorSpy).not.toHaveBeenCalled()
+      errorSpy.mockRestore()
+    })
+
     it('limits count to max 5', async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,

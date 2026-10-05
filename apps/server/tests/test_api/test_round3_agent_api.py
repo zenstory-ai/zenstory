@@ -18,6 +18,7 @@ from sqlmodel import Session, select
 from api.agent import (
     STEER_RATE_LIMIT_MAX_REQUESTS,
     STREAM_RATE_LIMIT_MAX_REQUESTS,
+    SUGGEST_DAILY_MAX_REQUESTS,
     SUGGEST_RATE_LIMIT_MAX_REQUESTS,
     SUGGEST_RATE_LIMIT_WINDOW_SECONDS,
 )
@@ -95,40 +96,16 @@ def _llm_backed_suggest_service(suggestions: list[str]) -> MagicMock:
 
 
 @pytest.mark.integration
-async def test_suggest_rejected_when_ai_quota_exhausted(
+async def test_suggest_still_available_when_ai_quota_exhausted(
     client: AsyncClient, db_session: Session
 ):
-    """额度耗尽的账号不能再通过 /suggest 触发 LLM 调用。"""
+    """建议不占 AI 对话额度：额度耗尽时 /suggest 照常可用，额度也不被改动。"""
     user, project, token = await _make_user_and_project(
         client, db_session, "round3_suggest_quota_out"
     )
     _set_quota_used(db_session, user.id, FREE_AI_CONVERSATION_LIMIT)
 
-    service = _llm_backed_suggest_service(["不该被生成"])
-    with patch("agent.suggest_service.get_suggest_service", return_value=service):
-        response = await client.post(
-            "/api/v1/agent/suggest",
-            json={"project_id": str(project.id), "count": 3},
-            headers={"Authorization": f"Bearer {token}"},
-        )
-
-    assert response.status_code == 402
-    # 关键：LLM 根本没被调用，成本没有发生
-    service.generate_suggestions.assert_not_called()
-    assert _read_quota_used(db_session, user.id) == FREE_AI_CONVERSATION_LIMIT
-
-
-@pytest.mark.integration
-async def test_suggest_consumes_ai_conversation_quota(
-    client: AsyncClient, db_session: Session
-):
-    """真实 LLM 路径下，每次 /suggest 都要计一次 AI 对话额度。"""
-    user, project, token = await _make_user_and_project(
-        client, db_session, "round3_suggest_quota_charge"
-    )
-    _set_quota_used(db_session, user.id, 3)
-
-    service = _llm_backed_suggest_service(["继续写第二章", "补充角色动机", "设计剧情反转"])
+    service = _llm_backed_suggest_service(["继续写第二章"])
     with patch("agent.suggest_service.get_suggest_service", return_value=service):
         response = await client.post(
             "/api/v1/agent/suggest",
@@ -137,9 +114,62 @@ async def test_suggest_consumes_ai_conversation_quota(
         )
 
     assert response.status_code == 200
-    assert response.json()["suggestions"] == ["继续写第二章", "补充角色动机", "设计剧情反转"]
     service.generate_suggestions.assert_awaited_once()
-    assert _read_quota_used(db_session, user.id) == 4
+    assert _read_quota_used(db_session, user.id) == FREE_AI_CONVERSATION_LIMIT
+
+
+@pytest.mark.integration
+async def test_suggest_does_not_consume_ai_conversation_quota(
+    client: AsyncClient, db_session: Session
+):
+    """真实 LLM 路径下 /suggest 也不扣对话额度（前端每轮都会自动触发它）。"""
+    user, project, token = await _make_user_and_project(
+        client, db_session, "round3_suggest_quota_charge"
+    )
+    _set_quota_used(db_session, user.id, 3)
+
+    service = _llm_backed_suggest_service(["继续写第二章", "补充角色动机", "设计剧情反转"])
+    with patch("agent.suggest_service.get_suggest_service", return_value=service), patch.object(
+        quota_service, "consume_ai_conversation"
+    ) as spy_consume:
+        response = await client.post(
+            "/api/v1/agent/suggest",
+            json={"project_id": str(project.id), "count": 3},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["suggestions"] == ["继续写第二章", "补充角色动机", "设计剧情反转"]
+    spy_consume.assert_not_called()
+    assert _read_quota_used(db_session, user.id) == 3
+
+
+@pytest.mark.integration
+async def test_suggest_daily_cap_returns_429(
+    client: AsyncClient, db_session: Session, monkeypatch
+):
+    """独立的每日上限：同一账号当天超过上限后 429，LLM 不再被调用。"""
+    import api.agent as agent_api
+    from middleware.rate_limit import _rate_limit_store
+
+    _user, project, token = await _make_user_and_project(
+        client, db_session, "round3_suggest_daily_cap"
+    )
+    service = _llm_backed_suggest_service(["继续写第二章"])
+    user_key = f"agent_suggest_daily:user_{_user.id}"
+    with patch("agent.suggest_service.get_suggest_service", return_value=service):
+        # 预先把当日窗口填满（小时窗口不受影响）。
+        import time as _time
+
+        _rate_limit_store[user_key] = [_time.time()] * agent_api.SUGGEST_DAILY_MAX_REQUESTS
+        blocked = await client.post(
+            "/api/v1/agent/suggest",
+            json={"project_id": str(project.id), "count": 3},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert blocked.status_code == 429
+    service.generate_suggestions.assert_not_called()
 
 
 @pytest.mark.integration
@@ -198,62 +228,6 @@ async def test_suggest_fallback_remains_available_when_quota_is_exhausted(
         "设计一个情节转折点",
     ]
     assert _read_quota_used(db_session, user.id) == FREE_AI_CONVERSATION_LIMIT
-
-
-@pytest.mark.integration
-async def test_suggest_refunds_quota_when_generation_raises(
-    client: AsyncClient, db_session: Session
-):
-    """生成失败没有产出，预扣的额度必须退回。"""
-    user, project, token = await _make_user_and_project(
-        client, db_session, "round3_suggest_refund"
-    )
-    _set_quota_used(db_session, user.id, 5)
-
-    service = _llm_backed_suggest_service([])
-    service.generate_suggestions = AsyncMock(side_effect=RuntimeError("LLM boom"))
-    # 未处理异常由 LoggingMiddleware 记录堆栈并回 500（带 CORS 与 X-Request-ID），
-    # 同时额度已经被退回（修复前根本不扣费，退款分支也就无从谈起）。
-    with patch("agent.suggest_service.get_suggest_service", return_value=service):
-        response = await client.post(
-            "/api/v1/agent/suggest",
-            json={"project_id": str(project.id), "count": 3},
-            headers={"Authorization": f"Bearer {token}"},
-        )
-    assert response.status_code == 500
-
-    assert _read_quota_used(db_session, user.id) == 5
-
-
-@pytest.mark.integration
-async def test_suggest_refunds_when_only_fallback_returned(
-    client: AsyncClient, db_session: Session
-):
-    """LLM 调用被服务内部吞掉、只返回固定兜底文案时，不应净扣费。"""
-    from agent.suggest_service import FALLBACK_SUGGESTIONS_ZH
-
-    user, project, token = await _make_user_and_project(
-        client, db_session, "round3_suggest_fallback_refund"
-    )
-    _set_quota_used(db_session, user.id, 7)
-
-    service = _llm_backed_suggest_service(list(FALLBACK_SUGGESTIONS_ZH[:3]))
-    service._get_fallback_suggestions = lambda count, language=None: list(
-        FALLBACK_SUGGESTIONS_ZH[:count]
-    )
-    with patch("agent.suggest_service.get_suggest_service", return_value=service), patch.object(
-        quota_service, "release_ai_conversation", wraps=quota_service.release_ai_conversation
-    ) as spy_release:
-        response = await client.post(
-            "/api/v1/agent/suggest",
-            json={"project_id": str(project.id), "count": 3},
-            headers={"Authorization": f"Bearer {token}"},
-        )
-
-    assert response.status_code == 200
-    # 走过「预扣 -> 发现只有兜底文案 -> 退款」的完整链路，净额度不变
-    spy_release.assert_called_once()
-    assert _read_quota_used(db_session, user.id) == 7
 
 
 @pytest.mark.integration
@@ -351,14 +325,27 @@ def test_all_llm_endpoints_have_user_scoped_rate_limit():
 
     for path, expected_max in llm_endpoints.items():
         dependencies = routes_by_path[path].dependant.dependencies
-        rate_limiters = [
-            dep.call
+        rate_limiters = {
+            dep.call.rate_limit_window_seconds: dep.call
             for dep in dependencies
             if getattr(dep.call, "rate_limit_key", None) is not None
-        ]
-        assert len(rate_limiters) == 1, f"{path} 缺少按用户限流依赖"
-        assert rate_limiters[0].rate_limit_max_requests == expected_max
-        assert rate_limiters[0].rate_limit_window_seconds > 0
+        }
+        assert rate_limiters, f"{path} 缺少按用户限流依赖"
+        hourly = rate_limiters.get(3600)
+        assert hourly is not None, f"{path} 缺少小时级按用户限流"
+        assert hourly.rate_limit_max_requests == expected_max
+
+    # /suggest 不扣对话额度，必须另有独立的每日上限。
+    suggest_limiters = [
+        dep.call
+        for dep in routes_by_path["/api/v1/agent/suggest"].dependant.dependencies
+        if getattr(dep.call, "rate_limit_key", None) is not None
+    ]
+    daily = [
+        limiter for limiter in suggest_limiters if limiter.rate_limit_window_seconds == 86400
+    ]
+    assert len(daily) == 1
+    assert daily[0].rate_limit_max_requests == SUGGEST_DAILY_MAX_REQUESTS
 
 
 @pytest.mark.unit

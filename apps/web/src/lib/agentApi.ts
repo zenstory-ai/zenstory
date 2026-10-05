@@ -833,6 +833,12 @@ export async function fetchSuggestions(
         return [];
       }
 
+      // 429：小时限流或每日上限已满。建议只是锦上添花，静默退回空列表，
+      // 不记错误、不打扰用户（调用方会显示本地兜底建议）。
+      if (response.status === 429) {
+        return [];
+      }
+
       if (!response.ok) {
         logger.error("Failed to fetch suggestions:", response.status);
         return [];

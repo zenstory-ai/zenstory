@@ -7,8 +7,9 @@ Provides FastAPI router for agent endpoints:
 - POST /api/v1/agent/suggest - Generate intelligent next-step suggestions
 - POST /api/v1/agent/steer - Inject steering message into a running session
 
-计费/限流约定：所有会触发 LLM 的端点都必须同时具备「鉴权 + 项目权限 + 配额 + 按用户限流」，
-新增端点时请照此对齐，不要只做鉴权。
+计费/限流约定：所有会触发 LLM 的端点都必须同时具备「鉴权 + 项目权限 + 成本上限 + 按用户限流」，
+新增端点时请照此对齐，不要只做鉴权。/stream 的成本上限是 AI 对话额度；/suggest 由前端
+自动触发，不占对话额度，改用独立的每日上限；/steer 归属所在 /stream 的那次额度。
 """
 
 import asyncio
@@ -19,7 +20,8 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from pydantic_core import PydanticCustomError
 from services.auth import get_current_active_user
 from sqlmodel import Session
 
@@ -50,6 +52,10 @@ STREAM_RATE_LIMIT_MAX_REQUESTS = 60
 STREAM_RATE_LIMIT_WINDOW_SECONDS = 3600
 SUGGEST_RATE_LIMIT_MAX_REQUESTS = 30
 SUGGEST_RATE_LIMIT_WINDOW_SECONDS = 3600
+# /suggest 不扣 AI 对话额度，改用独立的每日上限兜住成本（与小时限流同一套
+# Redis/内存后端）。前端每轮对话结束最多自动请求一次。
+SUGGEST_DAILY_MAX_REQUESTS = 100
+SUGGEST_DAILY_WINDOW_SECONDS = 86400
 STEER_RATE_LIMIT_MAX_REQUESTS = 120
 STEER_RATE_LIMIT_WINDOW_SECONDS = 3600
 
@@ -84,70 +90,43 @@ def _release_ai_conversation_sync(user_id: str) -> bool:
         return quota_service.release_ai_conversation(quota_session, user_id)
 
 
-async def _refund_ai_conversation(
-    session: Session,
-    user_id: str,
-    *,
-    project_id: str,
-    reason: str,
-) -> bool:
-    """退还一次已预扣的 AI 对话额度，失败只记日志不影响主流程。"""
-    try:
-        if _should_offload_session_work(session):
-            return await asyncio.to_thread(_release_ai_conversation_sync, user_id)
-        # 失败的事务可能让共享 session 处于 PendingRollback 状态，先复位再补偿，
-        # 否则退款会静默失效、用户被多扣一次。
-        with contextlib.suppress(Exception):
-            session.rollback()
-        return quota_service.release_ai_conversation(session, user_id)
-    except Exception as refund_error:
-        log_with_context(
-            logger,
-            30,  # WARNING
-            "Failed to refund AI conversation quota",
-            user_id=user_id,
-            project_id=project_id,
-            reason=reason,
-            error=str(refund_error),
-            error_type=type(refund_error).__name__,
-        )
-        return False
-
-
-def _is_pure_fallback_suggestion(
-    service: Any,
-    suggestions: list[str],
-    count: int,
-    language: str,
-) -> bool:
-    """判断结果是否完全等于固定兜底文案。
-
-    SuggestService 会吞掉 LLM 超时/解析失败并退化成固定文案，这种「没有真实产出」
-    的调用不应扣费（与 /stream 的失败退款口径一致）。
-    """
-    getter = getattr(service, "_get_fallback_suggestions", None)
-    if not callable(getter):
-        return False
-    try:
-        fallback = getter(count, language)
-    except Exception:
-        return False
-    return isinstance(fallback, list) and list(suggestions) == fallback
-
-
 # ==================== Request Models ====================
+
+
+# 请求体大小上限：message / selected_text 会原样拼进 router 与每一轮 agent 的输入，
+# 不设上限时一次请求就能塞进十万级 token。前端 src/lib/agentLimits.ts 的
+# MAX_AGENT_MESSAGE_CHARS 必须与 AGENT_MESSAGE_MAX_CHARS 保持一致。
+AGENT_MESSAGE_MAX_CHARS = 20000
+AGENT_SELECTED_TEXT_MAX_CHARS = 50000
+# metadata 里的列表型附件（附加文件、素材库条目、引用片段）每类最多条数。
+AGENT_METADATA_MAX_LIST_ITEMS = 20
+# metadata 整体序列化后的字符上限（引用片段会带正文）。
+AGENT_METADATA_MAX_CHARS = 100000
+_AGENT_METADATA_LIST_KEYS = (
+    "attached_file_ids",
+    "attached_library_materials",
+    "text_quotes",
+)
 
 
 class AgentRequest(BaseModel):
     """Request body for agent processing."""
 
     project_id: str = Field(..., description="Project ID (UUID)")
-    message: str = Field(..., description="User message")
+    message: str = Field(
+        ...,
+        max_length=AGENT_MESSAGE_MAX_CHARS,
+        description="User message",
+    )
     session_id: str | None = Field(
         default=None,
         description="Optional session ID for steering continuity",
     )
-    selected_text: str | None = Field(default=None, description="Selected text")
+    selected_text: str | None = Field(
+        default=None,
+        max_length=AGENT_SELECTED_TEXT_MAX_CHARS,
+        description="Selected text",
+    )
     metadata: dict[str, Any] = Field(
         default_factory=dict, description="Additional metadata"
     )
@@ -159,6 +138,34 @@ class AgentRequest(BaseModel):
             "(UserSkill.id / UserAddedSkill.id); their full instructions are injected"
         ),
     )
+
+
+    @field_validator("metadata")
+    @classmethod
+    def _bound_metadata(cls, value: dict[str, Any]) -> dict[str, Any]:
+        for key in _AGENT_METADATA_LIST_KEYS:
+            items = value.get(key)
+            if isinstance(items, list) and len(items) > AGENT_METADATA_MAX_LIST_ITEMS:
+                raise PydanticCustomError(
+                    "metadata_too_many_items",
+                    "metadata.{key} allows at most {limit} items",
+                    {"key": key, "limit": AGENT_METADATA_MAX_LIST_ITEMS},
+                )
+        try:
+            serialized_length = len(json.dumps(value, ensure_ascii=False, default=str))
+        except (TypeError, ValueError) as exc:
+            raise PydanticCustomError(
+                "metadata_not_serializable", "metadata must be JSON serializable"
+            ) from exc
+        if serialized_length > AGENT_METADATA_MAX_CHARS:
+            # PydanticCustomError 而非 ValueError：后者会把异常对象放进 422 的
+            # errors[].ctx，JSON 序列化失败后整个响应变成 500。
+            raise PydanticCustomError(
+                "metadata_too_large",
+                "metadata exceeds {limit} characters",
+                {"limit": AGENT_METADATA_MAX_CHARS},
+            )
+        return value
 
 
 class SuggestRequest(BaseModel):
@@ -486,6 +493,13 @@ async def suggest_next_action(
             SUGGEST_RATE_LIMIT_WINDOW_SECONDS,
         )
     ),
+    _daily_limit: int = Depends(
+        require_user_rate_limit(
+            "agent_suggest_daily",
+            SUGGEST_DAILY_MAX_REQUESTS,
+            SUGGEST_DAILY_WINDOW_SECONDS,
+        )
+    ),
 ):
     """
     Generate intelligent next-step suggestions.
@@ -493,6 +507,9 @@ async def suggest_next_action(
     Returns multiple short suggestions (~15 characters each) based on:
     - Project context (outlines, characters, lores)
     - Recent conversation history
+
+    计费：建议由前端自动触发，不占用户的 AI 对话额度（ai_conversations）；
+    成本由按用户的小时限流 + 独立的每日上限兜住，超限返回 429。
     """
     user_id = current_user.id
     from agent.suggest_service import get_suggest_service
@@ -514,77 +531,14 @@ async def suggest_next_action(
     service = get_suggest_service()
     lang = (accept_language or "").split(",")[0].split("-")[0].strip().lower() or "zh"
 
-    # 只有真正持有 LLM 客户端时才扣费：未配置 API Key 的环境（本地/e2e）里
-    # SuggestService.llm 为 None，直接返回固定兜底文案，不产生任何厂商成本，
-    # 此时扣额度等于平白吃掉用户配额。
-    llm_backed = getattr(service, "llm", None) is not None
-    consumed = False
-
-    if llm_backed:
-        # Only provider-backed suggestions need quota. A service without an LLM
-        # returns local fixed text and must remain available at exhausted quota.
-        if _should_offload_session_work(session):
-            allowed, used, limit = await asyncio.to_thread(
-                _check_ai_conversation_quota_sync,
-                user_id,
-            )
-        else:
-            allowed, used, limit = quota_service.check_ai_conversation_quota(
-                session, user_id
-            )
-        if not allowed:
-            raise APIException(
-                error_code=ErrorCode.QUOTA_AI_CONVERSATIONS_EXCEEDED,
-                status_code=402,
-                detail=(
-                    f"AI conversation quota exceeded ({used}/{limit}). "
-                    "Please upgrade your plan."
-                ),
-            )
-
-        # 调用前预扣，避免并发请求越过上面的预检把额度打穿。
-        if _should_offload_session_work(session):
-            consumed = await asyncio.to_thread(
-                _consume_ai_conversation_sync,
-                user_id,
-            )
-        else:
-            consumed = quota_service.consume_ai_conversation(session, user_id)
-        if not consumed:
-            raise APIException(
-                error_code=ErrorCode.QUOTA_AI_CONVERSATIONS_EXCEEDED,
-                status_code=402,
-                detail=f"AI conversation quota exceeded ({used}/{limit}). Please upgrade your plan.",
-            )
-
-    try:
-        suggestions = await service.generate_suggestions(
-            session=session,
-            project_id=body.project_id,
-            user_id=user_id,
-            recent_messages=body.recent_messages,
-            count=body.count,
-            language=lang,
-        )
-    except Exception:
-        # 生成失败（超时/上游异常）没有产出，退还预扣的额度后原样抛出。
-        if consumed:
-            await _refund_ai_conversation(
-                session,
-                user_id,
-                project_id=body.project_id,
-                reason="suggest_exception",
-            )
-        raise
-
-    # 结果完全等于兜底文案 => LLM 调用失败被内部吞掉，没有真实产出，退款。
-    if consumed and _is_pure_fallback_suggestion(service, suggestions, body.count, lang):
-        consumed = not await _refund_ai_conversation(
-            session,
-            user_id,
-            project_id=body.project_id,
-            reason="suggest_fallback_only",
-        )
+    suggestions = await service.generate_suggestions(
+        session=session,
+        project_id=body.project_id,
+        user_id=user_id,
+        recent_messages=body.recent_messages,
+        count=body.count,
+        language=lang,
+    )
 
     log_with_context(
         logger,
@@ -592,7 +546,6 @@ async def suggest_next_action(
         "suggest_next_action completed",
         project_id=body.project_id,
         suggestion_count=len(suggestions),
-        quota_charged=consumed,
     )
 
     return SuggestResponse(suggestions=suggestions)

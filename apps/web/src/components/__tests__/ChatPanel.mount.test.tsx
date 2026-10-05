@@ -203,6 +203,7 @@ vi.mock('../../lib/toast', () => ({
 
 import { ChatPanel } from '../ChatPanel'
 import { getRecentMessages } from '../../lib/chatApi'
+import { fetchSuggestions } from '../../lib/agentApi'
 import { toast } from '../../lib/toast'
 
 describe('ChatPanel mount smoke', () => {
@@ -215,6 +216,7 @@ describe('ChatPanel mount smoke', () => {
     mockAgentStreamState.thinkingContent = ''
     mockAgentStreamState.error = null
     mockAgentStreamState.errorCode = null
+    localStorage.removeItem('zenstory_suggestions_cache_project-1')
   })
 
   it('mounts without runtime initialization errors', async () => {
@@ -428,5 +430,80 @@ describe('ChatPanel mount smoke', () => {
     expect(vi.mocked(toast.success)).toHaveBeenCalledWith(
       '已切换到快速模式：更快出结果（可能更简略）',
     )
+  })
+
+  it('uses cached suggestions on open without refetching in the background', async () => {
+    localStorage.setItem(
+      'zenstory_suggestions_cache_project-1',
+      JSON.stringify({ suggestions: ['继续写第二章'], updatedAt: Date.now() }),
+    )
+
+    render(<ChatPanel />)
+
+    await waitFor(() => {
+      expect(vi.mocked(getRecentMessages)).toHaveBeenCalled()
+    })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    })
+
+    expect(vi.mocked(fetchSuggestions)).not.toHaveBeenCalled()
+  })
+
+  it('does not poll suggestions while the user is idle', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      vi.mocked(getRecentMessages).mockResolvedValueOnce([
+        {
+          id: 'msg-idle-1',
+          session_id: 'session-1',
+          role: 'assistant',
+          content: '上一轮的回复',
+          tool_calls: null,
+          created_at: '2026-10-05T10:00:00Z',
+          metadata: null,
+        },
+      ] as never)
+
+      render(<ChatPanel />)
+
+      await waitFor(() => {
+        expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(1)
+      })
+
+      await act(async () => {
+        vi.advanceTimersByTime(30000)
+      })
+
+      expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('requests suggestions once after a completed turn', async () => {
+    localStorage.setItem(
+      'zenstory_suggestions_cache_project-1',
+      JSON.stringify({ suggestions: ['继续写第二章'], updatedAt: Date.now() }),
+    )
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      render(<ChatPanel />)
+      await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+
+      const options = capturedUseAgentStream.options as {
+        onComplete: (segments: unknown[], action: unknown) => Promise<void>
+      }
+      await act(async () => {
+        await options.onComplete([{ type: 'content', id: 'turn-1', content: '第一章写好了' }], null)
+      })
+      await act(async () => {
+        vi.advanceTimersByTime(20000)
+      })
+
+      expect(vi.mocked(fetchSuggestions)).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
