@@ -739,9 +739,16 @@ export interface Skill {
   is_active: boolean;
   /** Number of bundled resource files (references/, assets/) */
   resource_count?: number;
+  /** Review status of the public copy after sharing; null when not shared */
+  share_status?: SkillShareStatus | null;
   created_at?: string;
   updated_at?: string;
 }
+
+/**
+ * Review status of a shared user skill's public copy
+ */
+export type SkillShareStatus = "pending" | "approved" | "unpublished";
 
 /**
  * A text resource file bundled with a skill (under references/ or assets/)
@@ -818,7 +825,7 @@ export interface DailyUsageItem {
 /**
  * Public skill status
  */
-export type PublicSkillStatus = "pending" | "approved" | "rejected";
+export type PublicSkillStatus = "pending" | "approved" | "rejected" | "unpublished";
 
 /**
  * Public skill source
@@ -842,6 +849,8 @@ export interface PublicSkill {
   add_count: number;
   created_at: string;
   is_added?: boolean;
+  /** List responses carry only a preview of `instructions`; true when it was cut */
+  instructions_truncated?: boolean;
 }
 
 /**

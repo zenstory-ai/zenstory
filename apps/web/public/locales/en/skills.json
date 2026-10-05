@@ -58,7 +58,8 @@
     "triggersHint": "Personal tags for organizing your skills; they don't affect when the AI uses the skill. Separate with commas",
     "instructions": "Instructions",
     "instructionsPlaceholder": "When the AI loads this skill, it follows these instructions...",
-    "instructionsHint": "Supports Markdown format: headings, lists, code blocks, etc."
+    "instructionsHint": "Supports Markdown format: headings, lists, code blocks, etc.",
+    "triggersTooLong": "Up to {{count}} triggers, each at most {{max}} characters"
   },
   "deleteConfirm": {
     "title": "Delete Skill",
@@ -137,5 +138,20 @@
       "saveFailed": "Failed to save the file",
       "deleteFailed": "Failed to delete the file"
     }
+  },
+  "loadMore": "Load more",
+  "shareStatus": {
+    "pending": "In review",
+    "approved": "Public",
+    "unpublished": "Unpublished"
+  },
+  "errors": {
+    "saveFailed": "Failed to save the skill. Please try again.",
+    "addFailed": "Failed to add the skill. Please try again.",
+    "deleteFailed": "Failed to delete the skill. Please try again.",
+    "removeFailed": "Failed to remove the skill. Please try again.",
+    "batchDeleteFailed": "Failed to delete the selected skills. Please try again.",
+    "loadMoreFailed": "Failed to load more skills. Please try again.",
+    "detailFailed": "Failed to load the skill details. Please try again."
   }
 }
