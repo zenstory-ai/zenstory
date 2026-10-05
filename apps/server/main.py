@@ -22,7 +22,7 @@ check_pyexpat()
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from api.admin import router as admin_router
@@ -64,7 +64,9 @@ from core.error_handler import (
     validation_exception_handler,
 )
 from database import init_db
+from middleware.body_size_limit import BodySizeLimitMiddleware
 from middleware.logging_middleware import LoggingMiddleware
+from services.infra.readiness_service import check_readiness
 from services.skill_md_service import skill_md_service
 from utils.logger import get_logger, log_with_context
 
@@ -102,7 +104,11 @@ app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(IntegrityError, integrity_error_handler)
 app.add_exception_handler(Exception, general_exception_handler)
 
-# Register logging middleware
+# Middleware order: the last one added is the outermost, so requests flow
+# CORS -> Logging -> BodySizeLimit -> app. Logging sits inside CORS so even
+# 500s it produces carry CORS headers, and outside the body limit so 413s are
+# logged with a request id.
+app.add_middleware(BodySizeLimitMiddleware)
 app.add_middleware(LoggingMiddleware)
 
 # Configure CORS
@@ -129,6 +135,9 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Let the browser read correlation ids so feedback reports can be matched
+    # to server logs.
+    expose_headers=["X-Request-ID", "X-Trace-ID", "X-Agent-Run-ID"],
 )
 
 if is_production_like and not all_origins:
@@ -183,8 +192,15 @@ def read_root():
 # Health check endpoint
 @app.get("/health")
 def health_check():
-    """Health check endpoint for monitoring."""
+    """Liveness check for the Railway deploy healthcheck; touches no dependency."""
     return {"status": "healthy"}
+
+
+@app.get("/health/ready")
+async def readiness_check():
+    """Readiness check: database and (when configured) Redis, with short timeouts."""
+    ready, payload = await check_readiness()
+    return JSONResponse(status_code=200 if ready else 503, content=payload)
 
 
 # SKILL.md endpoint (public, no authentication required)

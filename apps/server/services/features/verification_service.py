@@ -3,6 +3,7 @@ Verification code service for managing email verification flow.
 
 Handles generation, storage, and validation of verification codes.
 """
+import asyncio
 import os
 import secrets
 
@@ -63,9 +64,11 @@ async def send_verification_code(email: str, language: str = "zh") -> tuple[bool
     email = normalize_email_identity(email)
 
     try:
+        # Redis calls are synchronous (2s socket timeouts); run them in a
+        # worker thread so a slow Redis cannot stall the event loop.
         # Check resend cooldown
-        if check_resend_cooldown(email, RESEND_COOLDOWN):
-            cooldown_seconds = get_remaining_cooldown(email)
+        if await asyncio.to_thread(check_resend_cooldown, email, RESEND_COOLDOWN):
+            cooldown_seconds = await asyncio.to_thread(get_remaining_cooldown, email)
             message = get_message("verification_resend_cooldown", language)
             return False, message.format(cooldown_seconds=cooldown_seconds)
 
@@ -73,14 +76,14 @@ async def send_verification_code(email: str, language: str = "zh") -> tuple[bool
         code = generate_verification_code(VERIFICATION_CODE_LENGTH)
 
         # Store code in Redis
-        if not store_verification_code(email, code, VERIFICATION_CODE_TTL):
+        if not await asyncio.to_thread(store_verification_code, email, code, VERIFICATION_CODE_TTL):
             return False, get_message("verification_send_failed", language)
 
         # Set resend cooldown
-        set_resend_cooldown(email, RESEND_COOLDOWN)
+        await asyncio.to_thread(set_resend_cooldown, email, RESEND_COOLDOWN)
 
         # Reset attempts counter
-        reset_verification_attempts(email)
+        await asyncio.to_thread(reset_verification_attempts, email)
 
         # Send email
         expiry_minutes = VERIFICATION_CODE_TTL // 60
@@ -89,8 +92,8 @@ async def send_verification_code(email: str, language: str = "zh") -> tuple[bool
         if not email_sent:
             # Delete retry state if email failed so users who never received
             # a code can immediately request another one.
-            delete_verification_code(email)
-            delete_resend_cooldown(email)
+            await asyncio.to_thread(delete_verification_code, email)
+            await asyncio.to_thread(delete_resend_cooldown, email)
             return False, get_message("verification_email_failed", language)
 
         return True, None
@@ -123,12 +126,12 @@ async def verify_code(email: str, code: str, language: str = "zh") -> tuple[bool
 
     try:
         # Check attempts limit
-        attempts = get_verification_attempts(email)
+        attempts = await asyncio.to_thread(get_verification_attempts, email)
         if attempts >= MAX_VERIFICATION_ATTEMPTS:
             return False, get_message("verification_too_many_attempts", language)
 
         # Get stored code
-        stored_code = get_verification_code(email)
+        stored_code = await asyncio.to_thread(get_verification_code, email)
 
         if not stored_code:
             return False, get_message("verification_not_exist", language)
@@ -136,14 +139,14 @@ async def verify_code(email: str, code: str, language: str = "zh") -> tuple[bool
         # Verify code
         if code != stored_code:
             # Increment attempts
-            increment_verification_attempts(email, MAX_VERIFICATION_ATTEMPTS)
+            await asyncio.to_thread(increment_verification_attempts, email, MAX_VERIFICATION_ATTEMPTS)
             remaining_attempts = MAX_VERIFICATION_ATTEMPTS - (attempts + 1)
             message = get_message("verification_incorrect", language)
             return False, message.format(count=remaining_attempts)
 
         # Code is correct, delete it
-        delete_verification_code(email)
-        reset_verification_attempts(email)
+        await asyncio.to_thread(delete_verification_code, email)
+        await asyncio.to_thread(reset_verification_attempts, email)
 
         return True, None
 

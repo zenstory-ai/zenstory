@@ -415,18 +415,29 @@ async def test_general_exception_handler_logging(client: AsyncClient, db_session
 
     try:
         with caplog.at_level(logging.ERROR):
-            # The exception will be logged and re-raised by middleware
-            with pytest.raises(ValueError):
-                await client.get(
-                    "/test-general-exception",
-                    headers={"Authorization": f"Bearer {token}"},
-                )
+            # LoggingMiddleware answers with a generic 500 instead of letting
+            # the exception escape past CORS.
+            response = await client.get(
+                "/test-general-exception",
+                headers={"Authorization": f"Bearer {token}"},
+            )
 
-        # Verify error handler logging contains error details
+        assert response.status_code == 500
+        request_id = response.headers.get("x-request-id")
+        assert request_id
+        assert response.json() == {
+            "detail": "ERR_INTERNAL_SERVER_ERROR",
+            "error_code": "ERR_INTERNAL_SERVER_ERROR",
+            "request_id": request_id,
+        }
+
+        # The stack-carrying log line is correlated with the request.
         assert any(
-            "Unhandled exception" in record.message
+            "Exception occurred" in record.message
             and record.custom_fields.get("error_type") == "ValueError"
-            and "Something went terribly wrong" in record.custom_fields.get("error_message", "")
+            and "Something went terribly wrong" in record.custom_fields.get("error", "")
+            and record.custom_fields.get("request_id") == request_id
+            and record.exc_info is not None
             for record in caplog.records
         ), f"Expected error log in: {[r.message for r in caplog.records]}"
 
@@ -473,16 +484,15 @@ async def test_general_exception_with_different_error_types(
 
     try:
         with caplog.at_level(logging.ERROR):
-            # The exception will be logged and re-raised by middleware
-            with pytest.raises(KeyError):
-                await client.get(
-                    "/test-key-error",
-                    headers={"Authorization": f"Bearer {token}"},
-                )
+            response = await client.get(
+                "/test-key-error",
+                headers={"Authorization": f"Bearer {token}"},
+            )
 
-        # Verify error handler logged KeyError
+        assert response.status_code == 500
+        # Verify the middleware logged the KeyError
         assert any(
-            "Unhandled exception" in record.message
+            "Exception occurred" in record.message
             and record.custom_fields.get("error_type") == "KeyError"
             for record in caplog.records
         ), f"Expected KeyError log in: {[r.message for r in caplog.records]}"
