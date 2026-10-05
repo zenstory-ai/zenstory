@@ -168,7 +168,8 @@ export default function PricingPage() {
       setShowPaymentModal(true);
       return;
     }
-    sessionStorage.setItem("payment_cycle_intent", billingCycle);
+    // Persist only this public UI preference, never payment details or credentials.
+    sessionStorage.setItem("payment_cycle_intent", billingCycle === "year" ? "year" : "month");
     if (authConfig.registrationEnabled) {
       navigate(withAttributionSource("/register?plan=pro"));
       return;
