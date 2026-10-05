@@ -5,7 +5,8 @@ import { LazyMarkdown } from "../components/LazyMarkdown";
 import { Plus, Pencil, Trash2, Zap, Check, ChevronDown, ChevronUp, BarChart3, Share2, Compass, MinusCircle, Search, Square, CheckSquare, Download, Upload, AlertTriangle } from "../components/icons";
 import { skillsApi, publicSkillsApi } from "../lib/api";
 import { ApiError } from "../lib/apiClient";
-import type { Skill, AddedSkill, CreateSkillRequest, UpdateSkillRequest, PublicSkill, SkillCategory } from "../types";
+import type { Skill, AddedSkill, CreateSkillRequest, UpdateSkillRequest, PublicSkill, SkillCategory, SkillShareStatus } from "../types";
+import { PUBLIC_SKILLS_PAGE_SIZE, PUBLIC_SKILLS_SEARCH_DEBOUNCE_MS, SKILL_FIELD_LIMITS } from "../config/skills";
 import { useIsMobile } from "../hooks/useMediaQuery";
 import { useProject } from "../contexts/ProjectContext";
 import { SkillStatsDialog } from "../components/SkillStatsDialog";
@@ -107,8 +108,14 @@ export default function SkillsPage() {
   const [publicSkills, setPublicSkills] = useState<PublicSkill[]>([]);
   const [categories, setCategories] = useState<SkillCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("");
+  // searchInput 是输入框里的原文；searchQuery 是防抖（并且等输入法组字结束）之后真正用来查询的词
+  const [searchInput, setSearchInput] = useState("");
+  const [isSearchComposing, setIsSearchComposing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [discoverLoading, setDiscoverLoading] = useState(false);
+  const [loadingMorePublic, setLoadingMorePublic] = useState(false);
+  const [publicTotal, setPublicTotal] = useState(0);
+  const [publicPage, setPublicPage] = useState(1);
   const [addingId, setAddingId] = useState<string | null>(null);
   const [addedPublicIds, setAddedPublicIds] = useState<Set<string>>(new Set());
   const publicSkillsRequestRef = useRef(0);
@@ -145,16 +152,30 @@ export default function SkillsPage() {
     }
   }, []);
 
-  const loadPublicSkills = useCallback(async () => {
+  /** Returns false when the request failed (stale responses count as handled). */
+  const loadPublicSkills = useCallback(async (page = 1): Promise<boolean> => {
     const requestId = ++publicSkillsRequestRef.current;
-    setDiscoverLoading(true);
+    if (page === 1) {
+      setDiscoverLoading(true);
+    } else {
+      setLoadingMorePublic(true);
+    }
     try {
       const response = await publicSkillsApi.list({
         category: selectedCategory || undefined,
         search: searchQuery || undefined,
+        page,
+        page_size: PUBLIC_SKILLS_PAGE_SIZE,
       });
-      if (requestId !== publicSkillsRequestRef.current) return;
-      setPublicSkills(response.skills);
+      if (requestId !== publicSkillsRequestRef.current) return true;
+      setPublicSkills((prev) => {
+        if (page === 1) return response.skills;
+        // 排序依据（添加次数）在两次请求之间可能变化，按 id 去重避免同一技能出现两次
+        const seen = new Set(prev.map((skill) => skill.id));
+        return [...prev, ...response.skills.filter((skill) => !seen.has(skill.id))];
+      });
+      setPublicTotal(response.total);
+      setPublicPage(page);
       setAddedPublicIds((prev) => {
         const merged = new Set(prev);
         response.skills
@@ -162,15 +183,30 @@ export default function SkillsPage() {
           .forEach((skill) => merged.add(skill.id));
         return merged;
       });
+      return true;
     } catch (error) {
-      if (requestId !== publicSkillsRequestRef.current) return;
+      if (requestId !== publicSkillsRequestRef.current) return true;
       logger.error("Failed to load public skills:", error);
+      return false;
     } finally {
       if (requestId === publicSkillsRequestRef.current) {
         setDiscoverLoading(false);
+        setLoadingMorePublic(false);
       }
     }
   }, [selectedCategory, searchQuery]);
+
+  const handleLoadMorePublic = async () => {
+    const ok = await loadPublicSkills(publicPage + 1);
+    if (!ok) {
+      toast.error(t("skills:errors.loadMoreFailed"));
+    }
+  };
+
+  const showSkillError = useCallback((error: unknown, fallbackKey: string) => {
+    // ApiError.message 已经是翻译过的后端错误（含 error_detail 原因）；其他错误用本地化兜底文案
+    toast.error(error instanceof Error && error.message ? error.message : t(fallbackKey));
+  }, [t]);
 
   // Categories are independent metadata; the list effect below owns list loading.
   useEffect(() => {
@@ -187,9 +223,18 @@ export default function SkillsPage() {
   // Reload public skills when search or category changes
   useEffect(() => {
     if (activeTab === "discover") {
-      loadPublicSkills();
+      void loadPublicSkills(1);
     }
   }, [selectedCategory, searchQuery, activeTab, loadPublicSkills]);
+
+  // Debounce the discover search box; never query with half-composed IME text.
+  useEffect(() => {
+    if (isSearchComposing) return;
+    const next = searchInput.trim();
+    if (next === searchQuery) return;
+    const timer = setTimeout(() => setSearchQuery(next), PUBLIC_SKILLS_SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [searchInput, isSearchComposing, searchQuery]);
 
   // Debounced search for my skills (300ms)
   useEffect(() => {
@@ -244,6 +289,7 @@ export default function SkillsPage() {
       }
     } catch (error) {
       logger.error("Failed to add skill:", error);
+      showSkillError(error, "skills:errors.addFailed");
     } finally {
       setAddingId(null);
     }
@@ -269,17 +315,28 @@ export default function SkillsPage() {
   const handleSave = async () => {
     if (!formData.name.trim() || !formData.instructions.trim()) return;
 
+    const triggers = formData.triggers
+      .split(",")
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+    if (
+      triggers.length > SKILL_FIELD_LIMITS.triggers ||
+      triggers.some((trigger) => trigger.length > SKILL_FIELD_LIMITS.trigger)
+    ) {
+      toast.error(t("skills:form.triggersTooLong", {
+        count: SKILL_FIELD_LIMITS.triggers,
+        max: SKILL_FIELD_LIMITS.trigger,
+      }));
+      return;
+    }
+
     setSaving(true);
     try {
-      const triggers = formData.triggers
-        .split(",")
-        .map((t) => t.trim())
-        .filter((t) => t.length > 0);
-
       if (editingSkill) {
         const updateData: UpdateSkillRequest = {
           name: formData.name,
-          description: formData.description || undefined,
+          // 编辑时原样发送（含空字符串），清空描述才能生效
+          description: formData.description,
           triggers,
           instructions: formData.instructions,
         };
@@ -306,6 +363,8 @@ export default function SkillsPage() {
         skillCreateUpgradePrompt.surface === "modal"
       ) {
         setShowSkillCreateUpgradeModal(true);
+      } else {
+        showSkillError(error, "skills:errors.saveFailed");
       }
     } finally {
       setSaving(false);
@@ -319,6 +378,7 @@ export default function SkillsPage() {
       setDeletingId(null);
     } catch (error) {
       logger.error("Failed to delete skill:", error);
+      showSkillError(error, "skills:errors.deleteFailed");
     }
   };
 
@@ -385,6 +445,7 @@ export default function SkillsPage() {
       await loadSkills();
     } catch (error) {
       logger.error("Failed to remove skill:", error);
+      showSkillError(error, "skills:errors.removeFailed");
     } finally {
       setRemovingId(null);
     }
@@ -430,6 +491,7 @@ export default function SkillsPage() {
       setBatchDeleting(false);
     } catch (error) {
       logger.error("Failed to batch delete:", error);
+      showSkillError(error, "skills:errors.batchDeleteFailed");
     } finally {
       setBatchOperating(false);
     }
@@ -521,9 +583,13 @@ export default function SkillsPage() {
           categories={categories}
           selectedCategory={selectedCategory}
           setSelectedCategory={setSelectedCategory}
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
+          searchQuery={searchInput}
+          setSearchQuery={setSearchInput}
+          onSearchCompositionChange={setIsSearchComposing}
           loading={discoverLoading}
+          loadingMore={loadingMorePublic}
+          hasMore={publicSkills.length < publicTotal}
+          onLoadMore={() => void handleLoadMorePublic()}
           addingId={addingId}
           addedPublicIds={addedPublicIds}
           onAdd={handleAddPublicSkill}
@@ -568,7 +634,9 @@ export default function SkillsPage() {
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               className="input"
               placeholder={t("skills:form.namePlaceholder")}
+              maxLength={SKILL_FIELD_LIMITS.name}
             />
+            <CharCount value={formData.name} max={SKILL_FIELD_LIMITS.name} />
           </div>
 
           <div>
@@ -581,7 +649,9 @@ export default function SkillsPage() {
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className="input"
               placeholder={t("skills:form.descriptionPlaceholder")}
+              maxLength={SKILL_FIELD_LIMITS.description}
             />
+            <CharCount value={formData.description} max={SKILL_FIELD_LIMITS.description} />
           </div>
 
           <div>
@@ -609,10 +679,14 @@ export default function SkillsPage() {
               onChange={(e) => setFormData({ ...formData, instructions: e.target.value })}
               className="input min-h-[120px] resize-y font-mono text-sm"
               placeholder={t("skills:form.instructionsPlaceholder")}
+              maxLength={SKILL_FIELD_LIMITS.instructions}
             />
-            <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1">
-              {t("skills:form.instructionsHint")}
-            </p>
+            <div className="flex items-start justify-between gap-3 mt-1">
+              <p className="text-xs text-[hsl(var(--text-tertiary))]">
+                {t("skills:form.instructionsHint")}
+              </p>
+              <CharCount value={formData.instructions} max={SKILL_FIELD_LIMITS.instructions} inline />
+            </div>
           </div>
 
           {editingSkill ? (
@@ -800,6 +874,7 @@ function SkillCard({
                 {t("skills:readonly")}
               </span>
             )}
+            {skill.share_status && <ShareStatusBadge status={skill.share_status} />}
           </div>
           {skill.description && (
             <p className={`text-[hsl(var(--text-secondary))] mb-2.5 line-clamp-2 ${isMobile ? "text-xs" : "text-sm"}`}>
@@ -1251,7 +1326,11 @@ function DiscoverContent({
   setSelectedCategory,
   searchQuery,
   setSearchQuery,
+  onSearchCompositionChange,
   loading,
+  loadingMore,
+  hasMore,
+  onLoadMore,
   addingId,
   addedPublicIds,
   onAdd,
@@ -1263,7 +1342,11 @@ function DiscoverContent({
   setSelectedCategory: (cat: string) => void;
   searchQuery: string;
   setSearchQuery: (q: string) => void;
+  onSearchCompositionChange: (composing: boolean) => void;
   loading: boolean;
+  loadingMore: boolean;
+  hasMore: boolean;
+  onLoadMore: () => void;
   addingId: string | null;
   addedPublicIds: Set<string>;
   onAdd: (id: string) => void;
@@ -1290,8 +1373,14 @@ function DiscoverContent({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onCompositionStart={() => onSearchCompositionChange(true)}
+            onCompositionEnd={(e) => {
+              onSearchCompositionChange(false);
+              setSearchQuery(e.currentTarget.value);
+            }}
             placeholder={t("searchPlaceholder")}
             className="input pl-10 w-full"
+            data-testid="public-skill-search"
           />
         </div>
         <DashboardFilterPills
@@ -1325,6 +1414,21 @@ function DiscoverContent({
           ))}
         </div>
       )}
+
+      {!loading && hasMore && (
+        <div className="flex justify-center mt-6">
+          <button
+            onClick={onLoadMore}
+            disabled={loadingMore}
+            className="btn-ghost h-10 px-5 flex items-center gap-2 disabled:opacity-50"
+          >
+            {loadingMore && (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+            )}
+            {t("loadMore")}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1345,6 +1449,26 @@ function PublicSkillCard({
 }) {
   const { t } = useTranslation(["skills"]);
   const [expanded, setExpanded] = useState(false);
+  const [fullInstructions, setFullInstructions] = useState<string | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+
+  const handleToggleExpanded = async () => {
+    const next = !expanded;
+    setExpanded(next);
+    // 列表只带正文预览；展开时再取完整正文
+    if (!next || !skill.instructions_truncated || fullInstructions !== null) return;
+    setLoadingDetail(true);
+    try {
+      const detail = await publicSkillsApi.get(skill.id);
+      setFullInstructions(detail.instructions);
+    } catch (error) {
+      logger.error("Failed to load public skill detail:", error);
+      toast.error(error instanceof Error && error.message ? error.message : t("skills:errors.detailFailed"));
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+  const instructions = fullInstructions ?? skill.instructions;
 
   return (
     <div className={`flex flex-col h-full bg-[hsl(var(--bg-primary))] rounded-xl border border-[hsl(var(--border-color))] hover:border-[hsl(var(--border-color)/0.8)] hover:shadow-sm transition-all ${isMobile ? "p-3" : "p-5"}`}>
@@ -1371,7 +1495,7 @@ function PublicSkillCard({
       {/* Footer - pushed to bottom */}
       <div className="flex items-center justify-between mt-auto pt-3 border-t border-[hsl(var(--border-color)/0.5)]">
         <button
-          onClick={() => setExpanded(!expanded)}
+          onClick={() => void handleToggleExpanded()}
           className="text-xs text-[hsl(var(--text-tertiary))] hover:text-[hsl(var(--text-secondary))] flex items-center gap-1 transition-colors"
         >
           {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
@@ -1403,13 +1527,52 @@ function PublicSkillCard({
       </div>
 
       {/* Expanded instructions */}
-      {expanded && skill.instructions && (
+      {expanded && instructions && (
         <div className="mt-3 pt-3 border-t border-[hsl(var(--border-color)/0.5)]">
           <div className="markdown-content bg-[hsl(var(--bg-secondary))] rounded-lg p-3 text-xs max-h-48 overflow-y-auto">
-            <LazyMarkdown>{skill.instructions}</LazyMarkdown>
+            {loadingDetail ? (
+              <div className="flex justify-center py-4">
+                <div className="w-4 h-4 animate-spin rounded-full border-2 border-[hsl(var(--accent-primary))] border-t-transparent" />
+              </div>
+            ) : (
+              <LazyMarkdown>{instructions}</LazyMarkdown>
+            )}
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+// Character counter shown under length-limited form fields
+function CharCount({ value, max, inline }: { value: string; max: number; inline?: boolean }) {
+  const nearLimit = value.length >= max * 0.9;
+  return (
+    <p
+      className={`text-xs shrink-0 ${inline ? "" : "mt-1 text-right"} ${
+        nearLimit ? "text-[hsl(var(--warning))]" : "text-[hsl(var(--text-tertiary))]"
+      }`}
+    >
+      {value.length.toLocaleString()} / {max.toLocaleString()}
+    </p>
+  );
+}
+
+const SHARE_STATUS_STYLES: Record<SkillShareStatus, string> = {
+  pending: "bg-[hsl(var(--warning)/0.12)] text-[hsl(var(--warning))]",
+  approved: "bg-[hsl(var(--success)/0.12)] text-[hsl(var(--success))]",
+  unpublished: "bg-[hsl(var(--error)/0.1)] text-[hsl(var(--error))]",
+};
+
+// Review status of a skill the user shared to the public library
+function ShareStatusBadge({ status }: { status: SkillShareStatus }) {
+  const { t } = useTranslation(["skills"]);
+  return (
+    <span
+      className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${SHARE_STATUS_STYLES[status] ?? SHARE_STATUS_STYLES.pending}`}
+      data-testid="skill-share-status"
+    >
+      {t(`skills:shareStatus.${status}`)}
+    </span>
   );
 }

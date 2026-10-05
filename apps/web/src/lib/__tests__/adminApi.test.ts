@@ -456,6 +456,10 @@ describe('adminApi', () => {
           description: 'Description 1',
           instructions: 'Instructions 1',
           category: 'writing',
+          tags: ['hook'],
+          skill_metadata: { license: 'MIT' },
+          resource_count: 2,
+          source: 'community',
           author_id: 'author1',
           author_name: 'Author 1',
           status: 'pending',
@@ -486,7 +490,11 @@ describe('adminApi', () => {
       const result = await getPendingSkills()
 
       expect(mockApi.get).toHaveBeenCalledWith('/api/admin/skills/pending?status=pending')
-      expect(result).toEqual(mockSkills)
+      // 旧响应缺少审核材料字段时补上安全的默认值
+      expect(result).toEqual([
+        mockSkills[0],
+        { ...mockSkills[1], tags: [], skill_metadata: {}, resource_count: 0, source: 'community' },
+      ])
     })
 
     it('handles empty pending skills list', async () => {
@@ -561,6 +569,34 @@ describe('adminApi', () => {
       mockApi.post.mockRejectedValue(error)
 
       await expect(rejectSkill('123', 'Reason')).rejects.toThrow('Rejection failed')
+    })
+  })
+
+  describe('unpublishSkill', () => {
+    it('posts the reason to the unpublish endpoint', async () => {
+      const { unpublishSkill } = await import('../adminApi')
+      const response = { message: 'Skill unpublished', skill_id: '123' }
+      mockApi.post.mockResolvedValue(response)
+
+      const result = await unpublishSkill('123', 'Infringement')
+
+      expect(mockApi.post).toHaveBeenCalledWith('/api/admin/skills/123/unpublish', {
+        rejection_reason: 'Infringement',
+      })
+      expect(result).toEqual(response)
+    })
+  })
+
+  describe('getSkillReviewResources', () => {
+    it('returns the raw resource files of a skill under review', async () => {
+      const { getSkillReviewResources } = await import('../adminApi')
+      const resources = [{ path: 'references/a.md', size: 3, content: 'abc' }]
+      mockApi.get.mockResolvedValue({ resources })
+
+      const result = await getSkillReviewResources('123')
+
+      expect(mockApi.get).toHaveBeenCalledWith('/api/admin/skills/123/resources')
+      expect(result).toEqual(resources)
     })
   })
 

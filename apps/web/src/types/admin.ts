@@ -73,7 +73,7 @@ export type PromptsListResponse = SystemPromptConfig[];
 
 // ==================== Skill Review ====================
 
-export type SkillReviewStatus = "pending" | "approved" | "rejected";
+export type SkillReviewStatus = "pending" | "approved" | "rejected" | "unpublished";
 
 export interface PendingSkill {
   id: string;
@@ -81,6 +81,13 @@ export interface PendingSkill {
   description: string | null;
   instructions: string;
   category: string;
+  /** Trigger words copied from the author's skill */
+  tags: string[];
+  /** Standard SKILL.md frontmatter extras (license / allowed_tools / metadata) */
+  skill_metadata: Record<string, unknown>;
+  /** Number of references/ and assets/ files that ship with the skill */
+  resource_count: number;
+  source: string;
   author_id: string | null;
   author_name: string | null;
   status: SkillReviewStatus;
@@ -89,6 +96,13 @@ export interface PendingSkill {
   reviewed_at: string | null;
   rejection_reason: string | null;
   created_at: string;
+}
+
+/** One resource file of a skill under review, with its raw content */
+export interface SkillReviewResource {
+  path: string;
+  size: number;
+  content: string;
 }
 
 // ==================== Dashboard Stats ====================

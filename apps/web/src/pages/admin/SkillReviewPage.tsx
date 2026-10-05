@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { LazyMarkdown } from "../../components/LazyMarkdown";
-import { Check, X, Zap, ChevronDown, ChevronUp, AlertTriangle, RefreshCw } from "lucide-react";
+import { Check, X, Zap, ChevronDown, ChevronUp, AlertTriangle, RefreshCw, EyeOff, FileText } from "lucide-react";
 import { AdminPageState, AdminSelect } from "../../components/admin";
 import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
-import { adminApi, type PendingSkill, type SkillReviewStatus } from "../../lib/adminApi";
+import { adminApi, type PendingSkill, type SkillReviewResource, type SkillReviewStatus } from "../../lib/adminApi";
 import { getLocaleCode } from "../../lib/i18n-helpers";
 import { logger } from "../../lib/logger";
 
@@ -17,6 +17,8 @@ export default function SkillReviewPage() {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [unpublishingId, setUnpublishingId] = useState<string | null>(null);
+  const [unpublishReason, setUnpublishReason] = useState("");
   const [statusFilter, setStatusFilter] = useState<SkillReviewStatus>("pending");
   const [decisionError, setDecisionError] = useState<string | null>(null);
 
@@ -82,6 +84,25 @@ export default function SkillReviewPage() {
     }
   };
 
+  const handleUnpublish = async (skillId: string) => {
+    try {
+      setProcessingId(skillId);
+      setDecisionError(null);
+      await adminApi.unpublishSkill(skillId, unpublishReason || undefined);
+      setSkills((prev) => prev.filter((s) => s.id !== skillId));
+      setUnpublishingId(null);
+      setUnpublishReason("");
+      await loadPendingSkills(false);
+    } catch (error) {
+      logger.error("Failed to unpublish skill:", error);
+      setDecisionError(error instanceof Error && error.message
+        ? error.message
+        : t("admin:skills.decisionFailed", "审核操作失败，请重试"));
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   const hasBlockingError = Boolean(loadError) && skills.length === 0;
   const displayError = loadError ?? t("admin:dashboard.loadError", "加载失败，请稍后重试");
   const approvingSkill = skills.find((skill) => skill.id === approvingId);
@@ -105,6 +126,7 @@ export default function SkillReviewPage() {
         <option value="pending">{t("admin:skills.pending", "待审核")}</option>
         <option value="approved">{t("admin:skills.approved", "已批准")}</option>
         <option value="rejected">{t("admin:skills.rejected", "已拒绝")}</option>
+        <option value="unpublished">{t("admin:skills.unpublished", "已下架")}</option>
       </AdminSelect>
 
       {decisionError && (
@@ -155,6 +177,7 @@ export default function SkillReviewPage() {
               skill={skill}
               onApprove={() => setApprovingId(skill.id)}
               onReject={() => setRejectingId(skill.id)}
+              onUnpublish={() => setUnpublishingId(skill.id)}
               processing={processingId === skill.id}
             />
           ))}
@@ -163,7 +186,11 @@ export default function SkillReviewPage() {
 
       {/* Reject Modal */}
       {rejectingId && (
-        <RejectModal
+        <ReasonModal
+          title={t("admin:skills.rejectTitle", "拒绝技能")}
+          label={t("admin:skills.rejectReason", "拒绝原因（可选）")}
+          placeholder={t("admin:skills.rejectPlaceholder", "请输入拒绝原因...")}
+          confirmLabel={t("admin:skills.confirmReject", "确认拒绝")}
           onConfirm={() => handleReject(rejectingId)}
           onCancel={() => {
             setRejectingId(null);
@@ -172,6 +199,28 @@ export default function SkillReviewPage() {
           reason={rejectReason}
           setReason={setRejectReason}
           processing={processingId === rejectingId}
+        />
+      )}
+
+      {/* Unpublish Modal */}
+      {unpublishingId && (
+        <ReasonModal
+          title={t("admin:skills.unpublishTitle", "下架技能")}
+          description={t(
+            "admin:skills.unpublishConfirmation",
+            "下架后该技能会立即从公共库消失，已添加的用户也无法再使用。",
+          )}
+          label={t("admin:skills.unpublishReason", "下架原因（可选）")}
+          placeholder={t("admin:skills.unpublishPlaceholder", "请输入下架原因...")}
+          confirmLabel={t("admin:skills.confirmUnpublish", "确认下架")}
+          onConfirm={() => handleUnpublish(unpublishingId)}
+          onCancel={() => {
+            setUnpublishingId(null);
+            setUnpublishReason("");
+          }}
+          reason={unpublishReason}
+          setReason={setUnpublishReason}
+          processing={processingId === unpublishingId}
         />
       )}
 
@@ -196,15 +245,19 @@ function SkillReviewCard({
   skill,
   onApprove,
   onReject,
+  onUnpublish,
   processing,
 }: {
   skill: PendingSkill;
   onApprove: () => void;
   onReject: () => void;
+  onUnpublish: () => void;
   processing: boolean;
 }) {
   const { t } = useTranslation(["admin"]);
   const [expanded, setExpanded] = useState(false);
+  const tags = skill.tags ?? [];
+  const resourceCount = skill.resource_count ?? 0;
 
   return (
     <div className="bg-[hsl(var(--bg-secondary))] rounded-xl border border-[hsl(var(--border-color))] p-4">
@@ -228,10 +281,16 @@ function SkillReviewCard({
               {skill.description}
             </p>
           )}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs px-2 py-0.5 rounded-full bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))]">
               {skill.category}
             </span>
+            {resourceCount > 0 && (
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-[hsl(var(--warning)/0.12)] text-[hsl(var(--warning))]">
+                <FileText className="w-3 h-3" />
+                {t("admin:skills.resourceCount", { count: resourceCount, defaultValue: "{{count}} 个资源文件" })}
+              </span>
+            )}
             <span className="text-xs text-[hsl(var(--text-tertiary))]">
               {new Date(skill.created_at).toLocaleDateString(getLocaleCode())}
             </span>
@@ -263,6 +322,16 @@ function SkillReviewCard({
               </button>
             </>
           )}
+          {skill.status === "approved" && (
+            <button
+              onClick={onUnpublish}
+              disabled={processing}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[hsl(var(--error)/0.1)] text-[hsl(var(--error))] hover:bg-[hsl(var(--error)/0.2)] transition-colors disabled:opacity-50"
+            >
+              <EyeOff className="w-5 h-5" />
+              {t("admin:skills.unpublish", "下架")}
+            </button>
+          )}
           <button
             onClick={() => setExpanded(!expanded)}
             className="p-2 rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
@@ -278,32 +347,187 @@ function SkillReviewCard({
           <p>{t("admin:skills.reviewedBy", "审核人")}: {skill.reviewer_name || skill.reviewed_by || "-"}</p>
           <p>{t("admin:skills.reviewedAt", "审核时间")}: {skill.reviewed_at ? new Date(skill.reviewed_at).toLocaleString(getLocaleCode()) : "-"}</p>
           {skill.rejection_reason && (
-            <p>{t("admin:skills.rejectReason", "拒绝原因")}: {skill.rejection_reason}</p>
+            <p>
+              {skill.status === "unpublished"
+                ? t("admin:skills.unpublishedReason", "下架原因")
+                : t("admin:skills.rejectReason", "拒绝原因")}: {skill.rejection_reason}
+            </p>
           )}
         </div>
       )}
 
       {expanded && (
-        <div className="mt-4 pt-4 border-t border-[hsl(var(--border-color))]">
-          <p className="text-xs font-medium text-[hsl(var(--text-tertiary))] mb-2">
-            {t("admin:skills.instructions", "指令内容")}
-          </p>
-          <div className="markdown-content bg-[hsl(var(--bg-tertiary))] rounded-lg p-4 text-sm max-h-64 overflow-y-auto">
-            <LazyMarkdown>{skill.instructions}</LazyMarkdown>
-          </div>
-        </div>
+        <SkillReviewMaterials skill={skill} tags={tags} resourceCount={resourceCount} />
       )}
     </div>
   );
 }
 
-function RejectModal({
+const RAW_TEXT_CLASS =
+  "bg-[hsl(var(--bg-tertiary))] rounded-lg p-4 text-xs font-mono whitespace-pre-wrap break-words max-h-80 overflow-y-auto text-[hsl(var(--text-primary))]";
+
+/**
+ * Everything that reaches other users' agents once the skill is approved:
+ * the raw instructions (hidden markdown such as link reference definitions and
+ * HTML comments included), trigger tags, skill_metadata and every resource file.
+ */
+function SkillReviewMaterials({
+  skill,
+  tags,
+  resourceCount,
+}: {
+  skill: PendingSkill;
+  tags: string[];
+  resourceCount: number;
+}) {
+  const { t } = useTranslation(["admin"]);
+  const [view, setView] = useState<"raw" | "rendered">("raw");
+  const [resources, setResources] = useState<SkillReviewResource[] | null>(null);
+  const [resourcesError, setResourcesError] = useState<string | null>(null);
+  const metadata = skill.skill_metadata ?? {};
+  const hasMetadata = Object.keys(metadata).length > 0;
+
+  useEffect(() => {
+    if (resourceCount === 0) return;
+    let cancelled = false;
+    adminApi.getSkillReviewResources(skill.id)
+      .then((items) => {
+        if (!cancelled) setResources(items);
+      })
+      .catch((error: unknown) => {
+        logger.error("Failed to load skill review resources:", error);
+        if (!cancelled) {
+          setResourcesError(error instanceof Error && error.message
+            ? error.message
+            : t("admin:skills.resourcesLoadFailed", "资源文件加载失败"));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [skill.id, resourceCount, t]);
+
+  return (
+    <div className="mt-4 pt-4 border-t border-[hsl(var(--border-color))] space-y-4">
+      <p className="text-xs text-[hsl(var(--text-tertiary))]">
+        {t(
+          "admin:skills.reviewHint",
+          "以下内容核准后会原样提供给其他用户的 AI，请检查原文（包括渲染后看不到的注释和链接定义）。",
+        )}
+      </p>
+
+      <div>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <p className="text-xs font-medium text-[hsl(var(--text-tertiary))]">
+            {t("admin:skills.instructions", "指令内容")}
+          </p>
+          <div className="inline-flex rounded-lg border border-[hsl(var(--border-color))] overflow-hidden text-xs">
+            {(["raw", "rendered"] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setView(mode)}
+                aria-pressed={view === mode}
+                className={`px-2.5 py-1 transition-colors ${
+                  view === mode
+                    ? "bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-primary))]"
+                    : "text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))]"
+                }`}
+              >
+                {mode === "raw"
+                  ? t("admin:skills.rawView", "原文")
+                  : t("admin:skills.renderedView", "渲染预览")}
+              </button>
+            ))}
+          </div>
+        </div>
+        {view === "raw" ? (
+          <pre className={RAW_TEXT_CLASS} data-testid="skill-review-raw-instructions">{skill.instructions}</pre>
+        ) : (
+          <div className="markdown-content bg-[hsl(var(--bg-tertiary))] rounded-lg p-4 text-sm max-h-64 overflow-y-auto">
+            <LazyMarkdown>{skill.instructions}</LazyMarkdown>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <p className="text-xs font-medium text-[hsl(var(--text-tertiary))] mb-2">
+          {t("admin:skills.tags", "触发词")}
+        </p>
+        {tags.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {tags.map((tag, index) => (
+              <span
+                key={`${tag}-${index}`}
+                className="text-xs px-2 py-0.5 rounded-full bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))] break-all"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-[hsl(var(--text-tertiary))]">{t("admin:skills.none", "无")}</p>
+        )}
+      </div>
+
+      {hasMetadata && (
+        <div>
+          <p className="text-xs font-medium text-[hsl(var(--text-tertiary))] mb-2">
+            {t("admin:skills.metadata", "元数据（skill_metadata）")}
+          </p>
+          <pre className={RAW_TEXT_CLASS}>{JSON.stringify(metadata, null, 2)}</pre>
+        </div>
+      )}
+
+      <div>
+        <p className="text-xs font-medium text-[hsl(var(--text-tertiary))] mb-2">
+          {t("admin:skills.resources", "资源文件")}
+        </p>
+        {resourceCount === 0 ? (
+          <p className="text-xs text-[hsl(var(--text-tertiary))]">{t("admin:skills.none", "无")}</p>
+        ) : resourcesError ? (
+          <p role="alert" className="text-xs text-[hsl(var(--error))]">{resourcesError}</p>
+        ) : resources === null ? (
+          <p className="text-xs text-[hsl(var(--text-tertiary))]">
+            {t("admin:skills.loadingResources", "正在加载资源文件...")}
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {resources.map((resource) => (
+              <details
+                key={resource.path}
+                className="rounded-lg border border-[hsl(var(--border-color))]"
+              >
+                <summary className="cursor-pointer px-3 py-2 text-xs text-[hsl(var(--text-primary))] font-mono break-all">
+                  {resource.path}
+                  <span className="ml-2 text-[hsl(var(--text-tertiary))]">{resource.size} B</span>
+                </summary>
+                <pre className={`${RAW_TEXT_CLASS} rounded-t-none`}>{resource.content}</pre>
+              </details>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ReasonModal({
+  title,
+  description,
+  label,
+  placeholder,
+  confirmLabel,
   onConfirm,
   onCancel,
   reason,
   setReason,
   processing,
 }: {
+  title: string;
+  description?: string;
+  label: string;
+  placeholder: string;
+  confirmLabel: string;
   onConfirm: () => void;
   onCancel: () => void;
   reason: string;
@@ -316,17 +540,21 @@ function RejectModal({
     <div className="modal-overlay flex items-center justify-center p-4" onClick={onCancel}>
       <div className="modal w-full max-w-md animate-scale-in" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-lg font-semibold text-[hsl(var(--text-primary))] mb-4">
-          {t("admin:skills.rejectTitle", "拒绝技能")}
+          {title}
         </h2>
+        {description && (
+          <p className="text-sm text-[hsl(var(--text-secondary))] mb-4">{description}</p>
+        )}
         <div className="mb-4">
           <label className="block text-sm font-medium text-[hsl(var(--text-secondary))] mb-1">
-            {t("admin:skills.rejectReason", "拒绝原因（可选）")}
+            {label}
           </label>
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             className="input w-full min-h-[100px] resize-y"
-            placeholder={t("admin:skills.rejectPlaceholder", "请输入拒绝原因...")}
+            placeholder={placeholder}
+            maxLength={500}
           />
         </div>
         <div className="flex gap-3">
@@ -339,7 +567,7 @@ function RejectModal({
             className="btn-danger flex-1 h-11 flex items-center justify-center gap-2"
           >
             {processing && <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
-            {t("admin:skills.confirmReject", "确认拒绝")}
+            {confirmLabel}
           </button>
         </div>
       </div>

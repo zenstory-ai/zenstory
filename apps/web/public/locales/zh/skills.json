@@ -58,7 +58,8 @@
     "triggersHint": "仅作你自己整理技能的标签，不影响 AI 何时使用这个技能；多个用逗号分隔",
     "instructions": "指令内容",
     "instructionsPlaceholder": "AI 加载这个技能时会按这些方法执行...",
-    "instructionsHint": "支持 Markdown 格式，如标题、列表、代码块等"
+    "instructionsHint": "支持 Markdown 格式，如标题、列表、代码块等",
+    "triggersTooLong": "触发词最多 {{count}} 个，每个不超过 {{max}} 个字符"
   },
   "deleteConfirm": {
     "title": "删除技能",
@@ -137,5 +138,20 @@
       "saveFailed": "文件保存失败",
       "deleteFailed": "文件删除失败"
     }
+  },
+  "loadMore": "加载更多",
+  "shareStatus": {
+    "pending": "审核中",
+    "approved": "已公开",
+    "unpublished": "已下架"
+  },
+  "errors": {
+    "saveFailed": "保存技能失败，请稍后重试",
+    "addFailed": "添加技能失败，请稍后重试",
+    "deleteFailed": "删除技能失败，请稍后重试",
+    "removeFailed": "移除技能失败，请稍后重试",
+    "batchDeleteFailed": "批量删除失败，请稍后重试",
+    "loadMoreFailed": "加载更多技能失败，请稍后重试",
+    "detailFailed": "技能详情加载失败，请稍后重试"
   }
 }
