@@ -15,26 +15,15 @@ import { DashboardPageHeader } from "../components/dashboard/DashboardPageHeader
 import { DashboardEmptyState } from "../components/dashboard/DashboardEmptyState";
 import { Modal } from "../components/ui/Modal";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
-import { UpgradePromptModal } from "../components/subscription/UpgradePromptModal";
+import { MaterialsUpgradePromptModal } from "../components/subscription/MaterialsUpgradePrompt";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
 import {
   resolveMaterialUploadErrorMessage,
   validateMaterialUploadFile,
 } from "../lib/materialUploadValidation";
-
-function hasMaterialsLibraryAccess(
-  features: Record<string, unknown> | undefined,
-  tier: string | undefined,
-): boolean | null {
-  const explicitAccess = features?.materials_library_access;
-  if (typeof explicitAccess === "boolean") {
-    return explicitAccess;
-  }
-  if (tier === undefined) {
-    return null;
-  }
-  return tier !== "free";
-}
+import { hasMaterialsLibraryAccess, materialJobErrorText } from "../lib/materialsAccess";
+import { MATERIAL_LIBRARY_SUMMARY_QUERY_KEY } from "../hooks/useMaterialLibrary";
+import { useRefreshMaterialLibraryOnCompletion } from "../hooks/useMaterialLibraryRefresh";
 
 export default function MaterialsPage() {
   const { t, i18n } = useTranslation(["materials", "common"]);
@@ -120,12 +109,14 @@ export default function MaterialsPage() {
   const isMaterialsLoading =
     isSubscriptionLoading ||
     (hasWorkspaceAccess && (isLoading || (isFetching && materials.length === 0)));
+  useRefreshMaterialLibraryOnCompletion(hasWorkspaceAccess ? materials : undefined);
 
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: (novelId: string) => materialsApi.delete(novelId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["materials"] });
+      queryClient.invalidateQueries({ queryKey: MATERIAL_LIBRARY_SUMMARY_QUERY_KEY });
       setDeletingId(null);
     },
     onError: (err) => {
@@ -396,7 +387,7 @@ export default function MaterialsPage() {
             <div className="max-w-3xl space-y-4">
               <h2 className="text-xl font-semibold text-[hsl(var(--text-primary))]">
                 {t("materials:teaserTitle", {
-                  defaultValue: "上传参考小说，一键拆出角色、剧情线和世界观",
+                  defaultValue: "上传参考小说，一键拆出章节梗概、角色和世界观",
                 })}
               </h2>
               <p className="text-sm leading-6 text-[hsl(var(--text-secondary))]">
@@ -406,7 +397,7 @@ export default function MaterialsPage() {
                 })}
               </p>
               <ul className="space-y-2 text-sm text-[hsl(var(--text-secondary))]">
-                <li>• {t("materials:teaserFeatureOne", { defaultValue: "查看角色、剧情线、世界观等拆解示例" })}</li>
+                <li>• {t("materials:teaserFeatureOne", { defaultValue: "查看章节梗概、角色、世界观、金手指等拆解示例" })}</li>
                 <li>• {t("materials:teaserFeatureTwo", { defaultValue: "付费会员每月可使用 5 次素材拆解" })}</li>
                 <li>• {t("materials:teaserFeatureThree", { defaultValue: "已拆解素材可持续浏览和复用" })}</li>
               </ul>
@@ -425,13 +416,13 @@ export default function MaterialsPage() {
                 </div>
                 <div className="rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-primary))] p-4">
                   <div className="text-xs font-medium text-[hsl(var(--accent-primary))]">
-                    {t("materials:teaserCardStoryline", {
-                      defaultValue: "剧情线拆解示例",
+                    {t("materials:teaserCardSynopsis", {
+                      defaultValue: "章节梗概示例",
                     })}
                   </div>
                   <p className="mt-2 text-sm text-[hsl(var(--text-secondary))]">
-                    {t("materials:teaserCardStorylineBody", {
-                      defaultValue: "宗门试炼 → 身份暴露 → 反攻夺权",
+                    {t("materials:teaserCardSynopsisBody", {
+                      defaultValue: "第 3 章：林舟入宗门试炼，暗中护住主角，身份险些暴露",
                     })}
                   </p>
                 </div>
@@ -672,35 +663,9 @@ export default function MaterialsPage() {
         loading={deleteMutation.isPending}
       />
 
-      <UpgradePromptModal
+      <MaterialsUpgradePromptModal
         open={showMaterialAccessUpgradeModal}
         onClose={() => setShowMaterialAccessUpgradeModal(false)}
-        source={materialUploadUpgradePrompt.source}
-        primaryDestination="billing"
-        secondaryDestination="pricing"
-        title={t("materials:quota.uploadTitle", { defaultValue: "开通会员即可使用素材库" })}
-        description={t("materials:quota.uploadDescription", {
-          defaultValue:
-            "当前套餐仅支持预览素材库能力。开通会员后，每月可使用 5 次素材拆解。",
-        })}
-        primaryLabel={t("materials:quota.upgradePrimary", { defaultValue: "查看升级方案" })}
-        onPrimary={() => {
-          window.location.assign(
-            buildUpgradeUrl(
-              materialUploadUpgradePrompt.billingPath,
-              materialUploadUpgradePrompt.source
-            )
-          );
-        }}
-        secondaryLabel={t("materials:quota.upgradeSecondary", { defaultValue: "查看套餐对比" })}
-        onSecondary={() => {
-          window.location.assign(
-            buildUpgradeUrl(
-              materialUploadUpgradePrompt.pricingPath,
-              materialUploadUpgradePrompt.source
-            )
-          );
-        }}
       />
     </>
   );
@@ -832,7 +797,7 @@ function MaterialCard({
         {/* Error Message */}
         {(material.status === "failed" || material.status === "completed_with_errors") && material.error_message && (
           <p className="text-xs text-[hsl(var(--error))] mt-2 line-clamp-2">
-            {material.error_message}
+            {materialJobErrorText(material.error_message)}
           </p>
         )}
 

@@ -252,7 +252,7 @@ We deeply understand the importance of your creative content to you. Data securi
 
 - **Single File**: Recommended maximum of 100,000 words (editor may slow down beyond this)
 - **Single AI Generation**: Typically 500-2,000 words (dynamically adjusted based on complexity)
-- **Material Library Upload**: Maximum 100MB per file (approximately 50 million words)
+- **Material Library Upload**: Maximum 20MB per file and 300,000 characters per novel
 
 **Recommendations**:
 - Split long novels into multiple draft files by chapter
