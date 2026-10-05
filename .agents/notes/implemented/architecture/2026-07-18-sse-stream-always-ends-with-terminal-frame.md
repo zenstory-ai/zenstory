@@ -8,7 +8,7 @@ Status: implemented
 
 ## Decision
 
-`api/agent.py` 的 `event_generator` 跟踪 `saw_terminal_event`；任何逃逸异常在重新抛出前 must 先 `yield error_event(...)` 作为终止帧（仅当尚未发出过终止帧），客户端因此总能得到明确的流结束。SQLite 路径上的补偿退款 must 先 `session.rollback()` 再操作。`stream_adapter` 在 finally 中关闭上游 workflow/runner 生成器，pump task 的取消在致命错误退出时确定性执行，不等 GC。前端 `useAgentStream` 的卸载清理 must abort 在途 SSE 并递增 stream epoch；`ChatPanel.loadChatHistory` 在 await 之后重查 `currentProjectIdRef`，慢的旧项目请求 never 覆盖当前项目的消息。
+`api/agent.py` 的 `event_generator` 经 `agent/core/stream_billing.StreamBillingTracker` 跟踪 `saw_terminal_event`；任何逃逸异常在重新抛出前 must 先 `yield error_event(...)` 作为终止帧（仅当尚未发出过终止帧；错误码与文案见 `2026-10-05-agent-stream-error-and-refund-contract.md`），客户端因此总能得到明确的流结束。SQLite 路径上的补偿退款 must 先 `session.rollback()` 再操作。`stream_adapter` 在 finally 中关闭上游 workflow/runner 生成器，pump task 的取消在致命错误退出时确定性执行，不等 GC。前端 `useAgentStream` 的卸载清理 must abort 在途 SSE 并递增 stream epoch；`ChatPanel.loadChatHistory` 在 await 之后重查 `currentProjectIdRef`，慢的旧项目请求 never 覆盖当前项目的消息。
 
 来源：689ae3b (#14)
 

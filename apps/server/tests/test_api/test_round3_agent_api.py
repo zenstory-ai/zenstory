@@ -303,7 +303,49 @@ async def test_stream_rejects_concurrent_run_for_same_chat_session(
         await cleanup_steering_queue_async(session_id)
 
     assert response.status_code == 409
-    assert response.json()["error_code"] == "ERR_RESOURCE_CONFLICT"
+    assert response.json()["error_code"] == "ERR_SESSION_BUSY"
+    assert _read_quota_used(db_session, user.id) == 0
+
+
+@pytest.mark.integration
+async def test_stream_busy_resolved_session_returns_409_and_refunds(
+    client: AsyncClient, db_session: Session
+):
+    """没带 session_id、后端解析到的活跃会话仍被占用时：409 ERR_SESSION_BUSY，额度退回。
+
+    修复前 SteeringSessionBusyError 在流开始后才抛出，前端只看到泛用的
+    「生成回复时发生错误」，无论重试多少次都一样。
+    """
+    from agent.core.steering import (
+        cleanup_steering_queue_async,
+        create_steering_queue_async,
+    )
+    from models import ChatSession
+
+    user, project, token = await _make_user_and_project(
+        client, db_session, "round3_stream_resolved_busy"
+    )
+    chat_session = ChatSession(user_id=user.id, project_id=project.id, is_active=True)
+    db_session.add(chat_session)
+    db_session.commit()
+    db_session.refresh(chat_session)
+    await create_steering_queue_async(
+        chat_session.id,
+        user.id,
+        run_id="still-finalizing",
+        exclusive_run=True,
+    )
+    try:
+        response = await client.post(
+            "/api/v1/agent/stream",
+            json={"project_id": str(project.id), "message": "继续写"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    finally:
+        await cleanup_steering_queue_async(chat_session.id)
+
+    assert response.status_code == 409
+    assert response.json()["error_code"] == "ERR_SESSION_BUSY"
     assert _read_quota_used(db_session, user.id) == 0
 
 

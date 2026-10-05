@@ -13,6 +13,8 @@ from typing import Any
 
 from agent.constants import CONTENT_FILE_TYPES
 from agent.core.events import READ_ONLY_HANDOFF_BLOCKED_REASON
+from agent.core.run_meter import AgentRunMeter
+from agent.core.stream_errors import classify_stream_exception, log_stream_exception
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.graph.nodes import (
     detect_task_complete,
@@ -599,6 +601,10 @@ async def run_writing_workflow_streaming(
     # 工具失败熔断器按请求共享：每个 agent run 都从 state 取同一个（见 runner），
     # writer → 审稿人 → writer 的往返不会让「同一调用连续失败」的计数归零。
     state["tool_failure_breaker"] = ToolFailureBreaker()
+    # 请求级模型调用预算：service 可能已放入一个（以便请求结束时读计数写摘要），
+    # 否则这里建一个；每个 agent run 都从 state 取同一个。
+    if not isinstance(state.get("run_meter"), AgentRunMeter):
+        state["run_meter"] = AgentRunMeter()
 
     # 只读请求拦下写交接时的提示卡片：拦下时只记录（每个请求只记第一次），
     # 等工作流收尾、紧挨着终止事件（WORKFLOW_COMPLETE / 澄清 / 无效交接 /
@@ -1581,18 +1587,13 @@ async def run_writing_workflow_streaming(
             )
 
     except Exception as e:
-        log_with_context(
-            logger,
-            40,  # ERROR
-            "Streaming workflow error",
-            error=str(e),
-            error_type=type(e).__name__,
-        )
+        error_info = classify_stream_exception(e)
+        log_stream_exception(logger, "Streaming workflow error", e, error_info)
         if (notice := _take_read_only_notice()) is not None:
             yield notice
         yield StreamEvent(
             type=StreamEventType.ERROR,
-            data={"error": str(e), "error_type": type(e).__name__},
+            data=error_info.as_event_data(error_type=type(e).__name__),
         )
 
     log_with_context(

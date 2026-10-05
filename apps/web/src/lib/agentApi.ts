@@ -330,7 +330,8 @@ export function streamAgentRequest(
         callbacks.onError?.(
           toUserErrorMessage(errorMessage),
           errorCode,
-          false,
+          // 会话仍在收尾（409 ERR_SESSION_BUSY）通常几秒后就会释放，提供重试。
+          errorCode === "ERR_SESSION_BUSY",
         );
         return;
       }
