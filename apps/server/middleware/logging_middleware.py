@@ -14,13 +14,14 @@ from typing import Any
 from fastapi import Request, Response
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from core.error_handler import internal_error_response
 from middleware.rate_limit import get_client_ip
 from utils.logger import get_logger, log_with_context
 from utils.request_context import (
     bind_request_context,
     reset_request_context,
 )
-from utils.sanitize import sanitize_for_logging
+from utils.sanitize import sanitize_for_logging, sanitize_query_params
 
 logger = get_logger(__name__)
 
@@ -108,59 +109,95 @@ class LoggingMiddleware:
             **request_info,
         )
 
+        response_status_code = 500
+        response_info: dict[str, Any] = {"status_code": 500, "content_type": "unknown"}
+        response_started = False
+        response_logged = False
+        response_failed = False
+
+        def log_completion(**extra_fields: Any) -> None:
+            nonlocal response_logged
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            is_stream = self._is_streaming_response(response_info)
+            log_level = self._get_response_log_level(
+                response_status_code,
+                duration_ms,
+                is_stream=is_stream,
+            )
+            log_with_context(
+                logger,
+                log_level,
+                f"{request.method} {request.url.path} - {response_status_code}",
+                # The stack (if any) is on the "Exception occurred" line.
+                exc_info=False,
+                **request_info,
+                **response_info,
+                duration_ms=round(duration_ms, 2),
+                is_slow=(not is_stream) and duration_ms > SLOW_REQUEST_THRESHOLD,
+                **extra_fields,
+            )
+            response_logged = True
+
+        async def send_wrapper(message: Message) -> None:
+            nonlocal response_status_code, response_info, response_started
+
+            if message["type"] == "http.response.start":
+                response_started = True
+                response_status_code = int(message["status"])
+                headers = list(message.get("headers", []))
+                headers.append((b"x-request-id", request_id.encode("utf-8")))
+                headers.append((TRACE_ID_HEADER.lower().encode("utf-8"), trace_id.encode("utf-8")))
+                message["headers"] = headers
+                response_info = self._extract_response_info_from_asgi(message)
+
+            if message["type"] == "http.response.body" and not message.get("more_body", False):
+                log_completion()
+
+            await send(message)
+
         try:
-            response_status_code = 500
-            response_info: dict[str, Any] = {"status_code": 500, "content_type": "unknown"}
-            response_logged = False
-
-            async def send_wrapper(message: Message) -> None:
-                nonlocal response_status_code, response_info, response_logged
-
-                if message["type"] == "http.response.start":
-                    response_status_code = int(message["status"])
-                    headers = list(message.get("headers", []))
-                    headers.append((b"x-request-id", request_id.encode("utf-8")))
-                    headers.append((TRACE_ID_HEADER.lower().encode("utf-8"), trace_id.encode("utf-8")))
-                    message["headers"] = headers
-                    response_info = self._extract_response_info_from_asgi(message)
-
-                if message["type"] == "http.response.body" and not message.get("more_body", False):
-                    duration_ms = (time.perf_counter() - start_time) * 1000
-                    log_level = self._get_response_log_level(response_status_code, duration_ms)
-                    log_with_context(
-                        logger,
-                        log_level,
-                        f"{request.method} {request.url.path} - {response_status_code}",
-                        **request_info,
-                        **response_info,
-                        duration_ms=round(duration_ms, 2),
-                        is_slow=duration_ms > SLOW_REQUEST_THRESHOLD,
-                    )
-                    response_logged = True
-
-                await send(message)
-
-                if message["type"] == "http.response.body" and not message.get("more_body", False):
-                    reset_request_context(ctx_tokens)
-
             await self.app(scope, receive_wrapper, send_wrapper)
-
-            if not response_logged:
-                reset_request_context(ctx_tokens)
         except Exception as e:
-            # Log exceptions
+            # Log with the stack while request_id is still bound; exception
+            # handlers registered for ``Exception`` run outside this middleware
+            # (and outside CORS), after the context has been reset.
             duration_ms = (time.perf_counter() - start_time) * 1000
             log_with_context(
                 logger,
                 logging.ERROR,
                 f"{request.method} {request.url.path} - Exception occurred",
+                exc_info=e,
                 **request_info,
                 error=str(e),
                 error_type=type(e).__name__,
                 duration_ms=round(duration_ms, 2),
             )
+            if response_started:
+                response_failed = True
+                raise
+            # Answer here so the 500 still passes through CORSMiddleware and
+            # carries X-Request-ID.
+            await self._send_internal_error(send_wrapper, request_id)
+        finally:
+            if response_started and not response_logged:
+                # The response never finished: the app raised mid-stream, or
+                # the client went away (common for SSE streams).
+                if response_failed:
+                    log_completion(incomplete_response=True)
+                else:
+                    log_completion(client_disconnected=True)
             reset_request_context(ctx_tokens)
-            raise
+
+    async def _send_internal_error(self, send: Send, request_id: str) -> None:
+        response = internal_error_response(request_id)
+        await send(
+            {
+                "type": "http.response.start",
+                "status": response.status_code,
+                "headers": response.raw_headers,
+            }
+        )
+        await send({"type": "http.response.body", "body": response.body})
 
     def _build_request_logging_state(
         self,
@@ -170,7 +207,7 @@ class LoggingMiddleware:
         trace_id: str,
     ) -> tuple[dict[str, Any], Receive]:
         """Prepare request logging info and a receive wrapper for optional body capture."""
-        query_params = str(request.query_params)
+        query_params = sanitize_query_params(request.query_params.multi_items())
         if request.url.path == "/api/v1/payments/zpay/notify":
             query_params = "[redacted payment callback]"
 
@@ -248,11 +285,26 @@ class LoggingMiddleware:
             "content_type": headers.get("content-type", "unknown"),
         }
 
-    def _get_response_log_level(self, status_code: int, duration_ms: float) -> int:
-        """Determine response log level."""
+    @staticmethod
+    def _is_streaming_response(response_info: dict[str, Any]) -> bool:
+        content_type = str(response_info.get("content_type", "")).lower()
+        return content_type.startswith("text/event-stream")
+
+    def _get_response_log_level(
+        self,
+        status_code: int,
+        duration_ms: float,
+        *,
+        is_stream: bool = False,
+    ) -> int:
+        """Determine response log level.
+
+        SSE streams stay open for the whole agent run, so their duration is
+        not a latency signal and never marks them as slow.
+        """
         if status_code >= 500:
             return logging.ERROR
-        if duration_ms > SLOW_REQUEST_THRESHOLD:
+        if not is_stream and duration_ms > SLOW_REQUEST_THRESHOLD:
             return logging.WARNING
         return logging.INFO
 

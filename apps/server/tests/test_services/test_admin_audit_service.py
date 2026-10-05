@@ -94,11 +94,11 @@ class TestLogAction:
         assert log.new_value == new_value
 
     def test_log_action_with_request_forwarded_header(self, db_session: Session):
-        """Test audit log extracts IP from X-Forwarded-For header."""
+        """Test audit log uses the proxy-appended (rightmost) X-Forwarded-For IP."""
         service = AdminAuditService()
 
         request = _create_mock_request({
-            "X-Forwarded-For": "203.0.113.1, 10.0.0.1",
+            "X-Forwarded-For": "198.51.100.66, 203.0.113.1",
             "User-Agent": "Mozilla/5.0"
         })
 
@@ -111,7 +111,7 @@ class TestLogAction:
             request=request
         )
 
-        # First IP in chain should be extracted
+        # The client-supplied left entry is ignored
         assert log.ip_address == "203.0.113.1"
         assert log.user_agent == "Mozilla/5.0"
 
@@ -151,7 +151,7 @@ class TestLogAction:
         """Test IP extraction handles spaces in X-Forwarded-For header."""
         service = AdminAuditService()
 
-        request = _create_mock_request({"X-Forwarded-For": "  203.0.113.1  ,  10.0.0.1  "})
+        request = _create_mock_request({"X-Forwarded-For": "  10.0.0.1  ,  203.0.113.1  "})
 
         log = service.log_action(
             session=db_session,
@@ -161,7 +161,7 @@ class TestLogAction:
             request=request
         )
 
-        # First IP should be stripped of spaces
+        # Proxy-appended IP should be stripped of spaces
         assert log.ip_address == "203.0.113.1"
 
     def test_log_action_with_request_no_user_agent(self, db_session: Session):

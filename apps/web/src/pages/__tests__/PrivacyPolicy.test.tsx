@@ -1,6 +1,8 @@
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import PrivacyPolicy from '../PrivacyPolicy'
+import zhPrivacy from '../../../public/locales/zh/privacy.json'
+import enPrivacy from '../../../public/locales/en/privacy.json'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -26,6 +28,8 @@ vi.mock('react-i18next', () => ({
           'sections.dataSharing.content': 'Sharing content',
           'sections.dataSharing.subsections.serviceProviders.title': 'Service providers',
           'sections.dataSharing.subsections.serviceProviders.content': 'Provider content',
+          'sections.dataSharing.subsections.analytics.title': 'Analytics',
+          'sections.dataSharing.subsections.analytics.content': 'Analytics content',
           'sections.dataSharing.subsections.aiTraining.title': 'AI training',
           'sections.dataSharing.subsections.aiTraining.content': 'AI training content',
           'sections.dataSharing.subsections.legal.title': 'Legal',
@@ -72,7 +76,24 @@ describe('PrivacyPolicy', () => {
     expect(screen.getByText('Introduction')).toBeInTheDocument()
     expect(screen.getByText('Data security')).toBeInTheDocument()
     expect(screen.getByText('Contact')).toBeInTheDocument()
+    expect(screen.getByText('Analytics')).toBeInTheDocument()
+    expect(screen.getByText('Analytics content')).toBeInTheDocument()
     expect(screen.getAllByText('Item A').length).toBeGreaterThan(0)
     expect(window.scrollTo).toHaveBeenCalledWith(0, 0)
   })
 })
+
+describe('privacy policy locales', () => {
+  it.each([
+    ['zh', zhPrivacy, '2026年10月5日'],
+    ['en', enPrivacy, 'October 5, 2026'],
+  ])('%s discloses PostHog analytics factually', (_lang, privacy, date) => {
+    const analytics = privacy.sections.dataSharing.subsections.analytics
+    expect(privacy.lastUpdated).toContain(date)
+    expect(analytics.content).toContain('PostHog')
+    expect(analytics.content).toContain('ph_')
+    expect(analytics.content).toMatch(/localStorage/)
+    expect(analytics.content).toMatch(/美国|United States/)
+  })
+})
+

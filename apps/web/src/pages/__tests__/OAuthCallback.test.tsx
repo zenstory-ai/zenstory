@@ -111,11 +111,51 @@ describe("OAuthCallback", () => {
     );
 
     await waitFor(() => {
-      expect(mockHandleOAuthCallback).toHaveBeenCalledWith("access", "refresh");
+      expect(mockHandleOAuthCallback).toHaveBeenCalledWith("access", "refresh", { isNewUser: false });
       expect(mockNavigate).toHaveBeenCalledWith("/dashboard", { replace: true });
     });
     expect(replaceStateSpy).toHaveBeenCalled();
     expect(mockCaptureException).not.toHaveBeenCalled();
+  });
+
+  it("passes the new-user flag from the callback to the auth context", async () => {
+    mockHandleOAuthCallback.mockResolvedValue(undefined);
+    Object.assign(window.location, { hash: "#access_token=access&refresh_token=refresh&new_user=1" });
+
+    render(
+      <MemoryRouter>
+        <OAuthCallback />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(mockHandleOAuthCallback).toHaveBeenCalledWith("access", "refresh", { isNewUser: true });
+    });
+  });
+
+  it("uses credentials captured at boot after the URL was already scrubbed", async () => {
+    mockHandleOAuthCallback.mockResolvedValue(undefined);
+    const { captureAuthCallbackParams } = await import("../../lib/authCallbackParams");
+    const realLocation = new URL("http://localhost:5173/auth/callback#access_token=boot-access&refresh_token=boot-refresh");
+    Object.assign(window.location, {
+      pathname: realLocation.pathname,
+      search: "",
+      hash: realLocation.hash,
+    });
+    captureAuthCallbackParams();
+    // What the page sees once boot capture has replaced the URL.
+    Object.assign(window.location, { hash: "" });
+
+    render(
+      <MemoryRouter>
+        <OAuthCallback />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(mockHandleOAuthCallback).toHaveBeenCalledWith("boot-access", "boot-refresh", { isNewUser: false });
+      expect(mockNavigate).toHaveBeenCalledWith("/dashboard", { replace: true });
+    });
   });
 
   it("consumes normalized OAuth plan intent once and redirects to billing", async () => {

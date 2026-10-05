@@ -227,7 +227,12 @@ async def test_google_oauth_callback_bootstraps_subscription_and_quota(
     from sqlmodel import select
 
     from api.oauth import OAUTH_STATE_COOKIE_NAME, _encode_oauth_state
-    from models import RefreshTokenRecord, User
+    from models import (
+        ACTIVATION_EVENT_SIGNUP_SUCCESS,
+        ActivationEvent,
+        RefreshTokenRecord,
+        User,
+    )
     from models.referral import InviteCode
     from models.subscription import SubscriptionPlan, UsageQuota, UserSubscription
     from services.core.auth_service import TOKEN_TYPE_REFRESH, hash_password, verify_token
@@ -355,6 +360,18 @@ async def test_google_oauth_callback_bootstraps_subscription_and_quota(
     assert record.family_id == family_id
     assert record.revoked_at is None
 
+    # New Google users count as signups: backend funnel + frontend flag.
+    assert fragment_params.get("new_user") == ["1"]
+    signup_event = db_session.exec(
+        select(ActivationEvent).where(
+            ActivationEvent.user_id == user.id,
+            ActivationEvent.event_name == ACTIVATION_EVENT_SIGNUP_SUCCESS,
+        )
+    ).first()
+    assert signup_event is not None
+    assert signup_event.event_metadata["source"] == "google_oauth"
+    assert signup_event.event_metadata["invite_code_provided"] is True
+
 
 @pytest.mark.integration
 async def test_google_oauth_callback_matches_existing_user_email_case_insensitively(
@@ -430,6 +447,10 @@ async def test_google_oauth_callback_matches_existing_user_email_case_insensitiv
     db_session.refresh(existing_user)
     assert existing_user.email == "oauthexisting@example.com"
     assert existing_user.avatar_url == "https://example.com/avatar.png"
+    # Returning users are not signups.
+    fragment = urllib.parse.parse_qs(urllib.parse.urlparse(response.headers["location"]).fragment)
+    assert "new_user" not in fragment
+    assert fragment.get("access_token")
 
 
 @pytest.mark.integration
@@ -649,3 +670,64 @@ async def test_google_oauth_callback_requires_invite_code_for_new_user(
     location = response.headers.get("location", "")
     assert location.startswith("http://localhost:5173/register")
     assert "error_code=ERR_AUTH_INVITE_CODE_REQUIRED" in location
+
+
+@pytest.mark.integration
+async def test_google_oauth_new_user_login_survives_activation_record_failure(
+    client: AsyncClient, db_session, monkeypatch
+):
+    """A failing activation write must not block a new Google user's login."""
+    from sqlmodel import select
+
+    from api.oauth import OAUTH_STATE_COOKIE_NAME, _encode_oauth_state
+    from models import User
+
+    class _DummyResponse:
+        def __init__(self, status_code: int, payload: dict):
+            self.status_code = status_code
+            self._payload = payload
+
+        def json(self):
+            return self._payload
+
+    class _DummyAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, *args, **kwargs):
+            return _DummyResponse(200, {"access_token": "google-access-token"})
+
+        async def get(self, *args, **kwargs):
+            return _DummyResponse(200, {"email": "oauth_activation_fail@example.com", "name": "New"})
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("activation table unavailable")
+
+    monkeypatch.setenv("AUTH_REGISTER_INVITE_CODE_OPTIONAL", "true")
+    monkeypatch.setattr("api.oauth.httpx.AsyncClient", _DummyAsyncClient)
+    monkeypatch.setattr("api.oauth.GOOGLE_CLIENT_ID", "test-client-id")
+    monkeypatch.setattr("api.oauth.GOOGLE_CLIENT_SECRET", "test-client-secret")
+    monkeypatch.setattr("api.oauth.GOOGLE_REDIRECT_URI", "http://localhost:8000/api/auth/google/callback")
+    monkeypatch.setattr("api.oauth.activation_event_service.record_once", _boom)
+
+    nonce = "oauth-activation-fail-nonce"
+    state = _encode_oauth_state({"nonce": nonce})
+    response = await client.get(
+        "/api/auth/google/callback",
+        params={"code": "dummy-code", "state": state},
+        headers={"Cookie": f"{OAUTH_STATE_COOKIE_NAME}={nonce}"},
+    )
+
+    assert response.status_code in [302, 307]
+    fragment = urllib.parse.parse_qs(urllib.parse.urlparse(response.headers["location"]).fragment)
+    assert fragment.get("access_token")
+    assert fragment.get("new_user") == ["1"]
+    assert db_session.exec(
+        select(User).where(User.email == "oauth_activation_fail@example.com")
+    ).first() is not None

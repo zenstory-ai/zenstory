@@ -309,6 +309,30 @@ class TestSemanticSearchGuardrails:
         assert called_query != original_query
 
     @patch("services.infra.vector_search_service.LlamaIndexService.__init__", return_value=None)
+    def test_truncation_log_carries_no_query_text(self, _mock_init, monkeypatch):
+        """The truncation log identifies the query by hash and length only."""
+        import database
+
+        service = vss.LlamaIndexService()
+        monkeypatch.setattr(database, "create_session", lambda: nullcontext(object()))
+        retriever = MagicMock()
+        retriever.retrieve = MagicMock(return_value=[])
+        index = MagicMock()
+        index.as_retriever = MagicMock(return_value=retriever)
+        monkeypatch.setattr(service, "get_or_create_index", lambda *args, **kwargs: index)
+        log_calls = []
+        monkeypatch.setattr(vss, "log_with_context", lambda *args, **kwargs: log_calls.append((args, kwargs)))
+
+        secret_query = "SECRET-PLOT " + " ".join(f"word{i}" for i in range(10000))
+        service.semantic_search(project_id="project-1", query=secret_query, top_k=1)
+
+        truncation_logs = [kw for args, kw in log_calls if "truncated for embedding" in args[2]]
+        assert truncation_logs
+        for fields in truncation_logs:
+            assert fields["query_hash"]
+            assert not any("SECRET-PLOT" in str(value) for value in fields.values())
+
+    @patch("services.infra.vector_search_service.LlamaIndexService.__init__", return_value=None)
     def test_semantic_search_does_not_retry_on_param_error(self, _mock_init, monkeypatch):
         """We truncate upfront; semantic_search() should not do fallback retries."""
         import database

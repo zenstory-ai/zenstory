@@ -27,6 +27,7 @@ from models.file_version import (
     CHANGE_SOURCE_AI,
     CHANGE_TYPE_AI_EDIT,
 )
+from services.features.activation_event_service import activation_event_service
 from utils.logger import get_logger, log_with_context
 
 from .text_matching import (
@@ -396,6 +397,14 @@ class FileEditor:
                 )
             self.session.commit()
             self.session.refresh(file)
+            activation_event_service.record_ai_write_accepted(
+                self.session,
+                user_id=self.user_id,
+                project_id=file.project_id,
+                file_id=file.id,
+                file_type=file.file_type,
+                tool="edit_file",
+            )
 
         # 统一补齐 new_preview：replace 类操作的 detail 里叫 new_preview，
         # append/prepend/insert_* 只有 text_preview，前端与 SSE 适配器要两处兼容

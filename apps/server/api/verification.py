@@ -1,4 +1,5 @@
 """Email verification API endpoints"""
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, Query, status
@@ -274,8 +275,9 @@ async def check_verification(
             "verification_code_ttl_seconds": 0,
         }
 
-    cooldown = get_remaining_cooldown(normalized_email)
-    code_ttl = get_code_ttl(normalized_email)
+    # Synchronous Redis lookups; keep them off the event loop.
+    cooldown = await asyncio.to_thread(get_remaining_cooldown, normalized_email)
+    code_ttl = await asyncio.to_thread(get_code_ttl, normalized_email)
 
     return {
         "email": normalized_email,

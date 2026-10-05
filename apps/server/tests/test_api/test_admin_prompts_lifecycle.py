@@ -168,15 +168,15 @@ async def test_prompt_create_rolls_back_when_audit_write_fails(
         fail_audit,
     )
 
-    with pytest.raises(RuntimeError, match="audit unavailable"):
-        await client.put(
-            "/api/admin/prompts/screenplay",
-            headers=headers,
-            json={
-                "role_definition": "Screen role",
-                "capabilities": "Screen capabilities",
-            },
-        )
+    response = await client.put(
+        "/api/admin/prompts/screenplay",
+        headers=headers,
+        json={
+            "role_definition": "Screen role",
+            "capabilities": "Screen capabilities",
+        },
+    )
+    assert response.status_code == 500
     db_session.expire_all()
     stored = db_session.exec(
         select(SystemPromptConfig).where(

@@ -5,9 +5,14 @@ Provides get_logger() function for all modules to obtain configured loggers.
 """
 
 import logging
+import sys
 from typing import Any
 
 from utils.request_context import get_log_context
+
+# Frames between the caller of ``log_with_context`` and ``Logger.log``:
+# 1 = log_with_context itself, 2 = its caller.
+_CALLER_STACKLEVEL = 2
 
 
 def get_logger(name: str | None = None) -> logging.Logger:
@@ -34,17 +39,25 @@ def log_with_context(
     logger: logging.Logger,
     level: int,
     message: str,
+    *,
+    exc_info: Any = None,
     **extra_fields: Any,
 ) -> None:
     """
     Log a message with additional context fields.
 
-    Context fields will be added to the JSON log output.
+    Context fields will be added to the JSON log output. The recorded
+    file/line/function point at the caller, not at this helper.
+
+    ``exc_info`` follows ``logging`` semantics. When it is omitted, ERROR and
+    above attach the exception currently being handled (if any), so
+    ``except`` blocks get a stack trace without repeating ``exc_info=True``.
 
     Args:
         logger: Logger instance
         level: Log level (logging.INFO, logging.WARNING, etc.)
         message: Log message
+        exc_info: Optional exception info, as accepted by ``Logger.log``
         **extra_fields: Additional context fields to include in log
 
     Example:
@@ -63,5 +76,13 @@ def log_with_context(
         **get_log_context(),
         **extra_fields,
     }
+    if exc_info is None and level >= logging.ERROR and sys.exc_info()[0] is not None:
+        exc_info = True
     extra = {"custom_fields": merged_fields}
-    logger.log(level, message, extra=extra)
+    logger.log(
+        level,
+        message,
+        exc_info=exc_info,
+        extra=extra,
+        stacklevel=_CALLER_STACKLEVEL,
+    )

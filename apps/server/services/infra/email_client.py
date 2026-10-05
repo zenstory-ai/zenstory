@@ -1,6 +1,7 @@
 """
 Email service using Resend API for sending verification codes.
 """
+import asyncio
 import os
 
 import resend
@@ -15,6 +16,25 @@ RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "noreply@zenstory.ai")
 
 if RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
+
+
+def _resend_timeout_seconds() -> int:
+    raw = os.getenv("RESEND_TIMEOUT_SECONDS", "").strip()
+    try:
+        value = int(raw) if raw else 8
+    except ValueError:
+        value = 8
+    # Keep within 5-10s: long enough for Resend's API, short enough that a
+    # stuck call fails registration fast instead of holding a worker thread.
+    return min(10, max(5, value))
+
+
+RESEND_TIMEOUT_SECONDS = _resend_timeout_seconds()
+
+# The SDK's default requests client waits 30s. Replace it with the same
+# client and a short timeout when this SDK version exposes the hook.
+if hasattr(resend, "RequestsClient") and hasattr(resend, "default_http_client"):
+    resend.default_http_client = resend.RequestsClient(timeout=RESEND_TIMEOUT_SECONDS)
 
 
 async def send_verification_email(
@@ -151,7 +171,8 @@ async def send_verification_email(
             "html": html_content,
         }
 
-        r = resend.Emails.send(params)  # type: ignore[arg-type]
+        # The SDK call is blocking HTTP; run it in a worker thread.
+        r = await asyncio.to_thread(resend.Emails.send, params)  # type: ignore[arg-type]
 
         if r.get("id"):
             log_with_context(

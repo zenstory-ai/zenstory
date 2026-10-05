@@ -12,6 +12,8 @@ import { translateError } from "../lib/errorHandler";
 import { toast } from "../lib/toast";
 import { normalizePlanIntent, type PlanIntent } from "../lib/authFlow";
 
+const MAX_PASSWORD_BYTES = 72;
+
 // SVG icons for OAuth providers
 const GoogleIcon = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -189,6 +191,14 @@ export const Register: React.FC = () => {
       return;
     }
 
+    // bcrypt only uses the first 72 bytes; the server rejects longer passwords.
+    if (new TextEncoder().encode(password).length > MAX_PASSWORD_BYTES) {
+      const message = t('auth:errors.passwordTooLong');
+      setFormError(message);
+      toast.error(message);
+      return;
+    }
+
     if (trimmedUsername.length < 3) {
       const message = t('auth:errors.shortUsername');
       setFormError(message);
@@ -229,11 +239,12 @@ export const Register: React.FC = () => {
       setSuccess(true);
       toast.success(t('auth:register.success'));
       setTimeout(() => {
-        const verifyEmailParams = new URLSearchParams({ email: trimmedEmail });
-        if (selectedPlan) {
-          verifyEmailParams.set('plan', selectedPlan);
-        }
-        navigate(`/verify-email?${verifyEmailParams.toString()}`);
+        // The email travels in history state, not the URL, so it never shows
+        // up in analytics page URLs. History state survives a reload.
+        const verifyEmailPath = selectedPlan
+          ? `/verify-email?${new URLSearchParams({ plan: selectedPlan }).toString()}`
+          : '/verify-email';
+        navigate(verifyEmailPath, { state: { email: trimmedEmail } });
       }, 2000);
     } catch (err: unknown) {
       const error = err as { message?: string };

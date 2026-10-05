@@ -32,6 +32,7 @@ from models.file_version import (
     CHANGE_TYPE_AI_EDIT,
     CHANGE_TYPE_CREATE,
 )
+from services.features.activation_event_service import activation_event_service
 from services.file_tree_rules import (
     # 文件树结构不变量的唯一实现放在 services/file_tree_rules.py：
     # REST 层 api/files.py 与本模块共用同一份，避免两边各写一遍再慢慢漂移
@@ -493,6 +494,16 @@ class FileCRUD:
         self.session.commit()
         self.session.refresh(file)
 
+        if content and file.file_type != FILE_TYPE_FOLDER:
+            activation_event_service.record_ai_write_accepted(
+                self.session,
+                user_id=self.user_id,
+                project_id=file.project_id,
+                file_id=file.id,
+                file_type=file.file_type,
+                tool="create_file",
+            )
+
         # Fire-and-forget vector index upsert (do not block)
         self._schedule_index_upsert(file, metadata)
 
@@ -670,6 +681,16 @@ class FileCRUD:
 
         self.session.commit()
         self.session.refresh(file)
+
+        if content_changed:
+            activation_event_service.record_ai_write_accepted(
+                self.session,
+                user_id=self.user_id,
+                project_id=file.project_id,
+                file_id=file.id,
+                file_type=file.file_type,
+                tool="update_file",
+            )
 
         # Fire-and-forget vector index upsert (do not block)
         self._schedule_index_upsert(file)

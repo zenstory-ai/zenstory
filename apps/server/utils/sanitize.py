@@ -5,7 +5,9 @@ Automatically masks sensitive information in log output.
 """
 
 import re
+from collections.abc import Iterable
 from typing import Any
+from urllib.parse import urlencode
 
 # Sensitive field names (case-insensitive)
 SENSITIVE_FIELDS = {
@@ -180,3 +182,73 @@ def sanitize_for_logging(data: Any) -> Any:
         Sanitized data
     """
     return sanitize_item(data)
+
+
+# Email addresses are masked wherever they appear in log output: keep the
+# first character and the domain so support can still tell accounts apart.
+EMAIL_PATTERN = re.compile(r"([A-Za-z0-9._%+-])[A-Za-z0-9._%+-]*@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})")
+
+# Log fields that carry user-written text (prompts, search queries,
+# manuscript previews). Only their length is kept.
+USER_TEXT_LOG_FIELDS = {
+    "message_preview",
+    "user_message_preview",
+    "prompt",
+    "user_prompt",
+    "prompt_preview",
+    "content_preview",
+    "query",
+    "original_snippet",
+}
+
+
+def mask_email(value: str) -> str:
+    """Mask every email address in ``value`` (``alice@example.com`` -> ``a***@example.com``)."""
+    return EMAIL_PATTERN.sub(r"\1***@\2", value)
+
+
+def redact_log_value(value: Any) -> Any:
+    """Mask emails inside a log value, recursing into dicts and lists."""
+    if isinstance(value, str):
+        return mask_email(value)
+    if isinstance(value, dict):
+        return {key: redact_log_field(str(key), item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [redact_log_value(item) for item in value]
+    return value
+
+
+def redact_log_field(key: str, value: Any) -> Any:
+    """Redact one structured log field: drop user text, mask emails."""
+    if key.lower() in USER_TEXT_LOG_FIELDS and isinstance(value, str):
+        return f"[redacted {len(value)} chars]"
+    return redact_log_value(value)
+
+
+# Query-string keys whose values must never reach logs (credentials, OAuth
+# handshakes, payment signatures, personal identifiers).
+SENSITIVE_QUERY_KEYS = {
+    "token",
+    "access_token",
+    "refresh_token",
+    "id_token",
+    "code",
+    "state",
+    "password",
+    "key",
+    "api_key",
+    "secret",
+    "sign",
+    "signature",
+}
+
+
+def sanitize_query_params(items: Iterable[tuple[str, str]]) -> str:
+    """Render query parameters for logs with credentials redacted and emails masked."""
+    sanitized: list[tuple[str, str]] = []
+    for key, value in items:
+        if key.lower() in SENSITIVE_QUERY_KEYS:
+            sanitized.append((key, "[redacted]"))
+        else:
+            sanitized.append((key, mask_email(value)))
+    return urlencode(sanitized, safe="[]*@")

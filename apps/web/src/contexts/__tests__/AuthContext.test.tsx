@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ReactNode } from 'react'
 import { AuthIdentityQueryBoundary, AuthProvider, useAuth, User } from '../AuthContext'
 import * as api from '@/lib/api'
+import { trackEvent } from '@/lib/analytics'
 
 // Mock authApi
 vi.mock('@/lib/api', () => ({
@@ -17,6 +18,11 @@ vi.mock('@/lib/api', () => ({
 }))
 
 // Mock fetch for /api/auth/me and /api/auth/refresh calls
+vi.mock('@/lib/analytics', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/analytics')>()),
+  trackEvent: vi.fn(),
+}))
+
 const mockFetch = vi.fn()
 global.fetch = mockFetch
 
@@ -405,6 +411,31 @@ describe('AuthContext', () => {
       expect(localStorage.getItem('user')).toBe(null)
     })
 
+    it('drops queued upgrade funnel events of the signed-out account', async () => {
+      const mockResponse = createMockAuthResponse()
+      vi.mocked(api.authApi.login).mockResolvedValueOnce(mockResponse)
+      localStorage.setItem(
+        'zenstory_upgrade_funnel_pending_events',
+        JSON.stringify([{ event_name: 'upgrade_entry_click', action: 'click', source: 's', surface: 'modal', occurred_at: '2026-10-05T00:00:00Z' }]),
+      )
+
+      const { result } = renderHook(() => useAuth(), {
+        wrapper: createWrapper(),
+      })
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+      })
+      await act(async () => {
+        await result.current.login('testuser', 'password')
+      })
+
+      act(() => {
+        result.current.logout()
+      })
+
+      expect(localStorage.getItem('zenstory_upgrade_funnel_pending_events')).toBe(null)
+    })
+
     it('clears locally immediately and sends best-effort server logout with the captured token', async () => {
       const mockUser = createMockUser()
       localStorage.setItem('access_token', 'captured-access')
@@ -675,6 +706,36 @@ describe('AuthContext', () => {
   })
 
   describe('handleOAuthCallback', () => {
+    it('counts a Google sign-up as register_success only for new users', async () => {
+      const mockUser = createMockUser()
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockUser),
+      })
+      vi.mocked(trackEvent).mockClear()
+
+      const { result } = renderHook(() => useAuth(), {
+        wrapper: createWrapper(),
+      })
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+      })
+
+      await act(async () => {
+        await result.current.handleOAuthCallback('new-access', 'new-refresh', { isNewUser: true })
+      })
+      expect(trackEvent).toHaveBeenCalledWith('register_success', expect.objectContaining({ method: 'google' }))
+      expect(trackEvent).toHaveBeenCalledWith('oauth_callback_success', { is_new_user: true })
+
+      vi.mocked(trackEvent).mockClear()
+      await act(async () => {
+        await result.current.handleOAuthCallback('old-access', 'old-refresh')
+      })
+      expect(trackEvent).not.toHaveBeenCalledWith('register_success', expect.anything())
+      expect(trackEvent).toHaveBeenCalledWith('oauth_callback_success', { is_new_user: false })
+      mockFetch.mockReset()
+    })
+
     it('handles OAuth callback successfully', async () => {
       const mockUser = createMockUser()
 

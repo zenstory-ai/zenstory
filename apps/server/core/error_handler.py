@@ -4,10 +4,10 @@ Unified error handler for API exceptions.
 Provides custom APIException class and global exception handling.
 """
 import logging
-import traceback
 from typing import Any
 
 from fastapi import HTTPException, Request, status
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
@@ -113,25 +113,47 @@ async def validation_exception_handler(
     """
     Handle request validation errors.
 
-    Returns detailed validation error information.
+    Returns which fields failed and why. The submitted values (``input``) and
+    validator context (``ctx``) are dropped from both the log and the
+    response: they can hold passwords or whole chapters, and ``ctx`` may hold
+    exception objects that are not JSON serializable.
     """
+    errors = summarize_validation_errors(exc.errors())
     log_with_context(
         logger,
         logging.WARNING,
         "Request validation failed",
-        errors=str(exc.errors()),
+        errors=errors,
         path=request.url.path,
         method=request.method,
     )
 
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={
-            "detail": ErrorCode.VALIDATION_ERROR,
-            "error_code": ErrorCode.VALIDATION_ERROR,
-            "errors": exc.errors(),
-        },
+        content=jsonable_encoder(
+            {
+                "detail": ErrorCode.VALIDATION_ERROR,
+                "error_code": ErrorCode.VALIDATION_ERROR,
+                "errors": errors,
+            }
+        ),
     )
+
+
+def summarize_validation_errors(errors: Any) -> list[dict[str, Any]]:
+    """Keep only ``loc``/``type``/``msg`` from Pydantic validation errors."""
+    summary: list[dict[str, Any]] = []
+    for error in errors or []:
+        if not isinstance(error, dict):
+            continue
+        summary.append(
+            {
+                "loc": list(error.get("loc", ())),
+                "type": str(error.get("type", "")),
+                "msg": str(error.get("msg", "")),
+            }
+        )
+    return summary
 
 
 async def integrity_error_handler(request: Request, exc: IntegrityError) -> JSONResponse:
@@ -162,6 +184,17 @@ async def integrity_error_handler(request: Request, exc: IntegrityError) -> JSON
     )
 
 
+def internal_error_response(request_id: str | None = None) -> JSONResponse:
+    """Build the generic 500 body; internals never reach clients."""
+    content: dict[str, Any] = {
+        "detail": ErrorCode.INTERNAL_SERVER_ERROR,
+        "error_code": ErrorCode.INTERNAL_SERVER_ERROR,
+    }
+    if request_id:
+        content["request_id"] = request_id
+    return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=content)
+
+
 async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """
     Handle all unhandled exceptions.
@@ -172,17 +205,12 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
         logger,
         logging.ERROR,
         "Unhandled exception",
+        exc_info=exc,
         error_type=type(exc).__name__,
         error_message=str(exc),
-        traceback=traceback.format_exc(),
         path=request.url.path,
         method=request.method,
     )
 
     # Don't expose internal errors to clients in production
-    error_detail = ErrorCode.INTERNAL_SERVER_ERROR
-
-    return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": error_detail, "error_code": error_detail},
-    )
+    return internal_error_response(getattr(request.state, "request_id", None))

@@ -122,6 +122,18 @@ vi.mock("../referral/InviteCodeList", () => ({
   InviteCodeList: () => <div data-testid="invite-code-list" />,
 }));
 
+const { setAnalyticsOptOutMock, isAnalyticsOptedOutMock } = vi.hoisted(() => ({
+  setAnalyticsOptOutMock: vi.fn(),
+  isAnalyticsOptedOutMock: vi.fn(() => false),
+}));
+
+vi.mock("../../lib/analytics", () => ({
+  setAnalyticsOptOut: setAnalyticsOptOutMock,
+  isAnalyticsOptedOut: isAnalyticsOptedOutMock,
+  trackEvent: vi.fn(),
+  captureException: vi.fn(),
+}));
+
 import { SettingsDialog } from "../SettingsDialog";
 
 describe("SettingsDialog language switching", () => {
@@ -177,5 +189,30 @@ describe("SettingsDialog language switching", () => {
     expect(screen.getByRole("radio", { name: "Dark" })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("radio", { name: "Blue" })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("radio", { name: "Green" })).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("lets the viewer turn product analytics off and back on", () => {
+    isAnalyticsOptedOutMock.mockReturnValue(false);
+    render(<SettingsDialog isOpen onClose={vi.fn()} defaultTab="general" />);
+
+    const toggle = screen.getByTestId("analytics-toggle");
+    expect(toggle).toHaveAttribute("role", "switch");
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+
+    fireEvent.click(toggle);
+    expect(setAnalyticsOptOutMock).toHaveBeenLastCalledWith(true);
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+
+    fireEvent.click(toggle);
+    expect(setAnalyticsOptOutMock).toHaveBeenLastCalledWith(false);
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("reflects a stored opt-out when opened", () => {
+    isAnalyticsOptedOutMock.mockReturnValue(true);
+    render(<SettingsDialog isOpen onClose={vi.fn()} defaultTab="general" />);
+
+    expect(screen.getByTestId("analytics-toggle")).toHaveAttribute("aria-checked", "false");
+    isAnalyticsOptedOutMock.mockReturnValue(false);
   });
 });

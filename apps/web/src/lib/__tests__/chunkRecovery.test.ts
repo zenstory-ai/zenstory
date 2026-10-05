@@ -133,6 +133,57 @@ describe("chunkRecovery", () => {
     expect(sessionStorage.getItem("zenstory:chunk-reload-once")).toBe("1");
   });
 
+  it("clears a generic guard after a later successful route import", async () => {
+    // A hover preload failed and reloaded this tab a while ago.
+    sessionStorage.setItem("zenstory:chunk-reload-once", "vite:preloadError");
+    sessionStorage.setItem("zenstory:chunk-reload-at", String(Date.now() - 60_000));
+    const LazyComponent = recovery.lazyRoute(
+      async () => ({ default: () => createElement("div", null, "dashboard loaded") }),
+      "Dashboard",
+    );
+
+    render(
+      createElement(
+        Suspense,
+        { fallback: createElement("div", null, "loading") },
+        createElement(LazyComponent),
+      ),
+    );
+
+    expect(await screen.findByText("dashboard loaded")).toBeInTheDocument();
+    expect(sessionStorage.getItem("zenstory:chunk-reload-once")).toBeNull();
+    expect(sessionStorage.getItem("zenstory:chunk-reload-at")).toBeNull();
+
+    // So the next deploy in this tab can recover again.
+    expect(
+      recovery.reloadForChunkErrorOnce(
+        new Error("Failed to fetch dynamically imported module: /assets/x.js"),
+        "vite:preloadError",
+      ),
+    ).toBe(true);
+    expect(reloadSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a fresh generic guard so a failure on every load cannot loop", async () => {
+    sessionStorage.setItem("zenstory:chunk-reload-once", "vite:preloadError");
+    sessionStorage.setItem("zenstory:chunk-reload-at", String(Date.now() - 1_000));
+    const LazyComponent = recovery.lazyRoute(
+      async () => ({ default: () => createElement("div", null, "home loaded") }),
+      "HomePage",
+    );
+
+    render(
+      createElement(
+        Suspense,
+        { fallback: createElement("div", null, "loading") },
+        createElement(LazyComponent),
+      ),
+    );
+
+    expect(await screen.findByText("home loaded")).toBeInTheDocument();
+    expect(sessionStorage.getItem("zenstory:chunk-reload-once")).toBe("vite:preloadError");
+  });
+
   it("propagates unrelated lazy import failures", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const unrelatedError = new Error("application module failed");

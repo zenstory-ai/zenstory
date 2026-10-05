@@ -212,15 +212,15 @@ async def test_suggest_refunds_quota_when_generation_raises(
 
     service = _llm_backed_suggest_service([])
     service.generate_suggestions = AsyncMock(side_effect=RuntimeError("LLM boom"))
-    # ASGITransport 默认把应用内未处理异常直接抛给调用方，这里断言异常原样上抛，
+    # 未处理异常由 LoggingMiddleware 记录堆栈并回 500（带 CORS 与 X-Request-ID），
     # 同时额度已经被退回（修复前根本不扣费，退款分支也就无从谈起）。
     with patch("agent.suggest_service.get_suggest_service", return_value=service):
-        with pytest.raises(RuntimeError, match="LLM boom"):
-            await client.post(
-                "/api/v1/agent/suggest",
-                json={"project_id": str(project.id), "count": 3},
-                headers={"Authorization": f"Bearer {token}"},
-            )
+        response = await client.post(
+            "/api/v1/agent/suggest",
+            json={"project_id": str(project.id), "count": 3},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert response.status_code == 500
 
     assert _read_quota_used(db_session, user.id) == 5
 
