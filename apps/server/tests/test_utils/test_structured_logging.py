@@ -126,6 +126,26 @@ def test_emails_are_masked_and_prompt_previews_dropped(json_logger):
 
 
 @pytest.mark.unit
+def test_search_queries_and_output_snippets_are_dropped(json_logger):
+    logger, read_records = json_logger
+
+    log_with_context(
+        logger,
+        logging.INFO,
+        "Context assembly started",
+        query="我的主角秘密是她其实是公主 alice@example.com",
+        original_snippet="<file>第一章：她推开门</file>",
+    )
+
+    record = read_records()[0]
+    raw = json.dumps(record, ensure_ascii=False)
+    assert "主角秘密" not in raw
+    assert "她推开门" not in raw
+    assert record["query"] == "[redacted 31 chars]"
+    assert record["original_snippet"].startswith("[redacted ")
+
+
+@pytest.mark.unit
 def test_mask_email_leaves_plain_text_alone():
     assert mask_email("no address here") == "no address here"
 

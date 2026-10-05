@@ -188,8 +188,8 @@ def sanitize_for_logging(data: Any) -> Any:
 # first character and the domain so support can still tell accounts apart.
 EMAIL_PATTERN = re.compile(r"([A-Za-z0-9._%+-])[A-Za-z0-9._%+-]*@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})")
 
-# Log fields that carry user-written text (prompts, manuscript previews).
-# Only their length is kept.
+# Log fields that carry user-written text (prompts, search queries,
+# manuscript previews). Only their length is kept.
 USER_TEXT_LOG_FIELDS = {
     "message_preview",
     "user_message_preview",
@@ -197,6 +197,8 @@ USER_TEXT_LOG_FIELDS = {
     "user_prompt",
     "prompt_preview",
     "content_preview",
+    "query",
+    "original_snippet",
 }
 
 
