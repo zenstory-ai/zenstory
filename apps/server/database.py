@@ -26,6 +26,17 @@ log_with_context(
     database_url="***" if DATABASE_URL else "Using default SQLite",
 )
 
+# 同步与异步 PostgreSQL engine 共用的连接池参数。pool_pre_ping：PG 重启、
+# 故障切换或网络设备清掉闲置 TCP 后，池里的死连接会在借出前被探测并替换，
+# 而不是让拿到它的请求直接 OperationalError。SQLite 分支早已开启。
+POSTGRES_POOL_OPTIONS: dict[str, int | bool] = {
+    "pool_size": 10,
+    "max_overflow": 20,
+    "pool_timeout": 30,
+    "pool_recycle": 1800,
+    "pool_pre_ping": True,
+}
+
 if is_postgres:
     # PostgreSQL connection (Railway production)
     # Convert postgresql:// to postgresql+asyncpg:// for async support
@@ -35,10 +46,7 @@ if is_postgres:
     async_engine: AsyncEngine | None = create_async_engine(
         DATABASE_URL,
         echo=False,
-        pool_size=10,
-        max_overflow=20,
-        pool_timeout=30,
-        pool_recycle=1800,
+        **POSTGRES_POOL_OPTIONS,
     )
     AsyncSessionLocal: async_sessionmaker[AsyncSession] | None = async_sessionmaker(
         async_engine, class_=AsyncSession, expire_on_commit=False
@@ -47,10 +55,7 @@ if is_postgres:
     sync_url = DATABASE_URL.replace("postgresql+asyncpg://", "postgresql+psycopg://", 1)
     sync_engine = create_engine(
         sync_url,
-        pool_size=10,
-        max_overflow=20,
-        pool_timeout=30,
-        pool_recycle=1800,
+        **POSTGRES_POOL_OPTIONS,
     )
 else:
     # SQLite connection (local development)
