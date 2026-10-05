@@ -84,8 +84,12 @@ test.describe('Authentication', () => {
       // Submit form
       await page.click('button[type="submit"]');
 
-      // Should redirect to verify-email page with email parameter
-      await expect(page).toHaveURL(/\/verify-email\?email=/, { timeout: 15000 });
+      // Redirects to verify-email; the address travels in navigation state,
+      // never in the URL (URLs are captured by analytics).
+      const email = `newuser-${uniqueSuffix}@example.com`;
+      await expect(page).toHaveURL(/\/verify-email(?:$|\?)/, { timeout: 15000 });
+      expect(page.url()).not.toContain('email=');
+      await expect(page.getByText(email).first()).toBeVisible({ timeout: 10000 });
     });
 
     test('user cannot register with mismatched passwords', async ({ page }) => {
