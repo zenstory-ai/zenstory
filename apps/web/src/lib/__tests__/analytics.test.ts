@@ -8,6 +8,7 @@ const captureExceptionMock = vi.fn();
 const startExceptionAutocaptureMock = vi.fn();
 const optOutMock = vi.fn();
 const optInMock = vi.fn();
+const hasOptedOutMock = vi.fn(() => false);
 
 vi.mock("posthog-js", () => ({
   default: {
@@ -19,6 +20,7 @@ vi.mock("posthog-js", () => ({
     startExceptionAutocapture: startExceptionAutocaptureMock,
     opt_out_capturing: optOutMock,
     opt_in_capturing: optInMock,
+    has_opted_out_capturing: hasOptedOutMock,
   },
 }));
 
@@ -43,6 +45,8 @@ describe("analytics", () => {
     startExceptionAutocaptureMock.mockReset();
     optOutMock.mockReset();
     optInMock.mockReset();
+    hasOptedOutMock.mockReset();
+    hasOptedOutMock.mockReturnValue(false);
     localStorage.clear();
     window.history.replaceState(null, "", "/");
     document.title = "Dashboard";
@@ -241,5 +245,36 @@ describe("analytics", () => {
     expect(optOutMock).toHaveBeenCalledTimes(1);
     analytics.setAnalyticsOptOut(false);
     expect(optInMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears PostHog's persisted opt-out once the app flag is cleared", async () => {
+    // A previous page load opted out: PostHog stored its own opt-out, which
+    // survives the reload independently of our flag.
+    localStorage.setItem("zenstory:analytics-opt-out", "true");
+    hasOptedOutMock.mockReturnValue(true);
+    optInMock.mockImplementation(() => hasOptedOutMock.mockReturnValue(false));
+    const analytics = await import("../analytics");
+
+    expect(analytics.initAnalytics(ENABLED_ENV)).toBe(false);
+    analytics.setAnalyticsOptOut(false);
+
+    expect(initMock).toHaveBeenCalledTimes(1);
+    expect(optInMock).toHaveBeenCalledTimes(1);
+    expect(hasOptedOutMock()).toBe(false);
+  });
+
+  it("re-enables a browser whose flag was cleared while PostHog kept its opt-out", async () => {
+    hasOptedOutMock.mockReturnValue(true);
+    const analytics = await import("../analytics");
+
+    expect(analytics.initAnalytics(ENABLED_ENV)).toBe(true);
+    expect(optInMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves PostHog's opt-in state alone when it was never opted out", async () => {
+    const analytics = await import("../analytics");
+
+    expect(analytics.initAnalytics(ENABLED_ENV)).toBe(true);
+    expect(optInMock).not.toHaveBeenCalled();
   });
 });
