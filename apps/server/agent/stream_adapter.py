@@ -12,6 +12,7 @@ from collections.abc import AsyncIterator, Iterable
 from dataclasses import dataclass
 from typing import Any
 
+from core.error_codes import ErrorCode
 from models.file_model import FILE_TYPE_FOLDER
 from utils.logger import get_logger, log_with_context
 
@@ -38,6 +39,7 @@ from .core.events import (
     tool_call_event,
     tool_result_event,
 )
+from .core.stream_errors import error_message_for, stream_error_from_event_data
 from .core.stream_processor import StreamProcessor, StreamResult
 from .core.workflow_events import StreamEvent as WorkflowStreamEvent
 from .core.workflow_events import StreamEventType
@@ -61,6 +63,9 @@ STREAM_FILE_SAVE_TIMEOUT_S = _get_positive_float_env(
     "AGENT_STREAM_FILE_SAVE_TIMEOUT_S",
     15.0,
 )
+
+# 流中止后补存 <file> 正文的后台任务：持有强引用，避免任务在完成前被 GC。
+_ABORT_SAVE_TASKS: set[asyncio.Task] = set()
 
 
 def is_folder_file_type(raw: Any) -> bool:
@@ -311,6 +316,13 @@ class StreamAdapter:
                         break
                 if self._fatal_stream_error:
                     break
+        except (asyncio.CancelledError, GeneratorExit):
+            # 用户按停止 / 断线 / 请求级时限到期：正在 <file> 捕获中的正文只在
+            # 内存缓冲里，不收尾就整段丢失，只留下 create_file 建的空文件。
+            # 这里不能再 await（取消会再次打断；GeneratorExit 期间挂起会让收尾
+            # 全部丢失），改为同步算出补全结果后交给后台任务落库。
+            self._persist_active_capture_in_background()
+            raise
         finally:
             # Deterministically close the upstream generator (e.g. when we break
             # early on a fatal stream error) so the runner's finally — which
@@ -475,10 +487,24 @@ class StreamAdapter:
                 # request.
 
         elif event_type == StreamEventType.ERROR:
-            # Error event
-            error_msg = data.get("error", "Unknown error")
+            # LLM 中途出错时 runner 不发 MESSAGE_END，进行中的 <file> 捕获不会在
+            # agent 边界收尾：先把已串流的正文按截断补全落库（沿用覆盖保护），
+            # 再以 error 帧结束，避免只留下空文件。
+            async for sse_event in self._flush_active_capture():
+                yield sse_event
+            already_failed = self._fatal_stream_error
             self._fatal_stream_error = True
-            yield error_event(message=error_msg)
+            if not already_failed:
+                info = stream_error_from_event_data(data)
+                # 熔断的 error 文案本身就是给用户看的具体说明（已去掉 SQL 细节）；
+                # 其余一律用固定文案，原始异常只在日志里。
+                message = data.get("error") if info.code == ErrorCode.AGENT_TOOL_FAILURE_LIMIT else None
+                yield error_event(
+                    message=message if isinstance(message, str) and message else info.message,
+                    code=info.code,
+                    retryable=info.retryable,
+                    refundable=info.refundable,
+                )
 
         elif event_type == StreamEventType.AGENT_SELECTED:
             # Agent selected by router
@@ -802,6 +828,53 @@ class StreamAdapter:
             explicit = 0
         return max(explicit, len(content), 0)
 
+    def _persist_active_capture_in_background(self) -> asyncio.Task | None:
+        """流被取消/关闭时，把进行中的 <file> 捕获补全落库（后台任务，不 await）。
+
+        与 _complete_file_write 同一套语义：只落库真正的正文（finalize_on_stream_end
+        已丢弃 control-marker 污染的叙述），并遵守截断覆盖保护——目标文件原本
+        已有正文时不整体覆盖。落库用独立 session（_save_file_content_sync），
+        不依赖随请求关闭的共享 session。
+        """
+        if not (self.config.process_file_markers and self._stream_processor.is_active):
+            return None
+        try:
+            result = self._stream_processor.finalize_on_stream_end()
+        except Exception as exc:  # pragma: no cover - 防御性兜底
+            log_with_context(
+                logger,
+                30,  # WARNING
+                "Failed to finalize file capture after stream abort",
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+            return None
+        if not (result.file_complete and result.file_id and result.final_content):
+            return None
+        if self._should_refuse_truncated_overwrite(result):
+            log_with_context(
+                logger,
+                30,  # WARNING
+                "Skipping abort-time save that would overwrite an existing file body",
+                file_id=result.file_id,
+                streamed_length=len(result.final_content),
+            )
+            return None
+
+        file_id = result.file_id
+        content = result.final_content
+        log_with_context(
+            logger,
+            20,  # INFO
+            "Persisting in-flight file capture after stream abort",
+            file_id=file_id,
+            content_length=len(content),
+        )
+        task = asyncio.create_task(self._save_file_content(file_id, content))
+        _ABORT_SAVE_TASKS.add(task)
+        task.add_done_callback(_ABORT_SAVE_TASKS.discard)
+        return task
+
     async def _flush_active_capture(self) -> AsyncIterator[SSEEvent]:
         """收尾仍在进行中的流式捕获，并发出对应的 SSE 事件。
 
@@ -901,8 +974,8 @@ class StreamAdapter:
                 self._pending_file_write = None
                 self._clear_pending_empty_file_guard(result.file_id)
                 yield error_event(
-                    message="Failed to persist streamed file content",
-                    code="FILE_SAVE_FAILED",
+                    message=error_message_for(ErrorCode.AGENT_FILE_SAVE_FAILED),
+                    code=ErrorCode.AGENT_FILE_SAVE_FAILED,
                     retryable=True,
                 )
                 return

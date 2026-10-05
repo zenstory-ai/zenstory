@@ -6,10 +6,18 @@ import asyncio
 import contextlib
 import functools
 import json
+import time
 from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 from agent.core.progress_channel import reset_progress_emitter, set_progress_emitter
+from agent.core.run_meter import AgentRunMeter
+from agent.core.stream_errors import (
+    MODEL_CALL_LIMIT_ERROR_TYPE,
+    classify_stream_exception,
+    log_stream_exception,
+    model_call_limit_error,
+)
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.graph.state import WritingState
 from agent.openai_agents.events import (
@@ -63,6 +71,8 @@ def _control_flow_status_of(tool_name: str, output_text: str) -> bool:
 
 # 工具失败熔断后 MESSAGE_END 的 stop_reason（随 assistant 消息元数据落库）。
 TOOL_FAILURE_STOP_REASON = "tool_failure_circuit_open"
+# 请求级模型调用预算用尽、截停 SDK run 后 MESSAGE_END 的 stop_reason。
+MODEL_CALL_BUDGET_STOP_REASON = "model_call_budget_exhausted"
 
 
 def _stop_run_on_control_flow_tool(
@@ -70,6 +80,7 @@ def _stop_run_on_control_flow_tool(
     tool_results: list[Any],
     *,
     failure_breaker: ToolFailureBreaker | None = None,
+    run_meter: AgentRunMeter | None = None,
 ) -> Any:
     """SDK 的 tool_use_behavior 回调：控制流工具生效后立即结束当前 run。
 
@@ -106,7 +117,25 @@ def _stop_run_on_control_flow_tool(
         if _control_flow_status_of(tool_name, output_text):
             return ToolsToFinalOutputResult(is_final_output=True, final_output=output_text)
 
+    # 请求级模型调用预算：本轮工具已经执行完，预算用尽就不再发起下一次模型调用
+    # （与熔断同一个同步出口；控制流工具优先，让交接/澄清照常落地）。
+    if run_meter is not None and run_meter.exhausted:
+        run_meter.budget_stopped = True
+        return ToolsToFinalOutputResult(is_final_output=True, final_output="")
+
     return ToolsToFinalOutputResult(is_final_output=False, final_output=None)
+
+
+class _ModelCallCountingFilter:
+    """call_model_input_filter：每次模型调用前计数，再交给内层过滤器处理输入。"""
+
+    def __init__(self, inner: Callable[[Any], Any], run_meter: AgentRunMeter) -> None:
+        self._inner = inner
+        self._run_meter = run_meter
+
+    def __call__(self, data: Any) -> Any:
+        self._run_meter.record_model_call()
+        return self._inner(data)
 
 
 def _is_new_model_turn_event(sdk_event: Any) -> bool:
@@ -360,6 +389,7 @@ def _build_agent(
     *,
     failure_breaker: ToolFailureBreaker | None = None,
     read_only: bool = False,
+    run_meter: AgentRunMeter | None = None,
 ) -> Any:
     # NOTE — Agent.as_tool was evaluated and rejected.
     # Agent.as_tool wraps an agent as a callable tool for a parent agent, which
@@ -402,7 +432,9 @@ def _build_agent(
         # 控制流工具生效、或工具失败熔断时即结束 run，避免 SDK 在「工作流已暂停」
         # 之后再跑一整轮模型调用并真实执行其工具（详见 _stop_run_on_control_flow_tool）。
         tool_use_behavior=functools.partial(
-            _stop_run_on_control_flow_tool, failure_breaker=failure_breaker
+            _stop_run_on_control_flow_tool,
+            failure_breaker=failure_breaker,
+            run_meter=run_meter,
         ),
     )
 
@@ -532,6 +564,12 @@ async def run_openai_agents_streaming_agent(
             else ToolFailureBreaker()
         )
     failure_stopped = False
+    # 请求级模型调用预算（writing_graph 建一个跨 agent run 共享；单独调用 runner
+    # 时自建一个默认预算）。
+    shared_meter = state.get("run_meter")
+    run_meter = shared_meter if isinstance(shared_meter, AgentRunMeter) else AgentRunMeter()
+    budget_stopped = False
+    run_started_at = time.monotonic()
 
     # Read-only co-call instrumentation (item 1.4).
     # Approximation: within a single assistant turn, the SDK emits all tool_called events
@@ -543,6 +581,25 @@ async def run_openai_agents_streaming_agent(
     _READONLY_TOOLS: frozenset[str] = frozenset({"query_files", "hybrid_search"})
     _turn_readonly_pending: int = 0   # read-only calls seen since last tool_output
     _turn_has_output: bool = False    # whether the current turn has received any tool_output
+
+    if run_meter.exhausted:
+        # 上一个 agent run 已经把预算用完（例如最后一次调用恰好以交接结束）：
+        # 不再发起任何模型调用，直接以预算用尽结束整条工作流。
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Model call budget exhausted before agent run",
+            agent_type=agent_type,
+            model_calls=run_meter.model_calls,
+            max_model_calls=run_meter.max_model_calls,
+        )
+        yield StreamEvent(
+            type=StreamEventType.ERROR,
+            data=model_call_limit_error().as_event_data(
+                error_type=MODEL_CALL_LIMIT_ERROR_TYPE, agent_type=agent_type
+            ),
+        )
+        return
 
     async for steering_event in _inject_initial_steering(api_messages, get_steering_messages):
         yield steering_event
@@ -568,6 +625,7 @@ async def run_openai_agents_streaming_agent(
             failure_breaker=failure_breaker,
             # 用户明确要求不改文件：写工具调用一律拒绝执行（由 writing_graph 按路由结果置位）。
             read_only=state.get("read_only") is True,
+            run_meter=run_meter,
         )
         # Install the progress emitter only across run_streamed. The SDK creates
         # its background task synchronously inside run_streamed, copying the
@@ -593,7 +651,10 @@ async def run_openai_agents_streaming_agent(
                     # subsequent model call. Keeps the freshest outputs full; control-flow tool
                     # outputs are never touched. See intra_run_trimmer for why the stock SDK
                     # ToolOutputTrimmer is a no-op for this project's history shape.
-                    call_model_input_filter=IntraRunToolOutputTrimmer(),
+                    # 外层计数器给请求级模型调用预算记账（每次模型调用前调用一次）。
+                    call_model_input_filter=_ModelCallCountingFilter(
+                        IntraRunToolOutputTrimmer(), run_meter
+                    ),
                     # 模型调用了本 agent 工具集里没有的工具（例如审稿人照着共享历史调
                     # edit_file、或幻觉出的工具名）：SDK 默认抛 ModelBehaviorError，整轮
                     # 以致命 ERROR 结束、原始异常文本直接展示给用户。改为把结构化错误
@@ -623,7 +684,9 @@ async def run_openai_agents_streaming_agent(
                 if kind == "error":
                     raise payload
                 sdk_event = payload
-                if (control_flow_stopped or failure_stopped) and _is_new_model_turn_event(sdk_event):
+                if (
+                    control_flow_stopped or failure_stopped or budget_stopped
+                ) and _is_new_model_turn_event(sdk_event):
                     # 兜底护栏：正常情况下 tool_use_behavior 已经让 run-loop 在控制流
                     # 工具返回的那一刻结束，走不到这里。一旦走到（工具改名、SDK 行为
                     # 变化等），说明 SDK 又开了新的一轮——立即硬取消并截断消费循环，
@@ -786,6 +849,13 @@ async def run_openai_agents_streaming_agent(
                         failure_stopped = True
                         _safe_cancel(result, "after_turn")
 
+                    if run_meter.exhausted and not budget_stopped:
+                        # 预算同样由 tool_use_behavior 同步截停；「工具不存在」这类没有
+                        # FunctionTool 结果的轮次不会经过它，这里兜底。
+                        budget_stopped = True
+                        run_meter.budget_stopped = True
+                        _safe_cancel(result, "after_turn")
+
                     # 工具输出边界是 run 内唯一能消费 steering 的时机（SDK 事件
                     # 消费循环的其余位置都在等模型流式输出）。
                     async for steering_event in _consume_boundary_steering(
@@ -841,6 +911,32 @@ async def run_openai_agents_streaming_agent(
             )
             return
 
+        if run_meter.budget_stopped and clarification_event_data is None and handoff_event_data is None:
+            # 请求级模型调用预算用尽：与熔断一样先让本 run 的 usage 入账，再以
+            # ERROR 结束整条工作流（StreamAdapter 会关闭工作流生成器）。
+            log_with_context(
+                logger,
+                30,  # WARNING
+                "Model call budget exhausted; stopping agent run",
+                agent_type=agent_type,
+                model_calls=run_meter.model_calls,
+                max_model_calls=run_meter.max_model_calls,
+            )
+            yield StreamEvent(
+                type=StreamEventType.MESSAGE_END,
+                data={
+                    "stop_reason": MODEL_CALL_BUDGET_STOP_REASON,
+                    "usage": _usage_dict_from_result(result),
+                },
+            )
+            yield StreamEvent(
+                type=StreamEventType.ERROR,
+                data=model_call_limit_error().as_event_data(
+                    error_type=MODEL_CALL_LIMIT_ERROR_TYPE, agent_type=agent_type
+                ),
+            )
+            return
+
         if clarification_event_data is not None:
             from agent.core.metrics import AGENT_CLARIFICATION_TOTAL, get_metrics_collector
 
@@ -860,24 +956,33 @@ async def run_openai_agents_streaming_agent(
             20,  # INFO
             "OpenAI Agents streaming run completed",
             agent_type=agent_type,
+            model=DEEPSEEK_WRITING_MODEL,
             tool_calls=len(tool_uses),
             response_length=sum(len(part) for part in assistant_text_parts),
+            model_turns=len(getattr(result, "raw_responses", None) or []),
+            duration_ms=round((time.monotonic() - run_started_at) * 1000, 1),
+            input_tokens=usage.get("input_tokens", 0),
+            output_tokens=usage.get("output_tokens", 0),
+            cache_read_tokens=usage.get("cache_read_tokens", 0),
         )
 
     except Exception as exc:
-        log_with_context(
+        error_info = classify_stream_exception(exc)
+        log_stream_exception(
             logger,
-            40,  # ERROR
             "OpenAI Agents streaming run failed",
+            exc,
+            error_info,
             agent_type=agent_type,
-            error=str(exc),
-            error_type=type(exc).__name__,
+            model=DEEPSEEK_WRITING_MODEL,
+            duration_ms=round((time.monotonic() - run_started_at) * 1000, 1),
         )
         yield StreamEvent(
             type=StreamEventType.ERROR,
-            data={"error": str(exc), "error_type": type(exc).__name__},
+            data=error_info.as_event_data(error_type=type(exc).__name__),
         )
     finally:
+        run_meter.record_agent_run((time.monotonic() - run_started_at) * 1000)
         # Stop the SDK pump if it is still running (e.g. the consumer aborted
         # early before the stream drained), so it cannot outlive this run.
         if pump_task is not None and not pump_task.done():

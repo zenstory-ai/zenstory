@@ -853,6 +853,23 @@ describe('useAgentStream', () => {
       expect(result.current.retryable).toBe(false)
     })
 
+    it('keeps non-retryable stream errors visible instead of auto-dismissing them', () => {
+      const { result } = renderHook(() => useAgentStream('test-project-id'))
+      const controller = createMockStreamController()
+
+      act(() => result.current.startStream({ message: 'first' }))
+      act(() =>
+        controller.getCallbacks()!.onError?.('上下文过长', 'ERR_AGENT_CONTEXT_TOO_LONG', false),
+      )
+      act(() => vi.advanceTimersByTime(10000))
+
+      expect(result.current.error).toBe('上下文过长')
+      expect(result.current.errorCode).toBe('ERR_AGENT_CONTEXT_TOO_LONG')
+
+      act(() => result.current.startStream({ message: 'second' }))
+      expect(result.current.error).toBeNull()
+    })
+
     it('calls onError callback', () => {
       const onError = vi.fn()
       const { result } = renderHook(() =>

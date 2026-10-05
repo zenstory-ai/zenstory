@@ -1555,7 +1555,9 @@ class TestWritingGraphUserScope:
 
         self._assert_notice_closes_the_run(events)
         assert events[-1].type == StreamEventType.ERROR
-        assert events[-1].data["error"] == "boom"
+        # 原始异常只进日志，前端拿到的是固定文案与错误码。
+        assert events[-1].data["code"] == "ERR_AGENT_RUN_FAILED"
+        assert "boom" not in events[-1].data["error"]
 
     @pytest.mark.asyncio
     async def test_read_only_request_still_allows_handoff_to_read_only_agent(self):

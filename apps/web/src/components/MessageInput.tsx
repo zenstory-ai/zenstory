@@ -26,6 +26,7 @@ import { skillsApi } from "../lib/api";
 import type { Skill } from "../types";
 import { useSwipeGestures } from "../hooks/useGestures";
 import { logger } from "../lib/logger";
+import { MAX_AGENT_MESSAGE_CHARS } from "../lib/agentLimits";
 
 /**
  * Randomly selects a specified number of distinct suggestions from a pool.
@@ -310,6 +311,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   }, [t]);
 
   const [input, setInputInternal] = useState(externalDraft ?? "");
+  // 与后端 AgentRequest.message 的 max_length 一致：超限时禁用发送并提示。
+  const inputTooLong = input.length > MAX_AGENT_MESSAGE_CHARS;
   const [staticSuggestions, setStaticSuggestions] = useState<string[]>(() =>
     getRandomSuggestions(allStaticSuggestions, 3)
   );
@@ -571,7 +574,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
    */
   const handleSteer = async () => {
     const trimmed = input.trim();
-    if (!trimmed || !onSteer || steerPending) return;
+    if (!trimmed || !onSteer || steerPending || inputTooLong) return;
 
     setSteerPending(true);
     try {
@@ -593,7 +596,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   const handleSubmit = () => {
     const message = input.trim();
-    if (message && !effectiveSendDisabled) {
+    if (message && !effectiveSendDisabled && !inputTooLong) {
       onSend(message, selectedSkills.map((skill) => skill.id));
       // 与输入框文本保持一致：发送即清空（onSend 不回报失败）。
       setInput("");
@@ -872,6 +875,19 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         accessoryRows
       )}
 
+      {inputTooLong ? (
+        <div
+          className="text-xs text-[hsl(var(--error))] px-1"
+          role="alert"
+          data-testid="chat-input-too-long"
+        >
+          {t("chat:input.tooLong", {
+            count: input.length,
+            max: MAX_AGENT_MESSAGE_CHARS,
+          })}
+        </div>
+      ) : null}
+
       {/* Steering hint: shown while the agent is generating and steering is available */}
       {steerActive ? (
         <div
@@ -953,7 +969,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         {steerActive && input.trim() ? (
           <button
             onClick={() => { void handleSteer(); }}
-            disabled={!input.trim() || steerPending}
+            disabled={!input.trim() || steerPending || inputTooLong}
             className={`shrink-0 flex items-center justify-center bg-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-dark))] disabled:bg-[hsl(var(--bg-tertiary))] disabled:cursor-not-allowed text-white rounded-lg transition-colors focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--accent-primary))] ${isMobile ? 'w-11 h-11' : 'w-9 h-9'}`}
             title={t("chat:input.steerButton")}
             aria-label={t("chat:input.steerButton")}
@@ -972,7 +988,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         ) : (
           <button
             onClick={handleSubmit}
-            disabled={!input.trim() || effectiveSendDisabled}
+            disabled={!input.trim() || effectiveSendDisabled || inputTooLong}
             className={`shrink-0 flex items-center justify-center bg-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--accent-dark))] disabled:bg-[hsl(var(--bg-tertiary))] disabled:cursor-not-allowed text-white rounded-lg transition-colors focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--accent-primary))] disabled:focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--bg-tertiary))] ${isMobile ? 'w-11 h-11' : 'w-9 h-9'}`}
             title={t("common:send")}
             data-testid="send-button"

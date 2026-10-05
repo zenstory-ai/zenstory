@@ -181,9 +181,18 @@ class ToolFailureTrip:
         )
 
     def as_event_data(self, agent_type: str) -> dict[str, Any]:
+        from agent.core.stream_errors import TOOL_FAILURE_ERROR_TYPE, tool_failure_error
+
+        info = tool_failure_error()
         return {
+            # error 仍是给用户看的具体说明（工具名、失败次数、去掉 SQL 的错误摘要）；
+            # code / retryable / refundable 决定前端文案与计费：熔断属于模型或
+            # 用户行为造成的停止，不可重试、不退还额度。
             "error": self.user_message(),
-            "error_type": "ToolFailureCircuitOpen",
+            "code": info.code,
+            "retryable": info.retryable,
+            "refundable": info.refundable,
+            "error_type": TOOL_FAILURE_ERROR_TYPE,
             "reason": self.reason,
             "agent_type": agent_type,
             "tool_name": self.tool_name,

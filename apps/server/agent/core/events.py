@@ -174,6 +174,14 @@ class ErrorEventData(BaseModel):
     message: str = Field(..., description="Error message")
     code: str | None = Field(default=None, description="Error code")
     retryable: bool = Field(default=False, description="Whether the error is retryable")
+    refundable: bool | None = Field(
+        default=None,
+        description=(
+            "Whether this failure is a platform-side fault eligible for a quota refund; "
+            "None means unspecified (treated as refundable). The API layer still keeps "
+            "the charge when the turn already produced output."
+        ),
+    )
 
 
 class DoneEventData(BaseModel):
@@ -373,6 +381,7 @@ def error_event(
     message: str,
     code: str | None = None,
     retryable: bool = False,
+    refundable: bool | None = None,
 ) -> StreamEvent:
     """Create an error event."""
     return StreamEvent(
@@ -381,6 +390,7 @@ def error_event(
             message=message,
             code=code,
             retryable=retryable,
+            refundable=refundable,
         ).model_dump()
     )
 

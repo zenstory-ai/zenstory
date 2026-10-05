@@ -581,6 +581,74 @@ describe('agentApi', () => {
       )
     })
 
+    it('marks a busy chat session (409 ERR_SESSION_BUSY) as retryable', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: async () => ({
+          detail: 'This chat session already has an active generation.',
+          error_code: 'ERR_SESSION_BUSY',
+        }),
+      })
+      vi.stubGlobal('fetch', mockFetch)
+
+      const onError = vi.fn()
+      streamAgentRequest(
+        { project_id: 'test-project', message: 'test' },
+        { onError }
+      )
+
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      expect(onError).toHaveBeenCalledWith(
+        'Translated: ERR_SESSION_BUSY',
+        'ERR_SESSION_BUSY',
+        true
+      )
+    })
+
+    it('ignores SSE heartbeat comment frames between events', async () => {
+      const onContent = vi.fn()
+      const onError = vi.fn()
+      const onDone = vi.fn()
+      const mockStream = createMockStream([
+        ': ping\n\n',
+        'event: content\ndata: {"text":"第一段"}\n\n: ping\n\n',
+        ': ping\n\nevent: done\ndata: {}\n\n',
+      ])
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, body: mockStream }))
+
+      streamAgentRequest(
+        { project_id: 'test-project', message: 'test' },
+        { onContent, onError, onDone }
+      )
+
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      expect(onContent).toHaveBeenCalledTimes(1)
+      expect(onContent.mock.calls[0][0]).toBe('第一段')
+      expect(onDone).toHaveBeenCalledTimes(1)
+      expect(onError).not.toHaveBeenCalled()
+    })
+
+    it('shows the translated error code instead of the raw backend message', async () => {
+      const onError = vi.fn()
+      const mockStream = createMockStream([
+        'event: error\ndata: {"message":"生成回复时发生错误，请重试","code":"ERR_AGENT_UPSTREAM_UNAVAILABLE","retryable":true,"refundable":true}\n\n',
+      ])
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, body: mockStream }))
+
+      streamAgentRequest({ project_id: 'test-project', message: 'test' }, { onError })
+
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      expect(onError).toHaveBeenCalledWith(
+        'Translated: ERR_AGENT_UPSTREAM_UNAVAILABLE',
+        'ERR_AGENT_UPSTREAM_UNAVAILABLE',
+        true
+      )
+    })
+
     it('calls onThinking for thinking events', async () => {
       const onThinking = vi.fn()
       const mockStream = createMockStream([
@@ -996,6 +1064,23 @@ describe('agentApi', () => {
       const result = await fetchSuggestions('test-project')
 
       expect(result).toEqual([])
+    })
+
+    it('stays silent when the suggestion rate limit or daily cap is hit (429)', async () => {
+      const { logger } = await import('../logger')
+      const errorSpy = vi.spyOn(logger, 'error')
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 429,
+        json: async () => ({ detail: 'Rate limit exceeded. Please try again later.' }),
+      })
+      vi.stubGlobal('fetch', mockFetch)
+
+      const result = await fetchSuggestions('test-project')
+
+      expect(result).toEqual([])
+      expect(errorSpy).not.toHaveBeenCalled()
+      errorSpy.mockRestore()
     })
 
     it('limits count to max 5', async () => {

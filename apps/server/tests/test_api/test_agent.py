@@ -291,7 +291,7 @@ async def test_agent_stream_missing_terminal_event_refunds_quota(
     client: AsyncClient,
     db_session: Session,
 ):
-    """Non-terminal stream end should be treated as internal error and refunded."""
+    """Non-terminal stream end with output is charged; without output it is refunded."""
     user = User(
         username="agent_user4c_terminal",
         email="agent_user4c_terminal@example.com",
@@ -316,13 +316,20 @@ async def test_agent_stream_missing_terminal_event_refunds_quota(
     async def non_terminal_stream():
         yield 'event: content\ndata: {"text":"partial"}\n\n'
 
+    async def non_terminal_stream_without_output():
+        yield 'event: thinking\ndata: {"message":"正在思考..."}\n\n'
+
     class MockAgentService:
+        def __init__(self, source):
+            self._source = source
+
         async def process_stream(self, **_kwargs):
-            async for item in non_terminal_stream():
+            async for item in self._source():
                 yield item
 
+    # 已经串流过正文：用户拿到了产出，按「本轮已有实质产出」计费，不退款。
     with (
-        patch("api.agent.get_agent_service", return_value=MockAgentService()),
+        patch("api.agent.get_agent_service", return_value=MockAgentService(non_terminal_stream)),
         patch("api.agent.quota_service.consume_ai_conversation", return_value=True) as mock_consume,
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as mock_refund,
     ):
@@ -337,6 +344,27 @@ async def test_agent_stream_missing_terminal_event_refunds_quota(
 
     assert response.status_code == 200
     mock_consume.assert_called_once()
+    mock_refund.assert_not_called()
+
+    # 没有任何产出就断掉：按内部错误退款。
+    with (
+        patch(
+            "api.agent.get_agent_service",
+            return_value=MockAgentService(non_terminal_stream_without_output),
+        ),
+        patch("api.agent.quota_service.consume_ai_conversation", return_value=True),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as mock_refund,
+    ):
+        response = await client.post(
+            "/api/v1/agent/stream",
+            json={
+                "project_id": str(project.id),
+                "message": "Hello again",
+            },
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
     mock_refund.assert_called_once()
 
 
@@ -1075,7 +1103,8 @@ async def test_agent_stream_exception_after_read_only_notice_still_sends_fallbac
     db_session: Session,
 ):
     """只读提示卡片（workflow_stopped/read_only_handoff_blocked）不是终止事件：
-    之后 process_stream 抛异常时仍要补发兜底 error 帧，并按内部错误退款。"""
+    之后 process_stream 抛异常时仍要补发兜底 error 帧（固定文案 + 错误码）。
+    本轮已经串流过分析正文，按「已有实质产出」计费、不退款。"""
     from httpx import ASGITransport
 
     from main import app
@@ -1108,8 +1137,9 @@ async def test_agent_stream_exception_after_read_only_notice_still_sends_fallbac
     assert "read_only_handoff_blocked" in body
     assert "event: error" in body
     assert body.index("read_only_handoff_blocked") < body.index("event: error")
-    assert "INTERNAL_ERROR" in body
-    mock_refund.assert_called_once()
+    assert "ERR_AGENT_RUN_FAILED" in body
+    assert "history save failed" not in body
+    mock_refund.assert_not_called()
 
 
 @pytest.mark.integration

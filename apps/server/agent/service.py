@@ -52,14 +52,19 @@ from .core.metrics import (
     CONTEXT_TOKENS_TOTAL,
     get_metrics_collector,
 )
+from .core.run_meter import AgentRunMeter
 from .core.session_loader import SessionLoader
 from .core.steering import (
+    _RUN_HEARTBEAT_INTERVAL_S,
     cleanup_steering_queue_async,
     create_steering_queue_async,
+    heartbeat_steering_run_async,
     requeue_steering_if_other_active_async,
 )
+from .core.stream_errors import classify_stream_exception, log_stream_exception
 from .graph.state import WritingState
 from .graph.writing_graph import run_writing_workflow_streaming
+from .openai_agents.model import DEEPSEEK_WRITING_MODEL
 from .skills import get_skill_context_injector, resolve_selected_skills
 from .skills.active_skills import list_active_skill_resources
 from .stream_adapter import create_stream_adapter
@@ -458,6 +463,7 @@ class AgentService:
         metadata: dict[str, Any] | None = None,
         language: str | None = None,
         selected_skill_ids: list[str] | None = None,
+        run_report: dict[str, Any] | None = None,
     ) -> AsyncGenerator[str, None]:
         """
         Process user message with streaming response.
@@ -471,6 +477,9 @@ class AgentService:
             metadata: Optional metadata (current_file_id, etc.)
             language: Language preference (zh/en)
             selected_skill_ids: Skills the user explicitly selected for this message
+            run_report: Optional dict the caller owns; filled at the end of the run
+                with model, token usage, model calls, LLM time and stop reason so the
+                API layer can write one summary log line together with billing.
 
         Yields:
             SSE event strings
@@ -526,6 +535,32 @@ class AgentService:
             run_id=steering_run_id,
             exclusive_run=True,
         )
+
+        # 周期心跳：独立 task 每隔 _RUN_HEARTBEAT_INTERVAL_S 秒续期本 run 的持有，
+        # 长时间的模型调用 / 工具执行期间也不会被当成僵尸回收；进程被杀时心跳
+        # 随之停止，残留持有在 _RUN_HEARTBEAT_TTL_S 后自动失效。
+        async def _run_heartbeat_loop() -> None:
+            while True:
+                await asyncio.sleep(_RUN_HEARTBEAT_INTERVAL_S)
+                try:
+                    await heartbeat_steering_run_async(session_id, steering_run_id)
+                except Exception as exc:
+                    log_with_context(
+                        logger,
+                        30,  # WARNING
+                        "Steering run heartbeat failed",
+                        session_id=session_id,
+                        error=str(exc),
+                        error_type=type(exc).__name__,
+                    )
+
+        run_heartbeat_task = asyncio.create_task(_run_heartbeat_loop())
+
+        def _stop_run_heartbeat() -> None:
+            if not run_heartbeat_task.done():
+                run_heartbeat_task.cancel()
+
+        run_meter = AgentRunMeter()
 
         # Initialize tracking variables before try block for exception safety
         all_tool_calls: list[dict[str, Any]] = []
@@ -919,6 +954,7 @@ class AgentService:
                 },
                 "messages": messages,
                 "tool_calls": [],
+                "run_meter": run_meter,
             }
 
             # Create stream adapter for SSE conversion
@@ -1239,16 +1275,21 @@ class AgentService:
         except Exception as e:
             request_failed = True
             metrics.increment_counter(AGENT_REQUESTS_ERRORS)
-            log_with_context(
+            error_info = classify_stream_exception(e)
+            log_stream_exception(
                 logger,
-                40,  # ERROR
                 "Agent process_stream failed",
+                e,
+                error_info,
                 project_id=project_id,
                 user_id=user_id,
-                error=str(e),
-                error_type=type(e).__name__,
             )
-            yield error_event(str(e)).to_sse()
+            yield error_event(
+                error_info.message,
+                code=error_info.code,
+                retryable=error_info.retryable,
+                refundable=error_info.refundable,
+            ).to_sse()
 
         finally:
             # Cleanup steering queue（只释放本 run 的持有，并发 run 不受影响）
@@ -1259,9 +1300,12 @@ class AgentService:
                     # 队列，避免清理任务抢先删掉尚未落库的消息。asyncio.wait
                     # 不会向外抛保存任务的异常/取消，失败已由其 done callback
                     # 记录，这里无论如何都要继续清理。
-                    if isinstance(cancellation_save_task, asyncio.Task):
-                        await asyncio.wait({cancellation_save_task})
-                    await cleanup_steering_queue_async(session_id, run_id=steering_run_id)
+                    try:
+                        if isinstance(cancellation_save_task, asyncio.Task):
+                            await asyncio.wait({cancellation_save_task})
+                        await cleanup_steering_queue_async(session_id, run_id=steering_run_id)
+                    finally:
+                        _stop_run_heartbeat()
 
                 self._schedule_background_cleanup(
                     _cleanup_after_cancellation_save(),
@@ -1295,9 +1339,12 @@ class AgentService:
 
                 # 释放本 run 的持有；队列仍在（其它并发 run 还在生成）时把刚
                 # drain 出来的消息交还回去，本轮不再落库它们。
-                if await _release_run_and_requeue_steering(late_steering):
-                    del consumed_steering[already_consumed:]
-                    late_steering = []
+                try:
+                    if await _release_run_and_requeue_steering(late_steering):
+                        del consumed_steering[already_consumed:]
+                        late_steering = []
+                finally:
+                    _stop_run_heartbeat()
 
                 if user_id and not history_saved:
                     # 与取消路径对等的补偿保存：本轮只要产生过任何值得保留的
@@ -1340,6 +1387,26 @@ class AgentService:
                         )
 
             total_duration = int((utcnow() - start_time).total_seconds() * 1000)
+            if run_report is not None:
+                usage_summary = assistant_usage if isinstance(assistant_usage, dict) else {}
+                run_report.update(
+                    {
+                        "model": DEEPSEEK_WRITING_MODEL,
+                        "input_tokens": usage_summary.get("input_tokens", 0),
+                        "output_tokens": usage_summary.get("output_tokens", 0),
+                        "cache_read_tokens": usage_summary.get("cache_read_tokens", 0),
+                        "usage_reported": bool(usage_summary),
+                        "model_calls": run_meter.model_calls,
+                        "max_model_calls": run_meter.max_model_calls,
+                        "agent_runs": run_meter.agent_runs,
+                        "llm_duration_ms": round(run_meter.llm_duration_ms, 1),
+                        "duration_ms": total_duration,
+                        "stop_reason": assistant_stop_reason,
+                        "tool_calls_count": len(all_tool_calls),
+                        "response_length": len(assistant_response),
+                        "session_id": session_id,
+                    }
+                )
             metrics.observe_histogram(AGENT_REQUESTS_DURATION_MS, total_duration)
             completed_with_errors = request_failed or had_stream_error or stream_cancelled
             log_with_context(

@@ -14,8 +14,10 @@
  * - Skill matching state
  * - Callback handlers for all SSE events from useAgentStream
  *
- * Note: Suggestion refresh/idle detection is kept in ChatPanel because it depends on
- * current project + live message history (which are owned by this component).
+ * Note: Suggestion refresh is kept in ChatPanel because it depends on current
+ * project + live message history (which are owned by this component). Suggestions
+ * are requested automatically only when a project opens without a cached set and
+ * once after each completed turn (deduplicated); there is no idle polling.
  *
  * @see useChatStreaming - Streaming UI state management hook
  * @see useAgentStream - SSE streaming hook for AI responses
@@ -478,14 +480,12 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const suggestionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesRef = useRef<Message[]>(messages);  // Track latest messages for callbacks
 
-  /** Idle timeout duration in milliseconds (10 seconds) */
-  const IDLE_TIMEOUT_MS = 10000;
-
-  /** Track if idle refresh has already triggered (prevents multiple auto-refreshes) */
-  const idleTriggeredRef = useRef(false);
-
-  /** Local idle timer ref for suggestion refresh */
-  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * 最近一次自动请求建议时的会话位置（项目 + 消息数 + 末条消息 id）。
+   * 每轮对话结束只自动请求一次：同一位置重复触发（例如 onComplete 被调用两次）
+   * 直接跳过，不重复打 /suggest。
+   */
+  const lastAutoSuggestionKeyRef = useRef<string | null>(null);
 
   // Keep messagesRef in sync
   useEffect(() => {
@@ -619,10 +619,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     const cached = readCachedSuggestions(projectId);
 
     if (cached.length > 0) {
+      // 有缓存就直接用，不再后台刷新：打开/切换项目不该凭空多打一次 /suggest。
+      // 下一轮对话结束后会按新上下文自动刷新一次。
       setAiSuggestions(cached);
       setSuggestionDisplayState("ready");
-      // Refresh suggestions in background; stale response is ignored by project check.
-      void fetchAndApplySuggestions(projectId, sourceMessages);
       return;
     }
 
@@ -811,7 +811,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     // Let the streaming hook finalize cleanup/snapshot work in the background.
     void streamCallbacks.onComplete(completedSegments, applyAction as ApplyAction | null);
 
-    // Delay and request fresh project-aware suggestions
+    // Delay and request fresh project-aware suggestions (once per completed turn).
     if (suggestionTimeoutRef.current) {
       clearTimeout(suggestionTimeoutRef.current);
     }
@@ -819,6 +819,17 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     suggestionTimeoutRef.current = setTimeout(async () => {
       const currentMessages = messagesRef.current;  // Use ref to get latest messages
       if (currentProjectId) {
+        const lastMessage = currentMessages[currentMessages.length - 1];
+        const suggestionKey = `${currentProjectId}:${currentMessages.length}:${lastMessage?.id ?? ""}`;
+        if (lastAutoSuggestionKeyRef.current === suggestionKey) {
+          if (aiSuggestionsRef.current.length > 0) {
+            setSuggestionDisplayState("ready");
+          } else {
+            setSuggestionDisplayState("fallback");
+          }
+          return;
+        }
+        lastAutoSuggestionKeyRef.current = suggestionKey;
         try {
           await fetchAndApplySuggestions(currentProjectId, currentMessages, { allowFallback: true });
         } catch (error) {
@@ -1156,10 +1167,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     if (suggestionTimeoutRef.current) {
       clearTimeout(suggestionTimeoutRef.current);
     }
-    // Reset idle timer
-    if (idleTimerRef.current) {
-      clearTimeout(idleTimerRef.current);
-    }
 
     // Add user message to chat (optimistic update)
     const userMessage: Message = {
@@ -1356,9 +1363,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     if (suggestionTimeoutRef.current) {
       clearTimeout(suggestionTimeoutRef.current);
     }
-    if (idleTimerRef.current) {
-      clearTimeout(idleTimerRef.current);
-    }
 
     try {
       await createNewSession(currentProjectId);
@@ -1381,37 +1385,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       if (suggestionTimeoutRef.current) {
         clearTimeout(suggestionTimeoutRef.current);
       }
-      if (idleTimerRef.current) {
-        clearTimeout(idleTimerRef.current);
-      }
     };
   }, []);
-
-  /**
-   * Resets the idle timer for auto-refreshing suggestions.
-   * If streaming is not active, schedules a suggestions refresh after idle timeout.
-   */
-  const resetIdleTimer = useCallback(() => {
-    if (idleTimerRef.current) {
-      clearTimeout(idleTimerRef.current);
-    }
-
-    // Only set idle timer if we have messages, not streaming, and haven't triggered yet
-    if (!isStreaming && !isThinking && currentProjectId && messages.length > 0 && !idleTriggeredRef.current) {
-      idleTimerRef.current = setTimeout(async () => {
-        // Mark as triggered to prevent repeated refreshes
-        idleTriggeredRef.current = true;
-        try {
-          await fetchAndApplySuggestions(currentProjectId, messages, { allowFallback: true });
-        } catch (error) {
-          logger.error("Failed to fetch suggestions on idle:", error);
-          if (aiSuggestionsRef.current.length === 0) {
-            setSuggestionDisplayState("fallback");
-          }
-        }
-      }, IDLE_TIMEOUT_MS);
-    }
-  }, [isStreaming, isThinking, currentProjectId, messages, fetchAndApplySuggestions]);
 
   /**
    * Manually refreshes AI suggestions based on recent conversation context.
@@ -1429,12 +1404,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       suggestionTimeoutRef.current = null;
     }
 
-    // Mark as triggered to avoid immediate idle refresh after manual refresh
-    idleTriggeredRef.current = true;
-    if (idleTimerRef.current) {
-      clearTimeout(idleTimerRef.current);
-    }
-
     setIsRefreshingSuggestions(true);
     try {
       setSuggestionDisplayState("loading");
@@ -1448,19 +1417,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       setIsRefreshingSuggestions(false);
     }
   }, [currentProjectId, isRefreshingSuggestions, setIsRefreshingSuggestions, fetchAndApplySuggestions]);
-
-  // Reset idle triggered flag when user sends a new message
-  useEffect(() => {
-    if (messages.length > 0) {
-      // Reset the flag when conversation continues (new message added)
-      idleTriggeredRef.current = false;
-    }
-  }, [messages.length]);
-  
-  // Reset idle timer when messages change or streaming state changes
-  useEffect(() => {
-    resetIdleTimer();
-  }, [messages.length, isStreaming, isThinking, resetIdleTimer]);
 
   // Handle cancel streaming
   const handleCancel = () => {

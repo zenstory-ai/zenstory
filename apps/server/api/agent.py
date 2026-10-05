@@ -7,8 +7,9 @@ Provides FastAPI router for agent endpoints:
 - POST /api/v1/agent/suggest - Generate intelligent next-step suggestions
 - POST /api/v1/agent/steer - Inject steering message into a running session
 
-计费/限流约定：所有会触发 LLM 的端点都必须同时具备「鉴权 + 项目权限 + 配额 + 按用户限流」，
-新增端点时请照此对齐，不要只做鉴权。
+计费/限流约定：所有会触发 LLM 的端点都必须同时具备「鉴权 + 项目权限 + 成本上限 + 按用户限流」，
+新增端点时请照此对齐，不要只做鉴权。/stream 的成本上限是 AI 对话额度；/suggest 由前端
+自动触发，不占对话额度，改用独立的每日上限；/steer 归属所在 /stream 的那次额度。
 """
 
 import asyncio
@@ -19,12 +20,25 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from pydantic_core import PydanticCustomError
 from services.auth import get_current_active_user
 from sqlmodel import Session
 
-from agent.core.events import NON_TERMINAL_WORKFLOW_STOPPED_REASONS, error_event
+from agent.core.events import error_event
+from agent.core.sse_pump import SSEStreamPump, StreamDeadlineExceeded
+from agent.core.steering import SteeringSessionBusyError
+from agent.core.stream_billing import StreamBillingTracker
+from agent.core.stream_errors import (
+    classify_stream_exception,
+    log_stream_exception,
+    run_timeout_error,
+)
 from agent.service import get_agent_service
+from config.agent_runtime import (
+    AGENT_RUN_WALL_CLOCK_TIMEOUT_S,
+    AGENT_SSE_HEARTBEAT_INTERVAL_S,
+)
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import create_session, get_session
@@ -50,6 +64,10 @@ STREAM_RATE_LIMIT_MAX_REQUESTS = 60
 STREAM_RATE_LIMIT_WINDOW_SECONDS = 3600
 SUGGEST_RATE_LIMIT_MAX_REQUESTS = 30
 SUGGEST_RATE_LIMIT_WINDOW_SECONDS = 3600
+# /suggest 不扣 AI 对话额度，改用独立的每日上限兜住成本（与小时限流同一套
+# Redis/内存后端）。前端每轮对话结束最多自动请求一次。
+SUGGEST_DAILY_MAX_REQUESTS = 100
+SUGGEST_DAILY_WINDOW_SECONDS = 86400
 STEER_RATE_LIMIT_MAX_REQUESTS = 120
 STEER_RATE_LIMIT_WINDOW_SECONDS = 3600
 
@@ -84,19 +102,16 @@ def _release_ai_conversation_sync(user_id: str) -> bool:
         return quota_service.release_ai_conversation(quota_session, user_id)
 
 
-async def _refund_ai_conversation(
-    session: Session,
-    user_id: str,
-    *,
-    project_id: str,
-    reason: str,
-) -> bool:
-    """退还一次已预扣的 AI 对话额度，失败只记日志不影响主流程。"""
+async def _refund_quota(session: Session, user_id: str, **log_fields: Any) -> bool:
+    """退还一次已预扣的 AI 对话额度；失败只记日志，返回是否真的退了。"""
     try:
         if _should_offload_session_work(session):
             return await asyncio.to_thread(_release_ai_conversation_sync, user_id)
-        # 失败的事务可能让共享 session 处于 PendingRollback 状态，先复位再补偿，
-        # 否则退款会静默失效、用户被多扣一次。
+        # The shared request session may be in a failed transaction state from
+        # the error that aborted the stream. Reset it before the compensating
+        # refund; otherwise release_ai_conversation's refresh/commit raises
+        # PendingRollbackError, the refund silently no-ops, and the user is
+        # over-charged for a run that failed internally.
         with contextlib.suppress(Exception):
             session.rollback()
         return quota_service.release_ai_conversation(session, user_id)
@@ -104,50 +119,63 @@ async def _refund_ai_conversation(
         log_with_context(
             logger,
             30,  # WARNING
-            "Failed to refund AI conversation quota",
+            "Failed to refund AI conversation quota after stream error",
             user_id=user_id,
-            project_id=project_id,
-            reason=reason,
             error=str(refund_error),
             error_type=type(refund_error).__name__,
+            **log_fields,
         )
         return False
 
 
-def _is_pure_fallback_suggestion(
-    service: Any,
-    suggestions: list[str],
-    count: int,
-    language: str,
-) -> bool:
-    """判断结果是否完全等于固定兜底文案。
-
-    SuggestService 会吞掉 LLM 超时/解析失败并退化成固定文案，这种「没有真实产出」
-    的调用不应扣费（与 /stream 的失败退款口径一致）。
-    """
-    getter = getattr(service, "_get_fallback_suggestions", None)
-    if not callable(getter):
-        return False
-    try:
-        fallback = getter(count, language)
-    except Exception:
-        return False
-    return isinstance(fallback, list) and list(suggestions) == fallback
+def _session_busy_exception() -> APIException:
+    return APIException(
+        error_code=ErrorCode.SESSION_BUSY,
+        status_code=409,
+        detail=(
+            "This chat session already has an active generation. "
+            "Stop it or wait for it to finish before sending again."
+        ),
+    )
 
 
 # ==================== Request Models ====================
+
+
+# 请求体大小上限：message / selected_text 会原样拼进 router 与每一轮 agent 的输入，
+# 不设上限时一次请求就能塞进十万级 token。前端 src/lib/agentLimits.ts 的
+# MAX_AGENT_MESSAGE_CHARS 必须与 AGENT_MESSAGE_MAX_CHARS 保持一致。
+AGENT_MESSAGE_MAX_CHARS = 20000
+AGENT_SELECTED_TEXT_MAX_CHARS = 50000
+# metadata 里的列表型附件（附加文件、素材库条目、引用片段）每类最多条数。
+AGENT_METADATA_MAX_LIST_ITEMS = 20
+# metadata 整体序列化后的字符上限（引用片段会带正文）。
+AGENT_METADATA_MAX_CHARS = 100000
+_AGENT_METADATA_LIST_KEYS = (
+    "attached_file_ids",
+    "attached_library_materials",
+    "text_quotes",
+)
 
 
 class AgentRequest(BaseModel):
     """Request body for agent processing."""
 
     project_id: str = Field(..., description="Project ID (UUID)")
-    message: str = Field(..., description="User message")
+    message: str = Field(
+        ...,
+        max_length=AGENT_MESSAGE_MAX_CHARS,
+        description="User message",
+    )
     session_id: str | None = Field(
         default=None,
         description="Optional session ID for steering continuity",
     )
-    selected_text: str | None = Field(default=None, description="Selected text")
+    selected_text: str | None = Field(
+        default=None,
+        max_length=AGENT_SELECTED_TEXT_MAX_CHARS,
+        description="Selected text",
+    )
     metadata: dict[str, Any] = Field(
         default_factory=dict, description="Additional metadata"
     )
@@ -159,6 +187,34 @@ class AgentRequest(BaseModel):
             "(UserSkill.id / UserAddedSkill.id); their full instructions are injected"
         ),
     )
+
+
+    @field_validator("metadata")
+    @classmethod
+    def _bound_metadata(cls, value: dict[str, Any]) -> dict[str, Any]:
+        for key in _AGENT_METADATA_LIST_KEYS:
+            items = value.get(key)
+            if isinstance(items, list) and len(items) > AGENT_METADATA_MAX_LIST_ITEMS:
+                raise PydanticCustomError(
+                    "metadata_too_many_items",
+                    "metadata.{key} allows at most {limit} items",
+                    {"key": key, "limit": AGENT_METADATA_MAX_LIST_ITEMS},
+                )
+        try:
+            serialized_length = len(json.dumps(value, ensure_ascii=False, default=str))
+        except (TypeError, ValueError) as exc:
+            raise PydanticCustomError(
+                "metadata_not_serializable", "metadata must be JSON serializable"
+            ) from exc
+        if serialized_length > AGENT_METADATA_MAX_CHARS:
+            # PydanticCustomError 而非 ValueError：后者会把异常对象放进 422 的
+            # errors[].ctx，JSON 序列化失败后整个响应变成 500。
+            raise PydanticCustomError(
+                "metadata_too_large",
+                "metadata exceeds {limit} characters",
+                {"limit": AGENT_METADATA_MAX_CHARS},
+            )
+        return value
 
 
 class SuggestRequest(BaseModel):
@@ -240,14 +296,7 @@ async def stream_request(
         try:
             await get_steering_queue_for_user_async(body.session_id, current_user.id)
             if await has_active_runs_async(body.session_id):
-                raise APIException(
-                    error_code=ErrorCode.RESOURCE_CONFLICT,
-                    status_code=409,
-                    detail=(
-                        "This chat session already has an active generation. "
-                        "Stop it or wait for it to finish before sending again."
-                    ),
-                )
+                raise _session_busy_exception()
         except KeyError:
             # New runtime session id - allow creation in service layer.
             pass
@@ -290,181 +339,202 @@ async def stream_request(
 
     lang = (accept_language or "").split(",")[0].split("-")[0].strip().lower() or "zh"
 
+    # Reserve one quota unit before streaming to avoid concurrent overrun.
+    # We may compensate (refund) in finally when the stream fails internally.
+    if _should_offload_session_work(session):
+        consumed = await asyncio.to_thread(
+            _consume_ai_conversation_sync,
+            current_user.id,
+        )
+    else:
+        consumed = quota_service.consume_ai_conversation(session, current_user.id)
+    if not consumed:
+        raise APIException(
+            error_code=ErrorCode.QUOTA_AI_CONVERSATIONS_EXCEEDED,
+            status_code=402,
+            detail=f"AI conversation quota exceeded ({used}/{limit}). Please upgrade your plan.",
+        )
+
+    # SSE 可能持续数分钟，而鉴权/权限校验的 SELECT 会让请求级 session 一直
+    # 保持事务打开（Postgres 上表现为 idle in transaction，连接被整个流式
+    # 期间占用）。此处主动结束事务把连接还回连接池；后续对该 session 的
+    # 使用（如 finally 中的 refund）会惰性开启新事务。rollback 会 expire
+    # ORM 实例，流式期间只能使用已提前取出的标量（user_id），不要再触碰
+    # current_user。
+    session.rollback()
+
+    run_report: dict[str, Any] = {}
+    stream = service.process_stream(
+        project_id=body.project_id,
+        user_id=user_id,
+        message=body.message,
+        session_id=body.session_id,
+        session=session,
+        selected_text=body.selected_text,
+        metadata=body.metadata,
+        language=lang,
+        selected_skill_ids=body.selected_skill_ids,
+        run_report=run_report,
+    )
+
+    # 先在路由里取出第一个事件：process_stream 在发出 session_started 之前
+    # 解析聊天会话并原子地抢占该会话唯一的生成槽。槽被占用（上一轮仍在生成或
+    # 收尾）时必须在发送 200 响应头之前转成 409 ERR_SESSION_BUSY 并退还刚预扣
+    # 的额度；其余预启动异常保持原行为，由 event_generator 发终止帧并退款。
+    first_event: str | None = None
+    prestart_error: Exception | None = None
+    prime_ctx_tokens = bind_request_context(agent_run_id=agent_run_id)
     try:
-        # Reserve one quota unit before streaming to avoid concurrent overrun.
-        # We may compensate (refund) in finally when the stream fails internally.
-        if _should_offload_session_work(session):
-            consumed = await asyncio.to_thread(
-                _consume_ai_conversation_sync,
-                current_user.id,
+        first_event = await stream.__anext__()
+    except StopAsyncIteration:
+        first_event = None
+    except SteeringSessionBusyError as exc:
+        await _refund_quota(session, user_id)
+        log_with_context(
+            logger,
+            20,  # INFO
+            "Agent stream rejected: chat session busy",
+            user_id=user_id,
+            project_id=body.project_id,
+            agent_run_id=agent_run_id,
+        )
+        raise _session_busy_exception() from exc
+    except Exception as exc:
+        prestart_error = exc
+    finally:
+        reset_request_context(prime_ctx_tokens)
+
+    async def _primed_stream():
+        if prestart_error is not None:
+            raise prestart_error
+        if first_event is not None:
+            yield first_event
+        async for event in stream:
+            yield event
+
+    async def event_generator():
+        agent_ctx_tokens = bind_request_context(agent_run_id=agent_run_id)
+        tracker = StreamBillingTracker()
+        user_cancelled = False
+        unexpected_exception = False
+        deadline_exceeded = False
+        pump = SSEStreamPump(
+            _primed_stream(),
+            heartbeat_interval_s=AGENT_SSE_HEARTBEAT_INTERVAL_S,
+            deadline_s=AGENT_RUN_WALL_CLOCK_TIMEOUT_S,
+        )
+
+        try:
+            async for event in pump:
+                tracker.observe(event)
+                yield event
+        except (asyncio.CancelledError, GeneratorExit):
+            # 客户端断线有两种到达方式：任务被取消（CancelledError）与生成器被
+            # aclose（GeneratorExit）。两者都是用户侧中止，计费口径一致；
+            # GeneratorExit 路径上不能 yield，也不做任何 await。
+            user_cancelled = True
+            pump.cancel()
+            raise
+        except StreamDeadlineExceeded:
+            deadline_exceeded = True
+            info = run_timeout_error()
+            log_with_context(
+                logger,
+                30,  # WARNING
+                "Agent stream exceeded wall-clock budget",
+                user_id=user_id,
+                project_id=body.project_id,
+                agent_run_id=agent_run_id,
+                timeout_s=AGENT_RUN_WALL_CLOCK_TIMEOUT_S,
             )
-        else:
-            consumed = quota_service.consume_ai_conversation(session, current_user.id)
-        if not consumed:
-            raise APIException(
-                error_code=ErrorCode.QUOTA_AI_CONVERSATIONS_EXCEEDED,
-                status_code=402,
-                detail=f"AI conversation quota exceeded ({used}/{limit}). Please upgrade your plan.",
+            if not tracker.saw_terminal_event:
+                frame = error_event(
+                    info.message,
+                    code=info.code,
+                    retryable=info.retryable,
+                    refundable=info.refundable,
+                ).to_sse()
+                tracker.observe(frame)
+                with contextlib.suppress(Exception):
+                    yield frame
+        except Exception as exc:
+            unexpected_exception = True
+            # An exception escaping process_stream (e.g. a pre-stream setup
+            # failure resolving the chat session or a Redis/DB outage) would
+            # otherwise tear down the SSE connection with no terminal frame,
+            # leaving the client's stream consumer hung on a stuck spinner.
+            # Emit a terminal error frame first (only if none was sent yet)
+            # so the frontend always receives a definitive end-of-stream.
+            info = classify_stream_exception(exc)
+            log_stream_exception(
+                logger,
+                "Agent stream failed outside the workflow",
+                exc,
+                info,
+                user_id=user_id,
+                project_id=body.project_id,
             )
-
-        # SSE 可能持续数分钟，而鉴权/权限校验的 SELECT 会让请求级 session 一直
-        # 保持事务打开（Postgres 上表现为 idle in transaction，连接被整个流式
-        # 期间占用）。此处主动结束事务把连接还回连接池；后续对该 session 的
-        # 使用（如 finally 中的 refund）会惰性开启新事务。rollback 会 expire
-        # ORM 实例，流式期间只能使用已提前取出的标量（user_id），不要再触碰
-        # current_user。
-        session.rollback()
-
-        async def event_generator():
-            agent_ctx_tokens = bind_request_context(agent_run_id=agent_run_id)
-            saw_any_event = False
-            saw_terminal_event = False
-            saw_internal_error_event = False
-            user_cancelled = False
-            unexpected_exception = False
-            billing_reason = "completed"
-
-            def _extract_sse_event_type(sse_payload: str) -> str:
-                for line in sse_payload.splitlines():
-                    if line.startswith("event:"):
-                        return line.split(":", 1)[1].strip()
-                return ""
-
-            def _is_non_terminal_workflow_stopped(sse_payload: str) -> bool:
-                # 只读请求拦下写交接的提示卡片也走 workflow_stopped，但它只是一条
-                # 说明：之后若异常中断，仍须补发兜底 error 帧、按内部错误退款。
-                for line in sse_payload.splitlines():
-                    if line.startswith("data:"):
-                        try:
-                            data = json.loads(line.split(":", 1)[1])
-                        except ValueError:
-                            return False
-                        return (
-                            isinstance(data, dict)
-                            and data.get("reason") in NON_TERMINAL_WORKFLOW_STOPPED_REASONS
-                        )
-                return False
-
-            try:
-                async for event in service.process_stream(
-                    project_id=body.project_id,
-                    user_id=user_id,
-                    message=body.message,
-                    session_id=body.session_id,
-                    session=session,
-                    selected_text=body.selected_text,
-                    metadata=body.metadata,
-                    language=lang,
-                    selected_skill_ids=body.selected_skill_ids,
-                ):
-                    saw_any_event = True
-                    if isinstance(event, str):
-                        event_type = _extract_sse_event_type(event)
-                        if event_type in {"done", "workflow_complete"} or (
-                            event_type == "workflow_stopped"
-                            and not _is_non_terminal_workflow_stopped(event)
-                        ):
-                            saw_terminal_event = True
-                        elif event_type == "error":
-                            saw_internal_error_event = True
-                            saw_terminal_event = True
-                    yield event
-            except asyncio.CancelledError:
-                user_cancelled = True
-                billing_reason = "user_cancelled"
-                raise
-            except Exception:
-                unexpected_exception = True
-                billing_reason = "internal_exception"
-                # An exception escaping process_stream (e.g. a pre-stream setup
-                # failure resolving the chat session or a Redis/DB outage) would
-                # otherwise tear down the SSE connection with no terminal frame,
-                # leaving the client's stream consumer hung on a stuck spinner.
-                # Emit a terminal error frame first (only if none was sent yet)
-                # so the frontend always receives a definitive end-of-stream.
-                if not saw_terminal_event:
-                    saw_terminal_event = True
-                    with contextlib.suppress(Exception):
-                        yield error_event(
-                            "生成回复时发生错误，请重试",
-                            code="INTERNAL_ERROR",
-                            retryable=True,
-                        ).to_sse()
-                raise
-            finally:
-                should_refund = False
-                if user_cancelled:
-                    billing_reason = "user_cancelled"
-                elif saw_terminal_event and not saw_internal_error_event and not unexpected_exception:
-                    billing_reason = "completed"
-                else:
-                    billing_reason = "internal_error"
-                    if saw_any_event and not saw_terminal_event and not unexpected_exception:
-                        billing_reason = "internal_error_no_terminal"
-                    should_refund = True
-
-                refund_applied = False
-                if should_refund:
-                    try:
-                        if _should_offload_session_work(session):
-                            refund_applied = await asyncio.to_thread(
-                                _release_ai_conversation_sync,
-                                user_id,
-                            )
-                        else:
-                            # The shared request session may be in a failed
-                            # transaction state from the error that aborted the
-                            # stream. Reset it before the compensating refund;
-                            # otherwise release_ai_conversation's refresh/commit
-                            # raises PendingRollbackError, the refund silently
-                            # no-ops, and the user is over-charged for a run that
-                            # failed internally.
-                            with contextlib.suppress(Exception):
-                                session.rollback()
-                            refund_applied = quota_service.release_ai_conversation(session, user_id)
-                    except Exception as refund_error:
-                        log_with_context(
-                            logger,
-                            30,  # WARNING
-                            "Failed to refund AI conversation quota after stream error",
-                            user_id=user_id,
-                            project_id=body.project_id,
-                            agent_run_id=agent_run_id,
-                            error=str(refund_error),
-                            error_type=type(refund_error).__name__,
-                            billing_reason=billing_reason,
-                        )
-
-                log_with_context(
-                    logger,
-                    20,
-                    "Agent stream billing evaluated",
-                    user_id=user_id,
+            if not tracker.saw_terminal_event:
+                frame = error_event(
+                    info.message,
+                    code=info.code,
+                    retryable=info.retryable,
+                    refundable=info.refundable,
+                ).to_sse()
+                tracker.observe(frame)
+                with contextlib.suppress(Exception):
+                    yield frame
+            raise
+        finally:
+            billing_reason, should_refund = tracker.decide(
+                user_cancelled=user_cancelled,
+                unexpected_exception=unexpected_exception,
+                deadline_exceeded=deadline_exceeded,
+            )
+            refund_applied = False
+            if should_refund:
+                refund_applied = await _refund_quota(
+                    session,
+                    user_id,
                     project_id=body.project_id,
                     agent_run_id=agent_run_id,
-                    charged=not should_refund,
-                    refunded=refund_applied,
                     billing_reason=billing_reason,
-                    saw_any_event=saw_any_event,
-                    saw_terminal_event=saw_terminal_event,
-                    saw_internal_error_event=saw_internal_error_event,
-                    user_cancelled=user_cancelled,
-                    unexpected_exception=unexpected_exception,
                 )
-                reset_request_context(agent_ctx_tokens)
 
-        return StreamingResponse(
-            event_generator(),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no",
-                "X-Agent-Run-ID": agent_run_id,
-            },
-        )
-    except Exception:
-        raise
+            # 每次 run 一行结构化摘要：模型、token、调用次数、LLM 耗时、结束原因、计费。
+            # 取消/时限路径上 process_stream 的收尾在后台进行，摘要字段可能不全。
+            log_with_context(
+                logger,
+                20,
+                "Agent stream billing evaluated",
+                user_id=user_id,
+                project_id=body.project_id,
+                agent_run_id=agent_run_id,
+                charged=not should_refund,
+                refunded=refund_applied,
+                billing_reason=billing_reason,
+                saw_any_event=tracker.saw_any_event,
+                saw_terminal_event=tracker.saw_terminal_event,
+                saw_internal_error_event=tracker.saw_error_event,
+                error_refundable=tracker.error_refundable,
+                produced_output=tracker.produced_output,
+                user_cancelled=user_cancelled,
+                unexpected_exception=unexpected_exception,
+                deadline_exceeded=deadline_exceeded,
+                **{f"run_{key}": value for key, value in run_report.items()},
+            )
+            reset_request_context(agent_ctx_tokens)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "X-Agent-Run-ID": agent_run_id,
+        },
+    )
 
 
 @router.get("/health")
@@ -486,6 +556,13 @@ async def suggest_next_action(
             SUGGEST_RATE_LIMIT_WINDOW_SECONDS,
         )
     ),
+    _daily_limit: int = Depends(
+        require_user_rate_limit(
+            "agent_suggest_daily",
+            SUGGEST_DAILY_MAX_REQUESTS,
+            SUGGEST_DAILY_WINDOW_SECONDS,
+        )
+    ),
 ):
     """
     Generate intelligent next-step suggestions.
@@ -493,6 +570,9 @@ async def suggest_next_action(
     Returns multiple short suggestions (~15 characters each) based on:
     - Project context (outlines, characters, lores)
     - Recent conversation history
+
+    计费：建议由前端自动触发，不占用户的 AI 对话额度（ai_conversations）；
+    成本由按用户的小时限流 + 独立的每日上限兜住，超限返回 429。
     """
     user_id = current_user.id
     from agent.suggest_service import get_suggest_service
@@ -514,77 +594,14 @@ async def suggest_next_action(
     service = get_suggest_service()
     lang = (accept_language or "").split(",")[0].split("-")[0].strip().lower() or "zh"
 
-    # 只有真正持有 LLM 客户端时才扣费：未配置 API Key 的环境（本地/e2e）里
-    # SuggestService.llm 为 None，直接返回固定兜底文案，不产生任何厂商成本，
-    # 此时扣额度等于平白吃掉用户配额。
-    llm_backed = getattr(service, "llm", None) is not None
-    consumed = False
-
-    if llm_backed:
-        # Only provider-backed suggestions need quota. A service without an LLM
-        # returns local fixed text and must remain available at exhausted quota.
-        if _should_offload_session_work(session):
-            allowed, used, limit = await asyncio.to_thread(
-                _check_ai_conversation_quota_sync,
-                user_id,
-            )
-        else:
-            allowed, used, limit = quota_service.check_ai_conversation_quota(
-                session, user_id
-            )
-        if not allowed:
-            raise APIException(
-                error_code=ErrorCode.QUOTA_AI_CONVERSATIONS_EXCEEDED,
-                status_code=402,
-                detail=(
-                    f"AI conversation quota exceeded ({used}/{limit}). "
-                    "Please upgrade your plan."
-                ),
-            )
-
-        # 调用前预扣，避免并发请求越过上面的预检把额度打穿。
-        if _should_offload_session_work(session):
-            consumed = await asyncio.to_thread(
-                _consume_ai_conversation_sync,
-                user_id,
-            )
-        else:
-            consumed = quota_service.consume_ai_conversation(session, user_id)
-        if not consumed:
-            raise APIException(
-                error_code=ErrorCode.QUOTA_AI_CONVERSATIONS_EXCEEDED,
-                status_code=402,
-                detail=f"AI conversation quota exceeded ({used}/{limit}). Please upgrade your plan.",
-            )
-
-    try:
-        suggestions = await service.generate_suggestions(
-            session=session,
-            project_id=body.project_id,
-            user_id=user_id,
-            recent_messages=body.recent_messages,
-            count=body.count,
-            language=lang,
-        )
-    except Exception:
-        # 生成失败（超时/上游异常）没有产出，退还预扣的额度后原样抛出。
-        if consumed:
-            await _refund_ai_conversation(
-                session,
-                user_id,
-                project_id=body.project_id,
-                reason="suggest_exception",
-            )
-        raise
-
-    # 结果完全等于兜底文案 => LLM 调用失败被内部吞掉，没有真实产出，退款。
-    if consumed and _is_pure_fallback_suggestion(service, suggestions, body.count, lang):
-        consumed = not await _refund_ai_conversation(
-            session,
-            user_id,
-            project_id=body.project_id,
-            reason="suggest_fallback_only",
-        )
+    suggestions = await service.generate_suggestions(
+        session=session,
+        project_id=body.project_id,
+        user_id=user_id,
+        recent_messages=body.recent_messages,
+        count=body.count,
+        language=lang,
+    )
 
     log_with_context(
         logger,
@@ -592,7 +609,6 @@ async def suggest_next_action(
         "suggest_next_action completed",
         project_id=body.project_id,
         suggestion_count=len(suggestions),
-        quota_charged=consumed,
     )
 
     return SuggestResponse(suggestions=suggestions)

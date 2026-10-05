@@ -330,7 +330,8 @@ export function streamAgentRequest(
         callbacks.onError?.(
           toUserErrorMessage(errorMessage),
           errorCode,
-          false,
+          // 会话仍在收尾（409 ERR_SESSION_BUSY）通常几秒后就会释放，提供重试。
+          errorCode === "ERR_SESSION_BUSY",
         );
         return;
       }
@@ -830,6 +831,12 @@ export async function fetchSuggestions(
         if (refreshed) {
           return doFetch(true);
         }
+        return [];
+      }
+
+      // 429：小时限流或每日上限已满。建议只是锦上添花，静默退回空列表，
+      // 不记错误、不打扰用户（调用方会显示本地兜底建议）。
+      if (response.status === 429) {
         return [];
       }
 

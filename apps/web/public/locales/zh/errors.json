@@ -75,5 +75,15 @@
 
   "ERR_SKILL_PACKAGE_INVALID": "技能包格式无效",
   "ERR_SKILL_PACKAGE_TOO_LARGE": "技能包或资源文件超出大小限制",
-  "ERR_RESOURCE_CONFLICT": "操作与现有数据冲突，请刷新后重试"
+  "ERR_RESOURCE_CONFLICT": "操作与现有数据冲突，请刷新后重试",
+
+  "ERR_SESSION_BUSY": "上一轮回复仍在生成或收尾中，请稍候片刻再发送，或开启新对话",
+  "ERR_AGENT_UPSTREAM_RATE_LIMITED": "AI 服务当前繁忙，请稍后重试",
+  "ERR_AGENT_UPSTREAM_UNAVAILABLE": "AI 服务暂时不可用或响应超时，请稍后重试",
+  "ERR_AGENT_CONTEXT_TOO_LONG": "本轮对话内容过长，请精简消息或开启新对话后重试",
+  "ERR_AGENT_RUN_FAILED": "生成回复时发生错误，请重试",
+  "ERR_AGENT_TOOL_FAILURE_LIMIT": "AI 反复调用工具失败，已停止本轮生成。已完成的内容已保存，可调整要求后再试",
+  "ERR_AGENT_RUN_TIMEOUT": "本轮生成时间过长，已自动停止。已生成的内容已保存，可以继续对话让 AI 完成剩余部分",
+  "ERR_AGENT_MODEL_CALL_LIMIT": "本轮生成的步骤过多，已自动停止。已生成的内容已保存，可以继续对话让 AI 完成剩余部分",
+  "ERR_AGENT_FILE_SAVE_FAILED": "保存生成的文件内容失败，请重试"
 }

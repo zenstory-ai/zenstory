@@ -10,6 +10,7 @@ import unicodedata
 from collections.abc import AsyncIterator
 from typing import Any, NamedTuple
 
+from agent.core.stream_errors import classify_stream_exception, log_stream_exception
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.graph.state import WritingState
 from agent.openai_agents.runner import run_openai_agents_streaming_agent
@@ -84,13 +85,11 @@ async def run_streaming_agent(
         log_with_context(logger, 20, f"Streaming {agent_type} completed")
 
     except Exception as e:
-        log_with_context(
-            logger, 40, f"Streaming {agent_type} error",
-            error=str(e), error_type=type(e).__name__,
-        )
+        info = classify_stream_exception(e)
+        log_stream_exception(logger, f"Streaming {agent_type} error", e, info, agent_type=agent_type)
         yield StreamEvent(
             type=StreamEventType.ERROR,
-            data={"error": str(e), "error_type": type(e).__name__},
+            data=info.as_event_data(error_type=type(e).__name__),
         )
 
 
