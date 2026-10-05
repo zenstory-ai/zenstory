@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { subscriptionApi } from '../../lib/subscriptionApi';
+import { ApiError } from '../../lib/apiClient';
 import { handleApiError } from '../../lib/errorHandler';
+import { trackEvent } from '../../lib/analytics';
 import { useTranslation } from 'react-i18next';
 import Modal from '../ui/Modal';
 
@@ -21,6 +23,12 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
   const redeemMutation = useMutation({
     mutationFn: (redeemCode: string) => subscriptionApi.redeemCode(redeemCode, source),
     onSuccess: (data) => {
+      // Never send the code itself: it is a bearer credential.
+      trackEvent('redeem_code_succeeded', {
+        tier: data.tier ?? undefined,
+        duration_days: data.duration_days ?? undefined,
+        source,
+      });
       setSuccess(data.message || t('settings:subscription.redeemSuccess', '兑换成功！'));
       setError('');
       setCode('');
@@ -28,6 +36,10 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
       queryClient.invalidateQueries({ queryKey: ['subscription-quota'] });
     },
     onError: (err: unknown) => {
+      trackEvent('redeem_code_failed', {
+        reason: err instanceof ApiError ? err.errorCode ?? `http_${err.status}` : 'unknown',
+        source,
+      });
       const normalizedError = handleApiError(err);
       setError(
         normalizedError || t('settings:subscription.redeemFailed', '兑换失败，请检查兑换码')
@@ -49,6 +61,7 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
 
     // Basic format validation
     if (!/^ERG-[A-Z0-9]{2,8}-[A-Z0-9]{4}-[A-Z0-9]{8}$/.test(trimmed)) {
+      trackEvent('redeem_code_failed', { reason: 'invalid_format', source });
       setError(t('settings:subscription.invalidFormat', '兑换码格式不正确'));
       return;
     }

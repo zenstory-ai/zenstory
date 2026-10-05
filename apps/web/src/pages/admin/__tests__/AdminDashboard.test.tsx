@@ -66,6 +66,7 @@ describe('AdminDashboard', () => {
       total_projects: 40,
       total_inspirations: 22,
       active_subscriptions: 12,
+      pro_users: 7,
       total_points_in_circulation: 5000,
       today_check_ins: 20,
       active_invite_codes: 9,
@@ -93,7 +94,12 @@ describe('AdminDashboard', () => {
       period_start: '2026-03-01T00:00:00Z',
       period_end: '2026-03-08T00:00:00Z',
       total_conversions: 5,
+      paid_conversions: 3,
       unattributed_conversions: 2,
+      channels: [
+        { channel: 'zpay', conversions: 3, paid: true },
+        { channel: 'admin_update', conversions: 2, paid: false },
+      ],
       sources: [
         {
           source: 'chat_quota_blocked',
@@ -136,5 +142,16 @@ describe('AdminDashboard', () => {
     });
     expect(screen.queryByText('admin:dashboard.totalInspirations')).not.toBeInTheDocument();
     expect(screen.queryByText('22')).not.toBeInTheDocument();
+  });
+
+  it('shows paid Pro users and separates paid conversions from grants', async () => {
+    render(<AdminDashboard />, { wrapper: createWrapper() });
+
+    expect(await screen.findByText('付费 Pro 用户')).toBeInTheDocument();
+    expect(screen.getByText('7')).toBeInTheDocument();
+    expect(screen.queryByText('12')).not.toBeInTheDocument();
+    expect(await screen.findByTestId('paid-conversions')).toHaveTextContent('3');
+    expect(screen.getByText('zpay · 3')).toBeInTheDocument();
+    expect(screen.getByText('admin_update · 2')).toBeInTheDocument();
   });
 });

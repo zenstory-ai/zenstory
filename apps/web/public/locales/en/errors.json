@@ -85,5 +85,11 @@
   "ERR_AGENT_TOOL_FAILURE_LIMIT": "The AI kept failing to use its tools, so this reply was stopped. Finished work is saved; adjust your request and try again",
   "ERR_AGENT_RUN_TIMEOUT": "This reply took too long and was stopped. What was generated is saved; continue the chat to let the AI finish",
   "ERR_AGENT_MODEL_CALL_LIMIT": "This reply took too many steps and was stopped. What was generated is saved; continue the chat to let the AI finish",
-  "ERR_AGENT_FILE_SAVE_FAILED": "Failed to save the generated file content. Please try again"
+  "ERR_AGENT_FILE_SAVE_FAILED": "Failed to save the generated file content. Please try again",
+  "ERR_PAYMENT_UNAVAILABLE": "Online payment is not available yet. You can still activate with a redemption code.",
+  "ERR_PAYMENT_UNSUPPORTED_OPTION": "This payment option is not supported. Refresh the page and try again.",
+  "ERR_PAYMENT_PLAN_UNAVAILABLE": "This plan cannot be purchased right now. Try again later or contact support.",
+  "ERR_PAYMENT_ORDER_CREATE_FAILED": "Could not create the payment order. Please try again.",
+  "ERR_PAYMENT_RATE_LIMITED": "Too many attempts. Please wait a moment and try again.",
+  "ERR_PAYMENT_SYNC_FAILED": "Could not check the order with the payment provider. Refresh later."
 }

@@ -76,25 +76,6 @@ export function formatMonthlyOutputEstimate(
   );
 }
 
-export function formatPriorityQueueLevel(
-  level: string,
-  t: TranslateFn,
-): string {
-  if (level === "priority") {
-    return translate(
-      t,
-      "dashboard:billing.priorityQueuePriority",
-      "优先队列",
-    );
-  }
-
-  return translate(
-    t,
-    "dashboard:billing.priorityQueueStandard",
-    "标准队列",
-  );
-}
-
 export function getEntitlementMetricDefinitions(
   t: TranslateFn,
   language: string | undefined,
@@ -108,6 +89,8 @@ export function getEntitlementMetricDefinitions(
     "次/月",
   );
 
+  // Only entitlements the backend enforces. Context window size and priority
+  // queueing were advertised without an implementation and are not listed.
   const definitions: EntitlementMetricDefinition[] = [
     {
       key: "writing_credits_monthly",
@@ -148,17 +131,6 @@ export function getEntitlementMetricDefinitions(
           "个",
         )}`,
       compareValue: (plan) => plan.entitlements.active_projects_limit,
-    },
-    {
-      key: "context_tokens_limit",
-      label: translate(t, "dashboard:billing.metricContext", "上下文容量"),
-      outcome: translate(
-        t,
-        "dashboard:billing.metricContextOutcome",
-        "长篇线索和角色设定更不易丢失",
-      ),
-      value: (plan) => `${formatLimit(plan.entitlements.context_tokens_limit)} tokens`,
-      compareValue: (plan) => plan.entitlements.context_tokens_limit,
     },
     {
       key: "material_decompositions_monthly",
@@ -206,22 +178,6 @@ export function getEntitlementMetricDefinitions(
       value: (plan) =>
         `${formatLimit(plan.entitlements.inspiration_copies_monthly)} ${monthUnit}`,
       compareValue: (plan) => plan.entitlements.inspiration_copies_monthly,
-    },
-    {
-      key: "priority_queue_level",
-      label: translate(
-        t,
-        "dashboard:billing.metricPriorityQueue",
-        "任务排队优先级",
-      ),
-      outcome: translate(
-        t,
-        "dashboard:billing.metricPriorityQueueOutcome",
-        "高峰期任务更快开始执行",
-      ),
-      value: (plan) =>
-        formatPriorityQueueLevel(plan.entitlements.priority_queue_level, t),
-      compareValue: (plan) => plan.entitlements.priority_queue_level,
     },
     {
       key: "export_formats",
