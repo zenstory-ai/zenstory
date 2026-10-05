@@ -4,6 +4,7 @@ Writing workflow for zenstory.
 Provides streaming multi-agent orchestration with router, planner, writer, and quality reviewer.
 """
 
+import asyncio
 import contextlib
 import json
 import os
@@ -66,10 +67,10 @@ def _probe_pending_file_body(file_id: str) -> str:
 
         from models import File
 
-        session = ToolContext.get_session()
-        row = session.exec(
-            select(File.content, File.is_deleted).where(File.id == file_id)
-        ).first()
+        with ToolContext.short_lived_session() as session:
+            row = session.exec(
+                select(File.content, File.is_deleted).where(File.id == file_id)
+            ).first()
     except Exception as e:
         logger.debug(f"Pending empty-file verification failed: {e}")
         return _PENDING_BODY_UNVERIFIABLE
@@ -89,20 +90,32 @@ def _rollback_unfinished_empty_files(
     if not entries:
         return set()
 
-    session = None
+    ids = [entry["file_id"] for entry in entries if entry.get("file_id")]
+    if not ids:
+        return set()
+
     try:
-        from sqlalchemy import update
-        from sqlmodel import select
+        with ToolContext.short_lived_session() as session:
+            return _soft_delete_verified_empty_files(session, ids)
+    except Exception as exc:
+        logger.warning(
+            "Failed to roll back unfinished empty files",
+            exc_info=True,
+            extra={"error": str(exc)},
+        )
+        return set()
 
-        from config.datetime_utils import utcnow
-        from models import File
 
-        session = ToolContext.get_session()
-        project_id = ToolContext.get_project_id()
-        ids = [entry["file_id"] for entry in entries if entry.get("file_id")]
-        if not ids:
-            return set()
+def _soft_delete_verified_empty_files(session: Any, ids: list[str]) -> set[str]:
+    """在给定 session 上软删除仍为空的文件；失败时回滚并抛出。"""
+    from sqlalchemy import update
+    from sqlmodel import select
 
+    from config.datetime_utils import utcnow
+    from models import File
+
+    project_id = ToolContext.get_project_id()
+    try:
         rolled_back: set[str] = set()
         with session.begin_nested():
             for file_id in ids:
@@ -140,16 +153,10 @@ def _rollback_unfinished_empty_files(
         if rolled_back:
             session.commit()
         return rolled_back
-    except Exception as exc:
-        if session is not None:
-            with contextlib.suppress(Exception):
-                session.rollback()
-        logger.warning(
-            "Failed to roll back unfinished empty files",
-            exc_info=True,
-            extra={"error": str(exc)},
-        )
-        return set()
+    except Exception:
+        with contextlib.suppress(Exception):
+            session.rollback()
+        raise
 
 
 # 追加轮提示：openai-agents 不支持向进行中的 run 注入消息，运行期间到达的
@@ -811,7 +818,12 @@ async def run_writing_workflow_streaming(
                 # 刷新文件清单
                 inventory_text = ""
                 try:
-                    refreshed = ToolContext.refresh_file_inventory()
+                    # 同步查库放进工作线程，并用短生命周期 session（查完即还
+                    # 连接）：在事件循环上直接查会阻塞所有并发 SSE，且懒建的
+                    # session 会以 idle in transaction 挂到整轮结束。
+                    refreshed = await asyncio.to_thread(
+                        ToolContext.refresh_file_inventory
+                    )
                     if refreshed:
                         inventory_text = _format_file_inventory(refreshed)
                         if inventory_text:
@@ -1067,7 +1079,9 @@ async def run_writing_workflow_streaming(
                 for entry in pendings:
                     entry_file_id = str(entry.get("file_id") or entry.get("id") or "")
                     entry_title = str(entry.get("title") or "未命名")
-                    entry_state = _probe_pending_file_body(entry_file_id)
+                    entry_state = await asyncio.to_thread(
+                        _probe_pending_file_body, entry_file_id
+                    )
                     probed_states.append(entry_state)
                     if entry_state in (_PENDING_BODY_WRITTEN, _PENDING_BODY_GONE):
                         ToolContext.clear_pending_empty_file(entry_file_id)
@@ -1104,7 +1118,9 @@ async def run_writing_workflow_streaming(
                 elif not can_schedule_correction:
                     # 配额用尽或已是最后一轮：回滚能确认的空产物。无法确认/
                     # 回滚的条目继续保留守卫，并向客户端报告明确的未完成状态。
-                    rolled_back = _rollback_unfinished_empty_files(unfinished)
+                    rolled_back = await asyncio.to_thread(
+                        _rollback_unfinished_empty_files, unfinished
+                    )
                     for entry in unfinished:
                         if entry["file_id"] in rolled_back:
                             ToolContext.clear_pending_empty_file(entry["file_id"])

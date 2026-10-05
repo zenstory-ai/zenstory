@@ -11,7 +11,7 @@ import json
 import os
 import re
 import threading
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from typing import Any
 from uuid import uuid4
 
@@ -375,6 +375,36 @@ class ToolContext:
         raise RuntimeError("No session available in ToolContext")
 
     @classmethod
+    @contextlib.contextmanager
+    def short_lived_session(cls) -> Iterator[Session]:
+        """借一个只在 with 块内有效的 session，用完即关、归还连接。
+
+        供工作流在 agent 边界做的一次性查询（文件清单、空文件核验、空文件回滚）
+        使用：它们跑在 asyncio.to_thread 的工作线程里，不能走 get_session() 懒建
+        并写入 _owned_session_var——那会让一条连接以 idle in transaction 状态
+        一直挂到整轮 SSE 结束（clear_context 才关闭）。上下文里显式放了共享
+        session（SQLite 测试/非 offload 路径）时直接复用它，不由这里关闭。
+        """
+        context = cls._get_context()
+        shared = context.get("session")
+        if shared is not None:
+            yield shared
+            return
+
+        create_func = context.get("create_session_func")
+        if not create_func:
+            raise RuntimeError("No session available in ToolContext")
+
+        session = create_func()
+        try:
+            yield session
+        finally:
+            try:
+                session.close()
+            except Exception as e:
+                logger.debug(f"Error closing short-lived session: {e}")
+
+    @classmethod
     def get_session_id(cls) -> str | None:
         """Get current request session_id."""
         context = cls._get_context()
@@ -581,8 +611,6 @@ class ToolContext:
         if project_id is None:
             return None
 
-        session = cls.get_session()
-
         from sqlmodel import select
 
         from models import File
@@ -597,19 +625,21 @@ class ToolContext:
         }
 
         # Column-only select: avoids loading File.content (expensive on PG TOAST).
-        file_rows = session.exec(
-            select(
-                File.id,
-                File.title,
-                File.file_type,
-                File.order,
-                File.created_at,
-            ).where(
-                File.project_id == project_id,
-                File.file_type != "folder",
-                File.is_deleted.is_(False),
-            )
-        ).all()
+        # 短生命周期 session：查完立即归还连接（见 short_lived_session）。
+        with cls.short_lived_session() as session:
+            file_rows = session.exec(
+                select(
+                    File.id,
+                    File.title,
+                    File.file_type,
+                    File.order,
+                    File.created_at,
+                ).where(
+                    File.project_id == project_id,
+                    File.file_type != "folder",
+                    File.is_deleted.is_(False),
+                )
+            ).all()
 
         grouped: dict[str, list[tuple[tuple, dict[str, Any]]]] = {
             key: [] for key in inventory
