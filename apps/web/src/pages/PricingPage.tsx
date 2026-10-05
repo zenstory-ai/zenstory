@@ -411,15 +411,6 @@ export default function PricingPage() {
           </section>
         )}
 
-      <section className="rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-4">
-        <h2 className="text-base font-semibold text-[hsl(var(--text-primary))]">
-          {t("dashboard:billing.activationTitle", "如何开通专业版")}
-        </h2>
-        <p className="mt-2 text-sm text-[hsl(var(--text-secondary))]">
-          {t("dashboard:billing.activationGuide", "推荐使用支付宝在线购买，支付成功后系统会自动开通或续费。已有兑换码仍可通过订阅页面兑换。")}
-        </p>
-      </section>
-
         <section className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {[
             {

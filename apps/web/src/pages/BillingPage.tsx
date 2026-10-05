@@ -235,32 +235,17 @@ export default function BillingPage() {
                 </span>
               )}
             </div>
-            {isUpgradableTier && (
-              <p className="mt-2 text-xs text-[hsl(var(--text-secondary))]">
-                {isCheckoutEnabled
-                  ? t("dashboard:billing.unlockHint", "选择月付或年付后，可通过支付宝在线开通专业版。")
-                  : t("dashboard:billing.unlockHintRedeem", "点击“升级专业版”可直接兑换开通，无需再跳转套餐页。")}
-              </p>
-            )}
           </div>
         </div>
       </Card>
 
-      <Card variant="outlined" padding="lg">
-        <h2 className="text-base font-semibold text-[hsl(var(--text-primary))]">
-          {t("dashboard:billing.activationTitle", "如何开通专业版")}
-        </h2>
-        <p className="mt-2 text-sm text-[hsl(var(--text-secondary))]">
-          {isCheckoutEnabled
-            ? t("dashboard:billing.activationGuide", "推荐使用支付宝在线购买，支付成功后系统会自动开通或续费。已有兑换码仍可通过上方入口兑换。")
-            : t("dashboard:billing.activationGuideRedeem", "专业版目前通过兑换码开通。已有兑换码可直接兑换；还没有兑换码，请联系下方微信咨询套餐与获取方式。")}
-        </p>
-        {!isCheckoutEnabled && (
-          <p className="mt-2 text-sm text-[hsl(var(--text-secondary))]">
+      {!isCheckoutEnabled && (
+        <Card variant="outlined" padding="lg">
+          <p className="text-sm text-[hsl(var(--text-secondary))]">
             {t("settings:subscription.wechatGuide", "没有兑换码？可添加微信号获取：AIchuangzuo999")}
           </p>
-        )}
-      </Card>
+        </Card>
+      )}
 
       <Card variant="outlined" padding="lg">
         <div className="flex items-center gap-2 mb-4">

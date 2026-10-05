@@ -32,10 +32,6 @@ vi.mock('react-i18next', () => ({
           'dashboard:billing.ctaProNeutral': 'Get or renew Pro',
           'settings:subscription.redeemCode': 'Redeem Code',
           'dashboard:billing.currentPlan': 'Current plan',
-          'dashboard:billing.unlockHint': 'Unlock more features',
-          'dashboard:billing.unlockHintRedeem': 'Redeem to unlock',
-          'dashboard:billing.activationGuide': 'Pay with Alipay',
-          'dashboard:billing.activationGuideRedeem': 'Activate with a redeem code',
           'settings:subscription.wechatGuide': 'Get a code on WeChat',
           'dashboard:billing.usageTitle': 'Usage',
           'common:error': 'Load failed',
@@ -246,6 +242,8 @@ describe('BillingPage', () => {
     expect(screen.getByText('AI conversations')).toBeInTheDocument()
     expect(screen.getByText('2/10')).toBeInTheDocument()
 
+    expect(screen.queryByText('Get a code on WeChat')).not.toBeInTheDocument()
+
     fireEvent.click(screen.getByRole('button', { name: 'Buy Pro Online' }))
     expect(trackUpgradeClick).toHaveBeenCalled()
     expect(assignSpy).not.toHaveBeenCalled()
@@ -332,8 +330,6 @@ describe('BillingPage', () => {
       render(<BillingPage />)
 
       expect(screen.queryByRole('button', { name: 'Buy Pro Online' })).not.toBeInTheDocument()
-      expect(screen.getByText('Redeem to unlock')).toBeInTheDocument()
-      expect(screen.getByText('Activate with a redeem code')).toBeInTheDocument()
       expect(screen.getByText('Get a code on WeChat')).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole('button', { name: 'Upgrade Pro' }))
