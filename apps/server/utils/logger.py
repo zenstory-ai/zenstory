@@ -34,6 +34,8 @@ def log_with_context(
     logger: logging.Logger,
     level: int,
     message: str,
+    *,
+    exc_info: Any = None,
     **extra_fields: Any,
 ) -> None:
     """
@@ -45,6 +47,8 @@ def log_with_context(
         logger: Logger instance
         level: Log level (logging.INFO, logging.WARNING, etc.)
         message: Log message
+        exc_info: Optional exception (or True) whose traceback is attached to
+            the record, same as ``logging.Logger.log(exc_info=...)``
         **extra_fields: Additional context fields to include in log
 
     Example:
@@ -64,4 +68,4 @@ def log_with_context(
         **extra_fields,
     }
     extra = {"custom_fields": merged_fields}
-    logger.log(level, message, extra=extra)
+    logger.log(level, message, extra=extra, exc_info=exc_info)

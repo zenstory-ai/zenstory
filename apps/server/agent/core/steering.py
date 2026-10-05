@@ -33,9 +33,12 @@ _STEERING_TTL_S: Final[int] = 3600  # session keys expire after 1h of inactivity
 # 的每次释放都因「还有其它持有者」而跳过删除，队列永不回收，陈旧引导消息会被
 # 后续完全无关的 run 当作用户输入注入模型。活着的 run 每次轮询 steering
 # （run 启动、工具输出边界、agent 边界、历史落库前）都会续期心跳。
-# 阈值取与 _STEERING_TTL_S 相同：判死不会早于「键级 TTL 本来就会让整个
-# session 过期」的时刻，因此相对既有行为不引入任何新的误杀风险。
-_RUN_HEARTBEAT_TTL_S: Final[int] = _STEERING_TTL_S
+# 除了轮询，service.process_stream 在整轮生成期间还会起一个独立的周期心跳
+# task（每 _RUN_HEARTBEAT_INTERVAL_S 秒调用 heartbeat_steering_run_async），
+# 长时间的模型调用 / 工具执行期间也持续续期，所以僵尸判定可以缩到 90 秒：
+# 部署或崩溃杀掉进行中的生成后，该会话最多被锁 90 秒，而不是 1 小时。
+_RUN_HEARTBEAT_TTL_S: Final[int] = 90
+_RUN_HEARTBEAT_INTERVAL_S: Final[float] = 20.0
 
 
 class SteeringSessionBusyError(RuntimeError):
@@ -339,6 +342,13 @@ class SteeringQueueManager:
                 return False
             self._reap_stale_runs(session_id, entry)
             return any(rid != run_id for rid in entry.active_runs)
+
+    async def heartbeat_run(self, session_id: str, run_id: str) -> None:
+        """续期单个持有者的心跳；已释放（不在册）的 run 不会被加回去。"""
+        async with self._lock:
+            entry = self._queues.get(session_id)
+            if entry is not None and run_id in entry.active_runs:
+                entry.active_runs[run_id] = time.time()
 
     async def has_active_runs(self, session_id: str) -> bool:
         """Whether a session has any live generation holder."""
@@ -685,6 +695,16 @@ def _redis_claim_exclusive_run_sync(
         )
 
 
+def _redis_heartbeat_run_sync(session_id: str, run_id: str) -> None:
+    """成员级心跳：只续期本 run 的 score，xx=True 不会复活已释放的 run。"""
+    from services.infra.redis_client import get_redis_client
+
+    pipe = get_redis_client().pipeline(transaction=True)
+    pipe.zadd(_runs_key(session_id), {run_id: time.time()}, xx=True)
+    pipe.expire(_runs_key(session_id), _STEERING_TTL_S)
+    pipe.execute()
+
+
 def _redis_get_owner_sync(session_id: str) -> str | None:
     from services.infra.redis_client import get_redis_client
 
@@ -959,6 +979,16 @@ async def has_other_active_runs_async(session_id: str, run_id: str) -> bool:
             _redis_has_other_active_runs_sync, session_id, run_id
         )
     return await _queue_manager.has_other_active_runs(session_id, run_id)
+
+
+async def heartbeat_steering_run_async(session_id: str, run_id: str) -> None:
+    """续期一个仍在生成的 run 的持有心跳（周期心跳 task 调用）。"""
+    if not run_id:
+        return
+    if await _redis_available():
+        await asyncio.to_thread(_redis_heartbeat_run_sync, session_id, run_id)
+        return
+    await _queue_manager.heartbeat_run(session_id, run_id)
 
 
 async def has_active_runs_async(session_id: str) -> bool:

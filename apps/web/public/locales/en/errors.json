@@ -75,5 +75,15 @@
 
   "ERR_SKILL_PACKAGE_INVALID": "Invalid skill package",
   "ERR_SKILL_PACKAGE_TOO_LARGE": "Skill package or resource file exceeds the size limit",
-  "ERR_RESOURCE_CONFLICT": "This conflicts with existing data. Please refresh and try again"
+  "ERR_RESOURCE_CONFLICT": "This conflicts with existing data. Please refresh and try again",
+
+  "ERR_SESSION_BUSY": "The previous reply is still being generated or finalized. Wait a moment, or start a new chat",
+  "ERR_AGENT_UPSTREAM_RATE_LIMITED": "The AI service is busy right now. Please try again shortly",
+  "ERR_AGENT_UPSTREAM_UNAVAILABLE": "The AI service is unavailable or timed out. Please try again shortly",
+  "ERR_AGENT_CONTEXT_TOO_LONG": "This conversation is too long. Shorten your message or start a new chat",
+  "ERR_AGENT_RUN_FAILED": "Something went wrong while generating the reply. Please try again",
+  "ERR_AGENT_TOOL_FAILURE_LIMIT": "The AI kept failing to use its tools, so this reply was stopped. Finished work is saved; adjust your request and try again",
+  "ERR_AGENT_RUN_TIMEOUT": "This reply took too long and was stopped. What was generated is saved; continue the chat to let the AI finish",
+  "ERR_AGENT_MODEL_CALL_LIMIT": "This reply took too many steps and was stopped. What was generated is saved; continue the chat to let the AI finish",
+  "ERR_AGENT_FILE_SAVE_FAILED": "Failed to save the generated file content. Please try again"
 }

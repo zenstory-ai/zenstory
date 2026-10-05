@@ -2,6 +2,8 @@
 
 Status: implemented
 
+熔断后的计费已改为不退还额度，见 `architecture/2026-10-05-agent-stream-error-and-refund-contract.md`；熔断机制本身不变。
+
 ## Problem
 
 单个 Agent 的 SDK run 只有 `max_turns`（`AGENT_TOOL_CALL_MAX_ITERATIONS`，默认 100 轮模型调用）兜底；`AGENT_COLLABORATION_MAX_ITERATIONS`（30）数的是 Agent 交接次数，不是工具调用。SQLite 写锁不释放时，writer 每隔约 37 秒原样重发一次失败的 `edit_file`，持续十多分钟，每轮都在烧 token，用户只能看着转圈。任何「工具稳定失败 + 模型原样重试」的组合都会这样，与失败来源无关。

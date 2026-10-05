@@ -1218,8 +1218,9 @@ export function useAgentStream(
             // 该标志由 startStream 在每轮开始时重置即可；在出错时清零会让
             // 下面的 finalizeStream 与已发生过的 done 提交重复叠加。
 
-            // 使用独立的error状态管理，3秒后自动清除
-            showError(message, retryable !== true);
+            // 流式错误不再 3 秒自动消失：用户需要看清原因（错误码对应的 i18n 文案），
+            // 可重试时还要有时间点「重试」。下一次发送或 reset 时清除。
+            showError(message, false);
             setErrorCode(code ?? null);
 
             setState((prev) => ({

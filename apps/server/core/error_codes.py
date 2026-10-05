@@ -16,6 +16,7 @@ Module codes:
 - 11xxx: Quota errors
 - 12xxx: Redemption errors
 - 13xxx: Points errors
+- 14xxx: Agent stream errors
 """
 
 
@@ -150,6 +151,18 @@ class ErrorCode:
     POINTS_INVALID_AMOUNT = "ERR_POINTS_INVALID_AMOUNT"
     POINTS_REDEMPTION_MINIMUM_NOT_MET = "ERR_POINTS_REDEMPTION_MINIMUM_NOT_MET"
 
+    # ==================== Agent Stream Errors (14xxx) ====================
+
+    SESSION_BUSY = "ERR_SESSION_BUSY"
+    AGENT_UPSTREAM_RATE_LIMITED = "ERR_AGENT_UPSTREAM_RATE_LIMITED"
+    AGENT_UPSTREAM_UNAVAILABLE = "ERR_AGENT_UPSTREAM_UNAVAILABLE"
+    AGENT_CONTEXT_TOO_LONG = "ERR_AGENT_CONTEXT_TOO_LONG"
+    AGENT_RUN_FAILED = "ERR_AGENT_RUN_FAILED"
+    AGENT_TOOL_FAILURE_LIMIT = "ERR_AGENT_TOOL_FAILURE_LIMIT"
+    AGENT_RUN_TIMEOUT = "ERR_AGENT_RUN_TIMEOUT"
+    AGENT_MODEL_CALL_LIMIT = "ERR_AGENT_MODEL_CALL_LIMIT"
+    AGENT_FILE_SAVE_FAILED = "ERR_AGENT_FILE_SAVE_FAILED"
+
 
 # Error messages mapping (for server-side reference, if needed)
 # Note: These messages are primarily used by frontend i18n
@@ -247,6 +260,16 @@ ERROR_MESSAGES = {
         "ERR_POINTS_ALREADY_CHECKED_IN": "今日已签到",
         "ERR_POINTS_INVALID_AMOUNT": "积分数量无效",
         "ERR_POINTS_REDEMPTION_MINIMUM_NOT_MET": "兑换最低需要 7 天",
+
+        "ERR_SESSION_BUSY": "上一轮回复仍在生成或收尾中，请稍候片刻再发送，或开启新对话",
+        "ERR_AGENT_UPSTREAM_RATE_LIMITED": "AI 服务当前繁忙，请稍后重试",
+        "ERR_AGENT_UPSTREAM_UNAVAILABLE": "AI 服务暂时不可用或响应超时，请稍后重试",
+        "ERR_AGENT_CONTEXT_TOO_LONG": "本轮对话内容过长，请精简消息或开启新对话后重试",
+        "ERR_AGENT_RUN_FAILED": "生成回复时发生错误，请重试",
+        "ERR_AGENT_TOOL_FAILURE_LIMIT": "AI 反复调用工具失败，已停止本轮生成",
+        "ERR_AGENT_RUN_TIMEOUT": "本轮生成时间过长，已自动停止",
+        "ERR_AGENT_MODEL_CALL_LIMIT": "本轮生成的模型调用次数已达上限，已自动停止",
+        "ERR_AGENT_FILE_SAVE_FAILED": "保存生成的文件内容失败，请重试",
     },
     "en": {
         "ERR_INTERNAL_SERVER_ERROR": "Internal server error, please try again later",
@@ -341,6 +364,16 @@ ERROR_MESSAGES = {
         "ERR_POINTS_ALREADY_CHECKED_IN": "Already checked in today",
         "ERR_POINTS_INVALID_AMOUNT": "Invalid points amount",
         "ERR_POINTS_REDEMPTION_MINIMUM_NOT_MET": "Minimum redemption is 7 days",
+
+        "ERR_SESSION_BUSY": "The previous reply is still being generated or finalized. Wait a moment, or start a new chat",
+        "ERR_AGENT_UPSTREAM_RATE_LIMITED": "The AI service is busy right now. Please try again shortly",
+        "ERR_AGENT_UPSTREAM_UNAVAILABLE": "The AI service is unavailable or timed out. Please try again shortly",
+        "ERR_AGENT_CONTEXT_TOO_LONG": "This conversation is too long. Shorten your message or start a new chat",
+        "ERR_AGENT_RUN_FAILED": "Something went wrong while generating the reply. Please try again",
+        "ERR_AGENT_TOOL_FAILURE_LIMIT": "The AI kept failing to use its tools, so this reply was stopped",
+        "ERR_AGENT_RUN_TIMEOUT": "This reply took too long and was stopped automatically",
+        "ERR_AGENT_MODEL_CALL_LIMIT": "This reply reached its model-call limit and was stopped automatically",
+        "ERR_AGENT_FILE_SAVE_FAILED": "Failed to save the generated file content. Please try again",
     },
 }
 

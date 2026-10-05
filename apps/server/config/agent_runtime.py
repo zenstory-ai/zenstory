@@ -100,3 +100,19 @@ AGENT_ENABLE_GRAPH_AUTO_REVIEW = _get_bool_env(
     "AGENT_ENABLE_GRAPH_AUTO_REVIEW",
     True,
 )
+
+# Request-level budget for one POST /agent/stream (cost / runaway safety net).
+# The per-agent and collaboration caps above multiply (100 × 30), so a single
+# request could otherwise make thousands of model calls for one quota unit.
+# Defaults are deliberately loose so a long multi-chapter writing turn with
+# review rounds never hits them; exceeding either ends the run gracefully with
+# an error frame (ERR_AGENT_MODEL_CALL_LIMIT / ERR_AGENT_RUN_TIMEOUT).
+
+# Total model calls (SDK turns across all agent runs) per request.
+AGENT_RUN_MAX_MODEL_CALLS = _get_int_env("AGENT_RUN_MAX_MODEL_CALLS", 200)
+
+# Wall-clock budget for the whole streaming request, in seconds.
+AGENT_RUN_WALL_CLOCK_TIMEOUT_S = _get_int_env("AGENT_RUN_WALL_CLOCK_TIMEOUT_S", 1200)
+
+# Interval between SSE keep-alive comment frames (": ping") while streaming.
+AGENT_SSE_HEARTBEAT_INTERVAL_S = _get_int_env("AGENT_SSE_HEARTBEAT_INTERVAL_S", 15)

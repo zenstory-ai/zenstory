@@ -511,7 +511,8 @@ async def test_runner_wires_intra_run_trimmer_into_run_config():
         ]
 
     run_config = mock_run.call_args.kwargs["run_config"]
-    assert isinstance(run_config.call_model_input_filter, IntraRunToolOutputTrimmer)
+    # 外层是请求级模型调用计数器，内层仍是 IntraRunToolOutputTrimmer。
+    assert isinstance(run_config.call_model_input_filter._inner, IntraRunToolOutputTrimmer)
     assert run_config.tool_execution.max_function_tool_concurrency == 1
 
 

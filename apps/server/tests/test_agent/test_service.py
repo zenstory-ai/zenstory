@@ -1732,3 +1732,59 @@ class TestAgentServiceHelpers:
 
         assert AGENT_MAX_ITERATIONS == CONFIGURED
         assert AGENT_MAX_ITERATIONS > 0
+
+
+@pytest.mark.integration
+class TestProcessStreamRunHeartbeatAndReport:
+    """生成期间周期续期会话持有；结束后停止心跳；运行摘要写入 run_report。"""
+
+    async def test_heartbeat_runs_during_generation_and_stops_after(
+        self, mock_agent_service, test_user_with_project, db_session: Session
+    ):
+        from agent.core.workflow_events import StreamEvent, StreamEventType
+
+        service, _ = mock_agent_service
+        project = test_user_with_project["project"]
+        user = test_user_with_project["user"]
+        beats: list[tuple[str, str]] = []
+
+        async def fake_heartbeat(session_id, run_id):
+            beats.append((session_id, run_id))
+
+        async def slow_workflow():
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "第一段"})
+            await asyncio.sleep(0.2)
+            yield StreamEvent(
+                type=StreamEventType.MESSAGE_END,
+                data={"stop_reason": "end_turn", "usage": {"input_tokens": 10, "output_tokens": 5}},
+            )
+
+        run_report: dict = {}
+        with (
+            patch("agent.service.run_writing_workflow_streaming", return_value=slow_workflow()),
+            patch("agent.service._RUN_HEARTBEAT_INTERVAL_S", 0.03),
+            patch("agent.service.heartbeat_steering_run_async", side_effect=fake_heartbeat),
+        ):
+            events = [
+                event
+                async for event in service.process_stream(
+                    project_id=str(project.id),
+                    user_id=str(user.id),
+                    message="写第一段",
+                    session=db_session,
+                    run_report=run_report,
+                )
+            ]
+            beats_at_end = len(beats)
+            await asyncio.sleep(0.1)
+
+        assert any("event: done" in event for event in events)
+        assert beats_at_end >= 2
+        assert len({run_id for _, run_id in beats}) == 1
+        # 生成结束、持有释放后心跳不再继续。
+        assert len(beats) == beats_at_end
+        assert run_report["model"]
+        assert run_report["input_tokens"] == 10
+        assert run_report["output_tokens"] == 5
+        assert run_report["stop_reason"] == "end_turn"
+        assert "model_calls" in run_report and "llm_duration_ms" in run_report

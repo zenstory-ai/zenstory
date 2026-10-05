@@ -748,7 +748,10 @@ class TestProcessEventError:
 
         assert len(events) == 1
         assert events[0].type == EventType.ERROR
-        assert events[0].data["message"] == "API rate limit exceeded"
+        # 原始异常文本不再透给前端：固定文案 + ERR_ 错误码。
+        assert events[0].data["message"] == "生成回复时发生错误，请重试"
+        assert events[0].data["code"] == "ERR_AGENT_RUN_FAILED"
+        assert "rate limit" not in events[0].data["message"]
 
     @pytest.mark.asyncio
     async def test_error_event_with_default_message(self, adapter):
@@ -763,7 +766,8 @@ class TestProcessEventError:
             events.append(sse_event)
 
         assert len(events) == 1
-        assert events[0].data["message"] == "Unknown error"
+        assert events[0].data["message"] == "生成回复时发生错误，请重试"
+        assert events[0].data["code"] == "ERR_AGENT_RUN_FAILED"
 
 
 class TestProcessLangGraphEvents:

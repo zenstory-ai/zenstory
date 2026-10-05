@@ -25,8 +25,20 @@ from pydantic_core import PydanticCustomError
 from services.auth import get_current_active_user
 from sqlmodel import Session
 
-from agent.core.events import NON_TERMINAL_WORKFLOW_STOPPED_REASONS, error_event
+from agent.core.events import error_event
+from agent.core.sse_pump import SSEStreamPump, StreamDeadlineExceeded
+from agent.core.steering import SteeringSessionBusyError
+from agent.core.stream_billing import StreamBillingTracker
+from agent.core.stream_errors import (
+    classify_stream_exception,
+    log_stream_exception,
+    run_timeout_error,
+)
 from agent.service import get_agent_service
+from config.agent_runtime import (
+    AGENT_RUN_WALL_CLOCK_TIMEOUT_S,
+    AGENT_SSE_HEARTBEAT_INTERVAL_S,
+)
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import create_session, get_session
@@ -88,6 +100,43 @@ def _release_ai_conversation_sync(user_id: str) -> bool:
     """Release quota using a fresh sync DB session."""
     with create_session() as quota_session:
         return quota_service.release_ai_conversation(quota_session, user_id)
+
+
+async def _refund_quota(session: Session, user_id: str, **log_fields: Any) -> bool:
+    """退还一次已预扣的 AI 对话额度；失败只记日志，返回是否真的退了。"""
+    try:
+        if _should_offload_session_work(session):
+            return await asyncio.to_thread(_release_ai_conversation_sync, user_id)
+        # The shared request session may be in a failed transaction state from
+        # the error that aborted the stream. Reset it before the compensating
+        # refund; otherwise release_ai_conversation's refresh/commit raises
+        # PendingRollbackError, the refund silently no-ops, and the user is
+        # over-charged for a run that failed internally.
+        with contextlib.suppress(Exception):
+            session.rollback()
+        return quota_service.release_ai_conversation(session, user_id)
+    except Exception as refund_error:
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Failed to refund AI conversation quota after stream error",
+            user_id=user_id,
+            error=str(refund_error),
+            error_type=type(refund_error).__name__,
+            **log_fields,
+        )
+        return False
+
+
+def _session_busy_exception() -> APIException:
+    return APIException(
+        error_code=ErrorCode.SESSION_BUSY,
+        status_code=409,
+        detail=(
+            "This chat session already has an active generation. "
+            "Stop it or wait for it to finish before sending again."
+        ),
+    )
 
 
 # ==================== Request Models ====================
@@ -247,14 +296,7 @@ async def stream_request(
         try:
             await get_steering_queue_for_user_async(body.session_id, current_user.id)
             if await has_active_runs_async(body.session_id):
-                raise APIException(
-                    error_code=ErrorCode.RESOURCE_CONFLICT,
-                    status_code=409,
-                    detail=(
-                        "This chat session already has an active generation. "
-                        "Stop it or wait for it to finish before sending again."
-                    ),
-                )
+                raise _session_busy_exception()
         except KeyError:
             # New runtime session id - allow creation in service layer.
             pass
@@ -297,181 +339,202 @@ async def stream_request(
 
     lang = (accept_language or "").split(",")[0].split("-")[0].strip().lower() or "zh"
 
+    # Reserve one quota unit before streaming to avoid concurrent overrun.
+    # We may compensate (refund) in finally when the stream fails internally.
+    if _should_offload_session_work(session):
+        consumed = await asyncio.to_thread(
+            _consume_ai_conversation_sync,
+            current_user.id,
+        )
+    else:
+        consumed = quota_service.consume_ai_conversation(session, current_user.id)
+    if not consumed:
+        raise APIException(
+            error_code=ErrorCode.QUOTA_AI_CONVERSATIONS_EXCEEDED,
+            status_code=402,
+            detail=f"AI conversation quota exceeded ({used}/{limit}). Please upgrade your plan.",
+        )
+
+    # SSE 可能持续数分钟，而鉴权/权限校验的 SELECT 会让请求级 session 一直
+    # 保持事务打开（Postgres 上表现为 idle in transaction，连接被整个流式
+    # 期间占用）。此处主动结束事务把连接还回连接池；后续对该 session 的
+    # 使用（如 finally 中的 refund）会惰性开启新事务。rollback 会 expire
+    # ORM 实例，流式期间只能使用已提前取出的标量（user_id），不要再触碰
+    # current_user。
+    session.rollback()
+
+    run_report: dict[str, Any] = {}
+    stream = service.process_stream(
+        project_id=body.project_id,
+        user_id=user_id,
+        message=body.message,
+        session_id=body.session_id,
+        session=session,
+        selected_text=body.selected_text,
+        metadata=body.metadata,
+        language=lang,
+        selected_skill_ids=body.selected_skill_ids,
+        run_report=run_report,
+    )
+
+    # 先在路由里取出第一个事件：process_stream 在发出 session_started 之前
+    # 解析聊天会话并原子地抢占该会话唯一的生成槽。槽被占用（上一轮仍在生成或
+    # 收尾）时必须在发送 200 响应头之前转成 409 ERR_SESSION_BUSY 并退还刚预扣
+    # 的额度；其余预启动异常保持原行为，由 event_generator 发终止帧并退款。
+    first_event: str | None = None
+    prestart_error: Exception | None = None
+    prime_ctx_tokens = bind_request_context(agent_run_id=agent_run_id)
     try:
-        # Reserve one quota unit before streaming to avoid concurrent overrun.
-        # We may compensate (refund) in finally when the stream fails internally.
-        if _should_offload_session_work(session):
-            consumed = await asyncio.to_thread(
-                _consume_ai_conversation_sync,
-                current_user.id,
+        first_event = await stream.__anext__()
+    except StopAsyncIteration:
+        first_event = None
+    except SteeringSessionBusyError as exc:
+        await _refund_quota(session, user_id)
+        log_with_context(
+            logger,
+            20,  # INFO
+            "Agent stream rejected: chat session busy",
+            user_id=user_id,
+            project_id=body.project_id,
+            agent_run_id=agent_run_id,
+        )
+        raise _session_busy_exception() from exc
+    except Exception as exc:
+        prestart_error = exc
+    finally:
+        reset_request_context(prime_ctx_tokens)
+
+    async def _primed_stream():
+        if prestart_error is not None:
+            raise prestart_error
+        if first_event is not None:
+            yield first_event
+        async for event in stream:
+            yield event
+
+    async def event_generator():
+        agent_ctx_tokens = bind_request_context(agent_run_id=agent_run_id)
+        tracker = StreamBillingTracker()
+        user_cancelled = False
+        unexpected_exception = False
+        deadline_exceeded = False
+        pump = SSEStreamPump(
+            _primed_stream(),
+            heartbeat_interval_s=AGENT_SSE_HEARTBEAT_INTERVAL_S,
+            deadline_s=AGENT_RUN_WALL_CLOCK_TIMEOUT_S,
+        )
+
+        try:
+            async for event in pump:
+                tracker.observe(event)
+                yield event
+        except (asyncio.CancelledError, GeneratorExit):
+            # 客户端断线有两种到达方式：任务被取消（CancelledError）与生成器被
+            # aclose（GeneratorExit）。两者都是用户侧中止，计费口径一致；
+            # GeneratorExit 路径上不能 yield，也不做任何 await。
+            user_cancelled = True
+            pump.cancel()
+            raise
+        except StreamDeadlineExceeded:
+            deadline_exceeded = True
+            info = run_timeout_error()
+            log_with_context(
+                logger,
+                30,  # WARNING
+                "Agent stream exceeded wall-clock budget",
+                user_id=user_id,
+                project_id=body.project_id,
+                agent_run_id=agent_run_id,
+                timeout_s=AGENT_RUN_WALL_CLOCK_TIMEOUT_S,
             )
-        else:
-            consumed = quota_service.consume_ai_conversation(session, current_user.id)
-        if not consumed:
-            raise APIException(
-                error_code=ErrorCode.QUOTA_AI_CONVERSATIONS_EXCEEDED,
-                status_code=402,
-                detail=f"AI conversation quota exceeded ({used}/{limit}). Please upgrade your plan.",
+            if not tracker.saw_terminal_event:
+                frame = error_event(
+                    info.message,
+                    code=info.code,
+                    retryable=info.retryable,
+                    refundable=info.refundable,
+                ).to_sse()
+                tracker.observe(frame)
+                with contextlib.suppress(Exception):
+                    yield frame
+        except Exception as exc:
+            unexpected_exception = True
+            # An exception escaping process_stream (e.g. a pre-stream setup
+            # failure resolving the chat session or a Redis/DB outage) would
+            # otherwise tear down the SSE connection with no terminal frame,
+            # leaving the client's stream consumer hung on a stuck spinner.
+            # Emit a terminal error frame first (only if none was sent yet)
+            # so the frontend always receives a definitive end-of-stream.
+            info = classify_stream_exception(exc)
+            log_stream_exception(
+                logger,
+                "Agent stream failed outside the workflow",
+                exc,
+                info,
+                user_id=user_id,
+                project_id=body.project_id,
             )
-
-        # SSE 可能持续数分钟，而鉴权/权限校验的 SELECT 会让请求级 session 一直
-        # 保持事务打开（Postgres 上表现为 idle in transaction，连接被整个流式
-        # 期间占用）。此处主动结束事务把连接还回连接池；后续对该 session 的
-        # 使用（如 finally 中的 refund）会惰性开启新事务。rollback 会 expire
-        # ORM 实例，流式期间只能使用已提前取出的标量（user_id），不要再触碰
-        # current_user。
-        session.rollback()
-
-        async def event_generator():
-            agent_ctx_tokens = bind_request_context(agent_run_id=agent_run_id)
-            saw_any_event = False
-            saw_terminal_event = False
-            saw_internal_error_event = False
-            user_cancelled = False
-            unexpected_exception = False
-            billing_reason = "completed"
-
-            def _extract_sse_event_type(sse_payload: str) -> str:
-                for line in sse_payload.splitlines():
-                    if line.startswith("event:"):
-                        return line.split(":", 1)[1].strip()
-                return ""
-
-            def _is_non_terminal_workflow_stopped(sse_payload: str) -> bool:
-                # 只读请求拦下写交接的提示卡片也走 workflow_stopped，但它只是一条
-                # 说明：之后若异常中断，仍须补发兜底 error 帧、按内部错误退款。
-                for line in sse_payload.splitlines():
-                    if line.startswith("data:"):
-                        try:
-                            data = json.loads(line.split(":", 1)[1])
-                        except ValueError:
-                            return False
-                        return (
-                            isinstance(data, dict)
-                            and data.get("reason") in NON_TERMINAL_WORKFLOW_STOPPED_REASONS
-                        )
-                return False
-
-            try:
-                async for event in service.process_stream(
-                    project_id=body.project_id,
-                    user_id=user_id,
-                    message=body.message,
-                    session_id=body.session_id,
-                    session=session,
-                    selected_text=body.selected_text,
-                    metadata=body.metadata,
-                    language=lang,
-                    selected_skill_ids=body.selected_skill_ids,
-                ):
-                    saw_any_event = True
-                    if isinstance(event, str):
-                        event_type = _extract_sse_event_type(event)
-                        if event_type in {"done", "workflow_complete"} or (
-                            event_type == "workflow_stopped"
-                            and not _is_non_terminal_workflow_stopped(event)
-                        ):
-                            saw_terminal_event = True
-                        elif event_type == "error":
-                            saw_internal_error_event = True
-                            saw_terminal_event = True
-                    yield event
-            except asyncio.CancelledError:
-                user_cancelled = True
-                billing_reason = "user_cancelled"
-                raise
-            except Exception:
-                unexpected_exception = True
-                billing_reason = "internal_exception"
-                # An exception escaping process_stream (e.g. a pre-stream setup
-                # failure resolving the chat session or a Redis/DB outage) would
-                # otherwise tear down the SSE connection with no terminal frame,
-                # leaving the client's stream consumer hung on a stuck spinner.
-                # Emit a terminal error frame first (only if none was sent yet)
-                # so the frontend always receives a definitive end-of-stream.
-                if not saw_terminal_event:
-                    saw_terminal_event = True
-                    with contextlib.suppress(Exception):
-                        yield error_event(
-                            "生成回复时发生错误，请重试",
-                            code="INTERNAL_ERROR",
-                            retryable=True,
-                        ).to_sse()
-                raise
-            finally:
-                should_refund = False
-                if user_cancelled:
-                    billing_reason = "user_cancelled"
-                elif saw_terminal_event and not saw_internal_error_event and not unexpected_exception:
-                    billing_reason = "completed"
-                else:
-                    billing_reason = "internal_error"
-                    if saw_any_event and not saw_terminal_event and not unexpected_exception:
-                        billing_reason = "internal_error_no_terminal"
-                    should_refund = True
-
-                refund_applied = False
-                if should_refund:
-                    try:
-                        if _should_offload_session_work(session):
-                            refund_applied = await asyncio.to_thread(
-                                _release_ai_conversation_sync,
-                                user_id,
-                            )
-                        else:
-                            # The shared request session may be in a failed
-                            # transaction state from the error that aborted the
-                            # stream. Reset it before the compensating refund;
-                            # otherwise release_ai_conversation's refresh/commit
-                            # raises PendingRollbackError, the refund silently
-                            # no-ops, and the user is over-charged for a run that
-                            # failed internally.
-                            with contextlib.suppress(Exception):
-                                session.rollback()
-                            refund_applied = quota_service.release_ai_conversation(session, user_id)
-                    except Exception as refund_error:
-                        log_with_context(
-                            logger,
-                            30,  # WARNING
-                            "Failed to refund AI conversation quota after stream error",
-                            user_id=user_id,
-                            project_id=body.project_id,
-                            agent_run_id=agent_run_id,
-                            error=str(refund_error),
-                            error_type=type(refund_error).__name__,
-                            billing_reason=billing_reason,
-                        )
-
-                log_with_context(
-                    logger,
-                    20,
-                    "Agent stream billing evaluated",
-                    user_id=user_id,
+            if not tracker.saw_terminal_event:
+                frame = error_event(
+                    info.message,
+                    code=info.code,
+                    retryable=info.retryable,
+                    refundable=info.refundable,
+                ).to_sse()
+                tracker.observe(frame)
+                with contextlib.suppress(Exception):
+                    yield frame
+            raise
+        finally:
+            billing_reason, should_refund = tracker.decide(
+                user_cancelled=user_cancelled,
+                unexpected_exception=unexpected_exception,
+                deadline_exceeded=deadline_exceeded,
+            )
+            refund_applied = False
+            if should_refund:
+                refund_applied = await _refund_quota(
+                    session,
+                    user_id,
                     project_id=body.project_id,
                     agent_run_id=agent_run_id,
-                    charged=not should_refund,
-                    refunded=refund_applied,
                     billing_reason=billing_reason,
-                    saw_any_event=saw_any_event,
-                    saw_terminal_event=saw_terminal_event,
-                    saw_internal_error_event=saw_internal_error_event,
-                    user_cancelled=user_cancelled,
-                    unexpected_exception=unexpected_exception,
                 )
-                reset_request_context(agent_ctx_tokens)
 
-        return StreamingResponse(
-            event_generator(),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no",
-                "X-Agent-Run-ID": agent_run_id,
-            },
-        )
-    except Exception:
-        raise
+            # 每次 run 一行结构化摘要：模型、token、调用次数、LLM 耗时、结束原因、计费。
+            # 取消/时限路径上 process_stream 的收尾在后台进行，摘要字段可能不全。
+            log_with_context(
+                logger,
+                20,
+                "Agent stream billing evaluated",
+                user_id=user_id,
+                project_id=body.project_id,
+                agent_run_id=agent_run_id,
+                charged=not should_refund,
+                refunded=refund_applied,
+                billing_reason=billing_reason,
+                saw_any_event=tracker.saw_any_event,
+                saw_terminal_event=tracker.saw_terminal_event,
+                saw_internal_error_event=tracker.saw_error_event,
+                error_refundable=tracker.error_refundable,
+                produced_output=tracker.produced_output,
+                user_cancelled=user_cancelled,
+                unexpected_exception=unexpected_exception,
+                deadline_exceeded=deadline_exceeded,
+                **{f"run_{key}": value for key, value in run_report.items()},
+            )
+            reset_request_context(agent_ctx_tokens)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "X-Agent-Run-ID": agent_run_id,
+        },
+    )
 
 
 @router.get("/health")

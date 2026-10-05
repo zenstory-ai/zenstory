@@ -109,6 +109,8 @@ class WritingState(TypedDict, total=False):
     # 本次请求共享的 ToolFailureBreaker（工具重复失败熔断），由 writing_graph 创建，
     # 每次 agent run 复用同一个，writer ↔ 审稿人往返不会让失败计数归零。
     tool_failure_breaker: Any
+    # 请求级模型调用计数与预算（agent.core.run_meter.AgentRunMeter，跨 agent run 共享）
+    run_meter: Any
 
     # Collaboration state
     next_agent: str | None  # Agent to hand off to (None = done)
