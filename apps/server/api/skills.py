@@ -16,12 +16,12 @@ import json
 from collections import Counter
 from collections.abc import Callable, Coroutine
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import Response
 from fastapi.routing import APIRoute
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, BeforeValidator, Field
 from services.auth import get_current_active_user
 from sqlmodel import Session, select
 
@@ -32,6 +32,7 @@ from agent.skills.package import (
     MAX_TRIGGER_CHARS,
     MAX_TRIGGERS,
     SkillPackageError,
+    strip_nul_chars,
 )
 from config.datetime_utils import utcnow
 from core.error_codes import ErrorCode
@@ -91,6 +92,8 @@ class SkillResponse(BaseModel):
     source: str  # "builtin", "user", or "added"
     is_active: bool = True
     resource_count: int = 0
+    # 自建技能分享到公共库后的审核状态：pending / approved / unpublished；未分享为 None
+    share_status: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -102,14 +105,23 @@ class SkillListResponse(BaseModel):
     total: int
 
 
+def _strip_nul(value: Any) -> Any:
+    """PostgreSQL 文本列不接受 NUL：在长度校验之前清掉，避免写库时 500。"""
+    return strip_nul_chars(value) if isinstance(value, str) else value
+
+
 # 长度限额与导入（agent/skills/package.py）共用同一组常量，手工创建/编辑与导入口径一致。
-SkillName = Annotated[str, Field(min_length=1, max_length=MAX_NAME_CHARS)]
-SkillDescription = Annotated[str, Field(max_length=MAX_DESCRIPTION_CHARS)]
+NulFreeStr = Annotated[str, BeforeValidator(_strip_nul)]
+SkillName = Annotated[NulFreeStr, Field(min_length=1, max_length=MAX_NAME_CHARS)]
+SkillDescription = Annotated[NulFreeStr, Field(max_length=MAX_DESCRIPTION_CHARS)]
 SkillTriggers = Annotated[
-    list[Annotated[str, Field(max_length=MAX_TRIGGER_CHARS)]],
+    list[Annotated[NulFreeStr, Field(max_length=MAX_TRIGGER_CHARS)]],
     Field(max_length=MAX_TRIGGERS),
 ]
-SkillInstructions = Annotated[str, Field(min_length=1, max_length=MAX_INSTRUCTIONS_CHARS)]
+SkillInstructions = Annotated[NulFreeStr, Field(min_length=1, max_length=MAX_INSTRUCTIONS_CHARS)]
+# 公共库分类白名单（与前端 ShareSkillModal 的选项一致）；任意字符串会进入公开分类列表，
+# 超过 PublicSkill.category 的 VARCHAR(50) 还会在 PostgreSQL 上 500。
+ShareCategory = Literal["writing", "character", "worldbuilding", "plot", "style"]
 
 
 class CreateSkillRequest(BaseModel):
@@ -163,6 +175,8 @@ async def list_skills(
     ).where(
         UserAddedSkill.user_id == current_user.id,
         UserAddedSkill.is_active,
+        # 与 load_active_skills 口径一致：下架/驳回的公共技能不再出现在列表里
+        PublicSkill.status == "approved",
     )
     if search_pattern:
         added_stmt = added_stmt.where(
@@ -176,6 +190,7 @@ async def list_skills(
         user_skill_ids=[db_skill.id for db_skill in user_skills],
         public_skill_ids=[public.id for _added, public in added_results],
     )
+    share_statuses = skill_package_service.get_share_statuses(session, user_skills)
 
     for db_skill in user_skills:
         triggers = _safe_json_array(
@@ -192,6 +207,7 @@ async def list_skills(
             source="user",
             is_active=db_skill.is_active,
             resource_count=user_resource_counts.get(db_skill.id, 0),
+            share_status=share_statuses.get(db_skill.id),
             created_at=db_skill.created_at,
             updated_at=db_skill.updated_at,
         ))
@@ -229,7 +245,7 @@ async def create_skill(
     db_skill = UserSkill(
         user_id=current_user.id,
         name=request.name,
-        description=request.description,
+        description=(request.description or "").strip() or None,
         triggers=json.dumps(request.triggers),
         instructions=request.instructions,
     )
@@ -276,7 +292,8 @@ async def update_skill(
     if request.name is not None:
         db_skill.name = request.name
     if request.description is not None:
-        db_skill.description = request.description
+        # 空字符串表示清空描述（前端编辑时清空输入框会送 ""）
+        db_skill.description = request.description.strip() or None
     if request.triggers is not None:
         db_skill.triggers = json.dumps(request.triggers)
     if request.instructions is not None:
@@ -446,6 +463,7 @@ async def get_my_skills(
     user_resource_counts, _ = skill_package_service.count_resources(
         session, user_skill_ids=[db_skill.id for db_skill in user_skills_db]
     )
+    share_statuses = skill_package_service.get_share_statuses(session, user_skills_db)
 
     user_skills = []
     for db_skill in user_skills_db:
@@ -463,6 +481,7 @@ async def get_my_skills(
             source="user",
             is_active=db_skill.is_active,
             resource_count=user_resource_counts.get(db_skill.id, 0),
+            share_status=share_statuses.get(db_skill.id),
             created_at=db_skill.created_at,
             updated_at=db_skill.updated_at,
         ))
@@ -473,6 +492,8 @@ async def get_my_skills(
     ).where(
         UserAddedSkill.user_id == current_user.id,
         UserAddedSkill.is_active,
+        # 与 load_active_skills 口径一致：下架/驳回的公共技能不再出现在列表里
+        PublicSkill.status == "approved",
     )
     if search_pattern:
         added_stmt = added_stmt.where(
@@ -510,7 +531,7 @@ async def get_my_skills(
 
 class ShareSkillRequest(BaseModel):
     """Request model for sharing a skill."""
-    category: str = "writing"
+    category: ShareCategory = "writing"
 
 
 class ShareSkillResponse(BaseModel):
@@ -761,7 +782,7 @@ class UpsertSkillResourceRequest(BaseModel):
     """Request model for creating/replacing a skill resource."""
 
     path: str
-    content: str
+    content: NulFreeStr
 
 
 class _ImportUploadRoute(APIRoute):
@@ -803,6 +824,10 @@ async def import_skill(
 
     Scripts and non-text files are never stored; they are reported in `warnings`.
     """
+    try:
+        skill_package_service.ensure_upload_size(file.size)
+    except SkillPackageError as exc:
+        raise skill_package_service.package_error_to_api(exc) from exc
     data = await file.read(skill_package_service.MAX_UPLOAD_READ_BYTES)
     # 解压、YAML 解析、校验都是纯 CPU 工作，放到线程池里跑，不阻塞事件循环；
     # 落库只有几条 INSERT，沿用本文件其他端点的做法留在请求 session 上。

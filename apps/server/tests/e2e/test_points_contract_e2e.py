@@ -18,6 +18,7 @@ from sqlmodel import Session, select
 
 from models.inspiration import Inspiration
 from models.points import CheckInRecord, PointsTransaction
+from models.public_skill import PublicSkill
 from models.referral import InviteCode
 from models.skill import UserSkill
 from models.subscription import SubscriptionPlan
@@ -240,6 +241,17 @@ async def test_points_earn_opportunities_contract_reflects_completed_and_availab
             is_shared=True,
         )
     )
+    # 贡献积分卡以「已核准的社区投稿」为准（送审中的 is_shared 不算）
+    db_session.add(
+        PublicSkill(
+            name="共享技能",
+            instructions="Shared skill instructions",
+            category="writing",
+            source="community",
+            author_id=user.id,
+            status="approved",
+        )
+    )
     db_session.add(
         Inspiration(
             name="共享灵感",
@@ -265,8 +277,6 @@ async def test_points_earn_opportunities_contract_reflects_completed_and_availab
         "check_in_streak",
         "referral",
         "skill_contribution",
-        "inspiration_contribution",
-        "profile_complete",
     ]
 
     by_type = {item["type"]: item for item in payload}
@@ -284,8 +294,6 @@ async def test_points_earn_opportunities_contract_reflects_completed_and_availab
     assert by_type["skill_contribution"]["is_completed"] is True
     assert by_type["skill_contribution"]["is_available"] is True
 
-    assert by_type["inspiration_contribution"]["is_completed"] is True
-    assert by_type["inspiration_contribution"]["is_available"] is True
-
-    assert by_type["profile_complete"]["is_completed"] is True
-    assert by_type["profile_complete"]["is_available"] is False
+    # 灵感投稿、完善资料没有发放积分的代码路径，不再作为积分机会展示
+    assert "inspiration_contribution" not in by_type
+    assert "profile_complete" not in by_type

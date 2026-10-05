@@ -81,28 +81,51 @@ def load_active_skills(session: Session, user_id: str) -> list[ActiveSkill]:
     return skills
 
 
+def skill_name_key(name: str) -> str:
+    return " ".join((name or "").split()).casefold()
+
+
+def duplicate_name_keys(skills: list[ActiveSkill]) -> set[str]:
+    """名称（忽略大小写与空白差异）出现不止一次的键集合。"""
+    seen: set[str] = set()
+    duplicates: set[str] = set()
+    for skill in skills:
+        key = skill_name_key(skill.name)
+        if key in seen:
+            duplicates.add(key)
+        seen.add(key)
+    return duplicates
+
+
+def same_name_skills(skills: list[ActiveSkill], skill: ActiveSkill) -> list[ActiveSkill]:
+    """与 ``skill`` 同名（忽略大小写与空白差异）的其他技能。"""
+    key = skill_name_key(skill.name)
+    return [other for other in skills if other.id != skill.id and skill_name_key(other.name) == key]
+
+
 def find_active_skill(skills: list[ActiveSkill], name_or_id: str) -> ActiveSkill | None:
     """
-    按显示名或 ID 查找技能。
+    按 ID 或显示名查找技能。
 
-    先精确匹配名称，再忽略大小写/首尾空白匹配名称，最后匹配 ID；
-    列表本身已按「自建 > 已添加」排序，同名时自建技能胜出。
+    先匹配 ID（技能目录给同名技能标注了 id，模型据此区分），再精确匹配名称，
+    最后忽略大小写/首尾空白匹配名称；列表本身已按「自建 > 已添加」排序，
+    只给名称且同名时自建技能胜出（调用方应提示还有同名技能）。
     """
     query = (name_or_id or "").strip()
     if not query:
         return None
 
     for skill in skills:
+        if query in (skill.id, skill.added_id):
+            return skill
+
+    for skill in skills:
         if skill.name == query:
             return skill
 
-    folded = query.casefold()
+    folded = skill_name_key(query)
     for skill in skills:
-        if skill.name.strip().casefold() == folded:
-            return skill
-
-    for skill in skills:
-        if query in (skill.id, skill.added_id):
+        if skill_name_key(skill.name) == folded:
             return skill
 
     return None

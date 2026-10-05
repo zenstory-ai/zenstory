@@ -10,7 +10,7 @@ from sqlmodel import Session
 
 from utils.logger import get_logger, log_with_context
 
-from .active_skills import ActiveSkill, load_active_skills
+from .active_skills import ActiveSkill, duplicate_name_keys, load_active_skills, skill_name_key
 
 logger = get_logger(__name__)
 
@@ -28,12 +28,14 @@ CATALOG_HEADER_LINES: tuple[str, ...] = (
 )
 
 
-def _catalog_line(skill: ActiveSkill) -> str:
+def _catalog_line(skill: ActiveSkill, *, with_id: bool = False) -> str:
     name = " ".join(skill.name.split())
+    # 同名技能只靠名称区分不了：标上 id，load_skill / read_skill_resource 传 id 才能取到指定的那个
+    label = f"**{name}** (id: {skill.id})" if with_id else f"**{name}**"
     description = " ".join((skill.description or "").split())
     if len(description) > CATALOG_DESCRIPTION_MAX_CHARS:
         description = description[:CATALOG_DESCRIPTION_MAX_CHARS].rstrip() + "…"
-    return f"- **{name}**: {description}" if description else f"- **{name}**"
+    return f"- {label}: {description}" if description else f"- {label}"
 
 
 class SkillContextInjector:
@@ -58,11 +60,17 @@ class SkillContextInjector:
         if not skills:
             return None
 
+        duplicates = duplicate_name_keys(skills)
         lines = list(CATALOG_HEADER_LINES)
+        if duplicates:
+            lines.extend([
+                "标注了 id 的技能有同名项：调用 `load_skill` / `read_skill_resource` 时 name 传该 id。",
+                "",
+            ])
         used = sum(len(line) + 1 for line in lines)
         listed = 0
         for skill in skills:
-            line = _catalog_line(skill)
+            line = _catalog_line(skill, with_id=skill_name_key(skill.name) in duplicates)
             if used + len(line) + 1 > max_chars:
                 break
             lines.append(line)

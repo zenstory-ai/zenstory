@@ -73,6 +73,11 @@ _DRIVE_LETTER_PATTERN = re.compile(r"^[A-Za-z]:")
 _SLUG_INVALID_CHARS = re.compile(r"[^a-z0-9]+")
 
 
+def strip_nul_chars(text: str) -> str:
+    """删除 NUL（U+0000）。PostgreSQL 的 TEXT/VARCHAR 不接受 NUL，原样写入会 500。"""
+    return text.replace("\x00", "") if "\x00" in text else text
+
+
 class SkillPackageError(ValueError):
     """技能包不合法。
 
@@ -420,8 +425,11 @@ def _parse_frontmatter_skill(frontmatter_text: str, body: str) -> ParsedSkill:
 
 def _validate_parsed_skill(skill: ParsedSkill) -> ParsedSkill:
     """只做长度与非空校验；名称不强制标准的 slug 规则（允许中文显示名）。"""
-    skill.name = skill.name.strip()
-    skill.description = (skill.description or "").strip()
+    # YAML 双引号字符串的 "\0" 转义也能产生 NUL，解码阶段清不到，这里再清一次。
+    skill.name = strip_nul_chars(skill.name).strip()
+    skill.description = strip_nul_chars(skill.description or "").strip()
+    skill.instructions = strip_nul_chars(skill.instructions)
+    skill.triggers = [strip_nul_chars(trigger) for trigger in skill.triggers]
     if not skill.name:
         raise SkillPackageError("技能名称不能为空")
     if len(skill.name) > MAX_NAME_CHARS:
@@ -557,7 +565,7 @@ def _read_entry(zf: zipfile.ZipFile, info: zipfile.ZipInfo, limit: int, label: s
 
 def _decode_utf8(data: bytes, label: str) -> str:
     try:
-        return data.decode("utf-8")
+        return strip_nul_chars(data.decode("utf-8"))
     except UnicodeDecodeError as exc:
         raise SkillPackageError(f"{label} 不是 UTF-8 文本") from exc
 

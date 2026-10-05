@@ -54,26 +54,52 @@ class SystemPromptConfigRequest(BaseModel):
 # ==================== Skill Review Schemas ====================
 
 
+SkillReviewStatus = Literal["pending", "approved", "rejected", "unpublished"]
+
+
 class SkillReviewRequest(BaseModel):
-    """Request body for reviewing a skill"""
-    rejection_reason: str | None = None
+    """Request body for rejecting or unpublishing a skill"""
+    # 与 PublicSkill.rejection_reason 的 VARCHAR(500) 一致，超长回 422 而不是写库时 500
+    rejection_reason: Annotated[
+        str, StringConstraints(strip_whitespace=True, max_length=500)
+    ] | None = None
 
 
 class PendingSkillResponse(BaseModel):
-    """Response model for a skill review item."""
+    """Response model for a skill review item.
+
+    审核者必须看到会进入其他用户 agent 的全部内容：正文原文、触发词（tags）、
+    skill_metadata，以及资源文件清单（原文用 GET /skills/{id}/resources 读取）。
+    """
     id: str
     name: str
     description: str | None
     instructions: str
     category: str
+    tags: list[str] = Field(default_factory=list)
+    skill_metadata: dict = Field(default_factory=dict)
+    resource_count: int = 0
+    source: str = "community"
     author_id: str | None
     author_name: str | None = None
-    status: Literal["pending", "approved", "rejected"]
+    status: SkillReviewStatus
     reviewed_by: str | None = None
     reviewer_name: str | None = None
     reviewed_at: datetime | None = None
     rejection_reason: str | None = None
     created_at: datetime
+
+
+class SkillReviewResourceResponse(BaseModel):
+    """One resource file of a public skill under review, with its raw content."""
+    path: str
+    size: int
+    content: str
+
+
+class SkillReviewResourcesResponse(BaseModel):
+    """All resource files of a public skill under review."""
+    resources: list[SkillReviewResourceResponse]
 
 
 # ==================== Inspiration Management Schemas ====================
