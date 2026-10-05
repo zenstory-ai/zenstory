@@ -32,6 +32,8 @@
   <a href="https://github.com/zenstory-ai/zenstory/issues"><img alt="GitHub Issues" src="https://img.shields.io/badge/GitHub%20Issues-181717?style=for-the-badge&logo=github&logoColor=white"></a>
 </p>
 
+> **The official hosted app is now available: open [app.zenstory.ai](https://app.zenstory.ai/), sign up or sign in, and start creating without self-hosting.**
+
 ![The ZenStory three-panel workbench](docs/screenshots/workspace.png)
 
 File tree on the left, editor in the middle, AI chat on the right.

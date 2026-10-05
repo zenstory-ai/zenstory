@@ -30,6 +30,8 @@
   <a href="https://github.com/zenstory-ai/zenstory/issues"><img alt="GitHub Issues" src="https://img.shields.io/badge/GitHub%20Issues-181717?style=for-the-badge&logo=github&logoColor=white"></a>
 </p>
 
+> **官方在线版现已开放使用：前往 [app.zenstory.ai](https://app.zenstory.ai/) 注册或登录后即可开始创作，无需自行部署。**
+
 ![ZenStory 三栏工作台](docs/screenshots/workspace.png)
 
 左边文件树，中间编辑器，右边 AI 对话。
