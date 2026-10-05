@@ -17,6 +17,7 @@ from prefect.task_runners import ConcurrentTaskRunner
 
 from config.material_settings import material_settings as settings
 from config.material_settings import resolve_enabled_stages
+from core.error_codes import ErrorCode
 from flows.atomic_tasks.entities.character_tasks_v2 import (
     extract_character_mentions_task,
 )
@@ -30,6 +31,8 @@ from flows.atomic_tasks.summaries import (
     update_chapter_summary_task,
 )
 from flows.utils.helpers import create_checkpoint_manager, create_performance_monitor
+from flows.utils.helpers.exceptions import is_llm_account_failure, is_llm_service_failure
+from services.material.job_errors import MaterialPipelineError, job_error_code_for_exception
 
 # 并发任务运行器
 RUNTIME_TASK_RUNNER: Any = ConcurrentTaskRunner(max_workers=settings.MAX_CONCURRENT_CHAPTERS)
@@ -39,6 +42,36 @@ _def_now = time.perf_counter
 
 def _elapsed_ms(start: float) -> int:
     return int((time.perf_counter() - start) * 1000)
+
+
+def _raise_if_llm_account_failure(capability: str, error: Exception) -> None:
+    """DeepSeek 鉴权/余额故障：后续章节只会同样失败，立即终止整次拆解。"""
+    if is_llm_account_failure(error):
+        raise MaterialPipelineError(
+            ErrorCode.MATERIAL_LLM_UNAVAILABLE,
+            f"{capability}: LLM account failure",
+        ) from error
+
+
+def _raise_if_all_failed(
+    capability: str,
+    attempted: int,
+    errors: list[Exception],
+) -> None:
+    """
+    某能力本轮提交的章节全部失败时判定整次拆解失败，不再标成「部分完成」。
+
+    全部是调用失败（重试耗尽的超时/连接/5xx/429）视为 AI 服务不可用（可退额度）；
+    否则为章节内容拆解失败。
+    """
+    if attempted == 0 or len(errors) < attempted:
+        return
+    code = (
+        ErrorCode.MATERIAL_LLM_UNAVAILABLE
+        if all(is_llm_service_failure(error) for error in errors)
+        else ErrorCode.MATERIAL_EXTRACTION_FAILED
+    )
+    raise MaterialPipelineError(code, f"{capability}: all {attempted} chapters failed") from errors[-1]
 
 
 def _sync_stage1_job_progress(
@@ -86,8 +119,7 @@ def _sync_stage1_job_progress(
 
 @flow(
     name="chapter_extraction_flow",
-    retries=1,
-    retry_delay_seconds=30,
+    retries=0,  # 见 novel_ingestion_v3：流程级重试会与用户重试并跑
     task_runner=RUNTIME_TASK_RUNNER,  # type: ignore[arg-type]
     persist_result=False,
 )
@@ -206,9 +238,11 @@ def chapter_extraction_flow(
                         summary_futures.append(future)
 
             # 等待所有摘要生成完成（带错误处理）
+            # 失败章节不写入任何摘要（不再用原文前 200 字冒充摘要），留给重试补跑。
             summary_results = []
             completed_chapter_ids = []
             failed_chapters = []
+            summary_errors: list[Exception] = []
 
             for i, future in enumerate(summary_futures):
                 try:
@@ -220,43 +254,9 @@ def chapter_extraction_flow(
                         f"章节 {summary_ids[i]} 摘要生成失败: {e}",
                         exc_info=True
                     )
+                    _raise_if_llm_account_failure("summaries", e)
                     failed_chapters.append(summary_ids[i])
-
-                    # 尝试从章节内容生成简单摘要（降级方案）
-                    try:
-                        from flows.database_session import get_db_session
-                        from services.material.chapters_service import ChaptersService
-
-                        with get_db_session() as db:
-                            ch = ChaptersService().get_by_id(db, summary_ids[i])
-
-                            if ch and getattr(ch, "original_content", None):
-                                # 使用前200字作为简单摘要
-                                simple_summary = ch.original_content[:200] + "..."
-                                summary_results.append({
-                                    "chapter_id": summary_ids[i],
-                                    "summary": simple_summary,
-                                    "fallback": True
-                                })
-                                logger.warning(
-                                    f"章节 {summary_ids[i]} 使用降级摘要（前200字）"
-                                )
-                            else:
-                                # 完全失败，使用占位符
-                                summary_results.append({
-                                    "chapter_id": summary_ids[i],
-                                    "summary": "[摘要生成失败，章节内容不可用]",
-                                    "error": str(e)
-                                })
-                    except Exception as fallback_error:
-                        logger.error(
-                            f"章节 {summary_ids[i]} 降级摘要也失败: {fallback_error}"
-                        )
-                        summary_results.append({
-                            "chapter_id": summary_ids[i],
-                            "summary": "[摘要生成失败]",
-                            "error": str(e)
-                        })
+                    summary_errors.append(e)
 
                 if (i + 1) % batch == 0 or i == len(summary_futures) - 1:
                     _sync_stage1_job_progress(
@@ -272,15 +272,16 @@ def chapter_extraction_flow(
                         status="processing",
                     )
 
+            _raise_if_all_failed("summaries", len(summary_futures), summary_errors)
+
             # 回写摘要
             update_futures = []
             for result in summary_results:
-                if "error" not in result:  # 只回写成功的摘要
-                    future = update_chapter_summary_task.submit(
-                        chapter_id=result["chapter_id"],
-                        summary=result["summary"],
-                    )
-                    update_futures.append(future)
+                future = update_chapter_summary_task.submit(
+                    chapter_id=result["chapter_id"],
+                    summary=result["summary"],
+                )
+                update_futures.append(future)
 
             # 等待所有更新完成
             [f.result() for f in update_futures]
@@ -299,7 +300,7 @@ def chapter_extraction_flow(
                 },
             )
 
-            summaries_count = len([r for r in summary_results if "error" not in r])
+            summaries_count = len(summary_results)
 
             if failed_chapters:
                 logger.warning(
@@ -333,6 +334,7 @@ def chapter_extraction_flow(
             plot_results = []
             failed_plot_chapters = []
 
+            plot_errors: list[Exception] = []
             for i, future in enumerate(plot_futures):
                 try:
                     result = future.result()
@@ -342,10 +344,14 @@ def chapter_extraction_flow(
                         f"章节 {plot_ids[i]} 情节点提取失败: {e}",
                         exc_info=True
                     )
+                    _raise_if_llm_account_failure("plots", e)
                     failed_plot_chapters.append(plot_ids[i])
+                    plot_errors.append(e)
 
                     # 记录失败章节，但不阻塞流程
                     # 后续可以通过检查点重试这些章节
+
+            _raise_if_all_failed("plots", len(plot_futures), plot_errors)
 
             # 验证情节点
             validate_futures = []
@@ -423,6 +429,7 @@ def chapter_extraction_flow(
             # 等待所有提及提取完成
             mention_results = []
             completed_mention_chapter_ids: list[int] = []
+            mention_errors: list[Exception] = []
             for i, future in enumerate(mention_futures):
                 try:
                     result = future.result()
@@ -435,7 +442,11 @@ def chapter_extraction_flow(
                         f"章节 {mention_ids[i]} 角色提及提取失败: {e}",
                         exc_info=True
                     )
+                    _raise_if_llm_account_failure("mentions", e)
                     failed_mention_chapters.append(mention_ids[i])
+                    mention_errors.append(e)
+
+            _raise_if_all_failed("mentions", len(mention_futures), mention_errors)
 
             old_completed = set(checkpoint.get_completed_chapters("stage1", "mentions"))
             old_failed = set(checkpoint.get_failed_chapters("stage1", "mentions"))
@@ -534,12 +545,12 @@ def chapter_extraction_flow(
 
     except Exception as e:
         logger.error("章节提取流程失败: %s", str(e), exc_info=True)
+        # 只记录阶段进度；任务的 failed 状态、错误码与退款由主流程统一处理。
         _sync_stage1_job_progress(
             novel_id,
             job_id=job_id,
             stage_status="failed",
-            payload={"error": str(e)},
-            status="failed",
-            error_message=str(e),
+            payload={"error_code": job_error_code_for_exception(e)},
+            status="processing",
         )
         raise

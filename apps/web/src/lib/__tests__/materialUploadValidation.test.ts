@@ -1,6 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("../errorHandler", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../errorHandler")>()),
+  translateError: (code: string) => `translated:${code}`,
+}));
 
 import {
+  MATERIALS_UPLOAD_MAX_BYTES,
   MATERIALS_UPLOAD_MAX_CHARACTERS,
   resolveMaterialUploadErrorMessage,
   validateMaterialUploadFile,
@@ -68,8 +74,35 @@ describe("validateMaterialUploadFile", () => {
   });
 });
 
+describe("material upload size limit", () => {
+  const t = (key: string) => key;
+
+  it("matches the backend 20MB limit", () => {
+    expect(MATERIALS_UPLOAD_MAX_BYTES).toBe(20 * 1024 * 1024);
+  });
+
+  it("rejects files over 20MB before reading them", async () => {
+    const file = new File(["x"], "big.txt", { type: "text/plain" });
+    Object.defineProperty(file, "size", { value: MATERIALS_UPLOAD_MAX_BYTES + 1 });
+
+    await expect(validateMaterialUploadFile(file, t)).resolves.toBe(
+      "materials:uploadModal.errors.tooLarge",
+    );
+  });
+});
+
 describe("resolveMaterialUploadErrorMessage", () => {
   const t = (key: string) => key;
+
+  it.each([
+    "ERR_MATERIAL_NO_CHAPTERS",
+    "ERR_MATERIAL_TOO_MANY_CHAPTERS",
+    "ERR_FILE_ENCODING_UNSUPPORTED",
+  ])("translates the upload pre-check rejection %s", (code) => {
+    expect(
+      resolveMaterialUploadErrorMessage(new ApiError(400, code), t, "fallback"),
+    ).toBe(`translated:${code}`);
+  });
 
   it("maps backend over-limit errors to materials-specific copy", () => {
     const error = new ApiError(400, "ERR_FILE_CONTENT_TOO_LONG");

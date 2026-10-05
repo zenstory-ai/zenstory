@@ -1,6 +1,8 @@
 import { ApiError } from "./apiClient";
+import { translateError } from "./errorHandler";
 
-export const MATERIALS_UPLOAD_MAX_BYTES = 100 * 1024 * 1024;
+// Keep in sync with apps/server/api/materials/constants.py (MAX_FILE_SIZE).
+export const MATERIALS_UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
 export const MATERIALS_UPLOAD_MAX_CHARACTERS = 300_000;
 
 const UTF8_BOM = [0xef, 0xbb, 0xbf];
@@ -49,6 +51,13 @@ async function readMaterialUploadText(file: File): Promise<string | null> {
   return null;
 }
 
+// Upload pre-check rejections (nothing is charged) translated via the errors namespace.
+const UPLOAD_PRECHECK_ERROR_CODES = new Set([
+  "ERR_MATERIAL_NO_CHAPTERS",
+  "ERR_MATERIAL_TOO_MANY_CHAPTERS",
+  "ERR_FILE_ENCODING_UNSUPPORTED",
+]);
+
 export async function validateMaterialUploadFile(
   file: File,
   t: (key: string) => string,
@@ -87,6 +96,9 @@ export function resolveMaterialUploadErrorMessage(
     }
     if (error.errorCode === "ERR_FILE_TYPE_INVALID") {
       return t("materials:uploadModal.errors.invalidType");
+    }
+    if (error.errorCode && UPLOAD_PRECHECK_ERROR_CODES.has(error.errorCode)) {
+      return translateError(error.errorCode);
     }
   }
 

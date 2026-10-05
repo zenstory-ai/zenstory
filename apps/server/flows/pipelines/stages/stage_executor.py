@@ -16,6 +16,7 @@ from prefect import get_run_logger, task
 
 from config.material_settings import material_settings as settings
 from config.material_settings import resolve_enabled_stages, warn_explicitly_dropped_stages
+from core.error_codes import ErrorCode
 from flows.database_session import get_prefect_db_session
 from flows.pipelines.helpers import ProgressPublisher, ResultBuilder
 
@@ -988,6 +989,11 @@ class StageExecutor:
                         status=final_status,
                         stage="completed",
                         stage_status=final_status,
+                        error_message=(
+                            ErrorCode.MATERIAL_PARTIALLY_COMPLETED
+                            if final_status == "completed_with_errors"
+                            else None
+                        ),
                         stage_data={
                             "chapters_total": len(self.chapter_ids),
                             "failed_count": (stage1_result or {}).get("failed_count", 0)

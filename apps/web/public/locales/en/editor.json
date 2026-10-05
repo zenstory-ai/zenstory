@@ -52,7 +52,7 @@
     "referenceLibrary": "Novel References",
     "aiExtracted": "AI Extracted",
     "referenceLibraryEmpty": "No reference materials yet",
-    "referenceLibraryEmptyHint": "Upload novels to the material library, AI will automatically extract characters, worldview, plots and more.",
+    "referenceLibraryEmptyHint": "Upload novels to the material library, AI will automatically extract chapter summaries, characters, worldview and more.",
     "referenceLibraryGoUpload": "Go to Material Library",
     "referenceCharacters": "Characters",
     "referenceWorldview": "World View",

@@ -54,15 +54,18 @@ from prefect.task_runners import ConcurrentTaskRunner
 
 from config.datetime_utils import utcnow
 from config.material_settings import material_settings as settings
+from core.error_codes import ErrorCode
 from flows.database_session import get_prefect_db_session
 from flows.utils.helpers import (
     calculate_checksum,
     create_checkpoint_manager,
-    detect_encoding,
     normalize_filename,
     parse_novel_chapters,
     validate_input,
 )
+from flows.utils.helpers.novel_parser import read_novel_text
+from services.material.job_errors import MaterialPipelineError, job_error_code_for_exception
+from services.material.novel_text import NovelDecodeError
 
 from .helpers import ProgressPublisher
 from .stages import StageExecutor
@@ -113,10 +116,12 @@ def _ensure_file_local(file_path: str, user_id: str, logger) -> str:
     return file_path
 
 
+# retries=0: a flow-level retry re-ran the same job 30s after it had been marked
+# failed, overlapping a user retry (two flows, double charge). Transient errors
+# are retried by tasks; a failed job is resumed by the user retry endpoint.
 @flow(
     name="novel_ingestion_v3",
-    retries=1,
-    retry_delay_seconds=30,
+    retries=0,
     task_runner=RUNTIME_TASK_RUNNER,  # type: ignore[arg-type]
     persist_result=False,
 )
@@ -167,7 +172,15 @@ def novel_ingestion_v3(
     if job_id is not None:
         if novel_id is None:
             raise ValueError("传入 job_id 时必须同时传入 novel_id")
-        _validate_and_repair_job_identity(novel_id, job_id, correlation_id)
+        if not _validate_and_repair_job_identity(novel_id, job_id, correlation_id):
+            # The job was already finished or reconciled as failed (e.g. the run
+            # sat in the queue past the watchdog and the quota was refunded).
+            logger.warning(
+                "event=novel_ingestion_v3_skipped novel_id=%s job_id=%s reason=job_not_runnable",
+                novel_id,
+                job_id,
+            )
+            return {"novel_id": novel_id, "job_id": job_id, "status": "skipped"}
 
     persisted_chapter_ids: list[int] | None = None
     if novel_id is not None:
@@ -230,9 +243,13 @@ def novel_ingestion_v3(
             checksums = calculate_checksum(normalized_path)
             content_hash = checksums["md5_checksum"]
 
-            # 检测编码
-            encoding_info = detect_encoding(normalized_path)
-            encoding = encoding_info["encoding"] or "utf-8"
+            # 解码：与上传接口预检使用同一个函数，API 接受的文件这里一定能解码
+            try:
+                _, encoding = read_novel_text(normalized_path)
+            except NovelDecodeError as decode_error:
+                raise MaterialPipelineError(
+                    ErrorCode.MATERIAL_FILE_UNREADABLE, str(decode_error)
+                ) from decode_error
 
             logger.info("文件验证通过: %s", validated["file_path"])
         else:
@@ -396,12 +413,13 @@ def novel_ingestion_v3(
     except Exception as e:
         logger.error("小说导入失败: %s", str(e), exc_info=True)
 
-        # 标记失败
+        # 标记失败（只写错误码；原始异常只进日志）
         _mark_job_as_failed(
             novel_id=novel_id,
             job_id=job_id,
             correlation_id=correlation_id,
-            error=str(e),
+            error_code=job_error_code_for_exception(e),
+            exception_type=type(e).__name__,
             flow_start=flow_start,
             logger=logger,
             publisher=publisher,
@@ -580,6 +598,13 @@ def _execute_stage0(
     inferred_title = parse_result["novel_title"]
 
     logger.info("[阶段0] 解析完成: %d 个章节", len(chapters_data))
+    if not chapters_data:
+        raise MaterialPipelineError(ErrorCode.MATERIAL_NO_CHAPTERS, "no chapters parsed")
+    if len(chapters_data) > settings.MAX_CHAPTERS_PER_NOVEL:
+        raise MaterialPipelineError(
+            ErrorCode.MATERIAL_TOO_MANY_CHAPTERS,
+            f"{len(chapters_data)} chapters exceed {settings.MAX_CHAPTERS_PER_NOVEL}",
+        )
 
     # 创建小说和章节记录
     with get_prefect_db_session() as session:
@@ -759,16 +784,20 @@ def _execute_stage0(
 
 def _mark_job_as_failed(
     novel_id: int | None,
-    error: str,
+    error_code: str,
     flow_start: float,
     logger: Any,
     publisher: ProgressPublisher,
     correlation_id: str | None = None,
     _correlation_id: str | None = None,
     job_id: int | None = None,
+    exception_type: str | None = None,
 ) -> None:
     """
     标记任务为失败状态
+
+    error_message 只写错误码；平台侧失败（LLM 不可用、文件无法解析等）由
+    IngestionJobsService.fail_job 退还该任务占用的额度。
     """
     elapsed_ms = _elapsed_ms(flow_start)
     resolved_correlation_id = correlation_id or _correlation_id
@@ -778,9 +807,9 @@ def _mark_job_as_failed(
         "failed",
         status="failed",
         novel_id=novel_id,
-        error=error,
+        error=error_code,
         elapsed_ms=elapsed_ms,
-        message=f"解析失败: {error}"
+        message=error_code,
     )
 
     # 更新任务状态
@@ -802,28 +831,25 @@ def _mark_job_as_failed(
                     job = IngestionJobsService().get_latest_by_novel(session, novel_id)
                 if job:
                     job_id = job.id
-                    IngestionJobsService().update_processed(
+                    IngestionJobsService().fail_job(
                         session,
-                        job.id,
-                        status="failed",
-                        stage="failed",
-                        stage_status="failed",
-                        stage_data={"elapsed_ms": elapsed_ms},
-                        error_message=error,
-                        error_details={
-                            "stage": "flow",
-                            "message": error,
+                        job,
+                        error_code=error_code,
+                        stage="flow",
+                        reason=error_code,
+                        details={
+                            "elapsed_ms": elapsed_ms,
+                            "exception_type": exception_type,
                             "correlation_id": resolved_correlation_id,
                         },
                     )
-                    session.commit()
         except Exception as e:
             logger.warning(f"更新任务状态失败: {e}")
 
         # 标记checkpoint失败
         try:
             checkpoint_manager = create_checkpoint_manager(novel_id, job_id)
-            checkpoint_manager.mark_stage_failed("failed", error)
+            checkpoint_manager.mark_stage_failed("failed", error_code)
         except Exception as e:
             logger.warning(f"标记checkpoint失败: {e}")
 
@@ -846,14 +872,22 @@ def _validate_and_repair_job_identity(
     job_id: int,
     correlation_id: str | None,
     total_chapters: int | None = None,
-) -> None:
-    """Validate ownership and let the accepted flow run repair correlation state."""
+) -> bool:
+    """
+    Validate ownership and let the accepted flow run repair correlation state.
+
+    Returns False (and changes nothing) when the job is already terminal, so a
+    run that starts after its job was reconciled as failed does no work.
+    """
     from models.material_models import IngestionJob
+    from services.material.ingestion_jobs_service import TERMINAL_JOB_STATUSES
 
     with get_prefect_db_session() as session:
         job = session.get(IngestionJob, job_id)
         if job is None or job.novel_id != novel_id:
             raise ValueError(f"job_id={job_id} 不属于 novel_id={novel_id}")
+        if job.status in TERMINAL_JOB_STATUSES:
+            return False
         changed = False
         if correlation_id and job.correlation_id != correlation_id:
             job.correlation_id = correlation_id
@@ -864,3 +898,4 @@ def _validate_and_repair_job_identity(
         if changed:
             session.add(job)
             session.commit()
+        return True

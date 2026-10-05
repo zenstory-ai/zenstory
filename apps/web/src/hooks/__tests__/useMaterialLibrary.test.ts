@@ -12,6 +12,11 @@ vi.mock('@/lib/materialsApi', () => ({
   },
 }))
 
+vi.mock('@/lib/subscriptionApi', () => ({
+  subscriptionApi: { getStatus: vi.fn() },
+  subscriptionQueryKeys: { status: () => ['subscription-status', 'test-user'] },
+}))
+
 // Mock @tanstack/react-query
 const mockUseQuery = vi.fn()
 vi.mock('@tanstack/react-query', () => ({
@@ -134,6 +139,57 @@ describe('useMaterialLibrary', () => {
       const { result } = renderHook(() => useMaterialLibrary())
 
       expect(result.current.error).toBe(error)
+    })
+  })
+
+  describe('materials entitlement', () => {
+    type QueryArgs = { queryKey: readonly unknown[]; enabled?: boolean; retry?: unknown }
+    const summaryCall = () =>
+      mockUseQuery.mock.calls
+        .map(([args]) => args as QueryArgs)
+        .find((args) => args.queryKey[0] === 'material-library-summary')
+
+    function mockQueries(status: unknown, summary: Record<string, unknown>) {
+      mockUseQuery.mockImplementation((args: QueryArgs) =>
+        args.queryKey[0] === 'subscription-status'
+          ? { data: status, isLoading: false, error: null }
+          : { data: undefined, isLoading: false, error: null, ...summary },
+      )
+    }
+
+    it('does not request the paid summary for plans without the materials library', () => {
+      mockQueries({ tier: 'free', features: { materials_library_access: false } }, {})
+
+      const { result } = renderHook(() => useMaterialLibrary())
+
+      expect(summaryCall()?.enabled).toBe(false)
+      expect(result.current.accessDenied).toBe(true)
+      expect(result.current.error).toBe(null)
+    })
+
+    it('requests the summary for paid plans', () => {
+      mockQueries({ tier: 'pro', features: { materials_library_access: true } }, { data: mockLibraries })
+
+      const { result } = renderHook(() => useMaterialLibrary())
+
+      expect(summaryCall()?.enabled).toBe(true)
+      expect(result.current.accessDenied).toBe(false)
+      expect(result.current.libraries).toEqual(mockLibraries)
+    })
+
+    it('treats a 402 feature-not-included response as no access, without retrying', async () => {
+      const { ApiError } = await import('@/lib/apiClient')
+      const featureError = new ApiError(402, 'ERR_FEATURE_NOT_INCLUDED')
+      mockQueries(undefined, { error: featureError })
+
+      const { result } = renderHook(() => useMaterialLibrary())
+
+      expect(result.current.accessDenied).toBe(true)
+      expect(result.current.error).toBe(null)
+      const retry = summaryCall()?.retry as (count: number, error: unknown) => boolean
+      expect(retry(0, featureError)).toBe(false)
+      expect(retry(0, new Error('network'))).toBe(true)
+      expect(retry(1, new Error('network'))).toBe(false)
     })
   })
 

@@ -120,7 +120,7 @@ async def _start_flow_deployment(
             .order_by(IngestionJob.created_at.desc())
         ).first()
 
-    def _mark_target_job_failed(error_message: str) -> None:
+    def _mark_target_job_failed() -> None:
         session = create_session()
         try:
             target_job = _get_target_job(session)
@@ -128,13 +128,16 @@ async def _start_flow_deployment(
                 return
 
             target_job.status = "failed"
-            target_job.error_message = error_message
+            target_job.error_message = ErrorCode.MATERIAL_DISPATCH_FAILED
             target_job.error_details = json.dumps(
-                {"stage": "deployment_start", "message": error_message},
+                {
+                    "stage": "deployment_start",
+                    "error_code": ErrorCode.MATERIAL_DISPATCH_FAILED,
+                },
                 ensure_ascii=False,
             )
             if hasattr(target_job, "update_stage_progress"):
-                target_job.update_stage_progress("queue", "failed", message=error_message)
+                target_job.update_stage_progress("queue", "failed", reason="deployment_start")
             target_job.completed_at = utcnow()
             session.add(target_job)
             session.commit()
@@ -206,7 +209,7 @@ async def _start_flow_deployment(
     except Exception as e:
         logger.error(f"Failed to start novel ingestion deployment: {e}", exc_info=True)
         try:
-            _mark_target_job_failed(f"Failed to start ingestion flow: {e}")
+            _mark_target_job_failed()
         except Exception as db_err:
             logger.error(f"Failed to mark ingestion job as failed: {db_err}", exc_info=True)
         # In production, don't fallback to direct execution - fail fast and allow retry.

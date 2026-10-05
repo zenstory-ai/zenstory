@@ -60,7 +60,7 @@ class TestNovelIngestionResume:
         job = IngestionJob(
             novel_id=novel.id,
             source_path=str(tmp_path / "gone-after-redeploy.txt"),
-            status="failed",
+            status="pending",
             total_chapters=2,
         )
         db_session.add(job)
@@ -136,7 +136,7 @@ class TestNovelIngestionResume:
         job = IngestionJob(
             novel_id=novel.id,
             source_path=str(tmp_path / "gone-after-redeploy.txt"),
-            status="failed",
+            status="pending",
         )
         db_session.add(job)
         db_session.commit()
@@ -212,7 +212,7 @@ class TestNovelIngestionResume:
         job = IngestionJob(
             novel_id=novel.id,
             source_path=str(tmp_path / "gone.txt"),
-            status="failed",
+            status="pending",
         )
         db_session.add(job)
         db_session.commit()
@@ -260,7 +260,7 @@ class TestNovelIngestionResume:
         job = IngestionJob(
             novel_id=novel.id,
             source_path=str(missing_path),
-            status="failed",
+            status="pending",
         )
         db_session.add(job)
         db_session.commit()
@@ -591,7 +591,7 @@ class TestMarkJobAsFailed:
         flow_mod._mark_job_as_failed(
             novel_id=None,
             _correlation_id=None,
-            error="err",
+            error_code="ERR_MATERIAL_DECOMPOSE_FAILED",
             flow_start=0.0,
             logger=fake_logger,
             publisher=publisher,
@@ -603,10 +603,10 @@ class TestMarkJobAsFailed:
 class TestJobIdentity:
     def test_validate_job_ownership_and_repair_correlation(self, monkeypatch):
         job = SimpleNamespace(
-            id=12, novel_id=5, correlation_id="stale", total_chapters=0
+            id=12, novel_id=5, correlation_id="stale", total_chapters=0, status="pending"
         )
         neighboring_job = SimpleNamespace(
-            id=13, novel_id=5, correlation_id="neighbor", total_chapters=0
+            id=13, novel_id=5, correlation_id="neighbor", total_chapters=0, status="pending"
         )
 
         class _Session:
@@ -627,7 +627,7 @@ class TestJobIdentity:
             flow_mod, "get_prefect_db_session", lambda: _FakeSessionCtx(session)
         )
 
-        flow_mod._validate_and_repair_job_identity(
+        assert flow_mod._validate_and_repair_job_identity(
             5, 12, "prefect-run", total_chapters=3
         )
         assert job.correlation_id == "prefect-run"
@@ -644,30 +644,24 @@ class TestJobIdentity:
 
         import services.material.ingestion_jobs_service as jobs_mod
 
+        failed_calls = []
+        latest_job = SimpleNamespace(id=123)
+
         class FakeIngestionJobsService:
             def get_latest_by_novel(self, _session, _novel_id):
-                return SimpleNamespace(id=123)
+                return latest_job
 
-            def update_processed(
-                self,
-                _session,
-                job_id,
-                *,
-                status,
-                stage,
-                stage_status,
-                stage_data,
-                error_message,
-                error_details,
-            ):
-                assert job_id == 123
-                assert status == "failed"
-                assert stage == "failed"
-                assert stage_status == "failed"
-                assert isinstance(stage_data.get("elapsed_ms"), int)
-                assert stage_data["elapsed_ms"] >= 0
-                assert error_message == "fatal"
-                assert error_details["stage"] == "flow"
+            def fail_job(self, _session, job, *, error_code, stage, reason, details):
+                failed_calls.append(job)
+                assert error_code == "ERR_MATERIAL_LLM_UNAVAILABLE"
+                assert stage == "flow"
+                assert reason == "ERR_MATERIAL_LLM_UNAVAILABLE"
+                assert isinstance(details.get("elapsed_ms"), int)
+                assert details["elapsed_ms"] >= 0
+                assert details["exception_type"] == "LLMNonRetryableError"
+                # Raw exception text is never persisted on the job.
+                assert "message" not in details
+                return True
 
         monkeypatch.setattr(jobs_mod, "IngestionJobsService", FakeIngestionJobsService)
 
@@ -678,12 +672,79 @@ class TestJobIdentity:
         flow_mod._mark_job_as_failed(
             novel_id=5,
             _correlation_id=None,
-            error="fatal",
+            error_code="ERR_MATERIAL_LLM_UNAVAILABLE",
+            exception_type="LLMNonRetryableError",
             flow_start=0.0,
             logger=fake_logger,
             publisher=publisher,
         )
 
-        assert session.commit_calls == 1
-        cp_mgr.mark_stage_failed.assert_called_once_with("failed", "fatal")
+        assert failed_calls == [latest_job]
+        cp_mgr.mark_stage_failed.assert_called_once_with("failed", "ERR_MATERIAL_LLM_UNAVAILABLE")
         publisher.publish.assert_called_once()
+
+    def test_terminal_job_is_not_runnable(self, monkeypatch):
+        job = SimpleNamespace(
+            id=12, novel_id=5, correlation_id=None, total_chapters=0, status="failed"
+        )
+
+        class _Session:
+            commits = 0
+
+            def get(self, _model, _job_id):
+                return job
+
+            def add(self, _obj):
+                raise AssertionError("terminal job must not be modified")
+
+            def commit(self):
+                self.commits += 1
+
+        monkeypatch.setattr(
+            flow_mod, "get_prefect_db_session", lambda: _FakeSessionCtx(_Session())
+        )
+
+        assert flow_mod._validate_and_repair_job_identity(5, 12, "late-run") is False
+        assert job.correlation_id is None
+
+    def test_flow_run_for_reconciled_job_exits_without_work(self, monkeypatch, db_session):
+        """A run Prefect starts after the watchdog failed (and refunded) its job does nothing."""
+        from models.material_models import IngestionJob, Novel
+
+        novel = Novel(user_id="owner-1", title="late run")
+        db_session.add(novel)
+        db_session.flush()
+        job = IngestionJob(
+            novel_id=novel.id,
+            source_path="/tmp/late.txt",
+            status="failed",
+            error_message="ERR_MATERIAL_DISPATCH_TIMEOUT",
+        )
+        db_session.add(job)
+        db_session.commit()
+
+        monkeypatch.setattr(
+            flow_mod, "get_prefect_db_session", lambda: _FakeSessionCtx(db_session)
+        )
+        monkeypatch.setattr(flow_mod, "get_run_logger", MagicMock(return_value=MagicMock()))
+        monkeypatch.setattr(flow_mod, "ProgressPublisher", MagicMock())
+        monkeypatch.setattr(
+            flow_mod,
+            "StageExecutor",
+            MagicMock(side_effect=AssertionError("reconciled job must not run")),
+        )
+        mark_failed = MagicMock()
+        monkeypatch.setattr(flow_mod, "_mark_job_as_failed", mark_failed)
+
+        result = flow_mod.novel_ingestion_v3.fn(
+            file_path="/tmp/late.txt",
+            user_id="owner-1",
+            novel_id=novel.id,
+            job_id=job.id,
+        )
+
+        assert result["status"] == "skipped"
+        mark_failed.assert_not_called()
+        db_session.refresh(job)
+        assert job.status == "failed"
+        assert job.error_message == "ERR_MATERIAL_DISPATCH_TIMEOUT"

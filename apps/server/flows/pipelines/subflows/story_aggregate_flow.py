@@ -45,8 +45,7 @@ RUNTIME_TASK_RUNNER = ConcurrentTaskRunner(max_workers=settings.MAX_CONCURRENT_W
 
 @flow(
     name="story_aggregate_flow",
-    retries=1,
-    retry_delay_seconds=30,
+    retries=0,  # 见 novel_ingestion_v3：流程级重试会与用户重试并跑
     task_runner=RUNTIME_TASK_RUNNER,  # type: ignore[arg-type]
     persist_result=False,
 )
