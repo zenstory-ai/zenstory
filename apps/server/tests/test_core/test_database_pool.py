@@ -14,6 +14,20 @@ import sqlalchemy.ext.asyncio as sqlalchemy_asyncio
 DATABASE_MODULE_PATH = Path(__file__).resolve().parents[2] / "database.py"
 
 
+class _FakeAsyncSessionmaker:
+    """Stand-in that survives ``async_sessionmaker[AsyncSession]`` annotations.
+
+    Python < 3.14 evaluates module-level annotations eagerly, so the patched
+    factory must support subscription as well as being called.
+    """
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __class_getitem__(cls, item):
+        return cls
+
+
 def _load_database_module_for_postgres(monkeypatch):
     calls: dict[str, dict] = {}
 
@@ -28,7 +42,7 @@ def _load_database_module_for_postgres(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@db.example:5432/zenstory")
     monkeypatch.setattr(sqlalchemy, "create_engine", fake_create_engine)
     monkeypatch.setattr(sqlalchemy_asyncio, "create_async_engine", fake_create_async_engine)
-    monkeypatch.setattr(sqlalchemy_asyncio, "async_sessionmaker", lambda *a, **k: object())
+    monkeypatch.setattr(sqlalchemy_asyncio, "async_sessionmaker", _FakeAsyncSessionmaker)
 
     spec = importlib.util.spec_from_file_location("database_pg_pool_probe", DATABASE_MODULE_PATH)
     assert spec is not None and spec.loader is not None
