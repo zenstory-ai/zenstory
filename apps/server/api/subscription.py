@@ -414,6 +414,14 @@ async def get_subscription_status(
         display_name_en = plan.display_name_en
         features = _normalize_plan_features_for_response(plan.features)
 
+    # A lapsed paid subscription falls back to the free plan; report the plan
+    # the user is actually on instead of pairing "Free" with "expired".
+    if subscription and (plan is None or plan.id != subscription.plan_id):
+        subscription = None
+        status_value = "active"
+    else:
+        status_value = subscription.status if subscription else "none"
+
     days_remaining = None
     if subscription and subscription.current_period_end:
         period_end = subscription.current_period_end
@@ -424,7 +432,7 @@ async def get_subscription_status(
 
     return SubscriptionStatusResponse(
         tier=plan_name,
-        status=subscription.status if subscription else "none",
+        status=status_value,
         display_name=display_name,
         display_name_en=display_name_en,
         current_period_end=subscription.current_period_end if subscription else None,

@@ -273,6 +273,17 @@ class TestGetSubscriptionStatus:
         data = response.json()
         # Expired subscriptions should show free plan
         assert data["tier"] == "free"
+        # ...as the plan the user is on now, not "Free" paired with "expired"
+        assert data["status"] == "active"
+        assert data["current_period_end"] is None
+        assert data["days_remaining"] is None
+
+        # Same once the lapsed row has been marked expired.
+        db_session.refresh(subscription)
+        assert subscription.status == "expired"
+        response = await client.get("/api/v1/subscription/me", headers=headers)
+        data = response.json()
+        assert (data["tier"], data["status"]) == ("free", "active")
 
 
 @pytest.mark.integration
