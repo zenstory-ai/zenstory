@@ -7,7 +7,7 @@ import json
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from pydantic import BaseModel
 from sqlmodel import Session, func, select
 
@@ -17,6 +17,7 @@ from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import get_session
 from models import File, Inspiration, Project, User
+from services.admin_audit_service import admin_audit_service
 from services.core.auth_service import get_current_superuser
 from services.inspiration_service import (
     create_inspiration_from_project,
@@ -39,6 +40,18 @@ router = APIRouter(
 
 
 # ==================== Inspiration Management ====================
+
+
+def _audit_snapshot(inspiration: Inspiration) -> dict:
+    """Admin-editable inspiration fields for AdminAuditLog old/new values."""
+    return {
+        "name": inspiration.name,
+        "source": inspiration.source,
+        "status": inspiration.status,
+        "is_featured": inspiration.is_featured,
+        "sort_order": inspiration.sort_order,
+        "author_id": inspiration.author_id,
+    }
 
 
 class AdminInspirationResponse(BaseModel):
@@ -234,6 +247,7 @@ def get_inspiration_admin(
 @router.post("/inspirations", response_model=AdminInspirationResponse, status_code=status.HTTP_201_CREATED)
 def create_inspiration(
     request: CreateInspirationRequest,
+    http_request: Request,
     current_user: User = Depends(get_current_superuser),
     session: Session = Depends(get_session),
 ):
@@ -285,6 +299,18 @@ def create_inspiration(
         inspiration.status = "approved"
 
     session.add(inspiration)
+    # Publishing copies another user's project into a public template, so
+    # record whose project it was.
+    admin_audit_service.log_action(
+        session, current_user.id, "create_inspiration", "inspiration", inspiration.id,
+        new_value={
+            **_audit_snapshot(inspiration),
+            "project_id": project.id,
+            "project_owner_id": project.owner_id,
+            "file_count": len(files),
+        },
+        request=http_request, commit=False,
+    )
     session.commit()
     session.refresh(inspiration)
 
@@ -305,6 +331,7 @@ def create_inspiration(
 def update_inspiration(
     inspiration_id: str,
     request: UpdateInspirationRequest,
+    http_request: Request,
     current_user: User = Depends(get_current_superuser),
     session: Session = Depends(get_session),
 ):
@@ -319,6 +346,8 @@ def update_inspiration(
             error_code=ErrorCode.INSPIRATION_NOT_FOUND,
             status_code=status.HTTP_404_NOT_FOUND,
         )
+
+    old_value = _audit_snapshot(inspiration)
 
     # Update fields
     if request.name is not None:
@@ -343,6 +372,11 @@ def update_inspiration(
     inspiration.updated_at = utcnow()
 
     session.add(inspiration)
+    admin_audit_service.log_action(
+        session, current_user.id, "update_inspiration", "inspiration", inspiration_id,
+        old_value=old_value, new_value=_audit_snapshot(inspiration),
+        request=http_request, commit=False,
+    )
     session.commit()
     session.refresh(inspiration)
 
@@ -361,6 +395,7 @@ def update_inspiration(
 def review_inspiration_endpoint(
     inspiration_id: str,
     request: InspirationReviewRequest,
+    http_request: Request,
     current_user: User = Depends(get_current_superuser),
     session: Session = Depends(get_session),
 ):
@@ -383,6 +418,7 @@ def review_inspiration_endpoint(
             detail="Inspiration is not pending review",
         )
 
+    old_value = _audit_snapshot(inspiration)
     try:
         review_inspiration(
             session=session,
@@ -397,6 +433,15 @@ def review_inspiration_endpoint(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         ) from e
+
+    admin_audit_service.log_action(
+        session, current_user.id,
+        "approve_inspiration" if request.approve else "reject_inspiration",
+        "inspiration", inspiration_id,
+        old_value=old_value,
+        new_value={**_audit_snapshot(inspiration), "rejection_reason": inspiration.rejection_reason},
+        request=http_request,
+    )
 
     log_with_context(
         logger,
@@ -416,6 +461,7 @@ def review_inspiration_endpoint(
 @router.delete("/inspirations/{inspiration_id}")
 def delete_inspiration(
     inspiration_id: str,
+    http_request: Request,
     current_user: User = Depends(get_current_superuser),
     session: Session = Depends(get_session),
 ):
@@ -431,6 +477,11 @@ def delete_inspiration(
             status_code=status.HTTP_404_NOT_FOUND,
         )
 
+    admin_audit_service.log_action(
+        session, current_user.id, "delete_inspiration", "inspiration", inspiration_id,
+        old_value={**_audit_snapshot(inspiration), "original_project_id": inspiration.original_project_id},
+        request=http_request, commit=False,
+    )
     session.delete(inspiration)
     session.commit()
 

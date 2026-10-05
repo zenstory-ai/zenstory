@@ -5,7 +5,7 @@ This module contains referral management endpoints for admin operations.
 """
 import logging
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from sqlmodel import Session, func, select
 
 from database import get_session
@@ -17,6 +17,7 @@ from models.referral import (
     Referral,
     UserReward,
 )
+from services.admin_audit_service import admin_audit_service
 from services.core.auth_service import get_current_superuser
 from services.features.referral_service import create_invite_code as create_invite_code_service
 from utils.logger import get_logger, log_with_context
@@ -98,6 +99,7 @@ def get_referral_stats(
 
 @router.post("/invites", response_model=AdminInviteCodeResponse, status_code=status.HTTP_201_CREATED)
 async def create_admin_invite_code(
+    http_request: Request,
     current_user: User = Depends(get_current_superuser),
     session: Session = Depends(get_session),
 ):
@@ -110,6 +112,17 @@ async def create_admin_invite_code(
         current_user.id,
         session,
         ignore_max_limit=True,
+    )
+    # The code is already committed by the service; audit in its own commit.
+    admin_audit_service.log_action(
+        session, current_user.id, "create_invite_code", "invite_code", new_code.id,
+        new_value={
+            "code": new_code.code,
+            "max_uses": new_code.max_uses,
+            "expires_at": new_code.expires_at.isoformat() if new_code.expires_at else None,
+            "ignore_max_limit": True,
+        },
+        request=http_request,
     )
 
     log_with_context(

@@ -8,7 +8,7 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.responses import FileResponse
 from sqlmodel import Session, or_, select
 
@@ -17,6 +17,7 @@ from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import get_session
 from models import User, UserFeedback
+from services.admin_audit_service import admin_audit_service
 from services.core.auth_service import get_current_superuser
 from utils.logger import get_logger, log_with_context
 
@@ -245,6 +246,7 @@ def get_feedback_admin(
 def update_feedback_status_admin(
     feedback_id: str,
     payload: FeedbackStatusUpdateRequest,
+    http_request: Request,
     current_user: User = Depends(get_current_superuser),
     session: Session = Depends(get_session),
 ):
@@ -257,9 +259,15 @@ def update_feedback_status_admin(
             detail="Feedback not found.",
         )
 
+    old_status = feedback.status
     feedback.status = payload.status
     feedback.updated_at = utcnow()
     session.add(feedback)
+    admin_audit_service.log_action(
+        session, current_user.id, "update_feedback_status", "feedback", feedback_id,
+        old_value={"status": old_status}, new_value={"status": payload.status},
+        request=http_request, commit=False,
+    )
     session.commit()
     session.refresh(feedback)
 

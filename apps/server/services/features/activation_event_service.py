@@ -4,6 +4,7 @@ Activation event service.
 Provides milestone recording and funnel aggregation for first-day activation analytics.
 """
 
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import TypedDict
 
@@ -19,7 +20,7 @@ from models import (
     ACTIVATION_EVENT_SIGNUP_SUCCESS,
     ActivationEvent,
 )
-from utils.logger import get_logger
+from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
 
@@ -143,6 +144,52 @@ class ActivationEventService:
             if existing:
                 return existing
             raise
+
+    def record_ai_write_accepted(
+        self,
+        session: Session,
+        *,
+        user_id: str | None,
+        project_id: str | None,
+        file_id: str,
+        file_type: str | None,
+        tool: str,
+    ) -> None:
+        """Record ``first_ai_action_accepted`` after an agent tool wrote content.
+
+        Agent tools persist content before any review, and the review flow only
+        reaches the REST update when the user rejected something, so the agent
+        write itself is the reliable signal. Best effort: the content is
+        already committed, so a failure here is logged and swallowed.
+        """
+        if not user_id:
+            return
+        try:
+            self.record_once(
+                session,
+                user_id=user_id,
+                event_name=ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED,
+                project_id=project_id,
+                event_metadata={
+                    "file_id": file_id,
+                    "file_type": file_type,
+                    "via": "agent_tool",
+                    "tool": tool,
+                },
+            )
+        except Exception as exc:
+            session.rollback()
+            log_with_context(
+                logger,
+                logging.WARNING,
+                "Failed to record AI activation event from agent tool",
+                user_id=user_id,
+                project_id=project_id,
+                file_id=file_id,
+                tool=tool,
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
 
     def get_funnel_stats(self, session: Session, *, days: int = 7) -> ActivationFunnelStats:
         """Get activation funnel metrics for the recent time window."""
