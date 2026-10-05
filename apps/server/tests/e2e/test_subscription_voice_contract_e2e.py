@@ -12,6 +12,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel import Session
 
+from models.skill import UserSkill
 from models.subscription import RedemptionCode, SubscriptionHistory, UsageQuota
 from .test_core_api_e2e import (
     _attach_subscription,
@@ -67,7 +68,7 @@ async def test_subscription_status_and_quota_contract(
         ai_conversations_used=6,
         material_uploads_used=1,
         material_decompositions_used=2,
-        skill_creates_used=4,
+        skill_creates_used=9,
         inspiration_copies_used=3,
         monthly_period_start=datetime.utcnow() - timedelta(days=1),
         monthly_period_end=datetime.utcnow() + timedelta(days=29),
@@ -83,6 +84,10 @@ async def test_subscription_status_and_quota_contract(
         metadata={"source": "e2e"},
     )
     db_session.add(history)
+    # skill_creates.used reports owned custom skills, not the monthly counter.
+    db_session.add_all(
+        [UserSkill(user_id=user.id, name=f"skill {i}", instructions="x") for i in range(4)]
+    )
     db_session.commit()
 
     login_payload = await _login(client, identifier=user.email)
