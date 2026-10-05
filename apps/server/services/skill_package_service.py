@@ -192,6 +192,19 @@ def _touch_user_skill(session: Session, user_skill: UserSkill) -> None:
 # ==================== Import / Export ====================
 
 
+def ensure_upload_size(size: int | None) -> None:
+    """
+    上传包大小上限（与扩展名无关，一律 413）。
+
+    路由层在读文件之前先用 UploadFile.size 调一次，读的时候只读 MAX_UPLOAD_READ_BYTES，
+    解析前再按实际读到的字节数调一次；没有 Content-Length 的分块上传也会落到这里。
+    """
+    if size is not None and size > MAX_ZIP_BYTES:
+        raise SkillPackageError(
+            f"技能包不能超过 {MAX_ZIP_BYTES // 1024 // 1024} MiB", kind="too_large"
+        )
+
+
 @dataclass
 class ParsedUpload:
     """An uploaded skill package parsed and validated, not yet stored."""
@@ -213,6 +226,7 @@ def parse_skill_upload(filename: str | None, data: bytes) -> ParsedUpload:
     """
     lowered = (filename or "").lower()
     try:
+        ensure_upload_size(len(data))
         if lowered.endswith(".zip") or (not lowered.endswith(".md") and data[:4] == b"PK\x03\x04"):
             skill, resources, warnings = read_skill_zip(data)
         elif lowered.endswith(".md"):
@@ -421,6 +435,11 @@ def delete_user_skill_resources(session: Session, user_skill_id: str) -> None:
         session.delete(resource)
 
 
+def list_public_skill_resources(session: Session, public_skill_id: str) -> list[SkillResource]:
+    """公共技能的全部资源（不论审核状态），供管理员审核原文。"""
+    return list_skill_resources(session, public_skill_id=public_skill_id)
+
+
 def copy_resources_to_public_skill(
     session: Session,
     user_skill_id: str,
@@ -436,6 +455,31 @@ def copy_resources_to_public_skill(
             size=resource.size,
         ))
     return len(resources)
+
+
+def get_share_statuses(session: Session, user_skills: list[UserSkill]) -> dict[str, str]:
+    """
+    自建技能分享出去的公共副本的审核状态：{user_skill_id: status}。
+
+    驳回时 admin 会清掉 shared_skill_id（作者可改后重投），所以这里只会看到
+    pending / approved / unpublished。
+    """
+    links = {
+        skill.id: skill.shared_skill_id
+        for skill in user_skills
+        if skill.is_shared and skill.shared_skill_id
+    }
+    if not links:
+        return {}
+    rows = session.exec(
+        select(PublicSkill.id, PublicSkill.status).where(PublicSkill.id.in_(list(links.values())))
+    ).all()
+    status_by_public_id = dict(rows)
+    return {
+        user_skill_id: status_by_public_id[public_id]
+        for user_skill_id, public_id in links.items()
+        if public_id in status_by_public_id
+    }
 
 
 def count_resources(

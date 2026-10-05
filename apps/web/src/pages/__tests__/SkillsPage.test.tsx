@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import SkillsPage from '../SkillsPage'
 import { ApiError } from '../../lib/apiClient'
@@ -116,6 +116,7 @@ vi.mock('../../lib/api', () => ({
   },
   publicSkillsApi: {
     list: vi.fn(),
+    get: vi.fn(),
     getCategories: vi.fn(),
     add: vi.fn(),
     remove: vi.fn(),
@@ -817,6 +818,168 @@ describe('SkillsPage', () => {
       await waitFor(() => {
         expect(publicSkillsApi.list).toHaveBeenCalled()
       })
+    })
+  })
+
+  // ========================================
+  // Launch hardening: error feedback, limits, discover paging/search
+  // ========================================
+  describe('Launch hardening', () => {
+    const openMySkills = async () => {
+      render(<SkillsPage />)
+      await userEvent.click(screen.getByRole('button', { name: /my skills/i }))
+      await waitFor(() => {
+        expect(screen.getByText('Writing Assistant')).toBeInTheDocument()
+      })
+    }
+
+    it('shows the backend error in a toast when saving a skill fails', async () => {
+      vi.mocked(skillsApi.create).mockRejectedValueOnce(
+        new ApiError(422, 'ERR_SKILL_PACKAGE_INVALID', undefined, '技能名称不能超过 100 个字符'),
+      )
+      await openMySkills()
+      await userEvent.click(screen.getByRole('button', { name: /create$/i }))
+      await userEvent.type(screen.getByPlaceholderText('Skill name'), 'Too long')
+      await userEvent.type(screen.getByPlaceholderText('Detailed instructions'), 'do something')
+      await userEvent.click(screen.getByRole('button', { name: /save/i }))
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('技能名称不能超过 100 个字符'))
+      })
+      // 弹窗保持打开，用户的输入还在
+      expect(screen.getByPlaceholderText('Skill name')).toHaveValue('Too long')
+    })
+
+    it('falls back to a localized message for non-API failures', async () => {
+      vi.mocked(skillsApi.delete).mockRejectedValueOnce('boom')
+      await openMySkills()
+      const card = screen.getByText('Writing Assistant').closest('.group') as HTMLElement
+      const buttons = within(card).getAllByRole('button')
+      // 卡片按钮顺序：勾选、编辑、删除……
+      await userEvent.click(buttons[2])
+      await userEvent.click(await screen.findByRole('button', { name: 'Delete' }))
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith('skills:errors.deleteFailed')
+      })
+    })
+
+    it('limits form fields to the backend lengths and shows counters', async () => {
+      await openMySkills()
+      await userEvent.click(screen.getByRole('button', { name: /create$/i }))
+
+      expect(screen.getByPlaceholderText('Skill name')).toHaveAttribute('maxLength', '100')
+      expect(screen.getByPlaceholderText('Brief description')).toHaveAttribute('maxLength', '1024')
+      expect(screen.getByPlaceholderText('Detailed instructions')).toHaveAttribute('maxLength', '50000')
+      await userEvent.type(screen.getByPlaceholderText('Skill name'), 'abc')
+      expect(screen.getByText('3 / 100')).toBeInTheDocument()
+    })
+
+    it('sends an empty description when the user clears it while editing', async () => {
+      vi.mocked(skillsApi.update).mockResolvedValueOnce(mockUserSkills[0])
+      await openMySkills()
+      await userEvent.click(screen.getAllByRole('button', { name: 'Edit Skill' })[0])
+      const description = screen.getByPlaceholderText('Brief description')
+      await userEvent.clear(description)
+      await userEvent.click(screen.getByRole('button', { name: /save/i }))
+
+      await waitFor(() => {
+        expect(skillsApi.update).toHaveBeenCalledWith(
+          'skill-1',
+          expect.objectContaining({ description: '' }),
+        )
+      })
+    })
+
+    it('shows the review status of shared skills', async () => {
+      vi.mocked(skillsApi.mySkills).mockResolvedValue({
+        user_skills: [{ ...mockUserSkills[0], share_status: 'unpublished' }],
+        added_skills: [],
+        total: 1,
+      } as MySkillsResponse)
+      await openMySkills()
+
+      expect(screen.getByTestId('skill-share-status')).toHaveTextContent('skills:shareStatus.unpublished')
+    })
+
+    it('shows a toast when adding a public skill fails', async () => {
+      vi.mocked(publicSkillsApi.add).mockRejectedValueOnce(new Error('服务器开小差了'))
+      render(<SkillsPage />)
+      await screen.findByText('Dialogue Expert')
+      await userEvent.click(screen.getAllByRole('button', { name: /add$/i })[0])
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith('服务器开小差了')
+      })
+    })
+
+    it('loads the next page of public skills with "load more"', async () => {
+      const page2Skill = { ...mockPublicSkills[1], id: 'public-21', name: 'Twenty First Skill' }
+      vi.mocked(publicSkillsApi.list)
+        .mockResolvedValueOnce({ skills: mockPublicSkills, total: 3, page: 1, page_size: 20 })
+        .mockResolvedValueOnce({ skills: [page2Skill], total: 3, page: 2, page_size: 20 })
+      render(<SkillsPage />)
+      await screen.findByText('Dialogue Expert')
+
+      await userEvent.click(screen.getByRole('button', { name: 'loadMore' }))
+
+      expect(await screen.findByText('Twenty First Skill')).toBeInTheDocument()
+      expect(publicSkillsApi.list).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 2, page_size: 20 }),
+      )
+      // 前一页的内容保留，已经全部加载后不再显示按钮
+      expect(screen.getByText('Dialogue Expert')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'loadMore' })).not.toBeInTheDocument()
+    })
+
+    it('debounces the discover search and waits for IME composition to end', async () => {
+      render(<SkillsPage />)
+      await screen.findByText('Dialogue Expert')
+      vi.mocked(publicSkillsApi.list).mockClear()
+
+      const search = screen.getByTestId('public-skill-search')
+      fireEvent.compositionStart(search)
+      fireEvent.change(search, { target: { value: 'ren' } })
+      fireEvent.change(search, { target: { value: 'renwu' } })
+      await new Promise((resolve) => setTimeout(resolve, 400))
+      expect(publicSkillsApi.list).not.toHaveBeenCalled()
+
+      fireEvent.change(search, { target: { value: '人物' } })
+      fireEvent.compositionEnd(search, { target: { value: '人物' } })
+      await waitFor(() => {
+        expect(publicSkillsApi.list).toHaveBeenCalledTimes(1)
+      })
+      expect(publicSkillsApi.list).toHaveBeenCalledWith(expect.objectContaining({ search: '人物' }))
+
+      // 连续输入只在停顿后查询一次
+      vi.mocked(publicSkillsApi.list).mockClear()
+      fireEvent.change(search, { target: { value: '人物a' } })
+      fireEvent.change(search, { target: { value: '人物ab' } })
+      fireEvent.change(search, { target: { value: '人物abc' } })
+      await waitFor(() => {
+        expect(publicSkillsApi.list).toHaveBeenCalledTimes(1)
+      })
+      expect(publicSkillsApi.list).toHaveBeenCalledWith(expect.objectContaining({ search: '人物abc' }))
+    })
+
+    it('fetches full instructions when expanding a truncated public skill', async () => {
+      vi.mocked(publicSkillsApi.list).mockResolvedValue({
+        skills: [{ ...mockPublicSkills[0], instructions: 'Preview only', instructions_truncated: true }],
+        total: 1,
+        page: 1,
+        page_size: 20,
+      })
+      vi.mocked(publicSkillsApi.get).mockResolvedValue({
+        ...mockPublicSkills[0],
+        instructions: 'The complete instructions',
+      })
+      render(<SkillsPage />)
+      await screen.findByText('Dialogue Expert')
+
+      await userEvent.click(screen.getByRole('button', { name: /expand/i }))
+
+      expect(await screen.findByText('The complete instructions')).toBeInTheDocument()
+      expect(publicSkillsApi.get).toHaveBeenCalledWith('public-1')
     })
   })
 })

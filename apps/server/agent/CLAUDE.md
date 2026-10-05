@@ -265,8 +265,8 @@ async def run_openai_agents_streaming_agent(...):
 | `handoff_to_agent` | 交接给另一个 agent |
 | `request_clarification` | 请求用户澄清并暂停工作流 |
 | `parallel_execute` | 并行执行多个只读/工具任务 |
-| `load_skill` | 按名称加载已启用技能的完整方法与资源清单（技能 L2，记录用量） |
-| `read_skill_resource` | 读取技能附带的一个参考文件（技能 L3） |
+| `load_skill` | 按名称或 id 加载已启用技能的方法与资源清单（技能 L2，记录用量；受每请求技能内容 token 预算限制，超出截断） |
+| `read_skill_resource` | 读取技能附带的一个参考文件，或 `path="SKILL.md"` 读正文；支持 `offset` 分段续读（技能 L3） |
 
 ### 文件流式写入协议
 

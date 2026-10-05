@@ -31,6 +31,7 @@ import type {
   PromptReloadResult,
   PromptsListResponse,
   PendingSkill,
+  SkillReviewResource,
   SkillReviewStatus,
   DashboardStats,
   ActivationFunnelStats,
@@ -57,7 +58,7 @@ import type {
 import type { SubscriptionFeatures, SubscriptionPlan } from "../types/subscription";
 import type { PaymentOrder } from "../types/payment";
 
-export type { PendingSkill, SkillReviewStatus } from "../types/admin";
+export type { PendingSkill, SkillReviewResource, SkillReviewStatus } from "../types/admin";
 
 const ADMIN_BASE = "/api/admin";
 const FALLBACK_TIMESTAMP = "1970-01-01T00:00:00.000Z";
@@ -299,6 +300,13 @@ function normalizePendingSkill(skill: unknown): PendingSkill {
     description: asNullableText(raw.description),
     instructions: asText(raw.instructions, ""),
     category: asText(raw.category, "general"),
+    tags: Array.isArray(raw.tags) ? raw.tags.map((tag) => String(tag)) : [],
+    skill_metadata:
+      raw.skill_metadata && typeof raw.skill_metadata === "object" && !Array.isArray(raw.skill_metadata)
+        ? (raw.skill_metadata as Record<string, unknown>)
+        : {},
+    resource_count: asNumber(raw.resource_count, 0),
+    source: asText(raw.source, "community"),
     author_id: asNullableText(raw.author_id),
     author_name: asNullableText(raw.author_name),
     status: asText(raw.status, "pending") as SkillReviewStatus,
@@ -808,6 +816,34 @@ export async function rejectSkill(
     `${ADMIN_BASE}/skills/${id}/reject`,
     { rejection_reason: reason }
   );
+}
+
+/**
+ * Take an approved public skill down (status becomes "unpublished").
+ *
+ * @param id - Skill ID to unpublish
+ * @param reason - Optional reason, stored and shown in the review history
+ */
+export async function unpublishSkill(
+  id: string,
+  reason?: string
+): Promise<{ message: string; skill_id: string }> {
+  return api.post<{ message: string; skill_id: string }>(
+    `${ADMIN_BASE}/skills/${id}/unpublish`,
+    { rejection_reason: reason }
+  );
+}
+
+/**
+ * Fetch every resource file (raw content) of a public skill for review.
+ *
+ * @param id - Public skill ID
+ */
+export async function getSkillReviewResources(id: string): Promise<SkillReviewResource[]> {
+  const payload = await api.get<{ resources?: SkillReviewResource[] }>(
+    `${ADMIN_BASE}/skills/${id}/resources`
+  );
+  return Array.isArray(payload?.resources) ? payload.resources : [];
 }
 
 // ==================== 兑换码管理 API ====================
@@ -1735,6 +1771,8 @@ export const adminApi = {
   getPendingSkills,
   approveSkill,
   rejectSkill,
+  unpublishSkill,
+  getSkillReviewResources,
 
   // 兑换码管理
   getCodes,

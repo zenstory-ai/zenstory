@@ -32,12 +32,19 @@ router = APIRouter(prefix="/api/v1/public-skills", tags=["Public Skills"])
 # ==================== Response Models ====================
 
 
+# 列表接口只回传正文开头的预览（每页 20 个技能 × 最长 5 万字的正文太重）；
+# 完整正文用 GET /public-skills/{id} 取。
+LIST_INSTRUCTIONS_PREVIEW_CHARS = 500
+
+
 class PublicSkillResponse(BaseModel):
     """Response model for a public skill."""
     id: str
     name: str
     description: str | None
+    # 详情接口是完整正文；列表接口是开头的预览，被截断时 instructions_truncated 为 True
     instructions: str
+    instructions_truncated: bool = False
     category: str
     tags: list[str]
     source: str
@@ -111,19 +118,23 @@ def _safe_json_array(value: str | None, *, field_name: str, record_id: str) -> l
 def _skill_to_response(
     skill: PublicSkill,
     is_added: bool = False,
-    author_name: str | None = None
+    author_name: str | None = None,
+    preview_chars: int | None = None,
 ) -> PublicSkillResponse:
-    """Convert PublicSkill model to response."""
+    """Convert PublicSkill model to response (preview_chars: 只回传正文开头这么多字符)."""
     tags = _safe_json_array(
         skill.tags,
         field_name="public_skill.tags",
         record_id=skill.id,
     )
+    instructions = skill.instructions or ""
+    truncated = preview_chars is not None and len(instructions) > preview_chars
     return PublicSkillResponse(
         id=skill.id,
         name=skill.name,
         description=skill.description,
-        instructions=skill.instructions,
+        instructions=instructions[:preview_chars] if truncated else instructions,
+        instructions_truncated=truncated,
         category=skill.category,
         tags=tags,
         source=skill.source,
@@ -225,6 +236,7 @@ async def list_public_skills(
             skill,
             is_added=skill.id in added_ids,
             author_name=author_name_map.get(skill.author_id),
+            preview_chars=LIST_INSTRUCTIONS_PREVIEW_CHARS,
         )
         for skill in skills
     ]

@@ -583,3 +583,130 @@ async def test_resource_upsert_unique_race_returns_409(db_session, monkeypatch):
     assert exc_info.value.error_code == "ERR_RESOURCE_CONFLICT"
     remaining = db_session.exec(select(SkillResource).where(SkillResource.user_skill_id == skill.id)).all()
     assert [(item.path, item.content) for item in remaining] == [("references/a.md", "old")]
+
+
+@pytest.mark.integration
+async def test_import_rejects_oversized_chunked_upload_without_parsing(
+    client: AsyncClient, db_session, monkeypatch
+):
+    """没有 Content-Length（分块上传）时，按上传文件的实际大小拒收，扩展名不影响 413。"""
+    from services import skill_package_service
+
+    _user, headers = await _login(client, db_session, "pkg_chunked")
+    called: list[str] = []
+    monkeypatch.setattr(
+        skill_package_service, "parse_skill_upload", lambda *args: called.append("parse"),
+    )
+    boundary = "zenstoryboundary"
+    body = (
+        f"--{boundary}\r\n"
+        'Content-Disposition: form-data; name="file"; filename="big.bin"\r\n'
+        "Content-Type: application/octet-stream\r\n\r\n"
+    ).encode() + b"a" * (2 * 1024 * 1024) + f"\r\n--{boundary}--\r\n".encode()
+
+    async def chunks():
+        for start in range(0, len(body), 64 * 1024):
+            yield body[start:start + 64 * 1024]
+
+    response = await client.post(
+        "/api/v1/skills/import",
+        content=chunks(),
+        headers={**headers, "Content-Type": f"multipart/form-data; boundary={boundary}"},
+    )
+
+    assert response.status_code == 413
+    assert response.json()["error_code"] == "ERR_SKILL_PACKAGE_TOO_LARGE"
+    assert called == []
+
+
+@pytest.mark.integration
+async def test_skill_text_fields_with_nul_are_stored_without_nul(client: AsyncClient, db_session):
+    """NUL 在 schema 层清除（PostgreSQL 文本列不接受 NUL，原样写入会 500）。"""
+    _user, headers = await _login(client, db_session, "pkg_nul")
+
+    created = await client.post(
+        "/api/v1/skills",
+        json={
+            "name": "空\u0000字符",
+            "description": "描\u0000述",
+            "triggers": ["触\u0000发"],
+            "instructions": "正\u0000文",
+        },
+        headers=headers,
+    )
+    assert created.status_code == 200
+    skill_id = created.json()["id"]
+    updated = await client.put(
+        f"/api/v1/skills/{skill_id}", json={"instructions": "新\u0000正文"}, headers=headers
+    )
+    resource = await client.put(
+        f"/api/v1/skills/{skill_id}/resources",
+        json={"path": "references/a.md", "content": "资\u0000源"},
+        headers=headers,
+    )
+    only_nul = await client.post(
+        "/api/v1/skills",
+        json={"name": "\u0000", "triggers": [], "instructions": "x"},
+        headers=headers,
+    )
+    imported = await _import(
+        client, headers, "SKILL.md",
+        "---\nname: \"导\\0入\"\ndescription: d\n---\n正\u0000文\n".encode(),
+    )
+
+    stored = db_session.get(UserSkill, skill_id)
+    db_session.refresh(stored)
+    assert (stored.name, stored.description, json.loads(stored.triggers)) == ("空字符", "描述", ["触发"])
+    assert updated.json()["instructions"] == "新正文"
+    assert resource.status_code == 200
+    content = db_session.exec(select(SkillResource).where(SkillResource.user_skill_id == skill_id)).one()
+    assert content.content == "资源"
+    assert only_nul.status_code == 422
+    assert imported.status_code == 200
+    assert imported.json()["skill"]["name"] == "导入"
+    assert imported.json()["skill"]["instructions"].strip() == "正文"
+
+
+@pytest.mark.integration
+async def test_share_category_is_whitelisted(client: AsyncClient, db_session):
+    _user, headers = await _login(client, db_session, "pkg_share_category")
+    created = await client.post(
+        "/api/v1/skills",
+        json={"name": "分类测试", "triggers": [], "instructions": "x"},
+        headers=headers,
+    )
+    skill_id = created.json()["id"]
+
+    too_long = await client.post(
+        f"/api/v1/skills/{skill_id}/share", json={"category": "x" * 60}, headers=headers
+    )
+    unknown = await client.post(
+        f"/api/v1/skills/{skill_id}/share", json={"category": "spam"}, headers=headers
+    )
+    ok = await client.post(
+        f"/api/v1/skills/{skill_id}/share", json={"category": "plot"}, headers=headers
+    )
+
+    assert too_long.status_code == 422
+    assert unknown.status_code == 422
+    assert ok.status_code == 200
+    assert db_session.exec(select(PublicSkill)).one().category == "plot"
+    listed = await client.get("/api/v1/skills/my-skills", headers=headers)
+    assert listed.json()["user_skills"][0]["share_status"] == "pending"
+
+
+@pytest.mark.integration
+async def test_update_with_empty_description_clears_it(client: AsyncClient, db_session):
+    _user, headers = await _login(client, db_session, "pkg_clear_desc")
+    created = await client.post(
+        "/api/v1/skills",
+        json={"name": "描述测试", "description": "过时的描述", "triggers": [], "instructions": "x"},
+        headers=headers,
+    )
+
+    cleared = await client.put(
+        f"/api/v1/skills/{created.json()['id']}", json={"description": ""}, headers=headers
+    )
+
+    assert cleared.status_code == 200
+    assert cleared.json()["description"] is None
