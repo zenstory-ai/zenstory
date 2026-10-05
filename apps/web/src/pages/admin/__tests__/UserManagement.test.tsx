@@ -10,7 +10,10 @@ vi.mock("../../../contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: 
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string, options?: { from?: number; to?: number; total?: number }) =>
+      key === "common:showing" && options
+        ? `showing ${options.from}-${options.to} of ${options.total}`
+        : key,
   }),
 }));
 
@@ -76,7 +79,7 @@ describe("UserManagement", () => {
 
   it("shows empty state", () => {
     useQueryMock.mockReturnValue({
-      data: [],
+      data: { users: [], total: 0 },
       isLoading: false,
       isFetching: false,
       isError: false,
@@ -90,7 +93,7 @@ describe("UserManagement", () => {
 
   it("submits search query", async () => {
     useQueryMock.mockReturnValue({
-      data: [sampleUser],
+      data: { users: [sampleUser], total: 1 },
       isLoading: false,
       isFetching: false,
       isError: false,
@@ -121,7 +124,7 @@ describe("UserManagement", () => {
       isPending: false,
     });
     useQueryMock.mockReturnValue({
-      data: [sampleUser],
+      data: { users: [sampleUser], total: 1 },
       isLoading: false,
       isFetching: false,
       isError: false,
@@ -152,7 +155,7 @@ describe("UserManagement", () => {
   });
 
   it("does not offer self-deactivation or self-demotion in the edit form", () => {
-    useQueryMock.mockReturnValue({ data: [{ ...sampleUser, id: "admin-1", is_superuser: true }], isLoading: false, isFetching: false, isError: false, error: null, refetch: vi.fn() });
+    useQueryMock.mockReturnValue({ data: { users: [{ ...sampleUser, id: "admin-1", is_superuser: true }], total: 1 }, isLoading: false, isFetching: false, isError: false, error: null, refetch: vi.fn() });
     render(<UserManagement />);
     fireEvent.click(screen.getAllByTitle("users.edit")[0]);
     expect(screen.getByRole("checkbox", { name: "users.isActive" })).toBeDisabled();
@@ -166,7 +169,7 @@ describe("UserManagement", () => {
       isPending: false,
     });
     useQueryMock.mockReturnValue({
-      data: [sampleUser],
+      data: { users: [sampleUser], total: 1 },
       isLoading: false,
       isFetching: false,
       isError: false,
@@ -182,5 +185,80 @@ describe("UserManagement", () => {
     mutateMock.mockClear();
     fireEvent.click(screen.getByRole("button", { name: "common:confirm" }));
     expect(mutateMock).toHaveBeenCalledWith("user-1");
+  });
+
+  describe("pagination total", () => {
+    const allUsers = Array.from({ length: 92 }, (_, index) => ({
+      ...sampleUser,
+      id: `user-${index + 1}`,
+      username: index < 7 ? `reader-${index + 1}` : `writer-${index + 1}`,
+      email: `user-${index + 1}@example.com`,
+    }));
+
+    // Serves pages the way the API does: `total` is the filtered count, not the rows so far.
+    const serveUsers = (legacyArray = false) => {
+      useQueryMock.mockImplementation(({ queryKey }: { queryKey: [string, string, number, string] }) => {
+        const [, , page, search] = queryKey;
+        const matching = search ? allUsers.filter((user) => user.username.includes(search)) : allUsers;
+        const users = matching.slice(page * 20, page * 20 + 20);
+        return {
+          data: { users, total: legacyArray ? null : matching.length },
+          isLoading: false,
+          isFetching: false,
+          isError: false,
+          error: null,
+          refetch: vi.fn(),
+        };
+      });
+    };
+
+    it("keeps the filtered total on the first, second and last page", () => {
+      serveUsers();
+      render(<UserManagement />);
+
+      expect(screen.getByText("showing 1-20 of 92")).toBeInTheDocument();
+      expect(screen.getByText("1 / 5")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "common:next" }));
+      expect(screen.getByText("showing 21-40 of 92")).toBeInTheDocument();
+      expect(screen.getByText("2 / 5")).toBeInTheDocument();
+
+      for (let i = 0; i < 3; i += 1) {
+        fireEvent.click(screen.getByRole("button", { name: "common:next" }));
+      }
+      expect(screen.getByText("showing 81-92 of 92")).toBeInTheDocument();
+      expect(screen.getByText("5 / 5")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "common:next" })).toBeDisabled();
+    });
+
+    it("uses the search total and returns to the first page after searching", () => {
+      serveUsers();
+      render(<UserManagement />);
+      fireEvent.click(screen.getByRole("button", { name: "common:next" }));
+      expect(screen.getByText("2 / 5")).toBeInTheDocument();
+
+      fireEvent.change(screen.getByPlaceholderText("users.search"), { target: { value: "writer" } });
+      fireEvent.click(screen.getByRole("button", { name: "common:search" }));
+
+      expect(useQueryMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ queryKey: ["admin", "users", 0, "writer"] }),
+      );
+      expect(screen.getByText("showing 1-20 of 85")).toBeInTheDocument();
+      expect(screen.getByText("1 / 5")).toBeInTheDocument();
+
+      fireEvent.change(screen.getByPlaceholderText("users.search"), { target: { value: "reader" } });
+      fireEvent.click(screen.getByRole("button", { name: "common:search" }));
+      // Seven matches fit on one page, so no pager is needed.
+      expect(screen.queryByText(/^showing /)).not.toBeInTheDocument();
+      expect(screen.getAllByText(/^reader-/).length).toBeGreaterThan(0);
+    });
+
+    it("falls back to the next-page estimate when an older API sends no total", () => {
+      serveUsers(true);
+      render(<UserManagement />);
+
+      expect(screen.getByText("showing 1-20 of 20")).toBeInTheDocument();
+      expect(screen.getByText("1 / 2")).toBeInTheDocument();
+    });
   });
 });

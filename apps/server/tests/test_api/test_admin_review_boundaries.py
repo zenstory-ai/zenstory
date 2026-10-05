@@ -35,7 +35,8 @@ async def test_admin_user_crud_never_serializes_password_hash(client, admin_boun
     ]
     for response in responses:
         assert response.status_code == 200
-        rows = response.json() if isinstance(response.json(), list) else [response.json()]
+        payload = response.json()
+        rows = payload["items"] if "items" in payload else [payload]
         for row in rows:
             assert "hashed_password" not in row
             assert "stored-" not in response.text

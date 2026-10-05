@@ -7,7 +7,7 @@ import logging
 
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session, select
+from sqlmodel import Session, func, or_, select
 
 from config.datetime_utils import utcnow
 from core.error_codes import ErrorCode
@@ -19,7 +19,7 @@ from services.core.auth_service import get_current_superuser
 from utils.email_identity import email_identity_matches, normalize_email_identity
 from utils.logger import get_logger, log_with_context
 
-from .schemas import AdminUserResponse, UserUpdateRequest
+from .schemas import AdminUserListResponse, AdminUserResponse, UserUpdateRequest
 
 logger = get_logger(__name__)
 
@@ -28,7 +28,7 @@ router = APIRouter(tags=["admin-users"])
 
 # ==================== User Management ====================
 
-@router.get("/users", response_model=list[AdminUserResponse])
+@router.get("/users", response_model=AdminUserListResponse)
 def get_users(
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(20, ge=1, le=1000, description="Number of records to return"),
@@ -37,23 +37,26 @@ def get_users(
     session: Session = Depends(get_session),
 ):
     """
-    Get all users with pagination and search support.
+    Get one page of users plus the total matching the search filter.
 
     Requires superuser privileges.
     """
-    query = select(User)
-
-    # Apply search filter if provided
+    conditions = []
     if search:
         search_pattern = f"%{search}%"
-        query = query.where(
-            (User.username.ilike(search_pattern)) | (User.email.ilike(search_pattern))
+        conditions.append(
+            or_(User.username.ilike(search_pattern), User.email.ilike(search_pattern))
         )
 
-    # Apply pagination
-    query = query.offset(skip).limit(limit)
-
-    users = session.exec(query).all()
+    total = session.exec(select(func.count()).select_from(User).where(*conditions)).one()
+    # Offset paging needs a total order, or PostgreSQL may repeat/skip rows across pages.
+    users = session.exec(
+        select(User)
+        .where(*conditions)
+        .order_by(User.created_at.desc(), User.id.desc())
+        .offset(skip)
+        .limit(limit)
+    ).all()
 
     log_with_context(
         logger,
@@ -61,12 +64,13 @@ def get_users(
         "Retrieved users list",
         user_id=current_user.id,
         count=len(users),
+        total=total,
         skip=skip,
         limit=limit,
         search=search,
     )
 
-    return users
+    return {"items": users, "total": total}
 
 
 @router.get("/users/{user_id}", response_model=AdminUserResponse)

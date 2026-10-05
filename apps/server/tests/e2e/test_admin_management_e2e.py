@@ -105,7 +105,8 @@ async def test_admin_users_roundtrip_lists_updates_and_soft_deletes_target_user(
     )
     assert list_response.status_code == 200
     list_payload = list_response.json()
-    assert any(item["id"] == target.id for item in list_payload)
+    assert any(item["id"] == target.id for item in list_payload["items"])
+    assert list_payload["total"] == len(list_payload["items"])
 
     detail_response = await client.get(f"/api/admin/users/{target.id}", headers=headers)
     assert detail_response.status_code == 200

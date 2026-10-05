@@ -57,53 +57,67 @@ describe('adminApi', () => {
   // ==================== User Management Tests ====================
 
   describe('getUsers', () => {
-    it('fetches users list with default parameters', async () => {
+    it('returns the page items and the filtered total', async () => {
       const { getUsers } = await import('../adminApi')
       const mockUsers = [
         { id: '1', username: 'user1', email: 'user1@example.com' },
         { id: '2', username: 'user2', email: 'user2@example.com' },
       ]
-      mockApi.get.mockResolvedValue(mockUsers)
+      mockApi.get.mockResolvedValue({ items: mockUsers, total: 92 })
 
       const result = await getUsers()
 
       expect(mockApi.get).toHaveBeenCalledWith('/api/admin/users?skip=0&limit=20')
-      expect(result).toHaveLength(2)
-      expect(result[0]).toMatchObject(mockUsers[0])
-      expect(result[1]).toMatchObject(mockUsers[1])
+      expect(result.total).toBe(92)
+      expect(result.users).toHaveLength(2)
+      expect(result.users[0]).toMatchObject(mockUsers[0])
+      expect(result.users[1]).toMatchObject(mockUsers[1])
     })
 
     it('fetches users with custom skip and limit', async () => {
       const { getUsers } = await import('../adminApi')
       const mockUsers = [{ id: '1', username: 'user1' }]
-      mockApi.get.mockResolvedValue(mockUsers)
+      mockApi.get.mockResolvedValue({ items: mockUsers, total: 11 })
 
       const result = await getUsers(10, 50)
 
       expect(mockApi.get).toHaveBeenCalledWith('/api/admin/users?skip=10&limit=50')
-      expect(result).toHaveLength(1)
-      expect(result[0]).toMatchObject(mockUsers[0])
+      expect(result.users).toHaveLength(1)
+      expect(result.users[0]).toMatchObject(mockUsers[0])
+      expect(result.total).toBe(11)
     })
 
     it('fetches users with search parameter', async () => {
       const { getUsers } = await import('../adminApi')
       const mockUsers = [{ id: '1', username: 'testuser' }]
-      mockApi.get.mockResolvedValue(mockUsers)
+      mockApi.get.mockResolvedValue({ items: mockUsers, total: 1 })
 
       const result = await getUsers(0, 20, 'testuser')
 
       expect(mockApi.get).toHaveBeenCalledWith('/api/admin/users?skip=0&limit=20&search=testuser')
-      expect(result).toHaveLength(1)
-      expect(result[0]).toMatchObject(mockUsers[0])
+      expect(result.users).toHaveLength(1)
+      expect(result.users[0]).toMatchObject(mockUsers[0])
+      expect(result.total).toBe(1)
+    })
+
+    it('reports an unknown total for a bare array from an older API', async () => {
+      const { getUsers } = await import('../adminApi')
+      const mockUsers = [{ id: '1', username: 'user1' }]
+      mockApi.get.mockResolvedValue(mockUsers)
+
+      const result = await getUsers()
+
+      expect(result.users).toHaveLength(1)
+      expect(result.total).toBeNull()
     })
 
     it('handles empty users list', async () => {
       const { getUsers } = await import('../adminApi')
-      mockApi.get.mockResolvedValue([])
+      mockApi.get.mockResolvedValue({ items: [], total: 0 })
 
       const result = await getUsers()
 
-      expect(result).toEqual([])
+      expect(result).toEqual({ users: [], total: 0 })
     })
 
     it('propagates API errors', async () => {

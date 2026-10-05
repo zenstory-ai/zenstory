@@ -186,7 +186,8 @@ async def test_get_users_success(client: AsyncClient, db_session: Session):
 
     assert response.status_code == 200
     data = response.json()
-    assert len(data) >= 3  # At least 3 users created
+    assert len(data["items"]) >= 3  # At least 3 users created
+    assert data["total"] == len(data["items"])
 
 
 @pytest.mark.integration
@@ -253,7 +254,8 @@ async def test_get_users_pagination(client: AsyncClient, db_session: Session):
 
     assert response.status_code == 200
     data = response.json()
-    assert len(data) == 2
+    assert len(data["items"]) == 2
+    assert data["total"] == 6
 
 
 @pytest.mark.integration
@@ -271,8 +273,57 @@ async def test_get_users_search(client: AsyncClient, db_session: Session):
 
     assert response.status_code == 200
     data = response.json()
-    assert len(data) == 1
-    assert data[0]["username"] == "alice"
+    assert data["total"] == 1
+    assert len(data["items"]) == 1
+    assert data["items"][0]["username"] == "alice"
+
+
+@pytest.mark.integration
+async def test_get_users_total_is_stable_across_pages_and_follows_search(
+    client: AsyncClient, db_session: Session
+):
+    """total counts every matching user, not the rows seen so far (regression)."""
+    await create_user(db_session, "admin", "admin@example.com", is_superuser=True)
+    shared_hash = hash_password("password123")
+    for i in range(24):
+        prefix = "reader" if i < 7 else "writer"
+        db_session.add(
+            User(
+                username=f"{prefix}{i:02d}",
+                email=f"{prefix}{i:02d}@example.com",
+                hashed_password=shared_hash,
+                email_verified=True,
+            )
+        )
+    db_session.commit()
+    token = await login_user(client, "admin")
+
+    pages = []
+    for skip in (0, 10, 20):
+        response = await client.get(
+            f"/api/admin/users?skip={skip}&limit=10", headers=auth_headers(token)
+        )
+        assert response.status_code == 200
+        pages.append(response.json())
+
+    assert [page["total"] for page in pages] == [25, 25, 25]
+    assert [len(page["items"]) for page in pages] == [10, 10, 5]
+    ids = [item["id"] for page in pages for item in page["items"]]
+    assert len(set(ids)) == 25
+
+    filtered = []
+    for skip in (0, 5):
+        response = await client.get(
+            f"/api/admin/users?skip={skip}&limit=5&search=reader",
+            headers=auth_headers(token),
+        )
+        assert response.status_code == 200
+        filtered.append(response.json())
+
+    assert [page["total"] for page in filtered] == [7, 7]
+    assert [len(page["items"]) for page in filtered] == [5, 2]
+    filtered_names = {item["username"] for page in filtered for item in page["items"]}
+    assert filtered_names == {f"reader{i:02d}" for i in range(7)}
 
 
 @pytest.mark.integration

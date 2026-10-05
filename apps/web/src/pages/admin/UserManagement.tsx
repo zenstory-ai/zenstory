@@ -62,15 +62,17 @@ export const UserManagement: React.FC = () => {
     },
   });
 
-  const users = data ?? [];
+  const users = data?.users ?? [];
   const queryErrorText = error instanceof Error && error.message
     ? error.message
     : t("common:error");
-  // 由于后端不返回总数，我们无法准确计算总页数
-  // 如果返回的用户数等于 pageSize，说明可能还有下一页
-  const hasNextPage = users.length === pageSize;
-  const totalPages = hasNextPage ? page + 2 : page + 1;
-  const total = page * pageSize + users.length;
+  // total is the count of all users matching the search. It is only null while an
+  // older API (bare array) is still deployed; then the page count is estimated.
+  const reportedTotal = data?.total ?? null;
+  const total = reportedTotal ?? page * pageSize + users.length;
+  const totalPages = reportedTotal !== null
+    ? Math.max(1, Math.ceil(reportedTotal / pageSize))
+    : users.length === pageSize ? page + 2 : page + 1;
   const showingFrom = users.length === 0 ? 0 : page * pageSize + 1;
   const showingTo = users.length === 0 ? 0 : Math.min((page + 1) * pageSize, total);
 

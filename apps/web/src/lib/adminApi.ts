@@ -652,7 +652,7 @@ function normalizeUserQuota(detail: unknown): UserQuotaDetail {
  * @param skip - Number of records to skip for pagination (default: 0)
  * @param limit - Maximum number of records to return (default: 20)
  * @param search - Optional search keyword for username or email filtering
- * @returns Promise resolving to paginated users list with total count
+ * @returns Promise resolving to one page of users and the total matching the filter
  */
 export async function getUsers(
   skip: number = 0,
@@ -669,7 +669,10 @@ export async function getUsers(
   }
 
   const payload = await api.get<unknown>(`${ADMIN_BASE}/users?${params.toString()}`);
-  return pickArray<unknown>(payload, ["items", "users"]).map(normalizeUser);
+  const users = pickArray<unknown>(payload, ["items", "users"]).map(normalizeUser);
+  const rawTotal = asRecord(payload)?.total;
+  const total = typeof rawTotal === "number" && Number.isFinite(rawTotal) ? rawTotal : null;
+  return { users, total };
 }
 
 /**

@@ -18,9 +18,13 @@ export interface UserUpdateRequest {
 }
 
 /**
- * Users list response - 后端直接返回数组
+ * Users list response. `total` counts every user matching the search filter;
+ * it is null when an older API returned a bare array without a count.
  */
-export type UsersListResponse = User[];
+export interface UsersListResponse {
+  users: User[];
+  total: number | null;
+}
 
 /**
  * System Prompt Configuration

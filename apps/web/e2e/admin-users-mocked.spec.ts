@@ -90,7 +90,7 @@ test.describe('Admin users (mocked)', () => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({ items }),
+          body: JSON.stringify({ items, total: items.length }),
         });
         return;
       }
@@ -147,5 +147,51 @@ test.describe('Admin users (mocked)', () => {
     const deleteModal = page.locator('.fixed.inset-0.z-50').last();
     await deleteModal.getByRole('button', { name: /确认|confirm/i }).click();
     await expect.poll(() => deleteCalled).toBe(1);
+  });
+
+  test('shows the filtered total, not the rows loaded so far, on every page', async ({ page }) => {
+    await bootstrapAdminSession(page);
+    const users = Array.from({ length: 92 }, (_, index) => ({
+      ...baseUser,
+      id: `user-${index + 1}`,
+      username: index < 7 ? `reader-${index + 1}` : `writer-${index + 1}`,
+      email: `user-${index + 1}@example.com`,
+    }));
+
+    await page.route('**/api/admin/users**', async (route) => {
+      const url = new URL(route.request().url());
+      const skip = Number(url.searchParams.get('skip') ?? 0);
+      const limit = Number(url.searchParams.get('limit') ?? 20);
+      const search = url.searchParams.get('search');
+      const matching = search ? users.filter((user) => user.username.includes(search)) : users;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: matching.slice(skip, skip + limit), total: matching.length }),
+      });
+    });
+
+    await page.goto('/admin/users');
+    const summary = page.getByText(/(显示|Showing) \d+-\d+/);
+    const next = page.getByRole('button', { name: /^(下一步|下一页|next)$/i });
+
+    await expect(summary).toHaveText(/1-20\D+92/);
+    await expect(page.getByText('1 / 5')).toBeVisible();
+
+    await next.click();
+    await expect(summary).toHaveText(/21-40\D+92/);
+    await expect(page.getByText('2 / 5')).toBeVisible();
+
+    for (let i = 0; i < 3; i += 1) {
+      await next.click();
+    }
+    await expect(summary).toHaveText(/81-92\D+92/);
+    await expect(page.getByText('5 / 5')).toBeVisible();
+    await expect(next).toBeDisabled();
+
+    await page.locator('input[placeholder*="搜索"], input[placeholder*="Search"]').fill('writer');
+    await page.getByRole('button', { name: /^(搜索|search)$/i }).click();
+    await expect(summary).toHaveText(/1-20\D+85/);
+    await expect(page.getByText('1 / 5')).toBeVisible();
   });
 });

@@ -27,6 +27,13 @@ class AdminUserResponse(BaseModel):
     updated_at: datetime
 
 
+class AdminUserListResponse(BaseModel):
+    """One page of users plus the total matching the active search filter."""
+
+    items: list[AdminUserResponse]
+    total: int
+
+
 class UserUpdateRequest(BaseModel):
     """Request body for updating a user"""
     username: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=100)] | None = None
