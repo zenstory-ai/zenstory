@@ -6,6 +6,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { PublicHeader } from "../components/PublicHeader";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { isValidRedirectUrl } from "../lib/ssoRedirect";
+import { takeAuthCallbackParams } from "../lib/authCallbackParams";
 import { logger } from "../lib/logger";
 import { captureException } from "../lib/analytics";
 import { toUserErrorMessage } from "../lib/errorHandler";
@@ -26,12 +27,18 @@ export default function OAuthCallback() {
     callbackProcessed.current = true;
     const processCallback = async () => {
       try {
-        // Get OAuth callback params from both query and hash for compatibility.
-        const queryParams = new URLSearchParams(window.location.search);
-        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+        // main.tsx captures the callback params and scrubs the URL at boot,
+        // before analytics starts. Fall back to the live URL (query, then
+        // hash) when nothing was captured, e.g. a client-side navigation.
+        const capturedParams = takeAuthCallbackParams();
+        const queryParams = capturedParams ?? new URLSearchParams(window.location.search);
+        const hashParams = capturedParams
+          ? new URLSearchParams()
+          : new URLSearchParams(window.location.hash.replace(/^#/, ""));
         const accessToken = queryParams.get("access_token") || hashParams.get("access_token");
         const refreshToken = queryParams.get("refresh_token") || hashParams.get("refresh_token");
         const redirectUrl = queryParams.get("redirect") || hashParams.get("redirect");
+        const isNewUser = (queryParams.get("new_user") || hashParams.get("new_user")) === "1";
         const providerError =
           queryParams.get("error") ||
           hashParams.get("error") ||
@@ -76,7 +83,7 @@ export default function OAuthCallback() {
         }
 
         // Handle OAuth callback
-        await handleOAuthCallback(accessToken, refreshToken);
+        await handleOAuthCallback(accessToken, refreshToken, { isNewUser });
         const planIntent = consumeOAuthPlanIntent();
 
         // Check for redirect parameter from external apps

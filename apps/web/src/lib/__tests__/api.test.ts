@@ -415,6 +415,37 @@ describe('api', () => {
           })
         )
       })
+
+      it('sends file_saved at most once per file every 5 minutes', async () => {
+        vi.useFakeTimers()
+        try {
+          vi.setSystemTime(new Date('2026-10-05T00:00:00Z'))
+          mockApi.put.mockResolvedValue({ id: 'throttled-file', project_id: 'p1' })
+          analyticsMocks.trackEventMock.mockClear()
+          const fileSavedCalls = () =>
+            analyticsMocks.trackEventMock.mock.calls.filter(([name, props]) =>
+              name === 'file_saved' && (props as { file_id?: string }).file_id === 'throttled-file')
+
+          await fileApi.update('throttled-file', { content: 'a' })
+          await fileApi.update('throttled-file', { content: 'ab' })
+          vi.setSystemTime(new Date('2026-10-05T00:04:59Z'))
+          await fileApi.update('throttled-file', { content: 'abc' })
+          expect(fileSavedCalls()).toHaveLength(1)
+
+          // Another file is tracked independently.
+          await fileApi.update('other-file', { content: 'x' })
+          expect(analyticsMocks.trackEventMock).toHaveBeenCalledWith(
+            'file_saved',
+            expect.objectContaining({ file_id: 'other-file' }),
+          )
+
+          vi.setSystemTime(new Date('2026-10-05T00:05:00Z'))
+          await fileApi.update('throttled-file', { content: 'abcd' })
+          expect(fileSavedCalls()).toHaveLength(2)
+        } finally {
+          vi.useRealTimers()
+        }
+      })
     })
 
     describe('delete', () => {

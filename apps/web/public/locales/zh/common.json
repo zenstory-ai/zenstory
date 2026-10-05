@@ -126,5 +126,12 @@
   "closeModal": "关闭对话框",
   "loadingCard": "加载卡片中...",
   "loadingTable": "加载表格中...",
-  "loadingText": "加载文本中..."
+  "loadingText": "加载文本中...",
+  "errorBoundary": {
+    "title": "出了点问题",
+    "pageDescription": "页面遇到意外错误。重新加载即可继续，已保存的内容不受影响。",
+    "panelDescription": "这个面板遇到意外错误，其他面板仍可正常使用。",
+    "retry": "重试",
+    "reload": "重新加载页面"
+  }
 }

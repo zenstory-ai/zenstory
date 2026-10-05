@@ -38,6 +38,18 @@ import { captureException, trackEvent } from "./analytics";
 
 const MATERIAL_UPLOAD_MAX_BYTES = 2_000_000; // 2MB
 
+// Autosave fires after every typing pause; one file_saved per file per
+// 5 minutes is enough to see who writes, without paying per keystroke burst.
+const FILE_SAVED_TRACK_INTERVAL_MS = 5 * 60 * 1000;
+const fileSavedTrackedAt = new Map<string, number>();
+
+function shouldTrackFileSaved(fileId: string, now: number = Date.now()): boolean {
+  const last = fileSavedTrackedAt.get(fileId);
+  if (last !== undefined && now - last < FILE_SAVED_TRACK_INTERVAL_MS) return false;
+  fileSavedTrackedAt.set(fileId, now);
+  return true;
+}
+
 /**
  * Authentication API endpoints.
  *
@@ -995,7 +1007,7 @@ export const fileApi = {
     },
   ) => {
     const updated = await api.put<File>(`/api/v1/files/${fileId}`, file);
-    if (Object.prototype.hasOwnProperty.call(file, "content")) {
+    if (Object.prototype.hasOwnProperty.call(file, "content") && shouldTrackFileSaved(fileId)) {
       trackEvent("file_saved", {
         file_id: fileId,
         project_id: updated.project_id,

@@ -126,5 +126,12 @@
   "closeModal": "Close modal",
   "loadingCard": "Loading card...",
   "loadingTable": "Loading table...",
-  "loadingText": "Loading text..."
+  "loadingText": "Loading text...",
+  "errorBoundary": {
+    "title": "Something went wrong",
+    "pageDescription": "The page hit an unexpected error. Reload to continue; your saved work is not affected.",
+    "panelDescription": "This panel hit an unexpected error. Other panels keep working.",
+    "retry": "Try again",
+    "reload": "Reload page"
+  }
 }

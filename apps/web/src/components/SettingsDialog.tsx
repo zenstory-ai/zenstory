@@ -43,6 +43,7 @@ import { InviteCodeList } from './referral/InviteCodeList';
 import { AgentApiKeysPanel } from './settings/AgentApiKeysPanel';
 import { buildUpgradeUrl, getUpgradePromptDefinition } from '../config/upgradeExperience';
 import { trackUpgradeClick } from '../lib/upgradeAnalytics';
+import { isAnalyticsOptedOut, setAnalyticsOptOut } from '../lib/analytics';
 
 /**
  * Props for the SettingsDialog component.
@@ -193,6 +194,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
   const { theme, accentColor, setTheme, setAccentColor } = useTheme();
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(() => !isAnalyticsOptedOut());
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const prevIsOpenRef = useRef(false);
   const [showRedeemCodeModal, setShowRedeemCodeModal] = useState(false);
@@ -438,6 +440,54 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                         </div>
                       </button>
                     ))}
+                  </div>
+                </div>
+
+                {/* Privacy: product analytics opt-out (stored per browser) */}
+                <div>
+                  <div className="text-xs font-medium text-[hsl(var(--text-secondary))] mb-2">
+                    {tSettings('privacy.title')}
+                  </div>
+                  <div className="flex items-start justify-between gap-3 p-2.5 rounded-lg border border-[hsl(var(--border-color))]">
+                    <div className="min-w-0">
+                      <div id="settings-analytics-label" className="text-sm font-medium text-[hsl(var(--text-primary))]">
+                        {tSettings('privacy.analytics')}
+                      </div>
+                      <p className="mt-1 text-xs text-[hsl(var(--text-secondary))]">
+                        {tSettings('privacy.analyticsDescription')}{' '}
+                        <a
+                          href="/privacy-policy"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline hover:text-[hsl(var(--text-primary))]"
+                        >
+                          {tSettings('privacy.privacyLink')}
+                        </a>
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={analyticsEnabled}
+                      aria-labelledby="settings-analytics-label"
+                      data-testid="analytics-toggle"
+                      onClick={() => {
+                        const nextEnabled = !analyticsEnabled;
+                        setAnalyticsOptOut(!nextEnabled);
+                        setAnalyticsEnabled(nextEnabled);
+                      }}
+                      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                        analyticsEnabled
+                          ? 'bg-[hsl(var(--accent-primary))]'
+                          : 'bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))]'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                          analyticsEnabled ? 'translate-x-4' : 'translate-x-0.5'
+                        }`}
+                      />
+                    </button>
                   </div>
                 </div>
 

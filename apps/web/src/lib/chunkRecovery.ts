@@ -2,7 +2,16 @@ import { lazy, type ComponentType, type LazyExoticComponent } from "react";
 import { logger } from "./logger";
 
 const CHUNK_RELOAD_STORAGE_KEY = "zenstory:chunk-reload-once";
+const CHUNK_RELOAD_AT_STORAGE_KEY = "zenstory:chunk-reload-at";
 const GENERIC_CHUNK_ERROR_SOURCES = new Set(["vite:preloadError", "unhandledrejection"]);
+/**
+ * A guard set by a generic source (hover preload, unhandled rejection) names
+ * no route, so no single route import can prove it recovered. Any successful
+ * route import clears it once it is this old: late enough that a failure
+ * repeating on every page load still stops after one reload, early enough that
+ * a later deploy in the same tab can recover again.
+ */
+const GENERIC_GUARD_MIN_AGE_MS = 10_000;
 const DYNAMIC_IMPORT_ERROR_PATTERNS = [
   "Failed to fetch dynamically imported module",
   "Importing a module script failed",
@@ -45,6 +54,7 @@ export function reloadForChunkErrorOnce(error: unknown, source: string): boolean
   });
   pendingChunkReload = new Promise<never>(() => {});
   sessionStorage.setItem(CHUNK_RELOAD_STORAGE_KEY, source);
+  sessionStorage.setItem(CHUNK_RELOAD_AT_STORAGE_KEY, String(Date.now()));
   window.location.reload();
   return true;
 }
@@ -71,6 +81,22 @@ export function installChunkRecoveryHandlers(): void {
   });
 }
 
+function clearRecoveredGuard(importedSource: string): void {
+  const guardedSource = sessionStorage.getItem(CHUNK_RELOAD_STORAGE_KEY);
+  if (guardedSource === null) return;
+
+  const isOwnGuard = guardedSource === importedSource;
+  const isStaleGenericGuard =
+    GENERIC_CHUNK_ERROR_SOURCES.has(guardedSource)
+    && Date.now() - Number(sessionStorage.getItem(CHUNK_RELOAD_AT_STORAGE_KEY) ?? 0)
+      >= GENERIC_GUARD_MIN_AGE_MS;
+
+  if (isOwnGuard || isStaleGenericGuard) {
+    sessionStorage.removeItem(CHUNK_RELOAD_STORAGE_KEY);
+    sessionStorage.removeItem(CHUNK_RELOAD_AT_STORAGE_KEY);
+  }
+}
+
 export function lazyRoute<TProps>(
   importer: () => Promise<{ default: ComponentType<TProps> }>,
   source: string,
@@ -78,12 +104,8 @@ export function lazyRoute<TProps>(
   return lazy(async () => {
     try {
       const module = await importer();
-      if (
-        typeof window !== "undefined"
-        && pendingChunkReload === null
-        && sessionStorage.getItem(CHUNK_RELOAD_STORAGE_KEY) === source
-      ) {
-        sessionStorage.removeItem(CHUNK_RELOAD_STORAGE_KEY);
+      if (typeof window !== "undefined" && pendingChunkReload === null) {
+        clearRecoveredGuard(source);
       }
       return module;
     } catch (error) {
