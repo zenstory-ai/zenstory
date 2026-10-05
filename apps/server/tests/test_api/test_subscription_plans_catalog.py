@@ -264,12 +264,13 @@ async def test_subscription_catalog_normalizes_feature_based_entitlements(
     assert entitlements["writing_credits_monthly"] == 450
     assert entitlements["agent_runs_monthly"] == 60
     assert entitlements["active_projects_limit"] == 6
-    assert entitlements["context_tokens_limit"] == 8192
+    # Deprecated neutral values: stored context/priority features are not advertised.
+    assert entitlements["context_tokens_limit"] == 0
     assert entitlements["material_uploads_monthly"] == 12
     assert entitlements["material_decompositions_monthly"] == 8
     assert entitlements["custom_skills_limit"] == 9
     assert entitlements["inspiration_copies_monthly"] == 33
-    assert entitlements["priority_queue_level"] == "priority"
+    assert entitlements["priority_queue_level"] == "standard"
     assert entitlements["export_formats"] == []
 
 

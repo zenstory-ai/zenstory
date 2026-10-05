@@ -61,6 +61,12 @@ def _raise_code_generator_config_error(exc: ValueError) -> None:
 
 
 def _validate_tier_exists(session: Session, tier: str) -> None:
+    if tier == "free":
+        # A free-tier code would replace a paid plan and discard its remaining days.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Redemption codes cannot grant the free tier",
+        )
     plan = session.exec(
         select(SubscriptionPlan).where(SubscriptionPlan.name == tier)
     ).first()

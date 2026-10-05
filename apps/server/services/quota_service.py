@@ -10,11 +10,13 @@ from sqlmodel import Session, func, select
 
 from config.datetime_utils import utcnow
 from models.entities import Project
+from models.skill import UserSkill
 from models.subscription import SubscriptionPlan, UsageQuota, UserSubscription
 from services.subscription.defaults import (
     DEFAULT_FREE_PLAN_DISPLAY_NAME,
     DEFAULT_FREE_PLAN_DISPLAY_NAME_EN,
     clone_default_free_features,
+    resolve_plan_feature,
 )
 
 # Feature type to (limit_field, used_field) mapping
@@ -67,10 +69,7 @@ class QuotaService:
 
             # Active-but-expired subscriptions should not keep paid plan quotas.
             if period_end <= now:
-                subscription.status = "expired"
-                subscription.updated_at = now
-                session.add(subscription)
-                session.commit()
+                self._expire_if_still_lapsed(session, subscription.id, now)
             else:
                 plan = session.exec(
                     select(SubscriptionPlan).where(SubscriptionPlan.id == subscription.plan_id)
@@ -96,6 +95,77 @@ class QuotaService:
         # Fallback: create in-memory default free plan (not persisted)
         return self._create_default_free_plan()
 
+    def _expire_if_still_lapsed(
+        self, session: Session, subscription_id: str, now: datetime
+    ) -> None:
+        """
+        Mark a lapsed subscription expired without clobbering a concurrent renewal.
+
+        The WHERE re-checks status and period end at write time, so a payment that
+        extended the period after our read leaves the row untouched (no lost update).
+        """
+        cutoff = now.replace(tzinfo=None)
+        result = session.exec(
+            update(UserSubscription)
+            .where(
+                UserSubscription.id == subscription_id,
+                UserSubscription.status == "active",
+                UserSubscription.current_period_end <= cutoff,
+            )
+            .values(status="expired", updated_at=now)
+        )
+        if result.rowcount:
+            session.commit()
+        else:
+            session.rollback()
+
+    def get_plan_feature(
+        self, plan: SubscriptionPlan | None, key: str, fallback: object = 0
+    ) -> object:
+        """A plan's feature value, defaulting to that plan's preset (not free's)."""
+        if plan is None:
+            return resolve_plan_feature("free", None, key, fallback)
+        return resolve_plan_feature(plan.name, plan.features, key, fallback)
+
+    def count_custom_skills(self, session: Session, user_id: str) -> int:
+        return int(
+            session.exec(
+                select(func.count())
+                .select_from(UserSkill)
+                .where(UserSkill.user_id == user_id)
+            ).one()
+        )
+
+    def check_custom_skill_slot(
+        self, session: Session, user_id: str
+    ) -> tuple[bool, int, int]:
+        """
+        Check the custom-skill cap against skills the user currently owns.
+
+        The limit is a count of owned skills, so deleting one frees a slot. Before
+        counting, this takes a write lock on the user's quota row (PostgreSQL row
+        lock / SQLite writer lock) that is held until the caller commits the new
+        skill or rolls back, so concurrent creates cannot both pass the check.
+        The monthly ``skill_creates_used`` counter is bumped under the same lock
+        and kept only as an activity metric.
+
+        Returns: (allowed, owned_count, limit)
+        """
+        plan = self.get_user_plan(session, user_id)
+        limit = int(self.get_plan_feature(plan, "custom_skills"))
+        quota = self._get_or_create_quota(session, user_id)
+        self._reset_monthly_quota_if_needed(session, quota)
+
+        session.exec(
+            update(UsageQuota)
+            .where(UsageQuota.user_id == user_id)
+            .values(skill_creates_used=UsageQuota.skill_creates_used + 1)
+        )
+        used = self.count_custom_skills(session, user_id)
+        if limit == -1:
+            return (True, used, -1)
+        return (used < limit, used, limit)
+
     def check_project_limit(
         self,
         session: Session,
@@ -110,9 +180,8 @@ class QuotaService:
         - limit: plan max_projects (-1 for unlimited)
         """
         plan = self.get_user_plan(session, user_id)
-        features = plan.features if plan and plan.features else {}
         fallback_limit = DEFAULT_FREE_TIER_FEATURES.get("max_projects", 3)
-        raw_limit = features.get("max_projects", fallback_limit)
+        raw_limit = self.get_plan_feature(plan, "max_projects", fallback_limit)
         try:
             limit = int(raw_limit)
         except (TypeError, ValueError):
@@ -239,7 +308,6 @@ class QuotaService:
         their own reset logic.
         """
         plan = plan or self.get_user_plan(session, user_id)
-        features = plan.features if plan and plan.features else {}
 
         quota = self._get_or_create_quota(session, user_id)
         self._reset_quota_if_needed(session, quota)
@@ -248,10 +316,7 @@ class QuotaService:
         # Refresh to ensure latest values after possible reset commits.
         session.refresh(quota)
 
-        ai_limit = features.get(
-            "ai_conversations_per_day",
-            DEFAULT_FREE_TIER_FEATURES["ai_conversations_per_day"],
-        )
+        ai_limit = self.get_plan_feature(plan, "ai_conversations_per_day")
         snapshot = {
             "ai_conversations": {
                 "used": quota.ai_conversations_used,
@@ -262,12 +327,17 @@ class QuotaService:
 
         for feature_type, (limit_field, used_field) in FEATURE_QUOTA_MAP.items():
             response_key = FEATURE_RESPONSE_KEY_MAP[feature_type]
-            fallback_limit = DEFAULT_FREE_TIER_FEATURES.get(limit_field, 0)
             snapshot[response_key] = {
                 "used": getattr(quota, used_field, 0),
-                "limit": features.get(limit_field, fallback_limit),
+                "limit": self.get_plan_feature(plan, limit_field),
                 "reset_at": quota.monthly_period_end,
             }
+        # Custom skills cap what the user owns now, not monthly creations.
+        snapshot["skill_creates"] = {
+            **snapshot["skill_creates"],
+            "used": self.count_custom_skills(session, user_id),
+            "reset_at": None,
+        }
 
         return snapshot
 
@@ -420,8 +490,12 @@ class QuotaService:
 
         # Get plan and limit
         plan = self.get_user_plan(session, user_id)
-        fallback_limit = DEFAULT_FREE_TIER_FEATURES.get(limit_field, 0)
-        limit = plan.features.get(limit_field, fallback_limit) if plan else fallback_limit
+        limit = self.get_plan_feature(plan, limit_field)
+
+        if feature_type == "skill_create":
+            # Read-only view; creation paths must use check_custom_skill_slot.
+            used = self.count_custom_skills(session, user_id)
+            return (True, used, -1) if limit == -1 else (used < limit, used, limit)
 
         # Get or create quota, with monthly reset check
         quota = self._get_or_create_quota(session, user_id)
@@ -453,8 +527,7 @@ class QuotaService:
         used_column = getattr(UsageQuota, used_field)
 
         plan = self.get_user_plan(session, user_id)
-        fallback_limit = DEFAULT_FREE_TIER_FEATURES.get(limit_field, 0)
-        limit = plan.features.get(limit_field, fallback_limit) if plan else fallback_limit
+        limit = self.get_plan_feature(plan, limit_field)
 
         quota = self._get_or_create_quota(session, user_id)
         self._reset_monthly_quota_if_needed(session, quota)

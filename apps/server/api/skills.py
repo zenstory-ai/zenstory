@@ -36,7 +36,7 @@ from agent.skills.package import (
 from config.datetime_utils import utcnow
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
-from core.permissions import require_quota
+from core.permissions import require_custom_skill_slot
 from database import get_session
 from models import PublicSkill, User, UserAddedSkill, UserSkill
 from services import skill_package_service
@@ -219,13 +219,13 @@ async def list_skills(
 
 
 @router.post("", response_model=SkillResponse)
-@require_quota("skill_create")
 async def create_skill(
     request: CreateSkillRequest,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ) -> SkillResponse:
     """Create a new user skill."""
+    require_custom_skill_slot(session, current_user.id)
     db_skill = UserSkill(
         user_id=current_user.id,
         name=request.name,
@@ -794,7 +794,6 @@ class _ImportUploadRoute(APIRoute):
         return handler
 
 
-@require_quota("skill_create")
 async def import_skill(
     file: UploadFile = File(...),
     session: Session = Depends(get_session),
@@ -810,6 +809,7 @@ async def import_skill(
     parsed = await asyncio.to_thread(
         skill_package_service.parse_skill_upload, file.filename, data
     )
+    require_custom_skill_slot(session, current_user.id)
     db_skill, warnings = skill_package_service.import_skill_package(
         session, current_user.id, file.filename, data, parsed=parsed
     )

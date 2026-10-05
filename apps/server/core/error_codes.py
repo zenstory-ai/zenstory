@@ -141,6 +141,7 @@ class ErrorCode:
     REDEMPTION_CODE_USED = "ERR_REDEMPTION_CODE_USED"
     REDEMPTION_CODE_DISABLED = "ERR_REDEMPTION_CODE_DISABLED"
     REDEMPTION_CODE_CHECKSUM_FAILED = "ERR_REDEMPTION_CODE_CHECKSUM_FAILED"
+    REDEMPTION_CODE_DOWNGRADE = "ERR_REDEMPTION_CODE_DOWNGRADE"
     REDEMPTION_RATE_LIMIT_EXCEEDED = "ERR_REDEMPTION_RATE_LIMIT_EXCEEDED"
 
     # ==================== Points Errors (13xxx) ====================
@@ -241,6 +242,7 @@ ERROR_MESSAGES = {
         "ERR_REDEMPTION_CODE_USED": "兑换码已被使用",
         "ERR_REDEMPTION_CODE_DISABLED": "兑换码已被禁用",
         "ERR_REDEMPTION_CODE_CHECKSUM_FAILED": "兑换码校验失败",
+        "ERR_REDEMPTION_CODE_DOWNGRADE": "当前付费套餐仍在有效期内，不能兑换更低档位的兑换码",
         "ERR_REDEMPTION_RATE_LIMIT_EXCEEDED": "兑换请求过于频繁，请稍后重试",
 
         "ERR_POINTS_INSUFFICIENT_BALANCE": "积分余额不足",
@@ -335,6 +337,7 @@ ERROR_MESSAGES = {
         "ERR_REDEMPTION_CODE_USED": "Redemption code has already been used",
         "ERR_REDEMPTION_CODE_DISABLED": "Redemption code has been disabled",
         "ERR_REDEMPTION_CODE_CHECKSUM_FAILED": "Redemption code verification failed",
+        "ERR_REDEMPTION_CODE_DOWNGRADE": "Your paid plan is still active; a lower-tier code cannot be redeemed",
         "ERR_REDEMPTION_RATE_LIMIT_EXCEEDED": "Too many redemption attempts, please try again later",
 
         "ERR_POINTS_INSUFFICIENT_BALANCE": "Insufficient points balance",

@@ -34,7 +34,9 @@ def test_normalize_plan_entitlements_sanitizes_invalid_values():
     assert entitlements["writing_credits_monthly"] == 0
     assert entitlements["material_uploads_monthly"] == 0
     assert entitlements["materials_library_access"] is False
-    assert entitlements["priority_queue_level"] == "standard"
+    # Unimplemented perks are never derived from stored features.
+    assert "priority_queue_level" not in entitlements
+    assert "context_tokens_limit" not in entitlements
 
 
 def test_list_active_plans_or_default_free_returns_fallback_plan(db_session: Session):

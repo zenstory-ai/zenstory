@@ -14,6 +14,7 @@ from database import get_session
 from models import User
 from models.subscription import SubscriptionPlan, UsageQuota, UserSubscription
 from services.core.auth_service import get_current_superuser
+from services.quota_service import quota_service
 from utils.logger import get_logger, log_with_context
 
 from .schemas import (
@@ -131,8 +132,10 @@ def get_user_quota_detail(
             features = plan.features or {}
             ai_conversations_limit = features.get("ai_conversations_per_day", ai_conversations_limit)
             material_upload_limit = features.get("material_uploads", material_upload_limit)
-            skill_create_limit = features.get("custom_skills", skill_create_limit)
-            inspiration_copy_limit = features.get("inspiration_copies_monthly", inspiration_copy_limit)
+            skill_create_limit = quota_service.get_plan_feature(plan, "custom_skills")
+            inspiration_copy_limit = quota_service.get_plan_feature(
+                plan, "inspiration_copies_monthly"
+            )
 
     log_with_context(
         logger,
@@ -151,7 +154,7 @@ def get_user_quota_detail(
         ai_conversations_limit=ai_conversations_limit,
         material_upload_used=quota.material_uploads_used if quota else 0,
         material_upload_limit=material_upload_limit,
-        skill_create_used=quota.skill_creates_used if quota else 0,
+        skill_create_used=quota_service.count_custom_skills(session, resolved_user_id),
         skill_create_limit=skill_create_limit,
         inspiration_copy_used=quota.inspiration_copies_used if quota else 0,
         inspiration_copy_limit=inspiration_copy_limit,

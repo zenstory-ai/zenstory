@@ -19,6 +19,7 @@ from models.referral import (
     Referral,
     UserReward,
 )
+from models.skill import UserSkill
 from models.subscription import SubscriptionHistory, SubscriptionPlan, UsageQuota, UserSubscription
 from services.core.auth_service import hash_password
 
@@ -105,6 +106,10 @@ async def test_admin_quota_usage_and_user_quota_detail(client: AsyncClient, db_s
             monthly_period_start=now,
             monthly_period_end=now + timedelta(days=30),
         )
+    )
+    # The custom-skill cap counts skills the user owns, not monthly creations.
+    db_session.add_all(
+        [UserSkill(user_id=target.id, name=f"skill {i}", instructions="x") for i in range(3)]
     )
     db_session.commit()
 
