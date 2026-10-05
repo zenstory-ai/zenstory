@@ -122,4 +122,29 @@ describe("PromptManagement", () => {
     fireEvent.click(screen.getByRole("button", { name: "common:confirm" }));
     expect(deleteMutateMock).toHaveBeenCalledWith("novel");
   });
+
+  it("adds consistent inner spacing to prompt cards", () => {
+    useQueryMock.mockReturnValue({
+      data: [
+        {
+          id: "prompt-1",
+          project_type: "screenplay",
+          system_prompt: "You are a screenwriter",
+          is_active: true,
+          version: 3,
+          created_at: "2026-03-01T00:00:00Z",
+          updated_at: "2026-03-08T00:00:00Z",
+        },
+      ],
+      isLoading: false,
+      isFetching: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<PromptManagement />);
+
+    expect(screen.getByText("screenplay").closest(".admin-surface")).toHaveClass("p-4");
+  });
 });

@@ -190,6 +190,35 @@ describe('DashboardProjects', () => {
     mockRefreshProjects.mockResolvedValue(undefined)
   })
 
+  it.each(['desktop', 'tablet', 'mobile'])('anchors project metadata to the card bottom on %s', (viewport) => {
+    isMobile = viewport === 'mobile'
+    isTablet = viewport === 'tablet'
+    mockProjects = ['', 'Short description', 'A longer description that wraps across multiple lines. '.repeat(8)].map(
+      (description, index) => ({
+        id: `layout-${index}`,
+        name: `Layout project ${index}`,
+        description,
+        project_type: 'novel',
+        updated_at: '2026-04-07T00:00:00Z',
+      }),
+    )
+
+    render(<DashboardProjects />)
+
+    for (const project of mockProjects) {
+      const card = screen.getByRole('button', { name: `Open project ${project.name}` })
+      const content = card.querySelector(':scope > .relative')
+      const footer = content?.lastElementChild
+
+      expect(card).toHaveClass('flex', 'flex-col')
+      expect(content).toHaveClass('flex', 'flex-1', 'flex-col')
+      expect(footer).toHaveClass('mt-auto', 'flex', 'items-center', 'justify-between')
+      expect(footer?.children).toHaveLength(2)
+      expect(footer?.firstElementChild).toHaveTextContent('Novel')
+      expect(footer?.lastElementChild).not.toBeEmptyDOMElement()
+    }
+  })
+
   it('renders loading, retryable error, and successful empty as distinct states', async () => {
     mockProjects = []
     mockLoading = true

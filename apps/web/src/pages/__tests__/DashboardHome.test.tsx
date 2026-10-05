@@ -7,7 +7,7 @@ import { ApiError } from '../../lib/apiClient'
 let mockLanguage = 'zh-CN'
 let mockIsMobile = false
 let mockIsTablet = false
-let mockProjects: Array<{ id: string; name: string; project_type: 'novel'; updated_at?: string | null }> = []
+let mockProjects: Array<{ id: string; name: string; description?: string; project_type: 'novel'; updated_at?: string | null }> = []
 let mockProjectsLoading = false
 let mockFeaturedState: {
   featured: Array<{ id: string; name: string; description?: string; project_type: 'novel' }>;
@@ -236,6 +236,35 @@ describe('DashboardHome featured inspirations section', () => {
     mockGetActivationGuide.mockImplementation(() => Promise.resolve(mockActivationGuide))
     mockGetRecommendations.mockImplementation(() => Promise.resolve(mockPersonaRecommendations))
     vi.mocked(projectApi.getTemplates).mockResolvedValue(null)
+  })
+
+  it.each(['desktop', 'tablet', 'mobile'])('anchors recent project metadata to the card bottom on %s', async (viewport) => {
+    mockIsMobile = viewport === 'mobile'
+    mockIsTablet = viewport === 'tablet'
+    mockProjects = ['', 'Short description', 'A longer description that wraps across multiple lines. '.repeat(8)].map(
+      (description, index) => ({
+        id: `layout-${index}`,
+        name: `Layout project ${index}`,
+        description,
+        project_type: 'novel',
+        updated_at: '2026-04-07T00:00:00Z',
+      }),
+    )
+
+    renderDashboardHome()
+
+    for (const project of mockProjects) {
+      const card = await screen.findByRole('button', { name: `Open project ${project.name}` })
+      const content = card.querySelector(':scope > .relative')
+      const footer = content?.lastElementChild
+
+      expect(card).toHaveClass('flex', 'flex-col')
+      expect(content).toHaveClass('flex', 'flex-1', 'flex-col')
+      expect(footer).toHaveClass('mt-auto', 'flex', 'items-center', 'justify-between')
+      expect(footer?.children).toHaveLength(2)
+      expect(footer?.firstElementChild).toHaveTextContent('长篇小说')
+      expect(footer?.lastElementChild).not.toBeEmptyDOMElement()
+    }
   })
 
   it('retains the baseline templates and reports a template API failure', async () => {

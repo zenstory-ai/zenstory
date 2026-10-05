@@ -285,6 +285,7 @@ export default function BillingPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {sortedPlans.map((plan) => {
               const isCurrent = status?.tier === plan.name;
+              const isFreePlan = plan.price_monthly_cents === 0 && plan.price_yearly_cents === 0;
               return (
                 <div
                   key={plan.id}
@@ -300,7 +301,8 @@ export default function BillingPage() {
                         {getLocalizedPlanDisplayName(plan, i18n.language)}
                       </div>
                       <div className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
-                        {formatPrice(plan.price_monthly_cents, "month")} · {formatPrice(plan.price_yearly_cents, "year")}
+                        {formatPrice(plan.price_monthly_cents, "month")}
+                        {!isFreePlan && <> · {formatPrice(plan.price_yearly_cents, "year")}</>}
                       </div>
                     </div>
                     {isCurrent ? (

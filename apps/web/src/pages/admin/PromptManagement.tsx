@@ -142,11 +142,11 @@ export const PromptManagement: React.FC = () => {
             <div
               key={prompt.project_type}
               onClick={() => handleCardClick(prompt.project_type)}
-              className="admin-surface cursor-pointer hover:border-[hsl(var(--accent-primary))] transition-colors"
+              className="admin-surface min-w-0 p-4 cursor-pointer hover:border-[hsl(var(--accent-primary))] transition-colors"
             >
               <div className="flex items-start justify-between mb-3">
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-[hsl(var(--text-primary))] mb-1">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-lg font-semibold text-[hsl(var(--text-primary))] mb-1 break-words">
                     {prompt.project_type}
                   </h3>
                   <span
@@ -159,23 +159,23 @@ export const PromptManagement: React.FC = () => {
                     {prompt.is_active ? t("prompts.active") : t("prompts.inactive")}
                   </span>
                 </div>
-                <FileText size={20} className="text-[hsl(var(--text-secondary))]" />
+                <FileText size={20} className="shrink-0 text-[hsl(var(--text-secondary))]" />
               </div>
 
               <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-[hsl(var(--text-secondary))]">
                     {t("prompts.version")}:
                   </span>
-                  <span className="font-medium text-[hsl(var(--text-primary))]">
+                  <span className="min-w-0 break-words text-right font-medium text-[hsl(var(--text-primary))]">
                     {prompt.version}
                   </span>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-[hsl(var(--text-secondary))]">
                     {t("prompts.updatedAt")}:
                   </span>
-                  <span className="text-[hsl(var(--text-primary))]">
+                  <span className="min-w-0 break-words text-right text-[hsl(var(--text-primary))]">
                     {prompt.updated_at ? formatDate(prompt.updated_at) : "-"}
                   </span>
                 </div>

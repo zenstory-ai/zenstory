@@ -779,7 +779,7 @@ export default function DashboardHome() {
                         navigate(`/project/${project.id}`);
                       }
                     }}
-                    className={`group relative bg-[hsl(var(--bg-secondary))] rounded-lg border border-[hsl(var(--border-color))] cursor-pointer hover:border-[hsl(var(--accent-primary)/0.3)] hover:shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-[hsl(var(--accent-primary)/0.5)] ${isMobile ? "p-4" : "p-4"}`}
+                    className={`group relative flex flex-col bg-[hsl(var(--bg-secondary))] rounded-lg border border-[hsl(var(--border-color))] cursor-pointer hover:border-[hsl(var(--accent-primary)/0.3)] hover:shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-[hsl(var(--accent-primary)/0.5)] ${isMobile ? "p-4" : "p-4"}`}
                     data-testid="project-card"
                   >
                     {/* Gradient Overlay */}
@@ -787,7 +787,7 @@ export default function DashboardHome() {
                       className={`absolute inset-0 rounded-lg bg-gradient-to-br ${config.gradientFrom} ${config.gradientTo} opacity-0 group-hover:opacity-100 transition-opacity`}
                     />
 
-                    <div className="relative">
+                    <div className="relative flex flex-1 flex-col">
                       {/* Header */}
                       <div className="flex items-start justify-between mb-2">
                         <div
@@ -826,7 +826,7 @@ export default function DashboardHome() {
                       )}
 
                       {/* Footer */}
-                      <div className="flex items-center justify-between">
+                      <div className="mt-auto flex items-center justify-between">
                         <span
                           className={`text-xs px-2 py-0.5 rounded-md ${config.bgClass} ${config.colorClass} font-medium`}
                         >

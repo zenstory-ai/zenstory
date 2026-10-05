@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import BillingPage from '../BillingPage'
 
@@ -189,6 +189,16 @@ describe('BillingPage', () => {
       refetch: refetchQuota,
     }
     vi.stubGlobal('location', { assign: assignSpy })
+  })
+
+  it('shows the free price once while preserving paid billing periods', () => {
+    render(<BillingPage />)
+
+    const comparison = screen.getByText('Plan comparison').closest('section')
+    expect(comparison).not.toBeNull()
+    expect(within(comparison!).getAllByText('Free')).toHaveLength(2)
+    expect(screen.queryByText('Free · Free')).not.toBeInTheDocument()
+    expect(screen.getByText('¥19/month · ¥190/year')).toBeInTheDocument()
   })
 
   it('tracks attribution, renders current usage, and supports upgrade and redeem actions', async () => {
