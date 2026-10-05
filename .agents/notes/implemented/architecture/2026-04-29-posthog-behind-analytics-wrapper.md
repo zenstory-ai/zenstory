@@ -14,7 +14,7 @@ URL 也属于隐私边界：`analytics.ts` 的 `sanitizeUrl` / `sanitizeAnalytic
 
 DOM 派生的采集在本地写死关闭，不受 PostHog 后台开关影响：`autocapture: false`、`capture_dead_clicks: false`、`capture_heatmaps: false`、`rageclick: false`、`mask_all_text: true`、`mask_all_element_attributes: true`；Editor 与 ChatPanel 外层的 `ErrorBoundary` 容器、`MessageList` 根节点带 `ph-no-capture`。
 
-用户可在「设置 → 通用」关闭分析：`setAnalyticsOptOut()` 写 localStorage `zenstory:analytics-opt-out`，已初始化时调 `posthog.opt_out_capturing()` / `opt_in_capturing()`；已关闭的浏览器启动时 `initAnalytics()` 直接返回 false（不建 cookie），重新打开时用上次的 env 补做初始化。隐私政策（`public/locales/{zh,en}/privacy.json` 的 `dataSharing.subsections.analytics`，lastUpdated 2026-10-05）按以上实际行为披露：PostHog Cloud 美国区域、发送的事件类别、`ph_` 开头的 cookie/localStorage 标识符、不发送作品正文/提示词/对话/上传文件、关闭方式。
+用户可在「设置 → 通用」关闭分析：`setAnalyticsOptOut()` 写 localStorage `zenstory:analytics-opt-out`，已初始化时调 `posthog.opt_out_capturing()` / `opt_in_capturing()`；已关闭的浏览器启动时 `initAnalytics()` 直接返回 false（不建 cookie），重新打开时用上次的 env 补做初始化。`zenstory:analytics-opt-out` 是唯一依据：PostHog 会把 `opt_out_capturing()` 另存到自己的 localStorage 键（`__ph_opt_in_out_<token>`），刷新后仍然生效，所以 `initAnalytics()` 在 `posthog.init()` 之后若 `has_opted_out_capturing()` 为 true 就调 `opt_in_capturing()`，避免设置页显示已开启而实际不再发送。隐私政策（`public/locales/{zh,en}/privacy.json` 的 `dataSharing.subsections.analytics`，lastUpdated 2026-10-05）按以上实际行为披露：PostHog Cloud 美国区域、发送的事件类别、`ph_` 开头的 cookie/localStorage 标识符、不发送作品正文/提示词/对话/上传文件、关闭方式。
 
 来源：3ef311e（初始提交；设计稿 `docs/plans/2026-03-28-posthog-frontend-analytics-design.md`，已落地）
 

@@ -278,6 +278,13 @@ export function initAnalytics(
       request_batching: !env.DEV,
     } as unknown as Parameters<typeof posthog.init>[1]
   );
+  // PostHog persists opt_out_capturing() in its own storage key, so a browser
+  // that opted out and then reloaded would stay silenced after the switch was
+  // turned back on. Our flag is the only source of truth: reaching this point
+  // means the viewer has not opted out, so clear any stale PostHog opt-out.
+  if (posthog.has_opted_out_capturing()) {
+    posthog.opt_in_capturing();
+  }
   posthog.startExceptionAutocapture();
   isInitialized = true;
   setAnalyticsStatus({
