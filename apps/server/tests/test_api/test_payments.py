@@ -5,7 +5,7 @@ from datetime import datetime
 
 import pytest
 from httpx import AsyncClient
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from models import User
 from models.payment import PaymentOrder
@@ -143,7 +143,10 @@ async def test_checkout_uses_server_price_and_owner_isolation(
             "amount_cents": 1,
         },
     )
-    assert injected.status_code == 422
+    # Unknown fields are ignored, never trusted: the price still comes from the plan.
+    assert injected.status_code == 200
+    assert injected.json()["order"]["amount_cents"] == 29000
+    assert injected.json()["checkout"]["fields"]["money"] == "290.00"
 
 
 @pytest.mark.integration
@@ -677,3 +680,47 @@ async def test_create_order_records_upgrade_source_and_returns_error_codes(
     )
     assert disabled.status_code == 503
     assert disabled.json()["detail"] == "ERR_PAYMENT_UNAVAILABLE"
+
+
+@pytest.mark.integration
+async def test_create_order_ignores_unknown_fields_but_validates_known_ones(
+    client: AsyncClient, db_session: Session
+):
+    """A web build deployed ahead of the API may send fields this API does not know."""
+    user = make_user(db_session, "pay_newer_client")
+    make_plan(db_session)
+    headers = await login(client, user.username)
+    base = {"plan_name": "pro", "cycle": "month", "payment_method": "alipay"}
+
+    accepted = await client.post(
+        "/api/v1/payments/orders",
+        headers=headers,
+        json={**base, "upgrade_source": "pricing_page", "client_build": "2026.10.06"},
+    )
+    assert accepted.status_code == 200
+    order = accepted.json()["order"]
+    assert order["amount_cents"] == 2900
+    assert order["upgrade_source"] == "pricing_page"
+    stored = db_session.exec(
+        select(PaymentOrder).where(PaymentOrder.out_trade_no == order["out_trade_no"])
+    ).one()
+    assert stored.user_id == user.id
+
+    for invalid in (
+        {"plan_name": "enterprise"},
+        {"cycle": "week"},
+        {"payment_method": "wechat"},
+        {"upgrade_source": "bad source!"},
+    ):
+        rejected = await client.post(
+            "/api/v1/payments/orders",
+            headers=headers,
+            json={**base, **invalid, "client_build": "2026.10.06"},
+        )
+        assert rejected.status_code == 422, invalid
+    missing = await client.post(
+        "/api/v1/payments/orders",
+        headers=headers,
+        json={"plan_name": "pro", "payment_method": "alipay", "client_build": "x"},
+    )
+    assert missing.status_code == 422

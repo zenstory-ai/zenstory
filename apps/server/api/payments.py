@@ -77,7 +77,8 @@ class PaymentOptionsResponse(BaseModel):
 
 
 class PaymentOrderCreateRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    # The web app can deploy before the API, so a newer client's extra fields are ignored.
+    model_config = ConfigDict(extra="ignore")
 
     plan_name: Literal["pro"]
     cycle: Literal["month", "year"]

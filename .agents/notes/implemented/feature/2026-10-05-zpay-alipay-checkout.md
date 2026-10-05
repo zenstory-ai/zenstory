@@ -36,7 +36,7 @@ SQLite 下每一步开头 `BEGIN IMMEDIATE`（`_begin_serialized_write`），Pos
 
 **配置检查。** `config/payment_settings.py` 的 `PaymentSettings.configuration_problems()` 是唯一规则：notify URL 必须 https、无 query，路径必须**精确**等于 `/api/v1/payments/zpay/notify`，主机不得等于 `FRONTEND_URL` 的主机（Vercel 前端不转发 `/api`）。任何一项不满足，`checkout_enabled` 为假；已建订单的回调只需要 PID/KEY，不受影响。`ZPAY_ENABLED=true` 但配置有问题时，启动时 `zpay_service.log_configuration_status` 打一条 ERROR 列出问题。`scripts/release_preflight_check.py` 直接调用同一函数，另外要求设置 `FRONTEND_URL`。
 
-**返回页与结账。** `PaymentReturnPage` 以进页时间为基准轮询 120 秒（前 20 秒每 2 秒、60 秒内每 4 秒、之后每 8 秒），`fulfillment_status=failed` 也继续轮询并显示刷新按钮；手动刷新重置基准时间。窗口结束仍未开通时提示「请勿重复支付」并调用一次用户查单。`PaymentCheckoutModal` 建单成功、表单提交后进入 `redirecting`，锁住付款与取消按钮，`pageshow`（`persisted`，bfcache 还原）时解锁；建单错误由后端返回 `ERR_PAYMENT_*` 错误码，前端在 `errors` 命名空间翻译，未知错误显示通用文案，不再透出英文 detail。`BillingPage` 在订阅状态未就绪时显示中性的「开通或续费 Pro」。
+**返回页与结账。** `PaymentReturnPage` 以进页时间为基准轮询 120 秒（前 20 秒每 2 秒、60 秒内每 4 秒、之后每 8 秒），`fulfillment_status=failed` 也继续轮询并显示刷新按钮；手动刷新重置基准时间。窗口结束仍未开通时提示「请勿重复支付」并调用一次用户查单。`PaymentCheckoutModal` 建单成功、表单提交后进入 `redirecting`，锁住付款与取消按钮，`pageshow`（`persisted`，bfcache 还原）时解锁；建单错误由后端返回 `ERR_PAYMENT_*` 错误码，前端在 `errors` 命名空间翻译；422 / `ERR_VALIDATION_ERROR` 提示刷新页面（页面与服务版本不一致，见 `.agents/notes/implemented/bug-fix/2026-10-05-payment-order-ignores-unknown-fields.md`），网络错误、5xx 与其他未知错误显示通用的「暂时无法创建订单，请稍后重试」，不再透出英文 detail。`BillingPage` 在订阅状态未就绪时显示中性的「开通或续费 Pro」。
 
 **漏斗与归因。** 前端经 `lib/analytics` 的 `trackEvent` 打 `checkout_started`、`checkout_redirected`、`checkout_failed`、`payment_return_result`（`succeeded / failed / pending_timeout`）、`redeem_code_succeeded`、`redeem_code_failed`，只带周期、`out_trade_no`、来源和错误码，不带兑换码或个人信息。`create_order` 接收 `upgrade_source`（与 `/subscription/redeem` 同样的 `^[A-Za-z0-9_:-]+$`，≤64），存进新增的 `payment_order.upgrade_source`（迁移 `20261005_180000`，可空列），开通时写入 `SubscriptionHistory.event_metadata.upgrade_source`。后台「付费转化归因」新增 `paid_conversions`（只算 `source=zpay`）与按渠道（zpay / redemption_code / points_redemption / admin_update / other）的拆分。
 
@@ -51,7 +51,7 @@ SQLite 下每一步开头 `BEGIN IMMEDIATE`（`_begin_serialized_write`），Pos
 
 - 收益：每一笔被拒或开通失败的回调都有可告警的 ERROR；收款事实永远落库，后台一个筛选就能列出「已收款未开通」，一个按钮就能补开通且有审计记录；查单与 notify 共用同一条幂等路径，竞态下也只开通一次。
 - 收益：返回页覆盖 notify 常见的延迟，并在超时后主动查单，减少重复付款。
-- 代价：多了一个 `status=paid / fulfillment_status=failed` 的中间态，前端与后台都要把它显示成「正在重试开通」而不是「待支付」。
+- 代价：多了一个 `status=paid / fulfillment_status=failed` 的中间态，前端与后台都要把它显示成「支付已确认，会员暂未开通」而不是「待支付」。
 - 代价：查单依赖 Zpay `api.php` 的可用性与字段格式；格式变化会表现为 `provider_invalid_response`，需要人工处理。
 - 已知未做：没有订单逾时或 `closed` 状态，已签名的旧价格表单可以无限期付款；没有退款状态与退款端点，Zpay 后台退款后订单仍显示已支付、权益保留；没有排程自动对账；PostgreSQL 的并发回调测试还没有接进 CI（目前只在 SQLite 的 `BEGIN IMMEDIATE` 分支上回归）。
 
