@@ -18,7 +18,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, func, select
 
 from config.datetime_utils import utcnow
-from config.feature_flags import is_inspirations_enabled
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from models.entities import User
@@ -643,6 +642,45 @@ class PointsService:
 
         return count
 
+    def award_skill_contribution(
+        self,
+        session: Session,
+        author_id: str,
+        public_skill_id: str,
+    ) -> PointsTransaction | None:
+        """
+        核准社区技能时给作者发贡献积分（不提交，由调用方与核准放在同一事务里提交）。
+
+        幂等：以 PublicSkill.id 作为 source_id，同一个公共技能只发一次；
+        先锁作者的 user 行，避免并发核准时重复发放。
+
+        Returns:
+            新建的积分流水；已发过或积分配置为 0 时返回 None
+        """
+        if POINTS_SKILL_CONTRIBUTION <= 0:
+            return None
+
+        self._lock_user_row(session, author_id)
+        already_awarded = session.exec(
+            select(PointsTransaction.id)
+            .where(PointsTransaction.user_id == author_id)
+            .where(PointsTransaction.transaction_type == "skill_contribution")
+            .where(PointsTransaction.source_id == public_skill_id)
+            .limit(1)
+        ).first()
+        if already_awarded is not None:
+            return None
+
+        return self.earn_points(
+            session,
+            author_id,
+            POINTS_SKILL_CONTRIBUTION,
+            "skill_contribution",
+            source_id=public_skill_id,
+            description="Community skill approved",
+            commit=False,
+        )
+
     def get_earn_opportunities(self, session: Session, user_id: str) -> list[dict]:
         """
         Get available ways to earn points.
@@ -695,51 +733,33 @@ class PointsService:
             "is_available": len(invite_codes) > 0,
         })
 
-        # Skill contribution (check if user has created any public skills)
-        from models.skill import UserSkill
-        public_skills = session.exec(
-            select(UserSkill)
-            .where(UserSkill.user_id == user_id)
-            .where(UserSkill.is_shared == True)
-        ).all()
+        # Skill contribution: 积分在管理员核准社区技能时发放（award_skill_contribution），
+        # 所以「已完成」以「有已核准的投稿或已领过贡献积分」为准，而不是送审（pending）。
+        from models.public_skill import PublicSkill
+        has_approved_contribution = session.exec(
+            select(PublicSkill.id)
+            .where(PublicSkill.author_id == user_id)
+            .where(PublicSkill.source == "community")
+            .where(PublicSkill.status == "approved")
+            .limit(1)
+        ).first() is not None
+        has_contribution_reward = session.exec(
+            select(PointsTransaction.id)
+            .where(PointsTransaction.user_id == user_id)
+            .where(PointsTransaction.transaction_type == "skill_contribution")
+            .limit(1)
+        ).first() is not None
 
         opportunities.append({
             "type": "skill_contribution",
             "points": POINTS_SKILL_CONTRIBUTION,
             "description": "opportunity.skill_contribution",
-            "is_completed": len(public_skills) > 0,
+            "is_completed": has_approved_contribution or has_contribution_reward,
             "is_available": True,
         })
 
-        if is_inspirations_enabled():
-            # Inspiration contribution (check if user has contributed inspirations)
-            from models.inspiration import Inspiration
-            contributed_inspirations = session.exec(
-                select(Inspiration)
-                .where(Inspiration.author_id == user_id)
-                .where(Inspiration.status == "approved")
-            ).all()
-
-            opportunities.append({
-                "type": "inspiration_contribution",
-                "points": POINTS_INSPIRATION_CONTRIBUTION,
-                "description": "opportunity.inspiration_contribution",
-                "is_completed": len(contributed_inspirations) > 0,
-                "is_available": True,
-            })
-
-        # Profile completion (check if user has completed profile)
-        from models.entities import User
-        user = session.get(User, user_id)
-        profile_complete = bool(user and user.avatar_url)
-
-        opportunities.append({
-            "type": "profile_complete",
-            "points": POINTS_PROFILE_COMPLETE,
-            "description": "opportunity.profile_complete",
-            "is_completed": profile_complete,
-            "is_available": not profile_complete,
-        })
+        # 灵感投稿、完善资料两张卡没有任何发放积分的代码路径，展示出来就是空头承诺，
+        # 因此不再列出；对应的 POINTS_CONFIG 数值保留，等真正接入发放时再加回卡片。
 
         return opportunities
 

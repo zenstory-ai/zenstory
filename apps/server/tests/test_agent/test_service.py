@@ -434,6 +434,58 @@ class TestAgentServiceProcessStream:
         assert [item["id"] for item in selected] == [skill.id]
         assert pending in db_session.new
 
+    async def test_selected_skills_are_clipped_to_the_skill_token_budget(
+        self,
+        mock_agent_service,
+        test_user_with_project,
+        db_session: Session,
+    ):
+        """3 个超长技能全选时，注入 system prompt 的正文合计不超过显式选择预算，并提示分段续读。"""
+        from agent.core.message_manager import MessageManager
+        from agent.skills.content_budget import SELECTED_SKILLS_TOKEN_BUDGET
+        from agent.utils.token_utils import estimate_text_tokens
+
+        service, _ = mock_agent_service
+        project = test_user_with_project["project"]
+        user = test_user_with_project["user"]
+
+        long_text = ("人物动机必须清楚，冲突要逐步升级。" * 4000)[:50_000]
+        skills = [
+            UserSkill(user_id=user.id, name=f"长技能{index}", instructions=long_text, is_active=True)
+            for index in range(3)
+        ]
+        short = UserSkill(user_id=user.id, name="短技能", instructions="只写对白。", is_active=True)
+        db_session.add_all([*skills, short])
+        db_session.commit()
+
+        selected = service._resolve_selected_skills(
+            db_session,
+            project_id=str(project.id),
+            user_id=str(user.id),
+            selected_skill_ids=[short.id, skills[0].id, skills[1].id],
+            message="m",
+        )
+
+        assert [item["id"] for item in selected] == [short.id, skills[0].id, skills[1].id]
+        assert selected[0]["instructions"] == "只写对白。"
+        assert selected[0]["instructions_next_offset"] is None
+        total_tokens = sum(estimate_text_tokens(item["instructions"]) for item in selected)
+        assert total_tokens <= SELECTED_SKILLS_TOKEN_BUDGET
+        assert sum(item["instructions_tokens"] for item in selected) <= SELECTED_SKILLS_TOKEN_BUDGET
+        for item in selected[1:]:
+            assert item["instructions_next_offset"] == len(item["instructions"])
+            assert item["instructions_total_chars"] == 50_000
+
+        section = "\n".join(
+            MessageManager(project_id=str(project.id), user_id=str(user.id))._build_selected_skill_section(
+                selected, False
+            )
+        )
+        assert (
+            f'read_skill_resource(name="{skills[0].id}", path="SKILL.md", '
+            f'offset={selected[1]["instructions_next_offset"]})'
+        ) in section
+
     async def test_process_stream_ignores_foreign_and_inactive_selected_skill_ids(
         self,
         mock_agent_service,

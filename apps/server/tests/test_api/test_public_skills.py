@@ -882,3 +882,30 @@ async def test_get_public_skill_includes_author_name(client: AsyncClient, db_ses
     assert response.status_code == 200
     data = response.json()
     assert data["author_name"] == author.username
+
+
+@pytest.mark.integration
+async def test_list_returns_instruction_preview_and_detail_returns_full_text(
+    client: AsyncClient, db_session: Session
+):
+    """列表只回传正文预览（每页 20 个技能 × 5 万字太重），详情接口回传完整正文。"""
+    from api.public_skills import LIST_INSTRUCTIONS_PREVIEW_CHARS
+
+    await create_test_user(db_session)
+    headers = await get_auth_headers(client)
+    long_skill = create_test_skill(db_session, name="Long Skill")
+    long_skill.instructions = "长" * (LIST_INSTRUCTIONS_PREVIEW_CHARS + 100)
+    db_session.add(long_skill)
+    db_session.commit()
+    short_skill = create_test_skill(db_session, name="Short Skill")
+
+    listed = await client.get("/api/v1/public-skills", headers=headers)
+    detail = await client.get(f"/api/v1/public-skills/{long_skill.id}", headers=headers)
+
+    by_id = {item["id"]: item for item in listed.json()["skills"]}
+    assert by_id[long_skill.id]["instructions"] == "长" * LIST_INSTRUCTIONS_PREVIEW_CHARS
+    assert by_id[long_skill.id]["instructions_truncated"] is True
+    assert by_id[short_skill.id]["instructions"] == "Instructions for Short Skill"
+    assert by_id[short_skill.id]["instructions_truncated"] is False
+    assert detail.json()["instructions"] == long_skill.instructions
+    assert detail.json()["instructions_truncated"] is False

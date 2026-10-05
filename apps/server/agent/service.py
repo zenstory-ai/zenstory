@@ -62,6 +62,7 @@ from .graph.state import WritingState
 from .graph.writing_graph import run_writing_workflow_streaming
 from .skills import get_skill_context_injector, resolve_selected_skills
 from .skills.active_skills import list_active_skill_resources
+from .skills.content_budget import split_selected_budget
 from .stream_adapter import create_stream_adapter
 from .tools.mcp_tools import ToolContext, _should_offload_tool_execution
 
@@ -359,11 +360,18 @@ class AgentService:
         from services.skill_usage_service import record_skill_usage
 
         selected: list[dict[str, Any]] = []
-        for skill in resolve_selected_skills(session, user_id, selected_skill_ids):
+        skills = resolve_selected_skills(session, user_id, selected_skill_ids)
+        # 显式选择的正文进 system prompt，会被每轮迭代重复发送：合计不超过技能内容预算的
+        # 显式选择份额，超出部分截断，并提示模型用 read_skill_resource 分段续读。
+        segments = split_selected_budget([skill.instructions for skill in skills])
+        for skill, segment in zip(skills, segments, strict=True):
             selected.append({
                 "id": skill.id,
                 "name": skill.name,
-                "instructions": skill.instructions,
+                "instructions": segment.text,
+                "instructions_tokens": segment.tokens,
+                "instructions_next_offset": segment.next_offset,
+                "instructions_total_chars": segment.total_chars,
                 "source": skill.source,
                 "resources": [
                     resource.path for resource in list_active_skill_resources(session, skill)
@@ -901,6 +909,10 @@ class AgentService:
                 create_session_func=create_session,
                 # 显式选择的技能已记过 selected 用量，模型再 load_skill 它时不重复记
                 recorded_skill_ids=[selected["id"] for selected in selected_skills],
+                # 显式选择的正文已占用的技能内容预算
+                skill_tokens_used=sum(
+                    int(selected.get("instructions_tokens") or 0) for selected in selected_skills
+                ),
             )
 
             # Build WritingState for workflow execution

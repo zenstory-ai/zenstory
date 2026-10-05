@@ -19,6 +19,7 @@ from sqlalchemy import desc
 from sqlmodel import Session, and_, select
 
 from agent.constants import CONTENT_FILE_TYPES, INVENTORY_FILE_TYPES, coerce_bool
+from agent.skills.content_budget import SkillContentBudget
 from agent.tools.file_ops import FileToolExecutor
 from utils.logger import get_logger, log_with_context
 from utils.title_sequence import extract_chapter_like_sequence_number, parse_chinese_number
@@ -313,12 +314,15 @@ class ToolContext:
         create_session_func: Callable[[], Session] | None = None,
         current_agent: str | None = None,
         recorded_skill_ids: Iterable[str] | None = None,
+        skill_tokens_used: int = 0,
     ) -> None:
         """Set the execution context for tools (request-scoped).
 
         Args:
             recorded_skill_ids: 本次请求里已记录过用量的技能（显式选择的技能），
                 load_skill 不再为它们重复记用量。
+            skill_tokens_used: 显式选择的技能注入 system prompt 时已占用的技能内容 token，
+                从本次请求的技能内容预算里先扣掉。
         """
         cls._cleanup_owned_session()
         _tool_context_var.set({
@@ -330,6 +334,7 @@ class ToolContext:
             "current_agent": current_agent,
             "pending_empty_file_state": _PendingEmptyFileState(),
             "skill_usage_claims": _SkillUsageClaims(recorded_skill_ids),
+            "skill_content_budget": SkillContentBudget(used=skill_tokens_used),
         })
         _owned_session_var.set(None)
         _pending_empty_file_var.set(None)
@@ -455,6 +460,15 @@ class ToolContext:
         if isinstance(claims, _SkillUsageClaims):
             return claims.claim(skill_id)
         return True
+
+    @classmethod
+    def get_skill_content_budget(cls) -> SkillContentBudget:
+        """本次请求共享的技能内容预算；没有请求上下文时每次给一份完整预算。"""
+        context = _tool_context_var.get()
+        budget = context.get("skill_content_budget") if isinstance(context, dict) else None
+        if isinstance(budget, SkillContentBudget):
+            return budget
+        return SkillContentBudget()
 
     @classmethod
     def _get_pending_empty_file_state(cls) -> _PendingEmptyFileState | None:
@@ -1897,36 +1911,88 @@ async def load_skill(args: dict[str, Any]) -> dict[str, Any]:
 
 
 def _resolve_skill_for_tool(session: Session, tool_name: str, name: str):
-    """Resolve an active skill for the current user; returns (skill, error_result)."""
-    from agent.skills.active_skills import find_active_skill, load_active_skills, suggest_skill_names
+    """Resolve an active skill for the current user; returns (skill, same-name skills, error_result)."""
+    from agent.skills.active_skills import (
+        find_active_skill,
+        load_active_skills,
+        same_name_skills,
+        suggest_skill_names,
+    )
 
     user_id = ToolContext.get_user_id()
     if not user_id:
-        return None, _make_error("user_id not set", tool_name=tool_name)
+        return None, [], _make_error("user_id not set", tool_name=tool_name)
     if not name:
-        return None, _make_error("name is required", tool_name=tool_name)
+        return None, [], _make_error("name is required", tool_name=tool_name)
 
     skills = load_active_skills(session, user_id)
     skill = find_active_skill(skills, name)
     if skill is None:
         available = suggest_skill_names(skills, name)
         hint = f"可用技能：{'、'.join(available)}" if available else "当前用户没有启用中的技能"
-        return None, _make_error(f"未找到已启用的技能「{name}」。{hint}", tool_name=tool_name)
-    return skill, None
+        return None, [], _make_error(f"未找到已启用的技能「{name}」。{hint}", tool_name=tool_name)
+    # 按 id 查到的就是指定的那个；按名称查到时把同名的其他技能告诉模型，需要时改传 id
+    others = [] if name.strip() in (skill.id, skill.added_id) else same_name_skills(skills, skill)
+    return skill, others, None
+
+
+def _same_name_payload(others: list) -> dict[str, Any]:
+    if not others:
+        return {}
+    return {
+        "same_name_skills": [
+            {"id": other.id, "name": other.name, "description": other.description[:200]}
+            for other in others
+        ],
+        "same_name_note": "还有同名技能；如果要用的是其中某一个，用它的 id 作为 name 重新调用。",
+    }
+
+
+def _skill_budget_exhausted_error(tool_name: str) -> dict[str, Any]:
+    from agent.skills.content_budget import SKILL_CONTENT_TOKEN_BUDGET
+
+    return _make_error(
+        f"本轮读取的技能内容已达上限（约 {SKILL_CONTENT_TOKEN_BUDGET} tokens）。"
+        "请基于已加载的技能内容完成任务；还需要更多内容时，请用户在下一条消息中继续。",
+        tool_name=tool_name,
+    )
+
+
+def _segment_fields(segment, *, skill_id: str, path: str) -> dict[str, Any]:
+    """截断时告诉模型如何续读（read_skill_resource + offset）。"""
+    if not segment.truncated:
+        return {"truncated": False}
+    return {
+        "truncated": True,
+        "offset": segment.offset,
+        "next_offset": segment.next_offset,
+        "total_chars": segment.total_chars,
+        "continue_hint": (
+            f"内容过长，本次只返回了第 {segment.offset}–{segment.next_offset} 个字符（共 {segment.total_chars}）。"
+            f"需要后续内容时调用 read_skill_resource(name=\"{skill_id}\", path=\"{path}\", "
+            f"offset={segment.next_offset}) 分段读取。"
+        ),
+    }
 
 
 def _load_skill_sync(args: dict[str, Any]) -> dict[str, Any]:
     """Synchronous load_skill implementation."""
     from agent.skills.active_skills import list_active_skill_resources
+    from agent.skills.content_budget import SKILL_BODY_PATH
     from services.skill_usage_service import record_skill_usage
 
     tool_name = "load_skill"
     name = str(args.get("name") or "").strip()
     try:
         session = ToolContext.get_session()
-        skill, error = _resolve_skill_for_tool(session, tool_name, name)
+        skill, others, error = _resolve_skill_for_tool(session, tool_name, name)
         if error is not None:
             return error
+
+        budget = ToolContext.get_skill_content_budget()
+        if budget.remaining <= 0:
+            return _skill_budget_exhausted_error(tool_name)
+        segment = budget.take(skill.instructions)
 
         resources = [
             {"path": resource.path, "size": resource.size}
@@ -1966,8 +2032,10 @@ def _load_skill_sync(args: dict[str, Any]) -> dict[str, Any]:
                 "skill_id": skill.id,
                 "skill_name": skill.name,
                 "source": skill.source,
-                "instructions": skill.instructions,
+                "instructions": segment.text,
+                **_segment_fields(segment, skill_id=skill.id, path=SKILL_BODY_PATH),
                 "resources": resources,
+                **_same_name_payload(others),
             },
         }, tool_name=tool_name)
     except Exception as e:
@@ -1986,6 +2054,7 @@ async def read_skill_resource(args: dict[str, Any]) -> dict[str, Any]:
 def _read_skill_resource_sync(args: dict[str, Any]) -> dict[str, Any]:
     """Synchronous read_skill_resource implementation."""
     from agent.skills.active_skills import get_skill_resource, list_active_skill_resources
+    from agent.skills.content_budget import SKILL_BODY_PATH
     from agent.skills.package import normalize_resource_path
 
     tool_name = "read_skill_resource"
@@ -1993,30 +2062,52 @@ def _read_skill_resource_sync(args: dict[str, Any]) -> dict[str, Any]:
     # 与存储时一致做 NFC 归一化，模型给出的分解形式路径也能命中
     path = normalize_resource_path(str(args.get("path") or ""))
     try:
+        offset = max(int(args.get("offset") or 0), 0)
+    except (TypeError, ValueError):
+        return _make_error("offset must be a non-negative integer", tool_name=tool_name)
+    try:
         session = ToolContext.get_session()
-        skill, error = _resolve_skill_for_tool(session, tool_name, name)
+        skill, _others, error = _resolve_skill_for_tool(session, tool_name, name)
         if error is not None:
             return error
         if not path:
             return _make_error("path is required", tool_name=tool_name)
 
-        resource = get_skill_resource(
-            session,
-            path,
-            user_skill_id=skill.user_skill_id,
-            public_skill_id=skill.public_skill_id,
-        )
-        if resource is None:
-            available = [item.path for item in list_active_skill_resources(session, skill)]
-            hint = f"可用资源：{'、'.join(available)}" if available else "该技能没有资源文件"
-            return _make_error(f"技能「{skill.name}」中没有资源 {path}。{hint}", tool_name=tool_name)
+        if path == SKILL_BODY_PATH:
+            # 技能正文（load_skill 截断后按 offset 续读）
+            content = skill.instructions
+            resolved_path = SKILL_BODY_PATH
+        else:
+            resource = get_skill_resource(
+                session,
+                path,
+                user_skill_id=skill.user_skill_id,
+                public_skill_id=skill.public_skill_id,
+            )
+            if resource is None:
+                available = [item.path for item in list_active_skill_resources(session, skill)]
+                hint = f"可用资源：{'、'.join(available)}" if available else "该技能没有资源文件"
+                return _make_error(f"技能「{skill.name}」中没有资源 {path}。{hint}", tool_name=tool_name)
+            content = resource.content
+            resolved_path = resource.path
+
+        if offset > len(content):
+            return _make_error(
+                f"offset {offset} 超出内容长度（共 {len(content)} 个字符）", tool_name=tool_name
+            )
+        budget = ToolContext.get_skill_content_budget()
+        if budget.remaining <= 0 and offset < len(content):
+            return _skill_budget_exhausted_error(tool_name)
+        segment = budget.take(content, offset)
 
         return _make_result({
             "status": "success",
             "data": {
+                "skill_id": skill.id,
                 "skill_name": skill.name,
-                "path": resource.path,
-                "content": resource.content,
+                "path": resolved_path,
+                "content": segment.text,
+                **_segment_fields(segment, skill_id=skill.id, path=resolved_path),
             },
         }, tool_name=tool_name)
     except Exception as e:
