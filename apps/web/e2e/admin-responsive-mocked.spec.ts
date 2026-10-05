@@ -43,6 +43,23 @@ async function bootstrapAdminSession(page: Page) {
   await page.route('**/api/auth/me', (route) => json(route, adminUser));
   await page.route('**/api/auth/refresh', (route) => json(route, { access_token: 'mock-access-token', refresh_token: 'mock-refresh-token', user: adminUser }));
   await page.route('**/api/v1/projects**', (route) => json(route, []));
+  // The materials library checks the plan before requesting the summary.
+  await page.route('**/api/v1/subscription/status', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        tier: 'pro',
+        status: 'active',
+        display_name: 'Pro',
+        display_name_en: 'Pro',
+        current_period_end: null,
+        days_remaining: null,
+        features: { materials_library_access: true },
+      }),
+    });
+  });
+
   await page.route('**/api/v1/materials/library-summary**', (route) => json(route, []));
   await page.route('**/api/admin/**', async (route) => {
     const { pathname } = new URL(route.request().url());

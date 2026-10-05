@@ -42,6 +42,23 @@ async function bootstrapAdminSession(page: Page) {
     });
   });
 
+  // The materials library checks the plan before requesting the summary.
+  await page.route('**/api/v1/subscription/status', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        tier: 'pro',
+        status: 'active',
+        display_name: 'Pro',
+        display_name_en: 'Pro',
+        current_period_end: null,
+        days_remaining: null,
+        features: { materials_library_access: true },
+      }),
+    });
+  });
+
   await page.route('**/api/v1/materials/library-summary**', async (route) => {
     await route.fulfill({
       status: 200,
