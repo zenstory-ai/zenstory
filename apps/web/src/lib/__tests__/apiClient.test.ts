@@ -464,6 +464,40 @@ describe('apiClient', () => {
   })
 
   describe('apiCall', () => {
+    it('propagates the original AbortError without refreshing or logging out', async () => {
+      vi.resetModules()
+      const { apiCall } = await import('../apiClient')
+      localStorage.setItem('access_token', 'access-a')
+      localStorage.setItem('refresh_token', 'refresh-a')
+      const controller = new AbortController()
+      const abortError = new DOMException('The operation was aborted', 'AbortError')
+      const logoutListener = vi.fn()
+      window.addEventListener('auth:logout', logoutListener)
+      const mockFetch = vi.fn((_url: string, options: RequestInit) => {
+        return new Promise((_resolve, reject) => {
+          options.signal?.addEventListener('abort', () => reject(abortError), { once: true })
+        })
+      })
+      vi.stubGlobal('fetch', mockFetch)
+
+      try {
+        const request = apiCall('/api/v1/tree', { signal: controller.signal })
+        controller.abort(abortError)
+
+        await expect(request).rejects.toBe(abortError)
+        expect(mockFetch).toHaveBeenCalledTimes(1)
+        expect(mockFetch).toHaveBeenCalledWith(
+          expect.stringContaining('/api/v1/tree'),
+          expect.objectContaining({ signal: controller.signal }),
+        )
+        expect(localStorage.getItem('access_token')).toBe('access-a')
+        expect(localStorage.getItem('refresh_token')).toBe('refresh-a')
+        expect(logoutListener).not.toHaveBeenCalled()
+      } finally {
+        window.removeEventListener('auth:logout', logoutListener)
+      }
+    })
+
     it('does not refresh or replay an old-account request after the session changes', async () => {
       vi.resetModules()
       const { apiCall } = await import('../apiClient')

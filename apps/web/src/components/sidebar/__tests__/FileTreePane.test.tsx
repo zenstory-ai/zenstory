@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { StrictMode } from 'react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FileSearchProvider } from '../../../contexts/FileSearchContext';
 import { FileTreePane } from '../FileTreePane';
@@ -8,12 +9,14 @@ const mocks = vi.hoisted(() => ({
   switchToEditor: vi.fn(),
   clearSearch: vi.fn(),
   getTree: vi.fn(),
+  loggerError: vi.fn(),
+  projectId: 'project-1' as string | null,
   results: [{ id: 'draft-1', fileType: 'draft', title: 'Draft' }],
 }));
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('../../../contexts/ProjectContext', () => ({
-  useProject: () => ({ currentProjectId: 'project-1', selectedItem: null, setSelectedItem: mocks.select, fileTreeVersion: 0 }),
+  useProject: () => ({ currentProjectId: mocks.projectId, selectedItem: null, setSelectedItem: mocks.select, fileTreeVersion: 0 }),
 }));
 vi.mock('../../../contexts/MobileLayoutContext', () => ({
   useMobileLayout: () => ({ isMobile: false, switchToEditor: mocks.switchToEditor }),
@@ -23,6 +26,7 @@ vi.mock('../../../contexts/MaterialAttachmentContext', () => ({
   useMaterialAttachment: () => ({ addMaterial: vi.fn(), removeMaterial: vi.fn(), isMaterialAttached: () => false, isAtLimit: false }),
 }));
 vi.mock('../../../lib/api', () => ({ fileApi: { getTree: mocks.getTree } }));
+vi.mock('../../../lib/logger', () => ({ logger: { error: mocks.loggerError } }));
 vi.mock('../../../hooks/useFileSearch', () => ({
   useFileSearch: () => ({ results: mocks.results, isSearching: false, clearSearch: mocks.clearSearch }),
 }));
@@ -41,6 +45,7 @@ async function openSearch() {
 describe('FileTreePane search navigation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.projectId = 'project-1';
     mocks.getTree.mockResolvedValue({ tree: [{ id: 'draft-1', title: 'Draft', file_type: 'draft', children: [] }] });
   });
 
@@ -76,5 +81,121 @@ describe('FileTreePane search navigation', () => {
     if (action === 'clear') fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
     if (action === 'close') fireEvent.click(screen.getByRole('button', { name: 'Close results' }));
     expect(screen.queryByTestId('search-results')).not.toBeInTheDocument();
+  });
+});
+
+describe('FileTreePane request cancellation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.projectId = 'project-1';
+  });
+
+  it('handles the AbortError raised by an in-flight tree request on unmount', async () => {
+    let requestSignal: AbortSignal | undefined;
+    const abortError = new DOMException('The operation was aborted', 'AbortError');
+    mocks.getTree.mockImplementation((_projectId: string, options: { signal: AbortSignal }) => {
+      requestSignal = options.signal;
+      return new Promise((_resolve, reject) => {
+        options.signal.addEventListener('abort', () => reject(abortError), { once: true });
+      });
+    });
+    const unhandled = vi.fn();
+    window.addEventListener('unhandledrejection', unhandled);
+
+    try {
+      const view = render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
+      await waitFor(() => expect(mocks.getTree).toHaveBeenCalledTimes(1));
+      view.unmount();
+      await waitFor(() => expect(requestSignal?.aborted).toBe(true));
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(mocks.loggerError).not.toHaveBeenCalled();
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener('unhandledrejection', unhandled);
+    }
+  });
+
+  it('aborts StrictMode and project-change requests without logging their rejections', async () => {
+    const requests: Array<{
+      projectId: string;
+      signal: AbortSignal;
+      resolve: (value: { tree: Array<{ id: string; title: string; file_type: string; children: never[] }> }) => void;
+    }> = [];
+    mocks.getTree.mockImplementation((projectId: string, options: { signal: AbortSignal }) => {
+      return new Promise((resolve, reject) => {
+        requests.push({ projectId, signal: options.signal, resolve });
+        options.signal.addEventListener(
+          'abort',
+          () => reject(new DOMException('The operation was aborted', 'AbortError')),
+          { once: true },
+        );
+      });
+    });
+    const unhandled = vi.fn();
+    window.addEventListener('unhandledrejection', unhandled);
+
+    try {
+      const view = render(
+        <StrictMode><FileSearchProvider><FileTreePane /></FileSearchProvider></StrictMode>,
+      );
+      await waitFor(() => expect(requests.length).toBeGreaterThanOrEqual(2));
+      expect(requests[0].signal.aborted).toBe(true);
+
+      mocks.projectId = 'project-2';
+      view.rerender(
+        <StrictMode><FileSearchProvider><FileTreePane /></FileSearchProvider></StrictMode>,
+      );
+      await waitFor(() => expect(requests.some((request) => request.projectId === 'project-2')).toBe(true));
+      const currentRequest = [...requests].reverse().find((request) => request.projectId === 'project-2');
+      expect(currentRequest).toBeDefined();
+      expect(requests.filter((request) => request.projectId === 'project-1').every((request) => request.signal.aborted)).toBe(true);
+      await act(async () => {
+        currentRequest?.resolve({
+          tree: [{ id: 'project-2-file', title: 'Project Two File', file_type: 'draft', children: [] }],
+        });
+      });
+
+      expect(await screen.findByText('Project Two File')).toBeInTheDocument();
+      expect(mocks.loggerError).not.toHaveBeenCalled();
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener('unhandledrejection', unhandled);
+    }
+  });
+
+  it('does not let a stale response overwrite the current project tree', async () => {
+    const pending: Array<{
+      projectId: string;
+      resolve: (value: { tree: Array<{ id: string; title: string; file_type: string; children: never[] }> }) => void;
+    }> = [];
+    mocks.getTree.mockImplementation((projectId: string) => new Promise((resolve) => {
+      pending.push({ projectId, resolve });
+    }));
+
+    const view = render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
+    await waitFor(() => expect(pending).toHaveLength(1));
+    mocks.projectId = 'project-2';
+    view.rerender(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
+    await waitFor(() => expect(pending).toHaveLength(2));
+
+    await act(async () => {
+      pending[1].resolve({
+        tree: [{ id: 'new-file', title: 'Current Project File', file_type: 'draft', children: [] }],
+      });
+    });
+    expect(await screen.findByText('Current Project File')).toBeInTheDocument();
+    await act(async () => {
+      pending[0].resolve({
+        tree: [{ id: 'old-file', title: 'Stale Project File', file_type: 'draft', children: [] }],
+      });
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText('Stale Project File')).not.toBeInTheDocument();
+    expect(screen.getByText('Current Project File')).toBeInTheDocument();
+    expect(mocks.loggerError).not.toHaveBeenCalled();
   });
 });

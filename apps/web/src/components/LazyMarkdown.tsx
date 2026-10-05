@@ -20,16 +20,17 @@
  * ```
  */
 
-import React, { lazy, Suspense, useState, useEffect } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import type { Components, Options } from 'react-markdown';
 import { useTranslation } from 'react-i18next';
+import { lazyRoute } from '../lib/chunkRecovery';
 import { logger } from "../lib/logger";
 
 type RemarkPlugins = NonNullable<Options['remarkPlugins']>;
 type RehypePlugins = NonNullable<Options['rehypePlugins']>;
 
 // Lazy load react-markdown to reduce initial bundle size
-const ReactMarkdown = lazy(() => import('react-markdown'));
+const ReactMarkdown = lazyRoute(() => import('react-markdown'), 'react-markdown');
 
 /**
  * Props for the LazyMarkdown component.
