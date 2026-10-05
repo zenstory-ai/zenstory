@@ -20,7 +20,7 @@ Status: implemented
 
 - `log_with_context(logger, level, message, *, exc_info=None, **fields)` 以 `stacklevel=2` 调 `Logger.log`，位置指向调用方。`exc_info` 未指定且级别 ≥ ERROR、当前正处理异常时自动带上堆栈。
 - 根 handler 挂 `RequestContextFilter`，把 `get_log_context()`（request_id/trace_id/agent_run_id）放到每条 record 上；`JsonFormatter` 依次合并上下文、`extra=` 的非保留属性、`custom_fields`（后者可覆盖）。时间戳取 `record.created`，毫秒精度、以 `Z` 结尾。
-- 输出前脱敏：消息与所有字段里的 email 统一掩码为 `a***@example.com`；`message_preview`、`user_message_preview`、`prompt`、`user_prompt`、`prompt_preview`、`content_preview` 字段只保留长度（`[redacted N chars]`）。集中在 formatter 做，不改各调用点（包括 `api/agent.py` 等正在被其他 PR 修改的文件）。
+- 输出前脱敏：消息与所有字段里的 email 统一掩码为 `a***@example.com`；`message_preview`、`user_message_preview`、`prompt`、`user_prompt`、`prompt_preview`、`content_preview`、`query`（上下文组装与向量检索记录的使用者查询，`agent/context/assembler.py`、`api/vector_search.py`、`services/infra/vector_search_service.py`）、`original_snippet`（`agent/core/stream_processor.py` 记录的模型输出片段）字段只保留长度（`[redacted N chars]`），嵌套 dict 里同名键同样处理。集中在 formatter 做，不改各调用点（包括 `api/agent.py` 等正在被其他 PR 修改的文件）。
 - `uvicorn`、`uvicorn.error` 的 handler 清空并向根 logger 传播，traceback 也走 JSON。
 
 `LoggingMiddleware`：
