@@ -141,8 +141,6 @@ def _get_int_env(name: str, default: int, *, min_value: int | None = None) -> in
 SEMANTIC_QUERY_MAX_TOKENS = 768
 # Fallback when tokenizer is unavailable.
 SEMANTIC_QUERY_MAX_CHARS = 3000
-# How many chars of query preview to include in logs (set to 0 to disable).
-SEMANTIC_QUERY_LOG_PREVIEW_CHARS = 120
 
 
 def _safe_sha256(text: str) -> str | None:
@@ -1243,7 +1241,6 @@ class LlamaIndexService:
                 query_tokens=trunc_info.get("original_tokens"),
                 used_length=trunc_info.get("used_length"),
                 used_tokens=trunc_info.get("used_tokens"),
-                preview=retrieval_query[:SEMANTIC_QUERY_LOG_PREVIEW_CHARS],
             )
 
         top_k = max(1, int(top_k or 10))
