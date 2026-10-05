@@ -58,7 +58,8 @@
       "Polish this dialogue to make characters more vivid",
       "Design a character bio for this role",
       "Start writing Chapter 1"
-    ]
+    ],
+    "tooLong": "Message too long ({{count}} characters). The limit is {{max}}. Shorten it, or attach long reference material as a file."
   },
   "actions": {
     "confirm": "Confirm",

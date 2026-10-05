@@ -3,6 +3,7 @@ import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/re
 import userEvent from '@testing-library/user-event'
 import { MessageInput } from '../MessageInput'
 import { skillsApi } from '../../lib/api'
+import { MAX_AGENT_MESSAGE_CHARS } from '../../lib/agentLimits'
 
 const { mockUseMaterialAttachment, mockUseTextQuote, mockUseSkillTrigger } = vi.hoisted(() => ({
   mockUseMaterialAttachment: vi.fn(() => ({
@@ -162,6 +163,23 @@ describe('MessageInput', () => {
     await user.type(textarea, 'Test message{Enter}')
 
     expect(onSend).toHaveBeenCalledWith('Test message', [])
+  })
+
+  it('blocks sending and explains when the message exceeds the backend limit', () => {
+    const onSend = vi.fn()
+    render(<MessageInput {...defaultProps} onSend={onSend} />)
+
+    const textarea = screen.getByPlaceholderText('chat:input.placeholder')
+    fireEvent.change(textarea, { target: { value: '字'.repeat(MAX_AGENT_MESSAGE_CHARS + 1) } })
+
+    expect(screen.getByTestId('chat-input-too-long')).toHaveTextContent('chat:input.tooLong')
+    expect(screen.getByTestId('send-button')).toBeDisabled()
+    fireEvent.keyDown(textarea, { key: 'Enter' })
+    expect(onSend).not.toHaveBeenCalled()
+
+    fireEvent.change(textarea, { target: { value: '字'.repeat(MAX_AGENT_MESSAGE_CHARS) } })
+    expect(screen.queryByTestId('chat-input-too-long')).not.toBeInTheDocument()
+    expect(screen.getByTestId('send-button')).not.toBeDisabled()
   })
 
   it('does not send empty messages', async () => {
