@@ -210,7 +210,7 @@ class TestRouterPrefixContract:
         routes = self._get_all_routes()
 
         # Root-level endpoints that are intentionally at /
-        allowed_root_endpoints = {"/", "/health", "/skill.md", "/docs", "/openapi.json"}
+        allowed_root_endpoints = {"/", "/health", "/health/ready", "/skill.md", "/docs", "/openapi.json"}
 
         for route in routes:
             # Skip allowed root endpoints

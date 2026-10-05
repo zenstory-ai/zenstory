@@ -754,12 +754,12 @@ async def test_share_skill_rolls_back_public_copy_when_user_link_staging_fails(
         return original_add(session, instance, *args, **kwargs)
 
     monkeypatch.setattr(session_type, "add", fail_when_link_is_staged)
-    with pytest.raises(RuntimeError, match="injected user-skill link failure"):
-        await client.post(
-            f"/api/v1/skills/{skill.id}/share",
-            json={"category": "writing"},
-            headers={"Authorization": f"Bearer {token}"},
-        )
+    failed = await client.post(
+        f"/api/v1/skills/{skill.id}/share",
+        json={"category": "writing"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert failed.status_code == 500
 
     db_session.rollback()
     assert db_session.query(PublicSkill).filter(PublicSkill.author_id == user.id).count() == 0

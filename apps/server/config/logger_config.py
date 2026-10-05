@@ -8,8 +8,29 @@ import json
 import logging
 import os
 import sys
+from datetime import UTC, datetime
 
-from config.datetime_utils import utcnow
+from utils.request_context import get_log_context
+from utils.sanitize import mask_email, redact_log_field
+
+# Attributes every LogRecord carries. Anything else on a record came from
+# ``extra=`` and belongs in the JSON output.
+_RESERVED_RECORD_ATTRS = frozenset(
+    vars(logging.LogRecord("", logging.INFO, "", 0, "", (), None)).keys()
+) | {"message", "asctime", "custom_fields", "request_context", "taskName"}
+
+
+class RequestContextFilter(logging.Filter):
+    """Attach request_id/trace_id/agent_run_id to every record.
+
+    ``log_with_context`` already merges this context, but plain ``logger.*``
+    calls (and third-party loggers) would otherwise lose it.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if not hasattr(record, "request_context"):
+            record.request_context = get_log_context()
+        return True
 
 
 class JsonFormatter(logging.Formatter):
@@ -23,10 +44,12 @@ class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         """Format log record as JSON string."""
         log_obj = {
-            "timestamp": utcnow().isoformat() + "Z",
+            "timestamp": datetime.fromtimestamp(record.created, UTC)
+            .isoformat(timespec="milliseconds")
+            .replace("+00:00", "Z"),
             "level": record.levelname,
             "logger": record.name,
-            "message": record.getMessage(),
+            "message": mask_email(record.getMessage()),
             # Add extra context for better debugging
             "service": os.getenv("APP_NAME", "zenstory API"),
             "environment": os.getenv("ENVIRONMENT", "development"),
@@ -38,9 +61,19 @@ class JsonFormatter(logging.Formatter):
         log_obj["line"] = record.lineno
         log_obj["function"] = record.funcName
 
-        # Add custom fields if present
-        if hasattr(record, "custom_fields") and record.custom_fields:
-            log_obj.update(record.custom_fields)
+        # Structured fields, lowest precedence first: request context, then
+        # plain ``extra=`` kwargs; ``log_with_context`` fields may override.
+        fields: dict = dict(getattr(record, "request_context", None) or {})
+        for key, value in record.__dict__.items():
+            if key not in _RESERVED_RECORD_ATTRS and not key.startswith("_"):
+                fields[key] = value
+        for key, value in fields.items():
+            if key not in log_obj:
+                log_obj[key] = redact_log_field(key, value)
+        custom_fields = getattr(record, "custom_fields", None)
+        if custom_fields:
+            for key, value in custom_fields.items():
+                log_obj[key] = redact_log_field(key, value)
 
         # Add exception info if present
         if record.exc_info:
@@ -81,6 +114,7 @@ def configure_logging() -> None:
     # Set JSON formatter
     formatter = JsonFormatter()
     stream_handler.setFormatter(formatter)
+    stream_handler.addFilter(RequestContextFilter())
 
     # Add handler to root logger
     root_logger.addHandler(stream_handler)
@@ -88,6 +122,14 @@ def configure_logging() -> None:
     # Prevent log propagation from Uvicorn's access logger
     logging.getLogger("uvicorn.access").handlers.clear()
     logging.getLogger("uvicorn.access").propagate = False
+
+    # Route Uvicorn's server/error logs (including "Exception in ASGI
+    # application" tracebacks) through the JSON handler instead of plain-text
+    # stderr.
+    for name in ("uvicorn", "uvicorn.error"):
+        uvicorn_logger = logging.getLogger(name)
+        uvicorn_logger.handlers.clear()
+        uvicorn_logger.propagate = True
 
     # Set log level for common third-party libraries
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)

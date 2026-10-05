@@ -1,6 +1,7 @@
 """
 Authentication API endpoints
 """
+import asyncio
 import hashlib
 import logging
 import os
@@ -531,7 +532,8 @@ async def register(
         referral_inviter_id = invite_code_obj.owner_id
 
     # Create new user with email_verified=False
-    hashed_password = hash_password(request.password)
+    # bcrypt is CPU-bound (~0.3s); keep it off the event loop.
+    hashed_password = await asyncio.to_thread(hash_password, request.password)
     new_user = User(
         username=request.username,
         email=normalized_email,
@@ -546,13 +548,9 @@ async def register(
     # Create referral relationship if valid invite code was used
     if referral_invite_code_id and referral_inviter_id:
         # Capture client IP for fraud detection
-        client_ip = None
-        if http_request.client:
-            client_ip = http_request.client.host
-        # Check X-Forwarded-For header for proxied requests
-        forwarded_for = http_request.headers.get("X-Forwarded-For")
-        if forwarded_for:
-            client_ip = forwarded_for.split(",")[0].strip()
+        client_ip = get_client_ip(http_request)
+        if client_ip == "unknown":
+            client_ip = None
 
         try:
             invite_code_obj = session.get(InviteCode, referral_invite_code_id)
@@ -718,7 +716,10 @@ async def login(
         )
     ).first()
 
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    password_ok = bool(user) and await asyncio.to_thread(
+        verify_password, form_data.password, user.hashed_password
+    )
+    if not user or not password_ok:
         log_with_context(
             logger,
             logging.WARNING,
@@ -1081,14 +1082,14 @@ async def change_password(
     - Verifies old password before changing
     """
     # Verify old password
-    if not verify_password(request.old_password, current_user.hashed_password):
+    if not await asyncio.to_thread(verify_password, request.old_password, current_user.hashed_password):
         raise APIException(
             error_code=ErrorCode.AUTH_INVALID_CREDENTIALS,
             status_code=status.HTTP_400_BAD_REQUEST
         )
 
     # Update password
-    current_user.hashed_password = hash_password(request.new_password)
+    current_user.hashed_password = await asyncio.to_thread(hash_password, request.new_password)
     current_user.updated_at = utcnow()
 
     session.add(current_user)

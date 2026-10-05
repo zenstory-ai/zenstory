@@ -252,17 +252,31 @@ async def test_error_logging_on_exception(client: AsyncClient, db_session, caplo
     try:
         # Make a request that will cause an exception
         with caplog.at_level(logging.ERROR):
-            with pytest.raises(ValueError, match="Test exception"):
-                await client.get(
-                    "/api/test/exception",
-                    headers={"Authorization": f"Bearer {token}"},
-                )
+            response = await client.get(
+                "/api/test/exception",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Origin": "http://localhost:5173",
+                },
+            )
 
-        # Check that error is logged at ERROR level
-        assert any(
-            record.levelno == logging.ERROR
-            for record in caplog.records
-        ), "Expected exception to be logged at ERROR level"
+        # The 500 is produced inside CORS, so browsers can read it and the
+        # request id; the body never leaks the exception text.
+        assert response.status_code == 500
+        request_id = response.headers.get("x-request-id")
+        assert request_id and re.match(REQUEST_ID_PATTERN, request_id)
+        assert response.headers.get("access-control-allow-origin") == "http://localhost:5173"
+        assert "Test exception" not in response.text
+        assert response.json()["request_id"] == request_id
+
+        # Check that error is logged at ERROR level with stack and request id
+        error_records = [
+            record for record in caplog.records
+            if record.levelno == logging.ERROR
+            and getattr(record, "custom_fields", {}).get("request_id") == request_id
+        ]
+        assert error_records, "Expected exception to be logged at ERROR level"
+        assert any(record.exc_info for record in error_records)
     finally:
         # Restore original routes
         app.routes.clear()
@@ -554,11 +568,11 @@ async def test_5xx_error_logging(client: AsyncClient, db_session, caplog):
 
         # Make a request that will cause a 500 error
         with caplog.at_level(logging.ERROR):
-            with pytest.raises(Exception, match="Test server error"):
-                await client.get(
-                    "/api/test/error2",
-                    headers={"Authorization": f"Bearer {token}"},
-                )
+            response = await client.get(
+                "/api/test/error2",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        assert response.status_code == 500
 
         # Check that the error is logged at ERROR level
         assert any(
