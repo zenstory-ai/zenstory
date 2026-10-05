@@ -34,7 +34,7 @@ class JobStatusResponse(BaseModel):
     processed_chapters: int
     progress_percentage: float
     stage_progress: dict | None
-    error_message: str | None
+    error_message: str | None  # ERR_* code
     started_at: datetime | None
     completed_at: datetime | None
     created_at: datetime
@@ -53,7 +53,7 @@ class MaterialListItem(BaseModel):
     created_at: datetime
     updated_at: datetime
     status: str | None  # Latest job status (pending/processing/completed/completed_with_errors/failed)
-    error_message: str | None = None
+    error_message: str | None = None  # ERR_* code of the latest job failure
     chapters_count: int
     # Effective decomposition stages recorded at flow start (see MaterialDetailResponse).
     enabled_stages: dict[str, bool] | None = None
@@ -67,6 +67,8 @@ class MaterialDetailResponse(BaseModel):
     synopsis: str | None
     source_meta: dict | None
     status: str | None  # IngestionJob status: pending/processing/completed/completed_with_errors/failed
+    # ERR_* code of the latest job failure (translated by the frontend).
+    error_message: str | None = None
     created_at: datetime
     updated_at: datetime
     chapters_count: int

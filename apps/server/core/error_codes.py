@@ -69,7 +69,23 @@ class ErrorCode:
     FILE_TYPE_INVALID = "ERR_FILE_TYPE_INVALID"
     FILE_TOO_LARGE = "ERR_FILE_TOO_LARGE"
     FILE_CONTENT_TOO_LONG = "ERR_FILE_CONTENT_TOO_LONG"
+    FILE_ENCODING_UNSUPPORTED = "ERR_FILE_ENCODING_UNSUPPORTED"
     VECTOR_SEARCH_UNAVAILABLE = "ERR_VECTOR_SEARCH_UNAVAILABLE"
+
+    # ==================== Material Decomposition Errors ====================
+    # Upload pre-checks (HTTP errors) and ingestion-job failure codes. Jobs store
+    # only these codes in IngestionJob.error_message; raw exceptions stay in logs.
+
+    MATERIAL_NO_CHAPTERS = "ERR_MATERIAL_NO_CHAPTERS"
+    MATERIAL_TOO_MANY_CHAPTERS = "ERR_MATERIAL_TOO_MANY_CHAPTERS"
+    MATERIAL_FILE_UNREADABLE = "ERR_MATERIAL_FILE_UNREADABLE"
+    MATERIAL_DISPATCH_FAILED = "ERR_MATERIAL_DISPATCH_FAILED"
+    MATERIAL_DISPATCH_TIMEOUT = "ERR_MATERIAL_DISPATCH_TIMEOUT"
+    MATERIAL_PROCESSING_TIMEOUT = "ERR_MATERIAL_PROCESSING_TIMEOUT"
+    MATERIAL_LLM_UNAVAILABLE = "ERR_MATERIAL_LLM_UNAVAILABLE"
+    MATERIAL_EXTRACTION_FAILED = "ERR_MATERIAL_EXTRACTION_FAILED"
+    MATERIAL_PARTIALLY_COMPLETED = "ERR_MATERIAL_PARTIALLY_COMPLETED"
+    MATERIAL_DECOMPOSE_FAILED = "ERR_MATERIAL_DECOMPOSE_FAILED"
 
     # ==================== Skill Package Errors ====================
 
@@ -206,6 +222,17 @@ ERROR_MESSAGES = {
         "ERR_FILE_TYPE_INVALID": "文件类型无效",
         "ERR_FILE_TOO_LARGE": "文件过大",
         "ERR_FILE_CONTENT_TOO_LONG": "文件内容过长",
+        "ERR_FILE_ENCODING_UNSUPPORTED": "无法识别文件编码，请转存为 UTF-8 或 GBK 后上传",
+        "ERR_MATERIAL_NO_CHAPTERS": "没有识别到章节标题",
+        "ERR_MATERIAL_TOO_MANY_CHAPTERS": "章节数量超过单次拆解上限",
+        "ERR_MATERIAL_FILE_UNREADABLE": "原始文件无法读取",
+        "ERR_MATERIAL_DISPATCH_FAILED": "拆解任务启动失败",
+        "ERR_MATERIAL_DISPATCH_TIMEOUT": "拆解任务排队超时",
+        "ERR_MATERIAL_PROCESSING_TIMEOUT": "拆解任务处理超时",
+        "ERR_MATERIAL_LLM_UNAVAILABLE": "AI 服务暂时不可用",
+        "ERR_MATERIAL_EXTRACTION_FAILED": "章节内容拆解失败",
+        "ERR_MATERIAL_PARTIALLY_COMPLETED": "部分内容拆解失败",
+        "ERR_MATERIAL_DECOMPOSE_FAILED": "拆解失败",
         "ERR_VECTOR_SEARCH_UNAVAILABLE": "向量搜索服务不可用",
         "ERR_SKILL_PACKAGE_INVALID": "技能包格式无效",
         "ERR_SKILL_PACKAGE_TOO_LARGE": "技能包或资源文件超出大小限制",
@@ -311,6 +338,17 @@ ERROR_MESSAGES = {
         "ERR_FILE_TYPE_INVALID": "Invalid file type",
         "ERR_FILE_TOO_LARGE": "File is too large",
         "ERR_FILE_CONTENT_TOO_LONG": "File content is too long",
+        "ERR_FILE_ENCODING_UNSUPPORTED": "Unrecognized text encoding; save the file as UTF-8 or GBK",
+        "ERR_MATERIAL_NO_CHAPTERS": "No chapter headings were recognized",
+        "ERR_MATERIAL_TOO_MANY_CHAPTERS": "Too many chapters for one decomposition",
+        "ERR_MATERIAL_FILE_UNREADABLE": "The original file could not be read",
+        "ERR_MATERIAL_DISPATCH_FAILED": "The decomposition job failed to start",
+        "ERR_MATERIAL_DISPATCH_TIMEOUT": "The decomposition job timed out in the queue",
+        "ERR_MATERIAL_PROCESSING_TIMEOUT": "The decomposition job timed out",
+        "ERR_MATERIAL_LLM_UNAVAILABLE": "The AI service is temporarily unavailable",
+        "ERR_MATERIAL_EXTRACTION_FAILED": "Chapter decomposition failed",
+        "ERR_MATERIAL_PARTIALLY_COMPLETED": "Some content could not be decomposed",
+        "ERR_MATERIAL_DECOMPOSE_FAILED": "Decomposition failed",
         "ERR_VECTOR_SEARCH_UNAVAILABLE": "Vector search service unavailable",
         "ERR_SKILL_PACKAGE_INVALID": "Invalid skill package",
         "ERR_SKILL_PACKAGE_TOO_LARGE": "Skill package or resource exceeds size limits",

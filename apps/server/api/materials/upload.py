@@ -12,12 +12,12 @@ import os
 import re
 import secrets
 
-import chardet
-from fastapi import APIRouter, Depends, Header, Query, UploadFile
-from fastapi import File as FastAPIFile
+from fastapi import APIRouter, Depends, Header, Query, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from services.auth import get_current_active_user
 from sqlmodel import Session, select
+from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from config.datetime_utils import utcnow
 from core.error_codes import ErrorCode
@@ -29,12 +29,29 @@ from core.permissions import (
     consume_quota,
 )
 from database import get_session
+from middleware.rate_limit import require_user_rate_limit
 from models import User
 from models.material_models import IngestionJob, Novel
+from services.material.ingestion_jobs_service import IngestionJobsService
+from services.material.novel_text import (
+    NovelDecodeError,
+    NovelTextAnalysis,
+    analyze_novel_bytes,
+)
 from services.quota_service import quota_service
 from utils.logger import get_logger
 
-from .constants import ALLOWED_EXTENSIONS, MAX_FILE_SIZE, MAX_TEXT_CHARACTERS
+from .access import require_materials_library_access
+from .constants import (
+    ALLOWED_EXTENSIONS,
+    MAX_FILE_SIZE,
+    MAX_TEXT_CHARACTERS,
+    MAX_UPLOAD_REQUEST_BYTES,
+    RETRY_RATE_LIMIT_MAX_REQUESTS,
+    RETRY_RATE_LIMIT_WINDOW_SECONDS,
+    UPLOAD_RATE_LIMIT_MAX_REQUESTS,
+    UPLOAD_RATE_LIMIT_WINDOW_SECONDS,
+)
 from .helpers import _get_novel_or_404, _start_flow_deployment
 from .schemas import MaterialUploadResponse
 
@@ -44,11 +61,6 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9._-]+")
-ENCODING_DETECTION_SAMPLE_SIZE = 10_000
-ENCODING_CONFIDENCE_THRESHOLD = 0.7
-UTF8_BOM = b"\xef\xbb\xbf"
-UTF16_LE_BOM = b"\xff\xfe"
-UTF16_BE_BOM = b"\xfe\xff"
 DISPATCH_FAILURE_MESSAGE = "Failed to dispatch ingestion flow"
 UPLOAD_FILENAME_TOKEN_BYTES = 8
 MAX_UPLOAD_FILENAME_ATTEMPTS = 10
@@ -128,73 +140,71 @@ def _write_upload_file_without_overwrite(
     )
 
 
-def _decode_upload_text(content_bytes: bytes) -> str:
-    """Decode uploaded text content for character-limit validation."""
-    if not content_bytes:
-        return ""
+def _analyze_upload(content_bytes: bytes) -> NovelTextAnalysis:
+    """
+    Decode and split the upload exactly like the ingestion worker's stage0.
 
-    if content_bytes.startswith(UTF8_BOM):
-        return content_bytes.decode("utf-8-sig")
-    if content_bytes.startswith(UTF16_LE_BOM) or content_bytes.startswith(UTF16_BE_BOM):
-        return content_bytes.decode("utf-16")
+    Runs in a worker thread (CPU-bound). Every rejection happens before any
+    quota is consumed.
+    """
+    from config.material_settings import material_settings
 
-    detected = chardet.detect(content_bytes[:ENCODING_DETECTION_SAMPLE_SIZE])
-    detected_encoding = detected.get("encoding")
-    detected_confidence = float(detected.get("confidence") or 0.0)
+    try:
+        analysis = analyze_novel_bytes(content_bytes)
+    except NovelDecodeError as exc:
+        raise APIException(
+            error_code=ErrorCode.FILE_ENCODING_UNSUPPORTED,
+            status_code=400,
+        ) from exc
 
-    encodings_to_try: list[str] = []
-    if (
-        isinstance(detected_encoding, str)
-        and detected_encoding
-        and detected_confidence >= ENCODING_CONFIDENCE_THRESHOLD
-    ):
-        normalized_detected_encoding = detected_encoding.lower().replace("_", "-")
-        encoding_aliases = {
-            "utf8": "utf-8",
-            "gbk": "gb18030",
-            "gb2312": "gb18030",
-            "gb-2312": "gb18030",
-        }
-        encodings_to_try.append(
-            encoding_aliases.get(normalized_detected_encoding, normalized_detected_encoding)
+    if analysis.char_count > MAX_TEXT_CHARACTERS:
+        raise APIException(error_code=ErrorCode.FILE_CONTENT_TOO_LONG, status_code=400)
+    if analysis.chapter_count == 0:
+        raise APIException(error_code=ErrorCode.MATERIAL_NO_CHAPTERS, status_code=400)
+    if analysis.chapter_count > material_settings.MAX_CHAPTERS_PER_NOVEL:
+        raise APIException(
+            error_code=ErrorCode.MATERIAL_TOO_MANY_CHAPTERS,
+            status_code=400,
+            detail=(
+                f"{analysis.chapter_count} chapters exceed the limit of "
+                f"{material_settings.MAX_CHAPTERS_PER_NOVEL}"
+            ),
         )
-    encodings_to_try.extend(["utf-8", "gb18030"])
-
-    seen_encodings: set[str] = set()
-    for encoding in encodings_to_try:
-        normalized = encoding.lower()
-        if normalized in seen_encodings:
-            continue
-        seen_encodings.add(normalized)
-
-        with contextlib.suppress(UnicodeDecodeError, LookupError):
-            return content_bytes.decode(encoding)
-
-    return content_bytes.decode("utf-8", errors="ignore")
+    return analysis
 
 
-def _is_compensatory_retry(job: IngestionJob) -> bool:
+def _check_upload_content_length(request: Request) -> None:
     """
-    Return True when a retry should be treated as compensatory and not re-billed.
+    Reject declared-oversized bodies before the multipart form is parsed.
 
-    For now this is intentionally conservative: only deployment-start failures
-    are considered infrastructure failures eligible for a no-charge retry.
+    A body without Content-Length (chunked transfer, e.g. re-chunked by a
+    proxy) is left to the global request-body limit; the bounded file read
+    below still caps what this endpoint holds in memory.
     """
-    if not job.error_details:
-        return False
+    raw_length = request.headers.get("content-length")
+    if raw_length is None:
+        return
+    try:
+        content_length = int(raw_length)
+    except ValueError as exc:
+        raise APIException(error_code=ErrorCode.BAD_REQUEST, status_code=400) from exc
+    if content_length > MAX_UPLOAD_REQUEST_BYTES:
+        raise APIException(error_code=ErrorCode.FILE_TOO_LARGE, status_code=413)
 
-    with contextlib.suppress(Exception):
-        parsed = json.loads(job.error_details)
-        if isinstance(parsed, dict) and parsed.get("stage") == "deployment_start":
-            return True
 
-    return False
+async def _read_upload_file(request: Request) -> StarletteUploadFile:
+    """Parse the multipart body (one file part) after auth and size pre-checks."""
+    form = await request.form(max_files=1, max_fields=10)
+    upload = form.get("file")
+    if not isinstance(upload, StarletteUploadFile):
+        raise APIException(error_code=ErrorCode.VALIDATION_ERROR, status_code=400)
+    return upload
 
 
 def _mark_job_dispatch_failed(
     session: Session,
     job_id: int,
-    message: str = DISPATCH_FAILURE_MESSAGE,
+    quota_refunded: bool,
 ) -> None:
     """Persist deployment-start failure state for a just-created ingestion job."""
     job = session.get(IngestionJob, job_id)
@@ -202,15 +212,21 @@ def _mark_job_dispatch_failed(
         return
 
     job.status = "failed"
-    job.error_message = message
+    job.error_message = ErrorCode.MATERIAL_DISPATCH_FAILED
     job.error_details = json.dumps(
         {
             "stage": "deployment_start",
-            "message": message,
+            "error_code": ErrorCode.MATERIAL_DISPATCH_FAILED,
         },
         ensure_ascii=False,
     )
-    job.update_stage_progress("queue", "failed", message=message)
+    job.update_stage_progress("queue", "failed", reason="deployment_start")
+    IngestionJobsService.set_billing(
+        job,
+        quota_charged=not quota_refunded,
+        quota_refunded=quota_refunded,
+        refund_reason=ErrorCode.MATERIAL_DISPATCH_FAILED if quota_refunded else None,
+    )
     job.completed_at = utcnow()
     job.updated_at = utcnow()
     session.add(job)
@@ -283,24 +299,71 @@ async def download_upload_file_for_worker(
 
 # ==================== Upload Endpoints ====================
 
-@router.post("/upload", response_model=MaterialUploadResponse)
+_UPLOAD_OPENAPI_EXTRA = {
+    "requestBody": {
+        "required": True,
+        "content": {
+            "multipart/form-data": {
+                "schema": {
+                    "type": "object",
+                    "required": ["file"],
+                    "properties": {"file": {"type": "string", "format": "binary"}},
+                }
+            }
+        },
+    }
+}
+
+
+@router.post(
+    "/upload",
+    response_model=MaterialUploadResponse,
+    openapi_extra=_UPLOAD_OPENAPI_EXTRA,
+)
 async def upload_material(
-    file: UploadFile = FastAPIFile(...),
+    request: Request,
     title: str | None = Query(None, description="Novel title (optional, auto-detect from file)"),
     author: str | None = Query(None, description="Author name (optional)"),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_materials_library_access),
+    _rate_limit: int = Depends(
+        require_user_rate_limit(
+            "materials_upload",
+            UPLOAD_RATE_LIMIT_MAX_REQUESTS,
+            UPLOAD_RATE_LIMIT_WINDOW_SECONDS,
+        )
+    ),
     session: Session = Depends(get_session),
 ):
     """
     Upload a novel file and start decomposition.
 
     Constraints:
-    - Only .txt files allowed
-    - Maximum 100MB file size
-    - Maximum 300,000 characters per novel
-    - File will be saved to uploads/ directory
+    - Paid materials-library entitlement and per-user rate limit are checked
+      before the request body is read
+    - Only .txt files allowed, maximum 20MB, maximum 300,000 characters
+    - The text must split into 1..MATERIAL_MAX_CHAPTERS_PER_NOVEL chapters
     - Returns success only after the decomposition flow dispatch is accepted
     """
+    # Size pre-check, then parse the (single-file) multipart body.
+    _check_upload_content_length(request)
+    file = await _read_upload_file(request)
+    return await process_material_upload(
+        file=file,
+        title=title,
+        author=author,
+        current_user=current_user,
+        session=session,
+    )
+
+
+async def process_material_upload(
+    file: StarletteUploadFile,
+    title: str | None,
+    author: str | None,
+    current_user: User,
+    session: Session,
+) -> MaterialUploadResponse:
+    """Validate an uploaded novel, charge one decomposition, and dispatch the flow."""
     # 1. Validate file extension
     if not file.filename:
         raise APIException(error_code=ErrorCode.VALIDATION_ERROR, status_code=400)
@@ -312,21 +375,16 @@ async def upload_material(
             status_code=400,
         )
 
-    # 2. Read and validate file size
-    content_bytes = await file.read()
+    # 2. Bounded read, then decode + chapter pre-check off the event loop.
+    content_bytes = await file.read(MAX_FILE_SIZE + 1)
     if len(content_bytes) > MAX_FILE_SIZE:
         raise APIException(
             error_code=ErrorCode.FILE_TOO_LARGE,
             status_code=400,
         )
 
-    content = _decode_upload_text(content_bytes)
-    char_count = len(content)
-    if char_count > MAX_TEXT_CHARACTERS:
-        raise APIException(
-            error_code=ErrorCode.FILE_CONTENT_TOO_LONG,
-            status_code=400,
-        )
+    analysis = await run_in_threadpool(_analyze_upload, content_bytes)
+    char_count = analysis.char_count
 
     original_filename = file.filename
     sanitized_original_filename = _sanitize_original_filename(original_filename)
@@ -349,13 +407,13 @@ async def upload_material(
     dispatch_accepted = False
     job_id: int | None = None
 
-    def _refund_once() -> None:
+    def _refund_once() -> bool:
         nonlocal quota_consumed
         if not quota_consumed:
-            return
+            return False
         quota_consumed = False
         try:
-            quota_service.release_feature_quota(
+            return quota_service.release_feature_quota(
                 session, current_user.id, "material_decompose"
             )
         except Exception as refund_error:
@@ -364,6 +422,7 @@ async def upload_material(
                 refund_error,
                 exc_info=True,
             )
+            return False
 
     try:
         # 3. Save file to uploads directory
@@ -372,12 +431,13 @@ async def upload_material(
         upload_dir = material_settings.UPLOAD_FOLDER
         os.makedirs(upload_dir, exist_ok=True)
         timestamp = utcnow().strftime("%Y%m%d_%H%M%S")
-        _, file_path = _write_upload_file_without_overwrite(
-            upload_dir=upload_dir,
-            user_id=current_user.id,
-            timestamp=timestamp,
-            sanitized_original_filename=sanitized_original_filename,
-            content_bytes=content_bytes,
+        _, file_path = await run_in_threadpool(
+            _write_upload_file_without_overwrite,
+            upload_dir,
+            current_user.id,
+            timestamp,
+            sanitized_original_filename,
+            content_bytes,
         )
         logger.info(f"File saved: {file_path} ({len(content_bytes)} bytes)")
 
@@ -385,6 +445,8 @@ async def upload_material(
             "file_path": file_path,
             "file_size": len(content_bytes),
             "char_count": char_count,
+            "chapter_count": analysis.chapter_count,
+            "encoding": analysis.encoding,
             "original_filename": original_filename,
         }
         novel = Novel(
@@ -405,6 +467,7 @@ async def upload_material(
             processed_chapters=0,
         )
         job.update_stage_progress("queue", "pending", message="等待调度")
+        IngestionJobsService.set_billing(job, quota_charged=True, quota_refunded=False)
         session.add(job)
         session.commit()
         session.refresh(job)
@@ -443,9 +506,10 @@ async def upload_material(
     except Exception:
         session.rollback()
         if not dispatch_accepted:
+            refunded = _refund_once()
             if job_id is not None:
                 try:
-                    _mark_job_dispatch_failed(session, job_id)
+                    _mark_job_dispatch_failed(session, job_id, quota_refunded=refunded)
                 except Exception:
                     session.rollback()
                     logger.error(
@@ -453,7 +517,6 @@ async def upload_material(
                         job_id,
                         exc_info=True,
                     )
-            _refund_once()
         raise
 
 
@@ -463,12 +526,22 @@ async def upload_material(
 async def retry_material_job(
     novel_id: int,
     current_user: User = Depends(get_current_active_user),
+    _rate_limit: int = Depends(
+        require_user_rate_limit(
+            "materials_retry",
+            RETRY_RATE_LIMIT_MAX_REQUESTS,
+            RETRY_RATE_LIMIT_WINDOW_SECONDS,
+        )
+    ),
     session: Session = Depends(get_session),
 ):
     """
     Retry failed decomposition task.
 
-    Creates a new ingestion job and resumes its incomplete capabilities.
+    Creates a new ingestion job and resumes its incomplete capabilities. Every
+    retry is charged one decomposition: platform failures refund the failed
+    job's quota when they happen (see IngestionJobsService.fail_job), so a
+    retry is never free and a refunded job cannot be retried for free.
     """
     # Verify novel ownership and soft delete check
     novel = _get_novel_or_404(session, novel_id, current_user.id)
@@ -502,19 +575,17 @@ async def retry_material_job(
     ):
         raise FeatureNotIncludedException(feature_type="material_decompose")
 
-    compensatory_retry = _is_compensatory_retry(latest_job)
-    if not compensatory_retry:
-        check_quota("material_decompose", session, current_user.id)
+    check_quota("material_decompose", session, current_user.id)
 
     quota_consumed = False
 
-    def _refund_retry_quota_once() -> None:
+    def _refund_retry_quota_once() -> bool:
         nonlocal quota_consumed
         if not quota_consumed:
-            return
+            return False
         quota_consumed = False
         try:
-            quota_service.release_feature_quota(
+            return quota_service.release_feature_quota(
                 session, current_user.id, "material_decompose"
             )
         except Exception as refund_error:
@@ -523,22 +594,22 @@ async def retry_material_job(
                 refund_error,
                 exc_info=True,
             )
+            return False
 
-    if not compensatory_retry:
-        if consume_quota("material_decompose", session, current_user.id):
-            quota_consumed = True
-        else:
-            _allowed, used, limit = quota_service.check_feature_quota(
-                session, current_user.id, "material_decompose"
-            )
-            # This request did not charge quota, so it must not create a new
-            # runnable job, dispatch, or refund. Raise even if a concurrent
-            # change makes the advisory check report allowed=True.
-            raise QuotaExceededException(
-                feature_type="material_decompose",
-                used=used,
-                limit=limit,
-            )
+    if consume_quota("material_decompose", session, current_user.id):
+        quota_consumed = True
+    else:
+        _allowed, used, limit = quota_service.check_feature_quota(
+            session, current_user.id, "material_decompose"
+        )
+        # This request did not charge quota, so it must not create a new
+        # runnable job, dispatch, or refund. Raise even if a concurrent
+        # change makes the advisory check report allowed=True.
+        raise QuotaExceededException(
+            feature_type="material_decompose",
+            used=used,
+            limit=limit,
+        )
 
     new_job: IngestionJob | None = None
     try:
@@ -551,6 +622,7 @@ async def retry_material_job(
             processed_chapters=0,
         )
         new_job.update_stage_progress("queue", "pending", message="等待重试调度")
+        IngestionJobsService.set_billing(new_job, quota_charged=True, quota_refunded=False)
         session.add(new_job)
         session.commit()
         session.refresh(new_job)
@@ -579,9 +651,10 @@ async def retry_material_job(
             )
     except Exception:
         session.rollback()
+        refunded = _refund_retry_quota_once()
         if new_job is not None and new_job.id is not None:
             try:
-                _mark_job_dispatch_failed(session, new_job.id)
+                _mark_job_dispatch_failed(session, new_job.id, quota_refunded=refunded)
             except Exception:
                 session.rollback()
                 logger.error(
@@ -589,7 +662,6 @@ async def retry_material_job(
                     new_job.id,
                     exc_info=True,
                 )
-        _refund_retry_quota_once()
         raise
 
     assert new_job.id is not None

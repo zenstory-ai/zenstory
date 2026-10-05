@@ -38,8 +38,18 @@ from models.material_models import (
     WorldView,
 )
 from models.subscription import SubscriptionPlan, UsageQuota, UserSubscription
+from services.material.novel_text import decode_novel_bytes
 
 # ==================== Helper Functions ====================
+
+
+def make_novel_text(label: str = "", chapters: int = 2) -> str:
+    """A small novel the shared chapter splitter accepts (>= 100 chars per chapter)."""
+    body = f"{label}这是一段用于测试的正文内容。" * 12
+    return "\n".join(f"第{index}章 测试\n{body}" for index in range(1, chapters + 1))
+
+
+NOVEL_BYTES = make_novel_text().encode("utf-8")
 
 
 @pytest.fixture(autouse=True)
@@ -144,7 +154,7 @@ def test_decode_upload_text_falls_back_to_gb18030_when_detector_is_low_confidenc
     """GBK/GB18030 novels should decode correctly even when chardet guesses wrong."""
     content = "字" * 32
 
-    decoded = materials_upload_api._decode_upload_text(content.encode("gbk"))
+    decoded, _encoding = decode_novel_bytes(content.encode("gbk"))
 
     assert decoded == content
 
@@ -153,7 +163,7 @@ def test_decode_upload_text_strips_utf16_bom_from_character_count():
     """UTF-16 BOM should not count as an extra character."""
     content = "字" * 32
 
-    decoded = materials_upload_api._decode_upload_text(content.encode("utf-16"))
+    decoded, _encoding = decode_novel_bytes(content.encode("utf-16"))
 
     assert decoded == content
 
@@ -164,7 +174,7 @@ async def test_upload_material_success(client: AsyncClient, db_session):
     user, token = await create_test_user(client, db_session, "uploaduser1")
 
     # Create a test file
-    file_content = b"Chapter 1\n\nThis is test content for the novel."
+    file_content = NOVEL_BYTES
     file = ("test_novel.txt", io.BytesIO(file_content), "text/plain")
 
     response = await client.post(
@@ -209,7 +219,7 @@ async def test_upload_material_passes_response_job_id_to_dispatch(
     monkeypatch.setattr(materials_upload_api, "_start_flow_deployment", _capture_dispatch)
     response = await client.post(
         "/api/v1/materials/upload",
-        files={"file": ("exact.txt", io.BytesIO(b"Chapter 1"), "text/plain")},
+        files={"file": ("exact.txt", io.BytesIO(NOVEL_BYTES), "text/plain")},
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -251,7 +261,7 @@ async def test_upload_material_consume_false_never_dispatches_or_refunds(
 
     response = await client.post(
         "/api/v1/materials/upload",
-        files={"file": ("denied.txt", io.BytesIO(b"Chapter 1"), "text/plain")},
+        files={"file": ("denied.txt", io.BytesIO(NOVEL_BYTES), "text/plain")},
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -369,8 +379,8 @@ async def test_upload_refunds_after_failure_status_poisoned_session(
 
     expected_error = RuntimeError if dispatch_raises else APIException
     with pytest.raises(expected_error) as raised:
-        await materials_upload_api.upload_material(
-            file=UploadFile(io.BytesIO(b"Chapter 1"), filename="test.txt"),
+        await materials_upload_api.process_material_upload(
+            file=UploadFile(io.BytesIO(NOVEL_BYTES), filename="test.txt"),
             title=None, author=None, current_user=user, session=db_session,
         )
     if dispatch_raises:
@@ -395,7 +405,7 @@ async def test_upload_material_accepts_content_at_character_limit(
     _, token = await create_test_user(client, db_session, "uploaduser_limit_ok")
     monkeypatch.setattr(material_settings, "UPLOAD_FOLDER", str(tmp_path))
 
-    file_content = ("字" * MAX_TEXT_CHARACTERS).encode("utf-8")
+    file_content = ("第一章\n" + "字" * (MAX_TEXT_CHARACTERS - 4)).encode("utf-8")
     file = ("limit_ok.txt", io.BytesIO(file_content), "text/plain")
 
     response = await client.post(
@@ -420,7 +430,7 @@ async def test_upload_material_accepts_gbk_content_at_character_limit(
     _, token = await create_test_user(client, db_session, "uploaduser_limit_ok_gbk")
     monkeypatch.setattr(material_settings, "UPLOAD_FOLDER", str(tmp_path))
 
-    file_content = ("字" * MAX_TEXT_CHARACTERS).encode("gbk")
+    file_content = ("第一章\n" + "字" * (MAX_TEXT_CHARACTERS - 4)).encode("gbk")
     file = ("limit_ok_gbk.txt", io.BytesIO(file_content), "text/plain")
 
     response = await client.post(
@@ -445,7 +455,7 @@ async def test_upload_material_accepts_utf16_content_at_character_limit(
     _, token = await create_test_user(client, db_session, "uploaduser_limit_ok_utf16")
     monkeypatch.setattr(material_settings, "UPLOAD_FOLDER", str(tmp_path))
 
-    file_content = ("字" * MAX_TEXT_CHARACTERS).encode("utf-16")
+    file_content = ("第一章\n" + "字" * (MAX_TEXT_CHARACTERS - 4)).encode("utf-16")
     file = ("limit_ok_utf16.txt", io.BytesIO(file_content), "text/plain")
 
     response = await client.post(
@@ -470,7 +480,7 @@ async def test_upload_material_rejects_content_over_character_limit(
     _, token = await create_test_user(client, db_session, "uploaduser_limit_too_long")
     monkeypatch.setattr(material_settings, "UPLOAD_FOLDER", str(tmp_path))
 
-    file_content = ("字" * (MAX_TEXT_CHARACTERS + 1)).encode("utf-8")
+    file_content = ("第一章\n" + "字" * (MAX_TEXT_CHARACTERS - 3)).encode("utf-8")
     file = ("limit_too_long.txt", io.BytesIO(file_content), "text/plain")
 
     response = await client.post(
@@ -507,7 +517,7 @@ async def test_upload_material_returns_503_when_flow_dispatch_fails(
         _failed_start_flow_deployment,
     )
 
-    file_content = b"Chapter 1\n\nThis is test content for the novel."
+    file_content = NOVEL_BYTES
     file = ("test_novel.txt", io.BytesIO(file_content), "text/plain")
 
     response = await client.post(
@@ -538,8 +548,12 @@ async def test_upload_material_returns_503_when_flow_dispatch_fails(
     ).first()
     assert latest_job is not None
     assert latest_job.status == "failed"
-    assert latest_job.error_message == "Failed to dispatch ingestion flow"
+    assert latest_job.error_message == ErrorCode.MATERIAL_DISPATCH_FAILED
     assert latest_job.completed_at is not None
+    # The upload was refunded, so the job no longer holds a charged unit.
+    billing = json.loads(latest_job.stage_progress)["billing"]
+    assert billing["quota_charged"] is False
+    assert billing["quota_refunded"] is True
 
     list_response = await client.get(
         "/api/v1/materials",
@@ -556,7 +570,7 @@ async def test_upload_material_returns_503_when_flow_dispatch_fails(
             "created_at": novel.created_at.isoformat(),
             "updated_at": novel.updated_at.isoformat(),
             "status": "failed",
-            "error_message": "Failed to dispatch ingestion flow",
+            "error_message": ErrorCode.MATERIAL_DISPATCH_FAILED,
             "chapters_count": 0,
             "enabled_stages": None,
         }
@@ -571,7 +585,7 @@ async def test_upload_material_sanitizes_filename(client: AsyncClient, db_sessio
     _, token = await create_test_user(client, db_session, "uploaduser_sanitize")
     monkeypatch.setattr(material_settings, "UPLOAD_FOLDER", str(tmp_path))
 
-    file_content = b"Chapter 1\n\nSafe content"
+    file_content = NOVEL_BYTES
     file = ("../unsafe/../../novel.txt", io.BytesIO(file_content), "text/plain")
 
     response = await client.post(
@@ -610,8 +624,8 @@ async def test_upload_material_keeps_same_second_same_name_files_separate(
         lambda: datetime(2026, 1, 2, 3, 4, 5),
     )
 
-    first_content = b"Chapter 1\n\nFirst source content"
-    second_content = b"Chapter 1\n\nSecond source content"
+    first_content = make_novel_text("First").encode("utf-8")
+    second_content = make_novel_text("Second").encode("utf-8")
 
     first_response = await client.post(
         "/api/v1/materials/upload",
@@ -698,6 +712,217 @@ async def test_upload_material_requires_paid_materials_access(client: AsyncClien
     assert response.status_code == 402
     data = response.json()
     assert data["error_code"] == "ERR_FEATURE_NOT_INCLUDED"
+
+
+async def _create_free_user_token(client: AsyncClient, db_session, username: str) -> str:
+    from services.core.auth_service import hash_password
+
+    user = User(
+        username=username,
+        email=f"{username}@example.com",
+        hashed_password=hash_password("password123"),
+        email_verified=True,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    login_response = await client.post(
+        "/api/auth/login",
+        data={"username": username, "password": "password123"},
+    )
+    assert login_response.status_code == 200
+    return login_response.json()["access_token"]
+
+
+def _quota_used(db_session, user_id: str) -> int:
+    quota = db_session.exec(select(UsageQuota).where(UsageQuota.user_id == user_id)).first()
+    if quota is None:
+        return 0
+    db_session.refresh(quota)
+    return quota.material_decompositions_used
+
+
+@pytest.mark.integration
+async def test_upload_entitlement_checked_before_body_is_read(
+    client: AsyncClient, db_session, monkeypatch
+):
+    """Free users are rejected before the multipart body is parsed or read."""
+    token = await _create_free_user_token(client, db_session, "free_upload_early")
+
+    async def _must_not_parse(_request):
+        raise AssertionError("body parsed before entitlement check")
+
+    monkeypatch.setattr(materials_upload_api, "_read_upload_file", _must_not_parse)
+
+    response = await client.post(
+        "/api/v1/materials/upload",
+        files={"file": ("big.txt", io.BytesIO(NOVEL_BYTES), "text/plain")},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 402
+    assert response.json()["error_code"] == "ERR_FEATURE_NOT_INCLUDED"
+
+
+@pytest.mark.integration
+async def test_upload_rejects_oversized_content_length_before_parsing(
+    client: AsyncClient, db_session, monkeypatch
+):
+    user, token = await create_test_user(client, db_session, "upload_cl_precheck")
+    monkeypatch.setattr(materials_upload_api, "MAX_UPLOAD_REQUEST_BYTES", 512)
+
+    async def _must_not_parse(_request):
+        raise AssertionError("oversized body was parsed")
+
+    monkeypatch.setattr(materials_upload_api, "_read_upload_file", _must_not_parse)
+
+    response = await client.post(
+        "/api/v1/materials/upload",
+        files={"file": ("big.txt", io.BytesIO(b"x" * 4096), "text/plain")},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 413
+    assert response.json()["error_code"] == ErrorCode.FILE_TOO_LARGE
+    assert _quota_used(db_session, user.id) == 0
+
+
+@pytest.mark.integration
+async def test_upload_reads_at_most_max_file_size_plus_one(
+    client: AsyncClient, db_session, monkeypatch
+):
+    user, token = await create_test_user(client, db_session, "upload_bounded_read")
+    monkeypatch.setattr(materials_upload_api, "MAX_FILE_SIZE", 1000)
+    read_sizes: list[int] = []
+    original_read = UploadFile.read
+
+    async def _tracking_read(self, size: int = -1):
+        read_sizes.append(size)
+        return await original_read(self, size)
+
+    monkeypatch.setattr(UploadFile, "read", _tracking_read)
+
+    response = await client.post(
+        "/api/v1/materials/upload",
+        files={"file": ("big.txt", io.BytesIO(b"x" * 5000), "text/plain")},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error_code"] == ErrorCode.FILE_TOO_LARGE
+    assert read_sizes == [1001]
+    assert _quota_used(db_session, user.id) == 0
+
+
+def test_material_upload_size_limit_is_20mb():
+    from api.materials.constants import MAX_FILE_SIZE
+
+    assert MAX_FILE_SIZE == 20 * 1024 * 1024
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "content",
+    [
+        "这是一篇没有任何章节标题的短文。" * 30,
+        "第一章\n太短",
+    ],
+)
+async def test_upload_without_chapters_is_rejected_without_charging(
+    client: AsyncClient, db_session, monkeypatch, tmp_path, content
+):
+    from config.material_settings import material_settings
+
+    user, token = await create_test_user(
+        client, db_session, f"upload_no_chapters_{len(content)}"
+    )
+    monkeypatch.setattr(material_settings, "UPLOAD_FOLDER", str(tmp_path))
+
+    response = await client.post(
+        "/api/v1/materials/upload",
+        files={"file": ("plain.txt", io.BytesIO(content.encode("utf-8")), "text/plain")},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error_code"] == ErrorCode.MATERIAL_NO_CHAPTERS
+    assert _quota_used(db_session, user.id) == 0
+    assert db_session.exec(select(Novel).where(Novel.user_id == user.id)).first() is None
+
+
+@pytest.mark.integration
+async def test_upload_over_chapter_limit_is_rejected_without_charging(
+    client: AsyncClient, db_session, monkeypatch, tmp_path
+):
+    from config.material_settings import material_settings
+
+    user, token = await create_test_user(client, db_session, "upload_too_many_chapters")
+    monkeypatch.setattr(material_settings, "UPLOAD_FOLDER", str(tmp_path))
+    monkeypatch.setattr(material_settings, "MAX_CHAPTERS_PER_NOVEL", 2)
+
+    response = await client.post(
+        "/api/v1/materials/upload",
+        files={
+            "file": (
+                "long.txt",
+                io.BytesIO(make_novel_text(chapters=3).encode("utf-8")),
+                "text/plain",
+            )
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error_code"] == ErrorCode.MATERIAL_TOO_MANY_CHAPTERS
+    assert _quota_used(db_session, user.id) == 0
+
+
+@pytest.mark.integration
+async def test_upload_rejects_undecodable_bytes(client: AsyncClient, db_session):
+    user, token = await create_test_user(client, db_session, "upload_bad_encoding")
+
+    response = await client.post(
+        "/api/v1/materials/upload",
+        files={"file": ("bad.txt", io.BytesIO(bytes([0x81, 0x30, 0xFF, 0xFF]) * 50), "text/plain")},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error_code"] == ErrorCode.FILE_ENCODING_UNSUPPORTED
+    assert _quota_used(db_session, user.id) == 0
+
+
+@pytest.mark.integration
+async def test_upload_is_rate_limited_per_user(client: AsyncClient, db_session, monkeypatch):
+    _, token = await create_test_user(client, db_session, "upload_rate_limited")
+
+    statuses = []
+    for _ in range(materials_upload_api.UPLOAD_RATE_LIMIT_MAX_REQUESTS + 1):
+        response = await client.post(
+            "/api/v1/materials/upload",
+            files={"file": ("wrong.pdf", io.BytesIO(b"x"), "application/pdf")},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        statuses.append(response.status_code)
+
+    assert statuses[:-1] == [400] * materials_upload_api.UPLOAD_RATE_LIMIT_MAX_REQUESTS
+    assert statuses[-1] == 429
+
+
+def test_upload_and_retry_routes_have_per_user_rate_limits():
+    routes = {
+        (route.path, tuple(sorted(route.methods))): route
+        for route in materials_upload_api.router.routes
+    }
+    for path in ("/upload", "/{novel_id}/retry"):
+        route = routes[(path, ("POST",))]
+        limiters = [
+            dep.call
+            for dep in route.dependant.dependencies
+            if getattr(dep.call, "rate_limit_key", None) is not None
+        ]
+        assert len(limiters) == 1, f"{path} is missing a per-user rate limit"
+        assert limiters[0].rate_limit_window_seconds > 0
 
 
 @pytest.mark.integration
@@ -812,7 +1037,7 @@ async def test_get_materials_with_data(client: AsyncClient, db_session):
     novel1.source_meta = json.dumps({"original_filename": "novel1.txt"})
     create_test_job(db_session, novel1.id, "completed")
     processing_job = create_test_job(db_session, novel2.id, "processing")
-    processing_job.error_message = "processing error"
+    processing_job.error_message = "raw worker exception at /app/uploads/x.txt"
     db_session.add(processing_job)
     db_session.commit()
 
@@ -836,7 +1061,8 @@ async def test_get_materials_with_data(client: AsyncClient, db_session):
     assert novel1_item["original_filename"] == "novel1.txt"
     novel2_item = next((item for item in data if item["title"] == "Novel 2"), None)
     assert novel2_item is not None
-    assert novel2_item["error_message"] == "processing error"
+    # Legacy free-text errors never reach users; they collapse to a code.
+    assert novel2_item["error_message"] == ErrorCode.MATERIAL_DECOMPOSE_FAILED
 
 
 @pytest.mark.integration
@@ -1044,7 +1270,7 @@ async def test_get_material_status_reconciles_stale_pending_job(client: AsyncCli
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "failed"
-    assert data["error_message"] == "拆解任务调度超时，请重试"
+    assert data["error_message"] == ErrorCode.MATERIAL_DISPATCH_TIMEOUT
 
 
 # ==================== Search Tests ====================

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta
 
 import pytest
@@ -309,10 +310,20 @@ async def test_retry_material_job_does_not_consume_quota_when_dispatch_fails(
 
 
 @pytest.mark.integration
-async def test_retry_material_job_does_not_consume_quota_for_compensatory_failures(
-    client: AsyncClient, db_session
+@pytest.mark.parametrize(
+    "billing",
+    [
+        None,  # legacy job written before billing state existed
+        {"quota_charged": False, "quota_refunded": True},  # refunded dispatch failure
+    ],
+)
+async def test_retry_after_refunded_dispatch_failure_is_charged(
+    client: AsyncClient, db_session, monkeypatch, billing
 ):
-    user, token = await _create_test_user_and_token(client, db_session, "retryquota2")
+    """A dispatch failure already refunded its quota; retrying it must not be free."""
+    user, token = await _create_test_user_and_token(
+        client, db_session, f"retryquota2{'b' if billing else 'l'}"
+    )
 
     now = datetime.utcnow()
     quota = UsageQuota(
@@ -341,18 +352,39 @@ async def test_retry_material_job_does_not_consume_quota_for_compensatory_failur
         processed_chapters=0,
         error_message="deployment startup failed",
         error_details='{"stage":"deployment_start","message":"deployment startup failed"}',
+        stage_progress=json.dumps({"billing": billing}) if billing else None,
     )
     db_session.add(failed_job)
     db_session.commit()
 
-    response = await client.post(
+    dispatch_calls: list[int] = []
+
+    async def _capture_dispatch(*args, **kwargs):
+        dispatch_calls.append(kwargs["job_id"])
+        return "flow-run-test"
+
+    monkeypatch.setattr(materials_upload_api, "_start_flow_deployment", _capture_dispatch)
+
+    exhausted = await client.post(
         f"/api/v1/materials/{novel.id}/retry",
         headers={"Authorization": f"Bearer {token}"},
     )
+    assert exhausted.status_code == 402
+    assert dispatch_calls == []
 
-    assert response.status_code == 200
+    quota.material_decompositions_used = 4
+    db_session.add(quota)
+    db_session.commit()
+
+    charged = await client.post(
+        f"/api/v1/materials/{novel.id}/retry",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert charged.status_code == 200
     db_session.refresh(quota)
     assert quota.material_decompositions_used == 5
+    new_job = db_session.get(IngestionJob, charged.json()["job_id"])
+    assert json.loads(new_job.stage_progress)["billing"]["quota_charged"] is True
 
 
 @pytest.mark.integration
