@@ -1,5 +1,6 @@
 """Payment checkout, callback, ownership, and admin order tests."""
 
+import logging
 from datetime import datetime
 
 import pytest
@@ -358,3 +359,321 @@ async def test_admin_payment_orders_permissions_filters_and_pagination(
     assert payload["page_size"] == 1
     assert payload["items"][0]["username"] == user.username
     assert "sign" not in payload["items"][0]
+
+
+def make_order(db_session: Session, user: User, out_trade_no: str, **overrides) -> PaymentOrder:
+    values = {
+        "out_trade_no": out_trade_no,
+        "user_id": user.id,
+        "plan_name": "pro",
+        "plan_display_name": "专业版",
+        "product_name": "ZenStory Pro 月度会员（30天）",
+        "cycle": "month",
+        "amount_cents": 2900,
+        "duration_days": 30,
+        "payment_method": "alipay",
+    }
+    values.update(overrides)
+    order = PaymentOrder(**values)
+    db_session.add(order)
+    db_session.commit()
+    db_session.refresh(order)
+    return order
+
+
+def mock_zpay_query(monkeypatch: pytest.MonkeyPatch, order: PaymentOrder, **overrides):
+    import httpx
+
+    from services.subscription.zpay_service import zpay_service
+
+    calls: list[httpx.Request] = []
+    payload = {
+        "code": 1,
+        "trade_no": "zpay-query-1",
+        "out_trade_no": order.out_trade_no,
+        "type": "alipay",
+        "pid": "test-pid",
+        "money": f"{order.amount_cents / 100:.2f}",
+        "status": 1,
+    }
+    payload.update(overrides)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        if overrides.get("unreachable"):
+            raise httpx.ConnectError("down")
+        return httpx.Response(200, json=payload)
+
+    monkeypatch.setattr(zpay_service, "http_transport", httpx.MockTransport(handler))
+    return calls
+
+
+def _payment_log_records(caplog: pytest.LogCaptureFixture, message: str):
+    return [record for record in caplog.records if record.getMessage() == message]
+
+
+@pytest.mark.integration
+async def test_rejected_callback_logs_reason_and_ids_without_secrets(
+    client: AsyncClient, db_session: Session, caplog: pytest.LogCaptureFixture
+):
+    user = make_user(db_session, "pay_log_reject")
+    make_plan(db_session)
+    order = make_order(db_session, user, "20261007000000000001")
+    params = callback_params(order)
+    params["sign"] = "0" * 32
+
+    with caplog.at_level(logging.WARNING):
+        response = await client.get("/api/v1/payments/zpay/notify", params=params)
+    assert response.text == "fail"
+
+    records = _payment_log_records(caplog, "Zpay callback rejected")
+    assert len(records) == 1
+    record = records[0]
+    assert record.levelno == logging.ERROR
+    fields = record.custom_fields
+    assert fields["reason"] == "invalid_signature"
+    assert fields["out_trade_no"] == order.out_trade_no
+    assert fields["trade_no"] == "zpay-123"
+    assert fields["money"] == "29.00"
+    assert "sign" not in fields
+    assert "0" * 32 not in caplog.text
+    assert "test-key" not in caplog.text
+
+
+@pytest.mark.integration
+async def test_fulfillment_failure_is_logged_with_stack_and_keeps_payment_fact(
+    client: AsyncClient,
+    db_session: Session,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from services.subscription.subscription_service import subscription_service
+
+    user = make_user(db_session, "pay_log_fulfill")
+    make_plan(db_session)
+    order = make_order(db_session, user, "20261007000000000002")
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("db pool exhausted")
+
+    monkeypatch.setattr(subscription_service, "create_user_subscription", boom)
+    with caplog.at_level(logging.WARNING):
+        response = await client.get(
+            "/api/v1/payments/zpay/notify", params=callback_params(order)
+        )
+    assert response.text == "fail"
+
+    records = _payment_log_records(caplog, "Zpay callback could not grant the subscription")
+    assert len(records) == 1
+    assert records[0].levelno == logging.ERROR
+    assert records[0].exc_info is not None
+    assert "db pool exhausted" in caplog.text
+    assert records[0].custom_fields["reason"] == "fulfillment_failed"
+
+    db_session.expire_all()
+    stored = db_session.get(PaymentOrder, order.id)
+    assert stored.status == "paid"
+    assert stored.trade_no == "zpay-123"
+    assert stored.fulfillment_status == "failed"
+
+
+@pytest.mark.integration
+async def test_user_sync_settles_own_order_and_is_rate_limited(
+    client: AsyncClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+):
+    from sqlmodel import select
+
+    owner = make_user(db_session, "pay_sync_owner")
+    other = make_user(db_session, "pay_sync_other")
+    make_plan(db_session)
+    order = make_order(db_session, owner, "20261007000000000003")
+    calls = mock_zpay_query(monkeypatch, order)
+    owner_headers = await login(client, owner.username)
+    other_headers = await login(client, other.username)
+    url = f"/api/v1/payments/orders/{order.out_trade_no}/sync"
+
+    assert (await client.post(url, headers=other_headers)).status_code == 404
+    assert calls == []
+
+    response = await client.post(url, headers=owner_headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "paid"
+    assert body["fulfillment_status"] == "succeeded"
+    assert body["trade_no"] == "zpay-query-1"
+    assert "key=" not in str(body)
+    db_session.expire_all()
+    assert db_session.exec(
+        select(UserSubscription).where(UserSubscription.user_id == owner.id)
+    ).first()
+
+    statuses = [(await client.post(url, headers=owner_headers)).status_code for _ in range(5)]
+    assert statuses[:4] == [200, 200, 200, 200]
+    assert statuses[4] == 429
+    assert len(calls) == 1  # Fulfilled orders are answered locally.
+
+
+@pytest.mark.integration
+async def test_admin_sync_grants_and_writes_audit_log(
+    client: AsyncClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+):
+    from sqlmodel import select
+
+    from models.subscription import AdminAuditLog
+
+    admin = make_user(db_session, "pay_sync_admin", admin=True)
+    customer = make_user(db_session, "pay_sync_customer")
+    make_plan(db_session)
+    order = make_order(db_session, customer, "20261007000000000004")
+    admin_headers = await login(client, admin.username)
+    customer_headers = await login(client, customer.username)
+    url = f"/api/admin/payment-orders/{order.id}/sync"
+
+    assert (await client.post(url, headers=customer_headers)).status_code == 403
+
+    mock_zpay_query(monkeypatch, order, unreachable=True)
+    down = await client.post(url, headers=admin_headers)
+    assert down.status_code == 502
+    assert down.json()["detail"] == "sync_failed:provider_unavailable"
+
+    mock_zpay_query(monkeypatch, order)
+    response = await client.post(url, headers=admin_headers)
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["outcome"] == "fulfilled"
+    assert payload["order"]["fulfillment_status"] == "succeeded"
+    assert payload["order"]["username"] == customer.username
+
+    db_session.expire_all()
+    audits = db_session.exec(
+        select(AdminAuditLog)
+        .where(AdminAuditLog.action == "sync_payment_order")
+        .order_by(AdminAuditLog.created_at)
+    ).all()
+    assert [audit.admin_user_id for audit in audits] == [admin.id, admin.id]
+    assert audits[0].new_value["error"] == "provider_unavailable"
+    assert audits[1].resource_id == order.id
+    assert audits[1].old_value == {"status": "pending", "fulfillment_status": "pending"}
+    assert audits[1].new_value["outcome"] == "fulfilled"
+
+    # A late Zpay notify for the same payment cannot grant a second time.
+    params = callback_params(order, trade_no="zpay-query-1")
+    assert (await client.get("/api/v1/payments/zpay/notify", params=params)).text == "success"
+    from models.subscription import SubscriptionHistory
+
+    assert len(
+        db_session.exec(
+            select(SubscriptionHistory).where(SubscriptionHistory.user_id == customer.id)
+        ).all()
+    ) == 1
+
+
+@pytest.mark.integration
+async def test_admin_list_filters_fulfillment_and_needs_attention(
+    client: AsyncClient, db_session: Session
+):
+    admin = make_user(db_session, "pay_filter_admin", admin=True)
+    user = make_user(db_session, "pay_filter_user")
+    make_plan(db_session)
+    make_order(db_session, user, "20261008000000000001")  # abandoned checkout
+    make_order(
+        db_session, user, "20261008000000000002",
+        status="paid", trade_no="t-2", fulfillment_status="failed", paid_at=datetime.utcnow(),
+    )
+    make_order(
+        db_session, user, "20261008000000000003",
+        status="paid", trade_no="t-3", fulfillment_status="succeeded",
+        paid_at=datetime.utcnow(), fulfilled_at=datetime.utcnow(),
+    )
+    # Legacy row: fulfillment failed before payment facts were persisted.
+    make_order(db_session, user, "20261008000000000004", fulfillment_status="failed")
+    headers = await login(client, admin.username)
+
+    attention = await client.get(
+        "/api/admin/payment-orders", headers=headers, params={"needs_attention": "true"}
+    )
+    assert attention.status_code == 200
+    numbers = {item["out_trade_no"] for item in attention.json()["items"]}
+    assert numbers == {"20261008000000000002", "20261008000000000004"}
+    assert attention.json()["needs_attention_total"] == 2
+
+    failed = await client.get(
+        "/api/admin/payment-orders",
+        headers=headers,
+        params={"fulfillment_status": "failed", "status": "paid"},
+    )
+    assert [item["out_trade_no"] for item in failed.json()["items"]] == ["20261008000000000002"]
+
+    succeeded = await client.get(
+        "/api/admin/payment-orders", headers=headers, params={"fulfillment_status": "succeeded"}
+    )
+    assert succeeded.json()["total"] == 1
+
+
+@pytest.mark.integration
+async def test_unknown_order_states_do_not_break_listing_or_lookup(
+    client: AsyncClient, db_session: Session
+):
+    admin = make_user(db_session, "pay_unknown_admin", admin=True)
+    user = make_user(db_session, "pay_unknown_user")
+    make_plan(db_session)
+    order = make_order(
+        db_session, user, "20261009000000000001",
+        status="refunded", cycle="quarter", payment_method="wxpay",
+        fulfillment_status="reverted",
+    )
+    admin_headers = await login(client, admin.username)
+    user_headers = await login(client, user.username)
+
+    listing = await client.get("/api/admin/payment-orders", headers=admin_headers)
+    assert listing.status_code == 200
+    assert listing.json()["items"][0]["status"] == "refunded"
+
+    lookup = await client.get(
+        f"/api/v1/payments/orders/{order.out_trade_no}", headers=user_headers
+    )
+    assert lookup.status_code == 200
+    assert lookup.json()["cycle"] == "quarter"
+
+
+@pytest.mark.integration
+async def test_create_order_records_upgrade_source_and_returns_error_codes(
+    client: AsyncClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+):
+    user = make_user(db_session, "pay_source")
+    make_plan(db_session)
+    headers = await login(client, user.username)
+
+    response = await client.post(
+        "/api/v1/payments/orders",
+        headers=headers,
+        json={
+            "plan_name": "pro",
+            "cycle": "month",
+            "payment_method": "alipay",
+            "upgrade_source": "pricing_page_primary",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["order"]["upgrade_source"] == "pricing_page_primary"
+
+    rejected = await client.post(
+        "/api/v1/payments/orders",
+        headers=headers,
+        json={
+            "plan_name": "pro",
+            "cycle": "month",
+            "payment_method": "alipay",
+            "upgrade_source": "<script>",
+        },
+    )
+    assert rejected.status_code == 422
+
+    monkeypatch.setenv("ZPAY_ENABLED", "false")
+    disabled = await client.post(
+        "/api/v1/payments/orders",
+        headers=headers,
+        json={"plan_name": "pro", "cycle": "month", "payment_method": "alipay"},
+    )
+    assert disabled.status_code == 503
+    assert disabled.json()["detail"] == "ERR_PAYMENT_UNAVAILABLE"

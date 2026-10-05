@@ -665,7 +665,12 @@ describe('adminApi', () => {
       mockApi.get.mockResolvedValue({
         window_days: '30',
         total_conversions: '20',
+        paid_conversions: '12',
         unattributed_conversions: '5',
+        channels: [
+          { channel: 'zpay', conversions: '12', paid: true },
+          { channel: 'admin_update', conversions: '8', paid: 'yes' },
+        ],
         sources: [
           {
             source: 'chat_quota_blocked',
@@ -688,7 +693,13 @@ describe('adminApi', () => {
         period_start: '',
         period_end: '',
         total_conversions: 20,
+        paid_conversions: 12,
         unattributed_conversions: 5,
+        channels: [
+          { channel: 'zpay', conversions: 12, paid: true },
+          // Only a literal true counts as paid.
+          { channel: 'admin_update', conversions: 8, paid: false },
+        ],
         sources: [
           {
             source: 'chat_quota_blocked',

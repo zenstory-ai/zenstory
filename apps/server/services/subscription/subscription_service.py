@@ -53,6 +53,24 @@ class SubscriptionService:
             select(UserSubscription).where(UserSubscription.user_id == user_id)
         ).first()
 
+    def get_effective_paid_plan(
+        self, session: Session, user_id: str
+    ) -> SubscriptionPlan | None:
+        """The paid plan the user is entitled to right now, if any."""
+        subscription = self.get_user_subscription(session, user_id)
+        if not subscription or subscription.status != "active":
+            return None
+        period_end = subscription.current_period_end
+        if period_end.tzinfo is None:
+            from datetime import UTC
+            period_end = period_end.replace(tzinfo=UTC)
+        if period_end <= utcnow():
+            return None
+        plan = self.get_plan_by_id(session, subscription.plan_id)
+        if not plan or plan.name == "free":
+            return None
+        return plan
+
     def get_plan_by_name(self, session: Session, plan_name: str) -> SubscriptionPlan | None:
         """Get subscription plan by name."""
         return session.exec(
@@ -187,13 +205,15 @@ class SubscriptionService:
                 new_start = now
                 new_end = now + timedelta(days=duration_days)
             else:
-                # Same-plan renewal extends from current period end (or now if already expired).
-                if period_end < now:
-                    new_start = now
-                    renewal_base = now
-                else:
+                # Same-plan renewal extends only a running subscription. A cancelled
+                # or expired row may still carry a future period_end (admins revoke
+                # by status), and renewing must not resurrect those revoked days.
+                if existing_sub.status == "active" and period_end >= now:
                     new_start = existing_sub.current_period_start
                     renewal_base = existing_sub.current_period_end
+                else:
+                    new_start = now
+                    renewal_base = now
                 new_end = renewal_base + timedelta(days=duration_days)
 
             existing_sub.plan_id = plan.id

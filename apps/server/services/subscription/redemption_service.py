@@ -71,6 +71,15 @@ class RedemptionService:
             select(RedemptionCode).where(RedemptionCode.code == code)
         ).first()
 
+    def _is_downgrade(self, session: Session, user_id: str, code_tier: str) -> bool:
+        current_plan = subscription_service.get_effective_paid_plan(session, user_id)
+        if not current_plan or current_plan.name == code_tier:
+            return False
+        code_plan = subscription_service.get_plan_by_name(session, code_tier)
+        if not code_plan:
+            return True
+        return code_plan.price_monthly_cents < current_plan.price_monthly_cents
+
     def redeem_code(
         self,
         session: Session,
@@ -123,6 +132,11 @@ class RedemptionService:
             # Step 7: Enforce usage limits under lock.
             if redemption_code.max_uses is not None and redemption_code.current_uses >= redemption_code.max_uses:
                 return (False, self._get_error_message(ErrorCode.REDEMPTION_CODE_USED), None)
+
+            # Step 8: A lower tier would replace (and discard) the paid plan's
+            # remaining days, so such codes are refused while that plan is running.
+            if self._is_downgrade(session, user_id, redemption_code.tier):
+                return (False, self._get_error_message(ErrorCode.REDEMPTION_CODE_DOWNGRADE), None)
 
             redemption_code.current_uses += 1
             redemption_code.redeemed_by = redeemed_by + [user_id]

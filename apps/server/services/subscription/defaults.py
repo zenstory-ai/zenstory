@@ -24,6 +24,28 @@ DEFAULT_FREE_PLAN_FEATURES: dict[str, Any] = {
     "priority_support": False,
 }
 
+# What a paid Pro plan grants when its stored features omit a key. Production Pro
+# rows predate custom_skills/inspiration_copies_monthly; without this fallback a
+# missing key silently resolved to the free-tier limit.
+DEFAULT_PRO_PLAN_FEATURES: dict[str, Any] = {
+    "ai_conversations_per_day": -1,
+    "context_window_tokens": 16384,
+    "file_versions_per_file": 100,
+    "max_projects": -1,
+    "export_formats": ["txt"],
+    "custom_prompts": True,
+    "materials_library_access": True,
+    "material_uploads": 5,
+    "material_decompositions": 5,
+    "custom_skills": 20,
+    "inspiration_copies_monthly": 100,
+}
+
+PLAN_FEATURE_DEFAULTS: dict[str, dict[str, Any]] = {
+    DEFAULT_FREE_PLAN_NAME: DEFAULT_FREE_PLAN_FEATURES,
+    "pro": DEFAULT_PRO_PLAN_FEATURES,
+}
+
 SUPPORTED_EXPORT_FORMATS: tuple[str, ...] = ("txt",)
 
 
@@ -40,6 +62,24 @@ DEFAULT_FREE_TIER: dict[str, Any] = {
 def clone_default_free_features() -> dict[str, Any]:
     """Return a mutable copy of free-tier features."""
     return deepcopy(DEFAULT_FREE_PLAN_FEATURES)
+
+
+def plan_feature_default(plan_name: str | None, key: str, fallback: Any = 0) -> Any:
+    """Default for one feature key of a plan; unknown plans use the free tier."""
+    preset = PLAN_FEATURE_DEFAULTS.get(plan_name or "", DEFAULT_FREE_PLAN_FEATURES)
+    if key in preset:
+        return deepcopy(preset[key])
+    return deepcopy(DEFAULT_FREE_PLAN_FEATURES.get(key, fallback))
+
+
+def resolve_plan_feature(
+    plan_name: str | None, features: dict[str, Any] | None, key: str, fallback: Any = 0
+) -> Any:
+    """A plan's stored feature value, or that plan's own default when absent."""
+    value = (features or {}).get(key)
+    if value is not None:
+        return value
+    return plan_feature_default(plan_name, key, fallback)
 
 
 def normalize_export_formats(export_formats: Any) -> list[str]:

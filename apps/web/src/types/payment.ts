@@ -2,9 +2,11 @@ export type PaymentCycle = 'month' | 'year'
 
 export type PaymentMethod = 'alipay'
 
-export type PaymentOrderStatus = 'pending' | 'paid'
+// The backend returns the stored string as-is; values outside these unions
+// (e.g. a row an operator edited by hand) must render, not crash.
+export type PaymentOrderStatus = 'pending' | 'paid' | (string & {})
 
-export type PaymentFulfillmentStatus = 'pending' | 'succeeded' | 'failed'
+export type PaymentFulfillmentStatus = 'pending' | 'succeeded' | 'failed' | (string & {})
 
 export interface PaymentOptions {
   enabled: boolean
@@ -27,6 +29,7 @@ export interface PaymentOrder {
   paid_at: string | null
   fulfilled_at: string | null
   failure_reason: string | null
+  upgrade_source?: string | null
 }
 
 export interface PaymentCheckout {
@@ -39,6 +42,7 @@ export interface CreatePaymentOrderRequest {
   plan_name: 'pro'
   cycle: PaymentCycle
   payment_method: PaymentMethod
+  upgrade_source?: string
 }
 
 export interface CreatePaymentOrderResponse {

@@ -91,8 +91,10 @@ const DEFAULT_UPGRADE_CONVERSION: UpgradeConversionStats = {
   period_start: "",
   period_end: "",
   total_conversions: 0,
+  paid_conversions: 0,
   unattributed_conversions: 0,
   sources: [],
+  channels: [],
 };
 
 const DEFAULT_UPGRADE_FUNNEL: UpgradeFunnelStats = {
@@ -1077,20 +1079,40 @@ export interface PaymentOrdersListResponse {
   total: number;
   page: number;
   page_size: number;
+  /** Paid orders whose membership is not granted yet, across all pages. */
+  needs_attention_total?: number;
+}
+
+export type PaymentOrderSyncOutcome = "already_fulfilled" | "fulfilled" | "unpaid" | "not_found";
+
+export interface PaymentOrderSyncResponse {
+  outcome: PaymentOrderSyncOutcome;
+  order: AdminPaymentOrder;
 }
 
 export async function getPaymentOrders(params: {
   page?: number;
   page_size?: number;
   status?: "pending" | "paid";
+  fulfillment_status?: "pending" | "succeeded" | "failed";
+  needs_attention?: boolean;
   search?: string;
 } = {}): Promise<PaymentOrdersListResponse> {
   const query = new URLSearchParams();
   if (params.page) query.set("page", String(params.page));
   if (params.page_size) query.set("page_size", String(params.page_size));
   if (params.status) query.set("status", params.status);
+  if (params.fulfillment_status) query.set("fulfillment_status", params.fulfillment_status);
+  if (params.needs_attention) query.set("needs_attention", "true");
   if (params.search) query.set("search", params.search);
   return api.get<PaymentOrdersListResponse>(`${ADMIN_BASE}/payment-orders?${query.toString()}`);
+}
+
+/** Query Zpay for one order and grant it if paid (audited server-side). */
+export async function syncPaymentOrder(orderId: string): Promise<PaymentOrderSyncResponse> {
+  return api.post<PaymentOrderSyncResponse>(
+    `${ADMIN_BASE}/payment-orders/${encodeURIComponent(orderId)}/sync`
+  );
 }
 
 /** Fetch subscription details for a specific user. */
@@ -1271,6 +1293,7 @@ export async function getUpgradeConversionStats(days = 7): Promise<UpgradeConver
   const payload = await api.get<unknown>(`${ADMIN_BASE}/dashboard/upgrade-conversion?days=${safeDays}`);
   const payloadRecord = resolvePayloadRecord(payload);
   const rawSources = pickArray<unknown>(payload, ["sources"]);
+  const rawChannels = pickArray<unknown>(payload, ["channels"]);
 
   return {
     window_days: asNumber(payloadRecord.window_days, DEFAULT_UPGRADE_CONVERSION.window_days),
@@ -1280,6 +1303,18 @@ export async function getUpgradeConversionStats(days = 7): Promise<UpgradeConver
       payloadRecord.total_conversions,
       DEFAULT_UPGRADE_CONVERSION.total_conversions
     ),
+    paid_conversions: asNumber(
+      payloadRecord.paid_conversions,
+      DEFAULT_UPGRADE_CONVERSION.paid_conversions
+    ),
+    channels: rawChannels.map((item) => {
+      const raw = resolvePayloadRecord(item);
+      return {
+        channel: asText(raw.channel, "other"),
+        conversions: asNumber(raw.conversions, 0),
+        paid: raw.paid === true,
+      };
+    }),
     unattributed_conversions: asNumber(
       payloadRecord.unattributed_conversions,
       DEFAULT_UPGRADE_CONVERSION.unattributed_conversions
@@ -1784,6 +1819,7 @@ export const adminApi = {
   // 订阅管理
   getSubscriptions,
   getPaymentOrders,
+  syncPaymentOrder,
   getUserSubscription,
   updateUserSubscription,
 

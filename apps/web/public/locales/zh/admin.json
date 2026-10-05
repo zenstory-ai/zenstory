@@ -73,7 +73,18 @@
     "upgradeConversionSourceCount": "归因来源：{{count}}",
     "upgradeConversionShare": "转化占比",
     "upgradeShowAllConversionSources": "查看全部归因来源（{{count}}）",
-    "upgradeShowTopConversionSources": "仅显示前 {{count}} 个归因来源"
+    "upgradeShowTopConversionSources": "仅显示前 {{count}} 个归因来源",
+    "paidProUsers": "付费 Pro 用户",
+    "upgradePaidConversions": "付费转化（支付宝）",
+    "upgradeAllConversions": "全部升级",
+    "upgradeChannels": "升级渠道",
+    "upgradeChannel": {
+      "zpay": "支付宝付款",
+      "redemption_code": "兑换码",
+      "points_redemption": "积分兑换",
+      "admin_update": "管理员开通",
+      "other": "其他"
+    }
   },
   "users": {
     "title": "用户管理",
@@ -574,6 +585,20 @@
       "year": "年付 · 365 天"
     },
     "nextPage": "下一页",
-    "previousPage": "上一页"
+    "previousPage": "上一页",
+    "allFulfillment": "全部开通状态",
+    "needsAttention": "已收款未开通",
+    "needsAttentionCount": "{{count}} 笔已收款订单尚未开通",
+    "sync": "查单并补开通",
+    "syncing": "正在查询...",
+    "syncHint": "向 Zpay 查询该订单；确认已付款且金额一致时，按与支付回调相同的幂等流程开通会员。操作会记录到审计日志。",
+    "syncFailed": "查单失败：{{reason}}",
+    "syncOutcome": {
+      "already_fulfilled": "该订单已开通，无需补开通",
+      "fulfilled": "已确认付款并完成开通",
+      "unpaid": "支付平台显示该订单尚未付款",
+      "not_found": "支付平台没有该订单（用户可能未进入收银台）"
+    },
+    "upgradeSource": "升级来源"
   }
 }

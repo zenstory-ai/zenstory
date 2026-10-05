@@ -26,6 +26,8 @@ from services.quota_service import quota_service
 from services.subscription.defaults import (
     DEFAULT_FREE_PLAN_DISPLAY_NAME,
     DEFAULT_FREE_PLAN_DISPLAY_NAME_EN,
+    DEFAULT_FREE_PLAN_FEATURES,
+    DEFAULT_PRO_PLAN_FEATURES,
     SUPPORTED_EXPORT_FORMATS,
     clone_default_free_features,
     normalize_export_formats,
@@ -63,14 +65,18 @@ class SubscriptionCatalogEntitlementsResponse(BaseModel):
     writing_credits_monthly: int = 0
     agent_runs_monthly: int = 0
     active_projects_limit: int = 0
-    context_tokens_limit: int = 0
     materials_library_access: bool = False
     material_uploads_monthly: int = 0
     material_decompositions_monthly: int = 0
     custom_skills_limit: int = 0
     inspiration_copies_monthly: int = 0
     export_formats: list[str] = Field(default_factory=list)
-    priority_queue_level: str = "standard"
+    # Deprecated, never advertised: context size and priority queueing are not
+    # implemented. Kept as fixed neutral values only so web bundles cached from
+    # before 2026-10 (which format these fields unconditionally) do not crash;
+    # remove once those bundles are gone.
+    context_tokens_limit: int = 0
+    priority_queue_level: Literal["standard"] = "standard"
 
 
 class SubscriptionCatalogPlanResponse(BaseModel):
@@ -175,6 +181,8 @@ DEFAULT_FREE_TIER = {
 }
 
 
+# Only entitlements the backend enforces belong here. Context window and priority
+# queue were advertised without an implementation and are intentionally absent.
 CATALOG_VERSION = "2026-02"
 CATALOG_COMPARISON_MODE = "task_outcome"
 CATALOG_PRICING_ANCHOR_MONTHLY_CENTS = 4900
@@ -189,14 +197,12 @@ PLAN_CATALOG_PRESETS: dict[str, dict[str, Any]] = {
             "writing_credits_monthly": 120000,
             "agent_runs_monthly": 20,
             "active_projects_limit": 1,
-            "context_tokens_limit": 4096,
             "materials_library_access": False,
             "material_uploads_monthly": 0,
             "material_decompositions_monthly": 0,
-            "custom_skills_limit": 3,
-            "inspiration_copies_monthly": 10,
+            "custom_skills_limit": DEFAULT_FREE_PLAN_FEATURES["custom_skills"],
+            "inspiration_copies_monthly": DEFAULT_FREE_PLAN_FEATURES["inspiration_copies_monthly"],
             "export_formats": ["txt"],
-            "priority_queue_level": "standard",
         },
     },
     "pro": {
@@ -207,14 +213,12 @@ PLAN_CATALOG_PRESETS: dict[str, dict[str, Any]] = {
             "writing_credits_monthly": 600000,
             "agent_runs_monthly": 120,
             "active_projects_limit": 5,
-            "context_tokens_limit": 16384,
             "materials_library_access": True,
-            "material_uploads_monthly": 5,
-            "material_decompositions_monthly": 5,
-            "custom_skills_limit": 20,
-            "inspiration_copies_monthly": 100,
+            "material_uploads_monthly": DEFAULT_PRO_PLAN_FEATURES["material_uploads"],
+            "material_decompositions_monthly": DEFAULT_PRO_PLAN_FEATURES["material_decompositions"],
+            "custom_skills_limit": DEFAULT_PRO_PLAN_FEATURES["custom_skills"],
+            "inspiration_copies_monthly": DEFAULT_PRO_PLAN_FEATURES["inspiration_copies_monthly"],
             "export_formats": ["txt"],
-            "priority_queue_level": "priority",
         },
     },
 }
@@ -251,7 +255,6 @@ def _normalize_plan_entitlements(plan_name: str, features: dict | None) -> dict[
         "writing_credits_monthly": "writing_credits_monthly",
         "agent_runs_monthly": "agent_runs_monthly",
         "active_projects_limit": "active_projects_limit",
-        "context_tokens_limit": "context_tokens_limit",
         "materials_library_access": "materials_library_access",
         "material_uploads_monthly": "material_uploads_monthly",
         "material_decompositions_monthly": "material_decompositions_monthly",
@@ -283,9 +286,6 @@ def _normalize_plan_entitlements(plan_name: str, features: dict | None) -> dict[
     if normalized_features.get("max_projects") is not None and normalized_features.get("active_projects_limit") is None:
         entitlements["active_projects_limit"] = normalized_features["max_projects"]
 
-    if normalized_features.get("context_window_tokens") is not None and normalized_features.get("context_tokens_limit") is None:
-        entitlements["context_tokens_limit"] = normalized_features["context_window_tokens"]
-
     if normalized_features.get("material_uploads") is not None and normalized_features.get("material_uploads_monthly") is None:
         entitlements["material_uploads_monthly"] = normalized_features["material_uploads"]
 
@@ -302,16 +302,10 @@ def _normalize_plan_entitlements(plan_name: str, features: dict | None) -> dict[
     if normalized_features.get("export_formats") is not None:
         entitlements["export_formats"] = normalized_features["export_formats"]
 
-    if normalized_features.get("priority_queue_level") is not None:
-        entitlements["priority_queue_level"] = normalized_features["priority_queue_level"]
-    elif normalized_features.get("priority_support") is not None:
-        entitlements["priority_queue_level"] = "priority" if normalized_features["priority_support"] else "standard"
-
     for int_field in (
         "writing_credits_monthly",
         "agent_runs_monthly",
         "active_projects_limit",
-        "context_tokens_limit",
         "material_uploads_monthly",
         "material_decompositions_monthly",
         "custom_skills_limit",
@@ -327,10 +321,6 @@ def _normalize_plan_entitlements(plan_name: str, features: dict | None) -> dict[
         entitlements.get("materials_library_access", plan_name != "free")
     )
     entitlements["export_formats"] = normalize_export_formats(entitlements.get("export_formats"))
-
-    queue_level = entitlements.get("priority_queue_level")
-    if queue_level not in {"standard", "priority"}:
-        entitlements["priority_queue_level"] = "standard"
 
     return entitlements
 
@@ -467,10 +457,7 @@ async def get_quota(
     )
 
     # Graceful degradation: Use default free tier limit if plan is not found
-    if plan:
-        project_limit = plan.features.get("max_projects", DEFAULT_FREE_TIER["features"]["max_projects"])
-    else:
-        project_limit = DEFAULT_FREE_TIER["features"]["max_projects"]
+    project_limit = quota_service.get_plan_feature(plan, "max_projects")
 
     return QuotaResponse(
         ai_conversations=QuotaMetricResponse(

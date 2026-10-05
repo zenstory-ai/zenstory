@@ -142,12 +142,14 @@ async def test_skills_contract_rejects_custom_skill_creation_when_quota_exhauste
         period_start=datetime.utcnow() - timedelta(days=1),
         period_end=datetime.utcnow() + timedelta(days=1),
         ai_conversations_used=0,
-        skill_creates_used=1,
+        skill_creates_used=0,
         monthly_period_start=datetime.utcnow() - timedelta(days=1),
         monthly_period_end=datetime.utcnow() + timedelta(days=29),
         last_reset_at=datetime.utcnow(),
     )
     db_session.add(quota)
+    # The cap counts skills the user owns right now.
+    db_session.add(UserSkill(user_id=user.id, name="已有技能", instructions="existing"))
     db_session.commit()
 
     login_payload = await _login(client, identifier=user.username)

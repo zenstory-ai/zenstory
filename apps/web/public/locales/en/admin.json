@@ -73,7 +73,18 @@
     "upgradeConversionSourceCount": "Attributed sources: {{count}}",
     "upgradeConversionShare": "Share",
     "upgradeShowAllConversionSources": "Show all attributed sources ({{count}})",
-    "upgradeShowTopConversionSources": "Show top {{count}} attributed sources"
+    "upgradeShowTopConversionSources": "Show top {{count}} attributed sources",
+    "paidProUsers": "Paid Pro users",
+    "upgradePaidConversions": "Paid (Alipay)",
+    "upgradeAllConversions": "All upgrades",
+    "upgradeChannels": "Upgrade channels",
+    "upgradeChannel": {
+      "zpay": "Alipay payment",
+      "redemption_code": "Redemption code",
+      "points_redemption": "Points",
+      "admin_update": "Admin grant",
+      "other": "Other"
+    }
   },
   "users": {
     "title": "User Management",
@@ -574,6 +585,20 @@
       "year": "Yearly · 365 days"
     },
     "nextPage": "Next page",
-    "previousPage": "Previous page"
+    "previousPage": "Previous page",
+    "allFulfillment": "All activation states",
+    "needsAttention": "Paid, not activated",
+    "needsAttentionCount": "{{count}} paid orders are not activated yet",
+    "sync": "Query provider and activate",
+    "syncing": "Querying...",
+    "syncHint": "Ask Zpay about this order. If it is paid and the amount matches, Pro is granted through the same idempotent path as the payment callback. The action is recorded in the audit log.",
+    "syncFailed": "Order query failed: {{reason}}",
+    "syncOutcome": {
+      "already_fulfilled": "This order is already activated",
+      "fulfilled": "Payment confirmed and Pro activated",
+      "unpaid": "The provider reports this order as unpaid",
+      "not_found": "The provider has no such order (checkout was probably abandoned)"
+    },
+    "upgradeSource": "Upgrade source"
   }
 }

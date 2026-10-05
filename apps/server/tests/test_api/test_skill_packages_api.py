@@ -10,7 +10,6 @@ Tests for standard skill package endpoints.
 import io
 import json
 import zipfile
-from datetime import datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
@@ -149,23 +148,29 @@ async def test_import_rejects_invalid_packages(client: AsyncClient, db_session, 
 
 
 @pytest.mark.integration
-async def test_import_consumes_and_respects_skill_create_quota(client: AsyncClient, db_session):
+async def test_import_counts_owned_skills_against_custom_skill_limit(client: AsyncClient, db_session):
     user, headers = await _login(client, db_session, "pkg_quota")
 
     ok = await _import(client, headers, "SKILL.md", SKILL_MD.encode())
     assert ok.status_code == 200
     quota = db_session.exec(select(UsageQuota).where(UsageQuota.user_id == user.id)).first()
-    assert quota is not None and quota.skill_creates_used == 1
+    assert quota is not None and quota.skill_creates_used == 1  # activity metric only
 
-    quota.skill_creates_used = 3  # 免费档 custom_skills = 3
-    quota.monthly_period_start = datetime.utcnow() - timedelta(days=1)
-    quota.monthly_period_end = datetime.utcnow() + timedelta(days=29)
-    db_session.add(quota)
+    # 免费档 custom_skills = 3：再拥有两个后到达上限
+    db_session.add_all(
+        [UserSkill(user_id=user.id, name=f"owned {i}", instructions="x") for i in range(2)]
+    )
     db_session.commit()
 
     blocked = await _import(client, headers, "SKILL.md", SKILL_MD.encode())
     assert blocked.status_code == 402
-    assert len(db_session.exec(select(UserSkill).where(UserSkill.user_id == user.id)).all()) == 1
+    assert len(db_session.exec(select(UserSkill).where(UserSkill.user_id == user.id)).all()) == 3
+
+    # Deleting a skill frees its slot; the monthly counter does not matter.
+    removed = await client.delete(f"/api/v1/skills/{ok.json()['skill']['id']}", headers=headers)
+    assert removed.status_code == 200
+    again = await _import(client, headers, "SKILL.md", SKILL_MD.encode())
+    assert again.status_code == 200
 
 
 # ==================== Export ====================

@@ -29,6 +29,7 @@ vi.mock('react-i18next', () => ({
           'dashboard:billing.ctaUpgradePro': 'Upgrade Pro',
           'dashboard:billing.ctaBuyPro': 'Buy Pro Online',
           'dashboard:billing.ctaRenewPro': 'Renew Pro',
+          'dashboard:billing.ctaProNeutral': 'Get or renew Pro',
           'settings:subscription.redeemCode': 'Redeem Code',
           'dashboard:billing.currentPlan': 'Current plan',
           'dashboard:billing.unlockHint': 'Unlock more features',
@@ -123,8 +124,12 @@ vi.mock('../../components/subscription/RedeemCodeModal', () => ({
 }))
 
 vi.mock('../../components/subscription/PaymentCheckoutModal', () => ({
-  PaymentCheckoutModal: ({ isOpen, initialCycle }: { isOpen: boolean; initialCycle: string }) =>
-    (isOpen ? <div data-cycle={initialCycle}>Payment modal</div> : null),
+  PaymentCheckoutModal: ({
+    isOpen,
+    initialCycle,
+    upgradeSource,
+  }: { isOpen: boolean; initialCycle: string; upgradeSource?: string }) =>
+    (isOpen ? <div data-cycle={initialCycle} data-source={upgradeSource}>Payment modal</div> : null),
 }))
 
 vi.mock('../../lib/subscriptionApi', () => ({
@@ -255,6 +260,7 @@ describe('BillingPage', () => {
     currentSearch = 'plan=pro&source=billing_header_upgrade'
     render(<BillingPage />)
     expect(screen.getByText('Payment modal')).toBeInTheDocument()
+    expect(screen.getByText('Payment modal')).toHaveAttribute('data-source', 'billing_header_upgrade')
     expect(assignSpy).not.toHaveBeenCalled()
   })
 
@@ -361,5 +367,18 @@ describe('BillingPage', () => {
     render(<BillingPage />)
     expect(screen.queryByText('Payment modal')).not.toBeInTheDocument()
     expect(screen.queryByText('Redeem modal')).not.toBeInTheDocument()
+  })
+
+  it('uses neutral checkout copy while the subscription status is unknown', () => {
+    statusResponse = { ...statusResponse, data: undefined, isLoading: true }
+    render(<BillingPage />)
+    expect(screen.getByRole('button', { name: 'Get or renew Pro' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Renew Pro' })).not.toBeInTheDocument()
+  })
+
+  it('uses neutral checkout copy when the subscription status failed to load', () => {
+    statusResponse = { ...statusResponse, data: undefined, isError: true }
+    render(<BillingPage />)
+    expect(screen.getByRole('button', { name: 'Get or renew Pro' })).toBeInTheDocument()
   })
 })

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -7,17 +7,36 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { paymentApi, paymentQueryKeys } from '../lib/paymentApi'
 import { subscriptionQueryKeys } from '../lib/subscriptionApi'
+import { trackEvent } from '../lib/analytics'
+import type { PaymentOrder } from '../types/payment'
 
-const POLL_INTERVAL_MS = 2000
-const MAX_POLL_ATTEMPTS = 8
+// Zpay's notify often lands well after the browser returns (desktop QR flow), so
+// the page keeps checking for two minutes from arrival, backing off as it goes.
+const PAYMENT_POLL_WINDOW_MS = 120_000
+
+function paymentPollDelay(elapsedMs: number): number | false {
+  if (elapsedMs >= PAYMENT_POLL_WINDOW_MS) return false
+  if (elapsedMs < 20_000) return 2_000
+  if (elapsedMs < 60_000) return 4_000
+  return 8_000
+}
+
+type ReturnResult = 'succeeded' | 'failed' | 'pending_timeout'
+
+function isFulfilled(order: PaymentOrder | undefined): boolean {
+  return order?.status === 'paid' && order.fulfillment_status === 'succeeded'
+}
 
 export default function PaymentReturnPage() {
   const { t } = useTranslation(['dashboard', 'common'])
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const pollAttempts = useRef(0)
   const invalidatedOrder = useRef<string | null>(null)
+  const trackedResults = useRef(new Set<ReturnResult>())
+  const syncRequested = useRef(false)
+  const [pollStartedAt, setPollStartedAt] = useState(() => Date.now())
+  const [timedOut, setTimedOut] = useState(false)
   const outTradeNo = searchParams.get('out_trade_no')?.trim() ?? ''
 
   const orderQuery = useQuery({
@@ -26,18 +45,55 @@ export default function PaymentReturnPage() {
     enabled: outTradeNo.length > 0,
     retry: false,
     refetchInterval: (query) => {
-      const order = query.state.data
-      if (!order || order.status !== 'pending' || pollAttempts.current >= MAX_POLL_ATTEMPTS) {
-        return false
-      }
-      pollAttempts.current += 1
-      return POLL_INTERVAL_MS
+      const current = query.state.data
+      if (!current || isFulfilled(current)) return false
+      // Keep checking failed orders too: Zpay retries notify and a retry may succeed.
+      return paymentPollDelay(Date.now() - pollStartedAt)
     },
   })
 
   const order = orderQuery.data
-  const isSucceeded = order?.status === 'paid' && order.fulfillment_status === 'succeeded'
-  const isFailed = order?.fulfillment_status === 'failed'
+  const isSucceeded = isFulfilled(order)
+  const isFailed = !isSucceeded && order?.fulfillment_status === 'failed'
+
+  useEffect(() => {
+    if (!order || isSucceeded) return
+    const remaining = PAYMENT_POLL_WINDOW_MS - (Date.now() - pollStartedAt)
+    const timer = window.setTimeout(() => setTimedOut(true), Math.max(0, remaining))
+    return () => window.clearTimeout(timer)
+  }, [order, isSucceeded, pollStartedAt])
+
+  const trackResult = useCallback((result: ReturnResult, current: PaymentOrder) => {
+    if (trackedResults.current.has(result)) return
+    trackedResults.current.add(result)
+    trackEvent('payment_return_result', {
+      result,
+      out_trade_no: current.out_trade_no,
+      cycle: current.cycle,
+      plan_name: current.plan_name,
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!order) return
+    if (isSucceeded) trackResult('succeeded', order)
+    else if (isFailed) trackResult('failed', order)
+  }, [isFailed, isSucceeded, order, trackResult])
+
+  // Still unconfirmed after the window: ask the server to query Zpay once.
+  useEffect(() => {
+    if (!timedOut || !order || isSucceeded || syncRequested.current) return
+    syncRequested.current = true
+    trackResult('pending_timeout', order)
+    paymentApi
+      .syncOrder(order.out_trade_no)
+      .then((synced) => {
+        queryClient.setQueryData(paymentQueryKeys.order(order.out_trade_no), synced)
+      })
+      .catch(() => {
+        // The order is re-read on refresh; a failed query must not alarm the buyer.
+      })
+  }, [isSucceeded, order, queryClient, timedOut, trackResult])
 
   useEffect(() => {
     if (!isSucceeded || !order || invalidatedOrder.current === order.out_trade_no) return
@@ -46,6 +102,12 @@ export default function PaymentReturnPage() {
     void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.quota() })
     void queryClient.invalidateQueries({ queryKey: ['subscription-history'] })
   }, [isSucceeded, order, queryClient])
+
+  const refreshAndResumePolling = () => {
+    setPollStartedAt(Date.now())
+    setTimedOut(false)
+    void orderQuery.refetch()
+  }
 
   if (!outTradeNo) {
     return (
@@ -74,7 +136,7 @@ export default function PaymentReturnPage() {
         <p className="mt-3 text-sm text-[hsl(var(--text-secondary))]">
           {t('dashboard:billing.paymentCheckFailedHint', '请稍后重试。若已完成付款，请勿重复支付。')}
         </p>
-        <ReturnActions onRefresh={() => void orderQuery.refetch()} onBilling={() => navigate('/dashboard/billing')} />
+        <ReturnActions onRefresh={refreshAndResumePolling} onBilling={() => navigate('/dashboard/billing')} />
       </Card>
     )
   }
@@ -90,16 +152,18 @@ export default function PaymentReturnPage() {
         </>
       ) : isFailed ? (
         <>
-          <ResultHeader icon={<TriangleAlert className="h-10 w-10 text-[hsl(var(--error))]" />} title={t('dashboard:billing.paymentFulfillmentFailed', '支付已确认，但会员开通异常')} />
+          <ResultHeader icon={<TriangleAlert className="h-10 w-10 text-[hsl(var(--error))]" />} title={t('dashboard:billing.paymentFulfillmentRetrying', '支付已确认，正在重试开通会员')} />
           <p className="mt-3 text-sm text-[hsl(var(--text-secondary))]">
-            {t('dashboard:billing.paymentContactSupport', '请联系支持并提供下方订单号，我们不会要求你重复付款。')}
+            {t('dashboard:billing.paymentFulfillmentRetryingHint', '系统会自动重试开通，请勿重复付款。可稍后点击刷新；如长时间未开通，请联系支持并提供下方订单号。')}
           </p>
         </>
       ) : (
         <>
           <ResultHeader icon={<Clock3 className="h-10 w-10 text-[hsl(var(--warning))]" />} title={t('dashboard:billing.paymentPending', '支付结果处理中')} />
-          <p className="mt-3 text-sm text-[hsl(var(--text-secondary))]">
-            {t('dashboard:billing.paymentPendingHint', '服务器尚未确认到账。页面会短暂自动刷新，你也可以稍后返回订阅页面查看。')}
+          <p className="mt-3 text-sm text-[hsl(var(--text-secondary))]" role="status">
+            {timedOut
+              ? t('dashboard:billing.paymentPendingTimeout', '暂未收到到账确认。如果你已经完成付款，请勿重复支付：我们已向支付平台查询该订单，确认到账后会自动开通。也可以稍后点击刷新。')
+              : t('dashboard:billing.paymentPendingHint', '服务器尚未确认到账，页面会在两分钟内自动刷新。如果你已经完成付款，请勿重复支付。')}
           </p>
         </>
       )}
@@ -110,7 +174,7 @@ export default function PaymentReturnPage() {
       </div>
 
       <ReturnActions
-        onRefresh={!isSucceeded && !isFailed ? () => void orderQuery.refetch() : undefined}
+        onRefresh={isSucceeded ? undefined : refreshAndResumePolling}
         onBilling={() => navigate('/dashboard/billing')}
       />
     </Card>

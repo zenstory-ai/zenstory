@@ -14,7 +14,6 @@ import ast
 import os
 import sys
 from pathlib import Path
-from urllib.parse import urlsplit
 
 MIN_SECRET_LENGTH = 32
 LOCALHOST_MARKERS = ("localhost", "127.0.0.1")
@@ -32,19 +31,30 @@ def _is_truthy(value: str | None) -> bool:
     return (value or "").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _is_valid_https_callback_url(value: str | None) -> bool:
-    try:
-        parsed = urlsplit((value or "").strip())
-    except ValueError:
-        return False
-    return (
-        parsed.scheme == "https"
-        and bool(parsed.netloc)
-        and bool(parsed.path)
-        and not parsed.query
-        and not parsed.fragment
-        and not parsed.username
-        and not parsed.password
+def zpay_preflight_problems() -> list[str] | None:
+    """Zpay problems for this environment, or None when checkout is disabled."""
+    # Same rules the API applies at runtime, so the two can never disagree.
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from config.payment_settings import get_payment_settings
+
+    settings = get_payment_settings()
+    if not settings.enabled:
+        return None
+    problems = settings.configuration_problems()
+    if not settings.frontend_url:
+        problems.append("FRONTEND_URL is missing (needed to reject a notify URL on the web host)")
+    return problems
+
+
+def _check_zpay_configuration() -> bool:
+    problems = zpay_preflight_problems()
+    if problems is None:
+        _print_result(True, "Zpay checkout configuration", "disabled")
+        return True
+    return _print_result(
+        not problems,
+        "Zpay checkout configuration",
+        "configured" if not problems else "; ".join(problems),
     )
 
 
@@ -198,27 +208,7 @@ def main() -> int:
         rate_limit_backend or "<unset>",
     )
 
-    if _is_truthy(os.getenv("ZPAY_ENABLED", "false")):
-        missing_or_invalid = []
-        if not os.getenv("ZPAY_PID", "").strip():
-            missing_or_invalid.append("ZPAY_PID")
-        if not os.getenv("ZPAY_KEY", "").strip():
-            missing_or_invalid.append("ZPAY_KEY")
-        if not _is_valid_https_callback_url(os.getenv("ZPAY_NOTIFY_URL")):
-            missing_or_invalid.append("ZPAY_NOTIFY_URL")
-        if not _is_valid_https_callback_url(os.getenv("ZPAY_RETURN_URL")):
-            missing_or_invalid.append("ZPAY_RETURN_URL")
-        all_ok &= _print_result(
-            not missing_or_invalid,
-            "Zpay checkout configuration",
-            (
-                "configured"
-                if not missing_or_invalid
-                else "missing or invalid: " + ", ".join(missing_or_invalid)
-            ),
-        )
-    else:
-        _print_result(True, "Zpay checkout configuration", "disabled")
+    all_ok &= _check_zpay_configuration()
 
     versions_dir = Path(__file__).resolve().parent.parent / "alembic" / "versions"
     heads = _get_alembic_heads(versions_dir)

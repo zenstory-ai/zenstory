@@ -9,6 +9,7 @@ Options:
 """
 import os
 import sys
+from copy import deepcopy
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -16,30 +17,13 @@ from sqlmodel import Session, select
 
 from database import sync_engine
 from models.subscription import SubscriptionPlan
+from services.subscription.defaults import DEFAULT_PRO_PLAN_FEATURES, clone_default_free_features
 
-FREE_PLAN_FEATURES = {
-    "ai_conversations_per_day": 20,
-    "context_window_tokens": 4096,
-    "file_versions_per_file": 10,
-    "max_projects": 3,
-    "export_formats": ["txt"],
-    "custom_prompts": False,
-    "materials_library_access": False,
-    "material_uploads": 0,
-    "material_decompositions": 0,
-}
+# Single source with the runtime fallbacks, so a fresh database grants exactly
+# what the pricing catalog advertises.
+FREE_PLAN_FEATURES = clone_default_free_features()
 
-PRO_PLAN_FEATURES = {
-    "ai_conversations_per_day": -1,  # Unlimited
-    "context_window_tokens": 16384,
-    "file_versions_per_file": 100,
-    "max_projects": -1,  # Unlimited
-    "export_formats": ["txt"],
-    "custom_prompts": True,
-    "materials_library_access": True,
-    "material_uploads": 5,
-    "material_decompositions": 5,
-}
+PRO_PLAN_FEATURES = deepcopy(DEFAULT_PRO_PLAN_FEATURES)
 
 def seed_plans(force: bool = False):
     """Seed subscription plans."""

@@ -63,17 +63,20 @@ from core.error_handler import (
     integrity_error_handler,
     validation_exception_handler,
 )
+from config.payment_settings import get_payment_settings
 from database import init_db
 from middleware.body_size_limit import BodySizeLimitMiddleware
 from middleware.logging_middleware import LoggingMiddleware
 from services.infra.readiness_service import check_readiness
 from services.skill_md_service import skill_md_service
+from services.subscription.zpay_service import zpay_service
 from utils.logger import get_logger, log_with_context
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     """Application lifespan handler."""
     await init_db()
+    zpay_service.log_configuration_status(get_payment_settings())
     log_with_context(
         logger,
         logging.INFO,

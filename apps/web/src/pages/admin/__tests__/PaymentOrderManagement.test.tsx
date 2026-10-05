@@ -5,11 +5,31 @@ import { adminApi } from "../../../lib/adminApi";
 
 const queryMock = vi.fn();
 const refetch = vi.fn();
-vi.mock("@tanstack/react-query", () => ({ useQuery: (...args: unknown[]) => queryMock(...args) }));
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key, i18n: { language: "en-US" } }),
+const invalidateQueries = vi.fn();
+const mutation = vi.hoisted(() => ({
+  options: null as null | { mutationFn: (id: string) => Promise<unknown>; onSuccess: (r: unknown) => void; onError: (e: unknown) => void },
 }));
-vi.mock("../../../lib/adminApi", () => ({ adminApi: { getPaymentOrders: vi.fn() } }));
+vi.mock("@tanstack/react-query", () => ({
+  useQuery: (...args: unknown[]) => queryMock(...args),
+  useQueryClient: () => ({ invalidateQueries }),
+  useMutation: (options: NonNullable<typeof mutation.options>) => {
+    mutation.options = options;
+    return {
+      isPending: false,
+      mutate: (id: string) => {
+        options.mutationFn(id).then(options.onSuccess, options.onError);
+      },
+    };
+  },
+}));
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown> | string) =>
+      typeof options === "object" && options && "reason" in options ? `${key}:${String(options.reason)}` : key,
+    i18n: { language: "en-US" },
+  }),
+}));
+vi.mock("../../../lib/adminApi", () => ({ adminApi: { getPaymentOrders: vi.fn(), syncPaymentOrder: vi.fn() } }));
 vi.mock("../../../components/ui/Modal", () => ({
   Modal: ({ open, title, children }: { open: boolean; title: string; children: React.ReactNode }) =>
     open ? <div role="dialog" aria-label={title}>{children}</div> : null,
@@ -39,28 +59,31 @@ describe("PaymentOrderManagement", () => {
     expect(screen.getByText("writer@example.com")).toBeInTheDocument();
     expect(screen.getByText("¥49.00")).toBeInTheDocument();
     expect(screen.getByRole("cell", { name: "paymentOrders.status.paid" })).toBeInTheDocument();
-    expect(screen.getByText("paymentOrders.fulfillment.succeeded")).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "paymentOrders.fulfillment.succeeded" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "paymentOrders.details" }));
     const dialog = within(screen.getByRole("dialog"));
     expect(dialog.getByText("provider-1")).toBeInTheDocument();
     expect(dialog.getByText("paymentOrders.paidAt")).toBeInTheDocument();
     expect(dialog.getByText("paymentOrders.fulfilledAt")).toBeInTheDocument();
     expect(dialog.queryByRole("button", { name: /refund|activate|grant/i })).not.toBeInTheDocument();
+    // Fulfilled orders need no compensation.
+    expect(dialog.queryByRole("button", { name: "paymentOrders.sync" })).not.toBeInTheDocument();
   });
 
   it("paginates, submits search explicitly, and resets page when filters change", async () => {
     render(<PaymentOrderManagement />);
     fireEvent.click(screen.getByRole("button", { name: "paymentOrders.nextPage" }));
-    expect(queryMock.mock.lastCall?.[0].queryKey).toEqual(["admin", "payment-orders", 2, "", ""]);
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "paid" } });
-    expect(queryMock.mock.lastCall?.[0].queryKey).toEqual(["admin", "payment-orders", 1, "paid", ""]);
+    expect(queryMock.mock.lastCall?.[0].queryKey).toEqual(["admin", "payment-orders", 2, "", "", "", false]);
+    fireEvent.change(screen.getByRole("combobox", { name: "paymentOrders.paymentStatus" }), { target: { value: "paid" } });
+    expect(queryMock.mock.lastCall?.[0].queryKey).toEqual(["admin", "payment-orders", 1, "paid", "", "", false]);
     const input = screen.getByRole("textbox", { name: "paymentOrders.search" });
     fireEvent.change(input, { target: { value: "  writer@example.com  " } });
-    expect(queryMock.mock.lastCall?.[0].queryKey).toEqual(["admin", "payment-orders", 1, "paid", ""]);
+    expect(queryMock.mock.lastCall?.[0].queryKey).toEqual(["admin", "payment-orders", 1, "paid", "", "", false]);
     fireEvent.submit(input.closest("form")!);
     await queryMock.mock.lastCall?.[0].queryFn();
     expect(adminApi.getPaymentOrders).toHaveBeenCalledWith({
       page: 1, page_size: 20, status: "paid", search: "writer@example.com",
+      fulfillment_status: undefined, needs_attention: undefined,
     });
   });
 
@@ -70,8 +93,8 @@ describe("PaymentOrderManagement", () => {
       isLoading: false, isFetching: false, isError: false, refetch,
     });
     render(<PaymentOrderManagement />);
-    expect(screen.getByText("paymentOrders.fulfillment.failed")).toBeInTheDocument();
-    expect(screen.queryByText("paymentOrders.fulfillment.succeeded")).not.toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "paymentOrders.fulfillment.failed" })).toBeInTheDocument();
+    expect(screen.queryByRole("cell", { name: "paymentOrders.fulfillment.succeeded" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "paymentOrders.details" }));
     expect(screen.getByText("Activation could not be completed")).toBeInTheDocument();
   });
@@ -88,5 +111,61 @@ describe("PaymentOrderManagement", () => {
       fireEvent.click(screen.getByRole("button", { name: "common:retry" }));
       expect(refetch).toHaveBeenCalledOnce();
     }
+  });
+
+  it("filters by fulfillment status and the paid-but-not-fulfilled quick view", async () => {
+    queryMock.mockReturnValue({
+      data: { items: [order], total: 1, page: 1, page_size: 20, needs_attention_total: 4 },
+      isLoading: false, isFetching: false, isError: false, refetch,
+    });
+    render(<PaymentOrderManagement />);
+    expect(screen.getByText("4")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("combobox", { name: "paymentOrders.fulfillmentStatus" }), { target: { value: "failed" } });
+    expect(queryMock.mock.lastCall?.[0].queryKey).toEqual(["admin", "payment-orders", 1, "", "", "failed", false]);
+    fireEvent.click(screen.getByRole("button", { name: /paymentOrders.needsAttention/ }));
+    expect(queryMock.mock.lastCall?.[0].queryKey).toEqual(["admin", "payment-orders", 1, "", "", "failed", true]);
+    await queryMock.mock.lastCall?.[0].queryFn();
+    expect(adminApi.getPaymentOrders).toHaveBeenLastCalledWith(expect.objectContaining({
+      fulfillment_status: "failed", needs_attention: true,
+    }));
+  });
+
+  it("queries Zpay for an unfulfilled order and shows the outcome", async () => {
+    const stuck = { ...order, fulfillment_status: "failed", failure_reason: "subscription_fulfillment_failed" };
+    queryMock.mockReturnValue({
+      data: { items: [stuck], total: 1 }, isLoading: false, isFetching: false, isError: false, refetch,
+    });
+    vi.mocked(adminApi.syncPaymentOrder).mockResolvedValue({
+      outcome: "fulfilled", order: { ...stuck, fulfillment_status: "succeeded" },
+    } as never);
+    render(<PaymentOrderManagement />);
+    fireEvent.click(screen.getByRole("button", { name: "paymentOrders.details" }));
+    fireEvent.click(screen.getByRole("button", { name: "paymentOrders.sync" }));
+    expect(await screen.findByText("paymentOrders.syncOutcome.fulfilled")).toBeInTheDocument();
+    expect(adminApi.syncPaymentOrder).toHaveBeenCalledWith("order-1");
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["admin", "payment-orders"] });
+  });
+
+  it("reports why a sync failed", async () => {
+    const { ApiError } = await import("../../../lib/apiClient");
+    queryMock.mockReturnValue({
+      data: { items: [{ ...order, status: "pending", fulfillment_status: "pending" }], total: 1 },
+      isLoading: false, isFetching: false, isError: false, refetch,
+    });
+    vi.mocked(adminApi.syncPaymentOrder).mockRejectedValue(new ApiError(502, "sync_failed:provider_unavailable"));
+    render(<PaymentOrderManagement />);
+    fireEvent.click(screen.getByRole("button", { name: "paymentOrders.details" }));
+    fireEvent.click(screen.getByRole("button", { name: "paymentOrders.sync" }));
+    expect(await screen.findByText("paymentOrders.syncFailed:provider_unavailable")).toBeInTheDocument();
+  });
+
+  it("renders a hand-edited order status without crashing", () => {
+    queryMock.mockReturnValue({
+      data: { items: [{ ...order, status: "refunded", cycle: "quarter", payment_method: "wxpay" }], total: 1 },
+      isLoading: false, isFetching: false, isError: false, refetch,
+    });
+    render(<PaymentOrderManagement />);
+    expect(screen.getByText("paymentOrders.status.refunded")).toBeInTheDocument();
+    expect(screen.getByText("wxpay")).toBeInTheDocument();
   });
 });

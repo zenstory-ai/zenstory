@@ -32,6 +32,15 @@ logger = get_logger(__name__)
 
 router = APIRouter(tags=["admin-dashboard"])
 CONVERSION_ACTIONS = {"created", "upgraded", "renewed"}
+# SubscriptionHistory.event_metadata.source -> conversion channel. Only "zpay" is
+# money received; the rest are grants and must not read as paid conversions.
+CONVERSION_CHANNELS = {
+    "zpay": "zpay",
+    "redemption_code": "redemption_code",
+    "points_redemption": "points_redemption",
+    "admin_update": "admin_update",
+}
+PAID_CONVERSION_CHANNELS = frozenset({"zpay"})
 
 
 # ==================== Dashboard Stats ====================
@@ -78,19 +87,19 @@ def get_dashboard_stats(
             select(func.count()).select_from(Inspiration).where(Inspiration.status == "pending")
         ).one()
 
-    # Active subscriptions
-    active_subscriptions = session.exec(
-        select(func.count()).select_from(UserSubscription).where(UserSubscription.status == "active")
-    ).one()
-
-    # Pro users (users with active pro subscription)
-    pro_users = session.exec(
+    # Paid subscriptions that are entitled right now. Every user owns a long-lived
+    # "free" subscription row and status only flips to expired lazily, so both the
+    # free plan and lapsed periods must be excluded explicitly.
+    paid_now = (
         select(func.count())
         .select_from(UserSubscription)
         .join(SubscriptionPlan, UserSubscription.plan_id == SubscriptionPlan.id)
         .where(UserSubscription.status == "active")
-        .where(SubscriptionPlan.name == "pro")
-    ).one()
+        .where(UserSubscription.current_period_end > now_naive)
+        .where(SubscriptionPlan.name != "free")
+    )
+    active_subscriptions = session.exec(paid_now).one()
+    pro_users = session.exec(paid_now.where(SubscriptionPlan.name == "pro")).one()
 
     # Commercialization stats
     # Total points in circulation (sum of all non-expired positive transactions minus spent)
@@ -191,10 +200,13 @@ def get_upgrade_conversion_stats(
     ).all()
 
     source_counts: dict[str, int] = {}
+    channel_counts: dict[str, int] = {}
     total_conversions = len(conversion_rows)
 
     for record in conversion_rows:
         metadata = record.event_metadata if isinstance(record.event_metadata, dict) else {}
+        channel = CONVERSION_CHANNELS.get(str(metadata.get("source") or ""), "other")
+        channel_counts[channel] = channel_counts.get(channel, 0) + 1
         raw_source = metadata.get("upgrade_source")
         if not isinstance(raw_source, str):
             continue
@@ -204,6 +216,20 @@ def get_upgrade_conversion_stats(
             continue
         source_counts[source] = source_counts.get(source, 0) + 1
 
+    paid_conversions = sum(
+        count for channel, count in channel_counts.items() if channel in PAID_CONVERSION_CHANNELS
+    )
+    channel_stats = sorted(
+        [
+            {
+                "channel": channel,
+                "conversions": count,
+                "paid": channel in PAID_CONVERSION_CHANNELS,
+            }
+            for channel, count in channel_counts.items()
+        ],
+        key=lambda item: (-item["conversions"], item["channel"]),
+    )
     attributed_conversions = sum(source_counts.values())
     unattributed_conversions = max(total_conversions - attributed_conversions, 0)
     source_stats = sorted(
@@ -225,6 +251,7 @@ def get_upgrade_conversion_stats(
         user_id=current_user.id,
         window_days=window_days,
         total_conversions=total_conversions,
+        paid_conversions=paid_conversions,
         unattributed_conversions=unattributed_conversions,
     )
 
@@ -233,8 +260,10 @@ def get_upgrade_conversion_stats(
         period_start=period_start.isoformat(),
         period_end=period_end.isoformat(),
         total_conversions=total_conversions,
+        paid_conversions=paid_conversions,
         unattributed_conversions=unattributed_conversions,
         sources=source_stats,
+        channels=channel_stats,
     )
 
 

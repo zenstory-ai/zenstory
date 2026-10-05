@@ -26,4 +26,13 @@ describe("getEntitlementMetricDefinitions", () => {
     expect(getEntitlementMetricDefinitions(t, "zh-CN").map((metric) => metric.key))
       .not.toContain("inspiration_copies_monthly");
   });
+
+  it("never advertises entitlements the backend does not enforce", () => {
+    const keys = getEntitlementMetricDefinitions(t, "zh-CN").map((metric) => metric.key as string);
+    expect(keys).not.toContain("context_tokens_limit");
+    expect(keys).not.toContain("priority_queue_level");
+    // Materials stay: decomposition runs in production.
+    expect(keys).toContain("material_decompositions_monthly");
+    expect(keys).toContain("custom_skills_limit");
+  });
 });

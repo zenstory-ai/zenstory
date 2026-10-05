@@ -104,14 +104,14 @@ async def test_subscription_catalog_contract_supports_billing_page_entitlements(
         "writing_credits_monthly": 450,
         "agent_runs_monthly": 60,
         "active_projects_limit": 6,
-        "context_tokens_limit": 8192,
         "materials_library_access": True,
         "material_uploads_monthly": 12,
         "material_decompositions_monthly": 8,
         "custom_skills_limit": 9,
         "inspiration_copies_monthly": 33,
         "export_formats": ["txt"],
-        "priority_queue_level": "priority",
+        "context_tokens_limit": 0,
+        "priority_queue_level": "standard",
     }
 
 
