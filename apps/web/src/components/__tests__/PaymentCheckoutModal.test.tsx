@@ -38,14 +38,12 @@ function lookup(resources: Record<string, unknown>, key: string): unknown {
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, fallback: string, options?: { price?: string }) => {
+    t: (key: string, fallback: string) => {
       if (i18nState.resources) {
         const value = lookup(i18nState.resources, key)
-        return (typeof value === 'string' ? value : fallback).replace('{{price}}', options?.price ?? '')
+        return typeof value === 'string' ? value : fallback
       }
-      return key.startsWith('errors:')
-        ? key
-        : options?.price !== undefined ? fallback.replace('{{price}}', options.price) : fallback
+      return key.startsWith('errors:') ? key : fallback
     },
     i18n: { language: 'zh-CN' },
   }),
@@ -92,6 +90,8 @@ describe('PaymentCheckoutModal', () => {
 
     renderModal()
     expect(await screen.findByText('支付宝')).toBeInTheDocument()
+    expect(screen.getByText('开通 Pro 会员')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^去支付$/ })).toBeInTheDocument()
     expect(screen.queryByText(/微信/)).not.toBeInTheDocument()
     expect(screen.queryByText(/服务器|收银台/)).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('radio', { name: /年付/ }))
