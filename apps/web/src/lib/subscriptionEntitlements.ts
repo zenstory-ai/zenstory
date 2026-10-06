@@ -48,10 +48,13 @@ function translate(
 }
 
 export function formatEntitlementLimit(
-  value: number,
+  value: number | undefined,
   language: string | undefined,
   t: TranslateFn,
 ): string {
+  if (value === undefined) {
+    return "-";
+  }
   if (value === -1) {
     return translate(t, "settings:subscription.unlimited", "无限");
   }
@@ -75,7 +78,7 @@ export function getEntitlementMetricDefinitions(
   t: TranslateFn,
   language: string | undefined,
 ): EntitlementMetricDefinition[] {
-  const formatLimit = (value: number) =>
+  const formatLimit = (value: number | undefined) =>
     formatEntitlementLimit(value, language, t);
 
   const monthUnit = translate(

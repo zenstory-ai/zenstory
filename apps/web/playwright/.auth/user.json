@@ -10,11 +10,11 @@
         },
         {
           "name": "access_token",
-          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiYjZkMTdjOC05YTFhLTRkZWMtODliZS0yZGM5MDI4NTFkZTMiLCJleHAiOjE3OTEyNzMzNDMsInR5cCI6ImFjY2VzcyJ9.pvn_dUuj9ncurzQHg3zUvLahPivFqPMfWqyhwfZASTE"
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1OWU1ZTFmZi1hNzVmLTQzMzktOTRmNS04YWE4YjJkZmYyNzEiLCJleHAiOjE3NzU0MTE2MzgsInR5cCI6ImFjY2VzcyJ9.Wd7Tw_ioNsDgMfSz3_xvbuG2tridTSRxXXgdW0glElY"
         },
         {
           "name": "auth_validated_at",
-          "value": "1791269745052"
+          "value": "1775408040962"
         },
         {
           "name": "token_type",
@@ -22,11 +22,11 @@
         },
         {
           "name": "refresh_token",
-          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiYjZkMTdjOC05YTFhLTRkZWMtODliZS0yZGM5MDI4NTFkZTMiLCJqdGkiOiI4NDU5MmEwZGFlNzE0MmRjOGQzMDkxZWMzZTZlMWJmNCIsImZhbWlseV9pZCI6ImQ2MzllYTlhZjA3ODQ3NWY4MGI3MDVlYTJhMzhlMDQwIiwiZXhwIjoxNzkxODc0NTQzLCJ0eXAiOiJyZWZyZXNoIn0.5ovhxB9j7bIY_3nQ8hUFQtlR2cRWc8WoT0ZWeRoFhfg"
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1OWU1ZTFmZi1hNzVmLTQzMzktOTRmNS04YWE4YjJkZmYyNzEiLCJqdGkiOiJhZTU5MGQ3MDQ2MmE0NDRjODdiZjA3OWI3OTIyN2MxZCIsImZhbWlseV9pZCI6ImZmY2Y3NjM5OGVkNzQ2NDNiMmMxMTVmM2YxMjBlNzM3IiwiZXhwIjoxNzc2MDEyODM4LCJ0eXAiOiJyZWZyZXNoIn0.Q6p_jJykkElzhedQ8jCbNaCItkG4RxhJdKfV5y4dWKs"
         },
         {
           "name": "user",
-          "value": "{\"id\":\"bb6d17c8-9a1a-4dec-89be-2dc902851de3\",\"username\":\"e2e_test_user\",\"email\":\"e2e-test@example.com\",\"avatar_url\":null,\"is_active\":true,\"is_superuser\":false,\"email_verified\":true,\"created_at\":\"2025-01-01T00:00:00Z\",\"updated_at\":\"2026-10-06T04:16:33.022451Z\"}"
+          "value": "{\"id\":\"59e5e1ff-a75f-4339-94f5-8aa8b2dff271\",\"username\":\"e2e_test_user\",\"email\":\"e2e-test@zenstory.local\",\"avatar_url\":null,\"is_active\":true,\"is_superuser\":false,\"email_verified\":true,\"created_at\":\"2025-01-01T00:00:00Z\",\"updated_at\":\"2026-04-05T08:57:28.490245Z\"}"
         }
       ]
     }

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   filterAvailableMetrics,
+  formatEntitlementLimit,
   getEntitlementMetricDefinitions,
 } from "../subscriptionEntitlements";
 import type { SubscriptionCatalogTier } from "../../types/subscription";
@@ -65,5 +66,13 @@ describe("filterAvailableMetrics", () => {
     const definitions = getEntitlementMetricDefinitions(t, "zh-CN");
     const full = Object.fromEntries(definitions.map((metric) => [metric.key, metric.key === "export_formats" ? [] : 1]));
     expect(filterAvailableMetrics(definitions, [plan(full)])).toHaveLength(definitions.length);
+  });
+});
+
+describe("formatEntitlementLimit", () => {
+  it("does not throw on a limit the API did not send", () => {
+    expect(formatEntitlementLimit(undefined, "zh-CN", t)).toBe("-");
+    expect(formatEntitlementLimit(-1, "zh-CN", t)).toBe("无限");
+    expect(formatEntitlementLimit(1000, "en-US", t)).toBe("1,000");
   });
 });
