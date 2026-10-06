@@ -262,6 +262,7 @@
     "multiUseSummary": "每个码可兑换 {{count}} 次",
     "copyAll": "复制全部",
     "copiedAll": "已复制 {{count}} 个兑换码",
+    "copyFailed": "复制失败，请手动选中兑换码复制，或下载 CSV。",
     "downloadCsv": "下载 CSV"
   },
   "subscriptions": {

@@ -228,3 +228,26 @@ export function formatAdminDateTime(
 export function formatAdminDate(value: string | null | undefined): string {
   return formatAdminDateTime(value, { year: "numeric", month: "2-digit", day: "2-digit" });
 }
+
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Format a quota period bound as a Beijing calendar date, the calendar quota
+ * periods follow. With `exclusiveEnd` the value is a period's end (the instant
+ * the next period starts), so the last day inside the period is shown.
+ */
+export function formatBeijingPeriodDate(
+  value: string | null | undefined,
+  { exclusiveEnd = false }: { exclusiveEnd?: boolean } = {},
+): string {
+  if (!value) return "-";
+  const date = parseUTCDate(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  const shown = exclusiveEnd ? new Date(date.getTime() - ONE_DAY_MS) : date;
+  return shown.toLocaleDateString(getLocaleCode(), {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "Asia/Shanghai",
+  });
+}

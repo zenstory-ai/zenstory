@@ -9,8 +9,11 @@ const inspirationFeature = vi.hoisted(() => ({ enabled: true }));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string, options?: Record<string, unknown>) =>
-      options && "used" in options ? `${key}:${options.used}` : key,
+    t: (key: string, options?: Record<string, unknown>) => {
+      if (options && "used" in options) return `${key}:${options.used}`;
+      if (options && "start" in options) return `${key}|${options.start}|${options.end}`;
+      return key;
+    },
   }),
 }));
 
@@ -37,8 +40,9 @@ describe("QuotaManagement", () => {
     statsError = false,
     statsErrorMessage,
     statsData = {
-      period_start: "2026-10-01T00:00:00+00:00",
-      period_end: "2026-11-01T00:00:00+00:00",
+      // October in Beijing: [10-01 00:00, 11-01 00:00) +08:00
+      period_start: "2026-09-30T16:00:00+00:00",
+      period_end: "2026-10-31T16:00:00+00:00",
       material_decompositions: 80,
       skills_created: 30,
       inspiration_copies: 40,
@@ -147,7 +151,13 @@ describe("QuotaManagement", () => {
 
     renderPage();
 
-    expect(screen.getByText("quota.period")).toBeInTheDocument();
+    // Beijing dates, with the exclusive end shown as the period's last day.
+    const [, start, end] = screen.getByText(/^quota\.period\|/).textContent!.split("|");
+    expect(start).toMatch(/2026/);
+    expect(start).toMatch(/\b0?1\b/);
+    expect(start).toMatch(/\b10\b/);
+    expect(end).toMatch(/\b31\b/);
+    expect(end).toMatch(/\b10\b/);
     expect(screen.getByText("80")).toBeInTheDocument();
     expect(screen.getByText("quota.skillsCreated")).toBeInTheDocument();
     expect(screen.queryByText("quota.materialUploads")).not.toBeInTheDocument();

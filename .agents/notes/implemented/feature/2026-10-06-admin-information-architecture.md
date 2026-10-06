@@ -17,14 +17,15 @@ Status: implemented
 
 **北京日界**
 
-- `config/datetime_utils.py` 新增 `BEIJING_TZ`（`ZoneInfo("Asia/Shanghai")`，镜像缺 tzdata 时退回固定 +08:00，中国 1991 年后无夏令时，两者等价）、`beijing_now`、`beijing_today`、`beijing_day_bounds_utc(day)`、`beijing_window_bounds_utc(days, now)`。边界一律返回 naive UTC，与大部分表的存储一致。
-- 仪表盘的 `new_users_today`、`today_check_ins`、`week_referrals`，签到统计的今天/昨天/近 7 天/连签分布，激活漏斗、升级漏斗、升级转化的窗口起点，全部改为北京日界；「近 N 天」统一为「今天 + 前 N-1 个北京日」。
-- 签到统计按 `CheckInRecord.created_at` 落在哪个北京日计数，不再看 `check_in_date`。用户侧写入的 `check_in_date` 仍是 UTC 日期，连签判断照旧（见 Consequences 的后续事项）。
+- 复用 #140 在 `config/datetime_utils.py` 提供的 `BEIJING_TIMEZONE`、`beijing_date(value)`、`beijing_day_bounds(value)`，不另设一套北京日 helper。「近 N 天」的起点写作 `beijing_day_bounds(now - timedelta(days=N - 1))[0]`。
+- 仪表盘的 `new_users_today`、`week_referrals`，激活漏斗、升级漏斗、升级转化的窗口起点改为北京日界；「近 N 天」统一为「今天 + 前 N-1 个北京日」。仪表盘查询 naive UTC 存储的 `created_at`，所以边界去掉时区后再比较。
+- 仪表盘 `today_check_ins` 与签到统计（今天/昨天/近 7 天/连签分布、记录列表日期）沿用 #140 的实现：`check_in_date` 已按北京日期写入，旧的 UTC 日期记录经 `effective_check_in_date` 归到北京日，同一用户同一北京日只计一次。
 
 **配额**
 
-- `quota_service.get_admin_quota_view(session, user_id)`：套餐取 `get_user_plan`（过期回落 free），限额取 `get_plan_feature`（按套餐预设）；日窗口（`last_reset_at` 起 24 小时）或月窗口（`monthly_period_end`）已结束的计数按 0 返回，也就是下一次懒重置会写入的值；读取不创建、不重置配额行。返回 AI 对话、素材拆解、灵感复制、自定义技能（`count_custom_skills`）四项，各带 `used/limit/reset_at`。
-- `quota_service.get_current_month_totals(session)`：只汇总月周期覆盖当前时刻的配额行，返回素材拆解、灵感复制和 `skills_created`（本月新建技能，被拒的请求会回滚自己的 +1，所以不是尝试次数），并带上周期起止。去掉从未递增的 `material_uploads`。
+- `quota_service.get_admin_quota_view(session, user_id)` 建在 `get_quota_snapshot` 上：套餐取 `get_user_plan`（过期回落 free），限额按套餐预设，日/月计数经过 #140 的北京日/北京月懒重置（与执行时同一路径，会创建缺失的配额行并提交重置）。返回 AI 对话、素材拆解、灵感复制、自定义技能（`count_custom_skills`）四项，各带 `used/limit/reset_at`。
+- AI 对话日限额只有一个来源 `quota_service.get_ai_conversation_limit(plan)`，`check_ai_conversation_quota`、`reserve_ai_conversation`、`get_quota_snapshot`（因而后台配额视图）都调用它。
+- `quota_service.get_current_month_totals(session)`：只汇总月周期覆盖当前时刻的配额行（周期是北京自然月），返回素材拆解、灵感复制和 `skills_created`（本月新建技能，被拒的请求会回滚自己的 +1，所以不是尝试次数），并带上周期起止。去掉从未递增的 `material_uploads`。
 - `GET /api/admin/quota/usage`、`GET /api/admin/quota/{id|username|email}` 改为调用这两个方法，响应结构随之改变（`UserQuotaDetail` 为嵌套的 `QuotaCounter`）。
 
 **页面与导航**
@@ -39,12 +40,13 @@ Status: implemented
 
 - 后台 typed schema 的时间字段改用 `UTCDateTime`（序列化为带 `+00:00` 的 ISO 字符串）。
 - 后台所有页面的时间格式化改走 `dateUtils.formatAdminDateTime / formatAdminDate`，内部用 `parseUTCDate`，同时兼容 naive UTC、带偏移的字符串和纯日期（纯日期按本地日历日解析，不再变成 Invalid Date）。这样仍以 `model_dump()` 返回 naive 时间的接口也能正确显示。
+- 配额页的统计周期按北京日期显示（`formatBeijingPeriodDate`，固定 `Asia/Shanghai`，不随管理员本地时区变化）；`period_end` 是下个周期开始的时刻（不含），显示时减一天，展示为本周期的最后一天。
 
 ## Alternatives considered
 
 - **只在前端修时间，不动后端 schema**。最强理由：一处改动覆盖所有接口，包括返回 dict 的旧接口。没有完全采用：带偏移的输出让其他客户端（脚本、导出）也不会误读；两者并存，前端兼容两种格式。
 - **签到统计继续按 `check_in_date`，同时把写入改成北京日期**。最强理由：一个字段同时服务连签和统计，口径最统一。被否：改写入会改变用户可见的连签与每日奖励边界，需要单独评估迁移和当天重复签到的边界情况，不应夹在后台整理里上线。
-- **配额详情直接复用 `get_quota_snapshot`**。最强理由：与 `/subscription/quota` 完全同源。被否：它会为没有配额行的用户创建行并提交懒重置，后台查看一个人不应产生写入；新方法只读，但读出的是同样的值。
+- **配额详情只读，自己按窗口判断计数是否过期**。最强理由：后台查看一个人不应产生写入，也不会为没有配额行的用户建行。被否：#140 把日/月窗口改为北京日历并在懒重置里修正旧窗口，只读视图得重复这套窗口规则，迟早与执行口径分叉；复用 `get_quota_snapshot` 的写入只是下一次请求本来就会做的重置。
 - **侧栏保持平铺，只加用户详情页**。最强理由：改动最小、与另一条工作线的冲突最少。被否：入口已经 17 个，不分组时新加的「用量与成本」找不到合适的位置。
 
 ## Consequences
@@ -52,11 +54,11 @@ Status: implemented
 - 收益：后台的「今天」与运营的直觉一致；配额页显示的就是限额执行时用的值；一个用户的数据一页看完；审计日志每条都能读懂；时间不再差 8 小时。
 - 代价：`/api/admin/quota/*` 响应结构变更。前端在 Vercel 先上线、Railway 约 25 分钟后才上线，期间配额页会显示 0；只影响管理员。
 - 代价：审计日志的操作筛选不再接受 `create`/`update` 这类前缀简写（后端仍支持，只是界面不再提供）。
-- 后续：用户侧 `CheckInRecord.check_in_date` 仍按 UTC 日期写入，用户的签到日在北京时间早上 8 点翻页；改成北京日期需要单独的决策。
+- 代价：后台查看一个用户的配额会写库（为没有配额行的用户建行，并提交到期的懒重置）；写入内容与该用户下一次请求触发的相同。
 - 后续（本次刻意不做）：后台列表分页契约统一（page/page_size + 稳定排序）、各页弹窗迁移到共享表格/对话框组件、积分总量按 FIFO 账本计算（`total_points_in_circulation` 与 `points/stats` 目前与 `points_service.get_balance` 的回放结果可能不一致）。
 
 ## Verification
 
-- `cd apps/server && python -m pytest tests/test_api/test_admin_cleanup.py tests/test_api/test_admin*.py tests/e2e/test_admin*.py tests/test_api/test_payments.py tests/test_api/test_entitlement_consistency.py -q`
+- `cd apps/server && python -m pytest tests/test_api/test_admin*.py tests/e2e/test_admin*.py tests/test_beijing_calendar.py tests/test_services/test_quota_service.py tests/test_api/test_payments.py tests/test_api/test_entitlement_consistency.py -q`
 - `cd apps/web && pnpm exec vitest run src/pages/admin src/components/admin src/lib/__tests__/dateUtils.test.ts src/lib/__tests__/adminAuditLabels.test.ts src/lib/__tests__/adminSubscription.test.ts`
 - Mocked Playwright：`admin-routes-smoke-mocked`、`admin-users-mocked`、`admin-audit-mocked`、`admin-commercial-mocked`、`admin-responsive-mocked`

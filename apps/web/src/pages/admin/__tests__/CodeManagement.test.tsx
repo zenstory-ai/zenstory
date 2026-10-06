@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import CodeManagement from "../CodeManagement";
 import { adminApi } from "../../../lib/adminApi";
@@ -324,6 +324,33 @@ describe("CodeManagement", () => {
     const createButtons = screen.getAllByRole("button", { name: "codes.create" });
     fireEvent.click(createButtons[createButtons.length - 1]);
     expect(mutateMock).toHaveBeenCalledWith(expect.objectContaining({ code_type: "multi_use", max_uses: 40 }));
+  });
+
+  it("reports copy-all success only after the clipboard write, and failures as errors", async () => {
+    const { toast } = await import("../../../lib/toast");
+    useQueryMock.mockReturnValue({
+      data: { items: [], total: 0, page: 1, page_size: 20 },
+      isLoading: false, isFetching: false, isError: false, error: null, refetch: vi.fn(),
+    });
+
+    render(<CodeManagement />);
+    const batchOptions = useMutationMock.mock.calls[1][0];
+    act(() => {
+      batchOptions.onSuccess(
+        { codes: ["ERG-PRO-AAAA-11111111"], count: 1 },
+        { tier: "pro", duration_days: 30, count: 1, code_type: "single_use", max_uses: 1, notes: "" },
+      );
+    });
+    vi.mocked(toast.success).mockClear();
+
+    vi.mocked(navigator.clipboard.writeText).mockResolvedValueOnce(undefined);
+    fireEvent.click(screen.getByRole("button", { name: "codes.copyAll" }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("codes.copiedAll"));
+
+    vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(new Error("NotAllowedError"));
+    fireEvent.click(screen.getByRole("button", { name: "codes.copyAll" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("codes.copyFailed"));
+    expect(toast.success).toHaveBeenCalledTimes(1);
   });
 
   it("falls back to the submitted batch when the response omits counts", async () => {

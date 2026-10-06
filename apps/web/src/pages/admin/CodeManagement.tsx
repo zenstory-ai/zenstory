@@ -287,9 +287,18 @@ export const CodeManagement: React.FC = () => {
     );
   };
 
+  const copyToClipboard = async (text: string, successMessage: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(successMessage);
+    } catch {
+      // Denied permission or an insecure context; the codes stay on screen and in the CSV.
+      toast.error(t("codes.copyFailed"));
+    }
+  };
+
   const handleCopyCode = (codeStr: string) => {
-    navigator.clipboard.writeText(codeStr);
-    toast.success(t("codes.copied"));
+    void copyToClipboard(codeStr, t("codes.copied"));
   };
 
   const handleCreateSingle = () => {
@@ -302,8 +311,10 @@ export const CodeManagement: React.FC = () => {
 
   const handleCopyAll = () => {
     if (!batchResult) return;
-    navigator.clipboard.writeText(batchResult.codes.join("\n"));
-    toast.success(t("codes.copiedAll", { count: batchResult.codes.length }));
+    void copyToClipboard(
+      batchResult.codes.join("\n"),
+      t("codes.copiedAll", { count: batchResult.codes.length }),
+    );
   };
 
   const handleDownloadCsv = () => {

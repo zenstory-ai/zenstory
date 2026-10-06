@@ -262,6 +262,7 @@
     "multiUseSummary": "{{count}} uses per code",
     "copyAll": "Copy all",
     "copiedAll": "Copied {{count}} codes",
+    "copyFailed": "Couldn't copy. Select the codes and copy them, or download the CSV.",
     "downloadCsv": "Download CSV"
   },
   "subscriptions": {

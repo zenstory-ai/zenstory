@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Search, ChartBar, Zap, Lightbulb } from "lucide-react";
 import { adminApi } from "../../lib/adminApi";
-import { formatAdminDate } from "../../lib/dateUtils";
+import { formatBeijingPeriodDate } from "../../lib/dateUtils";
 import { AdminPageState } from "../../components/admin";
 import { StatsCard } from "../../components/admin/StatsCard";
 import { UserQuotaCards } from "../../components/admin/UserQuotaCards";
@@ -82,8 +82,8 @@ export const QuotaManagement: React.FC = () => {
         {stats?.period_start && (
           <p className="mb-3 text-sm text-[hsl(var(--text-secondary))]">
             {t("quota.period", {
-              start: formatAdminDate(stats.period_start),
-              end: formatAdminDate(stats.period_end),
+              start: formatBeijingPeriodDate(stats.period_start),
+              end: formatBeijingPeriodDate(stats.period_end, { exclusiveEnd: true }),
             })}
           </p>
         )}

@@ -36,6 +36,7 @@ import {
   formatRelativeTimeWithYear,
   formatAdminDateTime,
   formatAdminDate,
+  formatBeijingPeriodDate,
 } from '../dateUtils'
 
 describe('dateUtils', () => {
@@ -358,3 +359,17 @@ describe('admin date formatting', () => {
   })
 })
 
+describe('formatBeijingPeriodDate', () => {
+  it('shows Beijing calendar dates and the last day of an exclusive end', () => {
+    // A Beijing month stored as UTC instants: [09-30 16:00Z, 10-31 16:00Z).
+    expect(formatBeijingPeriodDate('2026-09-30T16:00:00+00:00')).toBe('2026/10/01')
+    expect(formatBeijingPeriodDate('2026-10-31T16:00:00+00:00', { exclusiveEnd: true })).toBe('2026/10/31')
+    // Naive UTC is read as UTC.
+    expect(formatBeijingPeriodDate('2026-09-30T16:00:00')).toBe('2026/10/01')
+  })
+
+  it('renders "-" for empty or invalid values', () => {
+    expect(formatBeijingPeriodDate(null)).toBe('-')
+    expect(formatBeijingPeriodDate('nope', { exclusiveEnd: true })).toBe('-')
+  })
+})
