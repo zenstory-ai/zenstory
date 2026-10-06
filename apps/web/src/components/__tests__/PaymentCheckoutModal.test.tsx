@@ -95,7 +95,7 @@ describe('PaymentCheckoutModal', () => {
     expect(screen.queryByText(/微信/)).not.toBeInTheDocument()
     expect(screen.queryByText(/服务器|收银台/)).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('radio', { name: /年付/ }))
-    fireEvent.click(screen.getByRole('button', { name: /支付宝支付/ }))
+    fireEvent.click(screen.getByRole('button', { name: /去支付/ }))
 
     await waitFor(() => expect(paymentApi.createOrder).toHaveBeenCalledTimes(1))
     expect(paymentApi.createOrder).toHaveBeenCalledWith({ plan_name: 'pro', cycle: 'year', payment_method: 'alipay' })
@@ -118,7 +118,7 @@ describe('PaymentCheckoutModal', () => {
     })
 
     renderModal()
-    const payButton = await screen.findByRole('button', { name: /支付宝支付/ })
+    const payButton = await screen.findByRole('button', { name: /去支付/ })
     await waitFor(() => expect(payButton).toBeEnabled())
     fireEvent.click(payButton)
 
@@ -130,7 +130,7 @@ describe('PaymentCheckoutModal', () => {
     vi.mocked(paymentApi.getOptions).mockResolvedValue({ enabled: false, payment_methods: [] })
     renderModal()
     expect(await screen.findByText('暂时无法在线支付。有兑换码的话，可在「订阅权益」页点「兑换码」开通。')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /支付宝支付/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /去支付/ })).toBeDisabled()
   })
 
   it('locks checkout after redirecting, records the funnel, and unlocks on bfcache restore', async () => {
@@ -145,7 +145,7 @@ describe('PaymentCheckoutModal', () => {
     })
 
     renderModal('month', 'pricing_page_primary')
-    const payButton = await screen.findByRole('button', { name: /支付宝支付/ })
+    const payButton = await screen.findByRole('button', { name: /去支付/ })
     await waitFor(() => expect(payButton).toBeEnabled())
     fireEvent.click(payButton)
 
@@ -167,13 +167,13 @@ describe('PaymentCheckoutModal', () => {
       Object.defineProperty(restored, 'persisted', { value: true })
       window.dispatchEvent(restored)
     })
-    expect(await screen.findByRole('button', { name: /支付宝支付/ })).toBeEnabled()
+    expect(await screen.findByRole('button', { name: /去支付/ })).toBeEnabled()
   })
 
   it('shows a translated message for a backend payment error code', async () => {
     vi.mocked(paymentApi.createOrder).mockRejectedValue(new ApiError(429, 'ERR_PAYMENT_RATE_LIMITED'))
     renderModal()
-    const payButton = await screen.findByRole('button', { name: /支付宝支付/ })
+    const payButton = await screen.findByRole('button', { name: /去支付/ })
     await waitFor(() => expect(payButton).toBeEnabled())
     fireEvent.click(payButton)
     expect(await screen.findByText('errors:ERR_PAYMENT_RATE_LIMITED')).toBeInTheDocument()
@@ -183,7 +183,7 @@ describe('PaymentCheckoutModal', () => {
   it('falls back to a localized generic message for untranslated errors', async () => {
     vi.mocked(paymentApi.createOrder).mockRejectedValue(new ApiError(400, 'Some English backend detail'))
     renderModal()
-    const payButton = await screen.findByRole('button', { name: /支付宝支付/ })
+    const payButton = await screen.findByRole('button', { name: /去支付/ })
     await waitFor(() => expect(payButton).toBeEnabled())
     fireEvent.click(payButton)
     expect(await screen.findByText('暂时无法创建订单，请稍后重试')).toBeInTheDocument()
@@ -213,7 +213,7 @@ describe('PaymentCheckoutModal', () => {
     async function failWith(cause: unknown) {
       vi.mocked(paymentApi.createOrder).mockRejectedValue(cause)
       renderModal()
-      const payButton = await screen.findByRole('button', { name: /支付宝支付|with Alipay/ })
+      const payButton = await screen.findByRole('button', { name: /去支付|Pay now/ })
       await waitFor(() => expect(payButton).toBeEnabled())
       fireEvent.click(payButton)
       return screen.findByRole('alert')

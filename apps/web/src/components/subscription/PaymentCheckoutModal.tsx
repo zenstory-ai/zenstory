@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Check, CreditCard } from 'lucide-react'
@@ -143,13 +143,6 @@ export function PaymentCheckoutModal({
     && optionsQuery.data.payment_methods.includes('alipay')
   const isUnavailable = optionsQuery.isError || (!optionsQuery.isLoading && !alipayEnabled)
 
-  const price = cycle === 'month' ? monthlyPriceCents : yearlyPriceCents
-  const formattedPrice = useMemo(() => {
-    if (price === undefined) return null
-    const locale = i18n.language?.startsWith('en') ? 'en-US' : 'zh-CN'
-    return `¥${(price / 100).toLocaleString(locale, { maximumFractionDigits: 2 })}`
-  }, [i18n.language, price])
-
   const handlePay = () => {
     if (!alipayEnabled || isBusy) return
     setError('')
@@ -168,7 +161,7 @@ export function PaymentCheckoutModal({
     <Modal
       open={isOpen}
       onClose={handleClose}
-      title={t('dashboard:billing.paymentTitle', '用支付宝开通 Pro')}
+      title={t('dashboard:billing.paymentTitle', '开通 Pro 会员')}
       size="md"
       closeOnBackdropClick={!isBusy}
       closeOnEscape={!isBusy}
@@ -240,7 +233,7 @@ export function PaymentCheckoutModal({
             ? t('dashboard:billing.paymentRedirecting', '正在前往支付宝...')
             : createOrder.isPending
             ? t('dashboard:billing.paymentCreating', '正在创建订单...')
-            : t('dashboard:billing.payWithAlipay', '支付宝支付{{price}}', { price: formattedPrice ? ` ${formattedPrice}` : '' })}
+            : t('dashboard:billing.goToPay', '去支付')}
         </Button>
       </Modal.Footer>
     </Modal>
