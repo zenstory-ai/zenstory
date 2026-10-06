@@ -37,6 +37,13 @@ router = APIRouter(tags=["admin-referrals"])
 # ==================== Referral Management ====================
 
 
+def _usernames_by_id(session: Session, user_ids: set[str]) -> dict[str, str]:
+    if not user_ids:
+        return {}
+    rows = session.exec(select(User.id, User.username).where(User.id.in_(user_ids))).all()
+    return dict(rows)
+
+
 @router.get("/referrals/stats", response_model=AdminReferralStatsResponse)
 def get_referral_stats(
     current_user: User = Depends(get_current_superuser),
@@ -174,15 +181,15 @@ def get_invite_codes(
 
     codes = session.exec(query).all()
 
-    # Enrich with owner info
+    # Enrich with owner info (one query for the page)
+    owner_names = _usernames_by_id(session, {code.owner_id for code in codes})
     items = []
     for code in codes:
-        owner = session.get(User, code.owner_id)
         items.append(AdminInviteCodeResponse(
             id=code.id,
             code=code.code,
             owner_id=code.owner_id,
-            owner_name=owner.username if owner else "Unknown",
+            owner_name=owner_names.get(code.owner_id, "Unknown"),
             max_uses=code.max_uses,
             current_uses=code.current_uses,
             is_active=code.is_active,
@@ -231,15 +238,18 @@ def get_referral_rewards(
 
     rewards = session.exec(query).all()
 
-    # Enrich with user info
+    # Enrich with user info (one query each for the page)
+    usernames = _usernames_by_id(session, {reward.user_id for reward in rewards})
+    referral_ids = {reward.referral_id for reward in rewards if reward.referral_id}
+    existing_referral_ids = set(
+        session.exec(select(Referral.id).where(Referral.id.in_(referral_ids))).all()
+    ) if referral_ids else set()
     items = []
     for reward in rewards:
-        user = session.get(User, reward.user_id)
-        referral = session.get(Referral, reward.referral_id) if reward.referral_id else None
         items.append({
             **reward.model_dump(),
-            "username": user.username if user else "Unknown",
-            "referral_id": referral.id if referral else None,
+            "username": usernames.get(reward.user_id, "Unknown"),
+            "referral_id": reward.referral_id if reward.referral_id in existing_referral_ids else None,
         })
 
     log_with_context(

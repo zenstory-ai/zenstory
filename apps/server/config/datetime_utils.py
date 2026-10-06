@@ -1,6 +1,9 @@
 """DateTime utilities for consistent timezone handling."""
 from datetime import UTC, date, datetime, timedelta
+from typing import Annotated
 from zoneinfo import ZoneInfo
+
+from pydantic import PlainSerializer
 
 BEIJING_TIMEZONE = ZoneInfo("Asia/Shanghai")
 
@@ -24,6 +27,15 @@ def normalize_datetime_to_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
+
+
+def _serialize_utc(value: datetime) -> str:
+    return normalize_datetime_to_utc(value).isoformat()
+
+
+# A datetime field that always serializes to JSON with an explicit UTC offset, so
+# clients never read naive UTC as local time.
+UTCDateTime = Annotated[datetime, PlainSerializer(_serialize_utc, return_type=str, when_used="json")]
 
 
 def beijing_date(value: datetime) -> date:

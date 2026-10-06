@@ -83,7 +83,7 @@ def get_prompt(
 
     if not prompt:
         raise APIException(
-            error_code=ErrorCode.NOT_AUTHORIZED,
+            error_code=ErrorCode.NOT_FOUND,
             status_code=status.HTTP_404_NOT_FOUND,
         )
 
@@ -259,7 +259,7 @@ def delete_prompt(
 
     if not prompt:
         raise APIException(
-            error_code=ErrorCode.NOT_AUTHORIZED,
+            error_code=ErrorCode.NOT_FOUND,
             status_code=status.HTTP_404_NOT_FOUND,
         )
 

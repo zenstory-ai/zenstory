@@ -263,7 +263,7 @@ async def test_admin_cannot_create_free_tier_codes(
     ):
         response = await client.post(path, headers=headers, json=payload)
         assert response.status_code == 400, path
-        assert response.json()["detail"] == "Redemption codes cannot grant the free tier"
+        assert response.json()["error_detail"] == "Redemption codes cannot grant the free tier"
 
 
 @pytest.mark.integration

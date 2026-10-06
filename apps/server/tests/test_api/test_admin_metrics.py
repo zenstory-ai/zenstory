@@ -22,6 +22,7 @@ from models.referral import (
 from models.skill import UserSkill
 from models.subscription import SubscriptionHistory, SubscriptionPlan, UsageQuota, UserSubscription
 from services.core.auth_service import hash_password
+from services.quota_service import quota_service
 
 
 async def create_user(
@@ -73,6 +74,7 @@ async def test_admin_quota_usage_and_user_quota_detail(client: AsyncClient, db_s
         features={
             "ai_conversations_per_day": 80,
             "material_uploads": 30,
+            "material_decompositions": 15,
             "custom_skills": 12,
             "inspiration_copies_monthly": 50,
         },
@@ -103,8 +105,9 @@ async def test_admin_quota_usage_and_user_quota_detail(client: AsyncClient, db_s
             material_decompositions_used=4,
             skill_creates_used=3,
             inspiration_copies_used=6,
-            monthly_period_start=now,
-            monthly_period_end=now + timedelta(days=30),
+            # The current Beijing month, stored as naive UTC like real rows.
+            monthly_period_start=quota_service._get_month_start(now).replace(tzinfo=None),
+            monthly_period_end=quota_service._get_next_month_start(now).replace(tzinfo=None),
         )
     )
     # The custom-skill cap counts skills the user owns, not monthly creations.
@@ -121,10 +124,11 @@ async def test_admin_quota_usage_and_user_quota_detail(client: AsyncClient, db_s
     )
     assert usage_response.status_code == 200
     usage_data = usage_response.json()
-    assert usage_data["material_uploads"] >= 7
-    assert usage_data["material_decomposes"] >= 4
-    assert usage_data["skill_creates"] >= 3
-    assert usage_data["inspiration_copies"] >= 6
+    assert usage_data["material_decompositions"] == 4
+    assert usage_data["skill_create_attempts"] == 3
+    assert usage_data["inspiration_copies"] == 6
+    assert "material_uploads" not in usage_data
+    assert usage_data["period_start"].endswith("+00:00")
 
     detail_by_username = await client.get(
         f"/api/admin/quota/{target.username}",
@@ -134,15 +138,21 @@ async def test_admin_quota_usage_and_user_quota_detail(client: AsyncClient, db_s
     detail_data = detail_by_username.json()
     assert detail_data["user_id"] == target.id
     assert detail_data["username"] == target.username
+    assert detail_data["email"] == target.email
     assert detail_data["plan_name"] == plan.name
-    assert detail_data["ai_conversations_used"] == 9
-    assert detail_data["ai_conversations_limit"] == 80
-    assert detail_data["material_upload_used"] == 7
-    assert detail_data["material_upload_limit"] == 30
-    assert detail_data["skill_create_used"] == 3
-    assert detail_data["skill_create_limit"] == 12
-    assert detail_data["inspiration_copy_used"] == 6
-    assert detail_data["inspiration_copy_limit"] == 50
+    assert detail_data["plan_display_name"] == "专业版"
+    assert detail_data["ai_conversations"]["used"] == 9
+    assert detail_data["ai_conversations"]["limit"] == 80
+    assert detail_data["material_decompositions"] == {
+        "used": 4,
+        "limit": 15,
+        "reset_at": detail_data["material_decompositions"]["reset_at"],
+    }
+    assert detail_data["custom_skills"]["used"] == 3
+    assert detail_data["custom_skills"]["limit"] == 12
+    assert detail_data["custom_skills"]["reset_at"] is None
+    assert detail_data["inspiration_copies"]["used"] == 6
+    assert detail_data["inspiration_copies"]["limit"] == 50
 
     detail_by_email = await client.get(
         f"/api/admin/quota/{target.email}",

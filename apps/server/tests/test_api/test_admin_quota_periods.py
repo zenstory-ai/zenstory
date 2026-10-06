@@ -38,7 +38,7 @@ async def test_admin_detail_uses_runtime_plan_defaults_and_resets_old_usage(
         user_id=target.id,
         period_start=now - timedelta(days=1), period_end=now,
         last_reset_at=now - timedelta(minutes=1), ai_conversations_used=20,
-        material_uploads_used=2,
+        material_decompositions_used=2,
         monthly_period_start=datetime(2026, 10, 1), monthly_period_end=datetime(2026, 11, 1),
     ))
     db_session.commit()
@@ -53,11 +53,11 @@ async def test_admin_detail_uses_runtime_plan_defaults_and_resets_old_usage(
     assert response.status_code == 200
     data = response.json()
     assert data["plan_name"] == ("free" if expired else "pro")
-    assert data["ai_conversations_limit"] == (20 if expired else -1)
-    assert data["ai_conversations_used"] == 0
-    assert data["material_upload_limit"] == (0 if expired else 5)
-    assert data["material_upload_used"] == 2
-    assert data["skill_create_limit"] == (3 if expired else 20)
+    assert data["ai_conversations"]["limit"] == (20 if expired else -1)
+    assert data["ai_conversations"]["used"] == 0
+    assert data["material_decompositions"]["limit"] == (0 if expired else 5)
+    assert data["material_decompositions"]["used"] == 2
+    assert data["custom_skills"]["limit"] == (3 if expired else 20)
     quota = db_session.exec(select(UsageQuota).where(UsageQuota.user_id == target.id)).one()
     db_session.refresh(quota)
     assert quota.period_end == datetime(2026, 10, 6, 16)

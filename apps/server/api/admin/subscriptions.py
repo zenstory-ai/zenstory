@@ -79,6 +79,7 @@ def list_subscriptions(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     status_filter: str | None = Query(None, alias="status", description="Filter by status"),
+    search: str | None = Query(None, max_length=100, description="Search by username or email"),
     current_user: User = Depends(get_current_superuser),
     session: Session = Depends(get_session),
 ):
@@ -100,6 +101,10 @@ def list_subscriptions(
         .outerjoin(UserSubscription, UserSubscription.user_id == User.id)
         .outerjoin(SubscriptionPlan, SubscriptionPlan.id == UserSubscription.plan_id)
     )
+
+    if search and search.strip():
+        pattern = f"%{search.strip()}%"
+        query = query.where(or_(User.username.ilike(pattern), User.email.ilike(pattern)))
 
     if normalized_status == "active":
         query = query.where(
@@ -137,7 +142,7 @@ def list_subscriptions(
     ).one()
 
     rows = session.exec(
-        query.order_by(User.created_at.desc())
+        query.order_by(User.created_at.desc(), User.id.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
     ).all()
