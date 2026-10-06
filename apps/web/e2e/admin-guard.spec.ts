@@ -39,7 +39,7 @@ async function bootstrapSession(page: import('@playwright/test').Page, user: {
   });
 
   // The materials library checks the plan before requesting the summary.
-  await page.route('**/api/v1/subscription/status', async (route) => {
+  await page.route('**/api/v1/subscription/me', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
