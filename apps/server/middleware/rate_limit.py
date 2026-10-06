@@ -24,7 +24,7 @@ from utils.logger import get_logger, log_with_context
 
 # In-memory fallback store
 _rate_limit_store: dict = defaultdict(list)
-_daily_rate_limit_store_lock = Lock()
+_rate_limit_store_lock = Lock()
 _redis_retry_after_monotonic: float = 0.0
 
 logger = get_logger(__name__)
@@ -295,16 +295,16 @@ def check_rate_limit(
     now = time.time()
     window_start = now - window_seconds
 
-    # Clean old entries
-    _rate_limit_store[rate_key] = [t for t in _rate_limit_store[rate_key] if t > window_start]
+    # FastAPI runs sync dependencies in a thread pool. Keep rolling-window
+    # cleanup/check/append atomic and share this lock with calendar buckets
+    # because both backends intentionally use the same in-memory store.
+    with _rate_limit_store_lock:
+        _rate_limit_store[rate_key] = [t for t in _rate_limit_store[rate_key] if t > window_start]
+        if len(_rate_limit_store[rate_key]) >= max_requests:
+            return False, 0
 
-    # Check limit
-    if len(_rate_limit_store[rate_key]) >= max_requests:
-        return False, 0
-
-    # Record request
-    _rate_limit_store[rate_key].append(now)
-    return True, max_requests - len(_rate_limit_store[rate_key])
+        _rate_limit_store[rate_key].append(now)
+        return True, max_requests - len(_rate_limit_store[rate_key])
 
 
 def require_rate_limit(key: str, max_requests: int, window_seconds: int):
@@ -428,7 +428,8 @@ def require_user_beijing_daily_rate_limit(key: str, max_requests: int):
         _, period_end = beijing_day_bounds(now)
         retry_after = max(1, math.ceil((period_end - now).total_seconds()))
         bucket_prefix = f"{key}:user_{current_user.id}:beijing_day:"
-        rate_key = f"{bucket_prefix}{beijing_date(now).isoformat()}"
+        bucket_day = beijing_date(now).isoformat()
+        rate_key = f"{bucket_prefix}{bucket_day}"
 
         redis_result = _check_rate_limit_redis(
             rate_key=rate_key,
@@ -443,9 +444,9 @@ def require_user_beijing_daily_rate_limit(key: str, max_requests: int):
             # would incorrectly discard requests made earlier the same day.
             # FastAPI runs sync dependencies in a thread pool, so cleanup and
             # len/check/append must be one atomic process-local operation.
-            with _daily_rate_limit_store_lock:
+            with _rate_limit_store_lock:
                 for stale_key in tuple(_rate_limit_store):
-                    if stale_key.startswith(bucket_prefix) and stale_key != rate_key:
+                    if stale_key.startswith(bucket_prefix) and stale_key.removeprefix(bucket_prefix) < bucket_day:
                         _rate_limit_store.pop(stale_key, None)
                 bucket = _rate_limit_store[rate_key]
                 if len(bucket) >= max_requests:

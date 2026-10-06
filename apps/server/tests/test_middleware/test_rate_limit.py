@@ -3,7 +3,7 @@
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
-from threading import Barrier, BrokenBarrierError
+from threading import Barrier, BrokenBarrierError, Event
 from types import SimpleNamespace
 
 import pytest
@@ -397,6 +397,79 @@ def test_user_beijing_daily_midnight_cleanup_is_safe_under_concurrency(monkeypat
     assert sorted(results) == [0, 1]
     assert stale_key not in store
     assert len(store[current_key]) == 2
+
+
+@pytest.mark.unit
+def test_daily_cleanup_and_generic_memory_limit_share_one_lock(monkeypatch):
+    """A generic new bucket cannot mutate the store during daily cleanup."""
+    stale_key = "agent_suggest_daily:user_same-user:beijing_day:2026-10-05"
+    current_key = "agent_suggest_daily:user_same-user:beijing_day:2026-10-06"
+    generic_key = "generic_concurrent"
+    scan_started = Event()
+    generic_inserted = Event()
+
+    class _MutationDetectingStore(defaultdict):
+        def __missing__(self, key):
+            value = super().__missing__(key)
+            if key == generic_key:
+                generic_inserted.set()
+            return value
+
+        def __iter__(self):
+            keys = list(super().keys())
+            scan_started.set()
+            generic_inserted.wait(timeout=0.1)
+            if list(super().keys()) != keys:
+                raise RuntimeError("dictionary changed size during iteration")
+            return iter(keys)
+
+    store = _MutationDetectingStore(list)
+    store[stale_key] = [1.0]
+    monkeypatch.setattr(rate_limit_module, "_rate_limit_store", store)
+    monkeypatch.setattr(
+        rate_limit_module,
+        "utcnow",
+        lambda: datetime(2026, 10, 5, 16, 0, 0, tzinfo=UTC),
+    )
+    daily = require_user_beijing_daily_rate_limit("agent_suggest_daily", 2)
+    user = SimpleNamespace(id="same-user")
+    request = _build_request()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        daily_result = executor.submit(daily, request, current_user=user)
+        assert scan_started.wait(timeout=1)
+        generic_result = executor.submit(
+            check_rate_limit,
+            request,
+            generic_key,
+            2,
+            60,
+            include_client_ip=False,
+        )
+        assert daily_result.result(timeout=1) == 1
+        assert generic_result.result(timeout=1) == (True, 1)
+
+    assert stale_key not in store
+    assert len(store[current_key]) == 1
+    assert len(store[generic_key]) == 1
+
+
+@pytest.mark.unit
+def test_queued_old_day_request_does_not_delete_new_day_bucket(monkeypatch):
+    """An old request acquiring the lock late must preserve newer-day usage."""
+    old_key = "agent_suggest_daily:user_same-user:beijing_day:2026-10-05"
+    new_key = "agent_suggest_daily:user_same-user:beijing_day:2026-10-06"
+    _rate_limit_store[new_key] = [datetime(2026, 10, 5, 16, 0, tzinfo=UTC).timestamp()]
+    monkeypatch.setattr(
+        rate_limit_module,
+        "utcnow",
+        lambda: datetime(2026, 10, 5, 15, 59, 59, tzinfo=UTC),
+    )
+    daily = require_user_beijing_daily_rate_limit("agent_suggest_daily", 2)
+
+    assert daily(_build_request(), current_user=SimpleNamespace(id="same-user")) == 1
+    assert len(_rate_limit_store[old_key]) == 1
+    assert len(_rate_limit_store[new_key]) == 1
 
 
 @pytest.mark.unit
