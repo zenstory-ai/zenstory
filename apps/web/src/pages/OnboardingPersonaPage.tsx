@@ -166,7 +166,7 @@ export default function OnboardingPersonaPage() {
       tips.push(t("onboarding:preview.items.explorer", "灵感模板和快速起稿入口"));
     }
     if (selectedPersonas.includes("serial")) {
-      tips.push(t("onboarding:preview.items.serial", "每日写作目标和连更进度"));
+      tips.push(t("onboarding:preview.items.serial", "连续写作天数统计"));
     }
     if (selectedPersonas.includes("professional")) {
       tips.push(t("onboarding:preview.items.professional", "大纲、章节到改稿的高效流程"));

@@ -7,7 +7,7 @@ const displayEvents = [
   { type: 'tool_call', tool_call_index: 0 },
   { type: 'content', content: 'Order second' },
   { type: 'handoff', data: { target_agent: 'writer', reason: 'handoff-order-marker' } },
-  { type: 'agent_selected', data: { agent_type: 'writer', agent_name: 'Writer order marker' } },
+  { type: 'agent_selected', data: { agent_type: 'order_marker_agent', agent_name: 'Writer order marker' } },
   { type: 'tool_call', tool_call_index: 1 },
   { type: 'content', content: 'Order third' },
 ];
