@@ -224,7 +224,7 @@ test.describe('AI Chat (Mocked)', () => {
     await expect(page.locator('text=这是一条测试消息')).toBeVisible({ timeout: 5000 })
 
     // Click new session button (+ icon)
-    await page.locator('button[title="新建会话"], button[title="New Session"]').first().click()
+    await page.locator('button[title="新对话"], button[title="New chat"]').first().click()
 
     // Verify chat is cleared
     await expect(page.locator('text=这是一条测试消息')).not.toBeVisible({ timeout: 5000 })

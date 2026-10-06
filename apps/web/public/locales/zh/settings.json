@@ -6,7 +6,7 @@
     "subscription": "订阅",
     "points": "积分",
     "referral": "邀请",
-    "agent": "Agent"
+    "agent": "API 密钥"
   },
   "profile": {
     "anonymous": "匿名用户",
@@ -42,7 +42,7 @@
   "privacy": {
     "title": "隐私",
     "analytics": "产品分析与错误追踪",
-    "analyticsDescription": "向 PostHog 发送使用事件和错误信息，帮助我们改进产品。不会发送作品正文、提示词或对话内容。关闭后，该浏览器不再发送任何分析或错误数据。",
+    "analyticsDescription": "向 PostHog 发送使用情况和错误报告，帮助我们改进产品；不包含作品正文、提示词和对话内容。此设置只对当前浏览器生效。",
     "privacyLink": "了解详情"
   },
   "actions": {
@@ -51,7 +51,7 @@
     "saving": "正在保存...",
     "save": "保存偏好",
     "saved": "偏好已保存",
-    "confirmReset": "确定要恢复默认偏好吗？这不会影响您的创作内容。"
+    "confirmReset": "恢复默认偏好？你的作品内容不受影响。"
   },
   "apiKeys": {
     "title": "API 密钥",
@@ -59,16 +59,16 @@
     "createTitle": "创建新 API 密钥",
     "delete": "删除",
     "deleteTitle": "删除 API 密钥",
-    "deleteConfirm": "确定要删除此密钥吗？此操作无法撤销。",
+    "deleteConfirm": "删除后无法恢复，使用这个密钥的工具将无法再访问你的项目。",
     "regenerate": "重新生成",
     "regenerateTitle": "重新生成 API 密钥",
-    "regenerateConfirm": "旧密钥将立即失效。",
+    "regenerateConfirm": "旧密钥会立即失效，用它登录的工具需要换新密钥重新登录。",
     "regenerating": "正在重新生成...",
     "createdTitle": "API 密钥已创建",
-    "copyWarning": "请立即复制此密钥。它只会显示一次。",
+    "copyWarning": "请现在复制密钥，关闭后将无法再次查看。",
     "done": "完成",
     "loading": "加载中...",
-    "noKeys": "暂无 API 密钥。创建一个开始使用。",
+    "noKeys": "还没有 API 密钥",
     "created": "创建于",
     "lastUsed": "最后使用",
     "expires": "过期时间",
@@ -86,26 +86,28 @@
       "name": "名称",
       "namePlaceholder": "例如：我的 API 密钥",
       "description": "描述",
-      "descriptionPlaceholder": "可选描述",
+      "descriptionPlaceholder": "可选，比如用在哪台电脑上",
       "permissions": "权限",
       "projectIds": "项目 ID（用逗号分隔）",
       "projectIdsPlaceholder": "留空表示所有项目",
-      "expiresAt": "过期时间"
+      "expiresAt": "过期时间",
+      "never": "永不过期",
+      "days": "天"
     },
     "errors": {
-      "fetchFailed": "获取 API 密钥失败",
-      "createFailed": "创建 API 密钥失败",
-      "deleteFailed": "删除 API 密钥失败",
-      "regenerateFailed": "重新生成 API 密钥失败",
-      "toggleFailed": "切换密钥状态失败",
-      "nameRequired": "名称为必填项"
+      "fetchFailed": "API 密钥加载失败，请重试",
+      "createFailed": "创建密钥失败，请重试",
+      "deleteFailed": "删除密钥失败，请重试",
+      "regenerateFailed": "重新生成密钥失败，请重试",
+      "toggleFailed": "更改密钥状态失败，请重试",
+      "nameRequired": "请填写名称"
     },
-    "emptyState": "创建 API 密钥后，用 zenstory 命令行工具登录，你的 AI 助手（Claude Code、Codex、OpenClaw 等）就能直接读写你的小说项目。",
+    "emptyState": "创建一个密钥，再按上面的步骤接入你的 AI 助手。",
     "testConnection": "测试连接",
     "testing": "测试中...",
-    "testSuccess": "API Key 有效且处于活跃状态。",
+    "testSuccess": "连接正常，这个密钥可以使用。",
     "testFailed": "连接失败：{{error}}",
-    "hintBar": "请在终端里登录，不要把 API 密钥贴进 AI 对话。密钥可以随时禁用或重新生成。",
+    "hintBar": "密钥只在终端里粘贴，不要发到 AI 对话里。密钥泄露时可随时禁用或重新生成。",
     "createdNextSteps": "在终端里运行以下命令完成接入（不要把密钥贴进 AI 对话）：",
     "copy": "复制",
     "copied": "已复制",
@@ -147,8 +149,8 @@
     "features": {
       "ai_conversations_per_day": "每日 AI 对话次数",
       "max_ai_conversations_per_day": "每日 AI 对话次数",
-      "context_window_tokens": "上下文窗口",
-      "file_versions_per_file": "每文件版本数",
+      "context_window_tokens": "AI 单次可参考的内容量",
+      "file_versions_per_file": "每个文件保留的版本数",
       "max_projects": "最大项目数",
       "export_formats": "导出格式",
       "custom_prompts": "自定义提示词",
@@ -164,7 +166,7 @@
     "balance": "积分余额",
     "pendingExpiration": "{{count}} 积分即将过期",
     "history": "积分记录",
-    "historyError": "加载历史记录失败",
+    "historyError": "积分记录加载失败，请重试",
     "noHistory": "暂无积分记录",
     "totalTransactions": "共 {{count}} 条记录",
     "expired": "已过期",
@@ -175,7 +177,7 @@
     "checkInFailed": "签到失败，请稍后重试",
     "earnMore": "获取更多积分",
     "completed": "已完成",
-    "redeemPro": "兑换 Pro 会员",
+    "redeemPro": "用积分兑换 Pro 会员",
     "currentBalance": "当前积分",
     "selectDuration": "选择兑换时长",
     "days": "天",
@@ -185,8 +187,8 @@
     "insufficient": "积分不足",
     "redeemFailed": "兑换失败，请稍后重试",
     "benefit": {
-      "unlimitedAI": "无限 AI 对话",
-      "unlimitedProjects": "无限项目",
+      "unlimitedAI": "更多 AI 写作额度",
+      "unlimitedProjects": "可创建更多项目",
       "allFormats": "所有导出格式",
       "priority": "优先功能体验"
     },

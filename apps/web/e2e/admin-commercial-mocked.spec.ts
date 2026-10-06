@@ -128,7 +128,7 @@ test.describe('Admin commercial flows (mocked)', () => {
     const confirmation = page.getByRole('dialog');
     await expect(confirmation).toBeVisible();
     expect(updatePayload).toBeNull();
-    await confirmation.getByRole('button', { name: /停用兑换码|Deactivate code|codes\.confirmDeactivate/i }).click();
+    await confirmation.getByRole('button', { name: /^(禁用|Deactivate)$|codes\.confirmDeactivate/i }).click();
 
     await expect.poll(() => updatePayload).not.toBeNull();
     expect(updatePayload).toEqual({ is_active: false });

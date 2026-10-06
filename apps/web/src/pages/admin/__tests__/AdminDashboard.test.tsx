@@ -123,7 +123,7 @@ describe('AdminDashboard', () => {
     });
 
     expect(mockGetUpgradeConversionStats).toHaveBeenCalledWith(7);
-    expect(screen.getByText('Attributed sources: 2')).toBeInTheDocument();
+    expect(screen.getByText('归因来源：2')).toBeInTheDocument();
     expect(screen.getByText('chat_quota_blocked')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '14天' }));

@@ -6,7 +6,7 @@
     "availablePoints": "可用积分",
     "rewardHistory": "奖励历史",
     "noRewards": "暂无奖励记录",
-    "loadError": "加载统计数据失败，请重试"
+    "loadError": "邀请数据加载失败，请刷新重试"
   },
   "rewardTypes": {
     "points": "积分",
@@ -17,26 +17,26 @@
   "inviteCodes": {
     "title": "我的邀请码",
     "maxHint": "最多可创建 {{count}} 个邀请码",
-    "unlimitedHint": "可创建无限邀请码",
+    "unlimitedHint": "邀请码数量不限",
     "generateButton": "生成邀请码",
-    "noCodes": "暂无邀请码",
-    "noCodesHint": "创建邀请码邀请好友，获取奖励",
+    "noCodes": "还没有邀请码",
+    "noCodesHint": "生成邀请码分享给好友，好友注册后你可获得奖励",
     "createFirst": "创建第一个邀请码",
-    "loadError": "加载邀请码失败，请重试",
-    "createError": "创建邀请码失败，请重试"
+    "loadError": "邀请码加载失败，请刷新重试",
+    "createError": "邀请码生成失败，请重试"
   },
   "card": {
     "inviteCode": "邀请码",
     "copyInviteCode": "复制邀请码",
     "shareInviteCode": "分享邀请码",
-    "used": "已使用:",
+    "used": "已使用：",
     "expired": "已过期",
     "expiresTomorrow": "明天过期",
     "expiresInDays": "{{count}}天后过期",
     "disabled": "已停用",
     "exhausted": "已用完",
     "available": "可用",
-    "shareTitle": "zenstory写作 - 邀请码",
-    "shareText": "邀请码: {{code}}"
+    "shareTitle": "zenstory 邀请码",
+    "shareText": "注册 zenstory 时填写我的邀请码：{{code}}"
   }
 }

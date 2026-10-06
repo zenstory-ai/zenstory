@@ -113,7 +113,7 @@ const getStatusText = (
   t: (key: string, defaultValue?: string) => string,
 ): string => {
   if (!subscription.has_subscription_record) {
-    return t("subscriptions.statusUninitialized", "未建档（按免费生效）");
+    return t("subscriptions.statusUninitialized", "免费版（默认）");
   }
   return t(getStatusI18nKey(getEffectiveStatus(subscription)));
 };
@@ -176,7 +176,7 @@ const SubscriptionCard: React.FC<{
         )}
         {!subscription.has_subscription_record && (
           <div className="text-xs inline-flex items-center w-fit px-2 py-1 rounded bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))]">
-            {t("subscriptions.noRecord", "缺少订阅记录")}
+            {t("subscriptions.noRecord", "无订阅记录")}
           </div>
         )}
       </div>
@@ -327,7 +327,7 @@ export const SubscriptionManagement: React.FC = () => {
 
     if (isPlanChanged || hasDuration) {
       if (modifyFormData.duration_days <= 0) {
-        toast.error(t("subscriptions.extendDurationRequired", "修改套餐时请填写大于 0 的时长"));
+        toast.error(t("subscriptions.extendDurationRequired", "更换套餐时请填写大于 0 的天数"));
         return;
       }
       payload.plan_name = modifyFormData.plan_name;
@@ -335,7 +335,7 @@ export const SubscriptionManagement: React.FC = () => {
     }
 
     if (Object.keys(payload).length === 0) {
-      toast.error(t("subscriptions.noChanges", "没有可提交的变更"));
+      toast.error(t("subscriptions.noChanges", "没有需要保存的修改"));
       return;
     }
 
@@ -381,7 +381,7 @@ export const SubscriptionManagement: React.FC = () => {
 
   const getPeriodEndDisplay = (sub: Subscription) => {
     if (!sub.has_subscription_record) {
-      return t("subscriptions.uninitializedLongTerm", "未建档（按免费长期有效）");
+      return t("subscriptions.uninitializedLongTerm", "长期（免费版）");
     }
     if (isLongTermSubscription(sub)) {
       return t("subscriptions.longTerm", "长期有效");
@@ -494,7 +494,7 @@ export const SubscriptionManagement: React.FC = () => {
                           )}
                           {!sub.has_subscription_record && (
                             <span className="mt-1 inline-flex w-fit px-2 py-0.5 rounded text-[10px] bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))]">
-                              {t("subscriptions.noRecord", "缺少订阅记录")}
+                              {t("subscriptions.noRecord", "无订阅记录")}
                             </span>
                           )}
                         </div>
@@ -758,7 +758,7 @@ export const SubscriptionManagement: React.FC = () => {
                 <p className="text-xs text-[hsl(var(--text-secondary))] mt-1">
                   {t("subscriptions.extendHint")}
                   {" "}
-                  {t("subscriptions.extendHintOptional", "(填 0 表示不续期)")}
+                  {t("subscriptions.extendHintOptional", "只改状态时填 0。")}
                 </p>
               </div>
 

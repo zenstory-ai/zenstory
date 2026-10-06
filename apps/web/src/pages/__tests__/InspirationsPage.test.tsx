@@ -21,6 +21,7 @@ vi.mock('react-i18next', () => ({
           'mySubmissions.title': 'My submissions',
           'mySubmissions.count': `${options?.count ?? 0} submissions`,
           'mySubmissions.loading': 'Loading submissions',
+          'mySubmissions.loadError': 'Could not load submissions',
           'mySubmissions.empty': 'No submissions yet',
           'mySubmissions.submittedAt': `Submitted ${options?.date ?? ''}`,
           'mySubmissions.rejectionReason': `Reason: ${options?.reason ?? ''}`,
@@ -122,7 +123,8 @@ describe('InspirationsPage', () => {
       error: new Error('submissions unavailable'), refetch,
     }
     render(<InspirationsPage />)
-    expect(screen.getByText('submissions unavailable')).toBeInTheDocument()
+    expect(screen.getByText('Could not load submissions')).toBeInTheDocument()
+    expect(screen.queryByText('submissions unavailable')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'retry' }))
     expect(refetch).toHaveBeenCalledTimes(1)
   })

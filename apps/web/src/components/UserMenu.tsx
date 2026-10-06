@@ -200,7 +200,7 @@ interface UserMenuProps {
  * </Header>
  */
 export const UserMenu: React.FC<UserMenuProps> = () => {
-  const { t } = useTranslation(['common']);
+  const { t } = useTranslation(['common', 'settings']);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
@@ -348,10 +348,10 @@ export const UserMenu: React.FC<UserMenuProps> = () => {
             >
               <CalendarCheck size={16} className={isCheckedIn ? "text-[hsl(var(--success))]" : "text-[hsl(var(--warning))]"} />
               {isCheckedIn
-                ? t('points.alreadyCheckedIn', '今日已签到')
+                ? t('settings:points.alreadyCheckedIn', '今日已签到')
                 : checkInMutation.isPending
-                  ? t('common.loading', '处理中...')
-                  : t('points.checkIn', '签到领积分')}
+                  ? t('common:processing', '处理中...')
+                  : t('settings:points.checkIn', '签到领积分')}
             </button>
 
             {/* Future: Profile settings link */}
@@ -416,7 +416,7 @@ interface UserMenuMobileProps {
  * <UserMenuMobile />
  */
 export const UserMenuMobile: React.FC<UserMenuMobileProps> = ({ onLogout }) => {
-  const { t } = useTranslation(['common']);
+  const { t } = useTranslation(['common', 'settings']);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -501,10 +501,10 @@ export const UserMenuMobile: React.FC<UserMenuMobileProps> = ({ onLogout }) => {
         <CalendarCheck size={18} className={isCheckedIn ? "text-[hsl(var(--success))]" : "text-[hsl(var(--warning))]"} />
         <span>
           {isCheckedIn
-            ? t('points.alreadyCheckedIn', '今日已签到')
+            ? t('settings:points.alreadyCheckedIn', '今日已签到')
             : checkInMutation.isPending
-              ? t('common.loading', '处理中...')
-              : t('points.checkIn', '签到领积分')}
+              ? t('common:processing', '处理中...')
+              : t('settings:points.checkIn', '签到领积分')}
         </span>
       </button>
 

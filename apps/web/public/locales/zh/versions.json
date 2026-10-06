@@ -2,13 +2,15 @@
   "title": "版本历史",
   "loading": "加载中...",
   "loadFailed": "加载版本历史失败",
-  "noVersions": "暂无版本历史",
+  "noVersions": "还没有版本记录",
   "compare": "对比版本",
   "comparing": "对比中...",
-  "rollback": "回滚",
+  "compareFailed": "对比失败，请重试",
+  "rollback": "恢复此版本",
   "viewContent": "查看内容",
-  "rollbackConfirm": "确定要回滚到版本 {{version}} 吗?当前内容会被保存为新版本。",
-  "rollbackSuccess": "回滚成功",
+  "rollbackConfirm": "恢复到版本 {{version}}？当前正文会被替换为该版本内容，已有版本记录不会删除。",
+  "rollbackSuccess": "已恢复到该版本",
+  "rollbackFailed": "恢复失败，请重试",
   "totalVersions": "共 {{count}} 个版本",
   "totalVersions_one": "共 {{count}} 个版本",
   "totalVersions_other": "共 {{count}} 个版本",
@@ -25,13 +27,13 @@
     "created": "创建",
     "edited": "编辑",
     "aiEdited": "AI 编辑",
-    "rolledBack": "回滚",
+    "rolledBack": "恢复",
     "autoSave": "自动保存"
   },
   "quota": {
-    "limitTitle": "文件版本额度已达上限",
-    "limitDescription": "当前套餐可保留的文件版本已达上限。可前往订阅页升级，或先查看套餐对比后再决定。",
-    "upgradePrimary": "查看升级方案",
-    "upgradeSecondary": "查看套餐对比"
+    "limitTitle": "版本数量已达上限",
+    "limitDescription": "当前套餐能保存的版本数已满，升级后可继续保存新版本。",
+    "upgradePrimary": "升级套餐",
+    "upgradeSecondary": "对比套餐"
   }
 }

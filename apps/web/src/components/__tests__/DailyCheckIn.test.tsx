@@ -114,6 +114,6 @@ describe('DailyCheckIn', () => {
 
     fireEvent.click(await screen.findByText('签到领积分'))
 
-    expect(await screen.findByText('签到失败，请稍后重试')).toBeInTheDocument()
+    expect(await screen.findByText('签到失败，请重试')).toBeInTheDocument()
   })
 })

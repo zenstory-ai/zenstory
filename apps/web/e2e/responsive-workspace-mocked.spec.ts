@@ -96,7 +96,7 @@ test('expanded empty-editor actions remain reachable on a short viewport', async
   await mockResponsiveApp(page);
   await page.goto('/project/responsive-project-0');
   await page.getByText('更多选项', { exact: true }).click();
-  const heading = page.getByRole('heading', { name: '准备创作' });
+  const heading = page.getByRole('heading', { name: '开始写作' });
   const top = await heading.boundingBox();
   expect(top!.y).toBeGreaterThanOrEqual(48);
   const last = page.getByTestId('editor-panel').getByText('搜索文件', { exact: true });

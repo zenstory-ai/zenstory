@@ -118,7 +118,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ onClose }) => {
           {t("sidebar.title", "管理后台")}
         </h2>
         <p className="mt-1 text-xs text-[hsl(var(--text-secondary))]">
-          {t("sidebar.subtitle", "ZenStory Admin Console")}
+          {t("sidebar.subtitle", "ZenStory 管理控制台")}
         </p>
       </div>
 

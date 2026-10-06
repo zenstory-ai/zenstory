@@ -1,6 +1,6 @@
 {
   "title": "技能管理",
-  "description": "管理你的 AI 写作技能：写清它做什么、什么时候用，AI 会按需加载",
+  "description": "把常用的写作方法存成技能，AI 会在合适的时候使用",
   "create": "创建技能",
   "mySkillsTab": "我的技能",
   "discoverTab": "发现技能",
@@ -19,7 +19,7 @@
   "discoverDescription": "浏览和添加社区分享的写作技能",
   "searchPlaceholder": "搜索技能...",
   "searchMySkillsPlaceholder": "搜索我的技能...",
-  "noSearchResults": "没有找到匹配的技能",
+  "noSearchResults": "没有找到匹配的技能，换个关键词试试",
   "allCategories": "全部",
   "categories": {
     "writing": "写作",
@@ -28,7 +28,7 @@
     "character": "角色",
     "worldbuilding": "世界观"
   },
-  "noSkillsFound": "没有找到匹配的技能",
+  "noSkillsFound": "没有找到匹配的技能，换个关键词或分类试试",
   "official": "官方",
   "community": "社区",
   "addCount": "人添加",
@@ -46,30 +46,30 @@
     "clearSelection": "取消选择",
     "delete": "批量删除",
     "deleteConfirmTitle": "批量删除技能",
-    "deleteConfirmMessage": "确定要删除选中的 {{count}} 个技能吗？此操作无法撤销。"
+    "deleteConfirmMessage": "删除选中的 {{count}} 个技能？删除后无法恢复。"
   },
   "form": {
     "name": "技能名称",
     "namePlaceholder": "输入技能名称",
     "description": "描述",
-    "descriptionPlaceholder": "写清它做什么、什么时候该用——AI 靠这段描述决定何时加载这个技能",
-    "triggers": "触发词",
+    "descriptionPlaceholder": "写清它做什么、什么时候用。AI 会根据这段描述决定何时使用这个技能",
+    "triggers": "标签",
     "triggersPlaceholder": "创建角色, 新建人物",
-    "triggersHint": "仅作你自己整理技能的标签，不影响 AI 何时使用这个技能；多个用逗号分隔",
+    "triggersHint": "只用于整理技能，不影响 AI 何时使用；多个用逗号分隔",
     "instructions": "指令内容",
-    "instructionsPlaceholder": "AI 加载这个技能时会按这些方法执行...",
-    "instructionsHint": "支持 Markdown 格式，如标题、列表、代码块等",
-    "triggersTooLong": "触发词最多 {{count}} 个，每个不超过 {{max}} 个字符"
+    "instructionsPlaceholder": "写下具体做法，AI 使用这个技能时会照着执行...",
+    "instructionsHint": "支持 Markdown：标题、列表、代码块等",
+    "triggersTooLong": "标签最多 {{count}} 个，每个不超过 {{max}} 个字"
   },
   "deleteConfirm": {
     "title": "删除技能",
-    "message": "确定要删除这个技能吗？此操作无法撤销。"
+    "message": "删除这个技能？删除后无法恢复。"
   },
   "share": {
     "title": "分享技能",
     "category": "选择分类",
-    "notice": "分享后，你的技能将提交审核，审核通过后会出现在公共技能库中。",
-    "submit": "提交分享",
+    "notice": "提交后进入审核，通过后其他作者可以在「发现技能」中找到并添加它。",
+    "submit": "提交审核",
     "error": "分享失败，请稍后重试"
   },
   "stats": {
@@ -84,11 +84,11 @@
     "dailyUsage": "每日使用趋势",
     "builtin": "内置",
     "user": "自定义",
-    "noData": "暂无使用数据"
+    "noData": "还没有使用记录"
   },
   "quota": {
-    "createTitle": "自定义技能额度已用尽",
-    "createDescription": "你已达到当前套餐可创建的自定义技能上限。可前往订阅页升级，或先查看套餐对比后再决定。",
+    "createTitle": "自定义技能数量已达上限",
+    "createDescription": "当前套餐的自定义技能已用满，升级套餐后可以继续创建。",
     "upgradePrimary": "查看升级方案",
     "upgradeSecondary": "查看套餐对比"
   },
@@ -96,7 +96,7 @@
     "button": "导入",
     "hint": "导入技能包（.zip）或 SKILL.md",
     "invalidType": "仅支持导入 .zip 或 .md 文件",
-    "tooLarge": "文件超过 1 MB 导入上限",
+    "tooLarge": "文件不能超过 1 MB",
     "failed": "导入失败，请稍后重试",
     "successTitle": "技能已导入",
     "success": "已导入「{{name}}」。",
@@ -114,8 +114,8 @@
     "count_one": "{{count}} 个文件",
     "count_other": "{{count}} 个文件",
     "count": "{{count}} 个文件",
-    "hint": "AI 可按需读取的文本参考文件。路径需以 references/ 或 assets/ 开头，支持 .md .txt .json .yaml .yml .csv。",
-    "empty": "暂无资源文件",
+    "hint": "AI 使用这个技能时可以查阅的参考资料。路径以 references/ 或 assets/ 开头，支持 .md .txt .json .yaml .yml .csv。",
+    "empty": "还没有资源文件",
     "add": "添加文件",
     "view": "查看文件",
     "edit": "编辑文件",

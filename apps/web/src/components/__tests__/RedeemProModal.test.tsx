@@ -623,7 +623,7 @@ describe('RedeemProModal', () => {
       fireEvent.click(redeemButton)
 
       await waitFor(() => {
-        expect(screen.getByText('兑换失败，请稍后重试')).toBeInTheDocument()
+        expect(screen.getByText('兑换失败，请重试')).toBeInTheDocument()
       })
     })
 
@@ -645,7 +645,7 @@ describe('RedeemProModal', () => {
       fireEvent.click(redeemButton)
 
       await waitFor(() => {
-        expect(screen.getByText('兑换失败，请稍后重试')).toBeInTheDocument()
+        expect(screen.getByText('兑换失败，请重试')).toBeInTheDocument()
       })
 
       // Modal should not close on error
@@ -670,7 +670,7 @@ describe('RedeemProModal', () => {
       fireEvent.click(redeemButton)
 
       await waitFor(() => {
-        const errorBox = screen.getByText('兑换失败，请稍后重试').closest('div')
+        const errorBox = screen.getByText('兑换失败，请重试').closest('div')
         expect(errorBox).toHaveClass('bg-[hsl(var(--error)/0.1)]')
       })
     })
@@ -700,7 +700,7 @@ describe('RedeemProModal', () => {
       fireEvent.click(redeemButton)
 
       await waitFor(() => {
-        expect(screen.getByText('兑换失败，请稍后重试')).toBeInTheDocument()
+        expect(screen.getByText('兑换失败，请重试')).toBeInTheDocument()
       })
 
       // Click again for success
@@ -737,10 +737,8 @@ describe('RedeemProModal', () => {
       })
 
       await waitFor(() => {
-        expect(screen.getByText('无限 AI 对话')).toBeInTheDocument()
-        expect(screen.getByText('无限项目')).toBeInTheDocument()
-        expect(screen.getByText('TXT 导出')).toBeInTheDocument()
-        expect(screen.getByText('优先功能体验')).toBeInTheDocument()
+        expect(screen.getByText('更多 AI 写作额度')).toBeInTheDocument()
+        expect(screen.getByText('可创建更多项目')).toBeInTheDocument()
       })
     })
   })
@@ -849,7 +847,7 @@ describe('RedeemProModal', () => {
       })
 
       await waitFor(() => {
-        expect(screen.getByRole('alert')).toHaveTextContent('无法加载积分余额')
+        expect(screen.getByRole('alert')).toHaveTextContent('积分余额没加载出来，请重试')
         expect(screen.queryByText('0')).not.toBeInTheDocument()
         expect(screen.getByRole('button', {name:'兑换'})).toBeDisabled()
       })
@@ -863,7 +861,7 @@ describe('RedeemProModal', () => {
       })
 
       await waitFor(() => {
-        expect(screen.getByRole('alert')).toHaveTextContent('无法加载积分余额')
+        expect(screen.getByRole('alert')).toHaveTextContent('积分余额没加载出来，请重试')
         expect(screen.queryByText('0')).not.toBeInTheDocument()
         expect(screen.getByRole('button', {name:'兑换'})).toBeDisabled()
       })

@@ -72,7 +72,7 @@ export function RecentActivityList() {
   if (error) {
     return (
       <div className="rounded-xl border border-[hsl(var(--error)/0.28)] bg-[hsl(var(--error)/0.1)] p-4 text-sm text-[hsl(var(--error))]">
-        {t('admin:dashboard.loadError', 'Failed to load activity')}
+        {t('admin:dashboard.loadError', '加载失败，请重试')}
       </div>
     );
   }
@@ -81,7 +81,7 @@ export function RecentActivityList() {
     return (
       <div className="flex flex-col items-center justify-center py-8 text-[hsl(var(--text-secondary))]">
         <Activity className="h-10 w-10 mb-2 opacity-50" />
-        <p>{t('admin:dashboard.noActivity', 'No recent activity')}</p>
+        <p>{t('admin:dashboard.noActivity', '暂无最近操作')}</p>
       </div>
     );
   }

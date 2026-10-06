@@ -12,6 +12,10 @@ import { captureException } from "../lib/analytics";
 import { toUserErrorMessage } from "../lib/errorHandler";
 import { consumeOAuthPlanIntent } from "../lib/authFlow";
 
+// Failures whose raw message (provider codes such as access_denied, internal
+// checks) means nothing to the author; the page shows a generic message instead.
+class OAuthGenericError extends Error {}
+
 export default function OAuthCallback() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -50,7 +54,9 @@ export default function OAuthCallback() {
         window.history.replaceState(window.history.state, document.title, window.location.pathname);
 
         if (providerError) {
-          throw new Error(providerError);
+          throw providerError.startsWith("ERR_")
+            ? new Error(providerError)
+            : new OAuthGenericError(providerError);
         }
 
         if (!accessToken || !refreshToken) {
@@ -89,7 +95,7 @@ export default function OAuthCallback() {
         // Check for redirect parameter from external apps
         if (redirectUrl) {
           if (!isValidRedirectUrl(redirectUrl)) {
-            throw new Error("Invalid redirect URL");
+            throw new OAuthGenericError("Invalid redirect URL");
           }
           // Redirect to external URL with token
           const redirectUrlWithToken = new URL(redirectUrl);
@@ -111,7 +117,7 @@ export default function OAuthCallback() {
           feature_area: "auth",
           action: "oauth_callback",
         });
-        const errorMessage = err instanceof Error
+        const errorMessage = err instanceof Error && !(err instanceof OAuthGenericError)
           ? toUserErrorMessage(err.message)
           : t('auth:errors.oauthFailed');
         setError(errorMessage);

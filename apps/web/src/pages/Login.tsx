@@ -64,7 +64,7 @@ export const Login: React.FC = () => {
     setError("");
 
     if (!canSubmit) {
-      setError(t("auth:errors.invalidCredentials", "请输入账号和密码后继续"));
+      setError(t("auth:errors.missingCredentials", "请输入账号和密码"));
       return;
     }
 
@@ -93,7 +93,7 @@ export const Login: React.FC = () => {
           return;
         }
 
-        setError(result.error || t('auth:errors.oauthFailed'));
+        setError(t('auth:errors.ssoRedirectFailed', '已登录，但没能返回原来的应用，请重新打开该应用再试'));
         return;
       }
 

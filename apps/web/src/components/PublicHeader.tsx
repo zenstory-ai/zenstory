@@ -349,8 +349,8 @@ export function PublicHeader({
                 aria-haspopup="menu"
                 aria-label={
                   showMobileMenu
-                    ? t("common:nav.closeMenu", "关闭导航菜单")
-                    : t("common:nav.openMenu", "打开导航菜单")
+                    ? t("common:nav.closeMenu", "关闭菜单")
+                    : t("common:nav.openMenu", "打开菜单")
                 }
                 className="min-h-[44px] min-w-[44px] p-2 hover:bg-[hsl(var(--bg-tertiary))] rounded text-[hsl(var(--text-primary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
               >
@@ -392,8 +392,8 @@ export function PublicHeader({
                     aria-haspopup="menu"
                     aria-label={
                       showMobileMenu
-                        ? t("common:nav.closeMenu", "关闭导航菜单")
-                        : t("common:nav.openMenu", "打开导航菜单")
+                        ? t("common:nav.closeMenu", "关闭菜单")
+                        : t("common:nav.openMenu", "打开菜单")
                     }
                     className="min-h-[44px] min-w-[44px] p-2 hover:bg-[hsl(var(--bg-tertiary))] rounded text-[hsl(var(--text-primary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
                   >

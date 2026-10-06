@@ -83,7 +83,7 @@ const dashboardSteps: ProductTourStep[] = [
       descriptionKey: 'dashboardTour.steps.inspirationsLink.description',
       ctaLabelKey: 'dashboardTour.common.next',
       defaultTitle: '没想法就先来这里',
-      defaultDescription: '灵感库可以帮你补素材、补设定、补开头。卡住时先来这里找突破口。',
+      defaultDescription: '卡住时来这里找故事开头和设定灵感。',
       defaultCtaLabel: '下一步',
       placement: 'left',
       nextMode: 'manual',

@@ -29,9 +29,9 @@ vi.mock('react-i18next', () => ({
           'userMenu.adminPanel': 'Admin panel',
           'userMenu.logout': 'Log out',
           'common:userMenu.logout': 'Log out',
-          'points.alreadyCheckedIn': 'Already checked in',
-          'points.checkIn': 'Check in',
-          'common.loading': 'Loading',
+          'settings:points.alreadyCheckedIn': 'Already checked in',
+          'settings:points.checkIn': 'Check in',
+          'common:processing': 'Loading',
         } as Record<string, string>
       )[key] ?? fallback ?? key,
   }),

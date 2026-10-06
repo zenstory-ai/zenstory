@@ -286,7 +286,7 @@ async function navigateToPointsPage(page: Page, request: APIRequestContext) {
   const headerSettingsButton = page.getByTestId('settings-button').first();
   const dashboardSettingsButton = page.getByTestId('dashboard-open-settings-button').first();
   const mobileMenuButton = page.getByRole('button', { name: /Open mobile menu|Close mobile menu|打开移动菜单|关闭移动菜单|菜单/i }).first();
-  const mobileSettingsButton = page.locator('button:has-text("快捷设置"), button:has-text("Quick Settings"), button:has-text("打开用户面板"), button:has-text("Open User Panel")').first();
+  const mobileSettingsButton = page.locator('button:has-text("快捷设置"), button:has-text("Quick Settings"), button:has-text("设置"), button:has-text("Settings")').first();
 
   if (await headerSettingsButton.waitFor({ state: 'visible', timeout: 3000 }).then(() => true).catch(() => false)) {
     await headerSettingsButton.click();

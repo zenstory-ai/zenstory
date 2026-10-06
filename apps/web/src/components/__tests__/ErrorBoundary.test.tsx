@@ -52,8 +52,8 @@ describe("ErrorBoundary", () => {
     );
 
     expect(screen.getByRole("alert")).toBeInTheDocument();
-    expect(screen.queryByText("Try again")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Reload page" }));
+    expect(screen.queryByText("重试")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重新加载页面" }));
     expect(reloadSpy).toHaveBeenCalledTimes(1);
     expect(captureExceptionMock).toHaveBeenCalledWith(
       expect.objectContaining({ message: "render exploded" }),
@@ -78,7 +78,7 @@ describe("ErrorBoundary", () => {
     );
 
     shouldThrow = false;
-    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
     expect(screen.getByText("panel content")).toBeInTheDocument();
   });
 

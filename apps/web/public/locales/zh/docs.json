@@ -4,9 +4,9 @@
   "documentation": "文档中心",
   "menu": "目录",
   "closeMenu": "关闭目录",
-  "notFound": "文档未找到",
-  "loadError": "加载文档失败",
-  "notFoundDesc": "您访问的文档不存在或已被移除。",
+  "notFound": "找不到这篇文档",
+  "loadError": "文档加载失败",
+  "notFoundDesc": "链接可能已失效，请回到文档首页查找。",
   "backToHome": "返回文档首页",
   "sidebarTitle": "帮助文档",
   "sidebarHome": "文档首页",
@@ -15,7 +15,7 @@
   "onThisPage": "本页目录",
   "search": "搜索文档",
   "searchPlaceholder": "搜索文档...",
-  "noResults": "未找到相关文档",
+  "noResults": "没有找到相关文档",
   "previous": "上一篇",
   "next": "下一篇",
   "groups": {
@@ -48,5 +48,7 @@
     "faq": "常见问题",
     "commonIssues": "常见问题排查",
     "errorMessages": "错误信息说明"
-  }
+  },
+  "loading": "正在加载...",
+  "loadErrorDesc": "请检查网络后刷新页面。"
 }

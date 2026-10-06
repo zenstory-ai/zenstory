@@ -1,6 +1,6 @@
 {
   "title": "Skills",
-  "description": "Manage your AI writing skills: say what each does and when to use it, and the AI loads it when needed",
+  "description": "Save your go-to writing methods as skills; the AI uses them when they fit",
   "create": "Create Skill",
   "mySkillsTab": "My Skills",
   "discoverTab": "Discover",
@@ -19,7 +19,7 @@
   "discoverDescription": "Browse and add community-shared writing skills",
   "searchPlaceholder": "Search skills...",
   "searchMySkillsPlaceholder": "Search my skills...",
-  "noSearchResults": "No matching skills found",
+  "noSearchResults": "No matching skills. Try a different keyword.",
   "allCategories": "All",
   "categories": {
     "writing": "Writing",
@@ -28,7 +28,7 @@
     "character": "Character",
     "worldbuilding": "Worldbuilding"
   },
-  "noSkillsFound": "No matching skills found",
+  "noSkillsFound": "No matching skills. Try a different keyword or category.",
   "official": "Official",
   "community": "Community",
   "addCount": "added",
@@ -46,30 +46,30 @@
     "clearSelection": "Clear",
     "delete": "Delete",
     "deleteConfirmTitle": "Delete Skills",
-    "deleteConfirmMessage": "Are you sure you want to delete {{count}} selected skills? This action cannot be undone."
+    "deleteConfirmMessage": "Delete {{count}} selected skills? This can’t be undone."
   },
   "form": {
     "name": "Skill Name",
     "namePlaceholder": "Enter skill name",
     "description": "Description",
-    "descriptionPlaceholder": "What it does and when to use it — the AI uses this description to decide when to load the skill",
-    "triggers": "Triggers",
+    "descriptionPlaceholder": "What it does and when to use it. The AI reads this to decide when to use the skill",
+    "triggers": "Tags",
     "triggersPlaceholder": "create character, new person",
-    "triggersHint": "Personal tags for organizing your skills; they don't affect when the AI uses the skill. Separate with commas",
+    "triggersHint": "For organizing your skills only; they don’t change when the AI uses it. Separate with commas",
     "instructions": "Instructions",
-    "instructionsPlaceholder": "When the AI loads this skill, it follows these instructions...",
-    "instructionsHint": "Supports Markdown format: headings, lists, code blocks, etc.",
-    "triggersTooLong": "Up to {{count}} triggers, each at most {{max}} characters"
+    "instructionsPlaceholder": "Write out the method. The AI follows it when using this skill...",
+    "instructionsHint": "Markdown supported: headings, lists, code blocks, etc.",
+    "triggersTooLong": "Up to {{count}} tags, each at most {{max}} characters"
   },
   "deleteConfirm": {
     "title": "Delete Skill",
-    "message": "Are you sure you want to delete this skill? This action cannot be undone."
+    "message": "Delete this skill? This can’t be undone."
   },
   "share": {
     "title": "Share Skill",
     "category": "Select Category",
-    "notice": "After sharing, your skill will be submitted for review. Once approved, it will appear in the public skill library.",
-    "submit": "Submit",
+    "notice": "Your skill goes to review first. Once approved, other writers can find and add it under Discover.",
+    "submit": "Submit for review",
     "error": "Failed to share. Please try again later."
   },
   "stats": {
@@ -84,11 +84,11 @@
     "dailyUsage": "Daily Usage Trend",
     "builtin": "Built-in",
     "user": "Custom",
-    "noData": "No usage data yet"
+    "noData": "No usage yet"
   },
   "quota": {
-    "createTitle": "Custom skill quota reached",
-    "createDescription": "You've reached the custom skill limit for your current plan. Upgrade your plan, or compare plans before deciding.",
+    "createTitle": "Custom skill limit reached",
+    "createDescription": "You’ve used all the custom skills in your current plan. Upgrade to create more.",
     "upgradePrimary": "View upgrade options",
     "upgradeSecondary": "Compare plans"
   },
@@ -96,7 +96,7 @@
     "button": "Import",
     "hint": "Import a skill package (.zip) or SKILL.md",
     "invalidType": "Only .zip or .md files can be imported",
-    "tooLarge": "The file exceeds the 1 MB import limit",
+    "tooLarge": "The file must be 1 MB or smaller",
     "failed": "Import failed. Please try again later.",
     "successTitle": "Skill imported",
     "success": "Imported “{{name}}”.",
@@ -114,8 +114,8 @@
     "count_one": "{{count}} file",
     "count_other": "{{count}} files",
     "count": "{{count}} files",
-    "hint": "Text reference files the AI can read on demand. Paths start with references/ or assets/; allowed types: .md .txt .json .yaml .yml .csv.",
-    "empty": "No resource files",
+    "hint": "Reference files the AI can read while using this skill. Paths start with references/ or assets/; allowed types: .md .txt .json .yaml .yml .csv.",
+    "empty": "No resource files yet",
     "add": "Add file",
     "view": "View file",
     "edit": "Edit file",

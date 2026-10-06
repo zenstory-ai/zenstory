@@ -241,7 +241,7 @@ describe('ProjectDashboard cards', () => {
     }
 
     const { rerender } = render(<ContinueWritingCard stats={notStartedStats as never} projectId="project-1" />)
-    expect(screen.getByText('Ready to Start')).toBeInTheDocument()
+    expect(screen.getByText('待开始')).toBeInTheDocument()
 
     const completedOnlyStats = {
       ...baseStats,
@@ -261,7 +261,7 @@ describe('ProjectDashboard cards', () => {
       },
     }
     rerender(<ContinueWritingCard stats={completedOnlyStats as never} projectId="project-1" />)
-    expect(screen.getByText('Recently Finished')).toBeInTheDocument()
+    expect(screen.getByText('已完成')).toBeInTheDocument()
   })
 
   it('parses chinese chapter numbers, ignores invalid titles, and skips navigation without a project id', () => {

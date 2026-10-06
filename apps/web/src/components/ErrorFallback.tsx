@@ -18,10 +18,10 @@ export function ErrorFallback({
 }) {
   const { t } = useTranslation("common", { useSuspense: false });
 
-  const title = t("errorBoundary.title", "Something went wrong");
+  const title = t("errorBoundary.title", "出了点问题");
   const description = variant === "page"
-    ? t("errorBoundary.pageDescription", "The page hit an unexpected error. Reload to continue; your saved work is not affected.")
-    : t("errorBoundary.panelDescription", "This panel hit an unexpected error. Other panels keep working.");
+    ? t("errorBoundary.pageDescription", "页面遇到意外错误。重新加载即可继续，已保存的内容不受影响。")
+    : t("errorBoundary.panelDescription", "这个面板遇到意外错误，其他面板仍可正常使用。");
 
   return (
     <div
@@ -35,11 +35,11 @@ export function ErrorFallback({
       <div className="flex gap-2">
         {variant === "panel" && (
           <button type="button" onClick={onRetry} className="btn btn-ghost">
-            {t("errorBoundary.retry", "Try again")}
+            {t("errorBoundary.retry", "重试")}
           </button>
         )}
         <button type="button" onClick={reloadPage} className="btn btn-primary">
-          {t("errorBoundary.reload", "Reload page")}
+          {t("errorBoundary.reload", "重新加载页面")}
         </button>
       </div>
     </div>

@@ -145,7 +145,7 @@ test.describe('Admin users (mocked)', () => {
 
     await row.locator('button').nth(1).click();
     const deleteModal = page.locator('.fixed.inset-0.z-50').last();
-    await deleteModal.getByRole('button', { name: /确认|confirm/i }).click();
+    await deleteModal.getByRole('button', { name: /^(删除用户|Delete user)$/i }).click();
     await expect.poll(() => deleteCalled).toBe(1);
   });
 

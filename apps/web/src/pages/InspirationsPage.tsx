@@ -48,9 +48,9 @@ export default function InspirationsPage() {
           <p className="text-sm text-[hsl(var(--text-secondary))]">{t("mySubmissions.loading")}</p>
         ) : error ? (
           <div className="rounded-xl border border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.08)] px-4 py-4 text-sm text-[hsl(var(--text-secondary))]">
-            <p>{error.message || t("mySubmissions.loadError")}</p>
+            <p>{t("mySubmissions.loadError")}</p>
             <button className="btn-secondary mt-3 h-9 px-3" onClick={() => void refetch()}>
-              {t("retry", { defaultValue: "Retry" })}
+              {t("retry")}
             </button>
           </div>
         ) : items.length === 0 ? (

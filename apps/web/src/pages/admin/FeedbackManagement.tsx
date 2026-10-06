@@ -71,7 +71,7 @@ export default function FeedbackManagement() {
       toast.success(t("feedback.statusUpdated", "反馈状态已更新"));
     },
     onError: (err) => {
-      toast.error(err instanceof Error ? err.message : t("feedback.statusUpdateFailed", "更新状态失败"));
+      toast.error(err instanceof Error ? err.message : t("feedback.statusUpdateFailed", "状态更新失败，请重试"));
     },
   });
 
@@ -192,7 +192,7 @@ export default function FeedbackManagement() {
           {t("feedback.title", "问题反馈管理")}
         </h1>
         <p className="admin-page-subtitle">
-          {t("feedback.subtitle", "查看用户反馈、截图并跟进处理状态")}
+          {t("feedback.subtitle", "查看用户反馈和截图，跟进处理状态")}
         </p>
       </div>
 

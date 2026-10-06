@@ -185,7 +185,7 @@ export function WritingStreakCard({
         {streakData.streak_recovery_count > 0 && (
           <div className="flex items-center justify-between text-xs text-[hsl(var(--text-secondary))] pt-2">
             <span>{t('statistics.streak.recoveryAvailable')}</span>
-            <span>{streakData.streak_recovery_count} {t('statistics.streak.day', { count: streakData.streak_recovery_count })}</span>
+            <span>{streakData.streak_recovery_count}</span>
           </div>
         )}
 

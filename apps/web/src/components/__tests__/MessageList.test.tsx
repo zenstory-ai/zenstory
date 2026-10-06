@@ -188,7 +188,8 @@ describe('MessageList', () => {
       fireEvent.click(button)
       expect(onAction).toHaveBeenLastCalledWith(action, item)
     }
-    expect(screen.getByText('Ordered limit reason')).toBeInTheDocument()
+    // The internal stop reason stays out of the author-facing card
+    expect(screen.queryByText('Ordered limit reason')).not.toBeInTheDocument()
   })
 
   it.each([

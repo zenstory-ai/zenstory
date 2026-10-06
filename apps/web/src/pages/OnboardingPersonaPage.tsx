@@ -163,29 +163,29 @@ export default function OnboardingPersonaPage() {
     const tips: string[] = [];
 
     if (selectedPersonas.includes("explorer")) {
-      tips.push(t("onboarding:preview.items.explorer", "给你更明确的下一步提示和模板"));
+      tips.push(t("onboarding:preview.items.explorer", "灵感模板和快速起稿入口"));
     }
     if (selectedPersonas.includes("serial")) {
-      tips.push(t("onboarding:preview.items.serial", "优先强化日更/周更节奏管理"));
+      tips.push(t("onboarding:preview.items.serial", "每日写作目标和连更进度"));
     }
     if (selectedPersonas.includes("professional")) {
-      tips.push(t("onboarding:preview.items.professional", "突出效率与商业化导向能力"));
+      tips.push(t("onboarding:preview.items.professional", "大纲、章节到改稿的高效流程"));
     }
     if (selectedPersonas.includes("fanfic")) {
-      tips.push(t("onboarding:preview.items.fanfic", "提供人物关系和设定一致性支持"));
+      tips.push(t("onboarding:preview.items.fanfic", "整理角色与设定，AI 写作时参考"));
     }
     if (selectedPersonas.includes("studio")) {
-      tips.push(t("onboarding:preview.items.studio", "推荐更适合团队协作的工作流"));
+      tips.push(t("onboarding:preview.items.studio", "每部作品一个项目，分开管理"));
     }
 
     if (selectedGoals.includes("monetize")) {
-      tips.push(t("onboarding:preview.items.monetize", "优先展示增长与变现相关能力"));
+      tips.push(t("onboarding:preview.items.monetize", "免费版与 Pro 的套餐对比"));
     }
     if (selectedGoals.includes("improveQuality")) {
-      tips.push(t("onboarding:preview.items.quality", "加强剧情、角色与文本质量建议"));
+      tips.push(t("onboarding:preview.items.quality", "让 AI 审读并修改章节"));
     }
 
-    tips.push(t(`onboarding:preview.level.${experienceLevel}`, "按你的经验动态调整引导深度"));
+    tips.push(t(`onboarding:preview.level.${experienceLevel}`, "按你的写作经验给出建议"));
 
     return Array.from(new Set(tips)).slice(0, 4);
   }, [experienceLevel, selectedGoals, selectedPersonas, t]);
@@ -246,7 +246,7 @@ export default function OnboardingPersonaPage() {
         state: nextPath === "/dashboard" ? { startDashboardCoachmark: true } : undefined,
       });
     } catch {
-      toast.error(t("common:errors.network", "网络异常，请重试"));
+      toast.error(t("onboarding:errors.saveFailed", "保存失败，请检查网络后重试"));
     } finally {
       setSaving(false);
     }
@@ -261,24 +261,21 @@ export default function OnboardingPersonaPage() {
 
       <div className="relative max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
         <div className="flex flex-wrap items-center gap-2 mb-4">
-          <Badge variant="purple">{t("onboarding:hero.step", "新用户引导 · 1/1")}</Badge>
+          <Badge variant="purple">{t("onboarding:hero.step", "新用户引导")}</Badge>
           <Badge variant="info">{t("onboarding:hero.badge", "2 分钟完成")}</Badge>
         </div>
 
         <h1 className="text-2xl sm:text-3xl font-bold text-[hsl(var(--text-primary))]">
-          {t("onboarding:hero.title", "先认识你，再给你更懂创作的工作台")}
+          {t("onboarding:hero.title", "告诉我们你怎么写作")}
         </h1>
         <p className="mt-2 text-sm sm:text-base text-[hsl(var(--text-secondary))] max-w-3xl">
-          {t(
-            "onboarding:hero.subtitle",
-            "选择你的创作画像与目标，我们会据此个性化推荐模板、任务节奏和能力入口。"
-          )}
+          {t("onboarding:hero.subtitle", "回答 3 个问题，也可以直接跳过。")}
         </p>
 
         {hasRestoredProfile && (
           <div className="mt-4 inline-flex items-center gap-2 rounded-lg border border-[hsl(var(--accent-primary)/0.35)] bg-[hsl(var(--accent-primary)/0.1)] px-3 py-1.5 text-xs text-[hsl(var(--accent-primary))]">
             <Check className="w-3.5 h-3.5" />
-            {t("onboarding:hero.restore", "已读取你之前的画像，可随时更新")}
+            {t("onboarding:hero.restore", "已带入你上次的选择")}
           </div>
         )}
 
@@ -291,10 +288,7 @@ export default function OnboardingPersonaPage() {
                     {t("onboarding:persona.title", "你是哪类创作者？")}
                   </h2>
                   <p className="text-xs sm:text-sm text-[hsl(var(--text-secondary))] mt-1">
-                    {t(
-                      "onboarding:persona.subtitle",
-                      "最多选择 3 项，我们将按你当前阶段匹配最合适的产品体验。"
-                    )}
+                    {t("onboarding:persona.subtitle", "最多选 3 项。")}
                   </p>
                 </div>
                 <Badge variant="neutral">
@@ -346,10 +340,7 @@ export default function OnboardingPersonaPage() {
 
               {limitReached && (
                 <p className="text-xs text-[hsl(var(--warning))]">
-                  {t(
-                    "onboarding:persona.limitReached",
-                    "最多可选 3 项。可先取消一个，再继续选择。"
-                  )}
+                  {t("onboarding:persona.limitReached", "最多选 3 项，请先取消一个。")}
                 </p>
               )}
             </Card>
@@ -360,10 +351,7 @@ export default function OnboardingPersonaPage() {
                   {t("onboarding:goal.title", "你当前最想达成什么？")}
                 </h2>
                 <p className="text-xs sm:text-sm text-[hsl(var(--text-secondary))] mt-1">
-                  {t(
-                    "onboarding:goal.subtitle",
-                    "可多选，我们会把重点功能放在你最关心的位置。"
-                  )}
+                  {t("onboarding:goal.subtitle", "可多选。")}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2.5">
@@ -398,10 +386,7 @@ export default function OnboardingPersonaPage() {
                   {t("onboarding:experience.title", "你的写作经验")}
                 </h2>
                 <p className="text-xs sm:text-sm text-[hsl(var(--text-secondary))] mt-1">
-                  {t(
-                    "onboarding:experience.subtitle",
-                    "我们会按经验自动调整引导颗粒度与功能复杂度。"
-                  )}
+                  {t("onboarding:experience.subtitle", "选最接近的一项。")}
                 </p>
               </div>
               <div
@@ -452,7 +437,7 @@ export default function OnboardingPersonaPage() {
                 }}
                 disabled={saving}
               >
-                {t("onboarding:actions.skip", "暂时跳过")}
+                {t("onboarding:actions.skip", "跳过")}
               </Button>
 
               <Button
@@ -461,7 +446,7 @@ export default function OnboardingPersonaPage() {
                 }}
                 disabled={!canSubmit || saving}
                 isLoading={saving}
-                loadingText={t("onboarding:actions.saving", "保存中...")}
+                loadingText={t("onboarding:actions.saving", "正在保存...")}
                 rightIcon={<ArrowRight className="w-4 h-4" />}
               >
                 {t("onboarding:actions.submit", "保存并进入工作台")}
@@ -473,15 +458,12 @@ export default function OnboardingPersonaPage() {
             <div className="flex items-center gap-2 text-[hsl(var(--text-primary))]">
               <Sparkles className="w-4 h-4 text-[hsl(var(--accent-primary))]" />
               <h3 className="text-sm font-semibold">
-                {t("onboarding:preview.title", "你的个性化预览")}
+                {t("onboarding:preview.title", "首页会为你推荐")}
               </h3>
             </div>
 
             <p className="mt-2 text-xs text-[hsl(var(--text-secondary))] leading-relaxed">
-              {t(
-                "onboarding:preview.subtitle",
-                "提交后，我们会根据你的画像调整首页信息架构、模板推荐和创作提醒。"
-              )}
+              {t("onboarding:preview.subtitle", "保存后，工作台首页会按这些选择推荐下一步。")}
             </p>
 
             {selectedPersonaLabels.length > 0 ? (
@@ -494,7 +476,7 @@ export default function OnboardingPersonaPage() {
               </div>
             ) : (
               <div className="mt-4 rounded-lg border border-dashed border-[hsl(var(--border-color))] px-3 py-2 text-xs text-[hsl(var(--text-secondary))]">
-                {t("onboarding:preview.empty", "先选择至少一个创作者画像，查看个性化效果")}
+                {t("onboarding:preview.empty", "选一个创作者类型，看看会推荐什么")}
               </div>
             )}
 
@@ -510,10 +492,7 @@ export default function OnboardingPersonaPage() {
             </ul>
 
             <p className="mt-4 text-[11px] text-[hsl(var(--text-tertiary))] leading-relaxed">
-              {t(
-                "onboarding:preview.note",
-                "创作者偏好会保存到你的账号，并在不同设备间同步。"
-              )}
+              {t("onboarding:preview.note", "这些选择保存在你的账号里，换设备也有效。")}
             </p>
           </Card>
         </div>

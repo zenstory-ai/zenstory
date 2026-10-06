@@ -68,7 +68,7 @@ async function loginAndPrepare(page: Page) {
 }
 
 async function startTourFromReplay(page: Page) {
-  await page.getByRole('button', { name: /打开用户面板|Open User Panel/ }).click();
+  await page.getByRole('button', { name: /账户菜单|Account menu/ }).click();
   await page.getByRole('button', { name: /重新查看新手引导|Replay guide/ }).click();
 }
 

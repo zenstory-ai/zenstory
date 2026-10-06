@@ -627,7 +627,7 @@ test.describe('Version History', () => {
 
         // Verify rollback succeeded - content should be restored
         // The version list should refresh
-        await expect(page.locator('text=/回滚|rollback|success/i').first()).toBeVisible({ timeout: 5000 })
+        await expect(page.locator('text=/恢复|restore|success/i').first()).toBeVisible({ timeout: 5000 })
       }
     }
   })
@@ -742,7 +742,7 @@ test.describe('Version History', () => {
     await openVersionHistory(page)
 
     // Look for change type indicators (badges/labels)
-    const changeTypeLabels = page.locator('text=/编辑|edited|创建|created|回滚|restored|rollback/i')
+    const changeTypeLabels = page.locator('text=/编辑|edited|创建|created|恢复|restored|rollback/i')
     const count = await changeTypeLabels.count()
     expect(count).toBeGreaterThanOrEqual(0) // May or may not have explicit labels
   })

@@ -93,7 +93,7 @@ export const DocsSidebar: React.FC<DocsSidebarProps> = ({ isOpen = true, onClose
       <aside className="hidden lg:flex lg:flex-col lg:sticky lg:top-12 h-[calc(100vh-3rem)] w-72 shrink-0 border-r border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))]/95 backdrop-blur-sm">
         <div className="px-4 pt-4 pb-3 border-b border-[hsl(var(--border-color))] space-y-3">
           <div className="text-sm font-semibold text-[hsl(var(--text-primary))]">
-            {t('documentation', 'Documentation Center')}
+            {t('documentation', '文档中心')}
           </div>
           <DocsSearchInput />
         </div>
@@ -115,18 +115,18 @@ export const DocsSidebar: React.FC<DocsSidebarProps> = ({ isOpen = true, onClose
             type="button"
             className="absolute inset-0 bg-black/40"
             onClick={closeMobile}
-            aria-label={t('menu', 'Menu')}
+            aria-label={t('menu', '目录')}
           />
           <aside className="absolute left-0 top-0 h-full w-72 border-r border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] shadow-xl">
             <div className="h-12 px-3 flex items-center justify-between border-b border-[hsl(var(--border-color))]">
               <span className="text-sm font-semibold text-[hsl(var(--text-primary))]">
-                {t('documentation', 'Documentation Center')}
+                {t('documentation', '文档中心')}
               </span>
               <button
                 type="button"
                 onClick={closeMobile}
                 className="p-1.5 rounded-md text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-hover))] hover:text-[hsl(var(--text-primary))]"
-                aria-label={t('closeMenu', 'Close menu')}
+                aria-label={t('closeMenu', '关闭目录')}
               >
                 <X size={18} />
               </button>

@@ -16,7 +16,7 @@ const capturedUseAgentStream = vi.hoisted(() => ({
 
 const chatPanelTranslations: Record<string, string> = {
   'chat:panel.quotaExceededTitle': '今日 AI 配额已用尽',
-  'chat:panel.quotaExceededHint': '这是账号配额限制，不是本次流程步数限制。',
+  'chat:panel.quotaExceededHint': '额度次日恢复，升级会员可获得更多每日额度。',
   'chat:input.mode.switchedFast': '已切换到快速模式：更快出结果（可能更简略）',
   'chat:input.mode.switchedQuality': '已切换到高质量模式：更稳更全面（可能更慢）',
   'dashboard:billing.ctaUpgradePro': '升级专业版',

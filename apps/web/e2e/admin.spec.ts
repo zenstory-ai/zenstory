@@ -767,7 +767,7 @@ test.describe('Admin Access Control', () => {
     await waitForNetworkSettled(page);
 
     // Should show insufficient permission state
-    await expect(page.locator('text=/Insufficient permissions|权限不足/i')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=/No access|无权访问/i')).toBeVisible({ timeout: 10000 });
   });
 
   test('non-admin cannot access user management', async ({ page }) => {
@@ -781,7 +781,7 @@ test.describe('Admin Access Control', () => {
     await waitForNetworkSettled(page);
 
     // Should show insufficient permission state
-    await expect(page.locator('text=/Insufficient permissions|权限不足/i')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=/No access|无权访问/i')).toBeVisible({ timeout: 10000 });
   });
 
   test('non-admin cannot access prompt management', async ({ page }) => {
@@ -795,7 +795,7 @@ test.describe('Admin Access Control', () => {
     await waitForNetworkSettled(page);
 
     // Should show insufficient permission state
-    await expect(page.locator('text=/Insufficient permissions|权限不足/i')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=/No access|无权访问/i')).toBeVisible({ timeout: 10000 });
   });
 
   test('non-admin cannot access skill review', async ({ page }) => {
@@ -809,7 +809,7 @@ test.describe('Admin Access Control', () => {
     await waitForNetworkSettled(page);
 
     // Should show insufficient permission state
-    await expect(page.locator('text=/Insufficient permissions|权限不足/i')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=/No access|无权访问/i')).toBeVisible({ timeout: 10000 });
   });
 
   test('unauthenticated user is redirected to login', async ({ page }) => {

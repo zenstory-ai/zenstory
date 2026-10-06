@@ -119,16 +119,16 @@ export default function PricingPage() {
 
   const getSummary = (summaryKey: string): string => {
     if (summaryKey === "creator") {
-      return t("dashboard:billing.summaryCreator", "连续日更与稳定产出，减少关键时刻配额中断。");
+      return t("dashboard:billing.summaryCreator", "额度更高，适合日更、周更的长篇连载。");
     }
-    return t("dashboard:billing.summaryStarter", "先跑通从灵感到完稿的完整流程，再按产能升级。");
+    return t("dashboard:billing.summaryStarter", "先免费试写，从一句灵感写到第一稿。");
   };
 
   const getTargetUser = (targetUserKey: string): string => {
     if (targetUserKey === "daily_writer") {
-      return t("dashboard:billing.targetDailyWriter", "日更作者、连载作者与长篇创作者");
+      return t("dashboard:billing.targetDailyWriter", "日更作者、长篇连载创作者");
     }
-    return t("dashboard:billing.targetExplorer", "新用户、轻度创作与探索期用户");
+    return t("dashboard:billing.targetExplorer", "刚开始写或偶尔写的作者");
   };
 
   const handlePrimaryCta = () => {
@@ -197,17 +197,11 @@ export default function PricingPage() {
       <PublicHeader maxWidth="max-w-6xl" />
       <main className="max-w-6xl mx-auto px-4 md:px-6 py-8 md:py-14 pb-28 md:pb-14 space-y-6 md:space-y-8">
         <section className="text-center space-y-2 md:space-y-3">
-          <div className="inline-flex items-center rounded-full border border-[hsl(var(--accent-primary)/0.35)] px-3 py-1 text-xs text-[hsl(var(--accent-light))]">
-            {t("dashboard:billing.taskLedBadge", "按创作任务选方案")}
-          </div>
           <h1 className="text-3xl md:text-4xl font-bold text-[hsl(var(--text-primary))]">
             {isCatalogLoading ? t("common:loading", "加载中...") : t("dashboard:billing.compareTitle", "套餐权益对比")}
           </h1>
           <p className="text-sm md:text-base text-[hsl(var(--text-secondary))]">
-            {t(
-              "dashboard:billing.catalogSubtitle",
-              "从“你下一步要完成什么”出发选择计划：先跑通流程，再按产能升级。"
-            )}
+            {t("dashboard:billing.catalogSubtitle", "按每月要写多少、同时写几部作品来选。")}
           </p>
         </section>
 
@@ -215,14 +209,14 @@ export default function PricingPage() {
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="space-y-1">
               <p id="billing-cycle-label" className="text-sm font-medium text-[hsl(var(--text-primary))]">
-                {t("dashboard:billing.billingCycleLabel", "选择计费周期")}
+                {t("dashboard:billing.billingCycleLabel", "购买时长")}
               </p>
               <p className="text-xs text-[hsl(var(--text-secondary))]">
                 {maxYearlySavingsPercent > 0
-                  ? t("dashboard:billing.yearlyMaxSaveHint", "年付最高优惠 {{percent}}", {
+                  ? t("dashboard:billing.yearlyMaxSaveHint", "年付最高可省 {{percent}}", {
                       percent: `${maxYearlySavingsPercent}%`,
                     })
-                  : t("dashboard:billing.yearlyMaxSaveHintFallback", "切换月付/年付，按预算灵活决策")}
+                  : t("dashboard:billing.yearlyMaxSaveHintFallback", "可按月或按年购买")}
               </p>
             </div>
 
@@ -391,7 +385,7 @@ export default function PricingPage() {
                   ))}
                   {showOnlyDifferences && visibleMetrics.length === 0 && (
                     <div className="rounded-lg border border-dashed border-[hsl(var(--border-color))] px-3 py-2 text-xs text-[hsl(var(--text-secondary))]">
-                      {t("dashboard:billing.noDiffMetric", "当前维度下，这些套餐暂无可见差异")}
+                      {t("dashboard:billing.noDiffMetric", "各套餐在这些项目上没有区别")}
                     </div>
                   )}
                 </div>
@@ -421,7 +415,7 @@ export default function PricingPage() {
             {
               key: "trust-security",
               icon: ShieldCheck,
-              text: t("dashboard:billing.trustSecurity", "数据全程加密与隔离，保障内容安全"),
+              text: t("dashboard:billing.trustSecurity", "作品数据通过加密连接传输"),
             },
           ].map((item) => (
             <div

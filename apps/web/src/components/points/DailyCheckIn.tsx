@@ -88,7 +88,7 @@ export function DailyCheckIn({ className = '' }: DailyCheckInProps) {
 
       {checkInMutation.isError && (
         <div className="mt-2 p-2 bg-[hsl(var(--error)/0.15)] text-[hsl(var(--error))] text-sm rounded">
-          {t('checkInFailed', '签到失败，请稍后重试')}
+          {t('checkInFailed', '签到失败，请重试')}
         </div>
       )}
     </Card>

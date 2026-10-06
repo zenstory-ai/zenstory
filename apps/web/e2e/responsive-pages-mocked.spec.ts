@@ -12,18 +12,18 @@ const readyHeadings: Record<string, string> = {
   "/docs": "ZenStory 工作台帮助文档",
   "/docs/getting-started/quick-start": "ZenStory 工作台快速开始：从空项目到第一份可修改提纲",
   "/pricing": "套餐权益对比",
-  "/auth/callback": "登录zenstory",
-  "/login": "登录zenstory",
+  "/auth/callback": "登录 zenstory",
+  "/login": "登录 zenstory",
   "/register": "创建账号",
-  "/forgot-password": "登录zenstory",
-  "/verify-email?email=responsive%40example.com": "验证您的邮箱",
-  "/onboarding/persona": "先认识你，再给你更懂创作的工作台",
-  "/dashboard": "你好 responsive-user",
+  "/forgot-password": "登录 zenstory",
+  "/verify-email?email=responsive%40example.com": "验证你的邮箱",
+  "/onboarding/persona": "告诉我们你怎么写作",
+  "/dashboard": "你好，responsive-user",
   "/dashboard/projects": "所有项目",
   "/dashboard/materials": "素材库",
   "/dashboard/skills": "技能管理",
   "/dashboard/billing": "订阅与权益",
-  "/project/responsive-project-0": "准备创作",
+  "/project/responsive-project-0": "开始写作",
   "/project/responsive-project-0/dashboard": "小屏布局回归项目",
   "/materials/responsive-material": "素材标题：很长的人物选择与情节发展"
 };
@@ -65,7 +65,7 @@ for (const viewport of sizes) {
     await page.goto('/dashboard');
     if (viewport.width < 768) {
       await page.getByRole('button', { name: 'Open mobile menu', exact: true }).click();
-      await page.getByRole('button', { name: '打开用户面板', exact: true }).click();
+      await page.getByRole('button', { name: '设置', exact: true }).click();
     } else {
       await page.getByTestId('dashboard-user-panel-toggle').first().click();
       await page.getByTestId('dashboard-open-settings-button').click();

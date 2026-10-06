@@ -43,7 +43,6 @@ vi.mock('react-i18next', () => ({
       (
         {
           'projects.all': 'All Projects',
-          'projects.subtitle': 'Manage your projects',
           'projects.new': 'New Project',
           'projects.searchPlaceholder': 'Search projects',
           'projects.count': `${options?.count ?? 0} projects`,

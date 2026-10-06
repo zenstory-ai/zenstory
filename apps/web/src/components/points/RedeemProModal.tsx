@@ -22,7 +22,7 @@ export function RedeemProModal({ isOpen, onClose }: RedeemProModalProps) {
     queryKey: ['points-balance'],
     queryFn: async () => {
       const data = await pointsApi.getBalance();
-      if (!data || typeof data.available !== 'number' || !Number.isFinite(data.available) || data.available < 0) throw new Error(t('balanceLoadFailed', '无法加载积分余额'));
+      if (!data || typeof data.available !== 'number' || !Number.isFinite(data.available) || data.available < 0) throw new Error(t('balanceLoadFailed', '积分余额没加载出来，请重试'));
       return data;
     },
     enabled: isOpen,
@@ -32,7 +32,7 @@ export function RedeemProModal({ isOpen, onClose }: RedeemProModalProps) {
     queryKey: ['points-config'],
     queryFn: async () => {
       const data = await pointsApi.getConfig();
-      if (!data || typeof data.pro_7days_cost !== 'number' || !Number.isFinite(data.pro_7days_cost) || data.pro_7days_cost < 0) throw new Error(t('configLoadFailed', '无法加载兑换价格'));
+      if (!data || typeof data.pro_7days_cost !== 'number' || !Number.isFinite(data.pro_7days_cost) || data.pro_7days_cost < 0) throw new Error(t('configLoadFailed', '兑换价格没加载出来，请重试'));
       return data;
     },
     enabled: isOpen,
@@ -162,25 +162,13 @@ export function RedeemProModal({ isOpen, onClose }: RedeemProModalProps) {
             <svg className="w-3 h-3 text-[hsl(var(--success))]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
-            {t('benefit.unlimitedAI', '无限 AI 对话')}
+            {t('benefit.unlimitedAI', '更多 AI 写作额度')}
           </li>
           <li className="flex items-center gap-1">
             <svg className="w-3 h-3 text-[hsl(var(--success))]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
-            {t('benefit.unlimitedProjects', '无限项目')}
-          </li>
-          <li className="flex items-center gap-1">
-            <svg className="w-3 h-3 text-[hsl(var(--success))]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            {t('benefit.allFormats', 'TXT 导出')}
-          </li>
-          <li className="flex items-center gap-1">
-            <svg className="w-3 h-3 text-[hsl(var(--success))]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            {t('benefit.priority', '优先功能体验')}
+            {t('benefit.unlimitedProjects', '可创建更多项目')}
           </li>
         </ul>
       </div>
@@ -188,7 +176,7 @@ export function RedeemProModal({ isOpen, onClose }: RedeemProModalProps) {
       {/* Error */}
       {redeemMutation.isError && (
         <div className="p-3 bg-[hsl(var(--error)/0.1)] text-[hsl(var(--error))] text-sm rounded-lg">
-          {t('redeemFailed', '兑换失败，请稍后重试')}
+          {t('redeemFailed', '兑换失败，请重试')}
         </div>
       )}
     </Modal>

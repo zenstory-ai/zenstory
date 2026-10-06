@@ -425,7 +425,7 @@ export const Register: React.FC = () => {
                 aria-describedby={formError ? "register-form-error" : "register-email-helper"}
               />
               <p id="register-email-helper" className="mt-2 text-xs text-[hsl(var(--text-secondary))]">
-                {t('auth:register.emailRule', '请使用可接收验证码的邮箱')}
+                {t('auth:register.emailRule', '验证码会发到这个邮箱')}
               </p>
             </div>
 
@@ -462,7 +462,7 @@ export const Register: React.FC = () => {
                     : "sr-only"
                 }
               >
-                {t('auth:register.passwordRule', '密码至少 6 位')}
+                {t('auth:register.passwordRule', '密码至少 6 个字符')}
               </p>
             </div>
 
@@ -502,7 +502,7 @@ export const Register: React.FC = () => {
                   id="register-confirm-password-helper"
                   className="mt-2 text-xs text-[hsl(var(--error))]"
                 >
-                  {t('auth:register.passwordMismatchHint', '两次输入的密码需保持一致')}
+                  {t('auth:register.passwordMismatchHint', '两次输入的密码不一致')}
                 </p>
               ) : null}
             </div>

@@ -20,6 +20,8 @@ vi.mock("react-i18next", () => ({
             "theme.dark": "Dark",
             "theme.light": "Light",
             "theme.color": "Accent Color",
+            "theme.colors.blue": "Blue",
+            "theme.colors.green": "Green",
             "profile.anonymous": "Anonymous",
           };
           return map[key] ?? fallback ?? key;

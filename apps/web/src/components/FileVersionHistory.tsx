@@ -106,6 +106,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
       setShowComparison(true);
     } catch (err) {
       logger.error("Failed to compare versions:", err);
+      toast.error(t('compareFailed'));
     } finally {
       setIsComparing(false);
     }
@@ -134,6 +135,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
         return;
       }
       logger.error("Failed to rollback:", err);
+      toast.error(t('rollbackFailed'));
     }
   };
 

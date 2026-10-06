@@ -32,7 +32,7 @@ export default function SkillReviewPage() {
       setSkills(Array.isArray(data) ? data : []);
     } catch (error) {
       logger.error("Failed to load pending skills:", error);
-      const fallbackError = t("admin:dashboard.loadError", "加载失败，请稍后重试");
+      const fallbackError = t("admin:dashboard.loadError", "加载失败，请重试");
       setLoadError(error instanceof Error && error.message ? error.message : fallbackError);
     } finally {
       if (showLoadingIndicator) {
@@ -57,7 +57,7 @@ export default function SkillReviewPage() {
       logger.error("Failed to approve skill:", error);
       setDecisionError(error instanceof Error && error.message
         ? error.message
-        : t("admin:skills.decisionFailed", "审核操作失败，请重试"));
+        : t("admin:skills.decisionFailed", "操作失败，请重试"));
     } finally {
       setProcessingId(null);
       setApprovingId(null);
@@ -78,7 +78,7 @@ export default function SkillReviewPage() {
       logger.error("Failed to reject skill:", error);
       setDecisionError(error instanceof Error && error.message
         ? error.message
-        : t("admin:skills.decisionFailed", "审核操作失败，请重试"));
+        : t("admin:skills.decisionFailed", "操作失败，请重试"));
     } finally {
       setProcessingId(null);
     }
@@ -97,14 +97,14 @@ export default function SkillReviewPage() {
       logger.error("Failed to unpublish skill:", error);
       setDecisionError(error instanceof Error && error.message
         ? error.message
-        : t("admin:skills.decisionFailed", "审核操作失败，请重试"));
+        : t("admin:skills.decisionFailed", "操作失败，请重试"));
     } finally {
       setProcessingId(null);
     }
   };
 
   const hasBlockingError = Boolean(loadError) && skills.length === 0;
-  const displayError = loadError ?? t("admin:dashboard.loadError", "加载失败，请稍后重试");
+  const displayError = loadError ?? t("admin:dashboard.loadError", "加载失败，请重试");
   const approvingSkill = skills.find((skill) => skill.id === approvingId);
 
   return (
@@ -114,7 +114,7 @@ export default function SkillReviewPage() {
           {t("admin:skills.title", "技能审核")}
         </h1>
         <p className="admin-page-subtitle">
-          {t("admin:skills.description", "审核社区提交的技能")}
+          {t("admin:skills.description", "检查社区提交的技能，决定是否公开")}
         </p>
       </div>
 
@@ -141,7 +141,7 @@ export default function SkillReviewPage() {
             <AlertTriangle className="h-5 w-5 text-[hsl(var(--error))] mt-0.5 shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="font-medium text-[hsl(var(--error))]">
-                {t("admin:dashboard.loadError", "加载失败，请稍后重试")}
+                {t("admin:dashboard.loadError", "加载失败，请重试")}
               </p>
               <p className="mt-1 text-[hsl(var(--text-secondary))] break-words">{loadError}</p>
             </div>
@@ -189,7 +189,7 @@ export default function SkillReviewPage() {
         <ReasonModal
           title={t("admin:skills.rejectTitle", "拒绝技能")}
           label={t("admin:skills.rejectReason", "拒绝原因（可选）")}
-          placeholder={t("admin:skills.rejectPlaceholder", "请输入拒绝原因...")}
+          placeholder={t("admin:skills.rejectPlaceholder", "填写拒绝原因")}
           confirmLabel={t("admin:skills.confirmReject", "确认拒绝")}
           onConfirm={() => handleReject(rejectingId)}
           onCancel={() => {
@@ -208,10 +208,10 @@ export default function SkillReviewPage() {
           title={t("admin:skills.unpublishTitle", "下架技能")}
           description={t(
             "admin:skills.unpublishConfirmation",
-            "下架后该技能会立即从公共库消失，已添加的用户也无法再使用。",
+            "下架后该技能会立即从公共库移除，已添加它的用户也无法再使用。",
           )}
           label={t("admin:skills.unpublishReason", "下架原因（可选）")}
-          placeholder={t("admin:skills.unpublishPlaceholder", "请输入下架原因...")}
+          placeholder={t("admin:skills.unpublishPlaceholder", "填写下架原因")}
           confirmLabel={t("admin:skills.confirmUnpublish", "确认下架")}
           onConfirm={() => handleUnpublish(unpublishingId)}
           onCancel={() => {
@@ -231,9 +231,9 @@ export default function SkillReviewPage() {
         title={t("admin:skills.approveTitle", "批准技能")}
         message={`${approvingSkill?.name ?? ""}: ${t(
           "admin:skills.approveConfirmation",
-          "批准后该技能将公开可用。确认继续吗？",
+          "批准后，所有用户都能使用该技能。",
         )}`}
-        confirmLabel={t("admin:skills.confirmApprove", "确认批准")}
+        confirmLabel={t("admin:skills.confirmApprove", "批准并公开")}
         cancelLabel={t("common:cancel")}
         loading={Boolean(approvingId && processingId === approvingId)}
       />
@@ -350,7 +350,7 @@ function SkillReviewCard({
             <p>
               {skill.status === "unpublished"
                 ? t("admin:skills.unpublishedReason", "下架原因")
-                : t("admin:skills.rejectReason", "拒绝原因")}: {skill.rejection_reason}
+                : t("admin:skills.rejectedReason", "拒绝原因")}: {skill.rejection_reason}
             </p>
           )}
         </div>
@@ -399,7 +399,7 @@ function SkillReviewMaterials({
         if (!cancelled) {
           setResourcesError(error instanceof Error && error.message
             ? error.message
-            : t("admin:skills.resourcesLoadFailed", "资源文件加载失败"));
+            : t("admin:skills.resourcesLoadFailed", "资源文件加载失败，请重试"));
         }
       });
     return () => {
@@ -412,7 +412,7 @@ function SkillReviewMaterials({
       <p className="text-xs text-[hsl(var(--text-tertiary))]">
         {t(
           "admin:skills.reviewHint",
-          "以下内容核准后会原样提供给其他用户的 AI，请检查原文（包括渲染后看不到的注释和链接定义）。",
+          "批准后，以下内容会原样交给其他用户的 AI 使用。请在“原文”中检查：渲染预览会隐藏注释和链接定义。",
         )}
       </p>
 
@@ -472,7 +472,7 @@ function SkillReviewMaterials({
       {hasMetadata && (
         <div>
           <p className="text-xs font-medium text-[hsl(var(--text-tertiary))] mb-2">
-            {t("admin:skills.metadata", "元数据（skill_metadata）")}
+            {t("admin:skills.metadata", "元数据")}
           </p>
           <pre className={RAW_TEXT_CLASS}>{JSON.stringify(metadata, null, 2)}</pre>
         </div>

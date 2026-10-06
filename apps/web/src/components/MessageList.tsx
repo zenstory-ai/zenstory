@@ -286,11 +286,6 @@ export const ContextItemsView: React.FC<ContextItemsViewProps> = ({ items, token
       {isOpen && (
         <div className="mt-2 space-y-1">
           {items.map((item, index) => {
-            const score =
-              typeof item.relevance_score === "number"
-                ? Math.round(item.relevance_score * 100)
-                : null;
-
             return (
               <details
                 key={item.id || `${item.type}-${index}`}
@@ -309,7 +304,6 @@ export const ContextItemsView: React.FC<ContextItemsViewProps> = ({ items, token
                   </svg>
                   <span
                     className="inline-block px-1.5 py-0.5 rounded bg-[hsl(var(--bg-primary))] text-[hsl(var(--accent-primary))] shrink-0 max-w-28 truncate"
-                    title={item.type}
                   >
                     {contextTypeLabel(item.type, t)}
                   </span>
@@ -318,24 +312,12 @@ export const ContextItemsView: React.FC<ContextItemsViewProps> = ({ items, token
                   </span>
                   <span
                     className={`inline-block px-1.5 py-0.5 rounded shrink-0 max-w-28 truncate ${priorityClassName(item.priority)}`}
-                    title={item.priority}
                   >
                     {priorityLabel(item.priority, t)}
                   </span>
-                  {score !== null && (
-                    <span className="text-[hsl(var(--text-secondary))] shrink-0 whitespace-nowrap">
-                      {t("context.relevanceScore", {
-                        ns: "chat",
-                        score,
-                      })}
-                    </span>
-                  )}
                 </summary>
 
                 <div className="px-2 pb-2">
-                  <div className="text-xs text-[hsl(var(--text-secondary))] mb-1">
-                    <span className="mr-2">ID: {item.id}</span>
-                  </div>
                   <div className="text-xs text-[hsl(var(--text-primary))] whitespace-pre-wrap max-h-40 overflow-auto rounded bg-[hsl(var(--bg-primary))] p-2">
                     {item.content}
                   </div>
@@ -494,14 +476,6 @@ function OrderedMessageItems({ items, onUndo, onIterationAssistAction, isStreami
                   {t('workflow.actionManual', { ns: 'chat' })}
                 </button>
               </div>
-              <details className="mt-1">
-                <summary className="cursor-pointer text-[11px] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]">
-                  {t('workflow.viewTechnicalDetails', { ns: 'chat' })}
-                </summary>
-                <span className="block mt-1 text-[11px] text-[hsl(var(--text-secondary))] break-words">
-                  {item.reason}
-                </span>
-              </details>
             </div>
           </div>
         </div>
@@ -567,14 +541,6 @@ function OrderedMessageItems({ items, onUndo, onIterationAssistAction, isStreami
                 <span className="text-xs text-[hsl(var(--text-primary))] break-words">
                   {stopMessage}
                 </span>
-                {workflowReason ? (
-                  <span className="text-[11px] text-[hsl(var(--text-secondary))] break-words">
-                    {t('workflow.stopReason', {
-                      ns: 'chat',
-                      reason: workflowReason,
-                    })}
-                  </span>
-                ) : null}
               </div>
             </div>
           </div>
@@ -934,14 +900,6 @@ function Row({
                           <span className="text-xs text-[hsl(var(--text-primary))] break-words">
                             {stopMessage}
                           </span>
-                          {card.reason ? (
-                            <span className="text-[11px] text-[hsl(var(--text-secondary))] break-words">
-                              {t('workflow.stopReason', {
-                                ns: 'chat',
-                                reason: card.reason,
-                              })}
-                            </span>
-                          ) : null}
                         </div>
                       </div>
                     </div>
@@ -1030,16 +988,6 @@ function Row({
                             {t('workflow.actionManual', { ns: 'chat' })}
                           </button>
                         </div>
-                        {card.reason && (
-                          <details className="mt-1">
-                            <summary className="cursor-pointer text-[11px] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]">
-                              {t('workflow.viewTechnicalDetails', { ns: 'chat' })}
-                            </summary>
-                            <span className="block mt-1 text-[11px] text-[hsl(var(--text-secondary))] break-words">
-                              {card.reason}
-                            </span>
-                          </details>
-                        )}
                       </div>
                     </div>
                   </div>

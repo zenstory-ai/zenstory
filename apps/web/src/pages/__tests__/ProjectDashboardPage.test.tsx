@@ -22,11 +22,10 @@ vi.mock('react-router-dom', async () => {
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: Record<string, unknown> | string) => {
-      if (typeof options === 'string') {
-        return options
-      }
-      const count = options?.count
-      const time = options?.time
+      const fallback = typeof options === 'string' ? options : undefined
+      const values = typeof options === 'string' ? undefined : options
+      const count = values?.count
+      const time = values?.time
       return (
         {
           'common.back': 'Back',
@@ -52,7 +51,7 @@ vi.mock('react-i18next', () => ({
           'statistics.aiUsage.messages': `${count} messages`,
           'statistics.aiUsage.sessions': `${count} sessions`,
         } as Record<string, string>
-      )[key] ?? key
+      )[key] ?? fallback ?? key
     },
   }),
 }))

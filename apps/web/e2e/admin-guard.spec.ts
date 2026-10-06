@@ -78,6 +78,6 @@ test.describe('Admin route guard', () => {
 
     await page.goto('/admin');
     await expect(page).not.toHaveURL(/\/login/, { timeout: 10000 });
-    await expect(page.getByText(/权限不足|Insufficient Permission|admin\.insufficientPermission/i)).toBeVisible();
+    await expect(page.getByText(/无权访问|No access|admin\.insufficientPermission/i)).toBeVisible();
   });
 });

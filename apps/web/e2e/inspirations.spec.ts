@@ -391,7 +391,7 @@ test.describe('Inspirations Page - Detail View', () => {
 
   test('should show copy button in detail view', async ({ page }) => {
     await openFirstInspirationDetail(page);
-    await expect(page.getByRole('button', { name: /使用此模板|Use This Template/ })).toBeVisible({
+    await expect(page.getByRole('button', { name: /用它创建项目|Create project from this/ })).toBeVisible({
       timeout: 5000,
     });
   });
@@ -411,7 +411,7 @@ test.describe('Inspirations Page - Copy Flow', () => {
 
   test('should trigger copy when clicking copy button', async ({ page }) => {
     await openFirstInspirationDetail(page);
-    const copyButton = page.getByRole('button', { name: /使用此模板|Use This Template/ }).first();
+    const copyButton = page.getByRole('button', { name: /用它创建项目|Create project from this/ }).first();
     await Promise.all([
       page.waitForResponse(
         (response) =>
@@ -523,7 +523,7 @@ test.describe('Inspirations Page - Responsive Design', () => {
 
   test('can open inspiration detail on mobile', async ({ page }) => {
     await openFirstInspirationDetail(page);
-    await expect(page.getByRole('button', { name: /使用此模板|Use This Template/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /用它创建项目|Create project from this/ })).toBeVisible();
   });
 });
 

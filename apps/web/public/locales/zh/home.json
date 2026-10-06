@@ -10,15 +10,15 @@
     "badge": "面向小说与剧本的 AI 创作平台",
     "titlePart1": "从灵感到连载，",
     "titlePart2": "一套工具写完整部作品",
-    "description": "zenstory 把项目文件管理、素材沉淀、角色设定、章节写作和版本回滚整合到同一工作台。先搭结构，再写正文，随时改稿也不丢思路。",
+    "description": "大纲、角色、设定和正文放在同一个项目里。和 AI 对话就能续写、改写章节，改错了也能退回之前的版本。",
     "cta": "免费创建项目",
     "secondaryCta": "查看演示",
     "ctaSubtext": "注册即用 · 3 分钟上手"
   },
   "features": {
-    "cloudSave": "自动保存，不怕误删",
-    "multiDevice": "手机电脑实时同步",
-    "versionHistory": "版本可回退，改错可撤销"
+    "cloudSave": "写作内容自动保存",
+    "multiDevice": "手机、电脑都能接着写",
+    "versionHistory": "改错了可退回旧版本"
   },
   "stats": {
     "creators": "创作者在用",
@@ -40,8 +40,8 @@
     }
   },
   "whyChoose": {
-    "title": "真正服务长期创作的 AI",
-    "subtitle": "不是只给一句回复，而是帮你把项目持续推进",
+    "title": "为长篇写作准备的工具",
+    "subtitle": "从记下灵感到导出成稿，都在一个项目里完成",
     "conversational": {
       "title": "对话式创作",
       "description": "像和朋友聊天一样自然地创作，AI 理解你的意图，帮你完善想法"
@@ -59,86 +59,81 @@
       "description": "你的创作内容默认私密，不会用于模型训练，除非你明确授权"
     },
     "voiceInput": {
-      "title": "语音速记",
-      "description": "灵感来了直接说，自动转写并挂到当前章节，避免想法流失。"
+      "title": "语音输入",
+      "description": "对着麦克风说出想法，自动转成文字发给 AI，省去打字。"
     },
     "materialUpload": {
-      "title": "素材双轨管理",
-      "description": "项目内素材文件夹与独立素材库并行，上传、拆解、复用一站完成。"
+      "title": "素材库",
+      "description": "上传参考小说，拆解出人物、设定和情节，写作时随时引用。"
     },
     "contextAware": {
-      "title": "上下文持续记忆",
-      "description": "角色、世界观、剧情线持续生效，减少设定冲突和跑偏。"
+      "title": "AI 记住你的设定",
+      "description": "AI 写作时会参考你的角色、世界观和大纲，减少前后矛盾。"
     },
     "versionHistory": {
-      "title": "版本回滚与对比",
-      "description": "每次修改自动留痕，支持回滚和差异对比，改稿更安心。"
+      "title": "版本对比与回退",
+      "description": "每次修改都会留下版本，可以对比差异，也能退回旧版。"
     },
     "cloudSync": {
-      "title": "项目级云端同步",
-      "description": "跨设备无缝衔接，创作进度实时保存，随时继续写。"
+      "title": "换设备接着写",
+      "description": "作品保存在云端，换台设备登录就能继续写。"
     },
     "export": {
-      "title": "导出与发布准备",
-      "description": "导出前自动整理章节与结构，降低排版和交付成本。"
+      "title": "导出正文",
+      "description": "把全部正文按章节顺序导出为 TXT 文件，方便投稿或备份。"
     }
   },
   "projectTypes": {
-    "title": "三类创作项目，开箱即用",
-    "subtitle": "内置文件树、章节排序、素材引用与 AI 写作策略",
+    "title": "选一种作品类型开始",
+    "subtitle": "每种类型都预设好目录结构和 AI 写作方式",
     "novel": {
       "name": "长篇连载小说",
-      "description": "面向 5 万字以上项目，支持长期世界观维护与章节推进",
+      "description": "适合 5 万字以上的连载，长期维护世界观，一章章往下写",
       "features": [
-        "目录树与拖拽排序",
-        "角色关系持续记忆",
-        "双轨素材引用",
-        "版本对比与回滚"
+        "拖拽调整章节顺序",
+        "AI 记住角色关系",
+        "引用素材库",
+        "版本对比与回退"
       ]
     },
     "short": {
       "name": "中短篇小说",
-      "description": "面向 5000-20000 字，一次完成构思、冲突与收束",
+      "description": "适合 5000–20000 字，从构思到结尾一次写完",
       "features": [
-        "冲突驱动大纲",
-        "关键场景快速成稿",
-        "篇幅节奏校准"
+        "围绕冲突列大纲",
+        "快速写出关键场景",
+        "控制篇幅和节奏"
       ]
     },
     "screenplay": {
       "name": "短剧与网剧脚本",
-      "description": "支持分集结构、角色弧线与镜头化表达的脚本生产",
+      "description": "按集规划剧情，跟踪角色变化，写成分场剧本",
       "features": [
-        "分集剧情板",
-        "角色弧线追踪",
-        "结构化脚本输出"
+        "分集大纲",
+        "角色成长线",
+        "分场剧本格式"
       ]
     }
   },
   "pricingTeaser": {
     "title": "先免费开始，按需升级",
-    "subtitle": "免费版即可完整体验创作流程，升级后解锁更高额度与效率。",
+    "subtitle": "免费版就能完整写作；需要更多 AI 对话和项目时再升级。",
     "viewPricing": "查看套餐权益",
     "primaryCta": "免费创建项目",
     "free": {
       "badge": "免费",
-      "title": "快速开始创作",
-      "desc": "适合个人起步，覆盖项目创建、基础对话与核心写作流程。"
+      "title": "先写起来",
+      "desc": "创建项目、和 AI 对话写章节，个人起步够用。"
     },
     "pro": {
       "badge": "专业版",
-      "title": "提高写作速度与容量",
-      "desc": "面向高频创作，提供不限量的 AI 对话与项目，以及素材拆解、自定义技能等更充足的额度。"
-    },
-    "team": {
-      "badge": "团队协作",
-      "title": "多人分工与统一资产",
-      "desc": "适合工作室协作，统一素材、版本与项目管理，减少沟通成本。"
+      "title": "写得更多更快",
+      "desc": "AI 对话和项目数量不限，可用素材拆解，自定义技能额度更多。"
     }
   },
   "cta": {
     "title": "现在就开始你的下一部作品",
-    "subtitle": "3 分钟建立项目，把碎片灵感沉淀成可持续迭代的创作资产",
+    "subtitle": "3 分钟建好项目，把零散灵感写成完整的故事",
     "button": "免费创建项目"
   },
   "footer": {
@@ -212,12 +207,12 @@
     }
   },
   "agentApi": {
-    "sectionLabel": "Agent API 接入",
+    "sectionLabel": "接入你的 AI 助手",
     "badge": "新功能",
-    "title": "让 AI 助手直接操作你的创作工作台",
-    "subtitle": "生成 API Key，粘贴到 Claude Code 或 OpenClaw，你的 AI 助手就能直接读写小说项目。",
-    "supportedAgents": "支持接入",
-    "cta": "免费开始",
-    "ctaAriaLabel": "免费开始使用 Agent API"
+    "title": "用 Claude Code 等 AI 助手直接写你的小说",
+    "subtitle": "在设置里生成 API Key，填到 Claude Code 或 OpenClaw，它就能读取和修改你的项目文件。",
+    "supportedAgents": "支持",
+    "cta": "生成 API Key",
+    "ctaAriaLabel": "去设置生成 API Key"
   }
 }

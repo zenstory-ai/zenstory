@@ -291,7 +291,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
     ...(isPointsPanelEnabled
       ? [{ id: 'points' as const, icon: Coins, label: tSettings('nav.points', '积分') }]
       : []),
-    { id: 'agent' as const, icon: Key, label: tSettings('nav.agent', 'Agent') },
+    { id: 'agent' as const, icon: Key, label: tSettings('nav.agent', 'API 密钥') },
     { id: 'referral' as const, icon: Users, label: tSettings('nav.referral', '邀请') },
   ];
 
@@ -528,12 +528,12 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                   </div>
                   <div className="flex gap-2" role="radiogroup" aria-labelledby="settings-accent-label">
                     {[
-                      { value: '#4a9eff', name: tSettings('theme.colors.blue', 'Blue') },
-                      { value: '#22c55e', name: tSettings('theme.colors.green', 'Green') },
-                      { value: '#fbbf24', name: tSettings('theme.colors.yellow', 'Yellow') },
-                      { value: '#f87171', name: tSettings('theme.colors.red', 'Red') },
-                      { value: '#ec4899', name: tSettings('theme.colors.pink', 'Pink') },
-                      { value: '#8b5cf6', name: tSettings('theme.colors.purple', 'Purple') },
+                      { value: '#4a9eff', name: tSettings('theme.colors.blue', '蓝色') },
+                      { value: '#22c55e', name: tSettings('theme.colors.green', '绿色') },
+                      { value: '#fbbf24', name: tSettings('theme.colors.yellow', '黄色') },
+                      { value: '#f87171', name: tSettings('theme.colors.red', '红色') },
+                      { value: '#ec4899', name: tSettings('theme.colors.pink', '粉色') },
+                      { value: '#8b5cf6', name: tSettings('theme.colors.purple', '紫色') },
                     ].map(({ value: color, name }) => (
                       <button
                         key={color}
@@ -604,7 +604,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                     className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-[hsl(var(--border-color))] text-sm text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-hover))] transition-colors"
                   >
                     <CreditCard size={14} />
-                    <span>{tSettings('subscription.redeem', '兑换会员')}</span>
+                    <span>{tSettings('points.redeemPro', '用积分兑换 Pro 会员')}</span>
                   </button>
                   <DailyCheckIn />
                   <EarnOpportunities />

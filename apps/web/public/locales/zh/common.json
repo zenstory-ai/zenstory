@@ -10,7 +10,7 @@
   "create": "创建",
   "close": "关闭",
   "back": "返回",
-  "next": "下一步",
+  "next": "下一页",
   "previous": "上一页",
   "submit": "提交",
   "send": "发送",
@@ -33,7 +33,7 @@
   "operationSuccess": "操作成功",
   "operationFailed": "操作失败",
   "errors": {
-    "network": "网络异常，已为你保存本地画像"
+    "network": "网络异常，请重试"
   },
   "fileTypes": {
     "folder": "文件夹",
@@ -96,7 +96,7 @@
   "feedback": {
     "entry": "问题反馈",
     "title": "反馈问题",
-    "description": "遇到问题或有改进建议？请告诉我们，我们会尽快处理。",
+    "description": "遇到问题或有改进建议？告诉我们。",
     "issueLabel": "问题描述",
     "issuePlaceholder": "请描述你遇到的问题（发生了什么、期望结果、复现步骤等）",
     "issueHint": "最多 {{max}} 字",
@@ -109,15 +109,15 @@
     "removeAction": "移除",
     "submit": "提交反馈",
     "submitting": "提交中...",
-    "submitSuccess": "感谢反馈，我们已收到并会尽快处理。",
+    "submitSuccess": "感谢反馈，我们已收到。",
     "previewAlt": "反馈截图预览",
     "invalidImageType": "请上传 PNG/JPG/WEBP 图片",
     "invalidImageSize": "截图大小不能超过 5MB"
   },
   "projectLoadFailed": "加载项目失败",
-  "projectNotFound": "项目不存在或尚未同步",
+  "projectNotFound": "找不到这个项目",
   "tryAgain": "再试一次",
-  "backToDashboard": "返回仪表盘",
+  "backToDashboard": "返回工作台",
   "upgradePrompt": {
     "badge": "升级建议"
   },

@@ -301,7 +301,7 @@ test.describe('AI Chat - Tool Results', () => {
     await page.locator('button[type="submit"], button:has([class*="Send"])').last().click()
 
     // Wait for query_files tool call
-    await expect(page.locator('text=query_files, text=查询文件')).toBeVisible({ timeout: 30000 })
+    await expect(page.locator('text=/查找文件|Find Files/')).toBeVisible({ timeout: 30000 })
   })
 })
 

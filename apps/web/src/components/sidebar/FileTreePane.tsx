@@ -307,6 +307,7 @@ export const FileTreePane: React.FC = () => {
       cancelCreate();
     } catch (error) {
       logger.error("Failed to create item:", error);
+      toast.error(t('editor:fileTree.createFailed'));
     }
   };
 
@@ -327,6 +328,7 @@ export const FileTreePane: React.FC = () => {
       await loadData(false); // silent refresh - no loading indicator
     } catch (error) {
       logger.error("Failed to delete item:", error);
+      toast.error(t('editor:fileTree.deleteFailed'));
     }
   };
 

@@ -21,7 +21,7 @@ vi.mock("react-i18next", () => ({
     t: (key: string) =>
       (
         {
-          "auth:errors.oauthFailed": "Login failed",
+          "auth:errors.oauthFailed": "Sign-in did not complete",
           "auth:login.loading": "Loading",
           "auth:login.title": "Login",
           "auth:login.verifying": "Verifying identity...",
@@ -249,7 +249,8 @@ describe("OAuthCallback", () => {
   it("scrubs a provider error fragment while retaining its handled error UI", async () => {
     Object.assign(window.location, { hash: "#error=access_denied" });
     render(<MemoryRouter><OAuthCallback /></MemoryRouter>);
-    expect(await screen.findByText("access_denied")).toBeInTheDocument();
+    expect(await screen.findByText("Sign-in did not complete")).toBeInTheDocument();
+    expect(screen.queryByText("access_denied")).not.toBeInTheDocument();
     expect(replaceStateSpy).toHaveBeenCalledWith(window.history.state, document.title, "/auth/callback");
     expect(mockHandleOAuthCallback).not.toHaveBeenCalled();
     expect(mockNavigate).not.toHaveBeenCalled();

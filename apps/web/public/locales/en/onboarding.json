@@ -1,47 +1,47 @@
 {
   "hero": {
-    "step": "New User Setup · 1/1",
+    "step": "Getting Started",
     "badge": "2-minute setup",
-    "title": "Let us know you first, then we'll tailor zenstory for you",
-    "subtitle": "Pick your creator persona and goals. We'll personalize templates, workflows, and key entry points accordingly.",
-    "restore": "Your previous persona setup is loaded. You can update it anytime."
+    "title": "Tell us how you write",
+    "subtitle": "Answer 3 quick questions, or skip.",
+    "restore": "Your previous answers are filled in"
   },
   "persona": {
     "title": "Which type of creator are you?",
-    "subtitle": "Choose up to 3 options so we can match your stage with the right experience.",
+    "subtitle": "Choose up to 3.",
     "counter": "{{selected}} / {{max}} selected",
-    "limitReached": "You can select up to 3 personas. Deselect one to continue.",
+    "limitReached": "You can choose up to 3. Deselect one first.",
     "options": {
       "explorer": {
         "tag": "Getting started",
         "title": "Beginner Explorer",
-        "desc": "You're just starting out and need guided steps, templates, and AI support to finish your first complete work."
+        "desc": "You’re new to writing and want guidance to finish your first work."
       },
       "serial": {
         "tag": "Serial rhythm",
         "title": "Serial Growth Writer",
-        "desc": "You care about consistent updates and want better planning, reminders, and workflow support for sustained output."
+        "desc": "You’re publishing a serial and want to keep a steady update schedule."
       },
       "professional": {
         "tag": "Professional",
         "title": "Professional Creator",
-        "desc": "You already have experience and care most about efficiency, quality, and monetization-oriented creation."
+        "desc": "You have writing experience and care about speed, quality, and income."
       },
       "fanfic": {
         "tag": "Passion-driven",
         "title": "Fanfic / Hobby Creator",
-        "desc": "You focus on character dynamics and world-building, and want to turn ideas into polished drafts quickly."
+        "desc": "You love characters and worlds, and want to turn ideas into stories that stay consistent."
       },
       "studio": {
         "tag": "Collaboration",
         "title": "IP / Studio Team",
-        "desc": "You create with others and need clear responsibilities, transparent progress, and shared resource management."
+        "desc": "You write with a team and need to split work and share materials and progress."
       }
     }
   },
   "goal": {
     "title": "What do you want most right now?",
-    "subtitle": "Multi-select is supported. We'll prioritize features based on your focus.",
+    "subtitle": "Choose any that apply.",
     "options": {
       "finishBook": {
         "title": "Finish my first full work"
@@ -62,45 +62,49 @@
   },
   "experience": {
     "title": "Your writing experience",
-    "subtitle": "We'll adjust guidance depth and complexity based on your level.",
+    "subtitle": "Pick the closest one.",
     "options": {
       "beginner": {
         "title": "0-3 months",
-        "desc": "More guided steps, examples, and default templates."
+        "desc": "Step-by-step guidance and examples."
       },
       "intermediate": {
         "title": "3 months - 2 years",
-        "desc": "Balanced setup with flexibility plus practical advanced hints."
+        "desc": "Some experience; want speed and flexibility."
       },
       "advanced": {
         "title": "2+ years",
-        "desc": "High-efficiency workflow with less interruption and more high-value tools."
+        "desc": "Experienced; fewer tips, straight to work."
       }
     }
   },
   "actions": {
-    "skip": "Skip for now",
+    "skip": "Skip",
     "submit": "Save and enter workspace",
     "saving": "Saving..."
   },
   "preview": {
-    "title": "Personalized preview",
-    "subtitle": "After submission, we’ll tune homepage structure, recommendations, and writing reminders for you.",
-    "empty": "Select at least one persona to preview your personalized setup.",
+    "title": "Your dashboard will suggest",
+    "subtitle": "After you save, your dashboard home will suggest next steps based on these choices.",
+    "empty": "Pick a creator type to see what we’ll suggest",
     "items": {
-      "explorer": "Clear next-step prompts and starter templates",
-      "serial": "Stronger support for daily/weekly writing cadence",
-      "professional": "Tools prioritized for efficiency and commercialization",
-      "fanfic": "Better support for character consistency and world settings",
-      "studio": "Workflow recommendations for collaborative teams",
-      "monetize": "Growth and monetization capabilities surfaced earlier",
-      "quality": "More focused guidance on plot, character, and prose quality"
+      "explorer": "Idea templates and quick-start drafting",
+      "serial": "Daily writing goals and update streaks",
+      "professional": "A fast outline-to-chapter-to-revision flow",
+      "fanfic": "Organize characters and settings for AI to follow",
+      "studio": "One project per work, kept separate",
+      "monetize": "A comparison of Free and Pro",
+      "quality": "Have AI review and revise chapters"
     },
     "level": {
-      "beginner": "Beginner mode reduces learning overhead and helps you start fast",
-      "intermediate": "Balanced guidance optimized for both speed and quality",
-      "advanced": "Fewer basics, more high-value decision support"
+      "beginner": "Start from a template, then build out characters and chapters",
+      "intermediate": "Suggestions that balance speed and quality",
+      "advanced": "Jump straight into your project to expand and revise with AI"
     },
-    "note": "Your creator preferences are saved to your account and available across devices."
+    "note": "These choices are saved to your account and apply on every device."
+  },
+  "errors": {
+    "saveFailed": "Couldn’t save. Check your connection and try again.",
+    "loadFailed": "Couldn’t load. Check your connection and try again."
   }
 }

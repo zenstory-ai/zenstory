@@ -137,7 +137,7 @@ test.describe('Admin moderation flows (mocked)', () => {
     const confirmation = page.getByRole('dialog');
     await expect(confirmation).toBeVisible();
     expect(approveCalled).toBe(0);
-    await confirmation.getByRole('button', { name: /确认批准|Confirm approve|skills\.confirmApprove/i }).click();
+    await confirmation.getByRole('button', { name: /批准并公开|Approve and publish|skills\.confirmApprove/i }).click();
     await expect.poll(() => approveCalled).toBe(1);
 
     await expect(page.getByRole('heading', { name: 'Plot Doctor', exact: true })).toHaveCount(0);
@@ -239,7 +239,7 @@ test.describe('Admin moderation flows (mocked)', () => {
     });
 
     await row.locator('button').nth(3).click();
-    await page.getByRole('button', { name: /确认|confirm|common:confirm/i }).click();
+    await page.locator('.fixed.inset-0.z-50').last().getByRole('button', { name: /^(删除灵感|Delete Inspiration)$/i }).click();
     await expect.poll(() => deleteCalled).toBe(1);
   });
 

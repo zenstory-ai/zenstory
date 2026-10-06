@@ -490,12 +490,12 @@ export const CodeManagement: React.FC = () => {
         open={Boolean(codeToDeactivate)}
         onClose={() => setCodeToDeactivate(null)}
         onConfirm={confirmDeactivation}
-        title={t("codes.deactivateConfirmTitle", "Deactivate redemption code")}
+        title={t("codes.deactivateConfirmTitle", "禁用兑换码")}
         message={`${codeToDeactivate?.code ?? ""}: ${t(
           "codes.deactivateConfirmImpact",
-          "This code can no longer be redeemed until reactivated.",
+          "禁用后无法再兑换，重新启用即可恢复。",
         )}`}
-        confirmLabel={t("codes.confirmDeactivate", "Deactivate code")}
+        confirmLabel={t("codes.confirmDeactivate", "禁用")}
         cancelLabel={t("common:cancel")}
         variant="danger"
         loading={Boolean(updateMutation.isPending && updateMutation.variables?.id === codeToDeactivate?.id)}

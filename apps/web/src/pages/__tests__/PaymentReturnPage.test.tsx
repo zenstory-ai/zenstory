@@ -48,7 +48,7 @@ describe('PaymentReturnPage', () => {
       fulfillment_status: 'pending', created_at: '2026-10-05T00:00:00Z', paid_at: null, fulfilled_at: null, failure_reason: null,
     })
     const invalidate = renderPage('?out_trade_no=ZP1&trade_status=TRADE_SUCCESS&money=0.01')
-    expect(await screen.findByText('支付结果处理中')).toBeInTheDocument()
+    expect(await screen.findByText('付款确认中')).toBeInTheDocument()
     expect(screen.queryByText('支付成功，Pro 已开通')).not.toBeInTheDocument()
     expect(invalidate).not.toHaveBeenCalled()
   })
@@ -66,8 +66,8 @@ describe('PaymentReturnPage', () => {
 
   it('rejects a return without an order number without calling the API', () => {
     renderPage('?trade_status=TRADE_SUCCESS')
-    expect(screen.getByText('无法确认支付订单')).toBeInTheDocument()
-    expect(screen.getByText('未找到订单信息，请返回订阅页查看。')).toBeInTheDocument()
+    expect(screen.getByText('没有找到这笔订单')).toBeInTheDocument()
+    expect(screen.getByText('回到「订阅权益」查看 Pro 是否已开通。')).toBeInTheDocument()
     expect(paymentApi.getOrder).not.toHaveBeenCalled()
   })
 
@@ -77,8 +77,8 @@ describe('PaymentReturnPage', () => {
     vi.mocked(paymentApi.syncOrder).mockResolvedValue(pendingOrder)
     renderPage('?out_trade_no=ZP9')
     await act(async () => { await vi.advanceTimersByTimeAsync(0) })
-    expect(screen.getByText('支付结果处理中')).toBeInTheDocument()
-    expect(screen.getByText('页面会自动刷新。若已付款，请勿重复支付。')).toBeInTheDocument()
+    expect(screen.getByText('付款确认中')).toBeInTheDocument()
+    expect(screen.getByText('本页会自动更新。已付款请不要重复支付。')).toBeInTheDocument()
 
     // The old counter-based poll stopped after ~8 seconds; 60 seconds in we must still poll.
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
@@ -87,7 +87,7 @@ describe('PaymentReturnPage', () => {
     expect(paymentApi.syncOrder).not.toHaveBeenCalled()
 
     await act(async () => { await vi.advanceTimersByTimeAsync(61_000) })
-    const timeoutHint = '暂未确认到支付结果。若已付款，请勿重复支付，可稍后点击刷新；长时间未开通请联系客服并提供订单号。'
+    const timeoutHint = '还没有确认到付款。已付款请不要重复支付，稍后点「刷新支付结果」；如果一直没有开通，请发邮件到 support@zenstory.ai 并附上订单号。'
     expect(screen.getByText(timeoutHint)).toBeInTheDocument()
     // Nothing is promised that the page cannot guarantee.
     expect(screen.queryByText(/自动开通|服务器/)).not.toBeInTheDocument()
@@ -118,8 +118,8 @@ describe('PaymentReturnPage', () => {
       ...pendingOrder, status: 'paid', trade_no: 'trade-9', fulfillment_status: 'succeeded',
     })
     renderPage('?out_trade_no=ZP9')
-    expect(await screen.findByText('支付已确认，会员暂未开通')).toBeInTheDocument()
-    expect(screen.getByText('请勿重复付款，可稍后点击刷新；如长时间未开通，请联系客服并提供下方订单号。')).toBeInTheDocument()
+    expect(await screen.findByText('付款已确认，Pro 还没开通')).toBeInTheDocument()
+    expect(screen.getByText('请不要重复付款。稍后点「刷新支付结果」；如果一直没有开通，请发邮件到 support@zenstory.ai 并附上下方订单号。')).toBeInTheDocument()
     expect(screen.queryByText(/自动重试/)).not.toBeInTheDocument()
     expect(trackEvent).toHaveBeenCalledWith('payment_return_result', expect.objectContaining({ result: 'failed' }))
     fireEvent.click(screen.getByRole('button', { name: '刷新支付结果' }))

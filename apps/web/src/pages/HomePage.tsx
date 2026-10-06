@@ -523,11 +523,11 @@ export default function HomePage() {
               {t('home:pricingTeaser.title', '先免费开始，按需升级')}
             </h2>
             <p className="text-sm md:text-base text-[hsl(var(--text-secondary))]">
-              {t('home:pricingTeaser.subtitle', '免费版即可完整体验创作流程，升级后解锁更高额度与效率。')}
+              {t('home:pricingTeaser.subtitle', '免费版就能完整写作；需要更多 AI 对话和项目时再升级。')}
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 max-w-3xl mx-auto">
             {([
               {
                 key: 'free',
@@ -540,12 +540,6 @@ export default function HomePage() {
                 badge: t('home:pricingTeaser.pro.badge', '专业版'),
                 accentClass: 'text-[hsl(var(--accent-primary))]',
                 bgClass: 'bg-[hsl(var(--accent-primary)/0.08)]',
-              },
-              {
-                key: 'team',
-                badge: t('home:pricingTeaser.team.badge', '团队协作'),
-                accentClass: 'text-[hsl(var(--success))]',
-                bgClass: 'bg-[hsl(var(--success)/0.08)]',
               },
             ] as const).map((plan) => (
               <div

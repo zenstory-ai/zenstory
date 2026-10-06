@@ -81,12 +81,12 @@ const mockT = (
 ) => {
   const optionObj = typeof options === 'string' ? undefined : options
   const translations: Record<string, string> = {
-    'hero.greeting': `你好 ${optionObj?.name ?? '创作者'}`,
+    'hero.greeting': `你好，${optionObj?.name ?? '作者'}`,
     'hero.question': '今天想创作些什么呢？',
     'inspirations.featured': '精选灵感',
     'inspirations.viewAll': '查看全部',
     'inspirations.emptyTitle': '暂无精选灵感',
-    'inspirations.emptyHint': '当前暂无精选灵感，去灵感库发现更多创作灵感。',
+    'inspirations.emptyHint': '去灵感库看看更多故事开头。',
     'inspirations.emptyCta': '查看灵感库',
     'projects.viewAll': '浏览全部',
     'projects.recent': '最近项目',
@@ -100,8 +100,8 @@ const mockT = (
     'dashboard:inspiration.dashboardPlaceholderWithoutInspirations': '输入一句核心冲突，开始创作你的故事',
     'activationGuide.steps.signup_success': '完成注册',
     'activationGuide.steps.project_created': '创建项目',
-    'activationGuide.steps.first_file_saved': '保存首个文件',
-    'activationGuide.steps.first_ai_action_accepted': '接受首个 AI 动作',
+    'activationGuide.steps.first_file_saved': '保存第一个文件',
+    'activationGuide.steps.first_ai_action_accepted': '采纳一次 AI 修改',
   }
   if (typeof options === 'string') {
     return translations[key] || options || key
@@ -451,12 +451,12 @@ describe('DashboardHome featured inspirations section', () => {
     const guideCard = await screen.findByTestId('activation-guide-card')
     const guide = within(guideCard)
     expect(guideCard).toBeInTheDocument()
-    expect(guide.getByText('首日激活向导')).toBeInTheDocument()
+    expect(guide.getByText('新手上手清单')).toBeInTheDocument()
 
     // Language adaptation: show localized step labels instead of raw backend English.
     expect(guide.getByText('完成注册')).toBeInTheDocument()
     expect(guide.getByText('创建项目')).toBeInTheDocument()
-    expect(guide.getByText('保存首个文件')).toBeInTheDocument()
+    expect(guide.getByText('保存第一个文件')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '继续下一步' }))
     expect(mockNavigate).toHaveBeenCalledWith('/project/project-1')
@@ -474,7 +474,7 @@ describe('DashboardHome featured inspirations section', () => {
     const todayActionCard = await screen.findByTestId('today-action-plan-card')
     const todayAction = within(todayActionCard)
     expect(todayActionCard).toBeInTheDocument()
-    expect(await todayAction.findByText('创建你的首个项目')).toBeInTheDocument()
+    expect(await todayAction.findByText('创建第一个项目')).toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('today-action-execute-1'))
 

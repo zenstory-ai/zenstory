@@ -11,9 +11,10 @@
   },
   "userPanel": {
     "quickSettings": "快捷设置",
-    "openPanel": "打开用户面板",
+    "openPanel": "账户菜单",
     "adminPanel": "管理后台",
-    "replayTour": "重新查看新手引导"
+    "replayTour": "重新查看新手引导",
+    "openSettings": "设置"
   },
   "dashboard": {
     "title": "项目数据统计",
@@ -27,7 +28,7 @@
     },
     "error": {
       "title": "加载数据统计失败",
-      "message": "加载统计页面时发生错误。"
+      "message": "点击“重试”重新加载。"
     },
     "realInspirationsTitle": "如果你还没想好，可以从这里开始：",
     "realInspirationsRefresh": "换一批"
@@ -39,17 +40,16 @@
   },
   "billing": {
     "title": "订阅与权益",
-    "subtitle": "查看套餐权益、配额使用情况并快速升级",
+    "subtitle": "查看当前套餐和用量，需要更多额度时可升级或使用兑换码。",
     "currentPlan": "当前套餐",
     "unknownPlan": "未开通",
     "unlockPro": "解锁 Pro",
-    "usageTitle": "当前配额使用",
+    "usageTitle": "当前用量",
     "compareTitle": "套餐权益对比",
-    "catalogSubtitle": "按可完成任务选择计划，而不是按技术参数做决定",
+    "catalogSubtitle": "按每月要写多少、同时写几部作品来选。",
     "pricingHeroTitle": "按你的创作任务选择计划",
     "pricingHeroSubtitle": "先明确目标，再选方案：从试用到专业创作一步到位。",
-    "taskLedBadge": "按创作任务选方案",
-    "billingCycleLabel": "选择计费周期",
+    "billingCycleLabel": "购买时长",
     "free": "免费",
     "perMonth": "/月",
     "perYear": "/年",
@@ -60,7 +60,7 @@
     "yearly": "年付",
     "yearlySaveUpTo": "年付最高省 {{percent}}%",
     "yearlyMaxSaveHint": "年付最高可省 {{percent}}",
-    "yearlyMaxSaveHintFallback": "切换月付/年付，按预算灵活决策",
+    "yearlyMaxSaveHintFallback": "可按月或按年购买",
     "yearlySaveBadge": "年付省 {{amount}} · {{percent}}%",
     "yearlyEquivalent": "折合 {{price}}/月",
     "yearlySaveAmount": "比月付省 {{amount}}",
@@ -71,24 +71,24 @@
     "showOnlyDiff": "仅看差异",
     "showAllFeatures": "显示全部能力",
     "noDifferences": "当前套餐关键能力暂无差异",
-    "noDiffMetric": "当前维度下，这些套餐暂无可见差异",
+    "noDiffMetric": "各套餐在这些项目上没有区别",
     "ctaFreeStart": "免费开始",
     "ctaUpgradePro": "升级专业版",
     "trustTitle": "放心开通，随时可调整",
     "trustFlexible": "支付宝单次支付，不会自动续费",
-    "trustSecurity": "数据传输与存储全程保护，创作资产更安心",
-    "summaryStarter": "快速验证想法，从灵感到首稿轻量起步。",
-    "summaryCreator": "稳定连载不掉速，适合长期日更与周更。",
-    "targetExplorer": "新手作者与轻度创作用户",
+    "trustSecurity": "作品数据通过加密连接传输",
+    "summaryStarter": "先免费试写，从一句灵感写到第一稿。",
+    "summaryCreator": "额度更高，适合日更、周更的长篇连载。",
+    "targetExplorer": "刚开始写或偶尔写的作者",
     "targetDailyWriter": "日更作者、长篇连载创作者",
-    "metricWriting": "可创作体量",
-    "metricWritingOutcome": "支持从大纲到正文的连续输出",
-    "metricAgentRuns": "Agent 深度任务",
-    "metricAgentRunsOutcome": "用于拆解任务、扩写、润色与修订",
-    "metricProjects": "活跃项目",
-    "metricProjectsOutcome": "同时推进多本作品，不必频繁归档",
+    "metricWriting": "AI 写作字数",
+    "metricWritingOutcome": "AI 帮你写大纲和正文的每月额度",
+    "metricAgentRuns": "AI 深度任务",
+    "metricAgentRunsOutcome": "扩写、润色、修订等需要多步完成的任务",
+    "metricProjects": "项目数",
+    "metricProjectsOutcome": "可以同时写几部作品",
     "metricExport": "导出格式",
-    "metricExportOutcome": "完稿可直接交付给编辑、团队或客户",
+    "metricExportOutcome": "把作品导出成文件，用于投稿或备份",
     "metricWritingFriendly": "每月可完成内容",
     "metricAgentRunsFriendly": "复杂任务处理",
     "metricProjectsFriendly": "可并行项目数",
@@ -106,140 +106,142 @@
     "metricMaterialUploads": "素材上传",
     "metricMaterialUploadsOutcome": "支持持续补充资料，不中断创作流",
     "metricMaterialDecompositions": "素材拆解次数",
-    "metricMaterialDecompositionsOutcome": "每月可拆解参考素材，快速提取结构化要点",
+    "metricMaterialDecompositionsOutcome": "把参考小说拆成人物、情节等要点",
     "metricCustomSkills": "自定义技能",
-    "metricCustomSkillsOutcome": "沉淀团队方法论并复用到日常创作",
-    "metricInspirationCopies": "灵感复用",
-    "metricInspirationCopiesOutcome": "将优秀模板复制到项目，快速启动创作",
-    "ctaBuyPro": "在线购买 Pro",
-    "paymentTitle": "支付宝在线开通 Pro",
+    "metricCustomSkillsOutcome": "把常用的写作要求存成技能，随时调用",
+    "metricInspirationCopies": "复制灵感",
+    "metricInspirationCopiesOutcome": "把灵感库中的灵感复制成你的项目",
+    "ctaBuyPro": "购买 Pro",
+    "paymentTitle": "用支付宝开通 Pro",
     "monthlyDuration": "月付 · 30 天",
     "yearlyDuration": "年付 · 365 天",
     "alipay": "支付宝",
-    "paymentUnavailable": "在线支付暂未开放，你仍可使用兑换码开通。",
+    "paymentUnavailable": "暂时无法在线支付。有兑换码的话，可在「订阅权益」页点「兑换码」开通。",
     "paymentInvalidCheckout": "无法跳转到支付宝，请刷新页面后重试",
     "paymentCreateFailed": "暂时无法创建订单，请稍后重试",
     "paymentCreating": "正在创建订单...",
     "payWithAlipay": "支付宝支付{{price}}",
-    "paymentReturnInvalid": "无法确认支付订单",
-    "paymentReturnMissingOrder": "未找到订单信息，请返回订阅页查看。",
+    "paymentReturnInvalid": "没有找到这笔订单",
+    "paymentReturnMissingOrder": "回到「订阅权益」查看 Pro 是否已开通。",
     "paymentChecking": "正在确认支付结果...",
-    "paymentCheckFailed": "订单查询失败",
-    "paymentCheckFailedHint": "请稍后重试。若已完成付款，请勿重复支付。",
+    "paymentCheckFailed": "暂时查不到支付结果",
+    "paymentCheckFailedHint": "已付款请不要重复支付，稍后点「刷新支付结果」。",
     "paymentActivated": "支付成功，Pro 已开通",
-    "paymentActivatedHint": "可返回订阅页面查看最新配额。",
-    "paymentPending": "支付结果处理中",
-    "paymentPendingHint": "页面会自动刷新。若已付款，请勿重复支付。",
+    "paymentActivatedHint": "回到「订阅权益」可查看最新额度。",
+    "paymentPending": "付款确认中",
+    "paymentPendingHint": "本页会自动更新。已付款请不要重复支付。",
     "paymentOrderNumber": "订单号",
     "backToBilling": "返回订阅与权益",
     "ctaRenewPro": "续费 Pro",
     "paymentRefresh": "刷新支付结果",
-    "paymentPendingTimeout": "暂未确认到支付结果。若已付款，请勿重复支付，可稍后点击刷新；长时间未开通请联系客服并提供订单号。",
-    "paymentFulfillmentRetrying": "支付已确认，会员暂未开通",
-    "paymentFulfillmentRetryingHint": "请勿重复付款，可稍后点击刷新；如长时间未开通，请联系客服并提供下方订单号。",
+    "paymentPendingTimeout": "还没有确认到付款。已付款请不要重复支付，稍后点「刷新支付结果」；如果一直没有开通，请发邮件到 support@zenstory.ai 并附上订单号。",
+    "paymentFulfillmentRetrying": "付款已确认，Pro 还没开通",
+    "paymentFulfillmentRetryingHint": "请不要重复付款。稍后点「刷新支付结果」；如果一直没有开通，请发邮件到 support@zenstory.ai 并附上下方订单号。",
     "paymentRedirecting": "正在前往支付宝...",
     "ctaProNeutral": "开通或续费 Pro",
-    "paymentPageOutdated": "页面已更新，请刷新页面后重试"
+    "paymentPageOutdated": "页面已更新，请刷新页面后重试",
+    "redeemSuccessDays": "兑换成功，本次兑换 {{days}} 天会员。",
+    "redeeming": "正在兑换..."
   },
   "todayActionPlan": {
-    "title": "今日 3 步建议",
-    "subtitle": "基于你的当前进度生成，每一步都可一键执行。",
-    "cta": "一键执行",
-    "executing": "执行中...",
+    "title": "今天可以做的 3 件事",
+    "subtitle": "根据你的写作进度推荐。",
+    "cta": "去完成",
+    "executing": "处理中...",
     "expand": "查看全部",
     "collapse": "收起",
     "expandHint": "展开可查看其余建议",
-    "activationDescription": "完成该里程碑，解锁更顺畅的创作流程。",
-    "personaDescription": "基于你的偏好推荐的下一步动作。",
+    "activationDescription": "上手必做的一步。",
+    "personaDescription": "根据你填写的写作偏好推荐。",
     "personaRecommendations": {
       "persona_explorer_template": {
-        "title": "探索型模板推荐",
-        "description": "优先给你开放灵感模板和快速起稿入口。"
+        "title": "从灵感库挑一个开头",
+        "description": "浏览灵感库，选一个喜欢的复制成你的项目。"
       },
       "persona_serial_streak": {
-        "title": "连载节奏建议",
-        "description": "设置每天写作目标并追踪连更进度。"
+        "title": "保持连载节奏",
+        "description": "每天写一点，在项目统计里查看连续写作天数。"
       },
       "persona_professional_efficiency": {
-        "title": "效率工作流",
-        "description": "突出大纲-章节-改稿的一键流转能力。"
+        "title": "按大纲推进章节",
+        "description": "打开项目，先列大纲，再让 AI 按大纲写章节、改稿。"
       },
       "persona_fanfic_consistency": {
-        "title": "设定一致性检查",
-        "description": "优先推荐角色关系和设定一致性工具。"
+        "title": "整理角色与设定",
+        "description": "把角色和设定写进项目，AI 写作时会参考它们。"
       },
       "persona_studio_collab": {
-        "title": "团队协作入口",
-        "description": "推荐更适合团队分工的项目组织方式。"
+        "title": "按作品分开管理",
+        "description": "每部作品建一个项目，大纲、正文和设定分开存放。"
       },
       "goal_monetize_upgrade": {
-        "title": "变现能力建议",
-        "description": "查看升级权益，优先解锁增长与商业化能力。"
+        "title": "对比套餐",
+        "description": "看看免费版和 Pro 在写作额度、项目数和导出格式上的区别。"
       },
       "goal_quality_review": {
-        "title": "质量提升路径",
-        "description": "使用 AI 评审与改稿建议提高文本质量。"
+        "title": "让 AI 帮你改稿",
+        "description": "打开项目，在右侧 AI 对话里请它审读并修改章节。"
       },
       "goal_habit_activation": {
-        "title": "写作习惯养成",
-        "description": "每日完成一个小目标，形成稳定创作节奏。"
+        "title": "每天写一点",
+        "description": "给自己定个小目标，比如今天写 500 字。"
       },
       "level_beginner_path": {
-        "title": "新手引导路径",
-        "description": "先从模板起步，再逐步完善角色和章节。"
+        "title": "从灵感起步",
+        "description": "先选一个灵感开头，再慢慢补充角色和章节。"
       },
       "level_advanced_shortcut": {
-        "title": "进阶快捷模式",
-        "description": "为你优先展示批量改稿和高阶编辑能力。"
+        "title": "直接进入项目",
+        "description": "打开项目，用 AI 对话扩写、改稿或整理设定。"
       }
     },
     "defaults": {
       "createProject": {
-        "title": "创建你的首个项目",
-        "description": "先把灵感落到项目里，后续写作与导出都会更顺畅。",
-        "cta": "一键建项目"
+        "title": "创建第一个项目",
+        "description": "写一句灵感就能开始，大纲、正文和设定都会放在这个项目里。",
+        "cta": "新建项目"
       },
       "openProject": {
-        "title": "继续最近项目",
-        "description": "延续上下文继续写，效率最高。"
+        "title": "继续最近的项目",
+        "description": "从上次停下的地方接着写。"
       },
       "exportProject": {
-        "title": "验证导出链路",
-        "description": "打开项目后可直接点击“导出”，快速完成交付检查。",
-        "cta": "去项目导出"
+        "title": "导出你的作品",
+        "description": "打开项目，点「导出正文」下载成稿文件。",
+        "cta": "打开项目"
       },
       "upgrade": {
-        "title": "查看升级权益",
-        "description": "提前确认配额和导出能力，避免创作中断。",
-        "cta": "去升级页"
+        "title": "查看额度",
+        "description": "看看本月还剩多少额度，不够时可以升级。",
+        "cta": "查看额度"
       },
       "inspirations": {
-        "title": "补充灵感素材",
-        "description": "浏览精选灵感，快速补齐创作输入。"
+        "title": "逛逛灵感库",
+        "description": "卡住时，看看精选灵感找开头和设定。"
       }
     }
   },
   "activationGuide": {
-    "title": "首日激活向导",
+    "title": "新手上手清单",
     "progress": "已完成 {{done}} / {{total}}",
     "nextAction": "继续下一步",
     "steps": {
       "signup_success": "完成注册",
       "project_created": "创建项目",
-      "first_file_saved": "保存首个文件",
-      "first_ai_action_accepted": "接受首个 AI 动作"
+      "first_file_saved": "保存第一个文件",
+      "first_ai_action_accepted": "采纳一次 AI 修改"
     }
   },
   "hero": {
-    "greeting": "你好 {{name}}",
+    "greeting": "你好，{{name}}",
     "question": "今天想创作些什么呢？",
     "slogan": "让 AI 成为你的创作伙伴",
-    "startWriting": "开始创作"
+    "startWriting": "开始创作",
+    "defaultName": "作者"
   },
   "projects": {
     "recent": "最近项目",
     "all": "所有项目",
-    "subtitle": "管理和浏览所有项目",
     "new": "新建项目",
     "filterAll": "全部",
     "count": "共 {{count}} 个项目",
@@ -255,14 +257,15 @@
     "createNew": "创建新项目",
     "namePlaceholder": "给你的作品起个名字",
     "confirmDeleteTitle": "确定删除这个项目？",
-    "confirmDeleteMessage": "删除后将无法恢复所有内容，请谨慎操作",
+    "confirmDeleteMessage": "项目里的所有内容会一起删除，且无法恢复。",
     "confirmDeleteButton": "确认删除",
     "cancel": "取消",
     "cannotDeleteLast": "无法删除最后一个项目",
     "editName": "编辑项目名称",
     "deleteProject": "删除项目",
-    "quotaExceededTitle": "项目数量已达上限",
-    "quotaExceededDesc": "当前套餐可创建的项目数量已达上限。可先升级套餐，或查看套餐对比后再决定。"
+    "quotaExceededTitle": "项目数已达上限",
+    "quotaExceededDesc": "当前套餐的项目数已用完。升级 Pro 可以建更多项目，也可以先删除不再需要的项目。",
+    "deleteConfirm": "删除这个项目？项目里的所有内容会一起删除，且无法恢复。"
   },
   "inspiration": {
     "title": "创作灵感",
@@ -279,7 +282,7 @@
     "featured": "精选灵感",
     "viewAll": "查看全部",
     "emptyTitle": "暂无精选灵感",
-    "emptyHint": "当前暂无精选灵感，去灵感库发现更多创作灵感。",
+    "emptyHint": "去灵感库看看更多故事开头。",
     "emptyCta": "查看灵感库"
   },
   "time": {
@@ -417,8 +420,7 @@
         "daily": "每日",
         "weekly": "每周",
         "monthly": "每月"
-      },
-      "trendDescription": "跟踪你的日/周/月创作进度，使用上方时间范围切换查看。"
+      }
     },
     "chapterCompletion": {
       "title": "章节完成",
@@ -451,7 +453,7 @@
       "frozen": "已冻结",
       "freezeAvailable": "可冻结",
       "freezeUsed": "已使用冻结",
-      "recoveryAvailable": "可恢复",
+      "recoveryAvailable": "漏写后保住连续的次数",
       "keepWriting": "继续加油！",
       "startWriting": "开始今天的创作吧",
       "daysUntilBreak": "{{count}} 天后将中断",
@@ -459,7 +461,7 @@
         "title": "连续写作小贴士",
         "daily": "每天至少写 10 个字，保持写作连续。",
         "consistency": "比起单次高产，稳定连续更重要，哪怕每天一点点。",
-        "recovery": "如果断更了，使用连续恢复机会来保持连续记录。"
+        "recovery": "漏写一天不会马上中断，隔天接着写就能保住连续记录。"
       }
     },
     "lastWritingDate": "上次写作",
@@ -477,10 +479,6 @@
       "message": "{{count}} 条消息",
       "message_one": "{{count}} 条消息",
       "message_other": "{{count}} 条消息",
-      "tokens": "{{count}} tokens",
-      "tokens_one": "{{count}} tokens",
-      "tokens_other": "{{count}} tokens",
-      "estimatedTokens": "预估 tokens",
       "today": "今日使用",
       "thisWeek": "本周使用",
       "thisMonth": "本月使用",
@@ -501,9 +499,9 @@
       "startNew": "新建对话",
       "tips": {
         "title": "AI 使用建议",
-        "efficiency": "将 AI 用于头脑风暴、大纲规划和改稿，可显著提升效率。",
-        "iterative": "迭代式细化通常比一次性生成更容易得到高质量结果。",
-        "context": "给 AI 提供故事上下文（角色/设定/已有章节）能获得更贴合的建议。"
+        "efficiency": "让 AI 帮你想点子、列大纲、改稿。",
+        "iterative": "先让 AI 写一版，再告诉它哪里要改，效果更好。",
+        "context": "在“AI 记忆”里写好角色、设定和文风，AI 的建议会更贴合你的故事。"
       }
     },
     "loading": "加载统计数据中...",
@@ -537,7 +535,7 @@
       },
       "inspirationsLink": {
         "title": "没想法就先来这里",
-        "description": "灵感库可以帮你补素材、补设定、补开头。卡住时先来这里找突破口。"
+        "description": "卡住时来这里找故事开头和设定灵感。"
       }
     }
   }

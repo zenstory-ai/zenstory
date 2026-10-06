@@ -640,7 +640,7 @@ export const InspirationManagement: React.FC = () => {
                 disabled={deleteMutation.isPending}
                 className="w-full sm:w-auto px-4 py-2.5 min-h-11 bg-[hsl(var(--error))] text-white rounded-lg hover:bg-[hsl(var(--error)/0.9)] active:scale-95 transition-all text-sm disabled:opacity-50"
               >
-                {deleteMutation.isPending ? t("common:loading") : t("common:confirm")}
+                {deleteMutation.isPending ? t("common:loading") : t("inspirations.deleteTitle")}
               </button>
             </div>
           </div>

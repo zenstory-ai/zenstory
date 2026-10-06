@@ -146,7 +146,7 @@ export function ContinueWritingCard({
       return {
         ...inProgress,
         fileType: 'draft',
-        reason: t('statistics.continueWriting.inProgress', 'In Progress'),
+        reason: t('statistics.continueWriting.inProgress', '写作中'),
       };
     }
 
@@ -156,7 +156,7 @@ export function ContinueWritingCard({
       return {
         ...notStarted,
         fileType: 'outline',
-        reason: t('statistics.continueWriting.notStarted', 'Ready to Start'),
+        reason: t('statistics.continueWriting.notStarted', '待开始'),
       };
     }
 
@@ -166,7 +166,7 @@ export function ContinueWritingCard({
       return {
         ...completed,
         fileType: 'draft',
-        reason: t('statistics.continueWriting.completed', 'Recently Finished'),
+        reason: t('statistics.continueWriting.completed', '已完成'),
       };
     }
 

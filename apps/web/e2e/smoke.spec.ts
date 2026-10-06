@@ -341,13 +341,13 @@ test.describe('Smoke Tests - Critical Path', () => {
       await gotoWithRetry(page, '/dashboard/inspirations');
       await expect(page).toHaveURL(/\/dashboard\/inspirations/, { timeout: 10000 });
 
-      const useButton = page.getByRole('button', { name: /使用|Use/i }).first();
+      const useButton = page.getByRole('button', { name: /创建项目|Create project/i }).first();
       await expect(useButton).toBeVisible({ timeout: 10000 });
       await useButton.click();
 
-      await expect(page.getByText(/灵感复制额度已用尽|quota/i).first()).toBeVisible({ timeout: 10000 });
+      await expect(page.getByText(/本月灵感使用次数已用完|limit reached/i).first()).toBeVisible({ timeout: 10000 });
 
-      const upgradeButton = page.getByRole('button', { name: /查看升级方案|Upgrade/i }).first();
+      const upgradeButton = page.getByRole('button', { name: /升级套餐|Upgrade/i }).first();
       await upgradeButton.click();
 
       await expect(page).toHaveURL(/\/dashboard\/billing\?source=inspiration_copy_quota_blocked/, {

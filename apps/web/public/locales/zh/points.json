@@ -6,7 +6,7 @@
   "alreadyCheckedIn": "今日已签到",
   "checkIn": "签到领积分",
   "checkInSuccess": "签到成功！+{{points}} 积分",
-  "checkInFailed": "签到失败，请稍后重试",
+  "checkInFailed": "签到失败，请重试",
   "earnMore": "获取更多积分",
   "completed": "已完成",
   "redeem": "兑换",
@@ -17,12 +17,10 @@
   "days": "天",
   "pointsLabel": "积分",
   "proBenefits": "Pro 会员权益",
-  "redeemFailed": "兑换失败，请稍后重试",
+  "redeemFailed": "兑换失败，请重试",
   "benefit": {
-    "unlimitedAI": "无限 AI 对话",
-    "unlimitedProjects": "无限项目",
-    "allFormats": "TXT 导出",
-    "priority": "优先功能体验"
+    "unlimitedAI": "更多 AI 写作额度",
+    "unlimitedProjects": "可创建更多项目"
   },
   "opportunityDescriptions": {
     "check_in": "每日签到",
@@ -33,7 +31,7 @@
     "profile_complete": "完善资料（头像和昵称）"
   },
   "history": "积分记录",
-  "historyError": "加载历史记录失败",
+  "historyError": "积分记录加载失败，请刷新重试",
   "noHistory": "暂无积分记录",
   "totalTransactions": "共 {{count}} 条记录",
   "expired": "已过期",
@@ -45,7 +43,7 @@
     "inspiration_contribution": "灵感贡献",
     "profile_complete": "完善资料",
     "redeem_pro": "兑换 Pro",
-    "admin_adjust": "管理员调整",
+    "admin_adjust": "积分调整",
     "admin_grant": "系统赠送",
     "expiration": "积分过期"
   },
@@ -65,6 +63,6 @@
     "daysAgo_other": "{{count}} 天前",
     "daysAgo_plural": "{{count}} 天前"
   },
-  "balanceLoadFailed": "无法加载积分余额",
-  "configLoadFailed": "无法加载兑换价格"
+  "balanceLoadFailed": "积分余额没加载出来，请重试",
+  "configLoadFailed": "兑换价格没加载出来，请重试"
 }

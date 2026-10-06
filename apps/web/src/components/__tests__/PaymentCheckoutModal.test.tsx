@@ -129,7 +129,7 @@ describe('PaymentCheckoutModal', () => {
   it('disables checkout when server options are disabled', async () => {
     vi.mocked(paymentApi.getOptions).mockResolvedValue({ enabled: false, payment_methods: [] })
     renderModal()
-    expect(await screen.findByText('在线支付暂未开放，你仍可使用兑换码开通。')).toBeInTheDocument()
+    expect(await screen.findByText('暂时无法在线支付。有兑换码的话，可在「订阅权益」页点「兑换码」开通。')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /支付宝支付/ })).toBeDisabled()
   })
 

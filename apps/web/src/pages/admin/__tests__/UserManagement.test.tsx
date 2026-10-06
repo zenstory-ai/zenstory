@@ -183,7 +183,7 @@ describe("UserManagement", () => {
     expect(screen.getByText("users.deleteConfirm")).toBeInTheDocument();
 
     mutateMock.mockClear();
-    fireEvent.click(screen.getByRole("button", { name: "common:confirm" }));
+    fireEvent.click(screen.getByRole("button", { name: "users.confirmDelete" }));
     expect(mutateMock).toHaveBeenCalledWith("user-1");
   });
 

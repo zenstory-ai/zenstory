@@ -14,7 +14,7 @@ interface RedeemCodeModalProps {
 }
 
 export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProps) {
-  const { t } = useTranslation(['settings', 'common']);
+  const { t } = useTranslation(['settings', 'dashboard', 'common']);
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -29,7 +29,12 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
         duration_days: data.duration_days ?? undefined,
         source,
       });
-      setSuccess(data.message || t('settings:subscription.redeemSuccess', '兑换成功！'));
+      // The server's message is English-only; show the localized result instead.
+      setSuccess(
+        data.duration_days
+          ? t('dashboard:billing.redeemSuccessDays', '兑换成功，本次兑换 {{days}} 天会员。', { days: data.duration_days })
+          : t('settings:subscription.redeemSuccess', '兑换成功！')
+      );
       setError('');
       setCode('');
       queryClient.invalidateQueries({ queryKey: ['subscription-status'] });
@@ -119,7 +124,7 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
             disabled={redeemMutation.isPending || !code.trim()}
             className="px-4 py-2 text-sm bg-[hsl(var(--accent-primary))] text-white rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {redeemMutation.isPending ? t('common:loading', '处理中...') : t('settings:subscription.redeem', '兑换')}
+            {redeemMutation.isPending ? t('dashboard:billing.redeeming', '正在兑换...') : t('settings:subscription.redeem', '兑换')}
           </button>
         </Modal.Footer>
       </form>

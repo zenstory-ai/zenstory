@@ -221,7 +221,7 @@ export default function AdminDashboard() {
             <h2 className="text-lg font-semibold mb-3 text-[hsl(var(--text-primary))]">
               {t('admin:dashboard.activationFunnelTitle', {
                 days: selectedWindowDays,
-                defaultValue: `Activation Funnel (${selectedWindowDays} days)`,
+                defaultValue: `激活漏斗（${selectedWindowDays}天）`,
               })}
             </h2>
 
@@ -233,7 +233,7 @@ export default function AdminDashboard() {
 
             {!activationFunnelLoading && activationFunnelError && (
               <p className="text-sm text-[hsl(var(--error))]">
-                {t('admin:dashboard.loadError', 'Failed to load')}
+                {t('admin:dashboard.loadError', '加载失败，请重试')}
               </p>
             )}
 
@@ -256,7 +256,7 @@ export default function AdminDashboard() {
                 ))}
 
                 <div className="pt-2 text-sm text-[hsl(var(--text-secondary))]">
-                  {t('admin:dashboard.activationRate', 'Activation rate')}:{" "}
+                  {t('admin:dashboard.activationRate', '激活率')}:{" "}
                   <span className="font-semibold text-[hsl(var(--text-primary))]">
                     {formatPercent(activationFunnel?.activation_rate)}
                   </span>
@@ -269,7 +269,7 @@ export default function AdminDashboard() {
             <h2 className="text-lg font-semibold mb-3 text-[hsl(var(--text-primary))]">
               {t('admin:dashboard.upgradeFunnelTitle', {
                 days: selectedWindowDays,
-                defaultValue: `Upgrade Entry Funnel (${selectedWindowDays} days)`,
+                defaultValue: `升级入口漏斗（${selectedWindowDays}天）`,
               })}
             </h2>
 
@@ -281,7 +281,7 @@ export default function AdminDashboard() {
 
             {!upgradeFunnelLoading && upgradeFunnelError && (
               <p className="text-sm text-[hsl(var(--error))]">
-                {t('admin:dashboard.loadError', 'Failed to load')}
+                {t('admin:dashboard.loadError', '加载失败，请重试')}
               </p>
             )}
 
@@ -290,7 +290,7 @@ export default function AdminDashboard() {
                 <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-3 lg:grid-cols-6">
                   <div className="rounded-md border border-[hsl(var(--separator-color)/0.5)] p-2">
                     <div className="text-[hsl(var(--text-secondary))]">
-                      {t('admin:dashboard.upgradeExpose', 'Expose')}
+                      {t('admin:dashboard.upgradeExpose', '曝光')}
                     </div>
                     <div className="text-[hsl(var(--text-primary))] font-semibold">
                       {upgradeTotals.expose}
@@ -298,7 +298,7 @@ export default function AdminDashboard() {
                   </div>
                   <div className="rounded-md border border-[hsl(var(--separator-color)/0.5)] p-2">
                     <div className="text-[hsl(var(--text-secondary))]">
-                      {t('admin:dashboard.upgradeClick', 'Click')}
+                      {t('admin:dashboard.upgradeClick', '点击')}
                     </div>
                     <div className="text-[hsl(var(--text-primary))] font-semibold">
                       {upgradeTotals.click}
@@ -306,7 +306,7 @@ export default function AdminDashboard() {
                   </div>
                   <div className="rounded-md border border-[hsl(var(--separator-color)/0.5)] p-2">
                     <div className="text-[hsl(var(--text-secondary))]">
-                      {t('admin:dashboard.upgradeConversion', 'Conversion')}
+                      {t('admin:dashboard.upgradeConversion', '转化')}
                     </div>
                     <div className="text-[hsl(var(--text-primary))] font-semibold">
                       {upgradeTotals.conversion}
@@ -314,7 +314,7 @@ export default function AdminDashboard() {
                   </div>
                   <div className="rounded-md border border-[hsl(var(--separator-color)/0.5)] p-2">
                     <div className="text-[hsl(var(--text-secondary))]">
-                      {t('admin:dashboard.upgradeCtr', 'CTR')}
+                      {t('admin:dashboard.upgradeCtr', '点击率')}
                     </div>
                     <div className="text-[hsl(var(--text-primary))] font-semibold">
                       {formatPercent(upgradeOverallCtr)}
@@ -322,7 +322,7 @@ export default function AdminDashboard() {
                   </div>
                   <div className="rounded-md border border-[hsl(var(--separator-color)/0.5)] p-2">
                     <div className="text-[hsl(var(--text-secondary))]">
-                      {t('admin:dashboard.upgradeCvrFromClick', 'CVR(Click)')}
+                      {t('admin:dashboard.upgradeCvrFromClick', '点击转化率')}
                     </div>
                     <div className="text-[hsl(var(--text-primary))] font-semibold">
                       {formatPercent(upgradeOverallCvrFromClick)}
@@ -330,7 +330,7 @@ export default function AdminDashboard() {
                   </div>
                   <div className="rounded-md border border-[hsl(var(--separator-color)/0.5)] p-2">
                     <div className="text-[hsl(var(--text-secondary))]">
-                      {t('admin:dashboard.upgradeCvrFromExpose', 'CVR(Expose)')}
+                      {t('admin:dashboard.upgradeCvrFromExpose', '曝光转化率')}
                     </div>
                     <div className="text-[hsl(var(--text-primary))] font-semibold">
                       {formatPercent(upgradeOverallCvrFromExpose)}
@@ -343,7 +343,7 @@ export default function AdminDashboard() {
                     <div className="text-xs text-[hsl(var(--text-secondary))]">
                       {t('admin:dashboard.upgradeSourceCount', {
                         count: allUpgradeSources.length,
-                        defaultValue: `Sources: ${allUpgradeSources.length}`,
+                        defaultValue: `来源数：${allUpgradeSources.length}`,
                       })}
                     </div>
                   )}
@@ -360,22 +360,22 @@ export default function AdminDashboard() {
                         <thead className="bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))]">
                           <tr>
                             <th className="px-3 py-2 text-left font-medium">
-                              {t('admin:dashboard.upgradeSource', 'Source')}
+                              {t('admin:dashboard.upgradeSource', '来源')}
                             </th>
                             <th className="px-3 py-2 text-right font-medium">
-                              {t('admin:dashboard.upgradeExpose', 'Expose')}
+                              {t('admin:dashboard.upgradeExpose', '曝光')}
                             </th>
                             <th className="px-3 py-2 text-right font-medium">
-                              {t('admin:dashboard.upgradeClick', 'Click')}
+                              {t('admin:dashboard.upgradeClick', '点击')}
                             </th>
                             <th className="px-3 py-2 text-right font-medium">
-                              {t('admin:dashboard.upgradeConversion', 'Conversion')}
+                              {t('admin:dashboard.upgradeConversion', '转化')}
                             </th>
                             <th className="px-3 py-2 text-right font-medium">
-                              {t('admin:dashboard.upgradeCtr', 'CTR')}
+                              {t('admin:dashboard.upgradeCtr', '点击率')}
                             </th>
                             <th className="px-3 py-2 text-right font-medium">
-                              {t('admin:dashboard.upgradeCvrFromExpose', 'CVR(Expose)')}
+                              {t('admin:dashboard.upgradeCvrFromExpose', '曝光转化率')}
                             </th>
                           </tr>
                         </thead>
@@ -410,11 +410,11 @@ export default function AdminDashboard() {
                       {showAllUpgradeSources
                         ? t('admin:dashboard.upgradeShowTopSources', {
                             count: MAX_VISIBLE_SOURCES,
-                            defaultValue: `Show top ${MAX_VISIBLE_SOURCES}`,
+                            defaultValue: `仅显示前 ${MAX_VISIBLE_SOURCES} 个`,
                           })
                         : t('admin:dashboard.upgradeShowAllSources', {
                             count: allUpgradeSources.length,
-                            defaultValue: `Show all ${allUpgradeSources.length}`,
+                            defaultValue: `查看全部（${allUpgradeSources.length}）`,
                           })}
                     </button>
                   )}
@@ -435,7 +435,7 @@ export default function AdminDashboard() {
 
               {!upgradeConversionLoading && upgradeConversionError && (
                 <p className="mt-2 text-sm text-[hsl(var(--error))]">
-                  {t('admin:dashboard.loadError', 'Failed to load')}
+                  {t('admin:dashboard.loadError', '加载失败，请重试')}
                 </p>
               )}
 
@@ -444,7 +444,7 @@ export default function AdminDashboard() {
                   <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-5">
                     <div className="rounded-md border border-[hsl(var(--accent-primary)/0.5)] p-2">
                       <div className="text-[hsl(var(--text-secondary))]">
-                        {t('admin:dashboard.upgradePaidConversions', 'Paid (Alipay)')}
+                        {t('admin:dashboard.upgradePaidConversions', '付费转化（支付宝）')}
                       </div>
                       <div className="text-[hsl(var(--text-primary))] font-semibold" data-testid="paid-conversions">
                         {upgradeConversionPaid}
@@ -452,7 +452,7 @@ export default function AdminDashboard() {
                     </div>
                     <div className="rounded-md border border-[hsl(var(--separator-color)/0.5)] p-2">
                       <div className="text-[hsl(var(--text-secondary))]">
-                        {t('admin:dashboard.upgradeAllConversions', 'All upgrades')}
+                        {t('admin:dashboard.upgradeAllConversions', '全部升级')}
                       </div>
                       <div className="text-[hsl(var(--text-primary))] font-semibold">
                         {upgradeConversionTotal}
@@ -460,7 +460,7 @@ export default function AdminDashboard() {
                     </div>
                     <div className="rounded-md border border-[hsl(var(--separator-color)/0.5)] p-2">
                       <div className="text-[hsl(var(--text-secondary))]">
-                        {t('admin:dashboard.upgradeAttributedConversions', 'Attributed')}
+                        {t('admin:dashboard.upgradeAttributedConversions', '已归因转化')}
                       </div>
                       <div className="text-[hsl(var(--text-primary))] font-semibold">
                         {upgradeConversionAttributed}
@@ -468,7 +468,7 @@ export default function AdminDashboard() {
                     </div>
                     <div className="rounded-md border border-[hsl(var(--separator-color)/0.5)] p-2">
                       <div className="text-[hsl(var(--text-secondary))]">
-                        {t('admin:dashboard.upgradeUnattributedConversions', 'Unattributed')}
+                        {t('admin:dashboard.upgradeUnattributedConversions', '未归因转化')}
                       </div>
                       <div className="text-[hsl(var(--text-primary))] font-semibold">
                         {upgradeConversionUnattributed}
@@ -476,7 +476,7 @@ export default function AdminDashboard() {
                     </div>
                     <div className="rounded-md border border-[hsl(var(--separator-color)/0.5)] p-2">
                       <div className="text-[hsl(var(--text-secondary))]">
-                        {t('admin:dashboard.upgradeAttributedShare', 'Attribution coverage')}
+                        {t('admin:dashboard.upgradeAttributedShare', '归因覆盖率')}
                       </div>
                       <div className="text-[hsl(var(--text-primary))] font-semibold">
                         {formatPercent(upgradeConversionAttributedShare)}
@@ -485,7 +485,7 @@ export default function AdminDashboard() {
                   </div>
 
                   {conversionChannels.length > 0 && (
-                    <ul className="flex flex-wrap gap-2 text-xs" aria-label={t('admin:dashboard.upgradeChannels', 'Upgrade channels')}>
+                    <ul className="flex flex-wrap gap-2 text-xs" aria-label={t('admin:dashboard.upgradeChannels', '升级渠道')}>
                       {conversionChannels.map((item) => (
                         <li
                           key={item.channel}
@@ -505,7 +505,7 @@ export default function AdminDashboard() {
                     <div className="text-xs text-[hsl(var(--text-secondary))]">
                       {t('admin:dashboard.upgradeConversionSourceCount', {
                         count: allConversionSources.length,
-                        defaultValue: `Attributed sources: ${allConversionSources.length}`,
+                        defaultValue: `归因来源：${allConversionSources.length}`,
                       })}
                     </div>
                   )}
@@ -522,13 +522,13 @@ export default function AdminDashboard() {
                         <thead className="bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))]">
                           <tr>
                             <th className="px-3 py-2 text-left font-medium">
-                              {t('admin:dashboard.upgradeSource', 'Source')}
+                              {t('admin:dashboard.upgradeSource', '来源')}
                             </th>
                             <th className="px-3 py-2 text-right font-medium">
-                              {t('admin:dashboard.upgradeConversion', 'Conversion')}
+                              {t('admin:dashboard.upgradeConversion', '转化')}
                             </th>
                             <th className="px-3 py-2 text-right font-medium">
-                              {t('admin:dashboard.upgradeConversionShare', 'Share')}
+                              {t('admin:dashboard.upgradeConversionShare', '转化占比')}
                             </th>
                           </tr>
                         </thead>
@@ -558,11 +558,11 @@ export default function AdminDashboard() {
                       {showAllConversionSources
                         ? t('admin:dashboard.upgradeShowTopConversionSources', {
                             count: MAX_VISIBLE_SOURCES,
-                            defaultValue: `Show top ${MAX_VISIBLE_SOURCES}`,
+                            defaultValue: `仅显示前 ${MAX_VISIBLE_SOURCES} 个归因来源`,
                           })
                         : t('admin:dashboard.upgradeShowAllConversionSources', {
                             count: allConversionSources.length,
-                            defaultValue: `Show all ${allConversionSources.length}`,
+                            defaultValue: `查看全部归因来源（${allConversionSources.length}）`,
                           })}
                     </button>
                   )}

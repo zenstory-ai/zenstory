@@ -145,7 +145,7 @@ export function FeedbackDialog({
       }
 
       await feedbackApi.submit(submitPayload);
-      toast.success(t("feedback.submitSuccess", "感谢反馈，我们已收到并会尽快处理。"));
+      toast.success(t("feedback.submitSuccess", "感谢反馈，我们已收到。"));
       closeDialog(true);
     } catch (error) {
       toast.error(handleApiError(error));
@@ -161,7 +161,7 @@ export function FeedbackDialog({
       title={t("feedback.title", "反馈问题")}
       description={t(
         "feedback.description",
-        "遇到问题或有改进建议？请告诉我们，我们会尽快处理。"
+        "遇到问题或有改进建议？告诉我们。"
       )}
       size="lg"
       footer={

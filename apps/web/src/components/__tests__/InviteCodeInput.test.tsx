@@ -286,7 +286,7 @@ describe('InviteCodeInput', () => {
       })
 
       // Helper text should be shown, not validation
-      expect(screen.getByText('填写邀请码可获得额外福利')).toBeInTheDocument()
+      expect(screen.getByText('填写邀请码可获得积分奖励')).toBeInTheDocument()
     })
 
     it('becomes touched on input change', () => {
@@ -360,7 +360,7 @@ describe('InviteCodeInput', () => {
         wrapper: createWrapper(),
       })
 
-      expect(screen.getByText('填写邀请码可获得额外福利')).toBeInTheDocument()
+      expect(screen.getByText('填写邀请码可获得积分奖励')).toBeInTheDocument()
     })
 
     it('hides helper text when showing validation', async () => {
@@ -377,7 +377,7 @@ describe('InviteCodeInput', () => {
       })
 
       // Helper text should not be visible when validation is shown
-      expect(screen.queryByText('填写邀请码可获得额外福利')).not.toBeInTheDocument()
+      expect(screen.queryByText('填写邀请码可获得积分奖励')).not.toBeInTheDocument()
     })
   })
 })

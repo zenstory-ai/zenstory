@@ -58,7 +58,7 @@ export default function ProjectDashboardPage() {
 
   // Tab configuration
   const tabs: { id: DashboardTab; icon: React.ElementType; label: string }[] = [
-    { id: 'overview', icon: BarChart3, label: t('dashboard.tabs.overview', 'Overview') },
+    { id: 'overview', icon: BarChart3, label: t('dashboard.tabs.overview', '总览') },
     { id: 'wordcount', icon: BarChart3, label: t('statistics.wordCount.title') },
     { id: 'chapters', icon: BookOpen, label: t('statistics.chapterCompletion.title') },
     { id: 'streak', icon: Flame, label: t('statistics.streak.title') },
@@ -128,18 +128,18 @@ export default function ProjectDashboardPage() {
             <AlertCircle className="w-8 h-8 text-[hsl(var(--error))]" />
           </div>
           <h2 className="text-xl font-semibold text-[hsl(var(--text-primary))] mb-2">
-            {t('dashboard.error.title', 'Failed to Load Dashboard')}
+            {t('dashboard.error.title', '加载数据统计失败')}
           </h2>
           <p className="text-sm text-[hsl(var(--text-secondary))] mb-6">
-            {error.message || t('dashboard.error.message', 'An error occurred while loading the dashboard.')}
+            {t('dashboard.error.message', '点击“重试”重新加载。')}
           </p>
           <div className="flex gap-3 justify-center">
             <button onClick={handleBack} className="btn-ghost">
-              {t('common.back', 'Back')}
+              {t('common.back', '返回')}
             </button>
             <button onClick={() => void refetch()} className="btn-primary flex items-center gap-2">
               <RefreshCw className="w-4 h-4" />
-              {t('common.retry', 'Retry')}
+              {t('common.retry', '重试')}
             </button>
           </div>
         </div>
@@ -156,16 +156,16 @@ export default function ProjectDashboardPage() {
             <button
               onClick={handleBack}
               className="p-2 rounded-lg hover:bg-[hsl(var(--bg-secondary))] transition-colors"
-              title={t('common.back', 'Back')}
+              title={t('common.back', '返回')}
             >
               <ArrowLeft className="w-5 h-5 text-[hsl(var(--text-secondary))]" />
             </button>
             <div>
               <h1 className={`font-bold text-[hsl(var(--text-primary))] ${isMobile ? 'text-lg' : 'text-xl'}`}>
-                {project?.name || t('dashboard.title', 'Project Dashboard')}
+                {project?.name || t('dashboard.title', '项目数据统计')}
               </h1>
               <p className={`text-[hsl(var(--text-secondary))] ${isMobile ? 'text-xs' : 'text-sm'}`}>
-                {t('dashboard.subtitle', 'Track your writing progress')}
+                {t('dashboard.subtitle', '追踪你的写作进度')}
               </p>
             </div>
           </div>
@@ -174,7 +174,7 @@ export default function ProjectDashboardPage() {
           <button
             onClick={() => void refetch()}
             className="p-2 rounded-lg hover:bg-[hsl(var(--bg-secondary))] transition-colors"
-            title={t('common.refresh', 'Refresh')}
+            title={t('common.refresh', '刷新')}
           >
             <RefreshCw className={`w-5 h-5 text-[hsl(var(--text-secondary))] ${isDashboardLoading ? 'animate-spin' : ''}`} />
           </button>
@@ -217,7 +217,7 @@ export default function ProjectDashboardPage() {
             {/* Primary Actions Section - Most Prominent */}
             <section>
               <h2 className={`font-semibold text-[hsl(var(--text-primary))] mb-3 ${isMobile ? 'text-sm' : 'text-base'}`}>
-                {t('dashboard.sections.nextSteps', 'What\'s Next')}
+                {t('dashboard.sections.nextSteps', '下一步行动')}
               </h2>
               <div className={`grid ${isMobile ? 'grid-cols-1' : isTablet ? 'grid-cols-2' : 'lg:grid-cols-3'} gap-4`}>
                 {/* Continue Writing - Primary Action */}
@@ -245,7 +245,7 @@ export default function ProjectDashboardPage() {
             {/* Secondary Statistics Section - Less Prominent */}
             <section>
               <h2 className={`font-semibold text-[hsl(var(--text-secondary))] mb-3 ${isMobile ? 'text-sm' : 'text-base'}`}>
-                {t('dashboard.sections.statistics', 'Statistics')}
+                {t('dashboard.sections.statistics', '统计概览')}
               </h2>
               <div className={`grid ${isMobile ? 'grid-cols-1' : isTablet ? 'grid-cols-2' : 'lg:grid-cols-4'} gap-4`}>
                 {/* Quick Stats Summary Cards */}
@@ -287,12 +287,9 @@ export default function ProjectDashboardPage() {
             {/* Additional word count details can be added here */}
             <div className="rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-5">
               <h3 className="text-base font-semibold text-[hsl(var(--text-primary))] mb-4">
-                {t('statistics.wordCount.trend.title', 'Word Count Trend')}
+                {t('statistics.wordCount.trend.title', '字数趋势')}
               </h3>
-              <p className="text-sm text-[hsl(var(--text-secondary))]">
-                {t('statistics.wordCount.trendDescription', 'Track your daily, weekly, and monthly writing progress. Click on the time range buttons to switch views.')}
-              </p>
-              <div className="mt-4 space-y-3">
+              <div className="space-y-3">
                 <div className="flex items-center justify-between p-3 rounded-lg bg-[hsl(var(--bg-tertiary))]">
                   <span className="text-sm text-[hsl(var(--text-secondary))]">
                     {t('statistics.wordCount.today')}
@@ -351,20 +348,20 @@ export default function ProjectDashboardPage() {
             {/* Streak tips */}
             <div className="rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-5">
               <h3 className="text-base font-semibold text-[hsl(var(--text-primary))] mb-4">
-                {t('statistics.streak.tips.title', 'Streak Tips')}
+                {t('statistics.streak.tips.title', '连续写作小贴士')}
               </h3>
               <ul className="space-y-3 text-sm text-[hsl(var(--text-secondary))]">
                 <li className="flex items-start gap-2">
                   <Flame className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />
-                  <span>{t('statistics.streak.tips.daily', 'Write at least 10 words daily to maintain your streak.')}</span>
+                  <span>{t('statistics.streak.tips.daily', '每天至少写 10 个字，保持写作连续。')}</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Flame className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />
-                  <span>{t('statistics.streak.tips.consistency', 'Consistency is more important than volume. Even small progress counts.')}</span>
+                  <span>{t('statistics.streak.tips.consistency', '比起单次高产，稳定连续更重要，哪怕每天一点点。')}</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Flame className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />
-                  <span>{t('statistics.streak.tips.recovery', 'Missed a day? Use a streak recovery to keep your streak alive.')}</span>
+                  <span>{t('statistics.streak.tips.recovery', '漏写一天不会马上中断，隔天接着写就能保住连续记录。')}</span>
                 </li>
               </ul>
             </div>
@@ -382,20 +379,20 @@ export default function ProjectDashboardPage() {
             {/* AI usage tips */}
             <div className="rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-5">
               <h3 className="text-base font-semibold text-[hsl(var(--text-primary))] mb-4">
-                {t('statistics.aiUsage.tips.title', 'AI Usage Tips')}
+                {t('statistics.aiUsage.tips.title', 'AI 使用建议')}
               </h3>
               <ul className="space-y-3 text-sm text-[hsl(var(--text-secondary))]">
                 <li className="flex items-start gap-2">
                   <Bot className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" />
-                  <span>{t('statistics.aiUsage.tips.efficiency', 'Use AI for brainstorming, outlining, and editing to maximize efficiency.')}</span>
+                  <span>{t('statistics.aiUsage.tips.efficiency', '让 AI 帮你想点子、列大纲、改稿。')}</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Bot className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" />
-                  <span>{t('statistics.aiUsage.tips.iterative', 'Iterative refinement yields better results than single-shot generation.')}</span>
+                  <span>{t('statistics.aiUsage.tips.iterative', '先让 AI 写一版，再告诉它哪里要改，效果更好。')}</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Bot className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" />
-                  <span>{t('statistics.aiUsage.tips.context', 'Provide context from your story for more relevant AI suggestions.')}</span>
+                  <span>{t('statistics.aiUsage.tips.context', '在“AI 记忆”里写好角色、设定和文风，AI 的建议会更贴合你的故事。')}</span>
                 </li>
               </ul>
             </div>

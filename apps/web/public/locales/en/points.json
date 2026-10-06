@@ -6,7 +6,7 @@
   "alreadyCheckedIn": "Checked in today",
   "checkIn": "Check in for points",
   "checkInSuccess": "Check-in successful! +{{points}} points",
-  "checkInFailed": "Check-in failed, please try again",
+  "checkInFailed": "Check-in failed. Please try again.",
   "earnMore": "Earn More Points",
   "completed": "Completed",
   "redeem": "Redeem",
@@ -17,12 +17,10 @@
   "days": "days",
   "pointsLabel": "points",
   "proBenefits": "Pro Benefits",
-  "redeemFailed": "Redemption failed, please try again",
+  "redeemFailed": "Redemption failed. Please try again.",
   "benefit": {
-    "unlimitedAI": "Unlimited AI chats",
-    "unlimitedProjects": "Unlimited projects",
-    "allFormats": "TXT export",
-    "priority": "Priority feature access"
+    "unlimitedAI": "More AI writing credits",
+    "unlimitedProjects": "Create more projects"
   },
   "opportunityDescriptions": {
     "check_in": "Daily check-in",
@@ -33,7 +31,7 @@
     "profile_complete": "Complete your profile (avatar and nickname)"
   },
   "history": "Points History",
-  "historyError": "Failed to load history",
+  "historyError": "Couldn't load points history. Refresh to try again.",
   "noHistory": "No points records",
   "totalTransactions": "{{count}} records total",
   "expired": "Expired",
@@ -45,7 +43,7 @@
     "inspiration_contribution": "Inspiration Contribution",
     "profile_complete": "Profile Completion",
     "redeem_pro": "Redeem Pro",
-    "admin_adjust": "Admin Adjustment",
+    "admin_adjust": "Points Adjustment",
     "admin_grant": "System Grant",
     "expiration": "Points Expired"
   },
@@ -65,6 +63,6 @@
     "daysAgo_other": "{{count}} days ago",
     "daysAgo_plural": "{{count}} days ago"
   },
-  "balanceLoadFailed": "Unable to load your points balance.",
-  "configLoadFailed": "Unable to load redemption prices."
+  "balanceLoadFailed": "Couldn't load your points balance. Please try again.",
+  "configLoadFailed": "Couldn't load redemption prices. Please try again."
 }

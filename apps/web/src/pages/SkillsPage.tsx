@@ -788,10 +788,9 @@ export default function SkillsPage() {
         source={skillCreateUpgradePrompt.source}
         primaryDestination="billing"
         secondaryDestination="pricing"
-        title={t("skills:quota.createTitle", { defaultValue: "自定义技能额度已用尽" })}
+        title={t("skills:quota.createTitle", { defaultValue: "自定义技能数量已达上限" })}
         description={t("skills:quota.createDescription", {
-          defaultValue:
-            "你已达到当前套餐可创建的自定义技能上限。可前往订阅页升级，或先查看套餐对比后再决定。",
+          defaultValue: "当前套餐的自定义技能已用满，升级套餐后可以继续创建。",
         })}
         primaryLabel={t("skills:quota.upgradePrimary", { defaultValue: "查看升级方案" })}
         onPrimary={() => {

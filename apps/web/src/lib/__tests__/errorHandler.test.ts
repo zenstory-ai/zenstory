@@ -76,10 +76,10 @@ describe('errorHandler', () => {
       expect(result).toBe('Validation error occurred')
     })
 
-    it('returns error code for unknown errors (falsy translation)', () => {
-      // When i18n.t returns empty string (defaultValue), translateError returns the error code
+    it('shows the generic message instead of an unknown error code (falsy translation)', () => {
+      // Untranslated ERR_ codes never reach the UI; the generic message is shown instead
       const result = translateError('ERR_UNKNOWN_ERROR')
-      expect(result).toBe('ERR_UNKNOWN_ERROR')
+      expect(result).toBe('An internal server error occurred')
     })
 
     it('falls back quota sub-codes to generic quota message', () => {
@@ -99,8 +99,8 @@ describe('errorHandler', () => {
 
     it('handles unknown error codes with underscores', () => {
       const result = translateError('ERR_AUTH_REGISTRATION_FAILED')
-      // Unknown codes return themselves
-      expect(result).toBe('ERR_AUTH_REGISTRATION_FAILED')
+      // Unknown codes show the generic message
+      expect(result).toBe('An internal server error occurred')
     })
   })
 
@@ -225,13 +225,13 @@ describe('errorHandler', () => {
     it('handles very long error messages', () => {
       const longMessage = 'ERR_' + 'A'.repeat(1000)
       const result = translateError(longMessage)
-      // Unknown error codes return themselves
-      expect(result).toBe(longMessage)
+      // Unknown error codes show the generic message
+      expect(result).toBe('An internal server error occurred')
     })
 
     it('handles special characters in error messages', () => {
       const result = translateError('ERR_SPECIAL_CHARS_!@#$%')
-      expect(result).toBe('ERR_SPECIAL_CHARS_!@#$%')
+      expect(result).toBe('An internal server error occurred')
     })
 
     it('handles unicode characters in error messages', () => {
@@ -241,7 +241,7 @@ describe('errorHandler', () => {
 
     it('handles error code with numbers', () => {
       const result = translateError('ERR_ERROR_123')
-      expect(result).toBe('ERR_ERROR_123')
+      expect(result).toBe('An internal server error occurred')
     })
 
     it('handles ERR_ prefix in middle of message', () => {
@@ -251,7 +251,7 @@ describe('errorHandler', () => {
 
     it('handles multiple ERR_ prefixes', () => {
       const result = translateError('ERR_FIRST_ERR_SECOND')
-      expect(result).toBe('ERR_FIRST_ERR_SECOND')
+      expect(result).toBe('An internal server error occurred')
     })
 
     it('handles Error object with empty message', () => {

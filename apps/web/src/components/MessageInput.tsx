@@ -852,7 +852,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           )}
           <div className="px-3 py-2 border-t border-[hsl(var(--border-color))] text-xs text-[hsl(var(--text-secondary))] flex items-center gap-1.5">
             <span>{t("chat:skill.hint")}</span>
-            <span className="text-[hsl(var(--accent-primary)/0.7)]">Tab {t("common:navigate")} · Enter {t("common:select")}</span>
           </div>
         </div>
       )}

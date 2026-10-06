@@ -33,7 +33,7 @@
   "operationSuccess": "Operation successful",
   "operationFailed": "Operation failed",
   "errors": {
-    "network": "Network error — we've saved your progress locally"
+    "network": "Network error. Please try again."
   },
   "fileTypes": {
     "folder": "Folder",
@@ -96,7 +96,7 @@
   "feedback": {
     "entry": "Feedback",
     "title": "Report an issue",
-    "description": "Found a bug or have a suggestion? Share it with us and we will follow up quickly.",
+    "description": "Found a bug or have a suggestion? Let us know.",
     "issueLabel": "Issue details",
     "issuePlaceholder": "Describe what happened, what you expected, and how to reproduce it.",
     "issueHint": "Up to {{max}} characters",
@@ -115,7 +115,7 @@
     "invalidImageSize": "Screenshot must be 5MB or smaller"
   },
   "projectLoadFailed": "Failed to load project",
-  "projectNotFound": "Project not found or not yet synced",
+  "projectNotFound": "Project not found",
   "tryAgain": "Try Again",
   "backToDashboard": "Back to Dashboard",
   "upgradePrompt": {

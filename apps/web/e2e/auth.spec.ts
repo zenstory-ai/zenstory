@@ -105,7 +105,7 @@ test.describe('Authentication', () => {
       // Current register page blocks submit until client-side validation passes.
       await expect(page.locator('button[type="submit"]')).toBeDisabled();
       await expect(page.locator('#register-confirm-password-helper')).toBeVisible();
-      await expect(page.locator('#register-confirm-password-helper')).toContainText(/(Passwords do not match|两次.*密码.*一致)/i);
+      await expect(page.locator('#register-confirm-password-helper')).toContainText(/(Passwords don’t match|两次.*密码.*一致)/i);
     });
 
     test('user cannot register with short password', async ({ page }) => {
@@ -209,7 +209,7 @@ test.describe('Authentication', () => {
       await page.click('button[type="submit"]');
 
       // Should show error message in the form
-      await expect(page.getByText(/(Invalid username or password|用户名或密码错误)/i)).toBeVisible();
+      await expect(page.getByText(/(Incorrect account or password|账号或密码错误)/i)).toBeVisible();
     });
 
     test('login form has link to register', async ({ page }) => {

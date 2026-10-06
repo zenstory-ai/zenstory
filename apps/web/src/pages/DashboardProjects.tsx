@@ -133,7 +133,6 @@ export default function DashboardProjects() {
       {/* Header */}
       <DashboardPageHeader
         title={t('projects.all')}
-        subtitle={t('projects.subtitle')}
         action={
           <button
             onClick={() => navigate('/dashboard')}

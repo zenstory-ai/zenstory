@@ -133,7 +133,7 @@ describe("OnboardingPersonaPage", () => {
 
     renderPage();
 
-    expect(screen.getByText("已读取你之前的画像，可随时更新")).toBeInTheDocument();
+    expect(screen.getByText("已带入你上次的选择")).toBeInTheDocument();
     expect(screen.getByText(/1\s*\/\s*3 已选/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /explorer/i })).toHaveAttribute("aria-pressed", "true");
   });
@@ -146,7 +146,7 @@ describe("OnboardingPersonaPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /professional/i }));
     fireEvent.click(screen.getByRole("button", { name: /fanfic/i }));
 
-    expect(screen.getByText("最多可选 3 项。可先取消一个，再继续选择。")).toBeInTheDocument();
+    expect(screen.getByText("最多选 3 项，请先取消一个。")).toBeInTheDocument();
     expect(screen.getByText(/3\s*\/\s*3 已选/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /fanfic/i })).toHaveAttribute("aria-pressed", "false");
   });
@@ -155,7 +155,7 @@ describe("OnboardingPersonaPage", () => {
     mockLocationState = { from: { pathname: "/onboarding/persona" } };
 
     renderPage();
-    fireEvent.click(screen.getByRole("button", { name: "暂时跳过" }));
+    fireEvent.click(screen.getByRole("button", { name: "跳过" }));
 
     await waitFor(() => {
       expect(mockSavePersonaOnboardingData).toHaveBeenCalledWith("user-onboarding-1", {

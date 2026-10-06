@@ -287,7 +287,7 @@ export function DocsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<'notFound' | 'loadError' | null>(null);
 
   // 获取完整的文档路径
   const fullDocPath = extractDocPath(location.pathname);
@@ -317,14 +317,14 @@ export function DocsPage() {
           if (mdContent) {
             setContent(mdContent);
           } else {
-            setError(t('notFound', 'Document Not Found'));
+            setError('notFound');
             setContent(null);
           }
         }
       } catch (err) {
         if (!cancelled) {
           logger.error('Failed to load markdown:', err);
-          setError(t('loadError', 'Failed to Load Document'));
+          setError('loadError');
           setContent(null);
         }
       } finally {
@@ -366,7 +366,7 @@ export function DocsPage() {
                 className="flex items-center gap-2 text-sm text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors"
               >
                 <Menu className="w-5 h-5" />
-                <span>{t('menu', 'Menu')}</span>
+                <span>{t('menu', '目录')}</span>
               </button>
             </div>
 
@@ -380,7 +380,7 @@ export function DocsPage() {
                       <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[hsl(var(--accent-primary))] animate-spin" />
                       <div className="absolute inset-2 rounded-full bg-[hsl(var(--accent-primary)/0.05)] blur-sm" />
                     </div>
-                    <p className="mt-4 text-sm text-[hsl(var(--text-secondary))]">{t('loading', 'Loading...')}</p>
+                    <p className="mt-4 text-sm text-[hsl(var(--text-secondary))]">{t('loading', '正在加载...')}</p>
                   </div>
                 ) : error ? (
                   <div className="text-center py-20 md:py-28 animate-fade-in">
@@ -388,16 +388,18 @@ export function DocsPage() {
                       <FileText className="w-16 h-16 md:w-20 md:h-20 text-[hsl(var(--text-secondary))] opacity-50" />
                     </div>
                     <h2 className="text-2xl md:text-3xl font-bold text-[hsl(var(--text-primary))] mb-3">
-                      {error}
+                      {error === 'loadError' ? t('loadError', '文档加载失败') : t('notFound', '找不到这篇文档')}
                     </h2>
                     <p className="text-sm md:text-base text-[hsl(var(--text-secondary))] mb-6 max-w-md mx-auto leading-relaxed">
-                      {t('notFoundDesc', 'The document you are looking for does not exist or has been removed.')}
+                      {error === 'loadError'
+                        ? t('loadErrorDesc', '请检查网络后刷新页面。')
+                        : t('notFoundDesc', '链接可能已失效，请回到文档首页查找。')}
                     </p>
                     <Link
                       to="/docs"
                       className="group relative h-11 md:h-12 px-6 md:px-8 text-[14px] md:text-[15px] font-bold inline-flex items-center gap-2 bg-[hsl(var(--accent-primary))] text-white rounded-xl overflow-hidden transition-all hover:shadow-[0_0_30px_rgba(74,158,255,0.4)] hover:scale-[1.02]"
                     >
-                      <span className="relative z-10">{t('backToHome', 'Back to Documentation Home')}</span>
+                      <span className="relative z-10">{t('backToHome', '返回文档首页')}</span>
                       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
                     </Link>
                   </div>

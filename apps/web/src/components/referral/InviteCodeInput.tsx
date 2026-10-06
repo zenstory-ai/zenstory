@@ -66,8 +66,8 @@ export const InviteCodeInput: React.FC<InviteCodeInputProps> = ({
   const validationMessageId = 'invite-code-validation';
   const describedById = showValidation ? validationMessageId : helperTextId;
   const helperText = required
-    ? t('auth:register.inviteRequiredHint', '当前注册需填写有效邀请码')
-    : t('auth:register.inviteCodeHint', '填写邀请码可获得额外福利');
+    ? t('auth:register.inviteRequiredHint', '注册需要有效的邀请码')
+    : t('auth:register.inviteCodeHint', '填写邀请码可获得积分奖励');
 
   return (
     <div className="space-y-2">

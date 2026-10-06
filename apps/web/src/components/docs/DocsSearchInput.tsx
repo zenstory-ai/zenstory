@@ -76,7 +76,7 @@ export function DocsSearchInput({ onResultClick }: DocsSearchInputProps) {
             setShowResults(true);
           }}
           onFocus={() => setShowResults(true)}
-          placeholder={t('searchPlaceholder', 'Search documentation...')}
+          placeholder={t('searchPlaceholder', '搜索文档...')}
           className="w-full min-h-[44px] sm:h-9 pl-9 pr-8 text-sm bg-[hsl(var(--bg-tertiary))]
                      border border-[hsl(var(--border-color))] rounded-lg
                      text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-tertiary))]
@@ -105,7 +105,7 @@ export function DocsSearchInput({ onResultClick }: DocsSearchInputProps) {
                         rounded-lg shadow-lg max-h-80 overflow-y-auto z-50">
           {isSearching ? (
             <div className="px-4 py-3 text-sm text-[hsl(var(--text-tertiary))]">
-              {t('loading', 'Loading...')}
+              {t('loading', '正在加载...')}
             </div>
           ) : results.length > 0 ? (
             <ul className="py-1">
@@ -130,7 +130,7 @@ export function DocsSearchInput({ onResultClick }: DocsSearchInputProps) {
             </ul>
           ) : (
             <div className="px-4 py-3 text-sm text-[hsl(var(--text-tertiary))]">
-              {t('noResults', 'No matching documents found')}
+              {t('noResults', '没有找到相关文档')}
             </div>
           )}
         </div>

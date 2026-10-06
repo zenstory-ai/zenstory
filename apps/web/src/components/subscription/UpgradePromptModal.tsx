@@ -61,7 +61,7 @@ export function UpgradePromptModal({
       <div className="space-y-3">
         <div className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--accent-primary)/0.35)] bg-[hsl(var(--accent-primary)/0.08)] px-2.5 py-1 text-xs font-medium text-[hsl(var(--accent-primary))]">
           <Sparkles className="h-3.5 w-3.5" />
-          <span>{t("upgradePrompt.badge", { defaultValue: "Upgrade suggestion" })}</span>
+          <span>{t("upgradePrompt.badge", { defaultValue: "升级建议" })}</span>
         </div>
 
         <p className="text-sm leading-relaxed text-[hsl(var(--text-secondary))]">{description}</p>

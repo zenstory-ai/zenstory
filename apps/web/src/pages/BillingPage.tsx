@@ -164,7 +164,7 @@ export default function BillingPage() {
     <div className="space-y-6">
       <DashboardPageHeader
         title={t("dashboard:billing.title", "订阅与权益")}
-        subtitle={t("dashboard:billing.subtitle", "查看套餐权益、配额使用情况并快速升级")}
+        subtitle={t("dashboard:billing.subtitle", "查看当前套餐和用量，需要更多额度时可升级或使用兑换码。")}
         action={
           <div className="flex items-center gap-2">
             {isCheckoutEnabled ? (
@@ -181,7 +181,7 @@ export default function BillingPage() {
                 }}
               >
                 {isUpgradableTier
-                  ? t("dashboard:billing.ctaBuyPro", "在线购买 Pro")
+                  ? t("dashboard:billing.ctaBuyPro", "购买 Pro")
                   : isPaidTier
                   ? t("dashboard:billing.ctaRenewPro", "续费 Pro")
                   : t("dashboard:billing.ctaProNeutral", "开通或续费 Pro")}
@@ -243,7 +243,7 @@ export default function BillingPage() {
         <div className="flex items-center gap-2 mb-4">
           <Sparkles className="w-4 h-4 text-[hsl(var(--accent-primary))]" />
           <h2 className="text-base font-semibold text-[hsl(var(--text-primary))]">
-            {t("dashboard:billing.usageTitle", "当前配额使用")}
+            {t("dashboard:billing.usageTitle", "当前用量")}
           </h2>
         </div>
         {hasError && (

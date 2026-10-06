@@ -562,7 +562,7 @@ export default function DashboardHome() {
     <>
       {/* Header Section */}
       <DashboardPageHeader
-        title={t('hero.greeting', { name: user?.nickname || user?.username || '创作者' })}
+        title={t('hero.greeting', { name: user?.nickname || user?.username || t('hero.defaultName') })}
         subtitle={t('hero.question')}
       />
 
@@ -578,7 +578,7 @@ export default function DashboardHome() {
               </div>
               <div>
                 <h2 className="text-sm font-semibold text-[hsl(var(--text-primary))]">
-                  {t("activationGuide.title", { defaultValue: "首日激活向导" })}
+                  {t("activationGuide.title", { defaultValue: "新手上手清单" })}
                 </h2>
                 <p className="mt-1 text-xs text-[hsl(var(--text-secondary))]">
                   {t("activationGuide.progress", {
@@ -858,12 +858,12 @@ export default function DashboardHome() {
               </div>
               <div className="min-w-0">
                 <h2 className="text-sm font-semibold text-[hsl(var(--text-primary))]">
-                  {t("todayActionPlan.title", { defaultValue: "今日 3 步建议" })}
+                  {t("todayActionPlan.title", { defaultValue: "今天可以做的 3 件事" })}
                 </h2>
                 {todayActionPlanExpanded && (
                   <p className="mt-1 text-xs text-[hsl(var(--text-secondary))]">
                     {t("todayActionPlan.subtitle", {
-                      defaultValue: "基于你的当前进度生成，每一步都可一键执行。",
+                      defaultValue: "根据你的写作进度推荐。",
                     })}
                   </p>
                 )}
@@ -911,7 +911,7 @@ export default function DashboardHome() {
                       data-testid={`today-action-execute-${index + 1}`}
                     >
                       {executingTodayActionId === item.id
-                        ? t("todayActionPlan.executing", { defaultValue: "执行中..." })
+                        ? t("todayActionPlan.executing", { defaultValue: "处理中..." })
                         : item.ctaLabel}
                     </button>
                   </div>
@@ -980,7 +980,7 @@ export default function DashboardHome() {
               {/* Inspiration Preview */}
               {inspiration.trim() && (
                 <div className={`p-3 bg-[hsl(var(--bg-tertiary))] rounded-lg ${isMobile ? "mb-3" : "mb-4"}`}>
-                  <div className="text-xs text-[hsl(var(--text-secondary))] mb-1">{t('projects.inspiration.title')}</div>
+                  <div className="text-xs text-[hsl(var(--text-secondary))] mb-1">{t('inspiration.title')}</div>
                   <div className="text-sm text-[hsl(var(--text-primary))] line-clamp-2">
                     {inspiration}
                   </div>
@@ -1037,10 +1037,10 @@ export default function DashboardHome() {
         primaryDestination="billing"
         secondaryDestination="pricing"
         title={t('projects.quotaExceededTitle', {
-          defaultValue: '项目数量已达上限',
+          defaultValue: '项目数已达上限',
         })}
         description={t('projects.quotaExceededDesc', {
-          defaultValue: '当前套餐可创建的项目数量已达上限。可先升级套餐，或查看套餐对比后再决定。',
+          defaultValue: '当前套餐的项目数已用完。升级 Pro 可以建更多项目，也可以先删除不再需要的项目。',
         })}
         primaryLabel={t('dashboard:billing.ctaUpgradePro', '升级专业版')}
         onPrimary={() => {

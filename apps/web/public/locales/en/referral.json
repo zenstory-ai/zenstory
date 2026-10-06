@@ -6,7 +6,7 @@
     "availablePoints": "Available Points",
     "rewardHistory": "Reward History",
     "noRewards": "No reward records",
-    "loadError": "Failed to load stats, please try again"
+    "loadError": "Couldn't load invite stats. Refresh to try again."
   },
   "rewardTypes": {
     "points": "Points",
@@ -17,13 +17,13 @@
   "inviteCodes": {
     "title": "My Invite Codes",
     "maxHint": "Maximum {{count}} invite codes",
-    "unlimitedHint": "Unlimited invite codes",
+    "unlimitedHint": "No limit on invite codes",
     "generateButton": "Generate Code",
-    "noCodes": "No invite codes",
-    "noCodesHint": "Create an invite code to invite friends and earn rewards",
+    "noCodes": "No invite codes yet",
+    "noCodesHint": "Share a code with friends and earn rewards when they sign up",
     "createFirst": "Create First Invite Code",
-    "loadError": "Failed to load invite codes, please try again",
-    "createError": "Failed to create invite code, please try again"
+    "loadError": "Couldn't load invite codes. Refresh to try again.",
+    "createError": "Couldn't create an invite code. Please try again."
   },
   "card": {
     "inviteCode": "Invite Code",
@@ -36,7 +36,7 @@
     "disabled": "Disabled",
     "exhausted": "Used up",
     "available": "Available",
-    "shareTitle": "zenstory - Invite Code",
-    "shareText": "Invite code: {{code}}"
+    "shareTitle": "zenstory invite code",
+    "shareText": "Use my invite code when you sign up for zenstory: {{code}}"
   }
 }

@@ -94,6 +94,7 @@ function DashboardContent() {
   const currentLanguage: 'zh' | 'en' = normalizeLocale(i18n.language || i18n.resolvedLanguage);
   const quickSettingsLabel = t('dashboard:userPanel.quickSettings');
   const openUserPanelLabel = t('dashboard:userPanel.openPanel');
+  const openSettingsLabel = t('dashboard:userPanel.openSettings');
   const adminPanelLabel = t('dashboard:userPanel.adminPanel');
   const replayTourLabel = t('dashboard:userPanel.replayTour');
   const { restartTour, isEnabled: isTourEnabled } = useProductTour();
@@ -300,7 +301,7 @@ function DashboardContent() {
           className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
         >
           <Settings className="w-4 h-4" />
-          {openUserPanelLabel}
+          {openSettingsLabel}
         </button>
 
         {isTourEnabled && (
@@ -555,7 +556,7 @@ function DashboardContent() {
                 className="flex items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-primary))] transition-colors text-left"
               >
                 <Settings size={18} />
-                {openUserPanelLabel}
+                {openSettingsLabel}
               </button>
               {isTourEnabled && (
                 <button

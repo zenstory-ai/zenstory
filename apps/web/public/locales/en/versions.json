@@ -2,13 +2,15 @@
   "title": "Version History",
   "loading": "Loading...",
   "loadFailed": "Failed to load version history",
-  "noVersions": "No version history",
+  "noVersions": "No versions yet",
   "compare": "Compare",
   "comparing": "Comparing...",
-  "rollback": "Rollback",
+  "compareFailed": "Couldn't compare versions. Please try again.",
+  "rollback": "Restore this version",
   "viewContent": "View Content",
-  "rollbackConfirm": "Are you sure you want to rollback to version {{version}}? Current content will be saved as a new version.",
-  "rollbackSuccess": "Rollback successful",
+  "rollbackConfirm": "Restore version {{version}}? The current text will be replaced with this version. Existing versions are kept.",
+  "rollbackSuccess": "Version restored",
+  "rollbackFailed": "Couldn't restore this version. Please try again.",
   "totalVersions": "{{count}} version total",
   "totalVersions_one": "{{count}} version total",
   "totalVersions_other": "{{count}} versions total",
@@ -25,13 +27,13 @@
     "created": "Created",
     "edited": "Edited",
     "aiEdited": "AI Edited",
-    "rolledBack": "Rolled Back",
+    "rolledBack": "Restored",
     "autoSave": "Auto Save"
   },
   "quota": {
-    "limitTitle": "Version quota reached",
-    "limitDescription": "Your current plan's version retention limit has been reached. Upgrade your plan, or compare plans first.",
-    "upgradePrimary": "View upgrade options",
+    "limitTitle": "Version limit reached",
+    "limitDescription": "Your plan's version limit is full. Upgrade to keep saving new versions.",
+    "upgradePrimary": "Upgrade",
     "upgradeSecondary": "Compare plans"
   }
 }

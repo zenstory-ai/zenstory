@@ -183,7 +183,7 @@ describe("PricingPage", () => {
     await waitFor(() => {
       expect(screen.getByText("套餐权益对比")).toBeInTheDocument();
       expect(screen.getByText("推荐")).toBeInTheDocument();
-      expect(screen.getAllByText("可创作体量").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("AI 写作字数").length).toBeGreaterThan(0);
     });
     expect(screen.getByText("支付宝单次支付，不会自动续费")).toBeInTheDocument();
     expect(screen.queryByText(/服务器/)).not.toBeInTheDocument();
@@ -213,7 +213,7 @@ describe("PricingPage", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/¥399\/年|¥399\/year/i)).toBeInTheDocument();
-      expect(screen.getByText(/省|节省|save/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/省|节省|save/i).length).toBeGreaterThan(0);
       expect(yearlyControl).toHaveAttribute("aria-checked", "true");
     });
   });

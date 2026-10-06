@@ -29,14 +29,14 @@ export interface DashboardPageHeaderProps {
  * ```tsx
  * // Basic usage
  * <DashboardPageHeader
- *   title={t('projects.all')}
- *   subtitle={t('projects.subtitle')}
+ *   title={t('billing.title')}
+ *   subtitle={t('billing.subtitle')}
  * />
  *
  * // With action button
  * <DashboardPageHeader
- *   title={t('projects.all')}
- *   subtitle={t('projects.subtitle')}
+ *   title={t('billing.title')}
+ *   subtitle={t('billing.subtitle')}
  *   action={
  *     <button className="btn-primary flex items-center gap-2">
  *       <Plus className="w-4 h-4" />

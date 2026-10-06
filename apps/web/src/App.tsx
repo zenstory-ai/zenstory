@@ -106,7 +106,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
         <div className="space-y-3 text-center" role="alert">
-          <p>{t("errors.network", "网络异常，请重试")}</p>
+          <p>{t("onboarding:errors.loadFailed", "加载失败，请检查网络后重试")}</p>
           <button
             type="button"
             className="rounded-md bg-primary px-4 py-2 text-primary-foreground"
@@ -375,7 +375,7 @@ function ProjectEditor() {
   if (error) {
     return (
       <div className="min-h-screen bg-[hsl(var(--bg-primary))] flex flex-col items-center justify-center gap-4">
-        <div className="text-[hsl(var(--error))]">{t('projectLoadFailed')}: {error}</div>
+        <div className="text-[hsl(var(--error))]">{t('projectLoadFailed')}</div>
         <button onClick={() => refreshProjects()} className="btn btn-primary">
           {t('retry')}
         </button>

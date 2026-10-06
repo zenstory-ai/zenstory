@@ -94,11 +94,11 @@ export function getEntitlementMetricDefinitions(
   const definitions: EntitlementMetricDefinition[] = [
     {
       key: "writing_credits_monthly",
-      label: translate(t, "dashboard:billing.metricWriting", "可创作体量"),
+      label: translate(t, "dashboard:billing.metricWriting", "AI 写作字数"),
       outcome: translate(
         t,
         "dashboard:billing.metricWritingOutcome",
-        "支持从大纲到正文的连续输出",
+        "AI 帮你写大纲和正文的每月额度",
       ),
       value: (plan) =>
         formatMonthlyOutputEstimate(plan.entitlements.writing_credits_monthly, t),
@@ -106,11 +106,11 @@ export function getEntitlementMetricDefinitions(
     },
     {
       key: "agent_runs_monthly",
-      label: translate(t, "dashboard:billing.metricAgentRuns", "Agent 深度任务"),
+      label: translate(t, "dashboard:billing.metricAgentRuns", "AI 深度任务"),
       outcome: translate(
         t,
         "dashboard:billing.metricAgentRunsOutcome",
-        "用于拆解任务、扩写、润色与修订",
+        "扩写、润色、修订等需要多步完成的任务",
       ),
       value: (plan) =>
         `${formatLimit(plan.entitlements.agent_runs_monthly)} ${monthUnit}`,
@@ -118,11 +118,11 @@ export function getEntitlementMetricDefinitions(
     },
     {
       key: "active_projects_limit",
-      label: translate(t, "dashboard:billing.metricProjects", "活跃项目"),
+      label: translate(t, "dashboard:billing.metricProjects", "项目数"),
       outcome: translate(
         t,
         "dashboard:billing.metricProjectsOutcome",
-        "同时推进多本作品，不必频繁归档",
+        "可以同时写几部作品",
       ),
       value: (plan) =>
         `${formatLimit(plan.entitlements.active_projects_limit)} ${translate(
@@ -142,7 +142,7 @@ export function getEntitlementMetricDefinitions(
       outcome: translate(
         t,
         "dashboard:billing.metricMaterialDecompositionsOutcome",
-        "每月可拆解参考素材，快速提取结构化要点",
+        "把参考小说拆成人物、情节等要点",
       ),
       value: (plan) =>
         `${formatLimit(plan.entitlements.material_decompositions_monthly)} ${monthUnit}`,
@@ -158,7 +158,7 @@ export function getEntitlementMetricDefinitions(
       outcome: translate(
         t,
         "dashboard:billing.metricCustomSkillsOutcome",
-        "沉淀团队方法论并复用到日常创作",
+        "把常用的写作要求存成技能，随时调用",
       ),
       value: (plan) => formatLimit(plan.entitlements.custom_skills_limit),
       compareValue: (plan) => plan.entitlements.custom_skills_limit,
@@ -168,12 +168,12 @@ export function getEntitlementMetricDefinitions(
       label: translate(
         t,
         "dashboard:billing.metricInspirationCopies",
-        "灵感复用",
+        "复制灵感",
       ),
       outcome: translate(
         t,
         "dashboard:billing.metricInspirationCopiesOutcome",
-        "将优秀模板复制到项目，快速启动创作",
+        "把灵感库中的灵感复制成你的项目",
       ),
       value: (plan) =>
         `${formatLimit(plan.entitlements.inspiration_copies_monthly)} ${monthUnit}`,
@@ -185,7 +185,7 @@ export function getEntitlementMetricDefinitions(
       outcome: translate(
         t,
         "dashboard:billing.metricExportOutcome",
-        "完稿可直接交付给编辑、团队或客户",
+        "把作品导出成文件，用于投稿或备份",
       ),
       value: (plan) =>
         plan.entitlements.export_formats.length > 0

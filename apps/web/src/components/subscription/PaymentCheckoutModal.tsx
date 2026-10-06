@@ -168,14 +168,14 @@ export function PaymentCheckoutModal({
     <Modal
       open={isOpen}
       onClose={handleClose}
-      title={t('dashboard:billing.paymentTitle', '支付宝在线开通 Pro')}
+      title={t('dashboard:billing.paymentTitle', '用支付宝开通 Pro')}
       size="md"
       closeOnBackdropClick={!isBusy}
       closeOnEscape={!isBusy}
     >
       <Modal.Body>
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label={t('dashboard:billing.billingCycleLabel', '选择计费周期')}>
+          <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label={t('dashboard:billing.billingCycleLabel', '购买时长')}>
             {(['month', 'year'] as PaymentCycle[]).map((item) => {
               const selected = cycle === item
               const itemPrice = item === 'month' ? monthlyPriceCents : yearlyPriceCents
@@ -221,7 +221,7 @@ export function PaymentCheckoutModal({
           )}
           {isUnavailable && (
             <div className="rounded-lg bg-[hsl(var(--warning)/0.1)] p-3 text-[hsl(var(--warning))]" role="alert">
-              {t('dashboard:billing.paymentUnavailable', '在线支付暂未开放，你仍可使用兑换码开通。')}
+              {t('dashboard:billing.paymentUnavailable', '暂时无法在线支付。有兑换码的话，可在「订阅权益」页点「兑换码」开通。')}
             </div>
           )}
           {error && (

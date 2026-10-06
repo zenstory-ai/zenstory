@@ -69,7 +69,7 @@ export const InviteCodeList: React.FC = () => {
           <h3 className="text-base font-semibold text-[hsl(var(--text-primary))]">{t('inviteCodes.title')}</h3>
           <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
             {isSuperuser
-              ? t('inviteCodes.unlimitedHint', '可创建无限邀请码')
+              ? t('inviteCodes.unlimitedHint', '邀请码数量不限')
               : t('inviteCodes.maxHint', { count: DEFAULT_MAX_INVITE_CODES })}
           </p>
         </div>

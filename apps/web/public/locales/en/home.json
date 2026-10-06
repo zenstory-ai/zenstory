@@ -2,23 +2,23 @@
   "nav": {
     "features": "Features",
     "pricing": "Plans & Benefits",
-    "login": "Login",
-    "getStarted": "Start for Free",
+    "login": "Log in",
+    "getStarted": "Create a Free Project",
     "goDashboard": "Go to Dashboard"
   },
   "hero": {
     "badge": "AI Writing Platform for Fiction and Scripts",
     "titlePart1": "From Idea to Serialization,",
     "titlePart2": "One Workspace for the Full Book",
-    "description": "zenstory unifies project files, material capture, character setup, chapter drafting, and version rollback in one workspace. Build structure first, draft faster, and revise without losing your thread.",
-    "cta": "Create Project Free",
+    "description": "Keep outlines, characters, world notes, and chapters in one project. Chat with AI to continue or rewrite chapters, and go back to an earlier version if an edit goes wrong.",
+    "cta": "Create a Free Project",
     "secondaryCta": "View Demo",
-    "ctaSubtext": "No credit card required · Launch in 3 minutes"
+    "ctaSubtext": "Ready after sign-up · Start in 3 minutes"
   },
   "features": {
-    "cloudSave": "Auto-save with deletion safety",
-    "multiDevice": "Real-time sync across devices",
-    "versionHistory": "Rollback anytime with confidence"
+    "cloudSave": "Your writing saves automatically",
+    "multiDevice": "Pick up on phone or computer",
+    "versionHistory": "Undo edits with earlier versions"
   },
   "stats": {
     "creators": "Active Creators",
@@ -40,8 +40,8 @@
     }
   },
   "whyChoose": {
-    "title": "Built for long-form creation",
-    "subtitle": "Not just prompt replies, but full project momentum",
+    "title": "Tools built for long-form writing",
+    "subtitle": "From first idea to exported manuscript, all in one project",
     "conversational": {
       "title": "Conversational Creation",
       "description": "Create as naturally as chatting with a friend, AI understands your intent and helps refine your ideas"
@@ -59,87 +59,82 @@
       "description": "Your content is private by default and is not used for model training unless you explicitly opt in"
     },
     "voiceInput": {
-      "title": "Voice Quick Capture",
-      "description": "Speak ideas instantly, transcribe them, and pin them to your active chapter."
+      "title": "Voice Input",
+      "description": "Speak your idea and it becomes text for the AI, no typing needed."
     },
     "materialUpload": {
-      "title": "Dual-Track Materials",
-      "description": "Run in-project snippets and a standalone material library together for upload, parsing, and reuse."
+      "title": "Material Library",
+      "description": "Upload reference novels, break them into characters, settings, and plot, and reuse them while you write."
     },
     "contextAware": {
-      "title": "Persistent Context Memory",
-      "description": "Keep characters, world rules, and plot lines active to reduce contradictions."
+      "title": "AI Remembers Your Story",
+      "description": "The AI reads your characters, world notes, and outline while writing, so the story stays consistent."
     },
     "versionHistory": {
-      "title": "Version Rollback and Diff",
-      "description": "Every revision is logged for rollback and comparison, so edits stay low-risk."
+      "title": "Compare and Restore Versions",
+      "description": "Each edit leaves a version you can compare against or restore."
     },
     "cloudSync": {
-      "title": "Project-level Cloud Sync",
-      "description": "Keep progress synced across devices and continue writing from anywhere."
+      "title": "Continue on Any Device",
+      "description": "Your work is stored online. Sign in on another device and keep writing."
     },
     "export": {
-      "title": "Export-ready Delivery",
-      "description": "Package chapter structure before export to reduce formatting friction."
+      "title": "Export Your Manuscript",
+      "description": "Export all chapters in order as a TXT file for submission or backup."
     }
   },
   "projectTypes": {
-    "title": "Three project modes, ready out of the box",
-    "subtitle": "Built-in file trees, chapter ordering, material references, and AI strategies",
+    "title": "Pick a project type to start",
+    "subtitle": "Each type comes with a ready folder structure and matching AI writing style",
     "novel": {
       "name": "Long-form Serialized Novel",
-      "description": "For 50k+ word projects requiring stable world-building and chapter progression",
+      "description": "For serials over 50k words: keep your world consistent and write chapter by chapter",
       "features": [
-        "Chapter tree with drag sorting",
-        "Persistent character and relationship memory",
-        "Dual-track material references",
-        "Version diff and rollback"
+        "Drag to reorder chapters",
+        "AI remembers character relationships",
+        "Use your material library",
+        "Compare and restore versions"
       ]
     },
     "short": {
       "name": "Short and Novelette Fiction",
-      "description": "For 5k-20k word stories that need fast setup, escalation, and clean resolution",
+      "description": "For 5k–20k word stories, from idea to ending in one go",
       "features": [
-        "Conflict-driven outlining",
-        "Rapid key-scene drafting",
-        "Length and pacing calibration"
+        "Outline around the conflict",
+        "Draft key scenes fast",
+        "Keep length and pacing in check"
       ]
     },
     "screenplay": {
       "name": "Short Drama and Web Series Scripts",
-      "description": "For episodic structures, character arcs, and scene-ready script output",
+      "description": "Plan episode by episode, track character arcs, and write scene-by-scene scripts",
       "features": [
-        "Episode plot boards",
-        "Character-arc tracking",
-        "Structured script formatting"
+        "Episode outlines",
+        "Character arcs",
+        "Scene-by-scene script format"
       ]
     }
   },
   "pricingTeaser": {
     "title": "Start free, upgrade when needed",
-    "subtitle": "Free plan covers the full writing flow, and paid tiers unlock more speed and higher limits.",
+    "subtitle": "The free plan covers the full writing flow. Upgrade when you need more AI chats and projects.",
     "viewPricing": "View plans",
-    "primaryCta": "Create Project Free",
+    "primaryCta": "Create a Free Project",
     "free": {
       "badge": "Free",
-      "title": "Get started quickly",
-      "desc": "Best for solo creators getting started with project setup and core writing workflows."
+      "title": "Start writing",
+      "desc": "Create projects and write chapters with AI. Enough to get started on your own."
     },
     "pro": {
       "badge": "Pro",
-      "title": "Boost speed and capacity",
-      "desc": "For high-frequency writing with unlimited AI conversations and projects, plus more material decomposition and custom skill capacity."
-    },
-    "team": {
-      "badge": "Team",
-      "title": "Collaborate with one source of truth",
-      "desc": "For studios managing shared materials, version history, and project coordination."
+      "title": "Write more, faster",
+      "desc": "Unlimited AI chats and projects, material breakdowns, and more custom skills."
     }
   },
   "cta": {
     "title": "Start your next story today",
-    "subtitle": "Set up a project in minutes and turn scattered ideas into reusable creative assets",
-    "button": "Create Project Free"
+    "subtitle": "Set up a project in 3 minutes and turn scattered ideas into a finished story",
+    "button": "Create a Free Project"
   },
   "footer": {
     "copyright": "© 2026 zenstory. All rights reserved.",
@@ -212,12 +207,12 @@
     }
   },
   "agentApi": {
-    "sectionLabel": "Agent API Integration",
+    "sectionLabel": "Connect your AI assistant",
     "badge": "New",
-    "title": "Connect your AI agent to your writing workspace",
-    "subtitle": "Generate an API key, paste into Claude Code or OpenClaw, and let your agent read and write your novel directly.",
+    "title": "Write your novel from Claude Code and other AI assistants",
+    "subtitle": "Create an API key in Settings and add it to Claude Code or OpenClaw. It can then read and edit your project files.",
     "supportedAgents": "Works with",
-    "cta": "Get Started Free",
-    "ctaAriaLabel": "Get started with Agent API for free"
+    "cta": "Create API Key",
+    "ctaAriaLabel": "Go to Settings to create an API key"
   }
 }

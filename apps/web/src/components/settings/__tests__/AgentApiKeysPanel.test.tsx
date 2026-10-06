@@ -73,7 +73,7 @@ describe('AgentApiKeysPanel', () => {
     renderPanel(<AgentApiKeysPanel />)
     expect(await screen.findByRole('alert')).toHaveTextContent('Key list unavailable')
     expect(screen.queryByText('apiKeys.noKeys')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    fireEvent.click(screen.getByRole('button', { name: '重试' }))
     expect(await screen.findByText('My key')).toBeInTheDocument()
   })
 

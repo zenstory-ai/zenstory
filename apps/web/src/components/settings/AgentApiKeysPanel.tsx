@@ -249,10 +249,10 @@ function CreateKeyForm({
   const [expiresInDays, setExpiresInDays] = useState(0);
 
   const expirationOptions = [
-    { value: 0, label: t('apiKeys.form.never', 'Never expires') },
-    { value: 30, label: '30 ' + t('apiKeys.form.days', 'days') },
-    { value: 90, label: '90 ' + t('apiKeys.form.days', 'days') },
-    { value: 365, label: '365 ' + t('apiKeys.form.days', 'days') },
+    { value: 0, label: t('apiKeys.form.never', '永不过期') },
+    { value: 30, label: '30 ' + t('apiKeys.form.days', '天') },
+    { value: 90, label: '90 ' + t('apiKeys.form.days', '天') },
+    { value: 365, label: '365 ' + t('apiKeys.form.days', '天') },
   ];
 
   const toggleScope = (scope: string) => {
@@ -560,7 +560,7 @@ export const AgentApiKeysPanel: React.FC = () => {
       <div className="space-y-3">
         <ConnectGuide />
         <p role="alert" className="text-sm text-red-500">{handleApiError(error)}</p>
-        <button onClick={() => void refetch()}>{t('common:retry', 'Retry')}</button>
+        <button onClick={() => void refetch()}>{t('common:retry', '重试')}</button>
       </div>
     );
   }

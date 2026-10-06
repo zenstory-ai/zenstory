@@ -8,20 +8,20 @@
     "notes": "Notes",
     "save": "Save",
     "saving": "Saving...",
-    "saveFailed": "Failed to save, please try again",
+    "saveFailed": "Couldn't save. Please try again.",
     "shareAsInspiration": "Submit to Inspiration Library",
     "sharingInspiration": "Submitting...",
     "viewInspirationLibrary": "View Inspiration Library",
-    "shareSuccessPending": "Submitted to inspiration library and pending admin review",
+    "shareSuccessPending": "Submitted. It will appear in the library once approved.",
     "shareSuccessApproved": "Inspiration published to library",
-    "shareFailed": "Failed to submit inspiration, please try again",
+    "shareFailed": "Couldn't submit. Please try again.",
     "cancel": "Cancel",
-    "infoBanner": "This content will be provided to AI as context (and can be automatically updated during conversations).",
+    "infoBanner": "AI refers to this when writing for you and may update it during chats.",
     "placeholders": {
-      "summary": "Describe the genre, worldview, protagonist, and other core information",
-      "writingStyle": "Describe language style, narrative pace, writing characteristics, etc.",
-      "currentPhase": "Explain current writing progress and phase goals",
-      "notes": "Record writing points, items to note, issues to resolve, etc."
+      "summary": "Genre, world, protagonist and other core details",
+      "writingStyle": "Voice, pacing, prose style, etc.",
+      "currentPhase": "Where you are now and what comes next",
+      "notes": "Key points, things to watch, open questions, etc."
     }
   }
 }

@@ -110,7 +110,7 @@ function resolvePersonaRecommendationDescription(
 ): string {
   const fallback = recommendation.description
     || t("todayActionPlan.personaDescription", {
-      defaultValue: "基于你的偏好推荐的下一步动作。",
+      defaultValue: "根据你填写的写作偏好推荐。",
     });
 
   return t(`todayActionPlan.personaRecommendations.${recommendation.id}.description`, {
@@ -146,7 +146,7 @@ export function buildTodayActionPlan({
   t,
 }: BuildTodayActionPlanInput): TodayActionPlanItem[] {
   const candidates: TodayActionPlanItem[] = [];
-  const ctaLabel = t("todayActionPlan.cta", { defaultValue: "一键执行" });
+  const ctaLabel = t("todayActionPlan.cta", { defaultValue: "去完成" });
 
   const pendingActivationSteps = activationGuide?.within_first_day
     ? activationGuide.steps?.filter((step) => {
@@ -166,7 +166,7 @@ export function buildTodayActionPlan({
       id: `activation-${step.event_name}`,
       title: resolveActivationStepTitle(step.event_name, step.label, t),
       description: t("todayActionPlan.activationDescription", {
-        defaultValue: "完成该里程碑，解锁更顺畅的创作流程。",
+        defaultValue: "上手必做的一步。",
       }),
       ctaLabel,
       action: resolveActivationStepAction({
@@ -200,13 +200,13 @@ export function buildTodayActionPlan({
     candidates.push({
       id: "fallback-create-project",
       title: t("todayActionPlan.defaults.createProject.title", {
-        defaultValue: "创建你的首个项目",
+        defaultValue: "创建第一个项目",
       }),
       description: t("todayActionPlan.defaults.createProject.description", {
-        defaultValue: "先把灵感落到项目里，后续写作与导出都会更顺畅。",
+        defaultValue: "写一句灵感就能开始，大纲、正文和设定都会放在这个项目里。",
       }),
       ctaLabel: t("todayActionPlan.defaults.createProject.cta", {
-        defaultValue: "一键建项目",
+        defaultValue: "新建项目",
       }),
       action: {
         type: "create_project",
@@ -217,10 +217,10 @@ export function buildTodayActionPlan({
     candidates.push({
       id: "fallback-open-project",
       title: t("todayActionPlan.defaults.openProject.title", {
-        defaultValue: "继续最近项目",
+        defaultValue: "继续最近的项目",
       }),
       description: t("todayActionPlan.defaults.openProject.description", {
-        defaultValue: "延续上下文继续写，效率最高。",
+        defaultValue: "从上次停下的地方接着写。",
       }),
       ctaLabel,
       action: {
@@ -231,13 +231,13 @@ export function buildTodayActionPlan({
     candidates.push({
       id: "fallback-export-project",
       title: t("todayActionPlan.defaults.exportProject.title", {
-        defaultValue: "验证导出链路",
+        defaultValue: "导出你的作品",
       }),
       description: t("todayActionPlan.defaults.exportProject.description", {
-        defaultValue: "打开项目后可直接点击“导出”，快速完成交付检查。",
+        defaultValue: "打开项目，点「导出正文」下载成稿文件。",
       }),
       ctaLabel: t("todayActionPlan.defaults.exportProject.cta", {
-        defaultValue: "去项目导出",
+        defaultValue: "打开项目",
       }),
       action: {
         type: "navigate",
@@ -249,13 +249,13 @@ export function buildTodayActionPlan({
   candidates.push({
     id: "fallback-upgrade",
     title: t("todayActionPlan.defaults.upgrade.title", {
-      defaultValue: "查看升级权益",
+      defaultValue: "查看额度",
     }),
     description: t("todayActionPlan.defaults.upgrade.description", {
-      defaultValue: "提前确认配额和导出能力，避免创作中断。",
+      defaultValue: "看看本月还剩多少额度，不够时可以升级。",
     }),
     ctaLabel: t("todayActionPlan.defaults.upgrade.cta", {
-      defaultValue: "去升级页",
+      defaultValue: "查看额度",
     }),
     action: {
       type: "navigate",
@@ -267,10 +267,10 @@ export function buildTodayActionPlan({
     candidates.push({
       id: "fallback-inspirations",
       title: t("todayActionPlan.defaults.inspirations.title", {
-        defaultValue: "补充灵感素材",
+        defaultValue: "逛逛灵感库",
       }),
       description: t("todayActionPlan.defaults.inspirations.description", {
-        defaultValue: "浏览精选灵感，快速补齐创作输入。",
+        defaultValue: "卡住时，看看精选灵感找开头和设定。",
       }),
       ctaLabel,
       action: {
