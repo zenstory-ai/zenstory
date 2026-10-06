@@ -6,6 +6,7 @@ zenstory API - Main application entry point
 """
 
 # Load environment variables from .env file FIRST
+import asyncio
 import hashlib
 import logging
 import os
@@ -89,7 +90,10 @@ async def lifespan(_app: FastAPI):
     # Usage-ledger rows are written by background tasks; let in-flight ones land.
     from services.usage.llm_usage_service import drain_pending_usage_records
 
-    await drain_pending_usage_records()
+    try:
+        await asyncio.wait_for(drain_pending_usage_records(), timeout=5)
+    except asyncio.TimeoutError:
+        logger.warning("Timed out after 5s draining pending usage records on shutdown")
 
 
 # Create FastAPI app
