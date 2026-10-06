@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 import PaymentOrderManagement from "../PaymentOrderManagement";
 import { adminApi } from "../../../lib/adminApi";
 
@@ -54,7 +55,7 @@ describe("PaymentOrderManagement", () => {
   });
 
   it("lists payment and activation separately and opens read-only details", () => {
-    render(<PaymentOrderManagement />);
+    render(<PaymentOrderManagement />, { wrapper: MemoryRouter });
     expect(screen.getByText(order.out_trade_no)).toBeInTheDocument();
     expect(screen.getByText("writer@example.com")).toBeInTheDocument();
     expect(screen.getByText("¥49.00")).toBeInTheDocument();
@@ -71,7 +72,7 @@ describe("PaymentOrderManagement", () => {
   });
 
   it("paginates, submits search explicitly, and resets page when filters change", async () => {
-    render(<PaymentOrderManagement />);
+    render(<PaymentOrderManagement />, { wrapper: MemoryRouter });
     fireEvent.click(screen.getByRole("button", { name: "paymentOrders.nextPage" }));
     expect(queryMock.mock.lastCall?.[0].queryKey).toEqual(["admin", "payment-orders", 2, "", "", "", false]);
     fireEvent.change(screen.getByRole("combobox", { name: "paymentOrders.paymentStatus" }), { target: { value: "paid" } });
@@ -92,7 +93,7 @@ describe("PaymentOrderManagement", () => {
       data: { items: [{ ...order, status: "pending", fulfillment_status: "failed", failure_reason: "Activation could not be completed" }], total: 1 },
       isLoading: false, isFetching: false, isError: false, refetch,
     });
-    render(<PaymentOrderManagement />);
+    render(<PaymentOrderManagement />, { wrapper: MemoryRouter });
     expect(screen.getByRole("cell", { name: "paymentOrders.fulfillment.failed" })).toBeInTheDocument();
     expect(screen.queryByRole("cell", { name: "paymentOrders.fulfillment.succeeded" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "paymentOrders.details" }));
@@ -104,7 +105,7 @@ describe("PaymentOrderManagement", () => {
       data: { items: [], total: 0 }, isLoading: state === "loading",
       isFetching: false, isError: state === "error", refetch,
     });
-    render(<PaymentOrderManagement />);
+    render(<PaymentOrderManagement />, { wrapper: MemoryRouter });
     const message = { loading: "common:loading", empty: "common:noData", error: "paymentOrders.loadError" }[state];
     expect(screen.getByText(message!)).toBeInTheDocument();
     if (state === "error") {
@@ -118,7 +119,7 @@ describe("PaymentOrderManagement", () => {
       data: { items: [order], total: 1, page: 1, page_size: 20, needs_attention_total: 4 },
       isLoading: false, isFetching: false, isError: false, refetch,
     });
-    render(<PaymentOrderManagement />);
+    render(<PaymentOrderManagement />, { wrapper: MemoryRouter });
     expect(screen.getByText("4")).toBeInTheDocument();
     fireEvent.change(screen.getByRole("combobox", { name: "paymentOrders.fulfillmentStatus" }), { target: { value: "failed" } });
     expect(queryMock.mock.lastCall?.[0].queryKey).toEqual(["admin", "payment-orders", 1, "", "", "failed", false]);
@@ -138,7 +139,7 @@ describe("PaymentOrderManagement", () => {
     vi.mocked(adminApi.syncPaymentOrder).mockResolvedValue({
       outcome: "fulfilled", order: { ...stuck, fulfillment_status: "succeeded" },
     } as never);
-    render(<PaymentOrderManagement />);
+    render(<PaymentOrderManagement />, { wrapper: MemoryRouter });
     fireEvent.click(screen.getByRole("button", { name: "paymentOrders.details" }));
     fireEvent.click(screen.getByRole("button", { name: "paymentOrders.sync" }));
     expect(await screen.findByText("paymentOrders.syncOutcome.fulfilled")).toBeInTheDocument();
@@ -153,10 +154,32 @@ describe("PaymentOrderManagement", () => {
       isLoading: false, isFetching: false, isError: false, refetch,
     });
     vi.mocked(adminApi.syncPaymentOrder).mockRejectedValue(new ApiError(502, "sync_failed:provider_unavailable"));
-    render(<PaymentOrderManagement />);
+    render(<PaymentOrderManagement />, { wrapper: MemoryRouter });
     fireEvent.click(screen.getByRole("button", { name: "paymentOrders.details" }));
     fireEvent.click(screen.getByRole("button", { name: "paymentOrders.sync" }));
     expect(await screen.findByText("paymentOrders.syncFailed:provider_unavailable")).toBeInTheDocument();
+  });
+
+  it("reads the sync failure reason from a coded error", async () => {
+    const { ApiError } = await import("../../../lib/apiClient");
+    queryMock.mockReturnValue({
+      data: { items: [{ ...order, status: "pending", fulfillment_status: "pending" }], total: 1 },
+      isLoading: false, isFetching: false, isError: false, refetch,
+    });
+    vi.mocked(adminApi.syncPaymentOrder).mockRejectedValue(
+      new ApiError(502, "ERR_PAYMENT_SYNC_FAILED", undefined, "sync_failed:not_configured"),
+    );
+    render(<PaymentOrderManagement />, { wrapper: MemoryRouter });
+    fireEvent.click(screen.getByRole("button", { name: "paymentOrders.details" }));
+    fireEvent.click(screen.getByRole("button", { name: "paymentOrders.sync" }));
+    expect(await screen.findByText("paymentOrders.syncFailed:not_configured")).toBeInTheDocument();
+  });
+
+  it("links the buyer to the user page", () => {
+    queryMock.mockReturnValue({ data: { items: [order], total: 1 }, isLoading: false, isFetching: false, isError: false, refetch });
+    render(<PaymentOrderManagement />, { wrapper: MemoryRouter });
+    const link = screen.getAllByRole("link")[0];
+    expect(link).toHaveAttribute("href", `/admin/users/${order.user_id}`);
   });
 
   it("renders a hand-edited order status without crashing", () => {
@@ -164,7 +187,7 @@ describe("PaymentOrderManagement", () => {
       data: { items: [{ ...order, status: "refunded", cycle: "quarter", payment_method: "wxpay" }], total: 1 },
       isLoading: false, isFetching: false, isError: false, refetch,
     });
-    render(<PaymentOrderManagement />);
+    render(<PaymentOrderManagement />, { wrapper: MemoryRouter });
     expect(screen.getByText("paymentOrders.status.refunded")).toBeInTheDocument();
     expect(screen.getByText("wxpay")).toBeInTheDocument();
   });

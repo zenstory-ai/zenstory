@@ -1,10 +1,14 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { Search, ChartBar, Upload, Zap, Lightbulb, MessageSquare } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Search, ChartBar, Zap, Lightbulb } from "lucide-react";
 import { adminApi } from "../../lib/adminApi";
+import { formatAdminDate } from "../../lib/dateUtils";
 import { AdminPageState } from "../../components/admin";
 import { StatsCard } from "../../components/admin/StatsCard";
+import { UserQuotaCards } from "../../components/admin/UserQuotaCards";
+import { adminUserPath } from "../../lib/adminRoutes";
 import { inspirationsConfig } from "../../config/inspirations";
 
 export const QuotaManagement: React.FC = () => {
@@ -51,18 +55,6 @@ export const QuotaManagement: React.FC = () => {
     }
   };
 
-  const formatPercentage = (used: number, limit: number) => {
-    if (limit === -1) return 0;
-    if (limit === 0) return 100;
-    return Math.round((used / limit) * 100);
-  };
-
-  const getQuotaBgColor = (percentage: number) => {
-    if (percentage >= 90) return "bg-red-500";
-    if (percentage >= 70) return "bg-yellow-500";
-    return "bg-green-500";
-  };
-
   const statsErrorText = statsQueryError instanceof Error && statsQueryError.message
     ? statsQueryError.message
     : t("common:error");
@@ -84,9 +76,17 @@ export const QuotaManagement: React.FC = () => {
 
       {/* Stats Grid */}
       <div>
-        <h2 className="text-lg font-semibold mb-3 text-[hsl(var(--text-primary))]">
+        <h2 className="text-lg font-semibold text-[hsl(var(--text-primary))]">
           {t("quota.stats")}
         </h2>
+        {stats?.period_start && (
+          <p className="mb-3 text-sm text-[hsl(var(--text-secondary))]">
+            {t("quota.period", {
+              start: formatAdminDate(stats.period_start),
+              end: formatAdminDate(stats.period_end),
+            })}
+          </p>
+        )}
         <AdminPageState
           isLoading={statsLoading}
           isFetching={statsFetching}
@@ -101,21 +101,16 @@ export const QuotaManagement: React.FC = () => {
           }}
           stateClassName="admin-surface flex items-center justify-center py-12"
         >
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <StatsCard
-              icon={<Upload className="h-5 w-5" />}
-              title={t("quota.materialUploads")}
-              value={stats?.material_uploads ?? 0}
-            />
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
             <StatsCard
               icon={<ChartBar className="h-5 w-5" />}
-              title={t("quota.materialDecomposes")}
-              value={stats?.material_decomposes ?? 0}
+              title={t("quota.materialDecompositions")}
+              value={stats?.material_decompositions ?? 0}
             />
             <StatsCard
               icon={<Zap className="h-5 w-5" />}
-              title={t("quota.skillCreates")}
-              value={stats?.skill_creates ?? 0}
+              title={t("quota.skillsCreated")}
+              value={stats?.skills_created ?? 0}
             />
             {inspirationsConfig.enabled && (
               <StatsCard
@@ -174,154 +169,23 @@ export const QuotaManagement: React.FC = () => {
           stateClassName="admin-surface flex items-center justify-center py-12"
         >
           <div className="space-y-4">
-            {/* User Info Card */}
-            <div className="admin-surface p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="font-medium text-[hsl(var(--text-primary))]">
-                  {userQuota?.username ?? "-"}
-                </span>
-                <span className="px-2 py-0.5 rounded text-xs font-medium bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))]">
-                  {userQuota?.plan_name ?? "-"}
-                </span>
-              </div>
+            <div className="admin-surface flex flex-wrap items-center gap-2 p-4">
+              <span className="font-medium text-[hsl(var(--text-primary))]">
+                {userQuota?.username ?? "-"}
+              </span>
+              <span className="px-2 py-0.5 rounded text-xs font-medium bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))]">
+                {userQuota?.plan_display_name || userQuota?.plan_name || "-"}
+              </span>
+              {userQuota?.user_id && (
+                <Link
+                  to={adminUserPath(userQuota.user_id)}
+                  className="ml-auto text-sm text-[hsl(var(--accent-primary))] hover:underline"
+                >
+                  {t("users.viewDetails")}
+                </Link>
+              )}
             </div>
-
-            {/* Quota Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* AI Conversations */}
-              <div className="admin-surface p-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))]">
-                    <MessageSquare className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-[hsl(var(--text-primary))]">
-                      {t("quota.aiConversations")}
-                    </h3>
-                    <p className="text-sm text-[hsl(var(--text-secondary))]">
-                      {(userQuota?.ai_conversations_limit ?? 0) === -1
-                        ? t("quota.unlimited")
-                        : `${userQuota?.ai_conversations_used ?? 0} / ${userQuota?.ai_conversations_limit ?? 0}`}
-                    </p>
-                  </div>
-                </div>
-                {(userQuota?.ai_conversations_limit ?? 0) !== -1 && (
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs text-[hsl(var(--text-secondary))]">
-                      <span>{t("quota.used")}</span>
-                      <span>
-                        {formatPercentage(userQuota?.ai_conversations_used ?? 0, userQuota?.ai_conversations_limit ?? 0)}%
-                      </span>
-                    </div>
-                    <div className="h-2 bg-[hsl(var(--bg-tertiary))] rounded-full overflow-hidden">
-                      <div
-                        className={`h-full ${getQuotaBgColor(formatPercentage(userQuota?.ai_conversations_used ?? 0, userQuota?.ai_conversations_limit ?? 0))} transition-all`}
-                        style={{ width: `${Math.min(100, formatPercentage(userQuota?.ai_conversations_used ?? 0, userQuota?.ai_conversations_limit ?? 0))}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Material Upload */}
-              <div className="admin-surface p-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))]">
-                    <Upload className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-[hsl(var(--text-primary))]">
-                      {t("quota.materialUpload")}
-                    </h3>
-                    <p className="text-sm text-[hsl(var(--text-secondary))]">
-                      {(userQuota?.material_upload_limit ?? 0) === -1
-                        ? t("quota.unlimited")
-                        : `${userQuota?.material_upload_used ?? 0} / ${userQuota?.material_upload_limit ?? 0}`}
-                    </p>
-                  </div>
-                </div>
-                {(userQuota?.material_upload_limit ?? 0) !== -1 && (
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs text-[hsl(var(--text-secondary))]">
-                      <span>{t("quota.used")}</span>
-                      <span>{formatPercentage(userQuota?.material_upload_used ?? 0, userQuota?.material_upload_limit ?? 0)}%</span>
-                    </div>
-                    <div className="h-2 bg-[hsl(var(--bg-tertiary))] rounded-full overflow-hidden">
-                      <div
-                        className={`h-full ${getQuotaBgColor(formatPercentage(userQuota?.material_upload_used ?? 0, userQuota?.material_upload_limit ?? 0))} transition-all`}
-                        style={{ width: `${Math.min(100, formatPercentage(userQuota?.material_upload_used ?? 0, userQuota?.material_upload_limit ?? 0))}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Skill Create */}
-              <div className="admin-surface p-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))]">
-                    <Zap className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-[hsl(var(--text-primary))]">
-                      {t("quota.skillCreate")}
-                    </h3>
-                    <p className="text-sm text-[hsl(var(--text-secondary))]">
-                      {(userQuota?.skill_create_limit ?? 0) === -1
-                        ? t("quota.unlimited")
-                        : `${userQuota?.skill_create_used ?? 0} / ${userQuota?.skill_create_limit ?? 0}`}
-                    </p>
-                  </div>
-                </div>
-                {(userQuota?.skill_create_limit ?? 0) !== -1 && (
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs text-[hsl(var(--text-secondary))]">
-                      <span>{t("quota.used")}</span>
-                      <span>{formatPercentage(userQuota?.skill_create_used ?? 0, userQuota?.skill_create_limit ?? 0)}%</span>
-                    </div>
-                    <div className="h-2 bg-[hsl(var(--bg-tertiary))] rounded-full overflow-hidden">
-                      <div
-                        className={`h-full ${getQuotaBgColor(formatPercentage(userQuota?.skill_create_used ?? 0, userQuota?.skill_create_limit ?? 0))} transition-all`}
-                        style={{ width: `${Math.min(100, formatPercentage(userQuota?.skill_create_used ?? 0, userQuota?.skill_create_limit ?? 0))}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Inspiration Copy */}
-              {inspirationsConfig.enabled && <div className="admin-surface p-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))]">
-                    <Lightbulb className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-[hsl(var(--text-primary))]">
-                      {t("quota.inspirationCopy")}
-                    </h3>
-                    <p className="text-sm text-[hsl(var(--text-secondary))]">
-                      {(userQuota?.inspiration_copy_limit ?? 0) === -1
-                        ? t("quota.unlimited")
-                        : `${userQuota?.inspiration_copy_used ?? 0} / ${userQuota?.inspiration_copy_limit ?? 0}`}
-                    </p>
-                  </div>
-                </div>
-                {(userQuota?.inspiration_copy_limit ?? 0) !== -1 && (
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs text-[hsl(var(--text-secondary))]">
-                      <span>{t("quota.used")}</span>
-                      <span>{formatPercentage(userQuota?.inspiration_copy_used ?? 0, userQuota?.inspiration_copy_limit ?? 0)}%</span>
-                    </div>
-                    <div className="h-2 bg-[hsl(var(--bg-tertiary))] rounded-full overflow-hidden">
-                      <div
-                        className={`h-full ${getQuotaBgColor(formatPercentage(userQuota?.inspiration_copy_used ?? 0, userQuota?.inspiration_copy_limit ?? 0))} transition-all`}
-                        style={{ width: `${Math.min(100, formatPercentage(userQuota?.inspiration_copy_used ?? 0, userQuota?.inspiration_copy_limit ?? 0))}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>}
-            </div>
+            {userQuota && <UserQuotaCards quota={userQuota} />}
           </div>
         </AdminPageState>
       ) : null}

@@ -185,11 +185,13 @@ test('all admin routes are reachable for superuser with mocked APIs', async ({ p
     '/admin',
     '/admin/users',
     '/admin/usage',
+    '/admin/users/user-1',
     '/admin/prompts',
     '/admin/prompts/new',
     '/admin/skills',
     '/admin/codes',
     '/admin/subscriptions',
+    '/admin/payment-orders',
     '/admin/plans',
     '/admin/audit-logs',
     '/admin/inspirations',
@@ -215,4 +217,16 @@ test('usage page opens a user from a ?user= link', async ({ page }) => {
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText('writer@example.com');
+});
+
+test('user detail page links to usage and lists every section', async ({ page }) => {
+  await bootstrapAdminSession(page);
+
+  await page.goto('/admin/users/user-1');
+
+  await expect(page.locator('main')).toBeVisible();
+  await expect(page.getByRole('link', { name: /查看用量|View usage/ })).toHaveAttribute('href', '/admin/usage?user=user-1');
+  for (const section of [/^(账号|Account)$/, /^(会员|Membership)$/, /^(配额|Quota)$/, /^(积分|Points)$/, /^(支付订单|Payment orders)$/]) {
+    await expect(page.getByRole('heading', { name: section })).toBeVisible();
+  }
 });

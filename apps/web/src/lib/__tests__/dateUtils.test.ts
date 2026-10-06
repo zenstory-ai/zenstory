@@ -34,6 +34,8 @@ import {
   formatRelativeTime,
   formatFullDate,
   formatRelativeTimeWithYear,
+  formatAdminDateTime,
+  formatAdminDate,
 } from '../dateUtils'
 
 describe('dateUtils', () => {
@@ -321,3 +323,38 @@ describe('dateUtils', () => {
     })
   })
 })
+
+describe('admin date formatting', () => {
+  const originalTZ = process.env.TZ
+
+  beforeEach(() => {
+    // Render as a Beijing viewer: naive UTC must shift by +8h, not be read as local.
+    process.env.TZ = 'Asia/Shanghai'
+  })
+
+  afterEach(() => {
+    process.env.TZ = originalTZ
+  })
+
+  it('renders naive UTC and offset timestamps as the same local time', () => {
+    const naive = formatAdminDateTime('2024-03-15T10:00:00')
+    expect(naive).toBe(formatAdminDateTime('2024-03-15T10:00:00Z'))
+    expect(naive).toBe(formatAdminDateTime('2024-03-15T10:00:00+00:00'))
+    expect(naive).toBe(formatAdminDateTime('2024-03-15T18:00:00+08:00'))
+    expect(naive).toContain('18:00')
+  })
+
+  it('renders empty and invalid values as a dash', () => {
+    expect(formatAdminDateTime(null)).toBe('-')
+    expect(formatAdminDateTime(undefined)).toBe('-')
+    expect(formatAdminDateTime('')).toBe('-')
+    expect(formatAdminDateTime('not a date')).toBe('-')
+  })
+
+  it('keeps bare calendar dates on their own day', () => {
+    expect(parseUTCDate('2024-03-15').getDate()).toBe(15)
+    expect(formatAdminDate('2024-03-15')).toContain('15')
+    expect(formatAdminDate('2024-03-15T20:00:00')).toContain('16')
+  })
+})
+

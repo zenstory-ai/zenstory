@@ -6,10 +6,13 @@ import {
   Edit,
   Calendar,
   ArrowUpRight,
+  Search,
 } from "lucide-react";
 import { AdminPageState, AdminSelect } from "../../components/admin";
+import { AdminUserLink } from "../../components/admin/AdminUserLink";
 import { adminApi, type Subscription } from "../../lib/adminApi";
-import { getLocaleCode } from "../../lib/i18n-helpers";
+import { buildSubscriptionUpdate } from "../../lib/adminSubscription";
+import { formatAdminDate, formatAdminDateTime } from "../../lib/dateUtils";
 import { getLocalizedPlanDisplayName } from "../../lib/subscriptionEntitlements";
 import { toast } from "../../lib/toast";
 import type { SubscriptionPlan } from "../../types/subscription";
@@ -139,7 +142,7 @@ const SubscriptionCard: React.FC<{
       <div className="flex items-center justify-between">
         <div>
           <div className="font-medium text-[hsl(var(--text-primary))]">
-            {getUserPrimaryText(subscription)}
+            <AdminUserLink userId={subscription.user_id}>{getUserPrimaryText(subscription)}</AdminUserLink>
           </div>
           <div className="text-xs text-[hsl(var(--text-secondary))]">
             {getUserSecondaryText(subscription)}
@@ -204,6 +207,8 @@ export const SubscriptionManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
   const [selectedSubscription, setSelectedSubscription] = useState<Subscription | null>(null);
   const [showModifyModal, setShowModifyModal] = useState(false);
   const [modifyFormData, setModifyFormData] = useState({
@@ -215,12 +220,13 @@ export const SubscriptionManagement: React.FC = () => {
 
   // Fetch subscriptions list
   const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
-    queryKey: ["admin", "subscriptions", page, statusFilter],
+    queryKey: ["admin", "subscriptions", page, statusFilter, search],
     queryFn: () =>
       adminApi.getSubscriptions({
         page,
         page_size: pageSize,
         status: statusFilter || undefined,
+        search: search || undefined,
       }),
     staleTime: 30 * 1000,
   });
@@ -315,68 +321,34 @@ export const SubscriptionManagement: React.FC = () => {
   const handleModifySubmit = () => {
     if (!selectedSubscription) return;
 
-    const payload: { plan_name?: string; duration_days?: number; status?: string } = {};
-    const currentStatus = getEffectiveStatus(selectedSubscription);
-    const currentPlanName = getEffectivePlanName(selectedSubscription);
-    const isPlanChanged = modifyFormData.plan_name !== currentPlanName;
-    const hasDuration = modifyFormData.duration_days > 0;
-
-    if (modifyFormData.status !== currentStatus) {
-      payload.status = modifyFormData.status;
-    }
-
-    if (isPlanChanged || hasDuration) {
-      if (modifyFormData.duration_days <= 0) {
-        toast.error(t("subscriptions.extendDurationRequired", "更换套餐时请填写大于 0 的天数"));
-        return;
-      }
-      payload.plan_name = modifyFormData.plan_name;
-      payload.duration_days = modifyFormData.duration_days;
-    }
-
-    if (Object.keys(payload).length === 0) {
-      toast.error(t("subscriptions.noChanges", "没有需要保存的修改"));
+    const change = buildSubscriptionUpdate(
+      {
+        plan_name: getEffectivePlanName(selectedSubscription),
+        status: getEffectiveStatus(selectedSubscription),
+      },
+      modifyFormData,
+    );
+    if (!change.ok) {
+      toast.error(
+        change.reason === "durationRequired"
+          ? t("subscriptions.extendDurationRequired", "更换套餐时请填写大于 0 的天数")
+          : t("subscriptions.noChanges", "没有需要保存的修改"),
+      );
       return;
     }
 
     updateMutation.mutate({
       userId: selectedSubscription.user_id,
-      data: payload,
+      data: change.payload,
     });
   };
 
-  const formatDate = (dateStr: string | null | undefined) => {
-    if (!dateStr) {
-      return "-";
-    }
-    const date = new Date(dateStr);
-    if (Number.isNaN(date.getTime())) {
-      return "-";
-    }
+  const formatDate = formatAdminDate;
+  const formatDateTime = formatAdminDateTime;
 
-    return date.toLocaleString(getLocaleCode(), {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    });
-  };
-
-  const formatDateTime = (dateStr: string | null | undefined) => {
-    if (!dateStr) {
-      return "-";
-    }
-    const date = new Date(dateStr);
-    if (Number.isNaN(date.getTime())) {
-      return "-";
-    }
-
-    return date.toLocaleString(getLocaleCode(), {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  const applySearch = () => {
+    setSearch(searchInput.trim());
+    setPage(1);
   };
 
   const getPeriodEndDisplay = (sub: Subscription) => {
@@ -405,6 +377,29 @@ export const SubscriptionManagement: React.FC = () => {
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+        <div className="relative flex-1">
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--text-secondary))]"
+            size={18}
+          />
+          <input
+            type="search"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") applySearch();
+            }}
+            placeholder={t("subscriptions.searchPlaceholder")}
+            aria-label={t("subscriptions.searchPlaceholder")}
+            className="w-full pl-10 pr-4 py-2.5 min-h-11 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--separator-color))] rounded-lg focus:outline-none focus:ring-2 focus:ring-[hsl(var(--accent-primary))] text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))]"
+          />
+        </div>
+        <button
+          onClick={applySearch}
+          className="w-full sm:w-auto px-4 py-2.5 min-h-11 bg-[hsl(var(--accent-primary))] text-white rounded-lg hover:opacity-90 active:scale-95 transition-all"
+        >
+          {t("common:search")}
+        </button>
         <AdminSelect
           value={statusFilter}
           onChange={(e) => {
@@ -482,7 +477,7 @@ export const SubscriptionManagement: React.FC = () => {
                       <td className="px-4 py-3 text-sm">
                         <div className="flex flex-col">
                           <span className="text-[hsl(var(--text-primary))] font-medium">
-                            {getUserPrimaryText(sub)}
+                            <AdminUserLink userId={sub.user_id}>{getUserPrimaryText(sub)}</AdminUserLink>
                           </span>
                           <span className="text-[hsl(var(--text-secondary))] text-xs">
                             {getUserSecondaryText(sub)}

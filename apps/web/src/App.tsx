@@ -59,6 +59,7 @@ const InspirationDetailPage = lazyRoute(() => import("./pages/InspirationDetailP
 const AdminLayout = lazyRoute(() => import("./components/admin/AdminLayout"), "AdminLayout");
 const AdminDashboard = lazyRoute(() => import("./pages/admin/AdminDashboard"), "AdminDashboard");
 const UserManagement = lazyRoute(() => import("./pages/admin/UserManagement"), "UserManagement");
+const AdminUserDetail = lazyRoute(() => import("./pages/admin/AdminUserDetail"), "AdminUserDetail");
 const PromptManagement = lazyRoute(() => import("./pages/admin/PromptManagement"), "PromptManagement");
 const PromptEditor = lazyRoute(() => import("./pages/admin/PromptEditor"), "PromptEditor");
 const SkillReviewPage = lazyRoute(() => import("./pages/admin/SkillReviewPage"), "SkillReviewPage");
@@ -574,6 +575,7 @@ function App() {
                       <Route index element={<AdminDashboard />} />
                       <Route path="users" element={<UserManagement />} />
                       <Route path="usage" element={<UsageCostPage />} />
+                      <Route path="users/:userId" element={<AdminUserDetail />} />
                       <Route path="prompts" element={<PromptManagement />} />
                       <Route path="prompts/:projectType" element={<PromptEditor />} />
                       <Route path="skills" element={<SkillReviewPage />} />

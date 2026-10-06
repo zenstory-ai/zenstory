@@ -125,7 +125,7 @@ async def test_admin_quota_usage_and_user_quota_detail(client: AsyncClient, db_s
     assert usage_response.status_code == 200
     usage_data = usage_response.json()
     assert usage_data["material_decompositions"] == 4
-    assert usage_data["skill_create_attempts"] == 3
+    assert usage_data["skills_created"] == 3
     assert usage_data["inspiration_copies"] == 6
     assert "material_uploads" not in usage_data
     assert usage_data["period_start"].endswith("+00:00")

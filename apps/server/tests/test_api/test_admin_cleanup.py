@@ -268,7 +268,7 @@ async def test_quota_usage_totals_skip_stale_periods(client: AsyncClient, db_ses
         "period_end": next_month.replace(tzinfo=UTC).isoformat(),
         "material_decompositions": 2,
         "inspiration_copies": 3,
-        "skill_create_attempts": 4,
+        "skills_created": 4,
     }
 
 

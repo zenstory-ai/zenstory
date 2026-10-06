@@ -1,8 +1,9 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { AdminPageState, AdminSelect } from "../../components/admin";
+import { AdminUserLink } from "../../components/admin/AdminUserLink";
 import { Modal } from "../../components/ui/Modal";
 import { adminApi, type AdminPaymentOrder, type PaymentOrderSyncResponse } from "../../lib/adminApi";
 import { ApiError } from "../../lib/apiClient";
@@ -14,8 +15,10 @@ const PAGE_SIZE = 20;
 type FulfillmentFilter = "" | "pending" | "succeeded" | "failed";
 
 function syncErrorReason(cause: unknown): string {
-  if (cause instanceof ApiError && cause.rawMessage.startsWith("sync_failed:")) {
-    return cause.rawMessage.slice("sync_failed:".length);
+  if (cause instanceof ApiError) {
+    // Coded errors carry the reason in error_detail; older servers sent it as detail.
+    const raw = [cause.detailText, cause.rawMessage].find((text) => text?.startsWith("sync_failed:"));
+    if (raw) return raw.slice("sync_failed:".length);
   }
   return "unknown";
 }
@@ -139,7 +142,7 @@ export default function PaymentOrderManagement() {
             <tbody>{orders.map((order) => (
               <tr key={order.id} className="border-b border-[hsl(var(--separator-color))] last:border-0">
                 <td className={`${columnClass} font-mono text-xs`}>{order.out_trade_no}</td>
-                <td className={columnClass}><div>{order.username || order.user_id}</div><div className="text-xs text-[hsl(var(--text-secondary))]">{order.email}</div></td>
+                <td className={columnClass}><div><AdminUserLink userId={order.user_id}>{order.username || order.user_id}</AdminUserLink></div><div className="text-xs text-[hsl(var(--text-secondary))]">{order.email}</div></td>
                 <td className={columnClass}><div>{order.plan_display_name}</div><div className="text-xs text-[hsl(var(--text-secondary))]">{cycleLabel(order)}</div></td>
                 <td className={`${columnClass} whitespace-nowrap`}>{formatAmount(order.amount_cents)}</td>
                 <td className={columnClass}>{order.payment_method === "alipay" ? t("paymentOrders.alipay") : order.payment_method}</td>
@@ -165,16 +168,16 @@ export default function PaymentOrderManagement() {
       <Modal open={selectedOrder !== null} onClose={() => setSelectedOrder(null)} title={t("paymentOrders.details")} size="lg">
         {selectedOrder && <div className="space-y-4">
           <dl className="space-y-3 text-sm">
-            {[
+            {([
               ["orderNumber", selectedOrder.out_trade_no], ["providerOrderNumber", selectedOrder.trade_no ?? "-"],
-              ["user", `${selectedOrder.username || selectedOrder.user_id} · ${selectedOrder.email}`],
+              ["user", <><AdminUserLink userId={selectedOrder.user_id}>{selectedOrder.username || selectedOrder.user_id}</AdminUserLink> · {selectedOrder.email}</>],
               ["plan", `${selectedOrder.plan_display_name} · ${cycleLabel(selectedOrder)}`],
               ["amount", formatAmount(selectedOrder.amount_cents)], ["paymentMethod", t("paymentOrders.alipay")],
               ["paymentStatus", paymentStatus(selectedOrder)], ["fulfillmentStatus", fulfillmentStatus(selectedOrder)],
               ["createdAt", formatDate(selectedOrder.created_at)], ["paidAt", formatDate(selectedOrder.paid_at)],
               ["fulfilledAt", formatDate(selectedOrder.fulfilled_at)], ["failureReason", selectedOrder.failure_reason ?? "-"],
               ["upgradeSource", selectedOrder.upgrade_source ?? "-"],
-            ].map(([key, value]) => <div key={key} className="grid grid-cols-[minmax(90px,1fr)_2fr] gap-3">
+            ] as Array<[string, React.ReactNode]>).map(([key, value]) => <div key={key} className="grid grid-cols-[minmax(90px,1fr)_2fr] gap-3">
               <dt className="text-[hsl(var(--text-secondary))]">{t(`paymentOrders.${key}`)}</dt>
               <dd className="min-w-0 break-words text-[hsl(var(--text-primary))]">{value}</dd>
             </div>)}

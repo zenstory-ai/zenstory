@@ -63,6 +63,11 @@ export function getLocalDateString(baseDate: Date = new Date()): string {
  * ```
  */
 export function parseUTCDate(dateString: string): Date {
+  // A bare calendar date ("2024-01-12") has no time to shift; read it as a local day.
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateString);
+  if (dateOnly) {
+    return new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]));
+  }
   // If the string doesn't end with 'Z' or timezone offset, append 'Z' to mark as UTC
   if (
     !dateString.endsWith("Z") &&
@@ -193,4 +198,33 @@ export function formatRelativeTimeWithYear(dateString: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+const ADMIN_DATE_TIME_FORMAT: Intl.DateTimeFormatOptions = {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+};
+
+/**
+ * Format a backend timestamp in the viewer's local time.
+ *
+ * Accepts naive UTC ("2024-01-12T10:00:00"), offset ISO strings and bare
+ * calendar dates. Empty or unparseable values render as "-".
+ */
+export function formatAdminDateTime(
+  value: string | null | undefined,
+  options: Intl.DateTimeFormatOptions = ADMIN_DATE_TIME_FORMAT,
+): string {
+  if (!value) return "-";
+  const date = parseUTCDate(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString(getLocaleCode(), options);
+}
+
+/** Like formatAdminDateTime, without the time of day. */
+export function formatAdminDate(value: string | null | undefined): string {
+  return formatAdminDateTime(value, { year: "numeric", month: "2-digit", day: "2-digit" });
 }

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import CheckInStatsPage from "../CheckInStatsPage";
+import { MemoryRouter } from "react-router-dom";
 
 const useQueryMock = vi.fn();
 
@@ -106,7 +107,7 @@ describe("CheckInStatsPage", () => {
   it("shows stats loading state", () => {
     mockQueries({ statsLoading: true });
 
-    render(<CheckInStatsPage />);
+    render(<CheckInStatsPage />, { wrapper: MemoryRouter });
     expect(screen.getByText("common:loading")).toBeInTheDocument();
   });
 
@@ -116,7 +117,7 @@ describe("CheckInStatsPage", () => {
       statsErrorMessage: "load check-in stats failed",
     });
 
-    render(<CheckInStatsPage />);
+    render(<CheckInStatsPage />, { wrapper: MemoryRouter });
     expect(screen.getByText("load check-in stats failed")).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("common:retry"));
@@ -126,7 +127,7 @@ describe("CheckInStatsPage", () => {
   it("renders streak summary and records list", () => {
     mockQueries({});
 
-    render(<CheckInStatsPage />);
+    render(<CheckInStatsPage />, { wrapper: MemoryRouter });
 
     expect(screen.getByText("writer")).toBeInTheDocument();
     expect(screen.getByText("+20")).toBeInTheDocument();
@@ -140,7 +141,7 @@ describe("CheckInStatsPage", () => {
       recordsData: { items: [], total: 0, page: 1, page_size: 20 },
     });
 
-    render(<CheckInStatsPage />);
+    render(<CheckInStatsPage />, { wrapper: MemoryRouter });
     expect(screen.getByText("load check-in records failed")).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("common:retry"));

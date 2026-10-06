@@ -43,7 +43,7 @@ const USER_MANAGEMENT = {
   table: 'table',
   tableRow: 'tr',
   editButton: 'button[title="编辑"], button[title="Edit"]',
-  deleteButton: 'button[title="删除"], button[title="Delete"]',
+  deactivateButton: 'button[title="停用用户"], button[title="Deactivate user"]',
   pagination: '.flex.items-center.gap-2',
   prevButton: 'button:has-text("上一页"), button:has-text("Previous")',
   nextButton: 'button:has-text("下一页"), button:has-text("Next")',
@@ -58,9 +58,9 @@ const USER_EDIT_DIALOG = {
   cancelButton: 'button:has-text("取消"), button:has-text("Cancel")',
 };
 
-const DELETE_DIALOG = {
+const DEACTIVATE_DIALOG = {
   overlay: '.fixed.inset-0.z-50',
-  confirmButton: 'button:has-text("删除用户"), button:has-text("Delete user")',
+  confirmButton: 'button:has-text("停用"), button:has-text("Deactivate")',
   cancelButton: 'button:has-text("取消"), button:has-text("Cancel")',
 };
 
@@ -322,51 +322,17 @@ test.describe('Admin Functionality', () => {
       }
     });
 
-    test('admin cannot delete self', async ({ page }) => {
+    test('admin cannot deactivate self', async ({ page }) => {
       // Wait for table to load
       await expect(page.locator(USER_MANAGEMENT.table)).toBeVisible({ timeout: 10000 });
 
-      // Find admin user row (the one logged in)
-      const rows = page.locator('table tbody tr');
-      const rowCount = await rows.count();
-
-      // Try to find and delete admin - look for admin email
-      for (let i = 0; i < rowCount; i++) {
-        const row = rows.nth(i);
-        const emailCell = row.locator('td').nth(1);
-        const email = await emailCell.textContent();
-
-        if (email?.includes('admin')) {
-          // Try to delete
-          await row.locator(USER_MANAGEMENT.deleteButton).click();
-
-          // Wait for delete confirmation
-          await expect(page.locator(DELETE_DIALOG.overlay)).toBeVisible({ timeout: 5000 });
-
-          // Confirm delete - should show error or prevent deletion
-          await page.click(`${DELETE_DIALOG.overlay} ${DELETE_DIALOG.confirmButton}`);
-
-          // Wait for response - either error toast or dialog stays
-          await page.waitForTimeout(800);
-
-          // The deletion should fail - check for error state
-          // (Either the dialog remains or an error toast appears)
-          const errorToast = page.locator('.fixed.bottom-20:has-text("失败"), .fixed.bottom-20:has-text("error"), .fixed.bottom-20:has-text("Failed")');
-          const hasError = await errorToast.isVisible().catch(() => false);
-
-          // Close dialog if still open
-          const dialogVisible = await page.locator(DELETE_DIALOG.overlay).isVisible().catch(() => false);
-          if (dialogVisible) {
-            await page.click(`${DELETE_DIALOG.overlay} ${DELETE_DIALOG.cancelButton}`);
-          }
-
-          // Test passes if there was an error or dialog didn't close
-          expect(hasError || dialogVisible).toBeTruthy();
-          return;
-        }
+      // The signed-in admin's own row offers no deactivate action (the API also refuses it).
+      const ownRow = page.locator('table tbody tr').filter({ hasText: ADMIN_EMAIL }).first();
+      if (await ownRow.count() === 0) {
+        test.skip();
+        return;
       }
-
-      // If admin row not found, test passes (can't delete what's not there)
+      await expect(ownRow.locator(USER_MANAGEMENT.deactivateButton)).toHaveCount(0);
     });
 
     test('admin can cancel user edit', async ({ page }) => {
@@ -391,34 +357,26 @@ test.describe('Admin Functionality', () => {
       await expect(page.locator(USER_EDIT_DIALOG.overlay)).not.toBeVisible({ timeout: 5000 });
     });
 
-    test('admin can cancel user deletion', async ({ page }) => {
+    test('admin can cancel user deactivation', async ({ page }) => {
       // Wait for table to load
       await expect(page.locator(USER_MANAGEMENT.table)).toBeVisible({ timeout: 10000 });
 
-      // Click delete on first non-admin user
-      const rows = page.locator('table tbody tr');
-      const rowCount = await rows.count();
-
-      for (let i = 0; i < rowCount; i++) {
-        const row = rows.nth(i);
-        const emailCell = row.locator('td').nth(1);
-        const email = await emailCell.textContent();
-
-        // Don't delete admin user
-        if (!email?.includes('admin')) {
-          await row.locator(USER_MANAGEMENT.deleteButton).click();
-          break;
-        }
+      // Open deactivate on the first row that offers it (active users other than the admin)
+      const deactivate = page.locator(`table tbody ${USER_MANAGEMENT.deactivateButton}`).first();
+      if (await deactivate.count() === 0) {
+        test.skip();
+        return;
       }
+      await deactivate.click();
 
-      // Wait for delete dialog
-      await expect(page.locator(DELETE_DIALOG.overlay)).toBeVisible({ timeout: 5000 });
+      // Wait for the confirmation dialog
+      await expect(page.locator(DEACTIVATE_DIALOG.overlay)).toBeVisible({ timeout: 5000 });
 
-      // Cancel deletion
-      await page.click(DELETE_DIALOG.cancelButton);
+      // Cancel
+      await page.click(DEACTIVATE_DIALOG.cancelButton);
 
       // Dialog should close
-      await expect(page.locator(DELETE_DIALOG.overlay)).not.toBeVisible({ timeout: 5000 });
+      await expect(page.locator(DEACTIVATE_DIALOG.overlay)).not.toBeVisible({ timeout: 5000 });
     });
 
     test('user table pagination works', async ({ page }) => {

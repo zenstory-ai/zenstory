@@ -54,6 +54,7 @@ import type {
   RewardsResponse,
   QuotaUsageStats,
   UserQuotaDetail,
+  QuotaCounter,
 } from "../types/admin";
 import type { SubscriptionFeatures, SubscriptionPlan } from "../types/subscription";
 import type { PaymentOrder } from "../types/payment";
@@ -620,10 +621,20 @@ function normalizeRewardRecord(reward: unknown): RewardsResponse["items"][number
 function normalizeQuotaUsageStats(stats: unknown): QuotaUsageStats {
   const raw = resolvePayloadRecord(stats);
   return {
-    material_uploads: asNumber(raw.material_uploads, 0),
-    material_decomposes: asNumber(raw.material_decomposes, 0),
-    skill_creates: asNumber(raw.skill_creates, 0),
+    period_start: asText(raw.period_start, ""),
+    period_end: asText(raw.period_end, ""),
+    material_decompositions: asNumber(raw.material_decompositions, 0),
     inspiration_copies: asNumber(raw.inspiration_copies, 0),
+    skills_created: asNumber(raw.skills_created, 0),
+  };
+}
+
+function normalizeQuotaCounter(counter: unknown): QuotaCounter {
+  const raw = resolvePayloadRecord(counter);
+  return {
+    used: asNumber(raw.used, 0),
+    limit: asNumber(raw.limit, 0),
+    reset_at: asNullableText(raw.reset_at),
   };
 }
 
@@ -632,15 +643,14 @@ function normalizeUserQuota(detail: unknown): UserQuotaDetail {
   return {
     user_id: asText(raw.user_id, ""),
     username: asText(raw.username, "-"),
+    email: asText(raw.email, ""),
     plan_name: asText(raw.plan_name, "-"),
-    ai_conversations_used: asNumber(raw.ai_conversations_used, 0),
-    ai_conversations_limit: asNumber(raw.ai_conversations_limit, 0),
-    material_upload_used: asNumber(raw.material_upload_used, 0),
-    material_upload_limit: asNumber(raw.material_upload_limit, 0),
-    skill_create_used: asNumber(raw.skill_create_used, 0),
-    skill_create_limit: asNumber(raw.skill_create_limit, 0),
-    inspiration_copy_used: asNumber(raw.inspiration_copy_used, 0),
-    inspiration_copy_limit: asNumber(raw.inspiration_copy_limit, 0),
+    plan_display_name: asNullableText(raw.plan_display_name),
+    plan_display_name_en: asNullableText(raw.plan_display_name_en),
+    ai_conversations: normalizeQuotaCounter(raw.ai_conversations),
+    material_decompositions: normalizeQuotaCounter(raw.material_decompositions),
+    inspiration_copies: normalizeQuotaCounter(raw.inspiration_copies),
+    custom_skills: normalizeQuotaCounter(raw.custom_skills),
   };
 }
 
@@ -682,7 +692,8 @@ export async function getUsers(
  * @returns Promise resolving to user object
  */
 export async function getUser(id: string): Promise<User> {
-  return api.get<User>(`${ADMIN_BASE}/users/${id}`);
+  const payload = await api.get<unknown>(`${ADMIN_BASE}/users/${encodeURIComponent(id)}`);
+  return normalizeUser(payload);
 }
 
 /**
@@ -943,14 +954,24 @@ export async function createCode(data: {
  * @param data - Batch creation parameters including count
  * @returns Promise resolving to array of created codes and count
  */
+export interface CodeBatchCreateResponse {
+  codes: string[];
+  count?: number;
+  created?: number;
+  code_type?: "single_use" | "multi_use";
+  max_uses?: number;
+}
+
 export async function createCodesBatch(data: {
   tier: string;
   duration_days: number;
   count: number;
   code_type?: "single_use" | "multi_use" | "single" | "multi";
+  /** Required for multi-use codes: how many users can redeem each code. */
+  max_uses?: number;
   notes?: string;
-}): Promise<{ codes: string[]; count?: number; created?: number }> {
-  return api.post<{ codes: string[]; count?: number; created?: number }>(`${ADMIN_BASE}/codes/batch`, data);
+}): Promise<CodeBatchCreateResponse> {
+  return api.post<CodeBatchCreateResponse>(`${ADMIN_BASE}/codes/batch`, data);
 }
 
 /**
@@ -1051,11 +1072,14 @@ export async function getSubscriptions(params?: {
   page?: number;
   page_size?: number;
   status?: string;
+  /** Username or email fragment */
+  search?: string;
 }): Promise<SubscriptionsListResponse> {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set("page", String(params.page));
   if (params?.page_size) searchParams.set("page_size", String(params.page_size));
   if (params?.status) searchParams.set("status", params.status);
+  if (params?.search) searchParams.set("search", params.search);
 
   const payload = await api.get<unknown>(`${ADMIN_BASE}/subscriptions?${searchParams.toString()}`);
   const payloadRecord = resolvePayloadRecord(payload);
@@ -1100,6 +1124,7 @@ export async function getPaymentOrders(params: {
   fulfillment_status?: "pending" | "succeeded" | "failed";
   needs_attention?: boolean;
   search?: string;
+  user_id?: string;
 } = {}): Promise<PaymentOrdersListResponse> {
   const query = new URLSearchParams();
   if (params.page) query.set("page", String(params.page));
@@ -1108,6 +1133,7 @@ export async function getPaymentOrders(params: {
   if (params.fulfillment_status) query.set("fulfillment_status", params.fulfillment_status);
   if (params.needs_attention) query.set("needs_attention", "true");
   if (params.search) query.set("search", params.search);
+  if (params.user_id) query.set("user_id", params.user_id);
   return api.get<PaymentOrdersListResponse>(`${ADMIN_BASE}/payment-orders?${query.toString()}`);
 }
 

@@ -44,7 +44,7 @@ describe('AdminLayout mobile navigation', () => {
     expect(drawer).toHaveAttribute('role', 'dialog');
     expect(screen.getByRole('button', { name: '仪表盘' })).toHaveFocus();
 
-    screen.getByRole('button', { name: '配额管理' }).focus();
+    screen.getByRole('button', { name: '审计日志' }).focus();
     fireEvent.keyDown(document, { key: 'Tab' });
     expect(screen.getByRole('button', { name: '仪表盘' })).toHaveFocus();
 

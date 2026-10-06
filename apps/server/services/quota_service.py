@@ -379,7 +379,7 @@ class QuotaService:
             "period_end": period_end,
             "material_decompositions": int(totals[0] or 0),
             "inspiration_copies": int(totals[1] or 0),
-            "skill_create_attempts": int(totals[2] or 0),
+            "skills_created": int(totals[2] or 0),
         }
 
     def consume_ai_conversation(self, session: Session, user_id: str) -> bool:

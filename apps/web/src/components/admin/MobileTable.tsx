@@ -1,8 +1,9 @@
 import React from "react";
-import { Edit, Trash2 } from "lucide-react";
+import { Edit, UserX } from "lucide-react";
 import type { User } from "../../types/admin";
 import type { TFunction } from "i18next";
-import { getLocaleCode } from "../../lib/i18n-helpers";
+import { formatAdminDateTime } from "../../lib/dateUtils";
+import { AdminUserLink } from "./AdminUserLink";
 
 interface MobileTableProps<T> {
   data: T[];
@@ -25,20 +26,12 @@ export function MobileTable<T>({
 interface UserCardProps {
   user: User;
   onEdit: (user: User) => void;
-  onDelete: (user: User) => void;
+  /** Omitted when the account cannot be deactivated (current admin, already inactive). */
+  onDeactivate?: (user: User) => void;
   t: TFunction;
 }
 
-export function UserCard({ user, onEdit, onDelete, t }: UserCardProps) {
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString(getLocaleCode(), {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+export function UserCard({ user, onEdit, onDeactivate, t }: UserCardProps) {
 
   return (
     <div className="admin-surface space-y-3 p-4">
@@ -46,7 +39,7 @@ export function UserCard({ user, onEdit, onDelete, t }: UserCardProps) {
       <div className="space-y-1">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold text-[hsl(var(--text-primary))]">
-            {user.username}
+            <AdminUserLink userId={user.id}>{user.username}</AdminUserLink>
           </h3>
           <div className="flex items-center gap-2">
             {/* 超级用户标识 */}
@@ -72,7 +65,7 @@ export function UserCard({ user, onEdit, onDelete, t }: UserCardProps) {
 
       {/* 创建时间 */}
       <div className="text-xs text-[hsl(var(--text-secondary))]">
-        {t("users.createdAt")}: {formatDate(user.created_at)}
+        {t("users.createdAt")}: {formatAdminDateTime(user.created_at)}
       </div>
 
       {/* 操作按钮 */}
@@ -84,13 +77,15 @@ export function UserCard({ user, onEdit, onDelete, t }: UserCardProps) {
           <Edit size={16} />
           <span>{t("users.edit")}</span>
         </button>
-        <button
-          onClick={() => onDelete(user)}
-          className="flex-1 flex items-center justify-center gap-2 min-h-11 py-2.5 px-4 bg-[hsl(var(--error) / 0.05)] border border-[hsl(var(--error) / 0.3)] rounded-lg hover:bg-[hsl(var(--error) / 0.1)] active:scale-95 transition-all text-sm text-[hsl(var(--error))] hover:text-[hsl(var(--error) / 0.8)]"
-        >
-          <Trash2 size={16} />
-          <span>{t("users.delete")}</span>
-        </button>
+        {onDeactivate && (
+          <button
+            onClick={() => onDeactivate(user)}
+            className="flex-1 flex items-center justify-center gap-2 min-h-11 py-2.5 px-4 bg-[hsl(var(--error) / 0.05)] border border-[hsl(var(--error) / 0.3)] rounded-lg hover:bg-[hsl(var(--error) / 0.1)] active:scale-95 transition-all text-sm text-[hsl(var(--error))] hover:text-[hsl(var(--error) / 0.8)]"
+          >
+            <UserX size={16} />
+            <span>{t("users.deactivate")}</span>
+          </button>
+        )}
       </div>
     </div>
   );

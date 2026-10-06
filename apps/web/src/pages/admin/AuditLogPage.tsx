@@ -4,32 +4,35 @@ import { useQuery } from "@tanstack/react-query";
 import { Eye, X, RotateCcw } from "lucide-react";
 import { AdminPageState, AdminSelect } from "../../components/admin";
 import { adminApi, type AuditLog } from "../../lib/adminApi";
-import { getLocaleCode } from "../../lib/i18n-helpers";
+import { formatAdminDateTime } from "../../lib/dateUtils";
+import {
+  AUDIT_ACTIONS,
+  AUDIT_ACTIONS_BY_RESOURCE,
+  AUDIT_RESOURCE_TYPES,
+  auditActionLabel,
+  auditActionTone,
+  auditResourceLabel,
+} from "../../lib/adminAuditLabels";
+import { AdminUserLink } from "../../components/admin/AdminUserLink";
 
-// Action type color mapping
-const getActionColor = (action: string): string => {
-  if (action.includes("create")) {
-    return "bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]";
-  }
-  if (action.includes("delete") || action.includes("reject")) {
-    return "bg-[hsl(var(--error)/0.15)] text-[hsl(var(--error))]";
-  }
-  if (action.includes("update") || action.includes("approve")) {
-    return "bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))]";
-  }
-  return "bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))]";
-};
+const ACTION_TONE_CLASSES = {
+  create: "bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]",
+  remove: "bg-[hsl(var(--error)/0.15)] text-[hsl(var(--error))]",
+  change: "bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))]",
+  neutral: "bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))]",
+} as const;
 
-// Resource type icon mapping
-const getResourceTypeLabel = (resourceType: string, t: (key: string) => string): string => {
-  const typeMap: Record<string, string> = {
-    user: t("auditLogs.resourceUser"),
-    code: t("auditLogs.resourceCode"),
-    subscription: t("auditLogs.resourceSubscription"),
-    inspiration: t("auditLogs.resourceInspiration"),
-    plan: t("auditLogs.resourcePlan"),
-  };
-  return typeMap[resourceType] || resourceType;
+const getActionColor = (action: string): string => ACTION_TONE_CLASSES[auditActionTone(action)];
+
+// Resource types whose resource_id is a user id, so it can link to the user page.
+const USER_RESOURCE_TYPES = new Set(["user", "subscription", "points"]);
+
+const ResourceIdCell: React.FC<{ log: AuditLog }> = ({ log }) => {
+  if (!log.resource_id) return <>-</>;
+  if (USER_RESOURCE_TYPES.has(log.resource_type)) {
+    return <AdminUserLink userId={log.resource_id}>{log.resource_id}</AdminUserLink>;
+  }
+  return <>{log.resource_id}</>;
 };
 
 // Mobile card component for audit logs
@@ -43,7 +46,7 @@ const AuditLogCard: React.FC<{
     <div className="admin-surface p-4 space-y-3">
       <div className="flex items-center justify-between">
         <span className="font-medium text-[hsl(var(--text-primary))]">
-          {log.admin_name}
+          <AdminUserLink userId={log.admin_id}>{log.admin_name}</AdminUserLink>
         </span>
         <span className="text-xs text-[hsl(var(--text-secondary))]">
           {formatDate(log.created_at)}
@@ -51,15 +54,15 @@ const AuditLogCard: React.FC<{
       </div>
       <div className="flex flex-wrap gap-2">
         <span className={`px-2 py-1 rounded text-xs font-medium ${getActionColor(log.action)}`}>
-          {t(`auditLogs.action${log.action.charAt(0).toUpperCase()}${log.action.slice(1).replace(/_/g, "")}`, { defaultValue: log.action })}
+          {auditActionLabel(t, log.action)}
         </span>
         <span className="px-2 py-1 rounded text-xs font-medium bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))]">
-          {getResourceTypeLabel(log.resource_type, t)}
+          {auditResourceLabel(t, log.resource_type)}
         </span>
       </div>
       <div className="text-sm text-[hsl(var(--text-secondary))]">
         <span>{t("auditLogs.resourceId")}: </span>
-        <span className="font-mono text-[hsl(var(--text-primary))]">{log.resource_id || "-"}</span>
+        <span className="font-mono text-[hsl(var(--text-primary))]"><ResourceIdCell log={log} /></span>
       </div>
       {log.details && (
         <div className="text-sm text-[hsl(var(--text-secondary))] line-clamp-2">
@@ -125,14 +128,14 @@ const DetailModal: React.FC<{
                 {t("auditLogs.action")}
               </label>
               <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${getActionColor(log.action)}`}>
-                {log.action}
+                {auditActionLabel(t, log.action)}
               </span>
             </div>
             <div>
               <label className="block text-sm font-medium text-[hsl(var(--text-secondary))] mb-1">
                 {t("auditLogs.resourceType")}
               </label>
-              <p className="text-[hsl(var(--text-primary))]">{getResourceTypeLabel(log.resource_type, t)}</p>
+              <p className="text-[hsl(var(--text-primary))]">{auditResourceLabel(t, log.resource_type)}</p>
             </div>
           </div>
 
@@ -142,7 +145,7 @@ const DetailModal: React.FC<{
               {t("auditLogs.resourceId")}
             </label>
             <p className="font-mono text-sm text-[hsl(var(--text-primary))] bg-[hsl(var(--bg-secondary))] px-3 py-2 rounded">
-              {log.resource_id || "-"}
+              <ResourceIdCell log={log} />
             </p>
           </div>
 
@@ -236,44 +239,31 @@ export const AuditLogPage: React.FC = () => {
     ? error.message
     : t("common:error");
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    if (Number.isNaN(date.getTime())) {
-      return "-";
-    }
-
-    return date.toLocaleString(getLocaleCode(), {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-  };
+  const formatDate = (dateStr: string) => formatAdminDateTime(dateStr, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 
   const handleViewDetails = (log: AuditLog) => {
     setSelectedLog(log);
   };
 
-  // Resource type options
   const resourceTypeOptions = [
     { value: "", label: t("auditLogs.allResourceTypes") },
-    { value: "user", label: t("auditLogs.resourceUser") },
-    { value: "code", label: t("auditLogs.resourceCode") },
-    { value: "subscription", label: t("auditLogs.resourceSubscription") },
-    { value: "inspiration", label: t("auditLogs.resourceInspiration") },
-    { value: "plan", label: t("auditLogs.resourcePlan") },
+    ...AUDIT_RESOURCE_TYPES.map((type) => ({ value: type, label: auditResourceLabel(t, type) })),
   ];
 
-  // Action type options
+  // Once a resource type is picked, only its actions are offered.
+  const visibleActions = resourceTypeFilter
+    ? AUDIT_ACTIONS_BY_RESOURCE[resourceTypeFilter] ?? []
+    : AUDIT_ACTIONS;
   const actionOptions = [
     { value: "", label: t("auditLogs.allActions") },
-    { value: "create", label: t("auditLogs.actionCreate") },
-    { value: "update", label: t("auditLogs.actionUpdate") },
-    { value: "delete", label: t("auditLogs.actionDelete") },
-    { value: "approve", label: t("auditLogs.actionApprove") },
-    { value: "reject", label: t("auditLogs.actionReject") },
+    ...visibleActions.map((action) => ({ value: action, label: auditActionLabel(t, action) })),
   ];
 
   return (
@@ -292,7 +282,11 @@ export const AuditLogPage: React.FC = () => {
         <AdminSelect
           value={resourceTypeFilter}
           onChange={(e) => {
-            setResourceTypeFilter(e.target.value);
+            const nextType = e.target.value;
+            setResourceTypeFilter(nextType);
+            if (nextType && actionFilter && !(AUDIT_ACTIONS_BY_RESOURCE[nextType] ?? []).includes(actionFilter)) {
+              setActionFilter("");
+            }
             setPage(1);
           }}
           className="text-[hsl(var(--text-primary))]"
@@ -393,18 +387,18 @@ export const AuditLogPage: React.FC = () => {
                       className="border-b border-[hsl(var(--separator-color))] hover:bg-[hsl(var(--bg-tertiary))]"
                     >
                       <td className="px-4 py-3 text-sm text-[hsl(var(--text-primary))]">
-                        {log.admin_name}
+                        <AdminUserLink userId={log.admin_id}>{log.admin_name}</AdminUserLink>
                       </td>
                       <td className="px-4 py-3 text-sm">
                         <span className={`px-2 py-1 rounded text-xs font-medium ${getActionColor(log.action)}`}>
-                          {log.action}
+                          {auditActionLabel(t, log.action)}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-[hsl(var(--text-primary))]">
-                        {getResourceTypeLabel(log.resource_type, t)}
+                        {auditResourceLabel(t, log.resource_type)}
                       </td>
                       <td className="px-4 py-3 text-sm font-mono text-[hsl(var(--text-primary))]">
-                        {log.resource_id || "-"}
+                        <ResourceIdCell log={log} />
                       </td>
                       <td className="px-4 py-3 text-sm text-[hsl(var(--text-secondary))]">
                         {formatDate(log.created_at)}

@@ -505,8 +505,8 @@ class QuotaUsageStatsResponse(BaseModel):
     period_end: UTCDateTime
     material_decompositions: int
     inspiration_copies: int
-    # Every create attempt bumps this, including ones refused at the limit.
-    skill_create_attempts: int
+    # Custom skills created this month (refused creates roll back their bump).
+    skills_created: int
 
 
 class QuotaCounter(BaseModel):

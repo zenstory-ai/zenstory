@@ -24,7 +24,15 @@
     "referrals": "Referral System",
     "quota": "Quota Management",
     "paymentOrders": "Payment Orders",
-    "usage": "Usage & cost"
+    "usage": "Usage & cost",
+    "groups": {
+      "overview": "Overview",
+      "users": "Users & usage",
+      "revenue": "Revenue",
+      "growth": "Growth",
+      "content": "Content & ops",
+      "system": "System"
+    }
   },
   "admin": {
     "verifyingPermission": "Checking access...",
@@ -89,7 +97,7 @@
   },
   "users": {
     "title": "User Management",
-    "subtitle": "View, edit, or delete user accounts",
+    "subtitle": "View, edit or deactivate user accounts",
     "username": "Username",
     "email": "Email",
     "isActive": "Status",
@@ -98,18 +106,19 @@
     "actions": "Actions",
     "search": "Search by username or email",
     "edit": "Edit",
-    "delete": "Delete",
     "editUser": "Edit User",
     "editUserSuccess": "User updated",
     "editUserFailed": "Couldn't update the user. Please try again.",
-    "deleteConfirm": "Delete this user? This can't be undone.",
-    "confirmDelete": "Delete user",
-    "deleteSuccess": "User deleted",
-    "deleteFailed": "Couldn't delete the user. Please try again.",
     "active": "Active",
     "inactive": "Disabled",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "deactivate": "Deactivate user",
+    "deactivateConfirm": "The user can no longer sign in. You can turn the account back on from Edit.",
+    "confirmDeactivate": "Deactivate",
+    "deactivateSuccess": "User deactivated",
+    "deactivateFailed": "Couldn't deactivate. Please try again.",
+    "viewDetails": "View details"
   },
   "prompts": {
     "title": "Prompt Management",
@@ -246,7 +255,14 @@
     "typeMulti": "Multi Use",
     "deactivateConfirmTitle": "Deactivate redemption code",
     "deactivateConfirmImpact": "It can't be redeemed until you activate it again.",
-    "confirmDeactivate": "Deactivate"
+    "confirmDeactivate": "Deactivate",
+    "maxUsesPerCode": "Uses per code",
+    "maxUsesHint": "The code stops working after this many redemptions",
+    "batchResultTitle": "{{count}} codes created",
+    "multiUseSummary": "{{count}} uses per code",
+    "copyAll": "Copy all",
+    "copiedAll": "Copied {{count}} codes",
+    "downloadCsv": "Download CSV"
   },
   "subscriptions": {
     "title": "Subscription Management",
@@ -283,7 +299,8 @@
     "uninitializedLongTerm": "No expiry (Free)",
     "longTerm": "No expiry",
     "testAccount": "Test account",
-    "noRecord": "No subscription record"
+    "noRecord": "No subscription record",
+    "searchPlaceholder": "Search username or email"
   },
   "inspirations": {
     "title": "Inspiration Management",
@@ -381,17 +398,44 @@
     "allResourceTypes": "All Resource Types",
     "allActions": "All Actions",
     "pageInfo": "Page {{page}}",
-    "resourceUser": "User",
-    "resourceCode": "Redemption Code",
-    "resourceSubscription": "Subscription",
-    "resourceInspiration": "Inspiration",
-    "resourcePlan": "Subscription Plan",
-    "actionCreate": "Create",
-    "actionUpdate": "Update",
-    "actionDelete": "Delete",
-    "actionApprove": "Approve",
-    "actionReject": "Reject",
-    "ipAddress": "IP Address"
+    "ipAddress": "IP Address",
+    "resourceLabels": {
+      "user": "User",
+      "code": "Redemption code",
+      "subscription": "Subscription",
+      "inspiration": "Inspiration",
+      "plan": "Plan",
+      "points": "Points",
+      "skill": "Skill",
+      "invite_code": "Invite code",
+      "feedback": "Feedback",
+      "system_prompt": "Prompt",
+      "payment_order": "Payment order"
+    },
+    "actionLabels": {
+      "update_user": "Edit user",
+      "delete_user": "Deactivate user",
+      "update_subscription": "Change subscription",
+      "sync_payment_order": "Check payment order",
+      "update_plan": "Edit plan",
+      "create_code": "Create code",
+      "create_codes_batch": "Create codes in bulk",
+      "update_code": "Edit code",
+      "adjust_points": "Adjust points",
+      "create_invite_code": "Create invite code",
+      "approve_skill": "Approve skill",
+      "reject_skill": "Reject skill",
+      "unpublish_skill": "Unpublish skill",
+      "create_inspiration": "Create inspiration",
+      "update_inspiration": "Edit inspiration",
+      "approve_inspiration": "Approve inspiration",
+      "reject_inspiration": "Reject inspiration",
+      "delete_inspiration": "Delete inspiration",
+      "update_feedback_status": "Update feedback status",
+      "create_prompt": "Create prompt",
+      "update_prompt": "Edit prompt",
+      "delete_prompt": "Delete prompt"
+    }
   },
   "plans": {
     "title": "Subscription Plans",
@@ -545,23 +589,22 @@
   "quota": {
     "title": "Quota Usage Statistics",
     "subtitle": "Usage by feature, and limits for a single user",
-    "stats": "Quota Usage Statistics",
-    "materialUploads": "Material Uploads",
-    "materialDecomposes": "Material Decompositions",
-    "skillCreates": "Skills Created",
+    "stats": "This period's usage",
     "inspirationCopies": "Inspiration Copies",
     "userDetail": "User Quota Details",
     "username": "Username",
     "planName": "Subscription Plan",
     "aiConversations": "AI Conversations",
-    "materialUpload": "Material Upload",
-    "skillCreate": "Skill Creation",
     "inspirationCopy": "Inspiration Copy",
-    "used": "Used",
-    "limit": "Limit",
     "unlimited": "Unlimited",
     "searchUser": "Enter the exact username, email, or user ID",
-    "noUser": "No user found. Check the username, email, or ID."
+    "noUser": "No user found. Check the username, email, or ID.",
+    "period": "Period: {{start}} to {{end}}",
+    "materialDecompositions": "Material breakdowns",
+    "skillsCreated": "Skills created this month",
+    "customSkills": "Custom skills",
+    "resetsAt": "Resets",
+    "usedUnlimited": "{{used}} used · unlimited"
   },
   "paymentOrders": {
     "title": "Payment Orders",
@@ -673,5 +716,23 @@
     "openUser": "View usage for {{name}}",
     "detailRange": "Days",
     "lastDays": "Last {{count}} days"
+  },
+  "userDetail": {
+    "title": "User details",
+    "back": "Back to users",
+    "viewUsage": "View usage",
+    "account": "Account",
+    "userId": "User ID",
+    "emailUnverified": "Unverified",
+    "subscription": "Membership",
+    "effectivePlan": "Plan in effect",
+    "quota": "Quota",
+    "points": "Points",
+    "recentTransactions": "Recent points activity",
+    "noTransactions": "No points activity yet",
+    "payments": "Payment orders",
+    "noPayments": "No payment orders",
+    "olderOrders": "{{count}} older orders not shown",
+    "notFound": "User not found"
   }
 }

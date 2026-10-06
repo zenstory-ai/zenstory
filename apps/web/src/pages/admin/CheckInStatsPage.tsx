@@ -5,7 +5,8 @@ import { CalendarCheck, Calendar, TrendingUp, Users } from "lucide-react";
 import { adminApi } from "../../lib/adminApi";
 import { AdminPageState } from "../../components/admin";
 import { StatsCard } from "../../components/admin/StatsCard";
-import { getLocaleCode } from "../../lib/i18n-helpers";
+import { formatAdminDate, formatAdminDateTime } from "../../lib/dateUtils";
+import { AdminUserLink } from "../../components/admin/AdminUserLink";
 
 export const CheckInStatsPage: React.FC = () => {
   const { t } = useTranslation(["admin", "common"]);
@@ -44,33 +45,9 @@ export const CheckInStatsPage: React.FC = () => {
     ? recordsQueryError.message
     : t("common:error");
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    if (Number.isNaN(date.getTime())) {
-      return "-";
-    }
+  const formatDate = (dateStr: string | null | undefined) => formatAdminDateTime(dateStr);
 
-    return date.toLocaleString(getLocaleCode(), {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const formatDateOnly = (dateStr: string) => {
-    const date = new Date(dateStr);
-    if (Number.isNaN(date.getTime())) {
-      return "-";
-    }
-
-    return date.toLocaleDateString(getLocaleCode(), {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    });
-  };
+  const formatDateOnly = (dateStr: string | null | undefined) => formatAdminDate(dateStr);
 
   // Calculate streak distribution summary
   const streakDistribution = stats?.streak_distribution || {};
@@ -205,7 +182,7 @@ export const CheckInStatsPage: React.FC = () => {
                       className="border-b border-[hsl(var(--separator-color))] hover:bg-[hsl(var(--bg-tertiary))]"
                     >
                       <td className="px-4 py-3 text-sm text-[hsl(var(--text-primary))]">
-                        {record.username}
+                        <AdminUserLink userId={record.user_id}>{record.username}</AdminUserLink>
                       </td>
                       <td className="px-4 py-3 text-sm text-[hsl(var(--text-primary))]">
                         {formatDateOnly(record.check_in_date)}

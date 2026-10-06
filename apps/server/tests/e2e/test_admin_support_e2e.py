@@ -224,7 +224,7 @@ async def test_admin_quota_roundtrip_reports_exact_usage_and_user_detail(
     usage_payload = usage_response.json()
     assert "material_uploads" not in usage_payload
     assert usage_payload["material_decompositions"] == 1
-    assert usage_payload["skill_create_attempts"] == 3
+    assert usage_payload["skills_created"] == 3
     assert usage_payload["inspiration_copies"] == 4
 
     detail_response = await client.get(f"/api/admin/quota/{target.username}", headers=headers)

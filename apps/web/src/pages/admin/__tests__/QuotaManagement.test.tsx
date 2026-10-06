@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 
 import QuotaManagement from "../QuotaManagement";
 
@@ -8,9 +9,14 @@ const inspirationFeature = vi.hoisted(() => ({ enabled: true }));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string, options?: Record<string, unknown>) =>
+      options && "used" in options ? `${key}:${options.used}` : key,
   }),
 }));
+
+const renderPage = () => render(<MemoryRouter><QuotaManagement /></MemoryRouter>);
+
+const counter = (used: number, limit: number, reset_at: string | null = null) => ({ used, limit, reset_at });
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (...args: unknown[]) => useQueryMock(...args),
@@ -31,9 +37,10 @@ describe("QuotaManagement", () => {
     statsError = false,
     statsErrorMessage,
     statsData = {
-      material_uploads: 120,
-      material_decomposes: 80,
-      skill_creates: 30,
+      period_start: "2026-10-01T00:00:00+00:00",
+      period_end: "2026-11-01T00:00:00+00:00",
+      material_decompositions: 80,
+      skills_created: 30,
       inspiration_copies: 40,
     },
     userData,
@@ -85,7 +92,7 @@ describe("QuotaManagement", () => {
   it("shows stats loading state", () => {
     mockQueries({ statsLoading: true });
 
-    render(<QuotaManagement />);
+    renderPage();
     expect(screen.getByText("common:loading")).toBeInTheDocument();
   });
 
@@ -95,7 +102,7 @@ describe("QuotaManagement", () => {
       statsErrorMessage: "load quota stats failed",
     });
 
-    render(<QuotaManagement />);
+    renderPage();
     expect(screen.getByText("load quota stats failed")).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("common:retry"));
@@ -107,19 +114,18 @@ describe("QuotaManagement", () => {
       userData: {
         user_id: "user-1",
         username: "writer",
+        email: "writer@example.com",
         plan_name: "pro",
-        ai_conversations_used: 50,
-        ai_conversations_limit: 100,
-        material_upload_used: 10,
-        material_upload_limit: 20,
-        skill_create_used: 3,
-        skill_create_limit: 10,
-        inspiration_copy_used: 5,
-        inspiration_copy_limit: 10,
+        plan_display_name: "专业版",
+        plan_display_name_en: "Pro",
+        ai_conversations: counter(50, -1, "2026-10-06T08:00:00+00:00"),
+        material_decompositions: counter(2, 5, "2026-11-01T00:00:00+00:00"),
+        custom_skills: counter(3, 20),
+        inspiration_copies: counter(5, 10),
       },
     });
 
-    render(<QuotaManagement />);
+    renderPage();
 
     fireEvent.change(screen.getByPlaceholderText("quota.searchUser"), {
       target: { value: "user-1" },
@@ -127,9 +133,24 @@ describe("QuotaManagement", () => {
     fireEvent.click(screen.getByRole("button", { name: "common:search" }));
 
     expect(screen.getByText("writer")).toBeInTheDocument();
-    expect(screen.getByText("pro")).toBeInTheDocument();
-    expect(screen.getByText("50 / 100")).toBeInTheDocument();
-    expect(screen.getByText("10 / 20")).toBeInTheDocument();
+    expect(screen.getByText("专业版")).toBeInTheDocument();
+    expect(screen.getByText("quota.usedUnlimited:50")).toBeInTheDocument();
+    expect(screen.getByText("2 / 5")).toBeInTheDocument();
+    expect(screen.getByText("3 / 20")).toBeInTheDocument();
+    expect(screen.getAllByText("quota.materialDecompositions")).toHaveLength(2);
+    expect(screen.queryByText("quota.materialUpload")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "users.viewDetails" })).toHaveAttribute("href", "/admin/users/user-1");
+  });
+
+  it("shows current-period totals without material uploads", () => {
+    mockQueries({});
+
+    renderPage();
+
+    expect(screen.getByText("quota.period")).toBeInTheDocument();
+    expect(screen.getByText("80")).toBeInTheDocument();
+    expect(screen.getByText("quota.skillsCreated")).toBeInTheDocument();
+    expect(screen.queryByText("quota.materialUploads")).not.toBeInTheDocument();
   });
 
   it("hides inspiration quota operations when disabled", () => {
@@ -139,12 +160,14 @@ describe("QuotaManagement", () => {
         user_id: "user-1",
         username: "writer",
         plan_name: "pro",
-        inspiration_copy_used: 5,
-        inspiration_copy_limit: 10,
+        ai_conversations: counter(0, 20),
+        material_decompositions: counter(0, 5),
+        custom_skills: counter(0, 20),
+        inspiration_copies: counter(5, 10),
       },
     });
 
-    render(<QuotaManagement />);
+    renderPage();
     expect(screen.queryByText("quota.inspirationCopies")).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText("quota.searchUser"), {

@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 
 import CodeManagement from "../CodeManagement";
+import { adminApi } from "../../../lib/adminApi";
 
 const useQueryMock = vi.fn();
 const useMutationMock = vi.fn();
@@ -215,7 +216,104 @@ describe("CodeManagement", () => {
       duration_days: 30,
       count: 10,
       code_type: "single_use",
+      max_uses: 10,
       notes: "",
     });
+  });
+
+  it("asks for a per-code use limit for multi-use batches and sends it", () => {
+    useQueryMock.mockReturnValue({
+      data: { items: [], total: 0, page: 1, page_size: 20 },
+      isLoading: false, isFetching: false, isError: false, error: null, refetch: vi.fn(),
+    });
+
+    render(<CodeManagement />);
+    fireEvent.click(screen.getAllByRole("button", { name: "codes.batchCreate" })[0]);
+    expect(screen.queryByLabelText("codes.maxUsesPerCode")).not.toBeInTheDocument();
+
+    const selects = screen.getAllByRole("combobox");
+    fireEvent.change(selects[selects.length - 1], { target: { value: "multi_use" } });
+    fireEvent.change(screen.getByLabelText("codes.maxUsesPerCode"), { target: { value: "25" } });
+    mutateMock.mockClear();
+    const batchButtons = screen.getAllByRole("button", { name: "codes.batchCreate" });
+    fireEvent.click(batchButtons[batchButtons.length - 1]);
+
+    expect(mutateMock).toHaveBeenCalledWith(expect.objectContaining({ code_type: "multi_use", max_uses: 25 }));
+  });
+
+  it("sends max_uses only for multi-use codes", async () => {
+    const createCode = vi.spyOn(adminApi, "createCode").mockResolvedValue({} as never);
+    const createCodesBatch = vi.spyOn(adminApi, "createCodesBatch").mockResolvedValue({ codes: [] });
+    useQueryMock.mockReturnValue({
+      data: { items: [], total: 0, page: 1, page_size: 20 },
+      isLoading: false, isFetching: false, isError: false, error: null, refetch: vi.fn(),
+    });
+
+    render(<CodeManagement />);
+    const [singleOptions, batchOptions] = useMutationMock.mock.calls.slice(0, 2).map(([options]) => options);
+    await singleOptions.mutationFn({ tier: "pro", duration_days: 30, code_type: "single_use", max_uses: 9, notes: "" });
+    await batchOptions.mutationFn({ tier: "pro", duration_days: 30, count: 2, code_type: "multi_use", max_uses: 9, notes: "" });
+
+    expect(createCode).toHaveBeenCalledWith({ tier: "pro", duration_days: 30, code_type: "single_use", notes: "" });
+    expect(createCodesBatch).toHaveBeenCalledWith({
+      tier: "pro", duration_days: 30, count: 2, code_type: "multi_use", max_uses: 9, notes: "",
+    });
+  });
+
+  it("shows the generated codes after a batch with copy-all and CSV download", () => {
+    const createObjectURL = vi.fn(() => "blob:codes");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", { ...URL, createObjectURL, revokeObjectURL });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    useQueryMock.mockReturnValue({
+      data: { items: [], total: 0, page: 1, page_size: 20 },
+      isLoading: false, isFetching: false, isError: false, error: null, refetch: vi.fn(),
+    });
+
+    render(<CodeManagement />);
+    const batchOptions = useMutationMock.mock.calls[1][0];
+    act(() => {
+      batchOptions.onSuccess(
+        { codes: ["ERG-PRO-AAAA-11111111", "ERG-PRO-BBBB-22222222"], count: 2, max_uses: 5 },
+        { tier: "pro", duration_days: 30, count: 2, code_type: "multi_use", max_uses: 5, notes: "" },
+      );
+    });
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveTextContent("codes.batchResultTitle");
+    expect((screen.getByRole("textbox", { name: "codes.batchResultTitle" }) as HTMLTextAreaElement).value)
+      .toBe("ERG-PRO-AAAA-11111111\nERG-PRO-BBBB-22222222");
+
+    fireEvent.click(screen.getByRole("button", { name: "codes.copyAll" }));
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("ERG-PRO-AAAA-11111111\nERG-PRO-BBBB-22222222");
+
+    fireEvent.click(screen.getByRole("button", { name: "codes.downloadCsv" }));
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:codes");
+
+    fireEvent.click(screen.getByRole("button", { name: "common:close" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    clickSpy.mockRestore();
+  });
+
+  it("offers grantable plans from the catalog as tiers", () => {
+    useQueryMock.mockImplementation(({ queryKey }: { queryKey: unknown[] }) => ({
+      data: queryKey[1] === "plans"
+        ? [
+            { name: "free", display_name: "免费", is_active: true },
+            { name: "pro", display_name: "专业版", is_active: true },
+            { name: "max", display_name: "旗舰版", is_active: true },
+          ]
+        : { items: [], total: 0, page: 1, page_size: 20 },
+      isLoading: false, isFetching: false, isError: false, error: null, refetch: vi.fn(),
+    }));
+
+    render(<CodeManagement />);
+    fireEvent.click(screen.getAllByRole("button", { name: "codes.create" })[0]);
+
+    const tierSelect = screen.getAllByRole("combobox")[2] as HTMLSelectElement;
+    expect(Array.from(tierSelect.options).map((option) => option.value)).toEqual(["pro", "max"]);
+    expect(screen.getAllByText("旗舰版").length).toBeGreaterThan(0);
   });
 });

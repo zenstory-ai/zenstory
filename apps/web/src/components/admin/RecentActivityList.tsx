@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Activity, User, Code, CreditCard, Lightbulb } from 'lucide-react';
+import { Activity, User, Code, CreditCard, Lightbulb, Package, Coins, Gift, Zap, Bug, FileText, Receipt } from 'lucide-react';
 import { adminApi } from '@/lib/adminApi';
+import { parseUTCDate } from '@/lib/dateUtils';
+import { auditActionLabel, auditActionTone, auditResourceLabel } from '@/lib/adminAuditLabels';
 import { Skeleton } from '../ui/Skeleton';
 import { IconWrapper } from '../ui/IconWrapper';
 
@@ -10,24 +12,25 @@ const resourceIcons: Record<string, React.ReactNode> = {
   code: <Code className="h-4 w-4" />,
   subscription: <CreditCard className="h-4 w-4" />,
   inspiration: <Lightbulb className="h-4 w-4" />,
+  plan: <Package className="h-4 w-4" />,
+  points: <Coins className="h-4 w-4" />,
+  invite_code: <Gift className="h-4 w-4" />,
+  skill: <Zap className="h-4 w-4" />,
+  feedback: <Bug className="h-4 w-4" />,
+  system_prompt: <FileText className="h-4 w-4" />,
+  payment_order: <Receipt className="h-4 w-4" />,
 };
 
-const actionColors: Record<string, string> = {
+const toneColors = {
   create: 'text-green-500',
-  update: 'text-blue-500',
-  delete: 'text-red-500',
-  approve: 'text-green-500',
-  reject: 'text-red-500',
-};
-
-function capitalize(value: string): string {
-  if (!value) return value;
-  return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
-}
+  change: 'text-blue-500',
+  remove: 'text-red-500',
+  neutral: 'text-[hsl(var(--text-secondary))]',
+} as const;
 
 // Simple relative time formatting without date-fns
 function formatRelativeTime(dateString: string, locale: string, t: (key: string, options?: Record<string, unknown>) => string): string {
-  const date = new Date(dateString);
+  const date = parseUTCDate(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffSec = Math.floor(diffMs / 1000);
@@ -89,9 +92,6 @@ export function RecentActivityList() {
   return (
     <div className="space-y-3">
       {items.map((item) => {
-        const actionBase = item.action.split('_')[0];
-        const actionKey = `admin:auditLogs.action${capitalize(actionBase)}`;
-        const resourceKey = `admin:auditLogs.resource${capitalize(item.resource_type)}`;
         return (
         <div
           key={item.id}
@@ -103,12 +103,12 @@ export function RecentActivityList() {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-medium truncate text-[hsl(var(--text-primary))]">{item.admin_name}</span>
-              <span className={`text-xs font-medium ${actionColors[actionBase] || 'text-[hsl(var(--text-secondary))]'}`}>
-                {t(actionKey, { defaultValue: item.action })}
+              <span className={`text-xs font-medium ${toneColors[auditActionTone(item.action)]}`}>
+                {auditActionLabel(t, item.action)}
               </span>
             </div>
             <p className="text-xs text-[hsl(var(--text-secondary))] truncate">
-              {t(resourceKey, { defaultValue: item.resource_type })}
+              {auditResourceLabel(t, item.resource_type)}
             </p>
           </div>
           <span className="text-xs text-[hsl(var(--text-tertiary))] whitespace-nowrap">

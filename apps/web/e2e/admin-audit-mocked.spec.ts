@@ -129,14 +129,14 @@ test.describe('Admin audit logs (mocked)', () => {
     await expect(page.locator('table tbody tr', { hasText: 'admin-page-1' }).first()).toBeVisible();
 
     await page.locator('select').nth(0).selectOption('subscription');
-    await page.locator('select').nth(1).selectOption('update');
+    await page.locator('select').nth(1).selectOption('update_subscription');
 
     await expect.poll(() =>
       capturedQueries.some((query) =>
         query.page === '1'
         && query.page_size === '20'
         && query.resource_type === 'subscription'
-        && query.action === 'update',
+        && query.action === 'update_subscription',
       ),
     ).toBe(true);
 
@@ -147,7 +147,7 @@ test.describe('Admin audit logs (mocked)', () => {
         query.page === '2'
         && query.page_size === '20'
         && query.resource_type === 'subscription'
-        && query.action === 'update',
+        && query.action === 'update_subscription',
       ),
     ).toBe(true);
 

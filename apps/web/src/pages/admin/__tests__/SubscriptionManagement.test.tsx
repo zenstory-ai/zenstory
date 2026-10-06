@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 
+import { MemoryRouter } from "react-router-dom";
 import SubscriptionManagement from "../SubscriptionManagement";
 import { toast } from "../../../lib/toast";
 
@@ -132,7 +133,7 @@ describe("SubscriptionManagement", () => {
   it("shows loading state", () => {
     mockQueries({ subscriptionsLoading: true });
 
-    render(<SubscriptionManagement />);
+    render(<SubscriptionManagement />, { wrapper: MemoryRouter });
     expect(screen.getByText("common:loading")).toBeInTheDocument();
   });
 
@@ -142,7 +143,7 @@ describe("SubscriptionManagement", () => {
       subscriptionsErrorMessage: "load subscriptions failed",
     });
 
-    render(<SubscriptionManagement />);
+    render(<SubscriptionManagement />, { wrapper: MemoryRouter });
     expect(screen.getByText("load subscriptions failed")).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("common:retry"));
@@ -154,7 +155,7 @@ describe("SubscriptionManagement", () => {
       subscriptionsData: { items: [], total: 0, page: 1, page_size: 20 },
     });
 
-    render(<SubscriptionManagement />);
+    render(<SubscriptionManagement />, { wrapper: MemoryRouter });
     expect(screen.getByText("common:noData")).toBeInTheDocument();
   });
 
@@ -163,7 +164,7 @@ describe("SubscriptionManagement", () => {
       subscriptionsData: { items: [subscriptionItem], total: 1, page: 1, page_size: 20 },
     });
 
-    render(<SubscriptionManagement />);
+    render(<SubscriptionManagement />, { wrapper: MemoryRouter });
 
     fireEvent.click(screen.getByTitle("subscriptions.modify"));
     fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "30" } });
@@ -180,7 +181,7 @@ describe("SubscriptionManagement", () => {
       subscriptionsData: { items: [subscriptionItem], total: 1, page: 1, page_size: 20 },
     });
 
-    render(<SubscriptionManagement />);
+    render(<SubscriptionManagement />, { wrapper: MemoryRouter });
 
     fireEvent.click(screen.getByTitle("subscriptions.modify"));
     fireEvent.click(screen.getByRole("button", { name: "subscriptions.saveChanges" }));
@@ -208,7 +209,7 @@ describe("SubscriptionManagement", () => {
       subscriptionsData: { items: [subscriptionItem, freeUser], total: 2, page: 1, page_size: 20 },
     });
 
-    render(<SubscriptionManagement />);
+    render(<SubscriptionManagement />, { wrapper: MemoryRouter });
 
     const freeRow = screen
       .getAllByText("newcomer@example.com")
@@ -257,7 +258,7 @@ describe("SubscriptionManagement", () => {
       ],
     });
 
-    render(<SubscriptionManagement />);
+    render(<SubscriptionManagement />, { wrapper: MemoryRouter });
 
     fireEvent.click(screen.getByTitle("subscriptions.modify"));
     fireEvent.change(screen.getByDisplayValue("Pro"), { target: { value: "max" } });
@@ -277,5 +278,28 @@ describe("SubscriptionManagement", () => {
       userId: "user-1",
       data: { plan_name: "max", duration_days: 30 },
     });
+  });
+
+  it("searches by username or email and links the user", async () => {
+    mockQueries({ subscriptionsData: { items: [subscriptionItem], total: 1, page: 1, page_size: 20 } });
+    render(<SubscriptionManagement />, { wrapper: MemoryRouter });
+
+    fireEvent.change(screen.getByLabelText("subscriptions.searchPlaceholder"), { target: { value: " writer@ " } });
+    fireEvent.keyDown(screen.getByLabelText("subscriptions.searchPlaceholder"), { key: "Enter" });
+
+    const subscriptionCalls = useQueryMock.mock.calls
+      .map(([options]) => options as { queryKey: unknown[]; queryFn: () => Promise<unknown> })
+      .filter((options) => options.queryKey[1] === "subscriptions");
+    const latest = subscriptionCalls[subscriptionCalls.length - 1];
+    expect(latest.queryKey).toEqual(["admin", "subscriptions", 1, "", "writer@"]);
+
+    const { adminApi } = await import("../../../lib/adminApi");
+    const getSubscriptions = vi.spyOn(adminApi, "getSubscriptions").mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20 });
+    await latest.queryFn();
+    expect(getSubscriptions).toHaveBeenCalledWith({ page: 1, page_size: 20, status: undefined, search: "writer@" });
+
+    screen.getAllByRole("link", { name: "writer@example.com" }).forEach((link) =>
+      expect(link).toHaveAttribute("href", "/admin/users/user-1"),
+    );
   });
 });
