@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import i18n from "../lib/i18n";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LazyMarkdown } from "../components/LazyMarkdown";
 import {
   ChevronLeft,
@@ -20,6 +20,8 @@ import {
   GitBranch,
   Users,
   Loader2,
+  AlertCircle,
+  RefreshCw,
 } from "../components/icons";
 import { materialsApi } from "../lib/materialsApi";
 import { ApiError } from "../lib/apiClient";
@@ -37,6 +39,12 @@ import type {
 } from "../lib/materialsApi";
 import { useIsMobile } from "../hooks/useMediaQuery";
 import { materialsConfig } from "../config/materials";
+import { handleApiError } from "../lib/errorHandler";
+import { toast } from "../lib/toast";
+import { subscriptionQueryKeys } from "../lib/subscriptionApi";
+import { isFeatureNotIncludedError, materialJobErrorText } from "../lib/materialsAccess";
+import { MaterialsUpgradeNotice } from "../components/subscription/MaterialsUpgradePrompt";
+import { useRefreshMaterialLibraryOnCompletion } from "../hooks/useMaterialLibraryRefresh";
 
 
 const ACTIVE_MATERIAL_STATUSES = new Set<MaterialNovel["status"]>(["pending", "processing"]);
@@ -119,6 +127,29 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
       return data && isActiveMaterialStatus(data.status) ? 3000 : false;
     },
   });
+  const queryClient = useQueryClient();
+  const [isRetrying, setIsRetrying] = useState(false);
+  useRefreshMaterialLibraryOnCompletion(material ? [material] : undefined);
+
+  const handleRetry = async () => {
+    if (!novelId) return;
+    setIsRetrying(true);
+    try {
+      await materialsApi.retry(novelId);
+      toast.success(
+        t("materials:retrySuccess", {
+          defaultValue: "已重新提交分解任务，请稍候查看处理状态。",
+        }),
+      );
+      void queryClient.invalidateQueries({ queryKey: ["materials"] });
+      void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.quota() });
+      await refetchMaterial();
+    } catch (err) {
+      toast.error(handleApiError(err));
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   // Fetch chapters
   const { data: chapters = [], refetch: refetchChapters, isFetching: isFetchingChapters } = useQuery({
@@ -514,6 +545,14 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
     );
   }
 
+  if (materialError && isFeatureNotIncludedError(materialError)) {
+    return (
+      <div className="flex h-screen items-center justify-center px-4">
+        <MaterialsUpgradeNotice source="material_detail" className="max-w-md text-center" />
+      </div>
+    );
+  }
+
   if (materialError) {
     const isNotFound = materialError instanceof ApiError && materialError.status === 404;
     return (
@@ -591,6 +630,40 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
           )}
         </div>
       </div>
+
+      {(material.status === "failed" || material.status === "completed_with_errors") && (
+        <div
+          role="alert"
+          className={`shrink-0 flex flex-wrap items-center gap-3 border-b px-4 py-2.5 text-sm ${
+            material.status === "failed"
+              ? "border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.08)] text-[hsl(var(--error))]"
+              : "border-[hsl(var(--warning)/0.3)] bg-[hsl(var(--warning)/0.08)] text-[hsl(var(--warning))]"
+          }`}
+        >
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span className="flex-1 min-w-0">
+            <span className="font-medium">
+              {material.status === "failed"
+                ? t("materials:detail.failedBanner", { defaultValue: "拆解失败" })
+                : t("materials:detail.partialBanner", { defaultValue: "部分内容拆解失败" })}
+            </span>
+            {material.error_message && (
+              <span className="ml-2 text-[hsl(var(--text-secondary))]">
+                {materialJobErrorText(material.error_message)}
+              </span>
+            )}
+          </span>
+          <button
+            type="button"
+            onClick={() => void handleRetry()}
+            disabled={isRetrying}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-primary))] px-3 text-xs font-medium text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isRetrying ? "animate-spin" : ""}`} />
+            {t("common:retry", { defaultValue: "重试" })}
+          </button>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">

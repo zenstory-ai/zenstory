@@ -35,6 +35,7 @@ from models.material_models import (
     WorldView,
 )
 from services.material.ingestion_jobs_service import IngestionJobsService
+from services.material.job_errors import public_job_error
 from services.material.stories_service import story_in_novel
 from utils.logger import get_logger
 
@@ -120,7 +121,7 @@ def get_materials(
             created_at=novel.created_at,
             updated_at=novel.updated_at,
             status=job.status if job else None,
-            error_message=job.error_message if job else None,
+            error_message=public_job_error(job.error_message) if job else None,
             chapters_count=chapters_count,
             enabled_stages=IngestionJobsService.get_enabled_stages(job),
         ))
@@ -204,6 +205,7 @@ def get_material_detail(
         synopsis=novel.synopsis,
         source_meta=source_meta,
         status=job_status,
+        error_message=public_job_error(latest_job.error_message) if latest_job else None,
         created_at=novel.created_at,
         updated_at=novel.updated_at,
         chapters_count=int(detail_row.chapters_count or 0),
@@ -324,7 +326,7 @@ def get_material_status(
         processed_chapters=latest_job.processed_chapters,
         progress_percentage=latest_job.progress_percentage,
         stage_progress=stage_progress,
-        error_message=latest_job.error_message,
+        error_message=public_job_error(latest_job.error_message),
         started_at=latest_job.started_at,
         completed_at=latest_job.completed_at,
         created_at=latest_job.created_at,

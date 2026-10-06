@@ -11,8 +11,9 @@ Open the materials library in the workbench, use its upload control, select the 
 | Constraint | Current implementation |
 |---|---|
 | Format | `.txt`; this upload does not directly accept PDF, Word or EPUB. |
-| File size | Up to 100MB, implemented as 100 × 1024 × 1024 bytes. |
+| File size | Up to 20MB, implemented as 20 × 1024 × 1024 bytes. |
 | Text length | Up to 300,000 decoded characters, checked alongside file size—not 300,000 English words. |
+| Chapter headings | The text needs recognizable chapter headings (such as "Chapter 1", "第一章", "第一回" or "楔子"); an upload with no recognizable chapter is rejected without using decomposition quota. |
 | Access | Requires login and is subject to material-feature access and decomposition quota. Follow your account's current interface and returned messages. |
 
 Keep clear chapter headings and order. If you select only part of an over-limit book, label that scope; analysis of an excerpt is not evidence that the whole book was read. Do not remove context that changes a character's choice just to reach a target size.

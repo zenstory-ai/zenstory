@@ -52,7 +52,7 @@
     "referenceLibrary": "参考小说库",
     "aiExtracted": "AI提取",
     "referenceLibraryEmpty": "还没有参考素材",
-    "referenceLibraryEmptyHint": "上传小说到素材库，AI 会自动拆解为角色、世界观、情节等结构化素材。",
+    "referenceLibraryEmptyHint": "上传小说到素材库，AI 会自动拆解为章节梗概、角色、世界观等结构化素材。",
     "referenceLibraryGoUpload": "前往素材库上传",
     "referenceCharacters": "角色",
     "referenceWorldview": "世界观",

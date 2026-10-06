@@ -199,7 +199,7 @@ async def test_materials_upload_and_retry_lifecycle_roundtrip(
 
     upload_response = await client.post(
         "/api/v1/materials/upload",
-        files={"file": ("novel.txt", io.BytesIO(b"Chapter 1\n\nUpload test content"), "text/plain")},
+        files={"file": ("novel.txt", io.BytesIO(("Chapter 1\n\n" + "Upload test content. " * 10).encode()), "text/plain")},
         params={"title": "Upload Novel", "author": "Upload Author"},
         headers=headers,
     )

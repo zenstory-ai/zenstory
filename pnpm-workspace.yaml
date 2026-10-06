@@ -9,11 +9,13 @@ overrides:
   'brace-expansion@<2': 1.1.18
   'brace-expansion@>=2 <3': 2.1.4
   dompurify: 3.4.16
+  'fflate@<0.4.9': 0.4.9
+  'source-map-js@<1.2.2': 1.2.2
   flatted: 3.4.2
   form-data: 4.0.6
   'js-yaml@>=4 <5': 4.3.1
   linkify-it: 5.0.2
-  markdown-it: 14.2.0
+  markdown-it: 14.3.2
   'minimatch@<4': 3.1.4
   'minimatch@>=9 <10': 9.0.7
   'picomatch@>=4 <5': 4.0.4

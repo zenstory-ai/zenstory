@@ -861,7 +861,7 @@ class TestIngestionJobsServiceUpdate:
 
         db_session.refresh(test_ingestion_job)
         assert test_ingestion_job.status == "failed"
-        assert test_ingestion_job.error_message == "拆解任务调度超时，请重试"
+        assert test_ingestion_job.error_message == "ERR_MATERIAL_DISPATCH_TIMEOUT"
 
     def test_reconcile_stale_processing_job_marks_failed(
         self, db_session: Session, ingestion_jobs_svc: IngestionJobsService,
@@ -878,7 +878,7 @@ class TestIngestionJobsServiceUpdate:
 
         db_session.refresh(test_ingestion_job)
         assert test_ingestion_job.status == "failed"
-        assert test_ingestion_job.error_message == "拆解任务处理超时，请重试"
+        assert test_ingestion_job.error_message == "ERR_MATERIAL_PROCESSING_TIMEOUT"
 
 
 # ============ CheckpointService Tests ============

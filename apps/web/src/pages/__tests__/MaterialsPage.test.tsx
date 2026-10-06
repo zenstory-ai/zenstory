@@ -182,7 +182,7 @@ describe("MaterialsPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("上传参考小说，一键拆出角色、剧情线和世界观")
+        screen.getByText("上传参考小说，一键拆出章节梗概、角色和世界观")
       ).toBeInTheDocument();
     });
 
@@ -191,6 +191,9 @@ describe("MaterialsPage", () => {
       "materials_teaser_exposed",
       expect.objectContaining({ source: "materials_teaser" }),
     );
+
+    // Default decomposition does not produce plotlines; the paywall must not sell them.
+    expect(document.body.textContent).not.toContain("剧情线");
 
     const teaserSecondaryButton = screen.getByRole("button", {
       name: "查看权益详情",
@@ -206,6 +209,8 @@ describe("MaterialsPage", () => {
     }]);
     render(<MaterialsPage />, { wrapper: createWrapper() });
     await screen.findByText("Partial Novel");
+    // Raw (legacy) error text never reaches the card; it is mapped to a code.
+    expect(screen.queryByText("One chapter failed")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "重试" }));
     await waitFor(() => expect(mockRetry).toHaveBeenCalledWith("partial-novel"));
   });
@@ -258,7 +263,7 @@ describe("MaterialsPage", () => {
     });
 
     expect(
-      screen.queryByText("上传参考小说，一键拆出角色、剧情线和世界观")
+      screen.queryByText("上传参考小说，一键拆出章节梗概、角色和世界观")
     ).not.toBeInTheDocument();
     expect(trackEventMock).not.toHaveBeenCalledWith(
       "materials_teaser_exposed",

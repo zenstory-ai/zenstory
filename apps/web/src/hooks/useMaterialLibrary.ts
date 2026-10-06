@@ -2,11 +2,18 @@ import { useState, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { materialsApi } from '../lib/materialsApi';
 import { logger } from "../lib/logger";
+import { subscriptionApi, subscriptionQueryKeys } from '../lib/subscriptionApi';
+import { hasMaterialsLibraryAccess, isFeatureNotIncludedError } from '../lib/materialsAccess';
 import type {
   LibrarySummaryItem,
   MaterialEntityType,
   MaterialPreviewResponse,
 } from '../lib/materialsApi';
+
+export const MATERIAL_LIBRARY_SUMMARY_QUERY_KEY = ['material-library-summary'] as const;
+
+/** Re-fetch the sidebar summary when it is older than this on pane mount. */
+const SUMMARY_REFRESH_AFTER_MS = 30 * 1000;
 
 export interface PreviewEntityInfo {
   novelId: number;
@@ -21,10 +28,14 @@ export interface MaterialLibraryState {
   isLoading: boolean;
   /** Background fetching state for library list */
   isFetching: boolean;
-  /** Error state */
+  /** Error state (never set for a missing entitlement, see accessDenied) */
   error: Error | null;
+  /** The current plan does not include the materials library. */
+  accessDenied: boolean;
   /** Retry loading the library summary. */
   refetch: () => Promise<void>;
+  /** Re-fetch the summary if the cached copy is older than 30s. */
+  refreshIfStale: () => void;
   /** Currently expanded novel IDs */
   expandedNovels: Set<number>;
   /** Currently expanded entity types per novel */
@@ -55,12 +66,27 @@ export function useMaterialLibrary(): MaterialLibraryState {
   // newer one (e.g. an earlier slow request that fails after a later success).
   const previewSeqRef = useRef(0);
 
-  // Fetch library summary - auto-load when component mounts
-  const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: ['material-library-summary'],
+  // Entitlement first: free plans never request the paid summary endpoint.
+  const { data: subscriptionStatus, isLoading: isAccessLoading } = useQuery({
+    queryKey: subscriptionQueryKeys.status(),
+    queryFn: () => subscriptionApi.getStatus(),
+  });
+  const access = hasMaterialsLibraryAccess(
+    subscriptionStatus?.features as Record<string, unknown> | undefined,
+    subscriptionStatus?.tier,
+  );
+
+  const { data, isLoading, isFetching, error, refetch, dataUpdatedAt } = useQuery({
+    queryKey: MATERIAL_LIBRARY_SUMMARY_QUERY_KEY,
     queryFn: () => materialsApi.getLibrarySummary(),
     staleTime: 5 * 60 * 1000, // 5 minutes
+    // Unknown entitlement (status failed to load) still tries; a 402 then
+    // switches the UI to the upgrade notice instead of an error.
+    enabled: !isAccessLoading && access !== false,
+    retry: (failureCount, retryError) =>
+      !isFeatureNotIncludedError(retryError) && failureCount < 1,
   });
+  const accessDenied = access === false || isFeatureNotIncludedError(error);
 
   const toggleNovel = useCallback((novelId: number) => {
     setExpandedNovels(prev => {
@@ -123,12 +149,21 @@ export function useMaterialLibrary(): MaterialLibraryState {
     await refetch();
   }, [refetch]);
 
+  const refreshIfStale = useCallback(() => {
+    if (accessDenied || !dataUpdatedAt) return;
+    if (Date.now() - dataUpdatedAt > SUMMARY_REFRESH_AFTER_MS) {
+      void refetch();
+    }
+  }, [accessDenied, dataUpdatedAt, refetch]);
+
   return {
-    libraries: data ?? [],
-    isLoading,
+    libraries: accessDenied ? [] : data ?? [],
+    isLoading: Boolean(isAccessLoading || isLoading),
     isFetching: Boolean(isFetching),
-    error: error as Error | null,
+    error: accessDenied ? null : (error as Error | null),
+    accessDenied,
     refetch: handleRefetch,
+    refreshIfStale,
     expandedNovels,
     expandedTypes,
     toggleNovel,

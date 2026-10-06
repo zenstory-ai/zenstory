@@ -19,6 +19,8 @@ from typing import Any
 from prefect import get_run_logger, task
 from prefect.tasks import task_input_hash
 
+from flows.utils.helpers.exceptions import is_retryable_exception
+
 
 def _log_execution_time(task_name: str, elapsed: float, logger: Any) -> None:
     """记录任务执行时间"""
@@ -28,6 +30,19 @@ def _log_execution_time(task_name: str, elapsed: float, logger: Any) -> None:
 def _log_error_with_context(exc: Exception, context: str, logger: Any) -> None:
     """记录错误及上下文"""
     logger.error(f"{context}: {type(exc).__name__}: {str(exc)}")
+
+
+def retry_only_transient_failures(_task: Any, _task_run: Any, state: Any) -> bool:
+    """
+    Prefect ``retry_condition_fn``: retry unless the failure cannot change on retry.
+
+    Prefect passes a Failed state whose ``data`` is the raised exception.
+    Non-retryable LLM errors (401/402/403, context too long, unparsable
+    output) and data-validation errors fail immediately instead of re-billing
+    the same doomed call.
+    """
+    exc = getattr(state, "data", None)
+    return is_retryable_exception(exc if isinstance(exc, BaseException) else None)
 
 
 def smart_retry_task(
@@ -69,6 +84,7 @@ def smart_retry_task(
                 persist_result=persist_result,
                 log_prints=log_prints,
                 name=task_name,
+                retry_condition_fn=retry_only_transient_failures,
             )
             async def wrapper(*args: Any, **kwargs: Any) -> Any:
                 logger = get_run_logger()
@@ -96,6 +112,7 @@ def smart_retry_task(
                 persist_result=persist_result,
                 log_prints=log_prints,
                 name=task_name,
+                retry_condition_fn=retry_only_transient_failures,
             )
             def wrapper(*args: Any, **kwargs: Any) -> Any:
                 logger = get_run_logger()
