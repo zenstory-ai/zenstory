@@ -157,4 +157,110 @@ describe("AdminUserDetail", () => {
 
     expect(await screen.findByText("userDetail.notFound")).toBeInTheDocument();
   });
+
+  it("shows account flags, admin notes, spends and older orders", async () => {
+    api.getUser.mockResolvedValue({
+      id: "user-1", username: "writer", email: "writer@example.com", email_verified: false,
+      is_active: false, is_superuser: true, created_at: "2026-10-01T08:00:00", updated_at: "2026-10-01T08:00:00",
+    } as never);
+    api.getUserPointsTransactions.mockResolvedValue({
+      items: [{
+        id: "tx-2", user_id: "user-1", username: "writer", amount: -20, balance_after: 100,
+        transaction_type: "admin_adjust", source_id: null, description: "refund fix", expires_at: null,
+        is_expired: false, created_at: "2026-10-02T00:00:00",
+      }],
+      total: 1, page: 1, page_size: 10,
+    });
+    api.getPaymentOrders.mockResolvedValue({
+      items: [{
+        id: "order-1", out_trade_no: "20261006000001", user_id: "user-1", plan_display_name: "专业版",
+        amount_cents: 2900, status: "paid", fulfillment_status: "succeeded", created_at: "2026-10-03T00:00:00",
+      }],
+      total: 13, page: 1, page_size: 10,
+    } as never);
+    renderPage();
+
+    expect(await screen.findByText("userDetail.emailUnverified")).toBeInTheDocument();
+    expect(screen.getByText("users.inactive")).toBeInTheDocument();
+    expect(screen.getByText("users.yes")).toBeInTheDocument();
+    expect(await screen.findByText("refund fix")).toBeInTheDocument();
+    expect(screen.getByText("-20")).toBeInTheDocument();
+    expect(await screen.findByText("userDetail.olderOrders")).toBeInTheDocument();
+  });
+
+  it("shows section errors with retry and refetches on retry", async () => {
+    api.getUserSubscription.mockRejectedValue(new ApiError(500, "ERR_INTERNAL", "subscription down"));
+    api.getUserQuota.mockRejectedValue(new Error("quota down"));
+    api.getUserPoints.mockRejectedValue(new Error("points down"));
+    api.getUserPointsTransactions.mockRejectedValue(new Error("tx down"));
+    api.getPaymentOrders.mockRejectedValue(new Error("orders down"));
+    renderPage();
+
+    expect(await screen.findByText("quota down")).toBeInTheDocument();
+    expect(await screen.findByText("points down")).toBeInTheDocument();
+    expect(await screen.findByText("tx down")).toBeInTheDocument();
+    expect(await screen.findByText("orders down")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "subscriptions.modify" })).toBeDisabled();
+
+    const retries = await screen.findAllByRole("button", { name: "common:retry" });
+    expect(retries).toHaveLength(5);
+    retries.forEach((button) => fireEvent.click(button));
+    await waitFor(() => expect(api.getUserQuota).toHaveBeenCalledTimes(2));
+    expect(api.getUserSubscription).toHaveBeenCalledTimes(2);
+    expect(api.getUserPoints).toHaveBeenCalledTimes(2);
+    expect(api.getUserPointsTransactions).toHaveBeenCalledTimes(2);
+    expect(api.getPaymentOrders).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries loading the account", async () => {
+    api.getUser.mockRejectedValueOnce(new Error("account down"));
+    renderPage();
+
+    expect(await screen.findByText("account down")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "common:retry" }));
+    expect(await screen.findByRole("heading", { name: "writer" })).toBeInTheDocument();
+  });
+
+  it("refuses to save an unchanged subscription and closes on cancel", async () => {
+    const { toast } = await import("../../../lib/toast");
+    renderPage();
+    await screen.findByText("subscriptions.statusActive");
+
+    fireEvent.click(screen.getByRole("button", { name: "subscriptions.modify" }));
+    let dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "subscriptions.saveChanges" }));
+    expect(toast.error).toHaveBeenCalledWith("subscriptions.noChanges");
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "common:cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "subscriptions.modify" }));
+    dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getAllByRole("combobox")[1], { target: { value: "cancelled" } });
+    fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "oops" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "subscriptions.saveChanges" }));
+    await waitFor(() =>
+      expect(api.updateUserSubscription).toHaveBeenCalledWith("user-1", { status: "cancelled" }),
+    );
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("subscriptions.updateSuccess"));
+  });
+
+  it("reports failed subscription and points updates", async () => {
+    const { toast } = await import("../../../lib/toast");
+    api.updateUserSubscription.mockRejectedValue(new Error("nope"));
+    api.adjustUserPoints.mockRejectedValue(new Error("nope"));
+    renderPage();
+    await screen.findByText("subscriptions.statusActive");
+
+    fireEvent.click(screen.getByRole("button", { name: "subscriptions.modify" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "7" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "subscriptions.saveChanges" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("subscriptions.updateFailed"));
+
+    fireEvent.change(screen.getByLabelText("points.adjustAmount"), { target: { value: "-5" } });
+    fireEvent.change(screen.getByLabelText("points.adjustReason"), { target: { value: "fix" } });
+    fireEvent.click(screen.getByRole("button", { name: "points.adjustPoints" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("points.adjustFailed"));
+  });
 });

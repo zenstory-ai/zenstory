@@ -297,6 +297,55 @@ describe("CodeManagement", () => {
     clickSpy.mockRestore();
   });
 
+  it("labels multi-use codes and asks for a use limit when creating one", () => {
+    useQueryMock.mockReturnValue({
+      data: {
+        items: [{
+          id: "code-2", code: "MULTI", tier: "pro", duration_days: 7, code_type: "multi_use",
+          max_uses: 50, current_uses: 3, is_active: true, notes: null,
+          created_at: "2026-03-08T00:00:00Z", updated_at: "2026-03-08T00:00:00Z",
+        }],
+        total: 1, page: 1, page_size: 20,
+      },
+      isLoading: false, isFetching: false, isError: false, error: null, refetch: vi.fn(),
+    });
+
+    render(<CodeManagement />);
+    expect(screen.getAllByText("codes.typeMulti").length).toBeGreaterThanOrEqual(2);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "codes.create" })[0]);
+    const selects = screen.getAllByRole("combobox");
+    fireEvent.change(selects[selects.length - 1], { target: { value: "multi_use" } });
+    const maxUses = screen.getByLabelText("codes.maxUses") as HTMLInputElement;
+    fireEvent.change(maxUses, { target: { value: "" } });
+    expect(maxUses.value).toBe("1");
+    fireEvent.change(maxUses, { target: { value: "40" } });
+    mutateMock.mockClear();
+    const createButtons = screen.getAllByRole("button", { name: "codes.create" });
+    fireEvent.click(createButtons[createButtons.length - 1]);
+    expect(mutateMock).toHaveBeenCalledWith(expect.objectContaining({ code_type: "multi_use", max_uses: 40 }));
+  });
+
+  it("falls back to the submitted batch when the response omits counts", async () => {
+    const { toast } = await import("../../../lib/toast");
+    useQueryMock.mockReturnValue({
+      data: { items: [], total: 0, page: 1, page_size: 20 },
+      isLoading: false, isFetching: false, isError: false, error: null, refetch: vi.fn(),
+    });
+
+    render(<CodeManagement />);
+    const batchOptions = useMutationMock.mock.calls[1][0];
+    act(() => {
+      batchOptions.onSuccess(
+        {},
+        { tier: "pro", duration_days: 30, count: 3, code_type: "single_use", max_uses: 10, notes: "" },
+      );
+    });
+
+    expect(toast.success).toHaveBeenCalledWith("codes.batchCreateSuccess:3");
+    expect(screen.getByRole("dialog")).toHaveTextContent("codes.typeSingle");
+  });
+
   it("offers grantable plans from the catalog as tiers", () => {
     useQueryMock.mockImplementation(({ queryKey }: { queryKey: unknown[] }) => ({
       data: queryKey[1] === "plans"

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import UserManagement from "../UserManagement";
 
@@ -17,6 +17,8 @@ vi.mock("react-i18next", () => ({
         : key,
   }),
 }));
+
+vi.mock("../../../lib/toast", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (...args: unknown[]) => useQueryMock(...args),
@@ -217,6 +219,49 @@ describe("UserManagement", () => {
     const links = screen.getAllByRole("link", { name: "writer" });
     expect(links.length).toBeGreaterThan(0);
     links.forEach((link) => expect(link).toHaveAttribute("href", "/admin/users/user-1"));
+  });
+
+  it("deactivates from the mobile card, reports the outcome and closes on cancel", async () => {
+    const { toast } = await import("../../../lib/toast");
+    const options: Array<{ onSuccess?: () => void; onError?: () => void }> = [];
+    useMutationMock.mockImplementation((opts) => {
+      options.push(opts);
+      return { mutate: vi.fn(), isPending: false };
+    });
+    useQueryMock.mockReturnValue({
+      data: { users: [sampleUser], total: 1 },
+      isLoading: false, isFetching: false, isError: false, error: null, refetch: vi.fn(),
+    });
+
+    render(<UserManagement />, { wrapper: MemoryRouter });
+
+    fireEvent.click(screen.getByText("users.deactivate"));
+    expect(screen.getByText("users.deactivateConfirm")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "common:cancel" }));
+    expect(screen.queryByText("users.deactivateConfirm")).not.toBeInTheDocument();
+
+    // The second mutation on the page is the deactivate one.
+    const deactivate = options[options.length - 1];
+    act(() => deactivate.onSuccess?.());
+    expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ["admin", "users"] });
+    expect(toast.success).toHaveBeenCalledWith("users.deactivateSuccess");
+    act(() => deactivate.onError?.());
+    expect(toast.error).toHaveBeenCalledWith("users.deactivateFailed");
+  });
+
+  it("keeps the row click from firing when a username link is followed", () => {
+    useQueryMock.mockReturnValue({
+      data: { users: [sampleUser], total: 1 },
+      isLoading: false, isFetching: false, isError: false, error: null, refetch: vi.fn(),
+    });
+
+    render(<UserManagement />, { wrapper: MemoryRouter });
+
+    const link = screen.getAllByRole("link", { name: "writer" })[0];
+    const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+    const stop = vi.spyOn(event, "stopPropagation");
+    link.dispatchEvent(event);
+    expect(stop).toHaveBeenCalled();
   });
 
   it("locks the deactivate dialog while the request is in flight", () => {
