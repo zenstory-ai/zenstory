@@ -74,6 +74,7 @@ const PointsManagement = lazyRoute(() => import("./pages/admin/PointsManagement"
 const CheckInStatsPage = lazyRoute(() => import("./pages/admin/CheckInStatsPage"), "CheckInStatsPage");
 const ReferralManagement = lazyRoute(() => import("./pages/admin/ReferralManagement"), "ReferralManagement");
 const QuotaManagement = lazyRoute(() => import("./pages/admin/QuotaManagement"), "QuotaManagement");
+const UsageCostPage = lazyRoute(() => import("./pages/admin/UsageCostPage"), "UsageCostPage");
 const AdminRoute = lazyRoute(() => import("./components/AdminRoute"), "AdminRoute");
 
 // Protected route wrapper - redirects to login if not authenticated
@@ -572,6 +573,7 @@ function App() {
                     >
                       <Route index element={<AdminDashboard />} />
                       <Route path="users" element={<UserManagement />} />
+                      <Route path="usage" element={<UsageCostPage />} />
                       <Route path="prompts" element={<PromptManagement />} />
                       <Route path="prompts/:projectType" element={<PromptEditor />} />
                       <Route path="skills" element={<SkillReviewPage />} />

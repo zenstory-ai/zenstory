@@ -23,7 +23,8 @@
     "checkIn": "Check-in Stats",
     "referrals": "Referral System",
     "quota": "Quota Management",
-    "paymentOrders": "Payment Orders"
+    "paymentOrders": "Payment Orders",
+    "usage": "Usage & cost"
   },
   "admin": {
     "verifyingPermission": "Checking access...",
@@ -614,5 +615,63 @@
       "not_found": "The provider has no such order (the user probably left before paying)"
     },
     "upgradeSource": "Upgrade source"
+  },
+  "usage": {
+    "title": "Usage & cost",
+    "subtitle": "DeepSeek calls and cost per user, by Beijing time",
+    "window": "Period",
+    "windows": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "7d": "Last 7 days"
+    },
+    "refresh": "Refresh",
+    "loadError": "Couldn't load usage",
+    "priceLine": "Prices (CNY per 1M tokens, cache hit / miss / output): {{peak}}; {{offpeak}}. Peak is weekdays 9–12 and 14–18.",
+    "notCounted": "Cancelled or timed-out requests and embeddings are not counted.",
+    "totalCost": "Total cost",
+    "peakOffpeak": "Peak / off-peak cost",
+    "calls": "Calls",
+    "activeUsers": "Active users",
+    "tokenSplit": "Tokens (hit / miss / output)",
+    "tokens": "Tokens",
+    "cacheHit": "Cache hit",
+    "cacheMiss": "Cache miss",
+    "output": "Output",
+    "peak": "Peak",
+    "offpeak": "Off-peak",
+    "cost": "Cost",
+    "date": "Date",
+    "users": "Users",
+    "user": "User",
+    "lastUsed": "Last call",
+    "byDay": "By day",
+    "bySource": "By feature",
+    "byUser": "By user",
+    "source": "Feature",
+    "sources": {
+      "agent": "Writing assistant",
+      "router": "Intent routing",
+      "suggest": "Suggestions",
+      "polish": "Natural polish",
+      "material": "Material analysis"
+    },
+    "sortBy": "Sort",
+    "sort": {
+      "cost": "By cost",
+      "calls": "By calls",
+      "tokens": "By tokens"
+    },
+    "search": "Search",
+    "searchPlaceholder": "Username, email or user ID",
+    "noUsers": "No calls in this period",
+    "noUsage": "No calls",
+    "totalUsers": "{{count}} users",
+    "totalUsers_one": "{{count}} user",
+    "totalUsers_other": "{{count}} users",
+    "userDetail": "User usage",
+    "openUser": "View usage for {{name}}",
+    "detailRange": "Days",
+    "lastDays": "Last {{count}} days"
   }
 }

@@ -27,6 +27,7 @@ describe("AdminSidebar", () => {
     expect(screen.getByRole("button", { name: "灵感管理" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "支付订单" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "兑换码管理" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "用量与成本" })).toBeInTheDocument();
   });
 
   it("hides inspiration management when disabled", () => {

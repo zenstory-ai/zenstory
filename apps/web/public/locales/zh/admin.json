@@ -23,7 +23,8 @@
     "checkIn": "签到统计",
     "referrals": "邀请系统",
     "quota": "配额管理",
-    "paymentOrders": "支付订单"
+    "paymentOrders": "支付订单",
+    "usage": "用量与成本"
   },
   "admin": {
     "verifyingPermission": "正在确认权限...",
@@ -614,5 +615,63 @@
       "not_found": "支付平台查不到该订单（用户可能没有进入付款页）"
     },
     "upgradeSource": "升级来源"
+  },
+  "usage": {
+    "title": "用量与成本",
+    "subtitle": "每位用户的 DeepSeek 调用量和费用，按北京时间统计",
+    "window": "时间范围",
+    "windows": {
+      "today": "今天",
+      "yesterday": "昨天",
+      "7d": "近7天"
+    },
+    "refresh": "刷新",
+    "loadError": "用量数据加载失败",
+    "priceLine": "价格（元/百万 tokens，缓存命中 / 未命中 / 输出）：{{peak}}；{{offpeak}}。高峰为工作日 9–12 点、14–18 点。",
+    "notCounted": "已取消或超时的请求、向量嵌入不计入。",
+    "totalCost": "总费用",
+    "peakOffpeak": "高峰 / 空闲费用",
+    "calls": "调用次数",
+    "activeUsers": "活跃用户",
+    "tokenSplit": "Tokens（命中 / 未命中 / 输出）",
+    "tokens": "Tokens",
+    "cacheHit": "缓存命中",
+    "cacheMiss": "缓存未命中",
+    "output": "输出",
+    "peak": "高峰",
+    "offpeak": "空闲",
+    "cost": "费用",
+    "date": "日期",
+    "users": "用户数",
+    "user": "用户",
+    "lastUsed": "最近调用",
+    "byDay": "每日",
+    "bySource": "按功能",
+    "byUser": "按用户",
+    "source": "功能",
+    "sources": {
+      "agent": "写作助手",
+      "router": "意图识别",
+      "suggest": "输入建议",
+      "polish": "自然润色",
+      "material": "素材拆解"
+    },
+    "sortBy": "排序",
+    "sort": {
+      "cost": "按费用",
+      "calls": "按调用次数",
+      "tokens": "按 Tokens"
+    },
+    "search": "搜索",
+    "searchPlaceholder": "用户名、邮箱或用户 ID",
+    "noUsers": "这段时间没有用户调用",
+    "noUsage": "暂无调用",
+    "totalUsers": "共 {{count}} 位用户",
+    "totalUsers_one": "共 {{count}} 位用户",
+    "totalUsers_other": "共 {{count}} 位用户",
+    "userDetail": "用户用量",
+    "openUser": "查看 {{name}} 的用量",
+    "detailRange": "统计天数",
+    "lastDays": "近 {{count}} 天"
   }
 }

@@ -1137,6 +1137,106 @@ export async function updateUserSubscription(
   return api.put<UpdateSubscriptionResponse>(`${ADMIN_BASE}/subscriptions/${userId}`, data);
 }
 
+// ==================== 用量与成本 API ====================
+
+export type UsageWindow = "today" | "yesterday" | "7d";
+export type UsageUserSort = "cost" | "calls" | "tokens";
+export type UsageDetailDays = 7 | 14 | 30;
+export type UsagePriceKind = "cache_hit" | "cache_miss" | "output";
+
+export interface UsageMetrics {
+  calls: number;
+  cache_hit_tokens: number;
+  cache_miss_tokens: number;
+  output_tokens: number;
+  /** CNY as a decimal string rounded to 4 places. */
+  cost_cny: string;
+  peak_cost_cny: string;
+  offpeak_cost_cny: string;
+}
+
+export interface UsageSourceRow extends UsageMetrics {
+  source: string;
+}
+
+export interface UsageDailyRow extends UsageMetrics {
+  /** Beijing calendar date, YYYY-MM-DD. */
+  date: string;
+  users?: number;
+}
+
+export interface UsagePeriod {
+  timezone: string;
+  period_start: string;
+  period_end: string;
+  pricing_version: string;
+  /** CNY per 1M tokens, keyed by band then token kind. */
+  prices: Record<"peak" | "offpeak", Record<UsagePriceKind, string>>;
+}
+
+export interface UsageSummaryResponse extends UsagePeriod {
+  window: UsageWindow;
+  totals: UsageMetrics & { users: number };
+  by_source: UsageSourceRow[];
+  daily: UsageDailyRow[];
+}
+
+export interface UserUsageRow extends UsageMetrics {
+  user_id: string;
+  username: string;
+  email: string;
+  last_used_at: string | null;
+}
+
+export interface UserUsageListResponse extends UsagePeriod {
+  window: UsageWindow;
+  items: UserUsageRow[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface UserDailyUsageResponse extends UsagePeriod {
+  user_id: string;
+  username: string;
+  email: string;
+  days: UsageDetailDays;
+  totals: UsageMetrics;
+  by_source: UsageSourceRow[];
+  daily: UsageDailyRow[];
+}
+
+/** Usage and CNY cost totals for a Beijing-day window. */
+export async function getUsageSummary(window: UsageWindow): Promise<UsageSummaryResponse> {
+  return api.get<UsageSummaryResponse>(`${ADMIN_BASE}/usage/summary?window=${window}`);
+}
+
+/** Per-user usage for a window, sorted server-side. */
+export async function getUsageByUser(params: {
+  window: UsageWindow;
+  sort?: UsageUserSort;
+  search?: string;
+  page?: number;
+  page_size?: number;
+}): Promise<UserUsageListResponse> {
+  const query = new URLSearchParams({ window: params.window });
+  if (params.sort) query.set("sort", params.sort);
+  if (params.search) query.set("search", params.search);
+  if (params.page) query.set("page", String(params.page));
+  if (params.page_size) query.set("page_size", String(params.page_size));
+  return api.get<UserUsageListResponse>(`${ADMIN_BASE}/usage/users?${query.toString()}`);
+}
+
+/** One user's daily usage for the last 7, 14 or 30 Beijing days. */
+export async function getUserDailyUsage(
+  userId: string,
+  days: UsageDetailDays = 7
+): Promise<UserDailyUsageResponse> {
+  return api.get<UserDailyUsageResponse>(
+    `${ADMIN_BASE}/usage/users/${encodeURIComponent(userId)}/daily?days=${days}`
+  );
+}
+
 // ==================== 审计日志 API ====================
 
 /** Represents an admin action audit log entry. */
@@ -1825,6 +1925,11 @@ export const adminApi = {
   syncPaymentOrder,
   getUserSubscription,
   updateUserSubscription,
+
+  // 用量与成本
+  getUsageSummary,
+  getUsageByUser,
+  getUserDailyUsage,
 
   // 审计日志
   getAuditLogs,

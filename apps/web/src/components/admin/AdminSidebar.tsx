@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, Users, FileText, Zap, Ticket, CreditCard, Lightbulb, ScrollText, Package, Coins, CalendarCheck, Gift, ChartBar, Bug } from "lucide-react";
+import { LayoutDashboard, Users, FileText, Zap, Ticket, CreditCard, Lightbulb, ScrollText, Package, Coins, CalendarCheck, Gift, ChartBar, Bug, Gauge } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { inspirationsConfig } from "../../config/inspirations";
 
@@ -25,6 +25,12 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ onClose }) => {
       label: t("sidebar.users", "用户管理"),
       icon: Users,
       path: "/admin/users",
+    },
+    {
+      key: "usage",
+      label: t("sidebar.usage", "用量与成本"),
+      icon: Gauge,
+      path: "/admin/usage",
     },
     {
       key: "inspirations",
