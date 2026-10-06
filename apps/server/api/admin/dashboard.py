@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session, func, select
 
-from config.datetime_utils import utcnow
+from config.datetime_utils import beijing_date, utcnow
 from config.feature_flags import is_inspirations_enabled
 from database import get_session
 from models import Inspiration, Project, User
@@ -18,6 +18,7 @@ from models.referral import InviteCode, Referral
 from models.subscription import SubscriptionHistory, SubscriptionPlan, UserSubscription
 from services.core.auth_service import get_current_superuser
 from services.features.activation_event_service import activation_event_service
+from services.features.points_service import effective_check_in_date
 from services.features.upgrade_funnel_event_service import upgrade_funnel_event_service
 from utils.logger import get_logger, log_with_context
 
@@ -59,6 +60,7 @@ def get_dashboard_stats(
     now = utcnow()
     now_naive = now.replace(tzinfo=None)
     today_utc = now.date()
+    today_beijing = beijing_date(now)
     today_start = datetime.combine(today_utc, datetime.min.time())
     week_ago = now_naive - timedelta(days=7)
 
@@ -117,9 +119,17 @@ def get_dashboard_stats(
     total_points_in_circulation = max(0, total_earned + total_spent)  # spent is negative
 
     # Today's check-ins
-    today_check_ins = session.exec(
-        select(func.count()).select_from(CheckInRecord).where(CheckInRecord.check_in_date == today_utc)
-    ).one()
+    check_in_candidates = session.exec(
+        select(CheckInRecord).where(
+            CheckInRecord.check_in_date.in_(
+                (today_beijing, today_beijing - timedelta(days=1))
+            )
+        )
+    ).all()
+    today_check_ins = sum(
+        effective_check_in_date(record) == today_beijing
+        for record in check_in_candidates
+    )
 
     # Active invite codes
     active_invite_codes = session.exec(

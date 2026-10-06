@@ -290,6 +290,16 @@ export default function BillingPage() {
                       />
                     </div>
                   )}
+                  {item.key === "ai_conversations" && (
+                    <p className="mt-2 text-xs text-[hsl(var(--text-secondary))]">
+                      {t("dashboard:billing.dailyQuotaResetHint", "每日 AI 对话额度于北京时间 00:00 重置。")}
+                    </p>
+                  )}
+                  {(item.key === "material_decompositions" || item.key === "inspiration_copies") && (
+                    <p className="mt-2 text-xs text-[hsl(var(--text-secondary))]">
+                      {t("dashboard:billing.monthlyQuotaResetHint", "每月额度于北京时间每月 1 日 00:00 重置。")}
+                    </p>
+                  )}
                 </div>
               );
             })}

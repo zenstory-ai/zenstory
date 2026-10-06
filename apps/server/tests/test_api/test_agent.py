@@ -5,6 +5,7 @@ Tests for the AI agent streaming endpoints with mocked LangGraph workflow.
 Updated for LangGraph architecture.
 """
 
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -13,6 +14,8 @@ from sqlmodel import Session
 
 from models import Project, User
 from services.core.auth_service import hash_password
+
+_CHARGED_PERIOD = datetime(2026, 10, 5, 16, tzinfo=UTC)
 
 
 # Test helper: Create mock LangGraph stream events
@@ -222,7 +225,7 @@ async def test_agent_stream_error_refunds_quota(client: AsyncClient, db_session:
 
     with (
         patch("agent.service.run_writing_workflow_streaming") as mock_workflow,
-        patch("api.agent.quota_service.consume_ai_conversation", return_value=True) as mock_consume,
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD) as mock_consume,
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as mock_refund,
     ):
         mock_workflow.return_value = mock_error_stream()
@@ -238,7 +241,11 @@ async def test_agent_stream_error_refunds_quota(client: AsyncClient, db_session:
 
     assert response.status_code == 200
     mock_consume.assert_called_once()
-    mock_refund.assert_called_once()
+    mock_refund.assert_called_once_with(
+        db_session,
+        user.id,
+        period_start=_CHARGED_PERIOD,
+    )
 
 
 @pytest.mark.integration
@@ -267,7 +274,7 @@ async def test_agent_stream_success_consumes_quota(client: AsyncClient, db_sessi
 
     with (
         patch("agent.service.run_writing_workflow_streaming") as mock_workflow,
-        patch("api.agent.quota_service.consume_ai_conversation", return_value=True) as mock_consume,
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD) as mock_consume,
         patch("api.agent.quota_service.release_ai_conversation") as mock_refund,
     ):
         mock_workflow.return_value = create_mock_langgraph_events()
@@ -330,7 +337,7 @@ async def test_agent_stream_missing_terminal_event_refunds_quota(
     # 已经串流过正文：用户拿到了产出，按「本轮已有实质产出」计费，不退款。
     with (
         patch("api.agent.get_agent_service", return_value=MockAgentService(non_terminal_stream)),
-        patch("api.agent.quota_service.consume_ai_conversation", return_value=True) as mock_consume,
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD) as mock_consume,
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as mock_refund,
     ):
         response = await client.post(
@@ -352,7 +359,7 @@ async def test_agent_stream_missing_terminal_event_refunds_quota(
             "api.agent.get_agent_service",
             return_value=MockAgentService(non_terminal_stream_without_output),
         ),
-        patch("api.agent.quota_service.consume_ai_conversation", return_value=True),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as mock_refund,
     ):
         response = await client.post(
@@ -393,7 +400,7 @@ async def test_agent_stream_returns_402_when_reserve_quota_fails(client: AsyncCl
     db_session.commit()
 
     with (
-        patch("api.agent.quota_service.consume_ai_conversation", return_value=False) as mock_consume,
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=None) as mock_consume,
         patch("agent.service.run_writing_workflow_streaming") as mock_workflow,
     ):
         response = await client.post(
@@ -595,7 +602,7 @@ async def test_agent_stream_invalid_project(client: AsyncClient, db_session: Ses
     assert login_response.status_code == 200
     token = login_response.json()["access_token"]
 
-    with patch("api.agent.quota_service.consume_ai_conversation") as mock_consume:
+    with patch("api.agent.quota_service.reserve_ai_conversation") as mock_consume:
         response = await client.post(
             "/api/v1/agent/stream",
             json={
@@ -1119,7 +1126,7 @@ async def test_agent_stream_exception_after_read_only_notice_still_sends_fallbac
 
     with (
         patch("api.agent.get_agent_service", return_value=MockAgentService()),
-        patch("api.agent.quota_service.consume_ai_conversation", return_value=True),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as mock_refund,
     ):
         # 默认 transport 会把应用异常直接抛给测试、丢掉已流出的帧；这里要检查帧本身。
@@ -1156,7 +1163,7 @@ async def test_agent_stream_read_only_notice_alone_is_not_terminal(
 
     with (
         patch("api.agent.get_agent_service", return_value=MockAgentService()),
-        patch("api.agent.quota_service.consume_ai_conversation", return_value=True),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as mock_refund,
     ):
         response = await client.post(
@@ -1184,7 +1191,7 @@ async def test_agent_stream_read_only_notice_then_done_is_charged(
 
     with (
         patch("api.agent.get_agent_service", return_value=MockAgentService()),
-        patch("api.agent.quota_service.consume_ai_conversation", return_value=True),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as mock_refund,
     ):
         response = await client.post(

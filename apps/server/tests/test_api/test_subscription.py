@@ -8,7 +8,7 @@ Integration tests for the subscription system API, covering:
 - GET /api/v1/subscription/history - Get subscription history
 - POST /api/v1/subscription/upgrade-funnel-events - Track upgrade funnel events
 """
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
@@ -314,6 +314,41 @@ class TestGetQuota:
         assert "reset_at" in data["ai_conversations"]
         assert "used" in data["projects"]
         assert "limit" in data["projects"]
+
+    @pytest.mark.parametrize(
+        ("now", "last_reset", "expected_daily_used", "expected_monthly_used", "daily_end", "monthly_end"),
+        [
+            (datetime(2026, 10, 5, 16), datetime(2026, 10, 5, 15, 59), 0, 4, datetime(2026, 10, 6, 16), datetime(2026, 10, 31, 16)),
+            (datetime(2026, 10, 31, 16), datetime(2026, 10, 31, 16), 7, 0, datetime(2026, 11, 1, 16), datetime(2026, 11, 30, 16)),
+        ],
+    )
+    async def test_quota_api_returns_beijing_reset_boundaries_with_timezone(
+        self, client, auth_headers, free_plan, db_session, monkeypatch,
+        now, last_reset, expected_daily_used, expected_monthly_used, daily_end, monthly_end
+    ):
+        monkeypatch.setattr("services.quota_service.utcnow", lambda: now.replace(tzinfo=UTC))
+        user = db_session.exec(select(User).where(User.username == "testuser")).one()
+        quota = UsageQuota(
+            user_id=user.id,
+            period_start=last_reset,
+            period_end=last_reset + timedelta(hours=24),
+            last_reset_at=last_reset,
+            ai_conversations_used=7,
+            material_decompositions_used=4,
+            monthly_period_start=datetime(2026, 10, 1),
+            monthly_period_end=datetime(2026, 11, 1),
+        )
+        db_session.add(quota)
+        db_session.commit()
+
+        response = await client.get("/api/v1/subscription/quota", headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["ai_conversations"]["used"] == expected_daily_used
+        assert data["material_decompositions"]["used"] == expected_monthly_used
+        assert datetime.fromisoformat(data["ai_conversations"]["reset_at"]) == daily_end.replace(tzinfo=UTC)
+        assert datetime.fromisoformat(data["material_decompositions"]["reset_at"]) == monthly_end.replace(tzinfo=UTC)
 
     async def test_get_quota_free_plan_limits(
         self, client: AsyncClient, auth_headers, free_plan

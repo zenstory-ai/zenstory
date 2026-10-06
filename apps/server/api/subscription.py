@@ -1,6 +1,7 @@
 """
 Subscription API - User-facing subscription endpoints.
 """
+
 from datetime import UTC, datetime
 from typing import Any, Literal
 
@@ -27,10 +28,9 @@ from services.subscription.defaults import (
     DEFAULT_FREE_PLAN_DISPLAY_NAME,
     DEFAULT_FREE_PLAN_DISPLAY_NAME_EN,
     DEFAULT_FREE_PLAN_FEATURES,
-    DEFAULT_PRO_PLAN_FEATURES,
-    SUPPORTED_EXPORT_FORMATS,
     clone_default_free_features,
     normalize_export_formats,
+    resolve_plan_feature,
 )
 from services.subscription.redemption_service import redemption_service
 from services.subscription.subscription_service import subscription_service
@@ -39,6 +39,7 @@ router = APIRouter(prefix="/api/v1/subscription", tags=["subscription"])
 
 
 # ============== Schemas ==============
+
 
 class SubscriptionStatusResponse(BaseModel):
     tier: str
@@ -62,6 +63,10 @@ class SubscriptionPlanResponse(BaseModel):
 
 
 class SubscriptionCatalogEntitlementsResponse(BaseModel):
+    ai_conversations_per_day: int = 0
+    # Deprecated, never advertised: these historical catalog fields were
+    # estimates derived from the real daily conversation limit, not runtime
+    # quotas. Keep fixed neutral values for cached web bundles only.
     writing_credits_monthly: int = 0
     agent_runs_monthly: int = 0
     active_projects_limit: int = 0
@@ -183,7 +188,7 @@ DEFAULT_FREE_TIER = {
 
 # Only entitlements the backend enforces belong here. Context window and priority
 # queue were advertised without an implementation and are intentionally absent.
-CATALOG_VERSION = "2026-02"
+CATALOG_VERSION = "2026-03"
 CATALOG_COMPARISON_MODE = "task_outcome"
 CATALOG_PRICING_ANCHOR_MONTHLY_CENTS = 4900
 PUBLIC_PLAN_NAMES = ("free", "pro")
@@ -193,136 +198,56 @@ PLAN_CATALOG_PRESETS: dict[str, dict[str, Any]] = {
         "recommended": False,
         "summary_key": "starter",
         "target_user_key": "explorer",
-        "entitlements": {
-            "writing_credits_monthly": 120000,
-            "agent_runs_monthly": 20,
-            "active_projects_limit": 1,
-            "materials_library_access": False,
-            "material_uploads_monthly": 0,
-            "material_decompositions_monthly": 0,
-            "custom_skills_limit": DEFAULT_FREE_PLAN_FEATURES["custom_skills"],
-            "inspiration_copies_monthly": DEFAULT_FREE_PLAN_FEATURES["inspiration_copies_monthly"],
-            "export_formats": ["txt"],
-        },
     },
     "pro": {
         "recommended": True,
         "summary_key": "creator",
         "target_user_key": "daily_writer",
-        "entitlements": {
-            "writing_credits_monthly": 600000,
-            "agent_runs_monthly": 120,
-            "active_projects_limit": 5,
-            "materials_library_access": True,
-            "material_uploads_monthly": DEFAULT_PRO_PLAN_FEATURES["material_uploads"],
-            "material_decompositions_monthly": DEFAULT_PRO_PLAN_FEATURES["material_decompositions"],
-            "custom_skills_limit": DEFAULT_PRO_PLAN_FEATURES["custom_skills"],
-            "inspiration_copies_monthly": DEFAULT_PRO_PLAN_FEATURES["inspiration_copies_monthly"],
-            "export_formats": ["txt"],
-        },
     },
 }
 
 
-def _normalize_plan_features_for_response(features: dict[str, Any] | None) -> dict[str, Any]:
+def _normalize_plan_features_for_response(
+    features: dict[str, Any] | None,
+    plan_name: str | None = "free",
+) -> dict[str, Any]:
     normalized = dict(features or {})
-    raw_materials_access = normalized.get("materials_library_access")
-    if isinstance(raw_materials_access, bool):
-        normalized["materials_library_access"] = raw_materials_access
-    elif isinstance(raw_materials_access, (int, float)):
-        normalized["materials_library_access"] = raw_materials_access != 0
-    elif (
-        normalized.get("material_decompositions") not in (None, 0)
-        or normalized.get("material_uploads") not in (None, 0)
-    ):
-        normalized["materials_library_access"] = True
-    else:
-        normalized["materials_library_access"] = False
-    raw_export_formats = normalized.get("export_formats")
-    if raw_export_formats is None:
-        normalized["export_formats"] = list(SUPPORTED_EXPORT_FORMATS)
-    else:
-        normalized["export_formats"] = normalize_export_formats(raw_export_formats)
+    for key, fallback in DEFAULT_FREE_PLAN_FEATURES.items():
+        normalized[key] = resolve_plan_feature(plan_name, features, key, fallback)
+    normalized["export_formats"] = normalize_export_formats(normalized["export_formats"])
     return normalized
 
 
 def _normalize_plan_entitlements(plan_name: str, features: dict | None) -> dict[str, Any]:
     normalized_features = features or {}
-    preset = PLAN_CATALOG_PRESETS.get(plan_name, PLAN_CATALOG_PRESETS["free"])
-    entitlements = dict(preset["entitlements"])
 
-    direct_feature_map = {
-        "writing_credits_monthly": "writing_credits_monthly",
-        "agent_runs_monthly": "agent_runs_monthly",
-        "active_projects_limit": "active_projects_limit",
-        "materials_library_access": "materials_library_access",
-        "material_uploads_monthly": "material_uploads_monthly",
-        "material_decompositions_monthly": "material_decompositions_monthly",
-        "custom_skills_limit": "custom_skills_limit",
-        "inspiration_copies_monthly": "inspiration_copies_monthly",
+    def limit(key: str) -> int:
+        value = resolve_plan_feature(plan_name, normalized_features, key, 0)
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return 0
+
+    raw_materials_access = resolve_plan_feature(plan_name, normalized_features, "materials_library_access", False)
+    if isinstance(raw_materials_access, str):
+        materials_library_access = raw_materials_access.strip().lower() in {"true", "1", "yes", "on"}
+    else:
+        materials_library_access = bool(raw_materials_access)
+
+    return {
+        "ai_conversations_per_day": limit("ai_conversations_per_day"),
+        "writing_credits_monthly": 0,
+        "agent_runs_monthly": 0,
+        "active_projects_limit": limit("max_projects"),
+        "materials_library_access": materials_library_access,
+        "material_uploads_monthly": limit("material_uploads"),
+        "material_decompositions_monthly": limit("material_decompositions"),
+        "custom_skills_limit": limit("custom_skills"),
+        "inspiration_copies_monthly": limit("inspiration_copies_monthly"),
+        "export_formats": normalize_export_formats(
+            resolve_plan_feature(plan_name, normalized_features, "export_formats", [])
+        ),
     }
-
-    for target_key, source_key in direct_feature_map.items():
-        source_value = normalized_features.get(source_key)
-        if source_value is not None:
-            entitlements[target_key] = source_value
-
-    ai_conversations_per_day = normalized_features.get("ai_conversations_per_day")
-    if ai_conversations_per_day is not None:
-        try:
-            ai_conversation_limit = int(ai_conversations_per_day)
-        except (TypeError, ValueError):
-            ai_conversation_limit = 0
-
-        if normalized_features.get("writing_credits_monthly") is None:
-            entitlements["writing_credits_monthly"] = (
-                -1 if ai_conversation_limit == -1 else ai_conversation_limit * 30
-            )
-        if normalized_features.get("agent_runs_monthly") is None:
-            entitlements["agent_runs_monthly"] = (
-                -1 if ai_conversation_limit == -1 else max(20, ai_conversation_limit * 4)
-            )
-
-    if normalized_features.get("max_projects") is not None and normalized_features.get("active_projects_limit") is None:
-        entitlements["active_projects_limit"] = normalized_features["max_projects"]
-
-    if normalized_features.get("material_uploads") is not None and normalized_features.get("material_uploads_monthly") is None:
-        entitlements["material_uploads_monthly"] = normalized_features["material_uploads"]
-
-    if normalized_features.get("material_decompositions") is not None and normalized_features.get("material_decompositions_monthly") is None:
-        entitlements["material_decompositions_monthly"] = normalized_features["material_decompositions"]
-    if normalized_features.get("materials_library_access") is not None:
-        entitlements["materials_library_access"] = bool(normalized_features["materials_library_access"])
-    elif plan_name != "free":
-        entitlements["materials_library_access"] = True
-
-    if normalized_features.get("custom_skills") is not None and normalized_features.get("custom_skills_limit") is None:
-        entitlements["custom_skills_limit"] = normalized_features["custom_skills"]
-
-    if normalized_features.get("export_formats") is not None:
-        entitlements["export_formats"] = normalized_features["export_formats"]
-
-    for int_field in (
-        "writing_credits_monthly",
-        "agent_runs_monthly",
-        "active_projects_limit",
-        "material_uploads_monthly",
-        "material_decompositions_monthly",
-        "custom_skills_limit",
-        "inspiration_copies_monthly",
-    ):
-        value = entitlements.get(int_field, 0)
-        try:
-            entitlements[int_field] = int(value)
-        except (TypeError, ValueError):
-            entitlements[int_field] = 0
-
-    entitlements["materials_library_access"] = bool(
-        entitlements.get("materials_library_access", plan_name != "free")
-    )
-    entitlements["export_formats"] = normalize_export_formats(entitlements.get("export_formats"))
-
-    return entitlements
 
 
 def _build_catalog_plan(plan: SubscriptionPlan) -> SubscriptionCatalogPlanResponse:
@@ -383,17 +308,17 @@ def _build_plan_response(plan: SubscriptionPlan) -> SubscriptionPlanResponse:
         display_name_en=plan.display_name_en,
         price_monthly_cents=plan.price_monthly_cents,
         price_yearly_cents=plan.price_yearly_cents,
-        features=_normalize_plan_features_for_response(plan.features),
+        features=_normalize_plan_features_for_response(plan.features, plan.name),
         is_active=plan.is_active,
     )
 
 
 # ============== Endpoints ==============
 
+
 @router.get("/me", response_model=SubscriptionStatusResponse)
 async def get_subscription_status(
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user)
+    session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)
 ):
     """Get current user's subscription status."""
     subscription = subscription_service.get_user_subscription(session, current_user.id)
@@ -407,12 +332,12 @@ async def get_subscription_status(
         plan_name = DEFAULT_FREE_TIER["name"]
         display_name = DEFAULT_FREE_TIER["display_name"]
         display_name_en = DEFAULT_FREE_TIER["display_name_en"]
-        features = _normalize_plan_features_for_response(clone_default_free_features())
+        features = _normalize_plan_features_for_response(clone_default_free_features(), "free")
     else:
         plan_name = plan.name
         display_name = plan.display_name
         display_name_en = plan.display_name_en
-        features = _normalize_plan_features_for_response(plan.features)
+        features = _normalize_plan_features_for_response(plan.features, plan.name)
 
     # A lapsed paid subscription falls back to the free plan; report the plan
     # the user is actually on instead of pairing "Free" with "expired".
@@ -437,20 +362,15 @@ async def get_subscription_status(
         display_name_en=display_name_en,
         current_period_end=subscription.current_period_end if subscription else None,
         days_remaining=days_remaining,
-        features=features
+        features=features,
     )
 
 
 @router.get("/quota", response_model=QuotaResponse)
-async def get_quota(
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user)
-):
+async def get_quota(session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
     """Get current usage quota."""
     plan = quota_service.get_user_plan(session, current_user.id)
-    quota_snapshot = quota_service.get_quota_snapshot(
-        session, current_user.id, plan=plan
-    )
+    quota_snapshot = quota_service.get_quota_snapshot(session, current_user.id, plan=plan)
 
     # Get project count
     project_count = int(
@@ -538,15 +458,12 @@ async def redeem_code(
     request: RedeemCodeRequest,
     http_request: Request,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
     """Redeem a subscription code."""
     allowed, _ = check_rate_limit(http_request, "subscription_redeem_code", 10, 60)
     if not allowed:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Rate limit exceeded"
-        )
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Rate limit exceeded")
 
     attribution_source = request.source.strip() if request.source else None
 
@@ -555,16 +472,13 @@ async def redeem_code(
     )
 
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=message
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=message)
 
     return RedeemCodeResponse(
         success=True,
         message=message,
         tier=info.get("tier") if info else None,
-        duration_days=info.get("duration_days") if info else None
+        duration_days=info.get("duration_days") if info else None,
     )
 
 
@@ -572,7 +486,7 @@ async def redeem_code(
 async def get_history(
     limit: int = Query(50, ge=1, le=100),
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
     """Get subscription history."""
     history = session.exec(
@@ -589,7 +503,7 @@ async def get_history(
             plan_name=h.plan_name,
             start_date=h.start_date,
             end_date=h.end_date,
-            created_at=h.created_at
+            created_at=h.created_at,
         )
         for h in history
     ]

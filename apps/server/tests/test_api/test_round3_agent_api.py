@@ -81,9 +81,7 @@ def _set_quota_used(db_session: Session, user_id: str, used: int) -> UsageQuota:
 
 def _read_quota_used(db_session: Session, user_id: str) -> int:
     db_session.expire_all()
-    quota = db_session.exec(
-        select(UsageQuota).where(UsageQuota.user_id == user_id)
-    ).first()
+    quota = db_session.exec(select(UsageQuota).where(UsageQuota.user_id == user_id)).first()
     return quota.ai_conversations_used if quota else 0
 
 
@@ -96,13 +94,9 @@ def _llm_backed_suggest_service(suggestions: list[str]) -> MagicMock:
 
 
 @pytest.mark.integration
-async def test_suggest_still_available_when_ai_quota_exhausted(
-    client: AsyncClient, db_session: Session
-):
+async def test_suggest_still_available_when_ai_quota_exhausted(client: AsyncClient, db_session: Session):
     """建议不占 AI 对话额度：额度耗尽时 /suggest 照常可用，额度也不被改动。"""
-    user, project, token = await _make_user_and_project(
-        client, db_session, "round3_suggest_quota_out"
-    )
+    user, project, token = await _make_user_and_project(client, db_session, "round3_suggest_quota_out")
     _set_quota_used(db_session, user.id, FREE_AI_CONVERSATION_LIMIT)
 
     service = _llm_backed_suggest_service(["继续写第二章"])
@@ -119,19 +113,16 @@ async def test_suggest_still_available_when_ai_quota_exhausted(
 
 
 @pytest.mark.integration
-async def test_suggest_does_not_consume_ai_conversation_quota(
-    client: AsyncClient, db_session: Session
-):
+async def test_suggest_does_not_consume_ai_conversation_quota(client: AsyncClient, db_session: Session):
     """真实 LLM 路径下 /suggest 也不扣对话额度（前端每轮都会自动触发它）。"""
-    user, project, token = await _make_user_and_project(
-        client, db_session, "round3_suggest_quota_charge"
-    )
+    user, project, token = await _make_user_and_project(client, db_session, "round3_suggest_quota_charge")
     _set_quota_used(db_session, user.id, 3)
 
     service = _llm_backed_suggest_service(["继续写第二章", "补充角色动机", "设计剧情反转"])
-    with patch("agent.suggest_service.get_suggest_service", return_value=service), patch.object(
-        quota_service, "consume_ai_conversation"
-    ) as spy_consume:
+    with (
+        patch("agent.suggest_service.get_suggest_service", return_value=service),
+        patch.object(quota_service, "reserve_ai_conversation") as spy_consume,
+    ):
         response = await client.post(
             "/api/v1/agent/suggest",
             json={"project_id": str(project.id), "count": 3},
@@ -145,18 +136,16 @@ async def test_suggest_does_not_consume_ai_conversation_quota(
 
 
 @pytest.mark.integration
-async def test_suggest_daily_cap_returns_429(
-    client: AsyncClient, db_session: Session, monkeypatch
-):
+async def test_suggest_daily_cap_returns_429(client: AsyncClient, db_session: Session, monkeypatch):
     """独立的每日上限：同一账号当天超过上限后 429，LLM 不再被调用。"""
     import api.agent as agent_api
+    import middleware.rate_limit as rate_limit_module
     from middleware.rate_limit import _rate_limit_store
 
-    _user, project, token = await _make_user_and_project(
-        client, db_session, "round3_suggest_daily_cap"
-    )
+    _user, project, token = await _make_user_and_project(client, db_session, "round3_suggest_daily_cap")
     service = _llm_backed_suggest_service(["继续写第二章"])
-    user_key = f"agent_suggest_daily:user_{_user.id}"
+    today = rate_limit_module.beijing_date(rate_limit_module.utcnow()).isoformat()
+    user_key = f"agent_suggest_daily:user_{_user.id}:beijing_day:{today}"
     with patch("agent.suggest_service.get_suggest_service", return_value=service):
         # 预先把当日窗口填满（小时窗口不受影响）。
         import time as _time
@@ -173,18 +162,17 @@ async def test_suggest_daily_cap_returns_429(
 
 
 @pytest.mark.integration
-async def test_suggest_does_not_charge_when_llm_unavailable(
-    client: AsyncClient, db_session: Session
-):
+async def test_suggest_does_not_charge_when_llm_unavailable(client: AsyncClient, db_session: Session):
     """没有 LLM 客户端时只返回固定兜底文案，不产生成本，也不该扣额度。"""
-    user, project, token = await _make_user_and_project(
-        client, db_session, "round3_suggest_no_llm"
-    )
+    user, project, token = await _make_user_and_project(client, db_session, "round3_suggest_no_llm")
     _set_quota_used(db_session, user.id, 3)
 
-    with patch("agent.suggest_service._service", None), patch(
-        "agent.suggest_service.get_llm_client",
-        side_effect=ValueError("DEEPSEEK_API_KEY is required"),
+    with (
+        patch("agent.suggest_service._service", None),
+        patch(
+            "agent.suggest_service.get_llm_client",
+            side_effect=ValueError("DEEPSEEK_API_KEY is required"),
+        ),
     ):
         response = await client.post(
             "/api/v1/agent/suggest",
@@ -202,18 +190,17 @@ async def test_suggest_does_not_charge_when_llm_unavailable(
 
 
 @pytest.mark.integration
-async def test_suggest_fallback_remains_available_when_quota_is_exhausted(
-    client: AsyncClient, db_session: Session
-):
+async def test_suggest_fallback_remains_available_when_quota_is_exhausted(client: AsyncClient, db_session: Session):
     """A local fixed fallback has no provider cost and must not require quota."""
-    user, project, token = await _make_user_and_project(
-        client, db_session, "round3_suggest_no_llm_quota_out"
-    )
+    user, project, token = await _make_user_and_project(client, db_session, "round3_suggest_no_llm_quota_out")
     _set_quota_used(db_session, user.id, FREE_AI_CONVERSATION_LIMIT)
 
-    with patch("agent.suggest_service._service", None), patch(
-        "agent.suggest_service.get_llm_client",
-        side_effect=ValueError("DEEPSEEK_API_KEY is required"),
+    with (
+        patch("agent.suggest_service._service", None),
+        patch(
+            "agent.suggest_service.get_llm_client",
+            side_effect=ValueError("DEEPSEEK_API_KEY is required"),
+        ),
     ):
         response = await client.post(
             "/api/v1/agent/suggest",
@@ -233,17 +220,16 @@ async def test_suggest_fallback_remains_available_when_quota_is_exhausted(
 @pytest.mark.integration
 async def test_suggest_rate_limited_per_user(client: AsyncClient, db_session: Session):
     """同一账号超过窗口内的请求数上限后返回 429，且限流主体是用户而非 IP。"""
-    _user_a, project_a, token_a = await _make_user_and_project(
-        client, db_session, "round3_suggest_rl_a"
-    )
-    _user_b, project_b, token_b = await _make_user_and_project(
-        client, db_session, "round3_suggest_rl_b"
-    )
+    _user_a, project_a, token_a = await _make_user_and_project(client, db_session, "round3_suggest_rl_a")
+    _user_b, project_b, token_b = await _make_user_and_project(client, db_session, "round3_suggest_rl_b")
 
     # 走「无 LLM 客户端」的兜底路径，把额度维度排除掉，单独验证限流。
-    with patch("agent.suggest_service._service", None), patch(
-        "agent.suggest_service.get_llm_client",
-        side_effect=ValueError("DEEPSEEK_API_KEY is required"),
+    with (
+        patch("agent.suggest_service._service", None),
+        patch(
+            "agent.suggest_service.get_llm_client",
+            side_effect=ValueError("DEEPSEEK_API_KEY is required"),
+        ),
     ):
         for index in range(SUGGEST_RATE_LIMIT_MAX_REQUESTS):
             response = await client.post(
@@ -270,18 +256,14 @@ async def test_suggest_rate_limited_per_user(client: AsyncClient, db_session: Se
 
 
 @pytest.mark.integration
-async def test_stream_rejects_concurrent_run_for_same_chat_session(
-    client: AsyncClient, db_session: Session
-):
+async def test_stream_rejects_concurrent_run_for_same_chat_session(client: AsyncClient, db_session: Session):
     """One chat session has one ordered writer; another run receives 409."""
     from agent.core.steering import (
         cleanup_steering_queue_async,
         create_steering_queue_async,
     )
 
-    user, project, token = await _make_user_and_project(
-        client, db_session, "round3_stream_session_busy"
-    )
+    user, project, token = await _make_user_and_project(client, db_session, "round3_stream_session_busy")
     session_id = "round3-stream-session-busy"
     await create_steering_queue_async(
         session_id,
@@ -308,9 +290,7 @@ async def test_stream_rejects_concurrent_run_for_same_chat_session(
 
 
 @pytest.mark.integration
-async def test_stream_busy_resolved_session_returns_409_and_refunds(
-    client: AsyncClient, db_session: Session
-):
+async def test_stream_busy_resolved_session_returns_409_and_refunds(client: AsyncClient, db_session: Session):
     """没带 session_id、后端解析到的活跃会话仍被占用时：409 ERR_SESSION_BUSY，额度退回。
 
     修复前 SteeringSessionBusyError 在流开始后才抛出，前端只看到泛用的
@@ -322,9 +302,7 @@ async def test_stream_busy_resolved_session_returns_409_and_refunds(
     )
     from models import ChatSession
 
-    user, project, token = await _make_user_and_project(
-        client, db_session, "round3_stream_resolved_busy"
-    )
+    user, project, token = await _make_user_and_project(client, db_session, "round3_stream_resolved_busy")
     chat_session = ChatSession(user_id=user.id, project_id=project.id, is_active=True)
     db_session.add(chat_session)
     db_session.commit()
@@ -383,11 +361,10 @@ def test_all_llm_endpoints_have_user_scoped_rate_limit():
         for dep in routes_by_path["/api/v1/agent/suggest"].dependant.dependencies
         if getattr(dep.call, "rate_limit_key", None) is not None
     ]
-    daily = [
-        limiter for limiter in suggest_limiters if limiter.rate_limit_window_seconds == 86400
-    ]
+    daily = [limiter for limiter in suggest_limiters if getattr(limiter, "rate_limit_period", None) == "beijing_day"]
     assert len(daily) == 1
     assert daily[0].rate_limit_max_requests == SUGGEST_DAILY_MAX_REQUESTS
+    assert daily[0].rate_limit_window_seconds == 86400
 
 
 @pytest.mark.unit

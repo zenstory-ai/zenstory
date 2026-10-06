@@ -59,23 +59,6 @@ export function formatEntitlementLimit(
   return value.toLocaleString(resolveLocale(language));
 }
 
-export function formatMonthlyOutputEstimate(
-  credits: number,
-  t: TranslateFn,
-): string {
-  if (credits === -1) {
-    return translate(t, "settings:subscription.unlimited", "无限");
-  }
-
-  const estimatedWanWords = Math.max(1, Math.round(credits / 10000));
-  return translate(
-    t,
-    "dashboard:billing.monthlyOutputEstimate",
-    "约 {{count}} 万字/月",
-    { count: estimatedWanWords },
-  );
-}
-
 export function getEntitlementMetricDefinitions(
   t: TranslateFn,
   language: string | undefined,
@@ -88,33 +71,22 @@ export function getEntitlementMetricDefinitions(
     "dashboard:billing.timesPerMonth",
     "次/月",
   );
+  const dayUnit = translate(t, "dashboard:billing.timesPerDay", "次/天");
 
   // Only entitlements the backend enforces. Context window size and priority
   // queueing were advertised without an implementation and are not listed.
   const definitions: EntitlementMetricDefinition[] = [
     {
-      key: "writing_credits_monthly",
-      label: translate(t, "dashboard:billing.metricWriting", "AI 写作字数"),
+      key: "ai_conversations_per_day",
+      label: translate(t, "dashboard:billing.metricAiConversations", "每日 AI 对话"),
       outcome: translate(
         t,
-        "dashboard:billing.metricWritingOutcome",
-        "AI 帮你写大纲和正文的每月额度",
+        "dashboard:billing.metricAiConversationsOutcome",
+        "北京时间 00:00 重置",
       ),
       value: (plan) =>
-        formatMonthlyOutputEstimate(plan.entitlements.writing_credits_monthly, t),
-      compareValue: (plan) => plan.entitlements.writing_credits_monthly,
-    },
-    {
-      key: "agent_runs_monthly",
-      label: translate(t, "dashboard:billing.metricAgentRuns", "AI 深度任务"),
-      outcome: translate(
-        t,
-        "dashboard:billing.metricAgentRunsOutcome",
-        "扩写、润色、修订等需要多步完成的任务",
-      ),
-      value: (plan) =>
-        `${formatLimit(plan.entitlements.agent_runs_monthly)} ${monthUnit}`,
-      compareValue: (plan) => plan.entitlements.agent_runs_monthly,
+        `${formatLimit(plan.entitlements.ai_conversations_per_day)} ${dayUnit}`,
+      compareValue: (plan) => plan.entitlements.ai_conversations_per_day,
     },
     {
       key: "active_projects_limit",

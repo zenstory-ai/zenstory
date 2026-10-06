@@ -1,5 +1,6 @@
-"""Tests for rate limit helper IP extraction behavior."""
+"""Tests for rate limit helper IP extraction and window behavior."""
 
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -12,6 +13,7 @@ from middleware.rate_limit import (
     check_rate_limit,
     get_client_ip,
     require_agent_rate_limit,
+    require_user_beijing_daily_rate_limit,
     require_user_rate_limit,
 )
 
@@ -22,8 +24,7 @@ def _build_request(
     client_host: str = "127.0.0.1",
 ) -> Request:
     encoded_headers = [
-        (key.lower().encode("latin-1"), value.encode("latin-1"))
-        for key, value in (headers or {}).items()
+        (key.lower().encode("latin-1"), value.encode("latin-1")) for key, value in (headers or {}).items()
     ]
     scope = {
         "type": "http",
@@ -239,6 +240,82 @@ def test_user_rate_limit_ignores_untrusted_agent_api_key_header():
 
 
 @pytest.mark.unit
+def test_user_beijing_daily_limit_resets_at_beijing_midnight(monkeypatch):
+    """A full old-day bucket becomes available exactly at 00:00 Asia/Shanghai."""
+    enforce = require_user_beijing_daily_rate_limit("agent_suggest_daily", 1)
+    user = SimpleNamespace(id="same-user")
+    request = _build_request()
+
+    monkeypatch.setattr(
+        rate_limit_module,
+        "utcnow",
+        lambda: datetime(2026, 10, 5, 15, 59, 59, tzinfo=UTC),
+    )
+    assert enforce(request, current_user=user) == 0
+    with pytest.raises(HTTPException):
+        enforce(request, current_user=user)
+
+    monkeypatch.setattr(
+        rate_limit_module,
+        "utcnow",
+        lambda: datetime(2026, 10, 5, 16, 0, 0, tzinfo=UTC),
+    )
+    assert enforce(request, current_user=user) == 0
+
+    assert set(_rate_limit_store) == {
+        "agent_suggest_daily:user_same-user:beijing_day:2026-10-06",
+    }
+
+
+@pytest.mark.unit
+def test_user_beijing_daily_limit_does_not_reset_at_utc_midnight(monkeypatch):
+    """UTC midnight is 08:00 Beijing and must remain in the same daily bucket."""
+    enforce = require_user_beijing_daily_rate_limit("agent_suggest_daily", 1)
+    user = SimpleNamespace(id="same-user")
+    request = _build_request()
+
+    monkeypatch.setattr(
+        rate_limit_module,
+        "utcnow",
+        lambda: datetime(2026, 10, 5, 16, 0, 0, tzinfo=UTC),
+    )
+    assert enforce(request, current_user=user) == 0
+
+    monkeypatch.setattr(
+        rate_limit_module,
+        "utcnow",
+        lambda: datetime(2026, 10, 6, 0, 0, 0, tzinfo=UTC),
+    )
+    with pytest.raises(HTTPException):
+        enforce(request, current_user=user)
+
+
+@pytest.mark.unit
+def test_user_beijing_daily_limit_skips_idle_days_without_shifting_boundary(monkeypatch):
+    enforce = require_user_beijing_daily_rate_limit("agent_suggest_daily", 1)
+    user = SimpleNamespace(id="same-user")
+    request = _build_request()
+
+    monkeypatch.setattr(
+        rate_limit_module,
+        "utcnow",
+        lambda: datetime(2026, 10, 1, 20, 0, 0, tzinfo=UTC),
+    )
+    assert enforce(request, current_user=user) == 0
+
+    monkeypatch.setattr(
+        rate_limit_module,
+        "utcnow",
+        lambda: datetime(2026, 10, 5, 10, 0, 0, tzinfo=UTC),
+    )
+    assert enforce(request, current_user=user) == 0
+    with pytest.raises(HTTPException) as exc_info:
+        enforce(request, current_user=user)
+
+    assert exc_info.value.headers == {"Retry-After": "21600"}
+
+
+@pytest.mark.unit
 def test_agent_rate_limit_uses_validated_key_identity_not_raw_header():
     """Rotating raw header text cannot change a validated Agent key's bucket."""
     enforce = require_agent_rate_limit("agent_read", 1, 60)
@@ -273,6 +350,41 @@ class _FakeRedisClient:
 
     def ttl(self, key: str) -> int:
         return self._ttls.get(key, -1)
+
+
+@pytest.mark.unit
+def test_user_beijing_daily_limit_redis_uses_dated_key_and_midnight_ttl(monkeypatch):
+    fake_redis = _FakeRedisClient()
+    enforce = require_user_beijing_daily_rate_limit("agent_suggest_daily", 1)
+    user = SimpleNamespace(id="same-user")
+    request = _build_request()
+
+    monkeypatch.setenv("RATE_LIMIT_BACKEND", "redis")
+    monkeypatch.setenv("REDIS_URL", "redis://example:6379/0")
+    monkeypatch.setattr(rate_limit_module, "get_redis_client", lambda: fake_redis)
+    monkeypatch.setattr(
+        rate_limit_module,
+        "utcnow",
+        lambda: datetime(2026, 10, 5, 15, 59, 30, tzinfo=UTC),
+    )
+
+    assert enforce(request, current_user=user) == 0
+    with pytest.raises(HTTPException) as exc_info:
+        enforce(request, current_user=user)
+
+    old_key = rate_limit_module._build_redis_rate_key("agent_suggest_daily:user_same-user:beijing_day:2026-10-05")
+    assert fake_redis._ttls[old_key] == 30
+    assert exc_info.value.headers == {"Retry-After": "30"}
+
+    monkeypatch.setattr(
+        rate_limit_module,
+        "utcnow",
+        lambda: datetime(2026, 10, 5, 16, 0, 0, tzinfo=UTC),
+    )
+    assert enforce(request, current_user=user) == 0
+    new_key = rate_limit_module._build_redis_rate_key("agent_suggest_daily:user_same-user:beijing_day:2026-10-06")
+    assert fake_redis._ttls[new_key] == 86400
+    assert _rate_limit_store == {}
 
 
 @pytest.mark.unit

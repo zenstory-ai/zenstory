@@ -41,9 +41,7 @@ def _user(db_session: Session, name: str, *, admin: bool = False) -> User:
 
 
 async def _headers(client: AsyncClient, username: str) -> dict[str, str]:
-    response = await client.post(
-        "/api/auth/login", data={"username": username, "password": "password123"}
-    )
+    response = await client.post("/api/auth/login", data={"username": username, "password": "password123"})
     assert response.status_code == 200
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
@@ -79,9 +77,7 @@ def _subscribe(db_session: Session, user: User, plan: SubscriptionPlan, *, days:
 
 
 @pytest.mark.integration
-async def test_pro_quota_limits_match_catalog_entitlements(
-    client: AsyncClient, db_session: Session
-):
+async def test_pro_quota_limits_match_catalog_entitlements(client: AsyncClient, db_session: Session):
     user = _user(db_session, "pro_consistency")
     _plan(db_session, "free", 0, {})
     pro = _plan(db_session, "pro", 4900, dict(PRODUCTION_PRO_FEATURES))
@@ -95,16 +91,135 @@ async def test_pro_quota_limits_match_catalog_entitlements(
     assert quota["skill_creates"]["limit"] == entitlements["custom_skills_limit"] == 20
     assert quota["inspiration_copies"]["limit"] == entitlements["inspiration_copies_monthly"] == 100
     assert quota["material_uploads"]["limit"] == entitlements["material_uploads_monthly"]
-    assert (
-        quota["material_decompositions"]["limit"]
-        == entitlements["material_decompositions_monthly"]
-    )
+    assert quota["material_decompositions"]["limit"] == entitlements["material_decompositions_monthly"]
     assert quota["projects"]["limit"] == entitlements["active_projects_limit"] == -1
-    assert quota["ai_conversations"]["limit"] == -1
-    assert entitlements["agent_runs_monthly"] == -1
+    assert quota["ai_conversations"]["limit"] == entitlements["ai_conversations_per_day"] == -1
+    assert entitlements["writing_credits_monthly"] == 0
+    assert entitlements["agent_runs_monthly"] == 0
     # Unimplemented perks only appear as deprecated neutral values.
     assert entitlements["context_tokens_limit"] == 0
     assert entitlements["priority_queue_level"] == "standard"
+
+
+@pytest.mark.integration
+async def test_empty_pro_features_resolve_consistently_across_public_and_user_surfaces(
+    client: AsyncClient, db_session: Session
+):
+    user = _user(db_session, "pro_empty_features")
+    _plan(db_session, "free", 0, {})
+    pro = _plan(db_session, "pro", 4900, {})
+    _subscribe(db_session, user, pro, days=30)
+    headers = await _headers(client, user.username)
+
+    plans = (await client.get("/api/v1/subscription/plans")).json()
+    pro_features = next(plan for plan in plans if plan["name"] == "pro")["features"]
+    me = (await client.get("/api/v1/subscription/me", headers=headers)).json()
+    catalog = (await client.get("/api/v1/subscription/catalog")).json()
+    entitlements = next(tier for tier in catalog["tiers"] if tier["name"] == "pro")["entitlements"]
+    quota = (await client.get("/api/v1/subscription/quota", headers=headers)).json()
+    materials_access = await client.get("/api/v1/materials", headers=headers)
+
+    assert me["tier"] == "pro"
+    assert me["features"] == pro_features
+    assert (
+        pro_features["ai_conversations_per_day"]
+        == entitlements["ai_conversations_per_day"]
+        == quota["ai_conversations"]["limit"]
+        == -1
+    )
+    assert pro_features["max_projects"] == entitlements["active_projects_limit"] == quota["projects"]["limit"] == -1
+    assert (
+        pro_features["material_uploads"]
+        == entitlements["material_uploads_monthly"]
+        == quota["material_uploads"]["limit"]
+        == 5
+    )
+    assert (
+        pro_features["material_decompositions"]
+        == entitlements["material_decompositions_monthly"]
+        == quota["material_decompositions"]["limit"]
+        == 5
+    )
+    assert pro_features["custom_skills"] == entitlements["custom_skills_limit"] == quota["skill_creates"]["limit"] == 20
+    assert (
+        pro_features["inspiration_copies_monthly"]
+        == entitlements["inspiration_copies_monthly"]
+        == quota["inspiration_copies"]["limit"]
+        == 100
+    )
+    assert pro_features["materials_library_access"] is entitlements["materials_library_access"] is True
+    assert pro_features["export_formats"] == entitlements["export_formats"] == ["txt"]
+    assert materials_access.status_code == 200
+
+
+@pytest.mark.integration
+async def test_explicit_pro_zero_and_false_overrides_remain_effective_everywhere(
+    client: AsyncClient, db_session: Session
+):
+    user = _user(db_session, "pro_zero_features")
+    _plan(db_session, "free", 0, {})
+    pro = _plan(
+        db_session,
+        "pro",
+        4900,
+        {
+            "ai_conversations_per_day": 0,
+            "max_projects": 0,
+            "materials_library_access": False,
+            "material_uploads": 0,
+            "material_decompositions": 0,
+            "custom_skills": 0,
+            "inspiration_copies_monthly": 0,
+            "export_formats": ["txt", "pdf"],
+        },
+    )
+    _subscribe(db_session, user, pro, days=30)
+    headers = await _headers(client, user.username)
+
+    plans = (await client.get("/api/v1/subscription/plans")).json()
+    pro_features = next(plan for plan in plans if plan["name"] == "pro")["features"]
+    me = (await client.get("/api/v1/subscription/me", headers=headers)).json()
+    catalog = (await client.get("/api/v1/subscription/catalog")).json()
+    entitlements = next(tier for tier in catalog["tiers"] if tier["name"] == "pro")["entitlements"]
+    quota = (await client.get("/api/v1/subscription/quota", headers=headers)).json()
+    materials_access = await client.get("/api/v1/materials", headers=headers)
+
+    assert me["features"] == pro_features
+    assert pro_features["materials_library_access"] is entitlements["materials_library_access"] is False
+    assert pro_features["export_formats"] == entitlements["export_formats"] == ["txt"]
+    assert materials_access.status_code == 402
+    for feature_key, entitlement_key, quota_key in (
+        ("ai_conversations_per_day", "ai_conversations_per_day", "ai_conversations"),
+        ("max_projects", "active_projects_limit", "projects"),
+        ("material_uploads", "material_uploads_monthly", "material_uploads"),
+        ("material_decompositions", "material_decompositions_monthly", "material_decompositions"),
+        ("custom_skills", "custom_skills_limit", "skill_creates"),
+        ("inspiration_copies_monthly", "inspiration_copies_monthly", "inspiration_copies"),
+    ):
+        assert pro_features[feature_key] == entitlements[entitlement_key] == quota[quota_key]["limit"] == 0
+
+
+@pytest.mark.integration
+async def test_free_upload_limit_does_not_imply_materials_library_access(client: AsyncClient, db_session: Session):
+    user = _user(db_session, "free_upload_without_access")
+    _plan(db_session, "free", 0, {"material_uploads": 1})
+    headers = await _headers(client, user.username)
+
+    me = (await client.get("/api/v1/subscription/me", headers=headers)).json()
+    catalog = (await client.get("/api/v1/subscription/catalog")).json()
+    entitlements = next(tier for tier in catalog["tiers"] if tier["name"] == "free")["entitlements"]
+    quota = (await client.get("/api/v1/subscription/quota", headers=headers)).json()
+    materials_access = await client.get("/api/v1/materials", headers=headers)
+
+    assert me["features"]["materials_library_access"] is False
+    assert entitlements["materials_library_access"] is False
+    assert (
+        me["features"]["material_uploads"]
+        == entitlements["material_uploads_monthly"]
+        == quota["material_uploads"]["limit"]
+        == 1
+    )
+    assert materials_access.status_code == 402
 
 
 @pytest.mark.integration
@@ -152,9 +267,7 @@ async def test_admin_cannot_create_free_tier_codes(
 
 
 @pytest.mark.integration
-async def test_dashboard_counts_only_running_paid_subscriptions(
-    client: AsyncClient, db_session: Session
-):
+async def test_dashboard_counts_only_running_paid_subscriptions(client: AsyncClient, db_session: Session):
     admin = _user(db_session, "dash_admin", admin=True)
     free = _plan(db_session, "free", 0, {})
     pro = _plan(db_session, "pro", 4900, {})
@@ -170,9 +283,7 @@ async def test_dashboard_counts_only_running_paid_subscriptions(
 
 
 @pytest.mark.integration
-async def test_upgrade_conversion_separates_paid_from_granted(
-    client: AsyncClient, db_session: Session
-):
+async def test_upgrade_conversion_separates_paid_from_granted(client: AsyncClient, db_session: Session):
     admin = _user(db_session, "conv_admin", admin=True)
     customer = _user(db_session, "conv_customer")
     now = utcnow()
@@ -199,9 +310,7 @@ async def test_upgrade_conversion_separates_paid_from_granted(
     db_session.commit()
     headers = await _headers(client, admin.username)
 
-    payload = (
-        await client.get("/api/admin/dashboard/upgrade-conversion", headers=headers)
-    ).json()
+    payload = (await client.get("/api/admin/dashboard/upgrade-conversion", headers=headers)).json()
     assert payload["total_conversions"] == 5
     assert payload["paid_conversions"] == 2
     channels = {item["channel"]: item for item in payload["channels"]}

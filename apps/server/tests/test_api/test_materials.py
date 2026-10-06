@@ -14,7 +14,7 @@ import io
 import json
 import os
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
@@ -197,6 +197,9 @@ async def test_upload_material_success(client: AsyncClient, db_session):
     assert quota is not None
     db_session.refresh(quota)
     assert quota.material_decompositions_used == 1
+    job = db_session.get(IngestionJob, data["job_id"])
+    billing = json.loads(job.stage_progress)["billing"]
+    assert datetime.fromisoformat(billing["quota_period_start"]).tzinfo == UTC
 
 
 @pytest.mark.integration
@@ -228,7 +231,7 @@ async def test_upload_material_passes_response_job_id_to_dispatch(
 
 
 @pytest.mark.integration
-async def test_upload_material_consume_false_never_dispatches_or_refunds(
+async def test_upload_material_reserve_none_never_dispatches_or_refunds(
     client: AsyncClient,
     db_session,
     monkeypatch,
@@ -239,7 +242,11 @@ async def test_upload_material_consume_false_never_dispatches_or_refunds(
     _, token = await create_test_user(client, db_session, "upload_consume_false")
     monkeypatch.setattr(material_settings, "UPLOAD_FOLDER", str(tmp_path))
     monkeypatch.setattr(materials_upload_api, "check_quota", lambda *args, **kwargs: None)
-    monkeypatch.setattr(materials_upload_api, "consume_quota", lambda *args, **kwargs: False)
+    monkeypatch.setattr(
+        materials_upload_api.quota_service,
+        "reserve_feature_quota",
+        lambda *args, **kwargs: None,
+    )
     monkeypatch.setattr(
         materials_upload_api.quota_service,
         "check_feature_quota",
@@ -269,6 +276,107 @@ async def test_upload_material_consume_false_never_dispatches_or_refunds(
     assert dispatch_calls == []
     assert refund_calls == []
     assert db_session.exec(select(Novel)).all() == []
+
+
+@pytest.mark.integration
+async def test_upload_pre_job_failure_does_not_refund_a_new_month_charge(
+    client: AsyncClient,
+    db_session,
+    monkeypatch,
+):
+    """A reservation keeps its old period even if file I/O starts next month."""
+    user, _ = await create_test_user(client, db_session, "upload_cross_month_io")
+    current_period = datetime(2026, 9, 30, 16)
+    old_period = datetime(2026, 8, 31, 16, tzinfo=UTC)
+    now = datetime(2026, 10, 1, 1, tzinfo=UTC)
+    quota = UsageQuota(
+        user_id=user.id,
+        period_start=now,
+        period_end=now + timedelta(days=1),
+        material_decompositions_used=1,
+        monthly_period_start=current_period,
+        monthly_period_end=datetime(2026, 10, 31, 16),
+        last_reset_at=now,
+    )
+    db_session.add(quota)
+    db_session.commit()
+    monkeypatch.setattr("services.quota_service.utcnow", lambda: now)
+    monkeypatch.setattr(materials_upload_api, "check_quota", lambda *a, **k: None)
+    monkeypatch.setattr(
+        materials_upload_api.quota_service,
+        "reserve_feature_quota",
+        lambda *a, **k: old_period,
+    )
+
+    def _fail_file_write(*args, **kwargs):
+        raise OSError("file write crossed month")
+
+    monkeypatch.setattr(materials_upload_api, "_write_upload_file_without_overwrite", _fail_file_write)
+
+    with pytest.raises(OSError, match="crossed month"):
+        await materials_upload_api.process_material_upload(
+            file=UploadFile(io.BytesIO(NOVEL_BYTES), filename="test.txt"),
+            title=None,
+            author=None,
+            current_user=user,
+            session=db_session,
+        )
+
+    db_session.refresh(quota)
+    assert quota.material_decompositions_used == 1
+    assert db_session.exec(select(Novel).where(Novel.user_id == user.id)).all() == []
+
+
+@pytest.mark.integration
+async def test_upload_dispatch_failure_uses_period_reserved_before_job_creation(
+    client: AsyncClient,
+    db_session,
+    monkeypatch,
+    tmp_path,
+):
+    from config.material_settings import material_settings
+
+    user, token = await create_test_user(client, db_session, "upload_cross_month_job")
+    now = datetime(2026, 10, 1, 1, tzinfo=UTC)
+    old_period = datetime(2026, 8, 31, 16, tzinfo=UTC)
+    quota = UsageQuota(
+        user_id=user.id,
+        period_start=now,
+        period_end=now + timedelta(days=1),
+        material_decompositions_used=1,
+        monthly_period_start=datetime(2026, 9, 30, 16),
+        monthly_period_end=datetime(2026, 10, 31, 16),
+        last_reset_at=now,
+    )
+    db_session.add(quota)
+    db_session.commit()
+    monkeypatch.setattr(material_settings, "UPLOAD_FOLDER", str(tmp_path))
+    monkeypatch.setattr("services.quota_service.utcnow", lambda: now)
+    monkeypatch.setattr(materials_upload_api, "check_quota", lambda *a, **k: None)
+    monkeypatch.setattr(
+        materials_upload_api.quota_service,
+        "reserve_feature_quota",
+        lambda *a, **k: old_period,
+    )
+
+    async def _dispatch_failure(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(materials_upload_api, "_start_flow_deployment", _dispatch_failure)
+
+    response = await client.post(
+        "/api/v1/materials/upload",
+        files={"file": ("cross-month.txt", io.BytesIO(NOVEL_BYTES), "text/plain")},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 503
+    db_session.refresh(quota)
+    assert quota.material_decompositions_used == 1
+    job = db_session.exec(select(IngestionJob).order_by(IngestionJob.id.desc())).first()
+    billing = json.loads(job.stage_progress)["billing"]
+    assert datetime.fromisoformat(billing["quota_period_start"]) == old_period
+    assert billing["quota_refunded"] is False
 
 
 def test_material_decompose_atomic_quota_consumption_caps_concurrent_requests(
@@ -324,16 +432,16 @@ def test_material_decompose_atomic_quota_consumption_caps_concurrent_requests(
     db_session.add(quota)
     db_session.commit()
 
-    def _consume() -> bool:
+    def _reserve() -> bool:
         with Session(db_session.get_bind()) as isolated_session:
-            return materials_upload_api.consume_quota(
-                "material_decompose",
+            return materials_upload_api.quota_service.reserve_feature_quota(
                 isolated_session,
                 user.id,
-            )
+                "material_decompose",
+            ) is not None
 
     with ThreadPoolExecutor(max_workers=2) as executor:
-        results = list(executor.map(lambda _: _consume(), range(2)))
+        results = list(executor.map(lambda _: _reserve(), range(2)))
 
     assert sorted(results) == [False, True]
     db_session.expire_all()

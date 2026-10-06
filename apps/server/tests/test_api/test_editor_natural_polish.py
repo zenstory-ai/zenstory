@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -11,6 +12,8 @@ from sqlmodel import Session
 from models import Project, User
 from services.core.auth_service import hash_password
 from services.features.natural_polish_service import NaturalPolishResult
+
+_CHARGED_PERIOD = datetime(2026, 10, 5, 16, tzinfo=UTC)
 
 
 def _create_user(
@@ -68,8 +71,8 @@ async def test_natural_polish_success(client: AsyncClient, db_session: Session):
             return_value=(True, 0, 20),
         ) as mock_check,
         patch(
-            "api.editor.quota_service.consume_ai_conversation",
-            return_value=True,
+            "api.editor.quota_service.reserve_ai_conversation",
+            return_value=_CHARGED_PERIOD,
         ) as mock_consume,
         patch(
             "api.editor.natural_polish_service.natural_polish",
@@ -146,7 +149,7 @@ async def test_natural_polish_quota_denied(client: AsyncClient, db_session: Sess
             "api.editor.quota_service.check_ai_conversation_quota",
             return_value=(False, 3, 3),
         ) as mock_check,
-        patch("api.editor.quota_service.consume_ai_conversation") as mock_consume,
+        patch("api.editor.quota_service.reserve_ai_conversation") as mock_consume,
     ):
         response = await client.post(
             "/api/v1/editor/natural-polish",
@@ -180,8 +183,8 @@ async def test_natural_polish_consume_denied_after_check(client: AsyncClient, db
             return_value=(True, 0, 20),
         ) as mock_check,
         patch(
-            "api.editor.quota_service.consume_ai_conversation",
-            return_value=False,
+            "api.editor.quota_service.reserve_ai_conversation",
+            return_value=None,
         ) as mock_consume,
     ):
         response = await client.post(
@@ -264,8 +267,8 @@ async def test_natural_polish_selected_text_6000_is_allowed(client: AsyncClient,
             return_value=(True, 0, 20),
         ),
         patch(
-            "api.editor.quota_service.consume_ai_conversation",
-            return_value=True,
+            "api.editor.quota_service.reserve_ai_conversation",
+            return_value=_CHARGED_PERIOD,
         ),
         patch(
             "api.editor.natural_polish_service.natural_polish",
@@ -302,9 +305,13 @@ async def test_natural_polish_llm_failure_returns_500(client: AsyncClient, db_se
             return_value=(True, 0, 20),
         ),
         patch(
-            "api.editor.quota_service.consume_ai_conversation",
-            return_value=True,
+            "api.editor.quota_service.reserve_ai_conversation",
+            return_value=_CHARGED_PERIOD,
         ),
+        patch(
+            "api.editor.quota_service.release_ai_conversation",
+            return_value=True,
+        ) as mock_refund,
         patch(
             "api.editor.natural_polish_service.natural_polish",
             new=AsyncMock(side_effect=RuntimeError("llm boom")),
@@ -321,3 +328,8 @@ async def test_natural_polish_llm_failure_returns_500(client: AsyncClient, db_se
 
     assert response.status_code == 500
     assert response.json()["detail"] == "ERR_INTERNAL_SERVER_ERROR"
+    mock_refund.assert_called_once_with(
+        db_session,
+        admin.id,
+        period_start=_CHARGED_PERIOD,
+    )

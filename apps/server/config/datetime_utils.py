@@ -1,5 +1,8 @@
 """DateTime utilities for consistent timezone handling."""
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo
+
+BEIJING_TIMEZONE = ZoneInfo("Asia/Shanghai")
 
 
 def utcnow() -> datetime:
@@ -21,3 +24,16 @@ def normalize_datetime_to_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
+
+
+def beijing_date(value: datetime) -> date:
+    """Return the Beijing calendar date, treating naive database values as UTC."""
+    return normalize_datetime_to_utc(value).astimezone(BEIJING_TIMEZONE).date()
+
+
+def beijing_day_bounds(value: datetime) -> tuple[datetime, datetime]:
+    """Return the current Beijing calendar day's bounds as UTC timestamps."""
+    local_start = normalize_datetime_to_utc(value).astimezone(BEIJING_TIMEZONE).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    return local_start.astimezone(UTC), (local_start + timedelta(days=1)).astimezone(UTC)

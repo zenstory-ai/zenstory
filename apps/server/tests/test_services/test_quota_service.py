@@ -8,15 +8,17 @@ Unit tests for the quota management service, covering:
 - Feature quota management
 - Quota reset logic
 """
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 import pytest
 from sqlmodel import Session
 
+from config.datetime_utils import normalize_datetime_to_utc
 from models import User
 from models.subscription import SubscriptionPlan, UsageQuota, UserSubscription
 from services.quota_service import FEATURE_QUOTA_MAP, quota_service
+from services.subscription.subscription_service import subscription_service
 
 
 @pytest.fixture
@@ -270,9 +272,12 @@ class TestFeatureAccess:
             test_user.id,
             "materials_library_access",
             default=True,
+        ) is False
+        assert quota_service.has_feature_access(
+            db_session, test_user.id, "unknown_feature", default=True,
         ) is True
 
-    def test_has_feature_access_infers_materials_access_from_legacy_limits(self, db_session: Session, test_user):
+    def test_materials_access_does_not_infer_from_quantities(self, db_session: Session, test_user):
         plan = SubscriptionPlan(
             name="legacy-materials",
             display_name="Legacy Materials",
@@ -301,7 +306,21 @@ class TestFeatureAccess:
             db_session,
             test_user.id,
             "materials_library_access",
-        ) is True
+        ) is False
+
+    def test_empty_pro_features_keep_paid_materials_access(self, db_session: Session, test_user, pro_plan):
+        pro_plan.features = {}
+        now = datetime.now(UTC)
+        db_session.add(pro_plan)
+        db_session.add(UserSubscription(
+            user_id=test_user.id,
+            plan_id=pro_plan.id,
+            status="active",
+            current_period_start=now,
+            current_period_end=now + timedelta(days=30),
+        ))
+        db_session.commit()
+        assert quota_service.has_feature_access(db_session, test_user.id, "materials_library_access") is True
 
 
 @pytest.mark.unit
@@ -911,6 +930,374 @@ class TestQuotaReset:
         assert quota.material_decompositions_used == 0
         assert quota.skill_creates_used == 0
         assert quota.inspiration_copies_used == 0
+
+
+@pytest.mark.unit
+class TestBeijingDailyQuota:
+    """Daily quota follows Beijing calendar days, independently of other quotas."""
+
+    @pytest.mark.parametrize(
+        ("now", "expected_start"),
+        [
+            (datetime(2026, 10, 5, 15, 59, 59, tzinfo=UTC), datetime(2026, 10, 4, 16, tzinfo=UTC)),
+            (datetime(2026, 10, 5, 16, tzinfo=UTC), datetime(2026, 10, 5, 16, tzinfo=UTC)),
+            (datetime(2026, 12, 31, 16, tzinfo=UTC), datetime(2026, 12, 31, 16, tzinfo=UTC)),
+        ],
+    )
+    def test_new_quota_uses_beijing_midnight_bounds(
+        self, db_session, test_user, monkeypatch, now, expected_start
+    ):
+        monkeypatch.setattr("services.quota_service.utcnow", lambda: now)
+
+        quota = quota_service.create_default_quota(db_session, test_user.id)
+
+        assert normalize_datetime_to_utc(quota.period_start) == expected_start
+        assert normalize_datetime_to_utc(quota.period_end) == expected_start + timedelta(days=1)
+        assert quota.ai_conversations_used == 0
+
+    @pytest.mark.parametrize(
+        ("last_reset", "now", "expected_reset", "expected_start"),
+        [
+            # Beijing 23:59:59: not yet the next day.
+            (datetime(2026, 10, 5, 15, 58), datetime(2026, 10, 5, 15, 59, 59), False, datetime(2026, 10, 4, 16)),
+            # Beijing midnight, only two minutes after the previous reset.
+            (datetime(2026, 10, 5, 15, 58), datetime(2026, 10, 5, 16), True, datetime(2026, 10, 5, 16)),
+            # UTC midnight is not Beijing midnight.
+            (datetime(2026, 10, 4, 23, 59), datetime(2026, 10, 5, 0), False, datetime(2026, 10, 4, 16)),
+            # Inactivity must not move the next reset to the time of access.
+            (datetime(2026, 10, 1, 3), datetime(2026, 10, 5, 7), True, datetime(2026, 10, 4, 16)),
+            # Beijing month and year transitions.
+            (datetime(2026, 10, 31, 15, 59), datetime(2026, 10, 31, 16), True, datetime(2026, 10, 31, 16)),
+            (datetime(2026, 12, 31, 15, 59), datetime(2026, 12, 31, 16), True, datetime(2026, 12, 31, 16)),
+        ],
+    )
+    @pytest.mark.parametrize("aware_last_reset", [False, True])
+    def test_reset_and_legacy_window_normalization(
+        self, db_session, test_user, monkeypatch,
+        last_reset, now, expected_reset, expected_start, aware_last_reset
+    ):
+        now = now.replace(tzinfo=UTC)
+        monkeypatch.setattr("services.quota_service.utcnow", lambda: now)
+        quota = UsageQuota(
+            user_id=test_user.id,
+            period_start=last_reset,
+            period_end=last_reset + timedelta(hours=24),
+            last_reset_at=last_reset,
+            ai_conversations_used=20,
+            material_uploads_used=4,
+            material_decompositions_used=3,
+            monthly_period_start=datetime(2026, 10, 1),
+            monthly_period_end=datetime(2027, 2, 1),
+        )
+        db_session.add(quota)
+        db_session.commit()
+        db_session.refresh(quota)
+        if aware_last_reset:
+            quota.last_reset_at = last_reset.replace(tzinfo=UTC)
+            db_session.flush()
+
+        reset = quota_service._reset_quota_if_needed(db_session, quota)
+        db_session.refresh(quota)
+
+        assert reset is expected_reset
+        assert quota.ai_conversations_used == (0 if expected_reset else 20)
+        assert normalize_datetime_to_utc(quota.period_start) == expected_start.replace(tzinfo=UTC)
+        assert normalize_datetime_to_utc(quota.period_end) == expected_start.replace(tzinfo=UTC) + timedelta(days=1)
+        if not expected_reset:
+            assert normalize_datetime_to_utc(quota.last_reset_at) == last_reset.replace(tzinfo=UTC)
+        assert quota.material_uploads_used == 4
+        assert quota.material_decompositions_used == 3
+        assert quota.monthly_period_start == datetime(2026, 10, 1)
+        assert quota.monthly_period_end == datetime(2027, 2, 1)
+
+    def test_stale_second_reset_preserves_new_day_consumption(
+        self, db_session, test_user, free_plan, monkeypatch
+    ):
+        old_reset = datetime(2026, 10, 5, 15, 59)
+        monkeypatch.setattr("services.quota_service.utcnow", lambda: datetime(2026, 10, 5, 16, tzinfo=UTC))
+        quota = UsageQuota(
+            user_id=test_user.id,
+            period_start=old_reset,
+            period_end=old_reset + timedelta(hours=24),
+            last_reset_at=old_reset,
+            ai_conversations_used=20,
+        )
+        db_session.add(quota)
+        db_session.commit()
+        db_session.refresh(quota)
+
+        with Session(db_session.get_bind(), expire_on_commit=False) as other_session:
+            stale_quota = quota_service.get_user_quota(other_session, test_user.id)
+            assert stale_quota.ai_conversations_used == 20
+            assert quota_service.consume_ai_conversation(db_session, test_user.id) is True
+
+            assert quota_service._reset_quota_if_needed(other_session, stale_quota) is False
+            assert stale_quota.ai_conversations_used == 1
+
+        db_session.refresh(quota)
+        assert quota.ai_conversations_used == 1
+
+    def test_snapshot_resets_daily_only_and_keeps_membership_expiry(
+        self, db_session, test_user, pro_plan, monkeypatch
+    ):
+        now = datetime(2026, 10, 5, 16, tzinfo=UTC)
+        monkeypatch.setattr("services.quota_service.utcnow", lambda: now)
+        old_reset = datetime(2026, 10, 5, 15, 59)
+        subscription = UserSubscription(
+            user_id=test_user.id,
+            plan_id=pro_plan.id,
+            status="active",
+            current_period_start=datetime(2026, 10, 1),
+            current_period_end=datetime(2026, 10, 31, 12),
+        )
+        quota = UsageQuota(
+            user_id=test_user.id,
+            period_start=old_reset,
+            period_end=old_reset + timedelta(hours=24),
+            last_reset_at=old_reset,
+            ai_conversations_used=20,
+            material_decompositions_used=3,
+            monthly_period_start=datetime(2026, 10, 1),
+            monthly_period_end=datetime(2026, 11, 1),
+        )
+        db_session.add(subscription)
+        db_session.add(quota)
+        db_session.commit()
+
+        snapshot = quota_service.get_quota_snapshot(db_session, test_user.id)
+
+        assert snapshot["ai_conversations"]["used"] == 0
+        assert snapshot["ai_conversations"]["reset_at"] == datetime(2026, 10, 6, 16, tzinfo=UTC)
+        assert snapshot["material_decompositions"]["used"] == 3
+        assert snapshot["material_decompositions"]["reset_at"] == datetime(2026, 10, 31, 16, tzinfo=UTC)
+        db_session.refresh(subscription)
+        assert subscription.current_period_end == datetime(2026, 10, 31, 12)
+
+
+@pytest.mark.unit
+class TestBeijingMonthlyQuota:
+    """Monthly counters use Beijing months, not UTC months or rolling windows."""
+
+    @pytest.mark.parametrize(
+        ("now", "expected_start", "expected_end"),
+        [
+            (datetime(2026, 10, 31, 15, 59, 59), datetime(2026, 9, 30, 16), datetime(2026, 10, 31, 16)),
+            (datetime(2026, 10, 31, 16), datetime(2026, 10, 31, 16), datetime(2026, 11, 30, 16)),
+            (datetime(2026, 12, 31, 16), datetime(2026, 12, 31, 16), datetime(2027, 1, 31, 16)),
+        ],
+    )
+    def test_new_quota_initializes_current_beijing_month(
+        self, db_session, test_user, monkeypatch, now, expected_start, expected_end
+    ):
+        monkeypatch.setattr("services.quota_service.utcnow", lambda: now.replace(tzinfo=UTC))
+
+        quota = quota_service.create_default_quota(db_session, test_user.id)
+
+        assert normalize_datetime_to_utc(quota.monthly_period_start) == expected_start.replace(tzinfo=UTC)
+        assert normalize_datetime_to_utc(quota.monthly_period_end) == expected_end.replace(tzinfo=UTC)
+
+    @pytest.mark.parametrize(
+        ("now", "old_start", "old_end", "expected_reset", "expected_start", "expected_end"),
+        [
+            (datetime(2026, 10, 31, 15, 59, 59), datetime(2026, 9, 30, 16), datetime(2026, 10, 31, 16), False, datetime(2026, 9, 30, 16), datetime(2026, 10, 31, 16)),
+            (datetime(2026, 10, 31, 16), datetime(2026, 9, 30, 16), datetime(2026, 10, 31, 16), True, datetime(2026, 10, 31, 16), datetime(2026, 11, 30, 16)),
+            (datetime(2026, 11, 1), datetime(2026, 10, 31, 16), datetime(2026, 11, 30, 16), False, datetime(2026, 10, 31, 16), datetime(2026, 11, 30, 16)),
+            # Legacy UTC months: reset eight hours earlier, or retain same-month use.
+            (datetime(2026, 10, 31, 16), datetime(2026, 10, 1), datetime(2026, 11, 1), True, datetime(2026, 10, 31, 16), datetime(2026, 11, 30, 16)),
+            (datetime(2026, 10, 5, 3), datetime(2026, 10, 1), datetime(2026, 11, 1), False, datetime(2026, 9, 30, 16), datetime(2026, 10, 31, 16)),
+            # Multiple months of inactivity must be resolved in a single access.
+            (datetime(2026, 10, 5, 3), datetime(2026, 4, 1), datetime(2026, 5, 1), True, datetime(2026, 9, 30, 16), datetime(2026, 10, 31, 16)),
+            (datetime(2026, 12, 31, 16), datetime(2026, 11, 30, 16), datetime(2026, 12, 31, 16), True, datetime(2026, 12, 31, 16), datetime(2027, 1, 31, 16)),
+            (datetime(2024, 2, 29, 16), datetime(2024, 1, 31, 16), datetime(2024, 2, 29, 16), True, datetime(2024, 2, 29, 16), datetime(2024, 3, 31, 16)),
+        ],
+    )
+    def test_month_boundaries_and_legacy_periods(
+        self, db_session, test_user, monkeypatch,
+        now, old_start, old_end, expected_reset, expected_start, expected_end
+    ):
+        monkeypatch.setattr("services.quota_service.utcnow", lambda: now.replace(tzinfo=UTC))
+        quota = UsageQuota(
+            user_id=test_user.id,
+            period_start=now,
+            period_end=now + timedelta(days=1),
+            last_reset_at=now,
+            ai_conversations_used=7,
+            material_uploads_used=4,
+            material_decompositions_used=3,
+            inspiration_copies_used=2,
+            monthly_period_start=old_start,
+            monthly_period_end=old_end,
+        )
+        db_session.add(quota)
+        db_session.commit()
+
+        reset = quota_service._reset_monthly_quota_if_needed(db_session, quota)
+        db_session.refresh(quota)
+
+        assert reset is expected_reset
+        assert normalize_datetime_to_utc(quota.monthly_period_start) == expected_start.replace(tzinfo=UTC)
+        assert normalize_datetime_to_utc(quota.monthly_period_end) == expected_end.replace(tzinfo=UTC)
+        assert quota.material_uploads_used == (0 if expected_reset else 4)
+        assert quota.material_decompositions_used == (0 if expected_reset else 3)
+        assert quota.inspiration_copies_used == (0 if expected_reset else 2)
+        assert quota.ai_conversations_used == 7
+        assert quota_service._reset_monthly_quota_if_needed(db_session, quota) is False
+
+    def test_missing_monthly_period_retains_usage(self, db_session, test_user, monkeypatch):
+        now = datetime(2026, 10, 5, 7, tzinfo=UTC)
+        monkeypatch.setattr("services.quota_service.utcnow", lambda: now)
+        quota = UsageQuota(
+            user_id=test_user.id,
+            period_start=now,
+            period_end=now + timedelta(days=1),
+            last_reset_at=now,
+            material_decompositions_used=3,
+        )
+        db_session.add(quota)
+        db_session.commit()
+
+        quota_service._reset_monthly_quota_if_needed(db_session, quota)
+        db_session.refresh(quota)
+
+        assert quota.material_decompositions_used == 3
+        assert normalize_datetime_to_utc(quota.monthly_period_start) == datetime(2026, 9, 30, 16, tzinfo=UTC)
+        assert normalize_datetime_to_utc(quota.monthly_period_end) == datetime(2026, 10, 31, 16, tzinfo=UTC)
+
+    @pytest.mark.parametrize("feature", ["material_upload", "material_decompose"])
+    def test_stale_second_monthly_reset_preserves_new_month_consumption(
+        self, db_session, test_user, pro_plan, monkeypatch, feature
+    ):
+        now = datetime(2026, 10, 31, 16, tzinfo=UTC)
+        monkeypatch.setattr("services.quota_service.utcnow", lambda: now)
+        monkeypatch.setattr(quota_service, "get_user_plan", lambda *_: pro_plan)
+        quota = UsageQuota(
+            user_id=test_user.id,
+            period_start=now,
+            period_end=now + timedelta(days=1),
+            last_reset_at=now,
+            monthly_period_start=datetime(2026, 10, 1),
+            monthly_period_end=datetime(2026, 11, 1),
+            material_uploads_used=5,
+            material_decompositions_used=5,
+        )
+        db_session.add(quota)
+        db_session.commit()
+        db_session.refresh(quota)
+
+        with Session(db_session.get_bind(), expire_on_commit=False) as other_session:
+            stale_quota = quota_service.get_user_quota(other_session, test_user.id)
+            assert quota_service.consume_feature_quota(db_session, test_user.id, feature) is True
+            assert quota_service._reset_monthly_quota_if_needed(other_session, stale_quota) is False
+            _, used_field = FEATURE_QUOTA_MAP[feature]
+            assert getattr(stale_quota, used_field) == 1
+
+        db_session.refresh(quota)
+        assert getattr(quota, used_field) == 1
+
+    def test_purchase_and_renewal_preserve_monthly_usage(
+        self, db_session, test_user, pro_plan, monkeypatch
+    ):
+        now = datetime(2026, 10, 5, 7, tzinfo=UTC)
+        monkeypatch.setattr("services.quota_service.utcnow", lambda: now)
+        quota = quota_service.create_default_quota(db_session, test_user.id)
+        quota.material_decompositions_used = 3
+        db_session.add(quota)
+        db_session.commit()
+
+        with patch("services.subscription.subscription_service.utcnow", return_value=now):
+            subscription_service.create_user_subscription(db_session, test_user.id, "pro", 30)
+            subscription = subscription_service.create_user_subscription(db_session, test_user.id, "pro", 30)
+        snapshot = quota_service.get_quota_snapshot(db_session, test_user.id)
+
+        assert snapshot["material_decompositions"]["used"] == 3
+        assert snapshot["material_decompositions"]["reset_at"] == datetime(2026, 10, 31, 16, tzinfo=UTC)
+        assert normalize_datetime_to_utc(subscription.current_period_end) == now + timedelta(days=60)
+
+
+@pytest.mark.unit
+class TestQuotaReservationPeriods:
+    """Refunds must match the period actually charged by the atomic update."""
+
+    @pytest.mark.parametrize(("features", "expected_limit", "allowed"), [({}, -1, True), ({"ai_conversations_per_day": 0}, 0, False)])
+    def test_daily_checks_and_reservations_use_the_same_plan_defaults(
+        self, db_session, test_user, pro_plan, monkeypatch, features, expected_limit, allowed
+    ):
+        now = datetime(2026, 10, 5, 7, tzinfo=UTC)
+        monkeypatch.setattr("services.quota_service.utcnow", lambda: now)
+        pro_plan.features = features
+        db_session.add(pro_plan)
+        db_session.add(UserSubscription(
+            user_id=test_user.id, plan_id=pro_plan.id, status="active",
+            current_period_start=now, current_period_end=now + timedelta(days=30),
+        ))
+        quota = quota_service.create_default_quota(db_session, test_user.id)
+        quota.ai_conversations_used = 20
+        db_session.add(quota)
+        db_session.commit()
+
+        checked, used, limit = quota_service.check_ai_conversation_quota(db_session, test_user.id)
+        assert (checked, used, limit) == (allowed, 20, expected_limit)
+        reservation = quota_service.reserve_ai_conversation(db_session, test_user.id)
+        assert (reservation is not None) is allowed
+        snapshot = quota_service.get_quota_snapshot(db_session, test_user.id)
+        assert snapshot["ai_conversations"]["limit"] == expected_limit
+        assert snapshot["ai_conversations"]["used"] == (21 if allowed else 20)
+
+    def test_previous_day_reservation_cannot_refund_new_day(
+        self, db_session, test_user, free_plan, monkeypatch
+    ):
+        clock = {"now": datetime(2026, 10, 5, 15, 59, 59, tzinfo=UTC)}
+        monkeypatch.setattr("services.quota_service.utcnow", lambda: clock["now"])
+        old_period = quota_service.reserve_ai_conversation(db_session, test_user.id)
+        assert old_period == datetime(2026, 10, 4, 16, tzinfo=UTC)
+
+        clock["now"] = datetime(2026, 10, 5, 16, tzinfo=UTC)
+        new_period = quota_service.reserve_ai_conversation(db_session, test_user.id)
+        assert new_period == datetime(2026, 10, 5, 16, tzinfo=UTC)
+        assert quota_service.release_ai_conversation(db_session, test_user.id, period_start=old_period) is False
+        assert quota_service.get_quota_snapshot(db_session, test_user.id)["ai_conversations"]["used"] == 1
+        assert quota_service.release_ai_conversation(db_session, test_user.id, period_start=new_period) is True
+        assert quota_service.get_quota_snapshot(db_session, test_user.id)["ai_conversations"]["used"] == 0
+
+    @pytest.mark.parametrize("feature", ["material_upload", "material_decompose"])
+    def test_previous_month_reservation_cannot_refund_new_month(
+        self, db_session, test_user, pro_plan, monkeypatch, feature
+    ):
+        clock = {"now": datetime(2026, 10, 31, 15, 59, 59, tzinfo=UTC)}
+        monkeypatch.setattr("services.quota_service.utcnow", lambda: clock["now"])
+        monkeypatch.setattr(quota_service, "get_user_plan", lambda *_: pro_plan)
+        old_period = quota_service.reserve_feature_quota(db_session, test_user.id, feature)
+        assert old_period == datetime(2026, 9, 30, 16, tzinfo=UTC)
+
+        clock["now"] = datetime(2026, 10, 31, 16, tzinfo=UTC)
+        new_period = quota_service.reserve_feature_quota(db_session, test_user.id, feature)
+        assert new_period == datetime(2026, 10, 31, 16, tzinfo=UTC)
+        assert quota_service.release_feature_quota(db_session, test_user.id, feature, period_start=old_period) is False
+        quota = quota_service.get_user_quota(db_session, test_user.id)
+        db_session.refresh(quota)
+        _, used_field = FEATURE_QUOTA_MAP[feature]
+        assert getattr(quota, used_field) == 1
+        assert quota_service.release_feature_quota(db_session, test_user.id, feature, period_start=new_period) is True
+        db_session.refresh(quota)
+        assert getattr(quota, used_field) == 0
+
+    @pytest.mark.parametrize("feature", ["ai_conversation", "material_decompose"])
+    def test_denied_reservation_returns_none_without_charging(
+        self, db_session, test_user, free_plan, monkeypatch, feature
+    ):
+        monkeypatch.setattr("services.quota_service.utcnow", lambda: datetime(2026, 10, 5, 7, tzinfo=UTC))
+        quota = quota_service.create_default_quota(db_session, test_user.id)
+        quota.ai_conversations_used = 20
+        db_session.add(quota)
+        db_session.commit()
+
+        if feature == "ai_conversation":
+            assert quota_service.reserve_ai_conversation(db_session, test_user.id) is None
+        else:
+            assert quota_service.reserve_feature_quota(db_session, test_user.id, feature) is None
+        db_session.refresh(quota)
+        assert quota.ai_conversations_used == 20
+        assert quota.material_decompositions_used == 0
 
 
 @pytest.mark.unit

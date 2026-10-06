@@ -87,7 +87,7 @@ function createCatalog(
   tiers: Array<Record<string, unknown>>
 ): Record<string, unknown> {
   return {
-    version: "2026-02",
+    version: "2026-03",
     comparison_mode: "task_outcome",
     pricing_anchor_monthly_cents: 4900,
     tiers,
@@ -106,9 +106,10 @@ function createDefaultTiers() {
       summary_key: "starter",
       target_user_key: "explorer",
       entitlements: {
-        writing_credits_monthly: 120000,
-        agent_runs_monthly: 20,
-        active_projects_limit: 1,
+        ai_conversations_per_day: 20,
+        writing_credits_monthly: 0,
+        agent_runs_monthly: 0,
+        active_projects_limit: 3,
         materials_library_access: false,
         material_uploads_monthly: 0,
         material_decompositions_monthly: 0,
@@ -127,9 +128,10 @@ function createDefaultTiers() {
       summary_key: "creator",
       target_user_key: "daily_writer",
       entitlements: {
-        writing_credits_monthly: 600000,
-        agent_runs_monthly: 120,
-        active_projects_limit: 5,
+        ai_conversations_per_day: -1,
+        writing_credits_monthly: 0,
+        agent_runs_monthly: 0,
+        active_projects_limit: -1,
         materials_library_access: true,
         material_uploads_monthly: 5,
         material_decompositions_monthly: 5,
@@ -183,8 +185,11 @@ describe("PricingPage", () => {
     await waitFor(() => {
       expect(screen.getByText("套餐权益对比")).toBeInTheDocument();
       expect(screen.getByText("推荐")).toBeInTheDocument();
-      expect(screen.getAllByText("AI 写作字数").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("每日 AI 对话").length).toBeGreaterThan(0);
     });
+    expect(screen.getAllByText("北京时间 00:00 重置").length).toBeGreaterThan(0);
+    expect(screen.queryByText("可创作体量")).not.toBeInTheDocument();
+    expect(screen.queryByText("Agent 深度任务")).not.toBeInTheDocument();
     expect(screen.getByText("支付宝单次支付，不会自动续费")).toBeInTheDocument();
     expect(screen.queryByText(/服务器/)).not.toBeInTheDocument();
   });

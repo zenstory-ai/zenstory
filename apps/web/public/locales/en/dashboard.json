@@ -101,6 +101,7 @@
     "metricExportHelper": "Export directly for editors, platforms, or clients",
     "monthlyOutputEstimate": "Approx. {{count}} × 10k chars/month",
     "timesPerMonth": "/month",
+    "timesPerDay": "/day",
     "projectsUnit": "projects",
     "noExportFormats": "N/A",
     "metricMaterialUploads": "Material uploads",
@@ -141,7 +142,11 @@
     "ctaProNeutral": "Get or renew Pro",
     "paymentPageOutdated": "This page has been updated. Refresh the page and try again.",
     "redeemSuccessDays": "Redeemed: {{days}} days of membership.",
-    "redeeming": "Redeeming..."
+    "redeeming": "Redeeming...",
+    "dailyQuotaResetHint": "Daily AI conversation quotas reset at 00:00 Beijing time (UTC+8).",
+    "monthlyQuotaResetHint": "Monthly quotas reset on the 1st at 00:00 Beijing time (UTC+8).",
+    "metricAiConversations": "Daily AI conversations",
+    "metricAiConversationsOutcome": "Resets at 00:00 Beijing time (UTC+8)"
   },
   "todayActionPlan": {
     "title": "3 things to do today",

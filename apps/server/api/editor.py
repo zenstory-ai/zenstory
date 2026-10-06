@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header
@@ -47,7 +48,13 @@ class NaturalPolishResponse(BaseModel):
     model: str | None = None
 
 
-def _refund_ai_conversation(session: Session, user_id: str, *, reason: str) -> bool:
+def _refund_ai_conversation(
+    session: Session,
+    user_id: str,
+    period_start: datetime,
+    *,
+    reason: str,
+) -> bool:
     """润色失败时退还已预扣的 AI 对话额度，失败只记日志不影响主流程。
 
     失败的事务可能让共享 session 处于 PendingRollback 状态，先复位再补偿，
@@ -58,7 +65,11 @@ def _refund_ai_conversation(session: Session, user_id: str, *, reason: str) -> b
     try:
         with contextlib.suppress(Exception):
             session.rollback()
-        return quota_service.release_ai_conversation(session, user_id)
+        return quota_service.release_ai_conversation(
+            session,
+            user_id,
+            period_start=period_start,
+        )
     except Exception as refund_error:
         log_with_context(
             logger,
@@ -114,8 +125,11 @@ async def natural_polish(
     # 先扣额度再生成，避免并发绕过；生成失败时在下面补偿退还
     # （与 /agent/stream 的失败退款一致——原注释说"不退款，与 stream 对齐"，
     #  但 stream 早已改成失败退款，注释与实现已经脱节）。
-    consumed = quota_service.consume_ai_conversation(session, current_user.id)
-    if not consumed:
+    charged_period_start = quota_service.reserve_ai_conversation(
+        session,
+        current_user.id,
+    )
+    if charged_period_start is None:
         raise APIException(
             error_code=ErrorCode.QUOTA_AI_CONVERSATIONS_EXCEEDED,
             status_code=402,
@@ -130,10 +144,20 @@ async def natural_polish(
             language=lang,
         )
     except APIException:
-        _refund_ai_conversation(session, current_user.id, reason="api_exception")
+        _refund_ai_conversation(
+            session,
+            current_user.id,
+            charged_period_start,
+            reason="api_exception",
+        )
         raise
     except Exception as exc:
-        _refund_ai_conversation(session, current_user.id, reason=type(exc).__name__)
+        _refund_ai_conversation(
+            session,
+            current_user.id,
+            charged_period_start,
+            reason=type(exc).__name__,
+        )
         raise APIException(
             error_code=ErrorCode.INTERNAL_SERVER_ERROR,
             status_code=500,

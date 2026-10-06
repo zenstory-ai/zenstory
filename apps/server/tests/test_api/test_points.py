@@ -10,12 +10,13 @@ Integration tests for the points and check-in system API, covering:
 - GET /api/v1/points/earn-opportunities - Earn opportunities
 - GET /api/v1/points/config - Points configuration
 """
-from datetime import timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
 from sqlmodel import Session, select
 
+from config.datetime_utils import beijing_date, utcnow
 from models import SubscriptionPlan, User
 from models.points import CheckInRecord
 from services.core.auth_service import hash_password
@@ -28,6 +29,13 @@ from services.features.points_service import (
     STREAK_BONUS_THRESHOLD,
     points_service,
 )
+
+
+def beijing_check_in_timestamp(day: date) -> datetime:
+    """Return an early-Beijing-day UTC timestamp for a current-format row."""
+    return datetime.combine(day - timedelta(days=1), datetime.min.time(), tzinfo=UTC).replace(
+        hour=17
+    )
 
 
 @pytest.fixture
@@ -212,8 +220,6 @@ class TestCheckIn:
         """Test streak continuation when checking in consecutive days."""
         from sqlalchemy import text as sql_text
 
-        from config.datetime_utils import utcnow
-
         # Get user ID
         user_result = db_session.exec(
             sql_text("SELECT id FROM user WHERE email = 'test@example.com'")
@@ -221,13 +227,14 @@ class TestCheckIn:
         user_id = user_result[0] if user_result else None
 
         # Create yesterday's check-in record
-        today = utcnow().date()
+        today = beijing_date(utcnow())
         yesterday = today - timedelta(days=1)
         yesterday_record = CheckInRecord(
             user_id=user_id,
             check_in_date=yesterday,
             streak_days=3,
             points_earned=POINTS_CHECK_IN,
+            created_at=beijing_check_in_timestamp(yesterday),
         )
         db_session.add(yesterday_record)
         db_session.commit()
@@ -246,8 +253,6 @@ class TestCheckIn:
         """Test streak bonus is awarded at threshold."""
         from sqlalchemy import text as sql_text
 
-        from config.datetime_utils import utcnow
-
         # Get user ID
         user_result = db_session.exec(
             sql_text("SELECT id FROM user WHERE email = 'test@example.com'")
@@ -256,7 +261,7 @@ class TestCheckIn:
 
         # Create check-in records for streak_days - 1 days
         # So next check-in will trigger bonus
-        today = utcnow().date()
+        today = beijing_date(utcnow())
         for i in range(STREAK_BONUS_THRESHOLD - 1):
             check_date = today - timedelta(days=STREAK_BONUS_THRESHOLD - 1 - i)
             record = CheckInRecord(
@@ -264,6 +269,7 @@ class TestCheckIn:
                 check_in_date=check_date,
                 streak_days=i + 1,
                 points_earned=POINTS_CHECK_IN,
+                created_at=beijing_check_in_timestamp(check_date),
             )
             db_session.add(record)
         db_session.commit()
@@ -327,8 +333,6 @@ class TestGetCheckInStatus:
         """Test status shows previous streak when not checked in today."""
         from sqlalchemy import text as sql_text
 
-        from config.datetime_utils import utcnow
-
         # Get user ID
         user_result = db_session.exec(
             sql_text("SELECT id FROM user WHERE email = 'test@example.com'")
@@ -336,13 +340,14 @@ class TestGetCheckInStatus:
         user_id = user_result[0] if user_result else None
 
         # Create yesterday's check-in
-        today = utcnow().date()
+        today = beijing_date(utcnow())
         yesterday = today - timedelta(days=1)
         yesterday_record = CheckInRecord(
             user_id=user_id,
             check_in_date=yesterday,
             streak_days=5,
             points_earned=POINTS_CHECK_IN,
+            created_at=beijing_check_in_timestamp(yesterday),
         )
         db_session.add(yesterday_record)
         db_session.commit()

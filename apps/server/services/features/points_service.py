@@ -11,13 +11,12 @@ Provides methods for:
 """
 import os
 from contextlib import suppress
-from datetime import timedelta
+from datetime import date, timedelta
 
-from sqlalchemy import and_
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, func, select
 
-from config.datetime_utils import utcnow
+from config.datetime_utils import beijing_date, normalize_datetime_to_utc, utcnow
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from models.entities import User
@@ -48,6 +47,22 @@ REDEEM_DURATION_COSTS = {
 }
 
 
+def effective_check_in_date(record: CheckInRecord) -> date:
+    """Return a record's Beijing calendar day without migrating legacy rows.
+
+    Legacy rows stored the UTC date of ``created_at``.  Current rows store the
+    Beijing date directly.  Only an exact UTC-date match is treated as legacy;
+    this preserves explicitly backfilled dates and older test fixtures whose
+    creation timestamp belongs to a different day.
+    """
+    created_at = record.created_at
+    if created_at is not None:
+        created_at_utc = normalize_datetime_to_utc(created_at)
+        if record.check_in_date == created_at_utc.date():
+            return beijing_date(created_at_utc)
+    return record.check_in_date
+
+
 class PointsService:
     """Service for managing user points and check-ins."""
 
@@ -60,6 +75,29 @@ class PointsService:
         "profile_complete": POINTS_PROFILE_COMPLETE,
         "pro_7days_cost": POINTS_PRO_7DAYS_COST,
     }
+
+    def _get_check_in_record_for_day(
+        self,
+        session: Session,
+        user_id: str,
+        target_date: date,
+    ) -> CheckInRecord | None:
+        """Find a check-in by its effective Beijing day.
+
+        A legacy UTC-date row for a Beijing day can only be stored under the
+        target date or the preceding date, so this remains an indexed lookup.
+        """
+        stored_dates = (target_date, target_date - timedelta(days=1))
+        records = session.exec(
+            select(CheckInRecord)
+            .where(CheckInRecord.user_id == user_id)
+            .where(CheckInRecord.check_in_date.in_(stored_dates))
+            .order_by(CheckInRecord.created_at.desc())
+        ).all()
+        return next(
+            (record for record in records if effective_check_in_date(record) == target_date),
+            None,
+        )
 
     def _lock_user_row(self, session: Session, user_id: str) -> None:
         """Acquire a row-level lock for user-scoped balance mutations."""
@@ -358,17 +396,11 @@ class PointsService:
         Raises:
             APIException: If already checked in today
         """
-        today = utcnow().date()
+        now = utcnow()
+        today = beijing_date(now)
 
         # Check if already checked in today
-        existing = session.exec(
-            select(CheckInRecord).where(
-                and_(
-                    CheckInRecord.user_id == user_id,
-                    CheckInRecord.check_in_date == today,
-                )
-            )
-        ).first()
+        existing = self._get_check_in_record_for_day(session, user_id, today)
 
         if existing:
             raise APIException(
@@ -383,14 +415,7 @@ class PointsService:
 
         # Calculate streak
         yesterday = today - timedelta(days=1)
-        yesterday_record = session.exec(
-            select(CheckInRecord).where(
-                and_(
-                    CheckInRecord.user_id == user_id,
-                    CheckInRecord.check_in_date == yesterday,
-                )
-            )
-        ).first()
+        yesterday_record = self._get_check_in_record_for_day(session, user_id, yesterday)
 
         streak_days = 1
         if yesterday_record:
@@ -411,6 +436,7 @@ class PointsService:
             check_in_date=today,
             streak_days=streak_days,
             points_earned=points_earned,
+            created_at=now,
         )
         session.add(check_in_record)
 
@@ -428,14 +454,7 @@ class PointsService:
             session.commit()
         except IntegrityError:
             session.rollback()
-            existing = session.exec(
-                select(CheckInRecord).where(
-                    and_(
-                        CheckInRecord.user_id == user_id,
-                        CheckInRecord.check_in_date == today,
-                    )
-                )
-            ).first()
+            existing = self._get_check_in_record_for_day(session, user_id, today)
             if not existing:
                 raise
             raise APIException(
@@ -477,16 +496,9 @@ class PointsService:
         Returns:
             dict with checked_in, streak_days, points_earned_today
         """
-        today = utcnow().date()
+        today = beijing_date(utcnow())
 
-        today_record = session.exec(
-            select(CheckInRecord).where(
-                and_(
-                    CheckInRecord.user_id == user_id,
-                    CheckInRecord.check_in_date == today,
-                )
-            )
-        ).first()
+        today_record = self._get_check_in_record_for_day(session, user_id, today)
 
         if today_record:
             return {
@@ -497,14 +509,7 @@ class PointsService:
 
         # Not checked in today, get last streak
         yesterday = today - timedelta(days=1)
-        yesterday_record = session.exec(
-            select(CheckInRecord).where(
-                and_(
-                    CheckInRecord.user_id == user_id,
-                    CheckInRecord.check_in_date == yesterday,
-                )
-            )
-        ).first()
+        yesterday_record = self._get_check_in_record_for_day(session, user_id, yesterday)
 
         streak = 0
         if yesterday_record:

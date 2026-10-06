@@ -42,7 +42,10 @@ export interface SubscriptionPlan {
 }
 
 export interface SubscriptionCatalogEntitlements {
+  ai_conversations_per_day: number;
+  /** @deprecated Fixed at zero for compatibility; not a runtime entitlement. */
   writing_credits_monthly: number;
+  /** @deprecated Fixed at zero for compatibility; not a runtime entitlement. */
   agent_runs_monthly: number;
   active_projects_limit: number;
   materials_library_access: boolean;

@@ -101,6 +101,7 @@
     "metricExportHelper": "可直接交付编辑、平台或客户",
     "monthlyOutputEstimate": "约 {{count}} 万字/月",
     "timesPerMonth": "次/月",
+    "timesPerDay": "次/天",
     "projectsUnit": "个",
     "noExportFormats": "暂无",
     "metricMaterialUploads": "素材上传",
@@ -141,7 +142,11 @@
     "ctaProNeutral": "开通或续费 Pro",
     "paymentPageOutdated": "页面已更新，请刷新页面后重试",
     "redeemSuccessDays": "兑换成功，本次兑换 {{days}} 天会员。",
-    "redeeming": "正在兑换..."
+    "redeeming": "正在兑换...",
+    "dailyQuotaResetHint": "每日 AI 对话额度于北京时间 00:00 重置。",
+    "monthlyQuotaResetHint": "每月额度于北京时间每月 1 日 00:00 重置。",
+    "metricAiConversations": "每日 AI 对话",
+    "metricAiConversationsOutcome": "北京时间 00:00 重置"
   },
   "todayActionPlan": {
     "title": "今天可以做的 3 件事",

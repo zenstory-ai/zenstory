@@ -2,7 +2,8 @@
 
 import asyncio
 import json
-from unittest.mock import patch
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
@@ -11,6 +12,8 @@ from httpx import AsyncClient
 import api.agent as agent_api
 from models import Project, User
 from services.core.auth_service import hash_password
+
+_CHARGED_PERIOD = datetime(2026, 10, 5, 16, tzinfo=UTC)
 
 
 async def _login_with_project(client: AsyncClient, db_session) -> tuple[str, Project, User]:
@@ -55,6 +58,28 @@ async def _post_stream(client, token, project):
     )
 
 
+@pytest.mark.asyncio
+async def test_offloaded_refund_preserves_charged_period(db_session):
+    """Postgres-style threadpool refunds must target the reservation's day."""
+    with (
+        patch("api.agent._should_offload_session_work", return_value=True),
+        patch("api.agent.asyncio.to_thread", new=AsyncMock(return_value=True)) as to_thread,
+    ):
+        refunded = await agent_api._refund_quota(
+            db_session,
+            "user-1",
+            _CHARGED_PERIOD,
+            billing_reason="internal_error",
+        )
+
+    assert refunded is True
+    to_thread.assert_awaited_once_with(
+        agent_api._release_ai_conversation_sync,
+        "user-1",
+        _CHARGED_PERIOD,
+    )
+
+
 @pytest.mark.integration
 async def test_stream_sends_heartbeat_comment_frames_while_idle(client: AsyncClient, db_session, monkeypatch):
     token, project, _ = await _login_with_project(client, db_session)
@@ -67,7 +92,7 @@ async def test_stream_sends_heartbeat_comment_frames_while_idle(client: AsyncCli
 
     with (
         patch("api.agent.get_agent_service", return_value=_FakeService(frames)),
-        patch("api.agent.quota_service.consume_ai_conversation", return_value=True),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
     ):
         response = await _post_stream(client, token, project)
@@ -96,7 +121,7 @@ async def test_stream_wall_clock_deadline_ends_with_timeout_error(client: AsyncC
 
     with (
         patch("api.agent.get_agent_service", return_value=_FakeService(frames)),
-        patch("api.agent.quota_service.consume_ai_conversation", return_value=True),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
     ):
         response = await _post_stream(client, token, project)
@@ -106,7 +131,7 @@ async def test_stream_wall_clock_deadline_ends_with_timeout_error(client: AsyncC
     assert "ERR_AGENT_RUN_TIMEOUT" in response.text
     assert cancelled.is_set()
     # 没有任何产出：退还额度。
-    refund.assert_called_once()
+    assert refund.call_args.kwargs["period_start"] == _CHARGED_PERIOD
 
 
 @pytest.mark.integration
@@ -127,7 +152,7 @@ async def test_tool_failure_circuit_is_not_refunded(client: AsyncClient, db_sess
 
     with (
         patch("api.agent.get_agent_service", return_value=_FakeService(frames)),
-        patch("api.agent.quota_service.consume_ai_conversation", return_value=True),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
     ):
         response = await _post_stream(client, token, project)
@@ -149,7 +174,7 @@ async def test_error_after_streamed_body_is_not_refunded(client: AsyncClient, db
 
     with (
         patch("api.agent.get_agent_service", return_value=_FakeService(frames)),
-        patch("api.agent.quota_service.consume_ai_conversation", return_value=True),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
     ):
         await _post_stream(client, token, project)
@@ -170,7 +195,7 @@ async def test_real_internal_error_without_output_is_still_refunded(client: Asyn
 
     with (
         patch("api.agent.get_agent_service", return_value=_FakeService(frames)),
-        patch("api.agent.quota_service.consume_ai_conversation", return_value=True),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
     ):
         await _post_stream(client, token, project)
@@ -191,7 +216,7 @@ async def test_generator_exit_disconnect_is_billed_as_user_cancel(client: AsyncC
     body = agent_api.AgentRequest(project_id=str(project.id), message="写第五章")
     with (
         patch("api.agent.get_agent_service", return_value=_FakeService(frames)),
-        patch("api.agent.quota_service.consume_ai_conversation", return_value=True),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
         patch("api.agent.log_with_context") as log_spy,
     ):
@@ -239,7 +264,7 @@ async def test_billing_log_line_carries_run_summary(client: AsyncClient, db_sess
     body = agent_api.AgentRequest(project_id=str(project.id), message="写第五章")
     with (
         patch("api.agent.get_agent_service", return_value=ReportingService()),
-        patch("api.agent.quota_service.consume_ai_conversation", return_value=True),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True),
         patch("api.agent.log_with_context") as log_spy,
     ):

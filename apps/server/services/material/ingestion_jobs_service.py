@@ -5,7 +5,7 @@ Handles IngestionJob tracking and status updates.
 from __future__ import annotations
 
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import update
@@ -288,9 +288,32 @@ class IngestionJobsService:
         novel = session.get(Novel, job.novel_id)
         if novel is None:
             return
+        billing = self.get_billing(job)
+        raw_period_start = billing.get("quota_period_start")
+        period_start = None
+        consumed_at = job.created_at if raw_period_start is None else None
+        if raw_period_start is not None:
+            if not isinstance(raw_period_start, str):
+                logger.error(
+                    "Invalid material quota period type: job_id=%s",
+                    job.id,
+                )
+                return
+            try:
+                period_start = datetime.fromisoformat(raw_period_start.replace("Z", "+00:00"))
+            except ValueError:
+                logger.error(
+                    "Invalid material quota period timestamp: job_id=%s",
+                    job.id,
+                )
+                return
         try:
             quota_service.release_feature_quota(
-                session, novel.user_id, MATERIAL_DECOMPOSE_FEATURE
+                session,
+                novel.user_id,
+                MATERIAL_DECOMPOSE_FEATURE,
+                period_start=period_start,
+                consumed_at=consumed_at,
             )
         except Exception:
             session.rollback()

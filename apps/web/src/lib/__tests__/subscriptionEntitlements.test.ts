@@ -31,6 +31,9 @@ describe("getEntitlementMetricDefinitions", () => {
     const keys = getEntitlementMetricDefinitions(t, "zh-CN").map((metric) => metric.key as string);
     expect(keys).not.toContain("context_tokens_limit");
     expect(keys).not.toContain("priority_queue_level");
+    expect(keys).not.toContain("writing_credits_monthly");
+    expect(keys).not.toContain("agent_runs_monthly");
+    expect(keys).toContain("ai_conversations_per_day");
     // Materials stay: decomposition runs in production.
     expect(keys).toContain("material_decompositions_monthly");
     expect(keys).toContain("custom_skills_limit");

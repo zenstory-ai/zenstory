@@ -9,28 +9,32 @@ Unit tests for the points and check-in management service, covering:
 - Expiration handling
 - Earn opportunities
 """
-from datetime import date, datetime, timedelta
-from unittest.mock import patch, MagicMock
+from datetime import UTC, date, datetime, timedelta
+from unittest.mock import MagicMock, patch
 
 import pytest
 from sqlmodel import Session, select
 
+from config.datetime_utils import beijing_date, utcnow
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from models import User
-from models.points import PointsTransaction, CheckInRecord
+from models.points import CheckInRecord, PointsTransaction
 from services.features.points_service import (
-    points_service,
     POINTS_CHECK_IN,
     POINTS_CHECK_IN_STREAK,
-    POINTS_REFERRAL,
-    POINTS_SKILL_CONTRIBUTION,
-    POINTS_INSPIRATION_CONTRIBUTION,
-    POINTS_PROFILE_COMPLETE,
-    POINTS_PRO_7DAYS_COST,
     POINTS_EXPIRATION_MONTHS,
+    POINTS_PRO_7DAYS_COST,
     STREAK_BONUS_THRESHOLD,
+    points_service,
 )
+
+
+def beijing_check_in_timestamp(day: date) -> datetime:
+    """Return an early-Beijing-day UTC timestamp for a current-format row."""
+    return datetime.combine(day - timedelta(days=1), datetime.min.time(), tzinfo=UTC).replace(
+        hour=17
+    )
 
 
 @pytest.fixture
@@ -365,7 +369,7 @@ class TestCheckIn:
 
     def test_check_in_creates_record(self, db_session: Session, test_user):
         """Test that check-in creates a CheckInRecord."""
-        today = datetime.utcnow().date()
+        today = beijing_date(utcnow())
 
         points_service.check_in(db_session, test_user.id)
 
@@ -408,9 +412,101 @@ class TestCheckIn:
         assert exc_info.value.error_code == ErrorCode.VALIDATION_ERROR
         assert "already checked in" in str(exc_info.value.detail).lower()
 
+    def test_check_in_uses_beijing_calendar_day(self, db_session: Session, test_user):
+        before_midnight = datetime(2026, 10, 5, 15, 59, tzinfo=UTC)
+        after_midnight = datetime(2026, 10, 5, 16, 1, tzinfo=UTC)
+
+        with patch("services.features.points_service.utcnow", return_value=before_midnight):
+            first = points_service.check_in(db_session, test_user.id)
+        with patch("services.features.points_service.utcnow", return_value=after_midnight):
+            second = points_service.check_in(db_session, test_user.id)
+
+        assert first["streak_days"] == 1
+        assert second["streak_days"] == 2
+        records = db_session.exec(
+            select(CheckInRecord)
+            .where(CheckInRecord.user_id == test_user.id)
+            .order_by(CheckInRecord.check_in_date)
+        ).all()
+        assert [record.check_in_date for record in records] == [
+            date(2026, 10, 5),
+            date(2026, 10, 6),
+        ]
+
+    def test_check_in_does_not_reset_at_utc_midnight(self, db_session: Session, test_user):
+        with patch(
+            "services.features.points_service.utcnow",
+            return_value=datetime(2026, 10, 5, 23, 59, tzinfo=UTC),
+        ):
+            points_service.check_in(db_session, test_user.id)
+
+        with (
+            patch(
+                "services.features.points_service.utcnow",
+                return_value=datetime(2026, 10, 6, 0, 1, tzinfo=UTC),
+            ),
+            pytest.raises(APIException) as exc_info,
+        ):
+            points_service.check_in(db_session, test_user.id)
+
+        assert exc_info.value.error_code == ErrorCode.VALIDATION_ERROR
+
+    def test_check_in_rejects_legacy_utc_record_from_same_beijing_day(
+        self,
+        db_session: Session,
+        test_user,
+    ):
+        legacy_time = datetime(2026, 10, 5, 16, 30, tzinfo=UTC)
+        db_session.add(
+            CheckInRecord(
+                user_id=test_user.id,
+                check_in_date=date(2026, 10, 5),
+                streak_days=4,
+                points_earned=POINTS_CHECK_IN,
+                created_at=legacy_time,
+            )
+        )
+        db_session.commit()
+
+        with (
+            patch(
+                "services.features.points_service.utcnow",
+                return_value=datetime(2026, 10, 5, 17, 0, tzinfo=UTC),
+            ),
+            pytest.raises(APIException) as exc_info,
+        ):
+            points_service.check_in(db_session, test_user.id)
+
+        assert exc_info.value.error_code == ErrorCode.VALIDATION_ERROR
+        assert exc_info.value.detail["streak_days"] == 4
+
+    def test_check_in_continues_streak_from_legacy_utc_record(
+        self,
+        db_session: Session,
+        test_user,
+    ):
+        db_session.add(
+            CheckInRecord(
+                user_id=test_user.id,
+                check_in_date=date(2026, 10, 4),
+                streak_days=6,
+                points_earned=POINTS_CHECK_IN,
+                created_at=datetime(2026, 10, 4, 16, 30, tzinfo=UTC),
+            )
+        )
+        db_session.commit()
+
+        with patch(
+            "services.features.points_service.utcnow",
+            return_value=datetime(2026, 10, 5, 16, 30, tzinfo=UTC),
+        ):
+            result = points_service.check_in(db_session, test_user.id)
+
+        assert result["streak_days"] == 7
+
     def test_check_in_streak_continuation(self, db_session: Session, test_user):
         """Test streak continuation when checking in consecutive days."""
-        today = datetime.utcnow().date()
+        today = beijing_date(utcnow())
         yesterday = today - timedelta(days=1)
 
         # Create yesterday's record
@@ -419,6 +515,7 @@ class TestCheckIn:
             check_in_date=yesterday,
             streak_days=3,
             points_earned=POINTS_CHECK_IN,
+            created_at=beijing_check_in_timestamp(yesterday),
         )
         db_session.add(yesterday_record)
         db_session.commit()
@@ -430,7 +527,7 @@ class TestCheckIn:
 
     def test_check_in_streak_bonus(self, db_session: Session, test_user):
         """Test streak bonus is awarded at threshold."""
-        today = datetime.utcnow().date()
+        today = beijing_date(utcnow())
 
         # Create check-in records for STREAK_BONUS_THRESHOLD - 1 days
         for i in range(STREAK_BONUS_THRESHOLD - 1):
@@ -440,6 +537,7 @@ class TestCheckIn:
                 check_in_date=check_date,
                 streak_days=i + 1,
                 points_earned=POINTS_CHECK_IN,
+                created_at=beijing_check_in_timestamp(check_date),
             )
             db_session.add(record)
         db_session.commit()
@@ -453,7 +551,7 @@ class TestCheckIn:
 
     def test_check_in_streak_multiple_bonuses(self, db_session: Session, test_user):
         """Test multiple streak bonuses at intervals."""
-        today = datetime.utcnow().date()
+        today = beijing_date(utcnow())
 
         # Create records for 13 days so today's 14th check-in hits the 2nd bonus interval (7, 14, ...)
         for i in range(13):
@@ -463,6 +561,7 @@ class TestCheckIn:
                 check_in_date=check_date,
                 streak_days=i + 1,
                 points_earned=POINTS_CHECK_IN,
+                created_at=beijing_check_in_timestamp(check_date),
             )
             db_session.add(record)
         db_session.commit()
@@ -475,7 +574,7 @@ class TestCheckIn:
 
     def test_check_in_no_streak_after_break(self, db_session: Session, test_user):
         """Test that streak resets after a break."""
-        today = datetime.utcnow().date()
+        today = beijing_date(utcnow())
         two_days_ago = today - timedelta(days=2)
 
         # Create record from 2 days ago (gap of 1 day)
@@ -484,6 +583,7 @@ class TestCheckIn:
             check_in_date=two_days_ago,
             streak_days=5,
             points_earned=POINTS_CHECK_IN,
+            created_at=beijing_check_in_timestamp(two_days_ago),
         )
         db_session.add(old_record)
         db_session.commit()
@@ -520,7 +620,7 @@ class TestGetCheckInStatus:
 
     def test_get_check_in_status_shows_previous_streak(self, db_session: Session, test_user):
         """Test status shows previous streak when not checked in today."""
-        today = datetime.utcnow().date()
+        today = beijing_date(utcnow())
         yesterday = today - timedelta(days=1)
 
         # Create yesterday's check-in
@@ -529,6 +629,7 @@ class TestGetCheckInStatus:
             check_in_date=yesterday,
             streak_days=5,
             points_earned=POINTS_CHECK_IN,
+            created_at=beijing_check_in_timestamp(yesterday),
         )
         db_session.add(yesterday_record)
         db_session.commit()
@@ -539,6 +640,34 @@ class TestGetCheckInStatus:
         assert status["checked_in"] is False
         assert status["streak_days"] == 5  # Shows previous streak
         assert status["points_earned_today"] == 0
+
+    def test_get_check_in_status_recognizes_legacy_record_after_beijing_midnight(
+        self,
+        db_session: Session,
+        test_user,
+    ):
+        db_session.add(
+            CheckInRecord(
+                user_id=test_user.id,
+                check_in_date=date(2026, 10, 5),
+                streak_days=3,
+                points_earned=POINTS_CHECK_IN,
+                created_at=datetime(2026, 10, 5, 16, 5, tzinfo=UTC),
+            )
+        )
+        db_session.commit()
+
+        with patch(
+            "services.features.points_service.utcnow",
+            return_value=datetime(2026, 10, 5, 18, 0, tzinfo=UTC),
+        ):
+            status = points_service.get_check_in_status(db_session, test_user.id)
+
+        assert status == {
+            "checked_in": True,
+            "streak_days": 3,
+            "points_earned_today": POINTS_CHECK_IN,
+        }
 
 
 @pytest.mark.unit
@@ -744,7 +873,7 @@ class TestGetEarnOpportunities:
 
     def test_get_earn_opportunities_streak_bonus_eligible(self, db_session: Session, test_user):
         """Test that streak bonus appears when eligible."""
-        today = datetime.utcnow().date()
+        today = beijing_date(utcnow())
 
         # Create check-in records for STREAK_BONUS_THRESHOLD - 1 days
         for i in range(STREAK_BONUS_THRESHOLD - 1):
@@ -754,6 +883,7 @@ class TestGetEarnOpportunities:
                 check_in_date=check_date,
                 streak_days=i + 1,
                 points_earned=POINTS_CHECK_IN,
+                created_at=beijing_check_in_timestamp(check_date),
             )
             db_session.add(record)
         db_session.commit()

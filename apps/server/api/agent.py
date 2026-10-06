@@ -15,6 +15,7 @@ Provides FastAPI router for agent endpoints:
 import asyncio
 import contextlib
 import json
+from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
@@ -42,7 +43,10 @@ from config.agent_runtime import (
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import create_session, get_session
-from middleware.rate_limit import require_user_rate_limit
+from middleware.rate_limit import (
+    require_user_beijing_daily_rate_limit,
+    require_user_rate_limit,
+)
 from models import User
 from services.quota_service import quota_service
 from utils.logger import get_logger, log_with_context
@@ -64,10 +68,10 @@ STREAM_RATE_LIMIT_MAX_REQUESTS = 60
 STREAM_RATE_LIMIT_WINDOW_SECONDS = 3600
 SUGGEST_RATE_LIMIT_MAX_REQUESTS = 30
 SUGGEST_RATE_LIMIT_WINDOW_SECONDS = 3600
-# /suggest 不扣 AI 对话额度，改用独立的每日上限兜住成本（与小时限流同一套
-# Redis/内存后端）。前端每轮对话结束最多自动请求一次。
+# /suggest 不扣 AI 对话额度，改用独立的北京时间自然日上限兜住成本（与小时
+# 限流同一套 Redis/内存后端），每日 00:00 Asia/Shanghai 切换 bucket。
+# 前端每轮对话结束最多自动请求一次。
 SUGGEST_DAILY_MAX_REQUESTS = 100
-SUGGEST_DAILY_WINDOW_SECONDS = 86400
 STEER_RATE_LIMIT_MAX_REQUESTS = 120
 STEER_RATE_LIMIT_WINDOW_SECONDS = 3600
 
@@ -90,23 +94,36 @@ def _check_ai_conversation_quota_sync(user_id: str) -> tuple[bool, int, int]:
         return quota_service.check_ai_conversation_quota(quota_session, user_id)
 
 
-def _consume_ai_conversation_sync(user_id: str) -> bool:
-    """Consume quota using a fresh sync DB session."""
+def _reserve_ai_conversation_sync(user_id: str) -> datetime | None:
+    """Reserve quota using a fresh sync DB session."""
     with create_session() as quota_session:
-        return quota_service.consume_ai_conversation(quota_session, user_id)
+        return quota_service.reserve_ai_conversation(quota_session, user_id)
 
 
-def _release_ai_conversation_sync(user_id: str) -> bool:
+def _release_ai_conversation_sync(user_id: str, period_start: datetime) -> bool:
     """Release quota using a fresh sync DB session."""
     with create_session() as quota_session:
-        return quota_service.release_ai_conversation(quota_session, user_id)
+        return quota_service.release_ai_conversation(
+            quota_session,
+            user_id,
+            period_start=period_start,
+        )
 
 
-async def _refund_quota(session: Session, user_id: str, **log_fields: Any) -> bool:
+async def _refund_quota(
+    session: Session,
+    user_id: str,
+    period_start: datetime,
+    **log_fields: Any,
+) -> bool:
     """退还一次已预扣的 AI 对话额度；失败只记日志，返回是否真的退了。"""
     try:
         if _should_offload_session_work(session):
-            return await asyncio.to_thread(_release_ai_conversation_sync, user_id)
+            return await asyncio.to_thread(
+                _release_ai_conversation_sync,
+                user_id,
+                period_start,
+            )
         # The shared request session may be in a failed transaction state from
         # the error that aborted the stream. Reset it before the compensating
         # refund; otherwise release_ai_conversation's refresh/commit raises
@@ -114,7 +131,11 @@ async def _refund_quota(session: Session, user_id: str, **log_fields: Any) -> bo
         # over-charged for a run that failed internally.
         with contextlib.suppress(Exception):
             session.rollback()
-        return quota_service.release_ai_conversation(session, user_id)
+        return quota_service.release_ai_conversation(
+            session,
+            user_id,
+            period_start=period_start,
+        )
     except Exception as refund_error:
         log_with_context(
             logger,
@@ -133,8 +154,7 @@ def _session_busy_exception() -> APIException:
         error_code=ErrorCode.SESSION_BUSY,
         status_code=409,
         detail=(
-            "This chat session already has an active generation. "
-            "Stop it or wait for it to finish before sending again."
+            "This chat session already has an active generation. Stop it or wait for it to finish before sending again."
         ),
     )
 
@@ -176,9 +196,7 @@ class AgentRequest(BaseModel):
         max_length=AGENT_SELECTED_TEXT_MAX_CHARS,
         description="Selected text",
     )
-    metadata: dict[str, Any] = Field(
-        default_factory=dict, description="Additional metadata"
-    )
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
     selected_skill_ids: list[str] = Field(
         default_factory=list,
         max_length=3,
@@ -187,7 +205,6 @@ class AgentRequest(BaseModel):
             "(UserSkill.id / UserAddedSkill.id); their full instructions are injected"
         ),
     )
-
 
     @field_validator("metadata")
     @classmethod
@@ -203,9 +220,7 @@ class AgentRequest(BaseModel):
         try:
             serialized_length = len(json.dumps(value, ensure_ascii=False, default=str))
         except (TypeError, ValueError) as exc:
-            raise PydanticCustomError(
-                "metadata_not_serializable", "metadata must be JSON serializable"
-            ) from exc
+            raise PydanticCustomError("metadata_not_serializable", "metadata must be JSON serializable") from exc
         if serialized_length > AGENT_METADATA_MAX_CHARS:
             # PydanticCustomError 而非 ValueError：后者会把异常对象放进 422 的
             # errors[].ctx，JSON 序列化失败后整个响应变成 500。
@@ -221,12 +236,8 @@ class SuggestRequest(BaseModel):
     """Request body for suggestion generation."""
 
     project_id: str = Field(..., description="Project ID (UUID)")
-    recent_messages: list | None = Field(
-        default=None, description="Recent conversation messages"
-    )
-    count: int = Field(
-        default=3, ge=1, le=5, description="Number of suggestions to generate"
-    )
+    recent_messages: list | None = Field(default=None, description="Recent conversation messages")
+    count: int = Field(default=3, ge=1, le=5, description="Number of suggestions to generate")
 
 
 class SuggestResponse(BaseModel):
@@ -342,13 +353,16 @@ async def stream_request(
     # Reserve one quota unit before streaming to avoid concurrent overrun.
     # We may compensate (refund) in finally when the stream fails internally.
     if _should_offload_session_work(session):
-        consumed = await asyncio.to_thread(
-            _consume_ai_conversation_sync,
+        charged_period_start = await asyncio.to_thread(
+            _reserve_ai_conversation_sync,
             current_user.id,
         )
     else:
-        consumed = quota_service.consume_ai_conversation(session, current_user.id)
-    if not consumed:
+        charged_period_start = quota_service.reserve_ai_conversation(
+            session,
+            current_user.id,
+        )
+    if charged_period_start is None:
         raise APIException(
             error_code=ErrorCode.QUOTA_AI_CONVERSATIONS_EXCEEDED,
             status_code=402,
@@ -389,7 +403,7 @@ async def stream_request(
     except StopAsyncIteration:
         first_event = None
     except SteeringSessionBusyError as exc:
-        await _refund_quota(session, user_id)
+        await _refund_quota(session, user_id, charged_period_start)
         log_with_context(
             logger,
             20,  # INFO
@@ -496,6 +510,7 @@ async def stream_request(
                 refund_applied = await _refund_quota(
                     session,
                     user_id,
+                    charged_period_start,
                     project_id=body.project_id,
                     agent_run_id=agent_run_id,
                     billing_reason=billing_reason,
@@ -557,10 +572,9 @@ async def suggest_next_action(
         )
     ),
     _daily_limit: int = Depends(
-        require_user_rate_limit(
+        require_user_beijing_daily_rate_limit(
             "agent_suggest_daily",
             SUGGEST_DAILY_MAX_REQUESTS,
-            SUGGEST_DAILY_WINDOW_SECONDS,
         )
     ),
 ):
@@ -572,7 +586,7 @@ async def suggest_next_action(
     - Recent conversation history
 
     计费：建议由前端自动触发，不占用户的 AI 对话额度（ai_conversations）；
-    成本由按用户的小时限流 + 独立的每日上限兜住，超限返回 429。
+    成本由按用户的小时限流 + 北京时间自然日上限兜住，超限返回 429。
     """
     user_id = current_user.id
     from agent.suggest_service import get_suggest_service

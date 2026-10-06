@@ -33,6 +33,8 @@ vi.mock('react-i18next', () => ({
           'settings:subscription.redeemCode': 'Redeem Code',
           'dashboard:billing.currentPlan': 'Current plan',
           'dashboard:billing.usageTitle': 'Usage',
+          'dashboard:billing.dailyQuotaResetHint': 'Daily AI conversation quotas reset at 00:00 Beijing time (UTC+8).',
+          'dashboard:billing.monthlyQuotaResetHint': 'Monthly quotas reset on the 1st at 00:00 Beijing time (UTC+8).',
           'common:error': 'Load failed',
           'common:retry': 'Retry',
           'dashboard:billing.compareTitle': 'Plan comparison',
@@ -227,6 +229,23 @@ describe('BillingPage', () => {
     expect(within(comparison!).getAllByText('Free')).toHaveLength(2)
     expect(screen.queryByText('Free · Free')).not.toBeInTheDocument()
     expect(screen.getByText('¥19/month · ¥190/year')).toBeInTheDocument()
+  })
+
+  it('explains the Beijing midnight reset beside daily AI conversation usage', () => {
+    render(<BillingPage />)
+
+    const dailyUsage = screen.getByText('AI conversations').parentElement!.parentElement!
+    expect(within(dailyUsage).getByText('Daily AI conversation quotas reset at 00:00 Beijing time (UTC+8).')).toBeInTheDocument()
+    expect(within(dailyUsage).getByText('2/10')).toBeInTheDocument()
+  })
+
+  it('explains monthly resets for materials, but not the owned skills cap', () => {
+    render(<BillingPage />)
+
+    const materialsUsage = screen.getByText('Materials').parentElement!.parentElement!
+    expect(within(materialsUsage).getByText('Monthly quotas reset on the 1st at 00:00 Beijing time (UTC+8).')).toBeInTheDocument()
+    const skillsUsage = screen.getByText('Skills').parentElement!.parentElement!
+    expect(within(skillsUsage).queryByText(/Monthly quotas reset/)).not.toBeInTheDocument()
   })
 
   it('tracks attribution, renders current usage, and supports upgrade and redeem actions', async () => {

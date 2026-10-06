@@ -1,7 +1,9 @@
 """
 Rate Limiting - Simple in-memory rate limiter with proxy support.
 """
+
 import logging
+import math
 import os
 import time
 from collections import defaultdict
@@ -10,6 +12,12 @@ from ipaddress import IPv4Network, IPv6Network, ip_address, ip_network
 
 from fastapi import Depends, HTTPException, Request, status
 
+from config.datetime_utils import (
+    beijing_date,
+    beijing_day_bounds,
+    normalize_datetime_to_utc,
+    utcnow,
+)
 from services.infra.redis_client import get_redis_client
 from utils.logger import get_logger, log_with_context
 
@@ -30,7 +38,7 @@ def _parse_ip(candidate: str | None) -> str | None:
         return None
 
     if raw.startswith("[") and "]" in raw:
-        raw = raw[1:raw.index("]")]
+        raw = raw[1 : raw.index("]")]
 
     try:
         return str(ip_address(raw))
@@ -210,9 +218,7 @@ def _should_try_redis() -> bool:
 
 def _record_redis_failure(error: Exception) -> None:
     global _redis_retry_after_monotonic
-    _redis_retry_after_monotonic = (
-        time.monotonic() + _get_redis_error_cooldown_seconds()
-    )
+    _redis_retry_after_monotonic = time.monotonic() + _get_redis_error_cooldown_seconds()
     log_with_context(
         logger,
         logging.WARNING,
@@ -288,9 +294,7 @@ def check_rate_limit(
     window_start = now - window_seconds
 
     # Clean old entries
-    _rate_limit_store[rate_key] = [
-        t for t in _rate_limit_store[rate_key] if t > window_start
-    ]
+    _rate_limit_store[rate_key] = [t for t in _rate_limit_store[rate_key] if t > window_start]
 
     # Check limit
     if len(_rate_limit_store[rate_key]) >= max_requests:
@@ -307,14 +311,15 @@ def require_rate_limit(key: str, max_requests: int, window_seconds: int):
     Never derive a bucket from authentication headers here: until a credential
     has been validated, an attacker can rotate arbitrary header values.
     """
+
     def check(request: Request):
         allowed, remaining = check_rate_limit(request, key, max_requests, window_seconds)
         if not allowed:
             raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Rate limit exceeded. Please try again later."
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Rate limit exceeded. Please try again later."
             )
         return remaining
+
     return check
 
 
@@ -400,4 +405,71 @@ def require_user_rate_limit(key: str, max_requests: int, window_seconds: int):
     check.rate_limit_key = key
     check.rate_limit_max_requests = max_requests
     check.rate_limit_window_seconds = window_seconds
+    return check
+
+
+def require_user_beijing_daily_rate_limit(key: str, max_requests: int):
+    """构造按登录用户、北京时间自然日计数的限流依赖。
+
+    日期被写入 Redis 与内存使用的同一 bucket key，因此北京时间零点会切换到
+    新 bucket；Redis TTL 和 429 的 Retry-After 都精确到下一次北京时间零点。
+    小时、分钟等滚动窗口继续使用 :func:`require_user_rate_limit`。
+    """
+    # 延迟 import，避免 services.auth 与 middleware 形成模块级循环依赖。
+    from services.auth import get_current_active_user
+
+    def check(
+        _request: Request,
+        current_user=Depends(get_current_active_user),
+    ) -> int:
+        now = normalize_datetime_to_utc(utcnow())
+        _, period_end = beijing_day_bounds(now)
+        retry_after = max(1, math.ceil((period_end - now).total_seconds()))
+        bucket_prefix = f"{key}:user_{current_user.id}:beijing_day:"
+        rate_key = f"{bucket_prefix}{beijing_date(now).isoformat()}"
+
+        redis_result = _check_rate_limit_redis(
+            rate_key=rate_key,
+            max_requests=max_requests,
+            window_seconds=retry_after,
+        )
+        if redis_result is not None:
+            allowed, remaining = redis_result
+        else:
+            # A natural-day bucket must not use the rolling-window timestamp
+            # cleanup in check_rate_limit: near midnight its shrinking TTL
+            # would incorrectly discard requests made earlier the same day.
+            for stale_key in tuple(_rate_limit_store):
+                if stale_key.startswith(bucket_prefix) and stale_key != rate_key:
+                    del _rate_limit_store[stale_key]
+            bucket = _rate_limit_store[rate_key]
+            if len(bucket) >= max_requests:
+                allowed, remaining = False, 0
+            else:
+                bucket.append(now.timestamp())
+                allowed, remaining = True, max_requests - len(bucket)
+
+        if not allowed:
+            log_with_context(
+                logger,
+                logging.WARNING,
+                "LLM endpoint Beijing daily rate limit exceeded",
+                rate_limit_key=key,
+                user_id=current_user.id,
+                max_requests=max_requests,
+                retry_after_seconds=retry_after,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Daily rate limit exceeded. Please try again after 00:00 Beijing time.",
+                headers={"Retry-After": str(retry_after)},
+            )
+        return remaining
+
+    # Keep the same route-introspection contract as rolling-window limiters,
+    # while making the fixed calendar period explicit to callers/tests.
+    check.rate_limit_key = key
+    check.rate_limit_max_requests = max_requests
+    check.rate_limit_window_seconds = 86400
+    check.rate_limit_period = "beijing_day"
     return check

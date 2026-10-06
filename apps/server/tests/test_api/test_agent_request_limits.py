@@ -69,7 +69,7 @@ async def test_stream_rejects_oversized_message_with_422_before_charging(
     )
     token = login.json()["access_token"]
 
-    with patch("api.agent.quota_service.consume_ai_conversation") as consume:
+    with patch("api.agent.quota_service.reserve_ai_conversation") as consume:
         too_long = await client.post(
             "/api/v1/agent/stream",
             json={"project_id": project.id, "message": "字" * (AGENT_MESSAGE_MAX_CHARS + 1)},

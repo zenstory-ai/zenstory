@@ -11,13 +11,46 @@ from api.subscription import (
 from models.subscription import SubscriptionPlan
 
 
-def test_normalize_plan_features_for_response_infers_material_access_and_export_formats():
+def test_normalize_plan_features_for_response_uses_plan_defaults_and_filters_exports():
     normalized = _normalize_plan_features_for_response(
-        {"material_uploads": 1, "export_formats": ["docx", "txt", "docx"]}
+        {"export_formats": ["docx", "txt", "docx"]},
+        plan_name="pro",
     )
 
     assert normalized["materials_library_access"] is True
+    assert normalized["ai_conversations_per_day"] == -1
+    assert normalized["max_projects"] == -1
+    assert normalized["material_uploads"] == 5
     assert normalized["export_formats"] == ["txt"]
+
+
+def test_normalize_plan_features_does_not_infer_access_from_free_upload_limit():
+    normalized = _normalize_plan_features_for_response(
+        {"material_uploads": 1},
+        plan_name="free",
+    )
+
+    assert normalized["materials_library_access"] is False
+    assert normalized["material_uploads"] == 1
+
+
+def test_normalize_plan_features_preserves_explicit_false_and_zero_overrides():
+    normalized = _normalize_plan_features_for_response(
+        {
+            "ai_conversations_per_day": 0,
+            "materials_library_access": False,
+            "material_uploads": 0,
+            "material_decompositions": 0,
+            "custom_skills": 0,
+        },
+        plan_name="pro",
+    )
+
+    assert normalized["ai_conversations_per_day"] == 0
+    assert normalized["materials_library_access"] is False
+    assert normalized["material_uploads"] == 0
+    assert normalized["material_decompositions"] == 0
+    assert normalized["custom_skills"] == 0
 
 
 def test_normalize_plan_entitlements_sanitizes_invalid_values():
@@ -25,13 +58,18 @@ def test_normalize_plan_entitlements_sanitizes_invalid_values():
         "pro",
         {
             "ai_conversations_per_day": "bad",
+            "writing_credits_monthly": 999,
+            "agent_runs_monthly": 999,
             "material_uploads_monthly": "oops",
+            "material_uploads": "bad",
             "materials_library_access": 0,
             "priority_queue_level": "urgent",
         },
     )
 
+    assert entitlements["ai_conversations_per_day"] == 0
     assert entitlements["writing_credits_monthly"] == 0
+    assert entitlements["agent_runs_monthly"] == 0
     assert entitlements["material_uploads_monthly"] == 0
     assert entitlements["materials_library_access"] is False
     # Unimplemented perks are never derived from stored features.

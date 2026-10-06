@@ -3,12 +3,12 @@ Quota Service - Manages usage quotas and limits.
 
 All quota operations use atomic database updates to prevent race conditions.
 """
-from datetime import datetime, timedelta
+from datetime import UTC, datetime
 
 from sqlalchemy import update
 from sqlmodel import Session, func, select
 
-from config.datetime_utils import utcnow
+from config.datetime_utils import BEIJING_TIMEZONE, beijing_day_bounds, normalize_datetime_to_utc, utcnow
 from models.entities import Project
 from models.skill import UserSkill
 from models.subscription import SubscriptionPlan, UsageQuota, UserSubscription
@@ -217,16 +217,7 @@ class QuotaService:
     ) -> bool:
         """Return whether a user has access to a boolean-style entitlement."""
         plan = self.get_user_plan(session, user_id)
-        features = plan.features if plan and plan.features else DEFAULT_FREE_TIER_FEATURES
-        raw_value = features.get(feature_key)
-
-        if raw_value is None and feature_key == "materials_library_access":
-            inferred_limit = features.get("material_decompositions")
-            if inferred_limit not in (None, 0):
-                return True
-            inferred_upload_limit = features.get("material_uploads")
-            if inferred_upload_limit not in (None, 0):
-                return True
+        raw_value = self.get_plan_feature(plan, feature_key, default)
 
         if isinstance(raw_value, bool):
             return raw_value
@@ -281,7 +272,7 @@ class QuotaService:
         - limit: daily limit (-1 for unlimited)
         """
         plan = self.get_user_plan(session, user_id)
-        limit = plan.features.get("ai_conversations_per_day", 20) if plan else 20
+        limit = self.get_plan_feature(plan, "ai_conversations_per_day")
 
         # Reset quota if needed
         quota = self._get_or_create_quota(session, user_id)
@@ -321,7 +312,7 @@ class QuotaService:
             "ai_conversations": {
                 "used": quota.ai_conversations_used,
                 "limit": ai_limit,
-                "reset_at": quota.period_end,
+                "reset_at": normalize_datetime_to_utc(quota.period_end),
             }
         }
 
@@ -330,7 +321,7 @@ class QuotaService:
             snapshot[response_key] = {
                 "used": getattr(quota, used_field, 0),
                 "limit": self.get_plan_feature(plan, limit_field),
-                "reset_at": quota.monthly_period_end,
+                "reset_at": normalize_datetime_to_utc(quota.monthly_period_end) if quota.monthly_period_end else None,
             }
         # Custom skills cap what the user owns now, not monthly creations.
         snapshot["skill_creates"] = {
@@ -342,14 +333,18 @@ class QuotaService:
         return snapshot
 
     def consume_ai_conversation(self, session: Session, user_id: str) -> bool:
-        """
-        Increment AI conversation count atomically.
+        """Consume a daily unit; use reserve_ai_conversation when it may be refunded."""
+        return self.reserve_ai_conversation(session, user_id) is not None
 
-        Uses atomic UPDATE to prevent race conditions.
-        Returns True if successful, False if quota exceeded.
+    def reserve_ai_conversation(self, session: Session, user_id: str) -> datetime | None:
+        """
+        Increment AI conversation count and return the charged day's UTC start.
+
+        The period comes from the same atomic UPDATE as the charge, rather than
+        the request/response timestamp. None means the quota was exceeded.
         """
         plan = self.get_user_plan(session, user_id)
-        limit = plan.features.get("ai_conversations_per_day", 20) if plan else 20
+        limit = self.get_plan_feature(plan, "ai_conversations_per_day")
 
         quota = self._get_or_create_quota(session, user_id)
         self._reset_quota_if_needed(session, quota)
@@ -358,24 +353,28 @@ class QuotaService:
             update(UsageQuota)
             .where(UsageQuota.user_id == user_id)
             .values(ai_conversations_used=UsageQuota.ai_conversations_used + 1)
+            .returning(UsageQuota.period_start)
         )
         if limit != -1:
             query = query.where(UsageQuota.ai_conversations_used < limit)
 
-        result = session.exec(query)
-        if limit != -1 and result.rowcount == 0:
+        period_start = session.exec(query).scalar_one_or_none()
+        if period_start is None:
             session.rollback()
-            return False
+            return None
 
         session.commit()
-        return True
+        return normalize_datetime_to_utc(period_start)
 
-    def release_ai_conversation(self, session: Session, user_id: str) -> bool:
+    def release_ai_conversation(
+        self, session: Session, user_id: str, *, period_start: datetime | None = None
+    ) -> bool:
         """
         Decrement AI conversation count atomically as a compensation action.
 
         Returns True if one unit was refunded, False when there is nothing to refund
-        or the target row does not exist.
+        or the target row does not exist. A reservation's period_start prevents
+        a failed request from refunding another day's usage after midnight.
         """
         quota = self._get_or_create_quota(session, user_id)
         self._reset_quota_if_needed(session, quota)
@@ -387,6 +386,8 @@ class QuotaService:
             .where(UsageQuota.ai_conversations_used > 0)
             .values(ai_conversations_used=UsageQuota.ai_conversations_used - 1)
         )
+        if period_start is not None:
+            query = query.where(UsageQuota.period_start == normalize_datetime_to_utc(period_start))
 
         result = session.exec(query)
         if result.rowcount == 0:
@@ -401,15 +402,16 @@ class QuotaService:
     ) -> UsageQuota:
         """Create default usage quota for a new user."""
         now = utcnow()
-        # AI conversation quota is a rolling daily window.
-        period_end = now + timedelta(hours=24)
+        period_start, period_end = beijing_day_bounds(now)
 
         quota = UsageQuota(
             user_id=user_id,
-            period_start=now,
+            period_start=period_start,
             period_end=period_end,
             ai_conversations_used=0,
-            last_reset_at=now
+            last_reset_at=now,
+            monthly_period_start=self._get_month_start(now),
+            monthly_period_end=self._get_next_month_start(now),
         )
         session.add(quota)
         if commit:
@@ -437,36 +439,46 @@ class QuotaService:
 
     def _reset_quota_if_needed(self, session: Session, quota: UsageQuota) -> bool:
         """
-        Reset daily quota if the period has ended.
+        Reset daily quota at Beijing midnight, lazily on the next access.
 
-        Returns True if reset was performed.
+        Same-day legacy rolling windows are normalized without losing usage.
+        Returns True only when this call reset the daily counter.
         """
         now = utcnow()
+        period_start, period_end = beijing_day_bounds(now)
 
-        # Handle timezone-aware vs naive datetime comparison
-        # quota.last_reset_at may be naive (from datetime.utcnow) while now is timezone-aware
         last_reset = quota.last_reset_at
-        if last_reset:
-            # If last_reset is naive but now is aware, make last_reset aware
-            if last_reset.tzinfo is None and now.tzinfo is not None:
-                from datetime import UTC
-                last_reset = last_reset.replace(tzinfo=UTC)
-            elif last_reset.tzinfo is not None and now.tzinfo is None:
-                # If now is naive but last_reset is aware, make now aware
-                from datetime import UTC
-                now = now.replace(tzinfo=UTC)
+        if normalize_datetime_to_utc(last_reset) >= period_start:
+            if (
+                normalize_datetime_to_utc(quota.period_start) != period_start
+                or normalize_datetime_to_utc(quota.period_end) != period_end
+            ):
+                # Only repair timestamps; never overwrite a concurrent consumption.
+                session.exec(
+                    update(UsageQuota)
+                    .where(UsageQuota.id == quota.id, UsageQuota.last_reset_at == last_reset)
+                    .values(period_start=period_start, period_end=period_end)
+                    .execution_options(synchronize_session=False)
+                )
+                session.commit()
+                session.refresh(quota)
+            return False
 
-            if (now - last_reset) < timedelta(hours=24):
-                return False
-
-        # Reset daily counters
-        quota.ai_conversations_used = 0
-        quota.last_reset_at = now
-        quota.period_start = now
-        quota.period_end = now + timedelta(hours=24)
-        session.add(quota)
+        # A stale reader must not reset usage consumed after another request reset it.
+        result = session.exec(
+            update(UsageQuota)
+            .where(UsageQuota.id == quota.id, UsageQuota.last_reset_at < period_start)
+            .values(
+                ai_conversations_used=0,
+                last_reset_at=now,
+                period_start=period_start,
+                period_end=period_end,
+            )
+            .execution_options(synchronize_session=False)
+        )
         session.commit()
-        return True
+        session.refresh(quota)
+        return result.rowcount > 0
 
     def check_feature_quota(
         self, session: Session, user_id: str, feature_type: str
@@ -514,11 +526,17 @@ class QuotaService:
     def consume_feature_quota(
         self, session: Session, user_id: str, feature_type: str
     ) -> bool:
-        """
-        Atomically consume one unit of feature quota.
+        """Consume a monthly unit; use reserve_feature_quota when it may be refunded."""
+        return self.reserve_feature_quota(session, user_id, feature_type) is not None
 
-        Uses SQLAlchemy update() for atomicity.
-        Returns True if successful, False if quota exceeded.
+    def reserve_feature_quota(
+        self, session: Session, user_id: str, feature_type: str
+    ) -> datetime | None:
+        """
+        Atomically consume a feature unit and return its charged month's UTC start.
+
+        None means the quota was exceeded. Persist this period for asynchronous
+        work so that a later failure cannot refund a different month's usage.
         """
         if feature_type not in FEATURE_QUOTA_MAP:
             raise ValueError(f"Unknown feature type: {feature_type}")
@@ -536,26 +554,30 @@ class QuotaService:
             update(UsageQuota)
             .where(UsageQuota.user_id == user_id)
             .values(**{used_field: used_column + 1})
+            .returning(UsageQuota.monthly_period_start)
         )
         if limit != -1:
             query = query.where(used_column < limit)
 
-        result = session.exec(query)
-        if limit != -1 and result.rowcount == 0:
+        period_start = session.exec(query).scalar_one_or_none()
+        if period_start is None:
             session.rollback()
-            return False
+            return None
 
         session.commit()
-        return True
+        return normalize_datetime_to_utc(period_start)
 
     def release_feature_quota(
-        self, session: Session, user_id: str, feature_type: str
+        self, session: Session, user_id: str, feature_type: str,
+        *, period_start: datetime | None = None, consumed_at: datetime | None = None,
     ) -> bool:
         """
         Decrement a monthly feature quota atomically as a compensation action.
 
         Returns True if one unit was refunded, False when there is nothing to
-        refund or the target row does not exist.
+        refund or the target row does not exist. A reservation's period_start
+        matches the actual charged month. consumed_at is a fallback for older
+        callers without a recorded reservation period.
         """
         if feature_type not in FEATURE_QUOTA_MAP:
             raise ValueError(f"Unknown feature type: {feature_type}")
@@ -573,6 +595,10 @@ class QuotaService:
             .where(used_column > 0)
             .values(**{used_field: used_column - 1})
         )
+        if period_start is not None:
+            query = query.where(UsageQuota.monthly_period_start == normalize_datetime_to_utc(period_start))
+        elif consumed_at is not None:
+            query = query.where(UsageQuota.monthly_period_start == self._get_month_start(consumed_at))
 
         result = session.exec(query)
         if result.rowcount == 0:
@@ -586,55 +612,65 @@ class QuotaService:
         self, session: Session, quota: UsageQuota
     ) -> bool:
         """
-        Reset monthly quota if the period has ended.
+        Reset monthly quota at Beijing midnight on the first of the month.
 
-        Triggers on the 1st of each month at UTC 00:00:00.
-        Returns True if reset was performed.
+        Jump directly to the current month after inactivity. Normalize legacy
+        UTC windows without clearing same-month usage. Missing period metadata
+        is initialized without discarding usage whose month is unknown.
         """
         now = utcnow()
 
-        # Initialize monthly period if not set
-        if quota.monthly_period_start is None or quota.monthly_period_end is None:
-            quota.monthly_period_start = self._get_month_start(now)
-            quota.monthly_period_end = self._get_next_month_start(now)
-            quota.material_uploads_used = 0
-            quota.material_decompositions_used = 0
-            quota.skill_creates_used = 0
-            quota.inspiration_copies_used = 0
-            session.add(quota)
-            session.commit()
-            return True
-
-        # Handle timezone-aware vs naive datetime comparison
-        period_end = quota.monthly_period_end
-        if period_end.tzinfo is None and now.tzinfo is not None:
-            from datetime import UTC
-            period_end = period_end.replace(tzinfo=UTC)
-
-        # Check if current time is past the monthly period end
-        if now < period_end:
+        period_start = self._get_month_start(now)
+        period_end = self._get_next_month_start(now)
+        old_start, old_end = quota.monthly_period_start, quota.monthly_period_end
+        if (
+            old_start is not None and normalize_datetime_to_utc(old_start) == period_start
+            and old_end is not None and normalize_datetime_to_utc(old_end) == period_end
+        ):
             return False
 
-        # Reset monthly counters
-        quota.monthly_period_start = quota.monthly_period_end
-        quota.monthly_period_end = self._get_next_month_start(quota.monthly_period_end)
-        quota.material_uploads_used = 0
-        quota.material_decompositions_used = 0
-        quota.skill_creates_used = 0
-        quota.inspiration_copies_used = 0
-        session.add(quota)
+        reset_needed = (
+            (old_start is not None and normalize_datetime_to_utc(old_start) < period_start)
+            or (old_end is not None and normalize_datetime_to_utc(old_end) <= normalize_datetime_to_utc(now))
+        )
+        values = {"monthly_period_start": period_start, "monthly_period_end": period_end}
+        if reset_needed:
+            values.update(
+                material_uploads_used=0,
+                material_decompositions_used=0,
+                skill_creates_used=0,
+                inspiration_copies_used=0,
+            )
+        # Compare-and-set: only one request may reset a given old window.
+        result = session.exec(
+            update(UsageQuota)
+            .where(
+                UsageQuota.id == quota.id,
+                UsageQuota.monthly_period_start == old_start,
+                UsageQuota.monthly_period_end == old_end,
+            )
+            .values(**values)
+            .execution_options(synchronize_session=False)
+        )
         session.commit()
-        return True
+        session.refresh(quota)
+        return reset_needed and result.rowcount > 0
 
     def _get_month_start(self, date: datetime) -> datetime:
-        """Get the 1st of the month for the given date at UTC 00:00:00."""
-        return datetime(date.year, date.month, 1, 0, 0, 0)
+        """Get Beijing month start as a UTC timestamp (including naive UTC input)."""
+        local_start = normalize_datetime_to_utc(date).astimezone(BEIJING_TIMEZONE).replace(
+            day=1, hour=0, minute=0, second=0, microsecond=0
+        )
+        return local_start.astimezone(UTC)
 
     def _get_next_month_start(self, date: datetime) -> datetime:
-        """Calculate the 1st of next month at UTC 00:00:00."""
-        if date.month == 12:
-            return datetime(date.year + 1, 1, 1, 0, 0, 0)
-        return datetime(date.year, date.month + 1, 1, 0, 0, 0)
+        """Get next Beijing month start as a UTC timestamp."""
+        local_start = self._get_month_start(date).astimezone(BEIJING_TIMEZONE)
+        if local_start.month == 12:
+            local_end = local_start.replace(year=local_start.year + 1, month=1)
+        else:
+            local_end = local_start.replace(month=local_start.month + 1)
+        return local_end.astimezone(UTC)
 
 
 # Singleton instance

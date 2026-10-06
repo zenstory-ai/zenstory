@@ -2,13 +2,13 @@
 Tests for admin quota/check-in/referral metric endpoints.
 """
 
-from datetime import timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
 from sqlmodel import Session
 
-from config.datetime_utils import utcnow
+from config.datetime_utils import beijing_date, utcnow
 from models import UpgradeFunnelEvent, User
 from models.points import CheckInRecord
 from models.referral import (
@@ -172,8 +172,13 @@ async def test_admin_check_in_stats_and_records_filter(client: AsyncClient, db_s
     user_a = await create_user(db_session, "checkin_user_a", "checkin_user_a@example.com")
     user_b = await create_user(db_session, "checkin_user_b", "checkin_user_b@example.com")
 
-    today = utcnow().date()
+    today = beijing_date(utcnow())
     yesterday = today - timedelta(days=1)
+
+    def created_on_beijing_day(day: date) -> datetime:
+        return datetime.combine(
+            day - timedelta(days=1), datetime.min.time(), tzinfo=UTC
+        ).replace(hour=17)
 
     db_session.add(
         CheckInRecord(
@@ -181,6 +186,7 @@ async def test_admin_check_in_stats_and_records_filter(client: AsyncClient, db_s
             check_in_date=today,
             streak_days=9,
             points_earned=10,
+            created_at=created_on_beijing_day(today),
         )
     )
     db_session.add(
@@ -189,6 +195,7 @@ async def test_admin_check_in_stats_and_records_filter(client: AsyncClient, db_s
             check_in_date=today,
             streak_days=2,
             points_earned=5,
+            created_at=created_on_beijing_day(today),
         )
     )
     db_session.add(
@@ -197,6 +204,7 @@ async def test_admin_check_in_stats_and_records_filter(client: AsyncClient, db_s
             check_in_date=yesterday,
             streak_days=8,
             points_earned=8,
+            created_at=created_on_beijing_day(yesterday),
         )
     )
     db_session.commit()
@@ -225,6 +233,84 @@ async def test_admin_check_in_stats_and_records_filter(client: AsyncClient, db_s
     assert len(records_data["items"]) == 2
     assert all(item["user_id"] == user_a.id for item in records_data["items"])
     assert all(item["username"] == user_a.username for item in records_data["items"])
+
+
+@pytest.mark.integration
+async def test_admin_check_in_stats_use_beijing_days_and_include_legacy_records(
+    client: AsyncClient,
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    now = datetime(2026, 10, 5, 17, 0, tzinfo=UTC)  # 2026-10-06 01:00 in Beijing
+    monkeypatch.setattr("api.admin.checkin.utcnow", lambda: now)
+    admin = await create_user(
+        db_session,
+        "admin_checkin_beijing",
+        "admin_checkin_beijing@example.com",
+        is_superuser=True,
+    )
+    target = await create_user(
+        db_session,
+        "checkin_beijing_target",
+        "checkin_beijing_target@example.com",
+    )
+    current_format_target = await create_user(
+        db_session,
+        "checkin_beijing_current",
+        "checkin_beijing_current@example.com",
+    )
+    db_session.add_all(
+        [
+            # Legacy records stored the UTC date. At UTC 17:00 this belongs to
+            # the next Beijing calendar day and must be counted as today.
+            CheckInRecord(
+                user_id=target.id,
+                check_in_date=date(2026, 10, 5),
+                streak_days=8,
+                points_earned=10,
+                created_at=datetime(2026, 10, 5, 17, 0, tzinfo=UTC),
+            ),
+            CheckInRecord(
+                user_id=target.id,
+                check_in_date=date(2026, 10, 4),
+                streak_days=7,
+                points_earned=10,
+                created_at=datetime(2026, 10, 4, 17, 0, tzinfo=UTC),
+            ),
+            CheckInRecord(
+                user_id=current_format_target.id,
+                check_in_date=date(2026, 10, 6),
+                streak_days=2,
+                points_earned=10,
+                created_at=datetime(2026, 10, 5, 18, 0, tzinfo=UTC),
+            ),
+        ]
+    )
+    db_session.commit()
+
+    token = await login_user(client, admin.username)
+    response = await client.get(
+        "/api/admin/check-in/stats",
+        headers=auth_headers(token),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["today_count"] == 2
+    assert payload["yesterday_count"] == 1
+    assert payload["week_total"] == 3
+    assert payload["streak_distribution"] == {"7": 1}
+
+    records_response = await client.get(
+        "/api/admin/check-in/records",
+        headers=auth_headers(token),
+        params={"user_id": target.id},
+    )
+    assert records_response.status_code == 200
+    assert [item["check_in_date"] for item in records_response.json()["items"]] == [
+        "2026-10-06",
+        "2026-10-05",
+    ]
 
 
 @pytest.mark.integration

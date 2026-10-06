@@ -49,7 +49,7 @@ class CheckInRecord(SQLModel, table=True):
     Check-in record model with streak tracking.
 
     Tracks daily check-ins with:
-    - UTC date for consistent daily tracking
+    - Beijing calendar date for consistent daily tracking
     - Streak days count at check-in time
     - Points earned for this check-in
     """
@@ -62,7 +62,7 @@ class CheckInRecord(SQLModel, table=True):
     id: str = Field(default_factory=generate_uuid, primary_key=True)
     user_id: str = Field(foreign_key="user.id", index=True)
 
-    # Check-in date (UTC date)
+    # Check-in date (Beijing calendar date; legacy rows may contain the UTC date)
     check_in_date: date = Field(index=True)
 
     # Streak days count at this check-in

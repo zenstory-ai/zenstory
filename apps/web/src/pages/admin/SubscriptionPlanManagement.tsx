@@ -32,8 +32,6 @@ const PlanCard: React.FC<{
 
   const featureLabels: Record<string, string> = {
     ai_conversations_per_day: t("plans.featuresDetail.ai_conversations_per_day"),
-    writing_credits_monthly: t("plans.featuresDetail.writing_credits_monthly"),
-    agent_runs_monthly: t("plans.featuresDetail.agent_runs_monthly"),
     context_window_tokens: t("plans.featuresDetail.context_window_tokens"),
     context_tokens_limit: t("plans.featuresDetail.context_tokens_limit"),
     file_versions_per_file: t("plans.featuresDetail.file_versions_per_file"),
@@ -54,8 +52,6 @@ const PlanCard: React.FC<{
 
   const featureDisplayOrder = [
     "ai_conversations_per_day",
-    "writing_credits_monthly",
-    "agent_runs_monthly",
     "max_projects",
     "active_projects_limit",
     "context_window_tokens",
@@ -78,7 +74,12 @@ const PlanCard: React.FC<{
     Object.prototype.hasOwnProperty.call(plan.features, key)
   );
   const extraFeatureKeys = Object.keys(plan.features)
-    .filter((key) => !featureDisplayOrder.includes(key))
+    .filter(
+      (key) =>
+        !featureDisplayOrder.includes(key)
+        && key !== "writing_credits_monthly"
+        && key !== "agent_runs_monthly",
+    )
     .sort();
   const planFeatureKeys = [...knownFeatureKeys, ...extraFeatureKeys].filter(
     (key) => inspirationsConfig.enabled || key !== "inspiration_copies_monthly",

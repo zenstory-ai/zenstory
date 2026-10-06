@@ -11,6 +11,7 @@ import json
 import os
 import re
 import secrets
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.concurrency import run_in_threadpool
@@ -19,14 +20,13 @@ from services.auth import get_current_active_user
 from sqlmodel import Session, select
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
-from config.datetime_utils import utcnow
+from config.datetime_utils import normalize_datetime_to_utc, utcnow
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from core.permissions import (
     FeatureNotIncludedException,
     QuotaExceededException,
     check_quota,
-    consume_quota,
 )
 from database import get_session
 from middleware.rate_limit import require_user_rate_limit
@@ -64,6 +64,11 @@ SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9._-]+")
 DISPATCH_FAILURE_MESSAGE = "Failed to dispatch ingestion flow"
 UPLOAD_FILENAME_TOKEN_BYTES = 8
 MAX_UPLOAD_FILENAME_ATTEMPTS = 10
+
+
+def _quota_period_iso(period_start: datetime) -> str:
+    """Serialize a reserved quota period as an unambiguous UTC timestamp."""
+    return normalize_datetime_to_utc(period_start).isoformat()
 
 
 def _sanitize_original_filename(filename: str) -> str:
@@ -393,7 +398,10 @@ async def process_material_upload(
     # Quota is consumed atomically after request/file validation and before any
     # runnable job exists. The endpoint owns compensation until Prefect accepts.
     check_quota("material_decompose", session, current_user.id)
-    if not consume_quota("material_decompose", session, current_user.id):
+    quota_period_start = quota_service.reserve_feature_quota(
+        session, current_user.id, "material_decompose"
+    )
+    if quota_period_start is None:
         _, used, limit = quota_service.check_feature_quota(
             session, current_user.id, "material_decompose"
         )
@@ -414,7 +422,10 @@ async def process_material_upload(
         quota_consumed = False
         try:
             return quota_service.release_feature_quota(
-                session, current_user.id, "material_decompose"
+                session,
+                current_user.id,
+                "material_decompose",
+                period_start=quota_period_start,
             )
         except Exception as refund_error:
             logger.error(
@@ -467,7 +478,12 @@ async def process_material_upload(
             processed_chapters=0,
         )
         job.update_stage_progress("queue", "pending", message="等待调度")
-        IngestionJobsService.set_billing(job, quota_charged=True, quota_refunded=False)
+        IngestionJobsService.set_billing(
+            job,
+            quota_charged=True,
+            quota_refunded=False,
+            quota_period_start=_quota_period_iso(quota_period_start),
+        )
         session.add(job)
         session.commit()
         session.refresh(job)
@@ -577,6 +593,9 @@ async def retry_material_job(
 
     check_quota("material_decompose", session, current_user.id)
 
+    quota_period_start = quota_service.reserve_feature_quota(
+        session, current_user.id, "material_decompose"
+    )
     quota_consumed = False
 
     def _refund_retry_quota_once() -> bool:
@@ -586,7 +605,10 @@ async def retry_material_job(
         quota_consumed = False
         try:
             return quota_service.release_feature_quota(
-                session, current_user.id, "material_decompose"
+                session,
+                current_user.id,
+                "material_decompose",
+                period_start=quota_period_start,
             )
         except Exception as refund_error:
             logger.error(
@@ -596,9 +618,7 @@ async def retry_material_job(
             )
             return False
 
-    if consume_quota("material_decompose", session, current_user.id):
-        quota_consumed = True
-    else:
+    if quota_period_start is None:
         _allowed, used, limit = quota_service.check_feature_quota(
             session, current_user.id, "material_decompose"
         )
@@ -610,6 +630,7 @@ async def retry_material_job(
             used=used,
             limit=limit,
         )
+    quota_consumed = True
 
     new_job: IngestionJob | None = None
     try:
@@ -622,7 +643,12 @@ async def retry_material_job(
             processed_chapters=0,
         )
         new_job.update_stage_progress("queue", "pending", message="等待重试调度")
-        IngestionJobsService.set_billing(new_job, quota_charged=True, quota_refunded=False)
+        IngestionJobsService.set_billing(
+            new_job,
+            quota_charged=True,
+            quota_refunded=False,
+            quota_period_start=_quota_period_iso(quota_period_start),
+        )
         session.add(new_job)
         session.commit()
         session.refresh(new_job)

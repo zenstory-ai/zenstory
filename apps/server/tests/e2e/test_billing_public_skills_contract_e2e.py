@@ -88,7 +88,7 @@ async def test_subscription_catalog_contract_supports_billing_page_entitlements(
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["version"] == "2026-02"
+    assert payload["version"] == "2026-03"
     assert payload["comparison_mode"] == "task_outcome"
     assert payload["pricing_anchor_monthly_cents"] == 4900
     assert [tier["name"] for tier in payload["tiers"]] == ["free", "pro"]
@@ -101,8 +101,9 @@ async def test_subscription_catalog_contract_supports_billing_page_entitlements(
     assert pro_tier["summary_key"] == "creator"
     assert pro_tier["target_user_key"] == "daily_writer"
     assert pro_tier["entitlements"] == {
-        "writing_credits_monthly": 450,
-        "agent_runs_monthly": 60,
+        "ai_conversations_per_day": 15,
+        "writing_credits_monthly": 0,
+        "agent_runs_monthly": 0,
         "active_projects_limit": 6,
         "materials_library_access": True,
         "material_uploads_monthly": 12,

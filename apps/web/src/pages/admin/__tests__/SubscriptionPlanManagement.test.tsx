@@ -163,4 +163,27 @@ describe("SubscriptionPlanManagement", () => {
 
     expect(screen.queryByText("plans.featuresDetail.inspiration_copies_monthly")).not.toBeInTheDocument();
   });
+
+  it("does not present unenforced monthly writing or agent fields", () => {
+    useQueryMock.mockReturnValue({
+      data: [{
+        ...plan,
+        features: {
+          ...plan.features,
+          writing_credits_monthly: 600000,
+          agent_runs_monthly: 120,
+        },
+      }],
+      isLoading: false,
+      isFetching: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<SubscriptionPlanManagement />);
+
+    expect(screen.queryByText("plans.featuresDetail.writing_credits_monthly")).not.toBeInTheDocument();
+    expect(screen.queryByText("plans.featuresDetail.agent_runs_monthly")).not.toBeInTheDocument();
+  });
 });

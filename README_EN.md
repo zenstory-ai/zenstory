@@ -351,7 +351,9 @@ No. To let it read an entry, use Attach to Chat in the project's Novel Reference
 
 ### What does the free plan include?
 
-On the hosted service: 20 AI conversations a day (rolling 24-hour window), up to 3 projects, 10 of your own saved versions per file (after that your text still saves, just without new versions), TXT export, no material library, and each month 3 new custom skills and 10 inspiration-template copies. The free plan does not expire.
+On the hosted service: 20 AI conversations a day (reset at 00:00 Beijing time, UTC+8), up to 3 projects, 10 of your own saved versions per file (after that your text still saves, just without new versions), TXT export, no material library, up to 3 custom skills, and 10 inspiration-template copies per month. Monthly quotas for material uploads, decompositions, and inspiration copies reset on the 1st at 00:00 Beijing time, independently of membership validity. The free plan does not expire.
+
+Daily check-ins and the separate daily protective limit for automatic suggestions also follow Beijing midnight. Suggestions do not consume conversation quota; hourly rate limits still apply independently. Plan comparisons show the daily conversation limit actually enforced, not projected monthly task counts or word-count promises.
 
 ### Can I bring in a manuscript I've already written?
 

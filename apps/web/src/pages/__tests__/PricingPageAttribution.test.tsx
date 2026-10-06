@@ -81,7 +81,7 @@ describe("PricingPage attribution", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetCatalog.mockResolvedValue({
-      version: "2026-02",
+      version: "2026-03",
       comparison_mode: "task_outcome",
       pricing_anchor_monthly_cents: 4900,
       tiers: [
@@ -95,9 +95,10 @@ describe("PricingPage attribution", () => {
           summary_key: "starter",
           target_user_key: "explorer",
           entitlements: {
-            writing_credits_monthly: 120000,
-            agent_runs_monthly: 20,
-            active_projects_limit: 1,
+            ai_conversations_per_day: 20,
+            writing_credits_monthly: 0,
+            agent_runs_monthly: 0,
+            active_projects_limit: 3,
             material_uploads_monthly: 5,
             material_decompositions_monthly: 5,
             custom_skills_limit: 3,
@@ -115,9 +116,10 @@ describe("PricingPage attribution", () => {
           summary_key: "creator",
           target_user_key: "daily_writer",
           entitlements: {
-            writing_credits_monthly: 600000,
-            agent_runs_monthly: 120,
-            active_projects_limit: 5,
+            ai_conversations_per_day: -1,
+            writing_credits_monthly: 0,
+            agent_runs_monthly: 0,
+            active_projects_limit: -1,
             material_uploads_monthly: 50,
             material_decompositions_monthly: 50,
             custom_skills_limit: 20,

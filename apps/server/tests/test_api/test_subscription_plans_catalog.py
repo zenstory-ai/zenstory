@@ -204,7 +204,7 @@ async def test_subscription_catalog_returns_default_free_when_no_active_plans(
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["version"] == "2026-02"
+    assert payload["version"] == "2026-03"
     assert payload["comparison_mode"] == "task_outcome"
     assert payload["pricing_anchor_monthly_cents"] == 4900
     assert len(payload["tiers"]) == 1
@@ -234,11 +234,17 @@ async def test_subscription_catalog_normalizes_feature_based_entitlements(
             features={
                 "ai_conversations_per_day": 15,
                 "max_projects": 6,
+                "active_projects_limit": 999,
                 "context_window_tokens": "8192",
                 "material_uploads": 12,
+                "material_uploads_monthly": 999,
                 "material_decompositions": 8,
+                "material_decompositions_monthly": 999,
                 "custom_skills": 9,
+                "custom_skills_limit": 999,
                 "inspiration_copies_monthly": "33",
+                "writing_credits_monthly": 999,
+                "agent_runs_monthly": 999,
                 "priority_support": True,
                 "export_formats": "docx",  # invalid type should be normalized to []
             },
@@ -261,8 +267,11 @@ async def test_subscription_catalog_normalizes_feature_based_entitlements(
     assert tier["target_user_key"] == "daily_writer"
 
     entitlements = tier["entitlements"]
-    assert entitlements["writing_credits_monthly"] == 450
-    assert entitlements["agent_runs_monthly"] == 60
+    assert entitlements["ai_conversations_per_day"] == 15
+    # Legacy catalog-only fields are kept neutral for cached clients, but are
+    # neither derived from daily usage nor advertised as real entitlements.
+    assert entitlements["writing_credits_monthly"] == 0
+    assert entitlements["agent_runs_monthly"] == 0
     assert entitlements["active_projects_limit"] == 6
     # Deprecated neutral values: stored context/priority features are not advertised.
     assert entitlements["context_tokens_limit"] == 0
@@ -305,7 +314,7 @@ async def test_subscription_catalog_filters_unsupported_export_formats(
 
 
 @pytest.mark.integration
-async def test_subscription_catalog_respects_explicit_writing_credits_override(
+async def test_subscription_catalog_ignores_unenforced_monthly_output_aliases(
     client: AsyncClient,
     db_session: Session,
 ):
@@ -334,10 +343,9 @@ async def test_subscription_catalog_respects_explicit_writing_credits_override(
     tier = response.json()["tiers"][0]
     entitlements = tier["entitlements"]
 
-    # Explicit feature should win over ai_conversations_per_day derived value.
-    assert entitlements["writing_credits_monthly"] == 999
-    # agent_runs_monthly remains derived because no explicit override was provided.
-    assert entitlements["agent_runs_monthly"] == 40
+    assert entitlements["ai_conversations_per_day"] == 10
+    assert entitlements["writing_credits_monthly"] == 0
+    assert entitlements["agent_runs_monthly"] == 0
 
 
 @pytest.mark.integration

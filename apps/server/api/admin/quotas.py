@@ -12,7 +12,7 @@ from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import get_session
 from models import User
-from models.subscription import SubscriptionPlan, UsageQuota, UserSubscription
+from models.subscription import UsageQuota
 from services.core.auth_service import get_current_superuser
 from services.quota_service import quota_service
 from utils.logger import get_logger, log_with_context
@@ -106,36 +106,10 @@ def get_user_quota_detail(
             detail="User not found",
         )
 
-    # Get user's subscription
     resolved_user_id = user.id
-
-    subscription = session.exec(
-        select(UserSubscription).where(UserSubscription.user_id == resolved_user_id)
-    ).first()
-
-    # Get user's quota
-    quota = session.exec(
-        select(UsageQuota).where(UsageQuota.user_id == resolved_user_id)
-    ).first()
-
-    # Get plan info with defaults
-    plan_name = "free"
-    ai_conversations_limit = 20
-    material_upload_limit = 5
-    skill_create_limit = 3
-    inspiration_copy_limit = 10
-
-    if subscription:
-        plan = session.get(SubscriptionPlan, subscription.plan_id)
-        if plan:
-            plan_name = plan.name
-            features = plan.features or {}
-            ai_conversations_limit = features.get("ai_conversations_per_day", ai_conversations_limit)
-            material_upload_limit = features.get("material_uploads", material_upload_limit)
-            skill_create_limit = quota_service.get_plan_feature(plan, "custom_skills")
-            inspiration_copy_limit = quota_service.get_plan_feature(
-                plan, "inspiration_copies_monthly"
-            )
+    plan = quota_service.get_user_plan(session, resolved_user_id)
+    snapshot = quota_service.get_quota_snapshot(session, resolved_user_id, plan=plan)
+    plan_name = plan.name
 
     log_with_context(
         logger,
@@ -150,12 +124,12 @@ def get_user_quota_detail(
         user_id=resolved_user_id,
         username=user.username,
         plan_name=plan_name,
-        ai_conversations_used=quota.ai_conversations_used if quota else 0,
-        ai_conversations_limit=ai_conversations_limit,
-        material_upload_used=quota.material_uploads_used if quota else 0,
-        material_upload_limit=material_upload_limit,
-        skill_create_used=quota_service.count_custom_skills(session, resolved_user_id),
-        skill_create_limit=skill_create_limit,
-        inspiration_copy_used=quota.inspiration_copies_used if quota else 0,
-        inspiration_copy_limit=inspiration_copy_limit,
+        ai_conversations_used=snapshot["ai_conversations"]["used"],
+        ai_conversations_limit=snapshot["ai_conversations"]["limit"],
+        material_upload_used=snapshot["material_uploads"]["used"],
+        material_upload_limit=snapshot["material_uploads"]["limit"],
+        skill_create_used=snapshot["skill_creates"]["used"],
+        skill_create_limit=snapshot["skill_creates"]["limit"],
+        inspiration_copy_used=snapshot["inspiration_copies"]["used"],
+        inspiration_copy_limit=snapshot["inspiration_copies"]["limit"],
     )

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
@@ -310,6 +310,60 @@ async def test_retry_material_job_does_not_consume_quota_when_dispatch_fails(
 
 
 @pytest.mark.integration
+async def test_retry_dispatch_failure_does_not_refund_a_new_month_charge(
+    client: AsyncClient, db_session, monkeypatch
+):
+    user, token = await _create_test_user_and_token(client, db_session, "retry_cross_month")
+    now = datetime(2026, 10, 1, 1, tzinfo=UTC)
+    current_period = datetime(2026, 9, 30, 16)
+    old_period = datetime(2026, 8, 31, 16, tzinfo=UTC)
+    quota = UsageQuota(
+        user_id=user.id,
+        period_start=now,
+        period_end=now + timedelta(days=1),
+        material_decompositions_used=1,
+        monthly_period_start=current_period,
+        monthly_period_end=datetime(2026, 10, 31, 16),
+        last_reset_at=now,
+    )
+    db_session.add(quota)
+    novel = Novel(user_id=user.id, title="Retry crossed month")
+    db_session.add(novel)
+    db_session.commit()
+    db_session.refresh(novel)
+    db_session.add(IngestionJob(novel_id=novel.id, source_path="/tmp/test.txt", status="failed"))
+    db_session.commit()
+    monkeypatch.setattr("services.quota_service.utcnow", lambda: now)
+    monkeypatch.setattr(materials_upload_api, "check_quota", lambda *a, **k: None)
+    monkeypatch.setattr(
+        materials_upload_api.quota_service,
+        "reserve_feature_quota",
+        lambda *a, **k: old_period,
+    )
+
+    async def _dispatch_failure(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(materials_upload_api, "_start_flow_deployment", _dispatch_failure)
+
+    response = await client.post(
+        f"/api/v1/materials/{novel.id}/retry",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 503
+    db_session.refresh(quota)
+    assert quota.material_decompositions_used == 1
+    latest_job = db_session.exec(
+        select(IngestionJob)
+        .where(IngestionJob.novel_id == novel.id)
+        .order_by(IngestionJob.created_at.desc())
+    ).first()
+    billing = json.loads(latest_job.stage_progress)["billing"]
+    assert datetime.fromisoformat(billing["quota_period_start"]) == old_period
+
+
+@pytest.mark.integration
 @pytest.mark.parametrize(
     "billing",
     [
@@ -394,7 +448,7 @@ async def test_retry_material_job_rejects_when_quota_cannot_be_consumed(
     """If quota consumption fails, retry must reject (402) and must NOT proceed
     to dispatch or refund quota it never consumed.
 
-    Regression: when consume_quota returned False but a concurrent decrement
+    Regression: when quota reservation returned None but a concurrent decrement
     made check_feature_quota report allowed=True, the old code fell through to
     dispatch without charging quota, and a dispatch failure then refunded a unit
     that was never consumed (refund-leak / free decomposition).
@@ -432,10 +486,14 @@ async def test_retry_material_job_rejects_when_quota_cannot_be_consumed(
     db_session.add(failed_job)
     db_session.commit()
 
-    # Simulate the race: the pre-check passes, consume_quota fails, but a
+    # Simulate the race: the pre-check passes, reservation fails, but a
     # concurrent decrement makes check_feature_quota report allowed=True.
     monkeypatch.setattr(materials_upload_api, "check_quota", lambda *a, **k: None)
-    monkeypatch.setattr(materials_upload_api, "consume_quota", lambda *a, **k: False)
+    monkeypatch.setattr(
+        materials_upload_api.quota_service,
+        "reserve_feature_quota",
+        lambda *a, **k: None,
+    )
     monkeypatch.setattr(
         materials_upload_api.quota_service,
         "check_feature_quota",
