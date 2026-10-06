@@ -23,20 +23,22 @@ export const SkillStatsDialog: React.FC<SkillStatsDialogProps> = ({
   const [days, setDays] = useState(30);
 
   useEffect(() => {
+    let cancelled = false;
     if (isOpen && projectId) {
       const loadStats = async () => {
         setLoading(true);
         try {
           const data = await skillsApi.getStats(projectId, days);
-          setStats(data);
+          if (!cancelled) setStats(data);
         } catch (error) {
-          logger.error('Failed to load skill stats:', error);
+          if (!cancelled) logger.error('Failed to load skill stats:', error);
         } finally {
-          setLoading(false);
+          if (!cancelled) setLoading(false);
         }
       };
       loadStats();
     }
+    return () => { cancelled = true; };
   }, [isOpen, projectId, days]);
 
   const maxDailyCount = stats?.daily_usage

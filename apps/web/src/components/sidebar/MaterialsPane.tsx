@@ -50,7 +50,7 @@ type MaterialCountKey =
  */
 export const MaterialsPane: React.FC = () => {
   const { t } = useTranslation(['editor', 'common', 'materials']);
-  const { currentProjectId } = useProject();
+  const { currentProjectId, triggerFileTreeRefresh } = useProject();
   const { addMaterial } = useMaterialAttachment();
   const materialLib = useMaterialLibraryContext();
   const isLibraryLoading = materialLib.isLoading || (materialLib.isFetching && materialLib.libraries.length === 0);
@@ -69,6 +69,17 @@ export const MaterialsPane: React.FC = () => {
   const [batchMode, setBatchMode] = useState(false);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set()); // key: "novelId:entityType:entityId"
   const [isBatchImporting, setIsBatchImporting] = useState(false);
+
+  const importOwnerRef = useRef<{ projectId: string | null } | null>(null);
+  useEffect(() => {
+    const owner = { projectId: currentProjectId };
+    importOwnerRef.current = owner;
+    // A departed project's pending import must not lock the next project.
+    setIsBatchImporting(false);
+    return () => {
+      if (importOwnerRef.current === owner) importOwnerRef.current = null;
+    };
+  }, [currentProjectId]);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -146,7 +157,8 @@ export const MaterialsPane: React.FC = () => {
 
   // Quick import - use default parameters, no dialog
   const handleQuickImport = useCallback(async (novelId: number, entityType: MaterialEntityType, entityId: number) => {
-    if (!currentProjectId) return;
+    const owner = importOwnerRef.current;
+    if (!currentProjectId || !owner || owner.projectId !== currentProjectId) return;
     try {
       await materialsApi.importToProject({
         project_id: currentProjectId,
@@ -154,12 +166,13 @@ export const MaterialsPane: React.FC = () => {
         entity_type: entityType,
         entity_id: entityId,
       });
+      if (importOwnerRef.current === owner) triggerFileTreeRefresh();
       toast.success(t('materials:toast.importSuccess'));
     } catch (err) {
       logger.error('Failed to quick import material:', err);
       toast.error(t('materials:toast.importFailed'));
     }
-  }, [currentProjectId, t]);
+  }, [currentProjectId, triggerFileTreeRefresh, t]);
 
   // Attach library material to chat
   const handleAttachToChat = useCallback((novelId: number, entityType: MaterialEntityType, entityId: number, itemName: string) => {
@@ -240,7 +253,8 @@ export const MaterialsPane: React.FC = () => {
   }, []);
 
   const handleBatchImport = useCallback(async () => {
-    if (!currentProjectId || selectedItems.size === 0) return;
+    const owner = importOwnerRef.current;
+    if (!currentProjectId || selectedItems.size === 0 || !owner || owner.projectId !== currentProjectId) return;
     setIsBatchImporting(true);
     try {
       const items = Array.from(selectedItems).map(key => {
@@ -252,6 +266,7 @@ export const MaterialsPane: React.FC = () => {
         };
       });
       const result = await materialsApi.batchImport(currentProjectId, items);
+      if (result.results.length > 0 && importOwnerRef.current === owner) triggerFileTreeRefresh();
       if (result.failed_count > 0) {
         toast.error(t('materials:toast.batchImportPartialFailed', {
           successCount: result.results.length,
@@ -261,15 +276,17 @@ export const MaterialsPane: React.FC = () => {
       }
 
       toast.success(t('materials:toast.batchImportSuccess', { count: items.length }));
-      setBatchMode(false);
-      setSelectedItems(new Set());
+      if (importOwnerRef.current === owner) {
+        setBatchMode(false);
+        setSelectedItems(new Set());
+      }
     } catch (err) {
       logger.error('Failed to batch import:', err);
       toast.error(t('materials:toast.batchImportFailed'));
     } finally {
-      setIsBatchImporting(false);
+      if (importOwnerRef.current === owner) setIsBatchImporting(false);
     }
-  }, [currentProjectId, selectedItems, t]);
+  }, [currentProjectId, selectedItems, triggerFileTreeRefresh, t]);
 
   // Entity type labels
   const entityTypeLabels: Record<MaterialEntityType, string> = {

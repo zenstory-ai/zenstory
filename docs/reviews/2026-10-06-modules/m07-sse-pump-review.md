@@ -1,0 +1,11 @@
+# M07 R5 SSE outer pump bounded-entry source candidate
+
+IndependentDESIGN initiallyBLOCK naivequeuecap; approvedshape requires deterministic sourceclose andnested _primed_stream→process_stream ownershipbridge. Exactly2products:32-entry Queue, awaitframe/error/done put; onproducerCancelledError close source inthesamecontext andreraisetheoriginalcancellation evenifsourceclosefaults. ActualAPI _primed_stream finallyclosesitsnested stream; restofapi.agent bytesidentical, includingR3genre andquotabilling/context/signatures. No newframework/locks/executor/config/deps.
+
+Beforefinitepausedconsumercharacterization2PASS: counts32/256, produced32/256,consumed1,queueentries32/256 andproducerdone (entriesincludeend sentinel). Thesearemeasurements, NOTfunctionalRED/p95/memorybytes. Target32entries+atmostoneproducer-localframe, no totalworkflow/provider-memory bound. Finalcontrolled256pause queue32/producerblocked/produced34; drains exactorder256.
+
+Finalfour-suite50PASS/pump100% unchanged80gate: FIFOfullqueue done+originalsourceerror,blockedputconsumerclose/deadline/close-fault preserve originalCancelledError andsourcecleanup flag,heartbeat/context/billing/error/service-fileadapter controls. DirectREALregisteredroute/bodyiterator/actualpump/nestedprimedwrapper close testcase usesrealownedORMactors/Session/quotabutnotHTTPauth, withonlysyntheticproviderservice; proves nestedsourceclose. No actualbackendAgentService cancellation SQL safetyclaim fromthisfixture (R1actualPG lane separate).
+
+Firstaffectedbatch1FAIL48PASS: existingStreamAdapter save mock didnotacceptpreexisting record_mutation=False keyword, TypeError stack bypassespump; minimumonlymocksignature addedkeyword,allbodyassertionspreserved. Firstdirectroutefixture misspelled AgentStreamRequest (actualAgentRequest), invalidfixture NOTproductRED; retainedreceipt/snapshot/correctedtest. Final50 iscanonicalexactsource. Mypybefore/current2modules0->0; affectedRuff0/inmemorycompile5no.pyc.
+
+AllpositivelyownedSQLite/conftest/primaryruntime disposed+absent, listeners/callerSession/provider factory restored, actualpump-owned tasks awaitedfinished; noguessedcleanup/provider/lifespan/network/productionchanges. FullCI/defaultNode20/physicalbrowser stillaggregategates. SOURCEreviewpending; notM07/all23/releaseclosure.

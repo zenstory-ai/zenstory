@@ -85,6 +85,19 @@ export function httpError(status: number, body: unknown, retryAfter?: string | n
   const suffix = detail ? `: ${detail}` : '';
   const extra = { status, code };
 
+  if (
+    status === 409 && code === 'ERR_RESOURCE_CONFLICT' &&
+    b.error_detail !== null && typeof b.error_detail === 'object' &&
+    (b.error_detail as { reason?: unknown }).reason === 'stale_write'
+  ) {
+    return new CliError(
+      'File changed on the server. Re-fetch it with `files get`, merge your edits, ' +
+        'and retry with the new updated_at.',
+      EXIT.ERROR,
+      { status, code: 'STALE_WRITE' },
+    );
+  }
+
   switch (status) {
     case 401:
       return new CliError(

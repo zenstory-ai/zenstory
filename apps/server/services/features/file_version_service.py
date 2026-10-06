@@ -9,16 +9,18 @@ import contextlib
 import difflib
 import json
 import re
-from datetime import timedelta
+from collections.abc import Mapping
+from datetime import datetime
 from typing import Any
 
+from sqlalchemy import and_, or_
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session, func, select
+from sqlmodel import Session, col, func, select
 
-from config.datetime_utils import utcnow
+from config.datetime_utils import advance_timestamp, normalize_datetime_to_utc, utcnow
 from models import File, FileVersion
 from models.file_version import (
-    CHANGE_SOURCE_AI,
+    CHANGE_SOURCE_SYSTEM,
     CHANGE_SOURCE_USER,
     CHANGE_TYPE_AUTO_SAVE,
     CHANGE_TYPE_CREATE,
@@ -32,10 +34,35 @@ from utils.text_metrics import count_words
 
 logger = get_logger(__name__)
 MAX_CREATE_VERSION_RETRIES = 3
+CONTENT_RECONSTRUCTION_BATCH_SIZE = 200
 
 
 class FileVersionService:
     """Service for managing file versions with diff-based storage."""
+
+    def create_initial_version(self, session: Session, file: File) -> FileVersion | None:
+        """Capture a new populated file before its caller commits creation.
+
+        This structural baseline is not a user save and does not consume their
+        version quota. Only call for newly added files; existing-file history
+        and its best-effort/quota semantics still use create_version directly.
+        An unexpected error propagates so creation and v1 roll back together.
+        """
+        if file.file_type == "folder" or not file.content:
+            return None
+
+        session.flush()
+        return self.create_version(
+            session=session,
+            file_id=file.id,
+            new_content=file.content,
+            change_type=CHANGE_TYPE_CREATE,
+            change_source=CHANGE_SOURCE_SYSTEM,
+            change_summary="Initial version",
+            force_base=True,
+            skip_quota=True,
+            commit=False,
+        )
 
     def create_version(
         self,
@@ -123,6 +150,10 @@ class FileVersionService:
                 session,
                 file_id,
                 user_id,
+                # create_version owns (or participates in) the encompassing
+                # transaction. A lazy subscription expiry must be committed
+                # with the snapshot, never from this nested precheck.
+                commit=False,
             )
             if not allowed:
                 from core.error_codes import ErrorCode
@@ -301,46 +332,52 @@ class FileVersionService:
         if not target:
             raise ValueError(f"Version {version_number} not found for file {file_id}")
 
-        # If it's a base version, return content directly
-        if target.is_base_version:
-            return target.content
+        return self._get_contents_for_versions(session, {file_id: target})[file_id]
 
-        # Find the nearest base version before this
-        base_version = session.exec(
-            select(FileVersion)
-            .where(
-                FileVersion.file_id == file_id,
-                FileVersion.version_number <= version_number,
-                FileVersion.is_base_version,
+    def _get_contents_for_versions(
+        self, session: Session, targets: Mapping[str, FileVersion]
+    ) -> dict[str, str]:
+        """Replay already-selected targets, one per file, without per-file SQL.
+
+        Full bases need no query. Delta targets fetch only their nearest base and
+        bounded chains; chunking bounds query predicates, not the number of files.
+        """
+        contents = {file_id: target.content for file_id, target in targets.items() if target.is_base_version}
+        deltas = [(file_id, target) for file_id, target in targets.items() if not target.is_base_version]
+        for offset in range(0, len(deltas), CONTENT_RECONSTRUCTION_BATCH_SIZE):
+            chunk = deltas[offset:offset + CONTENT_RECONSTRUCTION_BATCH_SIZE]
+            target_bounds = or_(*(
+                and_(col(FileVersion.file_id) == file_id, col(FileVersion.version_number) <= target.version_number)
+                for file_id, target in chunk
+            ))
+            base_numbers = (
+                select(FileVersion.file_id, func.max(col(FileVersion.version_number)).label("number"))
+                .where(col(FileVersion.is_base_version).is_(True), target_bounds)
+                .group_by(col(FileVersion.file_id))
+                .subquery()
             )
-            .order_by(FileVersion.version_number.desc())  # type: ignore[attr-defined]
-            .limit(1)
-        ).first()
-
-        if not base_version:
-            # No base version found, start from empty
-            content = ""
-            start_version = 1
-        else:
-            content = base_version.content
-            start_version = base_version.version_number + 1
-
-        # Apply diffs sequentially (only delta versions, not base versions)
-        versions = session.exec(
-            select(FileVersion)
-            .where(
-                FileVersion.file_id == file_id,
-                FileVersion.version_number >= start_version,
-                FileVersion.version_number <= version_number,
-                FileVersion.is_base_version == False,  # type: ignore[comparison-overlap]
-            )
-            .order_by(FileVersion.version_number.asc())  # type: ignore[attr-defined]
-        ).all()
-
-        for version in versions:
-            content = self._apply_diff(content, version.content)
-
-        return content
+            bases = {version.file_id: version for version in session.exec(
+                select(FileVersion).join(base_numbers,
+                    (col(FileVersion.file_id) == base_numbers.c.file_id)
+                    & (col(FileVersion.version_number) == base_numbers.c.number))
+            ).all()}
+            chain_bounds = []
+            for file_id, target in chunk:
+                base = bases.get(file_id)
+                contents[file_id] = base.content if base else ""
+                chain_bounds.append(and_(
+                    col(FileVersion.file_id) == file_id,
+                    col(FileVersion.version_number) >= (base.version_number + 1 if base else 1),
+                    col(FileVersion.version_number) <= target.version_number,
+                ))
+            chain = session.exec(
+                select(FileVersion)
+                .where(col(FileVersion.is_base_version).is_(False), or_(*chain_bounds))
+                .order_by(col(FileVersion.file_id), col(FileVersion.version_number))
+            ).all()
+            for version in chain:
+                contents[version.file_id] = self._apply_diff(contents[version.file_id], version.content)
+        return contents
 
     def compare_versions(
         self,
@@ -361,22 +398,14 @@ class FileVersionService:
         Returns:
             Dict with comparison data including unified diff
         """
-        content1 = self.get_content_at_version(session, file_id, version1)
-        content2 = self.get_content_at_version(session, file_id, version2)
-
-        # Get version metadata
-        v1 = session.exec(
-            select(FileVersion).where(
-                FileVersion.file_id == file_id,
-                FileVersion.version_number == version1,
-            )
-        ).first()
-        v2 = session.exec(
-            select(FileVersion).where(
-                FileVersion.file_id == file_id,
-                FileVersion.version_number == version2,
-            )
-        ).first()
+        v1 = self.get_version_by_number(session, file_id, version1)
+        if v1 is None:
+            raise ValueError(f"Version {version1} not found for file {file_id}")
+        v2 = v1 if version1 == version2 else self.get_version_by_number(session, file_id, version2)
+        if v2 is None:
+            raise ValueError(f"Version {version2} not found for file {file_id}")
+        content1 = self._get_contents_for_versions(session, {file_id: v1})[file_id]
+        content2 = content1 if version1 == version2 else self._get_contents_for_versions(session, {file_id: v2})[file_id]
 
         # Generate unified diff
         diff_lines = list(
@@ -392,8 +421,10 @@ class FileVersionService:
         # Generate HTML diff for display
         html_diff = self._generate_html_diff(content1, content2)
 
-        # Calculate statistics
-        lines_added, lines_removed = self._calculate_diff_stats(content1, content2)
+        # Structured rows already encode the same splitlines comparison used
+        # for counts; do not run a third SequenceMatcher just for statistics.
+        lines_added = sum(line["type"] == "added" for line in html_diff)
+        lines_removed = sum(line["type"] == "removed" for line in html_diff)
 
         return {
             "file_id": file_id,
@@ -426,6 +457,8 @@ class FileVersionService:
         file_id: str,
         version_number: int,
         user_id: str,
+        *,
+        expected_updated_at: datetime | None = None,
     ) -> tuple[File, FileVersion | None, bool]:
         """
         Rollback a file to a previous version.
@@ -437,6 +470,7 @@ class FileVersionService:
             file_id: ID of the file
             version_number: Version number to rollback to
             user_id: User ID for quota checking
+            expected_updated_at: Optional exact post-edit token for immutable undo
 
         Returns:
             Tuple of (updated File, optional new FileVersion,
@@ -453,30 +487,53 @@ class FileVersionService:
         lock_ctx = contextlib.nullcontext() if is_postgres else file_write_lock(file_id)
 
         with lock_ctx:
-            # Get content at target version
-            content = self.get_content_at_version(session, file_id, version_number)
-
             # Get the file（PG 取行锁，SQLite 强制重新 SELECT，避免用到 identity
             # map 里的陈旧副本）
             if is_postgres:
                 file = session.exec(
                     select(File).where(File.id == file_id).with_for_update(key_share=True)
+                    .execution_options(populate_existing=True)
                 ).first()
             else:
                 file = session.get(File, file_id, populate_existing=True)
             if not file or file.is_deleted:
                 raise ValueError(f"File {file_id} not found")
 
+            if expected_updated_at is not None:
+                current = normalize_datetime_to_utc(file.updated_at)
+                expected = normalize_datetime_to_utc(expected_updated_at)
+                if current != expected:
+                    from core.error_codes import ErrorCode
+                    from core.error_handler import APIException
+
+                    raise APIException(
+                        error_code=ErrorCode.RESOURCE_CONFLICT,
+                        status_code=409,
+                        detail={
+                            "reason": "stale_write",
+                            "file_id": file.id,
+                            "current_updated_at": current.isoformat(),
+                            "base_updated_at": expected.isoformat(),
+                        },
+                    )
+
+            content = self.get_content_at_version(session, file_id, version_number)
+
             # Update file content
             file.content = content
-            file.updated_at = utcnow()
+            file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
             session.add(file)
 
             # Restoration itself is never blocked. The audit snapshot still
             # belongs to the user's quota, though; otherwise repeated rollbacks
             # can create unlimited full base rows.
             has_quota, _used, _limit = self.check_user_version_quota(
-                session, file_id, user_id
+                session,
+                file_id,
+                user_id,
+                # rollback_to_version commits restored content and the optional
+                # snapshot once, after this precheck.
+                commit=False,
             )
             version_quota_exceeded = not has_quota
             new_version: FileVersion | None = None
@@ -540,6 +597,8 @@ class FileVersionService:
         session: Session,
         file_id: str,
         user_id: str,
+        *,
+        commit: bool = True,
     ) -> tuple[bool, int, int]:
         """
         预检用户在该文件上的版本额度。
@@ -549,8 +608,12 @@ class FileVersionService:
 
         Returns:
             (是否还有额度, 已占用的用户版本数, 计划上限；-1 表示不限)
+
+        ``commit=False`` keeps lazy subscription-expiry writes inside the
+        caller's transaction. Standalone checks retain the historical
+        service-owned behavior by default.
         """
-        plan = quota_service.get_user_plan(session, user_id)
+        plan = quota_service.get_user_plan(session, user_id, commit=commit)
         if not plan:
             return True, 0, -1
 
@@ -564,65 +627,6 @@ class FileVersionService:
             change_source=CHANGE_SOURCE_USER,
         )
         return existing_count < max_versions, existing_count, max_versions
-
-    def cleanup_old_versions(
-        self,
-        session: Session,
-        file_id: str,
-        keep_recent: int = 50,
-        keep_days: int = 30,
-        keep_bases: bool = True,
-        keep_ai_edits: bool = True,
-    ) -> int:
-        """
-        Clean up old versions based on retention policy.
-
-        Keeps:
-        - Most recent N versions
-        - All versions from the last N days
-        - All base versions (if keep_bases=True)
-        - All AI edit versions (if keep_ai_edits=True)
-
-        Args:
-            session: Database session
-            file_id: ID of the file
-            keep_recent: Number of recent versions to always keep
-            keep_days: Number of days to keep all versions
-            keep_bases: Whether to always keep base versions
-            keep_ai_edits: Whether to always keep AI edit versions
-
-        Returns:
-            Number of versions deleted
-        """
-        cutoff_date = utcnow() - timedelta(days=keep_days)
-
-        # Get versions to potentially delete
-        query = select(FileVersion).where(
-            FileVersion.file_id == file_id,
-            FileVersion.created_at < cutoff_date,
-            FileVersion.change_type == CHANGE_TYPE_AUTO_SAVE,  # Only auto-saves
-        )
-
-        if keep_bases:
-            query = query.where(FileVersion.is_base_version == False)  # type: ignore[comparison-overlap]
-
-        if keep_ai_edits:
-            query = query.where(FileVersion.change_source != CHANGE_SOURCE_AI)
-
-        # Skip the most recent ones
-        query = query.order_by(FileVersion.version_number.desc()).offset(keep_recent)  # type: ignore[attr-defined]
-
-        versions_to_delete = list(session.exec(query).all())
-
-        count = 0
-        for version in versions_to_delete:
-            session.delete(version)
-            count += 1
-
-        if count > 0:
-            session.commit()
-
-        return count
 
     # Private helper methods
 

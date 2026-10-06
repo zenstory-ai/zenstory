@@ -597,6 +597,12 @@ describe('api', () => {
           '/api/v1/projects/p1/snapshots?limit=10'
         )
       })
+
+      it('passes the offset for older snapshot pages', async () => {
+        mockApi.get.mockResolvedValue([])
+        await versionApi.getSnapshots('p1', { fileId: 'f1', limit: 50, offset: 50 })
+        expect(mockApi.get).toHaveBeenCalledWith('/api/v1/projects/p1/snapshots?file_id=f1&limit=50&offset=50')
+      })
     })
 
     describe('createSnapshot', () => {
@@ -727,7 +733,7 @@ describe('api', () => {
     })
 
     describe('rollback', () => {
-      it('rolls back to specific version', async () => {
+      it('preserves the legacy no-body rollback request', async () => {
         const mockResponse = {
           message: 'Rollback successful',
           new_version_number: 3,
@@ -739,6 +745,17 @@ describe('api', () => {
         expect(result).toEqual(mockResponse)
         expect(mockApi.post).toHaveBeenCalledWith(
           '/api/v1/files/f1/versions/1/rollback'
+        )
+      })
+
+      it('sends the immutable edit token when provided', async () => {
+        mockApi.post.mockResolvedValue({ success: true })
+
+        await fileVersionApi.rollback('f1', 7, '2026-10-06T12:34:56.000Z')
+
+        expect(mockApi.post).toHaveBeenCalledWith(
+          '/api/v1/files/f1/versions/7/rollback',
+          { expected_updated_at: '2026-10-06T12:34:56.000Z' },
         )
       })
     })

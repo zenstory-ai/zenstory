@@ -23,6 +23,7 @@ def serialize_file(
     *,
     include_content: bool = True,
     content_preview_chars: int | None = None,
+    preloaded_content_preview: str | None = None,
 ) -> dict[str, Any]:
     """Serialize a File model to a JSON-safe dict.
 
@@ -40,7 +41,10 @@ def serialize_file(
         A dictionary representation of the file with datetime fields converted
         to ISO format strings
     """
-    data = file.model_dump()
+    if not include_content and preloaded_content_preview is not None:
+        data = file.model_dump(exclude={"content"})
+    else:
+        data = file.model_dump()
     # Convert datetime fields to ISO strings
     if isinstance(data.get("created_at"), datetime):
         data["created_at"] = data["created_at"].isoformat()
@@ -52,6 +56,8 @@ def serialize_file(
 
     preview_length = _normalize_content_preview_chars(content_preview_chars)
     content = data.pop("content", None) or ""
+    if preloaded_content_preview is not None:
+        content = preloaded_content_preview
     data["content_preview"] = content[:preview_length]
     return data
 
@@ -62,6 +68,7 @@ def serialize_query_file(
     response_mode: QueryFilesResponseMode | str = QUERY_FILES_DEFAULT_RESPONSE_MODE,
     content_preview_chars: int = QUERY_FILES_DEFAULT_CONTENT_PREVIEW_CHARS,
     include_content: bool | None = None,
+    preloaded_content_preview: str | None = None,
 ) -> dict[str, Any]:
     """Serialize File for query_files output mode.
 
@@ -82,7 +89,27 @@ def serialize_query_file(
         file,
         include_content=should_include_content,
         content_preview_chars=content_preview_chars,
+        preloaded_content_preview=preloaded_content_preview,
     )
+
+
+def _summary_projection_preview_length(
+    response_mode: str,
+    content_preview_chars: int | None,
+    include_content: bool | None,
+) -> int | None:
+    """Return an eligible summary length without changing per-row error timing."""
+    try:
+        if (
+            include_content is True
+            or _normalize_response_mode(response_mode) != QUERY_FILES_RESPONSE_MODE_SUMMARY
+        ):
+            return None
+        return _normalize_content_preview_chars(content_preview_chars)
+    except (ValueError, TypeError, AttributeError):
+        # Invalid options must still succeed on empty results and fail only when
+        # the existing serializer visits a row. Full mode ignores preview errors.
+        return None
 
 
 def _normalize_response_mode(response_mode: str) -> QueryFilesResponseMode:

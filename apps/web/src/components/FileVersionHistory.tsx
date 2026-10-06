@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   History,
   RotateCcw,
@@ -25,11 +25,14 @@ import { logger } from "../lib/logger";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
 
+const VERSION_PAGE_SIZE = 50;
+
 interface FileVersionHistoryProps {
   fileId: string;
   fileTitle: string;
   onClose: () => void;
-  onRollback?: (versionNumber: number) => void;
+  onBeforeRollback?: () => void | Promise<void>;
+  onRollback?: (versionNumber: number) => void | Promise<void>;
   onViewContent?: (content: string, versionNumber: number) => void;
 }
 
@@ -50,6 +53,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
   fileId,
   fileTitle,
   onClose,
+  onBeforeRollback,
   onRollback,
   onViewContent,
 }) => {
@@ -57,31 +61,94 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
   const fileVersionUpgradePrompt = getUpgradePromptDefinition("file_version_quota_blocked");
   const [versions, setVersions] = useState<FileVersion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pageError, setPageError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
   const [selectedVersions, setSelectedVersions] = useState<number[]>([]);
   const [comparison, setComparison] = useState<VersionComparison | null>(null);
   const [isComparing, setIsComparing] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-
-  const loadVersions = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fileVersionApi.getVersions(fileId, { limit: 50 });
-      setVersions(response.versions);
-      setTotal(response.total);
-    } catch (err) {
-      setError(t('loadFailed'));
-      logger.error("Failed to load versions:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [fileId, t]);
+  const [isRollingBack, setIsRollingBack] = useState(false);
+  const rollbackInFlightRef = useRef(false);
+  const [preview, setPreview] = useState<{ content: string; versionNumber: number } | null>(null);
+  const listRequestGenerationRef = useRef(0);
+  const fileContextGenerationRef = useRef(0);
+  const translateRef = useRef(t);
 
   useEffect(() => {
-    loadVersions();
+    translateRef.current = t;
+  }, [t]);
+
+  const loadVersions = useCallback(async (offset = 0, append = false) => {
+    const requestGeneration = ++listRequestGenerationRef.current;
+    const fileContextGeneration = fileContextGenerationRef.current;
+    if (append) {
+      setLoadingMore(true);
+      setPageError(null);
+    } else {
+      setLoading(true);
+      setError(null);
+      setPageError(null);
+    }
+    try {
+      const response = await fileVersionApi.getVersions(fileId, {
+        limit: VERSION_PAGE_SIZE,
+        offset,
+      });
+      if (
+        requestGeneration !== listRequestGenerationRef.current ||
+        fileContextGeneration !== fileContextGenerationRef.current
+      ) {
+        return;
+      }
+      setVersions((current) => {
+        if (!append) return response.versions;
+        const existing = new Set(current.map((version) => version.version_number));
+        return [
+          ...current,
+          ...response.versions.filter((version) => !existing.has(version.version_number)),
+        ];
+      });
+      setTotal(response.total);
+    } catch (err) {
+      if (
+        requestGeneration !== listRequestGenerationRef.current ||
+        fileContextGeneration !== fileContextGenerationRef.current
+      ) {
+        return;
+      }
+      if (append) setPageError(translateRef.current('loadFailed'));
+      else setError(translateRef.current('loadFailed'));
+      logger.error("Failed to load versions:", err);
+    } finally {
+      if (
+        requestGeneration === listRequestGenerationRef.current &&
+        fileContextGeneration === fileContextGenerationRef.current
+      ) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    }
+  }, [fileId]);
+
+  useEffect(() => {
+    fileContextGenerationRef.current += 1;
+    setVersions([]);
+    setTotal(0);
+    setSelectedVersions([]);
+    setComparison(null);
+    setIsComparing(false);
+    setShowComparison(false);
+    setIsRollingBack(false);
+    setPreview(null);
+    setLoadingMore(false);
+    void loadVersions(0, false);
+    return () => {
+      fileContextGenerationRef.current += 1;
+      listRequestGenerationRef.current += 1;
+    };
   }, [loadVersions]);
 
   const handleSelectVersion = (versionNumber: number) => {
@@ -98,32 +165,61 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
   const handleCompare = async () => {
     if (selectedVersions.length !== 2) return;
 
+    const fileContextGeneration = fileContextGenerationRef.current;
     setIsComparing(true);
     try {
-      const [v1, v2] = selectedVersions.sort((a, b) => a - b);
+      const [v1, v2] = [...selectedVersions].sort((a, b) => a - b);
       const result = await fileVersionApi.compare(fileId, v1, v2);
+      if (fileContextGeneration !== fileContextGenerationRef.current) return;
       setComparison(result);
+      setPreview(null);
       setShowComparison(true);
     } catch (err) {
+      if (fileContextGeneration !== fileContextGenerationRef.current) return;
       logger.error("Failed to compare versions:", err);
-      toast.error(t('compareFailed'));
+      toast.error(translateRef.current('compareFailed'));
     } finally {
-      setIsComparing(false);
+      if (fileContextGeneration === fileContextGenerationRef.current) {
+        setIsComparing(false);
+      }
     }
   };
 
   const handleRollback = async (versionNumber: number) => {
+    if (rollbackInFlightRef.current) return;
     if (
       !confirm(t('rollbackConfirm', { version: versionNumber }))
     ) {
       return;
     }
 
+    const fileContextGeneration = fileContextGenerationRef.current;
+    let submitted = false;
     try {
-      await fileVersionApi.rollback(fileId, versionNumber);
-      await loadVersions();
-      onRollback?.(versionNumber);
+      await onBeforeRollback?.();
+      if (fileContextGeneration !== fileContextGenerationRef.current || rollbackInFlightRef.current) return;
+      rollbackInFlightRef.current = true;
+      submitted = true;
+      setIsRollingBack(true);
+      const result = await fileVersionApi.rollback(fileId, versionNumber);
+      if (fileContextGeneration !== fileContextGenerationRef.current) return;
+      if (!result.snapshot_created) {
+        if (result.version_quota_exceeded) {
+          toast.error(translateRef.current('quota.limitDescription'));
+          if (fileVersionUpgradePrompt.surface === "modal") {
+            setShowUpgradeModal(true);
+          }
+        } else {
+          toast.error(translateRef.current('rollbackHistoryNotSaved', {
+            defaultValue: 'The content was restored, but this restore was not added to version history.',
+          }));
+        }
+      }
+      await loadVersions(0, false);
+      if (fileContextGeneration !== fileContextGenerationRef.current) return;
+      await onRollback?.(versionNumber);
     } catch (err) {
+      if (fileContextGeneration !== fileContextGenerationRef.current) return;
       if (
         err instanceof ApiError &&
         err.errorCode === "ERR_QUOTA_FILE_VERSIONS_EXCEEDED"
@@ -135,19 +231,42 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
         return;
       }
       logger.error("Failed to rollback:", err);
-      toast.error(t('rollbackFailed'));
+      toast.error(translateRef.current('rollbackFailed'));
+    } finally {
+      if (submitted) {
+        rollbackInFlightRef.current = false;
+        if (fileContextGeneration === fileContextGenerationRef.current) setIsRollingBack(false);
+      }
     }
   };
 
+  const handleClose = () => {
+    // Before submission close still cancels via the generation guard. Once a
+    // write starts, retain the dialog until the owning editor is reconciled.
+    if (!rollbackInFlightRef.current) onClose();
+  };
+
   const handleViewContent = async (versionNumber: number) => {
+    const fileContextGeneration = fileContextGenerationRef.current;
     try {
       const response = await fileVersionApi.getVersionContent(
         fileId,
         versionNumber
       );
-      onViewContent?.(response.content, versionNumber);
+      if (fileContextGeneration !== fileContextGenerationRef.current) return;
+      if (onViewContent) {
+        onViewContent(response.content, versionNumber);
+      } else {
+        setComparison(null);
+        setShowComparison(false);
+        setPreview({ content: response.content, versionNumber });
+      }
     } catch (err) {
+      if (fileContextGeneration !== fileContextGenerationRef.current) return;
       logger.error("Failed to get version content:", err);
+      toast.error(translateRef.current('viewContentFailed', {
+        defaultValue: 'Could not load this version. Please try again.',
+      }));
     }
   };
 
@@ -254,6 +373,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
                 }}
                 className="p-1 hover:bg-[hsl(var(--bg-secondary))] rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)]"
                 title={t('rollback')}
+                disabled={isRollingBack}
               >
                 <RotateCcw size={14} className="text-[hsl(var(--text-secondary))]" />
               </button>
@@ -298,7 +418,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
     <>
       <Modal
         open={true}
-        onClose={onClose}
+        onClose={handleClose}
         size="full"
         className="max-w-[900px] max-h-[80vh] p-0 overflow-hidden"
         showCloseButton={false}
@@ -311,7 +431,9 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
           <span className="text-sm text-[hsl(var(--text-secondary))]">- {fileTitle}</span>
         </div>
         <button
-          onClick={onClose}
+          onClick={handleClose}
+          disabled={isRollingBack}
+          aria-label={t('common:close')}
           className="p-1 hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)]"
         >
           <X size={18} className="text-[hsl(var(--text-secondary))]" />
@@ -349,7 +471,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
         {/* Version List */}
         <div
           className={`${
-            showComparison ? "w-1/3 border-r border-[hsl(var(--border-color))]" : "w-full"
+            showComparison || preview ? "w-1/3 border-r border-[hsl(var(--border-color))]" : "w-full"
           } overflow-y-auto bg-[hsl(var(--bg-primary))]`}
         >
           {loading && (
@@ -383,6 +505,21 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
                   getChangeTypeBadgeClass={getChangeTypeBadgeClass}
                 />
               ))}
+              {versions.length < total && (
+                <div className="p-3 flex justify-center">
+                  {pageError && <span role="alert" className="text-[hsl(var(--error))]">{pageError}</span>}
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={loadingMore}
+                    onClick={() => void loadVersions(versions.length, true)}
+                  >
+                    {loadingMore
+                      ? t('loading')
+                      : t('loadMore', { defaultValue: 'Load more' })}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -404,6 +541,30 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
             <div className="flex-1 overflow-auto">
               <DiffViewer comparison={comparison} />
             </div>
+          </div>
+        )}
+
+        {preview && (
+          <div className="w-2/3 flex flex-col bg-[hsl(var(--bg-primary))]">
+            <div className="px-4 py-2 border-b border-[hsl(var(--border-color))] bg-[hsl(var(--bg-tertiary))] flex items-center justify-between">
+              <span className="text-sm text-[hsl(var(--text-secondary))]">
+                {t('versionPreview', {
+                  version: preview.versionNumber,
+                  defaultValue: `Version ${preview.versionNumber} preview`,
+                })}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPreview(null)}
+                className="p-1 hover:bg-[hsl(var(--bg-secondary))] rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)]"
+                title={t('closePreview', { defaultValue: 'Close preview' })}
+              >
+                <X size={14} className="text-[hsl(var(--text-secondary))]" />
+              </button>
+            </div>
+            <pre className="flex-1 overflow-auto whitespace-pre-wrap break-words p-4 text-sm text-[hsl(var(--text-primary))] font-sans">
+              {preview.content}
+            </pre>
           </div>
         )}
       </div>

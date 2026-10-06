@@ -14,7 +14,8 @@ import json
 
 from fastapi import APIRouter, Depends
 from services.auth import get_current_active_user
-from sqlmodel import Session, func, select
+from sqlalchemy import select as sa_select
+from sqlmodel import Session, col, func, select
 
 from config.datetime_utils import utcnow
 from core.error_codes import ErrorCode
@@ -84,6 +85,8 @@ def get_materials(
     for novel, job in novels_with_jobs:
         if novel.id not in novel_map:
             novel_map[novel.id] = (novel, _reconcile_job_if_needed(session, job))
+        elif job is not None and job.status == "failed":
+            _reconcile_job_if_needed(session, job)
 
     # Batch query for chapter counts
     novel_ids = list(novel_map.keys())
@@ -351,9 +354,9 @@ def get_material_tree(
     _get_novel_or_404(session, novel_id, current_user.id)
 
     # Get all chapters ordered by chapter_number
-    chapters = session.exec(
-        select(Chapter)
-        .where(Chapter.novel_id == novel_id)
+    chapters = session.execute(
+        sa_select(col(Chapter.id), col(Chapter.chapter_number), col(Chapter.title), col(Chapter.summary), col(Chapter.created_at))
+        .where(col(Chapter.novel_id) == novel_id)
         .order_by(Chapter.chapter_number.asc())
     ).all()
 

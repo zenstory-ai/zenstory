@@ -31,3 +31,7 @@ export function consumeOAuthPlanIntent(): PlanIntent | null {
   sessionStorage.removeItem(OAUTH_PLAN_INTENT_KEY);
   return plan;
 }
+
+// Private router-entry provenance for a successful Login continuation.
+export const LOGIN_ATTEMPT_KEY = 'zenstoryLoginAttempt';
+export type LoginAttempt = { kind: 'login'; id: string };

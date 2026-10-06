@@ -26,6 +26,14 @@ def normalize_datetime_to_utc(value: datetime) -> datetime:
     return value.astimezone(UTC)
 
 
+def advance_timestamp(previous: datetime, *, now: datetime) -> datetime:
+    """Advance a freshly locked row's token even with an equal/backward clock."""
+    return max(
+        normalize_datetime_to_utc(now),
+        normalize_datetime_to_utc(previous) + timedelta(microseconds=1),
+    )
+
+
 def beijing_date(value: datetime) -> date:
     """Return the Beijing calendar date, treating naive database values as UTC."""
     return normalize_datetime_to_utc(value).astimezone(BEIJING_TIMEZONE).date()

@@ -44,7 +44,7 @@ describe('voiceApi', () => {
         expect(result).toEqual(mockResponse)
         expect(mockApi.post).toHaveBeenCalledWith('/api/v1/voice/recognize', {
           audio_data: audioData,
-          audio_format: 'webm',
+          audio_format: 'wav',
           sample_rate: 16000,
           language: 'zh',
         })
@@ -74,6 +74,7 @@ describe('voiceApi', () => {
         }
         mockApi.post.mockResolvedValue(mockResponse)
 
+        // @ts-expect-error Runtime validation of unsupported formats belongs to the backend.
         const result = await recognizeVoice('audiodata', 'xyz', 16000, 'zh')
 
         expect(result.success).toBe(false)
@@ -103,7 +104,7 @@ describe('voiceApi', () => {
 
         expect(mockApi.post).toHaveBeenCalledWith('/api/v1/voice/recognize', {
           audio_data: 'audiodata',
-          audio_format: 'webm',
+          audio_format: 'wav',
           sample_rate: 16000,
           language: 'zh',
         })
@@ -123,11 +124,22 @@ describe('voiceApi', () => {
         )
       })
 
+      it('forwards cancellation to the actual API fetch options', async () => {
+        mockApi.post.mockResolvedValueOnce({ text: 'local result', success: true })
+        const controller = new AbortController()
+        await recognizeVoice('audio', 'wav', 16000, 'zh', controller.signal)
+        expect(mockApi.post).toHaveBeenCalledWith(
+          '/api/v1/voice/recognize',
+          { audio_data: 'audio', audio_format: 'wav', sample_rate: 16000, language: 'zh' },
+          { signal: controller.signal },
+        )
+      })
+
       it('supports custom sample rate', async () => {
         const mockResponse = { text: '8kHz transcription', success: true }
         mockApi.post.mockResolvedValue(mockResponse)
 
-        await recognizeVoice('audiodata', 'webm', 8000)
+        await recognizeVoice('audiodata', 'wav', 8000)
 
         expect(mockApi.post).toHaveBeenCalledWith(
           '/api/v1/voice/recognize',
@@ -141,7 +153,7 @@ describe('voiceApi', () => {
         const mockResponse = { text: 'English transcription', success: true }
         mockApi.post.mockResolvedValue(mockResponse)
 
-        await recognizeVoice('audiodata', 'webm', 16000, 'en')
+        await recognizeVoice('audiodata', 'wav', 16000, 'en')
 
         expect(mockApi.post).toHaveBeenCalledWith(
           '/api/v1/voice/recognize',
@@ -210,7 +222,7 @@ describe('voiceApi', () => {
         provider: 'tencent',
         service: 'asr',
         max_duration_seconds: 60,
-        supported_formats: ['wav', 'pcm', 'mp3', 'm4a', 'flac', 'ogg-opus', 'webm'],
+        supported_formats: ['wav', 'pcm', 'ogg-opus', 'speex', 'silk', 'mp3', 'm4a', 'aac', 'amr'],
       }
       mockApi.get.mockResolvedValue(mockResponse)
 
@@ -219,7 +231,7 @@ describe('voiceApi', () => {
       expect(result).toEqual(mockResponse)
       expect(result.configured).toBe(true)
       expect(result.provider).toBe('tencent')
-      expect(result.supported_formats).toContain('webm')
+      expect(result.supported_formats).toContain('ogg-opus')
       expect(mockApi.get).toHaveBeenCalledWith('/api/v1/voice/status')
     })
 
@@ -325,7 +337,7 @@ describe('voiceApi', () => {
         provider: 'tencent',
         service: 'asr',
         max_duration_seconds: 60,
-        supported_formats: ['webm'],
+        supported_formats: ['wav'],
       }
       mockApi.get.mockResolvedValue(statusResponse)
 

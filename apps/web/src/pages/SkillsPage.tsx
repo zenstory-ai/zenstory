@@ -119,6 +119,17 @@ export default function SkillsPage() {
   const [addingId, setAddingId] = useState<string | null>(null);
   const [addedPublicIds, setAddedPublicIds] = useState<Set<string>>(new Set());
   const publicSkillsRequestRef = useRef(0);
+  const mySkillsRequestRef = useRef(0);
+  const formRequestRef = useRef(0);
+  const ownerRef = useRef<object | null>(null);
+
+  useEffect(() => {
+    const owner = {};
+    ownerRef.current = owner;
+    return () => {
+      if (ownerRef.current === owner) ownerRef.current = null;
+    };
+  }, []);
 
   // Define all async functions with useCallback before useEffect hooks
   const loadCategories = useCallback(async () => {
@@ -131,22 +142,27 @@ export default function SkillsPage() {
   }, []);
 
   const loadSkills = useCallback(async (search?: string, showLoading = false) => {
+    const owner = ownerRef.current;
+    if (!owner) return;
+    const requestId = ++mySkillsRequestRef.current;
     try {
       // Only show loading spinner on initial load, not during search
       if (showLoading) {
         setLoading(true);
       }
       const response = await skillsApi.mySkills({ search: search || undefined });
+      if (owner !== ownerRef.current || requestId !== mySkillsRequestRef.current) return;
       setUserSkills(response.user_skills);
       setAddedSkills(response.added_skills);
       // Track which public skills are already added
       const addedIds = new Set(response.added_skills.map(s => s.public_skill_id));
       setAddedPublicIds(addedIds);
     } catch (error) {
+      if (owner !== ownerRef.current || requestId !== mySkillsRequestRef.current) return;
       logger.error("Failed to load skills:", error);
     } finally {
-      setHasLoadedMySkills(true);
-      if (showLoading) {
+      if (owner === ownerRef.current && requestId === mySkillsRequestRef.current) {
+        setHasLoadedMySkills(true);
         setLoading(false);
       }
     }
@@ -296,12 +312,14 @@ export default function SkillsPage() {
   };
 
   const handleCreate = () => {
+    formRequestRef.current += 1;
     setFormData(emptyForm);
     setEditingSkill(null);
     setIsCreating(true);
   };
 
   const handleEdit = (skill: Skill) => {
+    formRequestRef.current += 1;
     setFormData({
       name: skill.name,
       description: skill.description || "",
@@ -314,6 +332,9 @@ export default function SkillsPage() {
 
   const handleSave = async () => {
     if (!formData.name.trim() || !formData.instructions.trim()) return;
+    const owner = ownerRef.current;
+    if (!owner) return;
+    const formRequestId = formRequestRef.current;
 
     const triggers = formData.triggers
       .split(",")
@@ -350,10 +371,13 @@ export default function SkillsPage() {
         };
         await skillsApi.create(createData);
       }
+      if (owner !== ownerRef.current) return;
       await loadSkills();
-      setIsCreating(false);
-      setEditingSkill(null);
-      setFormData(emptyForm);
+      if (owner === ownerRef.current && formRequestId === formRequestRef.current) {
+        setIsCreating(false);
+        setEditingSkill(null);
+        setFormData(emptyForm);
+      }
     } catch (error) {
       logger.error("Failed to save skill:", error);
       if (
@@ -362,12 +386,14 @@ export default function SkillsPage() {
         error.errorCode === "ERR_QUOTA_EXCEEDED" &&
         skillCreateUpgradePrompt.surface === "modal"
       ) {
-        setShowSkillCreateUpgradeModal(true);
+        if (owner === ownerRef.current && formRequestId === formRequestRef.current) {
+          setShowSkillCreateUpgradeModal(true);
+        }
       } else {
         showSkillError(error, "skills:errors.saveFailed");
       }
     } finally {
-      setSaving(false);
+      if (owner === ownerRef.current) setSaving(false);
     }
   };
 
@@ -398,9 +424,12 @@ export default function SkillsPage() {
       return;
     }
 
+    const owner = ownerRef.current;
+    if (!owner) return;
     setImporting(true);
     try {
       const result = await skillsApi.importSkill(file);
+      if (owner !== ownerRef.current) return;
       setImportResult({ skillName: result.skill.name, warnings: result.warnings ?? [] });
       setActiveTab("my-skills");
       await loadSkills();
@@ -411,12 +440,12 @@ export default function SkillsPage() {
         error.errorCode === "ERR_QUOTA_EXCEEDED" &&
         skillCreateUpgradePrompt.surface === "modal"
       ) {
-        setShowSkillCreateUpgradeModal(true);
+        if (owner === ownerRef.current) setShowSkillCreateUpgradeModal(true);
       } else {
         toast.error(error instanceof Error && error.message ? error.message : t("skills:import.failed"));
       }
     } finally {
-      setImporting(false);
+      if (owner === ownerRef.current) setImporting(false);
     }
   };
 
@@ -433,6 +462,7 @@ export default function SkillsPage() {
   };
 
   const handleCancel = () => {
+    formRequestRef.current += 1;
     setIsCreating(false);
     setEditingSkill(null);
     setFormData(emptyForm);

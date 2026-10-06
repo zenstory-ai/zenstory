@@ -12,7 +12,7 @@
  *
  * @module components/VersionHistoryPanel
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Clock,
@@ -55,7 +55,7 @@ interface VersionHistoryPanelProps {
   /** Callback invoked when the panel is closed */
   onClose: () => void;
   /** Callback invoked after a successful rollback operation */
-  onRollback?: (snapshotId: string) => void;
+  onRollback?: (snapshotId: string) => void | Promise<void>;
   /** Callback invoked when comparing two snapshots */
   onCompare?: (snapshot1Id: string, snapshot2Id: string) => void;
 }
@@ -76,16 +76,41 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
   const [editDescription, setEditDescription] = useState('');
   const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
   const [showComparison, setShowComparison] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [nextOffset, setNextOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const contextGeneration = useRef(0);
+  const requestGeneration = useRef(0);
+  const listInFlight = useRef<number | null>(null);
+  const actionInFlight = useRef<symbol | null>(null);
+  const translate = useRef(t);
 
-  const loadSnapshots = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  useEffect(() => {
+    translate.current = t;
+  }, [t]);
+
+  const loadSnapshots = useCallback(async (offset = 0, append = false) => {
+    if (append && (listInFlight.current !== null || actionInFlight.current !== null)) return;
+    const context = contextGeneration.current;
+    const request = ++requestGeneration.current;
+    listInFlight.current = request;
+    if (append) setLoadingMore(true);
+    else {
+      setLoading(true);
+      setError(null);
+    }
+    setPageError(null);
 
     try {
       const response = await versionApi.getSnapshots(projectId, {
         fileId: outlineId,
         limit: 50,
+        ...(offset > 0 ? { offset } : {}),
       });
+      if (context !== contextGeneration.current || request !== requestGeneration.current) return;
 
       // Parse data field to compute summary for each snapshot
       const snapshotsWithSummary: SnapshotWithSummary[] = response.map((snapshot) => {
@@ -113,44 +138,108 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
         };
       });
 
-      setSnapshots(snapshotsWithSummary);
+      setSnapshots((current) => {
+        if (!append) return snapshotsWithSummary;
+        const seen = new Set(current.map((snapshot) => snapshot.id));
+        return [...current, ...snapshotsWithSummary.filter((snapshot) => {
+          if (snapshot.id && seen.has(snapshot.id)) return false;
+          seen.add(snapshot.id);
+          return true;
+        })];
+      });
+      setNextOffset(offset + response.length);
+      setHasMore(response.length === 50);
     } catch (err) {
-      setError(t('editor:versionHistory.loadFailed'));
+      if (context !== contextGeneration.current || request !== requestGeneration.current) return;
+      if (append) setPageError(translate.current('editor:versionHistory.loadFailed'));
+      else setError(translate.current('editor:versionHistory.loadFailed'));
       logger.error('Failed to load snapshots:', err);
     } finally {
-      setLoading(false);
+      if (context === contextGeneration.current && request === requestGeneration.current) {
+        listInFlight.current = null;
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
-  }, [projectId, outlineId, t]);
+  }, [projectId, outlineId]);
 
   useEffect(() => {
-    loadSnapshots();
+    contextGeneration.current += 1;
+    listInFlight.current = null;
+    actionInFlight.current = null;
+    setSnapshots([]);
+    setNextOffset(0);
+    setHasMore(false);
+    setLoadingMore(false);
+    setEditingId(null);
+    setEditDescription('');
+    setSelectedForCompare([]);
+    setShowComparison(false);
+    setActionBusy(false);
+    setActionError(null);
+    void loadSnapshots();
+    return () => {
+      contextGeneration.current += 1;
+      requestGeneration.current += 1;
+      actionInFlight.current = null;
+    };
   }, [loadSnapshots]);
 
   const handleSaveDescription = async (snapshotId: string) => {
+    if (actionInFlight.current !== null) return;
+    const context = contextGeneration.current;
+    const action = Symbol('description');
+    actionInFlight.current = action;
+    setActionBusy(true);
+    setActionError(null);
     try {
-      await versionApi.updateSnapshot(snapshotId, { description: editDescription });
+      const updated = await versionApi.updateSnapshot(snapshotId, { description: editDescription });
+      if (context !== contextGeneration.current) return;
+      setSnapshots((current) => current.map((snapshot) => snapshot.id === snapshotId
+        ? { ...snapshot, ...updated, description: updated?.description ?? editDescription }
+        : snapshot));
       setEditingId(null);
       setEditDescription('');
-      loadSnapshots();
     } catch (err) {
+      if (context !== contextGeneration.current) return;
+      setActionError(translate.current('editor:versionHistory.updateFailed'));
       logger.error('Failed to update description:', err);
+    } finally {
+      if (actionInFlight.current === action) {
+        actionInFlight.current = null;
+        setActionBusy(false);
+      }
     }
   };
 
   const handleRollback = async (snapshotId: string) => {
+    if (actionInFlight.current !== null) return;
     if (!confirm(t('editor:versionHistory.confirmRollback'))) {
       return;
     }
 
+    const context = contextGeneration.current;
+    const action = Symbol('rollback');
+    actionInFlight.current = action;
+    setActionBusy(true);
+    setActionError(null);
     try {
       await versionApi.rollback(snapshotId);
-      loadSnapshots();
+      if (context !== contextGeneration.current) return;
       if (onRollback) {
-        onRollback(snapshotId);
-      }
+        // The workbench callback reconciles and closes this panel. Do not issue
+        // a throwaway history request before that required reconciliation.
+        await onRollback(snapshotId);
+      } else await loadSnapshots();
     } catch (err) {
+      if (context !== contextGeneration.current) return;
       logger.error('Rollback failed:', err);
-      alert(t('editor:versionHistory.rollbackFailed'));
+      alert(translate.current('editor:versionHistory.rollbackFailed'));
+    } finally {
+      if (actionInFlight.current === action) {
+        actionInFlight.current = null;
+        setActionBusy(false);
+      }
     }
   };
 
@@ -211,6 +300,7 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
 
             <button
               onClick={onClose}
+              disabled={actionBusy}
               className="p-1.5 hover:bg-[hsl(var(--bg-tertiary))] rounded-md text-[hsl(var(--text-primary))]"
             >
               <X className="w-5 h-5" />
@@ -228,8 +318,11 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
             <div className="flex items-center gap-2 text-[hsl(var(--error))] p-4 bg-[hsl(var(--error)/0.1)] rounded-lg">
               <AlertCircle className="w-5 h-5" />
               <span>{error}</span>
+              <button onClick={() => void loadSnapshots()}>{t('common:retry')}</button>
             </div>
           )}
+
+          {actionError && <div role="alert" className="text-[hsl(var(--error))] p-2">{actionError}</div>}
 
           {!loading && !error && snapshots.length === 0 && (
             <div className="text-center text-[hsl(var(--text-secondary))] py-8">{t('editor:versionHistory.empty')}</div>
@@ -272,7 +365,7 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
                         onClick={() => {
                           if (snapshotId) handleSelectForCompare(snapshotId);
                         }}
-                        disabled={!isSelectable}
+                        disabled={!isSelectable || actionBusy}
                         className={`p-1.5 rounded ${
                           isSelected
                             ? 'bg-[hsl(var(--accent-primary))] text-white'
@@ -287,7 +380,7 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
                           onClick={() => {
                             if (snapshotId) handleRollback(snapshotId);
                           }}
-                          disabled={!isSelectable}
+                          disabled={!isSelectable || actionBusy}
                           className={`p-1.5 hover:bg-[hsl(var(--bg-hover))] rounded text-[hsl(var(--text-primary))] ${!isSelectable ? 'opacity-50 cursor-not-allowed' : ''}`}
                           title={t('editor:versionHistory.rollbackTo')}
                         >
@@ -306,17 +399,19 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
                         className="flex-1 px-2 py-1 bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] rounded text-sm text-[hsl(var(--text-primary))]"
                         placeholder={t('editor:versionHistory.addDescription')}
                         autoFocus
+                        disabled={actionBusy}
                       />
                       <button
                         onClick={() => {
                           if (snapshotId) handleSaveDescription(snapshotId);
                         }}
-                        disabled={!isSelectable}
+                        disabled={!isSelectable || actionBusy}
                         className={`p-1.5 bg-[hsl(var(--success))] text-white rounded hover:bg-[hsl(var(--success-dark))] ${!isSelectable ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         <Check className="w-4 h-4" />
                       </button>
                       <button
+                        disabled={actionBusy}
                         onClick={() => {
                           setEditingId(null);
                           setEditDescription('');
@@ -339,7 +434,7 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
                           setEditingId(snapshotId);
                           setEditDescription(snapshot.description || '');
                         }}
-                        disabled={!isSelectable}
+                        disabled={!isSelectable || actionBusy}
                         className={`p-1 hover:bg-[hsl(var(--bg-hover))] rounded text-[hsl(var(--text-secondary))] ${!isSelectable ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         <Edit2 className="w-3.5 h-3.5" />
@@ -355,6 +450,16 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
                 </div>
                 );
               })}
+              {pageError && <div role="alert" className="text-[hsl(var(--error))]">{pageError}</div>}
+              {hasMore && (
+                <button
+                  onClick={() => void loadSnapshots(nextOffset, true)}
+                  disabled={loadingMore || actionBusy}
+                  className="w-full py-2 rounded-md text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-hover))] disabled:opacity-50"
+                >
+                  {loadingMore ? t('common:loading') : pageError ? t('common:retry') : t('editor:versionHistory.loadMore')}
+                </button>
+              )}
             </div>
           )}
         </div>

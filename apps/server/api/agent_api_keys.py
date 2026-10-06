@@ -9,9 +9,9 @@ import logging
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from services.auth import get_current_active_user
-from sqlmodel import Session, func, select
+from sqlmodel import Session, col, func, select
 
 from config.datetime_utils import utcnow
 from core.error_codes import ErrorCode
@@ -45,6 +45,13 @@ class UpdateApiKeyRequest(BaseModel):
     scopes: list[str] | None = None
     project_ids: list[str] | None = None
     is_active: bool | None = None
+
+    @field_validator("name", "scopes", "is_active", mode="before")
+    @classmethod
+    def reject_explicit_null(cls, value: object) -> object:
+        if value is None:
+            raise ValueError("This field cannot be null")
+        return value
 
 
 class ApiKeyResponse(BaseModel):
@@ -235,7 +242,9 @@ def list_api_keys(
     total = int(session.exec(count_statement).one())
 
     # Apply pagination
-    statement = statement.order_by(AgentApiKey.created_at.desc()).offset(offset).limit(limit)
+    statement = statement.order_by(
+        col(AgentApiKey.created_at).desc(), col(AgentApiKey.id).desc()
+    ).offset(offset).limit(limit)
 
     keys = session.exec(statement).all()
 

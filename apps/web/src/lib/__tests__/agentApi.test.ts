@@ -675,7 +675,7 @@ describe('agentApi', () => {
     it('calls onDone when stream completes', async () => {
       const onDone = vi.fn()
       const mockStream = createMockStream([
-        'event: done\ndata: {"apply_action":"insert","refs":[1,2],"assistant_message_id":"assistant-1","session_id":"session-9"}\n\n',
+        'event: done\ndata: {"apply_action":"insert","refs":[1,2],"assistant_message_id":"assistant-1","session_id":"session-9","file_mutated":true}\n\n',
       ])
 
       const mockFetch = vi.fn().mockResolvedValue({
@@ -697,6 +697,7 @@ describe('agentApi', () => {
         refs: [1, 2],
         assistant_message_id: 'assistant-1',
         session_id: 'session-9',
+        file_mutated: true,
       })
     })
 

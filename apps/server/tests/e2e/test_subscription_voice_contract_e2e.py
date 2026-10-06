@@ -14,6 +14,7 @@ from sqlmodel import Session
 
 from models.skill import UserSkill
 from models.subscription import RedemptionCode, SubscriptionHistory, UsageQuota
+
 from .test_core_api_e2e import (
     _attach_subscription,
     _build_valid_redemption_code,
@@ -188,7 +189,8 @@ async def test_voice_status_contract_reports_configured_and_unconfigured_states(
     unconfigured_payload = unconfigured_response.json()
     assert unconfigured_payload["configured"] is False
     assert unconfigured_payload["provider"] == "tencent"
-    assert "webm" in unconfigured_payload["supported_formats"]
+    assert "wav" in unconfigured_payload["supported_formats"]
+    assert "webm" not in unconfigured_payload["supported_formats"]
 
     monkeypatch.setenv("TENCENT_SECRET_ID", "contract-secret-id")
     monkeypatch.setenv("TENCENT_SECRET_KEY", "contract-secret-key")

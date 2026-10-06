@@ -148,6 +148,7 @@ class StreamAdapter:
         self._matched_skill_ids: set[str] = set(self.config.matched_skill_ids)
         # Fatal stream error flag (e.g. file content persistence failure)
         self._fatal_stream_error = False
+        self._file_mutated = False
 
         log_with_context(
             logger,
@@ -167,6 +168,7 @@ class StreamAdapter:
         self._last_message_usage = None
         self._matched_skill_ids = set(self.config.matched_skill_ids)
         self._fatal_stream_error = False
+        self._file_mutated = False
 
     # usage 键别名 → 规范键。Chat Completions 用 prompt/completion，
     # Responses/SDK 用 input/output；两族键名若同时进同一个累加字典，
@@ -362,7 +364,7 @@ class StreamAdapter:
             return
 
         # Emit done event
-        yield done_event()
+        yield done_event(file_mutated=self._file_mutated)
 
     async def process_langgraph_events(
         self,
@@ -611,6 +613,13 @@ class StreamAdapter:
             if edit_all_failed:
                 status = "error"
                 error = error or self._summarize_edit_failures(result_data)
+
+            if (
+                status == "success"
+                and isinstance(parsed_result, dict)
+                and parsed_result.get("mutation_applied") is True
+            ):
+                self._file_mutated = True
 
             # 全失败的 edit_file 仍要把 data 发出去：failed_edits 是用户判断
             # 「哪几处没改成、为什么」的唯一依据，丢掉它卡片就是空白的。
@@ -870,7 +879,7 @@ class StreamAdapter:
             file_id=file_id,
             content_length=len(content),
         )
-        task = asyncio.create_task(self._save_file_content(file_id, content))
+        task = asyncio.create_task(self._save_file_content(file_id, content, record_mutation=False))
         _ABORT_SAVE_TASKS.add(task)
         task.add_done_callback(_ABORT_SAVE_TASKS.discard)
         return task
@@ -1020,7 +1029,7 @@ class StreamAdapter:
 
             ToolContext.clear_pending_empty_file(file_id or None)
 
-    async def _save_file_content(self, file_id: str, content: str) -> bool:
+    async def _save_file_content(self, file_id: str, content: str, *, record_mutation: bool = True) -> bool:
         """
         Save accumulated file content to database.
 
@@ -1038,7 +1047,7 @@ class StreamAdapter:
         )
 
         try:
-            return await asyncio.wait_for(
+            saved, content_changed = await asyncio.wait_for(
                 asyncio.to_thread(
                     self._save_file_content_sync,
                     file_id,
@@ -1046,6 +1055,9 @@ class StreamAdapter:
                 ),
                 timeout=STREAM_FILE_SAVE_TIMEOUT_S,
             )
+            if saved and content_changed and record_mutation:
+                self._file_mutated = True
+            return saved
         except TimeoutError:
             log_with_context(
                 logger,
@@ -1066,7 +1078,7 @@ class StreamAdapter:
             )
             return False
 
-    def _save_file_content_sync(self, file_id: str, content: str) -> bool:
+    def _save_file_content_sync(self, file_id: str, content: str) -> tuple[bool, bool]:
         """Persist streamed file content with a fresh sync DB session."""
         from agent.tools.file_ops import FileToolExecutor
         from database import create_session, get_session, is_postgres
@@ -1079,7 +1091,7 @@ class StreamAdapter:
                     session=session,
                     user_id=self.config.user_id,
                 )
-                executor.update_file(id=file_id, content=content)
+                result = executor.update_file(id=file_id, content=content)
             finally:
                 with contextlib.suppress(StopIteration):
                     next(session_gen)
@@ -1089,7 +1101,7 @@ class StreamAdapter:
                     session=session,
                     user_id=self.config.user_id,
                 )
-                executor.update_file(id=file_id, content=content)
+                result = executor.update_file(id=file_id, content=content)
 
         log_with_context(
             logger,
@@ -1097,7 +1109,7 @@ class StreamAdapter:
             "File content saved successfully",
             file_id=file_id,
         )
-        return True
+        return True, result.get("content_changed") is True
 
     async def _handle_edit_file_result(
         self,

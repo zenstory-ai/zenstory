@@ -23,7 +23,8 @@ from fastapi.responses import Response
 from fastapi.routing import APIRoute
 from pydantic import BaseModel, BeforeValidator, Field
 from services.auth import get_current_active_user
-from sqlmodel import Session, select
+from sqlalchemy import case, delete, update
+from sqlmodel import Session, col, select
 
 from agent.skills.package import (
     MAX_DESCRIPTION_CHARS,
@@ -703,27 +704,31 @@ async def batch_update_skills(
     )
     added_skills = session.exec(added_stmt).all()
 
-    deleted_public_skill_ids: list[str] = []
-    for added in added_skills:
-        if request.action == "delete":
-            deleted_public_skill_ids.append(added.public_skill_id)
-            session.delete(added)
-        else:
+    if request.action == "delete" and added_skills:
+        deleted_public_skill_ids = session.execute(
+            delete(UserAddedSkill)
+            .where(
+                col(UserAddedSkill.id).in_([added.id for added in added_skills]),
+                col(UserAddedSkill.user_id) == current_user.id,
+            )
+            .returning(col(UserAddedSkill.id), col(UserAddedSkill.public_skill_id))
+            .execution_options(synchronize_session="fetch")
+        ).scalars("public_skill_id").all()
+        updated_count += len(deleted_public_skill_ids)
+
+        # Count only links this transaction deleted, with atomic arithmetic.
+        for public_skill_id, dec in sorted(Counter(deleted_public_skill_ids).items()):
+            session.execute(
+                update(PublicSkill)
+                .where(col(PublicSkill.id) == public_skill_id)
+                .values(add_count=case((col(PublicSkill.add_count) > dec, col(PublicSkill.add_count) - dec), else_=0))
+                .execution_options(synchronize_session=False)
+            )
+    else:
+        for added in added_skills:
             added.is_active = request.action == "enable"
             session.add(added)
-        updated_count += 1
-
-    # Keep add_count consistent when added-skill links are removed in batch.
-    if request.action == "delete" and deleted_public_skill_ids:
-        public_skill_counts = Counter(deleted_public_skill_ids)
-        public_skills = session.exec(
-            select(PublicSkill).where(PublicSkill.id.in_(list(public_skill_counts.keys())))
-        ).all()
-        for public_skill in public_skills:
-            dec = public_skill_counts.get(public_skill.id, 0)
-            if dec > 0 and public_skill.add_count > 0:
-                public_skill.add_count = max(public_skill.add_count - dec, 0)
-                session.add(public_skill)
+            updated_count += 1
 
     session.commit()
 

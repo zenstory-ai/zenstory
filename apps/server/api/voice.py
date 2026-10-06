@@ -15,7 +15,7 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.routing import APIRoute
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from services.auth import get_current_active_user
 
 from core.error_codes import ErrorCode
@@ -26,12 +26,13 @@ from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
 
-MAX_AUDIO_BYTES = 5 * 1024 * 1024
-MAX_BASE64_LENGTH = ((MAX_AUDIO_BYTES + 2) // 3) * 4
+# SentenceRecognition Data is capped after Base64; use conservative decimal MB.
+MAX_BASE64_LENGTH = 3_000_000
+MAX_AUDIO_BYTES = MAX_BASE64_LENGTH // 4 * 3
 MAX_VOICE_REQUEST_BYTES = MAX_BASE64_LENGTH + 4096
 VOICE_RATE_LIMIT_MAX_REQUESTS = 60
 VOICE_RATE_LIMIT_WINDOW_SECONDS = 3600
-SUPPORTED_AUDIO_FORMATS = ("wav", "pcm", "mp3", "m4a", "flac", "ogg-opus", "webm")
+SUPPORTED_AUDIO_FORMATS = ("wav", "pcm", "ogg-opus", "speex", "silk", "mp3", "m4a", "aac", "amr")
 
 
 class _VoiceRequestRoute(APIRoute):
@@ -86,8 +87,8 @@ router = APIRouter(
 # Request/Response schemas
 class VoiceRecognizeRequest(BaseModel):
     """语音识别请求"""
-    audio_data: str  # Base64 编码的音频数据
-    audio_format: Literal["wav", "pcm", "mp3", "m4a", "flac", "ogg-opus", "webm"] = "wav"
+    audio_data: str = Field(min_length=1)  # Base64 编码的音频数据
+    audio_format: Literal["wav", "pcm", "ogg-opus", "speex", "silk", "mp3", "m4a", "aac", "amr"] = "wav"
     sample_rate: Literal[8000, 16000] = 16000
     language: Literal["zh", "en", "zh-CN", "en-US"] = "zh"
 
@@ -120,7 +121,7 @@ def generate_tencent_signature(
     endpoint: str,
     payload: str,  # 改为直接接收已序列化的JSON字符串
     timestamp: int
-) -> str:
+) -> tuple[str, str, str, str]:
     """
     生成腾讯云 API v3 签名
 
@@ -187,7 +188,7 @@ async def call_tencent_asr(
     """
     调用腾讯云一句话识别 API
 
-    参考文档: https://cloud.tencent.com/document/api/1093/37823
+    参考文档: https://cloud.tencent.com/document/api/1093/35646
     """
     import httpx
 
@@ -197,17 +198,8 @@ async def call_tencent_asr(
     region = "ap-shanghai"
     timestamp = int(time.time())
 
-    # 音频格式映射
-    format_map = {
-        "wav": "wav",
-        "pcm": "pcm",
-        "mp3": "mp3",
-        "m4a": "m4a",
-        "flac": "flac",
-        "ogg-opus": "ogg-opus",
-        "webm": "ogg-opus",  # WebM 通常使用 opus 编码
-    }
-    voice_format = format_map[audio_format]
+    # The frontend normalizes browser recordings; never relabel containers here.
+    voice_format = audio_format
 
     # Engine type (Tencent ASR)
     lang = (language or "").lower()
@@ -337,10 +329,16 @@ async def recognize_voice(
     将音频数据转换为文字，支持 60 秒以内的短音频。
 
     - **audio_data**: Base64 编码的音频数据
-    - **audio_format**: 音频格式 (wav, pcm, mp3, m4a, flac, ogg-opus, webm)
+    - **audio_format**: 音频格式 (wav, pcm, ogg-opus, speex, silk, mp3, m4a, aac, amr)
     - **sample_rate**: 采样率 (8000 或 16000)
     """
     try:
+        if len(request.audio_data) > MAX_BASE64_LENGTH:
+            raise APIException(
+                error_code=ErrorCode.VOICE_AUDIO_DECODE_FAILED,
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="Encoded audio data exceeds the 3 MB limit",
+            )
         try:
             audio_bytes = base64.b64decode(request.audio_data, validate=True)
         except (ValueError, TypeError) as exc:
@@ -354,7 +352,7 @@ async def recognize_voice(
             raise APIException(
                 error_code=ErrorCode.VOICE_AUDIO_DECODE_FAILED,
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail="Audio data exceeds the 5 MiB limit",
+                detail="Audio data exceeds the supported encoded-data limit",
             )
 
         # 获取凭证
@@ -371,7 +369,9 @@ async def recognize_voice(
         )
 
         # 解析响应
-        response_data = result.get("Response", {})
+        if not isinstance(result, dict) or not isinstance(result.get("Response"), dict):
+            raise ValueError("Malformed voice provider response")
+        response_data = result["Response"]
 
         # 检查错误
         error = response_data.get("Error")
@@ -390,13 +390,15 @@ async def recognize_voice(
             )
 
         # 获取识别结果
-        recognized_text = response_data.get("Result", "")
+        recognized_text = response_data.get("Result")
+        if not isinstance(recognized_text, str):
+            raise ValueError("Missing voice provider result")
         audio_duration = response_data.get("AudioDuration")
 
         return VoiceRecognizeResponse(
             text=recognized_text,
             success=True,
-            duration_ms=int(audio_duration * 1000) if audio_duration else None
+            duration_ms=int(audio_duration) if audio_duration is not None else None
         )
 
     except APIException:

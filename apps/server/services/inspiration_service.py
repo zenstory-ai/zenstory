@@ -9,13 +9,16 @@ Provides functions for managing the inspiration library:
 """
 
 import json
+from typing import cast
 
+from sqlalchemy.orm import InstrumentedAttribute, defer
 from sqlmodel import Session, func, or_, select
 
 from config.datetime_utils import utcnow
 from models.entities import Project, User
 from models.file_model import File
 from models.inspiration import Inspiration
+from services.features.file_version_service import get_file_version_service
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -166,6 +169,7 @@ def copy_inspiration_to_project(
         )
         session.add(new_file)
         session.flush()  # Get new file ID
+        get_file_version_service().create_initial_version(session, new_file)
 
         # Map old ID to new ID
         old_id = file_data.get("id")
@@ -216,6 +220,8 @@ def list_inspirations(
     page: int = 1,
     page_size: int = 12,
     featured_only: bool = False,
+    *,
+    metadata_only: bool = False,
 ) -> tuple[list[Inspiration], int]:
     """
     List approved inspirations with filtering and pagination.
@@ -228,12 +234,15 @@ def list_inspirations(
         page: Page number (1-indexed)
         page_size: Number of results per page
         featured_only: Only return featured inspirations
+        metadata_only: Defer template bodies for metadata-only API responses
 
     Returns:
         Tuple of (list of inspirations, total count)
     """
     # Base query - only approved inspirations
     stmt = select(Inspiration).where(Inspiration.status == "approved")
+    if metadata_only:
+        stmt = stmt.options(defer(cast(InstrumentedAttribute[str], Inspiration.snapshot_data)))
 
     # Filter by project type
     if project_type:
@@ -306,6 +315,8 @@ def get_inspiration_detail(
 def get_featured_inspirations(
     session: Session,
     limit: int = 6,
+    *,
+    metadata_only: bool = False,
 ) -> list[Inspiration]:
     """
     Get featured inspirations for homepage.
@@ -313,6 +324,7 @@ def get_featured_inspirations(
     Args:
         session: Database session
         limit: Maximum number of inspirations to return
+        metadata_only: Defer template bodies for metadata-only API responses
 
     Returns:
         List of featured inspirations ordered by sort_order
@@ -326,6 +338,8 @@ def get_featured_inspirations(
         .order_by(Inspiration.sort_order, Inspiration.copy_count.desc())
         .limit(limit)
     )
+    if metadata_only:
+        stmt = stmt.options(defer(cast(InstrumentedAttribute[str], Inspiration.snapshot_data)))
     return list(session.exec(stmt).all())
 
 
@@ -486,6 +500,8 @@ def review_inspiration(
     reviewer: User,
     approve: bool,
     rejection_reason: str | None = None,
+    *,
+    commit: bool = True,
 ) -> Inspiration:
     """
     Review a community inspiration.
@@ -496,6 +512,7 @@ def review_inspiration(
         reviewer: Admin user performing the review
         approve: True to approve, False to reject
         rejection_reason: Required if approve=False
+        commit: Commit immediately by default; otherwise stage for the caller transaction
 
     Returns:
         Updated Inspiration
@@ -516,12 +533,12 @@ def review_inspiration(
 
     inspiration.updated_at = utcnow()
 
-    session.commit()
-    session.refresh(inspiration)
-
-    status_text = "approved" if approve else "rejected"
-    logger.info(
-        f"Admin {reviewer.id} {status_text} inspiration {inspiration.id}"
-    )
+    if commit:
+        session.commit()
+        session.refresh(inspiration)
+        status_text = "approved" if approve else "rejected"
+        logger.info(f"Admin {reviewer.id} {status_text} inspiration {inspiration.id}")
+    else:
+        session.flush()
 
     return inspiration

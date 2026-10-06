@@ -223,33 +223,33 @@ export const QuotaManagement: React.FC = () => {
                 )}
               </div>
 
-              {/* Material Upload */}
+              {/* Material Decomposition */}
               <div className="admin-surface p-4">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))]">
-                    <Upload className="h-5 w-5" />
+                    <ChartBar className="h-5 w-5" />
                   </div>
                   <div>
                     <h3 className="font-medium text-[hsl(var(--text-primary))]">
-                      {t("quota.materialUpload")}
+                      {t("quota.materialDecomposes")}
                     </h3>
                     <p className="text-sm text-[hsl(var(--text-secondary))]">
-                      {(userQuota?.material_upload_limit ?? 0) === -1
+                      {(userQuota?.material_decompose_limit ?? 0) === -1
                         ? t("quota.unlimited")
-                        : `${userQuota?.material_upload_used ?? 0} / ${userQuota?.material_upload_limit ?? 0}`}
+                        : `${userQuota?.material_decompose_used ?? 0} / ${userQuota?.material_decompose_limit ?? 0}`}
                     </p>
                   </div>
                 </div>
-                {(userQuota?.material_upload_limit ?? 0) !== -1 && (
+                {(userQuota?.material_decompose_limit ?? 0) !== -1 && (
                   <div className="space-y-1">
                     <div className="flex justify-between text-xs text-[hsl(var(--text-secondary))]">
                       <span>{t("quota.used")}</span>
-                      <span>{formatPercentage(userQuota?.material_upload_used ?? 0, userQuota?.material_upload_limit ?? 0)}%</span>
+                      <span>{formatPercentage(userQuota?.material_decompose_used ?? 0, userQuota?.material_decompose_limit ?? 0)}%</span>
                     </div>
                     <div className="h-2 bg-[hsl(var(--bg-tertiary))] rounded-full overflow-hidden">
                       <div
-                        className={`h-full ${getQuotaBgColor(formatPercentage(userQuota?.material_upload_used ?? 0, userQuota?.material_upload_limit ?? 0))} transition-all`}
-                        style={{ width: `${Math.min(100, formatPercentage(userQuota?.material_upload_used ?? 0, userQuota?.material_upload_limit ?? 0))}%` }}
+                        className={`h-full ${getQuotaBgColor(formatPercentage(userQuota?.material_decompose_used ?? 0, userQuota?.material_decompose_limit ?? 0))} transition-all`}
+                        style={{ width: `${Math.min(100, formatPercentage(userQuota?.material_decompose_used ?? 0, userQuota?.material_decompose_limit ?? 0))}%` }}
                       />
                     </div>
                   </div>

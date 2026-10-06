@@ -234,6 +234,7 @@ export function streamAgentRequest(
       refs?: number[];
       assistant_message_id?: string;
       session_id?: string;
+      file_mutated?: boolean;
     }) => void;
     onError?: (message: string, code?: string, retryable?: boolean) => void;
   },
@@ -696,6 +697,7 @@ export function streamAgentRequest(
                 refs?: number[];
                 assistant_message_id?: string;
                 session_id?: string;
+                file_mutated?: boolean;
               };
               receivedTerminalEvent = true;
               callbacks.onDone?.(data);
@@ -734,6 +736,7 @@ export function streamAgentRequest(
                 refs?: number[];
                 assistant_message_id?: string;
                 session_id?: string;
+                file_mutated?: boolean;
               };
               receivedTerminalEvent = true;
               callbacks.onDone?.(data);

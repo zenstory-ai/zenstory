@@ -11,7 +11,7 @@ from core.error_handler import APIException
 from models import Project, User
 
 
-async def verify_project_access(
+def verify_project_access_sync(
     project_id: str,
     session: Session,
     current_user: User,
@@ -45,3 +45,12 @@ async def verify_project_access(
     if project.is_deleted:
         raise APIException(error_code=ErrorCode.PROJECT_NOT_FOUND, status_code=404)
     return project
+
+
+async def verify_project_access(
+    project_id: str,
+    session: Session,
+    current_user: User,
+) -> Project:
+    """Keep asynchronous callers compatible with the shared permission policy."""
+    return verify_project_access_sync(project_id, session, current_user)

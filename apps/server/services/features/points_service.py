@@ -10,11 +10,15 @@ Provides methods for:
 - Earn opportunities display
 """
 import os
+from collections.abc import Iterable
 from contextlib import suppress
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from itertools import groupby
+from typing import Any, cast
 
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session, func, select
+from sqlalchemy.orm import QueryableAttribute, load_only
+from sqlmodel import Session, col, func, select
 
 from config.datetime_utils import beijing_date, normalize_datetime_to_utc, utcnow
 from core.error_codes import ErrorCode
@@ -61,6 +65,104 @@ def effective_check_in_date(record: CheckInRecord) -> date:
         if record.check_in_date == created_at_utc.date():
             return beijing_date(created_at_utc)
     return record.check_in_date
+
+
+def _calculate_balance(transactions: Iterable[PointsTransaction], *, now: datetime) -> dict:
+    """Replay the existing FIFO ledger without querying or mutating rows."""
+    lots: list[dict] = []
+    overspent = 0
+
+    def to_naive(dt):
+        if dt is None:
+            return None
+        return dt.replace(tzinfo=None) if getattr(dt, "tzinfo", None) else dt
+
+    for tx in transactions:
+        tx_created_at = to_naive(tx.created_at)
+
+        if tx.amount > 0:
+            lots.append(
+                {
+                    "remaining": tx.amount,
+                    "expires_at": tx.expires_at,
+                    "is_expired": tx.is_expired,
+                }
+            )
+            continue
+
+        if tx.amount >= 0:
+            continue
+
+        amount_to_spend = abs(tx.amount)
+
+        # Primary pass: consume from lots that were valid at spend time.
+        for lot in lots:
+            if amount_to_spend <= 0:
+                break
+            if lot["remaining"] <= 0:
+                continue
+
+            lot_expires_at = to_naive(lot["expires_at"])
+            if lot_expires_at and tx_created_at and lot_expires_at <= tx_created_at:
+                continue
+
+            consumed = min(lot["remaining"], amount_to_spend)
+            lot["remaining"] -= consumed
+            amount_to_spend -= consumed
+
+        # Fallback for legacy inconsistent data: consume any remaining lots.
+        if amount_to_spend > 0:
+            for lot in lots:
+                if amount_to_spend <= 0:
+                    break
+                if lot["remaining"] <= 0:
+                    continue
+                consumed = min(lot["remaining"], amount_to_spend)
+                lot["remaining"] -= consumed
+                amount_to_spend -= consumed
+
+        if amount_to_spend > 0:
+            overspent += amount_to_spend
+
+    now_naive = to_naive(now)
+    thirty_days_later_naive = to_naive(now + timedelta(days=30))
+
+    available = 0
+    pending_expiration = 0
+    nearest_expiration = None
+
+    for lot in lots:
+        if lot["remaining"] <= 0:
+            continue
+
+        lot_expires_at = to_naive(lot["expires_at"])
+        lot_is_active = not lot["is_expired"] and (
+            lot_expires_at is None or (now_naive and lot_expires_at > now_naive)
+        )
+
+        if not lot_is_active:
+            continue
+
+        available += lot["remaining"]
+
+        if (
+            lot_expires_at
+            and now_naive
+            and thirty_days_later_naive
+            and lot_expires_at <= thirty_days_later_naive
+        ):
+            pending_expiration += lot["remaining"]
+
+        if lot_expires_at and (nearest_expiration is None or lot_expires_at < to_naive(nearest_expiration)):
+            nearest_expiration = lot["expires_at"]
+
+    available = max(0, available - overspent)
+
+    return {
+        "available": available,
+        "pending_expiration": pending_expiration,
+        "nearest_expiration_date": nearest_expiration.isoformat() if nearest_expiration else None,
+    }
 
 
 class PointsService:
@@ -125,100 +227,37 @@ class PointsService:
             .order_by(PointsTransaction.created_at.asc())
         ).all()
 
-        lots: list[dict] = []
-        overspent = 0
+        return _calculate_balance(transactions, now=now)
 
-        def to_naive(dt):
-            if dt is None:
-                return None
-            return dt.replace(tzinfo=None) if getattr(dt, "tzinfo", None) else dt
+    def get_available_points_stats(self, session: Session) -> tuple[int, int]:
+        """Return current available points and positive-wallet count in one scan."""
+        now = utcnow()
+        transactions = session.exec(
+            select(PointsTransaction)
+            .options(load_only(
+                *(cast(QueryableAttribute[Any], field) for field in (
+                    PointsTransaction.id, PointsTransaction.user_id,
+                    PointsTransaction.amount, PointsTransaction.created_at,
+                    PointsTransaction.expires_at, PointsTransaction.is_expired,
+                ))
+            ))
+            .order_by(col(PointsTransaction.user_id).asc(), col(PointsTransaction.created_at).asc()),
+            execution_options={"yield_per": 256},
+        )
+        try:
+            total_available = 0
+            positive_wallet_count = 0
+            for _, rows in groupby(transactions, key=lambda tx: tx.user_id):
+                available = _calculate_balance(rows, now=now)["available"]
+                total_available += available
+                positive_wallet_count += int(available > 0)
+            return total_available, positive_wallet_count
+        finally:
+            transactions.close()
 
-        for tx in transactions:
-            tx_created_at = to_naive(tx.created_at)
-
-            if tx.amount > 0:
-                lots.append(
-                    {
-                        "remaining": tx.amount,
-                        "expires_at": tx.expires_at,
-                        "is_expired": tx.is_expired,
-                    }
-                )
-                continue
-
-            if tx.amount >= 0:
-                continue
-
-            amount_to_spend = abs(tx.amount)
-
-            # Primary pass: consume from lots that were valid at spend time.
-            for lot in lots:
-                if amount_to_spend <= 0:
-                    break
-                if lot["remaining"] <= 0:
-                    continue
-
-                lot_expires_at = to_naive(lot["expires_at"])
-                if lot_expires_at and tx_created_at and lot_expires_at <= tx_created_at:
-                    continue
-
-                consumed = min(lot["remaining"], amount_to_spend)
-                lot["remaining"] -= consumed
-                amount_to_spend -= consumed
-
-            # Fallback for legacy inconsistent data: consume any remaining lots.
-            if amount_to_spend > 0:
-                for lot in lots:
-                    if amount_to_spend <= 0:
-                        break
-                    if lot["remaining"] <= 0:
-                        continue
-                    consumed = min(lot["remaining"], amount_to_spend)
-                    lot["remaining"] -= consumed
-                    amount_to_spend -= consumed
-
-            if amount_to_spend > 0:
-                overspent += amount_to_spend
-
-        now_naive = to_naive(now)
-        thirty_days_later_naive = to_naive(now + timedelta(days=30))
-
-        available = 0
-        pending_expiration = 0
-        nearest_expiration = None
-
-        for lot in lots:
-            if lot["remaining"] <= 0:
-                continue
-
-            lot_expires_at = to_naive(lot["expires_at"])
-            lot_is_active = not lot["is_expired"] and (
-                lot_expires_at is None or (now_naive and lot_expires_at > now_naive)
-            )
-
-            if not lot_is_active:
-                continue
-
-            available += lot["remaining"]
-
-            if (
-                lot_expires_at
-                and now_naive
-                and thirty_days_later_naive
-                and lot_expires_at <= thirty_days_later_naive
-            ):
-                pending_expiration += lot["remaining"]
-
-            if lot_expires_at and (nearest_expiration is None or lot_expires_at < to_naive(nearest_expiration)):
-                nearest_expiration = lot["expires_at"]
-
-        available = max(0, available - overspent)
-
-        return {
-            "available": available,
-            "pending_expiration": pending_expiration,
-            "nearest_expiration_date": nearest_expiration.isoformat() if nearest_expiration else None,
-        }
+    def get_total_available_points(self, session: Session) -> int:
+        """Keep the dashboard total on the same canonical balance calculation."""
+        return self.get_available_points_stats(session)[0]
 
     def earn_points(
         self,
@@ -799,7 +838,7 @@ class PointsService:
         transactions = session.exec(
             select(PointsTransaction)
             .where(PointsTransaction.user_id == user_id)
-            .order_by(PointsTransaction.created_at.desc())
+            .order_by(col(PointsTransaction.created_at).desc(), col(PointsTransaction.id).desc())
             .offset(offset)
             .limit(page_size)
         ).all()

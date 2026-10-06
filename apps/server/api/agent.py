@@ -419,12 +419,15 @@ async def stream_request(
         reset_request_context(prime_ctx_tokens)
 
     async def _primed_stream():
-        if prestart_error is not None:
-            raise prestart_error
-        if first_event is not None:
-            yield first_event
-        async for event in stream:
-            yield event
+        try:
+            if prestart_error is not None:
+                raise prestart_error
+            if first_event is not None:
+                yield first_event
+            async for event in stream:
+                yield event
+        finally:
+            await stream.aclose()
 
     async def event_generator():
         agent_ctx_tokens = bind_request_context(agent_run_id=agent_run_id)
@@ -592,7 +595,7 @@ async def suggest_next_action(
     from agent.suggest_service import get_suggest_service
 
     # Keep authorization behavior consistent with chat/stream endpoints
-    await verify_project_access(body.project_id, session, current_user)
+    project = await verify_project_access(body.project_id, session, current_user)
 
     log_with_context(
         logger,
@@ -615,6 +618,7 @@ async def suggest_next_action(
         recent_messages=body.recent_messages,
         count=body.count,
         language=lang,
+        project_type=project.project_type,
     )
 
     log_with_context(

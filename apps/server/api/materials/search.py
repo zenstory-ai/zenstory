@@ -84,6 +84,8 @@ def get_library_summary(
     for novel, job in novels_with_jobs:
         if novel.id not in novel_map:
             novel_map[novel.id] = (novel, _reconcile_job_if_needed(session, job))
+        elif job is not None and job.status == "failed":
+            _reconcile_job_if_needed(session, job)
 
     result = []
     novel_ids = []

@@ -216,6 +216,28 @@ describe("UserManagement", () => {
     expect(mutateMock).not.toHaveBeenCalled();
   });
 
+  it.each([true, false])("keeps the edit header close consistent with pending=%s", (pending) => {
+    useMutationMock.mockReturnValue({ mutate: vi.fn(), isPending: pending });
+    useQueryMock.mockReturnValue({
+      data: { users: [sampleUser], total: 1 }, isLoading: false, isFetching: false,
+      isError: false, error: null, refetch: vi.fn(),
+    });
+    render(<UserManagement />);
+    fireEvent.click(screen.getAllByTitle("users.edit")[0]);
+    const heading = screen.getByRole("heading", { name: "users.editUser" });
+    const close = heading.parentElement!.querySelector("button")!;
+    if (pending) {
+      expect(screen.getByRole("button", { name: "common:cancel" })).toBeDisabled();
+      expect(close).toBeDisabled();
+      fireEvent.click(close);
+      expect(screen.getByRole("heading", { name: "users.editUser" })).toBeInTheDocument();
+    } else {
+      expect(close).toBeEnabled();
+      fireEvent.click(close);
+      expect(screen.queryByRole("heading", { name: "users.editUser" })).not.toBeInTheDocument();
+    }
+  });
+
   describe("pagination total", () => {
     const allUsers = Array.from({ length: 92 }, (_, index) => ({
       ...sampleUser,

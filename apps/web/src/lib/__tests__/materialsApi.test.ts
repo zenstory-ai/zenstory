@@ -45,6 +45,7 @@ vi.mock('../apiClient', () => ({
   getApiBase: vi.fn(() => 'http://localhost:8000'),
   getAccessToken: vi.fn(() => 'test-token'),
   tryRefreshToken: vi.fn(() => Promise.resolve(true)),
+  resolveOwnedAuthSession: vi.fn(() => ({ accessToken: localStorage.getItem('access_token'), refreshToken: localStorage.getItem('refresh_token') })),
   ApiError: class ApiError extends Error {
     constructor(
       public status: number,
@@ -62,6 +63,8 @@ global.fetch = vi.fn()
 describe('materialsApi', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.setItem('access_token', 'test-token')
+    localStorage.setItem('refresh_token', 'test-refresh')
   })
 
   afterEach(() => {
@@ -218,7 +221,11 @@ describe('materialsApi', () => {
           json: async () => mockResponse,
         } as Response)
 
-      mockTryRefreshToken.mockResolvedValue(true)
+      mockTryRefreshToken.mockImplementation(async () => {
+        localStorage.setItem('access_token', 'rotated-test-token')
+        localStorage.setItem('refresh_token', 'rotated-test-refresh')
+        return true
+      })
 
       const result = await materialsApi.upload(mockFile)
 

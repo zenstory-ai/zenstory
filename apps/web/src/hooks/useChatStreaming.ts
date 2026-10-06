@@ -30,7 +30,7 @@ import { toast } from "../lib/toast";
 import { stripThinkTags } from "../lib/utils";
 import { dispatchProjectStatusUpdated } from "../lib/projectStatusEvents";
 import { formatHandoffMessage } from "../lib/agentDisplayName";
-import type { MessageSegment } from "./useAgentStream";
+import type { MessageSegment, StreamCompletionMeta } from "./useAgentStream";
 
 /** Throttle delay for stream render updates in milliseconds */
 export const STREAM_UPDATE_THROTTLE_MS = 50;
@@ -404,7 +404,11 @@ export interface UseChatStreamingOptions {
    * Called when streaming completes successfully.
    * Signature matches useAgentStream's onComplete callback.
    */
-  onComplete?: (segments: MessageSegment[], applyAction: ApplyAction | null) => void | Promise<void>;
+  onComplete?: (
+    segments: MessageSegment[],
+    applyAction: ApplyAction | null,
+    completionMeta?: StreamCompletionMeta,
+  ) => void | Promise<void>;
 
   /** Called when an error occurs during streaming */
   onError?: (message?: string, code?: string, retryable?: boolean) => void;
@@ -1454,7 +1458,8 @@ export function useChatStreaming(): UseChatStreamingReturn {
          */
         onComplete: async (
           segments: MessageSegment[],
-          _applyAction: ApplyAction | null
+          _applyAction: ApplyAction | null,
+          completionMeta?: StreamCompletionMeta,
         ) => {
           setEditProgress(null);
 
@@ -1484,73 +1489,14 @@ export function useChatStreaming(): UseChatStreamingReturn {
           }
           flushFileTreeRefresh();
 
-          // Check for file modifications and AI content
-          const hasFileModifications = segments.some(
-            (s) =>
-              s.type === "tool_calls" &&
-              s.toolCalls?.some((tc) =>
-                ["create_file", "update_file", "edit_file", "delete_file"].includes(
-                  tc.tool_name
-                )
-              )
-          );
-
-          const hasAIContent = segments.some(
-            (s) =>
-              (s.type === "content" && Boolean(s.content?.trim())) ||
-              (s.type === "tool_calls" && Boolean(s.toolCalls?.length))
-          );
-
-          // Create snapshot if: (1) file was modified OR (2) AI generated meaningful content
-          // AND (3) we have a valid project ID
-          if ((hasFileModifications || hasAIContent) && activeProjectId) {
+          if (
+            completionMeta?.partial !== true &&
+            completionMeta?.confirmedFileMutation === true &&
+            activeProjectId
+          ) {
             try {
-              // Get summary of changes from tool calls
-              const modifiedFiles: string[] = [];
-              for (const segment of segments) {
-                if (segment.type === "tool_calls" && segment.toolCalls) {
-                  for (const tc of segment.toolCalls) {
-                    if (
-                      ["create_file", "update_file", "edit_file", "delete_file"].includes(
-                        tc.tool_name
-                      )
-                    ) {
-                      const titleArg =
-                        typeof tc.arguments?.title === "string"
-                          ? tc.arguments.title
-                          : null;
-                      const title = titleArg?.trim() || null;
-
-                      // Don't show placeholder values like "unknown" in snapshot description
-                      if (
-                        title &&
-                        title.toLowerCase() !== "unknown" &&
-                        !modifiedFiles.includes(title)
-                      ) {
-                        modifiedFiles.push(title);
-                      }
-                    }
-                  }
-                }
-              }
-
-              // Generate description based on what was done
-              let description = t("chat:message.aiDone");
-              if (modifiedFiles.length > 0) {
-                description = t("chat:message.aiEdit", {
-                  files: modifiedFiles.slice(0, 3).join(", "),
-                  extra: modifiedFiles.length > 3 ? `+ ${modifiedFiles.length - 3}` : "",
-                });
-              } else if (hasFileModifications) {
-                description = t("chat:message.aiDoneFilesModified");
-              } else if (hasAIContent) {
-                description = t("chat:message.aiConversationAt", {
-                  time: new Date().toLocaleTimeString(),
-                });
-              }
-
               await createSnapshot(activeProjectId, {
-                description,
+                description: t("chat:message.aiDoneFilesModified"),
                 snapshotType: "auto",
               });
             } catch (err) {

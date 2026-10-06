@@ -8,7 +8,6 @@ and assembles it into a formatted prompt with priority-based selection.
 # Standard library
 import contextlib
 import hashlib
-import json
 import os
 import re
 import time
@@ -327,10 +326,7 @@ class ContextAssembler:
         file_type = file.file_type
 
         # Parse metadata
-        metadata = {}
-        if file.file_metadata:
-            with contextlib.suppress(json.JSONDecodeError, TypeError):
-                metadata = json.loads(file.file_metadata)
+        metadata = file.get_metadata()
 
         if file_type == "character":
             # Build character profile from content and metadata

@@ -66,6 +66,7 @@ export const FileTreePane: React.FC = () => {
   const [selectedResultIndex, setSelectedResultIndex] = useState(0);
   const loadRequestIdRef = useRef(0);
   const loadAbortControllerRef = useRef<AbortController | null>(null);
+  const activeProjectIdRef = useRef(currentProjectId);
 
   const isAbortError = useCallback((error: unknown): boolean => {
     return (
@@ -96,7 +97,8 @@ export const FileTreePane: React.FC = () => {
   // Load file tree data
   // @param showLoading - whether to show loading state (only for initial load)
   const loadData = useCallback(async (showLoading = false) => {
-    if (!currentProjectId) return;
+    // A mutation started in a previous project may finish after navigation.
+    if (!currentProjectId || currentProjectId !== activeProjectIdRef.current) return;
     const requestId = ++loadRequestIdRef.current;
     loadAbortControllerRef.current?.abort();
     const abortController = new AbortController();
@@ -121,7 +123,7 @@ export const FileTreePane: React.FC = () => {
         .map((node) => node.id);
       setExpandedFolders((prev) => new Set([...prev, ...rootFolderIds]));
     } catch (error: unknown) {
-      if (isAbortError(error) || requestId !== loadRequestIdRef.current) {
+      if (abortController.signal.aborted || isAbortError(error) || requestId !== loadRequestIdRef.current) {
         return;
       }
       logger.error("Failed to load file tree:", error);
@@ -138,6 +140,7 @@ export const FileTreePane: React.FC = () => {
   }, [currentProjectId, isAbortError]);
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
       loadAbortControllerRef.current?.abort();
       mountedRef.current = false;
@@ -153,12 +156,23 @@ export const FileTreePane: React.FC = () => {
   }, [fileTreeVersion, loadData]);
 
   useEffect(() => {
-    // Only load when currentProjectId changes (not on every mount)
+    // Files from the previous project must not remain selectable while loading.
+    activeProjectIdRef.current = currentProjectId;
+    setTree([]);
     if (currentProjectId) {
       // Show loading only on initial load or when switching projects
       setIsInitialLoad(true);
       loadData(true);
+    } else {
+      setLoading(false);
+      setIsInitialLoad(false);
     }
+    return () => {
+      // Fence pending mutation completions as well as existing requests when
+      // the project changes or this tree unmounts.
+      activeProjectIdRef.current = null;
+      loadAbortControllerRef.current?.abort();
+    };
   }, [currentProjectId, loadData]);
 
   // Clear search when project changes
@@ -303,6 +317,7 @@ export const FileTreePane: React.FC = () => {
         content: "",
       });
 
+      if (currentProjectId !== activeProjectIdRef.current) return;
       await loadData(false); // silent refresh - no loading indicator
       cancelCreate();
     } catch (error) {
@@ -320,6 +335,7 @@ export const FileTreePane: React.FC = () => {
     try {
       await fileApi.delete(fileId);
 
+      if (currentProjectId !== activeProjectIdRef.current) return;
       // Clear selection if deleted item was selected
       if (selectedItem?.id === fileId) {
         setSelectedItem(null);

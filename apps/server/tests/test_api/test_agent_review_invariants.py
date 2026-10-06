@@ -44,7 +44,7 @@ async def test_key_with_missing_owner_is_rejected_before_usage_mutation():
     session.exec.return_value.first.return_value = key
     session.get.return_value = None
     with pytest.raises(APIException) as exc:
-        await get_agent_user(x_agent_api_key=plain_key, session=session)
+        get_agent_user(x_agent_api_key=plain_key, session=session)
     assert exc.value.status_code == 403
     assert key.request_count == 0
     session.commit.assert_not_called()
@@ -72,7 +72,7 @@ async def test_unexpected_version_failure_rolls_back_agent_update(db_session, ag
     with patch("api.agent_api.get_file_version_service") as service:
         service.return_value.create_version.side_effect = RuntimeError("Snapshot storage unavailable")
         with pytest.raises(RuntimeError, match="Snapshot storage unavailable"):
-            await update_file(file.id, FileUpdate(content="Edited", title="Changed"), BackgroundTasks(), _rate_limit=0, context=(db_session, user.id, key))
+            update_file(file.id, FileUpdate(content="Edited", title="Changed"), BackgroundTasks(), _rate_limit=0, context=(db_session, user.id, key))
     db_session.refresh(file)
     assert file.content == "Original"
     assert file.title == "Draft"
@@ -84,7 +84,7 @@ async def test_unexpected_version_failure_rolls_back_agent_create(db_session, ag
     with patch("api.agent_api.get_file_version_service") as service:
         service.return_value.create_version.side_effect = RuntimeError("Snapshot storage unavailable")
         with pytest.raises(RuntimeError, match="Snapshot storage unavailable"):
-            await create_file(project.id, FileCreate(title="New draft", file_type="draft", content="New content"), BackgroundTasks(), _rate_limit=0, context=(db_session, user.id, key))
+            create_file(project.id, FileCreate(title="New draft", file_type="draft", content="New content"), BackgroundTasks(), _rate_limit=0, context=(db_session, user.id, key))
     after = db_session.exec(select(File).where(File.project_id == project.id)).all()
     assert {file.id for file in after} == {file.id for file in before}
 

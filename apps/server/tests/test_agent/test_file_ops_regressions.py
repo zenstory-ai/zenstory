@@ -19,6 +19,53 @@ from agent.tools.file_ops import FileCRUD, FileEditor
 from models import File, Project, User
 from models.file_version import FileVersion
 
+
+@pytest.fixture
+def local_history_sideeffects(monkeypatch):
+    from agent.tools.file_ops import crud
+
+    monkeypatch.setattr(FileCRUD, "_schedule_index_upsert", lambda *_a, **_kw: None)
+    monkeypatch.setattr(crud.activation_event_service, "record_ai_write_accepted", lambda *_a, **_kw: None)
+
+
+def _history_failure(*_args, **_kwargs):
+    raise RuntimeError("Optional AI history failure")
+
+
+def test_ai_create_persists_content_when_optional_history_fails(db_session, test_user, test_project, local_history_sideeffects, monkeypatch):
+    crud = FileCRUD(db_session, test_user.id)
+    monkeypatch.setattr(crud, "_create_version", _history_failure)
+    result = crud.create_file(test_project.id, "New chapter", "draft", content="Created body")
+    db_session.expire_all()
+    assert db_session.get(File, result["id"]).content == "Created body"
+    assert db_session.exec(select(FileVersion).where(FileVersion.file_id == result["id"])).all() == []
+
+
+def test_ai_empty_create_gets_first_history_when_content_is_filled(db_session, test_user, test_project, local_history_sideeffects):
+    crud = FileCRUD(db_session, test_user.id)
+    result = crud.create_file(test_project.id, "Empty chapter", "draft", content="")
+    assert db_session.exec(select(FileVersion).where(FileVersion.file_id == result["id"])).all() == []
+    crud.update_file(result["id"], content="Streamed body")
+    db_session.expire_all()
+    assert db_session.get(File, result["id"]).content == "Streamed body"
+    version = db_session.exec(select(FileVersion).where(FileVersion.file_id == result["id"])).one()
+    assert version.version_number == 1
+    assert version.is_base_version is True
+    assert version.change_source == "ai"
+    assert version.content == "Streamed body"
+
+
+def test_ai_update_persists_content_without_extra_row_when_history_fails(db_session, test_user, test_project, local_history_sideeffects, monkeypatch):
+    crud = FileCRUD(db_session, test_user.id)
+    result = crud.create_file(test_project.id, "Existing chapter", "draft", content="Original body")
+    monkeypatch.setattr(crud, "_create_version", _history_failure)
+    crud.update_file(result["id"], content="Changed body")
+    db_session.expire_all()
+    assert db_session.get(File, result["id"]).content == "Changed body"
+    version = db_session.exec(select(FileVersion).where(FileVersion.file_id == result["id"])).one()
+    assert version.version_number == 1
+    assert version.content == "Original body"
+
 # ========== Fixtures ==========
 
 

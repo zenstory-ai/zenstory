@@ -259,6 +259,10 @@ async def test_project_file_version_roundtrip_covers_tree_compare_and_rollback(
     )
     file_id = file_record["id"]
 
+    baseline = await client.get(f"/api/v1/files/{file_id}/versions/1/content", headers=_auth_headers(access_token))
+    assert baseline.status_code == 200
+    assert baseline.json()["content"] == "draft zero"
+
     version_one = await client.post(
         f"/api/v1/files/{file_id}/versions",
         json={
@@ -270,7 +274,7 @@ async def test_project_file_version_roundtrip_covers_tree_compare_and_rollback(
         headers=_auth_headers(access_token),
     )
     assert version_one.status_code == 200
-    assert version_one.json()["version_number"] == 1
+    assert version_one.json()["version_number"] == 2
 
     version_two = await client.post(
         f"/api/v1/files/{file_id}/versions",
@@ -283,38 +287,39 @@ async def test_project_file_version_roundtrip_covers_tree_compare_and_rollback(
         headers=_auth_headers(access_token),
     )
     assert version_two.status_code == 200
-    assert version_two.json()["version_number"] == 2
+    assert version_two.json()["version_number"] == 3
 
     list_response = await client.get(
         f"/api/v1/files/{file_id}/versions",
         headers=_auth_headers(access_token),
     )
     assert list_response.status_code == 200
-    assert list_response.json()["total"] == 2
-    assert [version["version_number"] for version in list_response.json()["versions"]] == [2, 1]
+    assert list_response.json()["total"] == 3
+    assert [version["version_number"] for version in list_response.json()["versions"]] == [3, 2, 1]
+    assert list_response.json()["versions"][-1]["change_source"] == "system"
 
     compare_response = await client.get(
-        f"/api/v1/files/{file_id}/versions/compare?v1=1&v2=2",
+        f"/api/v1/files/{file_id}/versions/compare?v1=2&v2=3",
         headers=_auth_headers(access_token),
     )
     assert compare_response.status_code == 200
     comparison = compare_response.json()
-    assert comparison["version1"]["number"] == 1
-    assert comparison["version2"]["number"] == 2
+    assert comparison["version1"]["number"] == 2
+    assert comparison["version2"]["number"] == 3
     assert comparison["stats"]["lines_added"] >= 1
     assert "Line 4" in comparison["unified_diff"]
 
     rollback_response = await client.post(
-        f"/api/v1/files/{file_id}/versions/1/rollback",
+        f"/api/v1/files/{file_id}/versions/2/rollback",
         headers=_auth_headers(access_token),
     )
     assert rollback_response.status_code == 200
     rollback_payload = rollback_response.json()
-    assert rollback_payload["restored_version"] == 1
-    assert rollback_payload["new_version_number"] == 3
+    assert rollback_payload["restored_version"] == 2
+    assert rollback_payload["new_version_number"] == 4
 
     restored_content = await client.get(
-        f"/api/v1/files/{file_id}/versions/3/content",
+        f"/api/v1/files/{file_id}/versions/4/content",
         headers=_auth_headers(access_token),
     )
     assert restored_content.status_code == 200

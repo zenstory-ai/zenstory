@@ -6,6 +6,7 @@ import { Plus, FileText, Edit, Trash2, RefreshCw, AlertTriangle } from "lucide-r
 import { AdminPageState } from "../../components/admin";
 import { adminApi } from "../../lib/adminApi";
 import { getLocaleCode } from "../../lib/i18n-helpers";
+import { parseUTCDate } from "../../lib/dateUtils";
 import { toast } from "../../lib/toast";
 
 export const PromptManagement: React.FC = () => {
@@ -43,7 +44,7 @@ export const PromptManagement: React.FC = () => {
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return "-";
-    const date = new Date(dateStr);
+    const date = parseUTCDate(dateStr);
     if (Number.isNaN(date.getTime())) {
       return "-";
     }

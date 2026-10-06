@@ -14,11 +14,12 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel import Session, select
 
-from config.datetime_utils import utcnow
+from config.datetime_utils import beijing_date, utcnow
 from models import User
 from models.points import CheckInRecord
-from models.subscription import AdminAuditLog, SubscriptionPlan, UsageQuota, UserSubscription
+from models.subscription import AdminAuditLog, SubscriptionPlan, UserSubscription
 from services.core.auth_service import hash_password
+from services.quota_service import quota_service
 
 pytestmark = pytest.mark.e2e
 
@@ -142,13 +143,15 @@ async def test_admin_checkin_roundtrip_reports_exact_stats_and_records(
     admin = await _create_user(db_session, prefix="admin_checkin", is_superuser=True)
     target = await _create_user(db_session, prefix="checkin_target")
 
-    today = utcnow().date()
-    yesterday = today - timedelta(days=1)
+    now = utcnow()
+    previous = now - timedelta(days=1)
+    today = beijing_date(now)
+    yesterday = beijing_date(previous)
     db_session.add(
-        CheckInRecord(user_id=target.id, check_in_date=today, streak_days=8, points_earned=10)
+        CheckInRecord(user_id=target.id, check_in_date=today, created_at=now, streak_days=8, points_earned=10)
     )
     db_session.add(
-        CheckInRecord(user_id=target.id, check_in_date=yesterday, streak_days=7, points_earned=10)
+        CheckInRecord(user_id=target.id, check_in_date=yesterday, created_at=previous, streak_days=7, points_earned=10)
     )
     db_session.commit()
 
@@ -190,16 +193,12 @@ async def test_admin_quota_roundtrip_reports_exact_usage_and_user_detail(
         current_period_end=utcnow() + timedelta(days=30),
         cancel_at_period_end=False,
     )
-    quota = UsageQuota(
-        user_id=target.id,
-        period_start=utcnow() - timedelta(days=1),
-        period_end=utcnow() + timedelta(days=30),
-        ai_conversations_used=11,
-        material_uploads_used=2,
-        material_decompositions_used=1,
-        skill_creates_used=3,
-        inspiration_copies_used=4,
-    )
+    quota = quota_service.create_default_quota(db_session, target.id, commit=False)
+    quota.ai_conversations_used = 11
+    quota.material_uploads_used = 2
+    quota.material_decompositions_used = 1
+    quota.skill_creates_used = 3
+    quota.inspiration_copies_used = 4
     db_session.add(subscription)
     db_session.add(quota)
     db_session.commit()

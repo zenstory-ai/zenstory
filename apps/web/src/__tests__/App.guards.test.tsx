@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -354,6 +354,23 @@ describe("App route guards", () => {
     await waitFor(() => expect(screen.getByText("Login Page")).toBeInTheDocument());
     expect(localStorage.getItem("access_token")).toBeNull();
     expect(localStorage.getItem("refresh_token")).toBeNull();
+  });
+
+  it("does not clear replacement storage while applying a delayed helper result", async () => {
+    state.auth.user = { id: "user-auth" };
+    localStorage.setItem("access_token", "entry-access");
+    localStorage.setItem("refresh_token", "entry-refresh");
+    let resolve!: (value: unknown) => void;
+    state.ssoRedirect.mockReturnValue(new Promise(accept => { resolve = accept; }));
+    renderAppAt("/login?redirect=https%3A%2F%2Fzenstory.ai");
+    await waitFor(() => expect(state.ssoRedirect).toHaveBeenCalledTimes(1));
+    localStorage.setItem("access_token", "replacement-access");
+    localStorage.setItem("refresh_token", "replacement-refresh");
+    await act(async () => { resolve({ success: false, clearAuth: true, reason: "session_expired" }); });
+    expect(localStorage.getItem("access_token")).toBe("replacement-access");
+    expect(localStorage.getItem("refresh_token")).toBe("replacement-refresh");
+    await waitFor(() => expect(screen.getByText("Dashboard Page")).toBeInTheDocument());
+    expect(screen.queryByText("Page Loader")).not.toBeInTheDocument();
   });
 
   it("preserves credentials and exits the loader for a thrown SSO failure", async () => {

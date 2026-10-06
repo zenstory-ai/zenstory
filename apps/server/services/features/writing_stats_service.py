@@ -12,16 +12,18 @@ import json as json_module
 import os
 import re
 from datetime import date, datetime, timedelta
-from typing import Any
+from sqlite3 import Connection as SQLiteConnection
+from typing import Any, cast
 
 from sqlalchemy import and_, case, func
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import load_only
-from sqlmodel import Session, select
+from sqlalchemy.orm import QueryableAttribute, SessionTransaction, load_only
+from sqlmodel import Session, col, select, update
 
+from agent.constants import CONTENT_FILE_TYPES
 from config.datetime_utils import utcnow
 from models.entities import ChatMessage, ChatSession
-from models.file_model import FILE_TYPE_DRAFT, FILE_TYPE_OUTLINE, File
+from models.file_model import FILE_TYPE_OUTLINE, File
 from models.writing_stats import WritingStats, WritingStreak
 from utils.logger import get_logger, log_with_context
 from utils.text_metrics import count_words
@@ -52,6 +54,16 @@ AI_USAGE_INPUT_COST_PER_1M_USD = _get_non_negative_float_env("AI_USAGE_INPUT_COS
 AI_USAGE_OUTPUT_COST_PER_1M_USD = _get_non_negative_float_env("AI_USAGE_OUTPUT_COST_PER_1M_USD", 0.0)
 AI_USAGE_CACHE_READ_COST_PER_1M_USD = _get_non_negative_float_env("AI_USAGE_CACHE_READ_COST_PER_1M_USD", 0.0)
 AI_USAGE_CACHE_WRITE_COST_PER_1M_USD = _get_non_negative_float_env("AI_USAGE_CACHE_WRITE_COST_PER_1M_USD", 0.0)
+
+
+def _begin_stats_creation_savepoint(session: Session) -> SessionTransaction:
+    """Keep first-row inserts inside the caller's real SQLite transaction."""
+    if session.get_bind().dialect.name == "sqlite":
+        connection = session.connection()
+        driver = cast(SQLiteConnection, connection.connection.driver_connection)
+        if not driver.in_transaction:
+            connection.exec_driver_sql("BEGIN")
+    return session.begin_nested()
 
 
 class WritingStatsService:
@@ -252,6 +264,8 @@ class WritingStatsService:
         user_id: str,
         project_id: str,
         stats_date: date | None = None,
+        *,
+        commit: bool = True,
     ) -> WritingStats:
         """
         Get or create writing stats for a specific date.
@@ -293,12 +307,11 @@ class WritingStatsService:
             edit_sessions=0,
             total_edit_time_seconds=0,
         )
-        session.add(stats)
         try:
-            session.commit()
-            session.refresh(stats)
+            with _begin_stats_creation_savepoint(session):
+                session.add(stats)
+                session.flush()
         except IntegrityError:
-            session.rollback()
             stats = session.exec(
                 select(WritingStats).where(
                     and_(
@@ -311,6 +324,9 @@ class WritingStatsService:
             if not stats:
                 raise
 
+        if commit:
+            session.commit()
+            session.refresh(stats)
         return stats
 
     def record_word_count(
@@ -323,6 +339,8 @@ class WritingStatsService:
         words_deleted: int = 0,
         edit_time_seconds: int = 0,
         stats_date: date | None = None,
+        *,
+        commit: bool = True,
     ) -> WritingStats:
         """
         Record word count changes for a project on a specific date.
@@ -345,18 +363,27 @@ class WritingStatsService:
             user_id=user_id,
             project_id=project_id,
             stats_date=stats_date,
+            commit=commit,
         )
 
-        # Update stats
-        stats.word_count = word_count
-        stats.words_added += words_added
-        stats.words_deleted += words_deleted
-        stats.edit_sessions += 1
-        stats.total_edit_time_seconds += edit_time_seconds
-        stats.updated_at = utcnow()
-
-        session.add(stats)
-        session.commit()
+        # Add activity against persisted values so concurrent records retain every increment.
+        session.exec(
+            update(WritingStats)
+            .where(col(WritingStats.id) == stats.id)
+            .values(
+                word_count=word_count,
+                words_added=col(WritingStats.words_added) + words_added,
+                words_deleted=col(WritingStats.words_deleted) + words_deleted,
+                edit_sessions=col(WritingStats.edit_sessions) + 1,
+                total_edit_time_seconds=col(WritingStats.total_edit_time_seconds) + edit_time_seconds,
+                updated_at=utcnow(),
+            )
+            .execution_options(synchronize_session=False)
+        )
+        if commit:
+            session.commit()
+        else:
+            session.flush()
         session.refresh(stats)
 
         log_with_context(
@@ -607,7 +634,7 @@ class WritingStatsService:
             .where(
                 and_(
                     File.project_id == project_id,
-                    File.file_type == FILE_TYPE_DRAFT,
+                    col(File.file_type).in_(CONTENT_FILE_TYPES),
                     File.is_deleted == False,
                 )
             )
@@ -759,7 +786,7 @@ class WritingStatsService:
             .where(
                 and_(
                     File.project_id == project_id,
-                    File.file_type == FILE_TYPE_DRAFT,
+                    col(File.file_type).in_(CONTENT_FILE_TYPES),
                     File.is_deleted == False,
                 )
             )
@@ -1035,6 +1062,8 @@ class WritingStatsService:
         session: Session,
         user_id: str,
         project_id: str,
+        *,
+        commit: bool = True,
     ) -> WritingStreak:
         """
         Get or create a writing streak record for a user/project.
@@ -1069,12 +1098,11 @@ class WritingStatsService:
             streak_start_date=None,
             streak_recovery_count=0,
         )
-        session.add(streak)
         try:
-            session.commit()
-            session.refresh(streak)
+            with _begin_stats_creation_savepoint(session):
+                session.add(streak)
+                session.flush()
         except IntegrityError:
-            session.rollback()
             streak = session.exec(
                 select(WritingStreak).where(
                     and_(
@@ -1086,6 +1114,9 @@ class WritingStatsService:
             if not streak:
                 raise
 
+        if commit:
+            session.commit()
+            session.refresh(streak)
         return streak
 
     def update_streak(
@@ -1095,6 +1126,8 @@ class WritingStatsService:
         project_id: str,
         words_written: int = 0,
         stats_date: date | None = None,
+        *,
+        commit: bool = True,
     ) -> WritingStreak:
         """
         Update writing streak when user writes.
@@ -1117,7 +1150,7 @@ class WritingStatsService:
         if stats_date is None:
             stats_date = utcnow().date()
 
-        streak = self.get_or_create_streak(session, user_id, project_id)
+        streak = self.get_or_create_streak(session, user_id, project_id, commit=commit)
 
         # Check if minimum words threshold is met
         if words_written > 0 and words_written < STREAK_MIN_WORDS_FOR_DAY:
@@ -1133,8 +1166,8 @@ class WritingStatsService:
             )
             return streak
 
-        # Check if already recorded today
-        if streak.last_writing_date == stats_date:
+        # Historical daily records must not rewind or inflate the current streak.
+        if streak.last_writing_date is not None and stats_date <= streak.last_writing_date:
             return streak
 
         previous_date = streak.last_writing_date
@@ -1171,7 +1204,10 @@ class WritingStatsService:
         streak.updated_at = utcnow()
 
         session.add(streak)
-        session.commit()
+        if commit:
+            session.commit()
+        else:
+            session.flush()
         session.refresh(streak)
 
         log_with_context(
@@ -1614,6 +1650,16 @@ class WritingStatsService:
             - first_interaction_date: Date of first AI interaction
             - last_interaction_date: Date of most recent interaction
         """
+        current_stats, _, _ = self._load_ai_usage_stats(session, user_id, project_id)
+        return current_stats
+
+    def _load_ai_usage_stats(
+        self,
+        session: Session,
+        user_id: str,
+        project_id: str,
+    ) -> tuple[dict[str, Any], list[str], list[ChatMessage]]:
+        """Load current metrics and scoped assistants for reuse across summary periods."""
         # Get all chat sessions for this project
         chat_sessions = session.exec(
             select(ChatSession).where(
@@ -1641,7 +1687,7 @@ class WritingStatsService:
                 "estimated_cost_usd": 0.0,
                 "first_interaction_date": None,
                 "last_interaction_date": None,
-            }
+            }, [], []
 
         session_ids = [s.id for s in chat_sessions]
         active_session = next((s for s in chat_sessions if s.is_active), None)
@@ -1664,12 +1710,16 @@ class WritingStatsService:
         tool_messages = int(aggregated.tool_messages or 0)
         first_date = aggregated.first_date
         last_date = aggregated.last_date
-        assistant_messages = session.exec(
+        assistant_messages = list(session.exec(
             select(ChatMessage)
-            .options(load_only(ChatMessage.message_metadata, ChatMessage.content))
+            .options(load_only(
+                cast(QueryableAttribute[str | None], ChatMessage.message_metadata),
+                cast(QueryableAttribute[str], ChatMessage.content),
+                cast(QueryableAttribute[datetime], ChatMessage.created_at),
+            ))
             .where(ChatMessage.session_id.in_(session_ids))
             .where(ChatMessage.role == "assistant")
-        ).all()
+        ).all())
         token_metrics = self._aggregate_assistant_token_metrics(assistant_messages)
 
         return {
@@ -1688,7 +1738,7 @@ class WritingStatsService:
             "estimated_cost_usd": token_metrics["estimated_cost_usd"],
             "first_interaction_date": first_date.isoformat() if first_date else None,
             "last_interaction_date": last_date.isoformat() if last_date else None,
-        }
+        }, session_ids, assistant_messages
 
     def get_ai_usage_trend(
         self,
@@ -1906,6 +1956,7 @@ class WritingStatsService:
         session: Session,
         user_id: str,
         project_id: str,
+        reference_date: date | None = None,
     ) -> dict[str, Any]:
         """
         Get a comprehensive AI usage summary for the project dashboard.
@@ -1916,6 +1967,7 @@ class WritingStatsService:
             session: Database session
             user_id: User ID
             project_id: Project ID
+            reference_date: Calendar date for period boundaries (defaults to today UTC)
 
         Returns:
             Dict with:
@@ -1924,22 +1976,12 @@ class WritingStatsService:
             - this_week: This week's usage
             - this_month: This month's usage
         """
-        current_stats = self.get_ai_usage_stats(session, user_id, project_id)
+        current_stats, session_ids, assistant_messages = self._load_ai_usage_stats(session, user_id, project_id)
 
         # Get today's usage
-        today = utcnow().date()
+        today = reference_date or utcnow().date()
         today_start = datetime.combine(today, datetime.min.time())
-
-        chat_sessions = session.exec(
-            select(ChatSession).where(
-                and_(
-                    ChatSession.user_id == user_id,
-                    ChatSession.project_id == project_id,
-                )
-            )
-        ).all()
-
-        session_ids = [s.id for s in chat_sessions] if chat_sessions else []
+        period_end = datetime.combine(today + timedelta(days=1), datetime.min.time())
 
         today_messages = {
             "total": 0,
@@ -1988,16 +2030,14 @@ class WritingStatsService:
                     )
                     .where(ChatMessage.session_id.in_(session_ids))
                     .where(ChatMessage.created_at >= start_dt)
+                    .where(ChatMessage.created_at < period_end)
                 ).one()
 
-                assistant_messages = session.exec(
-                    select(ChatMessage)
-                    .options(load_only(ChatMessage.message_metadata, ChatMessage.content))
-                    .where(ChatMessage.session_id.in_(session_ids))
-                    .where(ChatMessage.role == "assistant")
-                    .where(ChatMessage.created_at >= start_dt)
-                ).all()
-                token_metrics = self._aggregate_assistant_token_metrics(assistant_messages)
+                period_assistant_messages = [
+                    message for message in assistant_messages
+                    if start_dt <= message.created_at < period_end
+                ]
+                token_metrics = self._aggregate_assistant_token_metrics(period_assistant_messages)
 
                 return {
                     "total": int(aggregated.total or 0),

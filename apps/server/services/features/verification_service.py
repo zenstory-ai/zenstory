@@ -14,6 +14,7 @@ from utils.logger import get_logger, log_with_context
 from ..infra.email_client import send_verification_email
 from ..infra.redis_client import (
     check_resend_cooldown,
+    consume_verification_code,
     delete_resend_cooldown,
     delete_verification_code,
     get_verification_attempts,
@@ -144,8 +145,9 @@ async def verify_code(email: str, code: str, language: str = "zh") -> tuple[bool
             message = get_message("verification_incorrect", language)
             return False, message.format(count=remaining_attempts)
 
-        # Code is correct, delete it
-        await asyncio.to_thread(delete_verification_code, email)
+        # A concurrent verification/resend may have changed the code since GET.
+        if not await asyncio.to_thread(consume_verification_code, email, code):
+            return False, get_message("verification_not_exist", language)
         await asyncio.to_thread(reset_verification_attempts, email)
 
         return True, None

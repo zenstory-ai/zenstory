@@ -7,7 +7,7 @@
  */
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 
 const mockAgentStreamState = vi.hoisted(() => ({
   isStreaming: false,
@@ -16,10 +16,16 @@ const mockAgentStreamState = vi.hoisted(() => ({
 
 const sendSteeringMessageMock = vi.hoisted(() => vi.fn())
 const startStreamMock = vi.hoisted(() => vi.fn())
+const rollbackMock = vi.hoisted(() => vi.fn())
+const getVersionsMock = vi.hoisted(() => vi.fn())
+const getRecentMessagesMock = vi.hoisted(() => vi.fn(async () => []))
+const triggerFileTreeRefreshMock = vi.hoisted(() => vi.fn())
+const triggerEditorRefreshMock = vi.hoisted(() => vi.fn())
 
 const capturedMessageInputProps = vi.hoisted(() => ({
   props: null as Record<string, unknown> | null,
 }))
+const messageListMock = vi.hoisted(() => vi.fn())
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -31,8 +37,8 @@ vi.mock('../../contexts/ProjectContext', () => ({
   useProject: () => ({
     currentProjectId: 'project-1',
     selectedItem: null,
-    triggerFileTreeRefresh: vi.fn(),
-    triggerEditorRefresh: vi.fn(),
+    triggerFileTreeRefresh: triggerFileTreeRefreshMock,
+    triggerEditorRefresh: triggerEditorRefreshMock,
     setSelectedItem: vi.fn(),
     appendFileContent: vi.fn(),
     finishFileStreaming: vi.fn(),
@@ -136,7 +142,7 @@ vi.mock('../../hooks/useDraftPersistence', () => ({
 }))
 
 vi.mock('../../lib/chatApi', () => ({
-  getRecentMessages: vi.fn(async () => []),
+  getRecentMessages: getRecentMessagesMock,
   createNewSession: vi.fn(async () => ({ id: 'session-1' })),
   submitMessageFeedback: vi.fn(),
 }))
@@ -145,13 +151,23 @@ vi.mock('../../lib/agentApi', () => ({
   fetchSuggestions: vi.fn(async () => []),
 }))
 
+vi.mock('../../lib/analytics', () => ({
+  trackEvent: vi.fn(),
+}))
+
 vi.mock('../../lib/api', () => ({
-  fileVersionApi: {},
+  fileVersionApi: {
+    getVersions: getVersionsMock,
+    rollback: rollbackMock,
+  },
   versionApi: {},
 }))
 
 vi.mock('../MessageList', () => ({
-  MessageList: React.forwardRef(() => <div data-testid="mock-message-list" />),
+  MessageList: React.forwardRef((props: Record<string, unknown>, _ref) => {
+    messageListMock(props)
+    return <div data-testid="mock-message-list" />
+  }),
 }))
 
 vi.mock('../MessageInput', () => ({
@@ -173,6 +189,12 @@ vi.mock('../subscription/QuotaBadge', () => ({
   QuotaBadge: () => <div data-testid="mock-quota-badge" />,
 }))
 
+vi.mock('../subscription/UpgradePromptModal', () => ({
+  UpgradePromptModal: ({ open }: { open: boolean }) => (
+    <div data-testid="mock-upgrade-modal" data-open={String(open)} />
+  ),
+}))
+
 vi.mock('../../lib/toast', () => ({
   toast: {
     success: vi.fn(),
@@ -182,6 +204,7 @@ vi.mock('../../lib/toast', () => ({
 
 import { ChatPanel } from '../ChatPanel'
 import { toast } from '../../lib/toast'
+import { ApiError } from '../../lib/apiClient'
 
 async function renderAndGetSteer(): Promise<(message: string) => Promise<void>> {
   render(<ChatPanel />)
@@ -193,6 +216,31 @@ async function renderAndGetSteer(): Promise<(message: string) => Promise<void>> 
     | undefined
   expect(typeof onSteer).toBe('function')
   return onSteer!
+}
+
+async function renderAndGetUndo(): Promise<(target: {
+  fileId: string
+  beforeVersionNumber: number
+  expectedAfterUpdatedAt: string
+}) => Promise<void>> {
+  getRecentMessagesMock.mockResolvedValueOnce([{
+    id: 'assistant-message',
+    role: 'assistant',
+    content: 'ready',
+    created_at: '2026-10-06T12:00:00.000Z',
+    session_id: 'session-1',
+  }])
+  render(<ChatPanel />)
+  await waitFor(() => {
+    expect(screen.getByTestId('mock-message-list')).toBeInTheDocument()
+  })
+  const onUndo = (messageListMock.mock.lastCall?.[0] as Record<string, unknown> | undefined)?.onUndo
+  expect(typeof onUndo).toBe('function')
+  return onUndo as (target: {
+    fileId: string
+    beforeVersionNumber: number
+    expectedAfterUpdatedAt: string
+  }) => Promise<void>
 }
 
 describe('round3 #24 ChatPanel.handleSteer 必须把失败抛回调用方', () => {
@@ -263,5 +311,132 @@ describe('ChatPanel.handleSendMessage 透传显式选择的技能', () => {
 
     await onSend('不选技能', [])
     expect(startStreamMock.mock.lastCall?.[0].selected_skill_ids).toBeUndefined()
+  })
+})
+
+describe('ChatPanel immutable edit undo', () => {
+  const target = {
+    fileId: 'file-immutable',
+    beforeVersionNumber: 7,
+    expectedAfterUpdatedAt: '2026-10-06T12:34:56.000Z',
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    messageListMock.mockClear()
+    rollbackMock.mockReset()
+    getVersionsMock.mockReset()
+    vi.stubGlobal('confirm', vi.fn(() => true))
+  })
+
+  it('preserves immutable provenance while parsing persisted tool history', async () => {
+    getRecentMessagesMock.mockResolvedValueOnce([{
+      id: 'assistant-history',
+      role: 'assistant',
+      content: '',
+      created_at: '2026-10-06T12:00:00.000Z',
+      session_id: 'session-1',
+      tool_calls: JSON.stringify([{
+        id: 'tool-history',
+        name: 'edit_file',
+        arguments: {},
+        status: 'success',
+        result: {
+          data: {
+            id: target.fileId,
+            details: [],
+            undo: {
+              before_version_number: target.beforeVersionNumber,
+              expected_after_updated_at: target.expectedAfterUpdatedAt,
+            },
+          },
+        },
+      }]),
+    }])
+
+    render(<ChatPanel />)
+
+    await waitFor(() => {
+      const messages = (messageListMock.mock.lastCall?.[0] as Record<string, unknown> | undefined)?.messages as Array<{
+        toolResults?: Array<{ result?: Record<string, unknown> }>
+      }> | undefined
+      expect(messages?.[0]?.toolResults?.[0]?.result).toEqual({
+        data: {
+          id: target.fileId,
+          details: [],
+          undo: {
+            before_version_number: target.beforeVersionNumber,
+            expected_after_updated_at: target.expectedAfterUpdatedAt,
+          },
+        },
+      })
+    })
+  })
+
+  it('posts the exact stored target and token without re-reading latest versions', async () => {
+    rollbackMock.mockResolvedValue({
+      success: true,
+      snapshot_created: true,
+      version_quota_exceeded: false,
+    })
+    const onUndo = await renderAndGetUndo()
+
+    await act(async () => {
+      await onUndo(target)
+    })
+
+    expect(getVersionsMock).not.toHaveBeenCalled()
+    expect(rollbackMock).toHaveBeenCalledWith(
+      'file-immutable',
+      7,
+      '2026-10-06T12:34:56.000Z',
+    )
+    expect(triggerFileTreeRefreshMock).toHaveBeenCalledTimes(1)
+    expect(triggerEditorRefreshMock).toHaveBeenCalledWith('file-immutable')
+  })
+
+  it.each([
+    {
+      name: 'quota exhaustion',
+      result: { success: true, snapshot_created: false, version_quota_exceeded: true },
+      feedback: 'versions:quota.limitDescription',
+      opensUpgrade: true,
+    },
+    {
+      name: 'history omission',
+      result: { success: true, snapshot_created: false, version_quota_exceeded: false },
+      feedback: 'versions:rollbackHistoryNotSaved',
+      opensUpgrade: false,
+    },
+  ])('refreshes restored content and reports $name', async ({ result, feedback, opensUpgrade }) => {
+    rollbackMock.mockResolvedValue(result)
+    const onUndo = await renderAndGetUndo()
+
+    await act(async () => {
+      await onUndo(target)
+    })
+
+    expect(toast.error).toHaveBeenCalledWith(feedback)
+    expect(triggerFileTreeRefreshMock).toHaveBeenCalledTimes(1)
+    expect(triggerEditorRefreshMock).toHaveBeenCalledWith('file-immutable')
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mock-upgrade-modal').at(-1)).toHaveAttribute(
+        'data-open',
+        String(opensUpgrade),
+      )
+    })
+  })
+
+  it('reports a stale-token conflict without success refresh', async () => {
+    rollbackMock.mockRejectedValue(new ApiError(409, 'ERR_RESOURCE_CONFLICT'))
+    const onUndo = await renderAndGetUndo()
+
+    await act(async () => {
+      await onUndo(target)
+    })
+
+    expect(toast.error).toHaveBeenCalledTimes(1)
+    expect(triggerFileTreeRefreshMock).not.toHaveBeenCalled()
+    expect(triggerEditorRefreshMock).not.toHaveBeenCalled()
   })
 })

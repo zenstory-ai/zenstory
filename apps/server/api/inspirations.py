@@ -13,10 +13,12 @@ import json
 import logging
 from datetime import datetime
 from enum import StrEnum
+from typing import cast
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from services.auth import get_current_active_user
+from sqlalchemy.orm import InstrumentedAttribute, defer
 from sqlmodel import Session, func, select
 
 from config.datetime_utils import utcnow
@@ -324,6 +326,7 @@ def list_all_inspirations(
         page=page,
         page_size=page_size,
         featured_only=featured_only,
+        metadata_only=True,
     )
 
     return InspirationListResponse(
@@ -344,7 +347,7 @@ def get_featured(
 
     Returns top featured inspirations ordered by sort_order and copy_count.
     """
-    inspirations = get_featured_inspirations(session=session, limit=limit)
+    inspirations = get_featured_inspirations(session=session, limit=limit, metadata_only=True)
     return [_inspiration_to_response(i) for i in inspirations]
 
 
@@ -362,6 +365,7 @@ def get_my_submissions(
     """
     base_query = (
         select(Inspiration)
+        .options(defer(cast(InstrumentedAttribute[str], Inspiration.snapshot_data)))
         .where(Inspiration.author_id == current_user.id)
         .order_by(Inspiration.created_at.desc())
     )
@@ -471,18 +475,8 @@ def copy_inspiration(
             status_code=404,
         )
 
-    # Copying an inspiration creates a new project, so it must respect the same
-    # project limit as POST /projects.
-    project_allowed, existing_count, max_projects = quota_service.check_project_limit(
-        session, current_user.id
-    )
-    if not project_allowed:
-        raise APIException(
-            error_code=ErrorCode.QUOTA_PROJECTS_EXCEEDED,
-            status_code=402,
-            detail=f"Project limit reached ({existing_count}/{max_projects}). Please upgrade your plan.",
-        )
-
+    # Advisory checks may normalize/create monthly quota before taking the
+    # project creation gate; no commit-capable helper runs inside that gate.
     plan = quota_service.get_user_plan(session, current_user.id)
     should_consume_quota = not (plan and plan.name == "pro")
     if should_consume_quota:
@@ -499,6 +493,20 @@ def copy_inspiration(
             )
 
     try:
+        project_allowed, existing_count, max_projects = quota_service.check_project_limit(
+            session, current_user.id, for_creation=True
+        )
+        if not project_allowed:
+            raise APIException(
+                error_code=ErrorCode.QUOTA_PROJECTS_EXCEEDED,
+                status_code=402,
+                detail=f"Project limit reached ({existing_count}/{max_projects}). Please upgrade your plan.",
+            )
+
+        plan = quota_service.get_user_plan(session, current_user.id, commit=False)
+        should_consume_quota = not (plan and plan.name == "pro")
+        # A previous copy may have committed while this owner gate waited.
+        session.refresh(inspiration)
         # Copy inspiration to user's workspace
         new_project = copy_inspiration_to_project(
             session=session,
@@ -509,12 +517,13 @@ def copy_inspiration(
         )
 
         if should_consume_quota:
-            consumed = quota_service.consume_feature_quota(
+            reserved_period = quota_service.reserve_feature_quota(
                 session,
                 current_user.id,
                 "inspiration_copy",
+                commit=False,
             )
-            if not consumed:
+            if reserved_period is None:
                 # Roll back copied project/files and report latest quota usage.
                 session.rollback()
                 _, latest_used, latest_limit = quota_service.check_feature_quota(
@@ -527,8 +536,7 @@ def copy_inspiration(
                     used=latest_used,
                     limit=latest_limit,
                 )
-        else:
-            session.commit()
+        session.commit()
 
         session.refresh(new_project)
 
@@ -549,7 +557,8 @@ def copy_inspiration(
             project_name=new_project.name,
         )
 
-    except QuotaExceededException:
+    except APIException:
+        session.rollback()
         raise
     except ValueError as e:
         session.rollback()
@@ -565,3 +574,6 @@ def copy_inspiration(
             error_code=ErrorCode.INSPIRATION_COPY_FAILED,
             status_code=400,
         ) from e
+    except Exception:
+        session.rollback()
+        raise

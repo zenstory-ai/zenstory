@@ -4,7 +4,6 @@ Helper functions for materials API.
 Contains shared utility functions used across material library endpoints.
 """
 import asyncio
-import json
 
 from sqlmodel import Session, select
 
@@ -13,6 +12,7 @@ from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import create_session
 from models.material_models import IngestionJob, Novel
+from services.material.ingestion_jobs_service import IngestionJobsService
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -127,20 +127,10 @@ async def _start_flow_deployment(
             if not target_job:
                 return
 
-            target_job.status = "failed"
-            target_job.error_message = ErrorCode.MATERIAL_DISPATCH_FAILED
-            target_job.error_details = json.dumps(
-                {
-                    "stage": "deployment_start",
-                    "error_code": ErrorCode.MATERIAL_DISPATCH_FAILED,
-                },
-                ensure_ascii=False,
+            IngestionJobsService().fail_job(
+                session, target_job, error_code=ErrorCode.MATERIAL_DISPATCH_FAILED,
+                stage="deployment_start", reason="deployment_start",
             )
-            if hasattr(target_job, "update_stage_progress"):
-                target_job.update_stage_progress("queue", "failed", reason="deployment_start")
-            target_job.completed_at = utcnow()
-            session.add(target_job)
-            session.commit()
         finally:
             session.close()
 

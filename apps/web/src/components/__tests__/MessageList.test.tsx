@@ -426,6 +426,41 @@ describe('MessageList', () => {
     // Tool results are rendered via ToolResultCard
   })
 
+  it('forwards immutable edit provenance from saved tool results', () => {
+    const onUndo = vi.fn()
+    const messages = [
+      createMessage({
+        role: 'assistant',
+        content: '',
+        toolResults: [{
+          id: 'tool-edit',
+          tool_name: 'edit_file',
+          arguments: {},
+          status: 'success',
+          result: {
+            data: {
+              id: 'file-1',
+              details: [],
+              undo: {
+                before_version_number: 4,
+                expected_after_updated_at: '2026-10-06T12:34:56.000Z',
+              },
+            },
+          },
+        }],
+      }),
+    ]
+
+    render(<MessageList messages={messages} onUndo={onUndo} />)
+    fireEvent.click(screen.getByRole('button', { name: /common:undo/i }))
+
+    expect(onUndo).toHaveBeenCalledWith({
+      fileId: 'file-1',
+      beforeVersionNumber: 4,
+      expectedAfterUpdatedAt: '2026-10-06T12:34:56.000Z',
+    })
+  })
+
   it('displays streaming cursor for streaming message', () => {
     const messages = [
       createMessage({ id: 'streaming-msg', role: 'assistant', content: 'Streaming...' }),

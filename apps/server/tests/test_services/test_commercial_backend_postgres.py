@@ -195,7 +195,7 @@ def test_concurrent_invite_creation_respects_active_cap(pg_engine):
     def create():
         with Session(pg_engine) as session:
             try:
-                asyncio.run(create_invite_code(owner_id, session))
+                create_invite_code(owner_id, session)
                 return "created"
             except APIException as exc:
                 assert exc.error_code == ErrorCode.REFERRAL_MAX_CODES_REACHED

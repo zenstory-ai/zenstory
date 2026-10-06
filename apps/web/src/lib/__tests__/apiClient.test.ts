@@ -79,6 +79,25 @@ describe('apiClient', () => {
     vi.restoreAllMocks()
   })
 
+  describe('resolveOwnedAuthSession read-only export', () => {
+    it.each([
+      [null, null], ['access-only', null], [null, 'refresh-only'], ['access', 'refresh'],
+    ])('requires exact pair when no proven lineage exists: %s / %s', async (access, refresh) => {
+      const { resolveOwnedAuthSession } = await import('../apiClient')
+      if (access) localStorage.setItem('access_token', access)
+      if (refresh) localStorage.setItem('refresh_token', refresh)
+      vi.mocked(localStorage.setItem).mockClear()
+      expect(resolveOwnedAuthSession(access, refresh)).toEqual({ accessToken: access, refreshToken: refresh })
+      expect(localStorage.setItem).not.toHaveBeenCalled()
+      expect(localStorage.removeItem).not.toHaveBeenCalled()
+      localStorage.setItem('access_token', 'different-access')
+      expect(resolveOwnedAuthSession(access, refresh)).toBeNull()
+      localStorage.removeItem('access_token')
+      localStorage.setItem('refresh_token', 'different-refresh')
+      expect(resolveOwnedAuthSession(access, refresh)).toBeNull()
+    })
+  })
+
   describe('getAccessToken', () => {
     it('returns token from localStorage', async () => {
       const { getAccessToken } = await import('../apiClient')

@@ -226,6 +226,16 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
     };
   }, []);
 
+  useEffect(() => {
+    if (!disabled) return;
+    if (longPressTimerRef.current !== null) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    isLongPressRef.current = false;
+    if (status === 'requesting' || status === 'recording' || status === 'processing') cancelRecording();
+  }, [disabled, status, cancelRecording]);
+
   // 不支持录音的浏览器不显示按钮
   if (!isSupported) {
     return null;
@@ -235,7 +245,9 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
   const handleClick = async () => {
     if (disabled || isMobile) return;
     
-    if (isRecording) {
+    if (status === 'requesting') {
+      cancelRecording();
+    } else if (isRecording) {
       stopRecording();
     } else if (!isProcessing) {
       await startRecording();
@@ -244,13 +256,14 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
 
   // 移动端长按开始
   const handleTouchStart = async (e: React.TouchEvent) => {
-    if (disabled || !isMobile || isProcessing) return;
+    if (disabled || !isMobile || isProcessing || status === 'requesting') return;
     
     e.preventDefault();
     isLongPressRef.current = false;
     
     // 200ms 后判定为长按
     longPressTimerRef.current = window.setTimeout(async () => {
+      longPressTimerRef.current = null;
       isLongPressRef.current = true;
       await startRecording();
     }, 200);
@@ -298,7 +311,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
   // PC 端右键取消
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
-    if (isRecording && !isMobile) {
+    if ((isRecording || status === 'requesting') && !isMobile) {
       cancelRecording();
       toast.info(t('chat:voice.cancelled'));
     }

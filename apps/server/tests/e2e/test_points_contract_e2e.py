@@ -10,12 +10,13 @@ These tests pin the backend responses that the web points/settings flows rely on
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pytest
 from httpx import AsyncClient
 from sqlmodel import Session, select
 
+from config.datetime_utils import beijing_date, utcnow
 from models.inspiration import Inspiration
 from models.points import CheckInRecord, PointsTransaction
 from models.public_skill import PublicSkill
@@ -212,11 +213,13 @@ async def test_points_earn_opportunities_contract_reflects_completed_and_availab
     user.avatar_url = "https://example.com/avatar.png"
     db_session.add(user)
 
-    yesterday = datetime.utcnow().date() - timedelta(days=1)
+    previous = utcnow() - timedelta(days=1)
+    yesterday = beijing_date(previous)
     db_session.add(
         CheckInRecord(
             user_id=user.id,
             check_in_date=yesterday,
+            created_at=previous,
             streak_days=STREAK_BONUS_THRESHOLD - 1,
             points_earned=10,
         )

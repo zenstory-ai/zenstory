@@ -140,8 +140,8 @@ export function InspirationGrid({
   };
 
   const handleViewInspiration = async (id: string) => {
-    await getDetail(id);
-    setIsDialogOpen(true);
+    const detail = await getDetail(id);
+    if (detail) setIsDialogOpen(true);
   };
 
   const handleCopyInspiration = async (
@@ -211,7 +211,10 @@ export function InspirationGrid({
           <input
             type="text"
             value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
+            onChange={(e) => {
+              setSearchInput(e.target.value);
+              setPage(1);
+            }}
             placeholder={t("searchPlaceholder")}
             className="h-10 w-full rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))]
                        pl-10 pr-4 text-sm text-[hsl(var(--text-primary))]

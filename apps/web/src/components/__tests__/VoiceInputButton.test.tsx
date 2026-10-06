@@ -11,7 +11,7 @@ const toastError = vi.fn()
 const loggerError = vi.fn()
 
 let voiceState: {
-  status: 'idle' | 'recording' | 'processing' | 'error'
+  status: 'idle' | 'requesting' | 'recording' | 'processing' | 'error'
   isRecording: boolean
   isProcessing: boolean
   duration: number
@@ -172,5 +172,29 @@ describe('VoiceInputButton', () => {
 
     expect(loggerError).toHaveBeenCalledWith('Voice input error:', 'Microphone blocked')
     expect(toastError).toHaveBeenCalledWith('Microphone blocked')
+  })
+
+  it.each(['click', 'contextMenu'] as const)('cancels pending desktop permission on %s rather than requesting again', (event) => {
+    voiceState = { ...voiceState, status: 'requesting' }
+    render(<VoiceInputButton onResult={vi.fn()} />)
+    fireEvent[event](screen.getByTestId('voice-input-button'))
+    expect(cancelRecording).toHaveBeenCalledOnce()
+    expect(startRecording).not.toHaveBeenCalled()
+  })
+
+  it.each(['requesting', 'recording', 'processing'] as const)('cancels active %s when disabled', (status) => {
+    voiceState = { ...voiceState, status, isRecording: status === 'recording', isProcessing: status === 'processing' }
+    const { rerender } = render(<VoiceInputButton onResult={vi.fn()} />)
+    rerender(<VoiceInputButton onResult={vi.fn()} disabled />)
+    expect(cancelRecording).toHaveBeenCalledOnce()
+  })
+
+  it('clears the mobile hold timer when disabled before recording starts', async () => {
+    isMobile = true
+    const { rerender } = render(<VoiceInputButton onResult={vi.fn()} />)
+    fireEvent.touchStart(screen.getByTestId('voice-input-button'))
+    rerender(<VoiceInputButton onResult={vi.fn()} disabled />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(200) })
+    expect(startRecording).not.toHaveBeenCalled()
   })
 })

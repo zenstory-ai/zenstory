@@ -6,6 +6,7 @@ import { adminApi } from "../../lib/adminApi";
 import { AdminPageState } from "../../components/admin";
 import { StatsCard } from "../../components/admin/StatsCard";
 import { getLocaleCode } from "../../lib/i18n-helpers";
+import { parseUTCDate } from "../../lib/dateUtils";
 import type { PointsStats, AdminPointsBalance, PointsAdjustRequest } from "../../types/admin";
 import { toast } from "../../lib/toast";
 
@@ -98,7 +99,7 @@ export const PointsManagement: React.FC = () => {
   };
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
+    const date = parseUTCDate(dateStr);
     if (Number.isNaN(date.getTime())) {
       return "-";
     }
@@ -421,6 +422,8 @@ export const PointsManagement: React.FC = () => {
               </h2>
               <button
                 onClick={() => setAdjustDialogOpen(false)}
+                disabled={adjustMutation.isPending}
+                aria-label={t("common:close")}
                 className="p-2.5 touch-target hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors"
               >
                 <X size={20} className="text-[hsl(var(--text-secondary))]" />

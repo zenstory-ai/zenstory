@@ -15,6 +15,7 @@ from typing import Any
 
 from prefect import flow, get_run_logger
 from prefect.task_runners import ConcurrentTaskRunner
+from sqlmodel import col, select
 
 from config.material_settings import material_settings as settings
 from config.material_settings import resolve_enabled_stages
@@ -32,6 +33,7 @@ from flows.atomic_tasks.summaries import (
 )
 from flows.database_session import get_db_session
 from flows.utils.helpers import create_checkpoint_manager, create_performance_monitor
+from models.material_models import Chapter
 
 _def_now = time.perf_counter
 
@@ -100,9 +102,15 @@ def story_aggregate_flow(
             logger.info("步骤1.1: 生成小说概要")
 
             # 获取章节摘要
-            from services.material.chapters_service import ChaptersService
             with get_db_session() as db:
-                chapters = ChaptersService().list_by_novel_ordered(db, novel_id, chapter_ids)
+                statement = (
+                    select(Chapter.id, Chapter.chapter_number, Chapter.title, Chapter.summary)
+                    .where(Chapter.novel_id == novel_id)
+                    .order_by(col(Chapter.chapter_number))
+                )
+                if chapter_ids:
+                    statement = statement.where(col(Chapter.id).in_(chapter_ids))
+                chapters = db.exec(statement).all()
 
                 chapter_summaries = [
                     {

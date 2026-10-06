@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockNavigate, mockVerifyEmail, mockResendVerification, mockCheckVerification } = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
@@ -46,6 +46,7 @@ vi.mock("../../components/PublicHeader", () => ({
 }));
 
 import VerifyEmail from "../VerifyEmail";
+import { ApiError } from "../../lib/apiClient";
 
 describe("VerifyEmail", () => {
   beforeEach(() => {
@@ -63,6 +64,54 @@ describe("VerifyEmail", () => {
         <VerifyEmail email={email} planIntent={planIntent} />
       </MemoryRouter>
     );
+
+  describe("establishment completion errors", () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => {
+      cleanup();
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    });
+
+    async function submitPending() {
+      let reject!: (error: unknown) => void;
+      mockVerifyEmail.mockReturnValueOnce(new Promise<void>((_resolve, decline) => { reject = decline; }));
+      await act(async () => { renderPage("offline@example.invalid", "pro"); });
+      const inputs = screen.getAllByRole("textbox");
+      inputs.forEach((input, index) => fireEvent.change(input, { target: { value: String(index + 1) } }));
+      await act(async () => { vi.advanceTimersByTime(100); });
+      expect(mockVerifyEmail).toHaveBeenCalledWith("offline@example.invalid", "123456");
+      expect(inputs[0]).toBeDisabled();
+      return { inputs, reject };
+    }
+
+    it("ignores cancellation without success, navigation, error or code clearing", async () => {
+      const { inputs, reject } = await submitPending();
+      await act(async () => { reject(new DOMException("Auth establishment superseded", "AbortError")); });
+      expect(screen.queryByText("Auth establishment superseded")).not.toBeInTheDocument();
+      expect(inputs.map(input => (input as HTMLInputElement).value)).toEqual(["1", "2", "3", "4", "5", "6"]);
+      expect(screen.getAllByRole("textbox")).toHaveLength(6);
+      inputs.forEach(input => expect(input).toBeEnabled());
+      await act(async () => { vi.advanceTimersByTime(1600); });
+      expect(mockNavigate).not.toHaveBeenCalled();
+      expect(mockVerifyEmail).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      new ApiError(400, "offline-api-error"),
+      new TypeError("offline-type-error"),
+      { name: "AbortError", message: "ordinary-object-abort-name" },
+      new DOMException("ordinary-other-dom-error", "InvalidStateError"),
+    ])("preserves ordinary error UI/code clearing for %s", async failure => {
+      const { inputs, reject } = await submitPending();
+      await act(async () => { reject(failure); });
+      expect(screen.getByText(failure.message)).toBeInTheDocument();
+      expect(inputs.map(input => (input as HTMLInputElement).value)).toEqual(["", "", "", "", "", ""]);
+      inputs.forEach(input => expect(input).toBeEnabled());
+      await act(async () => { vi.advanceTimersByTime(1600); });
+      expect(mockNavigate).not.toHaveBeenCalled();
+    });
+  });
 
   it("shows guard UI when email is missing", async () => {
     renderPage("");

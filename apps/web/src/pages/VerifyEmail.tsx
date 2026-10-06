@@ -29,6 +29,17 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
 
   const [code, setCode] = useState<string[]>(["", "", "", "", "", ""]);
   const inputRefs = useRef<HTMLInputElement[]>([]);
+  const automaticSubmitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pageLifetimeRef = useRef(0);
+  const activeOperationRef = useRef<{ lifetime: number } | null>(null);
+  const statusSequenceRef = useRef(0);
+
+  const cancelAutomaticSubmit = useCallback(() => {
+    if (automaticSubmitTimerRef.current !== null) {
+      clearTimeout(automaticSubmitTimerRef.current);
+      automaticSubmitTimerRef.current = null;
+    }
+  }, []);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -52,15 +63,24 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
     return fallback;
   };
 
-  const syncVerificationStatus = useCallback(async (): Promise<boolean> => {
+  const syncVerificationStatus = useCallback(async (
+    onCurrentFailure?: () => void,
+  ): Promise<boolean> => {
     if (!hasEmail) return false;
+    const lifetime = pageLifetimeRef.current;
+    const sequence = ++statusSequenceRef.current;
+    const isCurrent = () => (
+      lifetime === pageLifetimeRef.current && sequence === statusSequenceRef.current
+    );
 
     try {
       const status = await authApi.checkVerification(normalizedEmail);
+      if (!isCurrent()) return false;
       setCooldown(toNonNegativeInt(status?.resend_cooldown_seconds, 0));
       setCodeTtl(toNonNegativeInt(status?.verification_code_ttl_seconds, 0));
       return true;
     } catch {
+      if (isCurrent()) onCurrentFailure?.();
       return false;
     }
   }, [hasEmail, normalizedEmail]);
@@ -94,11 +114,39 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
   }, [hasEmail, t]);
 
   useEffect(() => {
-    if (!hasEmail) return;
-    void syncVerificationStatus();
-  }, [hasEmail, syncVerificationStatus]);
+    const lifetime = pageLifetimeRef.current;
+    setLoading(false);
+    if (hasEmail) void syncVerificationStatus();
+    return () => {
+      cancelAutomaticSubmit();
+      pageLifetimeRef.current = lifetime + 1;
+      activeOperationRef.current = null;
+    };
+  }, [hasEmail, syncVerificationStatus, cancelAutomaticSubmit]);
+
+  const beginOperation = () => {
+    if (activeOperationRef.current !== null || success) return null;
+    const operation = { lifetime: pageLifetimeRef.current };
+    activeOperationRef.current = operation;
+    setLoading(true);
+    return operation;
+  };
+
+  const ownsOperation = (operation: { lifetime: number }) => (
+    operation.lifetime === pageLifetimeRef.current && activeOperationRef.current === operation
+  );
+
+  const scheduleAutomaticSubmit = (verificationCode: string) => {
+    cancelAutomaticSubmit();
+    const lifetime = pageLifetimeRef.current;
+    automaticSubmitTimerRef.current = setTimeout(() => {
+      automaticSubmitTimerRef.current = null;
+      if (lifetime === pageLifetimeRef.current) void handleSubmit(verificationCode);
+    }, 100);
+  };
 
   const handleInputChange = (index: number, value: string) => {
+    cancelAutomaticSubmit();
     const numValue = value.replace(/[^0-9]/g, "");
 
     const newCode = [...code];
@@ -113,9 +161,7 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
 
     if (index === 5 && numValue) {
       newCode[5] = numValue;
-      setTimeout(() => {
-        handleSubmit(newCode.join(""));
-      }, 100);
+      scheduleAutomaticSubmit(newCode.join(""));
     }
   };
 
@@ -127,6 +173,7 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
 
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
+    cancelAutomaticSubmit();
     const pastedData = e.clipboardData.getData("text/plain");
     const numbers = pastedData.replace(/[^0-9]/g, "").slice(0, 6);
 
@@ -143,9 +190,7 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
       }
 
       if (numbers.length === 6) {
-        setTimeout(() => {
-          handleSubmit(numbers);
-        }, 100);
+        scheduleAutomaticSubmit(numbers);
       }
     }
   };
@@ -161,11 +206,14 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
       return;
     }
 
+    const operation = beginOperation();
+    if (!operation) return;
+    cancelAutomaticSubmit();
     setError("");
-    setLoading(true);
 
     try {
       await verifyEmail(normalizedEmail, verificationCode);
+      if (!ownsOperation(operation)) return;
       setSuccess(true);
 
       setTimeout(() => {
@@ -176,6 +224,8 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
         navigate("/dashboard");
       }, 1500);
     } catch (err: unknown) {
+      if (!ownsOperation(operation)) return;
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       const error = err as { message?: string };
       setError(error.message || t('auth:errors.verificationFailed'));
       setCode(["", "", "", "", "", ""]);
@@ -183,7 +233,10 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
         inputRefs.current[0]?.focus();
       }
     } finally {
-      setLoading(false);
+      if (ownsOperation(operation)) {
+        activeOperationRef.current = null;
+        setLoading(false);
+      }
     }
   };
 
@@ -195,26 +248,33 @@ export default function VerifyEmail({ email, planIntent }: VerifyEmailProps) {
 
     if (cooldown > 0) return;
 
+    const operation = beginOperation();
+    if (!operation) return;
+    cancelAutomaticSubmit();
     setError("");
-    setLoading(true);
 
     try {
       await resendVerification(normalizedEmail);
-      const synced = await syncVerificationStatus();
-      if (!synced) {
+      if (!ownsOperation(operation)) return;
+      await syncVerificationStatus(() => {
         setCooldown(60);
         setCodeTtl(300);
-      }
+      });
+      if (!ownsOperation(operation)) return;
       setSuccess(false);
       setCode(["", "", "", "", "", ""]);
       if (inputRefs.current[0]) {
         inputRefs.current[0]?.focus();
       }
     } catch (err: unknown) {
+      if (!ownsOperation(operation)) return;
       const error = err as { message?: string };
       setError(error.message || t('auth:errors.resendFailed'));
     } finally {
-      setLoading(false);
+      if (ownsOperation(operation)) {
+        activeOperationRef.current = null;
+        setLoading(false);
+      }
     }
   };
 

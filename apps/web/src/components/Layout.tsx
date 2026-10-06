@@ -331,7 +331,7 @@ const MobileLayoutContent: React.FC<LayoutProps> = ({ middle, right }) => {
       chat: chatPanelRef,
     };
     restoreScrollPosition(activePanel, refs[activePanel]?.current || null);
-  }, [activePanel, restoreScrollPosition]);
+  }, [activePanel, currentProjectId, restoreScrollPosition]);
 
   const handleScroll = useCallback((panelId: string) => (e: React.UIEvent<HTMLDivElement>) => {
     saveScrollPosition(panelId, e.currentTarget.scrollTop);

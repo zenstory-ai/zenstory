@@ -9,6 +9,7 @@
 from typing import Any
 
 from prefect import get_run_logger
+from sqlmodel import col, select
 
 from flows.database_session import get_db_session
 from flows.utils import (
@@ -18,6 +19,7 @@ from flows.utils import (
     get_deepseek_client,
 )
 from flows.utils.validators import validate_meta_response
+from models.material_models import Chapter
 from prompts import create_meta_extraction_prompt
 
 META_EXTRACTION_WINDOW = 20
@@ -43,10 +45,14 @@ def extract_novel_meta_task(
     logger.info(f"开始提取小说 {novel_id} 的元信息")
 
     # 获取小说内容（前N章，默认20）
-    from services.material.chapters_service import ChaptersService
     with get_db_session() as db:
         window = META_EXTRACTION_WINDOW
-        chapters = ChaptersService().list_by_novel_ordered(db, novel_id)[:window]
+        chapters = db.exec(
+            select(Chapter.chapter_number, Chapter.title, Chapter.original_content)
+            .where(Chapter.novel_id == novel_id)
+            .order_by(col(Chapter.chapter_number))
+            .limit(window)
+        ).all()
 
         if not chapters:
             raise ValueError(f"小说 {novel_id} 没有章节")

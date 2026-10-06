@@ -5,6 +5,7 @@ import { Eye, X, RotateCcw } from "lucide-react";
 import { AdminPageState, AdminSelect } from "../../components/admin";
 import { adminApi, type AuditLog } from "../../lib/adminApi";
 import { getLocaleCode } from "../../lib/i18n-helpers";
+import { parseUTCDate } from "../../lib/dateUtils";
 
 // Action type color mapping
 const getActionColor = (action: string): string => {
@@ -237,7 +238,7 @@ export const AuditLogPage: React.FC = () => {
     : t("common:error");
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
+    const date = parseUTCDate(dateStr);
     if (Number.isNaN(date.getTime())) {
       return "-";
     }

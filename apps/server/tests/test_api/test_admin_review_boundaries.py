@@ -5,7 +5,7 @@ import pytest
 
 from api.admin.plans import update_plan
 from api.admin.schemas import PlanUpdateRequest
-from config.datetime_utils import utcnow
+from config.datetime_utils import beijing_date, utcnow
 from main import app
 from models import User
 from models.points import CheckInRecord
@@ -124,9 +124,14 @@ async def test_admin_audit_returns_actor_and_exact_filtered_total(client, db_ses
 
 async def test_admin_week_checkins_covers_seven_calendar_days(client, db_session, admin_boundary):
     admin, _, _ = admin_boundary
-    today = utcnow().date()
+    now = utcnow()
     db_session.add_all([
-        CheckInRecord(user_id=admin.id, check_in_date=today - timedelta(days=day), points_earned=1)
+        CheckInRecord(
+            user_id=admin.id,
+            check_in_date=beijing_date(now - timedelta(days=day)),
+            created_at=now - timedelta(days=day),
+            points_earned=1,
+        )
         for day in range(8)
     ])
     db_session.commit()

@@ -21,7 +21,7 @@ from sqlmodel import Session, select
 
 from agent.constants import coerce_bool
 from agent.tools.permissions import check_file_access_in_tool_context
-from config.datetime_utils import utcnow
+from config.datetime_utils import advance_timestamp, normalize_datetime_to_utc, utcnow
 from models import File
 from models.file_version import (
     CHANGE_SOURCE_AI,
@@ -226,6 +226,7 @@ class FileEditor:
         if is_postgres:
             file = self.session.exec(
                 select(File).where(File.id == id).with_for_update(key_share=True)
+                .execution_options(populate_existing=True)
             ).first()
         else:
             # The shared per-request session may already hold this File in its
@@ -383,9 +384,26 @@ class FileEditor:
         # Stage content and snapshot in the same transaction while the per-file
         # lock is held. A savepoint keeps snapshot failures non-blocking without
         # allowing content and history to describe different writes.
+        undo: dict[str, Any] | None = None
         if content != old_content:
+            before_version_number: int | None = None
+            try:
+                # Provenance is optional, but its read failure must not poison
+                # the outer PostgreSQL content transaction. A loaded history
+                # head is usable only if it exactly reconstructs the live input.
+                with self.session.begin_nested():
+                    version_service = FileVersionService()
+                    latest = version_service.get_latest_version(self.session, id)
+                    if latest and version_service._get_contents_for_versions(self.session, {id: latest})[id] == old_content:
+                        before_version_number = latest.version_number
+            except Exception:
+                logger.warning("Unable to anchor edit undo; content edit will continue", exc_info=True, extra={"file_id": id})
+
             file.content = content
-            file.updated_at = utcnow()
+            file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
+            # Commit releases the PostgreSQL lock; a subsequent refresh may
+            # observe another writer. Undo must retain this edit's own token.
+            after_updated_at = normalize_datetime_to_utc(file.updated_at).isoformat()
             try:
                 with self.session.begin_nested():
                     self._create_edit_version(id, content, applied_edits)
@@ -397,6 +415,11 @@ class FileEditor:
                 )
             self.session.commit()
             self.session.refresh(file)
+            if before_version_number is not None:
+                undo = {
+                    "before_version_number": before_version_number,
+                    "expected_after_updated_at": after_updated_at,
+                }
             activation_event_service.record_ai_write_accepted(
                 self.session,
                 user_id=self.user_id,
@@ -411,8 +434,9 @@ class FileEditor:
         # 才能显示"这次写进去的新内容"。在源头补一份别名，消费方只认 new_preview 即可。
         self._backfill_new_preview(applied_edits)
 
-        return {
+        result = {
             "id": file.id,
+            "mutation_applied": content != old_content,
             "title": file.title,
             "file_type": file.file_type,
             "edits_applied": len(applied_edits),
@@ -423,6 +447,9 @@ class FileEditor:
             "all_failed": bool(failed_edits and not applied_edits),
             "warnings": warnings,
         }
+        if undo is not None:
+            result["undo"] = undo
+        return result
 
     @staticmethod
     def _backfill_new_preview(applied_edits: list[dict[str, Any]]) -> None:

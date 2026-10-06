@@ -73,11 +73,7 @@ def get_points_stats(
     ).one() or 0
 
     # Active users with points (users with non-expired positive balance)
-    users_with_balance = session.exec(
-        select(func.count(func.distinct(PointsTransaction.user_id)))
-        .where(PointsTransaction.is_expired == False)
-        .where(PointsTransaction.amount > 0)
-    ).one()
+    _, users_with_balance = points_service.get_available_points_stats(session)
 
     log_with_context(
         logger,

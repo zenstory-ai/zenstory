@@ -700,9 +700,8 @@ class AgentService:
             探测与回填之间退出、把消息写进已删除队列。
             返回 True 表示已交还，调用方不再把它们写进本轮历史。
 
-            调用点有两处，本 run 是否已释放持有都成立：
-            - 保存历史前（本 run 仍在册，探测按「除自己以外」计数）；
-            - finally 释放持有之后（本 run 已出册，剩下的都是别人）。
+            保存历史前与收尾保存前都在本 run 仍持有队列时调用；
+            探测按「除自己以外」计数，历史真正写完后才释放当前 run。
             """
             if not pending or not user_id:
                 return False
@@ -726,15 +725,22 @@ class AgentService:
                 )
                 return False
 
-        async def _release_run_and_requeue_steering(pending: list[str]) -> bool:
-            """释放本 run 对 steering 队列的持有，必要时把消息交还给并发 run。
-
-            cleanup 只在最后一个持有 run 退出时才真正删除队列；释放之后若同一
-            chat session 还有别的 run 正在生成，刚被本 run 兜底 drain 出来的
-            消息本该由它消费，回填回队列而不是被本 run 吞掉。
-            """
-            await cleanup_steering_queue_async(session_id, run_id=steering_run_id)
-            return await _hand_back_steering(pending)
+        async def _finish_history_write(write: Any, *args: Any) -> None:
+            """Keep finalization ownership until an uncancellable SQL worker finishes."""
+            write_task = asyncio.create_task(asyncio.to_thread(write, *args))
+            try:
+                await asyncio.shield(write_task)
+            except asyncio.CancelledError:
+                # Cancelling the awaiter cannot stop to_thread. Repeated cancellation
+                # must not release ownership while that worker can still commit.
+                while not write_task.done():
+                    try:
+                        await asyncio.wait({write_task})
+                    except asyncio.CancelledError:
+                        continue
+                if not write_task.cancelled():
+                    write_task.exception()
+                raise
 
         def _save_partial_history_sync() -> None:
             """用独立 session 落库部分历史（取消/失败路径，绕开共享 session）。"""
@@ -1217,6 +1223,7 @@ class AgentService:
                         ),
                         assistant_message_id=assistant_message_id,
                         session_id=session_id,
+                        file_mutated=pending_done_payload.get("file_mutated") is True,
                     ).to_sse()
             finally:
                 # Clean up tool context
@@ -1264,7 +1271,7 @@ class AgentService:
                             error_type=type(exc).__name__,
                         )
                     late_steering = list(consumed_steering[already_consumed:])
-                    if late_steering and await _release_run_and_requeue_steering(
+                    if late_steering and await _hand_back_steering(
                         late_steering
                     ):
                         del consumed_steering[already_consumed:]
@@ -1272,11 +1279,11 @@ class AgentService:
 
                     if history_saved:
                         if late_steering:
-                            await asyncio.to_thread(
+                            await _finish_history_write(
                                 _append_user_messages_sync, late_steering
                             )
                         return
-                    await asyncio.to_thread(_save_partial_history_sync)
+                    await _finish_history_write(_save_partial_history_sync)
 
                 cancellation_save_task = self._schedule_background_cleanup(
                     _drain_then_save_partial_history(),
@@ -1331,72 +1338,77 @@ class AgentService:
                     session_id=session_id,
                 )
             else:
-                # cleanup 会连消息一起删除队列：先兜底取出仍未消费的
-                # steering（正常路径在保存历史前已 drain 过，这里覆盖请求失败
-                # 未走到保存点、以及「历史刚落库到队列被删」这段窗口里新入队
-                # 的消息），保证已确认 queued 的输入不会凭空消失。
-                already_consumed = len(consumed_steering)
                 try:
-                    await get_steering_messages()
-                except Exception as exc:
-                    log_with_context(
-                        logger,
-                        30,  # WARNING
-                        "Failed to drain steering queue before cleanup",
-                        session_id=session_id,
-                        error=str(exc),
-                        error_type=type(exc).__name__,
-                    )
-                late_steering = list(consumed_steering[already_consumed:])
-
-                # 释放本 run 的持有；队列仍在（其它并发 run 还在生成）时把刚
-                # drain 出来的消息交还回去，本轮不再落库它们。
-                try:
-                    if await _release_run_and_requeue_steering(late_steering):
-                        del consumed_steering[already_consumed:]
-                        late_steering = []
-                finally:
-                    _stop_run_heartbeat()
-
-                if user_id and not history_saved:
-                    # 与取消路径对等的补偿保存：本轮只要产生过任何值得保留的
-                    # 内容就用独立 session 补存。旧实现额外要求
-                    # consumed_steering 非空，而绝大多数请求根本没有 steering，
-                    # 于是一次瞬时 DB 冲突就让整轮历史（用户消息 + 已经流式吐
-                    # 给用户看的正文 + 工具调用记录）彻底消失。
-                    if (
-                        message.strip()
-                        or consumed_steering
-                        or _has_assistant_payload()
-                    ):
-                        try:
-                            await asyncio.to_thread(_save_partial_history_sync)
-                        except Exception as exc:
-                            log_with_context(
-                                logger,
-                                30,  # WARNING
-                                "Failed to persist partial history after stream failure",
-                                session_id=session_id,
-                                error=str(exc),
-                                error_type=type(exc).__name__,
-                            )
-                elif user_id and late_steering:
-                    # 整轮历史已经落库，之后才 drain 出来的 steering 单独追加为
-                    # user 行：/agent/steer 已经回过 queued=True，既不能重写整轮，
-                    # 更不能随队列一起删掉。
+                    # cleanup 会连消息一起删除队列：先兜底取出仍未消费的
+                    # steering（正常路径在保存历史前已 drain 过，这里覆盖请求失败
+                    # 未走到保存点、以及「历史刚落库到队列被删」这段窗口里新入队
+                    # 的消息），保证已确认 queued 的输入不会凭空消失。
+                    already_consumed = len(consumed_steering)
                     try:
-                        await asyncio.to_thread(
-                            _append_user_messages_sync, late_steering
-                        )
+                        await get_steering_messages()
                     except Exception as exc:
                         log_with_context(
                             logger,
                             30,  # WARNING
-                            "Failed to persist late steering messages after history save",
+                            "Failed to drain steering queue before cleanup",
                             session_id=session_id,
                             error=str(exc),
                             error_type=type(exc).__name__,
                         )
+                    late_steering = list(consumed_steering[already_consumed:])
+
+                    # Legacy concurrent holders still receive their steering, while
+                    # this run remains registered through its own final history write.
+                    if late_steering and await _hand_back_steering(late_steering):
+                        del consumed_steering[already_consumed:]
+                        late_steering = []
+
+                    if user_id and not history_saved:
+                        # 与取消路径对等的补偿保存：本轮只要产生过任何值得保留的
+                        # 内容就用独立 session 补存。旧实现额外要求
+                        # consumed_steering 非空，而绝大多数请求根本没有 steering，
+                        # 于是一次瞬时 DB 冲突就让整轮历史（用户消息 + 已经流式吐
+                        # 给用户看的正文 + 工具调用记录）彻底消失。
+                        if (
+                            message.strip()
+                            or consumed_steering
+                            or _has_assistant_payload()
+                        ):
+                            try:
+                                await _finish_history_write(_save_partial_history_sync)
+                            except Exception as exc:
+                                log_with_context(
+                                    logger,
+                                    30,  # WARNING
+                                    "Failed to persist partial history after stream failure",
+                                    session_id=session_id,
+                                    error=str(exc),
+                                    error_type=type(exc).__name__,
+                                )
+                    elif user_id and late_steering:
+                        # 整轮历史已经落库，之后才 drain 出来的 steering 单独追加为
+                        # user 行：/agent/steer 已经回过 queued=True，既不能重写整轮，
+                        # 更不能随队列一起删掉。
+                        try:
+                            await _finish_history_write(
+                                _append_user_messages_sync, late_steering
+                            )
+                        except Exception as exc:
+                            log_with_context(
+                                logger,
+                                30,  # WARNING
+                                "Failed to persist late steering messages after history save",
+                                session_id=session_id,
+                                error=str(exc),
+                                error_type=type(exc).__name__,
+                            )
+                finally:
+                    try:
+                        await cleanup_steering_queue_async(
+                            session_id, run_id=steering_run_id
+                        )
+                    finally:
+                        _stop_run_heartbeat()
 
             total_duration = int((utcnow() - start_time).total_seconds() * 1000)
             if run_report is not None:

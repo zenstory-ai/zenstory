@@ -16,25 +16,107 @@ from collections.abc import Mapping
 from typing import Any
 
 from sqlalchemy import func
+from sqlalchemy.orm import SessionTransaction
 from sqlmodel import Session, select
 
-from models import File
+from models import File, Project
 from models.file_model import FILE_TYPE_FOLDER
+from utils.title_sequence import (
+    MAX_FILE_ORDER as MAX_FILE_ORDER,
+)
 from utils.title_sequence import (
     extract_title_first_sequence_number,
     resolve_persisted_sequence_order,
+    validate_persisted_file_order,
 )
-
-# File.order 是 32 位 INTEGER 列：超出的值在 PostgreSQL 上会以 500 失败，所以请求模型用它做上界。
-MAX_FILE_ORDER = 2_147_483_647
 
 __all__ = [
     "MAX_FILE_ORDER",
     "ParentNotFoundError",
+    "begin_file_creation_savepoint",
     "is_descendant_of",
+    "load_live_subtree_postorder",
+    "lock_project_for_files",
     "resolve_new_file_order",
     "validate_parent_assignment",
 ]
+
+
+def begin_file_creation_savepoint(session: Session) -> SessionTransaction:
+    """Keep canonical-folder repair inside the caller's real transaction.
+
+    Legacy sqlite3 does not BEGIN for reads or SAVEPOINT. Releasing a first-write
+    savepoint would therefore commit the folder before the enclosing creation.
+    Do not change the engine's global transaction policy or restart an existing
+    transaction; PostgreSQL uses the normal Session savepoint unchanged.
+    """
+    if session.get_bind().dialect.name == "sqlite":
+        connection = session.connection()
+        if not connection.connection.driver_connection.in_transaction:
+            connection.exec_driver_sql("BEGIN")
+    return session.begin_nested()
+
+
+def lock_project_for_files(
+    session: Session, project_id: str, *, rollback: bool = False, exclusive: bool = False
+) -> Project | None:
+    """Hold the tree/snapshot gate until the caller ends its transaction.
+
+    Creators/reorder share this gate; rollback and graph/deletion writers exclude
+    them but remain compatible with ordinary version writers' FK KEY SHARE.
+    Acquire before validation or mutations. This does not provide a SQLite
+    cross-process project lock, nor replace the caller's authorization checks.
+    """
+    from database import is_postgres
+
+    query = select(Project).where(Project.id == project_id)
+    if is_postgres:
+        strong = rollback or exclusive
+        query = query.with_for_update(read=not strong, key_share=strong)
+    return session.exec(query.execution_options(populate_existing=True)).first()
+
+
+def load_live_subtree_postorder(session: Session, root: File) -> list[File]:
+    """Load and lock the subtree under the caller's exclusive Project gate.
+
+    The caller supplies a freshly loaded root and owns the transaction. Include
+    that root even when deleted (Web re-delete compatibility), but descend only
+    through active same-project children. UNION deduplicates IDs to terminate
+    legacy cycles; the explicit DFS returns stable child-ID postorder once each.
+    """
+    from database import is_postgres
+
+    subtree = select(File.id).where(
+        File.id == root.id, File.project_id == root.project_id,
+    ).cte("live_subtree", recursive=True)
+    subtree = subtree.union(
+        select(File.id).join(subtree, File.parent_id == subtree.c.id).where(
+            File.project_id == root.project_id, File.is_deleted.is_(False),
+        )
+    )
+    query = select(File).join(subtree, File.id == subtree.c.id).order_by(File.id)
+    if is_postgres:
+        query = query.with_for_update(key_share=True, of=File)
+    rows = session.exec(query.execution_options(populate_existing=True)).all()
+
+    by_id = {row.id: row for row in rows}
+    children: dict[str, list[str]] = {}
+    for row in rows:
+        if row.parent_id is not None:
+            children.setdefault(row.parent_id, []).append(row.id)
+
+    postorder: list[File] = []
+    visited: set[str] = set()
+    stack = [(root.id, False)] if rows else []
+    while stack:
+        file_id, expanded = stack.pop()
+        if expanded:
+            postorder.append(by_id[file_id])
+        elif file_id not in visited:
+            visited.add(file_id)
+            stack.append((file_id, True))
+            stack.extend((child_id, False) for child_id in reversed(children.get(file_id, [])))
+    return postorder
 
 
 class ParentNotFoundError(ValueError):
@@ -50,6 +132,8 @@ def is_descendant_of(
     session: Session,
     file_id: str,
     candidate_parent_id: str | None,
+    *,
+    refresh_nodes: bool = False,
 ) -> bool:
     """判断 candidate_parent_id 是否落在 file_id 的后代链上（含 candidate 就是 file_id 本身）。
 
@@ -71,7 +155,7 @@ def is_descendant_of(
             return True
         visited.add(current_id)
 
-        current = session.get(File, current_id)
+        current = session.get(File, current_id, populate_existing=refresh_nodes)
         if current is None:
             return False
         current_id = current.parent_id
@@ -85,6 +169,7 @@ def validate_parent_assignment(
     parent_id: str | None,
     *,
     moving_file_id: str | None = None,
+    refresh_parent: bool = False,
 ) -> str | None:
     """校验父节点赋值的全部不变量。
 
@@ -103,7 +188,7 @@ def validate_parent_assignment(
     if parent_id is None:
         return None
 
-    parent = session.get(File, parent_id)
+    parent = session.get(File, parent_id, populate_existing=refresh_parent)
     if not parent or parent.is_deleted or parent.project_id != project_id:
         raise ParentNotFoundError(
             f"Parent file {parent_id} not found in project {project_id}"
@@ -115,7 +200,9 @@ def validate_parent_assignment(
             f"(file_type={parent.file_type}); 文件只能挂在文件夹下"
         )
 
-    if moving_file_id and is_descendant_of(session, moving_file_id, parent_id):
+    if moving_file_id and is_descendant_of(
+        session, moving_file_id, parent_id, refresh_nodes=refresh_parent,
+    ):
         raise ValueError("不能把文件移动到它自己或它的子节点下")
 
     return parent_id
@@ -147,8 +234,10 @@ def resolve_new_file_order(
         )
 
     sequence_number = extract_title_first_sequence_number(title, metadata)
+    resolved_order: int
     if sequence_number is not None:
-        return sequence_number
+        resolved_order = validate_persisted_file_order(sequence_number)
+        return resolved_order
 
     max_order = session.exec(
         select(func.max(File.order)).where(
@@ -157,4 +246,5 @@ def resolve_new_file_order(
             File.is_deleted.is_(False),
         )
     ).one()
-    return 0 if max_order is None else int(max_order) + 1
+    resolved_order = validate_persisted_file_order(0 if max_order is None else int(max_order) + 1)
+    return resolved_order

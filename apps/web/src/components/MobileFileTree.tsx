@@ -125,6 +125,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(0);
   const loadRequestIdRef = useRef(0);
   const loadAbortControllerRef = useRef<AbortController | null>(null);
+  const activeProjectIdRef = useRef(currentProjectId);
 
   const isAbortError = useCallback((error: unknown): boolean => {
     return (
@@ -154,7 +155,8 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
    * @param showLoading - Whether to show the loading spinner (true for initial load)
    */
   const loadData = useCallback(async (showLoading = false) => {
-    if (!currentProjectId) return;
+    // A mutation started in a previous project may finish after navigation.
+    if (!currentProjectId || currentProjectId !== activeProjectIdRef.current) return;
     const requestId = ++loadRequestIdRef.current;
     loadAbortControllerRef.current?.abort();
     const abortController = new AbortController();
@@ -178,7 +180,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
         .map((node) => node.id);
       setExpandedFolders((prev) => new Set([...prev, ...rootFolderIds]));
     } catch (error: unknown) {
-      if (isAbortError(error) || requestId !== loadRequestIdRef.current) {
+      if (abortController.signal.aborted || isAbortError(error) || requestId !== loadRequestIdRef.current) {
         return;
       }
       logger.error("Failed to load file tree:", error);
@@ -208,10 +210,22 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
 
   // Initial load
   useEffect(() => {
+    // Files from the previous project must not remain selectable while loading.
+    activeProjectIdRef.current = currentProjectId;
+    setTree([]);
     if (currentProjectId) {
       setIsInitialLoad(true);
       loadData(true);
+    } else {
+      setLoading(false);
+      setIsInitialLoad(false);
     }
+    return () => {
+      // Fence pending mutation completions as well as existing requests when
+      // the project changes or this tree unmounts.
+      activeProjectIdRef.current = null;
+      loadAbortControllerRef.current?.abort();
+    };
   }, [currentProjectId, loadData]);
 
   /**
@@ -346,6 +360,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
         content: "",
       });
 
+      if (currentProjectId !== activeProjectIdRef.current) return;
       await loadData(false);
       cancelCreate();
     } catch (error) {
@@ -369,6 +384,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
     try {
       await fileApi.delete(fileId);
 
+      if (currentProjectId !== activeProjectIdRef.current) return;
       // Clear selection if deleted item was selected
       if (selectedItem?.id === fileId) {
         setSelectedItem(null);
@@ -379,7 +395,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
       logger.error("Failed to delete item:", error);
       toast.error(t('editor:fileTree.deleteFailed'));
     }
-  }, [selectedItem, setSelectedItem, loadData, t]);
+  }, [currentProjectId, selectedItem, setSelectedItem, loadData, t]);
 
   /**
    * Returns localized placeholder text for the file creation input.

@@ -13,6 +13,7 @@ from models import User
 from models.material_models import IngestionJob, Novel
 from models.subscription import SubscriptionPlan, UsageQuota, UserSubscription
 from services.core.auth_service import hash_password
+from services.material.ingestion_jobs_service import IngestionJobsService
 
 
 @pytest.fixture(autouse=True)
@@ -529,7 +530,7 @@ async def test_retry_material_job_rejects_when_quota_cannot_be_consumed(
 
 @pytest.mark.integration
 @pytest.mark.parametrize("dispatch_raises", [False, True])
-async def test_retry_refunds_even_when_failure_status_cannot_be_persisted(
+async def test_retry_reconciles_refund_after_failure_status_cannot_be_persisted(
     client: AsyncClient, db_session, monkeypatch, dispatch_raises,
 ):
     user, _ = await _create_test_user_and_token(
@@ -568,10 +569,70 @@ async def test_retry_refunds_even_when_failure_status_cannot_be_persisted(
         await materials_upload_api.retry_material_job(
             novel_id=novel.id, current_user=user, session=db_session,
         )
-    assert refund_calls == [1]
+    assert refund_calls == []
     if dispatch_raises:
         assert str(raised.value) == "SDK dispatch failed"
     else:
         assert raised.value.status_code == 503
     quota = db_session.exec(select(UsageQuota).where(UsageQuota.user_id == user.id)).one()
+    assert quota.material_decompositions_used == 1
+    job = db_session.exec(select(IngestionJob).order_by(IngestionJob.created_at.desc())).first()
+    assert job.status == "pending"
+    assert materials_upload_api.IngestionJobsService.get_billing(job)["quota_charged"] is True
+    job.updated_at = datetime.utcnow() - timedelta(minutes=11)
+    db_session.add(job)
+    db_session.commit()
+    service = materials_upload_api.IngestionJobsService()
+    service.reconcile_stale_job(db_session, job)
+    service.reconcile_stale_job(db_session, job)
+    assert job.status == "failed"
+    assert service.get_billing(job)["quota_refunded"] is True
+    assert refund_calls == [1]
+    db_session.refresh(quota)
     assert quota.material_decompositions_used == 0
+
+
+@pytest.mark.integration
+async def test_retry_waits_for_refund_settlement_before_a_new_charge(client, db_session, monkeypatch):
+    user, token = await _create_test_user_and_token(client, db_session, "retry_wait_refund")
+    quota_service = materials_upload_api.quota_service
+    period = quota_service.reserve_feature_quota(db_session, user.id, "material_decompose")
+    assert period is not None
+    novel = Novel(user_id=user.id, title="Pending settlement")
+    db_session.add(novel)
+    db_session.flush()
+    job = IngestionJob(
+        novel_id=novel.id, source_path="/tmp/test.txt", status="failed",
+        error_message=materials_upload_api.ErrorCode.MATERIAL_DISPATCH_FAILED,
+    )
+    IngestionJobsService.set_billing(
+        job, quota_charged=True, quota_refunded=False, quota_period_start=period.isoformat(),
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    def unavailable_release(*args, **kwargs):
+        raise RuntimeError("temporary settlement failure")
+
+    with monkeypatch.context() as fault:
+        fault.setattr(quota_service, "release_feature_quota", unavailable_release)
+        response = await client.post(
+            f"/api/v1/materials/{novel.id}/retry", headers={"Authorization": f"Bearer {token}"},
+        )
+    assert response.status_code == 503
+    db_session.refresh(job)
+    assert IngestionJobsService.get_billing(job)["quota_charged"] is True
+    assert len(db_session.exec(select(IngestionJob).where(IngestionJob.novel_id == novel.id)).all()) == 1
+    quota = db_session.exec(select(UsageQuota).where(UsageQuota.user_id == user.id)).one()
+    db_session.refresh(quota)
+    assert quota.material_decompositions_used == 1
+
+    response = await client.post(
+        f"/api/v1/materials/{novel.id}/retry", headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    db_session.refresh(job)
+    db_session.refresh(quota)
+    assert IngestionJobsService.get_billing(job)["quota_refunded"] is True
+    assert quota.material_decompositions_used == 1  # one new job, not two units
+    assert len(db_session.exec(select(IngestionJob).where(IngestionJob.novel_id == novel.id)).all()) == 2

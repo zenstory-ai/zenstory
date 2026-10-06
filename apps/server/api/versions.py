@@ -6,6 +6,7 @@ Provides REST endpoints for managing file version history.
 
 
 import contextlib
+from datetime import datetime
 from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
@@ -125,6 +126,12 @@ class RollbackResponse(BaseModel):
     new_version_number: int | None
     snapshot_created: bool
     version_quota_exceeded: bool
+
+
+class RollbackRequest(BaseModel):
+    """Optional exact token; absent body keeps intentional history restoration."""
+
+    expected_updated_at: datetime | None = None
 
 
 # ==================== API Endpoints ====================
@@ -401,12 +408,13 @@ def rollback_to_version(
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session),
+    rollback_request: RollbackRequest | None = None,
 ):
     """
     Rollback a file to a previous version.
 
-    Restores content unconditionally and records a new history snapshot when
-    the user's version quota permits it.
+    Restores content, conditionally when a post-edit token is supplied, and
+    records a new history snapshot when the user's version quota permits it.
     """
     # Check file exists and user has access
     verify_file_ownership(session, file_id, current_user)
@@ -419,6 +427,7 @@ def rollback_to_version(
             file_id,
             version_number,
             user_id=current_user.id,
+            expected_updated_at=(rollback_request.expected_updated_at if rollback_request else None),
         )
 
         try:
@@ -476,7 +485,7 @@ def rollback_to_version(
             version_quota_exceeded=version_quota_exceeded,
         )
     except ValueError as e:
-        raise APIException(error_code=ErrorCode.VALIDATION_ERROR, status_code=400, detail=str(e)) from e
+        raise APIException(error_code=ErrorCode.VERSION_NOT_FOUND, status_code=404, detail=str(e)) from e
 
 
 @router.get("/files/{file_id}/versions/latest", response_model=FileVersionResponse)

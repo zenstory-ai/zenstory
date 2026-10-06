@@ -115,7 +115,16 @@ export function validateApiBase(base: string): string {
   try {
     url = new URL(normalized);
   } catch {
-    throw new CliError(`Invalid API base URL "${normalized}". Example: ${DEFAULT_API_BASE}`, EXIT.USAGE);
+    throw new CliError(`Invalid API base URL. Example: ${DEFAULT_API_BASE}`, EXIT.USAGE);
+  }
+  if (url.username || url.password) {
+    throw new CliError('Invalid API base URL: embedded credentials are not allowed.', EXIT.USAGE);
+  }
+  if (url.search) {
+    throw new CliError('Invalid API base URL: a query string is not allowed.', EXIT.USAGE);
+  }
+  if (url.hash) {
+    throw new CliError('Invalid API base URL: a fragment is not allowed.', EXIT.USAGE);
   }
   if (url.protocol === 'https:') return normalized;
   if (url.protocol === 'http:' && LOOPBACK_HOSTS.has(url.hostname)) return normalized;

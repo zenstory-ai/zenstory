@@ -87,7 +87,9 @@ function renderLegalValue(value, depth = 2) {
   const content = value.content ? `<p>${esc(String(value.content))}</p>` : ''
   const children = Object.entries(value)
     .filter(([key]) => !['title', 'content', 'lastUpdated'].includes(key))
-    .map(([, child]) => renderLegalValue(child, depth + 1))
+    .map(([key, child]) => typeof child === 'string' && ['note', 'email'].includes(key)
+      ? `<p>${esc(child)}</p>`
+      : renderLegalValue(child, depth + 1))
     .join('')
   return `${heading}${content}${children}`
 }

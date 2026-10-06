@@ -6,7 +6,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { PublicHeader } from "../components/PublicHeader";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { isValidRedirectUrl } from "../lib/ssoRedirect";
-import { takeAuthCallbackParams } from "../lib/authCallbackParams";
+import { AUTH_CALLBACK_PATH, takeAuthCallbackParams } from "../lib/authCallbackParams";
 import { logger } from "../lib/logger";
 import { captureException } from "../lib/analytics";
 import { toUserErrorMessage } from "../lib/errorHandler";
@@ -15,6 +15,9 @@ import { consumeOAuthPlanIntent } from "../lib/authFlow";
 // Failures whose raw message (provider codes such as access_denied, internal
 // checks) means nothing to the author; the page shows a generic message instead.
 class OAuthGenericError extends Error {}
+
+// Auth identity reconciliation can remount this page while its owner awaits /me.
+let callbackInFlight = false;
 
 export default function OAuthCallback() {
   const [error, setError] = useState("");
@@ -27,9 +30,10 @@ export default function OAuthCallback() {
 
   useEffect(() => {
     // Auth updates and StrictMode must not exchange the same callback twice.
-    if (callbackProcessed.current) return;
+    if (callbackProcessed.current || callbackInFlight || window.location.pathname !== AUTH_CALLBACK_PATH) return;
     callbackProcessed.current = true;
     const processCallback = async () => {
+      let ownsAttempt = false;
       try {
         // main.tsx captures the callback params and scrubs the URL at boot,
         // before analytics starts. Fall back to the live URL (query, then
@@ -88,9 +92,14 @@ export default function OAuthCallback() {
           return;
         }
 
-        // Handle OAuth callback
-        await handleOAuthCallback(accessToken, refreshToken, { isNewUser });
+        // Consume this attempt's intent before identity reconciliation remounts the page.
+        callbackInFlight = true;
+        ownsAttempt = true;
         const planIntent = consumeOAuthPlanIntent();
+        await handleOAuthCallback(accessToken, refreshToken, { isNewUser });
+        if (window.location.pathname !== AUTH_CALLBACK_PATH) {
+          throw new DOMException('OAuth callback superseded', 'AbortError');
+        }
 
         // Check for redirect parameter from external apps
         if (redirectUrl) {
@@ -112,6 +121,7 @@ export default function OAuthCallback() {
         // Redirect to dashboard
         navigate("/dashboard", { replace: true });
       } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
         logger.error("OAuth callback error:", err);
         captureException(err, {
           feature_area: "auth",
@@ -122,6 +132,7 @@ export default function OAuthCallback() {
           : t('auth:errors.oauthFailed');
         setError(errorMessage);
       } finally {
+        if (ownsAttempt) callbackInFlight = false;
         setLoading(false);
       }
     };

@@ -3,6 +3,7 @@ import { Edit, Trash2 } from "lucide-react";
 import type { User } from "../../types/admin";
 import type { TFunction } from "i18next";
 import { getLocaleCode } from "../../lib/i18n-helpers";
+import { parseUTCDate } from "../../lib/dateUtils";
 
 interface MobileTableProps<T> {
   data: T[];
@@ -31,7 +32,7 @@ interface UserCardProps {
 
 export function UserCard({ user, onEdit, onDelete, t }: UserCardProps) {
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString(getLocaleCode(), {
+    return parseUTCDate(dateStr).toLocaleString(getLocaleCode(), {
       year: "numeric",
       month: "2-digit",
       day: "2-digit",

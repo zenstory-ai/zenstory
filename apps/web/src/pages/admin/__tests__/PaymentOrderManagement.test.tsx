@@ -6,8 +6,9 @@ import { adminApi } from "../../../lib/adminApi";
 const queryMock = vi.fn();
 const refetch = vi.fn();
 const invalidateQueries = vi.fn();
+type SyncVariables = { orderId: string; detailsRequestId: number };
 const mutation = vi.hoisted(() => ({
-  options: null as null | { mutationFn: (id: string) => Promise<unknown>; onSuccess: (r: unknown) => void; onError: (e: unknown) => void },
+  options: null as null | { mutationFn: (variables: SyncVariables) => Promise<unknown>; onSuccess: (r: unknown, variables: SyncVariables) => void; onError: (e: unknown, variables: SyncVariables) => void },
 }));
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (...args: unknown[]) => queryMock(...args),
@@ -16,8 +17,11 @@ vi.mock("@tanstack/react-query", () => ({
     mutation.options = options;
     return {
       isPending: false,
-      mutate: (id: string) => {
-        options.mutationFn(id).then(options.onSuccess, options.onError);
+      mutate: (variables: SyncVariables) => {
+        options.mutationFn(variables).then(
+          result => options.onSuccess(result, variables),
+          error => options.onError(error, variables),
+        );
       },
     };
   },

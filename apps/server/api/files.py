@@ -8,19 +8,21 @@ import json
 import logging
 import os
 import re
+from collections.abc import Iterator
 from datetime import datetime
 from typing import Any, Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Form, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, Query, Response, UploadFile
 from fastapi import File as FastAPIFile
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_core import PydanticCustomError
 from services.auth import get_current_active_user
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import load_only
 from sqlmodel import Session, col, select
 
-from config.datetime_utils import normalize_datetime_to_utc, utcnow
+from config.datetime_utils import advance_timestamp, normalize_datetime_to_utc, utcnow
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from core.project_access import verify_project_ownership
@@ -43,9 +45,13 @@ from models.file_version import (
     CHANGE_TYPE_RESTORE,
 )
 from services.features.activation_event_service import activation_event_service
+from services.features.file_version_service import get_file_version_service
 from services.file_tree_rules import (
     MAX_FILE_ORDER,
     ParentNotFoundError,
+    begin_file_creation_savepoint,
+    load_live_subtree_postorder,
+    lock_project_for_files,
     resolve_new_file_order,
     validate_parent_assignment,
 )
@@ -387,6 +393,7 @@ def _load_file_for_write(session: Session, file_id: str) -> File | None:
     if is_postgres:
         return session.exec(
             select(File).where(File.id == file_id).with_for_update(key_share=True)
+            .execution_options(populate_existing=True)
         ).first()
     return session.get(File, file_id, populate_existing=True)
 
@@ -427,6 +434,7 @@ def _validate_parent_assignment(
     parent_id: str | None,
     *,
     moving_file_id: str | None = None,
+    refresh_parent: bool = False,
 ) -> str | None:
     """
     Validate parent assignment invariants for file hierarchy operations.
@@ -447,6 +455,7 @@ def _validate_parent_assignment(
             project_id,
             parent_id,
             moving_file_id=moving_file_id,
+            refresh_parent=refresh_parent,
         )
     except ParentNotFoundError as exc:
         raise APIException(
@@ -461,11 +470,45 @@ def _validate_parent_assignment(
         ) from exc
 
 
-def _ensure_material_folder(session: Session, project_id: str) -> File:
+def _recover_upload_folder(
+    session: Session, folder: File, project_id: str, *, commit: bool,
+) -> File:
+    """Recover a canonical upload folder, preserving a live no-op's token.
+
+    `commit=False` requires the caller's Project SHARE gate and transaction.
+    Helper-owned mode must not contain unrelated pending writes: it takes the
+    Project gate before the File lock and commits even if a waiter finds that
+    another creator already restored the folder.
+    """
+    if folder.project_id != project_id or folder.file_type != "folder":
+        raise APIException(error_code=ErrorCode.VALIDATION_ERROR, status_code=400)
+    if not folder.is_deleted:
+        return folder
+
+    if commit:
+        lock_project_for_files(session, project_id)
+    fresh = _load_file_for_write(session, folder.id)
+    if not fresh or fresh.project_id != project_id or fresh.file_type != "folder":
+        raise APIException(error_code=ErrorCode.VALIDATION_ERROR, status_code=400)
+    if fresh.is_deleted:
+        fresh.is_deleted = False
+        fresh.deleted_at = None
+        fresh.updated_at = advance_timestamp(fresh.updated_at, now=utcnow())
+        session.add(fresh)
+        session.flush()
+    if commit:
+        session.commit()
+    session.refresh(fresh)
+    return fresh
+
+
+def _ensure_material_folder(session: Session, project_id: str, *, commit: bool = True) -> File:
     """
     Ensure the canonical material folder exists for upload workflows.
 
-    Legacy non-novel projects may not have this folder pre-created.
+    Legacy non-novel projects may not have this folder pre-created. With
+    `commit=False`, the caller owns the Project SHARE gate and transaction;
+    helper-owned mode commits its mutation and must not contain unrelated writes.
     """
     # Heuristic language detection: project has no explicit language field.
     # We infer from existing root folder titles to avoid creating "Materials" in
@@ -481,21 +524,13 @@ def _ensure_material_folder(session: Session, project_id: str) -> File:
     )
 
     material_folder_id = f"{project_id}-material-folder"
-    material_folder = session.get(File, material_folder_id)
+    material_folder = session.get(File, material_folder_id, populate_existing=True)
 
     if material_folder:
-        if material_folder.project_id != project_id or material_folder.file_type != "folder":
-            raise APIException(error_code=ErrorCode.VALIDATION_ERROR, status_code=400)
+        return _recover_upload_folder(session, material_folder, project_id, commit=commit)
 
-        if material_folder.is_deleted:
-            material_folder.is_deleted = False
-            material_folder.deleted_at = None
-            material_folder.updated_at = utcnow()
-            session.add(material_folder)
-            session.commit()
-            session.refresh(material_folder)
-
-        return material_folder
+    if commit:
+        lock_project_for_files(session, project_id)
 
     has_en_root_folder = (
         session.exec(
@@ -520,59 +555,47 @@ def _ensure_material_folder(session: Session, project_id: str) -> File:
         parent_id=None,
         order=2,
     )
-    session.add(material_folder)
     try:
-        session.commit()
-    except IntegrityError as err:
-        # Concurrent create: another request created the folder first.
-        session.rollback()
-        existing = session.get(File, material_folder_id)
-        if not existing or existing.is_deleted:
+        with begin_file_creation_savepoint(session):
+            session.add(material_folder)
+            session.flush()
+    except IntegrityError:
+        # Concurrent create: revalidate/recover the authoritative winning row.
+        existing = session.get(File, material_folder_id, populate_existing=True)
+        if not existing:
             raise
-        if existing.project_id != project_id or existing.file_type != "folder":
-            raise APIException(
-                error_code=ErrorCode.VALIDATION_ERROR,
-                status_code=400,
-            ) from err
+        existing = _recover_upload_folder(session, existing, project_id, commit=False)
+        if commit:
+            session.commit()
+            session.refresh(existing)
         return existing
 
+    if commit:
+        session.commit()
     session.refresh(material_folder)
     return material_folder
 
 
-def _ensure_draft_folder(session: Session, project_id: str) -> File:
-    """Ensure the canonical draft folder exists for upload workflows."""
+def _ensure_draft_folder(session: Session, project_id: str, *, commit: bool = True) -> File:
+    """Ensure the draft/script folder; transaction ownership matches material."""
     draft_folder_id = f"{project_id}-draft-folder"
-    draft_folder = session.get(File, draft_folder_id)
+    draft_folder = session.get(File, draft_folder_id, populate_existing=True)
 
     if draft_folder:
-        if draft_folder.project_id != project_id or draft_folder.file_type != "folder":
-            raise APIException(error_code=ErrorCode.VALIDATION_ERROR, status_code=400)
-
-        if draft_folder.is_deleted:
-            draft_folder.is_deleted = False
-            draft_folder.deleted_at = None
-            draft_folder.updated_at = utcnow()
-            session.add(draft_folder)
-            session.commit()
-            session.refresh(draft_folder)
-
-        return draft_folder
+        return _recover_upload_folder(session, draft_folder, project_id, commit=commit)
 
     # Check for script-folder fallback (screenplay projects use "script" instead of "draft")
     script_folder_id = f"{project_id}-script-folder"
-    script_folder = session.get(File, script_folder_id)
+    script_folder = session.get(File, script_folder_id, populate_existing=True)
     if (
         script_folder
         and script_folder.project_id == project_id
         and script_folder.file_type == "folder"
     ):
-        if script_folder.is_deleted:
-            script_folder.is_deleted = False
-            session.add(script_folder)
-            session.commit()
-            session.refresh(script_folder)
-        return script_folder
+        return _recover_upload_folder(session, script_folder, project_id, commit=commit)
+
+    if commit:
+        lock_project_for_files(session, project_id)
 
     # Detect language from existing root folders
     en_markers = ("Characters", "Concept", "Drafts", "Scripts", "Scenes", "Episode Outlines", "World Building")
@@ -597,18 +620,22 @@ def _ensure_draft_folder(session: Session, project_id: str) -> File:
         parent_id=None,
         order=3,
     )
-    session.add(draft_folder)
     try:
-        session.commit()
+        with begin_file_creation_savepoint(session):
+            session.add(draft_folder)
+            session.flush()
     except IntegrityError:
-        session.rollback()
-        existing = session.get(File, draft_folder_id)
-        if not existing or existing.is_deleted:
+        existing = session.get(File, draft_folder_id, populate_existing=True)
+        if not existing:
             raise
-        if existing.project_id != project_id or existing.file_type != "folder":
-            raise APIException(error_code=ErrorCode.VALIDATION_ERROR, status_code=400) from None
+        existing = _recover_upload_folder(session, existing, project_id, commit=False)
+        if commit:
+            session.commit()
+            session.refresh(existing)
         return existing
 
+    if commit:
+        session.commit()
     session.refresh(draft_folder)
     return draft_folder
 
@@ -750,11 +777,14 @@ def create_file(
     """Create a new file in a project."""
     # Check project ownership
     verify_project_ownership(project_id, current_user, session)
+    lock_project_for_files(session, project_id)
+    verify_project_ownership(project_id, current_user, session)
 
     normalized_parent_id = _validate_parent_assignment(
         session,
         project_id,
         file_data.parent_id,
+        refresh_parent=True,
     )
 
     # Serialize metadata
@@ -763,15 +793,20 @@ def create_file(
     # Infer order when caller did not explicitly provide one.
     # NOTE: `FileCreate.order` has a default (0). We must use `model_fields_set`
     # to distinguish "explicitly set to 0" vs "omitted".
-    resolved_order = resolve_new_file_order(
-        session,
-        project_id,
-        normalized_parent_id,
-        title=file_data.title,
-        metadata=file_data.metadata,
-        file_type=file_data.file_type,
-        requested_order=file_data.order if "order" in file_data.model_fields_set else None,
-    )
+    try:
+        resolved_order = resolve_new_file_order(
+            session,
+            project_id,
+            normalized_parent_id,
+            title=file_data.title,
+            metadata=file_data.metadata,
+            file_type=file_data.file_type,
+            requested_order=file_data.order if "order" in file_data.model_fields_set else None,
+        )
+    except ValueError as exc:
+        raise APIException(
+            error_code=ErrorCode.VALIDATION_ERROR, status_code=400, message=str(exc),
+        ) from exc
 
     file = File(
         project_id=project_id,
@@ -784,6 +819,7 @@ def create_file(
     )
 
     session.add(file)
+    get_file_version_service().create_initial_version(session, file)
     session.commit()
     session.refresh(file)
 
@@ -853,6 +889,14 @@ def update_file(
     content_changed = False
     version_quota_exceeded = False
 
+    if "parent_id" in file_data.model_fields_set:
+        # Structural writers use Project -> File order, matching snapshot restore.
+        target = session.get(File, file_id)
+        if not target or target.is_deleted:
+            raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404)
+        verify_project_ownership(target.project_id, current_user, session)
+        lock_project_for_files(session, target.project_id, exclusive=True)
+
     with lock_ctx:
         file = _load_file_for_write(session, file_id)
         if not file or file.is_deleted:
@@ -864,21 +908,17 @@ def update_file(
         # 陈旧写入检测：必须在拿到锁、读到最新行之后做，否则校验的是过期快照。
         _assert_not_stale_write(file, file_data.base_updated_at)
 
-        # Update fields
-        if file_data.title is not None:
-            file.title = file_data.title
-
-        if file_data.content is not None:
-            if file_data.content != file.content:
-                content_changed = True
-            file.content = file_data.content
-
+        prospective_title = file_data.title if file_data.title is not None else file.title
+        prospective_content = file_data.content if file_data.content is not None else file.content
+        content_changed = file_data.content is not None and file_data.content != file.content
+        prospective_parent_id = file.parent_id
         if "parent_id" in file_data.model_fields_set:
-            file.parent_id = _validate_parent_assignment(
+            prospective_parent_id = _validate_parent_assignment(
                 session,
                 file.project_id,
                 file_data.parent_id,
                 moving_file_id=file.id,
+                refresh_parent=True,
             )
 
         existing_metadata: dict[str, Any] = {}
@@ -909,12 +949,12 @@ def update_file(
                 resolved_word_count = (
                     int(file_data.word_count)
                     if file_data.word_count is not None
-                    else count_words(file.content)
+                    else count_words(prospective_content)
                 )
                 updated_metadata["word_count"] = max(0, resolved_word_count)
 
-        if updated_metadata is not None:
-            file.file_metadata = json.dumps(updated_metadata)
+        prospective_metadata = json.dumps(updated_metadata) if updated_metadata is not None else file.file_metadata
+        prospective_order = file.order
 
         if (
             file_data.order is not None
@@ -923,14 +963,25 @@ def update_file(
         ):
             effective_metadata = updated_metadata if updated_metadata is not None else existing_metadata
             effective_raw_order = file_data.order if file_data.order is not None else file.order
-            file.order = resolve_persisted_sequence_order(
-                effective_raw_order,
-                title=file.title,
-                metadata=effective_metadata,
-                file_type=file.file_type,
-            )
+            try:
+                prospective_order = resolve_persisted_sequence_order(
+                    effective_raw_order,
+                    title=prospective_title,
+                    metadata=effective_metadata,
+                    file_type=file.file_type,
+                )
+            except ValueError as exc:
+                raise APIException(
+                    error_code=ErrorCode.VALIDATION_ERROR, status_code=400, message=str(exc),
+                ) from exc
 
-        file.updated_at = utcnow()
+        file.title = prospective_title
+        file.content = prospective_content
+        file.parent_id = prospective_parent_id
+        file.file_metadata = prospective_metadata
+        file.order = prospective_order
+
+        file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
 
         # 版本额度预检必须发生在 commit 之前。
         # 旧顺序是「先 commit 正文，再 create_version」，配额超限时 402 原样上抛，
@@ -947,6 +998,7 @@ def update_file(
                     session,
                     file.id,
                     current_user.id,
+                    commit=False,
                 )
             )
             if not has_quota:
@@ -1132,26 +1184,42 @@ def delete_file(
     # Check project ownership
     verify_project_ownership(file.project_id, current_user, session)
 
-    deleted_files: list[File] = []
+    lock_project_for_files(session, file.project_id, exclusive=True)
+    from agent.tools.file_ops.edit import file_write_lock
+    from database import is_postgres
 
-    if recursive:
-        # Delete all children recursively
-        deleted_files = _delete_recursive(session, file)
-    else:
-        deleted_files = [file]
-        # Soft delete: mark as deleted instead of removing from database
-        file.is_deleted = True
-        file.deleted_at = utcnow()
+    lock_ctx = contextlib.nullcontext() if is_postgres else file_write_lock(file_id)
+    with lock_ctx:
+        file = _load_file_for_write(session, file_id)
+        if not file:
+            raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404)
+        verify_project_ownership(file.project_id, current_user, session)
 
-    session.commit()
+        deleted_files: list[File] = []
+
+        if recursive:
+            # Delete all children recursively
+            deleted_files = _delete_recursive(session, file)
+        else:
+            deleted_files = [file]
+            # Soft delete: mark as deleted instead of removing from database
+            file.is_deleted = True
+            file.deleted_at = utcnow()
+            file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
+
+        # Commit expires ORM rows in the production Session. Capture index data
+        # while loaded; enqueue only after commit succeeds.
+        index_deletes = tuple((item.project_id, item.file_type, item.id) for item in deleted_files)
+        user_id = current_user.id
+        session.commit()
 
     log_with_context(
         logger,
         logging.INFO,
         "File deleted successfully",
-        user_id=current_user.id,
+        user_id=user_id,
         file_id=file_id,
-        deleted_count=len(deleted_files),
+        deleted_count=len(index_deletes),
         recursive=recursive,
     )
 
@@ -1160,22 +1228,22 @@ def delete_file(
         if background_tasks is None:
             # Shouldn't happen in FastAPI, but keep safe
             from services.llama_index import schedule_index_delete
-            for f in deleted_files:
+            for project_id, file_type, entity_id in index_deletes:
                 schedule_index_delete(
-                    project_id=f.project_id,
-                    entity_type=f.file_type,
-                    entity_id=f.id,
-                    user_id=current_user.id,
+                    project_id=project_id,
+                    entity_type=file_type,
+                    entity_id=entity_id,
+                    user_id=user_id,
                 )
         else:
             from services.llama_index import schedule_index_delete
-            for f in deleted_files:
+            for project_id, file_type, entity_id in index_deletes:
                 background_tasks.add_task(
                     schedule_index_delete,
-                    project_id=f.project_id,
-                    entity_type=f.file_type,
-                    entity_id=f.id,
-                    user_id=current_user.id,
+                    project_id=project_id,
+                    entity_type=file_type,
+                    entity_id=entity_id,
+                    user_id=user_id,
                 )
     except Exception as e:
         log_with_context(
@@ -1183,7 +1251,7 @@ def delete_file(
             logging.WARNING,
             "Failed to schedule vector index delete",
             file_id=file_id,
-            deleted_count=len(deleted_files),
+            deleted_count=len(index_deletes),
             error=str(e),
         )
 
@@ -1212,17 +1280,29 @@ def move_file(
     # Check project ownership
     verify_project_ownership(file.project_id, current_user, session)
 
-    file.parent_id = _validate_parent_assignment(
-        session,
-        file.project_id,
-        request.target_parent_id,
-        moving_file_id=file.id,
-    )
-    file.updated_at = utcnow()
+    lock_project_for_files(session, file.project_id, exclusive=True)
+    from agent.tools.file_ops.edit import file_write_lock
+    from database import is_postgres
 
-    session.add(file)
-    session.commit()
-    session.refresh(file)
+    lock_ctx = contextlib.nullcontext() if is_postgres else file_write_lock(file_id)
+    with lock_ctx:
+        file = _load_file_for_write(session, file_id)
+        if not file or file.is_deleted:
+            raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404)
+        verify_project_ownership(file.project_id, current_user, session)
+
+        file.parent_id = _validate_parent_assignment(
+            session,
+            file.project_id,
+            request.target_parent_id,
+            moving_file_id=file.id,
+            refresh_parent=True,
+        )
+        file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
+
+        session.add(file)
+        session.commit()
+        session.refresh(file)
 
     log_with_context(
         logger,
@@ -1287,12 +1367,31 @@ def reorder_files(
     if len(set(request.ordered_ids)) != len(request.ordered_ids):
         raise APIException(error_code=ErrorCode.VALIDATION_ERROR, status_code=400)
 
+    from database import is_postgres
+
+    lock_project_for_files(session, project_id)
+    verify_project_ownership(project_id, current_user, session)
+    # Lock order is independent of request order; omitted siblings stay untouched.
+    query = select(File).where(
+        File.project_id == project_id, File.id.in_(request.ordered_ids),
+    ).order_by(File.id)
+    if is_postgres:
+        query = query.with_for_update(key_share=True)
+    requested_files = {
+        file.id: file
+        for file in session.exec(query.execution_options(populate_existing=True)).all()
+    }
+
     # Get all files and validate
     files_to_update = []
     parent_id = None
 
     for idx, file_id in enumerate(request.ordered_ids):
-        file = session.get(File, file_id)
+        file = requested_files.get(file_id)
+        if file is None:
+            # Preserve foreign/missing error distinctions without locking a
+            # row outside the authorized project. Happy path stays one SELECT.
+            file = session.get(File, file_id, populate_existing=True)
         if not file or file.is_deleted:
             raise APIException(
                 error_code=ErrorCode.FILE_NOT_FOUND,
@@ -1316,15 +1415,25 @@ def reorder_files(
 
         files_to_update.append((file, idx))
 
-    # Update order
+    # Resolve the complete batch before changing any attached row.
+    resolved_orders = []
     for file, new_order in files_to_update:
-        file.order = resolve_persisted_sequence_order(
-            new_order,
-            title=file.title,
-            metadata=file.get_metadata(),
-            file_type=file.file_type,
-        )
-        file.updated_at = utcnow()
+        try:
+            resolved_order = resolve_persisted_sequence_order(
+                new_order,
+                title=file.title,
+                metadata=file.get_metadata(),
+                file_type=file.file_type,
+            )
+        except ValueError as exc:
+            raise APIException(
+                error_code=ErrorCode.VALIDATION_ERROR, status_code=400, message=str(exc),
+            ) from exc
+        resolved_orders.append((file, resolved_order))
+
+    for file, resolved_order in resolved_orders:
+        file.order = resolved_order
+        file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
         session.add(file)
 
     session.commit()
@@ -1343,30 +1452,12 @@ def reorder_files(
 
 
 def _delete_recursive(session: Session, file: File) -> list[File]:
-    """Delete a file and all its children recursively.
-
-    Returns a list of File objects that were deleted (including the root file).
-    Uses soft delete: marks files as deleted instead of removing from database.
-    """
-    deleted: list[File] = []
-
-    # Get all children that are not already deleted
-    children = session.exec(
-        select(File).where(
-            File.parent_id == file.id,
-            File.is_deleted.is_(False)
-        )
-    ).all()
-
-    # Delete children first
-    for child in children:
-        deleted.extend(_delete_recursive(session, child))
-
-    # Soft delete this file
-    deleted.append(file)
-    file.is_deleted = True
-    file.deleted_at = utcnow()
-
+    """Soft-delete the loaded subtree once each, children before parents."""
+    deleted = load_live_subtree_postorder(session, file)
+    for item in deleted:
+        item.is_deleted = True
+        item.deleted_at = utcnow()
+        item.updated_at = advance_timestamp(item.updated_at, now=utcnow())
     return deleted
 
 
@@ -1376,6 +1467,30 @@ def _delete_recursive(session: Session, file: File) -> list[File]:
 
 
 # ==================== File Tree ====================
+
+def _serialize_file_tree_json(root_items: list[dict[str, Any]]) -> str:
+    """Encode the existing tree shape without recursing through children."""
+    chunks = ['{"tree":[']
+    stack: list[tuple[Iterator[dict[str, Any]], bool]] = [(iter(root_items), False)]
+    while stack:
+        siblings, has_previous = stack[-1]
+        try:
+            node = next(siblings)
+        except StopIteration:
+            stack.pop()
+            chunks.append("]}")
+            continue
+        if has_previous:
+            chunks.append(",")
+        stack[-1] = (siblings, True)
+        shallow = {key: value for key, value in node.items() if key != "children"}
+        chunks.append(json.dumps(
+            shallow, ensure_ascii=False, allow_nan=False, indent=None, separators=(",", ":"),
+        )[:-1])
+        chunks.append(',"children":[')
+        stack.append((iter(node["children"]), False))
+    return "".join(chunks)
+
 
 @router.get("/projects/{project_id}/file-tree")
 def get_file_tree(
@@ -1478,13 +1593,13 @@ def get_file_tree(
     # Sort root items
     root_items.sort(key=sort_key)
 
-    return {"tree": root_items}
+    return Response(content=_serialize_file_tree_json(root_items), media_type="application/json")
 
 
 # ==================== Material Upload ====================
 
 @router.post("/projects/{project_id}/files/upload", response_model=FileResponse)
-async def upload_material(
+def upload_material(
     project_id: str,
     file: UploadFile = FastAPIFile(...),
     current_user: User = Depends(get_current_active_user),
@@ -1518,7 +1633,7 @@ async def upload_material(
         content_bytes = bytearray()
         total_bytes = 0
         while True:
-            chunk = await file.read(8192)
+            chunk = file.file.read(8192)
             if not chunk:
                 break
             total_bytes += len(chunk)
@@ -1554,12 +1669,21 @@ async def upload_material(
             status_code=400
         )
 
-    # 5. Ensure material folder exists (legacy non-novel projects may miss it)
-    material_folder = _ensure_material_folder(session, project_id)
-
-    # 6. Build snippet list (single or multiple)
+    # Validate every persisted text value before staging the folder or files.
     base_title = os.path.splitext(file.filename)[0]
     snippets = _build_upload_snippets(base_title, content)
+    try:
+        for snippet_title, snippet_content in snippets:
+            _reject_embedded_nul(snippet_title)
+            _reject_embedded_nul(snippet_content)
+    except ValueError as exc:
+        raise APIException(error_code=ErrorCode.VALIDATION_ERROR, status_code=400) from exc
+
+    # 5. Ensure material folder exists (legacy non-novel projects may miss it)
+    lock_project_for_files(session, project_id)
+    verify_project_ownership(project_id, current_user, session)
+    material_folder = _ensure_material_folder(session, project_id, commit=False)
+
     split_total = len(snippets)
 
     created_files: list[File] = []
@@ -1586,14 +1710,14 @@ async def upload_material(
             file_metadata=json.dumps(metadata),
         )
         session.add(created_file)
+        get_file_version_service().create_initial_version(session, created_file)
         created_files.append(created_file)
 
-    session.commit()
-    for created_file in created_files:
-        session.refresh(created_file)
-
     # Keep backward-compatible response model: return the first created snippet.
-    return created_files[0]
+    session.flush()
+    response = FileResponse.model_validate(created_files[0])
+    session.commit()
+    return response
 
 
 class UploadDraftsResponse(BaseModel):
@@ -1603,7 +1727,7 @@ class UploadDraftsResponse(BaseModel):
 
 
 @router.post("/projects/{project_id}/files/upload-drafts", response_model=UploadDraftsResponse)
-async def upload_drafts(
+def upload_drafts(
     project_id: str,
     files: list[UploadFile] = FastAPIFile(...),
     parent_id: str | None = Form(None),
@@ -1626,24 +1750,30 @@ async def upload_drafts(
         )
 
     # 3. Resolve target folder
+    lock_project_for_files(session, project_id)
+    verify_project_ownership(project_id, current_user, session)
     if parent_id:
         try:
-            validate_parent_assignment(session, project_id, parent_id)
+            validate_parent_assignment(session, project_id, parent_id, refresh_parent=True)
         except ValueError:
             raise APIException(error_code=ErrorCode.VALIDATION_ERROR, status_code=400) from None
         target_folder = session.get(File, parent_id)
     else:
-        target_folder = _ensure_draft_folder(session, project_id)
+        target_folder = _ensure_draft_folder(session, project_id, commit=False)
 
     created_files: list[File] = []
     errors: list[str] = []
     order_index = 0
 
     # Determine max existing order under target folder
-    max_order_result = session.exec(
-        select(File.order).where(File.parent_id == target_folder.id, File.is_deleted.is_(False))
-    ).all()
-    next_order = max(max_order_result) + 1 if max_order_result else 0
+    max_order = session.exec(
+        select(func.max(File.order)).where(
+            File.project_id == project_id,
+            File.parent_id == target_folder.id,
+            File.is_deleted.is_(False),
+        )
+    ).one()
+    next_order = max_order + 1 if max_order is not None else 0
 
     for upload_file in files:
         try:
@@ -1663,7 +1793,7 @@ async def upload_drafts(
             total_bytes = 0
             oversized = False
             while True:
-                chunk = await upload_file.read(8192)
+                chunk = upload_file.file.read(8192)
                 if not chunk:
                     break
                 total_bytes += len(chunk)
@@ -1674,7 +1804,7 @@ async def upload_drafts(
 
             if oversized:
                 # Drain remaining bytes for proper multipart parsing
-                while await upload_file.read(65536):
+                while upload_file.file.read(65536):
                     pass
                 errors.append(f"{upload_file.filename}: {ErrorCode.FILE_TOO_LARGE}")
                 continue
@@ -1702,8 +1832,11 @@ async def upload_drafts(
             # 4f. Build chapters and create files
             base_title = os.path.splitext(upload_file.filename)[0]
             chapters = _build_draft_chapters(base_title, content)
+            pending_drafts: list[File] = []
 
             for chapter_title, chapter_content in chapters:
+                _reject_embedded_nul(chapter_title)
+                _reject_embedded_nul(chapter_content)
                 word_count = count_words(chapter_content)
 
                 metadata = {
@@ -1714,11 +1847,13 @@ async def upload_drafts(
                 }
 
                 resolved_order = resolve_persisted_sequence_order(
-                    next_order + order_index,
+                    next_order + order_index + len(pending_drafts),
                     title=chapter_title,
                     metadata=metadata,
                     file_type="draft",
                 )
+                if resolved_order > MAX_FILE_ORDER:
+                    raise ValueError("resolved file order exceeds the storage limit")
 
                 draft = File(
                     project_id=project_id,
@@ -1729,29 +1864,41 @@ async def upload_drafts(
                     order=resolved_order,
                     file_metadata=json.dumps(metadata),
                 )
-                session.add(draft)
-                created_files.append(draft)
-                order_index += 1
+                pending_drafts.append(draft)
 
         except Exception as e:
             logger.warning(f"Error processing upload file {getattr(upload_file, 'filename', '?')}: {e}")
             errors.append(f"{getattr(upload_file, 'filename', '未知文件')}: {ErrorCode.VALIDATION_ERROR}")
+            continue
 
-    # 5. Commit all created files
+        # One input is accepted only after all its chapters pass validation.
+        # Unexpected ORM failures must abort the request, not look like bad input.
+        session.add_all(pending_drafts)
+        created_files.extend(pending_drafts)
+        order_index += len(pending_drafts)
+
+    # 5. Commit the folder repair and all successfully decoded content together.
+    file_responses: list[FileResponse] = []
     if created_files:
-        session.commit()
-        for f in created_files:
-            session.refresh(f)
-
+        # Keep structural baseline failures outside the per-upload validation
+        # handler: no populated draft may be committed without its initial v1.
+        version_service = get_file_version_service()
+        for created_file in created_files:
+            version_service.create_initial_version(session, created_file)
+        session.flush()
+        file_responses = [FileResponse.model_validate(f) for f in created_files]
+    user_id = current_user.id
+    session.commit()
+    if file_responses:
         # 6. Background tasks: vector index + dashboard cache
-        for f in created_files:
+        for f in file_responses:
             try:
                 from services.llama_index import schedule_index_upsert
 
                 background_tasks.add_task(
                     schedule_index_upsert,
                     project_id=project_id,
-                    user_id=current_user.id,
+                    user_id=user_id,
                     entity_type=f.file_type,
                     entity_id=f.id,
                     content=f.content,
@@ -1764,12 +1911,12 @@ async def upload_drafts(
         try:
             from services.infra.dashboard_cache import dashboard_cache
 
-            dashboard_cache.bump_project_version(user_id=current_user.id, project_id=project_id)
+            dashboard_cache.bump_project_version(user_id=user_id, project_id=project_id)
         except Exception:
             pass
 
     return UploadDraftsResponse(
-        files=[FileResponse.model_validate(f) for f in created_files],
-        total=len(created_files),
+        files=file_responses,
+        total=len(file_responses),
         errors=errors,
     )

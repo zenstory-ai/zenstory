@@ -12,7 +12,7 @@
  * - Importing materials as project files
  */
 
-import { api, ApiError, tryRefreshToken, getAccessToken, getApiBase } from "./apiClient";
+import { api, ApiError, tryRefreshToken, getAccessToken, getApiBase, resolveOwnedAuthSession } from "./apiClient";
 import { resolveApiErrorMessage } from "./errorHandler";
 
 // ==================== Type Definitions ====================
@@ -495,6 +495,8 @@ export const materialsApi = {
    * @throws ApiError if upload fails or file format is unsupported
    */
   upload: async (file: globalThis.File, title?: string): Promise<MaterialUploadResponse> => {
+    const entryAccess = getAccessToken();
+    const entryRefresh = localStorage.getItem("refresh_token");
     const formData = new FormData();
     formData.append("file", file);
 
@@ -504,31 +506,25 @@ export const materialsApi = {
     }
     const uploadUrl = `${getApiBase()}/api/v1/materials/upload${query.toString() ? `?${query.toString()}` : ""}`;
 
-    const doFetch = async (isRetry = false): Promise<Response> => {
-      const accessToken = getAccessToken();
-      const response = await fetch(
-        uploadUrl,
-        {
-          method: "POST",
-          headers: accessToken
-            ? { Authorization: `Bearer ${accessToken}` }
-            : undefined,
-          body: formData,
-        }
-      );
+    const fetchOnce = (accessToken: string | null): Promise<Response> => fetch(uploadUrl, {
+      method: "POST",
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+      body: formData,
+    });
 
-      // Handle 401 - try to refresh token and retry once
-      if (response.status === 401 && !isRetry) {
-        const refreshed = await tryRefreshToken();
-        if (refreshed) {
-          return doFetch(true);
+    let response = await fetchOnce(entryAccess);
+    if (response.status === 401 && entryAccess && entryRefresh) {
+      let ownedSession = resolveOwnedAuthSession(entryAccess, entryRefresh);
+      if (ownedSession?.accessToken && ownedSession.refreshToken) {
+        if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
+          const refreshed = await tryRefreshToken();
+          ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+        }
+        if (ownedSession?.accessToken && ownedSession.refreshToken) {
+          response = await fetchOnce(ownedSession.accessToken);
         }
       }
-
-      return response;
-    };
-
-    const response = await doFetch();
+    }
 
     if (!response.ok) {
       let errorMessage = "ERR_MATERIAL_UPLOAD_FAILED";

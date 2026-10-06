@@ -11,12 +11,13 @@ import json
 import os
 import re
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from services.auth import get_current_active_user
+from sqlalchemy import update
 from sqlmodel import Session, select
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
@@ -33,6 +34,7 @@ from middleware.rate_limit import require_user_rate_limit
 from models import User
 from models.material_models import IngestionJob, Novel
 from services.material.ingestion_jobs_service import IngestionJobsService
+from services.material.job_errors import REFUNDABLE_JOB_ERROR_CODES
 from services.material.novel_text import (
     NovelDecodeError,
     NovelTextAnalysis,
@@ -209,34 +211,16 @@ async def _read_upload_file(request: Request) -> StarletteUploadFile:
 def _mark_job_dispatch_failed(
     session: Session,
     job_id: int,
-    quota_refunded: bool,
 ) -> None:
-    """Persist deployment-start failure state for a just-created ingestion job."""
+    """Use the shared durable failure/refund transition for dispatch failures."""
     job = session.get(IngestionJob, job_id)
     if job is None:
         return
 
-    job.status = "failed"
-    job.error_message = ErrorCode.MATERIAL_DISPATCH_FAILED
-    job.error_details = json.dumps(
-        {
-            "stage": "deployment_start",
-            "error_code": ErrorCode.MATERIAL_DISPATCH_FAILED,
-        },
-        ensure_ascii=False,
+    IngestionJobsService().fail_job(
+        session, job, error_code=ErrorCode.MATERIAL_DISPATCH_FAILED,
+        stage="deployment_start", reason="deployment_start",
     )
-    job.update_stage_progress("queue", "failed", reason="deployment_start")
-    IngestionJobsService.set_billing(
-        job,
-        quota_charged=not quota_refunded,
-        quota_refunded=quota_refunded,
-        refund_reason=ErrorCode.MATERIAL_DISPATCH_FAILED if quota_refunded else None,
-    )
-    job.completed_at = utcnow()
-    job.updated_at = utcnow()
-    session.add(job)
-    session.commit()
-    session.refresh(job)
 
 
 # ==================== Internal Endpoints ====================
@@ -395,45 +379,14 @@ async def process_material_upload(
     sanitized_original_filename = _sanitize_original_filename(original_filename)
     novel_title = title or os.path.splitext(file.filename)[0]
 
-    # Quota is consumed atomically after request/file validation and before any
-    # runnable job exists. The endpoint owns compensation until Prefect accepts.
+    # Check before file I/O, then reserve authoritatively with job creation in
+    # one short transaction. No quota write lock spans the file write.
     check_quota("material_decompose", session, current_user.id)
-    quota_period_start = quota_service.reserve_feature_quota(
-        session, current_user.id, "material_decompose"
-    )
-    if quota_period_start is None:
-        _, used, limit = quota_service.check_feature_quota(
-            session, current_user.id, "material_decompose"
-        )
-        raise QuotaExceededException(
-            feature_type="material_decompose",
-            used=used,
-            limit=limit,
-        )
-
-    quota_consumed = True
     dispatch_accepted = False
     job_id: int | None = None
-
-    def _refund_once() -> bool:
-        nonlocal quota_consumed
-        if not quota_consumed:
-            return False
-        quota_consumed = False
-        try:
-            return quota_service.release_feature_quota(
-                session,
-                current_user.id,
-                "material_decompose",
-                period_start=quota_period_start,
-            )
-        except Exception as refund_error:
-            logger.error(
-                "Failed to refund material upload quota after pre-dispatch failure: %s",
-                refund_error,
-                exc_info=True,
-            )
-            return False
+    file_path: str | None = None
+    job_persisted = False
+    commit_attempted = False
 
     try:
         # 3. Save file to uploads directory
@@ -452,6 +405,16 @@ async def process_material_upload(
         )
         logger.info(f"File saved: {file_path} ({len(content_bytes)} bytes)")
 
+        quota_period_start = quota_service.reserve_feature_quota(
+            session, current_user.id, "material_decompose", commit=False,
+        )
+        if quota_period_start is None:
+            session.rollback()
+            _, used, limit = quota_service.check_feature_quota(
+                session, current_user.id, "material_decompose",
+            )
+            raise QuotaExceededException(feature_type="material_decompose", used=used, limit=limit)
+
         source_meta = {
             "file_path": file_path,
             "file_size": len(content_bytes),
@@ -467,8 +430,7 @@ async def process_material_upload(
             source_meta=json.dumps(source_meta),
         )
         session.add(novel)
-        session.commit()
-        session.refresh(novel)
+        session.flush()
 
         job = IngestionJob(
             novel_id=novel.id,
@@ -485,9 +447,12 @@ async def process_material_upload(
             quota_period_start=_quota_period_iso(quota_period_start),
         )
         session.add(job)
-        session.commit()
-        session.refresh(job)
+        session.flush()
         job_id = job.id
+        commit_attempted = True
+        session.commit()
+        job_persisted = True
+        session.refresh(job)
 
         flow_run_id = await _start_flow_deployment(
             file_path=file_path,
@@ -522,10 +487,9 @@ async def process_material_upload(
     except Exception:
         session.rollback()
         if not dispatch_accepted:
-            refunded = _refund_once()
-            if job_id is not None:
+            if job_persisted and job_id is not None:
                 try:
-                    _mark_job_dispatch_failed(session, job_id, quota_refunded=refunded)
+                    _mark_job_dispatch_failed(session, job_id)
                 except Exception:
                     session.rollback()
                     logger.error(
@@ -533,6 +497,12 @@ async def process_material_upload(
                         job_id,
                         exc_info=True,
                     )
+            elif file_path is not None and not commit_attempted:
+                # This request owns the new file and no DB commit was attempted.
+                # Preserve it after an ambiguous commit failure: a durable job
+                # may reference it and watchdog reconciliation needs that source.
+                with contextlib.suppress(OSError):
+                    os.remove(file_path)
         raise
 
 
@@ -572,6 +542,14 @@ async def retry_material_job(
     if not latest_job:
         raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404)
 
+    IngestionJobsService().reconcile_stale_job(session, latest_job)
+    if (
+        latest_job.status == "failed"
+        and latest_job.error_message in REFUNDABLE_JOB_ERROR_CODES
+        and IngestionJobsService.get_billing(latest_job).get("quota_charged") is True
+    ):
+        raise APIException(error_code=ErrorCode.SERVICE_UNAVAILABLE, status_code=503)
+
     if latest_job.status in {"pending", "processing"}:
         raise APIException(
             error_code=ErrorCode.VALIDATION_ERROR,
@@ -594,31 +572,11 @@ async def retry_material_job(
     check_quota("material_decompose", session, current_user.id)
 
     quota_period_start = quota_service.reserve_feature_quota(
-        session, current_user.id, "material_decompose"
+        session, current_user.id, "material_decompose", commit=False,
     )
-    quota_consumed = False
-
-    def _refund_retry_quota_once() -> bool:
-        nonlocal quota_consumed
-        if not quota_consumed:
-            return False
-        quota_consumed = False
-        try:
-            return quota_service.release_feature_quota(
-                session,
-                current_user.id,
-                "material_decompose",
-                period_start=quota_period_start,
-            )
-        except Exception as refund_error:
-            logger.error(
-                "Failed to refund material retry quota after pre-dispatch failure: %s",
-                refund_error,
-                exc_info=True,
-            )
-            return False
 
     if quota_period_start is None:
+        session.rollback()
         _allowed, used, limit = quota_service.check_feature_quota(
             session, current_user.id, "material_decompose"
         )
@@ -630,10 +588,28 @@ async def retry_material_job(
             used=used,
             limit=limit,
         )
-    quota_consumed = True
-
     new_job: IngestionJob | None = None
+    job_persisted = False
     try:
+        # Two retries that read the same failed job cannot both persist a new
+        # charge/job. Claim and reservation roll back together for the loser.
+        # Advance even when the clock is frozen or moves backwards, otherwise
+        # an unchanged timestamp would let a second stale claim succeed.
+        claim_time = max(
+            utcnow(),
+            normalize_datetime_to_utc(latest_job.updated_at) + timedelta(microseconds=1),
+        )
+        claim = session.exec(
+            update(IngestionJob).where(
+                IngestionJob.id == latest_job.id,
+                IngestionJob.status == latest_job.status,
+                IngestionJob.updated_at == latest_job.updated_at,
+                IngestionJob.stage_progress == latest_job.stage_progress,
+            ).values(updated_at=claim_time).execution_options(synchronize_session=False)
+        )
+        if claim.rowcount != 1:
+            raise APIException(error_code=ErrorCode.VALIDATION_ERROR, status_code=409)
+
         # Create a runnable job only after the atomic quota decision succeeds.
         new_job = IngestionJob(
             novel_id=novel_id,
@@ -651,6 +627,7 @@ async def retry_material_job(
         )
         session.add(new_job)
         session.commit()
+        job_persisted = True
         session.refresh(new_job)
 
         source_meta = {}
@@ -677,10 +654,9 @@ async def retry_material_job(
             )
     except Exception:
         session.rollback()
-        refunded = _refund_retry_quota_once()
-        if new_job is not None and new_job.id is not None:
+        if job_persisted and new_job is not None and new_job.id is not None:
             try:
-                _mark_job_dispatch_failed(session, new_job.id, quota_refunded=refunded)
+                _mark_job_dispatch_failed(session, new_job.id)
             except Exception:
                 session.rollback()
                 logger.error(

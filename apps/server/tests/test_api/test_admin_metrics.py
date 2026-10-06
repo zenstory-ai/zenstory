@@ -22,6 +22,7 @@ from models.referral import (
 from models.skill import UserSkill
 from models.subscription import SubscriptionHistory, SubscriptionPlan, UsageQuota, UserSubscription
 from services.core.auth_service import hash_password
+from services.quota_service import quota_service
 
 
 async def create_user(
@@ -103,8 +104,8 @@ async def test_admin_quota_usage_and_user_quota_detail(client: AsyncClient, db_s
             material_decompositions_used=4,
             skill_creates_used=3,
             inspiration_copies_used=6,
-            monthly_period_start=now,
-            monthly_period_end=now + timedelta(days=30),
+            monthly_period_start=quota_service._get_month_start(now),
+            monthly_period_end=quota_service._get_next_month_start(now),
         )
     )
     # The custom-skill cap counts skills the user owns, not monthly creations.

@@ -349,6 +349,26 @@ describe('ChatPanel mount smoke', () => {
     })
   })
 
+  it('forwards mutation and partial completion metadata to snapshot finalization', async () => {
+    render(<ChatPanel />)
+    await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+
+    const options = capturedUseAgentStream.options as {
+      onComplete?: (segments: unknown[], applyAction: unknown, meta?: Record<string, unknown>) => void;
+    }
+    await act(async () => {
+      options.onComplete?.([], null, {
+        confirmedFileMutation: false,
+        partial: true,
+      })
+    })
+
+    expect(streamCallbacks.onComplete).toHaveBeenCalledWith([], null, {
+      confirmedFileMutation: false,
+      partial: true,
+    })
+  })
+
   it('opens quota upgrade modal when quota error code is returned', async () => {
     mockAgentStreamState.errorCode = 'ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED'
     mockAgentStreamState.error = 'quota exceeded'

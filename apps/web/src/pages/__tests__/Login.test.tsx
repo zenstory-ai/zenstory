@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { BrowserRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -25,7 +25,13 @@ vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
   return {
     ...actual,
-    useNavigate: () => mockNavigate,
+    useNavigate: () => {
+      const navigate = actual.useNavigate();
+      return (...args: Parameters<typeof navigate>) => {
+        mockNavigate(...args);
+        return navigate(...args);
+      };
+    },
   };
 });
 
@@ -46,7 +52,11 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("../../contexts/AuthContext", () => ({
   useAuth: () => ({
-    login: mockLogin,
+    login: async (identifier: string, password: string) => {
+      await mockLogin(identifier, password);
+      localStorage.setItem('access_token', 'offline-login-access');
+      localStorage.setItem('refresh_token', 'offline-login-refresh');
+    },
     googleLogin: mockGoogleLogin,
     appleLogin: mockAppleLogin,
     user: null,
@@ -90,27 +100,71 @@ vi.mock("../../components/Logo", () => ({
 
 import Login from "../Login";
 import zhAuth from "../../../public/locales/zh/auth.json";
+import { ApiError } from "../../lib/apiClient";
+import { LOGIN_ATTEMPT_KEY } from "../../lib/authFlow";
+
+const finalNavigations = () => mockNavigate.mock.calls.filter(([, options]) => !options?.state?.[LOGIN_ATTEMPT_KEY]);
+
+const initialHistory = { url: window.location.href, state: window.history.state };
+afterEach(() => {
+  localStorage.clear();
+  window.history.replaceState(initialHistory.state, '', initialHistory.url);
+});
 
 describe("Login", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockOAuthEnabled.google = false;
     mockGetAllProjects.mockResolvedValue([]);
+    localStorage.clear();
+    window.history.replaceState({}, "", "/login");
   });
 
-  const renderPage = () =>
-    render(
-      <MemoryRouter initialEntries={["/login"]}>
-        <Login />
-      </MemoryRouter>
-    );
+  const renderPageAt = (entry: string, state?: unknown) => {
+    window.history.replaceState({ usr: state }, '', entry);
+    return render(<BrowserRouter><Login /></BrowserRouter>);
+  };
+  const renderPage = () => renderPageAt('/login' + window.location.search);
+  it.each(["default", "deep-link", "external-app"])("ignores cancelled establishment before %s continuation", async target => {
+    let reject!: (error: DOMException) => void;
+    mockLogin.mockReturnValueOnce(new Promise<void>((_resolve, decline) => { reject = decline; }));
+    const previousUrl = window.location.href;
+    if (target === "external-app") window.history.pushState({}, "", "/login?redirect=https%3A%2F%2Fmanga.zenstory.ai%2Fcallback");
+    try {
+      renderPageAt("/login", target === "deep-link" ? { from: { pathname: "/project/p1", search: "?file=f1" } } : undefined);
+      fireEvent.change(screen.getByTestId("email-input"), { target: { value: "offline@example.invalid" } });
+      fireEvent.change(screen.getByTestId("password-input"), { target: { value: "offline-password" } });
+      fireEvent.submit(screen.getByTestId("login-form"));
+      expect(screen.getByTestId("login-submit")).toBeDisabled();
+      await act(async () => { reject(new DOMException("Auth establishment superseded", "AbortError")); });
+      expect(mockLogin).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(finalNavigations()).toEqual([]);
+      expect(mockHandleSsoRedirect).not.toHaveBeenCalled();
+      expect(mockGetAllProjects).not.toHaveBeenCalled();
+      expect(screen.getByTestId("login-submit")).toBeEnabled();
+      expect(screen.getByTestId("login-form")).toHaveAttribute("aria-busy", "false");
+      expect(screen.queryByTestId("loading-spinner")).not.toBeInTheDocument();
+    } finally {
+      window.history.replaceState({}, "", previousUrl);
+    }
+  });
 
-  const renderPageAt = (entry: string, state?: unknown) =>
-    render(
-      <MemoryRouter initialEntries={[state === undefined ? entry : { pathname: entry, state }]}>
-        <Login />
-      </MemoryRouter>
-    );
+  it.each([
+    new ApiError(401, "offline-api-error"),
+    new TypeError("offline-type-error"),
+    { name: "AbortError", message: "ordinary-object-abort-name" },
+    new DOMException("ordinary-other-dom-error", "InvalidStateError"),
+  ])("preserves ordinary error UI for %s", async failure => {
+    mockLogin.mockRejectedValueOnce(failure);
+    renderPage();
+    fireEvent.change(screen.getByTestId("email-input"), { target: { value: "offline@example.invalid" } });
+    fireEvent.change(screen.getByTestId("password-input"), { target: { value: "offline-password" } });
+    fireEvent.submit(screen.getByTestId("login-form"));
+    expect(await screen.findByRole("alert")).toHaveTextContent(failure.message);
+    expect(screen.getByTestId("login-submit")).toBeEnabled();
+    expect(finalNavigations()).toEqual([]);
+  });
 
   it("disables submit until identifier and password are both provided", async () => {
     renderPage();
@@ -247,10 +301,36 @@ describe("Login", () => {
       );
       expect(mockHandleSsoRedirect).toHaveBeenCalledWith("https://manga.zenstory.ai/callback");
       expect(screen.queryByText("Invalid redirect URL")).not.toBeInTheDocument();
-      expect(mockNavigate).not.toHaveBeenCalled();
+      expect(finalNavigations()).toEqual([]);
       expect(mockGetAllProjects).not.toHaveBeenCalled();
       expect(screen.getByTestId("login-submit")).toBeEnabled();
       expect(zhAuth.errors.ssoRedirectFailed).toBe("已登录，但没能返回原来的应用，请重新打开该应用再试");
     });
+  });
+});
+
+
+describe("Login awaited SSO cancellation", () => {
+  it("quietly releases loading without fallback navigation after SSO is superseded", async () => {
+    vi.clearAllMocks();
+    mockLogin.mockResolvedValueOnce(undefined);
+    let reject!: (error: DOMException) => void;
+    mockHandleSsoRedirect.mockReturnValueOnce(new Promise((_resolve, decline) => { reject = decline; }));
+    const previousUrl = window.location.href;
+    window.history.replaceState({}, "", "/login?redirect=https%3A%2F%2Fapp.zenstory.ai%2Fcallback");
+    try {
+      render(<BrowserRouter><Login /></BrowserRouter>);
+      fireEvent.change(screen.getByTestId("email-input"), { target: { value: "offline@example.invalid" } });
+      fireEvent.change(screen.getByTestId("password-input"), { target: { value: "offline-password" } });
+      fireEvent.submit(screen.getByTestId("login-form"));
+      await waitFor(() => expect(mockHandleSsoRedirect).toHaveBeenCalledTimes(1));
+      expect(screen.getByTestId("login-submit")).toBeDisabled();
+      await act(async () => { reject(new DOMException("SSO redirect superseded", "AbortError")); });
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(finalNavigations()).toEqual([]);
+      expect(mockGetAllProjects).not.toHaveBeenCalled();
+      expect(screen.getByTestId("login-submit")).toBeEnabled();
+      expect(screen.getByTestId("login-form")).toHaveAttribute("aria-busy", "false");
+    } finally { window.history.replaceState({}, "", previousUrl); }
   });
 });

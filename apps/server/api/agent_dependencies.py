@@ -38,7 +38,7 @@ def require_scope(required_scope: str):
 def require_project_access(required_scope: str = "read"):
     """Require scope + project allowlist + project ownership."""
 
-    async def dependency(
+    def dependency(
         project_id: str,
         context: AgentAuthContext = Depends(get_agent_user),
     ) -> AgentAuthContext:

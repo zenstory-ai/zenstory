@@ -17,6 +17,9 @@ vi.mock('../apiClient', () => ({
   },
   getAccessToken: () => mockGetAccessToken(),
   getApiBase: () => mockGetApiBase(),
+  resolveOwnedAuthSession: () => ({
+    accessToken: mockGetAccessToken(), refreshToken: localStorage.getItem('refresh_token'),
+  }),
   tryRefreshToken: () => mockTryRefreshToken(),
 }))
 
@@ -33,6 +36,8 @@ describe('feedbackApi.submit', () => {
     vi.clearAllMocks()
     vi.stubGlobal('fetch', fetchMock)
     mockGetAccessToken.mockReturnValue('test-access-token')
+    localStorage.setItem('access_token', 'test-access-token')
+    localStorage.setItem('refresh_token', 'test-refresh-token')
     mockGetApiBase.mockReturnValue('http://localhost:8000')
     mockTryRefreshToken.mockResolvedValue(false)
     mockResolveApiErrorMessage.mockImplementation(
@@ -42,6 +47,7 @@ describe('feedbackApi.submit', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    localStorage.clear()
   })
 
   it('submits multipart payload with auth and language headers', async () => {
@@ -90,7 +96,12 @@ describe('feedbackApi.submit', () => {
       message: 'Feedback submitted successfully.',
       created_at: '2026-03-07T12:00:00Z',
     }
-    mockTryRefreshToken.mockResolvedValue(true)
+    mockTryRefreshToken.mockImplementation(async () => {
+      mockGetAccessToken.mockReturnValue('rotated-access-token')
+      localStorage.setItem('access_token', 'rotated-access-token')
+      localStorage.setItem('refresh_token', 'rotated-refresh-token')
+      return true
+    })
 
     fetchMock
       .mockResolvedValueOnce({

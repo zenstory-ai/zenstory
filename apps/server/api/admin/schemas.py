@@ -500,6 +500,8 @@ class UserQuotaDetail(BaseModel):
     ai_conversations_limit: int
     material_upload_used: int
     material_upload_limit: int
+    material_decompose_used: int
+    material_decompose_limit: int
     skill_create_used: int
     skill_create_limit: int
     inspiration_copy_used: int

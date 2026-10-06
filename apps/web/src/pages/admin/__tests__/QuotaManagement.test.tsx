@@ -112,6 +112,8 @@ describe("QuotaManagement", () => {
         ai_conversations_limit: 100,
         material_upload_used: 10,
         material_upload_limit: 20,
+        material_decompose_used: 4,
+        material_decompose_limit: 5,
         skill_create_used: 3,
         skill_create_limit: 10,
         inspiration_copy_used: 5,
@@ -129,7 +131,8 @@ describe("QuotaManagement", () => {
     expect(screen.getByText("writer")).toBeInTheDocument();
     expect(screen.getByText("pro")).toBeInTheDocument();
     expect(screen.getByText("50 / 100")).toBeInTheDocument();
-    expect(screen.getByText("10 / 20")).toBeInTheDocument();
+    expect(screen.getByText("4 / 5")).toBeInTheDocument();
+    expect(screen.queryByText("10 / 20")).not.toBeInTheDocument();
   });
 
   it("hides inspiration quota operations when disabled", () => {

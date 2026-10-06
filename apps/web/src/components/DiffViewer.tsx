@@ -288,6 +288,10 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
    * @returns JSX element containing the inline diff display
    */
   const renderInlineView = () => {
+    const lines = showUnchanged
+      ? comparison.html_diff
+      : comparison.html_diff.filter((line) => line.type !== "equal");
+
     // For prose/novel content, show inline word-level diff
     return (
       <div className="p-4 max-w-none">
@@ -301,8 +305,8 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 {t('editor:diff.legendAdded')}
           </span>
         </div>
-        <div className="leading-relaxed text-[hsl(var(--text-primary))]">
-          {comparison.html_diff.map((line, index) => {
+        <div className="leading-relaxed whitespace-pre-wrap text-[hsl(var(--text-primary))]">
+          {lines.map((line, index) => {
             if (line.type === "equal") {
               return (
                 <span key={index}>
@@ -318,6 +322,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
                   className="diff-remove px-0.5 rounded"
                 >
                   {line.content}
+                  {"\n"}
                 </span>
               );
             }
@@ -325,6 +330,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
               return (
                 <span key={index} className="diff-add px-0.5 rounded">
                   {line.content}
+                  {"\n"}
                 </span>
               );
             }

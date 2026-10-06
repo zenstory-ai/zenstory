@@ -20,7 +20,7 @@ from typing import Any
 from sqlalchemy import update
 from sqlmodel import Session, func, select
 
-from config.datetime_utils import utcnow
+from config.datetime_utils import advance_timestamp, utcnow
 from models import File, FileVersion, Snapshot
 from models.file_version import (
     CHANGE_SOURCE_SYSTEM,
@@ -29,6 +29,7 @@ from models.file_version import (
     CHANGE_TYPE_RESTORE,
 )
 from models.utils import generate_uuid
+from services.file_tree_rules import lock_project_for_files
 from utils.logger import get_logger, log_with_context
 from utils.text_metrics import count_words
 
@@ -71,6 +72,10 @@ class VersionService:
             Created Snapshot object
         """
         start_time = time.perf_counter()
+
+        # Standalone snapshots must not gather across a project rollback. The
+        # rollback caller already owns the stronger gate in this transaction.
+        lock_project_for_files(session, project_id)
 
         # Gather data to snapshot
         data, gather_stats = self._gather_snapshot_data(session, project_id, file_id)
@@ -151,7 +156,7 @@ class VersionService:
         if file_id is not None:
             query = query.where(Snapshot.file_id == file_id)
 
-        query = query.order_by(Snapshot.created_at.desc()).offset(offset).limit(limit)  # type: ignore[attr-defined]
+        query = query.order_by(Snapshot.created_at.desc(), Snapshot.id.desc()).offset(offset).limit(limit)  # type: ignore[attr-defined]
 
         return list(session.exec(query).all())
 
@@ -207,6 +212,32 @@ class VersionService:
         snapshot_data = json.loads(snapshot.data)
 
         try:
+            lock_project_for_files(session, snapshot.project_id, rollback=True)
+            files_query = select(File).where(File.project_id == snapshot.project_id)
+            if snapshot.file_id:
+                files_query = files_query.where(File.id == snapshot.file_id)
+            from database import is_postgres
+
+            if is_postgres:
+                files_query = files_query.with_for_update(key_share=True)
+            # Keep strong references and refresh before any safety/restore work.
+            # Scope limits the File locks; the Project gate also covers recreation.
+            locked_files = list(session.exec(
+                files_query.order_by(File.id).execution_options(populate_existing=True)
+            ).all())
+            affected_file_ids = {file.id for file in locked_files}
+            if snapshot.file_id:
+                affected_file_ids = {snapshot.file_id}
+            else:
+                affected_file_ids.update(
+                    item["id"] for item in snapshot_data.get("files_metadata", [])
+                    if isinstance(item, dict) and item.get("id")
+                )
+                affected_file_ids.update(
+                    item["file_id"] for item in snapshot_data.get("file_versions", [])
+                    if isinstance(item, dict) and item.get("file_id")
+                )
+
             # The safety snapshot, all file mutations, and all restore versions
             # form one transaction. A later-file failure must not leave a
             # partially restored project or a committed pre-rollback snapshot.
@@ -234,7 +265,8 @@ class VersionService:
         return {
             "snapshot_id": snapshot_id,
             "pre_rollback_snapshot_id": pre_rollback.id,
-            "restored": restored
+            "restored": restored,
+            "affected_file_ids": sorted(affected_file_ids),
         }
 
     def compare_snapshots(
@@ -342,6 +374,10 @@ class VersionService:
                     "file_id": file_id,
                     "old_version": old_version,
                     "new_version": new_version,
+                    "old_title": metadata_old.get(file_id, {}).get("title"),
+                    "new_title": metadata_new.get(file_id, {}).get("title"),
+                    "old_file_type": metadata_old.get(file_id, {}).get("file_type"),
+                    "new_file_type": metadata_new.get(file_id, {}).get("file_type"),
                 }
                 if metadata_changes:
                     modified["metadata_changes"] = metadata_changes
@@ -386,13 +422,22 @@ class VersionService:
 
         snapshots_to_delete = list(session.exec(query).all())
 
-        count = 0
-        for snapshot in snapshots_to_delete:
-            session.delete(snapshot)
-            count += 1
-
-        session.commit()
-        return count
+        try:
+            if snapshots_to_delete:
+                # Versions remain replayable after their optional snapshot link
+                # is detached; both changes must share the deletion transaction.
+                session.exec(
+                    update(FileVersion)
+                    .where(FileVersion.snapshot_id.in_([snapshot.id for snapshot in snapshots_to_delete]))
+                    .values(snapshot_id=None)
+                )
+                for snapshot in snapshots_to_delete:
+                    session.delete(snapshot)
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        return len(snapshots_to_delete)
 
     # Private helper methods
 
@@ -453,7 +498,7 @@ class VersionService:
 
         # Get files
         if file_id:
-            file = session.get(File, file_id)
+            file = session.get(File, file_id, populate_existing=True)
             files = [file] if (file and not file.is_deleted) else []
         else:
             files = list(
@@ -564,6 +609,8 @@ class VersionService:
                     stats["baseline_version_created_count"] += 1
                     latest_versions_by_file_id[missing_file_id] = latest_version
 
+        version_contents = file_version_service._get_contents_for_versions(session, latest_versions_by_file_id)
+
         for file in files:
             if not file:
                 continue
@@ -574,13 +621,7 @@ class VersionService:
             if file_type_value != "folder":
                 latest_version = latest_versions_by_file_id.get(file_id_value)
                 live_content = file.content or ""
-                latest_content = (
-                    file_version_service.get_content_at_version(
-                        session, file_id_value, latest_version.version_number
-                    )
-                    if latest_version
-                    else None
-                )
+                latest_content = version_contents.get(file_id_value)
                 if latest_content != live_content:
                     is_baseline = latest_version is None
                     latest_version = file_version_service.create_version(
@@ -691,7 +732,10 @@ class VersionService:
         ).all())
         project_file_map = {file.id: file for file in project_files}
 
-        # Restore/create files and metadata first.
+        # Materialize every scoped row before assigning parent FKs. A missing
+        # parent may appear later in the unordered snapshot IDs, and pending
+        # inserts are not visible to Session.get when autoflush is disabled.
+        recreated_file_ids: set[str] = set()
         for file_id in snapshot_file_ids:
             file = project_file_map.get(file_id)
             metadata = metadata_map.get(file_id)
@@ -700,19 +744,13 @@ class VersionService:
                 if metadata is None:
                     continue
 
-                parent_id = metadata.get("parent_id")
-                if parent_id:
-                    parent = session.get(File, parent_id)
-                    if not parent or parent.project_id != project_id:
-                        parent_id = None
-
                 file = File(
                     id=file_id,
                     project_id=project_id,
                     title=metadata.get("title", "Untitled"),
                     content="",
                     file_type=metadata.get("file_type", "draft"),
-                    parent_id=parent_id,
+                    parent_id=None,
                     order=metadata.get("order", 0),
                     file_metadata=metadata.get("file_metadata"),
                     is_deleted=False,
@@ -720,8 +758,8 @@ class VersionService:
                     created_at=now,
                     updated_at=now,
                 )
-                session.add(file)
                 project_file_map[file_id] = file
+                recreated_file_ids.add(file_id)
                 restored["recreated_files"] += 1
             else:
                 if file.is_deleted:
@@ -729,22 +767,32 @@ class VersionService:
                     file.deleted_at = None
                     restored["undeleted_files"] += 1
 
-                if metadata is not None:
-                    parent_id = metadata.get("parent_id")
-                    if parent_id:
-                        parent = session.get(File, parent_id)
-                        if not parent or parent.project_id != project_id:
-                            parent_id = None
+            session.add(file)
 
-                    file.title = metadata.get("title", file.title)
-                    file.file_type = metadata.get("file_type", file.file_type)
-                    file.parent_id = parent_id
-                    file.order = metadata.get("order", file.order)
-                    if "file_metadata" in metadata:
-                        file.file_metadata = metadata["file_metadata"]
-                    file.updated_at = now
+        if recreated_file_ids:
+            session.flush()
 
-                session.add(file)
+        # All parent candidates now exist in the same-project map. Keep the
+        # existing permissive parent policy and scoped outside-parent behavior.
+        for file_id in snapshot_file_ids:
+            file = project_file_map.get(file_id)
+            metadata = metadata_map.get(file_id)
+            if file is None or metadata is None:
+                continue
+
+            parent_id = metadata.get("parent_id")
+            if parent_id and parent_id not in project_file_map:
+                parent_id = None
+
+            file.title = metadata.get("title", file.title)
+            file.file_type = metadata.get("file_type", file.file_type)
+            file.parent_id = parent_id
+            file.order = metadata.get("order", file.order)
+            if "file_metadata" in metadata:
+                file.file_metadata = metadata["file_metadata"]
+            if file_id not in recreated_file_ids:
+                file.updated_at = advance_timestamp(file.updated_at, now=now)
+            session.add(file)
 
         # Restore file content from version references
         for fv in snapshot_data.get("file_versions", []):
@@ -768,7 +816,7 @@ class VersionService:
             content_changed = previous_content != content
 
             file.content = content
-            file.updated_at = now
+            file.updated_at = advance_timestamp(file.updated_at, now=now)
             file.is_deleted = False
             file.deleted_at = None
             session.add(file)
@@ -805,7 +853,7 @@ class VersionService:
 
                 project_file.is_deleted = True
                 project_file.deleted_at = now
-                project_file.updated_at = now
+                project_file.updated_at = advance_timestamp(project_file.updated_at, now=now)
                 session.add(project_file)
                 restored["deleted_extra_files"] += 1
 

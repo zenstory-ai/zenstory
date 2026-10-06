@@ -1076,6 +1076,72 @@ class TestAgentServiceProcessStream:
         assert metadata["usage"]["input_tokens"] == 111
         assert metadata["usage"]["output_tokens"] == 222
 
+    @pytest.mark.parametrize("mutation", [None, False, True])
+    async def test_process_stream_keeps_confirmed_mutation_after_history_save(
+        self, mock_agent_service, test_user_with_project, db_session: Session, mutation
+    ):
+        from agent.core.workflow_events import StreamEvent, StreamEventType
+
+        service, _ = mock_agent_service
+        project = test_user_with_project["project"]
+        user = test_user_with_project["user"]
+
+        async def stream():
+            result = {"status": "success", "data": {"count": 1}}
+            if mutation is not None:
+                result["mutation_applied"] = mutation
+            yield StreamEvent(type=StreamEventType.TOOL_RESULT, data={"name": "parallel_execute", "result": result})
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "Completed"})
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+        with patch("agent.service.run_writing_workflow_streaming", return_value=stream()):
+            events = [event async for event in service.process_stream(
+                project_id=project.id, user_id=user.id, message="Continue", session=db_session,
+            )]
+
+        done = [json.loads(event.split("data:", 1)[1]) for event in events if "event: done" in event]
+        assert len(done) == 1
+        assert done[0]["file_mutated"] is (mutation is True)
+        assert db_session.get(ChatMessage, done[0]["assistant_message_id"]) is not None
+
+    @pytest.mark.parametrize("has_assistant_payload", [False, True])
+    async def test_confirmed_mutation_does_not_emit_done_when_history_save_fails(
+        self, mock_agent_service, test_user_with_project, db_session: Session,
+        has_assistant_payload: bool,
+    ):
+        from agent.core.workflow_events import StreamEvent, StreamEventType
+
+        service, _ = mock_agent_service
+        project = test_user_with_project["project"]
+        user = test_user_with_project["user"]
+
+        async def stream():
+            yield StreamEvent(type=StreamEventType.TOOL_RESULT, data={"name": "parallel_execute", "result": {"status": "success", "mutation_applied": True}})
+            if has_assistant_payload:
+                yield StreamEvent(type=StreamEventType.TEXT, data={"text": "Completed"})
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+        # Empty-assistant runs append user-only history through an independent
+        # Session; nonempty runs use the async MessageManager save boundary.
+        failure_target = (
+            "agent.service.MessageManager.save_messages"
+            if has_assistant_payload else "agent.service.create_session"
+        )
+        failure = (
+            AsyncMock(side_effect=RuntimeError("db unavailable"))
+            if has_assistant_payload else MagicMock(side_effect=RuntimeError("db unavailable"))
+        )
+        with patch("agent.service.run_writing_workflow_streaming", return_value=stream()), patch(
+            failure_target, new=failure,
+        ):
+            events = [event async for event in service.process_stream(
+                project_id=project.id, user_id=user.id, message="Continue", session=db_session,
+            )]
+
+        failure.assert_called()
+        assert any("event: error" in event for event in events)
+        assert not any("event: done" in event for event in events)
+
     async def test_process_stream_emits_done_with_persisted_assistant_message_id(
         self, mock_agent_service, test_user_with_project, db_session: Session
     ):

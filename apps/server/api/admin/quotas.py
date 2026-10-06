@@ -4,10 +4,13 @@ Admin Quota Usage Statistics API endpoints.
 This module contains quota usage statistics endpoints for admin operations.
 """
 import logging
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends
+from sqlalchemy import and_, or_
 from sqlmodel import Session, func, select
 
+from config.datetime_utils import BEIJING_TIMEZONE, normalize_datetime_to_utc, utcnow
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import get_session
@@ -40,6 +43,23 @@ def _resolve_user_identifier(session: Session, identifier: str) -> User | None:
     ).first()
 
 
+def _beijing_month_windows(
+    value: datetime,
+) -> tuple[tuple[datetime, datetime], tuple[datetime, datetime]]:
+    """Return canonical and legacy-UTC windows for the Beijing calendar month."""
+    local_start = normalize_datetime_to_utc(value).astimezone(BEIJING_TIMEZONE).replace(
+        day=1, hour=0, minute=0, second=0, microsecond=0
+    )
+    if local_start.month == 12:
+        local_end = local_start.replace(year=local_start.year + 1, month=1)
+    else:
+        local_end = local_start.replace(month=local_start.month + 1)
+    return (
+        (local_start.astimezone(UTC), local_end.astimezone(UTC)),
+        (local_start.replace(tzinfo=UTC), local_end.replace(tzinfo=UTC)),
+    )
+
+
 @router.get("/quota/usage", response_model=QuotaUsageStatsResponse)
 def get_quota_usage_stats(
     current_user: User = Depends(get_current_superuser),
@@ -50,25 +70,35 @@ def get_quota_usage_stats(
 
     Requires superuser privileges.
     """
-    # Total material uploads (current period)
-    material_uploads = session.exec(
-        select(func.coalesce(func.sum(UsageQuota.material_uploads_used), 0))
-    ).one() or 0
-
-    # Total material decompositions
-    material_decomposes = session.exec(
-        select(func.coalesce(func.sum(UsageQuota.material_decompositions_used), 0))
-    ).one() or 0
-
-    # Total skill creates
-    skill_creates = session.exec(
-        select(func.coalesce(func.sum(UsageQuota.skill_creates_used), 0))
-    ).one() or 0
-
-    # Total inspiration copies
-    inspiration_copies = session.exec(
-        select(func.coalesce(func.sum(UsageQuota.inspiration_copies_used), 0))
-    ).one() or 0
+    (period_start, period_end), (legacy_start, legacy_end) = _beijing_month_windows(
+        utcnow()
+    )
+    # Monthly quota rows reset lazily. Count the current Beijing month in both
+    # canonical and retained legacy-UTC form without mutating inactive users.
+    (
+        material_uploads,
+        material_decomposes,
+        skill_creates,
+        inspiration_copies,
+    ) = session.exec(
+        select(
+            func.coalesce(func.sum(UsageQuota.material_uploads_used), 0),
+            func.coalesce(func.sum(UsageQuota.material_decompositions_used), 0),
+            func.coalesce(func.sum(UsageQuota.skill_creates_used), 0),
+            func.coalesce(func.sum(UsageQuota.inspiration_copies_used), 0),
+        ).where(
+            or_(
+                and_(
+                    UsageQuota.monthly_period_start == period_start,
+                    UsageQuota.monthly_period_end == period_end,
+                ),
+                and_(
+                    UsageQuota.monthly_period_start == legacy_start,
+                    UsageQuota.monthly_period_end == legacy_end,
+                ),
+            )
+        )
+    ).one()
 
     log_with_context(
         logger,
@@ -128,6 +158,8 @@ def get_user_quota_detail(
         ai_conversations_limit=snapshot["ai_conversations"]["limit"],
         material_upload_used=snapshot["material_uploads"]["used"],
         material_upload_limit=snapshot["material_uploads"]["limit"],
+        material_decompose_used=snapshot["material_decompositions"]["used"],
+        material_decompose_limit=snapshot["material_decompositions"]["limit"],
         skill_create_used=snapshot["skill_creates"]["used"],
         skill_create_limit=snapshot["skill_creates"]["limit"],
         inspiration_copy_used=snapshot["inspiration_copies"]["used"],

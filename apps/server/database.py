@@ -3,6 +3,7 @@ import os
 from collections.abc import Generator
 
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlmodel import Session, SQLModel
 
@@ -46,6 +47,7 @@ if is_postgres:
     async_engine: AsyncEngine | None = create_async_engine(
         DATABASE_URL,
         echo=False,
+        connect_args={"server_settings": {"timezone": "UTC"}},
         **POSTGRES_POOL_OPTIONS,
     )
     AsyncSessionLocal: async_sessionmaker[AsyncSession] | None = async_sessionmaker(
@@ -53,8 +55,13 @@ if is_postgres:
     )
     # For sync mode in PostgreSQL, use psycopg3 (psycopg) driver
     sync_url = DATABASE_URL.replace("postgresql+asyncpg://", "postgresql+psycopg://", 1)
+    existing_options = make_url(sync_url).query.get("options", "")
+    if isinstance(existing_options, tuple):
+        existing_options = " ".join(existing_options)
+    sync_options = " ".join(part for part in (existing_options.strip(), "-c timezone=UTC") if part)
     sync_engine = create_engine(
         sync_url,
+        connect_args={"options": sync_options},
         **POSTGRES_POOL_OPTIONS,
     )
 else:
@@ -154,7 +161,8 @@ async def init_db():
                 await conn.run_sync(SQLModel.metadata.create_all)
                 for sql in (*COMMON_PERFORMANCE_INDEX_SQL, *POSTGRES_PERFORMANCE_INDEX_SQL):
                     try:
-                        await conn.execute(text(sql))
+                        async with conn.begin_nested():
+                            await conn.execute(text(sql))
                     except Exception as index_error:
                         log_with_context(
                             logger,

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { parseUTCDate } from '@/lib/dateUtils';
 import { Copy, Share2, Check, Clock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { InviteCode } from '@/types/referral';
@@ -55,7 +56,7 @@ export const InviteCodeCard: React.FC<InviteCodeCardProps> = ({ inviteCode }) =>
 
   const formatExpiry = (expiresAt: string | null) => {
     if (!expiresAt) return null;
-    const date = new Date(expiresAt);
+    const date = parseUTCDate(expiresAt);
     const now = new Date();
     const diffMs = date.getTime() - now.getTime();
     const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
@@ -69,7 +70,7 @@ export const InviteCodeCard: React.FC<InviteCodeCardProps> = ({ inviteCode }) =>
   const usageText = `${inviteCode.current_uses}/${inviteCode.max_uses}`;
   const isExhausted = inviteCode.current_uses >= inviteCode.max_uses;
   const isExpired = inviteCode.expires_at
-    ? new Date(inviteCode.expires_at).getTime() <= new Date().getTime()
+    ? parseUTCDate(inviteCode.expires_at).getTime() <= new Date().getTime()
     : false;
   const expiryText = formatExpiry(inviteCode.expires_at);
 

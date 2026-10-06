@@ -309,10 +309,9 @@ def get_plots(
     _get_novel_or_404(session, novel_id, current_user.id)
 
     # Get all chapters for this novel
-    chapters = session.exec(
-        select(Chapter).where(Chapter.novel_id == novel_id)
+    chapter_ids = session.exec(
+        select(Chapter.id).where(Chapter.novel_id == novel_id)
     ).all()
-    chapter_ids = [c.id for c in chapters]
 
     if not chapter_ids:
         return []

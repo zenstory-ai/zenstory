@@ -15,8 +15,9 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from services.auth import get_current_active_user
+from sqlalchemy import case, delete, update
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session, and_, func, select
+from sqlmodel import Session, and_, col, func, select
 
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
@@ -343,11 +344,15 @@ async def add_skill_to_collection(
     )
     session.add(added_skill)
 
-    # Increment add count
-    skill.add_count += 1
-    session.add(skill)
-
     try:
+        # Flush the unique collection link before counting it, in the same transaction.
+        session.flush()
+        session.execute(
+            update(PublicSkill)
+            .where(col(PublicSkill.id) == skill_id)
+            .values(add_count=col(PublicSkill.add_count) + 1)
+            .execution_options(synchronize_session=False)
+        )
         session.commit()
     except IntegrityError:
         # Handle concurrent add requests idempotently
@@ -398,13 +403,20 @@ async def remove_skill_from_collection(
             detail="Skill not in your collection",
         )
 
-    # Decrement add count
-    skill = session.get(PublicSkill, skill_id)
-    if skill and skill.add_count > 0:
-        skill.add_count -= 1
-        session.add(skill)
-
-    session.delete(added_skill)
+    # A concurrent request may already have removed the observed link.
+    deleted_id = session.execute(
+        delete(UserAddedSkill)
+        .where(col(UserAddedSkill.id) == added_skill.id, col(UserAddedSkill.user_id) == current_user.id)
+        .returning(col(UserAddedSkill.id))
+        .execution_options(synchronize_session="fetch")
+    ).scalar_one_or_none()
+    if deleted_id is not None:
+        session.execute(
+            update(PublicSkill)
+            .where(col(PublicSkill.id) == skill_id)
+            .values(add_count=case((col(PublicSkill.add_count) > 0, col(PublicSkill.add_count) - 1), else_=0))
+            .execution_options(synchronize_session=False)
+        )
     session.commit()
 
     log_with_context(

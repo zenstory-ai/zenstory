@@ -283,7 +283,7 @@ def _validate_payload(payload: PersonaOnboardingUpsertRequest) -> None:
 
 
 @router.get("/onboarding", response_model=PersonaOnboardingStateResponse)
-async def get_persona_onboarding_state(
+def get_persona_onboarding_state(
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session),
 ):
@@ -311,7 +311,7 @@ async def get_persona_onboarding_state(
 
 
 @router.put("/onboarding", response_model=PersonaOnboardingStateResponse)
-async def upsert_persona_onboarding(
+def upsert_persona_onboarding(
     payload: PersonaOnboardingUpsertRequest,
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session),
@@ -357,7 +357,7 @@ async def upsert_persona_onboarding(
 
 
 @router.get("/recommendations", response_model=PersonaRecommendationsResponse)
-async def get_persona_recommendations(
+def get_persona_recommendations(
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session),
 ):

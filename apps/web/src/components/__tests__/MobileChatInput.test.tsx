@@ -9,7 +9,7 @@ const removeMaterial = vi.fn()
 const removeQuote = vi.fn()
 
 let currentVoiceState: {
-  status: 'idle' | 'recording' | 'processing' | 'error'
+  status: 'idle' | 'requesting' | 'recording' | 'processing' | 'error'
   isRecording: boolean
   isProcessing: boolean
   duration: number
@@ -154,6 +154,34 @@ describe('MobileChatInput', () => {
 
     expect(startRecording).toHaveBeenCalledTimes(1)
     expect(stopRecording).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['touchEnd', 'touchCancel'] as const)('cancels pending microphone permission on %s', async (event) => {
+    const { rerender } = render(<MobileChatInput onSend={vi.fn()} />)
+    const voiceButton = screen.getByTestId('mobile-voice-input-button')
+    fireEvent.touchStart(voiceButton)
+    await act(async () => { await vi.advanceTimersByTimeAsync(200) })
+    expect(startRecording).toHaveBeenCalledTimes(1)
+    currentVoiceState = { ...currentVoiceState, status: 'requesting' }
+    rerender(<MobileChatInput onSend={vi.fn()} />)
+    fireEvent[event](voiceButton)
+    expect(cancelRecording).toHaveBeenCalledTimes(1)
+    expect(stopRecording).not.toHaveBeenCalled()
+  })
+
+  it.each(['requesting', 'recording', 'processing'] as const)('cancels active %s when disabled', (status) => {
+    currentVoiceState = { ...currentVoiceState, status, isRecording: status === 'recording', isProcessing: status === 'processing' }
+    const { rerender } = render(<MobileChatInput onSend={vi.fn()} />)
+    rerender(<MobileChatInput onSend={vi.fn()} disabled />)
+    expect(cancelRecording).toHaveBeenCalledOnce()
+  })
+
+  it('clears the hold timer when disabled before recording starts', async () => {
+    const { rerender } = render(<MobileChatInput onSend={vi.fn()} />)
+    fireEvent.touchStart(screen.getByTestId('mobile-voice-input-button'))
+    rerender(<MobileChatInput onSend={vi.fn()} disabled />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(200) })
+    expect(startRecording).not.toHaveBeenCalled()
   })
 
   it('cancels recording on touch cancel and supports cancel action when disabled', async () => {

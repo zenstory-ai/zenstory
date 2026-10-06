@@ -49,6 +49,7 @@ export function useScrollMemory(storageKey: string = 'default'): ScrollMemoryHan
 
   // Load saved positions on mount
   useEffect(() => {
+    scrollPositionsRef.current = {};
     try {
       const saved = sessionStorage.getItem(`${SCROLL_POSITIONS_KEY}_${storageKey}`);
       if (saved) {

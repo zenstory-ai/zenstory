@@ -130,3 +130,29 @@ async def test_admin_audit_logs_forbidden_for_non_superuser(
     )
 
     assert response.status_code == 403
+
+
+@pytest.mark.integration
+async def test_admin_audit_pagination_orders_timestamp_ties(client, db_session):
+    from datetime import datetime
+
+    from models.subscription import AdminAuditLog
+    from services.core.auth_service import create_access_token
+
+    admin = await create_user(db_session, "audit_ties", "audit_ties@example.com", is_superuser=True)
+    timestamp = datetime(2026, 4, 8, 9)
+    ids = ["audit-a", "audit-f", "audit-b", "audit-e", "audit-c", "audit-d"]
+    for log_id in ids:
+        db_session.add(AdminAuditLog(id=log_id, admin_user_id=admin.id,
+                                    action="update_user", resource_type="user", created_at=timestamp))
+    db_session.commit()
+    headers = auth_headers(create_access_token({"sub": admin.id}))
+    actual = []
+    for page in (1, 2, 3):
+        response = await client.get("/api/admin/audit-logs", headers=headers,
+                                    params={"page": page, "page_size": 2})
+        assert response.status_code == 200
+        assert response.json()["total"] == 6
+        actual.extend(item["id"] for item in response.json()["items"])
+    assert actual == sorted(ids, reverse=True)
+    assert len(set(actual)) == 6

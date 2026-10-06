@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { parseUTCDate } from '../../lib/dateUtils';
 import { Activity, User, Code, CreditCard, Lightbulb } from 'lucide-react';
 import { adminApi } from '@/lib/adminApi';
 import { Skeleton } from '../ui/Skeleton';
@@ -27,7 +28,7 @@ function capitalize(value: string): string {
 
 // Simple relative time formatting without date-fns
 function formatRelativeTime(dateString: string, locale: string, t: (key: string, options?: Record<string, unknown>) => string): string {
-  const date = new Date(dateString);
+  const date = parseUTCDate(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffSec = Math.floor(diffMs / 1000);

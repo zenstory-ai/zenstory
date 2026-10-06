@@ -260,6 +260,16 @@ export const MobileChatInput: React.FC<MobileChatInputProps> = ({
     };
   }, []);
 
+  useEffect(() => {
+    if (!disabled) return;
+    if (longPressTimerRef.current !== null) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    isLongPressRef.current = false;
+    if (voiceStatus === 'requesting' || voiceStatus === 'recording' || voiceStatus === 'processing') cancelRecording();
+  }, [disabled, voiceStatus, cancelRecording]);
+
   // Auto-resize textarea
   const adjustHeight = () => {
     const textarea = textareaRef.current;
@@ -310,13 +320,14 @@ export const MobileChatInput: React.FC<MobileChatInputProps> = ({
 
   // Voice button touch handlers for long-press recording
   const handleVoiceTouchStart = async (e: React.TouchEvent) => {
-    if (disabled || isProcessing) return;
+    if (disabled || isProcessing || voiceStatus === 'requesting') return;
 
     e.preventDefault();
     isLongPressRef.current = false;
 
     // 200ms to determine long press
     longPressTimerRef.current = window.setTimeout(async () => {
+      longPressTimerRef.current = null;
       isLongPressRef.current = true;
       await startRecording();
     }, 200);
@@ -333,9 +344,10 @@ export const MobileChatInput: React.FC<MobileChatInputProps> = ({
       longPressTimerRef.current = null;
     }
 
-    // If long press and recording, stop recording
-    if (isLongPressRef.current && isRecording) {
-      stopRecording();
+    // Releasing while permission is pending must invalidate the recording too.
+    if (isLongPressRef.current) {
+      if (isRecording) stopRecording();
+      else cancelRecording();
     }
 
     isLongPressRef.current = false;
@@ -347,7 +359,7 @@ export const MobileChatInput: React.FC<MobileChatInputProps> = ({
       longPressTimerRef.current = null;
     }
 
-    if (isLongPressRef.current && isRecording) {
+    if (isLongPressRef.current) {
       cancelRecording();
     }
 

@@ -42,7 +42,7 @@ key was ever pasted into an AI chat, regenerate it in Settings → Agent.
 | `files tree <projectId>` | `GET /agent/projects/{id}/files` (all pages) |
 | `files get <fileId> [-o path [--force]] [--fields csv]` | `GET /agent/files/{id}` |
 | `files create <projectId> --title T [--type T] [--parent ID] [--order N] [--content-file P \| --content -] [--metadata JSON]` | `POST /agent/projects/{id}/files` |
-| `files put <fileId> [--content-file P \| --content -] [--title T] [--order N] [--if-updated-at TS] [--allow-shrink]` | `GET` + `PUT /agent/files/{id}` |
+| `files put <fileId> [--content-file P \| --content -] [--title T] [--order N] [--if-updated-at TS] [--allow-shrink]` | `PUT /agent/files/{id}`; preceding `GET` for content backup or a timestamp preflight |
 | `files move <fileId> --parent <folderId\|root> [--order N]` | `POST /agent/files/{id}/move` |
 | `files delete <fileId> --yes` | `DELETE /agent/files/{id}` |
 | `files versions <fileId> [--limit N] [--offset N] [--include-auto-save]` | `GET /agent/files/{id}/versions` |
@@ -74,6 +74,11 @@ zenstory files get $CHAPTER -o chapter.md
 $EDITOR chapter.md
 zenstory files put $CHAPTER --content-file chapter.md --if-updated-at "$UPDATED_AT"
 ```
+
+`--if-updated-at` sends the original timestamp to the server for a locked check;
+if the current token differs, the server rejects the write with 409. Both local
+and server stale-write errors use `STALE_WRITE`. Re-read and merge before retrying;
+naive timestamps are UTC, and microseconds must not be rounded.
 
 `files put` refuses to shrink a file below half its size without `--allow-shrink`. Every
 content change is kept as a server-side version (unless the plan's per-file version quota

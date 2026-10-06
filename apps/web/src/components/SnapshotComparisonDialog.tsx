@@ -9,9 +9,10 @@ import {
   Loader2,
   AlertCircle,
   FileText,
+  Folder,
   ArrowRight,
 } from 'lucide-react';
-import { versionApi, fileApi } from '../lib/api';
+import { versionApi } from '../lib/api';
 import { formatFullDate } from '../lib/dateUtils';
 import type { SnapshotComparison } from '../types';
 import { Modal } from './ui/Modal';
@@ -22,13 +23,6 @@ interface SnapshotComparisonDialogProps {
   onClose: () => void;
 }
 
-interface FileInfo {
-  [fileId: string]: {
-    title: string;
-    file_type: string;
-  };
-}
-
 export const SnapshotComparisonDialog: React.FC<SnapshotComparisonDialogProps> = ({
   snapshotId1,
   snapshotId2,
@@ -36,63 +30,52 @@ export const SnapshotComparisonDialog: React.FC<SnapshotComparisonDialogProps> =
 }) => {
   const { t } = useTranslation(['editor', 'common']);
   const [comparison, setComparison] = useState<SnapshotComparison | null>(null);
-  const [fileInfo, setFileInfo] = useState<FileInfo>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let isCurrent = true;
+
     const loadComparison = async () => {
       setLoading(true);
       setError(null);
 
       try {
         const result = await versionApi.compare(snapshotId1, snapshotId2);
-        setComparison(result);
-
-        // Collect all file IDs to fetch their info
-        const fileIds = new Set<string>();
-        result.changes.added.forEach((f) => fileIds.add(f.file_id));
-        result.changes.removed.forEach((f) => fileIds.add(f.file_id));
-        result.changes.modified.forEach((f) => fileIds.add(f.file_id));
-
-        // Fetch file info for all files
-        const fileInfoMap: FileInfo = {};
-        await Promise.all(
-          Array.from(fileIds).map(async (fileId) => {
-            try {
-              const file = await fileApi.get(fileId);
-              fileInfoMap[fileId] = {
-                title: file.title,
-                file_type: file.file_type,
-              };
-            } catch {
-              // File might have been deleted
-              fileInfoMap[fileId] = {
-                title: t('editor:versionHistory.deletedFile') as string,
-                file_type: 'unknown',
-              };
-            }
-          })
-        );
-        setFileInfo(fileInfoMap);
+        if (isCurrent) {
+          setComparison(result);
+        }
       } catch (err) {
-        logger.error('Failed to load comparison:', err);
-        setError(t('editor:versionHistory.loadFailed'));
+        if (isCurrent) {
+          logger.error('Failed to load comparison:', err);
+          setError(t('editor:versionHistory.loadFailed'));
+        }
       } finally {
-        setLoading(false);
+        if (isCurrent) {
+          setLoading(false);
+        }
       }
     };
 
     loadComparison();
+
+    return () => {
+      isCurrent = false;
+    };
   }, [snapshotId1, snapshotId2, t]);
 
-
-  const getFileTitle = (fileId: string) => {
-    return fileInfo[fileId]?.title || fileId;
+  const getFileTypeIcon = (fileType?: string | null) => {
+    return fileType === 'folder'
+      ? <Folder className="w-4 h-4" />
+      : <FileText className="w-4 h-4" />;
   };
 
-  const getFileTypeIcon = () => {
-    return <FileText className="w-4 h-4" />;
+  const getChangedText = (
+    change: { old: unknown; new: unknown } | undefined,
+    side: 'old' | 'new',
+  ) => {
+    const value = change?.[side];
+    return typeof value === 'string' && value ? value : undefined;
   };
 
   const totalChanges =
@@ -208,15 +191,17 @@ export const SnapshotComparisonDialog: React.FC<SnapshotComparisonDialogProps> =
                       className="flex items-center gap-3 p-3 bg-[hsl(var(--success)/0.05)] border border-[hsl(var(--success)/0.2)] rounded-lg"
                     >
                       <div className="text-[hsl(var(--success))]">
-                        {getFileTypeIcon()}
+                        {getFileTypeIcon(file.file_type)}
                       </div>
                       <div className="flex-1">
                         <div className="text-sm text-[hsl(var(--text-primary))]">
-                          {getFileTitle(file.file_id)}
+                          {file.title || file.file_id}
                         </div>
-                        <div className="text-xs text-[hsl(var(--text-secondary))]">
-                          {t('editor:versionHistory.versionPrefix')} {file.version_number}
-                        </div>
+                        {file.version_number != null && (
+                          <div className="text-xs text-[hsl(var(--text-secondary))]">
+                            {t('editor:versionHistory.versionPrefix')} {file.version_number}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -238,15 +223,17 @@ export const SnapshotComparisonDialog: React.FC<SnapshotComparisonDialogProps> =
                       className="flex items-center gap-3 p-3 bg-[hsl(var(--error)/0.05)] border border-[hsl(var(--error)/0.2)] rounded-lg"
                     >
                       <div className="text-[hsl(var(--error))]">
-                        {getFileTypeIcon()}
+                        {getFileTypeIcon(file.file_type)}
                       </div>
                       <div className="flex-1">
                         <div className="text-sm text-[hsl(var(--text-primary))] line-through opacity-70">
-                          {getFileTitle(file.file_id)}
+                          {file.title || file.file_id}
                         </div>
-                        <div className="text-xs text-[hsl(var(--text-secondary))]">
-                          {t('editor:versionHistory.versionPrefix')} {file.version_number}
-                        </div>
+                        {file.version_number != null && (
+                          <div className="text-xs text-[hsl(var(--text-secondary))]">
+                            {t('editor:versionHistory.versionPrefix')} {file.version_number}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -268,17 +255,43 @@ export const SnapshotComparisonDialog: React.FC<SnapshotComparisonDialogProps> =
                       className="flex items-center gap-3 p-3 bg-[hsl(var(--warning)/0.05)] border border-[hsl(var(--warning)/0.2)] rounded-lg"
                     >
                       <div className="text-[hsl(var(--warning))]">
-                        {getFileTypeIcon()}
+                        {getFileTypeIcon(file.new_file_type || file.old_file_type)}
                       </div>
                       <div className="flex-1">
                         <div className="text-sm text-[hsl(var(--text-primary))]">
-                          {getFileTitle(file.file_id)}
+                          {(() => {
+                            const oldTitle = file.old_title
+                              || getChangedText(file.metadata_changes?.title, 'old')
+                              || file.file_id;
+                            const newTitle = file.new_title
+                              || getChangedText(file.metadata_changes?.title, 'new')
+                              || file.file_id;
+
+                            return oldTitle === newTitle ? newTitle : (
+                              <span className="inline-flex items-center gap-1">
+                                <span>{oldTitle}</span>
+                                <ArrowRight className="w-3 h-3" />
+                                <span>{newTitle}</span>
+                              </span>
+                            );
+                          })()}
                         </div>
-                        <div className="text-xs text-[hsl(var(--text-secondary))] flex items-center gap-1">
-                          {t('editor:versionHistory.versionPrefix')} {file.old_version}
-                          <ArrowRight className="w-3 h-3" />
-                          {t('editor:versionHistory.versionPrefix')} {file.new_version}
-                        </div>
+                        {file.old_version != null && file.new_version != null ? (
+                          <div className="text-xs text-[hsl(var(--text-secondary))] flex items-center gap-1">
+                            {t('editor:versionHistory.versionPrefix')} {file.old_version}
+                            {file.old_version !== file.new_version && (
+                              <>
+                                <ArrowRight className="w-3 h-3" />
+                                {t('editor:versionHistory.versionPrefix')} {file.new_version}
+                              </>
+                            )}
+                          </div>
+                        ) : (file.old_version ?? file.new_version) != null ? (
+                          <div className="text-xs text-[hsl(var(--text-secondary))]">
+                            {t('editor:versionHistory.versionPrefix')}{' '}
+                            {file.old_version ?? file.new_version}
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   ))}

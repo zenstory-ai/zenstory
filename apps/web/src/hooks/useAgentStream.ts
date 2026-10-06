@@ -62,6 +62,8 @@ export interface MessageSegment {
 export interface StreamCompletionMeta {
   assistantMessageId?: string;
   sessionId?: string;
+  /** Server-confirmed indication that this completed turn committed a file mutation. */
+  confirmedFileMutation?: boolean;
   /**
    * 本轮是「非正常终止」后的部分提交（用户点停止 / SSE error / 反向代理掐断空闲连接）。
    *
@@ -1180,7 +1182,7 @@ export function useAgentStream(
             // Use segmentsRef.current to avoid stale closure issue with segments
             if (!onCompleteCalledRef.current) {
               onCompleteCalledRef.current = true;
-              const completionMeta = {
+              const completionMeta: StreamCompletionMeta = {
                 assistantMessageId:
                   typeof data.assistant_message_id === "string" && data.assistant_message_id.trim()
                     ? data.assistant_message_id
@@ -1189,8 +1191,14 @@ export function useAgentStream(
                   typeof data.session_id === "string" && data.session_id.trim()
                     ? data.session_id
                     : undefined,
+                confirmedFileMutation:
+                  typeof data.file_mutated === "boolean" ? data.file_mutated : undefined,
               };
-              if (completionMeta.assistantMessageId || completionMeta.sessionId) {
+              if (
+                completionMeta.assistantMessageId ||
+                completionMeta.sessionId ||
+                completionMeta.confirmedFileMutation !== undefined
+              ) {
                 onComplete?.(segmentsRef.current, applyAction || null, completionMeta);
               } else {
                 onComplete?.(segmentsRef.current, applyAction || null);

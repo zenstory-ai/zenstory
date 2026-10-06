@@ -6,6 +6,7 @@ import { adminApi } from "../../lib/adminApi";
 import { AdminPageState } from "../../components/admin";
 import { StatsCard } from "../../components/admin/StatsCard";
 import { getLocaleCode } from "../../lib/i18n-helpers";
+import { parseUTCDate } from "../../lib/dateUtils";
 import { toast } from "../../lib/toast";
 
 export const ReferralManagement: React.FC = () => {
@@ -58,7 +59,7 @@ export const ReferralManagement: React.FC = () => {
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "-";
-    const date = new Date(dateStr);
+    const date = parseUTCDate(dateStr);
     if (Number.isNaN(date.getTime())) {
       return "-";
     }

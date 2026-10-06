@@ -6,7 +6,7 @@ This module contains referral management endpoints for admin operations.
 import logging
 
 from fastapi import APIRouter, Depends, Query, Request, status
-from sqlmodel import Session, func, select
+from sqlmodel import Session, col, func, select
 
 from database import get_session
 from models import User
@@ -98,7 +98,7 @@ def get_referral_stats(
 
 
 @router.post("/invites", response_model=AdminInviteCodeResponse, status_code=status.HTTP_201_CREATED)
-async def create_admin_invite_code(
+def create_admin_invite_code(
     http_request: Request,
     current_user: User = Depends(get_current_superuser),
     session: Session = Depends(get_session),
@@ -108,7 +108,7 @@ async def create_admin_invite_code(
 
     Requires superuser privileges.
     """
-    new_code = await create_invite_code_service(
+    new_code = create_invite_code_service(
         current_user.id,
         session,
         ignore_max_limit=True,
@@ -169,20 +169,22 @@ def get_invite_codes(
     total = session.exec(count_query).one()
 
     # Apply pagination
-    query = query.order_by(InviteCode.created_at.desc())
+    query = query.order_by(col(InviteCode.created_at).desc(), col(InviteCode.id).desc())
     query = query.offset((page - 1) * page_size).limit(page_size)
 
-    codes = session.exec(query).all()
+    page_query = query.add_columns(col(User.username)).outerjoin(
+        User, col(User.id) == col(InviteCode.owner_id)
+    )
+    # Session.execute keeps the added scalar paired with the entity projection.
+    codes = session.execute(page_query).all()
 
-    # Enrich with owner info
     items = []
-    for code in codes:
-        owner = session.get(User, code.owner_id)
+    for code, username in codes:
         items.append(AdminInviteCodeResponse(
             id=code.id,
             code=code.code,
             owner_id=code.owner_id,
-            owner_name=owner.username if owner else "Unknown",
+            owner_name=username if username is not None else "Unknown",
             max_uses=code.max_uses,
             current_uses=code.current_uses,
             is_active=code.is_active,
@@ -226,20 +228,22 @@ def get_referral_rewards(
     total = session.exec(count_query).one()
 
     # Apply pagination
-    query = query.order_by(UserReward.created_at.desc())
+    query = query.order_by(col(UserReward.created_at).desc(), col(UserReward.id).desc())
     query = query.offset((page - 1) * page_size).limit(page_size)
 
-    rewards = session.exec(query).all()
+    page_query = (
+        query.add_columns(col(User.username), col(Referral.id))
+        .outerjoin(User, col(User.id) == col(UserReward.user_id))
+        .outerjoin(Referral, col(Referral.id) == col(UserReward.referral_id))
+    )
+    rewards = session.execute(page_query).all()
 
-    # Enrich with user info
     items = []
-    for reward in rewards:
-        user = session.get(User, reward.user_id)
-        referral = session.get(Referral, reward.referral_id) if reward.referral_id else None
+    for reward, username, referral_id in rewards:
         items.append({
             **reward.model_dump(),
-            "username": user.username if user else "Unknown",
-            "referral_id": referral.id if referral else None,
+            "username": username if username is not None else "Unknown",
+            "referral_id": referral_id,
         })
 
     log_with_context(

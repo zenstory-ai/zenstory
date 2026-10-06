@@ -1169,7 +1169,7 @@ class TestBeijingMonthlyQuota:
     ):
         now = datetime(2026, 10, 31, 16, tzinfo=UTC)
         monkeypatch.setattr("services.quota_service.utcnow", lambda: now)
-        monkeypatch.setattr(quota_service, "get_user_plan", lambda *_: pro_plan)
+        monkeypatch.setattr(quota_service, "get_user_plan", lambda *_, **__: pro_plan)
         quota = UsageQuota(
             user_id=test_user.id,
             period_start=now,
@@ -1265,7 +1265,7 @@ class TestQuotaReservationPeriods:
     ):
         clock = {"now": datetime(2026, 10, 31, 15, 59, 59, tzinfo=UTC)}
         monkeypatch.setattr("services.quota_service.utcnow", lambda: clock["now"])
-        monkeypatch.setattr(quota_service, "get_user_plan", lambda *_: pro_plan)
+        monkeypatch.setattr(quota_service, "get_user_plan", lambda *_, **__: pro_plan)
         old_period = quota_service.reserve_feature_quota(db_session, test_user.id, feature)
         assert old_period == datetime(2026, 9, 30, 16, tzinfo=UTC)
 

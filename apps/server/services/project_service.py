@@ -62,15 +62,17 @@ def create_project_with_default_folders(
         APIException: 402 QUOTA_PROJECTS_EXCEEDED——所有者已达套餐项目数上限（未写入任何数据）。
         其它异常都会先回滚事务再原样抛出，调用方负责翻译成自己的错误契约。
     """
-    allowed, existing_count, max_projects = quota_service.check_project_limit(session, project.owner_id)
-    if not allowed:
-        raise APIException(
-            error_code=ErrorCode.QUOTA_PROJECTS_EXCEEDED,
-            status_code=402,
-            detail=f"Project limit reached ({existing_count}/{max_projects}). Please upgrade your plan.",
-        )
-
     try:
+        allowed, existing_count, max_projects = quota_service.check_project_limit(
+            session, project.owner_id, for_creation=True
+        )
+        if not allowed:
+            raise APIException(
+                error_code=ErrorCode.QUOTA_PROJECTS_EXCEEDED,
+                status_code=402,
+                detail=f"Project limit reached ({existing_count}/{max_projects}). Please upgrade your plan.",
+            )
+
         session.add(project)
         session.flush()  # 先拿到 project.id，文件夹 id 依赖它
 

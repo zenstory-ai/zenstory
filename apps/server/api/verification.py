@@ -85,6 +85,12 @@ async def verify_email(
             status_code=status.HTTP_400_BAD_REQUEST
         )
 
+    if not user.is_active:
+        raise APIException(
+            error_code=ErrorCode.AUTH_INACTIVE_USER,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
     if user.email_verified:
         log_with_context(
             logger,
@@ -134,17 +140,6 @@ async def verify_email(
         commit=False,
     )
 
-    session.commit()
-    session.refresh(user)
-
-    log_with_context(
-        logger,
-        logging.INFO,
-        "Email verified successfully",
-        user_id=user.id,
-        email=normalized_email,
-    )
-
     # Generate tokens
     access_token = create_access_token(data={"sub": user.id})
     refresh_token_jti = generate_token_jti()
@@ -160,7 +155,17 @@ async def verify_email(
             expires_at=get_refresh_token_expires_at(),
         )
     )
+    # Persist verification, referral rewards and the refresh credential together.
     session.commit()
+    session.refresh(user)
+
+    log_with_context(
+        logger,
+        logging.INFO,
+        "Email verified successfully",
+        user_id=user.id,
+        email=normalized_email,
+    )
 
     return {
         "access_token": access_token,

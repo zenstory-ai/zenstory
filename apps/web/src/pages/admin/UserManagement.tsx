@@ -6,6 +6,7 @@ import { adminApi } from "../../lib/adminApi";
 import type { User, UserUpdateRequest } from "../../types/admin";
 import { AdminPageState, UserCard, TouchCheckbox } from "../../components/admin";
 import { getLocaleCode } from "../../lib/i18n-helpers";
+import { parseUTCDate } from "../../lib/dateUtils";
 import { toast } from "../../lib/toast";
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -112,7 +113,7 @@ export const UserManagement: React.FC = () => {
   };
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
+    const date = parseUTCDate(dateStr);
     if (Number.isNaN(date.getTime())) {
       return "-";
     }
@@ -327,6 +328,8 @@ export const UserManagement: React.FC = () => {
               </h2>
               <button
                 onClick={() => setEditingUser(null)}
+                disabled={updateMutation.isPending}
+                aria-label={t("common:close")}
                 className="p-2.5 touch-target hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors"
               >
                 <X size={20} className="text-[hsl(var(--text-secondary))]" />

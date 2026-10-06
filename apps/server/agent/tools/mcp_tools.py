@@ -804,6 +804,9 @@ def _serialize_tool_payload(payload: Any, *, tool_name: str | None = None) -> st
         "max_chars": TOOL_RESULT_MAX_CHARS,
         "original_length": original_length,
     }
+    # Commit-owned signal must survive content elision; statuses/previews are not proof.
+    if isinstance(payload, dict) and isinstance(payload.get("mutation_applied"), bool):
+        truncated_payload["mutation_applied"] = payload["mutation_applied"]
     if overflow_ref:
         truncated_payload["overflow_ref"] = overflow_ref
 
@@ -844,6 +847,8 @@ def _serialize_tool_payload(payload: Any, *, tool_name: str | None = None) -> st
         "max_chars": TOOL_RESULT_MAX_CHARS,
         "original_length": original_length,
     }
+    if "mutation_applied" in truncated_payload:
+        minimal_payload["mutation_applied"] = truncated_payload["mutation_applied"]
     if overflow_ref:
         minimal_payload["overflow_ref"] = overflow_ref
     if status != "error":
@@ -1370,7 +1375,11 @@ def _create_file_sync(args: dict[str, Any]) -> dict[str, Any]:
         )
 
         return _make_result(
-            {"status": "success", "data": _elide_reused_file_content(result)},
+            {
+                "status": "success",
+                "mutation_applied": result.get("mutation_applied") is True,
+                "data": _elide_reused_file_content(result),
+            },
             tool_name=tool_name,
         )
     except Exception as e:
@@ -1448,7 +1457,11 @@ def _edit_file_sync(args: dict[str, Any]) -> dict[str, Any]:
         # 恒返回 "success" 会让模型以为改动已经落地、继续往下写，
         # 失败的 edit 只藏在 data.failed_edits 里没人看。
         return _make_result(
-            {"status": _derive_edit_status(result), "data": result},
+            {
+                "status": _derive_edit_status(result),
+                "mutation_applied": result.get("mutation_applied") is True,
+                "data": result,
+            },
             tool_name=tool_name,
         )
     except Exception as e:
@@ -1510,7 +1523,10 @@ def _delete_file_sync(args: dict[str, Any]) -> dict[str, Any]:
             artifact_refs=_extract_tool_artifact_refs(tool_name, args, result),
             payload={"recursive": recursive},
         )
-        return _make_result({"status": "success", "data": result}, tool_name=tool_name)
+        return _make_result(
+            {"status": "success", "mutation_applied": result is True, "data": result},
+            tool_name=tool_name,
+        )
     except Exception as e:
         return _make_error(str(e), tool_name=tool_name)
 

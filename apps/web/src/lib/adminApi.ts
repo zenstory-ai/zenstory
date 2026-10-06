@@ -19,6 +19,7 @@ import {
   api,
   getAccessToken,
   getApiBase,
+  resolveOwnedAuthSession,
   tryRefreshToken,
 } from "./apiClient";
 import { resolveApiErrorMessage } from "./errorHandler";
@@ -637,6 +638,8 @@ function normalizeUserQuota(detail: unknown): UserQuotaDetail {
     ai_conversations_limit: asNumber(raw.ai_conversations_limit, 0),
     material_upload_used: asNumber(raw.material_upload_used, 0),
     material_upload_limit: asNumber(raw.material_upload_limit, 0),
+    material_decompose_used: asNumber(raw.material_decompose_used, 0),
+    material_decompose_limit: asNumber(raw.material_decompose_limit, 0),
     skill_create_used: asNumber(raw.skill_create_used, 0),
     skill_create_limit: asNumber(raw.skill_create_limit, 0),
     inspiration_copy_used: asNumber(raw.inspiration_copy_used, 0),
@@ -1529,30 +1532,34 @@ export async function updateFeedbackStatus(
 }
 
 export async function getFeedbackScreenshotBlob(feedbackId: string): Promise<Blob> {
+  const entryAccess = getAccessToken();
+  const entryRefresh = localStorage.getItem("refresh_token");
   const endpoint = `${ADMIN_BASE}/feedback/${feedbackId}/screenshot`;
   const language = localStorage.getItem("zenstory-language") || "zh";
 
-  const doFetch = async (isRetry = false): Promise<Response> => {
-    const accessToken = getAccessToken();
-    const response = await fetch(`${getApiBase()}${endpoint}`, {
+  const fetchOnce = async (accessToken: string | null): Promise<Response> => {
+    return fetch(`${getApiBase()}${endpoint}`, {
       method: "GET",
       headers: {
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         "Accept-Language": language,
       },
     });
-
-    if (response.status === 401 && !isRetry) {
-      const refreshed = await tryRefreshToken();
-      if (refreshed) {
-        return doFetch(true);
-      }
-    }
-
-    return response;
   };
 
-  const response = await doFetch();
+  let response = await fetchOnce(entryAccess);
+  if (response.status === 401 && entryAccess && entryRefresh) {
+    let ownedSession = resolveOwnedAuthSession(entryAccess, entryRefresh);
+    if (ownedSession?.accessToken && ownedSession.refreshToken) {
+      if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
+        const refreshed = await tryRefreshToken();
+        ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+      }
+      if (ownedSession?.accessToken && ownedSession.refreshToken) {
+        response = await fetchOnce(ownedSession.accessToken);
+      }
+    }
+  }
 
   if (!response.ok) {
     let errorMessage = "ERR_INTERNAL_SERVER_ERROR";

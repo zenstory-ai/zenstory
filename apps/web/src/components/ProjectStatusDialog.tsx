@@ -41,6 +41,31 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
     notes: "",
   });
 
+  const ownerRef = useRef<{ projectId: string; loadSequence: number } | null>(null);
+  const activeSaveRef = useRef<object | null>(null);
+
+  useEffect(() => {
+    const owner = isOpen && projectId ? { projectId, loadSequence: 0 } : null;
+    ownerRef.current = owner;
+    projectRef.current = null;
+    formValuesRef.current = { summary: "", writingStyle: "", currentPhase: "", notes: "" };
+    activeSaveRef.current = null;
+    setProject(null);
+    setSummary("");
+    setWritingStyle("");
+    setCurrentPhase("");
+    setNotes("");
+    setSaving(false);
+    setLoading(Boolean(owner));
+
+    return () => {
+      if (ownerRef.current === owner) {
+        ownerRef.current = null;
+        activeSaveRef.current = null;
+      }
+    };
+  }, [isOpen, projectId]);
+
   useEffect(() => {
     projectRef.current = project;
   }, [project]);
@@ -87,7 +112,11 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
 
   const loadProject = useCallback(
     async (options?: { showLoading?: boolean; preserveDirty?: boolean }) => {
-      if (!projectId) return;
+      const owner = ownerRef.current;
+      if (!owner || owner.projectId !== projectId) return;
+      const sequence = ++owner.loadSequence;
+      const ownsLoad = () => ownerRef.current === owner &&
+        owner.projectId === projectId && owner.loadSequence === sequence;
       const showLoading = options?.showLoading ?? false;
       const preserveDirty = options?.preserveDirty ?? false;
 
@@ -97,14 +126,13 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
 
       try {
         const data = await projectApi.get(projectId);
+        if (!ownsLoad()) return;
         applyProjectToForm(data, preserveDirty);
         setProject(data);
       } catch (err) {
-        logger.error("Failed to load project:", err);
+        if (ownsLoad()) logger.error("Failed to load project:", err);
       } finally {
-        if (showLoading) {
-          setLoading(false);
-        }
+        if (ownsLoad()) setLoading(false);
       }
     },
     [applyProjectToForm, projectId]
@@ -127,7 +155,12 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
   }, [isOpen, projectId, loadProject]);
 
   const handleSave = async () => {
-    if (!projectId || !project) return;
+    const owner = ownerRef.current;
+    if (!owner || owner.projectId !== projectId || project?.id !== projectId || activeSaveRef.current) return;
+    const saveToken = {};
+    activeSaveRef.current = saveToken;
+    const ownsSave = () => ownerRef.current === owner &&
+      owner.projectId === projectId && activeSaveRef.current === saveToken;
 
     setSaving(true);
     try {
@@ -145,13 +178,19 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
       if ((project.notes || "") !== nextNotes) patch.notes = nextNotes;
 
       const updated = await projectApi.patch(projectId, patch);
+      if (!ownsSave()) return;
       setProject(updated);
       onClose();
     } catch (err) {
-      logger.error("Failed to save project status:", err);
-      toast.error(t('saveFailed'));
+      if (ownsSave()) {
+        logger.error("Failed to save project status:", err);
+        toast.error(t('saveFailed'));
+      }
     } finally {
-      setSaving(false);
+      if (ownsSave()) {
+        activeSaveRef.current = null;
+        setSaving(false);
+      }
     }
   };
 

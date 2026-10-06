@@ -44,7 +44,8 @@ export function useDashboardInspirations(activeTab: string, limit = 6, refreshSe
 
     let cancelled = false;
     void loadDashboardInspirationBundle(locale).then((bundle) => {
-      if (cancelled || !bundle) {
+      if (cancelled) return;
+      if (!bundle) {
         setItems([]);
         return;
       }
@@ -52,6 +53,8 @@ export function useDashboardInspirations(activeTab: string, limit = 6, refreshSe
       const daySeed = Math.floor(Date.now() / 86_400_000) + supportedActiveTab.length + refreshSeed;
       const sourceItems = bundle.homepagePriority[supportedActiveTab].slice(0, HOMEPAGE_ROTATION_WINDOW[supportedActiveTab]);
       setItems(rotateItems(sourceItems, daySeed, limit));
+    }, () => {
+      if (!cancelled) setItems([]);
     });
 
     return () => {

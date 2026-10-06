@@ -78,27 +78,40 @@ export function SkillResourcesSection({
   const [confirmDeletePath, setConfirmDeletePath] = useState<string | null>(null);
   const listRequestRef = useRef(0);
   const contentRequestRef = useRef(0);
+  const ownerRef = useRef<object | null>(null);
 
   const loadResources = useCallback(async () => {
+    const owner = ownerRef.current;
+    if (!owner) return;
     const requestId = ++listRequestRef.current;
     setLoading(true);
     try {
       const response = await skillsApi.listResources(skillId);
-      if (requestId !== listRequestRef.current) return;
+      if (owner !== ownerRef.current || requestId !== listRequestRef.current) return;
       setResources(response.resources);
     } catch (err) {
-      if (requestId !== listRequestRef.current) return;
+      if (owner !== ownerRef.current || requestId !== listRequestRef.current) return;
       logger.error("Failed to load skill resources:", err);
       setError(toResourceError(err, "resources.errors.loadFailed"));
     } finally {
-      if (requestId === listRequestRef.current) setLoading(false);
+      if (owner === ownerRef.current && requestId === listRequestRef.current) setLoading(false);
     }
   }, [skillId]);
 
   useEffect(() => {
+    const owner = {};
+    ownerRef.current = owner;
     contentRequestRef.current += 1;
     setEditor(null);
+    setError(null);
+    setSaving(false);
+    setConfirmDeletePath(null);
     loadResources();
+    return () => {
+      if (ownerRef.current === owner) ownerRef.current = null;
+      listRequestRef.current += 1;
+      contentRequestRef.current += 1;
+    };
   }, [loadResources]);
 
   const openResource = async (path: string) => {
@@ -127,6 +140,9 @@ export function SkillResourcesSection({
 
   const handleSave = async () => {
     if (!editor || readOnly) return;
+    const owner = ownerRef.current;
+    if (!owner) return;
+    const editorRequestId = contentRequestRef.current;
     const path = editor.path.trim();
     const pathError = validateResourcePath(path);
     if (pathError) {
@@ -146,28 +162,37 @@ export function SkillResourcesSection({
     setError(null);
     try {
       await skillsApi.upsertResource(skillId, path, editor.content);
-      setEditor(null);
+      if (owner !== ownerRef.current) return;
+      if (editorRequestId === contentRequestRef.current) setEditor(null);
       await loadResources();
-      onChange?.();
+      if (owner === ownerRef.current) onChange?.();
     } catch (err) {
       logger.error("Failed to save skill resource:", err);
-      setError(toResourceError(err, "resources.errors.saveFailed"));
+      if (owner === ownerRef.current && editorRequestId === contentRequestRef.current) {
+        setError(toResourceError(err, "resources.errors.saveFailed"));
+      }
     } finally {
-      setSaving(false);
+      if (owner === ownerRef.current) setSaving(false);
     }
   };
 
   const handleDelete = async (path: string) => {
+    const owner = ownerRef.current;
+    if (!owner) return;
+    const editorRequestId = contentRequestRef.current;
     setError(null);
     try {
       await skillsApi.deleteResource(skillId, path);
-      setConfirmDeletePath(null);
-      if (editor?.path === path) setEditor(null);
+      if (owner !== ownerRef.current) return;
+      setConfirmDeletePath(current => current === path ? null : current);
+      if (editorRequestId === contentRequestRef.current && editor?.path === path) setEditor(null);
       await loadResources();
-      onChange?.();
+      if (owner === ownerRef.current) onChange?.();
     } catch (err) {
       logger.error("Failed to delete skill resource:", err);
-      setError(toResourceError(err, "resources.errors.deleteFailed"));
+      if (owner === ownerRef.current && editorRequestId === contentRequestRef.current) {
+        setError(toResourceError(err, "resources.errors.deleteFailed"));
+      }
     }
   };
 
@@ -282,6 +307,7 @@ export function SkillResourcesSection({
             <button
               type="button"
               onClick={() => {
+                contentRequestRef.current += 1;
                 setEditor(null);
                 setError(null);
               }}

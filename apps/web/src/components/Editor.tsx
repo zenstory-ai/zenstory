@@ -15,13 +15,13 @@ import { useTranslation } from "react-i18next";
 import { useProject } from "../contexts/ProjectContext";
 import { useMaterialLibraryContext } from "../contexts/MaterialLibraryContext";
 import { useMaterialAttachment } from "../contexts/MaterialAttachmentContext";
-import { fileApi, fileVersionApi } from "../lib/api";
+import { fileApi } from "../lib/api";
 import { ApiError } from "../lib/apiClient";
 import { handleApiError } from "../lib/errorHandler";
 import { toast } from "../lib/toast";
 import { logger } from "../lib/logger";
 import { SimpleEditor } from "./SimpleEditor";
-import type { SaveOutcome, SaveSubmission } from "./SimpleEditor";
+import type { SaveOutcome, SaveResult, SaveSubmission } from "./SimpleEditor";
 import { MaterialPreview } from "./MaterialPreview";
 import { ImportMaterialDialog } from "./ImportMaterialDialog";
 import type { File, FileTreeNode } from "../types";
@@ -106,7 +106,24 @@ const EditorComponent: React.FC<EditorProps> = () => {
   const loadGenerationRef = useRef(0);
   const restoredSelectionRef = useRef<string | null>(null);
   const currentFileRef = useRef<File | null>(file);
+  const translateRef = useRef(t);
+  const activeProjectIdRef = useRef<string | null>(currentProjectId);
+  const selectedIdRef = useRef(selectedItem?.id);
+  const currentReviewRef = useRef(diffReviewState);
+  selectedIdRef.current = selectedItem?.id;
+  currentReviewRef.current = diffReviewState;
+  useEffect(() => {
+    activeProjectIdRef.current = currentProjectId;
+    setIsCreating(null);
+    return () => {
+      activeProjectIdRef.current = null;
+      loadGenerationRef.current += 1;
+    };
+  }, [currentProjectId]);
   currentFileRef.current = file;
+  useEffect(() => {
+    translateRef.current = t;
+  }, [t]);
   const editorFlushRef = useRef<(() => Promise<SaveOutcome>) | null>(null);
   const registerEditorFlush = useCallback((flush: (() => Promise<SaveOutcome>) | null) => {
     editorFlushRef.current = flush;
@@ -163,11 +180,11 @@ const EditorComponent: React.FC<EditorProps> = () => {
   /**
    * Loads the file data for the currently selected item.
    *
-   * Fetches file content from the API, creates an initial version if none exists,
-   * and updates local editing state. Only shows loading spinner on initial load
-   * to prevent UI flicker when switching between files.
+   * Fetches file content from the API and updates local editing state. Only shows
+   * the loading spinner on initial load to prevent UI flicker when switching files.
    */
   const loadData = useCallback(async () => {
+    if (activeProjectIdRef.current !== currentProjectId || selectedIdRef.current !== selectedItem?.id) return;
     const generation = ++loadGenerationRef.current;
     const currentFile = currentFileRef.current;
     const restoredId = restoredSelectionRef.current;
@@ -178,7 +195,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
       const outcome = await editorFlushRef.current();
       if (generation !== loadGenerationRef.current) return;
       if (outcome !== "saved") {
-        toast.error(t('editor:saveFailed'));
+        toast.error(translateRef.current('editor:saveFailed'));
         restoredSelectionRef.current = currentFile.id;
         setSelectedItem({id:currentFile.id,type:currentFile.file_type,title:currentFile.title});
         return;
@@ -212,40 +229,12 @@ const EditorComponent: React.FC<EditorProps> = () => {
       hasLoadedRef.current = true;
       setEditTitle(data.title);
       setEditContent(data.content || "");
-
-      // Check if file has any versions, create initial version if needed
-      try {
-        const versions = await fileVersionApi.getVersions(selectedItem.id, { limit: 1 });
-        if (generation !== loadGenerationRef.current) return;
-
-        // If no versions exist and file has content, create initial version
-        if (versions.total === 0 && data.content) {
-          await fileVersionApi.createVersion(selectedItem.id, data.content, {
-            changeType: "create",
-            changeSource: "system",
-            changeSummary: "Initial version",
-          });
-        }
-      } catch (versionErr) {
-        if (generation !== loadGenerationRef.current) return;
-        if (
-          versionErr instanceof ApiError &&
-          versionErr.errorCode === "ERR_QUOTA_FILE_VERSIONS_EXCEEDED"
-        ) {
-          toast.error(handleApiError(versionErr));
-          if (fileVersionUpgradePrompt.surface === "modal") {
-            setShowFileVersionUpgradeModal(true);
-          }
-        } else {
-          logger.error("Failed to check/create initial version:", versionErr);
-        }
-      }
     } catch (err: unknown) {
       if (generation !== loadGenerationRef.current) return;
       const error = err as { status?: number };
       if (error?.status !== 401) {
         logger.error("Failed to load data:", err);
-        setError(t('editor:placeholder.loadFailed'));
+        setError(translateRef.current('editor:placeholder.loadFailed'));
       }
     } finally {
       if (generation === loadGenerationRef.current) setLoading(false);
@@ -254,12 +243,11 @@ const EditorComponent: React.FC<EditorProps> = () => {
     selectedItem,
     currentProjectId,
     setSelectedItem,
-    t,
-    fileVersionUpgradePrompt.surface,
   ]);
 
   useEffect(() => {
     loadData();
+    return () => { loadGenerationRef.current += 1; };
   }, [loadData]);
 
   // Track previous streaming file id to detect when streaming ends
@@ -271,23 +259,25 @@ const EditorComponent: React.FC<EditorProps> = () => {
     prevStreamingFileIdRef.current = streamingFileId;
     
     // If streaming just ended for the current file, reload to get final content
-    if (prevId && prevId === file?.id && streamingFileId === null) {
+    if (prevId && prevId === file?.id && prevId === selectedItem?.id && streamingFileId === null) {
       // Small delay to ensure backend has updated the content
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         loadData();
       }, 100);
+      return () => clearTimeout(timer);
     }
-  }, [streamingFileId, file?.id, loadData]);
+  }, [streamingFileId, file?.id, selectedItem?.id, loadData]);
 
   // Reload file content when AI edits the currently selected file
   useEffect(() => {
-    if (lastEditedFileId && lastEditedFileId === file?.id && editorRefreshVersion > 0) {
+    if (lastEditedFileId && lastEditedFileId === file?.id && lastEditedFileId === selectedItem?.id && editorRefreshVersion > 0) {
       // Small delay to ensure backend has committed the changes
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         loadData();
       }, 100);
+      return () => clearTimeout(timer);
     }
-  }, [editorRefreshVersion, lastEditedFileId, file?.id, loadData]);
+  }, [editorRefreshVersion, lastEditedFileId, file?.id, selectedItem?.id, loadData]);
 
   const renderWithUpgradeModal = (content: React.ReactNode) => (
     <>
@@ -322,8 +312,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
    * Updates the file via API, syncs local state, and triggers file tree
    * refresh if the title has changed to keep the navigation in sync.
    */
-  const handleSaveFile = async (submission: SaveSubmission): Promise<SaveOutcome> => {
-    if (!submission.fileId) return "failed";
+  const handleSaveFile = async (submission: SaveSubmission): Promise<SaveResult> => {
+    if (!submission.fileId) return { outcome: "failed" };
 
     const targetFileId = submission.fileId;
     const titleChanged = submission.title !== submission.previousTitle;
@@ -336,10 +326,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
         // 乐观并发令牌：带上加载这份正文时的 updated_at。
         // 编辑器提交的是整篇快照，光加锁挡不住丢更新——3 秒防抖期间 AI 的
         // edit_file 先落库时，陈旧快照拿到锁后照样会原样覆盖它。
-        base_updated_at:
-          currentFileRef.current?.id === targetFileId
-            ? currentFileRef.current.updated_at
-            : submission.baseUpdatedAt,
+        base_updated_at: submission.baseUpdatedAt,
         ...submission.versionIntent,
       });
     } catch (error) {
@@ -351,7 +338,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
         if (fileVersionUpgradePrompt.surface === "modal") {
           setShowFileVersionUpgradeModal(true);
         }
-        return "failed";
+        return { outcome: "failed" };
       }
       if (
         error instanceof ApiError &&
@@ -386,11 +373,11 @@ const EditorComponent: React.FC<EditorProps> = () => {
               enterDiffReview(targetFileId, currentContent, localContent);
             }
             toast.error(t('editor:saveStaleWriteConflict'));
-            return "conflict";
+            return { outcome: "conflict" };
           }
         }
         toast.error(t('editor:saveStaleWrite'));
-        return "conflict";
+        return { outcome: "conflict" };
       }
       throw error;
     }
@@ -427,11 +414,16 @@ const EditorComponent: React.FC<EditorProps> = () => {
     if (titleChanged) {
       triggerFileTreeRefresh();
       // Update the selected item title to keep it in sync
-      if (selectedItem?.id === targetFileId) {
+      if (
+        activeProjectIdRef.current === updated.project_id &&
+        selectedIdRef.current === targetFileId &&
+        currentFileRef.current?.id === targetFileId &&
+        selectedItem?.id === targetFileId
+      ) {
         setSelectedItem({ ...selectedItem, title: submission.title });
       }
     }
-    return "saved";
+    return { outcome: "saved", updatedAt: updated.updated_at };
   };
 
   /**
@@ -441,8 +433,14 @@ const EditorComponent: React.FC<EditorProps> = () => {
    * creates a new version for the reviewed changes, and exits review mode.
    */
   const handleFinishReview = useCallback(async () => {
-    if (!diffReviewState || !file?.id) return;
-    
+    if (!diffReviewState || !file?.id || diffReviewState.fileId !== file.id) return;
+    const canCompleteReview = () =>
+      activeProjectIdRef.current === currentProjectId &&
+      selectedIdRef.current === file.id &&
+      currentFileRef.current?.id === file.id &&
+      currentReviewRef.current === diffReviewState;
+    if (!canCompleteReview()) return;
+
     // Get the final content based on accept/reject decisions
     const finalContent = applyDiffReviewChanges();
     
@@ -456,6 +454,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
         // 不带令牌就会无声盖掉审阅期间落库的其它改动。
         base_updated_at: file.updated_at,
       });
+
+      if (!canCompleteReview()) return;
 
       // Update local state。必须把返回的 updated_at 一并回填：
       // 这次 PUT 已经把服务端的 updated_at 推进了，本地若还停在审阅前的值，
@@ -489,6 +489,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
       // Refresh file tree
       triggerFileTreeRefresh();
     } catch (err) {
+      if (!canCompleteReview()) return;
       if (
         err instanceof ApiError &&
         err.status === 409 &&
@@ -522,6 +523,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
     }
   }, [
     diffReviewState,
+    currentProjectId,
     file?.id,
     file?.project_id,
     file?.updated_at,
@@ -559,6 +561,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
 
     try {
       const parentId = await resolveCreateParentId(fileType);
+      if (activeProjectIdRef.current !== currentProjectId) return;
       const newFile = await fileApi.create(currentProjectId, {
         title: defaultTitles[fileType],
         file_type: fileType,
@@ -566,19 +569,21 @@ const EditorComponent: React.FC<EditorProps> = () => {
         content: '',
       });
 
-      triggerFileTreeRefresh();
-      setSelectedItem({
-        id: newFile.id,
-        type: newFile.file_type,
-        title: newFile.title,
-      });
+      if (activeProjectIdRef.current === currentProjectId) {
+        triggerFileTreeRefresh();
+        setSelectedItem({
+          id: newFile.id,
+          type: newFile.file_type,
+          title: newFile.title,
+        });
+      }
 
       toast.success(t('editor:success.fileCreated'));
     } catch (error) {
       toast.error(t('editor:error.createFailed'));
       logger.error('Failed to create file:', error);
     } finally {
-      setIsCreating(null);
+      if (activeProjectIdRef.current === currentProjectId) setIsCreating(null);
     }
   }, [currentProjectId, triggerFileTreeRefresh, setSelectedItem, t, resolveCreateParentId]);
 
@@ -803,6 +808,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
       onTitleChange: setEditTitle,
       onContentChange: setEditContent,
       onSave: handleSaveFile,
+      onHistoryRestore: loadData,
       onFlushReady: registerEditorFlush,
       isStreaming,
       // AI 正在编辑这份文件时挂起自动保存，避免过期整篇快照覆盖 AI 的改动

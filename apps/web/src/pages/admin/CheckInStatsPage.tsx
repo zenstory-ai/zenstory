@@ -6,6 +6,7 @@ import { adminApi } from "../../lib/adminApi";
 import { AdminPageState } from "../../components/admin";
 import { StatsCard } from "../../components/admin/StatsCard";
 import { getLocaleCode } from "../../lib/i18n-helpers";
+import { parseUTCDate } from "../../lib/dateUtils";
 
 export const CheckInStatsPage: React.FC = () => {
   const { t } = useTranslation(["admin", "common"]);
@@ -45,7 +46,7 @@ export const CheckInStatsPage: React.FC = () => {
     : t("common:error");
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
+    const date = parseUTCDate(dateStr);
     if (Number.isNaN(date.getTime())) {
       return "-";
     }
@@ -69,6 +70,7 @@ export const CheckInStatsPage: React.FC = () => {
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
+      timeZone: /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? "UTC" : undefined,
     });
   };
 

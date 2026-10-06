@@ -463,6 +463,8 @@ export interface UserQuotaDetail {
   ai_conversations_limit: number;
   material_upload_used: number;
   material_upload_limit: number;
+  material_decompose_used: number;
+  material_decompose_limit: number;
   skill_create_used: number;
   skill_create_limit: number;
   inspiration_copy_used: number;

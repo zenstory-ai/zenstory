@@ -44,11 +44,41 @@ import {
   Settings,
   Layers,
 } from 'lucide-react';
-import type { Conflict, AgentResponse } from '../types';
+import type { Conflict, AgentResponse, FileEditUndoTarget } from '../types';
 
 const quote = (text: string) => {
   const isZh = i18n.language === 'zh';
   return `${isZh ? '「' : '"'}${text}${isZh ? '」' : '"'}`;
+};
+
+const isValidUndoTimestamp = (value: unknown): value is string => {
+  if (typeof value !== 'string') return false;
+  const match = value.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?(Z|[+-]\d{2}:\d{2})$/,
+  );
+  if (!match) return false;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  if (year < 1 || month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) {
+    return false;
+  }
+
+  const isLeapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, isLeapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (day < 1 || day > daysInMonth[month - 1]) return false;
+
+  const timezone = match[8];
+  if (timezone !== 'Z') {
+    const offsetHour = Number(timezone.slice(1, 3));
+    const offsetMinute = Number(timezone.slice(4, 6));
+    if (offsetHour > 23 || offsetMinute > 59) return false;
+  }
+  return true;
 };
 
 /**
@@ -101,10 +131,10 @@ interface ToolResultCardProps {
 
   /**
    * Callback to undo a file edit operation.
-   * Called with the file ID when undo button is clicked.
+   * Called with immutable edit provenance when undo button is clicked.
    * Only shown for successful edit_file results.
    */
-  onUndo?: (fileId: string) => void;
+  onUndo?: (target: FileEditUndoTarget) => void;
 
   /**
    * Callback to apply the response content.
@@ -375,8 +405,8 @@ const formatContentLength = (length: number, t: (key: string, options?: Record<s
  * <ToolResultCard
  *   type="tool_result"
  *   toolName="edit_file"
- *   result={{ id: "file-123", details: [{ op: "replace", ... }] }}
- *   onUndo={(fileId) => handleUndo(fileId)}
+ *   result={{ id: "file-123", undo: { before_version_number: 3, expected_after_updated_at: "2026-10-06T12:34:56Z" } }}
+ *   onUndo={(target) => handleUndo(target)}
  * />
  *
  * @example
@@ -409,9 +439,9 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
   const { t } = useTranslation(['chat', 'common']);
 
   // Memoize event handlers to prevent unnecessary re-renders
-  const handleUndo = useCallback((fileId: string) => {
+  const handleUndo = useCallback((target: FileEditUndoTarget) => {
     if (onUndo) {
-      onUndo(fileId);
+      onUndo(target);
     }
   }, [onUndo]);
 
@@ -650,7 +680,24 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
     
     // edit_file success - special detailed rendering
     if (toolName === 'edit_file' && data) {
-      const fileId = data.id as string || '';
+      const fileId = typeof data.id === 'string' ? data.id.trim() : '';
+      const undo = data.undo && typeof data.undo === 'object' && !Array.isArray(data.undo)
+        ? data.undo as Record<string, unknown>
+        : null;
+      const beforeVersionNumber = undo?.before_version_number;
+      const expectedAfterUpdatedAt = undo?.expected_after_updated_at;
+      const undoTarget: FileEditUndoTarget | null =
+        fileId
+        && typeof beforeVersionNumber === 'number'
+        && Number.isSafeInteger(beforeVersionNumber)
+        && beforeVersionNumber > 0
+        && isValidUndoTimestamp(expectedAfterUpdatedAt)
+          ? {
+              fileId,
+              beforeVersionNumber,
+              expectedAfterUpdatedAt,
+            }
+          : null;
       const details = data.details as Array<{
         op: string;
         old_preview?: string;
@@ -697,9 +744,9 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
             <span className="text-sm text-[hsl(var(--success-light))] font-medium">
               {t('chat:tool.edit_success')}
             </span>
-            {onUndo && fileId && (
+            {onUndo && undoTarget && (
               <button
-                onClick={() => handleUndo(fileId)}
+                onClick={() => handleUndo(undoTarget)}
                 className="flex items-center gap-1 px-2 py-1 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors ml-auto"
                 title={t('chat:tool.undo_edit')}
               >

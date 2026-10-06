@@ -10,6 +10,7 @@ import secrets
 
 from fastapi import Depends, status
 from fastapi.security import APIKeyHeader
+from sqlalchemy import update
 from sqlmodel import Session, select
 
 from config.datetime_utils import utcnow
@@ -97,7 +98,7 @@ def verify_project_access(api_key: AgentApiKey, project_id: str | None) -> bool:
     return project_id in api_key.project_ids
 
 
-async def get_agent_user(
+def get_agent_user(
     x_agent_api_key: str | None = Depends(api_key_header),
     session: Session = Depends(get_session),
 ) -> tuple[Session, str, AgentApiKey]:
@@ -164,7 +165,7 @@ async def get_agent_user(
         if expires_at.tzinfo is None:
             from datetime import UTC
             expires_at = expires_at.replace(tzinfo=UTC)
-        if expires_at < now:
+        if expires_at <= now:
             raise APIException(
                 error_code=ErrorCode.AUTH_TOKEN_EXPIRED,
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -179,10 +180,20 @@ async def get_agent_user(
             detail="API key owner is inactive",
         )
 
-    # Update usage only after both key and owner are authorized.
-    api_key.last_used_at = utcnow()
-    api_key.request_count += 1
-    session.add(api_key)
+    # Update usage only after both key and owner are authorized. Keep this as an
+    # exact persisted counter: assigning a value loaded by this session loses
+    # increments when two authorized requests commit concurrently.
+    last_used_at = utcnow()
+    session.exec(
+        update(AgentApiKey)
+        .where(AgentApiKey.id == api_key.id)
+        .values(
+            last_used_at=last_used_at,
+            request_count=AgentApiKey.request_count + 1,
+        )
+        .execution_options(synchronize_session=False)
+    )
     session.commit()
+    session.refresh(api_key)
 
     return (session, api_key.user_id, api_key)

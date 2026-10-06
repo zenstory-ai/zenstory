@@ -466,6 +466,25 @@ describe('files', () => {
     expect(calls).toHaveLength(before);
   });
 
+  it('put skips the full-file read for metadata-only updates', async () => {
+    const { fetch, calls } = mockFetch((c) => ({
+      body: { id: 'f1', title: 'Renamed', file_type: 'draft', content: 'large server body', ...(c.body as object) },
+    }));
+    const res = await runCli(['files', 'put', 'f1', '--title', 'Renamed', '--order', '4'], {
+      env: loggedInEnv(),
+      fetch,
+    });
+
+    expect(res.code).toBe(0);
+    expect(calls).toEqual([
+      expect.objectContaining({
+        method: 'PUT',
+        url: `${BASE}/agent/files/f1`,
+        body: { title: 'Renamed', order: 4 },
+      }),
+    ]);
+  });
+
   it('move posts parent_id (root → null) and order', async () => {
     const { fetch, calls } = mockFetch((c) => ({ body: { id: 'f1', title: '第一章', file_type: 'draft', order: 1, ...(c.body as object) } }));
     const env = loggedInEnv();
@@ -526,6 +545,41 @@ describe('files', () => {
     const fresh = await runCli(['files', 'put', 'f1', '--content', 'new text', '--if-updated-at', '2026-01-02T00:00:00'], { env, fetch });
     expect(fresh.code).toBe(0);
     expect(calls.filter((c) => c.method === 'PUT')).toHaveLength(1);
+  });
+
+  it('put carries the exact conditional timestamp to the server', async () => {
+    const timestamp = '2026-01-02T00:00:00.123456Z';
+    const { fetch, calls } = mockFetch((call) => ({
+      body: call.method === 'GET'
+        ? { ...serverFile, updated_at: timestamp }
+        : { ...serverFile, ...(call.body as object) },
+    }));
+    const result = await runCli([
+      'files', 'put', 'f1', '--title', 'Changed', '--if-updated-at', timestamp,
+    ], { env: loggedInEnv(), fetch });
+
+    expect(result.code).toBe(0);
+    expect(calls.find((call) => call.method === 'PUT')?.body).toMatchObject({
+      title: 'Changed', base_updated_at: timestamp,
+    });
+  });
+
+  it('put reports a server-side conditional conflict after a successful preflight', async () => {
+    const { fetch, calls } = mockFetch((call) => {
+      if (call.method === 'GET') return { body: serverFile };
+      if ((call.body as { base_updated_at?: string }).base_updated_at === serverFile.updated_at) {
+        return { status: 409, body: { error_code: 'ERR_RESOURCE_CONFLICT', error_detail: 'stale_write' } };
+      }
+      return { body: { ...serverFile, ...(call.body as object) } };
+    });
+    const result = await runCli([
+      'files', 'put', 'f1', '--content', 'new text', '--if-updated-at', serverFile.updated_at,
+    ], { env: loggedInEnv(), fetch });
+
+    expect(calls.map((call) => call.method)).toEqual(['GET', 'PUT']);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('409');
+    expect(result.stdout).not.toContain('Updated');
   });
 
   it('put and create warn when the version quota is full', async () => {
@@ -716,6 +770,40 @@ describe('search / context', () => {
 });
 
 describe('errors', () => {
+  it.each([false, true])('maps a server stale-write race to STALE_WRITE (json=%s)', async (json) => {
+    const { fetch } = mockFetch((call) => call.method === 'PUT'
+      ? { status: 409, body: { error_code: 'ERR_RESOURCE_CONFLICT', error_detail: { reason: 'stale_write' } } }
+      : { body: { id: 'f1', content: 'old text', updated_at: '2026-01-02T00:00:00.123456' } });
+    const res = await runCli(['files', 'put', 'f1', '--content', 'new text', '--if-updated-at', '2026-01-02T00:00:00.123456', ...(json ? ['--json'] : [])], { env: loggedInEnv(), fetch });
+    expect(res.code).toBe(1);
+    if (json) expect(JSON.parse(res.stderr).error).toMatchObject({ code: 'STALE_WRITE', status: 409 });
+    expect(res.stderr).toContain('fetch');
+    expect(res.stderr).toContain('merge');
+  });
+
+  it('compares UTC-naive tokens without host timezone loss', async () => {
+    const previousTimezone = process.env.TZ;
+    process.env.TZ = 'America/Los_Angeles';
+    try {
+      const { fetch, calls } = mockFetch(() => ({ body: { id: 'f1', content: 'old text', updated_at: '2026-01-02T00:00:00.123456' } }));
+      const equivalent = await runCli(['files', 'put', 'f1', '--title', 'Same instant', '--if-updated-at', '2026-01-02T08:00:00.123456+08:00'], { env: loggedInEnv(), fetch });
+      expect(equivalent.code).toBe(0);
+      expect(calls).toHaveLength(2);
+    } finally {
+      if (previousTimezone === undefined) delete process.env.TZ;
+      else process.env.TZ = previousTimezone;
+    }
+  });
+
+  it('preserves microsecond precision in the stale-write preflight', async () => {
+    const { fetch, calls } = mockFetch(() => ({ body: { id: 'f1', content: 'old text', updated_at: '2026-01-02T00:00:00.123456' } }));
+    const stale = await runCli(['files', 'put', 'f1', '--title', 'Wrong', '--if-updated-at', '2026-01-02T00:00:00.123457', '--json'], { env: loggedInEnv(), fetch });
+    expect(stale.code).toBe(1);
+    expect(JSON.parse(stale.stderr).error.code).toBe('STALE_WRITE');
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe('GET');
+  });
+
   it('--json errors go to stderr as JSON with the mapped exit code', async () => {
     const { fetch } = mockFetch(() => ({ status: 429, body: { detail: 'Rate limit exceeded. Please try again later.' }, headers: { 'Retry-After': '3600' } }));
     const res = await runCli(['projects', 'list', '--json'], { env: loggedInEnv(), fetch });

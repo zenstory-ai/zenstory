@@ -30,6 +30,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('../../../contexts/ProjectContext', () => ({
   useProject: () => ({
     currentProjectId: 'project-1',
+    triggerFileTreeRefresh: vi.fn(),
   }),
 }))
 

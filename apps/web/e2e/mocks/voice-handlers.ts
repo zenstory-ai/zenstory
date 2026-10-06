@@ -48,7 +48,7 @@ export const mockVoiceStatusHandler = http.get('/api/v1/voice/status', () => {
     provider: 'tencent',
     service: '一句话识别',
     max_duration_seconds: 60,
-    supported_formats: ['wav', 'pcm', 'mp3', 'm4a', 'flac', 'ogg-opus', 'webm'],
+    supported_formats: ['wav', 'pcm', 'ogg-opus', 'speex', 'silk', 'mp3', 'm4a', 'aac', 'amr'],
   }
   return HttpResponse.json(response)
 })

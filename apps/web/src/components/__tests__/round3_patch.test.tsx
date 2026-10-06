@@ -20,6 +20,7 @@ vi.mock('../SimpleEditor', () => ({
   SimpleEditor: ({
     fileId,
     fileTitle,
+    baseUpdatedAt,
     content,
     onTitleChange,
     onContentChange,
@@ -28,10 +29,11 @@ vi.mock('../SimpleEditor', () => ({
   }: {
     fileId: string
     fileTitle: string
+    baseUpdatedAt?: string
     content: string
     onTitleChange?: (value: string) => void
     onContentChange?: (value: string) => void
-    onSave?: (submission: {fileId:string;title:string;content:string;previousTitle:string}) => void
+    onSave?: (submission: {fileId:string;title:string;content:string;previousTitle:string;baseUpdatedAt?:string}) => void
     onFinishReview?: () => void
   }) => (
     <div data-testid="simple-editor">
@@ -45,7 +47,7 @@ vi.mock('../SimpleEditor', () => ({
         value={content}
         onChange={(e) => onContentChange?.(e.target.value)}
       />
-      <button data-testid="save-button" onClick={() => onSave?.({fileId,title:fileTitle,content,previousTitle:"Test Chapter"})}>
+      <button data-testid="save-button" onClick={() => onSave?.({fileId,title:fileTitle,content,baseUpdatedAt,previousTitle:"Test Chapter"})}>
         Save
       </button>
       <button data-testid="finish-review-button" onClick={() => onFinishReview?.()}>

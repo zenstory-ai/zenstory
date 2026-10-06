@@ -49,6 +49,20 @@ describe("CodeManagement", () => {
     });
   });
 
+  it.each([ ["create", true], ["create", false], ["batchCreate", true], ["batchCreate", false] ] as const)(
+    "keeps code %s header close aligned with pending=%s", (kind, pending) => {
+      useQueryMock.mockReturnValue({ data: { items: [], total: 0, page: 1, page_size: 20 }, isLoading: false, isFetching: false, isError: false, refetch: vi.fn() });
+      useMutationMock.mockReturnValue({ mutate: mutateMock, isPending: pending });
+      const { container } = render(<CodeManagement />);
+      fireEvent.click(screen.getByRole("button", { name: `codes.${kind}` }));
+      const modal = container.querySelector(".fixed.inset-0")!;
+      const headerClose = modal.querySelector("button")!;
+      expect(screen.getByRole("button", { name: "common:cancel" }).hasAttribute("disabled")).toBe(pending);
+      expect(headerClose.hasAttribute("disabled")).toBe(pending);
+      if (!pending) { fireEvent.click(headerClose); expect(container.querySelector(".fixed.inset-0")).toBeNull(); }
+    },
+  );
+
   it("shows loading state", () => {
     useQueryMock.mockReturnValue({
       data: undefined,

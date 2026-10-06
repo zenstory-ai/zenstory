@@ -35,6 +35,9 @@ vi.mock('../apiClient', () => ({
   ApiError: MockApiError,
   getAccessToken: mockGetAccessToken,
   getApiBase: mockGetApiBase,
+  resolveOwnedAuthSession: () => ({
+    accessToken: mockGetAccessToken(), refreshToken: localStorage.getItem('refresh_token'),
+  }),
   tryRefreshToken: mockTryRefreshToken,
 }))
 
@@ -46,6 +49,8 @@ describe('adminApi', () => {
     mockGetApiBase.mockReturnValue('https://api.example.com')
     mockTryRefreshToken.mockResolvedValue(false)
     localStorage.clear()
+    localStorage.setItem('access_token', 'mock-access-token')
+    localStorage.setItem('refresh_token', 'mock-refresh-token')
   })
 
   afterEach(() => {
@@ -954,7 +959,15 @@ describe('adminApi', () => {
           rewards: [{ id: 'rw1', user_id: 'u1', username: 'alice', reward_type: 'points', amount: '10', source: 'invite', is_used: false, created_at: '2025-01-01T00:00:00Z' }],
         })
         .mockResolvedValueOnce({ material_uploads: '4' })
-        .mockResolvedValueOnce({ user_id: 'u1', username: 'alice', plan_name: 'pro', ai_conversations_used: '9', ai_conversations_limit: '50' })
+        .mockResolvedValueOnce({
+          user_id: 'u1',
+          username: 'alice',
+          plan_name: 'pro',
+          ai_conversations_used: '9',
+          ai_conversations_limit: '50',
+          material_decompose_used: '4',
+          material_decompose_limit: '5',
+        })
       mockApi.post.mockResolvedValueOnce({
         id: 'c2',
         code: 'WXYZ-5678',
@@ -998,6 +1011,8 @@ describe('adminApi', () => {
         ai_conversations_limit: 50,
         material_upload_used: 0,
         material_upload_limit: 0,
+        material_decompose_used: 4,
+        material_decompose_limit: 5,
         skill_create_used: 0,
         skill_create_limit: 0,
         inspiration_copy_used: 0,
@@ -1371,7 +1386,12 @@ describe('adminApi', () => {
       const { getFeedbackScreenshotBlob } = await import('../adminApi')
       const screenshotBlob = new Blob(['retry-image'], { type: 'image/png' })
 
-      mockTryRefreshToken.mockResolvedValue(true)
+      mockTryRefreshToken.mockImplementation(async () => {
+        mockGetAccessToken.mockReturnValue('rotated-access-token')
+        localStorage.setItem('access_token', 'rotated-access-token')
+        localStorage.setItem('refresh_token', 'rotated-refresh-token')
+        return true
+      })
       fetchMock
         .mockResolvedValueOnce({
           ok: false,

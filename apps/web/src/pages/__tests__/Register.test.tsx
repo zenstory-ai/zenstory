@@ -416,6 +416,25 @@ describe("Register", () => {
     });
   });
 
+  it("releases submit gate after terms rejection and permits ordinary retry", async () => {
+    mockGetRegistrationPolicy.mockResolvedValue({ invite_code_optional: true });
+    const user = userEvent.setup();
+    renderWithRoute("/register");
+    fillRegistrationFields();
+    // Existing form-handler validation contract: programmatic submit exercises
+    // the terms rejection branch; this is not a physical disabled-button bypass claim.
+    await act(async () => { fireEvent.submit(screen.getByTestId("register-form")); });
+    await waitFor(() => expect(mockToastError).toHaveBeenCalledWith("auth:errors.mustAcceptTerms"));
+    expect(mockRegister).not.toHaveBeenCalled();
+    expect(screen.getByTestId("register-form")).toHaveAttribute("aria-busy", "false");
+    expect(screen.getByRole("checkbox")).toBeEnabled();
+    await acceptTerms(user);
+    mockRegister.mockRejectedValueOnce(new Error("offline retry completed"));
+    await act(async () => { await user.click(screen.getByRole("button", { name: "auth:register.submit" })); });
+    await waitFor(() => expect(mockRegister).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByRole("button", { name: "auth:register.submit" })).toBeEnabled());
+  });
+
   it("keeps malformed email disabled and marks the field invalid", async () => {
     const user = userEvent.setup();
     renderWithRoute("/register?code=abcd1234");

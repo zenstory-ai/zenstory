@@ -451,7 +451,7 @@ class TestGetCurrentUser:
         token = create_access_token({"sub": user.id})
 
         # Get current user
-        result_user = await get_current_user(token=token, session=db_session)
+        result_user = get_current_user(token=token, session=db_session)
 
         assert result_user.id == user.id
         assert result_user.email == user.email
@@ -460,7 +460,7 @@ class TestGetCurrentUser:
     async def test_get_current_user_invalid_token(self, db_session: Session):
         """Test that invalid token raises APIException."""
         with pytest.raises(APIException) as exc_info:
-            await get_current_user(token="invalid_token", session=db_session)
+            get_current_user(token="invalid_token", session=db_session)
 
         assert exc_info.value.error_code == ErrorCode.AUTH_TOKEN_INVALID
         assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
@@ -473,7 +473,7 @@ class TestGetCurrentUser:
         token = jwt.encode({"role": "admin"}, SECRET_KEY, algorithm=ALGORITHM)
 
         with pytest.raises(APIException) as exc_info:
-            await get_current_user(token=token, session=db_session)
+            get_current_user(token=token, session=db_session)
 
         assert exc_info.value.error_code == ErrorCode.AUTH_TOKEN_INVALID
         assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
@@ -485,7 +485,7 @@ class TestGetCurrentUser:
         token = create_access_token({"sub": "nonexistent-user-id"})
 
         with pytest.raises(APIException) as exc_info:
-            await get_current_user(token=token, session=db_session)
+            get_current_user(token=token, session=db_session)
 
         assert exc_info.value.error_code == ErrorCode.AUTH_TOKEN_INVALID
         assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED

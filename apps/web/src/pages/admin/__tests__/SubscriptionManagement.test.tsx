@@ -129,6 +129,18 @@ describe("SubscriptionManagement", () => {
     });
   });
 
+  it.each([true, false])("keeps subscription header close aligned with pending=%s", (pending) => {
+    mockQueries({ subscriptionsData: { items: [subscriptionItem], total: 1, page: 1, page_size: 20 } });
+    useMutationMock.mockReturnValue({ mutate: mutateMock, isPending: pending });
+    const { container } = render(<SubscriptionManagement />);
+    fireEvent.click(screen.getByTitle("subscriptions.modify"));
+    const modal = container.querySelector(".fixed.inset-0")!;
+    const headerClose = modal.querySelector("button")!;
+    expect(screen.getByRole("button", { name: "common:cancel" }).hasAttribute("disabled")).toBe(pending);
+    expect(headerClose.hasAttribute("disabled")).toBe(pending);
+    if (!pending) { fireEvent.click(headerClose); expect(container.querySelector(".fixed.inset-0")).toBeNull(); }
+  });
+
   it("shows loading state", () => {
     mockQueries({ subscriptionsLoading: true });
 

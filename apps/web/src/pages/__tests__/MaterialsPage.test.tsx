@@ -1,7 +1,5 @@
-// Pin the timezone so the quota `reset_at` (UTC midnight) formats to a stable
-// calendar date. Without this, `Intl.DateTimeFormat` uses the host timezone, so
-// "2026-05-01T00:00:00Z" renders as 2026/04/30 in timezones behind UTC (e.g. CI
-// running in America/Los_Angeles) and 2026/05/01 in UTC+8 where the test was authored.
+// Use a non-Beijing host timezone to prove quota reset dates still render on
+// the Beijing calendar day promised by the product.
 process.env.TZ = "UTC";
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -233,7 +231,7 @@ describe("MaterialsPage", () => {
       material_decompositions: {
         used: 5,
         limit: 5,
-        reset_at: "2026-05-01T00:00:00Z",
+        reset_at: "2026-04-30T16:00:00Z",
       },
       skill_creates: { used: 0, limit: 20, reset_at: null },
       inspiration_copies: { used: 0, limit: 10, reset_at: null },

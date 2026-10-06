@@ -140,22 +140,37 @@ export interface SnapshotComparison {
     created_at: string;
   };
   changes: {
-    added: Array<{
-      file_id: string;
-      version_number: number;
-      version_id: string;
-    }>;
-    removed: Array<{
-      file_id: string;
-      version_number: number;
-      version_id: string;
-    }>;
+    added: SnapshotComparisonFile[];
+    removed: SnapshotComparisonFile[];
     modified: Array<{
       file_id: string;
-      old_version: number;
-      new_version: number;
+      old_version?: number | null;
+      new_version?: number | null;
+      old_title?: string | null;
+      new_title?: string | null;
+      old_file_type?: string | null;
+      new_file_type?: string | null;
+      metadata_changes?: Partial<Record<SnapshotMetadataField, SnapshotMetadataChange>>;
     }>;
   };
+}
+
+type SnapshotMetadataField = "title" | "file_type" | "parent_id" | "order" | "file_metadata";
+
+interface SnapshotMetadataChange {
+  old: unknown;
+  new: unknown;
+}
+
+interface SnapshotComparisonFile {
+  file_id: string;
+  title?: string | null;
+  file_type?: string | null;
+  parent_id?: string | null;
+  order?: number | null;
+  file_metadata?: string | null;
+  version_number?: number | null;
+  version_id?: string | null;
 }
 
 // ==================== File Version (New) ====================
@@ -704,6 +719,13 @@ export interface RollbackResponse {
   new_version_number: number | null;
   snapshot_created: boolean;
   version_quota_exceeded: boolean;
+}
+
+/** Immutable provenance required to undo one specific AI file edit. */
+export interface FileEditUndoTarget {
+  fileId: string;
+  beforeVersionNumber: number;
+  expectedAfterUpdatedAt: string;
 }
 
 // ==================== Text Quote ====================

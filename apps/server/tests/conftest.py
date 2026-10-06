@@ -9,7 +9,9 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine
 from sqlalchemy import text as Custom
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
 from sqlmodel import Session, SQLModel
 
 from database import get_session
@@ -39,6 +41,25 @@ TestSessionLocal = sessionmaker(
     class_=Session,
     expire_on_commit=False
 )
+
+
+@pytest.fixture(scope="module", autouse=True)
+def isolated_serial_postgres_schema():
+    """Keep the explicitly owned serial-PG lane independent between modules."""
+    url = os.getenv("ZENSTORY_TEST_POSTGRES_URL")
+    if not url or url != os.getenv("DATABASE_URL") or make_url(url).get_backend_name() != "postgresql":
+        yield
+        return
+
+    engine = create_engine(url, poolclass=NullPool)
+    try:
+        SQLModel.metadata.drop_all(engine)
+        try:
+            yield
+        finally:
+            SQLModel.metadata.drop_all(engine)
+    finally:
+        engine.dispose()
 
 
 @pytest.fixture(scope="session", autouse=True)

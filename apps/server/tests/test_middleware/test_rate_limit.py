@@ -50,9 +50,12 @@ def _clear_rate_limit_store(monkeypatch):
     monkeypatch.delenv("REDIS_URL", raising=False)
     monkeypatch.delenv("RATE_LIMIT_REDIS_PREFIX", raising=False)
     monkeypatch.setattr(rate_limit_module, "_redis_retry_after_monotonic", 0.0)
+    monkeypatch.setattr(rate_limit_module, "_rate_limit_last_prune_monotonic", 0.0)
     _rate_limit_store.clear()
+    rate_limit_module._rate_limit_store_expirations.clear()
     yield
     _rate_limit_store.clear()
+    rate_limit_module._rate_limit_store_expirations.clear()
 
 
 @pytest.fixture
@@ -666,3 +669,56 @@ def test_build_redis_rate_key_uses_custom_prefix(monkeypatch):
     monkeypatch.setenv("RATE_LIMIT_REDIS_PREFIX", "zenstory_rl")
     key = rate_limit_module._build_redis_rate_key("auth_login_ip:198.51.100.50")
     assert key == "zenstory_rl:auth_login_ip:198.51.100.50"
+
+
+@pytest.mark.unit
+def test_memory_rate_limit_prunes_expired_keys_using_each_bucket_window(monkeypatch):
+    clock = {"wall": 1_000.0, "monotonic": 0.0}
+    monkeypatch.setattr(
+        rate_limit_module,
+        "time",
+        SimpleNamespace(time=lambda: clock["wall"], monotonic=lambda: clock["monotonic"]),
+    )
+    monkeypatch.setattr(rate_limit_module, "_RATE_LIMIT_MEMORY_MAX_KEYS", 10, raising=False)
+    monkeypatch.setattr(rate_limit_module, "_RATE_LIMIT_PRUNE_INTERVAL_SECONDS", 10.0, raising=False)
+    monkeypatch.setattr(rate_limit_module, "_rate_limit_last_prune_monotonic", 0.0, raising=False)
+
+    short = _build_request(client_host="198.51.100.1")
+    long = _build_request(client_host="198.51.100.2")
+    assert check_rate_limit(short, "login", 5, 10) == (True, 4)
+    assert check_rate_limit(long, "login", 5, 100) == (True, 4)
+
+    clock.update(wall=1_011.0, monotonic=11.0)
+    newcomer = _build_request(client_host="198.51.100.3")
+    assert check_rate_limit(newcomer, "login", 5, 60) == (True, 4)
+
+    assert "login:198.51.100.1" not in _rate_limit_store
+    assert "login:198.51.100.2" in _rate_limit_store
+    assert set(_rate_limit_store) == {"login:198.51.100.2", "login:198.51.100.3"}
+
+
+@pytest.mark.unit
+def test_memory_rate_limit_hard_cap_fails_closed_and_expired_keys_are_reclaimed(monkeypatch):
+    clock = {"wall": 2_000.0, "monotonic": 0.0}
+    monkeypatch.setattr(
+        rate_limit_module,
+        "time",
+        SimpleNamespace(time=lambda: clock["wall"], monotonic=lambda: clock["monotonic"]),
+    )
+    monkeypatch.setattr(rate_limit_module, "_RATE_LIMIT_MEMORY_MAX_KEYS", 32, raising=False)
+    monkeypatch.setattr(rate_limit_module, "_RATE_LIMIT_PRUNE_INTERVAL_SECONDS", 10.0, raising=False)
+    monkeypatch.setattr(rate_limit_module, "_rate_limit_last_prune_monotonic", 0.0, raising=False)
+
+    for index in range(1, 33):
+        request = _build_request(client_host=f"198.51.100.{index}")
+        assert check_rate_limit(request, "login", 2, 60) == (True, 1)
+    assert len(_rate_limit_store) == 32
+
+    overflow = _build_request(client_host="198.51.100.100")
+    assert check_rate_limit(overflow, "login", 2, 60) == (False, 0)
+    assert len(_rate_limit_store) == 32
+    assert "login:198.51.100.100" not in _rate_limit_store
+
+    clock.update(wall=2_061.0, monotonic=11.0)
+    assert check_rate_limit(overflow, "login", 2, 60) == (True, 1)
+    assert set(_rate_limit_store) == {"login:198.51.100.100"}

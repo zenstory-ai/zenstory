@@ -235,11 +235,17 @@ class IngestionJobsService:
         Mark ``job`` failed with an error code and refund its quota when the code is
         refundable and the job still holds a charged unit.
 
-        With ``only_if_unchanged`` the write is a compare-and-set on the loaded
-        ``status``/``updated_at``: concurrent readers reconciling the same job
-        cannot both win, so the refund happens at most once. Returns False when
-        another writer changed the job first.
+        The transition always compares the exact loaded snapshot. Watchdog
+        callers set ``only_if_unchanged`` to avoid retrying after fresh progress;
+        flow failures may retry once after a concurrent progress update.
+        Refund settlement is a separate atomic transaction: exceptions leave
+        the failed job charged so the next read can retry safely.
         """
+        if job.status in TERMINAL_JOB_STATUSES:
+            if job.status == "failed":
+                self._settle_job_refund(session, job)
+            return False
+
         now = utcnow()
         progress = _load_stage_progress(job.stage_progress)
         progress["watchdog" if stage in {"dispatch_timeout", "processing_timeout"} else "failed"] = {
@@ -247,15 +253,6 @@ class IngestionJobsService:
             "timestamp": now.isoformat(),
             "reason": reason,
         }
-        billing = progress.get(BILLING_KEY)
-        billing = dict(billing) if isinstance(billing, dict) else {}
-        refund = error_code in REFUNDABLE_JOB_ERROR_CODES and billing.get("quota_charged") is True
-        if refund:
-            billing.update(
-                {"quota_charged": False, "quota_refunded": True, "refund_reason": error_code}
-            )
-            progress[BILLING_KEY] = billing
-
         error_details = {"stage": stage, "error_code": error_code, **(details or {})}
         values = {
             "status": "failed",
@@ -265,63 +262,84 @@ class IngestionJobsService:
             "completed_at": now,
             "updated_at": now,
         }
-        statement = update(IngestionJob).where(IngestionJob.id == job.id)
-        if only_if_unchanged:
-            statement = statement.where(IngestionJob.status == job.status)
-            if job.updated_at is not None:
-                statement = statement.where(IngestionJob.updated_at == job.updated_at)
-        result = session.exec(statement.values(**values))
+        statement = update(IngestionJob).where(
+            IngestionJob.id == job.id,
+            IngestionJob.status == job.status,
+            IngestionJob.updated_at == job.updated_at,
+            IngestionJob.stage_progress == job.stage_progress,
+        )
+        result = session.exec(statement.values(**values).execution_options(synchronize_session=False))
         if result.rowcount != 1:
             session.rollback()
             session.refresh(job)
+            if not only_if_unchanged:
+                return self.fail_job(
+                    session, job, error_code=error_code, stage=stage, reason=reason,
+                    details=details, only_if_unchanged=True,
+                )
+            if job.status == "failed":
+                self._settle_job_refund(session, job)
             return False
         session.commit()
-
-        if refund:
-            self._release_job_quota(session, job)
         session.refresh(job)
+        self._settle_job_refund(session, job)
         return True
 
-    def _release_job_quota(self, session: Session, job: IngestionJob) -> None:
+    def _settle_job_refund(self, session: Session, job: IngestionJob) -> None:
+        """Commit quota release and the exact failed job's billing together."""
+        billing = self.get_billing(job)
+        if (
+            job.status != "failed" or job.error_message not in REFUNDABLE_JOB_ERROR_CODES
+            or billing.get("quota_charged") is not True
+        ):
+            return
+
+        old_progress, old_updated = job.stage_progress, job.updated_at
+        try:
+            refunded = self._release_job_quota(session, job)
+            progress = _load_stage_progress(old_progress)
+            billing.update(
+                quota_charged=False, quota_refunded=refunded, refund_reason=job.error_message,
+            )
+            progress[BILLING_KEY] = billing
+            result = session.exec(
+                update(IngestionJob).where(
+                    IngestionJob.id == job.id,
+                    IngestionJob.status == "failed",
+                    IngestionJob.error_message == job.error_message,
+                    IngestionJob.updated_at == old_updated,
+                    IngestionJob.stage_progress == old_progress,
+                ).values(
+                    stage_progress=json.dumps(progress, ensure_ascii=False), updated_at=utcnow(),
+                ).execution_options(synchronize_session=False)
+            )
+            if result.rowcount != 1:
+                session.rollback()
+            else:
+                session.commit()
+        except Exception:
+            session.rollback()
+            logger.error("Failed to settle material quota refund: job_id=%s", job.id, exc_info=True)
+        session.refresh(job)
+
+    def _release_job_quota(self, session: Session, job: IngestionJob) -> bool:
         from services.quota_service import quota_service
 
         novel = session.get(Novel, job.novel_id)
         if novel is None:
-            return
+            return False
         billing = self.get_billing(job)
         raw_period_start = billing.get("quota_period_start")
         period_start = None
         consumed_at = job.created_at if raw_period_start is None else None
         if raw_period_start is not None:
             if not isinstance(raw_period_start, str):
-                logger.error(
-                    "Invalid material quota period type: job_id=%s",
-                    job.id,
-                )
-                return
-            try:
-                period_start = datetime.fromisoformat(raw_period_start.replace("Z", "+00:00"))
-            except ValueError:
-                logger.error(
-                    "Invalid material quota period timestamp: job_id=%s",
-                    job.id,
-                )
-                return
-        try:
-            quota_service.release_feature_quota(
-                session,
-                novel.user_id,
-                MATERIAL_DECOMPOSE_FEATURE,
-                period_start=period_start,
-                consumed_at=consumed_at,
-            )
-        except Exception:
-            session.rollback()
-            logger.error(
-                "Failed to refund material quota for failed job: job_id=%s",
-                job.id,
-                exc_info=True,
-            )
+                raise ValueError("Invalid material quota period type")
+            period_start = datetime.fromisoformat(raw_period_start.replace("Z", "+00:00"))
+        return quota_service.release_feature_quota(
+            session, novel.user_id, MATERIAL_DECOMPOSE_FEATURE,
+            period_start=period_start, consumed_at=consumed_at, commit=False,
+        )
 
     def reconcile_stale_job(self, session: Session, job: IngestionJob) -> IngestionJob:
         """
@@ -332,6 +350,10 @@ class IngestionJobsService:
         crashed mid-run) become failed, refund their quota, and can be retried.
         A flow run that starts after its job was reconciled exits without work.
         """
+        if job.status == "failed":
+            self._settle_job_refund(session, job)
+            return job
+
         now = utcnow()
         last_updated = job.updated_at or job.created_at or now
         if getattr(last_updated, "tzinfo", None) is None and getattr(now, "tzinfo", None) is not None:

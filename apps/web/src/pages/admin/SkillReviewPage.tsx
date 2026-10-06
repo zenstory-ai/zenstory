@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { LazyMarkdown } from "../../components/LazyMarkdown";
 import { Check, X, Zap, ChevronDown, ChevronUp, AlertTriangle, RefreshCw, EyeOff, FileText } from "lucide-react";
@@ -6,6 +6,7 @@ import { AdminPageState, AdminSelect } from "../../components/admin";
 import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import { adminApi, type PendingSkill, type SkillReviewResource, type SkillReviewStatus } from "../../lib/adminApi";
 import { getLocaleCode } from "../../lib/i18n-helpers";
+import { parseUTCDate } from "../../lib/dateUtils";
 import { logger } from "../../lib/logger";
 
 export default function SkillReviewPage() {
@@ -22,22 +23,36 @@ export default function SkillReviewPage() {
   const [statusFilter, setStatusFilter] = useState<SkillReviewStatus>("pending");
   const [decisionError, setDecisionError] = useState<string | null>(null);
 
+  const reviewOwnerRef = useRef<{ status: SkillReviewStatus } | null>(null);
+  const listRequestSeqRef = useRef(0);
+
+  useEffect(() => {
+    const owner = { status: statusFilter };
+    reviewOwnerRef.current = owner;
+    return () => {
+      if (reviewOwnerRef.current === owner) reviewOwnerRef.current = null;
+    };
+  }, [statusFilter]);
+
   const loadPendingSkills = useCallback(async (showLoadingIndicator = true) => {
+    const owner = reviewOwnerRef.current;
+    if (!owner || owner.status !== statusFilter) return;
+    const requestSeq = ++listRequestSeqRef.current;
+    const isCurrent = () => reviewOwnerRef.current === owner && listRequestSeqRef.current === requestSeq;
     setLoadError(null);
     try {
       if (showLoadingIndicator) {
         setLoading(true);
       }
       const data = await adminApi.getPendingSkills(statusFilter);
-      setSkills(Array.isArray(data) ? data : []);
+      if (isCurrent()) setSkills(Array.isArray(data) ? data : []);
     } catch (error) {
+      if (!isCurrent()) return;
       logger.error("Failed to load pending skills:", error);
       const fallbackError = t("admin:dashboard.loadError", "加载失败，请重试");
       setLoadError(error instanceof Error && error.message ? error.message : fallbackError);
     } finally {
-      if (showLoadingIndicator) {
-        setLoading(false);
-      }
+      if (isCurrent()) setLoading(false);
     }
   }, [statusFilter, t]);
 
@@ -46,29 +61,38 @@ export default function SkillReviewPage() {
   }, [loadPendingSkills]);
 
   const handleApprove = async (skillId: string) => {
+    const owner = reviewOwnerRef.current;
+    if (!owner) return;
     try {
       setProcessingId(skillId);
       setDecisionError(null);
       await adminApi.approveSkill(skillId);
+      if (reviewOwnerRef.current !== owner) return;
       setSkills((prev) => prev.filter((s) => s.id !== skillId));
       // Refresh without loading indicator to avoid flashing
       await loadPendingSkills(false);
     } catch (error) {
       logger.error("Failed to approve skill:", error);
+      if (reviewOwnerRef.current !== owner) return;
       setDecisionError(error instanceof Error && error.message
         ? error.message
         : t("admin:skills.decisionFailed", "操作失败，请重试"));
     } finally {
-      setProcessingId(null);
-      setApprovingId(null);
+      if (reviewOwnerRef.current === owner) {
+        setProcessingId(null);
+        setApprovingId(null);
+      }
     }
   };
 
   const handleReject = async (skillId: string) => {
+    const owner = reviewOwnerRef.current;
+    if (!owner) return;
     try {
       setProcessingId(skillId);
       setDecisionError(null);
       await adminApi.rejectSkill(skillId, rejectReason || undefined);
+      if (reviewOwnerRef.current !== owner) return;
       setSkills((prev) => prev.filter((s) => s.id !== skillId));
       setRejectingId(null);
       setRejectReason("");
@@ -76,30 +100,35 @@ export default function SkillReviewPage() {
       await loadPendingSkills(false);
     } catch (error) {
       logger.error("Failed to reject skill:", error);
+      if (reviewOwnerRef.current !== owner) return;
       setDecisionError(error instanceof Error && error.message
         ? error.message
         : t("admin:skills.decisionFailed", "操作失败，请重试"));
     } finally {
-      setProcessingId(null);
+      if (reviewOwnerRef.current === owner) setProcessingId(null);
     }
   };
 
   const handleUnpublish = async (skillId: string) => {
+    const owner = reviewOwnerRef.current;
+    if (!owner) return;
     try {
       setProcessingId(skillId);
       setDecisionError(null);
       await adminApi.unpublishSkill(skillId, unpublishReason || undefined);
+      if (reviewOwnerRef.current !== owner) return;
       setSkills((prev) => prev.filter((s) => s.id !== skillId));
       setUnpublishingId(null);
       setUnpublishReason("");
       await loadPendingSkills(false);
     } catch (error) {
       logger.error("Failed to unpublish skill:", error);
+      if (reviewOwnerRef.current !== owner) return;
       setDecisionError(error instanceof Error && error.message
         ? error.message
         : t("admin:skills.decisionFailed", "操作失败，请重试"));
     } finally {
-      setProcessingId(null);
+      if (reviewOwnerRef.current === owner) setProcessingId(null);
     }
   };
 
@@ -120,7 +149,18 @@ export default function SkillReviewPage() {
 
       <AdminSelect
         value={statusFilter}
-        onChange={(event) => setStatusFilter(event.target.value as SkillReviewStatus)}
+        onChange={(event) => {
+          setStatusFilter(event.target.value as SkillReviewStatus);
+          setSkills([]);
+          setLoadError(null);
+          setDecisionError(null);
+          setProcessingId(null);
+          setApprovingId(null);
+          setRejectingId(null);
+          setRejectReason("");
+          setUnpublishingId(null);
+          setUnpublishReason("");
+        }}
         aria-label={t("admin:skills.statusFilter", "审核状态")}
       >
         <option value="pending">{t("admin:skills.pending", "待审核")}</option>
@@ -292,7 +332,7 @@ function SkillReviewCard({
               </span>
             )}
             <span className="text-xs text-[hsl(var(--text-tertiary))]">
-              {new Date(skill.created_at).toLocaleDateString(getLocaleCode())}
+              {parseUTCDate(skill.created_at).toLocaleDateString(getLocaleCode())}
             </span>
           </div>
         </div>
@@ -345,7 +385,7 @@ function SkillReviewCard({
         <div className="mt-3 rounded-lg bg-[hsl(var(--bg-tertiary))] p-3 text-xs text-[hsl(var(--text-secondary))]">
           <p>{t("admin:skills.status", "状态")}: {skill.status}</p>
           <p>{t("admin:skills.reviewedBy", "审核人")}: {skill.reviewer_name || skill.reviewed_by || "-"}</p>
-          <p>{t("admin:skills.reviewedAt", "审核时间")}: {skill.reviewed_at ? new Date(skill.reviewed_at).toLocaleString(getLocaleCode()) : "-"}</p>
+          <p>{t("admin:skills.reviewedAt", "审核时间")}: {skill.reviewed_at ? parseUTCDate(skill.reviewed_at).toLocaleString(getLocaleCode()) : "-"}</p>
           {skill.rejection_reason && (
             <p>
               {skill.status === "unpublished"
@@ -390,6 +430,8 @@ function SkillReviewMaterials({
   useEffect(() => {
     if (resourceCount === 0) return;
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setResourcesError(null);
     adminApi.getSkillReviewResources(skill.id)
       .then((items) => {
         if (!cancelled) setResources(items);
@@ -537,7 +579,7 @@ function ReasonModal({
   const { t } = useTranslation(["admin", "common"]);
 
   return (
-    <div className="modal-overlay flex items-center justify-center p-4" onClick={onCancel}>
+    <div className="modal-overlay flex items-center justify-center p-4" onClick={() => { if (!processing) onCancel(); }}>
       <div className="modal w-full max-w-md animate-scale-in" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-lg font-semibold text-[hsl(var(--text-primary))] mb-4">
           {title}
@@ -558,7 +600,7 @@ function ReasonModal({
           />
         </div>
         <div className="flex gap-3">
-          <button onClick={onCancel} className="btn-ghost flex-1 h-11">
+          <button onClick={onCancel} disabled={processing} className="btn-ghost flex-1 h-11">
             {t("common:cancel")}
           </button>
           <button

@@ -18,6 +18,7 @@ import json as json_module
 import logging
 import os
 import time
+from threading import RLock
 from typing import Any
 
 from services.infra.redis_client import get_redis_client
@@ -31,6 +32,7 @@ _DEFAULT_REDIS_PREFIX = "dashboard_cache"
 _memory_cache: dict[str, tuple[float, str]] = {}
 # In-process version store: version_key -> version int
 _memory_versions: dict[str, int] = {}
+_memory_lock = RLock()
 
 _memory_last_prune_monotonic: float = 0.0
 _MEMORY_PRUNE_INTERVAL_SECONDS = 60.0
@@ -105,44 +107,46 @@ def _record_redis_failure(error: Exception, *, operation: str) -> None:
 
 
 def _memory_get(key: str) -> str | None:
-    record = _memory_cache.get(key)
-    if not record:
-        return None
-    expires_at, payload = record
-    if time.monotonic() >= expires_at:
-        _memory_cache.pop(key, None)
-        return None
-    return payload
+    with _memory_lock:
+        record = _memory_cache.get(key)
+        if not record:
+            return None
+        expires_at, payload = record
+        if time.monotonic() >= expires_at:
+            _memory_cache.pop(key, None)
+            return None
+        return payload
 
 
 def _memory_set(key: str, payload: str, ttl_seconds: int) -> None:
     global _memory_last_prune_monotonic
 
-    now = time.monotonic()
+    with _memory_lock:
+        now = time.monotonic()
 
-    if ttl_seconds <= 0:
-        _memory_cache.pop(key, None)
-        return
+        if ttl_seconds <= 0:
+            _memory_cache.pop(key, None)
+            return
 
-    _memory_cache[key] = (now + ttl_seconds, payload)
+        _memory_cache[key] = (now + ttl_seconds, payload)
 
-    # Best-effort pruning to avoid unbounded growth when running without Redis.
-    should_prune = False
-    if len(_memory_cache) > _MEMORY_MAX_ENTRIES or (now - _memory_last_prune_monotonic) >= _MEMORY_PRUNE_INTERVAL_SECONDS:
-        should_prune = True
+        # Best-effort pruning to avoid unbounded growth when running without Redis.
+        should_prune = False
+        if len(_memory_cache) > _MEMORY_MAX_ENTRIES or (now - _memory_last_prune_monotonic) >= _MEMORY_PRUNE_INTERVAL_SECONDS:
+            should_prune = True
 
-    if not should_prune:
-        return
+        if not should_prune:
+            return
 
-    _memory_last_prune_monotonic = now
-    expired_keys = [k for k, (expires_at, _v) in _memory_cache.items() if expires_at <= now]
-    for expired in expired_keys:
-        _memory_cache.pop(expired, None)
+        _memory_last_prune_monotonic = now
+        expired_keys = [k for k, (expires_at, _v) in _memory_cache.items() if expires_at <= now]
+        for expired in expired_keys:
+            _memory_cache.pop(expired, None)
 
-    # Hard cap: if still too large (e.g. many active keys), evict arbitrary
-    # entries (FIFO-ish because dict preserves insertion order).
-    while len(_memory_cache) > _MEMORY_MAX_ENTRIES:
-        _memory_cache.pop(next(iter(_memory_cache)), None)
+        # Hard cap: if still too large (e.g. many active keys), evict arbitrary
+        # entries (FIFO-ish because dict preserves insertion order).
+        while len(_memory_cache) > _MEMORY_MAX_ENTRIES:
+            _memory_cache.pop(next(iter(_memory_cache)), None)
 
 
 def get_json(key: str) -> dict[str, Any] | list[Any] | None:
@@ -252,7 +256,8 @@ def get_project_version(user_id: str, project_id: str) -> int:
             except ValueError:
                 return 1
 
-    return max(1, int(_memory_versions.get(version_key, 1)))
+    with _memory_lock:
+        return max(1, int(_memory_versions.get(version_key, 1)))
 
 
 def bump_project_version(user_id: str, project_id: str) -> int:
@@ -280,9 +285,10 @@ def bump_project_version(user_id: str, project_id: str) -> int:
         except Exception as exc:  # pragma: no cover - infra dependent
             _record_redis_failure(exc, operation="bump_version")
 
-    new_version = int(_memory_versions.get(version_key, 1)) + 1
-    _memory_versions[version_key] = new_version
-    return new_version
+    with _memory_lock:
+        new_version = int(_memory_versions.get(version_key, 1)) + 1
+        _memory_versions[version_key] = new_version
+        return new_version
 
 
 __all__ = [

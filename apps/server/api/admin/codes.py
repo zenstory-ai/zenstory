@@ -6,7 +6,7 @@ This module contains all redemption code management endpoints for admin operatio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlmodel import Session, func, select
+from sqlmodel import Session, col, func, select
 
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
@@ -106,7 +106,7 @@ def list_codes(
     total = session.exec(count_query).one()
 
     # Apply pagination
-    query = query.order_by(RedemptionCode.created_at.desc())
+    query = query.order_by(col(RedemptionCode.created_at).desc(), col(RedemptionCode.id).desc())
     query = query.offset((page - 1) * page_size).limit(page_size)
 
     codes = session.exec(query).all()

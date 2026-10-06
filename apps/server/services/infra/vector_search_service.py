@@ -642,16 +642,16 @@ class LlamaIndexService:
         Returns:
             LlamaIndex Document
         """
-        # Build metadata
+        # User extras cannot replace authoritative file identity.
         metadata = {
+            key: _to_indexable_metadata_value(value)
+            for key, value in (extra_metadata or {}).items()
+        }
+        metadata.update({
             "entity_type": entity_type,
             "entity_id": entity_id,
             "title": title,
-        }
-        if extra_metadata:
-            metadata.update(
-                {key: _to_indexable_metadata_value(value) for key, value in extra_metadata.items()}
-            )
+        })
 
         # Combine title and content for better retrieval
         text = f"# {title}\n\n{content}" if content else f"# {title}"
@@ -664,14 +664,8 @@ class LlamaIndexService:
 
     def _file_to_document(self, file: File) -> Document:
         """Convert File entity to Document."""
-        # Parse file_metadata if present
         extra_metadata = {"parent_id": file.parent_id}
-        if file.file_metadata:
-            try:
-                parsed_meta = json.loads(file.file_metadata)
-                extra_metadata.update(parsed_meta)
-            except (json.JSONDecodeError, TypeError):
-                pass
+        extra_metadata.update(file.get_metadata())
 
         return self._entity_to_document(
             entity_type=file.file_type,
@@ -891,24 +885,22 @@ class LlamaIndexService:
         Returns:
             True if entity belongs to project and is not deleted, False otherwise
         """
-        file = session.get(File, entity_id)
-        if file is None:
+        row = session.exec(
+            select(File.project_id, File.is_deleted, File.file_type)
+            .where(col(File.id) == entity_id)
+        ).first()
+        if row is None:
+            return False
+        file_project_id, is_deleted, file_type = row
+
+        # Compare as strings to handle UUID vs string comparison.
+        if str(file_project_id) != str(project_id):
+            return False
+        if is_deleted or file_type == "folder":
             return False
 
-        # Compare as strings to handle UUID vs string comparison
-        if str(file.project_id) != str(project_id):
-            return False
-
-        if file.is_deleted:
-            return False
-
-        # Folders are intentionally excluded from semantic search index/results.
-        if file.file_type == "folder":
-            return False
-
-        # 防御性校验：索引中的 entity_type 必须与数据库真实 file_type 一致。
         normalized_entity_type = (entity_type or "").strip().lower()
-        normalized_file_type = (file.file_type or "").strip().lower()
+        normalized_file_type = (file_type or "").strip().lower()
         return not (normalized_entity_type and normalized_entity_type != normalized_file_type)
 
     @staticmethod

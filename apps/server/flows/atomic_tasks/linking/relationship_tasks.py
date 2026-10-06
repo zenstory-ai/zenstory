@@ -9,11 +9,13 @@
 from typing import Any
 
 from prefect import get_run_logger
+from sqlmodel import col, select
 
 from flows.database_session import get_prefect_db_session
 from flows.utils.clients import LLMResponse, call_deepseek_api, get_deepseek_client
 from flows.utils.decorators import api_task, database_task
 from flows.utils.validators import validate_relationships_response
+from models.material_models import Chapter
 from prompts import create_relationship_extraction_prompt
 
 DEFAULT_RELATIONSHIP_BATCH_SIZE = 5
@@ -48,11 +50,17 @@ def extract_character_relationships_task(
 
     # 1. 获取所有章节（会话内转为字典，避免 DetachedInstanceError）
     with get_prefect_db_session() as session:
-        from services.material.chapters_service import ChaptersService
-        chapters_orm = ChaptersService().list_by_novel_ordered(session, novel_id, chapter_ids)
+        statement = (
+            select(Chapter.id, Chapter.chapter_number, Chapter.title)
+            .where(Chapter.novel_id == novel_id)
+            .order_by(col(Chapter.chapter_number))
+        )
+        if chapter_ids:
+            statement = statement.where(col(Chapter.id).in_(chapter_ids))
+        chapter_rows = session.exec(statement).all()
         chapters = [
             {"id": ch.id, "chapter_number": ch.chapter_number, "title": ch.title}
-            for ch in chapters_orm
+            for ch in chapter_rows
         ]
         total_chapters = len(chapters)
         chapter_number_by_id = {c["id"]: c["chapter_number"] for c in chapters}
