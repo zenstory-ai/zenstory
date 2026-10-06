@@ -142,6 +142,7 @@ class ErrorCode:
     SUBSCRIPTION_NOT_FOUND = "ERR_SUBSCRIPTION_NOT_FOUND"
     SUBSCRIPTION_EXPIRED = "ERR_SUBSCRIPTION_EXPIRED"
     FEATURE_NOT_INCLUDED = "ERR_FEATURE_NOT_INCLUDED"
+    PAYMENT_SYNC_FAILED = "ERR_PAYMENT_SYNC_FAILED"
 
     # ==================== Quota Errors (11xxx) ====================
 
@@ -270,6 +271,7 @@ ERROR_MESSAGES = {
         "ERR_SUBSCRIPTION_NOT_FOUND": "订阅不存在",
         "ERR_SUBSCRIPTION_EXPIRED": "订阅已过期",
         "ERR_FEATURE_NOT_INCLUDED": "当前套餐暂不包含该功能",
+        "ERR_PAYMENT_SYNC_FAILED": "暂时无法向支付平台查询订单，请稍后刷新",
 
         "ERR_QUOTA_EXCEEDED": "配额已用尽",
         "ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED": "AI 对话次数已达上限",
@@ -386,6 +388,7 @@ ERROR_MESSAGES = {
         "ERR_SUBSCRIPTION_NOT_FOUND": "Subscription not found",
         "ERR_SUBSCRIPTION_EXPIRED": "Subscription has expired",
         "ERR_FEATURE_NOT_INCLUDED": "This feature is not included in the current plan",
+        "ERR_PAYMENT_SYNC_FAILED": "Could not check the order with the payment provider. Refresh later.",
 
         "ERR_QUOTA_EXCEEDED": "Quota exceeded",
         "ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED": "AI conversation limit reached",

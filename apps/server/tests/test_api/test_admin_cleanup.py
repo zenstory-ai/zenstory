@@ -237,6 +237,29 @@ def test_admin_quota_view_keeps_usage_inside_current_beijing_periods(
     assert bare_view["material_decompositions"]["used"] == 0
 
 
+@pytest.mark.parametrize(
+    ("plan_name", "features"),
+    [("pro", {}), ("pro", {"ai_conversations_per_day": 80}), ("free", {"ai_conversations_per_day": 7})],
+)
+def test_admin_quota_view_ai_limit_is_the_enforced_limit(
+    db_session: Session, plan_name: str, features: dict
+):
+    plan = make_plan(db_session, plan_name, features)
+    user = make_user(db_session, f"quota_view_ai_{plan_name}_{len(features)}")
+    now = datetime.now(UTC).replace(tzinfo=None)
+    db_session.add(UserSubscription(
+        user_id=user.id, plan_id=plan.id, status="active",
+        current_period_start=now - timedelta(days=1), current_period_end=now + timedelta(days=29),
+    ))
+    db_session.commit()
+
+    _, _, enforced_limit = quota_service.check_ai_conversation_quota(db_session, user.id)
+    view = quota_service.get_admin_quota_view(db_session, user.id)
+
+    assert view["ai_conversations"]["limit"] == enforced_limit
+    assert quota_service.get_quota_snapshot(db_session, user.id)["ai_conversations"]["limit"] == enforced_limit
+
+
 @pytest.mark.integration
 async def test_quota_usage_totals_skip_stale_periods(client: AsyncClient, db_session: Session):
     admin = make_user(db_session, "quota_totals_admin", admin=True)

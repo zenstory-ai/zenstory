@@ -127,6 +127,10 @@ class QuotaService:
             return resolve_plan_feature("free", None, key, fallback)
         return resolve_plan_feature(plan.name, plan.features, key, fallback)
 
+    def get_ai_conversation_limit(self, plan: SubscriptionPlan | None) -> int:
+        """Daily AI conversation limit (-1 = unlimited) for checks, charges and quota views."""
+        return int(self.get_plan_feature(plan, "ai_conversations_per_day"))
+
     def count_custom_skills(self, session: Session, user_id: str) -> int:
         return int(
             session.exec(
@@ -272,7 +276,7 @@ class QuotaService:
         - limit: daily limit (-1 for unlimited)
         """
         plan = self.get_user_plan(session, user_id)
-        limit = self.get_plan_feature(plan, "ai_conversations_per_day")
+        limit = self.get_ai_conversation_limit(plan)
 
         # Reset quota if needed
         quota = self._get_or_create_quota(session, user_id)
@@ -307,7 +311,7 @@ class QuotaService:
         # Refresh to ensure latest values after possible reset commits.
         session.refresh(quota)
 
-        ai_limit = self.get_plan_feature(plan, "ai_conversations_per_day")
+        ai_limit = self.get_ai_conversation_limit(plan)
         snapshot = {
             "ai_conversations": {
                 "used": quota.ai_conversations_used,
@@ -394,7 +398,7 @@ class QuotaService:
         the request/response timestamp. None means the quota was exceeded.
         """
         plan = self.get_user_plan(session, user_id)
-        limit = self.get_plan_feature(plan, "ai_conversations_per_day")
+        limit = self.get_ai_conversation_limit(plan)
 
         quota = self._get_or_create_quota(session, user_id)
         self._reset_quota_if_needed(session, quota)

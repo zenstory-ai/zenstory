@@ -171,7 +171,7 @@ def sync_payment_order(
     )
     if error is not None:
         raise APIException(
-            error_code="ERR_PAYMENT_SYNC_FAILED",
+            error_code=ErrorCode.PAYMENT_SYNC_FAILED,
             status_code=sync_error_status(error),
             detail=f"sync_failed:{error.reason}",
         )
