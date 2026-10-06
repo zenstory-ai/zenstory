@@ -174,8 +174,9 @@ describe('MessageList', () => {
     ]
     render(<MessageList messages={[createMessage({ role: 'assistant', content: '', displayItems })]} />)
     for (const marker of ['Choosing ordered agent', 'Ordered writer', 'Ordered control reply', 'workflow.taskCompleted', 'workflow.lowTurnWarning']) expect(screen.getByText(marker)).toBeInTheDocument()
-    expect(screen.getByText(/Plan then write/)).toBeInTheDocument()
-    expect(screen.getByText(/planner → writer/)).toBeInTheDocument()
+    expect(screen.getByText(/chat:workflow\.agents\.planner → chat:workflow\.agents\.writer/)).toBeInTheDocument()
+    expect(screen.queryByText(/Plan then write/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/planner → writer/)).not.toBeInTheDocument()
     expect(screen.queryByText('Not visible')).not.toBeInTheDocument()
   })
 

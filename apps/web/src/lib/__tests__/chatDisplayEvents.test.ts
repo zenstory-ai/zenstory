@@ -7,7 +7,7 @@ const tools: ToolCall[] = [
   { id: 'one', tool_name: 'query_files', arguments: {}, status: 'success', result: { items: [] } },
   { id: 'two', tool_name: 'edit_file', arguments: {}, status: 'error', error: 'Edit rejected' },
 ];
-const t = (key: string, options?: Record<string, unknown>) => `${key}:${options?.agent ?? ''}`;
+const t = (key: string, options?: Record<string, unknown>) => (options?.agent ? `${key}:${options.agent}` : key);
 
 describe('persisted chat display sequence', () => {
   it('retains multiple tool cycles and controls, resolving the final tool state at its original position', () => {
@@ -25,10 +25,21 @@ describe('persisted chat display sequence', () => {
     expect(items.map(item => item.type)).toEqual(['content', 'tool_calls', 'content', 'thinking_status', 'agent_selected', 'tool_calls', 'content', 'workflow_stopped']);
     expect(items[1].toolCalls).toEqual([tools[0]]);
     expect(items[5].toolCalls).toEqual([tools[1]]);
-    expect(items[3].content).toBe('chat:workflow.handoffMessage:writer');
+    expect(items[3].content).toBe('chat:workflow.handoffMessage:chat:workflow.agents.writer');
     expect(items[4].iteration).toBe(2);
     expect(items[7].question).toBe('Which ending?');
     expect(new Set(items.map(item => item.id)).size).toBe(events.length);
+  });
+
+  it('shows handoffs with the role name and drops handoffs to unknown internal ids', () => {
+    const events = [
+      { type: 'handoff', data: { target_agent: 'quality_reviewer', reason: '' } },
+      { type: 'handoff', data: { target_agent: 'mystery_agent', reason: 'Hidden' } },
+    ];
+    const items = parseChatDisplayEvents(JSON.stringify({ display_events: events }), tools, timestamp, t)!;
+    expect(items).toHaveLength(1);
+    expect(items[0].content).toBe('chat:workflow.handoffMessageShort:chat:workflow.agents.quality_reviewer');
+    expect(items[0].content).not.toContain('mystery_agent');
   });
 
   it('maps reasoning, routing, exhaustion and completion using the same fields as live callbacks', () => {

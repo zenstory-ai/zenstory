@@ -134,7 +134,14 @@
     "taskCompleted": "任务已完成",
     "stoppedGeneric": "AI 先停下了，可以补充说明后重新发送。",
     "stoppedTitle": "AI 已暂停",
-    "handoffMessage": "交接给 {{agent}}：{{reason}}",
+    "handoffMessage": "接下来由{{agent}}继续：{{reason}}",
+    "handoffMessageShort": "接下来由{{agent}}继续",
+    "agents": {
+      "planner": "大纲规划师",
+      "hook_designer": "爽点设计师",
+      "writer": "内容创作者",
+      "quality_reviewer": "质量审稿人"
+    },
     "parallelStart": "同时处理 {{count}} 项任务",
     "parallelStartTruncated": "同时处理 {{count}} 项任务（另有 {{dropped}} 项超出单次上限，这次没有执行）",
     "parallelTaskCompleted": "✓ {{description}}",

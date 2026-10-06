@@ -134,7 +134,14 @@
     "taskCompleted": "Task completed",
     "stoppedGeneric": "The AI paused. Add details and send again.",
     "stoppedTitle": "AI paused",
-    "handoffMessage": "Handing off to {{agent}}: {{reason}}",
+    "handoffMessage": "{{agent}} is taking over: {{reason}}",
+    "handoffMessageShort": "{{agent}} is taking over",
+    "agents": {
+      "planner": "Outline planner",
+      "hook_designer": "Hook designer",
+      "writer": "Writer",
+      "quality_reviewer": "Reviewer"
+    },
     "parallelStart": "Working on {{count}} tasks at once",
     "parallelStartTruncated": "Working on {{count}} tasks at once ({{dropped}} more were over the per-request limit and did not run this time)",
     "parallelTaskCompleted": "✓ {{description}}",

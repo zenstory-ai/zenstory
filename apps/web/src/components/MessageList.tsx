@@ -25,6 +25,7 @@ import { ThinkingContent } from './ThinkingContent';
 import type { AgentContextItem, ToolCall } from '../types';
 import { getLocaleCode } from '../lib/i18n-helpers';
 import { stripThinkTags } from '../lib/utils';
+import { getAgentDisplayName } from '../lib/agentDisplayName';
 import { useAuth } from '../contexts/AuthContext';
 import { useMobileLayout } from '../contexts/MobileLayoutContext';
 
@@ -342,6 +343,11 @@ function OrderedMessageItems({ items, onUndo, onIterationAssistAction, isStreami
 }) {
   const { t } = useTranslation(['chat']);
   const { isMobile } = useMobileLayout();
+  const translate = t as unknown as (key: string, options?: Record<string, unknown>) => string;
+  // Show role names (大纲规划师, 内容创作者...) instead of internal agent ids.
+  const agentLabel = (agentType?: string, agentName?: string) =>
+    getAgentDisplayName(agentType, translate)
+    ?? (agentName && agentName !== agentType ? agentName : null);
   return <>
   {items.map((item) => {
     if (item.type === 'thinking_status' && item.content) {
@@ -397,7 +403,7 @@ function OrderedMessageItems({ items, onUndo, onIterationAssistAction, isStreami
           <ContextItemsView items={item.items} />
         </div>
       );
-    } else if (item.type === 'agent_selected' && item.agentName) {
+    } else if (item.type === 'agent_selected' && agentLabel(item.agentType, item.agentName)) {
       // 6. agent_selected - Agent 选择提示
       const hasIteration = item.iteration !== undefined && item.maxIterations !== undefined;
       const isLowTurns = item.remaining !== undefined && item.remaining <= 2;
@@ -413,7 +419,7 @@ function OrderedMessageItems({ items, onUndo, onIterationAssistAction, isStreami
           }`}>
             <Bot size={12} className={isLowTurns ? 'text-[hsl(var(--warning))]' : 'text-[hsl(var(--accent-primary))]'} />
             <span className={`text-xs ${isLowTurns ? 'text-[hsl(var(--warning))]' : 'text-[hsl(var(--accent-primary))]'} ${isMobile ? 'truncate max-w-[120px]' : ''}`}>
-              {item.agentName}
+              {agentLabel(item.agentType, item.agentName)}
             </span>
             {hasIteration && (
               <span className={`text-xs ${isLowTurns ? 'text-[hsl(var(--warning))]' : 'text-[hsl(var(--text-secondary))]'}`}>
@@ -494,20 +500,17 @@ function OrderedMessageItems({ items, onUndo, onIterationAssistAction, isStreami
       );
     } else if (item.type === 'router_decided') {
       // router_decided - Router 决策完成
-      const workflowAgents = (item as { workflowAgents?: string[] }).workflowAgents;
-      const workflowPlan = (item as { workflowPlan?: string }).workflowPlan;
+      const plannedAgents = [item.initialAgent, ...(item.workflowAgents ?? [])];
+      const workflowSteps = plannedAgents
+        .map((agent) => getAgentDisplayName(agent, translate))
+        .filter((name, index, names): name is string => Boolean(name) && names.indexOf(name) === index);
       return (
         <div key={item.id} className="mb-2">
           <div className={`inline-flex items-center rounded-lg bg-[hsl(var(--success)/0.1)] border border-[hsl(var(--success)/0.2)] ${isMobile ? 'gap-1 px-2 py-0.5' : 'gap-1.5 px-2.5 py-1'}`}>
             <Bot size={12} className="text-[hsl(var(--success))]" />
             <span className="text-xs text-[hsl(var(--success))]">
-              {t('workflow.workflowLabel', { ns: 'chat' })}: {workflowPlan || t('workflow.singleMode', { ns: 'chat' })}
+              {t('workflow.workflowLabel', { ns: 'chat' })}: {workflowSteps.length > 0 ? workflowSteps.join(' → ') : t('workflow.singleMode', { ns: 'chat' })}
             </span>
-            {workflowAgents && workflowAgents.length > 0 && (
-              <span className="text-xs text-[hsl(var(--text-secondary))] truncate max-w-[150px]">
-                · {workflowAgents.join(' → ')}
-              </span>
-            )}
           </div>
         </div>
       );

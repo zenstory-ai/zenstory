@@ -907,6 +907,20 @@ describe('useChatStreaming', () => {
         expect(item.content).toContain('chat:workflow.handoffMessage')
       })
 
+      it('skips the handoff bubble when the target role is unknown', () => {
+        const { result } = renderHook(() => useChatStreaming())
+        const callbacks = result.current.getStreamCallbacks(createMockDeps())
+
+        act(() => {
+          callbacks.onHandoff?.({ target_agent: 'internal_debugger', reason: 'debug', context: '' })
+        })
+        act(() => {
+          vi.advanceTimersByTime(100)
+        })
+
+        expect(result.current.streamRenderItems).toHaveLength(0)
+      })
+
       it('does not add stream node for session_started (noise reduction)', () => {
         const { result } = renderHook(() => useChatStreaming())
         const deps = createMockDeps()

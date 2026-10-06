@@ -29,6 +29,7 @@ import { logger } from "../lib/logger";
 import { toast } from "../lib/toast";
 import { stripThinkTags } from "../lib/utils";
 import { dispatchProjectStatusUpdated } from "../lib/projectStatusEvents";
+import { formatHandoffMessage } from "../lib/agentDisplayName";
 import type { MessageSegment } from "./useAgentStream";
 
 /** Throttle delay for stream render updates in milliseconds */
@@ -1041,12 +1042,14 @@ export function useChatStreaming(): UseChatStreamingReturn {
          * Called when workflow handoff happens between agents
          */
         onHandoff: (data: SSEHandoffData) => {
+          const content = formatHandoffMessage(data, t);
+          if (!content) return;
           updateStreamItems((prev) => [
             ...prev,
             {
               type: "thinking_status",
               id: generateUniqueId("handoff"),
-              content: t('chat:workflow.handoffMessage', { agent: data.target_agent, reason: data.reason }),
+              content,
               timestamp: new Date(),
             },
           ]);

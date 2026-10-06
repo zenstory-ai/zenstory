@@ -1,5 +1,6 @@
 import type { StreamRenderItem } from '../hooks/useChatStreaming';
 import type { ToolCall } from '../types';
+import { formatHandoffMessage } from './agentDisplayName';
 
 /** Replay the sequence recorded by the server, not a guessed category order. */
 export function parseChatDisplayEvents(
@@ -41,9 +42,11 @@ export function parseChatDisplayEvents(
         case 'router_decided':
           items.push({ ...base, type: 'router_decided', initialAgent: data.initial_agent, workflowPlan: data.workflow_plan, workflowAgents: data.workflow_agents, routingMetadata: data.routing_metadata });
           break;
-        case 'handoff':
-          items.push({ ...base, type: 'thinking_status', content: t('chat:workflow.handoffMessage', { agent: data.target_agent, reason: data.reason }) });
+        case 'handoff': {
+          const content = formatHandoffMessage(data, t);
+          if (content) items.push({ ...base, type: 'thinking_status', content });
           break;
+        }
         case 'iteration_exhausted':
           items.push({ ...base, type: 'iteration_exhausted', layer: data.layer, iterationsUsed: data.iterations_used, maxIterations: data.max_iterations, reason: data.reason, lastAgent: data.last_agent });
           break;
