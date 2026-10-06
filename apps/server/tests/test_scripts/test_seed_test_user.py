@@ -6,10 +6,13 @@ explicitly; otherwise the regular E2E user only sees the paid teaser and every
 material-library spec finds zero material cards.
 """
 
+import importlib
+import os
+from unittest import mock
+
 import pytest
 from sqlmodel import Session, select
 
-import scripts.seed_test_user as seed
 from api.subscription import _normalize_plan_features_for_response
 from models import User
 from services.quota_service import quota_service
@@ -32,10 +35,19 @@ E2E_ENV_KEYS = (
 )
 
 
+def _import_seed_module():
+    # The script runs load_dotenv(".env.test") at import time. CI writes a
+    # REDIS_URL there, and leaking it into this worker's environment switches
+    # unrelated tests (steering) onto a Redis they cannot reach.
+    with mock.patch.dict(os.environ):
+        return importlib.import_module("scripts.seed_test_user")
+
+
 @pytest.fixture
 def seeded_session(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> Session:
     for key in E2E_ENV_KEYS:
         monkeypatch.delenv(key, raising=False)
+    seed = _import_seed_module()
     monkeypatch.setattr(seed, "sync_engine", test_engine)
     assert seed.main() == 0
     db_session.expire_all()

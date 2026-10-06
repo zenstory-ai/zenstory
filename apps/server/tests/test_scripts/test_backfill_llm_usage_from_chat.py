@@ -1,15 +1,22 @@
 """One-off backfill of agent chat usage into the llm_usage_event ledger."""
 
+import importlib
 import json
+import os
 from datetime import datetime
+from unittest import mock
 
 import pytest
 from sqlmodel import Session, select
 
 from models import ChatMessage, ChatSession, LLMUsageEvent, Project, User
-from scripts import backfill_llm_usage_from_chat as backfill_mod
 from services.usage.llm_usage_service import UsageTokens, build_usage_event
 from tests.conftest import TestSessionLocal
+
+# The script loads .env and defaults DATABASE_URL at import time; keep that
+# out of this worker's environment so other tests see the CI settings.
+with mock.patch.dict(os.environ):
+    backfill_mod = importlib.import_module("scripts.backfill_llm_usage_from_chat")
 
 
 def _usage_message(session_id: str, usage: dict | None, at: datetime, *, role: str = "assistant") -> ChatMessage:
