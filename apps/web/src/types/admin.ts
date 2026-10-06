@@ -446,7 +446,7 @@ export interface RewardsResponse {
  * 配额使用统计
  */
 export interface QuotaUsageStats {
-  /** Current monthly quota period (UTC month) */
+  /** Current monthly quota period (Beijing month) */
   period_start: string;
   period_end: string;
   material_decompositions: number;
