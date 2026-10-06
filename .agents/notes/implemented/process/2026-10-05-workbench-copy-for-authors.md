@@ -15,16 +15,18 @@ PR #139 删除了订阅页的微信 AIchuangzuo999 兑换码联系引导。owner
 - 付款异常的求助渠道统一为站内既有的 `support@zenstory.ai`；在线支付不可用时，提示（`dashboard:billing.paymentUnavailable` 与 `errors:ERR_PAYMENT_UNAVAILABLE`）指向「订阅权益」页的「兑换码」按钮。兑换码按钮、`?plan=pro` 自动打开兑换弹窗、`RedeemCodeModal` 全流程和 `settings:subscription.*` 兑换相关 key 均保留；兑换成功改为显示本地化的"兑换成功，本次兑换 {{days}} 天会员。"，不再显示后端英文 message。
 - `translateError`（`apps/web/src/lib/errorHandler.ts`）遇到没有翻译的 `ERR_*` 代码时返回 `errors:ERR_INTERNAL_SERVER_ERROR`；非代码文本仍原样返回。
 - 聊天面板不再渲染 `workflow.stopReason`、`workflow.viewTechnicalDetails` 和 `context.relevanceScore`，引用来源不显示内部 ID；对应 key 已删除。OAuth 回调页对非 `ERR_` 的提供方错误码和内部检查失败统一显示 `auth:errors.oauthFailed`。
+- 隐私政策 7.1「数据导出」（`apps/web/public/locales/{zh,en}/privacy.json` 的 `rights.dataExport.content`）改了实质内容，这是本次唯一改动的法律条文。原文写"我们提供便捷的导出功能，允许您以结构化格式下载数据"，并列出大纲、草稿、角色、世界观、聊天记录；但 `apps/server/api/export.py` 只有 `GET /projects/{id}/export/drafts`，只能把正文合并导出为 TXT，原文与现状不符。现文改为：项目中可直接将正文导出为 TXT；大纲、角色、世界观条目、聊天记录等其他数据，作者通过隐私政策中的邮箱（`support@zenstory.ai`）申请，我们以结构化格式提供。这一改动新增了一项运营义务：收到申请后要人工整理并以结构化格式交付这些数据，并受同节"收到请求后一个月内予以回复"的承诺约束。合并前需 owner 确认接受这项义务。隐私政策和服务条款的其他条文没有改动。
 - 元件中 `t(key, fallback)` 的 fallback 与 zh locale 保持一致；缺失的 key（如 `dashboard:projects.deleteConfirm`、`editor:saveFailed`、`admin:codes.confirmDeactivate`）已补齐中英文。
 
 ## Alternatives considered
 
 - **未知错误码继续原样返回**（原行为）。最强理由：原始代码便于用户截图反馈、便于排查。被否：作者看到 `ERR_*` 无法理解也无法行动；排查所需的 request ID 已经由后端错误响应和日志承载，不依赖界面显示代码。
 - **保留"查看技术详情"折叠区和停止原因**（原行为）。最强理由：默认折叠，不打扰大多数作者，又给好奇的用户留了线索。被否：内容是 Agent/工具调用上限等工程说明，对作者没有可执行的下一步；卡片上的"继续完成 / 拆成小步骤 / 我先手动改"三个操作已经覆盖恢复路径。
+- **隐私政策 7.1 保持原文不动**。最强理由：法律条文由 owner 定稿，文案 review 不应改动法律承诺，也不会新增任何运营义务。被否：原文承诺的"以结构化格式下载全部数据"的导出功能并不存在，继续展示等于对作者做出不实承诺；改成"正文可直接导出、其他数据邮件申请"与现状一致，同时保住作者取得全部数据的权利。
 - **保留首页"团队协作"套餐卡**（原状）。最强理由：为未来的团队版预热。被否：后端只有 free/pro 两档，也没有多人协作功能，属于未经验证的功能承诺。
 
 ## Consequences
 
 - 收益：作者能直接看懂每个页面能做什么、出了问题怎么恢复；界面不再出现内部代码、英文 fallback 或原始 key；文案与后端实际行为一致。
-- 代价：错误界面不再显示具体错误码，排查需要依赖后端日志与 request ID；`errorHandler.test.ts`、`MessageList.test.tsx`、`OAuthCallback.test.tsx` 等测试的断言随之改为断言通用文案或断言内部信息不出现；多个 Playwright spec 的选择器改为新文案。
+- 代价：隐私政策 7.1 承诺按邮件申请以结构化格式提供正文以外的数据，目前没有自助导出，需要运营人工处理（另一选择是补齐自助导出功能后再改回"可直接下载"）。错误界面不再显示具体错误码，排查需要依赖后端日志与 request ID；`errorHandler.test.ts`、`MessageList.test.tsx`、`OAuthCallback.test.tsx` 等测试的断言随之改为断言通用文案或断言内部信息不出现；多个 Playwright spec 的选择器改为新文案。
 - 未做：后端兑换接口与限频的 `detail` 仍是英文句子（应改为返回 `ERR_REDEMPTION_*` 代码），Agent `workflow_stopped` 的 message 仍含工程用语，素材库相关文案由另一个 PR 处理，`public/docs` 文档正文本次未审阅，首页社会证明数字（2000+ 创作者等）未核实来源也未改动。
