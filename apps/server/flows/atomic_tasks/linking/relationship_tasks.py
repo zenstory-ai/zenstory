@@ -117,7 +117,9 @@ def extract_character_relationships_task(
         try:
             logger.info(f"[关系提取] 调用 LLM: batch={batch_idx + 1}/{batch_count}")
 
-            response: LLMResponse = call_deepseek_api(messages, system_prompt)
+            response: LLMResponse = call_deepseek_api(
+                messages, system_prompt, usage_novel_id=novel_id
+            )
 
             # 4. 提取和验证 JSON
             client = get_deepseek_client()

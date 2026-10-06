@@ -166,6 +166,7 @@ def intelligent_chunking_task(
             messages=[{"role": "user", "content": user_message}],
             system_prompt=system_prompt,
             temperature=0.3,
+            usage_novel_id=novel_id,
         )
 
         # 提取 JSON

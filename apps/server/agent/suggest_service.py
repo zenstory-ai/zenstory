@@ -15,6 +15,8 @@ from sqlalchemy import desc
 from sqlmodel import Session, and_, select
 
 from database import create_session
+from models.llm_usage import LLM_USAGE_SOURCE_SUGGEST
+from services.usage.llm_usage_service import LLMUsageAttribution
 from utils.logger import get_logger, log_with_context
 
 from .context import get_context_assembler
@@ -207,6 +209,11 @@ class SuggestService:
                     max_tokens=RESPONSE_MAX_TOKENS,
                     temperature=TEMPERATURE,
                     thinking_enabled=False,
+                    usage_attribution=LLMUsageAttribution(
+                        user_id=user_id,
+                        source=LLM_USAGE_SOURCE_SUGGEST,
+                        project_id=project_id,
+                    ),
                 ),
                 timeout=SUGGEST_LLM_TIMEOUT_S,
             )

@@ -117,6 +117,7 @@ async def router_node(state: WritingState) -> dict:
             },
         }
 
+    response: dict[str, Any] | None = None
     try:
         # Route via DeepSeek Chat Completions + tolerant JSON parser. (An SDK
         # output_type=RouterDecision path was evaluated and removed: DeepSeek
@@ -157,7 +158,7 @@ async def router_node(state: WritingState) -> dict:
             error_type=type(e).__name__,
         )
         # Default to writer on error (review is triggered explicitly or via auto-review gate)
-        return {
+        fallback: dict[str, Any] = {
             "current_agent": "writer",
             "workflow_plan": "quick",
             "workflow_agents": [],
@@ -168,6 +169,10 @@ async def router_node(state: WritingState) -> dict:
                 "confidence": 0.0,
             },
         }
+        # 模型已经答复、只是解析失败：这次调用的用量照样上报到对话用量里。
+        if response is not None and response.get("usage"):
+            fallback["routing_usage"] = response["usage"]
+        return fallback
 
 
 def _int_usage_field(source: object, name: str) -> int:
@@ -236,6 +241,7 @@ async def _route_with_deepseek_chat(user_message: str) -> dict[str, Any]:
         # Keep a generous budget so the short routing JSON always fits after reasoning.
         max_tokens=2048,
     )
+    await _meter_router_call(response)
     text = response.choices[0].message.content or ""
     return {
         "content": [
@@ -246,6 +252,28 @@ async def _route_with_deepseek_chat(user_message: str) -> dict[str, Any]:
         ],
         "usage": _extract_usage(response),
     }
+
+
+async def _meter_router_call(response: object) -> None:
+    """Write the routing call to the usage ledger (never raises)."""
+    from agent.tools.mcp_tools import ToolContext
+    from models.llm_usage import LLM_USAGE_SOURCE_ROUTER
+    from services.usage.llm_usage_service import (
+        LLMUsageAttribution,
+        record_llm_usage_async,
+    )
+    from utils.request_context import get_agent_run_id
+
+    await record_llm_usage_async(
+        LLMUsageAttribution(
+            user_id=ToolContext.get_user_id(),
+            source=LLM_USAGE_SOURCE_ROUTER,
+            project_id=ToolContext.get_project_id(),
+            correlation_id=get_agent_run_id(),
+        ),
+        model=DEEPSEEK_WRITING_MODEL,
+        usage=getattr(response, "usage", None),
+    )
 
 
 def _parse_router_response(response: dict) -> RouterDecision:

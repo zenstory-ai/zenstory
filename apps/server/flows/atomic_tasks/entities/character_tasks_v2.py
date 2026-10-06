@@ -86,7 +86,8 @@ def extract_character_mentions_task(
 
     response = call_deepseek_api(
         messages=[{"role": "user", "content": user_message}],
-        system_prompt=system_prompt
+        system_prompt=system_prompt,
+        usage_chapter_id=chapter_id,
     )
 
     # 提取 JSON
@@ -254,7 +255,8 @@ def build_character_entity_task(
 
     response = call_deepseek_api(
         messages=[{"role": "user", "content": user_message}],
-        system_prompt=system_prompt
+        system_prompt=system_prompt,
+        usage_novel_id=novel_id,
     )
 
     # 提取 JSON

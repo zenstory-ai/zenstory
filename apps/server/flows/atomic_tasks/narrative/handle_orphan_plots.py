@@ -188,7 +188,7 @@ def assign_orphans_with_llm_task(
 
 @api_task(name="assign_single_batch", retries=3)
 def _assign_single_batch_task(
-    novel_id: int,  # noqa: ARG001
+    novel_id: int,
     orphan_plot_ids: list[int],
     stories: list[dict[str, Any]],
     all_plots: list,
@@ -199,7 +199,7 @@ def _assign_single_batch_task(
     处理单批孤儿情节点（优化版：精简输入输出）
 
     Args:
-        novel_id: 小说ID（未使用，保留用于接口一致性；调用方按 novel_id= 传参）
+        novel_id: 小说ID（用于把 LLM 用量记到小说所有者名下）
         orphan_plot_ids: 本批次的孤儿情节点ID列表
         stories: 现有剧情列表
         all_plots: 所有情节点列表
@@ -302,6 +302,7 @@ def _assign_single_batch_task(
     response = call_deepseek_api(
         messages=[{"role": "user", "content": user_message}],
         system_prompt=system_prompt,
+        usage_novel_id=novel_id,
     )
 
     client = get_deepseek_client()

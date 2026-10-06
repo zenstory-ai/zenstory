@@ -10,6 +10,8 @@ Prompt ownership is server-side only so every client uses the same prompt source
 from dataclasses import dataclass
 
 from agent.core.llm_client import get_llm_client
+from models.llm_usage import LLM_USAGE_SOURCE_POLISH
+from services.usage.llm_usage_service import LLMUsageAttribution
 
 DEFAULT_NATURAL_POLISH_PROMPT_ZH = """
 请对下面的「选中的文本」进行自然润色（去 AI 味）。
@@ -68,6 +70,8 @@ class NaturalPolishService:
         *,
         selected_text: str,
         language: str,
+        user_id: str | None = None,
+        project_id: str | None = None,
     ) -> NaturalPolishResult:
         """Generate polished text with a single non-streaming LLM call."""
         llm_client = get_llm_client()
@@ -84,6 +88,11 @@ class NaturalPolishService:
             model=model_name,
             max_tokens=NATURAL_POLISH_MAX_TOKENS,
             thinking_enabled=False,
+            usage_attribution=LLMUsageAttribution(
+                user_id=user_id,
+                source=LLM_USAGE_SOURCE_POLISH,
+                project_id=project_id,
+            ),
         )
 
         return NaturalPolishResult(

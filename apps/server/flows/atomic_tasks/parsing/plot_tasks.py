@@ -104,7 +104,8 @@ def extract_chapter_plots_task(
 
     response = call_deepseek_api(
         messages=[{"role": "user", "content": user_message}],
-        system_prompt=system_prompt
+        system_prompt=system_prompt,
+        usage_chapter_id=chapter_id,
     )
 
     # 提取 JSON

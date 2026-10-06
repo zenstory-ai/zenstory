@@ -10,7 +10,7 @@ Features:
 
 import json
 from collections.abc import AsyncGenerator, Generator
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import httpx
 from openai import AsyncOpenAI, OpenAI
@@ -25,6 +25,9 @@ from agent.core.deepseek_client import (
 )
 from config.datetime_utils import utcnow
 from utils.logger import get_logger, log_with_context
+
+if TYPE_CHECKING:
+    from services.usage.llm_usage_service import LLMUsageAttribution
 
 logger = get_logger(__name__)
 
@@ -297,6 +300,7 @@ class LLMClient:
         top_p: float | None = None,
         max_tokens: int = 2000,
         thinking_enabled: bool = True,
+        usage_attribution: "LLMUsageAttribution | None" = None,
     ) -> str:
         """
         Async completion.
@@ -313,6 +317,8 @@ class LLMClient:
                              live API on 2026-10-03), so short-budget calls spend the
                              whole budget on the answer. True sends nothing and the
                              model uses its default effort.
+            usage_attribution: Who to bill; when given, the call's tokens are
+                             written to the usage ledger.
 
         Returns:
             Generated text
@@ -352,6 +358,10 @@ class LLMClient:
 
             # Extract token usage if available
             usage = response.usage
+            if usage_attribution is not None:
+                from services.usage.llm_usage_service import record_llm_usage_async
+
+                await record_llm_usage_async(usage_attribution, model=model_name, usage=usage)
             if usage:
                 log_with_context(
                     logger,

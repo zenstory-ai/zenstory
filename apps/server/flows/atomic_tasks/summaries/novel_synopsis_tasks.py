@@ -76,6 +76,7 @@ def generate_novel_synopsis_task(
     response = call_deepseek_api(
         messages=[{"role": "user", "content": user_message}],
         system_prompt=system_prompt,
+        usage_novel_id=novel_id,
     )
 
     # 提取 JSON

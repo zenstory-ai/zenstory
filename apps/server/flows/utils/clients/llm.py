@@ -40,6 +40,27 @@ class LLMResponse:
     finish_reason: str
 
 
+def _meter_material_call(
+    *,
+    model: str,
+    usage: Any,
+    novel_id: int | None,
+    chapter_id: int | None,
+) -> None:
+    if novel_id is None and chapter_id is None:
+        return
+    from flows.database_session import create_prefect_session
+    from services.usage.llm_usage_service import record_material_llm_usage
+
+    record_material_llm_usage(
+        model=model,
+        usage=usage,
+        novel_id=novel_id,
+        chapter_id=chapter_id,
+        session_factory=create_prefect_session,
+    )
+
+
 class DeepSeekClient:
     """DeepSeek OpenAI-compatible LLM client for material flows."""
 
@@ -76,18 +97,45 @@ class DeepSeekClient:
         system_prompt: str | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        *,
+        usage_novel_id: int | None = None,
+        usage_chapter_id: int | None = None,
         **kwargs,
     ) -> LLMResponse:
-        """调用 DeepSeek OpenAI-compatible 聊天补全接口。"""
+        """调用 DeepSeek OpenAI-compatible 聊天补全接口。
+
+        usage_novel_id / usage_chapter_id：这次调用所处理的小说或章节，用来把
+        用量记到小说所有者名下（llm_usage_event）。两者都不传时不记账。
+        """
         logger = get_logger(__name__)
 
         try:
-            return self._call_deepseek(messages, system_prompt, temperature, max_tokens, logger, **kwargs)
+            return self._call_deepseek(
+                messages,
+                system_prompt,
+                temperature,
+                max_tokens,
+                logger,
+                usage_novel_id=usage_novel_id,
+                usage_chapter_id=usage_chapter_id,
+                **kwargs,
+            )
         except Exception as e:
             log_error_with_context(e, "DeepSeek API 调用失败", logger)
             raise _classify_llm_exception(e) from e
 
-    def _call_deepseek(self, messages, system_prompt, temperature, max_tokens, logger, **kwargs) -> LLMResponse:
+    def _call_deepseek(
+        self,
+        messages,
+        system_prompt,
+        temperature,
+        max_tokens,
+        logger,
+        *,
+        usage_novel_id: int | None = None,
+        usage_chapter_id: int | None = None,
+        **kwargs,
+    ) -> LLMResponse:
         """调用 DeepSeek OpenAI-compatible API。"""
         logger.info(f"调用 DeepSeek API: {self.model}")
 
@@ -108,6 +156,14 @@ class DeepSeekClient:
         usage = response.usage.model_dump() if response.usage else {}
 
         logger.info(f"DeepSeek API 调用成功，tokens: {usage}")
+        # 每次真实调用都记账（含 Prefect 重试、JSON 解析失败后的重跑），
+        # 按小说所有者计费；记账失败只记日志，不影响拆解。
+        _meter_material_call(
+            model=response.model or self.model,
+            usage=response.usage,
+            novel_id=usage_novel_id,
+            chapter_id=usage_chapter_id,
+        )
 
         return LLMResponse(
             content=content,
@@ -210,6 +266,9 @@ def call_deepseek_api(
     system_prompt: str | None = None,
     **kwargs,
 ) -> LLMResponse:
-    """便捷的 DeepSeek API 调用函数。"""
+    """便捷的 DeepSeek API 调用函数。
+
+    计费归属：传 usage_novel_id 或 usage_chapter_id（见 chat_completion）。
+    """
     client = get_deepseek_client()
     return client.chat_completion(messages, system_prompt, **kwargs)

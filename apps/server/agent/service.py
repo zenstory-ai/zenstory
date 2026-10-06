@@ -736,6 +736,18 @@ class AgentService:
             await cleanup_steering_queue_async(session_id, run_id=steering_run_id)
             return await _hand_back_steering(pending)
 
+        # 取消/失败路径补存历史时，带上 stream adapter 已累计的用量（已完成的
+        # agent run 与路由），否则这部分用量在对话展示里直接丢失。
+        # 计费以 llm_usage_event 账本为准，这里只影响对话内的用量展示。
+        usage_source: dict[str, Any] = {}
+
+        def _accumulated_usage() -> dict[str, Any] | None:
+            adapter = usage_source.get("adapter")
+            if adapter is None:
+                return None
+            usage = adapter.get_last_message_metadata().get("usage")
+            return usage if isinstance(usage, dict) and usage else None
+
         def _save_partial_history_sync() -> None:
             """用独立 session 落库部分历史（取消/失败路径，绕开共享 session）。"""
             if not _has_assistant_payload():
@@ -758,6 +770,7 @@ class AgentService:
                     assistant_status_cards=assistant_status_cards or None,
                     steering_messages=consumed_steering or None,
                     assistant_display_events=assistant_display_events or None,
+                    assistant_usage=_accumulated_usage(),
                 )
 
         try:
@@ -977,6 +990,7 @@ class AgentService:
                 # 流开头已为显式选择的技能发过 skill_matched，load_skill 它们时不再重复发
                 matched_skill_ids=[selected["id"] for selected in selected_skills],
             )
+            usage_source["adapter"] = stream_adapter
 
             try:
                 # Process through workflow stream

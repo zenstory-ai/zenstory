@@ -113,7 +113,7 @@ def identify_story_frameworks_with_chunking(
 
     # 步骤3: 跨块剧情合并
     logger.info("步骤3: 跨块剧情合并")
-    merged_frameworks = _merge_cross_chunk_stories(chunk_frameworks, chunks)
+    merged_frameworks = _merge_cross_chunk_stories(chunk_frameworks, chunks, novel_id=novel_id)
 
     logger.info(
         f"剧情识别完成: 块内剧情 {len(chunk_frameworks)} 个, "
@@ -190,6 +190,7 @@ def identify_story_frameworks_from_summaries(
     response = call_deepseek_api(
         messages=[{"role": "user", "content": user_message}],
         system_prompt=system_prompt,
+        usage_novel_id=novel_id,
     )
 
     # 提取 JSON
@@ -280,6 +281,7 @@ def aggregate_plots_for_story_framework(
     response = call_deepseek_api(
         messages=[{"role": "user", "content": user_message}],
         system_prompt=system_prompt,
+        usage_novel_id=novel_id,
     )
 
     # 提取 JSON
@@ -357,6 +359,7 @@ def extract_storylines_from_stories(
     response = call_deepseek_api(
         messages=[{"role": "user", "content": user_message}],
         system_prompt=system_prompt,
+        usage_novel_id=novel_id,
     )
 
     # 提取 JSON
@@ -593,7 +596,8 @@ def _get_chunk_chapter_ids(_novel_id: int, chunk: dict[str, Any]) -> list[int]:
 @api_task(name="merge_cross_chunk_stories", retries=2)
 def _merge_cross_chunk_stories(
     chunk_frameworks: list[dict[str, Any]],
-    chunks: list[dict[str, Any]]
+    chunks: list[dict[str, Any]],
+    novel_id: int | None = None,
 ) -> list[dict[str, Any]]:
     """
     跨块剧情合并：只处理块边界被割裂的剧情
@@ -622,7 +626,7 @@ def _merge_cross_chunk_stories(
         # 第二步：让LLM逐对判断
         merge_decisions = []
         for story1, story2 in boundary_pairs:
-            decision = _llm_judge_merge(story1, story2)
+            decision = _llm_judge_merge(story1, story2, novel_id=novel_id)
             merge_decisions.append({
                 "story1": story1,
                 "story2": story2,
@@ -732,7 +736,11 @@ def _find_boundary_story_pairs(
     return pairs
 
 
-def _llm_judge_merge(story1: dict[str, Any], story2: dict[str, Any]) -> dict[str, Any]:
+def _llm_judge_merge(
+    story1: dict[str, Any],
+    story2: dict[str, Any],
+    novel_id: int | None = None,
+) -> dict[str, Any]:
     """
     使用LLM判断两个剧情是否应该合并
 
@@ -774,7 +782,8 @@ def _llm_judge_merge(story1: dict[str, Any], story2: dict[str, Any]) -> dict[str
         response = call_deepseek_api(
             messages=[{"role": "user", "content": user_message}],
             system_prompt=system_prompt,
-            temperature=0.1  # 低温度=更保守
+            temperature=0.1,  # 低温度=更保守
+            usage_novel_id=novel_id,
         )
 
         # 解析响应：call_deepseek_api 返回 LLMResponse 对象，必须用客户端方法提取 JSON。
