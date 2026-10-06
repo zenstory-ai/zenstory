@@ -10,6 +10,7 @@ import { Button } from "../components/ui/Button";
 import { subscriptionApi } from "../lib/subscriptionApi";
 import { cn } from "../lib/utils";
 import {
+  filterAvailableMetrics,
   getEntitlementMetricDefinitions,
   getLocalizedPlanDisplayName,
   toComparableMetricValue,
@@ -95,8 +96,8 @@ export default function PricingPage() {
   };
 
   const metricDefinitions = useMemo(
-    () => getEntitlementMetricDefinitions(t, i18n.language),
-    [i18n.language, t]
+    () => filterAvailableMetrics(getEntitlementMetricDefinitions(t, i18n.language), sortedPlans),
+    [i18n.language, t, sortedPlans]
   );
 
   const getYearlySavings = (plan: SubscriptionCatalogTier): { amount: number; percent: number } | null => {

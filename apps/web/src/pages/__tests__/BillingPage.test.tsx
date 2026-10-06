@@ -148,6 +148,7 @@ vi.mock('../../lib/subscriptionEntitlements', () => ({
   getEntitlementMetricDefinitions: () => [
     { key: 'projects', label: 'Projects', value: (plan: { project_limit: number }) => String(plan.project_limit) },
   ],
+  filterAvailableMetrics: <T,>(definitions: T[]) => definitions,
   getLocalizedPlanDisplayName: (plan: { display_name?: string; name?: string }) => plan.display_name ?? plan.name ?? 'Plan',
 }))
 

@@ -194,6 +194,23 @@ describe("PricingPage", () => {
     expect(screen.queryByText(/服务器/)).not.toBeInTheDocument();
   });
 
+  it("still renders when the API has not shipped a new entitlement yet", async () => {
+    // Older API catalog: no ai_conversations_per_day on any tier.
+    const tiers = createDefaultTiers().map((tier) => {
+      const { ai_conversations_per_day: _omitted, ...entitlements } = tier.entitlements;
+      return { ...tier, entitlements };
+    });
+    mockGetCatalog.mockResolvedValue(createCatalog(tiers));
+
+    render(<PricingPage />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText("套餐权益对比")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("每日 AI 对话")).not.toBeInTheDocument();
+    expect(screen.getAllByText("自定义技能").length).toBeGreaterThan(0);
+  });
+
   it("covers monthly/yearly switch with annual saving hint", async () => {
     mockGetCatalog.mockResolvedValue(createCatalog(createDefaultTiers()));
 

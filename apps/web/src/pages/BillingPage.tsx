@@ -12,6 +12,7 @@ import { PaymentCheckoutModal } from "../components/subscription/PaymentCheckout
 import { subscriptionApi, subscriptionQueryKeys } from "../lib/subscriptionApi";
 import { paymentApi, paymentQueryKeys } from "../lib/paymentApi";
 import {
+  filterAvailableMetrics,
   getEntitlementMetricDefinitions,
   getLocalizedPlanDisplayName,
 } from "../lib/subscriptionEntitlements";
@@ -129,8 +130,8 @@ export default function BillingPage() {
   const proPlan = sortedPlans.find((plan) => plan.name === "pro");
 
   const metricDefinitions = useMemo(
-    () => getEntitlementMetricDefinitions(t, i18n.language),
-    [i18n.language, t]
+    () => filterAvailableMetrics(getEntitlementMetricDefinitions(t, i18n.language), sortedPlans),
+    [i18n.language, t, sortedPlans]
   );
 
   const formatPrice = (cents: number, cycle: "month" | "year"): string => {
