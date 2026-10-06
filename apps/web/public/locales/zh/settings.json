@@ -155,8 +155,8 @@
       "export_formats": "导出格式",
       "custom_prompts": "自定义提示词",
       "priority_support": "优先支持",
-      "material_uploads": "素材上传次数",
-      "material_decompositions": "素材拆解次数",
+      "material_uploads": "每月素材上传次数",
+      "material_decompositions": "每月素材拆解次数",
       "custom_skills": "自定义技能数量",
       "inspiration_copies_monthly": "灵感复用次数"
     }

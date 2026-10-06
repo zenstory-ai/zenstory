@@ -111,7 +111,7 @@ describe("resolveMaterialUploadErrorMessage", () => {
       resolveMaterialUploadErrorMessage(
         error,
         t,
-        "materials:uploadModal.errors.uploadFailed",
+        "materials:uploadError",
       ),
     ).toBe("materials:uploadModal.errors.tooManyCharacters");
   });

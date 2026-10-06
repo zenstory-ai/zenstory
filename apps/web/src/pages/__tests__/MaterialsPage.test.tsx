@@ -196,7 +196,7 @@ describe("MaterialsPage", () => {
     expect(document.body.textContent).not.toContain("剧情线");
 
     const teaserSecondaryButton = screen.getByRole("button", {
-      name: "查看权益详情",
+      name: "查看套餐对比",
     });
     expect(teaserSecondaryButton.className).toContain("text-[hsl(var(--accent-primary))]");
     expect(teaserSecondaryButton.className).not.toContain("btn-secondary");
@@ -243,7 +243,7 @@ describe("MaterialsPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("本月 5 次素材拆解已用完，将于 2026/05/01 自动恢复。")
+        screen.getByText("本月 5 次拆解已用完，将于 2026/05/01 恢复。已拆好的内容仍可查看和引用。")
       ).toBeInTheDocument();
     });
 
@@ -258,7 +258,7 @@ describe("MaterialsPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("订阅权益状态加载失败，请重试后再查看素材库。")
+        screen.getByText("没能确认你的会员状态，请重试。")
       ).toBeInTheDocument();
     });
 

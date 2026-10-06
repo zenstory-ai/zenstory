@@ -590,7 +590,7 @@ test.describe('Material Library Flow - Processing Status', () => {
     await page.waitForSelector(MATERIALS_PAGE.materialsGrid, { timeout: 5000 })
 
     // Look for processing status indicator
-    const processingBadge = page.locator('text=/processing|处理中/i')
+    const processingBadge = page.locator('text=/decomposing|拆解中/i')
     const hasProcessing = await processingBadge.count() > 0
 
     if (hasProcessing) {

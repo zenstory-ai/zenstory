@@ -116,7 +116,7 @@ export default function BillingPage() {
       [
         { key: "ai_conversations", label: t("settings:subscription.features.ai_conversations_per_day", "每日 AI 对话次数") },
         { key: "projects", label: t("settings:subscription.features.max_projects", "最大项目数") },
-        { key: "material_decompositions", label: t("settings:subscription.features.material_decompositions", "素材拆解次数") },
+        { key: "material_decompositions", label: t("settings:subscription.features.material_decompositions", "每月素材拆解次数") },
         { key: "skill_creates", label: t("settings:subscription.features.custom_skills", "自定义技能数量") },
         { key: "inspiration_copies", label: t("settings:subscription.features.inspiration_copies_monthly", "灵感复用次数") },
       ].filter((item) => inspirationsConfig.enabled || item.key !== "inspiration_copies") as { key: UsageKey; label: string }[],

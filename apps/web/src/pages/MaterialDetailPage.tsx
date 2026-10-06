@@ -138,7 +138,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
       await materialsApi.retry(novelId);
       toast.success(
         t("materials:retrySuccess", {
-          defaultValue: "已重新提交分解任务，请稍候查看处理状态。",
+          defaultValue: "已重新开始拆解",
         }),
       );
       void queryClient.invalidateQueries({ queryKey: ["materials"] });
@@ -645,7 +645,7 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
             <span className="font-medium">
               {material.status === "failed"
                 ? t("materials:detail.failedBanner", { defaultValue: "拆解失败" })
-                : t("materials:detail.partialBanner", { defaultValue: "部分内容拆解失败" })}
+                : t("materials:detail.partialBanner", { defaultValue: "部分内容没有拆出来" })}
             </span>
             {material.error_message && (
               <span className="ml-2 text-[hsl(var(--text-secondary))]">

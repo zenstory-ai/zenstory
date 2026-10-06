@@ -155,8 +155,8 @@
       "export_formats": "Export Formats",
       "custom_prompts": "Custom Prompts",
       "priority_support": "Priority Support",
-      "material_uploads": "Material Uploads",
-      "material_decompositions": "Material Decompositions",
+      "material_uploads": "Material uploads per month",
+      "material_decompositions": "Material decompositions per month",
       "custom_skills": "Custom Skills",
       "inspiration_copies_monthly": "Inspiration Copies"
     }

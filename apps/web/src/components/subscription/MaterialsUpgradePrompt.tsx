@@ -28,9 +28,9 @@ export function MaterialsUpgradePromptModal({
       secondaryDestination="pricing"
       title={t("materials:quota.uploadTitle", { defaultValue: "开通会员即可使用素材库" })}
       description={t("materials:quota.uploadDescription", {
-        defaultValue: "当前套餐仅支持预览素材库能力。开通会员后，每月可使用 5 次素材拆解。",
+        defaultValue: "免费版不含素材库。开通会员后，每月可拆解 5 次。",
       })}
-      primaryLabel={t("materials:quota.upgradePrimary", { defaultValue: "查看升级方案" })}
+      primaryLabel={t("materials:quota.upgradePrimary", { defaultValue: "开通会员" })}
       onPrimary={() => {
         window.location.assign(buildUpgradeUrl(materialUploadUpgradePrompt.billingPath, source));
       }}
@@ -63,7 +63,7 @@ export function MaterialsUpgradeNotice({ source, className = "" }: MaterialsUpgr
       </p>
       <p className="text-xs leading-5 text-[hsl(var(--text-secondary))]">
         {t("materials:quota.uploadDescription", {
-          defaultValue: "当前套餐仅支持预览素材库能力。开通会员后，每月可使用 5 次素材拆解。",
+          defaultValue: "免费版不含素材库。开通会员后，每月可拆解 5 次。",
         })}
       </p>
       <button type="button" className="btn-primary h-8 px-3 text-xs" onClick={() => setOpen(true)}>

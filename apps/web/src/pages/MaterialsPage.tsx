@@ -154,7 +154,7 @@ export default function MaterialsPage() {
             </h2>
             <p className="text-sm text-[hsl(var(--text-secondary))]">
               {t("materials:statusLoadError", {
-                defaultValue: "订阅权益状态加载失败，请重试后再查看素材库。",
+                defaultValue: "没能确认你的会员状态，请重试。",
               })}
             </p>
             <button
@@ -181,7 +181,7 @@ export default function MaterialsPage() {
         <div className="rounded-2xl border border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.08)] p-6">
           <p className="text-sm text-[hsl(var(--text-secondary))]">
             {t("materials:statusLoadError", {
-              defaultValue: "订阅权益状态加载失败，请重试后再查看素材库。",
+              defaultValue: "没能确认你的会员状态，请重试。",
             })}
           </p>
         </div>
@@ -218,7 +218,7 @@ export default function MaterialsPage() {
   };
 
   const exhaustedMessage = t("materials:quotaExhausted", {
-    defaultValue: "本月 {{limit}} 次素材拆解已用完，将于 {{resetAt}} 自动恢复。",
+    defaultValue: "本月 {{limit}} 次拆解已用完，将于 {{resetAt}} 恢复。已拆好的内容仍可查看和引用。",
     limit: materialDecomposeQuota?.limit ?? 5,
     resetAt:
       formatResetAt(materialDecomposeQuota?.reset_at) ??
@@ -299,7 +299,7 @@ export default function MaterialsPage() {
       await materialsApi.retry(novelId);
       toast.success(
         t("materials:retrySuccess", {
-          defaultValue: "已重新提交分解任务，请稍候查看处理状态。",
+          defaultValue: "已重新开始拆解",
         })
       );
       queryClient.invalidateQueries({ queryKey: ["materials"] });
@@ -332,10 +332,10 @@ export default function MaterialsPage() {
         subtitle={
           hasWorkspaceAccess
             ? t("materials:paidSubtitle", {
-                defaultValue: "上传参考小说并查看结构化拆解结果",
+                defaultValue: "上传参考小说，拆出角色、世界观和章节梗概，写作时随时引用",
               })
             : t("materials:teaserSubtitle", {
-                defaultValue: "预览素材库能力，开通会员后即可开始使用",
+                defaultValue: "素材库是会员功能，开通后即可上传参考小说",
               })
         }
         action={
@@ -349,7 +349,7 @@ export default function MaterialsPage() {
               {!isMobile &&
                 (isMaterialsQuotaExhausted
                   ? t("materials:quota.decomposeTitle", {
-                      defaultValue: "本月素材拆解次数已用完",
+                      defaultValue: "本月拆解次数已用完",
                     })
                   : t("materials:upload"))}
             </button>
@@ -392,14 +392,13 @@ export default function MaterialsPage() {
               </h2>
               <p className="text-sm leading-6 text-[hsl(var(--text-secondary))]">
                 {t("materials:teaserDescription", {
-                  defaultValue:
-                    "开通会员后，每月可使用 5 次素材拆解，快速提炼高价值参考素材。",
+                  defaultValue: "开通会员后，每月可拆解 5 次。",
                 })}
               </p>
               <ul className="space-y-2 text-sm text-[hsl(var(--text-secondary))]">
-                <li>• {t("materials:teaserFeatureOne", { defaultValue: "查看章节梗概、角色、世界观、金手指等拆解示例" })}</li>
-                <li>• {t("materials:teaserFeatureTwo", { defaultValue: "付费会员每月可使用 5 次素材拆解" })}</li>
-                <li>• {t("materials:teaserFeatureThree", { defaultValue: "已拆解素材可持续浏览和复用" })}</li>
+                <li>• {t("materials:teaserFeatureOne", { defaultValue: "拆出章节梗概、角色、世界观和金手指" })}</li>
+                <li>• {t("materials:teaserFeatureTwo", { defaultValue: "把角色和设定添加到项目，或引用到 AI 对话" })}</li>
+                <li>• {t("materials:teaserFeatureThree", { defaultValue: "次数用完后，已拆好的内容仍可查看和引用" })}</li>
               </ul>
               <div className="grid gap-3 pt-2 md:grid-cols-3">
                 <div className="rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-primary))] p-4">
@@ -450,7 +449,7 @@ export default function MaterialsPage() {
                   onClick={() => openUpgradePath("pricing")}
                   className="inline-flex h-11 items-center justify-center rounded-md border border-[hsl(var(--accent-primary)/0.24)] bg-[hsl(var(--accent-primary)/0.08)] px-4 text-sm font-medium text-[hsl(var(--accent-primary))] transition-colors hover:border-[hsl(var(--accent-primary)/0.36)] hover:bg-[hsl(var(--accent-primary)/0.14)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.35)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
                 >
-                  {t("materials:teaserSecondary", { defaultValue: "查看权益详情" })}
+                  {t("materials:teaserSecondary", { defaultValue: "查看套餐对比" })}
                 </button>
               </div>
             </div>
@@ -464,7 +463,7 @@ export default function MaterialsPage() {
                 {remainingDecompositions == null
                   ? t("common:unlimited", { defaultValue: "不限" })
                   : t("materials:quotaRemaining", {
-                      defaultValue: "本月素材拆解剩余 {{remaining}} / {{limit}} 次",
+                      defaultValue: "本月还可拆解 {{remaining}} / {{limit}} 次，每次上传或重试用 1 次",
                       remaining: remainingDecompositions,
                       limit: materialDecomposeQuota.limit,
                     })}
@@ -499,7 +498,7 @@ export default function MaterialsPage() {
                 {remainingDecompositions == null
                   ? t("common:unlimited", { defaultValue: "不限" })
                   : t("materials:quotaRemaining", {
-                      defaultValue: "本月素材拆解剩余 {{remaining}} / {{limit}} 次",
+                      defaultValue: "本月还可拆解 {{remaining}} / {{limit}} 次，每次上传或重试用 1 次",
                       remaining: remainingDecompositions,
                       limit: materialDecomposeQuota.limit,
                     })}
@@ -628,7 +627,7 @@ export default function MaterialsPage() {
         {/* Title Input */}
         <div className="mt-4">
           <label className="block text-sm font-medium text-[hsl(var(--text-secondary))] mb-1">
-            {t("materials:uploadModal.title")}
+            {t("materials:uploadModal.titleLabel")}
           </label>
           <input
             type="text"
@@ -637,9 +636,6 @@ export default function MaterialsPage() {
             className="input"
             placeholder={t("materials:uploadModal.titlePlaceholder")}
           />
-          <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1">
-            {t("materials:uploadModal.titleHint")}
-          </p>
         </div>
 
         {/* Error Message */}
