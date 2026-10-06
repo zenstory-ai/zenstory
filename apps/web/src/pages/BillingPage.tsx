@@ -239,14 +239,6 @@ export default function BillingPage() {
         </div>
       </Card>
 
-      {!isCheckoutEnabled && (
-        <Card variant="outlined" padding="lg">
-          <p className="text-sm text-[hsl(var(--text-secondary))]">
-            {t("settings:subscription.wechatGuide", "没有兑换码？可添加微信号获取：AIchuangzuo999")}
-          </p>
-        </Card>
-      )}
-
       <Card variant="outlined" padding="lg">
         <div className="flex items-center gap-2 mb-4">
           <Sparkles className="w-4 h-4 text-[hsl(var(--accent-primary))]" />
