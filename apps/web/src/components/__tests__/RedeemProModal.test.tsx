@@ -77,6 +77,25 @@ describe('RedeemProModal', () => {
     expect(await screen.findByText('100 积分')).toBeInTheDocument()
   })
 
+  it('treats an empty pricing response as a load failure with author-facing copy', async () => {
+    const zhPoints = (await import('../../../public/locales/zh/points.json')).default as Record<string, unknown>
+    mockPointsApi.getConfig
+      .mockResolvedValueOnce(null as unknown as Awaited<ReturnType<typeof pointsApi.pointsApi.getConfig>>)
+      .mockResolvedValue({check_in:5,check_in_streak:20,referral:50,skill_contribution:50,inspiration_contribution:50,profile_complete:20,pro_7days_cost:100,streak_bonus_threshold:7})
+    mockPointsApi.getBalance.mockResolvedValue({available:400,pending_expiration:0,nearest_expiration_date:null})
+    render(<RedeemProModal isOpen onClose={mockOnClose} />, {wrapper:createWrapper()})
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('兑换价格没加载出来，请重试')
+    expect(zhPoints.configLoadFailed).toBe('兑换价格没加载出来，请重试')
+    expect(screen.queryByText('100 积分')).not.toBeInTheDocument()
+    expect(screen.getByRole('button',{name:'兑换'})).toBeDisabled()
+    expect(mockPointsApi.redeemForPro).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button',{name:'重试'}))
+    expect(await screen.findByText('100 积分')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(mockPointsApi.getConfig).toHaveBeenCalledTimes(2)
+  })
+
   it('does not present a balance load failure as a zero balance', async () => {
     mockPointsApi.getBalance.mockRejectedValue(new Error('Balance unavailable'))
     render(<RedeemProModal isOpen onClose={mockOnClose} />, {wrapper:createWrapper()})

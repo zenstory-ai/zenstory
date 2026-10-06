@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import zhOnboarding from "../../../public/locales/zh/onboarding.json";
 
 const mockNavigate = vi.fn();
 const mockGetPersonaOnboardingData = vi.fn();
@@ -262,5 +263,38 @@ describe("OnboardingPersonaPage", () => {
     expect(screen.getByRole("radio", { name: /beginner/i })).toHaveAttribute("aria-checked", "true");
     fireEvent.click(screen.getByRole("radio", { name: /advanced/i }));
     expect(screen.getByRole("radio", { name: /advanced/i })).toHaveAttribute("aria-checked", "true");
+  });
+  it("previews the fanfic, studio and chapter-review recommendations an author picked", () => {
+    renderPage();
+
+    expect(screen.getByText("选一个创作者类型，看看会推荐什么")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /fanfic/i }));
+    fireEvent.click(screen.getByRole("button", { name: /studio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /improveQuality/i }));
+
+    const previewList = screen.getByText("整理角色与设定，AI 写作时参考").closest("ul");
+    expect(previewList).not.toBeNull();
+    expect(
+      within(previewList as HTMLElement).getAllByRole("listitem").map((item) => item.textContent)
+    ).toEqual([
+      "整理角色与设定，AI 写作时参考",
+      "每部作品一个项目，分开管理",
+      "让 AI 审读并修改章节",
+      "按你的写作经验给出建议",
+    ]);
+    expect(screen.queryByText("选一个创作者类型，看看会推荐什么")).not.toBeInTheDocument();
+
+    // The fallbacks shown above are the shipped zh copy for these keys.
+    expect(zhOnboarding.preview.items).toMatchObject({
+      fanfic: "整理角色与设定，AI 写作时参考",
+      studio: "每部作品一个项目，分开管理",
+      quality: "让 AI 审读并修改章节",
+    });
+
+    // Deselecting a persona removes its recommendation from the preview.
+    fireEvent.click(screen.getByRole("button", { name: /studio/i }));
+    expect(screen.queryByText("每部作品一个项目，分开管理")).not.toBeInTheDocument();
+    expect(screen.getByText("整理角色与设定，AI 写作时参考")).toBeInTheDocument();
   });
 });

@@ -20,6 +20,30 @@ vi.mock("@tanstack/react-query", () => ({
   }),
 }));
 
+const sampleInspiration = {
+  id: "insp-1",
+  name: "Lighthouse mystery",
+  description: "A keeper finds letters from the future",
+  tags: ["mystery"],
+  source: "community",
+  status: "approved",
+  is_featured: false,
+  copy_count: 3,
+  creator_id: "user-1",
+  created_at: "2026-03-01T00:00:00Z",
+  updated_at: "2026-03-01T00:00:00Z",
+};
+
+const listWithOneInspiration = () =>
+  useQueryMock.mockReturnValue({
+    data: { items: [sampleInspiration], total: 1 },
+    isLoading: false,
+    isFetching: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  });
+
 describe("InspirationManagement", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -71,5 +95,42 @@ describe("InspirationManagement", () => {
     render(<InspirationManagement />);
     expect(screen.getByText("common:noData")).toBeInTheDocument();
   });
-});
 
+  it("names the destructive action on the delete confirm button and deletes the chosen item", () => {
+    const mutateMock = vi.fn();
+    useMutationMock.mockReturnValue({ mutate: mutateMock, isPending: false });
+    listWithOneInspiration();
+
+    render(<InspirationManagement />);
+
+    fireEvent.click(screen.getAllByTitle("common:delete")[0]);
+    expect(screen.getByText("inspirations.deleteConfirm")).toBeInTheDocument();
+
+    expect(screen.getByRole("heading", { name: "inspirations.deleteTitle" })).toBeInTheDocument();
+    // Mobile card + table row + the dialog naming the item about to be deleted.
+    expect(screen.getAllByText("Lighthouse mystery")).toHaveLength(3);
+    expect(screen.queryByRole("button", { name: "common:confirm" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "inspirations.deleteTitle" }));
+    expect(mutateMock).toHaveBeenCalledWith("insp-1");
+  });
+
+  it("locks the delete dialog and shows loading while the delete is in flight", () => {
+    const mutateMock = vi.fn();
+    useMutationMock.mockReturnValue({ mutate: mutateMock, isPending: true });
+    listWithOneInspiration();
+
+    render(<InspirationManagement />);
+
+    fireEvent.click(screen.getAllByTitle("common:delete")[0]);
+    expect(screen.getByRole("heading", { name: "inspirations.deleteTitle" })).toBeInTheDocument();
+
+    const confirmButton = screen.getByRole("button", { name: "common:loading" });
+    expect(confirmButton).toBeDisabled();
+    expect(screen.getByRole("button", { name: "common:cancel" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "inspirations.deleteTitle" })).not.toBeInTheDocument();
+
+    fireEvent.click(confirmButton);
+    expect(mutateMock).not.toHaveBeenCalled();
+  });
+});

@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FileSearchProvider } from '../../../contexts/FileSearchContext';
 import { FileTreePane } from '../FileTreePane';
 
@@ -10,6 +10,9 @@ const mocks = vi.hoisted(() => ({
   clearSearch: vi.fn(),
   getTree: vi.fn(),
   loggerError: vi.fn(),
+  createFile: vi.fn(),
+  deleteFile: vi.fn(),
+  toastError: vi.fn(),
   projectId: 'project-1' as string | null,
   results: [{ id: 'draft-1', fileType: 'draft', title: 'Draft' }],
 }));
@@ -25,7 +28,10 @@ vi.mock('../../../contexts/MaterialAttachmentContext', () => ({
   MAX_ATTACHED_MATERIALS: 5,
   useMaterialAttachment: () => ({ addMaterial: vi.fn(), removeMaterial: vi.fn(), isMaterialAttached: () => false, isAtLimit: false }),
 }));
-vi.mock('../../../lib/api', () => ({ fileApi: { getTree: mocks.getTree } }));
+vi.mock('../../../lib/api', () => ({
+  fileApi: { getTree: mocks.getTree, create: mocks.createFile, delete: mocks.deleteFile },
+}));
+vi.mock('../../../lib/toast', () => ({ toast: { error: mocks.toastError, success: vi.fn(), info: vi.fn() } }));
 vi.mock('../../../lib/logger', () => ({ logger: { error: mocks.loggerError } }));
 vi.mock('../../../hooks/useFileSearch', () => ({
   useFileSearch: () => ({ results: mocks.results, isSearching: false, clearSearch: mocks.clearSearch }),
@@ -197,5 +203,59 @@ describe('FileTreePane request cancellation', () => {
     expect(screen.queryByText('Stale Project File')).not.toBeInTheDocument();
     expect(screen.getByText('Current Project File')).toBeInTheDocument();
     expect(mocks.loggerError).not.toHaveBeenCalled();
+  });
+});
+
+describe('FileTreePane create/delete failures', () => {
+  const tree = [{
+    id: 'folder-characters',
+    title: '角色',
+    file_type: 'folder',
+    children: [{ id: 'char-1', title: 'Lin Feng', file_type: 'character', children: [] }],
+  }];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.projectId = 'project-1';
+    mocks.getTree.mockResolvedValue({ tree });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('shows the createFailed toast and keeps the typed name when creating a file fails', async () => {
+    mocks.createFile.mockRejectedValue(new Error('server error'));
+    render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
+    fireEvent.click(await screen.findByTitle('common:create common:fileTypes.character'));
+    const input = screen.getByPlaceholderText('editor:fileTree.newCharacter');
+    fireEvent.change(input, { target: { value: '  Su Yan  ' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('editor:fileTree.createFailed'));
+    expect(mocks.createFile).toHaveBeenCalledWith('project-1', {
+      title: 'Su Yan',
+      file_type: 'character',
+      parent_id: 'folder-characters',
+      content: '',
+    });
+    // The create input stays open with the author's text so they can retry.
+    expect(screen.getByPlaceholderText('editor:fileTree.newCharacter')).toHaveValue('  Su Yan  ');
+    expect(mocks.getTree).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the deleteFailed toast and keeps the file in the tree when deleting fails', async () => {
+    vi.stubGlobal('confirm', vi.fn(() => true));
+    mocks.deleteFile.mockRejectedValue(new Error('server error'));
+    render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
+    expect(await screen.findByText('Lin Feng')).toBeInTheDocument();
+    fireEvent.click(screen.getByTitle('common:delete'));
+
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('editor:fileTree.deleteFailed'));
+    expect(window.confirm).toHaveBeenCalledWith('common:confirmDelete');
+    expect(mocks.deleteFile).toHaveBeenCalledWith('char-1');
+    expect(mocks.select).not.toHaveBeenCalled();
+    expect(screen.getByText('Lin Feng')).toBeInTheDocument();
+    expect(mocks.getTree).toHaveBeenCalledTimes(1);
   });
 });

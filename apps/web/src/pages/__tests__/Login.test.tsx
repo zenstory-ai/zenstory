@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mockNavigate,
@@ -10,6 +10,7 @@ const {
   mockAppleLogin,
   mockGetAllProjects,
   mockOAuthEnabled,
+  mockHandleSsoRedirect,
 } = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
   mockLogin: vi.fn(),
@@ -17,6 +18,7 @@ const {
   mockAppleLogin: vi.fn(),
   mockGetAllProjects: vi.fn(),
   mockOAuthEnabled: { google: false },
+  mockHandleSsoRedirect: vi.fn(),
 }));
 
 vi.mock("react-router-dom", async () => {
@@ -29,7 +31,11 @@ vi.mock("react-router-dom", async () => {
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string, options?: Record<string, unknown>) => {
+    t: (key: string, options?: Record<string, unknown> | string) => {
+      if (typeof options === "string") {
+        // Inline zh fallback, as shown when the key is missing from the bundle.
+        return options;
+      }
       if (options && Object.keys(options).length > 0) {
         return `${key}:${JSON.stringify(options)}`;
       }
@@ -66,6 +72,10 @@ vi.mock("../../config/auth", () => ({
   hasOAuthProviders: () => mockOAuthEnabled.google,
 }));
 
+vi.mock("../../lib/ssoRedirect", () => ({
+  handleSsoRedirect: mockHandleSsoRedirect,
+}));
+
 vi.mock("../../components/PublicHeader", () => ({
   PublicHeader: () => <div data-testid="public-header" />,
 }));
@@ -79,6 +89,7 @@ vi.mock("../../components/Logo", () => ({
 }));
 
 import Login from "../Login";
+import zhAuth from "../../../public/locales/zh/auth.json";
 
 describe("Login", () => {
   beforeEach(() => {
@@ -191,5 +202,55 @@ describe("Login", () => {
       "/project/p1?file=f1#selection",
       { replace: true, state: { source: "guard" } },
     ));
+  });
+  it("asks for both credentials when the form is submitted with a whitespace-only account", () => {
+    renderPage();
+
+    fireEvent.change(screen.getByTestId("email-input"), { target: { value: "   " } });
+    fireEvent.change(screen.getByTestId("password-input"), { target: { value: "SecurePass123!" } });
+    expect(screen.getByTestId("login-submit")).toBeDisabled();
+
+    // Enter-key / programmatic submit bypasses the disabled button.
+    fireEvent.submit(screen.getByTestId("login-form"));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("请输入账号和密码");
+    expect(screen.getByTestId("email-input")).toHaveAttribute("aria-invalid", "true");
+    expect(mockLogin).not.toHaveBeenCalled();
+    expect(zhAuth.errors.missingCredentials).toBe("请输入账号和密码");
+
+    // Typing again clears the stale validation message.
+    fireEvent.change(screen.getByTestId("email-input"), { target: { value: "writer@example.com" } });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  describe("returning to an external app after login", () => {
+    beforeEach(() => {
+      window.history.pushState({}, "", "/login?redirect=https%3A%2F%2Fmanga.zenstory.ai%2Fcallback");
+    });
+
+    afterEach(() => {
+      window.history.pushState({}, "", "/");
+    });
+
+    it("explains that login worked but the app could not be reopened when the SSO hand-off fails", async () => {
+      const user = userEvent.setup();
+      mockLogin.mockResolvedValue(undefined);
+      mockHandleSsoRedirect.mockResolvedValue({ success: false, error: "Invalid redirect URL" });
+      renderPage();
+
+      fireEvent.change(screen.getByTestId("email-input"), { target: { value: "writer@example.com" } });
+      fireEvent.change(screen.getByTestId("password-input"), { target: { value: "SecurePass123!" } });
+      await user.click(screen.getByTestId("login-submit"));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "已登录，但没能返回原来的应用，请重新打开该应用再试"
+      );
+      expect(mockHandleSsoRedirect).toHaveBeenCalledWith("https://manga.zenstory.ai/callback");
+      expect(screen.queryByText("Invalid redirect URL")).not.toBeInTheDocument();
+      expect(mockNavigate).not.toHaveBeenCalled();
+      expect(mockGetAllProjects).not.toHaveBeenCalled();
+      expect(screen.getByTestId("login-submit")).toBeEnabled();
+      expect(zhAuth.errors.ssoRedirectFailed).toBe("已登录，但没能返回原来的应用，请重新打开该应用再试");
+    });
   });
 });

@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import zhDocs from '../../../public/locales/zh/docs.json'
+import { logger } from '../../lib/logger'
 
 import {
   DocsPage,
@@ -15,6 +17,22 @@ import {
 
 const mockNavigate = vi.fn()
 let mockPathname = '/docs/getting-started/quick-start'
+let mockLanguage = 'en'
+let mockTranslations: Record<string, string> = {}
+
+const englishTranslations: Record<string, string> = {
+  loading: 'Loading...',
+  menu: 'Menu',
+  notFound: 'Document Not Found',
+  loadError: 'Failed to Load Document',
+  notFoundDesc: 'Missing doc description',
+  backToHome: 'Back to Documentation Home',
+}
+
+// Simulates the lazily imported markdown chunk failing to download.
+vi.mock('../../../docs/getting-started/first-project.md?raw', () => {
+  throw new Error('Failed to fetch dynamically imported module')
+})
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
@@ -26,23 +44,16 @@ vi.mock('react-router-dom', async () => {
   }
 })
 
+// Stable references, like react-i18next: DocsPage reloads markdown whenever `t` changes.
+const mockT = (key: string, fallback?: string) => mockTranslations[key] ?? fallback ?? key
+const mockI18n = {
+  get language() {
+    return mockLanguage
+  },
+}
+
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, fallback?: string) =>
-      (
-        {
-          loading: 'Loading...',
-          menu: 'Menu',
-          notFound: 'Document Not Found',
-          loadError: 'Failed to Load Document',
-          notFoundDesc: 'Missing doc description',
-          backToHome: 'Back to Documentation Home',
-        } as Record<string, string>
-      )[key] ?? fallback ?? key,
-    i18n: {
-      language: 'en',
-    },
-  }),
+  useTranslation: () => ({ t: mockT, i18n: mockI18n }),
 }))
 
 vi.mock('../../components/PublicHeader', () => ({
@@ -67,6 +78,8 @@ describe('DocsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockPathname = '/docs/getting-started/quick-start'
+    mockLanguage = 'en'
+    mockTranslations = englishTranslations
     vi.stubGlobal('scrollTo', vi.fn())
   })
 
@@ -93,7 +106,47 @@ describe('DocsPage', () => {
     render(<DocsPage />)
 
     expect(await screen.findByText('Document Not Found')).toBeInTheDocument()
+    expect(screen.getByText('Missing doc description')).toBeInTheDocument()
+    expect(screen.queryByText('Failed to Load Document')).not.toBeInTheDocument()
     expect(screen.getByText('Back to Documentation Home')).toBeInTheDocument()
+    expect(logger.error).not.toHaveBeenCalled()
+  })
+
+  it('shows the zh not-found copy for a stale docs link', async () => {
+    mockPathname = '/docs/not-real'
+    mockLanguage = 'zh'
+    mockTranslations = {}
+
+    render(<DocsPage />)
+
+    expect(await screen.findByRole('heading', { name: '找不到这篇文档' })).toBeInTheDocument()
+    expect(screen.getByText('链接可能已失效，请回到文档首页查找。')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '返回文档首页' })).toHaveAttribute('href', '/docs')
+    expect(zhDocs).toMatchObject({
+      notFound: '找不到这篇文档',
+      notFoundDesc: '链接可能已失效，请回到文档首页查找。',
+      backToHome: '返回文档首页',
+    })
+  })
+
+  it('shows a load-failure message instead of not-found when the markdown chunk fails to download', async () => {
+    mockPathname = '/docs/getting-started/first-project'
+    mockLanguage = 'zh'
+    mockTranslations = {}
+
+    render(<DocsPage />)
+
+    expect(await screen.findByRole('heading', { name: '文档加载失败' })).toBeInTheDocument()
+    expect(screen.getByText('请检查网络后刷新页面。')).toBeInTheDocument()
+    expect(screen.queryByText('找不到这篇文档')).not.toBeInTheDocument()
+    expect(screen.queryByText('链接可能已失效，请回到文档首页查找。')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('lazy-markdown')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '返回文档首页' })).toHaveAttribute('href', '/docs')
+    expect(logger.error).toHaveBeenCalledWith('Failed to load markdown:', expect.any(Error))
+    expect(zhDocs).toMatchObject({
+      loadError: '文档加载失败',
+      loadErrorDesc: '请检查网络后刷新页面。',
+    })
   })
 
   it('exports the docs path helpers for internal link normalization', async () => {

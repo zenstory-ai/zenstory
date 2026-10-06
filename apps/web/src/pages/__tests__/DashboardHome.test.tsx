@@ -3,8 +3,17 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { ApiError } from '../../lib/apiClient'
+import zhDashboard from '../../../public/locales/zh/dashboard.json'
+import enDashboard from '../../../public/locales/en/dashboard.json'
 
 let mockLanguage = 'zh-CN'
+const defaultMockUser: { id: string; username: string; nickname: string | null; email: string } = {
+  id: 'user-1',
+  username: 'tester',
+  nickname: null,
+  email: 'tester@example.com',
+}
+let mockUser = defaultMockUser
 let mockIsMobile = false
 let mockIsTablet = false
 let mockProjects: Array<{ id: string; name: string; description?: string; project_type: 'novel'; updated_at?: string | null }> = []
@@ -81,7 +90,8 @@ const mockT = (
 ) => {
   const optionObj = typeof options === 'string' ? undefined : options
   const translations: Record<string, string> = {
-    'hero.greeting': `你好，${optionObj?.name ?? '作者'}`,
+    'hero.greeting': `你好，${optionObj?.name ?? '{{name}}'}`,
+    'hero.defaultName': '作者',
     'hero.question': '今天想创作些什么呢？',
     'inspirations.featured': '精选灵感',
     'inspirations.viewAll': '查看全部',
@@ -133,12 +143,7 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({
-    user: {
-      id: 'user-1',
-      username: 'tester',
-      nickname: null,
-      email: 'tester@example.com',
-    },
+    user: mockUser,
   }),
 }))
 
@@ -216,6 +221,7 @@ describe('DashboardHome featured inspirations section', () => {
     vi.clearAllMocks()
     mockCreateProject.mockResolvedValue({ id: 'project-created' })
     mockLanguage = 'zh-CN'
+    mockUser = defaultMockUser
     mockIsMobile = false
     mockIsTablet = false
     mockProjects = []
@@ -570,5 +576,19 @@ describe('DashboardHome featured inspirations section', () => {
     fireEvent.click(screen.getByTestId('create-project-button'))
 
     expect(await screen.findByTestId('upgrade-modal')).toBeInTheDocument()
+  })
+  it('greets an author by nickname, then username, before the localized default name', async () => {
+    mockUser = { ...defaultMockUser, nickname: '青柠' }
+    const { unmount } = renderDashboardHome()
+    expect(await screen.findByRole('heading', { level: 1, name: '你好，青柠' })).toBeInTheDocument()
+    unmount()
+
+    mockUser = { ...defaultMockUser, nickname: null, username: '' }
+    renderDashboardHome()
+    expect(await screen.findByRole('heading', { level: 1, name: '你好，作者' })).toBeInTheDocument()
+    expect(screen.queryByText(/hero\.defaultName/)).not.toBeInTheDocument()
+    expect(screen.queryByText('你好，创作者')).not.toBeInTheDocument()
+    expect(zhDashboard.hero.defaultName).toBe('作者')
+    expect(enDashboard.hero.defaultName).toBe('writer')
   })
 })

@@ -7,6 +7,7 @@ const mockNavigate = vi.fn();
 const mockHandleOAuthCallback = vi.fn();
 const mockCaptureException = vi.fn();
 const mockUseAuth = vi.fn();
+const mockIsValidRedirectUrl = vi.fn();
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
@@ -52,7 +53,7 @@ vi.mock("../../components/Logo", () => ({
 }));
 
 vi.mock("../../lib/ssoRedirect", () => ({
-  isValidRedirectUrl: () => true,
+  isValidRedirectUrl: (...args: unknown[]) => mockIsValidRedirectUrl(...args),
 }));
 
 vi.mock("../../lib/analytics", () => ({
@@ -74,6 +75,7 @@ describe("OAuthCallback", () => {
     vi.clearAllMocks();
     localStorage.clear();
     sessionStorage.clear();
+    mockIsValidRedirectUrl.mockReturnValue(true);
     mockUseAuth.mockReturnValue({
       handleOAuthCallback: mockHandleOAuthCallback,
       user: null,
@@ -254,5 +256,42 @@ describe("OAuthCallback", () => {
     expect(replaceStateSpy).toHaveBeenCalledWith(window.history.state, document.title, "/auth/callback");
     expect(mockHandleOAuthCallback).not.toHaveBeenCalled();
     expect(mockNavigate).not.toHaveBeenCalled();
+  });
+  it("hands the token to a trusted external app after OAuth", async () => {
+    mockHandleOAuthCallback.mockResolvedValue(undefined);
+    Object.assign(window.location, {
+      hash: "#access_token=access&refresh_token=refresh&redirect=https%3A%2F%2Fmanga.zenstory.ai%2Fcb",
+    });
+
+    render(<MemoryRouter><OAuthCallback /></MemoryRouter>);
+
+    await waitFor(() => {
+      expect(window.location.href).toBe("https://manga.zenstory.ai/cb?token=access");
+    });
+    expect(mockIsValidRedirectUrl).toHaveBeenCalledWith("https://manga.zenstory.ai/cb");
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("shows the generic sign-in failure instead of a raw error when the redirect target is not allowed", async () => {
+    mockHandleOAuthCallback.mockResolvedValue(undefined);
+    mockIsValidRedirectUrl.mockReturnValue(false);
+    Object.assign(window.location, {
+      hash: "#access_token=access&refresh_token=refresh&redirect=https%3A%2F%2Fevil.example%2Fsteal",
+    });
+
+    render(<MemoryRouter><OAuthCallback /></MemoryRouter>);
+
+    expect(await screen.findByText("Sign-in did not complete")).toBeInTheDocument();
+    expect(screen.queryByText("Invalid redirect URL")).not.toBeInTheDocument();
+    expect(screen.getByText("Login failed")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back to login" })).toBeInTheDocument();
+    expect(mockIsValidRedirectUrl).toHaveBeenCalledWith("https://evil.example/steal");
+    // The access token is never appended to the untrusted URL.
+    expect(window.location.href).toBe("http://localhost:5173/auth/callback");
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(mockCaptureException).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "Invalid redirect URL" }),
+      { feature_area: "auth", action: "oauth_callback" },
+    );
   });
 });
