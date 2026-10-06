@@ -359,9 +359,11 @@ class LLMClient:
             # Extract token usage if available
             usage = response.usage
             if usage_attribution is not None:
-                from services.usage.llm_usage_service import record_llm_usage_async
+                from services.usage.llm_usage_service import schedule_llm_usage_record
 
-                await record_llm_usage_async(usage_attribution, model=model_name, usage=usage)
+                # Fire-and-forget: suggest wraps this call in asyncio.wait_for,
+                # so awaiting the ledger write would spend the caller's deadline.
+                schedule_llm_usage_record(usage_attribution, model=model_name, usage=usage)
             if usage:
                 log_with_context(
                     logger,

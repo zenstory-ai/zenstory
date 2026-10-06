@@ -58,6 +58,20 @@ def test_llm_usage_event_migration_round_trip(tmp_path: Path):
     assert columns["user_id"]["nullable"] is False
     assert columns["project_id"]["nullable"] is True
     assert columns["correlation_id"]["nullable"] is True
+    for name in ("cache_hit_tokens", "cache_miss_tokens", "output_tokens", "is_backfilled"):
+        assert columns[name]["default"] is not None, name
     with engine.connect() as connection:
         assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == REVISION
+        # A raw insert that names none of the defaulted columns gets zeros and false
+        # (SQLite leaves foreign keys unenforced here, so no user row is needed).
+        connection.execute(
+            text(
+                "INSERT INTO llm_usage_event (id, user_id, source, model, price_band, pricing_version, occurred_at) "
+                "VALUES ('e1', 'u1', 'agent', 'deepseek-flash', 'peak', 'v', '2026-10-06 02:00:00')"
+            )
+        )
+        row = connection.execute(
+            text("SELECT cache_hit_tokens, cache_miss_tokens, output_tokens, is_backfilled FROM llm_usage_event")
+        ).one()
+        assert tuple(row) == (0, 0, 0, 0)
     engine.dispose()

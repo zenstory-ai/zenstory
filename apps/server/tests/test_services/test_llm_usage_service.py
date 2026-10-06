@@ -169,33 +169,55 @@ def test_record_closes_session_when_commit_fails(monkeypatch):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_record_async_writes_off_loop(db_session: Session):
+async def test_schedule_writes_in_background(db_session: Session):
     user = _user(db_session, "meter_async")
-    ok = await svc.record_llm_usage_async(
+    task = svc.schedule_llm_usage_record(
         LLMUsageAttribution(user_id=user.id, source="router"),
         model="deepseek-flash",
         usage={"prompt_tokens": 7, "completion_tokens": 3},
     )
-    assert ok is True
+    assert task is not None
+    assert task in svc._pending_records
+    await svc.drain_pending_usage_records()
+    assert task.result() is True
+    assert task not in svc._pending_records
     [event] = _events(db_session)
     assert (event.source, event.cache_miss_tokens, event.output_tokens) == ("router", 7, 3)
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_record_async_skips_and_swallows(monkeypatch):
-    assert await svc.record_llm_usage_async(None, model="m", usage={"completion_tokens": 1}) is False
-    assert await svc.record_llm_usage_async(
+async def test_schedule_skips_and_swallows(monkeypatch):
+    assert svc.schedule_llm_usage_record(None, model="m", usage={"completion_tokens": 1}) is None
+    assert svc.schedule_llm_usage_record(
         LLMUsageAttribution(user_id="u", source="agent"), model="m", usage={}
-    ) is False
+    ) is None
 
     def boom(*_args, **_kwargs):
         raise RuntimeError("extract failed")
 
     monkeypatch.setattr(svc, "extract_usage_tokens", boom)
-    assert await svc.record_llm_usage_async(
+    assert svc.schedule_llm_usage_record(
         LLMUsageAttribution(user_id="u", source="agent"), model="m", usage={"completion_tokens": 1}
-    ) is False
+    ) is None
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_schedule_logs_and_forgets_a_failed_write(monkeypatch):
+    def broken(*_args, **_kwargs):
+        raise RuntimeError("thread blew up")
+
+    logged: list[str] = []
+    monkeypatch.setattr(svc, "record_llm_usage", broken)
+    monkeypatch.setattr(svc, "log_with_context", lambda _logger, _level, message, **_kw: logged.append(message))
+    task = svc.schedule_llm_usage_record(
+        LLMUsageAttribution(user_id="u", source="agent"), model="m", usage={"completion_tokens": 1}
+    )
+    assert task is not None
+    await svc.drain_pending_usage_records()
+    assert logged == ["LLM usage metering failed"]
+    assert task not in svc._pending_records
 
 
 # ---------------------------------------------------------------------------

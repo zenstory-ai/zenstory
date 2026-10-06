@@ -13,7 +13,7 @@ from typing import Any
 
 from agent.tools.mcp_tools import ToolContext
 from models.llm_usage import LLM_USAGE_SOURCE_AGENT
-from services.usage.llm_usage_service import LLMUsageAttribution, record_llm_usage_async
+from services.usage.llm_usage_service import LLMUsageAttribution, schedule_llm_usage_record
 from utils.request_context import get_agent_run_id
 
 
@@ -29,8 +29,10 @@ class UsageMeteringMixin:
         return self._attribution
 
     async def on_llm_end(self, context: Any, agent: Any, response: Any) -> None:
+        # The SDK awaits this hook before its next model call or tool step, so
+        # the write is scheduled in the background rather than awaited.
         del context, agent
-        await record_llm_usage_async(
+        schedule_llm_usage_record(
             self._attribution,
             model=self._model,
             usage=getattr(response, "usage", None),

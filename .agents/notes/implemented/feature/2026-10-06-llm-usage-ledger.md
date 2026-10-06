@@ -13,14 +13,15 @@ Status: implemented
 
 ## Decision
 
-**账本表 `llm_usage_event`，一次模型调用一行。** 模型在 `apps/server/models/llm_usage.py`，迁移 `alembic/versions/20261006_090000_add_llm_usage_event.py`（`down_revision = 20261005_180100`）。字段：`user_id`（FK `user.id`，非空、有索引）、`project_id`（可空）、`source`（`agent | router | suggest | polish | material`）、`model`、`cache_hit_tokens`、`cache_miss_tokens`、`output_tokens`（含推理 token）、`price_band`（`peak | offpeak`）、`pricing_version`、`occurred_at`（naive UTC，沿用全库惯例）、`correlation_id`（agent 为 `agent_run_id`，素材为 `novel:<id>`，回填为 `chat_message:<id>`）、`is_backfilled`。索引：`(occurred_at)`、`(user_id, occurred_at)`。表里只存 token，不存金额；金额由三项 token、档位和价格版本推出，可以复算。
+**账本表 `llm_usage_event`，一次模型调用一行。** 模型在 `apps/server/models/llm_usage.py`，迁移 `alembic/versions/20261006_090000_add_llm_usage_event.py`（`down_revision = 20261005_180100`）。字段：`user_id`（FK `user.id`，非空、有索引）、`project_id`（可空）、`source`（`agent | router | suggest | polish | material`）、`model`、`cache_hit_tokens`、`cache_miss_tokens`、`output_tokens`（含推理 token）、`price_band`（`peak | offpeak`）、`pricing_version`、`occurred_at`（naive UTC，沿用全库惯例）、`correlation_id`（agent 为 `agent_run_id`，素材为 `novel:<id>`，回填为 `chat_message:<id>`）、`is_backfilled`。索引：`(occurred_at)`、`(user_id, occurred_at)`。三项 token 列带 `server_default "0"`、`is_backfilled` 带 `server_default false`，模型里用 `sa_column_kwargs` 同步声明，`alembic check`（含 `compare_server_default`）无差异。表里只存 token，不存金额；金额由三项 token、档位和价格版本推出，可以复算。
 
 **价格只在一个模块里。** `services/usage/pricing.py`：`PRICING_VERSION = "deepseek-flash-2026-10"`，单位为元/百万 tokens，高峰：缓存命中 0.04、未命中 2、输出 8；空闲：0.02、1、4。高峰为北京时间周一至周五 `[09:00, 12:00)` 与 `[14:00, 18:00)`，其余为空闲。档位按每次调用自己的完成时间判定。**不处理法定节假日和调休**：工作日的节假日按工作日计价。金额用 `Decimal`；为了在 SQL 里精确聚合，价格乘 100 变成整数权重，`tokens × 权重` 的单位是 1e-8 元，接口输出四舍五入（ROUND_HALF_UP）到 4 位小数的字符串。
 
 **写账本永远不影响用户请求。** `services/usage/llm_usage_service.py`：
 
 - `extract_usage_tokens` 接受任意 usage 对象或 dict：优先读 DeepSeek 的 `prompt_cache_hit_tokens / prompt_cache_miss_tokens`；没有时命中数取 `prompt_tokens_details.cached_tokens`（或 openai-agents 的 `input_tokens_details.cached_tokens`），未命中 = prompt − 命中；输出取 `completion_tokens` / `output_tokens`。非数值（包括测试里的 MagicMock）一律按 0。线上探测确认 deepseek-flash 流式（include_usage）与非流式响应里两组字段都有且相等，所以只走 SDK 的 `cached_tokens` 路径也是对的。
-- `record_llm_usage`（同步）与 `record_llm_usage_async`（在事件循环上取 token 和时间戳，`asyncio.to_thread` 落库）都用**自己的** session（默认 `database.create_session`），从不复用调用方或 ToolContext 的 session；没有 user_id 或三项 token 全为 0 时跳过；所有异常只记 ERROR 日志并返回 False。
+- `record_llm_usage`（同步）用**自己的** session（默认 `database.create_session`），从不复用调用方或 ToolContext 的 session；没有 user_id 或三项 token 全为 0 时跳过；所有异常只记 ERROR 日志并返回 False。
+- 事件循环上的调用点（写作助手 hooks、路由、`LLMClient.acomplete`）一律用 `schedule_llm_usage_record`：在循环上取 token 和时间戳，`asyncio.create_task(asyncio.to_thread(record_llm_usage, ...))` 后台落库，**不 await**。原因：输入建议把 `acomplete` 包在 `asyncio.wait_for(SUGGEST_LLM_TIMEOUT_S)` 里，等账本写入会吃掉建议的超时预算；路由和 `on_llm_end` 在每轮写作的首 token 之前或模型调用之间，也不该多一次数据库往返。任务放进模块级强引用集合 `_pending_records`（事件循环只弱引用任务，防止被 GC），done-callback 移出集合并记录异常。`drain_pending_usage_records()` 等待当前循环上所有在途写入：`main.py` 的 lifespan 关闭时调用一次，测试里断言前调用。
 
 **每个 DeepSeek 调用点都计量：**
 
@@ -34,7 +35,7 @@ Status: implemented
 **后台接口**（`api/admin/usage.py`，superuser，沿用既有的 `/api/admin` 前缀；逻辑在 `services/usage/admin_usage_service.py`）：
 
 - `GET /api/admin/usage/summary?window=today|yesterday|7d`：`timezone=Asia/Shanghai`、`period_start / period_end`（北京日期）、`pricing_version`、`prices`、`totals`（用户数、调用数、三项 token、总费用、高峰/空闲费用）、`by_source`、`daily`（7d 固定 7 行，零值补齐）。
-- `GET /api/admin/usage/users?window=&search=&sort=cost|calls|tokens&page=&page_size=`：按用户聚合，`search` 匹配用户名、邮箱（不区分大小写）或完整用户 ID；按费用排序在 SQL 里用 `CASE price_band` 算整数成本单位；同值按 `user.id` 升序，翻页不重叠。`last_used_at` 带时区（`Z`）。
+- `GET /api/admin/usage/users?window=&search=&sort=cost|calls|tokens&page=&page_size=`：按用户聚合，`search` 匹配用户名、邮箱（不区分大小写）或完整用户 ID；按费用排序在 SQL 里用 `CASE price_band` 算整数成本单位（token 列先 `CAST(... AS BIGINT)` 再乘权重：PostgreSQL 里 `int4 × int4` 仍是 int4，单行 300 万输出 token × 高峰权重 800 就会报 integer out of range）；同值按 `user.id` 升序，翻页不重叠。`last_used_at` 带时区（`Z`）。
 - `GET /api/admin/usage/users/{user_id}/daily?days=7|14|30`：逐日（补零）、合计、按功能拆分。
 - 「近 7 天」= 截至今天（含）的 7 个北京日。窗口边界在 Python 里算成半开的 naive UTC 区间；逐日分桶用基于这些边界的 `CASE` 表达式放在子查询里，外层按普通列 `GROUP BY`，SQLite（测试）和 PostgreSQL（生产）同一套查询。已在本地 PostgreSQL 14 上跑过迁移往返、`alembic check`（无差异）、三个聚合函数和回填脚本。
 
@@ -56,7 +57,7 @@ Status: implemented
 
 - 收益：每次 DeepSeek 调用（写作助手、路由、建议、润色、素材拆解）都有一行带时间戳和档位的记录，清空对话不影响；后台能按北京日看每个用户的费用，并拆成高峰/空闲与按功能。
 - 收益：价格只在 `pricing.py` 一处；改价时升 `PRICING_VERSION`，历史行按原版本复算。
-- 代价：每次模型调用多一次独立的小事务写入（在线程池里执行，不占事件循环），每轮写作请求多几行。
+- 代价：每次模型调用多一次独立的小事务写入（后台任务里放到线程池执行，请求路径不等它），每轮写作请求多几行。进程被强杀（非正常关闭、不走 lifespan）时，在途的少量写入会丢，报表因此只会偏低。
 - 代价：报表是**下限**。被取消、断线或超时的流式调用，usage 只在最后一个 chunk 才有，DeepSeek 照样收费但我们拿不到；建议接口 `wait_for` 超时、SDK 内部重试的读超时同样拿不到。向量嵌入（智谱 embedding-3，另一家供应商）不在账本里。需要对账时以 DeepSeek 控制台为准。
 - 代价：法定节假日不建模，节假日的工作时段会按高峰价计；回填行一轮一个时间戳，档位是近似值；2026-07-27 之前的旧格式消息不回填。
 

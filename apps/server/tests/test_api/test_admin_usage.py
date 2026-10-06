@@ -90,7 +90,11 @@ async def test_usage_endpoints_require_superuser(client: AsyncClient, db_session
     ):
         assert (await client.get(path)).status_code == 401
     headers = await _headers(client, "alice")
-    for path in ("/api/admin/usage/summary", "/api/admin/usage/users"):
+    for path in (
+        "/api/admin/usage/summary",
+        "/api/admin/usage/users",
+        f"/api/admin/usage/users/{seeded['alice'].id}/daily",
+    ):
         assert (await client.get(path, headers=headers)).status_code == 403
 
 
@@ -277,3 +281,33 @@ def test_window_period_rejects_unknown_window():
     with pytest.raises(ValueError):
         admin_usage_service.window_period("month", NOW)  # type: ignore[arg-type]
 
+
+
+@pytest.mark.unit
+def test_cost_units_widen_token_columns_to_bigint_on_postgresql():
+    """int4 * weight overflows on PostgreSQL ("integer out of range") without the cast."""
+    from sqlalchemy import select
+    from sqlalchemy.dialects import postgresql
+
+    query = select(
+        admin_usage_service._peak_units_expr(admin_usage_service.EVENTS),
+        admin_usage_service._offpeak_units_expr(admin_usage_service.EVENTS),
+    )
+    sql = str(query.compile(dialect=postgresql.dialect())).upper()
+    for column in ("CACHE_HIT_TOKENS", "CACHE_MISS_TOKENS", "OUTPUT_TOKENS"):
+        assert f"CAST(LLM_USAGE_EVENT.{column} AS BIGINT)" in sql
+    # Both bands, three columns each: no token column is multiplied uncast.
+    assert sql.count("AS BIGINT)") == 6
+
+
+@pytest.mark.integration
+async def test_cost_of_multi_million_token_row(client: AsyncClient, db_session: Session, seeded):
+    headers = await _headers(client, "usage_admin")
+    # 2026-10-06 10:00 Beijing is peak: 3M output at weight 800 is 2.4e9 units, past int4.
+    _event(db_session, seeded["bob"], datetime(2026, 10, 6, 2, 0), out=3_000_000)
+    body = (
+        await client.get("/api/admin/usage/users", params={"window": "yesterday"}, headers=headers)
+    ).json()
+    bob = next(item for item in body["items"] if item["username"] == "bob")
+    # 3M peak output = 24 CNY, plus the 1M off-peak output seeded yesterday = 4 CNY.
+    assert bob["cost_cny"] == "28.0000"

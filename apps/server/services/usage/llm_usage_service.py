@@ -182,29 +182,62 @@ def record_llm_usage(
         return False
 
 
-async def record_llm_usage_async(
+# Strong references to in-flight background writes: the event loop only keeps
+# weak references to tasks, so an unreferenced task can be garbage-collected
+# before it finishes.
+_pending_records: set[asyncio.Task[bool]] = set()
+
+
+def _on_record_done(task: asyncio.Task[bool]) -> None:
+    _pending_records.discard(task)
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        log_with_context(
+            logger,
+            40,  # ERROR
+            "LLM usage metering failed",
+            error=str(exc),
+            error_type=type(exc).__name__,
+        )
+
+
+def schedule_llm_usage_record(
     attribution: LLMUsageAttribution | None,
     *,
     model: str,
     usage: Any = None,
     tokens: UsageTokens | None = None,
-) -> bool:
-    """Async wrapper: extracts tokens on the loop, writes off the loop."""
+) -> asyncio.Task[bool] | None:
+    """Fire-and-forget ledger write for code running on the event loop.
+
+    Tokens and the timestamp are taken now; the database write runs in a
+    background task (``asyncio.to_thread``) so the caller never waits on it.
+    Every call site on the loop (agent hooks, router, ``LLMClient.acomplete``)
+    sits in a request path, and suggest wraps its model call in
+    ``asyncio.wait_for``, so none of them may wait on the database. Returns
+    the task (for tests), or None when nothing is to be written. Never raises.
+    """
     try:
         if attribution is None or not attribution.user_id:
-            return False
+            return None
         counted = tokens if tokens is not None else extract_usage_tokens(usage)
         if counted.total <= 0:
-            return False
-        # Stamp the call time now, not when the worker thread gets to run.
+            return None
         occurred_at = utcnow()
-        return await asyncio.to_thread(
-            record_llm_usage,
-            attribution,
-            model=model,
-            tokens=counted,
-            occurred_at=occurred_at,
+        task = asyncio.get_running_loop().create_task(
+            asyncio.to_thread(
+                record_llm_usage,
+                attribution,
+                model=model,
+                tokens=counted,
+                occurred_at=occurred_at,
+            )
         )
+        _pending_records.add(task)
+        task.add_done_callback(_on_record_done)
+        return task
     except Exception as exc:
         log_with_context(
             logger,
@@ -214,7 +247,15 @@ async def record_llm_usage_async(
             error=str(exc),
             error_type=type(exc).__name__,
         )
-        return False
+        return None
+
+
+async def drain_pending_usage_records() -> None:
+    """Wait for every scheduled ledger write of the running loop (tests, shutdown)."""
+    loop = asyncio.get_running_loop()
+    pending = [task for task in _pending_records if task.get_loop() is loop]
+    if pending:
+        await asyncio.gather(*pending, return_exceptions=True)
 
 
 # ---------------------------------------------------------------------------

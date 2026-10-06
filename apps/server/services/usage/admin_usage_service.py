@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Literal
 
-from sqlalchemy import String, case, cast, func, literal, or_
+from sqlalchemy import BigInteger, String, case, cast, func, literal, or_
 from sqlmodel import Session, select
 
 from config.datetime_utils import normalize_datetime_to_utc, utcnow
@@ -77,12 +77,22 @@ def trailing_period(days: int, now: datetime | None = None) -> Period:
 EVENTS = LLMUsageEvent.__table__.c  # type: ignore[attr-defined]
 
 
+def _wide(column: Any) -> Any:
+    """Widen an INTEGER token column before multiplying by a cost weight.
+
+    On PostgreSQL ``int4 * int4`` stays int4, so a single row with a few
+    million output tokens times the output weight raises "integer out of
+    range". BIGINT holds any realistic product.
+    """
+    return cast(column, BigInteger)
+
+
 def _band_units(c: Any, band: str) -> Any:
     weights = COST_WEIGHTS[band]
     return (
-        c.cache_hit_tokens * weights["cache_hit"]
-        + c.cache_miss_tokens * weights["cache_miss"]
-        + c.output_tokens * weights["output"]
+        _wide(c.cache_hit_tokens) * weights["cache_hit"]
+        + _wide(c.cache_miss_tokens) * weights["cache_miss"]
+        + _wide(c.output_tokens) * weights["output"]
     )
 
 

@@ -241,7 +241,7 @@ async def _route_with_deepseek_chat(user_message: str) -> dict[str, Any]:
         # Keep a generous budget so the short routing JSON always fits after reasoning.
         max_tokens=2048,
     )
-    await _meter_router_call(response)
+    _meter_router_call(response)
     text = response.choices[0].message.content or ""
     return {
         "content": [
@@ -254,17 +254,21 @@ async def _route_with_deepseek_chat(user_message: str) -> dict[str, Any]:
     }
 
 
-async def _meter_router_call(response: object) -> None:
-    """Write the routing call to the usage ledger (never raises)."""
+def _meter_router_call(response: object) -> None:
+    """Schedule the routing call's ledger write in the background (never raises).
+
+    Routing sits in front of every writing turn; the write must not add a
+    database round trip to the time before the first token.
+    """
     from agent.tools.mcp_tools import ToolContext
     from models.llm_usage import LLM_USAGE_SOURCE_ROUTER
     from services.usage.llm_usage_service import (
         LLMUsageAttribution,
-        record_llm_usage_async,
+        schedule_llm_usage_record,
     )
     from utils.request_context import get_agent_run_id
 
-    await record_llm_usage_async(
+    schedule_llm_usage_record(
         LLMUsageAttribution(
             user_id=ToolContext.get_user_id(),
             source=LLM_USAGE_SOURCE_ROUTER,

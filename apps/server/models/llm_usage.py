@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Index
+from sqlalchemy import Index, false
 from sqlmodel import Field, SQLModel
 
 from .utils import generate_uuid
@@ -42,13 +42,13 @@ class LLMUsageEvent(SQLModel, table=True):
     project_id: str | None = Field(default=None, max_length=64)
     source: str = Field(max_length=16)
     model: str = Field(max_length=64)
-    cache_hit_tokens: int = Field(default=0)
-    cache_miss_tokens: int = Field(default=0)
-    output_tokens: int = Field(default=0)
+    cache_hit_tokens: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
+    cache_miss_tokens: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
+    output_tokens: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
     price_band: str = Field(max_length=8)
     pricing_version: str = Field(max_length=32)
     # Naive UTC, like every other timestamp column in this codebase.
     occurred_at: datetime = Field(default_factory=datetime.utcnow)
     # agent_run_id, novel:<id>, or chat_message:<id> for backfilled rows.
     correlation_id: str | None = Field(default=None, max_length=128)
-    is_backfilled: bool = Field(default=False)
+    is_backfilled: bool = Field(default=False, sa_column_kwargs={"server_default": false()})

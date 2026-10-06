@@ -86,6 +86,10 @@ async def lifespan(_app: FastAPI):
         log_level=os.getenv("LOG_LEVEL", "INFO"),
     )
     yield
+    # Usage-ledger rows are written by background tasks; let in-flight ones land.
+    from services.usage.llm_usage_service import drain_pending_usage_records
+
+    await drain_pending_usage_records()
 
 
 # Create FastAPI app

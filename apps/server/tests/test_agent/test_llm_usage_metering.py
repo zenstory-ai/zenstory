@@ -1,5 +1,7 @@
 """Every DeepSeek call site in the API process writes llm_usage_event rows."""
 
+import asyncio
+import threading
 import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -9,7 +11,8 @@ from sqlmodel import Session, select
 
 from agent.tools.mcp_tools import ToolContext
 from models import LLMUsageEvent, User
-from services.usage.llm_usage_service import LLMUsageAttribution
+from services.usage import llm_usage_service
+from services.usage.llm_usage_service import LLMUsageAttribution, drain_pending_usage_records
 from utils.request_context import bind_request_context, reset_request_context
 
 
@@ -108,6 +111,7 @@ async def test_sdk_run_writes_one_row_per_model_call(db_session: Session, bound_
     )
     async for _event in result.stream_events():
         pass
+    await drain_pending_usage_records()
 
     [event] = _events(db_session)
     assert completions.calls == 1
@@ -185,6 +189,7 @@ async def test_router_call_is_metered(db_session: Session, bound_request):
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
     with patch("agent.graph.router.get_deepseek_client", return_value=client):
         response = await router._route_with_deepseek_chat("写一章")
+    await drain_pending_usage_records()
 
     assert response["usage"]["cache_read_tokens"] == 256
     [event] = _events(db_session)
@@ -243,10 +248,12 @@ async def test_acomplete_meters_only_with_attribution(db_session: Session, monke
     client._async_client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
 
     assert await client.acomplete([{"role": "user", "content": "hi"}]) == "done"
+    await drain_pending_usage_records()
     assert _events(db_session) == []
 
     attribution = LLMUsageAttribution(user_id=user.id, source="polish", project_id="p-2")
     assert await client.acomplete([{"role": "user", "content": "hi"}], usage_attribution=attribution) == "done"
+    await drain_pending_usage_records()
     [event] = _events(db_session)
     assert (event.source, event.user_id, event.project_id) == ("polish", user.id, "p-2")
     assert (event.cache_hit_tokens, event.cache_miss_tokens, event.output_tokens) == (100, 20, 30)
@@ -256,7 +263,6 @@ async def test_acomplete_meters_only_with_attribution(db_session: Session, monke
 @pytest.mark.asyncio
 async def test_acomplete_returns_content_when_metering_fails(db_session: Session, monkeypatch):
     from agent.core.llm_client import LLMClient
-    from services.usage import llm_usage_service
 
     def broken_factory():
         raise RuntimeError("ledger down")
@@ -271,3 +277,66 @@ async def test_acomplete_returns_content_when_metering_fails(db_session: Session
 
     attribution = LLMUsageAttribution(user_id="u-1", source="suggest")
     assert await client.acomplete([{"role": "user", "content": "hi"}], usage_attribution=attribution) == "ok"
+    await drain_pending_usage_records()
+
+
+def _blocking_recorder(monkeypatch) -> tuple[threading.Event, threading.Event]:
+    """Replace the ledger write with one that blocks until released."""
+    started = threading.Event()
+    release = threading.Event()
+
+    def slow_record(*_args, **_kwargs):
+        started.set()
+        release.wait(timeout=10)
+        return True
+
+    monkeypatch.setattr(llm_usage_service, "record_llm_usage", slow_record)
+    return started, release
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_slow_ledger_write_does_not_delay_acomplete(monkeypatch):
+    """Suggest wraps acomplete in asyncio.wait_for; metering must not spend that deadline."""
+    from agent.core.llm_client import LLMClient
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    started, release = _blocking_recorder(monkeypatch)
+    usage = SimpleNamespace(prompt_tokens=10, completion_tokens=3, total_tokens=13)
+    client = LLMClient()
+    client._async_client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=AsyncMock(return_value=_chat_response("ok", usage))))
+    )
+    attribution = LLMUsageAttribution(user_id="u-1", source="suggest")
+    try:
+        # The recorder is still blocked, yet the call returns well inside a tight deadline.
+        result = await asyncio.wait_for(
+            client.acomplete([{"role": "user", "content": "hi"}], usage_attribution=attribution),
+            timeout=1.0,
+        )
+        assert result == "ok"
+        assert await asyncio.to_thread(started.wait, 5)
+        assert any(not task.done() for task in llm_usage_service._pending_records)
+    finally:
+        release.set()
+        await drain_pending_usage_records()
+    assert not llm_usage_service._pending_records
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_slow_ledger_write_does_not_delay_routing(monkeypatch, bound_request):
+    from agent.graph import router
+
+    started, release = _blocking_recorder(monkeypatch)
+    usage = SimpleNamespace(prompt_tokens=30, completion_tokens=4, total_tokens=34)
+    create = AsyncMock(return_value=_chat_response('{"agent_type":"writer"}', usage))
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    try:
+        with patch("agent.graph.router.get_deepseek_client", return_value=client):
+            response = await asyncio.wait_for(router._route_with_deepseek_chat("写一章"), timeout=1.0)
+        assert response["content"][0]["text"] == '{"agent_type":"writer"}'
+        assert await asyncio.to_thread(started.wait, 5)
+    finally:
+        release.set()
+        await drain_pending_usage_records()
