@@ -122,7 +122,9 @@ test.describe("Onboarding persona flow", () => {
     await loginAndSettle(page);
     await clearCurrentUserPersonaStorage(page);
     await gotoWithRetry(page, "/onboarding/persona");
-    await expect(page.getByText(/先认识你|let us know you first/i)).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 1, name: /告诉我们你怎么写作|tell us how you write/i })
+    ).toBeVisible();
   });
 
   test("submits persona selection and persists onboarding payload", async ({ page }) => {
@@ -162,7 +164,7 @@ test.describe("Onboarding persona flow", () => {
     await page.getByRole("button", { name: /同人\/兴趣创作者|fanfic \/ hobby creator/i }).click();
 
     await expect(
-      page.getByText(/最多可选 3 项|up to 3 personas/i)
+      page.getByText(/请先取消一个|deselect one first/i)
     ).toBeVisible();
     await expect(page.getByText(/3 \/ 3 已选|3 \/ 3 selected/i)).toBeVisible();
   });
