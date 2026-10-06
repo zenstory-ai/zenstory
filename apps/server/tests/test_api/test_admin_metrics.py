@@ -277,6 +277,15 @@ async def test_admin_check_in_stats_use_beijing_days_and_include_legacy_records(
                 points_earned=10,
                 created_at=datetime(2026, 10, 4, 17, 0, tzinfo=UTC),
             ),
+            # Under the old UTC-day policy the same user could check in again
+            # after UTC midnight while still in the same Beijing day.
+            CheckInRecord(
+                user_id=target.id,
+                check_in_date=date(2026, 10, 6),
+                streak_days=14,
+                points_earned=10,
+                created_at=datetime(2026, 10, 6, 1, 0, tzinfo=UTC),
+            ),
             CheckInRecord(
                 user_id=current_format_target.id,
                 check_in_date=date(2026, 10, 6),
@@ -299,7 +308,7 @@ async def test_admin_check_in_stats_use_beijing_days_and_include_legacy_records(
     assert payload["today_count"] == 2
     assert payload["yesterday_count"] == 1
     assert payload["week_total"] == 3
-    assert payload["streak_distribution"] == {"7": 1}
+    assert payload["streak_distribution"] == {"7": 1, "14": 1}
 
     records_response = await client.get(
         "/api/admin/check-in/records",
@@ -308,6 +317,7 @@ async def test_admin_check_in_stats_use_beijing_days_and_include_legacy_records(
     )
     assert records_response.status_code == 200
     assert [item["check_in_date"] for item in records_response.json()["items"]] == [
+        "2026-10-06",
         "2026-10-06",
         "2026-10-05",
     ]

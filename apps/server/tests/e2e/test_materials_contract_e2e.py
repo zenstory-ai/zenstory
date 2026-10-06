@@ -168,6 +168,7 @@ async def test_materials_contract_retry_creates_pending_job_and_consumes_quota(
         features={
             "ai_conversations_per_day": 10,
             "max_projects": 1,
+            "materials_library_access": True,
             "material_uploads": 5,
             "material_decompositions": 3,
             "custom_skills": 3,

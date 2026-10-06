@@ -124,12 +124,14 @@ def get_dashboard_stats(
             CheckInRecord.check_in_date.in_(
                 (today_beijing, today_beijing - timedelta(days=1))
             )
-        )
+        ).order_by(CheckInRecord.created_at.asc(), CheckInRecord.id.asc())
     ).all()
-    today_check_ins = sum(
-        effective_check_in_date(record) == today_beijing
+    today_check_ins_by_user = {
+        record.user_id: record
         for record in check_in_candidates
-    )
+        if effective_check_in_date(record) == today_beijing
+    }
+    today_check_ins = len(today_check_ins_by_user)
 
     # Active invite codes
     active_invite_codes = session.exec(

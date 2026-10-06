@@ -9,6 +9,7 @@ import time
 from collections import defaultdict
 from functools import lru_cache
 from ipaddress import IPv4Network, IPv6Network, ip_address, ip_network
+from threading import Lock
 
 from fastapi import Depends, HTTPException, Request, status
 
@@ -23,6 +24,7 @@ from utils.logger import get_logger, log_with_context
 
 # In-memory fallback store
 _rate_limit_store: dict = defaultdict(list)
+_daily_rate_limit_store_lock = Lock()
 _redis_retry_after_monotonic: float = 0.0
 
 logger = get_logger(__name__)
@@ -439,15 +441,18 @@ def require_user_beijing_daily_rate_limit(key: str, max_requests: int):
             # A natural-day bucket must not use the rolling-window timestamp
             # cleanup in check_rate_limit: near midnight its shrinking TTL
             # would incorrectly discard requests made earlier the same day.
-            for stale_key in tuple(_rate_limit_store):
-                if stale_key.startswith(bucket_prefix) and stale_key != rate_key:
-                    del _rate_limit_store[stale_key]
-            bucket = _rate_limit_store[rate_key]
-            if len(bucket) >= max_requests:
-                allowed, remaining = False, 0
-            else:
-                bucket.append(now.timestamp())
-                allowed, remaining = True, max_requests - len(bucket)
+            # FastAPI runs sync dependencies in a thread pool, so cleanup and
+            # len/check/append must be one atomic process-local operation.
+            with _daily_rate_limit_store_lock:
+                for stale_key in tuple(_rate_limit_store):
+                    if stale_key.startswith(bucket_prefix) and stale_key != rate_key:
+                        _rate_limit_store.pop(stale_key, None)
+                bucket = _rate_limit_store[rate_key]
+                if len(bucket) >= max_requests:
+                    allowed, remaining = False, 0
+                else:
+                    bucket.append(now.timestamp())
+                    allowed, remaining = True, max_requests - len(bucket)
 
         if not allowed:
             log_with_context(

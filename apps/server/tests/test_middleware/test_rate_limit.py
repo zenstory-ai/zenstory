@@ -1,6 +1,9 @@
 """Tests for rate limit helper IP extraction and window behavior."""
 
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
+from threading import Barrier, BrokenBarrierError
 from types import SimpleNamespace
 
 import pytest
@@ -313,6 +316,87 @@ def test_user_beijing_daily_limit_skips_idle_days_without_shifting_boundary(monk
         enforce(request, current_user=user)
 
     assert exc_info.value.headers == {"Retry-After": "21600"}
+
+
+@pytest.mark.unit
+def test_user_beijing_daily_memory_limit_is_atomic_under_concurrency(monkeypatch):
+    """Concurrent sync dependencies must not both pass a one-request limit."""
+    enforce = require_user_beijing_daily_rate_limit("agent_suggest_daily", 1)
+    user = SimpleNamespace(id="same-user")
+    request = _build_request()
+    rate_key = "agent_suggest_daily:user_same-user:beijing_day:2026-10-06"
+    interleave = Barrier(2)
+
+    class _InterleavingBucket(list):
+        def __len__(self):
+            size = super().__len__()
+            if size == 0:
+                try:
+                    interleave.wait(timeout=0.1)
+                except BrokenBarrierError:
+                    pass
+            return size
+
+    monkeypatch.setattr(
+        rate_limit_module,
+        "utcnow",
+        lambda: datetime(2026, 10, 5, 16, 0, 0, tzinfo=UTC),
+    )
+    _rate_limit_store[rate_key] = _InterleavingBucket()
+
+    def invoke() -> tuple[str, int]:
+        try:
+            return "allowed", enforce(request, current_user=user)
+        except HTTPException:
+            return "blocked", 0
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _index: invoke(), range(2)))
+
+    assert [status for status, _remaining in results].count("allowed") == 1
+    assert [status for status, _remaining in results].count("blocked") == 1
+    assert all(remaining >= 0 for _status, remaining in results)
+    assert len(_rate_limit_store[rate_key]) == 1
+
+
+@pytest.mark.unit
+def test_user_beijing_daily_midnight_cleanup_is_safe_under_concurrency(monkeypatch):
+    """Two first requests after midnight cannot race deleting yesterday's bucket."""
+    stale_key = "agent_suggest_daily:user_same-user:beijing_day:2026-10-05"
+    current_key = "agent_suggest_daily:user_same-user:beijing_day:2026-10-06"
+    interleave = Barrier(2)
+
+    class _InterleavingCleanupStore(defaultdict):
+        def __iter__(self):
+            keys = list(super().keys())
+            if stale_key in keys:
+                try:
+                    interleave.wait(timeout=0.1)
+                except BrokenBarrierError:
+                    pass
+            return iter(keys)
+
+    store = _InterleavingCleanupStore(list)
+    store[stale_key] = [1.0]
+    monkeypatch.setattr(rate_limit_module, "_rate_limit_store", store)
+    monkeypatch.setattr(
+        rate_limit_module,
+        "utcnow",
+        lambda: datetime(2026, 10, 5, 16, 0, 0, tzinfo=UTC),
+    )
+    enforce = require_user_beijing_daily_rate_limit("agent_suggest_daily", 2)
+    user = SimpleNamespace(id="same-user")
+    request = _build_request()
+
+    def invoke() -> int:
+        return enforce(request, current_user=user)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _index: invoke(), range(2)))
+
+    assert sorted(results) == [0, 1]
+    assert stale_key not in store
+    assert len(store[current_key]) == 2
 
 
 @pytest.mark.unit

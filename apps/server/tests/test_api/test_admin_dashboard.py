@@ -287,6 +287,13 @@ async def test_admin_dashboard_counts_legacy_check_in_in_current_beijing_day(
                 created_at=now,
             ),
             CheckInRecord(
+                user_id=target.id,
+                check_in_date=date(2026, 10, 6),
+                streak_days=4,
+                points_earned=10,
+                created_at=datetime(2026, 10, 6, 1, 0, tzinfo=UTC),
+            ),
+            CheckInRecord(
                 user_id=current_format_target.id,
                 check_in_date=date(2026, 10, 6),
                 streak_days=1,
