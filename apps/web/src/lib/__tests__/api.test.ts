@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import type { CreateSkillRequest } from '../../types'
 
 const analyticsMocks = vi.hoisted(() => ({
   trackEventMock: vi.fn(),
@@ -10,7 +11,8 @@ const analyticsMocks = vi.hoisted(() => ({
 }))
 
 // Mock apiClient - must use factory function to avoid hoisting issues
-vi.mock('../apiClient', () => ({
+vi.mock('../apiClient', async importOriginal => ({
+  resolveOwnedAuthSession: (await importOriginal<typeof import('../apiClient')>()).resolveOwnedAuthSession,
   api: {
     get: vi.fn(),
     post: vi.fn(),
@@ -55,7 +57,7 @@ import {
 import { ApiError, api, apiErrorFromPayload } from '../apiClient'
 
 // Get the mocked api
-const mockApi = api as { [key: string]: ReturnType<typeof vi.fn> }
+const mockApi = vi.mocked(api)
 
 describe('api', () => {
   beforeEach(() => {
@@ -210,16 +212,17 @@ describe('api', () => {
 
     describe('googleLogin', () => {
       it('redirects to Google OAuth URL', () => {
-        const originalLocation = window.location
-        // @ts-expect-error - mock
-        delete window.location
-        window.location = { href: '' } as Location
+        let href = ''
+        const hrefGetter = vi.spyOn(window.location, 'href', 'get').mockImplementation(() => href)
+        const hrefSetter = vi.spyOn(window.location, 'href', 'set').mockImplementation(value => { href = value })
+        try {
+          authApi.googleLogin()
 
-        authApi.googleLogin()
-
-        expect(window.location.href).toContain('/api/auth/google')
-
-        window.location = originalLocation
+          expect(window.location.href).toContain('/api/auth/google')
+        } finally {
+          hrefSetter.mockRestore()
+          hrefGetter.mockRestore()
+        }
       })
     })
   })
@@ -399,7 +402,7 @@ describe('api', () => {
     describe('update', () => {
       it('updates existing file', async () => {
         const updates = { title: 'Updated Title', content: 'new content' }
-        const mockResponse = { id: '1', ...updates }
+        const mockResponse: { id: string; title: string; content: string; project_id?: string } = { id: '1', ...updates }
         mockApi.put.mockResolvedValue(mockResponse)
 
         const result = await fileApi.update('1', updates)
@@ -779,14 +782,9 @@ describe('api', () => {
         })
 
         // Mock DOM methods and URL API
-        const mockLink = {
-          href: '',
-          download: '',
-          click: vi.fn(),
-        }
-        vi.spyOn(document, 'createElement').mockReturnValue(mockLink as HTMLElement)
-        vi.spyOn(document.body, 'appendChild').mockImplementation(() => mockLink as HTMLElement)
-        vi.spyOn(document.body, 'removeChild').mockImplementation(() => mockLink as HTMLElement)
+        const mockLink = document.createElement('a')
+        vi.spyOn(mockLink, 'click').mockImplementation(() => {})
+        vi.spyOn(document, 'createElement').mockReturnValue(mockLink)
 
         // Mock URL API
         const mockUrl = 'blob:mock-url'
@@ -823,11 +821,11 @@ describe('api', () => {
     })
 
     it('creates skill', async () => {
-      const newSkill = { name: 'Test Skill', prompt: 'Test prompt' }
+      const newSkill = { name: 'Test Skill', triggers: ['Test trigger'], instructions: 'Test prompt' } satisfies CreateSkillRequest
       const mockResponse = { id: '1', ...newSkill }
       mockApi.post.mockResolvedValue(mockResponse)
 
-      const result = await skillsApi.create(newSkill as { name: string; prompt: string })
+      const result = await skillsApi.create(newSkill)
 
       expect(result).toEqual(mockResponse)
     })

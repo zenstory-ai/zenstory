@@ -11,7 +11,7 @@ from typing import cast
 from fastapi import APIRouter, Depends, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import InstrumentedAttribute, defer
-from sqlmodel import Session, func, select
+from sqlmodel import Session, col, func, select
 
 from config.datetime_utils import utcnow
 from config.feature_flags import require_inspirations_enabled
@@ -202,7 +202,7 @@ def list_inspirations_admin(
     count_query = select(func.count()).select_from(query.subquery())
     total = session.exec(count_query).one() or 0
 
-    query = query.order_by(Inspiration.created_at.desc()).offset(skip).limit(limit)
+    query = query.order_by(Inspiration.created_at.desc(), col(Inspiration.id).desc()).offset(skip).limit(limit)
 
     inspirations = session.exec(query).all()
     user_name_lookup = _build_user_name_lookup(session, list(inspirations))

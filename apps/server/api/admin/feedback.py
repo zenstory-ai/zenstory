@@ -184,12 +184,12 @@ def list_feedback_admin(
     if has_screenshot is None:
         total = session.exec(select(func.count()).select_from(query.subquery())).one()
         rows = session.exec(
-            query.order_by(col(UserFeedback.created_at).desc()).offset(skip).limit(limit)
+            query.order_by(col(UserFeedback.created_at).desc(), col(UserFeedback.id).desc()).offset(skip).limit(limit)
         ).all()
         items = [_to_admin_feedback_item(feedback, user) for feedback, user in rows]
     else:
         # Actual screenshot availability includes filesystem/legacy-path resolution.
-        rows = session.exec(query.order_by(col(UserFeedback.created_at).desc())).all()
+        rows = session.exec(query.order_by(col(UserFeedback.created_at).desc(), col(UserFeedback.id).desc())).all()
         items = [_to_admin_feedback_item(feedback, user) for feedback, user in rows]
         if has_screenshot:
             items = [item for item in items if item["has_screenshot"]]

@@ -28,7 +28,7 @@ import type {
   SSEWorkflowCompleteData,
   SSEWorkflowStoppedData,
 } from "../types";
-import { tryRefreshToken, getAccessToken, clearAuthStorage, getApiBase } from "./apiClient";
+import { tryRefreshToken, getAccessToken, clearAuthStorage, getApiBase, resolveOwnedAuthSession } from "./apiClient";
 import { debugContext } from "./debugContext";
 import { resolveApiErrorMessage, toUserErrorMessage, translateError } from "./errorHandler";
 import { logger } from "./logger";
@@ -239,18 +239,19 @@ export function streamAgentRequest(
     onError?: (message: string, code?: string, retryable?: boolean) => void;
   },
 ): AbortController {
+  const entryAccess = getAccessToken();
+  const entryRefresh = localStorage.getItem("refresh_token");
   const abortController = new AbortController();
   const traceId = generateTraceId();
   const telemetry = createAgentStreamTelemetry(request.project_id);
   const callbacks = withOutcomeTelemetry(rawCallbacks, telemetry);
 
-  const fetchStream = async (isRetry = false) => {
+  const fetchStream = async (accessToken: string | null = entryAccess, isRetry = false) => {
     try {
       // Track whether we received a terminal SSE event ("done" or "error").
       // If the server/proxy closes the connection without a terminal event,
       // the frontend would otherwise remain stuck in "processing" state.
       let receivedTerminalEvent = false;
-      const accessToken = getAccessToken();
       const language = localStorage.getItem("zenstory-language") || "zh";
 
       const response = await fetch(`${getApiBase()}/api/v1/agent/stream`, {
@@ -299,19 +300,25 @@ export function streamAgentRequest(
       // Handle 401 - try to refresh token and retry once
       if (response.status === 401 && !isRetry) {
         logger.log("[AgentAPI] Got 401, attempting token refresh...");
-        const refreshed = await tryRefreshToken();
-        if (refreshed) {
-          logger.log("[AgentAPI] Token refreshed, retrying request...");
-          return fetchStream(true);
-        } else {
-          clearAuthStorage("agent_auth_failed");
-          callbacks.onError?.(
-            translateError("ERR_AUTH_TOKEN_INVALID"),
-            "AUTH_ERROR",
-            false,
-          );
-          return;
+        let ownedSession = entryAccess && entryRefresh
+          ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+        if (ownedSession?.accessToken && ownedSession.refreshToken) {
+          if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
+            const refreshed = await tryRefreshToken();
+            ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+          }
+          if (ownedSession?.accessToken && ownedSession.refreshToken) {
+            logger.log("[AgentAPI] Token refreshed, retrying request...");
+            return fetchStream(ownedSession.accessToken, true);
+          }
         }
+        if (resolveOwnedAuthSession(entryAccess, entryRefresh)) clearAuthStorage("agent_auth_failed");
+        callbacks.onError?.(
+          translateError("ERR_AUTH_TOKEN_INVALID"),
+          "AUTH_ERROR",
+          false,
+        );
+        return;
       }
 
       if (!response.ok) {
@@ -809,9 +816,10 @@ export async function fetchSuggestions(
   recentMessages?: Array<{ role: string; content: string }>,
   count: number = 3,
 ): Promise<string[]> {
-  const doFetch = async (isRetry = false): Promise<string[]> => {
+  const entryAccess = getAccessToken();
+  const entryRefresh = localStorage.getItem("refresh_token");
+  const doFetch = async (accessToken: string | null = entryAccess, isRetry = false): Promise<string[]> => {
     try {
-      const accessToken = getAccessToken();
       const language = localStorage.getItem("zenstory-language") || "zh";
 
       const response = await fetch(`${getApiBase()}/api/v1/agent/suggest`, {
@@ -830,9 +838,16 @@ export async function fetchSuggestions(
 
       // Handle 401 - try to refresh token and retry once
       if (response.status === 401 && !isRetry) {
-        const refreshed = await tryRefreshToken();
-        if (refreshed) {
-          return doFetch(true);
+        let ownedSession = entryAccess && entryRefresh
+          ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+        if (ownedSession?.accessToken && ownedSession.refreshToken) {
+          if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
+            const refreshed = await tryRefreshToken();
+            ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+          }
+          if (ownedSession?.accessToken && ownedSession.refreshToken) {
+            return doFetch(ownedSession.accessToken, true);
+          }
         }
         return [];
       }
@@ -872,10 +887,12 @@ export async function sendSteeringRequest(
   sessionId: string,
   message: string,
 ): Promise<{ message_id: string; queued: boolean }> {
+  const entryAccess = getAccessToken();
+  const entryRefresh = localStorage.getItem("refresh_token");
   const doSend = async (
+    accessToken: string | null = entryAccess,
     isRetry = false,
   ): Promise<{ message_id: string; queued: boolean }> => {
-    const accessToken = getAccessToken();
     const language = localStorage.getItem("zenstory-language") || "zh";
 
     const response = await fetch(`${getApiBase()}/api/v1/agent/steer`, {
@@ -892,11 +909,18 @@ export async function sendSteeringRequest(
     });
 
     if (response.status === 401 && !isRetry) {
-      const refreshed = await tryRefreshToken();
-      if (refreshed) {
-        return doSend(true);
+      let ownedSession = entryAccess && entryRefresh
+        ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+      if (ownedSession?.accessToken && ownedSession.refreshToken) {
+        if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
+          const refreshed = await tryRefreshToken();
+          ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+        }
+        if (ownedSession?.accessToken && ownedSession.refreshToken) {
+          return doSend(ownedSession.accessToken, true);
+        }
       }
-      clearAuthStorage("agent_auth_failed");
+      if (resolveOwnedAuthSession(entryAccess, entryRefresh)) clearAuthStorage("agent_auth_failed");
       throw new Error(translateError("ERR_AUTH_TOKEN_INVALID"));
     }
 

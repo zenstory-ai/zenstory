@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/rules-of-hooks */
-import { test as base, expect, Page, Route } from '@playwright/test'
+import { test as base, expect, type Page, type Route } from '@playwright/test'
 import { TEST_USERS } from './config'
 import type { QuotaResponse, SubscriptionStatusResponse } from '../src/types/subscription'
 

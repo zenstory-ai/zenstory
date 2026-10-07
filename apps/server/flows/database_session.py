@@ -8,6 +8,7 @@ from contextlib import contextmanager
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, event
+from sqlalchemy.engine import make_url
 from sqlmodel import Session
 
 # 加载 .env 文件（Prefect worker 不会自动加载）
@@ -26,8 +27,13 @@ def _build_engine(database_url: str):
     if database_url.startswith("postgresql"):
         # PostgreSQL - use psycopg3 (psycopg) driver
         pg_url = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
+        existing_options = make_url(pg_url).query.get("options", "")
+        if isinstance(existing_options, tuple):
+            existing_options = " ".join(existing_options)
+        sync_options = " ".join(part for part in (existing_options.strip(), "-c timezone=UTC") if part)
         return create_engine(
             pg_url,
+            connect_args={"options": sync_options},
             pool_size=5,
             max_overflow=0,
             pool_pre_ping=True,

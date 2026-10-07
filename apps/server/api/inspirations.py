@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from services.auth import get_current_active_user
 from sqlalchemy.orm import InstrumentedAttribute, defer
-from sqlmodel import Session, func, select
+from sqlmodel import Session, col, func, select
 
 from config.datetime_utils import utcnow
 from config.feature_flags import require_inspirations_enabled
@@ -367,7 +367,7 @@ def get_my_submissions(
         select(Inspiration)
         .options(defer(cast(InstrumentedAttribute[str], Inspiration.snapshot_data)))
         .where(Inspiration.author_id == current_user.id)
-        .order_by(Inspiration.created_at.desc())
+        .order_by(Inspiration.created_at.desc(), col(Inspiration.id).desc())
     )
 
     count_stmt = select(func.count()).select_from(base_query.subquery())

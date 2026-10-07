@@ -1,3 +1,28 @@
+## 2026-10-07 policy parity repairs — source frozen, release gates pending
+
+All 23 module dispositions and the final three cross-cutting policy repairs are
+recorded. The seven-product UTC/session-retry/list-order candidate is independently
+SOURCE CLEAR from architect and code reviewer. Backend affected tests72 and
+real PostgreSQL tests2 pass; frontend five-suite277 pass. The separate API-test
+typing adapter passes135 runtime controls, expanded affected QA and lint, with
+all62 original tests/225 assertion nodes preserved; independent SOURCE CLEAR.
+Three E2E helper/type adapters are independently SOURCE CLEAR. See
+[final-crossmodule-parity.md](./final-crossmodule-parity.md).
+
+The next fresh Web aggregate will use the CI Node20 runtime and unchanged
+coverage/timeout gates, followed by the affected backend/image/build and full
+browser release checks. Previous aggregate proofs remain source-epoch-bound.
+No push, Actions trigger/rerun, PR, merge or production deployment yet.
+
+## 2026-10-07 final aggregate review — three policy surfaces reopened
+
+All23leafdispositions remain recorded, but aggregate architecture and independent
+code revalidation found owned raw-retry, Prefect UTC and total-pagination parity
+gaps. Source release approval is **withheld**. See [final-crossmodule-parity.md](./final-crossmodule-parity.md).
+At prior checkpoint9bbb66c, fresh backend4,644/283skips/0fail/cov90.93 and
+Web3,640/oneSSRskip passed. New affected product epochs require their own
+regression RED/GREEN, review and batched local gates before the one PR push.
+
 # Functional review progress
 
 Base `b88d9af`; full scope and module matrix:

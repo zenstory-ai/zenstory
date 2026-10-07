@@ -308,8 +308,9 @@ export const exportApi = {
    * ```
    */
   exportDrafts: async (projectId: string): Promise<void> => {
-    const doFetch = async (isRetry = false): Promise<Response> => {
-      const accessToken = getAccessToken();
+    const entryAccess = getAccessToken();
+    const entryRefresh = localStorage.getItem("refresh_token");
+    const doFetch = async (accessToken: string | null = entryAccess, isRetry = false): Promise<Response> => {
       const response = await fetch(
         `${getApiBase()}/api/v1/projects/${projectId}/export/drafts`,
         {
@@ -322,9 +323,16 @@ export const exportApi = {
 
       // Handle 401 - try to refresh token and retry once
       if (response.status === 401 && !isRetry) {
-        const refreshed = await tryRefreshToken();
-        if (refreshed) {
-          return doFetch(true);
+        let ownedSession = entryAccess && entryRefresh
+          ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+        if (ownedSession?.accessToken && ownedSession.refreshToken) {
+          if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
+            const refreshed = await tryRefreshToken();
+            ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+          }
+          if (ownedSession?.accessToken && ownedSession.refreshToken) {
+            return doFetch(ownedSession.accessToken, true);
+          }
         }
       }
 
@@ -1119,8 +1127,9 @@ export const fileApi = {
     const formData = new FormData();
     formData.append("file", file);
 
-    const doFetch = async (isRetry = false): Promise<Response> => {
-      const accessToken = getAccessToken();
+    const entryAccess = getAccessToken();
+    const entryRefresh = localStorage.getItem("refresh_token");
+    const doFetch = async (accessToken: string | null = entryAccess, isRetry = false): Promise<Response> => {
       const response = await fetch(
         `${getApiBase()}/api/v1/projects/${projectId}/files/upload`,
         {
@@ -1134,9 +1143,16 @@ export const fileApi = {
 
       // Handle 401 - try to refresh token and retry once
       if (response.status === 401 && !isRetry) {
-        const refreshed = await tryRefreshToken();
-        if (refreshed) {
-          return doFetch(true);
+        let ownedSession = entryAccess && entryRefresh
+          ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+        if (ownedSession?.accessToken && ownedSession.refreshToken) {
+          if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
+            const refreshed = await tryRefreshToken();
+            ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+          }
+          if (ownedSession?.accessToken && ownedSession.refreshToken) {
+            return doFetch(ownedSession.accessToken, true);
+          }
         }
       }
 
@@ -1195,8 +1211,9 @@ export const fileApi = {
       formData.append("parent_id", parentId);
     }
 
-    const doFetch = async (isRetry = false): Promise<Response> => {
-      const accessToken = getAccessToken();
+    const entryAccess = getAccessToken();
+    const entryRefresh = localStorage.getItem("refresh_token");
+    const doFetch = async (accessToken: string | null = entryAccess, isRetry = false): Promise<Response> => {
       const response = await fetch(
         `${getApiBase()}/api/v1/projects/${projectId}/files/upload-drafts`,
         {
@@ -1209,9 +1226,16 @@ export const fileApi = {
       );
 
       if (response.status === 401 && !isRetry) {
-        const refreshed = await tryRefreshToken();
-        if (refreshed) {
-          return doFetch(true);
+        let ownedSession = entryAccess && entryRefresh
+          ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+        if (ownedSession?.accessToken && ownedSession.refreshToken) {
+          if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
+            const refreshed = await tryRefreshToken();
+            ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+          }
+          if (ownedSession?.accessToken && ownedSession.refreshToken) {
+            return doFetch(ownedSession.accessToken, true);
+          }
         }
       }
 

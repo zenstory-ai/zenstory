@@ -12,7 +12,7 @@ import json
 from typing import cast
 
 from sqlalchemy.orm import InstrumentedAttribute, defer
-from sqlmodel import Session, func, or_, select
+from sqlmodel import Session, col, func, or_, select
 
 from config.datetime_utils import utcnow
 from models.entities import Project, User
@@ -278,6 +278,7 @@ def list_inspirations(
         Inspiration.is_featured.desc(),
         Inspiration.copy_count.desc(),
         Inspiration.created_at.desc(),
+        col(Inspiration.id).desc(),
     )
 
     # Paginate
@@ -335,7 +336,7 @@ def get_featured_inspirations(
             Inspiration.status == "approved",
             Inspiration.is_featured.is_(True),
         )
-        .order_by(Inspiration.sort_order, Inspiration.copy_count.desc())
+        .order_by(Inspiration.sort_order, Inspiration.copy_count.desc(), col(Inspiration.id).desc())
         .limit(limit)
     )
     if metadata_only:
