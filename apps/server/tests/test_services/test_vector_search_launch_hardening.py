@@ -76,6 +76,44 @@ def test_zhipu_embedding_passes_timeout_and_retries_to_sdk_client():
     assert captured["max_retries"] <= 1
 
 
+@pytest.mark.asyncio
+async def test_disabled_embeddings_never_call_provider_for_any_adapter_path(monkeypatch):
+    monkeypatch.delenv("VECTOR_EMBEDDINGS_ENABLED", raising=False)
+    client = MagicMock()
+
+    with patch("zai.ZhipuAiClient", return_value=client):
+        embedding = vss.ZhipuEmbedding(api_key="test-key", model_name="embedding-3")
+
+    # A long-lived adapter must honor the switch when it changes after startup.
+    monkeypatch.setenv("VECTOR_EMBEDDINGS_ENABLED", "false")
+    with pytest.raises(vss.EmbeddingDisabledError):
+        embedding._get_text_embedding("single")
+    with pytest.raises(vss.EmbeddingDisabledError):
+        embedding.get_text_embedding_batch(["first", "second"])
+    with pytest.raises(vss.EmbeddingDisabledError):
+        embedding._get_query_embedding("query")
+    with pytest.raises(vss.EmbeddingDisabledError):
+        await embedding._aget_query_embedding("async query")
+
+    client.embeddings.create.assert_not_called()
+
+
+def test_embeddings_remain_enabled_by_default(monkeypatch):
+    monkeypatch.delenv("VECTOR_EMBEDDINGS_ENABLED", raising=False)
+    monkeypatch.setattr(vss, "_embedding_quota_blocked_until", 0.0)
+    monkeypatch.setattr(vss, "_embedding_quota_probe_in_flight", False)
+    response = MagicMock()
+    response.data = [MagicMock(embedding=[0.1, 0.2])]
+    client = MagicMock()
+    client.embeddings.create.return_value = response
+
+    with patch("zai.ZhipuAiClient", return_value=client):
+        embedding = vss.ZhipuEmbedding(api_key="test-key", model_name="embedding-3")
+
+    assert embedding._get_query_embedding("query") == [0.1, 0.2]
+    client.embeddings.create.assert_called_once_with(model="embedding-3", input="query")
+
+
 # ---------------------------------------------------------------- 语义 deadline
 
 
@@ -335,3 +373,29 @@ def test_quota_circuit_keeps_hybrid_search_on_lexical_fallback(_mock_init, monke
     monkeypatch.setattr(database, "create_session", lambda: MagicMock())
     assert service.hybrid_search(project_id="project-d", query="needle") == [lexical]
     service.semantic_search.assert_not_called()
+
+
+@patch("services.infra.vector_search_service.LlamaIndexService.__init__", return_value=None)
+def test_disabled_embeddings_keep_hybrid_search_on_lexical_fallback(_mock_init, monkeypatch):
+    monkeypatch.setenv("VECTOR_EMBEDDINGS_ENABLED", "false")
+    monkeypatch.setattr(vss, "HYBRID_ENABLE_LEXICAL", True)
+    monkeypatch.setattr(vss, "_LEXICAL_SEARCH_SEMAPHORE", threading.Semaphore(1))
+    service = vss.LlamaIndexService()
+    service.semantic_search = MagicMock()  # type: ignore[method-assign]
+    lexical = vss.SearchResult(
+        entity_type="draft",
+        entity_id="lexical-disabled",
+        title="关键词结果",
+        content="",
+        score=0.5,
+    )
+    service._lexical_search = MagicMock(return_value=[lexical])  # type: ignore[method-assign]
+    log = MagicMock()
+    monkeypatch.setattr(vss, "log_with_context", log)
+
+    import database
+
+    monkeypatch.setattr(database, "create_session", lambda: MagicMock())
+    assert service.hybrid_search(project_id="project-e", query="needle") == [lexical]
+    service.semantic_search.assert_not_called()
+    log.assert_not_called()

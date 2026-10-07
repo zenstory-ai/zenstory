@@ -40,7 +40,9 @@ def owned_redis(record_testsuite_property):
         with log.open("w") as output:
             process = subprocess.Popen([executable, "--port", "0", "--unixsocket", str(socket),
                                         "--save", "", "--appendonly", "no"], stdout=output, stderr=subprocess.STDOUT)
-        client = redis.Redis(unix_socket_path=str(socket), decode_responses=True,
+        # Redis 8 enables RESP3 maintenance notifications by default; Unix sockets
+        # have no host for that feature. This owned local fixture uses RESP2.
+        client = redis.Redis(unix_socket_path=str(socket), decode_responses=True, protocol=2,
                              socket_connect_timeout=0.2, socket_timeout=2)
         try:
             deadline = time.monotonic() + 5

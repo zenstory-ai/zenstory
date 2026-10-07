@@ -36,15 +36,16 @@ class TestGenerateVerificationCode:
             assert len(code) == length
             assert code.isdigit()
 
-    def test_generate_code_uniqueness(self):
-        """Test that generated codes are unique (with high probability)."""
-        codes = set()
-        for _ in range(100):
-            code = generate_verification_code()
-            codes.add(code)
-        # With 6 digits, we have 1,000,000 possible codes
-        # Generating 100 codes should almost certainly be unique
-        assert len(codes) == 100
+    def test_generate_code_uses_random_choice_for_each_digit(self):
+        """Random draws may repeat; every digit must come from secrets.choice."""
+        with patch(
+            "services.features.verification_service.secrets.choice",
+            side_effect=list("001234"),
+        ) as choose:
+            assert generate_verification_code(6) == "001234"
+        assert choose.call_count == 6
+        assert all(call.args == ("0123456789",) for call in choose.call_args_list)
+
 
 
 class TestSendVerificationCode:
