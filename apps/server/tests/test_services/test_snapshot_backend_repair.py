@@ -10,7 +10,7 @@ from config.datetime_utils import utcnow
 from models import File, FileVersion, Project, Snapshot, User
 from models.file_version import CHANGE_TYPE_AUTO_SAVE, CHANGE_TYPE_RESTORE
 from services.features import snapshot_service as snapshot_module
-from services.features.file_version_service import get_file_version_service
+from services.features.file_version_service import FileVersionService, get_file_version_service
 from services.features.snapshot_service import VersionService
 
 
@@ -144,19 +144,18 @@ def test_project_rollback_failure_is_fully_atomic(db_session: Session, monkeypat
 
     version_count_before = db_session.exec(select(func.count(FileVersion.id))).one()
     snapshot_count_before = db_session.exec(select(func.count(Snapshot.id))).one()
-    file_version_service = get_file_version_service()
-    original_create_version = file_version_service.create_version
+    original_create_version = FileVersionService.create_version
     restore_calls = 0
 
-    def fail_second_restore(*args, **kwargs):
+    def fail_second_restore(self, *args, **kwargs):
         nonlocal restore_calls
         if kwargs.get("change_type") == CHANGE_TYPE_RESTORE:
             restore_calls += 1
             if restore_calls == 2:
                 raise RuntimeError("injected second-file restore failure")
-        return original_create_version(*args, **kwargs)
+        return original_create_version(self, *args, **kwargs)
 
-    monkeypatch.setattr(file_version_service, "create_version", fail_second_restore)
+    monkeypatch.setattr(FileVersionService, "create_version", fail_second_restore)
 
     with pytest.raises(RuntimeError, match="injected second-file restore failure"):
         service.rollback_to_snapshot(db_session, snapshot.id)

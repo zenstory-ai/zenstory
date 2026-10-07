@@ -35,6 +35,18 @@ product repairs are source-approved; this is not release approval.
   disposes/removes it. Worker image parses all 356 current non-test Python
   files under actual Python 3.11.17; all source hashes match.
 - Real auth setup plus the material-library lifecycle prerequisite: two passed.
+- Actual pinned production worker: all 183 flow tests pass without skips,
+  using real conftest, plugins and current source/test inputs under Python
+  3.11.17, Prefect 3.6.28 and FastAPI 0.123.7. Source/env writes and external
+  network attempts are zero; owned temporary DBs/container are cleaned normally.
+- Actual private pinned Prefect API: process-pool creation, deploy --all and
+  the unchanged exact deployment contract pass. The four registered names are
+  chapter_extraction, novel_ingestion_v3, relationship_extraction and
+  story_aggregation. Zero flow runs and no worker are launched. Normal owned
+  shutdown completes. An initial read-only installed UI cache startup failure
+  is preserved; only the officially supported UI static-cache location is
+  redirected to evidence, keeping the real UI/API enabled.
+- Full backend CI-scope Ruff and both actual production-image pip check pass.
 
 ## Test-adapter source approval
 
@@ -46,14 +58,22 @@ clipboard key, and dataclass evidence serialization. No product bypass.
 
 ## Remaining gates
 
-The corrected full backend default aggregate is still running with original
-coverage/plugin/collection settings. Default Chromium enrollment is 750 cases
+The corrected full backend default aggregate stopped with 2,879 passed,
+243 skipped and one failure (exit two). A two-original-test causal reproduction
+proves that an earlier snapshot test leaves a bound method on a shared singleton,
+so a later class-level observer misses version staging. Real SQL and an
+independent reader show content and version persist correctly in one transaction;
+no product atomicity defect was observed. The minimum prior test fixture repair
+patches the class descriptor instead of the singleton. The causal pair and
+affected atomicity modules pass with unchanged assertions; independent source
+review is clear with zero findings (seven tests and 30 assertions preserved).
+One new complete original aggregate is approved; its result is not yet known. Default Chromium enrollment is 750 cases
 across 52 files; enrollment is not a pass count. Default execution and the
 four prescribed release specs are unfinished. QA-wide types currently report
 TS1484 for the existing Page/Route imports in the material spec; a type-only
 import correction is pending after its immutable execution stage. Fresh
-pinned-worker flow tests and private Prefect deployment registration remain
-required. Required CI, PR merge and exact merged-SHA production readback have
+pinned-worker flow tests and private Prefect deployment registration have now
+passed; their receipts are distinct from the pre-reboot historical proofs. Required CI, PR merge and exact merged-SHA production readback have
 not occurred. Historical main CI investigation remains queued after delivery.
 
 ## Recovery and boundaries
