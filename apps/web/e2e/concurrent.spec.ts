@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Locator } from '@playwright/test';
 import { TEST_USERS } from './config';
 
 /**
@@ -10,6 +10,13 @@ import { TEST_USERS } from './config';
  * - Auto-save conflict handling
  * - Concurrent edit detection
  */
+
+async function expandFolderIfCollapsed(folder: Locator) {
+  await folder.waitFor({ state: 'visible', timeout: 5000 });
+  if (await folder.locator('..').locator('svg.lucide-chevron-right').isVisible()) {
+    await folder.click();
+  }
+}
 
 const ENABLE_CONCURRENT_E2E = process.env.E2E_ENABLE_CONCURRENT_E2E === 'true';
 const CONCURRENT_OPT_IN_MESSAGE = 'Concurrent editing E2E tests are opt-in. Set E2E_ENABLE_CONCURRENT_E2E=true to run.';
@@ -55,7 +62,7 @@ test.describe('Concurrent Editing', () => {
       // Create a test project in page1
       const inspirationInput = page1.locator('[data-testid="dashboard-inspiration-input"]');
       await inspirationInput.fill(`并发测试项目 ${Date.now()}`);
-      await page1.click('button:has-text("创建")');
+      await page1.click('[data-testid="create-project-button"]');
       await page1.waitForURL(/\/project\//, { timeout: 15000 });
 
       // Get the project URL and navigate page2 to the same project
@@ -68,7 +75,7 @@ test.describe('Concurrent Editing', () => {
 
       // Create a file in page1
       const outlineFolder1 = page1.locator('text=大纲').first();
-      await outlineFolder1.click();
+      await expandFolderIfCollapsed(outlineFolder1);
       await outlineFolder1.hover();
       const addButton1 = outlineFolder1.locator('..').locator('button:has(svg.lucide-plus)').first();
       await addButton1.click({ force: true });
@@ -86,7 +93,7 @@ test.describe('Concurrent Editing', () => {
 
       // Expand the folder and select the file in both pages
       const outlineFolder2 = page2.locator('text=大纲').first();
-      await outlineFolder2.click();
+      await expandFolderIfCollapsed(outlineFolder2);
       await page2.waitForSelector('text=并发测试文件', { timeout: 5000 });
 
       const file1 = page1.locator('.overflow-auto >> text=并发测试文件').first();
@@ -96,7 +103,7 @@ test.describe('Concurrent Editing', () => {
       await file2.click();
 
       // Edit content in page1
-      const editor1 = page1.locator('textarea').first();
+      const editor1 = page1.locator('[data-editor-scroll-container="true"] textarea').first();
       await editor1.fill('这是来自页面1的编辑内容');
 
       // Wait for auto-save
@@ -106,7 +113,7 @@ test.describe('Concurrent Editing', () => {
       );
 
       // Edit content in page2 (this should trigger conflict handling)
-      const editor2 = page2.locator('textarea').first();
+      const editor2 = page2.locator('[data-editor-scroll-container="true"] textarea').first();
       await editor2.fill('这是来自页面2的编辑内容');
 
       // Wait for auto-save response (may be success or conflict)
@@ -127,8 +134,12 @@ test.describe('Concurrent Editing', () => {
       await page1.reload();
       await page2.reload();
 
+      // Reload resets the selected file; reopen it before reading persisted content.
+      await expandFolderIfCollapsed(outlineFolder1);
+      await page1.locator('.overflow-auto >> text=并发测试文件').first().click();
+
       // Verify at least one version persisted
-      const editor1After = page1.locator('textarea').first();
+      const editor1After = page1.locator('[data-editor-scroll-container="true"] textarea').first();
       const content1 = await editor1After.inputValue();
       expect(content1.length).toBeGreaterThan(0);
     } finally {
@@ -169,7 +180,7 @@ test.describe('Concurrent Editing', () => {
       // Create a test project in page1
       const inspirationInput = page1.locator('[data-testid="dashboard-inspiration-input"]');
       await inspirationInput.fill(`并发保存测试项目 ${Date.now()}`);
-      await page1.click('button:has-text("创建")');
+      await page1.click('[data-testid="create-project-button"]');
       await page1.waitForURL(/\/project\//, { timeout: 15000 });
 
       // Navigate page2 to same project
@@ -182,7 +193,7 @@ test.describe('Concurrent Editing', () => {
 
       // Create a file
       const outlineFolder1 = page1.locator('text=大纲').first();
-      await outlineFolder1.click();
+      await expandFolderIfCollapsed(outlineFolder1);
       await outlineFolder1.hover();
       const addButton1 = outlineFolder1.locator('..').locator('button:has(svg.lucide-plus)').first();
       await addButton1.click({ force: true });
@@ -197,7 +208,7 @@ test.describe('Concurrent Editing', () => {
       await page2.waitForSelector('.overflow-auto', { timeout: 5000 });
 
       const outlineFolder2 = page2.locator('text=大纲').first();
-      await outlineFolder2.click();
+      await expandFolderIfCollapsed(outlineFolder2);
       await page2.waitForSelector('text=并发保存测试', { timeout: 5000 });
 
       // Select file in both pages
@@ -205,7 +216,7 @@ test.describe('Concurrent Editing', () => {
       await page2.locator('.overflow-auto >> text=并发保存测试').first().click();
 
       // Initial content save in page1
-      const editor1 = page1.locator('textarea').first();
+      const editor1 = page1.locator('[data-editor-scroll-container="true"] textarea').first();
       const initialContent = '初始内容 - 版本1';
       await editor1.fill(initialContent);
       await page1.waitForResponse(
@@ -214,7 +225,7 @@ test.describe('Concurrent Editing', () => {
       );
 
       // Edit in page2 without waiting for page1's save to propagate
-      const editor2 = page2.locator('textarea').first();
+      const editor2 = page2.locator('[data-editor-scroll-container="true"] textarea').first();
       const concurrentContent = '并发内容 - 来自页面2';
       await editor2.fill(concurrentContent);
 
@@ -237,10 +248,10 @@ test.describe('Concurrent Editing', () => {
       await page2.waitForSelector('.overflow-auto', { timeout: 5000 });
 
       const outlineFolder2After = page2.locator('text=大纲').first();
-      await outlineFolder2After.click();
+      await expandFolderIfCollapsed(outlineFolder2After);
       await page2.locator('.overflow-auto >> text=并发保存测试').first().click();
 
-      const editor2After = page2.locator('textarea').first();
+      const editor2After = page2.locator('[data-editor-scroll-container="true"] textarea').first();
       const finalContent = await editor2After.inputValue();
 
       // Content should be one of the saved versions
@@ -282,7 +293,7 @@ test.describe('Concurrent Editing', () => {
       // Create a test project
       const inspirationInput = page1.locator('[data-testid="dashboard-inspiration-input"]');
       await inspirationInput.fill(`不同文件测试项目 ${Date.now()}`);
-      await page1.click('button:has-text("创建")');
+      await page1.click('[data-testid="create-project-button"]');
       await page1.waitForURL(/\/project\//, { timeout: 15000 });
 
       const projectUrl = page1.url();
@@ -293,7 +304,7 @@ test.describe('Concurrent Editing', () => {
 
       // Create two files
       const outlineFolder1 = page1.locator('text=大纲').first();
-      await outlineFolder1.click();
+      await expandFolderIfCollapsed(outlineFolder1);
       await outlineFolder1.hover();
       const addButton1 = outlineFolder1.locator('..').locator('button:has(svg.lucide-plus)').first();
       await addButton1.click({ force: true });
@@ -301,6 +312,8 @@ test.describe('Concurrent Editing', () => {
       let fileInput = page1.locator('input[placeholder*="大纲"]');
       await fileInput.fill('文件A');
       await fileInput.press('Enter');
+      await fileInput.waitFor({ state: 'hidden', timeout: 5000 });
+      await page1.locator('.overflow-auto >> text=文件A').first().waitFor({ state: 'visible', timeout: 5000 });
 
       await outlineFolder1.hover();
       const addButton2 = outlineFolder1.locator('..').locator('button:has(svg.lucide-plus)').first();
@@ -315,15 +328,15 @@ test.describe('Concurrent Editing', () => {
       await page2.waitForSelector('.overflow-auto', { timeout: 5000 });
 
       const outlineFolder2 = page2.locator('text=大纲').first();
-      await outlineFolder2.click();
+      await expandFolderIfCollapsed(outlineFolder2);
 
       // Select file A in page1, file B in page2
       await page1.locator('.overflow-auto >> text=文件A').first().click();
       await page2.locator('.overflow-auto >> text=文件B').first().click();
 
       // Edit both files simultaneously
-      const editor1 = page1.locator('textarea').first();
-      const editor2 = page2.locator('textarea').first();
+      const editor1 = page1.locator('[data-editor-scroll-container="true"] textarea').first();
+      const editor2 = page2.locator('[data-editor-scroll-container="true"] textarea').first();
 
       await editor1.fill('文件A的内容 - 来自页面1');
       await editor2.fill('文件B的内容 - 来自页面2');
@@ -349,14 +362,14 @@ test.describe('Concurrent Editing', () => {
       await page1.waitForSelector('.overflow-auto', { timeout: 5000 });
 
       const outlineFolder1After = page1.locator('text=大纲').first();
-      await outlineFolder1After.click();
+      await expandFolderIfCollapsed(outlineFolder1After);
 
       await page1.locator('.overflow-auto >> text=文件A').first().click();
-      const editor1After = page1.locator('textarea').first();
+      const editor1After = page1.locator('[data-editor-scroll-container="true"] textarea').first();
       await expect(editor1After).toHaveValue(/文件A的内容/);
 
       await page1.locator('.overflow-auto >> text=文件B').first().click();
-      const editor1AfterB = page1.locator('textarea').first();
+      const editor1AfterB = page1.locator('[data-editor-scroll-container="true"] textarea').first();
       await expect(editor1AfterB).toHaveValue(/文件B的内容/);
     } finally {
       await context1.close();

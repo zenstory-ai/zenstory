@@ -452,7 +452,7 @@ test.describe('Redeem Code Modal', () => {
     await expect(page.locator(SUBSCRIPTION_UI.redeemModal)).toBeVisible({ timeout: 3000 });
 
     // Click outside modal (overlay area near page corner)
-    await page.mouse.click(10, 10);
+    await page.locator(SUBSCRIPTION_UI.redeemModal).locator("..").click({ position: { x: 10, y: 10 } });
 
     // Modal should be closed
     await expect(page.locator(SUBSCRIPTION_UI.redeemModal)).not.toBeVisible({ timeout: 3000 });
