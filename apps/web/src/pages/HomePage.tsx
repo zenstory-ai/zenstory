@@ -53,6 +53,7 @@ export default function HomePage() {
   const [activeScene, setActiveScene] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [sceneProgress, setSceneProgress] = useState(0);
+  const sceneTransitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const demoSectionRef = useRef<HTMLDivElement | null>(null);
   const intlLocale = useMemo(
     () => resolveIntlLocale(i18n.resolvedLanguage ?? i18n.language),
@@ -159,6 +160,10 @@ export default function HomePage() {
 
   // Auto-rotate scenes with progress
   useEffect(() => {
+    if (sceneTransitionTimeoutRef.current !== null) {
+      clearTimeout(sceneTransitionTimeoutRef.current);
+      sceneTransitionTimeoutRef.current = null;
+    }
     if (prefersReducedMotion) {
       setSceneProgress(0);
       setIsTransitioning(false);
@@ -176,8 +181,11 @@ export default function HomePage() {
 
       if (elapsed >= duration) {
         clearInterval(timer);
+        // A manual choice made near this deadline owns the pending transition.
+        if (sceneTransitionTimeoutRef.current !== null) return;
         setIsTransitioning(true);
-        setTimeout(() => {
+        sceneTransitionTimeoutRef.current = setTimeout(() => {
+          sceneTransitionTimeoutRef.current = null;
           setActiveScene((prev) => (prev + 1) % SCENES.length);
           setIsTransitioning(false);
           setSceneProgress(0);
@@ -185,12 +193,23 @@ export default function HomePage() {
       }
     }, 80);
 
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      if (sceneTransitionTimeoutRef.current !== null) {
+        clearTimeout(sceneTransitionTimeoutRef.current);
+        sceneTransitionTimeoutRef.current = null;
+      }
+    };
   }, [activeScene, prefersReducedMotion]);
 
   // Handle manual scene selection
   const handleSceneSelect = useCallback((index: number) => {
     if (index === activeScene) return;
+
+    if (sceneTransitionTimeoutRef.current !== null) {
+      clearTimeout(sceneTransitionTimeoutRef.current);
+      sceneTransitionTimeoutRef.current = null;
+    }
 
     if (prefersReducedMotion) {
       setActiveScene(index);
@@ -199,7 +218,8 @@ export default function HomePage() {
     }
 
     setIsTransitioning(true);
-    setTimeout(() => {
+    sceneTransitionTimeoutRef.current = setTimeout(() => {
+      sceneTransitionTimeoutRef.current = null;
       setActiveScene(index);
       setIsTransitioning(false);
       setSceneProgress(0);

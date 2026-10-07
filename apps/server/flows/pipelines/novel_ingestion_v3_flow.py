@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import tempfile
 import time
 import urllib.parse
 import urllib.request
@@ -110,8 +111,21 @@ def _ensure_file_local(file_path: str, user_id: str, logger) -> str:
         download_url,
         headers={"X-Internal-Token": internal_token},
     )
-    with urllib.request.urlopen(request, timeout=30) as response, open(file_path, "wb") as output:
-        output.write(response.read())
+    temporary_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            dir=os.path.dirname(file_path) or ".",
+            prefix=".material-download-",
+            suffix=".tmp",
+            delete=False,
+        ) as output:
+            temporary_path = output.name
+            with urllib.request.urlopen(request, timeout=30) as response:
+                output.write(response.read())
+        os.replace(temporary_path, file_path)
+    finally:
+        if temporary_path is not None and os.path.exists(temporary_path):
+            os.unlink(temporary_path)
     logger.info(f"文件下载完成: {file_path}")
     return file_path
 

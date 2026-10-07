@@ -386,7 +386,7 @@ class SuggestService:
         stmt = (
             select(ChatMessage)
             .where(ChatMessage.session_id == chat_session.id)
-            .order_by(ChatMessage.created_at.desc())  # type: ignore[attr-defined]
+            .order_by(ChatMessage.created_at.desc(), desc(ChatMessage.id))  # type: ignore[attr-defined]
             .limit(CHAT_HISTORY_LIMIT)
         )
         messages = list(reversed(session.exec(stmt).all()))

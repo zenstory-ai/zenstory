@@ -29,13 +29,24 @@ def normalize_datetime_to_utc(value: datetime) -> datetime:
     return value.astimezone(UTC)
 
 
+def advance_timestamp(previous: datetime, *, now: datetime) -> datetime:
+    """Advance a freshly locked row's token even with an equal/backward clock."""
+    return max(
+        normalize_datetime_to_utc(now),
+        normalize_datetime_to_utc(previous) + timedelta(microseconds=1),
+    )
+
+
 def _serialize_utc(value: datetime) -> str:
     return normalize_datetime_to_utc(value).isoformat()
 
 
 # A datetime field that always serializes to JSON with an explicit UTC offset, so
 # clients never read naive UTC as local time.
-UTCDateTime = Annotated[datetime, PlainSerializer(_serialize_utc, return_type=str, when_used="json")]
+UTCDateTime = Annotated[
+    datetime,
+    PlainSerializer(_serialize_utc, return_type=str, when_used="json"),
+]
 
 
 def beijing_date(value: datetime) -> date:

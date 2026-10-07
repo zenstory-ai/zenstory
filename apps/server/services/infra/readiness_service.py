@@ -93,11 +93,16 @@ async def check_readiness(
     if redis_required is None:
         redis_required = _redis_configured()
 
-    checks: dict[str, Any] = {"database": await _run_check("database", database_check, timeout)}
     if redis_required:
-        checks["redis"] = await _run_check("redis", redis_check, timeout)
+        database_result, redis_result = await asyncio.gather(
+            _run_check("database", database_check, timeout),
+            _run_check("redis", redis_check, timeout),
+        )
     else:
-        checks["redis"] = {"status": "skipped"}
+        database_result = await _run_check("database", database_check, timeout)
+        redis_result = {"status": "skipped"}
+
+    checks = {"database": database_result, "redis": redis_result}
 
     ready = all(check["status"] in {"ok", "skipped"} for check in checks.values())
     return ready, {"status": "ready" if ready else "not_ready", "checks": checks}

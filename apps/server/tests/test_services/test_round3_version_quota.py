@@ -67,6 +67,38 @@ def _bind_plan(db_session: Session, user: User, max_versions: int) -> Subscripti
     return plan
 
 
+def _bind_expired_plan(
+    db_session: Session, user: User, max_versions: int = 100
+) -> UserSubscription:
+    """Bind a still-active row whose paid period has already elapsed."""
+    plan = SubscriptionPlan(
+        name=f"round3-expired-version-quota-{user.id[:8]}",
+        display_name="Expired Version Quota",
+        display_name_en="Expired Version Quota",
+        price_monthly_cents=999,
+        price_yearly_cents=9999,
+        features={"file_versions_per_file": max_versions},
+        is_active=True,
+    )
+    db_session.add(plan)
+    db_session.commit()
+    db_session.refresh(plan)
+
+    now = datetime.utcnow()
+    subscription = UserSubscription(
+        user_id=user.id,
+        plan_id=plan.id,
+        status="active",
+        current_period_start=now - timedelta(days=60),
+        current_period_end=now - timedelta(days=30),
+        cancel_at_period_end=False,
+    )
+    db_session.add(subscription)
+    db_session.commit()
+    db_session.refresh(subscription)
+    return subscription
+
+
 def _make_file(db_session: Session, user: User, content: str = "原始正文。") -> File:
     project = Project(name="Round3 Quota Project", owner_id=user.id)
     db_session.add(project)
@@ -220,3 +252,123 @@ def test_rollback_restores_content_without_bypassing_version_quota(
         select(FileVersion).where(FileVersion.file_id == file.id)
     ).all()
     assert len(versions) == 4
+
+
+@pytest.mark.integration
+def test_caller_owned_create_version_does_not_commit_expired_plan_side_effects(
+    db_session: Session,
+):
+    """A late caller failure rolls back content, snapshot, and lazy expiry together."""
+    user = _make_user(db_session, "r3q_expired_atomic")
+    subscription = _bind_expired_plan(db_session, user)
+    file = _make_file(db_session, user, content="committed content")
+    service = FileVersionService()
+
+    file.content = "uncommitted caller content"
+    db_session.add(file)
+    # Content-writing callers protect their snapshot with a savepoint. The
+    # service must not close that savepoint (or its outer transaction).
+    with db_session.begin_nested():
+        service.create_version(
+            session=db_session,
+            file_id=file.id,
+            new_content=file.content,
+            change_source=CHANGE_SOURCE_USER,
+            user_id=user.id,
+            commit=False,
+        )
+
+    # Simulate a later failure in the content-writing caller.
+    db_session.rollback()
+    db_session.expire_all()
+
+    assert db_session.get(File, file.id).content == "committed content"
+    assert db_session.get(UserSubscription, subscription.id).status == "active"
+    assert service.get_version_count(db_session, file.id) == 0
+
+
+@pytest.mark.integration
+def test_service_owned_create_version_commits_expired_plan_and_snapshot(
+    db_session: Session,
+):
+    """The standalone default remains service-owned and persists lazy expiry."""
+    user = _make_user(db_session, "r3q_expired_owned")
+    subscription = _bind_expired_plan(db_session, user)
+    file = _make_file(db_session, user)
+    service = FileVersionService()
+
+    version = service.create_version(
+        session=db_session,
+        file_id=file.id,
+        new_content="standalone version",
+        change_source=CHANGE_SOURCE_USER,
+        user_id=user.id,
+    )
+
+    db_session.expire_all()
+    assert db_session.get(UserSubscription, subscription.id).status == "expired"
+    assert db_session.get(FileVersion, version.id) is not None
+
+
+@pytest.mark.integration
+def test_standalone_version_quota_check_commits_expired_plan_by_default(
+    db_session: Session,
+):
+    """Direct read/check callers keep the existing lazy-expiry persistence."""
+    user = _make_user(db_session, "r3q_expired_check")
+    subscription = _bind_expired_plan(db_session, user)
+    file = _make_file(db_session, user)
+    service = FileVersionService()
+
+    allowed, used, limit = service.check_user_version_quota(
+        db_session, file.id, user.id
+    )
+
+    assert (allowed, used, limit) == (True, 0, 10)
+    db_session.expire_all()
+    assert db_session.get(UserSubscription, subscription.id).status == "expired"
+
+
+@pytest.mark.integration
+def test_rollback_with_expired_plan_uses_one_outer_commit(
+    db_session: Session,
+    monkeypatch,
+):
+    """Rollback's quota precheck cannot commit restored content independently."""
+    user = _make_user(db_session, "r3q_expired_rollback")
+    file = _make_file(db_session, user, content="target content")
+    service = FileVersionService()
+    target = service.create_version(
+        session=db_session,
+        file_id=file.id,
+        new_content=file.content,
+        change_source=CHANGE_SOURCE_USER,
+    )
+    file.content = "content to replace"
+    db_session.add(file)
+    db_session.commit()
+    subscription = _bind_expired_plan(db_session, user)
+
+    real_commit = db_session.commit
+    commit_calls = 0
+
+    def counting_commit():
+        nonlocal commit_calls
+        commit_calls += 1
+        return real_commit()
+
+    monkeypatch.setattr(db_session, "commit", counting_commit)
+
+    restored, snapshot, quota_exceeded = service.rollback_to_version(
+        db_session,
+        file.id,
+        target.version_number,
+        user.id,
+    )
+
+    assert commit_calls == 1
+    assert restored.content == "target content"
+    assert snapshot is not None
+    assert quota_exceeded is False
+    db_session.expire_all()
+    assert db_session.get(UserSubscription, subscription.id).status == "expired"

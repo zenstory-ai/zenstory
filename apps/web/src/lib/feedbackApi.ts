@@ -1,4 +1,4 @@
-import { ApiError, getAccessToken, getApiBase, tryRefreshToken } from "./apiClient";
+import { ApiError, getAccessToken, getApiBase, resolveOwnedAuthSession, tryRefreshToken } from "./apiClient";
 import { resolveApiErrorMessage } from "./errorHandler";
 
 export type FeedbackSourcePage = "dashboard" | "editor";
@@ -25,6 +25,8 @@ export interface FeedbackSubmitResponse {
 
 export const feedbackApi = {
   submit: async (payload: SubmitFeedbackPayload): Promise<FeedbackSubmitResponse> => {
+    const entryAccess = getAccessToken();
+    const entryRefresh = localStorage.getItem("refresh_token");
     const formData = new FormData();
     formData.append("issue_text", payload.issueText);
     formData.append("source_page", payload.sourcePage);
@@ -43,10 +45,9 @@ export const feedbackApi = {
       formData.append("screenshot", payload.screenshot);
     }
 
-    const doFetch = async (isRetry = false): Promise<Response> => {
-      const accessToken = getAccessToken();
+    const fetchOnce = async (accessToken: string | null): Promise<Response> => {
       const language = localStorage.getItem("zenstory-language") || "zh";
-      const response = await fetch(`${getApiBase()}/api/v1/feedback`, {
+      return fetch(`${getApiBase()}/api/v1/feedback`, {
         method: "POST",
         headers: {
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
@@ -54,18 +55,21 @@ export const feedbackApi = {
         },
         body: formData,
       });
-
-      if (response.status === 401 && !isRetry) {
-        const refreshed = await tryRefreshToken();
-        if (refreshed) {
-          return doFetch(true);
-        }
-      }
-
-      return response;
     };
 
-    const response = await doFetch();
+    let response = await fetchOnce(entryAccess);
+    if (response.status === 401 && entryAccess && entryRefresh) {
+      let ownedSession = resolveOwnedAuthSession(entryAccess, entryRefresh);
+      if (ownedSession?.accessToken && ownedSession.refreshToken) {
+        if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
+          const refreshed = await tryRefreshToken();
+          ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+        }
+        if (ownedSession?.accessToken && ownedSession.refreshToken) {
+          response = await fetchOnce(ownedSession.accessToken);
+        }
+      }
+    }
 
     if (!response.ok) {
       let errorMessage = "ERR_INTERNAL_SERVER_ERROR";

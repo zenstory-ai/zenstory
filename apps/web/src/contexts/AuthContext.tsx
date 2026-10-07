@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { authApi } from '../lib/api';
 import type { UserSubscription, UsageQuota } from '../types/subscription';
 import { logger } from '../lib/logger';
-import { clearAuthStorage, getApiBase, tryRefreshToken as tryRefreshTokenSingleFlight } from '../lib/apiClient';
+import { clearAuthStorage, getApiBase, resolveOwnedAuthSession, tryRefreshToken as tryRefreshTokenSingleFlight } from '../lib/apiClient';
 import { identifyUser, resetAnalytics, trackEvent } from '../lib/analytics';
 import { saveOAuthPlanIntent, type PlanIntent } from '../lib/authFlow';
 import { clearPendingUpgradeFunnelEvents } from '../lib/upgradeAnalytics';
@@ -153,9 +153,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const previousUserIdRef = React.useRef<string | null>(null);
   const authGenerationRef = React.useRef(0);
 
-  const ownsSession = React.useCallback((generation: number, accessToken: string) => (
+  const ownsSession = React.useCallback((generation: number, accessToken: string, refreshToken: string | null) => (
     authGenerationRef.current === generation &&
-    localStorage.getItem(CACHE_KEYS.ACCESS_TOKEN) === accessToken
+    resolveOwnedAuthSession(accessToken, refreshToken) !== null
   ), []);
 
   // Initialize user from localStorage on mount with validation
@@ -164,9 +164,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const initializeAuth = async () => {
       const generation = authGenerationRef.current;
       let accessToken: string | null = null;
+      let refreshToken: string | null = null;
+      const ownsOriginalSession = () => (
+        authGenerationRef.current === generation &&
+        localStorage.getItem(CACHE_KEYS.ACCESS_TOKEN) === accessToken &&
+        localStorage.getItem(CACHE_KEYS.REFRESH_TOKEN) === refreshToken
+      );
       try {
         accessToken = localStorage.getItem(CACHE_KEYS.ACCESS_TOKEN);
-        const refreshToken = localStorage.getItem(CACHE_KEYS.REFRESH_TOKEN);
+        refreshToken = localStorage.getItem(CACHE_KEYS.REFRESH_TOKEN);
 
         // No token at all - nothing to validate, clear any stale cache
         if (!accessToken) {
@@ -190,13 +196,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               const response = await fetch(`${getApiBase()}/api/auth/me`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` },
               });
-              if (!ownsSession(generation, accessToken)) return;
+              if (!ownsSession(generation, accessToken, refreshToken)) return;
               if (response.ok) {
                 const serverUser = await response.json();
-                if (!ownsSession(generation, accessToken)) return;
+                if (!ownsSession(generation, accessToken, refreshToken)) return;
                 setUser(serverUser);
                 saveUserCache(serverUser);
-              } else if (response.status === 401 || response.status === 403) {
+              } else if ((response.status === 401 || response.status === 403) && ownsOriginalSession()) {
                 clearAuthState(setUser, 'background_validation_failed');
               }
             } catch (error) {
@@ -212,15 +218,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const response = await fetch(`${getApiBase()}/api/auth/me`, {
             headers: { 'Authorization': `Bearer ${accessToken}` },
           });
-          if (!ownsSession(generation, accessToken)) return;
+          if (!ownsSession(generation, accessToken, refreshToken)) return;
 
           if (response.ok) {
             // Token valid - use server response and cache it
             const serverUser = await response.json();
-            if (!ownsSession(generation, accessToken)) return;
+            if (!ownsSession(generation, accessToken, refreshToken)) return;
             saveUserCache(serverUser);
             setUser(serverUser);
             logger.log('[Auth] Token validated on init');
+          } else if (!ownsOriginalSession()) {
+            return;
           } else if (response.status === 401 || response.status === 403) {
             // Token invalid - try refresh
             logger.log('[Auth] Token invalid on init, attempting refresh...');
@@ -235,10 +243,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 logger.warn('[Auth] Token refresh failed on init');
                 // Definitive rejection clears storage inside apiClient. If the
                 // captured token remains, the failure was transient.
-                if (
-                  authGenerationRef.current === generation &&
-                  localStorage.getItem(CACHE_KEYS.REFRESH_TOKEN) === refreshToken
-                ) {
+                if (ownsOriginalSession()) {
                   setUser(null);
                 }
               }
@@ -253,14 +258,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           // Network error - avoid cached user to prevent stale SSO state,
           // but preserve tokens because the failure may be transient.
           logger.warn('[Auth] Network error during init, marking unauthenticated without clearing tokens');
-          if (accessToken && ownsSession(generation, accessToken)) setUser(null);
+          if (accessToken && ownsOriginalSession()) setUser(null);
         }
       } catch (error) {
         logger.error('Failed to initialize auth:', error);
-        if (
-          authGenerationRef.current === generation &&
-          localStorage.getItem(CACHE_KEYS.ACCESS_TOKEN) === accessToken
-        ) {
+        if (ownsOriginalSession()) {
           clearAuthState(setUser);
         }
       } finally {
@@ -269,6 +271,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     initializeAuth();
+    return () => {
+      authGenerationRef.current += 1;
+    };
   }, [ownsSession]);
 
   // Keep auth state in sync when API client clears tokens (same-tab)
@@ -301,8 +306,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [loading, user]);
 
   const login = async (username: string, password: string) => {
+    const generation = ++authGenerationRef.current;
     const data = await authApi.login(username, password);
-    authGenerationRef.current += 1;
+    if (authGenerationRef.current !== generation) {
+      throw new DOMException('Auth establishment superseded', 'AbortError');
+    }
 
     // Store tokens and user data with cache timestamp
     localStorage.setItem(CACHE_KEYS.ACCESS_TOKEN, data.access_token);
@@ -346,8 +354,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const verifyEmail = async (email: string, code: string) => {
+    const generation = ++authGenerationRef.current;
     const data = await authApi.verifyEmail(email, code);
-    authGenerationRef.current += 1;
+    if (authGenerationRef.current !== generation) {
+      throw new DOMException('Auth establishment superseded', 'AbortError');
+    }
 
     // Store tokens and user data with cache timestamp
     localStorage.setItem(CACHE_KEYS.ACCESS_TOKEN, data.access_token);
@@ -414,14 +425,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
 
     if (!response.ok) {
-      if (authGenerationRef.current === generation) {
-        clearAuthState(setUser, 'oauth_callback_failed');
+      if (authGenerationRef.current !== generation) {
+        throw new DOMException('Auth establishment superseded', 'AbortError');
       }
+      clearAuthState(setUser, 'oauth_callback_failed');
       throw new Error('Failed to fetch user info');
     }
 
     const user = await response.json();
-    if (authGenerationRef.current !== generation) return;
+    if (authGenerationRef.current !== generation) {
+      throw new DOMException('Auth establishment superseded', 'AbortError');
+    }
 
     // Store tokens and user data with cache timestamp
     localStorage.setItem(CACHE_KEYS.ACCESS_TOKEN, accessToken);

@@ -6,7 +6,7 @@ This module contains referral management endpoints for admin operations.
 import logging
 
 from fastapi import APIRouter, Depends, Query, Request, status
-from sqlmodel import Session, func, select
+from sqlmodel import Session, col, func, select
 
 from database import get_session
 from models import User
@@ -35,13 +35,6 @@ router = APIRouter(tags=["admin-referrals"])
 
 
 # ==================== Referral Management ====================
-
-
-def _usernames_by_id(session: Session, user_ids: set[str]) -> dict[str, str]:
-    if not user_ids:
-        return {}
-    rows = session.exec(select(User.id, User.username).where(User.id.in_(user_ids))).all()
-    return dict(rows)
 
 
 @router.get("/referrals/stats", response_model=AdminReferralStatsResponse)
@@ -105,7 +98,7 @@ def get_referral_stats(
 
 
 @router.post("/invites", response_model=AdminInviteCodeResponse, status_code=status.HTTP_201_CREATED)
-async def create_admin_invite_code(
+def create_admin_invite_code(
     http_request: Request,
     current_user: User = Depends(get_current_superuser),
     session: Session = Depends(get_session),
@@ -115,7 +108,7 @@ async def create_admin_invite_code(
 
     Requires superuser privileges.
     """
-    new_code = await create_invite_code_service(
+    new_code = create_invite_code_service(
         current_user.id,
         session,
         ignore_max_limit=True,
@@ -176,20 +169,22 @@ def get_invite_codes(
     total = session.exec(count_query).one()
 
     # Apply pagination
-    query = query.order_by(InviteCode.created_at.desc())
+    query = query.order_by(col(InviteCode.created_at).desc(), col(InviteCode.id).desc())
     query = query.offset((page - 1) * page_size).limit(page_size)
 
-    codes = session.exec(query).all()
+    page_query = query.add_columns(col(User.username)).outerjoin(
+        User, col(User.id) == col(InviteCode.owner_id)
+    )
+    # Session.execute keeps the added scalar paired with the entity projection.
+    codes = session.execute(page_query).all()
 
-    # Enrich with owner info (one query for the page)
-    owner_names = _usernames_by_id(session, {code.owner_id for code in codes})
     items = []
-    for code in codes:
+    for code, username in codes:
         items.append(AdminInviteCodeResponse(
             id=code.id,
             code=code.code,
             owner_id=code.owner_id,
-            owner_name=owner_names.get(code.owner_id, "Unknown"),
+            owner_name=username if username is not None else "Unknown",
             max_uses=code.max_uses,
             current_uses=code.current_uses,
             is_active=code.is_active,
@@ -233,23 +228,22 @@ def get_referral_rewards(
     total = session.exec(count_query).one()
 
     # Apply pagination
-    query = query.order_by(UserReward.created_at.desc())
+    query = query.order_by(col(UserReward.created_at).desc(), col(UserReward.id).desc())
     query = query.offset((page - 1) * page_size).limit(page_size)
 
-    rewards = session.exec(query).all()
+    page_query = (
+        query.add_columns(col(User.username), col(Referral.id))
+        .outerjoin(User, col(User.id) == col(UserReward.user_id))
+        .outerjoin(Referral, col(Referral.id) == col(UserReward.referral_id))
+    )
+    rewards = session.execute(page_query).all()
 
-    # Enrich with user info (one query each for the page)
-    usernames = _usernames_by_id(session, {reward.user_id for reward in rewards})
-    referral_ids = {reward.referral_id for reward in rewards if reward.referral_id}
-    existing_referral_ids = set(
-        session.exec(select(Referral.id).where(Referral.id.in_(referral_ids))).all()
-    ) if referral_ids else set()
     items = []
-    for reward in rewards:
+    for reward, username, referral_id in rewards:
         items.append({
             **reward.model_dump(),
-            "username": usernames.get(reward.user_id, "Unknown"),
-            "referral_id": reward.referral_id if reward.referral_id in existing_referral_ids else None,
+            "username": username if username is not None else "Unknown",
+            "referral_id": referral_id,
         })
 
     log_with_context(

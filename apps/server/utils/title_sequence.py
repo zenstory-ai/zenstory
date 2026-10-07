@@ -12,6 +12,17 @@ import re
 from collections.abc import Mapping
 from typing import Any, Final
 
+MIN_FILE_ORDER: Final[int] = -2_147_483_648
+MAX_FILE_ORDER: Final[int] = 2_147_483_647
+
+
+def validate_persisted_file_order(order: int) -> int:
+    """Bound the final order to the signed INTEGER storage domain."""
+    if not MIN_FILE_ORDER <= order <= MAX_FILE_ORDER:
+        raise ValueError(f"File order must be between {MIN_FILE_ORDER} and {MAX_FILE_ORDER}")
+    return order
+
+
 # Chinese number mapping (supports up to 千)
 _CHINESE_NUMS: Final[dict[str, int]] = {
     "零": 0,
@@ -271,7 +282,7 @@ def resolve_persisted_sequence_order(
         metadata=metadata,
         file_type=file_type,
     )
-    return int(effective_order)
+    return validate_persisted_file_order(int(effective_order))
 
 
 def extract_chapter_like_sequence_number(title: str | None) -> int | None:

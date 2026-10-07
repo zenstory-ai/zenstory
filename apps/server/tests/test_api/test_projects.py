@@ -666,3 +666,14 @@ async def test_get_project_templates_has_required_types(client: AsyncClient):
     assert response.status_code == 200
     data = response.json()
     assert set(data.keys()) == {"novel", "short", "screenplay"}
+
+
+def test_project_update_omission_keeps_defaults_out_of_patch():
+    """Explicit-null validation must not validate the optional omitted defaults."""
+    from api.projects import UpdateProjectRequest
+
+    request = UpdateProjectRequest()
+    assert request.name is None
+    assert request.project_type is None
+    assert request.model_dump(exclude_unset=True) == {}
+    assert UpdateProjectRequest(description=None).model_dump(exclude_unset=True) == {"description": None}

@@ -67,7 +67,7 @@ describe('SimpleEditor: AI 编辑期间挂起自动保存', () => {
         content="原始正文"
         onTitleChange={vi.fn()}
         onContentChange={vi.fn()}
-        onSave={vi.fn().mockResolvedValue('saved')}
+        onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' })}
         {...props}
       />,
     );
@@ -81,7 +81,7 @@ describe('SimpleEditor: AI 编辑期间挂起自动保存', () => {
   }
 
   it('未标记 AI 编辑时，防抖到期后正常自动保存', async () => {
-    const onSave = vi.fn().mockResolvedValue('saved');
+    const onSave = vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' });
     renderEditor({ onSave });
 
     typeInto('用户改了一句');
@@ -93,7 +93,7 @@ describe('SimpleEditor: AI 编辑期间挂起自动保存', () => {
   });
 
   it('isAiEditing 为 true 时不排自动保存（过期快照根本不会发出）', () => {
-    const onSave = vi.fn().mockResolvedValue('saved');
+    const onSave = vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' });
     renderEditor({ onSave, isAiEditing: true });
 
     typeInto('用户改了一句');
@@ -105,7 +105,7 @@ describe('SimpleEditor: AI 编辑期间挂起自动保存', () => {
   });
 
   it('AI 编辑结束后恢复自动保存，用户的本地改动不会丢', async () => {
-    const onSave = vi.fn().mockResolvedValue('saved');
+    const onSave = vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' });
     const { rerender } = renderEditor({ onSave, isAiEditing: true });
 
     typeInto('用户改了一句');
@@ -136,7 +136,7 @@ describe('SimpleEditor: AI 编辑期间挂起自动保存', () => {
   });
 
   it('AI 编辑期间手动 Ctrl+S 同样被挡住', () => {
-    const onSave = vi.fn().mockResolvedValue('saved');
+    const onSave = vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' });
     renderEditor({ onSave, isAiEditing: true });
 
     typeInto('用户改了一句');

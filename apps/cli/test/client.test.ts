@@ -50,6 +50,15 @@ describe('ZenstoryClient', () => {
 });
 
 describe('httpError', () => {
+  it('keeps generic conflicts separate from stale-write errors', () => {
+    for (const body of [
+      { error_code: 'ERR_RESOURCE_CONFLICT', error_detail: { reason: 'duplicate_name' } },
+      { error_code: 'OTHER_CONFLICT', error_detail: { reason: 'stale_write' } },
+      { error_code: 'ERR_RESOURCE_CONFLICT', error_detail: 'stale_write' },
+    ]) {
+      expect(httpError(409, body).code).toBe(body.error_code);
+    }
+  });
   it('401 → auth exit code with login hint', () => {
     const e = httpError(401, { detail: 'ERR_AUTH_TOKEN_INVALID', error_code: 'ERR_AUTH_TOKEN_INVALID', error_detail: 'Invalid API Key' });
     expect(e.exitCode).toBe(3);

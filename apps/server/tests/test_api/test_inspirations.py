@@ -1015,8 +1015,8 @@ async def test_copy_inspiration_rolls_back_when_quota_consume_fails(
         lambda _session, _user_id, _feature: (True, 0, 1),
     )
     monkeypatch.setattr(
-        "api.inspirations.quota_service.consume_feature_quota",
-        lambda _session, _user_id, _feature: False,
+        "api.inspirations.quota_service.reserve_feature_quota",
+        lambda _session, _user_id, _feature, *, commit: None,
     )
 
     response = await client.post(

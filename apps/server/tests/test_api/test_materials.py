@@ -328,6 +328,28 @@ async def test_upload_pre_job_failure_does_not_refund_a_new_month_charge(
 
 
 @pytest.mark.integration
+async def test_upload_pre_job_failure_rolls_back_without_refund_io(client, db_session, monkeypatch):
+    user, _ = await create_test_user(client, db_session, "upload_no_refund_gap")
+
+    def fail_write(*args, **kwargs):
+        raise OSError("file write failed")
+
+    def unexpected_refund(*args, **kwargs):
+        pytest.fail("No durable job exists; a rolled-back reservation must not be refunded")
+
+    monkeypatch.setattr(materials_upload_api, "_write_upload_file_without_overwrite", fail_write)
+    monkeypatch.setattr(materials_upload_api.quota_service, "release_feature_quota", unexpected_refund)
+    with pytest.raises(OSError, match="file write failed"):
+        await materials_upload_api.process_material_upload(
+            file=UploadFile(io.BytesIO(NOVEL_BYTES), filename="test.txt"),
+            title=None, author=None, current_user=user, session=db_session,
+        )
+    quota = db_session.exec(select(UsageQuota).where(UsageQuota.user_id == user.id)).one()
+    assert quota.material_decompositions_used == 0
+    assert db_session.exec(select(Novel).where(Novel.user_id == user.id)).all() == []
+
+
+@pytest.mark.integration
 async def test_upload_dispatch_failure_uses_period_reserved_before_job_creation(
     client: AsyncClient,
     db_session,
@@ -453,7 +475,7 @@ def test_material_decompose_atomic_quota_consumption_caps_concurrent_requests(
 
 @pytest.mark.integration
 @pytest.mark.parametrize("dispatch_raises", [False, True])
-async def test_upload_refunds_after_failure_status_poisoned_session(
+async def test_upload_reconciles_refund_after_failure_status_poisoned_session(
     client: AsyncClient, db_session, monkeypatch, tmp_path, dispatch_raises,
 ):
     from config.material_settings import material_settings
@@ -495,8 +517,24 @@ async def test_upload_refunds_after_failure_status_poisoned_session(
         assert str(raised.value) == "SDK dispatch failed"
     else:
         assert raised.value.status_code == 503
-    assert refund_calls == [1]
+    # A quota-only commit while job state cannot be persisted would leave a
+    # crash window for a duplicate refund. Preserve durable charged state.
+    assert refund_calls == []
     quota = db_session.exec(select(UsageQuota).where(UsageQuota.user_id == user.id)).one()
+    assert quota.material_decompositions_used == 1
+    job = db_session.exec(select(IngestionJob).order_by(IngestionJob.created_at.desc())).first()
+    assert job.status == "pending"
+    assert materials_upload_api.IngestionJobsService.get_billing(job)["quota_charged"] is True
+    job.updated_at = datetime.utcnow() - timedelta(minutes=11)
+    db_session.add(job)
+    db_session.commit()
+    service = materials_upload_api.IngestionJobsService()
+    service.reconcile_stale_job(db_session, job)
+    service.reconcile_stale_job(db_session, job)
+    assert job.status == "failed"
+    assert service.get_billing(job)["quota_refunded"] is True
+    assert refund_calls == [1]
+    db_session.refresh(quota)
     assert quota.material_decompositions_used == 0
 
 

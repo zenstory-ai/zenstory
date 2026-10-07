@@ -270,7 +270,7 @@ class TestVerifyCode:
             "services.features.verification_service.get_verification_code"
         ) as mock_get_code, \
              patch(
-            "services.features.verification_service.delete_verification_code"
+            "services.features.verification_service.consume_verification_code"
         ) as mock_delete, \
              patch(
             "services.features.verification_service.reset_verification_attempts"
@@ -288,7 +288,7 @@ class TestVerifyCode:
             # Verify
             assert success is True
             assert error is None
-            mock_delete.assert_called_once_with(email)
+            mock_delete.assert_called_once_with(email, correct_code)
             mock_reset_attempts.assert_called_once_with(email)
 
     @pytest.mark.asyncio

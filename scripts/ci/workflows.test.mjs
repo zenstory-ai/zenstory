@@ -75,6 +75,53 @@ test("regression controls are required CI and npm version comes from the npm exe
   assert.match(ci, /'scripts\/cli-release\*\.mjs'/);
 });
 
+test("backend CI runs PostgreSQL regressions serially against a dedicated database", async () => {
+  const ci = await readFile(".github/workflows/ci.yml", "utf8");
+  const step = ci.slice(
+    ci.indexOf("- name: Run PostgreSQL regressions serially"),
+    ci.indexOf("- name: Run flow tests"),
+  );
+
+  assert.match(step, /ZENSTORY_TEST_POSTGRES_URL: postgresql:\/\/test:test@localhost:5433\/zenstory_postgres_tests/);
+  assert.match(step, /^\s+DATABASE_URL: postgresql:\/\/test:test@localhost:5433\/zenstory_postgres_tests$/m);
+  assert.match(step, /CREATE DATABASE zenstory_postgres_tests/);
+  assert.match(step, /CREATE DATABASE zenstory_postgres_tests ENCODING 'UTF8' TEMPLATE template0/);
+  assert.match(step, /pytest -n 0 --no-cov/);
+  assert.match(step, /tests\/test_core\/test_database_startup\.py/);
+  assert.match(step, /tests\/test_core\/test_database_timezone\.py/);
+  assert.match(step, /tests\/test_services\/test_admin_roles_postgres\.py/);
+  assert.match(step, /tests\/test_services\/test_admin_skills_postgres\.py/);
+  assert.match(step, /tests\/test_services\/test_commercial_backend_postgres\.py/);
+  assert.match(step, /tests\/test_services\/test_material_refunds_postgres\.py/);
+  assert.match(step, /tests\/test_services\/test_agent_file_preconditions_postgres\.py/);
+  assert.match(step, /tests\/test_services\/test_agent_auth_postgres\.py/);
+  assert.match(step, /tests\/test_services\/test_auth_refresh_revocation_postgres\.py/);
+  assert.match(step, /tests\/test_services\/test_writing_stats_concurrency_postgres\.py/);
+  assert.match(step, /tests\/test_api\/test_stats_record_first_rows_postgres\.py/);
+  assert.match(step, /tests\/test_api\/test_public_skill_counts_postgres\.py/);
+  assert.match(step, /tests\/test_api\/test_chat_worker_postgres\.py/);
+  assert.match(step, /tests\/test_api\/test_chat_history_order_postgres\.py/);
+  assert.match(step, /tests\/test_agent\/test_query_files_summary_projection\.py/);
+  assert.match(step, /tests\/test_agent\/test_failed_generation_finalization_postgres\.py/);
+  assert.match(step, /tests\/test_services\/test_project_capacity_concurrency_postgres\.py/);
+  assert.match(step, /tests\/test_services\/test_snapshot_cleanup\.py/);
+  assert.match(step, /tests\/test_services\/test_snapshot_concurrency_postgres\.py/);
+  assert.match(step, /tests\/test_services\/test_snapshot_hierarchy_restore\.py/);
+  assert.match(step, /tests\/test_services\/test_tree_writers_postgres\.py/);
+  assert.match(step, /tests\/test_services\/test_canonical_folder_repair_postgres\.py/);
+  assert.match(step, /tests\/test_services\/test_tree_delete_traversal_postgres\.py/);
+  assert.match(step, /tests\/test_services\/test_file_upload_postgres\.py/);
+  assert.match(step, /tests\/test_services\/test_persisted_order_bounds_postgres\.py/);
+  assert.match(step, /tests\/test_agent\/test_snapshot_mutation_postgres\.py/);
+
+  const fullSuite = ci.slice(
+    ci.indexOf("- name: Run unit tests with pytest"),
+    ci.indexOf("- name: Run PostgreSQL regressions serially"),
+  );
+  assert.doesNotMatch(fullSuite, /ZENSTORY_TEST_POSTGRES_URL/);
+  assert.match(fullSuite, /ZENSTORY_TEST_REDIS_URL: redis:\/\/localhost:6380\/1/);
+});
+
 test("real CLI metadata and pre-write live source checks cannot be omitted", async () => {
   const ci = await readFile(".github/workflows/ci.yml", "utf8");
   assert.match(ci, /node scripts\/cli-release\.mjs check --publishing false/);

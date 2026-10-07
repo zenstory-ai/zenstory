@@ -524,6 +524,13 @@ async def execute_parallel(
 
     # Execute all tasks concurrently with semaphore limiting
     completed_tasks = await asyncio.gather(*[execute_task(t) for t in subagent_tasks])
+    # Aggregate raw completed outcomes before bounding task bodies or the outer payload.
+    mutation_applied = any(
+        task.status == "completed"
+        and isinstance(task.result, dict)
+        and task.result.get("mutation_applied") is True
+        for task in completed_tasks
+    )
 
     end_time = datetime.now()
     duration_ms = int((end_time - start_time).total_seconds() * 1000)
@@ -608,6 +615,6 @@ async def execute_parallel(
     from agent.tools.mcp_tools import _make_result as _mcp_make_result
 
     return _mcp_make_result(
-        {"status": "success", "data": result_data},
+        {"status": "success", "mutation_applied": mutation_applied, "data": result_data},
         tool_name="parallel_execute",
     )

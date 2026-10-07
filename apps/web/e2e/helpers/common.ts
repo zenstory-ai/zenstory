@@ -6,12 +6,13 @@
  */
 
 import fs from 'node:fs'
-import { Page, APIRequestContext, expect } from '@playwright/test'
+import { type Page, type APIRequestContext, expect } from '@playwright/test'
+import { config } from '../config'
 
 // Test credentials
 const TEST_EMAIL = process.env.E2E_TEST_EMAIL || 'e2e-test@example.com'
 const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD || 'E2eTestPassword123!'
-const AUTH_FILE = 'playwright/.auth/user.json'
+const AUTH_FILE = process.env.PLAYWRIGHT_AUTH_FILE || 'playwright/.auth/user.json'
 
 type CachedAuth = {
   access_token: string
@@ -28,7 +29,7 @@ function readAuthFile(): CachedAuth | null {
     const existing = JSON.parse(fs.readFileSync(AUTH_FILE, 'utf8')) as {
       origins?: Array<{ origin?: string; localStorage?: Array<{ name?: string; value?: string }> }>
     }
-    const origin = existing.origins?.find((item) => item.origin === 'http://127.0.0.1:5173')
+    const origin = existing.origins?.find((item) => item.origin === new URL(config.baseUrl).origin)
     const localStorageItems = origin?.localStorage ?? []
     const map = Object.fromEntries(localStorageItems.map((item) => [item.name, item.value]))
     if (!map.access_token || !map.refresh_token) return null
@@ -52,7 +53,7 @@ async function createFreshAuth(page: Page, email: string, password: string): Pro
   ).trim().toLowerCase()
 
   if (fileAuth?.refresh_token && fileAuthEmail === email.trim().toLowerCase()) {
-    const refreshResponse = await page.request.post('http://127.0.0.1:8000/api/auth/refresh', {
+    const refreshResponse = await page.request.post(`${config.apiBaseUrl}/api/auth/refresh`, {
       headers: { 'Content-Type': 'application/json' },
       data: { refresh_token: fileAuth.refresh_token },
     })
@@ -64,7 +65,7 @@ async function createFreshAuth(page: Page, email: string, password: string): Pro
   const params = new URLSearchParams()
   params.append('username', email)
   params.append('password', password)
-  const loginResponse = await page.request.post('http://127.0.0.1:8000/api/auth/login', {
+  const loginResponse = await page.request.post(`${config.apiBaseUrl}/api/auth/login`, {
     data: params.toString(),
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',

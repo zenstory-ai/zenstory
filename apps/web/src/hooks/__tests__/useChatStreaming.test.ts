@@ -1469,322 +1469,124 @@ describe('useChatStreaming', () => {
         expect(result.current.streamRenderItems).toHaveLength(0)
       })
 
-      it('creates snapshot when project ID is available', async () => {
+      it.each([
+        ['prose-only completion', [{ id: '1', type: 'content', content: 'Generated content' }], undefined],
+        ['read-only tool result', [{ id: '1', type: 'tool_calls', toolCalls: [{ tool_name: 'search', arguments: {}, status: 'success' }] }], undefined],
+        ['named failed mutation tool', [{ id: '1', type: 'tool_calls', toolCalls: [{ tool_name: 'edit_file', arguments: { title: 'Chapter 1' }, status: 'error' }] }], undefined],
+        ['absent mutation flag', [], undefined],
+        ['explicit false mutation flag', [], { confirmedFileMutation: false }],
+      ])('does not snapshot %s', async (_label, segments, completionMeta) => {
         const { result } = renderHook(() => useChatStreaming())
         const deps = createMockDeps()
         const callbacks = result.current.getStreamCallbacks(deps)
 
-        const segments = [
-          { id: '1', type: 'content', content: 'Generated content' },
-        ]
-
         await act(async () => {
-          await callbacks.onComplete(segments, null)
+          await callbacks.onComplete(segments, null, completionMeta)
         })
 
-        expect(deps.createSnapshot).toHaveBeenCalledWith(
-          'test-project-id',
-          expect.objectContaining({ snapshotType: 'auto' })
-        )
+        expect(deps.createSnapshot).not.toHaveBeenCalled()
       })
 
-      it('does not create snapshot when no project ID', async () => {
+      it('creates one generic snapshot for an explicit confirmed mutation even without segments', async () => {
+        const { result } = renderHook(() => useChatStreaming())
+        const deps = createMockDeps()
+        const callbacks = result.current.getStreamCallbacks(deps)
+
+        await act(async () => {
+          await callbacks.onComplete([], null, { confirmedFileMutation: true })
+        })
+
+        expect(deps.createSnapshot).toHaveBeenCalledTimes(1)
+        expect(deps.createSnapshot).toHaveBeenCalledWith('test-project-id', {
+          description: 'chat:message.aiDoneFilesModified',
+          snapshotType: 'auto',
+        })
+        expect(deps.t).toHaveBeenCalledWith('chat:message.aiDoneFilesModified')
+      })
+
+      it('suppresses snapshots for partial completion even when mutation was confirmed', async () => {
+        const { result } = renderHook(() => useChatStreaming())
+        const deps = createMockDeps()
+        const callbacks = result.current.getStreamCallbacks(deps)
+
+        await act(async () => {
+          await callbacks.onComplete([], null, {
+            confirmedFileMutation: true,
+            partial: true,
+          })
+        })
+
+        expect(deps.createSnapshot).not.toHaveBeenCalled()
+      })
+
+      it('creates only one snapshot for a completed turn containing multiple mutations', async () => {
+        const { result } = renderHook(() => useChatStreaming())
+        const deps = createMockDeps()
+        const callbacks = result.current.getStreamCallbacks(deps)
+        const segments = [{
+          id: '1',
+          type: 'tool_calls',
+          toolCalls: [
+            { tool_name: 'create_file', arguments: { title: 'One' }, status: 'success' },
+            { tool_name: 'edit_file', arguments: { title: 'Two' }, status: 'success' },
+          ],
+        }]
+
+        await act(async () => {
+          await callbacks.onComplete(segments, null, { confirmedFileMutation: true })
+        })
+
+        expect(deps.createSnapshot).toHaveBeenCalledTimes(1)
+      })
+
+      it('does not create a snapshot without an active project', async () => {
         const { result } = renderHook(() => useChatStreaming())
         const deps = createMockDeps()
         deps.activeProjectId = null
         const callbacks = result.current.getStreamCallbacks(deps)
 
         await act(async () => {
-          await callbacks.onComplete(
-            [{ id: '1', type: 'content', content: 'Content' }],
-            null
-          )
+          await callbacks.onComplete([], null, { confirmedFileMutation: true })
         })
 
         expect(deps.createSnapshot).not.toHaveBeenCalled()
       })
 
-      it('finishes streaming file on complete', async () => {
+      it('does not carry mutation confirmation across stream or project callback sets', async () => {
         const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        deps.streamingFileId = 'file-123'
-        const callbacks = result.current.getStreamCallbacks(deps)
+        const firstProject = createMockDeps()
+        firstProject.activeProjectId = 'project-a'
+        const firstCallbacks = result.current.getStreamCallbacks(firstProject)
 
         await act(async () => {
-          await callbacks.onComplete(
-            [{ id: '1', type: 'content', content: 'Content' }],
-            null
-          )
+          await firstCallbacks.onComplete([], null, { confirmedFileMutation: true })
         })
 
-        expect(deps.finishFileStreaming).toHaveBeenCalledWith('file-123')
-      })
-
-      it('creates snapshot when file modifications exist', async () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        const segments = [
-          {
-            id: '1',
-            type: 'tool_calls',
-            toolCalls: [
-              {
-                tool_name: 'create_file',
-                arguments: { title: 'Chapter 1' },
-                status: 'success',
-              },
-            ],
-          },
-        ]
-
+        const nextProject = createMockDeps()
+        nextProject.activeProjectId = 'project-b'
+        const nextCallbacks = result.current.getStreamCallbacks(nextProject)
         await act(async () => {
-          await callbacks.onComplete(segments, null)
+          await nextCallbacks.onComplete([], null)
         })
 
-        expect(deps.createSnapshot).toHaveBeenCalledWith(
-          'test-project-id',
-          expect.objectContaining({
-            snapshotType: 'auto',
-          })
-        )
-        // Verify the t function was called with correct args (description generation)
-        expect(deps.t).toHaveBeenCalledWith(
-          'chat:message.aiEdit',
-          expect.objectContaining({
-            files: 'Chapter 1',
-            extra: '',
-          })
-        )
+        expect(firstProject.createSnapshot).toHaveBeenCalledTimes(1)
+        expect(nextProject.createSnapshot).not.toHaveBeenCalled()
       })
 
-      it('creates snapshot for tool_calls with empty content', async () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        const segments = [
-          {
-            id: '1',
-            type: 'tool_calls',
-            toolCalls: [
-              { tool_name: 'search', arguments: {}, status: 'success' },
-            ],
-          },
-        ]
-
-        await act(async () => {
-          await callbacks.onComplete(segments, null)
-        })
-
-        expect(deps.createSnapshot).toHaveBeenCalled()
-      })
-
-      it('does not create snapshot for empty segments', async () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        await act(async () => {
-          await callbacks.onComplete([], null)
-        })
-
-        expect(deps.createSnapshot).not.toHaveBeenCalled()
-      })
-
-      it('does not create snapshot for whitespace-only content', async () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        await act(async () => {
-          await callbacks.onComplete(
-            [{ id: '1', type: 'content', content: '   \n\t  ' }],
-            null
-          )
-        })
-
-        expect(deps.createSnapshot).not.toHaveBeenCalled()
-      })
-
-      it('handles snapshot creation errors gracefully', async () => {
+      it('handles confirmed snapshot creation errors as best effort', async () => {
         const { result } = renderHook(() => useChatStreaming())
         const deps = createMockDeps()
         deps.createSnapshot = vi.fn().mockRejectedValue(new Error('Snapshot failed'))
         const callbacks = result.current.getStreamCallbacks(deps)
 
-        const segments = [
-          { id: '1', type: 'content', content: 'Generated content' },
-        ]
-
-        // Should not throw
         await act(async () => {
-          await callbacks.onComplete(segments, null)
+          await expect(
+            callbacks.onComplete([], null, { confirmedFileMutation: true })
+          ).resolves.toBeUndefined()
         })
 
-        // State should still be cleared even if snapshot fails
         expect(result.current.editProgress).toBe(null)
         expect(result.current.streamRenderItems).toHaveLength(0)
-      })
-
-      it('generates description with multiple modified files', async () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        const segments = [
-          {
-            id: '1',
-            type: 'tool_calls',
-            toolCalls: [
-              {
-                tool_name: 'create_file',
-                arguments: { title: 'Chapter 1' },
-                status: 'success',
-              },
-              {
-                tool_name: 'update_file',
-                arguments: { title: 'Chapter 2' },
-                status: 'success',
-              },
-            ],
-          },
-        ]
-
-        await act(async () => {
-          await callbacks.onComplete(segments, null)
-        })
-
-        // Verify the t function was called with both files in the args
-        expect(deps.t).toHaveBeenCalledWith(
-          'chat:message.aiEdit',
-          expect.objectContaining({
-            files: 'Chapter 1, Chapter 2',
-            extra: '',
-          })
-        )
-      })
-
-      it('handles more than 3 modified files with extra count', async () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        const segments = [
-          {
-            id: '1',
-            type: 'tool_calls',
-            toolCalls: [
-              { tool_name: 'create_file', arguments: { title: 'File 1' }, status: 'success' },
-              { tool_name: 'create_file', arguments: { title: 'File 2' }, status: 'success' },
-              { tool_name: 'create_file', arguments: { title: 'File 3' }, status: 'success' },
-              { tool_name: 'create_file', arguments: { title: 'File 4' }, status: 'success' },
-            ],
-          },
-        ]
-
-        await act(async () => {
-          await callbacks.onComplete(segments, null)
-        })
-
-        // Should include first 3 files and extra count
-        expect(deps.t).toHaveBeenCalledWith(
-          'chat:message.aiEdit',
-          expect.objectContaining({
-            files: 'File 1, File 2, File 3',
-            extra: '+ 1',
-          })
-        )
-      })
-
-      it('filters out "unknown" titles from modified files', async () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        const segments = [
-          {
-            id: '1',
-            type: 'tool_calls',
-            toolCalls: [
-              { tool_name: 'create_file', arguments: { title: 'Unknown' }, status: 'success' },
-              { tool_name: 'update_file', arguments: { title: 'Chapter 1' }, status: 'success' },
-            ],
-          },
-        ]
-
-        await act(async () => {
-          await callbacks.onComplete(segments, null)
-        })
-
-        // Should include only Chapter 1, not Unknown
-        expect(deps.t).toHaveBeenCalledWith(
-          'chat:message.aiEdit',
-          expect.objectContaining({
-            files: 'Chapter 1',
-            extra: '',
-          })
-        )
-      })
-
-      it('deduplicates modified file titles', async () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        const segments = [
-          {
-            id: '1',
-            type: 'tool_calls',
-            toolCalls: [
-              { tool_name: 'create_file', arguments: { title: 'Chapter 1' }, status: 'success' },
-              { tool_name: 'update_file', arguments: { title: 'Chapter 1' }, status: 'success' },
-            ],
-          },
-        ]
-
-        await act(async () => {
-          await callbacks.onComplete(segments, null)
-        })
-
-        // Should only include Chapter 1 once
-        expect(deps.t).toHaveBeenCalledWith(
-          'chat:message.aiEdit',
-          expect.objectContaining({
-            files: 'Chapter 1',
-            extra: '',
-          })
-        )
-      })
-
-      it('handles file modifications without title arguments', async () => {
-        const { result } = renderHook(() => useChatStreaming())
-        const deps = createMockDeps()
-        const callbacks = result.current.getStreamCallbacks(deps)
-
-        const segments = [
-          {
-            id: '1',
-            type: 'tool_calls',
-            toolCalls: [
-              { tool_name: 'edit_file', arguments: {}, status: 'success' },
-            ],
-          },
-        ]
-
-        await act(async () => {
-          await callbacks.onComplete(segments, null)
-        })
-
-        // Should create snapshot with default description
-        expect(deps.createSnapshot).toHaveBeenCalledWith(
-          'test-project-id',
-          expect.objectContaining({
-            snapshotType: 'auto',
-          })
-        )
-        expect(deps.t).toHaveBeenCalledWith('chat:message.aiDoneFilesModified')
       })
 
       it('force flushes pending stream items before processing', async () => {

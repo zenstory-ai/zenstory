@@ -17,7 +17,7 @@ from sqlmodel import Session, select
 from config.datetime_utils import beijing_date, beijing_day_bounds, utcnow
 from models import User
 from models.points import CheckInRecord
-from models.subscription import AdminAuditLog, SubscriptionPlan, UsageQuota, UserSubscription
+from models.subscription import AdminAuditLog, SubscriptionPlan, UserSubscription
 from services.core.auth_service import hash_password
 from services.quota_service import quota_service
 
@@ -199,19 +199,12 @@ async def test_admin_quota_roundtrip_reports_exact_usage_and_user_detail(
         current_period_end=utcnow() + timedelta(days=30),
         cancel_at_period_end=False,
     )
-    quota = UsageQuota(
-        user_id=target.id,
-        period_start=utcnow() - timedelta(days=1),
-        period_end=utcnow() + timedelta(days=30),
-        ai_conversations_used=11,
-        material_uploads_used=2,
-        material_decompositions_used=1,
-        skill_creates_used=3,
-        inspiration_copies_used=4,
-        # The current Beijing month, stored as naive UTC like real rows.
-        monthly_period_start=quota_service._get_month_start(utcnow()).replace(tzinfo=None),
-        monthly_period_end=quota_service._get_next_month_start(utcnow()).replace(tzinfo=None),
-    )
+    quota = quota_service.create_default_quota(db_session, target.id, commit=False)
+    quota.ai_conversations_used = 11
+    quota.material_uploads_used = 2
+    quota.material_decompositions_used = 1
+    quota.skill_creates_used = 3
+    quota.inspiration_copies_used = 4
     db_session.add(subscription)
     db_session.add(quota)
     db_session.commit()

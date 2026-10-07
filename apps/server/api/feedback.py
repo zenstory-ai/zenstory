@@ -85,7 +85,7 @@ def _detect_image_format(content: bytes) -> str | None:
 
 
 @router.post("", response_model=FeedbackSubmitResponse)
-async def submit_feedback(
+def submit_feedback(
     issue_text: str = Form(..., max_length=MAX_ISSUE_TEXT_LENGTH),
     source_page: str = Form(...),
     source_route: str | None = Form(None),
@@ -151,7 +151,7 @@ async def submit_feedback(
                 detail="Unsupported screenshot content type.",
             )
 
-        content = await screenshot.read()
+        content = screenshot.file.read(MAX_SCREENSHOT_BYTES + 1)
         content_size = len(content)
         if content_size == 0:
             raise APIException(

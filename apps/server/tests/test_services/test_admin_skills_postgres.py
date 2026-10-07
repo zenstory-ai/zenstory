@@ -12,14 +12,16 @@ from api.admin.schemas import SkillReviewRequest
 from api.admin.skills import approve_skill, reject_skill
 from core.error_handler import APIException
 from models import PublicSkill, User, UserSkill
+from models.points import PointsTransaction
 from models.subscription import AdminAuditLog
+from services.features.points_service import POINTS_SKILL_CONTRIBUTION
 
 pytestmark = pytest.mark.skipif(
     not os.getenv("ZENSTORY_TEST_POSTGRES_URL"),
     reason="isolated PostgreSQL URL not configured",
 )
 
-TABLES = [User.__table__, PublicSkill.__table__, UserSkill.__table__, AdminAuditLog.__table__]
+TABLES = [User.__table__, PublicSkill.__table__, UserSkill.__table__, AdminAuditLog.__table__, PointsTransaction.__table__]
 
 
 @pytest.fixture(scope="module")
@@ -129,3 +131,9 @@ def test_concurrent_approve_reject_has_one_winner_and_consistent_link(pg_engine)
                 AdminAuditLog.resource_id == skill_id,
             )
         ).one() == 1
+        assert verify.exec(
+            select(func.count()).select_from(PointsTransaction).where(
+                PointsTransaction.transaction_type == "skill_contribution",
+                PointsTransaction.source_id == skill_id,
+            )
+        ).one() == (1 if skill.status == "approved" and POINTS_SKILL_CONTRIBUTION > 0 else 0)

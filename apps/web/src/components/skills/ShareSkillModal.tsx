@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Share2 } from "../icons";
 import Modal from "../ui/Modal";
@@ -30,12 +30,26 @@ export function ShareSkillModal({
   const [category, setCategory] = useState("writing");
   const [sharing, setSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const ownerRef = useRef<object | null>(null);
+
+  useEffect(() => {
+    const owner = {};
+    ownerRef.current = owner;
+    setSharing(false);
+    setError(null);
+    return () => {
+      if (ownerRef.current === owner) ownerRef.current = null;
+    };
+  }, [skill.id]);
 
   const handleShare = async () => {
+    const owner = ownerRef.current;
+    if (!owner) return;
     setSharing(true);
     setError(null);
     try {
       const result = await skillsApi.share(skill.id, category);
+      if (owner !== ownerRef.current) return;
       if (result.success) {
         onSuccess();
         onClose();
@@ -43,9 +57,9 @@ export function ShareSkillModal({
         setError(result.message);
       }
     } catch {
-      setError(t("skills:share.error"));
+      if (owner === ownerRef.current) setError(t("skills:share.error"));
     } finally {
-      setSharing(false);
+      if (owner === ownerRef.current) setSharing(false);
     }
   };
 

@@ -6,7 +6,9 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { recognizeVoice, blobToBase64 } from '../lib/voiceApi';
+import { recognizeVoice, blobToBase64, MAX_VOICE_DATA_LENGTH } from '../lib/voiceApi';
+import type { VoiceSampleRate } from '../lib/voiceApi';
+import { normalizeRecording } from '../lib/audioRecording';
 import { logger } from '../lib/logger';
 
 export type VoiceInputStatus = 
@@ -24,7 +26,7 @@ export interface UseVoiceInputOptions {
   /** 最大录音时长（秒），默认 55 秒（腾讯云限制 60 秒） */
   maxDuration?: number;
   /** 采样率，默认 16000 */
-  sampleRate?: number;
+  sampleRate?: VoiceSampleRate;
 }
 
 export interface UseVoiceInputReturn {
@@ -59,14 +61,15 @@ function checkMediaRecorderSupport(): boolean {
   return !!(
     navigator.mediaDevices &&
     typeof navigator.mediaDevices.getUserMedia === 'function' &&
-    typeof window.MediaRecorder !== 'undefined'
+    typeof window.MediaRecorder !== 'undefined' &&
+    typeof window.OfflineAudioContext !== 'undefined'
   );
 }
 
 /**
  * 获取支持的 MIME 类型
  */
-function getSupportedMimeType(): string {
+function getSupportedMimeType(): string | undefined {
   const types = [
     'audio/webm;codecs=opus',
     'audio/webm',
@@ -81,18 +84,7 @@ function getSupportedMimeType(): string {
     }
   }
   
-  return 'audio/webm'; // 默认
-}
-
-/**
- * 从 MIME 类型获取音频格式
- */
-function getAudioFormat(mimeType: string): string {
-  if (mimeType.includes('webm')) return 'webm';
-  if (mimeType.includes('ogg')) return 'ogg-opus';
-  if (mimeType.includes('mp4')) return 'm4a';
-  if (mimeType.includes('wav')) return 'wav';
-  return 'webm';
+  return undefined;
 }
 
 export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInputReturn {
@@ -118,28 +110,35 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(0);
-  const mimeTypeRef = useRef<string>('');
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const volumeTimerRef = useRef<number | null>(null);
+  const errorResetTimerRef = useRef<number | null>(null);
+  const recognitionRequestRef = useRef<AbortController | null>(null);
   const requestGenerationRef = useRef(0);
 
   const isSupported = checkMediaRecorderSupport();
 
   // 清理资源
   const cleanup = useCallback(() => {
-    if (timerRef.current) {
+    if (timerRef.current !== null) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
     
-    if (volumeTimerRef.current) {
+    if (volumeTimerRef.current !== null) {
       clearInterval(volumeTimerRef.current);
       volumeTimerRef.current = null;
     }
+
+    if (errorResetTimerRef.current !== null) {
+      clearTimeout(errorResetTimerRef.current);
+      errorResetTimerRef.current = null;
+    }
+    recognitionRequestRef.current?.abort();
+    recognitionRequestRef.current = null;
     
     if (audioContextRef.current) {
       audioContextRef.current.close().catch(() => {});
@@ -148,10 +147,12 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
     }
     
     if (mediaRecorderRef.current) {
-      if (mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
-      }
+      const recorder = mediaRecorderRef.current;
       mediaRecorderRef.current = null;
+      recorder.ondataavailable = null;
+      recorder.onstop = null;
+      recorder.onerror = null;
+      if (recorder.state !== 'inactive') recorder.stop();
     }
     
     if (streamRef.current) {
@@ -159,9 +160,17 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
       streamRef.current = null;
     }
     
-    chunksRef.current = [];
     setDuration(0);
     setVolume(0);
+  }, []);
+
+  const scheduleErrorReset = useCallback((requestGeneration: number) => {
+    errorResetTimerRef.current = window.setTimeout(() => {
+      errorResetTimerRef.current = null;
+      if (requestGeneration !== requestGenerationRef.current) return;
+      setStatus('idle');
+      setError(null);
+    }, 3000);
   }, []);
 
   // 组件卸载时清理
@@ -173,8 +182,12 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
   }, [cleanup]);
 
   // 处理录音数据
-  const processRecording = useCallback(async () => {
-    if (chunksRef.current.length === 0) {
+  const processRecording = useCallback(async (
+    requestGeneration: number,
+    audioBlob: Blob | null,
+  ) => {
+    if (requestGeneration !== requestGenerationRef.current) return;
+    if (!audioBlob) {
       setError(t('chat:voice.noRecordingData'));
       setStatus('error');
       onError?.(t('chat:voice.noRecordingData'));
@@ -183,26 +196,33 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
 
     setStatus('processing');
     setError(null);
+    const controller = new AbortController();
+    recognitionRequestRef.current = controller;
 
     try {
-      // 合并音频数据
-      const audioBlob = new Blob(chunksRef.current, { type: mimeTypeRef.current });
-      
-      // 检查文件大小（腾讯云限制）
-      if (audioBlob.size > 5 * 1024 * 1024) {
+      const wav = await normalizeRecording(audioBlob, sampleRate, controller.signal);
+      if (requestGeneration !== requestGenerationRef.current) return;
+      // Tencent limits Data after Base64, not the compressed browser recording.
+      if (Math.ceil(wav.size / 3) * 4 > MAX_VOICE_DATA_LENGTH) {
         throw new Error(t('chat:voice.audioTooLarge'));
       }
       
       // 转换为 Base64
-      const base64Data = await blobToBase64(audioBlob);
+      const base64Data = await blobToBase64(wav);
+      if (requestGeneration !== requestGenerationRef.current) return;
+      if (base64Data.length > MAX_VOICE_DATA_LENGTH) {
+        throw new Error(t('chat:voice.audioTooLarge'));
+      }
       
       // 调用识别 API
       const response = await recognizeVoice(
         base64Data,
-        getAudioFormat(mimeTypeRef.current),
+        'wav',
         sampleRate,
-        getAsrLanguage()
+        getAsrLanguage(),
+        controller.signal,
       );
+      if (requestGeneration !== requestGenerationRef.current) return;
       
       if (response.success && response.text) {
         setStatus('idle');
@@ -211,18 +231,18 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
         throw new Error(response.error || t('chat:voice.recognitionFailed'));
       }
     } catch (err) {
+      if (requestGeneration !== requestGenerationRef.current) return;
       const errorMessage = err instanceof Error ? err.message : t('chat:voice.recognitionError');
       setError(errorMessage);
       setStatus('error');
       onError?.(errorMessage);
       
       // 3 秒后恢复 idle 状态
-      setTimeout(() => {
-        setStatus('idle');
-        setError(null);
-      }, 3000);
+      scheduleErrorReset(requestGeneration);
+    } finally {
+      if (recognitionRequestRef.current === controller) recognitionRequestRef.current = null;
     }
-  }, [onResult, onError, sampleRate, getAsrLanguage, t]);
+  }, [onResult, onError, sampleRate, getAsrLanguage, scheduleErrorReset, t]);
 
   // Stop recording and trigger recognition
   const stopRecording = useCallback(() => {
@@ -246,6 +266,9 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
 
   // 开始录音
   const startRecording = useCallback(async () => {
+    const requestGeneration = requestGenerationRef.current + 1;
+    requestGenerationRef.current = requestGeneration;
+    cleanup();
     if (!isSupported) {
       const msg = t('chat:voice.browserNotSupported');
       setError(msg);
@@ -254,9 +277,6 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
       return;
     }
 
-    cleanup();
-    const requestGeneration = requestGenerationRef.current + 1;
-    requestGenerationRef.current = requestGeneration;
     setStatus('requesting');
     setError(null);
 
@@ -304,33 +324,38 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
       }
       
       // 获取支持的 MIME 类型
-      mimeTypeRef.current = getSupportedMimeType();
+      const preferredMimeType = getSupportedMimeType();
       
       // 创建 MediaRecorder
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: mimeTypeRef.current,
-      });
+      const mediaRecorder = preferredMimeType
+        ? new MediaRecorder(stream, { mimeType: preferredMimeType })
+        : new MediaRecorder(stream);
       
       mediaRecorderRef.current = mediaRecorder;
-      chunksRef.current = [];
+      const chunks: Blob[] = [];
       
       // 监听数据
       mediaRecorder.ondataavailable = (event) => {
+        if (requestGeneration !== requestGenerationRef.current || mediaRecorder !== mediaRecorderRef.current) return;
         if (event.data.size > 0) {
-          chunksRef.current.push(event.data);
+          chunks.push(event.data);
         }
       };
       
       // 监听停止
       mediaRecorder.onstop = () => {
-        // 停止后处理录音（只要有数据就处理）
-        if (chunksRef.current.length > 0) {
-          processRecording();
-        }
+        if (requestGeneration !== requestGenerationRef.current || mediaRecorder !== mediaRecorderRef.current) return;
+        const mimeType = mediaRecorder.mimeType || chunks[0]?.type || preferredMimeType || '';
+        const audioBlob = chunks.length > 0
+          ? new Blob(chunks, { type: mimeType })
+          : null;
+        cleanup();
+        void processRecording(requestGeneration, audioBlob);
       };
       
       // 监听错误
       mediaRecorder.onerror = (event) => {
+        if (requestGeneration !== requestGenerationRef.current || mediaRecorder !== mediaRecorderRef.current) return;
         logger.error('MediaRecorder error:', event);
         cleanup();
         setError(t('chat:voice.recordingError'));
@@ -376,12 +401,9 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
       onError?.(errorMessage);
       
       // 3 秒后恢复 idle 状态
-      setTimeout(() => {
-        setStatus('idle');
-        setError(null);
-      }, 3000);
+      scheduleErrorReset(requestGeneration);
     }
-  }, [isSupported, cleanup, maxDuration, onError, processRecording, sampleRate, stopRecording, t]);
+  }, [isSupported, cleanup, maxDuration, onError, processRecording, sampleRate, scheduleErrorReset, stopRecording, t]);
 
 
   // 取消录音

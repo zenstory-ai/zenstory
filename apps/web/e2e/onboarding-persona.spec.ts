@@ -78,6 +78,11 @@ test.describe("Onboarding persona flow", () => {
 
   test.beforeEach(async ({ page }) => {
     lastSubmittedPayload = null;
+    // These form cases start from dashboard, independently of projects created by earlier specs.
+    await page.route("**/api/v1/projects", async (route) => {
+      if (route.request().method() !== "GET") return route.continue();
+      await route.fulfill({ status: 200, json: [] });
+    });
     await page.route("**/api/v1/persona/onboarding", async (route) => {
       const method = route.request().method();
 

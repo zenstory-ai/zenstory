@@ -35,6 +35,9 @@ vi.mock('../apiClient', () => ({
   ApiError: MockApiError,
   getAccessToken: mockGetAccessToken,
   getApiBase: mockGetApiBase,
+  resolveOwnedAuthSession: () => ({
+    accessToken: mockGetAccessToken(), refreshToken: localStorage.getItem('refresh_token'),
+  }),
   tryRefreshToken: mockTryRefreshToken,
 }))
 
@@ -46,6 +49,8 @@ describe('adminApi', () => {
     mockGetApiBase.mockReturnValue('https://api.example.com')
     mockTryRefreshToken.mockResolvedValue(false)
     localStorage.clear()
+    localStorage.setItem('access_token', 'mock-access-token')
+    localStorage.setItem('refresh_token', 'mock-refresh-token')
   })
 
   afterEach(() => {
@@ -1375,7 +1380,12 @@ describe('adminApi', () => {
       const { getFeedbackScreenshotBlob } = await import('../adminApi')
       const screenshotBlob = new Blob(['retry-image'], { type: 'image/png' })
 
-      mockTryRefreshToken.mockResolvedValue(true)
+      mockTryRefreshToken.mockImplementation(async () => {
+        mockGetAccessToken.mockReturnValue('rotated-access-token')
+        localStorage.setItem('access_token', 'rotated-access-token')
+        localStorage.setItem('refresh_token', 'rotated-refresh-token')
+        return true
+      })
       fetchMock
         .mockResolvedValueOnce({
           ok: false,

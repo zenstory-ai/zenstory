@@ -1,0 +1,7 @@
+# M14 final mapped-module source review
+
+Independent SOURCE_APPROVE/CLEAR after the final key-contract blockers were repaired. Actual project-scoped search remains `/api/v1/agent/projects/{project_id}/search`; no Agent-key chat or bare search route is claimed. Earlier reviewed auth/expiry/atomic usage/thread boundary, conditional atomic file/version writes, cross-writer tokens, projected file lists and writing-context bounds remain valid.
+
+Final key delta: total timestamp+ID order after unchanged owner/filter/count predicates; explicit null rejection only for nonnullable update name/scopes/is_active before mutation, retaining omitted/false and nullable description/project_ids clears. Corrected actual HTTP baseline5genuineRED1healthy, final new6+existing30=36PASS, api.agent_api_keys99.38% >=80, Ruff0; scoped source mypy1legacy→0. New test formatted afterward without semantic changes. Evidence `m14-key-contracts/`. Initial repeated key-hash fixture failures and nonexistent test-file invocation are excluded from product proof.
+
+A/P: preserve existing services/locks/transactions and small boundary utilities; no auth/cache abstraction or new dependencies. B: mapped registered key/Agent/search consumers reviewed; accepted inert legacy chat scope, eventual indexing/search capacity, exact-count/page cost, duplicated auth lookup and broader token evolution are nonblocking contracts/measurement WATCHs. This is source closure, not global quality/CI/PR/deployment approval.

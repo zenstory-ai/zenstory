@@ -25,7 +25,7 @@ router = APIRouter(prefix="/api/v1", tags=["export"])
 
 
 @router.get("/projects/{project_id}/export/drafts")
-async def export_project_drafts(
+def export_project_drafts(
     project_id: str,
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session)

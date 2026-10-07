@@ -3,7 +3,7 @@ Admin Audit Service - Logs admin actions for compliance and security.
 """
 from fastapi import Request
 from sqlalchemy import or_
-from sqlmodel import Session, func, select
+from sqlmodel import Session, col, func, select
 
 from middleware.rate_limit import get_client_ip
 from models.subscription import AdminAuditLog
@@ -94,7 +94,9 @@ class AdminAuditService:
             List of matching audit logs
         """
         query = self._filtered_query(admin_user_id, resource_type, action, resource_id)
-        query = query.order_by(AdminAuditLog.created_at.desc()).offset(offset).limit(limit)
+        query = query.order_by(
+            col(AdminAuditLog.created_at).desc(), col(AdminAuditLog.id).desc()
+        ).offset(offset).limit(limit)
         return session.exec(query).all()
 
     def count_audit_logs(self, session: Session, *, resource_type: str | None = None, action: str | None = None) -> int:

@@ -5,7 +5,7 @@ import logging
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Header
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from services.auth import get_current_active_user
 from sqlmodel import Session, select
 
@@ -55,6 +55,13 @@ class UpdateProjectRequest(BaseModel):
     name: str | None = None
     description: str | None = None
     project_type: ProjectTypeLiteral | None = None
+
+    @field_validator("name", "project_type", mode="before")
+    @classmethod
+    def reject_explicit_null(cls, value: object) -> object:
+        if value is None:
+            raise ValueError("This field cannot be null")
+        return value
 
 
 class PatchProjectRequest(BaseModel):

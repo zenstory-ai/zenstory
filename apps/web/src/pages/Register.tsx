@@ -60,6 +60,7 @@ export const Register: React.FC = () => {
   const { t } = useTranslation(['auth', 'common', 'home']);
   const [searchParams] = useSearchParams();
   const policyRequestSeqRef = useRef(0);
+  const submitInFlightRef = useRef(false);
 
   // Read invite code and plan intent from URL parameters
   useEffect(() => {
@@ -175,6 +176,7 @@ export const Register: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitInFlightRef.current || success) return;
     setFormError("");
 
     if (password !== confirmPassword) {
@@ -206,35 +208,35 @@ export const Register: React.FC = () => {
       return;
     }
 
-    let effectiveInviteCodeOptional = inviteCodeOptional;
-    try {
-      const policy = await authApi.getRegistrationPolicy({
-        email: trimmedEmail,
-        username: trimmedUsername,
-      });
-      effectiveInviteCodeOptional = Boolean(policy.invite_code_optional);
-      setInviteCodeOptional(effectiveInviteCodeOptional);
-    } catch {
-      // Fall back to local config when policy API is unavailable.
-    }
-
-    if (!effectiveInviteCodeOptional && !trimmedInviteCode) {
-      const message = t('auth:errors.inviteCodeRequired');
-      setFormError(message);
-      toast.error(message);
-      return;
-    }
-
-    if (!acceptTerms) {
-      const message = t('auth:errors.mustAcceptTerms');
-      setFormError(message);
-      toast.error(message);
-      return;
-    }
-
+    submitInFlightRef.current = true;
     setLoading(true);
 
     try {
+      let effectiveInviteCodeOptional = inviteCodeOptional;
+      try {
+        const policy = await authApi.getRegistrationPolicy({
+          email: trimmedEmail,
+          username: trimmedUsername,
+        });
+        effectiveInviteCodeOptional = Boolean(policy.invite_code_optional);
+        setInviteCodeOptional(effectiveInviteCodeOptional);
+      } catch {
+        // Fall back to local config when policy API is unavailable.
+      }
+
+      if (!effectiveInviteCodeOptional && !trimmedInviteCode) {
+        const message = t('auth:errors.inviteCodeRequired');
+        setFormError(message);
+        toast.error(message);
+        return;
+      }
+
+      if (!acceptTerms) {
+        const message = t('auth:errors.mustAcceptTerms');
+        setFormError(message);
+        toast.error(message);
+        return;
+      }
       await register(trimmedUsername, trimmedEmail, password, trimmedInviteCode || undefined);
       setSuccess(true);
       toast.success(t('auth:register.success'));
@@ -253,6 +255,7 @@ export const Register: React.FC = () => {
       setFormError(message);
       toast.error(message);
     } finally {
+      submitInFlightRef.current = false;
       setLoading(false);
     }
   };

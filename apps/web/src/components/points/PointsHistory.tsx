@@ -2,6 +2,7 @@
  * Points History Component - Transaction history list with pagination
  */
 import { useState } from 'react';
+import { parseUTCDate } from '@/lib/dateUtils';
 import { useQuery } from '@tanstack/react-query';
 import { pointsApi } from '../../lib/pointsApi';
 import { useTranslation } from 'react-i18next';
@@ -46,7 +47,7 @@ function formatTransactionDate(
   t: (key: string, options?: Record<string, unknown>) => string,
   localeCode: string,
 ): string {
-  const date = new Date(dateStr);
+  const date = parseUTCDate(dateStr);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));

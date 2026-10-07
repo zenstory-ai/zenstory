@@ -8,7 +8,7 @@ from datetime import UTC, timedelta
 
 from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy import and_, or_
-from sqlmodel import Session, func, select
+from sqlmodel import Session, col, func, select
 
 from config.datetime_utils import utcnow
 from core.error_codes import ErrorCode
@@ -142,7 +142,7 @@ def list_subscriptions(
     ).one()
 
     rows = session.exec(
-        query.order_by(User.created_at.desc(), User.id.desc())
+        query.order_by(col(User.created_at).desc(), col(User.id).desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
     ).all()

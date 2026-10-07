@@ -7,8 +7,9 @@ import { projectApi } from "../lib/api";
 import { authConfig, hasOAuthProviders } from "../config/auth";
 import { PublicHeader } from "../components/PublicHeader";
 import { LoadingSpinner } from "../components/LoadingSpinner";
-import { normalizePlanIntent } from "../lib/authFlow";
+import { LOGIN_ATTEMPT_KEY, normalizePlanIntent, type LoginAttempt } from "../lib/authFlow";
 import { handleSsoRedirect } from '../lib/ssoRedirect';
+import { resolveOwnedAuthSession } from '../lib/apiClient';
 
 // SVG icons for OAuth providers
 const GoogleIcon = () => (
@@ -69,15 +70,31 @@ export const Login: React.FC = () => {
     }
 
     setLoading(true);
+    const attempt: LoginAttempt = { kind: 'login', id: crypto.randomUUID() };
+    const state = location.state as Record<string, unknown> | null;
+    navigate(`${location.pathname}${location.search}${location.hash}`, {
+      replace: true, state: { ...state, [LOGIN_ATTEMPT_KEY]: attempt },
+    });
 
     try {
       await login(trimmedIdentifier, password);
+      const entryAccess = localStorage.getItem('access_token');
+      const entryRefresh = localStorage.getItem('refresh_token');
+      const assertCurrentAttempt = () => {
+        const current = window.history.state?.usr?.[LOGIN_ATTEMPT_KEY] as LoginAttempt | undefined;
+        if (!resolveOwnedAuthSession(entryAccess, entryRefresh)?.accessToken ||
+            current?.kind !== attempt.kind || current.id !== attempt.id) {
+          throw new DOMException('Login continuation superseded', 'AbortError');
+        }
+      };
+      assertCurrentAttempt();
 
       // Restore deep-link intent (e.g. homepage CTA → dashboard settings)
-      const state = location.state as Record<string, unknown> | null;
       const from = state?.from as { pathname?: string; search?: string; hash?: string; state?: object } | undefined;
       if (from && typeof from.pathname === 'string') {
-        navigate(`${from.pathname}${from.search ?? ''}${from.hash ?? ''}`, { replace: true, state: from.state ?? {} });
+        const destinationState = { ...from.state };
+        delete (destinationState as Record<string, unknown>)[LOGIN_ATTEMPT_KEY];
+        navigate(`${from.pathname}${from.search ?? ''}${from.hash ?? ''}`, { replace: true, state: destinationState });
         return;
       }
 
@@ -88,6 +105,7 @@ export const Login: React.FC = () => {
       if (redirectUrl) {
         // Use validated SSO redirect handler (token is fresh from login)
         const result = await handleSsoRedirect(redirectUrl);
+        assertCurrentAttempt();
         if (result.success && result.redirectUrl) {
           window.location.href = result.redirectUrl;
           return;
@@ -105,6 +123,7 @@ export const Login: React.FC = () => {
       // Check if user has existing projects
       try {
         const projects = await projectApi.getAll();
+        assertCurrentAttempt();
         if (projects.length > 0) {
           const STORAGE_KEY_PREFIX = 'zenstory_current_project_id';
 
@@ -143,11 +162,14 @@ export const Login: React.FC = () => {
           // No projects, go to dashboard
           navigate("/dashboard");
         }
-      } catch {
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') throw error;
+        assertCurrentAttempt();
         // If fetching projects fails, just go to dashboard
         navigate("/dashboard");
       }
     } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       const error = err as { message?: string };
       setError(error.message || t('auth:errors.invalidCredentials'));
     } finally {

@@ -5,6 +5,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
+from fastapi import Request
 from sqlalchemy import create_engine, func
 from sqlmodel import Session, select
 
@@ -82,6 +83,17 @@ def test_concurrent_cross_removals_preserve_an_active_admin(
 
     def remove_other(pair: tuple[str, str]) -> int:
         caller_id, target_id = pair
+        http_request = Request({
+            "type": "http",
+            "http_version": "1.1",
+            "method": "DELETE" if operation == "delete" else "PUT",
+            "scheme": "http",
+            "path": f"/api/admin/users/{target_id}",
+            "query_string": b"",
+            "headers": [(b"user-agent", b"local-pg-admin-role-proof")],
+            "client": ("127.0.0.1", 12345),
+            "server": ("test", 80),
+        })
         with Session(pg_engine) as session:
             # Deliberately preload both callers before either request proceeds. The
             # loser therefore carries a stale in-memory superuser object and must
@@ -96,6 +108,7 @@ def test_concurrent_cross_removals_preserve_an_active_admin(
                     admin_users.update_user(
                         target_id,
                         UserUpdateRequest(is_superuser=False),
+                        http_request=http_request,
                         current_user=current_user,
                         session=session,
                     )
@@ -103,11 +116,14 @@ def test_concurrent_cross_removals_preserve_an_active_admin(
                     admin_users.update_user(
                         target_id,
                         UserUpdateRequest(is_active=False),
+                        http_request=http_request,
                         current_user=current_user,
                         session=session,
                     )
                 else:
-                    admin_users.delete_user(target_id, current_user=current_user, session=session)
+                    admin_users.delete_user(
+                        target_id, http_request=http_request, current_user=current_user, session=session
+                    )
                 return 200
             except APIException as exc:
                 return exc.status_code

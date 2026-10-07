@@ -317,7 +317,7 @@ def _build_plan_response(plan: SubscriptionPlan) -> SubscriptionPlanResponse:
 
 
 @router.get("/me", response_model=SubscriptionStatusResponse)
-async def get_subscription_status(
+def get_subscription_status(
     session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)
 ):
     """Get current user's subscription status."""
@@ -367,7 +367,7 @@ async def get_subscription_status(
 
 
 @router.get("/quota", response_model=QuotaResponse)
-async def get_quota(session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
+def get_quota(session: Session = Depends(get_session), current_user: User = Depends(get_current_active_user)):
     """Get current usage quota."""
     plan = quota_service.get_user_plan(session, current_user.id)
     quota_snapshot = quota_service.get_quota_snapshot(session, current_user.id, plan=plan)
@@ -422,7 +422,7 @@ async def get_quota(session: Session = Depends(get_session), current_user: User 
 
 
 @router.get("/plans", response_model=list[SubscriptionPlanResponse])
-async def list_plans(
+def list_plans(
     session: Session = Depends(get_session),
 ):
     """List active subscription plans for pricing and user-side comparison."""
@@ -431,7 +431,7 @@ async def list_plans(
 
 
 @router.get("/catalog", response_model=SubscriptionCatalogResponse)
-async def get_subscription_catalog(
+def get_subscription_catalog(
     session: Session = Depends(get_session),
 ):
     """
@@ -454,7 +454,7 @@ async def get_subscription_catalog(
 
 
 @router.post("/redeem", response_model=RedeemCodeResponse)
-async def redeem_code(
+def redeem_code(
     request: RedeemCodeRequest,
     http_request: Request,
     session: Session = Depends(get_session),
@@ -483,7 +483,7 @@ async def redeem_code(
 
 
 @router.get("/history", response_model=list[SubscriptionHistoryItem])
-async def get_history(
+def get_history(
     limit: int = Query(50, ge=1, le=100),
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
@@ -510,7 +510,7 @@ async def get_history(
 
 
 @router.post("/upgrade-funnel-events", response_model=UpgradeFunnelEventResponse, status_code=201)
-async def track_upgrade_funnel_event(
+def track_upgrade_funnel_event(
     request: UpgradeFunnelEventRequest,
     http_request: Request,
     session: Session = Depends(get_session),

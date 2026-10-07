@@ -102,16 +102,22 @@ export function useWritingStats(options: UseWritingStatsOptions): UseWritingStat
     { projectId: string; data: RecordStatsRequest }
   >({
     mutationFn: ({ projectId, data }) => writingStatsApi.recordStats(projectId, data),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       // Invalidate stats to refresh with new data
-      queryClient.invalidateQueries({ queryKey: ['writing-stats', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['writing-stats', variables.projectId], refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: ['writing-stats-word-trend', variables.projectId], refetchType: 'active' });
     },
   });
 
   // Refetch wrapper
   const handleRefetch = useCallback(async () => {
-    await refetch();
-  }, [refetch]);
+    await Promise.all([
+      refetch(),
+      projectId
+        ? queryClient.invalidateQueries({ queryKey: ['writing-stats-word-trend', projectId], refetchType: 'active' })
+        : Promise.resolve(),
+    ]);
+  }, [refetch, queryClient, projectId]);
 
   // Record stats wrapper
   const recordStats = useCallback(

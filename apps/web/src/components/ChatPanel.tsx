@@ -39,7 +39,13 @@ import { MessageInput } from "./MessageInput";
 import { ToolResultCard } from "./ToolResultCard";
 import { Sparkles, Loader2, Plus, Edit3, Database, ArrowDown } from "lucide-react";
 import { QuotaBadge } from "./subscription/QuotaBadge";
-import type { AgentContextItem, AgentRequest, ApplyAction, SSEWorkflowStoppedData } from "../types";
+import type {
+  AgentContextItem,
+  AgentRequest,
+  ApplyAction,
+  FileEditUndoTarget,
+  SSEWorkflowStoppedData,
+} from "../types";
 import { logger } from "../lib/logger";
 import {
   getRecentMessages,
@@ -351,7 +357,7 @@ const findUnassignedAssistantMessage = (
  * <ChatPanel />
  */
 const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
-  const { t } = useTranslation(['chat', 'common', 'dashboard', 'home', 'editor']);
+  const { t } = useTranslation(['chat', 'common', 'dashboard', 'home', 'editor', 'versions']);
   const chatQuotaUpgradePrompt = getUpgradePromptDefinition("chat_quota_blocked");
   const fileVersionUpgradePrompt = getUpgradePromptDefinition("file_version_quota_blocked");
 
@@ -429,6 +435,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const autoScrollFrameRef = useRef<number | null>(null);
   const lastLoadedProjectRef = useRef<string | null>(null);
   const historyRequestSeqRef = useRef(0);
+  const newSessionRequestSeqRef = useRef(0);
 
   useEffect(() => {
     lastRetryRequestRef.current = null;
@@ -461,6 +468,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const currentProjectIdRef = useRef<string | null>(currentProjectId);
   useEffect(() => {
     currentProjectIdRef.current = currentProjectId;
+    return () => {
+      currentProjectIdRef.current = null;
+      newSessionRequestSeqRef.current += 1;
+    };
   }, [currentProjectId]);
 
   const chatPanelRef = useRef<HTMLDivElement>(null);
@@ -809,7 +820,11 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     finalizePendingContextClears();
 
     // Let the streaming hook finalize cleanup/snapshot work in the background.
-    void streamCallbacks.onComplete(completedSegments, applyAction as ApplyAction | null);
+    void streamCallbacks.onComplete(
+      completedSegments,
+      applyAction as ApplyAction | null,
+      completionMeta,
+    );
 
     // Delay and request fresh project-aware suggestions (once per completed turn).
     if (suggestionTimeoutRef.current) {
@@ -970,18 +985,16 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
    * @param projectId - The ID of the project to load chat history for
    */
   // Load chat history when project changes
-  const loadChatHistory = useCallback(async (projectId: string): Promise<Message[]> => {
+  const loadChatHistory = useCallback(async (projectId: string): Promise<Message[] | null> => {
     const requestId = ++historyRequestSeqRef.current;
     setIsLoadingHistory(true);
     try {
       const historyMessages = await getRecentMessages(projectId, 50);
 
-      // A slow request for a previous project must not clobber the now-active
-      // project's messages. Every sibling async path guards on this ref; this
-      // one previously did not, so a late-resolving fetch could render the wrong
-      // project's conversation under the newly-selected project.
-      if (currentProjectIdRef.current !== projectId) {
-        return [];
+      // A newer history load or new session supersedes this response, even
+      // when the active project ID has returned to the same value.
+      if (currentProjectIdRef.current !== projectId || requestId !== historyRequestSeqRef.current) {
+        return null;
       }
 
       // Convert to Message format
@@ -1008,10 +1021,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       return loadedMessages;
     } catch (err) {
       logger.error("Failed to load chat history:", err);
-      // Don't clear the active project's messages if this failure belongs to a
-      // stale (previous-project) request.
-      if (currentProjectIdRef.current !== projectId) {
-        return [];
+      // Don't clear messages or request suggestions for a superseded load.
+      if (currentProjectIdRef.current !== projectId || requestId !== historyRequestSeqRef.current) {
+        return null;
       }
       // Don't show error to user, just start fresh
       setMessages([]);
@@ -1086,6 +1098,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     // Load chat history first, then request project suggestions immediately.
     void (async () => {
       const loadedMessages = await loadChatHistory(currentProjectId);
+      if (loadedMessages === null) return;
       await requestInitialSuggestions(currentProjectId, loadedMessages);
     })();
   }, [currentProjectId, loadChatHistory, requestInitialSuggestions, setAiSuggestions, setEditProgress, clearStreamItems, setMatchedSkills, reset]); // 依赖 loadChatHistory
@@ -1358,6 +1371,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   // Handle new session
   const handleNewSession = async () => {
     if (!currentProjectId) return;
+    const projectId = currentProjectId;
+    const requestSeq = ++newSessionRequestSeqRef.current;
 
     resetPendingContextClears();
     currentAgentSessionIdRef.current = null;
@@ -1370,17 +1385,22 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     }
 
     try {
-      await createNewSession(currentProjectId);
+      await createNewSession(projectId);
+      if (currentProjectIdRef.current !== projectId || requestSeq !== newSessionRequestSeqRef.current) return;
+      historyRequestSeqRef.current += 1;
+      setIsLoadingHistory(false);
       setMessages([]);
       setFeedbackPendingMessageId(null);
       // 上一轮若被取消/出错，流式渲染残留不会被 onComplete 清理，这里一并清空。
       clearStreamItems();
       setMatchedSkills([]);
       reset();
-      await requestInitialSuggestions(currentProjectId, []);
+      await requestInitialSuggestions(projectId, []);
     } catch (err) {
       logger.error("Failed to create new session:", err);
-      setSuggestionDisplayState("fallback");
+      if (currentProjectIdRef.current === projectId && requestSeq === newSessionRequestSeqRef.current) {
+        setSuggestionDisplayState("fallback");
+      }
     }
   };
   
@@ -1429,33 +1449,31 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   };
 
   /**
-   * Handles undoing an AI edit by rolling back to the previous file version.
-   * Fetches version history, prompts for confirmation, and rolls back
-   * to the version before the AI edit was applied.
+   * Handles undoing the exact AI edit represented by a persisted tool result.
    *
-   * @param fileId - The ID of the file to undo edits on
+   * @param target - Immutable before-version and post-edit concurrency token
    */
-  // Handle undo AI edit - rollback to previous version
-  const handleUndo = useCallback(async (fileId: string) => {
+  // Handle undo AI edit using the immutable provenance stored with that edit.
+  const handleUndo = useCallback(async (target: FileEditUndoTarget) => {
     try {
-      // Get version history for the file
-      const response = await fileVersionApi.getVersions(fileId, { limit: 2 });
-      const versions = response.versions || [];
-      
-      if (versions.length < 2) {
-        alert(t('editor:versionHistory.empty'));
-        return;
-      }
-      
-      // The latest version is the AI edit, we want to rollback to the previous one
-      const previousVersion = versions[1]; // Second latest version
-      
       if (confirm(t('editor:versionHistory.confirmRollback'))) {
-        await fileVersionApi.rollback(fileId, previousVersion.version_number);
+        const result = await fileVersionApi.rollback(
+          target.fileId,
+          target.beforeVersionNumber,
+          target.expectedAfterUpdatedAt,
+        );
+        if (!result.snapshot_created) {
+          if (result.version_quota_exceeded) {
+            toast.error(t('versions:quota.limitDescription'));
+            if (fileVersionUpgradePrompt.surface === "modal") {
+              setShowFileVersionUpgradeModal(true);
+            }
+          } else {
+            toast.error(t('versions:rollbackHistoryNotSaved'));
+          }
+        }
         triggerFileTreeRefresh();
-        
-        // Refresh editor to show rolled back content
-        triggerEditorRefresh(fileId);
+        triggerEditorRefresh(target.fileId);
       }
     } catch (err) {
       if (
@@ -1469,7 +1487,11 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         return;
       }
       logger.error("Failed to undo:", err);
-      alert(t('editor:versionHistory.rollbackFailed'));
+      toast.error(
+        err instanceof ApiError
+          ? handleApiError(err)
+          : t('editor:versionHistory.rollbackFailed'),
+      );
     }
   }, [fileVersionUpgradePrompt.surface, triggerFileTreeRefresh, triggerEditorRefresh, t]);
 

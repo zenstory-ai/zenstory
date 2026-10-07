@@ -22,8 +22,8 @@ import { RouteChangeTracker } from "./components/RouteChangeTracker";
 import { SiteBoundary } from "./components/SiteBoundary";
 import { logger } from "./lib/logger";
 import { fileApi } from "./lib/api";
-import { normalizePlanIntent } from "./lib/authFlow";
-import { clearAuthStorage } from "./lib/apiClient";
+import { LOGIN_ATTEMPT_KEY, normalizePlanIntent, type LoginAttempt } from "./lib/authFlow";
+import { clearAuthStorage, resolveOwnedAuthSession } from "./lib/apiClient";
 import { onboardingPersonaApi, personaOnboardingQueryKey } from "./lib/onboardingPersonaApi";
 import type { TreeNodeType } from "./types";
 import { lazyRoute } from "./lib/chunkRecovery";
@@ -150,45 +150,59 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   const [ssoState, setSsoState] = React.useState<'idle' | 'validating' | 'redirecting' | 'failed'>('idle');
   const [ssoFailureTarget, setSsoFailureTarget] = React.useState<'dashboard' | 'login'>('dashboard');
 
+  const userId = user?.id;
   React.useEffect(() => {
-    // Only run SSO validation once when user is loaded
-    if (loading || ssoState !== 'idle' || !user) return;
+    let active = true;
+    const cleanup = () => { active = false; };
+    if (loading) return cleanup;
 
-    const searchParams = new URLSearchParams(location.search);
-    const redirectUrl = searchParams.get('redirect');
-
-    if (redirectUrl) {
-      setSsoState('validating');
-
-      void (async () => {
-        let redirected = false;
-        try {
-          const { handleSsoRedirect } = await import('./lib/ssoRedirect');
-          const result = await handleSsoRedirect(redirectUrl);
-          if (result.success && result.redirectUrl) {
-            setSsoState('redirecting');
-            redirected = true;
-            logger.log('[PublicRoute] SSO validated, redirecting...');
-            window.location.href = result.redirectUrl;
-            return;
-          }
-
-          logger.warn('[PublicRoute] SSO validation failed:', result.error);
-          if (result.clearAuth) {
-            clearAuthStorage('sso_redirect_failed');
-            setSsoFailureTarget('login');
-          } else {
-            setSsoFailureTarget('dashboard');
-          }
-        } catch (error) {
-          logger.warn('[PublicRoute] SSO validation error:', error);
-          setSsoFailureTarget('dashboard');
-        } finally {
-          if (!redirected) setSsoState('failed');
-        }
-      })();
+    const redirectUrl = new URLSearchParams(location.search).get('redirect');
+    if (!userId || !redirectUrl) {
+      setSsoState('idle');
+      return cleanup;
     }
-  }, [user, loading, ssoState, location.search]);
+
+    const entryAccess = localStorage.getItem('access_token');
+    const entryRefresh = localStorage.getItem('refresh_token');
+    setSsoState('validating');
+    setSsoFailureTarget('dashboard');
+    void (async () => {
+      let redirected = false;
+      try {
+        const { handleSsoRedirect } = await import('./lib/ssoRedirect');
+        if (!active) return;
+        const result = await handleSsoRedirect(redirectUrl);
+        if (!active) return;
+        const owned = resolveOwnedAuthSession(entryAccess, entryRefresh);
+        const empty = !localStorage.getItem('access_token') && !localStorage.getItem('refresh_token');
+        if (!owned && !empty) return;
+        if (result.success && result.redirectUrl) {
+          if (!owned?.accessToken) return;
+          setSsoState('redirecting');
+          redirected = true;
+          logger.log('[PublicRoute] SSO validated, redirecting...');
+          window.location.href = result.redirectUrl;
+          return;
+        }
+
+        logger.warn('[PublicRoute] SSO validation failed:', result.error);
+        if (result.clearAuth || (empty && result.reason === 'session_expired')) {
+          if (owned && !empty) clearAuthStorage('sso_redirect_failed');
+          if (!active) return;
+          setSsoFailureTarget('login');
+        } else {
+          setSsoFailureTarget('dashboard');
+        }
+      } catch (error) {
+        if (!active || (error instanceof DOMException && error.name === 'AbortError')) return;
+        logger.warn('[PublicRoute] SSO validation error:', error);
+        setSsoFailureTarget('dashboard');
+      } finally {
+        if (active && !redirected) setSsoState('failed');
+      }
+    })();
+    return cleanup;
+  }, [userId, loading, location.key, location.pathname, location.search]);
 
   if (loading || ssoState === 'validating' || ssoState === 'redirecting') {
     return <PageLoader />;
@@ -211,10 +225,20 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 
     // No redirect URL - go to dashboard
     if (!redirectUrl) {
+      const state = location.state as Record<string, unknown> | null;
+      // Router state can still describe the pre-submit entry during identity reconciliation.
+      const attempt = window.history.state?.usr?.[LOGIN_ATTEMPT_KEY] as LoginAttempt | undefined;
+      const continuationState = attempt?.kind === 'login' && typeof attempt.id === 'string'
+        ? { [LOGIN_ATTEMPT_KEY]: attempt } : {};
+      const from = state?.from as { pathname?: string; search?: string; hash?: string; state?: object } | undefined;
+      if (from && typeof from.pathname === 'string') {
+        return <Navigate to={`${from.pathname}${from.search ?? ''}${from.hash ?? ''}`}
+          state={{ ...from.state, ...continuationState }} replace />;
+      }
       const planIntent = normalizePlanIntent(searchParams.get('plan'));
       return planIntent && planIntent !== 'free'
-        ? <Navigate to={`/dashboard/billing?plan=${encodeURIComponent(planIntent)}`} replace />
-        : <Navigate to="/dashboard" replace />;
+        ? <Navigate to={`/dashboard/billing?plan=${encodeURIComponent(planIntent)}`} state={continuationState} replace />
+        : <Navigate to="/dashboard" state={continuationState} replace />;
     }
   }
 
@@ -504,11 +528,9 @@ function App() {
                     <Route
                       path="/onboarding/persona"
                       element={
-                        <ProtectedProviders>
-                          <ProtectedRoute>
-                            <OnboardingPersonaPage />
-                          </ProtectedRoute>
-                        </ProtectedProviders>
+                        <ProtectedRoute>
+                          <OnboardingPersonaPage />
+                        </ProtectedRoute>
                       }
                     />
                     <Route
@@ -565,11 +587,9 @@ function App() {
                     <Route
                       path="/admin"
                       element={
-                        <ProtectedProviders>
-                          <AdminRoute>
-                            <AdminLayout />
-                          </AdminRoute>
-                        </ProtectedProviders>
+                        <AdminRoute>
+                          <AdminLayout />
+                        </AdminRoute>
                       }
                     >
                       <Route index element={<AdminDashboard />} />

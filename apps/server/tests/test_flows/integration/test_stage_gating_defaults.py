@@ -28,7 +28,6 @@ story_mod = importlib.import_module("flows.pipelines.subflows.story_aggregate_fl
 llm_mod = importlib.import_module("flows.utils.clients.llm")
 db_mod = importlib.import_module("flows.database_session")
 entities_mod = importlib.import_module("flows.atomic_tasks.entities")
-chapters_service_mod = importlib.import_module("services.material.chapters_service")
 
 _FLAG_NAMES = (
     "ENABLE_CHAPTER_SUMMARIES",
@@ -84,7 +83,13 @@ class _FakeSession:
     def get(self, _model, job_id):
         return self.job if job_id == self.job.id else None
 
-    def exec(self, _statement):
+    def exec(self, statement):
+        if any(table.name == "chapters" for table in statement.get_final_froms()):
+            rows = [
+                SimpleNamespace(id=cid, chapter_number=i + 1, title=f"c{i}", summary="s")
+                for i, cid in enumerate([101, 102])
+            ]
+            return SimpleNamespace(all=lambda: rows)
         return SimpleNamespace(first=lambda: self.job, all=lambda: [self.job])
 
     def add(self, _obj):
@@ -179,10 +184,6 @@ def test_default_stages_skip_plot_and_story_work_and_complete(monkeypatch, defau
     # --- stage 2A (story_aggregate_flow body: synopsis only) ---
     synopsis_calls: list[int] = []
 
-    class _ChaptersService:
-        def list_by_novel_ordered(self, _db, _novel_id, ids):
-            return [SimpleNamespace(id=cid, chapter_number=i + 1, title=f"c{i}", summary="s") for i, cid in enumerate(ids)]
-
     monkeypatch.setattr(story_mod, "get_run_logger", lambda: MagicMock())
     monkeypatch.setattr(story_mod, "create_performance_monitor", lambda _name: FakeMonitor())
     monkeypatch.setattr(
@@ -191,7 +192,6 @@ def test_default_stages_skip_plot_and_story_work_and_complete(monkeypatch, defau
         lambda _novel_id, job_id=None: _FakeCheckpointManager(),
     )
     monkeypatch.setattr(story_mod, "get_db_session", _session_ctx)
-    monkeypatch.setattr(chapters_service_mod, "ChaptersService", _ChaptersService)
     monkeypatch.setattr(
         story_mod,
         "generate_novel_synopsis_task",

@@ -631,3 +631,11 @@ async def test_snapshot_rollback_reconciles_vector_index_and_stats_cache(
     assert indexed[0]["content"] == "Before"
     assert deleted == []
     assert cache_bumps == [(user.id, project["id"])]
+
+
+@pytest.mark.parametrize("params", [{"limit": 0}, {"limit": -1}, {"limit": 101}, {"offset": -1}])
+async def test_snapshot_list_rejects_unbounded_or_invalid_paging(client, db_session, params):
+    _, headers = await _create_user_and_headers(client, db_session, "snapshot_page_bounds")
+    project = await _create_project(client, headers, "Snapshot page bounds")
+    response = await client.get(f"/api/v1/projects/{project['id']}/snapshots", params=params, headers=headers)
+    assert response.status_code == 422

@@ -351,6 +351,26 @@ describe('ChatPanel mount smoke', () => {
     })
   })
 
+  it('forwards mutation and partial completion metadata to snapshot finalization', async () => {
+    render(<ChatPanel />)
+    await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+
+    const options = capturedUseAgentStream.options as {
+      onComplete?: (segments: unknown[], applyAction: unknown, meta?: Record<string, unknown>) => void;
+    }
+    await act(async () => {
+      options.onComplete?.([], null, {
+        confirmedFileMutation: false,
+        partial: true,
+      })
+    })
+
+    expect(streamCallbacks.onComplete).toHaveBeenCalledWith([], null, {
+      confirmedFileMutation: false,
+      partial: true,
+    })
+  })
+
   it('offers the upgrade path when the daily cost allowance is exhausted', async () => {
     mockAgentStreamState.errorCode = 'ERR_QUOTA_AI_DAILY_COST_EXCEEDED'
     mockAgentStreamState.error = '今日免费 AI 额度不足'

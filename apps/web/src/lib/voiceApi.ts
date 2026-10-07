@@ -5,12 +5,17 @@
  * Used by the voice input feature in the AI chat interface for hands-free text input.
  *
  * Features:
- * - Supports multiple audio formats (wav, pcm, mp3, m4a, flac, ogg-opus, webm)
+ * - Supports Tencent SentenceRecognition's actual audio formats
  * - Chinese and English language recognition
  * - Configurable sample rates (8000Hz or 16000Hz)
  */
 
 import { api } from './apiClient';
+
+export type VoiceAudioFormat = 'wav' | 'pcm' | 'ogg-opus' | 'speex' | 'silk' | 'mp3' | 'm4a' | 'aac' | 'amr';
+export type VoiceSampleRate = 8000 | 16000;
+// SentenceRecognition limits Data after Base64 encoding; use decimal MB.
+export const MAX_VOICE_DATA_LENGTH = 3_000_000;
 
 /**
  * Request payload for voice recognition API.
@@ -18,10 +23,10 @@ import { api } from './apiClient';
 export interface VoiceRecognizeRequest {
   /** Base64 encoded audio data */
   audio_data: string;
-  /** Audio format: wav, pcm, mp3, m4a, flac, ogg-opus, webm */
-  audio_format: string;
+  /** Actual provider container/codec, never a relabeled browser recording */
+  audio_format: VoiceAudioFormat;
   /** Sample rate in Hz: 8000 or 16000 */
-  sample_rate: number;
+  sample_rate: VoiceSampleRate;
   /** Recognition language: 'zh' or 'en' (also accepts zh-CN/en-US) */
   language: string;
 }
@@ -35,9 +40,9 @@ export interface VoiceRecognizeResponse {
   /** Whether recognition was successful */
   success: boolean;
   /** Error message if recognition failed */
-  error?: string;
+  error?: string | null;
   /** Processing duration in milliseconds */
-  duration_ms?: number;
+  duration_ms?: number | null;
 }
 
 /**
@@ -53,7 +58,7 @@ export interface VoiceStatusResponse {
   /** Maximum allowed audio duration in seconds */
   max_duration_seconds: number;
   /** List of supported audio formats */
-  supported_formats: string[];
+  supported_formats: VoiceAudioFormat[];
 }
 
 /**
@@ -63,16 +68,17 @@ export interface VoiceStatusResponse {
  * Audio must be provided as base64-encoded data.
  *
  * @param audioData - Base64 encoded audio data
- * @param audioFormat - Audio format (default: 'webm')
+ * @param audioFormat - Audio format (default: 'wav')
  * @param sampleRate - Sample rate in Hz (default: 16000)
  * @param language - Recognition language (default: 'zh')
  * @returns Promise resolving to recognition result with transcribed text
  */
 export async function recognizeVoice(
   audioData: string,
-  audioFormat: string = 'webm',
-  sampleRate: number = 16000,
-  language: string = 'zh'
+  audioFormat: VoiceAudioFormat = 'wav',
+  sampleRate: VoiceSampleRate = 16000,
+  language: string = 'zh',
+  signal?: AbortSignal,
 ): Promise<VoiceRecognizeResponse> {
   const request: VoiceRecognizeRequest = {
     audio_data: audioData,
@@ -81,7 +87,9 @@ export async function recognizeVoice(
     language,
   };
 
-  return api.post<VoiceRecognizeResponse>('/api/v1/voice/recognize', request);
+  return signal
+    ? api.post<VoiceRecognizeResponse>('/api/v1/voice/recognize', request, { signal })
+    : api.post<VoiceRecognizeResponse>('/api/v1/voice/recognize', request);
 }
 
 /**

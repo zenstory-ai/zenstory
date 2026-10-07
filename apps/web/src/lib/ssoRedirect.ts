@@ -37,7 +37,7 @@
  * @module lib/ssoRedirect
  */
 
-import { tryRefreshToken, validateToken } from './apiClient';
+import { resolveOwnedAuthSession, tryRefreshToken, validateToken } from './apiClient';
 import { logger } from './logger';
 
 /**
@@ -73,7 +73,7 @@ const ALLOWED_REDIRECT_DOMAINS = [
 export function isValidRedirectUrl(url: string): boolean {
   try {
     const parsedUrl = new URL(url);
-    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+    if (parsedUrl.protocol !== 'https:') {
       return false;
     }
     if (parsedUrl.username || parsedUrl.password) {
@@ -179,6 +179,21 @@ export async function handleSsoRedirect(
 
   // Step 2: Check if access token exists
   const accessToken = localStorage.getItem('access_token');
+  const entryRefresh = localStorage.getItem('refresh_token');
+  const superseded = () => new DOMException('SSO redirect superseded', 'AbortError');
+  const requireOwnedSession = () => {
+    const owned = resolveOwnedAuthSession(accessToken, entryRefresh);
+    if (!owned) throw superseded();
+    return owned;
+  };
+  const refreshOwnedSession = async () => {
+    requireOwnedSession();
+    const refreshed = await tryRefreshToken();
+    if (!resolveOwnedAuthSession(accessToken, entryRefresh) && (
+      refreshed || localStorage.getItem('access_token') || localStorage.getItem('refresh_token')
+    )) throw superseded();
+    return refreshed;
+  };
   if (!accessToken) {
     logger.warn('[SSO] No access token available');
     return {
@@ -193,12 +208,13 @@ export async function handleSsoRedirect(
   // Step 3: CRITICAL - Validate token with backend
   logger.log('[SSO] Validating token before redirect...');
   const validation = await validateToken();
+  const ownedSession = requireOwnedSession();
 
   if (validation.valid) {
     // Token is valid, proceed with redirect
     logger.log('[SSO] Token validated successfully, redirecting...');
     const redirectUrlWithToken = new URL(redirectUrl);
-    redirectUrlWithToken.searchParams.set('token', accessToken);
+    redirectUrlWithToken.searchParams.set('token', requireOwnedSession().accessToken!);
 
     return {
       success: true,
@@ -210,7 +226,7 @@ export async function handleSsoRedirect(
   if (validation.isNetworkError) {
     logger.warn('[SSO] Network error during token validation');
     // Still try refresh - refresh endpoint may be reachable
-    const refreshToken = localStorage.getItem('refresh_token');
+    const refreshToken = ownedSession.refreshToken;
 
     if (!refreshToken) {
       logger.warn('[SSO] No refresh token available after network error');
@@ -225,11 +241,11 @@ export async function handleSsoRedirect(
     }
 
     logger.log('[SSO] Attempting refresh despite validation network error...');
-    const refreshed = await tryRefreshToken();
+    const refreshed = await refreshOwnedSession();
 
     if (refreshed) {
       // Refresh succeeded - get new token and redirect
-      const newAccessToken = localStorage.getItem('access_token');
+      const newAccessToken = requireOwnedSession().accessToken;
       if (newAccessToken) {
         logger.log('[SSO] Token refreshed after validation network error, redirecting...');
         const redirectUrlWithToken = new URL(redirectUrl);
@@ -256,7 +272,7 @@ export async function handleSsoRedirect(
 
   // Step 4: Token definitively invalid (not network error) - try refresh
   logger.log('[SSO] Token invalid, attempting refresh...');
-  const refreshToken = localStorage.getItem('refresh_token');
+  const refreshToken = ownedSession.refreshToken;
 
   if (!refreshToken) {
     logger.warn('[SSO] No refresh token available');
@@ -269,11 +285,11 @@ export async function handleSsoRedirect(
     };
   }
 
-  const refreshed = await tryRefreshToken();
+  const refreshed = await refreshOwnedSession();
 
   if (refreshed) {
     // Refresh succeeded - get new token and redirect
-    const newAccessToken = localStorage.getItem('access_token');
+    const newAccessToken = requireOwnedSession().accessToken;
     if (newAccessToken) {
       logger.log('[SSO] Token refreshed, redirecting...');
       const redirectUrlWithToken = new URL(redirectUrl);
@@ -286,7 +302,7 @@ export async function handleSsoRedirect(
     }
   }
 
-  if (localStorage.getItem('refresh_token') === refreshToken) {
+  if (resolveOwnedAuthSession(accessToken, entryRefresh)) {
     return {
       success: false,
       shouldShowLogin: true,
@@ -301,7 +317,7 @@ export async function handleSsoRedirect(
   return {
     success: false,
     shouldShowLogin: true,
-    clearAuth: true,
+    clearAuth: false, // The refresh primitive already cleared its owned credentials.
     reason: 'session_expired',
     error: 'Session expired, please login again',
   };

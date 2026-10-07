@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, RefreshCw } from "lucide-react";
@@ -34,6 +34,8 @@ export default function PaymentOrderManagement() {
   const [search, setSearch] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<AdminPaymentOrder | null>(null);
   const [syncMessage, setSyncMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const detailsRequestRef = useRef(0);
+  useEffect(() => () => { detailsRequestRef.current += 1; }, []);
   const { data, isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: ["admin", "payment-orders", page, status, search, fulfillment, needsAttention],
     queryFn: () => adminApi.getPaymentOrders({
@@ -46,13 +48,16 @@ export default function PaymentOrderManagement() {
     }),
   });
   const syncOrder = useMutation({
-    mutationFn: (orderId: string) => adminApi.syncPaymentOrder(orderId),
-    onSuccess: (result: PaymentOrderSyncResponse) => {
-      setSelectedOrder(result.order);
-      setSyncMessage({ tone: "ok", text: t(`paymentOrders.syncOutcome.${result.outcome}`) });
+    mutationFn: ({ orderId }: { orderId: string; detailsRequestId: number }) => adminApi.syncPaymentOrder(orderId),
+    onSuccess: (result: PaymentOrderSyncResponse, { detailsRequestId }) => {
+      if (detailsRequestId === detailsRequestRef.current) {
+        setSelectedOrder(result.order);
+        setSyncMessage({ tone: "ok", text: t(`paymentOrders.syncOutcome.${result.outcome}`) });
+      }
       void queryClient.invalidateQueries({ queryKey: ["admin", "payment-orders"] });
     },
-    onError: (cause: unknown) => {
+    onError: (cause: unknown, { detailsRequestId }) => {
+      if (detailsRequestId !== detailsRequestRef.current) return;
       setSyncMessage({
         tone: "error",
         text: t("paymentOrders.syncFailed", { reason: syncErrorReason(cause) }),
@@ -75,8 +80,13 @@ export default function PaymentOrderManagement() {
   const isPaidNotFulfilled = (order: AdminPaymentOrder) =>
     (order.status === "paid" && order.fulfillment_status !== "succeeded") || order.fulfillment_status === "failed";
   const openDetails = (order: AdminPaymentOrder) => {
+    detailsRequestRef.current += 1;
     setSyncMessage(null);
     setSelectedOrder(order);
+  };
+  const closeDetails = () => {
+    detailsRequestRef.current += 1;
+    setSelectedOrder(null);
   };
   const columnClass = "px-4 py-3 text-left text-sm";
 
@@ -165,7 +175,7 @@ export default function PaymentOrderManagement() {
           </div>
         </div>
       )}
-      <Modal open={selectedOrder !== null} onClose={() => setSelectedOrder(null)} title={t("paymentOrders.details")} size="lg">
+      <Modal open={selectedOrder !== null} onClose={closeDetails} title={t("paymentOrders.details")} size="lg">
         {selectedOrder && <div className="space-y-4">
           <dl className="space-y-3 text-sm">
             {([
@@ -189,7 +199,10 @@ export default function PaymentOrderManagement() {
                 type="button"
                 className="btn-primary flex items-center gap-2"
                 disabled={syncOrder.isPending}
-                onClick={() => { setSyncMessage(null); syncOrder.mutate(selectedOrder.id); }}
+                onClick={() => {
+                  setSyncMessage(null);
+                  syncOrder.mutate({ orderId: selectedOrder.id, detailsRequestId: detailsRequestRef.current });
+                }}
               >
                 <RefreshCw className={`h-4 w-4 ${syncOrder.isPending ? "animate-spin" : ""}`} />
                 {syncOrder.isPending ? t("paymentOrders.syncing") : t("paymentOrders.sync")}

@@ -13,18 +13,23 @@ Extracted from the monolithic file_executor.py for better maintainability.
 
 import contextlib
 import json
-from typing import Any
+from typing import Any, cast
 
 from services.file_version import FileVersionService
-from sqlalchemy import func
+from sqlalchemy import case, func, literal
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import defer
+from sqlalchemy.orm.attributes import InstrumentedAttribute
+from sqlalchemy.sql.elements import ColumnElement
 from sqlmodel import Session, col, select
+from sqlmodel.sql.expression import SelectOfScalar
 
 from agent.constants import coerce_bool
 from agent.tools.permissions import (
     check_file_access_in_tool_context,
     check_project_ownership,
 )
-from config.datetime_utils import utcnow
+from config.datetime_utils import advance_timestamp, utcnow
 from models import File
 from models.file_model import FILE_TYPE_FOLDER
 from models.file_version import (
@@ -39,7 +44,11 @@ from services.file_tree_rules import (
     # （历史上 agent 侧就漏了「parent 必须是 folder」这一条）。
     # 这里保留同名再导出，既有调用方与测试的 `crud.validate_parent_assignment`
     # 依旧可用。
+    begin_file_creation_savepoint,
     is_descendant_of,
+    load_live_subtree_postorder,
+    lock_project_for_files,
+    resolve_new_file_order,
     validate_parent_assignment,
 )
 from utils.logger import get_logger, log_with_context
@@ -52,6 +61,7 @@ from .edit import acquire_file_write_lock
 from .serialization import (
     QUERY_FILES_DEFAULT_CONTENT_PREVIEW_CHARS,
     QUERY_FILES_DEFAULT_RESPONSE_MODE,
+    _summary_projection_preview_length,
     serialize_file,
     serialize_query_file,
 )
@@ -63,6 +73,8 @@ def find_nearest_folder_ancestor(
     session: Session,
     project_id: str,
     file_id: str | None,
+    *,
+    refresh_nodes: bool = False,
 ) -> str | None:
     """从 file_id 起沿 parent_id 向上，返回最近的「同项目、未删除的 folder」。
 
@@ -81,7 +93,7 @@ def find_nearest_folder_ancestor(
             return None
         visited.add(current_id)
 
-        node = session.get(File, current_id)
+        node = session.get(File, current_id, populate_existing=refresh_nodes)
         if node is None or node.project_id != project_id:
             return None
         if node.file_type == FILE_TYPE_FOLDER and not node.is_deleted:
@@ -152,6 +164,8 @@ class FileCRUD:
 
         # Check project permission
         project = check_project_ownership(self.session, project_id, self.user_id)
+        lock_project_for_files(self.session, project_id)
+        project = check_project_ownership(self.session, project_id, self.user_id)
 
         # Root folder repair (best-effort): some projects may have their root folders
         # soft-deleted or missing due to historical bugs/admin actions. Since agents
@@ -173,12 +187,26 @@ class FileCRUD:
             if not cfg:
                 return None
 
-            existing = self.session.get(File, folder_id)
+            existing = self.session.get(File, folder_id, populate_existing=True)
             if existing:
                 if existing.project_id != project_id:
                     return None
                 if existing.file_type != "folder":
                     return None
+
+                if existing.is_deleted or existing.parent_id is not None:
+                    # The creator already holds Project SHARE. Lock only this
+                    # recovery row, then revalidate after any concurrent writer.
+                    from database import is_postgres
+
+                    query = select(File).where(File.id == folder_id)
+                    if is_postgres:
+                        query = query.with_for_update(key_share=True)
+                    existing = self.session.exec(
+                        query.execution_options(populate_existing=True)
+                    ).first()
+                    if not existing or existing.project_id != project_id or existing.file_type != "folder":
+                        return None
 
                 changed = False
                 if existing.is_deleted:
@@ -191,9 +219,9 @@ class FileCRUD:
                     changed = True
 
                 if changed:
-                    existing.updated_at = utcnow()
+                    existing.updated_at = advance_timestamp(existing.updated_at, now=utcnow())
                     self.session.add(existing)
-                    self.session.commit()
+                    self.session.flush()
                     self.session.refresh(existing)
 
                     log_with_context(
@@ -217,8 +245,15 @@ class FileCRUD:
                 order=int(cfg.get("order") or 0),
                 parent_id=None,
             )
-            self.session.add(folder)
-            self.session.commit()
+            try:
+                with begin_file_creation_savepoint(self.session):
+                    self.session.add(folder)
+                    self.session.flush()
+            except IntegrityError:
+                existing = self.session.get(File, folder_id, populate_existing=True)
+                if not existing:
+                    raise
+                return _repair_root_folder(folder_id)
             self.session.refresh(folder)
 
             log_with_context(
@@ -236,7 +271,7 @@ class FileCRUD:
 
         # Validate parent_id exists and belongs to project
         if parent_id is not None:
-            parent = self.session.get(File, parent_id)
+            parent = self.session.get(File, parent_id, populate_existing=True)
             if not parent or parent.is_deleted or parent.project_id != project_id:
                 # Best-effort repair for missing/deleted root folders (novel/short/screenplay)
                 repaired_parent = _repair_root_folder(parent_id)
@@ -253,7 +288,7 @@ class FileCRUD:
                     )
                     if should_fallback:
                         fallback_parent_id = f"{project_id}-script-folder"
-                        fallback_parent = self.session.get(File, fallback_parent_id)
+                        fallback_parent = self.session.get(File, fallback_parent_id, populate_existing=True)
                         if not fallback_parent or fallback_parent.is_deleted:
                             fallback_parent = _repair_root_folder(fallback_parent_id)
                         if (
@@ -309,7 +344,7 @@ class FileCRUD:
             title=title,
             file_type=file_type,
         )
-        validate_parent_assignment(self.session, project_id, parent_id)
+        validate_parent_assignment(self.session, project_id, parent_id, refresh_parent=True)
 
         normalized_title = (title or "").strip()
         if normalized_title and normalized_title != title:
@@ -344,43 +379,29 @@ class FileCRUD:
             )
             file_type = "script"
 
-        resolved_order: int
-        if order is not None:
-            requested_order = int(order)
-            resolved_order = resolve_persisted_sequence_order(
-                requested_order,
+        requested_order = int(order) if order is not None else None
+        resolved_order = resolve_new_file_order(
+            self.session,
+            project_id,
+            parent_id,
+            title=title,
+            metadata=metadata,
+            file_type=file_type,
+            requested_order=requested_order,
+        )
+        if requested_order is not None and resolved_order != requested_order:
+            log_with_context(
+                logger,
+                30,  # WARNING
+                "Resolved chapter-like file order from parsed sequence",
+                project_id=project_id,
+                user_id=self.user_id,
+                parent_id=parent_id,
                 title=title,
-                metadata=metadata,
-                file_type=file_type,
+                requested_order=requested_order,
+                normalized_order=resolved_order,
+                sequence_number=seq_num,
             )
-            if resolved_order != requested_order:
-                log_with_context(
-                    logger,
-                    30,  # WARNING
-                    "Resolved chapter-like file order from parsed sequence",
-                    project_id=project_id,
-                    user_id=self.user_id,
-                    parent_id=parent_id,
-                    title=title,
-                    requested_order=requested_order,
-                    normalized_order=resolved_order,
-                    sequence_number=seq_num,
-                )
-        else:
-            if seq_num is not None:
-                resolved_order = int(seq_num)
-            else:
-                # Append to the end of siblings (stable insertion).
-                max_order = self.session.exec(
-                    select(func.max(File.order)).where(
-                        File.project_id == project_id,
-                        File.parent_id == parent_id,
-                        File.is_deleted.is_(False),
-                    )
-                ).one()
-                resolved_order = int(max_order or 0)
-                if max_order is not None:
-                    resolved_order += 1
 
         # Idempotency for screenplay episode streaming:
         # If an agent tries to create the same episode twice (often due to earlier
@@ -394,6 +415,8 @@ class FileCRUD:
         # 现在由 StreamAdapter 依据 reused_existing 决定是否进入捕获，并据
         # original_content_length 判断「目标文件原本非空」以拒绝整体覆盖。
         if looks_like_episode and file_type == "script" and not content:
+            from database import is_postgres
+
             existing_stmt = (
                 select(File)
                 .where(
@@ -408,7 +431,11 @@ class FileCRUD:
                     col(File.id).desc(),  # type: ignore[attr-defined]
                 )
             )
-            existing_files = list(self.session.exec(existing_stmt).all())
+            if is_postgres:
+                existing_stmt = existing_stmt.with_for_update(key_share=True)
+            existing_files = list(self.session.exec(
+                existing_stmt.execution_options(populate_existing=True)
+            ).all())
 
             if existing_files:
                 # Reuse the newest matching file; promote legacy draft/document into script.
@@ -431,7 +458,7 @@ class FileCRUD:
                         changed = True
 
                     if changed:
-                        candidate.updated_at = utcnow()
+                        candidate.updated_at = advance_timestamp(candidate.updated_at, now=utcnow())
                         self.session.add(candidate)
                         self.session.commit()
                         self.session.refresh(candidate)
@@ -456,6 +483,7 @@ class FileCRUD:
                     reused["content"] = original_content
                     reused["reused_existing"] = True
                     reused["original_content_length"] = len(original_content)
+                    reused["mutation_applied"] = changed
                     return reused
 
         # Create file
@@ -519,7 +547,9 @@ class FileCRUD:
             content_length=len(file.content or ""),
         )
 
-        return serialize_file(file)
+        result = serialize_file(file)
+        result["mutation_applied"] = True
+        return result
 
     def update_file(
         self,
@@ -549,6 +579,13 @@ class FileCRUD:
             ValueError: If file not found
         """
         from database import is_postgres
+
+        if parent_id is not None:
+            target = self.session.get(File, id)
+            if not target or target.is_deleted:
+                raise ValueError("文件不存在或已删除")
+            check_file_access_in_tool_context(self.session, target, self.user_id)
+            lock_project_for_files(self.session, target.project_id, exclusive=True)
 
         if is_postgres:
             return self._update_file_impl(id, title, content, parent_id, order, metadata)
@@ -595,11 +632,12 @@ class FileCRUD:
         if is_postgres:
             file = self.session.exec(
                 select(File).where(File.id == id).with_for_update(key_share=True)
+                .execution_options(populate_existing=True)
             ).first()
         else:
             file = self.session.get(File, id, populate_existing=True)
 
-        if not file:
+        if not file or file.is_deleted:
             # Do not leak internal IDs to end users
             log_with_context(
                 logger,
@@ -616,20 +654,17 @@ class FileCRUD:
         # Store old content for version history
         old_content = file.content
 
-        # Update fields
-        if title is not None:
-            file.title = title
-
-        if content is not None:
-            file.content = content
+        prospective_title = title if title is not None else file.title
+        prospective_content = content if content is not None else file.content
+        prospective_parent_id = file.parent_id
 
         if parent_id is not None:
             # Empty string or "null" means move to root (no parent)
             if parent_id == "" or parent_id == "null":
-                file.parent_id = None
+                prospective_parent_id = None
             else:
                 # Validate parent exists
-                parent = self.session.get(File, parent_id)
+                parent = self.session.get(File, parent_id, populate_existing=True)
                 if not parent or parent.is_deleted or parent.project_id != file.project_id:
                     raise ValueError(f"Parent file {parent_id} not found in same project")
                 # 与 create_file 走同一套「必须挂在 folder 下」的不变量：先就近
@@ -637,31 +672,39 @@ class FileCRUD:
                 normalized_parent_id = self._normalize_parent_to_folder(
                     file.project_id,
                     parent_id,
-                    title=file.title,
+                    title=prospective_title,
                     file_type=file.file_type,
                     file_id=file.id,
+                    refresh_nodes=True,
                 )
                 validate_parent_assignment(
                     self.session,
                     file.project_id,
                     normalized_parent_id,
                     moving_file_id=file.id,
+                    refresh_parent=True,
                 )
-                file.parent_id = normalized_parent_id
+                prospective_parent_id = normalized_parent_id
 
-        if metadata is not None:
-            file.file_metadata = self._serialize_metadata(metadata)
+        prospective_metadata = self._serialize_metadata(metadata) if metadata is not None else file.file_metadata
+        prospective_order = file.order
 
         if order is not None or title is not None or metadata is not None:
-            file.order = resolve_persisted_sequence_order(
+            prospective_order = resolve_persisted_sequence_order(
                 order if order is not None else file.order,
-                title=file.title,
-                metadata=file.get_metadata(),
+                title=prospective_title,
+                metadata=metadata if metadata is not None else file.get_metadata(),
                 file_type=file.file_type,
             )
 
+        file.title = prospective_title
+        file.content = prospective_content
+        file.parent_id = prospective_parent_id
+        file.file_metadata = prospective_metadata
+        file.order = prospective_order
+
         # Update timestamp
-        file.updated_at = utcnow()
+        file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
 
         # Check if content changed
         content_changed = content is not None and content != old_content
@@ -705,7 +748,9 @@ class FileCRUD:
             content_changed=content_changed,
         )
 
-        return serialize_file(file)
+        result = serialize_file(file)
+        result["content_changed"] = content_changed
+        return result
 
     def delete_file(
         self,
@@ -760,22 +805,39 @@ class FileCRUD:
         # Check permission (target must belong to the current tool-context project)
         check_file_access_in_tool_context(self.session, file, self.user_id)
 
-        deleted: list[File] = []
+        lock_project_for_files(self.session, file.project_id, exclusive=True)
+        from database import is_postgres
 
-        # Delete recursively if requested
-        if recursive is True:
-            deleted = self._delete_recursive(file)
-        else:
-            # Soft delete: mark as deleted instead of removing from database
-            file.is_deleted = True
-            file.deleted_at = utcnow()
-            deleted = [file]
-            self.session.add(file)
+        lock_ctx = contextlib.nullcontext() if is_postgres else acquire_file_write_lock(id)
+        with lock_ctx:
+            query = select(File).where(File.id == id)
+            if is_postgres:
+                query = query.with_for_update(key_share=True)
+            file = self.session.exec(query.execution_options(populate_existing=True)).first()
+            if not file or file.is_deleted:
+                raise ValueError("文件不存在或已删除")
+            check_file_access_in_tool_context(self.session, file, self.user_id)
 
-        self.session.commit()
+            deleted: list[File] = []
+
+            # Delete recursively if requested
+            if recursive is True:
+                deleted = self._delete_recursive(file)
+            else:
+                # Soft delete: mark as deleted instead of removing from database
+                file.is_deleted = True
+                file.deleted_at = utcnow()
+                file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
+                deleted = [file]
+                self.session.add(file)
+
+            # Keep postcommit logging/index scheduling independent of expired rows.
+            project_id = file.project_id
+            index_deletes = tuple((item.project_id, item.file_type, item.id) for item in deleted)
+            self.session.commit()
 
         # Fire-and-forget vector index delete (do not block)
-        self._schedule_index_delete(deleted)
+        self._schedule_index_delete(index_deletes)
 
         log_with_context(
             logger,
@@ -783,8 +845,8 @@ class FileCRUD:
             "delete_file completed",
             file_id=id,
             user_id=self.user_id,
-            project_id=file.project_id,
-            deleted_count=len(deleted),
+            project_id=project_id,
+            deleted_count=len(index_deletes),
             recursive=recursive,
         )
 
@@ -854,51 +916,68 @@ class FileCRUD:
                 stmt = stmt.where(File.file_type == file_type)
             if parent_id is not None:
                 stmt = stmt.where(File.parent_id == parent_id)
-            results = list(self.session.exec(stmt).all())
-            if metadata_filter:
-                results = self._filter_by_metadata(results, metadata_filter)
-            return [
-                serialize_query_file(
-                    r,
-                    response_mode=response_mode,
-                    content_preview_chars=content_preview_chars,
-                    include_content=include_content,
-                )
-                for r in results
-            ]
+        else:
+            # limit/offset apply to the MERGED type set, as on the full path.
+            target_types = file_types or ([file_type] if file_type else None)
+            stmt = self._query_files_page(
+                project_id=project_id,
+                file_types=target_types,
+                query=query,
+                parent_id=parent_id,
+                limit=limit,
+                offset=offset,
+            )
 
-        # Determine which file types to query
-        target_types = None
-        if file_types:
-            target_types = file_types
-        elif file_type:
-            target_types = [file_type]
-
-        # limit/offset apply to the MERGED result set (a single statement),
-        # so the declared "max results" cap and pagination semantics hold even
-        # when multiple file_types are requested.
-        results = self._query_files_page(
-            project_id=project_id,
-            file_types=target_types,
-            query=query,
-            parent_id=parent_id,
-            limit=limit,
-            offset=offset,
+        preview_length = _summary_projection_preview_length(
+            response_mode, content_preview_chars, include_content
         )
+        rows = self._execute_query_files(stmt, preview_length)
+        files = [file for file, _ in rows]
+        previews = {file.id: preview for file, preview in rows}
 
-        # Apply metadata filter in Python (SQLite JSON support is limited)
+        # Metadata filtering deliberately remains AFTER SQL pagination.
         if metadata_filter:
-            results = self._filter_by_metadata(results, metadata_filter)
+            files = self._filter_by_metadata(files, metadata_filter)
 
         return [
             serialize_query_file(
-                r,
+                file,
                 response_mode=response_mode,
                 content_preview_chars=content_preview_chars,
                 include_content=include_content,
+                preloaded_content_preview=previews[file.id],
             )
-            for r in results
+            for file in files
         ]
+
+    def _execute_query_files(
+        self,
+        stmt: SelectOfScalar[File],
+        preview_length: int | None,
+    ) -> list[tuple[File, str | None]]:
+        dialect = self.session.get_bind().dialect.name
+        if preview_length is None or dialect not in {"postgresql", "sqlite"}:
+            return [(file, None) for file in self.session.exec(stmt).all()]
+
+        content_column = cast(InstrumentedAttribute[str], File.content)
+        preview: ColumnElement[Any]
+        if preview_length == 0:
+            preview = literal("")
+        else:
+            preview = func.substr(content_column, 1, preview_length)
+            if dialect == "sqlite":
+                # SQLite text substr stops at NUL. Preserve Python slicing by
+                # loading the separate full value ONLY for legacy NUL rows.
+                preview = case(
+                    (func.instr(content_column, func.char(0)) > 0, content_column),
+                    else_=preview,
+                )
+        projected_stmt = stmt.options(defer(content_column)).add_columns(
+            preview.label("_query_content_preview")
+        )
+        # exec() scalarizes SelectOfScalar even after add_columns; execute()
+        # retains both the real File and the separate, non-hydrating preview.
+        return [(file, preview) for file, preview in self.session.execute(projected_stmt).all()]
 
     def hybrid_search(
         self,
@@ -960,6 +1039,7 @@ class FileCRUD:
         title: str,
         file_type: str,
         file_id: str | None = None,
+        refresh_nodes: bool = False,
     ) -> str | None:
         """把「挂到非 folder 节点下」的父节点就近归一到最近的 folder 祖先。
 
@@ -975,7 +1055,7 @@ class FileCRUD:
         if parent_id is None:
             return None
 
-        parent = self.session.get(File, parent_id)
+        parent = self.session.get(File, parent_id, populate_existing=refresh_nodes)
         if parent is None or parent.is_deleted or parent.project_id != project_id:
             # 交给 validate_parent_assignment 统一报错，这里不做猜测
             return parent_id
@@ -983,7 +1063,7 @@ class FileCRUD:
             return parent_id
 
         fallback_parent_id = find_nearest_folder_ancestor(
-            self.session, project_id, parent_id
+            self.session, project_id, parent_id, refresh_nodes=refresh_nodes,
         )
 
         log_with_context(
@@ -1010,7 +1090,7 @@ class FileCRUD:
         parent_id: str | None,
         limit: int,
         offset: int,
-    ) -> list[File]:
+    ) -> SelectOfScalar[File]:
         """
         Query one page of files, optionally filtered to the given types.
 
@@ -1026,7 +1106,7 @@ class FileCRUD:
             offset: Offset for pagination
 
         Returns:
-            List of File objects
+            Statement for one page of File objects
         """
         # Build base query
         stmt = select(File).where(
@@ -1058,7 +1138,7 @@ class FileCRUD:
         )
         stmt = stmt.offset(offset).limit(limit)
 
-        return list(self.session.exec(stmt).all())
+        return stmt
 
     def _filter_by_metadata(
         self,
@@ -1122,42 +1202,13 @@ class FileCRUD:
 
         return filtered
 
-    def _delete_recursive(self, file: File, visited: set[str] | None = None) -> list[File]:
-        """
-        Delete a file and all its children recursively.
-
-        Returns a list of File objects that were deleted (including the root file).
-        Uses soft delete: marks files as deleted instead of removing from database.
-
-        visited 用于抵御历史脏数据：库里可能已经存在自引用（parent_id 指向自己）
-        或更长的环（这些行是本次修复前的 update_file 写进去的）。没有这层保护时
-        递归删除会直接打成 RecursionError，整个工具调用失败且什么都删不掉。
-        """
-        if visited is None:
-            visited = set()
-        if file.id in visited:
-            return []
-        visited.add(file.id)
-
-        deleted: list[File] = []
-
-        # Get children that are not already deleted
-        children = list(
-            self.session.exec(
-                select(File).where(
-                    File.parent_id == file.id,
-                    File.is_deleted.is_(False)
-                )
-            ).all()
-        )
-        for child in children:
-            deleted.extend(self._delete_recursive(child, visited))
-
-        deleted.append(file)
-        # Soft delete: mark as deleted instead of removing from database
-        file.is_deleted = True
-        file.deleted_at = utcnow()
-
+    def _delete_recursive(self, file: File) -> list[File]:
+        """Soft-delete the loaded subtree once each, children before parents."""
+        deleted = load_live_subtree_postorder(self.session, file)
+        for item in deleted:
+            item.is_deleted = True
+            item.deleted_at = utcnow()
+            item.updated_at = advance_timestamp(item.updated_at, now=utcnow())
         return deleted
 
     def _serialize_metadata(self, metadata: dict[str, Any] | None) -> str | None:
@@ -1216,7 +1267,7 @@ class FileCRUD:
         except Exception:
             pass
 
-    def _schedule_index_delete(self, files: list[File]) -> None:
+    def _schedule_index_delete(self, descriptors: tuple[tuple[str, str, str], ...]) -> None:
         """Fire-and-forget vector index delete (do not block)."""
         try:
             from agent.tools.mcp_tools import ToolContext
@@ -1224,11 +1275,11 @@ class FileCRUD:
 
             user_id = ToolContext._get_context().get("user_id")
 
-            for f in files:
+            for project_id, file_type, entity_id in descriptors:
                 schedule_index_delete(
-                    project_id=f.project_id,
-                    entity_type=f.file_type,
-                    entity_id=f.id,
+                    project_id=project_id,
+                    entity_type=file_type,
+                    entity_id=entity_id,
                     user_id=user_id,
                 )
         except Exception:

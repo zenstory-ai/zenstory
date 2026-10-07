@@ -69,7 +69,7 @@ def generate_invite_code() -> str:
     return f"{code_chars[:4]}-{code_chars[4:]}"
 
 
-async def create_invite_code(
+def create_invite_code(
     user_id: str,
     session: Session,
     *,
@@ -177,7 +177,7 @@ async def create_invite_code(
         ) from e
 
 
-async def validate_invite_code(code: str, session: Session) -> tuple[bool, InviteCode | None, str]:
+def validate_invite_code(code: str, session: Session) -> tuple[bool, InviteCode | None, str]:
     """
     Validate an invite code.
 
@@ -634,7 +634,7 @@ def _has_repeat_rewarded_signals(referral: Referral, session: Session) -> tuple[
     return False, ""
 
 
-async def get_user_referral_stats(user_id: str, session: Session) -> dict:
+def get_user_referral_stats(user_id: str, session: Session) -> dict:
     """
     Get user's referral statistics.
 
@@ -685,7 +685,7 @@ async def get_user_referral_stats(user_id: str, session: Session) -> dict:
         ) from e
 
 
-async def get_user_invite_codes(user_id: str, session: Session) -> list[InviteCode]:
+def get_user_invite_codes(user_id: str, session: Session) -> list[InviteCode]:
     """
     Get all invite codes for a user.
 

@@ -14,7 +14,7 @@ from config.datetime_utils import utcnow
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from models import ChatMessage, ChatSession, User
-from utils.permission import verify_project_access
+from utils.permission import verify_project_access_sync
 
 FeedbackVote = Literal["up", "down"]
 
@@ -51,7 +51,7 @@ def _parse_timestamp(value: Any) -> datetime | None:
 class ChatFeedbackService:
     """Service for writing feedback to chat messages."""
 
-    async def submit_feedback(
+    def submit_feedback(
         self,
         *,
         session: Session,
@@ -88,7 +88,7 @@ class ChatFeedbackService:
             )
 
         # Permission check: user must own the project tied to this message.
-        await verify_project_access(chat_session.project_id, session, current_user)
+        verify_project_access_sync(chat_session.project_id, session, current_user)
 
         metadata = _load_message_metadata(message.message_metadata)
         current_feedback = metadata.get("feedback")

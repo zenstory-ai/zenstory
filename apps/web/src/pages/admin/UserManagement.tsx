@@ -321,6 +321,8 @@ export const UserManagement: React.FC = () => {
               </h2>
               <button
                 onClick={() => setEditingUser(null)}
+                disabled={updateMutation.isPending}
+                aria-label={t("common:close")}
                 className="p-2.5 touch-target hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors"
               >
                 <X size={20} className="text-[hsl(var(--text-secondary))]" />

@@ -167,9 +167,54 @@ jobs:
         EOF
 
     - name: Run unit tests with pytest
+      env:
+        ZENSTORY_TEST_REDIS_URL: redis://localhost:6380/1
       run: |
         cd apps/server
         pytest --cov=. --cov-report=xml --cov-report=term --cov-fail-under=80 --durations=15 -v
+
+    - name: Run PostgreSQL regressions serially
+      env:
+        ZENSTORY_TEST_POSTGRES_URL: postgresql://test:test@localhost:5433/zenstory_postgres_tests
+        DATABASE_URL: postgresql://test:test@localhost:5433/zenstory_postgres_tests
+      run: |
+        cd apps/server
+        python - <<'PY'
+        import psycopg
+
+        with psycopg.connect(
+            "postgresql://test:test@localhost:5433/zenstory_test",
+            autocommit=True,
+        ) as connection:
+            connection.execute("CREATE DATABASE zenstory_postgres_tests ENCODING 'UTF8' TEMPLATE template0")
+        PY
+        pytest -n 0 --no-cov \
+          tests/test_core/test_database_startup.py \
+          tests/test_core/test_database_timezone.py \
+          tests/test_services/test_admin_roles_postgres.py \
+          tests/test_services/test_admin_skills_postgres.py \
+          tests/test_services/test_commercial_backend_postgres.py \
+          tests/test_services/test_material_refunds_postgres.py \
+          tests/test_services/test_agent_file_preconditions_postgres.py \
+          tests/test_services/test_agent_auth_postgres.py \
+          tests/test_services/test_auth_refresh_revocation_postgres.py \
+          tests/test_services/test_writing_stats_concurrency_postgres.py \
+          tests/test_api/test_stats_record_first_rows_postgres.py \
+          tests/test_api/test_public_skill_counts_postgres.py \
+          tests/test_api/test_chat_worker_postgres.py \
+          tests/test_api/test_chat_history_order_postgres.py \
+          tests/test_agent/test_query_files_summary_projection.py \
+          tests/test_agent/test_failed_generation_finalization_postgres.py \
+          tests/test_services/test_project_capacity_concurrency_postgres.py \
+          tests/test_services/test_snapshot_cleanup.py \
+          tests/test_services/test_snapshot_concurrency_postgres.py \
+          tests/test_services/test_snapshot_hierarchy_restore.py \
+          tests/test_services/test_tree_writers_postgres.py \
+          tests/test_services/test_canonical_folder_repair_postgres.py \
+          tests/test_services/test_tree_delete_traversal_postgres.py \
+          tests/test_services/test_file_upload_postgres.py \
+          tests/test_services/test_persisted_order_bounds_postgres.py \
+          tests/test_agent/test_snapshot_mutation_postgres.py
 
     - name: Run flow tests
       run: |

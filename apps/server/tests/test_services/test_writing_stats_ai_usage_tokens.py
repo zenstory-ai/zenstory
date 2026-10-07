@@ -229,3 +229,45 @@ def test_ai_usage_trend_and_summary_include_real_tokens_and_cost(
     assert summary["current"]["estimated_cost_usd"] == pytest.approx(0.00014)
     assert summary["today"]["total_tokens"] == 70
     assert summary["today"]["estimated_cost_usd"] == pytest.approx(0.00009)
+
+
+@pytest.mark.parametrize(("reference_date", "clock_date", "expected_periods"), [
+    ("2026-05-31", "2026-06-01", ("prior", "prior", "prior")),
+    ("2026-06-01", "2026-06-01", ("next", "next", "next")),
+    (None, "2026-06-01", ("next", "next", "next")),
+    ("2026-06-03", "2026-06-03", ("next", "both", "both")),
+])
+def test_ai_summary_reference_date_and_exclusive_calendar_end(
+    db_session, ai_usage_project, monkeypatch, reference_date, clock_date, expected_periods,
+):
+    """Period aggregates and tokens exclude next midnight; all-time stays unbounded."""
+    from datetime import date
+
+    user, project = ai_usage_project
+    chat = _create_chat_session(db_session, user, project)
+    current = date.fromisoformat(clock_date)
+    prior = current - timedelta(days=1)
+    monkeypatch.setattr(writing_stats_module, "utcnow", lambda: datetime.combine(current, datetime.min.time()))
+    for day, usage in [(prior, {"input_tokens": 7, "output_tokens": 3}),
+                       (current, {"input_tokens": 13, "output_tokens": 5})]:
+        # Exactly at next-day midnight tests the exclusive upper bound for prior date.
+        timestamp = datetime.combine(day, datetime.min.time())
+        db_session.add_all([
+            ChatMessage(session_id=chat.id, role="user", content="Calendar question", created_at=timestamp),
+            ChatMessage(session_id=chat.id, role="assistant", content="Calendar response",
+                        created_at=timestamp, message_metadata=json.dumps({"usage": usage})),
+        ])
+    db_session.commit()
+    reference = date.fromisoformat(reference_date) if reference_date else None
+    summary = writing_stats_service.get_ai_usage_summary(db_session, user.id, project.id, reference_date=reference)
+    assert summary["current"]["total_messages"] == 4
+    assert summary["current"]["total_tokens"] == 28
+    expected = {"prior": (1, 7, 3), "next": (1, 13, 5), "both": (2, 20, 8)}
+    for name, metric in zip(["today", "this_week", "this_month"], expected_periods, strict=True):
+        pairs, input_tokens, output_tokens = expected[metric]
+        actual = summary[name]
+        assert actual["total"] == pairs * 2
+        assert actual["user"] == actual["ai"] == pairs
+        assert actual["input_tokens"] == input_tokens
+        assert actual["output_tokens"] == output_tokens
+        assert actual["total_tokens"] == input_tokens + output_tokens

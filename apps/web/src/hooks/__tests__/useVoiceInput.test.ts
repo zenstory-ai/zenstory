@@ -2,11 +2,15 @@ import { renderHook, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { useVoiceInput } from '../useVoiceInput'
 import * as voiceApi from '@/lib/voiceApi'
+import { normalizeRecording } from '@/lib/audioRecording'
+
+vi.mock('@/lib/audioRecording', () => ({ normalizeRecording: vi.fn() }))
 
 // Mock voiceApi
 vi.mock('@/lib/voiceApi', () => ({
   recognizeVoice: vi.fn(),
   blobToBase64: vi.fn(),
+  MAX_VOICE_DATA_LENGTH: 3_000_000,
 }))
 
 // Mock react-i18next
@@ -58,6 +62,7 @@ describe('useVoiceInput', () => {
     })
     ;(MockMediaRecorder as unknown as { isTypeSupported: typeof vi.fn }).isTypeSupported = vi.fn(() => true)
     vi.stubGlobal('MediaRecorder', MockMediaRecorder)
+    vi.stubGlobal('OfflineAudioContext', vi.fn())
 
     // Mock navigator.mediaDevices
     const mockStream = {
@@ -70,10 +75,13 @@ describe('useVoiceInput', () => {
     })
 
     vi.mocked(voiceApi.blobToBase64).mockResolvedValue('base64-audio-data')
+    vi.mocked(normalizeRecording).mockResolvedValue(new Blob(['wav-data'], { type: 'audio/wav' }))
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
   })
 
   describe('initial state', () => {
@@ -461,6 +469,180 @@ describe('useVoiceInput', () => {
 
       expect(result.current.status).toBe('error')
       expect(result.current.error).toContain('Network error')
+    })
+  })
+
+  describe('recording lifecycle', () => {
+    const deferred = <T,>() => {
+      let resolve!: (value: T) => void
+      let reject!: (error: Error) => void
+      const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej })
+      return { promise, resolve, reject }
+    }
+
+    async function stopWithData(result: { current: ReturnType<typeof useVoiceInput> }) {
+      act(() => {
+        ondataavailableCallback?.({ data: new Blob(['audio']) })
+        result.current.stopRecording()
+      })
+      await act(async () => { onstopCallback?.() })
+    }
+
+    it.each(['resolve', 'reject'] as const)('ignores a late recognition %s after cancellation', async (outcome) => {
+      const request = deferred<voiceApi.VoiceRecognizeResponse>()
+      vi.mocked(voiceApi.recognizeVoice).mockReturnValueOnce(request.promise)
+      const onResult = vi.fn()
+      const onError = vi.fn()
+      const { result } = renderHook(() => useVoiceInput({ onResult, onError }))
+      await act(async () => { await result.current.startRecording() })
+      await stopWithData(result)
+      expect(result.current.status).toBe('processing')
+      act(() => result.current.cancelRecording())
+      expect(vi.mocked(voiceApi.recognizeVoice).mock.calls[0][4]?.aborted).toBe(true)
+      await act(async () => {
+        if (outcome === 'resolve') request.resolve({ success: true, text: 'stale text' })
+        else request.reject(new Error('stale error'))
+      })
+      expect(onResult).not.toHaveBeenCalled()
+      expect(onError).not.toHaveBeenCalled()
+      expect(result.current.status).toBe('idle')
+    })
+
+    it('does not issue recognition when conversion finishes after cancellation', async () => {
+      const conversion = deferred<string>()
+      vi.mocked(voiceApi.blobToBase64).mockReturnValueOnce(conversion.promise)
+      const { result } = renderHook(() => useVoiceInput())
+      await act(async () => { await result.current.startRecording() })
+      await stopWithData(result)
+      act(() => result.current.cancelRecording())
+      await act(async () => { conversion.resolve('stale-audio') })
+      expect(voiceApi.recognizeVoice).not.toHaveBeenCalled()
+      expect(result.current.status).toBe('idle')
+    })
+
+    it('does not encode or upload when normalization finishes after cancellation', async () => {
+      const conversion = deferred<Blob>()
+      vi.mocked(normalizeRecording).mockReturnValueOnce(conversion.promise)
+      const { result } = renderHook(() => useVoiceInput())
+      await act(async () => { await result.current.startRecording() })
+      await stopWithData(result)
+      act(() => result.current.cancelRecording())
+      expect(vi.mocked(normalizeRecording).mock.calls[0][2]?.aborted).toBe(true)
+      await act(async () => { conversion.resolve(new Blob(['late-wav'])) })
+      expect(voiceApi.blobToBase64).not.toHaveBeenCalled()
+      expect(voiceApi.recognizeVoice).not.toHaveBeenCalled()
+      expect(result.current.status).toBe('idle')
+    })
+
+    it('ignores recognition completion after unmount', async () => {
+      const request = deferred<voiceApi.VoiceRecognizeResponse>()
+      vi.mocked(voiceApi.recognizeVoice).mockReturnValueOnce(request.promise)
+      const onResult = vi.fn()
+      const { result, unmount } = renderHook(() => useVoiceInput({ onResult }))
+      await act(async () => { await result.current.startRecording() })
+      await stopWithData(result)
+      unmount()
+      await act(async () => { request.resolve({ success: true, text: 'unmounted text' }) })
+      expect(onResult).not.toHaveBeenCalled()
+    })
+
+    it('ignores final data and stop events already queued before cancellation', async () => {
+      const { result } = renderHook(() => useVoiceInput())
+      await act(async () => { await result.current.startRecording() })
+      const queuedData = ondataavailableCallback
+      const queuedStop = onstopCallback
+      act(() => result.current.cancelRecording())
+      await act(async () => {
+        queuedData?.({ data: new Blob(['cancelled-audio']) })
+        queuedStop?.()
+      })
+      expect(voiceApi.blobToBase64).not.toHaveBeenCalled()
+      expect(voiceApi.recognizeVoice).not.toHaveBeenCalled()
+      expect(result.current.status).toBe('idle')
+    })
+
+    it('closes the AudioContext and removes timers after a normal stop', async () => {
+      vi.useFakeTimers()
+      const close = vi.fn().mockResolvedValue(undefined)
+      vi.stubGlobal('AudioContext', vi.fn().mockImplementation(function () {
+        return {
+          close,
+          createAnalyser: () => ({ frequencyBinCount: 128, getByteFrequencyData: vi.fn() }),
+          createMediaStreamSource: () => ({ connect: vi.fn() }),
+        }
+      }))
+      vi.mocked(voiceApi.recognizeVoice).mockResolvedValueOnce({ success: true, text: 'done' })
+      const { result } = renderHook(() => useVoiceInput())
+      await act(async () => { await result.current.startRecording() })
+      expect(vi.getTimerCount()).toBe(2)
+      await stopWithData(result)
+      expect(close).toHaveBeenCalledTimes(1)
+      expect(vi.getTimerCount()).toBe(0)
+      expect(result.current.status).toBe('idle')
+    })
+
+    it('reports an empty final recording instead of remaining recording', async () => {
+      const onError = vi.fn()
+      const { result } = renderHook(() => useVoiceInput({ onError }))
+      await act(async () => { await result.current.startRecording() })
+      act(() => result.current.stopRecording())
+      await act(async () => { onstopCallback?.() })
+      expect(result.current.status).toBe('error')
+      expect(onError).toHaveBeenCalledWith('chat:voice.noRecordingData')
+      expect(voiceApi.recognizeVoice).not.toHaveBeenCalled()
+    })
+
+    it('does not let the previous error-reset timer change a new recording', async () => {
+      vi.useFakeTimers()
+      vi.mocked(navigator.mediaDevices.getUserMedia).mockRejectedValueOnce(new Error('first failure'))
+      const { result } = renderHook(() => useVoiceInput())
+      await act(async () => { await result.current.startRecording() })
+      expect(result.current.status).toBe('error')
+      await act(async () => { await result.current.startRecording() })
+      await act(async () => { await vi.advanceTimersByTimeAsync(3000) })
+      expect(result.current.status).toBe('recording')
+    })
+  })
+
+  describe('provider audio format', () => {
+    it.each(['audio/webm;codecs=opus', 'audio/mp4'])('normalizes %s to actual WAV before upload', async (mimeType) => {
+      vi.mocked(MediaRecorder.isTypeSupported).mockImplementation((type) => type === mimeType)
+      vi.mocked(voiceApi.recognizeVoice).mockResolvedValueOnce({ success: true, text: 'normalized' })
+      const { result } = renderHook(() => useVoiceInput())
+      await act(async () => { await result.current.startRecording() })
+      act(() => {
+        ondataavailableCallback?.({ data: new Blob(['native-audio'], { type: mimeType }) })
+        result.current.stopRecording()
+      })
+      await act(async () => { onstopCallback?.() })
+      expect(normalizeRecording).toHaveBeenCalledWith(
+        expect.objectContaining({ type: mimeType }), 16000, expect.any(AbortSignal),
+      )
+      expect(voiceApi.blobToBase64).toHaveBeenCalledWith(expect.objectContaining({ type: 'audio/wav' }))
+      expect(voiceApi.recognizeVoice).toHaveBeenCalledWith(
+        'base64-audio-data', 'wav', 16000, 'zh', expect.any(AbortSignal),
+      )
+    })
+
+    it('lets the browser choose a container when no preferred MIME is supported', async () => {
+      vi.mocked(MediaRecorder.isTypeSupported).mockReturnValue(false)
+      const { result } = renderHook(() => useVoiceInput())
+      await act(async () => { await result.current.startRecording() })
+      expect(MediaRecorder).toHaveBeenCalledWith(expect.anything())
+    })
+
+    it('rejects oversized normalized WAV before base64 or provider requests', async () => {
+      vi.mocked(normalizeRecording).mockResolvedValueOnce(new Blob([new Uint8Array(3 * 1024 * 1024)]))
+      const { result } = renderHook(() => useVoiceInput())
+      await act(async () => { await result.current.startRecording() })
+      act(() => {
+        ondataavailableCallback?.({ data: new Blob(['small-compressed-audio']) })
+        result.current.stopRecording()
+      })
+      await act(async () => { onstopCallback?.() })
+      expect(result.current.error).toBe('chat:voice.audioTooLarge')
+      expect(voiceApi.blobToBase64).not.toHaveBeenCalled()
+      expect(voiceApi.recognizeVoice).not.toHaveBeenCalled()
     })
   })
 

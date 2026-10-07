@@ -13,12 +13,12 @@ from config.datetime_utils import beijing_date, beijing_day_bounds, utcnow
 from config.feature_flags import is_inspirations_enabled
 from database import get_session
 from models import Inspiration, Project, User
-from models.points import CheckInRecord, PointsTransaction
+from models.points import CheckInRecord
 from models.referral import InviteCode, Referral
 from models.subscription import SubscriptionHistory, SubscriptionPlan, UserSubscription
 from services.core.auth_service import get_current_superuser
 from services.features.activation_event_service import activation_event_service
-from services.features.points_service import effective_check_in_date
+from services.features.points_service import effective_check_in_date, points_service
 from services.features.upgrade_funnel_event_service import upgrade_funnel_event_service
 from services.usage.admin_growth_service import get_growth_dashboard
 from utils.logger import get_logger, log_with_context
@@ -131,19 +131,8 @@ def get_dashboard_stats(
     pro_users = session.exec(paid_now.where(SubscriptionPlan.name == "pro")).one()
 
     # Commercialization stats
-    # Total points in circulation (sum of all non-expired positive transactions minus spent)
-    total_earned = session.exec(
-        select(func.coalesce(func.sum(PointsTransaction.amount), 0))
-        .where(PointsTransaction.is_expired == False)
-        .where(PointsTransaction.amount > 0)
-    ).one() or 0
-
-    total_spent = session.exec(
-        select(func.coalesce(func.sum(PointsTransaction.amount), 0))
-        .where(PointsTransaction.amount < 0)
-    ).one() or 0
-
-    total_points_in_circulation = max(0, total_earned + total_spent)  # spent is negative
+    # Use the same FIFO/expiry rules as each user's spendable balance.
+    total_points_in_circulation = points_service.get_total_available_points(session)
 
     # Today's check-ins
     check_in_candidates = session.exec(

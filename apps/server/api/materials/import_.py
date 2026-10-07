@@ -16,6 +16,8 @@ from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import get_session
 from models import User
+from services.features.file_version_service import get_file_version_service
+from services.file_tree_rules import lock_project_for_files
 from utils.logger import get_logger
 
 from .helpers import _get_novel_or_404
@@ -58,7 +60,7 @@ def _validate_target_folder_or_raise(
     """Validate that target folder exists in project and return its title."""
     from models.file_model import File as ProjectFile
 
-    target_folder = session.get(ProjectFile, folder_id)
+    target_folder = session.get(ProjectFile, folder_id, populate_existing=True)
     if not target_folder or target_folder.is_deleted:
         raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404)
     if target_folder.project_id != project_id:
@@ -107,6 +109,14 @@ def import_material(
     ):
         raise APIException(error_code=ErrorCode.NOT_AUTHORIZED, status_code=403)
 
+    project = lock_project_for_files(session, request.project_id)
+    if (
+        not project
+        or project.is_deleted
+        or (project.owner_id != current_user.id and not current_user.is_superuser)
+    ):
+        raise APIException(error_code=ErrorCode.NOT_AUTHORIZED, status_code=403)
+
     # Get preview data (reuse preview logic)
     preview = get_material_preview(
         novel_id=request.novel_id,
@@ -138,6 +148,7 @@ def import_material(
             .where(ProjectFile.file_type == "folder")
             .where(ProjectFile.is_deleted.is_(False))
             .where(ProjectFile.title.in_(folder_title_candidates))
+            .execution_options(populate_existing=True)
         ).first()
 
         if existing_folder:
@@ -176,8 +187,9 @@ def import_material(
         file_metadata=json.dumps(file_metadata),
     )
     session.add(new_file)
+    get_file_version_service().create_initial_version(session, new_file)
 
-    # Commit both folder and file in a single transaction
+    # Commit folder, populated file and its initial history in one transaction.
     session.commit()
     session.refresh(new_file)
 

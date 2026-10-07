@@ -60,6 +60,22 @@ let lastRefreshFailTime = 0;
 let lastFailedRefreshToken: string | null = null;
 const refreshLineage = new Map<string, { accessToken: string; refreshToken: string }>();
 
+/** Resolve only the captured token pair or its confirmed refresh descendant. */
+export function resolveOwnedAuthSession(entryAccess: string | null, entryRefresh: string | null): {
+  accessToken: string | null;
+  refreshToken: string | null;
+} | null {
+  const accessToken = localStorage.getItem('access_token');
+  const refreshToken = localStorage.getItem('refresh_token');
+  if (accessToken === entryAccess && refreshToken === entryRefresh) {
+    return { accessToken, refreshToken };
+  }
+  const descendant = entryAccess && entryRefresh ? refreshLineage.get(entryRefresh) : undefined;
+  return descendant && accessToken === descendant.accessToken && refreshToken === descendant.refreshToken
+    ? { accessToken, refreshToken }
+    : null;
+}
+
 const isCredentialFailure = (status: number): boolean => status === 401 || status === 403;
 
 /**
@@ -516,8 +532,9 @@ export async function apiCall<T>(
       }
     }
 
-    const newAccessToken = getAccessToken();
-    const newRefreshToken = localStorage.getItem('refresh_token');
+    const ownedSession = resolveOwnedAuthSession(accessToken, refreshTokenAtRequest);
+    const newAccessToken = ownedSession?.accessToken;
+    const newRefreshToken = ownedSession?.refreshToken;
     if (!newAccessToken || !newRefreshToken) {
       throw new ApiError(401, 'Not authenticated');
     }

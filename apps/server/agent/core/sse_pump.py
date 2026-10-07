@@ -49,19 +49,29 @@ class SSEStreamPump:
         self._source = source
         self._heartbeat_interval_s = max(0.01, float(heartbeat_interval_s))
         self._deadline_s = deadline_s if deadline_s and deadline_s > 0 else None
-        self._queue: asyncio.Queue[Any] = asyncio.Queue()
+        self._queue: asyncio.Queue[Any] = asyncio.Queue(maxsize=32)
         self._task: asyncio.Task[None] | None = None
 
     async def _produce(self) -> None:
         try:
-            async for item in self._source:
-                self._queue.put_nowait(item)
-        except asyncio.CancelledError:
-            raise
-        except BaseException as exc:  # noqa: BLE001 - 原样转交给消费端
-            self._queue.put_nowait(_SourceFailed(exc))
-        else:
-            self._queue.put_nowait(_DONE)
+            try:
+                async for item in self._source:
+                    await self._queue.put(item)
+            except asyncio.CancelledError:
+                raise
+            except BaseException as exc:  # noqa: BLE001 - 原样转交给消费端
+                await self._queue.put(_SourceFailed(exc))
+            else:
+                await self._queue.put(_DONE)
+        except asyncio.CancelledError as cancellation:
+            # Backpressure can suspend here instead of inside the source iterator.
+            # Close it in this same context so its finalization still runs.
+            close_source = getattr(self._source, "aclose", None)
+            try:
+                if close_source is not None:
+                    await close_source()
+            finally:
+                raise cancellation
 
     def cancel(self) -> None:
         """同步取消后台 task（可在 GeneratorExit / CancelledError 路径中调用）。"""

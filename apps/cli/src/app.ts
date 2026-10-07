@@ -392,9 +392,17 @@ function writeBackup(env: Env, fileId: string, content: string): string {
 function sameTimestamp(a: string | undefined, b: string): boolean {
   if (a === undefined) return false;
   if (a === b) return true;
-  const ta = Date.parse(a);
-  const tb = Date.parse(b);
-  return !Number.isNaN(ta) && ta === tb;
+  // API timestamps can be naive UTC, and Date.parse alone loses sub-ms digits.
+  const toMicroseconds = (value: string): bigint | undefined => {
+    const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,6}))?(Z|[+-]\d{2}:\d{2})?$/.exec(value);
+    if (!match) return undefined;
+    const fraction = (match[2] ?? '').padEnd(6, '0');
+    const milliseconds = Date.parse(`${match[1]}.${fraction.slice(0, 3)}${match[3] ?? 'Z'}`);
+    if (Number.isNaN(milliseconds)) return undefined;
+    return BigInt(milliseconds) * 1000n + BigInt(fraction.slice(3));
+  };
+  const ta = toMicroseconds(a);
+  return ta !== undefined && ta === toMicroseconds(b);
 }
 
 /** Hide anything that looks like an Agent API key in error text. */
@@ -858,16 +866,19 @@ export const COMMANDS: CommandDef<Ctx>[] = [
       }
 
       const client = ctx.client();
-      const current = await client.get<ZsFile>(`/agent/files/${enc(pos[0])}`);
-      if (ifUpdatedAt !== undefined && !sameTimestamp(current.updated_at, ifUpdatedAt)) {
+      const current =
+        content !== undefined || ifUpdatedAt !== undefined
+          ? await client.get<ZsFile>(`/agent/files/${enc(pos[0])}`)
+          : undefined;
+      if (ifUpdatedAt !== undefined && !sameTimestamp(current?.updated_at, ifUpdatedAt)) {
         throw new CliError(
-          `File changed on the server (updated_at ${current.updated_at ?? 'unknown'}, expected ${ifUpdatedAt}). ` +
+          `File changed on the server (updated_at ${current?.updated_at ?? 'unknown'}, expected ${ifUpdatedAt}). ` +
             'Re-read it with `files get`, merge your edits, and retry with the new updated_at.',
           EXIT.ERROR,
           { code: 'STALE_WRITE' },
         );
       }
-      const oldContent = current.content ?? '';
+      const oldContent = current?.content ?? '';
       if (
         content !== undefined &&
         content.length < oldContent.length * 0.5 &&
@@ -875,7 +886,7 @@ export const COMMANDS: CommandDef<Ctx>[] = [
         !(allowEmpty && content.trim() === '')
       ) {
         throw new CliError(
-          `Refusing to shrink "${current.title ?? pos[0]}" from ${oldContent.length} to ${content.length} chars ` +
+          `Refusing to shrink "${current?.title ?? pos[0]}" from ${oldContent.length} to ${content.length} chars ` +
             '(less than 50%). `files put` replaces the whole file; pass --allow-shrink if this is intended.',
           EXIT.USAGE,
         );
@@ -884,7 +895,9 @@ export const COMMANDS: CommandDef<Ctx>[] = [
       let backupPath: string | null = null;
       if (content !== undefined && oldContent !== '') backupPath = writeBackup(ctx.io.env, pos[0], oldContent);
 
-      const file = await client.put<ZsFile>(`/agent/files/${enc(pos[0])}`, { title, content, order });
+      const file = await client.put<ZsFile>(`/agent/files/${enc(pos[0])}`, {
+        title, content, order, base_updated_at: ifUpdatedAt,
+      });
       if (file.version_quota_exceeded) {
         ctx.note(`${VERSION_QUOTA_WARNING}${backupPath ? `; the previous content is only in ${backupPath}` : ''}.`);
       }

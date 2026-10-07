@@ -103,7 +103,7 @@ async def test_invite_code_cap_check_locks_owner_user(db_session: Session):
     statements, recording_exec = _capture_selects(db_session)
 
     with patch.object(db_session, "exec", side_effect=recording_exec):
-        await create_invite_code(user.id, db_session)
+        create_invite_code(user.id, db_session)
 
     assert _has_fresh_user_lock(statements, user.id)
 
@@ -146,7 +146,7 @@ async def test_referral_read_failures_are_standardized_500(reader, db_session: S
 
     with patch.object(db_session, "exec", side_effect=SQLAlchemyError("database detail")):
         with pytest.raises(APIException) as exc_info:
-            await reader(user.id, db_session)
+            reader(user.id, db_session)
 
     assert exc_info.value.status_code == 500
     assert exc_info.value.error_code == ErrorCode.INTERNAL_SERVER_ERROR

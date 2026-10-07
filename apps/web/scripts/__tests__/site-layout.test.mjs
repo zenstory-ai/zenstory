@@ -1,8 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync, utimesSync } from 'node:fs'
+import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync, utimesSync, cpSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { finalizeSite, vercelConfig } from '../build-site-layout.mjs'
 
 const INDEXNOW_KEY = '1e4acbc11fe3407a8a641d69a13af696'
@@ -179,4 +180,61 @@ test('sitemap rejects impossible or conflicting editorial modification dates', (
     writeFileSync(join(dir, 'oh-story/example/index.html'), `<script type="application/ld+json">${JSON.stringify({ '@graph': nodes })}</script>`)
     assert.throws(() => finalizeSite(dir), /Invalid page dateModified|Conflicting page dateModified/)
   }
+})
+
+
+test('static privacy retains the same rights note and contact email as React', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'site-privacy-parity-'))
+  try {
+    writeFileSync(join(dir, 'index.html'), '<html><head><title>App</title></head><body><div id="root"></div></body></html>')
+    mkdirSync(join(dir, 'org-home'))
+    writeFileSync(join(dir, 'org-home/index.html'), '<html>Org</html>')
+    finalizeSite(dir)
+    const privacy = readFileSync(join(dir, 'privacy-policy/index.html'), 'utf8')
+    const source = JSON.parse(readFileSync(new URL('../../public/locales/en/privacy.json', import.meta.url), 'utf8'))
+    const escape = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
+    await t.test('rights-response note is present before hydration', () => {
+      const note = `<p>${escape(source.sections.userRights.note)}</p>`
+      assert.equal(privacy.split(note).length - 1, 1)
+      assert.ok(privacy.indexOf('</ul>') < privacy.indexOf(note))
+      assert.ok(privacy.indexOf(note) < privacy.indexOf(source.sections.userRights.dataExport.title))
+    })
+    await t.test('support contact email is present before hydration', () => {
+      const email = `<p>${escape(source.sections.contact.email)}</p>`
+      assert.equal(privacy.split(email).length - 1, 1)
+      assert.ok(privacy.indexOf(source.sections.contact.content) < privacy.indexOf(email))
+    })
+    await t.test('unused controller metadata is not broadened into legal copy', () => {
+      assert.ok(!privacy.includes(source.sections.contact.controller))
+    })
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+
+test('static legal note/email escape markup without rendering unrelated scalar fields', async () => {
+  const fixture = mkdtempSync(join(tmpdir(), 'site-privacy-escaped-'))
+  try {
+    for (const dir of ['scripts', 'content', 'public/locales/en', 'output/org-home']) mkdirSync(join(fixture, dir), { recursive: true })
+    for (const file of ['scripts/build-site-layout.mjs', 'content/site-routing.json', 'content/guide-redirects.json', 'vercel.json']) {
+      cpSync(new URL(`../../${file}`, import.meta.url), join(fixture, file))
+    }
+    const source = JSON.parse(readFileSync(new URL('../../public/locales/en/privacy.json', import.meta.url), 'utf8'))
+    const markup = '<img src=x onerror="unsafe()"> & support'
+    source.sections.userRights.note = markup
+    source.sections.contact.email = markup
+    source.sections.contact.controller = 'UNUSED-CONTROLLER'
+    source.sections.contact.extraScalar = 'UNUSED-SCALAR'
+    writeFileSync(join(fixture, 'public/locales/en/privacy.json'), JSON.stringify(source))
+    writeFileSync(join(fixture, 'output/index.html'), '<html><head><title>App</title></head><body><div id="root"></div></body></html>')
+    writeFileSync(join(fixture, 'output/org-home/index.html'), '<html>Org</html>')
+    const { finalizeSite: finalizeFixture } = await import(pathToFileURL(join(fixture, 'scripts/build-site-layout.mjs')).href)
+    finalizeFixture(join(fixture, 'output'))
+    const privacy = readFileSync(join(fixture, 'output/privacy-policy/index.html'), 'utf8')
+    const escaped = '<p>&lt;img src=x onerror=&quot;unsafe()&quot;> &amp; support</p>'
+    assert.equal(privacy.split(escaped).length - 1, 2)
+    assert.doesNotMatch(privacy, /<img|UNUSED-CONTROLLER|UNUSED-SCALAR/)
+    const terms = readFileSync(join(fixture, 'output/terms-of-service/index.html'), 'utf8')
+    assert.match(terms, /Terms of Service/)
+    assert.doesNotMatch(terms, /unsafe\(\)|UNUSED-CONTROLLER|UNUSED-SCALAR/)
+  } finally { rmSync(fixture, { recursive: true, force: true }) }
 })

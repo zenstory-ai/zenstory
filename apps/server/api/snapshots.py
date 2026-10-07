@@ -1,5 +1,4 @@
 """Snapshot management API endpoints"""
-import json
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
@@ -13,6 +12,7 @@ from core.error_handler import APIException
 from core.project_access import verify_project_ownership
 from database import get_session
 from models import File, Snapshot, User
+from services.file_tree_rules import lock_project_for_files
 from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
@@ -103,8 +103,8 @@ class UpdateSnapshotRequest(BaseModel):
 def get_snapshots(
     project_id: str,
     file_id: str | None = Query(None, description="Filter by file ID"),
-    limit: int = Query(50, description="Maximum number of results"),
-    offset: int = Query(0, description="Number of results to skip"),
+    limit: int = Query(50, ge=1, le=100, description="Maximum number of results"),
+    offset: int = Query(0, ge=0, description="Number of results to skip"),
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session)
 ):
@@ -144,8 +144,11 @@ def create_snapshot(
     verify_project_ownership(project_id, current_user, session)
 
     # Validate file_id belongs to the same project when provided
+    # Revalidate only after the gate has refreshed state committed while waiting.
+    lock_project_for_files(session, project_id)
+    verify_project_ownership(project_id, current_user, session)
     if request.file_id:
-        target_file = session.get(File, request.file_id)
+        target_file = session.get(File, request.file_id, populate_existing=True)
         if (
             not target_file
             or target_file.is_deleted
@@ -253,34 +256,16 @@ def rollback_to_snapshot(
     # Check project ownership
     verify_project_ownership(snapshot.project_id, current_user, session)
 
-    snapshot_data = json.loads(snapshot.data)
-    affected_file_ids = {
-        item.get("id")
-        for item in snapshot_data.get("files_metadata", [])
-        if isinstance(item, dict) and item.get("id")
-    }
-    affected_file_ids.update(
-        item.get("file_id")
-        for item in snapshot_data.get("file_versions", [])
-        if isinstance(item, dict) and item.get("file_id")
-    )
-    if snapshot.file_id:
-        affected_file_ids = {snapshot.file_id}
-    else:
-        affected_file_ids.update(
-            session.exec(
-                select(File.id).where(
-                    File.project_id == snapshot.project_id,
-                    File.is_deleted.is_(False),
-                )
-            ).all()
-        )
-
     try:
+        lock_project_for_files(session, snapshot.project_id, rollback=True)
+        verify_project_ownership(snapshot.project_id, current_user, session)
         result = version_service.rollback_to_snapshot(
             session=session,
             snapshot_id=snapshot_id
         )
+        # The protected service view includes creators that committed while
+        # rollback waited for its gate. Keep this internal field off the API.
+        affected_file_ids = set(result.pop("affected_file_ids"))
         _schedule_snapshot_rollback_reconciliation(
             background_tasks=background_tasks,
             session=session,

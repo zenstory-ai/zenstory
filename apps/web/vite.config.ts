@@ -38,8 +38,9 @@ export function orgPageRoutes(contentDir = path.resolve(__dirname, 'content')): 
   const read = (f: string) => JSON.parse(fs.readFileSync(path.resolve(contentDir, f), 'utf8'))
   const projects = read('projects.json') as { slug: string }[]
   const glossary = read('glossary.json') as { slug: string }[]
-  const guides = read('guides.json') as { owner: string; slug: string }[]
-  const articles = read('articles.json') as { owner?: unknown; slug?: unknown; langs?: unknown }[]
+  const guides = read('guides.json') as { owner: string; slug: string; topic?: string }[]
+  const topics = read('guide-topics.json') as { slug: string }[]
+  const articles = read('articles.json') as { owner?: unknown; slug?: unknown; langs?: unknown; topic?: string }[]
   for (const article of articles) {
     if (typeof article.slug !== 'string' || !/^[a-z0-9-]+$/.test(article.slug) || !projects.some((p) => p.slug === article.owner)) throw new Error('Invalid article identity')
     if (!Array.isArray(article.langs) || !article.langs.includes('zh') || article.langs.some((lang) => lang !== 'zh' && lang !== 'en')) throw new Error('Invalid article languages')
@@ -55,11 +56,22 @@ export function orgPageRoutes(contentDir = path.resolve(__dirname, 'content')): 
     const options = comparison.options?.map((option) => option.project)
     if (!options || options.length !== expectedProjects.length || options.some((project, index) => project !== expectedProjects[index]) || options.some((project) => !projects.some((candidate) => candidate.slug === project))) throw new Error('Invalid comparison options')
   }
+  // Match the producer's per-language topic pagination and legacy fallback.
+  const topicPageSize = 24
+  const fallbackTopics: Record<string, string> = { 'oh-story': 'plot-and-outline', 'drama-skills': 'short-drama', 'novel-to-game': 'interactive-games', 'video-recap': 'video-recaps', dsh: 'getting-started' }
+  const topicRoutes = (lang: string) => {
+    const items = [...guides, ...articles.filter(article => (article.langs as string[]).includes(lang))]
+    return topics.flatMap(topic => {
+      const count = items.filter(item => (item.topic ?? fallbackTopics[String(item.owner)]) === topic.slug).length
+      return Array.from({ length: Math.max(1, Math.ceil(count / topicPageSize)) }, (_, index) =>
+        `/guides/${topic.slug}${index > 0 ? `/page/${index + 1}` : ''}`)
+    })
+  }
   const english = ['/projects', ...projects.map((p) => `/${p.slug}`), ...guides.map((g) => `/${g.owner}/${g.slug}`), ...articles.filter((a) => (a.langs as string[]).includes('en')).map((a) => `/${a.owner}/${a.slug}`), '/guides', ...comparisonRoutes, '/glossary', ...glossary.map((g) => `/glossary/${g.slug}`)]
   // Every organization route also exists in Chinese under /zh (and /zh is the Chinese home);
   // Chinese-only craft articles exist only there.
   const chineseOnly = articles.filter((a) => !(a.langs as string[]).includes('en')).map((a) => `/zh/${a.owner}/${a.slug}`)
-  return [...english, '/zh', ...english.map((route) => `/zh${route}`), ...chineseOnly]
+  return [...english, ...topicRoutes('en'), '/zh', ...english.map((route) => `/zh${route}`), ...topicRoutes('zh').map(route => `/zh${route}`), ...chineseOnly]
 }
 
 const orgRoutes = orgPageRoutes()

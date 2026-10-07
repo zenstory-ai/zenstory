@@ -1,5 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { parseUTCDate } from '@/lib/dateUtils';
 import { Users, Gift, Coins, Loader2, Award } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getLocaleCode } from '@/lib/i18n-helpers';
@@ -19,7 +20,7 @@ export const ReferralStats: React.FC = () => {
   const isStatsLoading = statsLoading || (statsFetching && !stats);
 
   // Fetch rewards
-  const { data: rewards = [], isLoading: rewardsLoading, isFetching: rewardsFetching } = useQuery({
+  const { data: rewards = [], isLoading: rewardsLoading, isFetching: rewardsFetching, error: rewardsError } = useQuery({
     queryKey: ['userRewards'],
     queryFn: referralApi.getRewards,
   });
@@ -119,6 +120,10 @@ export const ReferralStats: React.FC = () => {
           <div className="flex items-center justify-center py-4">
             <Loader2 size={20} className="animate-spin text-[hsl(var(--text-secondary))]" />
           </div>
+        ) : rewardsError && rewards.length === 0 ? (
+          <div className="text-center py-8 text-[hsl(var(--error))]">
+            {t('stats.loadError')}
+          </div>
         ) : rewards.length > 0 ? (
           <div className="space-y-2">
             {rewards.map((reward) => (
@@ -140,7 +145,7 @@ export const ReferralStats: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-xs text-[hsl(var(--text-secondary))] ml-3 shrink-0">
-                  {new Date(reward.created_at).toLocaleDateString(getLocaleCode())}
+                  {parseUTCDate(reward.created_at).toLocaleDateString(getLocaleCode())}
                 </div>
               </div>
             ))}

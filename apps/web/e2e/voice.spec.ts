@@ -159,7 +159,8 @@ test.describe('Voice Input - Service Status', () => {
     expect(response.ok()).toBeTruthy()
 
     const status = await response.json()
-    expect(status.supported_formats).toContain('webm')
+    expect(status.supported_formats).toContain('ogg-opus')
+    expect(status.supported_formats).not.toContain('webm')
     expect(status.supported_formats).toContain('wav')
     expect(status.supported_formats.length).toBeGreaterThan(0)
   })

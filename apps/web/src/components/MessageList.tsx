@@ -22,7 +22,7 @@ import { User, Sparkles, Bot, AlertTriangle, ThumbsUp, ThumbsDown } from 'lucide
 import { LazyMarkdown } from './LazyMarkdown';
 import { ToolResultCard } from './ToolResultCard';
 import { ThinkingContent } from './ThinkingContent';
-import type { AgentContextItem, ToolCall } from '../types';
+import type { AgentContextItem, FileEditUndoTarget, ToolCall } from '../types';
 import { getLocaleCode } from '../lib/i18n-helpers';
 import { stripThinkTags } from '../lib/utils';
 import { getAgentDisplayName } from '../lib/agentDisplayName';
@@ -134,7 +134,7 @@ interface MessageListProps {
   /** ID of the message currently being streamed (enables cursor animation) */
   streamingMessageId?: string;
   /** Callback invoked when user requests to undo a file edit operation */
-  onUndo?: (fileId: string) => void;
+  onUndo?: (target: FileEditUndoTarget) => void;
   /** Callback invoked when user submits thumbs up/down feedback for assistant message */
   onSubmitFeedback?: (message: Message, vote: MessageFeedbackVote) => void | Promise<void>;
   /** Message ID currently submitting feedback */
@@ -612,7 +612,7 @@ interface RowDataProps {
   /** Function to format timestamps for display */
   formatTime: (date: Date) => string;
   /** Callback to undo a file edit */
-  onUndo?: (fileId: string) => void;
+  onUndo?: (target: FileEditUndoTarget) => void;
   /** Callback to submit message feedback */
   onSubmitFeedback?: (message: Message, vote: MessageFeedbackVote) => void | Promise<void>;
   /** Message ID currently submitting feedback */
@@ -1043,7 +1043,7 @@ function Row({
  * <MessageList
  *   messages={conversationMessages}
  *   streamingMessageId="msg-123"
- *   onUndo={(fileId) => handleUndoEdit(fileId)}
+ *   onUndo={(target) => handleUndoEdit(target)}
  *   isThinking={isAgentThinking}
  *   streamingThinkingContent={thinkingContent}
  * />

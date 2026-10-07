@@ -5,20 +5,23 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // Mock the api client from apiClient
-const mockGetAccessToken = vi.fn(() => 'test-token')
+const mockGetAccessToken = vi.fn<() => string | null>(() => 'test-token')
 const mockTryRefreshToken = vi.fn(() => Promise.resolve(true))
 
-vi.mock('../apiClient', () => ({
+vi.mock('../apiClient', async importOriginal => ({
+  resolveOwnedAuthSession: (await importOriginal<typeof import('../apiClient')>()).resolveOwnedAuthSession,
   api: {},
   getApiBase: vi.fn(() => 'http://localhost:8000'),
-  getAccessToken: (...args: unknown[]) => mockGetAccessToken(...args),
-  tryRefreshToken: (...args: unknown[]) => mockTryRefreshToken(...args),
+  getAccessToken: () => mockGetAccessToken(),
+  tryRefreshToken: () => mockTryRefreshToken(),
   ApiError: class ApiError extends Error {
+    status: number
     constructor(
-      public status: number,
+      status: number,
       message: string
     ) {
       super(message)
+      this.status = status
       this.name = 'ApiError'
     }
   },
@@ -31,6 +34,8 @@ describe('fileApi.uploadDraft', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetAccessToken.mockReturnValue('test-token')
+    localStorage.setItem('access_token', 'test-token')
+    localStorage.setItem('refresh_token', 'test-refresh-token')
   })
 
   afterEach(() => {
@@ -170,13 +175,7 @@ describe('fileApi.uploadDraft', () => {
     const uploadDraft = await getUploadDraft()
     const mockFile = new File(['content'], 'draft.txt', { type: 'text/plain' })
 
-    vi.mocked(global.fetch).mockResolvedValue({
-      ok: false,
-      status: 500,
-      json: async () => {
-        throw new Error('Invalid JSON')
-      },
-    } as Response)
+    vi.mocked(global.fetch).mockResolvedValue(new Response('Invalid JSON', { status: 500 }))
 
     await expect(uploadDraft('project-1', mockFile)).rejects.toThrow()
   })

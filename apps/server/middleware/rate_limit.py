@@ -25,6 +25,14 @@ from utils.logger import get_logger, log_with_context
 # In-memory fallback store
 _rate_limit_store: dict = defaultdict(list)
 _rate_limit_store_lock = Lock()
+# Each process-memory bucket records when its last request expires. This keeps
+# different rolling-window lengths independent during global pruning.
+_rate_limit_store_expirations: dict[str, float] = {}
+_rate_limit_last_prune_monotonic: float = 0.0
+_RATE_LIMIT_PRUNE_INTERVAL_SECONDS = 60.0
+# Active buckets are never evicted: once full, unseen identities are denied
+# until the next bounded prune reclaims expired buckets.
+_RATE_LIMIT_MEMORY_MAX_KEYS = 5000
 _redis_retry_after_monotonic: float = 0.0
 
 logger = get_logger(__name__)
@@ -265,6 +273,24 @@ def _check_rate_limit_redis(
         return None
 
 
+def _prune_memory_rate_limits_locked(*, now: float, monotonic_now: float) -> None:
+    """Remove expired process-memory buckets at a bounded interval.
+
+    Caller must hold ``_rate_limit_store_lock``. Expiration is tracked per key,
+    so a short-window rule cannot evict an active long-window rule.
+    """
+    global _rate_limit_last_prune_monotonic
+
+    if (monotonic_now - _rate_limit_last_prune_monotonic) < _RATE_LIMIT_PRUNE_INTERVAL_SECONDS:
+        return
+
+    _rate_limit_last_prune_monotonic = monotonic_now
+    for stored_key, expires_at in tuple(_rate_limit_store_expirations.items()):
+        if stored_key not in _rate_limit_store or expires_at <= now:
+            _rate_limit_store.pop(stored_key, None)
+            _rate_limit_store_expirations.pop(stored_key, None)
+
+
 def check_rate_limit(
     request: Request,
     key: str,
@@ -299,12 +325,19 @@ def check_rate_limit(
     # cleanup/check/append atomic and share this lock with calendar buckets
     # because both backends intentionally use the same in-memory store.
     with _rate_limit_store_lock:
-        _rate_limit_store[rate_key] = [t for t in _rate_limit_store[rate_key] if t > window_start]
-        if len(_rate_limit_store[rate_key]) >= max_requests:
+        _prune_memory_rate_limits_locked(now=now, monotonic_now=time.monotonic())
+        if rate_key not in _rate_limit_store and len(_rate_limit_store) >= _RATE_LIMIT_MEMORY_MAX_KEYS:
             return False, 0
 
-        _rate_limit_store[rate_key].append(now)
-        return True, max_requests - len(_rate_limit_store[rate_key])
+        bucket = [t for t in _rate_limit_store[rate_key] if t > window_start]
+        _rate_limit_store[rate_key] = bucket
+        if len(bucket) >= max_requests:
+            _rate_limit_store_expirations[rate_key] = max(bucket, default=now) + window_seconds
+            return False, 0
+
+        bucket.append(now)
+        _rate_limit_store_expirations[rate_key] = now + window_seconds
+        return True, max_requests - len(bucket)
 
 
 def require_rate_limit(key: str, max_requests: int, window_seconds: int):
@@ -448,12 +481,18 @@ def require_user_beijing_daily_rate_limit(key: str, max_requests: int):
                 for stale_key in tuple(_rate_limit_store):
                     if stale_key.startswith(bucket_prefix) and stale_key.removeprefix(bucket_prefix) < bucket_day:
                         _rate_limit_store.pop(stale_key, None)
-                bucket = _rate_limit_store[rate_key]
-                if len(bucket) >= max_requests:
+                        _rate_limit_store_expirations.pop(stale_key, None)
+                _prune_memory_rate_limits_locked(now=now.timestamp(), monotonic_now=time.monotonic())
+                if rate_key not in _rate_limit_store and len(_rate_limit_store) >= _RATE_LIMIT_MEMORY_MAX_KEYS:
                     allowed, remaining = False, 0
                 else:
-                    bucket.append(now.timestamp())
-                    allowed, remaining = True, max_requests - len(bucket)
+                    bucket = _rate_limit_store[rate_key]
+                    _rate_limit_store_expirations[rate_key] = period_end.timestamp()
+                    if len(bucket) >= max_requests:
+                        allowed, remaining = False, 0
+                    else:
+                        bucket.append(now.timestamp())
+                        allowed, remaining = True, max_requests - len(bucket)
 
         if not allowed:
             log_with_context(

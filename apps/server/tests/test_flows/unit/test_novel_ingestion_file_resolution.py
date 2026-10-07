@@ -25,6 +25,75 @@ class _FakeResponse:
 
 
 class TestEnsureFileLocal:
+    def test_interrupted_download_does_not_publish_and_retry_downloads_again(self, tmp_path, monkeypatch):
+        target = tmp_path / "uploads" / "user-9_小说.txt"
+        target.parent.mkdir()
+        unrelated = target.parent / "existing.txt"
+        unrelated.write_bytes(b"keep")
+        content = "第一章 中文\n正文🙂\n".encode()
+
+        class InterruptedResponse(_FakeResponse):
+            def read(self):
+                raise OSError("interrupted response")
+
+        responses = iter([InterruptedResponse(b""), _FakeResponse(content)])
+        requests = []
+
+        def download(request, timeout):
+            requests.append((request.full_url, request.get_header("X-internal-token"), timeout))
+            assert not target.exists()
+            return next(responses)
+
+        monkeypatch.setenv("API_SERVER_INTERNAL_URL", "http://api.internal/")
+        monkeypatch.setenv("MATERIAL_INTERNAL_TOKEN", "dummy-local-token")
+        monkeypatch.setattr(flow_mod.urllib.request, "urlopen", download)
+        with pytest.raises(OSError, match="interrupted response"):
+            flow_mod._ensure_file_local(str(target), "user-9", MagicMock())
+
+        assert not target.exists()
+        assert list(target.parent.iterdir()) == [unrelated]
+        assert flow_mod._ensure_file_local(str(target), "user-9", MagicMock()) == str(target)
+        assert target.read_bytes() == content
+        assert len(requests) == 2
+        assert requests[0] == requests[1]
+        assert requests[0] == (
+            "http://api.internal/api/v1/materials/internal/system/files/user-9_%E5%B0%8F%E8%AF%B4.txt?user_id=user-9",
+            "dummy-local-token",
+            30,
+        )
+        assert sorted(p.name for p in target.parent.iterdir()) == sorted([target.name, unrelated.name])
+        assert unrelated.read_bytes() == b"keep"
+
+    def test_publish_failure_cleans_only_owned_temporary_file(self, tmp_path, monkeypatch):
+        target = tmp_path / "novel.txt"
+        unrelated = tmp_path / "existing.txt"
+        unrelated.write_bytes(b"keep")
+        monkeypatch.setenv("API_SERVER_INTERNAL_URL", "http://api.internal")
+        monkeypatch.setenv("MATERIAL_INTERNAL_TOKEN", "dummy-local-token")
+        monkeypatch.setattr(flow_mod.urllib.request, "urlopen", lambda *_args, **_kwargs: _FakeResponse(b"complete"))
+
+        def reject_publish(source, destination):
+            assert Path(source).parent == target.parent
+            assert Path(source).read_bytes() == b"complete"
+            assert destination == str(target)
+            assert not target.exists()
+            raise OSError("publish failed")
+
+        monkeypatch.setattr(flow_mod.os, "replace", reject_publish)
+        with pytest.raises(OSError, match="publish failed"):
+            flow_mod._ensure_file_local(str(target), "u1", MagicMock())
+        assert list(tmp_path.iterdir()) == [unrelated]
+        assert unrelated.read_bytes() == b"keep"
+
+    def test_existing_empty_cache_keeps_current_shortcircuit(self, tmp_path, monkeypatch):
+        target = tmp_path / "novel.txt"
+        target.write_bytes(b"")
+        download = MagicMock(side_effect=AssertionError("must not download existing cache"))
+        monkeypatch.setattr(flow_mod.urllib.request, "urlopen", download)
+        assert flow_mod._ensure_file_local(str(target), "u1", MagicMock()) == str(target)
+        assert target.read_bytes() == b""
+        download.assert_not_called()
+
     def test_returns_existing_path_directly(self, tmp_path: Path):
         file_path = tmp_path / "novel.txt"
         file_path.write_text("hello", encoding="utf-8")

@@ -798,6 +798,49 @@ describe('useAgentStream', () => {
       )
     })
 
+    it.each([true, false])('maps explicit file_mutated=%s into completion metadata', (fileMutated) => {
+      const onComplete = vi.fn()
+      const { result } = renderHook(() =>
+        useAgentStream('test-project-id', { onComplete })
+      )
+      const controller = createMockStreamController()
+
+      act(() => {
+        result.current.startStream({ message: 'test' })
+      })
+
+      act(() => {
+        controller.getCallbacks()!.onDone?.({ file_mutated: fileMutated })
+      })
+
+      expect(onComplete).toHaveBeenCalledWith(
+        expect.any(Array),
+        null,
+        { confirmedFileMutation: fileMutated },
+      )
+    })
+
+    it('does not carry a previous mutation confirmation into the next stream', () => {
+      const onComplete = vi.fn()
+      const { result } = renderHook(() =>
+        useAgentStream('test-project-id', { onComplete })
+      )
+      const controller = createMockStreamController()
+
+      act(() => result.current.startStream({ message: 'first' }))
+      act(() => controller.getCallbacks()!.onDone?.({ file_mutated: true }))
+      act(() => result.current.startStream({ message: 'second' }))
+      act(() => controller.getCallbacks()!.onDone?.({}))
+
+      expect(onComplete).toHaveBeenNthCalledWith(
+        1,
+        expect.any(Array),
+        null,
+        { confirmedFileMutation: true },
+      )
+      expect(onComplete).toHaveBeenNthCalledWith(2, expect.any(Array), null)
+    })
+
     it('prevents duplicate onComplete calls', () => {
       const onComplete = vi.fn()
       const { result } = renderHook(() =>
@@ -812,11 +855,16 @@ describe('useAgentStream', () => {
       const callbacks = controller.getCallbacks()!
 
       act(() => {
-        callbacks.onDone?.({})
-        callbacks.onDone?.({}) // Second call
+        callbacks.onDone?.({ file_mutated: true })
+        callbacks.onDone?.({ file_mutated: true }) // Second terminal event
       })
 
       expect(onComplete).toHaveBeenCalledTimes(1)
+      expect(onComplete).toHaveBeenCalledWith(
+        expect.any(Array),
+        null,
+        { confirmedFileMutation: true },
+      )
     })
   })
 

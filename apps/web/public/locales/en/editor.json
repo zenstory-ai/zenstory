@@ -199,6 +199,8 @@
     "title": "Version History",
     "compare": "Compare",
     "loadFailed": "Version history couldn't load. Please try again.",
+    "loadMore": "Load more",
+    "updateFailed": "Description update failed. Please try again.",
     "empty": "No earlier versions to restore yet",
     "latestSaved": "Last saved",
     "currentVersion": "Current Version",

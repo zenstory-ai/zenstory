@@ -10,7 +10,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.responses import FileResponse
-from sqlmodel import Session, or_, select
+from sqlmodel import Session, col, func, or_, select
 
 from config.datetime_utils import utcnow
 from core.error_codes import ErrorCode
@@ -157,7 +157,7 @@ def list_feedback_admin(
             detail="source_page must be one of: dashboard, editor.",
         )
 
-    query = select(UserFeedback, User).join(User, User.id == UserFeedback.user_id)
+    query = select(UserFeedback, User).join(User, col(User.id) == col(UserFeedback.user_id))
 
     if normalized_status:
         query = query.where(UserFeedback.status == normalized_status)
@@ -170,27 +170,33 @@ def list_feedback_admin(
         pattern = f"%{normalized_search}%"
         query = query.where(
             or_(
-                User.username.ilike(pattern),
-                User.email.ilike(pattern),
-                UserFeedback.issue_text.ilike(pattern),
-                UserFeedback.trace_id.ilike(pattern),
-                UserFeedback.request_id.ilike(pattern),
-                UserFeedback.agent_run_id.ilike(pattern),
-                UserFeedback.project_id.ilike(pattern),
-                UserFeedback.agent_session_id.ilike(pattern),
+                col(User.username).ilike(pattern),
+                col(User.email).ilike(pattern),
+                col(UserFeedback.issue_text).ilike(pattern),
+                col(UserFeedback.trace_id).ilike(pattern),
+                col(UserFeedback.request_id).ilike(pattern),
+                col(UserFeedback.agent_run_id).ilike(pattern),
+                col(UserFeedback.project_id).ilike(pattern),
+                col(UserFeedback.agent_session_id).ilike(pattern),
             )
         )
 
-    rows = session.exec(query.order_by(UserFeedback.created_at.desc())).all()
-    items = [_to_admin_feedback_item(feedback, user) for feedback, user in rows]
-
-    if has_screenshot is True:
-        items = [item for item in items if item["has_screenshot"]]
-    elif has_screenshot is False:
-        items = [item for item in items if not item["has_screenshot"]]
-
-    total = len(items)
-    items = items[skip : skip + limit]
+    if has_screenshot is None:
+        total = session.exec(select(func.count()).select_from(query.subquery())).one()
+        rows = session.exec(
+            query.order_by(col(UserFeedback.created_at).desc(), col(UserFeedback.id).desc()).offset(skip).limit(limit)
+        ).all()
+        items = [_to_admin_feedback_item(feedback, user) for feedback, user in rows]
+    else:
+        # Actual screenshot availability includes filesystem/legacy-path resolution.
+        rows = session.exec(query.order_by(col(UserFeedback.created_at).desc(), col(UserFeedback.id).desc())).all()
+        items = [_to_admin_feedback_item(feedback, user) for feedback, user in rows]
+        if has_screenshot:
+            items = [item for item in items if item["has_screenshot"]]
+        else:
+            items = [item for item in items if not item["has_screenshot"]]
+        total = len(items)
+        items = items[skip : skip + limit]
 
     log_with_context(
         logger,

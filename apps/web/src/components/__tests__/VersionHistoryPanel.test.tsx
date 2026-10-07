@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { VersionHistoryPanel } from '../VersionHistoryPanel'
 import * as React from 'react'
@@ -58,6 +58,9 @@ const mockT = vi.fn((key: string) => {
   const translations: Record<string, string> = {
     'editor:versionHistory.title': 'Version History',
     'common:loading': 'Loading...',
+    'common:retry': 'Retry',
+    'editor:versionHistory.loadMore': 'Load more',
+    'editor:versionHistory.updateFailed': 'Description update failed',
     'editor:versionHistory.loadFailed': 'Failed to load versions',
     'editor:versionHistory.empty': 'No versions available',
     'editor:versionHistory.auto': 'Auto',
@@ -78,10 +81,11 @@ const mockT = vi.fn((key: string) => {
   }
   return translations[key] || key
 })
+let activeTranslator = mockT
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: mockT,
+    t: activeTranslator,
     i18n: {
       language: 'en',
       changeLanguage: vi.fn(),
@@ -125,14 +129,16 @@ describe('VersionHistoryPanel', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(api.versionApi.getSnapshots).mockResolvedValue(mockSnapshots)
-    vi.mocked(api.versionApi.updateSnapshot).mockResolvedValue(undefined)
-    vi.mocked(api.versionApi.rollback).mockResolvedValue(undefined)
+    activeTranslator = mockT
+    vi.mocked(api.versionApi.getSnapshots).mockReset().mockResolvedValue(mockSnapshots)
+    vi.mocked(api.versionApi.updateSnapshot).mockReset().mockResolvedValue(undefined)
+    vi.mocked(api.versionApi.rollback).mockReset().mockResolvedValue(undefined)
     global.confirm = vi.fn(() => true)
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it('renders version history panel', () => {
@@ -335,8 +341,8 @@ describe('VersionHistoryPanel', () => {
       expect(global.confirm).toHaveBeenCalled()
       expect(api.versionApi.rollback).toHaveBeenCalledWith('snap-2')
       expect(mockOnRollback).toHaveBeenCalledWith('snap-2')
-      // refresh chain in panel: loadSnapshots runs again after rollback
-      expect(api.versionApi.getSnapshots).toHaveBeenCalledTimes(2)
+      // The parent reconciles/closes the panel; do not request throwaway history.
+      expect(api.versionApi.getSnapshots).toHaveBeenCalledTimes(1)
     })
   })
 
@@ -593,5 +599,265 @@ describe('VersionHistoryPanel', () => {
 
       unmount()
     }
+  })
+
+  it('loads older snapshot pages after fifty rows and preserves the current selection', async () => {
+    const firstPage = Array.from({ length: 50 }, (_, index) => ({ ...mockSnapshots[0], id: `page-${index}`, description: `Page row ${index}` }))
+    vi.mocked(api.versionApi.getSnapshots).mockResolvedValueOnce(firstPage).mockResolvedValueOnce([mockSnapshots[1]])
+    render(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} />)
+    await screen.findByText('Page row 0')
+    fireEvent.click(screen.getAllByTitle('Select for comparison')[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await screen.findByText('After AI edit')
+    expect(api.versionApi.getSnapshots).toHaveBeenLastCalledWith('project-1', { fileId: undefined, limit: 50, offset: 50 })
+    expect(screen.getByText('Page row 0')).toBeInTheDocument()
+    fireEvent.click(screen.getAllByTitle('Select for comparison')[50])
+    expect(screen.getByRole('button', { name: 'Compare' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
+  })
+
+  it('keeps loaded rows on append failure and retries the same raw offset without duplicates', async () => {
+    const firstPage = Array.from({ length: 50 }, (_, index) => ({ ...mockSnapshots[0], id: `page-${index}`, description: `Page row ${index}` }))
+    vi.mocked(api.versionApi.getSnapshots).mockResolvedValueOnce(firstPage).mockRejectedValueOnce(new Error('append failed')).mockResolvedValueOnce([firstPage[49], mockSnapshots[1]])
+    render(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} />)
+    await screen.findByText('Page row 0')
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await screen.findByText('Failed to load versions')
+    expect(screen.getByText('Page row 0')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await screen.findByText('After AI edit')
+    expect(api.versionApi.getSnapshots).toHaveBeenLastCalledWith('project-1', { fileId: undefined, limit: 50, offset: 50 })
+    expect(screen.getAllByText('Page row 49')).toHaveLength(1)
+  })
+
+  it('ignores an older project response after the current project has loaded', async () => {
+    let resolveOld!: (value: typeof mockSnapshots) => void
+    const old = new Promise<typeof mockSnapshots>((resolve) => { resolveOld = resolve })
+    vi.mocked(api.versionApi.getSnapshots).mockReturnValueOnce(old).mockResolvedValueOnce([{ ...mockSnapshots[1], description: 'Current project' }])
+    const view = render(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} />)
+    view.rerender(<VersionHistoryPanel projectId="project-2" onClose={mockOnClose} />)
+    await screen.findByText('Current project')
+    await act(async () => { resolveOld(mockSnapshots); await old })
+    expect(screen.getByText('Current project')).toBeInTheDocument()
+    expect(screen.queryByText('Initial version')).not.toBeInTheDocument()
+  })
+
+  it('retries an initial history-load error without closing the panel', async () => {
+    vi.mocked(api.versionApi.getSnapshots).mockRejectedValueOnce(new Error('initial failed')).mockResolvedValueOnce(mockSnapshots)
+    render(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} />)
+    await screen.findByText('Failed to load versions')
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await screen.findByText('Initial version')
+    expect(mockOnClose).not.toHaveBeenCalled()
+  })
+
+  it('keeps the panel mounted and rejects duplicate restore submissions until reconciliation', async () => {
+    let finish!: () => void
+    const pending = new Promise<void>((resolve) => { finish = resolve })
+    vi.mocked(api.versionApi.rollback).mockReturnValueOnce(pending)
+    render(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} onRollback={mockOnRollback} />)
+    await screen.findByText('Initial version')
+    const rollback = screen.getAllByTitle('Rollback to this version')[0]
+    const close = screen.getAllByRole('button').find((button) => button.querySelector('.lucide-x') && button.className.includes('rounded-md'))!
+    try {
+      fireEvent.click(rollback)
+      fireEvent.click(rollback)
+      expect(close).toBeDisabled()
+      fireEvent.click(close)
+      expect(mockOnClose).not.toHaveBeenCalled()
+      expect(api.versionApi.rollback).toHaveBeenCalledTimes(1)
+    } finally {
+      await act(async () => { finish(); await pending })
+    }
+    await waitFor(() => expect(mockOnRollback).toHaveBeenCalledOnce())
+    expect(close).toBeEnabled()
+  })
+
+  it('shows description update failures instead of silently logging them', async () => {
+    vi.mocked(api.versionApi.updateSnapshot).mockRejectedValueOnce(new Error('update failed'))
+    render(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} />)
+    await screen.findByText('Initial version')
+    const edit = screen.getAllByRole('button').find((button) => {
+      const icon = button.querySelector('svg')
+      return icon?.classList.contains('w-3.5') && icon.classList.contains('h-3.5')
+    })!
+    fireEvent.click(edit)
+    fireEvent.change(screen.getByPlaceholderText('Add a description'), { target: { value: 'New description' } })
+    const save = screen.getAllByRole('button').find((button) => button.querySelector('.lucide-check'))!
+    fireEvent.click(save)
+    await screen.findByText('Description update failed')
+    expect(screen.getByDisplayValue('New description')).toBeInTheDocument()
+  })
+
+  it('does not abandon an in-flight restore when only the translator changes', async () => {
+    let finish!: () => void
+    const pending = new Promise<void>((resolve) => { finish = resolve })
+    vi.mocked(api.versionApi.rollback).mockReturnValueOnce(pending)
+    const view = render(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} onRollback={mockOnRollback} />)
+    await screen.findByText('Initial version')
+    try {
+      fireEvent.click(screen.getAllByTitle('Rollback to this version')[0])
+      activeTranslator = vi.fn((key: string) => mockT(key))
+      view.rerender(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} onRollback={mockOnRollback} />)
+      const close = screen.getAllByRole('button').find((button) => button.querySelector('.lucide-x') && button.className.includes('rounded-md'))!
+      expect(close).toBeDisabled()
+      expect(api.versionApi.getSnapshots).toHaveBeenCalledTimes(1)
+    } finally {
+      await act(async () => { finish(); await pending })
+    }
+    await waitFor(() => expect(mockOnRollback).toHaveBeenCalledOnce())
+  })
+
+  it('advances the raw offset before deduplication and allows only one pending page request', async () => {
+    const firstPage = Array.from({ length: 50 }, (_, index) => ({ ...mockSnapshots[0], id: `page-${index}`, description: `Page row ${index}` }))
+    const secondPage = Array.from({ length: 50 }, (_, index) => ({ ...mockSnapshots[0], id: `page-${49 + index}`, description: `Page row ${49 + index}` }))
+    let finish!: (rows: typeof mockSnapshots) => void
+    const pending = new Promise<typeof mockSnapshots>((resolve) => { finish = resolve })
+    vi.mocked(api.versionApi.getSnapshots).mockResolvedValueOnce(firstPage).mockReturnValueOnce(pending).mockResolvedValueOnce([])
+    render(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} />)
+    await screen.findByText('Page row 0')
+    const load = screen.getByRole('button', { name: 'Load more' })
+    try {
+      act(() => {
+        fireEvent.click(load)
+        fireEvent.click(load)
+      })
+      expect(api.versionApi.getSnapshots).toHaveBeenCalledTimes(2)
+    } finally {
+      await act(async () => { finish(secondPage); await pending })
+    }
+    await screen.findByText('Page row 98')
+    expect(screen.getAllByText('Page row 49')).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument())
+    expect(api.versionApi.getSnapshots).toHaveBeenLastCalledWith('project-1', { fileId: undefined, limit: 50, offset: 100 })
+    expect(screen.getAllByTitle('Select for comparison')).toHaveLength(99)
+  })
+
+  it.each(['response', 'error'] as const)('discards a stale outline append %s without clearing the new loading state', async (outcome) => {
+    const firstPage = Array.from({ length: 50 }, (_, index) => ({ ...mockSnapshots[0], id: `page-${index}`, description: `Page row ${index}` }))
+    let finishOld!: (rows: typeof mockSnapshots) => void
+    let failOld!: (error: Error) => void
+    let finishCurrent!: (rows: typeof mockSnapshots) => void
+    const old = new Promise<typeof mockSnapshots>((resolve, reject) => { finishOld = resolve; failOld = reject })
+    const current = new Promise<typeof mockSnapshots>((resolve) => { finishCurrent = resolve })
+    vi.mocked(api.versionApi.getSnapshots).mockResolvedValueOnce(firstPage).mockReturnValueOnce(old).mockReturnValueOnce(current)
+    const view = render(<VersionHistoryPanel projectId="project-1" outlineId="outline-a" onClose={mockOnClose} />)
+    await screen.findByText('Page row 0')
+    fireEvent.click(screen.getAllByTitle('Select for comparison')[0])
+    fireEvent.click(screen.getAllByTitle('Select for comparison')[1])
+    fireEvent.click(screen.getByRole('button', { name: 'Compare' }))
+    const edit = screen.getAllByRole('button').find((button) => button.querySelector('svg.w-3\\.5.h-3\\.5'))!
+    fireEvent.click(edit)
+    fireEvent.change(screen.getByPlaceholderText('Add a description'), { target: { value: 'Old outline draft' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    view.rerender(<VersionHistoryPanel projectId="project-1" outlineId="outline-b" onClose={mockOnClose} />)
+    try {
+      await act(async () => {
+        if (outcome === 'error') failOld(new Error('Old append failed'))
+        else finishOld(mockSnapshots)
+        await old.catch(() => undefined)
+      })
+      expect(screen.getByText('Loading...')).toBeInTheDocument()
+      expect(screen.queryByText('Failed to load versions')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('comparison-dialog')).not.toBeInTheDocument()
+      expect(screen.queryByPlaceholderText('Add a description')).not.toBeInTheDocument()
+    } finally {
+      await act(async () => { finishCurrent([{ ...mockSnapshots[1], description: 'Current outline' }]); await current })
+    }
+    await screen.findByText('Current outline')
+    expect(screen.queryByText('Page row 0')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Compare' })).not.toBeInTheDocument()
+    expect(api.versionApi.getSnapshots).toHaveBeenLastCalledWith('project-1', { fileId: 'outline-b', limit: 50 })
+  })
+
+  it('keeps close and restore disabled until an asynchronous parent reconciliation finishes', async () => {
+    let finish!: () => void
+    const pending = new Promise<void>((resolve) => { finish = resolve })
+    mockOnRollback.mockReturnValueOnce(pending)
+    render(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} onRollback={mockOnRollback} />)
+    await screen.findByText('Initial version')
+    fireEvent.click(screen.getAllByTitle('Rollback to this version')[0])
+    try {
+      await waitFor(() => expect(mockOnRollback).toHaveBeenCalledOnce())
+      const close = screen.getAllByRole('button').find((button) => button.querySelector('.lucide-x') && button.className.includes('rounded-md'))!
+      expect(close).toBeDisabled()
+      expect(screen.getAllByTitle('Rollback to this version')[0]).toBeDisabled()
+      expect(api.versionApi.getSnapshots).toHaveBeenCalledTimes(1)
+      fireEvent.click(close)
+      expect(mockOnClose).not.toHaveBeenCalled()
+    } finally {
+      await act(async () => { finish(); await pending })
+    }
+    await waitFor(() => expect(screen.getAllByTitle('Rollback to this version')[0]).toBeEnabled())
+  })
+
+  it('reenables restore after a failed POST without reconciling success', async () => {
+    const alert = vi.fn()
+    vi.stubGlobal('alert', alert)
+    vi.mocked(api.versionApi.rollback).mockRejectedValueOnce(new Error('Restore failed'))
+    render(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} onRollback={mockOnRollback} />)
+    await screen.findByText('Initial version')
+    fireEvent.click(screen.getAllByTitle('Rollback to this version')[0])
+    await waitFor(() => expect(alert).toHaveBeenCalledWith('Rollback failed'))
+    expect(screen.getAllByTitle('Rollback to this version')[0]).toBeEnabled()
+    expect(mockOnRollback).not.toHaveBeenCalled()
+    expect(mockOnClose).not.toHaveBeenCalled()
+  })
+
+  it('does not reconcile a submitted restore into a different project', async () => {
+    let finish!: () => void
+    const pending = new Promise<void>((resolve) => { finish = resolve })
+    vi.mocked(api.versionApi.rollback).mockReturnValueOnce(pending)
+    const view = render(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} onRollback={mockOnRollback} />)
+    await screen.findByText('Initial version')
+    fireEvent.click(screen.getAllByTitle('Rollback to this version')[0])
+    view.rerender(<VersionHistoryPanel projectId="project-2" onClose={mockOnClose} onRollback={mockOnRollback} />)
+    await screen.findByText('Initial version')
+    await act(async () => { finish(); await pending })
+    expect(mockOnRollback).not.toHaveBeenCalled()
+    expect(screen.getAllByTitle('Rollback to this version')[0]).toBeEnabled()
+  })
+
+  it.each(['response', 'error'] as const)('ignores a description update %s after changing outline', async (outcome) => {
+    let finish!: (snapshot: (typeof mockSnapshots)[number]) => void
+    let fail!: (error: Error) => void
+    const pending = new Promise<(typeof mockSnapshots)[number]>((resolve, reject) => { finish = resolve; fail = reject })
+    vi.mocked(api.versionApi.updateSnapshot).mockReturnValueOnce(pending)
+    vi.mocked(api.versionApi.getSnapshots).mockResolvedValueOnce(mockSnapshots).mockResolvedValueOnce([{ ...mockSnapshots[0], description: 'Current outline' }])
+    const view = render(<VersionHistoryPanel projectId="project-1" outlineId="outline-a" onClose={mockOnClose} />)
+    await screen.findByText('Initial version')
+    const edit = screen.getAllByRole('button').find((button) => button.querySelector('svg.w-3\\.5.h-3\\.5'))!
+    fireEvent.click(edit)
+    fireEvent.change(screen.getByPlaceholderText('Add a description'), { target: { value: 'Old outline description' } })
+    fireEvent.click(screen.getAllByRole('button').find((button) => button.querySelector('.lucide-check'))!)
+    view.rerender(<VersionHistoryPanel projectId="project-1" outlineId="outline-b" onClose={mockOnClose} />)
+    await screen.findByText('Current outline')
+    await act(async () => {
+      if (outcome === 'error') fail(new Error('Old description update failed'))
+      else finish({ ...mockSnapshots[0], description: 'Old outline description' })
+      await pending.catch(() => undefined)
+    })
+    expect(screen.getByText('Current outline')).toBeInTheDocument()
+    expect(screen.queryByText('Old outline description')).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('updates a loaded older snapshot locally without throwing away pages', async () => {
+    const firstPage = Array.from({ length: 50 }, (_, index) => ({ ...mockSnapshots[0], id: `page-${index}`, description: `Page row ${index}` }))
+    vi.mocked(api.versionApi.getSnapshots).mockResolvedValueOnce(firstPage).mockResolvedValueOnce([mockSnapshots[1]])
+    vi.mocked(api.versionApi.updateSnapshot).mockResolvedValueOnce({ ...mockSnapshots[1], description: 'Updated older snapshot' })
+    render(<VersionHistoryPanel projectId="project-1" onClose={mockOnClose} />)
+    await screen.findByText('Page row 0')
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await screen.findByText('After AI edit')
+    const edits = screen.getAllByRole('button').filter((button) => button.querySelector('svg.w-3\\.5.h-3\\.5'))
+    fireEvent.click(edits[50])
+    fireEvent.change(screen.getByPlaceholderText('Add a description'), { target: { value: 'Updated older snapshot' } })
+    fireEvent.click(screen.getAllByRole('button').find((button) => button.querySelector('.lucide-check'))!)
+    await screen.findByText('Updated older snapshot')
+    expect(screen.getByText('Page row 0')).toBeInTheDocument()
+    expect(api.versionApi.getSnapshots).toHaveBeenCalledTimes(2)
+    expect(screen.getAllByTitle('Select for comparison')).toHaveLength(51)
   })
 })

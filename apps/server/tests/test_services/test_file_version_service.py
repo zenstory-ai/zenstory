@@ -609,8 +609,8 @@ class TestFileVersionServiceRollback:
 
     def test_rollback_file_not_found(self, db_session: Session, file_version_service):
         """Test rollback for non-existent file raises ValueError."""
-        # The service first tries to get the version, which fails before checking the file
-        with pytest.raises(ValueError, match="Version .* not found"):
+        # Conditional restore must lock and verify the live File before history.
+        with pytest.raises(ValueError, match="File non-existent-file-id not found"):
             file_version_service.rollback_to_version(
                 session=db_session,
                 file_id="non-existent-file-id",

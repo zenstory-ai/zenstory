@@ -60,7 +60,7 @@ async def test_submit_feedback_removes_new_screenshot_when_persistence_fails(
     )
 
     with pytest.raises(RuntimeError, match=f"{failure_point} failed"):
-        await submit_feedback(
+        submit_feedback(
             issue_text="persistence failure",
             source_page="editor",
             source_route=None,
@@ -99,7 +99,7 @@ async def test_submit_feedback_never_deletes_a_preexisting_filename(monkeypatch,
     )
 
     with pytest.raises(FileExistsError):
-        await submit_feedback(
+        submit_feedback(
             issue_text="collision",
             source_page="editor",
             source_route=None,

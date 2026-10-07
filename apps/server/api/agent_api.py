@@ -6,8 +6,12 @@ All endpoints require valid API key with appropriate scopes.
 """
 
 import asyncio
+import contextlib
+import contextvars
 import json
 import logging
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import ClassVar, Literal
 
@@ -19,7 +23,7 @@ from sqlmodel import col, select
 
 from agent.context.assembler import ContextAssembler
 from api.agent_dependencies import AgentAuthContext, require_project_access, require_scope
-from config.datetime_utils import utcnow
+from config.datetime_utils import advance_timestamp, normalize_datetime_to_utc, utcnow
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import create_session
@@ -31,6 +35,7 @@ from services.features.file_version_service import get_file_version_service
 from services.file_tree_rules import (
     MAX_FILE_ORDER,
     ParentNotFoundError,
+    lock_project_for_files,
     resolve_new_file_order,
     validate_parent_assignment,
 )
@@ -89,6 +94,10 @@ class FileUpdate(BaseModel):
     title: str | None = Field(default=None, description="New title")
     content: str | None = Field(default=None, description="New content")
     order: int | None = Field(default=None, ge=0, le=MAX_FILE_ORDER, description="New sort order among siblings")
+    base_updated_at: datetime | None = Field(
+        default=None,
+        description="Optional optimistic concurrency token from the loaded file. Nonmatching timestamps return 409.",
+    )
 
 
 class FileMove(BaseModel):
@@ -122,12 +131,6 @@ class FileResponse(BaseModel):
         "parent_id", "order", "file_metadata", "created_at", "updated_at",
     }
 
-    def to_filtered_dict(self, fields: set[str] | None = None) -> dict:
-        """Return dict with only requested fields. None = all fields."""
-        if fields is None:
-            return self.model_dump()
-        return {k: v for k, v in self.model_dump().items() if k in fields}
-
 
 class FileWriteResponse(FileResponse):
     """Response for a content write (create / PUT). Mirrors the web PUT /files/{id}."""
@@ -153,6 +156,13 @@ class FileListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+def _serialize_file_response(file: File, fields: set[str] | None) -> dict:
+    """Serialize a complete file or read only the explicitly projected attributes."""
+    if fields is None:
+        return FileResponse.model_validate(file).model_dump()
+    return {field: getattr(file, field) for field in FileResponse.model_fields if field in fields}
 
 
 class FolderResponse(BaseModel):
@@ -240,9 +250,21 @@ class ProjectUpdate(BaseModel):
 # ==================== Helpers ====================
 
 
-def _load_accessible_file(session, user_id: str, api_key, file_id: str) -> File:
+def _load_accessible_file(session, user_id: str, api_key, file_id: str, *, for_write: bool = False) -> File:
     """Load a live file the key may use: another user's file is 404, a project outside the key's allowlist 403."""
-    file = session.get(File, file_id)
+    if for_write:
+        from database import is_postgres
+
+        if is_postgres:
+            file = session.exec(
+                select(File).where(File.id == file_id)
+                .with_for_update(key_share=True)
+                .execution_options(populate_existing=True)
+            ).first()
+        else:
+            file = session.get(File, file_id, populate_existing=True)
+    else:
+        file = session.get(File, file_id)
     if not file or file.is_deleted:
         raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404)
 
@@ -259,10 +281,10 @@ def _load_accessible_file(session, user_id: str, api_key, file_id: str) -> File:
     return file
 
 
-def _validate_parent(session, project_id: str, parent_id: str | None, *, moving_file_id: str | None = None) -> str | None:
+def _validate_parent(session, project_id: str, parent_id: str | None, *, moving_file_id: str | None = None, refresh_parent: bool = False) -> str | None:
     """services.file_tree_rules.validate_parent_assignment, translated to Agent API errors (400)."""
     try:
-        return validate_parent_assignment(session, project_id, parent_id, moving_file_id=moving_file_id)
+        return validate_parent_assignment(session, project_id, parent_id, moving_file_id=moving_file_id, refresh_parent=refresh_parent)
     except ParentNotFoundError as exc:
         raise APIException(
             error_code=ErrorCode.FILE_NOT_FOUND,
@@ -317,7 +339,7 @@ def _schedule_file_index_upsert(background_tasks: BackgroundTasks, file: File, u
 
 
 @router.get("/projects", response_model=list[ProjectResponse])
-async def list_projects(
+def list_projects(
     _rate_limit: int = Depends(require_agent_rate_limit("agent_read", 2000, 3600)),
     context: AgentAuthContext = Depends(require_scope("read")),
 ):
@@ -356,7 +378,7 @@ async def list_projects(
 
 
 @router.get("/projects/{project_id}", response_model=ProjectResponse)
-async def get_project(
+def get_project(
     project_id: str,
     _rate_limit: int = Depends(require_agent_rate_limit("agent_read", 2000, 3600)),
     context: AgentAuthContext = Depends(require_project_access("read")),
@@ -380,7 +402,7 @@ async def get_project(
 
 
 @router.post("/projects", response_model=ProjectCreateResponse)
-async def create_project(
+def create_project(
     project_data: ProjectCreate,
     accept_language: str | None = Header(None, alias="Accept-Language"),
     _rate_limit: int = Depends(require_agent_rate_limit("agent_write", 1000, 3600)),
@@ -448,7 +470,7 @@ async def create_project(
 
 
 @router.put("/projects/{project_id}", response_model=ProjectResponse)
-async def update_project(
+def update_project(
     project_id: str,
     project_data: ProjectUpdate,
     _rate_limit: int = Depends(require_agent_rate_limit("agent_write", 1000, 3600)),
@@ -491,7 +513,7 @@ async def update_project(
 
 
 @router.delete("/projects/{project_id}")
-async def delete_project(
+def delete_project(
     project_id: str,
     _rate_limit: int = Depends(require_agent_rate_limit("agent_write", 1000, 3600)),
     context: AgentAuthContext = Depends(require_project_access("write")),
@@ -531,7 +553,7 @@ async def delete_project(
 
 
 @router.get("/projects/{project_id}/files", response_model=FileListResponse)
-async def list_files(
+def list_files(
     project_id: str,
     file_type: str | None = Query(None, description="Filter by file type"),
     parent_id: str | None = Query(None, description="Filter by parent ID"),
@@ -612,7 +634,7 @@ async def list_files(
 
     files = session.exec(query).all()
 
-    file_responses = [FileResponse.model_validate(f).to_filtered_dict(requested_fields) for f in files]
+    file_responses = [_serialize_file_response(file, requested_fields) for file in files]
 
     log_with_context(
         logger,
@@ -635,7 +657,7 @@ async def list_files(
 
 
 @router.post("/projects/{project_id}/files", response_model=FileWriteResponse)
-async def create_file(
+def create_file(
     project_id: str,
     file_data: FileCreate,
     background_tasks: BackgroundTasks,
@@ -650,18 +672,16 @@ async def create_file(
     """
     session, user_id, api_key = context
 
-    parent_id = _validate_parent(session, project_id, file_data.parent_id)
+    project = lock_project_for_files(session, project_id)
+    if not project or project.is_deleted or project.owner_id != user_id:
+        raise APIException(error_code=ErrorCode.PROJECT_NOT_FOUND, status_code=404)
+    parent_id = _validate_parent(session, project_id, file_data.parent_id, refresh_parent=True)
 
     # Serialize metadata
     metadata_str = json.dumps(file_data.metadata) if file_data.metadata else None
 
-    file = File(
-        project_id=project_id,
-        title=file_data.title,
-        content=file_data.content,
-        file_type=file_data.file_type,
-        parent_id=parent_id,
-        order=resolve_new_file_order(
+    try:
+        resolved_order = resolve_new_file_order(
             session,
             project_id,
             parent_id,
@@ -669,7 +689,19 @@ async def create_file(
             metadata=file_data.metadata,
             file_type=file_data.file_type,
             requested_order=file_data.order,
-        ),
+        )
+    except ValueError as exc:
+        raise APIException(
+            error_code=ErrorCode.VALIDATION_ERROR, status_code=400, message=str(exc),
+        ) from exc
+
+    file = File(
+        project_id=project_id,
+        title=file_data.title,
+        content=file_data.content,
+        file_type=file_data.file_type,
+        parent_id=parent_id,
+        order=resolved_order,
         file_metadata=metadata_str,
     )
 
@@ -729,7 +761,7 @@ async def create_file(
 
 
 @router.get("/files/{file_id}", response_model=_FilteredFileResponse)
-async def get_file(
+def get_file(
     file_id: str,
     fields: str | None = Query(None, description="Comma-separated fields to return (e.g. 'id,title,content')"),
     _rate_limit: int = Depends(require_agent_rate_limit("agent_read", 2000, 3600)),
@@ -785,7 +817,7 @@ async def get_file(
             detail="API Key does not have access to this project",
         )
 
-    return FileResponse.model_validate(file).to_filtered_dict(requested_fields)
+    return _serialize_file_response(file, requested_fields)
 
 
 def _snapshot_agent_file_content(
@@ -847,7 +879,7 @@ def _snapshot_agent_file_content(
 
 
 @router.put("/files/{file_id}", response_model=FileWriteResponse)
-async def update_file(
+def update_file(
     file_id: str,
     file_data: FileUpdate,
     background_tasks: BackgroundTasks,
@@ -862,33 +894,58 @@ async def update_file(
     """
     session, user_id, api_key = context
 
-    file = _load_accessible_file(session, user_id, api_key, file_id)
+    from agent.tools.file_ops.edit import file_write_lock
+    from database import is_postgres
 
-    # Update fields
-    if file_data.title is not None:
-        file.title = file_data.title
+    # Serialize with web/editor/tool writes and refresh after taking the lock.
+    # This sync endpoint keeps DB IO and SQLite lock waits off the event loop.
+    lock_ctx = contextlib.nullcontext() if is_postgres else file_write_lock(file_id)
+    with lock_ctx:
+        file = _load_accessible_file(session, user_id, api_key, file_id, for_write=True)
+        current_stamp = normalize_datetime_to_utc(file.updated_at)
+        if file_data.base_updated_at is not None:
+            expected = normalize_datetime_to_utc(file_data.base_updated_at)
+            if expected != current_stamp:
+                raise APIException(
+                    error_code=ErrorCode.RESOURCE_CONFLICT,
+                    status_code=409,
+                    detail={
+                        "reason": "stale_write",
+                        "file_id": file.id,
+                        "current_updated_at": current_stamp.isoformat(),
+                        "base_updated_at": expected.isoformat(),
+                    },
+                )
 
-    content_changed = file_data.content is not None and file_data.content != file.content
-    if file_data.content is not None:
-        file.content = file_data.content
+        prospective_title = file_data.title if file_data.title is not None else file.title
+        prospective_content = file_data.content if file_data.content is not None else file.content
+        content_changed = file_data.content is not None and file_data.content != file.content
+        prospective_order = file.order
+        if file_data.order is not None or file_data.title is not None:
+            try:
+                prospective_order = resolve_persisted_sequence_order(
+                    file_data.order if file_data.order is not None else file.order,
+                    title=prospective_title,
+                    metadata=_file_metadata(file),
+                    file_type=file.file_type,
+                )
+            except ValueError as exc:
+                raise APIException(
+                    error_code=ErrorCode.VALIDATION_ERROR, status_code=400, message=str(exc),
+                ) from exc
 
-    if file_data.order is not None or file_data.title is not None:
-        # Same rule as the web PUT: chapter-like titles keep sorting by their number.
-        file.order = resolve_persisted_sequence_order(
-            file_data.order if file_data.order is not None else file.order,
-            title=file.title,
-            metadata=_file_metadata(file),
-            file_type=file.file_type,
-        )
+        file.title = prospective_title
+        file.content = prospective_content
+        file.order = prospective_order
 
-    file.updated_at = utcnow()
+        file.updated_at = advance_timestamp(current_stamp, now=utcnow())
 
-    version_quota_exceeded = False
-    if content_changed:
-        version_quota_exceeded = _snapshot_agent_file_content(session, file, user_id, api_key.id)
+        version_quota_exceeded = False
+        if content_changed:
+            version_quota_exceeded = _snapshot_agent_file_content(session, file, user_id, api_key.id)
 
-    session.commit()
-    session.refresh(file)
+        session.commit()
+        session.refresh(file)
 
     log_with_context(
         logger,
@@ -908,7 +965,7 @@ async def update_file(
 
 
 @router.delete("/files/{file_id}")
-async def delete_file(
+def delete_file(
     file_id: str,
     background_tasks: BackgroundTasks,
     _rate_limit: int = Depends(require_agent_rate_limit("agent_write", 1000, 3600)),
@@ -922,33 +979,21 @@ async def delete_file(
     """
     session, user_id, api_key = context
 
-    file = session.get(File, file_id)
-    if not file or file.is_deleted:
-        raise APIException(
-            error_code=ErrorCode.FILE_NOT_FOUND,
-            status_code=404,
-        )
+    file = _load_accessible_file(session, user_id, api_key, file_id)
+    lock_project_for_files(session, file.project_id, exclusive=True)
+    from agent.tools.file_ops.edit import file_write_lock
+    from database import is_postgres
 
-    # Verify project access
-    project = session.get(Project, file.project_id)
-    if not project or project.owner_id != user_id or project.is_deleted:
-        raise APIException(
-            error_code=ErrorCode.FILE_NOT_FOUND,
-            status_code=404,
-        )
+    lock_ctx = contextlib.nullcontext() if is_postgres else file_write_lock(file_id)
+    with lock_ctx:
+        file = _load_accessible_file(session, user_id, api_key, file_id, for_write=True)
 
-    if not verify_project_access(api_key, file.project_id):
-        raise APIException(
-            error_code=ErrorCode.NOT_AUTHORIZED,
-            status_code=403,
-            detail="API Key does not have access to this project",
-        )
+        # Soft delete
+        file.is_deleted = True
+        file.deleted_at = utcnow()
+        file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
 
-    # Soft delete
-    file.is_deleted = True
-    file.deleted_at = utcnow()
-
-    session.commit()
+        session.commit()
 
     log_with_context(
         logger,
@@ -1003,18 +1048,36 @@ def move_file(
     session, user_id, api_key = context
 
     file = _load_accessible_file(session, user_id, api_key, file_id)
-    file.parent_id = _validate_parent(session, file.project_id, move_data.parent_id, moving_file_id=file.id)
-    if move_data.order is not None:
-        file.order = resolve_persisted_sequence_order(
-            move_data.order,
-            title=file.title,
-            metadata=_file_metadata(file),
-            file_type=file.file_type,
-        )
-    file.updated_at = utcnow()
+    lock_project_for_files(session, file.project_id, exclusive=True)
+    from agent.tools.file_ops.edit import file_write_lock
+    from database import is_postgres
 
-    session.commit()
-    session.refresh(file)
+    lock_ctx = contextlib.nullcontext() if is_postgres else file_write_lock(file_id)
+    with lock_ctx:
+        file = _load_accessible_file(session, user_id, api_key, file_id, for_write=True)
+        prospective_parent_id = _validate_parent(
+            session, file.project_id, move_data.parent_id,
+            moving_file_id=file.id, refresh_parent=True,
+        )
+        prospective_order = file.order
+        if move_data.order is not None:
+            try:
+                prospective_order = resolve_persisted_sequence_order(
+                    move_data.order,
+                    title=file.title,
+                    metadata=_file_metadata(file),
+                    file_type=file.file_type,
+                )
+            except ValueError as exc:
+                raise APIException(
+                    error_code=ErrorCode.VALIDATION_ERROR, status_code=400, message=str(exc),
+                ) from exc
+        file.parent_id = prospective_parent_id
+        file.order = prospective_order
+        file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
+
+        session.commit()
+        session.refresh(file)
 
     log_with_context(
         logger,
@@ -1174,6 +1237,37 @@ def rollback_file_version(
 MAX_CONTENT_SNIPPET = 500
 MAX_PAYLOAD_BYTES = 50 * 1024  # 50KB
 WRITING_CONTEXT_TIMEOUT_SECONDS = 10.0
+WRITING_CONTEXT_WORKERS = 4
+
+# Assembly can outlive the HTTP timeout because Python cannot stop a running
+# thread. A dedicated pool plus an equal-size nonblocking gate bounds that work
+# to four active calls without consuming asyncio's shared default executor or
+# accepting an unbounded queue.
+_writing_context_executor = ThreadPoolExecutor(
+    max_workers=WRITING_CONTEXT_WORKERS,
+    thread_name_prefix="writing-context",
+)
+_writing_context_capacity = threading.BoundedSemaphore(WRITING_CONTEXT_WORKERS)
+
+
+def _submit_writing_context_work(work):
+    gate = _writing_context_capacity
+    if not gate.acquire(blocking=False):
+        raise APIException(
+            error_code=ErrorCode.SERVICE_UNAVAILABLE,
+            status_code=503,
+            detail="Writing context capacity is full",
+        )
+
+    try:
+        request_context = contextvars.copy_context()
+        future = _writing_context_executor.submit(request_context.run, work)
+    except BaseException:
+        gate.release()
+        raise
+
+    future.add_done_callback(lambda _future, acquired_gate=gate: acquired_gate.release())
+    return future
 
 
 @router.get("/projects/{project_id}/writing-context")
@@ -1212,9 +1306,10 @@ async def get_writing_context(
         finally:
             thread_session.close()
 
+    future = _submit_writing_context_work(_assemble_in_thread)
     try:
         context_data = await asyncio.wait_for(
-            asyncio.to_thread(_assemble_in_thread),
+            asyncio.wrap_future(future),
             timeout=WRITING_CONTEXT_TIMEOUT_SECONDS,
         )
     except TimeoutError:

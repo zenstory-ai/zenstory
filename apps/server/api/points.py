@@ -125,7 +125,7 @@ class PointsConfigResponse(BaseModel):
 # ============== Endpoints ==============
 
 @router.get("/balance", response_model=PointsBalanceResponse)
-async def get_balance(
+def get_balance(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -140,7 +140,7 @@ async def get_balance(
 
 
 @router.post("/check-in", response_model=CheckInResponse)
-async def check_in(
+def check_in(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -161,7 +161,7 @@ async def check_in(
 
 
 @router.get("/check-in/status", response_model=CheckInStatusResponse)
-async def get_check_in_status(
+def get_check_in_status(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -176,7 +176,7 @@ async def get_check_in_status(
 
 
 @router.get("/transactions", response_model=TransactionHistoryResponse)
-async def get_transactions(
+def get_transactions(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     session: Session = Depends(get_session),
@@ -218,7 +218,7 @@ async def get_transactions(
 
 
 @router.post("/redeem", response_model=RedeemProResponse)
-async def redeem_for_pro(
+def redeem_for_pro(
     request: RedeemProRequest,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user)
@@ -240,7 +240,7 @@ async def redeem_for_pro(
 
 
 @router.get("/earn-opportunities", response_model=list[EarnOpportunityResponse])
-async def get_earn_opportunities(
+def get_earn_opportunities(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user)
 ):

@@ -56,7 +56,7 @@ vi.mock('../SelectionToolbar', () => ({
 
 describe('SimpleEditor', () => {
   it('shows successful save status after StrictMode effect replay', async () => {
-    const onSave = vi.fn().mockResolvedValue('saved');
+    const onSave = vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' });
     const Harness = () => {
       const [content, setContent] = useState('Original');
       return <SimpleEditor fileId="strict-file" title="Draft" content={content} onTitleChange={vi.fn()} onContentChange={setContent} onSave={onSave} />;
@@ -102,7 +102,7 @@ describe('SimpleEditor', () => {
         content="Hello world"
         onTitleChange={vi.fn()}
         onContentChange={vi.fn()}
-        onSave={vi.fn().mockResolvedValue('saved')}
+        onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' })}
       />
     );
 
@@ -124,7 +124,7 @@ describe('SimpleEditor', () => {
         content="Hello world"
         onTitleChange={vi.fn()}
         onContentChange={vi.fn()}
-        onSave={vi.fn().mockResolvedValue('saved')}
+        onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' })}
         onEnterDiffReview={onEnterDiffReview}
       />
     );
@@ -164,7 +164,7 @@ describe('SimpleEditor', () => {
         content="Hello world"
         onTitleChange={vi.fn()}
         onContentChange={vi.fn()}
-        onSave={vi.fn().mockResolvedValue('saved')}
+        onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' })}
         onEnterDiffReview={onEnterDiffReview}
       />
     );
@@ -183,7 +183,7 @@ describe('SimpleEditor', () => {
         content="Another content"
         onTitleChange={vi.fn()}
         onContentChange={vi.fn()}
-        onSave={vi.fn().mockResolvedValue('saved')}
+        onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' })}
         onEnterDiffReview={onEnterDiffReview}
       />
     );
@@ -213,7 +213,7 @@ describe('SimpleEditor', () => {
         content="Hello world"
         onTitleChange={vi.fn()}
         onContentChange={vi.fn()}
-        onSave={vi.fn().mockResolvedValue('saved')}
+        onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' })}
       />
     );
 
@@ -227,7 +227,7 @@ describe('SimpleEditor', () => {
   });
 
   it('resets dirty state when switching files', () => {
-    const onSave = vi.fn().mockResolvedValue('saved');
+    const onSave = vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' });
     const onTitleChange = vi.fn();
     const onContentChange = vi.fn();
 
@@ -266,7 +266,7 @@ describe('SimpleEditor', () => {
   });
 
   it('keeps dirty baseline and skips stats when save reports a conflict', async () => {
-    const onSave = vi.fn().mockResolvedValue('conflict');
+    const onSave = vi.fn().mockResolvedValue({ outcome: 'conflict' });
     render(
       <SimpleEditor
         projectId="project-1"
@@ -295,7 +295,7 @@ describe('SimpleEditor', () => {
   });
 
   it('does not create content version when only title changes after async file switch', async () => {
-    const onSave = vi.fn().mockResolvedValue('saved');
+    const onSave = vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' });
     const onTitleChange = vi.fn();
     const onContentChange = vi.fn();
 
@@ -360,7 +360,7 @@ describe('SimpleEditor', () => {
         content={'line\n'.repeat(200)}
         onTitleChange={vi.fn()}
         onContentChange={vi.fn()}
-        onSave={vi.fn().mockResolvedValue('saved')}
+        onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' })}
       />
     );
 
@@ -379,7 +379,7 @@ describe('SimpleEditor', () => {
         content={'line\n'.repeat(40)}
         onTitleChange={vi.fn()}
         onContentChange={vi.fn()}
-        onSave={vi.fn().mockResolvedValue('saved')}
+        onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' })}
       />
     );
 
@@ -416,7 +416,7 @@ describe('SimpleEditor', () => {
   it('does not force auto-scroll to bottom when user scrolled away during streaming', async () => {
     const rafSpy = mockRaf();
 
-    const onSave = vi.fn().mockResolvedValue('saved');
+    const onSave = vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' });
     const onTitleChange = vi.fn();
     const onContentChange = vi.fn();
 
@@ -470,7 +470,7 @@ describe('SimpleEditor', () => {
   it('auto-scrolls to bottom during streaming when already near bottom', async () => {
     const rafSpy = mockRaf();
 
-    const onSave = vi.fn().mockResolvedValue('saved');
+    const onSave = vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' });
     const onTitleChange = vi.fn();
     const onContentChange = vi.fn();
 
@@ -523,14 +523,14 @@ describe('SimpleEditor', () => {
 
   it('keeps edits made during a deferred save dirty and saves them afterward', async () => {
     vi.useFakeTimers();
-    let resolveFirstSave: (outcome: 'saved') => void = () => {};
-    const firstSave = new Promise<'saved'>((resolve) => {
+    let resolveFirstSave: (outcome: { outcome: 'saved'; updatedAt: string }) => void = () => {};
+    const firstSave = new Promise<{ outcome: 'saved'; updatedAt: string }>((resolve) => {
       resolveFirstSave = resolve;
     });
     const onSave = vi
       .fn()
       .mockReturnValueOnce(firstSave)
-      .mockResolvedValueOnce('saved');
+      .mockResolvedValueOnce({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' });
 
     const Harness = () => {
       const [content, setContent] = useState('Original');
@@ -554,7 +554,7 @@ describe('SimpleEditor', () => {
     expect(onSave).toHaveBeenCalledTimes(1);
 
     fireEvent.change(textarea, { target: { value: 'Typed B while saving' } });
-    await act(async () => resolveFirstSave('saved'));
+    await act(async () => resolveFirstSave({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' }));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3000);
     });
@@ -565,9 +565,9 @@ describe('SimpleEditor', () => {
   });
 
   it('resolves queued save version and stats deltas against the preceding successful save', async () => {
-    let resolveFirstSave: (outcome: 'saved') => void = () => {};
-    const firstSave = new Promise<'saved'>((resolve) => { resolveFirstSave = resolve; });
-    const onSave = vi.fn().mockReturnValueOnce(firstSave).mockResolvedValue('saved');
+    let resolveFirstSave: (outcome: { outcome: 'saved'; updatedAt: string }) => void = () => {};
+    const firstSave = new Promise<{ outcome: 'saved'; updatedAt: string }>((resolve) => { resolveFirstSave = resolve; });
+    const onSave = vi.fn().mockReturnValueOnce(firstSave).mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' });
     vi.mocked(writingStatsApi.recordStats).mockResolvedValue(undefined as never);
     const Harness = () => {
       const [content, setContent] = useState('Old text');
@@ -583,7 +583,7 @@ describe('SimpleEditor', () => {
     fireEvent.change(textarea, { target: { value: 'First saved text plus' } });
     fireEvent.keyDown(textarea, { key: 's', ctrlKey: true });
     expect(onSave).toHaveBeenCalledTimes(1);
-    await act(async () => resolveFirstSave('saved'));
+    await act(async () => resolveFirstSave({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' }));
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
     expect(onSave.mock.calls[1][0]).toMatchObject({
       content: 'First saved text plus', versionIntent: { skip_version: true, word_count: 4 },
@@ -598,7 +598,7 @@ describe('SimpleEditor', () => {
 
   it('flushes the previous file snapshot when fileId changes before debounce', async () => {
     vi.useFakeTimers();
-    const onSave = vi.fn().mockResolvedValue('saved');
+    const onSave = vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' });
     const onContentChange = vi.fn();
     const { rerender } = render(
       <SimpleEditor
@@ -638,7 +638,7 @@ describe('SimpleEditor', () => {
   });
 
   it('flushes a dirty snapshot when the editor unmounts', async () => {
-    const onSave = vi.fn().mockResolvedValue('saved');
+    const onSave = vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' });
     const { unmount } = render(
       <SimpleEditor
         fileId="file-a"

@@ -9,7 +9,6 @@ Unit tests for the referral/invite code management service, covering:
 """
 import re
 from datetime import timedelta
-from unittest.mock import patch
 
 import pytest
 from sqlmodel import Session, select
@@ -20,29 +19,28 @@ from core.error_handler import APIException
 from models import User
 from models.points import PointsTransaction
 from models.referral import (
-    InviteCode,
-    Referral,
-    UserReward,
-    UserStats,
-    REFERRAL_STATUS_PENDING,
     REFERRAL_STATUS_COMPLETED,
+    REFERRAL_STATUS_PENDING,
     REFERRAL_STATUS_REWARDED,
     REWARD_TYPE_POINTS,
+    InviteCode,
+    UserReward,
+    UserStats,
 )
 from services.features.points_service import points_service
 from services.features.referral_service import (
-    generate_invite_code,
-    create_invite_code,
-    validate_invite_code,
-    create_referral,
-    complete_referral_and_reward,
-    get_user_referral_stats,
-    get_user_invite_codes,
-    MAX_INVITE_CODES_PER_USER,
-    INVITE_CODE_LENGTH,
-    INVITER_REWARD_POINTS,
-    INVITEE_REWARD_POINTS,
     INVITE_CODE_CHARS,
+    INVITE_CODE_LENGTH,
+    INVITEE_REWARD_POINTS,
+    INVITER_REWARD_POINTS,
+    MAX_INVITE_CODES_PER_USER,
+    complete_referral_and_reward,
+    create_invite_code,
+    create_referral,
+    generate_invite_code,
+    get_user_invite_codes,
+    get_user_referral_stats,
+    validate_invite_code,
 )
 
 
@@ -151,7 +149,7 @@ class TestCreateInviteCode:
     @pytest.mark.asyncio
     async def test_create_invite_code_success(self, db_session: Session, test_user):
         """Test successful creation of an invite code."""
-        invite_code = await create_invite_code(test_user.id, db_session)
+        invite_code = create_invite_code(test_user.id, db_session)
 
         assert invite_code is not None
         assert invite_code.code is not None
@@ -166,11 +164,11 @@ class TestCreateInviteCode:
         """Test that users cannot create more than MAX_INVITE_CODES_PER_USER codes."""
         # Create max number of codes
         for _ in range(MAX_INVITE_CODES_PER_USER):
-            await create_invite_code(test_user.id, db_session)
+            create_invite_code(test_user.id, db_session)
 
         # Try to create one more - should fail
         with pytest.raises(APIException) as exc_info:
-            await create_invite_code(test_user.id, db_session)
+            create_invite_code(test_user.id, db_session)
 
         assert exc_info.value.error_code == ErrorCode.REFERRAL_MAX_CODES_REACHED
         assert exc_info.value.status_code == 400
@@ -185,7 +183,7 @@ class TestCreateInviteCode:
         create_count = MAX_INVITE_CODES_PER_USER + 2
 
         for _ in range(create_count):
-            await create_invite_code(
+            create_invite_code(
                 test_user.id,
                 db_session,
                 ignore_max_limit=True,
@@ -205,7 +203,7 @@ class TestCreateInviteCode:
         # Create max codes
         codes = []
         for _ in range(MAX_INVITE_CODES_PER_USER):
-            code = await create_invite_code(test_user.id, db_session)
+            code = create_invite_code(test_user.id, db_session)
             codes.append(code)
 
         # Deactivate one code
@@ -214,7 +212,7 @@ class TestCreateInviteCode:
         db_session.commit()
 
         # Should now be able to create a new one
-        new_code = await create_invite_code(test_user.id, db_session)
+        new_code = create_invite_code(test_user.id, db_session)
         assert new_code is not None
 
     @pytest.mark.asyncio
@@ -222,7 +220,7 @@ class TestCreateInviteCode:
         """Test that each created code is unique."""
         codes = []
         for _ in range(MAX_INVITE_CODES_PER_USER):
-            code = await create_invite_code(test_user.id, db_session)
+            code = create_invite_code(test_user.id, db_session)
             codes.append(code.code)
 
         # All codes should be unique
@@ -237,10 +235,10 @@ class TestValidateInviteCode:
     async def test_validate_invite_code_valid(self, db_session: Session, test_user):
         """Test validation of a valid invite code."""
         # Create a code
-        created = await create_invite_code(test_user.id, db_session)
+        created = create_invite_code(test_user.id, db_session)
 
         # Validate it
-        is_valid, invite_code, error = await validate_invite_code(created.code, db_session)
+        is_valid, invite_code, error = validate_invite_code(created.code, db_session)
 
         assert is_valid is True
         assert invite_code is not None
@@ -250,10 +248,10 @@ class TestValidateInviteCode:
     @pytest.mark.asyncio
     async def test_validate_invite_code_case_insensitive(self, db_session: Session, test_user):
         """Test that code validation is case-insensitive."""
-        created = await create_invite_code(test_user.id, db_session)
+        created = create_invite_code(test_user.id, db_session)
 
         # Validate with lowercase
-        is_valid, invite_code, error = await validate_invite_code(created.code.lower(), db_session)
+        is_valid, invite_code, error = validate_invite_code(created.code.lower(), db_session)
 
         assert is_valid is True
         assert invite_code is not None
@@ -261,7 +259,7 @@ class TestValidateInviteCode:
     @pytest.mark.asyncio
     async def test_validate_invite_code_invalid(self, db_session: Session):
         """Test validation of a non-existent invite code."""
-        is_valid, invite_code, error = await validate_invite_code("XXXX-XXXX", db_session)
+        is_valid, invite_code, error = validate_invite_code("XXXX-XXXX", db_session)
 
         assert is_valid is False
         assert invite_code is None
@@ -282,7 +280,7 @@ class TestValidateInviteCode:
         db_session.add(invite_code)
         db_session.commit()
 
-        is_valid, result_code, error = await validate_invite_code("ABCD-1234", db_session)
+        is_valid, result_code, error = validate_invite_code("ABCD-1234", db_session)
 
         assert is_valid is False
         assert result_code is None
@@ -302,7 +300,7 @@ class TestValidateInviteCode:
         db_session.add(invite_code)
         db_session.commit()
 
-        is_valid, result_code, error = await validate_invite_code("ABCD-1234", db_session)
+        is_valid, result_code, error = validate_invite_code("ABCD-1234", db_session)
 
         assert is_valid is False
         assert result_code is None
@@ -322,7 +320,7 @@ class TestValidateInviteCode:
         db_session.add(invite_code)
         db_session.commit()
 
-        is_valid, result_code, error = await validate_invite_code("ABCD-1234", db_session)
+        is_valid, result_code, error = validate_invite_code("ABCD-1234", db_session)
 
         assert is_valid is False
         assert result_code is None
@@ -337,7 +335,7 @@ class TestCreateReferral:
     async def test_create_referral_success(self, db_session: Session, test_user, test_user_2):
         """Test successful creation of a referral relationship."""
         # Create invite code for inviter
-        invite_code = await create_invite_code(test_user.id, db_session)
+        invite_code = create_invite_code(test_user.id, db_session)
 
         # Create referral
         referral = await create_referral(
@@ -359,7 +357,7 @@ class TestCreateReferral:
     @pytest.mark.asyncio
     async def test_create_referral_updates_stats(self, db_session: Session, test_user, test_user_2):
         """Test that creating a referral updates inviter's stats."""
-        invite_code = await create_invite_code(test_user.id, db_session)
+        invite_code = create_invite_code(test_user.id, db_session)
 
         await create_referral(
             invite_code=invite_code,
@@ -378,7 +376,7 @@ class TestCreateReferral:
     @pytest.mark.asyncio
     async def test_create_referral_already_exists(self, db_session: Session, test_user, test_user_2):
         """Test that a user can only have one referral."""
-        invite_code = await create_invite_code(test_user.id, db_session)
+        invite_code = create_invite_code(test_user.id, db_session)
 
         # Create first referral
         await create_referral(
@@ -388,7 +386,7 @@ class TestCreateReferral:
         )
 
         # Create another code and try to refer same user again
-        invite_code_2 = await create_invite_code(test_user.id, db_session)
+        invite_code_2 = create_invite_code(test_user.id, db_session)
 
         with pytest.raises(APIException) as exc_info:
             await create_referral(
@@ -402,7 +400,7 @@ class TestCreateReferral:
     @pytest.mark.asyncio
     async def test_create_referral_with_fraud_detection_data(self, db_session: Session, test_user, test_user_2):
         """Test creating referral with device fingerprint and IP."""
-        invite_code = await create_invite_code(test_user.id, db_session)
+        invite_code = create_invite_code(test_user.id, db_session)
 
         referral = await create_referral(
             invite_code=invite_code,
@@ -424,7 +422,7 @@ class TestCompleteReferralAndReward:
     async def test_complete_referral_and_reward(self, db_session: Session, test_user, test_user_2):
         """Test completing a referral and distributing rewards."""
         # Setup: create invite code and referral
-        invite_code = await create_invite_code(test_user.id, db_session)
+        invite_code = create_invite_code(test_user.id, db_session)
         referral = await create_referral(
             invite_code=invite_code,
             invitee_id=test_user_2.id,
@@ -445,7 +443,7 @@ class TestCompleteReferralAndReward:
     @pytest.mark.asyncio
     async def test_complete_referral_inviter_reward(self, db_session: Session, test_user, test_user_2):
         """Test that inviter receives points reward."""
-        invite_code = await create_invite_code(test_user.id, db_session)
+        invite_code = create_invite_code(test_user.id, db_session)
         referral = await create_referral(
             invite_code=invite_code,
             invitee_id=test_user_2.id,
@@ -484,7 +482,7 @@ class TestCompleteReferralAndReward:
         test_user_2,
     ):
         """Test that invitee receives points reward."""
-        invite_code = await create_invite_code(test_user.id, db_session)
+        invite_code = create_invite_code(test_user.id, db_session)
         referral = await create_referral(
             invite_code=invite_code,
             invitee_id=test_user_2.id,
@@ -517,7 +515,7 @@ class TestCompleteReferralAndReward:
     @pytest.mark.asyncio
     async def test_complete_referral_updates_stats(self, db_session: Session, test_user, test_user_2):
         """Test that completing a referral updates user stats."""
-        invite_code = await create_invite_code(test_user.id, db_session)
+        invite_code = create_invite_code(test_user.id, db_session)
         referral = await create_referral(
             invite_code=invite_code,
             invitee_id=test_user_2.id,
@@ -544,7 +542,7 @@ class TestCompleteReferralAndReward:
         test_user_3,
     ):
         """Second referral from same inviter+IP in short window should be blocked."""
-        invite_code = await create_invite_code(test_user.id, db_session)
+        invite_code = create_invite_code(test_user.id, db_session)
         first_referral = await create_referral(
             invite_code=invite_code,
             invitee_id=test_user_2.id,
@@ -577,7 +575,7 @@ class TestCompleteReferralAndReward:
     @pytest.mark.asyncio
     async def test_complete_referral_idempotent(self, db_session: Session, test_user, test_user_2):
         """Test that completing an already rewarded referral is idempotent."""
-        invite_code = await create_invite_code(test_user.id, db_session)
+        invite_code = create_invite_code(test_user.id, db_session)
         referral = await create_referral(
             invite_code=invite_code,
             invitee_id=test_user_2.id,
@@ -604,7 +602,7 @@ class TestGetUserReferralStats:
     @pytest.mark.asyncio
     async def test_get_user_referral_stats_empty(self, db_session: Session, test_user):
         """Test getting stats for user with no referrals."""
-        stats = await get_user_referral_stats(test_user.id, db_session)
+        stats = get_user_referral_stats(test_user.id, db_session)
 
         assert stats["total_invites"] == 0
         assert stats["successful_invites"] == 0
@@ -614,7 +612,7 @@ class TestGetUserReferralStats:
     @pytest.mark.asyncio
     async def test_get_user_referral_stats_success(self, db_session: Session, test_user, test_user_2):
         """Test getting stats after successful referral."""
-        invite_code = await create_invite_code(test_user.id, db_session)
+        invite_code = create_invite_code(test_user.id, db_session)
         referral = await create_referral(
             invite_code=invite_code,
             invitee_id=test_user_2.id,
@@ -622,7 +620,7 @@ class TestGetUserReferralStats:
         )
         await complete_referral_and_reward(referral.id, db_session)
 
-        stats = await get_user_referral_stats(test_user.id, db_session)
+        stats = get_user_referral_stats(test_user.id, db_session)
 
         assert stats["total_invites"] == 1
         assert stats["successful_invites"] == 1
@@ -634,7 +632,7 @@ class TestGetUserReferralStats:
         self, db_session: Session, test_user, test_user_2
     ):
         """Available points should reflect the unified points wallet balance."""
-        invite_code = await create_invite_code(test_user.id, db_session)
+        invite_code = create_invite_code(test_user.id, db_session)
         referral = await create_referral(
             invite_code=invite_code,
             invitee_id=test_user_2.id,
@@ -649,7 +647,7 @@ class TestGetUserReferralStats:
             transaction_type="admin_adjustment",
         )
 
-        stats = await get_user_referral_stats(test_user.id, db_session)
+        stats = get_user_referral_stats(test_user.id, db_session)
         assert stats["total_points"] == INVITER_REWARD_POINTS
         assert stats["available_points"] == INVITER_REWARD_POINTS - 20
 
@@ -661,7 +659,7 @@ class TestGetUserInviteCodes:
     @pytest.mark.asyncio
     async def test_get_user_invite_codes_empty(self, db_session: Session, test_user):
         """Test getting codes for user with no codes."""
-        codes = await get_user_invite_codes(test_user.id, db_session)
+        codes = get_user_invite_codes(test_user.id, db_session)
         assert codes == []
 
     @pytest.mark.asyncio
@@ -670,10 +668,10 @@ class TestGetUserInviteCodes:
         # Create multiple codes
         created_codes = []
         for _ in range(2):
-            code = await create_invite_code(test_user.id, db_session)
+            code = create_invite_code(test_user.id, db_session)
             created_codes.append(code)
 
-        codes = await get_user_invite_codes(test_user.id, db_session)
+        codes = get_user_invite_codes(test_user.id, db_session)
 
         assert len(codes) == 2
         # Should be ordered by created_at desc

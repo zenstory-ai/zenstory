@@ -6,10 +6,10 @@ All quota operations use atomic database updates to prevent race conditions.
 from datetime import UTC, datetime
 
 from sqlalchemy import update
-from sqlmodel import Session, func, select
+from sqlmodel import Session, col, func, select
 
 from config.datetime_utils import BEIJING_TIMEZONE, beijing_day_bounds, normalize_datetime_to_utc, utcnow
-from models.entities import Project
+from models.entities import Project, User
 from models.skill import UserSkill
 from models.subscription import SubscriptionPlan, UsageQuota, UserSubscription
 from services.subscription.defaults import (
@@ -52,7 +52,7 @@ class QuotaService:
             select(UsageQuota).where(UsageQuota.user_id == user_id)
         ).first()
 
-    def get_user_plan(self, session: Session, user_id: str) -> SubscriptionPlan:
+    def get_user_plan(self, session: Session, user_id: str, *, commit: bool = True) -> SubscriptionPlan:
         """
         Get user's current subscription plan. Defaults to free plan.
         """
@@ -69,7 +69,7 @@ class QuotaService:
 
             # Active-but-expired subscriptions should not keep paid plan quotas.
             if period_end <= now:
-                self._expire_if_still_lapsed(session, subscription.id, now)
+                self._expire_if_still_lapsed(session, subscription.id, now, commit=commit)
             else:
                 plan = session.exec(
                     select(SubscriptionPlan).where(SubscriptionPlan.id == subscription.plan_id)
@@ -96,7 +96,7 @@ class QuotaService:
         return self._create_default_free_plan()
 
     def _expire_if_still_lapsed(
-        self, session: Session, subscription_id: str, now: datetime
+        self, session: Session, subscription_id: str, now: datetime, *, commit: bool = True
     ) -> None:
         """
         Mark a lapsed subscription expired without clobbering a concurrent renewal.
@@ -114,7 +114,9 @@ class QuotaService:
             )
             .values(status="expired", updated_at=now)
         )
-        if result.rowcount:
+        if not commit:
+            session.flush()
+        elif result.rowcount:
             session.commit()
         else:
             session.rollback()
@@ -174,16 +176,37 @@ class QuotaService:
         self,
         session: Session,
         user_id: str,
+        *,
+        for_creation: bool = False,
     ) -> tuple[bool, int, int]:
         """
         Check whether a user can create a new (active) project.
+
+        Creation callers serialize on the durable owner until their commit or
+        rollback. Checking-only callers retain the existing read/reset behavior.
 
         Returns: (allowed, used, limit)
         - allowed: True if user can proceed
         - used: current count of active (non-deleted) projects
         - limit: plan max_projects (-1 for unlimited)
         """
-        plan = self.get_user_plan(session, user_id)
+        if for_creation:
+            if session.get_bind().dialect.name == "postgresql":
+                owner_id = session.exec(
+                    select(User.id).where(User.id == user_id).with_for_update(key_share=True)
+                ).one_or_none()
+            else:
+                # SQLite serializes writers across the database, including
+                # different owners. Do not mutate the owner's timestamp.
+                result = session.exec(
+                    update(User).where(col(User.id) == user_id).values(id=User.id)
+                    .execution_options(synchronize_session=False)
+                )
+                owner_id = user_id if result.rowcount else None
+            if owner_id is None:
+                raise RuntimeError("Project creation owner is missing")
+
+        plan = self.get_user_plan(session, user_id, commit=False) if for_creation else self.get_user_plan(session, user_id)
         fallback_limit = DEFAULT_FREE_TIER_FEATURES.get("max_projects", 3)
         raw_limit = self.get_plan_feature(plan, "max_projects", fallback_limit)
         try:
@@ -484,11 +507,11 @@ class QuotaService:
             return existing
         return self.create_default_quota(session, user_id, commit=commit)
 
-    def _get_or_create_quota(self, session: Session, user_id: str) -> UsageQuota:
+    def _get_or_create_quota(self, session: Session, user_id: str, *, commit: bool = True) -> UsageQuota:
         """Get existing quota or create new one."""
         quota = self.get_user_quota(session, user_id)
         if not quota:
-            quota = self.create_default_quota(session, user_id)
+            quota = self.create_default_quota(session, user_id, commit=commit)
         return quota
 
     def _reset_quota_if_needed(self, session: Session, quota: UsageQuota) -> bool:
@@ -584,13 +607,14 @@ class QuotaService:
         return self.reserve_feature_quota(session, user_id, feature_type) is not None
 
     def reserve_feature_quota(
-        self, session: Session, user_id: str, feature_type: str
+        self, session: Session, user_id: str, feature_type: str, *, commit: bool = True
     ) -> datetime | None:
         """
         Atomically consume a feature unit and return its charged month's UTC start.
 
         None means the quota was exceeded. Persist this period for asynchronous
         work so that a later failure cannot refund a different month's usage.
+        With commit=False the caller owns commit/rollback of reservation and job.
         """
         if feature_type not in FEATURE_QUOTA_MAP:
             raise ValueError(f"Unknown feature type: {feature_type}")
@@ -598,11 +622,11 @@ class QuotaService:
         limit_field, used_field = FEATURE_QUOTA_MAP[feature_type]
         used_column = getattr(UsageQuota, used_field)
 
-        plan = self.get_user_plan(session, user_id)
+        plan = self.get_user_plan(session, user_id, commit=commit)
         limit = self.get_plan_feature(plan, limit_field)
 
-        quota = self._get_or_create_quota(session, user_id)
-        self._reset_monthly_quota_if_needed(session, quota)
+        quota = self._get_or_create_quota(session, user_id, commit=commit)
+        self._reset_monthly_quota_if_needed(session, quota, commit=commit)
 
         query = (
             update(UsageQuota)
@@ -615,15 +639,18 @@ class QuotaService:
 
         period_start = session.exec(query).scalar_one_or_none()
         if period_start is None:
-            session.rollback()
+            if commit:
+                session.rollback()
             return None
 
-        session.commit()
+        if commit:
+            session.commit()
         return normalize_datetime_to_utc(period_start)
 
     def release_feature_quota(
         self, session: Session, user_id: str, feature_type: str,
         *, period_start: datetime | None = None, consumed_at: datetime | None = None,
+        commit: bool = True,
     ) -> bool:
         """
         Decrement a monthly feature quota atomically as a compensation action.
@@ -631,7 +658,8 @@ class QuotaService:
         Returns True if one unit was refunded, False when there is nothing to
         refund or the target row does not exist. A reservation's period_start
         matches the actual charged month. consumed_at is a fallback for older
-        callers without a recorded reservation period.
+        callers without a recorded reservation period. With commit=False this
+        never commits or rolls back; the caller atomically settles its job too.
         """
         if feature_type not in FEATURE_QUOTA_MAP:
             raise ValueError(f"Unknown feature type: {feature_type}")
@@ -639,8 +667,10 @@ class QuotaService:
         _, used_field = FEATURE_QUOTA_MAP[feature_type]
         used_column = getattr(UsageQuota, used_field)
 
-        quota = self._get_or_create_quota(session, user_id)
-        self._reset_monthly_quota_if_needed(session, quota)
+        quota = self.get_user_quota(session, user_id)
+        if quota is None:
+            return False
+        self._reset_monthly_quota_if_needed(session, quota, commit=commit)
         session.refresh(quota)
 
         query = (
@@ -656,14 +686,16 @@ class QuotaService:
 
         result = session.exec(query)
         if result.rowcount == 0:
-            session.rollback()
+            if commit:
+                session.rollback()
             return False
 
-        session.commit()
+        if commit:
+            session.commit()
         return True
 
     def _reset_monthly_quota_if_needed(
-        self, session: Session, quota: UsageQuota
+        self, session: Session, quota: UsageQuota, *, commit: bool = True
     ) -> bool:
         """
         Reset monthly quota at Beijing midnight on the first of the month.
@@ -706,7 +738,10 @@ class QuotaService:
             .values(**values)
             .execution_options(synchronize_session=False)
         )
-        session.commit()
+        if commit:
+            session.commit()
+        else:
+            session.flush()
         session.refresh(quota)
         return reset_needed and result.rowcount > 0
 

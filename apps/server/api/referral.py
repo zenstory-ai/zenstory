@@ -100,7 +100,7 @@ class RewardResponse(BaseModel):
 
 
 @router.get("/codes", response_model=list[InviteCodeResponse])
-async def get_invite_codes(
+def get_invite_codes(
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session),
 ):
@@ -117,11 +117,11 @@ async def get_invite_codes(
         user_id=current_user.id,
     )
 
-    return await get_user_invite_codes_service(current_user.id, session)
+    return get_user_invite_codes_service(current_user.id, session)
 
 
 @router.post("/codes", response_model=CreateInviteCodeResponse, status_code=status.HTTP_201_CREATED)
-async def create_invite_code(
+def create_invite_code(
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session),
     _accept_language: str = Depends(get_accept_language),
@@ -140,7 +140,7 @@ async def create_invite_code(
         user_id=current_user.id,
     )
 
-    new_code = await create_invite_code_service(
+    new_code = create_invite_code_service(
         current_user.id,
         session,
         ignore_max_limit=current_user.is_superuser,
@@ -158,7 +158,7 @@ async def create_invite_code(
 
 
 @router.post("/codes/{code}/validate", response_model=ValidateCodeResponse)
-async def validate_invite_code(
+def validate_invite_code(
     code: str,
     request: Request,
     session: Session = Depends(get_session),
@@ -196,7 +196,7 @@ async def validate_invite_code(
             detail="Rate limit exceeded. Please try again later.",
         )
 
-    is_valid, _, _ = await validate_invite_code_service(code, session)
+    is_valid, _, _ = validate_invite_code_service(code, session)
     if not is_valid:
         return ValidateCodeResponse(
             valid=False,
@@ -210,7 +210,7 @@ async def validate_invite_code(
 
 
 @router.get("/stats", response_model=ReferralStatsResponse)
-async def get_referral_stats(
+def get_referral_stats(
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session),
 ):
@@ -230,12 +230,12 @@ async def get_referral_stats(
         user_id=current_user.id,
     )
 
-    stats = await get_user_referral_stats_service(current_user.id, session)
+    stats = get_user_referral_stats_service(current_user.id, session)
     return ReferralStatsResponse(**stats)
 
 
 @router.get("/rewards", response_model=list[RewardResponse])
-async def get_user_rewards(
+def get_user_rewards(
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session),
 ):
@@ -262,7 +262,7 @@ async def get_user_rewards(
 
 
 @router.delete("/codes/{code_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def deactivate_invite_code(
+def deactivate_invite_code(
     code_id: str,
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session),

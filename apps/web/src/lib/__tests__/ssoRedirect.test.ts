@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('../apiClient', () => ({
+vi.mock('../apiClient', async importOriginal => ({
+  ...(await importOriginal<typeof import('../apiClient')>()),
   tryRefreshToken: vi.fn(),
   validateToken: vi.fn(),
 }));
@@ -13,7 +14,7 @@ vi.mock('../logger', () => ({
   },
 }));
 
-import { tryRefreshToken, validateToken } from '../apiClient';
+import { clearAuthStorage, tryRefreshToken, validateToken } from '../apiClient';
 import { handleSsoRedirect, isValidRedirectUrl } from '../ssoRedirect';
 
 describe('isValidRedirectUrl', () => {
@@ -53,18 +54,18 @@ describe('handleSsoRedirect', () => {
     expect(localStorage.getItem('refresh_token')).toBe('refresh-token');
   });
 
-  it('requests auth clearing when refresh credentials are definitively rejected', async () => {
+  it('presents own definitive denial without redundantly clearing already-empty credentials', async () => {
     localStorage.setItem('access_token', 'expired-access');
     localStorage.setItem('refresh_token', 'refresh-token');
     vi.mocked(validateToken).mockResolvedValue({ valid: false, isNetworkError: false });
     vi.mocked(tryRefreshToken).mockImplementation(async () => {
-      localStorage.removeItem('refresh_token');
+      clearAuthStorage('refresh_failed');
       return false;
     });
 
     await expect(handleSsoRedirect('https://app.zenstory.ai/workspace')).resolves.toMatchObject({
       success: false,
-      clearAuth: true,
+      clearAuth: false,
       reason: 'session_expired',
     });
   });

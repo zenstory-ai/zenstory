@@ -115,11 +115,11 @@ def test_lapsed_expiry_does_not_clobber_a_concurrent_renewal(tmp_path, monkeypat
 
     original = quota_service._expire_if_still_lapsed
 
-    def renew_between_read_and_write(session, sub_id, now):
+    def renew_between_read_and_write(session, sub_id, now, *, commit=True):
         # A payment lands after get_user_plan read the stale row.
         with factory() as other:
             subscription_service.create_user_subscription(other, user_id, "pro", 30)
-        return original(session, sub_id, now)
+        return original(session, sub_id, now, commit=commit)
 
     monkeypatch.setattr(quota_service, "_expire_if_still_lapsed", renew_between_read_and_write)
     with factory() as session:

@@ -440,7 +440,7 @@ def get_project_stats(
 
     # Get AI usage summary
     ai_usage_data = writing_stats_service.get_ai_usage_summary(
-        session, current_user.id, project_id
+        session, current_user.id, project_id, reference_date=today
     )
     ai_usage = AIUsageSummaryResponse(
         current=AIUsageStatsResponse(
@@ -646,79 +646,89 @@ def record_project_stats(
         stats_date=request.stats_date,
     )
 
-    # Parse stats_date if provided
-    stats_date = _parse_iso_date_or_none(request.stats_date, "stats_date")
+    effective_stats_date = _parse_iso_date_or_none(request.stats_date, "stats_date") or utcnow().date()
+    user_id = current_user.id
 
-    # Record the stats
-    stats = writing_stats_service.record_word_count(
-        session=session,
-        user_id=current_user.id,
-        project_id=project_id,
-        word_count=request.word_count,
-        words_added=request.words_added,
-        words_deleted=request.words_deleted,
-        edit_time_seconds=request.edit_time_seconds,
-        stats_date=stats_date,
-    )
-
-    # Invalidate cached dashboard stats/trends by bumping the project version.
-    dashboard_cache.bump_project_version(current_user.id, project_id)
-
-    streak_updated = False
-    new_streak: int | None = None
-    effective_stats_date = stats_date or utcnow().date()
-
-    # Update streak if there was meaningful editing activity.
-    # Use total changed words so heavy rewrites/deletions still count.
-    streak_activity_words = request.words_added + request.words_deleted
-    if streak_activity_words > 0:
-        existing_streak = writing_stats_service.get_or_create_streak(
+    try:
+        # Daily activity and its streak are one transaction, including first-row inserts.
+        stats = writing_stats_service.record_word_count(
             session=session,
-            user_id=current_user.id,
+            user_id=user_id,
             project_id=project_id,
+            word_count=request.word_count,
+            words_added=request.words_added,
+            words_deleted=request.words_deleted,
+            edit_time_seconds=request.edit_time_seconds,
+            stats_date=effective_stats_date,
+            commit=False,
         )
-        previous_streak_count = existing_streak.current_streak
-        previous_last_writing_date = existing_streak.last_writing_date
 
-        updated_streak = writing_stats_service.update_streak(
-            session=session,
-            user_id=current_user.id,
-            project_id=project_id,
-            words_written=streak_activity_words,
-            stats_date=stats_date,
-        )
-        streak_updated = (
-            updated_streak.last_writing_date == effective_stats_date
-            and (
-                previous_last_writing_date != updated_streak.last_writing_date
-                or previous_streak_count != updated_streak.current_streak
+        streak_updated = False
+        new_streak: int | None = None
+        streak_activity_words = request.words_added + request.words_deleted
+        if streak_activity_words > 0:
+            existing_streak = writing_stats_service.get_or_create_streak(
+                session=session, user_id=user_id, project_id=project_id, commit=False,
             )
+            previous_streak_count = existing_streak.current_streak
+            previous_last_writing_date = existing_streak.last_writing_date
+            updated_streak = writing_stats_service.update_streak(
+                session=session,
+                user_id=user_id,
+                project_id=project_id,
+                words_written=streak_activity_words,
+                stats_date=effective_stats_date,
+                commit=False,
+            )
+            streak_updated = (
+                updated_streak.last_writing_date == effective_stats_date
+                and (
+                    previous_last_writing_date != updated_streak.last_writing_date
+                    or previous_streak_count != updated_streak.current_streak
+                )
+            )
+            if streak_updated:
+                new_streak = updated_streak.current_streak
+
+        session.flush()
+        # Capture while rows are readable: a postcommit refresh failure must not
+        # report failure for durable additive activity and invite a double-add retry.
+        response = RecordStatsResponse(
+            id=stats.id,
+            user_id=stats.user_id,
+            project_id=stats.project_id,
+            stats_date=str(stats.stats_date),
+            word_count=stats.word_count,
+            words_added=stats.words_added,
+            words_deleted=stats.words_deleted,
+            edit_sessions=stats.edit_sessions,
+            total_edit_time_seconds=stats.total_edit_time_seconds,
+            created_at=stats.created_at,
+            updated_at=stats.updated_at,
+            streak_updated=streak_updated,
+            new_streak=new_streak,
         )
-        if streak_updated:
-            new_streak = updated_streak.current_streak
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+
+    # Cache outages must not turn an already committed record into HTTP failure.
+    try:
+        dashboard_cache.bump_project_version(user_id, project_id)
+    except Exception as error:
+        log_with_context(
+            logger, logging.WARNING, "Failed to invalidate recorded project stats",
+            user_id=user_id, project_id=project_id, error=str(error),
+        )
 
     log_with_context(
         logger,
         logging.INFO,
         "Project stats recorded successfully",
-        user_id=current_user.id,
+        user_id=user_id,
         project_id=project_id,
-        stats_id=stats.id,
-        stats_date=str(stats.stats_date),
+        stats_id=response.id,
+        stats_date=response.stats_date,
     )
-
-    return RecordStatsResponse(
-        id=stats.id,
-        user_id=stats.user_id,
-        project_id=stats.project_id,
-        stats_date=str(stats.stats_date),
-        word_count=stats.word_count,
-        words_added=stats.words_added,
-        words_deleted=stats.words_deleted,
-        edit_sessions=stats.edit_sessions,
-        total_edit_time_seconds=stats.total_edit_time_seconds,
-        created_at=stats.created_at,
-        updated_at=stats.updated_at,
-        streak_updated=streak_updated,
-        new_streak=new_streak,
-    )
+    return response

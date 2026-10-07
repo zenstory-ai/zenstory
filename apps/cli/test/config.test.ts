@@ -94,6 +94,34 @@ describe('API base safety', () => {
     expect(() => validateApiBase('http://localhost.evil.test/api/v1')).toThrow(/unencrypted/);
     expect(() => validateApiBase('ftp://x/api/v1')).toThrow(/unencrypted/);
     expect(() => validateApiBase('not a url')).toThrow(/Invalid API base/);
+    try {
+      validateApiBase('https://user:password@');
+      expect.fail('invalid credential-bearing base should be rejected');
+    } catch (err) {
+      expect((err as Error).message).not.toContain('password');
+    }
+  });
+
+  it('rejects credentials, query strings, and fragments in an API base', () => {
+    try {
+      validateApiBase('https://user:password@self.test/api/v1');
+      expect.fail('credential-bearing base should be rejected');
+    } catch (err) {
+      expect((err as Error).message).toMatch(/credentials/);
+      expect((err as Error).message).not.toContain('password');
+    }
+    for (const [base, expected, secret] of [
+      ['https://self.test/api/v1?token=query-secret', /query string/, 'query-secret'],
+      ['https://self.test/api/v1#fragment-secret', /fragment/, 'fragment-secret'],
+    ] as const) {
+      try {
+        validateApiBase(base);
+        expect.fail('query/fragment API base should be rejected');
+      } catch (err) {
+        expect((err as Error).message).toMatch(expected);
+        expect((err as Error).message).not.toContain(secret);
+      }
+    }
   });
 
   it('binds a saved key to the base it was saved with', () => {

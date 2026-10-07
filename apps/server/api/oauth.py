@@ -183,6 +183,7 @@ def _is_allowed_redirect_url(redirect_url: str) -> bool:
     """Validate post-login redirect URL against allowed domains."""
     try:
         parsed = urllib.parse.urlparse(redirect_url)
+        _ = parsed.port
     except ValueError:
         return False
 
@@ -194,6 +195,8 @@ def _is_allowed_redirect_url(redirect_url: str) -> bool:
     host = parsed.netloc.lower()
     hostname = (parsed.hostname or "").lower()
     if not hostname:
+        return False
+    if parsed.scheme == "http" and hostname not in {"localhost", "127.0.0.1"}:
         return False
 
     for allowed in SSO_ALLOWED_REDIRECT_DOMAINS:
@@ -279,7 +282,7 @@ async def google_oauth_login(
 
 
 @router.get("/validate-token")
-async def validate_token(
+def validate_token(
     token: str = Query(..., description="JWT access token to validate"),
     session: Session = Depends(get_session)
 ):
@@ -312,6 +315,12 @@ async def validate_token(
             error_code=ErrorCode.AUTH_TOKEN_INVALID,
             status_code=status.HTTP_401_UNAUTHORIZED,
             headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not user.is_active:
+        raise APIException(
+            error_code=ErrorCode.AUTH_INACTIVE_USER,
+            status_code=status.HTTP_400_BAD_REQUEST,
         )
 
     return {
@@ -376,16 +385,22 @@ async def google_oauth_callback(
 
     # Exchange code for access token
     async with httpx.AsyncClient() as client:
-        token_response = await client.post(
-            GOOGLE_TOKEN_URL,
-            data={
-                "code": code,
-                "client_id": GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
-                "redirect_uri": GOOGLE_REDIRECT_URI,
-                "grant_type": "authorization_code",
-            }
-        )
+        try:
+            token_response = await client.post(
+                GOOGLE_TOKEN_URL,
+                data={
+                    "code": code,
+                    "client_id": GOOGLE_CLIENT_ID,
+                    "client_secret": GOOGLE_CLIENT_SECRET,
+                    "redirect_uri": GOOGLE_REDIRECT_URI,
+                    "grant_type": "authorization_code",
+                }
+            )
+        except httpx.HTTPError:
+            return _redirect_to_frontend_auth_callback(
+                error_code=ErrorCode.AUTH_TOKEN_INVALID,
+                redirect=redirect_from_state,
+            )
 
         if token_response.status_code != 200:
             log_with_context(
@@ -399,7 +414,18 @@ async def google_oauth_callback(
                 redirect=redirect_from_state,
             )
 
-        token_data = token_response.json()
+        try:
+            token_data = token_response.json()
+        except ValueError:
+            return _redirect_to_frontend_auth_callback(
+                error_code=ErrorCode.AUTH_TOKEN_INVALID,
+                redirect=redirect_from_state,
+            )
+        if not isinstance(token_data, dict):
+            return _redirect_to_frontend_auth_callback(
+                error_code=ErrorCode.AUTH_TOKEN_INVALID,
+                redirect=redirect_from_state,
+            )
         access_token = token_data.get("access_token")
 
         if not access_token:
@@ -414,10 +440,16 @@ async def google_oauth_callback(
             )
 
         # Fetch user info from Google
-        user_response = await client.get(
-            GOOGLE_USERINFO_URL,
-            headers={"Authorization": f"Bearer {access_token}"}
-        )
+        try:
+            user_response = await client.get(
+                GOOGLE_USERINFO_URL,
+                headers={"Authorization": f"Bearer {access_token}"}
+            )
+        except httpx.HTTPError:
+            return _redirect_to_frontend_auth_callback(
+                error_code=ErrorCode.AUTH_TOKEN_INVALID,
+                redirect=redirect_from_state,
+            )
 
         if user_response.status_code != 200:
             log_with_context(
@@ -431,7 +463,18 @@ async def google_oauth_callback(
                 redirect=redirect_from_state,
             )
 
-        google_user = user_response.json()
+        try:
+            google_user = user_response.json()
+        except ValueError:
+            return _redirect_to_frontend_auth_callback(
+                error_code=ErrorCode.AUTH_TOKEN_INVALID,
+                redirect=redirect_from_state,
+            )
+        if not isinstance(google_user, dict):
+            return _redirect_to_frontend_auth_callback(
+                error_code=ErrorCode.AUTH_TOKEN_INVALID,
+                redirect=redirect_from_state,
+            )
         google_email = google_user.get("email")
         google_name = google_user.get("name")
         google_picture = google_user.get("picture")
@@ -676,6 +719,8 @@ async def google_oauth_callback(
             source="google_oauth",
         )
     except Exception as e:
+        # Bootstrap is best effort; a failed flush must not poison token issuance.
+        session.rollback()
         log_with_context(
             logger,
             logging.WARNING,

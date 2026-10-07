@@ -199,6 +199,8 @@
     "title": "版本历史",
     "compare": "对比",
     "loadFailed": "版本历史没能加载，请重试",
+    "loadMore": "加载更多",
+    "updateFailed": "描述更新失败，请重试",
     "empty": "还没有可恢复的旧版本",
     "latestSaved": "最近一次保存",
     "currentVersion": "当前版本",

@@ -6,10 +6,12 @@ This module contains all inspiration management endpoints for admin operations.
 import json
 import logging
 from datetime import datetime
+from typing import cast
 
 from fastapi import APIRouter, Depends, Query, Request, status
 from pydantic import BaseModel
-from sqlmodel import Session, func, select
+from sqlalchemy.orm import InstrumentedAttribute, defer
+from sqlmodel import Session, col, func, select
 
 from config.datetime_utils import utcnow
 from config.feature_flags import require_inspirations_enabled
@@ -187,7 +189,9 @@ def list_inspirations_admin(
     Requires superuser privileges.
     """
     effective_status = status or status_filter
-    query = select(Inspiration)
+    query = select(Inspiration).options(
+        defer(cast(InstrumentedAttribute[str], Inspiration.snapshot_data))
+    )
 
     if effective_status:
         query = query.where(Inspiration.status == effective_status)
@@ -198,7 +202,7 @@ def list_inspirations_admin(
     count_query = select(func.count()).select_from(query.subquery())
     total = session.exec(count_query).one() or 0
 
-    query = query.order_by(Inspiration.created_at.desc()).offset(skip).limit(limit)
+    query = query.order_by(Inspiration.created_at.desc(), col(Inspiration.id).desc()).offset(skip).limit(limit)
 
     inspirations = session.exec(query).all()
     user_name_lookup = _build_user_name_lookup(session, list(inspirations))
@@ -426,6 +430,7 @@ def review_inspiration_endpoint(
             reviewer=current_user,
             approve=request.approve,
             rejection_reason=request.rejection_reason,
+            commit=False,
         )
     except ValueError as e:
         raise APIException(
@@ -441,7 +446,9 @@ def review_inspiration_endpoint(
         old_value=old_value,
         new_value={**_audit_snapshot(inspiration), "rejection_reason": inspiration.rejection_reason},
         request=http_request,
+        commit=False,
     )
+    session.commit()
 
     log_with_context(
         logger,

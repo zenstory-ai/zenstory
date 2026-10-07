@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -28,6 +28,23 @@ export const PromptEditor: React.FC = () => {
     is_active: true,
   });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const navigationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    // Each route identity starts with its own form baseline.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFormData({
+      role_definition: "", capabilities: "", directory_structure: "", content_structure: "",
+      file_types: "", writing_guidelines: "", include_dialogue_guidelines: false, is_active: true,
+    });
+    setSelectedProjectType("novel");
+    setShowDeleteConfirm(false);
+    return () => {
+      if (navigationTimerRef.current !== null) clearTimeout(navigationTimerRef.current);
+      navigationTimerRef.current = null;
+    };
+  }, [decodedProjectType]);
 
   // 获取现有配置
   const {
@@ -59,7 +76,7 @@ export const PromptEditor: React.FC = () => {
         expected_version: existingConfig.version,
       });
     }
-  }, [existingConfig]);
+  }, [existingConfig, decodedProjectType]);
 
   // 保存/更新 mutation
   const saveMutation = useMutation({
@@ -70,7 +87,11 @@ export const PromptEditor: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "prompts"] });
       toast.success(t("promptEditor.saveSuccess"));
-      setTimeout(() => navigate("/admin/prompts"), 500);
+      if (navigationTimerRef.current !== null) clearTimeout(navigationTimerRef.current);
+      navigationTimerRef.current = setTimeout(() => {
+        navigationTimerRef.current = null;
+        navigate("/admin/prompts");
+      }, 500);
     },
     onError: () => {
       toast.error(t("promptEditor.saveFailed"));
@@ -84,7 +105,11 @@ export const PromptEditor: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "prompts"] });
       toast.success(t("promptEditor.deleteSuccess"));
       setShowDeleteConfirm(false);
-      setTimeout(() => navigate("/admin/prompts"), 500);
+      if (navigationTimerRef.current !== null) clearTimeout(navigationTimerRef.current);
+      navigationTimerRef.current = setTimeout(() => {
+        navigationTimerRef.current = null;
+        navigate("/admin/prompts");
+      }, 500);
     },
     onError: () => {
       toast.error(t("promptEditor.deleteFailed"));

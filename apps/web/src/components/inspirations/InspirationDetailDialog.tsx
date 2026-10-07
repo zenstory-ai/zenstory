@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { logger } from "../../lib/logger";
 import {
@@ -68,6 +68,22 @@ function InspirationDetailDialogContent({
   const { t } = useTranslation("inspirations");
   const [projectName, setProjectName] = useState("");
   const [copySuccess, setCopySuccess] = useState(false);
+  const lifetimeRef = useRef<object | null>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const lifetime = {};
+    lifetimeRef.current = lifetime;
+    return () => {
+      if (lifetimeRef.current === lifetime) {
+        lifetimeRef.current = null;
+        if (closeTimerRef.current !== null) {
+          clearTimeout(closeTimerRef.current);
+          closeTimerRef.current = null;
+        }
+      }
+    };
+  }, []);
 
   const projectTypeLabels: Record<string, string> = {
     novel: t("projectTypes.novel"),
@@ -76,10 +92,14 @@ function InspirationDetailDialogContent({
   };
 
   const handleCopy = async () => {
+    const lifetime = lifetimeRef.current;
     try {
       await onCopy(inspiration.id, projectName || undefined);
+      if (!lifetime || lifetimeRef.current !== lifetime) return;
       setCopySuccess(true);
-      setTimeout(() => {
+      closeTimerRef.current = setTimeout(() => {
+        if (lifetimeRef.current !== lifetime) return;
+        closeTimerRef.current = null;
         setCopySuccess(false);
         onClose();
       }, 1500);

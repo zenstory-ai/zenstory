@@ -1,21 +1,45 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest'
 import { Editor } from '../Editor'
+import type { SaveResult } from '../SimpleEditor'
 import * as React from 'react'
 import * as api from '../../lib/api'
 import { ApiError } from '../../lib/apiClient'
 
+const editorTranslations = vi.hoisted(() => ({
+  'editor:placeholder.selectFile': 'Select a file to edit',
+  'editor:placeholder.folderSelected': 'Folder selected: ',
+  'editor:placeholder.folderHint': 'Select a file to view its content',
+  'editor:placeholder.loadFailed': 'Failed to load file',
+  'common:loading': 'Loading...',
+  'editor:emptyStateTitle': 'Ready to Create',
+  'editor:emptyStateDescription': 'Select a file from the left panel or create a new one to begin writing your story.',
+  'editor:emptyStateHint': 'Tip: Use the AI assistant on the right to help with writing, brainstorming, and more.',
+  'editor:fileTree.newDraft': 'New Chapter',
+  'editor:fileTree.newOutline': 'New Outline',
+  'editor:fileTree.newCharacter': 'New Character Sheet',
+  'editor:fileTree.newLore': 'New World Building',
+  'editor:showMore': 'More options',
+  'editor:showLess': 'Show less',
+  'editor:fileTree.shortcutHint': 'Ctrl+K',
+  'editor:fileTree.searchFiles': 'Search files',
+} satisfies Record<string, string>))
+const editorTranslator = vi.hoisted(() => ({
+  current: (key: string) => editorTranslations[key] || key,
+}))
+const createEditorTranslator = () => (key: string) => editorTranslations[key] || key
+
 // Mock SimpleEditor component
 vi.mock('../SimpleEditor', () => ({
-  SimpleEditor: ({ fileId, fileTitle, content, onTitleChange, onContentChange, onSave, onFlushReady, onFinishReview, isStreaming }: { fileId: string; fileTitle: string; content: string; onTitleChange?: (value: string) => void; onContentChange?: (value: string) => void; onSave?: (submission: { fileId: string; title: string; content: string; previousTitle: string }) => Promise<'saved' | 'conflict' | 'failed'>; onFlushReady?: (flush: (() => Promise<'saved' | 'conflict' | 'failed'>) | null) => void; onFinishReview?: () => void; isStreaming?: boolean }) => {
+  SimpleEditor: ({ fileId, fileTitle, baseUpdatedAt, content, onTitleChange, onContentChange, onSave, onFlushReady, onFinishReview, isStreaming }: { fileId: string; fileTitle: string; baseUpdatedAt?: string; content: string; onTitleChange?: (value: string) => void; onContentChange?: (value: string) => void; onSave?: (submission: { fileId: string; title: string; content: string; previousTitle: string; baseUpdatedAt?: string }) => Promise<SaveResult>; onFlushReady?: (flush: (() => Promise<'saved' | 'conflict' | 'failed'>) | null) => void; onFinishReview?: () => void; isStreaming?: boolean }) => {
     const dirtyRef = React.useRef(false)
-    const draftRef = React.useRef({ fileId, title: fileTitle, content, previousTitle: 'Test Chapter' })
-    if (!dirtyRef.current) draftRef.current = { fileId, title: fileTitle, content, previousTitle: fileTitle }
+    const draftRef = React.useRef({ fileId, title: fileTitle, content, baseUpdatedAt, previousTitle: 'Test Chapter' })
+    if (!dirtyRef.current) draftRef.current = { fileId, title: fileTitle, content, baseUpdatedAt, previousTitle: fileTitle }
     React.useEffect(() => {
       onFlushReady?.(async () => {
         if (!dirtyRef.current || !onSave) return 'saved'
         try {
-          const outcome = await onSave(draftRef.current)
+          const { outcome } = await onSave(draftRef.current)
           if (outcome === 'saved') dirtyRef.current = false
           return outcome
         } catch {
@@ -56,8 +80,8 @@ vi.mock('../SimpleEditor', () => ({
 }))
 
 vi.mock('../subscription/UpgradePromptModal', () => ({
-  UpgradePromptModal: ({ open, title }: { open: boolean; title: string }) =>
-    open ? <div data-testid="upgrade-modal">{title}</div> : null,
+  UpgradePromptModal: ({ open, title, onClose }: { open: boolean; title: string; onClose: () => void }) =>
+    open ? <div data-testid="upgrade-modal">{title}<button onClick={onClose}>Dismiss</button></div> : null,
 }))
 
 // Mock API calls
@@ -126,28 +150,7 @@ vi.mock('../../contexts/ProjectContext', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => {
-      const translations: Record<string, string> = {
-        'editor:placeholder.selectFile': 'Select a file to edit',
-        'editor:placeholder.folderSelected': 'Folder selected: ',
-        'editor:placeholder.folderHint': 'Select a file to view its content',
-        'editor:placeholder.loadFailed': 'Failed to load file',
-        'common:loading': 'Loading...',
-        // Enhanced empty state translations
-        'editor:emptyStateTitle': 'Ready to Create',
-        'editor:emptyStateDescription': 'Select a file from the left panel or create a new one to begin writing your story.',
-        'editor:emptyStateHint': 'Tip: Use the AI assistant on the right to help with writing, brainstorming, and more.',
-        'editor:fileTree.newDraft': 'New Chapter',
-        'editor:fileTree.newOutline': 'New Outline',
-        'editor:fileTree.newCharacter': 'New Character Sheet',
-        'editor:fileTree.newLore': 'New World Building',
-        'editor:showMore': 'More options',
-        'editor:showLess': 'Show less',
-        'editor:fileTree.shortcutHint': 'Ctrl+K',
-        'editor:fileTree.searchFiles': 'Search files',
-      }
-      return translations[key] || key
-    },
+    t: editorTranslator.current,
   }),
 }))
 
@@ -181,6 +184,7 @@ const mockFile = {
 describe('Editor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    editorTranslator.current = createEditorTranslator()
     vi.spyOn(console, 'error').mockImplementation(() => {})
     mockProjectContext = createMockProjectContext()
     vi.mocked(api.fileApi.get).mockResolvedValue(mockFile)
@@ -301,6 +305,34 @@ describe('Editor', () => {
     })
   })
 
+  it('reveals and creates the secondary empty-state file types', async () => {
+    mockProjectContext = createMockProjectContext({ selectedItem: null })
+    render(<Editor />)
+
+    fireEvent.click(screen.getByText('More options'))
+    fireEvent.click(screen.getByText('New Character Sheet'))
+    await waitFor(() => {
+      expect(api.fileApi.create).toHaveBeenCalledWith(
+        'project-1',
+        expect.objectContaining({
+          file_type: 'character',
+          parent_id: 'project-1-character-folder',
+        })
+      )
+    })
+
+    fireEvent.click(screen.getByText('New World Building'))
+    await waitFor(() => {
+      expect(api.fileApi.create).toHaveBeenCalledWith(
+        'project-1',
+        expect.objectContaining({
+          file_type: 'lore',
+          parent_id: 'project-1-lore-folder',
+        })
+      )
+    })
+  })
+
   it('renders AI assistant hint in empty state', () => {
     mockProjectContext = createMockProjectContext({ selectedItem: null })
     render(<Editor />)
@@ -358,6 +390,26 @@ describe('Editor', () => {
     })
   })
 
+  it('does not reload or overwrite a dirty draft when the translator identity changes', async () => {
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+      diffReviewState: null,
+    })
+    const UnmemoizedEditor = (Editor as unknown as { type: React.ComponentType }).type
+    const { rerender } = render(<UnmemoizedEditor />)
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('Test content'))
+
+    fireEvent.change(screen.getByTestId('content-input'), {
+      target: { value: 'Unsaved local body' },
+    })
+    editorTranslator.current = createEditorTranslator()
+    rerender(<UnmemoizedEditor />)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(api.fileApi.get).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('content-input')).toHaveValue('Unsaved local body')
+  })
+
   it('ignores an out-of-order file load after a newer selection resolves', async () => {
     let resolveFileA: (file: typeof mockFile) => void = () => {}
     const fileA = new Promise<typeof mockFile>((resolve) => {
@@ -382,7 +434,9 @@ describe('Editor', () => {
     resolveFileA({ ...mockFile, id: 'file-a', title: 'File A', content: 'Late A' })
     await waitFor(() => expect(api.fileApi.get).toHaveBeenCalledWith('file-a'))
     expect(screen.getByTestId('content-input')).toHaveValue('Content B')
-    expect(api.fileVersionApi.getVersions).not.toHaveBeenCalledWith('file-a', { limit: 1 })
+    expect(api.fileVersionApi.getVersions).not.toHaveBeenCalled()
+    expect(api.fileVersionApi.createVersion).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('upgrade-modal')).not.toBeInTheDocument()
   })
 
   it('flushes edits to the previous file before showing a newly selected file', async () => {
@@ -443,25 +497,7 @@ describe('Editor', () => {
     expect(screen.getByTestId('content-input')).toHaveValue('Edited A')
   })
 
-  it('creates initial version if none exists', async () => {
-    vi.mocked(api.fileVersionApi.getVersions).mockResolvedValue({ total: 0, items: [] })
-    vi.mocked(api.fileVersionApi.createVersion).mockResolvedValue({ id: 'version-1' })
-    mockProjectContext = createMockProjectContext({
-      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
-      diffReviewState: null,
-    })
-    render(<Editor />)
-    await waitFor(() => {
-      expect(api.fileVersionApi.createVersion).toHaveBeenCalledWith('file-1', 'Test content', {
-        changeType: 'create',
-        changeSource: 'system',
-        changeSummary: 'Initial version',
-      })
-    })
-  })
-
-  it('does not create version if file has no content', async () => {
-    vi.mocked(api.fileApi.get).mockResolvedValue({ ...mockFile, content: '' })
+  it('loads a populated file without reading or creating versions', async () => {
     vi.mocked(api.fileVersionApi.getVersions).mockResolvedValue({ total: 0, items: [] })
     mockProjectContext = createMockProjectContext({
       selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
@@ -469,25 +505,29 @@ describe('Editor', () => {
     })
     render(<Editor />)
     await waitFor(() => {
-      expect(screen.getByTestId('simple-editor')).toBeInTheDocument()
+      expect(screen.getByTestId('content-input')).toHaveValue('Test content')
     })
+    expect(api.fileApi.get).toHaveBeenCalledWith('file-1')
+    expect(api.fileVersionApi.getVersions).not.toHaveBeenCalled()
     expect(api.fileVersionApi.createVersion).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('upgrade-modal')).not.toBeInTheDocument()
   })
 
-  it('shows upgrade modal when initial version creation is blocked by quota', async () => {
-    vi.mocked(api.fileVersionApi.getVersions).mockRejectedValue(
-      new ApiError(402, 'ERR_QUOTA_FILE_VERSIONS_EXCEEDED')
-    )
+  it('loads a legacy file with empty version history without bootstrapping it', async () => {
+    vi.mocked(api.fileApi.get).mockResolvedValue({ ...mockFile, id: 'legacy-file' })
+    vi.mocked(api.fileVersionApi.getVersions).mockResolvedValue({ total: 0, items: [] })
     mockProjectContext = createMockProjectContext({
-      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+      selectedItem: { id: 'legacy-file', type: 'draft', title: 'Test Chapter' },
       diffReviewState: null,
     })
-
     render(<Editor />)
-
     await waitFor(() => {
-      expect(screen.getByTestId('upgrade-modal')).toBeInTheDocument()
+      expect(screen.getByTestId('content-input')).toHaveValue('Test content')
     })
+    expect(api.fileApi.get).toHaveBeenCalledWith('legacy-file')
+    expect(api.fileVersionApi.getVersions).not.toHaveBeenCalled()
+    expect(api.fileVersionApi.createVersion).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('upgrade-modal')).not.toBeInTheDocument()
   })
 
   it('displays streaming content when file is being streamed', async () => {
@@ -540,6 +580,8 @@ describe('Editor', () => {
     await waitFor(() => {
       expect(screen.getByTestId('upgrade-modal')).toBeInTheDocument()
     })
+    fireEvent.click(screen.getByText('Dismiss'))
+    expect(screen.queryByTestId('upgrade-modal')).not.toBeInTheDocument()
   })
 
   it('triggers file tree refresh when title changes', async () => {

@@ -409,6 +409,8 @@ export const PointsManagement: React.FC = () => {
               </h2>
               <button
                 onClick={() => setAdjustDialogOpen(false)}
+                disabled={adjustMutation.isPending}
+                aria-label={t("common:close")}
                 className="p-2.5 touch-target hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors"
               >
                 <X size={20} className="text-[hsl(var(--text-secondary))]" />

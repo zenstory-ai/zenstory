@@ -30,7 +30,7 @@ import type {
   VersionComparison,
   VersionContentResponse,
 } from "../types";
-import { api, ApiError, apiErrorFromPayload, tryRefreshToken, getAccessToken, getApiBase } from "./apiClient";
+import { api, ApiError, apiErrorFromPayload, tryRefreshToken, getAccessToken, getApiBase, resolveOwnedAuthSession } from "./apiClient";
 import { resolveApiErrorMessage } from "./errorHandler";
 import { getLocale } from "./i18n-helpers";
 import { logger } from "./logger";
@@ -308,8 +308,9 @@ export const exportApi = {
    * ```
    */
   exportDrafts: async (projectId: string): Promise<void> => {
-    const doFetch = async (isRetry = false): Promise<Response> => {
-      const accessToken = getAccessToken();
+    const entryAccess = getAccessToken();
+    const entryRefresh = localStorage.getItem("refresh_token");
+    const doFetch = async (accessToken: string | null = entryAccess, isRetry = false): Promise<Response> => {
       const response = await fetch(
         `${getApiBase()}/api/v1/projects/${projectId}/export/drafts`,
         {
@@ -322,9 +323,16 @@ export const exportApi = {
 
       // Handle 401 - try to refresh token and retry once
       if (response.status === 401 && !isRetry) {
-        const refreshed = await tryRefreshToken();
-        if (refreshed) {
-          return doFetch(true);
+        let ownedSession = entryAccess && entryRefresh
+          ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+        if (ownedSession?.accessToken && ownedSession.refreshToken) {
+          if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
+            const refreshed = await tryRefreshToken();
+            ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+          }
+          if (ownedSession?.accessToken && ownedSession.refreshToken) {
+            return doFetch(ownedSession.accessToken, true);
+          }
         }
       }
 
@@ -551,12 +559,14 @@ export const versionApi = {
     options?: {
       fileId?: string;
       limit?: number;
+      offset?: number;
     },
   ) => {
     const params = new URLSearchParams();
     if (options?.fileId)
       params.append("file_id", String(options.fileId));
-    if (options?.limit) params.append("limit", String(options.limit));
+    if (options?.limit !== undefined) params.append("limit", String(options.limit));
+    if (options?.offset !== undefined) params.append("offset", String(options.offset));
     const query = params.toString() ? `?${params}` : "";
     return api.get<Snapshot[]>(
       `/api/v1/projects/${projectId}/snapshots${query}`,
@@ -839,6 +849,7 @@ export const fileVersionApi = {
    *
    * @param fileId - The UUID of the file
    * @param versionNumber - The version number to rollback to
+   * @param expectedUpdatedAt - Optional exact file timestamp for conditional rollback
    * @returns Promise resolving to RollbackResponse with new version info
    *
    * @example
@@ -847,10 +858,16 @@ export const fileVersionApi = {
    * console.log(`Restored to version 3, created new version ${result.new_version}`);
    * ```
    */
-  rollback: (fileId: string, versionNumber: number) =>
-    api.post<RollbackResponse>(
-      `/api/v1/files/${fileId}/versions/${versionNumber}/rollback`,
-    ),
+  rollback: (
+    fileId: string,
+    versionNumber: number,
+    expectedUpdatedAt?: string,
+  ) => {
+    const path = `/api/v1/files/${fileId}/versions/${versionNumber}/rollback`;
+    return expectedUpdatedAt === undefined
+      ? api.post<RollbackResponse>(path)
+      : api.post<RollbackResponse>(path, { expected_updated_at: expectedUpdatedAt });
+  },
 };
 
 export type FileChangeType = "create" | "edit" | "ai_edit" | "restore" | "auto_save";
@@ -1110,8 +1127,9 @@ export const fileApi = {
     const formData = new FormData();
     formData.append("file", file);
 
-    const doFetch = async (isRetry = false): Promise<Response> => {
-      const accessToken = getAccessToken();
+    const entryAccess = getAccessToken();
+    const entryRefresh = localStorage.getItem("refresh_token");
+    const doFetch = async (accessToken: string | null = entryAccess, isRetry = false): Promise<Response> => {
       const response = await fetch(
         `${getApiBase()}/api/v1/projects/${projectId}/files/upload`,
         {
@@ -1125,9 +1143,16 @@ export const fileApi = {
 
       // Handle 401 - try to refresh token and retry once
       if (response.status === 401 && !isRetry) {
-        const refreshed = await tryRefreshToken();
-        if (refreshed) {
-          return doFetch(true);
+        let ownedSession = entryAccess && entryRefresh
+          ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+        if (ownedSession?.accessToken && ownedSession.refreshToken) {
+          if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
+            const refreshed = await tryRefreshToken();
+            ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+          }
+          if (ownedSession?.accessToken && ownedSession.refreshToken) {
+            return doFetch(ownedSession.accessToken, true);
+          }
         }
       }
 
@@ -1186,8 +1211,9 @@ export const fileApi = {
       formData.append("parent_id", parentId);
     }
 
-    const doFetch = async (isRetry = false): Promise<Response> => {
-      const accessToken = getAccessToken();
+    const entryAccess = getAccessToken();
+    const entryRefresh = localStorage.getItem("refresh_token");
+    const doFetch = async (accessToken: string | null = entryAccess, isRetry = false): Promise<Response> => {
       const response = await fetch(
         `${getApiBase()}/api/v1/projects/${projectId}/files/upload-drafts`,
         {
@@ -1200,9 +1226,16 @@ export const fileApi = {
       );
 
       if (response.status === 401 && !isRetry) {
-        const refreshed = await tryRefreshToken();
-        if (refreshed) {
-          return doFetch(true);
+        let ownedSession = entryAccess && entryRefresh
+          ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+        if (ownedSession?.accessToken && ownedSession.refreshToken) {
+          if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
+            const refreshed = await tryRefreshToken();
+            ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+          }
+          if (ownedSession?.accessToken && ownedSession.refreshToken) {
+            return doFetch(ownedSession.accessToken, true);
+          }
         }
       }
 
@@ -1276,25 +1309,31 @@ export const fileApi = {
  * Retries once after a token refresh on 401 and throws ApiError on failure.
  */
 async function fetchSkillPackage(endpoint: string, init: RequestInit = {}): Promise<Response> {
-  const doFetch = async (isRetry = false): Promise<Response> => {
-    const accessToken = getAccessToken();
-    const response = await fetch(`${getApiBase()}${endpoint}`, {
+  const entryAccess = getAccessToken();
+  const entryRefresh = localStorage.getItem("refresh_token");
+  const fetchOnce = async (accessToken: string | null): Promise<Response> => {
+    return fetch(`${getApiBase()}${endpoint}`, {
       ...init,
       headers: {
         "Accept-Language": localStorage.getItem("zenstory-language") || "zh",
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
     });
-    if (response.status === 401 && !isRetry) {
-      const refreshed = await tryRefreshToken();
-      if (refreshed) {
-        return doFetch(true);
-      }
-    }
-    return response;
   };
 
-  const response = await doFetch();
+  let response = await fetchOnce(entryAccess);
+  if (response.status === 401 && entryAccess && entryRefresh) {
+    let ownedSession = resolveOwnedAuthSession(entryAccess, entryRefresh);
+    if (ownedSession?.accessToken && ownedSession.refreshToken) {
+      if (ownedSession.accessToken === entryAccess && ownedSession.refreshToken === entryRefresh) {
+        const refreshed = await tryRefreshToken();
+        ownedSession = refreshed ? resolveOwnedAuthSession(entryAccess, entryRefresh) : null;
+      }
+      if (ownedSession?.accessToken && ownedSession.refreshToken) {
+        response = await fetchOnce(ownedSession.accessToken);
+      }
+    }
+  }
   if (!response.ok) {
     let errorData: unknown = null;
     try {

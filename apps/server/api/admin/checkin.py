@@ -7,7 +7,7 @@ import logging
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, Query
-from sqlmodel import Session, func, select
+from sqlmodel import Session, col, func, select
 
 from config.datetime_utils import beijing_date, utcnow
 from database import get_session
@@ -123,7 +123,10 @@ def get_check_in_records(
     )
     if user_id_filter:
         query = query.where(CheckInRecord.user_id == user_id_filter)
-    query = query.order_by(CheckInRecord.check_in_date.desc())
+    query = query.order_by(
+        col(CheckInRecord.check_in_date).desc(),
+        col(CheckInRecord.created_at).desc(), col(CheckInRecord.id).desc(),
+    )
     query = query.offset((page - 1) * page_size).limit(page_size)
 
     records = session.exec(query).all()

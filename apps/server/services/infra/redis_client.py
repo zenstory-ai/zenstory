@@ -158,6 +158,23 @@ def delete_verification_code(email: str) -> bool:
         return False
 
 
+def consume_verification_code(email: str, code: str) -> bool:
+    """Atomically consume only the matching code; fail closed on Redis errors."""
+    try:
+        client = get_redis_client()
+        return bool(client.eval(
+            "if redis.call('GET', KEYS[1]) == ARGV[1] then "
+            "return redis.call('DEL', KEYS[1]) end return 0",
+            1, f"verification:{email}", code,
+        ))
+    except Exception as error:
+        log_with_context(
+            logger, 40, "Error consuming verification code",
+            email=email, error_type=type(error).__name__,
+        )
+        return False
+
+
 def check_resend_cooldown(email: str, _cooldown_seconds: int = 60) -> bool:
     """
     Check if resend verification code is still in cooldown.

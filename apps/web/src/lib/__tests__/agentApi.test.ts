@@ -12,7 +12,8 @@ import type { SSEEvent } from '../../types'
 import { debugContext } from '../debugContext'
 
 // Mock dependencies
-vi.mock('../apiClient', () => ({
+vi.mock('../apiClient', async importOriginal => ({
+  resolveOwnedAuthSession: (await importOriginal<typeof import('../apiClient')>()).resolveOwnedAuthSession,
   tryRefreshToken: vi.fn(),
   getAccessToken: vi.fn(() => 'test-access-token'),
   clearAuthStorage: vi.fn(),
@@ -96,6 +97,8 @@ describe('agentApi', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     localStorage.clear()
     sessionStorage.clear()
+    localStorage.setItem('access_token', 'test-access-token')
+    localStorage.setItem('refresh_token', 'test-refresh-token')
     localStorage.setItem('zenstory-language', 'en')
   })
 
@@ -465,6 +468,7 @@ describe('agentApi', () => {
       const mockGetToken = getAccessToken as ReturnType<typeof vi.fn>
 
       mockGetToken.mockReturnValue('old-token')
+      localStorage.setItem('access_token', 'old-token')
       mockTryRefresh.mockResolvedValue(true)
 
       const mockStream = createMockStream([
@@ -675,7 +679,7 @@ describe('agentApi', () => {
     it('calls onDone when stream completes', async () => {
       const onDone = vi.fn()
       const mockStream = createMockStream([
-        'event: done\ndata: {"apply_action":"insert","refs":[1,2],"assistant_message_id":"assistant-1","session_id":"session-9"}\n\n',
+        'event: done\ndata: {"apply_action":"insert","refs":[1,2],"assistant_message_id":"assistant-1","session_id":"session-9","file_mutated":true}\n\n',
       ])
 
       const mockFetch = vi.fn().mockResolvedValue({
@@ -697,6 +701,7 @@ describe('agentApi', () => {
         refs: [1, 2],
         assistant_message_id: 'assistant-1',
         session_id: 'session-9',
+        file_mutated: true,
       })
     })
 

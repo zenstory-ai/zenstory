@@ -133,4 +133,38 @@ describe("InspirationManagement", () => {
     fireEvent.click(confirmButton);
     expect(mutateMock).not.toHaveBeenCalled();
   });
+
+  it.each(["edit", "reject"])("locks every %s dialog close action while its mutation is pending", (kind) => {
+    useMutationMock.mockReturnValue({ mutate: vi.fn(), isPending: true });
+    useQueryMock.mockReturnValue({
+      data: { items: [{ ...sampleInspiration, status: "pending" }], total: 1 },
+      isLoading: false, isFetching: false, isError: false, error: null, refetch: vi.fn(),
+    });
+    render(<InspirationManagement />);
+    const action = kind === "edit" ? "common:edit" : "inspirations.reject";
+    fireEvent.click(screen.getAllByTitle(action)[0]);
+    const title = kind === "edit" ? "inspirations.editTitle" : "inspirations.rejectTitle";
+    const heading = screen.getByRole("heading", { name: title });
+    const close = heading.parentElement!.querySelector("button")!;
+    expect(screen.getByRole("button", { name: "common:cancel" })).toBeDisabled();
+    expect(close).toBeDisabled();
+    fireEvent.click(close);
+    expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
+  });
+
+  it.each(["edit", "reject"])("retains the ordinary %s header close action while idle", (kind) => {
+    useMutationMock.mockReturnValue({ mutate: vi.fn(), isPending: false });
+    useQueryMock.mockReturnValue({
+      data: { items: [{ ...sampleInspiration, status: "pending" }], total: 1 },
+      isLoading: false, isFetching: false, isError: false, error: null, refetch: vi.fn(),
+    });
+    render(<InspirationManagement />);
+    const action = kind === "edit" ? "common:edit" : "inspirations.reject";
+    fireEvent.click(screen.getAllByTitle(action)[0]);
+    const title = kind === "edit" ? "inspirations.editTitle" : "inspirations.rejectTitle";
+    const close = screen.getByRole("heading", { name: title }).parentElement!.querySelector("button")!;
+    expect(close).toBeEnabled();
+    fireEvent.click(close);
+    expect(screen.queryByRole("heading", { name: title })).not.toBeInTheDocument();
+  });
 });

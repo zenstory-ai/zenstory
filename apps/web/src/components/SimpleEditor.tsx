@@ -24,6 +24,9 @@ const isNearBottom = (el: HTMLElement, thresholdPx = 32) => {
 const SIMPLE_EDITOR_MIN_HEIGHT_PX = 200;
 
 export type SaveOutcome = "saved" | "conflict" | "failed";
+export type SaveResult =
+  | { outcome: "saved"; updatedAt: string }
+  | { outcome: "conflict" | "failed" };
 
 export interface SaveSubmission {
   fileId?: string;
@@ -56,7 +59,8 @@ interface SimpleEditorProps {
   content: string;
   onTitleChange: (title: string) => void;
   onContentChange: (content: string) => void;
-  onSave: (submission: SaveSubmission) => Promise<SaveOutcome>;
+  onSave: (submission: SaveSubmission) => Promise<SaveResult>;
+  onHistoryRestore?: () => Promise<void>;
   onFlushReady?: (flush: (() => Promise<SaveOutcome>) | null) => void;
   readOnly?: boolean;
   isStreaming?: boolean;
@@ -89,6 +93,7 @@ export const SimpleEditor = ({
   onTitleChange,
   onContentChange,
   onSave,
+  onHistoryRestore,
   onFlushReady,
   readOnly = false,
   isStreaming = false,
@@ -124,6 +129,7 @@ export const SimpleEditor = ({
   const latestTitleRef = useRef(title);
   const previousFileIdRef = useRef(fileId);
   const pendingBaselineSyncRef = useRef(false);
+  const pendingHistoryRestoreTokenRef = useRef<string | undefined | null>(null);
   const shouldAutoScrollRef = useRef(true);
   const isComposingRef = useRef(false);
   const handleSaveRef = useRef<(submission?: SaveSubmission) => Promise<SaveOutcome>>(
@@ -136,6 +142,8 @@ export const SimpleEditor = ({
   const saveChainRef = useRef<Promise<unknown>>(Promise.resolve());
   const activeSaveRef = useRef<{ key: string; promise: Promise<SaveOutcome> } | null>(null);
   const draftRef = useRef({ fileId, title, content, baseUpdatedAt });
+  // Only clean boundaries or this queue's confirmed PUT advance the draft token.
+  const persistedBaseRef = useRef({ fileId, updatedAt: baseUpdatedAt });
   const isMountedRef = useRef(true);
 
   // Natural polish (de-AI tone) state
@@ -158,6 +166,7 @@ export const SimpleEditor = ({
   useEffect(() => {
     if (!dirtyRef.current && draftRef.current.fileId === fileId) {
       draftRef.current = { fileId, title, content, baseUpdatedAt };
+      persistedBaseRef.current = { fileId, updatedAt: baseUpdatedAt };
     }
   }, [fileId, title, content, baseUpdatedAt]);
 
@@ -239,6 +248,7 @@ export const SimpleEditor = ({
       baseUpdatedAt: latestBaseUpdatedAtRef.current,
     };
 
+    persistedBaseRef.current = { fileId, updatedAt: latestBaseUpdatedAtRef.current };
     adjustTextareaHeight(true);
     // When opening a new file, default to "follow bottom" during streaming
     shouldAutoScrollRef.current = true;
@@ -249,6 +259,7 @@ export const SimpleEditor = ({
     lastSavedContentRef.current = latestContentRef.current;
     lastSavedTitleRef.current = latestTitleRef.current;
     pendingBaselineSyncRef.current = true;
+    pendingHistoryRestoreTokenRef.current = null;
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = null;
@@ -281,9 +292,22 @@ export const SimpleEditor = ({
   useEffect(() => {
     if (!pendingBaselineSyncRef.current) return;
     if (isDirty) return;
+    if (pendingHistoryRestoreTokenRef.current !== null) return;
     lastSavedContentRef.current = content;
     pendingBaselineSyncRef.current = false;
   }, [content, isDirty]);
+
+  // A history restore has a separate server-token boundary. Don't consume the
+  // old draft while its refresh is pending or alter async file-switch syncing.
+  useEffect(() => {
+    if (pendingHistoryRestoreTokenRef.current === null || isDirty) return;
+    if (baseUpdatedAt === pendingHistoryRestoreTokenRef.current) return;
+    lastSavedContentRef.current = content;
+    lastSavedTitleRef.current = title;
+    pendingBaselineSyncRef.current = false;
+    pendingHistoryRestoreTokenRef.current = null;
+    persistedBaseRef.current = { fileId, updatedAt: baseUpdatedAt };
+  }, [content, title, fileId, isDirty, baseUpdatedAt]);
 
   // Re-adjust textarea height when exiting review mode
   const prevReviewModeRef = useRef(isReviewMode);
@@ -297,6 +321,9 @@ export const SimpleEditor = ({
       // Sync local save baseline so "unsaved" status doesn't get stuck.
       if (!diffReviewState) {
         lastSavedContentRef.current = content;
+        dirtyRef.current = false;
+        persistedBaseRef.current = { fileId, updatedAt: baseUpdatedAt };
+        draftRef.current = { fileId, title, content, baseUpdatedAt };
         setIsDirty(false);
         setLastSaved(new Date());
       }
@@ -306,7 +333,7 @@ export const SimpleEditor = ({
         adjustTextareaHeight(true);
       }, 50);
     }
-  }, [isReviewMode, diffReviewState, content, adjustTextareaHeight]);
+  }, [isReviewMode, diffReviewState, fileId, title, content, baseUpdatedAt, adjustTextareaHeight]);
 
   const handleContentScroll = useCallback(() => {
     const el = contentAreaRef.current;
@@ -566,7 +593,7 @@ export const SimpleEditor = ({
       clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = null;
     }
-    if (!isDirty) return;
+    if (!isDirty || showVersionHistory) return;
     if (isNaturalPolishRunning) return;
     // AI 正在改这份文件：先不排自动保存。标记清除后本 effect 会重新跑，
     // 届时再按新的基线保存，用户的本地改动不会丢。
@@ -582,11 +609,11 @@ export const SimpleEditor = ({
         saveTimeoutRef.current = null;
       }
     };
-  }, [isDirty, title, content, isNaturalPolishRunning, isAiEditing]);
+  }, [isDirty, title, content, isNaturalPolishRunning, isAiEditing, showVersionHistory]);
 
   // Handle save
   const handleSave = async (providedSubmission?: SaveSubmission): Promise<SaveOutcome> => {
-    if ((!dirtyRef.current && !providedSubmission) || isNaturalPolishRunning || isAiEditing) {
+    if ((!dirtyRef.current && !providedSubmission) || isNaturalPolishRunning || isAiEditing || showVersionHistory) {
       return "failed";
     }
 
@@ -597,6 +624,8 @@ export const SimpleEditor = ({
     // Retain the old-file baseline when a switch flushes its immutable draft.
     const queuedBaselineContent = lastSavedContentRef.current;
     const queuedBaselineTitle = lastSavedTitleRef.current;
+    const queuedBaseUpdatedAt = persistedBaseRef.current.fileId === draft.fileId
+      ? persistedBaseRef.current.updatedAt : draft.baseUpdatedAt;
     const submissionKey = JSON.stringify([
       draft.fileId, draft.title, draft.content, draft.baseUpdatedAt,
     ]);
@@ -620,15 +649,22 @@ export const SimpleEditor = ({
           ? { change_type: "edit", change_source: "user", word_count: wordCount }
           : { skip_version: true, word_count: wordCount };
       }
-      const submission: SaveSubmission = { ...draft, previousTitle, versionIntent };
-      const outcome = await onSave(submission);
-      if (outcome !== "saved") {
+      const submission: SaveSubmission = {
+        ...draft, previousTitle, versionIntent,
+        baseUpdatedAt: persistedBaseRef.current.fileId === draft.fileId
+          ? persistedBaseRef.current.updatedAt : queuedBaseUpdatedAt,
+      };
+      const result = await onSave(submission);
+      if (result.outcome !== "saved") {
         // Conflict/failure paths deliberately keep the old baseline, dirty
         // indicator and pending writing stats. The parent may have opened a
         // diff review, but no save has completed yet.
-        return outcome;
+        return result.outcome;
       }
 
+      if (persistedBaseRef.current.fileId === submission.fileId) {
+        persistedBaseRef.current = { fileId: submission.fileId, updatedAt: result.updatedAt };
+      }
       if (latestFileIdRef.current === submission.fileId) {
         lastSavedContentRef.current = submission.content;
         lastSavedTitleRef.current = submission.title;
@@ -797,19 +833,28 @@ export const SimpleEditor = ({
   };
 
   // Handle rollback from version history
-  const handleRollback = () => {
-    // Reload the content after rollback
-    // The parent component will handle this by re-fetching the file
-    setShowVersionHistory(false);
-    window.location.reload(); // Simple reload for now
+  const prepareHistoryRollback = async () => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    // Finish writes already queued before the dialog opened; don't flush an
+    // unscheduled dirty draft that the restore confirmation will discard.
+    await saveChainRef.current;
   };
 
-  // Handle viewing version content
-  // Preview feature deferred - users can view diff between versions instead
-  // See: /apps/web/src/pages/VersionsPage.tsx for version comparison
-  const handleViewVersionContent = () => {
-    // Version preview via diff comparison is available in VersionsPage
-    // This button is reserved for future inline preview feature
+  const handleRollback = async () => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    dirtyRef.current = false;
+    setIsDirty(false);
+    pendingBaselineSyncRef.current = true;
+    pendingHistoryRestoreTokenRef.current = latestBaseUpdatedAtRef.current;
+    // Refresh through the existing file owner without unmounting history's
+    // quota prompt or clearing the omission toast with a page reload.
+    await onHistoryRestore?.();
   };
 
   // Format last saved time
@@ -928,7 +973,7 @@ export const SimpleEditor = ({
 
       {/* Status bar - hide during review mode */}
       {!isReviewMode && (
-        <div className="shrink-0 px-6 py-2 flex items-center justify-between bg-[hsl(var(--bg-secondary)/0.3)]">
+        <div className="shrink-0 px-3 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2 bg-[hsl(var(--bg-secondary)/0.3)]">
           <div className="flex items-center gap-4 text-xs text-[hsl(var(--text-secondary))]">
             <span>
               {t('editor:wordCount')} <strong className="text-[hsl(var(--text-primary))]">{countWords(content)}</strong>
@@ -948,7 +993,7 @@ export const SimpleEditor = ({
             )}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
             {/* Version history button */}
             {fileId && (
               <button
@@ -998,13 +1043,13 @@ export const SimpleEditor = ({
                 <Clock size={12} className="animate-spin" />
                 {t('editor:saving')}
               </span>
+            ) : isDirty ? (
+              <span className="text-xs text-[hsl(var(--warning))]">{t('editor:unsaved')}</span>
             ) : lastSaved ? (
               <span className="text-xs text-[hsl(var(--text-secondary))] flex items-center gap-1">
                 <Check size={12} className="text-[hsl(var(--success))]" />
                 {formatLastSaved(lastSaved)}
               </span>
-            ) : isDirty ? (
-              <span className="text-xs text-[hsl(var(--warning))]">{t('editor:unsaved')}</span>
             ) : null}
 
             {/* Save button */}
@@ -1026,8 +1071,8 @@ export const SimpleEditor = ({
           fileId={fileId}
           fileTitle={title}
           onClose={() => setShowVersionHistory(false)}
+          onBeforeRollback={prepareHistoryRollback}
           onRollback={handleRollback}
-          onViewContent={handleViewVersionContent}
         />
       )}
 

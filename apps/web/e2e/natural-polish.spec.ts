@@ -114,9 +114,9 @@ test.describe('Natural polish', () => {
 
       await editor.evaluate((el, phrase) => {
         el.focus();
-        const start = el.value.indexOf(phrase);
+        const start = (el as HTMLTextAreaElement).value.indexOf(phrase);
         const end = start + phrase.length;
-        el.setSelectionRange(start, end);
+        (el as HTMLTextAreaElement).setSelectionRange(start, end);
         el.dispatchEvent(new Event('select', { bubbles: true }));
         el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
       }, selectedText);
@@ -134,7 +134,7 @@ test.describe('Natural polish', () => {
       await expect(page.getByText('段落审阅', { exact: true })).toBeVisible();
 
       await page.screenshot({
-        path: 'test-results/natural-polish-review.png',
+        path: test.info().outputPath('natural-polish-review.png'),
         fullPage: true,
       });
 

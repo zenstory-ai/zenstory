@@ -5,7 +5,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy import or_
-from sqlmodel import Session, func, select
+from sqlmodel import Session, col, func, select
 
 from api.payments import (
     PaymentOrderResponse,
@@ -108,7 +108,7 @@ def list_payment_orders(
         select(func.count()).select_from(PaymentOrder).where(NEEDS_ATTENTION_CONDITION)
     ).one()
     rows = session.exec(
-        base.order_by(PaymentOrder.created_at.desc())
+        base.order_by(col(PaymentOrder.created_at).desc(), col(PaymentOrder.id).desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
     ).all()

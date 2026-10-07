@@ -59,6 +59,18 @@ describe("SubscriptionPlanManagement", () => {
     });
   });
 
+  it.each([true, false])("keeps plan header close aligned with pending=%s", (pending) => {
+    useQueryMock.mockReturnValue({ data: [plan], isLoading: false, isFetching: false, isError: false, refetch: vi.fn() });
+    useMutationMock.mockReturnValue({ mutate: mutateMock, isPending: pending });
+    const { container } = render(<SubscriptionPlanManagement />);
+    fireEvent.click(screen.getByRole("button", { name: "plans.edit" }));
+    const modal = container.querySelector(".fixed.inset-0")!;
+    const headerClose = modal.querySelector("button")!;
+    expect(screen.getByRole("button", { name: "common:cancel" }).hasAttribute("disabled")).toBe(pending);
+    expect(headerClose.hasAttribute("disabled")).toBe(pending);
+    if (!pending) { fireEvent.click(headerClose); expect(container.querySelector(".fixed.inset-0")).toBeNull(); }
+  });
+
   it("shows loading state", () => {
     useQueryMock.mockReturnValue({
       data: undefined,

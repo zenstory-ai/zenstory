@@ -390,6 +390,9 @@ def _revoke_active_refresh_tokens_for_user(
     reason: str,
 ) -> int:
     """Revoke all active refresh tokens for a user."""
+    # Share refresh's User -> token lock order so rotation cannot insert a
+    # descendant after our active-token snapshot. Do not reload pending changes.
+    session.exec(select(User.id).where(User.id == user_id).with_for_update()).first()
     now = utcnow()
     active_records = session.exec(
         select(RefreshTokenRecord).where(
@@ -597,6 +600,8 @@ async def register(
             source="registration",
         )
     except Exception as e:
+        # Recover failed SQL before logging expired attributes or continuing signup.
+        session.rollback()
         # Log but don't fail registration
         log_with_context(
             logger,
@@ -807,7 +812,7 @@ async def login(
 
 
 @router.post("/refresh", response_model=LoginResponse)
-async def refresh_token(
+def refresh_token(
     request: RefreshTokenRequest,
     http_request: Request,
     session: Session = Depends(get_session),
@@ -874,7 +879,11 @@ async def refresh_token(
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
-    user = session.get(User, user_id)
+    # Serialize rotation with logout/password revocation before locking a JTI.
+    user = session.exec(
+        select(User).where(User.id == user_id).with_for_update()
+        .execution_options(populate_existing=True)
+    ).first()
     if not user or not user.is_active:
         log_with_context(
             logger,
@@ -1012,7 +1021,7 @@ async def get_current_user_info(
 
 
 @router.put("/me", response_model=UserResponse)
-async def update_current_user(
+def update_current_user(
     request: UpdateUserRequest,
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session)
@@ -1113,7 +1122,7 @@ async def change_password(
 
 
 @router.post("/logout")
-async def logout(
+def logout(
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session),
     _accept_language: str = Depends(get_accept_language)

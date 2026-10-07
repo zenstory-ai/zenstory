@@ -91,7 +91,8 @@ async def test_voice_status_configured(client: AsyncClient):
         assert data["max_duration_seconds"] == 60
         assert "wav" in data["supported_formats"]
         assert "mp3" in data["supported_formats"]
-        assert "webm" in data["supported_formats"]
+        assert "ogg-opus" in data["supported_formats"]
+        assert "webm" not in data["supported_formats"]
 
 
 # ============================================
@@ -277,11 +278,11 @@ async def test_recognize_invalid_base64_audio(client: AsyncClient, db_session):
 
 
 @pytest.mark.integration
-async def test_recognize_rejects_decoded_audio_over_five_mib_before_provider(
+async def test_recognize_rejects_audio_over_encoded_limit_before_provider(
     client: AsyncClient, db_session
 ):
     token = await create_verified_user_and_get_token(client, db_session)
-    oversized_audio = base64.b64encode(b"x" * (5 * 1024 * 1024 + 1)).decode("ascii")
+    oversized_audio = base64.b64encode(b"x" * (2_250_000 + 1)).decode("ascii")
 
     with patch("api.voice.call_tencent_asr", new_callable=AsyncMock) as mock_asr:
         response = await client.post(
@@ -310,7 +311,7 @@ async def test_recognize_success_mocked(client: AsyncClient, db_session):
     mock_response = {
         "Response": {
             "Result": "你好世界",
-            "AudioDuration": 2.5,
+            "AudioDuration": 2500,
             "RequestId": "test-request-id",
         }
     }
@@ -356,7 +357,7 @@ async def test_recognize_with_various_languages_mocked(client: AsyncClient, db_s
     mock_response = {
         "Response": {
             "Result": "Hello world",
-            "AudioDuration": 1.5,
+            "AudioDuration": 1500,
             "RequestId": "test-request-id",
         }
     }
@@ -407,7 +408,7 @@ async def test_recognize_with_language_variant_mocked(client: AsyncClient, db_se
     mock_response = {
         "Response": {
             "Result": "测试文本",
-            "AudioDuration": 1.0,
+            "AudioDuration": 1000,
             "RequestId": "test-request-id",
         }
     }
@@ -570,12 +571,12 @@ async def test_recognize_various_formats_mocked(client: AsyncClient, db_session)
     """Test voice recognition with various supported audio formats."""
     token = await create_verified_user_and_get_token(client, db_session)
 
-    supported_formats = ["wav", "pcm", "mp3", "m4a", "flac", "ogg-opus", "webm"]
+    supported_formats = ["wav", "pcm", "ogg-opus", "speex", "silk", "mp3", "m4a", "aac", "amr"]
 
     mock_response = {
         "Response": {
             "Result": "测试",
-            "AudioDuration": 1.0,
+            "AudioDuration": 1000,
             "RequestId": "test-request-id",
         }
     }
@@ -625,7 +626,7 @@ async def test_recognize_uses_default_values(client: AsyncClient, db_session):
     mock_response = {
         "Response": {
             "Result": "默认测试",
-            "AudioDuration": 1.0,
+            "AudioDuration": 1000,
             "RequestId": "test-request-id",
         }
     }

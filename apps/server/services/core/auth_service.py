@@ -187,7 +187,7 @@ def verify_token(token: str, expected_type: str | None = None) -> dict | None:
 
 
 # 获取当前用户
-async def get_current_user(
+def get_current_user(
     token: str = Depends(oauth2_scheme), session: Session = Depends(get_session)
 ) -> User:
     payload = verify_token(token, expected_type=TOKEN_TYPE_ACCESS)

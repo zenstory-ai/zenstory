@@ -7,12 +7,12 @@
 import pytest
 from httpx import AsyncClient
 
-from models import User
+from models import File, User
 
 
 @pytest.mark.integration
-async def test_get_version_list_empty(client: AsyncClient, db_session):
-    """测试获取空文件的版本列表"""
+async def test_get_version_list_creation_baseline_and_legacy_empty(client: AsyncClient, db_session):
+    """新建正文有系统基线；旧的未版本化文件仍可返回空历史。"""
     # 创建用户
     from services.core.auth_service import hash_password
     user = User(
@@ -49,7 +49,7 @@ async def test_get_version_list_empty(client: AsyncClient, db_session):
     )
     file_id = file_resp.json()["id"]
 
-    # 获取版本列表（应该为空）
+    # 新建正文的版本1保存原始内容，不占用户历史配额。
     resp = await client.get(
         f"/api/v1/files/{file_id}/versions",
         headers=headers,
@@ -59,8 +59,24 @@ async def test_get_version_list_empty(client: AsyncClient, db_session):
     data = resp.json()
     assert data["file_id"] == file_id
     assert data["file_title"] == "Test File"
-    assert data["total"] == 0
-    assert data["versions"] == []
+    assert data["total"] == 1
+    assert len(data["versions"]) == 1
+    baseline = data["versions"][0]
+    assert baseline["version_number"] == 1
+    assert baseline["is_base_version"] is True
+    assert baseline["change_type"] == "create"
+    assert baseline["change_source"] == "system"
+    content = await client.get(f"/api/v1/files/{file_id}/versions/1/content", headers=headers)
+    assert content.status_code == 200
+    assert content.json()["content"] == "Initial content"
+
+    legacy = File(project_id=project_id, title="Legacy unversioned", file_type="draft", content="Legacy content")
+    db_session.add(legacy)
+    db_session.commit()
+    empty = await client.get(f"/api/v1/files/{legacy.id}/versions", headers=headers)
+    assert empty.status_code == 200
+    assert empty.json()["total"] == 0
+    assert empty.json()["versions"] == []
 
 
 @pytest.mark.integration
@@ -91,7 +107,7 @@ async def test_create_version(client: AsyncClient, db_session):
     )
     file_id = file_resp.json()["id"]
 
-    # 创建第一个版本
+    # 创建第一个用户版本，追加在系统基线之后。
     resp = await client.post(
         f"/api/v1/files/{file_id}/versions",
         json={
@@ -106,8 +122,8 @@ async def test_create_version(client: AsyncClient, db_session):
     assert resp.status_code == 200
     data = resp.json()
     assert data["file_id"] == file_id
-    assert data["version_number"] == 1
-    assert data["is_base_version"] is True  # 第一个版本是 base version
+    assert data["version_number"] == 2
+    assert data["is_base_version"] is False
     assert data["change_type"] == "edit"
     assert data["change_source"] == "user"
     assert data["change_summary"] == "Initial version"
@@ -154,7 +170,7 @@ async def test_create_multiple_versions(client: AsyncClient, db_session):
         assert resp.status_code == 200
         version_numbers.append(resp.json()["version_number"])
 
-    assert version_numbers == [1, 2, 3]
+    assert version_numbers == [2, 3, 4]
 
 
 @pytest.mark.integration
@@ -196,12 +212,11 @@ async def test_get_version_list(client: AsyncClient, db_session):
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["total"] == 3
-    assert len(data["versions"]) == 3
+    assert data["total"] == 4
+    assert len(data["versions"]) == 4
     # 版本应该按版本号降序排列（最新的在前）
-    assert data["versions"][0]["version_number"] == 3
-    assert data["versions"][1]["version_number"] == 2
-    assert data["versions"][2]["version_number"] == 1
+    assert [version["version_number"] for version in data["versions"]] == [4, 3, 2, 1]
+    assert data["versions"][-1]["change_source"] == "system"
 
 
 @pytest.mark.integration
@@ -246,8 +261,8 @@ async def test_get_version_list_pagination(client: AsyncClient, db_session):
     assert resp1.status_code == 200
     data1 = resp1.json()
     assert len(data1["versions"]) == 2
-    assert data1["versions"][0]["version_number"] == 5
-    assert data1["versions"][1]["version_number"] == 4
+    assert data1["versions"][0]["version_number"] == 6
+    assert data1["versions"][1]["version_number"] == 5
 
     # 获取第二页（2个）
     resp2 = await client.get(
@@ -257,8 +272,8 @@ async def test_get_version_list_pagination(client: AsyncClient, db_session):
     assert resp2.status_code == 200
     data2 = resp2.json()
     assert len(data2["versions"]) == 2
-    assert data2["versions"][0]["version_number"] == 3
-    assert data2["versions"][1]["version_number"] == 2
+    assert data2["versions"][0]["version_number"] == 4
+    assert data2["versions"][1]["version_number"] == 3
 
 
 @pytest.mark.integration
@@ -289,13 +304,16 @@ async def test_get_version_content(client: AsyncClient, db_session):
     )
     file_id = file_resp.json()["id"]
 
-    # 创建第一个版本（与文件内容相同）
+    # 创建第一个用户版本（系统基线是版本1）。
     content1 = "First version with some content"
-    await client.post(
+    first = await client.post(
         f"/api/v1/files/{file_id}/versions",
         json={"content": content1, "change_type": "edit"},
         headers=headers,
     )
+    assert first.status_code == 200
+    first_number = first.json()["version_number"]
+    assert first_number == 2
 
     # 更新文件内容以同步
     await client.put(
@@ -306,11 +324,14 @@ async def test_get_version_content(client: AsyncClient, db_session):
 
     # 创建第二个版本
     content2 = "Second version with different content"
-    await client.post(
+    second = await client.post(
         f"/api/v1/files/{file_id}/versions",
         json={"content": content2, "change_type": "edit"},
         headers=headers,
     )
+    assert second.status_code == 200
+    second_number = second.json()["version_number"]
+    assert second_number == 4  # 中间的 Web 正文保存也追加了历史。
 
     # 更新文件内容以同步
     await client.put(
@@ -321,26 +342,24 @@ async def test_get_version_content(client: AsyncClient, db_session):
 
     # 获取第一个版本的内容
     resp1 = await client.get(
-        f"/api/v1/files/{file_id}/versions/1/content",
+        f"/api/v1/files/{file_id}/versions/{first_number}/content",
         headers=headers,
     )
     assert resp1.status_code == 200
     data1 = resp1.json()
-    assert data1["version_number"] == 1
+    assert data1["version_number"] == first_number
     assert data1["content"] == content1
     assert data1["word_count"] == 5
 
     # 获取第二个版本的内容
     resp2 = await client.get(
-        f"/api/v1/files/{file_id}/versions/2/content",
+        f"/api/v1/files/{file_id}/versions/{second_number}/content",
         headers=headers,
     )
     assert resp2.status_code == 200
     data2 = resp2.json()
-    assert data2["version_number"] == 2
-    # 注意：由于版本服务的实现问题，这里暂时跳过内容验证
-    # 版本服务在创建 delta 版本时基于文件内容，但文件内容可能与版本内容不同步
-    # assert data2["content"] == content2
+    assert data2["version_number"] == second_number
+    assert data2["content"] == content2
 
 
 @pytest.mark.integration
@@ -369,35 +388,40 @@ async def test_compare_versions(client: AsyncClient, db_session):
     )
     file_id = file_resp.json()["id"]
 
-    # 创建两个版本
-    await client.post(
+    # 创建两个用户版本，比较它们而不是系统基线。
+    first = await client.post(
         f"/api/v1/files/{file_id}/versions",
         json={"content": "Line 1\nLine 2\nLine 3", "change_type": "edit"},
         headers=headers,
     )
 
-    await client.post(
+    second = await client.post(
         f"/api/v1/files/{file_id}/versions",
         json={"content": "Line 1\nLine 2 modified\nLine 3\nLine 4", "change_type": "edit"},
         headers=headers,
     )
+    assert first.status_code == second.status_code == 200
+    first_number = first.json()["version_number"]
+    second_number = second.json()["version_number"]
+    assert (first_number, second_number) == (2, 3)
 
     # 对比版本
     resp = await client.get(
-        f"/api/v1/files/{file_id}/versions/compare?v1=1&v2=2",
+        f"/api/v1/files/{file_id}/versions/compare?v1={first_number}&v2={second_number}",
         headers=headers,
     )
 
     assert resp.status_code == 200
     data = resp.json()
     assert data["file_id"] == file_id
-    assert data["version1"]["number"] == 1
-    assert data["version2"]["number"] == 2
+    assert data["version1"]["number"] == first_number
+    assert data["version2"]["number"] == second_number
     assert "unified_diff" in data
     assert "html_diff" in data
     assert "stats" in data
     assert "lines_added" in data["stats"]
     assert "lines_removed" in data["stats"]
+    assert "+Line 4" in data["unified_diff"]
 
 
 @pytest.mark.integration
@@ -428,11 +452,14 @@ async def test_rollback_to_version(client: AsyncClient, db_session, monkeypatch)
 
     # 创建三个版本
     v1_content = "Version 1 content"
-    await client.post(
+    first = await client.post(
         f"/api/v1/files/{file_id}/versions",
         json={"content": v1_content, "change_type": "edit"},
         headers=headers,
     )
+    assert first.status_code == 200
+    first_number = first.json()["version_number"]
+    assert first_number == 2
 
     v2_content = "Version 2 content"
     await client.post(
@@ -459,26 +486,26 @@ async def test_rollback_to_version(client: AsyncClient, db_session, monkeypatch)
         lambda user_id, project_id: cache_bumps.append((user_id, project_id)),
     )
 
-    # 回滚到版本 1
+    # 回滚到第一个用户版本，不是创建时的系统基线。
     resp = await client.post(
-        f"/api/v1/files/{file_id}/versions/1/rollback",
+        f"/api/v1/files/{file_id}/versions/{first_number}/rollback",
         headers=headers,
     )
 
     assert resp.status_code == 200
     data = resp.json()
     assert data["success"] is True
-    assert data["restored_version"] == 1
-    assert data["new_version_number"] == 4  # 创建了新版本
+    assert data["restored_version"] == first_number
+    assert data["new_version_number"] == 5  # 系统基线 + 三次编辑 + 恢复历史。
     assert data["file_id"] == file_id
     assert len(indexed) == 1
     assert indexed[0]["entity_id"] == file_id
     assert indexed[0]["content"] == v1_content
     assert cache_bumps == [(user.id, project_id)]
 
-    # 验证新版本的内容是版本 1 的内容
+    # 验证新版本的内容是第一个用户版本的内容。
     content_resp = await client.get(
-        f"/api/v1/files/{file_id}/versions/4/content",
+        f"/api/v1/files/{file_id}/versions/{data['new_version_number']}/content",
         headers=headers,
     )
     assert content_resp.status_code == 200
@@ -556,16 +583,18 @@ async def test_rollback_is_not_blocked_by_file_version_quota(client: AsyncClient
         headers=headers,
     )
     assert first_version.status_code == 200
+    first_number = first_version.json()["version_number"]
+    assert first_number == 2
 
     rollback_response = await client.post(
-        f"/api/v1/files/{file_id}/versions/1/rollback",
+        f"/api/v1/files/{file_id}/versions/{first_number}/rollback",
         headers=headers,
     )
 
     assert rollback_response.status_code == 200, rollback_response.text
     payload = rollback_response.json()
     assert payload["success"] is True
-    assert payload["restored_version"] == 1
+    assert payload["restored_version"] == first_number
     assert payload["snapshot_created"] is False
     assert payload["version_quota_exceeded"] is True
     assert payload["new_version_number"] is None
@@ -622,7 +651,7 @@ async def test_get_latest_version(client: AsyncClient, db_session):
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["version_number"] == 2
+    assert data["version_number"] == 3
     assert data["word_count"] == 1
 
 
@@ -869,7 +898,8 @@ async def test_auto_save_filter(client: AsyncClient, db_session):
         headers=headers,
     )
     assert resp1.status_code == 200
-    assert len(resp1.json()["versions"]) == 1
+    assert len(resp1.json()["versions"]) == 2
+    assert {version["change_type"] for version in resp1.json()["versions"]} == {"create", "edit"}
 
     # 获取版本列表（包含 auto_save）
     resp2 = await client.get(
@@ -877,4 +907,5 @@ async def test_auto_save_filter(client: AsyncClient, db_session):
         headers=headers,
     )
     assert resp2.status_code == 200
-    assert len(resp2.json()["versions"]) == 2
+    assert len(resp2.json()["versions"]) == 3
+    assert {version["change_type"] for version in resp2.json()["versions"]} == {"create", "edit", "auto_save"}

@@ -272,7 +272,7 @@ describe('ToolResultCard', () => {
       expect(screen.getByText('Edit success')).toBeInTheDocument()
     })
 
-    it('shows undo button for edit_file', async () => {
+    it('shows undo only for an edit_file result with immutable provenance', async () => {
       const user = userEvent.setup()
       const onUndo = vi.fn()
       render(
@@ -282,6 +282,10 @@ describe('ToolResultCard', () => {
           result={{
             data: {
               id: 'file-1',
+              undo: {
+                before_version_number: 7,
+                expected_after_updated_at: '2026-10-06T12:34:56.000Z',
+              },
               details: [{ op: 'replace', old_preview: 'old', new_preview: 'new' }],
             },
           }}
@@ -292,7 +296,88 @@ describe('ToolResultCard', () => {
       const undoButton = screen.getByRole('button', { name: /undo/i })
       await user.click(undoButton)
 
-      expect(onUndo).toHaveBeenCalledWith('file-1')
+      expect(onUndo).toHaveBeenCalledWith({
+        fileId: 'file-1',
+        beforeVersionNumber: 7,
+        expectedAfterUpdatedAt: '2026-10-06T12:34:56.000Z',
+      })
+    })
+
+    it.each([
+      ['missing descriptor', undefined],
+      ['non-object descriptor', 'legacy'],
+      ['non-positive version', { before_version_number: 0, expected_after_updated_at: '2026-10-06T12:34:56.000Z' }],
+      ['fractional version', { before_version_number: 1.5, expected_after_updated_at: '2026-10-06T12:34:56.000Z' }],
+      ['unsafe integer version', { before_version_number: Number.MAX_SAFE_INTEGER + 1, expected_after_updated_at: '2026-10-06T12:34:56.000Z' }],
+      ['invalid timestamp', { before_version_number: 1, expected_after_updated_at: 'not-a-date' }],
+      ['non-ISO timestamp', { before_version_number: 1, expected_after_updated_at: '0' }],
+      ['nonexistent calendar date', { before_version_number: 1, expected_after_updated_at: '2026-02-31T12:00:00Z' }],
+      ['invalid clock time', { before_version_number: 1, expected_after_updated_at: '2026-10-06T24:00:00Z' }],
+      ['invalid offset hour', { before_version_number: 1, expected_after_updated_at: '2026-10-06T12:00:00+24:00' }],
+      ['invalid offset minute', { before_version_number: 1, expected_after_updated_at: '2026-10-06T12:00:00+05:60' }],
+    ])('hides undo for %s', (_label, undo) => {
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="edit_file"
+          result={{ data: { id: 'file-1', undo, details: [] } }}
+          onUndo={vi.fn()}
+        />
+      )
+
+      expect(screen.queryByRole('button', { name: /undo/i })).not.toBeInTheDocument()
+    })
+
+    it('preserves an exact valid offset and microsecond token', async () => {
+      const user = userEvent.setup()
+      const onUndo = vi.fn()
+      const token = '2026-10-06T12:34:56.123456+05:30'
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="edit_file"
+          result={{
+            data: {
+              id: 'file-1',
+              undo: {
+                before_version_number: 9,
+                expected_after_updated_at: token,
+              },
+              details: [],
+            },
+          }}
+          onUndo={onUndo}
+        />
+      )
+
+      await user.click(screen.getByRole('button', { name: /undo/i }))
+      expect(onUndo).toHaveBeenCalledWith({
+        fileId: 'file-1',
+        beforeVersionNumber: 9,
+        expectedAfterUpdatedAt: token,
+      })
+    })
+
+    it('hides undo when the file id is unusable', () => {
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="edit_file"
+          result={{
+            data: {
+              id: '   ',
+              undo: {
+                before_version_number: 1,
+                expected_after_updated_at: '2026-10-06T12:34:56.000Z',
+              },
+              details: [],
+            },
+          }}
+          onUndo={vi.fn()}
+        />
+      )
+
+      expect(screen.queryByRole('button', { name: /undo/i })).not.toBeInTheDocument()
     })
 
     it('displays edit details when expanded', async () => {

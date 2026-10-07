@@ -593,6 +593,8 @@ export const CodeManagement: React.FC = () => {
               </h2>
               <button
                 onClick={() => setShowCreateModal(false)}
+                disabled={createMutation.isPending}
+                aria-label={t("common:close")}
                 className="p-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors"
               >
                 <X size={20} className="text-[hsl(var(--text-secondary))]" />
@@ -708,6 +710,8 @@ export const CodeManagement: React.FC = () => {
               </h2>
               <button
                 onClick={() => setShowBatchModal(false)}
+                disabled={batchCreateMutation.isPending}
+                aria-label={t("common:close")}
                 className="p-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors"
               >
                 <X size={20} className="text-[hsl(var(--text-secondary))]" />

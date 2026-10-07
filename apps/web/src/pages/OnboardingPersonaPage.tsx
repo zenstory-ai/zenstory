@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -109,6 +109,8 @@ export default function OnboardingPersonaPage() {
   const [experienceLevel, setExperienceLevel] = useState<PersonaExperienceLevel>(
     existingData?.experience_level ?? "beginner"
   );
+  const mountedRef = useRef(false);
+  const editedFields = useRef({ personas: false, goals: false, experience: false });
   const [hasRestoredProfile, setHasRestoredProfile] = useState(Boolean(existingData));
   const [limitReached, setLimitReached] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -118,6 +120,11 @@ export default function OnboardingPersonaPage() {
     queryFn: onboardingPersonaApi.getState,
     enabled: Boolean(user),
   });
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   useEffect(() => {
     setHasRestoredProfile(Boolean(existingData));
@@ -138,9 +145,9 @@ export default function OnboardingPersonaPage() {
         ? profile.experience_level
         : "beginner";
 
-    setSelectedPersonas(normalizedPersonas);
-    setSelectedGoals(normalizedGoals);
-    setExperienceLevel(normalizedLevel);
+    if (!editedFields.current.personas) setSelectedPersonas(normalizedPersonas);
+    if (!editedFields.current.goals) setSelectedGoals(normalizedGoals);
+    if (!editedFields.current.experience) setExperienceLevel(normalizedLevel);
     setHasRestoredProfile(true);
 
     savePersonaOnboardingData(user.id, {
@@ -193,6 +200,9 @@ export default function OnboardingPersonaPage() {
   const canSubmit = selectedPersonas.length > 0;
 
   const togglePersona = (id: PersonaId) => {
+    if (selectedPersonas.includes(id) || selectedPersonas.length < MAX_PERSONA_SELECTION) {
+      editedFields.current.personas = true;
+    }
     setSelectedPersonas((prev) => {
       setLimitReached(false);
       if (prev.includes(id)) {
@@ -209,6 +219,7 @@ export default function OnboardingPersonaPage() {
   };
 
   const toggleGoal = (id: GoalId) => {
+    editedFields.current.goals = true;
     setSelectedGoals((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
@@ -229,6 +240,7 @@ export default function OnboardingPersonaPage() {
     try {
       await queryClient.cancelQueries({ queryKey: personaQueryKey });
       const result = await onboardingPersonaApi.save(payload);
+      if (!mountedRef.current) return;
       const profile = result.profile;
       if (!profile) {
         throw new Error("Persona onboarding save returned no profile");
@@ -246,9 +258,11 @@ export default function OnboardingPersonaPage() {
         state: nextPath === "/dashboard" ? { startDashboardCoachmark: true } : undefined,
       });
     } catch {
-      toast.error(t("onboarding:errors.saveFailed", "保存失败，请检查网络后重试"));
+      if (mountedRef.current) {
+        toast.error(t("onboarding:errors.saveFailed", "保存失败，请检查网络后重试"));
+      }
     } finally {
-      setSaving(false);
+      if (mountedRef.current) setSaving(false);
     }
   };
 
@@ -400,7 +414,10 @@ export default function OnboardingPersonaPage() {
                     <button
                       key={level}
                       type="button"
-                      onClick={() => setExperienceLevel(level)}
+                      onClick={() => {
+                        editedFields.current.experience = true;
+                        setExperienceLevel(level);
+                      }}
                       role="radio"
                       aria-checked={active}
                       className={cn(

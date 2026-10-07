@@ -186,6 +186,10 @@ class ErrorEventData(BaseModel):
 
 class DoneEventData(BaseModel):
     """Data for done events."""
+    file_mutated: bool = Field(
+        default=False,
+        description="This normally completed turn confirmed a committed file mutation",
+    )
     apply_action: str | None = Field(
         default=None,
         description="Suggested apply action: insert/replace/new_snippet/reference_only"
@@ -401,11 +405,13 @@ def done_event(
     intent: str | None = None,
     assistant_message_id: str | None = None,
     session_id: str | None = None,
+    file_mutated: bool = False,
 ) -> StreamEvent:
     """Create a done event."""
     return StreamEvent(
         type=EventType.DONE,
         data=DoneEventData(
+            file_mutated=file_mutated,
             apply_action=apply_action,
             refs=refs or [],
             intent=intent,

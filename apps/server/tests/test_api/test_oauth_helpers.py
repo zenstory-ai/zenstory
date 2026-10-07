@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from urllib.parse import parse_qs, urlparse
 
+import pytest
+
 import api.oauth as oauth_module
 
 
@@ -61,3 +63,20 @@ def test_should_use_secure_cookie_depends_on_redirect_uri(monkeypatch):
 
     monkeypatch.setattr(oauth_module, "GOOGLE_REDIRECT_URI", "http://localhost:8000/api/auth/google/callback")
     assert oauth_module._should_use_secure_cookie() is False
+
+
+@pytest.mark.parametrize(("url", "allowed", "expected"), [
+    ("https://zenstory.ai/app", ["zenstory.ai"], True),
+    ("https://app.zenstory.ai/app", ["zenstory.ai"], True),
+    ("http://zenstory.ai/app", ["zenstory.ai"], False),
+    ("http://app.zenstory.ai/app", ["zenstory.ai"], False),
+    ("https://zenstory.ai:invalid/app", ["zenstory.ai"], False),
+    ("https://zenstory.ai:99999/app", ["zenstory.ai"], False),
+    ("http://localhost:8000/app", ["localhost"], True),
+    ("http://127.0.0.1:8000/app", ["127.0.0.1"], True),
+    ("http://localhost:8000/app", ["zenstory.ai"], False),
+    ("http://localhost:8001/app", ["localhost:8000"], False),
+])
+def test_redirect_transport_and_port_allowlist(monkeypatch, url, allowed, expected):
+    monkeypatch.setattr(oauth_module, "SSO_ALLOWED_REDIRECT_DOMAINS", allowed)
+    assert oauth_module._is_allowed_redirect_url(url) is expected
