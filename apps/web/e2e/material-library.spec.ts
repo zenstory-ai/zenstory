@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/rules-of-hooks */
 import { test as base, expect, Page, Route } from '@playwright/test'
 import { TEST_USERS } from './config'
+import type { QuotaResponse, SubscriptionStatusResponse } from '../src/types/subscription'
 
 /**
  * Material Library Flow E2E Tests
@@ -234,6 +235,23 @@ const mockStats = {
 
 // Helper to set up route mocking for materials API
 async function setupMaterialLibraryMocking(page: Page) {
+  const subscription: SubscriptionStatusResponse = {
+    tier: 'pro', status: 'active', display_name: 'Pro', display_name_en: 'Pro',
+    current_period_end: null, days_remaining: null,
+    features: { materials_library_access: true, material_uploads: -1, material_decompositions: -1 },
+  }
+  const unlimited = { used: 0, limit: -1, reset_at: null }
+  const quota: QuotaResponse = {
+    ai_conversations: unlimited, projects: unlimited, material_uploads: unlimited,
+    material_decompositions: unlimited, skill_creates: unlimited, inspiration_copies: unlimited,
+  }
+  await page.route('**/api/v1/subscription/me', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify(subscription),
+  }))
+  await page.route('**/api/v1/subscription/quota', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify(quota),
+  }))
+
   // Mock material stats
   await page.route('**/api/v1/materials/stats', async (route: Route) => {
     await route.fulfill({

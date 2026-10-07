@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import UserManagement from "../../../pages/admin/UserManagement";
 import AuditLogPage from "../../../pages/admin/AuditLogPage";
 import { RecentActivityList } from "../RecentActivityList";
@@ -47,7 +48,7 @@ it.each(["2026-04-08T08:55:00", "2026-04-08T08:55:00Z", "2026-04-08T16:55:00+08:
 it.each(["2026-04-08T08:55:00", "2026-04-08T08:55:00Z", "2026-04-08T16:55:00+08:00"])(
   "user list interprets %s as the same UTC instant", (value) => {
     timestamp = value;
-    render(<UserManagement />);
+    render(<UserManagement />, { wrapper: MemoryRouter });
     const expected = new Date("2026-04-08T08:55:00Z").toLocaleString("en-US", {
       year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
     });
@@ -60,7 +61,7 @@ it.each(["2026-04-08T08:55:00", "2026-04-08T08:55:00Z", "2026-04-08T16:55:00+08:
 it.each(["2026-04-08T08:55:00", "2026-04-08T08:55:00Z", "2026-04-08T16:55:00+08:00"])(
   "audit list interprets %s as the same UTC instant", (value) => {
     timestamp = value;
-    render(<AuditLogPage />);
+    render(<AuditLogPage />, { wrapper: MemoryRouter });
     const expected = new Date("2026-04-08T08:55:00Z").toLocaleString("en-US", {
       year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
     });

@@ -1,3 +1,4 @@
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import PointsManagement from "../PointsManagement";
@@ -52,7 +53,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllEnvs(); vi.clearAllMocks(); });
 
 function renderPoints() {
-  render(<PointsManagement />);
+  render(<PointsManagement />, { wrapper: MemoryRouter });
   fireEvent.change(screen.getByPlaceholderText("points.searchUser"), { target: { value: "writer" } });
   fireEvent.click(screen.getByText("common:search"));
 }
@@ -66,14 +67,14 @@ it.each(pageTimestampCases)("%s timestamp %s preserves its UTC instant", (page, 
   });
   timestamp = value;
   if (page === "points") renderPoints();
-  else if (page === "check-in") render(<CheckInStatsPage />);
-  else { render(<ReferralManagement />); if (page === "rewards") fireEvent.click(screen.getByText("referrals.rewards")); }
+  else if (page === "check-in") render(<CheckInStatsPage />, { wrapper: MemoryRouter });
+  else { render(<ReferralManagement />, { wrapper: MemoryRouter }); if (page === "rewards") fireEvent.click(screen.getByText("referrals.rewards")); }
   expect(screen.getAllByText(expected).length).toBeGreaterThan(0);
 });
 
 it("check-in calendar day is not shifted to the previous local day", () => {
   timestamp = "2026-04-08T08:55:00Z";
-  render(<CheckInStatsPage />);
+  render(<CheckInStatsPage />, { wrapper: MemoryRouter });
   expect(screen.getByText("04/08/2026")).toBeInTheDocument();
 });
 
@@ -105,7 +106,7 @@ it("points adjust inputs and callbacks retain validation and current outcomes", 
 
 it("points search Enter, paging and idle cancellation retain local state", () => {
   timestamp = "2026-04-08T08:55:00Z"; total = 45;
-  render(<PointsManagement />);
+  render(<PointsManagement />, { wrapper: MemoryRouter });
   const input = screen.getByPlaceholderText("points.searchUser");
   fireEvent.change(input, { target: { value: "writer" } });
   fireEvent.keyDown(input, { key: "Enter" });
@@ -119,7 +120,7 @@ it("points search Enter, paging and idle cancellation retain local state", () =>
 
 it("invite filter/paging/generation callbacks keep keyed state and error recovery", () => {
   timestamp = "invalid-date"; total = 45;
-  render(<ReferralManagement />);
+  render(<ReferralManagement />, { wrapper: MemoryRouter });
   expect(screen.getAllByText("-").length).toBeGreaterThan(0);
   fireEvent.click(screen.getByRole("button", { name: "common:next" }));
   expect(queryKeys.some((key) => key[1] === "invites" && key[2] === 2)).toBe(true);
@@ -138,7 +139,7 @@ it("invite filter/paging/generation callbacks keep keyed state and error recover
 
 it.each(["points", "pro_trial", "credits"])("reward type %s retains label, expiry and paging", (type) => {
   rewardType = type; timestamp = "2026-04-08T08:55:00Z"; expires = timestamp; total = 45;
-  render(<ReferralManagement />);
+  render(<ReferralManagement />, { wrapper: MemoryRouter });
   fireEvent.click(screen.getByText("referrals.rewards"));
   expect(screen.getByText("referrals.types." + type)).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "common:next" }));
@@ -150,7 +151,7 @@ it.each(["points", "pro_trial", "credits"])("reward type %s retains label, expir
 
 it("check-in pagination and invalid datetime fallback remain usable", () => {
   timestamp = "invalid-date"; total = 45;
-  render(<CheckInStatsPage />);
+  render(<CheckInStatsPage />, { wrapper: MemoryRouter });
   expect(screen.getByText("-")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "common:next" }));
   expect(queryKeys.some((key) => key[1] === "check-in" && key[2] === "records" && key[3] === 2)).toBe(true);
@@ -161,7 +162,7 @@ it("check-in pagination and invalid datetime fallback remain usable", () => {
 
 it("nullable referral expiry retains the dash fallback", () => {
   timestamp = "2026-04-08T08:55:00Z"; expires = null;
-  render(<ReferralManagement />);
+  render(<ReferralManagement />, { wrapper: MemoryRouter });
   expect(screen.getByText("-")).toBeInTheDocument();
   fireEvent.click(screen.getByText("referrals.rewards"));
   expect(screen.getByText("-")).toBeInTheDocument();

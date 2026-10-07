@@ -1,6 +1,7 @@
 """Actual suggest route, auth, context and provider prompt genre contract."""
 
 import json
+from dataclasses import asdict
 from uuid import uuid4
 
 import pytest
@@ -95,7 +96,10 @@ async def _exercise(tmp_path, monkeypatch, record_property, project_type, header
                 }, headers={"Authorization": "Bearer " + create_access_token({"sub": user_id}),
                             "Accept-Language": "zh-CN"})
         facts = {"project_type": project_type, "status": response.status_code,
-                 "body": response.json(), "calls": calls, "sessions": lifecycles}
+                 "body": response.json(), "calls": [
+                     {**call, "usage_attribution": asdict(call["usage_attribution"])}
+                     for call in calls
+                 ], "sessions": lifecycles}
         record_property("suggest_genre", json.dumps(facts, ensure_ascii=False, sort_keys=True))
         assert lifecycles and all(row == {"cold": True, "expire_on_commit": True,
                                           "closed": True} for row in lifecycles)

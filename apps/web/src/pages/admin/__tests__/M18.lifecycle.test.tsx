@@ -189,8 +189,8 @@ it.each(['en', 'zh'])('formats naive/Z/offset prompt and skill dates as UTC in %
   cleanup()
   vi.mocked(adminApi.getPendingSkills).mockResolvedValue(dates.map((date, index) => ({ ...skill(`date${index}`, 'approved'), created_at: date, reviewed_at: date })))
   mount(<SkillReviewPage />); await flush()
-  expect.soft(screen.getAllByText(new Date(dates[1]).toLocaleDateString(locale))).toHaveLength(3)
-  expect(screen.getAllByText(`${i18n.t('admin:skills.reviewedAt')}: ${new Date(dates[1]).toLocaleString(locale)}`)).toHaveLength(3)
+  expect.soft(screen.getAllByText(new Date(dates[1]).toLocaleDateString(locale, { year: 'numeric', month: '2-digit', day: '2-digit' }))).toHaveLength(3)
+  expect(screen.getAllByText(`${i18n.t('admin:skills.reviewedAt')}: ${dateTime}`)).toHaveLength(3)
 })
 it('keeps prompt missing/invalid date fallback', async () => {
   vi.mocked(adminApi.getPrompts).mockResolvedValue([{ ...config('none'), updated_at: undefined }, { ...config('invalid'), updated_at: 'broken' }])

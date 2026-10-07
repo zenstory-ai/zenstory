@@ -85,7 +85,7 @@ it('catches clipboard rejection without success or unhandled emission', async ()
   await page(); gate.reject(new Error('test-owned clipboard denial')); await flush()
   expect.soft(toast.success).not.toHaveBeenCalled()
   expect.soft(emissions).toEqual([])
-  expect(toast.error).toHaveBeenCalledExactlyOnceWith(commonEn.operationFailed)
+  expect(toast.error).toHaveBeenCalledExactlyOnceWith(adminEn.codes.copyFailed)
 })
 it('preserves the copied string and current Chinese success after a healthy write', async () => {
   writeResult = Promise.resolve(); await page('zh'); await flush()

@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest'
+import { MemoryRouter } from 'react-router-dom'
 import { StrictMode } from 'react'
 import type { ReactNode } from 'react'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -43,10 +44,12 @@ const order = (id = 'a'): AdminPaymentOrder => ({ id, out_trade_no: `ORDER-${id}
   cycle: 'month', amount_cents: 4900, payment_method: 'alipay', status: 'paid', fulfillment_status: 'failed',
   created_at: '2026-10-06T00:32:00', paid_at: null, fulfilled_at: null, failure_reason: null })
 const completed = (id = 'a'): PaymentOrderSyncResponse => ({ outcome: 'fulfilled', order: { ...order(id), fulfillment_status: 'succeeded' } })
-const quota = (id: string): UserQuotaDetail => ({ user_id: id, username: `quota-${id}`, plan_name: 'pro',
-  ai_conversations_used: 50, ai_conversations_limit: 100, material_upload_used: 0, material_upload_limit: -1,
-  material_decompose_used: 0, material_decompose_limit: -1, skill_create_used: 0, skill_create_limit: 0,
-  inspiration_copy_used: 0, inspiration_copy_limit: 0 })
+const quota = (id: string): UserQuotaDetail => ({ user_id: id, username: `quota-${id}`, email: `${id}@example.test`,
+  plan_name: 'pro', plan_display_name: 'Pro', plan_display_name_en: 'Pro',
+  ai_conversations: { used: 50, limit: 100, reset_at: null },
+  material_decompositions: { used: 0, limit: -1, reset_at: null },
+  custom_skills: { used: 0, limit: 0, reset_at: null },
+  inspiration_copies: { used: 0, limit: 0, reset_at: null } })
 let clients: QueryClient[]
 let gates: { done: () => boolean; settle: () => void }[]
 let unexpected: string[]
@@ -69,7 +72,7 @@ async function language(lng: 'en' | 'zh') {
 function mount(node: ReactNode, strict = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity, staleTime: Infinity }, mutations: { retry: false } } })
   clients.push(client)
-  const tree = <QueryClientProvider client={client}><I18nextProvider i18n={i18n}>{node}</I18nextProvider></QueryClientProvider>
+  const tree = <QueryClientProvider client={client}><I18nextProvider i18n={i18n}><MemoryRouter>{node}</MemoryRouter></I18nextProvider></QueryClientProvider>
   return { ...render(strict ? <StrictMode>{tree}</StrictMode> : tree), client }
 }
 const flush = async () => { await act(async () => { await new Promise(resolve => setTimeout(resolve, 5)) }) }
@@ -121,7 +124,7 @@ beforeEach(async () => {
   vi.mocked(adminApi.createCode).mockResolvedValue(code('2026-10-06T00:32:00Z'))
   vi.mocked(adminApi.createCodesBatch).mockResolvedValue({ codes: ['ONE', 'TWO'], count: 2 })
   vi.mocked(adminApi.updateUserSubscription).mockResolvedValue({ success: true })
-  vi.mocked(adminApi.getQuotaUsageStats).mockResolvedValue({ material_uploads: 1, material_decomposes: 2, skill_creates: 3, inspiration_copies: 0 })
+  vi.mocked(adminApi.getQuotaUsageStats).mockResolvedValue({ period_start: '2026-10-01T00:00:00Z', period_end: '2026-11-01T00:00:00Z', material_decompositions: 2, skills_created: 3, inspiration_copies: 0 })
   vi.mocked(adminApi.getUserQuota).mockImplementation(async id => quota(id))
 })
 afterEach(async () => {
@@ -249,6 +252,10 @@ it('live code create failure retries, and batch completion uses returned count',
   await waitFor(() => expect(container.querySelector('.fixed.inset-0')).toBeNull())
   fireEvent.click(screen.getByRole('button', { name: t('codes.batchCreate') }))
   fireEvent.click(within(container.querySelector('.fixed.inset-0') as HTMLElement).getByRole('button', { name: t('codes.batchCreate') }))
+  const resultDialog = await screen.findByRole('dialog')
+  expect(within(resultDialog).getByRole('textbox')).toHaveValue('ONE\nTWO')
+  expect(within(resultDialog).getByRole('heading')).toHaveTextContent(i18n.t('admin:codes.batchResultTitle', { count: 2 }))
+  fireEvent.click(within(resultDialog).getByRole('button', { name: i18n.t('common:close') }))
   await waitFor(() => expect(container.querySelector('.fixed.inset-0')).toBeNull())
   expect(toast.success).toHaveBeenLastCalledWith(i18n.t('admin:codes.batchCreateSuccess', { count: 2 }))
   expect(adminApi.createCode).toHaveBeenCalledTimes(2); expect(adminApi.createCodesBatch).toHaveBeenCalledTimes(1)

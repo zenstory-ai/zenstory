@@ -133,7 +133,7 @@ describe("SubscriptionManagement", () => {
   it.each([true, false])("keeps subscription header close aligned with pending=%s", (pending) => {
     mockQueries({ subscriptionsData: { items: [subscriptionItem], total: 1, page: 1, page_size: 20 } });
     useMutationMock.mockReturnValue({ mutate: mutateMock, isPending: pending });
-    const { container } = render(<SubscriptionManagement />);
+    const { container } = render(<SubscriptionManagement />, { wrapper: MemoryRouter });
     fireEvent.click(screen.getByTitle("subscriptions.modify"));
     const modal = container.querySelector(".fixed.inset-0")!;
     const headerClose = modal.querySelector("button")!;

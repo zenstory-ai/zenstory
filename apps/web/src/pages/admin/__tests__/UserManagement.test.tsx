@@ -299,7 +299,7 @@ describe("UserManagement", () => {
       data: { users: [sampleUser], total: 1 }, isLoading: false, isFetching: false,
       isError: false, error: null, refetch: vi.fn(),
     });
-    render(<UserManagement />);
+    render(<UserManagement />, { wrapper: MemoryRouter });
     fireEvent.click(screen.getAllByTitle("users.edit")[0]);
     const heading = screen.getByRole("heading", { name: "users.editUser" });
     const close = heading.parentElement!.querySelector("button")!;
