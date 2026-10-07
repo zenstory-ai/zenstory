@@ -363,6 +363,56 @@ class UpgradeFunnelStatsResponse(BaseModel):
     sources: list[UpgradeFunnelSourceResponse]
 
 
+class GrowthGrantChannelResponse(BaseModel):
+    """Non-payment plan grants grouped by their recorded source."""
+
+    channel: str
+    events: int
+    users: int
+
+
+class GrowthMetricsResponse(BaseModel):
+    """Auditable growth metrics for one half-open reporting window."""
+
+    new_users: int
+    ai_active_users: int
+    cohort_activated_users: int
+    cohort_activation_rate: float | None
+    paid_orders: int
+    revenue_cents: int
+    paid_users: int
+    cohort_paid_users: int
+    signup_to_paid_rate: float | None
+    grant_upgrade_events: int
+    grant_upgrade_users: int
+    grant_channels: list[GrowthGrantChannelResponse] = Field(default_factory=list)
+
+
+class GrowthDailyResponse(GrowthMetricsResponse):
+    """Growth metrics attributed to one Beijing calendar day."""
+
+    date: date
+
+
+class GrowthPeriodResponse(BaseModel):
+    """Metrics and exact UTC bounds for one reporting period."""
+
+    period_start: UTCDateTime
+    period_end: UTCDateTime
+    metrics: GrowthMetricsResponse
+
+
+class GrowthDashboardResponse(BaseModel):
+    """Current growth window, matched prior window, and current daily trend."""
+
+    days: Literal[7, 14, 30]
+    timezone: Literal["Asia/Shanghai"] = "Asia/Shanghai"
+    current: GrowthPeriodResponse
+    previous: GrowthPeriodResponse
+    daily: list[GrowthDailyResponse]
+    definitions: dict[str, str]
+
+
 # ==================== Audit Log Schemas ====================
 
 

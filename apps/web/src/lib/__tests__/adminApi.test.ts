@@ -1499,3 +1499,15 @@ describe('admin cleanup query params', () => {
     expect(result.max_uses).toBe(5)
   })
 })
+
+
+describe('growth dashboard', () => {
+  it('requests the selected Beijing window and preserves an empty cohort rate', async () => {
+    const { getGrowthDashboard, adminApi } = await import('../adminApi')
+    const payload = { days: 14, current: {metrics: {cohort_activation_rate: null, signup_to_paid_rate: null, revenue_cents: 19900}}}
+    mockApi.get.mockResolvedValue(payload)
+    expect(await getGrowthDashboard(14)).toBe(payload)
+    expect(mockApi.get).toHaveBeenLastCalledWith('/api/admin/dashboard/growth?days=14')
+    expect(adminApi.getGrowthDashboard).toBe(getGrowthDashboard)
+  })
+})

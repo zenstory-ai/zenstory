@@ -17,7 +17,8 @@ from services.infra.single_flight_lock import (
 
 
 @pytest.fixture(autouse=True)
-def _clean_locks():
+def _clean_locks(monkeypatch):
+    monkeypatch.setenv("ASYNC_VECTOR_INDEX_ENABLED", "true")
     reset_memory_locks()
     yield
     reset_memory_locks()
@@ -79,6 +80,32 @@ async def test_rebuild_conflicts_while_same_project_is_rebuilding(client: AsyncC
         task.assert_not_called()
     finally:
         release_single_flight(lock_name, holder)
+
+
+@pytest.mark.integration
+async def test_rebuild_disabled_does_not_queue_or_acquire_lock(
+    client: AsyncClient, db_session, monkeypatch
+):
+    monkeypatch.setenv("ASYNC_VECTOR_INDEX_ENABLED", "false")
+    token, project = await _login_with_project(client, db_session)
+
+    with patch.object(files_api, "_rebuild_vector_index_task") as task:
+        response = await client.post(
+            f"/api/v1/projects/{project.id}/vector-index/rebuild",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "message": "Vector index rebuild disabled",
+        "project_id": project.id,
+        "queued": False,
+    }
+    task.assert_not_called()
+    lock_name = files_api._vector_index_rebuild_lock_name(project.id)
+    holder = acquire_single_flight(lock_name, 60)
+    assert holder is not None
+    release_single_flight(lock_name, holder)
 
 
 def test_rebuild_task_releases_lock_even_when_indexing_fails():

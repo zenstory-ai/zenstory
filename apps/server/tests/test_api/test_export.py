@@ -5,6 +5,7 @@ Tests export endpoint:
 - GET /api/v1/projects/{project_id}/export/drafts
 """
 
+import logging
 from datetime import datetime, timedelta
 
 import pytest
@@ -368,7 +369,7 @@ async def test_export_drafts_by_order_field(client: AsyncClient, db_session):
 
 
 @pytest.mark.integration
-async def test_export_drafts_no_drafts(client: AsyncClient, db_session):
+async def test_export_drafts_no_drafts(client: AsyncClient, db_session, caplog):
     """Test exporting a project with no drafts returns 404."""
     # Create user
     from services.core.auth_service import hash_password
@@ -396,14 +397,21 @@ async def test_export_drafts_no_drafts(client: AsyncClient, db_session):
     project_id = project["id"]
 
     # Try to export drafts
-    response = await client.get(
-        f"/api/v1/projects/{project_id}/export/drafts",
-        headers={"Authorization": f"Bearer {token}"}
-    )
+    with caplog.at_level(logging.INFO, logger="api.export"):
+        response = await client.get(
+            f"/api/v1/projects/{project_id}/export/drafts",
+            headers={"Authorization": f"Bearer {token}"}
+        )
 
     assert response.status_code == 404
     data = response.json()
     assert data["error_code"] == ErrorCode.EXPORT_NO_DRAFTS
+    empty_export_logs = [
+        record for record in caplog.records
+        if record.name == "api.export" and record.message == "export_project_drafts: No drafts found"
+    ]
+    assert len(empty_export_logs) == 1
+    assert empty_export_logs[0].levelno == logging.INFO
 
 
 @pytest.mark.integration

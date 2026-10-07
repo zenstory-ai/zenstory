@@ -83,7 +83,7 @@
     "upgradeConversionShare": "Share",
     "upgradeShowAllConversionSources": "Show all attributed sources ({{count}})",
     "upgradeShowTopConversionSources": "Show top {{count}} attributed sources",
-    "paidProUsers": "Paid Pro users",
+    "paidProUsers": "Current Pro users (includes grants)",
     "upgradePaidConversions": "Paid (Alipay)",
     "upgradeAllConversions": "All upgrades",
     "upgradeChannels": "Upgrade channels",
@@ -93,7 +93,8 @@
       "points_redemption": "Points",
       "admin_update": "Admin grant",
       "other": "Other"
-    }
+    },
+    "upgradeEntryEvents": "Upgrade entry events"
   },
   "users": {
     "title": "User Management",
@@ -662,7 +663,7 @@
   },
   "usage": {
     "title": "Usage & cost",
-    "subtitle": "DeepSeek calls and cost per user, by Beijing time",
+    "subtitle": "Estimated DeepSeek cost by user (not a provider invoice), by Beijing time",
     "window": "Period",
     "windows": {
       "today": "Today",
@@ -671,8 +672,8 @@
     },
     "refresh": "Refresh",
     "loadError": "Couldn't load usage",
-    "priceLine": "Prices (CNY per 1M tokens, cache hit / miss / output): {{peak}}; {{offpeak}}. Peak is weekdays 9–12 and 14–18.",
-    "notCounted": "Cancelled or timed-out requests and embeddings are not counted.",
+    "priceLine": "Prices (CNY per 1M tokens, cache hit / miss / output): {{peak}}; {{offpeak}}. Peak is 9–12 and 14–18 Beijing time, Monday–Friday excluding Chinese public holidays; all other times are off-peak.",
+    "notCounted": "Only completed model calls that return usage are recorded; calls completed before a request is cancelled or times out may still be counted. Embeddings are excluded.",
     "totalCost": "Total cost",
     "peakOffpeak": "Peak / off-peak cost",
     "calls": "Calls",
@@ -735,5 +736,27 @@
     "noPayments": "No payment orders",
     "olderOrders": "{{count}} older orders not shown",
     "notFound": "User not found"
+  },
+  "growth": {
+    "title": "Growth overview",
+    "period": "Beijing time · through {{end}}; today is incomplete",
+    "comparison": "Compared with the prior equal-duration period",
+    "newUsers": "New signups",
+    "aiActive": "AI active users",
+    "activation": "New-user AI activation",
+    "paidRate": "Signup-to-paid rate",
+    "paidUsers": "Paying customers",
+    "orders": "Paid orders",
+    "revenue": "Paid-order revenue",
+    "grants": "Granted upgrades (users)",
+    "previous": "Prior {{value}}",
+    "daily": "Daily growth",
+    "date": "Date",
+    "definition": "Activation and payment rates use this period’s signup cohort, observed through the period cutoff. AI activity counts distinct customers with live model calls; administrators and backfills are excluded. Revenue counts paid orders; granted upgrades are separate.",
+    "dailyDefinition": "Daily signup cohorts are observed through the period cutoff; the last day is partial.",
+    "noCohort": "—",
+    "events": "Independent event counts",
+    "eventsNote": "Events are counted independently and do not represent sequential cohort conversion.",
+    "legacyUpgradeNote": "Attribution below counts subscription-upgrade history. Use paid orders in the growth overview for payment totals and paying customers."
   }
 }

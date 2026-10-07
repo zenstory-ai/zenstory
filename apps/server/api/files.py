@@ -679,9 +679,12 @@ def _rebuild_vector_index_task(project_id: str, lock_token: str | None = None) -
     from sqlmodel import Session
 
     from database import sync_engine
+    from services.infra.vector_search_service import is_async_vector_index_enabled
     from services.llama_index import get_llama_index_service
 
     try:
+        if not is_async_vector_index_enabled():
+            return
         with Session(sync_engine) as s:
             svc = get_llama_index_service()
             _ = svc.index_project(s, project_id)
@@ -707,6 +710,15 @@ def rebuild_vector_index(
     """Rebuild vector index in background (fire-and-forget)."""
     verify_project_ownership(project_id, current_user, session)
 
+    from services.infra.vector_search_service import is_async_vector_index_enabled
+
+    if not is_async_vector_index_enabled():
+        return {
+            "message": "Vector index rebuild disabled",
+            "project_id": project_id,
+            "queued": False,
+        }
+
     lock_token = acquire_single_flight(
         _vector_index_rebuild_lock_name(project_id),
         VECTOR_INDEX_REBUILD_LOCK_TTL_SECONDS,
@@ -719,7 +731,7 @@ def rebuild_vector_index(
         )
 
     background_tasks.add_task(_rebuild_vector_index_task, project_id, lock_token)
-    return {"message": "Vector index rebuild queued", "project_id": project_id}
+    return {"message": "Vector index rebuild queued", "project_id": project_id, "queued": True}
 
 
 @router.get("/files/{file_id}", response_model=FileResponse)

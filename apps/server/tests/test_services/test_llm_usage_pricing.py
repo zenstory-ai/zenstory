@@ -14,7 +14,8 @@ def _beijing(year, month, day, hour, minute=0, second=0):
     return datetime(year, month, day, hour, minute, second, tzinfo=BEIJING)
 
 
-# 2026-10-05 is a Monday; 2026-10-10 a Saturday; 2026-10-11 a Sunday.
+# 2026-10-08 is a Thursday after the National Day holiday;
+# 2026-10-10 is a Saturday and 2026-10-11 a Sunday.
 @pytest.mark.unit
 @pytest.mark.parametrize(
     ("hour", "minute", "expected"),
@@ -32,13 +33,13 @@ def _beijing(year, month, day, hour, minute=0, second=0):
     ],
 )
 def test_weekday_band_edges_are_half_open(hour, minute, expected):
-    assert pricing.price_band(_beijing(2026, 10, 5, hour, minute)) == expected
+    assert pricing.price_band(_beijing(2026, 10, 8, hour, minute)) == expected
 
 
 @pytest.mark.unit
 def test_last_second_before_noon_is_peak_and_noon_is_not():
-    assert pricing.price_band(_beijing(2026, 10, 5, 11, 59, 59)) == "peak"
-    assert pricing.price_band(_beijing(2026, 10, 5, 17, 59, 59)) == "peak"
+    assert pricing.price_band(_beijing(2026, 10, 8, 11, 59, 59)) == "peak"
+    assert pricing.price_band(_beijing(2026, 10, 8, 17, 59, 59)) == "peak"
 
 
 @pytest.mark.unit
@@ -49,10 +50,42 @@ def test_weekend_is_always_offpeak(day):
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize(
+    ("month", "day"),
+    [
+        (1, 1),
+        (2, 16),
+        (4, 6),
+        (5, 4),
+        (6, 19),
+        (9, 25),
+        (10, 7),
+    ],
+)
+def test_2026_public_holiday_weekdays_are_always_offpeak(month, day):
+    for hour in (9, 10, 15, 17):
+        assert pricing.price_band(_beijing(2026, month, day, hour)) == "offpeak"
+
+
+@pytest.mark.unit
+def test_weekend_make_up_workday_remains_offpeak():
+    # The supplier says weekends are always off-peak. Government make-up
+    # workdays therefore do not turn Saturday/Sunday into peak billing days.
+    assert pricing.price_band(_beijing(2026, 10, 10, 10)) == "offpeak"
+
+
+@pytest.mark.unit
+def test_unknown_calendar_year_does_not_claim_holiday_knowledge():
+    # 2027-10-01 is a Friday, but its official holiday calendar is not encoded.
+    assert pricing.is_china_public_holiday(date(2027, 10, 1)) is None
+    assert pricing.price_band(_beijing(2027, 10, 1, 10)) == "peak"
+
+
+@pytest.mark.unit
 def test_naive_datetimes_are_treated_as_utc():
-    # 01:30 UTC Monday = 09:30 Beijing (peak); 04:30 UTC = 12:30 Beijing (lunch).
-    assert pricing.price_band(datetime(2026, 10, 5, 1, 30)) == "peak"
-    assert pricing.price_band(datetime(2026, 10, 5, 4, 30)) == "offpeak"
+    # 01:30 UTC Thursday = 09:30 Beijing (peak); 04:30 UTC = 12:30 Beijing (lunch).
+    assert pricing.price_band(datetime(2026, 10, 8, 1, 30)) == "peak"
+    assert pricing.price_band(datetime(2026, 10, 8, 4, 30)) == "offpeak"
     # Friday 23:30 UTC is Saturday 07:30 Beijing.
     assert pricing.price_band(datetime(2026, 10, 9, 23, 30)) == "offpeak"
     # Sunday 22:00 UTC is Monday 06:00 Beijing, still before 09:00.
@@ -97,3 +130,4 @@ def test_naive_utc_and_price_table():
     assert table["peak"] == {"cache_hit": "0.04", "cache_miss": "2", "output": "8"}
     assert table["offpeak"] == {"cache_hit": "0.02", "cache_miss": "1", "output": "4"}
     assert pricing.PRICING_VERSION
+    assert len(pricing.PRICING_VERSION) <= 32

@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Literal
 
-from sqlalchemy import BigInteger, String, case, cast, func, literal, or_
+from sqlalchemy import BigInteger, String, and_, case, cast, func, literal, or_
 from sqlmodel import Session, select
 
 from config.datetime_utils import normalize_datetime_to_utc, utcnow
@@ -21,6 +21,7 @@ from models.entities import User
 from models.llm_usage import PRICE_BAND_OFFPEAK, PRICE_BAND_PEAK, LLMUsageEvent
 from services.usage.pricing import (
     BEIJING_TZ_NAME,
+    CHINA_PUBLIC_HOLIDAY_RANGES,
     COST_WEIGHTS,
     PRICING_VERSION,
     beijing_day_start_utc,
@@ -34,6 +35,8 @@ from services.usage.pricing import (
 UsageWindow = Literal["today", "yesterday", "7d"]
 UserSort = Literal["cost", "calls", "tokens"]
 WINDOW_DAYS = {"today": 1, "yesterday": 1, "7d": 7}
+LEGACY_PRICING_VERSION_WITHOUT_HOLIDAYS = "deepseek-flash-2026-10"
+LEGACY_HOLIDAY_CORRECTION_MODEL = "deepseek-flash"
 
 
 @dataclass(frozen=True)
@@ -96,17 +99,41 @@ def _band_units(c: Any, band: str) -> Any:
     )
 
 
+def _legacy_holiday_peak_mislabel(c: Any) -> Any:
+    """Match the known legacy rows whose stored peak band ignored holidays.
+
+    This is a query-time correction only. The append-only ledger remains
+    unchanged, and unknown models or pricing versions retain their stored band.
+    """
+    holiday_windows = []
+    for ranges in CHINA_PUBLIC_HOLIDAY_RANGES.values():
+        for first_day, end_day in ranges:
+            start = beijing_day_start_utc(first_day)
+            end = beijing_day_start_utc(end_day)
+            holiday_windows.append(and_(c.occurred_at >= start, c.occurred_at < end))
+    return and_(
+        c.price_band == PRICE_BAND_PEAK,
+        c.model == LEGACY_HOLIDAY_CORRECTION_MODEL,
+        c.pricing_version == LEGACY_PRICING_VERSION_WITHOUT_HOLIDAYS,
+        or_(*holiday_windows),
+    )
+
+
+def _effective_peak(c: Any) -> Any:
+    return and_(c.price_band == PRICE_BAND_PEAK, ~_legacy_holiday_peak_mislabel(c))
+
+
 def _peak_units_expr(c: Any) -> Any:
     return func.coalesce(
-        func.sum(case((c.price_band == PRICE_BAND_PEAK, _band_units(c, PRICE_BAND_PEAK)), else_=0)),
+        func.sum(case((_effective_peak(c), _band_units(c, PRICE_BAND_PEAK)), else_=0)),
         0,
     )
 
 
 def _offpeak_units_expr(c: Any) -> Any:
-    # Anything not tagged peak is billed off-peak.
+    # Anything not effectively peak is estimated at the off-peak price.
     return func.coalesce(
-        func.sum(case((c.price_band == PRICE_BAND_PEAK, 0), else_=_band_units(c, PRICE_BAND_OFFPEAK))),
+        func.sum(case((_effective_peak(c), 0), else_=_band_units(c, PRICE_BAND_OFFPEAK))),
         0,
     )
 
@@ -187,6 +214,9 @@ def _daily_rows(
         EVENTS.cache_miss_tokens,
         EVENTS.output_tokens,
         EVENTS.price_band,
+        EVENTS.model,
+        EVENTS.pricing_version,
+        EVENTS.occurred_at,
     ).where(*_in_period(period))
     if user_id is not None:
         inner = inner.where(EVENTS.user_id == user_id)

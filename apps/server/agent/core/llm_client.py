@@ -98,7 +98,8 @@ class LLMClient:
                 ),
                 max_retries=DEEPSEEK_CLIENT_MAX_RETRIES,
             )
-        return self._sync_client
+        from services.usage.model_call_guard import install_sync_cost_guard
+        return install_sync_cost_guard(self._sync_client)
 
     @property
     def async_client(self) -> AsyncOpenAI:
@@ -113,7 +114,8 @@ class LLMClient:
                 ),
                 max_retries=DEEPSEEK_CLIENT_MAX_RETRIES,
             )
-        return self._async_client
+        from services.usage.model_call_guard import install_async_cost_guard
+        return install_async_cost_guard(self._async_client)
 
     # ========== Sync Methods ==========
 
@@ -344,14 +346,16 @@ class LLMClient:
             extra_body["thinking"] = {"type": "disabled"}
 
         try:
-            response = await self.async_client.chat.completions.create(
-                model=model_name,
-                messages=messages,  # type: ignore[arg-type]
-                temperature=temperature if temperature is not None else self.DEFAULT_TEMPERATURE,
-                top_p=top_p if top_p is not None else self.DEFAULT_TOP_P,
-                max_tokens=max_tokens,
-                extra_body=extra_body if extra_body else None,
-            )
+            from services.usage.cost_budget import budget_attribution
+            with budget_attribution(usage_attribution):
+                response = await self.async_client.chat.completions.create(
+                    model=model_name,
+                    messages=messages,  # type: ignore[arg-type]
+                    temperature=temperature if temperature is not None else self.DEFAULT_TEMPERATURE,
+                    top_p=top_p if top_p is not None else self.DEFAULT_TOP_P,
+                    max_tokens=max_tokens,
+                    extra_body=extra_body if extra_body else None,
+                )
 
             content = response.choices[0].message.content or ""
             duration_ms = int((utcnow() - start_time).total_seconds() * 1000)

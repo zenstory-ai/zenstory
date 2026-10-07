@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useIsFetching } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Users, FolderOpen, Lightbulb, CreditCard, RefreshCw, Coins, CalendarCheck, Gift, UserPlus } from 'lucide-react';
 import { adminApi } from '@/lib/adminApi';
 import { AdminPageState } from '@/components/admin';
 import { StatsCard } from '@/components/admin/StatsCard';
+import { GrowthOverview } from '@/components/admin/GrowthOverview';
 import { RecentActivityList } from '@/components/admin/RecentActivityList';
 import { inspirationsConfig } from '@/config/inspirations';
 
@@ -13,6 +14,8 @@ const MAX_VISIBLE_SOURCES = 8;
 
 export default function AdminDashboard() {
   const { t } = useTranslation(['admin', 'common']);
+  const queryClient = useQueryClient();
+  const growthFetching = useIsFetching({queryKey: ['admin', 'dashboard', 'growth']});
   const [selectedWindowDays, setSelectedWindowDays] = useState<(typeof WINDOW_OPTIONS)[number]>(7);
   const [showAllUpgradeSources, setShowAllUpgradeSources] = useState(false);
   const [showAllConversionSources, setShowAllConversionSources] = useState(false);
@@ -54,7 +57,7 @@ export default function AdminDashboard() {
   const queryErrorText = error instanceof Error && error.message
     ? error.message
     : t('common:error');
-  const isRefreshing = isFetching || activationFunnelFetching || upgradeFunnelFetching || upgradeConversionFetching;
+  const isRefreshing = growthFetching > 0 || isFetching || activationFunnelFetching || upgradeFunnelFetching || upgradeConversionFetching;
 
   const upgradeTotals = upgradeFunnel?.totals ?? { expose: 0, click: 0, conversion: 0 };
   const upgradeConversionTotal = upgradeConversion?.total_conversions ?? 0;
@@ -66,18 +69,6 @@ export default function AdminDashboard() {
     if (upgradeConversionTotal <= 0) return null;
     return upgradeConversionAttributed / upgradeConversionTotal;
   }, [upgradeConversionAttributed, upgradeConversionTotal]);
-  const upgradeOverallCtr = useMemo(() => {
-    if (upgradeTotals.expose <= 0) return null;
-    return upgradeTotals.click / upgradeTotals.expose;
-  }, [upgradeTotals.click, upgradeTotals.expose]);
-  const upgradeOverallCvrFromClick = useMemo(() => {
-    if (upgradeTotals.click <= 0) return null;
-    return upgradeTotals.conversion / upgradeTotals.click;
-  }, [upgradeTotals.click, upgradeTotals.conversion]);
-  const upgradeOverallCvrFromExpose = useMemo(() => {
-    if (upgradeTotals.expose <= 0) return null;
-    return upgradeTotals.conversion / upgradeTotals.expose;
-  }, [upgradeTotals.conversion, upgradeTotals.expose]);
 
   const allUpgradeSources = upgradeFunnel?.sources ?? [];
   const visibleUpgradeSources = showAllUpgradeSources
@@ -110,7 +101,7 @@ export default function AdminDashboard() {
         <button
           className="btn-ghost flex items-center gap-2 text-sm"
           onClick={() => {
-            void Promise.all([refetch(), refetchActivationFunnel(), refetchUpgradeFunnel(), refetchUpgradeConversion()]);
+            void Promise.all([queryClient.invalidateQueries({queryKey: ['admin', 'dashboard', 'growth']}), refetch(), refetchActivationFunnel(), refetchUpgradeFunnel(), refetchUpgradeConversion()]);
           }}
           disabled={isRefreshing}
         >
@@ -133,7 +124,8 @@ export default function AdminDashboard() {
                 setShowAllUpgradeSources(false);
                 setShowAllConversionSources(false);
               }}
-              className={`h-8 px-3 rounded-md text-sm transition-colors ${
+              aria-pressed={selectedWindowDays === days}
+              className={`min-h-11 px-3 rounded-md text-sm transition-colors ${
                 selectedWindowDays === days
                   ? 'bg-[hsl(var(--accent-primary))] text-white'
                   : 'bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]'
@@ -144,6 +136,8 @@ export default function AdminDashboard() {
           ))}
         </div>
       </div>
+
+      <GrowthOverview days={selectedWindowDays} />
 
       <AdminPageState
         isLoading={isLoading}
@@ -183,7 +177,7 @@ export default function AdminDashboard() {
             )}
             <StatsCard
               icon={<CreditCard className="h-5 w-5" />}
-              title={t('admin:dashboard.paidProUsers', '付费 Pro 用户')}
+              title={t('admin:dashboard.paidProUsers', '当前 Pro 用户（含赠送）')}
               value={stats?.pro_users ?? 0}
               isLoading={isLoading}
             />
@@ -219,10 +213,7 @@ export default function AdminDashboard() {
 
           <div className="admin-surface p-4">
             <h2 className="text-lg font-semibold mb-3 text-[hsl(var(--text-primary))]">
-              {t('admin:dashboard.activationFunnelTitle', {
-                days: selectedWindowDays,
-                defaultValue: `激活漏斗（${selectedWindowDays}天）`,
-              })}
+              {t('admin:growth.events')}
             </h2>
 
             {activationFunnelLoading && (
@@ -242,35 +233,22 @@ export default function AdminDashboard() {
                 {activationFunnel?.steps.map((step) => (
                   <div
                     key={step.event_name}
-                    className="grid grid-cols-3 md:grid-cols-4 gap-2 text-sm py-2 border-b border-[hsl(var(--separator-color)/0.4)] last:border-0"
+                    className="grid grid-cols-2 gap-2 text-sm py-2 border-b border-[hsl(var(--separator-color)/0.4)] last:border-0"
                   >
                     <span className="text-[hsl(var(--text-primary))]">{step.label}</span>
                     <span className="text-[hsl(var(--text-primary))] font-medium">{step.users}</span>
-                    <span className="text-[hsl(var(--text-secondary))]">
-                      {formatPercent(step.conversion_from_previous)}
-                    </span>
-                    <span className="hidden md:block text-[hsl(var(--text-secondary))]">
-                      {step.drop_off_from_previous ?? '-'}
-                    </span>
+
                   </div>
                 ))}
 
-                <div className="pt-2 text-sm text-[hsl(var(--text-secondary))]">
-                  {t('admin:dashboard.activationRate', '激活率')}:{" "}
-                  <span className="font-semibold text-[hsl(var(--text-primary))]">
-                    {formatPercent(activationFunnel?.activation_rate)}
-                  </span>
-                </div>
+                <p className="pt-2 text-sm text-[hsl(var(--text-secondary))]">{t('admin:growth.eventsNote')}</p>
               </div>
             )}
           </div>
 
           <div className="admin-surface p-4">
             <h2 className="text-lg font-semibold mb-3 text-[hsl(var(--text-primary))]">
-              {t('admin:dashboard.upgradeFunnelTitle', {
-                days: selectedWindowDays,
-                defaultValue: `升级入口漏斗（${selectedWindowDays}天）`,
-              })}
+              {t('admin:dashboard.upgradeEntryEvents')}
             </h2>
 
             {upgradeFunnelLoading && (
@@ -287,7 +265,7 @@ export default function AdminDashboard() {
 
             {!upgradeFunnelLoading && !upgradeFunnelError && upgradeFunnel && (
               <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-3 lg:grid-cols-6">
+                <div className="grid grid-cols-3 gap-2 text-sm">
                   <div className="rounded-md border border-[hsl(var(--separator-color)/0.5)] p-2">
                     <div className="text-[hsl(var(--text-secondary))]">
                       {t('admin:dashboard.upgradeExpose', '曝光')}
@@ -312,30 +290,9 @@ export default function AdminDashboard() {
                       {upgradeTotals.conversion}
                     </div>
                   </div>
-                  <div className="rounded-md border border-[hsl(var(--separator-color)/0.5)] p-2">
-                    <div className="text-[hsl(var(--text-secondary))]">
-                      {t('admin:dashboard.upgradeCtr', '点击率')}
-                    </div>
-                    <div className="text-[hsl(var(--text-primary))] font-semibold">
-                      {formatPercent(upgradeOverallCtr)}
-                    </div>
-                  </div>
-                  <div className="rounded-md border border-[hsl(var(--separator-color)/0.5)] p-2">
-                    <div className="text-[hsl(var(--text-secondary))]">
-                      {t('admin:dashboard.upgradeCvrFromClick', '点击转化率')}
-                    </div>
-                    <div className="text-[hsl(var(--text-primary))] font-semibold">
-                      {formatPercent(upgradeOverallCvrFromClick)}
-                    </div>
-                  </div>
-                  <div className="rounded-md border border-[hsl(var(--separator-color)/0.5)] p-2">
-                    <div className="text-[hsl(var(--text-secondary))]">
-                      {t('admin:dashboard.upgradeCvrFromExpose', '曝光转化率')}
-                    </div>
-                    <div className="text-[hsl(var(--text-primary))] font-semibold">
-                      {formatPercent(upgradeOverallCvrFromExpose)}
-                    </div>
-                  </div>
+
+
+
                 </div>
 
                 <div className="space-y-2">
@@ -371,12 +328,8 @@ export default function AdminDashboard() {
                             <th className="px-3 py-2 text-right font-medium">
                               {t('admin:dashboard.upgradeConversion', '转化')}
                             </th>
-                            <th className="px-3 py-2 text-right font-medium">
-                              {t('admin:dashboard.upgradeCtr', '点击率')}
-                            </th>
-                            <th className="px-3 py-2 text-right font-medium">
-                              {t('admin:dashboard.upgradeCvrFromExpose', '曝光转化率')}
-                            </th>
+
+
                           </tr>
                         </thead>
                         <tbody>
@@ -388,12 +341,8 @@ export default function AdminDashboard() {
                               <td className="px-3 py-2 text-right text-[hsl(var(--text-primary))]">{item.exposes}</td>
                               <td className="px-3 py-2 text-right text-[hsl(var(--text-primary))]">{item.clicks}</td>
                               <td className="px-3 py-2 text-right text-[hsl(var(--text-primary))]">{item.conversions}</td>
-                              <td className="px-3 py-2 text-right text-[hsl(var(--text-secondary))]">
-                                {formatPercent(item.click_through_rate)}
-                              </td>
-                              <td className="px-3 py-2 text-right text-[hsl(var(--text-secondary))]">
-                                {formatPercent(item.conversion_rate_from_expose)}
-                              </td>
+
+
                             </tr>
                           ))}
                         </tbody>
@@ -426,6 +375,7 @@ export default function AdminDashboard() {
               <h3 className="text-sm font-semibold text-[hsl(var(--text-primary))]">
                 {t('admin:dashboard.upgradePaidAttributionTitle', '付费转化归因')}
               </h3>
+              <p className="mt-2 text-sm text-[hsl(var(--text-secondary))]">{t('admin:growth.legacyUpgradeNote')}</p>
 
               {upgradeConversionLoading && (
                 <p className="mt-2 text-sm text-[hsl(var(--text-secondary))]">

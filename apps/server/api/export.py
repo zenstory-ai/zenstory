@@ -106,7 +106,7 @@ async def export_project_drafts(
     if not content:
         log_with_context(
             logger,
-            40,  # ERROR
+            20,  # INFO: valid business response for an empty project
             "export_project_drafts: No drafts found",
             project_id=project_id,
             user_id=current_user.id,
