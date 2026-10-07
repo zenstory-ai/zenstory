@@ -58,6 +58,32 @@ requirements. Three E2E helper/type adapters are
 independently SOURCE CLEAR with unchanged assertions, skips, timeouts and gates.
 Latest dirty source/test/doc bytes also have a hashed persistent safety copy.
 
+## CI-runtime aggregate and remaining fixture parity
+
+At frozen product checkpoint `51f2870`, the complete Node20.20.2 Web run
+collected 3,714 cases in 248 files: 3,711 passed, one original SSR skip and two
+failures, with no source drift. The upload-draft legacy mock omitted the captured
+refresh pair and real ownership resolver, so its expected retry correctly did
+not happen; its unconsumed queued success then affected the next error case.
+This is a failed aggregate, not an all-green result or coverage approval.
+
+The one-file fixture repair reproduces both failures before editing, then passes
+all eight original cases plus the 73 real-client ownership controls on Node20.
+Affected QA and lint pass; all eight registrations and 38 assertion nodes are
+unchanged. Independent one-file review is SOURCE CLEAR. Product hashes remain
+identical. A new complete coverage receipt is still required; previous partial
+results are not combined into a claimed successful aggregate.
+
+Current actual Dockerfile API/worker builds pass with byte-verified application
+contexts. Actual worker Python3.11 parses all 356 non-test application files,
+with zero image/source hash mismatches. The original complete flow collection
+plus the new UTC cases passes187 with two legitimate real-PG-only skips; those
+PG cases have separate real-database proof. Actual API Python3.13 imports and
+awaited `init_db()` pass under the production non-root image and owned SQLite.
+The independent unchanged npm graph at Node20 passes source types and the
+actual Vercel build (977 organization URLs, two app URLs, no root shadows).
+No dependency install, audit or unchanged generator tests were repeated.
+
 ## Frozen prior-epoch evidence
 
 At source checkpoint9bbb66c, fresh backend completed with 4,644 passed,
