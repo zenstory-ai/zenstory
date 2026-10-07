@@ -6,14 +6,15 @@ These tests keep the nightly web suites grounded on stable backend contracts.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
 from sqlmodel import Session
 
 from models.skill import UserSkill
-from models.subscription import RedemptionCode, SubscriptionHistory, UsageQuota
+from models.subscription import RedemptionCode, SubscriptionHistory
+from services.quota_service import quota_service
 
 from .test_core_api_e2e import (
     _attach_subscription,
@@ -27,10 +28,26 @@ pytestmark = pytest.mark.e2e
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("day", "hour", "minute"),
+    [
+        pytest.param(2, 15, 59, id="before-beijing-midnight"),
+        pytest.param(2, 16, 20, id="after-beijing-midnight"),
+        pytest.param(1, 13, 0, id="first-of-beijing-month"),
+    ],
+)
 async def test_subscription_status_and_quota_contract(
     client: AsyncClient,
     db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+    day: int,
+    hour: int,
+    minute: int,
 ):
+    quota_now = datetime.now(UTC).replace(
+        day=day, hour=hour, minute=minute, second=0, microsecond=0
+    )
+    monkeypatch.setattr("services.quota_service.utcnow", lambda: quota_now)
     user = await _create_user(db_session, prefix="subscription_contract")
     free_plan = _create_plan(
         db_session,
@@ -62,20 +79,14 @@ async def test_subscription_status_and_quota_contract(
     )
     _attach_subscription(db_session, user_id=user.id, plan_id=pro_plan.id)
 
-    quota = UsageQuota(
-        user_id=user.id,
-        period_start=datetime.utcnow() - timedelta(days=1),
-        period_end=datetime.utcnow() + timedelta(days=29),
-        ai_conversations_used=6,
-        material_uploads_used=1,
-        material_decompositions_used=2,
-        skill_creates_used=9,
-        inspiration_copies_used=3,
-        monthly_period_start=datetime.utcnow() - timedelta(days=1),
-        monthly_period_end=datetime.utcnow() + timedelta(days=29),
-        last_reset_at=datetime.utcnow() - timedelta(hours=1),
-    )
-    db_session.add(quota)
+    # Seed usage in the current quota windows, not an hour/day-old window that
+    # legitimately resets when this contract runs after midnight or on month 1.
+    quota = quota_service.create_default_quota(db_session, user.id, commit=False)
+    quota.ai_conversations_used = 6
+    quota.material_uploads_used = 1
+    quota.material_decompositions_used = 2
+    quota.skill_creates_used = 9
+    quota.inspiration_copies_used = 3
     history = SubscriptionHistory(
         user_id=user.id,
         action="upgraded",
