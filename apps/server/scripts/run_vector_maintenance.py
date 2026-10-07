@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Run one bounded, offline stale-vector cleanup before the API starts.
 
-This wrapper is intentionally orchestration-only.  It generates a fresh plan,
-checks fixed safety ceilings, applies the plan in a child Python process, then
-runs the Chroma CLI vacuum in a second child process after the Chroma client
-has exited.  A private success marker makes the operation idempotent.
+This wrapper generates a fresh plan, checks fixed safety ceilings, applies the
+plan in a child Python process, removes only the resulting explicitly selected
+orphan HNSW directories, and runs the Chroma CLI vacuum when disk space allows.
+A private success marker makes the operation idempotent.
 """
 
 from __future__ import annotations
@@ -13,9 +13,12 @@ import argparse
 import json
 import os
 import re
+import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
+import uuid
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -28,6 +31,7 @@ MAINTENANCE_INACTIVE_MONTHS = 6
 BACKUP_RECEIPT_SCHEMA_VERSION = 1
 BACKUP_RECEIPT_MAX_AGE = timedelta(hours=24)
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+HNSW_SEGMENT_TYPE = "urn:chroma:segment/vector/hnsw-local-persisted"
 
 
 def _write_private_json(path: Path, payload: dict[str, Any]) -> None:
@@ -159,6 +163,95 @@ def _run_checked(
     )
 
 
+def _read_hnsw_segment_ids(catalog_path: Path, collection_names: list[str]) -> list[str]:
+    if len(collection_names) != len(set(collection_names)):
+        raise ValueError("maintenance candidate collection names must be unique")
+    if not collection_names:
+        return []
+    placeholders = ",".join("?" for _ in collection_names)
+    catalog_uri = f"{catalog_path.resolve().as_uri()}?mode=ro"
+    with sqlite3.connect(catalog_uri, uri=True) as connection:
+        rows = connection.execute(
+            f"""
+            SELECT collections.name, segments.id
+            FROM collections
+            JOIN segments ON segments.collection = collections.id
+            WHERE collections.name IN ({placeholders})
+              AND segments.scope = 'VECTOR'
+              AND segments.type = ?
+            ORDER BY collections.name, segments.id
+            """,
+            [*collection_names, HNSW_SEGMENT_TYPE],
+        ).fetchall()
+
+    segments_by_collection: dict[str, list[str]] = {name: [] for name in collection_names}
+    for collection_name, segment_id in rows:
+        if not isinstance(segment_id, str):
+            raise ValueError("HNSW segment id must be text")
+        try:
+            parsed_id = uuid.UUID(segment_id)
+        except ValueError as exc:
+            raise ValueError("HNSW segment id must be a canonical UUID") from exc
+        if str(parsed_id) != segment_id:
+            raise ValueError("HNSW segment id must be a canonical UUID")
+        segments_by_collection[collection_name].append(segment_id)
+
+    if any(len(segment_ids) > 1 for segment_ids in segments_by_collection.values()):
+        raise RuntimeError("a candidate collection has multiple persistent HNSW segments")
+    segment_ids = [segment_id for ids in segments_by_collection.values() for segment_id in ids]
+    if len(segment_ids) != len(set(segment_ids)):
+        raise RuntimeError("an HNSW segment is shared by multiple candidate collections")
+    return sorted(segment_ids)
+
+
+def _directory_size_without_symlinks(path: Path) -> int:
+    total = 0
+    for entry in path.rglob("*"):
+        if entry.is_symlink():
+            raise RuntimeError(f"refusing symlink inside HNSW segment directory: {path.name}")
+        if entry.is_file():
+            total += entry.stat().st_size
+    return total
+
+
+def _delete_orphaned_hnsw_segments(
+    persist_dir: Path, segment_ids: list[str]
+) -> tuple[int, int]:
+    if not segment_ids:
+        return 0, 0
+    placeholders = ",".join("?" for _ in segment_ids)
+    catalog_path = persist_dir / "chroma.sqlite3"
+    catalog_uri = f"{catalog_path.resolve().as_uri()}?mode=ro"
+    with sqlite3.connect(catalog_uri, uri=True) as connection:
+        referenced = connection.execute(
+            f"SELECT id FROM segments WHERE id IN ({placeholders})",
+            segment_ids,
+        ).fetchall()
+    if referenced:
+        raise RuntimeError("refusing to delete an HNSW segment still referenced by the catalog")
+
+    root = persist_dir.resolve(strict=True)
+    deletions: list[tuple[Path, int]] = []
+    for segment_id in segment_ids:
+        segment_path = persist_dir / segment_id
+        if not segment_path.exists() and not segment_path.is_symlink():
+            continue
+        if segment_path.is_symlink() or not segment_path.is_dir():
+            raise RuntimeError(f"refusing unsafe HNSW segment path: {segment_id}")
+        resolved_path = segment_path.resolve(strict=True)
+        if resolved_path.parent != root or resolved_path.name != segment_id:
+            raise RuntimeError(f"HNSW segment path escapes persist directory: {segment_id}")
+        deletions.append((segment_path, _directory_size_without_symlinks(segment_path)))
+
+    released_bytes = 0
+    for segment_path, segment_bytes in deletions:
+        shutil.rmtree(segment_path)
+        if segment_path.exists() or segment_path.is_symlink():
+            raise RuntimeError(f"HNSW segment directory was not removed: {segment_path.name}")
+        released_bytes += segment_bytes
+    return len(deletions), released_bytes
+
+
 def run_maintenance(
     *,
     operation_id: str,
@@ -251,6 +344,16 @@ def run_maintenance(
                 f"document safety ceiling exceeded: {document_count} > {max_documents}"
             )
 
+        collection_names = []
+        for candidate in candidates:
+            collection_name = candidate.get("collection_name")
+            if not isinstance(collection_name, str) or not collection_name:
+                raise ValueError("maintenance candidate has no collection name")
+            collection_names.append(collection_name)
+        hnsw_segment_ids = _read_hnsw_segment_ids(
+            persist_dir / "chroma.sqlite3", collection_names
+        )
+
         plan_checksum = str(plan.get("plan_sha256") or "")
         if not plan_checksum:
             raise ValueError("fresh maintenance plan has no checksum")
@@ -268,20 +371,31 @@ def run_maintenance(
             env=child_environment,
         )
 
-    chroma_cli = chroma_executable or _chroma_executable()
-    runner(
-        [
-            str(chroma_cli),
-            "vacuum",
-            "--path",
-            str(persist_dir),
-            "--force",
-            "--timeout",
-            str(vacuum_timeout_seconds),
-        ],
-        timeout=vacuum_timeout_seconds + 30,
-        env=child_environment,
+    released_hnsw_dirs, released_hnsw_bytes = _delete_orphaned_hnsw_segments(
+        persist_dir, hnsw_segment_ids
     )
+
+    # SQLite VACUUM can require twice the catalog size in additional space.
+    # On a tight volume, retain reusable SQLite pages instead of risking a
+    # disk-full startup after the exact orphan HNSW directories are removed.
+    required_vacuum_bytes = 2 * (persist_dir / "chroma.sqlite3").stat().st_size
+    vacuum_completed = False
+    if shutil.disk_usage(persist_dir).free >= required_vacuum_bytes:
+        chroma_cli = chroma_executable or _chroma_executable()
+        runner(
+            [
+                str(chroma_cli),
+                "vacuum",
+                "--path",
+                str(persist_dir),
+                "--force",
+                "--timeout",
+                str(vacuum_timeout_seconds),
+            ],
+            timeout=vacuum_timeout_seconds + 30,
+            env=child_environment,
+        )
+        vacuum_completed = True
 
     marker_payload = {
         "schema_version": 1,
@@ -290,7 +404,10 @@ def run_maintenance(
         "completed_at": datetime.now(UTC).isoformat(),
         "candidate_count": candidate_count,
         "document_count": document_count,
-        "vacuum_completed": True,
+        "released_hnsw_dirs": released_hnsw_dirs,
+        "released_hnsw_bytes": released_hnsw_bytes,
+        "vacuum_completed": vacuum_completed,
+        "vacuum_skipped_reason": None if vacuum_completed else "insufficient_disk_space",
     }
     _write_private_json(marker, marker_payload)
     return {

@@ -154,3 +154,22 @@ Railway has deprecated Config as Code for new services, with legacy support
 ending on December 1, 2026. Cloud service settings must explicitly retain the
 start command, readiness path, and drain window; a checked-in TOML file alone
 does not prove those values are active.
+
+SQLite compaction is optional: the wrapper runs it only when free volume space
+is at least twice the catalog size, as required by the [SQLite VACUUM guidance](https://www.sqlite.org/lang_vacuum.html).
+The wrapper first captures the candidate collections’ exact HNSW segment UUIDs
+from the catalog, removes the collections, and rechecks that those UUIDs have no
+remaining catalog references. It deletes only those direct UUID directories,
+rejecting symlinks and preserving all other files and orphan directories.
+If compaction has insufficient space, it records deferred compaction; freed
+SQLite pages remain reusable while those specific HNSW files are released.
+
+Prefect process-worker shutdown does not wait for active flow processes in the
+pinned 3.6.28 version. Before a production worker release, pause `zenstory-pool`,
+confirm there are no pending/running/cancelling/paused flows or processing
+ingestion jobs, and only then promote the tag. New submissions queue while the
+pool is paused. Confirm the replacement worker heartbeat and resume the pool
+after deployment; a longer Railway drain window alone does not protect flows.
+Deployment registration invokes each named YAML configuration separately with
+its configured pool, because Prefect 3.6.28 ignores CLI overrides in multi-deploy
+mode. Staging uses `zenstory-staging-pool`; production retains `zenstory-pool`.

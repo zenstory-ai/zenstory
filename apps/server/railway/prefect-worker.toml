@@ -9,5 +9,7 @@ watchPatterns = ["/apps/server/**"]
 dockerfilePath = "apps/server/docker/Dockerfile.prefect-worker"
 
 [deploy]
+# Allow worker shutdown cleanup; active flows must be drained operationally.
+drainingSeconds = 300
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 5

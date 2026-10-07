@@ -17,6 +17,7 @@ from models import ChatMessage, ChatSession, File, LLMUsageEvent, Project, User
 
 with mock.patch.dict(os.environ):
     cleanup = importlib.import_module("scripts.prune_stale_vector_indexes")
+    maintenance = importlib.import_module("scripts.run_vector_maintenance")
 
 
 def _make_chroma_catalog(path: Path, project_counts: dict[str, int]) -> None:
@@ -254,6 +255,17 @@ def test_real_chroma_cleanup_and_vacuum_preserve_colocated_files_and_active_data
     active_collection = client.create_collection(f"zenstory_project_{active.id}")
     active_collection.add(ids=["a1"], embeddings=[[0.0, 1.0]], documents=["active vector remains"])
     chromadb.api.client.SharedSystemClient.clear_system_cache()
+    stale_segment_ids = maintenance._read_hnsw_segment_ids(
+        persist_dir / "chroma.sqlite3", [f"zenstory_project_{stale.id}"]
+    )
+    active_segment_ids = maintenance._read_hnsw_segment_ids(
+        persist_dir / "chroma.sqlite3", [f"zenstory_project_{active.id}"]
+    )
+    assert len(stale_segment_ids) == len(active_segment_ids) == 1
+    stale_segment_dir = persist_dir / stale_segment_ids[0]
+    active_segment_dir = persist_dir / active_segment_ids[0]
+    assert stale_segment_dir.is_dir()
+    assert active_segment_dir.is_dir()
 
     plan = cleanup.build_plan(db_session, persist_dir, now=now, inactive_months=6)
     monkeypatch.setenv("VECTOR_EMBEDDINGS_ENABLED", "false")
@@ -267,6 +279,13 @@ def test_real_chroma_cleanup_and_vacuum_preserve_colocated_files_and_active_data
     ) == 1
 
     chromadb.api.client.SharedSystemClient.clear_system_cache()
+    released_dirs, released_bytes = maintenance._delete_orphaned_hnsw_segments(
+        persist_dir, stale_segment_ids
+    )
+    assert released_dirs == 1
+    assert released_bytes > 0
+    assert not stale_segment_dir.exists()
+    assert active_segment_dir.is_dir()
     chroma_cli = Path(sys.executable).with_name("chroma")
     subprocess.run(
         [
