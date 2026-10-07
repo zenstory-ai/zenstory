@@ -83,7 +83,7 @@
     "upgradeConversionShare": "转化占比",
     "upgradeShowAllConversionSources": "查看全部归因来源（{{count}}）",
     "upgradeShowTopConversionSources": "仅显示前 {{count}} 个归因来源",
-    "paidProUsers": "付费 Pro 用户",
+    "paidProUsers": "当前 Pro 用户（含赠送）",
     "upgradePaidConversions": "付费转化（支付宝）",
     "upgradeAllConversions": "全部升级",
     "upgradeChannels": "升级渠道",
@@ -93,7 +93,8 @@
       "points_redemption": "积分兑换",
       "admin_update": "管理员开通",
       "other": "其他"
-    }
+    },
+    "upgradeEntryEvents": "升级入口事件"
   },
   "users": {
     "title": "用户管理",
@@ -662,7 +663,7 @@
   },
   "usage": {
     "title": "用量与成本",
-    "subtitle": "每位用户的 DeepSeek 调用量和费用，按北京时间统计",
+    "subtitle": "每位用户的 DeepSeek 调用量和估算成本（非供应商账单），按北京时间统计",
     "window": "时间范围",
     "windows": {
       "today": "今天",
@@ -671,8 +672,8 @@
     },
     "refresh": "刷新",
     "loadError": "用量数据加载失败",
-    "priceLine": "价格（元/百万 tokens，缓存命中 / 未命中 / 输出）：{{peak}}；{{offpeak}}。高峰为工作日 9–12 点、14–18 点。",
-    "notCounted": "已取消或超时的请求、向量嵌入不计入。",
+    "priceLine": "价格（元/百万 tokens，缓存命中 / 未命中 / 输出）：{{peak}}；{{offpeak}}。高峰为北京时间周一至周五（中国法定节假日除外）9–12 点、14–18 点，其余时段为空闲。",
+    "notCounted": "仅记录已完成并返回用量的模型调用；请求取消或超时前已完成的调用仍可能记账，向量嵌入不计入。",
     "totalCost": "总费用",
     "peakOffpeak": "高峰 / 空闲费用",
     "calls": "调用次数",
@@ -735,5 +736,27 @@
     "noPayments": "暂无支付订单",
     "olderOrders": "还有 {{count}} 笔更早的订单",
     "notFound": "没有找到该用户"
+  },
+  "growth": {
+    "title": "增长概览",
+    "period": "北京时间 · 截至 {{end}}，今日数据未完结",
+    "comparison": "与上一等长时段比较",
+    "newUsers": "新增注册",
+    "aiActive": "AI 活跃用户",
+    "activation": "新用户 AI 激活率",
+    "paidRate": "新用户付费率",
+    "paidUsers": "实际付费用户",
+    "orders": "已支付订单",
+    "revenue": "已支付订单金额",
+    "grants": "赠送/人工升级用户",
+    "previous": "上期 {{value}}",
+    "daily": "每日增长",
+    "date": "日期",
+    "definition": "激活率和付费率仅计算本期注册用户，在本期结束前的首次 AI 使用和实际支付。AI 活跃按真实模型调用去重；管理员及历史回填不计入。金额按已支付订单统计，赠送升级单列。",
+    "dailyDefinition": "每日注册队列持续观察到本期截止时间；最后一天为部分数据。",
+    "noCohort": "—",
+    "events": "独立事件统计",
+    "eventsNote": "各事件独立计数，不代表同一批用户逐步转化。",
+    "legacyUpgradeNote": "以下按订阅升级历史统计来源；实际支付用户和金额以增长概览的订单数据为准。"
   }
 }

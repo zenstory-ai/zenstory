@@ -148,6 +148,8 @@ class ErrorCode:
 
     QUOTA_EXCEEDED = "ERR_QUOTA_EXCEEDED"
     QUOTA_AI_CONVERSATIONS_EXCEEDED = "ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED"
+    QUOTA_AI_DAILY_COST_EXCEEDED = "ERR_QUOTA_AI_DAILY_COST_EXCEEDED"
+    AI_COST_BUDGET_UNAVAILABLE = "ERR_AI_COST_BUDGET_UNAVAILABLE"
     QUOTA_PROJECTS_EXCEEDED = "ERR_QUOTA_PROJECTS_EXCEEDED"
     QUOTA_FILE_VERSIONS_EXCEEDED = "ERR_QUOTA_FILE_VERSIONS_EXCEEDED"
     QUOTA_EXPORT_FORMAT_RESTRICTED = "ERR_QUOTA_EXPORT_FORMAT_RESTRICTED"
@@ -275,6 +277,8 @@ ERROR_MESSAGES = {
 
         "ERR_QUOTA_EXCEEDED": "配额已用尽",
         "ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED": "AI 对话次数已达上限",
+        "ERR_QUOTA_AI_DAILY_COST_EXCEEDED": "今日免费 AI 额度不足，额度于北京时间次日零点恢复，也可升级套餐继续创作",
+        "ERR_AI_COST_BUDGET_UNAVAILABLE": "暂时无法确认 AI 可用额度，请稍后重试",
         "ERR_QUOTA_PROJECTS_EXCEEDED": "项目数量已达上限",
         "ERR_QUOTA_FILE_VERSIONS_EXCEEDED": "文件版本数量已达上限",
         "ERR_QUOTA_EXPORT_FORMAT_RESTRICTED": "当前订阅不支持此导出格式",
@@ -392,6 +396,8 @@ ERROR_MESSAGES = {
 
         "ERR_QUOTA_EXCEEDED": "Quota exceeded",
         "ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED": "AI conversation limit reached",
+        "ERR_QUOTA_AI_DAILY_COST_EXCEEDED": "Today’s free AI allowance is insufficient. It resets at midnight Beijing time, or upgrade to continue writing",
+        "ERR_AI_COST_BUDGET_UNAVAILABLE": "We cannot confirm your AI allowance right now. Please try again later",
         "ERR_QUOTA_PROJECTS_EXCEEDED": "Project limit reached",
         "ERR_QUOTA_FILE_VERSIONS_EXCEEDED": "File version limit reached",
         "ERR_QUOTA_EXPORT_FORMAT_RESTRICTED": "Export format not available in your subscription plan",

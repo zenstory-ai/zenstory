@@ -150,6 +150,8 @@ def record_llm_usage(
     try:
         if attribution is None or not attribution.user_id:
             return False
+        from services.usage.cost_budget import call_started_at
+        occurred_at = occurred_at or call_started_at(attribution.user_id)
         counted = tokens if tokens is not None else extract_usage_tokens(usage)
         if counted.total <= 0:
             return False
@@ -225,7 +227,8 @@ def schedule_llm_usage_record(
         counted = tokens if tokens is not None else extract_usage_tokens(usage)
         if counted.total <= 0:
             return None
-        occurred_at = utcnow()
+        from services.usage.cost_budget import call_started_at
+        occurred_at = call_started_at(attribution.user_id) or utcnow()
         task = asyncio.get_running_loop().create_task(
             asyncio.to_thread(
                 record_llm_usage,

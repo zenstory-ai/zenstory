@@ -1,8 +1,8 @@
 """DeepSeek Flash price table, peak/off-peak bands and Beijing day helpers.
 
-Single source of truth for LLM cost. Prices are CNY per 1M tokens; money is
-computed with Decimal. Chinese public holidays and make-up workdays are not
-modeled: a weekday holiday is billed as a weekday.
+Single source of truth for estimated LLM cost. Prices are CNY per 1M tokens;
+money is computed with Decimal. Known Chinese public holidays are encoded from
+the State Council calendar because DeepSeek bills them off-peak all day.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 
 from models.llm_usage import PRICE_BAND_OFFPEAK, PRICE_BAND_PEAK
 
-PRICING_VERSION = "deepseek-flash-2026-10"
+PRICING_VERSION = "deepseek-flash-2026-10-holiday"
 BEIJING_TZ = ZoneInfo("Asia/Shanghai")
 BEIJING_TZ_NAME = "Asia/Shanghai"
 
@@ -36,6 +36,24 @@ PEAK_WINDOWS: tuple[tuple[time, time], ...] = (
     (time(9, 0), time(12, 0)),
     (time(14, 0), time(18, 0)),
 )
+
+# State Council General Office notice for the complete 2026 holiday calendar:
+# https://www.gov.cn/zhengce/zhengceku/202511/content_7047091.htm
+#
+# DeepSeek explicitly keeps weekends off-peak, so make-up workdays that land on
+# Saturday/Sunday are deliberately absent: they do not override that rule.
+CHINA_PUBLIC_HOLIDAY_RANGES: dict[int, tuple[tuple[date, date], ...]] = {
+    # Half-open local-date ranges [start, end).
+    2026: (
+        (date(2026, 1, 1), date(2026, 1, 4)),
+        (date(2026, 2, 15), date(2026, 2, 24)),
+        (date(2026, 4, 4), date(2026, 4, 7)),
+        (date(2026, 5, 1), date(2026, 5, 6)),
+        (date(2026, 6, 19), date(2026, 6, 22)),
+        (date(2026, 9, 25), date(2026, 9, 28)),
+        (date(2026, 10, 1), date(2026, 10, 8)),
+    )
+}
 
 # SQL-friendly integer weights: tokens * weight is cost in units of 1e-8 CNY
 # (price per 1M tokens * 100). Exact for every price with <= 2 decimals.
@@ -64,10 +82,24 @@ def naive_utc(value: datetime) -> datetime:
     return to_utc(value).replace(tzinfo=None)
 
 
+def is_china_public_holiday(day: date) -> bool | None:
+    """Return holiday status when an official calendar is encoded.
+
+    ``None`` means the year is unknown. This makes missing calendar updates
+    observable instead of pretending future holiday dates are authoritative.
+    """
+    ranges = CHINA_PUBLIC_HOLIDAY_RANGES.get(day.year)
+    if ranges is None:
+        return None
+    return any(start <= day < end for start, end in ranges)
+
+
 def price_band(occurred_at: datetime) -> str:
     """Return 'peak' or 'offpeak' for a call that happened at ``occurred_at``."""
     local = to_utc(occurred_at).astimezone(BEIJING_TZ)
     if local.weekday() >= 5:
+        return PRICE_BAND_OFFPEAK
+    if is_china_public_holiday(local.date()) is True:
         return PRICE_BAND_OFFPEAK
     clock = local.time()
     for start, end in PEAK_WINDOWS:

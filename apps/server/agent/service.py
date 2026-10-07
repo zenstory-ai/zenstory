@@ -1434,15 +1434,20 @@ class AgentService:
                     }
                 )
             metrics.observe_histogram(AGENT_REQUESTS_DURATION_MS, total_duration)
-            completed_with_errors = request_failed or had_stream_error or stream_cancelled
+            completed_with_errors = request_failed or had_stream_error
+            if completed_with_errors:
+                completion_level = 30  # WARNING
+                completion_message = "Agent process_stream completed with errors"
+            elif stream_cancelled:
+                completion_level = 20  # INFO: client cancellation is a normal terminal state
+                completion_message = "Agent process_stream cancelled"
+            else:
+                completion_level = 20  # INFO
+                completion_message = "Agent process_stream completed successfully (workflow)"
             log_with_context(
                 logger,
-                30 if completed_with_errors else 20,
-                (
-                    "Agent process_stream completed with errors"
-                    if completed_with_errors
-                    else "Agent process_stream completed successfully (workflow)"
-                ),
+                completion_level,
+                completion_message,
                 project_id=project_id,
                 user_id=user_id,
                 tool_calls_count=len(all_tool_calls),

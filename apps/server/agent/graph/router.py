@@ -150,6 +150,10 @@ async def router_node(state: WritingState) -> dict:
         }
 
     except Exception as e:
+        from core.error_handler import APIException
+        from services.usage.cost_budget import COST_LIMIT_CODE, UNAVAILABLE_CODE
+        if isinstance(e, APIException) and e.error_code in {COST_LIMIT_CODE, UNAVAILABLE_CODE}:
+            raise
         log_with_context(
             logger,
             40,  # ERROR
@@ -227,20 +231,25 @@ def _extract_usage(response: object) -> dict[str, int] | None:
 
 async def _route_with_deepseek_chat(user_message: str) -> dict[str, Any]:
     """Route using DeepSeek's OpenAI-compatible Chat Completions endpoint."""
+    from agent.tools.mcp_tools import ToolContext
+    from services.usage.cost_budget import budget_attribution
+    from services.usage.llm_usage_service import LLMUsageAttribution
+
     client = get_deepseek_client()
-    response = await client.chat.completions.create(
-        model=DEEPSEEK_WRITING_MODEL,
-        messages=[
-            {"role": "system", "content": ROUTER_PROMPT},
-            {"role": "user", "content": user_message},
-        ],
-        temperature=0.0,
-        # deepseek-flash is a reasoning model: chain-of-thought reasoning_tokens count
-        # against completion tokens. A tight budget can be fully consumed by reasoning,
-        # leaving an empty JSON answer and forcing a silent fallback to writer/quick.
-        # Keep a generous budget so the short routing JSON always fits after reasoning.
-        max_tokens=2048,
-    )
+    with budget_attribution(LLMUsageAttribution(user_id=ToolContext.get_user_id(), source="router")):
+        response = await client.chat.completions.create(
+            model=DEEPSEEK_WRITING_MODEL,
+            messages=[
+                {"role": "system", "content": ROUTER_PROMPT},
+                {"role": "user", "content": user_message},
+            ],
+            temperature=0.0,
+            # deepseek-flash is a reasoning model: chain-of-thought reasoning_tokens count
+            # against completion tokens. A tight budget can be fully consumed by reasoning,
+            # leaving an empty JSON answer and forcing a silent fallback to writer/quick.
+            # Keep a generous budget so the short routing JSON always fits after reasoning.
+            max_tokens=2048,
+        )
     _meter_router_call(response)
     text = response.choices[0].message.content or ""
     return {

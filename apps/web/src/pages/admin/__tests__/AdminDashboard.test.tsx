@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const mockGetGrowthDashboard = vi.fn();
 const mockGetDashboardStats = vi.fn();
 const mockGetActivationFunnel = vi.fn();
 const mockGetUpgradeFunnelStats = vi.fn();
@@ -21,6 +22,7 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@/lib/adminApi', () => ({
   adminApi: {
+    getGrowthDashboard: (days: number) => mockGetGrowthDashboard(days),
     getDashboardStats: () => mockGetDashboardStats(),
     getActivationFunnel: (days: number) => mockGetActivationFunnel(days),
     getUpgradeFunnelStats: (days: number) => mockGetUpgradeFunnelStats(days),
@@ -61,6 +63,8 @@ describe('AdminDashboard', () => {
     vi.clearAllMocks();
     inspirationFeature.enabled = true;
 
+    const metrics = { new_users: 10, ai_active_users: 4, cohort_activated_users: 3, cohort_activation_rate: 0.3, paid_orders: 2, revenue_cents: 29900, paid_users: 1, cohort_paid_users: 1, signup_to_paid_rate: 0.1, grant_upgrade_events: 5, grant_upgrade_users: 4, grant_channels: [] };
+    mockGetGrowthDashboard.mockResolvedValue({days: 7, timezone: 'Asia/Shanghai', current: {period_start: '2026-10-01T16:00:00Z', period_end: '2026-10-07T08:00:00Z', metrics}, previous: {period_start: '2026-09-24T16:00:00Z', period_end: '2026-09-30T08:00:00Z', metrics: {...metrics, new_users: 5}}, daily: [{date: '2026-10-07', ...metrics}], definitions: {}});
     mockGetDashboardStats.mockResolvedValue({
       total_users: 100,
       total_projects: 40,
@@ -115,6 +119,27 @@ describe('AdminDashboard', () => {
     });
   });
 
+  it('puts cohort growth before account totals and does not display independent event ratios', async () => {
+    mockGetActivationFunnel.mockResolvedValue({ steps: [{event_name: 'ai', label: 'AI telemetry', users: 31, conversion_from_previous: 3.1}], activation_rate: 3.1 });
+    mockGetUpgradeFunnelStats.mockResolvedValue({totals: {expose: 10, click: 20, conversion: 30}, sources: []});
+    render(<AdminDashboard />, {wrapper: createWrapper()});
+    expect(await screen.findByText('admin:growth.title')).toBeInTheDocument();
+    expect(await screen.findByText('AI telemetry')).toBeInTheDocument();
+    expect(screen.queryByText('310.0%')).not.toBeInTheDocument();
+    expect(screen.queryByText('200.0%')).not.toBeInTheDocument();
+    expect(screen.getAllByText('30.0%').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('¥299.00').length).toBeGreaterThan(0);
+  });
+
+  it('retries growth failures independently from account totals', async () => {
+    mockGetGrowthDashboard.mockRejectedValueOnce(new Error('failed'));
+    render(<AdminDashboard />, {wrapper: createWrapper()});
+    const retry = await screen.findByRole('button', {name: 'common:retry'});
+    fireEvent.click(retry);
+    await waitFor(() => expect(mockGetGrowthDashboard).toHaveBeenCalledTimes(2));
+    expect(mockGetDashboardStats).toHaveBeenCalledTimes(1);
+  });
+
   it('renders paid conversion attribution and refetches on window change', async () => {
     render(<AdminDashboard />, { wrapper: createWrapper() });
 
@@ -130,6 +155,7 @@ describe('AdminDashboard', () => {
 
     await waitFor(() => {
       expect(mockGetUpgradeConversionStats).toHaveBeenCalledWith(14);
+      expect(mockGetGrowthDashboard).toHaveBeenCalledWith(14);
     });
   });
 
@@ -147,7 +173,7 @@ describe('AdminDashboard', () => {
   it('shows paid Pro users and separates paid conversions from grants', async () => {
     render(<AdminDashboard />, { wrapper: createWrapper() });
 
-    expect(await screen.findByText('付费 Pro 用户')).toBeInTheDocument();
+    expect(await screen.findByText('当前 Pro 用户（含赠送）')).toBeInTheDocument();
     expect(screen.getByText('7')).toBeInTheDocument();
     expect(screen.queryByText('12')).not.toBeInTheDocument();
     expect(await screen.findByTestId('paid-conversions')).toHaveTextContent('3');

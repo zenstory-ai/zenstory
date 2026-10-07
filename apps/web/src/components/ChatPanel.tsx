@@ -951,11 +951,16 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const conflictCount = state.conflicts?.length ?? 0;
   const streamRenderItemCount = streamRenderItems?.length ?? 0;
 
+  const isDailyCostLimit = errorCode === 'ERR_QUOTA_AI_DAILY_COST_EXCEEDED';
+  const isAiQuotaLimit = isDailyCostLimit || errorCode === 'ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED';
+  const quotaTitle = t(isDailyCostLimit ? 'chat:panel.dailyCostExceededTitle' : 'chat:panel.quotaExceededTitle');
+  const quotaHint = t(isDailyCostLimit ? 'chat:panel.dailyCostExceededHint' : 'chat:panel.quotaExceededHint');
+
   useEffect(() => {
-    if (errorCode === "ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED" && chatQuotaUpgradePrompt.surface === "modal") {
+    if (isAiQuotaLimit && chatQuotaUpgradePrompt.surface === "modal") {
       setShowQuotaUpgradeModal(true);
     }
-  }, [chatQuotaUpgradePrompt.surface, errorCode]);
+  }, [chatQuotaUpgradePrompt.surface, isAiQuotaLimit]);
 
   /**
    * Loads chat history for a specific project from the server.
@@ -1700,8 +1705,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                     </svg>
                     <div className="flex-1 min-w-0">
                       <p className="text-[hsl(var(--warning))] text-sm font-medium">
-                        {errorCode === 'ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED'
-                          ? t('chat:panel.quotaExceededTitle')
+                        {isAiQuotaLimit
+                          ? quotaTitle
                           : t('chat:panel.streamErrorTitle')}
                       </p>
                       <p className="text-[hsl(var(--warning))] text-sm break-words">{error}</p>
@@ -1714,10 +1719,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                           {t('common:retry')}
                         </button>
                       )}
-                      {errorCode === 'ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED' && (
+                      {isAiQuotaLimit && (
                         <div className="mt-2 space-y-2">
                           <p className="text-xs text-[hsl(var(--text-secondary))]">
-                            {t('chat:panel.quotaExceededHint')}
+                            {quotaHint}
                           </p>
                           <button
                             type="button"
@@ -1827,8 +1832,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         source={chatQuotaUpgradePrompt.source}
         primaryDestination="billing"
         secondaryDestination="pricing"
-        title={t('chat:panel.quotaExceededTitle')}
-        description={t('chat:panel.quotaExceededHint')}
+        title={quotaTitle}
+        description={quotaHint}
         primaryLabel={t('dashboard:billing.ctaUpgradePro')}
         onPrimary={() => {
           window.location.assign(

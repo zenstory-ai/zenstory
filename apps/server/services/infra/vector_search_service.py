@@ -42,6 +42,7 @@ from llama_index.core import (
     VectorStoreIndex,
 )
 from llama_index.core.base.embeddings.base import BaseEmbedding
+from llama_index.core.ingestion import run_transformations
 from llama_index.core.schema import NodeWithScore
 from pydantic import Field, PrivateAttr
 from sqlalchemy import or_
@@ -171,6 +172,111 @@ ZHIPU_EMBEDDING_READ_TIMEOUT_S = _get_float_env(
 ZHIPU_EMBEDDING_MAX_RETRIES = min(
     _get_int_env("ZHIPU_EMBEDDING_MAX_RETRIES", 1, min_value=0), 1
 )
+EMBEDDING_QUOTA_COOLDOWN_S = min(
+    _get_int_env("EMBEDDING_QUOTA_COOLDOWN_S", 900, min_value=1),
+    86_400,
+)
+
+
+def is_async_vector_index_enabled() -> bool:
+    """Return false only when background vector writes are explicitly disabled."""
+    return _get_bool_env("ASYNC_VECTOR_INDEX_ENABLED", True)
+
+
+class EmbeddingQuotaCircuitOpenError(RuntimeError):
+    """Embedding calls are paused after the provider reports exhausted credit."""
+
+
+_embedding_quota_lock = threading.Lock()
+_embedding_quota_blocked_until = 0.0
+_embedding_quota_probe_in_flight = False
+
+
+def _embedding_error_code(exc: BaseException) -> str | None:
+    """Extract a provider code without serializing request text into logs."""
+    provider_codes = [getattr(exc, "code", None), getattr(exc, "error_code", None)]
+
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        error = body.get("error")
+        provider_codes.extend(
+            (body.get("code"), error.get("code") if isinstance(error, dict) else None)
+        )
+
+    for value in provider_codes:
+        if value is not None and str(value) == "1113":
+            return "1113"
+
+    message = str(exc)
+    if "1113" in message or "余额不足" in message:
+        return "1113"
+
+    for value in provider_codes:
+        if value is not None:
+            return str(value)
+
+    status_code = getattr(exc, "status_code", None)
+    if status_code is not None:
+        return str(status_code)
+    return None
+
+
+def _is_embedding_quota_error(exc: BaseException) -> bool:
+    return _embedding_error_code(exc) == "1113"
+
+
+def _embedding_quota_is_blocked() -> bool:
+    with _embedding_quota_lock:
+        return time.monotonic() < _embedding_quota_blocked_until
+
+
+def _begin_embedding_request() -> bool:
+    """Allow normal calls, or exactly one recovery probe after cooldown."""
+    global _embedding_quota_probe_in_flight
+    now = time.monotonic()
+    with _embedding_quota_lock:
+        if now < _embedding_quota_blocked_until:
+            raise EmbeddingQuotaCircuitOpenError("embedding quota cooldown active")
+        recovering = _embedding_quota_blocked_until > 0
+        if recovering:
+            if _embedding_quota_probe_in_flight:
+                raise EmbeddingQuotaCircuitOpenError("embedding quota recovery probe in progress")
+            _embedding_quota_probe_in_flight = True
+        return recovering
+
+
+def _finish_embedding_request(*, recovering: bool, error: BaseException | None) -> None:
+    global _embedding_quota_blocked_until, _embedding_quota_probe_in_flight
+    quota_error = error is not None and _is_embedding_quota_error(error)
+    if not recovering and not quota_error:
+        return
+
+    with _embedding_quota_lock:
+        _embedding_quota_probe_in_flight = False
+        if error is None:
+            _embedding_quota_blocked_until = 0.0
+        elif quota_error or recovering:
+            _embedding_quota_blocked_until = time.monotonic() + EMBEDDING_QUOTA_COOLDOWN_S
+
+    if error is None:
+        log_with_context(logger, 20, "Embedding quota recovery probe succeeded")
+    elif quota_error:
+        log_with_context(
+            logger,
+            30,
+            "Embedding provider quota exhausted; requests paused",
+            provider_code="1113",
+            cooldown_seconds=EMBEDDING_QUOTA_COOLDOWN_S,
+            recovery_probe=recovering,
+        )
+    elif recovering:
+        log_with_context(
+            logger,
+            30,
+            "Embedding quota recovery probe failed; cooldown renewed",
+            error_type=type(error).__name__,
+            cooldown_seconds=EMBEDDING_QUOTA_COOLDOWN_S,
+        )
 
 
 def build_zhipu_client_options() -> dict[str, Any]:
@@ -426,11 +532,21 @@ class ZhipuEmbedding(BaseEmbedding):
             kwargs["base_url"] = self.base_url
         self._client = ZhipuAiClient(**kwargs)
 
+    def _create_embeddings(self, inputs: str | list[str]) -> Any:
+        recovering = _begin_embedding_request()
+        try:
+            response = self._client.embeddings.create(
+                model=self.model_name,
+                input=inputs,
+            )
+        except Exception as exc:
+            _finish_embedding_request(recovering=recovering, error=exc)
+            raise
+        _finish_embedding_request(recovering=recovering, error=None)
+        return response
+
     def _get_text_embedding(self, text: str) -> list[float]:
-        resp = self._client.embeddings.create(
-            model=self.model_name,
-            input=text,
-        )
+        resp = self._create_embeddings(text)
         return resp.data[0].embedding
 
     def _get_query_embedding(self, query: str) -> list[float]:
@@ -448,10 +564,7 @@ class ZhipuEmbedding(BaseEmbedding):
         if not texts:
             return []
 
-        resp = self._client.embeddings.create(
-            model=self.model_name,
-            input=texts,
-        )
+        resp = self._create_embeddings(texts)
         data = resp.data
 
         # If indexes exist, keep original order
@@ -814,12 +927,46 @@ class LlamaIndexService:
                 extra_metadata=extra_metadata,
             )
 
-            # Delete old document if exists
-            with contextlib.suppress(Exception):
-                index.delete_ref_doc(doc_id, delete_from_docstore=True)
+            # Transform and embed completely before touching the current ref doc.
+            # Provider failures (including exhausted credit) therefore leave the
+            # searchable old version intact.
+            nodes = run_transformations(
+                [doc],
+                index._transformations,
+                show_progress=index._show_progress,
+            )
+            prepared_nodes = index._get_node_with_embedding(nodes, index._show_progress)
 
-            # Insert new document
-            index.insert(doc)
+            # Chroma uses delete-then-add for a ref doc. Keep a raw snapshot so a
+            # storage failure after deletion can restore the old searchable rows.
+            vector_store = getattr(index, "_vector_store", None)
+            collection = getattr(vector_store, "_collection", None)
+            old_rows = None
+            if collection is not None:
+                old_rows = collection.get(
+                    where={"document_id": doc_id},
+                    include=["embeddings", "metadatas", "documents"],
+                )
+            old_hash = index.docstore.get_document_hash(doc_id)
+
+            index.delete_ref_doc(doc_id, delete_from_docstore=True)
+            try:
+                index.insert_nodes(prepared_nodes)
+                index.docstore.set_document_hash(doc.id_, doc.hash)
+            except Exception:
+                if collection is not None and old_rows and old_rows.get("ids"):
+                    # Remove any partially inserted replacement before restoring.
+                    with contextlib.suppress(Exception):
+                        collection.delete(where={"document_id": doc_id})
+                    collection.upsert(
+                        ids=old_rows["ids"],
+                        embeddings=old_rows.get("embeddings"),
+                        metadatas=old_rows.get("metadatas"),
+                        documents=old_rows.get("documents"),
+                    )
+                    if old_hash is not None:
+                        index.docstore.set_document_hash(doc_id, old_hash)
+                raise
 
             return True
         except Exception as e:
@@ -1498,6 +1645,8 @@ class LlamaIndexService:
         semantic_error: Exception | None = None
         semantic_completed = False
         try:
+            if _embedding_quota_is_blocked():
+                raise EmbeddingQuotaCircuitOpenError("embedding quota cooldown active")
             if semantic_timeout_s is None:
                 semantic_results = self.semantic_search(
                     project_id=project_id,
@@ -1529,6 +1678,10 @@ class LlamaIndexService:
                         f"semantic search exceeded {semantic_timeout_s}s"
                     ) from timeout_exc
             semantic_completed = True
+        except EmbeddingQuotaCircuitOpenError as sem_err:
+            # Expected degradation while provider credit is unavailable. Lexical
+            # retrieval below still serves results from the primary database.
+            semantic_error = sem_err
         except Exception as sem_err:
             semantic_error = sem_err
             log_with_context(
@@ -1768,6 +1921,7 @@ def reset_llama_index_service() -> None:
 _INDEX_TASK_QUEUE: "queue.Queue[dict[str, Any]]" = queue.Queue()
 _INDEX_WORKER_STARTED = False
 _INDEX_WORKER_LOCK = threading.Lock()
+_INDEX_WRITES_DISABLED_LOGGED = False
 
 
 def _ensure_index_worker() -> None:
@@ -1791,19 +1945,30 @@ def _index_worker_loop() -> None:
         try:
             op = task.get("op")
             if op == "upsert":
-                _run_index_upsert(task)
+                succeeded = _run_index_upsert(task)
             elif op == "delete":
-                _run_index_delete(task)
+                succeeded = _run_index_delete(task)
+            else:
+                succeeded = False
+            if not succeeded:
+                log_with_context(
+                    logger,
+                    40,
+                    "Vector index background task failed",
+                    operation=op,
+                    project_id=task.get("project_id"),
+                    entity_id=task.get("entity_id"),
+                )
         except Exception:
             logger.exception("Error in index worker loop", exc_info=True)
         finally:
             _INDEX_TASK_QUEUE.task_done()
 
 
-def _run_index_upsert(task: dict[str, Any]) -> None:
+def _run_index_upsert(task: dict[str, Any]) -> bool:
     """Execute upsert task with validation."""
     if task.get("entity_type") == "folder":
-        return
+        return True
 
     project_id = task["project_id"]
     entity_id = task["entity_id"]
@@ -1828,7 +1993,7 @@ def _run_index_upsert(task: dict[str, Any]) -> None:
                     user_id=user_id,
                     error=str(e),
                 )
-                return
+                return False
 
         file = session.get(File, entity_id)
         if file is None:
@@ -1840,7 +2005,7 @@ def _run_index_upsert(task: dict[str, Any]) -> None:
                 entity_id=entity_id,
                 user_id=user_id,
             )
-            return
+            return False
 
         if file.project_id != project_id:
             log_with_context(
@@ -1852,7 +2017,7 @@ def _run_index_upsert(task: dict[str, Any]) -> None:
                 entity_id=entity_id,
                 user_id=user_id,
             )
-            return
+            return False
 
         if file.is_deleted:
             log_with_context(
@@ -1862,23 +2027,25 @@ def _run_index_upsert(task: dict[str, Any]) -> None:
                 project_id=project_id,
                 entity_id=entity_id,
             )
-            return
+            return True
 
     # Execute actual index update
     svc = get_llama_index_service()
-    _ = svc.update_entity(
-        project_id=project_id,
-        entity_type=task["entity_type"],
-        entity_id=entity_id,
-        title=task.get("title", ""),
-        content=task.get("content", ""),
-        extra_metadata=task.get("extra_metadata"),
+    return bool(
+        svc.update_entity(
+            project_id=project_id,
+            entity_type=task["entity_type"],
+            entity_id=entity_id,
+            title=task.get("title", ""),
+            content=task.get("content", ""),
+            extra_metadata=task.get("extra_metadata"),
+        )
     )
 
 
-def _run_index_delete(task: dict[str, Any]) -> None:
+def _run_index_delete(task: dict[str, Any]) -> bool:
     if task.get("entity_type") == "folder":
-        return
+        return True
 
     project_id = task["project_id"]
     entity_id = task["entity_id"]
@@ -1902,13 +2069,15 @@ def _run_index_delete(task: dict[str, Any]) -> None:
                     user_id=user_id,
                     error=str(e),
                 )
-                return
+                return False
 
     svc = get_llama_index_service()
-    _ = svc.delete_entity(
-        project_id=project_id,
-        entity_type=task["entity_type"],
-        entity_id=entity_id,
+    return bool(
+        svc.delete_entity(
+            project_id=project_id,
+            entity_type=task["entity_type"],
+            entity_id=entity_id,
+        )
     )
 
 
@@ -1923,6 +2092,17 @@ def schedule_index_upsert(
     user_id: str | None = None,
 ) -> None:
     """Enqueue an upsert task for the vector index (non-blocking)."""
+    global _INDEX_WRITES_DISABLED_LOGGED
+    if not is_async_vector_index_enabled():
+        with _INDEX_WORKER_LOCK:
+            if not _INDEX_WRITES_DISABLED_LOGGED:
+                log_with_context(
+                    logger,
+                    20,
+                    "Background vector index writes disabled by environment",
+                )
+                _INDEX_WRITES_DISABLED_LOGGED = True
+        return
     _ensure_index_worker()
     _INDEX_TASK_QUEUE.put(
         {

@@ -477,3 +477,19 @@ export interface UserQuotaDetail {
   inspiration_copies: QuotaCounter;
   custom_skills: QuotaCounter;
 }
+
+/** Beijing-window growth; rates are null when the signup cohort is empty. */
+export interface GrowthMetrics {
+  new_users: number; ai_active_users: number; cohort_activated_users: number;
+  cohort_activation_rate: number | null; paid_orders: number; revenue_cents: number;
+  paid_users: number; cohort_paid_users: number; signup_to_paid_rate: number | null;
+  grant_upgrade_events: number; grant_upgrade_users: number;
+  grant_channels: Array<{ channel: string; events: number; users: number }>;
+}
+export interface GrowthDashboard {
+  days: number; timezone: string;
+  current: { period_start: string; period_end: string; metrics: GrowthMetrics };
+  previous: { period_start: string; period_end: string; metrics: GrowthMetrics };
+  daily: Array<GrowthMetrics & { date: string }>;
+  definitions: Record<string, string>;
+}

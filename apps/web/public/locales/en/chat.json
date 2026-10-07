@@ -23,7 +23,9 @@
     "quotaExceededTitle": "Today's AI quota is used up",
     "quotaExceededHint": "Your quota resets tomorrow. Upgrade for a higher daily limit.",
     "fileVersionLimitTitle": "File version limit reached",
-    "fileVersionLimitDesc": "Upgrade your plan to keep more versions."
+    "fileVersionLimitDesc": "Upgrade your plan to keep more versions.",
+    "dailyCostExceededTitle": "Free AI allowance is insufficient today",
+    "dailyCostExceededHint": "Long tasks and ongoing generations also use this allowance. It resets at midnight Beijing time; upgrade to continue writing."
   },
   "input": {
     "placeholder": "Describe your idea…",
