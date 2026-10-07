@@ -951,3 +951,29 @@ onboarding five-line form fixture is independently SOURCE CLEAR and exact
 Skip+auth2GREEN; 6tests/42assertions and guard-return cases are unchanged,
 affected QA/lint pass. Original default shard1 continues; only failed shard2
 was restarted after its actual causal repair, on a fresh owned UUID runtime.
+
+
+### Final bounded browser and latest-main closeout
+
+Default shard1 terminal0 260/116; complete shard2 terminal1 252/120/3 with0
+unrun, preserved honestly. Separate whole points44/44 and two unchanged voice
+status cases pass; canonical concurrent3 and backdrop controls pass. Original
+release45 collection is terminalFAILED10/6/29, with obsolete selectors/editor
+implementation assumptions and dirty snapshot state now isolated. No failed
+full receipt is relabeled green, no thresholds/skips are relaxed. Only final
+changed fixtures remain under validation. Latest upstream #145 is integrated in
+a separate worktree with targeted merge validation, not another whole-module
+audit. No push/PR/merge/live yet; local-first Actions limits remain in effect.
+See final-crossmodule-parity.md for scopes and capture/typing limitations.
+
+
+### Publication scope locked
+
+Historical opt-in release fixture/baseline repairs are separated from this
+module release; their unresolved50px case remains FAILED and disclosed. Existing
+requiredci-summary and main push E2E are unchanged. Commit/push only reviewed
+module source, latestmain integration, pointsheader and honest validation docs;
+no pending large/performance/visual candidate bytes or baselines are published.
+This prevents an unrequested optional-suite expansion from perpetually blocking
+delivery without bypassing the existing required gates. HistoricalmainCI audit
+stays queued after actual release; optional fixture work can continue locally.

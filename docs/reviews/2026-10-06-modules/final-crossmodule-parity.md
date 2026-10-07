@@ -115,9 +115,8 @@ transient dashboard URL while login was still restoring a project created by
 an earlier spec. The form-only empty-project GET fixture fixes that precondition,
 not production navigation. Its exact Skip+auth target passes2; all six test bodies
 and42 assertion AST entries remain unchanged, and guarded project-return tests
-remain outside the fixture scope. Independent review is SOURCE CLEAR. The failed
-full receipt is retained; a new complete shard2, shard1 and the original four
-release specs must finish before publication.
+remain outside the fixture scope. Independent review is SOURCE CLEAR. The failed full receipt is retained. Terminal browser results and bounded
+repairs are recorded below; no failed complete run is relabeled green.
 
 ## Frozen prior-epoch evidence
 
@@ -145,6 +144,100 @@ after source parity freezes. No old partial results are stitched into green.
 
 No PR push, Actions rerun/dispatch, merge, provider mutation or live deployment
 has occurred. Required ci-summary remains strict with enforce-admins. The
-protected original dirty worktree was not overwritten. Module and policy source
-reviews and final fixture validation are complete; browser gates, required CI and
+protected original dirty worktree was not overwritten. Module and policy source reviews are complete at the audited checkpoint.
+Final affected browser validation, latest-main integration, required CI and
 exact merged-SHA production readback remain pending. Historical mainCI investigation remains queued after delivery.
+
+
+## Bounded browser closeout
+
+The complete default Chromium shard1 passes **260 / 116 original policy skips**
+with zero failures. The final complete shard2 failure collection processes all
+375 cases: **252 pass / 120 original policy skips / 3 fail / 0 unrun**, with no
+flaky or outside errors. Their raw union is 750 original unique cases. This
+failed complete run is not stitched with later targets into a green aggregate.
+
+The three failures are addressed separately: one real-login `Connection: close`
+fixture header resolves the repeated pre-handler transport failure in the whole
+**44-case points suite** (44 pass, no skips/retries/flaky results); the original
+socket cause remains unknown. The two unchanged voice-status cases pass after
+the private runtime supplies the existing `E2E_API_BASE_URL` alias for its owned
+API port. No voice source, provider call or network protection changed. Points
+lint passes; three baseline QA import diagnostics remain unchanged, not green.
+
+Three original concurrent scenarios pass with actual 200/409 save/conflict
+responses after canonical creation/editor locators, conditional folder expansion
+and completed same-ID file creation/reselection. The original outside-dismiss
+assertion passes with a real pointer relative to the actual backdrop; no forced
+click, synthetic event, timeout or product-layout change was used.
+
+The first complete opt-in release collection is retained as **10 pass / 6
+policy skips / 29 fail**, all 45 enrolled cases processed. Its failures exposed
+obsolete file creation/editor selectors, cross-test screenshot state, and
+expectations for a VirtualizedEditor that the current product does not contain.
+`Editor.tsx` explicitly uses SimpleEditor for all documents. Replacements must
+verify current whole-content, separate-file switching, selection, save/reload and
+scroll behavior, rather than asserting a nonexistent chunk label. All case
+counts, substantive content/selection/performance budgets and original skips
+remain; obsolete implementation-specific names/oracles are explicitly replaced.
+Actual >100k data is supplied for the unchanged >100k content-length checks.
+
+The chat benchmark now binds the real message-list scroll element and measures
+real scroll-to-requestAnimationFrame elapsed time inside the browser, rather than
+two runner IPC calls measured with Node Date.now. Ten physical sends and ten
+scroll operations retain the 33.3ms/100ms limits; a separate target measures
+7.99ms mean. Existing valid SSE fixtures replace only external generation, never
+DOM, timers, rendering or measured values. Original failed measurements remain.
+
+Clean screenshots use one real private-account Visual Test Project and genuinely
+empty chat, rather than prior specs' projects/messages. Four initial-commit
+Darwin images have been visually reviewed for current coherent layout; no pixel
+tolerance change is authorized. Mobile `fullPage` captures the document while
+content scrolls in a nested panel: this is a capture boundary, not whole-panel
+content coverage. No Linux baseline is fabricated from Darwin. Final changed
+fixture receipts/baseline readback remain pending at this checkpoint.
+
+Latest-main integration preserves newly merged #145 (`66f8383`) rather than
+overwriting it. Its one test-mock merge conflict and affected product checks are
+handled in a separate worktree; previously green aggregates remain valid for
+their audited source epoch, not a claim of an unrun combined whole-suite check.
+Unchanged whole suites/builds are not repeated solely for fixture edits.
+
+
+### Latest-main integration and producers
+
+Exact #145 is retained in local merge `c2ea32f`; the sole ChatPanel test conflict
+keeps both completion-metadata and new daily-cost upgrade coverage. Fresh
+combined affected checks pass **87 frontend / 315 backend**. Source/config types,
+affected lint and Vite→organization→docs build pass; nine optional mock-typing
+diagnostics reproduce identically before the merge and are not called green.
+
+Fresh actual API/worker Dockerfile builds pass with all **361** current non-test
+Python modules byte-identical to the combined source. Actual non-root API import
+and awaited SQLite initialization pass offline. Actual worker Python3.11 grammar
+and image-source comparison pass all361. The independent unchanged npm graph
+at Node20 passes source types and actual `npm run build:vercel`; no install or
+repeat dependency audit was needed. These update the changed producer surfaces,
+not a claim that unrelated whole suites were rerun.
+
+
+## Publication scope decision
+
+The existing required `ci-summary` and main push E2E workflows remain unchanged.
+The historical opt-in release suite is not enabled by those push/PR gates and
+contains initial-commit snapshots and nonexistent VirtualizedEditor expectations.
+Its source/baseline repairs are now a separate follow-up branch, not a reason to
+keep expanding this module release or to disable a gate. The 50px scroll case
+still fails after its initial visible-caret fixture correction and remains an
+explicit unresolved test/product-attribution item; it is not called green.
+No confirmed product defect is dismissed or hidden. Its related real content,
+file-switch, selection and save/reload checks pass in bounded targets.
+
+This release includes the reviewed one-line points login fixture, canonical
+concurrent/backdrop/onboarding fixtures already committed, all module/policy
+repairs and exact #145 integration. It does **not** include the pending changes
+to large-document/performance/visual specs or new screenshot baselines. Current
+full default-shard failed receipts and affected fixes are disclosed above; final
+required CI and merged-main E2E must supply their own actual results. One batch
+push is used; no workflow dispatch, blind rerun, protection bypass or claim of
+stitched green coverage. Required CI/merge/exact-SHA deployment remain pending.

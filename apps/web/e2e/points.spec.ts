@@ -266,6 +266,7 @@ async function navigateToPointsPage(page: Page, request: APIRequestContext) {
     data: params.toString(),
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
+      'Connection': 'close',
     },
   });
   expect(response.ok()).toBeTruthy();
