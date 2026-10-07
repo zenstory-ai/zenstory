@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import UserManagement from "../UserManagement";
 
 const useQueryMock = vi.fn();
@@ -16,6 +17,8 @@ vi.mock("react-i18next", () => ({
         : key,
   }),
 }));
+
+vi.mock("../../../lib/toast", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (...args: unknown[]) => useQueryMock(...args),
@@ -55,7 +58,7 @@ describe("UserManagement", () => {
       refetch: vi.fn(),
     });
 
-    render(<UserManagement />);
+    render(<UserManagement />, { wrapper: MemoryRouter });
     expect(screen.getByText("common:loading")).toBeInTheDocument();
   });
 
@@ -70,7 +73,7 @@ describe("UserManagement", () => {
       refetch: refetchMock,
     });
 
-    render(<UserManagement />);
+    render(<UserManagement />, { wrapper: MemoryRouter });
     expect(screen.getByText("load users failed")).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("common:retry"));
@@ -87,7 +90,7 @@ describe("UserManagement", () => {
       refetch: vi.fn(),
     });
 
-    render(<UserManagement />);
+    render(<UserManagement />, { wrapper: MemoryRouter });
     expect(screen.getByText("common:noData")).toBeInTheDocument();
   });
 
@@ -101,7 +104,7 @@ describe("UserManagement", () => {
       refetch: vi.fn(),
     });
 
-    render(<UserManagement />);
+    render(<UserManagement />, { wrapper: MemoryRouter });
 
     fireEvent.change(screen.getByPlaceholderText("users.search"), {
       target: { value: "writer" },
@@ -132,7 +135,7 @@ describe("UserManagement", () => {
       refetch: vi.fn(),
     });
 
-    render(<UserManagement />);
+    render(<UserManagement />, { wrapper: MemoryRouter });
 
     fireEvent.click(screen.getAllByTitle("users.edit")[0]);
     expect(screen.getByText("users.editUser")).toBeInTheDocument();
@@ -156,13 +159,13 @@ describe("UserManagement", () => {
 
   it("does not offer self-deactivation or self-demotion in the edit form", () => {
     useQueryMock.mockReturnValue({ data: { users: [{ ...sampleUser, id: "admin-1", is_superuser: true }], total: 1 }, isLoading: false, isFetching: false, isError: false, error: null, refetch: vi.fn() });
-    render(<UserManagement />);
+    render(<UserManagement />, { wrapper: MemoryRouter });
     fireEvent.click(screen.getAllByTitle("users.edit")[0]);
     expect(screen.getByRole("checkbox", { name: "users.isActive" })).toBeDisabled();
     expect(screen.getByRole("checkbox", { name: "users.isSuperuser" })).toBeDisabled();
   });
 
-  it("opens delete modal and confirms delete", () => {
+  it("opens the deactivate dialog and confirms", () => {
     const mutateMock = vi.fn();
     useMutationMock.mockReturnValue({
       mutate: mutateMock,
@@ -177,17 +180,91 @@ describe("UserManagement", () => {
       refetch: vi.fn(),
     });
 
-    render(<UserManagement />);
+    render(<UserManagement />, { wrapper: MemoryRouter });
 
-    fireEvent.click(screen.getAllByTitle("users.delete")[0]);
-    expect(screen.getByText("users.deleteConfirm")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByTitle("users.deactivate")[0]);
+    expect(screen.getByText("users.deactivateConfirm")).toBeInTheDocument();
 
     mutateMock.mockClear();
-    fireEvent.click(screen.getByRole("button", { name: "users.confirmDelete" }));
+    fireEvent.click(screen.getByRole("button", { name: "users.confirmDeactivate" }));
     expect(mutateMock).toHaveBeenCalledWith("user-1");
   });
 
-  it("locks the delete dialog and shows loading while the delete is in flight", () => {
+  it("hides deactivate for the current admin and for inactive accounts", () => {
+    useQueryMock.mockReturnValue({
+      data: {
+        users: [
+          { ...sampleUser, id: "admin-1", username: "me", is_superuser: true },
+          { ...sampleUser, id: "user-2", username: "gone", is_active: false },
+        ],
+        total: 2,
+      },
+      isLoading: false, isFetching: false, isError: false, error: null, refetch: vi.fn(),
+    });
+
+    render(<UserManagement />, { wrapper: MemoryRouter });
+
+    expect(screen.queryByTitle("users.deactivate")).not.toBeInTheDocument();
+    expect(screen.queryByText("users.deactivate")).not.toBeInTheDocument();
+  });
+
+  it("links usernames to the user page", () => {
+    useQueryMock.mockReturnValue({
+      data: { users: [sampleUser], total: 1 },
+      isLoading: false, isFetching: false, isError: false, error: null, refetch: vi.fn(),
+    });
+
+    render(<UserManagement />, { wrapper: MemoryRouter });
+
+    const links = screen.getAllByRole("link", { name: "writer" });
+    expect(links.length).toBeGreaterThan(0);
+    links.forEach((link) => expect(link).toHaveAttribute("href", "/admin/users/user-1"));
+  });
+
+  it("deactivates from the mobile card, reports the outcome and closes on cancel", async () => {
+    const { toast } = await import("../../../lib/toast");
+    const options: Array<{ onSuccess?: () => void; onError?: () => void }> = [];
+    useMutationMock.mockImplementation((opts) => {
+      options.push(opts);
+      return { mutate: vi.fn(), isPending: false };
+    });
+    useQueryMock.mockReturnValue({
+      data: { users: [sampleUser], total: 1 },
+      isLoading: false, isFetching: false, isError: false, error: null, refetch: vi.fn(),
+    });
+
+    render(<UserManagement />, { wrapper: MemoryRouter });
+
+    fireEvent.click(screen.getByText("users.deactivate"));
+    expect(screen.getByText("users.deactivateConfirm")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "common:cancel" }));
+    expect(screen.queryByText("users.deactivateConfirm")).not.toBeInTheDocument();
+
+    // The second mutation on the page is the deactivate one.
+    const deactivate = options[options.length - 1];
+    act(() => deactivate.onSuccess?.());
+    expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ["admin", "users"] });
+    expect(toast.success).toHaveBeenCalledWith("users.deactivateSuccess");
+    act(() => deactivate.onError?.());
+    expect(toast.error).toHaveBeenCalledWith("users.deactivateFailed");
+  });
+
+  it("keeps the row click from firing when a username link is followed", () => {
+    useQueryMock.mockReturnValue({
+      data: { users: [sampleUser], total: 1 },
+      isLoading: false, isFetching: false, isError: false, error: null, refetch: vi.fn(),
+    });
+
+    render(<UserManagement />, { wrapper: MemoryRouter });
+
+    const link = screen.getAllByRole("link", { name: "writer" })[0];
+    const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+    const stop = vi.spyOn(event, "stopPropagation");
+    link.dispatchEvent(event);
+    expect(stop).toHaveBeenCalled();
+  });
+
+  it("locks the deactivate dialog while the request is in flight", () => {
     const mutateMock = vi.fn();
     useMutationMock.mockReturnValue({
       mutate: mutateMock,
@@ -202,15 +279,15 @@ describe("UserManagement", () => {
       refetch: vi.fn(),
     });
 
-    render(<UserManagement />);
+    render(<UserManagement />, { wrapper: MemoryRouter });
 
-    fireEvent.click(screen.getAllByTitle("users.delete")[0]);
-    expect(screen.getByText("users.deleteConfirm")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByTitle("users.deactivate")[0]);
+    expect(screen.getByText("users.deactivateConfirm")).toBeInTheDocument();
 
     const confirmButton = screen.getByRole("button", { name: "common:loading" });
     expect(confirmButton).toBeDisabled();
     expect(screen.getByRole("button", { name: "common:cancel" })).toBeDisabled();
-    expect(screen.queryByRole("button", { name: "users.confirmDelete" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "users.confirmDeactivate" })).not.toBeInTheDocument();
 
     fireEvent.click(confirmButton);
     expect(mutateMock).not.toHaveBeenCalled();
@@ -265,7 +342,7 @@ describe("UserManagement", () => {
 
     it("keeps the filtered total on the first, second and last page", () => {
       serveUsers();
-      render(<UserManagement />);
+      render(<UserManagement />, { wrapper: MemoryRouter });
 
       expect(screen.getByText("showing 1-20 of 92")).toBeInTheDocument();
       expect(screen.getByText("1 / 5")).toBeInTheDocument();
@@ -284,7 +361,7 @@ describe("UserManagement", () => {
 
     it("uses the search total and returns to the first page after searching", () => {
       serveUsers();
-      render(<UserManagement />);
+      render(<UserManagement />, { wrapper: MemoryRouter });
       fireEvent.click(screen.getByRole("button", { name: "common:next" }));
       expect(screen.getByText("2 / 5")).toBeInTheDocument();
 
@@ -306,7 +383,7 @@ describe("UserManagement", () => {
 
     it("falls back to the next-page estimate when an older API sends no total", () => {
       serveUsers(true);
-      render(<UserManagement />);
+      render(<UserManagement />, { wrapper: MemoryRouter });
 
       expect(screen.getByText("showing 1-20 of 20")).toBeInTheDocument();
       expect(screen.getByText("1 / 2")).toBeInTheDocument();

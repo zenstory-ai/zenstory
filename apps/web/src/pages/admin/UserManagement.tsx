@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Edit, Trash2, X, AlertTriangle, RotateCcw } from "lucide-react";
+import { Search, Edit, UserX, X, AlertTriangle, RotateCcw } from "lucide-react";
 import { adminApi } from "../../lib/adminApi";
 import type { User, UserUpdateRequest } from "../../types/admin";
 import { AdminPageState, UserCard, TouchCheckbox } from "../../components/admin";
-import { getLocaleCode } from "../../lib/i18n-helpers";
-import { parseUTCDate } from "../../lib/dateUtils";
+import { AdminUserLink } from "../../components/admin/AdminUserLink";
+import { formatAdminDateTime } from "../../lib/dateUtils";
 import { toast } from "../../lib/toast";
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -18,7 +18,7 @@ export const UserManagement: React.FC = () => {
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [deletingUser, setDeletingUser] = useState<User | null>(null);
+  const [deactivatingUser, setDeactivatingUser] = useState<User | null>(null);
   const [formData, setFormData] = useState<UserUpdateRequest>({
     username: "",
     email: "",
@@ -49,19 +49,22 @@ export const UserManagement: React.FC = () => {
     },
   });
 
-  // 删除用户 mutation
-  const deleteMutation = useMutation({
+  // 停用用户 mutation（DELETE /users/:id 只把 is_active 置为 false，可在编辑里恢复）
+  const deactivateMutation = useMutation({
     mutationFn: (id: string) => adminApi.deleteUser(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "users", "stats"] });
-      setDeletingUser(null);
-      toast.success(t("users.deleteSuccess"));
+      setDeactivatingUser(null);
+      toast.success(t("users.deactivateSuccess"));
     },
     onError: () => {
-      toast.error(t("users.deleteFailed"));
+      toast.error(t("users.deactivateFailed"));
     },
   });
+
+  // Self and already-inactive accounts have nothing to deactivate.
+  const canDeactivate = (user: User) => user.is_active && user.id !== currentUser?.id;
 
   const users = data?.users ?? [];
   const queryErrorText = error instanceof Error && error.message
@@ -98,8 +101,8 @@ export const UserManagement: React.FC = () => {
     });
   };
 
-  const handleDeleteClick = (user: User) => {
-    setDeletingUser(user);
+  const handleDeactivateClick = (user: User) => {
+    setDeactivatingUser(user);
   };
 
   const handleSave = () => {
@@ -107,25 +110,12 @@ export const UserManagement: React.FC = () => {
     updateMutation.mutate({ id: editingUser.id, data: formData });
   };
 
-  const handleDeleteConfirm = () => {
-    if (!deletingUser) return;
-    deleteMutation.mutate(deletingUser.id);
+  const handleDeactivateConfirm = () => {
+    if (!deactivatingUser) return;
+    deactivateMutation.mutate(deactivatingUser.id);
   };
 
-  const formatDate = (dateStr: string) => {
-    const date = parseUTCDate(dateStr);
-    if (Number.isNaN(date.getTime())) {
-      return "-";
-    }
-
-    return date.toLocaleString(getLocaleCode(), {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+  const formatDate = (dateStr: string) => formatAdminDateTime(dateStr);
 
   return (
     <div className="admin-page admin-page-fluid">
@@ -197,7 +187,7 @@ export const UserManagement: React.FC = () => {
                 key={user.id}
                 user={user}
                 onEdit={handleEditClick}
-                onDelete={handleDeleteClick}
+                onDeactivate={canDeactivate(user) ? handleDeactivateClick : undefined}
                 t={t}
               />
             ))}
@@ -236,7 +226,7 @@ export const UserManagement: React.FC = () => {
                       className="border-b border-[hsl(var(--separator-color))] hover:bg-[hsl(var(--bg-tertiary))]"
                     >
                       <td className="px-4 py-3 text-sm text-[hsl(var(--text-primary))]">
-                        {user.username}
+                        <AdminUserLink userId={user.id}>{user.username}</AdminUserLink>
                       </td>
                       <td className="px-4 py-3 text-sm text-[hsl(var(--text-primary))]">
                         {user.email}
@@ -267,13 +257,16 @@ export const UserManagement: React.FC = () => {
                           >
                             <Edit size={16} className="text-[hsl(var(--text-primary))]" />
                           </button>
-                          <button
-                            onClick={() => handleDeleteClick(user)}
-                            className="p-1.5 hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors"
-                            title={t("users.delete")}
-                          >
-                            <Trash2 size={16} className="text-red-500" />
-                          </button>
+                          {canDeactivate(user) && (
+                            <button
+                              onClick={() => handleDeactivateClick(user)}
+                              className="p-1.5 hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors"
+                              title={t("users.deactivate")}
+                              aria-label={t("users.deactivate")}
+                            >
+                              <UserX size={16} className="text-red-500" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -399,43 +392,43 @@ export const UserManagement: React.FC = () => {
         </div>
       )}
 
-      {/* 删除确认对话框 */}
-      {deletingUser && (
+      {/* 停用确认对话框 */}
+      {deactivatingUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
           <div className="bg-[hsl(var(--bg-primary))] border border-[hsl(var(--separator-color))] rounded-lg shadow-xl w-full max-w-md">
             {/* 对话框头部 */}
             <div className="flex items-center gap-3 px-4 sm:px-6 py-4 border-b border-[hsl(var(--separator-color))]">
               <AlertTriangle size={24} className="text-red-500" />
               <h2 className="text-lg font-semibold text-[hsl(var(--text-primary))]">
-                {t("users.delete")}
+                {t("users.deactivate")}
               </h2>
             </div>
 
             {/* 确认信息 */}
             <div className="px-4 sm:px-6 py-4">
               <p className="text-[hsl(var(--text-secondary))]">
-                {t("users.deleteConfirm")}
+                {t("users.deactivateConfirm")}
               </p>
               <p className="mt-2 text-sm text-[hsl(var(--text-primary))] font-medium">
-                {deletingUser.username} ({deletingUser.email})
+                {deactivatingUser.username} ({deactivatingUser.email})
               </p>
             </div>
 
             {/* 对话框底部 */}
             <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2 px-4 sm:px-6 py-4 border-t border-[hsl(var(--separator-color))]">
               <button
-                onClick={() => setDeletingUser(null)}
-                disabled={deleteMutation.isPending}
+                onClick={() => setDeactivatingUser(null)}
+                disabled={deactivateMutation.isPending}
                 className="w-full sm:w-auto px-4 py-2.5 min-h-11 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--separator-color))] rounded-lg hover:bg-[hsl(var(--bg-tertiary))] active:scale-95 transition-all text-sm text-[hsl(var(--text-primary))] disabled:opacity-50"
               >
                 {t("common:cancel")}
               </button>
               <button
-                onClick={handleDeleteConfirm}
-                disabled={deleteMutation.isPending}
+                onClick={handleDeactivateConfirm}
+                disabled={deactivateMutation.isPending}
                 className="w-full sm:w-auto px-4 py-2.5 min-h-11 bg-[hsl(var(--error))] text-white rounded-lg hover:bg-[hsl(var(--error)/0.9)] active:scale-95 transition-all text-sm disabled:opacity-50"
               >
-                {deleteMutation.isPending ? t("common:loading") : t("users.confirmDelete")}
+                {deactivateMutation.isPending ? t("common:loading") : t("users.confirmDeactivate")}
               </button>
             </div>
           </div>

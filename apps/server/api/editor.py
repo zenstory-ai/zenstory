@@ -142,6 +142,8 @@ async def natural_polish(
         result = await natural_polish_service.natural_polish(
             selected_text=body.selected_text,
             language=lang,
+            user_id=current_user.id,
+            project_id=body.project_id,
         )
     except APIException:
         _refund_ai_conversation(

@@ -5,9 +5,9 @@ import { Gift, Link2, Users, Award, Clock, Coins, Plus } from "lucide-react";
 import { adminApi } from "../../lib/adminApi";
 import { AdminPageState } from "../../components/admin";
 import { StatsCard } from "../../components/admin/StatsCard";
-import { getLocaleCode } from "../../lib/i18n-helpers";
-import { parseUTCDate } from "../../lib/dateUtils";
 import { toast } from "../../lib/toast";
+import { formatAdminDateTime } from "../../lib/dateUtils";
+import { AdminUserLink } from "../../components/admin/AdminUserLink";
 
 export const ReferralManagement: React.FC = () => {
   const { t } = useTranslation(["admin", "common"]);
@@ -57,21 +57,7 @@ export const ReferralManagement: React.FC = () => {
     queryFn: () => adminApi.getReferralRewards({ page: rewardsPage, page_size: pageSize }),
   });
 
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return "-";
-    const date = parseUTCDate(dateStr);
-    if (Number.isNaN(date.getTime())) {
-      return "-";
-    }
-
-    return date.toLocaleString(getLocaleCode(), {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+  const formatDate = (dateStr: string | null | undefined) => formatAdminDateTime(dateStr);
 
   const getRewardTypeLabel = (type: string) => {
     return t(`referrals.types.${type}`, type);
@@ -301,7 +287,7 @@ export const ReferralManagement: React.FC = () => {
                             {code.code}
                           </td>
                           <td className="px-4 py-3 text-sm text-[hsl(var(--text-primary))]">
-                            {code.owner_name}
+                            <AdminUserLink userId={code.owner_id}>{code.owner_name}</AdminUserLink>
                           </td>
                           <td className="px-4 py-3 text-sm text-[hsl(var(--text-primary))]">
                             <span className={code.current_uses >= code.max_uses ? "text-red-500" : ""}>
@@ -419,7 +405,7 @@ export const ReferralManagement: React.FC = () => {
                         className="border-b border-[hsl(var(--separator-color))] hover:bg-[hsl(var(--bg-tertiary))]"
                       >
                         <td className="px-4 py-3 text-sm text-[hsl(var(--text-primary))]">
-                          {reward.username}
+                          <AdminUserLink userId={reward.user_id}>{reward.username}</AdminUserLink>
                         </td>
                         <td className="px-4 py-3 text-sm">
                           <span className={`px-2 py-1 rounded text-xs font-medium ${getRewardTypeClass(reward.reward_type)}`}>

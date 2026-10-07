@@ -6,10 +6,11 @@ import { AlertCircle, Image as ImageIcon, Search } from "lucide-react";
 import { adminApi } from "../../lib/adminApi";
 import type { AdminFeedbackItem, AdminFeedbackStatus } from "../../types/admin";
 import { AdminPageState, AdminSelect } from "../../components/admin";
-import { getLocaleCode } from "../../lib/i18n-helpers";
 import { toast } from "../../lib/toast";
 import Modal from "../../components/ui/Modal";
 import { useMediaQuery } from "../../hooks/useMediaQuery";
+import { AdminUserLink } from "../../components/admin/AdminUserLink";
+import { formatAdminDateTime } from "../../lib/dateUtils";
 
 type ScreenshotFilter = "all" | "with" | "without";
 
@@ -99,17 +100,7 @@ export default function FeedbackManagement() {
     ? error.message
     : t("common:error");
 
-  const formatDate = (value: string) => {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "-";
-    return date.toLocaleString(getLocaleCode(), {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+  const formatDate = (value: string) => formatAdminDateTime(value);
 
   const formatFileSize = (sizeBytes: number | null) => {
     if (!sizeBytes) return "-";
@@ -283,7 +274,7 @@ export default function FeedbackManagement() {
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium text-[hsl(var(--text-primary))]">
-                      {feedback.username} · {feedback.email}
+                      <AdminUserLink userId={feedback.user_id}>{feedback.username}</AdminUserLink> · {feedback.email}
                     </div>
                     <div className="mt-1 text-xs text-[hsl(var(--text-secondary))]">
                       {formatDate(feedback.created_at)}
@@ -358,7 +349,7 @@ export default function FeedbackManagement() {
                 {feedbackItems.map((feedback) => (
                   <tr key={feedback.id} className="border-t border-[hsl(var(--separator-color))] align-top">
                     <td className="px-4 py-3">
-                      <div className="font-medium text-[hsl(var(--text-primary))]">{feedback.username}</div>
+                      <div className="font-medium text-[hsl(var(--text-primary))]"><AdminUserLink userId={feedback.user_id}>{feedback.username}</AdminUserLink></div>
                       <div className="text-xs text-[hsl(var(--text-secondary))]">{feedback.email}</div>
                     </td>
                     <td className="px-4 py-3 text-[hsl(var(--text-secondary))]">
@@ -485,7 +476,7 @@ export default function FeedbackManagement() {
         <div className="space-y-3">
           {previewFeedback && (
             <div className="rounded-lg border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-tertiary)/0.4)] p-3 text-xs text-[hsl(var(--text-secondary))]">
-              <div>{previewFeedback.username} · {previewFeedback.email}</div>
+              <div><AdminUserLink userId={previewFeedback.user_id}>{previewFeedback.username}</AdminUserLink> · {previewFeedback.email}</div>
               <div className="mt-1">{formatDate(previewFeedback.created_at)}</div>
               <div className="mt-1">
                 {previewFeedback.screenshot_original_name || "-"} ·{" "}

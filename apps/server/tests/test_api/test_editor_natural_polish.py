@@ -93,7 +93,12 @@ async def test_natural_polish_success(client: AsyncClient, db_session: Session):
     assert response.json() == {"text": "rewritten text", "model": "test-model"}
     mock_check.assert_called_once_with(db_session, user.id)
     mock_consume.assert_called_once_with(db_session, user.id)
-    mock_polish.assert_awaited_once_with(selected_text="原始文本", language="zh")
+    mock_polish.assert_awaited_once_with(
+        selected_text="原始文本",
+        language="zh",
+        user_id=user.id,
+        project_id=str(project.id),
+    )
 
 
 @pytest.mark.integration

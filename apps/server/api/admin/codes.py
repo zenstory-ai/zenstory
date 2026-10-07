@@ -5,7 +5,7 @@ This module contains all redemption code management endpoints for admin operatio
 """
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from sqlmodel import Session, col, func, select
 
 from core.error_codes import ErrorCode
@@ -16,6 +16,7 @@ from models import User
 from models.subscription import RedemptionCode, SubscriptionPlan
 from services.admin_audit_service import admin_audit_service
 from services.core.auth_service import get_current_superuser
+from services.subscription.redemption_service import redemption_service
 from utils.code_generator import generate_batch_codes, generate_code
 from utils.logger import get_logger, log_with_context
 
@@ -34,7 +35,8 @@ VALID_CODE_TYPES = {"single_use", "multi_use"}
 def _normalize_code_type(code_type: str) -> str:
     normalized = CODE_TYPE_ALIASES.get(code_type, code_type)
     if normalized not in VALID_CODE_TYPES:
-        raise HTTPException(
+        raise APIException(
+            error_code=ErrorCode.VALIDATION_ERROR,
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid code_type. Use single_use or multi_use.",
         )
@@ -63,7 +65,8 @@ def _raise_code_generator_config_error(exc: ValueError) -> None:
 def _validate_tier_exists(session: Session, tier: str) -> None:
     if tier == "free":
         # A free-tier code would replace a paid plan and discard its remaining days.
-        raise HTTPException(
+        raise APIException(
+            error_code=ErrorCode.VALIDATION_ERROR,
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Redemption codes cannot grant the free tier",
         )
@@ -71,7 +74,8 @@ def _validate_tier_exists(session: Session, tier: str) -> None:
         select(SubscriptionPlan).where(SubscriptionPlan.name == tier)
     ).first()
     if not plan:
-        raise HTTPException(
+        raise APIException(
+            error_code=ErrorCode.VALIDATION_ERROR,
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid tier: {tier}",
         )
@@ -145,12 +149,14 @@ def create_code(
     # Check rate limit
     allowed, _ = check_rate_limit(http_request, "admin_create_code", 10, 60)
     if not allowed:
-        raise HTTPException(
+        raise APIException(
+            error_code=ErrorCode.AUTH_RATE_LIMIT_EXCEEDED,
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Rate limit exceeded"
+            detail="Rate limit exceeded",
         )
 
     normalized_code_type = _normalize_code_type(request.code_type)
+    max_uses = redemption_service.resolve_max_uses(normalized_code_type, request.max_uses)
     _validate_tier_exists(session, request.tier)
     try:
         code = generate_code(request.tier, request.duration_days, normalized_code_type)
@@ -162,7 +168,7 @@ def create_code(
         code_type=normalized_code_type,
         tier=request.tier,
         duration_days=request.duration_days,
-        max_uses=request.max_uses if normalized_code_type == "multi_use" else 1,
+        max_uses=max_uses,
         created_by=current_user.id,
         notes=request.notes
     )
@@ -171,7 +177,12 @@ def create_code(
         session.flush()
         admin_audit_service.log_action(
             session, current_user.id, "create_code", "code", redemption.id,
-            new_value={"tier": request.tier, "duration_days": request.duration_days},
+            new_value={
+                "tier": request.tier,
+                "duration_days": request.duration_days,
+                "code_type": normalized_code_type,
+                "max_uses": max_uses,
+            },
             request=http_request, commit=False,
         )
         session.commit()
@@ -204,21 +215,17 @@ def create_codes_batch(
 
     Requires superuser privileges.
     """
-    if request.count > 100:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Maximum 100 codes per batch"
-        )
-
     # Check rate limit
     allowed, _ = check_rate_limit(http_request, "admin_create_codes_batch", 5, 60)
     if not allowed:
-        raise HTTPException(
+        raise APIException(
+            error_code=ErrorCode.AUTH_RATE_LIMIT_EXCEEDED,
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Rate limit exceeded"
+            detail="Rate limit exceeded",
         )
 
     normalized_code_type = _normalize_code_type(request.code_type)
+    max_uses = redemption_service.resolve_max_uses(normalized_code_type, request.max_uses)
     _validate_tier_exists(session, request.tier)
     try:
         codes = generate_batch_codes(
@@ -234,7 +241,7 @@ def create_codes_batch(
             code_type=normalized_code_type,
             tier=request.tier,
             duration_days=request.duration_days,
-            max_uses=1 if normalized_code_type == "single_use" else None,
+            max_uses=max_uses,
             created_by=current_user.id,
             notes=request.notes
         )
@@ -245,7 +252,14 @@ def create_codes_batch(
         session.flush()
         admin_audit_service.log_action(
             session, current_user.id, "create_codes_batch", "code", None,
-            new_value={"tier": request.tier, "count": request.count, "code_type": normalized_code_type},
+            new_value={
+                "tier": request.tier,
+                "duration_days": request.duration_days,
+                "count": len(redemptions),
+                "code_type": normalized_code_type,
+                "max_uses": max_uses,
+                "code_ids": [redemption.id for redemption in redemptions],
+            },
             request=http_request, commit=False,
         )
         session.commit()
@@ -262,7 +276,13 @@ def create_codes_batch(
         tier=request.tier,
     )
 
-    return {"created": request.count, "count": request.count, "codes": codes}
+    return {
+        "created": len(redemptions),
+        "count": len(redemptions),
+        "codes": codes,
+        "code_type": normalized_code_type,
+        "max_uses": max_uses,
+    }
 
 
 @router.get("/codes/{code_id}")

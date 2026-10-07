@@ -86,7 +86,7 @@ async function bootstrapAdminSession(page: Page) {
 }
 
 test.describe('Admin users (mocked)', () => {
-  test('can search, edit, and delete a user', async ({ page }) => {
+  test('can search, edit, and deactivate a user', async ({ page }) => {
     await bootstrapAdminSession(page);
 
     const searchedTerms: string[] = [];
@@ -160,9 +160,10 @@ test.describe('Admin users (mocked)', () => {
       is_superuser: false,
     });
 
-    await row.locator('button').nth(1).click();
-    const deleteModal = page.locator('.fixed.inset-0.z-50').last();
-    await deleteModal.getByRole('button', { name: /^(删除用户|Delete user)$/i }).click();
+    await row.getByRole('button', { name: /^(停用用户|Deactivate user)$/i }).click();
+    const deactivateModal = page.locator('.fixed.inset-0.z-50').last();
+    await expect(deactivateModal).not.toContainText(/无法恢复|can't be undone/i);
+    await deactivateModal.getByRole('button', { name: /^(停用|Deactivate)$/i }).click();
     await expect.poll(() => deleteCalled).toBe(1);
   });
 

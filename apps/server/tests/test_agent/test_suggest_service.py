@@ -172,6 +172,12 @@ class TestGenerateSuggestions:
         call_args = suggest_service.llm.acomplete.call_args
         assert call_args[1]["max_tokens"] == 150
         assert call_args[1]["temperature"] == 0.8
+        # Billed to the requesting user and project in the usage ledger.
+        from services.usage.llm_usage_service import LLMUsageAttribution
+
+        assert call_args[1]["usage_attribution"] == LLMUsageAttribution(
+            user_id=str(user.id), source="suggest", project_id=str(project.id)
+        )
 
     @pytest.mark.asyncio
     async def test_generate_suggestions_empty_context(

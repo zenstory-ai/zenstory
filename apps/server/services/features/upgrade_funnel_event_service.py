@@ -5,7 +5,7 @@ from typing import TypedDict
 
 from sqlmodel import Session, func, select
 
-from config.datetime_utils import utcnow
+from config.datetime_utils import beijing_day_bounds, utcnow
 from models import (
     UPGRADE_FUNNEL_ACTIONS,
     UPGRADE_FUNNEL_CTAS,
@@ -103,12 +103,8 @@ class UpgradeFunnelEventService:
         """Get upgrade funnel stats grouped by source for a rolling window."""
         window_days = max(1, min(days, 90))
         period_end = utcnow()
-        period_start = (period_end - timedelta(days=window_days - 1)).replace(
-            hour=0,
-            minute=0,
-            second=0,
-            microsecond=0,
-        )
+        # Window starts at 00:00 Beijing time, window_days - 1 days ago.
+        period_start = beijing_day_bounds(period_end - timedelta(days=window_days - 1))[0]
 
         grouped_rows = session.exec(
             select(

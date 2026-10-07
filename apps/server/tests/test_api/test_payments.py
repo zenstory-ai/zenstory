@@ -537,7 +537,8 @@ async def test_admin_sync_grants_and_writes_audit_log(
     mock_zpay_query(monkeypatch, order, unreachable=True)
     down = await client.post(url, headers=admin_headers)
     assert down.status_code == 502
-    assert down.json()["detail"] == "sync_failed:provider_unavailable"
+    assert down.json()["error_code"] == "ERR_PAYMENT_SYNC_FAILED"
+    assert down.json()["error_detail"] == "sync_failed:provider_unavailable"
 
     mock_zpay_query(monkeypatch, order)
     response = await client.post(url, headers=admin_headers)

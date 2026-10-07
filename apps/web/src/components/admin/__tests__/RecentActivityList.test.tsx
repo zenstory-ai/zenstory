@@ -11,8 +11,8 @@ vi.mock('react-i18next', () => ({
         {
           'admin:dashboard.loadError': 'Failed to load activity',
           'admin:dashboard.noActivity': 'No recent activity',
-          'admin:auditLogs.actionCreate': 'Created',
-          'admin:auditLogs.resourceUser': 'User',
+          'auditLogs.actionLabels.update_user': 'Updated user',
+          'auditLogs.resourceLabels.user': 'User',
         } as Record<string, string>
       )[key] ?? (options?.defaultValue as string) ?? key,
     i18n: {
@@ -71,9 +71,17 @@ describe('RecentActivityList', () => {
           {
             id: 'event-1',
             admin_name: 'Admin User',
-            action: 'create_user',
+            action: 'update_user',
             resource_type: 'user',
             created_at: new Date().toISOString(),
+          },
+          {
+            id: 'event-2',
+            admin_name: 'Other Admin',
+            action: 'future_action_name',
+            resource_type: 'future_resource',
+            // Naive UTC from the API: two hours ago, not "in the future" for UTC+ viewers.
+            created_at: new Date(Date.now() - 2 * 3600 * 1000).toISOString().replace('Z', ''),
           },
         ],
       },
@@ -85,7 +93,11 @@ describe('RecentActivityList', () => {
     render(<RecentActivityList />)
 
     expect(screen.getByText('Admin User')).toBeInTheDocument()
-    expect(screen.getByText('Created')).toBeInTheDocument()
+    expect(screen.getByText('Updated user')).toBeInTheDocument()
     expect(screen.getByText('User')).toBeInTheDocument()
+    // Unknown values fall back to a readable form instead of a raw key.
+    expect(screen.getByText('Future action name')).toBeInTheDocument()
+    expect(screen.getByText('Future resource')).toBeInTheDocument()
+    expect(screen.getByText('dashboard:time.hoursAgo')).toBeInTheDocument()
   })
 })

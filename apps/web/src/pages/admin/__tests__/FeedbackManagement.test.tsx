@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import FeedbackManagement from "../FeedbackManagement";
 import { toast } from "../../../lib/toast";
+import { MemoryRouter } from "react-router-dom";
 
 const useQueryMock = vi.fn();
 const useMutationMock = vi.fn();
@@ -67,7 +68,7 @@ describe("FeedbackManagement", () => {
       refetch: vi.fn(),
     });
 
-    render(<FeedbackManagement />);
+    render(<FeedbackManagement />, { wrapper: MemoryRouter });
     expect(screen.getByText("common:loading")).toBeInTheDocument();
   });
 
@@ -82,7 +83,7 @@ describe("FeedbackManagement", () => {
       refetch: refetchMock,
     });
 
-    render(<FeedbackManagement />);
+    render(<FeedbackManagement />, { wrapper: MemoryRouter });
     expect(screen.getByText("load feedback failed")).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("common:retry"));
@@ -99,7 +100,7 @@ describe("FeedbackManagement", () => {
       refetch: vi.fn(),
     });
 
-    render(<FeedbackManagement />);
+    render(<FeedbackManagement />, { wrapper: MemoryRouter });
     expect(screen.getByText("feedback.empty")).toBeInTheDocument();
   });
 
@@ -134,7 +135,7 @@ describe("FeedbackManagement", () => {
       refetch: vi.fn(),
     });
 
-    render(<FeedbackManagement />);
+    render(<FeedbackManagement />, { wrapper: MemoryRouter });
 
     const issueText = screen.getByText("Toolbar overlaps on mobile");
     expect(issueText).toBeInTheDocument();
@@ -165,7 +166,7 @@ describe("FeedbackManagement", () => {
       }], total: 1 },
       isLoading: false, isFetching: false, isError: false, error: null, refetch: vi.fn(),
     });
-    render(<FeedbackManagement />);
+    render(<FeedbackManagement />, { wrapper: MemoryRouter });
     fireEvent.click(screen.getByText("feedback.viewScreenshot"));
     fireEvent.click(screen.getByText("common:close"));
     await act(async () => { resolveBlob(new Blob(["image"])); await Promise.resolve(); });
@@ -185,7 +186,7 @@ describe("FeedbackManagement", () => {
         error: null,
         refetch: vi.fn(),
       });
-      render(<FeedbackManagement />);
+      render(<FeedbackManagement />, { wrapper: MemoryRouter });
       const options = useMutationMock.mock.calls.at(-1)?.[0] as StatusMutationOptions | undefined;
       expect(options).toBeDefined();
       return options as StatusMutationOptions;

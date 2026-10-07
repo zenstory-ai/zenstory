@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import ReferralManagement from "../ReferralManagement";
+import { MemoryRouter } from "react-router-dom";
 
 const useQueryMock = vi.fn();
 const useMutationMock = vi.fn();
@@ -137,7 +138,7 @@ describe("ReferralManagement", () => {
   it("shows loading state when stats are loading", () => {
     mockQueries({ statsLoading: true });
 
-    render(<ReferralManagement />);
+    render(<ReferralManagement />, { wrapper: MemoryRouter });
     expect(screen.getByText("common:loading")).toBeInTheDocument();
   });
 
@@ -147,7 +148,7 @@ describe("ReferralManagement", () => {
       statsErrorMessage: "load referral stats failed",
     });
 
-    render(<ReferralManagement />);
+    render(<ReferralManagement />, { wrapper: MemoryRouter });
     expect(screen.getByText("load referral stats failed")).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("common:retry"));
@@ -157,7 +158,7 @@ describe("ReferralManagement", () => {
   it("renders invite codes and rewards tabs", () => {
     mockQueries({});
 
-    render(<ReferralManagement />);
+    render(<ReferralManagement />, { wrapper: MemoryRouter });
 
     expect(screen.getByText("INVITE123")).toBeInTheDocument();
 
@@ -168,7 +169,7 @@ describe("ReferralManagement", () => {
   it("triggers invite code generation", () => {
     mockQueries({});
 
-    render(<ReferralManagement />);
+    render(<ReferralManagement />, { wrapper: MemoryRouter });
 
     fireEvent.click(screen.getByRole("button", { name: "referrals.generateButton" }));
     expect(mutateMock).toHaveBeenCalledTimes(1);

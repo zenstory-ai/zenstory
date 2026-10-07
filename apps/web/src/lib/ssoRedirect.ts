@@ -73,7 +73,7 @@ const ALLOWED_REDIRECT_DOMAINS = [
 export function isValidRedirectUrl(url: string): boolean {
   try {
     const parsedUrl = new URL(url);
-    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+    if (parsedUrl.protocol !== 'https:') {
       return false;
     }
     if (parsedUrl.username || parsedUrl.password) {

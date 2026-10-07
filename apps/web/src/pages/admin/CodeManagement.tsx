@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -9,15 +9,44 @@ import {
   X,
   Layers,
   RotateCcw,
+  Download,
 } from "lucide-react";
 import { AdminPageState, AdminSelect } from "../../components/admin";
 import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import { adminApi, type RedemptionCode } from "../../lib/adminApi";
+import { formatAdminDateTime } from "../../lib/dateUtils";
 import { getLocaleCode } from "../../lib/i18n-helpers";
-import { parseUTCDate } from "../../lib/dateUtils";
 import { toast } from "../../lib/toast";
+import type { SubscriptionPlan } from "../../types/subscription";
 
 type CodeType = "single_use" | "multi_use";
+
+interface BatchResult {
+  codes: string[];
+  tier: string;
+  duration_days: number;
+  code_type: CodeType;
+  max_uses: number;
+}
+
+/** Fields the API accepts; max_uses only means something for multi-use codes. */
+const toCodePayload = <T extends { code_type: CodeType; max_uses: number }>(form: T) => {
+  const { max_uses, ...rest } = form;
+  return form.code_type === "multi_use" ? { ...rest, max_uses } : rest;
+};
+
+const codesToCsv = (result: BatchResult): string => {
+  const header = "code,tier,duration_days,code_type,max_uses";
+  const rows = result.codes.map((code) =>
+    [code, result.tier, result.duration_days, result.code_type, result.max_uses].join(","),
+  );
+  return [header, ...rows].join("\n");
+};
+
+const planLabel = (plan: SubscriptionPlan) => {
+  const english = getLocaleCode().startsWith("en");
+  return (english ? plan.display_name_en : plan.display_name) || plan.display_name || plan.name;
+};
 
 // Mobile card component for redemption codes
 const CodeCard: React.FC<{
@@ -26,7 +55,8 @@ const CodeCard: React.FC<{
   onCopy: (codeStr: string) => void;
   t: (key: string, options?: Record<string, unknown>) => string;
   pending: boolean;
-}> = ({ code, onToggle, onCopy, t, pending }) => {
+  tierLabel: (tier: string) => string;
+}> = ({ code, onToggle, onCopy, t, pending, tierLabel }) => {
   return (
     <div className="admin-surface p-4 space-y-3">
       <div className="flex items-center justify-between">
@@ -44,7 +74,7 @@ const CodeCard: React.FC<{
       <div className="grid grid-cols-2 gap-2 text-sm">
         <div>
           <span className="text-[hsl(var(--text-secondary))]">{t("codes.tier")}:</span>
-          <span className="ml-1 text-[hsl(var(--text-primary))] font-medium">{code.tier}</span>
+          <span className="ml-1 text-[hsl(var(--text-primary))] font-medium">{tierLabel(code.tier)}</span>
         </div>
         <div>
           <span className="text-[hsl(var(--text-secondary))]">{t("codes.duration")}:</span>
@@ -52,7 +82,9 @@ const CodeCard: React.FC<{
         </div>
         <div>
           <span className="text-[hsl(var(--text-secondary))]">{t("codes.type")}:</span>
-          <span className="ml-1 text-[hsl(var(--text-primary))]">{code.code_type}</span>
+          <span className="ml-1 text-[hsl(var(--text-primary))]">
+            {code.code_type === "multi_use" ? t("codes.typeMulti") : t("codes.typeSingle")}
+          </span>
         </div>
         <div>
           <span className="text-[hsl(var(--text-secondary))]">{t("codes.uses")}:</span>
@@ -119,15 +151,39 @@ export const CodeManagement: React.FC = () => {
     duration_days: number;
     count: number;
     code_type: CodeType;
+    max_uses: number;
     notes: string;
   }>({
     tier: "pro",
     duration_days: 30,
     count: 10,
     code_type: "single_use",
+    max_uses: 10,
     notes: "",
   });
+  const [batchResult, setBatchResult] = useState<BatchResult | null>(null);
   const pageSize = 20;
+
+  // Tiers come from the plan catalog; codes cannot grant the free tier.
+  const { data: plansData } = useQuery({
+    queryKey: ["admin", "plans"],
+    queryFn: adminApi.getPlans,
+    staleTime: 5 * 60 * 1000,
+  });
+  const plans = useMemo(() => (Array.isArray(plansData) ? plansData : []), [plansData]);
+  const grantablePlans = plans.filter((plan) => plan.name !== "free" && plan.is_active);
+  const tierLabel = (tier: string) => {
+    const plan = plans.find((item) => item.name === tier);
+    return plan ? planLabel(plan) : tier;
+  };
+  const renderTierOptions = (selected: string) => {
+    const names: string[] = grantablePlans.map((plan) => plan.name);
+    // Keep the current value selectable until the catalog has loaded.
+    if (!names.includes(selected)) names.unshift(selected);
+    return names.map((name) => (
+      <option key={name} value={name}>{tierLabel(name)}</option>
+    ));
+  };
 
   // Fetch codes list
   const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
@@ -144,7 +200,7 @@ export const CodeManagement: React.FC = () => {
 
   // Create single code mutation
   const createMutation = useMutation({
-    mutationFn: (data: typeof createFormData) => adminApi.createCode(data),
+    mutationFn: (data: typeof createFormData) => adminApi.createCode(toCodePayload(data)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "codes"] });
       setShowCreateModal(false);
@@ -164,19 +220,27 @@ export const CodeManagement: React.FC = () => {
 
   // Batch create codes mutation
   const batchCreateMutation = useMutation({
-    mutationFn: (data: typeof batchFormData) => adminApi.createCodesBatch(data),
-    onSuccess: (result) => {
+    mutationFn: (data: typeof batchFormData) => adminApi.createCodesBatch(toCodePayload(data)),
+    onSuccess: (result, submitted) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "codes"] });
       setShowBatchModal(false);
+      setBatchResult({
+        codes: result.codes ?? [],
+        tier: submitted.tier,
+        duration_days: submitted.duration_days,
+        code_type: submitted.code_type,
+        max_uses: result.max_uses ?? (submitted.code_type === "multi_use" ? submitted.max_uses : 1),
+      });
       setBatchFormData({
         tier: "pro",
         duration_days: 30,
         count: 10,
         code_type: "single_use",
+        max_uses: 10,
         notes: "",
       });
       toast.success(
-        t("codes.batchCreateSuccess", { count: result.count ?? result.created ?? batchFormData.count }),
+        t("codes.batchCreateSuccess", { count: result.count ?? result.created ?? submitted.count }),
       );
     },
     onError: () => {
@@ -223,13 +287,18 @@ export const CodeManagement: React.FC = () => {
     );
   };
 
-  const handleCopyCode = async (codeStr: string) => {
+  const copyToClipboard = async (text: string, successMessage: string) => {
     try {
-      await navigator.clipboard.writeText(codeStr);
-      toast.success(t("codes.copied"));
+      await navigator.clipboard.writeText(text);
+      toast.success(successMessage);
     } catch {
-      toast.error(t("common:operationFailed"));
+      // Denied permission or an insecure context; the codes stay on screen and in the CSV.
+      toast.error(t("codes.copyFailed"));
     }
+  };
+
+  const handleCopyCode = (codeStr: string) => {
+    void copyToClipboard(codeStr, t("codes.copied"));
   };
 
   const handleCreateSingle = () => {
@@ -240,20 +309,26 @@ export const CodeManagement: React.FC = () => {
     batchCreateMutation.mutate(batchFormData);
   };
 
-  const formatDate = (dateStr: string) => {
-    const date = parseUTCDate(dateStr);
-    if (Number.isNaN(date.getTime())) {
-      return "-";
-    }
-
-    return date.toLocaleString(getLocaleCode(), {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  const handleCopyAll = () => {
+    if (!batchResult) return;
+    void copyToClipboard(
+      batchResult.codes.join("\n"),
+      t("codes.copiedAll", { count: batchResult.codes.length }),
+    );
   };
+
+  const handleDownloadCsv = () => {
+    if (!batchResult) return;
+    const blob = new Blob([codesToCsv(batchResult)], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `redemption-codes-${batchResult.tier}-${batchResult.codes.length}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const formatDate = (dateStr: string) => formatAdminDateTime(dateStr);
 
   return (
     <div className="admin-page admin-page-fluid">
@@ -295,8 +370,9 @@ export const CodeManagement: React.FC = () => {
           className="text-[hsl(var(--text-primary))]"
         >
           <option value="">{t("codes.allTiers")}</option>
-          <option value="free">{t("codes.tierFree")}</option>
-          <option value="pro">{t("codes.tierPro")}</option>
+          {plans.map((plan) => (
+            <option key={plan.name} value={plan.name}>{planLabel(plan)}</option>
+          ))}
         </AdminSelect>
         <AdminSelect
           value={statusFilter}
@@ -350,6 +426,7 @@ export const CodeManagement: React.FC = () => {
                 onCopy={handleCopyCode}
                 t={t}
                 pending={Boolean(updateMutation.isPending && updateMutation.variables?.id === code.id)}
+                tierLabel={tierLabel}
               />
             ))}
           </div>
@@ -407,13 +484,13 @@ export const CodeManagement: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-sm text-[hsl(var(--text-primary))] font-medium">
-                        {code.tier}
+                        {tierLabel(code.tier)}
                       </td>
                       <td className="px-4 py-3 text-sm text-[hsl(var(--text-primary))]">
                         {code.duration_days}{t("codes.days")}
                       </td>
                       <td className="px-4 py-3 text-sm text-[hsl(var(--text-primary))]">
-                        {code.code_type}
+                        {code.code_type === "multi_use" ? t("codes.typeMulti") : t("codes.typeSingle")}
                       </td>
                       <td className="px-4 py-3 text-sm text-[hsl(var(--text-primary))]">
                         {code.current_uses}/{code.max_uses ?? "∞"}
@@ -535,8 +612,7 @@ export const CodeManagement: React.FC = () => {
                   onChange={(e) => setCreateFormData({ ...createFormData, tier: e.target.value })}
                   className="text-[hsl(var(--text-primary))]"
                 >
-                  <option value="free">{t("codes.tierFree")}</option>
-                  <option value="pro">{t("codes.tierPro")}</option>
+                  {renderTierOptions(createFormData.tier)}
                 </AdminSelect>
               </div>
 
@@ -573,18 +649,22 @@ export const CodeManagement: React.FC = () => {
                 </AdminSelect>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-[hsl(var(--text-primary))] mb-1">
-                  {t("codes.maxUses")}
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  value={createFormData.max_uses}
-                  onChange={(e) => setCreateFormData({ ...createFormData, max_uses: parseInt(e.target.value) || 1 })}
-                  className="w-full px-3 py-2.5 min-h-11 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--separator-color))] rounded-lg focus:outline-none focus:ring-2 focus:ring-[hsl(var(--accent-primary))] text-[hsl(var(--text-primary))]"
-                />
-              </div>
+              {createFormData.code_type === "multi_use" && (
+                <div>
+                  <label htmlFor="code-max-uses" className="block text-sm font-medium text-[hsl(var(--text-primary))] mb-1">
+                    {t("codes.maxUses")}
+                  </label>
+                  <input
+                    id="code-max-uses"
+                    type="number"
+                    min={1}
+                    value={createFormData.max_uses}
+                    onChange={(e) => setCreateFormData({ ...createFormData, max_uses: Math.max(1, parseInt(e.target.value) || 1) })}
+                    className="w-full px-3 py-2.5 min-h-11 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--separator-color))] rounded-lg focus:outline-none focus:ring-2 focus:ring-[hsl(var(--accent-primary))] text-[hsl(var(--text-primary))]"
+                  />
+                  <p className="mt-1 text-xs text-[hsl(var(--text-secondary))]">{t("codes.maxUsesHint")}</p>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-[hsl(var(--text-primary))] mb-1">
@@ -649,8 +729,7 @@ export const CodeManagement: React.FC = () => {
                   onChange={(e) => setBatchFormData({ ...batchFormData, tier: e.target.value })}
                   className="text-[hsl(var(--text-primary))]"
                 >
-                  <option value="free">{t("codes.tierFree")}</option>
-                  <option value="pro">{t("codes.tierPro")}</option>
+                  {renderTierOptions(batchFormData.tier)}
                 </AdminSelect>
               </div>
 
@@ -701,6 +780,23 @@ export const CodeManagement: React.FC = () => {
                 </AdminSelect>
               </div>
 
+              {batchFormData.code_type === "multi_use" && (
+                <div>
+                  <label htmlFor="batch-max-uses" className="block text-sm font-medium text-[hsl(var(--text-primary))] mb-1">
+                    {t("codes.maxUsesPerCode")}
+                  </label>
+                  <input
+                    id="batch-max-uses"
+                    type="number"
+                    min={1}
+                    value={batchFormData.max_uses}
+                    onChange={(e) => setBatchFormData({ ...batchFormData, max_uses: Math.max(1, parseInt(e.target.value) || 1) })}
+                    className="w-full px-3 py-2.5 min-h-11 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--separator-color))] rounded-lg focus:outline-none focus:ring-2 focus:ring-[hsl(var(--accent-primary))] text-[hsl(var(--text-primary))]"
+                  />
+                  <p className="mt-1 text-xs text-[hsl(var(--text-secondary))]">{t("codes.maxUsesHint")}</p>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-[hsl(var(--text-primary))] mb-1">
                   {t("codes.notes")}
@@ -729,6 +825,62 @@ export const CodeManagement: React.FC = () => {
                 className="w-full sm:w-auto px-4 py-2.5 min-h-11 bg-[hsl(var(--accent-primary))] text-white rounded-lg hover:opacity-90 active:scale-95 transition-all text-sm disabled:opacity-50"
               >
                 {batchCreateMutation.isPending ? t("common:loading") : t("codes.batchCreate")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch result: the only place the new codes are shown in full */}
+      {batchResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="batch-result-title"
+            className="bg-[hsl(var(--bg-primary))] border border-[hsl(var(--separator-color))] rounded-lg shadow-xl w-full max-w-lg"
+          >
+            <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-[hsl(var(--separator-color))]">
+              <h2 id="batch-result-title" className="text-lg font-semibold text-[hsl(var(--text-primary))]">
+                {t("codes.batchResultTitle", { count: batchResult.codes.length })}
+              </h2>
+              <button
+                onClick={() => setBatchResult(null)}
+                aria-label={t("common:close")}
+                className="p-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors"
+              >
+                <X size={20} className="text-[hsl(var(--text-secondary))]" />
+              </button>
+            </div>
+            <div className="px-4 sm:px-6 py-4 space-y-2">
+              <p className="text-sm text-[hsl(var(--text-secondary))]">
+                {tierLabel(batchResult.tier)} · {batchResult.duration_days}{t("codes.days")} ·{" "}
+                {batchResult.code_type === "multi_use"
+                  ? t("codes.multiUseSummary", { count: batchResult.max_uses })
+                  : t("codes.typeSingle")}
+              </p>
+              <textarea
+                readOnly
+                aria-label={t("codes.batchResultTitle", { count: batchResult.codes.length })}
+                value={batchResult.codes.join("\n")}
+                rows={Math.min(12, Math.max(4, batchResult.codes.length))}
+                className="w-full px-3 py-2 font-mono text-sm bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--separator-color))] rounded-lg text-[hsl(var(--text-primary))] resize-none"
+              />
+            </div>
+            <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2 px-4 sm:px-6 py-4 border-t border-[hsl(var(--separator-color))]">
+              <button
+                onClick={handleDownloadCsv}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 min-h-11 bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--separator-color))] rounded-lg hover:bg-[hsl(var(--bg-tertiary))] transition-all text-sm text-[hsl(var(--text-primary))]"
+              >
+                <Download size={16} />
+                {t("codes.downloadCsv")}
+              </button>
+              <button
+                onClick={handleCopyAll}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 min-h-11 bg-[hsl(var(--accent-primary))] text-white rounded-lg hover:opacity-90 transition-all text-sm"
+              >
+                <Copy size={16} />
+                {t("codes.copyAll")}
               </button>
             </div>
           </div>

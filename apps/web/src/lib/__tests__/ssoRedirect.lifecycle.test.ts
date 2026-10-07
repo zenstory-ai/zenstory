@@ -177,6 +177,7 @@ describe('actual SSO helper completion ownership', () => {
 
   it.each([
     'ftp://zenstory.ai/offline', 'https://user@zenstory.ai/offline',
+    'http://zenstory.ai/offline', 'http://app.zenstory.ai/offline',
     'https://zenstory.ai.evil.invalid/offline', '//zenstory.ai/offline',
   ])('control: rejects disallowed URL %s before network work', async url => {
     seed(a)
@@ -186,7 +187,7 @@ describe('actual SSO helper completion ownership', () => {
     expect(snapshot()).toEqual(before)
   })
 
-  it.each(['https://zenstory.ai/offline', 'http://app.zenstory.ai/offline'])('control: current valid session redirects to allowed %s', async url => {
+  it.each(['https://zenstory.ai/offline', 'https://app.zenstory.ai/offline'])('control: current valid session redirects to allowed %s', async url => {
     seed(a)
     request = async () => json(a.user)
     const result = await handleSsoRedirect(url)

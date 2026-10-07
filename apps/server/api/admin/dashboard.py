@@ -4,12 +4,12 @@ Admin Dashboard API endpoints.
 This module contains dashboard statistics endpoints for admin operations.
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session, func, select
 
-from config.datetime_utils import beijing_date, utcnow
+from config.datetime_utils import beijing_date, beijing_day_bounds, utcnow
 from config.feature_flags import is_inspirations_enabled
 from database import get_session
 from models import Inspiration, Project, User
@@ -59,10 +59,11 @@ def get_dashboard_stats(
     """
     now = utcnow()
     now_naive = now.replace(tzinfo=None)
-    today_utc = now.date()
     today_beijing = beijing_date(now)
-    today_start = datetime.combine(today_utc, datetime.min.time())
-    week_ago = now_naive - timedelta(days=7)
+    # "Today" and "this week" are Beijing calendar days. Bounds are naive UTC,
+    # matching how these created_at columns are stored.
+    today_start, today_end = (bound.replace(tzinfo=None) for bound in beijing_day_bounds(now))
+    week_start = today_start - timedelta(days=6)
 
     # Total users
     total_users = session.exec(select(func.count()).select_from(User)).one()
@@ -74,7 +75,9 @@ def get_dashboard_stats(
 
     # New users today
     new_users_today = session.exec(
-        select(func.count()).select_from(User).where(User.created_at >= today_start)
+        select(func.count()).select_from(User).where(
+            User.created_at >= today_start, User.created_at < today_end
+        )
     ).one()
 
     # Total projects
@@ -127,9 +130,9 @@ def get_dashboard_stats(
         select(func.count()).select_from(InviteCode).where(InviteCode.is_active == True)
     ).one()
 
-    # Week referrals (referrals created in the last 7 days)
+    # Referrals created in the last 7 Beijing days, today included
     week_referrals = session.exec(
-        select(func.count()).select_from(Referral).where(Referral.created_at >= week_ago)
+        select(func.count()).select_from(Referral).where(Referral.created_at >= week_start)
     ).one()
 
     log_with_context(
@@ -187,9 +190,8 @@ def get_upgrade_conversion_stats(
     """Get upgrade conversion attribution stats grouped by source."""
     window_days = max(1, min(days, 90))
     period_end = utcnow()
-    period_start = (period_end - timedelta(days=window_days - 1)).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
+    # Window starts at 00:00 Beijing time, window_days - 1 days ago.
+    period_start = beijing_day_bounds(period_end - timedelta(days=window_days - 1))[0]
 
     conversion_rows = session.exec(
         select(SubscriptionHistory).where(

@@ -446,27 +446,34 @@ export interface RewardsResponse {
  * 配额使用统计
  */
 export interface QuotaUsageStats {
-  material_uploads: number;
-  material_decomposes: number;
-  skill_creates: number;
+  /** Current monthly quota period (Beijing month) */
+  period_start: string;
+  period_end: string;
+  material_decompositions: number;
   inspiration_copies: number;
+  /** Custom skills created this month */
+  skills_created: number;
+}
+
+/** Used vs. limit for one quota; limit -1 means unlimited. */
+export interface QuotaCounter {
+  used: number;
+  limit: number;
+  reset_at: string | null;
 }
 
 /**
- * 用户配额详情
+ * 用户配额详情（与后端实际执行的配额一致）
  */
 export interface UserQuotaDetail {
   user_id: string;
   username: string;
+  email: string;
   plan_name: string;
-  ai_conversations_used: number;
-  ai_conversations_limit: number;
-  material_upload_used: number;
-  material_upload_limit: number;
-  material_decompose_used: number;
-  material_decompose_limit: number;
-  skill_create_used: number;
-  skill_create_limit: number;
-  inspiration_copy_used: number;
-  inspiration_copy_limit: number;
+  plan_display_name: string | null;
+  plan_display_name_en: string | null;
+  ai_conversations: QuotaCounter;
+  material_decompositions: QuotaCounter;
+  inspiration_copies: QuotaCounter;
+  custom_skills: QuotaCounter;
 }

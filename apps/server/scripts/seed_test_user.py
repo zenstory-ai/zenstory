@@ -251,6 +251,9 @@ def main():
             features={
                 "ai_conversations_per_day": 10,
                 "max_projects": 3,
+                # Access is an explicit entitlement; material quotas never imply it.
+                # The regular E2E user exercises the materials library.
+                "materials_library_access": True,
                 "material_uploads": 5,
                 "material_decompositions": 5,
                 "custom_skills": 3,
@@ -265,6 +268,7 @@ def main():
             features={
                 "ai_conversations_per_day": -1,
                 "max_projects": 8,
+                "materials_library_access": True,
                 "material_uploads": -1,
                 "material_decompositions": -1,
                 "custom_skills": -1,

@@ -143,7 +143,7 @@ describe('adminApi', () => {
       const result = await getUser('123')
 
       expect(mockApi.get).toHaveBeenCalledWith('/api/admin/users/123')
-      expect(result).toEqual(mockUser)
+      expect(result).toMatchObject(mockUser)
     })
 
     it('handles user not found error', async () => {
@@ -958,15 +958,11 @@ describe('adminApi', () => {
         .mockResolvedValueOnce({
           rewards: [{ id: 'rw1', user_id: 'u1', username: 'alice', reward_type: 'points', amount: '10', source: 'invite', is_used: false, created_at: '2025-01-01T00:00:00Z' }],
         })
-        .mockResolvedValueOnce({ material_uploads: '4' })
+        .mockResolvedValueOnce({ period_start: '2026-10-01T00:00:00+00:00', material_decompositions: '4' })
         .mockResolvedValueOnce({
-          user_id: 'u1',
-          username: 'alice',
-          plan_name: 'pro',
-          ai_conversations_used: '9',
-          ai_conversations_limit: '50',
-          material_decompose_used: '4',
-          material_decompose_limit: '5',
+          user_id: 'u1', username: 'alice', plan_name: 'pro',
+          ai_conversations: { used: '9', limit: '50', reset_at: '2026-10-06T08:00:00+00:00' },
+          material_decompositions: { used: 1, limit: 5 },
         })
       mockApi.post.mockResolvedValueOnce({
         id: 'c2',
@@ -998,25 +994,23 @@ describe('adminApi', () => {
       expect(createdCode).toMatchObject({ code: 'WXYZ-5678', max_uses: 3, current_uses: 0 })
       expect(rewards.items[0]).toMatchObject({ reward_type: 'points', amount: 10, is_used: false })
       expect(quotaStats).toEqual({
-        material_uploads: 4,
-        material_decomposes: 0,
-        skill_creates: 0,
+        period_start: '2026-10-01T00:00:00+00:00',
+        period_end: '',
+        material_decompositions: 4,
         inspiration_copies: 0,
+        skills_created: 0,
       })
       expect(userQuota).toEqual({
         user_id: 'u1',
         username: 'alice',
+        email: '',
         plan_name: 'pro',
-        ai_conversations_used: 9,
-        ai_conversations_limit: 50,
-        material_upload_used: 0,
-        material_upload_limit: 0,
-        material_decompose_used: 4,
-        material_decompose_limit: 5,
-        skill_create_used: 0,
-        skill_create_limit: 0,
-        inspiration_copy_used: 0,
-        inspiration_copy_limit: 0,
+        plan_display_name: null,
+        plan_display_name_en: null,
+        ai_conversations: { used: 9, limit: 50, reset_at: '2026-10-06T08:00:00+00:00' },
+        material_decompositions: { used: 1, limit: 5, reset_at: null },
+        inspiration_copies: { used: 0, limit: 0, reset_at: null },
+        custom_skills: { used: 0, limit: 0, reset_at: null },
       })
       expect(mockApi.post).toHaveBeenCalledWith('/api/admin/invites')
     })
@@ -1484,5 +1478,34 @@ describe('adminApi', () => {
       expect(adminApi.getActivationFunnel).toBeDefined()
       expect(adminApi.createAdminInviteCode).toBeDefined()
     })
+  })
+})
+
+describe('admin cleanup query params', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('sends the subscription search and the payment-order user filter', async () => {
+    const { getSubscriptions, getPaymentOrders } = await import('../adminApi')
+    mockApi.get.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20 })
+
+    await getSubscriptions({ page: 2, search: 'alice@' })
+    await getPaymentOrders({ user_id: 'user-1', page_size: 10 })
+
+    expect(mockApi.get).toHaveBeenNthCalledWith(1, '/api/admin/subscriptions?page=2&search=alice%40')
+    expect(mockApi.get).toHaveBeenNthCalledWith(2, '/api/admin/payment-orders?page_size=10&user_id=user-1')
+  })
+
+  it('posts max_uses with a multi-use batch', async () => {
+    const { createCodesBatch } = await import('../adminApi')
+    mockApi.post.mockResolvedValue({ codes: ['A'], count: 1, max_uses: 5 })
+
+    const result = await createCodesBatch({ tier: 'pro', duration_days: 30, count: 1, code_type: 'multi_use', max_uses: 5 })
+
+    expect(mockApi.post).toHaveBeenCalledWith('/api/admin/codes/batch', {
+      tier: 'pro', duration_days: 30, count: 1, code_type: 'multi_use', max_uses: 5,
+    })
+    expect(result.max_uses).toBe(5)
   })
 })

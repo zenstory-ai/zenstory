@@ -5,9 +5,8 @@ import { useNavigate } from "react-router-dom";
 import { Plus, FileText, Edit, Trash2, RefreshCw, AlertTriangle } from "lucide-react";
 import { AdminPageState } from "../../components/admin";
 import { adminApi } from "../../lib/adminApi";
-import { getLocaleCode } from "../../lib/i18n-helpers";
-import { parseUTCDate } from "../../lib/dateUtils";
 import { toast } from "../../lib/toast";
+import { formatAdminDateTime } from "../../lib/dateUtils";
 
 export const PromptManagement: React.FC = () => {
   const { t } = useTranslation(["admin", "common"]);
@@ -42,21 +41,7 @@ export const PromptManagement: React.FC = () => {
     ? error.message
     : t("common:error");
 
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return "-";
-    const date = parseUTCDate(dateStr);
-    if (Number.isNaN(date.getTime())) {
-      return "-";
-    }
-
-    return date.toLocaleString(getLocaleCode(), {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+  const formatDate = (dateStr?: string) => formatAdminDateTime(dateStr);
 
   const handleCardClick = (projectType: string) => {
     navigate(`/admin/prompts/${encodeURIComponent(projectType)}`);

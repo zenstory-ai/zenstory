@@ -14,8 +14,8 @@ import {
 import { adminApi } from "../../lib/adminApi";
 import type { AdminInspiration } from "../../types/admin";
 import { AdminPageState, TouchCheckbox, AdminSelect } from "../../components/admin";
-import { getLocaleCode } from "../../lib/i18n-helpers";
 import { toast } from "../../lib/toast";
+import { formatAdminDate, formatAdminDateTime } from "../../lib/dateUtils";
 
 // Mobile card component for inspirations
 const InspirationCard: React.FC<{
@@ -97,7 +97,7 @@ const InspirationCard: React.FC<{
 
       <div className="flex items-center justify-between pt-2 border-t border-[hsl(var(--separator-color))]">
         <span className="text-xs text-[hsl(var(--text-secondary))]">
-          {new Date(inspiration.created_at).toLocaleDateString(getLocaleCode())}
+          {formatAdminDate(inspiration.created_at)}
         </span>
         <div className="flex items-center gap-1">
           {inspiration.status === "pending" && (
@@ -274,20 +274,7 @@ export const InspirationManagement: React.FC = () => {
     deleteMutation.mutate(deletingInspiration.id);
   };
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    if (Number.isNaN(date.getTime())) {
-      return "-";
-    }
-
-    return date.toLocaleString(getLocaleCode(), {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+  const formatDate = (dateStr: string | null | undefined) => formatAdminDateTime(dateStr);
 
   const statusColors = {
     pending: "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400",

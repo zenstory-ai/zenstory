@@ -5,9 +5,8 @@ import { Check, X, Zap, ChevronDown, ChevronUp, AlertTriangle, RefreshCw, EyeOff
 import { AdminPageState, AdminSelect } from "../../components/admin";
 import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import { adminApi, type PendingSkill, type SkillReviewResource, type SkillReviewStatus } from "../../lib/adminApi";
-import { getLocaleCode } from "../../lib/i18n-helpers";
-import { parseUTCDate } from "../../lib/dateUtils";
 import { logger } from "../../lib/logger";
+import { formatAdminDate, formatAdminDateTime } from "../../lib/dateUtils";
 
 export default function SkillReviewPage() {
   const { t } = useTranslation(["admin", "common"]);
@@ -332,7 +331,7 @@ function SkillReviewCard({
               </span>
             )}
             <span className="text-xs text-[hsl(var(--text-tertiary))]">
-              {parseUTCDate(skill.created_at).toLocaleDateString(getLocaleCode())}
+              {formatAdminDate(skill.created_at)}
             </span>
           </div>
         </div>
@@ -385,7 +384,7 @@ function SkillReviewCard({
         <div className="mt-3 rounded-lg bg-[hsl(var(--bg-tertiary))] p-3 text-xs text-[hsl(var(--text-secondary))]">
           <p>{t("admin:skills.status", "状态")}: {skill.status}</p>
           <p>{t("admin:skills.reviewedBy", "审核人")}: {skill.reviewer_name || skill.reviewed_by || "-"}</p>
-          <p>{t("admin:skills.reviewedAt", "审核时间")}: {skill.reviewed_at ? parseUTCDate(skill.reviewed_at).toLocaleString(getLocaleCode()) : "-"}</p>
+          <p>{t("admin:skills.reviewedAt", "审核时间")}: {formatAdminDateTime(skill.reviewed_at)}</p>
           {skill.rejection_reason && (
             <p>
               {skill.status === "unpublished"

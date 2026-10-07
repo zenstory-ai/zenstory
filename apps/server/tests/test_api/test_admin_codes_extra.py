@@ -9,9 +9,12 @@ from httpx import AsyncClient
 from sqlmodel import Session, select
 
 from config.datetime_utils import utcnow
+from core.error_codes import ErrorCode
+from core.error_handler import APIException
 from models import User
-from models.subscription import RedemptionCode, SubscriptionPlan
+from models.subscription import AdminAuditLog, RedemptionCode, SubscriptionPlan
 from services.core.auth_service import hash_password
+from services.subscription.redemption_service import redemption_service
 
 
 async def create_user(
@@ -126,6 +129,7 @@ async def test_create_codes_batch_normalizes_multi_alias(
             "duration_days": 90,
             "count": 2,
             "code_type": "multi",
+            "max_uses": 5,
         },
     )
 
@@ -133,11 +137,87 @@ async def test_create_codes_batch_normalizes_multi_alias(
     data = response.json()
     assert data["created"] == 2
     assert len(data["codes"]) == 2
+    assert data["code_type"] == "multi_use"
+    assert data["max_uses"] == 5
 
     rows = db_session.exec(select(RedemptionCode).where(RedemptionCode.created_by == admin.id)).all()
     assert len(rows) == 2
     assert {row.code_type for row in rows} == {"multi_use"}
-    assert all(row.max_uses is None for row in rows)
+    assert all(row.max_uses == 5 for row in rows)
+
+    audit = db_session.exec(
+        select(AdminAuditLog).where(AdminAuditLog.action == "create_codes_batch")
+    ).one()
+    assert audit.new_value["count"] == 2
+    assert audit.new_value["max_uses"] == 5
+    assert sorted(audit.new_value["code_ids"]) == sorted(row.id for row in rows)
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("path", "payload"),
+    [
+        ("/api/admin/codes", {"tier": "pro", "duration_days": 30, "code_type": "multi_use"}),
+        ("/api/admin/codes", {"tier": "pro", "duration_days": 30, "code_type": "multi"}),
+        ("/api/admin/codes/batch", {"tier": "pro", "duration_days": 30, "count": 3, "code_type": "multi_use"}),
+        (
+            "/api/admin/codes/batch",
+            {"tier": "pro", "duration_days": 30, "count": 3, "code_type": "multi_use", "max_uses": None},
+        ),
+    ],
+)
+async def test_multi_use_codes_require_max_uses(
+    client: AsyncClient,
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+    payload: dict,
+):
+    """A multi-use code without a use limit would be redeemable by anyone, forever."""
+    monkeypatch.setenv("REDEMPTION_CODE_HMAC_SECRET", "c" * 32)
+    admin = await create_user(db_session, "admin_code_multi_limit", "admin_code_multi_limit@example.com", is_superuser=True)
+    get_or_create_plan(db_session, "pro")
+    token = await login_user(client, admin.username)
+
+    response = await client.post(path, headers=auth_headers(token), json=payload)
+
+    assert response.status_code == 422
+    assert db_session.exec(select(RedemptionCode)).all() == []
+
+
+@pytest.mark.integration
+async def test_batch_single_use_codes_get_one_use_and_ignore_max_uses(
+    client: AsyncClient,
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("REDEMPTION_CODE_HMAC_SECRET", "d" * 32)
+    admin = await create_user(db_session, "admin_code_batch_single", "admin_code_batch_single@example.com", is_superuser=True)
+    get_or_create_plan(db_session, "pro")
+    token = await login_user(client, admin.username)
+
+    response = await client.post(
+        "/api/admin/codes/batch",
+        headers=auth_headers(token),
+        json={"tier": "pro", "duration_days": 30, "count": 2, "code_type": "single_use", "max_uses": 50},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["max_uses"] == 1
+    rows = db_session.exec(select(RedemptionCode)).all()
+    assert [row.max_uses for row in rows] == [1, 1]
+
+
+def test_resolve_max_uses_rejects_unlimited_multi_use():
+    """The service guard backs up the schema for callers that bypass it."""
+    assert redemption_service.resolve_max_uses("single_use", None) == 1
+    assert redemption_service.resolve_max_uses("single_use", 40) == 1
+    assert redemption_service.resolve_max_uses("multi_use", 7) == 7
+    for bad in (None, 0):
+        with pytest.raises(APIException) as exc_info:
+            redemption_service.resolve_max_uses("multi_use", bad)
+        assert exc_info.value.status_code == 400
+        assert exc_info.value.error_code == ErrorCode.VALIDATION_ERROR
 
 
 @pytest.mark.integration
@@ -290,7 +370,8 @@ async def test_create_code_returns_429_when_rate_limited(
     )
 
     assert response.status_code == 429
-    assert response.json()["detail"] == "Rate limit exceeded"
+    assert response.json()["error_code"] == "ERR_AUTH_RATE_LIMIT_EXCEEDED"
+    assert response.json()["error_detail"] == "Rate limit exceeded"
 
 
 @pytest.mark.integration
@@ -311,7 +392,8 @@ async def test_create_code_returns_400_for_invalid_tier(
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "Invalid tier: ghost-tier"
+    assert response.json()["error_code"] == "ERR_VALIDATION_ERROR"
+    assert response.json()["error_detail"] == "Invalid tier: ghost-tier"
 
 
 @pytest.mark.integration

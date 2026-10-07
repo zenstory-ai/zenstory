@@ -54,15 +54,15 @@ async def test_admin_detail_uses_runtime_plan_defaults_and_resets_old_usage(
     assert response.status_code == 200
     data = response.json()
     assert data["plan_name"] == ("free" if expired else "pro")
-    assert data["ai_conversations_limit"] == (20 if expired else -1)
-    assert data["ai_conversations_used"] == 0
-    assert data["material_upload_limit"] == (0 if expired else 5)
-    assert data["material_upload_used"] == 2
-    assert data["material_decompose_limit"] == (0 if expired else 5)
-    assert data["material_decompose_used"] == 4
-    assert data["skill_create_limit"] == (3 if expired else 20)
+    assert data["ai_conversations"]["limit"] == (20 if expired else -1)
+    assert data["ai_conversations"]["used"] == 0
+    assert "material_uploads" not in data
+    assert data["material_decompositions"]["limit"] == (0 if expired else 5)
+    assert data["material_decompositions"]["used"] == 4
+    assert data["custom_skills"]["limit"] == (3 if expired else 20)
     quota = db_session.exec(select(UsageQuota).where(UsageQuota.user_id == target.id)).one()
     db_session.refresh(quota)
+    assert quota.material_uploads_used == 2
     assert quota.period_end == datetime(2026, 10, 6, 16)
 
 
@@ -71,7 +71,7 @@ async def test_admin_monthly_aggregate_excludes_non_current_beijing_periods(
     client, db_session, monkeypatch
 ):
     now = datetime(2026, 10, 5, 7, tzinfo=UTC)
-    monkeypatch.setattr("api.admin.quotas.utcnow", lambda: now)
+    monkeypatch.setattr("services.quota_service.utcnow", lambda: now)
     admin = User(
         username="quota_aggregate_admin",
         email="quota_aggregate_admin@example.com",
@@ -143,8 +143,9 @@ async def test_admin_monthly_aggregate_excludes_non_current_beijing_periods(
 
     assert response.status_code == 200
     assert response.json() == {
-        "material_uploads": 9,
-        "material_decomposes": 14,
-        "skill_creates": 17,
+        "period_start": "2026-09-30T16:00:00+00:00",
+        "period_end": "2026-10-31T16:00:00+00:00",
+        "material_decompositions": 14,
         "inspiration_copies": 22,
+        "skills_created": 17,
     }

@@ -50,6 +50,7 @@ from .file_version import (
     FileVersion,
 )
 from .inspiration import Inspiration
+from .llm_usage import LLMUsageEvent
 from .material_models import (
     Chapter,
     Character,
@@ -186,6 +187,8 @@ __all__ = [
     "SubscriptionHistory",
     "AdminAuditLog",
     "PaymentOrder",
+    # LLM usage ledger
+    "LLMUsageEvent",
     # Points and check-in models
     "PointsTransaction",
     "CheckInRecord",

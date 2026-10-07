@@ -23,6 +23,25 @@ logger = get_logger(__name__)
 class RedemptionService:
     """Service for redemption code operations."""
 
+    @staticmethod
+    def resolve_max_uses(code_type: str, max_uses: int | None) -> int:
+        """
+        Use limit to store for a new code.
+
+        Single-use codes always get 1. A multi-use code must carry an explicit
+        positive limit: ``max_uses=None`` is read as unlimited at redemption time,
+        so storing it would let one code grant a paid tier to any number of users.
+        """
+        if code_type == "single_use":
+            return 1
+        if max_uses is None or max_uses < 1:
+            raise APIException(
+                error_code=ErrorCode.VALIDATION_ERROR,
+                status_code=400,
+                detail="max_uses is required for multi_use codes",
+            )
+        return max_uses
+
     CODE_PATTERN = re.compile(r"^ERG-([A-Z0-9]{2,8})-([A-Z0-9]{4})-([A-Z0-9]{8})$")
 
     def _get_error_message(self, error_code: str, lang: str = "en") -> str:

@@ -78,6 +78,81 @@ async function bootstrapAdminSession(page: Page) {
       return;
     }
 
+    const usageMetrics = {
+      calls: 2,
+      cache_hit_tokens: 1000,
+      cache_miss_tokens: 200,
+      output_tokens: 50,
+      cost_cny: '0.0010',
+      peak_cost_cny: '0.0000',
+      offpeak_cost_cny: '0.0010',
+    };
+    const usagePeriod = {
+      timezone: 'Asia/Shanghai',
+      period_start: '2026-10-07',
+      period_end: '2026-10-07',
+      pricing_version: 'deepseek-flash-2026-10',
+      prices: {
+        peak: { cache_hit: '0.04', cache_miss: '2', output: '8' },
+        offpeak: { cache_hit: '0.02', cache_miss: '1', output: '4' },
+      },
+    };
+
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/usage/summary')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          window: 'today',
+          ...usagePeriod,
+          totals: { users: 1, ...usageMetrics },
+          by_source: [{ source: 'agent', ...usageMetrics }],
+          daily: [{ date: '2026-10-07', users: 1, ...usageMetrics }],
+        }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/usage/users')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          window: 'today',
+          ...usagePeriod,
+          items: [{
+            user_id: 'user-1',
+            username: 'writer',
+            email: 'writer@example.com',
+            last_used_at: '2026-10-07T01:00:00Z',
+            ...usageMetrics,
+          }],
+          total: 1,
+          page: 1,
+          page_size: 20,
+        }),
+      });
+      return;
+    }
+
+    if (request.method() === 'GET' && /\/api\/admin\/usage\/users\/[^/]+\/daily$/.test(pathname)) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          user_id: 'user-1',
+          username: 'writer',
+          email: 'writer@example.com',
+          days: 7,
+          ...usagePeriod,
+          totals: usageMetrics,
+          by_source: [{ source: 'agent', ...usageMetrics }],
+          daily: [{ date: '2026-10-07', ...usageMetrics }],
+        }),
+      });
+      return;
+    }
+
     if (request.method() === 'GET' && pathname.endsWith('/api/admin/plans')) {
       await route.fulfill({
         status: 200,
@@ -109,11 +184,14 @@ test('all admin routes are reachable for superuser with mocked APIs', async ({ p
   const routes = [
     '/admin',
     '/admin/users',
+    '/admin/usage',
+    '/admin/users/user-1',
     '/admin/prompts',
     '/admin/prompts/new',
     '/admin/skills',
     '/admin/codes',
     '/admin/subscriptions',
+    '/admin/payment-orders',
     '/admin/plans',
     '/admin/audit-logs',
     '/admin/inspirations',
@@ -129,5 +207,26 @@ test('all admin routes are reachable for superuser with mocked APIs', async ({ p
     await expect(page).toHaveURL(new RegExp(route.replace('/', '\\/')));
     await expect(page).not.toHaveURL(/\/login/);
     await expect(page.locator('main')).toBeVisible();
+  }
+});
+
+test('usage page opens a user from a ?user= link', async ({ page }) => {
+  await bootstrapAdminSession(page);
+
+  await page.goto('/admin/usage?user=user-1');
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('writer@example.com');
+});
+
+test('user detail page links to usage and lists every section', async ({ page }) => {
+  await bootstrapAdminSession(page);
+
+  await page.goto('/admin/users/user-1');
+
+  await expect(page.locator('main')).toBeVisible();
+  await expect(page.getByRole('link', { name: /查看用量|View usage/ })).toHaveAttribute('href', '/admin/usage?user=user-1');
+  for (const section of [/^(账号|Account)$/, /^(会员|Membership)$/, /^(配额|Quota)$/, /^(积分|Points)$/, /^(支付订单|Payment orders)$/]) {
+    await expect(page.getByRole('heading', { name: section })).toBeVisible();
   }
 });

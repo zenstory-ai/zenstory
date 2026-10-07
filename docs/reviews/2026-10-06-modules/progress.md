@@ -15,6 +15,36 @@ Fresh full Web **3581 PASS/one existing SSR skip**, all-source coverage81.01L72.
 
 Same real native Codex processes %253/%254 now run default backend coverage>=80 and fresh generator coverage/default+release Chromium E2E respectively, source read-only, not Team. Root owns production images, failure repair decisions and final review/delivery. No push/Actions/provider/secret/retention mutations; existing historical main-CI task remains deferred until promised delivery.
 
+## Recovery checkpoint — 2026-10-07 machine reboot
+
+The machine reboot removed the temporary audit/final worktrees, local test
+artifacts and both native processes. The committed 23-module audit `2e5da1f`
+and resolved integration index survived. The final worktree was reconstructed
+from exact index tree `8a41a9bf492bc378f8dcc60e38672e7826717dd1` without
+modifying the original dirty workspace. A fresh fetch still resolves main to
+`45112ce`. Prior recorded counts below are historical; missing raw temporary
+receipts and unfinished processes do not prove fresh release gates.
+
+Persistent final worktree:
+`/Users/pite/makemoney/.omx/worktrees/zenstory-module-final-20261007`.
+Persistent evidence:
+`/Users/pite/makemoney/.omx/artifacts/zenstory-module-final-20261007`.
+The three final product repairs and regressions were rebuilt: exact actual
+OAuth validator observation reproduced four RED cases, and Python3.11 parsing
+reproduced the alias SyntaxError before the minimal repairs. New related Ruff
+and 29 CI-control tests pass; source review and fresh aggregate gates continue.
+
+The original two native Codex session IDs are resumed in two new standalone
+native tmux sessions, not OMX Team. Backend owns only the two lost Request/JSON
+proof test adapters and backend gates; frontend owns the seven lost unit
+fixtures, paid material E2E fixture and frontend/browser gates. Actual products
+are held read-only. Existing locked JS dependencies were restored offline in
+the new worktree with no dependency/lock changes. Docker is ready and a fresh
+owned PostgreSQL15.17 container is explicitly lent for exclusive test databases.
+Heavy full backend coverage waits for isolated full Web coverage to avoid known
+resource contention. No remote Actions/debugging, push, PR or production change.
+Historical main CI/E2E investigation remains deferred until promised delivery.
+
 ## Previous checkpoint — M13 and M23 closure; 19/23
 
 Whole modules source-clear with bounded gates: M01-M08, M10, M12-M19, M22-M23 (19/23). M13 exact rewards-error integration is independently source-clear and fresh actual-root 60 PASS; prior worker/date scoped gates retained. M23 all-leaf source-clear; final report explicitly corrects the old PG batch to 21 PASS/1 fixture failure with separate repaired 1 PASS, not aggregate green. Full current 26-file PG/global/image/release gates remain.

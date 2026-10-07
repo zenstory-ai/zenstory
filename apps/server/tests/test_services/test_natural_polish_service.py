@@ -12,6 +12,7 @@ from services.features.natural_polish_service import (
     NATURAL_POLISH_MAX_TOKENS,
     NaturalPolishService,
 )
+from services.usage.llm_usage_service import LLMUsageAttribution
 
 
 @pytest.mark.unit
@@ -42,6 +43,8 @@ async def test_natural_polish_calls_llm_with_single_round_settings():
         result = await service.natural_polish(
             selected_text="x" * 6000,
             language="zh",
+            user_id="user-1",
+            project_id="project-1",
         )
 
     assert result.polished_text == "rewritten"
@@ -54,4 +57,7 @@ async def test_natural_polish_calls_llm_with_single_round_settings():
         model="quality-model",
         max_tokens=NATURAL_POLISH_MAX_TOKENS,
         thinking_enabled=False,
+        usage_attribution=LLMUsageAttribution(
+            user_id="user-1", source="polish", project_id="project-1"
+        ),
     )

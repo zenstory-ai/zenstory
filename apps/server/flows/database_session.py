@@ -69,5 +69,10 @@ def get_prefect_db_session():
             raise
 
 
+def create_prefect_session() -> Session:
+    """独立 session（调用方负责 close），供用量记账等不能复用任务 session 的写入。"""
+    return Session(_prefect_engine)
+
+
 # 别名，兼容旧代码
 get_db_session = get_prefect_db_session

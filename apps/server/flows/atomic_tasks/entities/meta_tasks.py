@@ -78,7 +78,8 @@ def extract_novel_meta_task(
 
     response = call_deepseek_api(
         messages=[{"role": "user", "content": user_message}],
-        system_prompt=system_prompt
+        system_prompt=system_prompt,
+        usage_novel_id=novel_id,
     )
 
     # 提取 JSON

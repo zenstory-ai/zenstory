@@ -173,3 +173,11 @@ async def test_agent_project_lookup_runs_off_the_event_loop():
     assert response.json() == {"project_id": "project-1", "user_id": "user-2"}
     assert session.unblocked_by_event_loop_callback is True
     assert session.project_get_thread_id != loop_thread_id
+
+
+def test_agent_dependencies_parse_on_production_worker_python():
+    import ast
+    from pathlib import Path
+
+    source = Path(__file__).parents[2] / "api" / "agent_dependencies.py"
+    ast.parse(source.read_text(), filename=str(source), feature_version=(3, 11))

@@ -248,7 +248,7 @@ def _install_fake_agents(monkeypatch, *, emit_events):
 
     class _Runner:
         @staticmethod
-        def run_streamed(agent, input, max_turns, run_config):  # noqa: A002 - mirror SDK kwarg
+        def run_streamed(agent, input, max_turns, run_config, hooks=None):  # noqa: A002 - mirror SDK kwarg
             # Created while the runner has the progress emitter installed, so the
             # task's context copy can deliver progress events — exactly the
             # contextvar propagation the production runner relies on.
@@ -266,7 +266,12 @@ def _install_fake_agents(monkeypatch, *, emit_events):
     def _tool_execution_config(**kwargs):
         return {"tool_execution": kwargs}
 
+    class _RunHooks:
+        def __class_getitem__(cls, _item):
+            return cls
+
     fake_agents.Runner = _Runner
+    fake_agents.RunHooks = _RunHooks
     fake_agents.RunConfig = _run_config
     fake_agents.ToolExecutionConfig = _tool_execution_config
 

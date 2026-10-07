@@ -5,10 +5,10 @@ import { Search, Coins, TrendingUp, TrendingDown, Clock, Users, X } from "lucide
 import { adminApi } from "../../lib/adminApi";
 import { AdminPageState } from "../../components/admin";
 import { StatsCard } from "../../components/admin/StatsCard";
-import { getLocaleCode } from "../../lib/i18n-helpers";
-import { parseUTCDate } from "../../lib/dateUtils";
 import type { PointsStats, AdminPointsBalance, PointsAdjustRequest } from "../../types/admin";
 import { toast } from "../../lib/toast";
+import { formatAdminDateTime } from "../../lib/dateUtils";
+import { AdminUserLink } from "../../components/admin/AdminUserLink";
 
 export const PointsManagement: React.FC = () => {
   const { t } = useTranslation(["admin", "common"]);
@@ -98,20 +98,7 @@ export const PointsManagement: React.FC = () => {
     adjustMutation.mutate({ userId: searchUserId, data: adjustForm });
   };
 
-  const formatDate = (dateStr: string) => {
-    const date = parseUTCDate(dateStr);
-    if (Number.isNaN(date.getTime())) {
-      return "-";
-    }
-
-    return date.toLocaleString(getLocaleCode(), {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+  const formatDate = (dateStr: string | null | undefined) => formatAdminDateTime(dateStr);
 
   const getTransactionTypeLabel = (type: string) => {
     return t(`points.types.${type}`, type);
@@ -242,7 +229,7 @@ export const PointsManagement: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <Coins className="h-5 w-5 text-[hsl(var(--accent-primary))]" />
                     <span className="font-medium text-[hsl(var(--text-primary))]">
-                      {userPoints?.username ?? "-"}
+                      <AdminUserLink userId={userPoints?.user_id}>{userPoints?.username ?? "-"}</AdminUserLink>
                     </span>
                     <span className="text-sm text-[hsl(var(--text-secondary))]">
                       ({userPoints?.email ?? "-"})

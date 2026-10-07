@@ -85,6 +85,11 @@ async def reset_request_context_async(tokens: dict[str, Token[Any]]) -> None:
     reset_request_context(tokens)
 
 
+def get_agent_run_id() -> str | None:
+    """Return the agent run id bound to the current context, if any."""
+    return _agent_run_id.get()
+
+
 def get_log_context() -> dict[str, str]:
     """Return the current request context as JSON-serializable fields."""
     ctx: dict[str, str] = {}

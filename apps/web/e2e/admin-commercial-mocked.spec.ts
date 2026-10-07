@@ -67,6 +67,18 @@ async function bootstrapAdminSession(page: Page) {
     });
   });
 
+  // Code tiers come from the plan catalog; tests that need other plans route this again.
+  await page.route('**/api/admin/plans**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        { id: 'plan-free', name: 'free', display_name: '免费版', display_name_en: 'Free', price_monthly_cents: 0, price_yearly_cents: 0, features: {}, is_active: true },
+        { id: 'plan-pro', name: 'pro', display_name: '专业版', display_name_en: 'Pro', price_monthly_cents: 2900, price_yearly_cents: 29000, features: {}, is_active: true },
+      ]),
+    });
+  });
+
   await page.addInitScript((user) => {
     localStorage.setItem('access_token', 'mock-access-token');
     localStorage.setItem('refresh_token', 'mock-refresh-token');
@@ -149,6 +161,43 @@ test.describe('Admin commercial flows (mocked)', () => {
 
     await expect.poll(() => updatePayload).not.toBeNull();
     expect(updatePayload).toEqual({ is_active: false });
+  });
+
+  test('batch-creates multi-use codes with a use limit and shows them', async ({ page }) => {
+    await bootstrapAdminSession(page);
+
+    let batchPayload: Record<string, unknown> | null = null;
+    await page.route('**/api/admin/codes**', async (route) => {
+      const request = route.request();
+      if (request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/codes/batch')) {
+        batchPayload = request.postDataJSON() as Record<string, unknown>;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ created: 2, count: 2, codes: ['ERG-PRO-AAAA-11111111', 'ERG-PRO-BBBB-22222222'], code_type: 'multi_use', max_uses: 25 }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: [], total: 0, page: 1, page_size: 20 }),
+      });
+    });
+
+    await page.goto('/admin/codes');
+    await page.getByRole('button', { name: /^(批量生成|批量创建|Batch create|Bulk create|codes\.batchCreate)/i }).first().click();
+    const modal = page.locator('.fixed.inset-0.z-50').last();
+    await modal.locator('select').nth(1).selectOption('multi_use');
+    await modal.locator('#batch-max-uses').fill('25');
+    await modal.locator('input[type="number"]').nth(1).fill('2');
+    await modal.getByRole('button', { name: /^(批量生成|批量创建|Batch create|Bulk create|codes\.batchCreate)/i }).click();
+
+    await expect.poll(() => batchPayload).not.toBeNull();
+    expect(batchPayload).toMatchObject({ tier: 'pro', code_type: 'multi_use', max_uses: 25, count: 2 });
+    const result = page.getByRole('dialog');
+    await expect(result).toBeVisible();
+    await expect(result.getByRole('textbox')).toHaveValue('ERG-PRO-AAAA-11111111\nERG-PRO-BBBB-22222222');
   });
 
   test('can submit subscription duration update', async ({ page }) => {

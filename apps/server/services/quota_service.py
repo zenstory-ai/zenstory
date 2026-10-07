@@ -129,6 +129,10 @@ class QuotaService:
             return resolve_plan_feature("free", None, key, fallback)
         return resolve_plan_feature(plan.name, plan.features, key, fallback)
 
+    def get_ai_conversation_limit(self, plan: SubscriptionPlan | None) -> int:
+        """Daily AI conversation limit (-1 = unlimited) for checks, charges and quota views."""
+        return int(self.get_plan_feature(plan, "ai_conversations_per_day"))
+
     def count_custom_skills(self, session: Session, user_id: str) -> int:
         return int(
             session.exec(
@@ -295,7 +299,7 @@ class QuotaService:
         - limit: daily limit (-1 for unlimited)
         """
         plan = self.get_user_plan(session, user_id)
-        limit = self.get_plan_feature(plan, "ai_conversations_per_day")
+        limit = self.get_ai_conversation_limit(plan)
 
         # Reset quota if needed
         quota = self._get_or_create_quota(session, user_id)
@@ -330,7 +334,7 @@ class QuotaService:
         # Refresh to ensure latest values after possible reset commits.
         session.refresh(quota)
 
-        ai_limit = self.get_plan_feature(plan, "ai_conversations_per_day")
+        ai_limit = self.get_ai_conversation_limit(plan)
         snapshot = {
             "ai_conversations": {
                 "used": quota.ai_conversations_used,
@@ -355,6 +359,56 @@ class QuotaService:
 
         return snapshot
 
+    def get_admin_quota_view(self, session: Session, user_id: str) -> dict:
+        """
+        One user's quota for the admin console, read through get_quota_snapshot.
+
+        Plan resolution (a lapsed paid period falls back to free), limits and the
+        lazy Beijing day/month resets are the ones enforcement uses, so the admin
+        sees the numbers the user's next request is checked against.
+        """
+        plan = self.get_user_plan(session, user_id)
+        snapshot = self.get_quota_snapshot(session, user_id, plan=plan)
+        return {
+            "plan_name": plan.name,
+            "plan_display_name": plan.display_name,
+            "plan_display_name_en": plan.display_name_en,
+            "ai_conversations": snapshot["ai_conversations"],
+            "material_decompositions": snapshot["material_decompositions"],
+            "inspiration_copies": snapshot["inspiration_copies"],
+            "custom_skills": snapshot["skill_creates"],
+        }
+
+    def get_current_month_totals(self, session: Session) -> dict:
+        """
+        Monthly counters summed over quota rows whose period is the current
+        Beijing month.
+
+        Rows still holding an earlier month (not yet lazily reset) are skipped, so
+        old usage never leaks into this month's totals.
+        """
+        now = utcnow()
+        period_start = self._get_month_start(now)
+        period_end = self._get_next_month_start(now)
+        now_naive = now.replace(tzinfo=None)  # the columns store naive UTC
+        totals = session.exec(
+            select(
+                func.coalesce(func.sum(UsageQuota.material_decompositions_used), 0),
+                func.coalesce(func.sum(UsageQuota.inspiration_copies_used), 0),
+                func.coalesce(func.sum(UsageQuota.skill_creates_used), 0),
+            ).where(
+                UsageQuota.monthly_period_start <= now_naive,
+                UsageQuota.monthly_period_end > now_naive,
+            )
+        ).one()
+        return {
+            "period_start": period_start,
+            "period_end": period_end,
+            "material_decompositions": int(totals[0] or 0),
+            "inspiration_copies": int(totals[1] or 0),
+            "skills_created": int(totals[2] or 0),
+        }
+
     def consume_ai_conversation(self, session: Session, user_id: str) -> bool:
         """Consume a daily unit; use reserve_ai_conversation when it may be refunded."""
         return self.reserve_ai_conversation(session, user_id) is not None
@@ -367,7 +421,7 @@ class QuotaService:
         the request/response timestamp. None means the quota was exceeded.
         """
         plan = self.get_user_plan(session, user_id)
-        limit = self.get_plan_feature(plan, "ai_conversations_per_day")
+        limit = self.get_ai_conversation_limit(plan)
 
         quota = self._get_or_create_quota(session, user_id)
         self._reset_quota_if_needed(session, quota)

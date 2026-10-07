@@ -183,6 +183,7 @@ def _is_allowed_redirect_url(redirect_url: str) -> bool:
     """Validate post-login redirect URL against allowed domains."""
     try:
         parsed = urllib.parse.urlparse(redirect_url)
+        _ = parsed.port
     except ValueError:
         return False
 
@@ -194,6 +195,8 @@ def _is_allowed_redirect_url(redirect_url: str) -> bool:
     host = parsed.netloc.lower()
     hostname = (parsed.hostname or "").lower()
     if not hostname:
+        return False
+    if parsed.scheme == "http" and hostname not in {"localhost", "127.0.0.1"}:
         return False
 
     for allowed in SSO_ALLOWED_REDIRECT_DOMAINS:

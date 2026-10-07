@@ -11,7 +11,7 @@ from typing import TypedDict
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, func, select
 
-from config.datetime_utils import utcnow
+from config.datetime_utils import beijing_day_bounds, utcnow
 from models import (
     ACTIVATION_EVENT_FIRST_AI_ACTION_ACCEPTED,
     ACTIVATION_EVENT_FIRST_FILE_SAVED,
@@ -195,9 +195,8 @@ class ActivationEventService:
         """Get activation funnel metrics for the recent time window."""
         window_days = max(1, min(days, 90))
         period_end = utcnow()
-        period_start = (period_end - timedelta(days=window_days - 1)).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
+        # Window starts at 00:00 Beijing time, window_days - 1 days ago.
+        period_start = beijing_day_bounds(period_end - timedelta(days=window_days - 1))[0]
 
         steps: list[ActivationFunnelStep] = []
         previous_count: int | None = None

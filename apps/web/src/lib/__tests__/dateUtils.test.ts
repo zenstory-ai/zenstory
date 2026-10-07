@@ -34,6 +34,9 @@ import {
   formatRelativeTime,
   formatFullDate,
   formatRelativeTimeWithYear,
+  formatAdminDateTime,
+  formatAdminDate,
+  formatBeijingPeriodDate,
 } from '../dateUtils'
 
 describe('dateUtils', () => {
@@ -319,5 +322,54 @@ describe('dateUtils', () => {
       // 3 days is still within the 7-day threshold
       expect(result).toBe('3 天前')
     })
+  })
+})
+
+describe('admin date formatting', () => {
+  const originalTZ = process.env.TZ
+
+  beforeEach(() => {
+    // Render as a Beijing viewer: naive UTC must shift by +8h, not be read as local.
+    process.env.TZ = 'Asia/Shanghai'
+  })
+
+  afterEach(() => {
+    process.env.TZ = originalTZ
+  })
+
+  it('renders naive UTC and offset timestamps as the same local time', () => {
+    const naive = formatAdminDateTime('2024-03-15T10:00:00')
+    expect(naive).toBe(formatAdminDateTime('2024-03-15T10:00:00Z'))
+    expect(naive).toBe(formatAdminDateTime('2024-03-15T10:00:00+00:00'))
+    expect(naive).toBe(formatAdminDateTime('2024-03-15T18:00:00+08:00'))
+    expect(naive).toContain('18:00')
+  })
+
+  it('renders empty and invalid values as a dash', () => {
+    expect(formatAdminDateTime(null)).toBe('-')
+    expect(formatAdminDateTime(undefined)).toBe('-')
+    expect(formatAdminDateTime('')).toBe('-')
+    expect(formatAdminDateTime('not a date')).toBe('-')
+  })
+
+  it('keeps bare calendar dates on their own day', () => {
+    expect(parseUTCDate('2024-03-15').getDate()).toBe(15)
+    expect(formatAdminDate('2024-03-15')).toContain('15')
+    expect(formatAdminDate('2024-03-15T20:00:00')).toContain('16')
+  })
+})
+
+describe('formatBeijingPeriodDate', () => {
+  it('shows Beijing calendar dates and the last day of an exclusive end', () => {
+    // A Beijing month stored as UTC instants: [09-30 16:00Z, 10-31 16:00Z).
+    expect(formatBeijingPeriodDate('2026-09-30T16:00:00+00:00')).toBe('2026/10/01')
+    expect(formatBeijingPeriodDate('2026-10-31T16:00:00+00:00', { exclusiveEnd: true })).toBe('2026/10/31')
+    // Naive UTC is read as UTC.
+    expect(formatBeijingPeriodDate('2026-09-30T16:00:00')).toBe('2026/10/01')
+  })
+
+  it('renders "-" for empty or invalid values', () => {
+    expect(formatBeijingPeriodDate(null)).toBe('-')
+    expect(formatBeijingPeriodDate('nope', { exclusiveEnd: true })).toBe('-')
   })
 })

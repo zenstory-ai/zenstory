@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy import or_
 from sqlmodel import Session, col, func, select
@@ -13,6 +13,8 @@ from api.payments import (
     sync_error_status,
 )
 from config.payment_settings import get_payment_settings
+from core.error_codes import ErrorCode
+from core.error_handler import APIException
 from database import get_session
 from models.entities import User
 from models.payment import PaymentOrder
@@ -65,6 +67,7 @@ def list_payment_orders(
     needs_attention: bool = False,
     payment_method: Literal["alipay"] | None = None,
     search: str | None = Query(default=None, max_length=100),
+    user_id: str | None = Query(default=None, max_length=64),
     _current_user: User = Depends(get_current_superuser),
     session: Session = Depends(get_session),
 ):
@@ -80,6 +83,8 @@ def list_payment_orders(
         conditions.append(NEEDS_ATTENTION_CONDITION)
     if payment_method:
         conditions.append(PaymentOrder.payment_method == payment_method)
+    if user_id:
+        conditions.append(PaymentOrder.user_id == user_id)
     if search and search.strip():
         pattern = f"%{search.strip()}%"
         conditions.append(
@@ -132,7 +137,11 @@ def sync_payment_order(
     """Query Zpay for one order and, if it was paid, grant it like a notify would."""
     order = zpay_service.reload_order(session, order_id)
     if not order:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payment order not found")
+        raise APIException(
+            error_code=ErrorCode.NOT_FOUND,
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Payment order not found",
+        )
     before = {"status": order.status, "fulfillment_status": order.fulfillment_status}
     out_trade_no = order.out_trade_no
 
@@ -161,7 +170,9 @@ def sync_payment_order(
         request=http_request,
     )
     if error is not None:
-        raise HTTPException(
-            status_code=sync_error_status(error), detail=f"sync_failed:{error.reason}"
+        raise APIException(
+            error_code=ErrorCode.PAYMENT_SYNC_FAILED,
+            status_code=sync_error_status(error),
+            detail=f"sync_failed:{error.reason}",
         )
     return {"outcome": outcome, "order": _admin_order_payload(session, refreshed)}

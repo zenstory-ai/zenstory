@@ -5,7 +5,7 @@ This module contains all user management endpoints for admin operations.
 """
 import logging
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, func, or_, select
 
@@ -87,7 +87,7 @@ def get_user(
     user = session.get(User, user_id)
     if not user:
         raise APIException(
-            error_code=ErrorCode.NOT_AUTHORIZED,
+            error_code=ErrorCode.NOT_FOUND,
             status_code=status.HTTP_404_NOT_FOUND,
         )
 
@@ -106,6 +106,7 @@ def get_user(
 def update_user(
     user_id: str,
     user_update: UserUpdateRequest,
+    http_request: Request,
     current_user: User = Depends(get_current_superuser),
     session: Session = Depends(get_session),
 ):
@@ -117,7 +118,7 @@ def update_user(
     user = session.get(User, user_id)
     if not user:
         raise APIException(
-            error_code=ErrorCode.NOT_AUTHORIZED,
+            error_code=ErrorCode.NOT_FOUND,
             status_code=status.HTTP_404_NOT_FOUND,
         )
 
@@ -158,7 +159,8 @@ def update_user(
         session.add(user)
         admin_audit_service.log_action(
             session, current_user.id, "update_user", "user", user_id,
-            old_value=old_value, new_value=AdminUserResponse.model_validate(user).model_dump(mode="json"), commit=False,
+            old_value=old_value, new_value=AdminUserResponse.model_validate(user).model_dump(mode="json"),
+            request=http_request, commit=False,
         )
         session.commit()
         session.refresh(user)
@@ -197,18 +199,19 @@ def _lock_admin_access(session: Session, caller_id: str, target_id: str) -> None
 @router.delete("/users/{user_id}", response_model=AdminUserResponse)
 def delete_user(
     user_id: str,
+    http_request: Request,
     current_user: User = Depends(get_current_superuser),
     session: Session = Depends(get_session),
 ):
     """
-    Soft delete a user by setting is_active to False.
+    Deactivate a user (is_active=False); reversible from the edit dialog.
 
     Requires superuser privileges.
     """
     user = session.get(User, user_id)
     if not user:
         raise APIException(
-            error_code=ErrorCode.NOT_AUTHORIZED,
+            error_code=ErrorCode.NOT_FOUND,
             status_code=status.HTTP_404_NOT_FOUND,
         )
 
@@ -229,7 +232,8 @@ def delete_user(
         session.add(user)
         admin_audit_service.log_action(
             session, current_user.id, "delete_user", "user", user_id,
-            old_value=old_value, new_value=AdminUserResponse.model_validate(user).model_dump(mode="json"), commit=False,
+            old_value=old_value, new_value=AdminUserResponse.model_validate(user).model_dump(mode="json"),
+            request=http_request, commit=False,
         )
         session.commit()
         session.refresh(user)

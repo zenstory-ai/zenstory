@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import PointsManagement from "../PointsManagement";
+import { MemoryRouter } from "react-router-dom";
 
 const useQueryMock = vi.fn();
 const useMutationMock = vi.fn();
@@ -115,7 +116,7 @@ describe("PointsManagement", () => {
   it("shows loading state", () => {
     mockQueries({ statsLoading: true });
 
-    render(<PointsManagement />);
+    render(<PointsManagement />, { wrapper: MemoryRouter });
     expect(screen.getByText("common:loading")).toBeInTheDocument();
   });
 
@@ -125,7 +126,7 @@ describe("PointsManagement", () => {
       statsErrorMessage: "load points stats failed",
     });
 
-    render(<PointsManagement />);
+    render(<PointsManagement />, { wrapper: MemoryRouter });
     expect(screen.getByText("load points stats failed")).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("common:retry"));
@@ -165,7 +166,7 @@ describe("PointsManagement", () => {
       },
     });
 
-    render(<PointsManagement />);
+    render(<PointsManagement />, { wrapper: MemoryRouter });
 
     fireEvent.change(screen.getByPlaceholderText("points.searchUser"), {
       target: { value: "user-1" },

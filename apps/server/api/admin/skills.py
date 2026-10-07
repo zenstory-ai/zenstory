@@ -56,17 +56,16 @@ def get_pending_skills(
         session, public_skill_ids=[skill.id for skill in skills]
     )
 
+    # Authors and reviewers for the whole list in one query
+    user_ids = {uid for skill in skills for uid in (skill.author_id, skill.reviewed_by) if uid}
+    usernames = dict(
+        session.exec(select(User.id, User.username).where(User.id.in_(user_ids))).all()
+    ) if user_ids else {}
+
     result = []
     for skill in skills:
-        author_name = None
-        if skill.author_id:
-            author = session.get(User, skill.author_id)
-            author_name = author.username if author else None
-
-        reviewer_name = None
-        if skill.reviewed_by:
-            reviewer = session.get(User, skill.reviewed_by)
-            reviewer_name = reviewer.username if reviewer else None
+        author_name = usernames.get(skill.author_id) if skill.author_id else None
+        reviewer_name = usernames.get(skill.reviewed_by) if skill.reviewed_by else None
 
         result.append(PendingSkillResponse(
             id=skill.id,

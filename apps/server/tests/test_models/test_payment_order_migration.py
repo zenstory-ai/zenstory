@@ -134,7 +134,7 @@ def test_upgrade_source_and_pro_backfill_round_trip(tmp_path: Path):
         session.commit()
     engine.dispose()
 
-    _alembic(db_url, "upgrade", "head")
+    _alembic(db_url, "upgrade", PRO_BACKFILL_REVISION)
     engine = create_engine(db_url)
     columns = {column["name"] for column in inspect(engine).get_columns("payment_order")}
     assert "upgrade_source" in columns

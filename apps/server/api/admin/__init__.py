@@ -20,6 +20,7 @@ from .quotas import router as quotas_router
 from .referrals import router as referrals_router
 from .skills import router as skills_router
 from .subscriptions import router as subscriptions_router
+from .usage import router as usage_router
 from .users import router as users_router
 
 # Create main admin router with the /api/admin prefix
@@ -41,5 +42,6 @@ router.include_router(points_router)
 router.include_router(checkin_router)
 router.include_router(referrals_router)
 router.include_router(quotas_router)
+router.include_router(usage_router)
 
 __all__ = ["router"]

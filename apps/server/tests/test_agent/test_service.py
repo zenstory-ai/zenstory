@@ -1370,7 +1370,13 @@ class TestAgentServiceProcessStream:
 
         started = asyncio.Event()
 
+        routing_usage = {"input_tokens": 12, "output_tokens": 3, "total_tokens": 15}
+
         async def mock_slow_stream():
+            yield StreamEvent(
+                type=StreamEventType.ROUTER_DECIDED,
+                data={"agent_type": "writer", "routing_usage": routing_usage},
+            )
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "partial reply"})
             started.set()
             await asyncio.sleep(3600)
@@ -1426,9 +1432,10 @@ class TestAgentServiceProcessStream:
             m.role == "assistant" and m.content == "partial reply" for m in saved_messages
         )
         partial_assistant = next(m for m in saved_messages if m.role == "assistant")
-        assert json.loads(partial_assistant.message_metadata or "{}")["display_events"] == [
-            {"type": "content", "content": "partial reply"}
-        ]
+        display_events = json.loads(partial_assistant.message_metadata or "{}")["display_events"]
+        assert display_events[-1] == {"type": "content", "content": "partial reply"}
+        # Usage already accumulated before the cancel (here: routing) is kept.
+        assert json.loads(partial_assistant.message_metadata or "{}")["usage"] == routing_usage
 
     async def test_process_stream_prompt_ledger_counts_embedded_sections_once(
         self, mock_agent_service, test_user_with_project, db_session: Session

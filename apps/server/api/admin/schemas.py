@@ -4,10 +4,12 @@ Shared Pydantic models for Admin API endpoints.
 This module contains all request and response schemas used across
 the admin API modules.
 """
-from datetime import date, datetime
+from datetime import date
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, StrictInt, StringConstraints
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, StrictInt, StringConstraints, model_validator
+
+from config.datetime_utils import UTCDateTime
 
 # ==================== User Management Schemas ====================
 
@@ -23,8 +25,8 @@ class AdminUserResponse(BaseModel):
     avatar_url: str | None = None
     is_active: bool
     is_superuser: bool
-    created_at: datetime
-    updated_at: datetime
+    created_at: UTCDateTime
+    updated_at: UTCDateTime
 
 
 class AdminUserListResponse(BaseModel):
@@ -92,9 +94,9 @@ class PendingSkillResponse(BaseModel):
     status: SkillReviewStatus
     reviewed_by: str | None = None
     reviewer_name: str | None = None
-    reviewed_at: datetime | None = None
+    reviewed_at: UTCDateTime | None = None
     rejection_reason: str | None = None
-    created_at: datetime
+    created_at: UTCDateTime
 
 
 class SkillReviewResourceResponse(BaseModel):
@@ -196,21 +198,35 @@ class PlanUpdateRequest(BaseModel):
 # ==================== Redemption Code Schemas ====================
 
 
-class CodeCreateRequest(BaseModel):
+CodeType = Literal["single_use", "multi_use", "single", "multi"]
+MULTI_USE_CODE_TYPES = frozenset({"multi_use", "multi"})
+
+
+class _MultiUseNeedsMaxUses(BaseModel):
+    """A multi-use code without max_uses would grant a paid tier to unlimited users."""
+
+    code_type: CodeType = "single_use"
+    max_uses: int | None = Field(default=None, ge=1, le=100000)
+
+    @model_validator(mode="after")
+    def _require_max_uses_for_multi_use(self):
+        if self.code_type in MULTI_USE_CODE_TYPES and self.max_uses is None:
+            raise ValueError("max_uses is required for multi_use codes")
+        return self
+
+
+class CodeCreateRequest(_MultiUseNeedsMaxUses):
     """Request body for creating a redemption code"""
     tier: str = Field(..., min_length=2, max_length=32)
     duration_days: int = Field(..., ge=1, le=36500)
-    code_type: Literal["single_use", "multi_use", "single", "multi"] = "single_use"
-    max_uses: int | None = Field(default=None, ge=1, le=100000)
     notes: str | None = Field(default=None, max_length=500)
 
 
-class CodeBatchCreateRequest(BaseModel):
+class CodeBatchCreateRequest(_MultiUseNeedsMaxUses):
     """Request body for batch creating redemption codes"""
     tier: str = Field(..., min_length=2, max_length=32)
     duration_days: int = Field(..., ge=1, le=36500)
     count: int = Field(..., ge=1, le=100)
-    code_type: Literal["single_use", "multi_use", "single", "multi"] = "single_use"
     notes: str | None = Field(default=None, max_length=500)
 
 
@@ -361,7 +377,7 @@ class AuditLogResponse(BaseModel):
     new_value: dict | None
     ip_address: str | None
     user_agent: str | None
-    created_at: datetime
+    created_at: UTCDateTime
 
 
 class AuditLogListResponse(BaseModel):
@@ -427,7 +443,7 @@ class CheckInRecordResponse(BaseModel):
     check_in_date: date
     streak_days: int
     points_earned: int
-    created_at: datetime
+    created_at: UTCDateTime
 
 
 class CheckInRecordListResponse(BaseModel):
@@ -460,8 +476,8 @@ class AdminInviteCodeResponse(BaseModel):
     max_uses: int
     current_uses: int
     is_active: bool
-    expires_at: datetime | None
-    created_at: datetime
+    expires_at: UTCDateTime | None
+    created_at: UTCDateTime
 
 
 class InviteCodeListResponse(BaseModel):
@@ -484,25 +500,31 @@ class ReferralRewardListResponse(BaseModel):
 
 
 class QuotaUsageStatsResponse(BaseModel):
-    """Quota usage statistics"""
-    material_uploads: int
-    material_decomposes: int
-    skill_creates: int
+    """Monthly quota counters summed over the current Beijing month (the quota period)."""
+    period_start: UTCDateTime
+    period_end: UTCDateTime
+    material_decompositions: int
     inspiration_copies: int
+    # Custom skills created this month (refused creates roll back their bump).
+    skills_created: int
+
+
+class QuotaCounter(BaseModel):
+    """Used vs. limit for one quota; limit -1 means unlimited."""
+    used: int
+    limit: int
+    reset_at: UTCDateTime | None = None
 
 
 class UserQuotaDetail(BaseModel):
-    """User quota details"""
+    """One user's quota as enforcement sees it."""
     user_id: str
     username: str
+    email: str
     plan_name: str
-    ai_conversations_used: int
-    ai_conversations_limit: int
-    material_upload_used: int
-    material_upload_limit: int
-    material_decompose_used: int
-    material_decompose_limit: int
-    skill_create_used: int
-    skill_create_limit: int
-    inspiration_copy_used: int
-    inspiration_copy_limit: int
+    plan_display_name: str | None = None
+    plan_display_name_en: str | None = None
+    ai_conversations: QuotaCounter
+    material_decompositions: QuotaCounter
+    inspiration_copies: QuotaCounter
+    custom_skills: QuotaCounter

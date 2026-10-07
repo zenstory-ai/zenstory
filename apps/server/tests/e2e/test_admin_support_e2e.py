@@ -14,7 +14,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel import Session, select
 
-from config.datetime_utils import beijing_date, utcnow
+from config.datetime_utils import beijing_date, beijing_day_bounds, utcnow
 from models import User
 from models.points import CheckInRecord
 from models.subscription import AdminAuditLog, SubscriptionPlan, UserSubscription
@@ -143,15 +143,21 @@ async def test_admin_checkin_roundtrip_reports_exact_stats_and_records(
     admin = await _create_user(db_session, prefix="admin_checkin", is_superuser=True)
     target = await _create_user(db_session, prefix="checkin_target")
 
-    now = utcnow()
-    previous = now - timedelta(days=1)
-    today = beijing_date(now)
-    yesterday = beijing_date(previous)
+    # Check-ins store their Beijing calendar date; admin stats count Beijing days.
+    today_start, _ = beijing_day_bounds(utcnow())
+    today_at = today_start + timedelta(hours=2)
+    yesterday_at = today_start - timedelta(hours=2)
     db_session.add(
-        CheckInRecord(user_id=target.id, check_in_date=today, created_at=now, streak_days=8, points_earned=10)
+        CheckInRecord(
+            user_id=target.id, check_in_date=beijing_date(today_at), streak_days=8, points_earned=10,
+            created_at=today_at,
+        )
     )
     db_session.add(
-        CheckInRecord(user_id=target.id, check_in_date=yesterday, created_at=previous, streak_days=7, points_earned=10)
+        CheckInRecord(
+            user_id=target.id, check_in_date=beijing_date(yesterday_at),
+            streak_days=7, points_earned=10, created_at=yesterday_at,
+        )
     )
     db_session.commit()
 
@@ -209,9 +215,9 @@ async def test_admin_quota_roundtrip_reports_exact_usage_and_user_detail(
     usage_response = await client.get("/api/admin/quota/usage", headers=headers)
     assert usage_response.status_code == 200
     usage_payload = usage_response.json()
-    assert usage_payload["material_uploads"] == 2
-    assert usage_payload["material_decomposes"] == 1
-    assert usage_payload["skill_creates"] == 3
+    assert "material_uploads" not in usage_payload
+    assert usage_payload["material_decompositions"] == 1
+    assert usage_payload["skills_created"] == 3
     assert usage_payload["inspiration_copies"] == 4
 
     detail_response = await client.get(f"/api/admin/quota/{target.username}", headers=headers)
@@ -219,9 +225,9 @@ async def test_admin_quota_roundtrip_reports_exact_usage_and_user_detail(
     detail_payload = detail_response.json()
     assert detail_payload["user_id"] == target.id
     assert detail_payload["plan_name"] == "pro"
-    assert detail_payload["ai_conversations_used"] == 11
-    assert detail_payload["material_upload_used"] == 2
-    assert detail_payload["inspiration_copy_used"] == 4
+    assert detail_payload["ai_conversations"]["used"] == 11
+    assert detail_payload["material_decompositions"]["used"] == 1
+    assert detail_payload["inspiration_copies"]["used"] == 4
 
 
 @pytest.mark.asyncio
