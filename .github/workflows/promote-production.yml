@@ -1,0 +1,36 @@
+name: Promote Production
+
+on:
+  push:
+    tags:
+      - 'prod-v*'
+
+permissions:
+  contents: write
+  actions: read
+  checks: read
+
+concurrency:
+  group: production-promotion
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted main release controls
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate source proofs and advance production branch
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_SOURCE_SHA: ${{ github.sha }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_BRANCH: release-production
+        run: |
+          node scripts/ci/promote-production.mjs \
+            "$GITHUB_REPOSITORY" "$RELEASE_TAG" "$RELEASE_BRANCH" "$RELEASE_SOURCE_SHA"

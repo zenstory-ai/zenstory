@@ -52,30 +52,47 @@ errors are not treated as absence, and different bytes are rejected.
 
 ## Hosted delivery
 
-The authoritative producers remain the existing provider Git integrations:
+Provider Git integrations remain the only deployment producers. The target
+branch contract separates continuous preview from deliberate production
+promotion:
 
-| Surface | Producer | Required external gate | Repository evidence |
-| --- | --- | --- | --- |
-| Web (`zenstory.ai`, `app.zenstory.ai`) | Vercel Git integration | Vercel Deployment Checks selecting `ci-summary` for the deployment commit before production-domain promotion | exact CI proof plus post-promotion readiness receipt |
-| API / Prefect | Railway Git integration | Railway **Wait for CI** for the canonical main branch | exact CI proof plus post-deployment `/health` and anonymous 401 readiness |
+| Environment | Provider source branch | Purpose |
+| --- | --- | --- |
+| Vercel Preview and Railway staging | `main` | Deploy each merged revision into isolated preview API, database, Redis, uploads, Prefect server, and worker resources |
+| Vercel Production and Railway production | `release-production` | Deploy only a commit promoted by a `prod-v*` release tag |
 
-These provider settings require separate production approval and authenticated
-readback. Until both are confirmed, report `PROVIDER_GATE_NOT_VERIFIED`; a
-repository workflow does not make the external gate complete. Do not add a
-second `vercel deploy` or Railway deploy path, and do not change routing,
-authentication, CORS, project roots, domains, or production environment values
-as part of this contract.
+The release branch currently has one trusted admin writer. Production tagging
+is an operational convention, not a platform-enforced prohibition on direct admin
+updates to that branch. Apply ref and tag protection before adding other writers.
 
-After approval on 2026-10-03, the canonical Vercel `ergou-ai` project was
-configured with the GitHub `ci-summary` check for Production and verified after
-reloading its settings. The Railway production `server` service's existing
-`zenstory-ai/zenstory` / `main` trigger was changed from `checkSuites: false` to
-`true` (Wait for CI) and read back without changing its source identity. This
-proves saved configuration, not a new deployment's gate behavior. If unchanged
-application files cause native Git to skip deployment, retain and record the
-existing production SHA; do not force a deployment or claim that SHA is the new
-main commit. Ordinary push checks do not need a Vercel `repository_dispatch`
-status action.
+The checked-in `Promote Production` workflow is the branch-promotion control;
+it is not a second deployment producer. A `prod-v*` tag must resolve to the immutable triggering event commit
+reachable from `main` and have successful exact-commit `CI / ci-summary` and
+`E2E Tests / e2e-summary` main-push runs. The workflow then requires the
+existing `release-production` baseline to be an ancestor of that commit,
+rereads the baseline, and requests a non-forced fast-forward update. It exits
+after the ref update so Railway **Wait for CI** does not depend on a workflow
+that is itself waiting for Railway or Vercel.
+
+Create `release-production` once from the currently deployed production commit
+before enabling this flow. Do not let the workflow create a missing branch or
+repair a diverged branch: either state is a failed promotion that needs an
+operator to reconcile history. The workflow uses only the scoped built-in
+`GITHUB_TOKEN`; it does not need Vercel or Railway deployment credentials.
+
+The web routing contract sends `/api/*` on `geo-preview.zenstory.ai`,
+`app-preview.zenstory.ai`, and Vercel preview hosts to the preview API origin.
+All other hosts keep the production API fallback. Replace the checked-in
+preview API origin only after its stable Railway domain has been assigned and
+verified.
+
+This repository contract does not prove that either provider has switched its
+production branch or isolated every staging resource. Until authenticated
+provider readback confirms those settings, continue to report
+`PROVIDER_GATE_NOT_VERIFIED` and treat production as using its previously
+verified configuration. If provider path filtering skips a deployment because
+the promoted commit has no relevant files, retain the existing deployment SHA;
+do not force a deployment or claim the promoted SHA is live.
 
 `zenstory Online Smoke` is a manual, read-only, source-bound receipt workflow.
 It requires a 40-character deployed source SHA and the exact successful main CI
@@ -87,8 +104,8 @@ pre-deployment or pre-promotion gate. Its reviewed revision was enabled after
 production-policy approval on 2026-10-03. Query the live workflow state rather
 than inferring activation or successful execution from this file.
 
-After provider approval, enable the workflow and run a bounded receipt for a
-known deployed commit:
+After an exact provider source readback, run a bounded receipt for a known
+deployed production commit:
 
 ```sh
 gh workflow run zenstory-online-smoke.yml --ref main \
@@ -100,3 +117,40 @@ gh workflow run zenstory-online-smoke.yml --ref main \
 Do not substitute arbitrary URLs, credentials, a moving `main` reference, or a
 "latest successful" run. Record the resulting run ID/attempt and retain the
 downloaded receipt alongside the provider deployment IDs and source readback.
+
+## Effect on active users
+
+The API currently has one volume mounted at `/app/chroma_data`. Besides derived
+Chroma indexes, it contains material source uploads and feedback screenshots.
+Do not detach or reset it as a vector cleanup shortcut. Railway cannot overlap
+two deployments using that volume, so health checks do not guarantee uninterrupted
+API availability. Vercel's static frontend promotion alone is not proof that
+an in-flight API stream will finish.
+
+The API uses `/health/ready` for deployment readiness and a 300-second drain
+window, with Uvicorn's graceful shutdown bounded to 295 seconds so the final
+usage-ledger flush has time to run. Streams longer than the configured shutdown
+window can still be interrupted; retrying a generation automatically can duplicate
+work, so do not introduce transparent POST retries. Main updates only staging;
+production changes are batched behind release tags. Offline vector maintenance
+extends the startup gap and needs a verified offsite backup plus a quiet release
+window. Preserve material files and screenshots when compacting Chroma.
+
+For seamless API releases, first migrate those uploaded source files and screenshots
+to object storage using verified reads and a reversible data migration. Only
+after the API no longer reads its local volume can the old vector volume move
+to a private maintenance service and the API use overlapping instances. This
+object-storage migration is not part of the current configuration change.
+
+The production startup entry point is `scripts/start_api.py`. With no maintenance
+variables, it replaces itself with Uvicorn. The bounded cleanup runs only when
+both `ZENSTORY_VECTOR_MAINTENANCE_OPERATION_ID` and
+`ZENSTORY_VECTOR_MAINTENANCE_RECEIPT_JSON` are explicitly configured. It finishes
+before Uvicorn starts, preserves a private success marker on the volume, and
+fails startup if backup or candidate checks fail. Disable both variables together
+after checking the success marker; a restart with the same operation is a no-op.
+
+Railway has deprecated Config as Code for new services, with legacy support
+ending on December 1, 2026. Cloud service settings must explicitly retain the
+start command, readiness path, and drain window; a checked-in TOML file alone
+does not prove those values are active.

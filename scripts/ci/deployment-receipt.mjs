@@ -7,22 +7,33 @@ export { validateRunStability };
 const shaPattern = /^[a-f0-9]{40}$/;
 const githubActionsAppId = 15368;
 
-function invariant(condition, message) {
+export function invariant(condition, message) {
   if (!condition) throw new Error(message);
 }
 
 function normalizeWorkflowPath(value) {
-  return String(value ?? "").replace(/^\//, "");
+  return String(value ?? "").replace(/^\//, "").split("@", 1)[0];
 }
 
-export function validateDeploymentCiProof({ repository, sourceSha, requestedRunId, workflow, run, jobs, checkSuite }) {
+export function validateDeploymentWorkflowProof({
+  repository,
+  sourceSha,
+  requestedRunId,
+  workflow,
+  run,
+  jobs,
+  checkSuite,
+  workflowPath,
+  summaryJob,
+  label,
+}) {
   invariant(repository === "zenstory-ai/zenstory", `unexpected repository: ${repository}`);
   invariant(shaPattern.test(sourceSha), `invalid source SHA: ${sourceSha}`);
   invariant(/^\d+$/.test(String(requestedRunId)), `invalid CI run ID: ${requestedRunId}`);
-  invariant(normalizeWorkflowPath(workflow?.path) === ".github/workflows/ci.yml", "CI workflow path mismatch");
+  invariant(normalizeWorkflowPath(workflow?.path) === workflowPath, `${label} workflow path mismatch`);
   invariant(Number(run?.id) === Number(requestedRunId), "CI run ID mismatch");
   invariant(Number(run?.workflow_id) === Number(workflow.id), "CI workflow ID mismatch");
-  invariant(normalizeWorkflowPath(run?.path) === ".github/workflows/ci.yml", "CI run path mismatch");
+  invariant(normalizeWorkflowPath(run?.path) === workflowPath, `${label} run path mismatch`);
   invariant(run?.head_sha === sourceSha, "CI run source SHA mismatch");
   invariant(run?.head_branch === "main" && run?.event === "push", "CI proof must be a main push run");
   invariant(run?.status === "completed" && run?.conclusion === "success", "CI run did not succeed");
@@ -31,35 +42,56 @@ export function validateDeploymentCiProof({ repository, sourceSha, requestedRunI
   invariant(checkSuite?.head_sha === sourceSha, "CI check suite source mismatch");
   invariant(checkSuite?.status === "completed" && checkSuite?.conclusion === "success", "CI check suite did not succeed");
   invariant(Number.isSafeInteger(Number(run.run_attempt)) && Number(run.run_attempt) > 0, "CI run attempt missing");
-  const summaries = jobs.filter((job) => job.name === "ci-summary");
-  invariant(summaries.length === 1, "missing or ambiguous ci-summary job");
+  const summaries = jobs.filter((job) => job.name === summaryJob);
+  invariant(summaries.length === 1, `missing or ambiguous ${summaryJob} job`);
   invariant(
     summaries[0].status === "completed" && summaries[0].conclusion === "success",
-    `ci-summary did not succeed: ${summaries[0].status}/${summaries[0].conclusion}`,
+    `${summaryJob} did not succeed: ${summaries[0].status}/${summaries[0].conclusion}`,
   );
   return {
     schemaVersion: 1,
     repository,
     sourceSha,
     workflowId: Number(workflow.id),
-    workflowPath: ".github/workflows/ci.yml",
+    workflowPath,
     runId: Number(run.id),
     runAttempt: Number(run.run_attempt),
     checkSuiteId: Number(run.check_suite_id),
     checkSuiteAppId: githubActionsAppId,
-    requiredJobs: ["ci-summary"],
+    requiredJobs: [summaryJob],
   };
 }
 
-async function githubJson(url, token) {
+export function validateDeploymentCiProof(input) {
+  return validateDeploymentWorkflowProof({
+    ...input,
+    workflowPath: ".github/workflows/ci.yml",
+    summaryJob: "ci-summary",
+    label: "CI",
+  });
+}
+
+export function validateDeploymentE2eProof(input) {
+  return validateDeploymentWorkflowProof({
+    ...input,
+    workflowPath: ".github/workflows/e2e.yml",
+    summaryJob: "e2e-summary",
+    label: "E2E",
+  });
+}
+
+export async function githubJson(url, token, options = {}) {
   let response;
   try {
     response = await fetch(url, {
+      ...options,
       headers: {
         Accept: "application/vnd.github+json",
         Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
         "User-Agent": "zenstory-deployment-receipt",
         "X-GitHub-Api-Version": "2022-11-28",
+        ...options.headers,
       },
     });
   } catch (error) {
@@ -70,7 +102,7 @@ async function githubJson(url, token) {
   return JSON.parse(text);
 }
 
-async function collectJobs(repository, runId, attempt, token) {
+export async function collectJobs(repository, runId, attempt, token) {
   const jobs = [];
   for (let page = 1; page <= 10; page += 1) {
     const body = await githubJson(

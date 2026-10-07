@@ -70,7 +70,7 @@ def free_plan(db_session: Session):
         display_name_en="Free",
         price_monthly_cents=0,
         price_yearly_cents=0,
-        features={"ai_conversations_per_day": 20, "max_projects": 3},
+        features={"ai_conversations_per_day": 10, "max_projects": 3},
         is_active=True,
     )
     db_session.add(plan)

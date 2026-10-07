@@ -29,7 +29,7 @@ from models import Project, UsageQuota, User
 from services.core.auth_service import hash_password
 from services.quota_service import quota_service
 
-FREE_AI_CONVERSATION_LIMIT = 20  # 无订阅计划时 quota_service 的兜底日限额
+FREE_AI_CONVERSATION_LIMIT = 10  # 无订阅计划时 quota_service 的兜底日限额
 
 
 async def _make_user_and_project(

@@ -34,6 +34,15 @@ def test_normalize_plan_features_does_not_infer_access_from_free_upload_limit():
     assert normalized["material_uploads"] == 1
 
 
+def test_normalize_plan_features_replaces_legacy_free_message_limit():
+    normalized = _normalize_plan_features_for_response(
+        {"ai_conversations_per_day": 20},
+        plan_name="free",
+    )
+
+    assert normalized["ai_conversations_per_day"] == 10
+
+
 def test_normalize_plan_features_preserves_explicit_false_and_zero_overrides():
     normalized = _normalize_plan_features_for_response(
         {

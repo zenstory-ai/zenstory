@@ -109,6 +109,6 @@
   "ERR_PAYMENT_ORDER_CREATE_FAILED": "暂时无法创建订单，请稍后重试",
   "ERR_PAYMENT_RATE_LIMITED": "操作太频繁，请 1 分钟后再试",
   "ERR_PAYMENT_SYNC_FAILED": "暂时无法向支付平台查询订单，请稍后刷新",
-  "ERR_QUOTA_AI_DAILY_COST_EXCEEDED": "今日免费 AI 额度不足，额度于北京时间次日零点恢复，也可升级套餐继续创作。",
+  "ERR_QUOTA_AI_DAILY_COST_EXCEEDED": "今日 AI 额度已用完，北京时间次日 00:00 恢复，升级 Pro 可继续创作。",
   "ERR_AI_COST_BUDGET_UNAVAILABLE": "暂时无法确认 AI 可用额度，请稍后重试。"
 }

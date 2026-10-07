@@ -11,6 +11,7 @@ test("changed workflows and composite actions pin every external action to a ful
     ".github/workflows/ci.yml",
     ".github/workflows/e2e.yml",
     ".github/workflows/cli-release.yml",
+    ".github/workflows/promote-production.yml",
     ".github/workflows/zenstory-online-smoke.yml",
     ".github/actions/setup-backend/action.yml",
     ".github/actions/setup-frontend/action.yml",
@@ -21,6 +22,42 @@ test("changed workflows and composite actions pin every external action to a ful
       assert.match(match[1], /@[a-f0-9]{40}$/i, `${file}: ${match[1]} is not full-SHA pinned`);
     }
   }
+});
+
+test("production tags only advance the fixed release branch after exact main proofs", async () => {
+  const workflow = await readFile(".github/workflows/promote-production.yml", "utf8");
+  assert.match(workflow, /tags:\s*\n\s*- 'prod-v\*'/);
+  assert.match(workflow, /contents: write/);
+  assert.match(workflow, /actions: read/);
+  assert.match(workflow, /checks: read/);
+  assert.match(workflow, /RELEASE_BRANCH: release-production/);
+  assert.match(workflow, /RELEASE_SOURCE_SHA: \$\{\{ github.sha \}\}/);
+  assert.match(workflow, /"\$RELEASE_BRANCH" "\$RELEASE_SOURCE_SHA"/);
+  assert.match(workflow, /ref: main/);
+  assert.doesNotMatch(workflow, /ref: \$\{\{ github.sha \}\}/);
+  assert.match(workflow, /node scripts\/ci\/promote-production\.mjs/);
+  assert.doesNotMatch(workflow, /workflow_dispatch|VERCEL_TOKEN|RAILWAY_TOKEN|secrets\.|vercel deploy|railway (?:up|deploy)/i);
+
+  const control = await readFile("scripts/ci/promote-production.mjs", "utf8");
+  assert.match(control, /validateDeploymentCiProof/);
+  assert.match(control, /validateDeploymentE2eProof/);
+  assert.match(control, /compare\/\$\{sourceSha\}\.\.\.main/);
+  assert.match(control, /must already exist at the deployed production baseline/);
+  assert.match(control, /validateUnchangedReleaseRef\(releaseRef, reread/);
+  assert.match(control, /JSON\.stringify\(\{ sha: sourceSha, force: false \}\)/);
+});
+
+test("Railway Prefect build scopes avoid unrelated redeploys", async () => {
+  const worker = await readFile("apps/server/railway/prefect-worker.toml", "utf8");
+  assert.match(worker, /watchPatterns = \["\/apps\/server\/\*\*"\]/);
+
+  const server = await readFile("apps/server/railway/prefect-server.toml", "utf8");
+  const watched = [...server.matchAll(/^\s*"(\/apps\/server\/[^\"]+)",?$/gm)].map((match) => match[1]);
+  assert.deepEqual(watched, [
+    "/apps/server/docker/Dockerfile.prefect-server",
+    "/apps/server/docker/start-prefect-server.sh",
+    "/apps/server/railway/prefect-server.toml",
+  ]);
 });
 
 test("CI summary and E2E summary consume detector result and validated scope", async () => {

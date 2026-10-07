@@ -18,9 +18,12 @@ vi.mock('../../lib/subscriptionApi', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, defaultValue: string) => {
+    t: (key: string, defaultValue: string, values?: { used?: number; limit?: number }) => {
       if (key === 'subscription.unlimited') {
         return '无限'
+      }
+      if (key === 'subscription.aiUsageCount') {
+        return `AI 消息 ${values?.used}/${values?.limit}`
       }
       return defaultValue
     },
@@ -49,8 +52,8 @@ describe('QuotaBadge', () => {
   it('renders normal quota usage with success variant', async () => {
     mockGetQuota.mockResolvedValue({
       ai_conversations: {
-        used: 5,
-        limit: 20,
+        used: 4,
+        limit: 10,
         reset_at: '2026-03-08T00:00:00Z',
       },
       projects: {
@@ -61,7 +64,7 @@ describe('QuotaBadge', () => {
 
     renderWithQuery(<QuotaBadge />)
 
-    const usage = await screen.findByText('5/20')
+    const usage = await screen.findByText('AI 消息 4/10')
     expect(usage).toBeInTheDocument()
     expect(usage.parentElement?.className).toContain('bg-[hsl(var(--success)/0.15)]')
   })
@@ -69,8 +72,8 @@ describe('QuotaBadge', () => {
   it('renders warning variant when usage reaches 80%', async () => {
     mockGetQuota.mockResolvedValue({
       ai_conversations: {
-        used: 16,
-        limit: 20,
+        used: 8,
+        limit: 10,
         reset_at: '2026-03-08T00:00:00Z',
       },
       projects: {
@@ -81,15 +84,15 @@ describe('QuotaBadge', () => {
 
     renderWithQuery(<QuotaBadge />)
 
-    const usage = await screen.findByText('16/20')
+    const usage = await screen.findByText('AI 消息 8/10')
     expect(usage.parentElement?.className).toContain('bg-[hsl(var(--warning)/0.15)]')
   })
 
   it('renders info variant when usage reaches 50%', async () => {
     mockGetQuota.mockResolvedValue({
       ai_conversations: {
-        used: 10,
-        limit: 20,
+        used: 5,
+        limit: 10,
         reset_at: '2026-03-08T00:00:00Z',
       },
       projects: {
@@ -100,15 +103,15 @@ describe('QuotaBadge', () => {
 
     renderWithQuery(<QuotaBadge />)
 
-    const usage = await screen.findByText('10/20')
+    const usage = await screen.findByText('AI 消息 5/10')
     expect(usage.parentElement?.className).toContain('bg-[hsl(var(--info)/0.15)]')
   })
 
   it('renders error variant when usage is exhausted', async () => {
     mockGetQuota.mockResolvedValue({
       ai_conversations: {
-        used: 20,
-        limit: 20,
+        used: 10,
+        limit: 10,
         reset_at: '2026-03-08T00:00:00Z',
       },
       projects: {
@@ -119,7 +122,7 @@ describe('QuotaBadge', () => {
 
     renderWithQuery(<QuotaBadge />)
 
-    const usage = await screen.findByText('20/20')
+    const usage = await screen.findByText('AI 消息 10/10')
     expect(usage.parentElement?.className).toContain('bg-[hsl(var(--error)/0.15)]')
   })
 

@@ -1,8 +1,8 @@
 """
 Readiness checks for ``/health/ready``.
 
-``/health`` stays a static liveness answer for the Railway deploy
-healthcheck; readiness actually touches the database and Redis, each bounded
+``/health`` stays a static liveness answer. Railway deploys use
+``/health/ready``, which touches the database and Redis, each bounded
 by a short timeout so a hung dependency cannot hang the probe.
 """
 

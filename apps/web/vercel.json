@@ -625,6 +625,16 @@
     },
     {
       "source": "/:path(api(?:/.*)?)",
+      "destination": "https://staging-api-staging-a289.up.railway.app/:path",
+      "has": [
+        {
+          "type": "host",
+          "value": "geo-preview\\.zenstory\\.ai|app-preview\\.zenstory\\.ai|.*\\.vercel\\.app"
+        }
+      ]
+    },
+    {
+      "source": "/:path(api(?:/.*)?)",
       "destination": "https://api.zenstory.ai/:path"
     },
     {

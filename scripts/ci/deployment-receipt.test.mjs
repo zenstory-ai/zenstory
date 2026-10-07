@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { validateDeploymentCiProof, validateRunStability } from "./deployment-receipt.mjs";
+import {
+  validateDeploymentCiProof,
+  validateDeploymentE2eProof,
+  validateRunStability,
+} from "./deployment-receipt.mjs";
 
 const sourceSha = "a".repeat(40);
 const input = {
@@ -52,6 +56,37 @@ test("deployment receipt rejects source, event, workflow, app, and summary misma
   for (const [patch, expected] of cases) {
     assert.throws(() => validateDeploymentCiProof({ ...input, ...patch }), expected);
   }
+});
+
+test("E2E receipt binds the exact source to the e2e-summary workflow contract", () => {
+  const e2e = {
+    ...input,
+    workflow: { id: 9, path: ".github/workflows/e2e.yml" },
+    run: {
+      ...input.run,
+      workflow_id: 9,
+      path: ".github/workflows/e2e.yml@main",
+      check_suite_id: 10,
+    },
+    jobs: [{ name: "e2e-summary", status: "completed", conclusion: "success" }],
+    checkSuite: { ...input.checkSuite, id: 10 },
+  };
+  assert.deepEqual(validateDeploymentE2eProof(e2e), {
+    schemaVersion: 1,
+    repository: "zenstory-ai/zenstory",
+    sourceSha,
+    workflowId: 9,
+    workflowPath: ".github/workflows/e2e.yml",
+    runId: 42,
+    runAttempt: 2,
+    checkSuiteId: 10,
+    checkSuiteAppId: 15368,
+    requiredJobs: ["e2e-summary"],
+  });
+  assert.throws(
+    () => validateDeploymentE2eProof({ ...e2e, jobs: input.jobs }),
+    /missing or ambiguous e2e-summary/,
+  );
 });
 
 test("readiness proof validates suite identity and closes a same-run attempt race", () => {

@@ -356,7 +356,7 @@ async def test_admin_plans_and_dashboard_endpoints_forbidden_for_non_superuser(
         display_name_en="Starter",
         price_monthly_cents=999,
         price_yearly_cents=9999,
-        features={"ai_conversations_per_day": 20},
+        features={"ai_conversations_per_day": 10},
         is_active=True,
     )
     db_session.add(plan)

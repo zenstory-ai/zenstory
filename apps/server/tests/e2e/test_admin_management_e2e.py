@@ -143,7 +143,7 @@ async def test_admin_subscriptions_roundtrip_lists_fetches_and_updates_user_subs
         db_session,
         name="free",
         display_name="Free",
-        features={"ai_conversations_per_day": 20, "max_projects": 3},
+        features={"ai_conversations_per_day": 10, "max_projects": 3},
     )
     pro_plan = _create_plan(
         db_session,

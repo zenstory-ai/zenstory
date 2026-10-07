@@ -293,7 +293,13 @@ export default function BillingPage() {
                   )}
                   {item.key === "ai_conversations" && (
                     <p className="mt-2 text-xs text-[hsl(var(--text-secondary))]">
-                      {t("dashboard:billing.dailyQuotaResetHint", "每日 AI 对话额度于北京时间 00:00 重置。")}
+                      {isUpgradableTier
+                        ? t(
+                            "dashboard:billing.freeDailyMessageLimitHint",
+                            "免费用户每日最多 {{limit}} 条 AI 消息，北京时间次日 00:00 恢复。",
+                            { limit: metric?.limit ?? 0 }
+                          )
+                        : t("dashboard:billing.dailyQuotaResetHint", "每日 AI 对话额度于北京时间 00:00 重置。")}
                     </p>
                   )}
                   {(item.key === "material_decompositions" || item.key === "inspiration_copies") && (

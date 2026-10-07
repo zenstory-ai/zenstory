@@ -99,7 +99,7 @@ async def test_subscription_plans_returns_active_sorted_and_excludes_inactive(
             display_name_en="Free",
             price_monthly_cents=0,
             price_yearly_cents=0,
-            features={"ai_conversations_per_day": 20},
+            features={"ai_conversations_per_day": 20},  # Legacy stored value.
             is_active=True,
         )
     )
@@ -111,6 +111,7 @@ async def test_subscription_plans_returns_active_sorted_and_excludes_inactive(
     assert response.status_code == 200
     payload = response.json()
     assert [item["name"] for item in payload] == ["free", "pro"]
+    assert payload[0]["features"]["ai_conversations_per_day"] == 10
 
 
 @pytest.mark.integration
@@ -127,7 +128,7 @@ async def test_subscription_catalog_filters_unknown_active_plan_names(
             display_name_en="Free",
             price_monthly_cents=0,
             price_yearly_cents=0,
-            features={"ai_conversations_per_day": 20},
+            features={"ai_conversations_per_day": 10},
             is_active=True,
         )
     )
@@ -177,7 +178,7 @@ async def test_subscription_plans_filters_unsupported_export_formats(
             display_name_en="Free",
             price_monthly_cents=0,
             price_yearly_cents=0,
-            features={"ai_conversations_per_day": 20, "export_formats": ["txt", "md", "pdf"]},
+            features={"ai_conversations_per_day": 10, "export_formats": ["txt", "md", "pdf"]},
             is_active=True,
         )
     )
@@ -386,7 +387,7 @@ async def test_subscription_me_returns_default_free_when_no_plan_available(
     assert payload["display_name_en"] == "Free Trial"
     assert payload["status"] == "none"
     assert payload["features"]["max_projects"] == 3
-    assert payload["features"]["ai_conversations_per_day"] == 20
+    assert payload["features"]["ai_conversations_per_day"] == 10
     assert payload["features"]["export_formats"] == ["txt"]
 
 
@@ -460,7 +461,7 @@ async def test_subscription_quota_fallback_uses_default_project_limit_and_non_de
     payload = response.json()
     assert payload["projects"]["used"] == 1
     assert payload["projects"]["limit"] == 3
-    assert payload["ai_conversations"]["limit"] == 20
+    assert payload["ai_conversations"]["limit"] == 10
 
 
 @pytest.mark.integration

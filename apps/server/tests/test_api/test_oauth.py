@@ -280,7 +280,7 @@ async def test_google_oauth_callback_bootstraps_subscription_and_quota(
             display_name_en="Free",
             price_monthly_cents=0,
             price_yearly_cents=0,
-            features={"ai_conversations_per_day": 20},
+            features={"ai_conversations_per_day": 10},
             is_active=True,
         )
         db_session.add(free_plan)

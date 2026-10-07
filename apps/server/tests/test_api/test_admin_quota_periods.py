@@ -54,7 +54,7 @@ async def test_admin_detail_uses_runtime_plan_defaults_and_resets_old_usage(
     assert response.status_code == 200
     data = response.json()
     assert data["plan_name"] == ("free" if expired else "pro")
-    assert data["ai_conversations"]["limit"] == (20 if expired else -1)
+    assert data["ai_conversations"]["limit"] == (10 if expired else -1)
     assert data["ai_conversations"]["used"] == 0
     assert "material_uploads" not in data
     assert data["material_decompositions"]["limit"] == (0 if expired else 5)

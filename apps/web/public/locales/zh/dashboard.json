@@ -144,8 +144,9 @@
     "redeemSuccessDays": "兑换成功，本次兑换 {{days}} 天会员。",
     "redeeming": "正在兑换...",
     "dailyQuotaResetHint": "每日 AI 对话额度于北京时间 00:00 重置。",
+    "freeDailyMessageLimitHint": "免费用户每日最多 {{limit}} 条 AI 消息，北京时间次日 00:00 恢复。",
     "monthlyQuotaResetHint": "每月额度于北京时间每月 1 日 00:00 重置。",
-    "metricAiConversations": "每日 AI 对话",
+    "metricAiConversations": "每日 AI 消息",
     "metricAiConversationsOutcome": "北京时间 00:00 重置"
   },
   "todayActionPlan": {

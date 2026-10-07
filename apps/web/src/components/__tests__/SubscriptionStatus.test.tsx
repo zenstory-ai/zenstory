@@ -77,7 +77,7 @@ describe('SubscriptionStatus', () => {
       current_period_end: null,
       days_remaining: null,
       features: {
-        ai_conversations_per_day: 20,
+        ai_conversations_per_day: 10,
       },
     })
 

@@ -74,14 +74,15 @@ def test_historical_ledger_seed_reprices_legacy_holiday_and_blocks(db_session):
             occurred_at=NOW.replace(tzinfo=None),
             price_band="peak",
             pricing_version="deepseek-flash-2026-10",
-            output_tokens=1_250_000,
+            output_tokens=3_750_000,
         )
     )
     db_session.commit()
     with pytest.raises(APIException) as error:
         budget.reserve_model_call(payload(), user_id=account.id, now=NOW)
     assert error.value.error_code == budget.COST_LIMIT_CODE
-    assert db_session.exec(select(AICostDailyBudget)).one().charged_units == 500_000_000
+    assert error.value.status_code == 402
+    assert db_session.exec(select(AICostDailyBudget)).one().charged_units == budget.FREE_DAILY_BUDGET_UNITS
 
 
 def test_many_independent_sessions_cannot_over_reserve(db_session):
@@ -90,7 +91,7 @@ def test_many_independent_sessions_cannot_over_reserve(db_session):
 
     def reserve(_):
         try:
-            return budget.reserve_model_call(payload(125_000), user_id=uid, now=NOW)
+            return budget.reserve_model_call(payload(375_000), user_id=uid, now=NOW)
         except APIException as error:
             assert error.error_code == budget.COST_LIMIT_CODE
             return None
@@ -99,7 +100,7 @@ def test_many_independent_sessions_cannot_over_reserve(db_session):
         calls = list(executor.map(reserve, range(20)))
     db_session.expire_all()
     assert sum(call is not None for call in calls) == 4
-    assert db_session.exec(select(AICostDailyBudget)).one().charged_units <= budget.DAILY_LIMIT_UNITS
+    assert db_session.exec(select(AICostDailyBudget)).one().charged_units <= budget.FREE_DAILY_BUDGET_UNITS
     assert len(db_session.exec(select(AICostReservation)).all()) == 4
 
 
@@ -133,13 +134,13 @@ def test_valid_paid_bypasses_cap_expired_paid_does_not(db_session):
     )
     db_session.add(sub)
     db_session.commit()
-    assert budget.reserve_model_call(payload(1_000_000), user_id=account.id, now=NOW) is None
+    assert budget.reserve_model_call(payload(3_000_000), user_id=account.id, now=NOW) is None
     assert not db_session.exec(select(AICostDailyBudget)).all()
     sub.current_period_end = NOW - timedelta(seconds=1)
     db_session.add(sub)
     db_session.commit()
     with pytest.raises(APIException) as error:
-        budget.reserve_model_call(payload(1_000_000), user_id=account.id, now=NOW)
+        budget.reserve_model_call(payload(3_000_000), user_id=account.id, now=NOW)
     assert error.value.error_code == budget.COST_LIMIT_CODE
 
 
@@ -224,13 +225,13 @@ async def test_real_transport_guard_stops_next_call_without_waiting_for_ledger(d
     from services.usage.model_call_guard import install_async_cost_guard
 
     account = user(db_session)
-    create = AsyncMock(return_value=SimpleNamespace(usage={"prompt_tokens": 0, "completion_tokens": 500_000}))
+    create = AsyncMock(return_value=SimpleNamespace(usage={"prompt_tokens": 0, "completion_tokens": 1_500_000}))
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
     install_async_cost_guard(client)
     with budget.budget_attribution(LLMUsageAttribution(user_id=account.id, source="suggest")):
-        await client.chat.completions.create(**payload(500_000))
+        await client.chat.completions.create(**payload(1_500_000))
         with pytest.raises(APIException) as error:
-            await client.chat.completions.create(**payload(400_000))
+            await client.chat.completions.create(**payload(1_200_000))
     assert error.value.error_code == budget.COST_LIMIT_CODE
     assert create.await_count == 1
 
@@ -333,7 +334,7 @@ async def test_real_async_sdk_stream_settles_terminal_usage_and_preserves_start(
             bucket = db_session.exec(select(AICostDailyBudget)).one()
             assert reservation.reserved_units > reservation.settled_units == bucket.charged_units == 9100
             assert len(calls) == 1
-            bucket.charged_units = budget.DAILY_LIMIT_UNITS
+            bucket.charged_units = budget.FREE_DAILY_BUDGET_UNITS
             db_session.add(bucket)
             db_session.commit()
             with pytest.raises(APIException) as error:
@@ -352,7 +353,9 @@ async def test_sdk_model_call_is_guarded_before_transport(db_session):
     account = user(db_session)
     db_session.add(
         AICostDailyBudget(
-            user_id=account.id, day=budget.beijing_today(budget.utcnow()), charged_units=budget.DAILY_LIMIT_UNITS
+            user_id=account.id,
+            day=budget.beijing_today(budget.utcnow()),
+            charged_units=budget.FREE_DAILY_BUDGET_UNITS,
         )
     )
     db_session.commit()
