@@ -217,3 +217,121 @@ def test_successful_rebuild_replaces_index_contents(tmp_path, db_session: Sessio
     titles = {meta.get("title") for meta in collection.get(include=["metadatas"])["metadatas"]}
     assert titles == {"第二章"}
     assert project.id not in service._index_cache
+
+
+def test_entity_embedding_failure_keeps_old_searchable_rows(tmp_path):
+    service = _make_service(tmp_path)
+    assert service.update_entity("project-a", "draft", "file-a", "旧标题", "旧正文")
+
+    with patch.object(
+        type(service.embed_model),
+        "get_text_embedding_batch",
+        side_effect=RuntimeError("embedding provider down"),
+    ):
+        assert not service.update_entity("project-a", "draft", "file-a", "新标题", "新正文")
+
+    collection = service.chroma_client.get_collection(service._get_collection_name("project-a"))
+    stored = collection.get(include=["documents", "metadatas"])
+    assert any("旧正文" in document for document in stored["documents"])
+    assert {metadata["title"] for metadata in stored["metadatas"]} == {"旧标题"}
+
+
+def test_entity_insert_failure_restores_old_searchable_rows(tmp_path):
+    service = _make_service(tmp_path)
+    assert service.update_entity("project-b", "draft", "file-b", "旧标题", "旧正文")
+    index = service.get_or_create_index("project-b")
+
+    with patch.object(index, "insert_nodes", side_effect=RuntimeError("chroma write failed")):
+        assert not service.update_entity("project-b", "draft", "file-b", "新标题", "新正文")
+
+    collection = service.chroma_client.get_collection(service._get_collection_name("project-b"))
+    stored = collection.get(include=["documents", "metadatas"])
+    assert any("旧正文" in document for document in stored["documents"])
+    assert {metadata["title"] for metadata in stored["metadatas"]} == {"旧标题"}
+
+
+def test_embedding_quota_circuit_pauses_then_allows_one_recovery_probe(monkeypatch):
+    class QuotaError(RuntimeError):
+        code = 1113
+
+    response = MagicMock()
+    response.data = [MagicMock(embedding=[0.1, 0.2])]
+    client = MagicMock()
+    client.embeddings.create.side_effect = [QuotaError("balance unavailable"), response]
+
+    monkeypatch.setattr(vss, "_embedding_quota_blocked_until", 0.0)
+    monkeypatch.setattr(vss, "_embedding_quota_probe_in_flight", False)
+    with patch("zai.ZhipuAiClient", return_value=client):
+        embedding = vss.ZhipuEmbedding(api_key="test-key", model_name="embedding-3")
+
+    with pytest.raises(QuotaError):
+        embedding._get_text_embedding("first")
+    with pytest.raises(vss.EmbeddingQuotaCircuitOpenError):
+        embedding._get_text_embedding("blocked")
+    assert client.embeddings.create.call_count == 1
+
+    monkeypatch.setattr(vss, "_embedding_quota_blocked_until", time.monotonic() - 1)
+    assert embedding._get_text_embedding("probe") == [0.1, 0.2]
+    assert client.embeddings.create.call_count == 2
+    assert vss._embedding_quota_blocked_until == 0.0
+
+
+def test_actual_zhipu_1113_error_is_quota_but_plain_429_is_not():
+    from zai.core._errors import APIReachLimitError
+
+    request = httpx.Request("POST", "https://example.invalid")
+    quota_error = APIReachLimitError(
+        "错误代码：1113，余额不足",
+        response=httpx.Response(429, request=request),
+    )
+    rate_limit = APIReachLimitError(
+        "Too many requests",
+        response=httpx.Response(429, request=request),
+    )
+
+    assert vss._embedding_error_code(quota_error) == "1113"
+    assert vss._is_embedding_quota_error(quota_error) is True
+    assert vss._embedding_error_code(rate_limit) == "429"
+    assert vss._is_embedding_quota_error(rate_limit) is False
+
+
+def test_disabled_background_upsert_does_not_start_worker_or_enqueue(monkeypatch):
+    monkeypatch.setenv("ASYNC_VECTOR_INDEX_ENABLED", "false")
+    ensure_worker = MagicMock()
+    enqueue = MagicMock()
+    monkeypatch.setattr(vss, "_ensure_index_worker", ensure_worker)
+    monkeypatch.setattr(vss._INDEX_TASK_QUEUE, "put", enqueue)
+
+    vss.schedule_index_upsert(
+        project_id="project-c",
+        entity_type="draft",
+        entity_id="file-c",
+        title="title",
+        content="content",
+    )
+
+    ensure_worker.assert_not_called()
+    enqueue.assert_not_called()
+
+
+@patch("services.infra.vector_search_service.LlamaIndexService.__init__", return_value=None)
+def test_quota_circuit_keeps_hybrid_search_on_lexical_fallback(_mock_init, monkeypatch):
+    monkeypatch.setattr(vss, "HYBRID_ENABLE_LEXICAL", True)
+    monkeypatch.setattr(vss, "_LEXICAL_SEARCH_SEMAPHORE", threading.Semaphore(1))
+    monkeypatch.setattr(vss, "_embedding_quota_blocked_until", time.monotonic() + 60)
+    service = vss.LlamaIndexService()
+    service.semantic_search = MagicMock()  # type: ignore[method-assign]
+    lexical = vss.SearchResult(
+        entity_type="draft",
+        entity_id="lexical",
+        title="关键词结果",
+        content="",
+        score=0.5,
+    )
+    service._lexical_search = MagicMock(return_value=[lexical])  # type: ignore[method-assign]
+
+    import database
+
+    monkeypatch.setattr(database, "create_session", lambda: MagicMock())
+    assert service.hybrid_search(project_id="project-d", query="needle") == [lexical]
+    service.semantic_search.assert_not_called()

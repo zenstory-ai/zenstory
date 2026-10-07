@@ -23,7 +23,9 @@
     "quotaExceededTitle": "今天的 AI 额度已用完",
     "quotaExceededHint": "额度次日恢复，升级会员可获得更多每日额度。",
     "fileVersionLimitTitle": "文件版本额度已达上限",
-    "fileVersionLimitDesc": "升级套餐后可继续保存更多版本。"
+    "fileVersionLimitDesc": "升级套餐后可继续保存更多版本。",
+    "dailyCostExceededTitle": "今日免费 AI 额度不足",
+    "dailyCostExceededHint": "长任务或正在进行的生成也会占用额度。额度于北京时间次日零点恢复，升级套餐可继续创作。"
   },
   "input": {
     "placeholder": "描述你的创作想法…",

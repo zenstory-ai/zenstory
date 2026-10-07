@@ -107,7 +107,8 @@ def get_deepseek_client() -> AsyncOpenAI:
     """Return the singleton AsyncOpenAI client configured for DeepSeek."""
     global _client
     if _client is not None:
-        return _client
+        from services.usage.model_call_guard import install_async_cost_guard
+        return install_async_cost_guard(_client)
 
     api_key = os.getenv("DEEPSEEK_API_KEY")
     if not api_key:
@@ -133,7 +134,8 @@ def get_deepseek_client() -> AsyncOpenAI:
         base_url=base_url,
         model=DEEPSEEK_CHAT_MODEL,
     )
-    return _client
+    from services.usage.model_call_guard import install_async_cost_guard
+    return install_async_cost_guard(_client)
 
 
 def reset_deepseek_client_cache() -> None:

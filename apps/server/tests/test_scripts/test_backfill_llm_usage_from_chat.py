@@ -46,11 +46,11 @@ def _events(db_session: Session) -> list[LLMUsageEvent]:
 @pytest.mark.integration
 def test_backfill_maps_canonical_usage_and_is_idempotent(db_session: Session, chat):
     user, project, chat_session = chat
-    # Monday 2026-10-05 10:00 Beijing (peak).
+    # Thursday 2026-10-08 10:00 Beijing, after the holiday (peak).
     peak = _usage_message(
         chat_session.id,
         {"input_tokens": 300, "cache_read_tokens": 700, "output_tokens": 50, "total_tokens": 1050},
-        datetime(2026, 10, 5, 2, 0),
+        datetime(2026, 10, 8, 2, 0),
     )
     # Zero-valued keys are omitted by the writer; Saturday is off-peak.
     no_cache = _usage_message(
@@ -83,7 +83,7 @@ def test_backfill_maps_canonical_usage_and_is_idempotent(db_session: Session, ch
     assert (first.cache_hit_tokens, first.cache_miss_tokens, first.output_tokens) == (700, 300, 50)
     assert (first.price_band, first.is_backfilled) == ("peak", True)
     assert first.correlation_id == f"chat_message:{peak.id}"
-    assert first.occurred_at == datetime(2026, 10, 5, 2, 0)
+    assert first.occurred_at == datetime(2026, 10, 8, 2, 0)
     assert (second.cache_hit_tokens, second.price_band) == (0, "offpeak")
 
     again = backfill_mod.backfill(TestSessionLocal)

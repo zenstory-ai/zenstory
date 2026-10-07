@@ -109,8 +109,8 @@ def test_record_writes_one_priced_row(db_session: Session):
         LLMUsageAttribution(user_id=user.id, source="suggest", project_id="p-1", correlation_id="run-1"),
         model="deepseek-flash",
         usage={"prompt_tokens": 100, "completion_tokens": 20, "prompt_cache_hit_tokens": 60},
-        # Monday 10:00 Beijing.
-        occurred_at=datetime(2026, 10, 5, 2, 0),
+        # Thursday 10:00 Beijing, after the National Day holiday.
+        occurred_at=datetime(2026, 10, 8, 2, 0),
     )
     assert written is True
     [event] = _events(db_session)
@@ -123,7 +123,7 @@ def test_record_writes_one_priced_row(db_session: Session):
     assert (event.cache_hit_tokens, event.cache_miss_tokens, event.output_tokens) == (60, 40, 20)
     assert event.price_band == "peak"
     assert event.pricing_version == svc.PRICING_VERSION
-    assert event.occurred_at == datetime(2026, 10, 5, 2, 0)
+    assert event.occurred_at == datetime(2026, 10, 8, 2, 0)
     assert event.is_backfilled is False
 
 

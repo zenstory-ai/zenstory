@@ -21,6 +21,10 @@ _ERROR_PREVIEW_CHARS = 500
 
 def _classify_llm_exception(error: Exception) -> LLMAPIError:
     """Wrap an OpenAI SDK error; only transient failures stay retryable."""
+    from core.error_handler import APIException
+    from services.usage.cost_budget import COST_LIMIT_CODE, UNAVAILABLE_CODE
+    if isinstance(error, APIException) and error.error_code in {COST_LIMIT_CODE, UNAVAILABLE_CODE}:
+        return LLMNonRetryableError("今日免费模型预算已用尽或暂不可用", error.error_code)
     status_code = getattr(error, "status_code", None)
     message = f"API 调用失败: {type(error).__name__}: {error}"
     if status_code in _ACCOUNT_FAILURE_STATUSES:
@@ -90,6 +94,8 @@ class DeepSeekClient:
             timeout=settings.LLM_REQUEST_TIMEOUT_SECONDS,
             max_retries=settings.LLM_SDK_MAX_RETRIES,
         )
+        from services.usage.model_call_guard import install_sync_cost_guard
+        install_sync_cost_guard(self.client)
 
     def chat_completion(
         self,
@@ -144,13 +150,21 @@ class DeepSeekClient:
             full_messages.append({"role": "system", "content": system_prompt})
         full_messages.extend(messages)
 
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=full_messages,
-            max_tokens=max_tokens or self.max_tokens,
-            temperature=temperature or self.temperature,
-            **kwargs,
-        )
+        from flows.database_session import create_prefect_session
+        from services.usage.cost_budget import budget_attribution
+        from services.usage.llm_usage_service import LLMUsageAttribution, resolve_material_owner
+        owner = None
+        if usage_novel_id is not None or usage_chapter_id is not None:
+            with create_prefect_session() as owner_session:
+                owner, _ = resolve_material_owner(owner_session, novel_id=usage_novel_id, chapter_id=usage_chapter_id)
+        with budget_attribution(LLMUsageAttribution(user_id=owner, source="material")):
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=full_messages,
+                max_tokens=max_tokens or self.max_tokens,
+                temperature=temperature or self.temperature,
+                **kwargs,
+            )
 
         content = response.choices[0].message.content or ""
         usage = response.usage.model_dump() if response.usage else {}

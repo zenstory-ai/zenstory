@@ -15,6 +15,8 @@ const capturedUseAgentStream = vi.hoisted(() => ({
 }))
 
 const chatPanelTranslations: Record<string, string> = {
+  'chat:panel.dailyCostExceededTitle': '今日免费 AI 额度不足',
+  'chat:panel.dailyCostExceededHint': '额度于北京时间次日零点恢复，升级套餐可继续创作。',
   'chat:panel.quotaExceededTitle': '今日 AI 配额已用尽',
   'chat:panel.quotaExceededHint': '额度次日恢复，升级会员可获得更多每日额度。',
   'chat:input.mode.switchedFast': '已切换到快速模式：更快出结果（可能更简略）',
@@ -367,6 +369,15 @@ describe('ChatPanel mount smoke', () => {
       confirmedFileMutation: false,
       partial: true,
     })
+  })
+
+  it('offers the upgrade path when the daily cost allowance is exhausted', async () => {
+    mockAgentStreamState.errorCode = 'ERR_QUOTA_AI_DAILY_COST_EXCEEDED'
+    mockAgentStreamState.error = '今日免费 AI 额度不足'
+    render(<ChatPanel />)
+    expect((await screen.findAllByText('今日免费 AI 额度不足')).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', {name: '升级专业版'})).toBeInTheDocument()
+    expect(screen.queryByText('今日 AI 配额已用尽')).not.toBeInTheDocument()
   })
 
   it('opens quota upgrade modal when quota error code is returned', async () => {

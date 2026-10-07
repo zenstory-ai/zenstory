@@ -9,6 +9,7 @@ Updated for LangGraph architecture.
 
 import asyncio
 import json
+import logging
 import threading
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -1309,7 +1310,7 @@ class TestAgentServiceProcessStream:
         ]
 
     async def test_process_stream_schedules_background_cleanup_on_cancellation(
-        self, mock_agent_service, test_user_with_project, db_session: Session
+        self, mock_agent_service, test_user_with_project, db_session: Session, caplog
     ):
         """Cancellation should schedule steering cleanup instead of awaiting it inline."""
         from agent.core.workflow_events import StreamEvent, StreamEventType
@@ -1343,12 +1344,13 @@ class TestAgentServiceProcessStream:
                 coro.close()
 
             mock_schedule_cleanup.side_effect = _consume_cleanup_coro
-            task = asyncio.create_task(consume())
-            await started.wait()
-            await asyncio.sleep(0)
-            task.cancel()
-            with pytest.raises(asyncio.CancelledError):
-                await task
+            with caplog.at_level(logging.INFO, logger="agent.service"):
+                task = asyncio.create_task(consume())
+                await started.wait()
+                await asyncio.sleep(0)
+                task.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await task
 
         mock_cleanup.assert_not_awaited()
         descriptions = [
@@ -1357,6 +1359,12 @@ class TestAgentServiceProcessStream:
         assert "cleanup_steering_queue_async" in descriptions
         # Cancellation also schedules the partial-history save in the background.
         assert "save_partial_history_after_cancellation" in descriptions
+        completion_logs = [
+            record for record in caplog.records
+            if record.name == "agent.service" and record.message == "Agent process_stream cancelled"
+        ]
+        assert len(completion_logs) == 1
+        assert completion_logs[0].levelno == logging.INFO
 
     async def test_process_stream_persists_partial_history_on_cancellation(
         self, mock_agent_service, test_user_with_project, db_session: Session

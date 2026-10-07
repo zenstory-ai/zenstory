@@ -35,6 +35,7 @@ import type {
   SkillReviewResource,
   SkillReviewStatus,
   DashboardStats,
+  GrowthDashboard,
   ActivationFunnelStats,
   UpgradeConversionStats,
   UpgradeFunnelStats,
@@ -1353,6 +1354,10 @@ export async function getAuditLogs(params?: {
  *
  * @returns Promise resolving to dashboard statistics object
  */
+export async function getGrowthDashboard(days: 7 | 14 | 30 = 7): Promise<GrowthDashboard> {
+  return api.get<GrowthDashboard>(`${ADMIN_BASE}/dashboard/growth?days=${days}`);
+}
+
 export async function getDashboardStats(): Promise<DashboardStats> {
   const payload = await api.get<unknown>(`${ADMIN_BASE}/dashboard/stats`);
   const payloadRecord = resolvePayloadRecord(payload);
@@ -1967,6 +1972,7 @@ export const adminApi = {
 
   // Dashboard
   getDashboardStats,
+  getGrowthDashboard,
   getActivationFunnel,
   getUpgradeConversionStats,
   getUpgradeFunnelStats,

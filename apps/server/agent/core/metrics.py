@@ -52,6 +52,8 @@ TOOL_READONLY_TURNS_TOTAL: Final[str] = "tool.readonly.turns.total"
 # from the model input across the lifetime of the process.
 TOOL_OUTPUT_TRIMMED_TOTAL: Final[str] = "tool.output.trimmed.total"
 TOOL_OUTPUT_TRIMMED_CHARS: Final[str] = "tool.output.trimmed.chars"
+MODEL_INPUT_FILTER_CHARS_BEFORE: Final[str] = "model.input_filter.chars.before"
+MODEL_INPUT_FILTER_CHARS_AFTER: Final[str] = "model.input_filter.chars.after"
 
 # Context metrics
 CONTEXT_TOKENS_TOTAL: Final[str] = "context.tokens.total"

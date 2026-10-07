@@ -6,7 +6,7 @@ This module contains dashboard statistics endpoints for admin operations.
 import logging
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, func, select
 
 from config.datetime_utils import beijing_date, beijing_day_bounds, utcnow
@@ -20,11 +20,13 @@ from services.core.auth_service import get_current_superuser
 from services.features.activation_event_service import activation_event_service
 from services.features.points_service import effective_check_in_date, points_service
 from services.features.upgrade_funnel_event_service import upgrade_funnel_event_service
+from services.usage.admin_growth_service import get_growth_dashboard
 from utils.logger import get_logger, log_with_context
 
 from .schemas import (
     ActivationFunnelResponse,
     DashboardStatsResponse,
+    GrowthDashboardResponse,
     UpgradeConversionStatsResponse,
     UpgradeFunnelStatsResponse,
 )
@@ -45,6 +47,28 @@ PAID_CONVERSION_CHANNELS = frozenset({"zpay"})
 
 
 # ==================== Dashboard Stats ====================
+
+
+@router.get("/dashboard/growth", response_model=GrowthDashboardResponse)
+def get_dashboard_growth(
+    days: int = Query(7),
+    current_user: User = Depends(get_current_superuser),
+    session: Session = Depends(get_session),
+):
+    """Return customer growth, real payments, and grants as separate metrics."""
+    if days not in (7, 14, 30):
+        raise HTTPException(status_code=422, detail="days must be one of: 7, 14, 30")
+    payload = get_growth_dashboard(session, days=days)
+    log_with_context(
+        logger,
+        logging.INFO,
+        "Retrieved growth dashboard",
+        user_id=current_user.id,
+        window_days=days,
+        new_users=payload["current"]["metrics"]["new_users"],
+        paid_orders=payload["current"]["metrics"]["paid_orders"],
+    )
+    return GrowthDashboardResponse(**payload)
 
 
 @router.get("/dashboard/stats", response_model=DashboardStatsResponse)

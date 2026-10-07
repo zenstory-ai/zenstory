@@ -16,6 +16,7 @@ from .agent_api_key import (
     DEFAULT_SCOPES,
     AgentApiKey,
 )
+from .ai_cost_budget import AICostDailyBudget, AICostReservation
 from .entities import (
     AgentArtifactLedger,
     ChatMessage,
@@ -114,6 +115,8 @@ from .writing_stats import (
 )
 
 __all__ = [
+    "AICostDailyBudget",
+    "AICostReservation",
     # Entities
     "User",
     "Project",
