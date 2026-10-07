@@ -25,6 +25,57 @@ const prompt = {
   primary_content_type: 'novel', is_active: true, version: 7, created_at: stamp, updated_at: stamp,
 };
 
+const growthMetrics = {
+  new_users: 43,
+  ai_active_users: 31,
+  cohort_activated_users: 19,
+  cohort_activation_rate: 0.4419,
+  paid_orders: 9,
+  revenue_cents: 123456,
+  paid_users: 8,
+  cohort_paid_users: 5,
+  signup_to_paid_rate: 0.1163,
+  grant_upgrade_events: 4,
+  grant_upgrade_users: 3,
+  grant_channels: [{ channel: 'admin_update', events: 4, users: 3 }],
+};
+
+const growthDashboard = {
+  days: 7,
+  timezone: 'Asia/Shanghai',
+  current: {
+    period_start: '2026-03-01T00:00:00Z',
+    period_end: '2026-03-08T00:00:00Z',
+    metrics: growthMetrics,
+  },
+  previous: {
+    period_start: '2026-02-22T00:00:00Z',
+    period_end: '2026-03-01T00:00:00Z',
+    metrics: {
+      ...growthMetrics,
+      new_users: 35,
+      ai_active_users: 24,
+      paid_orders: 6,
+      revenue_cents: 84500,
+      paid_users: 6,
+    },
+  },
+  daily: [{
+    date: '2026-03-07',
+    ...growthMetrics,
+    new_users: 17,
+    ai_active_users: 13,
+    paid_orders: 4,
+    revenue_cents: 32109,
+  }],
+  definitions: {
+    window: 'Beijing-time half-open reporting window ending at the request cutoff.',
+    activation: 'Signup cohort with a live model call observed by the period cutoff.',
+    paid: 'Confirmed paid orders; pending, refunded, and granted upgrades are excluded.',
+    grants: 'Non-payment subscription upgrades grouped separately from revenue.',
+  },
+};
+
 const json = (route: Route, body: unknown) => route.fulfill({
   status: 200,
   contentType: 'application/json',
@@ -67,6 +118,7 @@ async function bootstrapAdminSession(page: Page) {
     if (method !== 'GET') return json(route, { success: true, message: 'ok' });
 
     if (pathname.endsWith('/dashboard/stats')) return json(route, { total_users: 1289, active_users: 934, new_users_today: 37, total_projects: 4821, total_inspirations: 271, pending_inspirations: 14, active_subscriptions: 408, pro_users: 379, total_points_in_circulation: 902341, today_check_ins: 611, active_invite_codes: 88, week_referrals: 143 });
+    if (pathname.endsWith('/dashboard/growth')) return json(route, growthDashboard);
     if (pathname.endsWith('/dashboard/activation-funnel')) return json(route, { window_days: 7, period_start: stamp, period_end: stamp, activation_rate: 0.378, steps: [{ event_name: 'signup', label: 'Registered account with long attribution label', users: 1200, conversion_from_previous: null, drop_off_from_previous: null }, { event_name: 'created', label: 'Created first writing project', users: 454, conversion_from_previous: 0.378, drop_off_from_previous: 0.622 }] });
     if (pathname.endsWith('/dashboard/upgrade-conversions')) return json(route, { window_days: 7, period_start: stamp, period_end: stamp, total_conversions: 73, unattributed_conversions: 4, sources: [{ source: 'editor-upgrade-banner-with-long-campaign-name', conversions: 69, share: 94.5 }] });
     if (pathname.endsWith('/dashboard/upgrade-funnel')) return json(route, { window_days: 7, period_start: stamp, period_end: stamp, totals: { expose: 1800, click: 352, conversion: 73 }, sources: [{ source: 'editor-upgrade-banner-with-long-campaign-name', exposes: 1800, clicks: 352, conversions: 73, click_through_rate: 19.6, conversion_rate_from_click: 20.7, conversion_rate_from_expose: 4.1 }] });
@@ -137,6 +189,17 @@ test.describe('Admin responsive routes with populated mocked data', () => {
               return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
             }),
           )).toBe(true);
+        }
+        if (name === 'dashboard') {
+          const growth = page.locator('section[aria-labelledby="growth-title"]');
+          await expect(growth).toBeVisible();
+          await expect(growth.getByText('¥1234.56', { exact: true })).toBeVisible();
+          const dailyRow = growth.getByRole('row').filter({ hasText: '2026-03-07' });
+          await expect(dailyRow).toBeVisible();
+          await expect(dailyRow).toContainText('17');
+          await expect(dailyRow).toContainText('13');
+          await expect(dailyRow).toContainText('4');
+          await expect(dailyRow).toContainText('¥321.09');
         }
         await expect(page.locator('body')).not.toContainText(/something went wrong|页面加载失败/i);
         await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
