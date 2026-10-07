@@ -71,8 +71,11 @@ The one-file fixture repair reproduces both failures before editing, then passes
 all eight original cases plus the 73 real-client ownership controls on Node20.
 Affected QA and lint pass; all eight registrations and 38 assertion nodes are
 unchanged. Independent one-file review is SOURCE CLEAR. Product hashes remain
-identical. A new complete coverage receipt is still required; previous partial
-results are not combined into a claimed successful aggregate.
+identical. The new complete Node20 run at `3b97021` passes **3,713 cases**
+with one original SSR skip, zero failures and identical 3,714-case/248-file
+enrollment. Coverage is 81.56% lines, 72.61% branches, 75.63% functions and
+78.77% statements, above every unchanged threshold. The failed receipt is
+retained separately; no partial results were combined.
 
 Current actual Dockerfile API/worker builds pass with byte-verified application
 contexts. Actual worker Python3.11 parses all 356 non-test application files,
@@ -82,7 +85,39 @@ PG cases have separate real-database proof. Actual API Python3.13 imports and
 awaited `init_db()` pass under the production non-root image and owned SQLite.
 The independent unchanged npm graph at Node20 passes source types and the
 actual Vercel build (977 organization URLs, two app URLs, no root shadows).
-No dependency install, audit or unchanged generator tests were repeated.
+The retained npm dependency graph, audit and unchanged generator tests were
+not repeated.
+
+## Exact backend dependencies and final fixture isolation
+
+The completed host backend run (4,662 passed, 285 skipped, coverage90.95%)
+used FastAPI0.136.3/Prefect3.7.2 rather than the declared exact pins. It remains
+valid host evidence, not exact-CI dependency parity. An evidence-owned isolated
+Python3.12.13 virtualenv now satisfies all41 declared requirements, four exact
+pins including FastAPI0.123.7/Prefect3.6.28, and `pip check`, without changing
+repository requirements or the original environment. One complete run under
+that environment passes **4,662 cases / 285 skips**, with identical 4,947-case
+worker collections and coverage **90.94%**, above the unchanged80% gate.
+
+The changed-runtime serialized PostgreSQL gate exposed an explicit fixture
+ordering defect:81passed then a module setup failed because the module-autouse
+schema isolation dropped tables created by the generation-history fixture.
+The ordered two-module target reproduces it (1passed/1setup error). The single
+explicit dependency on existing `isolated_serial_postgres_schema` makes schema
+isolation precede creation; the fixture body and all six tests/69 assertions are
+unchanged. Ordered GREEN2, affected module15, fresh full serialized PostgreSQL304,
+UTC2 and registered tie-list7 all pass without skips. Ruff and independent source
+review pass. No production code or exclusion/skip/assertion policy changed.
+
+Final default Chromium shards are independent private jobs. Shard2's original
+onboarding Skip case failed after25passes (349unrun): the fixture accepted a
+transient dashboard URL while login was still restoring a project created by
+an earlier spec. The form-only empty-project GET fixture fixes that precondition,
+not production navigation. Its exact Skip+auth target passes2; all six test bodies
+and42 assertion AST entries remain unchanged, and guarded project-return tests
+remain outside the fixture scope. Independent review is SOURCE CLEAR. The failed
+full receipt is retained; a new complete shard2, shard1 and the original four
+release specs must finish before publication.
 
 ## Frozen prior-epoch evidence
 
@@ -110,6 +145,6 @@ after source parity freezes. No old partial results are stitched into green.
 
 No PR push, Actions rerun/dispatch, merge, provider mutation or live deployment
 has occurred. Required ci-summary remains strict with enforce-admins. The
-protected original dirty worktree was not overwritten. Fresh source review,
-related gates, final required CI and exact merged-SHA production readback are
-still pending. Historical mainCI investigation remains queued after delivery.
+protected original dirty worktree was not overwritten. Module and policy source
+reviews and final fixture validation are complete; browser gates, required CI and
+exact merged-SHA production readback remain pending. Historical mainCI investigation remains queued after delivery.

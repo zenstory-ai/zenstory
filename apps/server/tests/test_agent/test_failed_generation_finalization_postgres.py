@@ -46,7 +46,7 @@ def local_generation_settings():
 
 
 @pytest.fixture(scope="module")
-def pg_engine(local_generation_settings):
+def pg_engine(local_generation_settings, isolated_serial_postgres_schema):
     url = os.environ["ZENSTORY_TEST_POSTGRES_URL"]
     assert os.environ["DATABASE_URL"] == url
     assert database.is_postgres and database.sync_engine.dialect.name == "postgresql"

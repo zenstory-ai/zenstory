@@ -920,3 +920,34 @@ M15 canonicalcirculation/audittie/pendingheader/UTCdesktop+mobile sourceclear; f
 backend114PASS93.24%, finalWeb30/typeslint0, mypy19legacy unchanged. WholeM15 independentCLEAR.
 **10/23 modules SOURCE_CLEAR**, not all23/release. M08C1 exact3copy/freshroot37; native
 UI/count slices active. RootM16 begins; originaldirtyrepo/local-first Actions preserved.
+
+
+## Final recovery closeout — 2026-10-07
+
+All23 module A/P/B source dispositions and the three final policy repairs are
+independently clear. Current complete Node20 Web passes3713 with one unchanged
+SSR skip and all coverage thresholds; actual Docker/API/worker and independent
+Vercel producer proofs pass. Local dependency readback exposed host/CI drift;
+one isolated Python3.12 declared-requirements restore preserves the original
+venv and all repository locks. Its fresh complete backend passes4662/285skip,
+coverage90.94%, identical4947 collections. Final serial-PG and browser runs
+exposed two test-precondition defects, now narrowly reproduced and repaired/
+verified without weakening assertions, skips, timeouts or product contracts.
+See final-crossmodule-parity.md for exact scopes and remaining gates. Two actual
+native tmux Codex lanes run in parallel, not OMXTeam. No push/PR/Actions rerun or
+production mutation has occurred. Latest user priority: finish required final
+validation and batch publication, with no new audit scope or unchanged-gate
+repetition. Historical mainCI investigation stays queued after delivery.
+
+
+### Final fixture and PostgreSQL closeout
+
+The explicit module fixture dependency is independently SOURCE CLEAR, retaining
+6tests/69assertions and original fixture body. Fresh exact-requirements serial
+PostgreSQL304 plus UTC2 and tie-list7 pass with zero skips; ordered RED/2GREEN
+and module15 are retained separately. Backend full4662/285skip/cov90.94 stays
+frozen and is not needlessly repeated for a test-only setup-order change. The
+onboarding five-line form fixture is independently SOURCE CLEAR and exact
+Skip+auth2GREEN; 6tests/42assertions and guard-return cases are unchanged,
+affected QA/lint pass. Original default shard1 continues; only failed shard2
+was restarted after its actual causal repair, on a fresh owned UUID runtime.
