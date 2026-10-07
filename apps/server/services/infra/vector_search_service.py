@@ -183,6 +183,15 @@ def is_async_vector_index_enabled() -> bool:
     return _get_bool_env("ASYNC_VECTOR_INDEX_ENABLED", True)
 
 
+def is_vector_embeddings_enabled() -> bool:
+    """Return false only when all provider-backed embedding calls are disabled."""
+    return _get_bool_env("VECTOR_EMBEDDINGS_ENABLED", True)
+
+
+class EmbeddingDisabledError(RuntimeError):
+    """Embedding calls are disabled by runtime configuration."""
+
+
 class EmbeddingQuotaCircuitOpenError(RuntimeError):
     """Embedding calls are paused after the provider reports exhausted credit."""
 
@@ -533,6 +542,11 @@ class ZhipuEmbedding(BaseEmbedding):
         self._client = ZhipuAiClient(**kwargs)
 
     def _create_embeddings(self, inputs: str | list[str]) -> Any:
+        # Keep this check immediately before the provider guard and SDK call so
+        # long-lived service instances respond to runtime configuration changes.
+        if not is_vector_embeddings_enabled():
+            raise EmbeddingDisabledError("vector embeddings are disabled")
+
         recovering = _begin_embedding_request()
         try:
             response = self._client.embeddings.create(
@@ -1637,6 +1651,8 @@ class LlamaIndexService:
         semantic_error: Exception | None = None
         semantic_completed = False
         try:
+            if not is_vector_embeddings_enabled():
+                raise EmbeddingDisabledError("vector embeddings are disabled")
             if _embedding_quota_is_blocked():
                 raise EmbeddingQuotaCircuitOpenError("embedding quota cooldown active")
             if semantic_timeout_s is None:
@@ -1670,9 +1686,10 @@ class LlamaIndexService:
                         f"semantic search exceeded {semantic_timeout_s}s"
                     ) from timeout_exc
             semantic_completed = True
-        except EmbeddingQuotaCircuitOpenError as sem_err:
-            # Expected degradation while provider credit is unavailable. Lexical
-            # retrieval below still serves results from the primary database.
+        except (EmbeddingDisabledError, EmbeddingQuotaCircuitOpenError) as sem_err:
+            # Expected degradation while embeddings are administratively paused
+            # or provider credit is unavailable. The lexical branch below still
+            # serves results from the primary database without an embedding call.
             semantic_error = sem_err
         except Exception as sem_err:
             semantic_error = sem_err
