@@ -68,6 +68,7 @@
     "upgradeExpose": "Views",
     "upgradeClick": "Clicks",
     "upgradeConversion": "Conversions",
+    "upgradePageArrival": "Page arrivals",
     "upgradeCtr": "CTR",
     "upgradeCvrFromClick": "CVR (from clicks)",
     "upgradeCvrFromExpose": "CVR (from views)",
