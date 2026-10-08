@@ -33,6 +33,8 @@ Status: implemented
 - 上一条 assistant 消息有落库的 `routing`；
 - 它以澄清卡收尾，或模型自己的话（剥掉 `[此前的工具操作]` 等合成段落后）按 `nodes.ends_with_question_to_user` 以问句收尾；
 - 用户回复不超过 `CLARIFICATION_REPLY_MAX_CHARS`=40 字，且不含「先别写 / 别写正文 / 不要正文 / 不写正文 / 只要大纲 / 不用写 / 先不写」及几个英文等价说法。
+- 用户回复不含只读 / 审查意图（`_READ_ONLY_INTENT_MARKERS`：不改 / 不要改 / 别改 / 不用改 / 只看 / 看看 / 审 / 检查 / 评估 / 有没有问题 / 挑毛病 / review / check / proofread / don't change 等）。澄清卡和问句收尾都适用：writer 常以「要不要接着写第二章？」收尾，用户回「只审不改，看看第一章」若沿用 writer 路由，writer 带着 create/edit/delete 工具接手且没有只读护栏，会在用户说了不改之后照样改稿；交给 LLM 路由才能判成 quality_reviewer + review_only。
+- 只以问句收尾时，回复也不含转去规划的说法（`_PLANNING_INTENT_MARKERS`：大纲 / 细纲 / 规划 / 人设 / 设定 / 世界观 / outline / planning 等）。澄清卡不检查这一组：planner 问「人设按哪版来？」时，回答里带「人设」是正常作答。
 
 沿用规则：
 
@@ -55,11 +57,11 @@ Status: implemented
 ## Consequences
 
 - 收益：只读审查、规划任务被截停后说「继续」，恢复的是原来的 agent 和范围；调用预算用完、墙钟时限截停也能直达；澄清后的简短回答不再被路由重新分类，开书阶段不会因一句「主角叫陈默」丢掉第 1 章；「检查并改掉错别字」一条消息就能改完。
-- 代价：沿用规则是启发式。模型不带问号地提问时不会沿用，退回 LLM 路由的老行为；40 字以内带新要求的回复（「可以，第二章换成女主视角」）会沿用上一轮的 agent，新要求只靠历史里的原话传达。
+- 代价：沿用规则是启发式。模型不带问号地提问时不会沿用，退回 LLM 路由的老行为；40 字以内带新要求、又没命中上述意图词的回复（「可以，第二章换成女主视角」）会沿用上一轮的 agent，新要求只靠历史里的原话传达。意图词按子串匹配、宁宽勿窄：「写完我看看」这类回复也会交回 LLM 路由，代价只是少一次沿用，回到改动前的行为。
 - 代价：`message_metadata` 每条 assistant 消息多约 150 字节；这个字段上线前的旧消息没有 routing，正文非空时「继续」仍回落到 writer，问句回答仍走 LLM 路由。
 - 代价：「检查并修改」改由 writer 处理，不再经过审稿人的分析视角；路由分类效果（「检查并修改第三章」「只帮我检查不要改」「先别写正文」等）需要真实模型探测确认，本批只有 mock 测试。
 - 代价：取消路径按已用时长区分用户停止和时限截停，恰好在时限前一刻点停止会被记成 `run_deadline_exceeded`，下一轮「继续」会直达。
 
 ## Verification
 
-`cd apps/server && venv/bin/python -m pytest tests/test_agent/test_agent_routing_continuity.py -q --no-cov -n 0`：正文非空的只读审查以审稿人 + read_only + scope 恢复；回落顺序；预算 / 时限可直达、用户停止不直达；新旧「继续」文案；澄清卡沿用全部字段；问句收尾沿用 writer 且清空 scope（面包屑追加在正文后也能识别）；长回复、收窄说法、上一轮只读或不要正文、上一轮没提问、没有落库路由时都交回路由；graph 沿用时不调用 LLM 路由；历史 dict 暴露 routing / last_agent / clarification_pending；`process_stream` 落库路由后经 `load_chat_session` 读回、「继续」恢复为只读审稿人；取消路径按时限写 `cancelled` / `run_deadline_exceeded` 并带路由。改动前的代码上这些用例全部失败（新旧「继续」文案与用户停止两条除外）。另跑 `tests/test_agent` 全量与 `tests/test_api/test_agent.py`、`test_agent_stream_hardening.py`、`test_round3_agent_api.py`。
+`cd apps/server && venv/bin/python -m pytest tests/test_agent/test_agent_routing_continuity.py -q --no-cov -n 0`：正文非空的只读审查以审稿人 + read_only + scope 恢复；回落顺序；预算 / 时限可直达、用户停止不直达；新旧「继续」文案；澄清卡沿用全部字段；问句收尾沿用 writer 且清空 scope（面包屑追加在正文后也能识别）；长回复、收窄说法、writer 提问后回复「只审不改」「帮我审查一下第一章」「列个大纲」等只读 / 审查 / 规划意图（澄清卡后的只读 / 审查回复同样交回，规划词在澄清卡回答里仍沿用）、上一轮只读或不要正文、上一轮没提问、没有落库路由时都交回路由；graph 沿用时不调用 LLM 路由；历史 dict 暴露 routing / last_agent / clarification_pending；`process_stream` 落库路由后经 `load_chat_session` 读回、「继续」恢复为只读审稿人；取消路径按时限写 `cancelled` / `run_deadline_exceeded` 并带路由。改动前的代码上这些用例全部失败（新旧「继续」文案与用户停止两条除外）。另跑 `tests/test_agent` 全量与 `tests/test_api/test_agent.py`、`test_agent_stream_hardening.py`、`test_round3_agent_api.py`。

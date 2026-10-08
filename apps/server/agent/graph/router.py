@@ -592,6 +592,58 @@ _NARROWING_MARKERS: tuple[str, ...] = (
     "only the outline",
 )
 
+# 只读 / 审查意图：出现就不沿用（澄清卡与问句收尾两种情况都适用）。沿用写作路由会让
+# writer 带着 create/edit/delete 工具接手，用户说了「只审不改」也照样改稿；
+# 交给 LLM 路由才能判成 quality_reviewer + review_only 并挂上只读护栏。
+_READ_ONLY_INTENT_MARKERS: tuple[str, ...] = (
+    "不改",
+    "不要改",
+    "别改",
+    "不用改",
+    "先别动",
+    "不要动",
+    "只看",
+    "只帮我看",
+    "看看",
+    "审",
+    "检查",
+    "评估",
+    "有没有问题",
+    "挑毛病",
+    "追更指数",
+    "review",
+    "check",
+    "proofread",
+    "evaluate",
+    "critique",
+    "feedback",
+    "don't change",
+    "do not change",
+    "don't edit",
+    "do not edit",
+    "no changes",
+    "read only",
+    "read-only",
+    "just look",
+)
+
+# 换成规划类任务：只在「问句收尾」时生效。上一轮多半是 writer 写完问下一步，
+# 用户转去要大纲 / 人设 / 设定时应重新选 agent。澄清卡不适用——planner 问
+# 「人设按哪版来？」时，回答里带「人设」是正常作答，应当沿用。
+_PLANNING_INTENT_MARKERS: tuple[str, ...] = (
+    "大纲",
+    "细纲",
+    "规划",
+    "人设",
+    "设定",
+    "世界观",
+    "outline",
+    "planning",
+    "character profile",
+    "worldbuilding",
+    "world-building",
+)
+
 # session_loader 追加到 assistant 正文后的合成段落（工具面包屑 / 状态卡摘要）：
 # 判断「上一轮是否以提问收尾」时必须先剥掉，否则结尾永远是面包屑。
 _SYNTHESIZED_SECTION_HEADERS: tuple[str, ...] = (
@@ -749,7 +801,10 @@ def inherit_routing_after_clarification(state: WritingState) -> dict[str, Any] |
     - 上一条 assistant 消息带着落库的 routing；
     - 它以结构化澄清卡收尾（clarification_pending），或模型自己的话以问句收尾；
     - 用户本条回复不超过 CLARIFICATION_REPLY_MAX_CHARS 字，且没有「先别写 / 不要正文 /
-      只要大纲 / 不用写」这类明确的收窄说法。
+      只要大纲 / 不用写」这类明确的收窄说法；
+    - 回复里没有只读 / 审查意图（只审不改 / 别改 / 看看 / 审查 / 检查 / 有没有问题 /
+      review / don't change …）——这类回复要交给 LLM 路由判成 review_only 并挂只读护栏；
+    - 问句收尾时，回复里也没有转去规划的说法（大纲 / 规划 / 人设 / 设定 / outline …）。
 
     沿用的内容：
     - 澄清卡（任务还没做，在等补充信息）：agent、workflow、write_content、read_only、
@@ -764,7 +819,7 @@ def inherit_routing_after_clarification(state: WritingState) -> dict[str, Any] |
     if not user_message or len(user_message) > CLARIFICATION_REPLY_MAX_CHARS:
         return None
     lowered = user_message.lower()
-    if any(marker in lowered for marker in _NARROWING_MARKERS):
+    if any(marker in lowered for marker in _NARROWING_MARKERS + _READ_ONLY_INTENT_MARKERS):
         return None
 
     previous = _last_assistant_message(list(state.get("messages") or []))
@@ -777,6 +832,8 @@ def inherit_routing_after_clarification(state: WritingState) -> dict[str, Any] |
     clarification = previous.get("clarification_pending") is True
     if not clarification:
         if not _ended_with_question(previous):
+            return None
+        if any(marker in lowered for marker in _PLANNING_INTENT_MARKERS):
             return None
         if routing.get("read_only") is True or routing.get("write_content") is False:
             return None

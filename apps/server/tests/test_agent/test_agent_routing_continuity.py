@@ -272,6 +272,69 @@ def test_reply_routes_normally_when_inheritance_is_unsafe(reply, previous_routin
     assert inherit_routing_after_clarification(_state(reply, previous)) is None
 
 
+_WRITER_QUESTION_TURN = {
+    "content": "第一章写好了，已保存。要不要接着写第二章？",
+    "routing": {
+        "initial_agent": "writer",
+        "workflow_type": "quick",
+        "read_only": False,
+        "write_content": True,
+        "scope": "",
+        "last_agent": "writer",
+    },
+}
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "reply",
+    [
+        # 只读 / 审查意图：沿用 writer 会让它在用户说了不改之后照样改稿
+        "只审不改，看看第一章",
+        "帮我审查一下第一章",
+        "第一章有没有问题？",
+        "先别改，只帮我看看",
+        "Just review chapter 1, don't change it",
+        # 换成规划类任务：交给 LLM 路由重新选 agent
+        "给后面十章列个大纲",
+        "先补一下反派的人设",
+        "outline the next arc",
+    ],
+)
+def test_reply_switching_to_review_or_planning_after_writer_question_routes_normally(reply):
+    from agent.graph.router import inherit_routing_after_clarification
+
+    assert inherit_routing_after_clarification(_state(reply, _WRITER_QUESTION_TURN)) is None
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("reply", ["只审不改", "帮我审查一下第一章", "先别改，看看就行"])
+def test_review_reply_to_writer_clarification_card_routes_normally(reply):
+    from agent.graph.router import inherit_routing_after_clarification
+
+    previous = {
+        **_WRITER_QUESTION_TURN,
+        "content": "[workflow_stopped]\nreason: clarification_needed\nquestion: 要写哪一章？",
+        "clarification_pending": True,
+    }
+    assert inherit_routing_after_clarification(_state(reply, previous)) is None
+
+
+@pytest.mark.unit
+def test_planning_words_inside_a_clarification_answer_still_inherit():
+    from agent.graph.router import inherit_routing_after_clarification
+
+    previous = {
+        "content": "[workflow_stopped]\nreason: clarification_needed\nquestion: 主角人设按哪版来？",
+        "clarification_pending": True,
+        "routing": {**_WRITER_QUESTION_TURN["routing"], "initial_agent": "planner", "last_agent": "planner"},
+    }
+    result = inherit_routing_after_clarification(_state("按第二版人设", previous))
+
+    assert result is not None
+    assert result["current_agent"] == "planner"
+
+
 @pytest.mark.unit
 def test_reply_without_persisted_routing_routes_normally():
     from agent.graph.router import inherit_routing_after_clarification
