@@ -179,6 +179,7 @@ class ErrorCode:
     AGENT_CONTEXT_TOO_LONG = "ERR_AGENT_CONTEXT_TOO_LONG"
     AGENT_RUN_FAILED = "ERR_AGENT_RUN_FAILED"
     AGENT_TOOL_FAILURE_LIMIT = "ERR_AGENT_TOOL_FAILURE_LIMIT"
+    AGENT_NO_PROGRESS = "ERR_AGENT_NO_PROGRESS"
     AGENT_RUN_TIMEOUT = "ERR_AGENT_RUN_TIMEOUT"
     AGENT_MODEL_CALL_LIMIT = "ERR_AGENT_MODEL_CALL_LIMIT"
     AGENT_FILE_SAVE_FAILED = "ERR_AGENT_FILE_SAVE_FAILED"
@@ -302,6 +303,7 @@ ERROR_MESSAGES = {
         "ERR_AGENT_CONTEXT_TOO_LONG": "本轮对话内容过长，请精简消息或开启新对话后重试",
         "ERR_AGENT_RUN_FAILED": "生成回复时发生错误，请重试",
         "ERR_AGENT_TOOL_FAILURE_LIMIT": "AI 反复调用工具失败，已停止本轮生成",
+        "ERR_AGENT_NO_PROGRESS": "AI 一直在翻看同样的资料，迟迟没动笔，这一轮先停下了。可以直接告诉它改哪一章、改什么，或者回复「继续」让它接着写。",
         "ERR_AGENT_RUN_TIMEOUT": "本轮生成时间过长，已自动停止",
         "ERR_AGENT_MODEL_CALL_LIMIT": "本轮生成的模型调用次数已达上限，已自动停止",
         "ERR_AGENT_FILE_SAVE_FAILED": "保存生成的文件内容失败，请重试",
@@ -421,6 +423,7 @@ ERROR_MESSAGES = {
         "ERR_AGENT_CONTEXT_TOO_LONG": "This conversation is too long. Shorten your message or start a new chat",
         "ERR_AGENT_RUN_FAILED": "Something went wrong while generating the reply. Please try again",
         "ERR_AGENT_TOOL_FAILURE_LIMIT": "The AI kept failing to use its tools, so this reply was stopped",
+        "ERR_AGENT_NO_PROGRESS": 'The AI kept rereading the same material without writing, so this round stopped. Tell it which chapter to change and how, or reply "continue".',
         "ERR_AGENT_RUN_TIMEOUT": "This reply took too long and was stopped automatically",
         "ERR_AGENT_MODEL_CALL_LIMIT": "This reply reached its model-call limit and was stopped automatically",
         "ERR_AGENT_FILE_SAVE_FAILED": "Failed to save the generated file content. Please try again",
