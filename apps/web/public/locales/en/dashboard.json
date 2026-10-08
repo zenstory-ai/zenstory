@@ -14,7 +14,8 @@
     "openPanel": "Account menu",
     "adminPanel": "Admin Panel",
     "replayTour": "Replay guide",
-    "openSettings": "Settings"
+    "openSettings": "Settings",
+    "contactSupport": "Contact support"
   },
   "dashboard": {
     "title": "Project Dashboard",

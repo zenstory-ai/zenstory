@@ -13,6 +13,9 @@
     "pro_trial": "Pro Trial",
     "credits": "Credits"
   },
+  "rewardSources": {
+    "referral": "Referral reward"
+  },
   "used": "Used",
   "inviteCodes": {
     "title": "My Invite Codes",

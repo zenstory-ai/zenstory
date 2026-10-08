@@ -19,6 +19,17 @@ _NON_RETRYABLE_STATUSES = {400, 413, 422}
 _ERROR_PREVIEW_CHARS = 500
 
 
+def _repair_json_object(json_str: str) -> dict[str, Any] | None:
+    """用 json_repair 修复非法 JSON；只返回非空 dict，其他情况返回 None。"""
+    try:
+        from json_repair import loads as json_repair_loads
+
+        repaired = json_repair_loads(json_str, skip_json_loads=True)
+    except Exception:
+        return None
+    return repaired if isinstance(repaired, dict) and repaired else None
+
+
 def _classify_llm_exception(error: Exception) -> LLMAPIError:
     """Wrap an OpenAI SDK error; only transient failures stay retryable."""
     from core.error_handler import APIException
@@ -226,6 +237,17 @@ class DeepSeekClient:
                 return json.loads(json_str, strict=False)
             except json.JSONDecodeError:
                 pass
+
+            # 模型常在中文描述里直接写英文双引号（如 "以"禹韭"为名"），整段 JSON
+            # 因此非法、整章/整个角色被丢弃。严格解析都失败后用 json_repair 修一次，
+            # 只接受非空对象。被截断的输出（finish_reason=length）不修：补全出来的
+            # 内容会悄悄缺一截，宁可按失败处理。
+            if response.finish_reason != "length":
+                repaired = _repair_json_object(json_str)
+                if repaired is not None:
+                    logger = get_logger(__name__)
+                    logger.warning(f"LLM 响应 JSON 非法，已用 json_repair 修复 (finish_reason={response.finish_reason})")
+                    return repaired
 
         raise LLMOutputError(
             f"无法从响应中提取有效的 JSON (finish_reason={response.finish_reason}): "

@@ -20,6 +20,7 @@ vi.mock('react-i18next', () => ({
         'rewardTypes.pro_trial': 'Pro试用',
         'rewardTypes.credits': '额度',
         used: '已使用',
+        'rewardSources.referral': '邀请好友奖励',
       }
       return translations[key] ?? key
     },
@@ -290,6 +291,19 @@ describe('ReferralStats', () => {
       await waitFor(() => {
         expect(screen.getByText('邀请用户 A 注册')).toBeInTheDocument()
       })
+    })
+
+    it('shows a localized label for the machine source "referral"', async () => {
+      mockReferralApi.getRewards.mockResolvedValue([{ ...mockRewards[1], source: 'referral' }])
+
+      render(<ReferralStats />, { wrapper: createWrapper() })
+
+      await waitFor(() => {
+        expect(screen.getByText('邀请好友奖励')).toBeInTheDocument()
+      })
+      expect(screen.queryByText('referral')).not.toBeInTheDocument()
+      // 「已使用」用中性徽标（次要文字色），不再是灰底浅灰字的 .badge
+      expect(screen.getByText('已使用').closest('span.rounded')).toHaveClass('text-[hsl(var(--text-secondary))]')
     })
 
     it('truncates long source text', async () => {

@@ -8,6 +8,7 @@ import {
   ChevronDown,
   CreditCard,
   Languages,
+  Mail,
   Moon,
   Settings,
   Shield,
@@ -28,6 +29,7 @@ import { CoachmarkLayer } from "../components/onboarding/CoachmarkLayer";
 import { DASHBOARD_FIRST_RUN_TOUR } from "../config/productTours/dashboardFirstRun";
 import { dashboardOnboardingFlags } from "../config/dashboardOnboarding";
 import { inspirationsConfig } from "../config/inspirations";
+import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "../config/support";
 
 function hasExplicitTimezone(value: string): boolean {
   return /([zZ]|[+-]\d{2}:?\d{2})$/.test(value.trim());
@@ -97,6 +99,7 @@ function DashboardContent() {
   const openSettingsLabel = t('dashboard:userPanel.openSettings');
   const adminPanelLabel = t('dashboard:userPanel.adminPanel');
   const replayTourLabel = t('dashboard:userPanel.replayTour');
+  const contactSupportLabel = t('dashboard:userPanel.contactSupport');
   const { restartTour, isEnabled: isTourEnabled } = useProductTour();
   const navItems = inspirationsConfig.enabled
     ? NAV_ITEMS
@@ -335,6 +338,18 @@ function DashboardContent() {
             {adminPanelLabel}
           </button>
         )}
+
+        <a
+          href={SUPPORT_MAILTO}
+          data-testid="dashboard-contact-support-link"
+          className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
+        >
+          <Mail className="w-4 h-4 shrink-0" />
+          <span className="flex flex-col min-w-0">
+            <span>{contactSupportLabel}</span>
+            <span className="text-xs text-[hsl(var(--text-secondary))] truncate">{SUPPORT_EMAIL}</span>
+          </span>
+        </a>
 
         <button
           onClick={handleLogout}
@@ -578,6 +593,17 @@ function DashboardContent() {
                   {replayTourLabel}
                 </button>
               )}
+              <a
+                href={SUPPORT_MAILTO}
+                data-testid="dashboard-contact-support-link-mobile"
+                className="flex items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-primary))] transition-colors text-left"
+              >
+                <Mail size={18} className="shrink-0" />
+                <span className="flex flex-col min-w-0">
+                  <span>{contactSupportLabel}</span>
+                  <span className="text-xs text-[hsl(var(--text-secondary))] truncate">{SUPPORT_EMAIL}</span>
+                </span>
+              </a>
               <button
                 onClick={() => {
                   handleLogout();

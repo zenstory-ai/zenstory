@@ -209,17 +209,20 @@ test.describe('organization site', () => {
 
     await page.goto(`${SITE}/`, { waitUntil: 'domcontentloaded' })
 
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('ZenStory AI')
-    await expect(page.locator('article.home .lede').first()).toContainText(/story|open-source/i)
+    // 10-03 首页改版后 h1 是口号，品牌名在 <title>。
+    await expect(page).toHaveTitle(/^ZenStory AI — /)
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Write stories.')
+    await expect(page.locator('article.home .lede').first()).toContainText(/novels with AI|story|open-source/i)
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
     await expect(page.locator('link[rel="alternate"][hreflang="zh-CN"]')).toHaveAttribute('href', `${CANONICAL_SITE}/zh`)
     await expect(page.locator('link[rel="alternate"][hreflang="x-default"]')).toHaveAttribute('href', `${CANONICAL_SITE}/`)
     await expect(page.locator('header .lang-switch a[hreflang="zh-CN"]')).toHaveAttribute('href', '/zh')
     await expect(page.locator('header nav[aria-label="Site"] a[href="/docs"]')).toHaveCount(0)
-    const projectDestinations = await page.locator('.project-grid h3 a').evaluateAll((links) =>
+    // 改版后的首页没有固定的项目卡片网格；校验六个项目在首页都有入口即可。
+    const homeLinks = await page.locator('article.home a[href]').evaluateAll((links) =>
       links.map((link) => link.getAttribute('href')),
     )
-    expect(projectDestinations).toEqual(PROJECT_SLUGS.map((slug) => `/${slug}`))
+    expect(homeLinks).toEqual(expect.arrayContaining(PROJECT_SLUGS.map((slug) => `/${slug}`)))
     await expect(page.locator(`a[href="${CANONICAL_APP}"]`).first()).toBeVisible()
 
     await context.close()
@@ -231,14 +234,15 @@ test.describe('organization site', () => {
     await page.goto(`${SITE}/zh`, { waitUntil: 'domcontentloaded' })
 
     await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('ZenStory AI')
-    await expect(page.locator('article.home .lede').first()).toContainText(/故事|创作/)
+    await expect(page).toHaveTitle(/^ZenStory AI — /)
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('写下故事。')
+    await expect(page.locator('article.home .lede').first()).toContainText(/用 AI 写小说|故事|创作/)
     await expect(page.locator('article.home .lede').first()).not.toContainText(/open-source tools/)
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', `${CANONICAL_SITE}/zh`)
     await expect(page.locator('link[rel="alternate"][hreflang="en"]')).toHaveAttribute('href', `${CANONICAL_SITE}/`)
     await expect(page.locator('header .lang-switch a[hreflang="en"]')).toHaveAttribute('href', '/')
-    const projectDestinations = await page.locator('article.home .project-card h3 a').evaluateAll((links) => links.map((link) => link.getAttribute('href')))
-    expect(projectDestinations).toEqual(PROJECT_SLUGS.map((slug) => `/zh/${slug}`))
+    const homeLinks = await page.locator('article.home a[href]').evaluateAll((links) => links.map((link) => link.getAttribute('href')))
+    expect(homeLinks).toEqual(expect.arrayContaining(PROJECT_SLUGS.map((slug) => `/zh/${slug}`)))
     await expect(page.locator(`a[href="${CANONICAL_APP}"]`).first()).toBeVisible()
     await context.close()
   })
