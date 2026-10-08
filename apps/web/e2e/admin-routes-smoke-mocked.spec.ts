@@ -11,6 +11,57 @@ const adminUser = {
   updated_at: '2026-03-01T00:00:00Z',
 };
 
+const growthMetrics = {
+  new_users: 43,
+  ai_active_users: 31,
+  cohort_activated_users: 19,
+  cohort_activation_rate: 0.4419,
+  paid_orders: 9,
+  revenue_cents: 123456,
+  paid_users: 8,
+  cohort_paid_users: 5,
+  signup_to_paid_rate: 0.1163,
+  grant_upgrade_events: 4,
+  grant_upgrade_users: 3,
+  grant_channels: [{ channel: 'admin_update', events: 4, users: 3 }],
+};
+
+const growthDashboard = {
+  days: 7,
+  timezone: 'Asia/Shanghai',
+  current: {
+    period_start: '2026-03-01T00:00:00Z',
+    period_end: '2026-03-08T00:00:00Z',
+    metrics: growthMetrics,
+  },
+  previous: {
+    period_start: '2026-02-22T00:00:00Z',
+    period_end: '2026-03-01T00:00:00Z',
+    metrics: {
+      ...growthMetrics,
+      new_users: 35,
+      ai_active_users: 24,
+      paid_orders: 6,
+      revenue_cents: 84500,
+      paid_users: 6,
+    },
+  },
+  daily: [{
+    date: '2026-03-07',
+    ...growthMetrics,
+    new_users: 17,
+    ai_active_users: 13,
+    paid_orders: 4,
+    revenue_cents: 32109,
+  }],
+  definitions: {
+    window: 'Beijing-time half-open reporting window ending at the request cutoff.',
+    activation: 'Signup cohort with a live model call observed by the period cutoff.',
+    paid: 'Confirmed paid orders; pending, refunded, and granted upgrades are excluded.',
+    grants: 'Non-payment subscription upgrades grouped separately from revenue.',
+  },
+};
+
 async function bootstrapAdminSession(page: Page) {
   await page.route('**/api/auth/me', async (route) => {
     await route.fulfill({
@@ -68,6 +119,15 @@ async function bootstrapAdminSession(page: Page) {
   await page.route('**/api/admin/**', async (route) => {
     const request = route.request();
     const { pathname } = new URL(request.url());
+
+    if (request.method() === 'GET' && pathname.endsWith('/api/admin/dashboard/growth')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(growthDashboard),
+      });
+      return;
+    }
 
     if (request.method() === 'GET' && pathname.endsWith('/api/admin/prompts')) {
       await route.fulfill({
