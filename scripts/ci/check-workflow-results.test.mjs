@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { validateCiSummary, validateE2eSummary } from "./check-workflow-results.mjs";
+import { ciJobExpectations, validateCiSummary, validateE2eSummary } from "./check-workflow-results.mjs";
 
 const irrelevantJobs = {
   "frontend-lint": "skipped",
   "ci-lint": "skipped",
   "backend-test": "skipped",
+  "backend-coverage": "skipped",
+  "backend-integration": "skipped",
   "prefect-compatibility": "skipped",
   "production-images": "skipped",
   "frontend-test": "skipped",
@@ -77,6 +80,45 @@ test("CI workflow changes require every conditional gate", () => {
     }),
     /cli-test was required but finished as cancelled/,
   );
+});
+
+test("backend changes require the coverage gate and integration lane, not only the test shards", () => {
+  const backendJobs = {
+    ...irrelevantJobs,
+    "backend-test": "success",
+    "backend-coverage": "success",
+    "backend-integration": "success",
+    "prefect-compatibility": "success",
+    "production-images": "success",
+  };
+  const outputs = { backend: "true", frontend: "false", cli: "false", ci: "false" };
+  assert.doesNotThrow(() => validateCiSummary({ detector: "success", outputs, jobs: backendJobs }));
+  // A failed shard skips the combine job; the gate must not accept that skip.
+  assert.throws(
+    () => validateCiSummary({ detector: "success", outputs, jobs: { ...backendJobs, "backend-coverage": "skipped" } }),
+    /backend-coverage was required but finished as skipped/,
+  );
+  assert.throws(
+    () => validateCiSummary({ detector: "success", outputs, jobs: { ...backendJobs, "backend-integration": "failure" } }),
+    /backend-integration was required but finished as failure/,
+  );
+});
+
+test("every CI job is a ci-summary dependency with a validated result", async () => {
+  const ci = await readFile(".github/workflows/ci.yml", "utf8");
+  const jobs = [...ci.slice(ci.indexOf("\njobs:")).matchAll(/^  ([a-z0-9-]+):$/gm)]
+    .map((match) => match[1])
+    .filter((name) => name !== "detect-changes" && name !== "ci-summary")
+    .sort();
+  const validated = Object.keys(ciJobExpectations({ backend: true, frontend: true, cli: true, ci: true })).sort();
+  assert.deepEqual(jobs, validated, "a CI job outside the validator would be silently ungated");
+
+  const summary = ci.slice(ci.indexOf("\n  ci-summary:"));
+  const needs = summary.match(/needs: \[([^\]]+)\]/)[1].split(",").map((name) => name.trim()).sort();
+  assert.deepEqual(needs, ["detect-changes", ...validated].sort());
+  for (const name of validated) {
+    assert.match(summary, new RegExp(`: \\$\\{\\{ needs\\['${name}'\\]\\.result \\}\\}`), `${name} result is not passed to the validator`);
+  }
 });
 
 test("scheduled and manual E2E runs are forced regardless of changed paths", () => {

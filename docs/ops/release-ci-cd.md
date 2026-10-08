@@ -11,13 +11,32 @@ fail-closed:
 - Main runs are not cancelled because provider-native gates need a terminal
   check suite for every pushed commit.
 
+Backend evidence is split into parallel jobs, all required when backend or CI
+files change and all skipped otherwise:
+
+- `backend-test` is a three-shard pytest matrix (`api-a-f`, `api-g-z`,
+  `other`) whose targets partition `tests/` by construction; each shard writes
+  `.coverage.<shard>` and uploads it as an artifact without gating its partial
+  total.
+- `backend-coverage` runs only after every shard succeeds, combines the shard
+  data, enforces the 80% gate with `coverage report --fail-under=80`, and
+  produces the `coverage.xml` uploaded to Codecov.
+- `backend-integration` runs ruff, the serial PostgreSQL regressions, the flow
+  tests, and production Prefect deployment registration.
+
 `E2E Tests` applies the same detector rules. Scheduled and manually dispatched
 runs force E2E execution even when there is no meaningful Git diff. Its reviewed
 revision was enabled after production-policy approval on 2026-10-03. Activation
 is not a passing-test claim: check the latest exact-SHA run and report a pending
 or failed E2E result explicitly. The local/mocked lane starts PostgreSQL, Redis,
 the backend, and the web
-app; it uses test API keys and does not call a paid model provider.
+app; it uses test API keys and does not call a paid model provider. Push,
+`default` and `full` runs split the whole suite into eight Chromium shards
+(`full` also adds Firefox); nightly (scheduled), release and smoke lanes run
+their fixed file lists on one Chromium `1/1` job. Playwright shards by test
+count, not duration, so a shard's time depends on which slow files fall in its
+contiguous range. Main E2E runs are the release critical path: production
+promotion waits for both exact-SHA summaries.
 
 ## ZenStory CLI release
 
