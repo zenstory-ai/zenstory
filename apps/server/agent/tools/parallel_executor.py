@@ -234,8 +234,61 @@ def _validate_write_chapter_params(params: dict[str, Any]) -> str | None:
     return None
 
 
+# write_chapter 的父目录（或它的上级）是这些模板根目录时，文件类型跟随目录；
+# 其余情况（正文目录、卷子目录、旧项目的非确定性根目录）仍按 draft 创建。
+_ROOT_FOLDER_FILE_TYPES: dict[str, str] = {
+    "character-folder": "character",
+    "lore-folder": "lore",
+    "outline-folder": "outline",
+    "script-folder": "script",
+}
+# 沿 parent_id 向上找根目录的最大层数，防御脏数据里的环。
+_MAX_PARENT_WALK_DEPTH = 16
+
+
+def _root_folder_file_type(project_id: str, folder_id: str) -> str | None:
+    """模板根目录 id（``{project_id}-{suffix}``）对应的文件类型。"""
+    for suffix, file_type in _ROOT_FOLDER_FILE_TYPES.items():
+        if folder_id == f"{project_id}-{suffix}":
+            return file_type
+    return None
+
+
+def _infer_write_chapter_file_type(project_id: str, parent_id: Any) -> str:
+    """按所在根目录推断 write_chapter 新建文件的类型（尽力而为，失败按 draft）。
+
+    历史缺陷：这里写死 ``file_type="draft"``，模型用 write_chapter 往角色 /
+    设定目录里写卡片时会被归成正文，进而被上下文组装和文件清单按章节对待。
+    """
+    if not isinstance(parent_id, str) or not parent_id.strip():
+        return "draft"
+
+    # 直接父目录就是模板根目录时不需要查库
+    current = parent_id.strip()
+    inferred = _root_folder_file_type(project_id, current)
+    if inferred:
+        return inferred
+
+    try:
+        from agent.tools.mcp_tools import ToolContext
+        from models import File
+
+        with ToolContext.short_lived_session() as session:
+            for _ in range(_MAX_PARENT_WALK_DEPTH):
+                folder = session.get(File, current)
+                if folder is None or folder.project_id != project_id or not folder.parent_id:
+                    break
+                current = folder.parent_id
+                inferred = _root_folder_file_type(project_id, current)
+                if inferred:
+                    return inferred
+    except Exception as err:
+        logger.debug(f"write_chapter file_type inference failed: {err}")
+    return "draft"
+
+
 async def handle_write_chapter(params: dict[str, Any]) -> dict[str, Any]:
-    """Handle write_chapter task type - creates a draft file."""
+    """Handle write_chapter task type - creates a file typed by its root folder."""
     from agent.tools.mcp_tools import ToolContext, create_file
 
     project_id = ToolContext._get_context().get("project_id")
@@ -258,9 +311,12 @@ async def handle_write_chapter(params: dict[str, Any]) -> dict[str, Any]:
         return _make_error(validation_error)
 
     try:
+        file_type = await asyncio.to_thread(
+            _infer_write_chapter_file_type, project_id, params.get("parent_id")
+        )
         result = await create_file({
             "title": params.get("title", "Untitled Chapter"),
-            "file_type": "draft",
+            "file_type": file_type,
             "content": params.get("content", ""),
             "parent_id": params.get("parent_id"),
         })
