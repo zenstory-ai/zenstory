@@ -1196,13 +1196,10 @@ code, pre, .font-mono {
     .animate-slide-out-left,
     .animate-slide-in-bottom,
     .animate-slide-out-bottom,
-    .animate-celebration-pop {
+    .animate-celebration-pop,
+    .celebration-piece {
         animation: none !important;
         will-change: auto;
-    }
-
-    .celebration-burst {
-        display: none;
     }
 }
 
