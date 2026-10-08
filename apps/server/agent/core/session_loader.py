@@ -675,6 +675,10 @@ class SessionLoader:
                 if isinstance(status_cards, list):
                     msg_data.update(self._status_card_routing_hints(status_cards))
                     synthesized_content = self._build_status_cards_history_content(status_cards)
+                    # 路由器要看上一轮的状态卡（澄清卡的问题等）；正文非空时摘要不进回放，
+                    # 单独放一份给 router.build_router_user_message。
+                    if synthesized_content:
+                        msg_data["status_card_text"] = synthesized_content
                     if synthesized_content and not self._extract_content_text(
                         msg_data.get("content")
                     ).strip():
