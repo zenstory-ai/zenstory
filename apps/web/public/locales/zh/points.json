@@ -1,5 +1,6 @@
 {
   "balance": "积分余额",
+  "balanceHint": "{{cost}} 积分可兑换 7 天 Pro",
   "pendingExpiration": "{{count}} 积分即将过期",
   "dailyCheckIn": "每日签到",
   "streakDays": "连续 {{days}} 天",
@@ -11,16 +12,18 @@
   "completed": "已完成",
   "redeem": "兑换",
   "insufficient": "积分不足",
-  "redeemPro": "兑换 Pro 会员",
+  "redeemPro": "用积分兑换 Pro",
   "currentBalance": "当前积分",
   "selectDuration": "选择兑换时长",
   "days": "天",
   "pointsLabel": "积分",
-  "proBenefits": "Pro 会员权益",
+  "proBenefits": "Pro 权益",
   "redeemFailed": "兑换失败，请重试",
+  "redeemSuccess": "兑换成功！Pro 已增加 {{days}} 天。",
   "benefit": {
-    "unlimitedAI": "更多 AI 写作额度",
-    "unlimitedProjects": "可创建更多项目"
+    "unlimitedAI": "AI 消息不限条数",
+    "unlimitedProjects": "项目数不限",
+    "materials": "每月 5 次素材拆解"
   },
   "opportunityDescriptions": {
     "check_in": "每日签到",

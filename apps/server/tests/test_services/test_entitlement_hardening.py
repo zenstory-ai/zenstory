@@ -14,6 +14,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlmodel import Session, SQLModel, select
 
 from config.datetime_utils import utcnow
+from core.error_codes import ErrorCode
 from models import User
 from models.skill import UserSkill
 from models.subscription import RedemptionCode, SubscriptionPlan, UserSubscription
@@ -199,7 +200,7 @@ def test_lower_tier_code_is_refused_while_paid_plan_runs(db_session: Session):
     with patch.object(redemption_service, "get_hmac_secret", return_value=HMAC_SECRET):
         success, message, _info = redemption_service.redeem_code(db_session, code, user.id)
     assert success is False
-    assert "lower-tier" in message
+    assert message == ErrorCode.REDEMPTION_CODE_DOWNGRADE
     db_session.expire_all()
     stored = db_session.get(UserSubscription, subscription.id)
     assert stored.plan_id == pro.id

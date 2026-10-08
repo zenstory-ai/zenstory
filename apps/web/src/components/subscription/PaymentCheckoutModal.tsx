@@ -70,6 +70,8 @@ interface PaymentCheckoutModalProps {
   yearlyPriceCents?: number
   /** Upgrade entry that led here; stored on the order for paid-conversion attribution. */
   upgradeSource?: string
+  /** The buyer already has Pro: the purchase extends it, so say "renew". */
+  isRenewal?: boolean
 }
 
 export function PaymentCheckoutModal({
@@ -79,6 +81,7 @@ export function PaymentCheckoutModal({
   monthlyPriceCents,
   yearlyPriceCents,
   upgradeSource: rawUpgradeSource,
+  isRenewal = false,
 }: PaymentCheckoutModalProps) {
   const upgradeSource = rawUpgradeSource && UPGRADE_SOURCE_PATTERN.test(rawUpgradeSource)
     ? rawUpgradeSource
@@ -164,13 +167,18 @@ export function PaymentCheckoutModal({
     <Modal
       open={isOpen}
       onClose={handleClose}
-      title={t('dashboard:billing.paymentTitle', '开通 Pro 会员')}
+      title={isRenewal
+        ? t('dashboard:billing.paymentTitleRenew', '续费 Pro')
+        : t('dashboard:billing.paymentTitle', '开通 Pro')}
       size="md"
       closeOnBackdropClick={!isBusy}
       closeOnEscape={!isBusy}
     >
       <Modal.Body>
         <div className="space-y-4">
+          <p className="text-sm text-[hsl(var(--text-secondary))]">
+            {t('dashboard:billing.paymentBenefits', 'AI 消息不限条数 · 项目不限 · 每月 5 次素材拆解')}
+          </p>
           <div className="grid grid-cols-2 gap-3 pt-2" role="radiogroup" aria-label={t('dashboard:billing.billingCycleLabel', '购买时长')}>
             {(['month', 'year'] as PaymentCycle[]).map((item) => {
               const selected = cycle === item
@@ -231,6 +239,9 @@ export function PaymentCheckoutModal({
               <CreditCard className="h-4 w-4 text-[#1677ff]" />
               <span className="font-medium">{t('dashboard:billing.alipay', '支付宝')}</span>
             </div>
+            <p className="mt-2 text-xs text-[hsl(var(--text-secondary))]">
+              {t('dashboard:billing.paymentNoAutoRenew', '一次性付款，不会自动续费。到期前续费，时长会接在当前到期日之后。')}
+            </p>
           </div>
 
           {optionsQuery.isLoading && (
@@ -238,7 +249,7 @@ export function PaymentCheckoutModal({
           )}
           {isUnavailable && (
             <div className="rounded-lg bg-[hsl(var(--warning)/0.1)] p-3 text-[hsl(var(--warning))]" role="alert">
-              {t('dashboard:billing.paymentUnavailable', '暂时无法在线支付。有兑换码的话，可在「订阅权益」页点「兑换码」开通。')}
+              {t('dashboard:billing.paymentUnavailable', '暂时无法在线支付。有兑换码的话，点页面上的「兑换码」也能开通。')}
             </div>
           )}
           {error && (

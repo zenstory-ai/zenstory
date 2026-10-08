@@ -11,7 +11,7 @@ from datetime import UTC
 from sqlmodel import Session, select
 
 from config.datetime_utils import utcnow
-from core.error_codes import ERROR_MESSAGES, ErrorCode
+from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from models.subscription import RedemptionCode
 from services.subscription.subscription_service import subscription_service
@@ -43,11 +43,6 @@ class RedemptionService:
         return max_uses
 
     CODE_PATTERN = re.compile(r"^ERG-([A-Z0-9]{2,8})-([A-Z0-9]{4})-([A-Z0-9]{8})$")
-
-    def _get_error_message(self, error_code: str, lang: str = "en") -> str:
-        """Get localized error message safely from error-code map."""
-        lang_messages = ERROR_MESSAGES.get(lang) or ERROR_MESSAGES.get("en", {})
-        return lang_messages.get(error_code, error_code)
 
     def get_hmac_secret(self) -> str:
         """Get HMAC secret from environment."""
@@ -110,16 +105,18 @@ class RedemptionService:
         """
         Redeem a code for a user.
 
-        Returns: (success, message, subscription_info)
+        Returns: (success, message, subscription_info). On failure ``message``
+        is an ``ERR_REDEMPTION_*`` error code that the API returns as-is, so the
+        client shows its own localized text instead of an English sentence.
         """
         # Step 1: Validate format
         if not self.validate_code_format(code):
-            return (False, self._get_error_message(ErrorCode.REDEMPTION_CODE_INVALID), None)
+            return (False, ErrorCode.REDEMPTION_CODE_INVALID, None)
 
         try:
             # Step 2: Verify checksum
             if not self.verify_checksum(code):
-                return (False, self._get_error_message(ErrorCode.REDEMPTION_CODE_CHECKSUM_FAILED), None)
+                return (False, ErrorCode.REDEMPTION_CODE_CHECKSUM_FAILED, None)
 
             # Step 3: Lock code row for safe concurrent redemption checks.
             redemption_code = session.exec(
@@ -128,11 +125,11 @@ class RedemptionService:
                 .with_for_update()
             ).first()
             if not redemption_code:
-                return (False, self._get_error_message(ErrorCode.REDEMPTION_CODE_INVALID), None)
+                return (False, ErrorCode.REDEMPTION_CODE_INVALID, None)
 
             # Step 4: Check if active
             if not redemption_code.is_active:
-                return (False, self._get_error_message(ErrorCode.REDEMPTION_CODE_DISABLED), None)
+                return (False, ErrorCode.REDEMPTION_CODE_DISABLED, None)
 
             # Step 5: Check expiration
             if redemption_code.expires_at:
@@ -140,22 +137,22 @@ class RedemptionService:
                 if expires_at.tzinfo is None:
                     expires_at = expires_at.replace(tzinfo=UTC)
                 if expires_at < utcnow():
-                    return (False, self._get_error_message(ErrorCode.REDEMPTION_CODE_EXPIRED), None)
+                    return (False, ErrorCode.REDEMPTION_CODE_EXPIRED, None)
 
             redeemed_by = list(redemption_code.redeemed_by or [])
 
             # Step 6: Prevent duplicate redemption by same user.
             if user_id in redeemed_by:
-                return (False, "You have already redeemed this code", None)
+                return (False, ErrorCode.REDEMPTION_CODE_ALREADY_REDEEMED_BY_YOU, None)
 
             # Step 7: Enforce usage limits under lock.
             if redemption_code.max_uses is not None and redemption_code.current_uses >= redemption_code.max_uses:
-                return (False, self._get_error_message(ErrorCode.REDEMPTION_CODE_USED), None)
+                return (False, ErrorCode.REDEMPTION_CODE_USED, None)
 
             # Step 8: A lower tier would replace (and discard) the paid plan's
             # remaining days, so such codes are refused while that plan is running.
             if self._is_downgrade(session, user_id, redemption_code.tier):
-                return (False, self._get_error_message(ErrorCode.REDEMPTION_CODE_DOWNGRADE), None)
+                return (False, ErrorCode.REDEMPTION_CODE_DOWNGRADE, None)
 
             redemption_code.current_uses += 1
             redemption_code.redeemed_by = redeemed_by + [user_id]

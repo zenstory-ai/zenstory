@@ -18,6 +18,12 @@ export function PointsBalance({ className = '', showExpiration = true }: PointsB
     queryFn: () => pointsApi.getBalance(),
     refetchInterval: 60000,
   });
+  // Tell the author what points are for; hidden until the price is known.
+  const { data: config } = useQuery({
+    queryKey: ['points-config'],
+    queryFn: () => pointsApi.getConfig(),
+  });
+  const proCost = config?.pro_7days_cost;
 
   if (!balance && !isLoading) return null;
 
@@ -35,6 +41,12 @@ export function PointsBalance({ className = '', showExpiration = true }: PointsB
       <div className="text-2xl font-bold text-[hsl(var(--text-primary))]">
         {balance?.available.toLocaleString() ?? 0}
       </div>
+
+      {typeof proCost === 'number' && Number.isFinite(proCost) && proCost > 0 && (
+        <p className="text-xs text-[hsl(var(--text-secondary))] mt-1">
+          {t('balanceHint', '{{cost}} 积分可兑换 7 天 Pro', { cost: proCost.toLocaleString() })}
+        </p>
+      )}
 
       {showExpiration && balance?.pending_expiration && balance.pending_expiration > 0 && (
         <p className="text-xs text-[hsl(var(--text-secondary))] mt-1">

@@ -320,7 +320,7 @@ const SUBSCRIPTION_UI = {
   subscriptionTab: '[data-testid="settings-tab-subscription"]',
   tierBadge: '.rounded-full',
   redeemButton: 'button:has-text("兑换码"), button:has-text("Redeem")',
-  redeemModal: '[role="dialog"]:has-text("兑换会员"), [role="dialog"]:has-text("Redeem")',
+  redeemModal: '[role="dialog"]:has-text("使用兑换码"), [role="dialog"]:has-text("Redeem")',
   codeInput: 'input[placeholder*="ERG"]',
   submitRedeem: 'button[type="submit"]:has-text("兑换"), button[type="submit"]:has-text("Redeem")',
   successMessage: '.bg-green-50, .bg-green-900\\/20',
@@ -328,8 +328,10 @@ const SUBSCRIPTION_UI = {
   quotaBadge: '.rounded-full:has(svg)',
 };
 
+// The badge follows the glossary by tier: 免费版 / Free and Pro.
 function getPlanNameLocator(page: Page, planName: 'Free' | 'Pro') {
-  return page.getByText(new RegExp(`^${planName}$`)).first()
+  const pattern = planName === 'Free' ? /^(免费版|Free)$/ : /^Pro$/
+  return page.getByText(pattern).first()
 }
 
 test.describe('Subscription Status Display', () => {
@@ -342,8 +344,8 @@ test.describe('Subscription Status Display', () => {
     // Check that Free tier badge is shown
     await expect(getPlanNameLocator(page, 'Free')).toBeVisible({ timeout: 5000 });
 
-    // Check active status is shown
-    await expect(page.locator('text=/生效中|active/i')).toBeVisible({ timeout: 3000 });
+    // The free plan never ends, so it carries no status word.
+    await expect(page.locator('text=/未开通|Not subscribed/i')).toHaveCount(0);
   });
 
   test('should display Pro tier status correctly', async ({ page, request }) => {
@@ -354,7 +356,7 @@ test.describe('Subscription Status Display', () => {
 
     // Check that Pro tier badge is shown
     await expect(getPlanNameLocator(page, 'Pro')).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('text=/生效中|active/i')).toBeVisible({ timeout: 3000 });
+    await expect(page.locator('text=/有效期至|Active until/i')).toBeVisible({ timeout: 3000 });
   });
 
   test('should display expired status correctly', async ({ page, request }) => {
@@ -364,7 +366,7 @@ test.describe('Subscription Status Display', () => {
     await navigateToSubscriptionSettings(page, request);
 
     // Check expired status is shown
-    await expect(page.locator('text=/已过期|expired/i')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=/已到期|expired/i')).toBeVisible({ timeout: 5000 });
   });
 });
 
@@ -388,8 +390,8 @@ test.describe('Quota Display', () => {
     await page.reload();
     await navigateToSubscriptionSettings(page, request);
 
-    // Check for "unlimited" or "无限" text
-    await expect(page.getByText(/无限|unlimited/i).first()).toBeVisible({ timeout: 5000 });
+    // Check for "unlimited" or "不限" text
+    await expect(page.getByText(/不限|unlimited/i).first()).toBeVisible({ timeout: 5000 });
   });
 
   test('should show warning when quota is low', async ({ page, request }) => {
@@ -399,7 +401,7 @@ test.describe('Quota Display', () => {
     await navigateToSubscriptionSettings(page, request);
 
     await expect(page.getByText('9/10').first()).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('button:has-text("升级专业版"), button:has-text("Upgrade")').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('button:has-text("开通 Pro"), button:has-text("Get Pro")').first()).toBeVisible({ timeout: 5000 });
   });
 
   test('should show error when quota is exhausted', async ({ page, request }) => {
@@ -409,7 +411,7 @@ test.describe('Quota Display', () => {
     await navigateToSubscriptionSettings(page, request);
 
     await expect(page.getByText('10/10').first()).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('button:has-text("升级专业版"), button:has-text("Upgrade")').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('button:has-text("开通 Pro"), button:has-text("Get Pro")').first()).toBeVisible({ timeout: 5000 });
   });
 });
 

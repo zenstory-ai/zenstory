@@ -20,10 +20,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, defaultValue: string, options?: Record<string, unknown>) => {
       const translated = {
-        'subscription.active': '生效中',
-        'subscription.expired': '已过期',
-        'subscription.redeemCode': '兑换码',
-        'subscription.upgradePrimary': '升级专业版',
+        'settings:subscription.redeemCode': '兑换码',
+        'settings:subscription.upgradePrimary': '开通 Pro',
       }[key]
 
       const text = translated ?? defaultValue
@@ -66,14 +64,14 @@ describe('SubscriptionStatus', () => {
     expect(document.querySelector('.animate-pulse')).toBeInTheDocument()
   })
 
-  it('renders free tier status with upgrade and redeem actions', async () => {
+  it('renders the free plan without a status word, with upgrade and redeem actions', async () => {
     const onUpgradeClick = vi.fn()
     const onRedeemClick = vi.fn()
     mockGetStatus.mockResolvedValue({
       tier: 'free',
-      status: 'active',
-      display_name: '免费版',
-      display_name_en: 'Free',
+      status: 'none',
+      display_name: '免费试用',
+      display_name_en: 'Free Trial',
       current_period_end: null,
       days_remaining: null,
       features: {
@@ -85,19 +83,23 @@ describe('SubscriptionStatus', () => {
       <SubscriptionStatus onUpgradeClick={onUpgradeClick} onRedeemClick={onRedeemClick} />
     )
 
+    // The stored legacy name is replaced by the glossary name for the tier.
     expect(await screen.findByText('免费版')).toBeInTheDocument()
-    expect(screen.getByText('生效中')).toBeInTheDocument()
+    expect(screen.queryByText('免费试用')).not.toBeInTheDocument()
+    expect(screen.queryByText(/未开通|生效中/)).not.toBeInTheDocument()
     expect(screen.getByText('兑换码')).toBeInTheDocument()
-    expect(screen.getByText('升级专业版')).toBeInTheDocument()
+    expect(screen.getByText('开通 Pro')).toBeInTheDocument()
+    expect(screen.queryByText('续费 Pro')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('升级专业版'))
+    fireEvent.click(screen.getByText('开通 Pro'))
     expect(onUpgradeClick).toHaveBeenCalledTimes(1)
     fireEvent.click(screen.getByText('兑换码'))
     expect(onRedeemClick).toHaveBeenCalledTimes(1)
   })
 
-  it('renders paid tier days remaining and handles redeem click', async () => {
+  it('shows when Pro ends and offers renewal next to redeem', async () => {
     const onRedeemClick = vi.fn()
+    const onRenewClick = vi.fn()
     mockGetStatus.mockResolvedValue({
       tier: 'pro',
       status: 'active',
@@ -110,10 +112,13 @@ describe('SubscriptionStatus', () => {
       },
     })
 
-    renderWithQuery(<SubscriptionStatus onRedeemClick={onRedeemClick} />)
+    renderWithQuery(<SubscriptionStatus onRedeemClick={onRedeemClick} onRenewClick={onRenewClick} />)
 
-    expect(await screen.findByText('专业版')).toBeInTheDocument()
-    expect(screen.getByText('剩余 10 天')).toBeInTheDocument()
+    expect(await screen.findByText('Pro')).toBeInTheDocument()
+    expect(screen.getByText('有效期至 2026/04/01 · 剩余 10 天')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('续费 Pro'))
+    expect(onRenewClick).toHaveBeenCalledTimes(1)
 
     fireEvent.click(screen.getByText('兑换码'))
     expect(onRedeemClick).toHaveBeenCalledTimes(1)

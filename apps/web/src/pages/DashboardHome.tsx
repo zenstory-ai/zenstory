@@ -1040,7 +1040,7 @@ export default function DashboardHome() {
         description={t('projects.quotaExceededDesc', {
           defaultValue: '当前套餐的项目数已用完。升级 Pro 可以建更多项目，也可以先删除不再需要的项目。',
         })}
-        primaryLabel={t('dashboard:billing.ctaUpgradePro', '升级专业版')}
+        primaryLabel={t('dashboard:billing.ctaUpgradePro', '开通 Pro')}
         onPrimary={() => {
           window.location.assign(
             buildUpgradeUrl(projectQuotaUpgradePrompt.billingPath, projectQuotaUpgradePrompt.source)

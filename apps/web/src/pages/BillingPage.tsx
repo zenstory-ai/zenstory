@@ -13,9 +13,13 @@ import { subscriptionApi, subscriptionQueryKeys } from "../lib/subscriptionApi";
 import { paymentApi, paymentQueryKeys } from "../lib/paymentApi";
 import {
   filterAvailableMetrics,
+  formatYuan,
   getEntitlementMetricDefinitions,
   getLocalizedPlanDisplayName,
+  getSubscriptionStatusLine,
+  getYearlySavings,
 } from "../lib/subscriptionEntitlements";
+import type { SubscriptionCatalogTier } from "../types/subscription";
 import type { QuotaResponse } from "../types/subscription";
 import { getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { trackUpgradeClick, trackUpgradeConversion } from "../lib/upgradeAnalytics";
@@ -119,7 +123,7 @@ export default function BillingPage() {
       [
         { key: "ai_conversations", label: t("dashboard:billing.metricAiConversations", "每日 AI 消息") },
         { key: "projects", label: t("dashboard:billing.metricProjects", "项目数") },
-        { key: "material_decompositions", label: t("dashboard:billing.metricMaterialDecompositions", "素材拆解次数") },
+        { key: "material_decompositions", label: t("dashboard:billing.metricMaterialDecompositions", "素材拆解") },
         { key: "skill_creates", label: t("dashboard:billing.metricCustomSkills", "自定义技能") },
         { key: "inspiration_copies", label: t("dashboard:billing.metricInspirationCopies", "复制灵感") },
       ].filter((item) => inspirationsConfig.enabled || item.key !== "inspiration_copies") as { key: UsageKey; label: string }[],
@@ -144,9 +148,30 @@ export default function BillingPage() {
     return `¥${amount}${unit}`;
   };
 
+  // Yearly is the offer we lead with: spell out the monthly equivalent and the
+  // saving next to the two prices instead of leaving the maths to the reader.
+  const formatPlanPrice = (plan: SubscriptionCatalogTier): string => {
+    const monthly = formatPrice(plan.price_monthly_cents, "month");
+    if (plan.price_monthly_cents === 0 && plan.price_yearly_cents === 0) return monthly;
+    const yearly = formatPrice(plan.price_yearly_cents, "year");
+    const savings = getYearlySavings(plan.price_monthly_cents, plan.price_yearly_cents);
+    if (!savings) return `${monthly} · ${yearly}`;
+    return t("dashboard:billing.priceWithYearlyOffer", "{{monthly}}，或 {{yearly}}（折合 {{equivalent}}/月，省 {{percent}}%）", {
+      monthly,
+      yearly,
+      equivalent: formatYuan(savings.monthlyEquivalent, i18n.language),
+      percent: savings.percent,
+    });
+  };
+
+  // A limit of 0 means the plan does not include the feature; "0/0" with an
+  // empty bar reads like something broke.
+  const isNotIncluded = (metric?: QuotaResponse[UsageKey]) => metric?.limit === 0;
+
   const formatUsage = (metric?: QuotaResponse[UsageKey]) => {
     if (!metric) return "-";
-    if (metric.limit === -1) return t("settings:subscription.unlimited", "无限");
+    if (metric.limit === -1) return t("settings:subscription.unlimited", "不限");
+    if (isNotIncluded(metric)) return t("dashboard:billing.availableWithPro", "Pro 可用");
     return `${metric.used}/${metric.limit}`;
   };
 
@@ -162,11 +187,12 @@ export default function BillingPage() {
   // never claim "renew" for someone who may be on the free plan.
   const isUpgradableTier = status?.tier === "free";
   const isPaidTier = Boolean(status?.tier) && !isUpgradableTier;
+  const statusLine = status ? getSubscriptionStatusLine(status, t) : null;
 
   return (
     <div className="space-y-6">
       <DashboardPageHeader
-        title={t("dashboard:billing.title", "订阅与权益")}
+        title={t("dashboard:billing.title", "订阅权益")}
         subtitle={t("dashboard:billing.subtitle", "查看当前套餐和用量，需要更多额度时可升级或使用兑换码。")}
         action={
           <div className="flex items-center gap-2">
@@ -184,7 +210,7 @@ export default function BillingPage() {
                 }}
               >
                 {isUpgradableTier
-                  ? t("dashboard:billing.ctaBuyPro", "购买 Pro")
+                  ? t("dashboard:billing.ctaBuyPro", "开通 Pro")
                   : isPaidTier
                   ? t("dashboard:billing.ctaRenewPro", "续费 Pro")
                   : t("dashboard:billing.ctaProNeutral", "开通或续费 Pro")}
@@ -203,7 +229,7 @@ export default function BillingPage() {
                     setShowRedeemCodeModal(true);
                   }}
                 >
-                  {t("dashboard:billing.ctaUpgradePro", "升级专业版")}
+                  {t("dashboard:billing.ctaUpgradePro", "开通 Pro")}
                 </Button>
               )
             )}
@@ -227,14 +253,15 @@ export default function BillingPage() {
                       {
                         display_name: status.display_name,
                         display_name_en: status.display_name_en,
+                        tier: status.tier,
                       },
                       i18n.language
                     )
                   : t("dashboard:billing.unknownPlan", "未开通")}
               </Badge>
-              {status?.status && (
+              {statusLine && (
                 <span className="text-xs text-[hsl(var(--text-secondary))]">
-                  {t(`settings:subscription.${status.status}`, status.status)}
+                  {statusLine}
                 </span>
               )}
             </div>
@@ -277,6 +304,7 @@ export default function BillingPage() {
               const metric = quota?.[item.key];
               const progress = usageProgress(metric);
               const isWarning = metric && metric.limit !== -1 && metric.limit > 0 && progress >= 80;
+              const notIncluded = isNotIncluded(metric);
               return (
                 <div key={item.key} className="rounded-lg border border-[hsl(var(--border-color))] p-3">
                   <div className="flex items-center justify-between text-sm">
@@ -285,7 +313,7 @@ export default function BillingPage() {
                       {formatUsage(metric)}
                     </span>
                   </div>
-                  {metric?.limit !== -1 && (
+                  {metric?.limit !== -1 && !notIncluded && (
                     <div className="mt-2 h-1.5 rounded-full bg-[hsl(var(--bg-tertiary))] overflow-hidden">
                       <div
                         className={`h-full ${isWarning ? "bg-[hsl(var(--warning))]" : "bg-[hsl(var(--accent-primary))]"}`}
@@ -301,10 +329,12 @@ export default function BillingPage() {
                             "免费用户每日最多 {{limit}} 条 AI 消息，北京时间次日 00:00 恢复。",
                             { limit: metric?.limit ?? 0 }
                           )
-                        : t("dashboard:billing.dailyQuotaResetHint", "每日 AI 对话额度于北京时间 00:00 重置。")}
+                        : metric?.limit === -1
+                        ? t("dashboard:billing.proNoDailyLimit", "Pro 每天的 AI 消息不限条数。")
+                        : t("dashboard:billing.dailyQuotaResetHint", "每天的 AI 消息在北京时间 00:00 恢复。")}
                     </p>
                   )}
-                  {(item.key === "material_decompositions" || item.key === "inspiration_copies") && (
+                  {(item.key === "material_decompositions" || item.key === "inspiration_copies") && !notIncluded && (
                     <p className="mt-2 text-xs text-[hsl(var(--text-secondary))]">
                       {t("dashboard:billing.monthlyQuotaResetHint", "每月额度于北京时间每月 1 日 00:00 重置。")}
                     </p>
@@ -320,7 +350,7 @@ export default function BillingPage() {
         <div className="flex items-center gap-2 mb-4">
           <Crown className="w-4 h-4 text-[hsl(var(--accent-primary))]" />
           <h2 className="text-base font-semibold text-[hsl(var(--text-primary))]">
-            {t("dashboard:billing.compareTitle", "套餐权益对比")}
+            {t("dashboard:billing.compareTitle", "选一个适合你的方案")}
           </h2>
         </div>
         {isCatalogPendingState ? (
@@ -337,7 +367,6 @@ export default function BillingPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {sortedPlans.map((plan) => {
               const isCurrent = status?.tier === plan.name;
-              const isFreePlan = plan.price_monthly_cents === 0 && plan.price_yearly_cents === 0;
               return (
                 <div
                   key={plan.id}
@@ -350,11 +379,10 @@ export default function BillingPage() {
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div>
                       <div className="text-lg font-semibold text-[hsl(var(--text-primary))]">
-                        {getLocalizedPlanDisplayName(plan, i18n.language)}
+                        {getLocalizedPlanDisplayName({ ...plan, tier: plan.name }, i18n.language)}
                       </div>
                       <div className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
-                        {formatPrice(plan.price_monthly_cents, "month")}
-                        {!isFreePlan && <> · {formatPrice(plan.price_yearly_cents, "year")}</>}
+                        {formatPlanPrice(plan)}
                       </div>
                     </div>
                     {isCurrent ? (
@@ -421,6 +449,7 @@ export default function BillingPage() {
           monthlyPriceCents={proPlan?.price_monthly_cents}
           yearlyPriceCents={proPlan?.price_yearly_cents}
           upgradeSource={effectiveUpgradeSource}
+          isRenewal={isPaidTier}
         />
       )}
     </div>

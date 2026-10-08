@@ -56,7 +56,7 @@ const LOCALES = {
   en: { common: enCommon, dashboard: enDashboard, errors: enErrors },
 }
 
-function renderModal(initialCycle: 'month' | 'year' = 'month', upgradeSource?: string) {
+function renderModal(initialCycle: 'month' | 'year' = 'month', upgradeSource?: string, isRenewal?: boolean) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
@@ -67,6 +67,7 @@ function renderModal(initialCycle: 'month' | 'year' = 'month', upgradeSource?: s
         monthlyPriceCents={1900}
         yearlyPriceCents={19000}
         upgradeSource={upgradeSource}
+        isRenewal={isRenewal}
       />
     </QueryClientProvider>
   )
@@ -92,7 +93,10 @@ describe('PaymentCheckoutModal', () => {
 
     renderModal()
     expect(await screen.findByText('支付宝')).toBeInTheDocument()
-    expect(screen.getByText('开通 Pro 会员')).toBeInTheDocument()
+    expect(screen.getByText('开通 Pro')).toBeInTheDocument()
+    // The buyer sees what Pro includes and that nothing renews by itself.
+    expect(screen.getByText('AI 消息不限条数 · 项目不限 · 每月 5 次素材拆解')).toBeInTheDocument()
+    expect(screen.getByText('一次性付款，不会自动续费。到期前续费，时长会接在当前到期日之后。')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^去支付 ¥19$/ })).toBeInTheDocument()
     // The yearly option carries the saving so the better deal is visible before choosing.
     expect(screen.getByRole('radio', { name: /年付/ })).toHaveTextContent('最划算 · 省 17%')
@@ -134,8 +138,14 @@ describe('PaymentCheckoutModal', () => {
   it('disables checkout when server options are disabled', async () => {
     vi.mocked(paymentApi.getOptions).mockResolvedValue({ enabled: false, payment_methods: [] })
     renderModal()
-    expect(await screen.findByText('暂时无法在线支付。有兑换码的话，可在「订阅权益」页点「兑换码」开通。')).toBeInTheDocument()
+    expect(await screen.findByText('暂时无法在线支付。有兑换码的话，点页面上的「兑换码」也能开通。')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /去支付/ })).toBeDisabled()
+  })
+
+  it('titles the checkout as a renewal for a Pro buyer', async () => {
+    renderModal('month', undefined, true)
+    expect(await screen.findByText('续费 Pro')).toBeInTheDocument()
+    expect(screen.queryByText('开通 Pro')).not.toBeInTheDocument()
   })
 
   it('locks checkout after redirecting, records the funnel, and unlocks on bfcache restore', async () => {

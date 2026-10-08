@@ -571,10 +571,14 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                       buildUpgradeUrl(settingsUpgradePrompt.billingPath, settingsUpgradePrompt.source)
                     );
                   }}
+                  onRenewClick={() => {
+                    onClose();
+                    window.location.assign('/dashboard/billing');
+                  }}
                 />
                 <div className="mt-4">
                   <h4 className="text-xs font-medium text-[hsl(var(--text-secondary))] mb-2">
-                    {tSettings('subscription.usage', '使用量')}
+                    {tSettings('subscription.usage', '今日用量')}
                   </h4>
                   <QuotaBadge />
                 </div>
@@ -604,7 +608,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                     className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-[hsl(var(--border-color))] text-sm text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-hover))] transition-colors"
                   >
                     <CreditCard size={14} />
-                    <span>{tSettings('points.redeemPro', '用积分兑换 Pro 会员')}</span>
+                    <span>{tSettings('points.redeemPro', '用积分兑换 Pro')}</span>
                   </button>
                   <DailyCheckIn />
                   <EarnOpportunities />

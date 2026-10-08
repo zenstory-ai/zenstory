@@ -4,7 +4,9 @@ import {
   filterAvailableMetrics,
   formatEntitlementLimit,
   getEntitlementMetricDefinitions,
+  getLocalizedPlanDisplayName,
   getSubscriptionFeatureRows,
+  getSubscriptionStatusLine,
   getYearlySavings,
 } from "../subscriptionEntitlements";
 import type { SubscriptionCatalogTier } from "../../types/subscription";
@@ -15,7 +17,10 @@ vi.mock("../../config/inspirations", () => ({
   inspirationsConfig: inspirationFeature,
 }));
 
-const t = (_key: string, fallback: string) => fallback;
+const t = (_key: string, fallback: string, options?: Record<string, unknown>) =>
+  options
+    ? fallback.replace(/{{\s*(\w+)\s*}}/g, (_, name: string) => String(options[name] ?? ""))
+    : fallback;
 
 describe("getEntitlementMetricDefinitions", () => {
   beforeEach(() => {
@@ -44,6 +49,60 @@ describe("getEntitlementMetricDefinitions", () => {
     // Materials stay: decomposition runs in production.
     expect(keys).toContain("material_decompositions_monthly");
     expect(keys).toContain("custom_skills_limit");
+    // TXT is the only format on every plan, so a row would carry no information.
+    expect(keys).not.toContain("export_formats");
+  });
+
+  it("writes unlimited on its own, counts messages in 条, and marks a 0 allowance as not included", () => {
+    const definitions = getEntitlementMetricDefinitions(t, "zh-CN");
+    const valueOf = (key: string, entitlements: Record<string, unknown>) =>
+      definitions
+        .find((metric) => metric.key === key)!
+        .value({ entitlements } as unknown as SubscriptionCatalogTier);
+
+    expect(valueOf("ai_conversations_per_day", { ai_conversations_per_day: 10 })).toBe("10 条/天");
+    expect(valueOf("ai_conversations_per_day", { ai_conversations_per_day: -1 })).toBe("不限");
+    expect(valueOf("active_projects_limit", { active_projects_limit: -1 })).toBe("不限");
+    expect(valueOf("material_decompositions_monthly", { material_decompositions_monthly: 0 })).toBe("不含");
+    expect(valueOf("material_decompositions_monthly", { material_decompositions_monthly: 5 })).toBe("5 次/月");
+  });
+});
+
+describe("getLocalizedPlanDisplayName", () => {
+  const legacyFree = { display_name: "免费试用", display_name_en: "Free Trial" };
+
+  it("names the free and Pro tiers by the glossary whatever the stored name says", () => {
+    expect(getLocalizedPlanDisplayName({ ...legacyFree, tier: "free" }, "zh-CN")).toBe("免费版");
+    expect(getLocalizedPlanDisplayName({ ...legacyFree, tier: "free" }, "en-US")).toBe("Free");
+    expect(getLocalizedPlanDisplayName({ display_name: "专业版", display_name_en: "Pro Plan", tier: "pro" }, "zh-CN")).toBe("Pro");
+  });
+
+  it("keeps the stored name when no tier is given or the tier is not in the glossary", () => {
+    expect(getLocalizedPlanDisplayName(legacyFree, "zh-CN")).toBe("免费试用");
+    expect(getLocalizedPlanDisplayName(legacyFree, "en-US")).toBe("Free Trial");
+    expect(getLocalizedPlanDisplayName({ display_name: "团队版", display_name_en: "Team", tier: "team" }, "en-US")).toBe("Team");
+  });
+});
+
+describe("getSubscriptionStatusLine", () => {
+  it("shows no status word for the free plan", () => {
+    expect(getSubscriptionStatusLine({ tier: "free", status: "none", current_period_end: null, days_remaining: null }, t)).toBeNull();
+    expect(getSubscriptionStatusLine({ tier: "free", status: "active", current_period_end: null, days_remaining: null }, t)).toBeNull();
+  });
+
+  it("shows when an active Pro plan ends", () => {
+    expect(
+      getSubscriptionStatusLine(
+        { tier: "pro", status: "active", current_period_end: "2026-11-07T04:00:00Z", days_remaining: 30 },
+        t,
+      ),
+    ).toBe("有效期至 2026/11/07 · 剩余 30 天");
+  });
+
+  it("says an expired plan fell back to Free", () => {
+    expect(
+      getSubscriptionStatusLine({ tier: "pro", status: "expired", current_period_end: null, days_remaining: null }, t),
+    ).toBe("已到期，现在是免费版");
   });
 });
 
@@ -66,7 +125,7 @@ describe("filterAvailableMetrics", () => {
 
   it("keeps every metric when all plans report it", () => {
     const definitions = getEntitlementMetricDefinitions(t, "zh-CN");
-    const full = Object.fromEntries(definitions.map((metric) => [metric.key, metric.key === "export_formats" ? [] : 1]));
+    const full = Object.fromEntries(definitions.map((metric) => [metric.key, 1]));
     expect(filterAvailableMetrics(definitions, [plan(full)])).toHaveLength(definitions.length);
   });
 });
@@ -74,7 +133,7 @@ describe("filterAvailableMetrics", () => {
 describe("formatEntitlementLimit", () => {
   it("does not throw on a limit the API did not send", () => {
     expect(formatEntitlementLimit(undefined, "zh-CN", t)).toBe("-");
-    expect(formatEntitlementLimit(-1, "zh-CN", t)).toBe("无限");
+    expect(formatEntitlementLimit(-1, "zh-CN", t)).toBe("不限");
     expect(formatEntitlementLimit(1000, "en-US", t)).toBe("1,000");
   });
 });
@@ -114,9 +173,20 @@ describe("getSubscriptionFeatureRows", () => {
       expect.arrayContaining(["context_window_tokens", "priority_support", "custom_prompts", "materials_library_access"]),
     );
     expect(text).not.toMatch(/materials_library_access|priority|16384|优先支持|是|否/);
-    expect(text).toContain("每日 AI 消息:无限");
-    expect(text).toContain("素材拆解次数:5 次/月");
-    expect(text).toContain("导出格式:TXT");
+    expect(text).toContain("每日 AI 消息:不限");
+    expect(text).toContain("素材拆解:5 次/月");
+    expect(text).toContain("每个文件保留的历史版本:100 个");
+  });
+
+  it("never lists material uploads (not metered) or export formats (TXT on every plan)", () => {
+    const keys = getSubscriptionFeatureRows(proFeatures, t, "zh-CN").map((row) => row.key);
+    expect(keys).not.toContain("material_uploads");
+    expect(keys).not.toContain("export_formats");
+  });
+
+  it("counts daily AI messages in 条", () => {
+    const rows = getSubscriptionFeatureRows({ ...proFeatures, ai_conversations_per_day: 10 }, t, "zh-CN");
+    expect(rows.find((row) => row.key === "ai_conversations_per_day")?.value).toBe("10 条/天");
   });
 
   it("marks material limits as not included without library access", () => {
@@ -125,7 +195,6 @@ describe("getSubscriptionFeatureRows", () => {
       t,
       "zh-CN",
     );
-    expect(rows.find((row) => row.key === "material_uploads")?.value).toBe("不含");
     expect(rows.find((row) => row.key === "material_decompositions")?.value).toBe("不含");
   });
 });
