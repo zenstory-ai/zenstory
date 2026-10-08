@@ -42,6 +42,11 @@ MAX_TOOL_FAILURES_PER_REQUEST = 10
 # 整条工作流就被 ERROR 终止，空文件纠偏轮也跑不到，只留下一个空文件。
 _ORDERING_ERROR_TYPES = frozenset({"pending_empty_file_unwritten"})
 
+# 重复读取守卫（repeat_read_guard）主动拦下的结果：不是工具失败，由守卫自己计数并
+# 判定「无进展」；熔断器若也记账，同一文件第 4～6 次读取会先以「相同参数连续失败」
+# 熔断，抢走守卫的停止原因与计费口径。
+_GUARD_ERROR_TYPES = frozenset({"repeated_read", "no_progress_stop"})
+
 # 触发原因，写进停止事件的 data.reason，供日志/测试区分。
 TRIP_REASON_IDENTICAL = "repeated_identical_tool_failure"
 TRIP_REASON_TOTAL = "too_many_tool_failures"
@@ -230,6 +235,8 @@ class ToolFailureBreaker:
         """记录一次工具结果，返回交给模型的输出（重复失败时附带不要原样重试的提示）。"""
         key = (tool_name, _normalize_arguments(raw_arguments))
         payload = _parse_error_payload(output_text, tool_name)
+        if payload is not None and payload.get("error_type") in _GUARD_ERROR_TYPES:
+            return output_text
         if payload is None:
             # 同一调用成功：它的连续失败计数清零。累计失败数不清零——那是整次请求的兜底。
             self._streaks.pop(key, None)

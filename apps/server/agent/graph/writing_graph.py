@@ -22,8 +22,9 @@ from agent.graph.nodes import (
     evaluate_agent_output,
     run_streaming_agent,
 )
-from agent.graph.router import get_next_node, router_node
+from agent.graph.router import get_next_node, resume_route_after_exhaustion, router_node
 from agent.graph.state import WritingState
+from agent.openai_agents.repeat_read_guard import RepeatReadGuard
 from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
 from agent.tools.mcp_tools import ToolContext, update_project
 from config.agent_runtime import (
@@ -41,6 +42,12 @@ logger = get_logger(__name__)
 # left empty (created via create_file but never completed the <file>…</file>
 # write). Bounded so a model that keeps failing cannot loop indefinitely.
 MAX_FILE_CORRECTION_ATTEMPTS = 2
+
+# 一次请求内 writer → quality_reviewer 的审查轮数上限。达到后不再自动送审（自动质检门
+# 与 writer 的显式送审都不再生效），审稿人再要求返修时不交回 writer，而是以正常完成
+# 收尾并把审稿意见展示给用户——之前没有硬上限，只靠第 3 轮起的「尽量放行」提示，
+# writer ↔ 审稿人能一直来回到协作轮数耗尽。
+MAX_REVIEW_ROUNDS = 2
 
 # pending-empty-file 标记的落库核验结果
 _PENDING_BODY_EMPTY = "empty"
@@ -248,6 +255,36 @@ def _build_scope_directive(routing_metadata: dict[str, Any] | None) -> str:
             "不要额外续写后续章节或创建范围外的文件；范围内的工作完成后即结束。"
         )
     return "\n".join(parts)
+
+
+def _review_notes_from_packet(packet: dict[str, Any] | None, context: str) -> str:
+    """审稿人要求返修时的交接内容（context + todo），用于达到审查上限后展示给用户。"""
+    parts: list[str] = []
+    if isinstance(packet, dict):
+        packet_context = str(packet.get("context") or "").strip()
+        if packet_context:
+            parts.append(packet_context)
+        todo = [str(item).strip() for item in packet.get("todo") or [] if str(item).strip()]
+        if todo:
+            parts.append("\n".join(f"- {item}" for item in todo))
+    if not parts and context.strip():
+        parts.append(context.strip())
+    return "\n".join(parts)
+
+
+def _review_limit_text(notes: str) -> str:
+    """达到审查轮数上限、不再自动返修时追加给用户的说明（随 assistant 正文落库）。"""
+    body = f"\n{notes}" if notes else ""
+    return (
+        f"\n\n——\n已完成 {MAX_REVIEW_ROUNDS} 轮质量审查（本次请求的上限），不再自动返修。"
+        f"审稿人仍建议修改：{body}\n"
+        "如需按这些意见继续修改，请直接回复「按审稿意见修改」。"
+    )
+
+
+def _guard_from_state(state: WritingState) -> RepeatReadGuard | None:
+    guard = state.get("repeat_read_guard")
+    return guard if isinstance(guard, RepeatReadGuard) else None
 
 
 def _tool_result_failed(result: Any) -> bool:
@@ -601,6 +638,9 @@ async def run_writing_workflow_streaming(
     # 工具失败熔断器按请求共享：每个 agent run 都从 state 取同一个（见 runner），
     # writer → 审稿人 → writer 的往返不会让「同一调用连续失败」的计数归零。
     state["tool_failure_breaker"] = ToolFailureBreaker()
+    # 重复读取守卫 + 本请求读写台账：同样按请求共享（见 runner / repeat_read_guard）。
+    # 交接时把「已读过 / 已改过哪些文件」写进下一个 agent 的交接信息，避免从头再读。
+    state["repeat_read_guard"] = RepeatReadGuard()
     # 请求级模型调用预算：service 可能已放入一个（以便请求结束时读计数写摘要），
     # 否则这里建一个；每个 agent run 都从 state 取同一个。
     if not isinstance(state.get("run_meter"), AgentRunMeter):
@@ -657,8 +697,14 @@ async def run_writing_workflow_streaming(
             router_strategy = "llm"
             enable_graph_auto_review = True
 
+        # 上一轮以工具调用轮数耗尽 / 无进展停止收尾，用户只回了一句「继续」：直接交给
+        # 上一轮的 agent 走 quick 工作流，不再重新做多 agent 规划（规划会从头再读一遍）。
+        resume_result = resume_route_after_exhaustion(state)
+
         try:
-            if router_strategy == "off":
+            if resume_result is not None:
+                router_result = resume_result
+            elif router_strategy == "off":
                 router_result = {
                     "current_agent": "writer",
                     "workflow_plan": "quick",
@@ -821,6 +867,15 @@ async def run_writing_workflow_streaming(
                         review_round=review_round,
                     )
 
+                # 本请求已读 / 已改的文件（只有标题与 id）：交接后 SDK 的输入只回放文字，
+                # 工具结果不进下一个 agent 的历史，不告诉它就会从头再读一遍。
+                work_log_text = ""
+                read_guard = _guard_from_state(state)
+                if read_guard is not None:
+                    work_summary = read_guard.handoff_summary()
+                    if work_summary:
+                        work_log_text = f"\n\n[本请求的读写记录]: {work_summary}"
+
                 # 刷新文件清单
                 inventory_text = ""
                 try:
@@ -842,24 +897,21 @@ async def run_writing_workflow_streaming(
                 # 对 Reviewer 使用专门的消息格式，不传递原始用户请求
                 # 避免 Reviewer 误以为自己需要创作
                 if is_reviewer:
-                    # 构建审查轮次提示
-                    # review_round=1 是第一次审查，不需要提示
-                    # review_round=2 是第二次审查（第一次循环）
-                    # review_round>=3 是第三次及以上审查
+                    # 构建审查轮次提示：review_round=1 是第一次审查，不需要提示；
+                    # 最后一轮（MAX_REVIEW_ROUNDS）告诉审稿人之后不会再自动返修。
+                    # 通过标准只由审稿人提示词决定，这里不另给分数线。
                     round_hint = ""
-                    if review_round >= 3:
+                    if review_round >= MAX_REVIEW_ROUNDS:
                         round_hint = (
-                            f"\n\n[重要提示] 这是第 {review_round} 轮审查，已经过多轮修改。"
-                            "除非有严重的质量问题（如明显的逻辑错误、角色崩坏），"
-                            "否则应该通过审查，避免无限循环修改。"
-                            "追更指数达到 5 分以上即可通过。"
+                            f"\n\n[提示] 这是第 {review_round} 轮审查，也是本次请求的最后一轮"
+                            "（之后不会再自动返修）。请重点核对之前提出的问题是否已修复，"
+                            "仍有问题时把剩余修改意见写清楚，交给用户决定。"
                         )
-                    elif review_round == 2:
-                        round_hint = "\n\n[提示] 这是第 2 轮审查，请重点关注之前提出的问题是否已修复。"
 
                     modified_state["user_message"] = (
                         f"[质量检查任务]\n\n请审查上一个 Agent 完成的内容。\n\n"
-                        f"交接信息: {handoff_context}{inventory_text}{round_hint}{last_iteration_hint}"
+                        f"交接信息: {handoff_context}{work_log_text}{inventory_text}"
+                        f"{round_hint}{last_iteration_hint}"
                     )
                 else:
                     # The original user request is already replayed as the first user turn
@@ -868,7 +920,7 @@ async def run_writing_workflow_streaming(
                     # handoff context as this turn's user message.
                     modified_state["user_message"] = (
                         f"[来自上一个Agent的交接信息]: "
-                        f"{handoff_context}{inventory_text}{last_iteration_hint}"
+                        f"{handoff_context}{work_log_text}{inventory_text}{last_iteration_hint}"
                     )
             else:
                 # 即使没有 handoff_context，也需要注入最后一轮提示
@@ -1301,6 +1353,58 @@ async def run_writing_workflow_streaming(
                 explicit_handoff_event_data = None
                 handoff_packet = None
 
+            # 审查轮数上限：writer 不能再显式送审；审稿人要求返修时不再交回 writer，
+            # 而是正常收尾并把审稿意见展示给用户。
+            review_limit_notes: str | None = None
+            if next_agent and review_round >= MAX_REVIEW_ROUNDS:
+                if current_agent_type == "quality_reviewer" and _agent_can_write_files(next_agent):
+                    review_limit_notes = _review_notes_from_packet(handoff_packet, handoff_context)
+                    log_with_context(
+                        logger,
+                        30,  # WARNING
+                        "Review round limit reached; finishing instead of handing back for rework",
+                        review_round=review_round,
+                        max_review_rounds=MAX_REVIEW_ROUNDS,
+                        to_agent=next_agent,
+                    )
+                    next_agent = None
+                    explicit_handoff_event_data = None
+                    handoff_packet = None
+                elif current_agent_type == "writer" and next_agent == "quality_reviewer":
+                    log_with_context(
+                        logger,
+                        20,  # INFO
+                        "Review round limit reached; dropping writer handoff to reviewer",
+                        review_round=review_round,
+                        max_review_rounds=MAX_REVIEW_ROUNDS,
+                    )
+                    next_agent = None
+                    explicit_handoff_event_data = None
+                    handoff_packet = None
+
+            if review_limit_notes is not None:
+                yield StreamEvent(
+                    type=StreamEventType.TEXT,
+                    data={"text": _review_limit_text(review_limit_notes)},
+                )
+                for auto_task_update_event in await _auto_finalize_task_board_on_completion():
+                    yield auto_task_update_event
+                if (notice := _take_read_only_notice()) is not None:
+                    yield notice
+                yield StreamEvent(
+                    type=StreamEventType.WORKFLOW_COMPLETE,
+                    data={
+                        "reason": "review_round_limit",
+                        "agent_type": current_agent_type,
+                        "message": "已达到审查轮数上限，审稿意见已列出",
+                        "review_rounds": review_round,
+                        "max_review_rounds": MAX_REVIEW_ROUNDS,
+                        "review_notes": review_limit_notes,
+                    },
+                )
+                terminated_via_break = True
+                break
+
             # agent 以向用户提问收尾：它在等用户回答，计划交接不能越过用户继续跑
             # （否则 planner 刚问完“这个方向可以吗？”，writer 已经按没确认的方向写完
             # 了正文）。显式 handoff 是 agent 自己的明确决定，不受影响。
@@ -1368,13 +1472,15 @@ async def run_writing_workflow_streaming(
                     # 否则下游 writer 只看到「自动交接」，会按大纲把整本书往下写。
                     handoff_context += f"。用户要求的交付范围：{user_scope}，只完成该范围内的内容"
                     planned_todo.append(f"按用户要求的范围完成：{user_scope}")
+                planned_guard = _guard_from_state(state)
                 handoff_packet = {
                     "target_agent": next_planned,
                     "reason": "工作流自动交接",
                     "context": handoff_context,
-                    "completed": [],
+                    "completed": planned_guard.completed_items() if planned_guard else [],
                     "todo": planned_todo,
                     "evidence": [f"workflow_plan={workflow_plan}"],
+                    "artifact_refs": planned_guard.written_file_ids() if planned_guard else [],
                 }
 
                 log_with_context(
@@ -1397,6 +1503,7 @@ async def run_writing_workflow_streaming(
                 enable_graph_auto_review
                 and not read_only_request
                 and current_agent_type == "writer"
+                and review_round < MAX_REVIEW_ROUNDS
                 and len(agent_content) >= auto_review_threshold
                 and (writer_emitted_file_markers or writer_used_write_tools)
             ):
@@ -1412,13 +1519,15 @@ async def run_writing_workflow_streaming(
 
                 handoff_event_context = f"内容长度 {len(agent_content)} 字，自动触发质量检查"
                 handoff_context = handoff_event_context
+                review_guard = _guard_from_state(state)
                 handoff_packet = {
                     "target_agent": "quality_reviewer",
                     "reason": "自动质量门控",
                     "context": handoff_event_context,
-                    "completed": [],
+                    "completed": review_guard.completed_items() if review_guard else [],
                     "todo": ["执行质量审查并返回问题清单"],
                     "evidence": [f"content_length={len(agent_content)}"],
+                    "artifact_refs": review_guard.written_file_ids() if review_guard else [],
                 }
 
                 pending_handoff_event_data = {
