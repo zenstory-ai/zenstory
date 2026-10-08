@@ -12,8 +12,10 @@ from starlette.datastructures import Headers, UploadFile
 
 from api.feedback import submit_feedback
 from core.error_codes import ErrorCode
+from core.error_handler import APIException
 from models import User, UserFeedback
 from services.core.auth_service import hash_password
+from services.infra.upload_storage import StoredObject
 
 VALID_PNG_BYTES = (
     b"\x89PNG\r\n\x1a\n"
@@ -23,13 +25,61 @@ VALID_PNG_BYTES = (
 )
 
 
-@pytest.mark.parametrize("failure_point", ["commit", "refresh"])
+@pytest.mark.asyncio
+async def test_s3_feedback_does_not_create_unwritable_legacy_root(monkeypatch):
+    class _MemoryStorage:
+        def put_feedback(self, *, object_name, content, **_kwargs):
+            return StoredObject(
+                f"s3://test-bucket/feedback/{object_name}",
+                len(content),
+                "0" * 64,
+            )
+
+        def close(self):
+            return None
+
+    monkeypatch.setenv("FEEDBACK_UPLOAD_DIR", "/root-owned-volume/feedback")
+    monkeypatch.setattr("api.feedback.get_upload_storage", lambda **_kwargs: _MemoryStorage())
+    session = SimpleNamespace(
+        add=lambda _feedback: None,
+        flush=lambda: None,
+        refresh=lambda _feedback: None,
+        commit=lambda: None,
+        rollback=lambda: None,
+    )
+    screenshot = UploadFile(
+        filename="screen.png",
+        file=io.BytesIO(VALID_PNG_BYTES),
+        headers=Headers({"content-type": "image/png"}),
+    )
+
+    result = submit_feedback(
+        issue_text="s3 bypasses local root",
+        source_page="editor",
+        source_route=None,
+        trace_id=None,
+        request_id=None,
+        agent_run_id=None,
+        project_id=None,
+        agent_session_id=None,
+        screenshot=screenshot,
+        current_user=SimpleNamespace(id="user-1"),
+        session=session,
+    )
+    assert result.id
+
+
+@pytest.mark.parametrize(
+    ("failure_point", "should_remain"),
+    [("commit", True), ("refresh", False)],
+)
 @pytest.mark.asyncio
 async def test_submit_feedback_removes_new_screenshot_when_persistence_fails(
-    monkeypatch, tmp_path, failure_point
+    monkeypatch, tmp_path, failure_point, should_remain
 ):
     monkeypatch.setenv("FEEDBACK_UPLOAD_DIR", str(tmp_path))
-    monkeypatch.setattr("api.feedback._build_screenshot_filename", lambda *_args: "owned.png")
+    object_name = f"{'a' * 32}.png"
+    monkeypatch.setattr("api.feedback._build_screenshot_filename", lambda *_args: object_name)
 
     class _FailingSession:
         def __init__(self):
@@ -75,14 +125,15 @@ async def test_submit_feedback_removes_new_screenshot_when_persistence_fails(
         )
 
     assert session.rollback_calls == 1
-    assert not (tmp_path / "owned.png").exists()
+    assert (tmp_path / object_name).exists() is should_remain
 
 
 @pytest.mark.asyncio
 async def test_submit_feedback_never_deletes_a_preexisting_filename(monkeypatch, tmp_path):
     monkeypatch.setenv("FEEDBACK_UPLOAD_DIR", str(tmp_path))
-    monkeypatch.setattr("api.feedback._build_screenshot_filename", lambda *_args: "existing.png")
-    existing = tmp_path / "existing.png"
+    object_name = f"{'b' * 32}.png"
+    monkeypatch.setattr("api.feedback._build_screenshot_filename", lambda *_args: object_name)
+    existing = tmp_path / object_name
     existing.write_bytes(b"not owned by this request")
 
     screenshot = UploadFile(
@@ -98,7 +149,7 @@ async def test_submit_feedback_never_deletes_a_preexisting_filename(monkeypatch,
         rollback=lambda: None,
     )
 
-    with pytest.raises(FileExistsError):
+    with pytest.raises(APIException) as exc_info:
         submit_feedback(
             issue_text="collision",
             source_page="editor",
@@ -113,6 +164,7 @@ async def test_submit_feedback_never_deletes_a_preexisting_filename(monkeypatch,
             session=session,
         )
 
+    assert exc_info.value.status_code == 503
     assert existing.read_bytes() == b"not owned by this request"
 
 

@@ -36,6 +36,7 @@ vi.mock('../../contexts/ProjectContext', () => ({ useProject: () => {
   acceptEdit: vi.fn(), rejectEdit: vi.fn(), resetEdit: vi.fn(), acceptAllEdits: vi.fn(), rejectAllEdits: vi.fn(),
 });
 } }));
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 'user-1' } }) }));
 vi.mock('../../contexts/MaterialLibraryContext', () => ({ useMaterialLibraryContext: () => ({ preview: null }) }));
 vi.mock('../../contexts/MaterialAttachmentContext', () => ({ useMaterialAttachment: () => ({ addMaterial: vi.fn() }) }));
 vi.mock('../../contexts/TextQuoteContext', () => ({ useTextQuote: () => ({ addQuote: vi.fn() }) }));

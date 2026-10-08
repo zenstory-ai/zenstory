@@ -168,6 +168,15 @@
   "saveStaleWrite": "The AI just edited this file. The latest version is loaded — review it and save again.",
   "saveStaleWriteConflict": "This file changed elsewhere. Your text is safe — choose what to keep in the comparison view.",
   "saveVersionQuotaExceeded": "Saved. Your version history is full, so no new version was created. Upgrade to keep more versions.",
+  "draftRecovery": {
+    "restored": "Your unsaved work from before the refresh was restored. Review it, then keep editing or save.",
+    "conflict": "The draft from before the refresh differs from the latest server version. Compare them before restoring the local draft.",
+    "compare": "Compare versions",
+    "restore": "Restore local draft",
+    "discard": "Keep server version",
+    "serverVersion": "Latest server version",
+    "localVersion": "Local draft before refresh"
+  },
   "naturalPolish": "Humanize",
   "naturalPolishWorking": "Humanizing...",
   "naturalPolishTooltip": "Humanize selected text (Ctrl/⌘+Shift+R)",

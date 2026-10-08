@@ -5,6 +5,11 @@ import type { SaveResult } from '../SimpleEditor'
 import * as React from 'react'
 import * as api from '../../lib/api'
 import { ApiError } from '../../lib/apiClient'
+import {
+  createEditorDraftSnapshot,
+  getEditorDraftRecoveryKey,
+  writeEditorDraftSnapshot,
+} from '../../lib/editorDraftRecovery'
 
 const editorTranslations = vi.hoisted(() => ({
   'editor:placeholder.selectFile': 'Select a file to edit',
@@ -23,6 +28,13 @@ const editorTranslations = vi.hoisted(() => ({
   'editor:showLess': 'Show less',
   'editor:fileTree.shortcutHint': 'Ctrl+K',
   'editor:fileTree.searchFiles': 'Search files',
+  'editor:draftRecovery.restored': 'Recovered unsaved draft',
+  'editor:draftRecovery.conflict': 'Local draft conflicts with the server',
+  'editor:draftRecovery.compare': 'Compare versions',
+  'editor:draftRecovery.restore': 'Restore local draft',
+  'editor:draftRecovery.discard': 'Keep server version',
+  'editor:draftRecovery.serverVersion': 'Latest server version',
+  'editor:draftRecovery.localVersion': 'Local draft before refresh',
 } satisfies Record<string, string>))
 const editorTranslator = vi.hoisted(() => ({
   current: (key: string) => editorTranslations[key] || key,
@@ -108,9 +120,12 @@ let mockProjectContext: {
   triggerFileTreeRefresh: () => void;
   editorRefreshVersion: number;
   lastEditedFileId: string | null;
+  aiEditingFileId: string | null;
   diffReviewState: unknown;
+  enterDiffReview: () => void;
   acceptEdit: () => void;
   rejectEdit: () => void;
+  resetEdit: () => void;
   acceptAllEdits: () => void;
   rejectAllEdits: () => void;
   exitDiffReview: () => void;
@@ -148,6 +163,10 @@ vi.mock('../../contexts/ProjectContext', () => ({
   ProjectProvider: ({ children }: { children: React.ReactNode }) => React.createElement(React.Fragment, null, children),
 }))
 
+vi.mock('../../contexts/AuthContext', () => ({
+  useAuth: () => ({ user: { id: 'user-1' } }),
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: editorTranslator.current,
@@ -163,9 +182,12 @@ const createMockProjectContext = (overrides = {}) => ({
   triggerFileTreeRefresh: vi.fn(),
   editorRefreshVersion: 0,
   lastEditedFileId: null,
+  aiEditingFileId: null,
   diffReviewState: null,
+  enterDiffReview: vi.fn(),
   acceptEdit: vi.fn(),
   rejectEdit: vi.fn(),
+  resetEdit: vi.fn(),
   acceptAllEdits: vi.fn(),
   rejectAllEdits: vi.fn(),
   exitDiffReview: vi.fn(),
@@ -184,6 +206,7 @@ const mockFile = {
 describe('Editor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.clear()
     editorTranslator.current = createEditorTranslator()
     vi.spyOn(console, 'error').mockImplementation(() => {})
     mockProjectContext = createMockProjectContext()
@@ -388,6 +411,190 @@ describe('Editor', () => {
       expect(api.fileApi.get).toHaveBeenCalledWith('file-1')
       expect(screen.getByTestId('simple-editor')).toBeInTheDocument()
     })
+  })
+
+  it('restores an equal-token local draft without an automatic write', async () => {
+    vi.mocked(api.fileApi.get).mockResolvedValue({ ...mockFile, updated_at: 'server-v1' })
+    const snapshot = createEditorDraftSnapshot({
+      userId: 'user-1',
+      projectId: 'project-1',
+      fileId: 'file-1',
+      title: 'Recovered title',
+      content: 'Recovered unsaved body',
+      baseUpdatedAt: 'server-v1',
+      capturedAt: '2026-10-07T08:00:00.000Z',
+    })
+    writeEditorDraftSnapshot(localStorage, snapshot)
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+    })
+
+    render(<Editor />)
+
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('Recovered unsaved body'))
+    expect(screen.getByTestId('title-input')).toHaveValue('Recovered title')
+    expect(screen.getByText('Recovered unsaved draft')).toBeInTheDocument()
+    expect(api.fileApi.update).not.toHaveBeenCalled()
+  })
+
+  it('keeps a newer server version visible until the user explicitly restores the draft', async () => {
+    vi.mocked(api.fileApi.get).mockResolvedValue({ ...mockFile, updated_at: 'server-v1' })
+    const snapshot = createEditorDraftSnapshot({
+      userId: 'user-1',
+      projectId: 'project-1',
+      fileId: 'file-1',
+      title: 'Recovered title',
+      content: 'Recovered unsaved body',
+      baseUpdatedAt: 'server-v0',
+      capturedAt: '2026-10-07T08:00:00.000Z',
+    })
+    writeEditorDraftSnapshot(localStorage, snapshot)
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+    })
+
+    render(<Editor />)
+
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('Test content'))
+    expect(screen.getByRole('alert')).toHaveTextContent('Local draft conflicts with the server')
+    fireEvent.click(screen.getByText('Compare versions'))
+    expect(screen.getByText('Latest server version')).toBeInTheDocument()
+    expect(screen.getByText('Local draft before refresh')).toBeInTheDocument()
+    expect(screen.getByText('Test Chapter')).toBeInTheDocument()
+    expect(screen.getByText('Recovered title')).toBeInTheDocument()
+    expect(screen.getByText('Recovered unsaved body')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restore local draft' }))
+    expect(screen.getByTestId('content-input')).toHaveValue('Recovered unsaved body')
+    expect(api.fileApi.update).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Keep server version' }))
+    expect(screen.getByTestId('content-input')).toHaveValue('Test content')
+    expect(localStorage.getItem(getEditorDraftRecoveryKey({
+      userId: 'user-1', projectId: 'project-1', fileId: 'file-1',
+    }))).toBeNull()
+  })
+
+  it('clears an identical snapshot and clears a recovered snapshot only after its save succeeds', async () => {
+    vi.mocked(api.fileApi.get).mockResolvedValue({ ...mockFile, updated_at: 'server-v1' })
+    const scope = { userId: 'user-1', projectId: 'project-1', fileId: 'file-1' }
+    const identical = createEditorDraftSnapshot({
+      ...scope,
+      title: 'Test Chapter',
+      content: 'Test content',
+      baseUpdatedAt: 'server-v0',
+      capturedAt: '2026-10-07T07:00:00.000Z',
+    })
+    writeEditorDraftSnapshot(localStorage, identical)
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+    })
+    const { unmount } = render(<Editor />)
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('Test content'))
+    expect(localStorage.getItem(getEditorDraftRecoveryKey(scope))).toBeNull()
+    unmount()
+
+    const recovered = createEditorDraftSnapshot({
+      ...scope,
+      title: 'Recovered title',
+      content: 'Recovered body',
+      baseUpdatedAt: 'server-v1',
+      capturedAt: '2026-10-07T08:00:00.000Z',
+    })
+    writeEditorDraftSnapshot(localStorage, recovered)
+    render(<Editor />)
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('Recovered body'))
+    fireEvent.change(screen.getByTestId('content-input'), {
+      target: { value: 'Recovered body edited after restore' },
+    })
+    fireEvent.click(screen.getByTestId('save-button'))
+    await waitFor(() => expect(api.fileApi.update).toHaveBeenCalled())
+    expect(api.fileApi.update).toHaveBeenCalledWith('file-1', expect.objectContaining({
+      content: 'Recovered body edited after restore',
+    }))
+    expect(localStorage.getItem(getEditorDraftRecoveryKey(scope))).toBeNull()
+  })
+
+  it('keeps recovery state when local snapshot removal fails after a successful save', async () => {
+    vi.mocked(api.fileApi.get).mockResolvedValue({ ...mockFile, updated_at: 'server-v1' })
+    const scope = { userId: 'user-1', projectId: 'project-1', fileId: 'file-1' }
+    writeEditorDraftSnapshot(localStorage, createEditorDraftSnapshot({
+      ...scope,
+      title: 'Recovered title',
+      content: 'Recovered body',
+      baseUpdatedAt: 'server-v1',
+      capturedAt: '2026-10-07T08:00:00.000Z',
+    }))
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+    })
+    render(<Editor />)
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('Recovered body'))
+    const removeSpy = vi.spyOn(localStorage, 'removeItem').mockImplementation(() => {
+      throw new Error('storage unavailable')
+    })
+
+    fireEvent.click(screen.getByTestId('save-button'))
+
+    await waitFor(() => expect(api.fileApi.update).toHaveBeenCalled())
+    expect(removeSpy).toHaveBeenCalledWith(getEditorDraftRecoveryKey(scope))
+    expect(screen.getByText('Recovered unsaved draft')).toBeInTheDocument()
+  })
+
+  it('does not mix a discarded recovered side into a later one-sided save', async () => {
+    vi.mocked(api.fileApi.get).mockResolvedValue({ ...mockFile, updated_at: 'server-v1' })
+    writeEditorDraftSnapshot(localStorage, createEditorDraftSnapshot({
+      userId: 'user-1',
+      projectId: 'project-1',
+      fileId: 'file-1',
+      title: 'Recovered title',
+      content: 'Recovered body',
+      baseUpdatedAt: 'server-v0',
+      capturedAt: '2026-10-07T08:00:00.000Z',
+    }))
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+    })
+    render(<Editor />)
+    await screen.findByRole('alert')
+    fireEvent.click(screen.getByRole('button', { name: 'Restore local draft' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Keep server version' }))
+    fireEvent.change(screen.getByTestId('title-input'), {
+      target: { value: 'Server title edited after discard' },
+    })
+    fireEvent.click(screen.getByTestId('save-button'))
+
+    await waitFor(() => expect(api.fileApi.update).toHaveBeenCalledWith('file-1', expect.objectContaining({
+      title: 'Server title edited after discard',
+      content: 'Test content',
+    })))
+  })
+
+  it('retains the recovered snapshot when a concurrent save returns 409', async () => {
+    vi.mocked(api.fileApi.get).mockResolvedValue({ ...mockFile, updated_at: 'server-v1' })
+    const scope = { userId: 'user-1', projectId: 'project-1', fileId: 'file-1' }
+    const recovered = createEditorDraftSnapshot({
+      ...scope,
+      title: 'Recovered title',
+      content: 'Recovered body',
+      baseUpdatedAt: 'server-v1',
+      capturedAt: '2026-10-07T08:00:00.000Z',
+    })
+    writeEditorDraftSnapshot(localStorage, recovered)
+    vi.mocked(api.fileApi.update).mockRejectedValue(new ApiError(
+      409,
+      'ERR_STALE_WRITE',
+      { reason: 'stale_write', current_content: 'Newer body', current_updated_at: 'server-v2' },
+    ))
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+    })
+
+    render(<Editor />)
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('Recovered body'))
+    fireEvent.click(screen.getByTestId('save-button'))
+    await waitFor(() => expect(api.fileApi.update).toHaveBeenCalled())
+    expect(localStorage.getItem(getEditorDraftRecoveryKey(scope))).not.toBeNull()
   })
 
   it('does not reload or overwrite a dirty draft when the translator identity changes', async () => {

@@ -41,6 +41,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import os
 import tempfile
@@ -65,6 +66,7 @@ from flows.utils.helpers import (
     validate_input,
 )
 from flows.utils.helpers.novel_parser import read_novel_text
+from services.infra.upload_storage import OPAQUE_NAME_RE, SAFE_OWNER_RE
 from services.material.job_errors import MaterialPipelineError, job_error_code_for_exception
 from services.material.novel_text import NovelDecodeError
 
@@ -85,6 +87,30 @@ def _ensure_file_local(file_path: str, user_id: str, logger) -> str:
     if os.path.isfile(file_path):
         return file_path
 
+    download_target = file_path
+    if file_path.startswith("s3://"):
+        parsed = urllib.parse.urlsplit(file_path)
+        parts = parsed.path.lstrip("/").split("/")
+        if (
+            not parsed.netloc
+            or parsed.query
+            or parsed.fragment
+            or len(parts) != 3
+            or parts[0] != "material"
+            or parts[1] != str(user_id)
+            or not SAFE_OWNER_RE.fullmatch(parts[1])
+            or not OPAQUE_NAME_RE.fullmatch(parts[2])
+        ):
+            raise ValueError("不受信任的材料对象引用")
+        filename = parts[2]
+        download_root = Path(tempfile.mkdtemp(prefix="zenstory-material-source-"))
+        download_target = str(download_root / filename)
+    else:
+        parsed = urllib.parse.urlsplit(file_path)
+        if parsed.scheme or parsed.netloc:
+            raise ValueError("不受信任的材料源路径")
+        filename = os.path.basename(file_path)
+
     api_base = os.environ.get("API_SERVER_INTERNAL_URL", "").rstrip("/")
     if not api_base:
         raise FileNotFoundError(
@@ -97,7 +123,6 @@ def _ensure_file_local(file_path: str, user_id: str, logger) -> str:
             f"文件不存在: {file_path}，且未配置 MATERIAL_INTERNAL_TOKEN"
         )
 
-    filename = os.path.basename(file_path)
     encoded_filename = urllib.parse.quote(filename, safe="")
     encoded_user_id = urllib.parse.quote(str(user_id), safe="")
     download_url = (
@@ -105,7 +130,7 @@ def _ensure_file_local(file_path: str, user_id: str, logger) -> str:
         f"?user_id={encoded_user_id}"
     )
 
-    os.makedirs(os.path.dirname(file_path) or "uploads", exist_ok=True)
+    os.makedirs(os.path.dirname(download_target) or "uploads", exist_ok=True)
     logger.info(f"文件不在本地，从 API Server 下载: {download_url}")
     request = urllib.request.Request(
         download_url,
@@ -114,7 +139,7 @@ def _ensure_file_local(file_path: str, user_id: str, logger) -> str:
     temporary_path = None
     try:
         with tempfile.NamedTemporaryFile(
-            dir=os.path.dirname(file_path) or ".",
+            dir=os.path.dirname(download_target) or ".",
             prefix=".material-download-",
             suffix=".tmp",
             delete=False,
@@ -122,12 +147,15 @@ def _ensure_file_local(file_path: str, user_id: str, logger) -> str:
             temporary_path = output.name
             with urllib.request.urlopen(request, timeout=30) as response:
                 output.write(response.read())
-        os.replace(temporary_path, file_path)
+        os.replace(temporary_path, download_target)
     finally:
         if temporary_path is not None and os.path.exists(temporary_path):
             os.unlink(temporary_path)
-    logger.info(f"文件下载完成: {file_path}")
-    return file_path
+        if not os.path.exists(download_target):
+            with contextlib.suppress(OSError):
+                Path(download_target).parent.rmdir()
+    logger.info("材料源文件下载完成")
+    return download_target
 
 
 # retries=0: a flow-level retry re-ran the same job 30s after it had been marked
@@ -223,6 +251,7 @@ def novel_ingestion_v3(
                 ]
 
     normalized_path: str | None = None
+    downloaded_source_path: str | None = None
     content_hash: str | None = None
     encoding: str | None = None
     try:
@@ -240,7 +269,10 @@ def novel_ingestion_v3(
         if persisted_chapter_ids is None:
             # 文件名标准化（解决中文文件名问题）
             logger.info("[阶段0] 确保文件可用并标准化")
+            source_was_remote = file_path.startswith("s3://")
             file_path = _ensure_file_local(file_path, user_id, logger)
+            if source_was_remote:
+                downloaded_source_path = file_path
             temp_dir = Path(file_path).parent / "temp"
             normalized_path = normalize_filename(file_path, str(temp_dir))
 
@@ -419,6 +451,9 @@ def novel_ingestion_v3(
             if temp_dir and temp_dir.exists() and temp_dir.name == "temp" and not any(temp_dir.iterdir()):
                 temp_dir.rmdir()
                 logger.info("已删除空临时目录: %s", temp_dir)
+            if downloaded_source_path and Path(downloaded_source_path).exists():
+                Path(downloaded_source_path).unlink()
+                Path(downloaded_source_path).parent.rmdir()
         except Exception as cleanup_error:
             logger.warning("清理临时文件时出错: %s", cleanup_error)
 
@@ -451,6 +486,9 @@ def novel_ingestion_v3(
             if temp_dir and temp_dir.exists() and temp_dir.name == "temp" and not any(temp_dir.iterdir()):
                 temp_dir.rmdir()
                 logger.info("已删除空临时目录: %s", temp_dir)
+            if downloaded_source_path and Path(downloaded_source_path).exists():
+                Path(downloaded_source_path).unlink()
+                Path(downloaded_source_path).parent.rmdir()
         except Exception as cleanup_error:
             logger.warning("清理临时文件时出错: %s", cleanup_error)
 

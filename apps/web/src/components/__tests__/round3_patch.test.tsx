@@ -114,6 +114,10 @@ vi.mock('../../contexts/ProjectContext', () => ({
     React.createElement(React.Fragment, null, children),
 }))
 
+vi.mock('../../contexts/AuthContext', () => ({
+  useAuth: () => ({ user: { id: 'user-1' } }),
+}))
+
 // 注意：必须返回**同一个**对象。Editor 的 loadData 把 t 放进了 useCallback 依赖，
 // 每次渲染都换一个新 t 会让 `useEffect(loadData, [loadData])` 每渲染一次就重新
 // 拉一次文件，把用户刚敲进去的本地编辑覆盖回服务端内容——那样测的就不是被测行为了。

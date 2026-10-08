@@ -308,12 +308,13 @@ async def test_upload_pre_job_failure_does_not_refund_a_new_month_charge(
         lambda *a, **k: old_period,
     )
 
-    def _fail_file_write(*args, **kwargs):
-        raise OSError("file write crossed month")
+    class _FailingStorage:
+        def put_material(self, **_kwargs):
+            raise OSError("file write crossed month")
 
-    monkeypatch.setattr(materials_upload_api, "_write_upload_file_without_overwrite", _fail_file_write)
+    monkeypatch.setattr(materials_upload_api, "_storage", _FailingStorage)
 
-    with pytest.raises(OSError, match="crossed month"):
+    with pytest.raises(APIException) as exc_info:
         await materials_upload_api.process_material_upload(
             file=UploadFile(io.BytesIO(NOVEL_BYTES), filename="test.txt"),
             title=None,
@@ -321,6 +322,7 @@ async def test_upload_pre_job_failure_does_not_refund_a_new_month_charge(
             current_user=user,
             session=db_session,
         )
+    assert exc_info.value.status_code == 503
 
     db_session.refresh(quota)
     assert quota.material_decompositions_used == 1
@@ -331,19 +333,21 @@ async def test_upload_pre_job_failure_does_not_refund_a_new_month_charge(
 async def test_upload_pre_job_failure_rolls_back_without_refund_io(client, db_session, monkeypatch):
     user, _ = await create_test_user(client, db_session, "upload_no_refund_gap")
 
-    def fail_write(*args, **kwargs):
-        raise OSError("file write failed")
+    class _FailingStorage:
+        def put_material(self, **_kwargs):
+            raise OSError("file write failed")
 
     def unexpected_refund(*args, **kwargs):
         pytest.fail("No durable job exists; a rolled-back reservation must not be refunded")
 
-    monkeypatch.setattr(materials_upload_api, "_write_upload_file_without_overwrite", fail_write)
+    monkeypatch.setattr(materials_upload_api, "_storage", _FailingStorage)
     monkeypatch.setattr(materials_upload_api.quota_service, "release_feature_quota", unexpected_refund)
-    with pytest.raises(OSError, match="file write failed"):
+    with pytest.raises(APIException) as exc_info:
         await materials_upload_api.process_material_upload(
             file=UploadFile(io.BytesIO(NOVEL_BYTES), filename="test.txt"),
             title=None, author=None, current_user=user, session=db_session,
         )
+    assert exc_info.value.status_code == 503
     quota = db_session.exec(select(UsageQuota).where(UsageQuota.user_id == user.id)).one()
     assert quota.material_decompositions_used == 0
     assert db_session.exec(select(Novel).where(Novel.user_id == user.id)).all() == []

@@ -1,5 +1,6 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from "react";
 import { logger } from "./logger";
+import { BEFORE_CHUNK_RELOAD_EVENT } from "./editorDraftRecovery";
 
 const CHUNK_RELOAD_STORAGE_KEY = "zenstory:chunk-reload-once";
 const CHUNK_RELOAD_AT_STORAGE_KEY = "zenstory:chunk-reload-at";
@@ -31,8 +32,12 @@ export function isChunkLoadError(error: unknown): boolean {
   return DYNAMIC_IMPORT_ERROR_PATTERNS.some((pattern) => message.includes(pattern));
 }
 
-export function reloadForChunkErrorOnce(error: unknown, source: string): boolean {
-  if (typeof window === "undefined" || !isChunkLoadError(error)) {
+export function reloadForChunkErrorOnce(
+  error: unknown,
+  source: string,
+  authoritative = false,
+): boolean {
+  if (typeof window === "undefined" || (!authoritative && !isChunkLoadError(error))) {
     return false;
   }
 
@@ -46,6 +51,14 @@ export function reloadForChunkErrorOnce(error: unknown, source: string): boolean
       sessionStorage.setItem(CHUNK_RELOAD_STORAGE_KEY, source);
     }
     return pendingChunkReload !== null;
+  }
+
+  const captureEvent = new CustomEvent(BEFORE_CHUNK_RELOAD_EVENT, {
+    cancelable: true,
+    detail: { reason: "chunk-reload" },
+  });
+  if (!window.dispatchEvent(captureEvent) || captureEvent.defaultPrevented) {
+    return false;
   }
 
   logger.warn("Recovering from stale chunk load failure", {
@@ -71,7 +84,7 @@ export function installChunkRecoveryHandlers(): void {
     // Vite rejects the import only while this event remains uncancelled. Let
     // lazyRoute observe that rejection and suspend on the reload already in
     // progress instead of resolving React.lazy with an undefined module.
-    reloadForChunkErrorOnce(viteEvent.payload ?? event, "vite:preloadError");
+    reloadForChunkErrorOnce(viteEvent.payload ?? event, "vite:preloadError", true);
   });
 
   window.addEventListener("unhandledrejection", (event) => {

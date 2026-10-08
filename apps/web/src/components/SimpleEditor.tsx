@@ -16,6 +16,11 @@ import { logger } from "../lib/logger";
 import { toast } from "../lib/toast";
 import { preserveSelectionWhitespace } from "../lib/naturalPolish";
 import { naturalPolishApi } from "../lib/naturalPolishApi";
+import {
+  BEFORE_CHUNK_RELOAD_EVENT,
+  createEditorDraftSnapshot,
+  writeEditorDraftSnapshot,
+} from "../lib/editorDraftRecovery";
 
 const isNearBottom = (el: HTMLElement, thresholdPx = 32) => {
   return el.scrollHeight - el.scrollTop - el.clientHeight < thresholdPx;
@@ -50,6 +55,7 @@ const restoreContainerScrollTop = (container: HTMLElement | null, prevScrollTop:
 };
 
 interface SimpleEditorProps {
+  userId?: string;
   fileId?: string;
   projectId?: string;
   fileType?: string;
@@ -71,6 +77,11 @@ interface SimpleEditorProps {
    * 但让用户吃一次冲突提示不如根本不发这次请求）。
    */
   isAiEditing?: boolean;
+  recoveredDraft?: {
+    capturedAt: string;
+    serverTitle: string;
+    serverContent: string;
+  };
   // Diff review props
   diffReviewState?: DiffReviewState | null;
   onEnterDiffReview?: (fileId: string, originalContent: string, newContent: string) => void;
@@ -83,6 +94,7 @@ interface SimpleEditorProps {
 }
 
 export const SimpleEditor = ({
+  userId,
   fileId,
   projectId,
   fileType,
@@ -98,6 +110,7 @@ export const SimpleEditor = ({
   readOnly = false,
   isStreaming = false,
   isAiEditing = false,
+  recoveredDraft,
   // Diff review props
   diffReviewState,
   onEnterDiffReview,
@@ -145,6 +158,8 @@ export const SimpleEditor = ({
   // Only clean boundaries or this queue's confirmed PUT advance the draft token.
   const persistedBaseRef = useRef({ fileId, updatedAt: baseUpdatedAt });
   const isMountedRef = useRef(true);
+  const suppressRecoveredAutoSaveRef = useRef(false);
+  const appliedRecoveryRef = useRef<string | null>(null);
 
   // Natural polish (de-AI tone) state
   const [isNaturalPolishRunning, setIsNaturalPolishRunning] = useState(false);
@@ -174,6 +189,46 @@ export const SimpleEditor = ({
     isMountedRef.current = true;
     return () => { isMountedRef.current = false; };
   }, []);
+
+  useEffect(() => {
+    if (!userId || !projectId || !fileId) return;
+    let lastCapturedDraft: typeof draftRef.current | null = null;
+    const captureDirtyDraft = (reason: "chunk-reload" | "page-exit") => {
+      if (!dirtyRef.current || draftRef.current.fileId !== fileId) return true;
+      if (lastCapturedDraft === draftRef.current) return true;
+      const currentDraft = draftRef.current;
+      const captured = writeEditorDraftSnapshot(localStorage, createEditorDraftSnapshot({
+        userId,
+        projectId,
+        fileId,
+        title: currentDraft.title,
+        content: currentDraft.content,
+        baseUpdatedAt: currentDraft.baseUpdatedAt,
+        reason,
+      }));
+      if (captured) lastCapturedDraft = currentDraft;
+      return captured;
+    };
+    const captureBeforeChunkReload = (event: Event) => {
+      if (!captureDirtyDraft("chunk-reload")) event.preventDefault();
+    };
+    const captureBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (captureDirtyDraft("page-exit")) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    const capturePageHide = () => {
+      captureDirtyDraft("page-exit");
+    };
+    window.addEventListener(BEFORE_CHUNK_RELOAD_EVENT, captureBeforeChunkReload);
+    window.addEventListener("beforeunload", captureBeforeUnload);
+    window.addEventListener("pagehide", capturePageHide);
+    return () => {
+      window.removeEventListener(BEFORE_CHUNK_RELOAD_EVENT, captureBeforeChunkReload);
+      window.removeEventListener("beforeunload", captureBeforeUnload);
+      window.removeEventListener("pagehide", capturePageHide);
+    };
+  }, [userId, projectId, fileId]);
 
   // Pinch-to-zoom gesture support
   const { zoom, bind: bindPinchZoom, resetZoom } = usePinchZoom(1, 0.5, 2.5);
@@ -286,6 +341,32 @@ export const SimpleEditor = ({
     naturalPolishBufferRef.current = "";
     setIsNaturalPolishRunning(false);
   }, [fileId, adjustTextareaHeight]);
+
+  useEffect(() => {
+    if (!recoveredDraft || !fileId) {
+      if (appliedRecoveryRef.current === null) return;
+      appliedRecoveryRef.current = null;
+      lastSavedTitleRef.current = title;
+      lastSavedContentRef.current = content;
+      draftRef.current = { fileId, title, content, baseUpdatedAt };
+      persistedBaseRef.current = { fileId, updatedAt: baseUpdatedAt };
+      suppressRecoveredAutoSaveRef.current = false;
+      dirtyRef.current = false;
+      setIsDirty(false);
+      return;
+    }
+    const recoveryKey = `${fileId}:${recoveredDraft.capturedAt}`;
+    if (appliedRecoveryRef.current === recoveryKey) return;
+    appliedRecoveryRef.current = recoveryKey;
+    lastSavedTitleRef.current = recoveredDraft.serverTitle;
+    lastSavedContentRef.current = recoveredDraft.serverContent;
+    draftRef.current = { fileId, title, content, baseUpdatedAt };
+    persistedBaseRef.current = { fileId, updatedAt: baseUpdatedAt };
+    pendingBaselineSyncRef.current = false;
+    suppressRecoveredAutoSaveRef.current = true;
+    dirtyRef.current = true;
+    setIsDirty(true);
+  }, [recoveredDraft, fileId, title, content, baseUpdatedAt]);
 
   // Some file switches load content asynchronously after fileId changes.
   // Sync baseline once when the new content arrives so dirty/version diff is correct.
@@ -595,6 +676,7 @@ export const SimpleEditor = ({
     }
     if (!isDirty || showVersionHistory) return;
     if (isNaturalPolishRunning) return;
+    if (suppressRecoveredAutoSaveRef.current) return;
     // AI 正在改这份文件：先不排自动保存。标记清除后本 effect 会重新跑，
     // 届时再按新的基线保存，用户的本地改动不会丢。
     if (isAiEditing) return;
@@ -808,6 +890,7 @@ export const SimpleEditor = ({
 
   // Handle title change
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    suppressRecoveredAutoSaveRef.current = false;
     draftRef.current = { ...draftRef.current, title: e.target.value };
     onTitleChange(e.target.value);
     dirtyRef.current = true;
@@ -816,6 +899,7 @@ export const SimpleEditor = ({
 
   // Handle content change
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    suppressRecoveredAutoSaveRef.current = false;
     draftRef.current = { ...draftRef.current, content: e.target.value };
     onContentChange(e.target.value);
     dirtyRef.current = true;

@@ -93,6 +93,51 @@ describe("chunkRecovery", () => {
     expect(event.defaultPrevented).toBe(false);
   });
 
+  it("treats Vite preload events as authoritative and captures drafts before reload", () => {
+    const registrations = vi
+      .spyOn(window, "addEventListener")
+      .mockImplementation(() => undefined);
+    const order: string[] = [];
+    reloadSpy.mockImplementation(() => order.push("reload"));
+    vi.spyOn(window, "dispatchEvent").mockImplementation((event) => {
+      if (event.type === "zenstory:before-chunk-reload") order.push("capture");
+      return true;
+    });
+    recovery.installChunkRecoveryHandlers();
+
+    const listener = registrations.mock.calls.find(
+      ([type]) => type === "vite:preloadError",
+    )?.[1] as EventListener | undefined;
+    const event = new Event("vite:preloadError") as Event & { payload?: unknown };
+    event.payload = { browserSpecificPayload: true };
+    listener?.(event);
+
+    expect(reloadSpy).toHaveBeenCalledOnce();
+    expect(order).toEqual(["capture", "reload"]);
+  });
+
+  it("leaves the chunk failure uncancelled when draft capture blocks the reload", () => {
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent").mockImplementation((event) => {
+      event.preventDefault();
+      return false;
+    });
+
+    expect(recovery.reloadForChunkErrorOnce(
+      new Error("Failed to fetch dynamically imported module"),
+      "vite:preloadError",
+    )).toBe(false);
+    expect(reloadSpy).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem("zenstory:chunk-reload-once")).toBeNull();
+    expect(sessionStorage.getItem("zenstory:chunk-reload-at")).toBeNull();
+
+    dispatchSpy.mockRestore();
+    expect(recovery.reloadForChunkErrorOnce(
+      new Error("Failed to fetch dynamically imported module"),
+      "vite:preloadError",
+    )).toBe(true);
+    expect(reloadSpy).toHaveBeenCalledOnce();
+  });
+
   it("clears the reload marker only after a successful import on a new page", async () => {
     sessionStorage.setItem("zenstory:chunk-reload-once", "lazy-route-success");
     const LazyComponent = recovery.lazyRoute(

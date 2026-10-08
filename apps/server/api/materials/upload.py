@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from services.auth import get_current_active_user
 from sqlalchemy import update
 from sqlmodel import Session, select
@@ -33,6 +33,12 @@ from database import get_session
 from middleware.rate_limit import require_user_rate_limit
 from models import User
 from models.material_models import IngestionJob, Novel
+from services.infra.upload_storage import (
+    UploadNotFoundError,
+    UploadReferenceError,
+    UploadStorageError,
+    get_upload_storage,
+)
 from services.material.ingestion_jobs_service import IngestionJobsService
 from services.material.job_errors import REFUNDABLE_JOB_ERROR_CODES
 from services.material.novel_text import (
@@ -66,6 +72,36 @@ SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9._-]+")
 DISPATCH_FAILURE_MESSAGE = "Failed to dispatch ingestion flow"
 UPLOAD_FILENAME_TOKEN_BYTES = 8
 MAX_UPLOAD_FILENAME_ATTEMPTS = 10
+
+
+def _storage():
+    from config.material_settings import material_settings
+
+    return get_upload_storage(
+        material_root=material_settings.UPLOAD_FOLDER,
+        feedback_root=os.getenv("FEEDBACK_UPLOAD_DIR", "uploads/feedback"),
+    )
+
+
+def _download_material_object(filename: str, user_id: str) -> Response:
+    storage = None
+    try:
+        storage = _storage()
+        content = storage.read_material_name(owner_id=user_id, object_name=filename)
+    except UploadReferenceError as exc:
+        raise APIException(error_code=ErrorCode.NOT_AUTHORIZED, status_code=403) from exc
+    except UploadNotFoundError as exc:
+        raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404) from exc
+    except (UploadStorageError, OSError, ValueError) as exc:
+        raise APIException(error_code=ErrorCode.SERVICE_UNAVAILABLE, status_code=503) from exc
+    finally:
+        if storage is not None:
+            getattr(storage, "close", lambda: None)()
+    return Response(
+        content=content,
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 def _quota_period_iso(period_start: datetime) -> str:
@@ -236,20 +272,7 @@ async def download_upload_file(
     Verifies file ownership based on filename format:
     {user_id}_{timestamp}_{unique_token}_{original_filename}
     """
-    from config.material_settings import material_settings
-
-    # Verify file ownership based on the user-id prefix.
-    if not filename.startswith(f"{current_user.id}_"):
-        raise APIException(
-            error_code=ErrorCode.NOT_AUTHORIZED,
-            status_code=403,
-            detail="Not authorized to access this file",
-        )
-
-    file_path = _build_safe_upload_path(material_settings.UPLOAD_FOLDER, filename)
-    if not os.path.isfile(file_path):
-        raise APIException(error_code=ErrorCode.VALIDATION_ERROR, status_code=404)
-    return FileResponse(file_path)
+    return _download_material_object(filename, current_user.id)
 
 
 @router.get("/internal/system/files/{filename}")
@@ -263,8 +286,6 @@ async def download_upload_file_for_worker(
 
     Uses a shared secret (`MATERIAL_INTERNAL_TOKEN`) and explicit user_id ownership check.
     """
-    from config.material_settings import material_settings
-
     expected_token = os.getenv("MATERIAL_INTERNAL_TOKEN", "")
     if not expected_token or not internal_token or not secrets.compare_digest(internal_token, expected_token):
         raise APIException(
@@ -273,17 +294,7 @@ async def download_upload_file_for_worker(
             message="Invalid internal token",
         )
 
-    if not filename.startswith(f"{user_id}_"):
-        raise APIException(
-            error_code=ErrorCode.NOT_AUTHORIZED,
-            status_code=403,
-            message="Not authorized to access this file",
-        )
-
-    file_path = _build_safe_upload_path(material_settings.UPLOAD_FOLDER, filename)
-    if not os.path.isfile(file_path):
-        raise APIException(error_code=ErrorCode.VALIDATION_ERROR, status_code=404)
-    return FileResponse(file_path)
+    return _download_material_object(filename, user_id)
 
 
 # ==================== Upload Endpoints ====================
@@ -387,23 +398,24 @@ async def process_material_upload(
     file_path: str | None = None
     job_persisted = False
     commit_attempted = False
+    upload_storage = None
 
     try:
-        # 3. Save file to uploads directory
-        from config.material_settings import material_settings
-
-        upload_dir = material_settings.UPLOAD_FOLDER
-        os.makedirs(upload_dir, exist_ok=True)
+        # 3. Save the source before quota reservation or database writes.
         timestamp = utcnow().strftime("%Y%m%d_%H%M%S")
-        _, file_path = await run_in_threadpool(
-            _write_upload_file_without_overwrite,
-            upload_dir,
-            current_user.id,
-            timestamp,
-            sanitized_original_filename,
-            content_bytes,
-        )
-        logger.info(f"File saved: {file_path} ({len(content_bytes)} bytes)")
+        try:
+            upload_storage = _storage()
+            stored = await run_in_threadpool(
+                upload_storage.put_material,
+                owner_id=current_user.id,
+                timestamp=timestamp,
+                original_name=sanitized_original_filename,
+                content=content_bytes,
+            )
+        except (UploadStorageError, OSError, ValueError) as exc:
+            raise APIException(error_code=ErrorCode.SERVICE_UNAVAILABLE, status_code=503) from exc
+        file_path = stored.reference
+        logger.info("Material source saved (%s bytes)", len(content_bytes))
 
         quota_period_start = quota_service.reserve_feature_quota(
             session, current_user.id, "material_decompose", commit=False,
@@ -497,13 +509,22 @@ async def process_material_upload(
                         job_id,
                         exc_info=True,
                     )
-            elif file_path is not None and not commit_attempted:
+            elif file_path is not None and upload_storage is not None and not commit_attempted:
                 # This request owns the new file and no DB commit was attempted.
                 # Preserve it after an ambiguous commit failure: a durable job
                 # may reference it and watchdog reconciliation needs that source.
-                with contextlib.suppress(OSError):
-                    os.remove(file_path)
+                try:
+                    upload_storage.delete(
+                        file_path,
+                        kind="material",
+                        owner_id=current_user.id,
+                    )
+                except (UploadStorageError, OSError):
+                    logger.warning("Failed to remove uncommitted material source")
         raise
+    finally:
+        if upload_storage is not None:
+            getattr(upload_storage, "close", lambda: None)()
 
 
 # ==================== Retry Endpoints ====================
@@ -530,7 +551,7 @@ async def retry_material_job(
     retry is never free and a refunded job cannot be retried for free.
     """
     # Verify novel ownership and soft delete check
-    novel = _get_novel_or_404(session, novel_id, current_user.id)
+    _get_novel_or_404(session, novel_id, current_user.id)
 
     # Get latest job
     latest_job = session.exec(
@@ -591,6 +612,22 @@ async def retry_material_job(
     new_job: IngestionJob | None = None
     job_persisted = False
     try:
+        # Match migration's lock order so a retry observes one current source
+        # reference and persists that same reference into its new job.
+        locked_novel = session.exec(
+            select(Novel).where(Novel.id == novel_id).with_for_update()
+        ).one()
+        locked_latest_job = session.exec(
+            select(IngestionJob).where(IngestionJob.id == latest_job.id).with_for_update()
+        ).one()
+        source_meta = {}
+        if locked_novel.source_meta:
+            with contextlib.suppress(Exception):
+                parsed = json.loads(locked_novel.source_meta)
+                if isinstance(parsed, dict):
+                    source_meta = parsed
+        current_source_path = source_meta.get("file_path", locked_latest_job.source_path)
+
         # Two retries that read the same failed job cannot both persist a new
         # charge/job. Claim and reservation roll back together for the loser.
         # Advance even when the clock is frozen or moves backwards, otherwise
@@ -613,7 +650,7 @@ async def retry_material_job(
         # Create a runnable job only after the atomic quota decision succeeds.
         new_job = IngestionJob(
             novel_id=novel_id,
-            source_path=latest_job.source_path,
+            source_path=current_source_path,
             status="pending",
             total_chapters=0,
             processed_chapters=0,
@@ -630,18 +667,12 @@ async def retry_material_job(
         job_persisted = True
         session.refresh(new_job)
 
-        source_meta = {}
-        if novel.source_meta:
-            with contextlib.suppress(Exception):
-                parsed = json.loads(novel.source_meta)
-                if isinstance(parsed, dict):
-                    source_meta = parsed
-        file_path = source_meta.get("file_path", latest_job.source_path)
+        file_path = current_source_path
 
         flow_run_id = await _start_flow_deployment(
             file_path=file_path,
-            novel_title=novel.title,
-            author=novel.author,
+            novel_title=locked_novel.title,
+            author=locked_novel.author,
             user_id=str(current_user.id),
             novel_id=novel_id,
             job_id=new_job.id,

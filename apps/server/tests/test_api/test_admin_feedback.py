@@ -1,5 +1,7 @@
 """Tests for admin feedback management endpoints."""
 
+import hashlib
+import io
 from pathlib import Path
 
 import pytest
@@ -9,6 +11,14 @@ from sqlmodel import Session
 from api.admin.feedback import _resolve_existing_feedback_screenshot
 from models import User, UserFeedback
 from services.core.auth_service import hash_password
+from services.infra.upload_storage import StoredObject
+
+VALID_PNG_BYTES = (
+    b"\x89PNG\r\n\x1a\n"
+    b"\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
+    b"\x00\x00\x00\nIDATx\x9cc\xf8\x0f\x00\x01\x01\x01\x00\x18\xdd\x8d\xe1"
+    b"\x00\x00\x00\x00IEND\xaeB`\x82"
+)
 
 
 async def create_user(
@@ -71,6 +81,73 @@ def create_feedback(
     db_session.commit()
     db_session.refresh(feedback)
     return feedback
+
+
+@pytest.mark.integration
+async def test_private_object_feedback_roundtrip_requires_admin_and_listing_does_not_get(
+    client: AsyncClient,
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    class _MemoryStorage:
+        def __init__(self):
+            self.objects: dict[str, bytes] = {}
+            self.read_calls = 0
+
+        def put_feedback(self, *, object_name, content, **_kwargs):
+            reference = f"s3://test-bucket/feedback/{object_name}"
+            self.objects[reference] = content
+            return StoredObject(
+                reference,
+                len(content),
+                hashlib.sha256(content).hexdigest(),
+            )
+
+        def feedback_reference_exists(self, reference):
+            return reference.startswith("s3://test-bucket/feedback/")
+
+        def read_feedback(self, reference):
+            self.read_calls += 1
+            return self.objects[reference]
+
+    storage = _MemoryStorage()
+    monkeypatch.setattr("api.feedback._storage", lambda: storage)
+    monkeypatch.setattr("api.admin.feedback._storage", lambda: storage)
+    admin = await create_user(
+        db_session, "admin_s3_feedback", "admin_s3_feedback@example.com", is_superuser=True
+    )
+    author = await create_user(db_session, "author_s3_feedback", "author_s3_feedback@example.com")
+    admin_token = await login_user(client, admin.username)
+    author_token = await login_user(client, author.username)
+
+    submitted = await client.post(
+        "/api/v1/feedback",
+        data={"issue_text": "private image", "source_page": "editor"},
+        files={"screenshot": ("screen.png", io.BytesIO(VALID_PNG_BYTES), "image/png")},
+        headers=auth_headers(author_token),
+    )
+    assert submitted.status_code == 200
+    feedback_id = submitted.json()["id"]
+
+    listed = await client.get("/api/admin/feedback", headers=auth_headers(admin_token))
+    assert listed.status_code == 200
+    assert storage.read_calls == 0
+    assert next(item for item in listed.json()["items"] if item["id"] == feedback_id)[
+        "has_screenshot"
+    ]
+
+    forbidden = await client.get(
+        f"/api/admin/feedback/{feedback_id}/screenshot",
+        headers=auth_headers(author_token),
+    )
+    assert forbidden.status_code == 403
+    downloaded = await client.get(
+        f"/api/admin/feedback/{feedback_id}/screenshot",
+        headers=auth_headers(admin_token),
+    )
+    assert downloaded.status_code == 200
+    assert downloaded.content == VALID_PNG_BYTES
+    assert storage.read_calls == 1
 
 
 @pytest.mark.unit
