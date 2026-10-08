@@ -376,7 +376,7 @@
       "status": {
         "good": "Going well",
         "warning": "Could use a push",
-        "critical": "Been a while",
+        "critical": "Plenty left to write",
         "neutral": "Not started"
       },
       "indicators": {
