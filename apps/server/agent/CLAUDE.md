@@ -190,7 +190,11 @@ async def process_stream(
 
 意图分类器，决定使用哪个 agent 和工作流。
 
-**输入**: 用户消息 + 上下文
+**输入**: 用户本轮原话；有上一条 assistant 消息时，user 消息为
+`[上一轮助手结尾]`（最后 600 字 + 状态卡摘要）+ `[上一轮路由]`（落库 routing 的一行 JSON）+
+`[用户本轮原话]`（`build_router_user_message`，系统提示保持不变）。「继续」直达和简短回答的
+确定性沿用（`resume_route_after_exhaustion` / `inherit_routing_after_clarification`）先于 LLM 路由，
+命中时不调用路由模型。
 **输出**:
 - `current_agent`: 初始 agent (planner/writer/quality_reviewer)
 - `workflow_plan`: 工作流类型 (quick/standard/full/hook_focus/review_only)
