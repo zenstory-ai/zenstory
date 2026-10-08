@@ -50,7 +50,7 @@ Status: implemented
 
 **「继续」直达上一个 agent（`router.resume_route_after_exhaustion`）**
 
-- 用户消息去掉首尾空白与句末标点后属于固定的「继续」集合（含前端轮数耗尽卡片「继续」按钮预填的中英文提示），且上一条 assistant 消息 `stop_reason` 为 `max_turns_exceeded` / `no_progress`，或它的状态卡合成文本含 `[iteration_exhausted]` + `layer: tool_call`（旧数据）时，`writing_graph` 跳过 LLM 路由，直接以 quick 工作流交给上一轮的 agent（取合成文本里的 `last_agent`，拿不到时用 writer；审稿人则为 review_only），`routing_metadata.reason="resume_after_exhaustion"`。
+- 用户消息去掉首尾空白与句末标点后属于固定的「继续」集合（含前端轮数耗尽卡片「继续」按钮预填的中英文提示），且上一条 assistant 消息 `stop_reason` 属于 `RESUMABLE_STOP_REASONS`（`max_turns_exceeded` / `no_progress` / `model_call_budget_exhausted` / `run_deadline_exceeded`），或它的状态卡合成文本含 `[iteration_exhausted]` + `layer: tool_call`（旧数据）时，`writing_graph` 跳过 LLM 路由，直接以 quick 工作流交给上一轮的 agent（审稿人则为 review_only），`routing_metadata.reason="resume_after_exhaustion"`。上一轮的 agent 与 read_only / scope / write_content 从落库的路由里取，见 `2026-10-08-agent-routing-continuity.md`。
 
 ## Alternatives considered
 
@@ -66,7 +66,7 @@ Status: implemented
 ## Consequences
 
 - 收益：同一文件最多真正读 3 次（写入后重新计数），连续打转在约 6 次调用内停下；撞上限前模型有 3 次机会写阶段总结，用户看到的是「做了什么 / 还差什么」和「继续」入口，「继续」不再重新规划、从头再读；审查往返最多 2 轮；下一个 agent 知道本请求读过 / 改过哪些文件；没有改动任何文件的失控请求退还额度。
-- 代价：守卫说「内容就在上文」依赖 `IntraRunToolOutputTrimmer` 没把旧的读取结果压成预览——若压掉了，模型被拦下后只能向用户说明缺什么（trimmer 另行调整）。合法的「同一模式第 4 次读同一个没改过的文件」会被拒绝（摘要与全文分键，不互相占次数）。进入收尾区间后自然结束也按轮数耗尽处理：即使模型恰好在最后几轮完成了任务，也会显示耗尽卡片并停止送审。上限调低后，超长的多文件写作更可能在一轮内做不完、需要「继续」。失控停止退款带来可利用空间：只读分析类请求若跑到上限且没写文件会被退款（上限内的 token 成本由平台承担）。无进展的 ERROR 不像状态卡那样落库。「继续」识别是固定集合精确匹配，「继续写第四章」这类带新要求的消息仍走路由；上一轮 agent 在有正文时取不到，回落到 writer。耗尽卡片的 `max_iterations` 仍是上限值，`iterations_used` 才是实际调用数。
+- 代价：守卫说「内容就在上文」依赖 `IntraRunToolOutputTrimmer` 没把旧的读取结果压成预览——若压掉了，模型被拦下后只能向用户说明缺什么（trimmer 另行调整）。合法的「同一模式第 4 次读同一个没改过的文件」会被拒绝（摘要与全文分键，不互相占次数）。进入收尾区间后自然结束也按轮数耗尽处理：即使模型恰好在最后几轮完成了任务，也会显示耗尽卡片并停止送审。上限调低后，超长的多文件写作更可能在一轮内做不完、需要「继续」。失控停止退款带来可利用空间：只读分析类请求若跑到上限且没写文件会被退款（上限内的 token 成本由平台承担）。无进展的 ERROR 不像状态卡那样落库。「继续」识别是固定集合精确匹配，「继续写第四章」这类带新要求的消息仍走路由；上一轮的 agent 与范围依赖 `message_metadata.routing`，这个字段上线前的旧消息在有正文时仍取不到 agent，回落到 writer。耗尽卡片的 `max_iterations` 仍是上限值，`iterations_used` 才是实际调用数。
 - `ErrorEventData` 多了 `reason` 字段，熔断的 `reason`（如 `repeated_identical_tool_failure`）也会出现在 SSE error 帧里。
 
 ## Verification

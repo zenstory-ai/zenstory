@@ -895,6 +895,9 @@ async def test_review_rounds_are_capped_and_reviewer_notes_are_surfaced(monkeypa
             for event in _write_done(f"w{len(calls)}"):
                 yield event
             yield _text(LONG_TEXT)
+            if len(calls) > 1:
+                # 返工稿不再被自动质检门送审；模型无视提示词显式送审时才会有第 2 轮。
+                yield _handoff("quality_reviewer", "返工完成，请复审")
             return
         reviewer_prompts.append(state["user_message"])
         yield _text("问题：第三段节奏拖沓。")
