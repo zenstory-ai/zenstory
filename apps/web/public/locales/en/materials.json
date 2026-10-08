@@ -120,5 +120,57 @@
   },
   "libraryLoadFailed": "Unable to load the material library. Please retry.",
   "listLoadError": "Unable to load materials. Please retry.",
-  "searchLoadFailed": "Material search failed. Please retry."
+  "searchLoadFailed": "Material search failed. Please retry.",
+  "enums": {
+    "plotType": {
+      "action": "Action",
+      "reveal": "Reveal",
+      "dialogue": "Dialogue",
+      "setup": "Setup",
+      "conflict": "Conflict",
+      "turning_point": "Turning point",
+      "resolution": "Resolution",
+      "other": "Other"
+    },
+    "storyType": {
+      "main": "Main plot",
+      "romance": "Romance",
+      "growth": "Growth",
+      "revenge": "Revenge",
+      "treasure": "Treasure hunt",
+      "conflict": "Conflict",
+      "mystery": "Mystery",
+      "cultivation": "Cultivation",
+      "daily": "Daily life",
+      "battle": "Battle",
+      "exploration": "Exploration",
+      "crisis": "Crisis",
+      "other": "Other"
+    },
+    "relationshipType": {
+      "family": "Family",
+      "master_disciple": "Mentor & disciple",
+      "friend": "Friends",
+      "enemy": "Enemies",
+      "lover": "Lovers",
+      "colleague": "Colleagues",
+      "superior_subordinate": "Superior & subordinate",
+      "business": "Business",
+      "mentor": "Mentor & disciple",
+      "ally": "Allies",
+      "other": "Other"
+    },
+    "goldenFingerType": {
+      "system": "System",
+      "space": "Pocket space",
+      "rebirth": "Rebirth",
+      "transmigration": "Transmigration",
+      "special_physique": "Special physique",
+      "special_ability": "Special ability",
+      "artifact": "Artifact",
+      "bloodline": "Bloodline",
+      "other": "Other"
+    },
+    "other": "Other"
+  }
 }

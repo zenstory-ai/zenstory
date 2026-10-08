@@ -162,7 +162,7 @@
       "inspiration_copies_monthly": "Inspiration Copies",
       "materials_library_access": "Materials library"
     },
-    "tokenCount": "{{count}} tokens"
+    "tokenCount": "{{value}} tokens"
   },
   "points": {
     "comingSoon": "Points feature coming soon",

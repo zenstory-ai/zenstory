@@ -55,7 +55,7 @@ export function SubscriptionStatus({ onRedeemClick, onUpgradeClick }: Subscripti
   const formatFeatureValue = (key: string, value: unknown): string => {
     if (value === -1) return t('subscription.unlimited', '无限');
     if (key === 'context_window_tokens' && typeof value === 'number') {
-      return t('subscription.tokenCount', '{{count}} tokens', { count: value.toLocaleString(i18n.language) });
+      return t('subscription.tokenCount', '{{value}} tokens', { value: value.toLocaleString(i18n.language) });
     }
     if (typeof value === 'boolean') {
       return value ? t('subscription.yes', '是') : t('subscription.no', '否');

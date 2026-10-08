@@ -162,7 +162,7 @@
       "inspiration_copies_monthly": "灵感复用次数",
       "materials_library_access": "素材库"
     },
-    "tokenCount": "{{count}} tokens"
+    "tokenCount": "{{value}} tokens"
   },
   "points": {
     "comingSoon": "积分功能即将上线",

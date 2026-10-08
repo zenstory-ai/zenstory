@@ -120,5 +120,57 @@
   },
   "libraryLoadFailed": "素材库加载失败，请重试。",
   "listLoadError": "素材列表加载失败，请重试。",
-  "searchLoadFailed": "素材搜索失败，请重试。"
+  "searchLoadFailed": "素材搜索失败，请重试。",
+  "enums": {
+    "plotType": {
+      "action": "动作",
+      "reveal": "揭示",
+      "dialogue": "对话",
+      "setup": "铺垫",
+      "conflict": "冲突",
+      "turning_point": "转折",
+      "resolution": "收束",
+      "other": "其他"
+    },
+    "storyType": {
+      "main": "主线",
+      "romance": "感情线",
+      "growth": "成长线",
+      "revenge": "复仇线",
+      "treasure": "夺宝线",
+      "conflict": "冲突线",
+      "mystery": "悬疑线",
+      "cultivation": "修炼线",
+      "daily": "日常线",
+      "battle": "战斗线",
+      "exploration": "探索线",
+      "crisis": "危机线",
+      "other": "其他"
+    },
+    "relationshipType": {
+      "family": "亲人",
+      "master_disciple": "师徒",
+      "friend": "朋友",
+      "enemy": "敌对",
+      "lover": "恋人",
+      "colleague": "同事",
+      "superior_subordinate": "上下级",
+      "business": "合作",
+      "mentor": "师徒",
+      "ally": "盟友",
+      "other": "其他"
+    },
+    "goldenFingerType": {
+      "system": "系统",
+      "space": "随身空间",
+      "rebirth": "重生",
+      "transmigration": "穿越",
+      "special_physique": "特殊体质",
+      "special_ability": "特殊能力",
+      "artifact": "法宝",
+      "bloodline": "血脉",
+      "other": "其他"
+    },
+    "other": "其他"
+  }
 }
