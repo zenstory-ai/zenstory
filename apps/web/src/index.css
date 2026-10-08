@@ -1131,6 +1131,52 @@ code, pre, .font-mono {
     will-change: transform, opacity;
 }
 
+/* One-shot celebration for a successful Pro activation */
+@keyframes celebration-burst {
+    0% {
+        transform: translate(0, 0) rotate(0deg) scale(0.6);
+        opacity: 0;
+    }
+    12% {
+        opacity: 1;
+    }
+    70% {
+        opacity: 1;
+    }
+    100% {
+        transform: translate(var(--burst-x), calc(var(--burst-y) + 60px)) rotate(var(--burst-rotate)) scale(1);
+        opacity: 0;
+    }
+}
+
+@keyframes celebration-pop {
+    0% {
+        transform: scale(0.6);
+        opacity: 0;
+    }
+    60% {
+        transform: scale(1.12);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.celebration-piece {
+    /* Per-piece offsets are set inline by CelebrationBurst. */
+    --burst-x: 0px;
+    --burst-y: 0px;
+    --burst-rotate: 0deg;
+    opacity: 0;
+    animation: celebration-burst 1.4s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+
+.animate-celebration-pop {
+    animation: celebration-pop 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
     html:focus-within,
     .scroll-smooth {
@@ -1149,9 +1195,14 @@ code, pre, .font-mono {
     .animate-slide-in-left,
     .animate-slide-out-left,
     .animate-slide-in-bottom,
-    .animate-slide-out-bottom {
+    .animate-slide-out-bottom,
+    .animate-celebration-pop {
         animation: none !important;
         will-change: auto;
+    }
+
+    .celebration-burst {
+        display: none;
     }
 }
 

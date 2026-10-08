@@ -2,7 +2,10 @@ import { useQuery } from '@tanstack/react-query';
 import { subscriptionApi, subscriptionQueryKeys } from '../../lib/subscriptionApi';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '../ui/Badge';
-import { getLocalizedPlanDisplayName } from '../../lib/subscriptionEntitlements';
+import {
+  getLocalizedPlanDisplayName,
+  getSubscriptionFeatureRows,
+} from '../../lib/subscriptionEntitlements';
 
 interface SubscriptionStatusProps {
   onRedeemClick?: () => void;
@@ -10,7 +13,7 @@ interface SubscriptionStatusProps {
 }
 
 export function SubscriptionStatus({ onRedeemClick, onUpgradeClick }: SubscriptionStatusProps) {
-  const { t, i18n } = useTranslation('settings');
+  const { t, i18n } = useTranslation(['settings', 'dashboard']);
   const { data: status, isLoading } = useQuery({
     queryKey: subscriptionQueryKeys.status(),
     queryFn: () => subscriptionApi.getStatus(),
@@ -23,24 +26,14 @@ export function SubscriptionStatus({ onRedeemClick, onUpgradeClick }: Subscripti
   if (!status) return null;
 
   const isPaidTier = status.tier !== 'free';
-  const featureEntries = Object.entries(status.features ?? {});
+  const featureRows = getSubscriptionFeatureRows(status.features, t, i18n.language);
 
   const statusLabel = (() => {
-    if (status.status === 'active') return t('subscription.active', '生效中');
-    if (status.status === 'cancelled') return t('subscription.cancelled', '已取消');
-    if (status.status === 'none') return t('subscription.none', '未开通');
-    return t('subscription.expired', '已过期');
+    if (status.status === 'active') return t('settings:subscription.active', '生效中');
+    if (status.status === 'cancelled') return t('settings:subscription.cancelled', '已取消');
+    if (status.status === 'none') return t('settings:subscription.none', '未开通');
+    return t('settings:subscription.expired', '已过期');
   })();
-
-  const formatFeatureValue = (value: unknown): string => {
-    if (value === -1) return t('subscription.unlimited', '无限');
-    if (typeof value === 'boolean') {
-      return value ? t('subscription.yes', '是') : t('subscription.no', '否');
-    }
-    if (Array.isArray(value)) return value.join(', ');
-    if (value === null || value === undefined) return '-';
-    return String(value);
-  };
 
   return (
     <div className="rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-4">
@@ -63,24 +56,20 @@ export function SubscriptionStatus({ onRedeemClick, onUpgradeClick }: Subscripti
 
       {isPaidTier && status.status === 'active' && status.days_remaining !== null && (
         <p className="mb-3 text-sm text-[hsl(var(--text-secondary))]">
-          {t('subscription.daysRemaining', '剩余 {{days}} 天', { days: status.days_remaining })}
+          {t('settings:subscription.daysRemaining', '剩余 {{days}} 天', { days: status.days_remaining })}
         </p>
       )}
 
-      {featureEntries.length > 0 && (
+      {featureRows.length > 0 && (
         <div className="mb-3 border-t border-[hsl(var(--border-color))] pt-3">
           <p className="mb-2 text-xs font-medium text-[hsl(var(--text-secondary))]">
-            {t('subscription.featuresTitle', '套餐权益')}
+            {t('settings:subscription.featuresTitle', '套餐权益')}
           </p>
           <div className="space-y-1">
-            {featureEntries.map(([key, value]) => (
-              <div key={key} className="flex items-center justify-between text-xs">
-                <span className="text-[hsl(var(--text-secondary))]">
-                  {t(`subscription.features.${key}`, key)}
-                </span>
-                <span className="font-medium text-[hsl(var(--text-primary))]">
-                  {formatFeatureValue(value)}
-                </span>
+            {featureRows.map((row) => (
+              <div key={row.key} className="flex items-center justify-between gap-3 text-xs">
+                <span className="text-[hsl(var(--text-secondary))]">{row.label}</span>
+                <span className="font-medium text-[hsl(var(--text-primary))]">{row.value}</span>
               </div>
             ))}
           </div>
@@ -94,7 +83,7 @@ export function SubscriptionStatus({ onRedeemClick, onUpgradeClick }: Subscripti
             onClick={onUpgradeClick}
             className="px-3 py-1.5 text-sm rounded-md bg-[hsl(var(--accent-primary))] text-white hover:opacity-90 transition-colors"
           >
-            {t('subscription.upgradePrimary', '升级专业版')}
+            {t('settings:subscription.upgradePrimary', '升级专业版')}
           </button>
         )}
 
@@ -108,7 +97,7 @@ export function SubscriptionStatus({ onRedeemClick, onUpgradeClick }: Subscripti
                 : 'bg-[hsl(var(--accent-primary))] text-white hover:opacity-90 border-transparent'
             }`}
           >
-            {t('subscription.redeemCode', '兑换码')}
+            {t('settings:subscription.redeemCode', '兑换码')}
           </button>
         )}
       </div>

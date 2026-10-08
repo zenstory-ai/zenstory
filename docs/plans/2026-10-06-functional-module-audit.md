@@ -75,9 +75,9 @@ All three axes and leaf coverage must be evidenced before a row is complete.
    proven blocking bug merely to declare the row complete. Reopen affected rows
    when shared-boundary fixes change their assumptions.
 6. Targeted tests first, then lint/type/static and relevant integration checks;
-   bounded independent review of meaningful changes. Reports under
-   `docs/reviews/2026-10-06-modules/` carry source references, experiment/test
-   evidence and explicit remaining gaps.
+   bounded independent review of meaningful changes. Working reports stay local
+   under `docs/reviews/` (git-ignored) with source references, experiment/test
+   evidence and explicit remaining gaps; durable decisions go to `.agents/notes/`.
 
 ## First bounded candidate: M23 readiness
 

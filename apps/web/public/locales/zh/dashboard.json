@@ -111,6 +111,7 @@
     "metricMaterialDecompositionsOutcome": "把参考小说拆成人物、情节等要点",
     "metricCustomSkills": "自定义技能",
     "metricCustomSkillsOutcome": "把常用的写作要求存成技能，随时调用",
+    "metricFileVersions": "每个文件保留的历史版本",
     "metricInspirationCopies": "复制灵感",
     "metricInspirationCopiesOutcome": "把灵感库中的灵感复制成你的项目",
     "ctaBuyPro": "购买 Pro",
@@ -129,7 +130,7 @@
     "paymentCheckFailed": "暂时查不到支付结果",
     "paymentCheckFailedHint": "已付款请不要重复支付，稍后点「刷新支付结果」。",
     "paymentActivated": "支付成功，Pro 已开通",
-    "paymentActivatedHint": "回到「订阅权益」可查看最新额度。",
+    "paymentActivatedHint": "新额度已经生效，现在就去写吧。",
     "paymentPending": "付款确认中",
     "paymentPendingHint": "本页会自动更新。已付款请不要重复支付。",
     "paymentOrderNumber": "订单号",
@@ -149,7 +150,13 @@
     "monthlyQuotaResetHint": "每月额度于北京时间每月 1 日 00:00 重置。",
     "metricAiConversations": "每日 AI 消息",
     "metricAiConversationsOutcome": "北京时间 00:00 重置",
-    "supportHint": "订阅、扣费或退款有疑问？请联系客服："
+    "supportHint": "订阅、扣费或退款有疑问？请联系客服：",
+    "yearlyBestValue": "最划算 · 省 {{percent}}%",
+    "monthlyFlexible": "先试一个月",
+    "goToPayAmount": "去支付 {{price}}",
+    "paymentActivatedUntil": "有效期至 {{date}}，现在就去写吧。",
+    "paymentUnlockedTitle": "已解锁",
+    "startWriting": "开始写作"
   },
   "todayActionPlan": {
     "title": "今天可以做的 3 件事",
@@ -277,8 +284,8 @@
   },
   "inspiration": {
     "title": "创作灵感",
-    "dashboardPlaceholder": "输入一句核心冲突，或点下方真实小说灵感开始",
-    "dashboardPlaceholderWithoutInspirations": "输入一句核心冲突，开始创作你的故事",
+    "dashboardPlaceholder": "想到什么写什么：一个人物、一个画面、一句台词都行，也可以从下方灵感里挑一个。没想好就直接点「开始创作」。",
+    "dashboardPlaceholderWithoutInspirations": "想到什么写什么：一个人物、一个画面、一句台词都行。没想好也没关系，直接点「开始创作」，和 AI 边聊边想。",
     "novelPlaceholder": "输入你的创作灵感，比如：一个穿越到古代的程序员发现自己会写代码的能力变成了修仙功法...",
     "shortPlaceholder": "描述你的故事创意，比如：深夜的便利店里，一位老人每晚都来买同一款已停产的糖果...",
     "screenplayPlaceholder": "说说你想拍什么，比如：霸道总裁在相亲角被大妈嫌弃收入太低，决定隐藏身份追求真爱...",
@@ -532,9 +539,9 @@
         "cta": "知道了"
       },
       "inspirationInput": {
-        "title": "从一句核心冲突开始",
-        "description": "可以直接输入灵感，也可以点下方推荐，快速生成第一个项目。",
-        "descriptionWithoutLibrary": "输入你的故事想法，点击开始创作即可创建项目。"
+        "title": "从一个想法开始",
+        "description": "写一句也行，不写也行。可以直接输入，也可以点下方推荐，马上建好第一个项目。",
+        "descriptionWithoutLibrary": "写下任何想法，或者先空着，点「开始创作」就能建好项目。"
       },
       "createProject": {
         "title": "一键创建项目",

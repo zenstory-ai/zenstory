@@ -145,22 +145,8 @@
     "aiUsageCount": "AI 消息 {{used}}/{{limit}}",
     "upgradeNow": "立即升级",
     "upgradeSuggestion": "升级获取更高额度",
-    "yes": "是",
-    "no": "否",
-    "features": {
-      "ai_conversations_per_day": "每日 AI 消息数",
-      "max_ai_conversations_per_day": "每日 AI 消息数",
-      "context_window_tokens": "AI 单次可参考的内容量",
-      "file_versions_per_file": "每个文件保留的版本数",
-      "max_projects": "最大项目数",
-      "export_formats": "导出格式",
-      "custom_prompts": "自定义提示词",
-      "priority_support": "优先支持",
-      "material_uploads": "每月素材上传次数",
-      "material_decompositions": "每月素材拆解次数",
-      "custom_skills": "自定义技能数量",
-      "inspiration_copies_monthly": "灵感复用次数"
-    }
+    "notIncluded": "不含",
+    "redeemDone": "开始使用"
   },
   "points": {
     "comingSoon": "积分功能即将上线",

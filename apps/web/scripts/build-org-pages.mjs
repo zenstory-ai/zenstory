@@ -281,7 +281,7 @@ const projectName = (p) => t(esc(p.name.en), zhName(p))
 
 const starGlyph = '<svg class="star" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M8 1.2c.62 2.6 1.66 3.64 4.26 4.26-2.6.62-3.64 1.66-4.26 4.26-.62-2.6-1.66-3.64-4.26-4.26 2.6-.62 3.64-1.66 4.26-4.26Z" fill="#22D3EE"/></svg>'
 const proof = (html, cls = '') => `<span class="proof${cls ? ` ${cls}` : ''}">${html}</span>`
-/** Chip row. The date the star counts were read is stated once per page, in the closing facts line, not next to every number. */
+/** Chip row. The date the star counts were read is stated once per page, in a facts line, not next to every number. */
 const proofRow = (chips) => `<p class="proof-row">${chips.join('')}</p>`
 
 /** Navigational list row: title block grows, arrow is its own flex item so it never wraps alone. */
@@ -340,7 +340,7 @@ const taskChoices = [
   ['Write in a hosted browser workspace', '在浏览器工作台中写作', 'workbench'],
 ]
 
-/** Proof chips for one project: stars and skills; the license is stated once per page (footer and closing facts line). */
+/** Proof chips for one project: stars and skills; the license is stated once per page (footer and project facts). */
 const projectChips = (p) => [
   p.stars ? proof(`${starGlyph}${num(p.stars)} GitHub ${t('stars', 'star')}`) : '',
   p.skills ? proof(t(`${p.skills} skills`, `${p.skills} 个技能`)) : '',
@@ -600,7 +600,6 @@ const homePage = () => {
     </header>
     <div class="home-system"><figure>${pipelineSvg()}<figcaption>${t('How the projects relate: a novel adapts into drama or a game; footage becomes a recap.', '项目关系：小说可改成短剧或游戏；视频素材可做成解说。')}</figcaption></figure></div>
     <p class="actions"><a class="btn" href="${APP}">${t('Open the writing workbench', '打开网页写作工作台')}${extGlyph}</a><a class="btn ghost" href="#choose-h">${t('Install a skill pack in your agent', '在 Agent 中安装 skill 包')}<span class="arrow" aria-hidden="true">↑</span></a></p>
-    <p class="facts">${t(`${num(org.proof.stars_total)} GitHub stars across the organization as of ${esc(org.proof.as_of)}. Repositories listed here are ${esc(org.proof.license)}-licensed. Model services may have separate costs.`, `截至 ${esc(org.proof.as_of)}，组织合计 ${num(org.proof.stars_total)} 个 GitHub star。所列仓库为 ${esc(org.proof.license)} 许可，模型服务可能另有费用。`)}</p>
   </div></section>
 </article>
 ${playerScript}`

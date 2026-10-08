@@ -185,7 +185,7 @@ describe("PricingPage", () => {
     await waitFor(() => {
       expect(screen.getByText("套餐权益对比")).toBeInTheDocument();
       expect(screen.getByText("推荐")).toBeInTheDocument();
-      expect(screen.getAllByText("每日 AI 对话").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("每日 AI 消息").length).toBeGreaterThan(0);
     });
     expect(screen.getAllByText("北京时间 00:00 重置").length).toBeGreaterThan(0);
     expect(screen.queryByText("可创作体量")).not.toBeInTheDocument();
@@ -207,7 +207,7 @@ describe("PricingPage", () => {
     await waitFor(() => {
       expect(screen.getByText("套餐权益对比")).toBeInTheDocument();
     });
-    expect(screen.queryByText("每日 AI 对话")).not.toBeInTheDocument();
+    expect(screen.queryByText("每日 AI 消息")).not.toBeInTheDocument();
     expect(screen.getAllByText("自定义技能").length).toBeGreaterThan(0);
   });
 
@@ -226,17 +226,19 @@ describe("PricingPage", () => {
     expect(monthlyControl).not.toBeNull();
     expect(yearlyControl).not.toBeNull();
     expect(monthlyControl).toHaveAttribute("role", "radio");
-    expect(monthlyControl).toHaveAttribute("aria-checked", "true");
-    expect(yearlyControl).toHaveAttribute("aria-checked", "false");
+    // Yearly is the default offer and shows its saving up front.
+    expect(yearlyControl).toHaveAttribute("aria-checked", "true");
+    expect(monthlyControl).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByText(/¥399\/年|¥399\/year/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/省|节省|save/i).length).toBeGreaterThan(0);
 
-    if (yearlyControl) {
-      fireEvent.click(yearlyControl);
+    if (monthlyControl) {
+      fireEvent.click(monthlyControl);
     }
 
     await waitFor(() => {
-      expect(screen.getByText(/¥399\/年|¥399\/year/i)).toBeInTheDocument();
-      expect(screen.getAllByText(/省|节省|save/i).length).toBeGreaterThan(0);
-      expect(yearlyControl).toHaveAttribute("aria-checked", "true");
+      expect(screen.getByText(/¥49\/月|¥49\/month/i)).toBeInTheDocument();
+      expect(monthlyControl).toHaveAttribute("aria-checked", "true");
     });
   });
 

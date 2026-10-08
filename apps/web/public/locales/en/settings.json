@@ -145,22 +145,8 @@
     "aiUsageCount": "AI messages {{used}}/{{limit}}",
     "upgradeNow": "Upgrade Now",
     "upgradeSuggestion": "Upgrade for higher limits",
-    "yes": "Yes",
-    "no": "No",
-    "features": {
-      "ai_conversations_per_day": "AI Messages Per Day",
-      "max_ai_conversations_per_day": "AI Messages Per Day",
-      "context_window_tokens": "AI context size",
-      "file_versions_per_file": "Versions kept per file",
-      "max_projects": "Max Projects",
-      "export_formats": "Export Formats",
-      "custom_prompts": "Custom Prompts",
-      "priority_support": "Priority Support",
-      "material_uploads": "Material uploads per month",
-      "material_decompositions": "Material decompositions per month",
-      "custom_skills": "Custom Skills",
-      "inspiration_copies_monthly": "Inspiration Copies"
-    }
+    "notIncluded": "Not included",
+    "redeemDone": "Start using"
   },
   "points": {
     "comingSoon": "Points feature coming soon",

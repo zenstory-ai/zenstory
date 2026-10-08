@@ -111,6 +111,7 @@
     "metricMaterialDecompositionsOutcome": "Break reference novels into characters, plot and other key points",
     "metricCustomSkills": "Custom skills",
     "metricCustomSkillsOutcome": "Save your go-to writing instructions as skills and reuse them",
+    "metricFileVersions": "Versions kept per file",
     "metricInspirationCopies": "Inspiration copies",
     "metricInspirationCopiesOutcome": "Turn library inspirations into your own projects",
     "ctaBuyPro": "Buy Pro",
@@ -129,7 +130,7 @@
     "paymentCheckFailed": "Can't check the payment right now",
     "paymentCheckFailedHint": "If you've already paid, don't pay again. Click \"Refresh payment status\" in a moment.",
     "paymentActivated": "Payment successful — Pro is active",
-    "paymentActivatedHint": "Go back to Plans & Benefits to see your new limits.",
+    "paymentActivatedHint": "Your new limits are active. Time to write.",
     "paymentPending": "Confirming your payment",
     "paymentPendingHint": "This page updates automatically. If you've already paid, don't pay again.",
     "paymentOrderNumber": "Order number",
@@ -149,7 +150,13 @@
     "monthlyQuotaResetHint": "Monthly quotas reset on the 1st at 00:00 Beijing time (UTC+8).",
     "metricAiConversations": "Daily AI messages",
     "metricAiConversationsOutcome": "Resets at 00:00 Beijing time (UTC+8)",
-    "supportHint": "Questions about your subscription, charges or refunds? Email support:"
+    "supportHint": "Questions about your subscription, charges or refunds? Email support:",
+    "yearlyBestValue": "Best value · save {{percent}}%",
+    "monthlyFlexible": "Try a month first",
+    "goToPayAmount": "Pay {{price}}",
+    "paymentActivatedUntil": "Active until {{date}}. Time to write.",
+    "paymentUnlockedTitle": "Unlocked",
+    "startWriting": "Start writing"
   },
   "todayActionPlan": {
     "title": "3 things to do today",
@@ -277,8 +284,8 @@
   },
   "inspiration": {
     "title": "Creative Inspiration",
-    "dashboardPlaceholder": "Describe a strong conflict, or tap a real-story inspiration below",
-    "dashboardPlaceholderWithoutInspirations": "Describe a strong conflict to start creating your story",
+    "dashboardPlaceholder": "Anything works: a character, a scene, a single line, or pick an idea below. No idea yet? Just hit Start Writing.",
+    "dashboardPlaceholderWithoutInspirations": "Anything works: a character, a scene, a single line. No idea yet? Just hit Start Writing and brainstorm with the AI.",
     "novelPlaceholder": "Enter your creative idea, e.g., A programmer travels to ancient times and discovers his coding ability becomes cultivation...",
     "shortPlaceholder": "Describe your story idea, e.g., Late night at a convenience store, an old man comes every night to buy the same discontinued candy...",
     "screenplayPlaceholder": "Tell me what you want to shoot, e.g., A CEO gets rejected at a matchmaking corner for low income, decides to hide identity to pursue true love...",
@@ -532,9 +539,9 @@
         "cta": "Got it"
       },
       "inspirationInput": {
-        "title": "Start with one core conflict",
-        "description": "Type your idea directly, or tap a suggested prompt below to create your first project faster.",
-        "descriptionWithoutLibrary": "Enter your story idea, then select Start Writing to create a project."
+        "title": "Start from any idea",
+        "description": "One line or nothing at all. Type an idea or pick a suggestion below to create your first project.",
+        "descriptionWithoutLibrary": "Type any idea, or leave it blank, then click Start Writing to create a project."
       },
       "createProject": {
         "title": "Create a project in one click",

@@ -38,12 +38,14 @@ function lookup(resources: Record<string, unknown>, key: string): unknown {
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, fallback: string) => {
+    t: (key: string, fallback: string, options?: Record<string, unknown>) => {
+      const interpolate = (text: string | undefined) =>
+        (text ?? key).replace(/\{\{(\w+)\}\}/g, (_match, name: string) => String(options?.[name] ?? ''))
       if (i18nState.resources) {
         const value = lookup(i18nState.resources, key)
-        return typeof value === 'string' ? value : fallback
+        return interpolate(typeof value === 'string' ? value : fallback)
       }
-      return key.startsWith('errors:') ? key : fallback
+      return key.startsWith('errors:') ? key : interpolate(fallback)
     },
     i18n: { language: 'zh-CN' },
   }),
@@ -91,11 +93,14 @@ describe('PaymentCheckoutModal', () => {
     renderModal()
     expect(await screen.findByText('支付宝')).toBeInTheDocument()
     expect(screen.getByText('开通 Pro 会员')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^去支付$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^去支付 ¥19$/ })).toBeInTheDocument()
+    // The yearly option carries the saving so the better deal is visible before choosing.
+    expect(screen.getByRole('radio', { name: /年付/ })).toHaveTextContent('最划算 · 省 17%')
+    expect(screen.getByRole('radio', { name: /年付/ })).toHaveTextContent('折合 ¥15.83/月 · 比月付省 ¥38')
     expect(screen.queryByText(/微信/)).not.toBeInTheDocument()
     expect(screen.queryByText(/服务器|收银台/)).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('radio', { name: /年付/ }))
-    fireEvent.click(screen.getByRole('button', { name: /去支付/ }))
+    fireEvent.click(screen.getByRole('button', { name: /去支付 ¥190/ }))
 
     await waitFor(() => expect(paymentApi.createOrder).toHaveBeenCalledTimes(1))
     expect(paymentApi.createOrder).toHaveBeenCalledWith({ plan_name: 'pro', cycle: 'year', payment_method: 'alipay' })
@@ -213,7 +218,7 @@ describe('PaymentCheckoutModal', () => {
     async function failWith(cause: unknown) {
       vi.mocked(paymentApi.createOrder).mockRejectedValue(cause)
       renderModal()
-      const payButton = await screen.findByRole('button', { name: /去支付|Pay now/ })
+      const payButton = await screen.findByRole('button', { name: /去支付|Pay / })
       await waitFor(() => expect(payButton).toBeEnabled())
       fireEvent.click(payButton)
       return screen.findByRole('alert')

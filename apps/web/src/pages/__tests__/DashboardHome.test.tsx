@@ -106,8 +106,8 @@ const mockT = (
     'projectType.novel.name': '长篇小说',
     'inspiration.novelDesc': 'AI 将根据你的灵感，帮你构思故事框架、设定世界观和人物角色',
     'inspiration.novelPlaceholder': '请输入灵感',
-    'dashboard:inspiration.dashboardPlaceholder': '输入一句核心冲突，或点下方真实小说灵感开始',
-    'dashboard:inspiration.dashboardPlaceholderWithoutInspirations': '输入一句核心冲突，开始创作你的故事',
+    'dashboard:inspiration.dashboardPlaceholder': '想到什么写什么：一个人物、一个画面、一句台词都行，也可以从下方灵感里挑一个。没想好就直接点「开始创作」。',
+    'dashboard:inspiration.dashboardPlaceholderWithoutInspirations': '想到什么写什么：一个人物、一个画面、一句台词都行。没想好也没关系，直接点「开始创作」，和 AI 边聊边想。',
     'activationGuide.steps.signup_success': '完成注册',
     'activationGuide.steps.project_created': '创建项目',
     'activationGuide.steps.first_file_saved': '保存第一个文件',
@@ -307,7 +307,7 @@ describe('DashboardHome featured inspirations section', () => {
     expect(mockUseDashboardInspirations).not.toHaveBeenCalled()
     expect(screen.getByTestId('dashboard-inspiration-input')).toHaveAttribute(
       'placeholder',
-      '输入一句核心冲突，开始创作你的故事',
+      '想到什么写什么：一个人物、一个画面、一句台词都行。没想好也没关系，直接点「开始创作」，和 AI 边聊边想。',
     )
   })
 
@@ -356,7 +356,7 @@ describe('DashboardHome featured inspirations section', () => {
     expect(mockUseDashboardInspirations).toHaveBeenCalledWith('novel', 2, 0)
     expect(screen.getByTestId('dashboard-inspiration-input')).toHaveAttribute(
       'placeholder',
-      '输入一句核心冲突，或点下方真实小说灵感开始',
+      '想到什么写什么：一个人物、一个画面、一句台词都行，也可以从下方灵感里挑一个。没想好就直接点「开始创作」。',
     )
     fireEvent.click(screen.getByRole('button', { name: /狂兽战神/i }))
 

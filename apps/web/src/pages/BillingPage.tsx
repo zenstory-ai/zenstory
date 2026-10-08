@@ -37,8 +37,9 @@ export default function BillingPage() {
   const trackedConversionSourceRef = useRef<string | null>(null);
   const billingUpgradePrompt = getUpgradePromptDefinition("billing_header_upgrade");
   const [paymentCycle] = useState<PaymentCycle>(() => {
+    // Yearly is the default offer; an explicit monthly choice on the pricing page wins.
     const storedCycle = sessionStorage.getItem("payment_cycle_intent");
-    return storedCycle === "year" ? "year" : "month";
+    return storedCycle === "month" ? "month" : "year";
   });
   useEffect(() => {
     sessionStorage.removeItem("payment_cycle_intent");
@@ -116,11 +117,11 @@ export default function BillingPage() {
   const usageItems = useMemo(
     () =>
       [
-        { key: "ai_conversations", label: t("settings:subscription.features.ai_conversations_per_day", "每日 AI 对话次数") },
-        { key: "projects", label: t("settings:subscription.features.max_projects", "最大项目数") },
-        { key: "material_decompositions", label: t("settings:subscription.features.material_decompositions", "每月素材拆解次数") },
-        { key: "skill_creates", label: t("settings:subscription.features.custom_skills", "自定义技能数量") },
-        { key: "inspiration_copies", label: t("settings:subscription.features.inspiration_copies_monthly", "灵感复用次数") },
+        { key: "ai_conversations", label: t("dashboard:billing.metricAiConversations", "每日 AI 消息") },
+        { key: "projects", label: t("dashboard:billing.metricProjects", "项目数") },
+        { key: "material_decompositions", label: t("dashboard:billing.metricMaterialDecompositions", "素材拆解次数") },
+        { key: "skill_creates", label: t("dashboard:billing.metricCustomSkills", "自定义技能") },
+        { key: "inspiration_copies", label: t("dashboard:billing.metricInspirationCopies", "复制灵感") },
       ].filter((item) => inspirationsConfig.enabled || item.key !== "inspiration_copies") as { key: UsageKey; label: string }[],
     [t]
   );

@@ -13,6 +13,7 @@ import {
   filterAvailableMetrics,
   getEntitlementMetricDefinitions,
   getLocalizedPlanDisplayName,
+  getYearlySavings,
   toComparableMetricValue,
 } from "../lib/subscriptionEntitlements";
 import { buildUpgradeUrl } from "../config/upgradeExperience";
@@ -36,7 +37,7 @@ export default function PricingPage() {
   const userId = user?.id ?? null;
   const isAuthenticated = Boolean(userId);
   const isMobile = useIsMobile();
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>("month");
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>("year");
   const [showOnlyDifferences, setShowOnlyDifferences] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const attributionSource = useMemo(() => {
@@ -100,19 +101,13 @@ export default function PricingPage() {
     [i18n.language, t, sortedPlans]
   );
 
-  const getYearlySavings = (plan: SubscriptionCatalogTier): { amount: number; percent: number } | null => {
-    if (plan.price_monthly_cents <= 0 || plan.price_yearly_cents <= 0) return null;
-    const yearlyPriceFromMonthly = plan.price_monthly_cents * 12;
-    if (yearlyPriceFromMonthly <= plan.price_yearly_cents) return null;
-    const amount = yearlyPriceFromMonthly - plan.price_yearly_cents;
-    const percent = Math.round((amount / yearlyPriceFromMonthly) * 100);
-    return { amount, percent };
-  };
+  const getPlanYearlySavings = (plan: SubscriptionCatalogTier) =>
+    getYearlySavings(plan.price_monthly_cents, plan.price_yearly_cents);
 
   const maxYearlySavingsPercent = useMemo(
     () =>
       sortedPlans.reduce((max, plan) => {
-        const savings = getYearlySavings(plan);
+        const savings = getPlanYearlySavings(plan);
         return savings ? Math.max(max, savings.percent) : max;
       }, 0),
     [sortedPlans]
@@ -338,11 +333,11 @@ export default function PricingPage() {
                           billingCycle
                         )}
                       </p>
-                      {billingCycle === "year" && getYearlySavings(plan) && (
+                      {billingCycle === "year" && getPlanYearlySavings(plan) && (
                         <Badge variant="purple">
                           {t("dashboard:billing.yearlySaveBadge", "年付省 {{amount}} · {{percent}}%", {
-                            amount: formatCurrency(getYearlySavings(plan)?.amount ?? 0),
-                            percent: getYearlySavings(plan)?.percent ?? 0,
+                            amount: formatCurrency(getPlanYearlySavings(plan)?.amount ?? 0),
+                            percent: getPlanYearlySavings(plan)?.percent ?? 0,
                           })}
                         </Badge>
                       )}

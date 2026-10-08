@@ -7,6 +7,7 @@ import { Button } from '../ui/Button'
 import { paymentApi, paymentQueryKeys } from '../../lib/paymentApi'
 import { ApiError } from '../../lib/apiClient'
 import { trackEvent } from '../../lib/analytics'
+import { formatYuan, getYearlySavings } from '../../lib/subscriptionEntitlements'
 import type { PaymentCycle, PaymentCheckout } from '../../types/payment'
 
 // Codes whose errors: translation tells the buyer what to do next.
@@ -138,6 +139,8 @@ export function PaymentCheckoutModal({
     },
   })
   const isBusy = createOrder.isPending || redirecting
+  const yearlySavings = getYearlySavings(monthlyPriceCents, yearlyPriceCents)
+  const selectedPrice = cycle === 'month' ? monthlyPriceCents : yearlyPriceCents
 
   const alipayEnabled = optionsQuery.data?.enabled === true
     && optionsQuery.data.payment_methods.includes('alipay')
@@ -168,10 +171,11 @@ export function PaymentCheckoutModal({
     >
       <Modal.Body>
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label={t('dashboard:billing.billingCycleLabel', '购买时长')}>
+          <div className="grid grid-cols-2 gap-3 pt-2" role="radiogroup" aria-label={t('dashboard:billing.billingCycleLabel', '购买时长')}>
             {(['month', 'year'] as PaymentCycle[]).map((item) => {
               const selected = cycle === item
               const itemPrice = item === 'month' ? monthlyPriceCents : yearlyPriceCents
+              const savings = item === 'year' ? yearlySavings : null
               return (
                 <button
                   type="button"
@@ -180,22 +184,42 @@ export function PaymentCheckoutModal({
                   key={item}
                   onClick={() => setCycle(item)}
                   disabled={isBusy}
-                  className={`rounded-lg border p-3 text-left transition-colors ${
+                  className={`relative rounded-lg border p-3 text-left transition-colors ${
                     selected
-                      ? 'border-[hsl(var(--accent-primary))] bg-[hsl(var(--accent-primary)/0.08)]'
-                      : 'border-[hsl(var(--border-color))]'
+                      ? 'border-[hsl(var(--accent-primary))] bg-[hsl(var(--accent-primary)/0.08)] ring-1 ring-[hsl(var(--accent-primary))]'
+                      : savings
+                      ? 'border-[hsl(var(--accent-primary)/0.5)] hover:bg-[hsl(var(--accent-primary)/0.04)]'
+                      : 'border-[hsl(var(--border-color))] hover:bg-[hsl(var(--bg-tertiary))]'
                   }`}
                 >
-                  <span className="flex items-center justify-between font-medium text-[hsl(var(--text-primary))]">
+                  {savings && (
+                    <span className="absolute -top-2.5 right-3 rounded-full bg-[hsl(var(--accent-primary))] px-2 py-0.5 text-xs font-medium text-white shadow-sm">
+                      {t('dashboard:billing.yearlyBestValue', '最划算 · 省 {{percent}}%', { percent: savings.percent })}
+                    </span>
+                  )}
+                  <span className="flex items-center justify-between text-sm font-medium text-[hsl(var(--text-primary))]">
                     {item === 'month'
                       ? t('dashboard:billing.monthlyDuration', '月付 · 30 天')
                       : t('dashboard:billing.yearlyDuration', '年付 · 365 天')}
                     {selected && <Check className="h-4 w-4 text-[hsl(var(--accent-primary))]" />}
                   </span>
                   {itemPrice !== undefined && (
-                    <span className="mt-1 block text-sm text-[hsl(var(--text-secondary))]">
-                      ¥{(itemPrice / 100).toLocaleString(i18n.language?.startsWith('en') ? 'en-US' : 'zh-CN', { maximumFractionDigits: 2 })}
+                    <span className="mt-1 block text-xl font-semibold text-[hsl(var(--text-primary))]">
+                      {formatYuan(itemPrice, i18n.language)}
                     </span>
+                  )}
+                  {savings ? (
+                    <span className="mt-0.5 block text-xs text-[hsl(var(--accent-primary))]">
+                      {t('dashboard:billing.yearlyEquivalent', '折合 {{price}}/月', { price: formatYuan(savings.monthlyEquivalent, i18n.language) })}
+                      {' · '}
+                      {t('dashboard:billing.yearlySaveAmount', '比月付省 {{amount}}', { amount: formatYuan(savings.amount, i18n.language) })}
+                    </span>
+                  ) : (
+                    item === 'month' && (
+                      <span className="mt-0.5 block text-xs text-[hsl(var(--text-secondary))]">
+                        {t('dashboard:billing.monthlyFlexible', '先试一个月')}
+                      </span>
+                    )
                   )}
                 </button>
               )
@@ -233,6 +257,8 @@ export function PaymentCheckoutModal({
             ? t('dashboard:billing.paymentRedirecting', '正在前往支付宝...')
             : createOrder.isPending
             ? t('dashboard:billing.paymentCreating', '正在创建订单...')
+            : selectedPrice !== undefined
+            ? t('dashboard:billing.goToPayAmount', '去支付 {{price}}', { price: formatYuan(selectedPrice, i18n.language) })
             : t('dashboard:billing.goToPay', '去支付')}
         </Button>
       </Modal.Footer>

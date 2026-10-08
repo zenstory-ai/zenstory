@@ -1,7 +1,0 @@
-# M19 C2 root integration and current App gates
-
-IndependentSOURCE_APPROVE_CLEAR; exact6nativepaths0conflicts1860rootunownedpreserved (newproofpathpreviouslyabsent). Currentrootfresh113PASS; scopedL89.94/B72.40/F87.36/S86.51% unchangedgates. Actualforced App/nodetypes0; properCSSroot Appbuild11.10s, utilityselectors verified; no org/docs/physicalbrowser/deployclaim. Nativeexact-source lint reused; root2line fixturelaterQAtypes/lint0.
-
-AdditionaldefaultCIsetup localcheck discoverednewproof'snativeStorage assertions metshared mockedStorage:34initialfixture/harnessFAIL0PASS, NOTnewproductRED or historicalmainCIevidence. Testselfinstalls actual window.Storage percase forlocal/session thenexistingunstub restores; no production/sharedsetup/Vitestconfig changes. Fresh actualroot Vitestconfig+ordinarysetup34PASS/0skip; body/assertionsunchanged,newtestself-contained. Nativefinalsnapshots/113receipt remainimmutable, rootphase separatelycapturedbeforefixture/aftermanifest. Sourceproductandbuildbytesunchanged; no pointlessrepeatbuild. RemainingearliernativeWebsuites defaultsetup compatibility isexplicit M23localfinalgate follow-up beforepublication, nothistoricalmainCIaudit.
-
-Earliermessage mistakenF/Snumbers supersededby actualcoverage table above. Original26 proof6RED20controls vsfinal34 adds8branchcontrols; no backenddata-disclosure/undo/successresponse-fencingclaim. M19/all23/release open.

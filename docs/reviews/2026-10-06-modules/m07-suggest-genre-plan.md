@@ -1,3 +1,0 @@
-# M07 suggestions project genre — bounded repair plan
-
-Actual authorized Project.project_type is discarded by the registered suggest route; service already supports all three genres. First prove with actual route/JWT/cold default-expiring Session/context/provider prompt, faking only provider completion. Novel, foreign and unavailable-provider controls preserve behavior. If short/screenplay are genuine RED, retain verified Project and forward project.project_type to existing generate_suggestions parameter: no new query/prompt abstraction, no quota/auth/provider change. Run new tests plus existing API, rate and suggestion tests; affected lint and baseline-aware type checks, independent source review. This slice is not M07/module/release completion.
