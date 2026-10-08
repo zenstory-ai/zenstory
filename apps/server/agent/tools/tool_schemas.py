@@ -69,7 +69,7 @@ EDIT_FILE_TOOL: dict[str, Any] = {
                         },
                         "new": {
                             "type": "string",
-                            "description": "替换后的新文本（用于replace操作）"
+                            "description": "替换后的新文本（replace 必填；想删除原文请用 delete，不要省略 new）"
                         },
                         "anchor": {
                             "type": "string",
@@ -77,7 +77,7 @@ EDIT_FILE_TOOL: dict[str, Any] = {
                         },
                         "text": {
                             "type": "string",
-                            "description": "要插入的文本（用于insert_*/append/prepend操作）"
+                            "description": "要写入的文本（insert_*/append/prepend 必填，不能为空）"
                         },
                         "occurrence": {
                             "type": "integer",
@@ -106,7 +106,11 @@ EDIT_FILE_TOOL: dict[str, Any] = {
             },
             "continue_on_error": {
                 "type": "boolean",
-                "description": "是否在单个编辑失败后继续执行后续编辑（默认 false）",
+                "description": (
+                    "默认 false：edits 是一个整体，任一处失败则本次调用的全部编辑都不生效（整体回滚），"
+                    "错误会一次列出所有失败项，修正后需重新提交完整 edits 列表（不要只重发失败的几条）。"
+                    "true：跳过失败项，其余照常生效，结果里的 failed_edits 列出没改成的几处"
+                ),
                 "default": False,
             }
         },
