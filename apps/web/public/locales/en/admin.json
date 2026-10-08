@@ -212,7 +212,9 @@
     "resourcesLoadFailed": "Couldn't load resource files. Please try again.",
     "resourceCount": "{{count}} resource files",
     "resourceCount_one": "{{count}} resource file",
-    "resourceCount_other": "{{count}} resource files"
+    "resourceCount_other": "{{count}} resource files",
+    "expandDetails": "Show details",
+    "collapseDetails": "Hide details"
   },
   "codes": {
     "title": "Redemption Code Management",

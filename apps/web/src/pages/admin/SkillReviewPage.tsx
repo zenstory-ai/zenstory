@@ -373,6 +373,10 @@ function SkillReviewCard({
           )}
           <button
             onClick={() => setExpanded(!expanded)}
+            aria-expanded={expanded}
+            aria-label={expanded
+              ? t("admin:skills.collapseDetails", "收起详情")
+              : t("admin:skills.expandDetails", "展开详情")}
             className="p-2 rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
           >
             {expanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}

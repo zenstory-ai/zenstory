@@ -27,7 +27,7 @@ vi.mock('../analytics', async importOriginal => ({
 const locales = import.meta.glob<Record<string, unknown>>('../../../public/locales/en/*.json', { eager: true, import: 'default' })
 const target = 'https://app.zenstory.ai/offline-callback'
 type Session = ReturnType<typeof session>
-type Call = { path: string; method: string; authorization: string | null; body: string | null }
+type Call = { path: string; method: string; authorization: string | null; body: string | null; fromSsoValidation: boolean }
 let caseId = 0
 let a: Session
 let b: Session
@@ -95,7 +95,9 @@ beforeEach(async () => {
     const body = options?.body instanceof FormData
       ? JSON.stringify(Object.fromEntries(options.body.entries()))
       : typeof options?.body === 'string' ? options.body : null
-    const call = { path: url.pathname, method: options?.method ?? 'GET', authorization: new Headers(options?.headers).get('Authorization'), body }
+    // fetch 在 validateToken 里同步发起，调用栈能标出这是 SSO 校验。
+    const fromSsoValidation = /\bvalidateToken\b/.test(new Error().stack ?? '')
+    const call = { path: url.pathname, method: options?.method ?? 'GET', authorization: new Headers(options?.headers).get('Authorization'), body, fromSsoValidation }
     calls.push(call)
     return request(call)
   })
@@ -288,10 +290,17 @@ describe('actual App PublicRoute caller completion', () => {
     // Observe the actual production assignment at the external-network boundary;
     // never follow a partner URL or replace the actual BrowserRouter/history.
     vi.spyOn(window.location, 'href', 'set').mockImplementation(value => { hrefWrites.push(value) })
-    let meA = 0
+    // AuthContext 的启动校验与 PublicRoute 的 SSO 校验发出完全相同的 /me 请求，
+    // 先后次序在 CI 覆盖率负载下并不固定。按调用方区分（SSO 经 apiClient.validateToken），
+    // 而不是按第几次调用：AuthContext 校验立即成功，SSO 校验挂起到用例显式放行。
+    let ssoValidations = 0
     request = async call => {
       if (call.path.endsWith('/me')) {
-        if (call.authorization === `Bearer ${a.access_token}`) return ++meA <= (strict ? 2 : 1) ? json(a.user) : lateA.promise
+        if (call.authorization === `Bearer ${a.access_token}`) {
+          if (!call.fromSsoValidation) return json(a.user)
+          ssoValidations += 1
+          return lateA.promise.then(response => response.clone())
+        }
         if (call.authorization === `Bearer ${b.access_token}`) return hold().promise
       }
       if (call.path.endsWith('/refresh')) return lateRefresh.promise
@@ -301,7 +310,7 @@ describe('actual App PublicRoute caller completion', () => {
     const { default: App } = await import('../../App')
     queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
     render(createElement(QueryClientProvider, { client: queryClient, children: createElement(App) }))
-    await waitFor(() => expect(meA).toBeGreaterThanOrEqual(strict ? 3 : 2))
+    await waitFor(() => expect(ssoValidations).toBeGreaterThanOrEqual(1))
     if (stage === 'refresh') {
       await act(async () => { lateA.resolve(json({}, 401)) })
       await waitFor(() => expect(calls.filter(call => call.path.endsWith('/refresh'))).toHaveLength(1))
