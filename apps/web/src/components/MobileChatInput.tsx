@@ -14,7 +14,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import type { KeyboardEvent } from "react";
-import { Send, X, Mic, MicOff, Loader2, FileText, Quote } from "lucide-react";
+import { Send, X, Square, Mic, MicOff, Loader2, FileText, Quote } from "lucide-react";
 import { useVoiceInput } from "../hooks/useVoiceInput";
 import { useMaterialAttachment } from "../contexts/MaterialAttachmentContext";
 import { useTextQuote } from "../contexts/TextQuoteContext";
@@ -516,9 +516,10 @@ export const MobileChatInput: React.FC<MobileChatInputProps> = ({
             <button
               onClick={handleCancel}
               className="shrink-0 w-11 h-11 flex items-center justify-center bg-[hsl(var(--error))] active:bg-[hsl(var(--error)/0.9)] text-white rounded-full transition-colors touch-manipulation"
-              title={t("common:cancel")}
+              title={t("chat:input.stop")}
+              aria-label={t("chat:input.stop")}
             >
-              <X size={18} />
+              <Square size={16} fill="currentColor" />
             </button>
           ) : (
             <button

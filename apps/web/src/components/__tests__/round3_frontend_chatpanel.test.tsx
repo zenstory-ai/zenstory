@@ -395,6 +395,23 @@ describe('ChatPanel immutable edit undo', () => {
     expect(triggerEditorRefreshMock).toHaveBeenCalledWith('file-immutable')
   })
 
+  it('confirms with the file-level undo message, not the snapshot pre-save promise', async () => {
+    const confirmMock = vi.fn(() => false)
+    vi.stubGlobal('confirm', confirmMock)
+    const onUndo = await renderAndGetUndo()
+
+    await act(async () => {
+      await onUndo(target)
+    })
+
+    // File rollback does not save the current text first, so the undo confirm
+    // must not reuse the snapshot copy that promises a way back.
+    expect(confirmMock).toHaveBeenCalledWith('editor:versionHistory.confirmUndoAIEdit')
+    expect(confirmMock).not.toHaveBeenCalledWith('editor:versionHistory.confirmRollback')
+    expect(rollbackMock).not.toHaveBeenCalled()
+    expect(triggerEditorRefreshMock).not.toHaveBeenCalled()
+  })
+
   it.each([
     {
       name: 'quota exhaustion',

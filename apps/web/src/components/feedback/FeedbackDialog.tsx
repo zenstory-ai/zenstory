@@ -205,7 +205,7 @@ export function FeedbackDialog({
             className="input min-h-[140px] resize-y"
             placeholder={t(
               "feedback.issuePlaceholder",
-              "请描述你遇到的问题（发生了什么、期望结果、复现步骤等）"
+              "说说遇到了什么，或者希望哪里更好用。一句话也可以。"
             )}
             value={issueText}
             maxLength={MAX_ISSUE_LENGTH}

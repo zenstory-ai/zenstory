@@ -367,7 +367,7 @@ async def test_subscription_redeem_rate_limited_returns_429(
     )
 
     assert response.status_code == 429
-    assert response.json()["detail"] == "Rate limit exceeded"
+    assert response.json()["error_code"] == "ERR_REDEMPTION_RATE_LIMIT_EXCEEDED"
 
 
 @pytest.mark.integration
@@ -383,8 +383,8 @@ async def test_subscription_me_returns_default_free_when_no_plan_available(
     assert response.status_code == 200
     payload = response.json()
     assert payload["tier"] == "free"
-    assert payload["display_name"] == "免费试用"
-    assert payload["display_name_en"] == "Free Trial"
+    assert payload["display_name"] == "免费版"
+    assert payload["display_name_en"] == "Free"
     assert payload["status"] == "none"
     assert payload["features"]["max_projects"] == 3
     assert payload["features"]["ai_conversations_per_day"] == 10

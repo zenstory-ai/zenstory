@@ -386,7 +386,7 @@ export const Login: React.FC = () => {
         {/* Footer */}
         <div className="mt-8 text-center">
           <p className="text-[hsl(var(--text-secondary))] text-xs opacity-60">
-            {t('home:footer.copyright')}
+            {t('home:footer.copyright', { year: new Date().getFullYear() })}
           </p>
         </div>
         </div>

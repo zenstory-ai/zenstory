@@ -820,9 +820,9 @@ export default function SkillsPage() {
         secondaryDestination="pricing"
         title={t("skills:quota.createTitle", { defaultValue: "自定义技能数量已达上限" })}
         description={t("skills:quota.createDescription", {
-          defaultValue: "当前套餐的自定义技能已用满，升级套餐后可以继续创建。",
+          defaultValue: "删掉不用的技能就能腾出名额，或开通 Pro 建更多技能。",
         })}
-        primaryLabel={t("skills:quota.upgradePrimary", { defaultValue: "查看升级方案" })}
+        primaryLabel={t("skills:quota.upgradePrimary", { defaultValue: "开通 Pro" })}
         onPrimary={() => {
           window.location.assign(
             buildUpgradeUrl(
@@ -1121,6 +1121,7 @@ function MySkillsContent({
           <DashboardEmptyState
             icon={Search}
             title={searchQuery ? t("noSearchResults") : t("noUserSkills")}
+            description={searchQuery ? undefined : t("noUserSkillsHint")}
             action={
               !searchQuery && (
                 <button

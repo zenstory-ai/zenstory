@@ -118,7 +118,7 @@ export const pageSEOConfig: Record<string, SEOPageConfig> = {
   '/': {
     zh: {
       title: 'zenstory - 创作让人难忘的故事',
-      description: 'zenstory是一款专业的AI小说写作助手，提供智能大纲生成、角色管理、世界观构建等功能',
+      description: 'zenstory 是一款 AI 小说写作助手，提供大纲生成、角色管理、世界观构建等功能',
       keywords: ['AI写作', '小说创作', '写作助手', '智能创作'],
       noindex: false,  // 公开页面，允许索引
       schema: homePageSchema.zh,
@@ -134,7 +134,7 @@ export const pageSEOConfig: Record<string, SEOPageConfig> = {
   '/login': {
     zh: {
       title: '登录 - zenstory',
-      description: '登录您的zenstory 账户',
+      description: '登录你的 zenstory 账号',
       noindex: true,  // 需要登录，不允许索引
     },
     en: {
@@ -146,7 +146,7 @@ export const pageSEOConfig: Record<string, SEOPageConfig> = {
   '/register': {
     zh: {
       title: '注册 - zenstory',
-      description: '创建zenstory 账户',
+      description: '创建 zenstory 账号',
       noindex: true,  // 需要登录，不允许索引
     },
     en: {
@@ -157,8 +157,8 @@ export const pageSEOConfig: Record<string, SEOPageConfig> = {
   },
   '/dashboard': {
     zh: {
-      title: '仪表盘 - zenstory',
-      description: '管理您的写作项目',
+      title: '工作台 - zenstory',
+      description: '管理你的写作项目',
       noindex: true,  // 需要登录，不允许索引
     },
     en: {
@@ -170,7 +170,7 @@ export const pageSEOConfig: Record<string, SEOPageConfig> = {
   '/verify-email': {
     zh: {
       title: '验证邮箱 - zenstory',
-      description: '验证您的邮箱地址',
+      description: '验证你的邮箱地址',
       noindex: true,
     },
     en: {

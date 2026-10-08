@@ -20,7 +20,10 @@ vi.mock("react-router-dom", async () => {
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string, options?: unknown) =>
+      options && typeof options === "object" && "year" in options
+        ? `${key}|year=${String((options as { year: unknown }).year)}`
+        : key,
     i18n: {
       language: mockLanguage.value,
       resolvedLanguage: mockLanguage.value,
@@ -128,36 +131,27 @@ describe("HomePage reduced-motion carousel behavior", () => {
     expect(suggestButton.className).toContain("text-white");
   });
 
-  it("renders social proof metrics in an i18n-friendly English format", () => {
+  it("does not render invented social-proof metrics", () => {
     setupMatchMedia(true);
-    mockLanguage.value = "en-US";
 
-    render(
-      <MemoryRouter>
-        <HomePage />
-      </MemoryRouter>
-    );
+    for (const language of ["en-US", "zh-CN"]) {
+      mockLanguage.value = language;
+      const { unmount } = render(
+        <MemoryRouter>
+          <HomePage />
+        </MemoryRouter>
+      );
 
-    const creators = `${new Intl.NumberFormat("en-US").format(2000)}+`;
-    const words = `${new Intl.NumberFormat("en-US", {
-      notation: "compact",
-      compactDisplay: "short",
-      maximumFractionDigits: 1,
-    }).format(12000000)}+`;
-    const rating = new Intl.NumberFormat("en-US", {
-      minimumFractionDigits: 1,
-      maximumFractionDigits: 1,
-    }).format(4.9);
-
-    expect(screen.getByText(creators)).toBeInTheDocument();
-    expect(screen.getByText(words)).toBeInTheDocument();
-    expect(screen.getByText(rating)).toBeInTheDocument();
-    expect(screen.queryByText("1,200万+")).not.toBeInTheDocument();
+      expect(screen.queryByText(/home:stats\./)).not.toBeInTheDocument();
+      expect(screen.queryByText(/2,000\+|2000\+/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/^4\.9$/)).not.toBeInTheDocument();
+      unmount();
+    }
   });
 
-  it("renders social proof metrics in an i18n-friendly Chinese format", () => {
+  it("stamps the footer copyright with the current year", () => {
     setupMatchMedia(true);
-    mockLanguage.value = "zh-CN";
+    vi.setSystemTime(new Date("2031-05-01T00:00:00Z"));
 
     render(
       <MemoryRouter>
@@ -165,20 +159,7 @@ describe("HomePage reduced-motion carousel behavior", () => {
       </MemoryRouter>
     );
 
-    const creators = `${new Intl.NumberFormat("zh-CN").format(2000)}+`;
-    const words = `${new Intl.NumberFormat("zh-CN", {
-      notation: "compact",
-      compactDisplay: "short",
-      maximumFractionDigits: 1,
-    }).format(12000000)}+`;
-    const rating = new Intl.NumberFormat("zh-CN", {
-      minimumFractionDigits: 1,
-      maximumFractionDigits: 1,
-    }).format(4.9);
-
-    expect(screen.getByText(creators)).toBeInTheDocument();
-    expect(screen.getByText(words)).toBeInTheDocument();
-    expect(screen.getByText(rating)).toBeInTheDocument();
+    expect(screen.getByText("home:footer.copyright|year=2031")).toBeInTheDocument();
   });
 
   it("adds source attribution and preserves plan for core homepage CTA entries", () => {

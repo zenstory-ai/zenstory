@@ -1,11 +1,11 @@
-# Billing & Benefits
+# Plans & Benefits
 
-This page explains plan visibility, quota understanding, upgrade paths, and points/referral entry points in zenstory.
+This page explains how to check your plan and usage, compare Free and Pro, get or renew Pro, and use points and invite codes.
 
 ## Where to Find It
 
 - Dashboard sidebar: **Plans & Benefits**
-- Public page: **Pricing**
+- Public page: **[Pricing](https://app.zenstory.ai/pricing)**
 
 ## What You Can Do Here
 
@@ -13,58 +13,50 @@ This page explains plan visibility, quota understanding, upgrade paths, and poin
 
 - Current plan name
 - Plan status (active or not)
-- Renewal/expiry hints (when available)
+- Expiry date (Pro)
 
-## 2) Track Quota Usage
+## 2) Track Usage
 
-Common dimensions include:
+This section shows:
 
-- Writing output capacity
-- Deep Agent task runs
-- Parallel project capacity
-- Custom skills (counts the skills you currently own; deleting one frees a slot)
-- Export capabilities
-
-Different plans provide different limits.
+- Today's AI messages: 10 a day on Free, reset at 00:00 Beijing time (UTC+8); unlimited on Pro
+- Projects: up to 3 on Free; unlimited on Pro
+- Material breakdowns this month: 5 a month on Pro, reset on the 1st
+- Custom skills: counts the skills you currently own; deleting one you no longer use frees a slot
 
 ## 3) Compare Plan Differences
 
 In the comparison section, you can review:
 
 - Monthly vs yearly billing
-- Key feature differences (with “show differences only”)
-- Recommended user profiles (light usage / daily writers / team workflows)
+- Key feature differences (with "show differences only")
+- Who each plan suits: new or occasional writers / daily and long-form serial writers
 
-## 4) Upgrade or Redeem
+## 4) Get Pro or Redeem a Code
 
-When online payments are enabled, Alipay is the primary way to activate or renew Pro:
+When online payments are enabled, you get or renew Pro with Alipay:
 
-- Monthly purchases grant 30 days; yearly purchases grant 365 days. Renewals extend the same plan's expiry
-- Checkout prices come from the backend plan configuration
-- The server confirms payment and grants benefits automatically; the return page only checks order status
-- The return page keeps checking for two minutes; if the order is still processing, the server queries the payment provider once. Do not pay again if you have already completed payment
-- Redemption codes remain available on the Plans & Benefits page as a secondary activation option
+- It is a one-time payment and does not renew automatically
+- 1 month is 30 days and 1 year is 365 days; renewing extends your expiry date
+- Payment usually takes effect shortly; if the return page shows "processing", wait a moment and don't pay again
+- You can also activate Pro with a redeem code on the Plans & Benefits page
 
-Admins can inspect orders, payment status and benefit fulfillment under Payment Orders. Deployments without online payments can still use redemption codes.
+Admins can inspect orders, payment status and benefit fulfillment under Payment Orders. Deployments without online payments can still use redeem codes.
 
-> Tip: Choose by your writing goals first (output pace, number of active projects, revision intensity), then compare price cycles.
+## Points and Invite Codes
 
-## About Points and Referrals
-
-- Successful referrals can grant points
-- Invitees may receive trial benefits
-- Points activities and details are available in related in-app pages
+When a friend signs up with your invite code and verifies their email, you both get points, which you can redeem for Pro. Your points history is on the in-app points page.
 
 ## FAQ
 
-### Why can’t I access certain advanced capabilities?
+### Why can't I see some features?
 
-Your current plan may not include them. Check the “Plans & Benefits” page for feature comparison and upgrade options.
+Usually your current plan doesn't include them; the Materials Library, for example, is Pro. Compare plans on the Plans & Benefits page.
 
-### Does my plan affect export capability?
+### Does my plan affect export?
 
-Yes. Export is currently centered on `.txt`; final availability depends on what your plan displays.
+No. Every plan can export your manuscript as TXT.
 
 ---
 
-Last updated: 2026-10-05
+Last updated: 2026-10-08

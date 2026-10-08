@@ -28,6 +28,7 @@ vi.mock('react-i18next', () => ({
           'nav.lab': 'Lab',
           'nav.logout': 'Logout',
           'common.loading': 'Loading',
+          'common:closeSidebar': '关闭侧边栏',
         } as Record<string, string>
       )[key] ?? key,
   }),
@@ -90,7 +91,7 @@ describe('MobileSidebar', () => {
 
     onClose.mockClear()
     rerender(<MobileSidebar isOpen={true} onClose={onClose} />)
-    fireEvent.click(screen.getByLabelText('Close sidebar'))
+    fireEvent.click(screen.getByLabelText('关闭侧边栏'))
     await act(async () => {
       await vi.advanceTimersByTimeAsync(200)
     })

@@ -18,7 +18,7 @@ import React, { useMemo, useRef, forwardRef, useImperativeHandle, useCallback } 
 import type { TFunction } from 'i18next';
 import type { StreamRenderItem } from '../hooks/useChatStreaming';
 import { useTranslation } from 'react-i18next';
-import { User, Sparkles, Bot, AlertTriangle, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { User, Sparkles, Bot, AlertTriangle, CirclePause, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { LazyMarkdown } from './LazyMarkdown';
 import { ToolResultCard } from './ToolResultCard';
 import { ThinkingContent } from './ThinkingContent';
@@ -430,28 +430,24 @@ function OrderedMessageItems({ items, onUndo, onIterationAssistAction, isStreami
           </div>
           {isLowTurns && (
             <div className={`${isMobile ? 'mt-1 ml-1' : 'mt-1 ml-1.5'} text-[11px] text-[hsl(var(--warning))]`}>
-              {t('workflow.lowTurnWarning', { ns: 'chat', remaining: item.remaining ?? 0 })}
+              {t('workflow.lowTurnWarning', { ns: 'chat' })}
             </div>
           )}
         </div>
       );
     } else if (item.type === 'iteration_exhausted') {
-      // 7. iteration_exhausted - 迭代耗尽通知
-      const layerLabel = item.layer === 'collaboration'
-        ? t('workflow.agentCollaboration', { ns: 'chat' })
-        : t('workflow.toolCall', { ns: 'chat' });
-      const limitCount = item.maxIterations ?? item.iterationsUsed ?? 0;
+      // 7. iteration_exhausted - 这一轮的步数/协作轮数用完：正常暂停，用中性样式。
       const summaryText = item.layer === 'collaboration'
-        ? t('workflow.collaborationExhaustedSummary', { ns: 'chat', max: limitCount })
-        : t('workflow.toolCallExhaustedSummary', { ns: 'chat', max: limitCount });
+        ? t('workflow.collaborationExhaustedSummary', { ns: 'chat' })
+        : t('workflow.toolCallExhaustedSummary', { ns: 'chat' });
 
       return (
         <div key={item.id} className={isMobile ? 'mb-2' : 'mb-3'}>
-          <div className={`inline-flex items-start gap-2 rounded-lg bg-[hsl(var(--error)/0.1)] border border-[hsl(var(--error)/0.2)] ${isMobile ? 'px-2 py-1.5' : 'px-3 py-2'}`}>
-            <AlertTriangle size={14} className="text-[hsl(var(--error))] mt-0.5 shrink-0" />
+          <div className={`inline-flex items-start gap-2 rounded-lg bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] ${isMobile ? 'px-2 py-1.5' : 'px-3 py-2'}`}>
+            <CirclePause size={14} className="text-[hsl(var(--text-secondary))] mt-0.5 shrink-0" />
             <div className="flex flex-col gap-0.5 min-w-0">
-              <span className="text-xs font-medium text-[hsl(var(--error))]">
-                {t('workflow.iterationExhausted', { ns: 'chat', layer: layerLabel })}
+              <span className="text-xs font-medium text-[hsl(var(--text-primary))]">
+                {t('workflow.iterationExhausted', { ns: 'chat' })}
               </span>
               <span className="text-xs text-[hsl(var(--text-primary))] break-words">
                 {summaryText}
@@ -946,21 +942,18 @@ function Row({
               }
 
               if (card.type === 'iteration_exhausted') {
-                const layerLabel = card.layer === 'collaboration'
-                  ? t('workflow.agentCollaboration', { ns: 'chat' })
-                  : t('workflow.toolCall', { ns: 'chat' });
-                const limitCount = card.maxIterations ?? card.iterationsUsed ?? 0;
+                // 正常暂停（不是失败）：中性样式。
                 const summaryText = card.layer === 'collaboration'
-                  ? t('workflow.collaborationExhaustedSummary', { ns: 'chat', max: limitCount })
-                  : t('workflow.toolCallExhaustedSummary', { ns: 'chat', max: limitCount });
+                  ? t('workflow.collaborationExhaustedSummary', { ns: 'chat' })
+                  : t('workflow.toolCallExhaustedSummary', { ns: 'chat' });
 
                 return (
                   <div key={`status-${idx}`} className="max-w-full">
-                    <div className={`inline-flex items-start gap-2 rounded-lg bg-[hsl(var(--error)/0.1)] border border-[hsl(var(--error)/0.2)] ${isMobile ? 'px-2 py-1.5' : 'px-3 py-2'}`}>
-                      <AlertTriangle size={14} className="text-[hsl(var(--error))] mt-0.5 shrink-0" />
+                    <div className={`inline-flex items-start gap-2 rounded-lg bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] ${isMobile ? 'px-2 py-1.5' : 'px-3 py-2'}`}>
+                      <CirclePause size={14} className="text-[hsl(var(--text-secondary))] mt-0.5 shrink-0" />
                       <div className="flex flex-col gap-0.5 min-w-0">
-                        <span className="text-xs font-medium text-[hsl(var(--error))]">
-                          {t('workflow.iterationExhausted', { ns: 'chat', layer: layerLabel })}
+                        <span className="text-xs font-medium text-[hsl(var(--text-primary))]">
+                          {t('workflow.iterationExhausted', { ns: 'chat' })}
                         </span>
                         <span className="text-xs text-[hsl(var(--text-primary))] break-words">
                           {summaryText}

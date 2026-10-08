@@ -536,7 +536,7 @@ test.describe('Points Redemption for Pro', () => {
       await redeemTrigger.first().click();
 
       // Check for benefits section
-      const benefits = page.locator('text=/权益|无限|优先|benefit/i');
+      const benefits = page.locator('text=/权益|不限|benefit/i');
       await expect(benefits.first()).toBeVisible({ timeout: 5000 });
     }
   });
@@ -551,7 +551,7 @@ test.describe('Points Redemption for Pro', () => {
       if (await confirmButton.first().isVisible()) {
         await confirmButton.first().click({ force: true });
 
-        // Modal should close on success
+        // The modal stays open with the success message and a close button
         await page.waitForTimeout(1000);
       }
     }
@@ -741,7 +741,7 @@ test.describe('Points Page - Responsive Design', () => {
     if (await redeemTrigger.first().isVisible()) {
       await redeemTrigger.first().click();
 
-      const redeemModal = page.getByRole('dialog', { name: /兑换 Pro 会员|Redeem Pro/i });
+      const redeemModal = page.getByRole('dialog', { name: /用积分兑换 Pro|Redeem Pro/i });
       await expect(redeemModal).toBeVisible({ timeout: 5000 });
 
       const viewport = page.viewportSize();
@@ -793,7 +793,7 @@ test.describe('Points Page - Accessibility', () => {
     if (await redeemTrigger.first().isVisible()) {
       await redeemTrigger.first().click();
 
-      const redeemModal = page.getByRole('dialog', { name: /兑换 Pro 会员|Redeem Pro/i });
+      const redeemModal = page.getByRole('dialog', { name: /用积分兑换 Pro|Redeem Pro/i });
       await expect(redeemModal).toBeVisible({ timeout: 5000 });
 
       // Tab should cycle within modal

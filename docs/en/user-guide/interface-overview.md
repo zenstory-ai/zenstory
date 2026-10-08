@@ -265,7 +265,7 @@ Now that you understand zenstory's interface layout, you can continue reading th
 - [Chat with AI](./ai-assistant.md)
 - [File Management](./file-tree.md)
 - [Inspirations Library](./inspirations.md)
-- [Billing & Benefits](./billing-benefits.md)
+- [Plans & Benefits](./billing-benefits.md)
 - [Version History](./version-history.md)
 
 Happy writing!

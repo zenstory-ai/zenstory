@@ -14,29 +14,29 @@ Work at [app.zenstory.ai](https://app.zenstory.ai/dashboard) and read the guides
 ## Documentation Navigation
 
 ### Getting Started
-Perfect for new users to quickly understand zenstory's fundamental features.
+For new users who want to learn the basics of ZenStory.
 
 - [Browser Writing Quick Start](https://zenstory.ai/docs/getting-started/quick-start) - The fastest path to getting started
 - [Account Registration & Login](getting-started/installation.md) - Account setup guide
 - [Write Your First Short Story](https://zenstory.ai/docs/getting-started/first-project) - Take the first step in your creative journey
 
 ### User Guide
-Detailed feature explanations to help you make the most of zenstory's capabilities.
+Detailed feature guides to help you get the most out of ZenStory.
 
 - [Interface Overview](user-guide/interface-overview.md) - Understand the three-panel workbench layout
 - [Project Management](user-guide/project-management.md) - Create and manage your writing projects
-- [File Tree & File Types](user-guide/file-tree.md) - Master outline, draft, character, and other file types
+- [File Tree & File Types](user-guide/file-tree.md) - Outline, manuscript, character and other file types
 - [Editor Usage](https://zenstory.ai/docs/user-guide/editor) - Manual writing, quotations and a before/after passage revision
 - [AI Writing Assistant](https://zenstory.ai/docs/user-guide/ai-assistant) - Provide context and set writing or revision boundaries
 - [Skills System](user-guide/skills.md) - Use preset skills to accelerate specific creative tasks
-- [Material Library](user-guide/materials.md) - Manage inspiration fragments, world-building settings, and other materials
-- [Inspirations Library](user-guide/inspirations.md) - Discover idea templates and copy them into projects
-- [Billing & Benefits](user-guide/billing-benefits.md) - Check plans, quotas, and upgrade paths
+- [Materials Library](user-guide/materials.md) - Upload a reference novel (TXT), break it into chapter summaries, characters and settings, and attach them to chat while you write (Pro)
+- [Inspirations Library](user-guide/inspirations.md) - Optional self-host module; not on the hosted app
+- [Plans & Benefits](user-guide/billing-benefits.md) - Check your plan, today's AI messages and other usage; get or renew Pro
 - [Version History](https://zenstory.ai/docs/user-guide/version-history) - Compare before choosing file-level or project-snapshot recovery
 - [Export Features](https://zenstory.ai/docs/user-guide/export) - Draft/script TXT, separate review copies and non-backup boundaries
 
 ### Advanced Tips
-Master zenstory in depth and build an efficient, personalized writing workflow.
+Go deeper with ZenStory and build a writing workflow that suits you.
 
 - [AI Memory & Context](advanced/ai-memory.md) - Understand how AI remembers your settings
 - [Advanced Custom Skills](advanced/skill-creation.md) - Create exclusive creative skills
@@ -59,14 +59,4 @@ Having issues? Find solutions here.
 
 ## Need Help?
 
-If you encounter issues while using zenstory:
-
-1. **Browse Documentation** - Find the relevant user guide in the navigation above
-2. **Search FAQ** - Check the [FAQ](reference/faq.md) for quick answers
-3. **Contact Support** - For further assistance, please reach out to our support team
-
-We are committed to providing the best writing tools for creators, and your feedback is invaluable to us!
-
----
-
-*Documentation Version: 1.1 | Last Updated: March 7, 2026*
+Start with the [FAQ](reference/faq.md); if that doesn't answer it, write to support@zenstory.ai.

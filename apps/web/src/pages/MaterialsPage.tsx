@@ -24,6 +24,7 @@ import {
 import { hasMaterialsLibraryAccess, materialJobErrorText } from "../lib/materialsAccess";
 import { MATERIAL_LIBRARY_SUMMARY_QUERY_KEY } from "../hooks/useMaterialLibrary";
 import { useRefreshMaterialLibraryOnCompletion } from "../hooks/useMaterialLibraryRefresh";
+import { useProMaterialDecompositionsLimit } from "../hooks/useProMaterialDecompositionsLimit";
 
 export default function MaterialsPage() {
   const { t, i18n } = useTranslation(["materials", "common"]);
@@ -64,6 +65,7 @@ export default function MaterialsPage() {
   );
   const hasWorkspaceAccess = materialsAccess === true;
   const showTeaser = materialsAccess === false;
+  const proDecompositionsLimit = useProMaterialDecompositionsLimit(showTeaser);
 
   const {
     data: quota,
@@ -154,7 +156,7 @@ export default function MaterialsPage() {
             </h2>
             <p className="text-sm text-[hsl(var(--text-secondary))]">
               {t("materials:statusLoadError", {
-                defaultValue: "没能确认你的会员状态，请重试。",
+                defaultValue: "没能确认你的 Pro 状态，请重试。",
               })}
             </p>
             <button
@@ -181,7 +183,7 @@ export default function MaterialsPage() {
         <div className="rounded-2xl border border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.08)] p-6">
           <p className="text-sm text-[hsl(var(--text-secondary))]">
             {t("materials:statusLoadError", {
-              defaultValue: "没能确认你的会员状态，请重试。",
+              defaultValue: "没能确认你的 Pro 状态，请重试。",
             })}
           </p>
         </div>
@@ -336,7 +338,7 @@ export default function MaterialsPage() {
                 defaultValue: "上传参考小说，拆出角色、世界观和章节梗概，写作时随时引用",
               })
             : t("materials:teaserSubtitle", {
-                defaultValue: "素材库是会员功能，开通后即可上传参考小说",
+                defaultValue: "素材库是 Pro 功能：把参考小说拆成章节梗概、角色和设定，写作时随时引用。",
               })
         }
         action={
@@ -362,7 +364,7 @@ export default function MaterialsPage() {
               <BookOpen className="w-4 h-4" />
               {!isMobile &&
                 t("materials:teaserPrimary", {
-                  defaultValue: "开通会员",
+                  defaultValue: "开通 Pro",
                 })}
             </button>
           )
@@ -392,9 +394,14 @@ export default function MaterialsPage() {
                 })}
               </h2>
               <p className="text-sm leading-6 text-[hsl(var(--text-secondary))]">
-                {t("materials:teaserDescription", {
-                  defaultValue: "开通会员后，每月可拆解 5 次。",
-                })}
+                {proDecompositionsLimit === null
+                  ? t("materials:teaserDescriptionNoLimit", {
+                      defaultValue: "开通 Pro 后，每月都能拆解参考小说。",
+                    })
+                  : t("materials:teaserDescription", {
+                      defaultValue: "开通 Pro 后，每月可拆解 {{limit}} 次。",
+                      limit: proDecompositionsLimit,
+                    })}
               </p>
               <ul className="space-y-2 text-sm text-[hsl(var(--text-secondary))]">
                 <li>• {t("materials:teaserFeatureOne", { defaultValue: "拆出章节梗概、角色、世界观和金手指" })}</li>
@@ -444,7 +451,7 @@ export default function MaterialsPage() {
                   onClick={() => openUpgradePath("billing")}
                   className="btn-primary h-11 px-4"
                 >
-                  {t("materials:teaserPrimary", { defaultValue: "开通会员" })}
+                  {t("materials:teaserPrimary", { defaultValue: "开通 Pro" })}
                 </button>
                 <button
                   onClick={() => openUpgradePath("pricing")}

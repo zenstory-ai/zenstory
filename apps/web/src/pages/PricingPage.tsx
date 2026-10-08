@@ -7,12 +7,13 @@ import { PublicHeader } from "../components/PublicHeader";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
-import { subscriptionApi } from "../lib/subscriptionApi";
+import { subscriptionApi, subscriptionQueryKeys } from "../lib/subscriptionApi";
 import { cn } from "../lib/utils";
 import {
   filterAvailableMetrics,
   getEntitlementMetricDefinitions,
   getLocalizedPlanDisplayName,
+  getYearlySavings,
   toComparableMetricValue,
 } from "../lib/subscriptionEntitlements";
 import { buildUpgradeUrl } from "../config/upgradeExperience";
@@ -36,7 +37,7 @@ export default function PricingPage() {
   const userId = user?.id ?? null;
   const isAuthenticated = Boolean(userId);
   const isMobile = useIsMobile();
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>("month");
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>("year");
   const [showOnlyDifferences, setShowOnlyDifferences] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const attributionSource = useMemo(() => {
@@ -82,6 +83,17 @@ export default function PricingPage() {
   const isCatalogLoading = isLoading || (isFetching && sortedPlans.length === 0);
   const proPlan = sortedPlans.find((plan) => plan.name === "pro");
 
+  // Signed-in Pro users extend their plan here, so the actions say "renew".
+  const { data: subscriptionStatus } = useQuery({
+    queryKey: subscriptionQueryKeys.status(),
+    queryFn: () => subscriptionApi.getStatus(),
+    enabled: isAuthenticated,
+  });
+  const isProUser = isAuthenticated && subscriptionStatus?.tier === "pro";
+  const upgradeCtaLabel = isProUser
+    ? t("dashboard:billing.ctaRenewPro", "续费 Pro")
+    : t("dashboard:billing.ctaUpgradePro", "开通 Pro");
+
   const formatCurrency = (cents: number): string => {
     const locale = i18n.language?.startsWith("en") ? "en-US" : "zh-CN";
     const amount = (cents / 100).toLocaleString(locale, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -100,29 +112,24 @@ export default function PricingPage() {
     [i18n.language, t, sortedPlans]
   );
 
-  const getYearlySavings = (plan: SubscriptionCatalogTier): { amount: number; percent: number } | null => {
-    if (plan.price_monthly_cents <= 0 || plan.price_yearly_cents <= 0) return null;
-    const yearlyPriceFromMonthly = plan.price_monthly_cents * 12;
-    if (yearlyPriceFromMonthly <= plan.price_yearly_cents) return null;
-    const amount = yearlyPriceFromMonthly - plan.price_yearly_cents;
-    const percent = Math.round((amount / yearlyPriceFromMonthly) * 100);
-    return { amount, percent };
-  };
+  const getPlanYearlySavings = (plan: SubscriptionCatalogTier) =>
+    getYearlySavings(plan.price_monthly_cents, plan.price_yearly_cents);
 
-  const maxYearlySavingsPercent = useMemo(
+  // Only Pro is paid, so the plan with the largest yearly saving is the offer.
+  const bestYearlySavings = useMemo(
     () =>
-      sortedPlans.reduce((max, plan) => {
-        const savings = getYearlySavings(plan);
-        return savings ? Math.max(max, savings.percent) : max;
-      }, 0),
+      sortedPlans.reduce<ReturnType<typeof getYearlySavings>>((best, plan) => {
+        const savings = getYearlySavings(plan.price_monthly_cents, plan.price_yearly_cents);
+        return savings && (!best || savings.percent > best.percent) ? savings : best;
+      }, null),
     [sortedPlans]
   );
 
   const getSummary = (summaryKey: string): string => {
     if (summaryKey === "creator") {
-      return t("dashboard:billing.summaryCreator", "额度更高，适合日更、周更的长篇连载。");
+      return t("dashboard:billing.summaryCreator", "AI 消息不限条数、项目不限，适合日更、长篇连载。");
     }
-    return t("dashboard:billing.summaryStarter", "先免费试写，从一句灵感写到第一稿。");
+    return t("dashboard:billing.summaryStarter", "免费就能写，从一个想法写到第一稿。");
   };
 
   const getTargetUser = (targetUserKey: string): string => {
@@ -199,10 +206,10 @@ export default function PricingPage() {
       <main className="max-w-6xl mx-auto px-4 md:px-6 py-8 md:py-14 pb-28 md:pb-14 space-y-6 md:space-y-8">
         <section className="text-center space-y-2 md:space-y-3">
           <h1 className="text-3xl md:text-4xl font-bold text-[hsl(var(--text-primary))]">
-            {isCatalogLoading ? t("common:loading", "加载中...") : t("dashboard:billing.compareTitle", "套餐权益对比")}
+            {isCatalogLoading ? t("common:loading", "加载中...") : t("dashboard:billing.compareTitle", "选一个适合你的方案")}
           </h1>
           <p className="text-sm md:text-base text-[hsl(var(--text-secondary))]">
-            {t("dashboard:billing.catalogSubtitle", "按每月要写多少、同时写几部作品来选。")}
+            {t("dashboard:billing.catalogSubtitle", "免费版每天 10 条 AI 消息，够你先写起来；要日更连载，再开 Pro。")}
           </p>
         </section>
 
@@ -213,9 +220,10 @@ export default function PricingPage() {
                 {t("dashboard:billing.billingCycleLabel", "购买时长")}
               </p>
               <p className="text-xs text-[hsl(var(--text-secondary))]">
-                {maxYearlySavingsPercent > 0
-                  ? t("dashboard:billing.yearlyMaxSaveHint", "年付最高可省 {{percent}}", {
-                      percent: `${maxYearlySavingsPercent}%`,
+                {bestYearlySavings
+                  ? t("dashboard:billing.yearlyMaxSaveHint", "年付省 {{percent}}，折合每月 {{monthly}}", {
+                      percent: `${bestYearlySavings.percent}%`,
+                      monthly: formatCurrency(bestYearlySavings.monthlyEquivalent),
                     })
                   : t("dashboard:billing.yearlyMaxSaveHintFallback", "可按月或按年购买")}
               </p>
@@ -329,7 +337,7 @@ export default function PricingPage() {
                 <div className="flex items-start justify-between mb-3 pt-1">
                   <div>
                     <h2 className="text-xl font-semibold text-[hsl(var(--text-primary))]">
-                      {getLocalizedPlanDisplayName(plan, i18n.language)}
+                      {getLocalizedPlanDisplayName({ ...plan, tier: plan.name }, i18n.language)}
                     </h2>
                     <div className="mt-1 flex items-center flex-wrap gap-2">
                       <p className="text-lg font-semibold text-[hsl(var(--text-primary))]">
@@ -338,24 +346,30 @@ export default function PricingPage() {
                           billingCycle
                         )}
                       </p>
-                      {billingCycle === "year" && getYearlySavings(plan) && (
+                      {billingCycle === "year" && getPlanYearlySavings(plan) && (
                         <Badge variant="purple">
                           {t("dashboard:billing.yearlySaveBadge", "年付省 {{amount}} · {{percent}}%", {
-                            amount: formatCurrency(getYearlySavings(plan)?.amount ?? 0),
-                            percent: getYearlySavings(plan)?.percent ?? 0,
+                            amount: formatCurrency(getPlanYearlySavings(plan)?.amount ?? 0),
+                            percent: getPlanYearlySavings(plan)?.percent ?? 0,
                           })}
                         </Badge>
                       )}
                     </div>
-                    <p className="text-xs text-[hsl(var(--text-secondary))]">
-                      {billingCycle === "month"
-                        ? t("dashboard:billing.alternateYearlyPrice", "年付 {{price}}", {
-                            price: formatPrice(plan.price_yearly_cents, "year"),
-                          })
-                        : t("dashboard:billing.alternateMonthlyPrice", "月付 {{price}}", {
-                            price: formatPrice(plan.price_monthly_cents, "month"),
-                          })}
-                    </p>
+                    {billingCycle === "month" && getPlanYearlySavings(plan) && (
+                      <p className="text-xs text-[hsl(var(--text-secondary))]">
+                        {t("dashboard:billing.alternateYearlyPrice", "按年买 {{price}}，比月付省 {{amount}}", {
+                          price: formatPrice(plan.price_yearly_cents, "year"),
+                          amount: formatCurrency(getPlanYearlySavings(plan)?.amount ?? 0),
+                        })}
+                      </p>
+                    )}
+                    {billingCycle === "year" && plan.price_monthly_cents > 0 && (
+                      <p className="text-xs text-[hsl(var(--text-secondary))]">
+                        {t("dashboard:billing.alternateMonthlyPrice", "月付 {{price}}", {
+                          price: formatPrice(plan.price_monthly_cents, "month"),
+                        })}
+                      </p>
+                    )}
                     <p className="text-sm text-[hsl(var(--text-secondary))] mt-2">
                       {getSummary(plan.summary_key)}
                     </p>
@@ -397,7 +411,7 @@ export default function PricingPage() {
                     variant={plan.price_monthly_cents > 0 ? "primary" : "secondary"}
                   >
                     {plan.price_monthly_cents > 0
-                      ? t("dashboard:billing.ctaUpgradePro", "升级专业版")
+                      ? upgradeCtaLabel
                       : t("dashboard:billing.ctaFreeStart", "免费开始")}
                   </Button>
                 </div>
@@ -437,7 +451,7 @@ export default function PricingPage() {
                 : t("dashboard:billing.ctaFreeStart", "免费开始")}
             </Button>
             <Button onClick={handleUpgradeCta} variant="outline">
-              {t("dashboard:billing.ctaUpgradePro", "升级专业版")}
+              {upgradeCtaLabel}
             </Button>
           </section>
         )}
@@ -452,7 +466,7 @@ export default function PricingPage() {
                 : t("dashboard:billing.ctaFreeStart", "免费开始")}
             </Button>
             <Button className="flex-1" onClick={handleUpgradeCta} variant="outline">
-              {t("dashboard:billing.ctaUpgradePro", "升级专业版")}
+              {upgradeCtaLabel}
             </Button>
           </div>
         </div>
@@ -465,6 +479,7 @@ export default function PricingPage() {
           initialCycle={billingCycle}
           monthlyPriceCents={proPlan?.price_monthly_cents}
           yearlyPriceCents={proPlan?.price_yearly_cents}
+          isRenewal={isProUser}
         />
       )}
     </div>

@@ -7,24 +7,23 @@ Unit tests for the redemption code service, covering:
 - Code redemption
 - Usage tracking
 """
-import os
-import hmac
 import hashlib
+import hmac
+import os
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import pytest
 from sqlmodel import Session
 
+from core.error_codes import ErrorCode
 from models import User
 from models.subscription import (
+    RedemptionCode,
     SubscriptionPlan,
     UserSubscription,
-    RedemptionCode,
-    UsageQuota,
 )
 from services.subscription.redemption_service import redemption_service
-from core.error_codes import ErrorCode, ERROR_MESSAGES
 
 
 @pytest.fixture
@@ -254,7 +253,7 @@ class TestRedeemCode:
 
         assert success is False
         assert info is None
-        assert "invalid" in message.lower()
+        assert message == ErrorCode.REDEMPTION_CODE_INVALID
 
     def test_redeem_code_invalid_checksum(
         self, db_session: Session, test_user, mock_hmac_secret
@@ -457,6 +456,7 @@ class TestRedeemCode:
 
             assert success is False
             assert info is None
+            assert message == ErrorCode.REDEMPTION_CODE_ALREADY_REDEEMED_BY_YOU
 
     def test_redeem_code_success(
         self, db_session: Session, test_user, test_admin, free_plan, pro_plan, mock_hmac_secret

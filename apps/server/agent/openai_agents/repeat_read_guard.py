@@ -1,20 +1,27 @@
-"""Request-level guard against re-reading the same file without making progress.
+"""Guard against re-reading the same file without making progress.
 
 工具失败熔断器（tool_failure_breaker）只数失败：模型把同一份文件以 query_files(id=…)
 成功读上 30 遍，每一次都是 status=success，看起来像「在干活」，一直跑到单 agent
 的 max_turns 上限。线上 10-03 以来约三分之一的 agent 轮次里同一文件被读了 4 次
 以上，这部分轮次花掉了 69% 的 agent 费用。
 
-本模块按**一次用户请求**记账（writing_graph 为整条工作流建一个，跨 agent run
-共享），键为 (读工具, 文件 id, 归一化读取模式)：
+writing_graph 为整条工作流建一个守卫（跨 agent run 共享），但**读取计数按 agent
+run 隔离**：runner 每开始一个 agent run 就调用 begin_agent_run() 清零计数。工具
+结果不会回放给下一个 agent（runner 只回放纯文本），planner 读过的文件不在
+writer / 审稿人的上下文里，它们各读一次是正常的，不算重复。读写台账
+（files_read / files_written / write_succeeded）和被拦下的次数（blocked_reads，
+无进展判定用）仍按整个请求累计。
+
+读取计数的键为 (读工具, 文件 id, 归一化读取模式)：
 
 - 直接调用的 query_files（带 id），以及 parallel_execute 里 type=="query_files"
   且 params.id 非空的子任务，记在同一个键上；
 - 同一文件被成功写入（create_file / edit_file / delete_file，及 parallel_execute
   的 write_chapter / edit_file / delete_file 子任务）后，该文件的读取计数清零；
-- 同一键第 2 次成功读取：照常返回内容，附一句「已读过、请直接用上文」的提示；
-  第 3 次：内容 + 更强的警告；第 4 次起：不执行，返回 error_type="repeated_read"
-  的可恢复错误；
+- 同一 agent run 内同一键第 2 次成功读取：照常返回内容，附一句「本次运行中已读过、
+  请直接用之前的工具结果」的提示；第 3 次：内容 + 更强的警告；第 4 次起：不执行，
+  返回 error_type="repeated_read" 的可恢复错误（error 写给模型，另带一句给作者看的
+  user_message）；
 - 一次请求内被拦下的读取累计达到 MAX_BLOCKED_READS_PER_REQUEST 次 → 判定为
   「无进展」，与熔断器走同一个出口（runner 的 tool_use_behavior）结束本轮。
 
@@ -63,8 +70,15 @@ READ_DUPLICATE_TOTAL = "agent.read.duplicate.total"
 READ_BLOCKED_TOTAL = "agent.read.blocked.total"
 NO_PROGRESS_STOP_TOTAL = "agent.no_progress.stop.total"
 
-_READ_HINT_TEXT = "该文件全文本轮已读取过且之后未被修改，请直接使用上文内容。"
-_SUMMARY_READ_HINT_TEXT = "该文件摘要本轮已读取过且之后未被修改，请直接使用上文内容。"
+# 计数只在一个 agent run 内累计，所以提示里说的「之前的工具结果」确实在当前上下文里。
+_READ_HINT_TEXT = "该文件全文本次运行中已读取过且之后未被修改，请直接使用本次运行中之前的工具结果。"
+_SUMMARY_READ_HINT_TEXT = "该文件摘要本次运行中已读取过且之后未被修改，请直接使用本次运行中之前的工具结果。"
+
+# 无进展停止时给作者看的说明（ERROR 事件的 error；前端按 ERR_AGENT_NO_PROGRESS 取 i18n）。
+NO_PROGRESS_USER_MESSAGE = (
+    "AI 一直在翻看同样的资料，迟迟没动笔，这一轮先停下了。"
+    "可以直接告诉它改哪一章、改什么，或者回复「继续」让它接着写。"
+)
 
 ReadKey = tuple[str, str, str]
 
@@ -147,24 +161,18 @@ class NoProgressTrip:
     threshold: int
     last_file: str
 
-    def user_message(self, *, wrote_files: bool) -> str:
-        billing_part = "" if wrote_files else "本轮没有修改任何文件，不扣除本次对话额度。"
-        return (
-            f"AI 在本轮反复读取已经读过的文件（{self.last_file} 等），重复读取已被拦下 "
-            f"{self.blocked_reads} 次仍没有产出，已自动停止本轮，避免继续消耗额度。"
-            f"{billing_part}"
-            "请把需求说得更具体（例如指明要改哪一章、改什么），或让 AI 直接基于已读内容作答。"
-        )
+    def user_message(self) -> str:
+        # 是否退还额度由 refundable / reason 表达，不写进这句话。
+        return NO_PROGRESS_USER_MESSAGE
 
     def as_event_data(self, agent_type: str, *, wrote_files: bool) -> dict[str, Any]:
-        from agent.core.stream_errors import tool_failure_error
+        from core.error_codes import ErrorCode
 
-        info = tool_failure_error()
         return {
-            "error": self.user_message(wrote_files=wrote_files),
-            # 复用「工具调用反复失败」的错误码（前端已有文案）；与熔断不同的是：
+            "error": self.user_message(),
+            # 专用错误码：这不是「工具失败」，而且回复「继续」可以接着做。
             # 本请求没有任何写入成功时可以退还额度（由 refundable 与 reason 表达）。
-            "code": info.code,
+            "code": ErrorCode.AGENT_NO_PROGRESS,
             "retryable": False,
             "refundable": not wrote_files,
             "error_type": NO_PROGRESS_ERROR_TYPE,
@@ -173,6 +181,7 @@ class NoProgressTrip:
             "blocked_reads": self.blocked_reads,
             "duplicate_reads": self.duplicate_reads,
             "threshold": self.threshold,
+            "last_file": self.last_file,
         }
 
 
@@ -183,6 +192,7 @@ class RepeatReadGuard:
     plan() 在工具执行前同步调用（决定是否拦下、改写 parallel_execute 的子任务），
     observe() 在执行后同步调用（记账、附提示）；二者都在 tools_adapter 的
     FunctionTool 回调里，SDK 检查本轮 tool_use_behavior 之前就已生效。
+    runner 在每个 agent run 开始时调用 begin_agent_run()：读取计数只在一个 run 内有效。
     """
 
     max_blocked_reads: int = MAX_BLOCKED_READS_PER_REQUEST
@@ -200,6 +210,14 @@ class RepeatReadGuard:
     @property
     def is_open(self) -> bool:
         return self.trip is not None
+
+    def begin_agent_run(self) -> None:
+        """新的 agent run 开始：清零读取计数，读写台账和请求级拦截次数保留。
+
+        工具结果不跨 agent run 回放，上一个 run 读过的内容不在这个 run 的上下文里；
+        沿用旧计数会让 writer / 审稿人第一次读就收到「已读过」提示，甚至被拦下。
+        """
+        self._read_counts.clear()
 
     # ------------------------------------------------------------------ plan
     def plan(self, tool_name: str, raw_arguments: str) -> ReadPlan:
@@ -220,9 +238,9 @@ class RepeatReadGuard:
             label = self._register_blocked(key)
             return ReadPlan(
                 arguments=raw_arguments,
-                blocked_output=tool_error_text(
+                blocked_output=_blocked_error_text(
                     self._blocked_message(label, key),
-                    error_type=REPEATED_READ_ERROR_TYPE,
+                    user_message=_blocked_user_message([self._titles.get(key[1], "")]),
                     tool_name=READ_TOOL_NAME,
                 ),
             )
@@ -237,6 +255,7 @@ class RepeatReadGuard:
         kept: list[Any] = []
         read_keys: dict[int, ReadKey] = {}
         blocked_notes: list[str] = []
+        blocked_titles: list[str] = []
         # 同一批里重复的读取也要算上（同批两次读同一文件，第二次就是重复）。
         pending: dict[ReadKey, int] = {}
         for task in tasks:
@@ -250,6 +269,7 @@ class RepeatReadGuard:
             if seen + 1 >= READ_BLOCK_AT:
                 label = self._register_blocked(key)
                 blocked_notes.append(self._blocked_message(label, key))
+                blocked_titles.append(self._titles.get(key[1], ""))
                 continue
             pending[key] = pending.get(key, 0) + 1
             read_keys[len(kept)] = key
@@ -261,9 +281,9 @@ class RepeatReadGuard:
         if not kept:
             return ReadPlan(
                 arguments=raw_arguments,
-                blocked_output=tool_error_text(
+                blocked_output=_blocked_error_text(
                     "；".join(blocked_notes),
-                    error_type=REPEATED_READ_ERROR_TYPE,
+                    user_message=_blocked_user_message(blocked_titles),
                     tool_name=PARALLEL_TOOL_NAME,
                 ),
             )
@@ -300,8 +320,9 @@ class RepeatReadGuard:
             else "重复读取次数已达上限，本轮即将终止。"
         )
         return (
-            f"文件{label}的{what}本轮已读取 {READ_BLOCK_AT - 1} 次且之后未被修改，内容就在上文的工具结果里，"
-            "本次读取未执行。不要再读取它：请直接根据已读内容完成任务并输出结果；"
+            f"文件{label}的{what}本次运行中已读取 {READ_BLOCK_AT - 1} 次且之后未被修改，"
+            "内容就在本次运行之前的工具结果里，本次读取未执行。"
+            "不要再读取它：请直接根据已读内容完成任务并输出结果；"
             f"如果确实缺少信息，请停止调用工具并向用户说明缺什么。{tail}"
         )
 
@@ -387,7 +408,13 @@ class RepeatReadGuard:
 
     def _observe_direct_write(self, raw_arguments: str, output_text: str) -> None:
         payload = _load_json(output_text)
-        if payload is None or payload.get("status") != "success":
+        if payload is None:
+            return
+        status = payload.get("status")
+        # edit_file 部分成功（status=partial）时，已生效的几处确实改了文件：
+        # 和计费（StreamBillingTracker 把 partial 当作写入）保持同一口径。
+        applied_partial = status == "partial" and payload.get("mutation_applied") is True
+        if status != "success" and not applied_partial:
             return
         data = payload.get("data")
         if isinstance(data, dict) and data.get("all_failed"):
@@ -464,8 +491,20 @@ class RepeatReadGuard:
         if not parts:
             return ""
         # 下一个 agent 的上下文里没有这些文件的正文（工具结果不跨 agent 回放），
-        # 所以不说「别读」，只要求按需每个文件读一次。
-        return "；".join(parts) + "。只读取完成你的任务确实需要的文件，每个文件读一次即可，不要重复读取同一文件。"
+        # 所以不说「别读」，只要求按需读、在它自己这次运行里每个文件读一次。
+        summary = (
+            "；".join(parts)
+            + "。这些文件的正文不在你的上下文里：只读取完成你的任务确实需要的文件，"
+            "在你这次运行里每个文件读一次即可，不要重复读取同一文件。"
+        )
+        # 系统提示（含 [全文] 条目与工作集）每个请求只组装一次：本请求改过的文件，
+        # 那里的 [全文] 仍是修改前的版本。
+        stale = "".join(
+            f"系统上下文/工作集中{_label(file_id, self._titles.get(file_id, title))}的[全文]"
+            f"是本请求修改前的版本，已过期；需要时用 query_files(id={file_id}) 读取最新内容。"
+            for file_id, title in self.files_written.items()
+        )
+        return summary + stale
 
     def completed_items(self) -> list[str]:
         """写进 handoff_packet.completed 的条目。"""
@@ -482,6 +521,23 @@ def _label(file_id: str, title: str) -> str:
     return f"《{title}》(id={file_id})" if title else f"(id={file_id})"
 
 
+def _blocked_user_message(titles: list[str]) -> str:
+    """被拦下的读取给作者看的一句话：不带 id，也不带写给模型的指令。"""
+    named = list(dict.fromkeys(f"《{title}》" for title in titles if title))
+    if not named:
+        return "这个文件刚才已经读过，AI 直接用已读内容继续。"
+    return f"{'、'.join(named)}刚才已经读过，AI 直接用已读内容继续。"
+
+
+def _blocked_error_text(model_text: str, *, user_message: str, tool_name: str) -> str:
+    """被拦下的读取的工具结果：error 写给模型（精确），user_message 写给作者（简短）。"""
+    payload = json.loads(
+        tool_error_text(model_text, error_type=REPEATED_READ_ERROR_TYPE, tool_name=tool_name)
+    )
+    payload["user_message"] = user_message
+    return json.dumps(payload, ensure_ascii=False)
+
+
 def _increment_metric(name: str) -> None:
     try:
         from agent.core.metrics import get_metrics_collector
@@ -496,6 +552,7 @@ __all__ = [
     "MAX_BLOCKED_READS_PER_REQUEST",
     "NO_PROGRESS_STOP_REASON",
     "NO_PROGRESS_STOP_TOTAL",
+    "NO_PROGRESS_USER_MESSAGE",
     "READ_BLOCK_AT",
     "REPEATED_READ_ERROR_TYPE",
     "NoProgressTrip",

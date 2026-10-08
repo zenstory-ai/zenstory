@@ -29,7 +29,7 @@ from sqlmodel import Session
 from agent.core.events import error_event
 from agent.core.sse_pump import SSEStreamPump, StreamDeadlineExceeded
 from agent.core.steering import SteeringSessionBusyError
-from agent.core.stream_billing import StreamBillingTracker
+from agent.core.stream_billing import StreamBillingTracker, quota_refunded_frame
 from agent.core.stream_errors import (
     classify_stream_exception,
     log_stream_exception,
@@ -435,16 +435,45 @@ async def stream_request(
         user_cancelled = False
         unexpected_exception = False
         deadline_exceeded = False
+        # (billing_reason, should_refund, refund_applied)；整个请求只结算一次。
+        settlement: tuple[str, bool, bool] | None = None
         pump = SSEStreamPump(
             _primed_stream(),
             heartbeat_interval_s=AGENT_SSE_HEARTBEAT_INTERVAL_S,
             deadline_s=AGENT_RUN_WALL_CLOCK_TIMEOUT_S,
         )
 
+        async def _settle_billing() -> tuple[str, bool, bool]:
+            # 结算规则见 stream_billing；这里只负责「只结算一次」。取消路径上
+            # decide 不会要求退还，因此不会在 GeneratorExit 期间真正挂起。
+            nonlocal settlement
+            if settlement is None:
+                billing_reason, should_refund = tracker.decide(
+                    user_cancelled=user_cancelled,
+                    unexpected_exception=unexpected_exception,
+                    deadline_exceeded=deadline_exceeded,
+                )
+                refund_applied = False
+                if should_refund:
+                    refund_applied = await _refund_quota(
+                        session,
+                        user_id,
+                        charged_period_start,
+                        project_id=body.project_id,
+                        agent_run_id=agent_run_id,
+                        billing_reason=billing_reason,
+                    )
+                settlement = (billing_reason, should_refund, refund_applied)
+            return settlement
+
         try:
             async for event in pump:
                 tracker.observe(event)
                 yield event
+            # 正常收尾：先结算，退还真正落库后才告诉前端「不计入」。
+            billing_reason, _, refund_applied = await _settle_billing()
+            if refund_applied:
+                yield quota_refunded_frame(billing_reason)
         except (asyncio.CancelledError, GeneratorExit):
             # 客户端断线有两种到达方式：任务被取消（CancelledError）与生成器被
             # aclose（GeneratorExit）。两者都是用户侧中止，计费口径一致；
@@ -474,6 +503,10 @@ async def stream_request(
                 tracker.observe(frame)
                 with contextlib.suppress(Exception):
                     yield frame
+            billing_reason, _, refund_applied = await _settle_billing()
+            if refund_applied:
+                with contextlib.suppress(Exception):
+                    yield quota_refunded_frame(billing_reason)
         except Exception as exc:
             unexpected_exception = True
             # An exception escaping process_stream (e.g. a pre-stream setup
@@ -501,23 +534,13 @@ async def stream_request(
                 tracker.observe(frame)
                 with contextlib.suppress(Exception):
                     yield frame
+            billing_reason, _, refund_applied = await _settle_billing()
+            if refund_applied:
+                with contextlib.suppress(Exception):
+                    yield quota_refunded_frame(billing_reason)
             raise
         finally:
-            billing_reason, should_refund = tracker.decide(
-                user_cancelled=user_cancelled,
-                unexpected_exception=unexpected_exception,
-                deadline_exceeded=deadline_exceeded,
-            )
-            refund_applied = False
-            if should_refund:
-                refund_applied = await _refund_quota(
-                    session,
-                    user_id,
-                    charged_period_start,
-                    project_id=body.project_id,
-                    agent_run_id=agent_run_id,
-                    billing_reason=billing_reason,
-                )
+            billing_reason, should_refund, refund_applied = await _settle_billing()
 
             # 每次 run 一行结构化摘要：模型、token、调用次数、LLM 耗时、结束原因、计费。
             # 取消/时限路径上 process_stream 的收尾在后台进行，摘要字段可能不全。

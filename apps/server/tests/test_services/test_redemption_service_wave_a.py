@@ -72,10 +72,6 @@ def _create_redemption_code(db_session: Session, admin_user_id: str, code: str) 
     return redemption_code
 
 
-def test_get_error_message_falls_back_to_error_code_when_translation_missing():
-    assert redemption_service._get_error_message("ERR_UNKNOWN_CODE", "missing-lang") == "ERR_UNKNOWN_CODE"
-
-
 def test_redeem_code_passes_upgrade_source_into_subscription_metadata(db_session: Session):
     admin = _create_user(db_session, "admin")
     user = _create_user(db_session, "member")

@@ -214,7 +214,7 @@ test.describe('Projects', () => {
 
     await expect(page.locator('[data-testid="project-card"]')).toHaveCount(0)
     await expect(page.getByText('还没有任何项目')).toBeVisible()
-    await expect(page.getByText(/创建你的第一个项目/)).toBeVisible()
+    await expect(page.getByText(/建好第一个项目/)).toBeVisible()
   })
 
   test('user can see project list when projects exist', async ({ page, request }) => {

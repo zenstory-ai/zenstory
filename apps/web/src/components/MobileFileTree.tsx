@@ -410,8 +410,9 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
       character: t('editor:fileTree.newCharacter'),
       lore: t('editor:fileTree.newLore'),
       snippet: t('editor:fileTree.newSnippet'),
+      script: t('editor:fileTree.newScript'),
     };
-    return placeholderMap[fileType] || t('editor:fileTree.newProject');
+    return placeholderMap[fileType] || t('editor:fileTree.newFileName');
   }, [t]);
 
   /**

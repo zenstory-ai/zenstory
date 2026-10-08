@@ -44,14 +44,14 @@ describe('FileSearchInput', () => {
     it('does not render clear button when value is empty', () => {
       render(<FileSearchInput {...defaultProps} value="" />)
 
-      const clearButton = screen.queryByLabelText('Clear search')
+      const clearButton = screen.queryByLabelText('清空搜索')
       expect(clearButton).not.toBeInTheDocument()
     })
 
     it('renders clear button when value is not empty', () => {
       render(<FileSearchInput {...defaultProps} value="test" />)
 
-      const clearButton = screen.getByLabelText('Clear search')
+      const clearButton = screen.getByLabelText('清空搜索')
       expect(clearButton).toBeInTheDocument()
     })
 
@@ -156,7 +156,7 @@ describe('FileSearchInput', () => {
     it('calls onClear when clear button is clicked', () => {
       render(<FileSearchInput {...defaultProps} value="test" />)
 
-      const clearButton = screen.getByLabelText('Clear search')
+      const clearButton = screen.getByLabelText('清空搜索')
       fireEvent.click(clearButton)
 
       expect(mockOnClear).toHaveBeenCalledTimes(1)
@@ -165,19 +165,19 @@ describe('FileSearchInput', () => {
     it('clear button disappears after clearing', () => {
       const { rerender } = render(<FileSearchInput {...defaultProps} value="test" />)
 
-      const clearButton = screen.getByLabelText('Clear search')
+      const clearButton = screen.getByLabelText('清空搜索')
       expect(clearButton).toBeInTheDocument()
 
       // Simulate parent clearing the value
       rerender(<FileSearchInput {...defaultProps} value="" />)
 
-      expect(screen.queryByLabelText('Clear search')).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('清空搜索')).not.toBeInTheDocument()
     })
 
     it('clear button is clickable with touch', () => {
       render(<FileSearchInput {...defaultProps} value="test" />)
 
-      const clearButton = screen.getByLabelText('Clear search')
+      const clearButton = screen.getByLabelText('清空搜索')
       expect(clearButton).toHaveClass('touch-manipulation')
     })
   })
@@ -270,7 +270,7 @@ describe('FileSearchInput', () => {
     it('clear button has accessible label', () => {
       render(<FileSearchInput {...defaultProps} value="test" />)
 
-      const clearButton = screen.getByLabelText('Clear search')
+      const clearButton = screen.getByLabelText('清空搜索')
       expect(clearButton).toBeInTheDocument()
     })
 
@@ -285,7 +285,7 @@ describe('FileSearchInput', () => {
     it('supports keyboard navigation to clear button', () => {
       render(<FileSearchInput {...defaultProps} value="test" />)
 
-      const clearButton = screen.getByLabelText('Clear search')
+      const clearButton = screen.getByLabelText('清空搜索')
       expect(clearButton).toHaveAttribute('type', 'button')
     })
   })

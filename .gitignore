@@ -148,3 +148,6 @@ prompt参考/
 .security-key
 logs/security/
 .vercel
+
+# Working review/audit reports (local only; durable decisions go to .agents/notes/)
+docs/reviews/

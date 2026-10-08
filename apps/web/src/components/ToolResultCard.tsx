@@ -244,6 +244,11 @@ const getToolDisplayInfo = (toolName: string, t: (key: string) => string): { ico
         icon: <Search className="w-4 h-4 text-[hsl(var(--ref-tag-text))]" />, 
         label: t('chat:tool.query_files')
       };
+    case 'hybrid_search':
+      return {
+        icon: <Search className="w-4 h-4 text-[hsl(var(--ref-tag-text))]" />,
+        label: t('chat:tool.hybrid_search')
+      };
     case 'update_project':
       return {
         icon: <Settings className="w-4 h-4 text-[hsl(var(--warning))]" />,
@@ -265,11 +270,61 @@ const getToolDisplayInfo = (toolName: string, t: (key: string) => string): { ico
         label: t('chat:tool.read_skill_resource')
       };
     default:
-      return { 
-        icon: <FileText className="w-4 h-4 text-[hsl(var(--ref-tag-text))]" />, 
-        label: toolName 
+      // 不认识的工具不把内部名字露给作者。
+      return {
+        icon: <FileText className="w-4 h-4 text-[hsl(var(--ref-tag-text))]" />,
+        label: t('chat:tool.generic')
       };
   }
+};
+
+const readUserFacingText = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.trim() ? value.trim() : undefined;
+
+type ToolFailureKind = 'notFound' | 'ambiguous' | 'fileMissing' | 'repeatRead' | 'generic';
+
+/**
+ * 按 error_type 归到作者能看懂的几类。error_type 由各工具自己定义，这里只认
+ * 语义明确的形态；认不出来的一律归为 generic，绝不回退到原始错误文本。
+ */
+const classifyToolFailure = (errorType: string | undefined): ToolFailureKind => {
+  if (!errorType) return 'generic';
+  const normalized = errorType.toLowerCase();
+  if (normalized === 'repeated_read') return 'repeatRead';
+  if (/(^|_)file_(not_found|missing|deleted)$/.test(normalized)) return 'fileMissing';
+  if (/(ambiguous|multiple_match)/.test(normalized)) return 'ambiguous';
+  if (/(anchor|old_text|text|pattern|match|passage)_not_found|no_match/.test(normalized)) return 'notFound';
+  return 'generic';
+};
+
+const isChineseUi = (): boolean => (i18n.language ?? '').startsWith('zh');
+
+/**
+ * 工具失败卡片给作者看的一句话：优先用工具给的 user_message，其次按 error_type
+ * 给出通用说法。原始 error（给模型的指令、内部 id、英文异常）永远不显示。
+ */
+const resolveToolFailureMessage = (
+  result: Record<string, unknown> | undefined,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string => {
+  const nested = result?.data && typeof result.data === 'object'
+    ? (result.data as Record<string, unknown>)
+    : undefined;
+  // user_message is written in Chinese by the backend; other UI languages use the error_type mapping.
+  const userMessage = isChineseUi()
+    ? readUserFacingText(result?.user_message) ?? readUserFacingText(nested?.user_message)
+    : null;
+  if (userMessage) return userMessage;
+
+  const errorType = readUserFacingText(result?.error_type) ?? readUserFacingText(nested?.error_type);
+  const kind = classifyToolFailure(errorType);
+  if (kind === 'repeatRead') {
+    const title = readUserFacingText(result?.title) ?? readUserFacingText(nested?.title);
+    return title
+      ? t('chat:tool.failureHint.repeatRead', { title })
+      : t('chat:tool.failureHint.repeatReadUntitled');
+  }
+  return t(`chat:tool.failureHint.${kind}`);
 };
 
 /**
@@ -511,13 +566,14 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
   if (type === 'tool_result' && toolName) {
     // Handle error case
     if (error) {
+      // 中途某一步没做成是常态（AI 会换个方式继续），用中性灰色，不用红色报错。
       const { label } = getToolDisplayInfo(toolName, t);
-      const userMessage = (result?.user_message as string | undefined) || error;
+      const userMessage = resolveToolFailureMessage(result, t);
       return (
-        <div className="bg-[hsl(var(--diff-remove-bg))] border border-[hsl(var(--error))] rounded-lg px-3 py-2">
+        <div className="bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] rounded-lg px-3 py-2">
           <div className="flex items-center gap-2">
-            <XCircle className="w-4 h-4 text-[hsl(var(--error))]" />
-            <span className="text-sm text-[hsl(var(--error))]">
+            <XCircle className="w-4 h-4 text-[hsl(var(--text-secondary))]" />
+            <span className="text-sm text-[hsl(var(--text-secondary))]">
               {t('chat:tool.failed', { label })}
             </span>
           </div>
@@ -915,6 +971,9 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
             <div className="mt-2 space-y-1">
               {tasks.map((task, index) => {
                 const isFailed = task.status === 'failed';
+                const taskResult = task.result && typeof task.result === 'object'
+                  ? (task.result as Record<string, unknown>)
+                  : undefined;
                 const desc =
                   (task.description as string) ||
                   (task.type as string) ||
@@ -925,7 +984,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                     className="flex items-start gap-2 text-xs"
                   >
                     {isFailed ? (
-                      <XCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[hsl(var(--error))]" />
+                      <XCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[hsl(var(--text-secondary))]" />
                     ) : (
                       <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[hsl(var(--success-light))]" />
                     )}
@@ -936,9 +995,9 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                       <span className="text-[hsl(var(--text-primary))] break-words">
                         {desc}
                       </span>
-                      {isFailed && task.error ? (
-                        <div className="text-[hsl(var(--error))] break-words">
-                          {task.error as string}
+                      {isFailed ? (
+                        <div className="text-[hsl(var(--text-secondary))] break-words">
+                          {(isChineseUi() ? readUserFacingText(taskResult?.user_message) : null) ?? t('chat:tool.taskNotCompleted')}
                         </div>
                       ) : null}
                     </div>

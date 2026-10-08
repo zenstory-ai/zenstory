@@ -141,4 +141,21 @@ describe('RedeemCodeModal', () => {
     const serialized = JSON.stringify(vi.mocked(trackEvent).mock.calls)
     expect(serialized).not.toContain('ERG-PRO7D')
   })
+
+  it('celebrates a paid activation and offers a single way forward', async () => {
+    const mockRedeemCode = vi.mocked(subscriptionApi.redeemCode)
+    mockRedeemCode.mockResolvedValueOnce({ success: true, message: 'ok', tier: 'pro', duration_days: 30 })
+    const onClose = vi.fn()
+
+    render(<RedeemCodeModal isOpen={true} onClose={onClose} />, { wrapper: createWrapper() })
+    fireEvent.change(screen.getByPlaceholderText('ERG-XXXX-XXXX-XXXXXXXX'), {
+      target: { value: 'ERG-PRO30-1234-ABCDEFGH' },
+    })
+    fireEvent.submit(document.querySelector('form')!)
+
+    expect(await screen.findByTestId('celebration-burst')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '开始使用' }))
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
 })

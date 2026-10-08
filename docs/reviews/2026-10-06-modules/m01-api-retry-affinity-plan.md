@@ -1,9 +1,0 @@
-# M01 C6 actual post-refresh retry affinity
-
-After C2/C3 source integration, two actual apiCall/tryRefreshToken cases use real native Storage, one real shared refresh promise and locally intercepted fetch. Earlier subscriber synchronously replaces storage A→B after real A rotation but before apiCall retry continuation. No getter/refresh/resolver/API mock. Valid RED log shows old A PUT body reissued as Bearer B-access and success; healthy same-session control uses A-rotated and passes. This proves wrong request affinity, not actual server persistence/ownership bypass or a real B login.
-
-Minimum repair: after shared refresh await and before retry, call existing read-only resolveOwnedAuthSession(capturedAccess,capturedRefresh). Null => existing ApiError401 without storage clear/replay; otherwise use that owned pair for retry and existing conditional retry401 cleanup. Existing refresh mutation/queue/lineage and first401 ownership gate stay unchanged. Owned root apiClient.ts plus new retryAffinity test only; separate approved phase supersedes earlier C2 exact client hash, not stale child copy. Add same-user arbitrary tokenreplacement/logout controls if necessary; retain healthy/parallel tracked rotations and existing68/55/61/66 scoped gate. No JWT/principal/generation framework. Independent design/source review, fresh affected apiClient tests/types/lint; final App build after later Web integration to avoid redundant builds.
-
-## Independent design disposition
-
-DESIGN CLEAR (m06_undo_design): resolve ownership unconditionally after refresh/skip branch immediately before retry, for both awaited and already-tracked rotation paths. Null/missing tokens => existing401/no replay/no clear. Same owned pair supplies retry and conditional retry401 cleanup. Controls: healthy and tracked parallel rotation, logout/arbitrary replacement after refresh, B replacement after dispatch before retry401. No JWT/user shortcut or singleflight/lineage/cooldown changes.

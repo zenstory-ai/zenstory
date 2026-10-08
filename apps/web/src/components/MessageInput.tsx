@@ -15,7 +15,7 @@
  */
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import type { KeyboardEvent } from "react";
-import { Send, X, RefreshCw, FileText, Quote, Zap, Sparkles } from "lucide-react";
+import { Send, X, Square, RefreshCw, FileText, Quote, Zap, Sparkles } from "lucide-react";
 import { VoiceInputButton } from "./VoiceInputButton";
 import { useMaterialAttachment } from "../contexts/MaterialAttachmentContext";
 import { useTextQuote } from "../contexts/TextQuoteContext";
@@ -980,9 +980,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           <button
             onClick={handleCancel}
             className={`shrink-0 flex items-center justify-center bg-[hsl(var(--error))] hover:bg-[hsl(var(--error))] text-white rounded-lg transition-colors focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--error))] ${isMobile ? 'w-11 h-11' : 'w-9 h-9'}`}
-            title={t("common:cancel")}
+            title={t("chat:input.stop")}
+            aria-label={t("chat:input.stop")}
+            data-testid="stop-button"
           >
-            <X size={16} />
+            <Square size={14} fill="currentColor" />
           </button>
         ) : (
           <button

@@ -28,7 +28,7 @@
   "unlimited": "Unlimited",
   "noData": "No data",
   "untitled": "Untitled",
-  "showing": "Showing {{from}}-{{to}} of {{total}}",
+  "showing": "Showing {{from}}–{{to}} of {{total}}",
   "confirmDelete": "Are you sure you want to delete?",
   "operationSuccess": "Operation successful",
   "operationFailed": "Operation failed",
@@ -37,10 +37,10 @@
   },
   "fileTypes": {
     "folder": "Folder",
-    "lore": "World Building",
+    "lore": "Setting",
     "character": "Character Sheet",
     "outline": "Outline",
-    "snippet": "Reference Material",
+    "snippet": "Material",
     "draft": "Manuscript",
     "script": "Script",
     "scene": "Scene"
@@ -48,7 +48,7 @@
   "projectTypes": {
     "novel": "Novel",
     "short": "Short Story",
-    "screenplay": "Screenplay"
+    "screenplay": "Short Drama Script"
   },
   "appName": "zenstory",
   "slogan": "Let AI be your creative partner",
@@ -100,7 +100,7 @@
     "title": "Report an issue",
     "description": "Found a bug or have a suggestion? Let us know.",
     "issueLabel": "Issue details",
-    "issuePlaceholder": "Describe what happened, what you expected, and how to reproduce it.",
+    "issuePlaceholder": "Tell us what happened or what could be better. One sentence is fine.",
     "issueHint": "Up to {{max}} characters",
     "issueRequired": "Please describe the issue first",
     "issueTooLong": "Issue details cannot exceed 2000 characters",
@@ -127,6 +127,8 @@
   "viewUpgrade": "View upgrade options",
   "viewPlans": "Compare plans",
   "closeModal": "Close modal",
+  "clearSearch": "Clear search",
+  "closeSidebar": "Close sidebar",
   "loadingCard": "Loading card...",
   "loadingTable": "Loading table...",
   "loadingText": "Loading text...",

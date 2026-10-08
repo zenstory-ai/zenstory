@@ -52,9 +52,9 @@ const SKILL_CARD = {
 const SKILL_MODAL = {
   overlay: '[role="dialog"]',
   title: 'h2',
-  nameInput: 'input[placeholder*="名称"]',
+  nameInput: 'input[placeholder*="章末留钩子"], input[placeholder*="名称"]',
   descInput: 'input[placeholder*="描述"]',
-  triggersInput: 'input[placeholder*="创建角色"], input[placeholder*="trigger"], input[placeholder*="character"]',
+  triggersInput: 'input[placeholder*="开篇"], input[placeholder*="创建角色"], input[placeholder*="trigger"], input[placeholder*="character"]',
   instructionsTextarea: 'textarea',
   saveButton: 'button:has-text("保存")',
   cancelButton: 'button:has-text("取消")',
@@ -168,9 +168,9 @@ test.describe('Skills Management', () => {
 
     // Fill in skill form
     const skillName = `测试技能 ${Date.now()}`;
-    await page.fill('input[placeholder*="名称"]', skillName);
+    await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', skillName);
     await page.fill('input[placeholder*="描述"]', '这是一个测试技能的描述');
-    await page.fill('input[placeholder*="创建角色"], input[placeholder*="trigger"], input[placeholder*="character"]', '/test, 测试');
+    await page.fill('input[placeholder*="开篇"], input[placeholder*="创建角色"], input[placeholder*="trigger"], input[placeholder*="character"]', '/test, 测试');
     await page.fill('textarea', '这是技能的详细指令内容。');
 
     // Save skill
@@ -194,7 +194,7 @@ test.describe('Skills Management', () => {
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
     const originalName = `编辑测试技能 ${Date.now()}`;
-    await page.fill('input[placeholder*="名称"]', originalName);
+    await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', originalName);
     await page.fill('textarea', '测试指令内容');
     await page.click('button:has-text("保存")');
     await expect(page.locator('[role="dialog"]')).not.toBeVisible({ timeout: 5000 });
@@ -208,7 +208,7 @@ test.describe('Skills Management', () => {
 
     // Edit name
     const newName = `${originalName} - 已编辑`;
-    await page.fill('input[placeholder*="名称"]', newName);
+    await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', newName);
     await page.click('button:has-text("保存")');
 
     // Wait for modal to close
@@ -229,7 +229,7 @@ test.describe('Skills Management', () => {
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
     const skillName = `指令编辑测试 ${Date.now()}`;
-    await page.fill('input[placeholder*="名称"]', skillName);
+    await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', skillName);
     await page.fill('textarea', '原始指令内容');
     await page.click('button:has-text("保存")');
     await expect(page.locator('[role="dialog"]')).not.toBeVisible({ timeout: 5000 });
@@ -263,11 +263,11 @@ test.describe('Skills Management', () => {
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
     const skillName = `触发器测试 ${Date.now()}`;
-    await page.fill('input[placeholder*="名称"]', skillName);
+    await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', skillName);
     await page.fill('textarea', '测试指令');
 
     // Add multiple triggers
-    await page.fill('input[placeholder*="创建角色"], input[placeholder*="trigger"], input[placeholder*="character"]', '/trigger1, /trigger2, 触发词');
+    await page.fill('input[placeholder*="开篇"], input[placeholder*="创建角色"], input[placeholder*="trigger"], input[placeholder*="character"]', '/trigger1, /trigger2, 触发词');
     await page.click('button:has-text("保存")');
 
     await expect(page.locator('[role="dialog"]')).not.toBeVisible({ timeout: 5000 });
@@ -289,7 +289,7 @@ test.describe('Skills Management', () => {
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
     const skillName = `待删除技能 ${Date.now()}`;
-    await page.fill('input[placeholder*="名称"]', skillName);
+    await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', skillName);
     await page.fill('textarea', '将被删除的技能');
     await page.click('button:has-text("保存")');
 
@@ -342,7 +342,7 @@ test.describe('Skills Management', () => {
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
     const uniqueName = `搜索测试技能 ${Date.now()}`;
-    await page.fill('input[placeholder*="名称"]', uniqueName);
+    await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', uniqueName);
     await page.fill('textarea', '测试内容');
     await page.click('button:has-text("保存")');
 
@@ -370,7 +370,7 @@ test.describe('Skills Management', () => {
 
     const skillName = `展开测试 ${Date.now()}`;
     const instructions = '这是详细的指令内容，应该在展开后显示。';
-    await page.fill('input[placeholder*="名称"]', skillName);
+    await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', skillName);
     await page.fill('textarea', instructions);
     await page.click('button:has-text("保存")');
 
@@ -401,7 +401,7 @@ test.describe('Skills Management', () => {
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
     const skillName = `分享测试技能 ${Date.now()}`;
-    await page.fill('input[placeholder*="名称"]', skillName);
+    await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', skillName);
     await page.fill('textarea', '这是一个将被分享的技能');
     await page.click('button:has-text("保存")');
 
@@ -435,7 +435,7 @@ test.describe('Skills Management', () => {
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
     const skillName = `重复分享测试 ${Date.now()}`;
-    await page.fill('input[placeholder*="名称"]', skillName);
+    await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', skillName);
     await page.fill('textarea', '测试内容');
     await page.click('button:has-text("保存")');
 
@@ -473,7 +473,7 @@ test.describe('Skills Management', () => {
       await expect(page.locator('[role="dialog"]')).toBeVisible();
 
       const skillName = `批量选择测试 ${i} ${Date.now()}`;
-      await page.fill('input[placeholder*="名称"]', skillName);
+      await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', skillName);
       await page.fill('textarea', '测试内容');
       await page.click('button:has-text("保存")');
 
@@ -528,7 +528,7 @@ test.describe('Skills Management', () => {
 
       const skillName = `批量删除测试 ${i} ${Date.now()}`;
       skillNames.push(skillName);
-      await page.fill('input[placeholder*="名称"]', skillName);
+      await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', skillName);
       await page.fill('textarea', '测试内容');
       await page.click('button:has-text("保存")');
 
@@ -680,7 +680,7 @@ test.describe('Skills Management', () => {
     await expect(saveButton).toBeDisabled();
 
     // Fill only name
-    await page.fill('input[placeholder*="名称"]', '测试技能');
+    await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', '测试技能');
     await expect(saveButton).toBeDisabled();
 
     // Fill instructions
@@ -703,7 +703,7 @@ test.describe('Skills Management', () => {
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
     // Fill some data
-    await page.fill('input[placeholder*="名称"]', '将被取消的技能');
+    await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', '将被取消的技能');
 
     // Cancel
     await page.click('[role="dialog"] button:has-text("取消")');
@@ -726,7 +726,7 @@ test.describe('Skills Management', () => {
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
     const skillName = `取消删除测试 ${Date.now()}`;
-    await page.fill('input[placeholder*="名称"]', skillName);
+    await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', skillName);
     await page.fill('textarea', '测试内容');
     await page.click('button:has-text("保存")');
 
@@ -857,7 +857,7 @@ test.describe('Skills Mobile Responsiveness', () => {
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
     // Fill form
-    await page.fill('input[placeholder*="名称"]', '移动端测试技能');
+    await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', '移动端测试技能');
     await page.fill('textarea', '移动端指令内容');
 
     // Save

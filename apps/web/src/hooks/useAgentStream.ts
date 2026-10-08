@@ -15,7 +15,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { produce } from "immer";
 import i18n from "../lib/i18n";
 import { useImmer } from "use-immer";
-import { sendSteeringRequest, streamAgentRequest } from "../lib/agentApi";
+import { sendSteeringRequest, streamAgentRequest, type QuotaRefundKind } from "../lib/agentApi";
 import type {
   AgentContextItem,
   AgentRequest,
@@ -210,6 +210,8 @@ export interface UseAgentStreamOptions {
   onParallelEnd?: (executionId: string, total: number, completed: number, failed: number, durationMs: number) => void;
   /** Called when steering message is received */
   onSteeringReceived?: (messageId: string, preview: string) => void;
+  /** Called after the terminal frame when the backend actually refunded this round */
+  onQuotaRefunded?: (kind: QuotaRefundKind) => void;
 }
 
 export interface UseAgentStreamReturn {
@@ -361,6 +363,7 @@ export function useAgentStream(
     onParallelTaskEnd,
     onParallelEnd,
     onSteeringReceived,
+    onQuotaRefunded,
   } = options;
 
   const flushIntervalMs =
@@ -1130,6 +1133,11 @@ export function useAgentStream(
             onSteeringReceived?.(message_id, preview);
           },
 
+          onQuotaRefunded: (kind) => {
+            if (isStaleEvent()) return;
+            onQuotaRefunded?.(kind);
+          },
+
           onConflict: (conflictData) => {
             if (isStaleEvent()) return;
             const conflict: Conflict = {
@@ -1283,6 +1291,7 @@ export function useAgentStream(
       onParallelTaskEnd,
       onParallelEnd,
       onSteeringReceived,
+    onQuotaRefunded,
       onThinkingOption,
       onThinkingContentOption,
       startContentSegment,

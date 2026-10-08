@@ -4,7 +4,7 @@ import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import {
   Book, FileText, Clapperboard, ArrowRight, Sparkles, Check, Zap,
   TrendingUp, Mic, Paperclip, Brain, History, Cloud, Download,
-  Edit3, User, Users, PenTool, Star
+  Edit3, User
 } from "../components/icons";
 import { useAuth } from "../contexts/AuthContext";
 import { usePreloadRoute } from "../hooks/usePreloadRoute";
@@ -23,12 +23,6 @@ const SCENES = [
 
 type SceneId = typeof SCENES[number]['id'];
 
-const SOCIAL_PROOF_METRICS = {
-  creators: 2000,
-  wordsGenerated: 12000000,
-  rating: 4.9,
-} as const;
-
 const HOME_CTA_SOURCES = {
   hero: "home_hero",
   pricingTeaser: "home_pricing_teaser",
@@ -36,16 +30,8 @@ const HOME_CTA_SOURCES = {
   projectTypeCard: "home_project_type_card",
 } as const;
 
-function resolveIntlLocale(language?: string): string {
-  if (!language) return "en-US";
-  const normalized = language.toLowerCase();
-  if (normalized.startsWith("zh")) return "zh-CN";
-  if (normalized.startsWith("en")) return "en-US";
-  return language;
-}
-
 export default function HomePage() {
-  const { t, i18n } = useTranslation(['home', 'privacy']);
+  const { t } = useTranslation(['home', 'privacy']);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
@@ -55,29 +41,6 @@ export default function HomePage() {
   const [sceneProgress, setSceneProgress] = useState(0);
   const sceneTransitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const demoSectionRef = useRef<HTMLDivElement | null>(null);
-  const intlLocale = useMemo(
-    () => resolveIntlLocale(i18n.resolvedLanguage ?? i18n.language),
-    [i18n.language, i18n.resolvedLanguage]
-  );
-  const creatorsMetric = useMemo(() => {
-    const formatter = new Intl.NumberFormat(intlLocale);
-    return `${formatter.format(SOCIAL_PROOF_METRICS.creators)}+`;
-  }, [intlLocale]);
-  const wordsGeneratedMetric = useMemo(() => {
-    const formatter = new Intl.NumberFormat(intlLocale, {
-      notation: "compact",
-      compactDisplay: "short",
-      maximumFractionDigits: 1,
-    });
-    return `${formatter.format(SOCIAL_PROOF_METRICS.wordsGenerated)}+`;
-  }, [intlLocale]);
-  const ratingMetric = useMemo(() => {
-    const formatter = new Intl.NumberFormat(intlLocale, {
-      minimumFractionDigits: 1,
-      maximumFractionDigits: 1,
-    });
-    return formatter.format(SOCIAL_PROOF_METRICS.rating);
-  }, [intlLocale]);
   const planIntent = useMemo(() => {
     const rawPlan = searchParams.get("plan");
     if (!rawPlan) {
@@ -396,33 +359,6 @@ export default function HomePage() {
 
             </div>
           </div>
-          
-          {/* Social Proof */}
-          <div className="flex items-center justify-center gap-6 sm:gap-8 md:gap-12 mt-12 md:mt-16 pt-8 md:pt-10 border-t border-[hsl(var(--border-color))]">
-            <div className="text-center">
-              <div className="text-2xl md:text-3xl font-bold text-[hsl(var(--text-primary))]">{creatorsMetric}</div>
-              <div className="text-[10px] md:text-xs text-[hsl(var(--text-secondary))] mt-1 flex items-center gap-1 justify-center">
-                <Users className="w-3 h-3" />
-                {t('home:stats.creators')}
-              </div>
-            </div>
-            <div className="w-px h-8 md:h-10 bg-[hsl(var(--border-color))]" />
-            <div className="text-center">
-              <div className="text-2xl md:text-3xl font-bold text-[hsl(var(--text-primary))]">{wordsGeneratedMetric}</div>
-              <div className="text-[10px] md:text-xs text-[hsl(var(--text-secondary))] mt-1 flex items-center gap-1 justify-center">
-                <PenTool className="w-3 h-3" />
-                {t('home:stats.wordsGenerated')}
-              </div>
-            </div>
-            <div className="w-px h-8 md:h-10 bg-[hsl(var(--border-color))]" />
-            <div className="text-center">
-              <div className="text-2xl md:text-3xl font-bold text-[hsl(var(--text-primary))]">{ratingMetric}</div>
-              <div className="text-[10px] md:text-xs text-[hsl(var(--text-secondary))] mt-1 flex items-center gap-1 justify-center">
-                <Star className="w-3 h-3" />
-                {t('home:stats.rating')}
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -543,7 +479,7 @@ export default function HomePage() {
               {t('home:pricingTeaser.title', '先免费开始，按需升级')}
             </h2>
             <p className="text-sm md:text-base text-[hsl(var(--text-secondary))]">
-              {t('home:pricingTeaser.subtitle', '免费版就能完整写作；需要更多 AI 对话和项目时再升级。')}
+              {t('home:pricingTeaser.subtitle', '免费版就能完整写作；需要更多 AI 消息和项目时再开 Pro。')}
             </p>
           </div>
 
@@ -557,7 +493,7 @@ export default function HomePage() {
               },
               {
                 key: 'pro',
-                badge: t('home:pricingTeaser.pro.badge', '专业版'),
+                badge: t('home:pricingTeaser.pro.badge', 'Pro'),
                 accentClass: 'text-[hsl(var(--accent-primary))]',
                 bgClass: 'bg-[hsl(var(--accent-primary)/0.08)]',
               },
@@ -652,7 +588,7 @@ export default function HomePage() {
               {t('privacy:footer.terms')}
             </Link>
           </div>
-          <p className="text-xs text-[hsl(var(--text-secondary))] opacity-60">{t('home:footer.copyright')}</p>
+          <p className="text-xs text-[hsl(var(--text-secondary))] opacity-60">{t('home:footer.copyright', { year: new Date().getFullYear() })}</p>
         </div>
       </footer>
     </div>

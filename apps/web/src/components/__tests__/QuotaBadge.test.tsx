@@ -19,11 +19,11 @@ vi.mock('../../lib/subscriptionApi', () => ({
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, defaultValue: string, values?: { used?: number; limit?: number }) => {
-      if (key === 'subscription.unlimited') {
-        return '无限'
+      if (key === 'subscription.aiUsageUnlimited') {
+        return 'AI 消息不限条数'
       }
       if (key === 'subscription.aiUsageCount') {
-        return `AI 消息 ${values?.used}/${values?.limit}`
+        return `今日 AI 消息 ${values?.used}/${values?.limit} 条`
       }
       return defaultValue
     },
@@ -64,7 +64,7 @@ describe('QuotaBadge', () => {
 
     renderWithQuery(<QuotaBadge />)
 
-    const usage = await screen.findByText('AI 消息 4/10')
+    const usage = await screen.findByText('今日 AI 消息 4/10 条')
     expect(usage).toBeInTheDocument()
     expect(usage.parentElement?.className).toContain('bg-[hsl(var(--success)/0.15)]')
   })
@@ -84,7 +84,7 @@ describe('QuotaBadge', () => {
 
     renderWithQuery(<QuotaBadge />)
 
-    const usage = await screen.findByText('AI 消息 8/10')
+    const usage = await screen.findByText('今日 AI 消息 8/10 条')
     expect(usage.parentElement?.className).toContain('bg-[hsl(var(--warning)/0.15)]')
   })
 
@@ -103,7 +103,7 @@ describe('QuotaBadge', () => {
 
     renderWithQuery(<QuotaBadge />)
 
-    const usage = await screen.findByText('AI 消息 5/10')
+    const usage = await screen.findByText('今日 AI 消息 5/10 条')
     expect(usage.parentElement?.className).toContain('bg-[hsl(var(--info)/0.15)]')
   })
 
@@ -122,7 +122,7 @@ describe('QuotaBadge', () => {
 
     renderWithQuery(<QuotaBadge />)
 
-    const usage = await screen.findByText('AI 消息 10/10')
+    const usage = await screen.findByText('今日 AI 消息 10/10 条')
     expect(usage.parentElement?.className).toContain('bg-[hsl(var(--error)/0.15)]')
   })
 
@@ -141,6 +141,6 @@ describe('QuotaBadge', () => {
 
     renderWithQuery(<QuotaBadge />)
 
-    expect(await screen.findByText('无限')).toBeInTheDocument()
+    expect(await screen.findByText('AI 消息不限条数')).toBeInTheDocument()
   })
 })

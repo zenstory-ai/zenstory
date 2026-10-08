@@ -11,6 +11,7 @@ vi.mock('react-i18next', () => ({
           'editor:bottomTabs.files': 'Files',
           'editor:bottomTabs.editor': 'Editor',
           'editor:bottomTabs.ai': 'AI Chat',
+          'editor:bottomTabs.ariaLabel': '底部导航',
         } as Record<string, string>
       )[key] ?? key,
   }),
@@ -20,7 +21,7 @@ describe('BottomTabs', () => {
   it('renders all tabs and marks the active one', () => {
     render(<BottomTabs activeTab="editor" onTabChange={vi.fn()} />)
 
-    expect(screen.getByRole('tablist', { name: 'Mobile navigation' })).toBeInTheDocument()
+    expect(screen.getByRole('tablist', { name: '底部导航' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Files' })).toHaveAttribute('aria-selected', 'false')
     expect(screen.getByRole('tab', { name: 'Editor' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('tab', { name: 'AI Chat' })).toHaveAttribute('aria-selected', 'false')

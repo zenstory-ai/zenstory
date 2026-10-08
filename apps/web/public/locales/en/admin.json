@@ -166,7 +166,7 @@
     "isActive": "Active Status",
     "novel": "Novel",
     "short": "Short Story",
-    "screenplay": "Screenplay"
+    "screenplay": "Short Drama Script"
   },
   "skills": {
     "title": "Skill Review",
@@ -469,7 +469,7 @@
     "featuresDetail": {
       "title": "Features",
       "jsonLabel": "Features Configuration (JSON)",
-      "jsonPlaceholder": "{\n  \"ai_conversations_per_day\": 10,\n  \"max_projects\": 3,\n  \"context_window_tokens\": 4096,\n  \"material_uploads\": 5,\n  \"material_decompositions\": 5,\n  \"custom_skills\": 3,\n  \"inspiration_copies_monthly\": 10,\n  \"export_formats\": [\"txt\", \"md\"],\n  \"priority_support\": false\n}",
+      "jsonPlaceholder": "{\n  \"ai_conversations_per_day\": 10,\n  \"max_projects\": 3,\n  \"file_versions_per_file\": 10,\n  \"materials_library_access\": false,\n  \"material_decompositions\": 0,\n  \"custom_skills\": 3,\n  \"inspiration_copies_monthly\": 10\n}",
       "ai_conversations_per_day": "AI Conversations per Day",
       "context_window_tokens": "Context Window",
       "file_versions_per_file": "File Versions per File",

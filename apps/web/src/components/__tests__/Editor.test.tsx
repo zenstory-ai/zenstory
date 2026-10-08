@@ -23,7 +23,7 @@ const editorTranslations = vi.hoisted(() => ({
   'editor:fileTree.newDraft': 'New Chapter',
   'editor:fileTree.newOutline': 'New Outline',
   'editor:fileTree.newCharacter': 'New Character Sheet',
-  'editor:fileTree.newLore': 'New World Building',
+  'editor:fileTree.newLore': 'New Setting',
   'editor:showMore': 'More options',
   'editor:showLess': 'Show less',
   'editor:fileTree.shortcutHint': 'Ctrl+K',
@@ -344,7 +344,7 @@ describe('Editor', () => {
       )
     })
 
-    fireEvent.click(screen.getByText('New World Building'))
+    fireEvent.click(screen.getByText('New Setting'))
     await waitFor(() => {
       expect(api.fileApi.create).toHaveBeenCalledWith(
         'project-1',

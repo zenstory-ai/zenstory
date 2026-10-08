@@ -305,7 +305,7 @@ test.describe('Smoke Tests - Critical Path', () => {
       await billingEntry.click();
 
       await expect(page).toHaveURL(/\/dashboard\/billing/, { timeout: 10000 });
-      await expect(page.getByText(/(订阅与权益|Subscription|套餐权益)/i).first()).toBeVisible({ timeout: 10000 });
+      await expect(page.getByText(/(订阅权益|Plans & Benefits|套餐权益)/i).first()).toBeVisible({ timeout: 10000 });
     });
 
     test('inspiration quota modal primary CTA routes to billing with source tracking', async ({ page }) => {

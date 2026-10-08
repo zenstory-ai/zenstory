@@ -108,8 +108,8 @@
     [
       "Complete workflows",
       "完整工作流",
-      "Follow a project from source to deliverable.",
-      "从源材料走到一份可检查的产物。",
+      "Follow a project from raw material to a finished piece.",
+      "从原始素材一路做到成品。",
       [
         "novel-to-short-drama",
         "quick-start",
@@ -140,8 +140,8 @@
     [
       "Revision & reference",
       "排错与参考",
-      "Inspect the result, fix drift and understand the terms.",
-      "检查产物、修复漂移，查清术语。",
+      "Check the result, fix what drifted and look up the terms.",
+      "检查成品、修正跑偏，查清术语。",
       [
         "revise-ai-prose",
         "character-consistency",
@@ -176,8 +176,8 @@
       "zh": "在 DeepSeek Harness 里用图形工作台跑这四套 skill。"
     },
     "workbench": {
-      "en": "Novel writing only: files, characters, chapters and versions in one browser workspace.",
-      "zh": "只写小说：素材、人设、章节、版本都在一个浏览器工作区。"
+      "en": "Novels and short-drama scripts: files, characters, chapters and versions in one browser workspace, no agent setup.",
+      "zh": "写小说和短剧剧本：文件、人设、章节和版本都在一个浏览器工作区，不用装 Agent。"
     }
   }
 }

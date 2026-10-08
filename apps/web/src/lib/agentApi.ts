@@ -114,6 +114,54 @@ function parseSSEEvent(eventString: string): SSEEvent | null {
  */
 type AgentStreamCallbacks = Parameters<typeof streamAgentRequest>[1];
 
+type StreamErrorEventData = {
+  message?: string;
+  code?: string;
+  retryable?: boolean;
+  reason?: string;
+};
+
+/** quota_refunded 帧的两种说法：失控停止且没改文件 / 平台出错且没有产出。 */
+export type QuotaRefundKind = "no_progress" | "error";
+
+/**
+ * 服务端为这几类停止写了具体说明（停在哪、能不能接着来）；只有中文版本。
+ * 其余错误一律按错误码走 i18n，避免把内部异常文本展示给作者。
+ */
+const SERVER_WORDED_STOP_CODES = new Set([
+  "ERR_AGENT_TOOL_FAILURE_LIMIT",
+  "ERR_AGENT_NO_PROGRESS",
+]);
+
+/**
+ * 选出 error 帧要展示的原始文案（之后仍交给 toUserErrorMessage 翻译错误码）。
+ *
+ * 帧带 reason（无进展、熔断等停止原因），或错误码属于 SERVER_WORDED_STOP_CODES 且
+ * message 非空时，优先用服务端的具体说明；这些说明只有中文，英文界面仍用错误码文案。
+ */
+export function selectStreamErrorMessage(
+  data: StreamErrorEventData,
+  language: string = i18n.language ?? "",
+): string {
+  const code = typeof data.code === "string" && data.code.trim() ? data.code.trim() : undefined;
+  const message = typeof data.message === "string" ? data.message.trim() : "";
+  const hasReason = typeof data.reason === "string" && data.reason.trim().length > 0;
+  const serverWorded = hasReason || (code !== undefined && SERVER_WORDED_STOP_CODES.has(code));
+  if (serverWorded && message && language.toLowerCase().startsWith("zh")) {
+    return message;
+  }
+  return (code?.startsWith("ERR_") ? code : undefined)
+    || message
+    || code
+    || "ERR_INTERNAL_SERVER_ERROR";
+}
+
+function notifyQuotaRefunded(data: unknown, callbacks: AgentStreamCallbacks): void {
+  const payload = (data && typeof data === "object" ? data : {}) as { refunded?: unknown; kind?: unknown };
+  if (payload.refunded !== true) return;
+  callbacks.onQuotaRefunded?.(payload.kind === "no_progress" ? "no_progress" : "error");
+}
+
 /** Report stream outcomes (completed/failed) before handing off to the caller. */
 function withOutcomeTelemetry(
   callbacks: AgentStreamCallbacks,
@@ -237,6 +285,8 @@ export function streamAgentRequest(
       file_mutated?: boolean;
     }) => void;
     onError?: (message: string, code?: string, retryable?: boolean) => void;
+    /** 后端确实退还了这一轮的 AI 消息（在终止帧之后到达）。 */
+    onQuotaRefunded?: (kind: QuotaRefundKind) => void;
   },
 ): AbortController {
   const entryAccess = getAccessToken();
@@ -711,18 +761,17 @@ export function streamAgentRequest(
               break;
             }
             case "error": {
-              const data = event.data as {
-                message: string;
-                code?: string;
-                retryable: boolean;
-              };
-              const rawMessage =
-                (data.code && data.code.startsWith("ERR_") ? data.code : null)
-                || data.message
-                || data.code
-                || "ERR_INTERNAL_SERVER_ERROR";
+              const data = event.data as StreamErrorEventData;
               receivedTerminalEvent = true;
-              callbacks.onError?.(toUserErrorMessage(rawMessage), data.code, data.retryable);
+              callbacks.onError?.(
+                toUserErrorMessage(selectStreamErrorMessage(data)),
+                data.code,
+                data.retryable,
+              );
+              break;
+            }
+            case "quota_refunded": {
+              notifyQuotaRefunded(event.data, callbacks);
               break;
             }
           }
@@ -750,18 +799,17 @@ export function streamAgentRequest(
               break;
             }
             case "error": {
-              const data = event.data as {
-                message: string;
-                code?: string;
-                retryable: boolean;
-              };
-              const rawMessage =
-                (data.code && data.code.startsWith("ERR_") ? data.code : null)
-                || data.message
-                || data.code
-                || "ERR_INTERNAL_SERVER_ERROR";
+              const data = event.data as StreamErrorEventData;
               receivedTerminalEvent = true;
-              callbacks.onError?.(toUserErrorMessage(rawMessage), data.code, data.retryable);
+              callbacks.onError?.(
+                toUserErrorMessage(selectStreamErrorMessage(data)),
+                data.code,
+                data.retryable,
+              );
+              break;
+            }
+            case "quota_refunded": {
+              notifyQuotaRefunded(event.data, callbacks);
               break;
             }
             default:

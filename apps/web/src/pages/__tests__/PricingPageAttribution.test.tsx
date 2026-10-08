@@ -46,6 +46,10 @@ vi.mock("../../lib/analytics", () => ({
 vi.mock("../../lib/subscriptionApi", () => ({
   subscriptionApi: {
     getCatalog: () => mockGetCatalog(),
+    getStatus: () => Promise.resolve({ tier: "free", status: "active" }),
+  },
+  subscriptionQueryKeys: {
+    status: () => ["subscription-status", "test-user"],
   },
 }));
 
@@ -135,10 +139,10 @@ describe("PricingPage attribution", () => {
     render(<PricingPage />, { wrapper: createWrapper(["/pricing?source=chat_quota_blocked"]) });
 
     await waitFor(() => {
-      expect(screen.getAllByRole("button", { name: /升级专业版|Upgrade Pro|Upgrade to Pro/i }).length).toBeGreaterThan(0);
+      expect(screen.getAllByRole("button", { name: /开通 Pro|Get Pro/i }).length).toBeGreaterThan(0);
     });
 
-    fireEvent.click(screen.getAllByRole("button", { name: /升级专业版|Upgrade Pro|Upgrade to Pro/i })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /开通 Pro|Get Pro/i })[0]);
 
     expect(screen.getByText("Payment checkout")).toBeInTheDocument();
     expect(mockNavigate).not.toHaveBeenCalled();

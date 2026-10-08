@@ -84,7 +84,7 @@ describe('FileTreePane search navigation', () => {
   it.each(['escape', 'clear', 'close'])('closes results via %s', async (action) => {
     const input = await openSearch();
     if (action === 'escape') fireEvent.keyDown(input, { key: 'Escape' });
-    if (action === 'clear') fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+    if (action === 'clear') fireEvent.click(screen.getByRole('button', { name: 'common:clearSearch' }));
     if (action === 'close') fireEvent.click(screen.getByRole('button', { name: 'Close results' }));
     expect(screen.queryByTestId('search-results')).not.toBeInTheDocument();
   });
@@ -203,6 +203,23 @@ describe('FileTreePane request cancellation', () => {
     expect(screen.queryByText('Stale Project File')).not.toBeInTheDocument();
     expect(screen.getByText('Current Project File')).toBeInTheDocument();
     expect(mocks.loggerError).not.toHaveBeenCalled();
+  });
+});
+
+describe('FileTreePane create placeholder', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.projectId = 'project-1';
+  });
+
+  it('labels a new file in the script folder as a script, not a project', async () => {
+    mocks.getTree.mockResolvedValue({
+      tree: [{ id: 'folder-script', title: '剧本', file_type: 'folder', children: [] }],
+    });
+    render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
+    fireEvent.click(await screen.findByTitle('common:create common:fileTypes.script'));
+    expect(screen.getByPlaceholderText('editor:fileTree.newScript')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('editor:fileTree.newProject')).not.toBeInTheDocument();
   });
 });
 

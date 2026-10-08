@@ -4,7 +4,7 @@ Project templates configuration with i18n support.
 Defines folder structures and file type mappings for different project types:
 - novel: Long-form novel (5万字+)
 - short: Short story (5000-20000字)
-- screenplay: Mini-drama / screenplay
+- screenplay: Short drama script
 
 Supports both Chinese (zh) and English (en) languages.
 """
@@ -76,7 +76,7 @@ PROJECT_TEMPLATES_ZH: dict[str, dict[str, Any]] = {
 # Project template definitions - English
 PROJECT_TEMPLATES_EN: dict[str, dict[str, Any]] = {
     "novel": {
-        "name": "Long-form Novel",
+        "name": "Novel",
         "description": "Suitable for serialized novels over 50k words",
         "icon": "book",
         "folders": [
@@ -114,7 +114,7 @@ PROJECT_TEMPLATES_EN: dict[str, dict[str, Any]] = {
         "default_project_name": "My Short Story",
     },
     "screenplay": {
-        "name": "Mini-drama Script",
+        "name": "Short Drama Script",
         "description": "Suitable for short video scripts and mini-dramas",
         "icon": "clapperboard",
         "folders": [

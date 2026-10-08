@@ -31,7 +31,7 @@ def test_classify_priority_uses_focus_flag_and_outline_relations():
     other_outline = _item(item_type="outline", title="other", metadata={"relation": "other"})
 
     assert prioritizer.classify_priority(focus_outline) == ContextPriority.CRITICAL
-    assert prioritizer.classify_priority(sibling_outline) == ContextPriority.CONSTRAINT
+    assert prioritizer.classify_priority(sibling_outline) == ContextPriority.RELEVANT
     assert prioritizer.classify_priority(other_outline) == ContextPriority.RELEVANT
 
 
@@ -79,7 +79,8 @@ def test_classify_priority_never_downgrades_preset_priority():
     attached.priority = ContextPriority.CRITICAL
     assert prioritizer.classify_priority(attached) == ContextPriority.CRITICAL
 
-    # Sibling outlines keep their CONSTRAINT preset
+    # Sibling chapters are the one documented exception: demoted from the
+    # CONSTRAINT preset to RELEVANT so they cannot crowd out characters/core lore
     sibling = ContextItem.from_outline(
         id="outline-sibling",
         title="sibling",
@@ -87,7 +88,7 @@ def test_classify_priority_never_downgrades_preset_priority():
         is_focus=False,
         relation="sibling",
     )
-    assert prioritizer.classify_priority(sibling) == ContextPriority.CONSTRAINT
+    assert prioritizer.classify_priority(sibling) == ContextPriority.RELEVANT
 
     # Retrieval snippets are pinned to RELEVANT even below the 0.7 threshold
     snippet = ContextItem.from_snippet(

@@ -1,29 +1,27 @@
 # ZenStory Workbench Quick Start: From an Empty Project to a Reviewable Outline
 
-This quick start covers one focused writing session: create a project, inspect the workspace, and request a reviewable outline. Project creation does not guarantee an automatic first chapter, and version history is not unlimited backup.
+This page walks you through the first round: sign in to the workbench, create a project, get to know the file and chat areas, then ask the AI for an outline you can edit.
 
-Open the hosted workbench at [app.zenstory.ai](https://app.zenstory.ai).
-
-> This source-reviewed guide did not create an account or call AI. Registration rules depend on the current deployment; see [Account Registration and Login](https://zenstory.ai/docs/getting-started/installation).
+Open the app at [app.zenstory.ai](https://app.zenstory.ai).
 
 ## 1. Sign in and create a project
 
-1. Open [Login](https://app.zenstory.ai/login), then go to the [Dashboard](https://app.zenstory.ai/dashboard).
-2. Choose a project type; it establishes the initial file structure.
-3. The inspiration box may be empty. Press Enter without Shift or choose **Start Writing**. Leave it empty if you want to inspect the workspace before sending your own request.
-4. If you enter an idea, inspect the resulting chat and files rather than assuming it produced an outline or prose.
+1. Open [Login](https://app.zenstory.ai/login), then go to the [Dashboard](https://app.zenstory.ai/dashboard). No account yet? See [Account Registration and Login](https://zenstory.ai/docs/getting-started/installation).
+2. Choose Novel, Short Story or Short Drama Script; the type sets up the starting file structure, which you can keep reorganizing later.
+3. The idea box can stay empty: press Enter or click **Start Writing** and the project is created. Leaving it empty is a good choice if you want to look around before sending your own first request.
+4. If you did type an idea, open the project and look at what actually appeared in the chat and files.
 
 ## 2. Learn the three working areas
 
 - **File area:** browse the project tree and click a file to open it.
 - **Editor:** read or change the current file and watch its save state.
-- **Chat:** give the AI a task and inspect its reply and tool results.
+- **Chat:** give the AI a task and see its reply and tool results.
 
-The AI can query, create, edit and delete project files. Do not assume every write waits for confirmation. For planning only, say “do not create or modify files”; this is not an enforced read-only mode. When saving work, name the target, permitted change and stopping point.
+The AI can query, create, edit and delete project files, and it doesn't always ask first. For planning only, say "do not create or modify files"; that is an instruction to the AI, not a read-only switch. When you are ready to save work, name the target file, what may change and where to stop.
 
 ## 3. Start with one narrow request
 
-This is an original example, not recorded model output:
+Here is an original example:
 
 ```text
 Plan a realistic mystery short story as a three-scene outline only.
@@ -42,23 +40,23 @@ Check whether the scenes escalate before deciding why Shen Min was wrong, whethe
 
 ## 4. Open the target and add relevant context
 
-Before saving the outline, create or open its target outline file and ask: “Write the approved three-scene outline into the current file.” The request identifies the focused file, and the server reads its saved content under a context budget; this does not automatically include the whole project.
+Before saving the outline, create or open its target outline file and ask: "Write the approved three-scene outline into the current file." The request carries that file's saved content; the AI reads a limited amount of context each round and does not pull in the whole project.
 
-Attach supported material items. For character cards and earlier chapters, quote key text or name the files to read; not every file has a material attachment control. For a local edit, quote the passage and name its file and section. Precise context reduces wrong-file edits and scope expansion.
+Attach material items to the chat when they help. For character cards and earlier chapters, quote the key text or name the files to read. For a local edit, quote the passage and name its file and section. The more precise the context, the less likely the AI edits the wrong file or widens the change.
 
-## 5. Understand save, history and export boundaries
+## 5. Saving, version history and export
 
-Watch the editor for saved or conflict messages. History can inspect or restore retained versions, but snapshot rules and version allowances apply. Content may still save without a new snapshot after the version quota is reached. Keep milestone backups elsewhere.
+The editor saves automatically; watch for saved or conflict messages. Version history lets you view and restore earlier versions; once a file reaches your plan's version limit, your text still saves, just without new versions, so keep your own copy of important milestones.
 
-The project header downloads a merged TXT from non-deleted `draft` and `script` files. Chapter/episode numbering and file ordering affect the sequence, with creation time used as a fallback. This is **not a project backup**: outlines, characters, lore, chat and full history are excluded.
+The download button in the project header combines your manuscript and script files into one TXT in chapter order. It is not a backup of the whole project: outlines, characters, settings, chat and version history are not included.
 
-For the focused-file, material-attachment and text-quotation distinctions, see the [AI assistant guide](https://zenstory.ai/docs/user-guide/ai-assistant).
+For how focused files, material attachments and text quotations differ, see the [AI assistant guide](https://zenstory.ai/docs/user-guide/ai-assistant).
 
 ## Next steps
 
 - Follow [Write your first short story in ZenStory: idea, files and revision](https://zenstory.ai/docs/getting-started/first-project) for a complete example.
-- Read the [hosted workbench overview](https://zenstory.ai/workbench).
-- Use the [writing workflow comparison](https://zenstory.ai/compare/writing-workflows) to choose Hosted ZenStory, Oh Story or Oh Story DSH.
+- Read the [ZenStory Workbench overview](https://zenstory.ai/workbench) to see how it differs from using a skill pack in an agent.
+- Use the [writing environment comparison](https://zenstory.ai/compare/writing-workflows) to choose between ZenStory Workbench, Oh Story and Oh Story DSH.
 
 ## Reviewed source
 

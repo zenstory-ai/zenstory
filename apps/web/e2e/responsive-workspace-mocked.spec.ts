@@ -80,7 +80,7 @@ test('tool status stays together and the complete filename wraps in a narrow cha
   await page.mouse.down();
   await page.mouse.move(1280, separator!.y + separator!.height / 2, { steps: 10 });
   await page.mouse.up();
-  const label = page.getByText('已创建手稿', { exact: true }).first();
+  const label = page.getByText('已创建正文', { exact: true }).first();
   await expect(label).toBeVisible();
   const geometry = await label.evaluate(element => ({ height: element.getBoundingClientRect().height, line: parseFloat(getComputedStyle(element).lineHeight) }));
   expect(geometry.height).toBeLessThanOrEqual(geometry.line + 1);

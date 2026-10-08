@@ -40,16 +40,14 @@
     "settings": "Settings"
   },
   "billing": {
-    "title": "Subscription & Benefits",
+    "title": "Plans & Benefits",
     "subtitle": "See your plan and usage. Upgrade or use a redeem code when you need more.",
     "currentPlan": "Current Plan",
     "unknownPlan": "Not subscribed",
     "unlockPro": "Unlock Pro",
     "usageTitle": "Current usage",
-    "compareTitle": "Plan Comparison",
-    "catalogSubtitle": "Choose by how much you write each month and how many books you work on at once.",
-    "pricingHeroTitle": "Choose a plan by what you need to accomplish",
-    "pricingHeroSubtitle": "Start with your goal, then pick the right plan—from free trial to pro workflows.",
+    "compareTitle": "Pick the plan that fits how you write",
+    "catalogSubtitle": "Free gives you 10 AI messages a day to get started. Writing daily? Get Pro.",
     "billingCycleLabel": "Duration",
     "free": "Free",
     "perMonth": "/month",
@@ -59,14 +57,14 @@
     "forUsers": "Best for: {{target}}",
     "monthly": "Monthly",
     "yearly": "Yearly",
-    "yearlySaveUpTo": "Save up to {{percent}}% with annual billing",
-    "yearlyMaxSaveHint": "Save up to {{percent}} with annual billing",
+    "yearlyMaxSaveHint": "Save {{percent}} yearly — about {{monthly}}/month",
     "yearlyMaxSaveHintFallback": "Buy monthly or yearly",
     "yearlySaveBadge": "Save {{amount}} · {{percent}}% yearly",
     "yearlyEquivalent": "Equivalent to {{price}}/month",
     "yearlySaveAmount": "Save {{amount}} vs monthly",
-    "alternateYearlyPrice": "Annual {{price}}",
+    "alternateYearlyPrice": "Or {{price}} yearly — save {{amount}}",
     "alternateMonthlyPrice": "Monthly {{price}}",
+    "priceWithYearlyOffer": "{{monthly}}, or {{yearly}} (≈{{equivalent}}/month, save {{percent}}%)",
     "monthlyToggle": "Monthly",
     "yearlyToggle": "Yearly",
     "showOnlyDiff": "Show differences only",
@@ -74,51 +72,37 @@
     "noDifferences": "No key feature differences across plans right now",
     "noDiffMetric": "These plans don't differ on any item",
     "ctaFreeStart": "Start Free",
-    "ctaUpgradePro": "Upgrade to Pro",
+    "ctaUpgradePro": "Get Pro",
     "trustTitle": "Upgrade with confidence",
     "trustFlexible": "One-time Alipay payment with no automatic renewal",
     "trustSecurity": "Your work is sent over encrypted connections",
-    "summaryStarter": "Try it free: go from a one-line idea to a first draft.",
-    "summaryCreator": "Higher limits for daily or weekly serial writing.",
+    "summaryStarter": "Write for free, from one idea to a first draft.",
+    "summaryCreator": "Unlimited AI messages and projects — built for daily serials.",
     "targetExplorer": "Writers who are just starting or write occasionally",
     "targetDailyWriter": "Daily writers and long-form creators",
-    "metricWriting": "AI writing volume",
-    "metricWritingOutcome": "Monthly allowance for AI-written outlines and chapters",
-    "metricAgentRuns": "In-depth AI tasks",
-    "metricAgentRunsOutcome": "Multi-step work such as expanding, polishing and revising",
     "metricProjects": "Projects",
     "metricProjectsOutcome": "How many books you can work on at once",
-    "metricExport": "Export formats",
-    "metricExportOutcome": "Download your work as files for submission or backup",
-    "metricWritingFriendly": "Monthly writing capacity",
-    "metricAgentRunsFriendly": "Complex task handling",
-    "metricProjectsFriendly": "Parallel project capacity",
-    "metricContextFriendly": "Single-run context depth",
-    "metricExportFriendly": "Delivery export options",
-    "metricWritingHelper": "Estimated sustainable output based on your publishing pace",
-    "metricAgentRunsHelper": "For outlining, rewrites, structural edits, and other deep tasks",
-    "metricProjectsHelper": "Run multiple genres or client projects in parallel",
-    "metricContextHelper": "Larger context is better for long-form continuity edits",
-    "metricExportHelper": "Export directly for editors, platforms, or clients",
-    "monthlyOutputEstimate": "Approx. {{count}} × 10k chars/month",
     "timesPerMonth": "/month",
-    "timesPerDay": "/day",
+    "messagesPerDay": "/day",
     "projectsUnit": "projects",
-    "noExportFormats": "N/A",
-    "metricMaterialUploads": "Material uploads",
-    "metricMaterialUploadsOutcome": "Keep feeding source material without breaking writing flow",
-    "metricMaterialDecompositions": "Material decomposition credits",
+    "metricMaterialDecompositions": "Material breakdowns",
     "metricMaterialDecompositionsOutcome": "Break reference novels into characters, plot and other key points",
     "metricCustomSkills": "Custom skills",
     "metricCustomSkillsOutcome": "Save your go-to writing instructions as skills and reuse them",
+    "metricFileVersions": "Versions kept per file",
     "metricInspirationCopies": "Inspiration copies",
     "metricInspirationCopiesOutcome": "Turn library inspirations into your own projects",
-    "ctaBuyPro": "Buy Pro",
-    "paymentTitle": "Get Pro membership",
+    "ctaBuyPro": "Get Pro",
+    "paymentTitle": "Get Pro",
+    "paymentTitleRenew": "Renew Pro",
+    "paymentBenefits": "Unlimited AI messages · Unlimited projects · 5 material breakdowns a month",
     "monthlyDuration": "Monthly · 30 days",
     "yearlyDuration": "Yearly · 365 days",
     "alipay": "Alipay",
-    "paymentUnavailable": "Online payment isn't available right now. If you have a redeem code, open Plans & Benefits and click \"Redeem Code\".",
+    "paymentNoAutoRenew": "One-time payment, no auto-renewal. Renew early and the time is added after your current end date.",
+    "paymentUnavailable": "Online payment isn't available right now. Have a redeem code? Open Plans & Benefits and use \"Redeem Code\".",
+    "paymentUnavailableOnPage": "Online payment isn't available right now. Have a redeem code? Use \"Redeem Code\" on this page.",
+    "paymentUnavailableOpenBilling": "Go to Plans & Benefits",
     "paymentInvalidCheckout": "Could not open Alipay. Refresh the page and try again.",
     "paymentCreateFailed": "Could not create the order right now. Please try again later.",
     "paymentCreating": "Creating order...",
@@ -129,11 +113,11 @@
     "paymentCheckFailed": "Can't check the payment right now",
     "paymentCheckFailedHint": "If you've already paid, don't pay again. Click \"Refresh payment status\" in a moment.",
     "paymentActivated": "Payment successful — Pro is active",
-    "paymentActivatedHint": "Go back to Plans & Benefits to see your new limits.",
+    "paymentActivatedHint": "AI messages and projects are now unlimited. Go finish that next chapter.",
     "paymentPending": "Confirming your payment",
     "paymentPendingHint": "This page updates automatically. If you've already paid, don't pay again.",
     "paymentOrderNumber": "Order number",
-    "backToBilling": "Back to billing",
+    "backToBilling": "Back to Plans & Benefits",
     "ctaRenewPro": "Renew Pro",
     "paymentRefresh": "Refresh payment status",
     "paymentPendingTimeout": "Payment isn't confirmed yet. If you've already paid, don't pay again. Click \"Refresh payment status\" in a moment; if Pro still isn't active, email support@zenstory.ai with your order number.",
@@ -142,24 +126,32 @@
     "paymentRedirecting": "Opening Alipay...",
     "ctaProNeutral": "Get or renew Pro",
     "paymentPageOutdated": "This page has been updated. Refresh the page and try again.",
-    "redeemSuccessDays": "Redeemed: {{days}} days of membership.",
+    "redeemSuccessDays": "Done! {{days}} days of Pro added.",
     "redeeming": "Redeeming...",
-    "dailyQuotaResetHint": "Daily AI conversation quotas reset at 00:00 Beijing time (UTC+8).",
+    "dailyQuotaResetHint": "Daily AI messages reset at 00:00 Beijing time (UTC+8).",
+    "proNoDailyLimit": "Pro has no daily AI message limit.",
     "freeDailyMessageLimitHint": "Free users can send up to {{limit}} AI messages per day. It resets the next day at 00:00 Beijing time (UTC+8).",
     "monthlyQuotaResetHint": "Monthly quotas reset on the 1st at 00:00 Beijing time (UTC+8).",
+    "availableWithPro": "Available with Pro",
     "metricAiConversations": "Daily AI messages",
     "metricAiConversationsOutcome": "Resets at 00:00 Beijing time (UTC+8)",
-    "supportHint": "Questions about your subscription, charges or refunds? Email support:"
+    "supportHint": "Questions about your subscription, charges or refunds? Email support:",
+    "yearlyBestValue": "Best value · save {{percent}}%",
+    "monthlyFlexible": "Try a month first",
+    "goToPayAmount": "Pay {{price}}",
+    "paymentActivatedUntil": "Active until {{date}}. Time to write.",
+    "paymentUnlockedTitle": "Unlocked",
+    "startWriting": "Start writing"
   },
   "todayActionPlan": {
-    "title": "3 things to do today",
+    "title": "Things you can do today",
     "subtitle": "Based on your writing progress.",
     "cta": "Go",
     "executing": "Working...",
     "expand": "Show all",
     "collapse": "Collapse",
     "expandHint": "Expand to see more suggestions.",
-    "activationDescription": "A key step to get started.",
+    "activationDescription": "One small step to get going.",
     "personaDescription": "Suggested from the writing preferences you chose.",
     "personaRecommendations": {
       "persona_explorer_template": {
@@ -206,7 +198,7 @@
     "defaults": {
       "createProject": {
         "title": "Create your first project",
-        "description": "Start with a one-line idea; your outline, chapters and settings all live in the project.",
+        "description": "No idea needed yet — start with one click. Your outline, chapters and settings all live in the project.",
         "cta": "New project"
       },
       "openProject": {
@@ -219,9 +211,9 @@
         "cta": "Open project"
       },
       "upgrade": {
-        "title": "Check your limits",
-        "description": "See what you have left this month and upgrade if you need more.",
-        "cta": "View limits"
+        "title": "Check usage",
+        "description": "See how many AI messages you have left today; get Pro only if you need more.",
+        "cta": "Check usage"
       },
       "inspirations": {
         "title": "Browse inspirations",
@@ -236,7 +228,7 @@
     "steps": {
       "signup_success": "Sign up",
       "project_created": "Create a project",
-      "first_file_saved": "Save your first file",
+      "first_file_saved": "Write your first paragraph",
       "first_ai_action_accepted": "Accept an AI edit"
     }
   },
@@ -249,21 +241,23 @@
   },
   "projects": {
     "recent": "Recent Projects",
-    "all": "All Projects",
+    "all": "My Projects",
     "new": "New Project",
     "filterAll": "All",
     "count": "{{count}} projects",
     "count_one": "{{count}} project",
     "count_other": "{{count}} projects",
     "noMatch": "No matching projects",
-    "tryDifferent": "Try adjusting your search or filter",
+    "tryDifferent": "Try a different keyword or story type",
     "createFirst": "Create Your First Project",
     "viewAll": "View All",
     "empty": "No projects yet",
-    "emptyHint": "Click \"Start Writing\" to create your first project — ideas optional",
+    "emptyHint": "Click \"Start Writing\" above to create your first project — no idea needed.",
+    "emptyHintProjectsPage": "Click \"New Project\" to start your first book.",
     "searchPlaceholder": "Search projects...",
     "createNew": "Create New Project",
-    "namePlaceholder": "Name your work",
+    "nameLabel": "Title (optional)",
+    "namePlaceholder": "Leave blank to use \"{{name}}\" — rename anytime",
     "confirmDeleteTitle": "Delete this project?",
     "confirmDeleteMessage": "Everything in this project will be deleted and can't be restored.",
     "confirmDeleteButton": "Delete",
@@ -277,14 +271,17 @@
   },
   "inspiration": {
     "title": "Creative Inspiration",
-    "dashboardPlaceholder": "Describe a strong conflict, or tap a real-story inspiration below",
-    "dashboardPlaceholderWithoutInspirations": "Describe a strong conflict to start creating your story",
     "novelPlaceholder": "Enter your creative idea, e.g., A programmer travels to ancient times and discovers his coding ability becomes cultivation...",
     "shortPlaceholder": "Describe your story idea, e.g., Late night at a convenience store, an old man comes every night to buy the same discontinued candy...",
     "screenplayPlaceholder": "Tell me what you want to shoot, e.g., A CEO gets rejected at a matchmaking corner for low income, decides to hide identity to pursue true love...",
     "novelDesc": "AI will help you conceptualize story framework, build world and characters based on your inspiration",
     "shortDesc": "AI will help you refine story structure, making the short story more compelling",
-    "screenplayDesc": "AI will help you design episode plots, dialogue and twists, making the script more engaging"
+    "screenplayDesc": "AI will help you design episode plots, dialogue and twists, making the script more engaging",
+    "example": {
+      "novel": "Write an alternate-history court-intrigue novel: the overlooked sixth prince wants no throne, only enough troops to survive, yet his father and brothers keep pushing him forward. Set up the lead and factions, then outline chapters 1–3.",
+      "short": "Write a ~10,000-word twist story: on exam-results day, a film-star mother fresh out of prison kneels to her daughter before live-stream cameras. Only the daughter knows why she went to prison. First person; outline first.",
+      "screenplay": "Write a 60-episode vertical short drama: a healer's disciple comes down the mountain to marry, gets publicly jilted, and marries his fiancée's sister instead. 1–2 min episodes, a twist in each of the first 3. Outline first, then episode 1."
+    }
   },
   "inspirations": {
     "featured": "Featured Inspirations",
@@ -314,7 +311,7 @@
   },
   "projectType": {
     "novel": {
-      "name": "Long-form Novel",
+      "name": "Novel",
       "description": "Build expansive world-building systems and develop compelling character arcs. Perfect for serialized novels over 50,000 words."
     },
     "short": {
@@ -322,7 +319,7 @@
       "description": "Craft complete narratives with precision and emotional resonance. Ideal for standalone stories of 5,000-20,000 words."
     },
     "screenplay": {
-      "name": "Screenplay",
+      "name": "Short Drama Script",
       "description": "Design episode plots and scene dialogue for fast-paced mini-dramas. Perfect for short video scripts and micro-dramas."
     }
   },
@@ -362,10 +359,10 @@
       "title": "Project Health",
       "overallStatus": "Overall project status",
       "status": {
-        "good": "Healthy",
-        "warning": "Needs Attention",
-        "critical": "Action Required",
-        "neutral": "Not Started"
+        "good": "Going well",
+        "warning": "Could use a push",
+        "critical": "Plenty left to write",
+        "neutral": "Not started"
       },
       "indicators": {
         "chapters": "Chapter Progress",
@@ -375,10 +372,10 @@
         "inactive": "Inactive",
         "activityGood": "{{count}} words written today",
         "activityWarning": "No writing yet this week",
-        "activityInactive": "Start writing to track progress",
+        "activityInactive": "Write a few lines to see progress",
         "streak": "Writing Streak",
         "streakActive": "Keep up the momentum",
-        "streakInactive": "Build a writing habit",
+        "streakInactive": "Write 10 words today to start a streak",
         "aiUsage": "AI Collaboration",
         "aiActive": "Actively using AI assistance",
         "aiInactive": "Try AI for writing help"
@@ -390,28 +387,28 @@
       "notStarted": "Ready to Start",
       "completed": "Recently Finished",
       "noFiles": "No files yet",
-      "createFirst": "Create your first chapter to get started",
+      "createFirst": "Add a chapter and write whatever comes",
       "action": "Continue Writing",
       "hintInProgress": "Pick up where you left off",
       "hintNotStarted": "Start writing this chapter",
       "hintCompleted": "Review or continue to next chapter"
     },
     "outstandingTasks": {
-      "title": "Outstanding Tasks",
-      "total": "{{count}} tasks",
+      "title": "What you could do next",
+      "total": "{{count}} items",
       "allClear": "All Caught Up!",
-      "allClearHint": "No pending tasks at the moment",
-      "notStartedCount": "not started",
-      "draftWithoutOutlineCount": "no outline",
-      "outlineWithoutDraftCount": "no draft",
-      "notStartedDesc": "Chapter hasn't been started yet",
-      "draftWithoutOutlineDesc": "Content exists but no outline plan",
-      "outlineWithoutDraftDesc": "Planned but not yet written",
-      "moreTasks": "+{{count}} more tasks",
+      "allClearHint": "Nothing to pick up right now",
+      "notStartedCount": "not started yet",
+      "draftWithoutOutlineCount": "outline optional",
+      "outlineWithoutDraftCount": "ready to write",
+      "notStartedDesc": "This chapter hasn't been started yet",
+      "draftWithoutOutlineDesc": "You've written the chapter; an outline helps the AI pick up the thread (optional)",
+      "outlineWithoutDraftDesc": "The outline is ready, so you can start writing",
+      "moreTasks": "+{{count}} more",
       "types": {
-        "draftWithoutOutline": "No Outline",
-        "outlineWithoutDraft": "No Draft",
-        "notStarted": "Not Started"
+        "draftWithoutOutline": "Outline optional",
+        "outlineWithoutDraft": "Ready to write",
+        "notStarted": "Not started yet"
       }
     },
     "wordCount": {
@@ -464,7 +461,9 @@
       "recoveryAvailable": "Streaks saved after a missed day",
       "keepWriting": "Keep it up!",
       "startWriting": "Start writing today",
-      "daysUntilBreak": "{{count}} days until break",
+      "daysUntilBreak": "Your streak ends if you don't write within {{count}} days",
+      "daysUntilBreak_one": "Your streak ends if you don't write within {{count}} day",
+      "daysUntilBreak_other": "Your streak ends if you don't write within {{count}} days",
       "tips": {
         "title": "Streak Tips",
         "daily": "Write at least 10 words daily to maintain your streak.",
@@ -532,13 +531,13 @@
         "cta": "Got it"
       },
       "inspirationInput": {
-        "title": "Start with one core conflict",
-        "description": "Type your idea directly, or tap a suggested prompt below to create your first project faster.",
-        "descriptionWithoutLibrary": "Enter your story idea, then select Start Writing to create a project."
+        "title": "Start from any idea",
+        "description": "Jot down whatever comes to mind. One line is enough, or pick an idea below.",
+        "descriptionWithoutLibrary": "Jot down whatever comes to mind. One line is enough, and you can start with nothing at all."
       },
       "createProject": {
-        "title": "Create a project in one click",
-        "description": "This creates a new project immediately so you can keep writing or let AI help you expand it.",
+        "title": "Click here to begin",
+        "description": "Your project is created instantly. Typed an idea? The AI helps shape it first. Left it blank? Chat with the AI anytime inside.",
         "cta": "Try it"
       },
       "inspirationsLink": {

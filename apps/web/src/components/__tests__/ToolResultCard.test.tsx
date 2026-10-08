@@ -24,6 +24,9 @@ const mockT = vi.fn((key: string, options?: Record<string, unknown>) => {
   if (key === 'chat:tool.failed' && options?.label !== undefined) {
     return `${options.label} failed`
   }
+  if (key === 'chat:tool.failureHint.repeatRead' && options?.title !== undefined) {
+    return `Already read ${options.title}`
+  }
   if (key === 'chat:response.conflicts_detected' && options?.count !== undefined) {
     return `Conflicts detected`
   }
@@ -104,8 +107,9 @@ vi.mock('react-i18next', () => ({
 // ToolResultCard imports the real i18n singleton (for i18n.language in the
 // quote helper); stub it so the module's initReactI18next side effect does not
 // run under the partial react-i18next mock.
+const i18nStub = vi.hoisted(() => ({ language: 'zh' }))
 vi.mock('../../lib/i18n', () => ({
-  default: { language: 'zh' },
+  default: i18nStub,
 }))
 
 describe('ToolResultCard', () => {
@@ -468,15 +472,89 @@ describe('ToolResultCard', () => {
       expect(screen.getByText('File already exists')).toBeInTheDocument()
     })
 
-    it('shows error message when no user message', () => {
+    it('never shows the raw error when there is no user message', () => {
       render(
         <ToolResultCard
           type="tool_result"
-          toolName="create_file"
-          error="Network error"
+          toolName="edit_file"
+          error="Edit 0: 锚点匹配到多个位置（id=file-9），请提供 occurrence=N"
         />
       )
-      expect(screen.getByText('Network error')).toBeInTheDocument()
+      expect(screen.queryByText(/occurrence=N/)).not.toBeInTheDocument()
+      expect(screen.getByText('chat:tool.failureHint.generic')).toBeInTheDocument()
+    })
+
+    it('falls back to the localized hint on non-Chinese UIs, since user_message is Chinese', () => {
+      i18nStub.language = 'en'
+      try {
+        render(
+          <ToolResultCard
+            type="tool_result"
+            toolName="edit_file"
+            error="raw"
+            result={{ data: { error_type: 'ambiguous_match', user_message: '要改的这句话出现了好几次' } }}
+          />
+        )
+        expect(screen.queryByText('要改的这句话出现了好几次')).not.toBeInTheDocument()
+        expect(screen.getByText('chat:tool.failureHint.ambiguous')).toBeInTheDocument()
+      } finally {
+        i18nStub.language = 'zh'
+      }
+    })
+
+    it('reads user_message nested under data (stream adapter shape)', () => {
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="edit_file"
+          error="raw"
+          result={{ data: { error_type: 'ambiguous_match', user_message: '要改的这句话出现了好几次' } }}
+        />
+      )
+      expect(screen.getByText('要改的这句话出现了好几次')).toBeInTheDocument()
+    })
+
+    it.each([
+      ['anchor_not_found', 'chat:tool.failureHint.notFound'],
+      ['ambiguous_match', 'chat:tool.failureHint.ambiguous'],
+      ['file_not_found', 'chat:tool.failureHint.fileMissing'],
+      ['tool_not_found', 'chat:tool.failureHint.generic'],
+      ['malformed_tool_result', 'chat:tool.failureHint.generic'],
+    ])('maps error_type %s to a friendly hint', (errorType, expected) => {
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="edit_file"
+          error="Internal detail"
+          result={{ error_type: errorType }}
+        />
+      )
+      expect(screen.getByText(expected)).toBeInTheDocument()
+      expect(screen.queryByText('Internal detail')).not.toBeInTheDocument()
+    })
+
+    it('names the file for a repeated read when the title is known', () => {
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="query_files"
+          error="内容就在上文的工具结果里"
+          result={{ error_type: 'repeated_read', title: '第一章' }}
+        />
+      )
+      expect(screen.getByText('Already read 第一章')).toBeInTheDocument()
+    })
+
+    it('labels unknown tools generically instead of leaking the internal name', () => {
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="rewrite_chapter"
+          error="x"
+        />
+      )
+      expect(screen.getByText(/chat:tool.generic failed/)).toBeInTheDocument()
+      expect(screen.queryByText(/rewrite_chapter/)).not.toBeInTheDocument()
     })
   })
 
@@ -825,7 +903,7 @@ describe('ToolResultCard', () => {
       expect(screen.getByText('删除草稿')).toBeInTheDocument()
     })
 
-    it('surfaces a failed sub-task error (partial failure is visible)', () => {
+    it('marks a failed sub-task as not completed without its raw error', () => {
       render(
         <ToolResultCard
           type="tool_result"
@@ -833,7 +911,29 @@ describe('ToolResultCard', () => {
           result={parallelResult}
         />
       )
-      expect(screen.getByText('File not found')).toBeInTheDocument()
+      expect(screen.getByText('chat:tool.taskNotCompleted')).toBeInTheDocument()
+      expect(screen.queryByText('File not found')).not.toBeInTheDocument()
+    })
+
+    it("shows a failed sub-task's user_message when the tool provided one", () => {
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="parallel_execute"
+          result={{
+            ...parallelResult,
+            tasks: [
+              parallelResult.tasks[0],
+              {
+                ...parallelResult.tasks[1],
+                result: { status: 'error', user_message: '这个文件已经不存在了' },
+              },
+            ],
+          }}
+        />
+      )
+      expect(screen.getByText('这个文件已经不存在了')).toBeInTheDocument()
+      expect(screen.queryByText('File not found')).not.toBeInTheDocument()
     })
 
     it('renders all-success runs without an error row', () => {

@@ -8,6 +8,7 @@ import asyncio
 import contextlib
 import json
 import os
+import re
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -22,7 +23,12 @@ from agent.graph.nodes import (
     evaluate_agent_output,
     run_streaming_agent,
 )
-from agent.graph.router import get_next_node, resume_route_after_exhaustion, router_node
+from agent.graph.router import (
+    get_next_node,
+    inherit_routing_after_clarification,
+    resume_route_after_exhaustion,
+    router_node,
+)
 from agent.graph.state import WritingState
 from agent.openai_agents.repeat_read_guard import RepeatReadGuard
 from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
@@ -270,6 +276,85 @@ def _review_notes_from_packet(packet: dict[str, Any] | None, context: str) -> st
     if not parts and context.strip():
         parts.append(context.strip())
     return "\n".join(parts)
+
+
+# 图自己写进 evidence 的内部标记（workflow_plan=standard、content_length=812）：
+# 对下一个 agent 没有信息量，不渲染。
+_INTERNAL_EVIDENCE_RE = re.compile(r"^[a-z_]+=\S*$")
+
+
+def _format_handoff_packet_items(packet: dict[str, Any] | None) -> str:
+    """把交接包的 todo / evidence 渲染成下一个 agent 交接信息里的列表。"""
+    if not isinstance(packet, dict):
+        return ""
+
+    def _items(key: str) -> list[str]:
+        raw = packet.get(key)
+        if not isinstance(raw, list):
+            return []
+        return [str(item).strip() for item in raw if str(item).strip()]
+
+    todo = _items("todo")
+    evidence = [item for item in _items("evidence") if not _INTERNAL_EVIDENCE_RE.match(item)]
+    sections: list[str] = []
+    if todo:
+        sections.append("[待办]\n" + "\n".join(f"- {item}" for item in todo))
+    if evidence:
+        sections.append("[依据]\n" + "\n".join(f"- {item}" for item in evidence))
+    return "".join(f"\n\n{section}" for section in sections)
+
+
+def _unfinished_file_notice(rolled_back: list[str], unresolved: list[str]) -> str:
+    """工具调用轮数耗尽时留下空文件：回滚 / 无法回滚的说明（随 assistant 正文落库）。"""
+    lines: list[str] = []
+    if rolled_back:
+        titles = "、".join(f"《{title}》" for title in rolled_back)
+        lines.append(f"{titles}还没写入正文，已撤销这个空文件。回复「继续」会重新写。")
+    if unresolved:
+        titles = "、".join(f"《{title}》" for title in unresolved)
+        lines.append(f"{titles}还没写入正文，也没能自动撤销。回复「继续」补完，或手动删除。")
+    if not lines:
+        return ""
+    return "\n\n——\n" + "\n".join(lines)
+
+
+async def _roll_back_empty_files_after_exhaustion(
+    agent_type: str | None,
+) -> AsyncIterator[StreamEvent]:
+    """工具调用轮数耗尽且还有 pending 空文件：核验 → 回滚空文件 → 文字说明。
+
+    与空文件纠偏分支「配额用尽」时同一套核验与回滚，只是不再安排补写轮。
+    """
+    unfinished: list[dict[str, str]] = []
+    for entry in ToolContext.get_pending_empty_files():
+        file_id = str(entry.get("file_id") or entry.get("id") or "")
+        title = str(entry.get("title") or "未命名")
+        body_state = await asyncio.to_thread(_probe_pending_file_body, file_id)
+        if body_state in (_PENDING_BODY_WRITTEN, _PENDING_BODY_GONE):
+            ToolContext.clear_pending_empty_file(file_id)
+            continue
+        unfinished.append({"file_id": file_id, "title": title})
+    if not unfinished:
+        return
+
+    rolled_back = await asyncio.to_thread(_rollback_unfinished_empty_files, unfinished)
+    for entry in unfinished:
+        if entry["file_id"] in rolled_back:
+            ToolContext.clear_pending_empty_file(entry["file_id"])
+    rolled_back_titles = [e["title"] for e in unfinished if e["file_id"] in rolled_back]
+    unresolved_titles = [e["title"] for e in unfinished if e["file_id"] not in rolled_back]
+    log_with_context(
+        logger,
+        30,  # WARNING
+        "Tool-call exhaustion left empty files; rolled back what could be verified",
+        agent_type=agent_type,
+        unfinished_count=len(unfinished),
+        rolled_back_count=len(rolled_back_titles),
+        unresolved_count=len(unresolved_titles),
+    )
+    notice = _unfinished_file_notice(rolled_back_titles, unresolved_titles)
+    if notice:
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": notice})
 
 
 def _review_limit_text(notes: str) -> str:
@@ -620,6 +705,11 @@ async def run_writing_workflow_streaming(
     accumulated_content: str = ""  # Track content for auto-review threshold
     review_round: int = 0  # 跟踪 writer-quality_reviewer 循环次数
     previous_agent: str | None = None  # 跟踪上一个 agent
+    # 当前 agent 是不是审稿人交回来返工的：返工稿不再被自动质检门送审。
+    # 不能只看 previous_agent——空文件纠偏轮、steering 追加轮会把它改成当前 agent。
+    rework_from_reviewer = False
+    # 本轮交接包（todo / evidence 要渲染进下一个 agent 的交接信息）。
+    incoming_handoff_packet: dict[str, Any] | None = None
     file_correction_attempts: int = 0  # 跟踪「创建了空文件但未写入正文」的纠正次数
     # 被空文件纠偏轮暂存的显式 handoff：纠偏分支会用 continue 跳过本轮末尾的
     # 交接决策，若不暂存，模型这一轮请求的目标 agent（例如 WRITER_PROMPT 强制
@@ -700,6 +790,11 @@ async def run_writing_workflow_streaming(
         # 上一轮以工具调用轮数耗尽 / 无进展停止收尾，用户只回了一句「继续」：直接交给
         # 上一轮的 agent 走 quick 工作流，不再重新做多 agent 规划（规划会从头再读一遍）。
         resume_result = resume_route_after_exhaustion(state)
+        # 上一轮以提问收尾、用户简短作答（「可以」「B」「主角叫陈默」）：沿用上一轮落库的
+        # 路由，不让只看本条原话的 LLM 路由把回答重新分类。只替代 LLM 路由那一步，
+        # 快速模式（路由关闭）照旧固定从 writer 开始。
+        if resume_result is None and router_strategy == "llm":
+            resume_result = inherit_routing_after_clarification(state)
 
         try:
             if resume_result is not None:
@@ -867,6 +962,10 @@ async def run_writing_workflow_streaming(
                         review_round=review_round,
                     )
 
+                # 交接包里的待办与依据：handoff_to_agent 的 todo / evidence 只在交接包里，
+                # 不渲染出来下一个 agent 就看不到审稿人列的具体修改项。
+                packet_items_text = _format_handoff_packet_items(incoming_handoff_packet)
+
                 # 本请求已读 / 已改的文件（只有标题与 id）：交接后 SDK 的输入只回放文字，
                 # 工具结果不进下一个 agent 的历史，不告诉它就会从头再读一遍。
                 work_log_text = ""
@@ -910,8 +1009,8 @@ async def run_writing_workflow_streaming(
 
                     modified_state["user_message"] = (
                         f"[质量检查任务]\n\n请审查上一个 Agent 完成的内容。\n\n"
-                        f"交接信息: {handoff_context}{work_log_text}{inventory_text}"
-                        f"{round_hint}{last_iteration_hint}"
+                        f"交接信息: {handoff_context}{packet_items_text}{work_log_text}"
+                        f"{inventory_text}{round_hint}{last_iteration_hint}"
                     )
                 else:
                     # The original user request is already replayed as the first user turn
@@ -920,7 +1019,8 @@ async def run_writing_workflow_streaming(
                     # handoff context as this turn's user message.
                     modified_state["user_message"] = (
                         f"[来自上一个Agent的交接信息]: "
-                        f"{handoff_context}{work_log_text}{inventory_text}{last_iteration_hint}"
+                        f"{handoff_context}{packet_items_text}{work_log_text}{inventory_text}"
+                        f"{last_iteration_hint}"
                     )
             else:
                 # 即使没有 handoff_context，也需要注入最后一轮提示
@@ -1273,6 +1373,7 @@ async def run_writing_workflow_streaming(
                         )
                     previous_agent = current_agent_type
                     current_agent_type = correction_agent
+                    incoming_handoff_packet = None
                     continue
 
             # Structured clarification stop is canonical and must block planned/auto handoff.
@@ -1285,6 +1386,13 @@ async def run_writing_workflow_streaming(
                 break
             # Tool-call exhaustion should stop workflow; never continue with planned/auto handoff.
             if tool_call_exhausted:
+                # 轮数耗尽时不再安排补写轮（本轮已经停了），但 create_file 留下的空文件
+                # 不能就这么留在文件树里：落库核验后回滚确认为空的，回滚不了的明确告诉用户。
+                if ToolContext.has_pending_empty_file():
+                    async for notice_event in _roll_back_empty_files_after_exhaustion(
+                        current_agent_type
+                    ):
+                        yield notice_event
                 terminated_via_break = True
                 break
 
@@ -1349,6 +1457,22 @@ async def run_writing_workflow_streaming(
                             "target_agent": next_agent,
                         },
                     )
+                next_agent = None
+                explicit_handoff_event_data = None
+                handoff_packet = None
+
+            # 快速模式：用户选的是「更快出结果」，writer 写完直接结束。nodes 已在系统提示
+            # 里说明不要送审；模型仍然交接给审稿人时，这里丢弃。
+            if (
+                generation_mode == "fast"
+                and current_agent_type == "writer"
+                and next_agent == "quality_reviewer"
+            ):
+                log_with_context(
+                    logger,
+                    20,  # INFO
+                    "Fast mode: dropping writer handoff to quality_reviewer",
+                )
                 next_agent = None
                 explicit_handoff_event_data = None
                 handoff_packet = None
@@ -1503,6 +1627,8 @@ async def run_writing_workflow_streaming(
                 enable_graph_auto_review
                 and not read_only_request
                 and current_agent_type == "writer"
+                # 审稿人交回来的返工稿不再自动送审（WRITER_PROMPT：返工后直接结束）。
+                and not rework_from_reviewer
                 and review_round < MAX_REVIEW_ROUNDS
                 and len(agent_content) >= auto_review_threshold
                 and (writer_emitted_file_markers or writer_used_write_tools)
@@ -1589,6 +1715,7 @@ async def run_writing_workflow_streaming(
                         current_agent_type, read_only=read_only_request
                     )
                     previous_agent = current_agent_type
+                    incoming_handoff_packet = None
                     continue
 
             # 检测任务完成。
@@ -1664,6 +1791,14 @@ async def run_writing_workflow_streaming(
 
             # Apply next agent decision
             current_agent_type = pending_next_agent if will_run_next_agent else None
+            rework_from_reviewer = (
+                previous_agent == "quality_reviewer" and current_agent_type is not None
+            )
+            incoming_handoff_packet = (
+                pending_handoff_event_data.get("handoff_packet")
+                if will_run_next_agent and isinstance(pending_handoff_event_data, dict)
+                else None
+            )
 
         ToolContext.set_current_agent(None)
 

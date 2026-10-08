@@ -76,6 +76,7 @@ class MessageManager:
         assistant_status_cards: list[dict[str, Any]] | None = None,
         steering_messages: list[str] | None = None,
         assistant_display_events: list[dict[str, Any]] | None = None,
+        assistant_routing: dict[str, Any] | None = None,
     ) -> str | None:
         """
         Save messages to chat history.
@@ -94,6 +95,9 @@ class MessageManager:
                 their own user-role turns so they survive into later requests
             assistant_display_events: Ordered renderer timeline for the assistant
                 row; omitted for legacy callers that do not provide one
+            assistant_routing: This turn's routing (initial/last agent, workflow,
+                read_only, write_content, scope); read back by the next turn's
+                resume / clarification-reply routing
 
         Returns:
             Persisted assistant message ID when history save succeeds
@@ -111,6 +115,7 @@ class MessageManager:
                 assistant_status_cards,
                 steering_messages,
                 assistant_display_events,
+                assistant_routing,
             )
         return self._save_messages_with_session(
             session,
@@ -124,6 +129,7 @@ class MessageManager:
             assistant_status_cards,
             steering_messages,
             assistant_display_events,
+            assistant_routing,
         )
 
     def _should_offload_session_work(self, session: Session) -> bool:
@@ -144,6 +150,7 @@ class MessageManager:
         assistant_status_cards: list[dict[str, Any]] | None = None,
         steering_messages: list[str] | None = None,
         assistant_display_events: list[dict[str, Any]] | None = None,
+        assistant_routing: dict[str, Any] | None = None,
     ) -> str | None:
         """Persist chat history with a fresh sync DB session."""
         with create_session() as session:
@@ -159,6 +166,7 @@ class MessageManager:
                 assistant_status_cards,
                 steering_messages,
                 assistant_display_events,
+                assistant_routing,
             )
 
     def _save_messages_with_session(
@@ -174,6 +182,7 @@ class MessageManager:
         assistant_status_cards: list[dict[str, Any]] | None = None,
         steering_messages: list[str] | None = None,
         assistant_display_events: list[dict[str, Any]] | None = None,
+        assistant_routing: dict[str, Any] | None = None,
     ) -> str | None:
         """Core chat-history persistence logic using the provided session."""
         from models import ChatMessage, ChatSession
@@ -298,6 +307,7 @@ class MessageManager:
                 usage=assistant_usage,
                 status_cards=assistant_status_cards,
                 display_events=assistant_display_events,
+                routing=assistant_routing,
             )
 
             # 本轮没有任何 assistant 产出时不写空行：这条消息前端永远渲染不出来，
@@ -412,6 +422,7 @@ class MessageManager:
         usage: dict[str, Any] | None = None,
         status_cards: list[dict[str, Any]] | None = None,
         display_events: list[dict[str, Any]] | None = None,
+        routing: dict[str, Any] | None = None,
     ) -> str | None:
         """Serialize assistant metadata payload to JSON."""
         payload: dict[str, Any] = {}
@@ -423,6 +434,8 @@ class MessageManager:
             payload["status_cards"] = status_cards
         if display_events and isinstance(display_events, list):
             payload["display_events"] = display_events
+        if routing and isinstance(routing, dict):
+            payload["routing"] = routing
 
         if not payload:
             return None
@@ -558,9 +571,12 @@ class MessageManager:
         return [
             "",
             "## CRITICAL: Output Language",
-            "You MUST respond ENTIRELY in English for this session.",
+            "You MUST write your chat replies to the user ENTIRELY in English for this session.",
             "- Reply in English even if the user writes in Chinese.",
-            "- Do not mix Chinese and English.",
+            "- Do not mix Chinese and English in chat replies.",
+            "- This rule covers chat replies only. File content (<file> blocks, edit_file text, "
+            "create_file content) stays in the manuscript's existing language; a new file follows "
+            "the language the author asked for or the language of the existing manuscript.",
             "- UI labels/tool names can remain as-is if needed.",
         ]
 

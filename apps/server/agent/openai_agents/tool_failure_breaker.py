@@ -165,24 +165,19 @@ class ToolFailureTrip:
     last_error: str
 
     def user_message(self) -> str:
-        """给用户看的停止说明（经 ERROR 事件原样展示在对话里）。"""
-        error_part = f"最后一次错误：{self.last_error}" if self.last_error else "未返回具体错误信息"
+        """给作者看的停止说明（经 ERROR 事件原样展示在对话里）。
+
+        不带工具名、失败次数和错误原文：这些是给开发者排查用的，只写日志
+        （runner 在熔断时记录 tool_name / failures / last_error）。
+        """
         if self.reason == TRIP_REASON_TOOL_NOT_FOUND:
             return (
-                f"AI 连续 {self.failures} 次调用本轮不可用的工具 {self.tool_name}（调用均未执行），"
-                "已自动停止本轮，避免继续消耗额度。"
-                "请重新发送请求，或换个说法让 AI 改用其他方式完成。"
-            )
-        if self.reason == TRIP_REASON_IDENTICAL:
-            return (
-                f"工具 {self.tool_name} 以相同参数连续 {self.failures} 次失败，错误相同，"
-                f"AI 已自动停止本轮，避免继续重试消耗额度。{error_part}。"
-                "请稍后重试；若问题持续，可以换个说法让 AI 改用其他方式完成。"
+                "AI 几次想用这一轮用不了的功能，都没有执行，这一轮先停下了。"
+                "之前改好的内容不受影响。可以换个说法再试。"
             )
         return (
-            f"本轮工具调用已累计失败 {self.failures} 次，AI 已自动停止本轮，"
-            f"避免继续重试消耗额度。最后失败的工具：{self.tool_name}，{error_part}。"
-            "请稍后重试，或把任务拆小后再试。"
+            "AI 这一步连续几次都没做成，这一轮先停下了。之前改好的内容不受影响。"
+            "可以换个说法，或者把任务拆小一点再试。"
         )
 
     def as_event_data(self, agent_type: str) -> dict[str, Any]:
@@ -190,7 +185,7 @@ class ToolFailureTrip:
 
         info = tool_failure_error()
         return {
-            # error 仍是给用户看的具体说明（工具名、失败次数、去掉 SQL 的错误摘要）；
+            # error 是给作者看的停止说明，不含工具名与错误原文（只进日志）；
             # code / retryable / refundable 决定前端文案与计费：熔断属于模型或
             # 用户行为造成的停止，不可重试、不退还额度。
             "error": self.user_message(),
@@ -200,10 +195,8 @@ class ToolFailureTrip:
             "error_type": TOOL_FAILURE_ERROR_TYPE,
             "reason": self.reason,
             "agent_type": agent_type,
-            "tool_name": self.tool_name,
             "failures": self.failures,
             "threshold": self.threshold,
-            "last_error": self.last_error,
         }
 
 

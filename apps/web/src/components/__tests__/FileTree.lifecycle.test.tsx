@@ -509,6 +509,6 @@ it('preserves the mobile search filter ancestors and matched leaves without chan
   expect(screen.getByText('Part')).toBeInTheDocument();
   expect(screen.getByText('Needle')).toBeInTheDocument();
   expect(screen.queryByText('Unmatched')).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+  fireEvent.click(screen.getByRole('button', { name: 'common:clearSearch' }));
   expect(screen.getByText('Unmatched')).toBeInTheDocument();
 });

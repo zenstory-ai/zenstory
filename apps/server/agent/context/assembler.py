@@ -53,7 +53,19 @@ MIN_PROJECT_STATUS_FIELD_TOKENS = 120
 
 
 # 「相关内容详情」段头的读取约定：带 [全文] 标注的条目无需再 query_files。
-FULL_TEXT_CONTEXT_NOTICE = "标注[全文]的条目就是该文件当前完整内容，直接使用，不要再读取。"
+# 限定「截至本请求开始」：系统提示每个请求只组装一次，本请求内被 agent 改过的
+# 文件，这里的 [全文] 已经是改前版本。
+FULL_TEXT_CONTEXT_NOTICE = (
+    "标注[全文]的条目就是该文件当前完整内容（截至本请求开始；本请求内被修改过的文件除外），"
+    "直接使用，不要再读取。"
+)
+
+# 角色卡 / 设定的名字作为子串出现在用户本轮原话里时的相关度加成。
+# 中文查询没有空格，_extract_query_terms 会把整句当成一个词，
+# 「林凡和苏瑶在山门重逢」永远匹配不到标题「林凡」，所以单独按子串判断。
+QUERY_NAME_MATCH_BOOST = 0.5
+# 名字太短（单字）作为子串极易误命中，不参与加成。
+MIN_QUERY_NAME_CHARS = 2
 
 
 DEFAULT_RETRIEVAL_SEMANTIC_TIMEOUT_S = 5.0
@@ -207,27 +219,13 @@ class ContextAssembler:
             if file_types_to_fetch:
                 items.extend(self._get_files_by_types(session, project_id, file_types_to_fetch))
 
-        # 4. Query-time retrieval snippets (hybrid search, best-effort).
-        # Inject compact snippet payloads with source/line/score metadata.
-        existing_file_ids = {
-            item.id for item in items
-            if isinstance(item.id, str) and item.id.strip()
-        }
-        items.extend(
-            self._get_retrieved_snippets(
-                project_id=project_id,
-                query=query,
-                exclude_entity_ids=existing_file_ids,
-            )
-        )
-
-        # 5. Deduplicate items by ID (prefer higher priority / is_focus)
+        # 4. Deduplicate items by ID (prefer higher priority / is_focus)
         items = self._deduplicate_items(items)
 
-        # 6. Query-aware recall ranking
+        # 5. Query-aware recall ranking
         items = self._apply_query_recall_ranking(items, query)
 
-        # 7. Prioritize and select within budget.
+        # 6. Prioritize and select within budget.
         #
         # 分配顺序是**反的**：先给条目档留出保底额度，再把剩余额度分给 header
         # （项目状态 + 文件清单），而不是先把 header 渲染满再拿剩下的给条目。
@@ -261,21 +259,48 @@ class ContextAssembler:
         # 条目标题行渲染时额外带 " (id=…) [全文]/[已截断：…]"，以及「相关内容详情」
         # 段头的读取约定：只让真正入选的条目各自承担这部分开销（item_overhead），
         # 段头开销先预留，否则整块会超出 max_tokens。
+        # 检索片段要等下面预选之后才知道有没有，因此段头开销无条件预留
+        # （没有任何条目时这份预算本来就用不上）。
         section_overhead = estimate_text_tokens(
             f"{'=' * 60}\n相关内容详情\n{'=' * 60}\n{FULL_TEXT_CONTEXT_NOTICE}\n"
-        ) if items else 0
+        )
         item_token_budget = max(
             MIN_ITEM_TOKEN_BUDGET, max_tokens - header_tokens - section_overhead
         )
-        budget = TokenBudget(
-            max_tokens=item_token_budget,
-            item_overhead=self._item_render_overhead_tokens,
-        )
-        prioritized = self.prioritizer.prioritize(items)
-        groups = self.prioritizer.group_by_priority(prioritized)
-        selected, budget_used = budget.select_items(prioritized, groups)
 
-        # 8. Format context with project status
+        # 6.1 预选：先在不含检索片段的条目上跑一遍预算，只把**真正入选**的文件
+        # 排除出检索。历史缺陷是把收集到的全部文件 id 都传给 exclude_entity_ids，
+        # 被预算挤掉的角色卡 / 设定连检索也捞不回来。
+        selected, budget = self._select_within_budget(items, item_token_budget)
+        selected_file_ids = {
+            item.id for item in selected
+            if isinstance(item.id, str) and item.id.strip()
+        }
+
+        # 6.2 Query-time retrieval snippets (hybrid search, best-effort).
+        # Inject compact snippet payloads with source/line/score metadata.
+        # 片段单独做 query 加成：已有条目的相关度已经加过一次，不能重复叠加。
+        snippets = self._get_retrieved_snippets(
+            project_id=project_id,
+            query=query,
+            exclude_entity_ids=selected_file_ids,
+        )
+        if snippets:
+            snippets = self._apply_query_recall_ranking(snippets, query)
+            items = self._deduplicate_items([*items, *snippets])
+            selected, budget = self._select_within_budget(items, item_token_budget)
+
+        budget_used = dict(budget.used)
+        if budget.dropped_stubs:
+            log_with_context(
+                logger,
+                20,  # INFO
+                "Context items dropped as truncated stubs",
+                project_id=project_id,
+                dropped_ids=[item.id for item in budget.dropped_stubs],
+            )
+
+        # 7. Format context with project status
         formatted = self._format_context(
             selected,
             file_inventory,
@@ -283,7 +308,7 @@ class ContextAssembler:
             inventory_token_budget=inventory_token_budget,
         )
 
-        # 9. Collect referenced item IDs
+        # 8. Collect referenced item IDs
         refs = [item.id for item in selected]
 
         return ContextData(
@@ -295,6 +320,21 @@ class ContextAssembler:
             trimmed_item_count=len(selected),
             budget_used={p.value: v for p, v in budget_used.items()},
         )
+
+    def _select_within_budget(
+        self,
+        items: list[ContextItem],
+        item_token_budget: int,
+    ) -> tuple[list[ContextItem], TokenBudget]:
+        """按优先级在条目预算内选出条目，返回 (入选条目, 用过的 TokenBudget)。"""
+        budget = TokenBudget(
+            max_tokens=item_token_budget,
+            item_overhead=self._item_render_overhead_tokens,
+        )
+        prioritized = self.prioritizer.prioritize(items)
+        groups = self.prioritizer.group_by_priority(prioritized)
+        selected, _ = budget.select_items(prioritized, groups)
+        return selected, budget
 
     def _batch_get_files(
         self,
@@ -1227,6 +1267,11 @@ class ContextAssembler:
             return items
 
         normalized_query = query_text.lower()
+
+        for item in items:
+            if self._query_names_item(item, normalized_query):
+                item.relevance_score = (item.relevance_score or 0.0) + QUERY_NAME_MATCH_BOOST
+
         query_terms = self._extract_query_terms(normalized_query)
         if not query_terms:
             return items
@@ -1246,6 +1291,25 @@ class ContextAssembler:
             item.relevance_score = (item.relevance_score or 0.0) + boost
 
         return items
+
+    @staticmethod
+    def _query_names_item(item: ContextItem, normalized_query: str) -> bool:
+        """角色卡 / 设定的名字是否作为子串出现在（已小写的）查询里。
+
+        设定条目的标题渲染成「分类 - 标题」，这里同时用去掉分类前缀的原标题判断。
+        """
+        if item.type not in ("character", "lore") or not normalized_query:
+            return False
+        title = (item.title or "").strip()
+        names = {title}
+        category = str((item.metadata or {}).get("category") or "").strip()
+        prefix = f"{category} - " if category else ""
+        if prefix and title.startswith(prefix):
+            names.add(title[len(prefix):].strip())
+        return any(
+            len(name) >= MIN_QUERY_NAME_CHARS and name.lower() in normalized_query
+            for name in names
+        )
 
     def _extract_query_terms(self, query: str) -> list[str]:
         """Extract normalized query terms for match scoring."""

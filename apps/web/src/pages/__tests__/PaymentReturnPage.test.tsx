@@ -14,6 +14,24 @@ vi.mock('../../lib/paymentApi', async () => {
 
 vi.mock('../../lib/analytics', () => ({ trackEvent: vi.fn() }))
 
+vi.mock('../../lib/subscriptionApi', async () => {
+  const actual = await vi.importActual<typeof import('../../lib/subscriptionApi')>('../../lib/subscriptionApi')
+  return {
+    ...actual,
+    subscriptionApi: {
+      getStatus: vi.fn().mockResolvedValue({
+        tier: 'pro', status: 'active', display_name: '专业版', display_name_en: 'Pro',
+        current_period_end: '2027-10-05T00:00:00Z', days_remaining: 365,
+        features: {
+          ai_conversations_per_day: -1, max_projects: -1, materials_library_access: true,
+          material_uploads: 5, material_decompositions: 5, custom_skills: 20,
+          context_window_tokens: 16384, priority_support: false, export_formats: ['txt'],
+        },
+      }),
+    },
+  }
+})
+
 const pendingOrder: PaymentOrder = {
   id: 'order-9', out_trade_no: 'ZP9', trade_no: null, user_id: 'user-1', plan_name: 'pro',
   plan_display_name: 'Pro', cycle: 'month', amount_cents: 1900, payment_method: 'alipay', status: 'pending',
@@ -21,7 +39,7 @@ const pendingOrder: PaymentOrder = {
 }
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (_key: string, fallback: string) => fallback }),
+  useTranslation: () => ({ t: (_key: string, fallback: string) => fallback, i18n: { language: 'zh-CN' } }),
 }))
 
 function renderPage(search: string) {
@@ -62,6 +80,11 @@ describe('PaymentReturnPage', () => {
     const invalidate = renderPage('?out_trade_no=ZP2')
     expect(await screen.findByText('支付成功，Pro 已开通')).toBeInTheDocument()
     await waitFor(() => expect(invalidate).toHaveBeenCalledTimes(3))
+    // Immediate feedback: a celebration, what was unlocked, and a way back to writing.
+    expect(screen.getByTestId('celebration-burst')).toBeInTheDocument()
+    expect(await screen.findByText('每日 AI 消息')).toBeInTheDocument()
+    expect(screen.queryByText(/priority_support|优先支持|16384/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '开始写作' })).toBeInTheDocument()
   })
 
   it('rejects a return without an order number without calling the API', () => {

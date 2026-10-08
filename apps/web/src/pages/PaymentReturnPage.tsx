@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { CheckCircle2, Clock3, RefreshCw, TriangleAlert } from 'lucide-react'
+import { Check, Clock3, Crown, RefreshCw, TriangleAlert } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { paymentApi, paymentQueryKeys } from '../lib/paymentApi'
-import { subscriptionQueryKeys } from '../lib/subscriptionApi'
+import { subscriptionApi, subscriptionQueryKeys } from '../lib/subscriptionApi'
+import { getSubscriptionFeatureRows } from '../lib/subscriptionEntitlements'
+import { CelebrationBurst } from '../components/subscription/CelebrationBurst'
 import { trackEvent } from '../lib/analytics'
 import type { PaymentOrder } from '../types/payment'
 
@@ -28,7 +30,7 @@ function isFulfilled(order: PaymentOrder | undefined): boolean {
 }
 
 export default function PaymentReturnPage() {
-  const { t } = useTranslation(['dashboard', 'common'])
+  const { t, i18n } = useTranslation(['dashboard', 'settings', 'common'])
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -54,6 +56,21 @@ export default function PaymentReturnPage() {
 
   const order = orderQuery.data
   const isSucceeded = isFulfilled(order)
+
+  // Read once Pro is active so the success card can show what was unlocked.
+  const statusQuery = useQuery({
+    queryKey: subscriptionQueryKeys.status(),
+    queryFn: () => subscriptionApi.getStatus(),
+    enabled: isSucceeded,
+  })
+  const activeStatus = isSucceeded && statusQuery.data?.tier !== 'free' ? statusQuery.data : undefined
+  const unlockedRows = getSubscriptionFeatureRows(activeStatus?.features, t, i18n.language).slice(0, 4)
+  const validUntil = activeStatus?.current_period_end
+    ? new Date(activeStatus.current_period_end).toLocaleDateString(
+        i18n.language?.startsWith('en') ? 'en-US' : 'zh-CN',
+        { year: 'numeric', month: 'long', day: 'numeric' },
+      )
+    : null
   const isFailed = !isSucceeded && order?.fulfillment_status === 'failed'
 
   useEffect(() => {
@@ -142,13 +159,39 @@ export default function PaymentReturnPage() {
   }
 
   return (
-    <Card variant="outlined" padding="lg" className="mx-auto max-w-xl">
+    <Card variant="outlined" padding="lg" className="relative mx-auto max-w-xl overflow-hidden">
       {isSucceeded ? (
         <>
-          <ResultHeader icon={<CheckCircle2 className="h-10 w-10 text-[hsl(var(--success))]" />} title={t('dashboard:billing.paymentActivated', '支付成功，Pro 已开通')} />
-          <p className="mt-3 text-sm text-[hsl(var(--text-secondary))]">
-            {t('dashboard:billing.paymentActivatedHint', '回到「订阅权益」可查看最新额度。')}
+          <CelebrationBurst />
+          <ResultHeader
+            icon={
+              <span className="animate-celebration-pop flex h-14 w-14 items-center justify-center rounded-full bg-[hsl(var(--accent-primary)/0.12)]">
+                <Crown className="h-8 w-8 text-[hsl(var(--accent-primary))]" />
+              </span>
+            }
+            title={t('dashboard:billing.paymentActivated', '支付成功，Pro 已开通')}
+          />
+          <p className="mt-3 text-center text-sm text-[hsl(var(--text-secondary))]" role="status">
+            {validUntil
+              ? t('dashboard:billing.paymentActivatedUntil', '有效期至 {{date}}，现在就去写吧。', { date: validUntil })
+              : t('dashboard:billing.paymentActivatedHint', 'AI 消息和项目数现在都不限了，去把下一章写完吧。')}
           </p>
+          {unlockedRows.length > 0 && (
+            <ul className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2" aria-label={t('dashboard:billing.paymentUnlockedTitle', '已解锁')}>
+              {unlockedRows.map((row) => (
+                <li
+                  key={row.key}
+                  className="flex items-center justify-between gap-2 rounded-lg bg-[hsl(var(--accent-primary)/0.06)] px-3 py-2 text-sm"
+                >
+                  <span className="flex items-center gap-1.5 text-[hsl(var(--text-secondary))]">
+                    <Check className="h-3.5 w-3.5 text-[hsl(var(--success))]" />
+                    {row.label}
+                  </span>
+                  <span className="font-medium text-[hsl(var(--text-primary))]">{row.value}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </>
       ) : isFailed ? (
         <>
@@ -176,6 +219,7 @@ export default function PaymentReturnPage() {
       <ReturnActions
         onRefresh={isSucceeded ? undefined : refreshAndResumePolling}
         onBilling={() => navigate('/dashboard/billing')}
+        onStartWriting={isSucceeded ? () => navigate('/dashboard') : undefined}
       />
     </Card>
   )
@@ -190,16 +234,33 @@ function ResultHeader({ icon, title }: { icon: React.ReactNode; title: string })
   )
 }
 
-function ReturnActions({ onRefresh, onBilling }: { onRefresh?: () => void; onBilling: () => void }) {
+function ReturnActions({
+  onRefresh,
+  onBilling,
+  onStartWriting,
+}: {
+  onRefresh?: () => void
+  onBilling: () => void
+  onStartWriting?: () => void
+}) {
   const { t } = useTranslation(['dashboard', 'common'])
   return (
-    <div className="mt-5 flex justify-center gap-3">
+    <div className="mt-5 flex flex-wrap justify-center gap-3">
       {onRefresh && (
         <Button variant="secondary" onClick={onRefresh}>
           {t('dashboard:billing.paymentRefresh', '刷新支付结果')}
         </Button>
       )}
-      <Button onClick={onBilling}>{t('dashboard:billing.backToBilling', '返回订阅与权益')}</Button>
+      {onStartWriting ? (
+        <>
+          <Button variant="secondary" onClick={onBilling}>
+            {t('dashboard:billing.backToBilling', '返回订阅权益')}
+          </Button>
+          <Button onClick={onStartWriting}>{t('dashboard:billing.startWriting', '开始写作')}</Button>
+        </>
+      ) : (
+        <Button onClick={onBilling}>{t('dashboard:billing.backToBilling', '返回订阅权益')}</Button>
+      )}
     </div>
   )
 }

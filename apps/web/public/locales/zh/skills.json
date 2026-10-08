@@ -8,10 +8,11 @@
   "builtinSkills": "内置技能",
   "addedSkills": "已添加技能",
   "noUserSkills": "还没有自定义技能",
+  "noUserSkillsHint": "把常用的写作要求存成技能，比如「每章结尾留个钩子」「对话多用短句」，AI 会在合适的时候照着做。",
   "noAddedSkills": "还没有添加任何技能",
   "createFirst": "创建第一个技能",
   "browsePublic": "浏览公共技能库",
-  "readonly": "只读",
+  "readonly": "不可编辑",
   "added": "已添加",
   "remove": "移除",
   "discover": "发现技能",
@@ -50,15 +51,15 @@
   },
   "form": {
     "name": "技能名称",
-    "namePlaceholder": "输入技能名称",
+    "namePlaceholder": "比如：章末留钩子",
     "description": "描述",
     "descriptionPlaceholder": "写清它做什么、什么时候用。AI 会根据这段描述决定何时使用这个技能",
     "triggers": "标签",
-    "triggersPlaceholder": "创建角色, 新建人物",
+    "triggersPlaceholder": "比如：角色, 开篇",
     "triggersHint": "只用于整理技能，不影响 AI 何时使用；多个用逗号分隔",
     "instructions": "指令内容",
     "instructionsPlaceholder": "写下具体做法，AI 使用这个技能时会照着执行...",
-    "instructionsHint": "支持 Markdown：标题、列表、代码块等",
+    "instructionsHint": "可以用标题、列表分条写清楚（支持 Markdown）",
     "triggersTooLong": "标签最多 {{count}} 个，每个不超过 {{max}} 个字"
   },
   "deleteConfirm": {
@@ -88,8 +89,8 @@
   },
   "quota": {
     "createTitle": "自定义技能数量已达上限",
-    "createDescription": "当前套餐的自定义技能已用满，升级套餐后可以继续创建。",
-    "upgradePrimary": "查看升级方案",
+    "createDescription": "删掉不用的技能就能腾出名额，或开通 Pro 建更多技能。",
+    "upgradePrimary": "开通 Pro",
     "upgradeSecondary": "查看套餐对比"
   },
   "import": {

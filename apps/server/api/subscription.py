@@ -10,6 +10,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlmodel import Session, func, select
 
 from config.datetime_utils import utcnow
+from core.error_codes import ErrorCode
+from core.error_handler import APIException
 from database import get_session
 from middleware.rate_limit import check_rate_limit
 from models import (
@@ -463,7 +465,10 @@ def redeem_code(
     """Redeem a subscription code."""
     allowed, _ = check_rate_limit(http_request, "subscription_redeem_code", 10, 60)
     if not allowed:
-        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Rate limit exceeded")
+        raise APIException(
+            error_code=ErrorCode.REDEMPTION_RATE_LIMIT_EXCEEDED,
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
 
     attribution_source = request.source.strip() if request.source else None
 
@@ -472,7 +477,8 @@ def redeem_code(
     )
 
     if not success:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=message)
+        # On failure the service hands back an ERR_REDEMPTION_* code.
+        raise APIException(error_code=message, status_code=status.HTTP_400_BAD_REQUEST)
 
     return RedeemCodeResponse(
         success=True,

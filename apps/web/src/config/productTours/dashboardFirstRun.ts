@@ -62,10 +62,10 @@ const dashboardSteps: ProductTourStep[] = [
         ? 'dashboardTour.steps.inspirationInput.description'
         : 'dashboardTour.steps.inspirationInput.descriptionWithoutLibrary',
       ctaLabelKey: 'dashboardTour.common.next',
-      defaultTitle: '从一句核心冲突开始',
+      defaultTitle: '从一个想法开始',
       defaultDescription: inspirationsConfig.enabled
-        ? '可以直接输入灵感，也可以点下方推荐，快速生成第一个项目。'
-        : '输入你的故事想法，点击开始创作即可创建项目。',
+        ? '有个念头就写下来，一句话就够；也可以从下方灵感里挑一个。'
+        : '有个念头就写下来，一句话就够；没想好也能直接点「开始创作」。',
       defaultCtaLabel: '下一步',
       placement: 'bottom',
       nextMode: 'manual',
@@ -99,8 +99,8 @@ const dashboardSteps: ProductTourStep[] = [
       titleKey: 'dashboardTour.steps.createProject.title',
       descriptionKey: 'dashboardTour.steps.createProject.description',
       ctaLabelKey: 'dashboardTour.steps.createProject.cta',
-      defaultTitle: '一键创建项目',
-      defaultDescription: '点这里后会立刻生成项目，你可以继续写作，或交给 AI 帮你扩写。',
+      defaultTitle: '点这里就开始',
+      defaultDescription: '马上建好项目。写了想法，AI 会先帮你理思路；空着也行，进去后随时可以和 AI 聊。',
       defaultCtaLabel: '去试试',
       placement: 'top',
       nextMode: 'target_click',
