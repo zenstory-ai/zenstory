@@ -64,8 +64,8 @@ const dashboardSteps: ProductTourStep[] = [
       ctaLabelKey: 'dashboardTour.common.next',
       defaultTitle: '从一个想法开始',
       defaultDescription: inspirationsConfig.enabled
-        ? '写一句也行，不写也行。可以直接输入，也可以点下方推荐，马上建好第一个项目。'
-        : '写下任何想法，或者先空着，点「开始创作」就能建好项目。',
+        ? '有个念头就写下来，一句话就够；也可以从下方灵感里挑一个。'
+        : '有个念头就写下来，一句话就够；没想好也能直接点「开始创作」。',
       defaultCtaLabel: '下一步',
       placement: 'bottom',
       nextMode: 'manual',

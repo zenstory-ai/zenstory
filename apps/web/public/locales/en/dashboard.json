@@ -284,14 +284,32 @@
   },
   "inspiration": {
     "title": "Creative Inspiration",
-    "dashboardPlaceholder": "Anything works: a character, a scene, a single line, or pick an idea below. No idea yet? Just hit Start Writing.",
-    "dashboardPlaceholderWithoutInspirations": "Anything works: a character, a scene, a single line. No idea yet? Just hit Start Writing and brainstorm with the AI.",
     "novelPlaceholder": "Enter your creative idea, e.g., A programmer travels to ancient times and discovers his coding ability becomes cultivation...",
     "shortPlaceholder": "Describe your story idea, e.g., Late night at a convenience store, an old man comes every night to buy the same discontinued candy...",
     "screenplayPlaceholder": "Tell me what you want to shoot, e.g., A CEO gets rejected at a matchmaking corner for low income, decides to hide identity to pursue true love...",
     "novelDesc": "AI will help you conceptualize story framework, build world and characters based on your inspiration",
     "shortDesc": "AI will help you refine story structure, making the short story more compelling",
-    "screenplayDesc": "AI will help you design episode plots, dialogue and twists, making the script more engaging"
+    "screenplayDesc": "AI will help you design episode plots, dialogue and twists, making the script more engaging",
+    "seeds": {
+      "novel": {
+        "0": "e.g. A delivery rider gets an order addressed to his own home, ten years ago.",
+        "1": "e.g. The day her engagement is broken off, she learns the whole sect owes her a life.",
+        "2": "e.g. Three years after the fall, one bookshop is the only lit window in the city.",
+        "3": "e.g. On my first day as the villain, I confiscate the hero's cheat ability."
+      },
+      "short": {
+        "0": "e.g. Every night an old man asks the convenience store for a candy discontinued years ago.",
+        "1": "e.g. On Mom's old phone sits a text she never sent, three years ago.",
+        "2": "e.g. After three years of pretending to be mute, I catch him learning to lip-read.",
+        "3": "e.g. The night before the wedding, the groom gets a letter addressed to twenty years from now."
+      },
+      "screenplay": {
+        "0": "e.g. Mocked as broke at the matchmaking corner, he actually owns the whole block.",
+        "1": "e.g. A stunt double finds the script on set is her own past.",
+        "2": "e.g. On the last day of their divorce cooling-off period, they get stuck in one elevator.",
+        "3": "e.g. Broke after a failed startup, he takes a night shift at a funeral shop and a paper figure on camera seems to blink."
+      }
+    }
   },
   "inspirations": {
     "featured": "Featured Inspirations",
@@ -540,8 +558,8 @@
       },
       "inspirationInput": {
         "title": "Start from any idea",
-        "description": "One line or nothing at all. Type an idea or pick a suggestion below to create your first project.",
-        "descriptionWithoutLibrary": "Type any idea, or leave it blank, then click Start Writing to create a project."
+        "description": "Jot down whatever comes to mind. One line is enough, or pick an idea below.",
+        "descriptionWithoutLibrary": "Jot down whatever comes to mind. One line is enough, and you can start with nothing at all."
       },
       "createProject": {
         "title": "Create a project in one click",

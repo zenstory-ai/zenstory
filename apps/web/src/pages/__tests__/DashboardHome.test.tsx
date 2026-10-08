@@ -106,8 +106,10 @@ const mockT = (
     'projectType.novel.name': '长篇小说',
     'inspiration.novelDesc': 'AI 将根据你的灵感，帮你构思故事框架、设定世界观和人物角色',
     'inspiration.novelPlaceholder': '请输入灵感',
-    'dashboard:inspiration.dashboardPlaceholder': '想到什么写什么：一个人物、一个画面、一句台词都行，也可以从下方灵感里挑一个。没想好就直接点「开始创作」。',
-    'dashboard:inspiration.dashboardPlaceholderWithoutInspirations': '想到什么写什么：一个人物、一个画面、一句台词都行。没想好也没关系，直接点「开始创作」，和 AI 边聊边想。',
+    'dashboard:inspiration.seeds.novel.0': '比如：外卖员接到一单，收货地址是十年前的自己家。',
+    'dashboard:inspiration.seeds.novel.1': '比如：被退婚那天，她发现整个宗门都欠她一条命。',
+    'dashboard:inspiration.seeds.novel.2': '比如：末世第三年，全城只剩一家书店还亮着灯。',
+    'dashboard:inspiration.seeds.novel.3': '比如：穿成反派的第一天，我先把主角的金手指没收了。',
     'activationGuide.steps.signup_success': '完成注册',
     'activationGuide.steps.project_created': '创建项目',
     'activationGuide.steps.first_file_saved': '保存第一个文件',
@@ -305,10 +307,8 @@ describe('DashboardHome featured inspirations section', () => {
     expect(screen.queryByRole('button', { name: '查看灵感库' })).not.toBeInTheDocument()
     expect(mockUseFeaturedInspirations).not.toHaveBeenCalled()
     expect(mockUseDashboardInspirations).not.toHaveBeenCalled()
-    expect(screen.getByTestId('dashboard-inspiration-input')).toHaveAttribute(
-      'placeholder',
-      '想到什么写什么：一个人物、一个画面、一句台词都行。没想好也没关系，直接点「开始创作」，和 AI 边聊边想。',
-    )
+    // The placeholder is a concrete story seed, not an instruction the author must satisfy.
+    expect(screen.getByTestId('dashboard-inspiration-input').getAttribute('placeholder')).toMatch(/^比如：.+。$/)
   })
 
   it('keeps manual idea creation available when inspirations are disabled', async () => {
@@ -354,10 +354,8 @@ describe('DashboardHome featured inspirations section', () => {
 
     expect(screen.getByTestId('dashboard-real-inspirations')).toBeInTheDocument()
     expect(mockUseDashboardInspirations).toHaveBeenCalledWith('novel', 2, 0)
-    expect(screen.getByTestId('dashboard-inspiration-input')).toHaveAttribute(
-      'placeholder',
-      '想到什么写什么：一个人物、一个画面、一句台词都行，也可以从下方灵感里挑一个。没想好就直接点「开始创作」。',
-    )
+    // The placeholder is a concrete story seed, not an instruction the author must satisfy.
+    expect(screen.getByTestId('dashboard-inspiration-input').getAttribute('placeholder')).toMatch(/^比如：.+。$/)
     fireEvent.click(screen.getByRole('button', { name: /狂兽战神/i }))
 
     expect(screen.getByTestId('dashboard-inspiration-input')).toHaveValue(

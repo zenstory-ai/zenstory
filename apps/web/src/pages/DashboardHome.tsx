@@ -39,6 +39,9 @@ function isProjectType(value: string): value is ProjectType {
   return SUPPORTED_PROJECT_TYPES.includes(value as ProjectType);
 }
 
+
+/** Story seeds per project type in `dashboard:inspiration.seeds`. */
+const PLACEHOLDER_SEED_COUNT = 4;
 export default function DashboardHome() {
   const { t, i18n } = useTranslation(['dashboard', 'home']);
   const projectQuotaUpgradePrompt = getUpgradePromptDefinition("project_quota_blocked");
@@ -65,6 +68,7 @@ export default function DashboardHome() {
   const [inspiration, setInspiration] = useState("");
   const [newProjectName, setNewProjectName] = useState("");
   const [activeTab, setActiveTab] = useState<ProjectType>("novel");
+  const [placeholderSeedIndex] = useState(() => Math.floor(Math.random() * PLACEHOLDER_SEED_COUNT));
   const [searchQuery, setSearchQuery] = useState("");
   const [showProjectQuotaUpgradeModal, setShowProjectQuotaUpgradeModal] = useState(false);
   const [activationGuide, setActivationGuide] = useState<ActivationGuideResponse | null>(null);
@@ -553,11 +557,8 @@ export default function DashboardHome() {
   };
 
   const hasDraftIdea = inspiration.trim().length > 0;
-  const resolvedInspirationPlaceholder = t(
-    inspirationsConfig.enabled
-      ? 'dashboard:inspiration.dashboardPlaceholder'
-      : 'dashboard:inspiration.dashboardPlaceholderWithoutInspirations',
-  );
+  // A concrete story seed reads as an invitation; a rule ("enter a core conflict") reads as homework.
+  const resolvedInspirationPlaceholder = t(`dashboard:inspiration.seeds.${activeTab}.${placeholderSeedIndex}`);
   return (
     <>
       {/* Header Section */}
