@@ -16,13 +16,15 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 
+import httpx
 import pytest
 from httpx import AsyncClient
 from sqlmodel import Session, select
 from starlette.datastructures import UploadFile
 
 import api.materials.upload as materials_upload_api
-from api.materials.constants import MAX_TEXT_CHARACTERS
+from api.materials.constants import MAX_FILE_SIZE, MAX_TEXT_CHARACTERS
+from config.upload_storage import UploadStorageSettings
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from models import File, Project, User
@@ -38,6 +40,7 @@ from models.material_models import (
     WorldView,
 )
 from models.subscription import SubscriptionPlan, UsageQuota, UserSubscription
+from services.infra.upload_storage import S3UploadStorage, UploadReferenceError
 from services.material.novel_text import decode_novel_bytes
 
 # ==================== Helper Functions ====================
@@ -1112,6 +1115,155 @@ async def test_internal_worker_download_success(client: AsyncClient, db_session,
     assert response.text == "worker file content"
 
 
+def _enable_test_s3(monkeypatch):
+    monkeypatch.setenv("UPLOAD_STORAGE_BACKEND", "s3")
+    monkeypatch.setenv("UPLOAD_S3_ENDPOINT", "https://objects.example.test")
+    monkeypatch.setenv("UPLOAD_S3_REGION", "auto")
+    monkeypatch.setenv("UPLOAD_S3_BUCKET", "zenstory-stage")
+    monkeypatch.setenv("UPLOAD_S3_ACCESS_KEY_ID", "test-access")
+    monkeypatch.setenv("UPLOAD_S3_SECRET_ACCESS_KEY", "test-secret")
+    monkeypatch.setenv("UPLOAD_S3_URL_STYLE", "virtual")
+
+
+@pytest.mark.integration
+async def test_s3_mode_owner_can_download_legacy_local_material(
+    client: AsyncClient, db_session, monkeypatch, tmp_path
+):
+    from config.material_settings import material_settings
+
+    user, token = await create_test_user(client, db_session, "legacy_s3_owner")
+    _enable_test_s3(monkeypatch)
+    monkeypatch.setattr(material_settings, "UPLOAD_FOLDER", str(tmp_path))
+    filename = f"{user.id}_20261007_0000000000000000_migration_fixture.txt"
+    (tmp_path / filename).write_bytes(b"legacy material bytes")
+
+    response = await client.get(
+        f"/api/v1/materials/internal/files/{filename}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.content == b"legacy material bytes"
+
+
+@pytest.mark.integration
+async def test_s3_mode_worker_can_download_legacy_local_material(
+    client: AsyncClient, db_session, monkeypatch, tmp_path
+):
+    from config.material_settings import material_settings
+
+    user, _ = await create_test_user(client, db_session, "legacy_s3_worker")
+    _enable_test_s3(monkeypatch)
+    monkeypatch.setenv("MATERIAL_INTERNAL_TOKEN", "worker-token")
+    monkeypatch.setattr(material_settings, "UPLOAD_FOLDER", str(tmp_path))
+    filename = f"{user.id}_20261007_0000000000000000_migration_fixture.txt"
+    (tmp_path / filename).write_bytes(b"legacy worker bytes")
+
+    response = await client.get(
+        f"/api/v1/materials/internal/system/files/{filename}",
+        params={"user_id": user.id},
+        headers={"X-Internal-Token": "worker-token"},
+    )
+
+    assert response.status_code == 200
+    assert response.content == b"legacy worker bytes"
+
+
+@pytest.mark.integration
+async def test_s3_mode_legacy_local_material_missing_is_404(
+    client: AsyncClient, db_session, monkeypatch, tmp_path
+):
+    from config.material_settings import material_settings
+
+    user, token = await create_test_user(client, db_session, "legacy_s3_missing")
+    _enable_test_s3(monkeypatch)
+    monkeypatch.setattr(material_settings, "UPLOAD_FOLDER", str(tmp_path))
+    filename = f"{user.id}_20261007_0000000000000000_missing.txt"
+
+    response = await client.get(
+        f"/api/v1/materials/internal/files/{filename}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.integration
+async def test_s3_mode_legacy_local_material_rejects_symlink_and_oversize(
+    client: AsyncClient, db_session, monkeypatch, tmp_path
+):
+    from config.material_settings import material_settings
+
+    user, token = await create_test_user(client, db_session, "legacy_s3_unsafe")
+    _enable_test_s3(monkeypatch)
+    monkeypatch.setattr(material_settings, "UPLOAD_FOLDER", str(tmp_path))
+    outside = tmp_path.parent / "outside-legacy.txt"
+    outside.write_bytes(b"outside")
+    symlink_name = f"{user.id}_20261007_0000000000000000_symlink.txt"
+    (tmp_path / symlink_name).symlink_to(outside)
+
+    symlink_response = await client.get(
+        f"/api/v1/materials/internal/files/{symlink_name}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert symlink_response.status_code == 403
+
+    oversized_name = f"{user.id}_20261007_0000000000000000_oversized.txt"
+    with (tmp_path / oversized_name).open("wb") as handle:
+        handle.truncate(MAX_FILE_SIZE + 1)
+    oversized_response = await client.get(
+        f"/api/v1/materials/internal/files/{oversized_name}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert oversized_response.status_code == 413
+
+    with pytest.raises(UploadReferenceError):
+        materials_upload_api._read_legacy_local_material(
+            f"{user.id}_../outside.txt",
+            user.id,
+        )
+
+
+@pytest.mark.integration
+async def test_s3_mode_opaque_material_still_reads_private_object(
+    client: AsyncClient, db_session, monkeypatch
+):
+    user, token = await create_test_user(client, db_session, "opaque_s3_owner")
+    object_name = f"{'a' * 32}.txt"
+    requests: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, content=b"private object bytes")
+
+    settings = UploadStorageSettings.from_environment(
+        {
+            "UPLOAD_STORAGE_BACKEND": "s3",
+            "UPLOAD_S3_ENDPOINT": "https://objects.example.test",
+            "UPLOAD_S3_REGION": "auto",
+            "UPLOAD_S3_BUCKET": "zenstory-stage",
+            "UPLOAD_S3_ACCESS_KEY_ID": "test-access",
+            "UPLOAD_S3_SECRET_ACCESS_KEY": "test-secret",
+            "UPLOAD_S3_URL_STYLE": "virtual",
+        }
+    )
+    storage = S3UploadStorage(
+        settings,
+        client=httpx.Client(transport=httpx.MockTransport(handle)),
+    )
+    monkeypatch.setattr(materials_upload_api, "_storage", lambda: storage)
+
+    response = await client.get(
+        f"/api/v1/materials/internal/files/{object_name}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.content == b"private object bytes"
+    assert len(requests) == 1
+    assert requests[0].url.path == f"/material/{user.id}/{object_name}"
+
+
 @pytest.mark.integration
 async def test_internal_worker_download_invalid_token(client: AsyncClient, db_session, monkeypatch, tmp_path):
     """Worker internal endpoint should reject invalid token."""
@@ -1141,6 +1293,7 @@ async def test_internal_worker_download_user_mismatch(client: AsyncClient, db_se
 
     owner, _ = await create_test_user(client, db_session, "workerdownload3")
     other_user, _ = await create_test_user(client, db_session, "workerdownload4")
+    _enable_test_s3(monkeypatch)
     monkeypatch.setenv("MATERIAL_INTERNAL_TOKEN", "worker-token")
     monkeypatch.setattr(material_settings, "UPLOAD_FOLDER", str(tmp_path))
 
