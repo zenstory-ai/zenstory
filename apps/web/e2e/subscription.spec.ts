@@ -504,7 +504,7 @@ test.describe('Redeem Code Validation', () => {
     await page.locator(SUBSCRIPTION_UI.submitRedeem).click();
 
     // Check for format error
-    await expect(page.locator('text=/格式不正确|invalid format/i')).toBeVisible({ timeout: 3000 });
+    await expect(page.getByText(/兑换码格式不对|doesn't look like a valid code/i)).toBeVisible({ timeout: 3000 });
   });
 
   test('should show error for invalid code', async ({ page }) => {
@@ -591,8 +591,8 @@ test.describe('Redeem Code Success', () => {
     // Wait for success
     await expect(page.getByText(/subscription activated successfully|成功|success/i).first()).toBeVisible({ timeout: 5000 });
 
-    // Close modal
-    await page.click('button:has-text("取消"), button:has-text("Cancel")');
+    // After success the modal offers a single way forward
+    await page.getByRole('button', { name: /^(开始使用|Start using)$/ }).click();
 
     // Wait for modal to close
     await expect(page.locator(SUBSCRIPTION_UI.redeemModal)).not.toBeVisible({ timeout: 3000 });
