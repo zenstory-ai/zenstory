@@ -474,6 +474,9 @@ async def execute_parallel(
         async with semaphore:
             task.status = "running"
             task.started_at = datetime.now()
+            # 发给前端进度条的失败说明：只用子任务自带的 user_message；原始错误
+            # （task.error）只留在返回给模型的 tasks[] 里和日志中。
+            user_facing_error: str | None = None
             emit_progress(
                 parallel_task_start_event(
                     execution_id=execution_id,
@@ -546,6 +549,9 @@ async def execute_parallel(
                         or task.result.get("message")
                         or "Task reported error status"
                     )
+                    user_message = task.result.get("user_message")
+                    if isinstance(user_message, str) and user_message.strip():
+                        user_facing_error = user_message.strip()
                 else:
                     task.status = "completed"
             except Exception as e:
@@ -560,7 +566,7 @@ async def execute_parallel(
                         task_id=task.id,
                         status=task.status,
                         result_preview=_result_preview(task.result),
-                        error=task.error,
+                        error=user_facing_error,
                     )
                 )
 

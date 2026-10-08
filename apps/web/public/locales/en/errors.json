@@ -75,7 +75,7 @@
   "ERR_INSPIRATION_COPY_FAILED": "Couldn’t use this inspiration. Please try again later.",
 
   "ERR_QUOTA_EXPORT_FORMAT_RESTRICTED": "Your current plan doesn’t include this export format. Upgrade to use it.",
-  "ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED": "You’ve used today’s AI conversations. Try again tomorrow or upgrade your plan.",
+  "ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED": "You've used today's free AI messages. They reset tomorrow at 00:00 Beijing time (UTC+8). Want to keep going? Pro has no daily message limit.",
   "ERR_QUOTA_PROJECTS_EXCEEDED": "You’ve reached your plan’s project limit. Upgrade to create more.",
   "ERR_QUOTA_FILE_VERSIONS_EXCEEDED": "You’ve reached your plan’s file version limit. Upgrade to keep more versions.",
   "ERR_VOICE_CREDENTIALS_NOT_CONFIGURED": "Voice input is unavailable right now. Please type instead.",
@@ -99,9 +99,10 @@
   "ERR_AGENT_UPSTREAM_UNAVAILABLE": "The AI isn’t responding right now. Please try again shortly.",
   "ERR_AGENT_CONTEXT_TOO_LONG": "This conversation is too long. Shorten your message or start a new chat.",
   "ERR_AGENT_RUN_FAILED": "Something went wrong while generating the reply. Please try again.",
-  "ERR_AGENT_TOOL_FAILURE_LIMIT": "The AI failed several times, so this reply was stopped. Finished work is saved; adjust your request and try again.",
-  "ERR_AGENT_RUN_TIMEOUT": "This reply took too long and was stopped. What was generated is saved; continue the chat to let the AI finish.",
-  "ERR_AGENT_MODEL_CALL_LIMIT": "This reply took too many steps and was stopped. What was generated is saved; continue the chat to let the AI finish.",
+  "ERR_AGENT_TOOL_FAILURE_LIMIT": "The AI couldn't complete a step after several tries, so this round stopped. Earlier changes aren't affected. Try rephrasing or splitting the task.",
+  "ERR_AGENT_NO_PROGRESS": "The AI kept rereading the same material without writing, so this round stopped. Tell it which chapter to change and how, or reply \"continue\".",
+  "ERR_AGENT_RUN_TIMEOUT": "This round ran too long and stopped. What's written is saved — reply \"continue\".",
+  "ERR_AGENT_MODEL_CALL_LIMIT": "This task took too many steps, so the AI paused. Your changes are saved — reply \"continue\" to keep going.",
   "ERR_AGENT_FILE_SAVE_FAILED": "The AI’s content couldn’t be saved to the file. Please try again.",
   "ERR_PAYMENT_UNAVAILABLE": "Online payment isn't available right now. If you have a redeem code, open Plans & Benefits and click \"Redeem Code\".",
   "ERR_PAYMENT_UNSUPPORTED_OPTION": "This payment option is not supported. Refresh the page and try again.",
@@ -109,6 +110,6 @@
   "ERR_PAYMENT_ORDER_CREATE_FAILED": "Could not create the order right now. Please try again later.",
   "ERR_PAYMENT_RATE_LIMITED": "Too many attempts. Please try again in 1 minute.",
   "ERR_PAYMENT_SYNC_FAILED": "Could not check the order with the payment provider. Refresh later.",
-  "ERR_QUOTA_AI_DAILY_COST_EXCEEDED": "Today's AI allowance is used up. It resets the next day at 00:00 Beijing time (UTC+8). Upgrade to Pro to continue writing.",
+  "ERR_QUOTA_AI_DAILY_COST_EXCEEDED": "You've used today's free AI messages. They reset tomorrow at 00:00 Beijing time (UTC+8). Want to keep going? Pro has no daily message limit.",
   "ERR_AI_COST_BUDGET_UNAVAILABLE": "We cannot confirm your AI allowance right now. Please try again later."
 }

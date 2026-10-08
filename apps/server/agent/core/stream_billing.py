@@ -13,6 +13,10 @@
 5. 失败：error 帧明确 ``refundable: false``（例如工具失败熔断）→ 计费；
    本轮已有实质产出（已串流正文、文件正文，或写文件工具成功）→ 计费；
    其余才是真正没有产出的平台侧故障 → 退还。
+
+退还真正落库（``_refund_quota`` 返回 True）之后，api/agent.py 在终止帧之后再补发
+一帧 ``quota_refunded``（见 :func:`quota_refunded_frame`），前端据此告诉作者「这一轮
+不计入今日 AI 消息」。判定发生在终止帧已经发出之后，所以不能把承诺写进终止帧本身。
 """
 
 from __future__ import annotations
@@ -36,6 +40,19 @@ RUNAWAY_ITERATION_LAYERS: frozenset[str] = frozenset({"tool_call"})
 RUNAWAY_BILLING_REASON = "runaway_no_progress"
 
 _TERMINAL_EVENT_TYPES = frozenset({"done", "workflow_complete"})
+
+# 退还落库后补发的 SSE 帧。kind 只区分前端要用的两种说法：
+# no_progress（失控停止、没改文件）与 error（平台出错 / 超时且没有产出）。
+QUOTA_REFUNDED_EVENT = "quota_refunded"
+REFUND_KIND_NO_PROGRESS = "no_progress"
+REFUND_KIND_ERROR = "error"
+
+
+def quota_refunded_frame(billing_reason: str) -> str:
+    """额度已经退还后发给前端的说明帧；只在退还真正生效后调用。"""
+    kind = REFUND_KIND_NO_PROGRESS if billing_reason == RUNAWAY_BILLING_REASON else REFUND_KIND_ERROR
+    data = json.dumps({"refunded": True, "kind": kind}, ensure_ascii=False)
+    return f"event: {QUOTA_REFUNDED_EVENT}\ndata: {data}\n\n"
 
 
 def _parse_sse(frame: str) -> tuple[str, Any]:

@@ -20,16 +20,17 @@
     "skillMatched": "已启用技能: {{name}}",
     "skillMatchedMulti": "技能{{index}}: {{name}}",
     "streamErrorTitle": "这次生成中断了",
-    "quotaExceededTitle": "今日 10 条 AI 消息已用完",
-    "quotaExceededHint": "消息额度于北京时间次日 00:00 恢复，升级会员可获得更多每日额度。",
+    "quotaExceededTitle": "今天的免费 AI 消息用完了",
+    "quotaExceededHint": "北京时间明天 00:00 恢复。想接着写，可以开通 Pro，AI 消息不限条数。",
+    "notCharged": "这一轮没有改动文件，不计入今日 AI 消息。",
+    "notChargedError": "这次出错不计入今日 AI 消息。",
     "fileVersionLimitTitle": "文件版本额度已达上限",
-    "fileVersionLimitDesc": "升级套餐后可继续保存更多版本。",
-    "dailyCostExceededTitle": "今日 AI 额度已用完",
-    "dailyCostExceededHint": "额度于北京时间次日 00:00 恢复，升级 Pro 可继续创作。"
+    "fileVersionLimitDesc": "升级套餐后可继续保存更多版本。"
   },
   "input": {
-    "placeholder": "描述你的创作想法…",
+    "placeholder": "想写什么、改哪里，直接说就行…",
     "placeholderWhileProcessing": "AI 正在生成，你可以先输入，结束后再发送…",
+    "stop": "停止生成",
     "steerPlaceholder": "补充你的要求…",
     "steerButton": "补充要求",
     "steerHint": "AI 正在生成，补充的要求会在它的下一步生效",
@@ -114,20 +115,18 @@
   "workflow": {
     "iteration": "步骤",
     "remaining": "还剩",
-    "agentCollaboration": "AI 分工协作",
-    "toolCall": "AI 自动操作",
-    "iterationExhausted": "{{layer}}已到本次上限",
-    "lowTurnWarning": "本次还剩 {{remaining}} 步，可以先让 AI 做最重要的部分。",
-    "collaborationExhaustedSummary": "AI 已协作 {{max}} 轮，先停在这里。",
-    "toolCallExhaustedSummary": "AI 已操作 {{max}} 步，先停在这里。",
+    "iterationExhausted": "这一轮先做到这里",
+    "lowTurnWarning": "快到这一轮的上限了，AI 会先把最重要的部分做完。",
+    "collaborationExhaustedSummary": "任务比较大，AI 已经连着做了不少步，先停一下。改好的内容都已保存，点「继续完成」就能接着做。",
+    "toolCallExhaustedSummary": "任务比较大，AI 已经连着做了不少步，先停一下。改好的内容都已保存，点「继续完成」就能接着做。",
     "nextStepHint": "接下来你可以：",
     "actionContinue": "继续完成",
     "actionSplit": "拆成小步骤",
-    "actionManual": "我先手动改",
+    "actionManual": "只要修改建议",
     "actionPrompt": {
       "continue": "请基于上一步结果继续完成剩余任务，优先最关键目标。",
       "split": "请把剩余任务拆成 2-3 个小步骤，并先完成第 1 步。",
-      "manual": "我会先手动修改一部分，请告诉我最小可行修改建议。"
+      "manual": "先别改文件，告诉我接下来怎么改，我自己动手。"
     },
     "workflowLabel": "创作计划",
     "singleMode": "直接回答",
@@ -147,7 +146,7 @@
     "parallelStart": "同时处理 {{count}} 项任务",
     "parallelStartTruncated": "同时处理 {{count}} 项任务（另有 {{dropped}} 项超出单次上限，这次没有执行）",
     "parallelTaskCompleted": "✓ {{description}}",
-    "parallelTaskFailed": "✗ {{description}}：{{error}}",
+    "parallelTaskFailed": "✗ {{description}}：没有完成",
     "parallelEnd": "处理结束：完成 {{completed}}/{{total}} 项，失败 {{failed}} 项",
     "steeringReceived": "已收到补充要求：{{preview}}"
   },
@@ -157,10 +156,12 @@
     "edit_file": "编辑文件",
     "delete_file": "删除文件",
     "query_files": "查找文件",
+    "hybrid_search": "搜索相关内容",
     "update_project": "更新项目信息",
     "parallel_execute": "同时处理多项任务",
     "load_skill": "启用技能",
     "read_skill_resource": "查看技能资料",
+    "generic": "AI 操作",
     "parallel_summary": "同时处理 {{total}} 项任务：成功 {{completed}}，失败 {{failed}}",
     "processing": "处理中",
     "processing_ellipsis": "处理中...",
@@ -183,7 +184,16 @@
     "edits_summary_other": "{{editsApplied}} 处变更 · {{size}}",
     "complete_suffix": "完成",
     "view_edit_details": "查看变更详情（{{count}}）",
-    "failed": "{{label}}失败"
+    "failed": "{{label}}失败",
+    "failureHint": {
+      "notFound": "AI 没在原文里找到要改的那一段，正在重新定位。",
+      "ambiguous": "要改的这句话在文中出现了好几次，AI 正在确认是哪一处。",
+      "fileMissing": "这个文件已经不存在了，可能刚被删除。",
+      "repeatRead": "《{{title}}》刚才已经读过，AI 直接用已读内容继续。",
+      "repeatReadUntitled": "这份资料刚才已经读过，AI 直接用已读内容继续。",
+      "generic": "这一步没做成，AI 会换个方式继续。"
+    },
+    "taskNotCompleted": "没有完成"
   },
   "fileType": {
     "outline": "大纲",
