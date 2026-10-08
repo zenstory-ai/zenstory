@@ -26,12 +26,12 @@
   "projectTypes": {
     "novel": "长篇小说",
     "short": "短篇小说",
-    "screenplay": "剧本"
+    "screenplay": "短剧剧本"
   },
   "heroHints": {
     "novel": "长篇叙事模板",
     "short": "短篇灵感模板",
-    "screenplay": "剧本结构模板"
+    "screenplay": "短剧剧本结构模板"
   },
   "description": "描述",
   "tags": "标签",

@@ -98,7 +98,7 @@ export class LoginPage extends BasePage {
       .or(this.page.locator('[data-testid="dashboard-inspiration-input"]'))
       .or(this.page.getByTestId('dashboard-user-panel-toggle'))
       // Project header logo button (editor:header.goDashboard)
-      .or(this.page.getByRole('button', { name: /^(返回仪表盘|Back to dashboard)$/i }))
+      .or(this.page.getByRole('button', { name: /^(返回工作台|Back to dashboard)$/i }))
       .first()
       .waitFor({ timeout: 15000 });
   }

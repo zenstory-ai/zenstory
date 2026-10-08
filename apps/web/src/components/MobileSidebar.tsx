@@ -105,7 +105,7 @@ export const MobileSidebar: React.FC<MobileSidebarProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { t } = useTranslation(['dashboard']);
+  const { t } = useTranslation(['dashboard', 'common']);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -185,7 +185,7 @@ export const MobileSidebar: React.FC<MobileSidebarProps> = ({
           <button
             onClick={handleClose}
             className="p-2 min-h-[44px] min-w-[44px] rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] active:bg-[hsl(var(--bg-hover))] transition-all flex items-center justify-center"
-            aria-label="Close sidebar"
+            aria-label={t('common:closeSidebar', '关闭侧边栏')}
           >
             <X className="w-5 h-5" />
           </button>

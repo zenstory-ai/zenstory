@@ -15,7 +15,7 @@ vi.mock('react-i18next', () => ({
         'card.used': '已使用:',
         'card.expired': '已过期',
         'card.expiresTomorrow': '明天过期',
-        'card.expiresInDays': `${options?.count ?? 0}天后过期`,
+        'card.expiresInDays': `${options?.count ?? 0} 天后过期`,
         'card.disabled': '已停用',
         'card.exhausted': '已用完',
         'card.available': '可用',
@@ -325,7 +325,7 @@ describe('InviteCodeCard', () => {
       expect(screen.getByText('明天过期')).toBeInTheDocument()
     })
 
-    it('shows "N天后过期" for codes expiring within 7 days', () => {
+    it('shows "N 天后过期" for codes expiring within 7 days', () => {
       const in3Days = new Date()
       in3Days.setDate(in3Days.getDate() + 3)
 
@@ -336,7 +336,7 @@ describe('InviteCodeCard', () => {
 
       render(<InviteCodeCard inviteCode={codeExpiringIn3Days} />)
 
-      expect(screen.getByText('3天后过期')).toBeInTheDocument()
+      expect(screen.getByText('3 天后过期')).toBeInTheDocument()
     })
 
     it('shows formatted date for codes expiring after 7 days', () => {

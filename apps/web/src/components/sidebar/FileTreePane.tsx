@@ -356,8 +356,9 @@ export const FileTreePane: React.FC = () => {
       character: t('editor:fileTree.newCharacter'),
       lore: t('editor:fileTree.newLore'),
       snippet: t('editor:fileTree.newSnippet'),
+      script: t('editor:fileTree.newScript'),
     };
-    return placeholderMap[fileType] || t('editor:fileTree.newProject');
+    return placeholderMap[fileType] || t('editor:fileTree.newFileName');
   };
 
   // Check if a folder is the material folder

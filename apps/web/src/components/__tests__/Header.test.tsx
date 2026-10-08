@@ -7,8 +7,9 @@ const mockNavigate = vi.fn()
 const mockExportDrafts = vi.fn()
 const mockTriggerFileTreeRefresh = vi.fn()
 const mockSetSelectedItem = vi.fn()
-const { mockToastError, mockHandleApiError, mockLoggerError } = vi.hoisted(() => ({
+const { mockToastError, mockToastSuccess, mockHandleApiError, mockLoggerError } = vi.hoisted(() => ({
   mockToastError: vi.fn(),
+  mockToastSuccess: vi.fn(),
   mockHandleApiError: vi.fn((error: unknown) =>
     error instanceof Error ? error.message : 'Unknown error'
   ),
@@ -191,7 +192,7 @@ vi.mock('../../hooks/useExport', () => ({
 vi.mock('../../lib/toast', () => ({
   toast: {
     error: mockToastError,
-    success: vi.fn(),
+    success: mockToastSuccess,
     info: vi.fn(),
   },
 }))
@@ -404,6 +405,9 @@ describe('Header', () => {
       await waitFor(() => {
         expect(mockExportDrafts).toHaveBeenCalled()
       })
+      await waitFor(() => {
+        expect(mockToastSuccess).toHaveBeenCalledWith('正文已导出为 TXT 文件')
+      })
     })
 
     it('shows translated error toast when export fails', async () => {
@@ -421,6 +425,7 @@ describe('Header', () => {
         expect(mockLoggerError).toHaveBeenCalledWith('Export failed', exportError)
         expect(mockToastError).toHaveBeenCalledWith('Plan does not support this export format')
       })
+      expect(mockToastSuccess).not.toHaveBeenCalled()
     })
 
     it('shows upgrade modal when export format is plan-restricted', async () => {
@@ -794,7 +799,7 @@ describe('Header', () => {
       const entry = screen.getByTestId('header-subscription-entry')
       expect(entry).toHaveAttribute('title')
       expect(screen.getByTestId('subscription-icon')).toBeInTheDocument()
-      expect(entry).not.toHaveTextContent('订阅中心')
+      expect(entry).not.toHaveTextContent('订阅权益')
     })
 
     it('navigates to billing when subscription entry is clicked', () => {
