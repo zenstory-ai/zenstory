@@ -18,11 +18,12 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { LogOut, ChevronDown, Shield, CalendarCheck } from "lucide-react";
+import { LogOut, ChevronDown, Shield, CalendarCheck, Mail } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { pointsApi } from "../lib/pointsApi";
+import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "../config/support";
 
 /**
  * Predefined colors for avatar background
@@ -360,6 +361,20 @@ export const UserMenu: React.FC<UserMenuProps> = () => {
               {t('common:userMenu.profile')}
             </button> */}
 
+            {/* Contact support */}
+            <a
+              href={SUPPORT_MAILTO}
+              aria-label={`${t('common:userMenu.contactSupportAria', '发邮件给客服')} ${SUPPORT_EMAIL}`}
+              className="w-full min-h-[44px] px-3 py-2 text-left text-sm text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] flex items-center gap-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
+              data-testid="contact-support-link"
+            >
+              <Mail size={16} />
+              <span className="flex flex-col min-w-0">
+                <span>{t('common:userMenu.contactSupport', '联系客服')}</span>
+                <span className="text-xs text-[hsl(var(--text-secondary))] truncate">{SUPPORT_EMAIL}</span>
+              </span>
+            </a>
+
             {/* data-testid: logout-button - Logout button for logout tests */}
             <button
               type="button"
@@ -507,6 +522,20 @@ export const UserMenuMobile: React.FC<UserMenuMobileProps> = ({ onLogout }) => {
               : t('settings:points.checkIn', '签到领积分')}
         </span>
       </button>
+
+      {/* Contact support */}
+      <a
+        href={SUPPORT_MAILTO}
+        aria-label={`${t('userMenu.contactSupportAria', '发邮件给客服')} ${SUPPORT_EMAIL}`}
+        className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-primary))] transition-colors text-left w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
+        data-testid="contact-support-link-mobile"
+      >
+        <Mail size={18} />
+        <span className="flex flex-col min-w-0">
+          <span>{t('userMenu.contactSupport', '联系客服')}</span>
+          <span className="text-xs text-[hsl(var(--text-secondary))] truncate">{SUPPORT_EMAIL}</span>
+        </span>
+      </a>
 
       {/* Logout button */}
       <button

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Check, Crown, Sparkles } from "lucide-react";
+import { Check, Crown, Mail, Sparkles } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { DashboardPageHeader } from "../components/dashboard/DashboardPageHeader";
 import { Button } from "../components/ui/Button";
@@ -21,6 +21,7 @@ import { getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { trackUpgradeClick, trackUpgradeConversion } from "../lib/upgradeAnalytics";
 import { trackEvent } from "../lib/analytics";
 import { inspirationsConfig } from "../config/inspirations";
+import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "../config/support";
 import type { PaymentCycle } from "../types/payment";
 
 type UsageKey =
@@ -385,6 +386,20 @@ export default function BillingPage() {
           </div>
         )}
       </Card>
+
+      <p
+        className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-[hsl(var(--text-secondary))]"
+        data-testid="billing-support-email"
+      >
+        <Mail size={16} className="shrink-0" aria-hidden="true" />
+        <span>{t("dashboard:billing.supportHint", "订阅、扣费或退款有疑问？请联系客服：")}</span>
+        <a
+          href={SUPPORT_MAILTO}
+          className="text-[hsl(var(--accent-primary))] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] rounded"
+        >
+          {SUPPORT_EMAIL}
+        </a>
+      </p>
 
       <RedeemCodeModal
         isOpen={isRedeemCodeModalOpen}

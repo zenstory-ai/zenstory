@@ -58,7 +58,9 @@
     "logout": "Logout",
     "adminPanel": "Admin Panel",
     "open": "Open user menu",
-    "close": "Close user menu"
+    "close": "Close user menu",
+    "contactSupport": "Contact support",
+    "contactSupportAria": "Email support"
   },
   "productMenu": {
     "title": "Products",
@@ -112,7 +114,8 @@
     "submitSuccess": "Thanks for the feedback — we received it.",
     "previewAlt": "Feedback screenshot preview",
     "invalidImageType": "Please upload a PNG/JPG/WEBP image",
-    "invalidImageSize": "Screenshot must be 5MB or smaller"
+    "invalidImageSize": "Screenshot must be 5MB or smaller",
+    "emailHint": "For subscription, refund or other account questions, you can also email support: "
   },
   "projectLoadFailed": "Failed to load project",
   "projectNotFound": "Project not found",

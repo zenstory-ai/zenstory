@@ -147,7 +147,8 @@
     "freeDailyMessageLimitHint": "Free users can send up to {{limit}} AI messages per day. It resets the next day at 00:00 Beijing time (UTC+8).",
     "monthlyQuotaResetHint": "Monthly quotas reset on the 1st at 00:00 Beijing time (UTC+8).",
     "metricAiConversations": "Daily AI messages",
-    "metricAiConversationsOutcome": "Resets at 00:00 Beijing time (UTC+8)"
+    "metricAiConversationsOutcome": "Resets at 00:00 Beijing time (UTC+8)",
+    "supportHint": "Questions about your subscription, charges or refunds? Email support:"
   },
   "todayActionPlan": {
     "title": "3 things to do today",
