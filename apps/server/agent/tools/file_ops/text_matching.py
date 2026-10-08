@@ -341,6 +341,98 @@ def find_approximate_match(
     return (start_orig, end_orig, best_score, matched_text)
 
 
+# --- 模糊命中后的边缘标点 -------------------------------------------------
+# 模糊/近似匹配在归一化空间里比较（去掉了全部标点与空白），映射回原文的 span
+# 只覆盖首尾两个「非标点」字符，原文边缘的引号、句号落在 span 外面。模型的
+# old 以引号开头、以句号结尾（new 同样带着），替换后原文的边缘标点就残留下来：
+# 「“"有事？"他声音很冷。。」，删除则留下孤立的「“。」。这里按「同类标点」把
+# span 向两侧扩展，只吞掉与参照串边缘逐个同类的原文标点，不跨越参照串没有的换行。
+_QUOTE_CHARS = frozenset("\"'“”‘’「」『』«»‹›〝〞〟＂＇")
+_SENTENCE_END_CHARS = frozenset("。.！!？?…｡")
+_PAUSE_CHARS = frozenset("，,、；;：:")
+_DASH_CHARS = frozenset("—–-")
+_BRACKET_CHARS = frozenset("（）()【】[]《》〈〉{}〔〕")
+
+
+def _edge_punct_class(ch: str) -> str | None:
+    """边缘标点的「同类」判定；非标点非空白返回 None。
+
+    只认 normalize_for_fuzzy_match 会去掉的字符（空白与 Unicode P* 标点），
+    这样参与扩展的正好是模糊匹配时被忽略、因而落在 span 外的那些字符。
+    同类即可互相抵消：直引号与弯引号、问号的全角与半角、句号与感叹号都视为
+    同一个位置上的标点（模型记错的通常就是这一类差异）。换行单独成类，参照串
+    没有换行时不会把段落分隔吞进替换范围。
+    """
+    if ch in "\r\n":
+        return "newline"
+    if ch.isspace():
+        return "space"
+    folded = unicodedata.normalize("NFKC", ch)
+    if not any(unicodedata.category(c).startswith("P") for c in folded or ch):
+        return None
+    for candidate in (ch, folded):
+        if candidate in _QUOTE_CHARS:
+            return "quote"
+        if candidate in _SENTENCE_END_CHARS:
+            return "end"
+        if candidate in _PAUSE_CHARS:
+            return "pause"
+        if candidate in _DASH_CHARS:
+            return "dash"
+        if candidate in _BRACKET_CHARS:
+            return "bracket"
+    if unicodedata.category(ch).startswith("P"):
+        return f"punct:{folded}"
+    return None
+
+
+def edge_punct_run(text: str, *, leading: bool) -> str:
+    """``text`` 开头（leading=True）或结尾的标点/空白连续串。"""
+    if leading:
+        end = 0
+        while end < len(text) and _edge_punct_class(text[end]) is not None:
+            end += 1
+        return text[:end]
+    start = len(text)
+    while start > 0 and _edge_punct_class(text[start - 1]) is not None:
+        start -= 1
+    return text[start:]
+
+
+def extend_span_over_edge_punct(
+    content: str,
+    start: int,
+    end: int,
+    *,
+    leading_ref: str,
+    trailing_ref: str,
+) -> tuple[int, int]:
+    """把模糊命中的 span 向两侧扩展到与参照串边缘同类的原文标点。
+
+    ``leading_ref`` 是参照串开头的标点串（从紧贴 span 的那一个往外逐个配对），
+    ``trailing_ref`` 是结尾的标点串（同样从内往外）。原文字符与参照字符同类
+    才吞进去，遇到第一个不同类或非标点字符即停，最多吞参照串那么多个字符。
+    """
+    new_start = start
+    ref_index = len(leading_ref) - 1
+    while ref_index >= 0 and new_start > 0:
+        orig_class = _edge_punct_class(content[new_start - 1])
+        if orig_class is None or orig_class != _edge_punct_class(leading_ref[ref_index]):
+            break
+        new_start -= 1
+        ref_index -= 1
+
+    new_end = end
+    ref_index = 0
+    while ref_index < len(trailing_ref) and new_end < len(content):
+        orig_class = _edge_punct_class(content[new_end])
+        if orig_class is None or orig_class != _edge_punct_class(trailing_ref[ref_index]):
+            break
+        new_end += 1
+        ref_index += 1
+    return new_start, new_end
+
+
 def build_span_previews(
     content: str,
     spans: list[tuple[int, int]],
@@ -499,6 +591,8 @@ __all__ = [
     "find_fuzzy_spans",
     "find_approximate_match",
     "build_span_previews",
+    "edge_punct_run",
+    "extend_span_over_edge_punct",
     "suggest_similar_lines",
     "find_unique_line_span",
 ]

@@ -22,11 +22,22 @@ from sqlmodel import Session, and_, select
 from agent.constants import CONTENT_FILE_TYPES, INVENTORY_FILE_TYPES, coerce_bool
 from agent.skills.content_budget import SkillContentBudget
 from agent.tools.file_ops import FileToolExecutor
+from agent.tools.file_ops.edit import (
+    EDIT_ERROR_FILE_BUSY,
+    EDIT_ERROR_FILE_NOT_FOUND,
+    EDIT_ERROR_GENERIC,
+    EDIT_ERROR_INVALID_EDIT,
+    EDIT_ERROR_PERMISSION_DENIED,
+    EditFileError,
+    FileWriteBusyError,
+    edit_error_user_message,
+)
 from agent.tools.file_ops.serialization import (
     QUERY_FILES_DEFAULT_LIMIT,
     QUERY_FILES_FULL_MODE_DEFAULT_LIMIT,
     QUERY_FILES_RESPONSE_MODE_FULL,
 )
+from agent.tools.permissions import NotFoundError
 from utils.logger import get_logger, log_with_context
 from utils.title_sequence import extract_chapter_like_sequence_number, parse_chinese_number
 
@@ -1581,24 +1592,24 @@ def _edit_file_sync(args: dict[str, Any]) -> dict[str, Any]:
         else:
             # Do not silently accept non-string IDs; keep tool inputs strict to
             # avoid noisy "file not found" logs when the caller passes wrong types.
-            return _make_error(
+            return _make_edit_error(
                 "edit_file: invalid param 'id' (must be a string).",
-                tool_name=tool_name,
+                error_type=EDIT_ERROR_INVALID_EDIT,
             )
         if not file_id:
-            return _make_error(
+            return _make_edit_error(
                 "edit_file: missing required param 'id' (alias: file_id). "
                 "Please query_files to get the correct id, or use the provided 当前文件 ID.",
-                tool_name=tool_name,
+                error_type=EDIT_ERROR_INVALID_EDIT,
             )
 
         edits = args.get("edits")
         if edits is None:
             edits = args.get("operations", [])
         if not isinstance(edits, list):
-            return _make_error(
+            return _make_edit_error(
                 "edit_file: invalid param 'edits' (must be an array).",
-                tool_name=tool_name,
+                error_type=EDIT_ERROR_INVALID_EDIT,
             )
 
         result = executor.edit_file(
@@ -1619,16 +1630,60 @@ def _edit_file_sync(args: dict[str, Any]) -> dict[str, Any]:
         # status 必须按实际结果降级：continue_on_error 下部分/全部 edit 失败时，
         # 恒返回 "success" 会让模型以为改动已经落地、继续往下写，
         # 失败的 edit 只藏在 data.failed_edits 里没人看。
-        return _make_result(
-            {
-                "status": _derive_edit_status(result),
-                "mutation_applied": result.get("mutation_applied") is True,
-                "data": result,
-            },
-            tool_name=tool_name,
-        )
+        status = _derive_edit_status(result)
+        payload: dict[str, Any] = {
+            "status": status,
+            "mutation_applied": result.get("mutation_applied") is True,
+            "data": result,
+        }
+        if status == "error":
+            # 全部失败（continue_on_error=true）：与整批回滚一样带上稳定分类和给作者的短句。
+            failed = result.get("failed_edits") if isinstance(result, dict) else None
+            first = failed[0] if isinstance(failed, list) and failed and isinstance(failed[0], dict) else {}
+            error_type = str(first.get("error_type") or EDIT_ERROR_GENERIC)
+            payload["error_type"] = error_type
+            payload["user_message"] = edit_error_user_message(error_type)
+        return _make_result(payload, tool_name=tool_name)
+    except EditFileError as e:
+        # error 原样给模型（候选片段、occurrence 提示、全部失败项都在里面）；
+        # error_type / user_message 给界面；edits_applied=0、mutation_applied=false
+        # 明确告诉模型这次调用一处都没生效。
+        return _make_edit_error(str(e), **e.payload_fields())
+    except FileWriteBusyError as e:
+        return _make_edit_error(str(e), error_type=EDIT_ERROR_FILE_BUSY)
+    except NotFoundError as e:
+        # 文件不在当前项目里与文件不存在对用户是同一回事（文案已统一为「文件不存在或已删除」）。
+        return _make_edit_error(str(e), error_type=EDIT_ERROR_FILE_NOT_FOUND)
+    except PermissionError as e:
+        return _make_edit_error(str(e), error_type=EDIT_ERROR_PERMISSION_DENIED)
     except Exception as e:
-        return _make_error(str(e), tool_name=tool_name)
+        # 未分类异常可能发生在提交之后（例如台账记录），不能断言「一处都没生效」。
+        return _make_edit_error(str(e), error_type=EDIT_ERROR_GENERIC, known_unapplied=False)
+
+
+def _make_edit_error(
+    error: str,
+    *,
+    error_type: str,
+    known_unapplied: bool = True,
+    **fields: Any,
+) -> dict[str, Any]:
+    """edit_file 的错误结果：模型用的 error + 稳定 error_type + 作者看的 user_message。
+
+    known_unapplied=True 表示错误发生在写入之前，附上 edits_applied=0 /
+    mutation_applied=false 让模型确知本次调用一处都没生效。
+    """
+    payload: dict[str, Any] = {
+        "status": "error",
+        "error": error,
+        "error_type": error_type,
+        "user_message": fields.pop("user_message", None) or edit_error_user_message(error_type),
+    }
+    if known_unapplied:
+        payload["edits_applied"] = 0
+        payload["mutation_applied"] = False
+    payload.update(fields)
+    return _make_mcp_payload(payload, tool_name="edit_file")
 
 
 def _derive_edit_status(result: dict[str, Any]) -> str:

@@ -260,8 +260,10 @@ def test_delete_fuzzy_honours_occurrence(editor):
         applied,
         [],
     )
-    assert result == "A他默默地点了点头。B他默默地点了点头。C他默默地点了点头。D他默默地点了点头。E。"
+    # old 以「。」结尾：模糊命中后原文对应的句号一并删除，不再留下孤立的「。」。
+    assert result == "A他默默地点了点头。B他默默地点了点头。C他默默地点了点头。D他默默地点了点头。E"
     assert applied[0]["match_mode"] == "fuzzy"
+    assert applied[0]["matched_original"] == "他默默地点了点头。"
 
 
 def test_replace_ambiguity_message_recommends_occurrence(editor):
