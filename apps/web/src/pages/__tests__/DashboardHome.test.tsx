@@ -106,10 +106,7 @@ const mockT = (
     'projectType.novel.name': '长篇小说',
     'inspiration.novelDesc': 'AI 将根据你的灵感，帮你构思故事框架、设定世界观和人物角色',
     'inspiration.novelPlaceholder': '请输入灵感',
-    'dashboard:inspiration.seeds.novel.0': '比如：外卖员接到一单，收货地址是十年前的自己家。',
-    'dashboard:inspiration.seeds.novel.1': '比如：被退婚那天，她发现整个宗门都欠她一条命。',
-    'dashboard:inspiration.seeds.novel.2': '比如：末世第三年，全城只剩一家书店还亮着灯。',
-    'dashboard:inspiration.seeds.novel.3': '比如：穿成反派的第一天，我先把主角的金手指没收了。',
+    'dashboard:inspiration.example.novel': '写一部架空历史权谋长篇：主角穿越成王朝里最不起眼的六皇子，不夺嫡、不宫斗，只想悄悄攒下兵权自保，却被父皇和几位兄长一步步推到台前。先定主角人设和朝堂势力，再出前三章大纲。',
     'activationGuide.steps.signup_success': '完成注册',
     'activationGuide.steps.project_created': '创建项目',
     'activationGuide.steps.first_file_saved': '保存第一个文件',
@@ -307,8 +304,8 @@ describe('DashboardHome featured inspirations section', () => {
     expect(screen.queryByRole('button', { name: '查看灵感库' })).not.toBeInTheDocument()
     expect(mockUseFeaturedInspirations).not.toHaveBeenCalled()
     expect(mockUseDashboardInspirations).not.toHaveBeenCalled()
-    // The placeholder is a concrete story seed, not an instruction the author must satisfy.
-    expect(screen.getByTestId('dashboard-inspiration-input').getAttribute('placeholder')).toMatch(/^比如：.+。$/)
+    // The placeholder is a complete example brief, not an instruction the author must satisfy.
+    expect(screen.getByTestId('dashboard-inspiration-input').getAttribute('placeholder')).toMatch(/^写一部架空历史权谋长篇：.+前三章大纲。$/)
   })
 
   it('keeps manual idea creation available when inspirations are disabled', async () => {
@@ -354,8 +351,8 @@ describe('DashboardHome featured inspirations section', () => {
 
     expect(screen.getByTestId('dashboard-real-inspirations')).toBeInTheDocument()
     expect(mockUseDashboardInspirations).toHaveBeenCalledWith('novel', 2, 0)
-    // The placeholder is a concrete story seed, not an instruction the author must satisfy.
-    expect(screen.getByTestId('dashboard-inspiration-input').getAttribute('placeholder')).toMatch(/^比如：.+。$/)
+    // The placeholder is a complete example brief, not an instruction the author must satisfy.
+    expect(screen.getByTestId('dashboard-inspiration-input').getAttribute('placeholder')).toMatch(/^写一部架空历史权谋长篇：.+前三章大纲。$/)
     fireEvent.click(screen.getByRole('button', { name: /狂兽战神/i }))
 
     expect(screen.getByTestId('dashboard-inspiration-input')).toHaveValue(

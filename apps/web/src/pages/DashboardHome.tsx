@@ -39,9 +39,6 @@ function isProjectType(value: string): value is ProjectType {
   return SUPPORTED_PROJECT_TYPES.includes(value as ProjectType);
 }
 
-
-/** Story seeds per project type in `dashboard:inspiration.seeds`. */
-const PLACEHOLDER_SEED_COUNT = 4;
 export default function DashboardHome() {
   const { t, i18n } = useTranslation(['dashboard', 'home']);
   const projectQuotaUpgradePrompt = getUpgradePromptDefinition("project_quota_blocked");
@@ -68,7 +65,6 @@ export default function DashboardHome() {
   const [inspiration, setInspiration] = useState("");
   const [newProjectName, setNewProjectName] = useState("");
   const [activeTab, setActiveTab] = useState<ProjectType>("novel");
-  const [placeholderSeedIndex] = useState(() => Math.floor(Math.random() * PLACEHOLDER_SEED_COUNT));
   const [searchQuery, setSearchQuery] = useState("");
   const [showProjectQuotaUpgradeModal, setShowProjectQuotaUpgradeModal] = useState(false);
   const [activationGuide, setActivationGuide] = useState<ActivationGuideResponse | null>(null);
@@ -557,8 +553,9 @@ export default function DashboardHome() {
   };
 
   const hasDraftIdea = inspiration.trim().length > 0;
-  // A concrete story seed reads as an invitation; a rule ("enter a core conflict") reads as homework.
-  const resolvedInspirationPlaceholder = t(`dashboard:inspiration.seeds.${activeTab}.${placeholderSeedIndex}`);
+  // A complete example brief (premise + what to produce first) shows what a good request looks like;
+  // a rule such as "enter a core conflict" reads as homework.
+  const resolvedInspirationPlaceholder = t(`dashboard:inspiration.example.${activeTab}`);
   return (
     <>
       {/* Header Section */}
@@ -684,7 +681,7 @@ export default function DashboardHome() {
             data-testid="dashboard-inspiration-input"
             data-tour-id="dashboard-inspiration-input"
             disabled={isQuickCreating}
-            className={`w-full resize-none rounded-[24px] border border-[hsl(var(--border-color)/0.12)] bg-[linear-gradient(180deg,hsl(var(--bg-tertiary)/0.96),hsl(var(--bg-secondary)/0.99))] px-6 py-5 text-[15px] leading-7 text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-secondary)/0.7)] shadow-[inset_0_1px_0_hsl(0_0%_100%_/_0.015)] transition-all focus:border-[hsl(var(--accent-primary)/0.18)] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--accent-primary)/0.05)] disabled:cursor-not-allowed disabled:opacity-60 ${isMobile ? "min-h-[136px]" : "min-h-[136px] pr-[180px]"}`}
+            className={`w-full resize-none rounded-[24px] border border-[hsl(var(--border-color)/0.12)] bg-[linear-gradient(180deg,hsl(var(--bg-tertiary)/0.96),hsl(var(--bg-secondary)/0.99))] px-6 py-5 text-[15px] leading-7 text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-secondary)/0.7)] shadow-[inset_0_1px_0_hsl(0_0%_100%_/_0.015)] transition-all focus:border-[hsl(var(--accent-primary)/0.18)] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--accent-primary)/0.05)] disabled:cursor-not-allowed disabled:opacity-60 ${isMobile ? "min-h-[212px]" : "min-h-[136px] pr-[180px]"}`}
             value={inspiration}
             onChange={(e) => setInspiration(e.target.value)}
             onKeyDown={(e) => {
