@@ -59,9 +59,8 @@ from utils.title_sequence import (
 
 from .edit import acquire_file_write_lock
 from .serialization import (
-    QUERY_FILES_DEFAULT_CONTENT_PREVIEW_CHARS,
-    QUERY_FILES_DEFAULT_RESPONSE_MODE,
     _summary_projection_preview_length,
+    resolve_query_files_response_mode,
     serialize_file,
     serialize_query_file,
 )
@@ -863,8 +862,8 @@ class FileCRUD:
         metadata_filter: dict[str, Any] | None = None,
         limit: int = 50,
         offset: int = 0,
-        response_mode: str = QUERY_FILES_DEFAULT_RESPONSE_MODE,
-        content_preview_chars: int = QUERY_FILES_DEFAULT_CONTENT_PREVIEW_CHARS,
+        response_mode: str | None = None,
+        content_preview_chars: int | None = None,
         include_content: bool | None = None,
     ) -> list[dict[str, Any]]:
         """
@@ -882,8 +881,10 @@ class FileCRUD:
             metadata_filter: Metadata field filters (optional)
             limit: Maximum results
             offset: Offset for pagination
-            response_mode: Response format mode ("summary" or "full")
-            content_preview_chars: Preview length in summary mode
+            response_mode: Response format mode ("summary" or "full"). None =
+                auto: full when ``id`` is given, summary otherwise (see
+                ``resolve_query_files_response_mode``)
+            content_preview_chars: Preview length in summary mode (None = default 200)
             include_content: Backward-compatible override; True forces full content
 
         Returns:
@@ -898,6 +899,12 @@ class FileCRUD:
         # 因此在入口就收敛成真 bool（None 保持 None，不丢「未指定」语义）。
         if include_content is not None:
             include_content = coerce_bool(include_content)
+        response_mode = resolve_query_files_response_mode(
+            response_mode,
+            file_id=id,
+            include_content=include_content,
+            content_preview_chars=content_preview_chars,
+        )
 
         # Check project permission
         check_project_ownership(self.session, project_id, self.user_id)
@@ -932,8 +939,9 @@ class FileCRUD:
             response_mode, content_preview_chars, include_content
         )
         rows = self._execute_query_files(stmt, preview_length)
-        files = [file for file, _ in rows]
-        previews = {file.id: preview for file, preview in rows}
+        files = [file for file, _, _ in rows]
+        previews = {file.id: preview for file, preview, _ in rows}
+        content_lengths = {file.id: content_length for file, _, content_length in rows}
 
         # Metadata filtering deliberately remains AFTER SQL pagination.
         if metadata_filter:
@@ -946,6 +954,7 @@ class FileCRUD:
                 content_preview_chars=content_preview_chars,
                 include_content=include_content,
                 preloaded_content_preview=previews[file.id],
+                preloaded_content_length=content_lengths[file.id],
             )
             for file in files
         ]
@@ -954,10 +963,11 @@ class FileCRUD:
         self,
         stmt: SelectOfScalar[File],
         preview_length: int | None,
-    ) -> list[tuple[File, str | None]]:
+    ) -> list[tuple[File, str | None, int | None]]:
+        """返回 (File, SQL 投影的预览, SQL 计算的正文长度)；不走投影时后两者为 None。"""
         dialect = self.session.get_bind().dialect.name
         if preview_length is None or dialect not in {"postgresql", "sqlite"}:
-            return [(file, None) for file in self.session.exec(stmt).all()]
+            return [(file, None, None) for file in self.session.exec(stmt).all()]
 
         content_column = cast(InstrumentedAttribute[str], File.content)
         preview: ColumnElement[Any]
@@ -972,12 +982,27 @@ class FileCRUD:
                     (func.instr(content_column, func.char(0)) > 0, content_column),
                     else_=preview,
                 )
+        # summary 也要告诉模型全文多长（content_length / content_truncated），
+        # 长度同样在 SQL 里算，不把正文拉进 Python。PostgreSQL 与 SQLite 的 length()
+        # 都按字符计数，与 Python len() 一致；SQLite 的 length() 遇 NUL 截止，含 NUL
+        # 的旧行返回 NULL，由序列化层用（此时完整的）预览值自行计算。
+        content_length: ColumnElement[Any] = func.length(content_column)
+        if dialect == "sqlite":
+            nul_free = func.instr(content_column, func.char(0)) == 0
+            content_length = case((nul_free, content_length), else_=literal(None))
+            if preview_length == 0:
+                # 预览为 0 时含 NUL 的旧行同样取完整值，长度才算得出来。
+                preview = case((nul_free, preview), else_=content_column)
         projected_stmt = stmt.options(defer(content_column)).add_columns(
-            preview.label("_query_content_preview")
+            preview.label("_query_content_preview"),
+            content_length.label("_query_content_length"),
         )
         # exec() scalarizes SelectOfScalar even after add_columns; execute()
         # retains both the real File and the separate, non-hydrating preview.
-        return [(file, preview) for file, preview in self.session.execute(projected_stmt).all()]
+        return [
+            (file, preview, length)
+            for file, preview, length in self.session.execute(projected_stmt).all()
+        ]
 
     def hybrid_search(
         self,

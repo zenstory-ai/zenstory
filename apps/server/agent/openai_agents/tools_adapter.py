@@ -13,6 +13,7 @@ from agent.core.metrics import (
     get_metrics_collector,
 )
 from agent.openai_agents.events import extract_tool_result_text, tool_error_text
+from agent.openai_agents.repeat_read_guard import RepeatReadGuard
 from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
 from agent.tools.registry import FILE_WRITE_TOOL_NAMES, TOOL_FUNCTIONS, get_agent_tools
 from utils.logger import get_logger, log_with_context
@@ -122,6 +123,7 @@ def build_agent_function_tools(
     *,
     failure_breaker: ToolFailureBreaker | None = None,
     read_only: bool = False,
+    read_guard: RepeatReadGuard | None = None,
 ) -> list[Any]:
     """Build SDK FunctionTool instances for the given writing agent role.
 
@@ -133,6 +135,10 @@ def build_agent_function_tools(
     的提示词和会话历史都在用 create_file，模型照样会调；SDK 对「不存在的工具」
     默认抛 ModelBehaviorError，整轮以致命 ERROR 结束。留着工具、拒绝执行，模型
     拿到的是能看懂的拒绝说明，拒绝也经熔断器记账，乱试有上限。
+    read_guard：本次请求的重复读取守卫。query_files(id) 与 parallel_execute 的读取
+    子任务执行前经它判定（同一文件第 4 次起不执行），执行后经它记账、附提示；
+    写工具成功会清零对应文件的读取计数。守卫判定无进展后，同一轮里剩下的调用
+    同样不再执行。
     """
     from agents import FunctionTool
 
@@ -155,8 +161,17 @@ def build_agent_function_tools(
         ) -> str:
             if failure_breaker is not None and failure_breaker.is_open:
                 return failure_breaker.short_circuit_text(_tool_name)
+            if read_guard is not None and read_guard.is_open:
+                return read_guard.short_circuit_text(_tool_name)
             if _refuse:
                 output = read_only_refusal_text(_tool_name)
+            elif read_guard is not None:
+                plan = read_guard.plan(_tool_name, raw_arguments)
+                if plan.blocked_output is not None:
+                    output = plan.blocked_output
+                else:
+                    output = await invoke_project_tool(_tool_name, plan.arguments)
+                    output = read_guard.observe(_tool_name, plan, output)
             else:
                 output = await invoke_project_tool(_tool_name, raw_arguments)
             if failure_breaker is not None:

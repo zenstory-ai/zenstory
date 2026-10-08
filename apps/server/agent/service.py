@@ -25,9 +25,7 @@ from config.agent_runtime import (
     AGENT_AUTO_REVIEW_THRESHOLD_CHARS,
     AGENT_CHAT_HISTORY_TOKEN_BUDGET,
     AGENT_COLLABORATION_MAX_ITERATIONS,
-)
-from config.agent_runtime import (
-    AGENT_MAX_ITERATIONS as AGENT_REQUEST_MAX_ITERATIONS,
+    AGENT_CONTEXT_TOKEN_BUDGET,
 )
 from config.datetime_utils import utcnow
 from database import create_session
@@ -72,9 +70,6 @@ from .stream_adapter import create_stream_adapter
 from .tools.mcp_tools import ToolContext, _should_offload_tool_execution
 
 logger = get_logger(__name__)
-
-# Backward-compatible export used by existing tests/callers.
-AGENT_MAX_ITERATIONS = AGENT_REQUEST_MAX_ITERATIONS
 
 
 class AgentService:
@@ -814,6 +809,7 @@ class AgentService:
                 attached_file_ids=attached_file_ids,
                 attached_library_materials=attached_library_materials,
                 text_quotes=text_quotes,
+                max_tokens=AGENT_CONTEXT_TOKEN_BUDGET,
             )
 
             context_data = session_data.context_data
@@ -883,10 +879,20 @@ class AgentService:
                 if context_parts:
                     user_content += f"\n\n{'Context' if force_en else '上下文'}:\n" + "\n".join(context_parts)
 
+            # 跨轮工作集（上两轮读/写过的文件的当前全文）拼在本轮用户消息之前：
+            # 系统提示与历史保持不变，前缀缓存可以一直命中到上一轮。
+            working_set_context = getattr(session_data, "working_set_context", "")
+            if not isinstance(working_set_context, str):
+                working_set_context = ""
+            if working_set_context:
+                user_content = SessionLoader.attach_working_set_to_user_content(
+                    user_content, working_set_context
+                )
+
             # Unified prompt-token ledger.
             #
-            # Assembled context (assembler ~6k) and chat history (~6k) used to be
-            # budgeted independently and both injected (~12k+). Now they compete
+            # Assembled context and chat history used to be budgeted
+            # independently and both injected. Now they compete
             # within ONE shared ceiling: subtract the already-known prompt cost
             # from the ledger ceiling, then shrink the history window to whatever
             # room remains. The DB-history persistence contract and the configured
@@ -897,7 +903,9 @@ class AgentService:
             # 避免同一段文本重复扣减历史预算。
             from agent.utils.token_utils import estimate_text_tokens
 
-            reserved_prompt_tokens = estimate_text_tokens(system_prompt or "")
+            reserved_prompt_tokens = estimate_text_tokens(system_prompt or "") + (
+                estimate_text_tokens(working_set_context) if working_set_context else 0
+            )
             effective_history_budget = compute_history_token_budget(
                 configured_history_budget=AGENT_CHAT_HISTORY_TOKEN_BUDGET,
                 reserved_prompt_tokens=reserved_prompt_tokens,

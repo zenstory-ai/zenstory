@@ -666,3 +666,208 @@ class TestSessionLoaderHistoryBudget:
             "admin-user",
             "admin-assistant",
         ]
+
+
+def _add_turn(
+    db_session: Session,
+    chat_session_id: str,
+    *,
+    user_text: str,
+    tool_calls: list[dict],
+    at: datetime,
+) -> None:
+    """Persist one user + assistant turn with tool_calls in the production shape."""
+    db_session.add(
+        ChatMessage(session_id=chat_session_id, role="user", content=user_text, created_at=at)
+    )
+    db_session.add(
+        ChatMessage(
+            session_id=chat_session_id,
+            role="assistant",
+            content="好的。",
+            tool_calls=json.dumps(tool_calls, ensure_ascii=False),
+            created_at=at + timedelta(seconds=1),
+        )
+    )
+    db_session.commit()
+
+
+def _query_call(file_id: str, title: str) -> dict:
+    return {
+        "id": f"call_q_{file_id}",
+        "name": "query_files",
+        "arguments": {"id": file_id},
+        "status": "success",
+        "result": [{"id": file_id, "title": title, "content": "旧内容"}],
+        "error": None,
+    }
+
+
+@pytest.mark.unit
+class TestCrossTurnWorkingSet:
+    """生产事故回归：下一轮不知道上一轮读过什么，于是从零开始反复 query_files。"""
+
+    def _make_file(self, db_session: Session, project_id: str, title: str, content: str, **kw):
+        from models import File
+
+        file = File(project_id=project_id, title=title, content=content, file_type="outline", **kw)
+        db_session.add(file)
+        db_session.commit()
+        db_session.refresh(file)
+        return file
+
+    def test_previous_reads_and_writes_are_injected_with_current_content(
+        self,
+        db_session: Session,
+        session_loader_test_data,
+    ):
+        project = session_loader_test_data["project"]
+        chat_session_id = session_loader_test_data["chat_session"].id
+
+        volume = self._make_file(db_session, project.id, "卷纲", "卷纲旧版")
+        chapter = self._make_file(db_session, project.id, "第一章", "第一章正文")
+        character = self._make_file(db_session, project.id, "林小雨", "角色卡全文")
+        deleted = self._make_file(db_session, project.id, "废稿", "不该出现", is_deleted=True)
+
+        other_project = Project(name="其他项目", owner_id=session_loader_test_data["user"].id)
+        db_session.add(other_project)
+        db_session.commit()
+        foreign = self._make_file(db_session, other_project.id, "别人的文件", "跨项目内容")
+
+        base = datetime.utcnow() - timedelta(minutes=10)
+        # 更早的一轮：超出最近两轮窗口，不应进入工作集
+        stale = self._make_file(db_session, project.id, "很久以前读的", "旧轮次内容")
+        _add_turn(
+            db_session,
+            chat_session_id,
+            user_text="t0",
+            tool_calls=[_query_call(stale.id, stale.title)],
+            at=base,
+        )
+        _add_turn(
+            db_session,
+            chat_session_id,
+            user_text="读一下卷纲",
+            tool_calls=[
+                _query_call(volume.id, "卷纲"),
+                _query_call(volume.id, "卷纲"),  # 同轮重复读取只记一次
+                _query_call(deleted.id, "废稿"),
+                _query_call(foreign.id, "别人的文件"),
+                # 关键词搜索只是预览，不算读过全文
+                {
+                    "id": "c_s",
+                    "name": "query_files",
+                    "arguments": {"query": "林"},
+                    "status": "success",
+                    "result": [],
+                },
+            ],
+            at=base + timedelta(minutes=1),
+        )
+        _add_turn(
+            db_session,
+            chat_session_id,
+            user_text="改第一章",
+            tool_calls=[
+                {
+                    "id": "c_p",
+                    "name": "parallel_execute",
+                    "arguments": {
+                        "tasks": [
+                            {"type": "query_files", "description": "读角色", "params": {"id": character.id}},
+                            {"type": "edit_file", "description": "改章", "params": {"id": chapter.id, "edits": []}},
+                        ]
+                    },
+                    "status": "success",
+                    "result": {"tasks": [{"status": "completed"}, {"status": "completed"}]},
+                },
+            ],
+            at=base + timedelta(minutes=2),
+        )
+
+        # 上一轮之后文件又被改过：注入的必须是当前库内容
+        volume.content = "卷纲最新版\n\n第二段保留换行"
+        db_session.add(volume)
+        db_session.commit()
+
+        loader = SessionLoader(project_id=project.id, user_id=session_loader_test_data["user"].id)
+        result = loader.load_chat_session(db_session)
+        loader.attach_working_set(db_session, result)
+        text = result.working_set_context
+
+        assert "无需再次 query_files" in text
+        for file in (volume, chapter, character):
+            assert f"(id={file.id})" in text
+        assert "卷纲最新版\n\n第二段保留换行" in text
+        assert "卷纲旧版" not in text
+        assert "上一轮已修改" in text  # parallel_execute 的 edit_file 子任务
+        for excluded in (deleted, foreign, stale):
+            assert excluded.id not in text
+
+        # 面包屑同时记下读取过的文件（标题 + id）
+        history_text = json.dumps(result.history_messages, ensure_ascii=False)
+        assert "已读取文件" in history_text
+        assert volume.id in history_text
+        # 工作集全文不进历史消息（不受历史窗口裁剪、不改动已缓存的历史前缀）
+        assert "卷纲最新版" not in history_text
+
+        # 拼到本轮用户消息之前，用户原话在最后
+        user_content = SessionLoader.attach_working_set_to_user_content("继续", text)
+        assert user_content.startswith("<previous_turn_working_set>")
+        assert user_content.endswith("【本轮用户消息】\n继续")
+
+    def test_working_set_respects_budget_and_context_dedupe(
+        self,
+        db_session: Session,
+        session_loader_test_data,
+        monkeypatch,
+    ):
+        from agent.schemas.context import ContextData
+
+        monkeypatch.setattr("agent.core.session_loader.AGENT_WORKING_SET_MAX_FILES", 1)
+        project = session_loader_test_data["project"]
+        chat_session_id = session_loader_test_data["chat_session"].id
+
+        in_context = self._make_file(db_session, project.id, "焦点章", "焦点全文")
+        first = self._make_file(db_session, project.id, "大纲A", "A" * 50)
+        second = self._make_file(db_session, project.id, "大纲B", "B" * 50)
+        _add_turn(
+            db_session,
+            chat_session_id,
+            user_text="读",
+            tool_calls=[
+                _query_call(in_context.id, "焦点章"),
+                _query_call(first.id, "大纲A"),
+                _query_call(second.id, "大纲B"),
+            ],
+            at=datetime.utcnow() - timedelta(minutes=1),
+        )
+
+        loader = SessionLoader(project_id=project.id, user_id=session_loader_test_data["user"].id)
+        result = loader.load_chat_session(db_session)
+        result.context_data = ContextData(
+            context="项目上下文",
+            items=[
+                {
+                    "id": in_context.id,
+                    "type": "outline",
+                    "title": "焦点章",
+                    "content": "焦点全文",
+                    "metadata": {"file_type": "outline", "is_focus": True},
+                }
+            ],
+            refs=[in_context.id],
+            token_estimate=10,
+        )
+        loader.attach_working_set(db_session, result)
+        text = result.working_set_context
+
+        # 已在系统上下文里标注[全文]的文件只列一行，不再附第二份全文
+        assert "焦点全文" not in text
+        assert "已在系统提示的项目上下文中标注[全文]" in text
+        assert f"(id={in_context.id})" in text
+        # 文件数上限：第一份附全文，第二份只列标题 + id
+        assert "A" * 50 in text
+        assert "B" * 50 not in text
+        assert "未附全文" in text
+        assert f"《大纲B》 (id={second.id})" in text

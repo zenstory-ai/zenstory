@@ -147,7 +147,8 @@
     "freeDailyMessageLimitHint": "免费用户每日最多 {{limit}} 条 AI 消息，北京时间次日 00:00 恢复。",
     "monthlyQuotaResetHint": "每月额度于北京时间每月 1 日 00:00 重置。",
     "metricAiConversations": "每日 AI 消息",
-    "metricAiConversationsOutcome": "北京时间 00:00 重置"
+    "metricAiConversationsOutcome": "北京时间 00:00 重置",
+    "supportHint": "订阅、扣费或退款有疑问？请联系客服："
   },
   "todayActionPlan": {
     "title": "今天可以做的 3 件事",

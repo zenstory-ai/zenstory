@@ -128,6 +128,7 @@ export const footer = (lang) => `
           <li><a href="/docs">${t(lang, 'Workbench docs', '工作台文档')}</a></li>
           <li><a href="/privacy-policy">${t(lang, 'Privacy policy', '隐私政策')}</a></li>
           <li><a href="/terms-of-service">${t(lang, 'Terms of service', '服务条款')}</a></li>
+          <li><a href="mailto:support@zenstory.ai">${t(lang, 'Support: support@zenstory.ai', '客服：support@zenstory.ai')}</a></li>
         </ul>
       </nav>
     </div>

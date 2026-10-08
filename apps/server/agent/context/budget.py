@@ -5,6 +5,7 @@ Handles token estimation, budget allocation, and content truncation
 to fit within prompt limits.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 from agent.utils.token_utils import _chars_per_token_for, estimate_text_tokens
@@ -13,16 +14,17 @@ from ..schemas.context import ContextItem, ContextPriority
 
 # Shared prompt-token ledger ceiling for a single request's input side.
 #
-# Context assembly (~6k) and chat history (~6k) used to be budgeted entirely
-# independently and BOTH injected, so the combined input could exceed ~12k with
-# no shared cap. The ledger below lets the already-known prompt costs (system
-# prompt + skill catalog/reference + assembled context) be subtracted from this
-# ceiling so the remaining history window competes for what is actually left.
+# 组装上下文（AGENT_CONTEXT_TOKEN_BUDGET，默认 32k）与聊天历史
+# （AGENT_CHAT_HISTORY_TOKEN_BUDGET，默认 32k）共用这一个台账：已知的 prompt 成本
+# （系统提示 + 技能目录/正文 + 组装上下文 + 跨轮工作集）先从上限里扣掉，历史窗口
+# 只能用剩下的额度。
 #
-# Kept well below the model context window (~200k tokens) and
-# above the default 6k history budget so the ledger only *shrinks* history when
-# the other prompt costs are genuinely large — it never inflates the budget.
-DEFAULT_PROMPT_TOKEN_LEDGER_CEILING = 24000
+# deepseek-flash 的上下文窗口是 1M token，且有自动前缀缓存（命中价约为未命中的
+# 1/50）。上限定在 160k：远低于模型窗口、给本轮工具结果留足空间，同时明显高于
+# 「系统提示 + 32k 上下文 + 32k 历史」的常规总量，所以台账只在其他 prompt 成本
+# 真的很大时才收缩历史，绝不放大历史预算。旧值 24k（按 6k 预算定的）会把上下文
+# 与历史压到模型只能靠反复 query_files 重读来补，重读的成本远高于多带的前缀。
+DEFAULT_PROMPT_TOKEN_LEDGER_CEILING = 160000
 
 # Always leave at least this many tokens for chat history so a large context
 # block can never starve history to zero (which would erase cross-turn memory).
@@ -155,6 +157,7 @@ class TokenBudget:
         self,
         max_tokens: int = 4000,
         allocation: dict[ContextPriority, float] | None = None,
+        item_overhead: Callable[[ContextItem], int] | None = None,
     ):
         """
         Initialize budget manager.
@@ -162,9 +165,12 @@ class TokenBudget:
         Args:
             max_tokens: Maximum total tokens
             allocation: Custom priority allocation percentages
+            item_overhead: 条目渲染时「标题 + 正文」之外的额外 token（如标题行的
+                id / [全文] 标注）；提供时计入每个条目的占用与截断预算
         """
         self.max_tokens = max_tokens
         self.allocation = allocation or self.DEFAULT_ALLOCATION
+        self.item_overhead = item_overhead
         self.used: dict[ContextPriority, int] = dict.fromkeys(ContextPriority, 0)
 
     def estimate_tokens(self, text: str) -> int:
@@ -194,7 +200,12 @@ class TokenBudget:
         Returns:
             Estimated token count
         """
-        return self.estimate_tokens(f"{item.title}\n{item.content}")
+        return self.estimate_tokens(f"{item.title}\n{item.content}") + self._overhead(item)
+
+    def _overhead(self, item: ContextItem) -> int:
+        if self.item_overhead is None:
+            return 0
+        return max(0, int(self.item_overhead(item) or 0))
 
     def get_budget(self, priority: ContextPriority) -> int:
         """
@@ -417,6 +428,8 @@ class TokenBudget:
         Returns:
             Truncated item or None if too small
         """
+        # 渲染开销（标题行的 id / 截断标注）先从可用额度里扣掉
+        max_tokens = max_tokens - self._overhead(item)
         if max_tokens < 20:
             return None
 
@@ -437,11 +450,11 @@ class TokenBudget:
 
         # Guard against estimator/heuristic mismatch (tiktoken's true CJK ratio
         # is lower than the heuristic): shrink until it actually measures within
-        # the token budget.
+        # the token budget（截断后缀也计入预算）.
         guard = 0
         while (
             content
-            and self.estimate_tokens(f"{item.title}\n{content}") > max_tokens
+            and self.estimate_tokens(f"{item.title}\n{content}{TRUNCATION_SUFFIX}") > max_tokens
             and guard < 40
         ):
             content = content[: max(1, int(len(content) * 0.85))]
@@ -454,16 +467,29 @@ class TokenBudget:
                 content = content[:last_sep + 1]
                 break
 
-        content = content.rstrip() + "..."
+        content = content.rstrip()
+        shown_chars = len(content)
+        # 原文总字数：重复截断时保留第一次记录的真实长度。
+        original_chars = item.metadata.get("original_chars")
+        if not isinstance(original_chars, int) or original_chars < len(item.content):
+            original_chars = len(item.content)
 
+        # 不再用裸 "..." 收尾：模型分不清「原文如此」还是「被截断」，只能
+        # query_files 重读确认。显式后缀 + 元数据（渲染时转成
+        # 「[已截断：显示 x/y 字；全文用 query_files(id=…)]」）告诉它缺了多少、去哪取。
         return ContextItem(
             id=item.id,
             type=item.type,
             title=item.title,
-            content=content,
+            content=content + TRUNCATION_SUFFIX,
             relevance_score=item.relevance_score,
             priority=item.priority,
-            metadata={**item.metadata, "truncated": True},
+            metadata={
+                **item.metadata,
+                "truncated": True,
+                "shown_chars": shown_chars,
+                "original_chars": original_chars,
+            },
         )
 
     def get_usage_report(self) -> dict[str, Any]:

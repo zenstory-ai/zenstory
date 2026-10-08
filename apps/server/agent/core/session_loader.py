@@ -17,11 +17,40 @@ from sqlalchemy import desc, or_
 from sqlmodel import Session, and_, select
 
 from agent.utils.token_utils import estimate_message_tokens
-from config.agent_runtime import AGENT_CHAT_HISTORY_TOKEN_BUDGET
+from config.agent_runtime import (
+    AGENT_CHAT_HISTORY_TOKEN_BUDGET,
+    AGENT_CONTEXT_TOKEN_BUDGET,
+    AGENT_WORKING_SET_MAX_CHARS,
+    AGENT_WORKING_SET_MAX_FILES,
+)
 from database import create_session
 from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
+
+# 跨轮工作集取最近几条 assistant 回复里的文件读写记录
+WORKING_SET_RECENT_TURNS = 2
+
+WORKING_SET_HEADER = (
+    "以下为上一轮读取/修改过的文件当前全文（完整，非预览，截至本轮开始）；"
+    "无需再次 query_files："
+)
+WORKING_SET_USER_MESSAGE_LABEL = "【本轮用户消息】"
+
+# 工具名 → 面包屑里的动作（读取类只认按 id 精确读取的 query_files）
+_BREADCRUMB_VERBS_ZH = {
+    "create_file": "已创建文件",
+    "edit_file": "已编辑文件",
+    "delete_file": "已删除文件",
+    "query_files": "已读取文件",
+}
+_BREADCRUMB_VERBS_EN = {
+    "create_file": "Created file",
+    "edit_file": "Edited file",
+    "delete_file": "Deleted file",
+    "query_files": "Read file",
+}
+_FAILED_TOOL_STATUSES = {"error", "failed", "failure"}
 
 
 @dataclass
@@ -32,6 +61,10 @@ class SessionData:
     session_id: str | None = None
     history_messages: list[dict[str, Any]] = field(default_factory=list)
     context_data: Any | None = None
+    # 最近两轮 assistant 读/写过的文件（新 → 旧，已去重），每项 {file_id, title, action}
+    working_set_refs: list[dict[str, Any]] = field(default_factory=list)
+    # 按当前库内容渲染的跨轮工作集纯文本块；没有可注入内容时为空串
+    working_set_context: str = ""
 
 
 class SessionLoader:
@@ -68,7 +101,7 @@ class SessionLoader:
         attached_file_ids: list[str] | None = None,
         attached_library_materials: list[dict[str, int]] | None = None,
         text_quotes: list[dict[str, str]] | None = None,
-        max_tokens: int = 6000,
+        max_tokens: int = AGENT_CONTEXT_TOKEN_BUDGET,
     ):
         """
         Assemble context using the context assembler.
@@ -273,7 +306,204 @@ class SessionLoader:
             history_token_budget=AGENT_CHAT_HISTORY_TOKEN_BUDGET,
         )
 
+        # 跨轮工作集只在上面的项目归属校验通过后才收集
+        result.working_set_refs = self._load_recent_working_set_refs(
+            session=session,
+            chat_session_id=chat_session.id,
+        )
+
         return result
+
+    # ------------------------------------------------------------------
+    # 跨轮工作集
+    # ------------------------------------------------------------------
+    #
+    # 生产事故：runner 回放历史时丢弃工具结果，面包屑又只记创建/编辑/删除，
+    # 新一轮里模型完全不知道上一轮读过什么——「继续」从零开始，同一份卷纲
+    # 每轮重读 4 次以上。这里从最近两轮 assistant 持久化的 tool_calls 里取出
+    # 读过（query_files(id=…)，含 parallel_execute 的 query_files 子任务）或
+    # 写过的文件，**按当前库内容**重新加载全文，作为纯文本块注入本轮。
+    # 仍然是纯文本：不回放原始 tool_use/tool_result 块（孤立 tool_call_id 风险，
+    # 见 openai_agents/runner.py:extract_text_from_message_content）。
+
+    def _load_recent_working_set_refs(
+        self,
+        *,
+        session: Session,
+        chat_session_id: str,
+    ) -> list[dict[str, Any]]:
+        """取最近 WORKING_SET_RECENT_TURNS 条 assistant 回复里读/写过的文件（新 → 旧）。"""
+        from models import ChatMessage
+
+        rows = session.exec(
+            select(ChatMessage)
+            .where(
+                and_(
+                    ChatMessage.session_id == chat_session_id,
+                    ChatMessage.role == "assistant",
+                )
+            )
+            .order_by(desc(ChatMessage.created_at), desc(ChatMessage.id))
+            .limit(WORKING_SET_RECENT_TURNS)
+        ).all()
+
+        refs: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        deleted: set[str] = set()
+        for row in rows:  # 新 → 旧
+            actions = self._extract_file_actions(getattr(row, "tool_calls", None))
+            # 同一轮里先找删除：被删掉的文件不再进工作集
+            for action in actions:
+                if action["name"] == "delete_file" and action["file_id"]:
+                    deleted.add(action["file_id"])
+            for action in actions:
+                file_id = action["file_id"]
+                if not file_id or action["name"] == "delete_file":
+                    continue
+                if file_id in deleted or file_id in seen:
+                    continue
+                seen.add(file_id)
+                refs.append(
+                    {
+                        "file_id": file_id,
+                        "title": action["title"],
+                        "action": "read" if action["name"] == "query_files" else "write",
+                    }
+                )
+        return refs
+
+    def attach_working_set(self, session: Session, result: SessionData) -> None:
+        """按当前库内容渲染跨轮工作集，写入 result.working_set_context。
+
+        已在组装上下文里以 [全文] 出现的文件不再重复附全文，只列一行指向它。
+        """
+        refs = result.working_set_refs
+        if not refs or not self.user_id:
+            result.working_set_context = ""
+            return
+        try:
+            result.working_set_context = self._build_working_set_context(
+                session=session,
+                refs=refs,
+                full_in_context_ids=self._full_text_context_ids(result.context_data),
+            )
+        except Exception as exc:  # 工作集是增益信息，失败不影响本轮请求
+            log_with_context(
+                logger,
+                30,  # WARNING
+                "Working set build failed",
+                project_id=self.project_id,
+                user_id=self.user_id,
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+            result.working_set_context = ""
+
+    @staticmethod
+    def _full_text_context_ids(context_data: Any) -> set[str]:
+        """组装上下文里未被截断（渲染为 [全文]）的项目文件 id。"""
+        from agent.core.message_manager import MessageManager
+
+        if context_data is None:
+            return set()
+        if not MessageManager._raw_context_is_complete(getattr(context_data, "context", "")):
+            return set()
+
+        ids: set[str] = set()
+        for item in getattr(context_data, "items", None) or []:
+            if not isinstance(item, dict):
+                continue
+            metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+            if (
+                not metadata.get("file_type")
+                or metadata.get("truncated")
+                or metadata.get("retrieved")
+                or metadata.get("library_material")
+            ):
+                continue
+            file_id = str(item.get("id") or "").strip()
+            if file_id:
+                ids.add(file_id)
+        return ids
+
+    def _build_working_set_context(
+        self,
+        *,
+        session: Session,
+        refs: list[dict[str, Any]],
+        full_in_context_ids: set[str],
+        max_files: int | None = None,
+        max_chars: int | None = None,
+    ) -> str:
+        """渲染工作集文本块：最多 max_files 份全文、合计不超过 max_chars 字。"""
+        from models import File
+
+        max_files = AGENT_WORKING_SET_MAX_FILES if max_files is None else max_files
+        max_chars = AGENT_WORKING_SET_MAX_CHARS if max_chars is None else max_chars
+
+        ids = [ref["file_id"] for ref in refs]
+        files = session.exec(
+            select(File).where(
+                File.id.in_(ids),
+                File.project_id == self.project_id,
+                File.is_deleted.is_(False),
+            )
+        ).all()
+        files_by_id = {str(f.id): f for f in files if getattr(f, "file_type", None) != "folder"}
+
+        full_blocks: list[str] = []
+        omitted: list[str] = []
+        in_context: list[str] = []
+        used_chars = 0
+        for ref in refs:
+            file = files_by_id.get(ref["file_id"])
+            if file is None:
+                # 已删除 / 不属于本项目 / 文件夹：不注入
+                continue
+            title = str(file.title or ref.get("title") or "").strip() or "（未命名）"
+            label = f"《{title}》 (id={file.id})"
+            if str(file.id) in full_in_context_ids:
+                in_context.append(f"- {label}")
+                continue
+
+            content = file.content or ""
+            if len(full_blocks) < max_files and used_chars + len(content) <= max_chars:
+                action = "上一轮已修改" if ref["action"] == "write" else "上一轮已读取"
+                full_blocks.append(
+                    f"### {label} [全文，{len(content)} 字；{action}]\n{content}".rstrip()
+                )
+                used_chars += len(content)
+            else:
+                omitted.append(f"- {label}（{len(content)} 字）")
+
+        if not full_blocks and not omitted and not in_context:
+            return ""
+
+        lines = ["<previous_turn_working_set>", WORKING_SET_HEADER, ""]
+        for block in full_blocks:
+            lines.extend([block, ""])
+        if in_context:
+            lines.append("已在系统提示的项目上下文中标注[全文]（直接使用，不必重读）：")
+            lines.extend(in_context)
+            lines.append("")
+        if omitted:
+            lines.append("未附全文（超出工作集预算；确需全文时再用 query_files(id=…) 读取一次）：")
+            lines.extend(omitted)
+            lines.append("")
+        lines.append("</previous_turn_working_set>")
+        return "\n".join(lines)
+
+    @staticmethod
+    def attach_working_set_to_user_content(user_content: str, working_set_context: str) -> str:
+        """把工作集块放在本轮用户消息之前（同一条 user 消息里）。
+
+        放在这里而不是系统提示里：系统提示与历史消息保持不变，前缀缓存可以
+        一直命中到上一轮为止；工作集每轮都会变，只能放在最末尾。也不单独插一条
+        user 消息，避免连续两条 user 消息。
+        """
+        if not working_set_context:
+            return user_content
+        return f"{working_set_context}\n\n{WORKING_SET_USER_MESSAGE_LABEL}\n{user_content}"
 
     def _load_session_and_context_sync(
         self,
@@ -283,7 +513,7 @@ class SessionLoader:
         attached_file_ids: list[str] | None = None,
         attached_library_materials: list[dict[str, int]] | None = None,
         text_quotes: list[dict[str, str]] | None = None,
-        max_tokens: int = 6000,
+        max_tokens: int = AGENT_CONTEXT_TOKEN_BUDGET,
     ) -> SessionData:
         """
         Load session and context using a fresh sync DB session.
@@ -303,6 +533,7 @@ class SessionLoader:
                 text_quotes,
                 max_tokens,
             )
+            self.attach_working_set(read_session, result)
             return result
 
     def _should_offload_session_work(self, session: Session) -> bool:
@@ -459,10 +690,12 @@ class SessionLoader:
         # Tool-turn breadcrumbs (cross-request tool memory).
         #
         # ChatMessage.tool_calls persists what the assistant DID last turn
-        # (file create/edit/delete), but on a new request the agent otherwise
-        # only sees the prose reply — it has no record that it created/edited a
-        # file. We synthesize a COMPACT assistant TEXT breadcrumb here so that
-        # memory survives across requests.
+        # (file create/edit/delete, exact-id query_files reads), but on a new
+        # request the agent otherwise only sees the prose reply — it has no
+        # record that it created/edited/read a file. We synthesize a COMPACT
+        # assistant TEXT breadcrumb here so that memory survives across requests.
+        # 文件的当前全文不放在这里（会被历史窗口按 token 预算裁掉），而是由
+        # attach_working_set 另行渲染、拼到本轮用户消息前。
         #
         # CRITICAL: this is plain TEXT, never raw tool_use/tool_result blocks.
         # Re-emitting structured tool blocks from a prior turn risks orphaned
@@ -531,46 +764,177 @@ class SessionLoader:
         else:
             msg_data["content"] = text
 
-    def _build_tool_calls_history_content(self, tool_calls_raw: Any) -> str:
-        """
-        Synthesize a compact text breadcrumb from persisted ChatMessage.tool_calls.
-
-        Summarizes file create/edit/delete operations by title + id so the agent
-        remembers what it did on prior turns. Tool arguments and full results are
-        intentionally NOT dumped — only a one-line summary per file operation.
-        Returns an empty string when there is nothing worth recording.
-        """
-        if isinstance(tool_calls_raw, str):
+    @staticmethod
+    def _parse_json_value(value: Any) -> Any:
+        """tool_calls / arguments 可能以 JSON 字符串持久化，统一解析成 Python 值。"""
+        if isinstance(value, str):
             try:
-                tool_calls = json.loads(tool_calls_raw)
+                return json.loads(value)
             except (TypeError, json.JSONDecodeError):
-                return ""
-        else:
-            tool_calls = tool_calls_raw
+                return None
+        return value
 
+    @staticmethod
+    def _find_title_for_id(payload: Any, file_id: str, depth: int = 0) -> str | None:
+        """在 query_files 等工具结果里找到 id 对应的标题（结果可能是 dict / list / 嵌套 data）。"""
+        if depth > 4 or payload is None:
+            return None
+        if isinstance(payload, dict):
+            for key in ("id", "file_id", "fileId"):
+                if str(payload.get(key) or "").strip() == file_id:
+                    title = payload.get("title")
+                    if isinstance(title, str) and title.strip():
+                        return title.strip()
+            for value in payload.values():
+                if isinstance(value, dict | list):
+                    found = SessionLoader._find_title_for_id(value, file_id, depth + 1)
+                    if found:
+                        return found
+            return None
+        if isinstance(payload, list):
+            for value in payload:
+                found = SessionLoader._find_title_for_id(value, file_id, depth + 1)
+                if found:
+                    return found
+        return None
+
+    @staticmethod
+    def _first_id_in(payload: Any, keys: tuple[str, ...] = ("id", "file_id", "fileId")) -> str | None:
+        """从 dict（或其 data 字段）里取第一个非空 id。"""
+        for candidate in (payload, payload.get("data") if isinstance(payload, dict) else None):
+            if not isinstance(candidate, dict):
+                continue
+            for key in keys:
+                value = candidate.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+        return None
+
+    def _extract_file_actions(self, tool_calls_raw: Any) -> list[dict[str, Any]]:
+        """把持久化的 tool_calls 归一成文件动作列表（按调用顺序）。
+
+        每项 {name, file_id, title}，name ∈ create_file/edit_file/delete_file/query_files。
+        - 失败的调用一律忽略；
+        - query_files 只认按 id 精确读取（关键词搜索只是预览，不算读过全文）；
+        - parallel_execute 展开其中的 query_files / edit_file / delete_file /
+          write_chapter 子任务（write_chapter 视为创建）。
+        """
+        tool_calls = self._parse_json_value(tool_calls_raw)
         if not isinstance(tool_calls, list):
-            return ""
+            return []
 
-        force_en = (os.getenv("AGENT_HISTORY_BREADCRUMB_LANG") or "").strip().lower().startswith("en")
-
-        lines: list[str] = []
+        actions: list[dict[str, Any]] = []
         for tc in tool_calls:
             if not isinstance(tc, dict):
                 continue
 
             name = str(tc.get("name") or "").strip()
-            if name not in {"create_file", "edit_file", "delete_file"}:
-                continue
-
             status = str(tc.get("status") or "").strip().lower()
-            if status in {"error", "failed", "failure"} or tc.get("error"):
+            if status in _FAILED_TOOL_STATUSES or tc.get("error"):
                 continue
 
-            file_id = self._extract_breadcrumb_file_id(tc)
-            title = self._extract_breadcrumb_title(tc)
+            if name in {"create_file", "edit_file", "delete_file"}:
+                actions.append(
+                    {
+                        "name": name,
+                        "file_id": self._extract_breadcrumb_file_id(tc),
+                        "title": self._extract_breadcrumb_title(tc),
+                    }
+                )
+                continue
 
-            line = self._format_breadcrumb_line(name, title, file_id, force_en=force_en)
-            if line:
+            if name == "query_files":
+                args = self._parse_json_value(tc.get("arguments"))
+                file_id = str(args.get("id") or "").strip() if isinstance(args, dict) else ""
+                if file_id:
+                    actions.append(
+                        {
+                            "name": "query_files",
+                            "file_id": file_id,
+                            "title": self._find_title_for_id(tc.get("result"), file_id),
+                        }
+                    )
+                continue
+
+            if name == "parallel_execute":
+                actions.extend(self._extract_parallel_file_actions(tc))
+
+        return actions
+
+    def _extract_parallel_file_actions(self, tc: dict[str, Any]) -> list[dict[str, Any]]:
+        """展开 parallel_execute 里与文件相关的子任务。"""
+        args = self._parse_json_value(tc.get("arguments"))
+        tasks = args.get("tasks") if isinstance(args, dict) else None
+        if not isinstance(tasks, list):
+            return []
+
+        result = self._parse_json_value(tc.get("result"))
+        task_results = result.get("tasks") if isinstance(result, dict) else None
+        if not isinstance(task_results, list):
+            task_results = []
+
+        actions: list[dict[str, Any]] = []
+        for index, task in enumerate(tasks):
+            if not isinstance(task, dict):
+                continue
+            task_type = str(task.get("type") or "").strip()
+            params = self._parse_json_value(task.get("params"))
+            params = params if isinstance(params, dict) else {}
+
+            task_result = task_results[index] if index < len(task_results) else None
+            if isinstance(task_result, dict):
+                task_status = str(task_result.get("status") or "").strip().lower()
+                if task_status in _FAILED_TOOL_STATUSES or task_result.get("error"):
+                    continue
+            task_payload = task_result.get("result") if isinstance(task_result, dict) else None
+
+            if task_type == "query_files":
+                file_id = str(params.get("id") or "").strip()
+                if file_id:
+                    actions.append(
+                        {
+                            "name": "query_files",
+                            "file_id": file_id,
+                            "title": self._find_title_for_id(task_payload, file_id),
+                        }
+                    )
+            elif task_type in {"edit_file", "delete_file"}:
+                file_id = self._first_id_in(params) or self._first_id_in(task_payload)
+                if file_id:
+                    actions.append(
+                        {
+                            "name": task_type,
+                            "file_id": file_id,
+                            "title": self._find_title_for_id(task_payload, file_id),
+                        }
+                    )
+            elif task_type == "write_chapter":
+                file_id = self._first_id_in(task_payload)
+                title = params.get("title") if isinstance(params.get("title"), str) else None
+                if file_id or title:
+                    actions.append({"name": "create_file", "file_id": file_id, "title": title})
+        return actions
+
+    def _build_tool_calls_history_content(self, tool_calls_raw: Any) -> str:
+        """
+        Synthesize a compact text breadcrumb from persisted ChatMessage.tool_calls.
+
+        Summarizes file create/edit/delete operations and exact-id reads by
+        title + id so the agent remembers what it did and read on prior turns.
+        Tool arguments and full results are intentionally NOT dumped — only a
+        one-line summary per file operation (duplicates collapsed).
+        Returns an empty string when there is nothing worth recording.
+        """
+        force_en = (os.getenv("AGENT_HISTORY_BREADCRUMB_LANG") or "").strip().lower().startswith("en")
+
+        lines: list[str] = []
+        seen: set[str] = set()
+        for action in self._extract_file_actions(tool_calls_raw):
+            line = self._format_breadcrumb_line(
+                action["name"], action["title"], action["file_id"], force_en=force_en
+            )
+            if line and line not in seen:
+                seen.add(line)
                 lines.append(line)
 
         if not lines:
@@ -625,19 +989,10 @@ class SessionLoader:
         title_part = f"《{title}》" if title else ("(untitled)" if force_en else "（未命名）")
         id_part = f" (id={file_id})" if file_id else ""
 
-        if force_en:
-            verb = {
-                "create_file": "Created file",
-                "edit_file": "Edited file",
-                "delete_file": "Deleted file",
-            }[name]
-            return f"- {verb} {title_part}{id_part}"
-
-        verb = {
-            "create_file": "已创建文件",
-            "edit_file": "已编辑文件",
-            "delete_file": "已删除文件",
-        }[name]
+        verbs = _BREADCRUMB_VERBS_EN if force_en else _BREADCRUMB_VERBS_ZH
+        verb = verbs.get(name)
+        if not verb:
+            return ""
         return f"- {verb} {title_part}{id_part}"
 
     def _build_status_cards_history_content(
@@ -746,14 +1101,19 @@ class SessionLoader:
         attached_file_ids: list[str] | None = None,
         attached_library_materials: list[dict[str, int]] | None = None,
         text_quotes: list[dict[str, str]] | None = None,
-        max_tokens: int = 6000,
+        max_tokens: int = AGENT_CONTEXT_TOKEN_BUDGET,
     ) -> "SessionData":
         """
-        Load chat session and assemble context.
+        Load chat session, assemble context and build the cross-turn working set.
+
+        名字是历史遗留：这里**不做**任何会话压缩/总结（从来没有 compaction 模块），
+        历史只是按 token 预算取最近的滑动窗口。为不破坏调用方与测试桩保留原名。
 
         This is the primary method for new code. It combines:
-        1. Chat session loading
+        1. Chat session loading (newest-first history window + working set refs)
         2. Context assembly
+        3. Working set rendering (current DB content of files read/written in
+           the last two assistant turns, deduped against full-text context items)
 
         Args:
             session: Database session
@@ -795,5 +1155,6 @@ class SessionLoader:
                 text_quotes,
                 max_tokens,
             )
+            self.attach_working_set(session, result)
 
         return result

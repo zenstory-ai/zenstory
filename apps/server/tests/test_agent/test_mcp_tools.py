@@ -985,7 +985,8 @@ async def test_query_files_falls_back_for_legacy_executor_signature():
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_hybrid_search_forwards_args_to_executor():
+async def test_hybrid_search_forwards_args_to_executor(monkeypatch):
+    monkeypatch.setenv("AGENT_TOOL_HYBRID_SEARCH_ENABLED", "true")
     mock_executor = MagicMock()
     mock_executor.hybrid_search.return_value = {
         "query": "hero",
@@ -1018,8 +1019,9 @@ async def test_hybrid_search_forwards_args_to_executor():
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_hybrid_search_executor_failure_returns_error():
+async def test_hybrid_search_executor_failure_returns_error(monkeypatch):
     """When executor.hybrid_search raises, tool returns error with structured log."""
+    monkeypatch.setenv("AGENT_TOOL_HYBRID_SEARCH_ENABLED", "true")
     mock_executor = MagicMock()
     mock_executor.hybrid_search.side_effect = RuntimeError("vector infra down")
 
@@ -1459,3 +1461,116 @@ async def test_create_file_rejection_names_the_unblocking_action(db_session):
     finally:
         ToolContext.clear_pending_empty_file()
         ToolContext.clear_context()
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_hybrid_search_disabled_returns_recoverable_tool_error(monkeypatch):
+    """关闭时不是 success+空结果，而是点名替代工具的可恢复错误，且不触达检索后端。"""
+    monkeypatch.setenv("AGENT_TOOL_HYBRID_SEARCH_ENABLED", "false")
+    mock_executor = MagicMock()
+
+    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
+        "agent.tools.mcp_tools.ToolContext._get_context",
+        return_value={"project_id": "proj-1"},
+    ):
+        result = await hybrid_search({"query": "hero"})
+
+    payload = _parse_payload(result)
+    assert payload["status"] == "error"
+    assert payload["error_type"] == "tool_disabled"
+    assert "query_files(query=...)" in payload["error"]
+    assert "不要再调用 hybrid_search" in payload["error"]
+    mock_executor.hybrid_search.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("args", "expected_limit"),
+    [
+        ({"response_mode": "full"}, 10),
+        ({"include_content": "true"}, 10),
+        ({"response_mode": "full", "limit": 30}, 30),
+        ({"id": "f-1", "response_mode": "full"}, 50),
+        ({}, 50),
+        ({"response_mode": "summary"}, 50),
+    ],
+)
+async def test_query_files_full_listing_defaults_to_small_limit(args, expected_limit):
+    mock_executor = MagicMock()
+    mock_executor.query_files.return_value = []
+
+    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
+        "agent.tools.mcp_tools.ToolContext._get_context",
+        return_value={"project_id": "proj-1"},
+    ):
+        await query_files(args)
+
+    assert mock_executor.query_files.call_args.kwargs["limit"] == expected_limit
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_oversized_query_result_keeps_every_file_identity_and_truncates_content():
+    """超限时保留每条的 id/title/file_type/status，只截 content，而不是整体换成占位符。"""
+    files = [
+        {"id": f"f-{index}", "title": f"第{index}章", "file_type": "draft", "status": "done", "content": "字" * 3_000}
+        for index in range(8)
+    ]
+    mock_executor = MagicMock()
+    mock_executor.query_files.return_value = files
+
+    with patch("agent.tools.mcp_tools.ToolContext.get_executor", return_value=mock_executor), patch(
+        "agent.tools.mcp_tools.ToolContext._get_context",
+        return_value={"project_id": "proj-1", "session_id": "sess-1"},
+    ), patch("agent.tools.mcp_tools.TOOL_RESULT_MAX_CHARS", 8_000), patch(
+        "agent.tools.mcp_tools._record_artifact_ledger", return_value=True
+    ):
+        result = await query_files({"response_mode": "full", "limit": 8})
+
+    text = result["content"][0]["text"]
+    assert len(text) <= 8_000
+    payload = json.loads(text)
+    assert payload["status"] == "success"
+    assert payload["truncated"] is True
+    assert payload["overflow_ref"].startswith("tool_result_overflow:")
+    assert 'query_files(id=…, response_mode="full")' in payload["note"]
+    assert [item["id"] for item in payload["data"]] == [file["id"] for file in files]
+    for item, original in zip(payload["data"], files, strict=True):
+        assert item["title"] == original["title"]
+        assert item["file_type"] == "draft"
+        assert item["status"] == "done"
+        assert item["content_truncated"] is True
+        assert item["content_length"] == 3_000
+        assert original["content"].startswith(item["content"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_oversized_parallel_payload_keeps_failure_signal():
+    from agent.tools.mcp_tools import _make_result
+
+    payload = {
+        "status": "success",
+        "mutation_applied": False,
+        "data": {
+            "any_failed": True,
+            "failed": 1,
+            "tasks": [
+                {"id": "t1", "status": "failed", "error": "boom", "result": None},
+                {"id": "t2", "status": "completed", "error": None, "result": {"content": "y" * 50_000}},
+            ],
+        },
+    }
+    with patch("agent.tools.mcp_tools.TOOL_RESULT_MAX_CHARS", 4_000), patch(
+        "agent.tools.mcp_tools._record_artifact_ledger", return_value=False
+    ):
+        text = _make_result(payload, tool_name="parallel_execute")["content"][0]["text"]
+
+    compact = json.loads(text)
+    assert len(text) <= 4_000
+    assert compact["mutation_applied"] is False
+    assert compact["data"]["any_failed"] is True
+    assert compact["data"]["tasks"][0] == {"id": "t1", "status": "failed", "error": "boom", "result": None}
+    assert compact["data"]["tasks"][1]["result"]["content_truncated"] is True

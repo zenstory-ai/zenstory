@@ -17,6 +17,7 @@ from typing import Any
 from sqlmodel import Session, select
 
 # Local
+from config.agent_runtime import AGENT_CONTEXT_TOKEN_BUDGET
 from utils.logger import get_logger, log_with_context
 
 from ..constants import CONTENT_FILE_TYPES, INVENTORY_FILE_TYPES
@@ -49,6 +50,10 @@ PROJECT_STATUS_TOKEN_RATIO = 0.25
 # 项目状态里单个长字段（summary / notes）无论如何都要保留的最小 token 数，
 # 免得极端预算下把项目简介裁成空字符串。
 MIN_PROJECT_STATUS_FIELD_TOKENS = 120
+
+
+# 「相关内容详情」段头的读取约定：带 [全文] 标注的条目无需再 query_files。
+FULL_TEXT_CONTEXT_NOTICE = "标注[全文]的条目就是该文件当前完整内容，直接使用，不要再读取。"
 
 
 DEFAULT_RETRIEVAL_SEMANTIC_TIMEOUT_S = 5.0
@@ -93,7 +98,7 @@ class ContextAssembler:
         attached_file_ids: list[str] | None = None,
         attached_library_materials: list[dict[str, int]] | None = None,
         text_quotes: list[dict[str, str]] | None = None,
-        max_tokens: int = 6000,
+        max_tokens: int = AGENT_CONTEXT_TOKEN_BUDGET,
         include_characters: bool = True,
         include_lores: bool = True,
     ) -> ContextData:
@@ -253,8 +258,19 @@ class ContextAssembler:
                 inventory_token_budget=inventory_token_budget,
             )
         )
-        item_token_budget = max(MIN_ITEM_TOKEN_BUDGET, max_tokens - header_tokens)
-        budget = TokenBudget(max_tokens=item_token_budget)
+        # 条目标题行渲染时额外带 " (id=…) [全文]/[已截断：…]"，以及「相关内容详情」
+        # 段头的读取约定：只让真正入选的条目各自承担这部分开销（item_overhead），
+        # 段头开销先预留，否则整块会超出 max_tokens。
+        section_overhead = estimate_text_tokens(
+            f"{'=' * 60}\n相关内容详情\n{'=' * 60}\n{FULL_TEXT_CONTEXT_NOTICE}\n"
+        ) if items else 0
+        item_token_budget = max(
+            MIN_ITEM_TOKEN_BUDGET, max_tokens - header_tokens - section_overhead
+        )
+        budget = TokenBudget(
+            max_tokens=item_token_budget,
+            item_overhead=self._item_render_overhead_tokens,
+        )
         prioritized = self.prioritizer.prioritize(items)
         groups = self.prioritizer.group_by_priority(prioritized)
         selected, budget_used = budget.select_items(prioritized, groups)
@@ -1783,6 +1799,69 @@ class ContextAssembler:
             hints.append("⚠️ 注意：第1章正文缺失。批量生成正文时请优先补齐第1章，避免从第2章开始造成断档。")
         return hints
 
+    @staticmethod
+    def _item_file_id(item: ContextItem) -> str | None:
+        """条目对应的项目文件 id（可直接传给 query_files）；非项目文件返回 None。"""
+        metadata = item.metadata or {}
+        if metadata.get("library_material"):
+            return None
+        if metadata.get("retrieved"):
+            entity_id = str(metadata.get("entity_id") or "").strip()
+            return entity_id or None
+        if not metadata.get("file_type"):
+            # 引用文本等合成条目没有对应文件
+            return None
+        file_id = str(item.id or "").strip()
+        return file_id or None
+
+    @classmethod
+    def _completeness_tag(cls, item: ContextItem) -> str:
+        """渲染条目的完整性标注。
+
+        生产事故：注入的条目只有标题 + 被压缩/截断的正文、结尾一个裸 "..."，
+        模型无从判断看到的是不是全文，于是每轮都用 query_files 重读同一份文件。
+        现在每条都显式标注 [全文] 或 [已截断：显示 x/y 字；全文用 query_files(id=…)]。
+        """
+        metadata = item.metadata or {}
+        file_id = cls._item_file_id(item)
+        if metadata.get("retrieved"):
+            if file_id:
+                return f'[检索片段，非全文；全文用 query_files(id="{file_id}")]'
+            return "[检索片段，非全文]"
+        if item.type == "quote":
+            return ""
+        if item.is_truncated:
+            shown = metadata.get("shown_chars")
+            total = metadata.get("original_chars")
+            size = (
+                f"显示 {shown}/{total} 字"
+                if isinstance(shown, int) and isinstance(total, int)
+                else "仅显示开头部分"
+            )
+            if file_id:
+                return f'[已截断：{size}；全文用 query_files(id="{file_id}")]'
+            return f"[已截断：{size}]"
+        return "[全文]"
+
+    @staticmethod
+    def _item_render_overhead_tokens(item: ContextItem) -> int:
+        """单个条目标题行在「标题 + 正文」之外的渲染开销（按最长的「已截断」标注计，宁多勿少）。"""
+        n = max(len(item.content or ""), int((item.metadata or {}).get("original_chars") or 0))
+        return estimate_text_tokens(
+            f' (id={item.id}) ← 当前焦点 [已截断：显示 {n}/{n} 字；'
+            f'全文用 query_files(id="{item.id}")]'
+        )
+
+    @classmethod
+    def _item_heading(cls, item: ContextItem, prefix: str = "") -> str:
+        """条目标题行：`[关系] 标题 (id=…) ← 当前焦点 [全文]`。"""
+        file_id = cls._item_file_id(item)
+        id_part = f" (id={file_id})" if file_id else ""
+        focus_mark = " ← 当前焦点" if item.is_focus else ""
+        tag = cls._completeness_tag(item)
+        tag_part = f" {tag}" if tag else ""
+        return f"{prefix}{item.title}{id_part}{focus_mark}{tag_part}"
+
     def _format_context(
         self,
         items: list[ContextItem],
@@ -1898,6 +1977,7 @@ class ContextAssembler:
             parts.append(separator)
             parts.append("相关内容详情")
             parts.append(separator)
+            parts.append(FULL_TEXT_CONTEXT_NOTICE)
             parts.append("")
 
         # Outlines (detailed content)
@@ -1906,8 +1986,7 @@ class ContextAssembler:
             for item in sections["outline"]:
                 relation = item.metadata.get("relation", "")
                 prefix = f"[{relation}] " if relation else ""
-                focus_mark = " ← 当前焦点" if item.is_focus else ""
-                parts.append(f"{prefix}{item.title}{focus_mark}")
+                parts.append(self._item_heading(item, prefix))
                 parts.append(item.content)
                 parts.append("")
 
@@ -1917,8 +1996,7 @@ class ContextAssembler:
             for item in sections["draft"]:
                 relation = item.metadata.get("relation", "")
                 prefix = f"[{relation}] " if relation else ""
-                focus_mark = " ← 当前焦点" if item.is_focus else ""
-                parts.append(f"{prefix}{item.title}{focus_mark}")
+                parts.append(self._item_heading(item, prefix))
                 parts.append(item.content)
                 parts.append("")
 
@@ -1946,8 +2024,7 @@ class ContextAssembler:
                 prefix = f"[{' | '.join(meta_parts)}] " if meta_parts else ""
                 # 参考素材区块同样可能承载焦点文件（snippet 类型），必须带焦点标记，
                 # 否则模型无法从同区块的多条素材里分辨用户当前指的是哪一条。
-                focus_mark = " ← 当前焦点" if item.is_focus else ""
-                parts.append(f"{prefix}{item.title}{focus_mark}")
+                parts.append(self._item_heading(item, prefix))
                 parts.append(item.content)
                 parts.append("")
 
@@ -1955,8 +2032,7 @@ class ContextAssembler:
         if sections["character"]:
             parts.append("【角色信息】")
             for item in sections["character"]:
-                focus_mark = " ← 当前焦点" if item.is_focus else ""
-                parts.append(f"{item.title}{focus_mark}")
+                parts.append(self._item_heading(item))
                 parts.append(item.content)
                 parts.append("")
 
@@ -1966,8 +2042,7 @@ class ContextAssembler:
             for item in sections["lore"]:
                 category = item.metadata.get("category", "")
                 prefix = f"[{category}] " if category else ""
-                focus_mark = " ← 当前焦点" if item.is_focus else ""
-                parts.append(f"{prefix}{item.title}{focus_mark}")
+                parts.append(self._item_heading(item, prefix))
                 parts.append(item.content)
                 parts.append("")
 

@@ -33,3 +33,21 @@ def test_renderer_keeps_real_file_protocol_and_folders():
     for expected in ["project-test", "DB d-id", "DB GUIDELINES", "<file>", "</file>", "edit_file", "query_files", "parallel_execute", "parent_id='c-id'"]:
         assert expected in prompt
     assert DIALOGUE_GUIDELINES not in prompt
+
+
+def test_read_budget_prevents_redundant_rereads():
+    """生产事故回归：模型反复 query_files 重读已在上下文里的全文。"""
+    assert "### 读取预算" in UNIFIED_EXECUTION_PROTOCOL
+    assert "同一文件本轮最多读取一次全文" in UNIFIED_EXECUTION_PROTOCOL
+    assert "修改前用 query_files 读取目标" not in UNIFIED_EXECUTION_PROTOCOL
+    assert "修改前确保持有目标原文" in UNIFIED_EXECUTION_PROTOCOL
+
+    prompt = get_base_prompt("project-test", {"draft": "d-id"}, {
+        "role_definition": "R", "capabilities": "C", "directory_structure": "{draft}",
+        "content_structure": "S", "file_types": "T", "writing_guidelines": "G",
+    })
+    # 语义检索可能被禁用：不能再把 hybrid_search 宣传成首选
+    assert "混合检索（向量 + 关键词融合）" not in prompt
+    assert "可能未启用" in prompt
+    # 旁白：只在本轮第一次调用工具前说一句
+    assert "本轮第一次调用工具前" in prompt

@@ -7,6 +7,7 @@ Defines tool functions that can be called by the writing-agent adapter.
 import asyncio
 import contextlib
 import contextvars
+import copy
 import json
 import os
 import re
@@ -21,6 +22,11 @@ from sqlmodel import Session, and_, select
 from agent.constants import CONTENT_FILE_TYPES, INVENTORY_FILE_TYPES, coerce_bool
 from agent.skills.content_budget import SkillContentBudget
 from agent.tools.file_ops import FileToolExecutor
+from agent.tools.file_ops.serialization import (
+    QUERY_FILES_DEFAULT_LIMIT,
+    QUERY_FILES_FULL_MODE_DEFAULT_LIMIT,
+    QUERY_FILES_RESPONSE_MODE_FULL,
+)
 from utils.logger import get_logger, log_with_context
 from utils.title_sequence import extract_chapter_like_sequence_number, parse_chinese_number
 
@@ -66,6 +72,10 @@ def _should_offload_tool_execution() -> bool:
     "在事件循环线程上等另一个线程释放"的死等。因此这里恒为 True。
     """
     return True
+
+
+HYBRID_SEARCH_DISABLED_ERROR_TYPE = "tool_disabled"
+HYBRID_SEARCH_DISABLED_MESSAGE = "检索功能未启用，请改用 query_files(query=...)，不要再调用 hybrid_search"
 
 
 def _is_hybrid_search_tool_enabled() -> bool:
@@ -784,6 +794,152 @@ def _persist_tool_result_overflow(
     return overflow_ref if stored else None
 
 
+# 截断长字符串时永不改写的键：这些是模型定位文件、判断成败所需的结构化信号。
+_BOUND_PROTECTED_KEYS: frozenset[str] = frozenset({
+    "id",
+    "file_id",
+    "pending_file_id",
+    "parent_id",
+    "entity_id",
+    "entity_type",
+    "title",
+    "file_type",
+    "type",
+    "status",
+    "error",
+    "error_type",
+    "description",
+    "execution_id",
+    "overflow_ref",
+    "note",
+    "warning",
+    "truncation_note",
+})
+# 截断后每个长字符串至少保留的开头字符数（第一轮）；放不下时第二轮降到 0。
+_BOUND_MIN_KEEP_CHARS = 200
+_BOUND_LIST_TRUNCATED_SUFFIX = "…[已截断]"
+
+TOOL_RESULT_OVERSIZE_NOTE = (
+    "结果超过单次工具返回上限，各条目的 id/title/file_type/status 均已保留，"
+    "content 等长文本字段已截断（content_truncated=true，content_length 为原长）。"
+    '需要某个文件的完整正文时，用 query_files(id=…, response_mode="full") 单独读取该文件，'
+    "不要重复整批读取。"
+)
+
+
+def _json_chars(value: Any) -> int:
+    return len(json.dumps(value, ensure_ascii=False, default=str))
+
+
+def _collect_long_string_leaves(
+    value: Any, min_chars: int, out: list[tuple[Any, Any, str]]
+) -> None:
+    """收集可截断的长字符串叶子 (container, key, original)。受保护键不收集。"""
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if isinstance(child, str):
+                if key not in _BOUND_PROTECTED_KEYS and len(child) > min_chars:
+                    out.append((value, key, child))
+            else:
+                _collect_long_string_leaves(child, min_chars, out)
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            if isinstance(child, str):
+                if len(child) > min_chars:
+                    out.append((value, index, child))
+            else:
+                _collect_long_string_leaves(child, min_chars, out)
+
+
+def bound_payload_strings(
+    value: Any, max_chars: int, *, min_keep: int = _BOUND_MIN_KEEP_CHARS
+) -> tuple[Any, bool]:
+    """把 JSON 载荷里的长字符串**就地截短**，使整体序列化不超过 ``max_chars``。
+
+    与「把 json.dumps 结果切一刀」不同，这里保持结构：每个字典条目的 id/title/
+    file_type/status/error 等原样保留，只截 content 一类的长文本字段，并在旁边写上
+    ``<字段>_length``（content 为 ``content_length``）与 ``<字段>_truncated: true``，
+    模型能看出这是截断预览而不是短文件。各长字段按「注水」方式均分预算（统一上限 L），
+    不会出现一个条目被砍光、其他条目原封不动。
+
+    返回 (新载荷, 是否发生截断)。放不下时返回尽力截短后的结果，由调用方检查大小再降级。
+    原载荷不被修改。
+    """
+    if value is None or _json_chars(value) <= max_chars:
+        return value, False
+
+    # 在深拷贝上定位叶子：容器对象必须是拷贝里的那个，原载荷不被修改。
+    work = copy.deepcopy(value)
+    leaves: list[tuple[Any, Any, str]] = []
+    _collect_long_string_leaves(work, min_keep, leaves)
+    if not leaves:
+        return value, False
+    lengths = [len(original) for _, _, original in leaves]
+
+    def apply(cap: int) -> None:
+        for container, key, original in leaves:
+            if len(original) <= cap:
+                container[key] = original
+                continue
+            if isinstance(container, dict):
+                container[key] = original[:cap]
+                if key == "content":
+                    if not isinstance(container.get("content_length"), int):
+                        container["content_length"] = len(original)
+                    container["content_truncated"] = True
+                else:
+                    container.setdefault(f"{key}_length", len(original))
+                    container[f"{key}_truncated"] = True
+            else:
+                container[key] = original[:cap] + _BOUND_LIST_TRUNCATED_SUFFIX
+
+    # 每个被截字段额外写入 *_length/*_truncated，按 64 字符/字段预留；转义导致的
+    # 偏差由外层循环再补一次。
+    reduction = _json_chars(value) - max_chars + 64 * len(leaves)
+    for _ in range(6):
+        low, high = min_keep, max(lengths)
+        # 找最大的 cap，使 sum(max(0, len - cap)) >= reduction。
+        while low < high:
+            mid = (low + high + 1) // 2
+            if sum(max(0, length - mid) for length in lengths) >= reduction:
+                low = mid
+            else:
+                high = mid - 1
+        apply(low)
+        size = _json_chars(work)
+        if size <= max_chars or low <= min_keep:
+            break
+        reduction += size - max_chars + 64
+    return work, True
+
+
+def _compact_oversized_payload(
+    payload: Any,
+    *,
+    original_length: int,
+    overflow_ref: str | None,
+) -> str | None:
+    """超限的成功结果：保结构截长文本，而不是把整个 data 换成一个占位符。
+
+    返回可直接发给模型的 JSON；连骨架都放不下时返回 None，由调用方走最小占位。
+    """
+    if not isinstance(payload, dict) or "data" not in payload:
+        return None
+    compact = dict(payload)
+    compact["truncated"] = True
+    compact["max_chars"] = TOOL_RESULT_MAX_CHARS
+    compact["original_length"] = original_length
+    compact["note"] = TOOL_RESULT_OVERSIZE_NOTE
+    if overflow_ref:
+        compact["overflow_ref"] = overflow_ref
+    for min_keep in (_BOUND_MIN_KEEP_CHARS, 0):
+        bounded, _ = bound_payload_strings(compact, TOOL_RESULT_MAX_CHARS, min_keep=min_keep)
+        encoded = json.dumps(bounded, ensure_ascii=False)
+        if len(encoded) <= TOOL_RESULT_MAX_CHARS:
+            return encoded
+    return None
+
+
 def _serialize_tool_payload(payload: Any, *, tool_name: str | None = None) -> str:
     """Serialize tool payload and truncate oversized results safely."""
     serialized = json.dumps(payload, ensure_ascii=False)
@@ -797,6 +953,13 @@ def _serialize_tool_payload(payload: Any, *, tool_name: str | None = None) -> st
         status=status,
         serialized_payload=serialized,
     )
+
+    if status != "error":
+        structured = _compact_oversized_payload(
+            payload, original_length=original_length, overflow_ref=overflow_ref
+        )
+        if structured is not None:
+            return structured
 
     truncated_payload: dict[str, Any] = {
         "status": status,
@@ -1548,6 +1711,17 @@ def _query_files_sync(args: dict[str, Any]) -> dict[str, Any]:
         return _make_error("project_id not set", tool_name=tool_name)
 
     try:
+        # 不按 id、却要全文时（列表 × 全文），未显式给 limit 就收紧到 10 条：
+        # 默认 50 条全文很容易顶到 TOOL_RESULT_MAX_CHARS，被截断后模型只能再读一遍。
+        raw_id = args.get("id")
+        has_id = isinstance(raw_id, str) and bool(raw_id.strip())
+        raw_include = args.get("include_content")
+        wants_full = str(args.get("response_mode") or "").strip().lower() == QUERY_FILES_RESPONSE_MODE_FULL or (
+            raw_include is not None and coerce_bool(raw_include)
+        )
+        default_limit = (
+            QUERY_FILES_FULL_MODE_DEFAULT_LIMIT if wants_full and not has_id else QUERY_FILES_DEFAULT_LIMIT
+        )
         query_kwargs: dict[str, Any] = {
             "project_id": project_id,
             "query": args.get("query"),
@@ -1555,7 +1729,7 @@ def _query_files_sync(args: dict[str, Any]) -> dict[str, Any]:
             "file_types": args.get("file_types"),
             "parent_id": args.get("parent_id"),
             "metadata_filter": args.get("metadata_filter"),
-            "limit": args.get("limit", 50),
+            "limit": args.get("limit", default_limit),
             "offset": args.get("offset", 0),
         }
 
@@ -1621,19 +1795,17 @@ def _hybrid_search_sync(args: dict[str, Any]) -> dict[str, Any]:
             project_id=project_id,
             top_k=top_k,
         )
-        return _make_result(
+        # 关闭时它本就不在 agent 工具清单里（registry.get_agent_tools）；仍被调用
+        # （历史里见过、或 parallel_execute 子任务）时返回可恢复错误并点名替代工具。
+        # 以前返回 success + 空结果，模型会把「没检索到」当成「项目里没有」继续乱试。
+        return _make_mcp_payload(
             {
-                "status": "success",
-                "data": {
-                    "query": query,
-                    "top_k": top_k,
-                    "min_score": float(min_score or 0.0),
-                    "search_mode": "disabled",
-                    "results": [],
-                    "result_count": 0,
-                    "disabled_reason": "hybrid_search_disabled_by_env",
-                    "entity_types": entity_types,
-                },
+                "status": "error",
+                "error_type": HYBRID_SEARCH_DISABLED_ERROR_TYPE,
+                "error": HYBRID_SEARCH_DISABLED_MESSAGE,
+                "entity_types": entity_types,
+                "min_score": float(min_score or 0.0),
+                "query": query,
             },
             tool_name=tool_name,
         )

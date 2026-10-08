@@ -7,6 +7,7 @@ import { debugContext } from "../../lib/debugContext";
 import { feedbackApi, type FeedbackSourcePage } from "../../lib/feedbackApi";
 import { handleApiError } from "../../lib/errorHandler";
 import { toast } from "../../lib/toast";
+import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "../../config/support";
 
 interface FeedbackDialogProps {
   open: boolean;
@@ -305,6 +306,16 @@ export function FeedbackDialog({
             <span>{validationError}</span>
           </div>
         )}
+
+        <p className="text-xs text-[hsl(var(--text-secondary))]" data-testid="feedback-support-email">
+          {t("feedback.emailHint", "订阅、退款等账户问题也可以直接发邮件给客服：")}
+          <a
+            href={SUPPORT_MAILTO}
+            className="text-[hsl(var(--accent-primary))] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] rounded"
+          >
+            {SUPPORT_EMAIL}
+          </a>
+        </p>
       </div>
     </Modal>
   );

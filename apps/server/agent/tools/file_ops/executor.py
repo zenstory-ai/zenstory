@@ -17,10 +17,6 @@ from sqlmodel import Session
 from .crud import FileCRUD
 from .edit import FileEditor
 from .project import ProjectOperations
-from .serialization import (
-    QUERY_FILES_DEFAULT_CONTENT_PREVIEW_CHARS,
-    QUERY_FILES_DEFAULT_RESPONSE_MODE,
-)
 
 
 class FileToolExecutor:
@@ -161,8 +157,8 @@ class FileToolExecutor:
         metadata_filter: dict[str, Any] | None = None,
         limit: int = 50,
         offset: int = 0,
-        response_mode: str = QUERY_FILES_DEFAULT_RESPONSE_MODE,
-        content_preview_chars: int = QUERY_FILES_DEFAULT_CONTENT_PREVIEW_CHARS,
+        response_mode: str | None = None,
+        content_preview_chars: int | None = None,
         include_content: bool | None = None,
     ) -> list[dict[str, Any]]:
         """
@@ -179,6 +175,8 @@ class FileToolExecutor:
             metadata_filter: Metadata field filters (optional)
             limit: Maximum results
             offset: Offset for pagination
+            response_mode: "summary" / "full"; None = full for ``id`` lookups,
+                summary otherwise
 
         Returns:
             List of file data

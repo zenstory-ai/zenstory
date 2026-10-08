@@ -58,7 +58,9 @@
     "logout": "退出登录",
     "adminPanel": "管理后台",
     "open": "打开用户菜单",
-    "close": "关闭用户菜单"
+    "close": "关闭用户菜单",
+    "contactSupport": "联系客服",
+    "contactSupportAria": "发邮件给客服"
   },
   "productMenu": {
     "title": "产品",
@@ -112,7 +114,8 @@
     "submitSuccess": "感谢反馈，我们已收到。",
     "previewAlt": "反馈截图预览",
     "invalidImageType": "请上传 PNG/JPG/WEBP 图片",
-    "invalidImageSize": "截图大小不能超过 5MB"
+    "invalidImageSize": "截图大小不能超过 5MB",
+    "emailHint": "订阅、退款等账户问题也可以直接发邮件给客服："
   },
   "projectLoadFailed": "加载项目失败",
   "projectNotFound": "找不到这个项目",

@@ -128,6 +128,16 @@ describe('UserMenu', () => {
     expect(screen.getByText('Loading')).toBeInTheDocument()
   })
 
+  it('links to the support email from desktop and mobile menus', () => {
+    render(<UserMenu />)
+    fireEvent.click(screen.getByTestId('user-menu-button'))
+    expect(screen.getByTestId('contact-support-link')).toHaveAttribute('href', 'mailto:support@zenstory.ai')
+    expect(screen.getByTestId('contact-support-link')).toHaveTextContent('support@zenstory.ai')
+
+    render(<UserMenuMobile onLogout={vi.fn()} />)
+    expect(screen.getByTestId('contact-support-link-mobile')).toHaveAttribute('href', 'mailto:support@zenstory.ai')
+  })
+
   it('returns null when no user is logged in', () => {
     mockUseAuth.mockReturnValue({
       user: null,

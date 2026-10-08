@@ -138,13 +138,17 @@ DELETE_FILE_TOOL: dict[str, Any] = {
 # Tool: query_files
 QUERY_FILES_TOOL: dict[str, Any] = {
     "name": "query_files",
-    "description": "查询和搜索项目中的文件。默认返回 summary（不含全文 content），可按需切换 full。",
+    "description": (
+        "查询和搜索项目中的文件。按 id 读取默认返回全文（content）；列表/关键词查询默认返回 summary"
+        "（content_preview + content_length + content_truncated，不含全文）。"
+        "本轮已经读过的文件仍在上下文里，不要重复读取。"
+    ),
     "input_schema": {
         "type": "object",
         "properties": {
             "id": {
                 "type": "string",
-                "description": "按文件ID精确查询（用于读取「当前文件」全文，避免同名文件误匹配）"
+                "description": "按文件ID精确查询。按 id 读取默认返回全文；只想看预览时显式传 response_mode=summary"
             },
             "query": {
                 "type": "string",
@@ -173,7 +177,7 @@ QUERY_FILES_TOOL: dict[str, Any] = {
             },
             "limit": {
                 "type": "integer",
-                "description": "最大返回数量",
+                "description": "最大返回数量（默认 50；不按 id 且 response_mode=full 时默认 10）",
                 "default": 50
             },
             "offset": {
@@ -183,13 +187,16 @@ QUERY_FILES_TOOL: dict[str, Any] = {
             },
             "response_mode": {
                 "type": "string",
-                "description": "返回模式：summary（默认，仅返回 content_preview）或 full（返回完整 content）",
-                "enum": ["summary", "full"],
-                "default": "summary"
+                "description": (
+                    "返回模式：full（返回完整 content）或 summary（只返回 content_preview，"
+                    "并给出 content_length 与 content_truncated，content_truncated=true 表示只是预览）。"
+                    "不传时：按 id 读取默认 full，其余默认 summary"
+                ),
+                "enum": ["summary", "full"]
             },
             "content_preview_chars": {
                 "type": "integer",
-                "description": "summary 模式下 content_preview 的最大字符数",
+                "description": "summary 模式下 content_preview 的最大字符数（显式传此参数表示要预览，不返回全文）",
                 "default": 200,
                 "minimum": 0
             },
@@ -317,7 +324,10 @@ HANDOFF_TO_AGENT_TOOL: dict[str, Any] = {
             },
             "context": {
                 "type": "string",
-                "description": "传递给下一个Agent的上下文信息"
+                "description": (
+                    "传递给下一个Agent的上下文信息。必须写明：已读文件的 id 与关键结论/摘录、"
+                    "本轮修改的文件 id，供下一个 Agent 直接使用而不重读。"
+                )
             },
             "completed": {
                 "type": "array",

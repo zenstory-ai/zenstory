@@ -2,7 +2,7 @@
 
 Status: implemented
 
-熔断后的计费已改为不退还额度，见 `architecture/2026-10-05-agent-stream-error-and-refund-contract.md`；熔断机制本身不变。
+熔断后的计费已改为不退还额度，见 `architecture/2026-10-05-agent-stream-error-and-refund-contract.md`；熔断机制本身不变。成功但重复的读取由同一出口上的重复读取守卫处理，见 `bug-fix/2026-10-08-agent-no-progress-guard-and-soft-cap.md`（`AGENT_TOOL_CALL_MAX_ITERATIONS` 现默认 60、`AGENT_COLLABORATION_MAX_ITERATIONS` 现默认 12）。
 
 ## Problem
 
@@ -14,10 +14,11 @@ Status: implemented
 
 `agent/openai_agents/tool_failure_breaker.py` 的 `ToolFailureBreaker` 按**一次用户请求**记账：`writing_graph.run_writing_workflow_streaming` 开头建一个放进 `state["tool_failure_breaker"]`，`runner.run_openai_agents_streaming_agent` 从 state 取同一个（没有时自建，供单独调用 runner 的场景），writer → quality_reviewer → writer 的往返不会让计数归零。按工具结果本身记账：
 
-- 失败判定：工具输出是 `{"status": "error", ...}` 的 JSON（项目工具统一的报错格式）；其余 status 与非 JSON 输出都不算失败。唯一例外是 `parallel_execute`：它无论子任务成败都返回 `status=success` 外壳（逐任务明细在 `data.tasks`），因此 `data.any_failed` 为真即算一次失败，错误指纹取各失败子任务「类型 + 错误」排序后的拼接；结果过大被截断成 overflow 引用时看不到明细，按成功处理。
+- 失败判定：工具输出是 `{"status": "error", ...}` 的 JSON（项目工具统一的报错格式）；其余 status 与非 JSON 输出都不算失败。唯一例外是 `parallel_execute`：它无论子任务成败都返回 `status=success` 外壳（逐任务明细在 `data.tasks`），因此 `data.any_failed` 为真即算一次失败，错误指纹取各失败子任务「类型 + 错误」排序后的拼接。每个子任务结果先按 `TOOL_RESULT_MAX_CHARS` 的 80% 均分截短，结果超过上限时也只截长文本字段、保留 `data.any_failed` 与逐任务 status/error（见 `2026-10-08-agent-read-path-no-history-rewrite.md`），所以通常仍能判定；只有连结构骨架都放不下、退化成 overflow 占位时看不到明细，按成功处理。
 - 同一调用 = 工具名 + 归一化参数（键排序的紧凑 JSON；解析失败用原文）。等价错误 = `error_type` + 抹掉 UUID、十六进制、数字并折叠空白后的错误文本（SQLite 报错里每次都变的时间戳参数不能让重试被当成「不同错误」）。
 - 同一调用以等价错误连续失败 `MAX_IDENTICAL_TOOL_FAILURES`（3）次即熔断；同一调用换了错误则从 1 重新计数；同一调用成功则清零。穿插其他成功调用（例如重试之间 `query_files`）不清零。
 - 兜底：本次请求累计失败 `MAX_TOOL_FAILURES_PER_REQUEST`（10）次即熔断，不要求参数/错误相同。
+- 重复读取守卫主动拦下的结果（`error_type` 为 `repeated_read` / `no_progress_stop`）完全不进熔断器记账：它们由守卫自己计数，否则同一文件第 4～6 次读取会先以「相同参数连续失败」熔断，抢走守卫的 `no_progress` 停止原因与计费口径。
 - 顺序性拒绝不按「同一调用连续失败」熔断：`error_type` 属于 `_ORDERING_ERROR_TYPES`（目前只有 `pending_empty_file_unwritten`）的失败只计入累计上限，不进连续计数、不附加通用提示。这类拒绝只要模型先完成错误里点名的前置动作就会成功；按连续规则熔断会让 ERROR 终止整条工作流，空文件纠偏轮也跑不到，只留下一个空文件（真实复现：planner 并行 `create_file` 两份人设，第二份被挡回后原样重试 3 次即熔断）。
 - 第 1 次失败原样交还模型；同一调用第 2 次等价失败时，交给模型的原始输出 JSON 附带 `repeated_failures` 与 `retry_hint`（不要原样重试；系统侧故障请停下向用户说明；再失败几次将终止）。实测 deepseek-flash 看到提示后会自行停手，熔断只是兜底。
 

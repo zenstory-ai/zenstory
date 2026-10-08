@@ -10,7 +10,7 @@ Status: implemented
 
 ## Decision
 
-- **模型调用预算。** `agent/core/run_meter.AgentRunMeter` 按请求计数：`service.process_stream` 建一个放进 `WritingState["run_meter"]`（`writing_graph` 在缺失时自建），每个 agent run 共享。runner 用 `_ModelCallCountingFilter` 包住 `IntraRunToolOutputTrimmer` 作为 SDK 的 `call_model_input_filter`，每次模型调用前计数；`tool_use_behavior`（`_stop_run_on_control_flow_tool`，控制流工具优先）在预算用尽时把本轮当作 final output，SDK 不再发起下一次调用；没有 FunctionTool 结果的轮次由消费循环在 `tool_output` 处 `cancel(after_turn)` 兜底。被截停的 run 先发 `MESSAGE_END(stop_reason="model_call_budget_exhausted")` 让 usage 入账，再发 `ERR_AGENT_MODEL_CALL_LIMIT` 的 ERROR 结束整条工作流；下一个 agent run 开始时若预算已用尽，直接发同一个 ERROR，不调用模型。上限 `AGENT_RUN_MAX_MODEL_CALLS`，默认 200。
+- **模型调用预算。** `agent/core/run_meter.AgentRunMeter` 按请求计数：`service.process_stream` 建一个放进 `WritingState["run_meter"]`（`writing_graph` 在缺失时自建），每个 agent run 共享。runner 用 `_ModelCallCountingFilter` 包住 `IntraRunToolOutputTrimmer` 作为 SDK 的 `call_model_input_filter`，每次模型调用前计数；`tool_use_behavior`（`_stop_run_on_control_flow_tool`，控制流工具优先）在预算用尽时把本轮当作 final output，SDK 不再发起下一次调用；没有 FunctionTool 结果的轮次由消费循环在 `tool_output` 处 `cancel(after_turn)` 兜底。被截停的 run 先发 `MESSAGE_END(stop_reason="model_call_budget_exhausted")` 让 usage 入账，再发 `ERR_AGENT_MODEL_CALL_LIMIT` 的 ERROR 结束整条工作流；下一个 agent run 开始时若预算已用尽，直接发同一个 ERROR，不调用模型。上限 `AGENT_RUN_MAX_MODEL_CALLS`，默认 120（两个满额的单 agent run；单 agent 上限与协作上限已分别调到 60 与 12，见 `bug-fix/2026-10-08-agent-no-progress-guard-and-soft-cap.md`）。`_ModelCallCountingFilter` 同时负责单个 run 接近 `max_turns` 时的软着陆提醒（同一 note）。
 - **墙钟时限与心跳。** `agent/core/sse_pump.SSEStreamPump` 在后台 task 里驱动 `process_stream`，消费端每 `AGENT_SSE_HEARTBEAT_INTERVAL_S`（默认 15 秒）等不到事件就发一个 SSE 注释帧 `: ping\n\n`（前端 `parseSSEEvent` 对没有 `data:` 行的帧返回 null，原本就会忽略）。整个请求超过 `AGENT_RUN_WALL_CLOCK_TIMEOUT_S`（默认 1200 秒）时取消后台 task——`process_stream` 走与用户取消相同的收尾（后台补存部分历史与进行中的文件正文、释放会话持有）——随后 `api/agent.py` 发 `ERR_AGENT_RUN_TIMEOUT` 终止帧，本轮有产出则计费、没有则退还。三个值都在 `config/agent_runtime.py`，可用同名环境变量调整。
 - **运行摘要。** `process_stream` 接受调用方传入的 `run_report` 字典，结束时写入 `model`、`input_tokens` / `output_tokens` / `cache_read_tokens`、`usage_reported`、`model_calls` / `max_model_calls`、`agent_runs`、`llm_duration_ms`（各 SDK run 的耗时之和）、`duration_ms`、`stop_reason` 等；`api/agent.py` 把它们以 `run_` 前缀并入每个请求唯一的 `Agent stream billing evaluated` 日志行，与 `billing_reason`、`charged`、`refunded` 同行。runner 的单次 run 完成日志也补上 `model`、`model_turns`、`duration_ms` 与 token 用量。
 
@@ -24,7 +24,7 @@ Status: implemented
 ## Consequences
 
 - 收益：单次请求的模型调用次数与时长都有上界，超限时有明确的错误提示且已产出的内容保留；长时间无输出的阶段不会再被代理切断；每个请求一行日志就能看到模型、用量、调用次数、耗时、结束原因与计费结果。
-- 代价：预算与时限是全局常量，付费用户与免费用户相同；默认值宽松，只拦失控循环，不是精细的成本控制。时限到期走取消路径，部分历史与文件正文在后台落库，摘要日志里的 usage 等字段在这条路径上可能为空。`process_stream` 的迭代改在后台 task 里进行，调试时调用栈多一层。心跳帧每 15 秒多几个字节。
+- 代价：预算与时限是全局常量，付费用户与免费用户相同；不是按方案区分的精细成本控制。时限到期走取消路径，部分历史与文件正文在后台落库，摘要日志里的 usage 等字段在这条路径上可能为空。`process_stream` 的迭代改在后台 task 里进行，调试时调用栈多一层。心跳帧每 15 秒多几个字节。
 
 ## Verification
 

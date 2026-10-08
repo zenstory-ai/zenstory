@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import functools
+import inspect
 import json
 import time
 from collections.abc import AsyncIterator, Callable
@@ -30,6 +31,11 @@ from agent.openai_agents.events import (
     tool_error_text,
 )
 from agent.openai_agents.model import DEEPSEEK_WRITING_MODEL, get_deepseek_chat_model
+from agent.openai_agents.repeat_read_guard import (
+    NO_PROGRESS_STOP_REASON,
+    NO_PROGRESS_STOP_TOTAL,
+    RepeatReadGuard,
+)
 from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
 from agent.openai_agents.tools_adapter import build_agent_function_tools
 from config.agent_runtime import (
@@ -73,6 +79,23 @@ def _control_flow_status_of(tool_name: str, output_text: str) -> bool:
 TOOL_FAILURE_STOP_REASON = "tool_failure_circuit_open"
 # 请求级模型调用预算用尽、截停 SDK run 后 MESSAGE_END 的 stop_reason。
 MODEL_CALL_BUDGET_STOP_REASON = "model_call_budget_exhausted"
+# 单个 agent run 的工具调用轮数（SDK max_turns）用尽，或已进入收尾提醒后结束时的
+# stop_reason。随 assistant 消息落库；router 据此把下一条「继续」直接交给上一个 agent。
+MAX_TURNS_STOP_REASON = "max_turns_exceeded"
+# 重复读取守卫判定无进展、结束本轮时的 stop_reason（与 ERROR 事件 data.reason 相同）。
+NO_PROGRESS_STOP = NO_PROGRESS_STOP_REASON
+
+# 距离 max_turns 还剩多少次模型调用时开始收尾：在这几次调用的输入末尾追加提醒，
+# 要求模型停止调用工具、写阶段总结（已完成 / 剩余 / 用到的文件 id）。
+SOFT_LANDING_TURNS = 3
+SOFT_LANDING_PROMPT = (
+    "[系统提醒] 本轮工具调用即将达到上限（本次之后最多还能调用模型 {remaining} 次）。"
+    "请立即停止调用任何工具（包括 query_files / parallel_execute），直接用文字给出阶段总结：\n"
+    "1. 已完成的工作；\n"
+    "2. 尚未完成、需要下一轮继续的工作；\n"
+    "3. 本轮用到或改动过的文件（标题 + id）。\n"
+    "用户回复「继续」后会从这里接着完成剩余部分。"
+)
 
 
 def _stop_run_on_control_flow_tool(
@@ -81,6 +104,7 @@ def _stop_run_on_control_flow_tool(
     *,
     failure_breaker: ToolFailureBreaker | None = None,
     run_meter: AgentRunMeter | None = None,
+    read_guard: RepeatReadGuard | None = None,
 ) -> Any:
     """SDK 的 tool_use_behavior 回调：控制流工具生效后立即结束当前 run。
 
@@ -99,6 +123,7 @@ def _stop_run_on_control_flow_tool(
 
     工具失败熔断（failure_breaker）走同一个出口：熔断器在工具回调里同步记账，
     本轮工具一跑完这里就能看到，run-loop 不会再为「原样重试」发起下一次模型调用。
+    重复读取守卫（read_guard）判定无进展时同样走这个出口。
     """
     from agents.agent import ToolsToFinalOutputResult
 
@@ -106,6 +131,11 @@ def _stop_run_on_control_flow_tool(
         return ToolsToFinalOutputResult(
             is_final_output=True,
             final_output=failure_breaker.trip.user_message(),
+        )
+    if read_guard is not None and read_guard.trip is not None:
+        return ToolsToFinalOutputResult(
+            is_final_output=True,
+            final_output=read_guard.trip.user_message(wrote_files=read_guard.write_succeeded),
         )
 
     for tool_result in tool_results or []:
@@ -127,15 +157,63 @@ def _stop_run_on_control_flow_tool(
 
 
 class _ModelCallCountingFilter:
-    """call_model_input_filter：每次模型调用前计数，再交给内层过滤器处理输入。"""
+    """call_model_input_filter：每次模型调用前计数，再交给内层过滤器处理输入。
 
-    def __init__(self, inner: Callable[[Any], Any], run_meter: AgentRunMeter) -> None:
+    同时负责「到上限前软着陆」：本次 run 的第 max_turns - SOFT_LANDING_TURNS 次调用
+    之后，在内层过滤器的结果末尾追加一条收尾提醒（SOFT_LANDING_PROMPT），让模型
+    停止调用工具、写阶段总结，而不是读到 max_turns 被 SDK 硬截断、什么也没留下。
+    提醒追加在 input 末尾而不是改 instructions：系统提示是 DeepSeek 前缀缓存的开头，
+    改它会让最后几次调用整段缓存失效。提醒只进本次调用，不写回 run 的历史。
+    """
+
+    def __init__(
+        self,
+        inner: Callable[[Any], Any],
+        run_meter: AgentRunMeter,
+        *,
+        max_turns: int | None = None,
+        landing_turns: int = SOFT_LANDING_TURNS,
+    ) -> None:
         self._inner = inner
         self._run_meter = run_meter
+        self._max_turns = max_turns
+        self._landing_turns = landing_turns
+        # 本次 SDK run 已发起的模型调用数（区别于 run_meter 的请求级累计）。
+        self.calls = 0
+        self.landing_injected = False
+
+    def _landing_remaining(self) -> int | None:
+        """进入收尾区间时返回本次之后还剩的调用次数，否则 None。"""
+        if not self._max_turns or self._landing_turns <= 0:
+            return None
+        if self.calls <= self._max_turns - self._landing_turns:
+            return None
+        return max(self._max_turns - self.calls, 0)
+
+    def _with_landing(self, model_data: Any) -> Any:
+        remaining = self._landing_remaining()
+        if remaining is None:
+            return model_data
+        from agents.run_config import ModelInputData
+
+        self.landing_injected = True
+        reminder = {"role": "user", "content": SOFT_LANDING_PROMPT.format(remaining=remaining)}
+        return ModelInputData(
+            input=[*list(model_data.input or []), reminder],
+            instructions=model_data.instructions,
+        )
 
     def __call__(self, data: Any) -> Any:
         self._run_meter.record_model_call()
-        return self._inner(data)
+        self.calls += 1
+        result = self._inner(data)
+        if inspect.isawaitable(result):
+
+            async def _await_then_land() -> Any:
+                return self._with_landing(await result)
+
+            return _await_then_land()
+        return self._with_landing(result)
 
 
 def _is_new_model_turn_event(sdk_event: Any) -> bool:
@@ -390,6 +468,7 @@ def _build_agent(
     failure_breaker: ToolFailureBreaker | None = None,
     read_only: bool = False,
     run_meter: AgentRunMeter | None = None,
+    read_guard: RepeatReadGuard | None = None,
 ) -> Any:
     # NOTE — Agent.as_tool was evaluated and rejected.
     # Agent.as_tool wraps an agent as a callable tool for a parent agent, which
@@ -427,7 +506,10 @@ def _build_agent(
             include_usage=True,
         ),
         tools=build_agent_function_tools(
-            agent_type, failure_breaker=failure_breaker, read_only=read_only
+            agent_type,
+            failure_breaker=failure_breaker,
+            read_only=read_only,
+            read_guard=read_guard,
         ),
         # 控制流工具生效、或工具失败熔断时即结束 run，避免 SDK 在「工作流已暂停」
         # 之后再跑一整轮模型调用并真实执行其工具（详见 _stop_run_on_control_flow_tool）。
@@ -435,6 +517,7 @@ def _build_agent(
             _stop_run_on_control_flow_tool,
             failure_breaker=failure_breaker,
             run_meter=run_meter,
+            read_guard=read_guard,
         ),
     )
 
@@ -540,6 +623,7 @@ async def run_openai_agents_streaming_agent(
 
     failure_breaker：工具失败熔断器。不传时取 state["tool_failure_breaker"]
     （writing_graph 每个请求建一个、跨 agent run 共享）；都没有时本次 run 自建一个。
+    重复读取守卫同理取 state["repeat_read_guard"]。
     """
     api_messages = build_history_messages(state)
     assistant_text_parts: list[str] = []
@@ -564,6 +648,12 @@ async def run_openai_agents_streaming_agent(
             else ToolFailureBreaker()
         )
     failure_stopped = False
+    # 重复读取守卫同样按请求共享：交接给下一个 agent 不会让「同一文件已读几次」归零。
+    shared_guard = state.get("repeat_read_guard")
+    read_guard = shared_guard if isinstance(shared_guard, RepeatReadGuard) else RepeatReadGuard()
+    no_progress_stopped = False
+    max_turns_exhausted = False
+    turn_filter: _ModelCallCountingFilter | None = None
     # 请求级模型调用预算（writing_graph 建一个跨 agent run 共享；单独调用 runner
     # 时自建一个默认预算）。
     shared_meter = state.get("run_meter")
@@ -627,6 +717,14 @@ async def run_openai_agents_streaming_agent(
             # 用户明确要求不改文件：写工具调用一律拒绝执行（由 writing_graph 按路由结果置位）。
             read_only=state.get("read_only") is True,
             run_meter=run_meter,
+            read_guard=read_guard,
+        )
+        # 外层计数器给请求级模型调用预算记账（每次模型调用前调用一次），并在
+        # 接近 max_turns 时追加收尾提醒（软着陆）。
+        turn_filter = _ModelCallCountingFilter(
+            IntraRunToolOutputTrimmer(),
+            run_meter,
+            max_turns=AGENT_TOOL_CALL_MAX_ITERATIONS,
         )
         # Install the progress emitter only across run_streamed. The SDK creates
         # its background task synchronously inside run_streamed, copying the
@@ -650,15 +748,11 @@ async def run_openai_agents_streaming_agent(
                 # execution to preserve the previous sequential contract and avoid Session races.
                 run_config=RunConfig(
                     tool_execution=ToolExecutionConfig(max_function_tool_concurrency=1),
-                    # Preview stale intra-run retrieval outputs (query_files / hybrid_search)
-                    # so a long multi-tool run doesn't re-send every bulky search dump on each
-                    # subsequent model call. Keeps the freshest outputs full; control-flow tool
-                    # outputs are never touched. See intra_run_trimmer for why the stock SDK
-                    # ToolOutputTrimmer is a no-op for this project's history shape.
-                    # 外层计数器给请求级模型调用预算记账（每次模型调用前调用一次）。
-                    call_model_input_filter=_ModelCallCountingFilter(
-                        IntraRunToolOutputTrimmer(), run_meter
-                    ),
+                    # IntraRunToolOutputTrimmer 只是上下文安全阀：输入未超 max_input_chars 时原样
+                    # 返回、不改写任何历史（保住前缀缓存，也不让模型「忘掉」读过的文件而重读）；
+                    # 超限才从最旧的读/写载荷开始折叠。控制流工具结果永不改动。见 intra_run_trimmer。
+                    # 计数 + 软着陆见上方 turn_filter。
+                    call_model_input_filter=turn_filter,
                     # 模型调用了本 agent 工具集里没有的工具（例如审稿人照着共享历史调
                     # edit_file、或幻觉出的工具名）：SDK 默认抛 ModelBehaviorError，整轮
                     # 以致命 ERROR 结束、原始异常文本直接展示给用户。改为把结构化错误
@@ -689,7 +783,7 @@ async def run_openai_agents_streaming_agent(
                     raise payload
                 sdk_event = payload
                 if (
-                    control_flow_stopped or failure_stopped or budget_stopped
+                    control_flow_stopped or failure_stopped or budget_stopped or no_progress_stopped
                 ) and _is_new_model_turn_event(sdk_event):
                     # 兜底护栏：正常情况下 tool_use_behavior 已经让 run-loop 在控制流
                     # 工具返回的那一刻结束，走不到这里。一旦走到（工具改名、SDK 行为
@@ -853,6 +947,11 @@ async def run_openai_agents_streaming_agent(
                         failure_stopped = True
                         _safe_cancel(result, "after_turn")
 
+                    if read_guard.is_open and not no_progress_stopped:
+                        # 无进展停止同样由 tool_use_behavior 同步生效，这里是第二道保险。
+                        no_progress_stopped = True
+                        _safe_cancel(result, "after_turn")
+
                     if run_meter.exhausted and not budget_stopped:
                         # 预算同样由 tool_use_behavior 同步截停；「工具不存在」这类没有
                         # FunctionTool 结果的轮次不会经过它，这里兜底。
@@ -867,22 +966,8 @@ async def run_openai_agents_streaming_agent(
                     ):
                         yield steering_event
         except MaxTurnsExceeded:
-            yield StreamEvent(
-                type=StreamEventType.ITERATION_EXHAUSTED,
-                data={
-                    "layer": "tool_call",
-                    "iterations_used": AGENT_TOOL_CALL_MAX_ITERATIONS,
-                    "max_iterations": AGENT_TOOL_CALL_MAX_ITERATIONS,
-                    "reason": (
-                        f"单个 Agent（{agent_type}）的工具调用轮数已达上限"
-                        f"（{AGENT_TOOL_CALL_MAX_ITERATIONS} 轮）。"
-                        f"这是单个 Agent 内的工具调用限制，与 Agent 协作轮数"
-                        f"（{AGENT_COLLABORATION_MAX_ITERATIONS} 轮）独立。"
-                        "当前任务可能未完全完成，您可以继续对话让 AI 完成剩余工作。"
-                    ),
-                    "last_agent": agent_type,
-                },
-            )
+            # 轮数耗尽的对外事件放到熔断/无进展判定之后统一发出（见下方）。
+            max_turns_exhausted = True
 
         failure_trip = failure_breaker.trip
         if failure_trip is not None:
@@ -915,6 +1000,41 @@ async def run_openai_agents_streaming_agent(
             )
             return
 
+        no_progress_trip = read_guard.trip
+        if no_progress_trip is not None:
+            # 重复读取无进展：与熔断同一个收尾——先让 usage 入账，再以 ERROR 结束整条
+            # 工作流（不再交接/送审）。本请求没有任何写入成功时 refundable=True，
+            # stream_billing 据 reason=no_progress 退还额度（billing_reason=runaway_no_progress）。
+            from agent.core.metrics import get_metrics_collector
+
+            get_metrics_collector().increment_counter(NO_PROGRESS_STOP_TOTAL)
+            log_with_context(
+                logger,
+                30,  # WARNING
+                "Repeated reads without progress; stopping agent run",
+                agent_type=agent_type,
+                blocked_reads=read_guard.blocked_reads,
+                duplicate_reads=read_guard.duplicate_reads,
+                files_read=len(read_guard.files_read),
+                files_written=len(read_guard.files_written),
+                write_succeeded=read_guard.write_succeeded,
+                model_turns=turn_filter.calls if turn_filter is not None else 0,
+            )
+            yield StreamEvent(
+                type=StreamEventType.MESSAGE_END,
+                data={
+                    "stop_reason": NO_PROGRESS_STOP,
+                    "usage": _usage_dict_from_result(result),
+                },
+            )
+            yield StreamEvent(
+                type=StreamEventType.ERROR,
+                data=no_progress_trip.as_event_data(
+                    agent_type, wrote_files=read_guard.write_succeeded
+                ),
+            )
+            return
+
         if run_meter.budget_stopped and clarification_event_data is None and handoff_event_data is None:
             # 请求级模型调用预算用尽：与熔断一样先让本 run 的 usage 入账，再以
             # ERROR 结束整条工作流（StreamAdapter 会关闭工作流生成器）。
@@ -941,7 +1061,47 @@ async def run_openai_agents_streaming_agent(
             )
             return
 
-        if clarification_event_data is not None:
+        model_turns = turn_filter.calls if turn_filter is not None else 0
+        landed_without_control_flow = (
+            turn_filter is not None
+            and turn_filter.landing_injected
+            and clarification_event_data is None
+            and handoff_event_data is None
+        )
+        # 真正撞上 max_turns，或已进入收尾提醒且没有交接/澄清就结束（模型照提醒写了
+        # 阶段总结）：都按「工具调用轮数用尽」收尾——发状态卡（前端给「继续」按钮并
+        # 落库），工作流不再计划交接/自动送审；stop_reason 落库供 router 识别「继续」。
+        turns_exhausted = max_turns_exhausted or landed_without_control_flow
+        if turns_exhausted:
+            log_with_context(
+                logger,
+                30,  # WARNING
+                "Agent run reached the tool-call turn cap",
+                agent_type=agent_type,
+                model_turns=model_turns,
+                max_turns=AGENT_TOOL_CALL_MAX_ITERATIONS,
+                hard_exhausted=max_turns_exhausted,
+                soft_landed=bool(turn_filter is not None and turn_filter.landing_injected),
+                duplicate_reads=read_guard.duplicate_reads,
+                blocked_reads=read_guard.blocked_reads,
+            )
+            yield StreamEvent(
+                type=StreamEventType.ITERATION_EXHAUSTED,
+                data={
+                    "layer": "tool_call",
+                    "iterations_used": model_turns or AGENT_TOOL_CALL_MAX_ITERATIONS,
+                    "max_iterations": AGENT_TOOL_CALL_MAX_ITERATIONS,
+                    "reason": (
+                        f"单个 Agent（{agent_type}）的工具调用轮数已达上限"
+                        f"（{AGENT_TOOL_CALL_MAX_ITERATIONS} 轮）。"
+                        f"这是单个 Agent 内的工具调用限制，与 Agent 协作轮数"
+                        f"（{AGENT_COLLABORATION_MAX_ITERATIONS} 轮）独立。"
+                        "当前任务可能未完全完成，您可以回复「继续」让 AI 接着完成剩余工作。"
+                    ),
+                    "last_agent": agent_type,
+                },
+            )
+        elif clarification_event_data is not None:
             from agent.core.metrics import AGENT_CLARIFICATION_TOTAL, get_metrics_collector
 
             get_metrics_collector().increment_counter(AGENT_CLARIFICATION_TOTAL)
@@ -952,7 +1112,10 @@ async def run_openai_agents_streaming_agent(
         usage = _usage_dict_from_result(result)
         yield StreamEvent(
             type=StreamEventType.MESSAGE_END,
-            data={"stop_reason": "end_turn", "usage": usage},
+            data={
+                "stop_reason": MAX_TURNS_STOP_REASON if turns_exhausted else "end_turn",
+                "usage": usage,
+            },
         )
 
         log_with_context(
@@ -964,6 +1127,9 @@ async def run_openai_agents_streaming_agent(
             tool_calls=len(tool_uses),
             response_length=sum(len(part) for part in assistant_text_parts),
             model_turns=len(getattr(result, "raw_responses", None) or []),
+            stop_reason=MAX_TURNS_STOP_REASON if turns_exhausted else "end_turn",
+            duplicate_reads=read_guard.duplicate_reads,
+            blocked_reads=read_guard.blocked_reads,
             duration_ms=round((time.monotonic() - run_started_at) * 1000, 1),
             input_tokens=usage.get("input_tokens", 0),
             output_tokens=usage.get("output_tokens", 0),
