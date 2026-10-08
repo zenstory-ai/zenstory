@@ -72,6 +72,23 @@ test("CI summary and E2E summary consume detector result and validated scope", a
   assert.match(e2e, /Malformed paths-filter output/);
 });
 
+test("every E2E lane's shard guard matches the shard set its matrix produces", async () => {
+  const e2e = await readFile(".github/workflows/e2e.yml", "utf8");
+  const shardExpr = e2e.match(/^\s+shard: \$\{\{ (.+) \}\}$/m)[1];
+  const [sharded, single] = [...shardExpr.matchAll(/fromJson\('(\[[^']+\])'\)/g)].map((match) => JSON.parse(match[1]));
+  const total = sharded.length;
+  assert.ok(total > 1);
+  assert.deepEqual(sharded, Array.from({ length: total }, (_, index) => `${index + 1}/${total}`));
+  assert.deepEqual(single, ["1/1"]);
+  // Lanes that run fixed file lists receive the single-shard fallback; a guard
+  // naming any other shard turns the lane into a silent no-op.
+  assert.doesNotMatch(shardExpr, /schedule|nightly|release|smoke/);
+  for (const lane of ["Nightly lane", "Release lane"]) {
+    const guard = e2e.slice(e2e.lastIndexOf("if [", e2e.indexOf(lane)), e2e.indexOf(lane));
+    assert.match(guard, /\$\{\{ matrix\.shard \}\}" != "1\/1"/, `${lane} guard must accept the 1/1 shard`);
+  }
+});
+
 test("online smoke is read-only, source-bound, canonical-origin only, and not a provider gate claim", async () => {
   const workflow = await readFile(".github/workflows/zenstory-online-smoke.yml", "utf8");
   assert.match(workflow, /source_sha:/);
@@ -153,7 +170,7 @@ test("backend CI runs PostgreSQL regressions serially against a dedicated databa
 
   const fullSuite = ci.slice(
     ci.indexOf("- name: Run unit tests with pytest"),
-    ci.indexOf("- name: Run PostgreSQL regressions serially"),
+    ci.indexOf("- name: Upload shard coverage data"),
   );
   assert.doesNotMatch(fullSuite, /ZENSTORY_TEST_POSTGRES_URL/);
   assert.match(fullSuite, /ZENSTORY_TEST_REDIS_URL: redis:\/\/localhost:6380\/1/);
