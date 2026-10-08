@@ -13,6 +13,9 @@
     "pro_trial": "Pro试用",
     "credits": "额度"
   },
+  "rewardSources": {
+    "referral": "邀请好友奖励"
+  },
   "used": "已使用",
   "inviteCodes": {
     "title": "我的邀请码",

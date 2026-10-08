@@ -28,6 +28,29 @@ class TestLLMClientHelpers:
         response = llm_mod.LLMResponse(content="prefix {\"ok\": true} suffix", usage={}, model="m", finish_reason="stop")
         assert client.extract_json_from_response(response) == {"ok": True}
 
+    def test_extract_json_repairs_unescaped_inner_quotes(self):
+        # 生产实例：模型在中文描述里写英文双引号，整段 JSON 非法，整章角色曾被丢弃。
+        client = self._new_client()
+        content = (
+            '```json\n{\n  "characters": [\n    {\n      "name": "斐潜",\n'
+            '      "chapter_description": "本章中斐潜向枣祗介绍青草名为"禹韭"，并请其试种。",\n'
+            '      "first_appearance_line": 1\n    },\n'
+            '    {\n      "name": "枣祗",\n      "chapter_description": "负责屯田。",\n'
+            '      "first_appearance_line": 3\n    }\n  ]\n}\n```'
+        )
+        response = llm_mod.LLMResponse(content=content, usage={}, model="m", finish_reason="stop")
+        data = client.extract_json_from_response(response)
+        assert [c["name"] for c in data["characters"]] == ["斐潜", "枣祗"]
+        assert '"禹韭"' in data["characters"][0]["chapter_description"]
+        assert data["characters"][1]["first_appearance_line"] == 3
+
+    def test_extract_json_does_not_repair_truncated_output(self):
+        client = self._new_client()
+        content = '{"characters": [{"name": "斐潜", "chapter_description": "以"禹韭"为名'
+        response = llm_mod.LLMResponse(content=content, usage={}, model="m", finish_reason="length")
+        with pytest.raises(LLMAPIError):
+            client.extract_json_from_response(response)
+
     def test_extract_json_raises_when_no_valid_json(self):
         client = self._new_client()
         response = llm_mod.LLMResponse(content="not a json", usage={}, model="m", finish_reason="stop")

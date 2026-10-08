@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { getLocaleCode } from '@/lib/i18n-helpers';
 import { referralApi } from '@/lib/referralApi';
 import type { UserReward } from '@/types/referral';
+import { Badge } from '@/components/ui/Badge';
 
 /**
  * Referral statistics and rewards display
@@ -56,7 +57,10 @@ export const ReferralStats: React.FC = () => {
   };
 
   const formatRewardSource = (source: string) => {
-    // Truncate long source descriptions
+    // 已知来源显示本地化说明（后端存的是 referral 这类机器值）；未知来源截断后原样显示
+    if (source === 'referral') {
+      return t('rewardSources.referral');
+    }
     if (source.length > 30) {
       return source.substring(0, 30) + '...';
     }
@@ -133,11 +137,11 @@ export const ReferralStats: React.FC = () => {
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-[hsl(var(--success-light))]">
+                    <span className="text-sm font-semibold text-[hsl(var(--success))]">
                       +{reward.amount} {getRewardTypeLabel(reward.reward_type)}
                     </span>
                     {reward.is_used && (
-                      <span className="badge">{t('used')}</span>
+                      <Badge variant="neutral" size="sm">{t('used')}</Badge>
                     )}
                   </div>
                   <div className="text-xs text-[hsl(var(--text-secondary))] truncate mt-0.5">

@@ -14,7 +14,8 @@
     "openPanel": "账户菜单",
     "adminPanel": "管理后台",
     "replayTour": "重新查看新手引导",
-    "openSettings": "设置"
+    "openSettings": "设置",
+    "contactSupport": "联系客服"
   },
   "dashboard": {
     "title": "项目数据统计",

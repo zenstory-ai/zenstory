@@ -87,9 +87,15 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      # Whole-suite lanes (push, default, full) split by test count into 8
+      # contiguous shards; Playwright shards are not duration-balanced, and the
+      # slow points/projects files are adjacent, so fewer shards leave one
+      # shard on the critical path. Nightly (schedule), release and smoke run
+      # fixed file lists on a single chromium "1/1" job; only the full lane
+      # adds Firefox.
       matrix:
-        browser: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.suite == 'full')) && fromJson('["chromium", "firefox"]') || fromJson('["chromium"]') }}
-        shard: ${{ (github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (github.event.inputs.suite == 'full' || github.event.inputs.suite == 'default'))) && fromJson('["1/2", "2/2"]') || fromJson('["1/1"]') }}
+        browser: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.suite == 'full') && fromJson('["chromium", "firefox"]') || fromJson('["chromium"]') }}
+        shard: ${{ (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (github.event.inputs.suite == 'full' || github.event.inputs.suite == 'default'))) && fromJson('["1/8", "2/8", "3/8", "4/8", "5/8", "6/8", "7/8", "8/8"]') || fromJson('["1/1"]') }}
     services:
       postgres:
         image: postgres:15-alpine
@@ -142,8 +148,8 @@ jobs:
         if [ "${{ github.event_name }}" == "push" ]; then
           pnpm exec playwright test --project=${{ matrix.browser }} --shard=${{ matrix.shard }}
         elif [ "${{ github.event_name }}" == "schedule" ] || [ "${{ github.event.inputs.suite }}" == "nightly" ]; then
-          if [ "${{ matrix.shard }}" != "1/2" ] || [ "${{ matrix.browser }}" != "chromium" ]; then
-            echo "Nightly lane runs on chromium shard 1/2 only for extended tests. Skipping browser=${{ matrix.browser }} shard=${{ matrix.shard }}."
+          if [ "${{ matrix.shard }}" != "1/1" ] || [ "${{ matrix.browser }}" != "chromium" ]; then
+            echo "Nightly lane runs on a single chromium shard only for extended tests. Skipping browser=${{ matrix.browser }} shard=${{ matrix.shard }}."
             exit 0
           fi
           E2E_ENABLE_VERSION_HISTORY_E2E=true \
@@ -202,7 +208,7 @@ jobs:
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       if: failure()
       with:
-        # matrix.shard contains "/" (for example "1/2"), which is not valid in
+        # matrix.shard contains "/" (for example "1/8"), which is not valid in
         # artifact names. job-index is stable and filesystem-safe.
         name: playwright-report-${{ matrix.browser }}-${{ strategy.job-index }}
         path: apps/web/playwright-report/

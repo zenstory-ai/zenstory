@@ -25,17 +25,15 @@ export function checkConditionalJob({ name, result, required }) {
   }
 }
 
-export function validateCiSummary({ detector, outputs, jobs }) {
-  invariant(detector === "success", `detect-changes did not succeed: ${detector || "empty"}`);
-  const backend = booleanOutput(outputs.backend, "backend output");
-  const frontend = booleanOutput(outputs.frontend, "frontend output");
-  const cli = booleanOutput(outputs.cli, "cli output");
-  const ci = booleanOutput(outputs.ci, "ci output");
-
-  const expectations = {
+// Every CI job except detect-changes and ci-summary, mapped to whether the
+// validated change scopes require it.
+export function ciJobExpectations({ backend, frontend, cli, ci }) {
+  return {
     "frontend-lint": frontend || ci,
     "ci-lint": ci,
     "backend-test": backend || ci,
+    "backend-coverage": backend || ci,
+    "backend-integration": backend || ci,
     "prefect-compatibility": backend || ci,
     "production-images": backend || ci,
     "frontend-test": frontend || ci,
@@ -43,6 +41,16 @@ export function validateCiSummary({ detector, outputs, jobs }) {
     "cli-test": cli || ci,
     "vercel-build": frontend || ci,
   };
+}
+
+export function validateCiSummary({ detector, outputs, jobs }) {
+  invariant(detector === "success", `detect-changes did not succeed: ${detector || "empty"}`);
+  const backend = booleanOutput(outputs.backend, "backend output");
+  const frontend = booleanOutput(outputs.frontend, "frontend output");
+  const cli = booleanOutput(outputs.cli, "cli output");
+  const ci = booleanOutput(outputs.ci, "ci output");
+
+  const expectations = ciJobExpectations({ backend, frontend, cli, ci });
   for (const [name, required] of Object.entries(expectations)) {
     checkConditionalJob({ name, result: jobs[name], required });
   }
@@ -80,6 +88,8 @@ function main() {
         "frontend-lint": env("FRONTEND_LINT_RESULT"),
         "ci-lint": env("CI_LINT_RESULT"),
         "backend-test": env("BACKEND_TEST_RESULT"),
+        "backend-coverage": env("BACKEND_COVERAGE_RESULT"),
+        "backend-integration": env("BACKEND_INTEGRATION_RESULT"),
         "prefect-compatibility": env("PREFECT_COMPATIBILITY_RESULT"),
         "production-images": env("PRODUCTION_IMAGES_RESULT"),
         "frontend-test": env("FRONTEND_TEST_RESULT"),

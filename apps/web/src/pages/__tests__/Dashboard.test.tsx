@@ -162,6 +162,21 @@ describe('Dashboard user panel and quick switches', () => {
     expect(panel).toBeTruthy()
   })
 
+  it('links the support email from the desktop account panel', () => {
+    renderDashboard()
+    fireEvent.click(screen.getByRole('button', { name: 'Open user settings panel' }))
+    expect(screen.getByTestId('dashboard-contact-support-link')).toHaveAttribute('href', 'mailto:support@zenstory.ai')
+    expect(screen.getByTestId('dashboard-contact-support-link')).toHaveTextContent('support@zenstory.ai')
+  })
+
+  it('links the support email from the mobile menu', () => {
+    mockIsMobile = true
+    mockIsDesktop = false
+    renderDashboard()
+    fireEvent.click(screen.getByRole('button', { name: 'Open mobile menu' }))
+    expect(screen.getByTestId('dashboard-contact-support-link-mobile')).toHaveAttribute('href', 'mailto:support@zenstory.ai')
+  })
+
   it('toggles language correctly in mobile quick menu when locale is zh-CN', () => {
     mockIsMobile = true
     mockIsDesktop = false
