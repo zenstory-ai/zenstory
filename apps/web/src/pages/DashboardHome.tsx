@@ -856,7 +856,7 @@ export default function DashboardHome() {
               </div>
               <div className="min-w-0">
                 <h2 className="text-sm font-semibold text-[hsl(var(--text-primary))]">
-                  {t("todayActionPlan.title", { defaultValue: "今天可以做的 3 件事" })}
+                  {t("todayActionPlan.title", { defaultValue: "今天可以做的事" })}
                 </h2>
                 {todayActionPlanExpanded && (
                   <p className="mt-1 text-xs text-[hsl(var(--text-secondary))]">
@@ -986,14 +986,20 @@ export default function DashboardHome() {
               )}
 
               <div className={`${isMobile ? "mb-4" : "mb-6"}`}>
-                <label className={`block font-medium text-[hsl(var(--text-secondary))] ${isMobile ? "text-xs mb-1.5" : "text-sm mb-2"}`}>
-                  {t('projects.namePlaceholder')}
+                <label
+                  htmlFor="dashboard-new-project-name"
+                  className={`block font-medium text-[hsl(var(--text-secondary))] ${isMobile ? "text-xs mb-1.5" : "text-sm mb-2"}`}
+                >
+                  {t('projects.nameLabel')}
                 </label>
                 <input
+                  id="dashboard-new-project-name"
                   type="text"
                   value={newProjectName}
                   onChange={(e) => setNewProjectName(e.target.value)}
-                  placeholder={t('projects.namePlaceholder')}
+                  placeholder={t('projects.namePlaceholder', {
+                    name: templates[creating].default_project_name || t('defaults.untitled'),
+                  })}
                   className="input"
                   autoFocus
                   onKeyDown={(e) => {

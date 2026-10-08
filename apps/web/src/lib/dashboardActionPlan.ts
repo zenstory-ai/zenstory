@@ -166,7 +166,7 @@ export function buildTodayActionPlan({
       id: `activation-${step.event_name}`,
       title: resolveActivationStepTitle(step.event_name, step.label, t),
       description: t("todayActionPlan.activationDescription", {
-        defaultValue: "上手必做的一步。",
+        defaultValue: "做完这一步，就算上手了。",
       }),
       ctaLabel,
       action: resolveActivationStepAction({
@@ -203,7 +203,7 @@ export function buildTodayActionPlan({
         defaultValue: "创建第一个项目",
       }),
       description: t("todayActionPlan.defaults.createProject.description", {
-        defaultValue: "写一句灵感就能开始，大纲、正文和设定都会放在这个项目里。",
+        defaultValue: "不用先想好，点一下就能开始；大纲、正文和设定都放在这个项目里。",
       }),
       ctaLabel: t("todayActionPlan.defaults.createProject.cta", {
         defaultValue: "新建项目",
@@ -249,13 +249,13 @@ export function buildTodayActionPlan({
   candidates.push({
     id: "fallback-upgrade",
     title: t("todayActionPlan.defaults.upgrade.title", {
-      defaultValue: "查看额度",
+      defaultValue: "查看用量",
     }),
     description: t("todayActionPlan.defaults.upgrade.description", {
-      defaultValue: "看看本月还剩多少额度，不够时可以升级。",
+      defaultValue: "看看今天还剩几条 AI 消息，不够用时再开 Pro。",
     }),
     ctaLabel: t("todayActionPlan.defaults.upgrade.cta", {
-      defaultValue: "查看额度",
+      defaultValue: "查看用量",
     }),
     action: {
       type: "navigate",

@@ -19,7 +19,7 @@ const readyHeadings: Record<string, string> = {
   "/verify-email?email=responsive%40example.com": "验证你的邮箱",
   "/onboarding/persona": "告诉我们你怎么写作",
   "/dashboard": "你好，responsive-user",
-  "/dashboard/projects": "所有项目",
+  "/dashboard/projects": "我的项目",
   "/dashboard/materials": "素材库",
   "/dashboard/skills": "技能管理",
   "/dashboard/billing": "订阅权益",

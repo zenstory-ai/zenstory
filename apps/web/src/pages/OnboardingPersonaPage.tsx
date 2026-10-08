@@ -170,7 +170,7 @@ export default function OnboardingPersonaPage() {
     const tips: string[] = [];
 
     if (selectedPersonas.includes("explorer")) {
-      tips.push(t("onboarding:preview.items.explorer", "灵感模板和快速起稿入口"));
+      tips.push(t("onboarding:preview.items.explorer", "一句话就能开新书，附带一步步的上手提示"));
     }
     if (selectedPersonas.includes("serial")) {
       tips.push(t("onboarding:preview.items.serial", "连续写作天数统计"));

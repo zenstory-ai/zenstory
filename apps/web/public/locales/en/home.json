@@ -20,12 +20,6 @@
     "multiDevice": "Pick up on phone or computer",
     "versionHistory": "Undo edits with earlier versions"
   },
-  "stats": {
-    "creators": "Active Creators",
-    "wordsGenerated": "AI-assisted Words",
-    "rating": "Creator Rating",
-    "contentTypes": "Core Creative Modes"
-  },
   "demo": {
     "projectName": "Project: Embers of the Skyfall",
     "autoSave": "Auto Save",
@@ -64,15 +58,15 @@
     },
     "materialUpload": {
       "title": "Material Library",
-      "description": "Upload reference novels, break them into characters, settings, and plot, and reuse them while you write."
+      "description": "Pro: upload a reference novel and break out characters, settings and chapter summaries to attach while you write."
     },
     "contextAware": {
       "title": "AI Remembers Your Story",
-      "description": "The AI reads your characters, world notes, and outline while writing, so the story stays consistent."
+      "description": "The AI reads your characters, world notes, and outline while writing, which cuts down on contradictions."
     },
     "versionHistory": {
       "title": "Compare and Restore Versions",
-      "description": "Each edit leaves a version you can compare against or restore."
+      "description": "AI edits and your saves are kept as versions you can compare and restore."
     },
     "cloudSync": {
       "title": "Continue on Any Device",
@@ -92,7 +86,7 @@
       "features": [
         "Drag to reorder chapters",
         "AI remembers character relationships",
-        "Use your material library",
+        "Use your Materials Library (Pro)",
         "Compare and restore versions"
       ]
     },
@@ -117,18 +111,18 @@
   },
   "pricingTeaser": {
     "title": "Start free, upgrade when needed",
-    "subtitle": "The free plan covers the full writing flow. Upgrade when you need more AI chats and projects.",
+    "subtitle": "The free plan covers the full writing flow. Get Pro when you need more AI messages and projects.",
     "viewPricing": "View plans",
     "primaryCta": "Create a Free Project",
     "free": {
       "badge": "Free",
       "title": "Start writing",
-      "desc": "Create projects and write chapters with AI. Enough to get started on your own."
+      "desc": "10 AI messages a day and up to 3 projects — enough to get your opening down."
     },
     "pro": {
       "badge": "Pro",
       "title": "Write more, faster",
-      "desc": "Unlimited AI chats and projects, material breakdowns, and more custom skills."
+      "desc": "Unlimited AI messages and projects, Materials Library breakdowns of reference novels, and more custom skills."
     }
   },
   "cta": {
@@ -137,7 +131,7 @@
     "button": "Create a Free Project"
   },
   "footer": {
-    "copyright": "© 2026 zenstory. All rights reserved.",
+    "copyright": "© {{year}} ZenStory AI",
     "tagline": "Put AI in your creative production line",
     "projects": "All ZenStory AI projects",
     "glossary": "Glossary",
@@ -210,9 +204,9 @@
     "sectionLabel": "Connect your AI assistant",
     "badge": "New",
     "title": "Write your novel from Claude Code and other AI assistants",
-    "subtitle": "Create an API key in Settings and add it to Claude Code or OpenClaw. It can then read and edit your project files.",
+    "subtitle": "Create an API key in Settings, sign in with the zenstory CLI from your terminal and install the zenstory skill for your agent — then Claude Code, Codex or OpenClaw can read and edit your projects.",
     "supportedAgents": "Works with",
-    "cta": "Create API Key",
+    "cta": "Create API key",
     "ctaAriaLabel": "Go to Settings to create an API key"
   }
 }

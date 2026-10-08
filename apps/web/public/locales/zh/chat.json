@@ -97,7 +97,7 @@
   "message": {
     "aiEdit": "AI 修改: {{files}}{{extra}}",
     "aiDone": "AI 对话完成",
-    "createProject": "我想创作一部{{typeLabel}},我的灵感是：\n\n{{content}}\n\n请帮我构思故事框架，包括主要人物、故事背景、核心冲突和大致情节走向。",
+    "createProject": "我想写一部{{typeLabel}}。我的想法是：\n\n{{content}}\n\n请先帮我理一理：如果想法已经比较具体，就给出主要人物、故事背景、核心冲突和大致走向；如果还很模糊，先问我两三个关键问题，我们再一起往下想。",
     "aiDoneFilesModified": "AI 对话完成 - 文件已修改",
     "aiConversationAt": "AI 助手对话 - {{time}}"
   },

@@ -144,14 +144,14 @@
     "startWriting": "开始写作"
   },
   "todayActionPlan": {
-    "title": "今天可以做的 3 件事",
+    "title": "今天可以做的事",
     "subtitle": "根据你的写作进度推荐。",
     "cta": "去完成",
     "executing": "处理中...",
     "expand": "查看全部",
     "collapse": "收起",
     "expandHint": "展开可查看其余建议",
-    "activationDescription": "上手必做的一步。",
+    "activationDescription": "做完这一步，就算上手了。",
     "personaDescription": "根据你填写的写作偏好推荐。",
     "personaRecommendations": {
       "persona_explorer_template": {
@@ -198,7 +198,7 @@
     "defaults": {
       "createProject": {
         "title": "创建第一个项目",
-        "description": "写一句灵感就能开始，大纲、正文和设定都会放在这个项目里。",
+        "description": "不用先想好，点一下就能开始；大纲、正文和设定都放在这个项目里。",
         "cta": "新建项目"
       },
       "openProject": {
@@ -211,9 +211,9 @@
         "cta": "打开项目"
       },
       "upgrade": {
-        "title": "查看额度",
-        "description": "看看本月还剩多少额度，不够时可以升级。",
-        "cta": "查看额度"
+        "title": "查看用量",
+        "description": "看看今天还剩几条 AI 消息，不够用时再开 Pro。",
+        "cta": "查看用量"
       },
       "inspirations": {
         "title": "逛逛灵感库",
@@ -228,7 +228,7 @@
     "steps": {
       "signup_success": "完成注册",
       "project_created": "创建项目",
-      "first_file_saved": "保存第一个文件",
+      "first_file_saved": "写下第一段内容",
       "first_ai_action_accepted": "采纳一次 AI 修改"
     }
   },
@@ -241,21 +241,23 @@
   },
   "projects": {
     "recent": "最近项目",
-    "all": "所有项目",
+    "all": "我的项目",
     "new": "新建项目",
     "filterAll": "全部",
     "count": "共 {{count}} 个项目",
     "count_one": "共 {{count}} 个项目",
     "count_other": "共 {{count}} 个项目",
     "noMatch": "没有匹配的项目",
-    "tryDifferent": "尝试调整搜索条件或筛选器",
+    "tryDifferent": "换个关键词或作品类型试试",
     "createFirst": "创建第一个项目",
     "viewAll": "浏览全部",
     "empty": "还没有任何项目",
-    "emptyHint": "点击「开始创作」创建你的第一个项目，也可以先不填灵感",
+    "emptyHint": "点上方「开始创作」就能建好第一个项目，想法可以先空着。",
+    "emptyHintProjectsPage": "点「新建项目」，开始写你的第一部作品吧。",
     "searchPlaceholder": "搜索项目...",
     "createNew": "创建新项目",
-    "namePlaceholder": "给你的作品起个名字",
+    "nameLabel": "作品名（可不填）",
+    "namePlaceholder": "不填就先叫「{{name}}」，之后随时能改",
     "confirmDeleteTitle": "确定删除这个项目？",
     "confirmDeleteMessage": "项目里的所有内容会一起删除，且无法恢复。",
     "confirmDeleteButton": "确认删除",
@@ -357,10 +359,10 @@
       "title": "项目健康度",
       "overallStatus": "整体项目状态",
       "status": {
-        "good": "健康",
-        "warning": "需关注",
-        "critical": "需行动",
-        "neutral": "未开始"
+        "good": "状态不错",
+        "warning": "可以加把劲",
+        "critical": "还有不少可以写",
+        "neutral": "还没开始"
       },
       "indicators": {
         "chapters": "章节进度",
@@ -370,10 +372,10 @@
         "inactive": "不活跃",
         "activityGood": "今日写作 {{count}} 字",
         "activityWarning": "本周尚未写作",
-        "activityInactive": "开始写作以追踪进度",
+        "activityInactive": "写几句就能看到进度",
         "streak": "写作连续",
         "streakActive": "保持势头继续加油",
-        "streakInactive": "培养写作习惯",
+        "streakInactive": "今天写满 10 个字就开始计天数",
         "aiUsage": "AI 协作",
         "aiActive": "正在使用 AI 辅助",
         "aiInactive": "试试 AI 辅助写作"
@@ -385,28 +387,28 @@
       "notStarted": "待开始",
       "completed": "已完成",
       "noFiles": "暂无文件",
-      "createFirst": "创建你的第一个章节开始创作",
+      "createFirst": "先建一章，想到哪写到哪",
       "action": "继续写作",
       "hintInProgress": "从上次离开的地方继续",
       "hintNotStarted": "开始写作这个章节",
       "hintCompleted": "回顾或继续下一章"
     },
     "outstandingTasks": {
-      "title": "待办事项",
-      "total": "{{count}} 项任务",
+      "title": "接下来可以做",
+      "total": "{{count}} 项",
       "allClear": "全部完成！",
-      "allClearHint": "当前没有待处理事项",
-      "notStartedCount": "未开始",
-      "draftWithoutOutlineCount": "无大纲",
-      "outlineWithoutDraftCount": "未写作",
-      "notStartedDesc": "章节尚未开始写作",
-      "draftWithoutOutlineDesc": "有内容但缺少大纲规划",
-      "outlineWithoutDraftDesc": "已规划但尚未写作",
-      "moreTasks": "还有 {{count}} 项任务",
+      "allClearHint": "暂时没有要接着做的",
+      "notStartedCount": "章还没开始",
+      "draftWithoutOutlineCount": "章可补大纲",
+      "outlineWithoutDraftCount": "章待写正文",
+      "notStartedDesc": "这一章还没开始写",
+      "draftWithoutOutlineDesc": "已经写了正文，补一份大纲能让 AI 接得更顺（可选）",
+      "outlineWithoutDraftDesc": "大纲写好了，可以动笔了",
+      "moreTasks": "还有 {{count}} 项",
       "types": {
-        "draftWithoutOutline": "无大纲",
-        "outlineWithoutDraft": "未写作",
-        "notStarted": "未开始"
+        "draftWithoutOutline": "可补大纲",
+        "outlineWithoutDraft": "待写正文",
+        "notStarted": "还没开始"
       }
     },
     "wordCount": {
@@ -459,7 +461,9 @@
       "recoveryAvailable": "漏写后保住连续的次数",
       "keepWriting": "继续加油！",
       "startWriting": "开始今天的创作吧",
-      "daysUntilBreak": "{{count}} 天后将中断",
+      "daysUntilBreak": "再过 {{count}} 天不写，连续记录会中断",
+      "daysUntilBreak_one": "再过 {{count}} 天不写，连续记录会中断",
+      "daysUntilBreak_other": "再过 {{count}} 天不写，连续记录会中断",
       "tips": {
         "title": "连续写作小贴士",
         "daily": "每天至少写 10 个字，保持写作连续。",
@@ -532,8 +536,8 @@
         "descriptionWithoutLibrary": "有个念头就写下来，一句话就够；没想好也能直接点「开始创作」。"
       },
       "createProject": {
-        "title": "一键创建项目",
-        "description": "点这里后会立刻生成项目，你可以继续写作，或交给 AI 帮你扩写。",
+        "title": "点这里就开始",
+        "description": "马上建好项目。写了想法，AI 会先帮你理思路；空着也行，进去后随时可以和 AI 聊。",
         "cta": "去试试"
       },
       "inspirationsLink": {
