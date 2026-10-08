@@ -8,7 +8,7 @@
 
 API 新增严格的 S3-compatible 存储边界，默认仍为本地存储。只有完整设置 `UPLOAD_STORAGE_BACKEND=s3`、endpoint、region、bucket、access key、secret 和 `virtual|path` URL style 才启用对象存储，配置错误直接失败。持久引用使用受限的 `s3://bucket/material/<user>/<opaque>` 与 `s3://bucket/feedback/<opaque>`；只有 API 持有凭据。PUT 使用 SigV4 和 `If-None-Match: *`，GET 有 20MB/5MB 上限。
 
-worker 继续通过内部 token API 下载材料，每次 flow 使用独占临时源文件，并在成功或失败后删除。反馈截图仅管理员鉴权下载，列表只校验引用格式，不逐对象读取。旧本地引用继续按受信根目录读取。
+worker 继续通过内部 token API 下载材料，每次 flow 使用独占临时源文件，并在成功或失败后删除。反馈截图仅管理员鉴权下载，列表只校验引用格式，不逐对象读取。S3 启用期间，API 下载边界仍会为带当前 owner 前缀的历史文件名读取受信本地根；读取拒绝跨 owner、路径逃逸、符号链接和超过 20MB 的文件。32 位十六进制 opaque 文件名仍严格走 S3，不放宽对象 key 校验。
 
 迁移默认 dry-run，只处理数据库已引用、位于受信根目录且不含符号链接的文件，跳过运行中的材料任务。复制后用私有 GET 校验 size 与 SHA-256；切换数据库引用前，以 0600 原子文件和 fsync 写入恢复记录，再在同一事务更新 Novel、IngestionJob 或 UserFeedback。原文件不删除，恢复按当前新引用做条件切换。可用 `--user-id` 限定 staging 批次。
 

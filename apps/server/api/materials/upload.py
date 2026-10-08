@@ -11,7 +11,9 @@ import json
 import os
 import re
 import secrets
+import stat
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.concurrency import run_in_threadpool
@@ -34,6 +36,8 @@ from middleware.rate_limit import require_user_rate_limit
 from models import User
 from models.material_models import IngestionJob, Novel
 from services.infra.upload_storage import (
+    LocalUploadStorage,
+    S3UploadStorage,
     UploadNotFoundError,
     UploadReferenceError,
     UploadStorageError,
@@ -83,11 +87,52 @@ def _storage():
     )
 
 
+def _read_legacy_local_material(filename: str, user_id: str) -> bytes:
+    """Read one pre-object-storage material without weakening S3 key validation."""
+    from config.material_settings import material_settings
+
+    local_storage = LocalUploadStorage(
+        material_root=Path(material_settings.UPLOAD_FOLDER),
+        feedback_root=Path(os.getenv("FEEDBACK_UPLOAD_DIR", "uploads/feedback")),
+    )
+    lexical_path = local_storage.material_root / filename
+    if lexical_path.is_symlink():
+        raise UploadReferenceError("legacy material path must not be a symlink")
+    local_storage.material_reference_for_name(
+        owner_id=user_id,
+        object_name=filename,
+    )
+    try:
+        descriptor = os.open(
+            lexical_path,
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+        )
+    except FileNotFoundError as exc:
+        raise UploadNotFoundError("private upload object not found") from exc
+    except OSError as exc:
+        if lexical_path.is_symlink():
+            raise UploadReferenceError("legacy material path must not be a symlink") from exc
+        raise
+    with os.fdopen(descriptor, "rb") as handle:
+        file_stat = os.fstat(handle.fileno())
+        if not stat.S_ISREG(file_stat.st_mode):
+            raise UploadReferenceError("legacy material path must be a regular file")
+        if file_stat.st_size > MAX_FILE_SIZE:
+            raise APIException(error_code=ErrorCode.FILE_TOO_LARGE, status_code=413)
+        content = handle.read(MAX_FILE_SIZE + 1)
+    if len(content) > MAX_FILE_SIZE:
+        raise APIException(error_code=ErrorCode.FILE_TOO_LARGE, status_code=413)
+    return content
+
+
 def _download_material_object(filename: str, user_id: str) -> Response:
     storage = None
     try:
         storage = _storage()
-        content = storage.read_material_name(owner_id=user_id, object_name=filename)
+        if isinstance(storage, S3UploadStorage) and filename.startswith(f"{user_id}_"):
+            content = _read_legacy_local_material(filename, user_id)
+        else:
+            content = storage.read_material_name(owner_id=user_id, object_name=filename)
     except UploadReferenceError as exc:
         raise APIException(error_code=ErrorCode.NOT_AUTHORIZED, status_code=403) from exc
     except UploadNotFoundError as exc:
