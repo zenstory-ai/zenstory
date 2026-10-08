@@ -14,7 +14,7 @@ Status: implemented
 
 `agent/openai_agents/tool_failure_breaker.py` 的 `ToolFailureBreaker` 按**一次用户请求**记账：`writing_graph.run_writing_workflow_streaming` 开头建一个放进 `state["tool_failure_breaker"]`，`runner.run_openai_agents_streaming_agent` 从 state 取同一个（没有时自建，供单独调用 runner 的场景），writer → quality_reviewer → writer 的往返不会让计数归零。按工具结果本身记账：
 
-- 失败判定：工具输出是 `{"status": "error", ...}` 的 JSON（项目工具统一的报错格式）；其余 status 与非 JSON 输出都不算失败。唯一例外是 `parallel_execute`：它无论子任务成败都返回 `status=success` 外壳（逐任务明细在 `data.tasks`），因此 `data.any_failed` 为真即算一次失败，错误指纹取各失败子任务「类型 + 错误」排序后的拼接；结果过大被截断成 overflow 引用时看不到明细，按成功处理。
+- 失败判定：工具输出是 `{"status": "error", ...}` 的 JSON（项目工具统一的报错格式）；其余 status 与非 JSON 输出都不算失败。唯一例外是 `parallel_execute`：它无论子任务成败都返回 `status=success` 外壳（逐任务明细在 `data.tasks`），因此 `data.any_failed` 为真即算一次失败，错误指纹取各失败子任务「类型 + 错误」排序后的拼接。每个子任务结果先按 `TOOL_RESULT_MAX_CHARS` 的 80% 均分截短，结果超过上限时也只截长文本字段、保留 `data.any_failed` 与逐任务 status/error（见 `2026-10-08-agent-read-path-no-history-rewrite.md`），所以通常仍能判定；只有连结构骨架都放不下、退化成 overflow 占位时看不到明细，按成功处理。
 - 同一调用 = 工具名 + 归一化参数（键排序的紧凑 JSON；解析失败用原文）。等价错误 = `error_type` + 抹掉 UUID、十六进制、数字并折叠空白后的错误文本（SQLite 报错里每次都变的时间戳参数不能让重试被当成「不同错误」）。
 - 同一调用以等价错误连续失败 `MAX_IDENTICAL_TOOL_FAILURES`（3）次即熔断；同一调用换了错误则从 1 重新计数；同一调用成功则清零。穿插其他成功调用（例如重试之间 `query_files`）不清零。
 - 兜底：本次请求累计失败 `MAX_TOOL_FAILURES_PER_REQUEST`（10）次即熔断，不要求参数/错误相同。

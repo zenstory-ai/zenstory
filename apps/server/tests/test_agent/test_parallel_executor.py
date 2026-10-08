@@ -18,6 +18,7 @@ from agent.tools.parallel_executor import (
     _bound_task_result,
     _make_error,
     _make_result,
+    _task_result_budget,
     execute_parallel,
     handle_delete_file,
     handle_edit_file,
@@ -673,7 +674,7 @@ class TestParallelExecutionResults:
 
 @pytest.mark.unit
 class TestBoundTaskResult:
-    """The per-task result cap keeps the aggregate under the size guardrail."""
+    """Per-task cap: a share of the tool-result guardrail, truncating inside content fields."""
 
     def test_small_result_passthrough(self):
         result = {"id": "f1", "content": "short"}
@@ -682,21 +683,157 @@ class TestBoundTaskResult:
     def test_none_passthrough(self):
         assert _bound_task_result(None) is None
 
-    def test_large_result_is_capped_with_signal(self):
-        big = {"id": "f1", "content": "x" * 20000}
-        bounded = _bound_task_result(big)
-        assert bounded["truncated"] is True
-        assert bounded["original_length"] > 20000
-        assert len(bounded["preview"]) <= 4000
+    def test_budget_is_a_share_of_the_tool_result_limit(self):
+        from agent.tools import mcp_tools
+
+        with patch.object(mcp_tools, "TOOL_RESULT_MAX_CHARS", 200_000):
+            assert _task_result_budget(1) == 160_000
+            assert _task_result_budget(5) == 32_000
+            assert _task_result_budget(100) == 4_000  # floor
+        with patch.object(mcp_tools, "TOOL_RESULT_MAX_CHARS", 1_000):
+            assert _task_result_budget(2) == 4_000
+
+    def test_large_result_truncates_inside_content_and_stays_valid_json(self):
+        original = {
+            "status": "success",
+            "data": [{"id": "f1", "title": "第一章", "file_type": "draft", "content": '甲"\\n' * 5_000}],
+        }
+        bounded = _bound_task_result(original, 4_000)
+
+        encoded = json.dumps(bounded, ensure_ascii=False)
+        assert len(encoded) <= 4_000
+        item = json.loads(encoded)["data"][0]
+        assert item["id"] == "f1"
+        assert item["title"] == "第一章"
+        assert item["file_type"] == "draft"
+        assert item["content_truncated"] is True
+        assert item["content_length"] == len(original["data"][0]["content"])
+        assert original["data"][0]["content"].startswith(item["content"])
+        assert 'response_mode="full"' in bounded["truncation_note"]
+        assert "content_truncated" not in original["data"][0]  # input not mutated
+
+    def test_several_files_share_the_budget_evenly(self):
+        original = {
+            "status": "success",
+            "data": [{"id": f"f{index}", "content": "字" * 10_000} for index in range(3)],
+        }
+        bounded = _bound_task_result(original, 9_000)
+
+        lengths = [len(item["content"]) for item in bounded["data"]]
+        assert max(lengths) - min(lengths) <= 1
+        assert all(item["content_truncated"] is True for item in bounded["data"])
+        assert len(json.dumps(bounded, ensure_ascii=False)) <= 9_000
 
     def test_bounded_aggregate_preserves_failure_signal_shape(self):
         # A large successful body must not force the whole aggregate over the
         # guardrail; the top-level failure signal stays intact and small.
+        budget = _task_result_budget(2)
         tasks = [
-            {"id": "a", "status": "failed", "error": "boom", "result": _bound_task_result(None)},
+            {"id": "a", "status": "failed", "error": "boom", "result": _bound_task_result(None, budget)},
             {"id": "b", "status": "completed", "error": None,
-             "result": _bound_task_result({"content": "y" * 500000})},
+             "result": _bound_task_result({"content": "y" * 500000}, budget)},
         ]
         payload = {"any_failed": True, "failed": 1, "tasks": tasks}
-        assert len(json.dumps(payload, ensure_ascii=False)) < 100000
+        from agent.tools import mcp_tools
+
+        assert len(json.dumps(payload, ensure_ascii=False)) < mcp_tools.TOOL_RESULT_MAX_CHARS
         assert payload["any_failed"] is True
+        assert tasks[1]["result"]["content_truncated"] is True
+
+
+def _executor_returning(files_by_id):
+    from unittest.mock import MagicMock
+
+    executor = MagicMock()
+
+    def query_files(**kwargs):
+        file_id = kwargs.get("id")
+        return [files_by_id[file_id]] if file_id in files_by_id else []
+
+    executor.query_files.side_effect = query_files
+    return executor
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+class TestParallelReadForwarding:
+    """query_files / hybrid_search sub-tasks are exactly the standalone tool calls."""
+
+    async def test_query_files_task_forwards_response_mode_and_all_params(self):
+        from agent.tools.mcp_tools import ToolContext
+
+        executor = _executor_returning({"f1": {"id": "f1", "title": "设定", "content": "正文"}})
+        ToolContext.set_context(None, "user1", "proj-1", "sess-1")
+        try:
+            with patch.object(ToolContext, "get_executor", return_value=executor):
+                result = await execute_parallel([
+                    {
+                        "type": "query_files",
+                        "description": "读取设定全文",
+                        "params": {
+                            "id": "f1",
+                            "response_mode": "full",
+                            "content_preview_chars": 50,
+                            "include_content": True,
+                            "metadata_filter": {"tag": "keep"},
+                            "project_id": "someone-elses-project",
+                        },
+                    }
+                ])
+        finally:
+            ToolContext.clear_context()
+
+        kwargs = executor.query_files.call_args.kwargs
+        assert kwargs["project_id"] == "proj-1"  # scoping comes from ToolContext, not the model
+        assert kwargs["id"] == "f1"
+        assert kwargs["response_mode"] == "full"
+        assert kwargs["content_preview_chars"] == 50
+        assert kwargs["include_content"] is True
+        assert kwargs["metadata_filter"] == {"tag": "keep"}
+        task = json.loads(result["content"][0]["text"])["data"]["tasks"][0]
+        assert task["status"] == "completed"
+        assert task["result"]["data"][0]["content"] == "正文"
+
+    async def test_hybrid_search_task_drops_scope_override(self):
+        from agent.tools.mcp_tools import ToolContext
+
+        ToolContext.set_context(None, "user1", "proj-1", "sess-1")
+        try:
+            with patch("agent.tools.mcp_tools.hybrid_search") as mock_search:
+                mock_search.return_value = {"content": [{"type": "text", "text": '{"status": "success"}'}]}
+                await handle_hybrid_search({"query": "hero", "project_id": "other", "user_id": "u2"})
+                mock_search.assert_called_once_with({"query": "hero"})
+        finally:
+            ToolContext.clear_context()
+
+    async def test_five_large_reads_keep_every_task_status_and_file_id(self):
+        from agent.tools import mcp_tools
+        from agent.tools.mcp_tools import ToolContext
+
+        files = {f"f{index}": {"id": f"f{index}", "title": f"第{index}章", "content": "字" * 60_000} for index in range(5)}
+        executor = _executor_returning(files)
+        ToolContext.set_context(None, "user1", "proj-1", "sess-1")
+        try:
+            with patch.object(ToolContext, "get_executor", return_value=executor), patch(
+                "agent.tools.mcp_tools._record_artifact_ledger", return_value=False
+            ):
+                result = await execute_parallel([
+                    {"type": "query_files", "description": f"读第{index}章", "params": {"id": f"f{index}"}}
+                    for index in range(5)
+                ])
+        finally:
+            ToolContext.clear_context()
+
+        text = result["content"][0]["text"]
+        assert len(text) <= mcp_tools.TOOL_RESULT_MAX_CHARS
+        payload = json.loads(text)
+        assert "truncated" not in payload  # outer guard never tripped
+        data = payload["data"]
+        assert data["completed"] == 5 and data["any_failed"] is False
+        for index, task in enumerate(data["tasks"]):
+            item = task["result"]["data"][0]
+            assert task["status"] == "completed"
+            assert item["id"] == f"f{index}"
+            assert item["content_truncated"] is True
+            assert item["content_length"] == 60_000
+            assert len(item["content"]) > 20_000  # a real share, not a 4000-char sliver

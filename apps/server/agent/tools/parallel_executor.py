@@ -55,24 +55,31 @@ class ParallelExecutionResult:
 # Tool definition
 PARALLEL_EXECUTE_TOOL: dict[str, Any] = {
     "name": "parallel_execute",
-    "description": """Execute multiple independent tasks in parallel using subagents.
+    "description": """Execute multiple independent tasks in parallel.
 
-Use this when you need to perform multiple independent operations simultaneously,
-such as:
-- Writing multiple chapters at once
-- Editing multiple files concurrently
-- Running multiple queries in parallel
+Use this when you need several independent operations at once, such as:
+- Reading several files in one call (query_files with {"id": ...} returns full content)
+- Editing or deleting multiple files concurrently
+
+New chapters / new prose files should normally be written with a single
+create_file call followed by streamed <file>...</file> content, NOT via
+parallel write_chapter. write_chapter is only for bodies you already have in
+full and can inline in params.content.
 
 All tasks must be independent (not depend on each other's results).
 Maximum 5 parallel tasks per call — extra tasks are NOT executed. Split into
-multiple calls instead of sending more than 5.
+multiple calls instead of sending more than 5. Files you already read in this
+run are still in context: do not read them again.
 
 Task param conventions:
+- query_files / hybrid_search: params are exactly the standalone tool's params
+  (e.g. {"id": "<file_id>"} for full content, {"query": "...", "response_mode": "summary"}).
+  Very long per-task content is cut with content_truncated=true / content_length;
+  then read that one file with a standalone query_files(id=..., response_mode="full").
 - write_chapter: params = {"title": "第三章", "content": "<full chapter text>", "parent_id": "<folder_id>"}
   - content is REQUIRED and must be inlined here. Parallel tasks cannot use the
     <file>...</file> streaming protocol; a task without content would create an
-    empty file that never gets its body. Use a single create_file call instead
-    when you want to stream the body.
+    empty file that never gets its body.
 - edit_file (recommended): params = {"id": "<file_id>", "edits": [...], "continue_on_error": false}
   - Legacy aliases: {"file_id": "..."} for id, {"operations": [...]} for edits
 - delete_file: params = {"id": "<file_id>", "recursive": false}
@@ -115,28 +122,63 @@ Task param conventions:
 }
 
 
-# Per-task result body cap. Keeps the aggregate small enough that the unified
-# tool-result guardrail (TOOL_RESULT_MAX_CHARS, default 200k) is not tripped —
-# which would otherwise replace the whole `data` object (including any_failed /
-# failed / per-task status+error) with a truncation stub and silently swallow
-# failures. The full content is persisted and streamed via separate file events.
-_MAX_TASK_RESULT_CHARS = 4000
+# 每个任务结果的保底上限。实际上限按任务数均分 TOOL_RESULT_MAX_CHARS 的 80%
+# （_task_result_budget），给信封与 per-task 元数据留 20% 余量。
+#
+# 这个上限的原始目的仍然成立：聚合结果不能顶破统一的 tool-result 护栏
+# （TOOL_RESULT_MAX_CHARS，默认 200k）——否则整个 data（含 any_failed / failed /
+# per-task status+error）会被换成占位符，失败被悄悄吞掉。旧实现用固定 4000 字、
+# 并把 json.dumps 后的字符串直接切一刀当 preview：读 5 个文件时每个只剩 4000 字的
+# 转义 JSON 碎片，模型只能再读一次，正是重读循环的来源之一。
+_MIN_TASK_RESULT_CHARS = 4000
+_TASK_RESULT_SHARE_OF_TOOL_LIMIT = 0.8
+
+TASK_RESULT_TRUNCATION_NOTE = (
+    "部分 content 已截断（content_truncated=true，content_length 为原长）。"
+    '需要某个文件的完整正文时，单独调用 query_files(id=…, response_mode="full") 读取该文件，'
+    "不要重复并行读取同一批文件。"
+)
 
 
-def _bound_task_result(result: Any) -> Any:
-    """Cap an individual task's result payload while preserving its shape."""
+def _task_result_budget(task_count: int) -> int:
+    """单个任务结果的字符预算：TOOL_RESULT_MAX_CHARS 的 80% 按任务数均分，保底 4000。"""
+    from agent.tools import mcp_tools
+
+    share = int(mcp_tools.TOOL_RESULT_MAX_CHARS * _TASK_RESULT_SHARE_OF_TOOL_LIMIT) // max(1, task_count)
+    return max(_MIN_TASK_RESULT_CHARS, share)
+
+
+def _bound_task_result(result: Any, max_chars: int = _MIN_TASK_RESULT_CHARS) -> Any:
+    """把单个任务结果压到 ``max_chars`` 以内，同时保持合法 JSON 结构。
+
+    在 content 等长文本字段**内部**截断（并标出 content_length / content_truncated），
+    文件 id/title/status/error 原样保留；只有连结构骨架都放不下时，才退化成一个
+    小的截断标记（任务级 status/error 在外层，不受影响）。
+    """
     if result is None:
         return None
+    from agent.tools.mcp_tools import bound_payload_strings
+
     try:
         text = json.dumps(result, ensure_ascii=False)
     except (TypeError, ValueError):
         text = str(result)
-    if len(text) <= _MAX_TASK_RESULT_CHARS:
+        result = {"raw": text}
+    if len(text) <= max_chars:
         return result
+
+    # 给随后写入的 truncation_note 预留位置。
+    note_reserve = len(json.dumps({"truncation_note": TASK_RESULT_TRUNCATION_NOTE}, ensure_ascii=False))
+    for min_keep in (200, 0):
+        bounded, truncated = bound_payload_strings(result, max_chars - note_reserve, min_keep=min_keep)
+        if truncated and isinstance(bounded, dict):
+            bounded["truncation_note"] = TASK_RESULT_TRUNCATION_NOTE
+        if truncated and len(json.dumps(bounded, ensure_ascii=False)) <= max_chars:
+            return bounded
     return {
         "truncated": True,
         "original_length": len(text),
-        "preview": text[:_MAX_TASK_RESULT_CHARS],
+        "truncation_note": TASK_RESULT_TRUNCATION_NOTE,
     }
 
 
@@ -292,6 +334,16 @@ async def handle_delete_file(params: dict[str, Any]) -> dict[str, Any]:
     })
 
 
+# 作用域键：由服务端 ToolContext 决定，子任务参数里的同名键一律丢弃。
+_SCOPE_PARAM_KEYS = frozenset({"project_id", "user_id"})
+
+
+def _scoped_task_params(params: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(params, dict):
+        return {}
+    return {key: value for key, value in params.items() if key not in _SCOPE_PARAM_KEYS}
+
+
 async def handle_query_files(params: dict[str, Any]) -> dict[str, Any]:
     """Handle query_files task type."""
     from agent.tools.mcp_tools import ToolContext, query_files
@@ -301,16 +353,13 @@ async def handle_query_files(params: dict[str, Any]) -> dict[str, Any]:
         return _make_error("project_id not set")
 
     try:
-        result = await query_files({
-            "project_id": project_id,
-            "id": params.get("id"),
-            "query": params.get("query"),
-            "file_type": params.get("file_type"),
-            "file_types": params.get("file_types"),
-            "parent_id": params.get("parent_id"),
-            "limit": params.get("limit", 50),
-            "offset": params.get("offset", 0),
-        })
+        # 原样转发子任务参数（response_mode / content_preview_chars / include_content /
+        # metadata_filter 等），与独立调用 query_files 完全同义；只有项目作用域由
+        # 服务端上下文决定，不信任模型传入的 project_id/user_id。以前这里只挑了几个
+        # 键转发，response_mode="full" 被丢掉，模型拿到预览后又去重读。
+        forwarded = _scoped_task_params(params)
+        forwarded["project_id"] = project_id
+        result = await query_files(forwarded)
         return result
     except RuntimeError as err:
         if str(err) == "No session available in ToolContext":
@@ -327,12 +376,7 @@ async def handle_hybrid_search(params: dict[str, Any]) -> dict[str, Any]:
         return _make_error("project_id not set")
 
     try:
-        result = await hybrid_search({
-            "query": params.get("query", ""),
-            "top_k": params.get("top_k", 10),
-            "entity_types": params.get("entity_types"),
-            "min_score": params.get("min_score", 0.0),
-        })
+        result = await hybrid_search(_scoped_task_params(params))
         return result
     except RuntimeError as err:
         if str(err) == "No session available in ToolContext":
@@ -534,6 +578,7 @@ async def execute_parallel(
 
     end_time = datetime.now()
     duration_ms = int((end_time - start_time).total_seconds() * 1000)
+    per_task_budget = _task_result_budget(len(completed_tasks))
 
     # Build result summary
     #
@@ -563,13 +608,12 @@ async def execute_parallel(
                 "type": t.task_type,
                 "description": t.description,
                 "status": t.status,
-                # Cap each task's result body so the aggregate stays under the
-                # tool-result guardrail (a write_chapter task echoes the full
-                # chapter body here). This keeps id/type/description/status/error
-                # verbatim, so the failure signal + per-task breakdown always
-                # survive even when a task's content is large — the full content
-                # is already persisted and streamed via separate file events.
-                "result": _bound_task_result(t.result),
+                # Cap each task's result body to its share of the tool-result
+                # guardrail so the aggregate never trips it (a write_chapter task
+                # echoes the full chapter body here). id/type/description/status/
+                # error stay verbatim, so the failure signal + per-task breakdown
+                # always survive; content is cut inside the field, keeping JSON.
+                "result": _bound_task_result(t.result, per_task_budget),
                 "error": t.error,
             }
             for t in completed_tasks

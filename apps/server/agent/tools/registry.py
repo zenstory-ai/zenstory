@@ -7,9 +7,11 @@ This module provides one place to assemble:
 - Agent-type -> toolset mapping
 """
 
+import copy
 import json
 from typing import Any
 
+from agent.tools import mcp_tools
 from agent.tools.mcp_tools import MCP_TOOL_HANDLERS
 from agent.tools.parallel_executor import execute_parallel
 from agent.tools.tool_schemas import TOOL_SCHEMAS
@@ -89,13 +91,48 @@ AGENT_TOOLS_MAP: dict[str, list[dict[str, Any]]] = {
 }
 
 
+HYBRID_SEARCH_TOOL_NAME = "hybrid_search"
+
+
+def is_hybrid_search_enabled() -> bool:
+    """AGENT_TOOL_HYBRID_SEARCH_ENABLED 开关（运行时读取，测试可用 monkeypatch 切换）。"""
+    return mcp_tools._is_hybrid_search_tool_enabled()
+
+
+def _parallel_execute_schema_without_hybrid_search(schema: dict[str, Any]) -> dict[str, Any]:
+    """检索关闭时的 parallel_execute schema：任务类型枚举与描述里去掉 hybrid_search。"""
+    stripped = copy.deepcopy(schema)
+    stripped["description"] = stripped["description"].replace(
+        "query_files / hybrid_search", "query_files"
+    )
+    task_schema = stripped["input_schema"]["properties"]["tasks"]["items"]["properties"]
+    type_schema = task_schema["type"]
+    type_schema["enum"] = [name for name in type_schema["enum"] if name != HYBRID_SEARCH_TOOL_NAME]
+    type_schema["description"] = "Task type: " + ", ".join(type_schema["enum"])
+    task_schema["params"]["description"] = task_schema["params"]["description"].replace(
+        "query_files / hybrid_search", "query_files"
+    )
+    return stripped
+
+
 def get_agent_tools(agent_type: str) -> list[dict[str, Any]]:
-    """Get Tool schema list by agent type."""
+    """Get Tool schema list by agent type.
+
+    hybrid_search 关闭（AGENT_TOOL_HYBRID_SEARCH_ENABLED=false，生产当前如此）时，
+    不把它暴露给模型：既不在工具清单里，也不在 parallel_execute 的任务类型枚举里。
+    以前关闭时它仍在清单里、调用返回 success + 空结果，模型会反复换关键词重试。
+    """
     tools = AGENT_TOOLS_MAP.get(agent_type, AGENT_TOOLS_MAP["writer"])
 
     # Defensive copy: never hand callers the cached AGENT_TOOLS_MAP list object,
     # so a caller that mutates the returned list can't corrupt the shared cache.
-    return list(tools)
+    if is_hybrid_search_enabled():
+        return list(tools)
+    return [
+        _parallel_execute_schema_without_hybrid_search(tool) if tool["name"] == "parallel_execute" else tool
+        for tool in tools
+        if tool["name"] != HYBRID_SEARCH_TOOL_NAME
+    ]
 
 
 def validate_registry_alignment() -> dict[str, list[str]]:

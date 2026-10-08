@@ -134,7 +134,7 @@ class Store:
                 elif name == "_execute_query_files" and isinstance(result, list):
                     observation["sql_preview_values"] = [
                         {"id": file.id, "utf8_bytes": len(preview.encode()) if isinstance(preview, str) else 0}
-                        for file, preview in result
+                        for file, preview, *_ in result
                     ]
                 elif name == "serialize_file" and isinstance(result, dict):
                     observation["serializer"].append(
@@ -203,7 +203,11 @@ class Store:
         for row in rows:
             item = dict(row)
             if not full:
-                item["content_preview"] = item.pop("content")[:preview]
+                content = item.pop("content")
+                item["content_preview"] = content[:preview]
+                # summary 同时给出全文长度，模型能分辨「预览」与「短文件」。
+                item["content_length"] = len(content)
+                item["content_truncated"] = len(content) > len(content[:preview])
             result.append(item)
         return {"status": "success", "data": result}
 
@@ -344,11 +348,15 @@ def test_summary_scale_actual_mcp_cold_measurements(store):
 def test_summary_modes_and_exact_id_controls(store):
     row = store.rows[0]
     cases = [
-        ({}, False, 200),
+        # 按 id 读取、未指定模式：默认全文。
+        ({}, True, 200),
+        ({"include_content": None}, True, 200),
+        ({"content_preview_chars": None}, True, 200),
+        # 显式要预览（summary / content_preview_chars / include_content=false）。
+        ({"response_mode": "summary"}, False, 200),
         ({"content_preview_chars": 7}, False, 7),
         ({"content_preview_chars": 0}, False, 0),
         ({"include_content": "false"}, False, 200),
-        ({"include_content": None}, False, 200),
         ({"response_mode": "full"}, True, 200),
         ({"include_content": True}, True, 200),
         ({"include_content": "true"}, True, 200),
@@ -459,7 +467,7 @@ def _assert_projection_budget(observation):
 @pytest.mark.parametrize("selection", ["exact", "page", "default"])
 def test_prospective_summary_projection_budget(store, selection):
     args = (
-        {"id": store.rows[0]["id"]}
+        {"id": store.rows[0]["id"], "response_mode": "summary"}
         if selection == "exact"
         else {"limit": len(store.rows)}
         if selection == "page"
@@ -484,14 +492,17 @@ def test_preview_boundaries_and_sqlite_nul_fallback(store, preview):
     row = store.rows[0]
     for body in ["", "短🙂", '汉🙂é"\\\n' * 100, "\0abc汉🙂" * 50, "ab\0汉🙂" * 50, "x" * 220 + "\0tail🙂"]:
         _replace_body(store, row, body)
-        payload, observation = store.call({"id": row["id"], "content_preview_chars": preview})
+        payload, observation = store.call(
+            {"id": row["id"], "response_mode": "summary", "content_preview_chars": preview}
+        )
         assert payload == store.expected([row], preview=200 if preview is None else preview)
         _assert_projection_budget(observation)
         # SQLite NUL fallback is deliberately a full *separate value*, never ORM body hydration.
+        # (Also for preview 0: the full value is what lets content_length be computed.)
         values = observation["sql_preview_values"]
         assert len(values) == 1
         limit = 200 if preview is None else preview
-        expected_bytes = 0 if limit == 0 else len(body.encode()) if "\0" in body else len(body[:limit].encode())
+        expected_bytes = len(body.encode()) if "\0" in body else 0 if limit == 0 else len(body[:limit].encode())
         assert values[0]["utf8_bytes"] == expected_bytes
 
 
@@ -511,7 +522,7 @@ def test_invalid_options_empty_nonempty_and_full_ignore(store):
 def test_unknown_dialect_preserves_full_row_fallback(store, monkeypatch):
     # Exercise the eligibility guard on real SQLite; not a claim of another vendor's SQL support.
     monkeypatch.setattr(store.engine.dialect, "name", "test-unsupported")
-    payload, observation = store.call({"id": store.rows[0]["id"]})
+    payload, observation = store.call({"id": store.rows[0]["id"], "response_mode": "summary"})
     assert payload == store.expected([store.rows[0]])
     assert observation["file_loads"][0]["body_loaded"]
 
