@@ -15,10 +15,10 @@ const capturedUseAgentStream = vi.hoisted(() => ({
 }))
 
 const chatPanelTranslations: Record<string, string> = {
-  'chat:panel.dailyCostExceededTitle': '今日 AI 额度已用完',
-  'chat:panel.dailyCostExceededHint': '额度于北京时间次日 00:00 恢复，升级 Pro 可继续创作。',
-  'chat:panel.quotaExceededTitle': '今日 10 条 AI 消息已用完',
-  'chat:panel.quotaExceededHint': '消息额度于北京时间次日 00:00 恢复，升级会员可获得更多每日额度。',
+  'chat:panel.quotaExceededTitle': '今天的免费 AI 消息用完了',
+  'chat:panel.quotaExceededHint': '北京时间明天 00:00 恢复。想接着写，可以开通 Pro，AI 消息不限条数。',
+  'chat:panel.notCharged': '这一轮没有改动文件，不计入今日 AI 消息。',
+  'chat:panel.notChargedError': '这次出错不计入今日 AI 消息。',
   'chat:input.mode.switchedFast': '已切换到快速模式：更快出结果（可能更简略）',
   'chat:input.mode.switchedQuality': '已切换到高质量模式：更稳更全面（可能更慢）',
   'dashboard:billing.ctaUpgradePro': '升级专业版',
@@ -371,7 +371,7 @@ describe('ChatPanel mount smoke', () => {
     })
   })
 
-  it('offers the upgrade path when the daily cost allowance is exhausted', async () => {
+  it('offers the same upgrade path when the daily cost backstop trips, without revealing a second quota', async () => {
     const originalLocation = window.location
     const assignMock = vi.fn()
     Object.defineProperty(window, 'location', {
@@ -384,9 +384,10 @@ describe('ChatPanel mount smoke', () => {
       mockAgentStreamState.errorCode = 'ERR_QUOTA_AI_DAILY_COST_EXCEEDED'
       mockAgentStreamState.error = '今日 AI 额度已用完'
       render(<ChatPanel />)
-      expect((await screen.findAllByText('今日 AI 额度已用完')).length).toBeGreaterThan(0)
-      expect(screen.queryByText('今日 10 条 AI 消息已用完')).not.toBeInTheDocument()
-      expect(screen.getAllByText(/北京时间次日 00:00 恢复/).length).toBeGreaterThan(0)
+      // 成本兜底和每日条数用同一个标题与说明；错误码文案本身不再重复显示。
+      expect((await screen.findAllByText('今天的免费 AI 消息用完了')).length).toBeGreaterThan(0)
+      expect(screen.queryByText('今日 AI 额度已用完')).not.toBeInTheDocument()
+      expect(screen.getAllByText(/北京时间明天 00:00 恢复/).length).toBeGreaterThan(0)
 
       screen.getByRole('button', { name: '升级专业版' }).click()
       expect(assignMock).toHaveBeenCalledWith('/dashboard/billing?source=chat_quota_blocked')
@@ -406,8 +407,34 @@ describe('ChatPanel mount smoke', () => {
     render(<ChatPanel />)
 
     await waitFor(() => {
-      expect(screen.getByText('今日 10 条 AI 消息已用完')).toBeInTheDocument()
+      expect(screen.getByText('今天的免费 AI 消息用完了')).toBeInTheDocument()
     })
+    // 同一件事不在一张卡片里说三遍：额度错误不再渲染原始 {error}。
+    expect(screen.queryByText('quota exceeded')).not.toBeInTheDocument()
+  })
+
+  it('tells the author a round was not charged only after the backend confirms the refund', async () => {
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([{
+      id: 'user-1', session_id: 'session-1', role: 'user', content: '写第五章',
+      created_at: '2026-10-05T10:00:00Z',
+    }] as never)
+    render(<ChatPanel />)
+    await waitFor(() => expect(screen.getByTestId('mock-message-list')).toBeInTheDocument())
+    expect(screen.queryByTestId('chat-quota-refund-note')).not.toBeInTheDocument()
+
+    const options = () => capturedUseAgentStream.options as {
+      onQuotaRefunded: (kind: 'no_progress' | 'error') => void
+      onStart: () => void
+    }
+    act(() => options().onQuotaRefunded('no_progress'))
+    expect(await screen.findByText('这一轮没有改动文件，不计入今日 AI 消息。')).toBeInTheDocument()
+
+    act(() => options().onQuotaRefunded('error'))
+    expect(await screen.findByText('这次出错不计入今日 AI 消息。')).toBeInTheDocument()
+
+    // 下一轮开始就清掉，不把上一轮的说明带过去。
+    act(() => options().onStart())
+    await waitFor(() => expect(screen.queryByTestId('chat-quota-refund-note')).not.toBeInTheDocument())
   })
 
   it('quota modal primary action navigates to billing with source', async () => {

@@ -41,6 +41,14 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
+def _frame_data(text: str, event: str) -> dict | None:
+    for frame in text.split("\n\n"):
+        lines = frame.strip().splitlines()
+        if lines and lines[0] == f"event: {event}":
+            return json.loads(lines[1].split(":", 1)[1])
+    return None
+
+
 class _FakeService:
     def __init__(self, frames_factory):
         self._frames_factory = frames_factory
@@ -130,8 +138,10 @@ async def test_stream_wall_clock_deadline_ends_with_timeout_error(client: AsyncC
     assert "event: error" in response.text
     assert "ERR_AGENT_RUN_TIMEOUT" in response.text
     assert cancelled.is_set()
-    # 没有任何产出：退还额度。
+    # 没有任何产出：退还额度，并在 error 帧之后告诉前端这一轮不计入。
     assert refund.call_args.kwargs["period_start"] == _CHARGED_PERIOD
+    assert _frame_data(response.text, "quota_refunded") == {"refunded": True, "kind": "error"}
+    assert response.text.index("event: error") < response.text.index("event: quota_refunded")
 
 
 @pytest.mark.integration
@@ -159,6 +169,7 @@ async def test_tool_failure_circuit_is_not_refunded(client: AsyncClient, db_sess
 
     assert response.status_code == 200
     refund.assert_not_called()
+    assert "quota_refunded" not in response.text
 
 
 @pytest.mark.integration
@@ -198,9 +209,64 @@ async def test_real_internal_error_without_output_is_still_refunded(client: Asyn
         patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
         patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
     ):
-        await _post_stream(client, token, project)
+        response = await _post_stream(client, token, project)
 
     refund.assert_called_once()
+    assert _frame_data(response.text, "quota_refunded") == {"refunded": True, "kind": "error"}
+
+
+@pytest.mark.integration
+async def test_runaway_stop_without_writes_tells_client_it_was_not_charged(client: AsyncClient, db_session):
+    token, project, _ = await _login_with_project(client, db_session)
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "s1"})
+        yield _sse("content", {"text": "我再看一下第四章……"})
+        yield _sse(
+            "error",
+            {
+                "message": "AI 一直在翻看同样的资料",
+                "code": "ERR_AGENT_TOOL_FAILURE_LIMIT",
+                "retryable": False,
+                "refundable": True,
+                "reason": "no_progress",
+            },
+        )
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        response = await _post_stream(client, token, project)
+
+    refund.assert_called_once()
+    assert _frame_data(response.text, "quota_refunded") == {"refunded": True, "kind": "no_progress"}
+    # 退还在终止帧之后才结算，所以说明帧必须排在 error 帧后面。
+    assert response.text.index("event: error") < response.text.index("event: quota_refunded")
+
+
+@pytest.mark.integration
+async def test_refund_that_did_not_apply_is_not_announced(client: AsyncClient, db_session):
+    """该退但没退成（例如额度行已跨日）：不能告诉作者「不计入」。"""
+    token, project, _ = await _login_with_project(client, db_session)
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "s1"})
+        yield _sse(
+            "error",
+            {"message": "x", "code": "ERR_AGENT_UPSTREAM_UNAVAILABLE", "retryable": True, "refundable": True},
+        )
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=False) as refund,
+    ):
+        response = await _post_stream(client, token, project)
+
+    refund.assert_called_once()
+    assert "quota_refunded" not in response.text
 
 
 @pytest.mark.integration

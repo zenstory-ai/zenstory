@@ -56,7 +56,7 @@ import {
   type MessageFeedbackVote,
 } from "../lib/chatApi";
 import { fileVersionApi, versionApi } from "../lib/api";
-import { fetchSuggestions } from "../lib/agentApi";
+import { fetchSuggestions, type QuotaRefundKind } from "../lib/agentApi";
 import { parseUTCDate } from "../lib/dateUtils";
 import { ApiError } from "../lib/apiClient";
 import { handleApiError } from "../lib/errorHandler";
@@ -397,6 +397,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const [feedbackPendingMessageId, setFeedbackPendingMessageId] = useState<string | null>(null);
   const [showQuotaUpgradeModal, setShowQuotaUpgradeModal] = useState(false);
   const [showFileVersionUpgradeModal, setShowFileVersionUpgradeModal] = useState(false);
+  // 后端确实退还了这一轮的 AI 消息时才有值（quota_refunded 帧），按项目隔离，下一轮开始时清空。
+  const [quotaRefund, setQuotaRefund] = useState<{ projectId: string; kind: QuotaRefundKind } | null>(null);
   const pendingMaterialClearRef = useRef(false);
   const pendingQuoteClearRef = useRef(false);
   const currentAgentSessionIdRef = useRef<string | null>(null);
@@ -885,6 +887,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     onStart: () => {
       streamCallbacks.onStart();
       terminalStatusCardsRef.current = [];
+      setQuotaRefund(null);
       resetOnCompleteFlag();
     },
 
@@ -962,14 +965,20 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     onParallelTaskEnd: streamCallbacks.onParallelTaskEnd,
     onParallelEnd: streamCallbacks.onParallelEnd,
     onSteeringReceived: streamCallbacks.onSteeringReceived,
+    onQuotaRefunded: (kind) => {
+      if (currentProjectId) setQuotaRefund({ projectId: currentProjectId, kind });
+    },
   });
   const conflictCount = state.conflicts?.length ?? 0;
   const streamRenderItemCount = streamRenderItems?.length ?? 0;
 
-  const isDailyCostLimit = errorCode === 'ERR_QUOTA_AI_DAILY_COST_EXCEEDED';
-  const isAiQuotaLimit = isDailyCostLimit || errorCode === 'ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED';
-  const quotaTitle = t(isDailyCostLimit ? 'chat:panel.dailyCostExceededTitle' : 'chat:panel.quotaExceededTitle');
-  const quotaHint = t(isDailyCostLimit ? 'chat:panel.dailyCostExceededHint' : 'chat:panel.quotaExceededHint');
+  // 成本兜底与每日条数共用同一套标题和说明：不向作者透露第二个额度。
+  const isAiQuotaLimit =
+    errorCode === 'ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED'
+    || errorCode === 'ERR_QUOTA_AI_DAILY_COST_EXCEEDED';
+  const quotaRefundNote = quotaRefund && quotaRefund.projectId === currentProjectId && !isStreaming
+    ? t(quotaRefund.kind === 'no_progress' ? 'chat:panel.notCharged' : 'chat:panel.notChargedError')
+    : null;
 
   useEffect(() => {
     if (isAiQuotaLimit && chatQuotaUpgradePrompt.surface === "modal") {
@@ -1395,6 +1404,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       clearStreamItems();
       setMatchedSkills([]);
       reset();
+      setQuotaRefund(null);
       await requestInitialSuggestions(projectId, []);
     } catch (err) {
       logger.error("Failed to create new session:", err);
@@ -1728,10 +1738,12 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                     <div className="flex-1 min-w-0">
                       <p className="text-[hsl(var(--warning))] text-sm font-medium">
                         {isAiQuotaLimit
-                          ? quotaTitle
+                          ? t('chat:panel.quotaExceededTitle')
                           : t('chat:panel.streamErrorTitle')}
                       </p>
-                      <p className="text-[hsl(var(--warning))] text-sm break-words">{error}</p>
+                      {!isAiQuotaLimit && (
+                        <p className="text-[hsl(var(--warning))] text-sm break-words">{error}</p>
+                      )}
                       {retryable && lastRetryRequestRef.current?.projectId === currentProjectId && (
                         <button
                           type="button"
@@ -1744,7 +1756,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                       {isAiQuotaLimit && (
                         <div className="mt-2 space-y-2">
                           <p className="text-xs text-[hsl(var(--text-secondary))]">
-                            {quotaHint}
+                            {t('chat:panel.quotaExceededHint')}
                           </p>
                           <button
                             type="button"
@@ -1758,6 +1770,16 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                     </div>
                   </div>
                 </div>
+              )}
+
+              {/* 这一轮确实没扣 AI 消息（后端退还落库后才会收到） */}
+              {quotaRefundNote && (
+                <p
+                  data-testid="chat-quota-refund-note"
+                  className="mt-2 text-xs text-[hsl(var(--text-secondary))]"
+                >
+                  {quotaRefundNote}
+                </p>
               )}
 
               {/* Jump-to-latest button (only when user scrolled away and new content arrives) */}
@@ -1854,8 +1876,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         source={chatQuotaUpgradePrompt.source}
         primaryDestination="billing"
         secondaryDestination="pricing"
-        title={quotaTitle}
-        description={quotaHint}
+        title={t('chat:panel.quotaExceededTitle')}
+        description={t('chat:panel.quotaExceededHint')}
         primaryLabel={t('dashboard:billing.ctaUpgradePro')}
         onPrimary={() => {
           window.location.assign(
