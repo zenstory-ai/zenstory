@@ -2,7 +2,7 @@
   <img src="https://zenstory.ai/brand/zenstory-ai-mark.svg" alt="" width="76" height="76">
 </p>
 
-<h1 align="center">ZenStory Workbench</h1>
+<h1 align="center">ZenStory 工作台</h1>
 
 <p align="center">
   <b>对话即创作：在浏览器里写小说，AI 直接新建、改写你的大纲、正文和角色卡。</b>
@@ -38,7 +38,7 @@
 
 ## 这是什么
 
-ZenStory 工作台是一个在浏览器里写小说的地方。大纲、正文、角色卡、世界观、素材都是项目里的文件，你在右边和 AI 说话，AI 直接新建、改写这些文件，不用来回复制粘贴。可以在 [app.zenstory.ai](https://app.zenstory.ai) 在线用，也可以按 MIT 许可自己部署。
+ZenStory 工作台是一个在浏览器里写小说的地方。大纲、正文、角色卡、设定、素材都是项目里的文件，你在右边和 AI 说话，AI 直接新建、改写这些文件，不用来回复制粘贴。可以在 [app.zenstory.ai](https://app.zenstory.ai) 在线用，也可以按 MIT 许可自己部署。
 
 - **在对话里改文件**：说「帮我建一个反派，性格阴沉，有悲情过往」，Agent 会在「角色」文件夹里新建一张角色卡，边写边显示在编辑器里。续写、改写正文也一样，改动直接落进文件。
 - **一个路由，四个专职 Agent**：路由只看你这一句话，从五条流程里选一条，再由大纲规划师、爽点设计师、内容创作者、质量审稿人接力。内容创作者一轮输出满 500 字并且写了文件，会自动交给审稿人；审稿人不能改文件，有问题交回去重写。
@@ -122,7 +122,7 @@ flowchart LR
 
 ### 在线版
 
-打开 [app.zenstory.ai](https://app.zenstory.ai)。注册时要填邀请码，找已经注册的朋友在「设置 → 邀请」里生成一个（见[常见问题](#在线版注册要邀请码去哪拿)）。免费版有每天 20 次 AI 对话、3 个项目，各套餐的对比见[定价页](https://app.zenstory.ai/pricing)。
+打开 [app.zenstory.ai](https://app.zenstory.ai) 注册即可；有朋友的邀请码可以填上，没有也能注册。免费版每天 10 条 AI 消息（北京时间 00:00 重置）、最多 3 个项目，各套餐的对比见[定价页](https://app.zenstory.ai/pricing)。
 
 新建一个「短篇小说」项目，第一条请求可以先要一份能改的提纲，不急着写正文（示例来自[快速开始](https://zenstory.ai/docs/getting-started/quick-start)）：
 
@@ -157,7 +157,7 @@ docker compose exec -e ZENSTORY_ADMIN_EMAIL=you@example.com \
 
 打开 <http://localhost:5173> 登录，API 文档在 <http://localhost:8000/docs>。数据库是 SQLite，和上传文件、向量索引一起放在 Docker 卷里，`docker compose down` 和重新构建都不会清掉。
 
-每个账号（包括管理员）默认都是免费套餐：每天 20 次 AI 对话、最多 3 个项目。要放开，先运行 `docker compose exec server python scripts/seed_subscription_plans.py` 创建 Pro 套餐（也会建好免费套餐这一行），再在管理后台「订阅管理」里给账号开通 Pro，或在「订阅计划」里改免费套餐的额度。
+每个账号（包括管理员）默认都是免费套餐：每天 10 条 AI 消息（北京时间 00:00 重置）、最多 3 个项目。要放开，先运行 `docker compose exec server python scripts/seed_subscription_plans.py` 创建 Pro 套餐（也会建好免费套餐这一行），再在管理后台「订阅管理」里给账号开通 Pro，或在「订阅计划」里改免费套餐的额度。
 
 写作 Agent 固定用 DeepSeek 的 `deepseek-flash`（DeepSeek-V4.1-Flash），只需要这一个 Key。其他功能各要各的配置：用上面的快速启动时，后端变量加到 `docker-compose.yml` 里 `server` 的 `environment` 下，`VITE_*` 加到 `web` 下，再运行 `docker compose up -d`；仓库根目录的 `.env` 只给 compose 文件里的 `${…}` 取值（比如 `DEEPSEEK_API_KEY`、`JWT_SECRET_KEY`），不会把别的变量带进容器。换成 `docker-compose.full.yml` 时，变量写进 `apps/server/.env.docker` 和 `apps/web/.env.docker`。
 
@@ -311,9 +311,9 @@ Agent 用自己的模型写，ZenStory 负责存稿和整理上下文。`files p
 
 ## 常见问题
 
-### 在线版注册要邀请码，去哪拿？
+### 在线版注册要邀请码吗？
 
-找已经注册的人要：在「设置 → 邀请」里点「生成邀请码」，每人最多生成 3 个，每个能用 3 次。分享出来的链接形如 `https://app.zenstory.ai/register?code=XXXX-XXXX`，打开会自动填好。用 Google 注册的新账号同样要邀请码，已有账号用 Google 登录不用。注册页上目前没有申请入口（[#63](https://github.com/zenstory-ai/zenstory/issues/63)）。
+不用。打开 app.zenstory.ai 注册即可；有朋友的邀请码可以填上，没有也能注册。已经注册的人在「设置 → 邀请」里点「生成邀请码」，每人最多生成 3 个，每个能用 3 次；分享出来的链接形如 `https://app.zenstory.ai/register?code=XXXX-XXXX`，打开会自动填好。
 
 ### 自己部署后，第一个账号怎么建？别人怎么注册？
 
@@ -347,9 +347,7 @@ Agent 用自己的模型写，ZenStory 负责存稿和整理上下文。`files p
 
 ### 免费版有哪些限制？
 
-在线版的免费套餐：每天 20 次 AI 对话（北京时间 00:00 重置），最多 3 个项目，每个文件保留 10 个你自己保存的版本（满了照常保存，只是不再记新版本），导出 TXT，不含素材库，最多拥有 3 个自定义技能，每月复用 10 个灵感模板。素材上传、素材拆解及灵感复用等月度额度于北京时间每月 1 日 00:00 重置，与会员有效期分别计算。免费套餐不会到期。
-
-每日签到和自动建议的独立每日保护上限，也按北京时间 00:00 换日。自动建议不占 AI 对话额度，小时级限流仍独立生效。套餐页展示的是实际执行的每日对话额度，不再把它换算成月度任务次数或字数承诺。
+在线版免费套餐：每天 10 条 AI 消息（北京时间 00:00 重置），最多 3 个项目，每个文件保留 10 个历史版本（满了照常保存，只是不再记新版本），导出 TXT，最多 3 个自定义技能；素材库是 Pro 功能。免费套餐不会到期。自动建议不占每日 AI 消息。
 
 ### 能把已经写好的稿子导进来吗？
 
@@ -367,7 +365,7 @@ Agent 用自己的模型写，ZenStory 负责存稿和整理上下文。`files p
 - [AI 记忆](https://zenstory.ai/docs/advanced/ai-memory)：四栏怎么填，写错了怎么改。
 - [版本历史](https://zenstory.ai/docs/user-guide/version-history)：单个文件恢复和整个项目快照的区别。
 - [从参考片段写到自己的场景](https://zenstory.ai/docs/advanced/material-analysis)：拆完参考小说，怎样写出自己的戏。
-- [写作环境对比](https://zenstory.ai/zh/compare/writing-workflows)：普通聊天、Oh Story 技能包、DSH 插件和这个网页工作台各适合什么。
+- [写作环境对比](https://zenstory.ai/zh/compare/writing-workflows)：普通聊天、Oh Story skill 包、DSH 插件和 ZenStory 工作台各适合什么。
 - [AI 续写怎么保持文风](https://zenstory.ai/zh/oh-story/preserve-author-voice)：把文风拆成说得清的几点，附一段自己的样本。
 
 ## 参与贡献

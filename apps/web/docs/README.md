@@ -1,14 +1,14 @@
 # ZenStory 工作台帮助文档
 
-ZenStory 是围绕项目文件写作的网页工作台。先从创意与场景提纲开始，再按需要使用 AI 起草和修订。
+ZenStory 工作台围绕项目文件写作：先定想法和场景提纲，再按需要请 AI 起草和修订。
 
 在 [app.zenstory.ai](https://app.zenstory.ai/dashboard) 操作，在本站阅读指南。
 
 **核心特点**：
-- 三栏式工作台：文件树 + 编辑器 + AI 对话，一站式完成所有创作工作
-- 写作上下文：打开目标文件，按需要引用关键文字与附加素材；作者仍需确认设定与叙事一致性
-- 版本追溯：查看已有快照并比较或回滚；快照策略和版本额度适用，重要内容另留副本
-- 仪表盘工作流：项目、素材、灵感、技能、订阅权益一体化管理
+- 三栏工作台：文件树、编辑器、AI 对话
+- 写作上下文：打开目标文件，引用关键文字，附加素材
+- 历史版本：每个文件都能对比、回滚，整个项目也能拍快照
+- 工作台首页：项目、素材库、技能、订阅权益都从这里进入
 
 ## 快速链接
 
@@ -20,7 +20,7 @@ ZenStory 是围绕项目文件写作的网页工作台。先从创意与场景�
 ## 文档导航
 
 ### 快速入门
-适合新用户，帮助你快速了解zenstory的基础功能。
+适合新用户，帮你快速了解 ZenStory 的基础功能。
 
 | 文档 | 说明 |
 |------|------|
@@ -29,24 +29,24 @@ ZenStory 是围绕项目文件写作的网页工作台。先从创意与场景�
 | [写第一篇短篇](https://zenstory.ai/docs/getting-started/first-project) | 原创故事实例、文件安排、局部修改与正文导出 |
 
 ### 用户指南
-详细的功能说明，帮助你充分利用zenstory的各项功能。
+详细的功能说明，帮你用好 ZenStory 的各项功能。
 
 | 文档 | 说明 |
 |------|------|
 | [界面总览](user-guide/interface-overview.md) | 三栏式工作台布局详解 |
 | [项目管理](user-guide/project-management.md) | 创建、管理你的写作项目 |
-| [文件树与文件类型](user-guide/file-tree.md) | 大纲、草稿、角色等文件类型 |
+| [文件树与文件类型](user-guide/file-tree.md) | 大纲、正文、角色卡等文件类型 |
 | [编辑器使用](https://zenstory.ai/docs/user-guide/editor) | 手写、引用与局部改稿前后对照 |
 | [AI创作助手](https://zenstory.ai/docs/user-guide/ai-assistant) | 给对上下文，限定写作与修改范围 |
 | [技能系统](user-guide/skills.md) | 预设技能加速特定创作任务 |
-| [素材库](user-guide/materials.md) | 管理灵感碎片、世界观设定等素材 |
-| [灵感库](user-guide/inspirations.md) | 浏览精选灵感并一键复制到项目 |
-| [订阅与权益](user-guide/billing-benefits.md) | 查看套餐能力、配额和升级路径 |
+| [素材库](user-guide/materials.md) | 上传参考小说（TXT），拆出章节摘要、人物和设定，写作时附到对话里（Pro） |
+| [灵感库](user-guide/inspirations.md) | 自托管可选模块，在线版未开放 |
+| [订阅权益](user-guide/billing-benefits.md) | 查看套餐、今日 AI 消息和其他用量，开通或续费 Pro |
 | [版本历史](https://zenstory.ai/docs/user-guide/version-history) | 单文件与项目快照，先比较再选择恢复范围 |
 | [导出功能](https://zenstory.ai/docs/user-guide/export) | 正文与剧本 TXT、另存送审副本，非完整项目备份 |
 
 ### 进阶技巧
-深入掌握zenstory，打造高效的个性化写作流程。
+深入了解 ZenStory，整理出适合自己的写作流程。
 
 | 文档 | 说明 |
 |------|------|
@@ -75,14 +75,4 @@ ZenStory 是围绕项目文件写作的网页工作台。先从创意与场景�
 
 ## 需要帮助？
 
-如果您在使用过程中遇到问题：
-
-1. **查阅文档** - 在上方导航中找到对应的用户指南
-2. **搜索 FAQ** - 查看[常见问题](reference/faq.md)快速找到答案
-3. **联系支持** - 如需进一步帮助，请发送邮件至 support@zenstory.ai
-
-我们致力于为创作者提供最好的写作工具，您的反馈对我们非常重要！
-
----
-
-*文档版本：1.1 | 最后更新：2026年3月7日*
+先看[常见问题](reference/faq.md)；还有问题，请写信到 support@zenstory.ai。

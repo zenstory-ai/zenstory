@@ -2,7 +2,7 @@
 
 ZenStory's **AI Memory is an editable project summary**, not proof that the AI has read your whole book or a guarantee that characters never drift. It stores four fields—project summary, writing style, current phase and notes—for context assembly. Keep detailed characters, outlines and prose in their respective files, and identify the evidence needed for each task.
 
-This guide covers the [hosted ZenStory workbench](https://app.zenstory.ai/dashboard), not Oh Story tracking files or the DSH plugin. New users can start with the [browser quick start](https://zenstory.ai/docs/getting-started/quick-start).
+This guide covers [ZenStory Workbench](https://app.zenstory.ai/dashboard), not Oh Story tracking files or the DSH plugin. New users can start with the [browser quick start](https://zenstory.ai/docs/getting-started/quick-start).
 
 ## 1. What belongs in memory, and what stays in files?
 

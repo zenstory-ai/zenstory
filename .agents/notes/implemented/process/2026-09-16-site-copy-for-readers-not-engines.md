@@ -13,9 +13,10 @@ Status: implemented
 - 首页与 /projects 的 lede 使用 `content/org.json` 新增的 `intro`（一段面向作者的人话）。原 `canonical` 段落是罗列五个产品名的抽取用摘要，页面不再渲染它，`org.json` 里也随之删除；`public/llms.txt` 有自己的一段摘要，不依赖这个字段。首页 H1 为"ZenStory AI 用 AI 写小说，再改成短剧、游戏和解说视频"（英文同义），包含用户会搜的词。
 - 每个项目在 `content/projects.json` 里有 `seo.title` 与 `seo.description`：title 以关键词开头、以 `| ZenStory AI` 结尾，英文 ≤ 85 字符；description 英文 ≈ 160 字符、中文 ≈ 90 字符。`definition` 只用于正文和 JSON-LD，六段 definition 改写为不含"不是…/不保证…"从句的产品描述。
 - 指南页与比较页的 meta description 由 `summary()` 从 answer 截取到句末（英文 160 / 中文 90），正文和 JSON-LD 仍是完整 answer。
-- 日期戳只出现一次：首页与 /projects 末尾的事实行（star 总数截至日期），项目页"来源"段一句话（源码读取日期 + star 截至日期），指南页与比较页的"更新于"。hero、卡片、指南卡上的 `as of / 截至 / Checked / 核对于` 全部移除；`proofRow` 不再接受日期参数。
+- 日期戳只出现一次：/projects 末尾一行「star 数统计于 <日期>」（宿主列表上方已有，不再重复宿主、许可和组织 star 总数；首页收尾区不放 star 句），项目页"来源"段一句话（「本页内容依据 <日期> 的源码（star 数同日统计）」，两个日期不同时才分别写出），指南页与比较页的"更新于"。页脚版权行只写「© 年份 ZenStory AI」，许可、GitHub 与 llms.txt 已在页脚上方各列一次。hero、卡片、指南卡上的 `as of / 截至 / Checked / 核对于` 全部移除；`proofRow` 不再接受日期参数。
 - 项目卡只显示任务、名称、一句话、形态与 star / 技能数两枚 chip，以及"安装与详情"、"GitHub 源码"两个链接；安装命令只在项目页和首页旗舰 hero 出现。
 - 项目页"来源与边界"改名"来源"，去掉"不保证后续版本一致"一类措辞；工作台迁移提示缩为一句。
+- 工作台在营销站上的名字只有一个：中文页写「ZenStory 工作台」（`projects.json` 的 `name.zh`，生成器的 `toolName()` 与页脚项目列表都按页面语言取），英文页写「ZenStory Workbench」；不再用网页写作工作台、托管工作台、ZenStory 在线服务、浏览器工作台。其他项目在中文页仍显示英文名，因为它们的 `name.zh` 带括注，适合标题而不适合列表。项目卖点（`distinctive`）写成能做什么，不以「不保证…/不承诺…」收尾。
 
 ## Alternatives considered
 

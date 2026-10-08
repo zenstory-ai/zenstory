@@ -67,11 +67,11 @@
     "slug": "revision",
     "title": {
       "en": "Revise your novel",
-      "zh": "小说改稿与去 AI 味"
+      "zh": "小说改稿与去AI味"
     },
     "description": {
       "en": "Fix weak prose, continuity mistakes, and chapters that stall.",
-      "zh": "去 AI 味、查前后矛盾，解决卡文、注水和追读下降。"
+      "zh": "去AI味、查前后矛盾，解决卡文、注水和追读下降。"
     },
     "featured": [
       "revise-ai-prose",

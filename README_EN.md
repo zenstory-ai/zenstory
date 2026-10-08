@@ -40,7 +40,7 @@ File tree on the left, editor in the middle, AI chat on the right.
 
 ## What it is
 
-ZenStory Workbench is a place to write fiction in the browser. Outlines, chapters, character sheets, world-building notes and reference material are all files in a project. You talk to the AI on the right, and it creates and edits those files directly, with no copy-paste in between. Use it online at [app.zenstory.ai](https://app.zenstory.ai), or host it yourself under the MIT license.
+ZenStory Workbench is a place to write fiction in the browser. Outlines, chapters, character sheets, settings and reference material are all files in a project. You talk to the AI on the right, and it creates and edits those files directly, with no copy-paste in between. Use it online at [app.zenstory.ai](https://app.zenstory.ai), or host it yourself under the MIT license.
 
 - **Edit files from the chat**: ask for "a villain, brooding, with a tragic past" and the Agent creates a character sheet in the Characters folder, streaming it into the editor as it writes. Continuing or rewriting a chapter works the same way: the change lands in the file.
 - **One router, four specialist agents**: the router reads only your message and picks one of five paths; then the Planner, Hook Designer, Writer and Quality Reviewer take turns. Once the Writer's output in a turn reaches 500+ characters and it has written to a file, the reviewer is called automatically. The reviewer has no file-editing tools and sends problems back for a rewrite.
@@ -126,7 +126,7 @@ Each skill is a `SKILL.md` in the open Agent Skills format ([`apps/server/agent/
 
 ### Hosted
 
-Open [app.zenstory.ai](https://app.zenstory.ai). Sign-up asks for an invite code; ask someone who already has an account to generate one under Settings → Referral (see the [FAQ](#sign-up-on-the-hosted-app-asks-for-an-invite-code-where-do-i-get-one)). The free plan includes 20 AI conversations a day and 3 projects; the [pricing page](https://app.zenstory.ai/pricing) compares the plans.
+Sign up at [app.zenstory.ai](https://app.zenstory.ai); a friend's invite code is optional. The free plan includes 10 AI messages a day (reset at 00:00 Beijing time) and up to 3 projects; the [pricing page](https://app.zenstory.ai/pricing) compares the plans.
 
 Create a Short Story project. A good first request asks for an outline you can edit rather than a chapter (the example comes from the [quick start](https://zenstory.ai/docs/getting-started/quick-start#en); the English docs are below the Chinese on each page):
 
@@ -161,7 +161,7 @@ docker compose exec -e ZENSTORY_ADMIN_EMAIL=you@example.com \
 
 Sign in at <http://localhost:5173>; the API reference is at <http://localhost:8000/docs>. The database is SQLite and lives in a Docker volume together with uploads and the vector index, so `docker compose down` and image rebuilds keep your data.
 
-Every account, the admin included, starts on the free plan: 20 AI conversations a day and up to 3 projects. To lift that, run `docker compose exec server python scripts/seed_subscription_plans.py` to create the Pro plan (it also creates the free-plan row), then give an account Pro under Subscriptions in the admin console, or raise the free plan's limits under Subscription Plans.
+Every account, the admin included, starts on the free plan: 10 AI messages a day (reset at 00:00 Beijing time) and up to 3 projects. To lift that, run `docker compose exec server python scripts/seed_subscription_plans.py` to create the Pro plan (it also creates the free-plan row), then give an account Pro under Subscriptions in the admin console, or raise the free plan's limits under Subscription Plans.
 
 The writing agents use DeepSeek `deepseek-flash` (DeepSeek-V4.1-Flash) and need only that key. Other features need their own settings. With the quick start above, add backend variables under `server.environment` in `docker-compose.yml` and `VITE_*` variables under `web.environment`, then run `docker compose up -d`; the repo-root `.env` only fills the `${…}` placeholders in the compose file (such as `DEEPSEEK_API_KEY` and `JWT_SECRET_KEY`) and passes nothing else into the containers. With `docker-compose.full.yml`, put them in `apps/server/.env.docker` and `apps/web/.env.docker` instead.
 
@@ -315,9 +315,9 @@ The agent writes with its own model; ZenStory stores the manuscript and assemble
 
 ## FAQ
 
-### Sign-up on the hosted app asks for an invite code. Where do I get one?
+### Do I need an invite code to sign up on the hosted app?
 
-From someone who already has an account: under Settings → Referral they click Generate Code. Each person can generate up to 3 codes, and each code works 3 times. The shared link looks like `https://app.zenstory.ai/register?code=XXXX-XXXX` and fills the code in for you. New accounts created with Google need a code too; existing accounts signing in with Google don't. The sign-up page has no way to request a code yet ([#63](https://github.com/zenstory-ai/zenstory/issues/63)).
+No. Sign up at app.zenstory.ai; a friend's invite code is optional. Anyone with an account can click Generate Code under Settings → Referral: up to 3 codes per person, each usable 3 times. The shared link looks like `https://app.zenstory.ai/register?code=XXXX-XXXX` and fills the code in for you.
 
 ### On my own server, how do I create the first account, and how do others sign up?
 
@@ -351,9 +351,7 @@ No. To let it read an entry, use Attach to Chat in the project's Novel Reference
 
 ### What does the free plan include?
 
-On the hosted service: 20 AI conversations a day (reset at 00:00 Beijing time, UTC+8), up to 3 projects, 10 of your own saved versions per file (after that your text still saves, just without new versions), TXT export, no material library, up to 3 custom skills, and 10 inspiration-template copies per month. Monthly quotas for material uploads, decompositions, and inspiration copies reset on the 1st at 00:00 Beijing time, independently of membership validity. The free plan does not expire.
-
-Daily check-ins and the separate daily protective limit for automatic suggestions also follow Beijing midnight. Suggestions do not consume conversation quota; hourly rate limits still apply independently. Plan comparisons show the daily conversation limit actually enforced, not projected monthly task counts or word-count promises.
+Hosted free plan: 10 AI messages a day (reset at 00:00 Beijing time, UTC+8), up to 3 projects, 10 versions per file (your text still saves after that, just without new versions), TXT export, up to 3 custom skills; the Materials Library is Pro. The free plan does not expire. Inline suggestions don't count toward daily AI messages.
 
 ### Can I bring in a manuscript I've already written?
 
@@ -371,7 +369,7 @@ There is no self-service reset on the hosted app. Email support@zenstory.ai from
 - [AI Memory](https://zenstory.ai/docs/advanced/ai-memory#en): what to put in the four fields and how to correct them.
 - [Version history](https://zenstory.ai/docs/user-guide/version-history#en): restoring one file versus a whole-project snapshot.
 - [From a reference passage to your own scene](https://zenstory.ai/docs/advanced/material-analysis#en): after analysing a reference novel, how to write a scene of your own.
-- [Writing environments compared](https://zenstory.ai/compare/writing-workflows): plain chat, the Oh Story skill pack, the DSH plugin and this browser workbench, and what each suits.
+- [Writing environments compared](https://zenstory.ai/compare/writing-workflows): plain chat, the Oh Story skill pack, the DSH plugin and ZenStory Workbench, and what each suits.
 - [Keeping your voice when AI continues](https://zenstory.ai/oh-story/preserve-author-voice): describe your voice in concrete terms and give a short sample of your own.
 
 ## Contributing

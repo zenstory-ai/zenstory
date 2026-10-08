@@ -110,7 +110,7 @@
 
 拿到一场可用正文后，再继续第二场：复用已确认文件，写清本场要发生的变化和停止位置。你也可以先自行写作，只在卡住或修订时使用 AI。
 
-- 想判断该用网页工作台还是本地技能：[写作工作流对照](https://zenstory.ai/compare/writing-workflows)。
+- 想判断该用 ZenStory 工作台还是在 Agent 里用 skill 包：[写作工作流对照](https://zenstory.ai/compare/writing-workflows)。
 - 想看局部改稿的前后对照：[减少套路化表达](https://zenstory.ai/oh-story/revise-ai-prose)。其中的编辑原则可以借鉴，但 Oh Story 的文件流程并非在线工作台按钮。
 - 账号与配置入口：[注册和登录](https://zenstory.ai/docs/getting-started/installation)。账号、配额与模型服务可用性以实际部署为准。
 

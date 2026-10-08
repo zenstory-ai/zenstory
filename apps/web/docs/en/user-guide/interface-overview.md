@@ -20,12 +20,12 @@ The panels can be resized by dragging the dividers between them to suit your wor
 
 After login, the dashboard sidebar includes these primary entries:
 
-- **Home**: quick project creation, recent projects, featured inspirations
+- **Home**: quick project creation and recent projects
 - **My Projects**: full project list and search management
 - **Materials**: upload reference novels and review AI decomposition
-- **Inspirations**: browse and reuse idea templates
+- **Inspirations**: browse and reuse idea templates (optional self-host module; not on the hosted app)
 - **Skills**: manage and use skills
-- **Plans & Benefits**: review plan capabilities, quotas, and upgrade paths
+- **Plans & Benefits**: check your plan, today's AI messages and other usage; get or renew Pro
 
 ---
 
@@ -271,7 +271,7 @@ Now that you understand zenstory's interface layout, you can continue reading th
 - [Chat with AI](./ai-assistant.md)
 - [File Management](./file-tree.md)
 - [Inspirations Library](./inspirations.md)
-- [Billing & Benefits](./billing-benefits.md)
+- [Plans & Benefits](./billing-benefits.md)
 - [Version History](./version-history.md)
 
 Happy writing!

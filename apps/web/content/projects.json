@@ -18,7 +18,7 @@
     },
     "definition": {
       "en": "Oh Story is an MIT-licensed skill pack that turns Claude Code, Codex and other supported agent hosts into a web-fiction writing workflow. Its 13 skills cover chart research, deconstruction, long-form serials, short stories, revision and covers, and combine writing instructions with chapter blueprints, deterministic checks and file-based project state. `/story-setup` configures the host; specialist agents are orchestrated where the host supports it and run directly where it does not.",
-      "zh": "Oh Story 是 MIT 开源的网文写作 skill 包，把 Claude Code、Codex 等 Agent 宿主变成完整的写作流程。13 个 skills 覆盖扫榜选题、拆文、长篇连载、短篇、修订与封面，把写作指令与逐章细纲、确定性检查和文件化的项目状态结合在一起。`/story-setup` 负责配置宿主；宿主支持多 agent 时按专业分工编排，不支持时直接执行。"
+      "zh": "Oh Story 是 MIT 开源的网文写作 skill 包，把 Claude Code、Codex 等 Agent 宿主变成完整的写作流程。13 个 skill 覆盖扫榜选题、拆文、长篇连载、短篇、修订与封面，把写作指令与逐章细纲、确定性检查和文件化的项目状态结合在一起。`/story-setup` 负责配置宿主；宿主支持多 agent 时按专业分工编排，不支持时直接执行。"
     },
     "seo": {
       "title": {
@@ -50,7 +50,7 @@
         ],
         [
           "How do I start writing in Claude Code?",
-          "After installing the pack, run `/story-setup` in your writing-project folder and open a fresh session. Use `/story` to describe your task rather than memorizing every skill. For a new long-form project, `/story-long-write 帮我开书` prepares settings, an outline and chapter blueprints, then stops before prose by default. Review that plan, then request `/story-long-write 写第1章`. This is the agent-host workflow, not a login to the separate hosted ZenStory workbench. “No prose” still creates planning files; tracking is initialized after the outline stage is complete. For a first reply before project creation, [the writer’s skill guide](https://zenstory.ai/oh-story/agent-skills-for-writers) compares two concrete investigation openings and carries the chosen direction into a separate planning request. For a detailed character profile that still does not generate action, [character motivation](https://zenstory.ai/oh-story/character-motivation) moves from a relay plan into an original scene of resistance and shared credit, without treating an agreement as a completed delivery."
+          "After installing the pack, run `/story-setup` in your writing-project folder and open a fresh session. Use `/story` to describe your task rather than memorizing every skill. For a new long-form project, `/story-long-write 帮我开书` prepares settings, an outline and chapter blueprints, then stops before prose by default. Review that plan, then request `/story-long-write 写第1章`. This is the agent-host workflow, not a login to the separate ZenStory Workbench. “No prose” still creates planning files; tracking is initialized after the outline stage is complete. For a first reply before project creation, [the writer’s skill guide](https://zenstory.ai/oh-story/agent-skills-for-writers) compares two concrete investigation openings and carries the chosen direction into a separate planning request. For a detailed character profile that still does not generate action, [character motivation](https://zenstory.ai/oh-story/character-motivation) moves from a relay plan into an original scene of resistance and shared credit, without treating an agreement as a completed delivery."
         ],
         [
           "How do I make the first three chapters invite continued reading?",
@@ -108,7 +108,7 @@
         ],
         [
           "Claude Code 装好后，怎么开始写小说？",
-          "安装 skill 包后，在写作项目目录运行 `/story-setup`，再新开会话。通过 `/story` 描述任务，不必先记住全部 skill。新建长篇可以说 `/story-long-write 帮我开书`：默认先生成设定、大纲与细纲，在正文前停下。审阅规划后，再明确请求 `/story-long-write 写第1章`。这是 Agent 宿主内的流程，不是登录另一个产品 ZenStory 网页工作台。 “不写正文”仍会建立规划文件；大纲阶段完成后才初始化追踪状态。建立项目前的第一轮，可以用[作者 Skill 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)比较两个具体调查开端，再把选定方向带入单独的规划请求。 如果人设很完整、人物却不行动，[人物动机指南](https://zenstory.ai/oh-story/character-motivation)从中继规划写到争取、抵抗与分享功劳的原创场景，不把达成约定当成已完成送达。"
+          "安装 skill 包后，在写作项目目录运行 `/story-setup`，再新开会话。通过 `/story` 描述任务，不必先记住全部 skill。新建长篇可以说 `/story-long-write 帮我开书`：默认先生成设定、大纲与细纲，在正文前停下。审阅规划后，再明确请求 `/story-long-write 写第1章`。这是 Agent 宿主内的流程，不是登录另一个产品 ZenStory 工作台。 “不写正文”仍会建立规划文件；大纲阶段完成后才初始化追踪状态。建立项目前的第一轮，可以用[作者 Skill 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)比较两个具体调查开端，再把选定方向带入单独的规划请求。 如果人设很完整、人物却不行动，[人物动机指南](https://zenstory.ai/oh-story/character-motivation)从中继规划写到争取、抵抗与分享功劳的原创场景，不把达成约定当成已完成送达。"
         ],
         [
           "黄金三章怎么写，前三章怎样让人想接着看？",
@@ -165,13 +165,13 @@
         "Local verifiers check contracts and detectable patterns, rather than assigning literary quality scores.",
         "Project settings, outlines, drafts, references and tracking remain inspectable files.",
         "Host-aware setup can use specialist roles or a direct fallback; supported hosts do not imply identical orchestration.",
-        "The repository includes deconstruction, continuation and cover examples, not a guarantee of comparable results."
+        "The repository includes complete deconstruction, continuation and cover examples you can run through yourself."
       ],
       "zh": [
         "本地 verifier 检查契约与可检测模式，不为文学质量打分。",
         "设定、大纲、正文、参考资料与追踪记录均为可检查的文件。",
         "按宿主能力使用专业角色或直接执行回退；支持某个宿主不代表编排能力完全相同。",
-        "仓库包含拆文、续写与封面示例，不保证复现同等结果。"
+        "仓库附有拆文、续写和封面的完整示例，可以照着跑一遍。"
       ]
     },
     "install": "npx skills add zenstory-ai/oh-story-claudecode -y -g",
@@ -345,13 +345,13 @@
         "An episode can use up to five core creative document types: screenplay, visual bible, storyboard, image prompts and video prompts, created only when needed.",
         "Rule categories distinguish locally provable structural failures from reviewed judgments, craft defaults and taste choices.",
         "Production uses a fingerprint-bound, one-time confirmation; writing prompts alone does not authorize a paid run.",
-        "Actual generated or supplied image files must exist and be bound before becoming production references. Continuity constraints do not guarantee visual consistency."
+        "Only image files that were actually generated or supplied, and are bound to the project, become production references."
       ],
       "zh": [
         "每集按需使用至多五类核心创作文档：剧本、视觉设定、分镜、图片提示词和视频提示词，不要求提前建齐。",
         "规则分类区分本地可证明的结构失败、需审阅的判断、工艺默认与口味选择。",
         "制作使用与指纹绑定的一次性确认；写好提示词本身不代表授权付费执行。",
-        "生成或提供的真实图片文件必须存在并绑定后才能作为制作参考；连续性约束不保证画面一致性。"
+        "只有真实生成或提供、并已绑定到项目的图片文件，才能作为制作参考。"
       ]
     },
     "install": "npx skills add zenstory-ai/drama-skills -y -g",
@@ -405,11 +405,11 @@
     },
     "tagline": {
       "en": "A source-grounded workflow for adapting novels into playable game candidates on a chosen target runtime.",
-      "zh": "以原文证据为基础，在选定目标运行环境中构建和验证小说改编游戏的候选版本。"
+      "zh": "以原文证据为基础，在选定目标运行环境中构建和验证小说改编游戏的可玩版本。"
     },
     "definition": {
       "en": "Novel to Game is a seven-skill workflow for Claude Code, Codex and Kimi Code that adapts a novel into a playable game candidate. It builds a cited source bible, compares adaptation concepts, designs gameplay and art direction, and builds for the target runtime you choose. A QA contract records evidence that the build launches, renders, takes input, completes its core loop, reaches an outcome and restarts.",
-      "zh": "Novel to Game 是面向 Claude Code、Codex 和 Kimi Code 的 7 个 skill 的工作流，把小说改编成可玩的游戏候选版本。它先建立带引用的原著圣经，比较改编概念，设计玩法与美术，再针对你选定的目标运行环境构建。QA 契约记录启动、渲染、输入、核心循环、结局和重开的运行证据。"
+      "zh": "Novel to Game 是面向 Claude Code、Codex 和 Kimi Code 的 7 个 skill 的工作流，把小说改编成可玩版本（游戏原型）。它先建立带引用的原著设定集，比较改编概念，设计玩法与美术，再针对你选定的目标运行环境构建。QA 契约记录启动、渲染、输入、核心循环、结局和重开的运行证据。"
     },
     "seo": {
       "title": {
@@ -418,7 +418,7 @@
       },
       "description": {
         "en": "Seven skills for Claude Code, Codex and Kimi Code: cited source bible, concept comparison, gameplay and art design, then a built and tested candidate.",
-        "zh": "7 个 Claude Code / Codex / Kimi Code skill：建立带引用的原著圣经，比较改编概念，设计玩法与美术，再在目标运行环境构建并验证候选版本。附三个可玩示例。"
+        "zh": "7 个 Claude Code / Codex / Kimi Code skill：建立带引用的原著设定集，比较改编概念，设计玩法与美术，再在目标运行环境构建并验证可玩版本。附三个可玩示例。"
       }
     },
     "audience": {
@@ -471,7 +471,7 @@
         ],
         [
           "原著可以改到什么程度？",
-          "在 `analysis/SOURCE_BIBLE.md` 保留带出处的事实和疑点，把批准的改编新增设定与原文证据分开。实现阶段不能悄悄改写已确定的产品简报或原著圣经。"
+          "在 `analysis/SOURCE_BIBLE.md` 保留带出处的事实和疑点，把批准的改编新增设定与原文证据分开。实现阶段不能悄悄改写已确定的产品简报或原著设定集。"
         ],
         [
           "第一次应该改编多大范围？",
@@ -479,10 +479,10 @@
         ],
         [
           "最后会拿到什么，什么还不能证明？",
-          "[完整入门指南](https://zenstory.ai/novel-to-game/quick-start)说明简报、设计文件与构建候选版本。只做设计不等于可玩游戏。六项运行检查只覆盖所记录的一次运行，不代表每条分支、主观质量或商业发布准备程度都已通过。"
+          "[完整入门指南](https://zenstory.ai/novel-to-game/quick-start)说明简报、设计文件与构建可玩版本。只做设计不等于可玩游戏。六项运行检查只覆盖所记录的一次运行，不代表每条分支、主观质量或商业发布准备程度都已通过。"
         ],
         [
-          "拿到第一个游戏候选版本后，该怎样继续改？",
+          "拿到第一个游戏可玩版本后，该怎样继续改？",
           "点名具体选项或场景，说明输入、期待与实际表现。[渡口候选反馈示例](https://zenstory.ai/novel-to-game/quick-start)分清误导性的拒绝标签、结尾显示与状态转换的差异，以及作者新提出的规则。保留已确认事实与未点名的设计，有范围的修改不等于重新生成整个概念。"
         ]
       ]
@@ -491,12 +491,12 @@
       "en": [
         "Source evidence and adaptation decisions are explicit artifacts rather than an unsupported genre guess.",
         "The target platform, engine and test runtime are recorded; passing in a substitute runtime does not establish target-platform compatibility.",
-        "The repository links to example games; their presence is not a guarantee that every adaptation will produce a playable release."
+        "The repository links to example games built with this workflow; you can play one before you start."
       ],
       "zh": [
         "原文证据与改编决策形成显式产物，而不是无依据地猜测游戏类型。",
         "记录目标平台、引擎与测试运行环境；替代环境通过不等于目标平台兼容。",
-        "仓库链接了游戏示例；示例存在不保证每次改编都能产出可发布的游戏。"
+        "仓库链接了用这套流程做出的游戏示例，开工前可以先试玩。"
       ]
     },
     "install": "npx skills add zenstory-ai/novel-to-game -y -g",
@@ -769,14 +769,14 @@
     },
     "distinctive": {
       "en": [
-        "Pinned upstream skill versions make the bundled source combination identifiable; this is not a guarantee for every host or provider configuration.",
+        "Pinned upstream skill versions make the bundled source combination traceable.",
         "Four task-specific workbenches share the DSH workspace and session model.",
-        "No ZenStory-hosted workbench account is required for the local plugin, but generation can use external model and media services."
+        "The local plugin needs no ZenStory Workbench account; generation can still use external model and media services."
       ],
       "zh": [
-        "固定上游 skill 版本使打包的源码组合可追溯，不保证所有宿主或供应商配置都可运行。",
+        "固定上游 skill 版本，打包的源码组合可以追溯。",
         "四个任务工作台共用 DSH 的工作目录与会话模型。",
-        "本地插件无需 ZenStory 托管工作台账户，但生成可能使用外部模型和媒体服务。"
+        "本地插件不需要 ZenStory 工作台账户；生成时仍可能用到外部模型和媒体服务。"
       ]
     },
     "install": null,
@@ -821,8 +821,8 @@
       "zh": "对话即创作——以文件为中心的 AI 小说写作工作台：素材、人设、章节、版本都在一处。"
     },
     "definition": {
-      "en": "ZenStory Workbench is the browser member of the family: a three-panel workspace (file tree, editor, AI chat) where outlines, drafts, characters and lore are files, and a multi-agent backend drafts, suggests and revises against them. It ships its own skills and an Agent API for Claude Code and OpenClaw, is self-hostable under MIT, and is available as a service at app.zenstory.ai with free and paid plans.",
-      "zh": "ZenStory 工作台是这个家族里的浏览器成员：三栏工作区（文件树、编辑器、AI 对话），大纲、草稿、人设、世界观都是文件，多 agent 后端围绕它们起草、建议与修订。自带 skills 与面向 Claude Code / OpenClaw 的 Agent API，可按 MIT 许可自托管，也提供 app.zenstory.ai 的在线服务与免费/付费方案。"
+      "en": "ZenStory Workbench is the browser member of the family: a three-panel workspace (file tree, editor, AI chat) where outlines, manuscripts, characters and settings are files, and a multi-agent backend drafts, suggests and revises against them. It ships its own skills and an Agent API for Claude Code and OpenClaw, is self-hostable under MIT, and is available as a service at app.zenstory.ai with free and paid plans.",
+      "zh": "ZenStory 工作台是这个家族里的浏览器成员：三栏工作区（文件树、编辑器、AI 对话），大纲、正文、角色卡、设定都是文件，多 agent 后端围绕它们起草、建议与修订。自带技能与面向 Claude Code / OpenClaw 的 Agent API，可按 MIT 许可自托管，也提供 app.zenstory.ai 的在线服务与免费/付费方案。"
     },
     "seo": {
       "title": {
@@ -848,7 +848,7 @@
       "en": [
         [
           "How do I start writing in the browser?",
-          "Open the [workbench Dashboard](https://app.zenstory.ai/dashboard), choose an available project type and create it with or without an idea. For a deliberate first request, leave the idea blank and then ask for an outline in chat. Follow the [short quick start](https://zenstory.ai/docs/getting-started/quick-start); no coding-agent installation is required."
+          "Open the [workbench](https://app.zenstory.ai/dashboard), choose Novel, Short Story or Short Drama Script, type an idea or leave it blank, and the project is created; there is no agent to install. The [quick start](https://zenstory.ai/docs/getting-started/quick-start) walks you through the first round."
         ],
         [
           "How do I turn an idea into my first scene?",
@@ -868,7 +868,7 @@
         ],
         [
           "Must I split every chapter into many prompts?",
-          "No fixed prompt count is required. You can request a complete chapter when its decisions, evidence and stopping point are clear; unresolved motives may need discussion first. The [writing-handoff workflow](https://zenstory.ai/docs/advanced/workflow-tips) follows one scene from accepted design through prose, local revision and a saved-state handoff, without promising a particular writing speed."
+          "No fixed prompt count is required. You can request a complete chapter when its decisions, evidence and stopping point are clear; unresolved motives may need discussion first. The [writing-handoff workflow](https://zenstory.ai/docs/advanced/workflow-tips) follows one scene from accepted design through prose, local revision and a saved-state handoff."
         ],
         [
           "How do I turn reference analysis into my own scene?",
@@ -878,7 +878,7 @@
       "zh": [
         [
           "不用编程 Agent，怎样在网页里开始写作？",
-          "打开[工作台 Dashboard](https://app.zenstory.ai/dashboard)，选择可用项目类型，可以带灵感创建，也可以留空后自己发送第一条构思请求。[快速入门](https://zenstory.ai/docs/getting-started/quick-start)给出这条短路径，不需要先安装编程 Agent。"
+          "打开[工作台](https://app.zenstory.ai/dashboard)，选长篇小说、短篇小说或短剧剧本，写一句想法或直接留空，就能建好项目，不用装任何 Agent。[快速入门](https://zenstory.ai/docs/getting-started/quick-start)带你走完第一轮。"
         ],
         [
           "怎样把一个点子变成第一场正文？",
@@ -898,7 +898,7 @@
         ],
         [
           "写一章必须拆成很多轮提示词吗？",
-          "没有固定轮数。决定、依据和停止点明确时，可以请求完整章节；动机尚未确定时，先讨论这个关键选择。[写作接续流程](https://zenstory.ai/docs/advanced/workflow-tips)用一场戏连起已选设计、正文、局部修改与实际保存状态，不承诺固定写作速度。"
+          "没有固定轮数。决定、依据和停止点明确时，可以请求完整章节；动机尚未确定时，先讨论这个关键选择。[写作接续流程](https://zenstory.ai/docs/advanced/workflow-tips)用一场戏连起已选设计、正文、局部修改与实际保存状态。"
         ],
         [
           "分析完参考小说，怎样写出自己的场景？",
@@ -908,14 +908,14 @@
     },
     "distinctive": {
       "en": [
-        "Files are the core unit; version snapshots, comparison and rollback support revision without promising unlimited retention of every edit.",
-        "The published privacy policy says content is not used for general model training by default and describes third-party AI processing; this is a policy statement, not an independent infrastructure audit.",
-        "The hosted browser workbench is distinct from the agent skill packs; self-hosting still requires configuring the backend and model services."
+        "Files are the core unit: every file keeps a version history you can compare and roll back, and the whole project can be snapshotted.",
+        "Under the privacy policy, your writing is not used to train general models by default; AI processing is done by third-party model services, as the policy describes.",
+        "ZenStory Workbench needs no agent skill pack, only a browser; self-hosting means configuring the backend and model services yourself."
       ],
       "zh": [
-        "以文件为核心，版本快照、比较与回滚支持修订，但不承诺无限保留每次编辑。",
-        "已发布隐私政策声明内容默认不用于通用模型训练，并说明第三方 AI 处理；这是政策声明，不是独立基础设施审计。",
-        "托管网页工作台不同于 Agent skill 包；自托管仍需配置后端与模型服务。"
+        "以文件为核心：每个文件都有历史版本，可以对比、回滚，整个项目也能拍快照。",
+        "按隐私政策，你的作品默认不会用于训练通用模型；AI 处理由第三方模型服务完成，详见隐私政策。",
+        "ZenStory 工作台不用装 Agent skill 包，打开浏览器就能写；自托管需要自己配置后端和模型服务。"
       ]
     },
     "install": null,

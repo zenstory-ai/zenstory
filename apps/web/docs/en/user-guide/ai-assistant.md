@@ -105,7 +105,7 @@ Status messages and tool results help locate progress. They do not expose all of
 
 - [Editor guide](https://zenstory.ai/docs/user-guide/editor): manual writing, quotations, local revision and save state.
 - [First short-story walkthrough](https://zenstory.ai/docs/getting-started/first-project): connect outline, characters and prose.
-- [Choose a writing workflow](https://zenstory.ai/compare/writing-workflows): distinguish the browser workbench, Oh Story and the DSH plugin.
+- [Choose a writing workflow](https://zenstory.ai/compare/writing-workflows): distinguish ZenStory Workbench, Oh Story and the DSH plugin.
 
 ## Implementation sources
 

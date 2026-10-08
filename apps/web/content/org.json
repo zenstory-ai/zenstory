@@ -18,7 +18,7 @@
     "en": [
       [
         "Create",
-        "Start with an idea, an existing manuscript or a chapter to revise. Oh Story supplies reusable fiction-writing workflows in a supported agent; the separate ZenStory workbench organizes writing in a hosted project workspace."
+        "Start with an idea, an existing manuscript or a chapter to revise. Oh Story supplies reusable fiction-writing workflows in a supported agent; the separate ZenStory Workbench organizes writing in a browser project workspace."
       ],
       [
         "Adapt",
@@ -32,15 +32,15 @@
     "zh": [
       [
         "创作",
-        "从一个点子、一部已有小说或一章待修改的正文开始。Oh Story 在受支持的 Agent 中提供可复用写作流程；独立的 ZenStory 托管工作台则围绕项目组织写作。"
+        "从一个点子、一部已有小说或一章待修改的正文开始。Oh Story 在受支持的 Agent 中提供可复用写作流程；独立的 ZenStory 工作台则在浏览器里围绕项目组织写作。"
       ],
       [
         "改编",
-        "按目标形态选工具：Drama Skills 生成短剧剧本与分镜规划，Novel to Game 制作互动游戏候选版本，Video Recap Skills 把视频素材组织成旁白解说。准备好源材料及使用权。"
+        "按目标形态选工具：Drama Skills 生成短剧剧本与分镜规划，Novel to Game 制作可玩版本（游戏原型），Video Recap Skills 把视频素材组织成旁白解说。准备好源材料及使用权。"
       ],
       [
         "编排",
-        "已经使用 DeepSeek Harness？Oh Story DSH 将四套技能整合到它的工作台中。这是该宿主的社区插件，不是安装到普通 DeepSeek 网页聊天里的扩展。"
+        "已经使用 DeepSeek Harness？Oh Story DSH 将四套 skill 包整合到它的工作台中。这是该宿主的社区插件，不是安装到普通 DeepSeek 网页聊天里的扩展。"
       ]
     ]
   },

@@ -115,7 +115,7 @@ See [manuscript export](https://zenstory.ai/docs/user-guide/export) and [version
 
 Once you have a usable scene, reuse the approved files and specify the next scene's change and stopping point. You can also write manually and use AI only when stuck or revising.
 
-- Choosing a browser workspace or local skills? See the [writing-workflow comparison](https://zenstory.ai/compare/writing-workflows).
+- Choosing between ZenStory Workbench and a skill pack in your agent? See the [writing-workflow comparison](https://zenstory.ai/compare/writing-workflows).
 - Want a before/after editing example? See [revising formulaic prose](https://zenstory.ai/oh-story/revise-ai-prose). Its editorial principles can help, but Oh Story's file workflow is not a set of workbench buttons.
 - For account entrypoints, see [registration and login](https://zenstory.ai/docs/getting-started/installation). Account rules, quotas and model-service availability depend on the actual deployment.
 

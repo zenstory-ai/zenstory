@@ -2,7 +2,7 @@
 
 ZenStory 的 **AI 记忆是一份可编辑的项目摘要**，不是已经读完整本书的证明，也不保证人物永远不写偏。它保存项目简介、写作风格、当前阶段和备注四项，供聊天上下文组装使用；具体人物、提纲和正文仍应保存在相应文件中，本轮需要什么就明确指出。
 
-本指南适用于 [ZenStory 在线工作台](https://app.zenstory.ai/dashboard)，不是 Oh Story 的状态追踪文件或 DSH 插件说明。第一次使用可先读[网页快速入门](https://zenstory.ai/docs/getting-started/quick-start)。
+本指南适用于 [ZenStory 工作台](https://app.zenstory.ai/dashboard)，不是 Oh Story 的状态追踪文件或 DSH 插件说明。第一次使用可先读[网页快速入门](https://zenstory.ai/docs/getting-started/quick-start)。
 
 ## 1. 哪些内容放记忆，哪些留在文件里？
 

@@ -27,7 +27,7 @@ docker compose exec -e ZENSTORY_ADMIN_EMAIL=you@example.com \
 
 数据库是 SQLite，和上传文件、向量索引一起放在 Docker volume 里：`docker compose down`、重新构建镜像都不会清掉数据，`docker compose down -v` 会。没有设置 `JWT_SECRET_KEY` 时，服务每次重启都会换一个签名密钥，所有人需要重新登录；在 `.env` 里写一个至少 32 字符的 `JWT_SECRET_KEY` 即可保持登录。
 
-每个账号（包括管理员）默认都是免费套餐：每天 20 次 AI 对话、最多 3 个项目。要放开，先运行 `docker compose exec server python scripts/seed_subscription_plans.py` 创建 Pro 套餐，再在管理后台「订阅管理」里给账号开通 Pro，或在「订阅计划」里直接改免费套餐的额度。
+每个账号（包括管理员）默认都是免费套餐：每天 10 条 AI 消息（北京时间 00:00 重置）、最多 3 个项目。要放开，先运行 `docker compose exec server python scripts/seed_subscription_plans.py` 创建 Pro 套餐，再在管理后台「订阅管理」里给账号开通 Pro，或在「订阅计划」里直接改免费套餐的额度。
 
 ## 其他人怎么注册
 

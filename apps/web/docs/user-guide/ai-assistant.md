@@ -101,7 +101,7 @@
 
 - [编辑器使用](https://zenstory.ai/docs/user-guide/editor)：手写、引用、局部改稿与保存状态。
 - [第一篇短篇实例](https://zenstory.ai/docs/getting-started/first-project)：把提纲、人物、正文连成一次完整创作。
-- [选择写作工作流](https://zenstory.ai/compare/writing-workflows)：区分网页工作台、Oh Story 和 DSH 插件。
+- [选择写作工作流](https://zenstory.ai/compare/writing-workflows)：区分 ZenStory 工作台、Oh Story 和 DSH 插件。
 
 ## 实现依据
 

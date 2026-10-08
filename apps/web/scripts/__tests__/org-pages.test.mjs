@@ -414,7 +414,7 @@ test('organization generator writes every route in both languages, an apex homep
     assert.match(homepage, /<p class="lede">[^<]*(?:novels|drama|故事|创作|小说)/i)
     // A novel adapts into drama or a game; a recap starts from footage, not from a novel.
     assert.match(homepage, lang === 'en' ? /<p class="lede">[^<]*footage[^<]*recap/ : /<p class="lede">[^<]*视频素材[^<]*解说/)
-    assert.match(homepage, /href="https:\/\/app\.zenstory\.ai">(?:Open the writing workbench|打开网页写作工作台)/)
+    assert.match(homepage, /href="https:\/\/app\.zenstory\.ai">(?:Open ZenStory Workbench|打开 ZenStory 工作台)/)
     assert.match(homepage, lang === 'en' ? /Choose by what you want to make/i : /按你想做的作品/)
     assert.match(homepage, lang === 'en' ? /Source on GitHub/ : /GitHub 源码/)
     // Six tool rows, each addressable so a creative path can point at the tool it starts with.
@@ -518,11 +518,10 @@ test('account documentation keeps app entrypoints and source limits', (t) => {
   }
   assert.equal(html.split('https://app.zenstory.ai/register?invite=ABCD-1234').length - 1, 2)
   assert.doesNotMatch(html, /https:\/\/zenstory\.ai\/(?:register|login|forgot-password)/)
-  assert.equal(html.split('2026-09-12').length - 1, 2)
-  assert.match(html, /源码核对/)
-  assert.match(html, /Source review/)
-  assert.match(html, /不是线上账号验收/)
-  assert.match(html, /not a live-account acceptance test/)
+  // The page opens with the steps, not an audit disclaimer; checked sources stay at the end.
+  assert.doesNotMatch(html, /不是线上账号验收|not a live-account acceptance test/)
+  assert.match(html, /已核对源码/)
+  assert.match(html, /Reviewed Source/)
   assert.match(html, /没有网页自助发送密码重置链接的流程/)
   assert.match(html, /no web self-service reset-link flow/)
   assert.ok(html.includes('href="https://zenstory.ai/docs/getting-started/installation"'))

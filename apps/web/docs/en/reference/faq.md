@@ -197,10 +197,10 @@ The material library feature is solely for assisting your creative work and will
 
 **A:** They serve different purposes:
 
-- **Inspirations**: reusable idea templates (genre hooks, conflicts, character dynamics) to start faster
+- **Inspirations**: reusable idea templates (genre hooks, conflicts, character dynamics) to start faster. This is an optional self-host module; it is not on the hosted app
 - **Materials**: structured references extracted from uploaded novels (characters, world-building, storylines)
 
-A practical flow is: pick direction in Inspirations, then deepen details with Materials.
+On deployments with Inspirations enabled, a practical flow is to pick a direction in Inspirations, then deepen details with Materials.
 
 ---
 
