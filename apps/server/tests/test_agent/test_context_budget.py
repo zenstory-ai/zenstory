@@ -9,6 +9,7 @@ import pytest
 from agent.context.budget import (
     DEFAULT_PROMPT_TOKEN_LEDGER_CEILING,
     MIN_HISTORY_TOKEN_FLOOR,
+    TRUNCATION_SUFFIX,
     TokenBudget,
     compute_history_token_budget,
 )
@@ -324,7 +325,10 @@ class TestTokenBudget:
 
         assert truncated is not None
         assert truncated.title == "Important Title"
-        assert truncated.content.endswith("...")
+        # 显式截断后缀 + 元数据，而不是让模型猜的裸 "..."
+        assert truncated.content.endswith(TRUNCATION_SUFFIX)
+        assert truncated.metadata["original_chars"] == 1000
+        assert truncated.metadata["shown_chars"] == len(truncated.content) - len(TRUNCATION_SUFFIX)
 
     def test_truncate_item_sentence_boundary(self):
         """Test that truncation tries to break at sentence boundaries."""
@@ -343,8 +347,8 @@ class TestTokenBudget:
         truncated = budget.truncate_item(item, max_tokens=30)
 
         assert truncated is not None
-        # Should end with "..." after truncation
-        assert "..." in truncated.content
+        # Should end with the explicit truncation suffix
+        assert truncated.content.endswith(TRUNCATION_SUFFIX)
         # Content should be different from original
         assert truncated.content != content
         # Content should be marked as truncated
@@ -365,7 +369,7 @@ class TestTokenBudget:
         truncated = budget.truncate_item(item, max_tokens=50)
 
         assert truncated is not None
-        assert truncated.content.endswith("...")
+        assert truncated.content.endswith(TRUNCATION_SUFFIX)
 
     def test_get_usage_report(self):
         """Test getting budget usage report."""

@@ -71,11 +71,26 @@ AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS = _get_int_env(
     64000,
 )
 
+# 上下文预算按 deepseek-flash 的 1M 窗口 + 自动前缀缓存来定：缓存命中的输入只要
+# 未命中价的 1/50，而预算过小导致的「上下文被压缩 → 模型反复 query_files 重读」
+# 每次都会把整段前缀重新送一遍，反而贵得多。
+
 # Chat history loading budget (sliding window, newest-first)
 AGENT_CHAT_HISTORY_TOKEN_BUDGET = _get_int_env(
     "AGENT_CHAT_HISTORY_TOKEN_BUDGET",
-    6000,
+    32000,
 )
+
+# 每次请求组装的项目上下文（焦点文件 / 附加文件 / 角色 / 设定 / 文件清单）token 预算
+AGENT_CONTEXT_TOKEN_BUDGET = _get_int_env(
+    "AGENT_CONTEXT_TOKEN_BUDGET",
+    32000,
+)
+
+# 跨轮工作集：上两轮读取/修改过的文件，按当前库内容整份注入本轮。
+# 最多附全文的文件数与总字符数；超出的只列标题 + id。
+AGENT_WORKING_SET_MAX_FILES = _get_int_env("AGENT_WORKING_SET_MAX_FILES", 8)
+AGENT_WORKING_SET_MAX_CHARS = _get_int_env("AGENT_WORKING_SET_MAX_CHARS", 60000)
 
 # Content length threshold for auto-handoff to quality reviewer
 AGENT_AUTO_REVIEW_THRESHOLD_CHARS = _get_int_env(

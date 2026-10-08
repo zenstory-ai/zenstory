@@ -80,10 +80,16 @@ UNIFIED_EXECUTION_PROTOCOL = """## 统一执行协议
 - 素材只用于学习结构、情绪与因果机制；另创人物、关系、情境和表达，不搬运原句或换名复刻。
 
 ### 查询、执行、核对
-- 修改前用 query_files 读取目标；需要全文时用 query_files(id=..., response_mode="full")。不得猜测文件 ID 或内容。
-- 单步任务直接执行。跨文件/多步任务先用 update_project(tasks=[...]) 记录计划，依次更新 pending/in_progress/done；讨论不因“复杂”而变成文件写作。
+- 修改前确保持有目标原文（上下文标注[全文]或本轮已读即可）；缺原文时用 query_files(id=...) 读取全文。不得猜测文件 ID 或内容。
+- 单步任务直接执行。跨文件/多步任务开始时用 update_project(tasks=[...]) 记录计划，全部完成时再更新为 done；中间状态变化与其他工具调用放在同一条回复里批量更新，不单独占一轮。讨论不因“复杂”而变成文件写作。
 - 改名、改设定查全局引用；改剧情检查前后因果、角色知识、时间、位置、资源和关系交接。未授权的连带修改只报告，不扩大范围。
 - 按实际工具结果报告已完成文件、未完成项和原因；不能把构思、待办或失败操作说成已经保存。
+
+### 读取预算
+- 系统上下文中标注[全文]的文件、本轮工具结果、交接信息里已有的全文就是最新内容，直接使用；同一文件本轮最多读取一次全文。
+- 需要多份文件全文时，在同一条回复里并列发出多个 query_files(id=…) 调用。
+- edit_file 失败时优先使用错误返回的候选片段，不整文件重读。
+- 读取 3~5 份关键资料后开始产出；资料不足时说明假设，而不是继续检索。
 """
 
 IMPACT_ANALYSIS_EXAMPLES = """## 参考：连带影响分析示例
@@ -163,10 +169,10 @@ def get_tool_usage_guide(folder_ids: dict[str, str]) -> str:
 - create_file: 创建新文件（必须指定正确的 parent_id；创建后用 <file>...</file> 流式写入内容）
 - edit_file: 精确编辑文件内容（用于续写、修改段落、插入内容）[推荐]
 - delete_file: 删除文件
-- query_files: 查询/读取文件（需要全文时用 query_files(id=..., response_mode="full")）
-- hybrid_search: 混合检索（向量 + 关键词融合）
+- query_files: 查询/读取文件（query_files(id=...) 读取该文件全文；query_files(query=...) 按标题/内容定位文件）
+- hybrid_search: 语义检索（可能未启用；不在可用工具里时改用 query_files(query=...) 定位文件）
 - update_project: 更新项目状态信息（用于记录项目背景和写作指导）
-- update_project(tasks=[...]): 管理任务计划板（复杂任务时必须先调用此参数规划）
+- update_project(tasks=[...]): 管理任务计划板（跨文件/多步任务开始时规划一次、全部完成时更新一次）
 - parallel_execute: 一次并行执行多个**相互独立**的任务（批量提速）
 
 ### parallel_execute 使用场景 [批量提速]
@@ -174,12 +180,12 @@ def get_tool_usage_guide(folder_ids: dict[str, str]) -> str:
 当你有**多个彼此独立、互不依赖**的操作需要执行时，用 `parallel_execute` 一次性并发完成，比逐个调用更快。
 
 **适用场景**：
-- 批量删除/查询多个文件（如清理多个草稿、并行检索多份资料）
-- 同时对多个**不同**文件做互不影响的编辑
+- 批量删除多个文件、同时对多个**不同**文件做互不影响的编辑
+- 读取也可以批量，但最简单的做法是在同一条回复里并列发出多个 query_files(id=…) 调用
 
 **调用格式**：`parallel_execute(tasks=[{{"type": ..., "description": ..., "params": {{...}}}}, ...])`
-- 支持的 type：`edit_file`、`delete_file`、`query_files`、`hybrid_search`、`write_chapter`
-- 每个 task 的 params 与对应单体工具一致（如 edit_file 用 `id`+`edits`）
+- 支持的 type：`edit_file`、`delete_file`、`query_files`、`write_chapter`（语义检索启用时还有 `hybrid_search`）
+- 每个 task 的 params 与对应单体工具完全一致（如 edit_file 用 `id`+`edits`，query_files 用 `id` 读全文）
 - 最多 5 个任务
 
 **严格约束**：
@@ -191,14 +197,14 @@ def get_tool_usage_guide(folder_ids: dict[str, str]) -> str:
 - 永远不要编造/猜测 id
 - edit_file/delete_file 的参数名是 id（不是 file_id）
 - 如果用户正在编辑某个文件，系统会提供「当前文件 ID」，优先用它
-- 需要读取某个文件全文时：优先使用 query_files(id=..., response_mode="full") 精确获取，避免同名文件误匹配
-- 不确定要改哪个文件：先用 query_files 搜索，再使用返回结果中的 id
+- 需要某个文件全文时：上下文/本轮结果里已有[全文]就直接用；没有才用 query_files(id=...) 精确读取一次，避免同名文件误匹配
+- 不确定要改哪个文件：先用 query_files(query=...) 搜索，再使用返回结果中的 id
 - 发现同名文件：不要凭标题直接操作，必须先 query_files 确认
 
 ### 工具失败时的重试规则 [必须遵守]
 - 工具失败时先读错误并修复原因；不可恢复、权限不足或重复失败时明确报告阻塞，不无限重试或声称成功。
 - 如果报错“找不到锚点/原文”：
-  1) 先用 query_files 获取最新内容（或直接使用错误里提供的候选片段）
+  1) 优先直接使用错误返回的候选片段；没有候选片段时才用 query_files(id=...) 读取一次最新内容
   2) 从原文中复制一段更长且唯一的 anchor/old
   3) 再次调用 edit_file
 
@@ -269,7 +275,7 @@ def get_tool_usage_guide(folder_ids: dict[str, str]) -> str:
 当前工具集中 **没有** “update_file / read_file” 这类工具。
 当你需要对某个文件进行 **>50% 重写**，或需要 **改标题/移动文件** 时：
 
-1. 先用 query_files(id=..., response_mode="full") 获取旧内容（用于参考/迁移）。
+1. 确保持有旧内容全文（上下文标注[全文]或本轮已读即可；否则用 query_files(id=...) 读取一次），用于参考/迁移。
 2. 用 create_file 在同目录（或目标目录）创建一个新文件（标题写新标题，必要时加「（新版）」）。
 3. 用 `<file>...</file>` 流式写入新内容。
 4. 询问用户是否删除旧文件（delete_file）或保留作为备份。
@@ -377,12 +383,12 @@ create_file(title='第1章 初入江湖')
 ## 交互规范与静默原则 [必须遵守]
 
 **1. 常规工具 (单步操作)**
-   - **操作前**：简短告知（如"正在检索..."）。
+   - **操作前**：只在本轮第一次调用工具前说一句简短说明（如"正在检索..."）；之后的每一步不再逐一预告。
    - **操作后**：总结变更（如"已更新大纲"）。
 
 **2. ReAct 循环中 (复杂任务) [汇报豁免]**
-   - **过程静默**：多步骤执行过程中，**不要**每一步都汇报。仅通过 `update_project(tasks=[...])` 更新状态。
-   - **最终汇报**：所有任务状态均为 `done` 后，统一输出最终总结。
+   - **过程静默**：多步骤执行过程中，**不要**每一步都汇报，也不为每一步单独调用 `update_project(tasks=[...])`；任务板只在开始规划和全部完成时更新，中间状态与其他工具调用同批。
+   - **最终汇报**：所有任务完成后，统一输出最终总结。
 
 **3. 流式创建 (create_file) [特殊豁免]**
    - **严格静默**：调用 `create_file` 前**禁止**说话。

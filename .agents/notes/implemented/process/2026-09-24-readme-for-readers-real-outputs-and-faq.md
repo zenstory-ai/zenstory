@@ -38,7 +38,7 @@ Issues 里读者问过的三个问题——自部署怎么取消邀请码（#1�
 
 - 收益：README 里每一条功能说法都能在源码里找到对应；读者问过的邀请码、换模型、导出问题有了答案；自部署一节从干净检出照做即可登录。
 - 代价：README 不再罗列「订阅体系、积分、写作连续、管理后台」等运营功能的细节，这些只在免费额度与自部署配置里出现；中文 README 行数与原来相近，但删掉了路线图。
-- 未做：截图没有重拍（旧 logo 仍在）；`apps/web/docs/reference/faq.md` 等已发布文档里的过时说法（自助重置密码、回收站 30 天、AES-256 加密、@ 引用文件）没有在这次修改；`apps/server/agent/CLAUDE.md` 仍列着已删除的 `compaction.py`。
+- 未做：截图没有重拍（旧 logo 仍在）；`apps/web/docs/reference/faq.md` 等已发布文档里的过时说法（自助重置密码、回收站 30 天、AES-256 加密、@ 引用文件）没有在这次修改；`apps/server/agent/CLAUDE.md` 列着已删除的 `compaction.py`（已在 `.agents/notes/implemented/bug-fix/2026-10-08-agent-context-full-text-and-working-set.md` 中移除）。README 里"约 6000 token"的对话/资料预算在该 note 后默认值已改为 32000 token，README 尚未同步。
 
 ## Verification
 
