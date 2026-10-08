@@ -85,9 +85,19 @@ def test_read_mode_is_part_of_the_key_and_failed_reads_do_not_count():
     for _ in range(READ_BLOCK_AT - 1):
         _guarded_read(guard)
     # 摘要读取与全文读取是不同的键；include_content=true 等同全文
-    summary = json.loads(_guarded_read(guard, json.dumps({"id": "f1"})))
+    summary = json.loads(_guarded_read(guard, json.dumps({"id": "f1", "response_mode": "summary"})))
     assert summary["status"] == "success" and "read_hint" not in summary
     blocked = json.loads(_guarded_read(guard, json.dumps({"id": "f1", "include_content": "true"})))
+    assert blocked["error_type"] == REPEATED_READ_ERROR_TYPE
+
+
+@pytest.mark.unit
+def test_id_read_without_response_mode_counts_as_full_read():
+    """query_files 按 id 读取默认返回全文；守卫必须把它和 response_mode=full 算成同一个键。"""
+    guard = RepeatReadGuard()
+    for _ in range(READ_BLOCK_AT - 1):
+        _guarded_read(guard, json.dumps({"id": "f1"}))
+    blocked = json.loads(_guarded_read(guard, FULL_READ))
     assert blocked["error_type"] == REPEATED_READ_ERROR_TYPE
 
     other = RepeatReadGuard()
@@ -220,7 +230,7 @@ def test_parallel_write_subtask_resets_reads_and_is_recorded():
 def test_handoff_summary_lists_titles_and_ids_without_content():
     guard = RepeatReadGuard()
     _guarded_read(guard)
-    _guarded_read(guard, json.dumps({"id": "f9"}), _read_ok("f9", "摘要读过的"))  # 摘要不算全文
+    _guarded_read(guard, json.dumps({"id": "f9", "response_mode": "summary"}), _read_ok("f9", "摘要读过的"))  # 摘要不算全文
     guard.observe(
         "create_file",
         guard.plan("create_file", json.dumps({"title": "第二章"}, ensure_ascii=False)),

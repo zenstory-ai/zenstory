@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from agent.openai_agents.events import parse_json_object, tool_error_text
+from agent.tools.file_ops.serialization import resolve_query_files_response_mode
 
 READ_TOOL_NAME = "query_files"
 PARALLEL_TOOL_NAME = "parallel_execute"
@@ -81,14 +82,22 @@ def _coerce_bool(value: Any) -> bool:
 def _read_mode(params: dict[str, Any]) -> str:
     """归一化读取模式：full（全文）或 summary:<预览字数>。
 
-    include_content=true 与 response_mode=full 等价（见 crud.query_files）；
-    summary 的预览长度不同算不同的读取（模型要更长的预览不是重复）。
+    与 query_files 用同一个判定（resolve_query_files_response_mode）：按 id 读取且没给
+    response_mode 时默认就是全文，否则 query_files(id=X) 与 query_files(id=X, response_mode="full")
+    会被当成两种读取，拦截被绕开。summary 的预览长度不同算不同的读取（模型要更长的预览不是重复）。
     """
-    mode = str(params.get("response_mode") or "summary").strip().lower()
-    if mode == "full" or _coerce_bool(params.get("include_content")):
-        return "full"
+    include_raw = params.get("include_content")
     preview = params.get("content_preview_chars")
-    return f"summary:{preview if isinstance(preview, int) else 'default'}"
+    preview_chars = preview if isinstance(preview, int) and not isinstance(preview, bool) else None
+    mode = resolve_query_files_response_mode(
+        params.get("response_mode"),
+        file_id=str(params.get("id") or ""),
+        include_content=None if include_raw is None else _coerce_bool(include_raw),
+        content_preview_chars=preview_chars,
+    )
+    if str(mode).strip().lower() == "full":
+        return "full"
+    return f"summary:{preview_chars if preview_chars is not None else 'default'}"
 
 
 def _read_key(params: Any) -> ReadKey | None:

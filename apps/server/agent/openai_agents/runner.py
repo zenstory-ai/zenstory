@@ -748,11 +748,9 @@ async def run_openai_agents_streaming_agent(
                 # execution to preserve the previous sequential contract and avoid Session races.
                 run_config=RunConfig(
                     tool_execution=ToolExecutionConfig(max_function_tool_concurrency=1),
-                    # Preview stale intra-run retrieval outputs (query_files / hybrid_search)
-                    # so a long multi-tool run doesn't re-send every bulky search dump on each
-                    # subsequent model call. Keeps the freshest outputs full; control-flow tool
-                    # outputs are never touched. See intra_run_trimmer for why the stock SDK
-                    # ToolOutputTrimmer is a no-op for this project's history shape.
+                    # IntraRunToolOutputTrimmer 只是上下文安全阀：输入未超 max_input_chars 时原样
+                    # 返回、不改写任何历史（保住前缀缓存，也不让模型「忘掉」读过的文件而重读）；
+                    # 超限才从最旧的读/写载荷开始折叠。控制流工具结果永不改动。见 intra_run_trimmer。
                     # 计数 + 软着陆见上方 turn_filter。
                     call_model_input_filter=turn_filter,
                     # 模型调用了本 agent 工具集里没有的工具（例如审稿人照着共享历史调
