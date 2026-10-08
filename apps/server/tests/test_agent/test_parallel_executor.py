@@ -168,6 +168,89 @@ class TestHandleWriteChapter:
         finally:
             ToolContext.clear_context()
 
+    @pytest.mark.parametrize(
+        ("parent_id", "expected_type"),
+        [
+            ("proj-1-character-folder", "character"),
+            ("proj-1-lore-folder", "lore"),
+            ("proj-1-outline-folder", "outline"),
+            ("proj-1-script-folder", "script"),
+            ("proj-1-draft-folder", "draft"),
+            (None, "draft"),
+        ],
+    )
+    async def test_write_chapter_file_type_follows_root_folder(self, parent_id, expected_type):
+        """write_chapter 写进角色/设定/大纲目录时不能被硬编码成 draft。"""
+        from agent.tools.mcp_tools import ToolContext
+
+        captured: dict = {}
+
+        async def fake_create_file(args):
+            captured.update(args)
+            return _make_result({"status": "success"})
+
+        ToolContext.set_context(None, "user1", "proj-1", "sess-1")
+        try:
+            with patch("agent.tools.mcp_tools.create_file", new=fake_create_file):
+                await handle_write_chapter(
+                    {"title": "林凡", "content": "主角。", "parent_id": parent_id}
+                )
+        finally:
+            ToolContext.clear_context()
+
+        assert captured["file_type"] == expected_type
+        assert captured["parent_id"] == parent_id
+
+    @pytest.mark.integration
+    async def test_write_chapter_file_type_follows_nested_root_folder(self, db_session):
+        """父目录是角色目录下的子目录时，沿 parent_id 向上找到根目录再推断。"""
+        from uuid import uuid4
+
+        from agent.tools.mcp_tools import ToolContext
+        from models import File, Project, User
+
+        suffix = uuid4().hex[:8]
+        user = User(
+            email=f"pe-{suffix}@example.com",
+            username=f"pe_{suffix}",
+            hashed_password="hashed",
+            email_verified=True,
+            is_active=True,
+        )
+        db_session.add(user)
+        db_session.commit()
+        project = Project(name=f"PE {suffix}", owner_id=user.id)
+        db_session.add(project)
+        db_session.commit()
+        root = File(
+            id=f"{project.id}-character-folder",
+            project_id=project.id,
+            title="角色",
+            file_type="folder",
+        )
+        db_session.add(root)
+        db_session.commit()
+        nested = File(project_id=project.id, title="主要角色", file_type="folder", parent_id=root.id)
+        db_session.add(nested)
+        db_session.commit()
+
+        captured: dict = {}
+
+        async def fake_create_file(args):
+            captured.update(args)
+            return _make_result({"status": "success"})
+
+        ToolContext.set_context(db_session, user.id, project.id, "sess-1")
+        try:
+            with patch("agent.tools.mcp_tools.create_file", new=fake_create_file):
+                await handle_write_chapter(
+                    {"title": "苏瑶", "content": "女主。", "parent_id": nested.id}
+                )
+        finally:
+            ToolContext.clear_context()
+
+        assert captured["file_type"] == "character"
+
 
 @pytest.mark.asyncio
 @pytest.mark.unit

@@ -246,9 +246,12 @@ async def run_openai_agents_streaming_agent(...):
 
 **优先级** (prioritizer.py):
 1. CRITICAL - 焦点文件、用户引用
-2. CONSTRAINT - 角色设定、世界观
-3. RELEVANT - 相关大纲、草稿
+2. CONSTRAINT - 角色设定、高重要度设定、前一章（档内角色卡与设定排在章节之前）
+3. RELEVANT - 兄弟章节、中重要度设定、检索片段
 4. INSPIRATION - 其他参考内容
+
+非 CRITICAL 档截断后不足 500 字且不到原文一半的残片直接丢弃（仍在文件清单里）；
+检索只排除最终入选的条目；角色/设定名作为子串出现在查询里时加分。
 
 **预算与渲染**：
 - 组装上下文预算 `AGENT_CONTEXT_TOKEN_BUDGET`（默认 32000），历史窗口
@@ -256,7 +259,7 @@ async def run_openai_agents_streaming_agent(...):
   `budget.DEFAULT_PROMPT_TOKEN_LEDGER_CEILING`（160000）台账，台账只收缩历史。
 - 每个条目标题行渲染为 `标题 (id=…) [全文]` 或
   `[已截断：显示 x/y 字；全文用 query_files(id="…")]`（检索片段标 `[检索片段，非全文…]`），
-  「相关内容详情」段头声明「标注[全文]的条目就是该文件当前完整内容」。
+  「相关内容详情」段头声明「标注[全文]的条目就是该文件当前完整内容（截至本请求开始；本请求内被修改过的文件除外）」。
 - `MessageManager` 只对原始上下文做 strip + 兜底封顶（保留换行）；已在原始上下文
   完整出现的条目，world_model truth/surface 里只列「标题 (id=…)（全文见项目上下文）」。
 
