@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Query, Request, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlmodel import Session, col, func, or_, select
 
 from config.datetime_utils import utcnow
@@ -19,6 +19,12 @@ from database import get_session
 from models import User, UserFeedback
 from services.admin_audit_service import admin_audit_service
 from services.core.auth_service import get_current_superuser
+from services.infra.upload_storage import (
+    UploadNotFoundError,
+    UploadReferenceError,
+    UploadStorageError,
+    get_upload_storage,
+)
 from utils.logger import get_logger, log_with_context
 
 from .schemas import FeedbackStatusUpdateRequest
@@ -38,6 +44,15 @@ def _resolve_feedback_upload_root() -> Path:
     if not upload_dir.is_absolute():
         upload_dir = Path.cwd() / upload_dir
     return upload_dir.resolve()
+
+
+def _storage():
+    from config.material_settings import material_settings
+
+    return get_upload_storage(
+        material_root=material_settings.UPLOAD_FOLDER,
+        feedback_root=_resolve_feedback_upload_root(),
+    )
 
 
 def _is_within_upload_root(path: Path, upload_root: Path) -> bool:
@@ -97,9 +112,15 @@ def _resolve_existing_feedback_screenshot(raw_path: str | None) -> tuple[Path | 
     return None, found_outside_root
 
 
-def _to_admin_feedback_item(feedback: UserFeedback, user: User) -> dict:
-    resolved_screenshot_path, _ = _resolve_existing_feedback_screenshot(feedback.screenshot_path)
-    has_screenshot = resolved_screenshot_path is not None
+def _to_admin_feedback_item(feedback: UserFeedback, user: User, storage=None) -> dict:
+    if feedback.screenshot_path and feedback.screenshot_path.startswith("s3://"):
+        try:
+            has_screenshot = (storage or _storage()).feedback_reference_exists(feedback.screenshot_path)
+        except (UploadStorageError, ValueError):
+            has_screenshot = False
+    else:
+        resolved_screenshot_path, _ = _resolve_existing_feedback_screenshot(feedback.screenshot_path)
+        has_screenshot = resolved_screenshot_path is not None
 
     return {
         "id": feedback.id,
@@ -181,22 +202,32 @@ def list_feedback_admin(
             )
         )
 
-    if has_screenshot is None:
-        total = session.exec(select(func.count()).select_from(query.subquery())).one()
-        rows = session.exec(
-            query.order_by(col(UserFeedback.created_at).desc(), col(UserFeedback.id).desc()).offset(skip).limit(limit)
-        ).all()
-        items = [_to_admin_feedback_item(feedback, user) for feedback, user in rows]
-    else:
-        # Actual screenshot availability includes filesystem/legacy-path resolution.
-        rows = session.exec(query.order_by(col(UserFeedback.created_at).desc(), col(UserFeedback.id).desc())).all()
-        items = [_to_admin_feedback_item(feedback, user) for feedback, user in rows]
-        if has_screenshot:
-            items = [item for item in items if item["has_screenshot"]]
+    try:
+        storage = _storage()
+    except ValueError as exc:
+        raise APIException(
+            error_code=ErrorCode.SERVICE_UNAVAILABLE,
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        ) from exc
+    try:
+        if has_screenshot is None:
+            total = session.exec(select(func.count()).select_from(query.subquery())).one()
+            rows = session.exec(
+                query.order_by(col(UserFeedback.created_at).desc(), col(UserFeedback.id).desc()).offset(skip).limit(limit)
+            ).all()
+            items = [_to_admin_feedback_item(feedback, user, storage) for feedback, user in rows]
         else:
-            items = [item for item in items if not item["has_screenshot"]]
-        total = len(items)
-        items = items[skip : skip + limit]
+            # Actual screenshot availability includes filesystem/legacy-path resolution.
+            rows = session.exec(query.order_by(col(UserFeedback.created_at).desc(), col(UserFeedback.id).desc())).all()
+            items = [_to_admin_feedback_item(feedback, user, storage) for feedback, user in rows]
+            if has_screenshot:
+                items = [item for item in items if item["has_screenshot"]]
+            else:
+                items = [item for item in items if not item["has_screenshot"]]
+            total = len(items)
+            items = items[skip : skip + limit]
+    finally:
+        getattr(storage, "close", lambda: None)()
 
     log_with_context(
         logger,
@@ -317,6 +348,48 @@ def get_feedback_screenshot_admin(
             error_code=ErrorCode.NOT_FOUND,
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Feedback screenshot not found.",
+        )
+
+    if feedback.screenshot_path.startswith("s3://"):
+        storage = None
+        try:
+            storage = _storage()
+            content = storage.read_feedback(feedback.screenshot_path)
+        except UploadReferenceError as exc:
+            raise APIException(
+                error_code=ErrorCode.NOT_AUTHORIZED,
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Screenshot object reference is not allowed.",
+            ) from exc
+        except UploadNotFoundError as exc:
+            raise APIException(
+                error_code=ErrorCode.NOT_FOUND,
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Feedback screenshot file not found.",
+            ) from exc
+        except (UploadStorageError, OSError, ValueError) as exc:
+            raise APIException(
+                error_code=ErrorCode.SERVICE_UNAVAILABLE,
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            ) from exc
+        finally:
+            if storage is not None:
+                getattr(storage, "close", lambda: None)()
+        log_with_context(
+            logger,
+            logging.INFO,
+            "Admin downloaded feedback screenshot",
+            admin_user_id=current_user.id,
+            feedback_id=feedback_id,
+        )
+        return Response(
+            content=content,
+            media_type=feedback.screenshot_content_type or "application/octet-stream",
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="{feedback.screenshot_original_name or "screenshot"}"'
+                )
+            },
         )
 
     file_path, has_outside_root_candidate = _resolve_existing_feedback_screenshot(feedback.screenshot_path)

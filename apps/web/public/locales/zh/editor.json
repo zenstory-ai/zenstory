@@ -168,6 +168,15 @@
   "saveStaleWrite": "AI 刚修改了这个文件，已载入最新内容，请确认后再保存。",
   "saveStaleWriteConflict": "文件在别处有了新改动。你的内容都还在，请在对比中逐处选择要保留哪一份。",
   "saveVersionQuotaExceeded": "内容已保存。版本历史已满，这次没有生成新版本，升级后可继续保留版本。",
+  "draftRecovery": {
+    "restored": "已恢复刷新前未保存的内容。确认无误后可继续编辑或保存。",
+    "conflict": "刷新前的草稿与服务器最新版本不同。请先比较，再选择是否恢复本地草稿。",
+    "compare": "比较两个版本",
+    "restore": "恢复本地草稿",
+    "discard": "保留服务器版本",
+    "serverVersion": "服务器最新版本",
+    "localVersion": "刷新前的本地草稿"
+  },
   "naturalPolish": "去AI味",
   "naturalPolishWorking": "去AI味中...",
   "naturalPolishTooltip": "给选中内容去AI味（Ctrl/⌘+Shift+R）",

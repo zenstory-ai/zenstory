@@ -1,5 +1,5 @@
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
-import { mockResponsiveApp, responsiveProjects } from './fixtures-responsive';
+import { mockResponsiveApp, responsiveProjects, responsiveUser } from './fixtures-responsive';
 
 type FakeFile = {
   id: string; project_id: string; title: string; content: string;
@@ -10,6 +10,7 @@ type RequestRecord = { method: string; path: string; body: Record<string, unknow
 type Fixture = {
   requests: RequestRecord[]; blocked: string[]; errors: string[];
   files: Record<string, FakeFile>; conflict: boolean;
+  abortPut: boolean;
   defer: boolean; release: () => void; observations: Record<string, unknown>; locale: 'en' | 'zh';
 };
 const fixtures = new WeakMap<Page, Fixture>();
@@ -59,7 +60,7 @@ async function fixture(page: Page, content = '你好 world\n\n第二段 story', 
   for (const [id, project_id, title] of [['A', projectA, 'Chapter Alpha'], ['B', projectA, 'Chapter Beta'], ['C', projectB, 'Chapter Gamma']]) {
     files[id] = { id, project_id, title, content: id === 'A' ? content : `${title} body`, file_type: 'draft', parent_id: `folder-${project_id}`, order: 0, metadata: null, created_at: token0, updated_at: token0 };
   }
-  const f: Fixture = { files, requests: [], blocked: [], errors: [], conflict: false, defer: false, release, observations: {}, locale };
+  const f: Fixture = { files, requests: [], blocked: [], errors: [], conflict: false, abortPut: false, defer: false, release, observations: {}, locale };
   fixtures.set(page, f);
   page.on('pageerror', err => f.errors.push(err.message));
   const origin = new URL(test.info().project.use.baseURL as string).origin;
@@ -82,6 +83,7 @@ async function fixture(page: Page, content = '你好 world\n\n第二段 story', 
         const delayed = f.defer;
         const conflict = f.conflict;
         if (delayed) await gate;
+        if (f.abortPut) return route.abort('failed');
         if (conflict) return fulfill({ error_code: 'ERR_CONFLICT', error_message: 'Fixture stale write', error_detail: { reason: 'stale_write', current_content: 'External server text', current_updated_at: '2026-10-06T10:00:02.000Z' } }, 409);
         files[fileId] = { ...files[fileId], ...body, updated_at: `2026-10-06T10:00:${String(puts(f).length).padStart(2, '0')}.000Z` } as FakeFile;
         return fulfill(files[fileId]);
@@ -152,6 +154,82 @@ test('actual textarea: counts, native undo, clean shortcut, manual/debounce save
   await selectFile(page, 'Renamed Alpha');
   await expect(input).toHaveValue('Debounced draft 二 three');
   f.observations = { nativeUndo: true, cleanShortcutPutCount: 0, manualAndDebouncePutCount: 2, returnedTokenAdvanced: true };
+});
+
+test('chunk refresh draft waits for an explicit comparison before replacing newer server text', async ({ page }) => {
+  const f = await fixture(page);
+  const recoveryKey = [
+    'zenstory:editor-draft-recovery:v1',
+    responsiveUser.id,
+    projectA,
+    'A',
+  ].map((part, index) => index === 0 ? part : encodeURIComponent(part)).join(':');
+  await page.addInitScript(({ key, snapshot }) => {
+    localStorage.setItem(key, JSON.stringify(snapshot));
+  }, {
+    key: recoveryKey,
+    snapshot: {
+      schema: 1,
+      userId: responsiveUser.id,
+      projectId: projectA,
+      fileId: 'A',
+      title: 'Recovered chapter title',
+      content: 'Recovered local body before refresh',
+      baseUpdatedAt: 'older-server-token',
+      capturedAt: '2026-10-07T08:00:00.000Z',
+      reason: 'chunk-reload',
+    },
+  });
+
+  await openA(page);
+  await expect(textarea(page)).toHaveValue('你好 world\n\n第二段 story');
+  await expect(page.getByRole('alert')).toContainText('differs from the latest server version');
+  await page.getByText('Compare versions', { exact: true }).click();
+  await expect(page.getByText('Latest server version', { exact: true })).toBeVisible();
+  await expect(page.getByText('Local draft before refresh', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('editor-panel').getByText('Chapter Alpha', { exact: true })).toBeVisible();
+  await expect(page.getByText('Recovered chapter title', { exact: true })).toBeVisible();
+  await expect(page.getByText('Recovered local body before refresh', { exact: true })).toBeVisible();
+  expect(puts(f)).toHaveLength(0);
+
+  await page.getByRole('button', { name: 'Restore local draft', exact: true }).click();
+  await expect(textarea(page)).toHaveValue('Recovered local body before refresh');
+  await expect(titleInput(page)).toHaveValue('Recovered chapter title');
+  await expect(page.getByRole('status')).toContainText('was restored');
+  await page.waitForTimeout(3200);
+  expect(puts(f), 'restoring after comparison must not auto-PUT').toHaveLength(0);
+
+  await textarea(page).fill('Recovered local body edited after restore');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect.poll(() => puts(f).length).toBe(1);
+  expect(puts(f)[0].body).toMatchObject({
+    title: 'Recovered chapter title',
+    content: 'Recovered local body edited after restore',
+    base_updated_at: token0,
+  });
+  await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), recoveryKey)).toBeNull();
+  f.observations = { comparedBeforeRestore: true, noAutomaticPut: true, clearedAfterEditedSave: true };
+});
+
+test('ordinary reload within autosave debounce restores the latest local draft', async ({ page }) => {
+  const f = await fixture(page);
+  await openA(page);
+  await titleInput(page).fill('Title typed before reload');
+  await textarea(page).fill('Body typed immediately before reload');
+  await expect(page.getByText('Unsaved', { exact: true })).toBeVisible();
+  // The existing unmount flush may still attempt a PUT, but unload-time
+  // network completion is not a safety boundary. Make that request fail so
+  // this test proves recovery comes from the synchronous local snapshot.
+  f.abortPut = true;
+
+  await page.reload();
+
+  await expect(titleInput(page)).toHaveValue('Title typed before reload');
+  await expect(textarea(page)).toHaveValue('Body typed immediately before reload');
+  await expect(page.getByRole('status')).toContainText('was restored');
+  expect(puts(f), 'unload flush was aborted; recovery must use the local snapshot').toHaveLength(1);
+  expect(f.files.A).toMatchObject({ title: 'Chapter Alpha', content: '你好 world\n\n第二段 story' });
+  f.observations = { ordinaryReloadRecoveredBeforeDebounce: true, unloadPutAborted: true };
 });
 
 for (const conflict of [false, true]) {

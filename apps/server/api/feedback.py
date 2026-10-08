@@ -20,6 +20,7 @@ from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import get_session
 from models import User, UserFeedback
+from services.infra.upload_storage import UploadStorageError, get_upload_storage
 from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
@@ -53,8 +54,16 @@ def _resolve_upload_dir() -> Path:
     upload_dir = Path(configured_dir)
     if not upload_dir.is_absolute():
         upload_dir = Path.cwd() / upload_dir
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    return upload_dir
+    return upload_dir.resolve()
+
+
+def _storage():
+    from config.material_settings import material_settings
+
+    return get_upload_storage(
+        material_root=material_settings.UPLOAD_FOLDER,
+        feedback_root=_resolve_upload_dir(),
+    )
 
 
 def _safe_extension(filename: str) -> str:
@@ -133,7 +142,9 @@ def submit_feedback(
     screenshot_original_name: str | None = None
     screenshot_content_type: str | None = None
     screenshot_size_bytes: int | None = None
-    created_screenshot_path: Path | None = None
+    created_screenshot_reference: str | None = None
+    screenshot_storage = None
+    commit_attempted = False
 
     if screenshot is not None and screenshot.filename:
         ext = _safe_extension(screenshot.filename)
@@ -190,14 +201,20 @@ def submit_feedback(
                 detail="Screenshot content type does not match image content.",
             )
 
-        upload_dir = _resolve_upload_dir()
         filename = _build_screenshot_filename(detected_format)
-        final_path = upload_dir / filename
-        with open(final_path, "xb") as f:
-            f.write(content)
-        created_screenshot_path = final_path
-
-        screenshot_path = str(final_path.resolve())
+        try:
+            screenshot_storage = _storage()
+            stored = screenshot_storage.put_feedback(
+                suffix=Path(filename).suffix,
+                object_name=filename,
+                content=content,
+            )
+        except (UploadStorageError, OSError, ValueError) as exc:
+            if screenshot_storage is not None:
+                getattr(screenshot_storage, "close", lambda: None)()
+            raise APIException(error_code=ErrorCode.SERVICE_UNAVAILABLE, status_code=503) from exc
+        created_screenshot_reference = stored.reference
+        screenshot_path = stored.reference
         screenshot_original_name = screenshot.filename
         screenshot_content_type = screenshot.content_type
         screenshot_size_bytes = content_size
@@ -222,18 +239,28 @@ def submit_feedback(
         session.add(feedback)
         session.flush()
         session.refresh(feedback)
+        commit_attempted = True
         session.commit()
     except Exception:
         try:
             session.rollback()
         except Exception as rollback_error:
             logger.warning("Feedback persistence rollback failed: %s", rollback_error)
-        if created_screenshot_path is not None:
+        if (
+            created_screenshot_reference is not None
+            and screenshot_storage is not None
+            and not commit_attempted
+        ):
             try:
-                created_screenshot_path.unlink(missing_ok=True)
-            except OSError as cleanup_error:
-                logger.warning("Failed to remove uncommitted feedback screenshot: %s", cleanup_error)
+                screenshot_storage.delete(created_screenshot_reference, kind="feedback")
+            except (UploadStorageError, OSError):
+                logger.warning("Failed to remove uncommitted feedback screenshot")
+        if screenshot_storage is not None:
+            getattr(screenshot_storage, "close", lambda: None)()
         raise
+
+    if screenshot_storage is not None:
+        getattr(screenshot_storage, "close", lambda: None)()
 
     log_with_context(
         logger,

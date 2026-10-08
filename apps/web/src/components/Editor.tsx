@@ -13,6 +13,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useProject } from "../contexts/ProjectContext";
+import { useAuth } from "../contexts/AuthContext";
 import { useMaterialLibraryContext } from "../contexts/MaterialLibraryContext";
 import { useMaterialAttachment } from "../contexts/MaterialAttachmentContext";
 import { fileApi } from "../lib/api";
@@ -31,6 +32,12 @@ import { LoadingSpinner } from "./LoadingSpinner";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { captureException, trackEvent } from "../lib/analytics";
+import {
+  clearEditorDraftSnapshot,
+  readEditorDraftSnapshot,
+  resolveEditorDraftRecovery,
+  type EditorDraftSnapshot,
+} from "../lib/editorDraftRecovery";
 
 /**
  * Props interface for the Editor component.
@@ -59,6 +66,8 @@ export interface EditorProps {}
  */
 const EditorComponent: React.FC<EditorProps> = () => {
   const { t } = useTranslation(['editor', 'common']);
+  const { user } = useAuth();
+  const currentUserId = user?.id ?? null;
   const fileVersionUpgradePrompt = getUpgradePromptDefinition("file_version_quota_blocked");
   const {
     selectedItem,
@@ -102,6 +111,13 @@ const EditorComponent: React.FC<EditorProps> = () => {
   // Local editing states
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
+  const [draftRecovery, setDraftRecovery] = useState<{
+    snapshot: EditorDraftSnapshot;
+    serverTitle: string;
+    serverContent: string;
+    kind: "recover" | "conflict";
+    applied: boolean;
+  } | null>(null);
   const hasLoadedRef = useRef(false);
   const loadGenerationRef = useRef(0);
   const restoredSelectionRef = useRef<string | null>(null);
@@ -204,6 +220,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
 
     if (!selectedItem || !currentProjectId) {
       setFile(null);
+      setDraftRecovery(null);
       hasLoadedRef.current = false;
       return;
     }
@@ -211,6 +228,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
     // Don't load folder content
     if (selectedItem.type === "folder") {
       setFile(null);
+      setDraftRecovery(null);
       hasLoadedRef.current = false;
       return;
     }
@@ -227,8 +245,50 @@ const EditorComponent: React.FC<EditorProps> = () => {
       if (generation !== loadGenerationRef.current) return;
       setFile(data);
       hasLoadedRef.current = true;
-      setEditTitle(data.title);
-      setEditContent(data.content || "");
+      const serverContent = data.content || "";
+      const scope = currentUserId ? {
+        userId: currentUserId,
+        projectId: currentProjectId,
+        fileId: data.id,
+      } : null;
+      const snapshot = scope ? readEditorDraftSnapshot(localStorage, scope) : null;
+      if (!snapshot) {
+        setDraftRecovery(null);
+        setEditTitle(data.title);
+        setEditContent(serverContent);
+      } else {
+        const resolution = resolveEditorDraftRecovery(snapshot, {
+          title: data.title,
+          content: serverContent,
+          updatedAt: data.updated_at,
+        });
+        if (resolution === "identical") {
+          if (scope) clearEditorDraftSnapshot(localStorage, scope);
+          setDraftRecovery(null);
+          setEditTitle(data.title);
+          setEditContent(serverContent);
+        } else if (resolution === "recover") {
+          setDraftRecovery({
+            snapshot,
+            serverTitle: data.title,
+            serverContent,
+            kind: "recover",
+            applied: true,
+          });
+          setEditTitle(snapshot.title);
+          setEditContent(snapshot.content);
+        } else {
+          setDraftRecovery({
+            snapshot,
+            serverTitle: data.title,
+            serverContent,
+            kind: "conflict",
+            applied: false,
+          });
+          setEditTitle(data.title);
+          setEditContent(serverContent);
+        }
+      }
     } catch (err: unknown) {
       if (generation !== loadGenerationRef.current) return;
       const error = err as { status?: number };
@@ -243,6 +303,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
     selectedItem,
     currentProjectId,
     setSelectedItem,
+    currentUserId,
   ]);
 
   useEffect(() => {
@@ -423,8 +484,41 @@ const EditorComponent: React.FC<EditorProps> = () => {
         setSelectedItem({ ...selectedItem, title: submission.title });
       }
     }
+    if (
+      draftRecovery?.snapshot.fileId === targetFileId
+      && draftRecovery.applied
+      && currentUserId
+      && currentProjectId
+    ) {
+      const cleared = clearEditorDraftSnapshot(localStorage, {
+        userId: currentUserId,
+        projectId: currentProjectId,
+        fileId: targetFileId,
+      });
+      if (cleared) setDraftRecovery(null);
+    }
     return { outcome: "saved", updatedAt: updated.updated_at };
   };
+
+  const applyRecoveredDraft = useCallback(() => {
+    if (!draftRecovery) return;
+    setEditTitle(draftRecovery.snapshot.title);
+    setEditContent(draftRecovery.snapshot.content);
+    setDraftRecovery((current) => current ? { ...current, applied: true } : null);
+  }, [draftRecovery]);
+
+  const discardRecoveredDraft = useCallback(() => {
+    if (!draftRecovery || !currentUserId || !currentProjectId) return;
+    const cleared = clearEditorDraftSnapshot(localStorage, {
+      userId: currentUserId,
+      projectId: currentProjectId,
+      fileId: draftRecovery.snapshot.fileId,
+    });
+    if (!cleared) return;
+    setEditTitle(draftRecovery.serverTitle);
+    setEditContent(draftRecovery.serverContent);
+    setDraftRecovery(null);
+  }, [draftRecovery, currentUserId, currentProjectId]);
 
   /**
    * Completes the diff review process and applies accepted changes.
@@ -798,6 +892,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
 
     // Common editor props
     const editorProps = {
+      userId: currentUserId || undefined,
       fileId: file.id,
       projectId: currentProjectId || undefined,
       fileType: file.file_type,
@@ -822,10 +917,70 @@ const EditorComponent: React.FC<EditorProps> = () => {
       onAcceptAllEdits: acceptAllEdits,
       onRejectAllEdits: rejectAllEdits,
       onFinishReview: handleFinishReview,
+      recoveredDraft: draftRecovery?.applied && draftRecovery.snapshot.fileId === file.id
+        ? {
+            capturedAt: draftRecovery.snapshot.capturedAt,
+            serverTitle: draftRecovery.serverTitle,
+            serverContent: draftRecovery.serverContent,
+          }
+        : undefined,
     };
 
     return renderWithUpgradeModal(
-      <SimpleEditor {...editorProps} />
+      <>
+        {draftRecovery?.snapshot.fileId === file.id && (
+          <div
+            role={draftRecovery.kind === "conflict" && !draftRecovery.applied ? "alert" : "status"}
+            className="border-b border-[hsl(var(--warning)/0.35)] bg-[hsl(var(--warning)/0.08)] px-4 py-3 text-sm text-[hsl(var(--text-primary))]"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p>
+                {t(draftRecovery.kind === "conflict" && !draftRecovery.applied
+                  ? "editor:draftRecovery.conflict"
+                  : "editor:draftRecovery.restored")}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {draftRecovery.kind === "conflict" && !draftRecovery.applied && (
+                  <button
+                    type="button"
+                    onClick={applyRecoveredDraft}
+                    className="min-h-11 rounded bg-[hsl(var(--accent-primary))] px-3 py-1.5 text-xs font-medium text-white"
+                  >
+                    {t("editor:draftRecovery.restore")}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={discardRecoveredDraft}
+                  className="min-h-11 rounded border border-[hsl(var(--border-color))] px-3 py-1.5 text-xs"
+                >
+                  {t("editor:draftRecovery.discard")}
+                </button>
+              </div>
+            </div>
+            {draftRecovery.kind === "conflict" && !draftRecovery.applied && (
+              <details className="mt-2">
+                <summary className="inline-flex min-h-11 cursor-pointer items-center text-xs font-medium">
+                  {t("editor:draftRecovery.compare")}
+                </summary>
+                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                  <div>
+                    <p className="mb-1 text-xs font-medium">{t("editor:draftRecovery.serverVersion")}</p>
+                    <p className="mb-1 text-xs text-[hsl(var(--text-secondary))]">{draftRecovery.serverTitle}</p>
+                    <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded bg-[hsl(var(--bg-primary))] p-2 text-xs">{draftRecovery.serverContent}</pre>
+                  </div>
+                  <div>
+                    <p className="mb-1 text-xs font-medium">{t("editor:draftRecovery.localVersion")}</p>
+                    <p className="mb-1 text-xs text-[hsl(var(--text-secondary))]">{draftRecovery.snapshot.title}</p>
+                    <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded bg-[hsl(var(--bg-primary))] p-2 text-xs">{draftRecovery.snapshot.content}</pre>
+                  </div>
+                </div>
+              </details>
+            )}
+          </div>
+        )}
+        <SimpleEditor {...editorProps} />
+      </>
     );
   }
 

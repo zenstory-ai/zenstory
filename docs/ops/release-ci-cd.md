@@ -50,6 +50,20 @@ Publisher binding for repository `zenstory-ai/zenstory` and workflow filename
 `cli-release.yml`. Existing versions and GitHub assets are append-only: lookup
 errors are not treated as absence, and different bytes are rejected.
 
+## Recurring checks and authorized development
+
+Every three days, inspect SEO, growth, costs, disk and online health without
+changing the product or cloud. Update `zenstory-ai/geo` and report the conclusion
+on every check, including unchanged results. A check must not edit product code,
+merge its main, deploy staging or production, change cloud settings, restart
+services, or create a release tag. Record proposed fixes for a separately
+authorized development batch. Preserve dirty product and GEO worktrees.
+
+The draft-recovery and upload-storage batch is authorized for staging validation
+only. Do not promote it to production. Future production batches need explicit
+release authorization; use one coherent PR/push, reuse exact-source passing
+checks and avoid redundant Actions runs.
+
 ## Hosted delivery
 
 Provider Git integrations remain the only deployment producers. The target
@@ -139,8 +153,8 @@ window. Preserve material files and screenshots when compacting Chroma.
 For seamless API releases, first migrate those uploaded source files and screenshots
 to object storage using verified reads and a reversible data migration. Only
 after the API no longer reads its local volume can the old vector volume move
-to a private maintenance service and the API use overlapping instances. This
-object-storage migration is not part of the current configuration change.
+to a private maintenance service and the API use overlapping instances. Object storage is being developed and validated in staging; this does not
+authorize migrating production data or removing the production volume.
 
 The production startup entry point is `scripts/start_api.py`. With no maintenance
 variables, it replaces itself with Uvicorn. The bounded cleanup runs only when
@@ -169,7 +183,8 @@ pinned 3.6.28 version. Before a production worker release, pause `zenstory-pool`
 confirm there are no pending/running/cancelling/paused flows or processing
 ingestion jobs, and only then promote the tag. New submissions queue while the
 pool is paused. Confirm the replacement worker heartbeat and resume the pool
-after deployment; a longer Railway drain window alone does not protect flows.
+only after the old deployment is REMOVED; a longer Railway drain window alone
+does not protect flows. An online replacement by itself is insufficient.
 Deployment registration invokes each named YAML configuration separately with
 its configured pool, because Prefect 3.6.28 ignores CLI overrides in multi-deploy
 mode. Staging uses `zenstory-staging-pool`; production retains `zenstory-pool`.

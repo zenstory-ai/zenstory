@@ -20,6 +20,7 @@ vi.mock('../../lib/writingStatsApi', () => ({ writingStatsApi: { recordStats: vi
 vi.mock('../../lib/upgradeAnalytics', () => ({ trackUpgradeClick: vi.fn(), trackUpgradeExpose: vi.fn() }))
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t }) }))
 vi.mock('../../contexts/ProjectContext', () => ({ useProject: () => projectContext }))
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 'user-1' } }) }))
 vi.mock('../../contexts/MaterialLibraryContext', () => ({ useMaterialLibraryContext: () => ({ preview: null }) }))
 vi.mock('../../contexts/MaterialAttachmentContext', () => ({ useMaterialAttachment: () => ({ addMaterial: vi.fn() }) }))
 vi.mock('../../contexts/TextQuoteContext', () => ({ useTextQuote: () => ({ addQuote: vi.fn() }) }))

@@ -137,6 +137,52 @@ class TestEnsureFileLocal:
         assert target.read_bytes() == b"downloaded-content"
         assert logger.info.call_count >= 1
 
+    def test_s3_reference_downloads_through_token_proxy_to_worker_cache(
+        self, tmp_path: Path, monkeypatch
+    ):
+        object_name = f"{'a' * 32}.txt"
+        reference = f"s3://stage-bucket/material/user-9/{object_name}"
+        requests = []
+
+        def download(request, timeout):
+            requests.append((request.full_url, request.get_header("X-internal-token"), timeout))
+            return _FakeResponse(b"private object bytes")
+
+        monkeypatch.setenv("API_SERVER_INTERNAL_URL", "http://api.internal")
+        monkeypatch.setenv("MATERIAL_INTERNAL_TOKEN", "worker-token")
+        monkeypatch.setattr(flow_mod.tempfile, "gettempdir", lambda: str(tmp_path))
+        monkeypatch.setattr(flow_mod.urllib.request, "urlopen", download)
+
+        local_path = flow_mod._ensure_file_local(reference, "user-9", MagicMock())
+        assert Path(local_path).parent.parent == tmp_path
+        assert Path(local_path).parent.name.startswith("zenstory-material-source-")
+        assert Path(local_path).read_bytes() == b"private object bytes"
+        assert requests == [
+            (
+                f"http://api.internal/api/v1/materials/internal/system/files/{object_name}?user_id=user-9",
+                "worker-token",
+                30,
+            )
+        ]
+        second_path = flow_mod._ensure_file_local(reference, "user-9", MagicMock())
+        assert second_path != local_path
+        Path(local_path).unlink()
+        assert Path(second_path).read_bytes() == b"private object bytes"
+        assert len(requests) == 2
+
+    @pytest.mark.parametrize(
+        "reference",
+        [
+            "https://objects.example.test/material/user-9/file.txt",
+            "s3://stage-bucket/material/other-user/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt",
+            "s3://stage-bucket/other/user-9/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt",
+            "s3://stage-bucket/material/user-9/not-opaque.txt",
+        ],
+    )
+    def test_rejects_untrusted_remote_source_references(self, reference: str):
+        with pytest.raises(ValueError, match="不受信任"):
+            flow_mod._ensure_file_local(reference, "user-9", MagicMock())
+
 
 @pytest.mark.asyncio
 async def test_start_flow_deployment_persists_flow_run_id(monkeypatch):

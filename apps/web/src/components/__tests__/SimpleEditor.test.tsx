@@ -5,6 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SimpleEditor } from '../SimpleEditor';
 import { toast } from '../../lib/toast';
 import { writingStatsApi } from '../../lib/writingStatsApi';
+import {
+  BEFORE_CHUNK_RELOAD_EVENT,
+  readEditorDraftSnapshot,
+} from '../../lib/editorDraftRecovery';
 
 vi.mock('../../lib/naturalPolishApi', () => ({
   naturalPolishApi: {
@@ -86,10 +90,289 @@ describe('SimpleEditor', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it('captures the latest dirty draft synchronously before a chunk reload', () => {
+    const Harness = () => {
+      const [content, setContent] = useState('Server body');
+      return (
+        <SimpleEditor
+          userId="user-1"
+          projectId="project-1"
+          fileId="file-1"
+          baseUpdatedAt="server-v1"
+          title="Chapter"
+          content={content}
+          onTitleChange={vi.fn()}
+          onContentChange={setContent}
+          onSave={vi.fn()}
+        />
+      );
+    };
+    render(<Harness />);
+
+    fireEvent.change(screen.getByPlaceholderText('editor:placeholder.titlePlaceholder'), {
+      target: { value: 'Latest unsaved title' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('editor:placeholder.contentPlaceholder'), {
+      target: { value: 'Latest unsaved body' },
+    });
+    const captureEvent = new CustomEvent(BEFORE_CHUNK_RELOAD_EVENT, { cancelable: true });
+    window.dispatchEvent(captureEvent);
+
+    expect(readEditorDraftSnapshot(localStorage, {
+      userId: 'user-1',
+      projectId: 'project-1',
+      fileId: 'file-1',
+    })).toMatchObject({
+      title: 'Latest unsaved title',
+      content: 'Latest unsaved body',
+      baseUpdatedAt: 'server-v1',
+      reason: 'chunk-reload',
+    });
+    expect(captureEvent.defaultPrevented).toBe(false);
+  });
+
+  it('captures the latest dirty draft synchronously on ordinary page exit', () => {
+    const Harness = () => {
+      const [content, setContent] = useState('Server body');
+      return (
+        <SimpleEditor
+          userId="user-1"
+          projectId="project-1"
+          fileId="file-1"
+          baseUpdatedAt="server-v1"
+          title="Chapter"
+          content={content}
+          onTitleChange={vi.fn()}
+          onContentChange={setContent}
+          onSave={vi.fn()}
+        />
+      );
+    };
+    render(<Harness />);
+    fireEvent.change(screen.getByPlaceholderText('editor:placeholder.contentPlaceholder'), {
+      target: { value: 'Typed immediately before refresh' },
+    });
+
+    window.dispatchEvent(new Event('beforeunload'));
+
+    expect(readEditorDraftSnapshot(localStorage, {
+      userId: 'user-1',
+      projectId: 'project-1',
+      fileId: 'file-1',
+    })).toMatchObject({
+      content: 'Typed immediately before refresh',
+      reason: 'page-exit',
+    });
+  });
+
+  it('does not create a recovery snapshot when the editor is clean', () => {
+    render(
+      <SimpleEditor
+        userId="user-1"
+        projectId="project-1"
+        fileId="file-1"
+        title="Chapter"
+        content="Server body"
+        onTitleChange={vi.fn()}
+        onContentChange={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+
+    window.dispatchEvent(new CustomEvent(BEFORE_CHUNK_RELOAD_EVENT));
+
+    expect(readEditorDraftSnapshot(localStorage, {
+      userId: 'user-1',
+      projectId: 'project-1',
+      fileId: 'file-1',
+    })).toBeNull();
+  });
+
+  it('keeps editing available when recovery storage cannot be written', () => {
+    const storageSpy = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+      throw new Error('storage unavailable');
+    });
+    const Harness = () => {
+      const [content, setContent] = useState('Server body');
+      return (
+        <SimpleEditor
+          userId="user-1"
+          projectId="project-1"
+          fileId="file-1"
+          title="Chapter"
+          content={content}
+          onTitleChange={vi.fn()}
+          onContentChange={setContent}
+          onSave={vi.fn()}
+        />
+      );
+    };
+    render(<Harness />);
+    const textarea = screen.getByPlaceholderText('editor:placeholder.contentPlaceholder');
+    fireEvent.change(textarea, { target: { value: 'Still editable' } });
+
+    const captureEvent = new CustomEvent(BEFORE_CHUNK_RELOAD_EVENT, { cancelable: true });
+    expect(() => window.dispatchEvent(captureEvent)).not.toThrow();
+    expect(captureEvent.defaultPrevented).toBe(true);
+    expect(textarea).toHaveValue('Still editable');
+    expect(storageSpy).toHaveBeenCalled();
+  });
+
+  it('requests native leave confirmation only when beforeunload snapshot capture fails', () => {
+    vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+      throw new Error('storage unavailable');
+    });
+    const Harness = () => {
+      const [content, setContent] = useState('Server body');
+      return (
+        <SimpleEditor
+          userId="user-1"
+          projectId="project-1"
+          fileId="file-1"
+          title="Chapter"
+          content={content}
+          onTitleChange={vi.fn()}
+          onContentChange={setContent}
+          onSave={vi.fn()}
+        />
+      );
+    };
+    render(<Harness />);
+    fireEvent.change(screen.getByPlaceholderText('editor:placeholder.contentPlaceholder'), {
+      target: { value: 'Unsaved body without local storage' },
+    });
+    const beforeUnload = new Event('beforeunload', { cancelable: true }) as BeforeUnloadEvent;
+
+    window.dispatchEvent(beforeUnload);
+
+    expect(beforeUnload.defaultPrevented).toBe(true);
+  });
+
+  it('writes only one snapshot when chunk recovery proceeds into beforeunload', () => {
+    const setItemSpy = vi.spyOn(localStorage, 'setItem');
+    const Harness = () => {
+      const [content, setContent] = useState('Server body');
+      return (
+        <SimpleEditor
+          userId="user-1"
+          projectId="project-1"
+          fileId="file-1"
+          title="Chapter"
+          content={content}
+          onTitleChange={vi.fn()}
+          onContentChange={setContent}
+          onSave={vi.fn()}
+        />
+      );
+    };
+    render(<Harness />);
+    fireEvent.change(screen.getByPlaceholderText('editor:placeholder.contentPlaceholder'), {
+      target: { value: 'Latest body' },
+    });
+
+    window.dispatchEvent(new CustomEvent(BEFORE_CHUNK_RELOAD_EVENT, { cancelable: true }));
+    window.dispatchEvent(new Event('beforeunload', { cancelable: true }));
+    window.dispatchEvent(new Event('pagehide'));
+
+    expect(setItemSpy).toHaveBeenCalledTimes(1);
+    expect(readEditorDraftSnapshot(localStorage, {
+      userId: 'user-1', projectId: 'project-1', fileId: 'file-1',
+    })).toMatchObject({ reason: 'chunk-reload' });
+
+    fireEvent.change(screen.getByPlaceholderText('editor:placeholder.contentPlaceholder'), {
+      target: { value: 'Edited again after a canceled exit' },
+    });
+    window.dispatchEvent(new Event('beforeunload', { cancelable: true }));
+    expect(setItemSpy).toHaveBeenCalledTimes(2);
+    expect(readEditorDraftSnapshot(localStorage, {
+      userId: 'user-1', projectId: 'project-1', fileId: 'file-1',
+    })).toMatchObject({ content: 'Edited again after a canceled exit', reason: 'page-exit' });
+  });
+
+  it('restores a recovered draft as dirty without automatically saving it', async () => {
+    vi.useFakeTimers();
+    const onSave = vi.fn().mockResolvedValue({
+      outcome: 'saved',
+      updatedAt: 'server-v2',
+    });
+    const Harness = () => {
+      const [content, setContent] = useState('Recovered body');
+      return (
+        <SimpleEditor
+          userId="user-1"
+          projectId="project-1"
+          fileId="file-1"
+          baseUpdatedAt="server-v1"
+          title="Recovered chapter"
+          content={content}
+          recoveredDraft={{
+            capturedAt: '2026-10-07T08:00:00.000Z',
+            serverTitle: 'Server chapter',
+            serverContent: 'Server body',
+          }}
+          onTitleChange={vi.fn()}
+          onContentChange={setContent}
+          onSave={onSave}
+        />
+      );
+    };
+    render(<Harness />);
+
+    expect(screen.getByText('editor:unsaved')).toBeInTheDocument();
+    await act(async () => vi.advanceTimersByTimeAsync(10_000));
+    expect(onSave).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByPlaceholderText('editor:placeholder.contentPlaceholder'), {
+      target: { value: 'Recovered body edited again' },
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(3000));
+    expect(onSave).toHaveBeenCalledOnce();
+  });
+
+  it('returns to a clean server baseline when a recovered draft is discarded', () => {
+    const onSave = vi.fn();
+    const commonProps = {
+      userId: 'user-1',
+      projectId: 'project-1',
+      fileId: 'file-1',
+      baseUpdatedAt: 'server-v1',
+      onTitleChange: vi.fn(),
+      onContentChange: vi.fn(),
+      onSave,
+    };
+    const { rerender } = render(
+      <SimpleEditor
+        {...commonProps}
+        title="Recovered chapter"
+        content="Recovered body"
+        recoveredDraft={{
+          capturedAt: '2026-10-07T08:00:00.000Z',
+          serverTitle: 'Server chapter',
+          serverContent: 'Server body',
+        }}
+      />,
+    );
+    expect(screen.getByText('editor:unsaved')).toBeInTheDocument();
+
+    rerender(
+      <SimpleEditor
+        {...commonProps}
+        title="Server chapter"
+        content="Server body"
+      />,
+    );
+
+    expect(screen.queryByText('editor:unsaved')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'editor:save' })).toBeDisabled();
+    expect(onSave).not.toHaveBeenCalled();
   });
 
   it('shows natural polish action without admin gating', () => {
