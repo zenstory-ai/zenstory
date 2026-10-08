@@ -552,7 +552,10 @@ def test_postgres_native_unicode_preview_parity(store):
     for body in ["", "短🙂", '汉🙂é"\\\n' * 100, _body(900)]:
         _replace_body(store, row, body)
         for preview in [None, 0, 7, 200]:
-            payload, observation = store.call({"id": row["id"], "content_preview_chars": preview})
+            # 按 id 读取默认全文；这里验证摘要投影，所以显式要 summary。
+            payload, observation = store.call(
+                {"id": row["id"], "response_mode": "summary", "content_preview_chars": preview}
+            )
             assert payload == store.expected([row], preview=200 if preview is None else preview)
             _assert_projection_budget(observation)
     payload, observation = store.call({"limit": 32})
