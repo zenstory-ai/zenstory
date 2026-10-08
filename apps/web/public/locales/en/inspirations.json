@@ -26,12 +26,12 @@
   "projectTypes": {
     "novel": "Novel",
     "short": "Short Story",
-    "screenplay": "Screenplay"
+    "screenplay": "Short Drama Script"
   },
   "heroHints": {
     "novel": "Long-form narrative template",
     "short": "Short story inspiration template",
-    "screenplay": "Screenplay structure template"
+    "screenplay": "Short drama script structure template"
   },
   "description": "Description",
   "tags": "Tags",

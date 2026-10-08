@@ -469,7 +469,7 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
           defaultValue: '项目数量已达上限',
         })}
         description={t('editor:projectSwitcher.projectQuotaExceededDesc', {
-          defaultValue: '升级套餐后可创建更多项目。',
+          defaultValue: '可以先删除不再需要的项目，或开通 Pro，项目不限。',
         })}
         primaryLabel={t('dashboard:billing.ctaUpgradePro', '开通 Pro')}
         onPrimary={() => {

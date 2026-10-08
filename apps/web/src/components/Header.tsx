@@ -119,8 +119,10 @@ export const Header: React.FC<HeaderProps> = () => {
   };
 
   const handleExport = async (closeMobileMenu = false) => {
+    if (!currentProjectId) return;
     try {
       await exportDrafts();
+      toast.success(t('editor:header.exportSuccess', '正文已导出为 TXT 文件'));
       if (closeMobileMenu) {
         setShowMobileMenu(false);
       }

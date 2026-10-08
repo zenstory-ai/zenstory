@@ -8,10 +8,11 @@
   "builtinSkills": "Built-in Skills",
   "addedSkills": "Added Skills",
   "noUserSkills": "No custom skills yet",
+  "noUserSkillsHint": "Save writing rules you reuse as skills — like \"end each chapter on a hook\" or \"keep dialogue short\" — and the AI follows them when they fit.",
   "noAddedSkills": "No added skills yet",
   "createFirst": "Create your first skill",
   "browsePublic": "Browse public skills",
-  "readonly": "Read-only",
+  "readonly": "View only",
   "added": "Added",
   "remove": "Remove",
   "discover": "Discover Skills",
@@ -50,15 +51,15 @@
   },
   "form": {
     "name": "Skill Name",
-    "namePlaceholder": "Enter skill name",
+    "namePlaceholder": "e.g. End-of-chapter hook",
     "description": "Description",
     "descriptionPlaceholder": "What it does and when to use it. The AI reads this to decide when to use the skill",
     "triggers": "Tags",
-    "triggersPlaceholder": "create character, new person",
+    "triggersPlaceholder": "e.g. character, opening",
     "triggersHint": "For organizing your skills only; they don’t change when the AI uses it. Separate with commas",
     "instructions": "Instructions",
     "instructionsPlaceholder": "Write out the method. The AI follows it when using this skill...",
-    "instructionsHint": "Markdown supported: headings, lists, code blocks, etc.",
+    "instructionsHint": "Use headings and lists (Markdown supported)",
     "triggersTooLong": "Up to {{count}} tags, each at most {{max}} characters"
   },
   "deleteConfirm": {
@@ -88,8 +89,8 @@
   },
   "quota": {
     "createTitle": "Custom skill limit reached",
-    "createDescription": "You’ve used all the custom skills in your current plan. Upgrade to create more.",
-    "upgradePrimary": "View upgrade options",
+    "createDescription": "Delete a skill you don't use, or get Pro for more custom skills.",
+    "upgradePrimary": "Get Pro",
     "upgradeSecondary": "Compare plans"
   },
   "import": {

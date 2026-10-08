@@ -469,7 +469,7 @@
     "featuresDetail": {
       "title": "功能特性",
       "jsonLabel": "功能配置 (JSON)",
-      "jsonPlaceholder": "{\n  \"ai_conversations_per_day\": 10,\n  \"max_projects\": 3,\n  \"context_window_tokens\": 4096,\n  \"material_uploads\": 5,\n  \"material_decompositions\": 5,\n  \"custom_skills\": 3,\n  \"inspiration_copies_monthly\": 10,\n  \"export_formats\": [\"txt\", \"md\"],\n  \"priority_support\": false\n}",
+      "jsonPlaceholder": "{\n  \"ai_conversations_per_day\": 10,\n  \"max_projects\": 3,\n  \"file_versions_per_file\": 10,\n  \"materials_library_access\": false,\n  \"material_decompositions\": 0,\n  \"custom_skills\": 3,\n  \"inspiration_copies_monthly\": 10\n}",
       "ai_conversations_per_day": "每日 AI 对话次数",
       "context_window_tokens": "上下文窗口",
       "file_versions_per_file": "每文件版本数",

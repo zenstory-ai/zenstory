@@ -104,9 +104,9 @@
   "context": {
     "priority": {
       "critical": "关键",
-      "constraint": "约束",
+      "constraint": "设定",
       "relevant": "相关",
-      "inspiration": "灵感",
+      "inspiration": "参考",
       "default": "来源"
     },
     "label": "来源",
@@ -197,22 +197,22 @@
   },
   "fileType": {
     "outline": "大纲",
-    "draft": "手稿",
+    "draft": "正文",
     "character": "角色卡",
-    "lore": "世界观",
-    "snippet": "参考素材",
+    "lore": "设定",
+    "snippet": "素材",
     "default": "文件"
   },
   "action": {
     "insert": "插入到光标后",
     "replace": "替换选中文本",
-    "new_snippet": "创建为参考素材",
+    "new_snippet": "创建为素材",
     "reference_only": "仅参考",
     "apply": "应用"
   },
   "size": {
-    "characters": "{{length}} 字符",
-    "kCharacters": "{{length}}k 字符"
+    "characters": "{{length}} 字",
+    "kCharacters": "{{length}} 千字"
   },
   "edit": {
     "replace": "替换",

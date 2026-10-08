@@ -1466,7 +1466,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   // Handle undo AI edit using the immutable provenance stored with that edit.
   const handleUndo = useCallback(async (target: FileEditUndoTarget) => {
     try {
-      if (confirm(t('editor:versionHistory.confirmRollback'))) {
+      // File-level rollback only appends the restored content as a new version
+      // (and skips that when the version quota is full); it does not pre-save
+      // the current text, so this confirm must not promise a way back.
+      if (confirm(t('editor:versionHistory.confirmUndoAIEdit', '撤销这次 AI 修改？正文会换回修改前的内容，已有的历史版本都会保留。'))) {
         const result = await fileVersionApi.rollback(
           target.fileId,
           target.beforeVersionNumber,

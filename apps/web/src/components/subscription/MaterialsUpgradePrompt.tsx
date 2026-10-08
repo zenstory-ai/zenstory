@@ -2,8 +2,23 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { UpgradePromptModal } from "./UpgradePromptModal";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../../config/upgradeExperience";
+import { useProMaterialDecompositionsLimit } from "../../hooks/useProMaterialDecompositionsLimit";
 
 const materialUploadUpgradePrompt = getUpgradePromptDefinition("material_upload_quota_blocked");
+
+/** Paywall body copy; the monthly number comes from the Pro plan catalog, never a constant. */
+function useMaterialsUploadDescription(enabled = true): string {
+  const { t } = useTranslation(["materials"]);
+  const limit = useProMaterialDecompositionsLimit(enabled);
+  return limit === null
+    ? t("materials:quota.uploadDescriptionNoLimit", {
+        defaultValue: "免费版不含素材库，开通 Pro 后即可使用。",
+      })
+    : t("materials:quota.uploadDescription", {
+        defaultValue: "免费版不含素材库。开通 Pro 后，每月可拆解 {{limit}} 次。",
+        limit,
+      });
+}
 
 interface MaterialsUpgradePromptModalProps {
   open: boolean;
@@ -18,6 +33,7 @@ export function MaterialsUpgradePromptModal({
   source = materialUploadUpgradePrompt.source,
 }: MaterialsUpgradePromptModalProps) {
   const { t } = useTranslation(["materials"]);
+  const description = useMaterialsUploadDescription(open);
 
   return (
     <UpgradePromptModal
@@ -26,11 +42,9 @@ export function MaterialsUpgradePromptModal({
       source={source}
       primaryDestination="billing"
       secondaryDestination="pricing"
-      title={t("materials:quota.uploadTitle", { defaultValue: "开通会员即可使用素材库" })}
-      description={t("materials:quota.uploadDescription", {
-        defaultValue: "免费版不含素材库。开通会员后，每月可拆解 5 次。",
-      })}
-      primaryLabel={t("materials:quota.upgradePrimary", { defaultValue: "开通会员" })}
+      title={t("materials:quota.uploadTitle", { defaultValue: "素材库是 Pro 功能" })}
+      description={description}
+      primaryLabel={t("materials:quota.upgradePrimary", { defaultValue: "开通 Pro" })}
       onPrimary={() => {
         window.location.assign(buildUpgradeUrl(materialUploadUpgradePrompt.billingPath, source));
       }}
@@ -55,19 +69,16 @@ interface MaterialsUpgradeNoticeProps {
 export function MaterialsUpgradeNotice({ source, className = "" }: MaterialsUpgradeNoticeProps) {
   const { t } = useTranslation(["materials"]);
   const [open, setOpen] = useState(false);
+  const description = useMaterialsUploadDescription();
 
   return (
     <div className={`space-y-2 ${className}`} data-testid="materials-upgrade-notice">
       <p className="text-sm font-medium text-[hsl(var(--text-primary))]">
-        {t("materials:quota.uploadTitle", { defaultValue: "开通会员即可使用素材库" })}
+        {t("materials:quota.uploadTitle", { defaultValue: "素材库是 Pro 功能" })}
       </p>
-      <p className="text-xs leading-5 text-[hsl(var(--text-secondary))]">
-        {t("materials:quota.uploadDescription", {
-          defaultValue: "免费版不含素材库。开通会员后，每月可拆解 5 次。",
-        })}
-      </p>
+      <p className="text-xs leading-5 text-[hsl(var(--text-secondary))]">{description}</p>
       <button type="button" className="btn-primary h-8 px-3 text-xs" onClick={() => setOpen(true)}>
-        {t("materials:teaserPrimary", { defaultValue: "开通会员" })}
+        {t("materials:teaserPrimary", { defaultValue: "开通 Pro" })}
       </button>
       <MaterialsUpgradePromptModal open={open} onClose={() => setOpen(false)} source={source} />
     </div>

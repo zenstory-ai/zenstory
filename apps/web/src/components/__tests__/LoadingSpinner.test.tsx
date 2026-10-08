@@ -2,9 +2,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { LoadingSpinner, PageLoader, InlineLoader } from '../LoadingSpinner'
 
+// Resolve only real keys (default namespace is `common`), so a wrong key path
+// shows up as the raw key instead of being masked by the inline fallback.
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (_key: string, fallback?: string) => fallback ?? _key,
+    t: (key: string) => ({ 'common:loading': '加载中...' } as Record<string, string>)[key] ?? key,
   }),
 }))
 
@@ -250,7 +252,7 @@ describe('PageLoader', () => {
 
   it('renders with default label', () => {
     render(<PageLoader />)
-    expect(screen.getByText('Loading...')).toBeInTheDocument()
+    expect(screen.getByText('加载中...')).toBeInTheDocument()
   })
 
   it('renders with custom label', () => {
@@ -298,7 +300,7 @@ describe('InlineLoader', () => {
 
   it('renders with default label', () => {
     render(<InlineLoader />)
-    expect(screen.getByText('Loading...')).toBeInTheDocument()
+    expect(screen.getByText('加载中...')).toBeInTheDocument()
   })
 
   it('renders with custom label', () => {
