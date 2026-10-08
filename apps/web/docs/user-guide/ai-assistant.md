@@ -2,7 +2,7 @@
 
 在 ZenStory 中，AI 不只是返回一段文字，也可以读取和操作项目文件。开始一轮写作前，说清目标文件、依据哪些设定、这次允许改什么，以及写到哪里停止；用文件和引用保留已经做出的创作决定，而不是只靠很长的聊天记录。
 
-本指南适用于 [ZenStory 在线工作台](https://app.zenstory.ai/dashboard)，不是 Oh Story 的命令手册。第一次使用可先看[网页写作快速入门](https://zenstory.ai/docs/getting-started/quick-start)。下方请求沿用[第一篇短篇教程](https://zenstory.ai/docs/getting-started/first-project)的失物招领故事，是原创教学示例，不是实际 AI 运行结果。
+本指南适用于 [ZenStory 工作台](https://app.zenstory.ai/dashboard)，不是 Oh Story 的命令手册。第一次使用可先看[网页写作快速入门](https://zenstory.ai/docs/getting-started/quick-start)。下方请求沿用[第一篇短篇教程](https://zenstory.ai/docs/getting-started/first-project)的失物招领故事，是原创教学示例，不是实际 AI 运行结果。
 
 ## 1. 先选这轮任务，不要一句话包办整部小说
 

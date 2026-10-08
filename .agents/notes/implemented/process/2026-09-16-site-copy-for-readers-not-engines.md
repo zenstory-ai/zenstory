@@ -16,7 +16,7 @@ Status: implemented
 - 日期戳只出现一次：/projects 末尾一行「star 数统计于 <日期>」（宿主列表上方已有，不再重复宿主、许可和组织 star 总数；首页收尾区不放 star 句），项目页"来源"段一句话（「本页内容依据 <日期> 的源码（star 数同日统计）」，两个日期不同时才分别写出），指南页与比较页的"更新于"。页脚版权行只写「© 年份 ZenStory AI」，许可、GitHub 与 llms.txt 已在页脚上方各列一次。hero、卡片、指南卡上的 `as of / 截至 / Checked / 核对于` 全部移除；`proofRow` 不再接受日期参数。
 - 项目卡只显示任务、名称、一句话、形态与 star / 技能数两枚 chip，以及"安装与详情"、"GitHub 源码"两个链接；安装命令只在项目页和首页旗舰 hero 出现。
 - 项目页"来源与边界"改名"来源"，去掉"不保证后续版本一致"一类措辞；工作台迁移提示缩为一句。
-- 工作台在营销站上的名字只有一个：中文页写「ZenStory 工作台」（`projects.json` 的 `name.zh`，生成器的 `toolName()` 与页脚项目列表都按页面语言取），英文页写「ZenStory Workbench」；不再用网页写作工作台、托管工作台、ZenStory 在线服务、浏览器工作台。其他项目在中文页仍显示英文名，因为它们的 `name.zh` 带括注，适合标题而不适合列表。项目卖点（`distinctive`）写成能做什么，不以「不保证…/不承诺…」收尾。
+- 工作台在营销站上的名字只有一个：中文页写「ZenStory 工作台」（`projects.json` 的 `name.zh`，生成器的 `toolName()` 与页脚项目列表都按页面语言取），英文页写「ZenStory Workbench」；指南正文（`guides.json`、`comparisons.json`）、帮助文档（`apps/web/docs/**` 及 `docs/` 镜像）和 `llms.txt` 同样只用这个名字，不再用网页写作工作台、托管工作台、ZenStory 在线服务、浏览器工作台、在线工作台、ZenStory 托管版，英文不再用 hosted ZenStory、browser workbench、hosted workbench。其他项目在中文页仍显示英文名，因为它们的 `name.zh` 带括注，适合标题而不适合列表。项目卖点（`distinctive`）写成能做什么，不以「不保证…/不承诺…」收尾。
 
 ## Alternatives considered
 

@@ -109,7 +109,7 @@ You do not need to fill every field on a weekly or fixed-chapter schedule. Maint
 
 ### Why can a character still drift with memory enabled?
 
-The summary may be outdated, incomplete or conflict with a file; context can be budget-limited, and the model can misunderstand. Check the saved evidence and the key sentence for this turn rather than asking it to “never be wrong.” The distinction between author truth, character knowledge and reader knowledge in the [long-novel continuity guide](https://zenstory.ai/oh-story/long-novel-continuity) is useful, but Oh Story's tracking files are not automatically features of the hosted workbench.
+The summary may be outdated, incomplete or conflict with a file; context can be budget-limited, and the model can misunderstand. Check the saved evidence and the key sentence for this turn rather than asking it to “never be wrong.” The distinction between author truth, character knowledge and reader knowledge in the [long-novel continuity guide](https://zenstory.ai/oh-story/long-novel-continuity) is useful, but Oh Story's tracking files are not automatically features of ZenStory Workbench.
 
 ### Is saying “remember this” enough to save it?
 

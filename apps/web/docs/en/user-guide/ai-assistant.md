@@ -2,7 +2,7 @@
 
 In ZenStory, AI can read and operate on project files as well as return text. Before a writing task, identify the target, the story facts it depends on, the permitted changes and where to stop. Keep approved decisions in files and focused quotations rather than relying only on a long conversation.
 
-This guide is for the [ZenStory browser workbench](https://app.zenstory.ai/dashboard), not Oh Story commands. Start with [Quick Start](https://zenstory.ai/docs/getting-started/quick-start) if needed. Requests below continue the lost-property example from [your first short story](https://zenstory.ai/docs/getting-started/first-project); they are original teaching examples, not recorded AI results.
+This guide is for the [ZenStory Workbench](https://app.zenstory.ai/dashboard), not Oh Story commands. Start with [Quick Start](https://zenstory.ai/docs/getting-started/quick-start) if needed. Requests below continue the lost-property example from [your first short story](https://zenstory.ai/docs/getting-started/first-project); they are original teaching examples, not recorded AI results.
 
 ## 1. Choose this task instead of requesting the whole novel
 

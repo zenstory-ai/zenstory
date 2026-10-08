@@ -2,7 +2,7 @@
 
 ZenStory's Export Manuscript combines the saved manuscript and script files in the current project into one TXT, ready for a handoff, offline reading or a copy of your prose. Characters, materials, chat and version history are not included.
 
-Open the intended project in the [browser workbench](https://app.zenstory.ai/dashboard). This guide continues the [Before Closing short-story example](https://zenstory.ai/docs/getting-started/first-project).
+Open the intended project in [ZenStory Workbench](https://app.zenstory.ai/dashboard). This guide continues the [Before Closing short-story example](https://zenstory.ai/docs/getting-started/first-project).
 
 ## 1. Decide what you want to take away
 

@@ -1,8 +1,8 @@
 # Write your first short story in ZenStory: idea, files and revision
 
-In the ZenStory browser workbench, separate story facts from open ideas, save characters and scene plans as project files, draft one scene at a time, quote passages for local revision, and export the prose. This tutorial follows a lost-property story rather than asking AI to finish a whole book at once.
+In ZenStory Workbench, separate story facts from open ideas, save characters and scene plans as project files, draft one scene at a time, quote passages for local revision, and export the prose. This tutorial follows a lost-property story rather than asking AI to finish a whole book at once.
 
-Open the [hosted workbench](https://app.zenstory.ai/dashboard); installing Oh Story or a coding agent is not required. For the shorter button-by-button path, see [Quick Start](https://zenstory.ai/docs/getting-started/quick-start). The characters, filenames and requests below are original teaching examples, not a recorded model run.
+Open [ZenStory Workbench](https://app.zenstory.ai/dashboard); installing Oh Story or a coding agent is not required. For the shorter button-by-button path, see [Quick Start](https://zenstory.ai/docs/getting-started/quick-start). The characters, filenames and requests below are original teaching examples, not a recorded model run.
 
 ## 1. Create an empty short-story project
 
