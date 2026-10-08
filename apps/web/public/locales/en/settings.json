@@ -159,8 +159,10 @@
       "material_uploads": "Material uploads per month",
       "material_decompositions": "Material decompositions per month",
       "custom_skills": "Custom Skills",
-      "inspiration_copies_monthly": "Inspiration Copies"
-    }
+      "inspiration_copies_monthly": "Inspiration Copies",
+      "materials_library_access": "Materials library"
+    },
+    "tokenCount": "{{count}} tokens"
   },
   "points": {
     "comingSoon": "Points feature coming soon",

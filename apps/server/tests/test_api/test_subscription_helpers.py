@@ -22,6 +22,9 @@ def test_normalize_plan_features_for_response_uses_plan_defaults_and_filters_exp
     assert normalized["max_projects"] == -1
     assert normalized["material_uploads"] == 5
     assert normalized["export_formats"] == ["txt"]
+    # 生产专业版套餐行没有 priority_support；不能落到免费版的 False。
+    assert normalized["priority_support"] is True
+    assert _normalize_plan_features_for_response({}, plan_name="free")["priority_support"] is False
 
 
 def test_normalize_plan_features_does_not_infer_access_from_free_upload_limit():

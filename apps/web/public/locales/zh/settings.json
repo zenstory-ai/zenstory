@@ -159,8 +159,10 @@
       "material_uploads": "每月素材上传次数",
       "material_decompositions": "每月素材拆解次数",
       "custom_skills": "自定义技能数量",
-      "inspiration_copies_monthly": "灵感复用次数"
-    }
+      "inspiration_copies_monthly": "灵感复用次数",
+      "materials_library_access": "素材库"
+    },
+    "tokenCount": "{{count}} tokens"
   },
   "points": {
     "comingSoon": "积分功能即将上线",
