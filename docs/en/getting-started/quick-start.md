@@ -35,9 +35,9 @@ Welcome to zenstory Novel Writing Workbench! This tutorial will help you get sta
 
 ### About the Invitation Code System
 
-zenstory uses invitation-based registration. New users need an invitation code to sign up:
+The hosted app (app.zenstory.ai) does not require an invite code, though you can enter a friend's; self-hosted deployments require one by default:
 
-- **How to get an invitation code**: Request one from registered users or apply through the official community
+- **How to get an invitation code**: ask a registered user to generate one under Settings → Referral
 - **Invitation code rewards**:
   - Inviter receives 100 points
   - Invitee receives 100 points
@@ -269,7 +269,7 @@ Congratulations on completing the quick start guide! You've now mastered the bas
 - **[User Guide: AI Assistant](../user-guide/ai-assistant.md)** - Learn how to collaborate more effectively with the AI
 - **[User Guide: File Tree](../user-guide/file-tree.md)** - Deep dive into file organization and version control
 - **[User Guide: Inspirations Library](../user-guide/inspirations.md)** - Reuse idea templates in your own projects
-- **[User Guide: Billing & Benefits](../user-guide/billing-benefits.md)** - Understand plans, quotas, and upgrade options
+- **[User Guide: Plans & Benefits](../user-guide/billing-benefits.md)** - Understand plans, quotas, and upgrade options
 - **[User Guide: Skills](../user-guide/skills.md)** - Create personalized creative workflows
 - **[Advanced Features: Workflow Tips](../advanced/workflow-tips.md)** - Advanced techniques to boost creative efficiency
 

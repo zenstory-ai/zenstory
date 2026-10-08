@@ -3,16 +3,16 @@
     "slug": "writing-workflows",
     "checked_on": "2026-09-12",
     "title": {
-      "en": "Oh Story, Oh Story DSH or hosted ZenStory: choose a writing workflow",
-      "zh": "Oh Story、DSH 插件还是 ZenStory 网页工作台：怎么选写作环境？"
+      "en": "Oh Story, Oh Story DSH or ZenStory Workbench: choose a writing workflow",
+      "zh": "Oh Story、DSH 插件还是 ZenStory 工作台：怎么选写作环境？"
     },
     "answer": {
-      "en": "Keep the environment you already want to work in: choose Oh Story for a supported agent working on a writing-project folder; the Oh Story DSH plugin for a DSH workspace and session; or hosted ZenStory for an account-based project workbench. Both DSH Web and ZenStory can appear in a browser—the host, files and account boundary matter more than the presence of a web page.",
-      "zh": "优先保留你准备使用的环境：让受支持的 Agent 围绕写作项目目录工作，选 Oh Story；在 DSH 的工作区与会话里创作，选 Oh Story DSH 插件；需要账户化的托管项目工作台，选 ZenStory 在线服务。DSH Web 和 ZenStory 都能在浏览器里打开，真正要比较的是宿主、文件与账户边界，而不是有没有网页。"
+      "en": "Keep the environment you already want to work in: choose Oh Story for a supported agent working on a writing-project folder; the Oh Story DSH plugin for a DSH workspace and session; or ZenStory Workbench for an account-based project workspace in the browser. Both DSH Web and ZenStory can appear in a browser—the host, files and account boundary matter more than the presence of a web page.",
+      "zh": "优先保留你准备使用的环境：让受支持的 Agent 围绕写作项目目录工作，选 Oh Story；在 DSH 的工作区与会话里创作，选 Oh Story DSH 插件；想登录就能在浏览器里管理整个项目，选 ZenStory 工作台。DSH Web 和 ZenStory 都能在浏览器里打开，真正要比较的是宿主、文件与账户边界，而不是有没有网页。"
     },
     "disclosure": {
-      "en": "This is a first-party guide published by ZenStory AI about three of its own projects, not an independent review or a ranking. It compares source-described working environments, not measured writing quality, speed, price or security. Here “ZenStory Workbench” means the hosted service; self-hosting is a separate deployment choice linked below.",
-      "zh": "这是 ZenStory AI 发布的自有项目选择指南，不是独立评测或排名。比较依据是源码描述的工作环境，不是实测文笔、速度、价格或安全性。本页“ZenStory 网页工作台”指托管在线服务；自托管是另一种部署选择，另附说明。"
+      "en": "This is ZenStory AI’s first-party guide to its own three writing environments, not an independent review.",
+      "zh": "这是 ZenStory AI 的自有项目选择指南，比较自家三种写作环境，不是独立的第三方评测。"
     },
     "options": [
       {
@@ -23,11 +23,11 @@
         },
         "environment": {
           "en": "Install the skill pack using the adapter documented for your host, then run its setup/check workflow in the intended project. Integrations are not identical: some hosts use skills-only or solo/direct execution rather than every custom agent and hook.",
-          "zh": "按宿主对应的适配方式安装技能包，在目标写作项目中运行 setup/check 流程。不同集成并不等价：某些宿主采用 skills-only 或 solo/direct，而不是完整的自定义 agent 与 hook 能力。"
+          "zh": "按宿主对应的适配方式安装 skill 包，在目标写作项目中运行 setup/check 流程。不同集成并不等价：某些宿主采用 skills-only 或 solo/direct，而不是完整的自定义 agent 与 hook 能力。"
         },
         "configuration": {
           "en": "The pack supplies skills and reference material; it is not a model bundle. Review the selected host’s model, tool, permission and data-processing configuration. A local skills directory alone does not establish offline inference or private processing.",
-          "zh": "技能包提供 skills 与参考资料，不是模型包。应检查所选宿主的模型、工具、权限和数据处理配置。仅有本地 skills 目录，不能证明推理离线或处理过程私密。"
+          "zh": "skill 包提供 skill 与参考资料，不是模型包。应检查所选宿主的模型、工具、权限和数据处理配置。仅有本地 skills 目录，不能证明推理离线或处理过程私密。"
         },
         "files": {
           "en": "Work is organized as project files. The import workflow explicitly distinguishes an analysis-only library from a resumable writing project with setting, outline, draft and tracking material. Choose that intent before importing an authorized manuscript.",
@@ -35,7 +35,7 @@
         },
         "version": {
           "en": "The direct-pack source reviewed here is commit `070d744`. Check the version and adapter actually installed in your writing project. Do not assume that it matches the separately bundled DSH snapshot, even when skill names look similar.",
-          "zh": "本页核对的独立技能包源码为 commit `070d744`。请检查写作项目中实际安装的版本与适配器；即使 skill 名称相似，也不要默认它与 DSH 另行打包的快照相同。"
+          "zh": "本页核对的独立 skill 包源码为 commit `070d744`。请检查写作项目中实际安装的版本与适配器；即使 skill 名称相似，也不要默认它与 DSH 另行打包的快照相同。"
         },
         "review": {
           "en": "Read the setting and chapter changes, including unresolved fields and tracking state. A reference gate, hook or deterministic check is a workflow aid—not proof of literary quality, perfect continuity or publication acceptance.",
@@ -57,8 +57,8 @@
       {
         "project": "dsh",
         "fit": {
-          "en": "Choose the plugin when DSH is the host you want to keep for your workspace, tools and sessions. Its workbenches live inside DSH Web; this is not an account in the hosted ZenStory service.",
-          "zh": "希望继续由 DSH 管理工作区、工具与会话时，可选该插件。它的工作台位于 DSH Web 内，不是 ZenStory 托管服务中的账户。"
+          "en": "Choose the plugin when DSH is the host you want to keep for your workspace, tools and sessions. Its workbenches live inside DSH Web; no ZenStory Workbench account is involved.",
+          "zh": "希望继续由 DSH 管理工作区、工具与会话时，可选该插件。它的工作台位于 DSH Web 内，不需要 ZenStory 工作台账户。"
         },
         "environment": {
           "en": "Use a DSH Web profile and the versioned installation guide, which lists Node.js 24+. DSH owns the workspace, permissions, session and UI; the creation plugin does not launch a second agent runtime.",
@@ -102,16 +102,16 @@
       {
         "project": "workbench",
         "fit": {
-          "en": "Choose hosted ZenStory when you want an account-based browser project with a file tree, editor, AI chat and version features, rather than managing an agent-host installation for this workflow.",
-          "zh": "需要账户化的浏览器项目、文件树、编辑器、AI 对话与版本功能，而不是为这条工作流管理 Agent 宿主安装时，可选 ZenStory 在线服务。"
+          "en": "Choose ZenStory Workbench when you want an account-based browser project with a file tree, editor, AI chat and version features, rather than managing an agent-host installation for this workflow.",
+          "zh": "需要账户化的浏览器项目、文件树、编辑器、AI 对话与版本功能，而不是为这条工作流管理 Agent 宿主安装时，可选 ZenStory 工作台。"
         },
         "environment": {
           "en": "Open [app.zenstory.ai](https://app.zenstory.ai). The source protects dashboard and project routes with a login guard. Self-hosting is separate: it requires deploying the web/backend stack and configuring model services, not just installing an Oh Story skill.",
           "zh": "打开 [app.zenstory.ai](https://app.zenstory.ai)。源码为 dashboard 与项目路由设置了登录守卫。自托管是另一回事：需要部署网页与后端、配置模型服务，并非只安装一个 Oh Story skill。"
         },
         "configuration": {
-          "en": "For hosted use, check the instance’s account, plan and service settings. For self-hosting, follow the deployment/model setup documentation. This guide makes no claim about current prices, included generation, availability or which credentials a particular service plan will require.",
-          "zh": "使用托管服务时，检查该实例的账户、方案与服务设置；自托管时，遵循部署与模型配置文档。本指南不承诺当前价格、包含的生成额度、可用性，或某个服务方案具体需要哪些凭证。"
+          "en": "The hosted app works as soon as you sign up; plan limits are on the [pricing page](https://app.zenstory.ai/pricing). For self-hosting, follow the deployment and model setup documentation.",
+          "zh": "在线版注册即用，额度见[定价页](https://app.zenstory.ai/pricing)；自托管时按部署与模型配置文档操作。"
         },
         "files": {
           "en": "The instance manages project files and revision features. The inspected draft-export endpoint merges drafts into TXT and checks an active user, project ownership and allowed plan formats. Do not treat this as a complete export of every file, setting, conversation or version history.",
@@ -151,24 +151,22 @@
       "en": [
         "Start with your material: an idea needs planning, an existing manuscript needs import/context, and a draft needs revision. The [writer’s skill guide](https://zenstory.ai/oh-story/agent-skills-for-writers) maps these tasks to an entry point and explains when a simple prompt is enough.",
         "Try a small, non-sensitive passage you own or are authorized to use. Set the intended edit, inspect the changed text and confirm what is saved or exported; keep a backup.",
-        "If you specifically want DeepSeek, first distinguish ordinary chat from DeepSeek Harness. The [DeepSeek novel-writing guide](https://zenstory.ai/dsh/deepseek-novel-writing) explains the host/plugin setup and a workspace-based starting request. The hosted ZenStory option here is a separate product, not a claim about which model it uses."
+        "If you specifically want DeepSeek, first distinguish ordinary chat from DeepSeek Harness. The [DeepSeek novel-writing guide](https://zenstory.ai/dsh/deepseek-novel-writing) explains the host/plugin setup and a workspace-based starting request. ZenStory Workbench is a separate product."
       ],
       "zh": [
         "先看手头材料：只有点子需要规划，已有小说需要导入与上下文，已有正文需要修订。[作者 Skill 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)把这些任务对应到入口，也说明什么时候一条提示词就够用。",
         "先用一小段你拥有或获准使用的非敏感文本试验。明确修改目标，检查改动，确认实际保存或导出的内容，并保留备份。",
-        "如果你明确想用 DeepSeek，先分清普通聊天与 DeepSeek Harness。[DeepSeek 小说写作指南](https://zenstory.ai/dsh/deepseek-novel-writing)解释宿主、插件的准备方式，并给出基于工作区的开书请求。这里的托管 ZenStory 是独立产品，不代表它使用哪一种模型。"
+        "如果你明确想用 DeepSeek，先分清普通聊天与 DeepSeek Harness。[DeepSeek 小说写作指南](https://zenstory.ai/dsh/deepseek-novel-writing)解释宿主、插件的准备方式，并给出基于工作区的开书请求。ZenStory 工作台是另一个独立产品。"
       ]
     },
     "boundaries": {
       "en": [
-        "No default cross-product migration or two-way synchronization is established by this comparison. Markdown text alone does not make project directories, accounts, sessions, settings and histories interchangeable; investigate a specific transfer path before relying on it.",
-        "Local files or a local browser UI are not evidence of offline or private model processing. Review the configured providers and the applicable deployment/privacy policies before using sensitive material.",
-        "Open-source licensing is separate from model, media, hosting and service costs. This is not a pricing, performance, security or literary-quality comparison, and none of the workflows guarantees publication acceptance."
+        "Project files do not move between the three automatically; export a copy and try it before you switch environments.",
+        "Local files or a local browser interface do not mean the model runs locally. Before using sensitive material, check the configured model services and the privacy policy that applies."
       ],
       "zh": [
-        "本比较没有建立默认跨产品迁移或双向同步的结论。同为 Markdown 文本，不代表项目目录、账户、会话、设置与历史可互换；依赖某条转移路径前，需要单独验证。",
-        "本地文件或本地浏览器界面不证明模型处理离线或私密。使用敏感材料前，应检查已配置的供应商及适用的部署、隐私政策。",
-        "开源许可证与模型、媒体、托管和服务成本是两回事。本页不比较价格、性能、安全或文学质量，也没有任何流程保证投稿通过。"
+        "三者的项目文件不能自动互通，换环境前先导出一份试试。",
+        "用本地文件或本地界面，不代表模型在本地运行。处理敏感材料前，先看清配置的模型服务和适用的隐私政策。"
       ]
     }
   }

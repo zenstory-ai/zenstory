@@ -243,12 +243,12 @@ zenstory uses an auto-save mechanism. If you notice content loss:
 ### Export Failed
 
 1. **Check Network Connection**
-   - Export requires downloading files from server
-   - Ensure network stability to avoid download interruption
+   - The exported TXT is downloaded to your device; a dropped connection interrupts it
+   - Try again once your connection is stable
 
-2. **Reduce Export Scope**
-   - If project has very many files (e.g., over 50)
-   - Try exporting in batches, selecting partial chapters each time
+2. **Save First**
+   - Export only includes saved manuscript and script files
+   - Wait until the editor no longer shows "Unsaved" or "Saving...", then export
 
 3. **Refresh and Retry**
    - Refresh the page and export again

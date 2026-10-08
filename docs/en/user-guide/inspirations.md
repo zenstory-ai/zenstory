@@ -1,6 +1,6 @@
 # Inspirations Library
 
-> This optional module is disabled by default. Enable `INSPIRATIONS_ENABLED=true` on the server and `VITE_INSPIRATIONS_ENABLED=true` on the frontend, then restart the server and rebuild the frontend (restart Vite in development). Disabling it removes library entry points, featured templates and submissions, and disables its APIs without deleting data. Creating projects from your own ideas is unaffected. The following describes the enabled module.
+> The hosted app (app.zenstory.ai) does not offer the Inspirations Library; this page applies to self-hosted deployments. This optional module is disabled by default. Enable `INSPIRATIONS_ENABLED=true` on the server and `VITE_INSPIRATIONS_ENABLED=true` on the frontend, then restart the server and rebuild the frontend (restart Vite in development). Disabling it removes library entry points, featured templates and submissions, and disables its APIs without deleting data. Creating projects from your own ideas is unaffected. The following describes the enabled module.
 
 The Inspirations Library helps you turn rough ideas into actionable writing plans faster.
 

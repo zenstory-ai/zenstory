@@ -1,62 +1,56 @@
 # Account Registration and Login
 
-Learn how registration, verification, invitations, login and account-recovery entrypoints work in the ZenStory workbench, including behavior that depends on deployment settings.
-
-Registration, login and account entrypoints for the ZenStory workbench are on [app.zenstory.ai](https://app.zenstory.ai). Organization information and this guide live on zenstory.ai; use the workbench links below rather than looking for registration on the organization homepage.
-
-> **Source review: 2026-09-12.** This guide describes the fixed source version linked below; it is **not a live-account acceptance test**. No account was created, email delivery verified or real Google authorization completed. Deployment flags, invitation rules and verification countdowns depend on the current page and server response.
+This page covers sign-up, email verification, invitations, login and password recovery in ZenStory Workbench. Sign-up and login happen at [app.zenstory.ai](https://app.zenstory.ai), not on the organization site zenstory.ai.
 
 ## Email Registration
 
 1. Open the workbench [registration page](https://app.zenstory.ai/register).
-2. Enter a username, email address, password and password confirmation. The current web form requires at least 3 characters for the username, at least 6 for the password, and matching passwords.
-3. Follow the form's invitation requirement. The active registration policy determines whether a code is required, and the page reads that policy again before submission. Neither “optional” nor “invite-only” is a universal deployment rule.
+2. Enter a username, email address, password and password confirmation. The username needs at least 3 characters, the password at least 6, and both passwords must match.
+3. If the page shows an invite code field, follow its hint; a field marked "optional" can stay empty.
 4. Read and accept the terms of service and privacy policy, then submit.
-5. After a successful registration request, the page moves to email verification. Enter the code from the email; successful verification saves the login state and opens the Dashboard.
+5. The page then moves to email verification. Enter the code from the email; once it is verified you land in the workbench.
 
-A successful registration response does not establish email delivery. If the email is missing, check the address and spam folder, then use the page's resend option after its cooldown. Follow the displayed expiry and resend countdowns; this guide does not guarantee a fixed interval or delivery time.
+If the email doesn't arrive, check the address and your spam folder, then resend once the countdown on the page ends.
 
 ## Invitation Links and Rewards
 
-An invitation link can prefill a code. This example demonstrates the URL format only; `ABCD-1234` is **not a valid code issued to you**:
+An invitation link fills in the code for you. The format looks like this (`ABCD-1234` is only an example):
 
 ```text
 https://app.zenstory.ai/register?invite=ABCD-1234
 ```
 
-The page also accepts `?code=` and normalizes the input format. A complete code looks like `XXXX-XXXX`; completing it can trigger a validation lookup. The server checks existence, enabled state, expiry and remaining uses.
+The page also accepts `?code=`. A complete code looks like `XXXX-XXXX`; once it is filled in, the page checks that it exists, hasn't expired and still has uses left.
 
-- Usage limits, expiry and rewards depend on the current rules and code record. Source defaults are not fixed promises about the live deployment.
-- Invitation rewards are processed after email verification and can be restricted by anti-abuse checks. Successful registration or verification does not guarantee a reward.
-- For an invalid code, check the copied value and page error; request a usable code from its provider if needed. Do not treat the example as registration eligibility.
+- When a friend signs up with your code and verifies their email, you both get points, which you can redeem for Pro.
+- Suspicious sign-ups may not receive the reward.
+- If a code is invalid, check that you copied all of it, or ask its owner for a new one.
 
-## Google Login (Deployment-Dependent)
+## Google Login
 
-If a Google button is displayed on the login or registration page, follow its authorization flow. Showing the button and configuring backend OAuth are separate requirements; this guide does not verify the live configuration.
-
-New Google users still follow the active invitation policy. The reviewed source uses returned Google information to create a new account, marks its email verified and saves a picture when available. This is not a guarantee of account creation, authorization availability or security. A documented Google flow is not proof that every self-hosted deployment enables it.
+If the login or registration page shows a Google button, click it and follow the authorization steps. New accounts created with Google follow the same invite code rules, and their email counts as verified. Self-hosted deployments need Google OAuth configured first.
 
 ## Login and Session State
 
 Open the [login page](https://app.zenstory.ai/login) and enter your username or email address and password.
 
-When there is no pending destination to resume, ordinary password login attempts to open the current user's locally saved project. If that record is not usable, it selects from the most recently updated or created projects. With no projects, or a failed project-list request, it falls back to the Dashboard. Login does not always open the “last-used project.”
+After login you return to the project you last used on this device; without that record you get the most recently updated project, and with no projects yet you land in the workbench.
 
-The current web app saves login tokens and user state in browser local storage. An ordinary API request receiving an unauthorized response can attempt a refresh and retry; a rejected refresh or another unauthorized response requires login again. Token lifetimes are deployment settings; automatic refresh does not guarantee that login will never be required again.
+Login state is kept in browser storage and refreshes automatically when it expires; if the refresh fails, log in again.
 
-The user menu offers logout. The current frontend clears local login state; that is not immediate revocation of every device's session, and different entrypoints need not navigate to the same destination. Log out after using a shared device rather than treating a closed tab as logout.
+The user menu has a logout option. Logging out clears the login state on this device only; on a shared device, log out when you finish, since closing the tab is not enough.
 
 ## Forgotten Password
 
-Follow the login page to the [forgot-password page](https://app.zenstory.ai/forgot-password). A feature flag controls this entrypoint: when enabled, it displays a support-email contact link; otherwise it returns to login. Use the contact actually shown on the page. This guide makes no response-time commitment.
+Follow the login page to the [forgot-password page](https://app.zenstory.ai/forgot-password) and use the contact it shows; on the hosted app, write to support@zenstory.ai from your registered email.
 
-**The reviewed version has no web self-service reset-link flow or password-change form in Settings.** A backend change-password endpoint is not a web button; follow the current page instructions.
+**There is currently no web self-service reset-link flow, and no password-change form in Settings.**
 
-Keep non-sensitive error messages when troubleshooting. Do not publish passwords, verification or invitation codes, or login tokens in public reports. This guide does not claim two-factor authentication, immediate cross-device logout or a service guarantee for a particular support channel.
+When reporting a login problem, never share passwords, verification codes, invite codes or login tokens.
 
 ## Reviewed Source
 
-These links pin the same source version so implementation boundaries can be checked. They do not prove that later versions or production settings are unchanged.
+These links point at the source version this page was checked against.
 
 - [Registration link and form](https://github.com/zenstory-ai/zenstory/blob/76b8ab84ce73ca309083f0c1a90f3c9d7ce8d72b/apps/web/src/pages/Register.tsx#L91-L237)
 - [Registration policy](https://github.com/zenstory-ai/zenstory/blob/76b8ab84ce73ca309083f0c1a90f3c9d7ce8d72b/apps/server/api/auth.py#L115-L172)

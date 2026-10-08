@@ -1,8 +1,8 @@
-# Export your manuscript, not the whole project
+# Export your manuscript as one TXT
 
-ZenStory's Export Manuscript action combines saved, non-deleted draft and script files from the current project into one TXT. Use it for a manuscript handoff, offline reading or a point-in-time prose copy. It excludes characters, reference materials, chat and complete version history, so it is not a project-restoration package.
+ZenStory's Export Manuscript combines the saved manuscript and script files in the current project into one TXT, ready for a handoff, offline reading or a copy of your prose. Characters, materials, chat and version history are not included.
 
-Open the intended project in the [browser workbench](https://app.zenstory.ai/dashboard). This guide continues the [Before Closing short-story example](https://zenstory.ai/docs/getting-started/first-project). Filenames and prose below are teaching examples, not an actual export of a user's work.
+Open the intended project in [ZenStory Workbench](https://app.zenstory.ai/dashboard). This guide continues the [Before Closing short-story example](https://zenstory.ai/docs/getting-started/first-project).
 
 ## 1. Decide what you want to take away
 

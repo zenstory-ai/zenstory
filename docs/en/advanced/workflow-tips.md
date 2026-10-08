@@ -4,7 +4,7 @@
 
 In ZenStory, a writing turn should leave **a result you can accept or reject, plus a clear place to continue**. That result may be a scene, a chapter or an agreed complete short story; fixed-size fragments are not compulsory. State the goal, evidence, permitted changes and stopping point instead of assuming “write the whole book” settles every creative decision.
 
-This is an author's guide to the [hosted ZenStory workbench](https://app.zenstory.ai/dashboard), not an enforced three-stage pipeline or a measured time-saving claim. Follow the [quick start](https://zenstory.ai/docs/getting-started/quick-start) to create a project. To control the first request, leave the idea empty and discuss it after creation.
+This is a practical way to write a scene in [ZenStory Workbench](https://app.zenstory.ai/dashboard): set the direction, draft, then revise locally. Follow the [quick start](https://zenstory.ai/docs/getting-started/quick-start) to create a project. To control the first request, leave the idea empty and discuss it after creation.
 
 ## 1. Choose the deliverable before mixing discussion, drafting and file changes
 

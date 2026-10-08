@@ -386,11 +386,11 @@
     "prerequisites": {
       "en": [
         "One concrete writing task and material you own or are authorized to use. A premise, a chapter needing revision or an unfinished manuscript is enough to choose a starting point.",
-        "For Oh Story, a configured supported agent host and a writing-project folder. The writing tasks below involve no coding: you open the right folder, follow the installation instructions and review requested file/tool access. If you prefer not to manage that setup, see the separate [hosted workbench](https://zenstory.ai/workbench)."
+        "For Oh Story, a configured supported agent host and a writing-project folder. The writing tasks below involve no coding: you open the right folder, follow the installation instructions and review requested file/tool access. If you prefer not to manage that setup, see the separate [ZenStory Workbench](https://zenstory.ai/workbench)."
       ],
       "zh": [
         "一项具体写作任务，以及你拥有或获准使用的材料。一个故事点子、一章待修改的正文，或一部未完成的小说，都可以作为起点。",
-        "使用 Oh Story 需要先配置受支持的 Agent 宿主，并准备写作项目目录。下面的写作任务不用写代码，你要做的是打开正确的目录、按说明安装，并判断是否允许文件与工具操作。不想管理这套环境，可以了解独立的[托管写作工作台](https://zenstory.ai/workbench)。"
+        "使用 Oh Story 需要先配置受支持的 Agent 宿主，并准备写作项目目录。下面的写作任务不用写代码，你要做的是打开正确的目录、按说明安装，并判断是否允许文件与工具操作。不想管理这套环境，可以了解独立的 [ZenStory 工作台](https://zenstory.ai/workbench)。"
       ]
     },
     "steps": {
@@ -544,22 +544,22 @@
       "zh": "DeepSeek写小说：选对工作区，从已有稿件接着写"
     },
     "answer": {
-      "en": "To write a novel with DeepSeek, choose by where the writing lives: ordinary DeepSeek chat for one-off tasks, a local DSH workspace for a whole manuscript. Use an ordinary DeepSeek model chat for a disposable brainstorm, outline critique or scene rewrite that you will copy into your own manuscript. Use DeepSeek Harness (DSH) plus the community Oh Story DSH plugin when you want a local writing folder, persistent sessions, creation skills and a file/editor/Chat workbench. Use the separate hosted ZenStory service at app.zenstory.ai when you want an account-based browser project with nothing to run locally. These sit on different layers: DeepSeek is the model/provider choice, DSH is the agent host, `@oh-story/dsh` is a community plugin for that host, and hosted ZenStory is a separate application. The plugin runs inside DSH; an ordinary DeepSeek chat does not load it. For the broader difference between chat, skills and agents, see [AI agent skills for writers](https://zenstory.ai/oh-story/agent-skills-for-writers); for a field-by-field comparison of the three ZenStory AI writing environments, see [the workflow comparison](https://zenstory.ai/compare/writing-workflows). Already have a draft? Start by naming the latest accepted manuscript, the last complete chapter and any unfinished tail, then ask for the next step. The worked archive mystery below shows how to turn those materials into a next-scene choice before importing or changing files, and the last step gives a paste-ready prompt that makes the agent continue from the project's state files.",
-      "zh": "用 DeepSeek 写小说，按作品要存放在哪里选：一次性小任务用普通 DeepSeek 聊天，整部稿件放进本地 DSH 工作区。只想临时脑暴、点评大纲或改一段文字，再自己复制回稿件，用普通 DeepSeek 模型聊天即可；要围绕本地写作目录持续创作，由会话、Skills 和文件/编辑器/Chat 工作台一起管理项目，选 DeepSeek Harness（DSH）加社区插件 Oh Story DSH；想用账户化的浏览器项目、不在本地运行 DSH，选独立的 ZenStory 托管服务 app.zenstory.ai。四者分属不同层：DeepSeek 是模型/Provider 选择，DSH 是 Agent 宿主，`@oh-story/dsh` 是装进该宿主的社区插件，ZenStory 托管版是另一套应用；插件装在 DSH 里，普通 DeepSeek 聊天用不到它。聊天、Skills 与 Agents 的通用差异见[写作者的 AI Agent Skills 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)；三种写作环境的逐项比较见[工作流对比](https://zenstory.ai/compare/writing-workflows)。已有稿件时，先交代当前确认版、最后完整章与尚未完成的尾稿，再提出下一步。下方的档案悬疑示例把这些材料转成有代价的下一场戏选择，再决定是否导入或改文件；长篇续写让 Agent 以项目里的状态文件为准，最后一步附一段可直接粘贴的续写指令。"
+      "en": "To write a novel with DeepSeek, choose by where the writing lives: ordinary DeepSeek chat for one-off tasks, a local DSH workspace for a whole manuscript. Use an ordinary DeepSeek model chat for a disposable brainstorm, outline critique or scene rewrite that you will copy into your own manuscript. Use DeepSeek Harness (DSH) plus the community Oh Story DSH plugin when you want a local writing folder, persistent sessions, creation skills and a file/editor/Chat workbench. Use the separate ZenStory Workbench at app.zenstory.ai when you want an account-based browser project with nothing to run locally. These sit on different layers: DeepSeek is the model/provider choice, DSH is the agent host, `@oh-story/dsh` is a community plugin for that host, and ZenStory Workbench is a separate application. The plugin runs inside DSH; an ordinary DeepSeek chat does not load it. For the broader difference between chat, skills and agents, see [AI agent skills for writers](https://zenstory.ai/oh-story/agent-skills-for-writers); for a field-by-field comparison of the three ZenStory AI writing environments, see [the workflow comparison](https://zenstory.ai/compare/writing-workflows). Already have a draft? Start by naming the latest accepted manuscript, the last complete chapter and any unfinished tail, then ask for the next step. The worked archive mystery below shows how to turn those materials into a next-scene choice before importing or changing files, and the last step gives a paste-ready prompt that makes the agent continue from the project's state files.",
+      "zh": "用 DeepSeek 写小说，按作品要存放在哪里选：一次性小任务用普通 DeepSeek 聊天，整部稿件放进本地 DSH 工作区。只想临时脑暴、点评大纲或改一段文字，再自己复制回稿件，用普通 DeepSeek 模型聊天即可；要围绕本地写作目录持续创作，由会话、Skills 和文件/编辑器/Chat 工作台一起管理项目，选 DeepSeek Harness（DSH）加社区插件 Oh Story DSH；想用账户化的浏览器项目、不在本地运行 DSH，选独立的 ZenStory 工作台 app.zenstory.ai。四者分属不同层：DeepSeek 是模型/Provider 选择，DSH 是 Agent 宿主，`@oh-story/dsh` 是装进该宿主的社区插件，ZenStory 工作台是另一套应用；插件装在 DSH 里，普通 DeepSeek 聊天用不到它。聊天、Skills 与 Agents 的通用差异见[写作者的 AI Agent Skills 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)；三种写作环境的逐项比较见[工作流对比](https://zenstory.ai/compare/writing-workflows)。已有稿件时，先交代当前确认版、最后完整章与尚未完成的尾稿，再提出下一步。下方的档案悬疑示例把这些材料转成有代价的下一场戏选择，再决定是否导入或改文件；长篇续写让 Agent 以项目里的状态文件为准，最后一步附一段可直接粘贴的续写指令。"
     },
     "prerequisites": {
       "en": [
         "For ordinary chat, bring only the excerpt and constraints needed for that one task. Keep your own manuscript as the durable source, and copy any chat answer you want to keep back into the writing project yourself.",
         "For the local DSH route, use Node.js 24+ and a folder you are comfortable granting to the DSH workspace. The pinned installation below uses DSH `0.1.5-rc.1` and the community plugin `@oh-story/dsh@0.1.9`.",
         "Configure a model/provider in DSH before asking it to generate text. The source supports adding a provider and API key under Settings → Models, or setting `DEEPSEEK_API_KEY` before launch. DSH owns models, credentials, permissions and sessions; the plugin never touches the credentials.",
-        "For hosted ZenStory, use `https://app.zenstory.ai` as a separate account-based workflow. A local DSH workspace, the DSH plugin installation and ordinary DeepSeek chat history each stay in their own environment.",
+        "For ZenStory Workbench, use `https://app.zenstory.ai` as a separate account-based workflow. A local DSH workspace, the DSH plugin installation and ordinary DeepSeek chat history each stay in their own environment.",
         "For an existing draft, keep a separate backup and name the manuscript files, any unfinished chapter, and the relevant settings or old plan. A discarded outline stays a proposal; nothing in it has happened in the story. State whether this turn may only discuss options, create planning files, or change prose."
       ],
       "zh": [
         "使用普通聊天时，只带上这次任务所需的片段和约束，并由你自己保管权威稿件；想保留的聊天回答要自己复制回写作项目。",
         "使用本地 DSH 路线时，准备 Node.js 24+，以及一个愿意交给 DSH workspace 管理的作品目录。下方固定版本安装使用 DSH `0.1.5-rc.1` 与社区插件 `@oh-story/dsh@0.1.9`。",
         "让 DSH 生成文本前先配置模型/Provider。源码说明可以在“设置 → 模型”中添加 Provider 和 API Key，或在启动前设置 `DEEPSEEK_API_KEY`。模型、凭据、权限和会话都由 DSH 管理，插件不接触凭据。",
-        "ZenStory 托管版位于 `https://app.zenstory.ai`，属于独立的账户化流程。本地 DSH workspace、插件安装和普通 DeepSeek 聊天历史都留在各自的环境里。",
+        "ZenStory 工作台位于 `https://app.zenstory.ai`，属于独立的账户化流程。本地 DSH workspace、插件安装和普通 DeepSeek 聊天历史都留在各自的环境里。",
         "已有稿件时先留独立备份，点名原稿文件、未完成章节，以及相关设定或旧续写设想。没有采纳的细纲只算设想，故事里还没有发生；说明本轮只讨论、可以写规划文件，还是允许修改正文。"
       ]
     },
@@ -567,7 +567,7 @@
       "en": [
         [
           "Pick the smallest environment that matches the job",
-          "For one question (three premise variants, feedback on a synopsis, or a rewrite of one supplied scene), ordinary chat keeps setup low. For an 80,000-word draft or a serial whose settings, chapter plans, prose and continuity must survive later sessions, use DSH plus the plugin. If the manuscript should live in an account-based browser project and you do not want to run a local DSH process, use hosted ZenStory. If you already use another supported coding-agent host, follow the separate [agent-skills guide](https://zenstory.ai/oh-story/agent-skills-for-writers); the DSH plugin installs into DSH only."
+          "For one question (three premise variants, feedback on a synopsis, or a rewrite of one supplied scene), ordinary chat keeps setup low. For an 80,000-word draft or a serial whose settings, chapter plans, prose and continuity must survive later sessions, use DSH plus the plugin. If the manuscript should live in an account-based browser project and you do not want to run a local DSH process, use ZenStory Workbench. If you already use another supported coding-agent host, follow the separate [agent-skills guide](https://zenstory.ai/oh-story/agent-skills-for-writers); the DSH plugin installs into DSH only."
         ],
         [
           "Install the community plugin in DSH Web",
@@ -609,7 +609,7 @@
       "zh": [
         [
           "按任务选择最小够用的环境",
-          "只问一个问题（例如给出三个梗概、点评简介或改写你提供的一场戏），普通聊天准备最少。已有八万字稿件，或需要让设定、逐章细纲、正文与连续性状态跨会话保留的连载，可选 DSH 加插件。希望稿件位于账户化网页项目、又不想在本地运行 DSH，则用 ZenStory 托管版。若本来就在其他受支持的 coding-agent 宿主里工作，请按单独的 [Agent Skills 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)选择；DSH 插件只装在 DSH 里。"
+          "只问一个问题（例如给出三个梗概、点评简介或改写你提供的一场戏），普通聊天准备最少。已有八万字稿件，或需要让设定、逐章细纲、正文与连续性状态跨会话保留的连载，可选 DSH 加插件。希望稿件位于账户化网页项目、又不想在本地运行 DSH，则用 ZenStory 工作台。若本来就在其他受支持的 coding-agent 宿主里工作，请按单独的 [Agent Skills 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)选择；DSH 插件只装在 DSH 里。"
         ],
         [
           "在 DSH Web 中安装社区插件",
@@ -657,13 +657,13 @@
       "en": [
         "After the default book-opening pass, expect creator-readable files for positioning and relationships under `设定/`, a book and volume outline plus per-chapter blueprints under `大纲/`, and initialized continuity state under `追踪/`. The bundled workflow says the first pass normally stops after the first ten chapter blueprints.",
         "After an explicit chapter request, prose is written by chapter under `正文/` (for example `正文/第001章_章名.md`) and the continuity views are updated through the writing workflow. Review the manuscript file itself; the chat message only points to it.",
-        "The DSH novel workbench presents the same project as a file tree, editor and Chat. Hosted ZenStory also uses a browser workbench; it is a separate account-based application, and its projects live apart from the local DSH workspace.",
+        "The DSH novel workbench presents the same project as a file tree, editor and Chat. ZenStory Workbench is a separate account-based web app, and its projects live apart from the local DSH workspace.",
         "For full import, manuscript text is migrated as written. A partial chapter can be present in the prose files while `last_chapter` and current-state snapshots still end at the last complete chapter; the unfinished-tail strategy belongs in continuity risks. Judge chapter completion by `last_chapter` and the state snapshots."
       ],
       "zh": [
         "默认开书完成后，通常会得到 `设定/` 下供作者阅读的题材定位与关系等文件，`大纲/` 下的全书/卷级大纲和逐章细纲，以及 `追踪/` 下初始化的连续性状态。内置流程说明第一轮默认停在首批十章细纲之后。",
         "明确请求写章后，正文按章写入 `正文/`（例如 `正文/第001章_章名.md`），连续性视图也由写作流程更新。需要审的是稿件文件本身，Chat 里的完成消息只指路。",
-        "DSH 小说工作台用文件树、编辑器和 Chat 呈现同一项目。ZenStory 托管版也有浏览器工作台，它是另一套账户化应用，项目与本地 DSH workspace 分开存放。",
+        "DSH 小说工作台用文件树、编辑器和 Chat 呈现同一项目。ZenStory 工作台是另一套账户化的网页应用，项目与本地 DSH workspace 分开存放。",
         "完整导入会原样迁移原文。残章可以出现在正文文件中，但 `last_chapter` 与当前状态快照仍截至最后完整章，尾稿处理策略写入连贯性风险；判断一章是否完成，看 `last_chapter` 和状态快照。"
       ]
     },
@@ -722,8 +722,8 @@
           "en": "Do I need a plugin to write a novel with DeepSeek?"
         },
         "a": {
-          "zh": "只讨论梗概或改一段自带文本，用普通 DeepSeek 聊天就够，再自己把结果放回稿件；要围绕本地作品目录持续写、在工作台里看文件，装 DSH 加 Oh Story DSH 插件；想要账户化的网页项目，用 [ZenStory 托管工作台](https://app.zenstory.ai)。DSH 里的模型由你在“设置 → 模型”中配置，也可以在启动前设置 `DEEPSEEK_API_KEY`。",
-          "en": "Ordinary DeepSeek chat is enough for a one-off synopsis discussion or a revision of text you supply; copy the result back into your manuscript yourself. Install DSH plus the Oh Story DSH plugin when the work continues around a local writing folder you want to see in a workbench. For an account-based browser project, use the [hosted ZenStory workbench](https://app.zenstory.ai). Inside DSH you choose the model under Settings → Models, or set `DEEPSEEK_API_KEY` before launch."
+          "zh": "只讨论梗概或改一段自带文本，用普通 DeepSeek 聊天就够，再自己把结果放回稿件；要围绕本地作品目录持续写、在工作台里看文件，装 DSH 加 Oh Story DSH 插件；想要账户化的网页项目，用 [ZenStory 工作台](https://app.zenstory.ai)。DSH 里的模型由你在“设置 → 模型”中配置，也可以在启动前设置 `DEEPSEEK_API_KEY`。",
+          "en": "Ordinary DeepSeek chat is enough for a one-off synopsis discussion or a revision of text you supply; copy the result back into your manuscript yourself. Install DSH plus the Oh Story DSH plugin when the work continues around a local writing folder you want to see in a workbench. For an account-based browser project, use the [ZenStory Workbench](https://app.zenstory.ai). Inside DSH you choose the model under Settings → Models, or set `DEEPSEEK_API_KEY` before launch."
         }
       },
       {
@@ -997,13 +997,13 @@
       "en": [
         "A source/adaptation record and, when the task needs it, `项目开发/episode-map.jsonl`: the episode map separating established material, proposed changes and episode handoffs.",
         "The requested episode uses `剧集/<EP>/剧本.md`; later stages can add `视觉设定.md`, `分镜.md`, `图片提示词.md` and `视频提示词.md` in that episode folder. These five document types are created as each stage needs them; images and video are generated separately after the prompt files exist.",
-        "An explicit next task: revise the pilot, write the next mapped episode or prepare a media-production preview. Text can feed a later workflow. The files stay in this project folder; Oh Story and the hosted ZenStory app each keep their own project files.",
+        "An explicit next task: revise the pilot, write the next mapped episode or prepare a media-production preview. Text can feed a later workflow. The files stay in this project folder; Oh Story and ZenStory Workbench each keep their own project files.",
         "For the next visual handoff, see [character consistency across shots](https://zenstory.ai/drama-skills/character-consistency): one original three-shot scene separates identity, costume, held props and real versus planned references."
       ],
       "zh": [
         "原著与改编记录，以及任务需要时建立的 `项目开发/episode-map.jsonl`：分开记录已有材料、拟改内容和各集交接。",
         "所请求单集的剧本位于 `剧集/<EP>/剧本.md`；进入后续阶段后，可在该集目录添加 `视觉设定.md`、`分镜.md`、`图片提示词.md`、`视频提示词.md`。五类文档随阶段按需创建；写好提示词文档后，图片和视频仍要另外生成。",
-        "明确下一项创作任务：修改试写集、按地图写下一集，或准备媒体制作预览。文本可以作为后续流程的材料。文件保存在本项目目录，Oh Story 和托管的 ZenStory 应用各自管理自己的项目文件。",
+        "明确下一项创作任务：修改试写集、按地图写下一集，或准备媒体制作预览。文本可以作为后续流程的材料。文件保存在本项目目录，Oh Story 和 ZenStory 工作台各自管理自己的项目文件。",
         "进入视觉交接时，可读[角色跨镜一致性指南](https://zenstory.ai/drama-skills/character-consistency)：用原创三镜场景，区分人物身份、造型、持物状态，以及真实参考图与计划参考图。"
       ]
     },
@@ -2291,12 +2291,12 @@
       "en": [
         "A premise and material you own or are authorized to use. State the intended emotional experience, viewpoint, length range and what the story must not do. “Relief mixed with lingering discomfort after setting a boundary” is more useful than “make it moving.”",
         "Separate approved facts from open design choices. A new character, hidden motive or unusual rule is a design choice for you to approve. If this continues an existing story, bring its relevant facts so the work picks up from what already exists.",
-        "For the example command, install Oh Story in a supported agent host and open the intended writing folder. The example uses Claude Code slash syntax and runs in the agent host where you installed Oh Story; hosted ZenStory and DSH installation are separate layers, explained in [agent skills for writers](https://zenstory.ai/oh-story/agent-skills-for-writers)."
+        "For the example command, install Oh Story in a supported agent host and open the intended writing folder. The example uses Claude Code slash syntax and runs in the agent host where you installed Oh Story; ZenStory Workbench and DSH installation are separate layers, explained in [agent skills for writers](https://zenstory.ai/oh-story/agent-skills-for-writers)."
       ],
       "zh": [
         "一个梗，以及你有权使用的材料。写清希望交付的情绪、视角、篇幅范围和不能发生的事。“说清边界后松了一口气，却仍有一点不自在”比“写得感人”更能指导取舍。",
         "分开已确认事实与尚待选择的设计。新人物、隐藏动机或特殊规则都是要由你拍板的设计选择。如果接续已有故事，把相关事实一并带上，让写作从已有内容接着往下走。",
-        "使用示例命令时，需要在受支持的 Agent 宿主中安装 Oh Story，并打开目标写作目录。示例采用 Claude Code slash 语法，在装好 Oh Story 的 Agent 宿主里运行，和 ZenStory 托管版、DSH 安装属于不同层次；分不清时可先看[写作者的 Agent Skills 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)。"
+        "使用示例命令时，需要在受支持的 Agent 宿主中安装 Oh Story，并打开目标写作目录。示例采用 Claude Code slash 语法，在装好 Oh Story 的 Agent 宿主里运行，和 ZenStory 工作台、DSH 安装属于不同层次；分不清时可先看[写作者的 Agent Skills 指南](https://zenstory.ai/oh-story/agent-skills-for-writers)。"
       ]
     },
     "steps": {
@@ -2431,12 +2431,12 @@
       "en": [
         "A scene you own or are authorized to revise, its participants, viewpoint and intended outcome. Identify exactly what may change: dialogue only, speaker tags, or specified transitions as well. The plot stays as approved, however much sharper the exchange becomes.",
         "For each participant, note the immediate request, what they want to protect, what they know and what the listener knows. Separate private author knowledge from information established for this viewpoint; consult the [continuity guide](https://zenstory.ai/oh-story/long-novel-continuity) for longer projects.",
-        "Bring any established character speech patterns and this book’s overall prose style. Treat character voice and the author’s narration as separate layers: see [preserving author voice](https://zenstory.ai/oh-story/preserve-author-voice). The command example runs in an existing Oh Story writing project in Claude Code; the hosted workbench is a separate product. Import a loose manuscript as a project first."
+        "Bring any established character speech patterns and this book’s overall prose style. Treat character voice and the author’s narration as separate layers: see [preserving author voice](https://zenstory.ai/oh-story/preserve-author-voice). The command example runs in an existing Oh Story writing project in Claude Code; ZenStory Workbench is a separate product. Import a loose manuscript as a project first."
       ],
       "zh": [
         "你有权修改的场景、在场人物、视角与既定结果。说清能改什么：只改台词、能改说话人标记，还是也允许修改点名的衔接段。对白改得再有张力，情节也按既定结果保持不变。",
         "为每位在场者记下眼前请求、想保护的东西、本人所知与听者所知。把作者私下的事实与当前视角已经成立的信息分开；长篇可参考[连续性指南](https://zenstory.ai/oh-story/long-novel-continuity)。",
-        "带上已经形成的人物说话习惯与本书整体文风。人物声音和作者的旁白声音分开处理，可对照[保留作者文风](https://zenstory.ai/oh-story/preserve-author-voice)。命令示例在 Claude Code 里已有的 Oh Story 写作项目中运行，托管工作台是另一个产品；散稿要先导入成项目。"
+        "带上已经形成的人物说话习惯与本书整体文风。人物声音和作者的旁白声音分开处理，可对照[保留作者文风](https://zenstory.ai/oh-story/preserve-author-voice)。命令示例在 Claude Code 里已有的 Oh Story 写作项目中运行，ZenStory 工作台是另一个产品；散稿要先导入成项目。"
       ]
     },
     "steps": {

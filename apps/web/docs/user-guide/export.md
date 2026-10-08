@@ -1,8 +1,8 @@
-# 导出稿件：把正文带走，而不是备份整个项目
+# 导出正文：把稿子合成一个 TXT 带走
 
-ZenStory 的“导出正文”把当前项目中已保存、未删除的正文与剧本文件合并为一个 TXT。它适合交稿、离线阅读和保留某一时点的正文副本，但不包含人物设定、素材、聊天与完整版本历史，不能作为整个项目的恢复包。
+ZenStory 的「导出正文」把当前项目里已保存的正文和剧本文件合成一个 TXT，适合交稿、离线阅读和留一份正文副本。角色卡、素材、对话和历史版本不在里面。
 
-在 [app.zenstory.ai 工作台](https://app.zenstory.ai/dashboard)打开要导出的项目。下面沿用[第一篇短篇教程](https://zenstory.ai/docs/getting-started/first-project)的《关窗之前》，说明从保存正文到交付副本的步骤；文件名和文字是教学示例，不代表实际导出过用户作品。
+在 [app.zenstory.ai 工作台](https://app.zenstory.ai/dashboard)打开要导出的项目。下面沿用[第一篇短篇教程](https://zenstory.ai/docs/getting-started/first-project)的《关窗之前》，说明从保存正文到交付副本的步骤。
 
 ## 1. 先确认要带走什么
 

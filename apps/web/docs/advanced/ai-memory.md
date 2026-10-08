@@ -2,7 +2,7 @@
 
 ZenStory 的 **AI 记忆是一份可编辑的项目摘要**，不是已经读完整本书的证明，也不保证人物永远不写偏。它保存项目简介、写作风格、当前阶段和备注四项，供聊天上下文组装使用；具体人物、提纲和正文仍应保存在相应文件中，本轮需要什么就明确指出。
 
-本指南适用于 [ZenStory 在线工作台](https://app.zenstory.ai/dashboard)，不是 Oh Story 的状态追踪文件或 DSH 插件说明。第一次使用可先读[网页快速入门](https://zenstory.ai/docs/getting-started/quick-start)。
+本指南适用于 [ZenStory 工作台](https://app.zenstory.ai/dashboard)，不是 Oh Story 的状态追踪文件或 DSH 插件说明。第一次使用可先读[网页快速入门](https://zenstory.ai/docs/getting-started/quick-start)。
 
 ## 1. 哪些内容放记忆，哪些留在文件里？
 
@@ -104,7 +104,7 @@ ZenStory 的 **AI 记忆是一份可编辑的项目摘要**，不是已经读完
 
 ### 有记忆，为什么还会写错人设？
 
-摘要可能过时、遗漏或与文件冲突；上下文可能受预算影响，模型也可能理解错。先检查本轮使用的已保存依据和关键句，不要把“再强调一次永远不能错”当作一致性机制。[长篇连续性指南](https://zenstory.ai/oh-story/long-novel-continuity)中的作者真相、人物已知和读者已知区分可以借鉴，但 Oh Story 的追踪文件不等于网页工作台自动具备的功能。
+摘要可能过时、遗漏或与文件冲突；上下文可能受预算影响，模型也可能理解错。先检查本轮使用的已保存依据和关键句，不要把“再强调一次永远不能错”当作一致性机制。[长篇连续性指南](https://zenstory.ai/oh-story/long-novel-continuity)中的作者真相、人物已知和读者已知区分可以借鉴，但 Oh Story 的追踪文件不等于 ZenStory 工作台自动具备的功能。
 
 ### 让 AI “记住”一句话，就保存成功了吗？
 

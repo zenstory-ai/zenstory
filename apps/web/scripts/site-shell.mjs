@@ -111,7 +111,7 @@ export const footer = (lang) => `
       </div>
       <nav aria-label="${t(lang, 'Footer: projects', '页脚：项目')}">
         <p class="foot-h">${t(lang, 'Projects', '项目')}</p>
-        <ul>${projects.map((p) => `<li><a href="${localized(lang, `/${p.slug}`)}">${esc(p.name.en)}</a></li>`).join('')}</ul>
+        <ul>${projects.map((p) => `<li><a href="${localized(lang, `/${p.slug}`)}">${esc(p.slug === 'workbench' ? t(lang, p.name.en, p.name.zh) : p.name.en)}</a></li>`).join('')}</ul>
       </nav>
       <nav aria-label="${t(lang, 'Footer: learn', '页脚：学习')}">
         <p class="foot-h">${t(lang, 'Learn', '学习')}</p>
@@ -132,7 +132,7 @@ export const footer = (lang) => `
         </ul>
       </nav>
     </div>
-    <p class="copyright">© ${new Date().getUTCFullYear()} ZenStory AI · ${t(lang, 'MIT-licensed open source', 'MIT 许可的开源项目')} · <a href="${org.github}">github.com/zenstory-ai</a> · <a href="/llms.txt">llms.txt</a></p>
+    <p class="copyright">© ${new Date().getUTCFullYear()} ZenStory AI</p>
   </div>
 </footer>`
 
