@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import { Check, CreditCard } from 'lucide-react'
 import Modal from '../ui/Modal'
 import { Button } from '../ui/Button'
@@ -23,6 +24,13 @@ const PAYMENT_ERROR_CODES = new Set([
 const UPGRADE_SOURCE_PATTERN = /^[A-Za-z0-9_:-]{1,64}$/
 
 const VALIDATION_ERROR_CODE = 'ERR_VALIDATION_ERROR'
+const PAYMENT_UNAVAILABLE_CODE = 'ERR_PAYMENT_UNAVAILABLE'
+
+// Where the buyer can find the redeem-code entry when online payment is off.
+export type PaymentRedeemEntry = 'on-page' | 'billing-page'
+
+// ?plan=pro opens the redeem modal on the billing page while checkout is off.
+const BILLING_REDEEM_PATH = '/dashboard/billing?plan=pro'
 
 function paymentErrorCode(cause: unknown): string | null {
   if (!(cause instanceof ApiError)) return null
@@ -70,6 +78,13 @@ interface PaymentCheckoutModalProps {
   yearlyPriceCents?: number
   /** Upgrade entry that led here; stored on the order for paid-conversion attribution. */
   upgradeSource?: string
+  /** The buyer already has Pro: the purchase extends it, so say "renew". */
+  isRenewal?: boolean
+  /**
+   * 'on-page' only when the opening page has its own 兑换码 button (the billing
+   * page); anywhere else the unavailable notice points to the billing page.
+   */
+  redeemEntry?: PaymentRedeemEntry
 }
 
 export function PaymentCheckoutModal({
@@ -79,6 +94,8 @@ export function PaymentCheckoutModal({
   monthlyPriceCents,
   yearlyPriceCents,
   upgradeSource: rawUpgradeSource,
+  isRenewal = false,
+  redeemEntry = 'billing-page',
 }: PaymentCheckoutModalProps) {
   const upgradeSource = rawUpgradeSource && UPGRADE_SOURCE_PATTERN.test(rawUpgradeSource)
     ? rawUpgradeSource
@@ -89,6 +106,9 @@ export function PaymentCheckoutModal({
   // Set once the order exists and the form is submitted: until the browser has
   // left the page another click would create a second order.
   const [redirecting, setRedirecting] = useState(false)
+  const paymentUnavailableText = redeemEntry === 'on-page'
+    ? t('dashboard:billing.paymentUnavailableOnPage', '暂时无法在线支付。有兑换码的话，点页面上的「兑换码」也能开通。')
+    : t('dashboard:billing.paymentUnavailable', '暂时无法在线支付。有兑换码的话，可以在「订阅权益」页点「兑换码」开通。')
 
   useEffect(() => {
     // Back-navigation from the cashier can restore this page from bfcache with
@@ -133,6 +153,9 @@ export function PaymentCheckoutModal({
       const fallback = t('dashboard:billing.paymentCreateFailed', '暂时无法创建订单，请稍后重试')
       if (code === VALIDATION_ERROR_CODE) {
         setError(t('dashboard:billing.paymentPageOutdated', '页面已更新，请刷新页面后重试'))
+      } else if (code === PAYMENT_UNAVAILABLE_CODE) {
+        // The errors: copy has no page context; say where the redeem entry is.
+        setError(paymentUnavailableText)
       } else {
         setError(code ? t(`errors:${code}`, fallback) : fallback)
       }
@@ -164,13 +187,18 @@ export function PaymentCheckoutModal({
     <Modal
       open={isOpen}
       onClose={handleClose}
-      title={t('dashboard:billing.paymentTitle', '开通 Pro 会员')}
+      title={isRenewal
+        ? t('dashboard:billing.paymentTitleRenew', '续费 Pro')
+        : t('dashboard:billing.paymentTitle', '开通 Pro')}
       size="md"
       closeOnBackdropClick={!isBusy}
       closeOnEscape={!isBusy}
     >
       <Modal.Body>
         <div className="space-y-4">
+          <p className="text-sm text-[hsl(var(--text-secondary))]">
+            {t('dashboard:billing.paymentBenefits', 'AI 消息不限条数 · 项目不限 · 每月 5 次素材拆解')}
+          </p>
           <div className="grid grid-cols-2 gap-3 pt-2" role="radiogroup" aria-label={t('dashboard:billing.billingCycleLabel', '购买时长')}>
             {(['month', 'year'] as PaymentCycle[]).map((item) => {
               const selected = cycle === item
@@ -231,6 +259,9 @@ export function PaymentCheckoutModal({
               <CreditCard className="h-4 w-4 text-[#1677ff]" />
               <span className="font-medium">{t('dashboard:billing.alipay', '支付宝')}</span>
             </div>
+            <p className="mt-2 text-xs text-[hsl(var(--text-secondary))]">
+              {t('dashboard:billing.paymentNoAutoRenew', '一次性付款，不会自动续费。到期前续费，时长会接在当前到期日之后。')}
+            </p>
           </div>
 
           {optionsQuery.isLoading && (
@@ -238,7 +269,12 @@ export function PaymentCheckoutModal({
           )}
           {isUnavailable && (
             <div className="rounded-lg bg-[hsl(var(--warning)/0.1)] p-3 text-[hsl(var(--warning))]" role="alert">
-              {t('dashboard:billing.paymentUnavailable', '暂时无法在线支付。有兑换码的话，可在「订阅权益」页点「兑换码」开通。')}
+              {paymentUnavailableText}
+              {redeemEntry === 'billing-page' && (
+                <Link to={BILLING_REDEEM_PATH} className="ml-1 font-medium underline">
+                  {t('dashboard:billing.paymentUnavailableOpenBilling', '去订阅权益页')}
+                </Link>
+              )}
             </div>
           )}
           {error && (

@@ -471,7 +471,7 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
         description={t('editor:projectSwitcher.projectQuotaExceededDesc', {
           defaultValue: '升级套餐后可创建更多项目。',
         })}
-        primaryLabel={t('dashboard:billing.ctaUpgradePro', '升级专业版')}
+        primaryLabel={t('dashboard:billing.ctaUpgradePro', '开通 Pro')}
         onPrimary={() => {
           window.location.assign(
             buildUpgradeUrl(projectQuotaUpgradePrompt.billingPath, projectQuotaUpgradePrompt.source)

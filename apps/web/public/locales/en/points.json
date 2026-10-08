@@ -1,5 +1,6 @@
 {
   "balance": "Points Balance",
+  "balanceHint": "{{cost}} points = 7 days of Pro",
   "pendingExpiration": "{{count}} points expiring soon",
   "dailyCheckIn": "Daily Check-in",
   "streakDays": "{{days}}-day streak",
@@ -11,16 +12,18 @@
   "completed": "Completed",
   "redeem": "Redeem",
   "insufficient": "Insufficient points",
-  "redeemPro": "Redeem Pro Membership",
+  "redeemPro": "Redeem Pro with points",
   "currentBalance": "Current points",
   "selectDuration": "Select duration",
   "days": "days",
   "pointsLabel": "points",
-  "proBenefits": "Pro Benefits",
+  "proBenefits": "Pro includes",
   "redeemFailed": "Redemption failed. Please try again.",
+  "redeemSuccess": "Done! {{days}} days of Pro added.",
   "benefit": {
-    "unlimitedAI": "More AI writing credits",
-    "unlimitedProjects": "Create more projects"
+    "unlimitedAI": "Unlimited AI messages",
+    "unlimitedProjects": "Unlimited projects",
+    "materials": "5 material breakdowns a month"
   },
   "opportunityDescriptions": {
     "check_in": "Daily check-in",

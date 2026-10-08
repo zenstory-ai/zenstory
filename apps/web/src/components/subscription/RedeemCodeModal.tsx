@@ -34,7 +34,7 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
       // The server's message is English-only; show the localized result instead.
       setSuccess(
         data.duration_days
-          ? t('dashboard:billing.redeemSuccessDays', '兑换成功，本次兑换 {{days}} 天会员。', { days: data.duration_days })
+          ? t('dashboard:billing.redeemSuccessDays', '兑换成功！Pro 已增加 {{days}} 天。', { days: data.duration_days })
           : t('settings:subscription.redeemSuccess', '兑换成功！')
       );
       setError('');
@@ -71,7 +71,7 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
     // Basic format validation
     if (!/^ERG-[A-Z0-9]{2,8}-[A-Z0-9]{4}-[A-Z0-9]{8}$/.test(trimmed)) {
       trackEvent('redeem_code_failed', { reason: 'invalid_format', source });
-      setError(t('settings:subscription.invalidFormat', '兑换码格式不正确'));
+      setError(t('settings:subscription.invalidFormat', '兑换码格式不对，请检查是否少了字符'));
       return;
     }
 
@@ -89,7 +89,7 @@ export function RedeemCodeModal({ isOpen, onClose, source }: RedeemCodeModalProp
     <Modal
       open={isOpen}
       onClose={handleClose}
-      title={t('settings:subscription.redeemTitle', '兑换会员')}
+      title={t('settings:subscription.redeemTitle', '使用兑换码')}
       size="sm"
     >
       <form onSubmit={handleSubmit}>

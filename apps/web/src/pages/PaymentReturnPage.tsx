@@ -174,7 +174,7 @@ export default function PaymentReturnPage() {
           <p className="mt-3 text-center text-sm text-[hsl(var(--text-secondary))]" role="status">
             {validUntil
               ? t('dashboard:billing.paymentActivatedUntil', '有效期至 {{date}}，现在就去写吧。', { date: validUntil })
-              : t('dashboard:billing.paymentActivatedHint', '新额度已经生效，现在就去写吧。')}
+              : t('dashboard:billing.paymentActivatedHint', 'AI 消息和项目数现在都不限了，去把下一章写完吧。')}
           </p>
           {unlockedRows.length > 0 && (
             <ul className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2" aria-label={t('dashboard:billing.paymentUnlockedTitle', '已解锁')}>
@@ -254,12 +254,12 @@ function ReturnActions({
       {onStartWriting ? (
         <>
           <Button variant="secondary" onClick={onBilling}>
-            {t('dashboard:billing.backToBilling', '返回订阅与权益')}
+            {t('dashboard:billing.backToBilling', '返回订阅权益')}
           </Button>
           <Button onClick={onStartWriting}>{t('dashboard:billing.startWriting', '开始写作')}</Button>
         </>
       ) : (
-        <Button onClick={onBilling}>{t('dashboard:billing.backToBilling', '返回订阅与权益')}</Button>
+        <Button onClick={onBilling}>{t('dashboard:billing.backToBilling', '返回订阅权益')}</Button>
       )}
     </div>
   )

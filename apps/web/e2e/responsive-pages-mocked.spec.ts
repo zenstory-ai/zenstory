@@ -11,7 +11,7 @@ const readyHeadings: Record<string, string> = {
   "/terms-of-service": "服务条款",
   "/docs": "ZenStory 工作台帮助文档",
   "/docs/getting-started/quick-start": "ZenStory 工作台快速开始：从空项目到第一份可修改提纲",
-  "/pricing": "套餐权益对比",
+  "/pricing": "选一个适合你的方案",
   "/auth/callback": "登录 zenstory",
   "/login": "登录 zenstory",
   "/register": "创建账号",
@@ -22,7 +22,7 @@ const readyHeadings: Record<string, string> = {
   "/dashboard/projects": "所有项目",
   "/dashboard/materials": "素材库",
   "/dashboard/skills": "技能管理",
-  "/dashboard/billing": "订阅与权益",
+  "/dashboard/billing": "订阅权益",
   "/project/responsive-project-0": "开始写作",
   "/project/responsive-project-0/dashboard": "小屏布局回归项目",
   "/materials/responsive-material": "素材标题：很长的人物选择与情节发展"

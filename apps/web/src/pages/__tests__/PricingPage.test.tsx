@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGetCatalog = vi.fn();
+const mockGetStatus = vi.fn();
 const { trackEventMock } = vi.hoisted(() => ({
   trackEventMock: vi.fn(),
 }));
@@ -49,14 +50,18 @@ vi.mock("../../components/PublicHeader", () => ({
 }));
 
 vi.mock("../../components/subscription/PaymentCheckoutModal", () => ({
-  PaymentCheckoutModal: ({ initialCycle }: { initialCycle: "month" | "year" }) => (
-    <div data-testid="payment-checkout-cycle">{initialCycle}</div>
+  PaymentCheckoutModal: ({ initialCycle, isRenewal }: { initialCycle: "month" | "year"; isRenewal?: boolean }) => (
+    <div data-testid="payment-checkout-cycle" data-renewal={String(Boolean(isRenewal))}>{initialCycle}</div>
   ),
 }));
 
 vi.mock("../../lib/subscriptionApi", () => ({
   subscriptionApi: {
     getCatalog: () => mockGetCatalog(),
+    getStatus: () => mockGetStatus(),
+  },
+  subscriptionQueryKeys: {
+    status: () => ["subscription-status", "test-user"],
   },
 }));
 
@@ -155,6 +160,7 @@ function getControlByName(label: RegExp): HTMLElement | null {
 describe("PricingPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetStatus.mockResolvedValue({ tier: "free", status: "active" });
     mockUser = null;
     mockLoading = false;
   });
@@ -183,7 +189,7 @@ describe("PricingPage", () => {
     render(<PricingPage />, { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(screen.getByText("套餐权益对比")).toBeInTheDocument();
+      expect(screen.getByText("选一个适合你的方案")).toBeInTheDocument();
       expect(screen.getByText("推荐")).toBeInTheDocument();
       expect(screen.getAllByText("每日 AI 消息").length).toBeGreaterThan(0);
     });
@@ -205,7 +211,7 @@ describe("PricingPage", () => {
     render(<PricingPage />, { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(screen.getByText("套餐权益对比")).toBeInTheDocument();
+      expect(screen.getByText("选一个适合你的方案")).toBeInTheDocument();
     });
     expect(screen.queryByText("每日 AI 消息")).not.toBeInTheDocument();
     expect(screen.getAllByText("自定义技能").length).toBeGreaterThan(0);
@@ -217,7 +223,7 @@ describe("PricingPage", () => {
     render(<PricingPage />, { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(screen.getByText("套餐权益对比")).toBeInTheDocument();
+      expect(screen.getByText("选一个适合你的方案")).toBeInTheDocument();
     });
 
     const monthlyControl = getControlByName(/月付|Monthly/i);
@@ -243,27 +249,33 @@ describe("PricingPage", () => {
   });
 
   it("covers difference-only filter behavior", async () => {
-    mockGetCatalog.mockResolvedValue(createCatalog(createDefaultTiers()));
+    const [freeTier, proTier] = createDefaultTiers();
+    // Same skills limit on both plans: the row only shows when listing everything.
+    mockGetCatalog.mockResolvedValue(
+      createCatalog([
+        freeTier,
+        { ...proTier, entitlements: { ...proTier.entitlements, custom_skills_limit: 3 } },
+      ])
+    );
 
     render(<PricingPage />, { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(screen.getByText("套餐权益对比")).toBeInTheDocument();
+      expect(screen.getByText("选一个适合你的方案")).toBeInTheDocument();
     });
 
     const diffControl = getControlByName(/仅看差异|Only differences?/i);
     expect(diffControl).not.toBeNull();
-
-    const beforeCount = screen.queryAllByText("TXT").length;
-    expect(beforeCount).toBeGreaterThan(0);
+    expect(screen.getAllByText("自定义技能").length).toBeGreaterThan(0);
 
     if (diffControl) {
       fireEvent.click(diffControl);
     }
 
     await waitFor(() => {
-      expect(screen.queryAllByText("TXT").length).toBeLessThan(beforeCount);
+      expect(screen.queryAllByText("自定义技能")).toHaveLength(0);
     });
+    expect(screen.getAllByText("每日 AI 消息").length).toBeGreaterThan(0);
   });
 
   it("covers distinct CTA copy for free-start and pro-upgrade", async () => {
@@ -273,7 +285,7 @@ describe("PricingPage", () => {
 
     await waitFor(() => {
       expect(screen.getAllByRole("button", { name: /免费开始|Start Free|Create Project Free/i }).length).toBeGreaterThan(0);
-      expect(screen.getAllByRole("button", { name: /升级专业版|Upgrade Pro|Upgrade to Pro/i }).length).toBeGreaterThan(0);
+      expect(screen.getAllByRole("button", { name: /开通 Pro|Get Pro/i }).length).toBeGreaterThan(0);
     });
   });
 
@@ -285,31 +297,49 @@ describe("PricingPage", () => {
     await waitFor(() => expect(getControlByName(/年付|Yearly/i)).not.toBeNull());
 
     fireEvent.click(getControlByName(/年付|Yearly/i)!);
-    fireEvent.click(screen.getAllByRole("button", { name: /升级专业版|Upgrade Pro|Upgrade to Pro/i })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /开通 Pro|Get Pro/i })[0]);
 
     expect(screen.getByTestId("payment-checkout-cycle")).toHaveTextContent("year");
   });
 
-  it("handles empty export format arrays safely", async () => {
-    const [, proTier] = createDefaultTiers();
-    mockGetCatalog.mockResolvedValue(
-      createCatalog([
-        {
-          ...proTier,
-          entitlements: {
-            ...(proTier as { entitlements: Record<string, unknown> }).entitlements,
-            export_formats: [],
-          },
-        },
-      ])
-    );
+  it("compares only what differs by plan, with not-included instead of zero", async () => {
+    mockGetCatalog.mockResolvedValue(createCatalog(createDefaultTiers()));
 
     render(<PricingPage />, { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(screen.getByText("导出格式")).toBeInTheDocument();
-      expect(screen.getAllByRole("button", { name: /免费开始|Start Free/i }).length).toBeGreaterThan(0);
+      expect(screen.getAllByText("素材拆解").length).toBeGreaterThan(0);
     });
+    // TXT export is on every plan, so the comparison does not list it.
+    expect(screen.queryByText("导出格式")).not.toBeInTheDocument();
+    expect(screen.queryByText("TXT")).not.toBeInTheDocument();
+    expect(screen.getByText("不含")).toBeInTheDocument();
+    expect(screen.queryByText(/^0 次\/月$/)).not.toBeInTheDocument();
+    expect(screen.getByText("10 条/天")).toBeInTheDocument();
+    expect(screen.getByText("免费版")).toBeInTheDocument();
+  });
+
+  it("spells out the yearly saving and the monthly alternative", async () => {
+    mockGetCatalog.mockResolvedValue(createCatalog(createDefaultTiers()));
+
+    render(<PricingPage />, { wrapper: createWrapper() });
+
+    expect(await screen.findByText("年付省 32%，折合每月 ¥33.25")).toBeInTheDocument();
+    fireEvent.click(getControlByName(/月付|Monthly/i)!);
+    expect(await screen.findByText("按年买 ¥399/年，比月付省 ¥189")).toBeInTheDocument();
+  });
+
+  it("offers renewal to a signed-in Pro user", async () => {
+    mockUser = { id: "user-1" };
+    mockGetStatus.mockResolvedValue({ tier: "pro", status: "active" });
+    mockGetCatalog.mockResolvedValue(createCatalog(createDefaultTiers()));
+
+    render(<PricingPage />, { wrapper: createWrapper() });
+
+    const renew = await screen.findAllByRole("button", { name: "续费 Pro" });
+    expect(screen.queryByRole("button", { name: "开通 Pro" })).not.toBeInTheDocument();
+    fireEvent.click(renew[0]);
+    expect(screen.getByTestId("payment-checkout-cycle")).toHaveAttribute("data-renewal", "true");
   });
 
   it("shows error state when catalog request fails", async () => {
@@ -330,7 +360,7 @@ describe("PricingPage", () => {
     const { rerender } = render(<PricingPage />, { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(screen.getByText("套餐权益对比")).toBeInTheDocument();
+      expect(screen.getByText("选一个适合你的方案")).toBeInTheDocument();
     });
     expect(trackEventMock).not.toHaveBeenCalledWith(
       "pricing_page_view",

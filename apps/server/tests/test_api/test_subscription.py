@@ -515,6 +515,30 @@ class TestRedeemCode:
 
         # Should fail - code not found or checksum failed
         assert response.status_code == 400
+        assert response.json()["error_code"] in {
+            "ERR_REDEMPTION_CODE_INVALID",
+            "ERR_REDEMPTION_CODE_CHECKSUM_FAILED",
+        }
+
+    async def test_redeem_code_failure_returns_error_code(
+        self, client: AsyncClient, auth_headers, free_plan, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A refused code answers with its ERR_REDEMPTION_* code so the UI can localize it."""
+        monkeypatch.setattr(
+            "api.subscription.redemption_service.redeem_code",
+            lambda *_args, **_kwargs: (False, "ERR_REDEMPTION_CODE_USED", None),
+        )
+
+        response = await client.post(
+            "/api/v1/subscription/redeem",
+            headers=auth_headers,
+            json={"code": "ERG-PRO7M-ABCD-12345678"},
+        )
+
+        assert response.status_code == 400
+        body = response.json()
+        assert body["error_code"] == "ERR_REDEMPTION_CODE_USED"
+        assert body["detail"] == "ERR_REDEMPTION_CODE_USED"
 
     async def test_redeem_code_disabled(
         self, client: AsyncClient, auth_headers, free_plan, pro_plan, db_session: Session

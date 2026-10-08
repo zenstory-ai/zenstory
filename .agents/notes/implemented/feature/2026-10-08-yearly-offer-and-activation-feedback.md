@@ -9,9 +9,9 @@ owner 反馈订阅与付款的细节缺少吸引力和反馈：付款弹窗里�
 ## Decision
 
 - `subscriptionEntitlements.ts` 新增 `getYearlySavings(monthlyCents, yearlyCents)`（省下金额、百分比、折合月价，按分计算）与 `formatYuan`；定价页与付款弹窗共用，定价页原来的私有实现删除。
-- 付款弹窗（`PaymentCheckoutModal.tsx`）：年付卡片带「最划算 · 省 {{percent}}%」角标、「折合 ¥x/月 · 比月付省 ¥y」，价格放大；月付卡片写「先试一个月」；支付按钮显示金额（「去支付 ¥399」）。没有优惠（年付不低于 12 个月月付）时不显示角标与省钱文案。
+- 付款弹窗（`PaymentCheckoutModal.tsx`）：年付卡片带「最划算 · 省 {{percent}}%」角标、「折合 ¥x/月 · 比月付省 ¥y」，价格放大；月付卡片写「先试一个月」；支付按钮显示金额（「去支付 ¥399」）。没有优惠（年付不低于 12 个月月付）时不显示角标与省钱文案。弹窗在时长选择上方写 Pro 包含什么（「AI 消息不限条数 · 项目不限 · 每月 5 次素材拆解」），支付宝一栏下方写「一次性付款，不会自动续费」；已是 Pro 的用户打开时标题为「续费 Pro」（`isRenewal`，由计费页按 `/subscription/me` 的 tier、定价页按登录用户的 tier 传入）。计费页对比卡片的价格行写成「¥49/月，或 ¥399/年（折合 ¥33.25/月，省 32%）」，定价页提示「年付省 32%，折合每月 ¥33.25」，月付视图下写「按年买 ¥399/年，比月付省 ¥189」。
 - 默认选年付：定价页切换器初始为年付；计费页打开付款弹窗时，只有定价页明确存了 `payment_cycle_intent=month` 才默认月付，否则默认年付。作者仍可一键切换，下单参数按实际选择提交。
-- 开通成功反馈：新增 `CelebrationBurst`（纯 CSS 彩纸，颜色只用主题 token，`aria-hidden`，`prefers-reduced-motion` 下不显示），用于付款成功页与兑换码兑换付费方案成功。付款成功页再读一次 `/subscription/me`，显示有效期至哪天和最多 4 条已解锁权益（同 `getSubscriptionFeatureRows`），按钮为「返回订阅与权益」和「开始写作」。兑换成功后弹窗底部只留「开始使用」。
+- 开通成功反馈：新增 `CelebrationBurst`（纯 CSS 彩纸，颜色只用主题 token，`aria-hidden`，`prefers-reduced-motion` 下不显示），用于付款成功页、兑换码兑换付费方案成功与积分兑换 Pro 成功（`RedeemProModal` 不再静默关闭，改为显示「兑换成功！Pro 已增加 {{days}} 天。」并只留一个「关闭」按钮）。付款成功页再读一次 `/subscription/me`，显示有效期至哪天和最多 4 条已解锁权益（同 `getSubscriptionFeatureRows`），按钮为「返回订阅权益」和「开始写作」。兑换成功后弹窗底部只留「开始使用」。
 
 ## Alternatives considered
 

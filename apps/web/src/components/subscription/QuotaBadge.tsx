@@ -49,8 +49,8 @@ export function QuotaBadge() {
 
   const shouldShowUpgradeAction = stage !== "normal" && !isUnlimited;
   const usageLabel = isUnlimited
-    ? t('subscription.unlimited', '无限')
-    : t('subscription.aiUsageCount', 'AI 消息 {{used}}/{{limit}}', { used, limit });
+    ? t('subscription.aiUsageUnlimited', 'AI 消息不限条数')
+    : t('subscription.aiUsageCount', '今日 AI 消息 {{used}}/{{limit}} 条', { used, limit });
 
   const handleUpgradeClick = () => {
     if (!stagedSource) return;
@@ -80,8 +80,8 @@ export function QuotaBadge() {
           className="text-[hsl(var(--accent-primary))] hover:underline"
         >
           {stage === "blocked"
-            ? t("subscription.upgradeNow", "立即升级")
-            : t("subscription.upgradeSuggestion", "升级获取更高额度")}
+            ? t("subscription.upgradeNow", "开通 Pro")
+            : t("subscription.upgradeSuggestion", "开通 Pro，AI 消息不限条数")}
         </button>
       )}
     </div>
