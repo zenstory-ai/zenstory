@@ -193,3 +193,24 @@ def test_write_ahead_manifest_survives_crash_after_db_commit(db_session, tmp_pat
     assert restored.migrated == 1
     db_session.refresh(novel)
     assert json.loads(novel.source_meta)["file_path"] == str(source)
+
+
+def test_documented_script_entry_point_works_without_pythonpath(tmp_path):
+    import os
+    import subprocess
+    import sys
+
+    script = Path(__file__).resolve().parents[2] / "scripts" / "migrate_upload_storage.py"
+    environment = dict(os.environ)
+    environment.pop("PYTHONPATH", None)
+    result = subprocess.run(
+        [sys.executable, str(script), "--help"],
+        cwd=tmp_path,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "--manifest" in result.stdout and "--restore" in result.stdout

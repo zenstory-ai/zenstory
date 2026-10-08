@@ -24,3 +24,5 @@ worker 继续通过内部 token API 下载材料，每次 flow 使用独占临�
 staging 可独立验证 PUT/GET/DELETE、API 鉴权、worker 字节一致性和迁移/恢复；生产仍需维护窗口与完整验收后才能启用。对象存储失败发生在 quota/DB 写入前；提交结果不明确时保留对象以防数据库已有引用。现有卷暂时保留，直到所有历史引用和其他持久目录完成独立盘点。
 
 参考：[Railway Buckets](https://docs.railway.com/storage-buckets)、[AWS Signature Version 4](https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html)。
+
+文档中的 `python scripts/migrate_upload_storage.py` 直接入口显式补上 server 导入路径；独立子进程清空 PYTHONPATH 并从临时目录执行 `--help` 的回归通过，避免 pytest 的自动路径配置掩盖实际运维启动失败。

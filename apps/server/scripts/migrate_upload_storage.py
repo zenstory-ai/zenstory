@@ -9,18 +9,24 @@ import hashlib
 import json
 import os
 import stat
+import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from sqlmodel import Session, select
+# Keep the documented direct script entry point working outside pytest, which
+# adds the server root to sys.path itself.
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from config.datetime_utils import utcnow
-from config.material_settings import material_settings
-from database import create_session
-from models import UserFeedback
-from models.material_models import IngestionJob, Novel
-from services.infra.upload_storage import (
+from sqlmodel import Session, select  # noqa: E402
+
+from config.datetime_utils import utcnow  # noqa: E402
+from config.material_settings import material_settings  # noqa: E402
+from database import create_session  # noqa: E402
+from models import UserFeedback  # noqa: E402
+from models.material_models import IngestionJob, Novel  # noqa: E402
+from services.infra.upload_storage import (  # noqa: E402
     S3UploadStorage,
     StoredObject,
     UploadStorageError,
