@@ -450,6 +450,7 @@ export default function BillingPage() {
           yearlyPriceCents={proPlan?.price_yearly_cents}
           upgradeSource={effectiveUpgradeSource}
           isRenewal={isPaidTier}
+          redeemEntry="on-page"
         />
       )}
     </div>

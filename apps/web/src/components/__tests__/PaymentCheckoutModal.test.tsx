@@ -1,7 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { PaymentCheckoutModal } from '../subscription/PaymentCheckoutModal'
+import { PaymentCheckoutModal, type PaymentRedeemEntry } from '../subscription/PaymentCheckoutModal'
 import { paymentApi } from '../../lib/paymentApi'
 import { ApiError } from '../../lib/apiClient'
 import { trackEvent } from '../../lib/analytics'
@@ -56,19 +57,27 @@ const LOCALES = {
   en: { common: enCommon, dashboard: enDashboard, errors: enErrors },
 }
 
-function renderModal(initialCycle: 'month' | 'year' = 'month', upgradeSource?: string, isRenewal?: boolean) {
+function renderModal(
+  initialCycle: 'month' | 'year' = 'month',
+  upgradeSource?: string,
+  isRenewal?: boolean,
+  redeemEntry?: PaymentRedeemEntry,
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <PaymentCheckoutModal
-        isOpen
-        onClose={vi.fn()}
-        initialCycle={initialCycle}
-        monthlyPriceCents={1900}
-        yearlyPriceCents={19000}
-        upgradeSource={upgradeSource}
-        isRenewal={isRenewal}
-      />
+      <MemoryRouter>
+        <PaymentCheckoutModal
+          isOpen
+          onClose={vi.fn()}
+          initialCycle={initialCycle}
+          monthlyPriceCents={1900}
+          yearlyPriceCents={19000}
+          upgradeSource={upgradeSource}
+          isRenewal={isRenewal}
+          redeemEntry={redeemEntry}
+        />
+      </MemoryRouter>
     </QueryClientProvider>
   )
 }
@@ -135,11 +144,33 @@ describe('PaymentCheckoutModal', () => {
     expect(submit).not.toHaveBeenCalled()
   })
 
-  it('disables checkout when server options are disabled', async () => {
+  it('disables checkout and points to the billing page redeem entry by default', async () => {
     vi.mocked(paymentApi.getOptions).mockResolvedValue({ enabled: false, payment_methods: [] })
     renderModal()
-    expect(await screen.findByText('暂时无法在线支付。有兑换码的话，点页面上的「兑换码」也能开通。')).toBeInTheDocument()
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('暂时无法在线支付。有兑换码的话，可以在「订阅权益」页点「兑换码」开通。')
+    expect(screen.getByRole('link', { name: '去订阅权益页' })).toHaveAttribute('href', '/dashboard/billing?plan=pro')
     expect(screen.getByRole('button', { name: /去支付/ })).toBeDisabled()
+  })
+
+  it('points to the redeem button on the page when the page has one', async () => {
+    vi.mocked(paymentApi.getOptions).mockResolvedValue({ enabled: false, payment_methods: [] })
+    renderModal('month', undefined, false, 'on-page')
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('暂时无法在线支付。有兑换码的话，点页面上的「兑换码」也能开通。')
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['billing-page' as const, '暂时无法在线支付。有兑换码的话，可以在「订阅权益」页点「兑换码」开通。'],
+    ['on-page' as const, '暂时无法在线支付。有兑换码的话，点页面上的「兑换码」也能开通。'],
+  ])('names the %s redeem entry when order creation reports payments are off', async (redeemEntry, text) => {
+    vi.mocked(paymentApi.createOrder).mockRejectedValue(new ApiError(503, 'ERR_PAYMENT_UNAVAILABLE'))
+    renderModal('month', undefined, false, redeemEntry)
+    const payButton = await screen.findByRole('button', { name: /去支付/ })
+    await waitFor(() => expect(payButton).toBeEnabled())
+    fireEvent.click(payButton)
+    expect(await screen.findByRole('alert')).toHaveTextContent(text)
   })
 
   it('titles the checkout as a renewal for a Pro buyer', async () => {

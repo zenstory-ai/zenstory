@@ -117,7 +117,7 @@
   "ERR_AGENT_RUN_TIMEOUT": "本轮生成时间过长，已停止。已生成的内容已保存，可以继续对话让 AI 接着完成",
   "ERR_AGENT_MODEL_CALL_LIMIT": "本轮生成的步骤太多，已停止。已生成的内容已保存，可以继续对话让 AI 接着完成",
   "ERR_AGENT_FILE_SAVE_FAILED": "AI 生成的内容没能保存到文件，请重试",
-  "ERR_PAYMENT_UNAVAILABLE": "暂时无法在线支付。有兑换码的话，点页面上的「兑换码」也能开通。",
+  "ERR_PAYMENT_UNAVAILABLE": "暂时无法在线支付。有兑换码的话，可以在「订阅权益」页点「兑换码」开通。",
   "ERR_PAYMENT_UNSUPPORTED_OPTION": "不支持该支付选项，请刷新页面后重试",
   "ERR_PAYMENT_PLAN_UNAVAILABLE": "该套餐暂时无法购买，请刷新页面后重试",
   "ERR_PAYMENT_ORDER_CREATE_FAILED": "暂时无法创建订单，请稍后重试",

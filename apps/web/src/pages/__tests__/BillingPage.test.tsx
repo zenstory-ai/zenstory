@@ -132,9 +132,15 @@ vi.mock('../../components/subscription/PaymentCheckoutModal', () => ({
     initialCycle,
     upgradeSource,
     isRenewal,
-  }: { isOpen: boolean; initialCycle: string; upgradeSource?: string; isRenewal?: boolean }) =>
+    redeemEntry,
+  }: { isOpen: boolean; initialCycle: string; upgradeSource?: string; isRenewal?: boolean; redeemEntry?: string }) =>
     (isOpen ? (
-      <div data-cycle={initialCycle} data-source={upgradeSource} data-renewal={String(Boolean(isRenewal))}>
+      <div
+        data-cycle={initialCycle}
+        data-source={upgradeSource}
+        data-renewal={String(Boolean(isRenewal))}
+        data-redeem-entry={redeemEntry}
+      >
         Payment modal
       </div>
     ) : null),
@@ -319,6 +325,8 @@ describe('BillingPage', () => {
     expect(trackUpgradeClick).toHaveBeenCalled()
     expect(assignSpy).not.toHaveBeenCalled()
     expect(await screen.findByText('Payment modal')).toBeInTheDocument()
+    // This page has its own 兑换码 button, so the unavailable notice may point to it.
+    expect(screen.getByText('Payment modal')).toHaveAttribute('data-redeem-entry', 'on-page')
     expect(trackUpgradeClick).toHaveBeenCalledWith('chat_quota_blocked', 'direct', 'checkout', 'page')
 
     fireEvent.click(screen.getByRole('button', { name: 'Redeem Code' }))
