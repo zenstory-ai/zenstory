@@ -339,10 +339,15 @@ async def test_runner_refuses_to_start_when_budget_already_exhausted(monkeypatch
     assert events[0].data["code"] == "ERR_AGENT_MODEL_CALL_LIMIT"
 
 
-def test_runtime_budget_defaults_are_generous():
+def test_runtime_budget_defaults_bound_runaway_cost():
+    """请求级预算要装得下两个满额的单 agent run，但不再是「宽松到只防死循环」。"""
     from config import agent_runtime
 
-    assert agent_runtime.AGENT_RUN_MAX_MODEL_CALLS >= 150
+    assert (
+        agent_runtime.AGENT_TOOL_CALL_MAX_ITERATIONS
+        <= agent_runtime.AGENT_RUN_MAX_MODEL_CALLS
+        <= 2 * agent_runtime.AGENT_TOOL_CALL_MAX_ITERATIONS
+    )
     assert agent_runtime.AGENT_RUN_WALL_CLOCK_TIMEOUT_S >= 15 * 60
     assert 5 <= agent_runtime.AGENT_SSE_HEARTBEAT_INTERVAL_S <= 30
 

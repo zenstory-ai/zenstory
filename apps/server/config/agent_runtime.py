@@ -44,24 +44,26 @@ def _get_str_env(
     return normalized
 
 
-# Iteration budgets. These caps are NOT for cost control (DeepSeek is cheap) — they only
-# exist as a runaway-loop safety net so a stuck tool-loop or handoff ping-pong can't hang a
-# request forever. They are therefore set generously so they never constrain a real task,
-# while still bounding pathological loops. All remain env-overridable.
+# Iteration budgets. These caps ARE cost controls: one request is charged one quota unit
+# no matter how many model calls it makes, and every extra turn re-sends the whole growing
+# context (2026-10 incident: agents re-read the same files until the 100-turn cap, twice in
+# a row; those runs were ~69% of agent spend). The repeat-read guard and soft landing
+# (agent/openai_agents/repeat_read_guard.py, runner.SOFT_LANDING_TURNS) stop most loops
+# early; these caps bound whatever slips through. All remain env-overridable.
 
-# Total request-level iteration budget (legacy compatibility constant)
-AGENT_MAX_ITERATIONS = _get_int_env("AGENT_MAX_ITERATIONS", 100)
-
-# Multi-agent collaboration loop budget (writer/planner/reviewer handoffs)
+# Multi-agent collaboration loop budget (writer/planner/reviewer handoffs).
+# The longest planned workflow (full: planner → hook_designer → writer) plus two
+# review rounds, rework and an empty-file correction fits in 12.
 AGENT_COLLABORATION_MAX_ITERATIONS = _get_int_env(
     "AGENT_COLLABORATION_MAX_ITERATIONS",
-    30,
+    12,
 )
 
-# Single-agent tool-calling loop budget (SDK max_turns per agent run)
+# Single-agent tool-calling loop budget (SDK max_turns per agent run). The last
+# runner.SOFT_LANDING_TURNS calls carry a "stop calling tools and summarize" reminder.
 AGENT_TOOL_CALL_MAX_ITERATIONS = _get_int_env(
     "AGENT_TOOL_CALL_MAX_ITERATIONS",
-    100,
+    60,
 )
 
 # Max output tokens for the OpenAI Agents SDK Chat Completions calls.
@@ -117,14 +119,14 @@ AGENT_ENABLE_GRAPH_AUTO_REVIEW = _get_bool_env(
 )
 
 # Request-level budget for one POST /agent/stream (cost / runaway safety net).
-# The per-agent and collaboration caps above multiply (100 × 30), so a single
-# request could otherwise make thousands of model calls for one quota unit.
-# Defaults are deliberately loose so a long multi-chapter writing turn with
-# review rounds never hits them; exceeding either ends the run gracefully with
-# an error frame (ERR_AGENT_MODEL_CALL_LIMIT / ERR_AGENT_RUN_TIMEOUT).
+# The per-agent and collaboration caps above multiply (60 × 12), so a single
+# request could otherwise make hundreds of model calls for one quota unit.
+# Exceeding either ends the run with an error frame
+# (ERR_AGENT_MODEL_CALL_LIMIT / ERR_AGENT_RUN_TIMEOUT).
 
-# Total model calls (SDK turns across all agent runs) per request.
-AGENT_RUN_MAX_MODEL_CALLS = _get_int_env("AGENT_RUN_MAX_MODEL_CALLS", 200)
+# Total model calls (SDK turns across all agent runs) per request: two full
+# per-agent runs, enough for a long multi-chapter turn with review rounds.
+AGENT_RUN_MAX_MODEL_CALLS = _get_int_env("AGENT_RUN_MAX_MODEL_CALLS", 120)
 
 # Wall-clock budget for the whole streaming request, in seconds.
 AGENT_RUN_WALL_CLOCK_TIMEOUT_S = _get_int_env("AGENT_RUN_WALL_CLOCK_TIMEOUT_S", 1200)

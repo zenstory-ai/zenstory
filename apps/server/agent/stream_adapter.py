@@ -501,11 +501,14 @@ class StreamAdapter:
                 # 熔断的 error 文案本身就是给用户看的具体说明（已去掉 SQL 细节）；
                 # 其余一律用固定文案，原始异常只在日志里。
                 message = data.get("error") if info.code == ErrorCode.AGENT_TOOL_FAILURE_LIMIT else None
+                # reason（如重复读取守卫的 no_progress）透传给 SSE 帧，计费据此识别失控停止。
+                reason = data.get("reason") if isinstance(data, dict) else None
                 yield error_event(
                     message=message if isinstance(message, str) and message else info.message,
                     code=info.code,
                     retryable=info.retryable,
                     refundable=info.refundable,
+                    reason=reason if isinstance(reason, str) and reason else None,
                 )
 
         elif event_type == StreamEventType.AGENT_SELECTED:

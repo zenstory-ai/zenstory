@@ -2,7 +2,7 @@
 
 Status: implemented
 
-熔断后的计费已改为不退还额度，见 `architecture/2026-10-05-agent-stream-error-and-refund-contract.md`；熔断机制本身不变。
+熔断后的计费已改为不退还额度，见 `architecture/2026-10-05-agent-stream-error-and-refund-contract.md`；熔断机制本身不变。成功但重复的读取由同一出口上的重复读取守卫处理，见 `bug-fix/2026-10-08-agent-no-progress-guard-and-soft-cap.md`（`AGENT_TOOL_CALL_MAX_ITERATIONS` 现默认 60、`AGENT_COLLABORATION_MAX_ITERATIONS` 现默认 12）。
 
 ## Problem
 
@@ -18,6 +18,7 @@ Status: implemented
 - 同一调用 = 工具名 + 归一化参数（键排序的紧凑 JSON；解析失败用原文）。等价错误 = `error_type` + 抹掉 UUID、十六进制、数字并折叠空白后的错误文本（SQLite 报错里每次都变的时间戳参数不能让重试被当成「不同错误」）。
 - 同一调用以等价错误连续失败 `MAX_IDENTICAL_TOOL_FAILURES`（3）次即熔断；同一调用换了错误则从 1 重新计数；同一调用成功则清零。穿插其他成功调用（例如重试之间 `query_files`）不清零。
 - 兜底：本次请求累计失败 `MAX_TOOL_FAILURES_PER_REQUEST`（10）次即熔断，不要求参数/错误相同。
+- 重复读取守卫主动拦下的结果（`error_type` 为 `repeated_read` / `no_progress_stop`）完全不进熔断器记账：它们由守卫自己计数，否则同一文件第 4～6 次读取会先以「相同参数连续失败」熔断，抢走守卫的 `no_progress` 停止原因与计费口径。
 - 顺序性拒绝不按「同一调用连续失败」熔断：`error_type` 属于 `_ORDERING_ERROR_TYPES`（目前只有 `pending_empty_file_unwritten`）的失败只计入累计上限，不进连续计数、不附加通用提示。这类拒绝只要模型先完成错误里点名的前置动作就会成功；按连续规则熔断会让 ERROR 终止整条工作流，空文件纠偏轮也跑不到，只留下一个空文件（真实复现：planner 并行 `create_file` 两份人设，第二份被挡回后原样重试 3 次即熔断）。
 - 第 1 次失败原样交还模型；同一调用第 2 次等价失败时，交给模型的原始输出 JSON 附带 `repeated_failures` 与 `retry_hint`（不要原样重试；系统侧故障请停下向用户说明；再失败几次将终止）。实测 deepseek-flash 看到提示后会自行停手，熔断只是兜底。
 

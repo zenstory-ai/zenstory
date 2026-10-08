@@ -22,7 +22,7 @@ Status: implemented
 
 **计费（`agent/core/stream_billing.StreamBillingTracker`，由 `api/agent.py` 的 `event_generator` 驱动）**
 
-按优先级：用户取消或断线（`CancelledError` 与 `GeneratorExit` 同等对待）→ 计费；请求级墙钟时限到期 → 有产出计费、无产出退还；正常结束 → 计费；失败时 error 帧 `refundable=false` → 计费；本轮已有实质产出（非空 `content`、非空 `file_content`，或 `create_file` / `edit_file` / `delete_file` 的 `tool_result` 为 success）→ 计费；其余没有任何产出的失败 → 退还。熔断的 ERROR 带 `refundable=false`、`retryable=false`。`Agent stream billing evaluated` 日志新增 `billing_reason`（`completed` / `user_cancelled` / `run_deadline_exceeded` / `non_refundable_error` / `error_after_output` / `internal_error` / `internal_error_no_terminal`）、`error_refundable`、`produced_output`。
+按优先级：用户取消或断线（`CancelledError` 与 `GeneratorExit` 同等对待）→ 计费；请求级墙钟时限到期 → 有产出计费、无产出退还；失控停止（error 帧 `reason="no_progress"`、error 帧 `code=ERR_AGENT_MODEL_CALL_LIMIT`，或 `iteration_exhausted` 帧 `layer="tool_call"`）且本轮没有任何写入落库（写工具 success、`parallel_execute` 的写子任务 completed、非空 `file_content`）→ 退还，`billing_reason=runaway_no_progress`（这一条不看是否串流过文字，见 `bug-fix/2026-10-08-agent-no-progress-guard-and-soft-cap.md`）；正常结束 → 计费；失败时 error 帧 `refundable=false` → 计费；本轮已有实质产出（非空 `content`、非空 `file_content`，或 `create_file` / `edit_file` / `delete_file` 的 `tool_result` 为 success）→ 计费；其余没有任何产出的失败 → 退还。熔断的 ERROR 带 `refundable=false`、`retryable=false`。`Agent stream billing evaluated` 日志新增 `billing_reason`（`completed` / `user_cancelled` / `run_deadline_exceeded` / `runaway_no_progress` / `non_refundable_error` / `error_after_output` / `internal_error` / `internal_error_no_terminal`）、`error_refundable`、`produced_output`、`write_succeeded`、`runaway_stop`。SSE `error` 帧（`ErrorEventData`）带可选的 `reason`，`StreamAdapter` 从工作流 ERROR 事件的 `data.reason` 透传。
 
 ## Alternatives considered
 

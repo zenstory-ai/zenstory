@@ -536,6 +536,8 @@ async def stream_request(
                 saw_internal_error_event=tracker.saw_error_event,
                 error_refundable=tracker.error_refundable,
                 produced_output=tracker.produced_output,
+                write_succeeded=tracker.write_succeeded,
+                runaway_stop=tracker.runaway_stop,
                 user_cancelled=user_cancelled,
                 unexpected_exception=unexpected_exception,
                 deadline_exceeded=deadline_exceeded,

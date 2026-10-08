@@ -182,6 +182,13 @@ class ErrorEventData(BaseModel):
             "the charge when the turn already produced output."
         ),
     )
+    reason: str | None = Field(
+        default=None,
+        description=(
+            "Machine-readable stop reason (e.g. 'no_progress' for the repeat-read guard); "
+            "the billing tracker uses it to recognise runaway stops."
+        ),
+    )
 
 
 class DoneEventData(BaseModel):
@@ -386,6 +393,7 @@ def error_event(
     code: str | None = None,
     retryable: bool = False,
     refundable: bool | None = None,
+    reason: str | None = None,
 ) -> StreamEvent:
     """Create an error event."""
     return StreamEvent(
@@ -395,6 +403,7 @@ def error_event(
             code=code,
             retryable=retryable,
             refundable=refundable,
+            reason=reason,
         ).model_dump()
     )
 

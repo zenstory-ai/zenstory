@@ -27,9 +27,6 @@ from config.agent_runtime import (
     AGENT_COLLABORATION_MAX_ITERATIONS,
     AGENT_CONTEXT_TOKEN_BUDGET,
 )
-from config.agent_runtime import (
-    AGENT_MAX_ITERATIONS as AGENT_REQUEST_MAX_ITERATIONS,
-)
 from config.datetime_utils import utcnow
 from database import create_session
 from utils.logger import get_logger, log_with_context
@@ -73,9 +70,6 @@ from .stream_adapter import create_stream_adapter
 from .tools.mcp_tools import ToolContext, _should_offload_tool_execution
 
 logger = get_logger(__name__)
-
-# Backward-compatible export used by existing tests/callers.
-AGENT_MAX_ITERATIONS = AGENT_REQUEST_MAX_ITERATIONS
 
 
 class AgentService:

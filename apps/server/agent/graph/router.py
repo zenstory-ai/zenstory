@@ -517,3 +517,108 @@ def get_next_node(state: WritingState) -> AgentType:
         return agent  # type: ignore[return-value]
 
     return "writer"
+
+
+# =============================================================================
+# 「继续」直达：上一轮以工具调用轮数耗尽 / 无进展停止收尾
+# =============================================================================
+
+# 上一轮 assistant 消息落库的 stop_reason（runner.MAX_TURNS_STOP_REASON /
+# repeat_read_guard.NO_PROGRESS_STOP_REASON）：表示那一轮是被上限截停的，没做完。
+RESUMABLE_STOP_REASONS: frozenset[str] = frozenset({"max_turns_exceeded", "no_progress"})
+
+# 「继续」类的简短跟进（含前端轮数耗尽卡片「继续」按钮预填的中英文提示）。
+_CONTINUE_MESSAGES: frozenset[str] = frozenset(
+    {
+        "继续",
+        "继续吧",
+        "请继续",
+        "继续写",
+        "接着写",
+        "接着",
+        "接着来",
+        "继续完成",
+        "go on",
+        "continue",
+        "please continue",
+        "请基于上一步结果继续完成剩余任务，优先最关键目标",
+        "please continue from the previous result and finish the remaining work, "
+        "prioritizing the most critical goal",
+    }
+)
+_CONTINUE_TRAILING_PUNCT = " \t\r\n。.!！~～…,，"
+_LAST_AGENT_RE = re.compile(r"last_agent:\s*([a-z_]+)")
+
+
+def _is_bare_continue(message: str) -> bool:
+    normalized = (message or "").strip().lower().rstrip(_CONTINUE_TRAILING_PUNCT).strip()
+    return normalized in _CONTINUE_MESSAGES
+
+
+def _message_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(
+            str(block.get("text") or "")
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "text"
+        )
+    return ""
+
+
+def _last_assistant_message(messages: list[Any]) -> dict[str, Any] | None:
+    for message in reversed(messages):
+        if isinstance(message, dict) and message.get("role") == "assistant":
+            return message
+    return None
+
+
+def resume_route_after_exhaustion(state: WritingState) -> dict[str, Any] | None:
+    """上一轮被上限截停、用户只回「继续」时，直接交给上一轮的 agent 走 quick 工作流。
+
+    之前「继续」会重新走一遍 LLM 路由，常被规划成 planner → writer 的多 agent 流程，
+    每个 agent 又从头把文件读一遍——线上就是这样连着两次读到轮数上限的。
+
+    判据：上一条 assistant 消息的 stop_reason 属于 RESUMABLE_STOP_REASONS，或它只有
+    状态卡、合成文本里带着 ``[iteration_exhausted]`` + ``layer: tool_call``（旧数据）。
+    上一轮的 agent 取状态卡合成文本里的 ``last_agent``；拿不到时用 writer（planner /
+    hook_designer / writer 的工具集相同）。返回 None 表示照常路由。
+    """
+    user_message = str(state.get("router_message") or state.get("user_message") or "")
+    if not _is_bare_continue(user_message):
+        return None
+    previous = _last_assistant_message(list(state.get("messages") or []))
+    if previous is None:
+        return None
+
+    text = _message_text(previous.get("content"))
+    stop_reason = str(previous.get("stop_reason") or "")
+    exhausted_card = "[iteration_exhausted]" in text and "layer: tool_call" in text
+    if stop_reason not in RESUMABLE_STOP_REASONS and not exhausted_card:
+        return None
+
+    agent_type: str = "writer"
+    match = _LAST_AGENT_RE.search(text)
+    if match and match.group(1) in ("planner", "hook_designer", "writer", "quality_reviewer"):
+        agent_type = match.group(1)
+
+    workflow_type = "review_only" if agent_type == "quality_reviewer" else "quick"
+    log_with_context(
+        logger,
+        20,  # INFO
+        "Resuming exhausted run with the previous agent (router skipped)",
+        agent_type=agent_type,
+        previous_stop_reason=stop_reason or None,
+    )
+    return {
+        "current_agent": agent_type,
+        "workflow_plan": workflow_type,
+        "workflow_agents": [],
+        "routing_metadata": {
+            "agent_type": agent_type,
+            "workflow_type": workflow_type,
+            "reason": "resume_after_exhaustion",
+            "confidence": 1.0,
+        },
+    }
