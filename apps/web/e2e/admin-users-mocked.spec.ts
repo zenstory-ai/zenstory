@@ -190,26 +190,26 @@ test.describe('Admin users (mocked)', () => {
     });
 
     await page.goto('/admin/users');
-    const summary = page.getByText(/(显示|Showing) \d+-\d+/);
+    const summary = page.getByText(/(第|Showing) \d+[–-]\d+/);
     const next = page.getByRole('button', { name: /^(下一步|下一页|next)$/i });
 
-    await expect(summary).toHaveText(/1-20\D+92/);
+    await expect(summary).toHaveText(/1[–-]20\D+92/);
     await expect(page.getByText('1 / 5')).toBeVisible();
 
     await next.click();
-    await expect(summary).toHaveText(/21-40\D+92/);
+    await expect(summary).toHaveText(/21[–-]40\D+92/);
     await expect(page.getByText('2 / 5')).toBeVisible();
 
     for (let i = 0; i < 3; i += 1) {
       await next.click();
     }
-    await expect(summary).toHaveText(/81-92\D+92/);
+    await expect(summary).toHaveText(/81[–-]92\D+92/);
     await expect(page.getByText('5 / 5')).toBeVisible();
     await expect(next).toBeDisabled();
 
     await page.locator('input[placeholder*="搜索"], input[placeholder*="Search"]').fill('writer');
     await page.getByRole('button', { name: /^(搜索|search)$/i }).click();
-    await expect(summary).toHaveText(/1-20\D+85/);
+    await expect(summary).toHaveText(/1[–-]20\D+85/);
     await expect(page.getByText('1 / 5')).toBeVisible();
   });
 });

@@ -297,6 +297,8 @@ const classifyToolFailure = (errorType: string | undefined): ToolFailureKind => 
   return 'generic';
 };
 
+const isChineseUi = (): boolean => (i18n.language ?? '').startsWith('zh');
+
 /**
  * 工具失败卡片给作者看的一句话：优先用工具给的 user_message，其次按 error_type
  * 给出通用说法。原始 error（给模型的指令、内部 id、英文异常）永远不显示。
@@ -308,7 +310,10 @@ const resolveToolFailureMessage = (
   const nested = result?.data && typeof result.data === 'object'
     ? (result.data as Record<string, unknown>)
     : undefined;
-  const userMessage = readUserFacingText(result?.user_message) ?? readUserFacingText(nested?.user_message);
+  // user_message is written in Chinese by the backend; other UI languages use the error_type mapping.
+  const userMessage = isChineseUi()
+    ? readUserFacingText(result?.user_message) ?? readUserFacingText(nested?.user_message)
+    : null;
   if (userMessage) return userMessage;
 
   const errorType = readUserFacingText(result?.error_type) ?? readUserFacingText(nested?.error_type);
@@ -992,7 +997,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                       </span>
                       {isFailed ? (
                         <div className="text-[hsl(var(--text-secondary))] break-words">
-                          {readUserFacingText(taskResult?.user_message) ?? t('chat:tool.taskNotCompleted')}
+                          {(isChineseUi() ? readUserFacingText(taskResult?.user_message) : null) ?? t('chat:tool.taskNotCompleted')}
                         </div>
                       ) : null}
                     </div>

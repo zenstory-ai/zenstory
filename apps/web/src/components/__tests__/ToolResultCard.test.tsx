@@ -107,8 +107,9 @@ vi.mock('react-i18next', () => ({
 // ToolResultCard imports the real i18n singleton (for i18n.language in the
 // quote helper); stub it so the module's initReactI18next side effect does not
 // run under the partial react-i18next mock.
+const i18nStub = vi.hoisted(() => ({ language: 'zh' }))
 vi.mock('../../lib/i18n', () => ({
-  default: { language: 'zh' },
+  default: i18nStub,
 }))
 
 describe('ToolResultCard', () => {
@@ -481,6 +482,24 @@ describe('ToolResultCard', () => {
       )
       expect(screen.queryByText(/occurrence=N/)).not.toBeInTheDocument()
       expect(screen.getByText('chat:tool.failureHint.generic')).toBeInTheDocument()
+    })
+
+    it('falls back to the localized hint on non-Chinese UIs, since user_message is Chinese', () => {
+      i18nStub.language = 'en'
+      try {
+        render(
+          <ToolResultCard
+            type="tool_result"
+            toolName="edit_file"
+            error="raw"
+            result={{ data: { error_type: 'ambiguous_match', user_message: '要改的这句话出现了好几次' } }}
+          />
+        )
+        expect(screen.queryByText('要改的这句话出现了好几次')).not.toBeInTheDocument()
+        expect(screen.getByText('chat:tool.failureHint.ambiguous')).toBeInTheDocument()
+      } finally {
+        i18nStub.language = 'zh'
+      }
     })
 
     it('reads user_message nested under data (stream adapter shape)', () => {

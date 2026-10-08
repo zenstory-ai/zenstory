@@ -84,7 +84,7 @@ test.describe('Dashboard coachmark tour', () => {
     await expect(page.getByText('先选你要写什么')).toBeVisible();
     await page.getByRole('button', { name: '知道了' }).click();
 
-    await expect(page.getByText('从一句核心冲突开始')).toBeVisible();
+    await expect(page.getByText('从一个想法开始')).toBeVisible();
     await page.getByRole('button', { name: '下一步' }).click();
 
     await expect(page.getByText('没想法就先来这里')).toBeVisible();
@@ -98,7 +98,7 @@ test.describe('Dashboard coachmark tour', () => {
     await expect(page.getByText('先选你要写什么')).toBeVisible();
     await page.getByRole('button', { name: '知道了' }).click();
 
-    await expect(page.getByText('从一句核心冲突开始')).toBeVisible();
+    await expect(page.getByText('从一个想法开始')).toBeVisible();
     await page.getByRole('textbox').fill('一个从背叛开局的短剧故事');
     await page.getByRole('button', { name: '下一步' }).click();
 

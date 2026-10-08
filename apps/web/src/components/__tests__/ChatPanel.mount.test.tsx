@@ -437,6 +437,20 @@ describe('ChatPanel mount smoke', () => {
     await waitFor(() => expect(screen.queryByTestId('chat-quota-refund-note')).not.toBeInTheDocument())
   })
 
+  it('never pairs a refund note with the used-up card, which would hint at a second limit', async () => {
+    mockAgentStreamState.errorCode = 'ERR_QUOTA_AI_DAILY_COST_EXCEEDED'
+    mockAgentStreamState.error = 'cost backstop'
+    render(<ChatPanel />)
+    expect((await screen.findAllByText('今天的免费 AI 消息用完了')).length).toBeGreaterThan(0)
+
+    const options = () => capturedUseAgentStream.options as {
+      onQuotaRefunded: (kind: 'no_progress' | 'error') => void
+    }
+    act(() => options().onQuotaRefunded('error'))
+    expect(screen.queryByTestId('chat-quota-refund-note')).not.toBeInTheDocument()
+    expect(screen.queryByText('这次出错不计入今日 AI 消息。')).not.toBeInTheDocument()
+  })
+
   it('quota modal primary action navigates to billing with source', async () => {
     const originalLocation = window.location
     const assignMock = vi.fn()

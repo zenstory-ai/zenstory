@@ -28,7 +28,7 @@
     "fileVersionLimitDesc": "升级套餐后可继续保存更多版本。"
   },
   "input": {
-    "placeholder": "想写什么、改哪里，直接说就行…",
+    "placeholder": "想写什么，直接说…",
     "placeholderWhileProcessing": "AI 正在生成，你可以先输入，结束后再发送…",
     "stop": "停止生成",
     "steerPlaceholder": "补充你的要求…",
@@ -104,7 +104,7 @@
   "context": {
     "priority": {
       "critical": "关键",
-      "constraint": "设定",
+      "constraint": "重要",
       "relevant": "相关",
       "inspiration": "参考",
       "default": "来源"
@@ -117,8 +117,8 @@
     "remaining": "还剩",
     "iterationExhausted": "这一轮先做到这里",
     "lowTurnWarning": "快到这一轮的上限了，AI 会先把最重要的部分做完。",
-    "collaborationExhaustedSummary": "任务比较大，AI 已经连着做了不少步，先停一下。改好的内容都已保存，点「继续完成」就能接着做。",
-    "toolCallExhaustedSummary": "任务比较大，AI 已经连着做了不少步，先停一下。改好的内容都已保存，点「继续完成」就能接着做。",
+    "collaborationExhaustedSummary": "任务比较大，AI 已经连着做了不少步，先停一下。点「继续完成」就能接着做。",
+    "toolCallExhaustedSummary": "任务比较大，AI 已经连着做了不少步，先停一下。点「继续完成」就能接着做。",
     "nextStepHint": "接下来你可以：",
     "actionContinue": "继续完成",
     "actionSplit": "拆成小步骤",

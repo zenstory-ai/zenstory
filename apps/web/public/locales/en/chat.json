@@ -28,7 +28,7 @@
     "fileVersionLimitDesc": "Upgrade your plan to keep more versions."
   },
   "input": {
-    "placeholder": "Just tell the AI what to write or change…",
+    "placeholder": "Tell the AI what to write…",
     "placeholderWhileProcessing": "AI is generating — you can type now and send when it finishes…",
     "stop": "Stop generating",
     "steerPlaceholder": "Add to your request…",
@@ -104,7 +104,7 @@
   "context": {
     "priority": {
       "critical": "Critical",
-      "constraint": "Setting",
+      "constraint": "Key",
       "relevant": "Relevant",
       "inspiration": "Reference",
       "default": "Source"
@@ -117,8 +117,8 @@
     "remaining": "left",
     "iterationExhausted": "Pausing here for now",
     "lowTurnWarning": "Close to this round's limit — the AI will finish the most important part first.",
-    "collaborationExhaustedSummary": "This is a big task, so the AI paused after many steps. Your changes are saved; click \"Keep going\" to continue.",
-    "toolCallExhaustedSummary": "This is a big task, so the AI paused after many steps. Your changes are saved; click \"Keep going\" to continue.",
+    "collaborationExhaustedSummary": "This is a big task, so the AI paused after many steps. Click \"Keep going\" to continue.",
+    "toolCallExhaustedSummary": "This is a big task, so the AI paused after many steps. Click \"Keep going\" to continue.",
     "nextStepHint": "What next?",
     "actionContinue": "Keep going",
     "actionSplit": "Split into steps",

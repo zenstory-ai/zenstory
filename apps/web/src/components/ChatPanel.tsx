@@ -976,7 +976,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const isAiQuotaLimit =
     errorCode === 'ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED'
     || errorCode === 'ERR_QUOTA_AI_DAILY_COST_EXCEEDED';
-  const quotaRefundNote = quotaRefund && quotaRefund.projectId === currentProjectId && !isStreaming
+  // Never pair a refund note with the used-up card: that would hint at a second, cost-based limit.
+  const quotaRefundNote = quotaRefund && quotaRefund.projectId === currentProjectId && !isStreaming && !isAiQuotaLimit
     ? t(quotaRefund.kind === 'no_progress' ? 'chat:panel.notCharged' : 'chat:panel.notChargedError')
     : null;
 

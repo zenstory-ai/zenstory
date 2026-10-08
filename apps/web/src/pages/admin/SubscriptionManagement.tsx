@@ -280,8 +280,8 @@ export const SubscriptionManagement: React.FC = () => {
     }
 
     return [
-      { value: "free", label: t("subscriptions.planFree", "免费试用") },
-      { value: "pro", label: t("subscriptions.planPro", "专业版") },
+      { value: "free", label: t("subscriptions.planFree", "免费版") },
+      { value: "pro", label: t("subscriptions.planPro", "Pro") },
     ];
   }, [availablePlans, i18n.language, t]);
 

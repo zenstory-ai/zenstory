@@ -306,8 +306,8 @@ ERROR_MESSAGES = {
         "ERR_AGENT_RUN_FAILED": "生成回复时发生错误，请重试",
         "ERR_AGENT_TOOL_FAILURE_LIMIT": "AI 这一步连续几次都没做成，这一轮先停下了。之前改好的内容不受影响。可以换个说法，或者把任务拆小一点再试。",
         "ERR_AGENT_NO_PROGRESS": "AI 一直在翻看同样的资料，迟迟没动笔，这一轮先停下了。可以直接告诉它改哪一章、改什么，或者回复「继续」让它接着写。",
-        "ERR_AGENT_RUN_TIMEOUT": "这一轮写得太久，先停下了。已经写好的内容都已保存，回复「继续」就能接着写。",
-        "ERR_AGENT_MODEL_CALL_LIMIT": "这次任务步骤太多，AI 先停下了。改好的内容都已保存，回复「继续」就能接着做。",
+        "ERR_AGENT_RUN_TIMEOUT": "这一轮写得太久，先停下了。回复「继续」就能接着写。",
+        "ERR_AGENT_MODEL_CALL_LIMIT": "这次任务步骤太多，AI 先停下了。回复「继续」就能接着做。",
         "ERR_AGENT_FILE_SAVE_FAILED": "保存生成的文件内容失败，请重试",
     },
     "en": {
@@ -427,8 +427,8 @@ ERROR_MESSAGES = {
         "ERR_AGENT_RUN_FAILED": "Something went wrong while generating the reply. Please try again",
         "ERR_AGENT_TOOL_FAILURE_LIMIT": "The AI couldn't complete a step after several tries, so this round stopped. Earlier changes aren't affected. Try rephrasing or splitting the task.",
         "ERR_AGENT_NO_PROGRESS": 'The AI kept rereading the same material without writing, so this round stopped. Tell it which chapter to change and how, or reply "continue".',
-        "ERR_AGENT_RUN_TIMEOUT": "This round ran too long and stopped. What's written is saved — reply \"continue\".",
-        "ERR_AGENT_MODEL_CALL_LIMIT": "This task took too many steps, so the AI paused. Your changes are saved — reply \"continue\" to keep going.",
+        "ERR_AGENT_RUN_TIMEOUT": "This round ran too long and stopped. Reply \"continue\" to keep going.",
+        "ERR_AGENT_MODEL_CALL_LIMIT": "This task took too many steps, so the AI paused. Reply \"continue\" to keep going.",
         "ERR_AGENT_FILE_SAVE_FAILED": "Failed to save the generated file content. Please try again",
     },
 }
