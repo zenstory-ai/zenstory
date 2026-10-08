@@ -63,7 +63,7 @@ const changeStatus = (status: string) => fireEvent.change(screen.getByRole('comb
 const label = (key: string) => i18n.t(`admin:${key}`)
 function expand(id: string) {
   const card = screen.getByText(`Skill ${id}`).closest('.rounded-xl')!
-  fireEvent.click(within(card as HTMLElement).getAllByRole('button').at(-1)!)
+  fireEvent.click(within(card as HTMLElement).getByRole('button', { name: label('skills.expandDetails') }))
 }
 beforeEach(async () => {
   vi.resetAllMocks(); completions = []; unexpected = []; router = undefined; mounts = 0

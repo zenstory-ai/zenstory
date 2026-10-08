@@ -212,7 +212,9 @@
     "resourcesLoadFailed": "资源文件加载失败，请重试",
     "resourceCount": "{{count}} 个资源文件",
     "resourceCount_one": "{{count}} 个资源文件",
-    "resourceCount_other": "{{count}} 个资源文件"
+    "resourceCount_other": "{{count}} 个资源文件",
+    "expandDetails": "展开详情",
+    "collapseDetails": "收起详情"
   },
   "codes": {
     "title": "兑换码管理",

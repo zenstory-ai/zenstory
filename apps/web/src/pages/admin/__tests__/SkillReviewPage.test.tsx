@@ -139,8 +139,11 @@ describe("SkillReviewPage", () => {
     await screen.findByText("Skill with resources");
     expect(screen.getByText("admin:skills.resourceCount")).toBeInTheDocument();
 
-    const toggles = screen.getAllByRole("button");
-    fireEvent.click(toggles[toggles.length - 1]);
+    // 按名称找展开按钮：按「最后一个按钮」点击会被之后异步出现的按钮打乱（CI 覆盖率负载下偶发）。
+    const toggle = screen.getByRole("button", { name: "admin:skills.expandDetails" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(screen.getByRole("button", { name: "admin:skills.collapseDetails" })).toHaveAttribute("aria-expanded", "true");
 
     const raw = await screen.findByTestId("skill-review-raw-instructions");
     expect(raw.textContent).toBe(hiddenInstructions);
