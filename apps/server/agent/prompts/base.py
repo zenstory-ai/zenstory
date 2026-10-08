@@ -215,6 +215,10 @@ def get_tool_usage_guide(folder_ids: dict[str, str]) -> str:
 
 **判断原则**：当用户说的话包含「你希望下次还能记住的信息」时，就应该记录。
 
+**整字段覆盖**：summary / writing_style / notes / current_phase 每次传值都会**整体替换**该字段，不是追加。
+新增一条时，先看上下文「项目状态」里该字段的现有内容，把原有条目和新条目合并成完整文本再传入；
+只传新的一条，原有的约定和禁忌会被永久抹掉。现有内容显示不全（被截断）时不要改写这个字段，在回复里告诉作者。
+
 **四个字段的用途**：
 
 | 字段 | 用途 | 示例 |
@@ -239,8 +243,8 @@ def get_tool_usage_guide(folder_ids: dict[str, str]) -> str:
 用户："写轻松点，不要太严肃"
 → update_project(writing_style='轻松幽默风格')
 
-用户："记住，女主要到第五章才出场"
-→ update_project(notes='女主第5章才出场')
+用户："记住，女主要到第五章才出场"（项目状态里 notes 现有：'反派身份第20章前不得揭露'）
+→ update_project(notes='反派身份第20章前不得揭露；女主第5章才出场')
 
 状态："刚完成了大纲，准备开始写第一章"
 → update_project(current_phase='大纲已完成，准备开始第1章')
@@ -248,7 +252,7 @@ def get_tool_usage_guide(folder_ids: dict[str, str]) -> str:
 **注意**：
 - 可以同时更新多个字段
 - 只记录**值得记住**的信息，不要记录临时性的对话内容
-- 更新时考虑是否需要保留原有内容（追加 vs 覆盖）
+- 每个字段都是整体覆盖：先合并现有内容再传入，只有作者要求删改某条时才去掉它
 
 ### edit_file 使用决策树 [重要]
 

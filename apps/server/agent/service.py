@@ -14,6 +14,7 @@ Powered by LangGraph workflow orchestration + openai-agents-python.
 """
 
 import asyncio
+import time
 import uuid
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -26,6 +27,7 @@ from config.agent_runtime import (
     AGENT_CHAT_HISTORY_TOKEN_BUDGET,
     AGENT_COLLABORATION_MAX_ITERATIONS,
     AGENT_CONTEXT_TOKEN_BUDGET,
+    AGENT_RUN_WALL_CLOCK_TIMEOUT_S,
 )
 from config.datetime_utils import utcnow
 from database import create_session
@@ -70,6 +72,46 @@ from .stream_adapter import create_stream_adapter
 from .tools.mcp_tools import ToolContext, _should_offload_tool_execution
 
 logger = get_logger(__name__)
+
+# 取消路径补存部分历史时写进 message_metadata.stop_reason 的值。墙钟时限到期
+# 也是以取消的方式到达 process_stream（sse_pump 取消后台 task），按已用时长区分。
+PARTIAL_SAVE_CANCELLED_STOP_REASON = "cancelled"
+PARTIAL_SAVE_DEADLINE_STOP_REASON = "run_deadline_exceeded"
+
+
+def partial_save_stop_reason(elapsed_s: float, deadline_s: float | None) -> str:
+    """取消路径的 stop_reason：已用时长达到墙钟时限就是时限截停，否则是用户停止。
+
+    process_stream 先于 SSE 泵开始计时，所以泵按时限取消时这里的已用时长一定
+    不小于时限；用户在时限前主动停止时一定小于时限。
+    """
+    if deadline_s and deadline_s > 0 and elapsed_s >= deadline_s:
+        return PARTIAL_SAVE_DEADLINE_STOP_REASON
+    return PARTIAL_SAVE_CANCELLED_STOP_REASON
+
+
+def routing_from_router_decided(data: dict[str, Any]) -> dict[str, Any]:
+    """把 ROUTER_DECIDED 事件转成落库的 message_metadata.routing。
+
+    下一轮的「继续」直达与回答提问时的路由沿用（graph/router.py）从这里读回
+    上一轮的 agent 和用户范围；只留这几个字段，不存 reason / confidence。
+    """
+    routing_metadata = data.get("routing_metadata")
+    if not isinstance(routing_metadata, dict):
+        routing_metadata = {}
+    initial_agent = str(data.get("initial_agent") or routing_metadata.get("agent_type") or "")
+    write_content = routing_metadata.get("write_content")
+    scope = routing_metadata.get("scope")
+    return {
+        "initial_agent": initial_agent,
+        "workflow_type": str(
+            data.get("workflow_plan") or routing_metadata.get("workflow_type") or ""
+        ),
+        "read_only": routing_metadata.get("read_only") is True,
+        "write_content": write_content if isinstance(write_content, bool) else None,
+        "scope": scope.strip() if isinstance(scope, str) else "",
+        "last_agent": initial_agent,
+    }
 
 
 class AgentService:
@@ -488,6 +530,7 @@ class AgentService:
             SSE event strings
         """
         start_time = utcnow()
+        run_started_monotonic = time.monotonic()
         metrics = get_metrics_collector()
         metrics.increment_counter(AGENT_REQUESTS_TOTAL)
         message_preview = message[:100] + "..." if len(message) > 100 else message
@@ -575,6 +618,8 @@ class AgentService:
         assistant_usage: dict[str, Any] | None = None
         assistant_status_cards: list[dict[str, Any]] = []
         assistant_display_events: list[dict[str, Any]] = []
+        # 本轮路由（ROUTER_DECIDED + 最后一个 AGENT_SELECTED），随 assistant 消息落库
+        assistant_routing: dict[str, Any] = {}
         display_text_run_type: str | None = None
         pending_done_payload: dict[str, Any] | None = None
         had_stream_error = False
@@ -749,7 +794,7 @@ class AgentService:
             usage = adapter.get_last_message_metadata().get("usage")
             return usage if isinstance(usage, dict) and usage else None
 
-        def _save_partial_history_sync() -> None:
+        def _save_partial_history_sync(stop_reason: str | None = None) -> None:
             """用独立 session 落库部分历史（取消/失败路径，绕开共享 session）。"""
             if not _has_assistant_payload():
                 # 空 assistant 不落库，只保留用户消息与已消费的 steering。
@@ -772,6 +817,8 @@ class AgentService:
                     steering_messages=consumed_steering or None,
                     assistant_display_events=assistant_display_events or None,
                     assistant_usage=_accumulated_usage(),
+                    assistant_stop_reason=stop_reason,
+                    assistant_routing=assistant_routing or None,
                 )
 
         try:
@@ -1047,6 +1094,12 @@ class AgentService:
                                 "data": dict(event.data),
                             }
                         )
+                        if event_type == "router_decided":
+                            assistant_routing = routing_from_router_decided(event.data)
+                        elif event_type == "agent_selected" and assistant_routing:
+                            selected_agent = str(event.data.get("agent_type") or "").strip()
+                            if selected_agent:
+                                assistant_routing["last_agent"] = selected_agent
 
                     # Track content for history
                     if event_type == "content":
@@ -1214,6 +1267,7 @@ class AgentService:
                         assistant_status_cards=assistant_status_cards or None,
                         steering_messages=consumed_steering or None,
                         assistant_display_events=assistant_display_events or None,
+                        assistant_routing=assistant_routing or None,
                     )
                     history_saved = True
                     return saved_id
@@ -1269,6 +1323,11 @@ class AgentService:
             # done 事件还没发出去时被取消，队列里仍可能有已确认 queued 的
             # steering，跳过后台任务就等于让随后的 cleanup 把它删掉。是否重写
             # 整轮由任务内部按 history_saved 判定。
+            # 在取消到达的这一刻判定（后台补存还要等落库任务和 drain，时长会继续走）。
+            cancel_stop_reason = partial_save_stop_reason(
+                time.monotonic() - run_started_monotonic,
+                AGENT_RUN_WALL_CLOCK_TIMEOUT_S,
+            )
             if user_id:
 
                 async def _drain_then_save_partial_history() -> None:
@@ -1305,7 +1364,9 @@ class AgentService:
                                 _append_user_messages_sync, late_steering
                             )
                         return
-                    await _finish_history_write(_save_partial_history_sync)
+                    await _finish_history_write(
+                        _save_partial_history_sync, cancel_stop_reason
+                    )
 
                 cancellation_save_task = self._schedule_background_cleanup(
                     _drain_then_save_partial_history(),
@@ -1397,7 +1458,9 @@ class AgentService:
                             or _has_assistant_payload()
                         ):
                             try:
-                                await _finish_history_write(_save_partial_history_sync)
+                                await _finish_history_write(
+                                    _save_partial_history_sync, assistant_stop_reason
+                                )
                             except Exception as exc:
                                 log_with_context(
                                     logger,
