@@ -299,6 +299,54 @@ class TestInventoryHeaderBudget:
         assert result.token_estimate <= 2000
         assert "已截断" in result.context
 
+    def test_items_render_id_and_explicit_completeness(
+        self, db_session, owner, make_project, make_file
+    ):
+        """生产事故回归：条目只给标题 + 结尾裸 "..."，模型分不清是否全文，反复重读。"""
+        from agent.context.assembler import FULL_TEXT_CONTEXT_NOTICE
+
+        project = make_project()
+        focus = make_file(
+            project, "第9章", "draft", content="他抬起头。\n\n远处有光。" * 600, order=9
+        )
+        hero = make_file(project, "林小雨", "character", content="主角。\n冷静。", order=1)
+
+        assembler = ContextAssembler()
+        result = assembler.assemble(
+            session=db_session,
+            project_id=project.id,
+            user_id=owner.id,
+            focus_file_id=focus.id,
+            max_tokens=2000,
+        )
+
+        lines = result.context.splitlines()
+        assert FULL_TEXT_CONTEXT_NOTICE in lines
+
+        focus_item = next(item for item in result.items if item["id"] == focus.id)
+        assert focus_item["metadata"]["truncated"] is True
+        shown = focus_item["metadata"]["shown_chars"]
+        total = focus_item["metadata"]["original_chars"]
+        assert total == len(focus.content) and shown < total
+        focus_heading = next(line for line in lines if f"(id={focus.id}) ← 当前焦点" in line)
+        assert (
+            f'[已截断：显示 {shown}/{total} 字；全文用 query_files(id="{focus.id}")]'
+            in focus_heading
+        )
+
+        # 没有焦点挤占预算时，角色卡整份入选并标注 [全文]
+        result = assembler.assemble(
+            session=db_session,
+            project_id=project.id,
+            user_id=owner.id,
+            max_tokens=2000,
+        )
+        lines = result.context.splitlines()
+        hero_heading = next(line for line in lines if line.startswith(f"林小雨 (id={hero.id})"))
+        assert hero_heading.endswith("[全文]")
+        # 正文保留换行，不被压成一行
+        assert "主角。\n冷静。" in result.context
+
 
 # ---------------------------------------------------------------------------
 # #19 焦点保护必须覆盖所有文件类型

@@ -131,14 +131,59 @@ def test_extract_structured_context_is_deduplicated_and_bounded():
     assert len(world) <= 24
 
 
-def test_truncate_text_adds_ellipsis_when_exceeding_limit():
+def test_raw_context_keeps_paragraphs_and_skips_duplicate_previews():
+    """生产事故回归：原始上下文被压成一行 + 重复 220 字预览，模型以为被压缩而重读。"""
+    manager = MessageManager(project_id="proj-1")
+    chapter_text = "第一段。" * 80 + "\n\n" + "第二段。" * 80
+    context_items = [
+        {
+            "id": "file-ch1",
+            "type": "outline",
+            "title": "第一章",
+            "content": chapter_text,
+            "metadata": {"file_type": "draft"},
+        },
+        {
+            "id": "file-cut",
+            "type": "lore",
+            "title": "魔法体系",
+            "content": "魔法分四系。" * 80,
+            "metadata": {"file_type": "lore", "truncated": True},
+        },
+    ]
+    assembled = f"第一章 (id=file-ch1) [全文]\n{chapter_text}"
+
+    _, truth, surface = manager._extract_structured_context(  # noqa: SLF001
+        context_items=context_items,
+        force_en=False,
+        raw_context_complete=MessageManager._raw_context_is_complete(assembled),  # noqa: SLF001
+    )
+    section = "\n".join(
+        manager._build_context_section(  # noqa: SLF001
+            assembled_context=assembled,
+            context_items=context_items,
+            force_en=False,
+            world_truth=truth,
+            world_surface=surface,
+        )
+    )
+
+    # 段落与换行原样保留
+    assert chapter_text in section
+    # 已在原始上下文中完整出现的条目只留标题 + id，不再附节选
+    assert surface == ["第一章 (id=file-ch1)（全文见项目上下文）"]
+    # 被预算截断的条目仍给节选，并显式标注
+    assert truth[0].startswith("魔法体系：") and truth[0].endswith("…（节选）")
+
+
+def test_truncate_text_marks_preview_explicitly_when_exceeding_limit():
     manager = MessageManager(project_id="proj-1")
     long_text = "设定" * 5000
 
     truncated = manager._truncate_text(long_text, 120)  # noqa: SLF001
 
-    assert truncated.endswith("...")
-    assert len(truncated) <= 123
+    assert truncated.endswith("…（节选）")
+    assert len(truncated) <= 120 + len("…（节选）")
 
 
 def test_build_context_section_separates_world_model_surface_and_truth():

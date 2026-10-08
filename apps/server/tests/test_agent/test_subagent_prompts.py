@@ -28,6 +28,23 @@ class TestQualityReviewerPromptConsistency:
 
     def test_quality_reviewer_prompt_does_not_require_direct_edit_file(self):
         assert "必要时直接使用 `edit_file` 修正" not in QUALITY_REVIEWER_PROMPT
-        assert "错别字、标点、格式问题也需交接给 writer 修正" in QUALITY_REVIEWER_PROMPT
+        # 错别字/标点只进报告，不为它们单独返工（返工交接每请求最多一次，只针对阻断问题）
+        assert "错别字、标点、格式问题也需交接给 writer 修正" not in QUALITY_REVIEWER_PROMPT
+        assert "错别字/标点列入报告" in QUALITY_REVIEWER_PROMPT
+        assert "每次请求最多一次返工交接" in QUALITY_REVIEWER_PROMPT
         assert "除非是小的格式/标点修正" not in QUALITY_REVIEWER_PROMPT
         assert "### 已自动修正" not in QUALITY_REVIEWER_PROMPT
+
+
+@pytest.mark.unit
+def test_every_role_reuses_handoff_content_instead_of_rereading():
+    from agent.prompts.subagents import (
+        HANDOFF_READ_RULE,
+        HOOK_DESIGNER_PROMPT,
+        PLANNER_PROMPT,
+    )
+
+    for prompt in (PLANNER_PROMPT, WRITER_PROMPT, HOOK_DESIGNER_PROMPT, QUALITY_REVIEWER_PROMPT):
+        assert HANDOFF_READ_RULE in prompt
+    assert "返工回来时只改报告列出的位置" in WRITER_PROMPT
+    assert "不再送审" in WRITER_PROMPT

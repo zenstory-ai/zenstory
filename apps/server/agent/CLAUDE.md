@@ -11,14 +11,14 @@ agent/
 ├── stream_adapter.py       # LangGraph 事件适配器
 ├── context/                # 上下文组装模块
 │   ├── assembler.py        # 上下文组装器
-│   ├── budget.py           # Token 预算管理
-│   ├── compaction.py       # 上下文压缩（长会话总结）
+│   ├── budget.py           # Token 预算管理（含请求级 prompt 台账）
 │   └── prioritizer.py      # 优先级管理
+│                           # 注：没有会话压缩/总结模块，历史只按 token 预算取最近窗口
 ├── core/                   # 核心基础设施
 │   ├── events.py           # SSE 事件定义
 │   ├── llm_client.py       # OpenAI 兼容 LLM 客户端
 │   ├── message_manager.py  # 消息和系统提示管理
-│   ├── session_loader.py   # 会话加载器
+│   ├── session_loader.py   # 会话加载器（历史窗口 + 面包屑 + 跨轮工作集）
 │   └── stream_processor.py # 文件流处理器
 ├── graph/                  # LangGraph 工作流
 │   ├── state.py            # 工作流状态定义
@@ -250,6 +250,27 @@ async def run_openai_agents_streaming_agent(...):
 3. RELEVANT - 相关大纲、草稿
 4. INSPIRATION - 其他参考内容
 
+**预算与渲染**：
+- 组装上下文预算 `AGENT_CONTEXT_TOKEN_BUDGET`（默认 32000），历史窗口
+  `AGENT_CHAT_HISTORY_TOKEN_BUDGET`（默认 32000），两者与系统提示、工作集共用
+  `budget.DEFAULT_PROMPT_TOKEN_LEDGER_CEILING`（160000）台账，台账只收缩历史。
+- 每个条目标题行渲染为 `标题 (id=…) [全文]` 或
+  `[已截断：显示 x/y 字；全文用 query_files(id="…")]`（检索片段标 `[检索片段，非全文…]`），
+  「相关内容详情」段头声明「标注[全文]的条目就是该文件当前完整内容」。
+- `MessageManager` 只对原始上下文做 strip + 兜底封顶（保留换行）；已在原始上下文
+  完整出现的条目，world_model truth/surface 里只列「标题 (id=…)（全文见项目上下文）」。
+
+### 跨轮工作集 (core/session_loader.py)
+
+runner 回放历史时丢弃工具结果，所以新一轮靠两样东西知道上一轮做过什么：
+- 面包屑：assistant 历史消息末尾的纯文本「[此前的工具操作]」，列创建/编辑/删除，
+  以及按 id 精确读取（query_files(id=…)，含 parallel_execute 子任务）的文件标题 + id。
+- 工作集：最近 2 条 assistant 回复里读/写过的文件，按**当前库内容**整份注入（最多
+  `AGENT_WORKING_SET_MAX_FILES`=8 份、`AGENT_WORKING_SET_MAX_CHARS`=60000 字，超出只列
+  标题 + id；已在组装上下文中以 [全文] 出现的只列一行）。`service.py` 把它拼在本轮用户
+  消息之前（`<previous_turn_working_set>` 块 + 「【本轮用户消息】」），不进系统提示也不改
+  历史消息，前缀缓存可以一直命中到上一轮。
+
 ## 工具系统
 
 ### 可用工具 (tool_schemas.py)
@@ -260,7 +281,7 @@ async def run_openai_agents_streaming_agent(...):
 | `edit_file` | 精确编辑 (replace/insert/append/delete) |
 | `delete_file` | 删除文件 |
 | `query_files` | 查询和搜索文件 |
-| `hybrid_search` | 关键词+向量混合检索（优先） |
+| `hybrid_search` | 关键词+向量混合检索（语义检索可能未启用；定位文件以 `query_files(query=…)` 为准） |
 | `update_project` | 更新项目状态 |
 | `handoff_to_agent` | 交接给另一个 agent |
 | `request_clarification` | 请求用户澄清并暂停工作流 |
