@@ -227,6 +227,7 @@
     "files": "个文件",
     "folders": "个文件夹",
     "confirmRollback": "恢复到这个版本？当前内容会先自动存成一个版本，随时可以换回来。",
+    "confirmUndoAIEdit": "撤销这次 AI 修改？正文会换回修改前的内容，已有的历史版本都会保留。",
     "rollbackFailed": "恢复失败，请重试",
     "snapshotCompareTitle": "版本对比",
     "comparing": "正在对比...",

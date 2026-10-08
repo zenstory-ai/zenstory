@@ -227,6 +227,7 @@
     "files": "files",
     "folders": "folders",
     "confirmRollback": "Restore this version? Your current text is saved as a version first, so you can switch back anytime.",
+    "confirmUndoAIEdit": "Undo this AI edit? Your text goes back to how it was before the edit; all existing versions are kept.",
     "rollbackFailed": "Restore failed. Please try again.",
     "snapshotCompareTitle": "Compare versions",
     "comparing": "Comparing...",
