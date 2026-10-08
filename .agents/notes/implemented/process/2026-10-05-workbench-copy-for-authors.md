@@ -31,4 +31,4 @@ PR #139 删除了订阅页的微信 AIchuangzuo999 兑换码联系引导。owner
 
 - 收益：作者能直接看懂每个页面能做什么、出了问题怎么恢复；界面不再出现内部代码、英文 fallback 或原始 key；文案与后端实际行为一致。
 - 代价：后端新增 agent 类型时，前端映射表要同步补上，否则这类交接气泡不显示。隐私政策 7.1 承诺按邮件申请以结构化格式提供正文以外的数据，目前没有自助导出，需要运营人工处理（另一选择是补齐自助导出功能后再改回"可直接下载"）。错误界面不再显示具体错误码，排查需要依赖后端日志与 request ID；`errorHandler.test.ts`、`MessageList.test.tsx`、`OAuthCallback.test.tsx` 等测试的断言随之改为断言通用文案或断言内部信息不出现；多个 Playwright spec 的选择器改为新文案。
-- 未做：后端兑换接口与限频的 `detail` 仍是英文句子（应改为返回 `ERR_REDEMPTION_*` 代码），Agent `workflow_stopped` 的 message 仍含工程用语，后端 `core/error_codes.py` 里素材错误码的中英文短句未同步改写（前端只用 `errors` 命名空间翻译），`public/docs` 文档正文本次未审阅，首页社会证明数字（2000+ 创作者等）未核实来源也未改动。
+- 未做：后端兑换接口与限频的 `detail` 仍是英文句子（应改为返回 `ERR_REDEMPTION_*` 代码），Agent `workflow_stopped` 的 message 仍含工程用语，后端 `core/error_codes.py` 里素材错误码的中英文短句未同步改写（前端只用 `errors` 命名空间翻译），`public/docs` 文档正文本次未审阅。首页社会证明数字（2000+ 创作者等）已在 `2026-10-08-dashboard-home-copy.md` 中删除。

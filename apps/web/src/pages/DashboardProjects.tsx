@@ -191,7 +191,7 @@ export default function DashboardProjects() {
             {searchQuery || filterType !== "all" ? t('projects.noMatch') : t('projects.empty')}
           </h3>
           <p className={`${isMobile ? "text-sm" : "text-base"} text-[hsl(var(--text-secondary))]`}>
-            {searchQuery || filterType !== "all" ? t('projects.tryDifferent') : t('projects.emptyHint')}
+            {searchQuery || filterType !== "all" ? t('projects.tryDifferent') : t('projects.emptyHintProjectsPage')}
           </p>
         </div>
       )}

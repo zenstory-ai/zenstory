@@ -192,11 +192,11 @@ describe('Dashboard coachmark tour', () => {
     expect(await screen.findByText('没想法就先来这里')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '下一步' }));
 
-    expect(await screen.findByText('一键创建项目')).toBeInTheDocument();
+    expect(await screen.findByText('点这里就开始')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '开始创作' }));
 
     await waitFor(() => {
-      expect(screen.queryByText('一键创建项目')).not.toBeInTheDocument();
+      expect(screen.queryByText('点这里就开始')).not.toBeInTheDocument();
     });
   });
 
@@ -211,7 +211,7 @@ describe('Dashboard coachmark tour', () => {
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '一个关于复仇的短剧开场' } });
     fireEvent.click(screen.getByRole('button', { name: '下一步' }));
 
-    expect(await screen.findByText('一键创建项目')).toBeInTheDocument();
+    expect(await screen.findByText('点这里就开始')).toBeInTheDocument();
     expect(screen.queryByText('没想法就先来这里')).not.toBeInTheDocument();
   });
 
@@ -222,7 +222,7 @@ describe('Dashboard coachmark tour', () => {
     fireEvent.click(screen.getByRole('button', { name: '知道了' }));
     expect(await screen.findByText('从一个想法开始')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '下一步' }));
-    expect(await screen.findByText('一键创建项目')).toBeInTheDocument();
+    expect(await screen.findByText('点这里就开始')).toBeInTheDocument();
     expect(screen.queryByText('没想法就先来这里')).not.toBeInTheDocument();
   });
 

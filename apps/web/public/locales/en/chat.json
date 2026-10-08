@@ -96,7 +96,7 @@
   "message": {
     "aiEdit": "AI Edit: {{files}}{{extra}}",
     "aiDone": "AI Chat Finished",
-    "createProject": "I want to create a {{type}}. Here's my idea:\n\n{{content}}\n\nPlease help me brainstorm the story framework, including main characters, story background, core conflicts, and general plot direction.",
+    "createProject": "I want to write a {{typeLabel}}. My idea:\n\n{{content}}\n\nHelp me shape it: if it's concrete enough, sketch the main characters, setting, core conflict and rough direction; if it's still vague, ask me two or three key questions first.",
     "aiDoneFilesModified": "AI Chat Finished - files modified",
     "aiConversationAt": "AI Assistant Conversation - {{time}}"
   },

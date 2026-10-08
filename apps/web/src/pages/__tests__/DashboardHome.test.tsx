@@ -109,8 +109,11 @@ const mockT = (
     'dashboard:inspiration.example.novel': '写一部架空历史权谋长篇：主角穿越成王朝里最不起眼的六皇子，不夺嫡、不宫斗，只想悄悄攒下兵权自保，却被父皇和几位兄长一步步推到台前。先定主角人设和朝堂势力，再出前三章大纲。',
     'activationGuide.steps.signup_success': '完成注册',
     'activationGuide.steps.project_created': '创建项目',
-    'activationGuide.steps.first_file_saved': '保存第一个文件',
+    'activationGuide.steps.first_file_saved': '写下第一段内容',
     'activationGuide.steps.first_ai_action_accepted': '采纳一次 AI 修改',
+    'defaults.novel': '我的小说',
+    'projects.nameLabel': '作品名（可不填）',
+    'projects.namePlaceholder': `不填就先叫「${optionObj?.name ?? '{{name}}'}」，之后随时能改`,
   }
   if (typeof options === 'string') {
     return translations[key] || options || key
@@ -457,10 +460,51 @@ describe('DashboardHome featured inspirations section', () => {
     // Language adaptation: show localized step labels instead of raw backend English.
     expect(guide.getByText('完成注册')).toBeInTheDocument()
     expect(guide.getByText('创建项目')).toBeInTheDocument()
-    expect(guide.getByText('保存第一个文件')).toBeInTheDocument()
+    expect(guide.getByText('写下第一段内容')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '继续下一步' }))
     expect(mockNavigate).toHaveBeenCalledWith('/project/project-1')
+  })
+
+  it('marks the project name optional and names the default it falls back to', async () => {
+    mockActivationGuide = {
+      user_id: 'u-1',
+      window_hours: 24,
+      within_first_day: true,
+      total_steps: 4,
+      completed_steps: 1,
+      completion_rate: 0.25,
+      is_activated: false,
+      next_event_name: 'project_created',
+      next_action: '/dashboard',
+      steps: [
+        {
+          event_name: 'signup_success',
+          label: 'Signup Success',
+          completed: true,
+          completed_at: '2026-03-08T00:00:00Z',
+          action_path: '/dashboard',
+        },
+        {
+          event_name: 'project_created',
+          label: 'Project Created',
+          completed: false,
+          completed_at: null,
+          action_path: '/dashboard',
+        },
+      ],
+    }
+
+    renderDashboardHome()
+
+    await screen.findByTestId('activation-guide-card')
+    fireEvent.click(screen.getByRole('button', { name: '继续下一步' }))
+
+    const nameInput = await screen.findByLabelText('作品名（可不填）')
+    expect(nameInput).toHaveAttribute('placeholder', '不填就先叫「我的小说」，之后随时能改')
+
+    fireEvent.keyDown(nameInput, { key: 'Enter' })
+    await waitFor(() => expect(mockCreateProject).toHaveBeenCalledWith('我的小说', undefined, 'novel'))
   })
 
   it('shows today action plan entry and executes activation action', async () => {

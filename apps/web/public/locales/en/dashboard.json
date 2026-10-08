@@ -159,14 +159,14 @@
     "startWriting": "Start writing"
   },
   "todayActionPlan": {
-    "title": "3 things to do today",
+    "title": "Things you can do today",
     "subtitle": "Based on your writing progress.",
     "cta": "Go",
     "executing": "Working...",
     "expand": "Show all",
     "collapse": "Collapse",
     "expandHint": "Expand to see more suggestions.",
-    "activationDescription": "A key step to get started.",
+    "activationDescription": "One small step to get going.",
     "personaDescription": "Suggested from the writing preferences you chose.",
     "personaRecommendations": {
       "persona_explorer_template": {
@@ -213,7 +213,7 @@
     "defaults": {
       "createProject": {
         "title": "Create your first project",
-        "description": "Start with a one-line idea; your outline, chapters and settings all live in the project.",
+        "description": "No idea needed yet — start with one click. Your outline, chapters and settings all live in the project.",
         "cta": "New project"
       },
       "openProject": {
@@ -226,9 +226,9 @@
         "cta": "Open project"
       },
       "upgrade": {
-        "title": "Check your limits",
-        "description": "See what you have left this month and upgrade if you need more.",
-        "cta": "View limits"
+        "title": "Check usage",
+        "description": "See how many AI messages you have left today; get Pro only if you need more.",
+        "cta": "Check usage"
       },
       "inspirations": {
         "title": "Browse inspirations",
@@ -243,7 +243,7 @@
     "steps": {
       "signup_success": "Sign up",
       "project_created": "Create a project",
-      "first_file_saved": "Save your first file",
+      "first_file_saved": "Write your first paragraph",
       "first_ai_action_accepted": "Accept an AI edit"
     }
   },
@@ -256,21 +256,23 @@
   },
   "projects": {
     "recent": "Recent Projects",
-    "all": "All Projects",
+    "all": "My Projects",
     "new": "New Project",
     "filterAll": "All",
     "count": "{{count}} projects",
     "count_one": "{{count}} project",
     "count_other": "{{count}} projects",
     "noMatch": "No matching projects",
-    "tryDifferent": "Try adjusting your search or filter",
+    "tryDifferent": "Try a different keyword or story type",
     "createFirst": "Create Your First Project",
     "viewAll": "View All",
     "empty": "No projects yet",
-    "emptyHint": "Click \"Start Writing\" to create your first project — ideas optional",
+    "emptyHint": "Click \"Start Writing\" above to create your first project — no idea needed.",
+    "emptyHintProjectsPage": "Click \"New Project\" to start your first book.",
     "searchPlaceholder": "Search projects...",
     "createNew": "Create New Project",
-    "namePlaceholder": "Name your work",
+    "nameLabel": "Title (optional)",
+    "namePlaceholder": "Leave blank to use \"{{name}}\" — rename anytime",
     "confirmDeleteTitle": "Delete this project?",
     "confirmDeleteMessage": "Everything in this project will be deleted and can't be restored.",
     "confirmDeleteButton": "Delete",
@@ -372,10 +374,10 @@
       "title": "Project Health",
       "overallStatus": "Overall project status",
       "status": {
-        "good": "Healthy",
-        "warning": "Needs Attention",
-        "critical": "Action Required",
-        "neutral": "Not Started"
+        "good": "Going well",
+        "warning": "Could use a push",
+        "critical": "Been a while",
+        "neutral": "Not started"
       },
       "indicators": {
         "chapters": "Chapter Progress",
@@ -385,10 +387,10 @@
         "inactive": "Inactive",
         "activityGood": "{{count}} words written today",
         "activityWarning": "No writing yet this week",
-        "activityInactive": "Start writing to track progress",
+        "activityInactive": "Write a few lines to see progress",
         "streak": "Writing Streak",
         "streakActive": "Keep up the momentum",
-        "streakInactive": "Build a writing habit",
+        "streakInactive": "Write 10 words today to start a streak",
         "aiUsage": "AI Collaboration",
         "aiActive": "Actively using AI assistance",
         "aiInactive": "Try AI for writing help"
@@ -400,28 +402,28 @@
       "notStarted": "Ready to Start",
       "completed": "Recently Finished",
       "noFiles": "No files yet",
-      "createFirst": "Create your first chapter to get started",
+      "createFirst": "Add a chapter and write whatever comes",
       "action": "Continue Writing",
       "hintInProgress": "Pick up where you left off",
       "hintNotStarted": "Start writing this chapter",
       "hintCompleted": "Review or continue to next chapter"
     },
     "outstandingTasks": {
-      "title": "Outstanding Tasks",
-      "total": "{{count}} tasks",
+      "title": "What you could do next",
+      "total": "{{count}} items",
       "allClear": "All Caught Up!",
-      "allClearHint": "No pending tasks at the moment",
-      "notStartedCount": "not started",
-      "draftWithoutOutlineCount": "no outline",
-      "outlineWithoutDraftCount": "no draft",
-      "notStartedDesc": "Chapter hasn't been started yet",
-      "draftWithoutOutlineDesc": "Content exists but no outline plan",
-      "outlineWithoutDraftDesc": "Planned but not yet written",
-      "moreTasks": "+{{count}} more tasks",
+      "allClearHint": "Nothing to pick up right now",
+      "notStartedCount": "not started yet",
+      "draftWithoutOutlineCount": "outline optional",
+      "outlineWithoutDraftCount": "ready to write",
+      "notStartedDesc": "This chapter hasn't been started yet",
+      "draftWithoutOutlineDesc": "You've written the chapter; an outline helps the AI pick up the thread (optional)",
+      "outlineWithoutDraftDesc": "The outline is ready, so you can start writing",
+      "moreTasks": "+{{count}} more",
       "types": {
-        "draftWithoutOutline": "No Outline",
-        "outlineWithoutDraft": "No Draft",
-        "notStarted": "Not Started"
+        "draftWithoutOutline": "Outline optional",
+        "outlineWithoutDraft": "Ready to write",
+        "notStarted": "Not started yet"
       }
     },
     "wordCount": {
@@ -474,7 +476,9 @@
       "recoveryAvailable": "Streaks saved after a missed day",
       "keepWriting": "Keep it up!",
       "startWriting": "Start writing today",
-      "daysUntilBreak": "{{count}} days until break",
+      "daysUntilBreak": "Your streak ends if you don't write within {{count}} days",
+      "daysUntilBreak_one": "Your streak ends if you don't write within {{count}} day",
+      "daysUntilBreak_other": "Your streak ends if you don't write within {{count}} days",
       "tips": {
         "title": "Streak Tips",
         "daily": "Write at least 10 words daily to maintain your streak.",
@@ -547,8 +551,8 @@
         "descriptionWithoutLibrary": "Jot down whatever comes to mind. One line is enough, and you can start with nothing at all."
       },
       "createProject": {
-        "title": "Create a project in one click",
-        "description": "This creates a new project immediately so you can keep writing or let AI help you expand it.",
+        "title": "Click here to begin",
+        "description": "Your project is created instantly. Typed an idea? The AI helps shape it first. Left it blank? Chat with the AI anytime inside.",
         "cta": "Try it"
       },
       "inspirationsLink": {
