@@ -66,7 +66,7 @@ const VOICE_INPUT = {
   toast: '.fixed.bottom-20.left-1\\/2',
   toastError: '.fixed.bottom-20.left-1\\/2.bg-\\[hsl\\(var\\(--error\\)\\)',
   // Chat input
-  textarea: 'textarea[placeholder*="描述"], textarea[placeholder*="Describe"]',
+  textarea: '[data-testid="chat-input"]',
 }
 
 // Helper to login and navigate to project

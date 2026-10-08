@@ -39,9 +39,9 @@ const SKILL_CARD = {
 
 const _SKILL_MODAL = {
   overlay: '[role="dialog"]',
-  nameInput: 'input[placeholder*="名称"]',
+  nameInput: 'input[placeholder*="章末留钩子"], input[placeholder*="名称"]',
   descInput: 'input[placeholder*="描述"]',
-  triggersInput: 'input[placeholder*="创建角色"], input[placeholder*="trigger"], input[placeholder*="character"]',
+  triggersInput: 'input[placeholder*="开篇"], input[placeholder*="创建角色"], input[placeholder*="trigger"], input[placeholder*="character"]',
   instructionsTextarea: 'textarea',
   saveButton: 'button:has-text("保存")',
   cancelButton: 'button:has-text("取消")',
@@ -131,12 +131,12 @@ async function createSkill(
   const dialog = page.getByRole('dialog', { name: /创建技能|编辑技能/i }).first();
   await expect(dialog).toBeVisible();
 
-  await dialog.locator('input[placeholder*="名称"]').first().fill(name);
+  await dialog.locator('input[placeholder*="章末留钩子"], input[placeholder*="名称"]').first().fill(name);
   await dialog.locator('textarea').first().fill(instructions);
 
   if (triggers) {
     await dialog
-      .locator('input[placeholder*="创建角色"], input[placeholder*="trigger"], input[placeholder*="character"]')
+      .locator('input[placeholder*="开篇"], input[placeholder*="创建角色"], input[placeholder*="trigger"], input[placeholder*="character"]')
       .first()
       .fill(triggers);
   }
@@ -223,7 +223,7 @@ test.describe('Skills Management Flow - CRUD Lifecycle', () => {
     await createButton.click();
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
-    await page.fill('input[placeholder*="名称"]', skillName);
+    await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', skillName);
     await page.fill('textarea', instructions);
     // Don't fill description
 
@@ -306,7 +306,7 @@ test.describe('Skills Management Flow - Keyboard Navigation', () => {
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
     // Tab through form fields
-    const nameInput = page.locator('input[placeholder*="名称"]');
+    const nameInput = page.locator('input[placeholder*="章末留钩子"], input[placeholder*="名称"]');
     await expect(nameInput).toBeVisible();
 
     await page.keyboard.press('Tab');
@@ -467,7 +467,7 @@ test.describe('Skills Management Flow - Form Validation', () => {
     await expect(saveButton).toBeDisabled();
 
     // Fill only name
-    await page.fill('input[placeholder*="名称"]', '只有名称');
+    await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', '只有名称');
     await expect(saveButton).toBeDisabled();
 
     // Fill instructions - now should be enabled
@@ -498,7 +498,7 @@ test.describe('Skills Management Flow - Form Validation', () => {
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
     // Fill some data
-    await page.fill('input[placeholder*="名称"]', '将被取消的技能');
+    await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', '将被取消的技能');
     await page.fill('textarea', '这些数据不应该被保存');
 
     // Cancel
@@ -526,7 +526,7 @@ test.describe('Skills Management Flow - Error Recovery', () => {
     await createButton.click();
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
-    await page.fill('input[placeholder*="名称"]', '离线技能');
+    await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', '离线技能');
     await page.fill('textarea', '离线指令');
 
     // Try to save - should fail or show error
@@ -617,7 +617,7 @@ test.describe('Skills Management Flow - Accessibility', () => {
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
     // Check name input has label (via placeholder or label element)
-    const nameInput = page.locator('input[placeholder*="名称"]');
+    const nameInput = page.locator('input[placeholder*="章末留钩子"], input[placeholder*="名称"]');
     const hasPlaceholder = await nameInput.getAttribute('placeholder');
     expect(hasPlaceholder).toBeTruthy();
 
@@ -658,8 +658,8 @@ test.describe('Skills Management Flow - Mobile Responsive', () => {
     await expect(modal).toBeVisible();
 
     // Form fields should be tappable
-    await page.click('input[placeholder*="名称"]');
-    await page.fill('input[placeholder*="名称"]', '移动端技能');
+    await page.click('input[placeholder*="章末留钩子"], input[placeholder*="名称"]');
+    await page.fill('input[placeholder*="章末留钩子"], input[placeholder*="名称"]', '移动端技能');
 
     await page.click('textarea');
     await page.fill('textarea', '移动端指令');
