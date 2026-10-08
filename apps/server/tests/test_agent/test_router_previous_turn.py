@@ -199,8 +199,19 @@ def test_router_prompt_explains_every_section_the_builder_emits():
 def test_router_prompt_rules_for_replies_and_write_content():
     from agent.prompts.subagents import ROUTER_PROMPT
 
-    # 短回复沿用上一轮 agent 与范围
-    assert re.search(r"简短回复.*沿用上一轮路由的 agent.*scope", ROUTER_PROMPT)
+    # 补问作答（任务还没做完）沿用上一轮全部路由字段
+    assert re.search(
+        r"A 补问.*沿用上一轮路由的 agent.*workflow_type、write_content、read_only 和 scope", ROUTER_PROMPT
+    )
+    # 确认上一轮提议的下一步：按提议的那一步路由，不沿用只读 / 不要正文 / 已交付的范围
+    # （与 inherit_routing_after_clarification 把这些问句收尾交回 LLM 路由的理由一致）
+    offer_rule = re.search(r"^- B 提议下一步：.*$", ROUTER_PROMPT, flags=re.MULTILINE)
+    assert offer_rule
+    for required in ("writer + quick", "write_content=true", "read_only=false"):
+        assert required in offer_rule.group(0)
+    assert re.search(r"不要沿用上一轮的 read_only=true、write_content=false 或已交付的 scope", offer_rule.group(0))
+    # 旧的「确认一律沿用 write_content / read_only」规则不能回来
+    assert "write_content / read_only 也沿用" not in ROUTER_PROMPT
     # write_content=false 只认用户原话里的明确否定，补充设定信息不算
     assert re.search(r"只有用户原话里明确不要正文（“先别写/不要正文/只要大纲/先不用写”）", ROUTER_PROMPT)
     assert "上一轮助手说的话不能成为 false 的理由" in ROUTER_PROMPT

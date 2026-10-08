@@ -23,7 +23,12 @@ Status: implemented
 
 **ROUTER_PROMPT**
 
-- 新增「上一轮上下文」一节：说明三段标题的含义，交付范围仍按 [用户本轮原话] 判断；简短回复在回答或确认上一轮提问（「可以」「B」「隐忍吧」、逐条作答）时沿用上一轮路由的 agent（优先 `last_agent`）、`workflow_type` 和 `scope`，`write_content` / `read_only` 也沿用，除非用户本轮另有明确说法；上一轮 writer 在写正文时「继续 / 接着写 / 下一章」→ writer + quick + `write_content=true`；与上一轮无关的新要求忽略上下文。
+- 新增「上一轮上下文」一节：说明三段标题的含义；用户在回应上一轮提问时，先分清上一轮在问什么，再决定沿用哪些字段，其余情况交付范围按 [用户本轮原话] 判断：
+  - **A 补问**：任务还没做完，上一轮在要缺的信息（澄清卡 `clarification_needed`，或「开篇选A还是B？」「主角性格偏隐忍还是张扬？」「主角叫什么？」）。用户作答（「B」「隐忍吧」、逐条回答）→ 原任务继续，沿用上一轮路由的 agent（优先 `last_agent`）、`workflow_type`、`write_content`、`read_only` 和 `scope`。对应确定性规则里「澄清卡沿用全部字段」。
+  - **B 提议下一步**：上一轮已交付，在问要不要做下一步（「要我继续写第二章吗？」「要我帮你直接改掉这些问题吗？」「大纲好了，要我开始写第一章吗？」）。用户确认 → 按提议的那一步路由：写正文或改稿 → writer + quick、`write_content=true`、`read_only=false`；`scope` 写提议的那一步，说不清就留空；明确不沿用上一轮的 `read_only=true`、`write_content=false` 和已交付的 `scope`。这与确定性规则的分工一致：问句收尾时它把 `read_only=true` / `write_content=false` 的轮次交回 LLM 路由、并清空已交付的 `scope`（`keep_scope` 只对澄清卡为真），理由正是这类问句多半在请求解除限制、旧范围已经交付。LLM 路由现在主要接的就是这些轮次（外加超过 40 字的确认），提示词必须给出相同的方向，否则「可以」会被判回只读审查或「不要写正文」。
+  - 上一轮 writer 在写正文时「继续 / 接着写 / 下一章」→ writer + quick + `write_content=true`，`scope` 不沿用已写完的章节。
+  - 用户本轮原话有明确说法（「先别写正文」「不要改」）时以原话为准；与上一轮无关的新要求忽略上下文。
+  - 「交付范围字段」里的 `read_only`（没明说时为 false）和 `scope`（没限定时为空）各加一句括注指向 A/B，避免与上面的沿用规则互相矛盾。
 - `write_content` 规则改为：只有用户原话明确不要正文（「先别写 / 不要正文 / 只要大纲 / 先不用写」），或本轮只要求大纲/人设/设定/规划/爽点思路这类非正文产出时才为 false；回答问题、补充人设/设定信息不算只要设定；上一轮助手说的话不能成为 false 的理由。
 - 「检查并修改 / 有问题就改」→ writer + quick 与「只审不改」→ review_only 两条规则保持原样（上一批已加）。
 - [最高优先级] 范围指令机制（`writing_graph` 的 `SCOPE_DIRECTIVE_NO_CONTENT`、`nodes` 的「本轮用户范围约束」）不动。
@@ -34,7 +39,7 @@ Status: implemented
 
 **真实模型探测**
 
-分类效果要用真实模型确认。探测脚本不放仓库：它内嵌新版 `ROUTER_PROMPT` 和本节的构造/解析代码（由生成脚本从源码逐字拷出），在生产 API 容器里经 stdin 运行，最多 20 次请求，覆盖「可以」确认下一章、选 B、回答 planner 提问、补充主角信息、检查并修改、只检查不改、先别写正文列大纲、写完一章后「继续」、新开长篇九种情况。
+分类效果要用真实模型确认。探测脚本不放仓库：它内嵌新版 `ROUTER_PROMPT` 和本节的构造/解析代码（由生成脚本从源码逐字拷出），在生产 API 容器里经 stdin 运行，最多 20 次请求，覆盖「可以」确认下一章（`scope` 不得含「第1章」）、选 B、回答 planner 提问、补充主角信息、检查并修改、只检查不改、先别写正文列大纲、写完一章后「继续」、新开长篇九种情况，以及 LLM 路由在生产中主要接手的三种 B 类确认：只读审查后问「要我帮你直接改掉这些问题吗？」回「可以」（期望 writer、`read_only=false`）、只要大纲后问「要我开始写第一章吗？」回「好的」（期望 `write_content=true`，writer 或 planner + standard）、「只写第1章」写完后超过 40 字的确认（期望 writer、`write_content=true`、`scope` 不含「第1章」）。
 
 ## Alternatives considered
 
@@ -47,9 +52,10 @@ Status: implemented
 
 - 收益：确定性规则没接住的回答（长回答、上一轮只读/不要正文后的作答、问号以外的提问方式、写完后的「继续」）也能按上一轮的 agent 和范围路由；第一轮的路由输入和缓存前缀与改动前完全一致。
 - 代价：有上一轮时每次路由多约 1000 字输入（600 字结尾 + 400 字状态卡 + 一行路由），路由调用的 token 和延迟随之略增。
+- 代价：A/B 的区分靠模型读上一轮结尾的语义。「要不要我先补一下主角背景再写？」这类既像补问又像提议的问句可能被归错：归成 A 会沿用旧的只读 / 不要正文 / 范围，归成 B 会解除它们。确定性规则只在澄清卡上沿用全部字段，比提示词更保守；提示词对问句的判断以真实模型探测为准。
 - 代价：路由器可能过度沿用：用户在上一轮之后换了话题但措辞含糊时，可能仍被判给上一轮的 agent。提示词要求新要求忽略上下文，效果以真实模型探测为准，mock 测试只验证管线。
 - 代价：600 字结尾按字符截取，可能截在半句话中间；提问通常在结尾，影响有限。
 
 ## Verification
 
-`cd apps/server && venv/bin/python -m pytest tests/test_agent/test_router_previous_turn.py -q --no-cov -n 0`（mock DeepSeek 客户端）：第一轮发给路由模型的消息与改动前逐字相同；有上一轮时 user 消息依次是结尾、路由 JSON（固定字段顺序）、用户原话，面包屑和 UI 装饰不进路由；长回复只保留最后 600 字；正文非空的澄清卡问题经 `session_loader` 的 `status_card_text` 进入路由；只有状态卡的旧数据从正文里截出卡片；上一轮既无文本也无路由时退回旧消息；构造器发出的每个段落标题在系统提示里都有解释；提示词含短回复沿用、`write_content=false` 只认明确否定、检查并修改 → writer、只审不改 → review_only。除两条「与改动前一致」的用例外，其余在改动前的代码上全部失败。另跑 `tests/test_agent` 全量与 `tests/test_api/test_agent.py`。真实模型探测脚本的结果不在仓库里，见本批交付说明。
+`cd apps/server && venv/bin/python -m pytest tests/test_agent/test_router_previous_turn.py -q --no-cov -n 0`（mock DeepSeek 客户端）：第一轮发给路由模型的消息与改动前逐字相同；有上一轮时 user 消息依次是结尾、路由 JSON（固定字段顺序）、用户原话，面包屑和 UI 装饰不进路由；长回复只保留最后 600 字；正文非空的澄清卡问题经 `session_loader` 的 `status_card_text` 进入路由；只有状态卡的旧数据从正文里截出卡片；上一轮既无文本也无路由时退回旧消息；构造器发出的每个段落标题在系统提示里都有解释；提示词含 A 补问沿用全部路由字段、B 确认提议按提议的一步路由且不沿用只读 / 不要正文 / 已交付范围（旧的「确认一律沿用 write_content / read_only」措辞不得回来）、`write_content=false` 只认明确否定、检查并修改 → writer、只审不改 → review_only。除两条「与改动前一致」的用例外，其余在改动前的代码上全部失败。另跑 `tests/test_agent` 全量与 `tests/test_api/test_agent.py`。真实模型探测脚本的结果不在仓库里，见本批交付说明。
