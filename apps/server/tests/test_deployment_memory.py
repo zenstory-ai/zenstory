@@ -24,10 +24,18 @@ def test_production_server_defaults_to_one_worker():
     railway_config = (SERVER_ROOT / "railway.toml").read_text()
     dockerfile = (SERVER_ROOT / "Dockerfile").read_text()
 
-    assert "${WEB_CONCURRENCY:-1}" in railway_config
-    assert "${WEB_CONCURRENCY:-1}" in dockerfile
-    assert "${WEB_CONCURRENCY:-3}" not in railway_config
-    assert "${WEB_CONCURRENCY:-3}" not in dockerfile
+    assert 'startCommand = "python scripts/start_api.py"' in railway_config
+    assert 'CMD ["python", "scripts/start_api.py"]' in dockerfile
+    result = _run_isolated_import(
+        """
+from scripts.start_api import main
+commands = []
+main(environment={}, execvp=lambda executable, command: commands.append(command))
+assert len(commands) == 1
+assert commands[0][commands[0].index('--workers') + 1] == '1'
+"""
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
 
 
 def test_auth_import_does_not_load_vector_stack():

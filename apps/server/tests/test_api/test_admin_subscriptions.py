@@ -67,7 +67,7 @@ def get_or_create_plan(db_session: Session, name: str) -> SubscriptionPlan:
         display_name_en=name.title(),
         price_monthly_cents=0,
         price_yearly_cents=0,
-        features={"ai_conversations_per_day": 20, "max_projects": 3},
+        features={"ai_conversations_per_day": 10, "max_projects": 3},
         is_active=True,
     )
     db_session.add(plan)

@@ -1,4 +1,4 @@
-"""Cross-process ¥5 free-user budget checked before every real model call.
+"""Cross-process ¥15 free-user budget checked before every real model call.
 
 Reserve an upper bound before sending; reconcile only when usage is known.
 Unknown/cancelled calls retain their reservation. The Beijing day and price band
@@ -27,7 +27,7 @@ from models.llm_usage import LLMUsageEvent
 from models.subscription import SubscriptionPlan, UserSubscription
 from services.usage.pricing import beijing_range_utc, beijing_today, cost_units, naive_utc, price_band, units_to_cny
 
-DAILY_LIMIT_UNITS = 500_000_000
+FREE_DAILY_BUDGET_UNITS = 1_500_000_000
 COST_LIMIT_CODE = "ERR_QUOTA_AI_DAILY_COST_EXCEEDED"
 UNAVAILABLE_CODE = "ERR_AI_COST_BUDGET_UNAVAILABLE"
 _attribution: ContextVar[Any] = ContextVar("ai_cost_attribution", default=None)
@@ -94,8 +94,8 @@ def _log_budget(message: str, *, user_id: str, day: Any, charged_units: int, **e
         budget_day=str(day),
         charged_units=charged_units,
         charged_cny=str(units_to_cny(charged_units)),
-        daily_limit_units=DAILY_LIMIT_UNITS,
-        daily_limit_cny="5",
+        daily_limit_units=FREE_DAILY_BUDGET_UNITS,
+        daily_limit_cny="15",
         **extra,
     )
 
@@ -211,7 +211,7 @@ def reserve_model_call(
                     for event in historical
                 )
                 seed_units = bucket.charged_units
-            if bucket.charged_units + upper > DAILY_LIMIT_UNITS:
+            if bucket.charged_units + upper > FREE_DAILY_BUDGET_UNITS:
                 pending = session.exec(
                     select(func.coalesce(func.sum(AICostReservation.reserved_units), 0)).where(
                         AICostReservation.user_id == user_id,

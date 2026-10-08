@@ -144,8 +144,9 @@
     "redeemSuccessDays": "Redeemed: {{days}} days of membership.",
     "redeeming": "Redeeming...",
     "dailyQuotaResetHint": "Daily AI conversation quotas reset at 00:00 Beijing time (UTC+8).",
+    "freeDailyMessageLimitHint": "Free users can send up to {{limit}} AI messages per day. It resets the next day at 00:00 Beijing time (UTC+8).",
     "monthlyQuotaResetHint": "Monthly quotas reset on the 1st at 00:00 Beijing time (UTC+8).",
-    "metricAiConversations": "Daily AI conversations",
+    "metricAiConversations": "Daily AI messages",
     "metricAiConversationsOutcome": "Resets at 00:00 Beijing time (UTC+8)"
   },
   "todayActionPlan": {

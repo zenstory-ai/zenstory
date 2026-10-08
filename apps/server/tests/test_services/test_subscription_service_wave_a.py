@@ -30,7 +30,7 @@ def _create_plan(db_session: Session, name: str) -> SubscriptionPlan:
         display_name_en=name.title(),
         price_monthly_cents=2900 if name != "free" else 0,
         price_yearly_cents=29000 if name != "free" else 0,
-        features={"ai_conversations_per_day": -1 if name != "free" else 20},
+        features={"ai_conversations_per_day": -1 if name != "free" else 10},
         is_active=True,
     )
     db_session.add(plan)

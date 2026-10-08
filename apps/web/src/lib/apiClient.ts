@@ -25,7 +25,10 @@
 import { resolveApiErrorMessage, toUserErrorMessage } from './errorHandler';
 import { logger } from './logger';
 
-const API_BASE_RAW = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_RAW = import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.PROD && typeof window !== 'undefined'
+    ? window.location.origin
+    : 'http://localhost:8000');
 
 /**
  * Get the API base URL, auto-upgrading to HTTPS if needed.

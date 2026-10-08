@@ -48,7 +48,7 @@ def free_plan(db_session: Session):
         price_monthly_cents=0,
         price_yearly_cents=0,
         features={
-            "ai_conversations_per_day": 20,
+            "ai_conversations_per_day": 10,
             "max_projects": 3,
             "materials_library_access": False,
             "material_uploads": 0,
@@ -201,7 +201,7 @@ class TestGetPlanLimits:
         result = quota_service.get_plan_limits(free_plan)
 
         assert result is not None
-        assert result["ai_conversations_per_day"] == 20
+        assert result["ai_conversations_per_day"] == 10
         assert result["max_projects"] == 3
 
     def test_get_plan_limits_pro(self, db_session: Session, pro_plan):
@@ -338,12 +338,35 @@ class TestCheckAIConversationQuota:
         # Should create quota and return defaults
         assert allowed is True
         assert used == 0
-        assert limit == 20  # Free plan limit
+        assert limit == 10  # Free plan limit
 
     def test_check_quota_within_limit(
         self, db_session: Session, test_user, free_plan
     ):
         """Test checking quota when within limit."""
+        now = datetime.utcnow()
+        quota = UsageQuota(
+            user_id=test_user.id,
+            period_start=now,
+            period_end=now + timedelta(days=30),
+            ai_conversations_used=5,
+            last_reset_at=now,
+        )
+        db_session.add(quota)
+        db_session.commit()
+
+        allowed, used, limit = quota_service.check_ai_conversation_quota(
+            db_session, test_user.id
+        )
+
+        assert allowed is True
+        assert used == 5
+        assert limit == 10
+
+    def test_check_quota_at_limit(
+        self, db_session: Session, test_user, free_plan
+    ):
+        """Test checking quota when at limit."""
         now = datetime.utcnow()
         quota = UsageQuota(
             user_id=test_user.id,
@@ -359,32 +382,9 @@ class TestCheckAIConversationQuota:
             db_session, test_user.id
         )
 
-        assert allowed is True
-        assert used == 10
-        assert limit == 20
-
-    def test_check_quota_at_limit(
-        self, db_session: Session, test_user, free_plan
-    ):
-        """Test checking quota when at limit."""
-        now = datetime.utcnow()
-        quota = UsageQuota(
-            user_id=test_user.id,
-            period_start=now,
-            period_end=now + timedelta(days=30),
-            ai_conversations_used=20,
-            last_reset_at=now,
-        )
-        db_session.add(quota)
-        db_session.commit()
-
-        allowed, used, limit = quota_service.check_ai_conversation_quota(
-            db_session, test_user.id
-        )
-
         assert allowed is False
-        assert used == 20
-        assert limit == 20
+        assert used == 10
+        assert limit == 10
 
     def test_check_quota_unlimited(
         self, db_session: Session, test_user, pro_plan
@@ -454,7 +454,7 @@ class TestConsumeAIConversation:
             user_id=test_user.id,
             period_start=now,
             period_end=now + timedelta(days=30),
-            ai_conversations_used=20,
+            ai_conversations_used=10,
             last_reset_at=now,
         )
         db_session.add(quota)
@@ -466,7 +466,7 @@ class TestConsumeAIConversation:
 
         # Verify no increment
         db_session.refresh(quota)
-        assert quota.ai_conversations_used == 20
+        assert quota.ai_conversations_used == 10
 
     def test_consume_creates_quota(
         self, db_session: Session, test_user, free_plan
@@ -1231,17 +1231,17 @@ class TestQuotaReservationPeriods:
             current_period_start=now, current_period_end=now + timedelta(days=30),
         ))
         quota = quota_service.create_default_quota(db_session, test_user.id)
-        quota.ai_conversations_used = 20
+        quota.ai_conversations_used = 10
         db_session.add(quota)
         db_session.commit()
 
         checked, used, limit = quota_service.check_ai_conversation_quota(db_session, test_user.id)
-        assert (checked, used, limit) == (allowed, 20, expected_limit)
+        assert (checked, used, limit) == (allowed, 10, expected_limit)
         reservation = quota_service.reserve_ai_conversation(db_session, test_user.id)
         assert (reservation is not None) is allowed
         snapshot = quota_service.get_quota_snapshot(db_session, test_user.id)
         assert snapshot["ai_conversations"]["limit"] == expected_limit
-        assert snapshot["ai_conversations"]["used"] == (21 if allowed else 20)
+        assert snapshot["ai_conversations"]["used"] == (11 if allowed else 10)
 
     def test_previous_day_reservation_cannot_refund_new_day(
         self, db_session, test_user, free_plan, monkeypatch
@@ -1287,7 +1287,7 @@ class TestQuotaReservationPeriods:
     ):
         monkeypatch.setattr("services.quota_service.utcnow", lambda: datetime(2026, 10, 5, 7, tzinfo=UTC))
         quota = quota_service.create_default_quota(db_session, test_user.id)
-        quota.ai_conversations_used = 20
+        quota.ai_conversations_used = 10
         db_session.add(quota)
         db_session.commit()
 
@@ -1296,7 +1296,7 @@ class TestQuotaReservationPeriods:
         else:
             assert quota_service.reserve_feature_quota(db_session, test_user.id, feature) is None
         db_session.refresh(quota)
-        assert quota.ai_conversations_used == 20
+        assert quota.ai_conversations_used == 10
         assert quota.material_decompositions_used == 0
 
 

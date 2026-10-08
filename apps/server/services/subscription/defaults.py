@@ -10,7 +10,7 @@ DEFAULT_FREE_PLAN_PRICE_MONTHLY_CENTS = 0
 DEFAULT_FREE_PLAN_PRICE_YEARLY_CENTS = 0
 
 DEFAULT_FREE_PLAN_FEATURES: dict[str, Any] = {
-    "ai_conversations_per_day": 20,
+    "ai_conversations_per_day": 10,
     "context_window_tokens": 4096,
     "file_versions_per_file": 10,
     "max_projects": 3,
@@ -76,6 +76,8 @@ def resolve_plan_feature(
     plan_name: str | None, features: dict[str, Any] | None, key: str, fallback: Any = 0
 ) -> Any:
     """A plan's stored feature value, or that plan's own default when absent."""
+    if plan_name == DEFAULT_FREE_PLAN_NAME and key == "ai_conversations_per_day":
+        return DEFAULT_FREE_PLAN_FEATURES[key]
     value = (features or {}).get(key)
     if value is not None:
         return value

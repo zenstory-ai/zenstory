@@ -50,7 +50,7 @@ def free_plan(db_session: Session):
         price_monthly_cents=0,
         price_yearly_cents=0,
         features={
-            "ai_conversations_per_day": 20,
+            "ai_conversations_per_day": 10,
             "max_projects": 3,
         },
         is_active=True,

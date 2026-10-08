@@ -66,7 +66,7 @@ describe('subscriptionApi', () => {
         current_period_end: null,
         days_remaining: null,
         features: {
-          ai_conversations_per_day: 20,
+          ai_conversations_per_day: 10,
           context_window_tokens: 50000,
           file_versions_per_file: 10,
           max_projects: 3,

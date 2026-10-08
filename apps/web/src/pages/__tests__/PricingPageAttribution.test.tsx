@@ -95,7 +95,7 @@ describe("PricingPage attribution", () => {
           summary_key: "starter",
           target_user_key: "explorer",
           entitlements: {
-            ai_conversations_per_day: 20,
+            ai_conversations_per_day: 10,
             writing_credits_monthly: 0,
             agent_runs_monthly: 0,
             active_projects_limit: 3,

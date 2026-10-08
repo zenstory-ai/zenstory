@@ -20,12 +20,12 @@
     "skillMatched": "Skill activated: {{name}}",
     "skillMatchedMulti": "Skill {{index}}: {{name}}",
     "streamErrorTitle": "Generation was interrupted",
-    "quotaExceededTitle": "Today's AI quota is used up",
-    "quotaExceededHint": "Your quota resets tomorrow. Upgrade for a higher daily limit.",
+    "quotaExceededTitle": "Today's 10 AI messages are used up",
+    "quotaExceededHint": "Your message allowance resets the next day at 00:00 Beijing time (UTC+8). Upgrade for a higher daily limit.",
     "fileVersionLimitTitle": "File version limit reached",
     "fileVersionLimitDesc": "Upgrade your plan to keep more versions.",
-    "dailyCostExceededTitle": "Free AI allowance is insufficient today",
-    "dailyCostExceededHint": "Long tasks and ongoing generations also use this allowance. It resets at midnight Beijing time; upgrade to continue writing."
+    "dailyCostExceededTitle": "Today's AI allowance is used up",
+    "dailyCostExceededHint": "It resets the next day at 00:00 Beijing time (UTC+8). Upgrade to Pro to continue writing."
   },
   "input": {
     "placeholder": "Describe your idea…",

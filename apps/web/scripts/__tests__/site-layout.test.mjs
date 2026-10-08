@@ -21,7 +21,13 @@ test('Vercel config is source-controlled and API bypasses the SPA', () => {
     destination: '/api/indexnow-key',
   })
   assert.equal(vercelConfig.rewrites[1].source, '/:path(api(?:/.*)?)')
-  assert.equal(vercelConfig.rewrites[1].destination, 'https://api.zenstory.ai/:path')
+  assert.equal(vercelConfig.rewrites[1].destination, 'https://staging-api-staging-a289.up.railway.app/:path')
+  assert.deepEqual(vercelConfig.rewrites[1].has, [{
+    type: 'host',
+    value: 'geo-preview\\.zenstory\\.ai|app-preview\\.zenstory\\.ai|.*\\.vercel\\.app',
+  }])
+  assert.equal(vercelConfig.rewrites[2].source, '/:path(api(?:/.*)?)')
+  assert.equal(vercelConfig.rewrites[2].destination, 'https://api.zenstory.ai/:path')
   assert.ok(vercelConfig.headers.some(r => r.source === '/:path(api(?:/.*)?)' && r.headers.some(h=>h.key==='x-vercel-enable-rewrite-caching' && h.value==='0')))
   assert.ok(vercelConfig.redirects.findIndex(r=>r.source.endsWith('/index.html') && r.source.startsWith('/:path')) < vercelConfig.redirects.findIndex(r=>r.source.includes('projects|') && r.has), 'Clean aliases before host redirects')
   const scripts = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url))).scripts

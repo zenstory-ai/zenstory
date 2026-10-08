@@ -193,7 +193,7 @@ def test_admin_quota_view_uses_effective_plan_and_resets_ended_periods(
     next_beijing_midnight = datetime(2026, 10, 6, 16, tzinfo=UTC)
     next_beijing_month = datetime(2026, 10, 31, 16, tzinfo=UTC)
     assert view["plan_name"] == "free"
-    assert view["ai_conversations"] == {"used": 0, "limit": 20, "reset_at": next_beijing_midnight}
+    assert view["ai_conversations"] == {"used": 0, "limit": 10, "reset_at": next_beijing_midnight}
     assert view["material_decompositions"] == {"used": 0, "limit": 0, "reset_at": next_beijing_month}
     assert view["inspiration_copies"]["used"] == 0
     assert view["custom_skills"] == {"used": 1, "limit": 3, "reset_at": None}

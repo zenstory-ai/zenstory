@@ -54,7 +54,7 @@ def create_plan(db_session: Session, name: str) -> SubscriptionPlan:
         display_name_en="Basic",
         price_monthly_cents=999,
         price_yearly_cents=9999,
-        features={"ai_conversations_per_day": 20, "max_projects": 3},
+        features={"ai_conversations_per_day": 10, "max_projects": 3},
         is_active=True,
         updated_at=utcnow() - timedelta(days=1),
     )

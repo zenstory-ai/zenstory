@@ -21,7 +21,7 @@ let paymentOptionsResponse: Record<string, unknown> = {}
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, fallback?: string) =>
+    t: (key: string, fallback?: string, values?: { limit?: number }) =>
       (
         {
           'dashboard:billing.title': 'Billing',
@@ -34,6 +34,7 @@ vi.mock('react-i18next', () => ({
           'dashboard:billing.currentPlan': 'Current plan',
           'dashboard:billing.usageTitle': 'Usage',
           'dashboard:billing.dailyQuotaResetHint': 'Daily AI conversation quotas reset at 00:00 Beijing time (UTC+8).',
+          'dashboard:billing.freeDailyMessageLimitHint': `Free users can send up to ${values?.limit} AI messages per day. It resets the next day at 00:00 Beijing time (UTC+8).`,
           'dashboard:billing.monthlyQuotaResetHint': 'Monthly quotas reset on the 1st at 00:00 Beijing time (UTC+8).',
           'common:error': 'Load failed',
           'common:retry': 'Retry',
@@ -232,11 +233,11 @@ describe('BillingPage', () => {
     expect(screen.getByText('¥19/month · ¥190/year')).toBeInTheDocument()
   })
 
-  it('explains the Beijing midnight reset beside daily AI conversation usage', () => {
+  it('shows the free daily message limit and Beijing midnight reset beside usage', () => {
     render(<BillingPage />)
 
     const dailyUsage = screen.getByText('AI conversations').parentElement!.parentElement!
-    expect(within(dailyUsage).getByText('Daily AI conversation quotas reset at 00:00 Beijing time (UTC+8).')).toBeInTheDocument()
+    expect(within(dailyUsage).getByText('Free users can send up to 10 AI messages per day. It resets the next day at 00:00 Beijing time (UTC+8).')).toBeInTheDocument()
     expect(within(dailyUsage).getByText('2/10')).toBeInTheDocument()
   })
 

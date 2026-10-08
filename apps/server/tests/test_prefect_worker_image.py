@@ -41,8 +41,8 @@ def test_prefect_worker_fails_when_server_or_deployment_registration_fails():
 
     assert 'if [ "$server_ready" != "true" ]' in start_script
     assert 'echo "ERROR: Prefect Server did not become ready within 150 seconds."' in start_script
-    assert 'prefect deploy --all\n' in start_script
-    assert 'prefect deploy --all ||' not in start_script
+    assert 'prefect deploy --name "$deployment_name" --pool "$POOL_NAME"' in start_script
+    assert "prefect deploy --all" not in start_script
 
 
 @pytest.mark.parametrize("service", ["server", "worker"])

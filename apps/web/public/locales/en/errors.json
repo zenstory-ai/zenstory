@@ -109,6 +109,6 @@
   "ERR_PAYMENT_ORDER_CREATE_FAILED": "Could not create the order right now. Please try again later.",
   "ERR_PAYMENT_RATE_LIMITED": "Too many attempts. Please try again in 1 minute.",
   "ERR_PAYMENT_SYNC_FAILED": "Could not check the order with the payment provider. Refresh later.",
-  "ERR_QUOTA_AI_DAILY_COST_EXCEEDED": "Your free AI allowance is insufficient today. It resets at midnight Beijing time, or upgrade to continue writing.",
+  "ERR_QUOTA_AI_DAILY_COST_EXCEEDED": "Today's AI allowance is used up. It resets the next day at 00:00 Beijing time (UTC+8). Upgrade to Pro to continue writing.",
   "ERR_AI_COST_BUDGET_UNAVAILABLE": "We cannot confirm your AI allowance right now. Please try again later."
 }

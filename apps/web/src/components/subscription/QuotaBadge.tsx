@@ -48,6 +48,9 @@ export function QuotaBadge() {
   };
 
   const shouldShowUpgradeAction = stage !== "normal" && !isUnlimited;
+  const usageLabel = isUnlimited
+    ? t('subscription.unlimited', '无限')
+    : t('subscription.aiUsageCount', 'AI 消息 {{used}}/{{limit}}', { used, limit });
 
   const handleUpgradeClick = () => {
     if (!stagedSource) return;
@@ -68,7 +71,7 @@ export function QuotaBadge() {
           </svg>
         }
       >
-        {isUnlimited ? t('subscription.unlimited', '无限') : `${used}/${limit}`}
+        {usageLabel}
       </Badge>
       {shouldShowUpgradeAction && (
         <button

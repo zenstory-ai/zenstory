@@ -104,6 +104,17 @@ def test_billing_refunds_internal_error_without_output():
     assert tracker.decide(user_cancelled=False, unexpected_exception=False) == ("internal_error", True)
 
 
+def test_billing_refunds_message_when_hidden_cost_guard_blocks_before_output():
+    info = classify_stream_exception(
+        APIException(error_code="ERR_QUOTA_AI_DAILY_COST_EXCEEDED", status_code=402)
+    )
+    tracker = StreamBillingTracker()
+    tracker.observe(_sse("session_started", {"session_id": "s"}))
+    tracker.observe(_sse("error", info.as_event_data()))
+
+    assert tracker.decide(user_cancelled=False, unexpected_exception=False) == ("internal_error", True)
+
+
 def test_billing_charges_tool_failure_circuit_even_without_output():
     tracker = StreamBillingTracker()
     tracker.observe(
@@ -174,19 +185,20 @@ def _api_status_error(cls, status: int, message: str):
 
 
 @pytest.mark.parametrize(
-    ("exc", "code", "retryable"),
+    ("exc", "code", "retryable", "refundable"),
     [
-        (_api_status_error(openai.RateLimitError, 429, "Error code: 429 - busy"), "ERR_AGENT_UPSTREAM_RATE_LIMITED", True),
-        (_api_status_error(openai.InternalServerError, 503, "Error code: 503"), "ERR_AGENT_UPSTREAM_UNAVAILABLE", True),
-        (openai.APITimeoutError(request=httpx.Request("POST", "https://x")), "ERR_AGENT_UPSTREAM_UNAVAILABLE", True),
+        (_api_status_error(openai.RateLimitError, 429, "Error code: 429 - busy"), "ERR_AGENT_UPSTREAM_RATE_LIMITED", True, True),
+        (_api_status_error(openai.InternalServerError, 503, "Error code: 503"), "ERR_AGENT_UPSTREAM_UNAVAILABLE", True, True),
+        (openai.APITimeoutError(request=httpx.Request("POST", "https://x")), "ERR_AGENT_UPSTREAM_UNAVAILABLE", True, True),
         (
             _api_status_error(
                 openai.BadRequestError, 400, "This model's maximum context length is 131072 tokens"
             ),
             "ERR_AGENT_CONTEXT_TOO_LONG",
             False,
+            True,
         ),
-        (RuntimeError("(psycopg.errors.UniqueViolation) [SQL: INSERT INTO file ...]"), "ERR_AGENT_RUN_FAILED", True),
+        (RuntimeError("(psycopg.errors.UniqueViolation) [SQL: INSERT INTO file ...]"), "ERR_AGENT_RUN_FAILED", True, True),
         (
             APIException(
                 error_code="ERR_SERVICE_UNAVAILABLE",
@@ -195,15 +207,29 @@ def _api_status_error(cls, status: int, message: str):
             ),
             "ERR_SERVICE_UNAVAILABLE",
             True,
+            True,
         ),
-        (APIException(error_code="ERR_PROJECT_NOT_FOUND", status_code=404), "ERR_PROJECT_NOT_FOUND", False),
+        (APIException(error_code="ERR_PROJECT_NOT_FOUND", status_code=404), "ERR_PROJECT_NOT_FOUND", False, False),
+        (
+            APIException(error_code="ERR_QUOTA_AI_DAILY_COST_EXCEEDED", status_code=402),
+            "ERR_QUOTA_AI_DAILY_COST_EXCEEDED",
+            False,
+            True,
+        ),
+        (
+            APIException(error_code="ERR_AI_COST_BUDGET_UNAVAILABLE", status_code=503),
+            "ERR_AI_COST_BUDGET_UNAVAILABLE",
+            True,
+            True,
+        ),
     ],
 )
-def test_classify_stream_exception(exc, code, retryable):
+def test_classify_stream_exception(exc, code, retryable, refundable):
     info = classify_stream_exception(exc)
 
     assert info.code == code
     assert info.retryable is retryable
+    assert info.refundable is refundable
     data = info.as_event_data(error_type=type(exc).__name__)
     # 发给前端的文案是固定的，不含原始异常（SQL、英文 SDK 报错）。
     assert str(exc) not in data["error"]

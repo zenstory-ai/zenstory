@@ -3,10 +3,13 @@
 
 [build]
 builder = "DOCKERFILE"
+watchPatterns = ["/apps/server/**"]
 # Repo-root-relative: the Dockerfile COPYs apps/server/... so the build context is the
 # repo root (set Root Directory empty in Railway), and this path is resolved from there.
 dockerfilePath = "apps/server/docker/Dockerfile.prefect-worker"
 
 [deploy]
+# Allow worker shutdown cleanup; active flows must be drained operationally.
+drainingSeconds = 300
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 5

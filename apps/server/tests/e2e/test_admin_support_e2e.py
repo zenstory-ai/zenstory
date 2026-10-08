@@ -77,7 +77,7 @@ def _get_or_create_plan(db_session: Session, *, name: str, display_name: str) ->
         price_monthly_cents=0 if name == "free" else 2900,
         price_yearly_cents=0 if name == "free" else 29000,
         features={
-            "ai_conversations_per_day": 20 if name == "free" else 9999,
+            "ai_conversations_per_day": 10 if name == "free" else 9999,
             "max_projects": 3 if name == "free" else 10,
             "material_uploads": 5 if name == "free" else 50,
             "custom_skills": 3 if name == "free" else 20,

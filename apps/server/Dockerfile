@@ -39,7 +39,7 @@ EXPOSE $PORT
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health/ready')"
 
 # Start application
-CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port 8080 --workers ${WEB_CONCURRENCY:-1} --timeout-keep-alive 300 --timeout-worker-healthcheck 600"]
+CMD ["python", "scripts/start_api.py"]

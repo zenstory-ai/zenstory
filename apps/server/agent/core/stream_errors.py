@@ -105,6 +105,13 @@ def classify_stream_exception(exc: BaseException) -> StreamErrorInfo:
     if isinstance(exc, APIException):
         code = getattr(exc, "error_code", None)
         if isinstance(code, str) and code.startswith("ERR_"):
+            if code == ErrorCode.QUOTA_AI_DAILY_COST_EXCEEDED:
+                # The hidden free-user safeguard rejects the model call before
+                # transport, so the already-reserved message was never served.
+                return StreamErrorInfo(code, False, True)
+            if code == ErrorCode.AI_COST_BUDGET_UNAVAILABLE:
+                # A budget-store failure is a platform failure before transport.
+                return StreamErrorInfo(code, True, True)
             server_side = status is None or status >= 500
             return StreamErrorInfo(code, server_side, server_side)
     if status == 429 or type(exc).__name__ == "RateLimitError":

@@ -12,7 +12,7 @@ import assert from 'node:assert/strict'
 const web = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const contract = JSON.parse(readFileSync(join(web, 'content/site-routing.json'), 'utf8'))
 const guideRedirects = JSON.parse(readFileSync(join(web, 'content/guide-redirects.json'), 'utf8'))
-const {siteOrigin:SITE, appOrigin:APP, apiOrigin:API, previewSiteOrigin:PREVIEW_SITE, previewAppOrigin:PREVIEW_APP} = contract
+const {siteOrigin:SITE, appOrigin:APP, apiOrigin:API, previewApiOrigin:PREVIEW_API, previewSiteOrigin:PREVIEW_SITE, previewAppOrigin:PREVIEW_APP} = contract
 const escapeRegex = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const host = value => [{type:'host',value}]
 const hosts = origins => origins.map(s => escapeRegex(new URL(s).hostname)).join('|')
@@ -55,6 +55,7 @@ export const vercelConfig = {
   ],
   rewrites:[
     rewrite('/1e4acbc11fe3407a8a641d69a13af696.txt','/api/indexnow-key'),
+    rewrite('/:path(api(?:/.*)?)',`${PREVIEW_API}/:path`,previews),
     rewrite('/:path(api(?:/.*)?)',`${API}/:path`),
     rewrite('/', '/org-home/index.html', `${siteHosts}|.*\\.vercel\\.app`),
     rewrite('/', '/_app/home.html', appHosts),

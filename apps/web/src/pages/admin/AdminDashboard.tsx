@@ -284,7 +284,7 @@ export default function AdminDashboard() {
                   </div>
                   <div className="rounded-md border border-[hsl(var(--separator-color)/0.5)] p-2">
                     <div className="text-[hsl(var(--text-secondary))]">
-                      {t('admin:dashboard.upgradeConversion', '转化')}
+                      {t('admin:dashboard.upgradePageArrival', '页面到达')}
                     </div>
                     <div className="text-[hsl(var(--text-primary))] font-semibold">
                       {upgradeTotals.conversion}
@@ -326,7 +326,7 @@ export default function AdminDashboard() {
                               {t('admin:dashboard.upgradeClick', '点击')}
                             </th>
                             <th className="px-3 py-2 text-right font-medium">
-                              {t('admin:dashboard.upgradeConversion', '转化')}
+                              {t('admin:dashboard.upgradePageArrival', '页面到达')}
                             </th>
 
 

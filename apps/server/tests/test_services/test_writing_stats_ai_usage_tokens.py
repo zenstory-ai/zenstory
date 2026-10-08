@@ -176,7 +176,10 @@ def test_ai_usage_trend_and_summary_include_real_tokens_and_cost(
     monkeypatch.setattr(writing_stats_module, "AI_USAGE_CACHE_READ_COST_PER_1M_USD", 0.0)
     monkeypatch.setattr(writing_stats_module, "AI_USAGE_CACHE_WRITE_COST_PER_1M_USD", 0.0)
 
-    now = datetime.utcnow()
+    # Keep the clock just after UTC midnight to cover the boundary that made
+    # `now - one minute` accidentally become yesterday in CI.
+    now = datetime(2026, 6, 3, 0, 0, 59)
+    monkeypatch.setattr(writing_stats_module, "utcnow", lambda: now)
     yesterday = now - timedelta(days=1)
 
     db_session.add_all(
@@ -186,7 +189,7 @@ def test_ai_usage_trend_and_summary_include_real_tokens_and_cost(
                 role="assistant",
                 content="today assistant",
                 message_metadata=json.dumps({"usage": {"input_tokens": 50, "output_tokens": 20}}),
-                created_at=now - timedelta(minutes=1),
+                created_at=now - timedelta(seconds=30),
             ),
             ChatMessage(
                 session_id=chat_session.id,

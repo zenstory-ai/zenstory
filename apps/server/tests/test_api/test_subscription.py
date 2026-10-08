@@ -72,7 +72,7 @@ def free_plan(db_session: Session):
         price_monthly_cents=0,
         price_yearly_cents=0,
         features={
-            "ai_conversations_per_day": 20,
+            "ai_conversations_per_day": 20,  # Legacy production value; runtime must normalize to 10.
             "max_projects": 3,
             "materials_library_access": False,
             "material_uploads": 0,
@@ -362,8 +362,8 @@ class TestGetQuota:
         assert response.status_code == 200
         data = response.json()
 
-        # Free plan should have 20 AI conversations per day
-        assert data["ai_conversations"]["limit"] == 20
+        # Stored legacy values are normalized to the current free-plan limit.
+        assert data["ai_conversations"]["limit"] == 10
         # Free plan should have max 3 projects
         assert data["projects"]["limit"] == 3
         assert data["material_decompositions"]["limit"] == 0
