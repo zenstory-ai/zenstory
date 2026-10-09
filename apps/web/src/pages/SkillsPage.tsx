@@ -623,6 +623,7 @@ export default function SkillsPage() {
           addingId={addingId}
           addedPublicIds={addedPublicIds}
           onAdd={handleAddPublicSkill}
+          onCreate={handleCreate}
           isMobile={isMobile}
         />
       )}
@@ -1364,6 +1365,7 @@ function DiscoverContent({
   addingId,
   addedPublicIds,
   onAdd,
+  onCreate,
   isMobile,
 }: {
   publicSkills: PublicSkill[];
@@ -1380,6 +1382,7 @@ function DiscoverContent({
   addingId: string | null;
   addedPublicIds: Set<string>;
   onAdd: (id: string) => void;
+  onCreate: () => void;
   isMobile?: boolean;
 }) {
   const { t } = useTranslation(["skills"]);
@@ -1426,10 +1429,29 @@ function DiscoverContent({
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[hsl(var(--accent-primary))]" />
         </div>
       ) : publicSkills.length === 0 ? (
-        <DashboardEmptyState
-          icon={Compass}
-          title={t("noSkillsFound")}
-        />
+        searchQuery.trim() || selectedCategory ? (
+          <DashboardEmptyState
+            icon={Compass}
+            title={t("noSkillsFound")}
+          />
+        ) : (
+          // Nothing was searched: the library itself is empty, not a failed search.
+          <DashboardEmptyState
+            icon={Compass}
+            title={t("noDiscoverableSkills")}
+            description={t("noDiscoverableSkillsHint")}
+            action={
+              <button
+                type="button"
+                onClick={onCreate}
+                className="btn-primary h-10 px-4 rounded-xl inline-flex items-center gap-2 text-sm"
+              >
+                <Plus className="w-4 h-4" />
+                {t("createSkill")}
+              </button>
+            }
+          />
+        )
       ) : (
         <div className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-2 lg:grid-cols-3"}`}>
           {publicSkills.map((skill) => (

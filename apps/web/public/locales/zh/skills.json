@@ -154,5 +154,7 @@
     "batchDeleteFailed": "批量删除失败，请稍后重试",
     "loadMoreFailed": "加载更多技能失败，请稍后重试",
     "detailFailed": "技能详情加载失败，请稍后重试"
-  }
+  },
+  "noDiscoverableSkills": "还没有可发现的技能",
+  "noDiscoverableSkillsHint": "技能是你交给 AI 的固定写法，比如「每章结尾留个钩子」「对话多用短句」「打斗写到动作为止，不写心理」。先把自己常用的写法存成技能，AI 会在合适的时候照着做。"
 }

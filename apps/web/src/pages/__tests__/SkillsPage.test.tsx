@@ -768,7 +768,7 @@ describe('SkillsPage', () => {
       render(<SkillsPage />)
 
       await waitFor(() => {
-        expect(screen.getByText('No skills found')).toBeInTheDocument()
+        expect(screen.getByText('noDiscoverableSkills')).toBeInTheDocument()
       })
     })
   })
@@ -944,6 +944,39 @@ describe('SkillsPage', () => {
       // 前一页的内容保留，已经全部加载后不再显示按钮
       expect(screen.getByText('Dialogue Expert')).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'loadMore' })).not.toBeInTheDocument()
+    })
+
+    it('shows an empty-library state with a create entry instead of a failed-search message', async () => {
+      vi.mocked(publicSkillsApi.list).mockResolvedValue({
+        skills: [],
+        total: 0,
+        page: 1,
+        page_size: 20,
+      } as PublicSkillListResponse)
+      render(<SkillsPage />)
+
+      expect(await screen.findByText('noDiscoverableSkills')).toBeInTheDocument()
+      expect(screen.getByText('noDiscoverableSkillsHint')).toBeInTheDocument()
+      expect(screen.queryByText('No skills found')).not.toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('button', { name: 'createSkill' }))
+      expect(await screen.findByText('Create Skill')).toBeInTheDocument()
+    })
+
+    it('keeps the no-match message for a search that finds nothing', async () => {
+      vi.mocked(publicSkillsApi.list).mockResolvedValue({
+        skills: [],
+        total: 0,
+        page: 1,
+        page_size: 20,
+      } as PublicSkillListResponse)
+      render(<SkillsPage />)
+      await screen.findByText('noDiscoverableSkills')
+
+      fireEvent.change(screen.getByTestId('public-skill-search'), { target: { value: '不存在' } })
+
+      expect(await screen.findByText('No skills found')).toBeInTheDocument()
+      expect(screen.queryByText('noDiscoverableSkills')).not.toBeInTheDocument()
     })
 
     it('debounces the discover search and waits for IME composition to end', async () => {
