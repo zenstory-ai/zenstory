@@ -13,6 +13,7 @@ import {
   useRef,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
+import { useTranslation } from "react-i18next";
 import type { PendingEdit } from "../types";
 import { cn } from "../lib/utils";
 import {
@@ -38,6 +39,7 @@ export const InlineDiffEditor = forwardRef<InlineDiffEditorHandle, InlineDiffEdi
   ref
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const { t } = useTranslation(["editor"]);
   const initialAutoScrollDoneRef = useRef(false);
 
   const diffSegments = useMemo((): ReviewDiffSegment[] => {
@@ -123,7 +125,10 @@ export const InlineDiffEditor = forwardRef<InlineDiffEditorHandle, InlineDiffEdi
           role: "button" as const,
           tabIndex: 0,
           onKeyDown,
-          "aria-label": `Locate change ${editId}`,
+          "aria-label": t("editor:locateChange", {
+            defaultValue: "定位到第 {{index}} 处修改",
+            index: (segment.editIndex ?? 0) + 1,
+          }),
         }
       : {};
 
@@ -184,7 +189,7 @@ export const InlineDiffEditor = forwardRef<InlineDiffEditorHandle, InlineDiffEdi
         </span>
       </span>
     );
-  }, [activeEditId, onSelectEdit, pendingEdits]);
+  }, [activeEditId, onSelectEdit, pendingEdits, t]);
 
   return (
     <div ref={containerRef} className="flex-1 min-h-0 overflow-auto bg-[hsl(var(--bg-primary))] px-6 pb-4 pt-2">

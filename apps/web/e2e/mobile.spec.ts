@@ -70,7 +70,7 @@ test.describe('Mobile Responsive Tests', () => {
       return;
     }
 
-    const recentProjectButtons = page.locator('button[aria-label^="Open project"]');
+    const recentProjectButtons = page.locator('[data-testid="project-card"]');
     if ((await recentProjectButtons.count()) > 0) {
       const recentProjectButton = recentProjectButtons.first();
       await recentProjectButton.scrollIntoViewIfNeeded().catch(() => {});
@@ -562,7 +562,7 @@ test.describe('Mobile Responsive Tests', () => {
       // Login lands on the dashboard or reopens the last project depending on
       // the shared test user's state; either primary surface must render.
       await expect(
-        page.locator('h1, button[aria-label^="Open project"], [data-testid="chat-panel"], [data-testid="file-tree"]').first()
+        page.locator('h1, [data-testid="project-card"], [data-testid="chat-panel"], [data-testid="file-tree"]').first()
       ).toBeVisible();
 
       // Verify content fits within tablet viewport
@@ -576,7 +576,7 @@ test.describe('Mobile Responsive Tests', () => {
 
       // At tablet size, the app should present a usable primary workspace or dashboard surface
       await expect(
-        page.locator('h1, button[aria-label^="Open project"], [data-testid="chat-panel"], [data-testid="file-tree"]').first()
+        page.locator('h1, [data-testid="project-card"], [data-testid="chat-panel"], [data-testid="file-tree"]').first()
       ).toBeVisible();
     });
   });

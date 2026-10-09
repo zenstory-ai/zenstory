@@ -164,8 +164,8 @@ export function finalizeSite(outDir) {
     writeFileSync(join(outDir,route,'index.html'),legalPage(shell,route,title,document))
     siteRoutes.push(route)
   }
-  writeFileSync(join(outDir,'_app/home.html'),pageHead(shell,'/',APP,'ZenStory — AI novel-writing workbench'))
-  writeFileSync(join(outDir,'_app/pricing.html'),pageHead(shell,'/pricing',APP,'ZenStory pricing — AI writing workbench'))
+  writeFileSync(join(outDir,'_app/home.html'),pageHead(shell,'/',APP,'ZenStory — AI 小说写作工作台'))
+  writeFileSync(join(outDir,'_app/pricing.html'),pageHead(shell,'/pricing',APP,'定价 - ZenStory'))
   const modifiedOn = new Map()
   for (const route of siteRoutes) {
     const path = route === '/' ? 'org-home' : route.slice(1)

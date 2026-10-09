@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Check, Crown, Mail, Sparkles } from "lucide-react";
+import { Check, Crown, Mail, Sparkles, X } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { DashboardPageHeader } from "../components/dashboard/DashboardPageHeader";
 import { Button } from "../components/ui/Button";
@@ -397,17 +397,37 @@ export default function BillingPage() {
                   </div>
 
                   <div className="space-y-2">
-                    {metricDefinitions.map((metric) => (
-                      <div key={metric.key} className="flex items-center justify-between text-sm gap-3">
-                        <div className="flex items-center gap-1.5 text-[hsl(var(--text-secondary))]">
-                          <Check className="w-3.5 h-3.5 text-[hsl(var(--success))]" />
-                          <span>{metric.label}</span>
+                    {metricDefinitions.map((metric) => {
+                      // A limit of 0 means the plan does not include the feature
+                      // (shown as 「不含」): a neutral cross, not a green check.
+                      const included = metric.compareValue(plan) !== 0;
+                      return (
+                        <div
+                          key={metric.key}
+                          className="flex items-center justify-between text-sm gap-3"
+                          data-testid={`billing-plan-metric-${metric.key}`}
+                          data-included={included}
+                        >
+                          <div className="flex items-center gap-1.5 text-[hsl(var(--text-secondary))]">
+                            {included ? (
+                              <Check className="w-3.5 h-3.5 text-[hsl(var(--success))]" aria-hidden="true" />
+                            ) : (
+                              <X className="w-3.5 h-3.5 text-[hsl(var(--text-tertiary))]" aria-hidden="true" />
+                            )}
+                            <span>{metric.label}</span>
+                          </div>
+                          <span
+                            className={`font-medium ${
+                              included
+                                ? "text-[hsl(var(--text-primary))]"
+                                : "text-[hsl(var(--text-tertiary))]"
+                            }`}
+                          >
+                            {metric.value(plan)}
+                          </span>
                         </div>
-                        <span className="font-medium text-[hsl(var(--text-primary))]">
-                          {metric.value(plan)}
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               );
