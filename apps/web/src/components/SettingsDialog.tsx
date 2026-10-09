@@ -45,6 +45,7 @@ import { AgentApiKeysPanel } from './settings/AgentApiKeysPanel';
 import { buildUpgradeUrl, getUpgradePromptDefinition } from '../config/upgradeExperience';
 import { trackUpgradeClick } from '../lib/upgradeAnalytics';
 import { isAnalyticsOptedOut, setAnalyticsOptOut } from '../lib/analytics';
+import { getUserDisplayName } from '../lib/userDisplayName';
 
 /**
  * Props for the SettingsDialog component.
@@ -386,12 +387,12 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                     {user?.avatar_url ? (
                       <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
                     ) : (
-                      <UserAvatar username={user?.nickname || user?.email || ''} size={48} />
+                      <UserAvatar username={getUserDisplayName(user)} size={48} />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-[hsl(var(--text-primary))] truncate">
-                      {user?.nickname || user?.email?.split('@')[0] || tSettings('profile.anonymous')}
+                      {getUserDisplayName(user) || tSettings('profile.anonymous')}
                     </div>
                     <div className="text-sm text-[hsl(var(--text-secondary))] truncate">
                       {user?.email}

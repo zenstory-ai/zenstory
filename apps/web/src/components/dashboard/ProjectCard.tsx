@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Clock, Trash2 } from "../icons";
 import { IconButton } from "../ui/IconButton";
 import { ProjectProgressLine } from "../ProjectProgressLine";
-import { formatRelativeTime } from "../../lib/dateUtils";
+import { RelativeTime } from "../RelativeTime";
 import { getProjectTypeStyle } from "./projectTypeStyles";
 import type { Project, ProjectProgress } from "../../types";
 
@@ -94,7 +94,7 @@ export function ProjectCard({
             </span>
             <div className="flex items-center gap-1 text-xs text-[hsl(var(--text-secondary))]">
               <Clock className="w-3 h-3" />
-              {project.updated_at ? formatRelativeTime(project.updated_at) : "-"}
+              <RelativeTime value={project.updated_at} />
             </div>
           </div>
         </div>

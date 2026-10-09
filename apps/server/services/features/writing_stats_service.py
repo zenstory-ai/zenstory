@@ -146,24 +146,29 @@ class WritingStatsService:
 
     def _extract_chapter_number(self, title: str | None) -> int | None:
         """
-        Extract chapter number from title.
+        Extract chapter (or episode) number from title.
 
         Supports:
-        - 第一章 / 第二章 (Chinese numerals)
-        - 第1章 / 第2章 (Arabic numerals)
+        - 第一章 / 第二集 / 第三回 (Chinese numerals; 章、集、回、节、话)
+        - 第1章 / 第2集 (Arabic numerals)
+        - Chapter 1 / Episode 2 / Ep. 3
         - 1xxx / 2xxx (plain leading numbers)
         """
         if not title:
             return None
 
-        chinese_match = re.search(r"第([零一二三四五六七八九十百千]+)章", title)
+        chinese_match = re.search(r"第([零一二三四五六七八九十百千]+)[章集回节话]", title)
         if chinese_match:
             parsed = self._parse_chinese_number(chinese_match.group(1))
             return parsed if parsed > 0 else None
 
-        arabic_match = re.search(r"第(\d+)章", title)
+        arabic_match = re.search(r"第\s*(\d+)\s*[章集回节话]", title)
         if arabic_match:
             return int(arabic_match.group(1))
+
+        english_match = re.match(r"^\s*(?:chapter|episode|ep\.?)\s*(\d+)", title, re.IGNORECASE)
+        if english_match:
+            return int(english_match.group(1))
 
         leading_num_match = re.match(r"^(\d+)", title.strip())
         if leading_num_match:
@@ -668,26 +673,31 @@ class WritingStatsService:
         min_words_for_complete: int = 50,
     ) -> dict[str, Any]:
         """
-        Calculate chapter completion percentage from draft files.
+        Chapter (episode) progress of a project.
 
-        Compares the number of outline files (planned chapters) against
-        draft files with meaningful content to calculate completion.
+        Every prose file (draft / script) is one chapter. A chapter-level outline
+        adds a planned chapter while no prose file matches it. Whole-book
+        outlines such as「核心大纲」or「分集大纲（全60集）」are planning
+        documents, not chapters: an outline only counts when it carries a chapter
+        number (title or metadata) or a prose file links to it.
+
+        Word counts use the editor counting rules (resolve_prose_word_counts),
+        the same source as the project card progress.
 
         Args:
             session: Database session
             project_id: Project ID
-            min_words_for_complete: Minimum word count for a draft to be
-                considered "complete". Default 50 words.
+            min_words_for_complete: Minimum word count for a chapter without a
+                word_count_target to be considered "complete". Default 50.
 
         Returns:
             Dict with completion statistics:
-            - total_chapters: Total number of planned chapters (outlines)
-            - completed_chapters: Number of drafts with sufficient content
-            - in_progress_chapters: Drafts with some content but not complete
-            - completion_percentage: Overall completion percentage
-            - chapter_details: List of individual chapter statuses
+            - total_chapters: chapters written or planned
+            - completed_chapters / in_progress_chapters / not_started_chapters
+            - completion_percentage: completed share of total_chapters
+            - chapter_details: per-chapter rows (outline_id equals draft_id when
+              the chapter has no outline)
         """
-        # Get all outline files (planned chapters)
         outline_files = session.exec(
             select(File)
             .options(
@@ -708,7 +718,6 @@ class WritingStatsService:
             .order_by(File.order.asc())
         ).all()
 
-        # Get all draft files
         draft_files = session.exec(
             select(File)
             .options(
@@ -729,13 +738,15 @@ class WritingStatsService:
             .order_by(File.order.asc())
         ).all()
 
-        # Build draft indexes for robust matching with outlines.
-        # Matching priority:
+        # Matching priority for an outline:
         # 1) Explicit metadata link (outline_id)
         # 2) Exact title match
+        # Numbered (chapter-level) outlines then also try:
         # 3) Chapter number match (metadata/title)
         # 4) Same order index
-        # 5) Loose title contains fallback
+        # 5) Loose title contains
+        # Unnumbered outlines skip 3-5: pairing「分集大纲」with episode 1 by
+        # order showed the episode's word count next to the outline.
         drafts_by_id: dict[str, File] = {draft.id: draft for draft in draft_files}
         used_draft_ids: set[str] = set()
 
@@ -772,86 +783,57 @@ class WritingStatsService:
                     return drafts_by_id[draft_id]
             return None
 
-        total_chapters = len(outline_files)
-        completed_chapters = 0
-        in_progress_chapters = 0
-        chapter_details: list[dict[str, Any]] = []
-
-        outline_draft_pairs: list[tuple[File, File | None]] = []
+        chapter_pairs: list[tuple[File | None, File | None]] = []
 
         for outline in outline_files:
             outline_title_lower = self._normalize_title(outline.title)
             outline_chapter_number = self._extract_chapter_number_from_file(outline)
 
-            # 1) Explicit metadata link
             draft = pick_first_unused(drafts_by_outline_ref.get(str(outline.id)))
-
-            # 2) Exact normalized title match
             if not draft:
                 draft = pick_first_unused(drafts_by_title.get(outline_title_lower))
 
-            # 3) Chapter number match
-            if not draft and outline_chapter_number is not None:
-                draft = pick_first_unused(drafts_by_chapter_number.get(outline_chapter_number))
+            if outline_chapter_number is not None:
+                if not draft:
+                    draft = pick_first_unused(drafts_by_chapter_number.get(outline_chapter_number))
+                if not draft:
+                    draft = pick_first_unused(drafts_by_order.get(outline.order))
+                if not draft and outline_title_lower:
+                    for candidate_id, candidate in drafts_by_id.items():
+                        if candidate_id in used_draft_ids:
+                            continue
+                        candidate_title = self._normalize_title(candidate.title)
+                        if not candidate_title:
+                            continue
+                        if outline_title_lower in candidate_title or candidate_title in outline_title_lower:
+                            used_draft_ids.add(candidate_id)
+                            draft = candidate
+                            break
 
-            # 4) Same order fallback
-            if not draft:
-                draft = pick_first_unused(drafts_by_order.get(outline.order))
+            if draft is None and outline_chapter_number is None:
+                # Whole-book outline or other unnumbered planning note.
+                continue
+            chapter_pairs.append((outline, draft))
 
-            # 5) Loose contains fallback over remaining drafts
-            if not draft and outline_title_lower:
-                for candidate_id, candidate in drafts_by_id.items():
-                    if candidate_id in used_draft_ids:
-                        continue
-                    candidate_title = self._normalize_title(candidate.title)
-                    if not candidate_title:
-                        continue
-                    if outline_title_lower in candidate_title or candidate_title in outline_title_lower:
-                        used_draft_ids.add(candidate_id)
-                        draft = candidate
-                        break
+        # Prose files that no outline claimed are chapters too.
+        chapter_pairs.extend((None, draft) for draft in draft_files if draft.id not in used_draft_ids)
 
-            outline_draft_pairs.append((outline, draft))
-
-        # Resolve word_count for matched drafts.
         draft_word_counts = resolve_prose_word_counts(
-            session, [draft for _outline, draft in outline_draft_pairs if draft], project_id=project_id
+            session, [draft for _outline, draft in chapter_pairs if draft], project_id=project_id
         )
 
-        for outline, draft in outline_draft_pairs:
-            if draft:
-                word_count = draft_word_counts.get(draft.id, 0)
-                target_word_count, completion_target = self._resolve_completion_target(
-                    outline=outline,
-                    draft=draft,
-                    min_words_for_complete=min_words_for_complete,
-                )
-                status, chapter_completion_percentage = self._evaluate_chapter_progress(
-                    word_count=word_count,
-                    completion_target=completion_target,
-                )
+        completed_chapters = 0
+        in_progress_chapters = 0
+        chapter_details: list[dict[str, Any]] = []
 
-                if status == "complete":
-                    completed_chapters += 1
-                elif status == "in_progress":
-                    in_progress_chapters += 1
-
-                chapter_details.append({
-                    "outline_id": outline.id,
-                    "draft_id": draft.id,
-                    "title": outline.title,
-                    "word_count": word_count,
-                    "target_word_count": target_word_count,
-                    "status": status,
-                    "completion_percentage": chapter_completion_percentage,
-                })
-            else:
-                # No matching draft found
-                target_word_count, _ = self._resolve_completion_target(
-                    outline=outline,
-                    draft=None,
-                    min_words_for_complete=min_words_for_complete,
-                )
+        for outline, draft in chapter_pairs:
+            target_word_count, completion_target = self._resolve_completion_target(
+                outline=outline,
+                draft=draft,
+                min_words_for_complete=min_words_for_complete,
+            )
+            if draft is None:
+                assert outline is not None
                 chapter_details.append({
                     "outline_id": outline.id,
                     "draft_id": None,
@@ -861,46 +843,30 @@ class WritingStatsService:
                     "status": "not_started",
                     "completion_percentage": 0,
                 })
+                continue
 
-        # Calculate completion percentage
-        if total_chapters > 0:
-            completion_percentage = int((completed_chapters / total_chapters) * 100)
-        else:
-            # If no outlines, use drafts as reference
-            total_chapters = len(draft_files)
-            completed_chapters = 0
-            in_progress_chapters = 0
-            chapter_details = []
+            word_count = draft_word_counts.get(draft.id, 0)
+            status, chapter_completion_percentage = self._evaluate_chapter_progress(
+                word_count=word_count,
+                completion_target=completion_target,
+            )
+            if status == "complete":
+                completed_chapters += 1
+            elif status == "in_progress":
+                in_progress_chapters += 1
 
-            draft_word_counts = resolve_prose_word_counts(session, list(draft_files), project_id=project_id)
+            chapter_details.append({
+                "outline_id": outline.id if outline else draft.id,
+                "draft_id": draft.id,
+                "title": outline.title if outline else draft.title,
+                "word_count": word_count,
+                "target_word_count": target_word_count,
+                "status": status,
+                "completion_percentage": chapter_completion_percentage,
+            })
 
-            for draft in draft_files:
-                word_count = draft_word_counts.get(draft.id, 0)
-                target_word_count, completion_target = self._resolve_completion_target(
-                    outline=None,
-                    draft=draft,
-                    min_words_for_complete=min_words_for_complete,
-                )
-                status, chapter_completion_percentage = self._evaluate_chapter_progress(
-                    word_count=word_count,
-                    completion_target=completion_target,
-                )
-                if status == "complete":
-                    completed_chapters += 1
-                elif status == "in_progress":
-                    in_progress_chapters += 1
-
-                chapter_details.append({
-                    "outline_id": draft.id,
-                    "draft_id": draft.id,
-                    "title": draft.title,
-                    "word_count": word_count,
-                    "target_word_count": target_word_count,
-                    "status": status,
-                    "completion_percentage": chapter_completion_percentage,
-                })
-
-            completion_percentage = int((completed_chapters / total_chapters) * 100) if total_chapters > 0 else 0
+        total_chapters = len(chapter_details)
+        completion_percentage = int((completed_chapters / total_chapters) * 100) if total_chapters > 0 else 0
 
         log_with_context(
             logger,

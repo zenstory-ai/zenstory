@@ -31,6 +31,7 @@ import { DASHBOARD_FIRST_RUN_TOUR } from "../config/productTours/dashboardFirstR
 import { dashboardOnboardingFlags } from "../config/dashboardOnboarding";
 import { inspirationsConfig } from "../config/inspirations";
 import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "../config/support";
+import { getUserDisplayName } from "../lib/userDisplayName";
 
 function hasExplicitTimezone(value: string): boolean {
   return /([zZ]|[+-]\d{2}:?\d{2})$/.test(value.trim());
@@ -76,6 +77,7 @@ function DashboardContent() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
+  const displayName = getUserDisplayName(user);
   const { theme, setTheme } = useTheme();
 
   // Mobile and desktop detection
@@ -215,13 +217,13 @@ function DashboardContent() {
     >
       <div className="flex items-center gap-3 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-tertiary)/0.45)] p-2.5">
         <UserAvatar
-          username={user?.username || "User"}
+          username={displayName || "User"}
           avatarUrl={user?.avatar_url}
           size={36}
         />
         <div className="min-w-0">
           <div className="text-sm font-semibold text-[hsl(var(--text-primary))] truncate">
-            {user?.username || "User"}
+            {displayName || "User"}
           </div>
           <div className="text-xs text-[hsl(var(--text-secondary))] truncate">
             {user?.email || ""}
@@ -277,7 +279,7 @@ function DashboardContent() {
               onClick={() => {
                 void handleLanguageSwitch('zh');
               }}
-              aria-label="Switch to Chinese"
+              aria-label={t('common:a11y.switchToChinese')}
               data-testid="dashboard-quick-language-zh"
               className={`${SEGMENT_CLASS} ${
                 currentLanguage === 'zh'
@@ -291,7 +293,7 @@ function DashboardContent() {
               onClick={() => {
                 void handleLanguageSwitch('en');
               }}
-              aria-label="Switch to English"
+              aria-label={t('common:a11y.switchToEnglish')}
               data-testid="dashboard-quick-language-en"
               className={`${SEGMENT_CLASS} ${
                 currentLanguage === 'en'
@@ -411,7 +413,7 @@ function DashboardContent() {
                 aria-label={openUserPanelLabel}
               >
                 <UserAvatar
-                  username={user?.username || "User"}
+                  username={displayName || "User"}
                   avatarUrl={user?.avatar_url}
                   size={32}
                 />
@@ -465,13 +467,13 @@ function DashboardContent() {
             aria-label={openUserPanelLabel}
           >
             <UserAvatar
-              username={user?.username || "User"}
+              username={displayName || "User"}
               avatarUrl={user?.avatar_url}
               size={32}
             />
             <div className="flex-1 min-w-0 text-left">
               <div className="text-sm font-medium text-[hsl(var(--text-primary))] truncate">
-                {user?.username}
+                {displayName}
               </div>
               <div className="text-xs text-[hsl(var(--text-secondary))] truncate">
                 {user?.email || ""}
@@ -499,7 +501,7 @@ function DashboardContent() {
               <IconButton
                 ref={mobileMenuTriggerRef}
                 onClick={() => setShowMobileMenu(!showMobileMenu)}
-                label={showMobileMenu ? 'Close mobile menu' : 'Open mobile menu'}
+                label={showMobileMenu ? t('common:nav.closeMenu') : t('common:nav.openMenu')}
                 title=""
                 aria-expanded={showMobileMenu}
                 aria-controls="dashboard-mobile-navigation"
@@ -517,7 +519,7 @@ function DashboardContent() {
           <nav
             ref={mobileMenuRef}
             id="dashboard-mobile-navigation"
-            aria-label="Mobile navigation"
+            aria-label={t('common:nav.mobileMenu')}
             className="absolute top-12 left-0 right-0 bg-[hsl(var(--bg-secondary))] border-b border-[hsl(var(--separator-color))] shadow-lg z-40"
           >
             <div className="flex flex-col p-2 gap-1">
@@ -550,13 +552,13 @@ function DashboardContent() {
               {/* User section in mobile menu */}
               <div className="flex items-center gap-3 px-3 py-2">
                 <UserAvatar
-                  username={user?.username || "User"}
+                  username={displayName || "User"}
                   avatarUrl={user?.avatar_url}
                   size={32}
                 />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-[hsl(var(--text-primary))] truncate">
-                    {user?.username}
+                    {displayName}
                   </div>
                   <div className="text-xs text-[hsl(var(--text-secondary))]">
                     {user?.email || ""}
@@ -566,7 +568,7 @@ function DashboardContent() {
               <div className="grid grid-cols-2 gap-2 px-3 pb-2">
                 <button
                   onClick={() => handleThemeSwitch(theme === 'dark' ? 'light' : 'dark')}
-                  aria-label="Toggle theme"
+                  aria-label={t('common:a11y.toggleTheme')}
                   className="flex min-h-11 items-center justify-center gap-1.5 px-2 py-2 rounded-lg border border-[hsl(var(--border-color))] text-sm text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
                 >
                   {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
@@ -576,7 +578,7 @@ function DashboardContent() {
                   onClick={() => {
                     void handleLanguageSwitch(currentLanguage === 'zh' ? 'en' : 'zh');
                   }}
-                  aria-label="Toggle language"
+                  aria-label={t('common:a11y.toggleLanguage')}
                   className="flex min-h-11 items-center justify-center gap-1.5 px-2 py-2 rounded-lg border border-[hsl(var(--border-color))] text-sm text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
                 >
                   <Languages className="w-3.5 h-3.5" />

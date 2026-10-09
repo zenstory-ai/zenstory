@@ -14,7 +14,7 @@ Status: implemented
 
 - `UpgradePromptModal` 打开时用 `usePaidPlanWhenOpen` 读取 `/subscription/me`（先用 react-query 缓存，60 秒内不重复请求；没有 QueryClient 时视为未知、按免费处理）。已是付费套餐时只显示调用方的标题、「当前套餐的这项额度已经用满了。」和「知道了」，不渲染升级按钮，也不记升级曝光；套餐未确定前不记曝光。所有调用方一处生效。
 - `BillingPage`：付费用户直接从页头点按钮（没有带 `source` 参数进入）时，点击与收银台的 `upgradeSource` 记为 `billing_header_renew`；带归因参数进入的仍沿用该参数。
-- `/api/admin/dashboard/upgrade-conversion` 新增 `after_ai_quota_wall_conversions` 与 `paid_after_ai_quota_wall_conversions`：窗口内的转化中，用户在转化之前出现过 `chat_quota_blocked` 或 `settings_subscription_upgrade:blocked` 升级入口事件（即每日 AI 消息用完）的条数，及其中经支付宝付费的条数。管理后台转化卡片新增「撞过每日 AI 上限后转化（其中付费 N）」。
+- `/api/admin/dashboard/upgrade-conversion` 新增 `after_ai_quota_wall_conversions` 与 `paid_after_ai_quota_wall_conversions`：窗口内的转化中，用户在转化之前出现过 `chat_quota_blocked` 或 `settings_subscription_upgrade:blocked` 升级入口事件（即每日 AI 消息用完）的条数，及其中经支付宝付费的条数。只看 `created` 与 `upgraded`，续费（`renewed`）不算撞墙后转化；撞墙时间取事件的服务端写入时间 `created_at`，不用客户端可以传入的 `occurred_at`（新用户审计 P3-13）。管理后台转化卡片新增「撞过每日 AI 上限后转化（其中付费 N）」。
 
 ## Alternatives considered
 
@@ -30,4 +30,4 @@ Status: implemented
 ## Verification
 
 - 前端：`pnpm exec vitest run src/components/subscription/__tests__/UpgradePromptModal.test.tsx src/pages/__tests__/BillingPage.test.tsx src/lib/__tests__/adminApi.test.ts`。
-- 后端：`.venv/bin/pytest tests/test_api/test_admin_metrics.py -q --no-cov`：撞墙先于转化才计入、转化之后撞墙与其他上限不计入、付费只认支付宝。
+- 后端：`.venv/bin/pytest tests/test_api/test_admin_metrics.py -q --no-cov`：撞墙先于转化才计入、转化之后撞墙与其他上限不计入、付费只认支付宝；续费不计入，客户端回填的早于转化的 `occurred_at` 不会把转化之后才写入的撞墙事件算进去。

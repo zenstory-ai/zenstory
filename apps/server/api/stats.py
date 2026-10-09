@@ -257,6 +257,8 @@ class ProjectDashboardStatsResponse(BaseModel):
     """Combined statistics for project dashboard."""
     project_id: str
     project_name: str
+    # novel / short / screenplay: the dashboard names chapters 章 / 篇 / 集.
+    project_type: str = "novel"
     # Word count
     total_word_count: int
     words_today: int
@@ -512,6 +514,7 @@ def get_project_stats(
     response = ProjectDashboardStatsResponse(
         project_id=project_id,
         project_name=project.name,
+        project_type=project.project_type or "novel",
         total_word_count=total_word_count,
         words_today=words_today["net_words"],
         words_this_week=words_this_week["net_words"],

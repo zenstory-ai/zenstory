@@ -17,7 +17,9 @@
     "subscriptionManageHint": "Manage your plan, benefits, and redeem codes",
     "subscriptionRenewalSoon": "{{days}} days left",
     "exportQuotaBlockedTitle": "This export is not available on your current plan",
-    "exportQuotaBlockedDesc": "Upgrade your plan to use this export."
+    "exportQuotaBlockedDesc": "Upgrade your plan to use this export.",
+    "exportWithOutline": "Export outline and text (TXT)",
+    "exportWithOutlineSuccess": "Outline and text exported as a TXT file"
   },
   "fileTree": {
     "ariaLabel": "File tree",
@@ -29,7 +31,7 @@
     "newScript": "New Script",
     "newFileName": "New file name",
     "newProject": "New Project",
-    "uploadMaterial": "Upload material (.txt, up to 200k characters)",
+    "uploadMaterial": "Upload a reference text to this project (.txt, up to 200k characters)",
     "uploadDraft": "Import manuscript (.txt / .md, split into chapters automatically)",
     "draftUploadSuccess": "Imported {{count}} chapters",
     "draftUploadPartial": "Imported {{count}} chapters. Some files were not imported: {{errors}}",
@@ -37,11 +39,11 @@
     "removeFromChat": "Remove from chat",
     "addToChat": "Add to chat",
     "emptyFolder": "Empty, click + to start creating",
-    "emptyMaterialFolder": "No materials yet, click + to upload",
+    "emptyMaterialFolder": "Reference texts for this project. Click + to upload a .txt, then add it to the chat for the AI to use",
     "folderEmpty": "No files yet",
     "createWithAI": "Tell the AI what you want to write — it can set up the outline and chapters.",
     "uploading": "Uploading...",
-    "uploadSuccess": "Uploaded",
+    "uploadSuccess": "Uploaded \"{{name}}\". Click \"Add to chat\" to let the AI use it",
     "uploadFailed": "Upload failed. Please try again.",
     "errorFileTooLarge": "File is too large",
     "errorFileTypeInvalid": "Only .txt and .md files are supported",

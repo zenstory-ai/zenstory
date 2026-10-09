@@ -166,6 +166,30 @@ describe('MobileFileTree', () => {
     expect(mockToastSuccess).toHaveBeenCalledWith('editor:fileTree.uploadSuccess');
   });
 
+  it('names the folder create button with the localized file type, not the internal id', async () => {
+    mockGetTree.mockResolvedValue({
+      tree: [
+        {
+          id: 'character-folder-id',
+          title: '角色',
+          file_type: 'folder',
+          parent_id: null,
+          order: 0,
+          content: '',
+          metadata: null,
+          children: [],
+        },
+      ],
+    });
+
+    render(<MobileFileTree />);
+
+    expect(
+      await screen.findByRole('button', { name: 'common:create common:fileTypes.character' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTitle('common:create character')).not.toBeInTheDocument();
+  });
+
   it('adds snippet to chat context when clicking add button', async () => {
     mockIsMaterialAttached.mockReturnValue(false);
     mockGetTree.mockResolvedValue({

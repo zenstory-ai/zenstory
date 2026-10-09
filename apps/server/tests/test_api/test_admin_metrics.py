@@ -531,6 +531,7 @@ async def test_admin_upgrade_conversion_counts_authors_who_hit_the_ai_quota_wall
                 source=source,
                 surface="modal",
                 occurred_at=occurred_at,
+                created_at=occurred_at,
             )
         )
     db_session.commit()
@@ -543,6 +544,64 @@ async def test_admin_upgrade_conversion_counts_authors_who_hit_the_ai_quota_wall
     assert data["total_conversions"] == 4
     assert data["after_ai_quota_wall_conversions"] == 2
     assert data["paid_after_ai_quota_wall_conversions"] == 1
+
+
+@pytest.mark.integration
+async def test_admin_quota_wall_conversions_skip_renewals_and_use_server_time(
+    client: AsyncClient, db_session: Session
+):
+    """续费不算撞墙后转化；撞墙时间按服务端写入时间，不信客户端传来的 occurred_at。"""
+    admin = await create_user(db_session, "admin_wall_renew", "admin_wall_renew@example.com", is_superuser=True)
+    renewing_pro = await create_user(db_session, "wall_renew", "wall_renew@example.com")
+    backdated = await create_user(db_session, "wall_backdated", "wall_backdated@example.com")
+
+    now = utcnow()
+    for user, action in ((renewing_pro, "renewed"), (backdated, "upgraded")):
+        db_session.add(
+            SubscriptionHistory(
+                user_id=user.id,
+                action=action,
+                plan_name="pro",
+                start_date=now,
+                end_date=now + timedelta(days=30),
+                event_metadata={"source": "zpay", "upgrade_source": "billing_header_renew"},
+                created_at=now,
+            )
+        )
+    # A Pro author hit some wall before renewing.
+    db_session.add(
+        UpgradeFunnelEvent(
+            user_id=renewing_pro.id,
+            event_name="upgrade_entry_expose",
+            action="expose",
+            source="chat_quota_blocked",
+            surface="modal",
+            occurred_at=now - timedelta(days=2),
+            created_at=now - timedelta(days=2),
+        )
+    )
+    # Reported after paying, with a client clock claiming it happened days earlier.
+    db_session.add(
+        UpgradeFunnelEvent(
+            user_id=backdated.id,
+            event_name="upgrade_entry_expose",
+            action="expose",
+            source="chat_quota_blocked",
+            surface="modal",
+            occurred_at=now - timedelta(days=2),
+            created_at=now + timedelta(minutes=5),
+        )
+    )
+    db_session.commit()
+
+    token = await login_user(client, admin.username)
+    data = (
+        await client.get("/api/admin/dashboard/upgrade-conversion?days=7", headers=auth_headers(token))
+    ).json()
+
+    assert data["total_conversions"] == 2
+    assert data["after_ai_quota_wall_conversions"] == 0
+    assert data["paid_after_ai_quota_wall_conversions"] == 0
 
 
 @pytest.mark.integration

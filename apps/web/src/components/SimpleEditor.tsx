@@ -11,7 +11,7 @@ import { SelectionToolbar } from "./SelectionToolbar";
 import { useTextQuote } from "../contexts/TextQuoteContext";
 import { usePinchZoom } from "../hooks/useGestures";
 import type { DiffReviewState } from "../types";
-import { getLocaleCode } from "../lib/i18n-helpers";
+import { SavedAgoLabel } from "./SavedAgoLabel";
 import { countWords } from "../lib/documentChunker";
 import { logger } from "../lib/logger";
 import { toast } from "../lib/toast";
@@ -1056,17 +1056,6 @@ export const SimpleEditor = ({
     await onHistoryRestore?.();
   };
 
-  // Format last saved time
-  const formatLastSaved = (date: Date) => {
-    const now = new Date();
-    const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-    if (diff < 10) return t('editor:savedJustNow');
-    if (diff < 60) return t('editor:secondsAgo', { count: diff });
-    if (diff < 3600) return t('editor:minutesAgo', { count: Math.floor(diff / 60) });
-    return date.toLocaleTimeString(getLocaleCode(), { hour: "2-digit", minute: "2-digit" });
-  };
-
 
   return (
     <div className="relative flex flex-col h-full bg-[hsl(var(--bg-primary))]" onKeyDown={handleKeyDown}>
@@ -1259,7 +1248,7 @@ export const SimpleEditor = ({
             ) : lastSaved ? (
               <span className="text-xs text-[hsl(var(--text-secondary))] flex items-center gap-1">
                 <Check size={12} className="text-[hsl(var(--success))]" />
-                {formatLastSaved(lastSaved)}
+                <SavedAgoLabel savedAt={lastSaved} />
               </span>
             ) : null}
 

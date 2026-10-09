@@ -113,8 +113,7 @@ class TestSendVerificationCode:
 
             # Verify
             assert success is False
-            assert error is not None
-            assert "45" in error or "秒" in error
+            assert error == "验证码发送过于频繁,请在 45 秒后重试"
             mock_check_cooldown.assert_called_once()
 
     @pytest.mark.asyncio
@@ -320,8 +319,8 @@ class TestVerifyCode:
             # Verify
             assert success is False
             assert error is not None
-            # Error message contains {count} placeholder, which gets formatted
-            assert "验证码错误" in error or "verification code" in error.lower()
+            assert "{" not in error
+            assert error.startswith("验证码错误,还剩 ")
             mock_increment.assert_called_once()
 
     @pytest.mark.asyncio

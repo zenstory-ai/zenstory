@@ -806,6 +806,21 @@ describe('api', () => {
 
         await expect(exportApi.exportDrafts('project-1')).rejects.toThrow(ApiError)
       })
+
+      it('asks for the outline only when the author chose it', async () => {
+        const fetchMock = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 404,
+          json: async () => ({ detail: 'ERR_EXPORT_NO_DRAFTS' }),
+        })
+        global.fetch = fetchMock
+
+        await expect(exportApi.exportDrafts('project-1', { includeOutline: true })).rejects.toThrow(ApiError)
+        await expect(exportApi.exportDrafts('project-1')).rejects.toThrow(ApiError)
+
+        expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/projects\/project-1\/export\/drafts\?include_outline=true$/)
+        expect(String(fetchMock.mock.calls[1][0])).toMatch(/\/projects\/project-1\/export\/drafts$/)
+      })
     })
   })
 

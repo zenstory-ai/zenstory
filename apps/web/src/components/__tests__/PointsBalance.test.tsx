@@ -109,6 +109,20 @@ describe('PointsBalance', () => {
     expect(screen.getByText(/100 积分即将过期/)).toBeInTheDocument()
   })
 
+  it('does not print a stray 0 when nothing is about to expire', async () => {
+    mockGetBalance.mockResolvedValue({
+      available: 0,
+      pending_expiration: 0,
+      nearest_expiration_date: null,
+    })
+
+    renderWithQuery(<PointsBalance />)
+
+    expect(await screen.findByText('100 积分可兑换 7 天 Pro')).toBeInTheDocument()
+    // Only the balance itself reads "0".
+    expect(screen.getAllByText('0')).toHaveLength(1)
+  })
+
   it('hides pending expiration when showExpiration is false', async () => {
     mockGetBalance.mockResolvedValue({
       available: 1000,

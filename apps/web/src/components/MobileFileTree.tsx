@@ -346,7 +346,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
     try {
       await fileApi.upload(currentProjectId, file);
       await loadData(false);
-      toast.success(t('editor:fileTree.uploadSuccess'));
+      toast.success(t('editor:fileTree.uploadSuccess', { name: file.name }));
     } catch (error) {
       logger.error("Failed to upload file:", error);
       const message = error instanceof Error ? error.message : t('editor:fileTree.uploadFailed');
@@ -560,6 +560,10 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
     const isSelected = selectedItem?.id === node.id;
     const createFileType = getCreateFileType(node.title);
     const isMaterialFolderNode = isMaterialFolder(node);
+    // Same wording as the desktop tree: 创建 角色卡, not the internal type id.
+    const folderActionLabel = isMaterialFolderNode
+      ? t('editor:fileTree.uploadMaterial')
+      : `${t('common:create')} ${t(`common:fileTypes.${createFileType}`, { defaultValue: createFileType })}`;
 
     return (
       <div key={node.id} className="select-none">
@@ -627,11 +631,8 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
               className={`p-2 rounded-lg text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] active:bg-[hsl(var(--bg-tertiary))] touch-target ${
                 isMaterialFolderNode && isUploading ? 'opacity-50 cursor-not-allowed' : ''
               }`}
-              title={
-                isMaterialFolderNode
-                  ? t('editor:fileTree.uploadMaterial')
-                  : `${t('common:create')} ${createFileType}`
-              }
+              title={folderActionLabel}
+              aria-label={folderActionLabel}
             >
               <Plus size={20} />
             </button>

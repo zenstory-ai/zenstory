@@ -6,7 +6,7 @@ import { exportApi } from "../lib/api";
  */
 export interface UseExportResult {
   /** Async function to trigger draft export for the current project */
-  exportDrafts: () => Promise<void>;
+  exportDrafts: (options?: { includeOutline?: boolean }) => Promise<void>;
   /** Indicates if an export operation is currently in progress */
   loading: boolean;
   /** Error message if export failed, null otherwise. Auto-clears after 3 seconds */
@@ -61,14 +61,14 @@ export const useExport = (projectId: string | null): UseExportResult => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const exportDrafts = useCallback(async () => {
+  const exportDrafts = useCallback(async (options?: { includeOutline?: boolean }) => {
     if (!projectId) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      await exportApi.exportDrafts(projectId);
+      await (options ? exportApi.exportDrafts(projectId, options) : exportApi.exportDrafts(projectId));
     } catch (err) {
       const message = err instanceof Error ? err.message : "Export failed";
       setError(message);

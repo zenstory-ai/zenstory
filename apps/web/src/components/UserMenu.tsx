@@ -24,6 +24,7 @@ import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { pointsApi } from "../lib/pointsApi";
 import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "../config/support";
+import { getUserDisplayName } from "../lib/userDisplayName";
 
 /**
  * Predefined colors for avatar background
@@ -291,7 +292,7 @@ export const UserMenu: React.FC<UserMenuProps> = () => {
         data-testid="user-menu-button"
       >
         <UserAvatar
-          username={user.username}
+          username={getUserDisplayName(user)}
           avatarUrl={user.avatar_url}
           size={28}
         />
@@ -310,13 +311,13 @@ export const UserMenu: React.FC<UserMenuProps> = () => {
           <div className="px-3 py-3 border-b border-[hsl(var(--separator-color))]">
             <div className="flex items-center gap-3">
               <UserAvatar
-                username={user.username}
+                username={getUserDisplayName(user)}
                 avatarUrl={user.avatar_url}
                 size={40}
               />
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-[hsl(var(--text-primary))] truncate">
-                  {user.username}
+                  {getUserDisplayName(user)}
                 </div>
                 <div className="text-xs text-[hsl(var(--text-secondary))] truncate">
                   {getLoginMethodLabel(user)}
@@ -476,13 +477,13 @@ export const UserMenuMobile: React.FC<UserMenuMobileProps> = ({ onLogout }) => {
       {/* User info row */}
       <div className="flex items-center gap-3 px-3 py-2.5">
         <UserAvatar
-          username={user.username}
+          username={getUserDisplayName(user)}
           avatarUrl={user.avatar_url}
           size={32}
         />
         <div className="flex-1 min-w-0">
           <div className="font-medium text-sm text-[hsl(var(--text-primary))] truncate">
-            {user.username}
+            {getUserDisplayName(user)}
           </div>
           <div className="text-xs text-[hsl(var(--text-secondary))] truncate">
             {getLoginMethodLabel(user)}

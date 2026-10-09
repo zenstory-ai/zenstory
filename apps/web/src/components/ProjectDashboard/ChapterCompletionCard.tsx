@@ -4,6 +4,7 @@ import { CheckCircle2, Circle, Loader2, BookOpen } from 'lucide-react';
 import type { ProjectDashboardStatsResponse, ChapterDetailItem } from '../../types/writingStats';
 import { Card } from '../ui/Card';
 import { IconWrapper } from '../ui/IconWrapper';
+import { statsUnitKey } from './statsUnits';
 
 interface ChapterCompletionCardProps {
   /** Dashboard statistics data */
@@ -113,12 +114,12 @@ export function ChapterCompletionCard({
         <div className="flex items-center gap-2 mb-4">
           <BookOpen className="w-5 h-5 text-[hsl(var(--text-secondary))]" />
           <h3 className="text-base font-semibold text-[hsl(var(--text-primary))]">
-            {t('statistics.chapterCompletion.title')}
+            {t(statsUnitKey(stats, 'completionTitle'))}
           </h3>
         </div>
         <div className="flex flex-col items-center justify-center py-8 text-[hsl(var(--text-secondary))]">
           <BookOpen className="w-10 h-10 mb-2 opacity-50" />
-          <p className="text-sm">{t('statistics.chapterCompletion.noChapters')}</p>
+          <p className="text-sm">{t(statsUnitKey(stats, 'noChapters'))}</p>
         </div>
       </Card>
     );
@@ -133,11 +134,11 @@ export function ChapterCompletionCard({
             <BookOpen className="w-4 h-4" />
           </IconWrapper>
           <h3 className="text-base font-semibold text-[hsl(var(--text-primary))]">
-            {t('statistics.chapterCompletion.title')}
+            {t(statsUnitKey(stats, 'completionTitle'))}
           </h3>
         </div>
         <div className="text-sm text-[hsl(var(--text-secondary))]">
-          {t('statistics.chapterCompletion.total', { count: completionData.total_chapters })}
+          {t(statsUnitKey(stats, 'total'), { count: completionData.total_chapters })}
         </div>
       </div>
 
@@ -230,7 +231,7 @@ export function ChapterCompletionCard({
           {/* Show more indicator */}
           {remainingCount > 0 && (
             <div className="text-center py-2 text-xs text-[hsl(var(--text-secondary))]">
-              +{remainingCount} {t('statistics.chapterCompletion.total', { count: remainingCount }).replace(/[\d]+\s*/, '')}
+              {t(statsUnitKey(stats, 'more'), { count: remainingCount })}
             </div>
           )}
         </div>

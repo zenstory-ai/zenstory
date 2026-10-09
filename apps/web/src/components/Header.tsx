@@ -17,7 +17,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { History, Settings, Menu, X, Download, Bug, CreditCard, BarChart3, BookOpen } from "lucide-react";
+import { History, Settings, Menu, X, Download, Bug, CreditCard, BarChart3, BookOpen, FileText } from "lucide-react";
 import { Logo, LogoMark } from "./Logo";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
@@ -118,11 +118,16 @@ export const Header: React.FC<HeaderProps> = () => {
     }
   };
 
-  const handleExport = async (closeMobileMenu = false) => {
+  const handleExport = async (closeMobileMenu = false, includeOutline = false) => {
     if (!currentProjectId) return;
     try {
-      await exportDrafts();
-      toast.success(t('editor:header.exportSuccess', '正文已导出为 TXT 文件'));
+      if (includeOutline) {
+        await exportDrafts({ includeOutline: true });
+        toast.success(t('editor:header.exportWithOutlineSuccess', '大纲和正文已导出为 TXT 文件'));
+      } else {
+        await exportDrafts();
+        toast.success(t('editor:header.exportSuccess', '正文已导出为 TXT 文件'));
+      }
       if (closeMobileMenu) {
         setShowMobileMenu(false);
       }
@@ -155,6 +160,15 @@ export const Header: React.FC<HeaderProps> = () => {
           icon: BarChart3,
           label: t('editor:header.projectDashboard'),
           onClick: () => handleOpenProjectDashboard(),
+        }]
+      : []),
+    ...(currentProjectId
+      ? [{
+          icon: FileText,
+          label: t('editor:header.exportWithOutline'),
+          onClick: () => {
+            void handleExport(false, true);
+          },
         }]
       : []),
     {
@@ -336,6 +350,19 @@ export const Header: React.FC<HeaderProps> = () => {
               >
                 <Download size={18} />
                 {t('editor:header.export')}
+              </button>
+            )}
+            {currentProjectId && (
+              <button
+                type="button"
+                onClick={() => {
+                  void handleExport(true, true);
+                }}
+                className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-primary))] transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
+                role="menuitem"
+              >
+                <FileText size={18} />
+                {t('editor:header.exportWithOutline')}
               </button>
             )}
             {currentProjectId && (

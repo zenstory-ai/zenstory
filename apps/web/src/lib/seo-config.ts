@@ -167,6 +167,28 @@ export const pageSEOConfig: Record<string, SEOPageConfig> = {
       noindex: true,
     }
   },
+  // Signed-in pages: the tab names the page in the interface language instead
+  // of the generic site title.
+  '/dashboard/projects': {
+    zh: { title: '我的项目 - ZenStory', description: '管理你的写作项目', noindex: true },
+    en: { title: 'My Projects - ZenStory', description: 'Manage your writing projects', noindex: true },
+  },
+  '/dashboard/materials': {
+    zh: { title: '素材库 - ZenStory', description: '上传参考小说并拆解', noindex: true },
+    en: { title: 'Materials - ZenStory', description: 'Upload and break down reference novels', noindex: true },
+  },
+  '/dashboard/skills': {
+    zh: { title: '技能 - ZenStory', description: '管理写作技能', noindex: true },
+    en: { title: 'Skills - ZenStory', description: 'Manage writing skills', noindex: true },
+  },
+  '/dashboard/billing': {
+    zh: { title: '订阅权益 - ZenStory', description: '套餐与用量', noindex: true },
+    en: { title: 'Plan & Usage - ZenStory', description: 'Plan and usage', noindex: true },
+  },
+  '/onboarding/persona': {
+    zh: { title: '告诉我们你怎么写作 - ZenStory', description: '选择你的写作方向', noindex: true },
+    en: { title: 'How You Write - ZenStory', description: 'Choose how you write', noindex: true },
+  },
   '/verify-email': {
     zh: {
       title: '验证邮箱 - ZenStory',

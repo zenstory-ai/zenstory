@@ -522,13 +522,68 @@
         "efficiency": "Ask AI to brainstorm ideas, draft outlines and revise chapters.",
         "iterative": "Let AI write a first pass, then tell it what to change.",
         "context": "Fill in characters, setting and style in \"AI Memory\" so suggestions fit your story."
-      }
+      },
+      "sent": "{{count}} sent",
+      "sent_one": "{{count}} sent",
+      "sent_other": "{{count}} sent",
+      "sentDesc": "Messages you sent to the AI in this project",
+      "todaySent": "{{count}} sent today",
+      "todaySent_one": "{{count}} sent today",
+      "todaySent_other": "{{count}} sent today",
+      "quotaNote": "Counts only the messages you sent to the AI in this project. Today's AI message allowance covers all projects; the count above the chat box is the one that applies."
     },
     "loading": "Loading statistics...",
     "error": "Failed to load",
     "retry": "Retry",
     "noData": "No data available",
-    "lastUpdated": "Last updated: {{time}}"
+    "lastUpdated": "Last updated: {{time}}",
+    "byType": {
+      "novel": {
+        "completionTitle": "Chapter Completion",
+        "progress": "Chapter Progress",
+        "total": "{{count}} chapters",
+        "total_one": "{{count}} chapter",
+        "total_other": "{{count}} chapters",
+        "noChapters": "No chapters yet",
+        "createFirst": "Add a chapter and write whatever comes",
+        "hintNotStarted": "Start writing this chapter",
+        "hintCompleted": "Review or continue to the next chapter",
+        "notStartedDesc": "This chapter hasn't been started yet",
+        "notStartedCount": "not started yet",
+        "outlineWithoutDraftCount": "ready to write",
+        "more": "+{{count}} more"
+      },
+      "short": {
+        "completionTitle": "Completion",
+        "progress": "Progress",
+        "total": "{{count}} pieces",
+        "total_one": "{{count}} piece",
+        "total_other": "{{count}} pieces",
+        "noChapters": "No text yet",
+        "createFirst": "Add a piece and write whatever comes",
+        "hintNotStarted": "Start writing this piece",
+        "hintCompleted": "Review or continue with the next piece",
+        "notStartedDesc": "This piece hasn't been started yet",
+        "notStartedCount": "not started yet",
+        "outlineWithoutDraftCount": "ready to write",
+        "more": "+{{count}} more"
+      },
+      "screenplay": {
+        "completionTitle": "Episode Completion",
+        "progress": "Episode Progress",
+        "total": "{{count}} episodes",
+        "total_one": "{{count}} episode",
+        "total_other": "{{count}} episodes",
+        "noChapters": "No scripts yet",
+        "createFirst": "Add an episode and write whatever comes",
+        "hintNotStarted": "Start writing this episode",
+        "hintCompleted": "Review or continue to the next episode",
+        "notStartedDesc": "This episode hasn't been started yet",
+        "notStartedCount": "not started yet",
+        "outlineWithoutDraftCount": "ready to script",
+        "more": "+{{count}} more"
+      }
+    }
   },
   "dashboardTour": {
     "common": {

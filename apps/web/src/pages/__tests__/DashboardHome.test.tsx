@@ -16,7 +16,7 @@ const defaultMockUser: { id: string; username: string; nickname: string | null; 
 let mockUser = defaultMockUser
 let mockIsMobile = false
 let mockIsTablet = false
-let mockProjects: Array<{ id: string; name: string; description?: string; project_type: 'novel'; updated_at?: string | null }> = []
+let mockProjects: Array<{ id: string; name: string; description?: string; project_type: 'novel' | 'short' | 'screenplay'; updated_at?: string | null }> = []
 let mockProjectsLoading = false
 let mockFeaturedState: {
   featured: Array<{ id: string; name: string; description?: string; project_type: 'novel' }>;
@@ -757,10 +757,10 @@ describe('DashboardHome featured inspirations section', () => {
     expect(zhDashboard.hero.defaultName).toBe('作者')
     expect(enDashboard.hero.defaultName).toBe('writer')
   })
-  it('opens on the project type picked on the landing page and forgets it after creating', async () => {
+  it('opens on the project type picked on the landing page and keeps it after creating', async () => {
     setPreferredProjectType('screenplay')
 
-    renderDashboardHome()
+    const { unmount } = renderDashboardHome()
 
     fireEvent.click(screen.getByTestId('create-project-button'))
 
@@ -768,7 +768,29 @@ describe('DashboardHome featured inspirations section', () => {
       expect(mockCreateProject).toHaveBeenCalledWith(expect.any(String), undefined, 'screenplay')
       expect(mockNavigate).toHaveBeenCalledWith('/project/project-created')
     })
-    expect(getPreferredProjectType()).toBeNull()
+    expect(getPreferredProjectType()).toBe('screenplay')
+    unmount()
+
+    // Coming back to the dashboard: the screenwriter is not switched to 长篇小说.
+    renderDashboardHome()
+    fireEvent.click(screen.getByTestId('create-project-button'))
+    await waitFor(() => {
+      expect(mockCreateProject).toHaveBeenLastCalledWith(expect.any(String), undefined, 'screenplay')
+    })
+  })
+
+  it('without a stored preference opens on the type of the most recently active project', async () => {
+    mockProjects = [
+      { id: 'old-novel', name: '旧长篇', project_type: 'novel', updated_at: '2026-10-01T08:00:00Z' },
+      { id: 'new-short', name: '订婚宴前夜', project_type: 'short', updated_at: '2026-10-09T08:00:00Z' },
+    ]
+
+    renderDashboardHome()
+    fireEvent.click(screen.getByTestId('create-project-button'))
+
+    await waitFor(() => {
+      expect(mockCreateProject).toHaveBeenLastCalledWith(expect.any(String), undefined, 'short')
+    })
   })
 
   it('keeps the preferred type when project creation fails', async () => {
