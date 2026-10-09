@@ -151,6 +151,42 @@ Do not substitute arbitrary URLs, credentials, a moving `main` reference, or a
 "latest successful" run. Record the resulting run ID/attempt and retain the
 downloaded receipt alongside the provider deployment IDs and source readback.
 
+## Database migrations before promotion
+
+Neither environment runs Alembic on deploy: the Railway API service has no
+pre-deploy command, its start command only launches the API, and
+`init_db` only creates missing tables (it never adds columns). Code that reads
+a new column fails with `UndefinedColumn` on every query that touches the table
+until the column exists. The 2026-10-09 audit reproduced this with
+`usage_quota.material_trial_used_at`: quota reads and every AI message returned
+500 against an unmigrated database.
+
+Before promoting a release whose diff contains `apps/server/alembic/versions/`:
+
+1. Compare the release's Alembic head with the production `alembic_version`
+   and list the pending revisions.
+2. Confirm each pending revision is safe for the code that is still running:
+   additive only (new tables, nullable columns or columns with a server
+   default that does not rewrite large tables), no drops or renames. A revision
+   that is not backward compatible needs its own expand/contract plan and
+   release window.
+3. Take and verify a production backup with a client that matches the server
+   major version (`pg_dump` 17 for the current Postgres), then run
+   `alembic upgrade head` against production with an explicitly checked
+   Postgres URL. An empty `DATABASE_URL` makes Alembic fall back to a local
+   SQLite file without failing.
+4. Read back `alembic_version` and the new columns, record the revision and
+   backup receipt, and only then push the `prod-v*` tag. Vercel can serve the
+   new frontend minutes before Railway switches the API, so the database must
+   already be ready for both the old and the new API.
+
+Staging was created by `create_all` and has no `alembic_version` table. Apply
+the same additive DDL there by hand (`ADD COLUMN IF NOT EXISTS ...`) before the
+staging API runs the new code. Do not add a startup schema check that fails
+`/health/ready`: it would take staging and production down instead of
+surfacing a missed step, and it does not protect the old API from the new
+frontend.
+
 ## Effect on active users
 
 The API currently has one volume mounted at `/app/chroma_data`. Besides derived
