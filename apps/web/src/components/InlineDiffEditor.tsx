@@ -125,7 +125,7 @@ export const InlineDiffEditor = forwardRef<InlineDiffEditorHandle, InlineDiffEdi
           role: "button" as const,
           tabIndex: 0,
           onKeyDown,
-          "aria-label": t("editor:locateChange", {
+          "aria-label": t("editor:locateChangeIndexed", {
             defaultValue: "定位到第 {{index}} 处修改",
             index: (segment.editIndex ?? 0) + 1,
           }),

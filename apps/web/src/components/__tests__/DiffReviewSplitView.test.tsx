@@ -121,6 +121,29 @@ describe("DiffReviewSplitView", () => {
     expect(onResetEdit).toHaveBeenCalledWith("edit-2");
   });
 
+  it("labels the locate button with the resolved locale text, not a raw template", () => {
+    render(
+      <DiffReviewSplitView
+        originalContent="old"
+        modifiedContent="new"
+        pendingEdits={pendingEdits}
+        onAcceptEdit={vi.fn()}
+        onRejectEdit={vi.fn()}
+        onResetEdit={vi.fn()}
+      />
+    );
+
+    const locateButtons = screen.getAllByRole("button", { name: "定位到文档 (L)" });
+    expect(locateButtons.length).toBeGreaterThan(0);
+    for (const button of locateButtons) {
+      expect(button.getAttribute("title")).toBe("定位到文档 (L)");
+    }
+    for (const button of screen.getAllByRole("button")) {
+      expect(button.getAttribute("aria-label") ?? "").not.toContain("{{");
+      expect(button.getAttribute("title") ?? "").not.toContain("{{");
+    }
+  });
+
   it("supports per-edit keyboard shortcuts (Y/N/U)", () => {
     const onAcceptEdit = vi.fn();
     const onRejectEdit = vi.fn();
