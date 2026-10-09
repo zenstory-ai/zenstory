@@ -446,8 +446,8 @@ async def test_memory_heartbeat_keeps_run_alive_and_zombie_expires(monkeypatch):
     import agent.core.steering as st
 
     monkeypatch.delenv("REDIS_URL", raising=False)
-    st._redis_health_checked_at = 0.0
-    st._redis_is_healthy = False
+    monkeypatch.setattr(st, "_redis_health_checked_at", 0.0)
+    monkeypatch.setattr(st, "_redis_is_healthy", False)
     session_id = "sess-heartbeat-ttl"
     await st.cleanup_steering_queue_async(session_id)
     try:
@@ -478,8 +478,8 @@ async def test_heartbeat_does_not_resurrect_released_run(monkeypatch):
     import agent.core.steering as st
 
     monkeypatch.delenv("REDIS_URL", raising=False)
-    st._redis_health_checked_at = 0.0
-    st._redis_is_healthy = False
+    monkeypatch.setattr(st, "_redis_health_checked_at", 0.0)
+    monkeypatch.setattr(st, "_redis_is_healthy", False)
     session_id = "sess-heartbeat-released"
     await st.create_steering_queue_async(session_id, "u1", run_id="run-a", exclusive_run=True)
     await st.cleanup_steering_queue_async(session_id, run_id="run-a")

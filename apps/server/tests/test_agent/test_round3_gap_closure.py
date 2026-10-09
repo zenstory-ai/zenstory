@@ -106,8 +106,8 @@ def _force_redis_steering(monkeypatch) -> tuple[object, _FakeRedis]:
     monkeypatch.setattr(
         "services.infra.redis_client.get_redis_client", lambda: fake, raising=True
     )
-    st._redis_health_checked_at = 0.0
-    st._redis_is_healthy = False
+    monkeypatch.setattr(st, "_redis_health_checked_at", 0.0)
+    monkeypatch.setattr(st, "_redis_is_healthy", False)
     return st, fake
 
 
@@ -128,8 +128,8 @@ def _force_memory_steering(monkeypatch):
     import agent.core.steering as st
 
     monkeypatch.delenv("REDIS_URL", raising=False)
-    st._redis_health_checked_at = 0.0
-    st._redis_is_healthy = False
+    monkeypatch.setattr(st, "_redis_health_checked_at", 0.0)
+    monkeypatch.setattr(st, "_redis_is_healthy", False)
     return st
 
 
