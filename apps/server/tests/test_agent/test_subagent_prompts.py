@@ -21,6 +21,15 @@ class TestWriterPromptConsistency:
         assert f"少于 {AGENT_AUTO_REVIEW_THRESHOLD_CHARS} 字" in WRITER_PROMPT
         assert f"写完 {AGENT_AUTO_REVIEW_THRESHOLD_CHARS} 字以上内容后直接结束" in WRITER_PROMPT
 
+    def test_writer_reports_untouched_quote_issues_after_a_partial_edit(self):
+        """局部修改只规范化改到的文字（P1b）且不送审：没改到的半角/无引号对白要告诉作者，不能说已统一。
+
+        集成探测里 writer 改完第二章最后一段，全章还有 5 行半角引号、4 句没带引号的对白，
+        回复却写「全角引号与第一章统一」。
+        """
+        assert "只改局部时" in WRITER_PROMPT
+        assert "不要说全章引号已经统一" in WRITER_PROMPT
+
 
 @pytest.mark.unit
 class TestQualityReviewerPromptConsistency:

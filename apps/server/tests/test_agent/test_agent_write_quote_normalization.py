@@ -140,6 +140,80 @@ async def test_halfwidth_old_text_locates_fullwidth_original_exactly(db_session,
     assert db_session.get(File, chapter.id).content == "他说：“我走。”她笑了。"
 
 
+@pytest.mark.parametrize(
+    ("original", "edit", "expected"),
+    [
+        pytest.param(
+            "他说：“我明天就走，你别拦我。”她没回头。",
+            {"op": "replace", "old": "明天就走，你别拦我", "new": '明天就走"她急了："你别拦我'},
+            "他说：“我明天就走”她急了：“你别拦我。”她没回头。",
+            id="replace-inside-open-dialogue",
+        ),
+        pytest.param(
+            "他说：“甲来了，乙来了。”",
+            {"op": "replace", "old": "来了", "new": '来了"她说："好', "replace_all": True},
+            "他说：“甲来了”她说：“好，乙来了”她说：“好。”",
+            id="replace-all-inside-open-dialogue",
+        ),
+        pytest.param(
+            "他说：“我明天就走\n她没回头。",
+            {"op": "insert_after", "anchor": "我明天就走", "text": '，你别拦我。"'},
+            "他说：“我明天就走，你别拦我。”\n她没回头。",
+            id="insert-closing-fragment",
+        ),
+        pytest.param(
+            "开头。\n他说：“旧台词。”\n结尾。",
+            {"op": "replace", "old": "他说：“旧台词。”", "new": '他说："新台词。"她笑："好。"'},
+            "开头。\n他说：“新台词。”她笑：“好。”\n结尾。",
+            id="whole-line-replace",
+        ),
+        pytest.param(
+            "他说：“我明天就走，你别拦我。”",
+            {"op": "replace", "old": "明天就走，你别拦我", "new": '明天就走。”她急了："你别拦我'},
+            "他说：“我明天就走。”她急了：“你别拦我。”",
+            id="copied-curly-quote-not-flipped",
+        ),
+        pytest.param(
+            "第一章\n",
+            {"op": "append", "text": 'He said "go".'},
+            '第一章\nHe said "go".',
+            id="english-untouched",
+        ),
+        pytest.param(
+            "他说：走吧。",
+            {"op": "insert_before", "anchor": "走吧", "text": '"'},
+            '他说："走吧。',
+            id="odd-parity-line-skipped",
+        ),
+    ],
+)
+def test_edit_normalizes_new_text_by_its_line_context(db_session, owner_project, original, edit, expected):
+    user, project = owner_project
+    chapter = _add_file(db_session, project, "第1章", original)
+
+    FileEditor(db_session, user.id).edit_file(chapter.id, [edit], normalize_quotes=True)
+
+    db_session.expire_all()
+    assert db_session.get(File, chapter.id).content == expected
+
+
+def test_halfwidth_old_text_mid_dialogue_matches_curly_original_and_keeps_direction(db_session, owner_project):
+    user, project = owner_project
+    chapter = _add_file(db_session, project, "第1章", "他说：“我不走。”她笑了。")
+
+    result = FileEditor(db_session, user.id).edit_file(
+        chapter.id,
+        [{"op": "replace", "old": '我不走。"她笑了。', "new": '我走。"她笑："好。"'}],
+        normalize_quotes=True,
+    )
+
+    detail = result["details"][0]
+    assert detail["match_mode"] == "quote_equivalent"
+    assert detail["new_preview"] == "我走。”她笑：“好。”"
+    db_session.expire_all()
+    assert db_session.get(File, chapter.id).content == "他说：“我走。”她笑：“好。”"
+
+
 def test_quote_equivalent_match_keeps_the_uniqueness_guard(db_session, owner_project):
     user, project = owner_project
     content = "“走。”他说。\n“走。”她也说。"

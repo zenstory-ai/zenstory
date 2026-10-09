@@ -223,7 +223,9 @@ def novel_project(db_session):
     return {"project": project, "add": add}
 
 
-async def _run_writer_then_reviewer(db_session, project_id, written_id, *, workflow_plan="quick", initial="writer"):
+async def _run_writer_then_reviewer(
+    db_session, project_id, written_id, *, workflow_plan="quick", initial="writer", writer_text=None
+):
     from agent.graph.writing_graph import run_writing_workflow_streaming
     from agent.tools.mcp_tools import ToolContext
 
@@ -237,7 +239,7 @@ async def _run_writer_then_reviewer(db_session, project_id, written_id, *, workf
             guard._record_write(written_id, "第三章")
             for event in _write_done("w1"):
                 yield event
-            yield _text("第三章写好了。" + "她走在雨里。" * 40)
+            yield _text(writer_text or ("第三章写好了。" + "她走在雨里。" * 40))
             return
         reviewer_messages.append(state["user_message"])
         yield _text("审查通过。[TASK_COMPLETE]")
@@ -422,3 +424,51 @@ async def test_review_only_request_does_not_run_auto_checks(monkeypatch, db_sess
     assert calls == ["quality_reviewer", "writer", "quality_reviewer"]
     collector.assert_not_called()
     assert all("[自动检测：需核对]" not in message for message in reviewer_messages)
+
+
+# 流式落库（P1b）已把半角引号规范成 “”；送审内容必须是库里的这份，而不是模型的原始输出，
+# 否则审稿人会把已修好的半角引号当客观缺陷打回，白白多一轮付费返工。
+_STREAMED_DIALOGUE = '他推开门："我回来了。"她没抬头："嗯。"\n' * 6
+_PERSISTED_DIALOGUE = _STREAMED_DIALOGUE.replace('"我回来了。"', "“我回来了。”").replace('"嗯。"', "“嗯。”")
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_auto_review_payload_uses_persisted_normalized_text(monkeypatch, db_session, novel_project):
+    monkeypatch.setenv("AGENT_ENABLE_GRAPH_AUTO_REVIEW", "true")
+    target = novel_project["add"]("第三章", _PERSISTED_DIALOGUE.strip(), order=3)
+
+    _, reviewer_messages, calls = await _run_writer_then_reviewer(
+        db_session,
+        novel_project["project"].id,
+        target.id,
+        writer_text=f"<file>{_STREAMED_DIALOGUE}</file>",
+    )
+
+    assert calls == ["writer", "quality_reviewer"]
+    payload = reviewer_messages[0].split("[待审查内容]\n", 1)[1]
+    assert "他推开门：“我回来了。”她没抬头：“嗯。”" in payload
+    assert '"' not in payload
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_auto_review_payload_falls_back_to_writer_output_when_read_fails(
+    monkeypatch, db_session, novel_project
+):
+    monkeypatch.setenv("AGENT_ENABLE_GRAPH_AUTO_REVIEW", "true")
+    target = novel_project["add"]("第三章", _PERSISTED_DIALOGUE.strip(), order=3)
+
+    with patch(
+        "agent.graph.writing_graph._collect_review_payload_text",
+        side_effect=RuntimeError("db gone"),
+    ):
+        _, reviewer_messages, calls = await _run_writer_then_reviewer(
+            db_session,
+            novel_project["project"].id,
+            target.id,
+            writer_text=f"<file>{_STREAMED_DIALOGUE}</file>",
+        )
+
+    assert calls == ["writer", "quality_reviewer"]
+    assert '他推开门："我回来了。"' in reviewer_messages[0].split("[待审查内容]\n", 1)[1]

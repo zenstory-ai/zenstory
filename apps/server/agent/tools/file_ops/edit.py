@@ -32,7 +32,7 @@ from services.features.file_version_service import BEFORE_AI_EDIT_SUMMARY
 from utils.cjk_quotes import (
     detect_quote_style,
     has_style_quote_marks,
-    normalize_double_quotes,
+    normalize_inserted_spans,
     resolve_quote_style,
 )
 from utils.logger import get_logger, log_with_context
@@ -573,16 +573,16 @@ class FileEditor:
                         content, edit, i, applied_edits, warnings, quote_style=quote_style
                     )
                 elif op == "append":
-                    text = self._normalize_new_text(edit.get("text", ""), quote_style)
-                    content = content + text
+                    content, text = self._place_new_text(
+                        content, len(content), len(content), edit.get("text", ""), quote_style
+                    )
                     applied_edits.append({
                         "op": op,
                         "text_len": len(text),
                         "text_preview": text[:200] + ("..." if len(text) > 200 else ""),
                     })
                 elif op == "prepend":
-                    text = self._normalize_new_text(edit.get("text", ""), quote_style)
-                    content = text + content
+                    content, text = self._place_new_text(content, 0, 0, edit.get("text", ""), quote_style)
                     applied_edits.append({
                         "op": op,
                         "text_len": len(text),
@@ -690,11 +690,26 @@ class FileEditor:
         return result
 
     @staticmethod
-    def _normalize_new_text(text: Any, quote_style: str | None) -> Any:
-        """把一个 edit 写入的新文本规范成文件的引号风格；不需要时原样返回。"""
+    def _normalize_placed_spans(content: str, spans: list[tuple[int, int]], quote_style: str | None) -> str:
+        """规范已经落到 content 里的新文本（spans）的双引号；不需要时原样返回。
+
+        开/闭方向看新文本所在的整行：片段从对白中间开始时（行内它前面的引号是奇数个），
+        第一个引号就是闭引号。只改 spans 内的字符，逐字一换一，偏移不变。
+        """
+        if quote_style is None or not spans:
+            return content
+        return normalize_inserted_spans(content, spans, quote_style)
+
+    @classmethod
+    def _place_new_text(
+        cls, content: str, start: int, end: int, text: Any, quote_style: str | None
+    ) -> tuple[str, Any]:
+        """content[start:end] 换成 text 并按上下文规范它的引号；返回 (新 content, 实际写入的 text)。"""
+        content = content[:start] + text + content[end:]
         if quote_style is None or not isinstance(text, str) or not text:
-            return text
-        return normalize_double_quotes(text, quote_style)
+            return content, text
+        content = cls._normalize_placed_spans(content, [(start, start + len(text))], quote_style)
+        return content, content[start : start + len(text)]
 
     @classmethod
     def _edits_incoming_text(cls, edits: Any) -> str:
@@ -951,9 +966,7 @@ class FileEditor:
                 f"Edit {edit_index}: replace 缺少 old 字段（要被替换的原文）。"
                 f"请从当前文件原文中复制要改的那一段。"
             )
-        new_text = self._normalize_new_text(
-            self._resolve_replace_new(edit, edit_index, warnings), quote_style
-        )
+        new_text = self._resolve_replace_new(edit, edit_index, warnings)
 
         # 1) Exact match first, then exact modulo double-quote style
         located = locate_exact_or_quote_equivalent(content, old_text)
@@ -963,13 +976,19 @@ class FileEditor:
                 spans = _exact_spans(haystack, needle, limit=len(haystack) + 1)
                 count = len(spans)
                 parts: list[str] = []
-                prev = 0
+                placed: list[tuple[int, int]] = []
+                prev = out_len = 0
                 for start, end in spans:
                     parts.append(content[prev:start])
+                    out_len += start - prev
                     parts.append(new_text)
+                    placed.append((out_len, out_len + len(new_text)))
+                    out_len += len(new_text)
                     prev = end
                 parts.append(content[prev:])
-                content = "".join(parts)
+                content = self._normalize_placed_spans("".join(parts), placed, quote_style)
+                if placed:
+                    new_text = content[placed[0][0] : placed[0][1]]
                 applied_edits.append({
                     "op": "replace",
                     "match_mode": exact_mode,
@@ -993,7 +1012,9 @@ class FileEditor:
                     extra_hint="（确实要把这几处全部替换时，才使用 replace_all=true）",
                     preview_content=content,
                 )
-                content = content[:start] + new_text + content[start + len(old_text):]
+                content, new_text = self._place_new_text(
+                    content, start, start + len(old_text), new_text, quote_style
+                )
                 detail = {
                     "op": "replace",
                     "match_mode": exact_mode,
@@ -1050,7 +1071,7 @@ class FileEditor:
                     )
                     matched_text = content[start:end]
                     # Single approximate match - use it
-                    content = content[:start] + new_text + content[end:]
+                    content, new_text = self._place_new_text(content, start, end, new_text, quote_style)
                     applied_edits.append({
                         "op": "replace",
                         "match_mode": "approximate",
@@ -1076,7 +1097,8 @@ class FileEditor:
                 # Stitch segments in one pass (spans are sorted and
                 # non-overlapping); repeated re-slicing would be O(n·k).
                 parts: list[str] = []
-                prev = 0
+                placed: list[tuple[int, int]] = []
+                prev = out_len = 0
                 first_matched: str | None = None
                 for start, end in spans:
                     if ignore_punct_whitespace:
@@ -1089,10 +1111,15 @@ class FileEditor:
                     if first_matched is None:
                         first_matched = content[start:end]
                     parts.append(content[prev:start])
+                    out_len += start - prev
                     parts.append(new_text)
+                    placed.append((out_len, out_len + len(new_text)))
+                    out_len += len(new_text)
                     prev = end
                 parts.append(content[prev:])
-                content = "".join(parts)
+                content = self._normalize_placed_spans("".join(parts), placed, quote_style)
+                if placed:
+                    new_text = content[placed[0][0] : placed[0][1]]
 
                 truncated = len(spans) >= REPLACE_ALL_MAX_FUZZY_MATCHES
                 if truncated:
@@ -1137,7 +1164,7 @@ class FileEditor:
                         content, start, end, old_text, replacement=new_text
                     )
                 matched_text = content[start:end]
-                content = content[:start] + new_text + content[end:]
+                content, new_text = self._place_new_text(content, start, end, new_text, quote_style)
                 detail = {
                     "op": "replace",
                     "match_mode": "fuzzy",
@@ -1166,7 +1193,7 @@ class FileEditor:
     ) -> str:
         """Apply an insert_after edit operation."""
         anchor = edit.get("anchor", "")
-        text = self._normalize_new_text(edit.get("text", ""), quote_style)
+        text = edit.get("text", "")
 
         match_mode = str(edit.get("match_mode") or "auto").strip().lower()
         ignore_punct_whitespace = self._parse_ignore_punct_whitespace(edit)
@@ -1184,7 +1211,7 @@ class FileEditor:
                 preview_content=content,
             )
             pos = start + len(anchor)
-            content = content[:pos] + text + content[pos:]
+            content, text = self._place_new_text(content, pos, pos, text, quote_style)
             applied_edits.append({
                 "op": "insert_after",
                 "match_mode": exact_mode,
@@ -1228,7 +1255,7 @@ class FileEditor:
                     # Insert after the matched text：锚点以句号/引号收尾时，
                     # 插入点要越过原文对应的标点，不能插在「冷」和「。」之间。
                     _, pos = self._extend_fuzzy_span(content, start, end, anchor, leading=False)
-                    content = content[:pos] + text + content[pos:]
+                    content, text = self._place_new_text(content, pos, pos, text, quote_style)
                     applied_edits.append({
                         "op": "insert_after",
                         "match_mode": "approximate",
@@ -1249,7 +1276,7 @@ class FileEditor:
                 if block_span:
                     start, end, block_score = block_span
                     pos = end
-                    content = content[:pos] + text + content[pos:]
+                    content, text = self._place_new_text(content, pos, pos, text, quote_style)
                     # fuzzy_paragraph 是「最像的整段」而不是逐字命中，必须把
                     # 置信度与兜底性质写进详情，否则模型只看到 match_count=1，
                     # 会误以为这是确定无疑的唯一匹配而不再复核。
@@ -1296,7 +1323,7 @@ class FileEditor:
             pos = end
             if ignore_punct_whitespace:
                 _, pos = self._extend_fuzzy_span(content, start, end, anchor, leading=False)
-            content = content[:pos] + text + content[pos:]
+            content, text = self._place_new_text(content, pos, pos, text, quote_style)
             applied_edits.append({
                 "op": "insert_after",
                 "match_mode": "fuzzy",
@@ -1321,7 +1348,7 @@ class FileEditor:
     ) -> str:
         """Apply an insert_before edit operation."""
         anchor = edit.get("anchor", "")
-        text = self._normalize_new_text(edit.get("text", ""), quote_style)
+        text = edit.get("text", "")
 
         match_mode = str(edit.get("match_mode") or "auto").strip().lower()
         ignore_punct_whitespace = self._parse_ignore_punct_whitespace(edit)
@@ -1338,7 +1365,7 @@ class FileEditor:
                 haystack, needle, occurrence, match_count, edit_index, label="锚点",
                 preview_content=content,
             )
-            content = content[:pos] + text + content[pos:]
+            content, text = self._place_new_text(content, pos, pos, text, quote_style)
             applied_edits.append({
                 "op": "insert_before",
                 "match_mode": exact_mode,
@@ -1382,7 +1409,7 @@ class FileEditor:
                     # Insert before the matched text：锚点以引号开头时插入点要
                     # 落在原文开引号之前，不能把新文本插进「“」和正文之间。
                     pos, _ = self._extend_fuzzy_span(content, start, end, anchor, trailing=False)
-                    content = content[:pos] + text + content[pos:]
+                    content, text = self._place_new_text(content, pos, pos, text, quote_style)
                     applied_edits.append({
                         "op": "insert_before",
                         "match_mode": "approximate",
@@ -1403,7 +1430,7 @@ class FileEditor:
                 if block_span:
                     start, end, block_score = block_span
                     pos = start
-                    content = content[:pos] + text + content[pos:]
+                    content, text = self._place_new_text(content, pos, pos, text, quote_style)
                     # 同 insert_after：兜底段落匹配必须自报置信度，不能伪装成确定匹配。
                     applied_edits.append({
                         "op": "insert_before",
@@ -1448,7 +1475,7 @@ class FileEditor:
             pos = start
             if ignore_punct_whitespace:
                 pos, _ = self._extend_fuzzy_span(content, start, end, anchor, trailing=False)
-            content = content[:pos] + text + content[pos:]
+            content, text = self._place_new_text(content, pos, pos, text, quote_style)
             applied_edits.append({
                 "op": "insert_before",
                 "match_mode": "fuzzy",
