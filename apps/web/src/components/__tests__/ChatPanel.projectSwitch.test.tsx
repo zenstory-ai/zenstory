@@ -10,8 +10,17 @@
  */
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render as rtlRender, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
+// ChatPanel reads the quota query (shared with QuotaBadge), so it needs a QueryClient.
+const render = (ui: React.ReactElement) =>
+  rtlRender(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      {ui}
+    </QueryClientProvider>,
+  )
 
 // ChatPanel 被 React.memo 包裹且无 props，真实应用里靠 ProjectContext 变化触发
 // 重渲染；这里用可通知的外部 store 模拟 context 更新，绕过 memo 的 props 比较。
@@ -132,6 +141,16 @@ vi.mock('../../lib/chatApi', () => ({
 
 vi.mock('../../lib/agentApi', () => ({
   fetchSuggestions: vi.fn(async () => []),
+}))
+
+vi.mock('../../lib/subscriptionApi', () => ({
+  subscriptionApi: {
+    getQuota: vi.fn(async () => ({ ai_conversations: { used: 0, limit: 10, reset_at: null } })),
+  },
+  subscriptionQueryKeys: {
+    quota: () => ['subscription-quota', 'test-user'],
+    quotaLite: () => ['quota', 'test-user'],
+  },
 }))
 
 vi.mock('../../lib/api', () => ({

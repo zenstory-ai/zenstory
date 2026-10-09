@@ -43,6 +43,14 @@ export interface ProjectContextType {
   updateProject: (projectId: string, updates: Partial<Project>) => Promise<Project>;
   deleteProject: (projectId: string) => Promise<void>;
   refreshProjects: () => Promise<void>;
+  /**
+   * Re-read one project and patch it into `projects` in place. Unlike
+   * `refreshProjects` it never touches `loading` (ProjectEditor swaps the whole
+   * workspace for a page loader while that is true) and never re-picks the
+   * current project, so it is safe to call mid-chat, e.g. after the agent
+   * renamed the project. Failures are logged and leave the list unchanged.
+   */
+  refreshProject: (projectId: string) => Promise<void>;
   fileTreeVersion: number;
   triggerFileTreeRefresh: () => void;
   // Editor refresh state (for edit_file updates)
@@ -578,6 +586,32 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     await loadProjects();
   }, [loadProjects]);
 
+  const refreshProject = useCallback(async (projectId: string): Promise<void> => {
+    const requestedUserId = authUserIdRef.current;
+    if (!requestedUserId || !projectId) return;
+    try {
+      const fresh = await projectApi.get(projectId);
+      // The account may have switched while the request was in flight.
+      if (
+        authUserIdRef.current !== requestedUserId ||
+        projectsOwnerIdRef.current !== requestedUserId
+      ) {
+        return;
+      }
+      if (!fresh || fresh.id !== projectId || typeof fresh.name !== 'string') return;
+      setProjects(prev => (
+        prev.some(p => p.id === projectId)
+          ? prev.map(p => (p.id === projectId ? { ...p, ...fresh } : p))
+          : prev
+      ));
+    } catch (err) {
+      logger.warn('[ProjectContext] Failed to refresh project', {
+        projectId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }, []);
+
   const contextValue = useMemo<ProjectContextType>(() => ({
     projects: visibleProjects,
     currentProject,
@@ -592,6 +626,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     updateProject,
     deleteProject,
     refreshProjects,
+    refreshProject,
     fileTreeVersion,
     triggerFileTreeRefresh,
     editorRefreshVersion,
@@ -629,6 +664,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     updateProject,
     deleteProject,
     refreshProjects,
+    refreshProject,
     fileTreeVersion,
     triggerFileTreeRefresh,
     editorRefreshVersion,
