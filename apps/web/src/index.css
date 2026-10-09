@@ -558,8 +558,10 @@ code, pre, .font-mono {
     }
 
     /* Modal */
+    /* Confirmation layer: above Modal (z-[1000]) so a ConfirmDialog opened from
+       inside a Modal stays on top and clickable, below Toast (z-[1100]). */
     .modal-overlay {
-        @apply fixed inset-0 z-50;
+        @apply fixed inset-0 z-[1050];
         background: rgba(0, 0, 0, 0.7);
         backdrop-filter: blur(4px);
     }

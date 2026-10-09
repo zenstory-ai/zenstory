@@ -43,7 +43,7 @@ Status: implemented
 **头部不折行、撤销用应用内确认框（#31）**
 
 - 标题 `shrink-0 whitespace-nowrap`，标题组和右侧容器 `min-w-0`，「处理中」等状态词放不下时省略。
-- `QuotaBadge` 新增可选 prop `compact`：ChatPanel 传 true，只显示「{{used}}/{{limit}}」（Pro 显示「∞」），完整文案放进 `title` 和 `aria-label`；升级按钮在 compact 下是带 `aria-label` 的图标按钮。其他调用点（设置弹窗等）不传，行为不变。
+- `QuotaBadge` 新增可选 prop `compact`：ChatPanel 传 true，只显示「{{used}}/{{limit}}」（Pro 显示「∞」），完整文案放进 `title` 和 `aria-label`；外层 span 不设 `role="status"`：计数很少变化，做成实时区域只会和页面上真正的状态提示抢播报（也会让 `getByRole('status')` 命中多个元素）；升级按钮在 compact 下是带 `aria-label` 的图标按钮。其他调用点（设置弹窗等）不传，行为不变。
 - 撤销 AI 修改改用 `ui/ConfirmDialog`：标题 `chat:tool.undo_edit`，正文沿用 `editor:versionHistory.confirmUndoAIEdit`（本包只读不改），确认 `chat:actions.undo`，取消 `common:cancel`；回滚进行中按钮禁用，结束后关闭。
 
 **快照说明（#22）**

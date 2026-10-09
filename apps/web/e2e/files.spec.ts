@@ -410,13 +410,13 @@ test.describe('Files', () => {
     // Wait for auto-save API response
     await page.waitForResponse(resp => resp.url().includes('/api/v1/') && resp.url().includes('/files') && resp.request().method() === 'PUT', { timeout: 10000 })
 
-    // Look for history button (clock icon)
-    const historyButton = page.locator('button:has(svg.lucide-clock), button:has(svg.lucide-history)')
+    // File-scoped history button in the editor footer (the header one opens project snapshots)
+    const historyButton = page.getByRole('button', { name: /^(历史版本|历史|Versions|History)$/ })
     if (await historyButton.first().isVisible()) {
       await historyButton.first().click()
 
-      // Verify version history panel is visible
-      const versionPanel = page.locator('text=历史版本, text=版本历史')
+      // Verify the file's version history panel is visible
+      const versionPanel = page.getByRole('dialog').getByText(/^(历史版本|Version history)$/)
       await expect(versionPanel.first()).toBeVisible()
     }
   })

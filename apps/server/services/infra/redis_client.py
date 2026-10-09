@@ -358,18 +358,24 @@ _CONSUME_PASSWORD_RESET_CODE = (
     "redis.call('DEL', KEYS[1], KEYS[2]) return 1"
 )
 
-# KEYS[1]=code, KEYS[2]=attempts; ARGV[1]=max attempts, ARGV[2]=attempts TTL.
-# The failure that reaches the budget deletes the code in the same step.
+# KEYS[1]=code, KEYS[2]=attempts, KEYS[3]=fails; ARGV[1]=max attempts,
+# ARGV[2]=attempts TTL, ARGV[3]=per-email failure cap, ARGV[4]=fails TTL.
+# ``attempts`` is the per-code budget; ``fails`` counts every wrong code for the
+# address and is never reset by a new code. The failure that reaches either
+# budget deletes the code in the same step.
 _RECORD_PASSWORD_RESET_FAILURE = (
     "local attempts = redis.call('INCR', KEYS[2]) "
     "if attempts == 1 then redis.call('EXPIRE', KEYS[2], ARGV[2]) end "
-    "if attempts >= tonumber(ARGV[1]) then redis.call('DEL', KEYS[1]) end "
+    "local fails = redis.call('INCR', KEYS[3]) "
+    "if fails == 1 then redis.call('EXPIRE', KEYS[3], ARGV[4]) end "
+    "if attempts >= tonumber(ARGV[1]) or fails >= tonumber(ARGV[3]) then "
+    "redis.call('DEL', KEYS[1]) end "
     "return attempts"
 )
 
 
 def password_reset_key(kind: str, email: str) -> str:
-    """``pwreset:{code|attempts|cooldown}:{email}``."""
+    """``pwreset:{code|attempts|cooldown|fails}:{email}``."""
     return f"pwreset:{kind}:{email}"
 
 
@@ -436,15 +442,26 @@ def consume_password_reset_code(email: str, code_hash: str) -> bool:
         return False
 
 
-def record_password_reset_failure(email: str, max_attempts: int, ttl: int) -> int:
-    """Count a wrong code; the failure reaching ``max_attempts`` deletes the code."""
+def record_password_reset_failure(
+    email: str,
+    max_attempts: int,
+    ttl: int,
+    max_failures: int,
+    failures_ttl: int,
+) -> int:
+    """Count a wrong code against the code and the address.
+
+    The failure reaching ``max_attempts`` (this code) or ``max_failures`` (this
+    address, across codes) deletes the code.
+    """
     try:
         client = get_redis_client()
         return int(client.eval(  # type: ignore[arg-type]
-            _RECORD_PASSWORD_RESET_FAILURE, 2,
+            _RECORD_PASSWORD_RESET_FAILURE, 3,
             password_reset_key("code", email),
             password_reset_key("attempts", email),
-            max_attempts, ttl,
+            password_reset_key("fails", email),
+            max_attempts, ttl, max_failures, failures_ttl,
         ))
     except Exception as error:
         log_with_context(
@@ -454,8 +471,25 @@ def record_password_reset_failure(email: str, max_attempts: int, ttl: int) -> in
         return max_attempts
 
 
+def password_reset_failures_capped(email: str, max_failures: int) -> bool:
+    """True when the address has used its wrong-code budget; fail closed on errors."""
+    try:
+        client = get_redis_client()
+        raw = client.get(password_reset_key("fails", email))
+        return raw is not None and int(raw) >= max_failures  # type: ignore[arg-type]
+    except Exception as error:
+        log_with_context(
+            logger, 40, "Error reading password reset failures",
+            error_type=type(error).__name__,
+        )
+        return True
+
+
 def clear_password_reset_state(email: str) -> bool:
-    """Drop code, attempts and cooldown, e.g. when the email could not be sent."""
+    """Drop code, attempts and cooldown, e.g. when the email could not be sent.
+
+    The per-address ``fails`` counter is deliberately kept.
+    """
     try:
         client = get_redis_client()
         client.delete(*(password_reset_key(kind, email) for kind in ("code", "attempts", "cooldown")))

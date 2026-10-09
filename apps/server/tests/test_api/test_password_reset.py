@@ -48,7 +48,7 @@ def reset_env(owned_redis, monkeypatch):  # noqa: F811
     yield sent, new_email, owned_redis
     for email in emails:
         owned_redis.delete(
-            *(storage.password_reset_key(kind, email) for kind in ("code", "attempts", "cooldown")),
+            *(storage.password_reset_key(kind, email) for kind in ("code", "attempts", "cooldown", "fails")),
             f"verification:{email}",
         )
 
@@ -342,7 +342,7 @@ async def test_codes_never_reach_the_logs(client, db_session, owned_redis, monke
         await client.post(CONFIRM, json={"email": email, "code": code, "new_password": NEW_PASSWORD})
     finally:
         owned_redis.delete(
-            *(storage.password_reset_key(kind, email) for kind in ("code", "attempts", "cooldown")),
+            *(storage.password_reset_key(kind, email) for kind in ("code", "attempts", "cooldown", "fails")),
         )
 
     assert caplog.records

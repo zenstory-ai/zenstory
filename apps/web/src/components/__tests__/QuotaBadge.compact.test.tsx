@@ -48,7 +48,10 @@ describe('QuotaBadge compact', () => {
 
     renderWithQuery(<QuotaBadge compact />)
 
-    const pill = await screen.findByRole('status', { name: '今日 AI 消息 4/10 条' })
+    const pill = await screen.findByTestId('quota-badge-compact')
+    expect(pill).toHaveAttribute('aria-label', '今日 AI 消息 4/10 条')
+    // A static counter is not a live region and must not compete with real status messages.
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(pill).toHaveAttribute('title', '今日 AI 消息 4/10 条')
     expect(pill).toHaveTextContent(/^4\/10$/)
     expect(screen.queryByText('今日 AI 消息 4/10 条')).not.toBeInTheDocument()
