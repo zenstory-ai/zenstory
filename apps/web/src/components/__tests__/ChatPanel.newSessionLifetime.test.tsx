@@ -135,7 +135,7 @@ afterEach(async () => {
   gates.forEach(x => x.settle()); await flush(); snapshot('after assertion')
   cleanup(); await queryClient.cancelQueries(); queryClient.clear()
   for (const stream of streams) { if (!stream.closed) { stream.closed = true; stream.controller.close() }; stream.dispose() }
-  await act(async () => { await vi.advanceTimersByTimeAsync(2000) }); await Promise.allSettled([...pending])
+  await act(async () => { await vi.advanceTimersByTimeAsync(5500) }); await Promise.allSettled([...pending])
   const remainingTimers = vi.getTimerCount(); vi.clearAllTimers()
   console.info('M07_NEW_SESSION_OBSERVATION', JSON.stringify({ case: expect.getState().currentTestName, requests, routes, checkpoints, bootstrapLocaleRequestCount: bootstrap.paths.length,
     streams: streams.map(x => ({ closed: x.closed, aborted: x.aborted })), cleanup: { unsettledAtAssertion, pending: pending.size, unexpected, remainingTimers, timersAfterClear: vi.getTimerCount(), dialogs: screen.queryAllByRole('dialog').length,

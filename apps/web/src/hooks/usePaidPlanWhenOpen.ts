@@ -51,6 +51,9 @@ export function usePaidPlanWhenOpen(open: boolean): { isPaid: boolean; resolved:
     return () => {
       cancelled = true;
       clearTimeout(giveUp);
+      // Closed: the next open waits for its own answer (neutral copy first) instead of
+      // falling straight to the free copy because an earlier lookup gave up.
+      setFailed(false);
     };
   }, [open, client]);
 

@@ -42,6 +42,8 @@ import { Sparkles, Loader2, Plus, Edit3, Database, ArrowDown } from "lucide-reac
 import { QuotaBadge } from "./subscription/QuotaBadge";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { subscriptionApi, subscriptionQueryKeys } from "../lib/subscriptionApi";
+import { isAiMessageQuotaExhausted } from "../hooks/useAiMessageQuota";
+import { flushOpenEditor } from "../lib/editorSaveTracker";
 import type {
   AgentContextItem,
   AgentRequest,
@@ -401,9 +403,11 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     queryFn: () => subscriptionApi.getQuota(),
   });
   const aiMessageQuota = quota?.ai_conversations;
-  const quotaExhausted = Boolean(
-    aiMessageQuota && aiMessageQuota.limit !== -1 && aiMessageQuota.used >= aiMessageQuota.limit,
-  );
+  // Same rule as the home page (a plan without a positive daily limit is never "used up").
+  const quotaExhausted = isAiMessageQuotaExhausted(aiMessageQuota);
+  // Pro (no daily limit) never hears about today's count, and neither does anyone while the
+  // quota is still loading (it may turn out to be Pro).
+  const showDailyCount = Boolean(aiMessageQuota) && aiMessageQuota?.limit !== -1;
   /** Refresh the quota pill (and other quota readers) after the server charged or refunded. */
   const invalidateQuota = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.quota() });
@@ -479,15 +483,27 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const [showAIMemory, setShowAIMemory] = useState(false);
   const [generationMode, setGenerationMode] = useState<GenerationMode>("quality");
   const { draft, saveDraft, clearDraft } = useDraftPersistence(currentProjectId);
+  const draftRef = useRef(draft);
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
   /** The bubble just sent, until the server accepts the round (it is not stored before that). */
   const blockedCandidateRef = useRef<{ id: string; content: string } | null>(null);
-  /** The server refused the round for today's AI messages: put the words back in the input. */
+  /**
+   * The server refused the round for today's AI messages: put the words back in the input.
+   * Anything typed into the box since sending stays, after the returned message.
+   */
   const returnBlockedMessageToInput = useCallback(() => {
     const candidate = blockedCandidateRef.current;
     blockedCandidateRef.current = null;
     if (!candidate) return;
     setMessages((prev) => prev.filter((message) => message.id !== candidate.id));
-    saveDraft(candidate.content);
+    const typedSince = draftRef.current;
+    if (!typedSince.trim()) {
+      saveDraft(candidate.content);
+    } else if (!typedSince.includes(candidate.content)) {
+      saveDraft(`${candidate.content}\n\n${typedSince}`);
+    }
   }, [saveDraft]);
   const messageListRef = useRef<MessageListRef>(null);
   const messagesScrollContainerRef = useRef<HTMLDivElement>(null);
@@ -1119,22 +1135,28 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     errorCode === 'ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED'
     || errorCode === 'ERR_QUOTA_AI_DAILY_COST_EXCEEDED';
   // Never pair a refund note with the used-up card: that would hint at a second, cost-based limit.
+  // Pro has no daily count: a refunded stop still says nothing was written (with Resend);
+  // other refunds have nothing to explain.
   const quotaRefundNote = quotaRefund && quotaRefund.projectId === currentProjectId && !isStreaming && !isAiQuotaLimit
     ? [
-      t(
-        quotaRefund.kind === 'no_progress'
-          ? 'chat:panel.notCharged'
-          : quotaRefund.kind === 'stopped'
-            ? 'chat:panel.notChargedStopped'
-            : 'chat:panel.notChargedError',
-      ),
+      showDailyCount
+        ? t(
+          quotaRefund.kind === 'no_progress'
+            ? 'chat:panel.notCharged'
+            : quotaRefund.kind === 'stopped'
+              ? 'chat:panel.notChargedStopped'
+              : 'chat:panel.notChargedError',
+        )
+        : quotaRefund.kind === 'stopped'
+          ? t('chat:panel.stoppedNothingWritten', { defaultValue: '已停止，这一轮还没有写出内容。' })
+          : null,
       quotaRefund.removedFiles.length > 0
         ? t('chat:panel.removedEmptyFiles', {
           defaultValue: '这一轮新建的空白文件《{{titles}}》已移除。',
           titles: quotaRefund.removedFiles.map((file) => file.title).join('》《'),
         })
         : null,
-    ].filter(Boolean).join('')
+    ].filter(Boolean).join('').trim() || null
     : null;
   // Stopped before anything was written: offer to send the same round again (same skills,
   // attachments and quotes as the original request).
@@ -1737,9 +1759,24 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     }
   }, [currentProjectId, isRefreshingSuggestions, setIsRefreshingSuggestions, fetchAndApplySuggestions]);
 
+  /** A stop is waiting for the editor's save: further clicks must not send a second stop. */
+  const stopAfterSavePendingRef = useRef(false);
   // Stop button: the server ends the round on the open stream (see useAgentStream.stop).
   const handleCancel = () => {
-    stop();
+    if (stopAfterSavePendingRef.current) return;
+    // Text the author typed in the editor (for example into a chapter the AI just created)
+    // is saved first: on a refunded stop the server removes this round's still-blank files,
+    // and it can only see text that has been saved.
+    const editorSaved = flushOpenEditor();
+    if (editorSaved) {
+      stopAfterSavePendingRef.current = true;
+      void editorSaved.then(() => {
+        stopAfterSavePendingRef.current = false;
+        stop();
+      });
+    } else {
+      stop();
+    }
     if (currentProjectId) {
       const { wroteFiles, charged, producedOutput } = roundProgressRef.current;
       // A stopped round counts only once it produced real output (server rule); with
@@ -1748,7 +1785,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       setUserStop({
         projectId: currentProjectId,
         wroteFiles,
-        counted: charged && producedOutput && aiMessageQuota?.limit !== -1,
+        counted: charged && producedOutput && showDailyCount,
       });
     }
   };
@@ -1986,7 +2023,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                 onUndo={handleUndo}
                 onSubmitFeedback={handleSubmitFeedback}
                 feedbackPendingMessageId={feedbackPendingMessageId}
-                showDailyCount={aiMessageQuota?.limit !== -1}
+                showDailyCount={showDailyCount}
                 streamingThinkingContent={thinkingContent}
                 isThinking={isThinking}
                 scrollContainerRef={messagesScrollContainerRef}
@@ -2325,7 +2362,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         open={leaveGuard.leavePending}
         roundEnded={leaveGuard.roundEnded}
         producedOutput={roundProgressRef.current.producedOutput}
-        showDailyCount={aiMessageQuota?.limit !== -1}
+        showDailyCount={showDailyCount}
         onStay={leaveGuard.cancelLeave}
         onLeave={leaveGuard.confirmLeave}
       />

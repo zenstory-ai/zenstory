@@ -293,6 +293,83 @@ describe('DashboardHome featured inspirations section', () => {
     expect(screen.getByTestId('dashboard-inspiration-input')).toHaveValue('写一个关于灯塔守夜人的短故事')
   })
 
+  const heldIdeaKey = `zenstory_held_dashboard_idea:${defaultMockUser.id}`
+  /** First-day guide whose next step opens the create dialog (the "checklist" path). */
+  const openCreateDialogFromGuide = async () => {
+    mockActivationGuide = {
+      user_id: 'u-1',
+      window_hours: 24,
+      within_first_day: true,
+      total_steps: 2,
+      completed_steps: 1,
+      completion_rate: 0.5,
+      is_activated: false,
+      next_event_name: 'project_created',
+      next_action: '/dashboard',
+      steps: [
+        { event_name: 'signup_success', label: 'Signup Success', completed: true, completed_at: '2026-03-08T00:00:00Z', action_path: '/dashboard' },
+        { event_name: 'project_created', label: 'Project Created', completed: false, completed_at: null, action_path: '/dashboard' },
+      ],
+    }
+    renderDashboardHome()
+    await waitFor(() => expect(subscriptionApi.getQuota).toHaveBeenCalled())
+    fireEvent.change(screen.getByTestId('dashboard-inspiration-input'), { target: { value: '灯塔守夜人' } })
+    await screen.findByTestId('activation-guide-card')
+    fireEvent.click(screen.getByRole('button', { name: '继续下一步' }))
+    return screen.findByLabelText('作品名（可不填）')
+  }
+
+  it('keeps the idea and explains when the create dialog is confirmed while the day is used up', async () => {
+    vi.mocked(subscriptionApi.getQuota).mockResolvedValue(quotaWith(10))
+    const nameInput = await openCreateDialogFromGuide()
+
+    fireEvent.keyDown(nameInput, { key: 'Enter' })
+
+    expect(await screen.findByTestId('upgrade-modal')).toHaveTextContent('今天的免费 AI 消息用完了')
+    expect(mockCreateProject).not.toHaveBeenCalled()
+    expect(screen.getByTestId('dashboard-inspiration-input')).toHaveValue('灯塔守夜人')
+    expect(localStorage.getItem(heldIdeaKey)).toBe('灯塔守夜人')
+  })
+
+  it('keeps the held idea when the create dialog is cancelled or closed with Escape', async () => {
+    vi.mocked(subscriptionApi.getQuota).mockResolvedValue(quotaWith(10))
+    const nameInput = await openCreateDialogFromGuide()
+
+    fireEvent.keyDown(nameInput, { key: 'Escape' })
+
+    await waitFor(() => expect(screen.queryByLabelText('作品名（可不填）')).not.toBeInTheDocument())
+    expect(screen.getByTestId('dashboard-inspiration-input')).toHaveValue('灯塔守夜人')
+    expect(localStorage.getItem(heldIdeaKey)).toBe('灯塔守夜人')
+  })
+
+  it('saves edits to a restored idea after the reset, so a reload brings back the latest version', async () => {
+    localStorage.setItem(heldIdeaKey, '灯塔守夜人')
+    const { unmount } = renderDashboardHome()
+    await waitFor(() => expect(subscriptionApi.getQuota).toHaveBeenCalled())
+    const input = screen.getByTestId('dashboard-inspiration-input')
+    expect(input).toHaveValue('灯塔守夜人')
+
+    fireEvent.change(input, { target: { value: '灯塔守夜人，第三夜看见了船' } })
+    await waitFor(() => expect(localStorage.getItem(heldIdeaKey)).toBe('灯塔守夜人，第三夜看见了船'))
+
+    unmount()
+    renderDashboardHome()
+    expect(screen.getByTestId('dashboard-inspiration-input')).toHaveValue('灯塔守夜人，第三夜看见了船')
+  })
+
+  it('sends a held idea the next day and then forgets it', async () => {
+    localStorage.setItem(heldIdeaKey, '灯塔守夜人')
+    renderDashboardHome()
+    await waitFor(() => expect(subscriptionApi.getQuota).toHaveBeenCalled())
+    expect(screen.getByTestId('dashboard-inspiration-input')).toHaveValue('灯塔守夜人')
+
+    fireEvent.click(screen.getByTestId('create-project-button'))
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/project/project-created'))
+    expect(JSON.parse(localStorage.getItem('zenstory_inspiration_project-created') ?? '{}').content).toBe('灯塔守夜人')
+    await waitFor(() => expect(localStorage.getItem(heldIdeaKey)).toBeNull())
+  })
+
   it('still creates a project with no idea while the day is used up (nothing is sent to the AI)', async () => {
     vi.mocked(subscriptionApi.getQuota).mockResolvedValue(quotaWith(10))
     renderDashboardHome()

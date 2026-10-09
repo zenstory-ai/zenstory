@@ -13,12 +13,12 @@ PR163 审计（`/Users/pite/audit-runs/20261009-pr163-audit/report.md`）里和�
 
 ## Decision
 
-- **聊天常驻卡片**（新组件 `ChatQuotaCard`）：`ai_conversations.used >= limit` 且 `limit !== -1` 时，固定显示在输入框上方：「今天的 {{limit}} 条免费 AI 消息用完了」+「北京时间 {{day}} 00:00 恢复。写好的内容会留在输入框里，到时再发。想现在接着写，可以开通 Pro，AI 消息不限条数。」+「开通 Pro」（到订阅权益页，`source=chat_quota_blocked`）。`{{day}}` 来自 `/subscription/quota` 的 `reset_at`，按北京时间格式化成「10月10日」；缺失时写「明天」。卡片出现时记一次 `chat_quota_blocked` 的升级曝光（surface `toast`），撞墙不再只靠 QuotaBadge 兜底统计。只提每日条数，不提任何成本或第二道限制；Pro（-1）永远不显示。
+- **聊天常驻卡片**（新组件 `ChatQuotaCard`）：`ai_conversations.used >= limit` 且 `limit > 0`（Pro 的 -1 和没有每日条数的 0 都不算用完；聊天和首页共用 `isAiMessageQuotaExhausted`）时，固定显示在输入框上方：「今天的 {{limit}} 条免费 AI 消息用完了」+「北京时间 {{day}} 00:00 恢复。写好的内容会留在输入框里，到时再发。想现在接着写，可以开通 Pro，AI 消息不限条数。」+「开通 Pro」（到订阅权益页，`source=chat_quota_blocked`）。`{{day}}` 来自 `/subscription/quota` 的 `reset_at`，按北京时间格式化成「10月10日」；缺失时写「明天」。卡片出现时记一次 `chat_quota_blocked` 的升级曝光（surface `toast`），撞墙不再只靠 QuotaBadge 兜底统计。只提每日条数，不提任何成本或第二道限制；Pro（-1）永远不显示。
 - **发送与回车**：`MessageInput` 新增 `onBlockedSend`。额度用完时 `ChatPanel` 不再把发送键置灰，而是传入 `onBlockedSend`：点发送或回车打开 `UpgradePromptModal`（今天的免费 AI 消息用完了），输入框内容原样保留。占位提示缩短为「先把想法写下来，额度恢复后再发。」（原句在桌面上被截断，且和卡片重复）。
 - **程序触发的发送**（首页想法自动发送、停止后的「重新发送」）在 `handleSendMessage` 入口同样拦截：把内容存成该项目的输入草稿，并打开额度墙。
-- **服务端 402 兜底**：页面缓存过期、请求被服务端以 `ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED` / `ERR_QUOTA_AI_DAILY_COST_EXCEEDED` 拒绝时（此时消息不会落库），把刚加上的乐观气泡移除，原文放回输入框。只处理服务端尚未接受（还没收到 `session_started`）的那一条；已开始的轮次出错照旧保留气泡。额度卡片显示时，原来的内联 402 错误卡不再重复显示。
-- **首页拦截**：`DashboardHome` 读取同一个额度查询（新 hook `useAiMessageQuota`）。额度用完且输入框里有想法时，「开始创作」（以及新手清单打开的建项目弹窗）不建项目，改为打开 `IdeaQuotaWallModal`：「北京时间 {{day}} 00:00 恢复。你的想法还留在输入框里，到时点「开始创作」就能接着写。想现在就写，可以开通 Pro，AI 消息不限条数。」想法保留在输入框，并按用户存到 `localStorage`（`zenstory_held_dashboard_idea:<userId>`），刷新后回填；输入框清空（包括第二天成功创建后）时删除。没有想法时仍可建空项目（不发 AI 消息）。新手引导页本身不建项目，无需处理。
-- **线上付款关闭时的订阅权益页**：付款选项返回 `enabled=false` 后，不再渲染只打开兑换码的「开通 Pro」；免费用户看到一行说明「暂时不能在线付款。有兑换码的话，点「兑换码」就能开通 Pro。」，「兑换码」升为主按钮并记 `redeem` 点击；副标题同步说明。付款开启时页头仍是「开通 Pro / 续费 Pro」+ 次按钮「兑换码」，行为不变。素材库的「开通 Pro」仍跳订阅权益页，落地页已说明原因与开通方式，不再是「绕回原处」。
+- **服务端 402 兜底**：页面缓存过期、请求被服务端以 `ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED` / `ERR_QUOTA_AI_DAILY_COST_EXCEEDED` 拒绝时（此时消息不会落库），把刚加上的乐观气泡移除，原文放回输入框；发出后作者已经在输入框里打了新字时不覆盖，原文放在前面、空一行接着新字（新字里已包含原文时不动）。只处理服务端尚未接受（还没收到 `session_started`）的那一条；已开始的轮次出错照旧保留气泡。额度卡片显示时，原来的内联 402 错误卡不再重复显示。
+- **首页拦截**：`DashboardHome` 读取同一个额度查询（新 hook `useAiMessageQuota`）。额度用完且输入框里有想法时，「开始创作」（以及新手清单打开的建项目弹窗）不建项目，改为打开 `IdeaQuotaWallModal`：「北京时间 {{day}} 00:00 恢复。你的想法还留在输入框里，到时点「开始创作」就能接着写。想现在就写，可以开通 Pro，AI 消息不限条数。」想法保留在输入框，并按用户存到 `localStorage`（`zenstory_held_dashboard_idea:<userId>`），刷新后回填；恢复后作者再改这条想法，存的副本跟着更新，刷新不会回到旧版本；输入框清空（包括第二天成功创建后）时删除。建项目弹窗的关闭、取消和 Esc 只关弹窗、清作品名，不清首页输入框里的想法（以前会一起清掉，10/10 时等于把刚答应保留的想法删了）。没有想法时仍可建空项目（不发 AI 消息）。新手引导页本身不建项目，无需处理。
+- **线上付款关闭时的订阅权益页**：付款选项明确返回 `enabled=false` 后，不再渲染只打开兑换码的「开通 Pro」；免费用户看到一行说明「暂时不能在线付款。有兑换码的话，点「兑换码」就能开通 Pro。」，「兑换码」升为主按钮并记 `redeem` 点击；副标题同步说明。付款开启时页头仍是「开通 Pro / 续费 Pro」+ 次按钮「兑换码」，行为不变。付款选项请求失败不算「关闭」（生产环境付款是开着的）：照常显示「开通 Pro」、不显示「暂时不能在线付款」，`?plan=pro` 打开付款弹窗而不是兑换码框；付款弹窗会再取一次付款选项，真的不能付款时由弹窗说明。素材库的「开通 Pro」仍跳订阅权益页，落地页已说明原因与开通方式，不再是「绕回原处」。
 - **颜色一致**：订阅页用量卡在 `used >= limit` 时数字和进度条用 error 色，≥80% 未用完用 warning 色，与页头徽章的 blocked / reminder_80 一致。
 
 ## Alternatives considered
@@ -35,4 +35,4 @@ PR163 审计（`/Users/pite/audit-runs/20261009-pr163-audit/report.md`）里和�
 
 ## Verification
 
-`pnpm --dir apps/web exec vitest run src/components/__tests__/ChatPanel.mount.test.tsx src/components/__tests__/MessageInput.test.tsx src/pages/__tests__/DashboardHome.test.tsx src/pages/__tests__/BillingPage.test.tsx`：额度用完时卡片显示条数与北京时间恢复日、发送键可点且打开额度墙、不调用 `startStream`；程序发送被存成草稿；服务端 402 时气泡移除、原文回到输入框，已开始的轮次出错不受影响；首页额度用完时不调用 `createProject`、想法保留并在重新挂载后回填，有剩余额度或 Pro 时照常建项目；付款关闭时没有「开通 Pro」、有说明、兑换码为主操作，付款开启时不变；10/10 用 error 色。
+`pnpm --dir apps/web exec vitest run src/components/__tests__/ChatPanel.mount.test.tsx src/components/__tests__/MessageInput.test.tsx src/pages/__tests__/DashboardHome.test.tsx src/pages/__tests__/BillingPage.test.tsx`：额度用完时卡片显示条数与北京时间恢复日、发送键可点且打开额度墙、不调用 `startStream`；程序发送被存成草稿；服务端 402 时气泡移除、原文回到输入框，已开始的轮次出错不受影响；首页额度用完时不调用 `createProject`（「开始创作」和新手清单打开的建项目弹窗都拦）、想法保留并在重新挂载后回填，弹窗 Esc 不清想法，恢复后修改的想法会被保存，第二天成功创建后删除存的副本，有剩余额度或 Pro 时照常建项目；402 时发出后新打的字保留；`limit = 0` 不显示用完卡片；付款关闭时没有「开通 Pro」、有说明、兑换码为主操作，付款选项请求失败时仍有「开通 Pro」且 `?plan=pro` 打开付款弹窗，付款开启时不变；10/10 用 error 色。另见 `src/hooks/__tests__/useAiMessageQuota.test.tsx`。

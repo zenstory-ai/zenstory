@@ -3,7 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { act, render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-const mockDraft = vi.hoisted(() => ({ saveDraft: vi.fn(), clearDraft: vi.fn() }))
+const mockDraft = vi.hoisted(() => ({ draft: '', saveDraft: vi.fn(), clearDraft: vi.fn() }))
+const mockStop = vi.hoisted(() => vi.fn())
 
 const mockQuota = vi.hoisted(() => ({
   value: { ai_conversations: { used: 2, limit: 10, reset_at: null } } as {
@@ -190,7 +191,7 @@ vi.mock('../../hooks/useAgentStream', () => ({
     state: {},
     startStream: mockStartStream,
     cancel: vi.fn(),
-    stop: vi.fn(),
+    stop: mockStop,
     isStopping: false,
     reset: vi.fn(),
     isStreaming: mockAgentStreamState.isStreaming,
@@ -205,7 +206,7 @@ vi.mock('../../hooks/useAgentStream', () => ({
 
 vi.mock('../../hooks/useDraftPersistence', () => ({
   useDraftPersistence: () => ({
-    draft: '',
+    draft: mockDraft.draft,
     saveDraft: mockDraft.saveDraft,
     clearDraft: mockDraft.clearDraft,
   }),
@@ -294,6 +295,8 @@ import { ChatPanel } from '../ChatPanel'
 import { getRecentMessages } from '../../lib/chatApi'
 import { fetchSuggestions } from '../../lib/agentApi'
 import { toast } from '../../lib/toast'
+import { subscriptionApi } from '../../lib/subscriptionApi'
+import { setOpenEditorFlush } from '../../lib/editorSaveTracker'
 
 describe('ChatPanel mount smoke', () => {
   beforeEach(() => {
@@ -310,6 +313,7 @@ describe('ChatPanel mount smoke', () => {
     localStorage.removeItem('zenstory_next_step_dismissed_project-1')
     mockQuota.value = { ai_conversations: { used: 2, limit: 10, reset_at: null } }
     mockProjectState.currentProject = { id: 'project-1', name: '外卖小哥看见倒计时' }
+    mockDraft.draft = ''
     mockAttachments.fileIds = []
   })
 
@@ -683,6 +687,17 @@ describe('ChatPanel mount smoke', () => {
     })
   })
 
+  it('does not mention today\'s count on round-end notes while the quota is still loading', async () => {
+    vi.mocked(subscriptionApi.getQuota).mockReturnValueOnce(new Promise(() => {}))
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([
+      { id: 'u', session_id: 's', role: 'user', content: '写第一章', created_at: '2026-10-09T05:29:00Z' },
+    ] as never)
+    render(<ChatPanel />)
+    await waitFor(() => expect(screen.getByTestId('mock-message-list')).toBeInTheDocument())
+    const props = mockMessageList.mock.calls.at(-1)?.[0] as { showDailyCount?: boolean }
+    expect(props.showDailyCount).toBe(false)
+  })
+
   it('offers to resend a message that never got a reply, reusing it instead of adding another', async () => {
     vi.mocked(getRecentMessages).mockResolvedValueOnce([
       { id: 'u', session_id: 's', role: 'user', content: '写一个短篇', created_at: '2026-10-09T04:52:00Z' },
@@ -861,6 +876,53 @@ describe('ChatPanel mount smoke', () => {
       })
       expect(note).toHaveTextContent('已停止 · 已写入的内容已保存')
       expect(note).not.toHaveTextContent('今日 AI 消息')
+    })
+
+    it('saves the text typed in the editor before stopping, so the server keeps that chapter', async () => {
+      let finishSave: () => void = () => {}
+      const flush = vi.fn(() => new Promise<string>((resolve) => { finishSave = () => resolve('saved') }))
+      setOpenEditorFlush(flush)
+      try {
+        await runRoundThenStop((options) => options.onSessionStarted('session-stop'))
+        expect(flush).toHaveBeenCalledTimes(1)
+        expect(mockStop).not.toHaveBeenCalled()
+
+        // A second click while the save is in flight sends no second stop (which would drop the stream).
+        const stopHandlers = mockMessageInput.mock.calls.map(([props]) => props.onCancel).filter(Boolean)
+        act(() => stopHandlers.at(-1)?.())
+        expect(flush).toHaveBeenCalledTimes(1)
+
+        await act(async () => {
+          finishSave()
+        })
+        expect(mockStop).toHaveBeenCalledTimes(1)
+      } finally {
+        setOpenEditorFlush(null)
+      }
+    })
+
+    it('stops right away when no editor is open', async () => {
+      await runRoundThenStop((options) => options.onSessionStarted('session-stop'))
+      expect(mockStop).toHaveBeenCalledTimes(1)
+    })
+
+    it('never mentions today\'s count in a refund note for unlimited plans', async () => {
+      mockQuota.value = { ai_conversations: { used: 12, limit: -1, reset_at: null } }
+      await runRoundThenStop((options) => options.onSessionStarted('session-stop'))
+      const refund = (kind: 'no_progress' | 'error' | 'stopped', removed?: Array<{ id: string; title: string }>) =>
+        act(() => (capturedUseAgentStream.options as {
+          onQuotaRefunded: (k: typeof kind, r?: typeof removed) => void
+        }).onQuotaRefunded(kind, removed))
+
+      refund('stopped', [{ id: 'ch-1', title: '第1章' }])
+      const note = await screen.findByTestId('chat-quota-refund-note')
+      expect(note).toHaveTextContent('已停止，这一轮还没有写出内容。这一轮新建的空白文件《第1章》已移除。')
+      expect(note).not.toHaveTextContent('今日 AI 消息')
+
+      refund('no_progress')
+      await waitFor(() => expect(screen.queryByTestId('chat-quota-refund-note')).not.toBeInTheDocument())
+      refund('error')
+      expect(screen.queryByTestId('chat-quota-refund-note')).not.toBeInTheDocument()
     })
 
     it('clears the note when the next round starts', async () => {
@@ -1068,6 +1130,7 @@ describe('ChatPanel new-author flow', () => {
     localStorage.removeItem('zenstory_inspiration_project-1')
     mockQuota.value = { ai_conversations: { used: 2, limit: 10, reset_at: null } }
     mockProjectState.currentProject = { id: 'project-1', name: '外卖小哥看见倒计时' }
+    mockDraft.draft = ''
   })
 
   it('sends the dashboard idea exactly as written and tags the request as the dashboard entry', async () => {
@@ -1187,6 +1250,34 @@ describe('ChatPanel new-author flow', () => {
 
     expect(mockDraft.saveDraft).toHaveBeenCalledWith('写第二章')
     expect(lastMessageListProps().messages?.some((m) => m.content === '写第二章')).toBe(false)
+  })
+
+  it('keeps what the author typed after sending when the server refuses the round for the daily limit', async () => {
+    render(<ChatPanel />)
+    await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+    await waitFor(() => expect(lastMessageInputProps().sendDisabled).toBe(false))
+
+    // The box was emptied by the send; the author starts the next request right away.
+    mockDraft.draft = '再补一句：主角怕水'
+    await act(async () => {
+      await lastMessageInputProps().onSend('写第二章', [])
+    })
+    act(() => streamOptions().onError('quota exceeded', 'ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED', false))
+
+    expect(mockDraft.saveDraft).toHaveBeenCalledTimes(1)
+    expect(mockDraft.saveDraft).toHaveBeenCalledWith('写第二章\n\n再补一句：主角怕水')
+  })
+
+  it('treats a plan without daily AI messages (limit 0) like the home page does: never "used up"', async () => {
+    mockQuota.value = { ai_conversations: { used: 0, limit: 0, reset_at: null } }
+    render(<ChatPanel />)
+    await waitFor(() => expect(lastMessageInputProps().sendDisabled).toBe(false))
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(screen.queryByTestId('chat-quota-card')).not.toBeInTheDocument()
+    expect(screen.queryByText(/今天的 0 条/)).not.toBeInTheDocument()
+    expect(lastMessageInputProps().onBlockedSend).toBeUndefined()
   })
 
   it('keeps the bubble when an accepted round fails for another reason', async () => {

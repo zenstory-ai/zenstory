@@ -19,9 +19,10 @@ export function readHeldDashboardIdea(userId: string | null | undefined): string
  * Keeps the home-page idea across reloads while it cannot be sent yet.
  *
  * While today's AI messages are used up (`holding`), whatever is in the idea box is
- * saved; once the box is emptied (sent after the reset, or cleared by the author)
- * the saved copy goes away. Restoring is done by seeding the box's initial state
- * with `readHeldDashboardIdea`.
+ * saved. A saved idea keeps following the author's edits after the reset too, so a
+ * reload never brings back an older version; once the box is emptied (sent after the
+ * reset, or cleared by the author) the saved copy goes away. Restoring is done by
+ * seeding the box's initial state with `readHeldDashboardIdea`.
  */
 export function useHeldDashboardIdea(
   userId: string | null | undefined,
@@ -33,7 +34,7 @@ export function useHeldDashboardIdea(
     try {
       if (!idea.trim()) {
         localStorage.removeItem(key);
-      } else if (holding) {
+      } else if (holding || localStorage.getItem(key) !== null) {
         localStorage.setItem(key, idea);
       }
     } catch {

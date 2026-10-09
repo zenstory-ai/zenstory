@@ -23,6 +23,10 @@ export function formatAiQuotaResetDay(resetAt: string | null | undefined, langua
 /**
  * Today's AI message allowance, from the same cached quota query the header badge polls.
  * `exhausted` is false while the quota is unknown, so nothing is blocked on a missing answer.
+ *
+ * Re-read on every mount (the app's queries otherwise keep a cached answer for minutes):
+ * the home page is where an author lands after leaving a round, and the server may have
+ * refunded that round after the chat's own refresh ran.
  */
 export function useAiMessageQuota(): {
   metric: QuotaMetric | undefined;
@@ -33,6 +37,7 @@ export function useAiMessageQuota(): {
   const { data: quota } = useQuery({
     queryKey: subscriptionQueryKeys.quota(),
     queryFn: () => subscriptionApi.getQuota(),
+    refetchOnMount: "always",
   });
   const metric = quota?.ai_conversations;
   return {

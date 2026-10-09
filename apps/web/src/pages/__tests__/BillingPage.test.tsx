@@ -512,6 +512,30 @@ describe('BillingPage', () => {
     })
   })
 
+  describe('when the payment options request failed', () => {
+    beforeEach(() => {
+      // Production has checkout on: a failed request says nothing about it being off.
+      paymentOptionsResponse = { data: undefined, isLoading: false, isError: true }
+    })
+
+    it('keeps 开通 Pro and does not say online payment is unavailable', () => {
+      render(<BillingPage />)
+      expect(screen.getByRole('button', { name: 'Buy Pro Online' })).toBeInTheDocument()
+      expect(screen.queryByTestId('billing-checkout-unavailable')).not.toBeInTheDocument()
+      expect(screen.queryByText('查看当前套餐和用量，需要更多额度时可以用兑换码开通 Pro。')).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Buy Pro Online' }))
+      expect(screen.getByText('Payment modal')).toBeInTheDocument()
+    })
+
+    it('opens checkout, not the redeem dialog, for a selected Pro plan', () => {
+      currentSearch = 'plan=pro'
+      render(<BillingPage />)
+      expect(screen.getByText('Payment modal')).toBeInTheDocument()
+      expect(screen.queryByText('Redeem modal')).not.toBeInTheDocument()
+    })
+  })
+
   it('waits for payment options before acting on a selected Pro plan', () => {
     paymentOptionsResponse = { data: undefined, isLoading: true }
     currentSearch = 'plan=pro'

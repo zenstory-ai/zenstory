@@ -113,6 +113,31 @@ describe('useLeaveWhileGenerating', () => {
     await waitFor(() => expect(screen.getByText('dashboard page')).toBeInTheDocument())
   })
 
+  it('leaves no dead Back press behind after a same-page link during the round', async () => {
+    const { setActive } = renderInBrowserHistory(true)
+    fireEvent.click(screen.getByText('same page'))
+    expect(window.location.search).toBe('?file=2')
+    expect(screen.queryByText('leave')).not.toBeInTheDocument()
+
+    // Back is still guarded after the same-page link.
+    await pressBack()
+    expect(screen.getByText('leave')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('stay'))
+
+    setActive(false)
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    })
+    expect(window.location.search).toBe('?file=2')
+
+    // Same as without the guard: Back returns to the page before the link, then to the dashboard.
+    await pressBack()
+    expect(window.location.pathname).toBe('/project/a')
+    expect(window.location.search).toBe('')
+    await pressBack()
+    await waitFor(() => expect(screen.getByText('dashboard page')).toBeInTheDocument())
+  })
+
   it('removes its Back guard once the round is over, so Back works normally', async () => {
     const { setActive } = renderInBrowserHistory(true)
     setActive(false)

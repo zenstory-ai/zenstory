@@ -87,6 +87,14 @@ export function useLeaveWhileGenerating(active: boolean) {
     const originalReplace = navigator?.replace;
     const guard = (original: Navigate, viaReplace?: Navigate): Navigate => (to, ...rest) => {
       if (targetPathname(to, pathnameRef.current) === pathnameRef.current) {
+        if (sentinelOnTop()) {
+          // Same page (query / hash): take the sentinel's place, then guard Back again, so
+          // the sentinel stays on top and is the entry dropped when the round ends. Pushing
+          // above it would leave it behind as a Back press that does nothing.
+          (viaReplace ?? original)(to, ...rest);
+          pushSentinel();
+          return;
+        }
         original(to, ...rest);
         return;
       }

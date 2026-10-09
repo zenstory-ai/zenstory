@@ -30,6 +30,7 @@
     "fileVersionLimitTitle": "文件版本额度已达上限",
     "fileVersionLimitDesc": "升级套餐后可继续保存更多版本。",
     "notChargedStopped": "已停止，这一轮还没有写出内容，不计入今日 AI 消息。",
+    "stoppedNothingWritten": "已停止，这一轮还没有写出内容。",
     "resend": "重新发送",
     "roundInterrupted": "已中断",
     "roundNotCounted": "未计入今日 AI 消息",
