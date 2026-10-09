@@ -281,6 +281,7 @@ class FileToolExecutor:
         writing_style: str | None = None,
         notes: str | None = None,
         title: str | None = None,
+        author_requested: bool = False,
     ) -> dict[str, Any]:
         """
         Update project status information for AI context awareness.
@@ -291,8 +292,10 @@ class FileToolExecutor:
             current_phase: Current writing phase description
             writing_style: Writing style guidelines
             notes: Additional notes for AI assistant
-            title: Work title the AI gave the story; renames the project only
-                while it still carries a default name
+            title: Work title; renames the project while it still carries a
+                default name or the name AI auto-naming gave it
+            author_requested: The author explicitly asked for this rename;
+                overrides the author-name lock
 
         Returns:
             Updated project status fields
@@ -308,6 +311,7 @@ class FileToolExecutor:
             writing_style=writing_style,
             notes=notes,
             title=title,
+            author_requested=author_requested,
         )
 
     def execute_update_plan(

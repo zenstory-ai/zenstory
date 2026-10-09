@@ -91,3 +91,103 @@ async def test_book_title_marks_are_stripped_and_overlong_titles_rejected(db_ses
 
     payload = await _update_project(db_session, owner, other, {"title": "《》"})
     assert payload["data"]["title_skipped"] == "invalid_title"
+
+
+async def test_ai_named_project_follows_the_next_ai_title(db_session, owner):
+    """AI 自动起的名字不算作者起的名：之后 AI 再定名，项目名照样跟着改（审计 N4）。"""
+    project = _project(db_session, owner, "我的小说")
+
+    first = await _update_project(db_session, owner, project, {"title": "雾港来信"})
+    assert first["data"]["project_name_updated"] is True
+
+    second = await _update_project(db_session, owner, project, {"title": "雾港旧事"})
+
+    assert second["data"]["project_name_updated"] is True
+    db_session.expire_all()
+    assert db_session.get(Project, project.id).name == "雾港旧事"
+
+
+async def test_author_rename_after_ai_naming_locks_the_name_again(db_session, owner):
+    """作者在界面里把 AI 起的名字改掉以后，那就是作者起的名字，AI 不能再改。"""
+    project = _project(db_session, owner, "我的小说")
+    await _update_project(db_session, owner, project, {"title": "雾港来信"})
+
+    db_session.expire_all()
+    renamed_by_author = db_session.get(Project, project.id)
+    renamed_by_author.name = "我自己起的书名"
+    db_session.add(renamed_by_author)
+    db_session.commit()
+
+    payload = await _update_project(db_session, owner, project, {"title": "雾港旧事"})
+
+    assert payload["data"]["project_name_updated"] is False
+    assert payload["data"]["title_skipped"] == "author_named"
+    db_session.expire_all()
+    assert db_session.get(Project, project.id).name == "我自己起的书名"
+
+
+async def test_refusal_names_the_real_manual_rename_entry(db_session, owner):
+    """拒绝改名时把真实的手动入口写进结果，模型照着说，不用自己编一个「项目设置」。"""
+    project = _project(db_session, owner, "我自己起的书名")
+
+    payload = await _update_project(db_session, owner, project, {"title": "雾港来信"})
+
+    note = payload["data"]["title_note"]
+    assert "我自己起的书名" in note
+    assert "author_requested=true" in note
+    assert "项目切换器" in note
+    assert "铅笔" in note
+    assert "「编辑项目名称」" in note
+    assert "项目设置" not in note
+
+
+@pytest.mark.parametrize("flag", [True, "true"])
+async def test_author_requested_rename_overrides_the_author_name_lock(db_session, owner, flag):
+    project = _project(db_session, owner, "我自己起的书名")
+
+    payload = await _update_project(
+        db_session, owner, project, {"title": "《雾港来信》", "author_requested": flag}
+    )
+
+    assert payload["status"] == "success"
+    assert payload["data"]["project_name_updated"] is True
+    assert "title_note" not in payload["data"]
+    db_session.expire_all()
+    assert db_session.get(Project, project.id).name == "雾港来信"
+
+
+async def test_author_requested_name_is_not_overwritten_by_later_ai_titles(db_session, owner):
+    """作者让 AI 改成的名字仍然是作者的选择：之后 AI 自动定名不能覆盖它。"""
+    project = _project(db_session, owner, "我的小说")
+    await _update_project(db_session, owner, project, {"title": "雾港来信"})
+    await _update_project(
+        db_session, owner, project, {"title": "海雾", "author_requested": True}
+    )
+
+    payload = await _update_project(db_session, owner, project, {"title": "雾港旧事"})
+
+    assert payload["data"]["title_skipped"] == "author_named"
+    db_session.expire_all()
+    assert db_session.get(Project, project.id).name == "海雾"
+
+
+async def test_author_requested_still_rejects_invalid_titles(db_session, owner):
+    project = _project(db_session, owner, "我自己起的书名")
+
+    payload = await _update_project(
+        db_session, owner, project, {"title": "长" * 31, "author_requested": True}
+    )
+
+    assert payload["data"]["title_skipped"] == "invalid_title"
+    db_session.expire_all()
+    assert db_session.get(Project, project.id).name == "我自己起的书名"
+
+
+def test_update_project_schema_documents_author_requested():
+    from agent.tools.tool_schemas import UPDATE_PROJECT_TOOL
+
+    properties = UPDATE_PROJECT_TOOL["input_schema"]["properties"]
+    assert properties["author_requested"]["type"] == "boolean"
+    assert "明确要求改项目名" in properties["author_requested"]["description"]
+    assert "author_requested=true" in UPDATE_PROJECT_TOOL["description"]
+    assert "title_note" in properties["title"]["description"]

@@ -8,16 +8,17 @@ This module provides operations related to project management:
 Extracted from the monolithic file_executor.py for better maintainability.
 """
 
+import json
 import re
 from typing import Any, cast
 
-from sqlmodel import Session
+from sqlmodel import Session, desc, select
 
 from agent.tools.permissions import check_project_ownership
 from config.datetime_utils import utcnow
 from config.project_status import normalize_project_status_payload
 from config.project_templates import PROJECT_TEMPLATES_BY_LANG
-from models import Project
+from models import AgentArtifactLedger, Project
 from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
@@ -38,6 +39,21 @@ DEFAULT_PROJECT_NAMES = frozenset(
 TITLE_SKIPPED_AUTHOR_NAMED = "author_named"
 TITLE_SKIPPED_INVALID = "invalid_title"
 TITLE_SKIPPED_UNCHANGED = "unchanged"
+
+# 每次 update_project 改了项目名，都在 agent_artifact_ledger 记一行（同一次提交）。
+# 项目表没有元数据字段，「现在这个名字是不是 AI 自己起的」只能靠这条记录判断：
+# 最近一条记录是 AI 自动命名、且名字和项目现在的名字一样，才算 AI 起的名。
+PROJECT_TITLE_LEDGER_ACTION = "project_title"
+PROJECT_TITLE_SOURCE_AI = "ai_auto"
+PROJECT_TITLE_SOURCE_AUTHOR = "author_requested"
+
+# 拒绝改名时写进工具结果的说明。必须给出界面上真实存在的入口，模型才不会自己编一个。
+AUTHOR_NAMED_TITLE_NOTE = (
+    "项目名「{current}」是作者自己起的，这次没改。"
+    "作者在对话里明确要求改项目名时，带上 author_requested=true 再调用一次；"
+    "作者想自己改的话，告诉他：点顶部的项目名打开项目切换器，"
+    "再点项目名旁的铅笔（「编辑项目名称」）。"
+)
 
 _TITLE_STRIP_CHARS = re.compile(r"[《》“”]")
 _WHITESPACE_RUN = re.compile(r"\s+")
@@ -220,6 +236,7 @@ class ProjectOperations:
         writing_style: str | None = None,
         notes: str | None = None,
         title: str | None = None,
+        author_requested: bool = False,
     ) -> dict[str, Any]:
         """
         Update project status information for AI context awareness.
@@ -230,9 +247,11 @@ class ProjectOperations:
             current_phase: Current writing phase description
             writing_style: Writing style guidelines
             notes: Additional notes for AI assistant
-            title: Work title the AI gave the story (≤30 chars, no 《》).
-                Renames the project only while it still has a default name;
-                a name the author chose is never overwritten.
+            title: Work title (≤30 chars, no 《》). Renames the project while
+                it still has a default name or the name AI auto-naming gave it;
+                a name the author chose is kept unless ``author_requested``.
+            author_requested: The author explicitly asked to rename the
+                project in this conversation; overrides the author-name lock.
 
         Returns:
             Updated project status fields; with ``title``, also
@@ -271,7 +290,9 @@ class ProjectOperations:
 
         title_result: dict[str, Any] = {}
         if title is not None:
-            title_result = self._apply_ai_title(project, title)
+            title_result = self._apply_ai_title(
+                project, title, author_requested=author_requested
+            )
 
         has_status_fields = any(value is not None for value in raw_updates.values())
         if has_status_fields or title_result.get("project_name_updated"):
@@ -293,9 +314,14 @@ class ProjectOperations:
         result.update(title_result)
         return result
 
-    @staticmethod
-    def _apply_ai_title(project: Project, raw_title: Any) -> dict[str, Any]:
-        """AI 起的作品名只替换默认项目名；作者起过的名字一律不动。"""
+    def _apply_ai_title(
+        self, project: Project, raw_title: Any, *, author_requested: bool = False
+    ) -> dict[str, Any]:
+        """改项目名。
+
+        - 默认名、或 AI 自动命名留下的名字：直接改成新作品名。
+        - 作者自己起的名字：不改，除非 ``author_requested``（作者在对话里明确要求改名）。
+        """
         title = normalize_project_title(raw_title)
         if title is None:
             return {
@@ -308,10 +334,71 @@ class ProjectOperations:
         current_name = (project.name or "").strip()
         if current_name == title:
             return {"project_name_updated": False, "title_skipped": TITLE_SKIPPED_UNCHANGED}
-        if current_name not in DEFAULT_PROJECT_NAMES:
-            return {"project_name_updated": False, "title_skipped": TITLE_SKIPPED_AUTHOR_NAMED}
+        if (
+            not author_requested
+            and current_name not in DEFAULT_PROJECT_NAMES
+            and not self._is_ai_auto_named(project, current_name)
+        ):
+            return {
+                "project_name_updated": False,
+                "title_skipped": TITLE_SKIPPED_AUTHOR_NAMED,
+                "title_note": AUTHOR_NAMED_TITLE_NOTE.format(current=current_name),
+            }
         project.name = title
+        self.session.add(
+            AgentArtifactLedger(
+                project_id=project.id,
+                user_id=self.user_id,
+                action=PROJECT_TITLE_LEDGER_ACTION,
+                tool_name="update_project",
+                artifact_ref=f"project:{project.id}",
+                payload=json.dumps(
+                    {
+                        "project_name": title,
+                        "source": (
+                            PROJECT_TITLE_SOURCE_AUTHOR
+                            if author_requested
+                            else PROJECT_TITLE_SOURCE_AI
+                        ),
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        )
         return {"project_name_updated": True, "project_name": title}
+
+    def _is_ai_auto_named(self, project: Project, current_name: str) -> bool:
+        """项目现在的名字是不是 AI 自动命名写进去的（之后作者没再改过）。"""
+        try:
+            payload = self.session.exec(
+                select(AgentArtifactLedger.payload)
+                .where(
+                    AgentArtifactLedger.project_id == project.id,
+                    AgentArtifactLedger.action == PROJECT_TITLE_LEDGER_ACTION,
+                )
+                .order_by(desc(AgentArtifactLedger.created_at))
+                .limit(1)
+            ).first()
+        except Exception as exc:  # 读不到记录时按作者起的名字处理，宁可不改
+            log_with_context(
+                logger,
+                30,  # WARNING
+                "Failed to read project title ledger",
+                project_id=project.id,
+                error=str(exc),
+            )
+            return False
+        if not isinstance(payload, str):
+            return False
+        try:
+            record = json.loads(payload)
+        except (TypeError, ValueError):
+            return False
+        return (
+            isinstance(record, dict)
+            and record.get("source") == PROJECT_TITLE_SOURCE_AI
+            and str(record.get("project_name") or "").strip() == current_name
+        )
 
     def execute_update_plan(
         self,

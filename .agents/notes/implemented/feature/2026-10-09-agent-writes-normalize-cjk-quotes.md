@@ -50,8 +50,8 @@ Agent API（外部 agent）不经过 FileCRUD，保持原样；`router.execute_f
 **作品名自动命名（#35）**：`update_project` 新增可选参数 `title`（schema 里 `maxLength: 30`）。`ProjectOperations.update_project_status(title=…)` 的处理：
 
 - 去掉 `《》“”`，首尾空白去掉，中间连续空白并成一个。结果长度不在 1–30 之间时不改名，返回 `title_skipped: "invalid_title"` 和 `title_error`，同一次调用里的其他字段照常更新。
-- 项目当前名属于 `DEFAULT_PROJECT_NAMES` 时才改名。这个集合是 `config/project_templates.py` 里各类型、各语言的 `default_project_name`，加上「我的项目」「未命名项目」「Untitled」。改名后更新 `project.updated_at`，结果里给 `project_name_updated: true` 和 `project_name`。
-- 当前名不在集合里，返回 `title_skipped: "author_named"`；和当前名相同，返回 `unchanged`。
+- 项目当前名属于 `DEFAULT_PROJECT_NAMES`、或是 AI 自动命名留下的名字时才改名（后者和作者明确要求改名的 `author_requested` 路径见 `bug-fix/2026-10-09-ai-named-project-can-be-renamed.md`）。这个集合是 `config/project_templates.py` 里各类型、各语言的 `default_project_name`，加上「我的项目」「未命名项目」「Untitled」。改名后更新 `project.updated_at`，结果里给 `project_name_updated: true` 和 `project_name`。
+- 当前名是作者起的，返回 `title_skipped: "author_named"` 和写明手动改名入口的 `title_note`；和当前名相同，返回 `unchanged`。
 - `title` 不进 `updated_fields`，前端按字段名显示「已更新：摘要、备注」，不认识 title。只传 title、又没有改名时不提交、不改 `updated_at`。mcp 层把上面这几个字段同时提到结果顶层。
 
 ## Alternatives considered
