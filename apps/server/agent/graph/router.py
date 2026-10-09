@@ -540,6 +540,7 @@ _AGENT_TYPES: tuple[str, ...] = ("planner", "hook_designer", "writer", "quality_
 # - max_turns_exceeded（runner.MAX_TURNS_STOP_REASON）/ no_progress（repeat_read_guard）
 # - model_call_budget_exhausted（runner.MODEL_CALL_BUDGET_STOP_REASON，请求级调用预算用完）
 # - run_deadline_exceeded（service 在墙钟时限取消时随部分历史落库）
+# - output_truncated（runner.OUTPUT_TRUNCATED_STOP_REASON，最后一次响应只有思考就撞上输出上限）
 # 用户主动停止生成（cancelled）不算：那是用户自己的决定，「继续」照常走路由。
 RESUMABLE_STOP_REASONS: frozenset[str] = frozenset(
     {
@@ -547,6 +548,7 @@ RESUMABLE_STOP_REASONS: frozenset[str] = frozenset(
         "no_progress",
         "model_call_budget_exhausted",
         "run_deadline_exceeded",
+        "output_truncated",
     }
 )
 

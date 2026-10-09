@@ -58,6 +58,7 @@ from agent.graph.router import (
 )
 from agent.graph.state import WritingState
 from agent.openai_agents.repeat_read_guard import RepeatReadGuard
+from agent.openai_agents.runner import extract_text_from_message_content
 from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
 from agent.tools.mcp_tools import ToolContext, update_project
 from config.agent_runtime import (
@@ -82,6 +83,10 @@ MAX_FILE_CORRECTION_ATTEMPTS = 2
 # 收尾并把审稿意见展示给用户——之前没有硬上限，只靠第 3 轮起的「尽量放行」提示，
 # writer ↔ 审稿人能一直来回到协作轮数耗尽。
 MAX_REVIEW_ROUNDS = 2
+
+# 交接给审稿人时本轮 user 消息的开头标记。这条消息（含 [待审查内容] 旧稿）只写给审稿人，
+# 交接给其他 agent 时要从历史里去掉，见 _drop_reviewer_task_messages。
+REVIEWER_TASK_MARKER = "[质量检查任务]"
 
 # pending-empty-file 标记的落库核验结果
 _PENDING_BODY_EMPTY = "empty"
@@ -465,6 +470,29 @@ def _review_limit_text(notes: str) -> str:
         f"审稿人仍建议修改：{body}\n"
         "如需按这些意见继续修改，请直接回复「按审稿意见修改」。"
     )
+
+
+def _is_reviewer_task_message(message: Any) -> bool:
+    """是不是交接给审稿人时那条「[质量检查任务]…」user 消息（content 可能是字符串或 block 列表）。"""
+    if not isinstance(message, dict):
+        return False
+    if str(message.get("role") or "").strip().lower() != "user":
+        return False
+    text = extract_text_from_message_content(message.get("content"))
+    return text.lstrip().startswith(REVIEWER_TASK_MARKER)
+
+
+def _drop_reviewer_task_messages(messages: Any) -> list[Any]:
+    """去掉只写给审稿人的审稿任务消息，其余消息（作者原话、各 agent 输出、交接信息）原样保留。
+
+    审稿人那次 run 的 user 消息会随 state["messages"] 传给下一个 agent。返修交回 writer 时，
+    writer 的输入里就同时有「[质量检查任务] 请审查…[待审查内容] <旧稿>」和系统提示里的
+    「当前角色：writer」，模型在思考里把自己当成审稿人反复纠结
+    （见 bug-fix/2026-10-10-writer-handoff-reviewer-task-and-length-stop.md）。
+    """
+    if not isinstance(messages, list):
+        return []
+    return [message for message in messages if not _is_reviewer_task_message(message)]
 
 
 def _guard_from_state(state: WritingState) -> RepeatReadGuard | None:
@@ -1346,7 +1374,7 @@ async def run_writing_workflow_streaming(
                         )
 
                     modified_state["user_message"] = (
-                        f"[质量检查任务]\n\n请审查上一个 Agent 完成的内容。\n\n"
+                        f"{REVIEWER_TASK_MARKER}\n\n请审查上一个 Agent 完成的内容。\n\n"
                         f"交接信息: {handoff_context}{packet_items_text}{work_log_text}"
                         f"{inventory_text}{round_hint}{last_iteration_hint}"
                     )
@@ -1355,6 +1383,12 @@ async def run_writing_workflow_streaming(
                     # in history; re-embedding it on every handoff duplicates it and lets
                     # prior handoff contexts pile up across iterations. Pass only the fresh
                     # handoff context as this turn's user message.
+                    # 审稿人那次 run 的任务消息（含待审查的旧稿）只写给审稿人：交给其他
+                    # agent 前从历史里去掉。下一个 agent 跑完后会把这份历史写回
+                    # state["messages"]，之后的 agent 也不会再看到它。
+                    modified_state["messages"] = _drop_reviewer_task_messages(
+                        state.get("messages")
+                    )
                     modified_state["user_message"] = (
                         f"[来自上一个Agent的交接信息]: "
                         f"{handoff_context}{packet_items_text}{work_log_text}{inventory_text}"

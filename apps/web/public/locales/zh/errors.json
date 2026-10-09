@@ -119,6 +119,7 @@
   "ERR_AGENT_NO_PROGRESS": "AI 一直在翻看同样的资料，迟迟没动笔，这一轮先停下了。可以直接告诉它改哪一章、改什么，或者回复「继续」让它接着写。",
   "ERR_AGENT_RUN_TIMEOUT": "这一轮写得太久，先停下了。回复「继续」就能接着写。",
   "ERR_AGENT_MODEL_CALL_LIMIT": "这次任务步骤太多，AI 先停下了。回复「继续」就能接着做。",
+  "ERR_AGENT_OUTPUT_TRUNCATED": "这一步 AI 想得太久，还没写出内容就到了上限，先停下了。回复「继续」就能接着完成。",
   "ERR_AGENT_FILE_SAVE_FAILED": "AI 生成的内容没能保存到文件，请重试",
   "ERR_PAYMENT_UNAVAILABLE": "暂时无法在线支付。有兑换码的话，可以在「订阅权益」页点「兑换码」开通。",
   "ERR_PAYMENT_UNSUPPORTED_OPTION": "不支持该支付选项，请刷新页面后重试",

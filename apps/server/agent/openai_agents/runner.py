@@ -18,6 +18,7 @@ from agent.core.stream_errors import (
     classify_stream_exception,
     log_stream_exception,
     model_call_limit_error,
+    output_truncated_error,
 )
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.graph.state import WritingState
@@ -89,6 +90,13 @@ MODEL_CALL_BUDGET_STOP_REASON = "model_call_budget_exhausted"
 MAX_TURNS_STOP_REASON = "max_turns_exceeded"
 # 重复读取守卫判定无进展、结束本轮时的 stop_reason（与 ERROR 事件 data.reason 相同）。
 NO_PROGRESS_STOP = NO_PROGRESS_STOP_REASON
+# 一次 agent run 只有思考、没有正文和工具调用就撞上输出上限（max_tokens）时
+# MESSAGE_END 的 stop_reason。
+OUTPUT_TRUNCATED_STOP_REASON = "output_truncated"
+# 最后一次模型响应的 output_tokens 达到 max_tokens 的这个比例即视为被输出上限截断。
+# openai-agents 0.17.x 的 Chat Completions 流式 handler 不处理 finish_reason
+# （ResponseCompletedEvent 的 status 恒为 completed），只能看 usage 判断。
+OUTPUT_CAP_RATIO = 0.98
 
 # 距离上限还剩多少次模型调用时开始收尾：在这几次调用的输入末尾追加提醒，
 # 要求模型停止调用工具、写阶段总结（已完成 / 剩余 / 用到的文件 id）。上限取
@@ -429,6 +437,35 @@ def _int_attr(source: Any, name: str) -> int:
         return int(value)
     except (TypeError, ValueError):
         return 0
+
+
+def _last_response_output_tokens(result: Any) -> int:
+    """本次 SDK run 最后一次模型响应的 output_tokens（DeepSeek 的 completion_tokens 含思考）。"""
+    raw_responses = getattr(result, "raw_responses", None)
+    if not isinstance(raw_responses, list) or not raw_responses:
+        return 0
+    return _int_attr(getattr(raw_responses[-1], "usage", None), "output_tokens")
+
+
+def _last_response_is_thinking_only(result: Any) -> bool:
+    """最后一次模型响应里只有思考：没有正文，也没有工具调用。
+
+    只看最后一次响应，而不是整个 run：交接后的 writer 常先调工具（例如重读稿件），
+    之后那次响应才只剩思考并撞上输出上限；按整个 run 判断会漏掉这种情况。
+    """
+    raw_responses = getattr(result, "raw_responses", None)
+    if not isinstance(raw_responses, list) or not raw_responses:
+        return False
+    for item in getattr(raw_responses[-1], "output", None) or []:
+        item_type = _raw_item_value(item, "type", "")
+        if item_type == "function_call":
+            return False
+        if item_type == "message":
+            for block in _raw_item_value(item, "content", None) or []:
+                text = _raw_item_value(block, "text", "")
+                if isinstance(text, str) and text.strip():
+                    return False
+    return True
 
 
 def _usage_dict_from_result(result: Any) -> dict[str, int]:
@@ -1099,6 +1136,44 @@ async def run_openai_agents_streaming_agent(
                 data=model_call_limit_error().as_event_data(
                     error_type=MODEL_CALL_LIMIT_ERROR_TYPE, agent_type=agent_type
                 ),
+            )
+            return
+
+        last_output_tokens = _last_response_output_tokens(result)
+        if (
+            not max_turns_exhausted
+            and handoff_event_data is None
+            and clarification_event_data is None
+            and AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS > 0
+            and last_output_tokens >= AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS * OUTPUT_CAP_RATIO
+            and _last_response_is_thinking_only(result)
+        ):
+            # 最后一次响应只有思考（没有正文、没有工具调用），又撞上了输出上限，本 run
+            # 也没有交接/澄清——这是被截断，不是正常结束。之前按 end_turn 收尾，最后这
+            # 一步什么都没交付，工作流静默结束，作者只看到一段思考、没有任何结果或提示。
+            # 先让 usage 入账，再以可重试的 ERROR 结束；是否退还额度由 stream_billing 的
+            # 既有规则决定（本轮无产出退还，已有产出照常计费）。只修状态，不限制思考。
+            log_with_context(
+                logger,
+                30,  # WARNING
+                "Agent run hit the output cap with thinking only; ending as truncated",
+                agent_type=agent_type,
+                output_tokens=last_output_tokens,
+                max_output_tokens=AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS,
+                thinking_chars=sum(len(part) for part in thinking_text_parts),
+                stop_basis="usage_output_tokens_at_cap",
+                model_turns=len(getattr(result, "raw_responses", None) or []),
+            )
+            yield StreamEvent(
+                type=StreamEventType.MESSAGE_END,
+                data={
+                    "stop_reason": OUTPUT_TRUNCATED_STOP_REASON,
+                    "usage": _usage_dict_from_result(result),
+                },
+            )
+            yield StreamEvent(
+                type=StreamEventType.ERROR,
+                data=output_truncated_error().as_event_data(agent_type=agent_type),
             )
             return
 
