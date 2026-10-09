@@ -23,6 +23,7 @@ from agent.graph.nodes import (
     evaluate_agent_output,
     run_streaming_agent,
 )
+from agent.graph.review_evidence import find_numeric_fact_pairs, find_repetition_evidence
 from agent.graph.router import (
     get_next_node,
     inherit_routing_after_clarification,
@@ -41,6 +42,7 @@ from config.agent_runtime import (
     AGENT_TOOL_CALL_MAX_ITERATIONS,
 )
 from utils.logger import get_logger, log_with_context
+from utils.text_metrics import count_words
 
 logger = get_logger(__name__)
 
@@ -278,7 +280,7 @@ def _review_notes_from_packet(packet: dict[str, Any] | None, context: str) -> st
     return "\n".join(parts)
 
 
-# 图自己写进 evidence 的内部标记（workflow_plan=standard、content_length=812）：
+# 图自己写进 evidence 的内部标记（workflow_plan=standard、auto_checks=repeat:2,facts:1）：
 # 对下一个 agent 没有信息量，不渲染。
 _INTERNAL_EVIDENCE_RE = re.compile(r"^[a-z_]+=\S*$")
 
@@ -372,6 +374,139 @@ def _guard_from_state(state: WritingState) -> RepeatReadGuard | None:
     return guard if isinstance(guard, RepeatReadGuard) else None
 
 
+# writer → quality_reviewer 交接时附在交接信息末尾的程序检测证据。标题是和审稿人
+# 提示词约定好的固定写法，不能改。
+REVIEW_AUTO_CHECK_HEADER = "[自动检测：需核对]"
+# 读正文 + 计算的总预算：超时就跳过，不阻断送审。
+REVIEW_AUTO_CHECK_TIMEOUT_SECONDS = 0.5
+_REVIEW_AUTO_CHECK_MAX_TARGETS = 2
+_REVIEW_AUTO_CHECK_PREVIOUS_SIBLINGS = 2
+_REVIEW_AUTO_CHECK_MAX_CHARACTER_CARDS = 10
+_REVIEW_AUTO_CHECK_MAX_REPEATS = 8
+_REVIEW_AUTO_CHECK_MAX_FACTS = 6
+
+
+def _collect_review_auto_checks(file_ids: list[str]) -> tuple[list[str], list[str]] | None:
+    """读本请求写过的正文（draft / script，最多 2 个）和参照文件，跑复读与数字事实对照。
+
+    参照文件：同一父目录、同类型、按 order（与文件清单同一排序键）排在它前面的 2 个文件，
+    以及项目里最多 10 张角色卡。同步执行（调用方放进工作线程），用短生命周期 session。
+    没有可检测的正文时返回 None；返回 (复读证据, 事实对照)。
+    """
+    project_id = ToolContext.get_project_id()
+    if not project_id or not file_ids:
+        return None
+
+    from sqlmodel import select
+
+    from models import File
+    from utils.title_sequence import build_sequence_sort_key
+
+    def _sort_key(row: Any) -> tuple:
+        effective_order, seq_num = build_sequence_sort_key(row.order, title=row.title, file_type=row.file_type)
+        return (effective_order, seq_num, row.created_at, row.id)
+
+    with ToolContext.short_lived_session() as session:
+        rows = session.exec(
+            select(
+                File.id, File.title, File.file_type, File.parent_id, File.order, File.created_at, File.content
+            ).where(
+                File.project_id == project_id,
+                File.id.in_(file_ids),
+                File.file_type.in_(CONTENT_FILE_TYPES),
+                File.is_deleted.is_(False),
+            )
+        ).all()
+        by_id = {row.id: row for row in rows}
+        targets = [by_id[file_id] for file_id in file_ids if file_id in by_id][:_REVIEW_AUTO_CHECK_MAX_TARGETS]
+        if not targets:
+            return None
+
+        cards = session.exec(
+            select(File.title, File.content)
+            .where(
+                File.project_id == project_id,
+                File.file_type == "character",
+                File.is_deleted.is_(False),
+            )
+            .order_by(File.order, File.created_at)
+            .limit(_REVIEW_AUTO_CHECK_MAX_CHARACTER_CARDS)
+        ).all()
+        card_refs = [(f"角色：{title}", content or "") for title, content in cards if (content or "").strip()]
+
+        repeats: list[str] = []
+        facts: list[str] = []
+        for target in targets:
+            parent_clause = (
+                File.parent_id.is_(None) if target.parent_id is None else File.parent_id == target.parent_id
+            )
+            siblings = session.exec(
+                select(File.id, File.title, File.file_type, File.order, File.created_at).where(
+                    File.project_id == project_id,
+                    parent_clause,
+                    File.file_type == target.file_type,
+                    File.is_deleted.is_(False),
+                )
+            ).all()
+            ordered = sorted(siblings, key=_sort_key)
+            position = next((i for i, row in enumerate(ordered) if row.id == target.id), None)
+            previous_ids = (
+                [row.id for row in ordered[max(0, position - _REVIEW_AUTO_CHECK_PREVIOUS_SIBLINGS) : position]]
+                if position
+                else []
+            )
+            neighbors: list[tuple[str, str]] = []
+            if previous_ids:
+                contents = {
+                    row.id: (row.title, row.content or "")
+                    for row in session.exec(
+                        select(File.id, File.title, File.content).where(File.id.in_(previous_ids))
+                    ).all()
+                }
+                neighbors = [contents[file_id] for file_id in previous_ids if file_id in contents]
+
+            target_text = target.content or ""
+            repeats.extend(find_repetition_evidence(target.title, target_text, neighbors))
+            facts.extend(find_numeric_fact_pairs((target.title, target_text), neighbors + card_refs))
+
+    return repeats[:_REVIEW_AUTO_CHECK_MAX_REPEATS], facts[:_REVIEW_AUTO_CHECK_MAX_FACTS]
+
+
+async def _review_auto_checks(file_ids: list[str]) -> tuple[list[str], list[str]] | None:
+    """在预算内跑送审前的程序检测；读取失败或超时只记 WARNING，返回 None（照常送审）。"""
+    if not file_ids:
+        return None
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(_collect_review_auto_checks, list(file_ids)),
+            timeout=REVIEW_AUTO_CHECK_TIMEOUT_SECONDS,
+        )
+    except TimeoutError:
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Review auto-checks timed out; handing off without them",
+            timeout_seconds=REVIEW_AUTO_CHECK_TIMEOUT_SECONDS,
+        )
+    except Exception as exc:
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Review auto-checks failed; handing off without them",
+            error=str(exc),
+            error_type=type(exc).__name__,
+        )
+    return None
+
+
+def _format_review_auto_checks(repeats: list[str], facts: list[str]) -> str:
+    """有检测结果时渲染成交接信息末尾的「[自动检测：需核对]」段，没有时返回空串。"""
+    items = [*repeats, *facts]
+    if not items:
+        return ""
+    return f"\n\n{REVIEW_AUTO_CHECK_HEADER}\n" + "\n".join(f"- {item}" for item in items)
+
+
 def _tool_result_failed(result: Any) -> bool:
     """TOOL_RESULT 事件的 result（MCP 文本载荷）是否是 status=error 的失败结果。"""
     if not isinstance(result, dict):
@@ -448,7 +583,9 @@ def _format_review_payload(text: str, *, max_chars: int = 9000) -> str:
     head = normalized[:head_chars].rstrip()
     tail = normalized[-tail_chars:].lstrip() if tail_chars > 0 else ""
     omitted = len(normalized) - len(head) - len(tail)
-    omitted_hint = f"\n\n...[中间省略 {omitted} 字]...\n\n" if omitted > 0 else "\n\n"
+    # 省略量按编辑器口径（count_words）报，不用字符数：审稿人会把这里的数字当字数。
+    omitted_words = count_words(normalized[len(head) : len(normalized) - len(tail)]) if omitted > 0 else 0
+    omitted_hint = f"\n\n...[中间省略 {omitted_words} 字]...\n\n" if omitted > 0 else "\n\n"
     return f"{head}{omitted_hint}{tail}".strip()
 
 
@@ -1643,7 +1780,9 @@ async def run_writing_workflow_streaming(
                     threshold=auto_review_threshold,
                 )
 
-                handoff_event_context = f"内容长度 {len(agent_content)} 字，自动触发质量检查"
+                # 不带数字：len() 是字符数，不是编辑器口径的字数，写进交接文案会被
+                # 审稿人当成字数转述给作者。触发阈值仍按字符长度判断。
+                handoff_event_context = "正文已写完，自动进入质量检查"
                 handoff_context = handoff_event_context
                 review_guard = _guard_from_state(state)
                 handoff_packet = {
@@ -1652,7 +1791,7 @@ async def run_writing_workflow_streaming(
                     "context": handoff_event_context,
                     "completed": review_guard.completed_items() if review_guard else [],
                     "todo": ["执行质量审查并返回问题清单"],
-                    "evidence": [f"content_length={len(agent_content)}"],
+                    "evidence": [],
                     "artifact_refs": review_guard.written_file_ids() if review_guard else [],
                 }
 
@@ -1684,6 +1823,33 @@ async def run_writing_workflow_streaming(
                     f"{base_context}\n\n"
                     f"[待审查内容]\n{review_payload}"
                 ).strip()
+
+                # 程序检测证据（逐字复读、数字事实对照）：只在 writer 写完交给审稿人时做，
+                # 用户手动审查 / review_only 不做；读不到或超时就照常送审。
+                review_guard_for_checks = _guard_from_state(state)
+                if (
+                    workflow_plan != "review_only"
+                    and iteration < max_iterations
+                    and review_guard_for_checks is not None
+                ):
+                    auto_checks = await _review_auto_checks(review_guard_for_checks.written_file_ids())
+                    if auto_checks is not None:
+                        repeat_items, fact_items = auto_checks
+                        handoff_context += _format_review_auto_checks(repeat_items, fact_items)
+                        if pending_handoff_event_data is not None and isinstance(
+                            pending_handoff_event_data.get("handoff_packet"), dict
+                        ):
+                            checked_packet = dict(pending_handoff_event_data["handoff_packet"])
+                            prior_evidence = checked_packet.get("evidence")
+                            checked_packet["evidence"] = [
+                                *(prior_evidence if isinstance(prior_evidence, list) else []),
+                                f"auto_checks=repeat:{len(repeat_items)},facts:{len(fact_items)}",
+                            ]
+                            pending_handoff_event_data = {
+                                **pending_handoff_event_data,
+                                "handoff_packet": checked_packet,
+                            }
+                            handoff_packet = checked_packet
 
             # 本轮 run 期间到达的 steering：SDK run 中途无法注入，只有当没有
             # 已计划的下一个 agent（否则该 agent 的起始注入/会话历史会带上
