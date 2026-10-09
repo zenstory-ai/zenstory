@@ -25,13 +25,16 @@
     "notCharged": "这一轮没有改动文件，不计入今日 AI 消息。",
     "notChargedError": "这次出错不计入今日 AI 消息。",
     "fileVersionLimitTitle": "文件版本额度已达上限",
-    "fileVersionLimitDesc": "升级套餐后可继续保存更多版本。"
+    "fileVersionLimitDesc": "升级套餐后可继续保存更多版本。",
+    "notChargedStopped": "已停止，这一轮还没有写出内容，不计入今日 AI 消息。",
+    "resend": "重新发送"
   },
   "input": {
     "placeholder": "想写什么，直接说…",
     "placeholderWhileProcessing": "AI 正在生成，你可以先输入，结束后再发送…",
     "placeholderQuotaExhausted": "今天的 {{limit}} 条 AI 消息用完了，北京时间明天 00:00 恢复。可以先把想法写下来，到时再发。",
     "stop": "停止生成",
+    "stopping": "正在停止…",
     "steerPlaceholder": "补充你的要求…",
     "steerButton": "补充要求",
     "steerHint": "AI 正在生成，补充的要求会在它的下一步生效",
@@ -135,7 +138,8 @@
     "parallelTaskCompleted": "✓ {{description}}",
     "parallelTaskFailed": "✗ {{description}}：没有完成",
     "parallelEnd": "处理结束：完成 {{completed}}/{{total}} 项，失败 {{failed}} 项",
-    "steeringReceived": "已收到补充要求：{{preview}}"
+    "steeringReceived": "已收到补充要求：{{preview}}",
+    "userStopped": "已停止生成"
   },
   "tool": {
     "create_file": "创建文件",
@@ -296,5 +300,25 @@
   "fileEdit": {
     "allFailed": "《{{title}}》的 {{count}} 处修改都没有成功，文件保持原样，可以让 AI 再试一次。",
     "partialFailed": "《{{title}}》有 {{count}} 处修改没有生效，请检查后让 AI 重试。"
+  },
+  "activity": {
+    "understanding": "正在理解你的需求",
+    "planning": "正在规划",
+    "writing": "正在构思正文",
+    "reviewing": "正在检查刚写的内容",
+    "reading": "正在查看项目里的文件",
+    "creatingFile": "正在写新文件",
+    "creatingFileTitled": "正在写《{{title}}》",
+    "editingFile": "正在修改文件",
+    "editingFileTitled": "正在修改《{{title}}》",
+    "replying": "正在回复",
+    "elapsed": "{{seconds}} 秒",
+    "longWaitHint": "写长内容通常要一两分钟，可以先去看看别的地方，回来再看。"
+  },
+  "leaveWhileGenerating": {
+    "title": "AI 还在写",
+    "message": "离开这个页面会中断这一轮。还没写出内容的话，这一轮不计入今日 AI 消息。",
+    "leave": "离开",
+    "stay": "继续等"
   }
 }

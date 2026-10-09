@@ -28,7 +28,18 @@ import { stripThinkTags } from '../lib/utils';
 import { getAgentDisplayName } from '../lib/agentDisplayName';
 import { useAuth } from '../contexts/AuthContext';
 import { useMobileLayout } from '../contexts/MobileLayoutContext';
+import { USER_STOPPED_REASON } from '../lib/agentStop';
 
+/** The author pressed stop: a quiet note, not a warning (nothing went wrong). */
+function UserStoppedNote() {
+  const { t } = useTranslation(['chat']);
+  return (
+    <div className="mb-2 inline-flex items-center gap-1.5 text-xs text-[hsl(var(--text-secondary))]" data-testid="user-stopped-note">
+      <CirclePause size={14} className="shrink-0" />
+      <span>{t('workflow.userStopped', { ns: 'chat' })}</span>
+    </div>
+  );
+}
 
 /**
  * Represents a single chat message in the conversation history.
@@ -549,6 +560,9 @@ function OrderedMessageItems({ items, onUndo, onIterationAssistAction, isStreami
         .map((d) => d.trim())
         .filter(Boolean);
       const workflowReason = (item as { reason?: string }).reason;
+      if (workflowReason === USER_STOPPED_REASON) {
+        return <UserStoppedNote key={item.id} />;
+      }
       const isClarificationStop =
         workflowReason === 'clarification_needed'
         || (!workflowReason && Boolean(workflowQuestion || workflowDetails.length > 0));
@@ -906,6 +920,9 @@ function Row({
         {message.role === 'assistant' && !hasDisplayItems && message.statusCards && message.statusCards.length > 0 && (
           <div className="mt-3 space-y-2">
             {message.statusCards.map((card, idx) => {
+              if (card.type === 'workflow_stopped' && card.reason === USER_STOPPED_REASON) {
+                return <UserStoppedNote key={`status-${idx}`} />;
+              }
               if (card.type === 'workflow_stopped') {
                 const workflowQuestion = (card.question ?? card.message ?? "").trim();
                 const workflowContext = (card.context ?? "").trim();

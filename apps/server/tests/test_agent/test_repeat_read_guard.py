@@ -669,7 +669,7 @@ def _decide(frames: list[str]) -> tuple[str, bool]:
     tracker = StreamBillingTracker()
     for frame in frames:
         tracker.observe(frame)
-    return tracker.decide(user_cancelled=False, unexpected_exception=False)
+    return tracker.decide(client_disconnected=False, unexpected_exception=False)
 
 
 @pytest.mark.unit

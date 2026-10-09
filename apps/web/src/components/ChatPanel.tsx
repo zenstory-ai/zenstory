@@ -69,6 +69,9 @@ import { useDraftPersistence } from "../hooks/useDraftPersistence";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { trackEvent } from "../lib/analytics";
+import { useStreamActivity } from "../hooks/useStreamActivity";
+import { useLeaveWhileGenerating } from "../hooks/useLeaveWhileGenerating";
+import { StreamActivityLine } from "./StreamActivityLine";
 
 const parseMessageStatusCardsFromMetadata = (metadataRaw?: string | null): Message["statusCards"] | undefined => {
   if (!metadataRaw) return undefined;
@@ -418,6 +421,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const [showFileVersionUpgradeModal, setShowFileVersionUpgradeModal] = useState(false);
   // 后端确实退还了这一轮的 AI 消息时才有值（quota_refunded 帧），按项目隔离，下一轮开始时清空。
   const [quotaRefund, setQuotaRefund] = useState<{ projectId: string; kind: QuotaRefundKind } | null>(null);
+  const streamActivity = useStreamActivity();
   const pendingMaterialClearRef = useRef(false);
   const pendingQuoteClearRef = useRef(false);
   const currentAgentSessionIdRef = useRef<string | null>(null);
@@ -904,7 +908,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const {
     state,
     startStream,
-    cancel,
+    stop,
+    isStopping,
     reset,
     isStreaming,
     isThinking,
@@ -919,6 +924,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     // Lifecycle callbacks
     onStart: () => {
       streamCallbacks.onStart();
+      streamActivity.begin();
       terminalStatusCardsRef.current = [];
       setQuotaRefund(null);
       resetOnCompleteFlag();
@@ -934,7 +940,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     onThinkingContent: streamCallbacks.onThinkingContent,
 
     // Segment callbacks
-    onSegmentStart: streamCallbacks.onSegmentStart,
+    onSegmentStart: (segment) => {
+      streamActivity.onSegmentStart(segment);
+      streamCallbacks.onSegmentStart(segment);
+    },
     onSegmentUpdate: streamCallbacks.onSegmentUpdate,
     onSegmentUpdateToolCalls: streamCallbacks.onSegmentUpdateToolCalls,
     onSegmentEnd: streamCallbacks.onSegmentEnd,
@@ -950,10 +959,16 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     onToolResult: streamCallbacks.onToolResult,
 
     // File operation callbacks
-    onFileCreated: streamCallbacks.onFileCreated,
+    onFileCreated: (fileId, fileType, title) => {
+      streamActivity.onFileCreated(title);
+      streamCallbacks.onFileCreated(fileId, fileType, title);
+    },
     onFileContent: streamCallbacks.onFileContent,
     onFileContentEnd: streamCallbacks.onFileContentEnd,
-    onFileEditStart: streamCallbacks.onFileEditStart,
+    onFileEditStart: (fileId, title, totalEdits, fileType) => {
+      streamActivity.onFileEditStart(title);
+      streamCallbacks.onFileEditStart(fileId, title, totalEdits, fileType);
+    },
     onFileEditApplied: streamCallbacks.onFileEditApplied,
     onFileEditEnd: streamCallbacks.onFileEditEnd,
 
@@ -962,7 +977,11 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     onSkillsMatched: streamCallbacks.onSkillsMatched,
 
     // Multi-agent workflow callbacks
-    onAgentSelected: streamCallbacks.onAgentSelected,
+    onAgentSelected: (agentType, agentName, iteration, maxIterations, remaining) => {
+      streamActivity.onAgentSelected(agentType);
+      streamCallbacks.onAgentSelected(agentType, agentName, iteration, maxIterations, remaining);
+    },
+    onToolCall: streamActivity.onToolCall,
     onIterationExhausted: (layer, iterationsUsed, maxIterations, reason, lastAgent) => {
       terminalStatusCardsRef.current = [{
         type: "iteration_exhausted",
@@ -1008,6 +1027,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       invalidateQuota();
     },
   });
+  // Stopping already ends the round on its own; no need to ask before leaving then.
+  const leaveGuard = useLeaveWhileGenerating(isStreaming && !isStopping);
   const conflictCount = state.conflicts?.length ?? 0;
   const streamRenderItemCount = streamRenderItems?.length ?? 0;
 
@@ -1017,7 +1038,17 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     || errorCode === 'ERR_QUOTA_AI_DAILY_COST_EXCEEDED';
   // Never pair a refund note with the used-up card: that would hint at a second, cost-based limit.
   const quotaRefundNote = quotaRefund && quotaRefund.projectId === currentProjectId && !isStreaming && !isAiQuotaLimit
-    ? t(quotaRefund.kind === 'no_progress' ? 'chat:panel.notCharged' : 'chat:panel.notChargedError')
+    ? t(
+      quotaRefund.kind === 'no_progress'
+        ? 'chat:panel.notCharged'
+        : quotaRefund.kind === 'stopped'
+          ? 'chat:panel.notChargedStopped'
+          : 'chat:panel.notChargedError',
+    )
+    : null;
+  // Stopped before anything was written: offer to send the same request again.
+  const resendAfterStop = quotaRefundNote && quotaRefund?.kind === 'stopped'
+    ? [...messages].reverse().find((message) => message.role === 'user')?.content ?? null
     : null;
 
   useEffect(() => {
@@ -1517,9 +1548,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     }
   }, [currentProjectId, isRefreshingSuggestions, setIsRefreshingSuggestions, fetchAndApplySuggestions]);
 
-  // Handle cancel streaming
+  // Stop button: the server ends the round on the open stream (see useAgentStream.stop).
   const handleCancel = () => {
-    cancel();
+    stop();
   };
 
   /**
@@ -1851,6 +1882,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                 </div>
               )}
 
+              {isStreaming && (
+                <StreamActivityLine activity={streamActivity.activity} startedAt={streamActivity.startedAt} />
+              )}
+
               {/* 这一轮确实没扣 AI 消息（后端退还落库后才会收到） */}
               {quotaRefundNote && (
                 <p
@@ -1858,6 +1893,16 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                   className="mt-2 text-xs text-[hsl(var(--text-secondary))]"
                 >
                   {quotaRefundNote}
+                  {resendAfterStop && (
+                    <button
+                      type="button"
+                      data-testid="chat-resend-after-stop"
+                      onClick={() => void handleSendMessage(resendAfterStop)}
+                      className="ml-2 text-[hsl(var(--accent-primary))] hover:underline focus-visible:outline-none focus-visible:underline"
+                    >
+                      {t('chat:panel.resend')}
+                    </button>
+                  )}
                 </p>
               )}
 
@@ -1924,6 +1969,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             // Quota used up: drafting stays possible, sending waits for the daily reset.
             sendDisabled={isStreaming || isThinking || isLoadingHistory || quotaExhausted}
             onCancel={isStreaming ? handleCancel : undefined}
+            isStopping={isStopping}
             // Steering: while streaming with an active session, the user can send
             // a follow-up instruction that the agent picks up at its next step.
             onSteer={handleSteer}
@@ -2009,6 +2055,18 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         cancelLabel={t('common:cancel')}
         variant="warning"
         loading={isUndoing}
+      />
+
+      {/* Leaving the workbench mid-round drops the stream and ends the round. */}
+      <ConfirmDialog
+        open={leaveGuard.leavePending}
+        onClose={leaveGuard.cancelLeave}
+        onConfirm={leaveGuard.confirmLeave}
+        title={t('chat:leaveWhileGenerating.title')}
+        message={t('chat:leaveWhileGenerating.message')}
+        confirmLabel={t('chat:leaveWhileGenerating.leave')}
+        cancelLabel={t('chat:leaveWhileGenerating.stay')}
+        variant="warning"
       />
 
       {/* AI Memory Dialog */}

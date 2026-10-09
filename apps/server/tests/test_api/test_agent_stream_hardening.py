@@ -269,13 +269,33 @@ async def test_refund_that_did_not_apply_is_not_announced(client: AsyncClient, d
     assert "quota_refunded" not in response.text
 
 
+def _billing_log(log_spy) -> dict:
+    billing_logs = [
+        call.kwargs for call in log_spy.call_args_list
+        if len(call.args) >= 3 and call.args[2] == "Agent stream billing evaluated"
+    ]
+    assert billing_logs
+    return billing_logs[-1]
+
+
 @pytest.mark.integration
-async def test_generator_exit_disconnect_is_billed_as_user_cancel(client: AsyncClient, db_session):
-    """以 aclose（GeneratorExit）方式断线时按用户取消计费，而不是内部错误退款。"""
+@pytest.mark.parametrize(
+    ("output_frames", "billing_reason", "refunded"),
+    [
+        ([], "client_disconnected_no_output", True),
+        ([_sse("content", {"text": "第一段已经写出来了"})], "client_disconnected", False),
+    ],
+)
+async def test_generator_exit_disconnect_refunds_only_rounds_without_output(
+    client: AsyncClient, db_session, output_frames, billing_reason, refunded
+):
+    """以 aclose（GeneratorExit）方式断线：没有任何产出就在后台退还，已有产出照常计费。"""
     _token, project, user = await _login_with_project(client, db_session)
 
     async def frames():
         yield _sse("session_started", {"session_id": "s1"})
+        for frame in output_frames:
+            yield frame
         await asyncio.sleep(30)
         yield _sse("done", {})
 
@@ -294,17 +314,125 @@ async def test_generator_exit_disconnect_is_billed_as_user_cancel(client: AsyncC
             _rate_limit=0,
         )
         iterator = response.body_iterator
-        first = await iterator.__anext__()
-        assert first.startswith("event: session_started")
+        received = [await iterator.__anext__() for _ in range(1 + len(output_frames))]
+        assert received[0].startswith("event: session_started")
         await iterator.aclose()
+        await asyncio.gather(*agent_api._detached_refund_tasks)
 
-    refund.assert_not_called()
-    billing_logs = [
-        call.kwargs for call in log_spy.call_args_list
-        if len(call.args) >= 3 and call.args[2] == "Agent stream billing evaluated"
-    ]
-    assert billing_logs and billing_logs[-1]["billing_reason"] == "user_cancelled"
-    assert billing_logs[-1]["charged"] is True
+    assert refund.called is refunded
+    log = _billing_log(log_spy)
+    assert log["billing_reason"] == billing_reason
+    assert log["client_disconnected"] is True
+    assert log["user_stopped"] is False
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("output_frames", "billing_reason", "refund_kind"),
+    [
+        ([_sse("thinking_content", {"content": "先读大纲"})], "user_stopped_no_output", "stopped"),
+        ([_sse("content", {"text": "第一章开头"})], "user_stopped", None),
+    ],
+)
+async def test_author_stop_ends_run_on_open_stream_and_settles_billing(
+    client: AsyncClient, db_session, output_frames, billing_reason, refund_kind
+):
+    """作者点停止：运行在原连接上收尾（停止卡片 + done），没有产出时退还并告诉前端。"""
+    _token, project, user = await _login_with_project(client, db_session)
+    source_closed = asyncio.Event()
+
+    async def frames():
+        try:
+            yield _sse("session_started", {"session_id": "s1"})
+            for frame in output_frames:
+                yield frame
+            await asyncio.sleep(30)
+            yield _sse("done", {})
+        finally:
+            source_closed.set()
+
+    body = agent_api.AgentRequest(project_id=str(project.id), message="写第五章")
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+        patch("api.agent.log_with_context") as log_spy,
+    ):
+        response = await agent_api.stream_request(
+            body=body,
+            session=db_session,
+            current_user=user,
+            accept_language=None,
+            _rate_limit=0,
+        )
+        run_id = response.headers["X-Agent-Run-ID"]
+        iterator = response.body_iterator
+        for _ in range(1 + len(output_frames)):
+            await iterator.__anext__()
+
+        stopped = await agent_api.stop_stream(
+            body=agent_api.StopRequest(agent_run_id=run_id),
+            current_user=user,
+            _rate_limit=0,
+        )
+        assert stopped.stop_requested is True
+        rest = "".join([frame async for frame in iterator])
+
+    assert source_closed.is_set()
+    assert _frame_data(rest, "workflow_stopped") == {
+        "reason": "user_stopped",
+        "message": agent_api.USER_STOPPED_MESSAGE,
+    }
+    assert _frame_data(rest, "done") is not None
+    refund_frame = _frame_data(rest, "quota_refunded")
+    if refund_kind is None:
+        assert refund_frame is None
+        refund.assert_not_called()
+    else:
+        assert refund_frame == {"refunded": True, "kind": refund_kind}
+        refund.assert_called_once()
+    log = _billing_log(log_spy)
+    assert log["billing_reason"] == billing_reason
+    assert log["user_stopped"] is True
+    assert log["client_disconnected"] is False
+
+
+@pytest.mark.integration
+async def test_stop_request_for_another_users_run_does_not_stop_it(client: AsyncClient, db_session):
+    """停止信号按用户命名：别人拿到 run id 也停不了这次运行。"""
+    _token, project, owner = await _login_with_project(client, db_session)
+    _other_token, _other_project, other = await _login_with_project(client, db_session)
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "s1"})
+        await asyncio.sleep(0.8)
+        yield _sse("content", {"text": "照常写完"})
+        yield _sse("done", {})
+
+    body = agent_api.AgentRequest(project_id=str(project.id), message="写第五章")
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True),
+    ):
+        response = await agent_api.stream_request(
+            body=body,
+            session=db_session,
+            current_user=owner,
+            accept_language=None,
+            _rate_limit=0,
+        )
+        iterator = response.body_iterator
+        await iterator.__anext__()
+        await agent_api.stop_stream(
+            body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
+            current_user=other,
+            _rate_limit=0,
+        )
+        rest = "".join([frame async for frame in iterator])
+
+    assert _frame_data(rest, "workflow_stopped") is None
+    assert _frame_data(rest, "content") == {"text": "照常写完"}
 
 
 @pytest.mark.integration

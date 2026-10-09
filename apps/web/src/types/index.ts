@@ -499,6 +499,7 @@ export interface SSEWorkflowStoppedData {
     | "clarification_needed"
     | "error"
     | "user_cancelled"
+    | "user_stopped"
     | "invalid_handoff"
     | (string & {});
   agent_type: string;

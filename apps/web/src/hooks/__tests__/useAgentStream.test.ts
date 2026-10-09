@@ -1,12 +1,13 @@
 import { renderHook, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { useAgentStream } from '../useAgentStream'
+import { STOP_GRACE_MS, useAgentStream } from '../useAgentStream'
 import * as agentApi from '@/lib/agentApi'
 
 // Mock agentApi
 vi.mock('@/lib/agentApi', () => ({
   streamAgentRequest: vi.fn(),
   sendSteeringRequest: vi.fn(),
+  stopAgentRun: vi.fn(),
 }))
 
 // Helper to simulate SSE events
@@ -714,6 +715,89 @@ describe('useAgentStream', () => {
 
       expect(result.current.isStreaming).toBe(false)
       expect(result.current.isThinking).toBe(false)
+    })
+  })
+
+  describe('stop (author pressed stop)', () => {
+    function startWithRun(runId: string | null = 'run-1') {
+      const hook = renderHook(() => useAgentStream('test-project-id'))
+      const controller = createMockStreamController()
+      act(() => {
+        hook.result.current.startStream({ message: 'test' })
+      })
+      if (runId) {
+        act(() => {
+          controller.getCallbacks()?.onRunStarted?.(runId)
+        })
+      }
+      return { ...hook, controller }
+    }
+
+    it('asks the server to stop and keeps reading the stream until it wraps up', async () => {
+      vi.mocked(agentApi.stopAgentRun).mockResolvedValue(true)
+      const { result, controller } = startWithRun()
+
+      await act(async () => {
+        result.current.stop()
+      })
+
+      expect(agentApi.stopAgentRun).toHaveBeenCalledWith('run-1')
+      expect(controller.mockAbortController.abort).not.toHaveBeenCalled()
+      expect(result.current.isStopping).toBe(true)
+
+      act(() => {
+        controller.getCallbacks()?.onWorkflowStopped?.({
+          reason: 'user_stopped',
+          agent_type: '',
+          message: '已停止生成。',
+        })
+        controller.getCallbacks()?.onDone?.({})
+      })
+      act(() => {
+        vi.advanceTimersByTime(STOP_GRACE_MS)
+      })
+
+      expect(result.current.isStreaming).toBe(false)
+      expect(result.current.isStopping).toBe(false)
+      expect(controller.mockAbortController.abort).not.toHaveBeenCalled()
+    })
+
+    it('drops the connection when the stop request fails', async () => {
+      vi.mocked(agentApi.stopAgentRun).mockResolvedValue(false)
+      const { result, controller } = startWithRun()
+
+      await act(async () => {
+        result.current.stop()
+      })
+
+      expect(controller.mockAbortController.abort).toHaveBeenCalled()
+      expect(result.current.isStreaming).toBe(false)
+    })
+
+    it('drops the connection when the server does not wrap up in time', async () => {
+      vi.mocked(agentApi.stopAgentRun).mockResolvedValue(true)
+      const { result, controller } = startWithRun()
+
+      await act(async () => {
+        result.current.stop()
+      })
+      act(() => {
+        vi.advanceTimersByTime(STOP_GRACE_MS)
+      })
+
+      expect(controller.mockAbortController.abort).toHaveBeenCalled()
+      expect(result.current.isStreaming).toBe(false)
+    })
+
+    it('drops the connection right away before the run id is known', () => {
+      const { result, controller } = startWithRun(null)
+
+      act(() => {
+        result.current.stop()
+      })
+
+      expect(agentApi.stopAgentRun).not.toHaveBeenCalled()
+      expect(controller.mockAbortController.abort).toHaveBeenCalled()
     })
   })
 

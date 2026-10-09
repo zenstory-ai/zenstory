@@ -25,13 +25,16 @@
     "notCharged": "No files were changed this round, so it doesn't count toward today's AI messages.",
     "notChargedError": "This error doesn't count toward today's AI messages.",
     "fileVersionLimitTitle": "File version limit reached",
-    "fileVersionLimitDesc": "Upgrade your plan to keep more versions."
+    "fileVersionLimitDesc": "Upgrade your plan to keep more versions.",
+    "notChargedStopped": "Stopped before anything was written, so this round does not count toward today's AI messages.",
+    "resend": "Send again"
   },
   "input": {
     "placeholder": "Tell the AI what to write…",
     "placeholderWhileProcessing": "AI is generating — you can type now and send when it finishes…",
     "placeholderQuotaExhausted": "You've used today's {{limit}} AI messages. They reset at 00:00 Beijing time (UTC+8) — draft now and send then.",
     "stop": "Stop generating",
+    "stopping": "Stopping…",
     "steerPlaceholder": "Add to your request…",
     "steerButton": "Add request",
     "steerHint": "AI is generating — what you add applies at its next step",
@@ -135,7 +138,8 @@
     "parallelTaskCompleted": "✓ {{description}}",
     "parallelTaskFailed": "✗ {{description}}: not completed",
     "parallelEnd": "Done: {{completed}}/{{total}} completed, {{failed}} failed",
-    "steeringReceived": "Got your addition: {{preview}}"
+    "steeringReceived": "Got your addition: {{preview}}",
+    "userStopped": "Stopped"
   },
   "tool": {
     "create_file": "Create File",
@@ -296,5 +300,25 @@
   "fileEdit": {
     "allFailed": "None of the {{count}} edits to \"{{title}}\" worked, so the file is unchanged. You can ask the AI to try again.",
     "partialFailed": "{{count}} edit(s) to \"{{title}}\" did not apply. Review them and ask the AI to retry."
+  },
+  "activity": {
+    "understanding": "Reading your request",
+    "planning": "Planning",
+    "writing": "Working out the text",
+    "reviewing": "Checking what was just written",
+    "reading": "Looking through your project files",
+    "creatingFile": "Writing a new file",
+    "creatingFileTitled": "Writing \"{{title}}\"",
+    "editingFile": "Editing a file",
+    "editingFileTitled": "Editing \"{{title}}\"",
+    "replying": "Replying",
+    "elapsed": "{{seconds}}s",
+    "longWaitHint": "Long passages usually take a minute or two."
+  },
+  "leaveWhileGenerating": {
+    "title": "The AI is still writing",
+    "message": "Leaving this page ends this round. If nothing has been written yet, it will not count toward today's AI messages.",
+    "leave": "Leave",
+    "stay": "Keep waiting"
   }
 }

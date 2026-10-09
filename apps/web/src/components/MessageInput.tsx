@@ -62,6 +62,8 @@ function getSuggestionsToDisplay(
   return [];
 }
 
+/** How long the stop button ignores presses after it replaces the send button. */
+export const STOP_ARM_DELAY_MS = 1500;
 /** Minimum textarea height in pixels */
 const TEXTAREA_MIN_HEIGHT_PX = 64;
 /** Maximum textarea height in auto-layout mode before scrolling */
@@ -179,6 +181,8 @@ interface MessageInputProps {
   sendDisabled?: boolean;
   /** Callback to cancel an ongoing operation (shows cancel button when disabled) */
   onCancel?: () => void;
+  /** Stop already requested: the stop button shows it is waiting and ignores presses */
+  isStopping?: boolean;
   /**
    * Callback to send a steering (follow-up) message while the agent is
    * streaming. When provided together with `canSteer`, typing during
@@ -280,6 +284,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   disabled = false,
   sendDisabled,
   onCancel,
+  isStopping = false,
   onSteer,
   canSteer = false,
   placeholder,
@@ -299,6 +304,21 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const textareaMinHeightPx = isMobile ? 44 : TEXTAREA_MIN_HEIGHT_PX;
   const effectiveSendDisabled = sendDisabled ?? disabled;
   const inputDisabled = disabled;
+  // The stop button takes the send button's place the moment a message goes out,
+  // so a double tap on send used to stop the round before anything was written.
+  // Ignore it until STOP_ARM_DELAY_MS after it appears.
+  const stopShown = Boolean(onCancel) && effectiveSendDisabled;
+  const [stopArmed, setStopArmed] = useState(false);
+  const [prevStopShown, setPrevStopShown] = useState(stopShown);
+  if (prevStopShown !== stopShown) {
+    setPrevStopShown(stopShown);
+    setStopArmed(false);
+  }
+  useEffect(() => {
+    if (!stopShown) return;
+    const timer = setTimeout(() => setStopArmed(true), STOP_ARM_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [stopShown]);
   // Steering is offered while the agent is generating: the textarea stays
   // editable and submitting dispatches a follow-up instruction instead of a
   // brand-new turn.
@@ -609,6 +629,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   const handleCancel = () => {
+    if (!stopArmed || isStopping) return;
     onCancel?.();
   };
 
@@ -979,9 +1000,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         ) : onCancel && effectiveSendDisabled ? (
           <button
             onClick={handleCancel}
-            className={`shrink-0 flex items-center justify-center bg-[hsl(var(--error))] hover:bg-[hsl(var(--error))] text-white rounded-lg transition-colors focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--error))] ${isMobile ? 'w-11 h-11' : 'w-9 h-9'}`}
-            title={t("chat:input.stop")}
-            aria-label={t("chat:input.stop")}
+            disabled={!stopArmed || isStopping}
+            className={`shrink-0 flex items-center justify-center bg-[hsl(var(--error))] hover:bg-[hsl(var(--error))] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--error))] ${isMobile ? 'w-11 h-11' : 'w-9 h-9'}`}
+            title={isStopping ? t("chat:input.stopping") : t("chat:input.stop")}
+            aria-label={isStopping ? t("chat:input.stopping") : t("chat:input.stop")}
             data-testid="stop-button"
           >
             <Square size={14} fill="currentColor" />

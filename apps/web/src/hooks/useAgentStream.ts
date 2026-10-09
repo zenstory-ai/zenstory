@@ -15,7 +15,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { produce } from "immer";
 import i18n from "../lib/i18n";
 import { useImmer } from "use-immer";
-import { sendSteeringRequest, streamAgentRequest, type QuotaRefundKind } from "../lib/agentApi";
+import { sendSteeringRequest, stopAgentRun, streamAgentRequest, type QuotaRefundKind } from "../lib/agentApi";
 import type {
   AgentContextItem,
   AgentRequest,
@@ -221,8 +221,15 @@ export interface UseAgentStreamReturn {
   segments: MessageSegment[];
   /** Start streaming request */
   startStream: (request: Omit<AgentRequest, "project_id">) => void;
-  /** Cancel ongoing stream */
+  /** Cancel ongoing stream (drops the connection; used on unmount / project switch) */
   cancel: () => void;
+  /**
+   * Author pressed stop: ask the server to end the run on this stream so it can
+   * settle billing as an author stop; falls back to cancel() if that fails.
+   */
+  stop: () => void;
+  /** Stop requested, waiting for the server to close the round */
+  isStopping: boolean;
   /** Reset state to initial */
   reset: () => void;
   /** Whether currently streaming */
@@ -246,6 +253,9 @@ export interface UseAgentStreamReturn {
   /** Send a steering message to the active session */
   sendSteeringMessage: (message: string) => Promise<void>;
 }
+
+/** How long to wait for the server to wrap up a stopped round before dropping the connection. */
+export const STOP_GRACE_MS = 5000;
 
 const initialState: AgentStreamState = {
   isStreaming: false,
@@ -321,6 +331,11 @@ export function useAgentStream(
   const [sessionId, setSessionId] = useState<string | null>(null);
   const currentProjectIdRef = useRef(projectId);
   const lastProjectIdRef = useRef(projectId);
+  // X-Agent-Run-ID of the in-flight stream; needed to ask the server to stop it.
+  const runIdRef = useRef<string | null>(null);
+  const stopRequestedRef = useRef(false);
+  const stopFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [stopRequested, setStopRequested] = useState(false);
 
   useEffect(() => {
     currentProjectIdRef.current = projectId;
@@ -390,6 +405,10 @@ export function useAgentStream(
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
+      }
+      if (stopFallbackTimerRef.current) {
+        clearTimeout(stopFallbackTimerRef.current);
+        stopFallbackTimerRef.current = null;
       }
       clearFlushTimer();
       if (errorTimeoutRef.current) {
@@ -703,6 +722,11 @@ export function useAgentStream(
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    if (stopFallbackTimerRef.current) {
+      clearTimeout(stopFallbackTimerRef.current);
+      stopFallbackTimerRef.current = null;
+    }
+    setStopRequested(false);
     // Flush what we already received so the UI doesn't "lose" the last chunk.
     flushPendingContent();
     clearFlushTimer();
@@ -732,6 +756,37 @@ export function useAgentStream(
   }, [clearFlushTimer, finalizeStream, flushPendingContent, onSegmentEnd, updateSegmentsSync]);
 
   /**
+   * Author pressed stop. The server ends the run on the open stream (stop card +
+   * done, and quota_refunded when nothing was produced), so keep reading it; only
+   * drop the connection when the stop request fails or the server does not wrap
+   * up within STOP_GRACE_MS. A second press while stopping drops it right away.
+   */
+  const stop = useCallback(() => {
+    const runId = runIdRef.current;
+    if (!runId || stopRequestedRef.current) {
+      cancel();
+      return;
+    }
+    stopRequestedRef.current = true;
+    setStopRequested(true);
+    const epoch = streamEpochRef.current;
+    const dropConnection = () => {
+      if (streamEpochRef.current === epoch) cancel();
+    };
+    stopFallbackTimerRef.current = setTimeout(dropConnection, STOP_GRACE_MS);
+    void stopAgentRun(runId).then((recorded) => {
+      if (!recorded) dropConnection();
+    });
+  }, [cancel]);
+
+  // The round ended (done / error / stop card): the stop has been honoured.
+  useEffect(() => {
+    if (state.isStreaming || !stopFallbackTimerRef.current) return;
+    clearTimeout(stopFallbackTimerRef.current);
+    stopFallbackTimerRef.current = null;
+  }, [state.isStreaming]);
+
+  /**
    * Start a streaming request.
    */
   const startStream = useCallback(
@@ -744,6 +799,13 @@ export function useAgentStream(
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
+      runIdRef.current = null;
+      stopRequestedRef.current = false;
+      if (stopFallbackTimerRef.current) {
+        clearTimeout(stopFallbackTimerRef.current);
+        stopFallbackTimerRef.current = null;
+      }
+      setStopRequested(false);
 
       // 清除之前的错误
       clearError();
@@ -790,6 +852,11 @@ export function useAgentStream(
           selected_skill_ids: request.selected_skill_ids,
         },
         {
+          onRunStarted: (agentRunId) => {
+            if (isStaleEvent()) return;
+            runIdRef.current = agentRunId;
+          },
+
           onThinking: (message) => {
             if (isStaleEvent()) return;
             setState((prev) => ({
@@ -1314,6 +1381,8 @@ export function useAgentStream(
     segments,
     startStream,
     cancel,
+    stop,
+    isStopping: stopRequested && state.isStreaming,
     reset,
     isStreaming: state.isStreaming,
     isThinking: state.isThinking,

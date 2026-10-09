@@ -2,7 +2,11 @@
 
 规则（按优先级）：
 
-1. 用户取消 / 客户端断线（CancelledError 或 GeneratorExit）：照常计费。
+1. 作者主动停止（``POST /agent/stop``，见 agent.core.run_stop）或客户端断线
+   （CancelledError / GeneratorExit）：本轮已有实质产出则计费，否则退还
+   （``user_stopped_no_output`` / ``client_disconnected_no_output``）。只想过、读过
+   文件而没写出任何东西的一轮，不该占作者一条额度；见
+   ``architecture/2026-10-09-agent-graceful-stop-and-no-output-refund.md``。
 2. 请求级墙钟时限到期：本轮已有实质产出则计费，否则退还。
 3. 失控停止（重复读取无进展 error 帧 reason=no_progress、请求级模型调用预算
    ERR_AGENT_MODEL_CALL_LIMIT、单 agent 工具调用轮数耗尽 iteration_exhausted
@@ -22,7 +26,8 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 from typing import Any
 
 from agent.core.events import NON_TERMINAL_WORKFLOW_STOPPED_REASONS
@@ -46,11 +51,22 @@ _TERMINAL_EVENT_TYPES = frozenset({"done", "workflow_complete"})
 QUOTA_REFUNDED_EVENT = "quota_refunded"
 REFUND_KIND_NO_PROGRESS = "no_progress"
 REFUND_KIND_ERROR = "error"
+REFUND_KIND_STOPPED = "stopped"
+
+USER_STOPPED_BILLING_REASON = "user_stopped"
+USER_STOPPED_NO_OUTPUT_BILLING_REASON = "user_stopped_no_output"
+CLIENT_DISCONNECTED_BILLING_REASON = "client_disconnected"
+CLIENT_DISCONNECTED_NO_OUTPUT_BILLING_REASON = "client_disconnected_no_output"
 
 
 def quota_refunded_frame(billing_reason: str) -> str:
     """额度已经退还后发给前端的说明帧；只在退还真正生效后调用。"""
-    kind = REFUND_KIND_NO_PROGRESS if billing_reason == RUNAWAY_BILLING_REASON else REFUND_KIND_ERROR
+    if billing_reason == RUNAWAY_BILLING_REASON:
+        kind = REFUND_KIND_NO_PROGRESS
+    elif billing_reason == USER_STOPPED_NO_OUTPUT_BILLING_REASON:
+        kind = REFUND_KIND_STOPPED
+    else:
+        kind = REFUND_KIND_ERROR
     data = json.dumps({"refunded": True, "kind": kind}, ensure_ascii=False)
     return f"event: {QUOTA_REFUNDED_EVENT}\ndata: {data}\n\n"
 
@@ -82,6 +98,9 @@ class StreamBillingTracker:
     write_succeeded: bool = False
     # 本轮是否以失控方式停止（见模块说明第 3 条）。
     runaway_stop: bool = False
+    started_at: float = field(default_factory=time.monotonic)
+    # 第一次出现实质产出（正文 / 文件正文 / 写入成功）距开始的毫秒数。
+    first_output_ms: int | None = None
 
     def observe(self, frame: Any) -> None:
         if not isinstance(frame, str):
@@ -115,6 +134,8 @@ class StreamBillingTracker:
 
         if not self.produced_output:
             self.produced_output = self._is_substantive_output(event_type, payload)
+            if self.produced_output:
+                self.first_output_ms = int((time.monotonic() - self.started_at) * 1000)
         if not self.write_succeeded:
             self.write_succeeded = self._is_committed_write(event_type, payload)
 
@@ -154,13 +175,20 @@ class StreamBillingTracker:
     def decide(
         self,
         *,
-        user_cancelled: bool,
+        client_disconnected: bool,
         unexpected_exception: bool,
         deadline_exceeded: bool = False,
+        user_stopped: bool = False,
     ) -> tuple[str, bool]:
         """返回 (billing_reason, should_refund)。"""
-        if user_cancelled:
-            return "user_cancelled", False
+        if user_stopped:
+            if self.produced_output:
+                return USER_STOPPED_BILLING_REASON, False
+            return USER_STOPPED_NO_OUTPUT_BILLING_REASON, True
+        if client_disconnected:
+            if self.produced_output:
+                return CLIENT_DISCONNECTED_BILLING_REASON, False
+            return CLIENT_DISCONNECTED_NO_OUTPUT_BILLING_REASON, True
         if deadline_exceeded:
             return "run_deadline_exceeded", not self.produced_output
         if self.runaway_stop and not self.write_succeeded and not unexpected_exception:

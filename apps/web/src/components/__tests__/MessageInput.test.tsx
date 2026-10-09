@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest'
-import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, cleanup, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MessageInput } from '../MessageInput'
+import { MessageInput, STOP_ARM_DELAY_MS } from '../MessageInput'
 import { skillsApi } from '../../lib/api'
 import { MAX_AGENT_MESSAGE_CHARS } from '../../lib/agentLimits'
 
@@ -212,13 +212,41 @@ describe('MessageInput', () => {
     expect(screen.getByRole('button', { name: /chat:input.stop/i })).toBeInTheDocument()
   })
 
-  it('calls onCancel when cancel button is clicked', async () => {
-    const user = userEvent.setup({ delay: null })
-    const onCancel = vi.fn()
-    render(<MessageInput {...defaultProps} disabled={true} onCancel={onCancel} />)
+  it('ignores the stop button right after it replaces send, then stops on a later press', () => {
+    // A double tap on send used to land on stop and end the round before anything was written.
+    vi.useFakeTimers()
+    try {
+      const onCancel = vi.fn()
+      render(<MessageInput {...defaultProps} sendDisabled={true} onCancel={onCancel} />)
+      const stopButton = screen.getByRole('button', { name: /chat:input.stop/i })
 
-    await user.click(screen.getByRole('button', { name: /chat:input.stop/i }))
-    expect(onCancel).toHaveBeenCalled()
+      fireEvent.click(stopButton)
+      expect(onCancel).not.toHaveBeenCalled()
+
+      act(() => {
+        vi.advanceTimersByTime(STOP_ARM_DELAY_MS)
+      })
+      fireEvent.click(stopButton)
+      expect(onCancel).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not stop twice while a stop is already in progress', () => {
+    vi.useFakeTimers()
+    try {
+      const onCancel = vi.fn()
+      render(<MessageInput {...defaultProps} sendDisabled={true} onCancel={onCancel} isStopping={true} />)
+      act(() => {
+        vi.advanceTimersByTime(STOP_ARM_DELAY_MS)
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: /chat:input.stopping/i }))
+      expect(onCancel).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('shows custom placeholder', () => {

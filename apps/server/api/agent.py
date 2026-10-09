@@ -6,10 +6,11 @@ Provides FastAPI router for agent endpoints:
 - GET /api/v1/agent/health - Health check
 - POST /api/v1/agent/suggest - Generate intelligent next-step suggestions
 - POST /api/v1/agent/steer - Inject steering message into a running session
+- POST /api/v1/agent/stop - Author stops a running /stream (graceful stop + billing)
 
 计费/限流约定：所有会触发 LLM 的端点都必须同时具备「鉴权 + 项目权限 + 成本上限 + 按用户限流」，
 新增端点时请照此对齐，不要只做鉴权。/stream 的成本上限是 AI 对话额度；/suggest 由前端
-自动触发，不占对话额度，改用独立的每日上限；/steer 归属所在 /stream 的那次额度。
+自动触发，不占对话额度，改用独立的每日上限；/steer 归属所在 /stream 的那次额度；/stop 不触发 LLM，只按用户限流。
 """
 
 import asyncio
@@ -26,8 +27,9 @@ from pydantic_core import PydanticCustomError
 from services.auth import get_current_active_user
 from sqlmodel import Session
 
-from agent.core.events import error_event
-from agent.core.sse_pump import SSEStreamPump, StreamDeadlineExceeded
+from agent.core.events import EventType, StreamEvent, done_event, error_event
+from agent.core.run_stop import RunStopWatch, request_stop
+from agent.core.sse_pump import SSEStreamPump, StreamDeadlineExceeded, StreamStoppedByUser
 from agent.core.steering import SteeringSessionBusyError
 from agent.core.stream_billing import StreamBillingTracker, quota_refunded_frame
 from agent.core.stream_errors import (
@@ -74,6 +76,15 @@ SUGGEST_RATE_LIMIT_WINDOW_SECONDS = 3600
 SUGGEST_DAILY_MAX_REQUESTS = 100
 STEER_RATE_LIMIT_MAX_REQUESTS = 120
 STEER_RATE_LIMIT_WINDOW_SECONDS = 3600
+STOP_RATE_LIMIT_MAX_REQUESTS = 240
+STOP_RATE_LIMIT_WINDOW_SECONDS = 3600
+
+# 作者主动停止后，服务端在仍然打开的连接上发出的停止卡片（workflow_stopped）。
+USER_STOPPED_REASON = "user_stopped"
+USER_STOPPED_MESSAGE = "已停止生成。"
+
+# 断线路径上不能挂起：要退还的额度交给后台任务，这里持有引用防止被回收。
+_detached_refund_tasks: set[asyncio.Task[Any]] = set()
 
 
 # 「按登录用户限流」的依赖构造器现已下沉到 middleware.rate_limit，
@@ -147,6 +158,33 @@ async def _refund_quota(
             **log_fields,
         )
         return False
+
+
+
+def _schedule_detached_refund(
+    session: Session,
+    user_id: str,
+    period_start: datetime,
+    **log_fields: Any,
+) -> bool:
+    """在后台退还额度（断线路径不能 await）；返回是否成功排上了任务。"""
+    try:
+        task = asyncio.get_running_loop().create_task(
+            _refund_quota(session, user_id, period_start, **log_fields)
+        )
+    except RuntimeError as exc:  # 没有运行中的事件循环（生成器被回收时）
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Could not schedule quota refund after disconnect",
+            user_id=user_id,
+            error=str(exc),
+            **log_fields,
+        )
+        return False
+    _detached_refund_tasks.add(task)
+    task.add_done_callback(_detached_refund_tasks.discard)
+    return True
 
 
 def _session_busy_exception() -> APIException:
@@ -258,6 +296,22 @@ class SteeringResponse(BaseModel):
 
     message_id: str
     queued: bool
+
+
+class StopRequest(BaseModel):
+    """Request body for stopping a running /stream."""
+
+    agent_run_id: str = Field(
+        ...,
+        pattern=r"^[0-9a-f]{32}$",
+        description="X-Agent-Run-ID of the /stream response to stop",
+    )
+
+
+class StopResponse(BaseModel):
+    """The stop request was recorded (the run ends on its own stream)."""
+
+    stop_requested: bool
 
 
 # ==================== Endpoints ====================
@@ -432,53 +486,94 @@ async def stream_request(
     async def event_generator():
         agent_ctx_tokens = bind_request_context(agent_run_id=agent_run_id)
         tracker = StreamBillingTracker()
-        user_cancelled = False
+        client_disconnected = False
+        user_stopped = False
         unexpected_exception = False
         deadline_exceeded = False
+        refund_scheduled = False
         # (billing_reason, should_refund, refund_applied)；整个请求只结算一次。
         settlement: tuple[str, bool, bool] | None = None
+        # 计费看这次运行实际产出了什么：源生成器的每一帧都在入队前记账，
+        # 断线时还没送到客户端的帧也算数。
         pump = SSEStreamPump(
             _primed_stream(),
             heartbeat_interval_s=AGENT_SSE_HEARTBEAT_INTERVAL_S,
             deadline_s=AGENT_RUN_WALL_CLOCK_TIMEOUT_S,
+            on_item=tracker.observe,
         )
+        stop_watch = RunStopWatch(user_id, agent_run_id)
 
-        async def _settle_billing() -> tuple[str, bool, bool]:
-            # 结算规则见 stream_billing；这里只负责「只结算一次」。取消路径上
-            # decide 不会要求退还，因此不会在 GeneratorExit 期间真正挂起。
-            nonlocal settlement
+        async def _relay_stop_request() -> None:
+            await stop_watch.wait()
+            pump.request_stop()
+
+        async def _settle_billing(*, detached: bool = False) -> tuple[str, bool, bool]:
+            # 结算规则见 stream_billing；这里只负责「只结算一次」。断线路径
+            # （detached）不能挂起：要退还时交给后台任务，refund_applied 记为 False。
+            nonlocal settlement, refund_scheduled
             if settlement is None:
                 billing_reason, should_refund = tracker.decide(
-                    user_cancelled=user_cancelled,
+                    client_disconnected=client_disconnected,
                     unexpected_exception=unexpected_exception,
                     deadline_exceeded=deadline_exceeded,
+                    user_stopped=user_stopped,
                 )
                 refund_applied = False
-                if should_refund:
+                refund_fields = {
+                    "project_id": body.project_id,
+                    "agent_run_id": agent_run_id,
+                    "billing_reason": billing_reason,
+                }
+                if should_refund and detached:
+                    refund_scheduled = _schedule_detached_refund(
+                        session, user_id, charged_period_start, **refund_fields
+                    )
+                elif should_refund:
                     refund_applied = await _refund_quota(
-                        session,
-                        user_id,
-                        charged_period_start,
-                        project_id=body.project_id,
-                        agent_run_id=agent_run_id,
-                        billing_reason=billing_reason,
+                        session, user_id, charged_period_start, **refund_fields
                     )
                 settlement = (billing_reason, should_refund, refund_applied)
             return settlement
 
+        stop_watch.__enter__()
+        stop_relay = asyncio.create_task(_relay_stop_request())
         try:
             async for event in pump:
-                tracker.observe(event)
                 yield event
             # 正常收尾：先结算，退还真正落库后才告诉前端「不计入」。
             billing_reason, _, refund_applied = await _settle_billing()
             if refund_applied:
                 yield quota_refunded_frame(billing_reason)
+        except StreamStoppedByUser:
+            # 作者点了「停止生成」：运行已按取消路径收尾（后台落库部分历史）。
+            # 连接还开着，补发停止卡片与 done，结算后再告诉前端是否计入。
+            user_stopped = True
+            log_with_context(
+                logger,
+                20,  # INFO
+                "Agent stream stopped by author",
+                user_id=user_id,
+                project_id=body.project_id,
+                agent_run_id=agent_run_id,
+            )
+            for frame in (
+                StreamEvent(
+                    type=EventType.WORKFLOW_STOPPED,
+                    data={"reason": USER_STOPPED_REASON, "message": USER_STOPPED_MESSAGE},
+                ).to_sse(),
+                done_event().to_sse(),
+            ):
+                tracker.observe(frame)
+                yield frame
+            billing_reason, _, refund_applied = await _settle_billing()
+            if refund_applied:
+                yield quota_refunded_frame(billing_reason)
         except (asyncio.CancelledError, GeneratorExit):
             # 客户端断线有两种到达方式：任务被取消（CancelledError）与生成器被
-            # aclose（GeneratorExit）。两者都是用户侧中止，计费口径一致；
-            # GeneratorExit 路径上不能 yield，也不做任何 await。
-            user_cancelled = True
+            # aclose（GeneratorExit）。GeneratorExit 路径上不能 yield，也不做任何
+            # 会挂起的 await。作者先点了停止、前端等不到收尾才断开时仍算主动停止。
+            client_disconnected = True
+            user_stopped = stop_watch.stop_requested
             pump.cancel()
             raise
         except StreamDeadlineExceeded:
@@ -540,7 +635,11 @@ async def stream_request(
                     yield quota_refunded_frame(billing_reason)
             raise
         finally:
-            billing_reason, should_refund, refund_applied = await _settle_billing()
+            stop_relay.cancel()
+            stop_watch.__exit__(None, None, None)
+            billing_reason, should_refund, refund_applied = await _settle_billing(
+                detached=client_disconnected
+            )
 
             # 每次 run 一行结构化摘要：模型、token、调用次数、LLM 耗时、结束原因、计费。
             # 取消/时限路径上 process_stream 的收尾在后台进行，摘要字段可能不全。
@@ -553,6 +652,7 @@ async def stream_request(
                 agent_run_id=agent_run_id,
                 charged=not should_refund,
                 refunded=refund_applied,
+                refund_scheduled=refund_scheduled,
                 billing_reason=billing_reason,
                 saw_any_event=tracker.saw_any_event,
                 saw_terminal_event=tracker.saw_terminal_event,
@@ -561,7 +661,9 @@ async def stream_request(
                 produced_output=tracker.produced_output,
                 write_succeeded=tracker.write_succeeded,
                 runaway_stop=tracker.runaway_stop,
-                user_cancelled=user_cancelled,
+                user_stopped=user_stopped,
+                client_disconnected=client_disconnected,
+                first_output_ms=tracker.first_output_ms,
                 unexpected_exception=unexpected_exception,
                 deadline_exceeded=deadline_exceeded,
                 **{f"run_{key}": value for key, value in run_report.items()},
@@ -722,3 +824,34 @@ async def inject_steering(
     )
 
     return SteeringResponse(message_id=msg.id, queued=True)
+
+
+@router.post("/stop", response_model=StopResponse)
+async def stop_stream(
+    body: StopRequest,
+    current_user: User = Depends(get_current_active_user),
+    _rate_limit: int = Depends(
+        require_user_rate_limit(
+            "agent_stop",
+            STOP_RATE_LIMIT_MAX_REQUESTS,
+            STOP_RATE_LIMIT_WINDOW_SECONDS,
+        )
+    ),
+):
+    """
+    作者点了「停止生成」：记录停止请求，运行在自己的 /stream 连接上收尾。
+
+    前端随后继续读流，收到 workflow_stopped(reason=user_stopped) + done，以及
+    （本轮没有任何产出时）quota_refunded(kind=stopped)。停止信号按当前用户命名，
+    别人的 run id 写进来也只会落在自己的命名空间里，不会影响别人的运行；
+    运行不存在或已结束时同样返回 stop_requested=true（幂等）。
+    """
+    await request_stop(current_user.id, body.agent_run_id)
+    log_with_context(
+        logger,
+        20,  # INFO
+        "Agent stop requested",
+        user_id=current_user.id,
+        agent_run_id=body.agent_run_id,
+    )
+    return StopResponse(stop_requested=True)

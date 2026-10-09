@@ -28,12 +28,13 @@ import type {
   SSEWorkflowCompleteData,
   SSEWorkflowStoppedData,
 } from "../types";
-import { tryRefreshToken, getAccessToken, clearAuthStorage, getApiBase, resolveOwnedAuthSession } from "./apiClient";
+import { api, tryRefreshToken, getAccessToken, clearAuthStorage, getApiBase, resolveOwnedAuthSession } from "./apiClient";
 import { debugContext } from "./debugContext";
 import { resolveApiErrorMessage, toUserErrorMessage, translateError } from "./errorHandler";
 import { logger } from "./logger";
 import i18n from "./i18n";
 import { createAgentStreamTelemetry, type AgentStreamTelemetry } from "./agentStreamTelemetry";
+import { USER_STOPPED_REASON } from "./agentStop";
 
 const TRACE_ID_HEADER = "X-Trace-ID";
 
@@ -121,8 +122,12 @@ type StreamErrorEventData = {
   reason?: string;
 };
 
-/** quota_refunded 帧的两种说法：失控停止且没改文件 / 平台出错且没有产出。 */
-export type QuotaRefundKind = "no_progress" | "error";
+/**
+ * quota_refunded 帧的三种说法：失控停止且没改文件 / 平台出错且没有产出 /
+ * 作者点了停止且这一轮还没有任何产出。
+ */
+export type QuotaRefundKind = "no_progress" | "error" | "stopped";
+
 
 /**
  * 服务端为这几类停止写了具体说明（停在哪、能不能接着来）；只有中文版本。
@@ -159,7 +164,9 @@ export function selectStreamErrorMessage(
 function notifyQuotaRefunded(data: unknown, callbacks: AgentStreamCallbacks): void {
   const payload = (data && typeof data === "object" ? data : {}) as { refunded?: unknown; kind?: unknown };
   if (payload.refunded !== true) return;
-  callbacks.onQuotaRefunded?.(payload.kind === "no_progress" ? "no_progress" : "error");
+  const kind: QuotaRefundKind =
+    payload.kind === "no_progress" || payload.kind === "stopped" ? payload.kind : "error";
+  callbacks.onQuotaRefunded?.(kind);
 }
 
 /** Report stream outcomes (completed/failed) before handing off to the caller. */
@@ -172,6 +179,18 @@ function withOutcomeTelemetry(
     onToolCall: (...args) => {
       telemetry.noteToolCall();
       callbacks.onToolCall?.(...args);
+    },
+    onContent: (...args) => {
+      telemetry.noteFirstOutput();
+      callbacks.onContent?.(...args);
+    },
+    onFileContent: (...args) => {
+      telemetry.noteFirstOutput();
+      callbacks.onFileContent?.(...args);
+    },
+    onWorkflowStopped: (data) => {
+      if (data.reason === USER_STOPPED_REASON) telemetry.stopped();
+      callbacks.onWorkflowStopped?.(data);
     },
     onDone: (data) => {
       telemetry.completed();
@@ -267,6 +286,8 @@ export function streamAgentRequest(
     onWorkflowStopped?: (data: SSEWorkflowStoppedData) => void;
     onWorkflowComplete?: (data: SSEWorkflowCompleteData) => void;
     onSessionStarted?: (sessionId: string) => void;
+    /** 响应头到达：本次运行的 X-Agent-Run-ID，停止生成时要用。 */
+    onRunStarted?: (agentRunId: string) => void;
     onParallelStart?: (
       executionId: string,
       taskCount: number,
@@ -393,6 +414,8 @@ export function streamAgentRequest(
         );
         return;
       }
+
+      if (responseAgentRunId) callbacks.onRunStarted?.(responseAgentRunId);
 
       const reader = response.body?.getReader();
       if (!reader) {
@@ -984,4 +1007,25 @@ export async function sendSteeringRequest(
   };
 
   return doSend();
+}
+
+/**
+ * 作者点了「停止生成」：请服务端结束这次运行。
+ *
+ * 服务端会在原 /stream 连接上发 workflow_stopped(user_stopped) + done，没有任何
+ * 产出时再发 quota_refunded(kind=stopped)；调用方应继续读流，只有这里失败或
+ * 迟迟等不到收尾时才直接断开连接。
+ *
+ * @returns 停止请求是否已被服务端记录
+ */
+export async function stopAgentRun(agentRunId: string): Promise<boolean> {
+  try {
+    const result = await api.post<{ stop_requested: boolean }>("/api/v1/agent/stop", {
+      agent_run_id: agentRunId,
+    });
+    return result?.stop_requested === true;
+  } catch (error) {
+    logger.warn("[AgentAPI] stop request failed", error);
+    return false;
+  }
 }

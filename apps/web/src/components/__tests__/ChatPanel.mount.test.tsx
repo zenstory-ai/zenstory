@@ -44,6 +44,8 @@ const chatPanelTranslations: Record<string, string> = {
   'chat:panel.quotaExceededHint': '北京时间明天 00:00 恢复。想接着写，可以开通 Pro，AI 消息不限条数。',
   'chat:panel.notCharged': '这一轮没有改动文件，不计入今日 AI 消息。',
   'chat:panel.notChargedError': '这次出错不计入今日 AI 消息。',
+  'chat:panel.notChargedStopped': '已停止，这一轮还没有写出内容，不计入今日 AI 消息。',
+  'chat:panel.resend': '重新发送',
   'chat:input.mode.switchedFast': '已切换到快速模式：更快出结果（可能更简略）',
   'chat:input.mode.switchedQuality': '已切换到高质量模式：更稳更全面（可能更慢）',
   'dashboard:billing.ctaUpgradePro': '升级专业版',
@@ -504,6 +506,40 @@ describe('ChatPanel mount smoke', () => {
     // 下一轮开始就清掉，不把上一轮的说明带过去。
     act(() => options().onStart())
     await waitFor(() => expect(screen.queryByTestId('chat-quota-refund-note')).not.toBeInTheDocument())
+  })
+
+  it('after a stop that wrote nothing, says it was not charged and offers to send the same request again', async () => {
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([{
+      id: 'user-1', session_id: 'session-1', role: 'user', content: '写第五章',
+      created_at: '2026-10-05T10:00:00Z',
+    }] as never)
+    render(<ChatPanel />)
+    await waitFor(() => expect(screen.getByTestId('mock-message-list')).toBeInTheDocument())
+
+    const options = () => capturedUseAgentStream.options as {
+      onQuotaRefunded: (kind: 'no_progress' | 'error' | 'stopped') => void
+    }
+    act(() => options().onQuotaRefunded('stopped'))
+    expect(await screen.findByText(/已停止，这一轮还没有写出内容/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('chat-resend-after-stop'))
+    await waitFor(() => expect(mockStartStream).toHaveBeenCalledTimes(1))
+    expect((mockStartStream.mock.calls[0][0] as { message: string }).message).toBe('写第五章')
+  })
+
+  it.each(['no_progress', 'error'] as const)('offers no resend for a %s refund', async (kind) => {
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([{
+      id: 'user-1', session_id: 'session-1', role: 'user', content: '写第五章',
+      created_at: '2026-10-05T10:00:00Z',
+    }] as never)
+    render(<ChatPanel />)
+    await waitFor(() => expect(screen.getByTestId('mock-message-list')).toBeInTheDocument())
+    const options = () => capturedUseAgentStream.options as {
+      onQuotaRefunded: (kind: 'no_progress' | 'error' | 'stopped') => void
+    }
+    act(() => options().onQuotaRefunded(kind))
+    expect(await screen.findByTestId('chat-quota-refund-note')).toBeInTheDocument()
+    expect(screen.queryByTestId('chat-resend-after-stop')).not.toBeInTheDocument()
   })
 
   it('never pairs a refund note with the used-up card, which would hint at a second limit', async () => {
