@@ -274,7 +274,7 @@ describe('InviteCodeInput', () => {
       })
 
       await waitFor(() => {
-        expect(screen.getByText('Valid')).toBeInTheDocument()
+        expect(screen.getByText('邀请码有效')).toBeInTheDocument()
       })
     })
   })
@@ -324,7 +324,7 @@ describe('InviteCodeInput', () => {
 
       await waitFor(() => {
         // Should show validation message immediately
-        expect(screen.getByText('Valid')).toBeInTheDocument()
+        expect(screen.getByText('邀请码有效')).toBeInTheDocument()
       })
     })
   })
@@ -375,7 +375,7 @@ describe('InviteCodeInput', () => {
 
       // After validation shows, helper text should be hidden
       await waitFor(() => {
-        expect(screen.getByText('Valid')).toBeInTheDocument()
+        expect(screen.getByText('邀请码有效')).toBeInTheDocument()
       })
 
       // Helper text should not be visible when validation is shown
