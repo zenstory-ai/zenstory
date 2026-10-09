@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatVersionSummary } from '../versionSummary'
+import { describeVersionSummary } from '../versionSummary'
 import enVersions from '../../../public/locales/en/versions.json'
 import zhVersions from '../../../public/locales/zh/versions.json'
 
@@ -39,43 +39,68 @@ const CASES: Array<[string, string]> = [
   ['Restored from snapshot 0f8fad5b-d9cb-469f-a165-70867728950e', '从项目快照恢复'],
   ['Before AI edit', 'AI 修改前自动备份'],
   ['AI edit (reviewed)', 'AI 修改（已审阅）'],
-  ['File updated', '手动编辑'],
-  ['Initial version', '初始版本'],
-  ['创建文件', '初始版本'],
   ['Snapshot baseline version', '拍项目快照时自动保存'],
   ['Snapshot synchronized live content', '拍项目快照时自动保存'],
   ['AI 对话完成 - 文件已修改', 'AI 修改后自动存档'],
   ['AI Chat Finished - files modified', 'AI 修改后自动存档'],
   ['AI conversation completed - files changed', 'AI 修改后自动存档'],
+  ['Restored from snapshot snap-42', '从项目快照恢复'],
+  ['Created via Agent API', '通过 Agent API 创建'],
+  ['Updated via Agent API', '通过 Agent API 更新'],
+  ['AI 编辑: 替换', 'AI 修改：替换'],
+  ['AI 编辑：前置、删除', 'AI 修改：开头插入、删除'],
+  ['AI 编辑: 替换, 追加, 插入 等 5 处修改', 'AI 修改：替换、追加、插入 等 5 处'],
 ]
 
-describe('formatVersionSummary', () => {
+/** System summaries that only repeat the type badge (创建 / 编辑 / AI 编辑). */
+const REDUNDANT = ['File updated', 'Initial version', '创建文件', 'AI 更新文件内容', 'AI 编辑']
+
+describe('describeVersionSummary', () => {
   it.each(CASES)('maps %j to the Chinese label', (summary, expected) => {
-    expect(formatVersionSummary(summary, zh)).toBe(expected)
+    expect(describeVersionSummary(summary, zh)).toBe(expected)
   })
 
   it.each(CASES)('keeps the inline fallback for %j identical to the zh locale', (summary, expected) => {
-    expect(formatVersionSummary(summary, fallbackTranslator)).toBe(expected)
+    expect(describeVersionSummary(summary, fallbackTranslator)).toBe(expected)
   })
 
   it('resolves every mapped label in the English locale too', () => {
-    expect(formatVersionSummary('Restored to version 2', en)).toBe('Restored to version 2')
-    expect(formatVersionSummary('Before restoring version 2', en)).toBe('Automatic backup before restore')
+    expect(describeVersionSummary('Restored to version 2', en)).toBe('Restored to version 2')
+    expect(describeVersionSummary('Before restoring version 2', en)).toBe('Automatic backup before restore')
+    expect(describeVersionSummary('AI 编辑: 替换, 追加, 插入 等 5 处修改', en)).toBe(
+      'AI edit: replace, append, insert and more (5 changes)',
+    )
     for (const [summary] of CASES) {
-      expect(formatVersionSummary(summary, en)).not.toMatch(/[一-鿿]/)
+      expect(describeVersionSummary(summary, en)).not.toMatch(/[一-鿿]/)
     }
   })
 
   it('returns unknown summaries unchanged except for UUIDs', () => {
-    expect(formatVersionSummary('修改第三章开头', zh)).toBe('修改第三章开头')
+    expect(describeVersionSummary('修改第三章开头', zh)).toBe('修改第三章开头')
     expect(
-      formatVersionSummary('Merged from 0F8FAD5B-D9CB-469F-A165-70867728950E and 7c9e6679-7425-40de-944b-e07fc1f90ae7', zh),
+      describeVersionSummary('Merged from 0F8FAD5B-D9CB-469F-A165-70867728950E and 7c9e6679-7425-40de-944b-e07fc1f90ae7', zh),
     ).toBe('Merged from … and …')
   })
 
+  it.each(REDUNDANT)('hides %j because the type badge already says it', (summary) => {
+    expect(describeVersionSummary(summary, zh)).toBeNull()
+  })
+
+  it('hides AI edit summaries with an operation it cannot describe', () => {
+    expect(describeVersionSummary('AI 编辑: 替换, 重写', zh)).toBeNull()
+  })
+
   it('treats empty summaries as no summary', () => {
-    expect(formatVersionSummary(undefined, zh)).toBe('')
-    expect(formatVersionSummary(null, zh)).toBe('')
-    expect(formatVersionSummary('   ', zh)).toBe('')
+    expect(describeVersionSummary(undefined, zh)).toBeNull()
+    expect(describeVersionSummary(null, zh)).toBeNull()
+    expect(describeVersionSummary('   ', zh)).toBeNull()
+  })
+
+  it('keeps zh and en summary keys in parity', () => {
+    const keysOf = (node: unknown, prefix = ''): string[] =>
+      Object.entries(node as Record<string, unknown>).flatMap(([key, value]) =>
+        typeof value === 'string' ? [`${prefix}${key}`] : keysOf(value, `${prefix}${key}.`),
+      )
+    expect(keysOf(loadLocale('en').summary)).toEqual(keysOf(loadLocale('zh').summary))
   })
 })

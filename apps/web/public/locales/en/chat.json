@@ -96,7 +96,8 @@
       "default": "Source"
     },
     "label": "Context",
-    "citations": "Citations"
+    "citations": "Citations",
+    "tokenEstimate": "≈ {{value}} tokens"
   },
   "workflow": {
     "iteration": "Step",
@@ -187,6 +188,10 @@
     "character": "Character Sheet",
     "lore": "Setting",
     "snippet": "Material",
+    "script": "Script",
+    "document": "Document",
+    "folder": "Folder",
+    "quote": "Quote",
     "default": "File"
   },
   "action": {

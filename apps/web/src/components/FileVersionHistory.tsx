@@ -18,11 +18,11 @@ import { ApiError } from "../lib/apiClient";
 import { handleApiError } from "../lib/errorHandler";
 import { toast } from "../lib/toast";
 import { formatRelativeTime } from "../lib/dateUtils";
+import { describeVersionSummary } from "../lib/versionSummary";
 import type { FileVersion, VersionComparison } from "../types";
 import { DiffViewer } from "./DiffViewer";
 import { Modal } from "./ui/Modal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
-import { formatVersionSummary } from "../lib/versionSummary";
 import { logger } from "../lib/logger";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
@@ -304,8 +304,8 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
       restore: 'types.rolledBack',
       auto_save: 'types.autoSave',
     };
-    const key = typeMap[changeType];
-    return key ? t(key) : changeType;
+    // 未知类型不露出内部取值，按普通编辑显示。
+    return t(typeMap[changeType] ?? 'types.edited');
   };
 
   const getChangeTypeBadgeClass = (changeType: string, changeSource: string) => {
@@ -336,6 +336,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
     getChangeTypeBadgeClass,
   }) => {
     const version = versions[index];
+    const summaryText = describeVersionSummary(version.change_summary, t);
 
     return (
       <div
@@ -421,9 +422,9 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
           )}
         </div>
 
-        {version.change_summary && (
+        {summaryText && (
           <div className="mt-1 text-xs text-[hsl(var(--text-secondary))]">
-            {formatVersionSummary(version.change_summary, t)}
+            {summaryText}
           </div>
         )}
       </div>

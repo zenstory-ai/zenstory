@@ -230,9 +230,34 @@ const priorityClassName = (p?: string) => {
  * @param t - i18next translation function
  * @returns Localized type label
  */
-const contextTypeLabel = (type: string, t: TFunction) => {
-  return t(`fileType.${type}`, { ns: "chat" });
+const contextTypeLabel = (item: AgentContextItem, t: TFunction) => {
+  // 组装器把正文/剧本/文档都装成 type="outline" 的条目，真实类型在 metadata.file_type。
+  const fileType = item.metadata?.file_type;
+  const type = typeof fileType === 'string' && fileType ? fileType : item.type;
+  return t(`fileType.${type}`, { ns: "chat", defaultValue: t('fileType.default', { ns: "chat" }) });
 };
+
+/**
+ * 用户引用的条目标题由后端拼成「引用自: 文件名」，只在中文界面成立；
+ * 有原文件名时直接显示文件名，类型徽标已经写明「引用」。
+ */
+const contextItemTitle = (item: AgentContextItem) => {
+  const fileTitle = item.metadata?.file_title;
+  if (item.type === 'quote' && typeof fileTitle === 'string' && fileTitle.trim()) {
+    return fileTitle.trim();
+  }
+  return item.title || item.id;
+};
+
+/**
+ * handoff_to_agent / request_clarification 是流程控制工具：交接已经有
+ * thinking_status / agent_selected 提示，澄清已经有 workflow_stopped 提问卡片，
+ * 再画一张「handoff_to_agent 完成」的工具卡片只会把内部名字露给作者。
+ */
+const CONTROL_FLOW_TOOL_NAMES = new Set(['handoff_to_agent', 'request_clarification']);
+
+const visibleToolCalls = (calls: ToolCall[] | undefined): ToolCall[] =>
+  (calls ?? []).filter((call) => !CONTROL_FLOW_TOOL_NAMES.has(call.tool_name));
 
 /**
  * Props for the ContextItemsView component.
@@ -280,7 +305,7 @@ export const ContextItemsView: React.FC<ContextItemsViewProps> = ({ items, token
           <span className="ml-1">({items.length})</span>
         </span>
         {typeof tokenCount === "number" && (
-          <span className="ml-2">≈ {tokenCount} tokens</span>
+          <span className="ml-2">{t("context.tokenEstimate", { ns: "chat", value: tokenCount })}</span>
         )}
       </button>
 
@@ -306,10 +331,10 @@ export const ContextItemsView: React.FC<ContextItemsViewProps> = ({ items, token
                   <span
                     className="inline-block px-1.5 py-0.5 rounded bg-[hsl(var(--bg-primary))] text-[hsl(var(--accent-primary))] shrink-0 max-w-28 truncate"
                   >
-                    {contextTypeLabel(item.type, t)}
+                    {contextTypeLabel(item, t)}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-[hsl(var(--text-primary))]">
-                    {item.title || item.id}
+                    {contextItemTitle(item)}
                   </span>
                   <span
                     className={`inline-block px-1.5 py-0.5 rounded shrink-0 max-w-28 truncate ${priorityClassName(item.priority)}`}
@@ -381,9 +406,11 @@ function OrderedMessageItems({ items, onUndo, onIterationAssistAction, isStreami
       );
     } else if (item.type === 'tool_calls' && item.toolCalls) {
       // 4. tool_calls - 工具调用卡片
+      const toolCalls = visibleToolCalls(item.toolCalls);
+      if (toolCalls.length === 0) return null;
       return (
         <div key={item.id} className={`${isMobile ? 'mb-2' : 'mb-3'} space-y-2`}>
-          {item.toolCalls.map((toolCall, idx) => (
+          {toolCalls.map((toolCall, idx) => (
             <ToolResultCard
               key={`${item.id}-${idx}`}
               type={toolCall.status === 'pending' ? 'tool_call' : 'tool_result'}
@@ -660,6 +687,8 @@ function Row({
     message.role === 'assistant' ? stripThinkTags(message.content) : message.content;
   const hasDisplayContent = Boolean(displayContent && displayContent.trim());
   const hasDisplayItems = message.role === 'assistant' && Boolean(message.displayItems?.length);
+  const toolCalls = visibleToolCalls(message.toolCalls);
+  const toolResults = visibleToolCalls(message.toolResults);
   const shouldShowFeedbackActions = message.role === 'assistant' && Boolean(onSubmitFeedback);
   const canSubmitFeedback = shouldShowFeedbackActions && Boolean(message.backendMessageId);
   const selectedFeedbackVote = message.feedback?.vote;
@@ -825,9 +854,9 @@ function Row({
         )}
 
         {/* Tool calls */}
-        {message.role === 'assistant' && !hasDisplayItems && message.toolCalls && message.toolCalls.length > 0 && (
+        {message.role === 'assistant' && !hasDisplayItems && toolCalls.length > 0 && (
           <div className={hasDisplayContent ? "mt-3 space-y-2" : "space-y-2"}>
-            {message.toolCalls.map((toolCall, idx) => (
+            {toolCalls.map((toolCall, idx) => (
               <ToolResultCard
                 key={idx}
                 type={toolCall.status === 'pending' ? 'tool_call' : 'tool_result'}
@@ -842,9 +871,9 @@ function Row({
         )}
 
         {/* Tool results */}
-        {message.role === 'assistant' && !hasDisplayItems && message.toolResults && message.toolResults.length > 0 && (
+        {message.role === 'assistant' && !hasDisplayItems && toolResults.length > 0 && (
           <div className="mt-3 space-y-2">
-            {message.toolResults.map((result, idx) => (
+            {toolResults.map((result, idx) => (
               <ToolResultCard
                 key={idx}
                 type="tool_result"
@@ -1071,8 +1100,8 @@ export const MessageList = React.memo(
       m.role === 'assistant' ? stripThinkTags(m.content) : m.content;
 
     const hasVisibleContent = Boolean(visibleContent && visibleContent.trim());
-    const hasToolCalls = m.role === 'assistant' && Boolean(m.toolCalls?.length);
-    const hasToolResults = m.role === 'assistant' && Boolean(m.toolResults?.length);
+    const hasToolCalls = m.role === 'assistant' && visibleToolCalls(m.toolCalls).length > 0;
+    const hasToolResults = m.role === 'assistant' && visibleToolCalls(m.toolResults).length > 0;
     const hasConflicts = m.role === 'assistant' && Boolean(m.conflicts?.length);
     const hasContextItems = m.role === 'assistant' && Boolean(m.contextItems?.length);
     const hasStatusCards = m.role === 'assistant' && Boolean(m.statusCards?.length);

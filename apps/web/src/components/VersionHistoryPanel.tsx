@@ -28,7 +28,7 @@ import { logger } from '../lib/logger';
 import { versionApi } from '../lib/api';
 import { formatRelativeTimeWithYear } from '../lib/dateUtils';
 import { toast } from '../lib/toast';
-import { formatVersionSummary } from '../lib/versionSummary';
+import { describeVersionSummary } from '../lib/versionSummary';
 import type { Snapshot } from '../types';
 import { SnapshotComparisonDialog } from './SnapshotComparisonDialog';
 import { Modal } from './ui/Modal';
@@ -292,6 +292,20 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
     if (actionInFlight.current === null) onClose();
   };
 
+  // Escape while editing a description only leaves edit mode; the Modal's own
+  // Escape is switched off meanwhile (closeOnEscape below). Dialogs stacked on
+  // top (comparison, rollback confirmation) handle their own Escape.
+  useEffect(() => {
+    if (!editingId || showComparison || pendingRollbackId) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setEditingId(null);
+      setEditDescription('');
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [editingId, showComparison, pendingRollbackId]);
+
   return (
     <>
       <Modal
@@ -299,7 +313,7 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
         onClose={handleClose}
         size="xl"
         showCloseButton={false}
-        closeOnEscape={!actionBusy}
+        closeOnEscape={!actionBusy && !editingId}
         closeOnBackdropClick={!actionBusy}
         className="relative max-h-[80vh]"
         title={
@@ -450,7 +464,7 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
                   ) : (
                     <div className="flex items-start gap-2 mb-2">
                       <p className="flex-1 text-sm text-[hsl(var(--text-secondary))]">
-                        {formatVersionSummary(snapshot.description, t) || (
+                        {describeVersionSummary(snapshot.description, t) ?? (
                           <span className="text-[hsl(var(--text-secondary))]">{t('editor:versionHistory.noDescription')}</span>
                         )}
                       </p>
@@ -458,7 +472,7 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
                         onClick={() => {
                           if (!snapshotId) return;
                           setEditingId(snapshotId);
-                          setEditDescription(formatVersionSummary(snapshot.description, t));
+                          setEditDescription(describeVersionSummary(snapshot.description, t) ?? '');
                         }}
                         disabled={!isSelectable || actionBusy}
                         className={`p-1 hover:bg-[hsl(var(--bg-hover))] rounded text-[hsl(var(--text-secondary))] ${!isSelectable ? 'opacity-50 cursor-not-allowed' : ''}`}

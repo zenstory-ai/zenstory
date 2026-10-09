@@ -96,7 +96,8 @@
       "default": "来源"
     },
     "label": "来源",
-    "citations": "引用来源"
+    "citations": "引用来源",
+    "tokenEstimate": "约 {{value}} token"
   },
   "workflow": {
     "iteration": "步骤",
@@ -187,6 +188,10 @@
     "character": "角色卡",
     "lore": "设定",
     "snippet": "素材",
+    "script": "剧本",
+    "document": "文档",
+    "folder": "文件夹",
+    "quote": "引用",
     "default": "文件"
   },
   "action": {

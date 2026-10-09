@@ -42,10 +42,20 @@
     "restoredFromSnapshot": "从项目快照恢复",
     "beforeAiEdit": "AI 修改前自动备份",
     "aiEditReviewed": "AI 修改（已审阅）",
-    "manualEdit": "手动编辑",
-    "initial": "初始版本",
     "snapshotBaseline": "拍项目快照时自动保存",
-    "aiRunCheckpoint": "AI 修改后自动存档"
+    "createdViaApi": "通过 Agent API 创建",
+    "updatedViaApi": "通过 Agent API 更新",
+    "aiRunCheckpoint": "AI 修改后自动存档",
+    "aiEditOps": "AI 修改：{{ops}}",
+    "aiEditOpsMore": "AI 修改：{{ops}} 等 {{total}} 处",
+    "opsSeparator": "、",
+    "ops": {
+      "replace": "替换",
+      "append": "追加",
+      "prepend": "开头插入",
+      "insert": "插入",
+      "delete": "删除"
+    }
   },
   "quota": {
     "limitTitle": "这个文件的历史版本存满了",

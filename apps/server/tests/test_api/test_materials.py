@@ -2068,6 +2068,7 @@ async def test_import_material_uses_accept_language_for_auto_folder(client: Asyn
     )
     assert preview_response.status_code == 200
     assert preview_response.json()["suggested_folder_name"] == "Characters"
+    assert "**Type**: Unknown" in preview_response.json()["markdown"]
 
     response = await client.post(
         "/api/v1/materials/import",

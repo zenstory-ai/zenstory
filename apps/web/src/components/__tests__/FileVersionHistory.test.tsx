@@ -14,6 +14,8 @@ vi.mock('../subscription/UpgradePromptModal', () => ({
   },
 }))
 import { FileVersionHistory } from '../FileVersionHistory'
+import versionsZh from '../../../public/locales/zh/versions.json'
+import versionsEn from '../../../public/locales/en/versions.json'
 
 const confirmRestore = async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'rollbackConfirmButton' }))
@@ -314,6 +316,42 @@ describe('FileVersionHistory saved-state boundary', () => {
     fireEvent.click(screen.getByText('v7'))
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'compare' })).not.toBeDisabled()
+    })
+  })
+  describe('version summaries', () => {
+    const localeTranslator = (resources: Record<string, unknown>) => (key: string, options?: Record<string, unknown>) => {
+      // Summary keys are namespaced (`versions:summary.*`); the component's own keys are not.
+      const path = key.includes(':') ? key.split(':')[1] : key
+      const value = path.split('.').reduce<unknown>((node, part) => (node as Record<string, unknown> | undefined)?.[part], resources)
+      if (typeof value !== 'string') return key
+      return value.replace(/\{\{(\w+)\}\}/g, (_, name: string) => String(options?.[name] ?? ''))
+    }
+    const withSummary = (n: number, change_type: string, change_summary: string) => ({ ...version(n), change_type, change_summary })
+    const history = [
+      withSummary(9, 'restore', 'Restored from snapshot 3f2b8c1e-9a4d-4e7f-8b21-6c5d4e3f2a10'),
+      withSummary(8, 'restore', 'Restored to version 4'),
+      withSummary(7, 'ai_edit', 'AI 编辑: 替换, 追加, 插入 等 5 处修改'),
+      withSummary(6, 'ai_edit', 'AI edit (reviewed)'),
+      withSummary(5, 'edit', 'File updated'),
+      withSummary(4, 'create', '创建文件'),
+      withSummary(3, 'edit', 'Tightened the opening scene'),
+      withSummary(2, 'mystery_type', 'Initial version'),
+    ]
+
+    it.each([
+      ['zh', versionsZh, ['从项目快照恢复', '恢复到版本 4', 'AI 修改：替换、追加、插入 等 5 处', 'AI 修改（已审阅）'], ['File updated', '创建文件', 'Restored']],
+      ['en', versionsEn, ['Restored from a project snapshot', 'Restored to version 4', 'AI edit: replace, append, insert and more (5 changes)', 'AI edit (reviewed)'], ['File updated', '创建文件', 'AI 编辑', '替换']],
+    ])('renders system summaries in the %s UI language and keeps user notes', async (_lang, resources, shown, hidden) => {
+      translator.current = localeTranslator(resources)
+      getVersions.mockResolvedValue({ total: history.length, versions: history })
+      const { container } = render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} />)
+      expect(await screen.findByText('v9')).toBeInTheDocument()
+      for (const text of shown) expect(screen.getByText(text)).toBeInTheDocument()
+      expect(screen.getByText('Tightened the opening scene')).toBeInTheDocument()
+      const text = container.textContent ?? ''
+      expect(text).not.toContain('3f2b8c1e')
+      expect(text).not.toContain('mystery_type')
+      for (const fragment of hidden) expect(text).not.toContain(fragment)
     })
   })
 })

@@ -430,6 +430,45 @@ describe('MessageList', () => {
     expect(screen.getByText('chat:tool.create_file')).toBeInTheDocument()
   })
 
+  it('does not draw tool cards for handoff and clarification control calls, live or saved', () => {
+    const timestamp = new Date()
+    const handoff = { id: 'tool-handoff', tool_name: 'handoff_to_agent', arguments: { target_agent: 'writer' }, status: 'success' as const, result: {} }
+    const clarify = { id: 'tool-clarify', tool_name: 'request_clarification', arguments: { question: 'Which chapter?' }, status: 'pending' as const }
+    const displayItems = [
+      { id: 'tools', type: 'tool_calls' as const, toolCalls: [handoff, clarify], timestamp },
+      { id: 'handoff', type: 'thinking_status' as const, content: 'Handing off to writer', timestamp },
+    ]
+    const { container, rerender } = render(<MessageList messages={[]} streamRenderItems={displayItems} />)
+    expect(screen.getByText('Handing off to writer')).toBeInTheDocument()
+    expect(container.textContent).not.toMatch(/chat:tool\./)
+
+    rerender(<MessageList messages={[createMessage({ role: 'assistant', content: '', toolCalls: [handoff, clarify], toolResults: [handoff] })]} />)
+    expect(container.textContent).not.toMatch(/chat:tool\./)
+  })
+
+  it('labels citations by the real file type and shows the quoted file name', () => {
+    const messages = [
+      createMessage({
+        role: 'assistant',
+        content: 'Response',
+        contextItems: [
+          // 组装器把正文装成 type="outline"，真实类型在 metadata.file_type。
+          { id: 'ctx-draft', type: 'outline', title: 'Chapter 3', content: 'Body', metadata: { file_type: 'draft' } },
+          { id: 'ctx-script', type: 'outline', title: 'Episode 1', content: 'Body', metadata: { file_type: 'script' } },
+          { id: 'ctx-quote', type: 'quote', title: '引用自: Chapter 2', content: 'Quoted', metadata: { file_title: 'Chapter 2', is_quote: true } },
+        ],
+      }),
+    ]
+    render(<MessageList messages={messages} />)
+    fireEvent.click(screen.getByText('context.citations'))
+    expect(screen.getByText('fileType.draft')).toBeInTheDocument()
+    expect(screen.getByText('fileType.script')).toBeInTheDocument()
+    expect(screen.queryByText('fileType.outline')).not.toBeInTheDocument()
+    expect(screen.getByText('fileType.quote')).toBeInTheDocument()
+    expect(screen.getByText('Chapter 2')).toBeInTheDocument()
+    expect(screen.queryByText('引用自: Chapter 2')).not.toBeInTheDocument()
+  })
+
   it('renders tool results', () => {
     const messages = [
       createMessage({

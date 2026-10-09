@@ -42,10 +42,20 @@
     "restoredFromSnapshot": "Restored from a project snapshot",
     "beforeAiEdit": "Automatic backup before AI edit",
     "aiEditReviewed": "AI edit (reviewed)",
-    "manualEdit": "Manual edit",
-    "initial": "Initial version",
     "snapshotBaseline": "Saved when a project snapshot was taken",
-    "aiRunCheckpoint": "Saved automatically after AI edits"
+    "createdViaApi": "Created via Agent API",
+    "updatedViaApi": "Updated via Agent API",
+    "aiRunCheckpoint": "Saved automatically after AI edits",
+    "aiEditOps": "AI edit: {{ops}}",
+    "aiEditOpsMore": "AI edit: {{ops}} and more ({{total}} changes)",
+    "opsSeparator": ", ",
+    "ops": {
+      "replace": "replace",
+      "append": "append",
+      "prepend": "insert at start",
+      "insert": "insert",
+      "delete": "delete"
+    }
   },
   "quota": {
     "limitTitle": "This file's version history is full",

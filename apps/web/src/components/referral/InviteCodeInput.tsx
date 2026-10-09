@@ -61,7 +61,10 @@ export const InviteCodeInput: React.FC<InviteCodeInputProps> = ({
 
   const showValidation = touched && value.length === 9 && validation;
   const isValid = validation?.valid;
-  const validationMessage = validation?.message;
+  // 后端 message 是固定英文（Invite code is valid…），中文用户会看到英文；按结果显示本地化文案。
+  const validationMessage = isValid
+    ? t('auth:register.inviteCodeValid', '邀请码有效')
+    : t('auth:register.inviteCodeInvalid', '邀请码无效或已不可用');
   const helperTextId = 'invite-code-helper';
   const validationMessageId = 'invite-code-validation';
   const describedById = showValidation ? validationMessageId : helperTextId;

@@ -2,24 +2,69 @@
  * Human-readable labels for the machine-written summaries stored on file
  * versions and project snapshots.
  *
- * The server records stable English (and a few legacy Chinese) markers such
- * as "Before restoring version 3" or "Before rollback to snapshot <uuid>".
- * Showing them verbatim put English and raw UUIDs in front of writers, so the
- * history panels translate the known markers and scrub ids from anything else.
+ * The server and the agent record stable English (and some Chinese) markers
+ * such as "Before restoring version 3", "Before rollback to snapshot <uuid>"
+ * or "AI 编辑: 替换、追加". Showing them verbatim put English, Chinese and raw
+ * UUIDs in front of writers regardless of the UI language. The history panels
+ * translate the known markers, hide the ones that only repeat the version's
+ * type badge, and show anything else (user notes) with ids scrubbed.
+ *
+ * Keys live under `versions:summary.*`; every inline `defaultValue` equals the
+ * zh locale text.
  */
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
+/** Say the same thing as the type badge (创建 / 编辑 / AI 编辑), so no extra line. */
+const REDUNDANT_SUMMARIES = new Set([
+  'File updated', // api/files.py default
+  'Initial version', // file_version_service first version
+  '创建文件', // agent create_file
+  'AI 更新文件内容', // agent writes file content
+  'AI 编辑', // agent edit_file without listed operations
+]);
+
 const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 const RESTORED_TO_VERSION = /^Restored to version (\d+)$/;
-const BEFORE_RESTORE = /^(?:Before restoring version \d+|Before rollback to snapshot(?: \S+)?)$/;
-const RESTORED_FROM_SNAPSHOT = /^Restored from snapshot(?: \S+)?$/;
+// Snapshot markers carry an internal snapshot id (UUID or otherwise); writers never see it.
+const BEFORE_RESTORE = /^(?:Before restoring version \d+|Before rollback to snapshot(?:\s+\S+)?)$/;
+const RESTORED_FROM_SNAPSHOT = /^Restored from snapshot(?:\s+\S+)?$/;
 const AI_RUN_CHECKPOINT =
   /^(?:AI 对话完成 - 文件已修改|AI (?:chat|conversation) (?:finished|completed?) - files? (?:modified|changed))$/i;
+const AI_EDIT_WITH_OPS = /^AI 编辑[:：]\s*(.+?)(?:\s*等\s*(\d+)\s*处修改)?$/;
 
-export function formatVersionSummary(summary: string | null | undefined, t: Translate): string {
+/** Operation names written by agent edit_file (apps/server/agent/tools/file_ops/edit.py). */
+const AI_EDIT_OPS: Record<string, { key: string; defaultValue: string }> = {
+  替换: { key: 'versions:summary.ops.replace', defaultValue: '替换' },
+  追加: { key: 'versions:summary.ops.append', defaultValue: '追加' },
+  前置: { key: 'versions:summary.ops.prepend', defaultValue: '开头插入' },
+  插入: { key: 'versions:summary.ops.insert', defaultValue: '插入' },
+  删除: { key: 'versions:summary.ops.delete', defaultValue: '删除' },
+};
+
+const describeAiEditOps = (opsText: string, total: string | undefined, t: Translate): string | null => {
+  const ops = opsText.split(/[,，、]\s*/).map((op) => AI_EDIT_OPS[op.trim()]);
+  // An unknown operation name means we can't describe it faithfully; the badge already says AI edit.
+  if (ops.length === 0 || ops.some((op) => !op)) return null;
+  const separator = t('versions:summary.opsSeparator', { defaultValue: '、' });
+  const opsLabel = ops.map((op) => t(op.key, { defaultValue: op.defaultValue })).join(separator);
+  return total
+    ? t('versions:summary.aiEditOpsMore', {
+        ops: opsLabel,
+        total: Number(total),
+        defaultValue: 'AI 修改：{{ops}} 等 {{total}} 处',
+      })
+    : t('versions:summary.aiEditOps', { ops: opsLabel, defaultValue: 'AI 修改：{{ops}}' });
+};
+
+/**
+ * Returns the line to show under a version or snapshot entry, or null when
+ * there is nothing worth showing (empty, or it repeats the type badge).
+ */
+export function describeVersionSummary(summary: string | null | undefined, t: Translate): string | null {
   const text = (summary ?? '').trim();
-  if (!text) return '';
+  if (!text) return null;
+  if (REDUNDANT_SUMMARIES.has(text)) return null;
 
   const restoredTo = RESTORED_TO_VERSION.exec(text);
   if (restoredTo) {
@@ -40,18 +85,21 @@ export function formatVersionSummary(summary: string | null | undefined, t: Tran
   if (text === 'AI edit (reviewed)') {
     return t('versions:summary.aiEditReviewed', { defaultValue: 'AI 修改（已审阅）' });
   }
-  if (text === 'File updated') {
-    return t('versions:summary.manualEdit', { defaultValue: '手动编辑' });
-  }
-  if (text === 'Initial version' || text === '创建文件') {
-    return t('versions:summary.initial', { defaultValue: '初始版本' });
-  }
   if (text === 'Snapshot baseline version' || text === 'Snapshot synchronized live content') {
     return t('versions:summary.snapshotBaseline', { defaultValue: '拍项目快照时自动保存' });
+  }
+  if (text === 'Created via Agent API') {
+    return t('versions:summary.createdViaApi', { defaultValue: '通过 Agent API 创建' });
+  }
+  if (text === 'Updated via Agent API') {
+    return t('versions:summary.updatedViaApi', { defaultValue: '通过 Agent API 更新' });
   }
   if (AI_RUN_CHECKPOINT.test(text)) {
     return t('versions:summary.aiRunCheckpoint', { defaultValue: 'AI 修改后自动存档' });
   }
+
+  const aiEdit = AI_EDIT_WITH_OPS.exec(text);
+  if (aiEdit) return describeAiEditOps(aiEdit[1], aiEdit[2], t);
 
   return text.replace(UUID_PATTERN, '…');
 }

@@ -85,15 +85,19 @@ const mockUserRewards = [
   },
 ];
 
+// 后端 message 是固定英文；界面按校验结果显示本地化文案，不回显后端文本。
 const mockInviteCodeValidation = {
   valid: true,
-  message: '邀请码有效',
+  message: 'Invite code is valid',
 };
 
 const mockInvalidCodeValidation = {
   valid: false,
-  message: '邀请码无效或已过期',
+  message: 'Invite code is invalid or unavailable',
 };
+
+const VALID_CODE_TEXT = '邀请码有效';
+const INVALID_CODE_TEXT = '邀请码无效或已不可用';
 
 // Helper to set up route mocking for referral API
 async function setupReferralMocking(page: Page) {
@@ -255,7 +259,8 @@ test.describe('Invite Code Input - Registration', () => {
     const inviteCodeInput = await enterInviteCode(page, 'ABCD1234');
     await inviteCodeInput.blur();
 
-    await expect(page.getByText(mockInviteCodeValidation.message)).toBeVisible({ timeout: 3000 });
+    await expect(page.getByText(VALID_CODE_TEXT)).toBeVisible({ timeout: 3000 });
+    await expect(page.getByText(mockInviteCodeValidation.message)).toHaveCount(0);
     await expect(inviteCodeInput).toHaveAttribute('aria-invalid', 'false');
   });
 
@@ -266,7 +271,8 @@ test.describe('Invite Code Input - Registration', () => {
     const inviteCodeInput = await enterInviteCode(page, 'INVAL1D9');
     await inviteCodeInput.blur();
 
-    await expect(page.getByText(mockInvalidCodeValidation.message)).toBeVisible({ timeout: 3000 });
+    await expect(page.getByText(INVALID_CODE_TEXT)).toBeVisible({ timeout: 3000 });
+    await expect(page.getByText(mockInvalidCodeValidation.message)).toHaveCount(0);
     await expect(inviteCodeInput).toHaveAttribute('aria-invalid', 'true');
   });
 
