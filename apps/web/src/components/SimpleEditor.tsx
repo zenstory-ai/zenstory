@@ -24,6 +24,7 @@ import {
   createEditorDraftSnapshot,
   writeEditorDraftSnapshot,
 } from "../lib/editorDraftRecovery";
+import { trackEditorSave } from "../lib/editorSaveTracker";
 
 const isNearBottom = (el: HTMLElement, thresholdPx = 32) => {
   return el.scrollHeight - el.scrollTop - el.clientHeight < thresholdPx;
@@ -716,6 +717,9 @@ export const SimpleEditor = ({
     // AI 正在改这份文件：先不排自动保存。标记清除后本 effect 会重新跑，
     // 届时再按新的基线保存，用户的本地改动不会丢。
     if (isAiEditing) return;
+    // 对比审阅进行中：由作者在审阅里决定保留哪一份，审阅完成时整体写回。
+    // 此时再按旧令牌自动保存只会撞 409 并把审阅重置成初始状态。
+    if (isReviewMode) return;
 
     saveTimeoutRef.current = setTimeout(async () => {
       await handleSaveRef.current();
@@ -727,7 +731,7 @@ export const SimpleEditor = ({
         saveTimeoutRef.current = null;
       }
     };
-  }, [isDirty, title, content, isNaturalPolishRunning, isAiEditing, showVersionHistory]);
+  }, [isDirty, title, content, isNaturalPolishRunning, isAiEditing, showVersionHistory, isReviewMode]);
 
   // Handle save
   const handleSave = async (providedSubmission?: SaveSubmission): Promise<SaveOutcome> => {
@@ -842,6 +846,8 @@ export const SimpleEditor = ({
       }
     })();
     activeSaveRef.current = { key: submissionKey, promise: result };
+    // 离开编辑器时的最后一次保存在卸载时才发出；工作台据此先等它落库再拉进度。
+    trackEditorSave(result);
     return result;
   };
 

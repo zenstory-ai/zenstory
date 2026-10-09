@@ -172,6 +172,7 @@
   "saveFailed": "Your changes haven't been saved yet. Try again before switching files.",
   "saveStaleWrite": "The AI just edited this file. The latest version is loaded — review it and save again.",
   "saveStaleWriteConflict": "This file changed elsewhere. Your text is safe — choose what to keep in the comparison view.",
+  "aiEditedWhileDirty": "The AI just changed this file while you had unsaved edits. Both versions are kept — choose what to keep in the comparison view.",
   "saveVersionQuotaExceeded": "Saved. This file's version history is full, so no new version was created. Pro keeps more versions per file.",
   "draftRecovery": {
     "restored": "Your unsaved work from before the refresh was restored. Review it, then keep editing or save.",

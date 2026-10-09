@@ -39,6 +39,7 @@ import {
   resolveEditorDraftRecovery,
   type EditorDraftSnapshot,
 } from "../lib/editorDraftRecovery";
+import { notifyEditorContentSaved } from "../lib/editorSaveTracker";
 
 /**
  * Props interface for the Editor component.
@@ -124,6 +125,10 @@ const EditorComponent: React.FC<EditorProps> = () => {
   // Local editing states
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
+  const editTitleRef = useRef(editTitle);
+  const editContentRef = useRef(editContent);
+  editTitleRef.current = editTitle;
+  editContentRef.current = editContent;
   const [draftRecovery, setDraftRecovery] = useState<{
     snapshot: EditorDraftSnapshot;
     serverTitle: string;
@@ -343,16 +348,74 @@ const EditorComponent: React.FC<EditorProps> = () => {
     }
   }, [streamingFileId, file?.id, selectedItem?.id, loadData]);
 
-  // Reload file content when AI edits the currently selected file
+  /**
+   * Re-read the open file after someone else (the AI, an undo) wrote it.
+   *
+   * - No unsaved text in the editor: follow the server copy.
+   * - Unsaved text written on top of an older copy: never replace it. The
+   *   server copy becomes the comparison baseline (and the save token), the
+   *   author's text stays in the editor, and the diff review lets them pick.
+   */
+  const syncOpenFileFromServer = useCallback(async () => {
+    const opened = currentFileRef.current;
+    if (!opened || selectedIdRef.current !== opened.id) return;
+    const fileId = opened.id;
+    const generation = loadGenerationRef.current;
+    let data: File;
+    try {
+      data = await fileApi.get(fileId);
+    } catch (err) {
+      logger.warn("Failed to re-read file after an external write:", err);
+      return;
+    }
+    const current = currentFileRef.current;
+    if (
+      generation !== loadGenerationRef.current ||
+      current?.id !== fileId ||
+      selectedIdRef.current !== fileId ||
+      activeProjectIdRef.current !== data.project_id
+    ) return;
+    // A comparison is already open for this file. Its save carries the token
+    // it was opened with, so a newer server copy surfaces there as a conflict.
+    if (currentReviewRef.current?.fileId === fileId) return;
+
+    const serverContent = data.content || "";
+    const savedContent = current.content || "";
+    if (
+      data.updated_at === current.updated_at &&
+      serverContent === savedContent &&
+      data.title === current.title
+    ) return;
+
+    const localContent = editContentRef.current;
+    const localTitle = editTitleRef.current;
+    const hasUnsavedText = localContent !== savedContent || localTitle !== current.title;
+    if (!hasUnsavedText || localContent === serverContent) {
+      currentFileRef.current = data;
+      setFile(data);
+      if (!hasUnsavedText) setEditTitle(data.title);
+      setEditContent(serverContent);
+      return;
+    }
+
+    currentFileRef.current = { ...current, content: serverContent, updated_at: data.updated_at };
+    setFile((prev) => (prev?.id === fileId
+      ? { ...prev, content: serverContent, updated_at: data.updated_at }
+      : prev));
+    enterDiffReview(fileId, serverContent, localContent);
+    toast.error(translateRef.current('editor:aiEditedWhileDirty'));
+  }, [enterDiffReview]);
+
+  // Re-read the open file when the AI (or an undo) wrote it
   useEffect(() => {
     if (lastEditedFileId && lastEditedFileId === file?.id && lastEditedFileId === selectedItem?.id && editorRefreshVersion > 0) {
       // Small delay to ensure backend has committed the changes
       const timer = setTimeout(() => {
-        loadData();
+        void syncOpenFileFromServer();
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [editorRefreshVersion, lastEditedFileId, file?.id, selectedItem?.id, loadData]);
+  }, [editorRefreshVersion, lastEditedFileId, file?.id, selectedItem?.id, syncOpenFileFromServer]);
 
   const renderWithUpgradeModal = (content: React.ReactNode) => (
     <>
@@ -511,6 +574,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
       });
       if (cleared) setDraftRecovery(null);
     }
+    notifyEditorContentSaved(updated?.project_id ?? currentFileRef.current?.project_id ?? "");
     return { outcome: "saved", updatedAt: updated.updated_at };
   };
 
@@ -636,6 +700,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
       
       // Refresh file tree
       triggerFileTreeRefresh();
+      notifyEditorContentSaved(file.project_id);
     } catch (err) {
       if (!canCompleteReview()) return;
       if (
