@@ -24,6 +24,7 @@ import type {
   FileVersionListResponse,
   PatchProjectRequest,
   Project,
+  ProjectNextStep,
   RollbackResponse,
   SnapshotComparison,
   Snapshot,
@@ -438,6 +439,12 @@ export const projectApi = {
    * ```
    */
   get: (projectId: string) => api.get<Project>(`/api/v1/projects/${projectId}`),
+
+  /**
+   * The project's next step: "write chapter 1" when a framework exists but no prose yet.
+   */
+  getNextStep: (projectId: string) =>
+    api.get<{ next_step: ProjectNextStep | null }>(`/api/v1/projects/${projectId}/next-step`),
 
   /**
    * Create a new project.

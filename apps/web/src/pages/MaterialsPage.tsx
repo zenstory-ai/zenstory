@@ -408,6 +408,11 @@ export default function MaterialsPage() {
                 <li>• {t("materials:teaserFeatureTwo", { defaultValue: "把角色和设定添加到项目，或引用到 AI 对话" })}</li>
                 <li>• {t("materials:teaserFeatureThree", { defaultValue: "次数用完后，已拆好的内容仍可查看和引用" })}</li>
               </ul>
+              <p data-testid="materials-free-try" className="text-sm text-[hsl(var(--text-secondary))]">
+                {t("materials:teaserFreeTry", {
+                  defaultValue: "免费版也可以先试：在作品的对话里贴一章参考正文，让 AI 拆人物、节奏和爽点。素材库会把整本自动拆好，写作时随时引用。",
+                })}
+              </p>
               <div className="grid gap-3 pt-2 md:grid-cols-3">
                 <div className="rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-primary))] p-4">
                   <div className="text-xs font-medium text-[hsl(var(--accent-primary))]">

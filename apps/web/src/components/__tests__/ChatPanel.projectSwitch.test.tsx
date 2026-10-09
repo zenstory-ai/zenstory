@@ -156,6 +156,7 @@ vi.mock('../../lib/subscriptionApi', () => ({
 vi.mock('../../lib/api', () => ({
   fileVersionApi: {},
   versionApi: {},
+  projectApi: { getNextStep: vi.fn(async () => ({ next_step: null })) },
 }))
 
 const mockMessageList = vi.fn(() => <div data-testid="mock-message-list" />)

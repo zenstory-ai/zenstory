@@ -320,5 +320,9 @@
     "message": "Leaving this page ends this round. If nothing has been written yet, it will not count toward today's AI messages.",
     "leave": "Leave",
     "stay": "Keep waiting"
+  },
+  "nextStep": {
+    "frameworkReady": "The outline is ready. Time to start writing.",
+    "dismiss": "Not now"
   }
 }

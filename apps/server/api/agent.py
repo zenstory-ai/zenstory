@@ -187,6 +187,17 @@ def _schedule_detached_refund(
     return True
 
 
+# 前端在 metadata.entry 里标明消息从哪里发出；日志只记这几个已知值。
+MESSAGE_ENTRIES = frozenset(
+    {"typed", "suggestion", "next_step", "resend_after_stop", "dashboard_idea"}
+)
+
+
+def _message_entry(metadata: dict[str, Any] | None) -> str | None:
+    entry = (metadata or {}).get("entry")
+    return entry if entry in MESSAGE_ENTRIES else None
+
+
 def _session_busy_exception() -> APIException:
     return APIException(
         error_code=ErrorCode.SESSION_BUSY,
@@ -399,6 +410,8 @@ async def stream_request(
         message_length=len(body.message),
         message_preview=message_preview,
         has_selected_text=body.selected_text is not None,
+        # 这条消息从哪里发出：输入框 / 建议 / 下一步按钮 / 停止后重发 / 首页想法
+        entry=_message_entry(body.metadata),
         language=accept_language,
     )
 

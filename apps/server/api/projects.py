@@ -29,6 +29,7 @@ from models import (
     Project,
     User,
 )
+from services.project_next_step import compute_next_step
 from services.project_service import (
     create_project_with_default_folders,
     resolve_template_lang,
@@ -215,6 +216,36 @@ def get_project(
     """Get a specific project."""
     project = verify_project_ownership(project_id, current_user, session)
     return project
+
+
+class ProjectNextStep(BaseModel):
+    """作品的下一步建议（目前只有「框架已就绪，写第一章」）。"""
+
+    kind: Literal["write_first_chapter"]
+    label: str
+    message: str
+
+
+class ProjectNextStepResponse(BaseModel):
+    next_step: ProjectNextStep | None
+
+
+@router.get("/projects/{project_id}/next-step", response_model=ProjectNextStepResponse)
+def get_project_next_step(
+    project_id: str,
+    current_user: User = Depends(get_current_active_user),
+    session: Session = Depends(get_session),
+    accept_language: str | None = Header(None, alias="Accept-Language"),
+):
+    """框架有了、正文还没有时，返回聊天输入框上方「写第一章」按钮的文字和要发的话。"""
+    project = verify_project_ownership(project_id, current_user, session)
+    language = (accept_language or "").split(",")[0].split("-")[0].strip().lower() or "zh"
+    step = compute_next_step(session, project, language)
+    if step is None:
+        return ProjectNextStepResponse(next_step=None)
+    return ProjectNextStepResponse(
+        next_step=ProjectNextStep(kind=step.kind, label=step.label, message=step.message)
+    )
 
 
 @router.put("/projects/{project_id}", response_model=Project)

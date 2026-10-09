@@ -27,6 +27,7 @@ import type { Skill } from "../types";
 import { useSwipeGestures } from "../hooks/useGestures";
 import { logger } from "../lib/logger";
 import { MAX_AGENT_MESSAGE_CHARS } from "../lib/agentLimits";
+import { trackEvent } from "../lib/analytics";
 
 /**
  * Randomly selects a specified number of distinct suggestions from a pool.
@@ -166,7 +167,11 @@ interface MessageInputProps {
    * @param message - The message text
    * @param selectedSkillIds - Ids of the skills the user explicitly selected (chips), max 3
    */
-  onSend: (message: string, selectedSkillIds: string[]) => void;
+  /**
+   * Send a new turn. `extraMetadata.entry` is "suggestion" when the author sends a
+   * suggestion chip unchanged.
+   */
+  onSend: (message: string, selectedSkillIds: string[], extraMetadata?: Record<string, unknown>) => void;
   /**
    * Whether the input is disabled (e.g., when the panel is unavailable).
    * This disables both editing and sending.
@@ -319,6 +324,16 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     const timer = setTimeout(() => setStopArmed(true), STOP_ARM_DELAY_MS);
     return () => clearTimeout(timer);
   }, [stopShown]);
+  // The suggestion the author last put into the box; sent unchanged → entry "suggestion".
+  const pickedSuggestionRef = useRef<string | null>(null);
+  const noteSuggestionPicked = (suggestion: string, via: "click" | "tab") => {
+    pickedSuggestionRef.current = suggestion;
+    trackEvent("ai_suggestion_picked", {
+      via,
+      index: aiSuggestions.indexOf(suggestion),
+      source: suggestionDisplayState,
+    });
+  };
   // Steering is offered while the agent is generating: the textarea stays
   // editable and submitting dispatches a follow-up instruction instead of a
   // brand-new turn.
@@ -512,6 +527,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   // 采纳建议（第一条 AI 建议或静态建议）
   const acceptSuggestion = (suggestion: string) => {
     if (!input) {
+      noteSuggestionPicked(suggestion, "tab");
       setInput(suggestion);
       textareaRef.current?.focus();
       setTimeout(adjustHeight, 0);
@@ -617,7 +633,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const handleSubmit = () => {
     const message = input.trim();
     if (message && !effectiveSendDisabled && !inputTooLong) {
-      onSend(message, selectedSkills.map((skill) => skill.id));
+      const fromSuggestion = pickedSuggestionRef.current?.trim() === message;
+      pickedSuggestionRef.current = null;
+      const skillIds = selectedSkills.map((skill) => skill.id);
+      if (fromSuggestion) {
+        onSend(message, skillIds, { entry: "suggestion" });
+      } else {
+        onSend(message, skillIds);
+      }
       // 与输入框文本保持一致：发送即清空（onSend 不回报失败）。
       setInput("");
       clearSkills();
@@ -635,6 +658,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   // 点击提示填充到输入框
   const handleSuggestionClick = (suggestion: string) => {
+    noteSuggestionPicked(suggestion, "click");
     setInput(suggestion);
     textareaRef.current?.focus();
   };

@@ -279,6 +279,22 @@ describe('MessageInput', () => {
     expect(textarea).toHaveValue('Suggestion 1')
   })
 
+  it('marks a suggestion sent unchanged, but not one the author edited first', async () => {
+    const user = userEvent.setup({ delay: null })
+    const onSend = vi.fn()
+    render(<MessageInput {...defaultProps} onSend={onSend} aiSuggestions={['写第一章正文', '补充反派动机']} />)
+    const textarea = screen.getByPlaceholderText('chat:input.placeholder')
+
+    await user.click(screen.getByText('写第一章正文'))
+    await user.click(screen.getByTestId('send-button'))
+    expect(onSend).toHaveBeenLastCalledWith('写第一章正文', [], { entry: 'suggestion' })
+
+    await user.click(screen.getByText('补充反派动机'))
+    await user.type(textarea, '，要更狠')
+    await user.click(screen.getByTestId('send-button'))
+    expect(onSend).toHaveBeenLastCalledWith('补充反派动机，要更狠', [])
+  })
+
   it('displays static suggestions when no AI suggestions', () => {
     render(
       <MessageInput

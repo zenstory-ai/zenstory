@@ -47,6 +47,7 @@ import type {
   AgentRequest,
   ApplyAction,
   FileEditUndoTarget,
+  ProjectNextStep,
   SSEWorkflowStoppedData,
 } from "../types";
 import { logger } from "../lib/logger";
@@ -58,7 +59,8 @@ import {
   type MessageFeedbackData,
   type MessageFeedbackVote,
 } from "../lib/chatApi";
-import { fileVersionApi, versionApi } from "../lib/api";
+import { fileVersionApi, projectApi, versionApi } from "../lib/api";
+import { NextStepCard } from "./NextStepCard";
 import { fetchSuggestions, type QuotaRefundKind } from "../lib/agentApi";
 import { parseUTCDate } from "../lib/dateUtils";
 import { ApiError } from "../lib/apiClient";
@@ -496,6 +498,18 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   }, [currentProjectId, generationMode, t]);
 
   const currentProjectIdRef = useRef<string | null>(currentProjectId);
+  // "Write chapter 1" once a framework exists but no prose yet; refreshed on open and after each round.
+  const [nextStep, setNextStep] = useState<{ projectId: string; step: ProjectNextStep } | null>(null);
+  const [dismissedNextStepProjects, setDismissedNextStepProjects] = useState<ReadonlySet<string>>(() => new Set());
+  const refreshNextStep = useCallback(async (projectId: string) => {
+    try {
+      const { next_step: step } = await projectApi.getNextStep(projectId);
+      if (currentProjectIdRef.current !== projectId) return;
+      setNextStep(step ? { projectId, step } : null);
+    } catch (error) {
+      logger.warn("Failed to load the project's next step:", error);
+    }
+  }, []);
   useEffect(() => {
     currentProjectIdRef.current = currentProjectId;
     return () => {
@@ -856,6 +870,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
     finalizePendingContextClears();
     invalidateQuota();
+    if (currentProjectId) void refreshNextStep(currentProjectId);
 
     // Let the streaming hook finalize cleanup/snapshot work in the background.
     void streamCallbacks.onComplete(
@@ -902,6 +917,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     finalizePendingContextClears,
     hydrateAssistantBackendMessage,
     invalidateQuota,
+    refreshNextStep,
   ]);
 
   // Agent stream hook - uses callbacks from useChatStreaming hook
@@ -1175,13 +1191,16 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     setSuggestionDisplayState("loading");
     contextItemsRef.current = [];
 
+    setNextStep(null);
+    void refreshNextStep(currentProjectId);
+
     // Load chat history first, then request project suggestions immediately.
     void (async () => {
       const loadedMessages = await loadChatHistory(currentProjectId);
       if (loadedMessages === null) return;
       await requestInitialSuggestions(currentProjectId, loadedMessages);
     })();
-  }, [currentProjectId, loadChatHistory, requestInitialSuggestions, setAiSuggestions, setEditProgress, clearStreamItems, setMatchedSkills, reset]); // 依赖 loadChatHistory
+  }, [currentProjectId, loadChatHistory, requestInitialSuggestions, refreshNextStep, setAiSuggestions, setEditProgress, clearStreamItems, setMatchedSkills, reset]); // 依赖 loadChatHistory
 
   // Auto-scroll to bottom when new messages arrive or streaming content meaningfully changes.
   // Coalesce scrolls in a single RAF to avoid completion-time jitter from multiple back-to-back
@@ -1340,6 +1359,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
     trackEvent("ai_chat_submitted", {
       project_id: currentProjectId,
+      // Where this message came from: suggestion / next_step / dashboard_idea, otherwise typed.
+      entry: typeof extraMetadata?.entry === "string" ? extraMetadata.entry : "typed",
       generation_mode: generationMode,
       selected_item_type: selectedItem?.type,
       attached_file_count: attachedFileIds.length,
@@ -1897,7 +1918,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                     <button
                       type="button"
                       data-testid="chat-resend-after-stop"
-                      onClick={() => void handleSendMessage(resendAfterStop)}
+                      onClick={() => void handleSendMessage(resendAfterStop, undefined, { entry: "resend_after_stop" })}
                       className="ml-2 text-[hsl(var(--accent-primary))] hover:underline focus-visible:outline-none focus-visible:underline"
                     >
                       {t('chat:panel.resend')}
@@ -1962,6 +1983,26 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
               : `px-3 py-2 ${inputPanelHeight !== null ? "flex-1 min-h-0" : ""}`
           }`}
         >
+          {nextStep
+            && nextStep.projectId === currentProjectId
+            && !dismissedNextStepProjects.has(nextStep.projectId)
+            && !isStreaming
+            && !isThinking
+            && !quotaExhausted && (
+            <NextStepCard
+              step={nextStep.step}
+              onStart={() => {
+                const { projectId, step } = nextStep;
+                trackEvent("ai_next_step_clicked", { project_id: projectId, kind: step.kind });
+                setNextStep(null);
+                void handleSendMessage(step.message, undefined, { entry: "next_step" });
+              }}
+              onDismiss={() => {
+                trackEvent("ai_next_step_dismissed", { project_id: nextStep.projectId, kind: nextStep.step.kind });
+                setDismissedNextStepProjects((prev) => new Set(prev).add(nextStep.projectId));
+              }}
+            />
+          )}
           <MessageInput
             onSend={handleSendMessage}
             // Allow drafting while AI is streaming/thinking, but prevent sending until it finishes.

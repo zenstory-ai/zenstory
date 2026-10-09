@@ -101,6 +101,7 @@ beforeEach(async () => {
     if (/^\/api\/v1\/chat\/session\/[ab]\/new$/.test(path)) return json({ id: 'new-session', project_id: path.split('/')[5] })
     if (path === '/api/v1/agent/suggest') return json({ suggestions: [`${(body as { project_id: string }).project_id.toUpperCase()} OWN SUGGESTION`] })
     if (path === '/api/v1/subscription/quota') return json({ ai_conversations: { used: 0, limit: 100 }, plan: 'free' })
+    if (/^\/api\/v1\/projects\/[ab]\/next-step$/.test(path)) return json({ next_step: null })
     if (/\/locales\/(en|zh)\/[^/]+\.json/.test(path)) return json({})
     unexpected.push(path); throw new Error(`OFFLINE_API_DENIED ${path}`)
   }

@@ -20,6 +20,7 @@ const mockProjectState = vi.hoisted(() => ({
 const mockStartStream = vi.hoisted(() => vi.fn())
 const mockScrollToBottom = vi.hoisted(() => vi.fn())
 const mockRollback = vi.hoisted(() => vi.fn())
+const mockGetNextStep = vi.hoisted(() => vi.fn(async () => ({ next_step: null as unknown })))
 
 let testQueryClient: QueryClient
 const render = (ui: React.ReactElement) => {
@@ -213,6 +214,7 @@ vi.mock('../../lib/agentApi', () => ({
 vi.mock('../../lib/api', () => ({
   fileVersionApi: { rollback: mockRollback },
   versionApi: {},
+  projectApi: { getNextStep: mockGetNextStep },
 }))
 
 type MockMessageInputProps = {
@@ -524,7 +526,9 @@ describe('ChatPanel mount smoke', () => {
 
     fireEvent.click(screen.getByTestId('chat-resend-after-stop'))
     await waitFor(() => expect(mockStartStream).toHaveBeenCalledTimes(1))
-    expect((mockStartStream.mock.calls[0][0] as { message: string }).message).toBe('写第五章')
+    const resent = mockStartStream.mock.calls[0][0] as { message: string; metadata: Record<string, unknown> }
+    expect(resent.message).toBe('写第五章')
+    expect(resent.metadata.entry).toBe('resend_after_stop')
   })
 
   it.each(['no_progress', 'error'] as const)('offers no resend for a %s refund', async (kind) => {
@@ -540,6 +544,36 @@ describe('ChatPanel mount smoke', () => {
     act(() => options().onQuotaRefunded(kind))
     expect(await screen.findByTestId('chat-quota-refund-note')).toBeInTheDocument()
     expect(screen.queryByTestId('chat-resend-after-stop')).not.toBeInTheDocument()
+  })
+
+  it('offers to write chapter 1 once the framework exists, sending it in one press', async () => {
+    mockGetNextStep.mockResolvedValue({
+      next_step: { kind: 'write_first_chapter', label: '写第一章正文', message: '按大纲写第一章正文' },
+    })
+    render(<ChatPanel />)
+
+    fireEvent.click(await screen.findByTestId('next-step-start'))
+
+    await waitFor(() => expect(mockStartStream).toHaveBeenCalledTimes(1))
+    const request = mockStartStream.mock.calls[0][0] as { message: string; metadata: Record<string, unknown> }
+    expect(request.message).toBe('按大纲写第一章正文')
+    expect(request.metadata.entry).toBe('next_step')
+    expect(screen.queryByTestId('next-step-card')).not.toBeInTheDocument()
+    mockGetNextStep.mockResolvedValue({ next_step: null })
+  })
+
+  it('keeps the chapter-1 offer hidden after the author dismisses it', async () => {
+    mockGetNextStep.mockResolvedValue({
+      next_step: { kind: 'write_first_chapter', label: '写第一章正文', message: '按大纲写第一章正文' },
+    })
+    render(<ChatPanel />)
+
+    await screen.findByTestId('next-step-card')
+    fireEvent.click(screen.getByText('chat:nextStep.dismiss'))
+
+    expect(screen.queryByTestId('next-step-card')).not.toBeInTheDocument()
+    expect(mockStartStream).not.toHaveBeenCalled()
+    mockGetNextStep.mockResolvedValue({ next_step: null })
   })
 
   it('never pairs a refund note with the used-up card, which would hint at a second limit', async () => {
