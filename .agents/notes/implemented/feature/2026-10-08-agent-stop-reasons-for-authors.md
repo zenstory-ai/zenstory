@@ -11,6 +11,7 @@ Status: implemented
 3. **额度用完的卡片泄露第二个额度。** 成本兜底（`ERR_QUOTA_AI_DAILY_COST_EXCEEDED`）有自己的标题「今日 AI 额度已用完」，违反 AGENTS.md「不展示第二个额度」；卡片里标题、`{error}` 原文、说明把同一件事说了三遍，标题里写死的「10 条」在兜底提前触发时也不对。
 4. **工具失败卡片直接显示内部文本。** 写给模型的指令（「Edit 0: 锚点匹配到多个位置…occurrence=N」）、文件 id、`Malformed tool_result payload: ValueError`、并行子任务的 `str(exc)`，以及熔断说明里的工具名和数据库报错，都原样显示给作者；不认识的工具直接显示 `hybrid_search` 这类内部名字。
 5. 正常的「这一轮步数用完」用红色错误样式，停止按钮写「取消」，文案里暴露内部步数。
+6. 作者自己点「停止生成」后没有终态（2026-10-09 第二轮审计 N9）：消息下只有「消息还在保存，稍后可以反馈」，作者不知道停没停、写进去的东西还在不在、这条算不算今天的额度。按既定计费契约，用户主动停止照常计费，问题只在界面。
 
 ## Decision
 
@@ -38,6 +39,14 @@ Status: implemented
 - `parallel_executor` 的 `parallel_task_end` 进度帧只带子任务的 `user_message`（没有就是 null）；返回给模型的 `tasks[].error` 仍是原始错误，模型据此纠正。
 - `ToolResultCard` 失败态改为中性灰色，正文按顺序取 `user_message`（顶层或 `data` 下），否则按 `error_type` 归类：找不到原文 / 多处匹配 / 文件不在 / 重复读取（有标题时点名）/ 其他，认不出来的一律用「这一步没做成，AI 会换个方式继续。」，永远不显示原始 `error`。并行子任务失败显示子任务的 `user_message` 或「没有完成」；进度行改为「✗ {{description}}：没有完成」。新增 `chat:tool.hybrid_search`，不认识的工具显示 `chat:tool.generic`「AI 操作」。
 
+**作者主动停止（`ChatPanel`）**
+
+- 点「停止生成」时，ChatPanel 在消息区下方（退还说明同一位置）显示一行灰字 `data-testid="chat-user-stop-note"`，由几段用「 · 」连接：
+  - 总是有 `chat:panel.userStopped`「已停止」。
+  - 这一轮有写入成功时加 `chat:panel.userStoppedSaved`「已写入的内容已保存」。判定在 `lib/agentRoundProgress.isWriteToolResult`：`create_file` / `update_file` / `edit_file` / `delete_file` 的 `success`，或 `parallel_execute` 成功且有 `completed` 的 `write_chapter` / `edit_file` / `delete_file` 子任务。只有查找类结果、失败的写入都不算。
+  - 服务端已经开始这一轮（收到 `session_started`，即已扣费）且每日条数有上限时加 `chat:panel.userStoppedCounted`「本条计入今日 AI 消息」；还没开始就停下、或 Pro（`limit == -1`）不提。
+- 计费不变：取消路径仍按 `user_cancelled` 计费，也不发 `quota_refunded`。说明按项目隔离，下一轮开始或新建会话时清空，不落库。
+
 **其他**
 
 - 「这一轮先做到这里」状态卡（`iteration_exhausted`）改为中性样式和暂停图标，文案不再带步数；`lowTurnWarning` 不再报剩余步数。停止按钮（桌面与手机）显示并朗读「停止生成」。
@@ -51,9 +60,12 @@ Status: implemented
 ## Consequences
 
 - 收益：作者看到的是停在哪、能不能接着来，以及这一轮是否计入；额度卡片不再暴露成本兜底；工具卡片不再出现内部指令、id 和英文异常；正常暂停不再像报错。
+- 收益（作者主动停止）：停下后能看到明确的结束状态，只在确实写入过时才说「已写入」。
+- 代价（作者主动停止）：「已写入」按前端收到的工具结果判断，停止瞬间服务端仍在落库的写入不会被提到；「计入」按是否收到 `session_started` 推断，不是服务端回执。说明不落库，刷新后消失。
 - 代价：`quota_refunded` 帧在终止帧之后到达，作者若在终止帧后立刻断开就看不到说明（额度照样已退）；说明不落库，刷新页面后消失。按 `error_type` 归类依赖各工具的命名，认不出的类型只能给通用说法。中文界面里重复读取守卫自己的说明若也提到退还额度，会和灰字说明重复一句，需由守卫一侧去掉。英文界面看不到服务端的具体停止说明。
 
 ## Verification
 
 - 后端：`venv/bin/python -m pytest tests/test_api/test_agent_stream_hardening.py tests/test_agent/test_tool_failure_breaker.py tests/test_agent/test_stream_adapter.py tests/test_agent/test_parallel_steering_rework.py -q --no-cov`：退还后补发 `quota_refunded`（失控停止 `no_progress`、内部错误与超时 `error`，排在 error 帧之后）、该退但没退成时不发、熔断不发；熔断 ERROR 不含工具名与错误原文；失败卡片用 `user_message`、解析异常只给 `error_type`；并行进度帧只带 `user_message`。
+- 作者主动停止：`npx vitest run src/components/__tests__/ChatPanel.mount.test.tsx` 覆盖有写入且已开始时三段齐全、只有查找或写入失败时不说「已写入」、服务端还没开始时只有「已停止」、Pro 不提今日 AI 消息、下一轮开始时清空。
 - 前端：`npx vitest run src/lib/__tests__/agentApi.test.ts src/components/__tests__/ToolResultCard.test.tsx src/components/__tests__/ChatPanel.mount.test.tsx src/components/__tests__/MessageInput.test.tsx src/components/__tests__/MobileChatInput.test.tsx`：停止说明的选择规则（reason / code / 空 message / 英文界面 / 其他错误码）、`quota_refunded` 回调、额度卡片不再显示原始错误且兜底与条数共用标题、退还说明只在回调后出现并在下一轮清空、失败卡片不显示原始错误。
