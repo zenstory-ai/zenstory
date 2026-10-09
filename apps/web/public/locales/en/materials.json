@@ -178,5 +178,6 @@
   },
   "trialStart": "Try one book free (first {{chapters}} chapters)",
   "trialUploadNote": "Free trial: only the first {{chapters}} chapters of this book, once per account. If it fails on our side, you get the trial back.",
-  "trialUsedBanner": "The free trial broke down the first {{chapters}} chapters of this book. With Pro you can break down whole novels every month."
+  "trialUsedBanner": "The free trial broke down the first {{chapters}} chapters of this book. With Pro you can break down whole novels every month.",
+  "trialUsedEmpty": "You've used your free trial breakdown. Upgrade to Pro to upload and break down full novels every month."
 }

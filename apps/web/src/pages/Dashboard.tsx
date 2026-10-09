@@ -504,7 +504,8 @@ function DashboardContent() {
                 aria-expanded={showMobileMenu}
                 aria-controls="dashboard-mobile-navigation"
                 size="touch"
-                className="-mr-2 text-[hsl(var(--text-primary))]"
+                tone="strong"
+                className="-mr-2"
                 icon={showMobileMenu ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               />
             </div>

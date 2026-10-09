@@ -9,6 +9,8 @@ import { handleApiError } from '../../lib/errorHandler';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import Modal from '../ui/Modal';
 import { Button } from '../ui/Button';
+import { IconButton } from '../ui/IconButton';
+import { useIsMobile } from '../../hooks/useMediaQuery';
 import type {
   AgentApiKey,
   CreateAgentApiKeyRequest,
@@ -248,6 +250,7 @@ function CreateKeyForm({
   const [description, setDescription] = useState('');
   const [scopes, setScopes] = useState<string[]>(['read']);
   const [expiresInDays, setExpiresInDays] = useState(0);
+  const actionSize = useIsMobile() ? 'touch' : 'md';
 
   const expirationOptions = [
     { value: 0, label: t('apiKeys.form.never', '永不过期') },
@@ -342,20 +345,18 @@ function CreateKeyForm({
       </div>
 
       <div className="flex justify-end gap-2 pt-1">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-3 py-1.5 rounded-lg text-xs text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-hover))] transition-colors"
-        >
+        <Button type="button" variant="ghost" size={actionSize} onClick={onCancel}>
           {t('common.cancel')}
-        </button>
-        <button
+        </Button>
+        <Button
           type="submit"
-          disabled={!name.trim() || scopes.length === 0 || isSubmitting}
-          className="px-3 py-1.5 rounded-lg text-xs text-white bg-[hsl(var(--accent-primary))] hover:opacity-90 transition-colors disabled:opacity-50"
+          size={actionSize}
+          disabled={!name.trim() || scopes.length === 0}
+          isLoading={isSubmitting}
+          loadingText={t('common.loading')}
         >
-          {isSubmitting ? t('common.loading') : t('apiKeys.create')}
-        </button>
+          {t('apiKeys.create')}
+        </Button>
       </div>
     </form>
   );
@@ -425,27 +426,22 @@ function KeyRow({
       </div>
 
       <div className="flex items-center gap-1 shrink-0">
-        <button
+        <IconButton
           onClick={() => onToggleActive(apiKey)}
-          title={apiKey.is_active ? t('apiKeys.disable') : t('apiKeys.enable')}
-          className="p-1.5 rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-hover))] transition-colors"
-        >
-          {apiKey.is_active ? <ShieldOff size={14} /> : <Shield size={14} />}
-        </button>
-        <button
+          label={apiKey.is_active ? t('apiKeys.disable') : t('apiKeys.enable')}
+          icon={apiKey.is_active ? <ShieldOff size={16} /> : <Shield size={16} />}
+        />
+        <IconButton
           onClick={() => onRegenerate(apiKey)}
-          title={t('apiKeys.regenerate')}
-          className="p-1.5 rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-hover))] transition-colors"
-        >
-          <RefreshCw size={14} />
-        </button>
-        <button
+          label={t('apiKeys.regenerate')}
+          icon={<RefreshCw size={16} />}
+        />
+        <IconButton
           onClick={() => onDelete(apiKey)}
-          title={t('apiKeys.delete')}
-          className="p-1.5 rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-hover))] hover:text-red-500 transition-colors"
-        >
-          <Trash2 size={14} />
-        </button>
+          label={t('apiKeys.delete')}
+          tone="danger"
+          icon={<Trash2 size={16} />}
+        />
       </div>
     </div>
   );
@@ -453,6 +449,7 @@ function KeyRow({
 
 export const AgentApiKeysPanel: React.FC = () => {
   const { t } = useTranslation('settings');
+  const actionSize = useIsMobile() ? 'touch' : 'md';
   const queryClient = useQueryClient();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
@@ -561,7 +558,7 @@ export const AgentApiKeysPanel: React.FC = () => {
       <div className="space-y-3">
         <ConnectGuide />
         <p role="alert" className="text-sm text-red-500">{handleApiError(error)}</p>
-        <Button variant="secondary" onClick={() => void refetch()}>{t('common:retry', '重试')}</Button>
+        <Button variant="secondary" size={actionSize} onClick={() => void refetch()}>{t('common:retry', '重试')}</Button>
       </div>
     );
   }
@@ -580,7 +577,7 @@ export const AgentApiKeysPanel: React.FC = () => {
           <p className="text-xs text-[hsl(var(--text-secondary))] mb-4 max-w-xs">
             {t('apiKeys.emptyState')}
           </p>
-          <Button onClick={() => setShowCreateForm(true)} leftIcon={<Plus size={16} />}>
+          <Button size={actionSize} onClick={() => setShowCreateForm(true)} leftIcon={<Plus size={16} />}>
             {t('apiKeys.create')}
           </Button>
         </div>
@@ -596,7 +593,7 @@ export const AgentApiKeysPanel: React.FC = () => {
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-medium text-[hsl(var(--text-secondary))]">{t('apiKeys.title')}</h3>
         {!showCreateForm && (
-          <Button onClick={() => setShowCreateForm(true)} leftIcon={<Plus size={16} />}>
+          <Button size={actionSize} onClick={() => setShowCreateForm(true)} leftIcon={<Plus size={16} />}>
             {t('apiKeys.create')}
           </Button>
         )}

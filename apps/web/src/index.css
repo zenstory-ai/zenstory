@@ -331,6 +331,12 @@ h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-sans);
 }
 
+/* Writing content shown inside a control surface (a chapter preview in a dialog) keeps
+   its serif headings. Same specificity as the rule above, so this later rule wins. */
+:is(.prose, .editor-content) :is(h1, h2, h3, h4, h5, h6) {
+    font-family: var(--font-display);
+}
+
 /* Code font */
 code, pre, .font-mono {
     font-family: var(--font-mono);

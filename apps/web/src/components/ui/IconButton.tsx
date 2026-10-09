@@ -5,7 +5,10 @@
  *   with `size="md"` (32px) / `size="touch"` (44px).
  * - `label` is required: it becomes the accessible name and the tooltip, so an icon-only
  *   control is never announced as an empty button.
- * - Tones: `default` (grey → primary text on hover), `danger` (hover turns red, for delete).
+ * - Tones: `default` (grey → primary text on hover), `strong` (primary text, for a bar's
+ *   main control such as the mobile menu toggle), `danger` (hover turns red, for delete).
+ *   Pick a tone instead of passing a text colour in `className`: two text-colour utilities on
+ *   one element resolve by stylesheet order, not class order.
  *
  * @module components/ui/IconButton
  */
@@ -25,7 +28,7 @@ export interface IconButtonProps
    */
   size?: 'auto' | 'md' | 'touch';
   /** @default 'default' */
-  tone?: 'default' | 'danger';
+  tone?: 'default' | 'strong' | 'danger';
 }
 
 const SIZE_CLASSES: Record<NonNullable<IconButtonProps['size']>, string> = {
@@ -37,6 +40,7 @@ const SIZE_CLASSES: Record<NonNullable<IconButtonProps['size']>, string> = {
 const TONE_CLASSES: Record<NonNullable<IconButtonProps['tone']>, string> = {
   default:
     'text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]',
+  strong: 'text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))]',
   danger:
     'text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--error)/0.1)] hover:text-[hsl(var(--error))]',
 };

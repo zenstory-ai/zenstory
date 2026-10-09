@@ -680,7 +680,7 @@ export default function DashboardHome() {
                       : "px-4 py-2 text-sm"
                   }
                   ${isActive
-                    ? "bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))] border-transparent"
+                    ? "bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))] border-transparent!"
                     : "text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-secondary)/0.5)] border-transparent"
                   }
                 `}

@@ -125,7 +125,7 @@ export async function mockResponsiveApi(page: Page, tier: 'free' | 'pro' = 'free
             data = { transactions: [], total: 0, page: 1, page_size: 20, total_pages: 1 };
         else if (path.endsWith('/referral/stats'))
             data = { total_invites: 10, successful_invites: 5, total_points: 500, available_points: 300 };
-        else if (path.endsWith('/api-keys'))
+        else if (path.endsWith('/api-keys') || path.endsWith('/agent-api-keys'))
             data = { keys: [] };
         else if (path.endsWith('/resources'))
             data = { resources: [{ path: 'references/checks.md', size_bytes: 100 }] };

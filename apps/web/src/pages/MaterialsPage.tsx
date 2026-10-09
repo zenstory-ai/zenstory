@@ -516,20 +516,41 @@ export default function MaterialsPage() {
               )}
             </div>
           )}
-          <DashboardEmptyState
-            icon={BookOpen}
-            title={t("materials:noMaterials")}
-            action={
-              !isMaterialsQuotaExhausted ? (
-                <button
-                  onClick={() => setShowUploadModal(true)}
-                  className="text-sm text-[hsl(var(--accent-primary))] hover:underline"
+          {trialUsed ? (
+            // A free author who deleted their trial book: uploading again needs Pro, so the
+            // one solid action here is the upgrade, not an upload that would be refused.
+            <DashboardEmptyState
+              icon={BookOpen}
+              title={t("materials:noMaterials")}
+              description={t("materials:trialUsedEmpty", {
+                defaultValue: "免费试拆已经用过了。开通 Pro 后，每月可以上传并拆解完整的小说。",
+              })}
+              action={
+                <Button
+                  size={actionSize}
+                  onClick={() => openUpgradePath("billing")}
+                  data-testid="materials-trial-used-upgrade"
                 >
-                  {t("materials:uploadFirst")}
-                </button>
-              ) : undefined
-            }
-          />
+                  {t("materials:teaserPrimary", { defaultValue: "开通 Pro" })}
+                </Button>
+              }
+            />
+          ) : (
+            <DashboardEmptyState
+              icon={BookOpen}
+              title={t("materials:noMaterials")}
+              action={
+                !isMaterialsQuotaExhausted ? (
+                  <button
+                    onClick={() => setShowUploadModal(true)}
+                    className="text-sm text-[hsl(var(--accent-primary))] hover:underline"
+                  >
+                    {t("materials:uploadFirst")}
+                  </button>
+                ) : undefined
+              }
+            />
+          )}
         </>
       ) : (
         <div className="space-y-4">

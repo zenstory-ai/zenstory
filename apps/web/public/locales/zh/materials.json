@@ -178,5 +178,6 @@
   },
   "trialStart": "免费试拆一本（前 {{chapters}} 章）",
   "trialUploadNote": "免费试拆：只拆这本书的前 {{chapters}} 章，每个账号一次。平台出错没拆成会退还这次机会。",
-  "trialUsedBanner": "免费试拆只拆了这本书的前 {{chapters}} 章。开通 Pro 后，每月可以拆完整的小说。"
+  "trialUsedBanner": "免费试拆只拆了这本书的前 {{chapters}} 章。开通 Pro 后，每月可以拆完整的小说。",
+  "trialUsedEmpty": "免费试拆已经用过了。开通 Pro 后，每月可以上传并拆解完整的小说。"
 }

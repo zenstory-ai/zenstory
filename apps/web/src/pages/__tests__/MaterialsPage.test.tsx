@@ -258,6 +258,22 @@ describe("MaterialsPage", () => {
     expect(screen.queryByTestId("materials-trial-start")).not.toBeInTheDocument();
   });
 
+  it("offers Pro, not a refused upload, when a free author deleted their trial book", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: false, used: true, max_chapters: 20 }));
+    mockList.mockResolvedValue([]);
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    const upgrade = await screen.findByTestId("materials-trial-used-upgrade");
+    expect(screen.queryByText("materials:uploadFirst")).not.toBeInTheDocument();
+    expect(screen.queryByText("上传第一本小说")).not.toBeInTheDocument();
+    const solid = screen
+      .getAllByRole("button")
+      .filter((button) => button.className.includes("bg-[hsl(var(--accent-primary))]"));
+    expect(solid).toEqual([upgrade]);
+  });
+
   it("states the Pro breakdown limit from the plan catalog instead of a constant", async () => {
     mockGetStatus.mockResolvedValueOnce({
       tier: "free",

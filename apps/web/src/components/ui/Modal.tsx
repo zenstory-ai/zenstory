@@ -299,7 +299,8 @@ export const Modal: React.FC<ModalProps> & {
 
   const overlayClasses = `fixed inset-0 z-[1000] bg-black/60 backdrop-blur-[4px] flex items-center justify-center p-6 ${overlayClassName}`;
 
-  const contentClasses = `bg-[hsl(var(--bg-secondary))] rounded-2xl shadow-2xl w-full ${sizeClasses} animate-scale-in flex flex-col max-h-[90vh] ${className}`;
+  // `ui-sans-headings`: dialogs are control surfaces (portaled outside the dashboard's <main>).
+  const contentClasses = `ui-sans-headings bg-[hsl(var(--bg-secondary))] rounded-2xl shadow-2xl w-full ${sizeClasses} animate-scale-in flex flex-col max-h-[90vh] ${className}`;
 
   return createPortal(
     <ModalContext.Provider value={contextValue}>

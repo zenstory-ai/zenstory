@@ -870,6 +870,43 @@ function SkillCard({
   const { t } = useTranslation(["skills"]);
   const [expanded, setExpanded] = useState(false);
 
+  const actions = (
+    <div
+      data-testid="skill-card-actions"
+      className={isMobile ? "mt-2 flex items-center justify-end gap-1" : "flex items-center gap-1 shrink-0"}
+    >
+      {!readonly && (
+        <>
+          <IconButton
+            onClick={onEdit}
+            label={t("skills:editSkill")}
+            icon={<Pencil className="w-4 h-4" />}
+          />
+          <IconButton
+            onClick={onDelete}
+            label={t("skills:deleteConfirm.title")}
+            tone="danger"
+            icon={<Trash2 className="w-4 h-4" />}
+          />
+          <IconButton
+            onClick={onShare}
+            label={t("skills:share.title")}
+            icon={<Share2 className="w-4 h-4" />}
+          />
+        </>
+      )}
+      {onExport && (
+        <ExportButton onExport={onExport} exporting={exporting} isMobile={isMobile} />
+      )}
+      <IconButton
+        onClick={() => setExpanded(!expanded)}
+        label={expanded ? t("skills:collapse") : t("skills:expand")}
+        aria-expanded={expanded}
+        icon={expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+      />
+    </div>
+  );
+
   return (
     <div className={`group relative bg-[hsl(var(--bg-secondary))] rounded-lg border ${isSelected ? "border-[hsl(var(--accent-primary))]" : "border-[hsl(var(--border-color))]"} hover:border-[hsl(var(--accent-primary)/0.3)] hover:shadow-lg transition-all ${isMobile ? "p-3" : "p-4"}`}>
       <div className="flex items-start justify-between gap-3">
@@ -930,38 +967,10 @@ function SkillCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-1 shrink-0">
-          {!readonly && (
-            <>
-              <IconButton
-                onClick={onEdit}
-                label={t("skills:editSkill")}
-                icon={<Pencil className="w-4 h-4" />}
-              />
-              <IconButton
-                onClick={onDelete}
-                label={t("skills:deleteConfirm.title")}
-                tone="danger"
-                icon={<Trash2 className="w-4 h-4" />}
-              />
-              <IconButton
-                onClick={onShare}
-                label={t("skills:share.title")}
-                icon={<Share2 className="w-4 h-4" />}
-              />
-            </>
-          )}
-          {onExport && (
-            <ExportButton onExport={onExport} exporting={exporting} isMobile={isMobile} />
-          )}
-          <IconButton
-            onClick={() => setExpanded(!expanded)}
-            label={expanded ? t("skills:collapse") : t("skills:expand")}
-            aria-expanded={expanded}
-            icon={expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          />
-        </div>
+        {!isMobile && actions}
       </div>
+      {/* Phones: five 44px actions would squeeze the title to nothing, so they get their own row. */}
+      {isMobile && actions}
 
       {/* Instructions - Markdown rendered */}
       {expanded && skill.instructions && (
@@ -1214,6 +1223,36 @@ function AddedSkillCard({
 }) {
   const { t } = useTranslation(["skills"]);
   const [expanded, setExpanded] = useState(false);
+
+  const actions = (
+    <div
+      data-testid="skill-card-actions"
+      className={isMobile ? "mt-2 flex items-center justify-end gap-1" : "flex items-center gap-1 shrink-0"}
+    >
+      <IconButton
+        onClick={onRemove}
+        disabled={removing}
+        label={t("skills:remove")}
+        tone="danger"
+        icon={
+          removing ? (
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+          ) : (
+            <MinusCircle className="w-4 h-4" />
+          )
+        }
+      />
+      {onExport && (
+        <ExportButton onExport={onExport} exporting={exporting} isMobile={isMobile} />
+      )}
+      <IconButton
+        onClick={() => setExpanded(!expanded)}
+        label={expanded ? t("skills:collapse") : t("skills:expand")}
+        aria-expanded={expanded}
+        icon={expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+      />
+    </div>
+  );
   const localizedCategory = getLocalizedSkillCategory(skill.category, t);
 
   return (
@@ -1258,31 +1297,9 @@ function AddedSkillCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-1 shrink-0">
-          <IconButton
-            onClick={onRemove}
-            disabled={removing}
-            label={t("skills:remove")}
-            tone="danger"
-            icon={
-              removing ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
-              ) : (
-                <MinusCircle className="w-4 h-4" />
-              )
-            }
-          />
-          {onExport && (
-            <ExportButton onExport={onExport} exporting={exporting} isMobile={isMobile} />
-          )}
-          <IconButton
-            onClick={() => setExpanded(!expanded)}
-            label={expanded ? t("skills:collapse") : t("skills:expand")}
-            aria-expanded={expanded}
-            icon={expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          />
-        </div>
+        {!isMobile && actions}
       </div>
+      {isMobile && actions}
 
       {/* Instructions - Markdown rendered */}
       {expanded && skill.instructions && (
