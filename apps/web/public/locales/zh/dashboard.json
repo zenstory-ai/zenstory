@@ -530,7 +530,8 @@
       "todaySent": "今天发了 {{count}} 条",
       "todaySent_one": "今天发了 {{count}} 条",
       "todaySent_other": "今天发了 {{count}} 条",
-      "quotaNote": "只算本项目里你发给 AI 的消息。今日 AI 消息额度按所有项目合计，以对话框上方的显示为准。"
+      "quotaNote": "只算本项目里你发给 AI 的消息。",
+      "quotaNoteWithDaily": "只算本项目里你发给 AI 的消息。今日 AI 消息额度按所有项目合计，以对话框上方的显示为准。"
     },
     "loading": "加载统计数据中...",
     "error": "加载失败",

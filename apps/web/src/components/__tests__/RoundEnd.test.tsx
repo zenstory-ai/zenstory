@@ -31,8 +31,11 @@ describe('RoundEndNote (stopped / interrupted round after a refresh)', () => {
 
   it.each([
     [{ reason: 'user_stopped', charged: false, saved_output: false }, true, '已停止 · 未计入今日 AI 消息'],
-    [{ reason: 'user_stopped', charged: true, saved_output: true }, true, '已停止 · 已写入的内容已保存'],
-    [{ reason: 'client_disconnected', charged: true, saved_output: false }, true, '已中断'],
+    // Same wording as the live stop note, so a refresh does not drop "counted".
+    [{ reason: 'user_stopped', charged: true, saved_output: true }, true, '已停止 · 已写入的内容已保存 · 本条计入今日 AI 消息'],
+    [{ reason: 'user_stopped', charged: true, saved_output: false }, true, '已停止 · 本条计入今日 AI 消息'],
+    [{ reason: 'client_disconnected', charged: true, saved_output: false }, true, '已中断 · 本条计入今日 AI 消息'],
+    [{ reason: 'user_stopped', charged: true, saved_output: true }, false, '已停止 · 已写入的内容已保存'],
     [{ reason: 'client_disconnected', charged: false, saved_output: false }, true, '已中断 · 未计入今日 AI 消息'],
     // Pro has no daily count to mention.
     [{ reason: 'user_stopped', charged: false, saved_output: false }, false, '已停止'],
@@ -40,6 +43,11 @@ describe('RoundEndNote (stopped / interrupted round after a refresh)', () => {
       { reason: 'user_stopped', charged: false, saved_output: false, removed_files: ['第1章 最后一页'] },
       true,
       '已停止 · 未计入今日 AI 消息 · 空白的《第1章 最后一页》已移除',
+    ],
+    [
+      { reason: 'user_stopped', charged: false, saved_output: false, removed_files: ['第1章', '第2章'] },
+      false,
+      '已停止 · 空白的《第1章》《第2章》已移除',
     ],
   ])('%j (daily count shown: %s) reads 「%s」', (raw, showDailyCount, text) => {
     render(<RoundEndNote outcome={outcome(raw)} showDailyCount={showDailyCount} />)

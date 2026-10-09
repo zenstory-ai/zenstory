@@ -34,8 +34,9 @@
     "resend": "Send again",
     "roundInterrupted": "Interrupted",
     "roundNotCounted": "Not counted toward today's AI messages",
-    "roundRemovedFiles": "Blank 《{{titles}}》 removed",
-    "removedEmptyFiles": " The blank file 《{{titles}}》 created this round was removed.",
+    "roundRemovedFiles": "Blank \"{{titles}}\" removed",
+    "removedEmptyFiles": " The blank file \"{{titles}}\" created this round was removed.",
+    "removedFilesJoiner": "\", \"",
     "unanswered": "This message didn't get a reply."
   },
   "input": {

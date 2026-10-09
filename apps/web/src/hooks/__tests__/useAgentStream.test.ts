@@ -842,6 +842,26 @@ describe('useAgentStream', () => {
       expect(result.current.isStreaming).toBe(false)
     })
 
+    it('does nothing once the round already ended (done arrived while the editor was saving)', async () => {
+      vi.mocked(agentApi.stopAgentRun).mockResolvedValue(true)
+      const { result, controller } = startWithRun()
+
+      act(() => {
+        controller.getCallbacks()?.onDone?.({ assistant_message_id: 'assistant-1' })
+      })
+      await act(async () => {
+        result.current.stop()
+      })
+      act(() => {
+        vi.advanceTimersByTime(STOP_GRACE_MS)
+      })
+
+      // No /stop for a finished run, and no fallback cancel that would drop the frames after done.
+      expect(agentApi.stopAgentRun).not.toHaveBeenCalled()
+      expect(controller.mockAbortController.abort).not.toHaveBeenCalled()
+      expect(result.current.isStopping).toBe(false)
+    })
+
     it('drops the connection right away before the run id is known', () => {
       const { result, controller } = startWithRun(null)
 
@@ -852,6 +872,43 @@ describe('useAgentStream', () => {
       expect(agentApi.stopAgentRun).not.toHaveBeenCalled()
       expect(controller.mockAbortController.abort).toHaveBeenCalled()
     })
+  })
+
+  describe('prose segment boundaries', () => {
+    it.each(['agent_selected', 'handoff', 'file_created', 'parallel_start'] as const)(
+      'delivers the text streamed before %s first, so the prose count can restart there',
+      (boundary) => {
+        const onSegmentUpdate = vi.fn()
+        const onBoundary = vi.fn()
+        const { result } = renderHook(() =>
+          useAgentStream('test-project-id', {
+            onSegmentUpdate,
+            onAgentSelected: onBoundary,
+            onHandoff: onBoundary,
+            onFileCreated: onBoundary,
+            onParallelStart: onBoundary,
+          }),
+        )
+        const controller = createMockStreamController()
+        act(() => {
+          result.current.startStream({ message: 'test' })
+        })
+        act(() => {
+          const callbacks = controller.getCallbacks()
+          callbacks?.onContent?.('甲'.repeat(40))
+          if (boundary === 'agent_selected') callbacks?.onAgentSelected?.('writer', '写手', 1, 5, 4)
+          if (boundary === 'handoff') {
+            callbacks?.onHandoff?.({ target_agent: 'writer', reason: '', context: '' } as never)
+          }
+          if (boundary === 'file_created') callbacks?.onFileCreated?.('file-1', 'draft', '第1章')
+          if (boundary === 'parallel_start') callbacks?.onParallelStart?.('exec-1', 2, ['a', 'b'], 0)
+        })
+
+        expect(onSegmentUpdate).toHaveBeenCalledWith(expect.any(String), '甲'.repeat(40))
+        expect(onBoundary).toHaveBeenCalledTimes(1)
+        expect(onSegmentUpdate.mock.invocationCallOrder[0]).toBeLessThan(onBoundary.mock.invocationCallOrder[0])
+      },
+    )
   })
 
   describe('onComplete', () => {

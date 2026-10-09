@@ -84,6 +84,7 @@ export default function MaterialsPage() {
   // authors need it too.
   const {
     data: quota,
+    isLoading: isQuotaLoading,
   } = useQuery({
     queryKey: subscriptionQueryKeys.quota(),
     queryFn: () => subscriptionApi.getQuota(),
@@ -133,8 +134,12 @@ export default function MaterialsPage() {
       return hasProcessing ? 3000 : false;
     },
   });
+  // A free author's page (teaser, trial or library) depends on the trial state in the
+  // quota: wait for it instead of flashing the Pro teaser first.
+  const isTrialStateLoading = materialsAccess === false && isQuotaLoading;
   const isMaterialsLoading =
     isSubscriptionLoading ||
+    isTrialStateLoading ||
     (canReadLibrary && (isLoading || (isFetching && materials.length === 0)));
   useRefreshMaterialLibraryOnCompletion(canReadLibrary ? materials : undefined);
 
@@ -155,6 +160,7 @@ export default function MaterialsPage() {
     if (
       isSubscriptionLoading ||
       isSubscriptionError ||
+      isTrialStateLoading ||
       !showTeaser ||
       teaserTrackedRef.current
     ) {
@@ -165,7 +171,7 @@ export default function MaterialsPage() {
       source: "materials_teaser",
     });
     teaserTrackedRef.current = true;
-  }, [isSubscriptionError, isSubscriptionLoading, showTeaser]);
+  }, [isSubscriptionError, isSubscriptionLoading, isTrialStateLoading, showTeaser]);
 
   if (isSubscriptionError) {
     return (

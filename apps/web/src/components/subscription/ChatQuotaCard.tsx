@@ -8,8 +8,11 @@ import { trackUpgradeClick, trackUpgradeExpose } from "../../lib/upgradeAnalytic
 const chatQuotaPrompt = getUpgradePromptDefinition("chat_quota_blocked");
 
 interface ChatQuotaCardProps {
-  /** Today's free AI message allowance (10 on the free plan). */
-  limit: number;
+  /**
+   * Today's free AI message allowance (10 on the free plan). Left out when the server
+   * refused a round while the cached count still shows room: the card then names no count.
+   */
+  limit?: number;
   /** Next Beijing midnight from the quota API; the card says "明天" when it is missing. */
   resetAt: string | null;
 }
@@ -38,7 +41,9 @@ export function ChatQuotaCard({ limit, resetAt }: ChatQuotaCardProps) {
     >
       <p className="flex items-start gap-1.5 text-xs font-medium leading-5 text-[hsl(var(--text-primary))]">
         <Clock size={14} aria-hidden="true" className="mt-[3px] shrink-0 text-[hsl(var(--error))]" />
-        {t("chat:quotaCard.title", { defaultValue: "今天的 {{limit}} 条免费 AI 消息用完了", limit })}
+        {typeof limit === "number" && limit > 0
+          ? t("chat:quotaCard.title", { defaultValue: "今天的 {{limit}} 条免费 AI 消息用完了", limit })
+          : t("chat:panel.quotaExceededTitle", { defaultValue: "今天的免费 AI 消息用完了" })}
       </p>
       <p className="mt-1 pl-5 text-xs leading-5 text-[hsl(var(--text-secondary))]">
         {resetDay

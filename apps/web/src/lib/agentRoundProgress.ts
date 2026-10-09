@@ -25,6 +25,46 @@ export function isRealProse(segmentContent: string): boolean {
 }
 
 /**
+ * Counts reply text the way the server does (`StreamBillingTracker._prose_reached`): only
+ * the text since the last segment boundary counts toward PROSE_MIN_CHARS. A boundary is a
+ * tool call / result, a handoff, an agent switch, a created file or a parallel batch start
+ * (the server's `_SEGMENT_BOUNDARY_EVENTS`); the stream may keep showing the text before
+ * and after it as one bubble segment, so the counter keeps its own offset.
+ */
+export interface ProseCounter {
+  /** A streamed segment's full content so far; true once the text since the last boundary is real prose. */
+  update(segmentId: string, segmentContent: string): boolean;
+  /** A segment boundary: text streamed after this counts from zero. */
+  boundary(): void;
+  /** A new round. */
+  reset(): void;
+}
+
+export function createProseCounter(): ProseCounter {
+  let segmentId: string | null = null;
+  let seen = 0;
+  let offset = 0;
+  return {
+    update(id, segmentContent) {
+      if (id !== segmentId) {
+        segmentId = id;
+        offset = 0;
+      }
+      seen = visibleLength(segmentContent);
+      return seen - offset >= PROSE_MIN_CHARS;
+    },
+    boundary() {
+      offset = seen;
+    },
+    reset() {
+      segmentId = null;
+      seen = 0;
+      offset = 0;
+    },
+  };
+}
+
+/**
  * Whether a tool result means this round left written text in a file (or deleted one),
  * so a stop note may say "已写入的内容已保存" and the round is charged when stopped.
  *

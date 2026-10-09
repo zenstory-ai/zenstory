@@ -232,6 +232,27 @@ describe("MaterialsPage", () => {
     material_trial: trial,
   });
 
+  it("waits for the trial state instead of flashing the Pro teaser first", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    let resolveQuota: (value: unknown) => void = () => {};
+    mockGetQuota.mockReturnValue(new Promise((resolve) => { resolveQuota = resolve; }));
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    await waitFor(() => expect(mockGetStatus).toHaveBeenCalled());
+    // Let the plan answer render; the quota (with the trial state) is still in flight.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(screen.queryByText("上传参考小说，一键拆出章节梗概、角色和世界观")).not.toBeInTheDocument();
+    expect(trackEventMock).not.toHaveBeenCalledWith("materials_teaser_exposed", expect.anything());
+
+    await act(async () => {
+      resolveQuota(freeQuota({ available: true, used: false, max_chapters: 20 }));
+    });
+    expect(await screen.findByTestId("materials-trial-start")).toBeInTheDocument();
+  });
+
   it("offers a free author one trial breakdown and explains its limits before upload", async () => {
     mockGetStatus.mockResolvedValue(freeStatus);
     mockGetQuota.mockResolvedValue(freeQuota({ available: true, used: false, max_chapters: 20 }));
@@ -305,6 +326,8 @@ describe("MaterialsPage", () => {
 
     const emptyState = await screen.findByTestId("materials-trial-used-empty");
     expect(emptyState).toHaveTextContent("免费试拆已经用过了");
+    // The shared dashboard empty state (same frame and type as every other empty library).
+    expect(within(emptyState).getByRole("heading", { level: 3, name: "免费试拆已经用过了" })).toBeInTheDocument();
     expect(screen.queryByText("materials:uploadFirst")).not.toBeInTheDocument();
     const upgrade = within(emptyState).getByRole("button", { name: "开通 Pro" });
     // The shared page-action button: solid primary, 40px on desktop.

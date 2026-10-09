@@ -183,7 +183,7 @@ export const pageSEOConfig: Record<string, SEOPageConfig> = {
   },
   '/dashboard/billing': {
     zh: { title: '订阅权益 - ZenStory', description: '套餐与用量', noindex: true },
-    en: { title: 'Plan & Usage - ZenStory', description: 'Plan and usage', noindex: true },
+    en: { title: 'Plans & Benefits - ZenStory', description: 'Plans and usage', noindex: true },
   },
   '/onboarding/persona': {
     zh: { title: '告诉我们你怎么写作 - ZenStory', description: '选择你的写作方向', noindex: true },

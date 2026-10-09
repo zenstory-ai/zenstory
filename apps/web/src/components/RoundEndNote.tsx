@@ -4,8 +4,8 @@ import type { RoundStopOutcome } from '../lib/chatRoundEnd';
 
 /**
  * The grey end-of-round line on a stopped / interrupted assistant message after a refresh,
- * e.g. 「已停止 · 未计入今日 AI 消息」 / 「已停止 · 已写入的内容已保存」 / 「已中断」.
- * Pro (no daily limit) never mentions the daily count.
+ * e.g. 「已停止 · 未计入今日 AI 消息」 / 「已停止 · 已写入的内容已保存 · 本条计入今日 AI 消息」 / 「已中断」:
+ * the same wording as the live stop note. Pro (no daily limit) never mentions the daily count.
  */
 export function RoundEndNote({ outcome, showDailyCount }: { outcome: RoundStopOutcome; showDailyCount: boolean }) {
   const { t } = useTranslation(['chat']);
@@ -19,10 +19,13 @@ export function RoundEndNote({ outcome, showDailyCount }: { outcome: RoundStopOu
     outcome.charged && outcome.savedOutput
       ? t('chat:panel.userStoppedSaved', { defaultValue: '已写入的内容已保存' })
       : null,
+    outcome.charged && showDailyCount
+      ? t('chat:panel.userStoppedCounted', { defaultValue: '本条计入今日 AI 消息' })
+      : null,
     outcome.removedFiles.length > 0
       ? t('chat:panel.roundRemovedFiles', {
         defaultValue: '空白的《{{titles}}》已移除',
-        titles: outcome.removedFiles.join('》《'),
+        titles: outcome.removedFiles.join(t('chat:panel.removedFilesJoiner', { defaultValue: '》《' })),
       })
       : null,
   ].filter(Boolean);
