@@ -413,6 +413,23 @@ describe('RedeemProModal', () => {
       })
     })
 
+    it('confirms with the standard solid primary button, not a gradient', async () => {
+      mockPointsApi.getBalance.mockResolvedValue({
+        available: 500, pending_expiration: 0, nearest_expiration_date: null,
+      })
+
+      render(<RedeemProModal isOpen={true} onClose={mockOnClose} />, {
+        wrapper: createWrapper(),
+      })
+
+      const redeemButton = await screen.findByRole('button', { name: '兑换' })
+      expect(redeemButton).toHaveClass('bg-[hsl(var(--accent-primary))]', 'min-h-[40px]')
+      expect(redeemButton.className).not.toMatch(/gradient/)
+      const cancelButton = screen.getByRole('button', { name: '取消' })
+      expect(cancelButton).toHaveClass('min-h-[40px]')
+      expect(cancelButton).not.toHaveClass('bg-[hsl(var(--accent-primary))]')
+    })
+
     it('updates button state when selecting more expensive option', async () => {
       mockPointsApi.getBalance.mockResolvedValue({
         available: 150, pending_expiration: 0, nearest_expiration_date: null,

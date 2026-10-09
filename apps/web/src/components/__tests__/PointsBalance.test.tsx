@@ -73,6 +73,22 @@ describe('PointsBalance', () => {
     expect(await screen.findByText('100 积分可兑换 7 天 Pro')).toBeInTheDocument()
   })
 
+  it('uses the one 12/500 grey section label of the points tab', async () => {
+    mockGetBalance.mockResolvedValue({
+      available: 1000,
+      pending_expiration: 0,
+      nearest_expiration_date: null,
+    })
+
+    renderWithQuery(<PointsBalance />)
+
+    expect(await screen.findByText('积分余额')).toHaveClass(
+      'text-xs',
+      'font-medium',
+      'text-[hsl(var(--text-secondary))]'
+    )
+  })
+
   it('omits the redeem hint when the price failed to load', async () => {
     mockGetConfig.mockRejectedValue(new Error('config unavailable'))
     mockGetBalance.mockResolvedValue({
