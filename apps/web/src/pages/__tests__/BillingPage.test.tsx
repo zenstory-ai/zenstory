@@ -282,6 +282,8 @@ describe('BillingPage', () => {
   })
 
   it('opens checkout as a renewal for Pro users', () => {
+    // Opened from the header, not from an attributed link.
+    currentSearch = ''
     statusResponse = {
       ...statusResponse,
       data: { tier: 'pro', display_name: 'Pro', display_name_en: 'Pro', status: 'active' },
@@ -290,6 +292,9 @@ describe('BillingPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Renew Pro' }))
     expect(screen.getByText('Payment modal')).toHaveAttribute('data-renewal', 'true')
+    // Renewals are attributed apart from upgrades.
+    expect(screen.getByText('Payment modal')).toHaveAttribute('data-source', 'billing_header_renew')
+    expect(trackUpgradeClick).toHaveBeenCalledWith('billing_header_renew', 'direct', 'checkout', 'page')
   })
 
   it('shows the free daily message limit and Beijing midnight reset beside usage', () => {

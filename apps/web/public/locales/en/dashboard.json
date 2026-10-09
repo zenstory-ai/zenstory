@@ -141,7 +141,9 @@
     "goToPayAmount": "Pay {{price}}",
     "paymentActivatedUntil": "Active until {{date}}. Time to write.",
     "paymentUnlockedTitle": "Unlocked",
-    "startWriting": "Start writing"
+    "startWriting": "Start writing",
+    "paidLimitReached": "You have used all of this allowance on your current plan.",
+    "gotIt": "Got it"
   },
   "todayActionPlan": {
     "title": "Things you can do today",

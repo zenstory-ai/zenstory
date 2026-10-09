@@ -486,6 +486,66 @@ async def test_admin_upgrade_conversion_stats_by_source(client: AsyncClient, db_
 
 
 @pytest.mark.integration
+async def test_admin_upgrade_conversion_counts_authors_who_hit_the_ai_quota_wall_first(
+    client: AsyncClient, db_session: Session
+):
+    """付费归因只记最后一次点击；撞过每日 AI 消息上限、之后才付费的转化要单独数出来。"""
+    admin = await create_user(db_session, "admin_wall_metrics", "admin_wall_metrics@example.com", is_superuser=True)
+    walled_paid = await create_user(db_session, "wall_paid", "wall_paid@example.com")
+    walled_code = await create_user(db_session, "wall_code", "wall_code@example.com")
+    walled_later = await create_user(db_session, "wall_later", "wall_later@example.com")
+    never_walled = await create_user(db_session, "wall_never", "wall_never@example.com")
+
+    now = utcnow()
+    for user, source in (
+        (walled_paid, "zpay"),
+        (walled_code, "redemption_code"),
+        (walled_later, "zpay"),
+        (never_walled, "zpay"),
+    ):
+        db_session.add(
+            SubscriptionHistory(
+                user_id=user.id,
+                action="upgraded",
+                plan_name="pro",
+                start_date=now,
+                end_date=now + timedelta(days=30),
+                # The last click before paying, not the wall.
+                event_metadata={"source": source, "upgrade_source": "billing_header_upgrade"},
+                created_at=now,
+            )
+        )
+    for user, source, occurred_at in (
+        (walled_paid, "chat_quota_blocked", now - timedelta(days=3)),
+        (walled_code, "settings_subscription_upgrade:blocked", now - timedelta(hours=2)),
+        # Hit the wall only after converting: does not explain the conversion.
+        (walled_later, "chat_quota_blocked", now + timedelta(hours=1)),
+        # A different limit is not the AI message wall.
+        (never_walled, "file_version_quota_blocked", now - timedelta(days=1)),
+    ):
+        db_session.add(
+            UpgradeFunnelEvent(
+                user_id=user.id,
+                event_name="upgrade_entry_expose",
+                action="expose",
+                source=source,
+                surface="modal",
+                occurred_at=occurred_at,
+            )
+        )
+    db_session.commit()
+
+    token = await login_user(client, admin.username)
+    data = (
+        await client.get("/api/admin/dashboard/upgrade-conversion?days=7", headers=auth_headers(token))
+    ).json()
+
+    assert data["total_conversions"] == 4
+    assert data["after_ai_quota_wall_conversions"] == 2
+    assert data["paid_after_ai_quota_wall_conversions"] == 1
+
+
+@pytest.mark.integration
 async def test_admin_upgrade_funnel_stats_by_source(client: AsyncClient, db_session: Session):
     admin = await create_user(db_session, "admin_upgrade_funnel", "admin_upgrade_funnel@example.com", is_superuser=True)
     user_a = await create_user(db_session, "upgrade_funnel_a", "upgrade_funnel_a@example.com")

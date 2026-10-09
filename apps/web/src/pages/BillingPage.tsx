@@ -35,6 +35,9 @@ type UsageKey =
   | "skill_creates"
   | "inspiration_copies";
 
+/** Attribution source for the paid header button, which renews rather than upgrades. */
+const RENEW_SOURCE = "billing_header_renew";
+
 export default function BillingPage() {
   const { t, i18n } = useTranslation(["dashboard", "settings", "common"]);
   const [searchParams] = useSearchParams();
@@ -187,6 +190,8 @@ export default function BillingPage() {
   // never claim "renew" for someone who may be on the free plan.
   const isUpgradableTier = status?.tier === "free";
   const isPaidTier = Boolean(status?.tier) && !isUpgradableTier;
+  // A paid author's header button renews; keep it apart from upgrades in attribution.
+  const checkoutSource = isPaidTier && !attributionSource ? RENEW_SOURCE : effectiveUpgradeSource;
   const statusLine = status ? getSubscriptionStatusLine(status, t) : null;
 
   return (
@@ -201,7 +206,7 @@ export default function BillingPage() {
                 size="sm"
                 onClick={() => {
                   trackUpgradeClick(
-                    effectiveUpgradeSource,
+                    checkoutSource,
                     "direct",
                     "checkout",
                     "page"
@@ -448,7 +453,7 @@ export default function BillingPage() {
           initialCycle={paymentCycle}
           monthlyPriceCents={proPlan?.price_monthly_cents}
           yearlyPriceCents={proPlan?.price_yearly_cents}
-          upgradeSource={effectiveUpgradeSource}
+          upgradeSource={checkoutSource}
           isRenewal={isPaidTier}
           redeemEntry="on-page"
         />

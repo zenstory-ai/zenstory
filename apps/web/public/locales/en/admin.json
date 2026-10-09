@@ -95,7 +95,9 @@
       "admin_update": "Admin grant",
       "other": "Other"
     },
-    "upgradeEntryEvents": "Upgrade entry events"
+    "upgradeEntryEvents": "Upgrade entry events",
+    "upgradeAfterAiQuotaWall": "Converted after hitting the daily AI limit",
+    "upgradeAfterAiQuotaWallPaid": "{{count}} paid"
   },
   "users": {
     "title": "User Management",

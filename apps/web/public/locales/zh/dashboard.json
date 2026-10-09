@@ -141,7 +141,9 @@
     "goToPayAmount": "去支付 {{price}}",
     "paymentActivatedUntil": "有效期至 {{date}}，现在就去写吧。",
     "paymentUnlockedTitle": "已解锁",
-    "startWriting": "开始写作"
+    "startWriting": "开始写作",
+    "paidLimitReached": "当前套餐的这项额度已经用满了。",
+    "gotIt": "知道了"
   },
   "todayActionPlan": {
     "title": "今天可以做的事",

@@ -686,6 +686,8 @@ describe('adminApi', () => {
         total_conversions: '20',
         paid_conversions: '12',
         unattributed_conversions: '5',
+        after_ai_quota_wall_conversions: '9',
+        paid_after_ai_quota_wall_conversions: '6',
         channels: [
           { channel: 'zpay', conversions: '12', paid: true },
           { channel: 'admin_update', conversions: '8', paid: 'yes' },
@@ -714,6 +716,8 @@ describe('adminApi', () => {
         total_conversions: 20,
         paid_conversions: 12,
         unattributed_conversions: 5,
+        after_ai_quota_wall_conversions: 9,
+        paid_after_ai_quota_wall_conversions: 6,
         channels: [
           { channel: 'zpay', conversions: 12, paid: true },
           // Only a literal true counts as paid.

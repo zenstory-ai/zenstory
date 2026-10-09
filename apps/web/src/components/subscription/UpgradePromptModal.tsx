@@ -1,5 +1,7 @@
 import { Sparkles } from "lucide-react";
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
+import { usePaidPlanWhenOpen } from "../../hooks/usePaidPlanWhenOpen";
 import { trackUpgradeClick, trackUpgradeExpose, type UpgradeFunnelSurface } from "../../lib/upgradeAnalytics";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
@@ -33,7 +35,11 @@ export function UpgradePromptModal({
   primaryDestination,
   secondaryDestination,
 }: UpgradePromptModalProps) {
+  const { t } = useTranslation(["dashboard"]);
   const trackedExposeRef = useRef(false);
+  // A paid author hitting a paid-plan limit has nothing to upgrade to: say the limit is
+  // reached instead of offering "开通 Pro", and keep it out of the upgrade funnel.
+  const { isPaid, resolved } = usePaidPlanWhenOpen(open);
 
   useEffect(() => {
     if (!open) {
@@ -41,11 +47,32 @@ export function UpgradePromptModal({
       return;
     }
 
-    if (source && !trackedExposeRef.current) {
+    if (source && resolved && !isPaid && !trackedExposeRef.current) {
       trackUpgradeExpose(source, surface);
       trackedExposeRef.current = true;
     }
-  }, [open, source, surface]);
+  }, [open, source, surface, resolved, isPaid]);
+
+  if (isPaid) {
+    return (
+      <Modal
+        open={open}
+        onClose={onClose}
+        size="md"
+        title={title}
+        className="w-[calc(100vw-32px)] sm:w-auto"
+      >
+        <div className="space-y-3">
+          <p className="text-sm leading-relaxed text-[hsl(var(--text-secondary))]">
+            {t("dashboard:billing.paidLimitReached", "当前套餐的这项额度已经用满了。")}
+          </p>
+          <Button className="w-full" onClick={onClose}>
+            {t("dashboard:billing.gotIt", "知道了")}
+          </Button>
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <Modal
