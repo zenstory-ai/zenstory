@@ -60,3 +60,13 @@ def test_missing_db_config_still_raises_503_before_norms(monkeypatch):
         prompts.get_prompt_for_project_type("short", "project-1", FOLDER_IDS)
 
     assert excinfo.value.status_code == 503
+
+
+def test_screenplay_norms_end_episode_on_the_hook_without_end_marker():
+    """短剧规范要盖过 DB 配置里的「【本集完】」：planner 直接写剧本时不读 WRITER_PROMPT，只看题材规范。"""
+    norms = prompts.get_genre_norms("screenplay")
+
+    assert "【本集完】" in norms
+    assert "钩子就是剧本最后一行" in norms
+    # 每类不超过 8 条
+    assert sum(1 for line in norms.splitlines() if line.startswith("- ")) <= 8
