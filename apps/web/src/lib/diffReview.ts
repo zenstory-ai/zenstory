@@ -8,7 +8,8 @@ import type { PendingEdit } from "../types";
 
 export type ReviewDiffTuple = [number, string];
 
-const PARAGRAPH_BREAK_RE = /(?:\r\n|\n|\r)(?:[ \t]*(?:\r\n|\n|\r))+/g;
+// A lone \r only counts when no \n follows, so "\r\n" has exactly one parse (no catastrophic backtracking).
+const PARAGRAPH_BREAK_RE = /(?:\r\n|\n|\r(?!\n))(?:[ \t]*(?:\r\n|\n|\r(?!\n)))+/g;
 
 function normalizeComparableText(text: string): string {
   return text.replace(/\r\n/g, "\n").trim();
@@ -22,14 +23,50 @@ function isNoopReplacement(oldText: string, newText: string): boolean {
   return normalizeComparableText(oldText) === normalizeComparableText(newText);
 }
 
-const TRAILING_PARAGRAPH_BREAK_RE = /(?:\r\n|\n|\r)(?:[ \t]*(?:\r\n|\n|\r))+$/;
 
+const isLineBreakChar = (char: string | undefined): boolean => char === "\n" || char === "\r";
+
+/**
+ * The trailing paragraph break (two or more line breaks, with only spaces/tabs
+ * between them) at the very end of `text`, or "". A backward linear scan: an
+ * end-anchored regex here costs quadratic time on long runs of line breaks.
+ */
 function trailingParagraphBreak(text: string): string {
-  return text.match(TRAILING_PARAGRAPH_BREAK_RE)?.[0] ?? "";
+  if (!isLineBreakChar(text[text.length - 1])) return "";
+  let index = text.length;
+  let start = index;
+  let breaks = 0;
+  while (index > 0) {
+    const char = text[index - 1];
+    if (char === "\n") {
+      index -= index >= 2 && text[index - 2] === "\r" ? 2 : 1;
+      breaks += 1;
+      start = index;
+      continue;
+    }
+    if (char === "\r") {
+      index -= 1;
+      breaks += 1;
+      start = index;
+      continue;
+    }
+    if (char === " " || char === "\t") {
+      let spaceStart = index;
+      while (spaceStart > 0 && (text[spaceStart - 1] === " " || text[spaceStart - 1] === "\t")) {
+        spaceStart -= 1;
+      }
+      // Spaces only belong to the break when another line break precedes them.
+      if (!isLineBreakChar(text[spaceStart - 1])) break;
+      index = spaceStart;
+      continue;
+    }
+    break;
+  }
+  return breaks >= 2 ? text.slice(start) : "";
 }
 
 function endsWithParagraphBreak(text: string): boolean {
-  return TRAILING_PARAGRAPH_BREAK_RE.test(text);
+  return trailingParagraphBreak(text) !== "";
 }
 
 function splitParagraphBlocks(text: string): string[] {

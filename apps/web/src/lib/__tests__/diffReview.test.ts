@@ -154,3 +154,17 @@ describe("diffReview paragraph helpers", () => {
     });
   });
 });
+
+describe("diffReview paragraph regex performance", () => {
+  it("handles long runs of CRLF line breaks in linear time (no catastrophic backtracking)", () => {
+    // "\n" followed by many "\r\n" plus a non-break tail is the worst case CodeQL flagged.
+    const adversarial = `\n${"\r\n".repeat(20000)}x`;
+    const started = performance.now();
+    const state = computeParagraphReviewDiffs(adversarial, `${adversarial}y`);
+    expect(state).toBeTruthy();
+    // Trailing-break path: a long CRLF run at the very end of both texts.
+    const trailing = `第一段${"\r\n".repeat(20000)}`;
+    expect(computeParagraphReviewDiffs(`开头\n\n${trailing}`, `开头改\n\n${trailing}`)).toBeTruthy();
+    expect(performance.now() - started).toBeLessThan(2000);
+  });
+});
