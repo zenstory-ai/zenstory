@@ -50,7 +50,7 @@ Status: implemented
   - 原句内容有一半以上出现在同一行的别处（两句并成一句），不算丢失。
 - 整行被删、但行里有受保护句：放回这些句子。整行都是受保护句时，结果就是原行。
 - 行首的「角色：」「角色（神态）：」和「△」两边都有时先拿掉再对照，放回句子时不会多出第二个前缀。
-- 放回后的行沿用原行的段首和行尾空白。有句子被放回时记 WARNING 日志 `Natural polish restored sentences the model dropped`。
+- 放回后的行由 `join_sentences` 拼回：改写结果的最后一句没有句末空白，原句放到它后面时，如果前一句以英文句末标点（可带右引号、右括号，标点前不是汉字）结尾、后一句以拉丁字母或数字开头（可带左引号、左括号），两句之间补一个空格；中文边界照旧直接相连。放回后的行沿用原行的段首和行尾空白。有句子被放回时记 WARNING 日志 `Natural polish restored sentences the model dropped`。
 - `apply_full_rewrite` 行数不同、无法逐行配对时：把全文拉平成句子列表再对照。只要丢了一句受保护句，就整段返回原文。
 
 **解析**
@@ -91,12 +91,13 @@ Status: implemented
 ## Verification
 
 - 自动化测试：
-  - `tests/test_services/test_natural_polish_service.py`：`split_sentences` 能拼回原文；受保护句的判定；主题句在句尾和句中被删时都放回原位；整行删除放回；套话句和短句可删；句内删排比、分量相当的改写、两句并一句都不放回；主题句删到只剩几个字时放回；剧本台词行和 △ 行放回后只有一个前缀；整段改写行数不同、丢了主题句时返回原文。
+  - `tests/test_services/test_natural_polish_service.py`：`split_sentences` 能拼回原文；受保护句的判定；主题句在句尾和句中被删时都放回原位；整行删除放回；套话句和短句可删；句内删排比、分量相当的改写、两句并一句都不放回；主题句删到只剩几个字时放回；英文行放回的句子和前后句之间各一个空格，结果和原行逐字节相同，中文边界不加空格；剧本台词行和 △ 行放回后只有一个前缀；整段改写行数不同、丢了主题句时返回原文。
   - `tests/test_api/test_editor_natural_polish.py`：
     - 经真实 service 和真实额度表走完整接口：主题句被放回、其余删减照常生效，额度 0→1；只删了主题句时 `unchanged=true`，额度 0→0；
     - 删掉含内容的升华句会放回，换成具体画面的改写保留；
     - 提示里不再出现最后一句；中文三连排比提示；
     - 只有「原：」的输出按无改动处理。
   - 换回改动前的 service 跑这个文件，新增和改写的 7 条全部失败，其余 22 条照常通过。
-  - 上面两个文件加 `test_round3_converge.py` 共 48 条通过，`ruff check` 通过。
+  - 换回改动前的 `"".join` 拼句，英文放回的两条用例失败（`She left.She would rather…`）。
+  - 上面两个文件加 `test_round3_converge.py` 共 50 条通过，`ruff check` 通过。
 - 真实模型检查：12 次请求，结果记在上一篇的 Verification 里（「去AI味只改写不删句复跑」一节）。

@@ -649,8 +649,36 @@ def guard_line_sentences(original_line: str, new_line: str) -> tuple[str, int]:
     )
     if not restored:
         return new_line, 0
-    body = "".join(sentences).strip()
+    body = join_sentences(sentences).strip()
     return _leading_ws(original_line) + prefix + body + _trailing_ws(original_line), restored
+
+
+# 英文句末标点（可带右引号、右括号），且标点前不是汉字；下一句以拉丁字母或数字开头（可带左引号、左括号）。
+_LATIN_SENTENCE_END_RE = re.compile(r"(?<![㐀-䶿一-鿿.!?…])[.!?…]+[\"'”’)\]]*$")
+_LATIN_SENTENCE_START_RE = re.compile(r"^[\"'“‘(\[]*[A-Za-z0-9]")
+
+
+def join_sentences(sentences: list[str]) -> str:
+    """Join sentences back into one line.
+
+    改写结果的最后一句没有句末空白，原句放回到它后面时会和它粘在一起。英文这类用空格
+    隔开句子的文字，在两句都没有空白的拉丁边界补一个空格；中文边界照旧直接相连。
+    """
+    out: list[str] = []
+    for sentence in sentences:
+        if not sentence:
+            continue
+        if out:
+            previous = out[-1]
+            if (
+                not previous[-1].isspace()
+                and not sentence[0].isspace()
+                and _LATIN_SENTENCE_END_RE.search(previous)
+                and _LATIN_SENTENCE_START_RE.match(sentence)
+            ):
+                out.append(" ")
+        out.append(sentence)
+    return "".join(out)
 
 
 @dataclass

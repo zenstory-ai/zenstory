@@ -15,6 +15,7 @@ from services.features.natural_polish_service import (
     apply_line_edits,
     guard_line_sentences,
     is_protected_sentence,
+    join_sentences,
     parse_line_edits,
     split_sentences,
 )
@@ -105,6 +106,35 @@ def test_dropped_theme_sentence_is_put_back_at_its_position():
     # 在中间删掉的句子也回到原来的位置。
     original = "　　她没回头。她宁可让我恨她，也不肯让我知道，我恨错了人。门在她身后关上。"
     assert guard_line_sentences(original, "　　她没回头。门在她身后关上。")[0] == original
+
+
+@pytest.mark.unit
+def test_restored_english_sentence_keeps_the_space_before_it():
+    # 模型改写的最后一句没有句末空白；放回的原句不能和它粘在一起。
+    original = "She left. She would rather I hated her than ever learned the truth about my father and the money."
+
+    text, _ = apply_line_edits(original, parse_line_edits(f"OLD: {original}\nNEW: She left."))
+
+    assert text == original
+    indented = f"    {original}  "
+    assert guard_line_sentences(indented, "    She left.")[0] == indented
+    # 句中被删的英文句子放回后，前后各一个空格，不多不少。
+    middle = (
+        "He sat down. She would rather I hated her than ever learned the truth about my father and the money. "
+        'The door shut. "Fine," he said.'
+    )
+    assert guard_line_sentences(middle, 'He sat down. The door shut. "Fine," he said.')[0] == middle
+
+
+@pytest.mark.unit
+def test_join_sentences_adds_a_space_only_at_latin_boundaries():
+    assert join_sentences(["She left.", "Then the rain came."]) == "She left. Then the rain came."
+    assert join_sentences(['He said "no."', "Then 3.5 left."]) == 'He said "no." Then 3.5 left.'
+    assert join_sentences(["She left. ", "Then"]) == "She left. Then"
+    # 中文边界照旧直接相连，即使中文里用了半角问号或下一句以英文开头。
+    assert join_sentences(["“走吧。”", "她说。"]) == "“走吧。”她说。"
+    assert join_sentences(["他走了?", "OK，就这样。"]) == "他走了?OK，就这样。"
+    assert join_sentences(["他没动……", "雨还在下。"]) == "他没动……雨还在下。"
 
 
 @pytest.mark.unit
