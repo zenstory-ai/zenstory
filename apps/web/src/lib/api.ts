@@ -704,7 +704,9 @@ export const fileVersionApi = {
    * @param options.limit - Maximum number of versions to return (default: 20)
    * @param options.offset - Number of versions to skip (for pagination)
    * @param options.includeAutoSave - Include auto-save versions in results
-   * @returns Promise resolving to paginated version list with total count
+   * @returns Promise resolving to paginated version list with total count.
+   *   The first page (offset 0) also carries `current_version_number`: the
+   *   version matching the live text, or null when unsaved-to-history edits exist.
    *
    * @example
    * ```ts

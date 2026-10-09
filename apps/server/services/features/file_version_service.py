@@ -8,9 +8,10 @@ Uses incremental diff storage with periodic base versions for efficiency.
 import contextlib
 import difflib
 import json
+import os
 import re
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import and_, or_
@@ -18,7 +19,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, col, func, select
 
 from config.datetime_utils import advance_timestamp, normalize_datetime_to_utc, utcnow
-from models import File, FileVersion
+from models import File, FileVersion, Snapshot
 from models.file_version import (
     CHANGE_SOURCE_SYSTEM,
     CHANGE_SOURCE_USER,
@@ -35,6 +36,23 @@ from utils.text_metrics import count_words
 logger = get_logger(__name__)
 MAX_CREATE_VERSION_RETRIES = 3
 CONTENT_RECONSTRUCTION_BATCH_SIZE = 200
+DEFAULT_USER_VERSION_COALESCE_WINDOW_SECONDS = 600
+
+
+def user_version_coalesce_window_seconds() -> int:
+    """连续手动保存合并进同一个版本的时间窗（秒）。
+
+    环境变量 USER_VERSION_COALESCE_WINDOW_SECONDS 可覆盖；非法值或负数回落默认值，
+    0 表示关闭合并（每次正文变化都新建版本）。
+    """
+    raw = os.getenv("USER_VERSION_COALESCE_WINDOW_SECONDS")
+    if raw is None or not raw.strip():
+        return DEFAULT_USER_VERSION_COALESCE_WINDOW_SECONDS
+    try:
+        value = int(raw)
+    except ValueError:
+        return DEFAULT_USER_VERSION_COALESCE_WINDOW_SECONDS
+    return value if value >= 0 else DEFAULT_USER_VERSION_COALESCE_WINDOW_SECONDS
 
 
 class FileVersionService:
@@ -305,6 +323,91 @@ class FileVersionService:
         )
         return session.exec(query).first()
 
+    def find_coalescible_user_version(
+        self,
+        session: Session,
+        file: File,
+        *,
+        now: datetime | None = None,
+    ) -> FileVersion | None:
+        """返回可以吸收本次手动保存的最新版本；不可合并时返回 None。
+
+        只有同时满足以下条件时才合并（改写最新版本而不是新建）：
+        - 最新版本是用户的手动编辑（change_source=user 且 change_type=edit）；
+        - 它的 created_at 距现在不足合并时间窗；
+        - 项目里没有在它之后（含同一时刻）拍下的快照。快照按 version_id 引用
+          版本，改写被引用的版本会悄悄改变快照内容。
+
+        调用方必须持有该文件的写锁（PG 行锁 / SQLite 条带锁），并且只在本次
+        保存的 change_type 为 edit 时调用。
+        """
+        window = user_version_coalesce_window_seconds()
+        if window <= 0:
+            return None
+
+        latest = self.get_latest_version(session, file.id)
+        if latest is None:
+            return None
+        if latest.change_source != CHANGE_SOURCE_USER or latest.change_type != CHANGE_TYPE_EDIT:
+            return None
+        if latest.snapshot_id is not None:
+            return None
+
+        current_time = normalize_datetime_to_utc(now or utcnow())
+        started_at = normalize_datetime_to_utc(latest.created_at)
+        if current_time - started_at >= timedelta(seconds=window):
+            return None
+
+        later_snapshot = session.exec(
+            select(Snapshot.id)
+            .where(
+                Snapshot.project_id == file.project_id,
+                col(Snapshot.created_at) >= latest.created_at,
+            )
+            .limit(1)
+        ).first()
+        if later_snapshot is not None:
+            return None
+
+        return latest
+
+    def amend_latest_user_version(
+        self,
+        session: Session,
+        version: FileVersion,
+        new_content: str,
+    ) -> FileVersion:
+        """把新正文改写进最新的用户版本（不新建版本、不占额度）。
+
+        base 版本直接存全文；delta 版本相对 version_number-1 的内容重新算 diff。
+        word/char 计数和行增删统计一并按「上一个版本 -> 新正文」重算；
+        created_at 保持窗口起点，所以连续保存不会无限续期同一个版本。
+        只负责 flush，事务由调用方（持锁的 update_file）提交。
+        """
+        latest = self.get_latest_version(session, version.file_id)
+        if latest is None or latest.id != version.id:
+            raise ValueError("Only the latest file version can be amended")
+
+        previous_content = (
+            self.get_content_at_version(session, version.file_id, version.version_number - 1)
+            if version.version_number > 1
+            else ""
+        )
+        version.content = (
+            new_content
+            if version.is_base_version
+            else self._create_diff(previous_content, new_content)
+        )
+        version.lines_added, version.lines_removed = self._calculate_diff_stats(
+            previous_content,
+            new_content,
+        )
+        version.word_count = count_words(new_content)
+        version.char_count = len(new_content)
+        session.add(version)
+        session.flush()
+        return version
+
     def get_content_at_version(
         self, session: Session, file_id: str, version_number: int
     ) -> str:
@@ -464,6 +567,10 @@ class FileVersionService:
         Rollback a file to a previous version.
 
         Creates a new version with the old content (doesn't delete history).
+        When the live content is non-empty and differs from the latest version,
+        it is first saved as a system backup version ("Before restoring version
+        N", not counted against the user's quota) in the same transaction; if
+        that backup fails, the restore is aborted with a 500 and nothing changes.
 
         Args:
             session: Database session
@@ -519,6 +626,17 @@ class FileVersionService:
 
             content = self.get_content_at_version(session, file_id, version_number)
 
+            # 覆盖正文之前，先把「还没进历史」的当前正文存成一个系统备份版本。
+            # 否则用户手动改过、又恰好没形成版本（合并窗口外的额度已满、或旧客户端
+            # 跳过版本）的正文，一次恢复就永久丢了。备份不占用户额度；备份失败时
+            # 整体放弃这次恢复，正文保持不变——宁可恢复失败，也不能丢稿。
+            self._backup_unversioned_content_before_restore(
+                session,
+                file,
+                restored_content=content,
+                version_number=version_number,
+            )
+
             # Update file content
             file.content = content
             file.updated_at = advance_timestamp(file.updated_at, now=utcnow())
@@ -565,6 +683,53 @@ class FileVersionService:
             session.refresh(file)
 
         return file, new_version, version_quota_exceeded
+
+    def _backup_unversioned_content_before_restore(
+        self,
+        session: Session,
+        file: File,
+        *,
+        restored_content: str,
+        version_number: int,
+    ) -> FileVersion | None:
+        """恢复前备份当前正文；无需备份时返回 None，备份失败抛 500 并回滚事务。"""
+        current = file.content or ""
+        if not current.strip() or current == restored_content:
+            return None
+
+        latest = self.get_latest_version(session, file.id)
+        if latest is not None:
+            latest_content = self.get_content_at_version(session, file.id, latest.version_number)
+            if latest_content == current:
+                return None
+
+        try:
+            return self.create_version(
+                session=session,
+                file_id=file.id,
+                new_content=current,
+                change_type=CHANGE_TYPE_EDIT,
+                change_source=CHANGE_SOURCE_SYSTEM,
+                change_summary=f"Before restoring version {version_number}",
+                force_base=True,
+                skip_quota=True,
+                commit=False,
+            )
+        except Exception as exc:
+            session.rollback()
+            logger.error(
+                "Failed to back up current content before restore; restore aborted",
+                exc_info=True,
+                extra={"file_id": file.id, "version_number": version_number},
+            )
+            from core.error_codes import ErrorCode
+            from core.error_handler import APIException
+
+            raise APIException(
+                error_code=ErrorCode.VERSION_RESTORE_FAILED,
+                status_code=500,
+                detail="Could not back up the current text before restoring; nothing was changed.",
+            ) from exc
 
     def get_version_count(
         self,

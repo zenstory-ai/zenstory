@@ -21,6 +21,8 @@ import { formatRelativeTime } from "../lib/dateUtils";
 import type { FileVersion, VersionComparison } from "../types";
 import { DiffViewer } from "./DiffViewer";
 import { Modal } from "./ui/Modal";
+import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { formatVersionSummary } from "../lib/versionSummary";
 import { logger } from "../lib/logger";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
@@ -39,6 +41,7 @@ interface FileVersionHistoryProps {
 interface VersionRowWrapperProps {
   index: number;
   versions: FileVersion[];
+  currentVersionNumber: number | null;
   selectedVersions: number[];
   t: (key: string, params?: Record<string, unknown>) => string;
   onSelectVersion: (versionNumber: number) => void;
@@ -71,6 +74,10 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
   const [showComparison, setShowComparison] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [isRollingBack, setIsRollingBack] = useState(false);
+  const [pendingRollback, setPendingRollback] = useState<number | null>(null);
+  // Only the server can tell whether the live text is already in history.
+  // A missing field (older server) leaves every row unmarked.
+  const [currentVersionNumber, setCurrentVersionNumber] = useState<number | null>(null);
   const rollbackInFlightRef = useRef(false);
   const [preview, setPreview] = useState<{ content: string; versionNumber: number } | null>(null);
   const listRequestGenerationRef = useRef(0);
@@ -103,6 +110,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
       ) {
         return;
       }
+      if (!append) setCurrentVersionNumber(response.current_version_number ?? null);
       setVersions((current) => {
         if (!append) return response.versions;
         const existing = new Set(current.map((version) => version.version_number));
@@ -137,6 +145,8 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
     fileContextGenerationRef.current += 1;
     setVersions([]);
     setTotal(0);
+    setCurrentVersionNumber(null);
+    setPendingRollback(null);
     setSelectedVersions([]);
     setComparison(null);
     setIsComparing(false);
@@ -185,14 +195,19 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
     }
   };
 
-  const handleRollback = async (versionNumber: number) => {
+  const handleRollback = (versionNumber: number) => {
     if (rollbackInFlightRef.current) return;
-    if (
-      !confirm(t('rollbackConfirm', { version: versionNumber }))
-    ) {
-      return;
-    }
+    setPendingRollback(versionNumber);
+  };
 
+  const handleConfirmRollback = () => {
+    const versionNumber = pendingRollback;
+    setPendingRollback(null);
+    if (versionNumber !== null) void performRollback(versionNumber);
+  };
+
+  const performRollback = async (versionNumber: number) => {
+    if (rollbackInFlightRef.current) return;
     const fileContextGeneration = fileContextGenerationRef.current;
     let submitted = false;
     try {
@@ -310,6 +325,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
   const VersionRowWrapper: React.FC<VersionRowWrapperProps> = ({
     index,
     versions,
+    currentVersionNumber,
     selectedVersions,
     t,
     onSelectVersion,
@@ -349,9 +365,9 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
             <span className={getChangeTypeBadgeClass(version.change_type, version.change_source)}>
               {getChangeTypeLabel(version.change_type)}
             </span>
-            {index === 0 && (
+            {currentVersionNumber !== null && version.version_number === currentVersionNumber && (
               <span className="badge-success">
-                {t('latestSaved')}
+                {t('currentText')}
               </span>
             )}
           </div>
@@ -407,7 +423,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
 
         {version.change_summary && (
           <div className="mt-1 text-xs text-[hsl(var(--text-secondary))]">
-            {version.change_summary}
+            {formatVersionSummary(version.change_summary, t)}
           </div>
         )}
       </div>
@@ -495,6 +511,7 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
                   key={version.version_number}
                   index={index}
                   versions={versions}
+                  currentVersionNumber={currentVersionNumber}
                   selectedVersions={selectedVersions}
                   t={t}
                   onSelectVersion={handleSelectVersion}
@@ -569,6 +586,17 @@ export const FileVersionHistory: React.FC<FileVersionHistoryProps> = ({
         )}
       </div>
       </Modal>
+
+      <ConfirmDialog
+        open={pendingRollback !== null}
+        onClose={() => setPendingRollback(null)}
+        onConfirm={handleConfirmRollback}
+        title={t('rollback')}
+        message={t('rollbackConfirm', { version: pendingRollback ?? '' })}
+        confirmLabel={t('rollbackConfirmButton')}
+        cancelLabel={t('common:cancel')}
+        variant="warning"
+      />
 
       <UpgradePromptModal
         open={showUpgradeModal}
