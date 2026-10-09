@@ -346,7 +346,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
     try {
       await fileApi.upload(currentProjectId, file);
       await loadData(false);
-      toast.success(t('editor:fileTree.uploadSuccess'));
+      toast.success(t('editor:fileTree.uploadSuccess', { name: file.name }));
     } catch (error) {
       logger.error("Failed to upload file:", error);
       const message = error instanceof Error ? error.message : t('editor:fileTree.uploadFailed');
