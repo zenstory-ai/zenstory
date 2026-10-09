@@ -329,13 +329,15 @@ test.describe('Files', () => {
     const fileToDelete = page.locator('.overflow-auto >> text=待删除文件').first()
     await expect(fileToDelete).toBeVisible()
 
-    // Setup dialog handler
-    page.on('dialog', dialog => dialog.accept())
-
     // Hover over file to reveal delete button
     await fileToDelete.hover()
     const deleteButton = fileToDelete.locator('..').locator('button:has(svg.lucide-trash-2)').first()
     await deleteButton.click({ force: true })
+
+    // Confirm in the in-app dialog
+    const confirmDialog = page.getByRole('dialog')
+    await expect(confirmDialog).toBeVisible()
+    await confirmDialog.getByRole('button', { name: '删除' }).click()
 
     // Verify file is gone
     await expect(page.locator('.overflow-auto >> text=待删除文件')).not.toBeVisible()

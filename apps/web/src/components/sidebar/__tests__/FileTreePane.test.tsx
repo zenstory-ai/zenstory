@@ -1,5 +1,5 @@
 import { StrictMode } from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FileSearchProvider } from '../../../contexts/FileSearchContext';
 import { FileTreePane } from '../FileTreePane';
@@ -13,25 +13,29 @@ const mocks = vi.hoisted(() => ({
   createFile: vi.fn(),
   deleteFile: vi.fn(),
   toastError: vi.fn(),
+  toastInfo: vi.fn(),
+  addMaterial: vi.fn(() => true),
+  isAtLimit: false,
   projectId: 'project-1' as string | null,
+  selectedItem: null as { id: string; type: string; title: string } | null,
   results: [{ id: 'draft-1', fileType: 'draft', title: 'Draft' }],
 }));
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('../../../contexts/ProjectContext', () => ({
-  useProject: () => ({ currentProjectId: mocks.projectId, selectedItem: null, setSelectedItem: mocks.select, fileTreeVersion: 0 }),
+  useProject: () => ({ currentProjectId: mocks.projectId, selectedItem: mocks.selectedItem, setSelectedItem: mocks.select, fileTreeVersion: 0 }),
 }));
 vi.mock('../../../contexts/MobileLayoutContext', () => ({
   useMobileLayout: () => ({ isMobile: false, switchToEditor: mocks.switchToEditor }),
 }));
 vi.mock('../../../contexts/MaterialAttachmentContext', () => ({
   MAX_ATTACHED_MATERIALS: 5,
-  useMaterialAttachment: () => ({ addMaterial: vi.fn(), removeMaterial: vi.fn(), isMaterialAttached: () => false, isAtLimit: false }),
+  useMaterialAttachment: () => ({ addMaterial: mocks.addMaterial, removeMaterial: vi.fn(), isMaterialAttached: () => false, isAtLimit: mocks.isAtLimit }),
 }));
 vi.mock('../../../lib/api', () => ({
   fileApi: { getTree: mocks.getTree, create: mocks.createFile, delete: mocks.deleteFile },
 }));
-vi.mock('../../../lib/toast', () => ({ toast: { error: mocks.toastError, success: vi.fn(), info: vi.fn() } }));
+vi.mock('../../../lib/toast', () => ({ toast: { error: mocks.toastError, success: vi.fn(), info: mocks.toastInfo } }));
 vi.mock('../../../lib/logger', () => ({ logger: { error: mocks.loggerError } }));
 vi.mock('../../../hooks/useFileSearch', () => ({
   useFileSearch: () => ({ results: mocks.results, isSearching: false, clearSearch: mocks.clearSearch }),
@@ -262,17 +266,107 @@ describe('FileTreePane create/delete failures', () => {
   });
 
   it('shows the deleteFailed toast and keeps the file in the tree when deleting fails', async () => {
-    vi.stubGlobal('confirm', vi.fn(() => true));
+    const nativeConfirm = vi.fn(() => true);
+    vi.stubGlobal('confirm', nativeConfirm);
     mocks.deleteFile.mockRejectedValue(new Error('server error'));
     render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
     expect(await screen.findByText('Lin Feng')).toBeInTheDocument();
     fireEvent.click(screen.getByTitle('common:delete'));
 
+    const dialog = await screen.findByRole('dialog');
+    expect(nativeConfirm).not.toHaveBeenCalled();
+    expect(within(dialog).getByText('common:confirmDelete')).toBeInTheDocument();
+    // The dialog names the file that is about to go.
+    expect(within(dialog).getByText('Lin Feng')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'common:delete' }));
+
     await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('editor:fileTree.deleteFailed'));
-    expect(window.confirm).toHaveBeenCalledWith('common:confirmDelete');
     expect(mocks.deleteFile).toHaveBeenCalledWith('char-1');
     expect(mocks.select).not.toHaveBeenCalled();
     expect(screen.getByText('Lin Feng')).toBeInTheDocument();
     expect(mocks.getTree).toHaveBeenCalledTimes(1);
+  });
+
+  it('deletes only after the dialog is confirmed and keeps the file when cancelled', async () => {
+    mocks.deleteFile.mockResolvedValue(undefined);
+    render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
+    expect(await screen.findByText('Lin Feng')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle('common:delete'));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'common:cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(mocks.deleteFile).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTitle('common:delete'));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'common:delete' }));
+    await waitFor(() => expect(mocks.deleteFile).toHaveBeenCalledWith('char-1'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(mocks.getTree).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe('FileTreePane material attachment limit', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.projectId = 'project-1';
+    mocks.isAtLimit = true;
+    mocks.addMaterial.mockReturnValue(false);
+    mocks.getTree.mockResolvedValue({
+      tree: [{ id: 'snippet-1', title: 'Clue', file_type: 'snippet', children: [] }],
+    });
+  });
+
+  afterEach(() => {
+    mocks.isAtLimit = false;
+    mocks.addMaterial.mockReturnValue(true);
+    vi.unstubAllGlobals();
+  });
+
+  it('explains the limit in a toast instead of a native alert', async () => {
+    const nativeAlert = vi.fn();
+    vi.stubGlobal('alert', nativeAlert);
+    render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
+    expect(await screen.findByText('Clue')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle('editor:fileTree.addToChat'));
+
+    expect(nativeAlert).not.toHaveBeenCalled();
+    expect(mocks.toastInfo).toHaveBeenCalledWith('editor:fileTree.maxMaterials');
+  });
+});
+
+describe('FileTreePane reveals the selected file', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.projectId = 'project-1';
+  });
+
+  afterEach(() => {
+    mocks.selectedItem = null;
+  });
+
+  it('expands nested folders down to a restored file, once', async () => {
+    mocks.getTree.mockResolvedValue({
+      tree: [{
+        id: 'folder-drafts',
+        title: '正文',
+        file_type: 'folder',
+        children: [{
+          id: 'folder-vol-2',
+          title: '第二卷',
+          file_type: 'folder',
+          children: [{ id: 'draft-9', title: '第九章', file_type: 'draft', children: [] }],
+        }],
+      }],
+    });
+    mocks.selectedItem = { id: 'draft-9', type: 'draft', title: '第九章' };
+
+    render(<FileSearchProvider><FileTreePane /></FileSearchProvider>);
+
+    expect(await screen.findByText('第九章')).toBeInTheDocument();
+
+    // The author can still collapse the folder afterwards.
+    fireEvent.click(screen.getByText('第二卷'));
+    await waitFor(() => expect(screen.queryByText('第九章')).not.toBeInTheDocument());
   });
 });

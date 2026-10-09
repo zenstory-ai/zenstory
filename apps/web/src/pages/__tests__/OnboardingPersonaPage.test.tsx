@@ -3,6 +3,13 @@ import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import zhOnboarding from "../../../public/locales/zh/onboarding.json";
+import enOnboarding from "../../../public/locales/en/onboarding.json";
+import { ApiError } from "../../lib/apiClient";
+import {
+  PREFERRED_PROJECT_TYPE_STORAGE_KEY,
+  getPreferredProjectType,
+  setPreferredProjectType,
+} from "../../lib/preferredProjectType";
 
 const mockNavigate = vi.fn();
 const mockGetPersonaOnboardingData = vi.fn();
@@ -10,6 +17,17 @@ const mockSavePersonaOnboardingData = vi.fn();
 const mockGetState = vi.fn();
 const mockSave = vi.fn();
 const mockToastError = vi.fn();
+const { mockDashboardOnboardingFlags } = vi.hoisted(() => ({
+  mockDashboardOnboardingFlags: {
+    todayActionPlanEnabled: false,
+    firstDayActivationGuideEnabled: false,
+    coachmarkTourEnabled: false,
+  },
+}));
+
+vi.mock("../../config/dashboardOnboarding", () => ({
+  dashboardOnboardingFlags: mockDashboardOnboardingFlags,
+}));
 
 let mockUser: { id: string } | null = { id: "user-onboarding-1" };
 let mockLocationState: { from?: { pathname?: string; search?: string; hash?: string } } | null = {
@@ -95,6 +113,9 @@ describe("OnboardingPersonaPage", () => {
     vi.clearAllMocks();
     mockUser = { id: "user-onboarding-1" };
     mockLocationState = { from: { pathname: "/dashboard/projects", search: "", hash: "" } };
+    mockDashboardOnboardingFlags.todayActionPlanEnabled = false;
+    mockDashboardOnboardingFlags.firstDayActivationGuideEnabled = false;
+    localStorage.removeItem(PREFERRED_PROJECT_TYPE_STORAGE_KEY);
     mockGetPersonaOnboardingData.mockReturnValue(null);
     mockGetState.mockResolvedValue({ profile: null });
     mockSave.mockImplementation(async (payload) => ({
@@ -265,6 +286,7 @@ describe("OnboardingPersonaPage", () => {
     expect(screen.getByRole("radio", { name: /advanced/i })).toHaveAttribute("aria-checked", "true");
   });
   it("previews the fanfic, studio and chapter-review recommendations an author picked", () => {
+    mockDashboardOnboardingFlags.todayActionPlanEnabled = true;
     renderPage();
 
     expect(screen.getByText("选一个创作者类型，看看会推荐什么")).toBeInTheDocument();
@@ -296,5 +318,117 @@ describe("OnboardingPersonaPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /studio/i }));
     expect(screen.queryByText("每部作品一个项目，分开管理")).not.toBeInTheDocument();
     expect(screen.getByText("整理角色与设定，AI 写作时参考")).toBeInTheDocument();
+  });
+  it("only promises dashboard recommendations when a dashboard guidance panel is enabled", () => {
+    const { unmount } = renderPage();
+    expect(screen.queryByText("首页会为你推荐")).not.toBeInTheDocument();
+    expect(screen.queryByText("选一个创作者类型，看看会推荐什么")).not.toBeInTheDocument();
+    // No empty second column is reserved for the hidden preview.
+    expect(document.querySelector('[class*="lg:grid-cols-[1.35fr_0.9fr]"]')).toBeNull();
+    unmount();
+
+    mockDashboardOnboardingFlags.firstDayActivationGuideEnabled = true;
+    renderPage();
+    expect(screen.getByText("首页会为你推荐")).toBeInTheDocument();
+  });
+
+  it("offers short-story and screenwriter identities and remembers the matching project type", async () => {
+    mockLocationState = { from: { pathname: "/onboarding/persona" } };
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: /screenwriter/i }));
+    fireEvent.click(screen.getByRole("button", { name: /short_story/i }));
+    fireEvent.click(screen.getByRole("button", { name: "保存并进入工作台" }));
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalled());
+    expect(mockSave).toHaveBeenCalledTimes(1);
+    expect(mockSave.mock.calls[0][0]).toMatchObject({
+      selected_personas: ["screenwriter", "short_story"],
+      skipped: false,
+    });
+    // The first matching identity wins.
+    expect(getPreferredProjectType()).toBe("screenplay");
+
+    // Shipped copy exists in both locales.
+    expect(zhOnboarding.persona.options.short_story.title).toBe("短篇作者");
+    expect(zhOnboarding.persona.options.screenwriter.title).toBe("短剧编剧");
+    expect(enOnboarding.persona.options.short_story.title).toBe("Short-story writer");
+    expect(enOnboarding.persona.options.screenwriter.title).toBe("Short-drama screenwriter");
+    expect(Object.keys(enOnboarding.preview.items)).toEqual(Object.keys(zhOnboarding.preview.items));
+  });
+
+  it("keeps a fresher landing-page type choice instead of overwriting it", async () => {
+    setPreferredProjectType("novel");
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: /short_story/i }));
+    fireEvent.click(screen.getByRole("button", { name: "保存并进入工作台" }));
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalled());
+    expect(getPreferredProjectType()).toBe("novel");
+  });
+
+  it("does not record a project type for other identities or when skipping", async () => {
+    const { unmount } = renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /serial/i }));
+    fireEvent.click(screen.getByRole("button", { name: "保存并进入工作台" }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledTimes(1));
+    expect(getPreferredProjectType()).toBeNull();
+    unmount();
+
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /short_story/i }));
+    fireEvent.click(screen.getByRole("button", { name: "跳过" }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledTimes(2));
+    expect(getPreferredProjectType()).toBeNull();
+  });
+
+  it("retries once with only the older identities when an older server rejects the new ids", async () => {
+    mockSave.mockRejectedValueOnce(new ApiError(422, "ERR_VALIDATION_ERROR"));
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: /short_story/i }));
+    fireEvent.click(screen.getByRole("button", { name: /serial/i }));
+    fireEvent.click(screen.getByRole("button", { name: "保存并进入工作台" }));
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalled());
+    expect(mockSave).toHaveBeenCalledTimes(2);
+    expect(mockSave.mock.calls[0][0].selected_personas).toEqual(["short_story", "serial"]);
+    expect(mockSave.mock.calls[1][0]).toMatchObject({ selected_personas: ["serial"], skipped: false });
+    expect(mockToastError).not.toHaveBeenCalled();
+    expect(getPreferredProjectType()).toBe("short");
+  });
+
+  it("falls back to a skipped profile when only new identities were picked and the server is older", async () => {
+    mockSave.mockRejectedValueOnce(new ApiError(400, "ERR_VALIDATION_ERROR"));
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: /screenwriter/i }));
+    fireEvent.click(screen.getByRole("button", { name: "保存并进入工作台" }));
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalled());
+    expect(mockSave).toHaveBeenCalledTimes(2);
+    expect(mockSave.mock.calls[1][0]).toMatchObject({ selected_personas: [], skipped: true });
+    expect(getPreferredProjectType()).toBe("screenplay");
+  });
+
+  it("does not retry validation errors when no new identity was sent, and retries at most once", async () => {
+    mockSave.mockRejectedValueOnce(new ApiError(422, "ERR_VALIDATION_ERROR"));
+    const { unmount } = renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /serial/i }));
+    fireEvent.click(screen.getByRole("button", { name: "保存并进入工作台" }));
+    await waitFor(() => expect(mockToastError).toHaveBeenCalledTimes(1));
+    expect(mockSave).toHaveBeenCalledTimes(1);
+    unmount();
+
+    mockSave.mockReset();
+    mockSave.mockRejectedValue(new ApiError(422, "ERR_VALIDATION_ERROR"));
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /short_story/i }));
+    fireEvent.click(screen.getByRole("button", { name: "保存并进入工作台" }));
+    await waitFor(() => expect(mockToastError).toHaveBeenCalledTimes(2));
+    expect(mockSave).toHaveBeenCalledTimes(2);
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(getPreferredProjectType()).toBeNull();
   });
 });

@@ -22,6 +22,16 @@
         "title": "Serial Growth Writer",
         "desc": "You’re publishing a serial and want to keep a steady update schedule."
       },
+      "short_story": {
+        "tag": "Short stories",
+        "title": "Short-story writer",
+        "desc": "You write short web fiction for platforms like Yanyan and Fanqie, and submit each piece once it’s done."
+      },
+      "screenwriter": {
+        "tag": "Short drama",
+        "title": "Short-drama screenwriter",
+        "desc": "You write vertical short dramas and web series scripts."
+      },
       "professional": {
         "tag": "Professional",
         "title": "Professional Creator",
@@ -90,6 +100,8 @@
     "items": {
       "explorer": "Start a new book from one line, with step-by-step tips",
       "serial": "Writing streak tracking",
+      "short_story": "Your dashboard opens on Short Story, so one idea is enough to start",
+      "screenwriter": "Your dashboard opens on Short Drama Script, with episode outlines and scripts",
       "professional": "A fast outline-to-chapter-to-revision flow",
       "fanfic": "Organize characters and settings for AI to follow",
       "studio": "One project per work, kept separate",

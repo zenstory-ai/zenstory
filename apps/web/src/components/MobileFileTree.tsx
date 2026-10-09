@@ -25,6 +25,8 @@ import { useMaterialAttachment, MAX_ATTACHED_MATERIALS } from "../contexts/Mater
 import { fileApi } from "../lib/api";
 import { FOLDER_TYPE_MAP, MATERIAL_FOLDER_NAMES } from "../lib/folderTypeMap";
 import { toast } from "../lib/toast";
+import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { findAncestorFolderIds } from "../lib/lastOpenedFile";
 import { FileSearchInput } from "./FileSearchInput";
 import { useFileSearch, type FileSearchResult } from "../hooks/useFileSearch";
 import SearchResultsDropdown from "./SearchResultsDropdown";
@@ -115,6 +117,8 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
   const [isCreating, setIsCreating] = useState<string | null>(null);
   const [newItemName, setNewItemName] = useState("");
   const [newItemType, setNewItemType] = useState<string>("draft");
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string; projectId: string | null } | null>(null);
+  const [deletingFile, setDeletingFile] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -194,6 +198,21 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
       }
     }
   }, [currentProjectId, isAbortError]);
+
+  // Expand the folders around a selected file once (e.g. the file restored on
+  // reopening the project), without re-opening folders the author collapses later.
+  const selectedItemId = selectedItem?.id ?? null;
+  const revealedSelectionRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedItemId || revealedSelectionRef.current === selectedItemId) return;
+    const ancestors = findAncestorFolderIds(tree, selectedItemId);
+    if (!ancestors) return;
+    revealedSelectionRef.current = selectedItemId;
+    if (ancestors.length === 0) return;
+    setExpandedFolders((prev) =>
+      ancestors.every((id) => prev.has(id)) ? prev : new Set([...prev, ...ancestors]),
+    );
+  }, [selectedItemId, tree]);
 
   useEffect(() => {
     return () => {
@@ -370,16 +389,25 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
   }, [currentProjectId, newItemName, newItemType, loadData, cancelCreate, t]);
 
   /**
-   * Deletes a file after user confirmation.
-   * Clears selection if the deleted file was selected.
+   * Asks for confirmation (in-app dialog) before deleting a file.
    *
    * @param e - The click event (used to stop propagation)
    * @param fileId - The ID of the file to delete
+   * @param fileTitle - Shown in the dialog so the author knows which file goes
    */
-  const handleDelete = useCallback(async (e: React.MouseEvent, fileId: string) => {
+  const handleDelete = useCallback((e: React.MouseEvent, fileId: string, fileTitle: string) => {
     e.stopPropagation();
+    setPendingDelete({ id: fileId, title: fileTitle, projectId: currentProjectId });
+  }, [currentProjectId]);
 
-    if (!confirm(t('common:confirmDelete'))) return;
+  /**
+   * Deletes the confirmed file.
+   * Clears selection if the deleted file was selected.
+   */
+  const handleConfirmDelete = useCallback(async () => {
+    if (!pendingDelete || pendingDelete.projectId !== currentProjectId || deletingFile) return;
+    const fileId = pendingDelete.id;
+    setDeletingFile(true);
 
     try {
       await fileApi.delete(fileId);
@@ -394,8 +422,11 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
     } catch (error) {
       logger.error("Failed to delete item:", error);
       toast.error(t('editor:fileTree.deleteFailed'));
+    } finally {
+      setDeletingFile(false);
+      setPendingDelete(null);
     }
-  }, [currentProjectId, selectedItem, setSelectedItem, loadData, t]);
+  }, [pendingDelete, deletingFile, currentProjectId, selectedItem, setSelectedItem, loadData, t]);
 
   /**
    * Returns localized placeholder text for the file creation input.
@@ -617,7 +648,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
                 }
                 const success = addMaterial(node.id, node.title);
                 if (!success && isAtLimit) {
-                  alert(t('editor:fileTree.maxMaterials', { max: MAX_ATTACHED_MATERIALS }));
+                  toast.info(t('editor:fileTree.maxMaterials', { max: MAX_ATTACHED_MATERIALS }));
                 }
               }}
               className={`p-2 rounded-lg active:bg-[hsl(var(--bg-tertiary))] touch-target ${
@@ -634,7 +665,7 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
           {/* Delete button */}
           {!isFolder && (
             <button
-              onClick={(e) => handleDelete(e, node.id)}
+              onClick={(e) => handleDelete(e, node.id, node.title)}
               className="p-2 rounded-lg text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--error))] active:bg-[hsl(var(--bg-tertiary))] touch-target"
               title={t('common:delete')}
             >
@@ -820,6 +851,20 @@ const MobileFileTreeComponent: React.FC<MobileFileTreeProps> = ({ className }) =
           filteredTree.map((node) => renderNode(node))
         )}
       </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null && pendingDelete.projectId === currentProjectId}
+        onClose={() => {
+          if (!deletingFile) setPendingDelete(null);
+        }}
+        onConfirm={handleConfirmDelete}
+        title={t('common:confirmDelete')}
+        message={pendingDelete?.title ?? ''}
+        variant="danger"
+        loading={deletingFile}
+        confirmLabel={t('common:delete')}
+        cancelLabel={t('common:cancel')}
+      />
     </div>
   );
 };

@@ -851,6 +851,25 @@ describe('Header', () => {
       const header = screen.getByRole('banner')
       expect(header).toHaveClass('shrink-0')
     })
+
+    it('lets the project switcher take the remaining width without a viewport calc, so it cannot cover the menu button', () => {
+      mockIsMobile = true
+      render(<Header />)
+
+      const switcherSlot = screen.getByTestId('project-switcher').parentElement as HTMLElement
+      expect(switcherSlot).toHaveClass('min-w-0', 'flex-1', 'md:flex-none', 'md:max-w-[420px]')
+      expect(switcherSlot.className).not.toMatch(/calc\(/)
+      // The dropdown must not be clipped by an ancestor.
+      let ancestor: HTMLElement | null = switcherSlot
+      while (ancestor && ancestor.tagName !== 'HEADER') {
+        expect(ancestor.className).not.toMatch(/overflow-hidden/)
+        ancestor = ancestor.parentElement
+      }
+      // The menu toggle sits outside the shrinking group and never shrinks.
+      const menuToggleGroup = screen.getByTestId('menu-icon').closest('div') as HTMLElement
+      expect(menuToggleGroup).toHaveClass('shrink-0')
+      expect(menuToggleGroup.contains(switcherSlot)).toBe(false)
+    })
   })
 
   describe('Accessibility', () => {

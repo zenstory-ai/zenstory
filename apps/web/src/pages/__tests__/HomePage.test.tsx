@@ -50,6 +50,10 @@ vi.mock("../../components/PublicHeader", () => ({
 }));
 
 import HomePage from "../HomePage";
+import {
+  PREFERRED_PROJECT_TYPE_STORAGE_KEY,
+  getPreferredProjectType,
+} from "../../lib/preferredProjectType";
 
 const setupMatchMedia = (reducedMotion: boolean) => {
   return vi.spyOn(window, "matchMedia").mockImplementation((query: string) => ({
@@ -197,6 +201,32 @@ describe("HomePage reduced-motion carousel behavior", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /home:projectTypes\.novel\.name/ }));
     expect(mockNavigate).toHaveBeenCalledWith("/register?plan=pro&source=home_project_type_card");
+  });
+
+  it("remembers the clicked project type before continuing to sign-up", () => {
+    setupMatchMedia(true);
+    localStorage.removeItem(PREFERRED_PROJECT_TYPE_STORAGE_KEY);
+    const order: string[] = [];
+    mockNavigate.mockImplementation(() => {
+      order.push(`navigate:${getPreferredProjectType() ?? "none"}`);
+    });
+
+    render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /home:projectTypes\.screenplay\.name/ }));
+
+    expect(getPreferredProjectType()).toBe("screenplay");
+    // The preference is stored before navigation, so the dashboard sees it.
+    expect(order).toEqual(["navigate:screenplay"]);
+    expect(mockNavigate).toHaveBeenCalledWith("/register?source=home_project_type_card");
+
+    fireEvent.click(screen.getByRole("button", { name: /home:projectTypes\.short\.name/ }));
+    expect(getPreferredProjectType()).toBe("short");
+    localStorage.removeItem(PREFERRED_PROJECT_TYPE_STORAGE_KEY);
   });
 
   it("renders project type cards as keyboard-focusable buttons", () => {
