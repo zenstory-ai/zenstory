@@ -183,8 +183,13 @@ class MessageManager:
         steering_messages: list[str] | None = None,
         assistant_display_events: list[dict[str, Any]] | None = None,
         assistant_routing: dict[str, Any] | None = None,
+        persist_empty_assistant: bool = False,
     ) -> str | None:
-        """Core chat-history persistence logic using the provided session."""
+        """Core chat-history persistence logic using the provided session.
+
+        persist_empty_assistant: write the assistant row even when it has no
+        payload (a stopped / disconnected round keeps its terminal state).
+        """
         from models import ChatMessage, ChatSession
 
         if not self.user_id:
@@ -316,7 +321,8 @@ class MessageManager:
             # 状态卡片、有序展示事件、思维链任一非空即视为有产出。
             assistant_chat_message: ChatMessage | None = None
             if (
-                (assistant_message or "").strip()
+                persist_empty_assistant
+                or (assistant_message or "").strip()
                 or tool_calls
                 or assistant_status_cards
                 or assistant_display_events

@@ -321,7 +321,8 @@ async def test_agent_stream_missing_terminal_event_refunds_quota(
     db_session.commit()
 
     async def non_terminal_stream():
-        yield 'event: content\ndata: {"text":"partial"}\n\n'
+        # 真正的回复正文（不是工具调用前的一句过渡旁白）才算产出。
+        yield 'event: content\ndata: {"text":"第三章的节奏偏慢：前两节都在交代旧书店的来历，主角直到第三节才第一次碰到那本没有书名的旧账本，读者等得太久，建议把账本提前到开头。"}\n\n'
 
     async def non_terminal_stream_without_output():
         yield 'event: thinking\ndata: {"message":"正在思考..."}\n\n'
@@ -1120,7 +1121,7 @@ async def test_agent_stream_exception_after_read_only_notice_still_sends_fallbac
 
     class MockAgentService:
         async def process_stream(self, **_kwargs):
-            yield 'event: content\ndata: {"text": "第三章节奏偏慢。"}\n\n'
+            yield 'event: content\ndata: {"text": "第三章的节奏偏慢：前两节都在交代旧书店的来历，主角直到第三节才第一次碰到那本没有书名的旧账本，读者等得太久，建议把账本提前到开头。"}\n\n'
             yield _READ_ONLY_NOTICE_SSE
             raise RuntimeError("history save failed")
 

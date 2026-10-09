@@ -130,7 +130,7 @@ def test_billing_charges_tool_failure_circuit_even_without_output():
 @pytest.mark.parametrize(
     "output_frame",
     [
-        _sse("content", {"text": "第一章正文……"}),
+        _sse("content", {"text": "第三章的节奏偏慢：前两节都在交代旧书店的来历，主角直到第三节才第一次碰到那本没有书名的旧账本，读者等得太久，建议把账本提前到开头。"}),
         _sse("file_content", {"file_id": "f", "chunk": "山风吹过断崖。"}),
         _sse("tool_result", {"tool_name": "edit_file", "status": "success", "data": {}}),
     ],
@@ -184,7 +184,7 @@ def test_billing_deadline():
     assert tracker.decide(
         client_disconnected=False, unexpected_exception=False, deadline_exceeded=True
     ) == ("run_deadline_exceeded", True)
-    tracker.observe(_sse("content", {"text": "已经写了一段"}))
+    tracker.observe(_sse("content", {"text": "第三章的节奏偏慢：前两节都在交代旧书店的来历，主角直到第三节才第一次碰到那本没有书名的旧账本，读者等得太久，建议把账本提前到开头。"}))
     assert tracker.decide(
         client_disconnected=False, unexpected_exception=False, deadline_exceeded=True
     ) == ("run_deadline_exceeded", False)
