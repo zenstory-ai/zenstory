@@ -15,7 +15,13 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { produce } from "immer";
 import i18n from "../lib/i18n";
 import { useImmer } from "use-immer";
-import { sendSteeringRequest, stopAgentRun, streamAgentRequest, type QuotaRefundKind } from "../lib/agentApi";
+import {
+  sendSteeringRequest,
+  stopAgentRun,
+  streamAgentRequest,
+  type QuotaRefundKind,
+  type RemovedPlaceholderFile,
+} from "../lib/agentApi";
 import type {
   AgentContextItem,
   AgentRequest,
@@ -71,6 +77,13 @@ export interface StreamCompletionMeta {
    * 照常落进 messages，而不是让它随下一轮 onStart 的清理一起消失。
    */
   partial?: boolean;
+  /** The author stopped this round and the server wrapped it up (done with stop_reason). */
+  stoppedByAuthor?: boolean;
+  /**
+   * Stopped rounds only: whether the server saw real output (prose or a write). False means
+   * nothing was written, so follow-ups must not assume prose exists.
+   */
+  producedOutput?: boolean;
 }
 
 export interface UseAgentStreamOptions {
@@ -211,7 +224,7 @@ export interface UseAgentStreamOptions {
   /** Called when steering message is received */
   onSteeringReceived?: (messageId: string, preview: string) => void;
   /** Called after the terminal frame when the backend actually refunded this round */
-  onQuotaRefunded?: (kind: QuotaRefundKind) => void;
+  onQuotaRefunded?: (kind: QuotaRefundKind, removedFiles: RemovedPlaceholderFile[]) => void;
 }
 
 export interface UseAgentStreamReturn {
@@ -1125,9 +1138,13 @@ export function useAgentStream(
                 data as unknown as Record<string, unknown>,
               );
             }
+            // The author's stop card comes before done (which carries this round's
+            // assistant message id and arrives once the server saved it): keep the round
+            // open ("正在停止…") until then, so a new send cannot cut the round off midway.
+            const keepOpenUntilDone = data.reason === "user_stopped";
             setState((prev) => ({
               ...prev,
-              isStreaming: false,
+              isStreaming: keepOpenUntilDone ? prev.isStreaming : false,
               isThinking: false,
             }));
             onWorkflowStopped?.(data);
@@ -1200,9 +1217,9 @@ export function useAgentStream(
             onSteeringReceived?.(message_id, preview);
           },
 
-          onQuotaRefunded: (kind) => {
+          onQuotaRefunded: (kind, removedFiles) => {
             if (isStaleEvent()) return;
-            onQuotaRefunded?.(kind);
+            onQuotaRefunded?.(kind, removedFiles);
           },
 
           onConflict: (conflictData) => {
@@ -1269,10 +1286,17 @@ export function useAgentStream(
                 confirmedFileMutation:
                   typeof data.file_mutated === "boolean" ? data.file_mutated : undefined,
               };
+              if (data.stop_reason === "user_stopped") {
+                completionMeta.stoppedByAuthor = true;
+                if (typeof data.produced_output === "boolean") {
+                  completionMeta.producedOutput = data.produced_output;
+                }
+              }
               if (
                 completionMeta.assistantMessageId ||
                 completionMeta.sessionId ||
-                completionMeta.confirmedFileMutation !== undefined
+                completionMeta.confirmedFileMutation !== undefined ||
+                completionMeta.stoppedByAuthor
               ) {
                 onComplete?.(segmentsRef.current, applyAction || null, completionMeta);
               } else {

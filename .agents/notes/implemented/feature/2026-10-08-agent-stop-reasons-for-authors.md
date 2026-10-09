@@ -2,6 +2,8 @@
 
 Status: implemented
 
+> 后续：作者主动停止「照常计费」与「计入按 session_started 推断」两条已被推翻，最终契约见 `architecture/2026-10-09-stop-output-definition-and-round-outcome.md`。
+
 本 note 推翻了 `bug-fix/2026-10-03-agent-tool-failure-circuit-breaker.md` 中「熔断说明带工具名和最后一次错误摘要」的展示决定（熔断条件与计费不变）。计费契约本身见 `architecture/2026-10-05-agent-stream-error-and-refund-contract.md`，本 note 只加了「退还落库后告诉前端」这一帧。
 
 ## Problem

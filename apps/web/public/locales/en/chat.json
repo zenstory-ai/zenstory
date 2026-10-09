@@ -30,7 +30,12 @@
     "fileVersionLimitTitle": "File version limit reached",
     "fileVersionLimitDesc": "Upgrade your plan to keep more versions.",
     "notChargedStopped": "Stopped before anything was written, so this round does not count toward today's AI messages.",
-    "resend": "Send again"
+    "resend": "Send again",
+    "roundInterrupted": "Interrupted",
+    "roundNotCounted": "Not counted toward today's AI messages",
+    "roundRemovedFiles": "Blank 《{{titles}}》 removed",
+    "removedEmptyFiles": " The blank file 《{{titles}}》 created this round was removed.",
+    "unanswered": "This message didn't get a reply."
   },
   "input": {
     "placeholder": "Tell the AI what to write…",
@@ -38,6 +43,7 @@
     "placeholderQuotaExhausted": "You've used today's {{limit}} AI messages. They reset at 00:00 Beijing time (UTC+8) — draft now and send then.",
     "stop": "Stop generating",
     "stopping": "Stopping…",
+    "stopArming": "Starting… you can stop in a moment",
     "steerPlaceholder": "Add to your request…",
     "steerButton": "Add request",
     "steerHint": "AI is generating — what you add applies at its next step",
@@ -317,7 +323,13 @@
     "title": "The AI is still writing",
     "message": "Leaving this page ends this round. If nothing has been written yet, it will not count toward today's AI messages.",
     "leave": "Leave",
-    "stay": "Keep waiting"
+    "stay": "Keep waiting",
+    "messageWithOutput": "Leaving this page ends this round. What's already written is saved, and this round counts toward today's AI messages.",
+    "messageWithOutputUnlimited": "Leaving this page ends this round. What's already written is saved.",
+    "messageUnlimited": "Leaving this page ends this round.",
+    "endedTitle": "This round has finished",
+    "endedMessage": "Leaving now won't cut anything off.",
+    "stayEnded": "Stay here"
   },
   "nextStep": {
     "frameworkReady": "The outline is ready. Time to start writing.",

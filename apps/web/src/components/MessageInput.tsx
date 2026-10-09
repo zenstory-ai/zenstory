@@ -28,6 +28,7 @@ import { useSwipeGestures } from "../hooks/useGestures";
 import { logger } from "../lib/logger";
 import { MAX_AGENT_MESSAGE_CHARS } from "../lib/agentLimits";
 import { trackEvent } from "../lib/analytics";
+import { toast } from "../lib/toast";
 
 /**
  * Randomly selects a specified number of distinct suggestions from a pool.
@@ -651,8 +652,19 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   };
 
+  const stopButtonLabel = isStopping
+    ? t("chat:input.stopping")
+    : stopArmed
+      ? t("chat:input.stop")
+      : t("chat:input.stopArming", { defaultValue: "正在开始，稍后可停止" });
+
   const handleCancel = () => {
-    if (!stopArmed || isStopping) return;
+    if (isStopping) return;
+    if (!stopArmed) {
+      // Every press gets an answer: the round is just starting, stop works in a moment.
+      toast.info(t("chat:input.stopArming", { defaultValue: "正在开始，稍后可停止" }));
+      return;
+    }
     onCancel?.();
   };
 
@@ -1024,10 +1036,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         ) : onCancel && effectiveSendDisabled ? (
           <button
             onClick={handleCancel}
-            disabled={!stopArmed || isStopping}
-            className={`shrink-0 flex items-center justify-center bg-[hsl(var(--error))] hover:bg-[hsl(var(--error))] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--error))] ${isMobile ? 'w-11 h-11' : 'w-9 h-9'}`}
-            title={isStopping ? t("chat:input.stopping") : t("chat:input.stop")}
-            aria-label={isStopping ? t("chat:input.stopping") : t("chat:input.stop")}
+            // While arming the button stays clickable (aria-disabled) so a press gets an answer.
+            disabled={isStopping}
+            aria-disabled={!stopArmed || isStopping}
+            className={`shrink-0 flex items-center justify-center text-white rounded-lg transition-colors focus-visible:outline-none ${
+              !stopArmed || isStopping
+                // Same look as the disabled send button in this spot.
+                ? 'bg-[hsl(var(--bg-tertiary))] cursor-not-allowed focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--bg-tertiary))]'
+                : 'bg-[hsl(var(--error))] hover:bg-[hsl(var(--error))] focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--error))]'
+            } ${isMobile ? 'w-11 h-11' : 'w-9 h-9'}`}
+            title={stopButtonLabel}
+            aria-label={stopButtonLabel}
             data-testid="stop-button"
           >
             <Square size={14} fill="currentColor" />

@@ -762,6 +762,48 @@ describe('useAgentStream', () => {
       expect(controller.mockAbortController.abort).not.toHaveBeenCalled()
     })
 
+    it('stays in 正在停止… until done arrives with this round\'s message id', async () => {
+      vi.mocked(agentApi.stopAgentRun).mockResolvedValue(true)
+      const onComplete = vi.fn()
+      const hook = renderHook(() => useAgentStream('test-project-id', { onComplete }))
+      const controller = createMockStreamController()
+      act(() => {
+        hook.result.current.startStream({ message: 'test' })
+      })
+      act(() => {
+        controller.getCallbacks()?.onRunStarted?.('run-1')
+      })
+      await act(async () => {
+        hook.result.current.stop()
+      })
+
+      act(() => {
+        controller.getCallbacks()?.onWorkflowStopped?.({
+          reason: 'user_stopped',
+          agent_type: '',
+          message: '已停止生成。',
+        })
+      })
+      // The stop card alone does not end the round: a send now would cut it off.
+      expect(hook.result.current.isStreaming).toBe(true)
+      expect(hook.result.current.isStopping).toBe(true)
+
+      act(() => {
+        controller.getCallbacks()?.onDone?.({
+          assistant_message_id: 'assistant-7',
+          session_id: 's-1',
+          stop_reason: 'user_stopped',
+          produced_output: false,
+        })
+      })
+      expect(hook.result.current.isStreaming).toBe(false)
+      expect(onComplete).toHaveBeenCalledWith(expect.any(Array), null, expect.objectContaining({
+        assistantMessageId: 'assistant-7',
+        stoppedByAuthor: true,
+        producedOutput: false,
+      }))
+    })
+
     it('drops the connection when the stop request fails', async () => {
       vi.mocked(agentApi.stopAgentRun).mockResolvedValue(false)
       const { result, controller } = startWithRun()

@@ -2,6 +2,8 @@
 
 Status: implemented
 
+> 后续：「实质产出」口径（工具调用前的旁白、空 `create_file` 不算，并行写章算）、空白占位文件、终态落库与 `done` 的消息 id 见 `architecture/2026-10-09-stop-output-definition-and-round-outcome.md`。
+
 本 note 推翻了 `architecture/2026-10-05-agent-stream-error-and-refund-contract.md` 中「用户取消或断线 → 一律计费」这一条（其余计费规则不变）。
 
 ## Problem

@@ -28,6 +28,8 @@ import { stripThinkTags } from '../lib/utils';
 import { getAgentDisplayName } from '../lib/agentDisplayName';
 import { useAuth } from '../contexts/AuthContext';
 import { useMobileLayout } from '../contexts/MobileLayoutContext';
+import { RoundEndNote } from './RoundEndNote';
+import type { RoundStopOutcome } from '../lib/chatRoundEnd';
 
 /** The author pressed stop: a quiet note, not a warning (nothing went wrong). */
 function UserStoppedNote() {
@@ -133,6 +135,13 @@ export interface Message {
    * (e.g. clarification needed / iteration exhausted).
    */
   statusCards?: MessageStatusCard[];
+  /** Stopped / interrupted round, as recorded by the server (history only). */
+  stopOutcome?: RoundStopOutcome;
+  /**
+   * No backend message can be matched to this bubble (a stopped round whose id never
+   * arrived): hide feedback instead of showing "still saving" forever.
+   */
+  feedbackUnavailable?: boolean;
 }
 
 /**
@@ -149,6 +158,8 @@ interface MessageListProps {
   onSubmitFeedback?: (message: Message, vote: MessageFeedbackVote) => void | Promise<void>;
   /** Message ID currently submitting feedback */
   feedbackPendingMessageId?: string | null;
+  /** Stop notes may mention today's AI message count (false on plans without a daily limit). */
+  showDailyCount?: boolean;
   /** Real-time thinking content from the streaming agent response */
   streamingThinkingContent?: string;
   /** Whether the agent is actively thinking/processing */
@@ -654,6 +665,8 @@ interface RowDataProps {
   onSubmitFeedback?: (message: Message, vote: MessageFeedbackVote) => void | Promise<void>;
   /** Message ID currently submitting feedback */
   feedbackPendingMessageId?: string | null;
+  /** Stop notes may mention today's AI message count */
+  showDailyCount?: boolean;
   /** Callback invoked when user chooses a guided action after iteration exhaustion */
   onIterationAssistAction?: MessageListProps["onIterationAssistAction"];
   /** Real-time thinking content from streaming */
@@ -681,6 +694,7 @@ function Row({
   onUndo,
   onSubmitFeedback,
   feedbackPendingMessageId,
+  showDailyCount = true,
   onIterationAssistAction,
   streamingThinkingContent,
   isThinking,
@@ -702,7 +716,8 @@ function Row({
   const hasDisplayItems = message.role === 'assistant' && Boolean(message.displayItems?.length);
   const toolCalls = visibleToolCalls(message.toolCalls);
   const toolResults = visibleToolCalls(message.toolResults);
-  const shouldShowFeedbackActions = message.role === 'assistant' && Boolean(onSubmitFeedback);
+  const shouldShowFeedbackActions =
+    message.role === 'assistant' && Boolean(onSubmitFeedback) && !message.feedbackUnavailable;
   const canSubmitFeedback = shouldShowFeedbackActions && Boolean(message.backendMessageId);
   const selectedFeedbackVote = message.feedback?.vote;
   const isFeedbackPending = feedbackPendingMessageId === message.id;
@@ -810,6 +825,10 @@ function Row({
         )}
 
         </>}
+
+        {message.role === 'assistant' && message.stopOutcome && (
+          <RoundEndNote outcome={message.stopOutcome} showDailyCount={showDailyCount} />
+        )}
 
         {shouldShowFeedbackActions && (
           <div className="mt-2 flex items-center gap-1.5">
@@ -1095,6 +1114,7 @@ export const MessageList = React.memo(
   onUndo,
   onSubmitFeedback,
   feedbackPendingMessageId,
+  showDailyCount,
   streamingThinkingContent,
   isThinking,
   streamRenderItems,
@@ -1125,8 +1145,12 @@ export const MessageList = React.memo(
     const hasReasoningSegments = m.role === 'assistant' && Boolean(m.reasoningSegments?.length);
     const hasReasoningContent = m.role === 'assistant' && Boolean(m.reasoningContent?.trim());
 
+    // A stopped / interrupted round with nothing else to show still shows how it ended.
+    const hasStopOutcome = m.role === 'assistant' && Boolean(m.stopOutcome);
+
     return (
       Boolean(m.displayItems?.length) ||
+      hasStopOutcome ||
       hasVisibleContent ||
       hasToolCalls ||
       hasToolResults ||
@@ -1214,6 +1238,7 @@ export const MessageList = React.memo(
           onUndo={onUndo}
           onSubmitFeedback={onSubmitFeedback}
           feedbackPendingMessageId={feedbackPendingMessageId}
+          showDailyCount={showDailyCount}
           onIterationAssistAction={onIterationAssistAction}
           streamingThinkingContent={streamingThinkingContent}
           isThinking={isThinking}
@@ -1258,6 +1283,7 @@ export const MessageList = React.memo(
   // buttons keep invoking a stale closure after the parent re-created it.
   if (prevProps.onIterationAssistAction !== nextProps.onIterationAssistAction) return false;
   if (prevProps.feedbackPendingMessageId !== nextProps.feedbackPendingMessageId) return false;
+  if (prevProps.showDailyCount !== nextProps.showDailyCount) return false;
   if (prevProps.streamingThinkingContent !== nextProps.streamingThinkingContent) return false;
   if (prevProps.isThinking !== nextProps.isThinking) return false;
   if (prevProps.messages !== nextProps.messages) return false;

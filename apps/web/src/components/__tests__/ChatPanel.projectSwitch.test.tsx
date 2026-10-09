@@ -312,7 +312,12 @@ describe('ChatPanel project switch stream cleanup', () => {
     expect(agentStartStream).toHaveBeenCalledTimes(1)
     await user.click(screen.getByRole('button', { name: 'common:retry' }))
     expect(agentStartStream).toHaveBeenCalledTimes(2)
-    expect(agentStartStream.mock.calls[1]?.[0]).toEqual(agentStartStream.mock.calls[0]?.[0])
+    // Same request; the server reuses the unanswered user message instead of saving another.
+    const original = agentStartStream.mock.calls[0]?.[0] as { metadata: Record<string, unknown> }
+    expect(agentStartStream.mock.calls[1]?.[0]).toEqual({
+      ...original,
+      metadata: { ...original.metadata, retry_unanswered: true },
+    })
   })
 
   it('does not show Retry for non-retryable errors', async () => {

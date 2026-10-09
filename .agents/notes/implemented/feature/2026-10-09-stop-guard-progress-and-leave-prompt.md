@@ -2,6 +2,8 @@
 
 Status: implemented
 
+> 后续：浏览器后退 / 手机返回也已拦截，离开确认的文案、按钮层级与「确认框打开时这一轮结束」的处理，以及停止按钮准备期的说明，见 `architecture/2026-10-09-stop-output-definition-and-round-outcome.md`。
+
 计费与停止协议见 `architecture/2026-10-09-agent-graceful-stop-and-no-output-refund.md`；本 note 只记界面上的四处改动。
 
 ## Problem

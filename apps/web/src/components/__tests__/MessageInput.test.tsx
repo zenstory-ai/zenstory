@@ -48,6 +48,12 @@ vi.mock('../../contexts/SkillTriggerContext', () => ({
   useSkillTrigger: mockUseSkillTrigger,
 }))
 
+const { mockToastInfo } = vi.hoisted(() => ({ mockToastInfo: vi.fn() }))
+
+vi.mock('../../lib/toast', () => ({
+  toast: { info: mockToastInfo, success: vi.fn(), error: vi.fn() },
+}))
+
 vi.mock('../../lib/api', () => ({
   skillsApi: {
     list: vi.fn().mockResolvedValue({ skills: [] }),
@@ -218,14 +224,21 @@ describe('MessageInput', () => {
     try {
       const onCancel = vi.fn()
       render(<MessageInput {...defaultProps} sendDisabled={true} onCancel={onCancel} />)
-      const stopButton = screen.getByRole('button', { name: /chat:input.stop/i })
+      const stopButton = screen.getByTestId('stop-button')
 
+      // While arming the button says why it cannot stop yet, and a press still gets an answer.
+      expect(stopButton).toHaveAttribute('aria-label', 'chat:input.stopArming')
+      expect(stopButton).toHaveAttribute('aria-disabled', 'true')
+      expect(stopButton.className).toContain('bg-[hsl(var(--bg-tertiary))]')
       fireEvent.click(stopButton)
       expect(onCancel).not.toHaveBeenCalled()
+      expect(mockToastInfo).toHaveBeenCalledWith('chat:input.stopArming')
 
       act(() => {
         vi.advanceTimersByTime(STOP_ARM_DELAY_MS)
       })
+      expect(stopButton).toHaveAttribute('aria-label', 'chat:input.stop')
+      expect(stopButton).toHaveAttribute('aria-disabled', 'false')
       fireEvent.click(stopButton)
       expect(onCancel).toHaveBeenCalledTimes(1)
     } finally {

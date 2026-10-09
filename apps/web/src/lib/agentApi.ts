@@ -127,6 +127,23 @@ type StreamErrorEventData = {
  */
 export type QuotaRefundKind = "no_progress" | "error" | "stopped";
 
+/** 作者停止、这一轮被退还时，服务端移除的「这一轮新建、还是空白」的文件。 */
+export interface RemovedPlaceholderFile {
+  id: string;
+  title: string;
+}
+
+/** done 帧。作者停止的一轮额外带 stop_reason / produced_output（是否已有实质产出）。 */
+export interface StreamDoneData {
+  apply_action?: string;
+  refs?: number[];
+  assistant_message_id?: string;
+  session_id?: string;
+  file_mutated?: boolean;
+  stop_reason?: string;
+  produced_output?: boolean;
+}
+
 
 /**
  * 服务端为这几类停止写了具体说明（停在哪、能不能接着来）；只有中文版本。
@@ -161,11 +178,23 @@ export function selectStreamErrorMessage(
 }
 
 function notifyQuotaRefunded(data: unknown, callbacks: AgentStreamCallbacks): void {
-  const payload = (data && typeof data === "object" ? data : {}) as { refunded?: unknown; kind?: unknown };
+  const payload = (data && typeof data === "object" ? data : {}) as {
+    refunded?: unknown;
+    kind?: unknown;
+    removed_files?: unknown;
+  };
   if (payload.refunded !== true) return;
   const kind: QuotaRefundKind =
     payload.kind === "no_progress" || payload.kind === "stopped" ? payload.kind : "error";
-  callbacks.onQuotaRefunded?.(kind);
+  const removedFiles: RemovedPlaceholderFile[] = Array.isArray(payload.removed_files)
+    ? payload.removed_files.flatMap((item) => {
+      const file = item as { id?: unknown; title?: unknown } | null;
+      return file && typeof file.id === "string"
+        ? [{ id: file.id, title: typeof file.title === "string" ? file.title : "" }]
+        : [];
+    })
+    : [];
+  callbacks.onQuotaRefunded?.(kind, removedFiles);
 }
 
 /** Report stream outcomes (completed/failed) before handing off to the caller. */
@@ -289,16 +318,10 @@ export function streamAgentRequest(
     onParallelTaskEnd?: (executionId: string, taskId: string, status: string, resultPreview?: string, error?: string) => void;
     onParallelEnd?: (executionId: string, total: number, completed: number, failed: number, durationMs: number) => void;
     onSteeringReceived?: (messageId: string, preview: string) => void;
-    onDone?: (data: {
-      apply_action?: string;
-      refs?: number[];
-      assistant_message_id?: string;
-      session_id?: string;
-      file_mutated?: boolean;
-    }) => void;
+    onDone?: (data: StreamDoneData) => void;
     onError?: (message: string, code?: string, retryable?: boolean) => void;
-    /** 后端确实退还了这一轮的 AI 消息（在终止帧之后到达）。 */
-    onQuotaRefunded?: (kind: QuotaRefundKind) => void;
+    /** 后端确实退还了这一轮的 AI 消息（在终止帧之后到达）；附带被移除的空白文件。 */
+    onQuotaRefunded?: (kind: QuotaRefundKind, removedFiles: RemovedPlaceholderFile[]) => void;
   },
 ): AbortController {
   const entryAccess = getAccessToken();
@@ -763,13 +786,7 @@ export function streamAgentRequest(
               break;
             }
             case "done": {
-              const data = event.data as {
-                apply_action?: string;
-                refs?: number[];
-                assistant_message_id?: string;
-                session_id?: string;
-                file_mutated?: boolean;
-              };
+              const data = event.data as StreamDoneData;
               receivedTerminalEvent = true;
               callbacks.onDone?.(data);
               break;
@@ -801,13 +818,7 @@ export function streamAgentRequest(
 
           switch (event.type) {
             case "done": {
-              const data = event.data as {
-                apply_action?: string;
-                refs?: number[];
-                assistant_message_id?: string;
-                session_id?: string;
-                file_mutated?: boolean;
-              };
+              const data = event.data as StreamDoneData;
               receivedTerminalEvent = true;
               callbacks.onDone?.(data);
               break;

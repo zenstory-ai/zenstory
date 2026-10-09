@@ -47,6 +47,7 @@ const chatPanelTranslations: Record<string, string> = {
   'chat:panel.notChargedError': '这次出错不计入今日 AI 消息。',
   'chat:panel.notChargedStopped': '已停止，这一轮还没有写出内容，不计入今日 AI 消息。',
   'chat:panel.resend': '重新发送',
+  'chat:panel.unanswered': '这条消息没有收到回复。',
   'chat:nextStep.novel.message': '按大纲写第一章正文',
   'chat:input.mode.switchedFast': '已切换到快速模式：更快出结果（可能更简略）',
   'chat:input.mode.switchedQuality': '已切换到高质量模式：更稳更全面（可能更慢）',
@@ -103,9 +104,11 @@ vi.mock('../../contexts/MobileLayoutContext', () => ({
   useMobileLayout: () => ({ isMobile: false }),
 }))
 
+const mockAttachments = vi.hoisted(() => ({ fileIds: [] as string[] }))
+
 vi.mock('../../contexts/MaterialAttachmentContext', () => ({
   useMaterialAttachment: () => ({
-    attachedFileIds: [],
+    attachedFileIds: mockAttachments.fileIds,
     attachedLibraryMaterials: [],
     clearMaterials: vi.fn(),
   }),
@@ -303,6 +306,7 @@ describe('ChatPanel mount smoke', () => {
     localStorage.removeItem('zenstory_inspiration_project-1')
     mockQuota.value = { ai_conversations: { used: 2, limit: 10, reset_at: null } }
     mockProjectState.currentProject = { id: 'project-1', name: '外卖小哥看见倒计时' }
+    mockAttachments.fileIds = []
   })
 
   it('mounts without runtime initialization errors', async () => {
@@ -521,25 +525,174 @@ describe('ChatPanel mount smoke', () => {
     await waitFor(() => expect(screen.queryByTestId('chat-quota-refund-note')).not.toBeInTheDocument())
   })
 
-  it('after a stop that wrote nothing, says it was not charged and offers to send the same request again', async () => {
-    vi.mocked(getRecentMessages).mockResolvedValueOnce([{
-      id: 'user-1', session_id: 'session-1', role: 'user', content: '写第五章',
-      created_at: '2026-10-05T10:00:00Z',
-    }] as never)
-    render(<ChatPanel />)
-    await waitFor(() => expect(screen.getByTestId('mock-message-list')).toBeInTheDocument())
+  type RoundOptions = {
+    onQuotaRefunded: (kind: 'no_progress' | 'error' | 'stopped', removedFiles?: Array<{ id: string; title: string }>) => void
+    onComplete: (segments: unknown[], action: unknown, meta?: Record<string, unknown>) => Promise<void>
+  }
+  const roundOptions = () => capturedUseAgentStream.options as unknown as RoundOptions
+  const userBubbles = () =>
+    ((mockMessageList.mock.calls.at(-1)?.[0] as { messages?: Array<{ role: string; content: string }> })?.messages ?? [])
+      .filter((message) => message.role === 'user')
 
-    const options = () => capturedUseAgentStream.options as {
-      onQuotaRefunded: (kind: 'no_progress' | 'error' | 'stopped') => void
-    }
-    act(() => options().onQuotaRefunded('stopped'))
+  it('after a stop that wrote nothing, resends the same round with its skills and attachments', async () => {
+    mockAttachments.fileIds = ['file-outline']
+    render(<ChatPanel />)
+    await waitFor(() => expect(lastMessageInputProps()?.onSend).toBeTypeOf('function'))
+
+    await act(async () => { await lastMessageInputProps().onSend('写第五章', ['skill-suspense']) })
+    act(() => roundOptions().onQuotaRefunded('stopped'))
     expect(await screen.findByText(/已停止，这一轮还没有写出内容/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('chat-resend-after-stop'))
-    await waitFor(() => expect(mockStartStream).toHaveBeenCalledTimes(1))
-    const resent = mockStartStream.mock.calls[0][0] as { message: string; metadata: Record<string, unknown> }
+    await waitFor(() => expect(mockStartStream).toHaveBeenCalledTimes(2))
+    const [original, resent] = mockStartStream.mock.calls.map((call) => call[0]) as Array<{
+      message: string
+      selected_skill_ids?: string[]
+      metadata: Record<string, unknown>
+    }>
     expect(resent.message).toBe('写第五章')
-    expect(resent.metadata.entry).toBe('resend_after_stop')
+    expect(resent.selected_skill_ids).toEqual(['skill-suspense'])
+    expect(resent.metadata.attached_file_ids).toEqual(['file-outline'])
+    expect(resent.metadata).toEqual({ ...original.metadata, resent_after_stop: true })
+    await waitFor(() => expect(userBubbles().map((m) => m.content)).toEqual(['写第五章', '写第五章']))
+  })
+
+  it('starts one round, with one bubble, when 重新发送 is pressed twice in the same tick', async () => {
+    render(<ChatPanel />)
+    await waitFor(() => expect(lastMessageInputProps()?.onSend).toBeTypeOf('function'))
+    await act(async () => { await lastMessageInputProps().onSend('写第五章', []) })
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
+    act(() => roundOptions().onQuotaRefunded('stopped'))
+    const resend = await screen.findByTestId('chat-resend-after-stop')
+
+    act(() => {
+      resend.click()
+      resend.click()
+    })
+
+    expect(mockStartStream).toHaveBeenCalledTimes(2)
+    await waitFor(() => expect(userBubbles()).toHaveLength(2))
+  })
+
+  it('says which blank files the refunded stop removed and refreshes the file tree', async () => {
+    render(<ChatPanel />)
+    await waitFor(() => expect(lastMessageInputProps()?.onSend).toBeTypeOf('function'))
+    await act(async () => { await lastMessageInputProps().onSend('写第一章', []) })
+
+    act(() => roundOptions().onQuotaRefunded('stopped', [{ id: 'ch-1', title: '第1章 最后一页' }]))
+
+    expect(await screen.findByTestId('chat-quota-refund-note')).toHaveTextContent(
+      '已停止，这一轮还没有写出内容，不计入今日 AI 消息。这一轮新建的空白文件《第1章 最后一页》已移除。',
+    )
+    expect(mockProjectState.triggerFileTreeRefresh).toHaveBeenCalled()
+  })
+
+  it('asks for no suggestions after a stop that wrote nothing', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      render(<ChatPanel />)
+      await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+      await act(async () => {
+        vi.advanceTimersByTime(20000)
+      })
+      const suggestionRequests = vi.mocked(fetchSuggestions).mock.calls.length
+      mockStreamSnapshot.items = [
+        { type: 'workflow_stopped', id: 'stop', reason: 'user_stopped', timestamp: new Date() },
+      ]
+      await act(async () => {
+        await roundOptions().onComplete([], null, {
+          stoppedByAuthor: true,
+          producedOutput: false,
+          assistantMessageId: 'assistant-stopped',
+        })
+      })
+      await act(async () => {
+        vi.advanceTimersByTime(20000)
+      })
+      expect(vi.mocked(fetchSuggestions).mock.calls.length).toBe(suggestionRequests)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('binds a stopped round only by its own id and never guesses an older message', async () => {
+    vi.mocked(getRecentMessages).mockResolvedValue([
+      // An older stopped round that is still "unassigned" in the panel.
+      { id: 'older-stopped', session_id: 's', role: 'assistant', content: '', created_at: '2026-10-09T05:29:41Z' },
+    ] as never)
+    render(<ChatPanel />)
+    await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+    const historyLoads = vi.mocked(getRecentMessages).mock.calls.length
+    mockStreamSnapshot.items = [{ type: 'content', id: 'c', content: '第一段', timestamp: new Date() }]
+
+    // The stop fell back to dropping the connection: no id arrived.
+    await act(async () => {
+      await roundOptions().onComplete([{ type: 'content', id: 'c', content: '第一段' }], null, { partial: true })
+    })
+
+    const last = (mockMessageList.mock.calls.at(-1)?.[0] as {
+      messages: Array<{ backendMessageId?: string; feedbackUnavailable?: boolean }>
+    }).messages.at(-1)
+    expect(last?.backendMessageId).toBeUndefined()
+    // No "消息还在保存" forever: feedback is simply not offered for this bubble.
+    expect(last?.feedbackUnavailable).toBe(true)
+    expect(vi.mocked(getRecentMessages).mock.calls.length).toBe(historyLoads)
+    vi.mocked(getRecentMessages).mockResolvedValue([] as never)
+  })
+
+  it('leaves no empty 「正在组装上下文…」 bubble when the first round fails', async () => {
+    render(<ChatPanel />)
+    await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+    await act(async () => { await lastMessageInputProps().onSend('写一个短篇', []) })
+    mockStreamSnapshot.items = [{ type: 'thinking_status', id: 't', content: '正在组装上下文...', timestamp: new Date() }]
+
+    await act(async () => {
+      await roundOptions().onComplete([], null, { partial: true })
+    })
+
+    const messages = (mockMessageList.mock.calls.at(-1)?.[0] as { messages: Array<{ role: string }> }).messages
+    expect(messages.map((m) => m.role)).toEqual(['user'])
+  })
+
+  it('shows how a stopped round ended after the history is reloaded', async () => {
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([
+      { id: 'u', session_id: 's', role: 'user', content: '写第一章', created_at: '2026-10-09T05:29:00Z' },
+      {
+        id: 'a', session_id: 's', role: 'assistant', content: '', created_at: '2026-10-09T05:29:41Z',
+        metadata: JSON.stringify({
+          stop_reason: 'user_stopped',
+          stop_outcome: { reason: 'user_stopped', charged: false, saved_output: false, removed_files: ['第1章'] },
+        }),
+      },
+    ] as never)
+    render(<ChatPanel />)
+
+    await waitFor(() => {
+      const props = mockMessageList.mock.calls.at(-1)?.[0] as {
+        messages?: Array<{ stopOutcome?: unknown }>
+        showDailyCount?: boolean
+      }
+      expect(props.messages?.[1]?.stopOutcome).toEqual({
+        reason: 'user_stopped', charged: false, savedOutput: false, removedFiles: ['第1章'],
+      })
+      expect(props.showDailyCount).toBe(true)
+    })
+  })
+
+  it('offers to resend a message that never got a reply, reusing it instead of adding another', async () => {
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([
+      { id: 'u', session_id: 's', role: 'user', content: '写一个短篇', created_at: '2026-10-09T04:52:00Z' },
+    ] as never)
+    render(<ChatPanel />)
+
+    expect(await screen.findByTestId('chat-unanswered-note')).toHaveTextContent('这条消息没有收到回复。')
+    fireEvent.click(screen.getByTestId('chat-retry-unanswered'))
+
+    await waitFor(() => expect(mockStartStream).toHaveBeenCalledTimes(1))
+    const request = mockStartStream.mock.calls[0][0] as { message: string; metadata: Record<string, unknown> }
+    expect(request.message).toBe('写一个短篇')
+    expect(request.metadata.retry_unanswered).toBe(true)
+    expect(userBubbles()).toHaveLength(1)
   })
 
   it.each(['no_progress', 'error'] as const)('offers no resend for a %s refund', async (kind) => {
@@ -622,17 +775,18 @@ describe('ChatPanel mount smoke', () => {
       expect(note).toHaveTextContent('已停止 · 已写入的内容已保存 · 本条计入今日 AI 消息')
     })
 
-    it('does not claim anything was written when no write succeeded', async () => {
+    it('neither claims a write nor a charge when only lookups and an empty chapter happened', async () => {
       const note = await runRoundThenStop((options) => {
         options.onSessionStarted('session-stop')
         options.onToolResult('query_files', 'success', {})
         options.onToolResult('edit_file', 'error', {})
+        options.onToolResult('create_file', 'success', { id: 'ch-1', title: '第1章', content: '' })
         options.onToolResult('parallel_execute', 'success', {
           tasks: [{ type: 'query_files', status: 'completed' }],
         })
       })
-      expect(note).toHaveTextContent('已停止 · 本条计入今日 AI 消息')
-      expect(note).not.toHaveTextContent('已写入')
+      // Nothing was written, so the server refunds the round; never say "计入" up front.
+      expect(note).toHaveTextContent(/^已停止$/)
     })
 
     it('does not mention today\'s count before the server started the round', async () => {

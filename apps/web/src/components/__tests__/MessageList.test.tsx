@@ -122,6 +122,26 @@ describe('MessageList', () => {
     // MessageList returns null for empty messages, so we just check it doesn't throw
   })
 
+  it('keeps a stopped round that produced nothing visible, showing how it ended', () => {
+    const stopped = createMessage({
+      role: 'assistant',
+      content: '',
+      backendMessageId: 'a-1',
+      stopOutcome: { reason: 'user_stopped', charged: false, savedOutput: false, removedFiles: [] },
+    })
+    render(<MessageList messages={[createMessage({ content: '写第一章' }), stopped]} showDailyCount />)
+
+    expect(screen.getByTestId('round-end-note')).toHaveTextContent('chat:panel.userStopped · chat:panel.roundNotCounted')
+  })
+
+  it('hides feedback for a stopped bubble that no saved message could be matched to', () => {
+    const stopped = createMessage({ role: 'assistant', content: '第一段', feedbackUnavailable: true })
+    render(<MessageList messages={[stopped]} onSubmitFeedback={vi.fn()} />)
+
+    expect(screen.queryByText('feedback.pendingSave')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'feedback.like' })).not.toBeInTheDocument()
+  })
+
   it('shows only the step number for an agent step, never the step budget', () => {
     const displayItems: NonNullable<Message['displayItems']> = [
       { id: 'agent-step', type: 'agent_selected', agentName: 'Step writer', iteration: 2, maxIterations: 12, remaining: 10, timestamp: new Date() },

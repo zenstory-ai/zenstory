@@ -275,7 +275,30 @@ describe('agentApi', () => {
       await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(onError).toHaveBeenCalledTimes(1)
-      expect(onQuotaRefunded).toHaveBeenCalledWith('error')
+      expect(onQuotaRefunded).toHaveBeenCalledWith('error', [])
+    })
+
+    it('passes on the blank files a refunded stop removed, and the stop facts on done', async () => {
+      const onQuotaRefunded = vi.fn()
+      const onDone = vi.fn()
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: createMockStream([
+          'event: done\ndata: {"assistant_message_id":"m-1","stop_reason":"user_stopped","produced_output":false}\n\n',
+          'event: quota_refunded\ndata: {"refunded":true,"kind":"stopped","removed_files":[{"id":"f-1","title":"第1章"},{"bad":1}]}\n\n',
+        ]),
+      }))
+
+      streamAgentRequest({ project_id: 'test-project', message: 'test' }, { onQuotaRefunded, onDone })
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      expect(onDone).toHaveBeenCalledWith(expect.objectContaining({
+        assistant_message_id: 'm-1',
+        stop_reason: 'user_stopped',
+        produced_output: false,
+      }))
+      expect(onQuotaRefunded).toHaveBeenCalledWith('stopped', [{ id: 'f-1', title: '第1章' }])
     })
 
     it.each(['no_progress', 'stopped'])(
@@ -296,7 +319,7 @@ describe('agentApi', () => {
         await new Promise(resolve => setTimeout(resolve, 100))
 
         expect(onQuotaRefunded).toHaveBeenCalledTimes(1)
-        expect(onQuotaRefunded).toHaveBeenCalledWith(kind)
+        expect(onQuotaRefunded).toHaveBeenCalledWith(kind, [])
       },
     )
 

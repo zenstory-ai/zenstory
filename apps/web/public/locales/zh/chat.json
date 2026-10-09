@@ -30,7 +30,12 @@
     "fileVersionLimitTitle": "文件版本额度已达上限",
     "fileVersionLimitDesc": "升级套餐后可继续保存更多版本。",
     "notChargedStopped": "已停止，这一轮还没有写出内容，不计入今日 AI 消息。",
-    "resend": "重新发送"
+    "resend": "重新发送",
+    "roundInterrupted": "已中断",
+    "roundNotCounted": "未计入今日 AI 消息",
+    "roundRemovedFiles": "空白的《{{titles}}》已移除",
+    "removedEmptyFiles": "这一轮新建的空白文件《{{titles}}》已移除。",
+    "unanswered": "这条消息没有收到回复。"
   },
   "input": {
     "placeholder": "想写什么，直接说…",
@@ -38,6 +43,7 @@
     "placeholderQuotaExhausted": "今天的 {{limit}} 条 AI 消息用完了，北京时间明天 00:00 恢复。可以先把想法写下来，到时再发。",
     "stop": "停止生成",
     "stopping": "正在停止…",
+    "stopArming": "正在开始，稍后可停止",
     "steerPlaceholder": "补充你的要求…",
     "steerButton": "补充要求",
     "steerHint": "AI 正在生成，补充的要求会在它的下一步生效",
@@ -317,7 +323,13 @@
     "title": "AI 还在写",
     "message": "离开这个页面会中断这一轮。还没写出内容的话，这一轮不计入今日 AI 消息。",
     "leave": "离开",
-    "stay": "继续等"
+    "stay": "继续等",
+    "messageWithOutput": "离开这个页面会中断这一轮。已经写出的内容会保存，这一轮计入今日 AI 消息。",
+    "messageWithOutputUnlimited": "离开这个页面会中断这一轮，已经写出的内容会保存。",
+    "messageUnlimited": "离开这个页面会中断这一轮。",
+    "endedTitle": "这一轮已经结束",
+    "endedMessage": "现在离开不会中断任何内容。",
+    "stayEnded": "留在这里"
   },
   "nextStep": {
     "frameworkReady": "框架已就绪，可以开始写正文了。",

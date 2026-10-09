@@ -343,6 +343,8 @@ describe('ChatPanel.handleSendMessage 透传显式选择的技能', () => {
       expect.objectContaining({ message: '写下一章', selected_skill_ids: ['skill-a', 'skill-b'] }),
     )
 
+    // A later send (next task): the same-tick double-send guard has been released.
+    await new Promise((resolve) => setTimeout(resolve, 0))
     await onSend('不选技能', [])
     expect(startStreamMock.mock.lastCall?.[0].selected_skill_ids).toBeUndefined()
   })
