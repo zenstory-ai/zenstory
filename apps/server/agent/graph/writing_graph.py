@@ -13,11 +13,30 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from agent.constants import CONTENT_FILE_TYPES
-from agent.core.author_facing_text import author_facing_handoff_reason, author_facing_text
+from agent.core.author_facing_text import (
+    AgentTextShaper,
+    author_facing_handoff_reason,
+    author_facing_text,
+    text_contains_cjk,
+)
 from agent.core.events import READ_ONLY_HANDOFF_BLOCKED_REASON
 from agent.core.run_meter import AgentRunMeter
 from agent.core.stream_errors import classify_stream_exception, log_stream_exception
 from agent.core.workflow_events import StreamEvent, StreamEventType
+from agent.graph.author_scope import (
+    PLANNED_HANDOFF_SCOPE_NOTE,
+    PLANNED_WRITER_AFTER_QUESTION_NOTE,
+    PLANNING_AGENTS,
+    SCOPE_DIRECTIVE_CLARIFY_FIRST,
+    SCOPE_DIRECTIVE_WITH_CONTENT_AFTER_PLANNING,
+    chat_only_plan_units,
+    chat_plan_correction_context,
+    clarify_first_route,
+    has_selected_text,
+    is_vague_edit_request,
+    outline_covers_units,
+    planning_question_keeps_writer,
+)
 from agent.graph.nodes import (
     detect_task_complete,
     ends_with_question_to_user,
@@ -26,6 +45,9 @@ from agent.graph.nodes import (
 )
 from agent.graph.review_evidence import find_numeric_fact_pairs, find_repetition_evidence
 from agent.graph.router import (
+    _ended_with_question,
+    _last_assistant_message,
+    _previous_routing,
     get_next_node,
     inherit_routing_after_clarification,
     resume_route_after_exhaustion,
@@ -252,11 +274,19 @@ def _build_scope_directive(routing_metadata: dict[str, Any] | None) -> str:
     """
     if not isinstance(routing_metadata, dict):
         return ""
+    if routing_metadata.get("clarify_first") is True:
+        return SCOPE_DIRECTIVE_CLARIFY_FIRST
     parts: list[str] = []
     if routing_metadata.get("read_only") is True:
         parts.append(SCOPE_DIRECTIVE_READ_ONLY)
     elif routing_metadata.get("write_content") is False:
         parts.append(SCOPE_DIRECTIVE_NO_CONTENT)
+    elif (
+        routing_metadata.get("write_content") is True
+        and routing_metadata.get("agent_type") in PLANNING_AGENTS
+    ):
+        # 作者已经要正文：规划师不要按「首轮问一句要不要开始写」的规则截停（P2-21）。
+        parts.append(SCOPE_DIRECTIVE_WITH_CONTENT_AFTER_PLANNING)
     scope = str(routing_metadata.get("scope") or "").strip()
     if scope:
         parts.append(
@@ -264,6 +294,48 @@ def _build_scope_directive(routing_metadata: dict[str, Any] | None) -> str:
             "不要额外续写后续章节或创建范围外的文件；范围内的工作完成后即结束。"
         )
     return "\n".join(parts)
+
+
+def _should_clarify_first(state: WritingState) -> bool:
+    """作者这一轮只说了「帮我优化一下」这类笼统的话：先问清楚改哪里（P2-16）。
+
+    不问的情况：带着选中文本、附加或引用了文件（改哪里已经清楚）；上一轮 AI 以提问
+    收尾（作者这句是在回答）；上一轮已经为笼统要求问过一次（只问一次）。
+    """
+    message = str(state.get("router_message") or state.get("user_message") or "")
+    if not is_vague_edit_request(message):
+        return False
+    if has_selected_text(str(state.get("user_message") or "")):
+        return False
+    scope = ToolContext.get_author_scope()
+    if scope is not None and scope.referenced_file_ids:
+        return False
+    previous = _last_assistant_message(list(state.get("messages") or []))
+    if previous is not None:
+        if _previous_routing(previous).get("clarify_first") is True:
+            return False
+        if previous.get("clarification_pending") is True or _ended_with_question(previous):
+            return False
+    return True
+
+
+def _written_outline_contents(file_ids: list[str]) -> list[str]:
+    """本请求写过的大纲文件的正文（判断对话里的规划是否已经落进文件）。"""
+    if not file_ids:
+        return []
+    from sqlmodel import select
+
+    from models import File
+
+    with ToolContext.short_lived_session() as session:
+        rows = session.exec(
+            select(File).where(
+                File.id.in_(file_ids),  # type: ignore[attr-defined]
+                File.file_type == "outline",
+                File.is_deleted.is_(False),  # type: ignore[attr-defined]
+            )
+        ).all()
+        return [str(row.content or "") for row in rows]
 
 
 def _review_notes_from_packet(packet: dict[str, Any] | None, context: str) -> str:
@@ -822,6 +894,31 @@ async def _auto_finalize_task_board_on_completion() -> list[StreamEvent]:
 # =============================================================================
 
 
+async def _shape_agent_text(
+    events: AsyncIterator[StreamEvent],
+    shaper: AgentTextShaper,
+) -> AsyncIterator[StreamEvent]:
+    """一个 agent run 的事件流：TEXT 经 AgentTextShaper 整理后再交给图（P3-16）。
+
+    非文字事件（思考过程除外）结束当前这段文字：先把攒着的文字发出去（紧接着是工具调用
+    且攒着的是英文过程句时丢掉），再发这个事件。
+    """
+    async for event in events:
+        if event.type == StreamEventType.TEXT:
+            text = shaper.feed(str(event.data.get("text") or ""))
+            if text:
+                yield StreamEvent(type=StreamEventType.TEXT, data={**event.data, "text": text})
+            continue
+        if event.type != StreamEventType.THINKING:
+            rest = shaper.end_segment(before_tool_call=event.type == StreamEventType.TOOL_USE)
+            if rest:
+                yield StreamEvent(type=StreamEventType.TEXT, data={"text": rest})
+        yield event
+    rest = shaper.end_segment(before_tool_call=False)
+    if rest:
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": rest})
+
+
 async def run_writing_workflow_streaming(
     state: WritingState,
     thread_id: str | None = None,
@@ -1003,6 +1100,14 @@ async def run_writing_workflow_streaming(
         # 快速模式（路由关闭）照旧固定从 writer 开始。
         if resume_result is None and router_strategy == "llm":
             resume_result = inherit_routing_after_clarification(state)
+        # 「帮我优化一下」这类笼统要求：不走路由，writer 单独一轮先问清楚改哪里（P2-16）。
+        if resume_result is None and _should_clarify_first(state):
+            resume_result = clarify_first_route()
+            log_with_context(
+                logger,
+                20,  # INFO
+                "Vague edit request; asking the author what to improve before editing",
+            )
 
         try:
             if resume_result is not None:
@@ -1091,6 +1196,20 @@ async def run_writing_workflow_streaming(
         if read_only_request:
             # 工具层强制：写文件工具的调用一律拒绝执行（见 tools_adapter），不只靠系统提示约束。
             state["read_only"] = True
+        clarify_first_request = (
+            isinstance(routing_metadata, dict) and routing_metadata.get("clarify_first") is True
+        )
+        if clarify_first_request:
+            # 笼统要求先问清楚：同样在工具层拒绝写文件（拒绝说明不同，见 tools_adapter）。
+            state["clarify_first"] = True
+        # 作者写中文时，调用工具前那句英文过程说明不发给作者（AgentTextShaper）。
+        drop_english_narration = text_contains_cjk(
+            state.get("router_message") or state.get("user_message")
+        )
+        # 本请求是否已经为「规划只贴在对话里」补写过一次大纲文件（只补一次）。
+        chat_plan_corrected = False
+        # 规划师以提问收尾、但作者已经要正文时，计划交接给 writer 时附上的说明。
+        planned_writer_after_question = False
 
         yield StreamEvent(
             type=StreamEventType.ROUTER_DECIDED,
@@ -1262,8 +1381,15 @@ async def run_writing_workflow_streaming(
             mid_run_steering_seen = False
             agent_run_errored = False
 
-            async for event in run_streaming_agent(
-                modified_state, current_agent_type, get_steering_messages=get_steering_messages
+            text_shaper = AgentTextShaper(
+                previous_text=accumulated_content,
+                drop_english_narration=drop_english_narration,
+            )
+            async for event in _shape_agent_text(
+                run_streaming_agent(
+                    modified_state, current_agent_type, get_steering_messages=get_steering_messages
+                ),
+                text_shaper,
             ):
                 if event.type == StreamEventType.MESSAGE_START:
                     agent_message_started = True
@@ -1584,6 +1710,52 @@ async def run_writing_workflow_streaming(
                     incoming_handoff_packet = None
                     continue
 
+            # 规划师把作者要的分章 / 分集规划只贴在对话里、没写进文件（P2-13：「前十章大纲」
+            # 只留在聊天里，大纲目录里找不到）：同一个规划师补一轮，把这份规划写进大纲文件。
+            # 只补一次；只读 / 先问清楚的请求、已经停下的轮次、显式交接都不补。
+            if (
+                current_agent_type == "planner"
+                and not chat_plan_corrected
+                and not next_agent
+                and not clarification_stopped
+                and not invalid_handoff_stopped
+                and not tool_call_exhausted
+                and not agent_run_errored
+                and not read_only_request
+                and not clarify_first_request
+                and iteration < max_iterations
+            ):
+                plan_units = chat_only_plan_units(agent_tail_text)
+                if plan_units:
+                    plan_guard = _guard_from_state(state)
+                    written_ids = plan_guard.written_file_ids() if plan_guard else []
+                    try:
+                        outline_contents = await asyncio.to_thread(
+                            _written_outline_contents, written_ids
+                        )
+                    except Exception as e:
+                        log_with_context(
+                            logger, 30, "Failed to read outline files written this request", error=str(e)
+                        )
+                        outline_contents = None
+                    if outline_contents is not None and not outline_covers_units(
+                        outline_contents, plan_units
+                    ):
+                        chat_plan_corrected = True
+                        log_with_context(
+                            logger,
+                            20,  # INFO
+                            "Planner left a chapter plan only in chat; re-running it to save the plan to an outline file",
+                            plan_units=len(plan_units),
+                        )
+                        # 补写轮只把规划落进文件，它的收尾（「已写进《前十章大纲》」）不能冲掉
+                        # 规划师原本在等作者回答的问题。
+                        carried_ended_with_question = ended_with_question
+                        handoff_context = chat_plan_correction_context(plan_units)
+                        previous_agent = current_agent_type
+                        incoming_handoff_packet = None
+                        continue
+
             # Structured clarification stop is canonical and must block planned/auto handoff.
             if clarification_stopped:
                 terminated_via_break = True
@@ -1669,6 +1841,19 @@ async def run_writing_workflow_streaming(
                 explicit_handoff_event_data = None
                 handoff_packet = None
 
+            # 笼统要求先问清楚：这一轮只问、不交接（交给别的角色就会去改文件）。
+            if clarify_first_request and next_agent:
+                log_with_context(
+                    logger,
+                    20,  # INFO
+                    "Clarify-first round: dropping handoff",
+                    from_agent=current_agent_type,
+                    to_agent=next_agent,
+                )
+                next_agent = None
+                explicit_handoff_event_data = None
+                handoff_packet = None
+
             # 快速模式：用户选的是「更快出结果」，writer 写完直接结束。nodes 已在系统提示
             # 里说明不要送审；模型仍然交接给审稿人时，这里丢弃。
             if (
@@ -1747,6 +1932,25 @@ async def run_writing_workflow_streaming(
             # 而 writer 收尾时习惯性地问一句“需要我继续写第二章吗？”——按提问拦下
             # 会让用户选了高质量模式（generation_mode=quality）的请求实际不送审。
             awaiting_user_reply = not next_agent and ended_with_question
+            if (
+                awaiting_user_reply
+                and workflow_agents
+                and planning_question_keeps_writer(
+                    current_agent_type, routing_metadata, workflow_agents
+                )
+            ):
+                # 作者本轮已经要正文（「…大纲，然后直接写第一章」）：规划师结尾的提问
+                # （典型是「要我按这份大纲开始写第一章吗？」）不截停计划交接，作者的话就是
+                # 答案（P2-21）。writer 收到的交接说明里写明按推荐方案写、不再问。
+                log_with_context(
+                    logger,
+                    20,  # INFO
+                    "Planning agent ended with a question but the author already asked for prose; keeping planned writer",
+                    agent_type=current_agent_type,
+                    workflow_agents=list(workflow_agents),
+                )
+                planned_writer_after_question = True
+                awaiting_user_reply = False
             if awaiting_user_reply and workflow_agents:
                 log_with_context(
                     logger,
@@ -1807,6 +2011,12 @@ async def run_writing_workflow_streaming(
                     # 否则下游 writer 只看到「自动交接」，会按大纲把整本书往下写。
                     handoff_context += f"。用户要求的交付范围：{user_scope}，只完成该范围内的内容"
                     planned_todo.append(f"按用户要求的范围完成：{user_scope}")
+                # 不重做、不扩大交付（P2-16：首轮规划师已经交付了大纲和前三集剧本，
+                # 计划交接后 writer 又给三集追加了作者没要的「拍摄执行版」）。
+                handoff_context += f"。{PLANNED_HANDOFF_SCOPE_NOTE}"
+                if planned_writer_after_question and next_planned == "writer":
+                    handoff_context += f"\n{PLANNED_WRITER_AFTER_QUESTION_NOTE}"
+                    planned_writer_after_question = False
                 planned_guard = _guard_from_state(state)
                 handoff_packet = {
                     "target_agent": next_planned,

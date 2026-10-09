@@ -21,6 +21,15 @@ from sqlmodel import Session, and_, select
 
 from agent.constants import CONTENT_FILE_TYPES, INVENTORY_FILE_TYPES, coerce_bool
 from agent.skills.content_budget import SkillContentBudget
+from agent.tools.author_edit_guard import (
+    AUTHOR_EDIT_PROTECTED_ERROR,
+    AuthorEditRefusals,
+    AuthorScope,
+    latest_text_is_authors,
+    protected_refusal_message,
+    protected_user_message,
+    request_targets_file,
+)
 from agent.tools.file_ops import FileToolExecutor
 from agent.tools.file_ops.edit import (
     EDIT_ERROR_FILE_BUSY,
@@ -339,6 +348,10 @@ class ToolContext:
         skill_tokens_used: int = 0,
         author_message: str | None = None,
         author_steering: list[str] | None = None,
+        focus_file_id: str | None = None,
+        referenced_file_ids: Iterable[str] | None = None,
+        author_confirmed_file_ids: Iterable[str] | None = None,
+        author_edit_refusals: AuthorEditRefusals | None = None,
     ) -> None:
         """Set the execution context for tools (request-scoped).
 
@@ -347,6 +360,12 @@ class ToolContext:
                 服务端据此判断「作者是否明确要求改项目名」，见 update_project。
             author_steering: 本轮运行中作者追加的消息（service 的 consumed_steering，
                 同一个 list 对象，运行中会继续追加），和 author_message 一起判断。
+            focus_file_id: 作者正开着的文件。
+            referenced_file_ids: 作者本轮附加的文件、引用的选中文本所在的文件。
+            author_confirmed_file_ids: 上一轮因为作者手改过而问过作者要不要改的文件，
+                本轮放行（作者这一轮就是在回答）。
+            author_edit_refusals: 本轮因为作者手改过而没改成的文件（service 持有，
+                落库到 routing，下一轮放行）。以上四项见 agent/tools/author_edit_guard.py。
             recorded_skill_ids: 本次请求里已记录过用量的技能（显式选择的技能），
                 load_skill 不再为它们重复记用量。
             skill_tokens_used: 显式选择的技能注入 system prompt 时已占用的技能内容 token，
@@ -365,6 +384,12 @@ class ToolContext:
             "skill_content_budget": SkillContentBudget(used=skill_tokens_used),
             "author_message": author_message,
             "author_steering": author_steering,
+            "focus_file_id": focus_file_id or None,
+            "referenced_file_ids": frozenset(str(item) for item in (referenced_file_ids or []) if item),
+            "author_confirmed_file_ids": frozenset(
+                str(item) for item in (author_confirmed_file_ids or []) if item
+            ),
+            "author_edit_refusals": author_edit_refusals,
         })
         _owned_session_var.set(None)
         _pending_empty_file_var.set(None)
@@ -472,6 +497,29 @@ class ToolContext:
         if isinstance(steering, list):
             messages.extend(item for item in list(steering) if isinstance(item, str))
         return messages
+
+    @classmethod
+    def get_author_scope(cls) -> AuthorScope | None:
+        """作者本轮说了什么、指向了哪些文件；没有作者原话（非应用内对话）时为 None。"""
+        context = cls._get_context()
+        if not isinstance(context.get("author_message"), str):
+            return None
+        focus = context.get("focus_file_id")
+        referenced = context.get("referenced_file_ids")
+        confirmed = context.get("author_confirmed_file_ids")
+        return AuthorScope(
+            messages=tuple(cls.get_author_messages()),
+            referenced_file_ids=referenced if isinstance(referenced, frozenset) else frozenset(),
+            confirmed_file_ids=confirmed if isinstance(confirmed, frozenset) else frozenset(),
+            focus_file_id=focus if isinstance(focus, str) and focus else None,
+        )
+
+    @classmethod
+    def record_author_edit_refusal(cls, file_id: str) -> None:
+        """记下本轮因为作者手改过而没改成的文件。"""
+        holder = cls._get_context().get("author_edit_refusals")
+        if isinstance(holder, AuthorEditRefusals):
+            holder.add(file_id)
 
     @classmethod
     def get_current_agent(cls) -> str | None:
@@ -1589,6 +1637,67 @@ def _create_file_sync(args: dict[str, Any]) -> dict[str, Any]:
             ToolContext.release_pending_empty_file(reservation)
 
 
+def _author_edit_refusal(
+    file_id: str,
+    *,
+    tool_name: str,
+    edits: list[Any] | None = None,
+) -> dict[str, Any] | None:
+    """作者手改过、本轮又没点名的文件：返回拒绝结果；可以改时返回 None。
+
+    规则见 agent/tools/author_edit_guard.py。读不到文件或判定出错时不拦（交给后面的
+    正常路径报「文件不存在」等错误），守卫只在确认是作者写下的正文时生效。
+    """
+    scope = ToolContext.get_author_scope()
+    if scope is None or not file_id:
+        return None
+    try:
+        from models import File
+
+        project_id = ToolContext.get_project_id()
+        with ToolContext.short_lived_session() as session:
+            file = session.get(File, file_id)
+            if file is None or file.is_deleted or (project_id and file.project_id != project_id):
+                return None
+            if file.file_type == "folder":
+                return None
+            title = str(file.title or "")
+            file_type = str(file.file_type or "")
+            if not latest_text_is_authors(session, file):
+                return None
+    except Exception as exc:
+        logger.warning(
+            "Author-edit guard check failed; letting the write proceed",
+            extra={"file_id": file_id, "error": str(exc)},
+        )
+        return None
+
+    if request_targets_file(scope, file_id=file_id, title=title, file_type=file_type, edits=edits):
+        return None
+
+    ToolContext.record_author_edit_refusal(file_id)
+    log_with_context(
+        logger,
+        20,  # INFO
+        "Refused AI write to a file the author edited and did not ask to change",
+        tool_name=tool_name,
+        file_id=file_id,
+        agent_type=ToolContext.get_current_agent(),
+    )
+    payload: dict[str, Any] = {
+        "status": "error",
+        "error": protected_refusal_message(title),
+        "error_type": AUTHOR_EDIT_PROTECTED_ERROR,
+        "user_message": protected_user_message(title),
+        "id": file_id,
+        "title": title,
+        "mutation_applied": False,
+    }
+    if tool_name == "edit_file":
+        payload["edits_applied"] = 0
+    return _make_mcp_payload(payload, tool_name=tool_name)
+
+
 async def edit_file(args: dict[str, Any]) -> dict[str, Any]:
     """精确编辑文件内容。"""
     if _should_offload_tool_execution():
@@ -1635,6 +1744,10 @@ def _edit_file_sync(args: dict[str, Any]) -> dict[str, Any]:
                 "edit_file: invalid param 'edits' (must be an array).",
                 error_type=EDIT_ERROR_INVALID_EDIT,
             )
+
+        refusal = _author_edit_refusal(file_id, tool_name=tool_name, edits=edits)
+        if refusal is not None:
+            return refusal
 
         result = executor.edit_file(
             id=file_id,
@@ -1757,6 +1870,12 @@ def _delete_file_sync(args: dict[str, Any]) -> dict[str, Any]:
         # 模型传来的 "false"/"0"/被截断修复出来的 "fals" 在朴素真值判断下全是
         # True，历史上把"删一个文件"变成"删掉整个文件夹的所有章节"。
         recursive = coerce_bool(args.get("recursive"))
+        delete_id = args.get("id", "")
+        refusal = _author_edit_refusal(
+            delete_id.strip() if isinstance(delete_id, str) else "", tool_name=tool_name
+        )
+        if refusal is not None:
+            return refusal
         result = executor.delete_file(
             id=args.get("id", ""),
             recursive=recursive,

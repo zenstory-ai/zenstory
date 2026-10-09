@@ -2,6 +2,8 @@
 
 Status: implemented
 
+后续修改：「提问就停」对规划类角色 + 作者本轮已经要正文（`write_content=true`）不再适用，见 `2026-10-09-planner-question-keeps-requested-prose.md`。
+
 ## Problem
 
 多 Agent 工作流会做用户没要求的事。真实 deepseek-flash 复现：

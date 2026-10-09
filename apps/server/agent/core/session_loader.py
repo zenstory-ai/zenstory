@@ -36,6 +36,11 @@ WORKING_SET_HEADER = (
     "无需再次 query_files："
 )
 WORKING_SET_USER_MESSAGE_LABEL = "【本轮用户消息】"
+# 工作集里「作者在 AI 之后手动改过」的文件标注。
+WORKING_SET_AUTHOR_EDITED_NOTE = (
+    "（现在的正文是作者手动改过的：改过的人名、称呼、用词和情节以作者为准，后面的内容沿用，"
+    "不要改回去；作者没要求改这个文件时不要动它）"
+)
 
 # 工具名 → 面包屑里的动作（读取类只认按 id 精确读取的 query_files）
 _BREADCRUMB_VERBS_ZH = {
@@ -462,6 +467,12 @@ class SessionLoader:
                 continue
             title = str(file.title or ref.get("title") or "").strip() or "（未命名）"
             label = f"《{title}》 (id={file.id})"
+            # 上一轮 AI 写过、之后作者又手动改过的文件：告诉 agent 以作者的写法为准，
+            # 不要当成笔误改回去（2026-10-09 审计 P1-3：作者把「老周」改成「老秦」，
+            # 下一轮 AI 把它全改了回去）。
+            author_edited = self._author_edited_after_ai(session, file)
+            if author_edited:
+                label = f"{label}{WORKING_SET_AUTHOR_EDITED_NOTE}"
             if str(file.id) in full_in_context_ids:
                 in_context.append(f"- {label}")
                 continue
@@ -492,6 +503,17 @@ class SessionLoader:
             lines.append("")
         lines.append("</previous_turn_working_set>")
         return "\n".join(lines)
+
+    @staticmethod
+    def _author_edited_after_ai(session: Session, file: Any) -> bool:
+        """当前正文最后是不是作者写下的（判定失败时当作不是，不影响工作集）。"""
+        from agent.tools.author_edit_guard import latest_text_is_authors
+
+        try:
+            return latest_text_is_authors(session, file)
+        except Exception as exc:
+            logger.debug(f"Author-edit check failed for working set file {getattr(file, 'id', '')}: {exc}")
+            return False
 
     @staticmethod
     def attach_working_set_to_user_content(user_content: str, working_set_context: str) -> str:

@@ -816,6 +816,47 @@ class TestCrossTurnWorkingSet:
         assert user_content.startswith("<previous_turn_working_set>")
         assert user_content.endswith("【本轮用户消息】\n继续")
 
+    def test_working_set_marks_chapters_the_author_edited_after_the_ai(
+        self,
+        db_session: Session,
+        session_loader_test_data,
+    ):
+        """审计 P1-3：作者把 AI 写的第 3 章「老周」手改成「老秦」，下一轮 AI 把它改了回去。
+        工作集里要告诉 agent 这份正文是作者改过的、以作者为准。"""
+        from services.features.file_version_service import FileVersionService
+
+        project = session_loader_test_data["project"]
+        chat_session_id = session_loader_test_data["chat_session"].id
+        versions = FileVersionService()
+
+        edited = self._make_file(db_session, project.id, "第3章 三十年", "老周在收摊。")
+        versions.create_version(db_session, edited.id, "老周在收摊。", change_type="create", change_source="ai")
+        edited.content = "老秦在收摊。"
+        db_session.add(edited)
+        db_session.commit()
+        versions.create_version(db_session, edited.id, "老秦在收摊。", change_type="edit", change_source="user")
+
+        untouched = self._make_file(db_session, project.id, "第2章", "老周的摊子。")
+        versions.create_version(db_session, untouched.id, "老周的摊子。", change_type="create", change_source="ai")
+
+        _add_turn(
+            db_session,
+            chat_session_id,
+            user_text="写第3章",
+            tool_calls=[_query_call(edited.id, edited.title), _query_call(untouched.id, untouched.title)],
+            at=datetime.utcnow() - timedelta(minutes=1),
+        )
+
+        loader = SessionLoader(project_id=project.id, user_id=session_loader_test_data["user"].id)
+        result = loader.load_chat_session(db_session)
+        loader.attach_working_set(db_session, result)
+        text = result.working_set_context
+
+        edited_line = next(line for line in text.splitlines() if edited.id in line)
+        untouched_line = next(line for line in text.splitlines() if untouched.id in line)
+        assert "作者手动改过" in edited_line and "以作者为准" in edited_line
+        assert "作者手动改过" not in untouched_line
+
     def test_working_set_respects_budget_and_context_dedupe(
         self,
         db_session: Session,

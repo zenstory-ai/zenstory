@@ -37,7 +37,11 @@ from agent.openai_agents.repeat_read_guard import (
     RepeatReadGuard,
 )
 from agent.openai_agents.tool_failure_breaker import ToolFailureBreaker
-from agent.openai_agents.tools_adapter import build_agent_function_tools
+from agent.openai_agents.tools_adapter import (
+    READ_ONLY_REASON_CLARIFY_FIRST,
+    READ_ONLY_REASON_USER_REQUEST,
+    build_agent_function_tools,
+)
 from config.agent_runtime import (
     AGENT_COLLABORATION_MAX_ITERATIONS,
     AGENT_OPENAI_AGENTS_MAX_OUTPUT_TOKENS,
@@ -496,6 +500,7 @@ def _build_agent(
     read_only: bool = False,
     run_meter: AgentRunMeter | None = None,
     read_guard: RepeatReadGuard | None = None,
+    read_only_reason: str = READ_ONLY_REASON_USER_REQUEST,
 ) -> Any:
     # NOTE — Agent.as_tool was evaluated and rejected.
     # Agent.as_tool wraps an agent as a callable tool for a parent agent, which
@@ -537,6 +542,7 @@ def _build_agent(
             failure_breaker=failure_breaker,
             read_only=read_only,
             read_guard=read_guard,
+            read_only_reason=read_only_reason,
         ),
         # 控制流工具生效、或工具失败熔断时即结束 run，避免 SDK 在「工作流已暂停」
         # 之后再跑一整轮模型调用并真实执行其工具（详见 _stop_run_on_control_flow_tool）。
@@ -744,7 +750,13 @@ async def run_openai_agents_streaming_agent(
             system_prompt,
             failure_breaker=failure_breaker,
             # 用户明确要求不改文件：写工具调用一律拒绝执行（由 writing_graph 按路由结果置位）。
-            read_only=state.get("read_only") is True,
+            # 作者的要求太笼统、本轮先问清楚（clarify_first）时写工具同样拒绝执行，拒绝说明不同。
+            read_only=state.get("read_only") is True or state.get("clarify_first") is True,
+            read_only_reason=(
+                READ_ONLY_REASON_USER_REQUEST
+                if state.get("read_only") is True
+                else READ_ONLY_REASON_CLARIFY_FIRST
+            ),
             run_meter=run_meter,
             read_guard=read_guard,
         )
