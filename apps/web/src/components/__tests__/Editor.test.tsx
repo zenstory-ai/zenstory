@@ -24,6 +24,8 @@ const editorTranslations = vi.hoisted(() => ({
   'editor:fileTree.newOutline': 'New Outline',
   'editor:fileTree.newCharacter': 'New Character Sheet',
   'editor:fileTree.newLore': 'New Setting',
+  'editor:fileTree.newScript': 'New Script',
+  'editor:emptyStateDescriptionScript': 'Open a file, or create a script or outline.',
   'editor:showMore': 'More options',
   'editor:showLess': 'Show less',
   'editor:fileTree.shortcutHint': 'Ctrl+K',
@@ -112,6 +114,7 @@ vi.mock('../../lib/api', () => ({
 
 // Mutable state for mocking
 let mockProjectContext: {
+  currentProject?: { id: string; project_type?: string } | null;
   currentProjectId: string;
   selectedItem: { id: string; type: string; title: string } | null;
   setSelectedItem: () => void;
@@ -151,9 +154,10 @@ vi.mock('../../contexts/MaterialAttachmentContext', () => ({
   MaterialAttachmentProvider: ({ children }: { children: React.ReactNode }) => React.createElement(React.Fragment, null, children),
 }))
 
+const viewport = vi.hoisted(() => ({ isMobile: false }))
 vi.mock('../../contexts/MobileLayoutContext', () => ({
   useMobileLayout: () => ({
-    isMobile: false,
+    isMobile: viewport.isMobile,
   }),
   MobileLayoutProvider: ({ children }: { children: React.ReactNode }) => React.createElement(React.Fragment, null, children),
 }))
@@ -208,6 +212,7 @@ describe('Editor', () => {
     vi.clearAllMocks()
     localStorage.clear()
     editorTranslator.current = createEditorTranslator()
+    viewport.isMobile = false
     vi.spyOn(console, 'error').mockImplementation(() => {})
     mockProjectContext = createMockProjectContext()
     vi.mocked(api.fileApi.get).mockResolvedValue(mockFile)
@@ -368,6 +373,62 @@ describe('Editor', () => {
     expect(screen.getByText('Ctrl')).toBeInTheDocument()
     expect(screen.getByText('K')).toBeInTheDocument()
     expect(screen.getByText(/Search files/i)).toBeInTheDocument()
+  })
+
+  it('shows the ⌘ K shortcut on Apple platforms', () => {
+    const platformSpy = vi.spyOn(window.navigator, 'platform', 'get').mockReturnValue('MacIntel')
+    try {
+      mockProjectContext = createMockProjectContext({ selectedItem: null })
+      render(<Editor />)
+      expect(screen.getByText('⌘')).toBeInTheDocument()
+      expect(screen.queryByText('Ctrl')).not.toBeInTheDocument()
+    } finally {
+      platformSpy.mockRestore()
+    }
+  })
+
+  it('hides the keyboard shortcut hint on phones', () => {
+    viewport.isMobile = true
+    mockProjectContext = createMockProjectContext({ selectedItem: null })
+    render(<Editor />)
+    expect(screen.queryByText('Ctrl')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Search files/i)).not.toBeInTheDocument()
+  })
+
+  it('offers a new script instead of a chapter in short drama projects', async () => {
+    mockProjectContext = createMockProjectContext({
+      selectedItem: null,
+      currentProject: { id: 'project-1', project_type: 'screenplay' },
+    })
+    vi.mocked(api.fileApi.getTree).mockResolvedValue({
+      tree: [
+        {
+          id: 'project-1-script-folder',
+          title: '剧本',
+          file_type: 'folder',
+          parent_id: null,
+          order: 0,
+          metadata: null,
+          children: [],
+        },
+      ],
+    })
+    render(<Editor />)
+
+    expect(screen.queryByText('New Chapter')).not.toBeInTheDocument()
+    expect(screen.getByText('Open a file, or create a script or outline.')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('New Script'))
+
+    await waitFor(() => {
+      expect(api.fileApi.create).toHaveBeenCalledWith(
+        'project-1',
+        expect.objectContaining({
+          title: 'New Script',
+          file_type: 'script',
+          parent_id: 'project-1-script-folder',
+        })
+      )
+    })
   })
 
   it('renders folder selected state', () => {
@@ -852,5 +913,35 @@ describe('Editor', () => {
       expect(exitDiffReview).toHaveBeenCalled()
       expect(triggerFileTreeRefresh).toHaveBeenCalled()
     })
+  })
+
+  it('exits review without saving or versioning when every edit was rejected', async () => {
+    const exitDiffReview = vi.fn()
+    const applyDiffReviewChanges = vi.fn().mockReturnValue('　　Original content')
+
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+      diffReviewState: {
+        isReviewing: true,
+        fileId: 'file-1',
+        originalContent: '　　Original content',
+        modifiedContent: 'Polished content',
+        pendingEdits: [{ id: 'edit-0', op: 'replace', oldText: 'a', newText: 'b', status: 'rejected' }],
+      },
+      exitDiffReview,
+      applyDiffReviewChanges,
+    })
+
+    render(<Editor />)
+    await waitFor(() => {
+      expect(screen.getByTestId('simple-editor')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('finish-review-button'))
+
+    await waitFor(() => {
+      expect(exitDiffReview).toHaveBeenCalledTimes(1)
+    })
+    expect(api.fileApi.update).not.toHaveBeenCalled()
   })
 })

@@ -22,6 +22,16 @@ function isNoopReplacement(oldText: string, newText: string): boolean {
   return normalizeComparableText(oldText) === normalizeComparableText(newText);
 }
 
+const TRAILING_PARAGRAPH_BREAK_RE = /(?:\r\n|\n|\r)(?:[ \t]*(?:\r\n|\n|\r))+$/;
+
+function trailingParagraphBreak(text: string): string {
+  return text.match(TRAILING_PARAGRAPH_BREAK_RE)?.[0] ?? "";
+}
+
+function endsWithParagraphBreak(text: string): boolean {
+  return TRAILING_PARAGRAPH_BREAK_RE.test(text);
+}
+
 function splitParagraphBlocks(text: string): string[] {
   if (!text) return [];
 
@@ -165,18 +175,27 @@ function buildAtomicReviewSegments(diffs: ReviewDiffTuple[]): ReviewDiffSegment[
         const oldBlocks = splitParagraphBlocks(text);
         const newBlocks = splitParagraphBlocks(diffs[i + 1][1]);
         const pairCount = Math.min(oldBlocks.length, newBlocks.length);
+        // 原文最后一段没有段落分隔符、而改写在它后面又补了段落时，分隔符挂到
+        // 下一个插入段前面：拒绝插入时原文逐字节不变，接受时两段也不会粘在一起。
+        let separatorForNextInsert = "";
 
         for (let blockIndex = 0; blockIndex < pairCount; blockIndex++) {
           const oldBlock = oldBlocks[blockIndex]!;
           const newBlock = newBlocks[blockIndex]!;
 
           if (isNoopReplacement(oldBlock, newBlock)) {
+            // 只差空白的段落按原文保留：U+3000 段首缩进、行尾空白、段落分隔都不动。
+            // 用改写后的文本会让「全部拒绝」也悄悄改掉原文格式。
             segments.push({
               type: "equal",
-              text: newBlock,
+              text: oldBlock,
             });
+            separatorForNextInsert = endsWithParagraphBreak(oldBlock)
+              ? ""
+              : trailingParagraphBreak(newBlock);
             continue;
           }
+          separatorForNextInsert = "";
 
           segments.push({
             type: "replace",
@@ -189,6 +208,8 @@ function buildAtomicReviewSegments(diffs: ReviewDiffTuple[]): ReviewDiffSegment[
         for (let blockIndex = pairCount; blockIndex < oldBlocks.length; blockIndex++) {
           const block = oldBlocks[blockIndex]!;
           if (isVisuallyEmptyText(block)) {
+            // 纯空白块不值得审阅，但它是原文的一部分，保留下来。
+            segments.push({ type: "equal", text: block });
             continue;
           }
 
@@ -202,24 +223,23 @@ function buildAtomicReviewSegments(diffs: ReviewDiffTuple[]): ReviewDiffSegment[
         for (let blockIndex = pairCount; blockIndex < newBlocks.length; blockIndex++) {
           const block = newBlocks[blockIndex]!;
           if (isVisuallyEmptyText(block)) {
-            segments.push({
-              type: "equal",
-              text: block,
-            });
+            // 改写多出来的纯空白块不是原文，也不值得审阅，直接丢掉。
             continue;
           }
 
           segments.push({
             type: "insert",
-            text: block,
+            text: separatorForNextInsert + block,
             editIndex: editIndex++,
           });
+          separatorForNextInsert = "";
         }
 
         i++;
       } else {
         for (const block of splitParagraphBlocks(text)) {
           if (isVisuallyEmptyText(block)) {
+            segments.push({ type: "equal", text: block });
             continue;
           }
 
@@ -236,10 +256,6 @@ function buildAtomicReviewSegments(diffs: ReviewDiffTuple[]): ReviewDiffSegment[
     if (operation === DIFF_INSERT) {
       for (const block of splitParagraphBlocks(text)) {
         if (isVisuallyEmptyText(block)) {
-          segments.push({
-            type: "equal",
-            text: block,
-          });
           continue;
         }
 

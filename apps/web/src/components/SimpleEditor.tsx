@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useContext } from "react";
 import { useTranslation } from "react-i18next";
+import { QueryClientContext } from "@tanstack/react-query";
 import { Save, Clock, Check, History, Sparkles, Loader2 } from "lucide-react";
 import type { FileUpdateVersionIntent } from "../lib/api";
 import { writingStatsApi } from "../lib/writingStatsApi";
@@ -16,6 +17,8 @@ import { logger } from "../lib/logger";
 import { toast } from "../lib/toast";
 import { preserveSelectionWhitespace } from "../lib/naturalPolish";
 import { naturalPolishApi } from "../lib/naturalPolishApi";
+import { subscriptionQueryKeys } from "../lib/subscriptionApi";
+import type { QuotaResponse } from "../types/subscription";
 import {
   BEFORE_CHUNK_RELOAD_EVENT,
   createEditorDraftSnapshot,
@@ -121,8 +124,22 @@ export const SimpleEditor = ({
   onRejectAllEdits,
   onFinishReview,
 }: SimpleEditorProps) => {
-  const { t } = useTranslation(['editor']);
+  const { t } = useTranslation(['editor', 'versions']);
   const { addQuote } = useTextQuote();
+  // 只读 QuotaBadge 已经拉好的额度缓存，不为一个按钮提示另发请求；
+  // 没有 QueryClientProvider（嵌入场景、单测）时按「额度未知」处理。
+  const queryClient = useContext(QueryClientContext);
+  const readCachedQuota = useCallback(
+    () => queryClient?.getQueryData<QuotaResponse>(subscriptionQueryKeys.quota()),
+    [queryClient],
+  );
+  const [cachedQuota, setCachedQuota] = useState(readCachedQuota);
+  useEffect(() => {
+    if (!queryClient) return;
+    setCachedQuota(readCachedQuota());
+    return queryClient.getQueryCache().subscribe(() => setCachedQuota(readCachedQuota()));
+  }, [queryClient, readCachedQuota]);
+  const isLimitedAiQuota = cachedQuota != null && cachedQuota.ai_conversations.limit !== -1;
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isDirty, setIsDirty] = useState(false);
@@ -553,8 +570,15 @@ export const SimpleEditor = ({
     const controller = new AbortController();
     naturalPolishAbortRef.current = controller;
 
+    // 去AI味会预扣一条 AI 消息，没改动或失败时服务端再退还；
+    // 无论结果如何，结束后都让额度胶囊重新拉一次，显示真实用量。
+    const refreshAiQuota = () => {
+      void queryClient?.invalidateQueries({ queryKey: subscriptionQueryKeys.quota() });
+      void queryClient?.invalidateQueries({ queryKey: subscriptionQueryKeys.quotaLite() });
+    };
+
     try {
-      const rewrittenRaw = await naturalPolishApi.naturalPolish(
+      const { text: rewrittenRaw, unchanged } = await naturalPolishApi.naturalPolish(
         {
           projectId,
           fileId,
@@ -563,6 +587,7 @@ export const SimpleEditor = ({
         },
         { signal: controller.signal },
       );
+      refreshAiQuota();
 
       if (naturalPolishRunIdRef.current !== runId) return;
       const baseline = naturalPolishBaselineRef.current;
@@ -579,6 +604,15 @@ export const SimpleEditor = ({
         naturalPolishAbortRef.current = null;
         naturalPolishBaselineRef.current = null;
         naturalPolishBufferRef.current = "";
+        return;
+      }
+
+      if (unchanged) {
+        // 服务端判定没有实质改动并已退还额度：不进审阅，原文一个字节都不动。
+        naturalPolishAbortRef.current = null;
+        naturalPolishBaselineRef.current = null;
+        naturalPolishBufferRef.current = "";
+        toast.info(t("editor:naturalPolishNoChange"));
         return;
       }
 
@@ -603,6 +637,7 @@ export const SimpleEditor = ({
 
       onEnterDiffReview?.(fileId, baseline.content, modifiedContent);
     } catch (error) {
+      refreshAiQuota();
       // Abort is user-intentional (or file-switch cleanup); keep silent.
       if (controller.signal.aborted) {
         if (naturalPolishRunIdRef.current === runId) {
@@ -634,6 +669,7 @@ export const SimpleEditor = ({
     fileType,
     t,
     onEnterDiffReview,
+    queryClient,
   ]);
 
   // Cleanup selection timeout
@@ -1083,7 +1119,7 @@ export const SimpleEditor = ({
               <button
                 onClick={() => setShowVersionHistory(true)}
                 className="px-2 py-1.5 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-secondary))] rounded flex items-center gap-1 transition-colors"
-                title={t('editor:versionHistory')}
+                title={t('versions:title')}
               >
                 <History size={14} />
                 {t('editor:history')}
@@ -1107,7 +1143,9 @@ export const SimpleEditor = ({
                     ? t("editor:naturalPolishMissingContext")
                     : !selectedText
                       ? t("editor:naturalPolishNoSelection")
-                      : t("editor:naturalPolishTooltip")
+                      : isLimitedAiQuota
+                        ? t("editor:naturalPolishTooltipFree")
+                        : t("editor:naturalPolishTooltip")
                 }
               >
                 {isNaturalPolishRunning ? (
