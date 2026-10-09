@@ -1017,6 +1017,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     conflicts,
     error,
     errorCode,
+    clearError,
     retryable,
     sessionId,
     sendSteeringMessage,
@@ -1062,7 +1063,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       }
     },
 
-    // Tool result callbacks
+    // Tool call/result callbacks: the server's prose counter starts a new segment at both.
+    onToolCall: () => {
+      proseCounterRef.current.boundary();
+    },
     onToolResult: (toolName, status, result, toolError) => {
       proseCounterRef.current.boundary();
       if (isWriteToolResult(toolName, status, result)) {
@@ -1176,11 +1180,19 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   useEffect(() => {
     if (isAiQuotaLimit) setAiLimitHitUntil(nextAiQuotaResetMs(Date.now()));
   }, [isAiQuotaLimit]);
+  const isAiQuotaLimitRef = useRef(isAiQuotaLimit);
+  useEffect(() => {
+    isAiQuotaLimitRef.current = isAiQuotaLimit;
+  }, [isAiQuotaLimit]);
   useEffect(() => {
     if (aiLimitHitUntil === null) return;
-    const timer = setTimeout(() => setAiLimitHitUntil(null), Math.max(0, aiLimitHitUntil - Date.now()));
+    const timer = setTimeout(() => {
+      setAiLimitHitUntil(null);
+      // A new Beijing day: yesterday's refusal must not come back as an error card.
+      if (isAiQuotaLimitRef.current) clearError();
+    }, Math.max(0, aiLimitHitUntil - Date.now()));
     return () => clearTimeout(timer);
-  }, [aiLimitHitUntil]);
+  }, [aiLimitHitUntil, clearError]);
   const aiLimitHit = aiLimitHitUntil !== null && aiMessageQuota?.limit !== -1;
   /** Today's AI messages are used up, by the cached count or by the server's refusal. */
   const aiSendBlocked = quotaExhausted || aiLimitHit;
@@ -1819,6 +1831,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   // Stop button: the server ends the round on the open stream (see useAgentStream.stop).
   const handleCancel = () => {
     if (stopAfterSavePendingRef.current) return;
+    // The note itself waits for the end of the round (onCompleteHandler): the round may
+    // still finish on its own before the stop reaches the server. Marked before stop():
+    // a stop pressed before run_started ends the round synchronously inside stop().
+    if (currentProjectId) stopRequestedProjectRef.current = currentProjectId;
     // Text the author typed in the editor (for example into a chapter the AI just created)
     // is saved first: on a refunded stop the server removes this round's still-blank files,
     // and it can only see text that has been saved.
@@ -1832,9 +1848,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     } else {
       stop();
     }
-    // The note itself waits for the end of the round (onCompleteHandler): the round may
-    // still finish on its own before the stop reaches the server.
-    if (currentProjectId) stopRequestedProjectRef.current = currentProjectId;
   };
 
   /**

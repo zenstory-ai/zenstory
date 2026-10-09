@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 const mockDraft = vi.hoisted(() => ({ draft: '', saveDraft: vi.fn(), clearDraft: vi.fn() }))
 const mockStop = vi.hoisted(() => vi.fn())
+const mockClearError = vi.hoisted(() => vi.fn())
 
 const mockQuota = vi.hoisted(() => ({
   value: { ai_conversations: { used: 2, limit: 10, reset_at: null } } as {
@@ -200,6 +201,7 @@ vi.mock('../../hooks/useAgentStream', () => ({
     conflicts: [],
     error: mockAgentStreamState.error,
     errorCode: mockAgentStreamState.errorCode,
+    clearError: mockClearError,
   })
   },
 }))
@@ -510,6 +512,25 @@ describe('ChatPanel mount smoke', () => {
         writable: true,
         configurable: true,
       })
+    }
+  })
+
+  it('clears the quota error at Beijing midnight so yesterday\'s card does not come back', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      // 23:59:58 Beijing time.
+      vi.setSystemTime(new Date('2026-10-09T15:59:58Z'))
+      mockAgentStreamState.errorCode = 'ERR_QUOTA_AI_DAILY_COST_EXCEEDED'
+      mockAgentStreamState.error = 'cost backstop'
+      render(<ChatPanel />)
+      expect(await screen.findByTestId('chat-quota-card')).toBeInTheDocument()
+      expect(mockClearError).not.toHaveBeenCalled()
+      await act(async () => {
+        vi.advanceTimersByTime(3000)
+      })
+      expect(mockClearError).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
     }
   })
 
@@ -854,6 +875,7 @@ describe('ChatPanel mount smoke', () => {
       onSessionStarted: (sessionId: string) => void
       onToolResult: (toolName: string, status: string, result?: Record<string, unknown>, error?: string) => void
       onSegmentUpdate: (segmentId: string, content: string) => void
+      onToolCall: (toolName: string, args: Record<string, unknown>) => void
       onAgentSelected: (agentType: string, agentName?: string) => void
       onHandoff: (data: Record<string, unknown>) => void
       onComplete: (segments: unknown[], action: unknown, meta?: Record<string, unknown>) => Promise<void>
@@ -954,6 +976,28 @@ describe('ChatPanel mount smoke', () => {
       expect(mockStop).toHaveBeenCalledTimes(1)
     })
 
+    it('shows the stop note when a stop before run_started ends the round inside stop()', async () => {
+      vi.mocked(getRecentMessages).mockResolvedValueOnce([{
+        id: 'user-1', session_id: 'session-1', role: 'user', content: '写第五章',
+        created_at: '2026-10-05T10:00:00Z',
+      }] as never)
+      mockAgentStreamState.isStreaming = true
+      render(<ChatPanel />)
+      await waitFor(() => expect(testQueryClient.getQueryData(['subscription-quota', 'test-user'])).toBeDefined())
+      act(() => stopOptions().onStart())
+      // No runId yet: the hook drops the connection and completes the round synchronously.
+      mockStop.mockImplementationOnce(() => {
+        mockAgentStreamState.isStreaming = false
+        void stopOptions().onComplete([], null, { partial: true })
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('mock-stop-button'))
+      })
+      expect(mockStop).toHaveBeenCalledTimes(1)
+      const note = await screen.findByTestId('chat-user-stop-note')
+      expect(note).toHaveTextContent(/^已停止$/)
+    })
+
     it('never mentions today\'s count in a refund note for unlimited plans', async () => {
       mockQuota.value = { ai_conversations: { used: 12, limit: -1, reset_at: null } }
       await runRoundThenStop((options) => options.onSessionStarted('session-stop'))
@@ -1021,6 +1065,17 @@ describe('ChatPanel mount smoke', () => {
         options.onSegmentUpdate('seg-1', '甲'.repeat(40) + '乙'.repeat(30))
         options.onHandoff({ target_agent: 'reviewer' })
         options.onSegmentUpdate('seg-1', '甲'.repeat(40) + '乙'.repeat(30) + '丙'.repeat(30))
+      })
+      expect(note).toHaveTextContent(/^已停止$/)
+    })
+
+    it('counts prose like the server: a tool call starts a new segment', async () => {
+      // 40 visible characters before a later tool call, 30 after it in the same segment id.
+      const note = await runRoundThenStop((options) => {
+        options.onSessionStarted('session-stop')
+        options.onSegmentUpdate('seg-1', '甲'.repeat(40))
+        options.onToolCall('query_files', {})
+        options.onSegmentUpdate('seg-1', '甲'.repeat(40) + '乙'.repeat(30))
       })
       expect(note).toHaveTextContent(/^已停止$/)
     })

@@ -58,7 +58,7 @@ Status: implemented
 ### 前端
 
 - **服务端退还回执优先**（合并提交 ae35f38 已在 ChatPanel 实现，保留）：收到 `quota_refunded(kind=stopped)` 时只显示退还说明（带「重新发送」），不再显示停止说明；停止说明也只在这一轮已有实质产出时才写「本条计入今日 AI 消息」（`done` 带 `produced_output` 时以它为准），Pro 不提每日条数。
-- **停止说明等这一轮结束再写**：点「停止生成」只记下「作者要求停止」，说明在 `onComplete` 里决定：`done` 带 `stop_reason: "user_stopped"`，或停止请求失败 / 超时后断开（`partial`）时才显示「已停止…」。作者点停止时这一轮已经自己结束（例如等编辑器保存的 1.5 秒内正常 `done` 到达），按正常完成计费，不显示「已停止」。`useAgentStream.stop()` 在这一轮已结束（`done` 已提交）时什么都不做：不请求 `/agent/stop`，也不设断开兜底计时器，`done` 之后还要到达的帧（如 `quota_refunded`）不会被取消掉。
+- **停止说明等这一轮结束再写**：点「停止生成」只记下「作者要求停止」（在调用 `stop()` 之前记：还没收到 `run_started` 时，`stop()` 会直接断开并同步走完 `onComplete({partial})`），说明在 `onComplete` 里决定：`done` 带 `stop_reason: "user_stopped"`，或停止请求失败 / 超时后断开（`partial`）时才显示「已停止…」。作者点停止时这一轮已经自己结束（例如等编辑器保存的 1.5 秒内正常 `done` 到达），按正常完成计费，不显示「已停止」。`useAgentStream.stop()` 在这一轮已结束（`done` 已提交）时什么都不做：不请求 `/agent/stop`，也不设断开兜底计时器，`done` 之后还要到达的帧（如 `quota_refunded`）不会被取消掉。
 - **Pro 与额度未加载时不提每日条数**：`showDailyCount` 只在额度已加载且 `limit !== -1` 时为真，停止说明、退还说明、历史终态行、离开确认共用。Pro 的停止退还说明是「已停止，这一轮还没有写出内容。」（仍带「重新发送」和移除的空白文件）；`no_progress` / `error` 退还对 Pro 没有可说明的，不显示（有移除的空白文件时只说那一句）。
 - **停止中保持「正在停止…」直到 `done`**：`workflow_stopped(user_stopped)` 不再结束流式状态，`done` 到达才结束，避免作者在等消息 id 的这段时间发新消息把这一轮截断。
 - **只按 id 绑定**：停止、出错、断开（`partial` / `stoppedByAuthor`）的一轮只用 `done` 带回的 id 绑定后端消息，不再回退到「最近一条未分配的消息」；没有 id 就不显示反馈按钮（不再永远「消息还在保存」）。

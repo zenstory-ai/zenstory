@@ -259,6 +259,8 @@ export interface UseAgentStreamReturn {
   error: string | null;
   /** Backend error code if provided by SSE error event */
   errorCode: string | null;
+  /** Clears the current error message and code */
+  clearError: () => void;
   /** Whether the backend says the current stream error can be retried */
   retryable: boolean;
   /** Current session ID for steering */
@@ -1424,6 +1426,7 @@ export function useAgentStream(
     conflicts: state.conflicts,
     error,
     errorCode,
+    clearError,
     retryable: state.retryable,
     sessionId,
     sendSteeringMessage,
