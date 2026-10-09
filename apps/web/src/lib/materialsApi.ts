@@ -57,6 +57,9 @@ export interface MaterialNovel {
    * null/undefined for jobs created before the snapshot existed.
    */
   enabled_stages?: MaterialEnabledStages | null;
+  /** Free-trial books (list endpoint): the chapter cap, and the uploaded file's chapter count. */
+  trial_chapter_limit?: number | null;
+  source_chapter_count?: number | null;
   /** UTC timestamp of creation */
   created_at: string;
   /** UTC timestamp of last update */

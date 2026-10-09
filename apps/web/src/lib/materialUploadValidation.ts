@@ -1,5 +1,8 @@
 import { ApiError } from "./apiClient";
 import { translateError } from "./errorHandler";
+import { countCharacters, truncateNovelText } from "./novelChapterSplit";
+
+type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 // Keep in sync with apps/server/api/materials/constants.py (MAX_FILE_SIZE).
 export const MATERIALS_UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
@@ -34,21 +37,42 @@ function decodeText(bytes: Uint8Array, encoding: string): string | null {
   }
 }
 
-async function readMaterialUploadText(file: File): Promise<string | null> {
+interface DecodedUpload {
+  text: string;
+  /** Decoded as UTF-8 (strictly or by BOM): safe to re-encode as UTF-8. */
+  utf8: boolean;
+}
+
+async function readMaterialUploadText(file: File): Promise<DecodedUpload | null> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   const bomEncoding = detectBomEncoding(bytes);
   if (bomEncoding) {
-    return decodeText(bytes, bomEncoding);
+    const text = decodeText(bytes, bomEncoding);
+    return text === null ? null : { text, utf8: bomEncoding === "utf-8" };
   }
 
   for (const encoding of ["utf-8", "gb18030"]) {
     const decoded = decodeText(bytes, encoding);
     if (decoded !== null) {
-      return decoded;
+      return { text: decoded, utf8: encoding === "utf-8" };
     }
   }
 
   return null;
+}
+
+function tooManyCharactersMessage(
+  t: Translate,
+  charCount: number,
+  trialChapters?: number,
+): string {
+  const counts = {
+    wan: (charCount / 10_000).toFixed(1),
+    chars: charCount.toLocaleString("en-US"),
+  };
+  return trialChapters
+    ? t("materials:uploadModal.errors.trialTooManyCharacters", { ...counts, chapters: trialChapters })
+    : t("materials:uploadModal.errors.tooManyCharactersCounted", counts);
 }
 
 // Upload pre-check rejections (nothing is charged) translated via the errors namespace.
@@ -58,37 +82,100 @@ const UPLOAD_PRECHECK_ERROR_CODES = new Set([
   "ERR_FILE_ENCODING_UNSUPPORTED",
 ]);
 
-export async function validateMaterialUploadFile(
+/** What a free trial will upload, for the per-book note in the upload dialog. */
+export interface MaterialTrialSelection {
+  totalChapters: number;
+  keptChapters: number;
+}
+
+export type PreparedMaterialUpload =
+  | { error: string }
+  | { error: null; file: File; trial: MaterialTrialSelection | null };
+
+/**
+ * Check a picked file before upload and return what to send.
+ *
+ * With `trialMaxChapters` (free trial), only the first chapters count toward
+ * the character limit, and a UTF-8 file with more chapters is cut to those
+ * chapters before upload (the server applies the same cut either way).
+ */
+export async function prepareMaterialUpload(
   file: File,
-  t: (key: string) => string,
-): Promise<string | null> {
+  t: Translate,
+  options: { trialMaxChapters?: number | null } = {},
+): Promise<PreparedMaterialUpload> {
   if (!file.name.toLowerCase().endsWith(".txt")) {
-    return t("materials:uploadModal.errors.invalidType");
+    return { error: t("materials:uploadModal.errors.invalidType") };
   }
 
   if (file.size > MATERIALS_UPLOAD_MAX_BYTES) {
-    return t("materials:uploadModal.errors.tooLarge");
+    return { error: t("materials:uploadModal.errors.tooLarge") };
   }
 
+  const trialMaxChapters = options.trialMaxChapters ?? null;
   try {
-    const content = await readMaterialUploadText(file);
-    if (content !== null && content.length > MATERIALS_UPLOAD_MAX_CHARACTERS) {
-      return t("materials:uploadModal.errors.tooManyCharacters");
+    const decoded = await readMaterialUploadText(file);
+    if (decoded === null) {
+      // The backend remains the source of truth for encodings the browser can't read.
+      return { error: null, file, trial: null };
+    }
+    if (trialMaxChapters !== null && trialMaxChapters > 0) {
+      const kept = truncateNovelText(decoded.text, trialMaxChapters);
+      const keptCharacters = countCharacters(kept.text);
+      if (keptCharacters > MATERIALS_UPLOAD_MAX_CHARACTERS) {
+        return {
+          error: tooManyCharactersMessage(
+            t,
+            keptCharacters,
+            kept.truncated ? kept.keptChapters : undefined,
+          ),
+        };
+      }
+      const trial =
+        kept.totalChapters > 0
+          ? { totalChapters: kept.totalChapters, keptChapters: kept.keptChapters }
+          : null;
+      if (kept.truncated && decoded.utf8) {
+        // The BOM makes the server decode the cut text as UTF-8 unambiguously.
+        const cutFile = new File(["﻿", kept.text], file.name, { type: "text/plain" });
+        return { error: null, file: cutFile, trial };
+      }
+      return { error: null, file, trial };
+    }
+    const characters = countCharacters(decoded.text);
+    if (characters > MATERIALS_UPLOAD_MAX_CHARACTERS) {
+      return { error: tooManyCharactersMessage(t, characters) };
     }
   } catch {
     // Let the backend remain the source of truth if the browser cannot read the file.
   }
 
-  return null;
+  return { error: null, file, trial: null };
+}
+
+export async function validateMaterialUploadFile(
+  file: File,
+  t: Translate,
+): Promise<string | null> {
+  return (await prepareMaterialUpload(file, t)).error;
 }
 
 export function resolveMaterialUploadErrorMessage(
   error: unknown,
-  t: (key: string) => string,
+  t: Translate,
   fallback: string,
 ): string {
   if (error instanceof ApiError) {
     if (error.errorCode === "ERR_FILE_CONTENT_TOO_LONG") {
+      const charCount = error.details?.char_count;
+      if (typeof charCount === "number") {
+        const trialChapters = error.details?.trial_chapters;
+        return tooManyCharactersMessage(
+          t,
+          charCount,
+          typeof trialChapters === "number" ? trialChapters : undefined,
+        );
+      }
       return t("materials:uploadModal.errors.tooManyCharacters");
     }
     if (error.errorCode === "ERR_FILE_TOO_LARGE") {
