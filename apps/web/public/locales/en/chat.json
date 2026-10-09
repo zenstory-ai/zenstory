@@ -30,6 +30,7 @@
     "fileVersionLimitTitle": "File version limit reached",
     "fileVersionLimitDesc": "Upgrade your plan to keep more versions.",
     "notChargedStopped": "Stopped before anything was written, so this round does not count toward today's AI messages.",
+    "stoppedNothingWritten": "Stopped before anything was written.",
     "resend": "Send again",
     "roundInterrupted": "Interrupted",
     "roundNotCounted": "Not counted toward today's AI messages",

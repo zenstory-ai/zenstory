@@ -53,3 +53,41 @@ export function notifyEditorContentSaved(projectId: string): void {
     }),
   );
 }
+
+type OpenEditorFlush = () => Promise<unknown>;
+let openEditorFlush: OpenEditorFlush | null = null;
+
+/**
+ * The open editor's "save now" hook (`null` when it goes away), so other panels can make
+ * sure the author's typed text is stored before they act on the file. Clearing only
+ * removes the hook this editor registered (`previous`), never a newer one.
+ */
+export function setOpenEditorFlush(flush: OpenEditorFlush | null, previous?: OpenEditorFlush | null): void {
+  if (flush) {
+    openEditorFlush = flush;
+  } else if (!previous || openEditorFlush === previous) {
+    openEditorFlush = null;
+  }
+}
+
+/**
+ * Saves whatever the open editor has not saved yet. `null` when no editor is open;
+ * otherwise resolves once that save settles or after `timeoutMs`. Never rejects.
+ */
+export function flushOpenEditor(timeoutMs = 1500): Promise<void> | null {
+  const flush = openEditorFlush;
+  if (!flush) return null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, timeoutMs);
+  });
+  const save = Promise.resolve()
+    .then(flush)
+    .then(
+      () => undefined,
+      () => undefined,
+    );
+  return Promise.race([save, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}

@@ -39,7 +39,7 @@ import {
   resolveEditorDraftRecovery,
   type EditorDraftSnapshot,
 } from "../lib/editorDraftRecovery";
-import { notifyEditorContentSaved } from "../lib/editorSaveTracker";
+import { notifyEditorContentSaved, setOpenEditorFlush } from "../lib/editorSaveTracker";
 import { rebaseLocalEdits } from "../lib/rebaseLocalEdits";
 
 /** Retry delays for re-reading the open file after an external write. */
@@ -177,7 +177,10 @@ const EditorComponent: React.FC<EditorProps> = () => {
   }, [t]);
   const editorFlushRef = useRef<(() => Promise<SaveOutcome>) | null>(null);
   const registerEditorFlush = useCallback((flush: (() => Promise<SaveOutcome>) | null) => {
+    const previous = editorFlushRef.current;
     editorFlushRef.current = flush;
+    // The chat saves the author's typed text before it stops a round (see ChatPanel).
+    setOpenEditorFlush(flush, previous);
   }, []);
 
   /**

@@ -35,7 +35,8 @@ Status: implemented
 
 - 只在停止 / 断线的一轮**被退还**之后做。候选只来自本轮 `create_file` 成功新建、当时正文为空、不是文件夹、不是复用已有文件、之后也没收到非空流式正文的文件（`StreamBillingTracker.removable_placeholders`）。
 - 在项目锁内逐个再查：仍属本项目、未删除、不是文件夹、正文为空、没有子节点，才软删除，并排队删除向量索引。已有正文的文件、之前就存在的文件一律不动；任何异常只记日志，不影响已完成的退还。
-- 作者停止：退还帧 `quota_refunded` 带 `removed_files: [{id, title}]`，前端刷新文件树、若正打开该文件则取消选中，并在退还说明后加一句「这一轮新建的空白文件《…》已移除。」。断线：在后台退还落定后移除，作者回来时文件树已是最新，终态行里写明。
+- 作者停止：退还帧 `quota_refunded` 带 `removed_files: [{id, title}]`，前端刷新文件树、若正打开该文件则取消选中，并在退还说明后加一句「这一轮新建的空白文件《…》已移除。」。
+- 服务端只看已保存的正文。作者点「停止生成」时，前端先让打开着的编辑器把还没自动保存的字存下去（`flushOpenEditor`，最多等 1.5 秒），存完再发停止请求；作者在 AI 刚建的空章节里打了字，这一章因此有正文，不会被当成空白文件移除，文件树和编辑器里照常保留。等保存期间再点停止不会发第二次停止（第二次会直接断开连接）。断线：在后台退还落定后移除，作者回来时文件树已是最新，终态行里写明。
 
 ### 一轮的终态落库与 `done` 的消息 id（`api/agent.py`、`agent/service.py`）
 
@@ -48,15 +49,16 @@ Status: implemented
 ### 前端
 
 - **服务端退还回执优先**（合并提交 ae35f38 已在 ChatPanel 实现，保留）：收到 `quota_refunded(kind=stopped)` 时只显示退还说明（带「重新发送」），不再显示点击时推断的停止说明；点击时的说明也只在这一轮已有实质产出时才写「本条计入今日 AI 消息」，Pro 不提每日条数。
+- **Pro 与额度未加载时不提每日条数**：`showDailyCount` 只在额度已加载且 `limit !== -1` 时为真，停止说明、退还说明、历史终态行、离开确认共用。Pro 的停止退还说明是「已停止，这一轮还没有写出内容。」（仍带「重新发送」和移除的空白文件）；`no_progress` / `error` 退还对 Pro 没有可说明的，不显示（有移除的空白文件时只说那一句）。
 - **停止中保持「正在停止…」直到 `done`**：`workflow_stopped(user_stopped)` 不再结束流式状态，`done` 到达才结束，避免作者在等消息 id 的这段时间发新消息把这一轮截断。
 - **只按 id 绑定**：停止、出错、断开（`partial` / `stoppedByAuthor`）的一轮只用 `done` 带回的 id 绑定后端消息，不再回退到「最近一条未分配的消息」；没有 id 就不显示反馈按钮（不再永远「消息还在保存」）。
 - **刷新后的终态**：历史里带 `stop_outcome` 的助手消息末尾显示灰字 `RoundEndNote`：「已停止 · 未计入今日 AI 消息」/「已停止 · 已写入的内容已保存」/「已中断」/「已中断 · 未计入今日 AI 消息」，移除过空白文件时加「空白的《…》已移除」；Pro 不提每日条数。
 - **无产出停止不请求建议**：`done.produced_output === false`（或断开且本地没有任何产出）时不调用 `/agent/suggest`，也不显示建议芯片。
 - **失败后的状态**：提前结束的一轮如果只有「正在组装上下文…」这类过程行，不留空气泡；出错后「重试」不加新气泡，请求带 `metadata.retry_unanswered = true`，服务端在组装上下文前删掉会话末尾那条内容相同、之后没有任何消息（同一时间戳有别的消息时也不动）的用户消息，本轮结束再写回，刷新后只有一条；历史最后一条是没得到回复的用户消息时，显示「这条消息没有收到回复。」和「重新发送」（同样复用这条消息）。
 - **重新发送**：用这一轮原始请求（技能、附件、素材、引用、当前文件）重发，`metadata.resent_after_stop = true`，新加一个用户气泡。所有发送、重发、重试都经 `startRound`，用 ref 锁挡住同一 tick 的第二次调用（锁在下一个任务释放，之后由 `isStreaming` 挡）。
-- **离开确认**（`useLeaveWhileGenerating` + `LeaveWhileGeneratingDialog`）：生成期间用同 URL 的哨兵历史条目拦截浏览器后退 / 手机系统返回，弹与站内导航同一个确认框，「离开」才真正后退，「继续等」后重新放哨兵；这一轮结束时移除哨兵。确认框里「继续等」是主按钮，「离开」是次要按钮；已写出内容时文案为「已经写出的内容会保存，这一轮计入今日 AI 消息」，还没写出时为「还没写出内容的话，这一轮不计入今日 AI 消息」，Pro 不提每日条数。确认框打开期间这一轮结束：确认框保留，改为「这一轮已经结束 / 现在离开不会中断任何内容」，作者点「离开」照样离开。站内跳转确认离开时用 replace 顶替哨兵，不在历史里多留一格。
+- **离开确认**（`useLeaveWhileGenerating` + `LeaveWhileGeneratingDialog`）：生成期间用同 URL 的哨兵历史条目拦截浏览器后退 / 手机系统返回，弹与站内导航同一个确认框，「离开」才真正后退，「继续等」后重新放哨兵；这一轮结束时移除哨兵。生成期间同一页面内的跳转（只改 query / hash）在哨兵在顶时用 replace 顶替哨兵、再放一个新哨兵，哨兵始终在最上面，结束时移除的正是它，不会多留一格「按了没反应」的后退。确认框里「继续等」是主按钮，「离开」是次要按钮；已写出内容时文案为「已经写出的内容会保存，这一轮计入今日 AI 消息」，还没写出时为「还没写出内容的话，这一轮不计入今日 AI 消息」，Pro 不提每日条数。确认框打开期间这一轮结束：确认框保留，改为「这一轮已经结束 / 现在离开不会中断任何内容」，作者点「离开」照样离开。站内跳转确认离开时用 replace 顶替哨兵，不在历史里多留一格。
 - **停止按钮准备期**：1.5 秒内按钮外观与禁用的发送按钮一致（灰底），`title` / 朗读为「正在开始，稍后可停止」，用 `aria-disabled` 而不是 `disabled`，点击时弹同样的提示；「正在停止…」期间仍禁用。
-- **离开后的额度**：生成中卸载聊天面板（离开、后退、切项目）时，在 0.7 秒和 1.8 秒后让额度查询失效并重新拉取（含当前不活跃的查询），Dashboard 和项目页的额度标签不用整页刷新就能更新；额度标签自身 60 秒轮询兜底。
+- **离开后的额度**：生成中卸载聊天面板（离开、后退、切项目）时，在 0.7、1.8 和 5 秒后让额度查询失效并重新拉取（含当前不活跃的查询），Dashboard 和项目页的额度标签不用整页刷新就能更新；首页每次挂载也重新读一次额度（`useAiMessageQuota` 的 `refetchOnMount: "always"`，只作用于首页这一个查询观察者）；额度标签自身 60 秒轮询兜底。
 
 ## Alternatives considered
 
@@ -65,7 +67,8 @@ Status: implemented
 - **按「正文之后紧跟 tool_call」识别旁白，不用长度阈值。** 最强理由：语义更准，长段落后接工具调用也能区分。被否：停止常落在旁白之后、tool_call 帧之前，此时无法判断；工具调用前的长段说明（先列出思路再读文件）确实是产出；长度阈值前后端能用同一个数字。
 - **空占位文件不删，在文件树和气泡里标「空章节 · 已停止」。** 最强理由：不动作者的文件树。被否：要给文件加新状态字段并改文件树；作者仍得自己删；移除只针对本轮刚建、落库前再校验为空、没有子节点的文件，风险可控，且会明确告诉作者。
 - **离开拦截迁移到 `createBrowserRouter` + `useBlocker`。** 最强理由：官方 API，能拦多级后退。被否：要把整个应用迁到数据路由，影响所有页面和测试，不在本批范围；哨兵条目覆盖了最常见的单步后退和手机返回手势。
-- **Dashboard / 额度标签挂载时强制重新拉取（`refetchOnMount`）。** 最强理由：任何路径回到 Dashboard 都是最新值。被否：要改全局查询默认值或共享组件，其他页面也会多打请求；离开时在后台失效查询已覆盖这条路径。
+- **全局开启挂载时重新拉取（改 QueryClient 默认的 `refetchOnMount`）。** 最强理由：任何页面回来都是最新值。被否：所有查询都会多打请求。改为只在首页的额度查询上开启（见上），加上离开后的三次定时失效。
+- **退还时作者正打开、且编辑器里有没保存的字的空白文件，前端重建一份。** 最强理由：服务端已经移除后也能把字留下。被否：编辑器切换文件前会先保存，旧文件已删除时保存失败会把选中改回旧文件，要改编辑器的切换流程；停止前先保存已覆盖作者在那一章打字后点停止的主路径。
 
 ## Consequences
 
@@ -73,10 +76,11 @@ Status: implemented
 - 代价：停止路径的 `done` 最多晚 3 秒（通常几百毫秒），「正在停止…」可见时间变长；停下的空轮也多一条空助手消息（`message_count` +1、占历史窗口一格，模型回放时空正文被剔除）。
 - 代价：60 字阈值下，一段不足 60 字、还没收尾的短回答被停止时会退还（对作者有利）。断线一轮的终态在后台写入，作者立刻回到项目时可能还看不到。历史里「未计入今日 AI 消息」隔天仍写「今日」。
 - 代价：空占位只在被退还的一轮里移除；计费的停止轮（例如第 2 章已写好、第 3 章刚建好）里刚建的空章节仍保留。移除与后台补存 `<file>` 残稿之间理论上有极小的竞态：若残稿尚未发出任何 `file_content` 帧，它可能写进已移除的文件。
+- 代价：停止前先保存编辑器，「正在停止…」最多晚 1.5 秒出现（没有未保存的字时几乎立即）。保存后到服务端再查之间（通常不到一秒）又打的字、或断线路径（离开页面时编辑器的最后一次保存与服务端结算同时发生），仍可能赶不上：那时文件已被移除，编辑器保存失败会提示并留在原文件上，字还在编辑器里，但文件不在文件树中。生成期间同一页面内的 replace 跳转之后，哨兵下面会多留一个同页条目（后退一次回到同一页的旧 query）。
 - 代价：后退拦截依赖哨兵历史条目：长按后退一次跳多级、浏览器把没有用户激活时推入的条目当作可跳过（例如首页想法自动发送的第一轮）时拦不住；`beforeunload` 文案仍由浏览器决定。
 - 代价：「这条消息没有收到回复」的重新发送只带文字（刷新后原始技能、附件不可得）；`retry_unanswered` 先删末尾用户消息、本轮结束再写回，进程在两者之间崩溃会丢这一条历史。
 
 ## Verification
 
 - 后端：`cd apps/server && venv/bin/python -m pytest tests/test_agent/test_stop_output_definition.py tests/test_api/test_agent_stream_hardening.py tests/test_agent/test_service.py tests/test_agent/test_stream_launch_hardening.py tests/test_api/test_agent.py -q --no-cov -n0`：旁白、空 `create_file`、只读不算产出，真正正文、流式正文、改了文字的编辑、并行写章算产出（停止与断线两条路径）；停止后 `done` 带助手消息 id 与 `produced_output`；被退还时只移除本轮新建的空文件并在 `quota_refunded` 里列出，别的空文件不动；终态写回 `stop_outcome`；断线在后台结算并写回；空停止轮也落一条助手消息；`retry_unanswered` 只删末尾未回复的同样消息。
-- 前端：`pnpm --dir apps/web exec vitest run src/components/__tests__/ChatPanel.mount.test.tsx src/components/__tests__/RoundEnd.test.tsx src/hooks/__tests__/useLeaveWhileGenerating.test.tsx src/hooks/__tests__/useQuotaRefreshAfterLeave.test.tsx src/hooks/__tests__/useAgentStream.test.ts src/lib/__tests__/agentApi.test.ts src/lib/__tests__/agentRoundProgress.test.ts src/components/__tests__/MessageInput.test.tsx`：重发带原技能与附件、同 tick 双击只开一轮、移除的空白文件写进说明并刷新文件树、无产出停止不请求建议、停止轮只按 id 绑定、失败不留空气泡、历史终态与未回复重发、浏览器后退先确认、这一轮结束时保留离开意图、离开后刷新额度、停止中直到 `done` 才结束、准备期按钮的说明与反馈。
+- 前端：`pnpm --dir apps/web exec vitest run src/components/__tests__/ChatPanel.mount.test.tsx src/components/__tests__/ChatPanel.newSessionLifetime.test.tsx src/components/__tests__/RoundEnd.test.tsx src/hooks/__tests__/useLeaveWhileGenerating.test.tsx src/hooks/__tests__/useQuotaRefreshAfterLeave.test.tsx src/hooks/__tests__/useAiMessageQuota.test.tsx src/hooks/__tests__/useAgentStream.test.ts src/lib/__tests__/agentApi.test.ts src/lib/__tests__/agentRoundProgress.test.ts src/components/__tests__/MessageInput.test.tsx`：重发带原技能与附件、同 tick 双击只开一轮、移除的空白文件写进说明并刷新文件树、无产出停止不请求建议、停止轮只按 id 绑定、失败不留空气泡、历史终态与未回复重发、浏览器后退先确认、这一轮结束时保留离开意图、离开后刷新额度、停止中直到 `done` 才结束、准备期按钮的说明与反馈；停止前先保存编辑器且保存期间不发第二次停止、Pro 的退还说明不提每日条数、额度未加载时终态行不提每日条数、同页跳转后后退不多一格、首页挂载时重新读额度。

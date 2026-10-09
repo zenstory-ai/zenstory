@@ -113,16 +113,25 @@ export default function BillingPage() {
 
   // Online checkout stays hidden until the server reports Zpay as configured;
   // until then Pro is activated with redeem codes, as before payments existed.
-  const { data: paymentOptions, isLoading: isPaymentOptionsLoading } = useQuery({
+  const {
+    data: paymentOptions,
+    isLoading: isPaymentOptionsLoading,
+    isError: isPaymentOptionsError,
+  } = useQuery({
     queryKey: paymentQueryKeys.options(),
     queryFn: paymentApi.getOptions,
     retry: false,
   });
   const isCheckoutEnabled = paymentOptions?.enabled === true;
+  // Only the server's explicit "off" means checkout is off. A failed options request is
+  // unknown, not off: keep offering 开通 Pro (the checkout dialog asks again and explains
+  // if paying online really is unavailable) instead of steering everyone to redeem codes.
+  const isCheckoutKnownOff = paymentOptions?.enabled === false;
+  const showCheckoutButton = isCheckoutEnabled || isPaymentOptionsError;
   // A ?plan=pro deep link opens whichever activation path is available once known.
   const isProPlanIntentReady = !isProPlanIntentHandled && !isPaymentOptionsLoading;
-  const isPaymentModalOpen = showPaymentModal || (isProPlanIntentReady && isCheckoutEnabled);
-  const isRedeemCodeModalOpen = showRedeemCodeModal || (isProPlanIntentReady && !isCheckoutEnabled);
+  const isPaymentModalOpen = showPaymentModal || (isProPlanIntentReady && showCheckoutButton);
+  const isRedeemCodeModalOpen = showRedeemCodeModal || (isProPlanIntentReady && isCheckoutKnownOff);
 
   const usageItems = useMemo(
     () =>
@@ -196,9 +205,8 @@ export default function BillingPage() {
   // A paid author's header button renews; keep it apart from upgrades in attribution.
   const checkoutSource = isPaidTier && !attributionSource ? RENEW_SOURCE : effectiveUpgradeSource;
   const statusLine = status ? getSubscriptionStatusLine(status, t) : null;
-  // Online checkout off: "开通 Pro" would only open the redeem dialog, so say so and offer
-  // the redeem code itself. Decided only after the options answer arrives.
-  const isCheckoutKnownOff = !isPaymentOptionsLoading && !isCheckoutEnabled;
+  // Online checkout off (isCheckoutKnownOff, above): "开通 Pro" would only open the redeem
+  // dialog, so say so and offer the redeem code itself.
   const subtitle = isUpgradableTier
     ? isCheckoutKnownOff
       ? t("dashboard:billing.subtitleRedeemOnly", "查看当前套餐和用量，需要更多额度时可以用兑换码开通 Pro。")
@@ -216,7 +224,7 @@ export default function BillingPage() {
         subtitle={subtitle}
         action={
           <div className="flex items-center gap-2">
-            {isCheckoutEnabled ? (
+            {showCheckoutButton ? (
               <Button
                 size={headerActionSize}
                 onClick={() => {

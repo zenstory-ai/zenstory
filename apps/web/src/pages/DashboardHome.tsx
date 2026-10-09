@@ -901,9 +901,9 @@ export default function DashboardHome() {
       {/* Create Modal */}
       <Modal
         open={!!creating && !!templates}
+        // Closing the dialog keeps the idea in the home box (it may be held for tomorrow).
         onClose={() => {
           setCreating(null);
-          setInspiration("");
           setNewProjectName("");
         }}
         size="md"
@@ -922,7 +922,6 @@ export default function DashboardHome() {
                   <button
                     onClick={() => {
                       setCreating(null);
-                      setInspiration("");
                       setNewProjectName("");
                     }}
                     className="p-2 rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] active:bg-[hsl(var(--bg-hover))] transition-all"
@@ -981,7 +980,6 @@ export default function DashboardHome() {
                     if (e.key === "Enter") handleCreateProject(true);
                     if (e.key === "Escape") {
                       setCreating(null);
-                      setInspiration("");
                       setNewProjectName("");
                     }
                   }}
@@ -991,7 +989,6 @@ export default function DashboardHome() {
               <div className={`flex gap-3 ${isMobile ? "fixed bottom-0 left-0 right-0 p-4 bg-[hsl(var(--bg-secondary))] border-t border-[hsl(var(--border-color))] mobile-safe-bottom" : ""}`}>
                 <button onClick={() => {
                   setCreating(null);
-                  setInspiration("");
                   setNewProjectName("");
                 }} className={`btn-ghost ${isMobile ? "flex-1 h-12" : "flex-1 h-11"}`}>
                   {t('projects.cancel')}

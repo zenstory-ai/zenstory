@@ -17,7 +17,7 @@ Status: implemented
   - 文件版本上限（`Editor`、`FileVersionHistory`、`ChatPanel`）：「正文照常保存，只是这个文件不再生成新版本。」
   - 灵感复制月额度（`InspirationGrid`）：「北京时间下月 1 日 00:00 恢复。」
   - 项目数、导出：Pro 不会撞到（项目不限，导出格式两档相同），不传。
-- `usePaidPlanWhenOpen` 每次渲染都先读 react-query 里已有的 `/subscription/me`（弹窗挂载后页面才取到的也算），套餐未知时 `resolved=false`；4 秒内仍没有答案时按免费处理，避免弹窗一直空着。
+- `usePaidPlanWhenOpen` 每次渲染都先读 react-query 里已有的 `/subscription/me`（弹窗挂载后页面才取到的也算），套餐未知时 `resolved=false`；4 秒内仍没有答案（或请求失败）时按免费处理，避免弹窗一直空着；弹窗关闭时清掉这个「放弃」，下次打开重新先显示中性占位、等这一次的答案，不会因为上一次超时就直接给付费用户看免费文案。
 - `UpgradePromptModal` 在 `open && !resolved` 时只显示标题和骨架占位，不显示「开通 Pro」、升级说明或「知道了」，也不记曝光；套餐确定后再渲染免费或付费分支。
 - 订阅权益页副标题按套餐与线上付款是否可用分四种：免费 + 可付款沿用原句；免费 + 不可付款「查看当前套餐和用量，需要更多额度时可以用兑换码开通 Pro。」；Pro + 可付款「查看当前套餐和用量，到期前可以续费 Pro 或使用兑换码。」；Pro + 不可付款「查看当前套餐和用量，到期前可以用兑换码续期。」；套餐未知时「查看当前套餐和用量。」
 
@@ -34,4 +34,4 @@ Status: implemented
 
 ## Verification
 
-`pnpm --dir apps/web exec vitest run src/components/subscription/__tests__/UpgradePromptModal.test.tsx src/pages/__tests__/SkillsPage.test.tsx src/pages/__tests__/BillingPage.test.tsx src/components/__tests__/InspirationGrid.test.tsx`：Pro 显示调用方的解决办法；套餐未知时第一帧是中性占位、没有「开通 Pro」；免费用户在套餐返回后看到升级按钮；Pro 订阅页副标题不含「可升级」。
+`pnpm --dir apps/web exec vitest run src/hooks/__tests__/usePaidPlanWhenOpen.test.tsx src/components/subscription/__tests__/UpgradePromptModal.test.tsx src/pages/__tests__/SkillsPage.test.tsx src/pages/__tests__/BillingPage.test.tsx src/components/__tests__/InspirationGrid.test.tsx`：Pro 显示调用方的解决办法；套餐未知时第一帧是中性占位、没有「开通 Pro」；免费用户在套餐返回后看到升级按钮；4 秒放弃前保持中性，放弃后关闭再打开会重新等答案；Pro 订阅页副标题不含「可升级」。
