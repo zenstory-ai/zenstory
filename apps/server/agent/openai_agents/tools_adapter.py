@@ -118,12 +118,33 @@ def read_only_refusal_text(tool_name: str) -> str:
     )
 
 
+# 要求太笼统、本轮先问清楚（graph/author_scope.py 的 clarify_first）时写文件工具的描述前缀。
+CLARIFY_FIRST_TOOL_DESCRIPTION_PREFIX = "【本轮不可用：作者的要求还不清楚，先问清楚再改，调用会被拒绝】"
+
+
+def clarify_first_refusal_text(tool_name: str) -> str:
+    """要求太笼统时写文件工具的拒绝结果：先用一句话问作者改哪里、想要什么效果。"""
+    return tool_error_text(
+        "作者这次的要求没说改哪部分、想达到什么效果，本轮先不改文件，该写操作未执行。"
+        "不要重试任何写文件工具：用一句话问作者想改哪部分、想要什么效果，"
+        "给 2–3 个具体选项让作者直接回复。",
+        error_type="clarify_first",
+        tool_name=tool_name,
+    )
+
+
+# build_agent_function_tools 的 read_only_reason：为什么本轮写文件工具不可用。
+READ_ONLY_REASON_USER_REQUEST = "user_request"
+READ_ONLY_REASON_CLARIFY_FIRST = "clarify_first"
+
+
 def build_agent_function_tools(
     agent_type: str,
     *,
     failure_breaker: ToolFailureBreaker | None = None,
     read_only: bool = False,
     read_guard: RepeatReadGuard | None = None,
+    read_only_reason: str = READ_ONLY_REASON_USER_REQUEST,
 ) -> list[Any]:
     """Build SDK FunctionTool instances for the given writing agent role.
 
@@ -139,8 +160,16 @@ def build_agent_function_tools(
     子任务执行前经它判定（同一文件第 4 次起不执行），执行后经它记账、附提示；
     写工具成功会清零对应文件的读取计数。守卫判定无进展后，同一轮里剩下的调用
     同样不再执行。
+    read_only_reason：写工具为什么不可用。user_request（默认）是作者明说不改文件；
+    clarify_first 是作者的要求太笼统，本轮先问清楚（拒绝说明和描述前缀不同）。
     """
     from agents import FunctionTool
+
+    clarify_first = read_only_reason == READ_ONLY_REASON_CLARIFY_FIRST
+    description_prefix = (
+        CLARIFY_FIRST_TOOL_DESCRIPTION_PREFIX if clarify_first else READ_ONLY_TOOL_DESCRIPTION_PREFIX
+    )
+    refusal_text = clarify_first_refusal_text if clarify_first else read_only_refusal_text
 
     function_tools: list[Any] = []
     for tool_schema in get_agent_tools(agent_type):
@@ -150,7 +179,7 @@ def build_agent_function_tools(
         refuse_as_read_only = read_only and name in FILE_WRITE_TOOL_NAMES
         description = str(tool_schema.get("description") or "")
         if refuse_as_read_only:
-            description = f"{READ_ONLY_TOOL_DESCRIPTION_PREFIX}{description}"
+            description = f"{description_prefix}{description}"
 
         async def _on_invoke_tool(
             _ctx: Any,
@@ -164,7 +193,7 @@ def build_agent_function_tools(
             if read_guard is not None and read_guard.is_open:
                 return read_guard.short_circuit_text(_tool_name)
             if _refuse:
-                output = read_only_refusal_text(_tool_name)
+                output = refusal_text(_tool_name)
             elif read_guard is not None:
                 plan = read_guard.plan(_tool_name, raw_arguments)
                 if plan.blocked_output is not None:

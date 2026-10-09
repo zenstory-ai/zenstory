@@ -81,6 +81,16 @@ _WORDING_REPLACEMENTS: tuple[tuple[str, str], ...] = (
     ("送审", "送去检查"),
 )
 
+# 审稿规则的内部说法（「超过15字阈值」「按阻断处理」）：作者不需要知道规则怎么判的。
+# 括号里只说规则的整段去掉；不在括号里的按分句去掉。必须在流程用语替换（阻断 → 需要先修正）之前。
+_RULE_JARGON_PAREN_RE = re.compile(
+    r"[(（][^()（）]*(?:阈值|按[^()（）]{0,8}处理)[^()（）]*[)）]"
+)
+_RULE_JARGON_RE = re.compile(
+    r"(?:超过|超出|高于|低于|达到)?\s*\d+\s*字(?:的)?阈值|"
+    r"按(?:阻断级?问题|阻断项|阻断|客观缺陷|硬性问题)处理"
+)
+
 # 删掉内部写法时先留一个占位符，用来判断哪个分句被删空了。
 _REMOVED = "\x00"
 _CJK = r"㐀-鿿豈-﫿"
@@ -145,6 +155,8 @@ def author_facing_text(text: object) -> str:
         return ""
     result = text.replace(_REMOVED, "")
     for pattern in (
+        _RULE_JARGON_PAREN_RE,
+        _RULE_JARGON_RE,
         _WRAPPED_IDENTIFIER_RE,
         _PAREN_FIELDS_RE,
         _FIELD_ASSIGNMENT_RE,
@@ -167,3 +179,97 @@ def author_facing_handoff_reason(reason: object) -> str:
     if stripped in SYSTEM_HANDOFF_REASONS:
         return SYSTEM_HANDOFF_REASONS[stripped]
     return author_facing_text(stripped)
+
+
+# ------------------------------------------------------------------ 流式正文
+
+# 作者写中文时，调用工具前那句以英文为主的过程说明（「Now create the 分集大纲 file.」）
+# 不发给作者。只看「紧接着就调用工具」的那一小段：最后的总结、写进文件的正文都不过滤。
+_CJK_CHAR_RE = re.compile(rf"[{_CJK}]")
+_ASCII_LETTER_RE = re.compile(r"[A-Za-z]")
+# 这么长还没定下来就照常发出去（不再等），过程说明通常就一句话。
+NARRATION_BUFFER_MAX_CHARS = 120
+# 汉字已经占多数、且有这么多个时，这段肯定不是英文过程句，立刻发出去。
+_CJK_FLUSH_MIN_CHARS = 4
+
+
+def is_english_process_narration(text: str) -> bool:
+    """一小段以英文为主的说明：以英文开头，英文字母至少是汉字的两倍。"""
+    stripped = (text or "").strip()
+    if not stripped or len(stripped) > NARRATION_BUFFER_MAX_CHARS:
+        return False
+    if not _ASCII_LETTER_RE.match(stripped):
+        return False
+    letters = len(_ASCII_LETTER_RE.findall(stripped))
+    cjk = len(_CJK_CHAR_RE.findall(stripped))
+    return letters >= 4 and letters >= 2 * cjk
+
+
+def text_contains_cjk(text: object) -> bool:
+    return isinstance(text, str) and bool(_CJK_CHAR_RE.search(text))
+
+
+class AgentTextShaper:
+    """一个 agent run 的 TEXT 流在发给作者之前的整理。
+
+    - 和前一个角色的文字隔开：之前的文字没有以空行结束时，本 agent 的第一段文字前补空行
+      （审计 P3-16：规划师的「…外形标签定死」和内容创作者的「我先确认三个剧本文件的当前
+      内容。」粘成了一句）。
+    - drop_english_narration（作者写中文时开启）：每段文字先攒着，看出是中文就立刻发；
+      以英文为主、并且紧接着就调用工具的一小段（过程说明）丢掉；超过
+      NARRATION_BUFFER_MAX_CHARS、或出现 ``<``（``<file>`` 正文）时照常发出。
+    """
+
+    def __init__(self, *, previous_text: str, drop_english_narration: bool) -> None:
+        self._previous_text = previous_text or ""
+        self._drop_english_narration = drop_english_narration
+        self._started = False
+        self._buffer = ""
+        self._passthrough = not drop_english_narration
+
+    def _emit(self, text: str) -> str:
+        if not text:
+            return ""
+        if not self._started:
+            self._started = True
+            previous = self._previous_text
+            if previous.strip() and not previous.endswith("\n\n") and not text.startswith("\n\n"):
+                separator = "\n" if previous.endswith("\n") or text.startswith("\n") else "\n\n"
+                text = separator + text
+        return text
+
+    def feed(self, text: str) -> str:
+        """收到一段 TEXT，返回现在该发出去的文字（可能为空）。"""
+        if not text:
+            return ""
+        if self._passthrough:
+            return self._emit(text)
+        self._buffer += text
+        stripped = self._buffer.lstrip()
+        if not stripped:
+            return ""
+        cjk = len(_CJK_CHAR_RE.findall(self._buffer))
+        letters = len(_ASCII_LETTER_RE.findall(self._buffer))
+        if (
+            not _ASCII_LETTER_RE.match(stripped)
+            or (cjk >= _CJK_FLUSH_MIN_CHARS and cjk * 2 > letters)
+            or "<" in self._buffer
+            or len(self._buffer) > NARRATION_BUFFER_MAX_CHARS
+        ):
+            self._passthrough = True
+            buffered, self._buffer = self._buffer, ""
+            return self._emit(buffered)
+        return ""
+
+    def end_segment(self, *, before_tool_call: bool) -> str:
+        """一段文字结束（遇到非文字事件，或 run 结束），返回还没发出去的文字。
+
+        before_tool_call=True 且攒着的是英文过程句时丢掉。之后的下一段重新判断。
+        """
+        buffered, self._buffer = self._buffer, ""
+        self._passthrough = not self._drop_english_narration
+        if not buffered:
+            return ""
+        if before_tool_call and is_english_process_narration(buffered):
+            return ""
+        return self._emit(buffered)

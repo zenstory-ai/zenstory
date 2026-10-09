@@ -70,6 +70,13 @@ from .skills import get_skill_context_injector, resolve_selected_skills
 from .skills.active_skills import list_active_skill_resources
 from .skills.content_budget import split_selected_budget
 from .stream_adapter import create_stream_adapter
+from .tools.author_edit_guard import (
+    CONFIRM_FILE_IDS_ROUTING_KEY,
+    MAX_CONFIRM_FILE_IDS,
+    AuthorEditRefusals,
+    confirmed_file_ids_from_history,
+    referenced_file_ids_from_metadata,
+)
 from .tools.mcp_tools import ToolContext, _should_offload_tool_execution
 
 logger = get_logger(__name__)
@@ -106,7 +113,7 @@ def routing_from_router_decided(data: dict[str, Any]) -> dict[str, Any]:
     initial_agent = str(data.get("initial_agent") or routing_metadata.get("agent_type") or "")
     write_content = routing_metadata.get("write_content")
     scope = routing_metadata.get("scope")
-    return {
+    routing = {
         "initial_agent": initial_agent,
         "workflow_type": str(
             data.get("workflow_plan") or routing_metadata.get("workflow_type") or ""
@@ -116,6 +123,10 @@ def routing_from_router_decided(data: dict[str, Any]) -> dict[str, Any]:
         "scope": scope.strip() if isinstance(scope, str) else "",
         "last_agent": initial_agent,
     }
+    if routing_metadata.get("clarify_first") is True:
+        # 这一轮是为笼统要求先问清楚：下一轮不再问第二次（graph/writing_graph._should_clarify_first）。
+        routing["clarify_first"] = True
+    return routing
 
 
 # 工作台首页「输入想法 → 新建作品」后自动发出的第一条消息带 metadata.entry=dashboard_idea。
@@ -685,6 +696,15 @@ class AgentService:
         assistant_display_events: list[dict[str, Any]] = []
         # 本轮路由（ROUTER_DECIDED + 最后一个 AGENT_SELECTED），随 assistant 消息落库
         assistant_routing: dict[str, Any] = {}
+        # 本轮因为作者手改过而没改成的文件：随 routing 落库，下一轮作者回答时放行。
+        author_edit_refusals = AuthorEditRefusals()
+
+        def _routing_for_save() -> dict[str, Any] | None:
+            refused = author_edit_refusals.file_ids()[:MAX_CONFIRM_FILE_IDS]
+            if not refused:
+                return assistant_routing or None
+            return {**assistant_routing, CONFIRM_FILE_IDS_ROUTING_KEY: refused}
+
         display_text_run_type: str | None = None
         pending_done_payload: dict[str, Any] | None = None
         had_stream_error = False
@@ -938,7 +958,7 @@ class AgentService:
                     assistant_display_events=assistant_display_events or None,
                     assistant_usage=_accumulated_usage(),
                     assistant_stop_reason=stop_reason,
-                    assistant_routing=assistant_routing or None,
+                    assistant_routing=_routing_for_save(),
                     persist_empty_assistant=persist_empty_assistant,
                 )
 
@@ -1167,6 +1187,11 @@ class AgentService:
                 # 作者原话：update_project 据此确认 author_requested 真是作者要求的改名
                 author_message=message,
                 author_steering=consumed_steering,
+                # 作者手改过的文件：作者本轮没点名时 AI 不改（agent/tools/author_edit_guard.py）。
+                focus_file_id=focus_file_id if isinstance(focus_file_id, str) else None,
+                referenced_file_ids=referenced_file_ids_from_metadata(metadata),
+                author_confirmed_file_ids=confirmed_file_ids_from_history(history_messages),
+                author_edit_refusals=author_edit_refusals,
             )
 
             # Build WritingState for workflow execution
@@ -1412,7 +1437,7 @@ class AgentService:
                         assistant_status_cards=assistant_status_cards or None,
                         steering_messages=consumed_steering or None,
                         assistant_display_events=assistant_display_events or None,
-                        assistant_routing=assistant_routing or None,
+                        assistant_routing=_routing_for_save(),
                     )
                     history_saved = True
                     return saved_id
