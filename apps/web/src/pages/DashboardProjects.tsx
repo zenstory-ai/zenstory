@@ -6,6 +6,8 @@ import {
 } from "../components/icons";
 import { DashboardSearchBar } from "../components/dashboard/DashboardSearchBar";
 import { useProject } from "../contexts/ProjectContext";
+import { useProjectsProgress } from "../hooks/useProjectsProgress";
+import { ProjectProgressLine } from "../components/ProjectProgressLine";
 import { formatRelativeTime, parseUTCDate } from "../lib/dateUtils";
 import type { ProjectType } from "../types";
 import { useIsMobile, useIsTablet } from "../hooks/useMediaQuery";
@@ -32,6 +34,7 @@ export default function DashboardProjects() {
     refreshProjects,
     deleteProject: contextDeleteProject,
   } = useProject();
+  const projectProgress = useProjectsProgress(projects.length);
 
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
@@ -258,6 +261,7 @@ export default function DashboardProjects() {
                   )}
 
                   {/* Footer */}
+                  <ProjectProgressLine progress={project.id ? projectProgress.get(project.id) : undefined} projectType={project.project_type} />
                   <div className="mt-auto flex items-center justify-between">
                     <span
                       className={`text-xs px-2 py-0.5 rounded-md ${config.bgClass} ${config.colorClass} font-medium`}

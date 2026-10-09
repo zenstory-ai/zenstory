@@ -547,5 +547,17 @@
         "description": "When you get stuck, come here for story openings and setting ideas."
       }
     }
+  },
+  "projectProgress": {
+    "chapters_one": "1 chapter · {{words}}",
+    "chapters_other": "{{count}} chapters · {{words}}",
+    "episodes_one": "1 episode · {{words}}",
+    "episodes_other": "{{count}} episodes · {{words}}",
+    "shortWritten": "{{words}} written",
+    "words_one": "1 word",
+    "words_other": "{{count}} words",
+    "wordsWan": "{{count}} × 10,000 words",
+    "wordsK": "{{count}}k words",
+    "frameworkReady": "Outline ready. Start writing"
   }
 }

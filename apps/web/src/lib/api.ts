@@ -25,6 +25,7 @@ import type {
   PatchProjectRequest,
   Project,
   ProjectNextStep,
+  ProjectProgress,
   RollbackResponse,
   SnapshotComparison,
   Snapshot,
@@ -445,6 +446,11 @@ export const projectApi = {
    */
   getNextStep: (projectId: string) =>
     api.get<{ next_step: ProjectNextStep | null }>(`/api/v1/projects/${projectId}/next-step`),
+
+  /**
+   * Writing progress of every project the author owns (for the project cards).
+   */
+  getProgress: () => api.get<ProjectProgress[]>("/api/v1/projects/progress"),
 
   /**
    * Create a new project.

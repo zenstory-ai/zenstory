@@ -1348,3 +1348,14 @@ export interface ProjectNextStep {
   /** The request sent to the AI when the author clicks it. */
   message: string;
 }
+
+/** Writing progress shown on a project card (from GET /projects/progress). */
+export interface ProjectProgress {
+  project_id: string;
+  /** Non-empty chapters (novel/short) or episodes (screenplay). */
+  written_units: number;
+  /** Editor word count across those files. */
+  word_count: number;
+  /** Outline/characters/setting exist but no prose yet. */
+  framework_ready: boolean;
+}

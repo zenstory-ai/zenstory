@@ -23,7 +23,7 @@ from sqlmodel import Session, col, select, update
 from agent.constants import CONTENT_FILE_TYPES
 from config.datetime_utils import utcnow
 from models.entities import ChatMessage, ChatSession
-from models.file_model import FILE_TYPE_OUTLINE, File
+from models.file_model import FILE_TYPE_OUTLINE, WORD_COUNT_REV, File, cached_word_count
 from models.writing_stats import WritingStats, WritingStreak
 from utils.logger import get_logger, log_with_context
 from utils.text_metrics import count_words
@@ -190,18 +190,8 @@ class WritingStatsService:
         return None
 
     def _read_word_count_from_file_metadata(self, raw_metadata: str | None) -> int | None:
-        """Read cached word_count from File.file_metadata JSON (returns None when missing/invalid)."""
-        if not raw_metadata:
-            return None
-        try:
-            metadata = json_module.loads(raw_metadata)
-        except (TypeError, ValueError):
-            return None
-        if not isinstance(metadata, dict):
-            return None
-        if "word_count" not in metadata:
-            return None
-        return self._parse_non_negative_int(metadata.get("word_count"))
+        """Cached word_count in the current counting revision; None means recompute from content."""
+        return cached_word_count(raw_metadata)
 
     def _set_word_count_in_file_metadata(self, file: File, word_count: int) -> bool:
         """Set file_metadata.word_count, preserving other metadata keys. Returns True when updated."""
@@ -217,10 +207,14 @@ class WritingStatsService:
 
         existing = metadata_dict.get("word_count")
         existing_parsed = self._parse_non_negative_int(existing) if existing is not None else None
-        if existing_parsed == normalized_word_count:
+        if (
+            existing_parsed == normalized_word_count
+            and metadata_dict.get("word_count_rev") == WORD_COUNT_REV
+        ):
             return False
 
         metadata_dict["word_count"] = normalized_word_count
+        metadata_dict["word_count_rev"] = WORD_COUNT_REV
         file.file_metadata = json_module.dumps(metadata_dict, ensure_ascii=False)
         return True
 

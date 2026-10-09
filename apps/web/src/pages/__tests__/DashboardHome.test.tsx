@@ -66,6 +66,7 @@ const {
   mockUseDashboardInspirations,
   mockGetActivationGuide,
   mockGetRecommendations,
+  mockGetProgress,
 } = vi.hoisted(() => ({
   mockDashboardOnboardingFlags: {
     todayActionPlanEnabled: true,
@@ -78,6 +79,7 @@ const {
   mockUseDashboardInspirations: vi.fn(),
   mockGetActivationGuide: vi.fn(),
   mockGetRecommendations: vi.fn(),
+  mockGetProgress: vi.fn(async () => [] as unknown[]),
 }))
 
 const mockNavigate = vi.fn()
@@ -179,6 +181,7 @@ vi.mock('../../components/subscription/UpgradePromptModal', () => ({
 vi.mock('../../lib/api', () => ({
   projectApi: {
     getTemplates: vi.fn().mockResolvedValue(null),
+    getProgress: mockGetProgress,
   },
 }))
 
@@ -284,6 +287,27 @@ describe('DashboardHome featured inspirations section', () => {
       expect(footer?.firstElementChild).toHaveTextContent('长篇小说')
       expect(footer?.lastElementChild).not.toBeEmptyDOMElement()
     }
+  })
+
+  it('shows how far each project has got, or that its outline is ready to write from', async () => {
+    mockProjects = [
+      { id: 'p-writing', name: 'Writing', description: '', project_type: 'novel', updated_at: '2026-04-07T00:00:00Z' },
+      { id: 'p-outline', name: 'Outline', description: '', project_type: 'novel', updated_at: '2026-04-07T00:00:00Z' },
+      { id: 'p-empty', name: 'Empty', description: '', project_type: 'novel', updated_at: '2026-04-07T00:00:00Z' },
+    ]
+    mockGetProgress.mockResolvedValueOnce([
+      { project_id: 'p-writing', written_units: 12, word_count: 32_480, framework_ready: false },
+      { project_id: 'p-outline', written_units: 0, word_count: 0, framework_ready: true },
+      { project_id: 'p-empty', written_units: 0, word_count: 0, framework_ready: false },
+    ])
+
+    renderDashboardHome()
+
+    const writing = await screen.findByRole('button', { name: 'Open project Writing' })
+    await waitFor(() => expect(within(writing).getByTestId('project-progress')).toHaveTextContent('dashboard:projectProgress.chapters'))
+    expect(within(screen.getByRole('button', { name: 'Open project Outline' })).getByTestId('project-progress'))
+      .toHaveTextContent('dashboard:projectProgress.frameworkReady')
+    expect(within(screen.getByRole('button', { name: 'Open project Empty' })).queryByTestId('project-progress')).toBeNull()
   })
 
   it('retains the baseline templates and reports a template API failure', async () => {

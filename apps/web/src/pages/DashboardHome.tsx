@@ -23,6 +23,8 @@ import { handleApiError } from "../lib/errorHandler";
 import { toast } from "../lib/toast";
 import { useAuth } from "../contexts/AuthContext";
 import { useProject } from "../contexts/ProjectContext";
+import { useProjectsProgress } from "../hooks/useProjectsProgress";
+import { ProjectProgressLine } from "../components/ProjectProgressLine";
 import type { ProjectType } from "../types";
 import { useIsMobile, useIsTablet } from "../hooks/useMediaQuery";
 import { formatRelativeTime, parseUTCDate } from "../lib/dateUtils";
@@ -53,6 +55,7 @@ export default function DashboardHome() {
     createProject: contextCreateProject,
     deleteProject: contextDeleteProject,
   } = useProject();
+  const projectProgress = useProjectsProgress(projects.length);
 
   // Mobile and tablet detection
   const isMobile = useIsMobile();
@@ -838,6 +841,7 @@ export default function DashboardHome() {
                       )}
 
                       {/* Footer */}
+                      <ProjectProgressLine progress={project.id ? projectProgress.get(project.id) : undefined} projectType={project.project_type} />
                       <div className="mt-auto flex items-center justify-between">
                         <span
                           className={`text-xs px-2 py-0.5 rounded-md ${config.bgClass} ${config.colorClass} font-medium`}

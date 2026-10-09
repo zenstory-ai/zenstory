@@ -15,10 +15,14 @@ File types:
 - folder: 文件夹（用于组织）
 """
 
+import json
 from datetime import datetime
 from typing import Any, Optional
 
+from sqlalchemy import event, inspect
 from sqlmodel import Field, Relationship, SQLModel
+
+from utils.text_metrics import count_words
 
 from .utils import generate_uuid
 
@@ -162,3 +166,50 @@ FILE_TYPE_METADATA_SCHEMA = {
         "optional_fields": [],
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# 正文字数缓存
+#
+# 作者保存、AI 编辑/流式写入、上传、恢复版本都会改 content，以前只有作者保存
+# 和上传会更新 file_metadata.word_count，AI 写过的文件缓存一直是旧值。现在正文类
+# 文件任何改到 content 的 flush 都在这里统一重算，并打上 word_count_rev；读取方只
+# 信任带当前 rev 的缓存，没有或旧口径的缓存按需重算（见 cached_word_count）。
+# ---------------------------------------------------------------------------
+WORD_COUNT_REV = 2
+
+
+def stamp_word_count(file: "File") -> int:
+    """按编辑器口径重算并写入 file_metadata.word_count，返回字数。"""
+    word_count = count_words(file.content)
+    metadata = file.get_metadata()
+    metadata["word_count"] = word_count
+    metadata["word_count_rev"] = WORD_COUNT_REV
+    file.set_metadata(metadata)
+    return word_count
+
+
+def cached_word_count(raw_metadata: str | None) -> int | None:
+    """当前口径的缓存字数；没有缓存或是旧口径时返回 None（调用方据 content 重算）。"""
+    if not raw_metadata:
+        return None
+    try:
+        metadata = json.loads(raw_metadata)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(metadata, dict) or metadata.get("word_count_rev") != WORD_COUNT_REV:
+        return None
+    value = metadata.get("word_count")
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return None
+    return value
+
+
+# 只管正文类文件；新建的文件没有当前口径的缓存，读取时按需重算即可。
+_WORD_COUNTED_FILE_TYPES = frozenset({FILE_TYPE_DRAFT, FILE_TYPE_SCRIPT})
+
+
+@event.listens_for(File, "before_update")
+def _stamp_word_count_on_update(_mapper, _connection, target: "File") -> None:
+    if target.file_type in _WORD_COUNTED_FILE_TYPES and inspect(target).attrs.content.history.has_changes():
+        stamp_word_count(target)

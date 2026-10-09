@@ -23,6 +23,7 @@ from models.file_model import (
     FILE_TYPE_SCRIPT,
     FILE_TYPE_SNIPPET,
     File,
+    cached_word_count,
 )
 
 
@@ -542,3 +543,55 @@ def test_file_metadata_none(db_session: Session):
 
     # get_metadata_field should return default
     assert file.get_metadata_field("test", default="default") == "default"
+
+
+@pytest.mark.unit
+def test_draft_word_count_follows_every_content_write(db_session: Session):
+    """AI 编辑/流式写入只改 content：缓存字数也必须跟着变，不能停在旧值。"""
+    user = User(username="wc_writer", email="wc_writer@example.com", hashed_password="pass")
+    db_session.add(user)
+    db_session.commit()
+    project = Project(name="字数", owner_id=user.id)
+    db_session.add(project)
+    db_session.commit()
+
+    draft = File(project_id=project.id, title="第一章", content="山风", file_type=FILE_TYPE_DRAFT)
+    # A cache written by an older code path (no revision) is not trusted.
+    draft.set_metadata({"word_count": 2, "chapter_number": 1})
+    db_session.add(draft)
+    db_session.commit()
+    assert cached_word_count(draft.file_metadata) is None
+
+    draft.content = "山风吹过断崖，他回头看了一眼 village。"
+    db_session.add(draft)
+    db_session.commit()
+    db_session.refresh(draft)
+
+    assert cached_word_count(draft.file_metadata) == 14
+    assert draft.get_metadata_field("chapter_number") == 1
+
+
+@pytest.mark.unit
+def test_metadata_only_updates_and_non_prose_files_keep_their_metadata(db_session: Session):
+    user = User(username="wc_keep", email="wc_keep@example.com", hashed_password="pass")
+    db_session.add(user)
+    db_session.commit()
+    project = Project(name="字数", owner_id=user.id)
+    db_session.add(project)
+    db_session.commit()
+
+    outline = File(project_id=project.id, title="总纲", content="开端", file_type=FILE_TYPE_OUTLINE)
+    db_session.add(outline)
+    db_session.commit()
+    outline.content = "开端、发展"
+    db_session.add(outline)
+    db_session.commit()
+    assert outline.file_metadata is None
+
+    draft = File(project_id=project.id, title="第一章", content="山风", file_type=FILE_TYPE_DRAFT)
+    db_session.add(draft)
+    db_session.commit()
+    draft.title = "第一章 断崖"
+    db_session.add(draft)
+    db_session.commit()
+    assert draft.file_metadata is None
