@@ -6,6 +6,7 @@ import {
   rememberNextStepDismissed,
 } from '../nextStep'
 import zhChat from '../../../public/locales/zh/chat.json'
+import enChat from '../../../public/locales/en/chat.json'
 
 describe('duplicatesNextStep', () => {
   it.each([
@@ -14,6 +15,7 @@ describe('duplicatesNextStep', () => {
     '开始写正文',
     '按大纲动笔写开篇',
     '按大纲写第一章',
+    '开始创作第一章',
     'Write chapter 1 with the countdown',
   ])('treats %j as the same action as the card', (chip) => {
     expect(duplicatesNextStep(chip)).toBe(true)
@@ -26,9 +28,15 @@ describe('duplicatesNextStep', () => {
     '先补陈越的角色卡',
     '接着写第二章',
     '写第 10 章',
+    '写第一章前先补人物小传',
     'Add a rival to the outline',
   ])('keeps %j, which offers a different direction', (chip) => {
     expect(duplicatesNextStep(chip)).toBe(false)
+  })
+
+  it('catches the fallback chip that repeats the card, and only that one', () => {
+    expect((zhChat.input.staticSuggestions as string[]).filter(duplicatesNextStep)).toEqual(['开始创作第一章'])
+    expect((enChat.input.staticSuggestions as string[]).filter(duplicatesNextStep)).toEqual(['Start writing Chapter 1'])
   })
 })
 

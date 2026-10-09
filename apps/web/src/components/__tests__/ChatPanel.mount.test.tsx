@@ -623,8 +623,17 @@ describe('ChatPanel mount smoke', () => {
     render(<ChatPanel />)
     await screen.findByTestId('next-step-card')
 
-    const chips = () => (lastMessageInputProps() as unknown as { aiSuggestions: string[] }).aiSuggestions
+    // The chips MessageInput would show: what ChatPanel passes, minus what it asks to hide.
+    const chips = () => {
+      const { aiSuggestions, hideSuggestion } = lastMessageInputProps() as unknown as {
+        aiSuggestions: string[]
+        hideSuggestion?: (suggestion: string) => boolean
+      }
+      return hideSuggestion ? aiSuggestions.filter((s) => !hideSuggestion(s)) : aiSuggestions
+    }
     await waitFor(() => expect(chips()).toEqual(['先补陈越的角色卡', '调整大纲的节奏']))
+    // The same filter covers the fallback pool, whose 「开始创作第一章」 repeats the card too.
+    expect((lastMessageInputProps() as unknown as { hideSuggestion?: (s: string) => boolean }).hideSuggestion?.('开始创作第一章')).toBe(true)
 
     // Once the author says 先不用, the card is gone and the chip is the way back in.
     fireEvent.click(screen.getByText('chat:nextStep.dismiss'))

@@ -28,8 +28,10 @@ export function rememberNextStepDismissed(projectId: string): void {
   }
 }
 
-// "写第一章…" / "先写第1集剧本…" / "开始写正文" / "动笔写开篇…"
-const WRITE_FIRST_UNIT_ZH = /(?:写|动笔|开写)[^，。,.!?！？]{0,4}?(?:第\s*[一1１]\s*[章集]|正文|开篇)/;
+// "写第一章…" / "先写第1集剧本…" / "开始写正文" / "动笔写开篇…" / "开始创作第一章"
+const WRITE_FIRST_UNIT_ZH = /(?:写|动笔|开写|创作)[^，。,.!?！？]{0,4}?(?:第\s*[一1１]\s*[章集]|正文|开篇)/;
+// "写第一章前先补人物小传": chapter 1 is only the time reference, the chip offers something else.
+const BEFORE_FIRST_UNIT = /(?:第\s*[一1１]\s*[章集]|正文|开篇)(?:之)?前/;
 const WRITE_FIRST_UNIT_EN = /\b(?:write|start|draft)\b.{0,20}\b(?:chapter (?:1|one)|episode (?:1|one)|the opening|the story)\b/i;
 // "先补第一章细纲" / "写第一章大纲" plan chapter 1 rather than write it ("按大纲写第一章" still writes).
 const PLANNING = /细纲|梗概|(?:补|改|调|完善|细化|写|出)[^，。,.]{0,4}大纲|\boutline (?:for|of)\b|\b(?:revise|adjust|refine|expand)\b.*\boutline\b/i;
@@ -41,6 +43,6 @@ const PLANNING = /细纲|梗概|(?:补|改|调|完善|细化|写|出)[^，。,.]
  */
 export function duplicatesNextStep(suggestion: string): boolean {
   const text = suggestion.trim();
-  if (!text || PLANNING.test(text)) return false;
+  if (!text || PLANNING.test(text) || BEFORE_FIRST_UNIT.test(text)) return false;
   return WRITE_FIRST_UNIT_ZH.test(text) || WRITE_FIRST_UNIT_EN.test(text);
 }

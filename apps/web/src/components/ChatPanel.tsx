@@ -1758,10 +1758,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       && !isThinking
       && !quotaExhausted,
   );
-  // While the card offers "write chapter 1", chips saying the same are dropped: one entry for it.
-  const visibleAiSuggestions = showNextStep
-    ? aiSuggestions.filter((suggestion) => !duplicatesNextStep(suggestion))
-    : aiSuggestions;
 
   return (
     <div
@@ -2063,7 +2059,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                   ? t("chat:input.placeholderQuotaExhausted", { limit: aiMessageQuota?.limit })
                   : undefined
             }
-            aiSuggestions={visibleAiSuggestions}
+            aiSuggestions={aiSuggestions}
+            // While the card offers "write chapter 1", chips (AI or fallback) saying the same are dropped: one entry for it.
+            hideSuggestion={showNextStep ? duplicatesNextStep : undefined}
             messageCount={messages.length}
             suggestionDisplayState={suggestionDisplayState}
             onRefreshSuggestions={refreshSuggestionsNow}

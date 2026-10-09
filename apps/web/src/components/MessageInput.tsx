@@ -200,6 +200,8 @@ interface MessageInputProps {
   placeholder?: string;
   /** AI-generated context-aware suggestions to display */
   aiSuggestions?: string[];
+  /** Chips (AI or fallback) to leave out, e.g. ones that repeat the next-step card. */
+  hideSuggestion?: (suggestion: string) => boolean;
   /** Current conversation message count (reserved for compatibility/analytics) */
   messageCount?: number;
   /** Controls whether suggestion area is loading, ready with AI, or fallback static */
@@ -294,6 +296,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   canSteer = false,
   placeholder,
   aiSuggestions = [],
+  hideSuggestion,
   suggestionDisplayState = aiSuggestions.length > 0 ? "ready" : "fallback",
   onRefreshSuggestions,
   isRefreshingSuggestions = false,
@@ -393,8 +396,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   }, [allStaticSuggestions]);
 
   const baseDisplaySuggestions = getSuggestionsToDisplay(
-    staticSuggestions,
-    aiSuggestions,
+    hideSuggestion ? staticSuggestions.filter((s) => !hideSuggestion(s)) : staticSuggestions,
+    hideSuggestion ? aiSuggestions.filter((s) => !hideSuggestion(s)) : aiSuggestions,
     suggestionDisplayState,
   );
 
