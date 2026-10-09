@@ -24,6 +24,9 @@
     "quotaExceededHint": "北京时间明天 00:00 恢复。想接着写，可以开通 Pro，AI 消息不限条数。",
     "notCharged": "这一轮没有改动文件，不计入今日 AI 消息。",
     "notChargedError": "这次出错不计入今日 AI 消息。",
+    "userStopped": "已停止",
+    "userStoppedSaved": "已写入的内容已保存",
+    "userStoppedCounted": "本条计入今日 AI 消息",
     "fileVersionLimitTitle": "文件版本额度已达上限",
     "fileVersionLimitDesc": "升级套餐后可继续保存更多版本。"
   },

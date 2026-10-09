@@ -333,7 +333,8 @@ export default function OnboardingPersonaPage() {
       savePersonaOnboardingData(user.id, {
         selected_personas: profile.selected_personas,
         selected_goals: profile.selected_goals,
-        experience_level: profile.experience_level,
+        // The server fills its default when the question was left unanswered.
+        experience_level: profile.experience_level ?? "beginner",
         skipped: profile.skipped,
       });
       queryClient.setQueryData(personaQueryKey, result);
