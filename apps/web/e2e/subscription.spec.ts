@@ -401,7 +401,9 @@ test.describe('Quota Display', () => {
     await navigateToSubscriptionSettings(page, request);
 
     await expect(page.getByText('9/10').first()).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('button:has-text("开通 Pro"), button:has-text("Get Pro")').first()).toBeVisible({ timeout: 5000 });
+    // An upgrade path is offered: 「开通 Pro」 with online checkout, or the redeem code with the
+    // checkout-unavailable notice when checkout is off (the local stack has no payment provider).
+    await expect(page.locator('button:has-text("开通 Pro"), button:has-text("Get Pro"), [data-testid="billing-checkout-unavailable"]').first()).toBeVisible({ timeout: 5000 });
   });
 
   test('should show error when quota is exhausted', async ({ page, request }) => {
@@ -411,7 +413,9 @@ test.describe('Quota Display', () => {
     await navigateToSubscriptionSettings(page, request);
 
     await expect(page.getByText('10/10').first()).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('button:has-text("开通 Pro"), button:has-text("Get Pro")').first()).toBeVisible({ timeout: 5000 });
+    // An upgrade path is offered: 「开通 Pro」 with online checkout, or the redeem code with the
+    // checkout-unavailable notice when checkout is off (the local stack has no payment provider).
+    await expect(page.locator('button:has-text("开通 Pro"), button:has-text("Get Pro"), [data-testid="billing-checkout-unavailable"]').first()).toBeVisible({ timeout: 5000 });
   });
 });
 

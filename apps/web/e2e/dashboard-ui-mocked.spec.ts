@@ -19,8 +19,11 @@ test.describe('dashboard buttons and type', () => {
   test('solid and ghost buttons have no visible outline; secondary keeps its border', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await mockResponsiveApp(page, null, 'free');
+    // Online checkout explicitly off (a failed options request would count as unknown),
+    // so 「兑换码」 is the page's one solid action. Routes added later take precedence.
+    await page.route('**/api/v1/payments/options', (route) =>
+      route.fulfill({ json: { enabled: false, payment_methods: [] } }));
 
-    // The fixture has online checkout off, so 「兑换码」 is the page's one solid action.
     await page.goto('/dashboard/billing');
     const solid = page.getByRole('main').getByRole('button', { name: '兑换码', exact: true });
     await expect(solid).toBeVisible();
