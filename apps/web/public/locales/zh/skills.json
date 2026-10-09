@@ -90,6 +90,7 @@
   "quota": {
     "createTitle": "自定义技能数量已达上限",
     "createDescription": "删掉不用的技能就能腾出名额，或开通 Pro 建更多技能。",
+    "createPaidDescription": "删掉不用的技能就能腾出名额。",
     "upgradePrimary": "开通 Pro",
     "upgradeSecondary": "查看套餐对比"
   },

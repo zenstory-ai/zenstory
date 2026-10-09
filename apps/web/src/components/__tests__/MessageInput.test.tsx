@@ -249,6 +249,26 @@ describe('MessageInput', () => {
     }
   })
 
+  it('explains instead of sending while sending is held, and keeps the typed text', async () => {
+    const user = userEvent.setup({ delay: null })
+    const onSend = vi.fn()
+    const onBlockedSend = vi.fn()
+    render(<MessageInput {...defaultProps} onSend={onSend} onBlockedSend={onBlockedSend} />)
+
+    const textarea = screen.getByTestId('chat-input')
+    await user.type(textarea, '继续写第二章')
+    await user.keyboard('{Enter}')
+    expect(onBlockedSend).toHaveBeenCalledTimes(1)
+
+    const sendButton = screen.getByTestId('send-button')
+    expect(sendButton).not.toBeDisabled()
+    fireEvent.click(sendButton)
+    expect(onBlockedSend).toHaveBeenCalledTimes(2)
+
+    expect(onSend).not.toHaveBeenCalled()
+    expect(textarea).toHaveValue('继续写第二章')
+  })
+
   it('shows custom placeholder', () => {
     render(<MessageInput {...defaultProps} placeholder="Custom placeholder" />)
     expect(screen.getByPlaceholderText('Custom placeholder')).toBeInTheDocument()

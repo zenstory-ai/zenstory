@@ -145,8 +145,13 @@ vi.mock('../../components/skills/ShareSkillModal', () => ({
 }))
 
 vi.mock('../../components/subscription/UpgradePromptModal', () => ({
-  UpgradePromptModal: ({ open, title }: { open: boolean; title: string }) =>
-    open ? <div data-testid="upgrade-modal">{title}</div> : null,
+  UpgradePromptModal: ({ open, title, paidDescription }: { open: boolean; title: string; paidDescription?: string }) =>
+    open ? (
+      <div data-testid="upgrade-modal">
+        {title}
+        <p data-testid="upgrade-modal-paid-description">{paidDescription}</p>
+      </div>
+    ) : null,
 }))
 
 // Suppress console noise
@@ -613,6 +618,8 @@ describe('SkillsPage', () => {
         expect(skillsApi.create).toHaveBeenCalled()
         expect(screen.getByTestId('upgrade-modal')).toBeInTheDocument()
       })
+      // A Pro author at the cap is told how to make room, not just "used up".
+      expect(screen.getByTestId('upgrade-modal-paid-description')).toHaveTextContent('skills:quota.createPaidDescription')
     })
   })
 

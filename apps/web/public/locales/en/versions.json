@@ -60,6 +60,7 @@
   "quota": {
     "limitTitle": "This file's version history is full",
     "limitDescription": "Your text is still saved; we just won't create new versions. Pro keeps more versions per file.",
+    "paidLimitDescription": "Your text is still saved; this file just won't get new versions.",
     "upgradePrimary": "Get Pro",
     "upgradeSecondary": "Compare plans"
   }

@@ -68,6 +68,7 @@ import { toast } from "../lib/toast";
 import { ProjectStatusDialog } from "./ProjectStatusDialog";
 import { useDraftPersistence } from "../hooks/useDraftPersistence";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
+import { ChatQuotaCard } from "./subscription/ChatQuotaCard";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { trackEvent } from "../lib/analytics";
 import { useLeaveWhileGenerating } from "../hooks/useLeaveWhileGenerating";
@@ -463,6 +464,16 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const [showAIMemory, setShowAIMemory] = useState(false);
   const [generationMode, setGenerationMode] = useState<GenerationMode>("quality");
   const { draft, saveDraft, clearDraft } = useDraftPersistence(currentProjectId);
+  /** The bubble just sent, until the server accepts the round (it is not stored before that). */
+  const blockedCandidateRef = useRef<{ id: string; content: string } | null>(null);
+  /** The server refused the round for today's AI messages: put the words back in the input. */
+  const returnBlockedMessageToInput = useCallback(() => {
+    const candidate = blockedCandidateRef.current;
+    blockedCandidateRef.current = null;
+    if (!candidate) return;
+    setMessages((prev) => prev.filter((message) => message.id !== candidate.id));
+    saveDraft(candidate.content);
+  }, [saveDraft]);
   const messageListRef = useRef<MessageListRef>(null);
   const messagesScrollContainerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
@@ -972,6 +983,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     onError: (message, code, retryable) => {
       streamCallbacks.onError(message, code, retryable);
       invalidateQuota();
+      if (code === 'ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED' || code === 'ERR_QUOTA_AI_DAILY_COST_EXCEEDED') {
+        returnBlockedMessageToInput();
+      }
     },
 
     // Tool result callbacks
@@ -1026,6 +1040,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     },
     onWorkflowComplete: streamCallbacks.onWorkflowComplete,
     onSessionStarted: (sessionId) => {
+      blockedCandidateRef.current = null;
       currentAgentSessionIdRef.current = sessionId;
       streamCallbacks.onSessionStarted(sessionId);
       // The server has already charged this round's AI message by now.
@@ -1310,6 +1325,13 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   ) => {
     if (!message.trim() || isStreaming) return;
 
+    // Used up for today: keep the words as the draft and explain, instead of sending.
+    if (quotaExhausted) {
+      saveDraft(message);
+      setShowQuotaUpgradeModal(true);
+      return;
+    }
+
     // Clear draft after sending
     clearDraft();
 
@@ -1329,6 +1351,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    blockedCandidateRef.current = { id: userMessage.id, content: message };
     lastUserRequestRef.current = message;
     followLatestMessage();
 
@@ -1383,13 +1406,14 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       lastRetryRequestRef.current = { projectId: currentProjectId, request };
     }
     startStream(request);
-  }, [isStreaming, selectedItem?.id, selectedItem?.type, selectedItem?.title, attachedFileIds, attachedLibraryMaterials, quotes, generationMode, startStream, clearDraft, setAiSuggestions, currentProjectId, followLatestMessage]);
+  }, [isStreaming, quotaExhausted, saveDraft, selectedItem?.id, selectedItem?.type, selectedItem?.title, attachedFileIds, attachedLibraryMaterials, quotes, generationMode, startStream, clearDraft, setAiSuggestions, currentProjectId, followLatestMessage]);
 
   const handleRetry = useCallback(() => {
     const lastRequest = lastRetryRequestRef.current;
     if (!retryable || isStreaming || !currentProjectId || lastRequest?.projectId !== currentProjectId) {
       return;
     }
+    blockedCandidateRef.current = null;
     followLatestMessage();
     startStream(lastRequest.request);
   }, [currentProjectId, isStreaming, retryable, startStream, followLatestMessage]);
@@ -1873,7 +1897,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
               )}
 
               {/* Error */}
-              {error && (
+              {error && !(isAiQuotaLimit && quotaExhausted) && (
                 <div className="mt-3 bg-[hsl(var(--warning)/0.1)] border border-[hsl(var(--warning)/0.3)] rounded-lg p-3 animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="flex items-start gap-2">
                     <svg
@@ -2034,12 +2058,16 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
               }}
             />
           )}
+          {quotaExhausted && aiMessageQuota && (
+            <ChatQuotaCard limit={aiMessageQuota.limit} resetAt={aiMessageQuota.reset_at} />
+          )}
           <MessageInput
             onSend={handleSendMessage}
             // Allow drafting while AI is streaming/thinking, but prevent sending until it finishes.
             disabled={isLoadingHistory}
-            // Quota used up: drafting stays possible, sending waits for the daily reset.
-            sendDisabled={isStreaming || isThinking || isLoadingHistory || quotaExhausted}
+            sendDisabled={isStreaming || isThinking || isLoadingHistory}
+            // Quota used up: drafting stays possible; send / Enter explains instead of sending.
+            onBlockedSend={quotaExhausted ? () => setShowQuotaUpgradeModal(true) : undefined}
             onCancel={isStreaming ? handleCancel : undefined}
             isStopping={isStopping}
             // Steering: while streaming with an active session, the user can send
@@ -2050,7 +2078,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
               isStreaming || isThinking
                 ? t("chat:input.placeholderWhileProcessing")
                 : quotaExhausted
-                  ? t("chat:input.placeholderQuotaExhausted", { limit: aiMessageQuota?.limit })
+                  ? t("chat:input.placeholderQuotaExhausted")
                   : undefined
             }
             aiSuggestions={aiSuggestions}
@@ -2100,6 +2128,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         secondaryDestination="pricing"
         title={t('editor:versionHistory.fileVersionLimitTitle')}
         description={t('editor:versionHistory.fileVersionLimitUpgrade')}
+        paidDescription={t('editor:versionHistory.fileVersionLimitPaid', {
+          defaultValue: '正文照常保存，只是这个文件不再生成新版本。',
+        })}
         primaryLabel={t('common:viewUpgrade')}
         onPrimary={() => {
           window.location.assign(

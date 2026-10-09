@@ -9,7 +9,7 @@ import type { SubscriptionStatusResponse } from "../types/subscription";
  * Reads the cached /subscription/me first and refreshes it on open. Works without a
  * QueryClientProvider (some surfaces and tests render without one): then the plan is
  * unknown and the author is treated as free. `resolved` turns true once the answer is
- * known (or cannot be), so callers can hold upgrade telemetry until then.
+ * known (or cannot be), so callers can hold upgrade copy and telemetry until then.
  */
 function useOptionalQueryClient(): QueryClient | undefined {
   try {
@@ -19,6 +19,8 @@ function useOptionalQueryClient(): QueryClient | undefined {
     return undefined;
   }
 }
+
+const PLAN_LOOKUP_TIMEOUT_MS = 4000;
 
 export function usePaidPlanWhenOpen(open: boolean): { isPaid: boolean; resolved: boolean } {
   const client = useOptionalQueryClient();
@@ -42,13 +44,23 @@ export function usePaidPlanWhenOpen(open: boolean): { isPaid: boolean; resolved:
       .catch(() => {
         if (!cancelled) setFailed(true);
       });
+    // A slow or stuck request must not keep the prompt blank: fall back to the free copy.
+    const giveUp = setTimeout(() => {
+      if (!cancelled) setFailed(true);
+    }, PLAN_LOOKUP_TIMEOUT_MS);
     return () => {
       cancelled = true;
+      clearTimeout(giveUp);
     };
   }, [open, client]);
 
+  // The cache may have been filled after this prompt mounted (the page loads the plan
+  // on its own): use it right away instead of waiting a frame for the refresh.
+  const knownTier =
+    tier ?? client?.getQueryData<SubscriptionStatusResponse>(subscriptionQueryKeys.status())?.tier;
+
   return {
-    isPaid: Boolean(tier && tier !== "free"),
-    resolved: !client || tier !== undefined || failed,
+    isPaid: Boolean(knownTier && knownTier !== "free"),
+    resolved: !client || knownTier !== undefined || failed,
   };
 }

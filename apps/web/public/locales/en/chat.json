@@ -35,7 +35,7 @@
   "input": {
     "placeholder": "Tell the AI what to write…",
     "placeholderWhileProcessing": "AI is generating — you can type now and send when it finishes…",
-    "placeholderQuotaExhausted": "You've used today's {{limit}} AI messages. They reset at 00:00 Beijing time (UTC+8) — draft now and send then.",
+    "placeholderQuotaExhausted": "Draft your idea now and send it once your messages reset.",
     "stop": "Stop generating",
     "stopping": "Stopping…",
     "steerPlaceholder": "Add to your request…",
@@ -318,6 +318,12 @@
     "message": "Leaving this page ends this round. If nothing has been written yet, it will not count toward today's AI messages.",
     "leave": "Leave",
     "stay": "Keep waiting"
+  },
+  "quotaCard": {
+    "title": "You've used today's {{limit}} free AI messages",
+    "resetOnDay": "They come back on {{day}} at 00:00 Beijing time (UTC+8). What you type stays in the box until then.",
+    "resetTomorrow": "They come back tomorrow at 00:00 Beijing time (UTC+8). What you type stays in the box until then.",
+    "upgradeHint": "To keep writing now, get Pro: no daily message limit."
   },
   "nextStep": {
     "frameworkReady": "The outline is ready. Time to start writing.",

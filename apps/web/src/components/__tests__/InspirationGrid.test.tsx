@@ -752,7 +752,8 @@ describe('InspirationGrid', () => {
           expect(screen.getByText('灵感复制额度已用尽')).toBeInTheDocument()
         })
 
-        fireEvent.click(screen.getByRole('button', { name: '查看升级方案' }))
+        // The upgrade buttons appear once the plan is known (no free copy flashed at a paid author).
+        fireEvent.click(await screen.findByRole('button', { name: '查看升级方案' }))
         expect(assignMock).toHaveBeenCalledWith('/dashboard/billing?source=inspiration_copy_quota_blocked')
       } finally {
         Object.defineProperty(window, 'location', {
@@ -791,7 +792,7 @@ describe('InspirationGrid', () => {
           expect(screen.getByText('灵感复制额度已用尽')).toBeInTheDocument()
         })
 
-        fireEvent.click(screen.getByRole('button', { name: '查看套餐对比' }))
+        fireEvent.click(await screen.findByRole('button', { name: '查看套餐对比' }))
         expect(assignMock).toHaveBeenCalledWith('/pricing?source=inspiration_copy_quota_blocked')
       } finally {
         Object.defineProperty(window, 'location', {

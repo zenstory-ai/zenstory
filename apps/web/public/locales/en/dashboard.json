@@ -42,6 +42,10 @@
   "billing": {
     "title": "Plans & Benefits",
     "subtitle": "See your plan and usage. Upgrade or use a redeem code when you need more.",
+    "subtitleRedeemOnly": "See your plan and usage. Use a redeem code to get Pro when you need more.",
+    "subtitlePaid": "See your plan and usage. Renew Pro or use a redeem code before it ends.",
+    "subtitlePaidRedeemOnly": "See your plan and usage. Use a redeem code to extend Pro before it ends.",
+    "subtitleNeutral": "See your plan and usage.",
     "currentPlan": "Current Plan",
     "unknownPlan": "Not subscribed",
     "unlockPro": "Unlock Pro",
@@ -102,6 +106,7 @@
     "paymentNoAutoRenew": "One-time payment, no auto-renewal. Renew early and the time is added after your current end date.",
     "paymentUnavailable": "Online payment isn't available right now. Have a redeem code? Open Plans & Benefits and use \"Redeem Code\".",
     "paymentUnavailableOnPage": "Online payment isn't available right now. Have a redeem code? Use \"Redeem Code\" on this page.",
+    "checkoutUnavailableNotice": "Online payment isn't available right now. Have a redeem code? Use \"Redeem Code\" to get Pro.",
     "paymentUnavailableOpenBilling": "Go to Plans & Benefits",
     "paymentInvalidCheckout": "Could not open Alipay. Refresh the page and try again.",
     "paymentCreateFailed": "Could not create the order right now. Please try again later.",
@@ -285,6 +290,10 @@
       "short": "Write a ~10,000-word twist story: on exam-results day, a film-star mother fresh out of prison kneels to her daughter before live-stream cameras. Only the daughter knows why she went to prison. First person; outline first.",
       "screenplay": "Write a 60-episode vertical short drama: a healer's disciple comes down the mountain to marry, gets publicly jilted, and marries his fiancée's sister instead. 1–2 min episodes, a twist in each of the first 3. Outline first, then episode 1."
     }
+  },
+  "ideaQuota": {
+    "descriptionOnDay": "They come back on {{day}} at 00:00 Beijing time (UTC+8). Your idea stays in the box; press \"Start Writing\" then to pick it up. To write now, get Pro: no daily message limit.",
+    "descriptionTomorrow": "They come back tomorrow at 00:00 Beijing time (UTC+8). Your idea stays in the box; press \"Start Writing\" then to pick it up. To write now, get Pro: no daily message limit."
   },
   "inspirations": {
     "featured": "Featured Inspirations",

@@ -212,6 +212,8 @@ vi.mock('../../components/subscription/QuotaBadge', () => ({
 
 import DashboardHome from '../DashboardHome'
 import { projectApi } from '../../lib/api'
+import { subscriptionApi } from '../../lib/subscriptionApi'
+import type { QuotaResponse } from '../../types/subscription'
 import {
   PREFERRED_PROJECT_TYPE_STORAGE_KEY,
   PREFERRED_PROJECT_TYPE_TTL_MS,
@@ -259,6 +261,63 @@ describe('DashboardHome featured inspirations section', () => {
     mockGetRecommendations.mockImplementation(() => Promise.resolve(mockPersonaRecommendations))
     vi.mocked(projectApi.getTemplates).mockResolvedValue(null)
     localStorage.removeItem(PREFERRED_PROJECT_TYPE_STORAGE_KEY)
+    localStorage.removeItem(`zenstory_held_dashboard_idea:${defaultMockUser.id}`)
+    vi.spyOn(subscriptionApi, 'getQuota').mockResolvedValue(quotaWith(2))
+  })
+
+  const quotaWith = (used: number, limit = 10) =>
+    ({
+      ai_conversations: { used, limit, reset_at: '2026-10-09T16:00:00Z' },
+    }) as unknown as QuotaResponse
+
+  it('keeps the idea and explains, instead of creating an empty project, when today\'s AI messages are used up', async () => {
+    vi.mocked(subscriptionApi.getQuota).mockResolvedValue(quotaWith(10))
+    const { unmount } = renderDashboardHome()
+    await waitFor(() => expect(subscriptionApi.getQuota).toHaveBeenCalled())
+
+    const input = screen.getByTestId('dashboard-inspiration-input')
+    fireEvent.change(input, { target: { value: '写一个关于灯塔守夜人的短故事' } })
+    await waitFor(() =>
+      expect(localStorage.getItem(`zenstory_held_dashboard_idea:${defaultMockUser.id}`)).toBe('写一个关于灯塔守夜人的短故事'),
+    )
+    fireEvent.click(screen.getByTestId('create-project-button'))
+
+    expect(await screen.findByTestId('upgrade-modal')).toHaveTextContent('今天的免费 AI 消息用完了')
+    expect(mockCreateProject).not.toHaveBeenCalled()
+    expect(mockNavigate).not.toHaveBeenCalled()
+    expect(input).toHaveValue('写一个关于灯塔守夜人的短故事')
+
+    // A reload brings the idea back.
+    unmount()
+    renderDashboardHome()
+    expect(screen.getByTestId('dashboard-inspiration-input')).toHaveValue('写一个关于灯塔守夜人的短故事')
+  })
+
+  it('still creates a project with no idea while the day is used up (nothing is sent to the AI)', async () => {
+    vi.mocked(subscriptionApi.getQuota).mockResolvedValue(quotaWith(10))
+    renderDashboardHome()
+    await waitFor(() => expect(subscriptionApi.getQuota).toHaveBeenCalled())
+
+    fireEvent.click(screen.getByTestId('create-project-button'))
+
+    await waitFor(() => expect(mockCreateProject).toHaveBeenCalled())
+    expect(screen.queryByTestId('upgrade-modal')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['messages remain', quotaWith(9)],
+    ['Pro has no daily count', quotaWith(999, -1)],
+  ])('creates the project and hands the idea to the chat when %s', async (_label, quota) => {
+    vi.mocked(subscriptionApi.getQuota).mockResolvedValue(quota)
+    renderDashboardHome()
+    await waitFor(() => expect(subscriptionApi.getQuota).toHaveBeenCalled())
+
+    fireEvent.change(screen.getByTestId('dashboard-inspiration-input'), { target: { value: '灯塔守夜人' } })
+    fireEvent.click(screen.getByTestId('create-project-button'))
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/project/project-created'))
+    expect(JSON.parse(localStorage.getItem('zenstory_inspiration_project-created') ?? '{}').content).toBe('灯塔守夜人')
+    expect(localStorage.getItem(`zenstory_held_dashboard_idea:${defaultMockUser.id}`)).toBeNull()
   })
 
   it.each(['desktop', 'tablet', 'mobile'])('anchors recent project metadata to the card bottom on %s', async (viewport) => {

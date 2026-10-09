@@ -184,6 +184,11 @@ interface MessageInputProps {
    * When omitted, defaults to `disabled`.
    */
   sendDisabled?: boolean;
+  /**
+   * Sending is held back (today's AI messages are used up): the send button and Enter
+   * call this instead of `onSend`, and the typed text stays in the box.
+   */
+  onBlockedSend?: () => void;
   /** Callback to cancel an ongoing operation (shows cancel button when disabled) */
   onCancel?: () => void;
   /** Stop already requested: the stop button shows it is waiting and ignores presses */
@@ -288,6 +293,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   onSend,
   disabled = false,
   sendDisabled,
+  onBlockedSend,
   onCancel,
   isStopping = false,
   onSteer,
@@ -632,6 +638,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   const handleSubmit = () => {
     const message = input.trim();
+    if (message && onBlockedSend && !effectiveSendDisabled && !inputTooLong) {
+      // Keep the draft: it is sent once the author can send again.
+      onBlockedSend();
+      return;
+    }
     if (message && !effectiveSendDisabled && !inputTooLong) {
       const fromSuggestion = pickedSuggestionRef.current?.trim() === message;
       pickedSuggestionRef.current = null;

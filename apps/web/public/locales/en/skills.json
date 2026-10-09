@@ -90,6 +90,7 @@
   "quota": {
     "createTitle": "Custom skill limit reached",
     "createDescription": "Delete a skill you don't use, or get Pro for more custom skills.",
+    "createPaidDescription": "Delete a skill you don't use to make room.",
     "upgradePrimary": "Get Pro",
     "upgradeSecondary": "Compare plans"
   },
