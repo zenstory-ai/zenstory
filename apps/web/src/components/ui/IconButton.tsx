@@ -6,9 +6,11 @@
  * - `label` is required: it becomes the accessible name and the tooltip, so an icon-only
  *   control is never announced as an empty button.
  * - Tones: `default` (grey → primary text on hover), `strong` (primary text, for a bar's
- *   main control such as the mobile menu toggle), `danger` (hover turns red, for delete).
- *   Pick a tone instead of passing a text colour in `className`: two text-colour utilities on
- *   one element resolve by stylesheet order, not class order.
+ *   main control such as the mobile menu toggle), `danger` (hover turns red, for delete),
+ *   `plain` (no text colour at all: the caller's `className` colour is the only one).
+ *   Never pass a text colour in `className` with the other tones: two text-colour utilities
+ *   on one element resolve by stylesheet order, not class order. Use `plain` for a custom
+ *   colour instead.
  *
  * @module components/ui/IconButton
  */
@@ -28,7 +30,7 @@ export interface IconButtonProps
    */
   size?: 'auto' | 'md' | 'touch';
   /** @default 'default' */
-  tone?: 'default' | 'strong' | 'danger';
+  tone?: 'default' | 'strong' | 'danger' | 'plain';
 }
 
 const SIZE_CLASSES: Record<NonNullable<IconButtonProps['size']>, string> = {
@@ -43,6 +45,7 @@ const TONE_CLASSES: Record<NonNullable<IconButtonProps['tone']>, string> = {
   strong: 'text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))]',
   danger:
     'text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--error)/0.1)] hover:text-[hsl(var(--error))]',
+  plain: 'hover:bg-[hsl(var(--bg-tertiary))]',
 };
 
 export const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(

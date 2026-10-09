@@ -319,22 +319,26 @@ html {
    (editor/chat workspace), that creates an extra page-level scrollbar in
    browsers without `scrollbar-gutter` support. */
 
-/* Heading font */
-h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-display);
-}
+/* Heading fonts live in `@layer base` so they are defaults, not overrides: a heading that
+   asks for a font explicitly (a Tailwind `font-*` utility, or the unlayered `.heading-display`
+   below) wins. Unlayered, these rules beat every layered Tailwind utility. */
+@layer base {
+    h1, h2, h3, h4, h5, h6 {
+        font-family: var(--font-display);
+    }
 
-/* Control surfaces (dashboard pages, settings, dialogs): only the page H1 stays serif.
-   Section, card and dialog titles are labels for controls and use the UI sans. */
-.ui-sans-headings :is(h2, h3, h4, h5, h6),
-.ui-sans-headings:is(h2, h3, h4, h5, h6) {
-    font-family: var(--font-sans);
-}
+    /* Control surfaces (dashboard pages, settings, dialogs): only the page H1 stays serif.
+       Section, card and dialog titles are labels for controls and use the UI sans. */
+    .ui-sans-headings :is(h2, h3, h4, h5, h6),
+    .ui-sans-headings:is(h2, h3, h4, h5, h6) {
+        font-family: var(--font-sans);
+    }
 
-/* Writing content shown inside a control surface (a chapter preview in a dialog) keeps
-   its serif headings. Same specificity as the rule above, so this later rule wins. */
-:is(.prose, .editor-content) :is(h1, h2, h3, h4, h5, h6) {
-    font-family: var(--font-display);
+    /* Writing content shown inside a control surface (a chapter preview in a dialog) keeps
+       its serif headings. Same specificity as the rule above, so this later rule wins. */
+    :is(.prose, .editor-content) :is(h1, h2, h3, h4, h5, h6) {
+        font-family: var(--font-display);
+    }
 }
 
 /* Code font */

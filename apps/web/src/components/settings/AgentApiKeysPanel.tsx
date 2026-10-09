@@ -63,12 +63,12 @@ function ScopeBadge({ label }: { scope: string; label: string }) {
 
 function StatusBadge({ isActive, label }: { isActive: boolean; label: string }) {
   return isActive ? (
-    <span className="inline-flex items-center gap-1 text-xs text-green-500">
+    <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs text-green-500">
       <Shield size={12} />
       {label}
     </span>
   ) : (
-    <span className="inline-flex items-center gap-1 text-xs text-[hsl(var(--text-secondary))]">
+    <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs text-[hsl(var(--text-secondary))]">
       <ShieldOff size={12} />
       {label}
     </span>
@@ -389,7 +389,12 @@ function KeyRow({
   };
 
   return (
-    <div className="flex items-center gap-3 p-3 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))]">
+    // On phones the three 44px actions take their own row under the key, so the name keeps
+    // the full width (beside them it was squeezed to ~48px at 390px).
+    <div
+      data-testid="agent-api-key-row"
+      className="flex items-center gap-3 p-3 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] max-md:flex-col max-md:items-stretch max-md:gap-2"
+    >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <span className="text-sm font-medium text-[hsl(var(--text-primary))] truncate">
@@ -425,7 +430,7 @@ function KeyRow({
         </div>
       </div>
 
-      <div className="flex items-center gap-1 shrink-0">
+      <div data-testid="agent-api-key-actions" className="flex items-center gap-1 shrink-0 max-md:justify-end">
         <IconButton
           onClick={() => onToggleActive(apiKey)}
           label={apiKey.is_active ? t('apiKeys.disable') : t('apiKeys.enable')}
