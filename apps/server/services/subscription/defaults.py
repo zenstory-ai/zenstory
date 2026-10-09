@@ -39,9 +39,6 @@ DEFAULT_PRO_PLAN_FEATURES: dict[str, Any] = {
     "material_decompositions": 5,
     "custom_skills": 20,
     "inspiration_copies_monthly": 100,
-    # 专业版用户的客服邮件（support@zenstory.ai）优先处理；生产套餐行没有这个键，
-    # 不兜底就会落到免费版的 False，订阅面板给付费用户显示「优先支持：否」。
-    "priority_support": True,
 }
 
 PLAN_FEATURE_DEFAULTS: dict[str, dict[str, Any]] = {

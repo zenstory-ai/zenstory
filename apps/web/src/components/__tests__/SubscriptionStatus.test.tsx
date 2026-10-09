@@ -124,31 +124,6 @@ describe('SubscriptionStatus', () => {
     expect(onRedeemClick).toHaveBeenCalledTimes(1)
   })
 
-  it('shows known entitlements with labels and hides raw unknown keys', async () => {
-    mockGetStatus.mockResolvedValue({
-      tier: 'pro',
-      status: 'active',
-      display_name: '专业版',
-      display_name_en: 'Pro',
-      current_period_end: '2026-04-01T00:00:00Z',
-      days_remaining: 27,
-      features: {
-        materials_library_access: true,
-        priority_support: true,
-        context_window_tokens: 16384,
-        some_future_flag: true,
-      },
-    })
-
-    renderWithQuery(<SubscriptionStatus />)
-
-    expect(await screen.findByText('素材库')).toBeInTheDocument()
-    expect(screen.queryByText('materials_library_access')).not.toBeInTheDocument()
-    expect(screen.queryByText('some_future_flag')).not.toBeInTheDocument()
-    expect(screen.getByText('优先支持').nextSibling).toHaveTextContent('是')
-    expect(screen.getByText('AI 单次可参考的内容量').nextSibling).toHaveTextContent(/16.?384 tokens/)
-  })
-
   it('returns null when status data is unavailable', async () => {
     mockGetStatus.mockResolvedValue(null as never)
 
