@@ -654,7 +654,27 @@ def guard_line_sentences(original_line: str, new_line: str) -> tuple[str, int]:
 
 
 # 英文句末标点（可带右引号、右括号），且标点前不是汉字；下一句以拉丁字母或数字开头（可带左引号、左括号）。
-_LATIN_SENTENCE_END_RE = re.compile(r"(?<![㐀-䶿一-鿿.!?…])[.!?…]+[\"'”’)\]]*$")
+_SENTENCE_CLOSERS = "\"'”’)]"
+_SENTENCE_TERMINALS = ".!?…"
+
+
+def _is_cjk_char(char: str) -> bool:
+    return "\u3400" <= char <= "\u4dbf" or "\u4e00" <= char <= "\u9fff"
+
+
+def _ends_latin_sentence(text: str) -> bool:
+    """True when ``text`` ends with sentence punctuation (plus optional closing quotes or
+    brackets) that is not attached to a CJK character. A backward linear scan: an
+    end-anchored regex search here is quadratic on long runs of punctuation."""
+    index = len(text)
+    while index > 0 and text[index - 1] in _SENTENCE_CLOSERS:
+        index -= 1
+    run_start = index
+    while run_start > 0 and text[run_start - 1] in _SENTENCE_TERMINALS:
+        run_start -= 1
+    if run_start == index:
+        return False
+    return run_start == 0 or not _is_cjk_char(text[run_start - 1])
 _LATIN_SENTENCE_START_RE = re.compile(r"^[\"'“‘(\[]*[A-Za-z0-9]")
 
 
@@ -673,7 +693,7 @@ def join_sentences(sentences: list[str]) -> str:
             if (
                 not previous[-1].isspace()
                 and not sentence[0].isspace()
-                and _LATIN_SENTENCE_END_RE.search(previous)
+                and _ends_latin_sentence(previous)
                 and _LATIN_SENTENCE_START_RE.match(sentence)
             ):
                 out.append(" ")

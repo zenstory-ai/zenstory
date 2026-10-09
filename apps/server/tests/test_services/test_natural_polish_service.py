@@ -206,3 +206,20 @@ def test_full_rewrite_with_other_line_count_that_drops_a_theme_sentence_returns_
     assert apply_full_rewrite(original, "窗外下着雨。可她把所有的错都揽到了自己身上。") == original
     # 没删有内容的句子时，整段改写照常保留（只还原引号体例）。
     assert apply_full_rewrite("　　他心中一震。\n\n　　门开了。", "他回过头。门开了。") == "他回过头。门开了。"
+
+
+def test_latin_sentence_end_check_is_linear_on_long_punctuation_runs():
+    """CodeQL py/polynomial-redos: long runs of '!' must not make the join check quadratic."""
+    import time
+
+    from services.features.natural_polish_service import _ends_latin_sentence, join_sentences
+
+    adversarial = "a" + "!" * 200_000 + "x"
+    started = time.perf_counter()
+    assert _ends_latin_sentence(adversarial) is False
+    assert _ends_latin_sentence(adversarial[:-1]) is True
+    assert join_sentences([adversarial[:-1], "Next one."]).endswith("! Next one.")
+    assert time.perf_counter() - started < 1.0
+    assert _ends_latin_sentence("他走了。") is False
+    assert _ends_latin_sentence("他走了!") is False
+    assert _ends_latin_sentence('She left."') is True
