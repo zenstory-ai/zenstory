@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Request, status
 from pydantic import BaseModel, ConfigDict
 from services.auth import get_current_active_user
 from sqlmodel import Session, select
@@ -191,9 +191,9 @@ def validate_invite_code(
         window_seconds=60,
     )
     if not allowed:
-        raise HTTPException(
+        raise APIException(
+            error_code=ErrorCode.AUTH_RATE_LIMIT_EXCEEDED,
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Rate limit exceeded. Please try again later.",
         )
 
     is_valid, _, _ = validate_invite_code_service(code, session)
