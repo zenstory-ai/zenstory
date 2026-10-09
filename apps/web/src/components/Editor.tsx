@@ -40,6 +40,10 @@ import {
   type EditorDraftSnapshot,
 } from "../lib/editorDraftRecovery";
 import { notifyEditorContentSaved } from "../lib/editorSaveTracker";
+import { rebaseLocalEdits } from "../lib/rebaseLocalEdits";
+
+/** Retry delays for re-reading the open file after an external write. */
+const SERVER_SYNC_RETRY_DELAYS_MS = [1000, 3000];
 
 /**
  * Props interface for the Editor component.
@@ -129,6 +133,19 @@ const EditorComponent: React.FC<EditorProps> = () => {
   const editContentRef = useRef(editContent);
   editTitleRef.current = editTitle;
   editContentRef.current = editContent;
+  /**
+   * Bumped whenever the editor switches to a server copy outside SimpleEditor's
+   * own save flow, so SimpleEditor resets its draft, save token, dirty flag and
+   * word-count baseline to that copy instead of keeping an older one.
+   */
+  const [serverBaseline, setServerBaseline] = useState<{
+    version: number;
+    fileId: string;
+    title: string;
+    content: string;
+    updatedAt?: string;
+  } | null>(null);
+  const serverBaselineVersionRef = useRef(0);
   const [draftRecovery, setDraftRecovery] = useState<{
     snapshot: EditorDraftSnapshot;
     serverTitle: string;
@@ -349,32 +366,87 @@ const EditorComponent: React.FC<EditorProps> = () => {
   }, [streamingFileId, file?.id, selectedItem?.id, loadData]);
 
   /**
+   * Show a newer server copy and make it the editor's clean baseline. A title
+   * the author renamed but has not saved yet is kept (and saved on top of the
+   * new copy by the next autosave); everything else follows the server.
+   */
+  const adoptServerCopy = useCallback((data: File, nextTitle: string) => {
+    const serverContent = data.content || "";
+    currentFileRef.current = data;
+    setFile(data);
+    setEditTitle(nextTitle);
+    setEditContent(serverContent);
+    serverBaselineVersionRef.current += 1;
+    setServerBaseline({
+      version: serverBaselineVersionRef.current,
+      fileId: data.id,
+      title: data.title,
+      content: serverContent,
+      updatedAt: data.updated_at,
+    });
+  }, []);
+
+  /**
+   * Open the comparison for "the author has unsaved text written on an older
+   * copy (`base`) and the server now holds a newer one".
+   *
+   * A two-way comparison of the server copy against the author's whole text
+   * would present every change the AI made since `base` as an author edit,
+   * and finishing would undo them. Instead the author's own edits are replayed
+   * on top of the server copy, so the proposals are exactly what the author
+   * wrote; regions both sides changed start rejected, so finishing without
+   * choosing keeps the server side there.
+   *
+   * Returns false when the author has nothing beyond the server copy.
+   */
+  const openConflictReview = useCallback((
+    fileId: string,
+    base: string,
+    serverContent: string,
+    localContent: string,
+  ): boolean => {
+    const { proposal, conflictEditIds } = rebaseLocalEdits(base, localContent, serverContent);
+    if (proposal === serverContent) return false;
+    enterDiffReview(fileId, serverContent, proposal);
+    for (const editId of conflictEditIds) rejectEdit(editId);
+    return true;
+  }, [enterDiffReview, rejectEdit]);
+
+  /**
    * Re-read the open file after someone else (the AI, an undo) wrote it.
    *
-   * - No unsaved text in the editor: follow the server copy.
-   * - Unsaved text written on top of an older copy: never replace it. The
-   *   server copy becomes the comparison baseline (and the save token), the
-   *   author's text stays in the editor, and the diff review lets them pick.
+   * - No unsaved body text: follow the server copy (keeping an unsaved title
+   *   rename) and reset SimpleEditor's draft, save token and dirty state to it.
+   * - Unsaved body text written on top of an older copy: never replace it.
+   *   The server copy becomes the comparison baseline and the author's own
+   *   edits, replayed onto it, are the proposals.
    */
   const syncOpenFileFromServer = useCallback(async () => {
     const opened = currentFileRef.current;
     if (!opened || selectedIdRef.current !== opened.id) return;
     const fileId = opened.id;
     const generation = loadGenerationRef.current;
-    let data: File;
-    try {
-      data = await fileApi.get(fileId);
-    } catch (err) {
-      logger.warn("Failed to re-read file after an external write:", err);
-      return;
+    const isStillOpen = () =>
+      generation === loadGenerationRef.current &&
+      currentFileRef.current?.id === fileId &&
+      selectedIdRef.current === fileId;
+    let data: File | null = null;
+    for (let attempt = 0; data === null; attempt += 1) {
+      try {
+        data = await fileApi.get(fileId);
+      } catch (err) {
+        if (attempt >= SERVER_SYNC_RETRY_DELAYS_MS.length) {
+          // The save token still guards the server copy: saving stale text
+          // gets a 409, which opens the same comparison.
+          logger.warn("Failed to re-read file after an external write:", err);
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, SERVER_SYNC_RETRY_DELAYS_MS[attempt]));
+        if (!isStillOpen()) return;
+      }
     }
     const current = currentFileRef.current;
-    if (
-      generation !== loadGenerationRef.current ||
-      current?.id !== fileId ||
-      selectedIdRef.current !== fileId ||
-      activeProjectIdRef.current !== data.project_id
-    ) return;
+    if (!current || !isStillOpen() || activeProjectIdRef.current !== data.project_id) return;
     // A comparison is already open for this file. Its save carries the token
     // it was opened with, so a newer server copy surfaces there as a conflict.
     if (currentReviewRef.current?.fileId === fileId) return;
@@ -389,22 +461,23 @@ const EditorComponent: React.FC<EditorProps> = () => {
 
     const localContent = editContentRef.current;
     const localTitle = editTitleRef.current;
-    const hasUnsavedText = localContent !== savedContent || localTitle !== current.title;
-    if (!hasUnsavedText || localContent === serverContent) {
-      currentFileRef.current = data;
-      setFile(data);
-      if (!hasUnsavedText) setEditTitle(data.title);
-      setEditContent(serverContent);
+    // A title the author has not renamed follows the server (the AI may have renamed it).
+    const nextTitle = localTitle === current.title ? data.title : localTitle;
+    if (localContent === savedContent || localContent === serverContent) {
+      adoptServerCopy(data, nextTitle);
       return;
     }
 
-    currentFileRef.current = { ...current, content: serverContent, updated_at: data.updated_at };
-    setFile((prev) => (prev?.id === fileId
-      ? { ...prev, content: serverContent, updated_at: data.updated_at }
-      : prev));
-    enterDiffReview(fileId, serverContent, localContent);
+    if (!openConflictReview(fileId, savedContent, serverContent, localContent)) {
+      adoptServerCopy(data, nextTitle);
+      return;
+    }
+    const merged = { ...current, title: data.title, content: serverContent, updated_at: data.updated_at };
+    currentFileRef.current = merged;
+    setFile((prev) => (prev?.id === fileId ? merged : prev));
+    setEditTitle(nextTitle);
     toast.error(translateRef.current('editor:aiEditedWhileDirty'));
-  }, [enterDiffReview]);
+  }, [adoptServerCopy, openConflictReview]);
 
   // Re-read the open file when the AI (or an undo) wrote it
   useEffect(() => {
@@ -495,20 +568,33 @@ const EditorComponent: React.FC<EditorProps> = () => {
         const currentContent = error.details.current_content;
         const currentUpdatedAt = error.details.current_updated_at;
         const localContent = submission.content;
+        // The copy this draft was written on: what the editor last loaded or saved.
+        const openedFile = currentFileRef.current;
+        const isStillOpen =
+          activeProjectIdRef.current !== null &&
+          openedFile?.id === targetFileId &&
+          selectedIdRef.current === targetFileId;
         if (typeof currentContent === "string") {
-          setFile((prev) =>
-            prev?.id === targetFileId
-              ? {
-                  ...prev,
-                  content: currentContent,
-                  updated_at:
-                    typeof currentUpdatedAt === "string" ? currentUpdatedAt : prev.updated_at,
-                }
-              : prev,
-          );
+          const baseContent = openedFile?.id === targetFileId ? openedFile.content || "" : currentContent;
+          const nextFile = (prev: File) => ({
+            ...prev,
+            content: currentContent,
+            updated_at:
+              typeof currentUpdatedAt === "string" ? currentUpdatedAt : prev.updated_at,
+          });
+          if (openedFile?.id === targetFileId) currentFileRef.current = nextFile(openedFile);
+          setFile((prev) => (prev?.id === targetFileId ? nextFile(prev) : prev));
           if (currentContent !== localContent) {
-            if (file?.id === targetFileId) {
-              enterDiffReview(targetFileId, currentContent, localContent);
+            // Only an editor that still shows this file may open the comparison;
+            // a save sent while leaving keeps its draft as a local snapshot.
+            if (
+              isStillOpen &&
+              openedFile &&
+              !openConflictReview(targetFileId, baseContent, currentContent, localContent)
+            ) {
+              // Everything the author wrote is already in the server copy.
+              adoptServerCopy(nextFile(openedFile), editTitleRef.current);
+              return { outcome: "conflict" };
             }
             toast.error(t('editor:saveStaleWriteConflict'));
             return { outcome: "conflict" };
@@ -656,10 +742,16 @@ const EditorComponent: React.FC<EditorProps> = () => {
       return;
     }
     
+    // 审阅期间标题输入框是禁用的，但进入审阅前作者可能改了标题还没保存。
+    // 完成审阅后编辑器会被标记为已保存，所以标题必须随这次写回一起保存。
+    const reviewedTitle = editTitleRef.current;
+    const titleChanged = reviewedTitle !== file.title;
+
     // Update the file with the final content
     try {
       const updated = await fileApi.update(file.id, {
         content: finalContent,
+        ...(titleChanged ? { title: reviewedTitle } : {}),
         change_type: "ai_edit",
         change_summary: "AI edit (reviewed)",
         // 与 handleSaveFile 对齐的乐观并发令牌。这同样是一次整篇覆盖写，
@@ -674,15 +766,17 @@ const EditorComponent: React.FC<EditorProps> = () => {
       // 用户接着敲一个字触发的 3 秒防抖自动保存就会带着陈旧令牌命中 409，
       // 这一轮输入随即被 409 分支处理掉——「防丢 AI 的更新」换成「稳定丢用户的更新」。
       setEditContent(finalContent);
-      setFile((prev) =>
-        prev
-          ? {
-              ...prev,
-              content: finalContent,
-              updated_at: updated?.updated_at ?? prev.updated_at,
-            }
-          : null,
-      );
+      const reviewedFile = (prev: File): File => ({
+        ...prev,
+        content: finalContent,
+        ...(titleChanged ? { title: reviewedTitle } : {}),
+        updated_at: updated?.updated_at ?? prev.updated_at,
+      });
+      if (currentFileRef.current) currentFileRef.current = reviewedFile(currentFileRef.current);
+      setFile((prev) => (prev ? reviewedFile(prev) : null));
+      if (titleChanged && selectedItem?.id === file.id) {
+        setSelectedItem({ ...selectedItem, title: reviewedTitle });
+      }
 
       // Exit diff review mode
       exitDiffReview();
@@ -713,17 +807,21 @@ const EditorComponent: React.FC<EditorProps> = () => {
         const serverContent =
           typeof err.details.current_content === "string" ? err.details.current_content : "";
         const serverUpdatedAt = err.details.current_updated_at;
-        setFile((prev) =>
-          prev
-            ? {
-                ...prev,
-                content: serverContent,
-                updated_at:
-                  typeof serverUpdatedAt === "string" ? serverUpdatedAt : prev.updated_at,
-              }
-            : null,
-        );
-        enterDiffReview(file.id, serverContent, finalContent);
+        const conflictFile = (prev: File): File => ({
+          ...prev,
+          content: serverContent,
+          updated_at:
+            typeof serverUpdatedAt === "string" ? serverUpdatedAt : prev.updated_at,
+        });
+        if (currentFileRef.current) currentFileRef.current = conflictFile(currentFileRef.current);
+        setFile((prev) => (prev ? conflictFile(prev) : null));
+        // The reviewed text was built on this review's baseline; replay only
+        // what the review changed on top of the newer server copy.
+        if (!openConflictReview(file.id, diffReviewState.originalContent, serverContent, finalContent)) {
+          exitDiffReview();
+          setEditContent(serverContent);
+          return;
+        }
         toast.error(t('editor:saveStaleWriteConflict'));
         return;
       }
@@ -741,9 +839,12 @@ const EditorComponent: React.FC<EditorProps> = () => {
     file?.project_id,
     file?.updated_at,
     file?.content,
+    file?.title,
     editContent,
+    selectedItem,
+    setSelectedItem,
     applyDiffReviewChanges,
-    enterDiffReview,
+    openConflictReview,
     exitDiffReview,
     triggerFileTreeRefresh,
     t,
@@ -1037,6 +1138,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
       onSave: handleSaveFile,
       onHistoryRestore: loadData,
       onFlushReady: registerEditorFlush,
+      serverBaseline: serverBaseline?.fileId === file.id ? serverBaseline : undefined,
       isStreaming,
       // AI 正在编辑这份文件时挂起自动保存，避免过期整篇快照覆盖 AI 的改动
       isAiEditing: aiEditingFileId === file.id,

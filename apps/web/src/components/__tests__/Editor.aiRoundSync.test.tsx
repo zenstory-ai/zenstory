@@ -15,6 +15,7 @@ const server = vi.hoisted(() => ({
   update: vi.fn(),
 }));
 const toastError = vi.hoisted(() => vi.fn());
+const recordStats = vi.hoisted(() => vi.fn(async () => ({})));
 const auth = vi.hoisted(() => ({ value: { user: { id: 'user-1' } } }));
 
 vi.mock('../../lib/api', () => ({
@@ -33,7 +34,7 @@ vi.mock('../../lib/api', () => ({
 vi.mock('../../lib/toast', () => ({ toast: { error: toastError, success: vi.fn(), info: vi.fn() } }));
 vi.mock('../../lib/analytics', () => ({ trackEvent: vi.fn(), captureException: vi.fn() }));
 vi.mock('../../lib/upgradeAnalytics', () => ({ trackUpgradeExpose: vi.fn(), trackUpgradeClick: vi.fn() }));
-vi.mock('../../lib/writingStatsApi', () => ({ writingStatsApi: { recordStats: vi.fn(async () => ({})) } }));
+vi.mock('../../lib/writingStatsApi', () => ({ writingStatsApi: { recordStats } }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => auth.value }));
 vi.mock('../../contexts/MaterialLibraryContext', () => ({ useMaterialLibraryContext: () => ({ preview: null }) }));
@@ -45,6 +46,7 @@ import { ProjectProvider, useProject } from '../../contexts/ProjectContext';
 import { useChatStreaming } from '../../hooks/useChatStreaming';
 import type { UseChatStreamingOptions } from '../../hooks/useChatStreaming';
 import { ApiError } from '../../lib/apiClient';
+import { readEditorDraftSnapshot } from '../../lib/editorDraftRecovery';
 import { Editor } from '../Editor';
 
 const CH1: ServerFile = { id: 'ch-1', project_id: 'project-1', file_type: 'draft', title: '第1章', content: '第一章正文。', updated_at: '2026-10-09T12:00:00.000001' };
@@ -99,6 +101,8 @@ function Harness() {
 const settle = async () => { await act(async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); }); };
 const advance = async (ms: number) => { await act(async () => { await vi.advanceTimersByTimeAsync(ms); }); };
 const textarea = () => screen.getByPlaceholderText('editor:placeholder.contentPlaceholder') as HTMLTextAreaElement;
+const titleInput = () => screen.getByPlaceholderText('editor:placeholder.titlePlaceholder') as HTMLInputElement;
+const finishReview = () => fireEvent.click(screen.getByTitle(/editor:(finishReview|applyChanges)/));
 const callbacks = () => {
   if (!harness.callbacks) throw new Error('harness not mounted');
   return harness.callbacks;
@@ -155,6 +159,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   localStorage.clear();
   toastError.mockReset();
+  recordStats.mockClear();
   server.files.clear();
   server.files.set(CH1.id, { ...CH1 });
   server.get.mockReset();
@@ -235,12 +240,119 @@ describe('AI writes the open chapter twice in one round', () => {
     expect(putsFor(CH2_ID)).toHaveLength(0);
     expect(server.files.get(CH2_ID)!.content).toBe(V2);
 
-    // Finishing the review writes the reviewed text with the v2 token, no conflict.
-    fireEvent.click(screen.getByTitle(/editor:(finishReview|applyChanges)/));
+    // Finishing without choosing keeps the AI's v2 and adds only the author's sentence.
+    finishReview();
     await advance(100); await settle();
     expect(putsFor(CH2_ID)).toHaveLength(1);
     expect(putsFor(CH2_ID)[0][1]).toMatchObject({ base_updated_at: T_V2 });
-    expect(server.files.get(CH2_ID)!.content).toContain('作者补的一句。');
+    expect(server.files.get(CH2_ID)!.content).toBe(`${V2}作者补的一句。`);
+    expect(server.files.get(CH2_ID)!.content.startsWith('第二天')).toBe(true);
     expect(textarea().value).toBe(server.files.get(CH2_ID)!.content);
+    // The editor is clean afterwards: nothing else is sent.
+    await advance(5000); await settle();
+    expect(putsFor(CH2_ID)).toHaveLength(1);
+  });
+
+  it('where the author and the AI rewrote the same words, finishing keeps the AI side', async () => {
+    await runRoundUntilV1();
+    // The author rewrites the first sentence that v2 also changes.
+    fireEvent.change(textarea(), { target: { value: V1.replace('中午十二点，老周还在摊上。', '傍晚，老周收摊了。') } });
+    await secondWrite('parallel_execute');
+    expect(screen.getAllByText(/傍晚，老周收摊了/).length).toBeGreaterThan(0);
+
+    finishReview();
+    await advance(100); await settle();
+    expect(server.files.get(CH2_ID)!.content).toBe(V2);
+  });
+
+  it('a typed-then-deleted character does not leave a stale draft that later overwrites v2', async () => {
+    await runRoundUntilV1();
+    fireEvent.change(textarea(), { target: { value: `${V1}x` } });
+    fireEvent.change(textarea(), { target: { value: V1 } });
+    await secondWrite('parallel_execute');
+    expect(textarea().value).toBe(V2);
+
+    await advance(5000); await settle();
+    expect(putsFor(CH2_ID)).toHaveLength(0);
+    expect(toastError).not.toHaveBeenCalled();
+    expect(server.files.get(CH2_ID)!.content).toBe(V2);
+
+    // The next real edit is saved on top of v2 with the v2 token.
+    fireEvent.change(textarea(), { target: { value: `${V2}好` } });
+    await advance(3100); await settle();
+    expect(putsFor(CH2_ID)).toHaveLength(1);
+    expect(putsFor(CH2_ID)[0][1]).toMatchObject({ content: `${V2}好`, base_updated_at: T_V2 });
+  });
+
+  it('an unsaved title rename keeps the title, follows v2 for the text and saves both', async () => {
+    await runRoundUntilV1();
+    fireEvent.change(titleInput(), { target: { value: '第2章 新名' } });
+    await secondWrite('parallel_execute');
+
+    // No comparison: the body has no unsaved edits.
+    expect(textarea().value).toBe(V2);
+    expect(titleInput().value).toBe('第2章 新名');
+    expect(toastError).not.toHaveBeenCalled();
+
+    await advance(3100); await settle();
+    expect(putsFor(CH2_ID)).toHaveLength(1);
+    expect(putsFor(CH2_ID)[0][1]).toMatchObject({ title: '第2章 新名', content: V2, base_updated_at: T_V2 });
+    expect(server.files.get(CH2_ID)).toMatchObject({ title: '第2章 新名', content: V2 });
+  });
+
+  it('saves an unsaved title rename together with the comparison result', async () => {
+    await runRoundUntilV1();
+    fireEvent.change(titleInput(), { target: { value: '第2章 新名' } });
+    fireEvent.change(textarea(), { target: { value: `${V1}作者补的一句。` } });
+    await secondWrite('parallel_execute');
+    expect(toastError).toHaveBeenCalledWith('editor:aiEditedWhileDirty');
+
+    finishReview();
+    await advance(3100); await settle();
+    expect(server.files.get(CH2_ID)).toMatchObject({ title: '第2章 新名', content: `${V2}作者补的一句。` });
+  });
+
+  it('follows an AI rename when the author has not renamed the chapter', async () => {
+    await runRoundUntilV1();
+    server.files.set(CH2_ID, { ...server.files.get(CH2_ID)!, title: '第2章 倒着拨的表', content: V2, updated_at: T_V2 });
+    act(() => { callbacks().onToolResult('parallel_execute', 'success', { total_tasks: 1, completed: 1, tasks: [] }); });
+    await advance(300); await settle();
+    expect(titleInput().value).toBe('第2章 倒着拨的表');
+    expect(textarea().value).toBe(V2);
+
+    fireEvent.change(textarea(), { target: { value: `${V2}好` } });
+    await advance(3100); await settle();
+    expect(putsFor(CH2_ID)[0][1]).toMatchObject({ title: '第2章 倒着拨的表', base_updated_at: T_V2 });
+  });
+
+  it("counts only the author's words after the editor followed the AI's copy", async () => {
+    await runRoundUntilV1();
+    await secondWrite('parallel_execute');
+    fireEvent.change(textarea(), { target: { value: `${V2}好` } });
+    await advance(3100); await settle();
+    expect(recordStats).toHaveBeenCalledTimes(1);
+    expect(recordStats.mock.calls[0]).toEqual(['project-1', expect.objectContaining({ words_added: 1, words_deleted: 0 })]);
+  });
+
+  it('retries the re-read when it fails once', async () => {
+    await runRoundUntilV1();
+    server.get.mockRejectedValueOnce(new Error('network'));
+    await secondWrite('parallel_execute');
+    expect(textarea().value).toBe(V1);
+    await advance(1100); await settle();
+    expect(textarea().value).toBe(V2);
+  });
+
+  it('leaving while the comparison is open keeps the author draft locally and sends no stale save', async () => {
+    await runRoundUntilV1();
+    fireEvent.change(textarea(), { target: { value: `${V1}作者补的一句。` } });
+    await secondWrite('parallel_execute');
+    expect(toastError).toHaveBeenCalledWith('editor:aiEditedWhileDirty');
+
+    cleanup();
+    await settle();
+    expect(putsFor(CH2_ID)).toHaveLength(0);
+    const snapshot = readEditorDraftSnapshot(localStorage, { userId: 'user-1', projectId: 'project-1', fileId: CH2_ID });
+    expect(snapshot?.content).toBe(`${V1}作者补的一句。`);
   });
 });

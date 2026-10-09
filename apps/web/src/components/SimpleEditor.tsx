@@ -72,6 +72,19 @@ interface SimpleEditorProps {
   onSave: (submission: SaveSubmission) => Promise<SaveResult>;
   onHistoryRestore?: () => Promise<void>;
   onFlushReady?: (flush: (() => Promise<SaveOutcome>) | null) => void;
+  /**
+   * The parent switched the editor to a newer server copy (for example after
+   * an AI write). Each new `version` resets the draft, save token, dirty flag
+   * and word-count baseline to this copy; the current `title`/`content` props
+   * become the draft (an unsaved title rename stays dirty).
+   */
+  serverBaseline?: {
+    version: number;
+    fileId: string;
+    title: string;
+    content: string;
+    updatedAt?: string;
+  };
   readOnly?: boolean;
   isStreaming?: boolean;
   /**
@@ -111,6 +124,7 @@ export const SimpleEditor = ({
   onSave,
   onHistoryRestore,
   onFlushReady,
+  serverBaseline,
   readOnly = false,
   isStreaming = false,
   isAiEditing = false,
@@ -193,6 +207,8 @@ export const SimpleEditor = ({
 
   latestContentRef.current = content;
   latestTitleRef.current = title;
+  const draftScopeRef = useRef({ userId, projectId });
+  draftScopeRef.current = { userId, projectId };
   latestFileIdRef.current = fileId;
   latestBaseUpdatedAtRef.current = baseUpdatedAt;
 
@@ -202,6 +218,36 @@ export const SimpleEditor = ({
       persistedBaseRef.current = { fileId, updatedAt: baseUpdatedAt };
     }
   }, [fileId, title, content, baseUpdatedAt]);
+
+  const appliedServerBaselineRef = useRef(serverBaseline?.version ?? 0);
+  useEffect(() => {
+    if (!serverBaseline || serverBaseline.version === appliedServerBaselineRef.current) return;
+    appliedServerBaselineRef.current = serverBaseline.version;
+    if (serverBaseline.fileId !== fileId) return;
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    // 编辑器换成了服务端的新版本：草稿、保存令牌、字数基线都要跟着换，
+    // 否则下一次保存会带着旧令牌和旧草稿发出（撞 409 后把旧稿当成提案），
+    // 或把 AI 写的字算成作者新增的字数。
+    lastSavedContentRef.current = serverBaseline.content;
+    lastSavedTitleRef.current = serverBaseline.title;
+    persistedBaseRef.current = { fileId, updatedAt: serverBaseline.updatedAt };
+    draftRef.current = {
+      fileId,
+      title: latestTitleRef.current,
+      content: latestContentRef.current,
+      baseUpdatedAt: serverBaseline.updatedAt,
+    };
+    pendingBaselineSyncRef.current = false;
+    suppressRecoveredAutoSaveRef.current = false;
+    const dirty =
+      latestTitleRef.current !== serverBaseline.title ||
+      latestContentRef.current !== serverBaseline.content;
+    dirtyRef.current = dirty;
+    setIsDirty(dirty);
+  }, [serverBaseline, fileId]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -294,6 +340,8 @@ export const SimpleEditor = ({
 
   // Check if in diff review mode
   const isReviewMode = diffReviewState?.isReviewing && diffReviewState.fileId === fileId;
+  const isReviewModeRef = useRef(false);
+  isReviewModeRef.current = Boolean(isReviewMode);
 
   useEffect(() => {
     const isFocused =
@@ -420,6 +468,7 @@ export const SimpleEditor = ({
       // Sync local save baseline so "unsaved" status doesn't get stuck.
       if (!diffReviewState) {
         lastSavedContentRef.current = content;
+        lastSavedTitleRef.current = title;
         dirtyRef.current = false;
         persistedBaseRef.current = { fileId, updatedAt: baseUpdatedAt };
         draftRef.current = { fileId, title, content, baseUpdatedAt };
@@ -860,8 +909,32 @@ export const SimpleEditor = ({
       return handleSaveRef.current();
     });
     return () => {
-      if (dirtyRef.current) void handleSaveRef.current();
       onFlushReady(null);
+      if (!dirtyRef.current) return;
+      // 离开编辑器时最后一次保存。没保存成功（例如对比还开着、令牌已过期而撞 409）
+      // 就把草稿写进本地快照，下次打开这份文件时会提示恢复，作者的字不会丢。
+      const draft = draftRef.current;
+      const { userId: ownerId, projectId: draftProjectId } = draftScopeRef.current;
+      const keepDraftLocally = () => {
+        if (!ownerId || !draftProjectId || !draft.fileId) return;
+        writeEditorDraftSnapshot(localStorage, createEditorDraftSnapshot({
+          userId: ownerId,
+          projectId: draftProjectId,
+          fileId: draft.fileId,
+          title: draft.title,
+          content: draft.content,
+          baseUpdatedAt: draft.baseUpdatedAt,
+          reason: "page-exit",
+        }));
+      };
+      // 对比审阅打开时，草稿的令牌一定是旧的：不发注定 409 的请求。
+      if (isReviewModeRef.current) {
+        keepDraftLocally();
+        return;
+      }
+      void handleSaveRef.current().then((outcome) => {
+        if (outcome !== "saved") keepDraftLocally();
+      });
     };
   }, [onFlushReady]);
 

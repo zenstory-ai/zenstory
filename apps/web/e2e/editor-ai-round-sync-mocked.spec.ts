@@ -171,3 +171,22 @@ test('unsaved author text is kept and compared when the AI writes the same chapt
   expect(f.files.ch2.content).toBe(V2);
   expect(f.errors).toEqual([]);
 });
+
+test('finishing the comparison keeps the AI second write and adds only the author text', async ({ page }) => {
+  const f = await setup(page);
+  await runRound(page, f, 'parallel_execute', async () => {
+    await textarea(page).click();
+    await textarea(page).evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(el.value.length, el.value.length));
+    await page.keyboard.type('作者补一句');
+    await expect(page.getByText('未保存', { exact: true })).toBeVisible();
+  });
+  await expect(page.getByText('AI 刚改过这个文件，你还有没保存的修改。', { exact: false })).toBeVisible();
+
+  // The author just presses finish without choosing anything.
+  await page.getByTitle(/完成审阅|应用更改/).click();
+  await expect.poll(() => putsToCh2(f).length).toBe(1);
+  expect(putsToCh2(f)[0].body).toMatchObject({ content: `${V2}作者补一句`, base_updated_at: tokenV2 });
+  expect(f.files.ch2.content.startsWith('第二天，')).toBe(true);
+  await expect(textarea(page)).toHaveValue(`${V2}作者补一句`);
+  expect(f.errors).toEqual([]);
+});

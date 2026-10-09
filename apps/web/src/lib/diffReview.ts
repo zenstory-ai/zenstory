@@ -69,7 +69,7 @@ function endsWithParagraphBreak(text: string): boolean {
   return trailingParagraphBreak(text) !== "";
 }
 
-function splitParagraphBlocks(text: string): string[] {
+export function splitParagraphBlocks(text: string): string[] {
   if (!text) return [];
 
   const blocks: string[] = [];
