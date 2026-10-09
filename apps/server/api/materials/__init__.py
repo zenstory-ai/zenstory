@@ -19,7 +19,7 @@ from sqlmodel import Session
 from database import get_session
 from models import User
 
-from .access import require_materials_library_access
+from .access import require_materials_library_read
 from .constants import ALLOWED_EXTENSIONS, MAX_FILE_SIZE
 from .entities import router as entities_router
 from .import_ import router as import_router
@@ -60,7 +60,7 @@ router = APIRouter(prefix="/api/v1/materials", tags=["materials"])
 @router.get("", response_model=list[MaterialListItem])
 @router.get("/", response_model=list[MaterialListItem])
 async def get_materials_root(
-    current_user: User = Depends(require_materials_library_access),
+    current_user: User = Depends(require_materials_library_read),
     session: Session = Depends(get_session),
 ):
     """Get user's material library list (root path alias for /list)."""
@@ -71,24 +71,24 @@ async def get_materials_root(
 # This ensures /search, /library-summary match before /{novel_id}
 router.include_router(
     search_router,
-    dependencies=[Depends(require_materials_library_access)],
+    dependencies=[Depends(require_materials_library_read)],
 )  # /search, /library-summary
 router.include_router(upload_router)  # /upload
 router.include_router(
     preview_router,
-    dependencies=[Depends(require_materials_library_access)],
+    dependencies=[Depends(require_materials_library_read)],
 )  # /preview/{novel_id}
 router.include_router(
     import_router,
-    dependencies=[Depends(require_materials_library_access)],
+    dependencies=[Depends(require_materials_library_read)],
 )  # /import, /batch-import
 router.include_router(
     entities_router,
-    dependencies=[Depends(require_materials_library_access)],
+    dependencies=[Depends(require_materials_library_read)],
 )  # /{novel_id}/characters, etc.
 router.include_router(
     library_router,
-    dependencies=[Depends(require_materials_library_access)],
+    dependencies=[Depends(require_materials_library_read)],
 )  # /list, /{novel_id}, etc.
 
 __all__ = [

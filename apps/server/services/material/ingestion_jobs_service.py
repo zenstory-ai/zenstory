@@ -33,8 +33,17 @@ MATERIAL_DECOMPOSE_FEATURE = "material_decompose"
 ENABLED_STAGES_KEY = "enabled_stages"
 # stage_progress key holding the job's quota state:
 # {"quota_charged": bool, "quota_refunded": bool, "refund_reason": str}.
-# quota_charged means this job currently holds one material_decompose unit.
+# quota_charged means this job currently holds one material_decompose unit, or,
+# with quota_mode="trial", the account's one free trial; a trial job also carries
+# chapter_limit, which stage0 applies before creating chapters.
 BILLING_KEY = "billing"
+
+
+def job_chapter_limit(job: Any) -> int | None:
+    """Free-trial chapter cap recorded on the job (billing.chapter_limit), if any."""
+    billing = _load_stage_progress(getattr(job, "stage_progress", None)).get(BILLING_KEY)
+    limit = billing.get("chapter_limit") if isinstance(billing, dict) else None
+    return limit if isinstance(limit, int) and not isinstance(limit, bool) and limit > 0 else None
 
 
 def _load_stage_progress(raw: str | None) -> dict[str, Any]:
@@ -329,6 +338,9 @@ class IngestionJobsService:
         if novel is None:
             return False
         billing = self.get_billing(job)
+        if billing.get("quota_mode") == "trial":
+            # A free trial is one per account: a platform failure gives it back.
+            return quota_service.release_material_trial(session, novel.user_id, commit=False)
         raw_period_start = billing.get("quota_period_start")
         period_start = None
         consumed_at = job.created_at if raw_period_start is None else None

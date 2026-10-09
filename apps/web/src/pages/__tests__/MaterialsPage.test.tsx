@@ -203,6 +203,49 @@ describe("MaterialsPage", () => {
     expect(teaserSecondaryButton.className).not.toContain("btn-secondary");
   });
 
+  const freeStatus = {
+    tier: "free",
+    status: "none",
+    display_name: "免费版",
+    days_remaining: null,
+    current_period_end: null,
+    features: { materials_library_access: false },
+  };
+  const freeQuota = (trial: { available: boolean; used: boolean; max_chapters: number }) => ({
+    ai_conversations: { used: 0, limit: 10, reset_at: null },
+    projects: { used: 0, limit: 3, reset_at: null },
+    material_uploads: { used: 0, limit: 0, reset_at: null },
+    material_decompositions: { used: 0, limit: 0, reset_at: null },
+    skill_creates: { used: 0, limit: 3, reset_at: null },
+    inspiration_copies: { used: 0, limit: 10, reset_at: null },
+    material_trial: trial,
+  });
+
+  it("offers a free author one trial breakdown and explains its limits before upload", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: true, used: false, max_chapters: 20 }));
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    fireEvent.click(await screen.findByTestId("materials-trial-start"));
+    expect(await screen.findByTestId("materials-trial-upload-note")).toBeInTheDocument();
+    expect(mockList).not.toHaveBeenCalled();
+  });
+
+  it("shows a free author their trial book with a note that only the first chapters were broken down", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: false, used: true, max_chapters: 20 }));
+    mockList.mockResolvedValue([
+      { id: "n1", title: "参考书", status: "completed", chapters_count: 20, created_at: "2026-10-09T00:00:00Z" },
+    ]);
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    expect(await screen.findByTestId("materials-trial-banner")).toBeInTheDocument();
+    expect(await screen.findByText("参考书")).toBeInTheDocument();
+    expect(screen.queryByTestId("materials-trial-start")).not.toBeInTheDocument();
+  });
+
   it("states the Pro breakdown limit from the plan catalog instead of a constant", async () => {
     mockGetStatus.mockResolvedValueOnce({
       tier: "free",

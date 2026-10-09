@@ -663,7 +663,10 @@ def _execute_stage0(
         from models.material_models import Novel
         from services.material.chapters_service import ChaptersService
         from services.material.checkpoint_service import CheckpointService
-        from services.material.ingestion_jobs_service import IngestionJobsService
+        from services.material.ingestion_jobs_service import (
+            IngestionJobsService,
+            job_chapter_limit,
+        )
         from services.material.novels_service import NovelsService
 
         job_record = None
@@ -711,6 +714,13 @@ def _execute_stage0(
                 )
                 existing_job = IngestionJobsService().get_latest_by_novel(session, novel_id)
             if existing_job:
+                # Free trial: only the first chapter_limit chapters are decomposed.
+                chapter_limit = job_chapter_limit(existing_job)
+                if chapter_limit is not None and chapter_limit < len(chapters_data):
+                    logger.info(
+                        "[阶段0] 免费试拆：只拆前 %d 章（共 %d 章）", chapter_limit, len(chapters_data)
+                    )
+                    chapters_data = chapters_data[:chapter_limit]
                 existing_job.status = "processing"
                 existing_job.total_chapters = len(chapters_data)
                 if getattr(existing_job, "started_at", None) is None:

@@ -71,10 +71,18 @@ export function useMaterialLibrary(): MaterialLibraryState {
     queryKey: subscriptionQueryKeys.status(),
     queryFn: () => subscriptionApi.getStatus(),
   });
-  const access = hasMaterialsLibraryAccess(
+  const paidAccess = hasMaterialsLibraryAccess(
     subscriptionStatus?.features as Record<string, unknown> | undefined,
     subscriptionStatus?.tier,
   );
+  // A free author who used the free trial can cite their trial book while writing.
+  const { data: quota, isLoading: isQuotaLoading } = useQuery({
+    queryKey: subscriptionQueryKeys.quota(),
+    queryFn: () => subscriptionApi.getQuota(),
+    enabled: paidAccess === false,
+  });
+  const access =
+    paidAccess === false && quota?.material_trial?.used === true ? true : paidAccess;
 
   const { data, isLoading, isFetching, error, refetch, dataUpdatedAt } = useQuery({
     queryKey: MATERIAL_LIBRARY_SUMMARY_QUERY_KEY,
@@ -82,7 +90,7 @@ export function useMaterialLibrary(): MaterialLibraryState {
     staleTime: 5 * 60 * 1000, // 5 minutes
     // Unknown entitlement (status failed to load) still tries; a 402 then
     // switches the UI to the upgrade notice instead of an error.
-    enabled: !isAccessLoading && access !== false,
+    enabled: !isAccessLoading && !(paidAccess === false && isQuotaLoading) && access !== false,
     retry: (failureCount, retryError) =>
       !isFeatureNotIncludedError(retryError) && failureCount < 1,
   });

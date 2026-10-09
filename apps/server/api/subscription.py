@@ -112,6 +112,14 @@ class QuotaMetricResponse(BaseModel):
     reset_at: datetime | None = None
 
 
+class MaterialTrialResponse(BaseModel):
+    """素材拆书免费试用：一个账号一本、只拆前 max_chapters 章。"""
+
+    available: bool = False
+    used: bool = False
+    max_chapters: int = 0
+
+
 class QuotaResponse(BaseModel):
     ai_conversations: QuotaMetricResponse
     projects: QuotaMetricResponse
@@ -119,6 +127,7 @@ class QuotaResponse(BaseModel):
     material_decompositions: QuotaMetricResponse
     skill_creates: QuotaMetricResponse
     inspiration_copies: QuotaMetricResponse
+    material_trial: MaterialTrialResponse = Field(default_factory=MaterialTrialResponse)
 
 
 class RedeemCodeRequest(BaseModel):
@@ -388,6 +397,7 @@ def get_quota(session: Session = Depends(get_session), current_user: User = Depe
 
     # Graceful degradation: Use default free tier limit if plan is not found
     project_limit = quota_service.get_plan_feature(plan, "max_projects")
+    trial = quota_service.material_trial_status(session, current_user.id)
 
     return QuotaResponse(
         ai_conversations=QuotaMetricResponse(
@@ -419,6 +429,11 @@ def get_quota(session: Session = Depends(get_session), current_user: User = Depe
             used=quota_snapshot["inspiration_copies"]["used"],
             limit=quota_snapshot["inspiration_copies"]["limit"],
             reset_at=quota_snapshot["inspiration_copies"]["reset_at"],
+        ),
+        material_trial=MaterialTrialResponse(
+            available=trial["available"],
+            used=trial["used"],
+            max_chapters=trial["max_chapters"],
         ),
     )
 

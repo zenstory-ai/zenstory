@@ -115,6 +115,8 @@ class UsageQuota(SQLModel, table=True):
     material_decompositions_used: int = Field(default=0)
     skill_creates_used: int = Field(default=0)
     inspiration_copies_used: int = Field(default=0)
+    # 素材拆书免费试用：一个账号一次，不随月度重置；平台原因失败退还时清空
+    material_trial_used_at: datetime | None = Field(default=None)
     # 月度周期
     monthly_period_start: datetime | None = Field(default=None)
     monthly_period_end: datetime | None = Field(default=None)

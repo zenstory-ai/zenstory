@@ -64,16 +64,23 @@ export default function MaterialsPage() {
     subscriptionStatus?.tier,
   );
   const hasWorkspaceAccess = materialsAccess === true;
-  const showTeaser = materialsAccess === false;
-  const proDecompositionsLimit = useProMaterialDecompositionsLimit(showTeaser);
 
+  // The quota also carries the free trial (one book, first N chapters), so free
+  // authors need it too.
   const {
     data: quota,
   } = useQuery({
     queryKey: subscriptionQueryKeys.quota(),
     queryFn: () => subscriptionApi.getQuota(),
-    enabled: hasWorkspaceAccess,
+    enabled: materialsAccess !== undefined,
   });
+  const materialTrial = quota?.material_trial;
+  const trialAvailable = materialsAccess === false && materialTrial?.available === true;
+  // A free author who used the trial reads their trial book in the library.
+  const trialUsed = materialsAccess === false && materialTrial?.used === true;
+  const canReadLibrary = hasWorkspaceAccess || trialUsed;
+  const showTeaser = materialsAccess === false && !trialUsed;
+  const proDecompositionsLimit = useProMaterialDecompositionsLimit(materialsAccess === false);
 
   const materialDecomposeQuota = quota?.material_decompositions;
   const remainingDecompositions =
@@ -97,7 +104,7 @@ export default function MaterialsPage() {
   } = useQuery({
     queryKey: ["materials"],
     queryFn: () => materialsApi.list(),
-    enabled: hasWorkspaceAccess,
+    enabled: canReadLibrary,
     staleTime: 30 * 1000, // 30 seconds - prevents refetch on tab switch
     // Poll every 3 seconds when there are pending/processing items
     refetchInterval: (query) => {
@@ -110,8 +117,8 @@ export default function MaterialsPage() {
   });
   const isMaterialsLoading =
     isSubscriptionLoading ||
-    (hasWorkspaceAccess && (isLoading || (isFetching && materials.length === 0)));
-  useRefreshMaterialLibraryOnCompletion(hasWorkspaceAccess ? materials : undefined);
+    (canReadLibrary && (isLoading || (isFetching && materials.length === 0)));
+  useRefreshMaterialLibraryOnCompletion(canReadLibrary ? materials : undefined);
 
   // Delete mutation
   const deleteMutation = useMutation({
@@ -408,11 +415,13 @@ export default function MaterialsPage() {
                 <li>• {t("materials:teaserFeatureTwo", { defaultValue: "把角色和设定添加到项目，或引用到 AI 对话" })}</li>
                 <li>• {t("materials:teaserFeatureThree", { defaultValue: "次数用完后，已拆好的内容仍可查看和引用" })}</li>
               </ul>
+              {!trialAvailable && (
               <p data-testid="materials-free-try" className="text-sm text-[hsl(var(--text-secondary))]">
                 {t("materials:teaserFreeTry", {
                   defaultValue: "免费版也可以先试：在作品的对话里贴一章参考正文，让 AI 拆人物、节奏和爽点。素材库会把整本自动拆好，写作时随时引用。",
                 })}
               </p>
+              )}
               <div className="grid gap-3 pt-2 md:grid-cols-3">
                 <div className="rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-primary))] p-4">
                   <div className="text-xs font-medium text-[hsl(var(--accent-primary))]">
@@ -452,9 +461,24 @@ export default function MaterialsPage() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-3 pt-2">
+                {trialAvailable && (
+                  <button
+                    data-testid="materials-trial-start"
+                    onClick={() => {
+                      trackEvent("materials_trial_started", { source: "materials_teaser" });
+                      setShowUploadModal(true);
+                    }}
+                    className="btn-primary h-11 px-4"
+                  >
+                    {t("materials:trialStart", {
+                      defaultValue: "免费试拆一本（前 {{chapters}} 章）",
+                      chapters: materialTrial?.max_chapters,
+                    })}
+                  </button>
+                )}
                 <button
                   onClick={() => openUpgradePath("billing")}
-                  className="btn-primary h-11 px-4"
+                  className={trialAvailable ? "btn-secondary h-11 px-4" : "btn-primary h-11 px-4"}
                 >
                   {t("materials:teaserPrimary", { defaultValue: "开通 Pro" })}
                 </button>
@@ -470,7 +494,7 @@ export default function MaterialsPage() {
         </div>
       ) : materials.length === 0 ? (
         <>
-          {materialDecomposeQuota && (
+          {materialDecomposeQuota && hasWorkspaceAccess && (
             <div className="mb-4 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-4">
               <p className="text-sm font-medium text-[hsl(var(--text-primary))]">
                 {remainingDecompositions == null
@@ -505,7 +529,23 @@ export default function MaterialsPage() {
         </>
       ) : (
         <div className="space-y-4">
-          {materialDecomposeQuota && (
+          {trialUsed && (
+            <div
+              data-testid="materials-trial-banner"
+              className="flex flex-wrap items-center gap-3 rounded-xl border border-[hsl(var(--accent-primary)/0.25)] bg-[hsl(var(--accent-primary)/0.06)] p-4"
+            >
+              <p className="flex-1 min-w-0 text-sm text-[hsl(var(--text-primary))]">
+                {t("materials:trialUsedBanner", {
+                  defaultValue: "免费试拆只拆了这本书的前 {{chapters}} 章。开通 Pro 后，每月可以拆完整的小说。",
+                  chapters: materialTrial?.max_chapters,
+                })}
+              </p>
+              <button onClick={() => openUpgradePath("billing")} className="btn-primary h-10 px-4">
+                {t("materials:teaserPrimary", { defaultValue: "开通 Pro" })}
+              </button>
+            </div>
+          )}
+          {materialDecomposeQuota && hasWorkspaceAccess && (
             <div className="rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-4">
               <p className="text-sm font-medium text-[hsl(var(--text-primary))]">
                 {remainingDecompositions == null
@@ -592,6 +632,14 @@ export default function MaterialsPage() {
           </>
         }
       >
+        {trialAvailable && (
+          <p data-testid="materials-trial-upload-note" className="mb-4 text-sm text-[hsl(var(--text-secondary))]">
+            {t("materials:trialUploadNote", {
+              defaultValue: "免费试拆：只拆这本书的前 {{chapters}} 章，每个账号一次。平台出错没拆成会退还这次机会。",
+              chapters: materialTrial?.max_chapters,
+            })}
+          </p>
+        )}
         {/* File Input */}
         <div>
           <label className="block text-sm font-medium text-[hsl(var(--text-secondary))] mb-2">

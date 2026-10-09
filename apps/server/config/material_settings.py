@@ -37,6 +37,10 @@ class MaterialSettings(BaseSettings):
     NOVEL_MAX_CHARACTERS: int = 50000  # 单章最大字符数
     # 单次拆解的章节数上限（上传预检与阶段0共用）；超出直接拒绝，不扣额度
     MAX_CHAPTERS_PER_NOVEL: int = 3000
+    # 免费试拆：没有素材库权益的账号可拆一本的前 N 章（一次）。默认关闭：
+    # 阶段0 的章节上限要随 Prefect worker 一起发布，worker 上线后再打开。
+    MATERIAL_TRIAL_ENABLED: bool = False
+    MATERIAL_TRIAL_MAX_CHAPTERS: int = 20
     MIN_PLOTS_PER_CHAPTER: int = 10
     MAX_PLOTS_PER_CHAPTER: int = 15
     MIN_PLOTS_PER_STORY: int = 3
