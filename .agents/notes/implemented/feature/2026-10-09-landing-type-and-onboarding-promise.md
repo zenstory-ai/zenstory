@@ -17,7 +17,7 @@ Status: implemented
 ## Decision
 
 - **作品类型偏好**：新增 `apps/web/src/lib/preferredProjectType.ts`，在 localStorage 的 `zenstory_preferred_project_type` 存 `{type, ts}`，只接受 `novel`、`short`、`screenplay`，超过 7 天视为失效并删除，读写都包 try/catch（存储不可用时只是丢掉偏好）。按设备存而不按用户存，因为官网点卡片时还没有用户。
-  - `HomePage` 的类型卡片点击时先写入偏好，再走原来的 `handleGetStarted`。
+  - `HomePage` 的类型卡片点击时先写入偏好，再走原来的 `handleGetStarted`；等待注册页加载期间卡片显示「正在打开…」（见 `bug-fix/2026-10-09-first-click-always-answers.md`）。
   - `DashboardHome` 初始 tab 为 `getPreferredProjectType() ?? "novel"`；通过快速创建、创建弹窗或「今天可以做的事」成功建出项目后清掉偏好，失败时保留。
 - **引导页新身份**：`OnboardingPersonaPage` 增加 `short_story`（标签「短篇」，标题「短篇作者」，说明「写盐言、番茄这类网文短篇，一篇写完就投。」）和 `screenwriter`（「短剧」「短剧编剧」「写竖屏短剧、网剧剧本。」），英文为 Short-story writer / Short-drama screenwriter，`preview.items` 两种语言都补上。服务端 `api/persona.py` 的 `ALLOWED_PERSONA_IDS` 加上这两个 id；存储仍是 JSON 字符串列，不改 schema；推荐列表不为它们新增条目。
   - 保存成功且不是「跳过」时，如果没有仍有效的偏好（例如官网卡片刚写入的），按作者选择顺序取第一个 `short_story` / `screenwriter`，写入 `short` / `screenplay`。已有的官网卡片偏好不被覆盖：那是对作品类型的直接选择，身份只是推断。

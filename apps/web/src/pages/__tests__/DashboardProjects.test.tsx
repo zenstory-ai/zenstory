@@ -60,6 +60,7 @@ vi.mock('react-i18next', () => ({
           'common:delete': 'Delete',
           'common:cancel': 'Cancel',
           'projects.filterAll': 'All',
+          'dashboard:projects.openProject': `Open project ${String(options?.name ?? '')}`,
           'common.loading': 'Loading...',
           'common.retry': 'Retry',
         } as Record<string, string>

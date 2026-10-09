@@ -72,7 +72,7 @@ test.describe("Onboarding persona flow", () => {
   let lastSubmittedPayload: {
     selected_personas: string[];
     selected_goals: string[];
-    experience_level: string;
+    experience_level?: string;
     skipped: boolean;
   } | null = null;
 
@@ -114,6 +114,8 @@ test.describe("Onboarding persona flow", () => {
               version: 1,
               completed_at: new Date().toISOString(),
               ...lastSubmittedPayload,
+              // Server default when the experience question is left unanswered.
+              experience_level: lastSubmittedPayload?.experience_level ?? "beginner",
             },
             recommendations: [],
           }),

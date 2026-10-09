@@ -237,14 +237,89 @@ describe("Register", () => {
 
     fillRegistrationFields();
     await acceptTerms(user);
-    expect(screen.getByRole("button", { name: "auth:register.submit" })).toBeDisabled();
+    const submitButton = screen.getByRole("button", { name: "auth:register.submit" });
+    expect(submitButton).toBeEnabled();
 
     await act(async () => {
-      fireEvent.submit(screen.getByTestId("register-form"));
+      await user.click(submitButton);
     });
 
     expect(mockRegister).not.toHaveBeenCalled();
     expect(mockToastError).toHaveBeenCalledWith("auth:errors.inviteCodeRequired");
+    expect(screen.getByText("auth:errors.inviteCodeRequired")).toBeInTheDocument();
+  });
+
+  it("answers a click on an empty form with a visible reason instead of doing nothing", async () => {
+    const user = userEvent.setup();
+    renderWithRoute("/register");
+
+    const submitButton = screen.getByRole("button", { name: "auth:register.submit" });
+    expect(submitButton).toBeEnabled();
+    await act(async () => {
+      await user.click(submitButton);
+    });
+
+    expect(mockRegister).not.toHaveBeenCalled();
+    expect(mockToastError).toHaveBeenCalledWith("auth:errors.shortUsername");
+    expect(screen.getByText("auth:errors.shortUsername")).toBeInTheDocument();
+    expect(submitButton).toBeEnabled();
+  });
+
+  it("posts on the first click without another policy lookup once the policy is known", async () => {
+    mockRegister.mockReturnValue(new Promise<void>(() => {}));
+    mockGetRegistrationPolicy.mockResolvedValue({
+      invite_code_optional: true,
+      variant: "treatment_optional",
+      rollout_percent: 50,
+    });
+    const user = userEvent.setup();
+    renderWithRoute("/register");
+
+    fillRegistrationFields();
+    await acceptTerms(user);
+    await waitFor(() => {
+      expect(mockGetRegistrationPolicy).toHaveBeenCalledWith({
+        email: "test@example.com",
+        username: "test_user",
+      });
+      expect(screen.getByTestId("invite-code-input")).toHaveAttribute("data-required", "false");
+    });
+    const policyCallsBeforeClick = mockGetRegistrationPolicy.mock.calls.length;
+
+    await act(async () => {
+      await user.click(screen.getByRole("button", { name: "auth:register.submit" }));
+    });
+
+    expect(mockRegister).toHaveBeenCalledTimes(1);
+    expect(mockGetRegistrationPolicy).toHaveBeenCalledTimes(policyCallsBeforeClick);
+    // While the POST runs the button is disabled and shows the loading label.
+    expect(screen.getByTestId("register-form")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByTestId("loading-spinner")).toBeInTheDocument();
+    expect(screen.getByTestId("register-form").querySelector('button[type="submit"]')).toBeDisabled();
+  });
+
+  it("prefetches the identity-independent policy on mount and skips per-email lookups", async () => {
+    mockRegister.mockReturnValue(new Promise<void>(() => {}));
+    mockGetRegistrationPolicy.mockResolvedValue({
+      invite_code_optional: true,
+      variant: "global_optional",
+      rollout_percent: 100,
+    });
+    const user = userEvent.setup();
+    renderWithRoute("/register");
+
+    await waitFor(() => {
+      expect(mockGetRegistrationPolicy).toHaveBeenCalledWith();
+      expect(screen.getByTestId("invite-code-input")).toHaveAttribute("data-required", "false");
+    });
+    fillRegistrationFields();
+    await acceptTerms(user);
+    await act(async () => {
+      await user.click(screen.getByRole("button", { name: "auth:register.submit" }));
+    });
+
+    expect(mockRegister).toHaveBeenCalledWith("test_user", "test@example.com", "SecurePass123!", undefined);
+    expect(mockGetRegistrationPolicy).toHaveBeenCalledTimes(1);
   });
 
   it("shows password mismatch validation error before submitting", async () => {
@@ -435,7 +510,7 @@ describe("Register", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "auth:register.submit" })).toBeEnabled());
   });
 
-  it("keeps malformed email disabled and marks the field invalid", async () => {
+  it("answers a malformed-email click with an inline error and marks the field invalid", async () => {
     const user = userEvent.setup();
     renderWithRoute("/register?code=abcd1234");
     fireEvent.change(screen.getByLabelText("auth:register.usernameLabel"), { target: { value: "writer" } });
@@ -445,7 +520,12 @@ describe("Register", () => {
     await acceptTerms(user);
 
     expect(screen.getByLabelText("auth:register.emailLabel")).toHaveAttribute("aria-invalid", "true");
-    expect(screen.getByRole("button", { name: "auth:register.submit" })).toBeDisabled();
+    await act(async () => {
+      await user.click(screen.getByRole("button", { name: "auth:register.submit" }));
+    });
+    expect(mockRegister).not.toHaveBeenCalled();
+    expect(mockToastError).toHaveBeenCalledWith("auth:errors.invalidEmail");
+    expect(screen.getByText("auth:errors.invalidEmail")).toBeInTheDocument();
     expect(mockGetRegistrationPolicy).not.toHaveBeenCalledWith(expect.objectContaining({ email: "not-an-email" }));
   });
 });

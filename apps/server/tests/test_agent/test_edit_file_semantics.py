@@ -393,3 +393,20 @@ async def test_rolled_back_batch_is_not_counted_as_a_write_by_guard_or_billing()
     for event in sse_events:
         tracker.observe(event.to_sse())
     assert tracker.write_succeeded is False
+
+
+def test_insert_details_report_editor_word_count_next_to_char_length(editor):
+    """修改卡片的「字 / 千字」按编辑器的字数口径（汉字 + 英文单词），不是字符长度。"""
+    applied: list[dict] = []
+    text = "雨停了，她推开门。\n\nHello world"
+    editor._apply_insert_after(
+        _DIALOGUE,
+        {"op": "insert_after", "anchor": "她没有说话。", "text": text},
+        0,
+        applied,
+        [],
+    )
+    detail = applied[0]
+    # 7 个汉字 + 2 个英文单词；标点、换行、空格不算。
+    assert detail["text_words"] == 9
+    assert detail["text_len"] > detail["text_words"]
