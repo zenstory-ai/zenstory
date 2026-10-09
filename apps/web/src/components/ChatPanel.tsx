@@ -72,6 +72,7 @@ import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeEx
 import { trackEvent } from "../lib/analytics";
 import { useLeaveWhileGenerating } from "../hooks/useLeaveWhileGenerating";
 import { StreamActivityLine } from "./StreamActivityLine";
+import { isWriteToolResult } from "../lib/agentRoundProgress";
 
 const parseMessageStatusCardsFromMetadata = (metadataRaw?: string | null): Message["statusCards"] | undefined => {
   if (!metadataRaw) return undefined;
@@ -423,6 +424,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   // 后端确实退还了这一轮的 AI 消息时才有值（quota_refunded 帧），按项目隔离，下一轮开始时清空。
   const [quotaRefund, setQuotaRefund] = useState<{ projectId: string; kind: QuotaRefundKind } | null>(null);
   const [streamStartedAt, setStreamStartedAt] = useState<number | null>(null);
+  // 作者点了「停止生成」后的结束说明，按项目隔离，下一轮开始或新建会话时清空。
+  const [userStop, setUserStop] = useState<{ projectId: string; wroteFiles: boolean; counted: boolean } | null>(null);
+  /** What this round has done so far, for the stop note: a write landed / the server charged. */
+  const roundProgressRef = useRef({ wroteFiles: false, charged: false });
   const pendingMaterialClearRef = useRef(false);
   const pendingQuoteClearRef = useRef(false);
   const currentAgentSessionIdRef = useRef<string | null>(null);
@@ -942,6 +947,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       setStreamStartedAt(Date.now());
       terminalStatusCardsRef.current = [];
       setQuotaRefund(null);
+      setUserStop(null);
+      roundProgressRef.current = { wroteFiles: false, charged: false };
       resetOnCompleteFlag();
     },
 
@@ -968,7 +975,12 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     },
 
     // Tool result callbacks
-    onToolResult: streamCallbacks.onToolResult,
+    onToolResult: (toolName, status, result, toolError) => {
+      if (isWriteToolResult(toolName, status, result)) {
+        roundProgressRef.current.wroteFiles = true;
+      }
+      streamCallbacks.onToolResult(toolName, status, result, toolError);
+    },
 
     // File operation callbacks
     onFileCreated: streamCallbacks.onFileCreated,
@@ -1017,6 +1029,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       currentAgentSessionIdRef.current = sessionId;
       streamCallbacks.onSessionStarted(sessionId);
       // The server has already charged this round's AI message by now.
+      roundProgressRef.current.charged = true;
       invalidateQuota();
     },
     onParallelStart: streamCallbacks.onParallelStart,
@@ -1051,6 +1064,17 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   // Stopped before anything was written: offer to send the same request again.
   const resendAfterStop = quotaRefundNote && quotaRefund?.kind === 'stopped'
     ? [...messages].reverse().find((message) => message.role === 'user')?.content ?? null
+    : null;
+  // 「已写入」只在这一轮确实有写入成功时才说；没扣费（还没开始）或 Pro 不提今日 AI 消息。
+  // The server's refund receipt wins over the click-time guess: a refunded stop shows
+  // only the refund note above (with Resend), never "计入" next to "不计入".
+  const stopRefunded = quotaRefund?.projectId === currentProjectId && quotaRefund?.kind === 'stopped';
+  const userStopNote = userStop && userStop.projectId === currentProjectId && !isStreaming && !stopRefunded
+    ? [
+        t('chat:panel.userStopped', { defaultValue: '已停止' }),
+        userStop.wroteFiles ? t('chat:panel.userStoppedSaved', { defaultValue: '已写入的内容已保存' }) : null,
+        userStop.counted ? t('chat:panel.userStoppedCounted', { defaultValue: '本条计入今日 AI 消息' }) : null,
+      ].filter(Boolean).join(' · ')
     : null;
 
   useEffect(() => {
@@ -1507,6 +1531,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       setMatchedSkills([]);
       reset();
       setQuotaRefund(null);
+      setUserStop(null);
       await requestInitialSuggestions(projectId, []);
     } catch (err) {
       logger.error("Failed to create new session:", err);
@@ -1558,6 +1583,16 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   // Stop button: the server ends the round on the open stream (see useAgentStream.stop).
   const handleCancel = () => {
     stop();
+    if (currentProjectId) {
+      const { wroteFiles, charged } = roundProgressRef.current;
+      // Charged unless the server refunds the round (quota_refunded kind=stopped,
+      // which settles after this click); Pro has no daily count to mention.
+      setUserStop({
+        projectId: currentProjectId,
+        wroteFiles,
+        counted: charged && aiMessageQuota?.limit !== -1,
+      });
+    }
   };
 
   /**
@@ -1891,6 +1926,17 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
               {isStreaming && (
                 <StreamActivityLine startedAt={streamStartedAt} />
+              )}
+
+              {/* 作者点了「停止生成」：给出明确的结束状态 */}
+              {userStopNote && (
+                <p
+                  data-testid="chat-user-stop-note"
+                  role="status"
+                  className="mt-2 text-xs text-[hsl(var(--text-secondary))]"
+                >
+                  {userStopNote}
+                </p>
               )}
 
               {/* 这一轮确实没扣 AI 消息（后端退还落库后才会收到） */}

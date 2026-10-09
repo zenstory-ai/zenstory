@@ -398,8 +398,16 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
                                 onClick={(e) =>
                                   project.id && handleStartEditing(project.id, project.name, e)
                                 }
-                                className="text-[hsl(var(--text-secondary))] opacity-0 group-hover:opacity-100 hover:text-[hsl(var(--accent-primary))] transition-all p-1"
+                                // Always visible: full strength on touch (no hover there), dimmed on
+                                // desktop until the row is hovered or the button is focused.
+                                className={`text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] transition-all p-1 ${
+                                  isMobile
+                                    ? "opacity-100"
+                                    : "opacity-50 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+                                }`}
                                 title={t('editor:projectSwitcher.editName')}
+                                aria-label={t('editor:projectSwitcher.editName')}
+                                data-testid="project-switcher-rename"
                               >
                                 <Pencil size={12} />
                               </button>

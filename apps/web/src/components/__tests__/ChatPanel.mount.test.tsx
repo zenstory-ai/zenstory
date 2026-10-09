@@ -185,6 +185,8 @@ vi.mock('../../hooks/useAgentStream', () => ({
     state: {},
     startStream: mockStartStream,
     cancel: vi.fn(),
+    stop: vi.fn(),
+    isStopping: false,
     reset: vi.fn(),
     isStreaming: mockAgentStreamState.isStreaming,
     isThinking: mockAgentStreamState.isThinking,
@@ -226,6 +228,7 @@ type MockMessageInputProps = {
   disabled?: boolean
   sendDisabled?: boolean
   placeholder?: string
+  onCancel?: () => void
 }
 
 const mockMessageList = vi.fn((_props: unknown) => <div data-testid="mock-message-list" />)
@@ -238,6 +241,11 @@ const mockMessageInput = vi.fn((props: MockMessageInputProps) => (
     >
       toggle-generation-mode
     </button>
+    {props.onCancel && (
+      <button type="button" data-testid="mock-stop-button" onClick={props.onCancel}>
+        stop
+      </button>
+    )}
     {/* Mirrors MessageInput: drafting follows `disabled`, sending follows `sendDisabled`. */}
     <textarea data-testid="mock-input-textarea" disabled={props.disabled} placeholder={props.placeholder} />
   </div>
@@ -577,6 +585,88 @@ describe('ChatPanel mount smoke', () => {
     expect(screen.queryByTestId('next-step-card')).not.toBeInTheDocument()
     expect(mockStartStream).not.toHaveBeenCalled()
     mockGetProgress.mockResolvedValue([])
+  })
+
+  describe('after the author clicks 停止生成', () => {
+    type StopOptions = {
+      onStart: () => void
+      onSessionStarted: (sessionId: string) => void
+      onToolResult: (toolName: string, status: string, result?: Record<string, unknown>, error?: string) => void
+    }
+    const stopOptions = () => capturedUseAgentStream.options as StopOptions
+
+    const runRoundThenStop = async (round: (options: StopOptions) => void) => {
+      vi.mocked(getRecentMessages).mockResolvedValueOnce([{
+        id: 'user-1', session_id: 'session-1', role: 'user', content: '写第五章',
+        created_at: '2026-10-05T10:00:00Z',
+      }] as never)
+      mockAgentStreamState.isStreaming = true
+      render(<ChatPanel />)
+      await waitFor(() => expect(screen.getByTestId('mock-message-list')).toBeInTheDocument())
+      await waitFor(() => expect(testQueryClient.getQueryData(['subscription-quota', 'test-user'])).toBeDefined())
+      act(() => {
+        stopOptions().onStart()
+        round(stopOptions())
+      })
+      // The stop ends streaming; the note renders once the panel is idle.
+      mockAgentStreamState.isStreaming = false
+      fireEvent.click(screen.getByTestId('mock-stop-button'))
+      return screen.findByTestId('chat-user-stop-note')
+    }
+
+    it('says what was written is saved and that the message counts, when both are true', async () => {
+      const note = await runRoundThenStop((options) => {
+        options.onSessionStarted('session-stop')
+        options.onToolResult('edit_file', 'success', { data: { id: 'file-1' } })
+      })
+      expect(note).toHaveTextContent('已停止 · 已写入的内容已保存 · 本条计入今日 AI 消息')
+    })
+
+    it('does not claim anything was written when no write succeeded', async () => {
+      const note = await runRoundThenStop((options) => {
+        options.onSessionStarted('session-stop')
+        options.onToolResult('query_files', 'success', {})
+        options.onToolResult('edit_file', 'error', {})
+        options.onToolResult('parallel_execute', 'success', {
+          tasks: [{ type: 'query_files', status: 'completed' }],
+        })
+      })
+      expect(note).toHaveTextContent('已停止 · 本条计入今日 AI 消息')
+      expect(note).not.toHaveTextContent('已写入')
+    })
+
+    it('does not mention today\'s count before the server started the round', async () => {
+      const early = await runRoundThenStop(() => {})
+      expect(early).toHaveTextContent(/^已停止$/)
+    })
+
+    it('leaves out the daily count for unlimited plans', async () => {
+      mockQuota.value = { ai_conversations: { used: 12, limit: -1, reset_at: null } }
+      const note = await runRoundThenStop((options) => {
+        options.onSessionStarted('session-stop')
+        options.onToolResult('parallel_execute', 'success', {
+          tasks: [{ type: 'write_chapter', status: 'completed' }],
+        })
+      })
+      expect(note).toHaveTextContent('已停止 · 已写入的内容已保存')
+      expect(note).not.toHaveTextContent('今日 AI 消息')
+    })
+
+    it('clears the note when the next round starts', async () => {
+      await runRoundThenStop((options) => options.onSessionStarted('session-stop'))
+      act(() => stopOptions().onStart())
+      await waitFor(() => expect(screen.queryByTestId('chat-user-stop-note')).not.toBeInTheDocument())
+    })
+
+    it('shows only the refund note when the server refunds the stop, never "计入" next to "不计入"', async () => {
+      await runRoundThenStop((options) => options.onSessionStarted('session-stop'))
+      act(() => (capturedUseAgentStream.options as {
+        onQuotaRefunded: (kind: 'no_progress' | 'error' | 'stopped') => void
+      }).onQuotaRefunded('stopped'))
+      expect(await screen.findByText(/已停止，这一轮还没有写出内容/)).toBeInTheDocument()
+      expect(screen.queryByTestId('chat-user-stop-note')).not.toBeInTheDocument()
+      expect(screen.queryByText(/本条计入/)).not.toBeInTheDocument()
+    })
   })
 
   it('never pairs a refund note with the used-up card, which would hint at a second limit', async () => {

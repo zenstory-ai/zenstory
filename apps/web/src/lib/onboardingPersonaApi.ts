@@ -29,7 +29,8 @@ export interface PersonaOnboardingState {
 export interface PersonaOnboardingUpsertRequest {
   selected_personas: string[];
   selected_goals: string[];
-  experience_level: PersonaExperienceLevel;
+  /** Omitted when the author did not answer; the server keeps its default. */
+  experience_level?: PersonaExperienceLevel;
   skipped: boolean;
 }
 

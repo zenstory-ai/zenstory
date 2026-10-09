@@ -28,7 +28,7 @@ vi.mock('../../lib/analytics', async importOriginal => ({
 
 const locales = import.meta.glob<Record<string, unknown>>('../../../public/locales/en/*.json', { eager: true, import: 'default' })
 const policy = { invite_code_optional: true, variant: 'offline-control', rollout_percent: 100 }
-type Call = { path: string; method: string; body: string | null }
+type Call = { path: string; search: string; method: string; body: string | null }
 let calls: Call[]
 let pending: Array<ReturnType<typeof deferred>>
 let policies: Array<ReturnType<typeof deferred>>
@@ -72,9 +72,10 @@ beforeEach(async () => {
   expect(localStorage).toBeInstanceOf(Storage)
   expect(vi.isMockFunction(localStorage.setItem)).toBe(false)
   vi.stubGlobal('fetch', async (input: RequestInfo | URL, options?: RequestInit) => {
-    const path = new URL(String(input), window.location.origin).pathname
+    const url = new URL(String(input), window.location.origin)
+    const path = url.pathname
     if (path.startsWith('/locales/')) return json(locales[`../../../public/locales/en/${path.split('/').at(-1)}`] ?? {})
-    calls.push({ path, method: options?.method ?? 'GET', body: typeof options?.body === 'string' ? options.body : null })
+    calls.push({ path, search: url.search, method: options?.method ?? 'GET', body: typeof options?.body === 'string' ? options.body : null })
     if (path === '/api/auth/register-policy') {
       if (!holdPolicies) return json(policy)
       const value = hold()
@@ -113,69 +114,87 @@ async function click(user: ReturnType<typeof userEvent.setup>, element: Element)
   await act(async () => { await user.click(element) })
 }
 
-async function mount(strict: boolean) {
+const identityPolicyCalls = () => calls.filter(call => call.path === '/api/auth/register-policy' && call.search.includes('email=')).length
+
+async function mount(strict: boolean, options: { holdIdentityPolicy?: boolean } = {}) {
   configure({ reactStrictMode: strict }) // RTL's root StrictMode, not an inner wrapper.
   render(<QueryClientProvider client={queryClient}><MemoryRouter initialEntries={['/register']}><AuthProvider><Register /><State /></AuthProvider></MemoryRouter></QueryClientProvider>)
   const user = userEvent.setup()
-  expect(screen.getByRole('button', { name: 'Create Account' })).toBeDisabled()
+  // Incomplete forms stay clickable so the click can explain what is missing.
+  expect(screen.getByRole('button', { name: 'Create Account' })).toBeEnabled()
+  // The identity-independent mount prefetch has already been answered.
+  await waitFor(() => expect(calls.some(call => call.path === '/api/auth/register-policy' && call.search === '')).toBe(true))
+  if (options.holdIdentityPolicy) holdPolicies = true
   fireEvent.change(screen.getByLabelText(/^Username/), { target: { value: 'offline_user' } })
   fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: 'offline@example.invalid' } })
   fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'OfflinePass123!' } })
   fireEvent.change(screen.getByLabelText(/^Confirm Password/), { target: { value: 'OfflinePass123!' } })
   await click(user, screen.getByRole('checkbox'))
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Create Account' })).toBeEnabled())
-  await waitFor(() => expect(calls.some(call => call.path === '/api/auth/register-policy')).toBe(true))
+  await waitFor(() => expect(identityPolicyCalls()).toBeGreaterThan(0))
   return user
 }
 
 for (const strict of [false, true]) {
   describe(strict ? 'actual Register root StrictMode' : 'actual Register default root', () => {
-    it('does not admit two enabled-button submissions while submit policy lookup is pending', async () => {
+    it('first click on a known policy posts directly without another policy lookup', async () => {
       const user = await mount(strict)
-      holdPolicies = true
+      const policyCallsBefore = calls.filter(call => call.path === '/api/auth/register-policy').length
+      await click(user, screen.getByRole('button', { name: 'Create Account' }))
+      await waitFor(() => expect(registrations).toHaveLength(1))
+      expect(calls.filter(call => call.path === '/api/auth/register-policy')).toHaveLength(policyCallsBefore)
+      await act(async () => { registrations[0].resolve(json({ detail: 'Offline first-click probe finished' }, 400)) })
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Create Account' })).toBeEnabled())
+    })
+
+    it('does not admit two submissions while the identity policy lookup is still pending', async () => {
+      const user = await mount(strict, { holdIdentityPolicy: true })
+      const identityLookups = policies.length
       const button = screen.getByRole('button', { name: 'Create Account' })
       await click(user, button)
-      await waitFor(() => expect(policies).toHaveLength(1))
-      const pendingState = { disabled: button.hasAttribute('disabled'), busy: screen.getByTestId('register-form').getAttribute('aria-busy') }
-      await click(user, button) // An ordinary enabled click; no forced submit or disabled bypass.
+      // Submit joins the in-flight lookup instead of issuing a new one, and locks the button.
+      await waitFor(() => expect(button).toBeDisabled())
+      expect(screen.getByTestId('register-form')).toHaveAttribute('aria-busy', 'true')
+      expect(policies).toHaveLength(identityLookups)
+      await click(user, button)
       await act(async () => { policies.forEach(value => value.resolve(json(policy))) })
       await waitFor(() => expect(registrations.length).toBeGreaterThan(0))
       await act(async () => { await Promise.resolve() })
-      console.info('REGISTER_REENTRY_OBSERVATION', JSON.stringify({ strict, pendingState, policyCount: policies.length, registerCount: registrations.length, calls }))
       expect.soft(registrations).toHaveLength(1)
-      expect.soft(policies).toHaveLength(1)
+      expect.soft(policies).toHaveLength(identityLookups)
       await act(async () => { registrations.forEach(value => value.resolve(json({ detail: 'Offline duplicate probe finished' }, 400))) })
       await waitFor(() => expect(button).toBeEnabled())
       expect(localStorage.getItem('access_token')).toBeNull()
     })
 
     it('releases submit gate after required-invite policy and permits retry with an invite', async () => {
-      const user = await mount(strict)
-      holdPolicies = true
+      const user = await mount(strict, { holdIdentityPolicy: true })
+      const identityLookups = policies.length
       await click(user, screen.getByRole('button', { name: 'Create Account' }))
-      await waitFor(() => expect(policies).toHaveLength(1))
-      await act(async () => { policies[0].resolve(json({ ...policy, invite_code_optional: false })) })
+      await act(async () => { policies.forEach(value => value.resolve(json({ ...policy, invite_code_optional: false }))) })
       await waitFor(() => expect(screen.getByTestId('register-form')).toHaveAttribute('aria-busy', 'false'))
       expect(registrations).toHaveLength(0)
-      expect(screen.getByRole('button', { name: 'Create Account' })).toBeDisabled()
+      expect(document.getElementById('register-form-error')).toHaveTextContent('Please enter an invite code')
+      expect(screen.getByRole('button', { name: 'Create Account' })).toBeEnabled()
       expect(screen.getByLabelText(/^Email/)).toBeEnabled()
       fireEvent.change(document.getElementById('invite_code')!, { target: { value: 'ABCD' } })
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Create Account' })).toBeEnabled())
       await click(user, screen.getByRole('button', { name: 'Create Account' }))
-      await waitFor(() => expect(policies).toHaveLength(2))
-      await act(async () => { policies[1].resolve(json({ ...policy, invite_code_optional: false })) })
+      // The resolved policy is reused: no second lookup before the POST.
       await waitFor(() => expect(registrations).toHaveLength(1))
+      expect(policies).toHaveLength(identityLookups)
       expect(JSON.parse(calls.find(call => call.path === '/api/auth/register')!.body!).invite_code).toBe('ABCD-')
       await act(async () => { registrations[0].resolve(json({ detail: 'Offline invite retry finished' }, 400)) })
       await waitFor(() => expect(screen.getByRole('button', { name: 'Create Account' })).toBeEnabled())
     })
 
     it('preserves policy-network fallback and releases gate after POST failure', async () => {
-      const user = await mount(strict)
-      holdPolicies = true
+      const user = await mount(strict, { holdIdentityPolicy: true })
+      await act(async () => { policies.forEach(value => value.resolve(json({}, 503))) })
+      fireEvent.change(document.getElementById('invite_code')!, { target: { value: 'ABCD' } })
+      const lookupsBeforeSubmit = policies.length
       await click(user, screen.getByRole('button', { name: 'Create Account' }))
-      await waitFor(() => expect(policies).toHaveLength(1))
-      await act(async () => { policies[0].resolve(json({}, 503)) })
+      // The failed lookup is retried once on submit; a second failure falls back to the local default.
+      await waitFor(() => expect(policies.length).toBe(lookupsBeforeSubmit + 1))
+      await act(async () => { policies.at(-1)!.resolve(json({}, 503)) })
       await waitFor(() => expect(registrations).toHaveLength(1))
       await act(async () => { registrations[0].resolve(json({ detail: 'Offline fallback finished' }, 400)) })
       await waitFor(() => expect(screen.getByRole('button', { name: 'Create Account' })).toBeEnabled())

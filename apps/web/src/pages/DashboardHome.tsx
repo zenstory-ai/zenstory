@@ -788,7 +788,7 @@ export default function DashboardHome() {
                     onClick={() => navigate(`/project/${project.id}`)}
                     tabIndex={0}
                     role="button"
-                    aria-label={`Open project ${project.name}`}
+                    aria-label={t('dashboard:projects.openProject', { defaultValue: '打开项目「{{name}}」', name: project.name })}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         navigate(`/project/${project.id}`);

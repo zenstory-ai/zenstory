@@ -164,7 +164,18 @@ vi.mock('../../lib/paymentApi', () => ({
 vi.mock('../../lib/subscriptionEntitlements', async () => ({
   ...(await vi.importActual<typeof import('../../lib/subscriptionEntitlements')>('../../lib/subscriptionEntitlements')),
   getEntitlementMetricDefinitions: () => [
-    { key: 'projects', label: 'Projects', value: (plan: { project_limit: number }) => String(plan.project_limit) },
+    {
+      key: 'projects',
+      label: 'Projects',
+      value: (plan: { project_limit: number }) => String(plan.project_limit),
+      compareValue: (plan: { project_limit: number }) => plan.project_limit,
+    },
+    {
+      key: 'material_decompositions_monthly',
+      label: 'Material breakdowns',
+      value: (plan: { name: string }) => (plan.name === 'pro' ? '5 / month' : 'Not included'),
+      compareValue: (plan: { name: string }) => (plan.name === 'pro' ? 5 : 0),
+    },
   ],
   filterAvailableMetrics: <T,>(definitions: T[]) => definitions,
   getLocalizedPlanDisplayName: (plan: { display_name?: string; name?: string }) => plan.display_name ?? plan.name ?? 'Plan',
@@ -279,6 +290,21 @@ describe('BillingPage', () => {
     expect(within(materialsUsage).queryByText('0/0')).not.toBeInTheDocument()
     expect(within(materialsUsage).queryByText(/Monthly quotas reset/)).not.toBeInTheDocument()
     expect(materialsUsage.querySelector('.rounded-full')).toBeNull()
+  })
+
+  it('marks a feature a plan does not include with a neutral cross, not a green check', () => {
+    render(<BillingPage />)
+
+    const comparison = screen.getByText('Plan comparison').closest('section')!
+    const rows = within(comparison).getAllByTestId('billing-plan-metric-material_decompositions_monthly')
+    const freeRow = rows.find((row) => within(row).queryByText('Not included'))!
+    const proRow = rows.find((row) => within(row).queryByText('5 / month'))!
+
+    expect(freeRow).toHaveAttribute('data-included', 'false')
+    expect(freeRow.querySelector('.lucide-x')).not.toBeNull()
+    expect(freeRow.querySelector('.lucide-check')).toBeNull()
+    expect(proRow).toHaveAttribute('data-included', 'true')
+    expect(proRow.querySelector('.lucide-check')).not.toBeNull()
   })
 
   it('opens checkout as a renewal for Pro users', () => {

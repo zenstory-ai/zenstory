@@ -102,8 +102,10 @@ test.describe('Authentication', () => {
       await page.fill('input#invite_code', TEST_INVITE_CODE);
       await page.locator('input[type="checkbox"]').first().check();
 
-      // Current register page blocks submit until client-side validation passes.
-      await expect(page.locator('button[type="submit"]')).toBeDisabled();
+      // Submit stays clickable; an invalid form answers the click with a visible error.
+      await page.locator('button[type="submit"]').click();
+      await expect(page).toHaveURL(/\/register/);
+      await expect(page.locator('#register-form-error')).toContainText(/(Passwords do not match|两次密码不一致)/i);
       await expect(page.locator('#register-confirm-password-helper')).toBeVisible();
       await expect(page.locator('#register-confirm-password-helper')).toContainText(/(Passwords don’t match|两次.*密码.*一致)/i);
     });
@@ -118,8 +120,9 @@ test.describe('Authentication', () => {
       await page.fill('input#invite_code', TEST_INVITE_CODE);
       await page.locator('input[type="checkbox"]').first().check();
 
-      await expect(page.locator('button[type="submit"]')).toBeDisabled();
+      await page.locator('button[type="submit"]').click();
       await expect(page).toHaveURL(/\/register/);
+      await expect(page.locator('#register-form-error')).toContainText(/(at least 6 characters|至少 6 个字符)/i);
       await expect(page.locator('#register-password-helper')).toBeVisible();
       const isTooShort = await page.locator('input#password').evaluate((el) => (el as HTMLInputElement).validity.tooShort);
       expect(isTooShort).toBe(true);
@@ -135,8 +138,9 @@ test.describe('Authentication', () => {
       await page.fill('input#invite_code', TEST_INVITE_CODE);
       await page.locator('input[type="checkbox"]').first().check();
 
-      await expect(page.locator('button[type="submit"]')).toBeDisabled();
+      await page.locator('button[type="submit"]').click();
       await expect(page).toHaveURL(/\/register/);
+      await expect(page.locator('#register-form-error')).toContainText(/(at least 3 characters|至少 3 个字符)/i);
       await expect(page.locator('#register-username-helper')).toBeVisible();
       const isTooShort = await page.locator('input#username').evaluate((el) => (el as HTMLInputElement).validity.tooShort);
       expect(isTooShort).toBe(true);

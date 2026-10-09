@@ -13,6 +13,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from agent.constants import CONTENT_FILE_TYPES
+from agent.core.author_facing_text import author_facing_handoff_reason, author_facing_text
 from agent.core.events import READ_ONLY_HANDOFF_BLOCKED_REASON
 from agent.core.run_meter import AgentRunMeter
 from agent.core.stream_errors import classify_stream_exception, log_stream_exception
@@ -359,8 +360,24 @@ async def _roll_back_empty_files_after_exhaustion(
         yield StreamEvent(type=StreamEventType.TEXT, data={"text": notice})
 
 
+def _author_facing_handoff_event_data(event_data: dict[str, Any]) -> dict[str, Any]:
+    """发给前端的 HANDOFF 事件：reason / context 换成作者能看懂的话。
+
+    前端把 reason 拼进「接下来由{{agent}}继续：{{reason}}」，事件也会存进展示记录。
+    交接包（handoff_packet）和交给下一个 agent 的交接信息不在这里改，返回的是新字典。
+    """
+    display = dict(event_data)
+    display["reason"] = author_facing_handoff_reason(event_data.get("reason"))
+    if "context" in event_data:
+        display["context"] = author_facing_text(event_data.get("context"))
+    return display
+
+
 def _review_limit_text(notes: str) -> str:
-    """达到审查轮数上限、不再自动返修时追加给用户的说明（随 assistant 正文落库）。"""
+    """达到审查轮数上限、不再自动返修时追加给用户的说明（随 assistant 正文落库）。
+
+    notes 应先经过 author_facing_text：它来自审稿人写给 writer 的交接说明。
+    """
     body = f"\n{notes}" if notes else ""
     return (
         f"\n\n——\n已完成 {MAX_REVIEW_ROUNDS} 轮质量审查（本次请求的上限），不再自动返修。"
@@ -1673,7 +1690,10 @@ async def run_writing_workflow_streaming(
             review_limit_notes: str | None = None
             if next_agent and review_round >= MAX_REVIEW_ROUNDS:
                 if current_agent_type == "quality_reviewer" and _agent_can_write_files(next_agent):
-                    review_limit_notes = _review_notes_from_packet(handoff_packet, handoff_context)
+                    # 审稿意见要直接显示给作者：去掉 id、字段名和流程用语。
+                    review_limit_notes = author_facing_text(
+                        _review_notes_from_packet(handoff_packet, handoff_context)
+                    )
                     log_with_context(
                         logger,
                         30,  # WARNING
@@ -2011,7 +2031,7 @@ async def run_writing_workflow_streaming(
             if pending_handoff_event_data is not None and will_run_next_agent:
                 yield StreamEvent(
                     type=StreamEventType.HANDOFF,
-                    data=pending_handoff_event_data,
+                    data=_author_facing_handoff_event_data(pending_handoff_event_data),
                 )
 
             # 保存当前 agent 类型，用于下一轮循环检测

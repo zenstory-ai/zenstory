@@ -243,6 +243,7 @@
   },
   "projects": {
     "recent": "最近项目",
+    "openProject": "打开项目「{{name}}」",
     "all": "我的项目",
     "new": "新建项目",
     "filterAll": "全部",

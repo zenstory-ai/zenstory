@@ -147,8 +147,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
     # Let the browser read correlation ids so feedback reports can be matched
-    # to server logs.
-    expose_headers=["X-Request-ID", "X-Trace-ID", "X-Agent-Run-ID"],
+    # to server logs, and the download filename the export endpoints send
+    # (cross-origin JS cannot read Content-Disposition unless it is exposed).
+    expose_headers=["X-Request-ID", "X-Trace-ID", "X-Agent-Run-ID", "Content-Disposition"],
 )
 
 if is_production_like and not all_origins:

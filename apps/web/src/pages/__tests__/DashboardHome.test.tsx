@@ -102,6 +102,7 @@ const mockT = (
     'inspirations.emptyCta': '查看灵感库',
     'projects.viewAll': '浏览全部',
     'projects.recent': '最近项目',
+    'dashboard:projects.openProject': `Open project ${optionObj?.name ?? ''}`,
     'projects.empty': '还没有任何项目',
     'projects.emptyHint': '在上方输入灵感，点击「开始创作」创建你的第一个项目',
     'common.createButton': '开始创作',

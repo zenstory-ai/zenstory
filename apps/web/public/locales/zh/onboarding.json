@@ -91,7 +91,8 @@
   "actions": {
     "skip": "跳过",
     "submit": "保存并进入工作台",
-    "saving": "正在保存..."
+    "saving": "正在保存...",
+    "needPersona": "先选一个创作者类型，或点「跳过」"
   },
   "preview": {
     "title": "首页会为你推荐",

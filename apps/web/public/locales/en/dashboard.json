@@ -243,6 +243,7 @@
   },
   "projects": {
     "recent": "Recent Projects",
+    "openProject": "Open project {{name}}",
     "all": "My Projects",
     "new": "New Project",
     "filterAll": "All",

@@ -242,6 +242,27 @@ describe("HomePage reduced-motion carousel behavior", () => {
     expect(novelCard.className).toContain("focus-visible:ring-2");
   });
 
+  it("shows an opening state on the clicked type card while the sign-up page loads", () => {
+    setupMatchMedia(true);
+
+    render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    const dramaCard = screen.getByTestId("home-project-type-card-screenplay");
+    expect(dramaCard).toHaveAttribute("aria-busy", "false");
+    expect(screen.queryByTestId("home-project-type-card-opening")).not.toBeInTheDocument();
+
+    fireEvent.click(dramaCard);
+
+    expect(dramaCard).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByTestId("home-project-type-card-opening")).toHaveTextContent("home:projectTypes.opening");
+    expect(screen.getByTestId("home-project-type-card-novel")).toHaveAttribute("aria-busy", "false");
+    localStorage.removeItem(PREFERRED_PROJECT_TYPE_STORAGE_KEY);
+  });
+
   it("falls back to login entry while keeping source attribution when registration is disabled", () => {
     setupMatchMedia(true);
     mockAuthConfig.registrationEnabled = false;

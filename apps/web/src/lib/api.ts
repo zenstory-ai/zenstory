@@ -34,6 +34,7 @@ import type {
 import { api, ApiError, apiErrorFromPayload, tryRefreshToken, getAccessToken, getApiBase, resolveOwnedAuthSession } from "./apiClient";
 import { resolveApiErrorMessage } from "./errorHandler";
 import { getLocale } from "./i18n-helpers";
+import { parseContentDispositionFilename } from "./contentDisposition";
 import { logger } from "./logger";
 import { captureException, trackEvent } from "./analytics";
 
@@ -357,20 +358,9 @@ export const exportApi = {
     const disposition = response.headers.get("Content-Disposition");
     const locale = getLocale();
     const exportFilename = locale === 'en' ? 'Export' : '导出';
-    let filename = `${exportFilename}.txt`;
-    if (disposition) {
-      // Try RFC 5987 format: filename*=UTF-8''encoded_name
-      const rfc5987Match = disposition.match(/filename\*=UTF-8''(.+)/);
-      if (rfc5987Match) {
-        filename = decodeURIComponent(rfc5987Match[1]);
-      } else {
-        // Try standard format: filename="name"
-        const standardMatch = disposition.match(/filename="?([^"]+)"?/);
-        if (standardMatch) {
-          filename = standardMatch[1];
-        }
-      }
-    }
+    // The server names the file `{项目名}_正文.txt`; the generic name is only
+    // for a response without a readable Content-Disposition.
+    const filename = parseContentDispositionFilename(disposition) ?? `${exportFilename}.txt`;
 
     // Trigger browser download
     const blob = await response.blob();
@@ -1581,17 +1571,8 @@ export const skillsApi = {
   exportSkill: async (id: string, skillName: string): Promise<void> => {
     const response = await fetchSkillPackage(`/api/v1/skills/${id}/export`);
 
-    let filename = `${skillName}.zip`;
-    const disposition = response.headers.get("Content-Disposition");
-    if (disposition) {
-      const rfc5987Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
-      const standardMatch = disposition.match(/filename="?([^";]+)"?/i);
-      if (rfc5987Match) {
-        filename = decodeURIComponent(rfc5987Match[1]);
-      } else if (standardMatch) {
-        filename = standardMatch[1];
-      }
-    }
+    const filename =
+      parseContentDispositionFilename(response.headers.get("Content-Disposition")) ?? `${skillName}.zip`;
 
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);

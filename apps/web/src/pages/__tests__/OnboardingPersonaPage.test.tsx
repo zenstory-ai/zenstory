@@ -122,6 +122,8 @@ describe("OnboardingPersonaPage", () => {
       required: false,
       profile: {
         ...payload,
+        // Mirrors the server default for an unanswered experience question.
+        experience_level: payload.experience_level ?? "beginner",
         version: 1,
         completed_at: "2026-03-08T00:00:00.000Z",
       },
@@ -281,9 +283,61 @@ describe("OnboardingPersonaPage", () => {
     fireEvent.click(goal);
     expect(goal).toHaveAttribute("aria-pressed", "true");
 
-    expect(screen.getByRole("radio", { name: /beginner/i })).toHaveAttribute("aria-checked", "true");
+    // A first visit does not preselect any experience level.
+    for (const level of [/beginner/i, /intermediate/i, /advanced/i]) {
+      expect(screen.getByRole("radio", { name: level })).toHaveAttribute("aria-checked", "false");
+    }
     fireEvent.click(screen.getByRole("radio", { name: /advanced/i }));
     expect(screen.getByRole("radio", { name: /advanced/i })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("does not send an experience level the author never picked", async () => {
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: /explorer/i }));
+    fireEvent.click(screen.getByRole("button", { name: "保存并进入工作台" }));
+
+    await waitFor(() => expect(mockSave).toHaveBeenCalledTimes(1));
+    expect(mockSave.mock.calls[0][0]).not.toHaveProperty("experience_level");
+  });
+
+  it("explains why save is disabled instead of silently ignoring the click", () => {
+    renderPage();
+
+    const submitButton = screen.getByRole("button", { name: "保存并进入工作台" });
+    expect(submitButton).toBeDisabled();
+    const reason = screen.getByTestId("onboarding-submit-reason");
+    expect(reason).toHaveTextContent("先选一个创作者类型，或点「跳过」");
+    expect(submitButton).toHaveAttribute("aria-describedby", "onboarding-submit-reason");
+
+    fireEvent.click(screen.getByRole("button", { name: /explorer/i }));
+    expect(submitButton).toBeEnabled();
+    expect(screen.queryByTestId("onboarding-submit-reason")).not.toBeInTheDocument();
+  });
+
+  it("saves once when the save button is double-clicked", async () => {
+    let resolveSave: (value: unknown) => void = () => {};
+    mockSave.mockImplementationOnce(
+      (payload) =>
+        new Promise((resolve) => {
+          resolveSave = () =>
+            resolve({
+              required: false,
+              profile: { ...payload, experience_level: "beginner", version: 1, completed_at: "2026-03-08T00:00:00.000Z" },
+            });
+        }),
+    );
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: /explorer/i }));
+    const submitButton = screen.getByRole("button", { name: "保存并进入工作台" });
+    fireEvent.click(submitButton);
+    fireEvent.click(submitButton);
+
+    await waitFor(() => expect(mockSave).toHaveBeenCalledTimes(1));
+    resolveSave(undefined);
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledTimes(1));
+    expect(mockSave).toHaveBeenCalledTimes(1);
   });
   it("previews the fanfic, studio and chapter-review recommendations an author picked", () => {
     mockDashboardOnboardingFlags.todayActionPlanEnabled = true;
@@ -294,6 +348,8 @@ describe("OnboardingPersonaPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /fanfic/i }));
     fireEvent.click(screen.getByRole("button", { name: /studio/i }));
     fireEvent.click(screen.getByRole("button", { name: /improveQuality/i }));
+    // The experience tip appears once a level is picked (none is preselected).
+    fireEvent.click(screen.getByRole("radio", { name: /intermediate/i }));
 
     const previewList = screen.getByText("整理角色与设定，AI 写作时参考").closest("ul");
     expect(previewList).not.toBeNull();
