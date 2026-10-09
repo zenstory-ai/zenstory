@@ -280,6 +280,32 @@ export const authApi = {
   },
 };
 
+export interface DraftExportResult {
+  /** Filename from Content-Disposition, or null when the header was unreadable. */
+  filename: string | null;
+  /**
+   * Whether the server put the outline in the file, read from its filename
+   * (`{项目名}_大纲和正文.txt` vs `{项目名}_正文.txt`). An API that predates
+   * `include_outline` ignores the flag and still answers `_正文.txt`, so the
+   * caller must not promise an outline it did not get. null = unknown.
+   */
+  includesOutline: boolean | null;
+  /**
+   * The outline was asked for but the work has none written yet
+   * (`{项目名}_正文（暂无大纲）.txt`), as opposed to an old API skipping it.
+   */
+  noOutlineYet: boolean;
+}
+
+export function exportFilenameIncludesOutline(filename: string | null): boolean | null {
+  if (!filename) return null;
+  return /_大纲和正文\.txt$/.test(filename);
+}
+
+export function exportFilenameHasNoOutlineYet(filename: string | null): boolean {
+  return !!filename && /_正文（暂无大纲）\.txt$/.test(filename);
+}
+
 /**
  * Export API endpoints.
  *
@@ -310,7 +336,7 @@ export const exportApi = {
    * // Browser will download a file named "{ProjectName}_drafts.txt"
    * ```
    */
-  exportDrafts: async (projectId: string, options: { includeOutline?: boolean } = {}): Promise<void> => {
+  exportDrafts: async (projectId: string, options: { includeOutline?: boolean } = {}): Promise<DraftExportResult> => {
     const query = options.includeOutline ? "?include_outline=true" : "";
     const entryAccess = getAccessToken();
     const entryRefresh = localStorage.getItem("refresh_token");
@@ -362,7 +388,8 @@ export const exportApi = {
     const exportFilename = locale === 'en' ? 'Export' : '导出';
     // The server names the file `{项目名}_正文.txt`; the generic name is only
     // for a response without a readable Content-Disposition.
-    const filename = parseContentDispositionFilename(disposition) ?? `${exportFilename}.txt`;
+    const serverFilename = parseContentDispositionFilename(disposition);
+    const filename = serverFilename ?? `${exportFilename}.txt`;
 
     // Trigger browser download
     const blob = await response.blob();
@@ -374,6 +401,12 @@ export const exportApi = {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+
+    return {
+      filename: serverFilename,
+      includesOutline: exportFilenameIncludesOutline(serverFilename),
+      noOutlineYet: exportFilenameHasNoOutlineYet(serverFilename),
+    };
   },
 };
 

@@ -162,15 +162,15 @@ export function ChapterCompletionCard({
         <div className="flex items-center gap-4 mt-3 text-xs text-[hsl(var(--text-secondary))]">
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span>{completionData.completed_chapters} {t('statistics.chapterCompletion.finished')}</span>
+            <span>{t(statsUnitKey(stats, 'countFinished'), { count: completionData.completed_chapters })}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-amber-500" />
-            <span>{completionData.in_progress_chapters} {t('statistics.chapterCompletion.inProgress')}</span>
+            <span>{t(statsUnitKey(stats, 'countInProgress'), { count: completionData.in_progress_chapters })}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-[hsl(var(--text-secondary)/0.4)]" />
-            <span>{completionData.not_started_chapters} {t('statistics.chapterCompletion.planned')}</span>
+            <span>{t(statsUnitKey(stats, 'countPlanned'), { count: completionData.not_started_chapters })}</span>
           </div>
         </div>
       </div>
@@ -188,7 +188,12 @@ export function ChapterCompletionCard({
                 className="flex items-center gap-3 p-2.5 rounded-lg bg-[hsl(var(--bg-tertiary)/0.5)] hover:bg-[hsl(var(--bg-tertiary))] transition-colors group"
               >
                 {/* Status Icon */}
-                <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${statusDisplay.bgClass}`}>
+                <div
+                  role="img"
+                  aria-label={statusDisplay.label}
+                  title={statusDisplay.label}
+                  className={`flex h-7 w-7 items-center justify-center rounded-lg ${statusDisplay.bgClass}`}
+                >
                   <StatusIcon
                     className={`w-3.5 h-3.5 ${statusDisplay.colorClass} ${
                       chapter.status === 'in_progress' ? 'animate-spin' : ''

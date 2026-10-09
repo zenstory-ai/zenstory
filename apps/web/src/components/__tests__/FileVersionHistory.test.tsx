@@ -1,9 +1,11 @@
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react'
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-const { getVersions, getVersionContent, rollback, compare, toastError, upgradeModal, translator } = vi.hoisted(() => ({
+import { describe, it, expect, vi, beforeEach, afterEach, onTestFinished } from 'vitest'
+const { getVersions, getVersionContent, rollback, compare, toastError, upgradeModal, translator, viewport } = vi.hoisted(() => ({
   getVersions: vi.fn(), getVersionContent: vi.fn(), rollback: vi.fn(), compare: vi.fn(),
   toastError: vi.fn(), upgradeModal: vi.fn(), translator: { current: (key: string) => key },
+  viewport: { isMobile: true },
 }))
+vi.mock('../../hooks/useMediaQuery', () => ({ useIsMobile: () => viewport.isMobile }))
 vi.mock('../../lib/api', () => ({ fileVersionApi: { getVersions, getVersionContent, rollback, compare } }))
 vi.mock('../../lib/toast', () => ({ toast: { error: toastError, success: vi.fn(), info: vi.fn() } }))
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: translator.current }) }))
@@ -394,6 +396,60 @@ describe('FileVersionHistory saved-state boundary', () => {
     fireEvent.click(screen.getByRole('button', { name: 'closePreview' }))
     await waitFor(() => expect(screen.queryByTestId('version-preview')).not.toBeInTheDocument())
     expect(list).not.toHaveClass('hidden')
+  })
+
+  it('returns to the same place in the list after closing a preview on a phone', async () => {
+    getVersions.mockResolvedValue({ total: 2, versions: [version(3), version(2)] })
+    getVersionContent.mockResolvedValue({ content: 'Historical draft body' })
+    render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} />)
+    const list = await screen.findByTestId('version-list')
+    const rows = screen.getByTestId('version-list-rows')
+
+    // The author scrolled down the history before opening an old version.
+    list.scrollTop = 120
+    fireEvent.scroll(list)
+    rows.scrollTop = 480
+    fireEvent.scroll(rows)
+
+    fireEvent.click(screen.getAllByTitle('viewContent')[0])
+    await screen.findByTestId('version-preview')
+    // display:none drops the scroll position in a real browser.
+    list.scrollTop = 0
+    rows.scrollTop = 0
+
+    fireEvent.click(screen.getByRole('button', { name: 'closePreview' }))
+    await waitFor(() => expect(screen.queryByTestId('version-preview')).not.toBeInTheDocument())
+    expect(list.scrollTop).toBe(120)
+    expect(rows.scrollTop).toBe(480)
+  })
+
+  it('keeps where the author scrolled beside an open preview on a wide screen', async () => {
+    // 768px and up: the list stays visible next to the preview.
+    viewport.isMobile = false
+    onTestFinished(() => { viewport.isMobile = true })
+    getVersions.mockResolvedValue({ total: 2, versions: [version(3), version(2)] })
+    getVersionContent.mockResolvedValue({ content: 'Historical draft body' })
+    render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} />)
+    const list = await screen.findByTestId('version-list')
+    const rows = screen.getByTestId('version-list-rows')
+
+    list.scrollTop = 40
+    fireEvent.scroll(list)
+    rows.scrollTop = 120
+    fireEvent.scroll(rows)
+
+    fireEvent.click(screen.getAllByTitle('viewContent')[0])
+    await screen.findByTestId('version-preview')
+    // Browsing further down the still-visible list while the preview is open.
+    list.scrollTop = 60
+    fireEvent.scroll(list)
+    rows.scrollTop = 900
+    fireEvent.scroll(rows)
+
+    fireEvent.click(screen.getByRole('button', { name: 'closePreview' }))
+    await waitFor(() => expect(screen.queryByTestId('version-preview')).not.toBeInTheDocument())
+    expect(list.scrollTop).toBe(60)
+    expect(rows.scrollTop).toBe(900)
   })
 })
 

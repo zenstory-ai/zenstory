@@ -612,6 +612,7 @@ export default function SkillsPage() {
           selectedCategory={selectedCategory}
           setSelectedCategory={setSelectedCategory}
           searchQuery={searchInput}
+          appliedSearchQuery={searchQuery}
           setSearchQuery={setSearchInput}
           onSearchCompositionChange={setIsSearchComposing}
           loading={discoverLoading}
@@ -1358,6 +1359,7 @@ function DiscoverContent({
   selectedCategory,
   setSelectedCategory,
   searchQuery,
+  appliedSearchQuery,
   setSearchQuery,
   onSearchCompositionChange,
   loading,
@@ -1375,6 +1377,8 @@ function DiscoverContent({
   selectedCategory: string;
   setSelectedCategory: (cat: string) => void;
   searchQuery: string;
+  /** The debounced query the current results were loaded with. */
+  appliedSearchQuery: string;
   setSearchQuery: (q: string) => void;
   onSearchCompositionChange: (composing: boolean) => void;
   loading: boolean;
@@ -1431,7 +1435,8 @@ function DiscoverContent({
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[hsl(var(--accent-primary))]" />
         </div>
       ) : publicSkills.length === 0 ? (
-        searchQuery.trim() || selectedCategory ? (
+        // Decide on the query these results came from, not the text still in its debounce window.
+        appliedSearchQuery.trim() || selectedCategory ? (
           <DashboardEmptyState
             icon={Compass}
             title={t("noSkillsFound")}

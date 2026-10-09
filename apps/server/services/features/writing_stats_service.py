@@ -144,6 +144,13 @@ class WritingStatsService:
         result += temp
         return result if result > 0 else 0
 
+    _WHOLE_BOOK_COUNT_RE = re.compile(
+        r"^(?P<count>\d+)\s*[章集回话]\s*(?:的)?\s*(?P<scope>分集|分章|全书|全剧|整体|故事)?\s*"
+        r"(?P<kind>大纲|总纲|梗概|目录|规划)"
+    )
+    # A bare 「N集大纲」 below this is read as that episode's own outline.
+    _WHOLE_BOOK_MIN_BARE_COUNT = 10
+
     def _extract_chapter_number(self, title: str | None) -> int | None:
         """
         Extract chapter (or episode) number from title.
@@ -152,25 +159,37 @@ class WritingStatsService:
         - 第一章 / 第二集 / 第三回 (Chinese numerals; 章、集、回、节、话)
         - 第1章 / 第2集 (Arabic numerals)
         - Chapter 1 / Episode 2 / Ep. 3
-        - 1xxx / 2xxx (plain leading numbers)
+        - 1xxx / 2xxx (plain leading numbers), except a book length such as
+          「60集分集大纲」on a whole-book outline
         """
         if not title:
             return None
 
-        chinese_match = re.search(r"第([零一二三四五六七八九十百千]+)[章集回节话]", title)
-        if chinese_match:
-            parsed = self._parse_chinese_number(chinese_match.group(1))
+        # The leftmost 第N章/集/回/节/话 wins, whether N is Arabic or Chinese:
+        # 「第12章 第一节课」is chapter 12, not the「第一节」inside the title.
+        ordinal_match = re.search(r"第\s*(\d+|[零一二三四五六七八九十百千]+)\s*[章集回节话]", title)
+        if ordinal_match:
+            value = ordinal_match.group(1)
+            parsed = int(value) if value.isdigit() else self._parse_chinese_number(value)
             return parsed if parsed > 0 else None
-
-        arabic_match = re.search(r"第\s*(\d+)\s*[章集回节话]", title)
-        if arabic_match:
-            return int(arabic_match.group(1))
 
         english_match = re.match(r"^\s*(?:chapter|episode|ep\.?)\s*(\d+)", title, re.IGNORECASE)
         if english_match:
             return int(english_match.group(1))
 
-        leading_num_match = re.match(r"^(\d+)", title.strip())
+        stripped_title = title.strip()
+        # 「60集分集大纲」「100章总纲」: a leading count of episodes/chapters on a
+        # whole-book outline is its length, not a chapter number. A bare small
+        # 「1集大纲」「3集大纲」 is that episode's own outline and keeps its number.
+        book_count = self._WHOLE_BOOK_COUNT_RE.match(stripped_title)
+        if book_count and (
+            book_count.group("scope")
+            or book_count.group("kind") != "大纲"
+            or int(book_count.group("count")) >= self._WHOLE_BOOK_MIN_BARE_COUNT
+        ):
+            return None
+
+        leading_num_match = re.match(r"^(\d+)", stripped_title)
         if leading_num_match:
             return int(leading_num_match.group(1))
 

@@ -1032,6 +1032,11 @@ describe('SkillsPage', () => {
 
       fireEvent.change(screen.getByTestId('public-skill-search'), { target: { value: '不存在' } })
 
+      // Still inside the debounce window: these results are for the empty query,
+      // so they must not be described as a failed search for 「不存在」.
+      expect(screen.queryByText('No skills found')).not.toBeInTheDocument()
+      expect(screen.getByText('noDiscoverableSkills')).toBeInTheDocument()
+
       expect(await screen.findByText('No skills found')).toBeInTheDocument()
       expect(screen.queryByText('noDiscoverableSkills')).not.toBeInTheDocument()
     })

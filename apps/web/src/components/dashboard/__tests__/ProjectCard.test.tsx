@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { ProjectCard } from '../ProjectCard'
 import type { Project, ProjectProgress } from '../../../types'
 
+const { mockToastInfo } = vi.hoisted(() => ({ mockToastInfo: vi.fn() }))
+vi.mock('../../../lib/toast', () => ({ toast: { info: mockToastInfo, success: vi.fn(), error: vi.fn() } }))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: Record<string, unknown>) =>
@@ -12,6 +15,7 @@ vi.mock('react-i18next', () => ({
           'projects.deleteProject': 'Delete project',
           'projectType.novel.name': 'Novel',
           'dashboard:projectProgress.chapters': 'chapters written',
+          'editor:wordCountHint': 'Counts Chinese characters and English words only',
         } as Record<string, string>
       )[key] ?? key,
     i18n: { language: 'zh' },
@@ -68,6 +72,26 @@ describe('ProjectCard', () => {
 
     expect(onDelete).toHaveBeenCalledTimes(1)
     expect(onOpen).not.toHaveBeenCalled()
+  })
+
+  it('explains the word count on tap without opening the project', () => {
+    const { onOpen } = renderCard()
+
+    const words = screen.getByTestId('project-progress-words')
+    expect(words.tagName).toBe('BUTTON')
+    expect(words).toHaveAttribute('title', 'Counts Chinese characters and English words only')
+    fireEvent.click(words)
+
+    expect(mockToastInfo).toHaveBeenCalledWith('Counts Chinese characters and English words only')
+    expect(onOpen).not.toHaveBeenCalled()
+  })
+
+  it('keeps the outline-ready nudge as plain text, since it has no count to explain', () => {
+    const { onOpen, card } = renderCard({}, { project_id: 'p1', written_units: 0, word_count: 0, framework_ready: true })
+
+    expect(screen.queryByTestId('project-progress-words')).toBeNull()
+    fireEvent.click(within(card).getByTestId('project-progress'))
+    expect(onOpen).toHaveBeenCalledTimes(1)
   })
 
   it('opens the project with Enter on the card itself', () => {

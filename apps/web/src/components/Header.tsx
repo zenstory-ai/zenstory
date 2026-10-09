@@ -122,8 +122,18 @@ export const Header: React.FC<HeaderProps> = () => {
     if (!currentProjectId) return;
     try {
       if (includeOutline) {
-        await exportDrafts({ includeOutline: true });
-        toast.success(t('editor:header.exportWithOutlineSuccess', '大纲和正文已导出为 TXT 文件'));
+        const result = await exportDrafts({ includeOutline: true });
+        // Only promise the outline when the file name says it is in there: an API
+        // deployed before include_outline ignores it and sends the text only.
+        if (result?.includesOutline === true) {
+          toast.success(t('editor:header.exportWithOutlineSuccess', '大纲和正文已导出为 TXT 文件'));
+        } else if (result?.noOutlineYet) {
+          toast.info(t('editor:header.exportNoOutlineYet', '这部作品还没有写好的大纲，这次导出了正文'));
+        } else if (result?.includesOutline === false) {
+          toast.info(t('editor:header.exportOutlineSkipped', '这次只导出了正文，大纲没能一起导出，请过几分钟再试'));
+        } else {
+          toast.success(t('editor:header.exportDone', '已导出为 TXT 文件'));
+        }
       } else {
         await exportDrafts();
         toast.success(t('editor:header.exportSuccess', '正文已导出为 TXT 文件'));

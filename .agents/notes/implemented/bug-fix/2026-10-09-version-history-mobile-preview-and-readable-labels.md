@@ -13,7 +13,7 @@ PR #163 新用户审计（2026-10-09，`shots/shortstory-35-history.png`、`shor
 
 ## Decision
 
-- **手机整屏预览**：`FileVersionHistory` 打开预览或对比时，版本列表在 768px 以下隐藏（`hidden md:block md:w-1/3`），预览/对比占满弹窗（`w-full md:w-2/3`）；关掉预览回到列表。768px 及以上保持左右分栏。预览头部加「恢复到此版本」，看完内容可以直接恢复，仍走原来的应用内确认框。
+- **手机整屏预览**：`FileVersionHistory` 打开预览或对比时，版本列表在 768px 以下隐藏（`hidden md:block md:w-1/3`），预览/对比占满弹窗（`w-full md:w-2/3`）；关掉预览回到列表，并回到原来的滚动位置（列表隐藏时浏览器会把滚动位置清零，所以平时随滚动记下外层和内层两个滚动容器的位置，列表重新显示时在绘制前恢复；换文件时清零）。只有窄屏（`useIsMobile`，768px 以下）才把列表当作隐藏：768px 及以上保持左右分栏，列表在预览旁边一直可见，作者在预览打开时继续滚动的位置照常记下，关掉预览后列表停在当时的位置，不会跳回第一次打开预览前。预览头部加「恢复到此版本」，看完内容可以直接恢复，仍走原来的应用内确认框。
 - **审阅后保存**：`change_type=ai_edit` 且 `change_source=user` 的版本，徽标显示「审阅后保存」（`versions:types.reviewed`）；AI 自己写入的（`change_source=ai`）仍是「AI 编辑」。服务端写入的类型与说明不变，只改显示。
 - **说明改为处数**：`AI 编辑: <操作列表>[ 等 N 处修改]` 显示为「AI 改了 N 处」：有「等 N 处」用 N，否则数列出的操作个数。认不出的操作名也照样计数，不再整行隐藏。`versions:summary.aiEditOps/aiEditOpsMore/opsSeparator/ops.*` 删除，新增 `versions:summary.aiEditCount`。
 - 顺带把该组件里几个英文 `defaultValue` 改成与 zh 文案一致。
@@ -31,4 +31,4 @@ PR #163 新用户审计（2026-10-09，`shots/shortstory-35-history.png`、`shor
 
 ## Verification
 
-- `pnpm --dir apps/web exec vitest run src/components/__tests__/FileVersionHistory.test.tsx src/lib/__tests__/versionSummary.test.ts src/components/__tests__/VersionHistoryPanel.test.tsx`：预览打开时列表在窄屏隐藏、预览占满、从预览发起恢复弹出确认、关闭后列表回来；审阅后保存的版本显示「审阅后保存」而 AI 写入的仍是「AI 编辑」；「替换、替换、替换」显示为「AI 改了 3 处」，中英文 locale 一致。
+- `pnpm --dir apps/web exec vitest run src/components/__tests__/FileVersionHistory.test.tsx src/lib/__tests__/versionSummary.test.ts src/components/__tests__/VersionHistoryPanel.test.tsx`：预览打开时列表在窄屏隐藏、预览占满、从预览发起恢复弹出确认、关闭后列表回来且回到关闭前的滚动位置；宽屏下预览打开时继续滚动列表，关闭后保持新的位置（改用屏宽判断前这条失败：回到 40 而不是 60）；审阅后保存的版本显示「审阅后保存」而 AI 写入的仍是「AI 编辑」；「替换、替换、替换」显示为「AI 改了 3 处」，中英文 locale 一致。

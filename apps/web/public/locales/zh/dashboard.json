@@ -551,7 +551,16 @@
         "notStartedDesc": "这一章还没开始写",
         "notStartedCount": "章还没开始",
         "outlineWithoutDraftCount": "章待写正文",
-        "more": "还有 {{count}} 章"
+        "more": "还有 {{count}} 章",
+        "countFinished": "{{count}} 章已完成",
+        "countFinished_one": "{{count}} 章已完成",
+        "countFinished_other": "{{count}} 章已完成",
+        "countInProgress": "{{count}} 章写作中",
+        "countInProgress_one": "{{count}} 章写作中",
+        "countInProgress_other": "{{count}} 章写作中",
+        "countPlanned": "{{count}} 章还没开始",
+        "countPlanned_one": "{{count}} 章还没开始",
+        "countPlanned_other": "{{count}} 章还没开始"
       },
       "short": {
         "completionTitle": "完成情况",
@@ -566,7 +575,16 @@
         "notStartedDesc": "这一篇还没开始写",
         "notStartedCount": "篇还没开始",
         "outlineWithoutDraftCount": "篇待写正文",
-        "more": "还有 {{count}} 篇"
+        "more": "还有 {{count}} 篇",
+        "countFinished": "{{count}} 篇已完成",
+        "countFinished_one": "{{count}} 篇已完成",
+        "countFinished_other": "{{count}} 篇已完成",
+        "countInProgress": "{{count}} 篇写作中",
+        "countInProgress_one": "{{count}} 篇写作中",
+        "countInProgress_other": "{{count}} 篇写作中",
+        "countPlanned": "{{count}} 篇还没开始",
+        "countPlanned_one": "{{count}} 篇还没开始",
+        "countPlanned_other": "{{count}} 篇还没开始"
       },
       "screenplay": {
         "completionTitle": "剧集完成",
@@ -581,7 +599,16 @@
         "notStartedDesc": "这一集还没开始写",
         "notStartedCount": "集还没开始",
         "outlineWithoutDraftCount": "集待写剧本",
-        "more": "还有 {{count}} 集"
+        "more": "还有 {{count}} 集",
+        "countFinished": "{{count}} 集已完成",
+        "countFinished_one": "{{count}} 集已完成",
+        "countFinished_other": "{{count}} 集已完成",
+        "countInProgress": "{{count}} 集写作中",
+        "countInProgress_one": "{{count}} 集写作中",
+        "countInProgress_other": "{{count}} 集写作中",
+        "countPlanned": "{{count}} 集还没开始",
+        "countPlanned_one": "{{count}} 集还没开始",
+        "countPlanned_other": "{{count}} 集还没开始"
       }
     }
   },
