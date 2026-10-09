@@ -23,9 +23,10 @@ from sqlmodel import Session, col, select, update
 from agent.constants import CONTENT_FILE_TYPES
 from config.datetime_utils import utcnow
 from models.entities import ChatMessage, ChatSession
-from models.file_model import FILE_TYPE_OUTLINE, File, cached_word_count, stamp_word_count
+from models.file_model import FILE_TYPE_OUTLINE, WORD_COUNT_REV, File, cached_word_count
 from models.writing_stats import WritingStats, WritingStreak
 from utils.logger import get_logger, log_with_context
+from utils.text_metrics import count_words
 
 logger = get_logger(__name__)
 
@@ -70,8 +71,11 @@ def resolve_prose_word_counts(session: Session, files: list[File], **log_fields:
     """Editor word count per file id: trust the current-revision cache, recompute the rest.
 
     ``files`` may be loaded with only ``id`` and ``file_metadata``. Files whose cache is
-    missing or from an older counting revision are reloaded with content, stamped and
-    committed once; a failed backfill commit is logged and the computed counts returned.
+    missing or from an older counting revision are reloaded with content and recounted.
+    The backfill is written back only if the row still holds the content and metadata
+    it was counted from, so it never overwrites a save that landed in between (that
+    save stamps its own count); a failed backfill commit is logged and the computed
+    counts returned.
     """
     counts: dict[str, int] = {}
     stale_ids: list[str] = []
@@ -83,10 +87,32 @@ def resolve_prose_word_counts(session: Session, files: list[File], **log_fields:
             counts[file.id] = cached
     if not stale_ids:
         return counts
-    for file in session.exec(select(File).where(col(File.id).in_(stale_ids))).all():
-        counts[file.id] = stamp_word_count(file)
-        session.add(file)
+    stale_rows = session.exec(
+        select(File.id, File.content, File.file_metadata).where(col(File.id).in_(stale_ids))
+    ).all()
     try:
+        for file_id, content, raw_metadata in stale_rows:
+            word_count = count_words(content)
+            counts[file_id] = word_count
+            try:
+                parsed = json_module.loads(raw_metadata) if raw_metadata else {}
+            except (TypeError, ValueError):
+                parsed = {}
+            metadata: dict[str, Any] = parsed if isinstance(parsed, dict) else {}
+            metadata["word_count"] = word_count
+            metadata["word_count_rev"] = WORD_COUNT_REV
+            session.exec(
+                update(File)
+                .where(
+                    col(File.id) == file_id,
+                    col(File.content).is_(None) if content is None else col(File.content) == content,
+                    col(File.file_metadata).is_(None)
+                    if raw_metadata is None
+                    else col(File.file_metadata) == raw_metadata,
+                )
+                .values(file_metadata=json_module.dumps(metadata))
+                .execution_options(synchronize_session=False)
+            )
         session.commit()
     except Exception as exc:  # pragma: no cover - infra dependent
         session.rollback()

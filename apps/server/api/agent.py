@@ -114,6 +114,11 @@ class _RunningStream:
 # 停止请求落到别的进程（如发布交接期间）时找不到运行，前端随即断开，按断线结算。
 _running_streams: dict[tuple[str, str], _RunningStream] = {}
 
+# 认识停止约定（/stop、quota_refunded.removed_files、断线终态）的前端在 /stream 请求上带
+# 这个头。发布前打开的旧标签页不带：它断线时照旧只补存部分历史，不移除空白文件、
+# 不写空的助手消息——它收不到 removed_files，文件树里会留着已删除的章节。
+CLIENT_STOP_CONTRACT_HEADER = "X-Client-Stop-Contract"
+
 
 # 「按登录用户限流」的依赖构造器现已下沉到 middleware.rate_limit，
 # 供本 router 与 api/editor.py（/natural-polish 同样直连 LLM）共用同一份实现。
@@ -351,6 +356,7 @@ async def stream_request(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
     accept_language: str | None = Header(None, alias="Accept-Language"),
+    client_stop_contract: str | None = Header(None, alias=CLIENT_STOP_CONTRACT_HEADER),
     _rate_limit: int = Depends(
         require_user_rate_limit(
             "agent_stream",
@@ -372,6 +378,7 @@ async def stream_request(
     """
     service = get_agent_service()
     user_id = current_user.id
+    knows_stop_contract = isinstance(client_stop_contract, str) and client_stop_contract.strip() == "1"
     message_preview = body.message[:100] + "..." if len(body.message) > 100 else body.message
 
     # Verify project access first to avoid charging quota for unauthorized/invalid projects
@@ -690,7 +697,7 @@ async def stream_request(
             user_stopped = pump.stop_requested
             if user_stopped:
                 run_outcome.stop_kind = STOP_KIND_USER_STOPPED
-            elif not tracker.saw_terminal_event:
+            elif not tracker.saw_terminal_event and knows_stop_contract:
                 run_outcome.stop_kind = STOP_KIND_CLIENT_DISCONNECTED
             pump.cancel()
             raise
@@ -760,7 +767,10 @@ async def stream_request(
                 detached=client_disconnected
             )
             # 终止帧（done 等）之后才断开的一轮已经正常结束：不写「已中断」终态。
-            if user_stopped or (client_disconnected and not tracker.saw_terminal_event):
+            # 旧前端（不带停止约定头）断线：照旧只补存部分历史，不写终态、不移除文件。
+            if user_stopped or (
+                client_disconnected and not tracker.saw_terminal_event and knows_stop_contract
+            ):
                 _schedule_round_outcome(refund_applied)
 
             # 每次 run 一行结构化摘要：模型、token、调用次数、LLM 耗时、结束原因、计费。
@@ -785,6 +795,7 @@ async def stream_request(
                 runaway_stop=tracker.runaway_stop,
                 user_stopped=user_stopped,
                 client_disconnected=client_disconnected,
+                client_stop_contract=knows_stop_contract,
                 first_output_ms=tracker.first_output_ms,
                 unexpected_exception=unexpected_exception,
                 deadline_exceeded=deadline_exceeded,

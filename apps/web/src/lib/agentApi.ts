@@ -36,6 +36,9 @@ import i18n from "./i18n";
 import { createAgentStreamTelemetry, type AgentStreamTelemetry } from "./agentStreamTelemetry";
 
 const TRACE_ID_HEADER = "X-Trace-ID";
+// 告诉后端这个前端认识停止约定（/agent/stop、quota_refunded.removed_files、断线终态）。
+// 发布前打开的旧标签页不带它，后端对它的断线不移除空白文件、不写空的助手消息。
+const CLIENT_STOP_CONTRACT_HEADER = "X-Client-Stop-Contract";
 
 const generateTraceId = (): string => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -346,6 +349,7 @@ export function streamAgentRequest(
           "Accept-Language": language,
           Accept: "text/event-stream",
           [TRACE_ID_HEADER]: traceId,
+          [CLIENT_STOP_CONTRACT_HEADER]: "1",
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
         body: JSON.stringify({
