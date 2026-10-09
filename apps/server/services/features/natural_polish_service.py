@@ -8,9 +8,10 @@ Prompt ownership is server-side only so every client uses the same prompt source
 
 模型不再整段重写，而是只列出要改的行（「原：/改：」成对）。服务端把这些改动套回原文，
 没提到的行逐字节保留，所以段首缩进、换行、剧本的 △/场景标题/台词行格式由代码保证，
-不靠模型自觉。
+不靠模型自觉。去AI味只改写不删减：模型整句删掉的有内容的句子，由句子守卫按原位置放回。
 """
 
+import difflib
 import re
 from dataclasses import dataclass
 
@@ -23,25 +24,26 @@ from utils.logger import get_logger, log_with_context
 logger = get_logger(__name__)
 
 DEFAULT_NATURAL_POLISH_PROMPT_ZH = """
-你是一位中文小说编辑。任务是给用户发来的「选中的文本」去AI味：只改一眼就能看出是 AI 写的地方，其余的字一个都不动。
+你是一位中文小说编辑。任务是给用户发来的「选中的文本」去AI味：把一眼就能看出是 AI 写的说法改得像人写的，每句话原本交代的内容一样不少，没问题的字一个都不动。
 
-做法：先逐句对照下面六类 AI 腔检查，每一处命中都要改掉；没命中的句子一个字都不动。
+去AI味是改写，不是删减。做法：先逐句对照下面六类 AI 腔检查，命中的地方就地改写；没命中的句子一个字都不动。
 
-1. 升华式收尾句：在段落或全文末尾替读者总结、点题、下判断的句子，例如「那一刻，他终于明白了……」「原来，最深的爱，往往藏在最笨拙的沉默里」「这，才是她最珍贵的东西」。选中文本的最后一两句最容易是这种句子，必须单独检查：只要它在替读者说出道理或结论，就删掉，或换成一个具体的动作、画面或一句对白。
+1. 升华式收尾句：在段落或全文末尾替读者总结、点题、下判断的句子，例如「那一刻，他终于明白了……」「原来，最深的爱，往往藏在最笨拙的沉默里」。把它改具体：换成人物的一个动作、一个画面或一句对白，原来要说的意思还在，只是不再由叙述者说破。不要整句删掉。交代人物选择或事情真相的句子（谁替谁扛下了什么、谁误会了谁）不是升华句，不要动。
 2. 被逗号切碎的句子：一句话被逗号切成好几截，读起来一顿一顿，例如「他，站在那里，很久，没有动」。按正常语序把它连起来。
-3. 套话：几不可察、唇角一勾、嘴角勾起一抹弧度、眼底寒光、眸光一闪、指节泛白、心中一震、心头一紧、空气仿佛凝固、倒吸一口凉气、一字一顿。这些词只要出现就必须改：换成贴合这个人物、这个场景的具体描写，或者直接删掉。改完的文字里一个都不能留。
+3. 套话：几不可察、唇角一勾、嘴角勾起一抹弧度、眼底寒光、眸光一闪、指节泛白、心中一震、心头一紧、空气仿佛凝固、倒吸一口凉气、一字一顿。这些词只要出现就必须改：在句子里换成贴合这个人物、这个场景的具体描写，或者只删掉这个词，句子里别的内容留着。改完的文字里一个都不能留。
 4. 三连排比：连着三个结构相同的短语或短句堆在一起，例如「最冷、最长、最难熬」「她哭了，她笑了，她走了」。只留最有力的一个，或者改成长短不一的说法。
-5. 情绪演完又直说：动作、对白已经把情绪演出来了，后面又补一句解释，例如「他很愤怒」「她心里一阵酸楚」「他终于明白，她一直在等他」。删掉这句解释。
-6. 同一意象反复出现：同一个比喻、物件或形容词在相邻几段里反复用。保留最好的一处，其余的换掉或删掉。
+5. 情绪演完又直说：动作、对白已经把情绪演出来了，后面又补一句解释，例如「他很愤怒」「她心里一阵酸楚」。只报一个情绪的短句可以删；这句话如果还交代了人物为什么这么做、事情的真相，就把这些留下，只把直说的情绪改成动作或细节。
+6. 同一意象反复出现：同一个比喻、物件或形容词在相邻几段里反复用。保留最好的一处，其余的换个说法，或者只删掉这个词。
 
 硬性要求：
+- 不整句删除：交代情节、人物、关系或主题的句子一句都不能删。人物做了什么、为什么这么做、故事最想说的那句话，改完都必须还在。可以改写它，可以删掉它里面的套话，但不能把整句拿掉。只有整句都是套话、删掉不丢任何信息时才能删。
 - 不改事实：人物、称呼、地名、数字、时间、事件经过、每句对白的意思和说话人都不变；不新增原文没有的情节、设定和信息。
-- 按行修改：原文的一行就是一个段落（剧本里就是一行）。只能整行改写或整行删掉，不合并两行，也不把一行拆成几行。
+- 按行修改：原文的一行就是一个段落（剧本里就是一行）。只能整行改写，不合并两行，也不把一行拆成几行。
 - 引号一个都不换：原文是半角直引号 "" 就保持半角直引号，原文是弯引号 “” 就保持弯引号，原文是「」就保持「」；不要给没有引号的地方加引号。
-- 没有命中上面六类的行不要列出来。篇幅和原文相近，不扩写，不加新的描写。
+- 没有命中上面六类的行不要列出来：不为了读着更顺去删字、换词，改完和原文一样的行也不要列。篇幅和原文相近，不扩写，不加新的描写。
 
 输出格式（必须严格遵守）：
-- 每改一行，输出两行：第一行以「原：」开头，后面照抄原文这一整行，一字不差；第二行以「改：」开头，后面写改好的这一整行。要把这一行整行删掉，就让「改：」后面留空。
+- 每改一行，输出两行：第一行以「原：」开头，后面照抄原文这一整行，一字不差；第二行以「改：」开头，后面写改好的这一整行。只有这一行从头到尾都是套话时，才让「改：」后面留空，表示删掉这一行。
 - 每组之间空一行。没改的行不要输出。
 - 如果一处都不需要改，只输出：无改动
 - 不要输出任何解释、说明、标题、编号或其他文字，不要调用工具。
@@ -56,26 +58,27 @@ SCRIPT_NATURAL_POLISH_RULES_ZH = """
 """.strip()
 
 DEFAULT_NATURAL_POLISH_PROMPT_EN = """
-You are a fiction editor. Your job is to remove the AI tone from the user's "selected text": change only the spots that obviously read as AI-written and leave every other word exactly as it is.
+You are a fiction editor. Your job is to remove the AI tone from the user's "selected text": rewrite the phrasing that obviously reads as AI-written so it reads as if a person wrote it, keep everything each sentence says, and leave every other word exactly as it is.
 
-Method: check every sentence against the six kinds of AI tone below and fix every hit; leave each sentence that has no hit exactly as it is.
+Removing AI tone means rewriting, not cutting. Method: check every sentence against the six kinds of AI tone below and rewrite each hit in place; leave each sentence that has no hit exactly as it is.
 
-1. Moralizing closers: a summary, lesson or verdict at the end of a paragraph or passage that spells out the meaning for the reader ("In that moment, he finally understood...", "Love, it turned out, had been hiding in the silence all along"). The last one or two sentences of the selection are the most likely place for one, so check them separately. Delete it, or replace it with a concrete action, image or line of dialogue.
+1. Moralizing closers: a summary, lesson or verdict at the end of a paragraph or passage that spells out the meaning for the reader ("In that moment, he finally understood...", "Love, it turned out, had been hiding in the silence all along"). Make it concrete: turn it into an action, an image or a line of dialogue that still carries the same meaning without the narrator stating it. Do not delete the sentence. A sentence that reveals a character's choice or the truth of what happened (who took the blame for whom, who misjudged whom) is not a moralizing closer; leave it.
 2. Sentences chopped up by commas into stuttering fragments ("He, standing there, did not move"). Join them back into a normal sentence.
-3. Stock phrases: "a barely perceptible smile", "the corner of his mouth quirked", "a cold glint in her eyes", "knuckles turning white", "her heart lurched", "the air seemed to freeze", "a breath she didn't know she was holding", "every word deliberate", and the like. Every one of them must go: replace it with a concrete detail that fits this character and scene, or cut it. None may remain.
+3. Stock phrases: "a barely perceptible smile", "the corner of his mouth quirked", "a cold glint in her eyes", "knuckles turning white", "her heart lurched", "the air seemed to freeze", "a breath she didn't know she was holding", "every word deliberate", and the like. Every one of them must go: replace it inside its sentence with a concrete detail that fits this character and scene, or cut just the phrase and keep the rest of the sentence. None may remain.
 4. Triplets: three parallel phrases or short sentences stacked together. Keep the strongest one, or vary the rhythm.
-5. Emotion shown and then told: the action or dialogue already shows the feeling, and a following sentence explains it anyway ("He was furious." "She felt a wave of sadness."). Delete the explanation.
-6. A repeated image: the same metaphor, object or adjective used again and again within a few paragraphs. Keep the best instance and change or cut the rest.
+5. Emotion shown and then told: the action or dialogue already shows the feeling, and a following sentence explains it anyway ("He was furious." "She felt a wave of sadness."). A short sentence that only names the feeling may go; if the sentence also says why a character acted or what really happened, keep that and turn the stated feeling into an action or detail.
+6. A repeated image: the same metaphor, object or adjective used again and again within a few paragraphs. Keep the best instance and reword the rest, or cut just the repeated word.
 
 Hard requirements:
+- Never delete a whole sentence that carries plot, character, relationship or theme: what a character did, why they did it, and the line the story most wants to say must all still be there. You may rewrite such a sentence or cut stock phrases inside it, but never remove it. Only a sentence made entirely of stock phrasing, whose removal loses no information, may go.
 - Do not change facts: characters, names, places, numbers, timeline, events, and the meaning and speaker of every line of dialogue stay the same. Add no plot, setting or information that is not in the original.
-- Edit line by line: each line of the original is one paragraph (or one script line). Rewrite or delete whole lines only; never merge two lines or split one line into several.
+- Edit line by line: each line of the original is one paragraph (or one script line). Rewrite whole lines only; never merge two lines or split one line into several.
 - Do not change a single quotation mark: straight quotes stay straight, curly quotes stay curly; do not add quotes where there are none.
 - Write in the same language as the original.
-- Do not list lines with no hit. Keep the length close to the original; do not expand it.
+- Do not list lines with no hit: do not cut or swap words just to make a line read more smoothly, and do not list a line whose revision is identical to the original. Keep the length close to the original; do not expand it.
 
 Output format (follow it exactly):
-- For each line you change, output two lines: the first starts with "OLD:" followed by that entire original line copied character for character; the second starts with "NEW:" followed by the entire revised line. To delete the line, leave "NEW:" empty.
+- For each line you change, output two lines: the first starts with "OLD:" followed by that entire original line copied character for character; the second starts with "NEW:" followed by the entire revised line. Leave "NEW:" empty only when the whole line is stock phrasing from start to end; that deletes the line.
 - Put a blank line between pairs. Do not output unchanged lines.
 - If nothing needs changing, output only: NO CHANGES
 - Output nothing else: no explanations, notes, headings or numbering. Do not call tools.
@@ -143,13 +146,15 @@ class LineEdit:
 def parse_line_edits(output: str) -> list[LineEdit] | None:
     """Parse the model's edit list.
 
-    Returns the edits ([] for an explicit「无改动」), or None when the output does not
-    follow the protocol at all (the caller then treats it as a full rewrite).
+    Returns the edits ([] for an explicit「无改动」, or for output that only echoes「原：」
+    lines without any「改：」), or None when the output does not follow the protocol at
+    all (the caller then treats it as a full rewrite).
     """
     edits: list[LineEdit] = []
     old: str | None = None
     new_parts: list[str] | None = None
     new_closed = False
+    saw_old_marker = False
 
     def flush() -> None:
         nonlocal old, new_parts, new_closed
@@ -162,6 +167,7 @@ def parse_line_edits(output: str) -> list[LineEdit] | None:
         if old_match:
             flush()
             old = old_match.group(1)
+            saw_old_marker = True
             continue
         new_match = _EDIT_NEW_RE.match(raw)
         if new_match and old is not None and new_parts is None:
@@ -178,6 +184,10 @@ def parse_line_edits(output: str) -> list[LineEdit] | None:
     if edits:
         return edits
     if _NO_CHANGE_RE.match(output.strip()):
+        return []
+    if saw_old_marker:
+        # 模型只把原文一行行抄成「原：」、一组「改：」都没给（真实模型复跑里出现过）。
+        # 当整段改写处理会把「原：」前缀写进正文；这等于一处都没改。
         return []
     return None
 
@@ -267,6 +277,7 @@ def apply_line_edits(original: str, edits: list[LineEdit], *, file_type: str | N
     keys = [normalize_for_noop_comparison(line) for line in lines]
     replaced: set[int] = set()
     dropped = 0
+    restored = 0
 
     for edit in edits:
         old_key = normalize_for_noop_comparison(edit.old)
@@ -279,7 +290,9 @@ def apply_line_edits(original: str, edits: list[LineEdit], *, file_type: str | N
         )
         if index is not None:
             replaced.add(index)
-            current[index] = _guard_line(lines[index], edit.new, is_script=is_script, full_original=original)
+            guarded = _guard_line(lines[index], edit.new, is_script=is_script, full_original=original)
+            current[index], count = _keep_protected_sentences(lines[index], guarded)
+            restored += count
             continue
 
         # 模型只抄了一句而不是整行：在唯一包含这句话的行里做子串替换。
@@ -299,7 +312,19 @@ def apply_line_edits(original: str, edits: list[LineEdit], *, file_type: str | N
         assert isinstance(working, str)
         position = working.translate(_QUOTE_TRANSLATION).find(needle)
         proposed = working[:position] + edit.new.strip() + working[position + len(needle):]
-        current[index] = _guard_line(lines[index], proposed, is_script=is_script, full_original=original)
+        guarded = _guard_line(lines[index], proposed, is_script=is_script, full_original=original)
+        # 和原行（不是这一行已经改过的版本）比，同一行先后几处改动合起来删掉的句子也能找回。
+        current[index], count = _keep_protected_sentences(lines[index], guarded)
+        restored += count
+
+    if restored:
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Natural polish restored sentences the model dropped",
+            restored=restored,
+            total=len(edits),
+        )
 
     result: list[str] = []
     for i, line in enumerate(current):
@@ -323,13 +348,20 @@ def apply_line_edits(original: str, edits: list[LineEdit], *, file_type: str | N
 def apply_full_rewrite(original: str, rewritten: str, *, file_type: str | None = None) -> str:
     """Fallback when the model ignored the edit protocol and returned the whole text.
 
-    With the same line count, each changed line goes through the same format guard;
-    otherwise the rewrite is kept as-is apart from the quote style.
+    With the same line count, each changed line goes through the same format and
+    sentence guards. Otherwise the lines cannot be paired: if the rewrite dropped a
+    protected sentence anywhere, the original comes back unchanged; if not, the rewrite
+    is kept as-is apart from the quote style.
     """
     is_script = file_type == FILE_TYPE_SCRIPT
     original_lines = original.split("\n")
     rewritten_lines = rewritten.strip("\n").split("\n")
     if len(original_lines) != len(rewritten_lines):
+        original_sentences = [s for line in original_lines for s in split_sentences(line.strip())]
+        rewritten_sentences = [s for line in rewritten_lines for s in split_sentences(line.strip())]
+        _, restored = restore_dropped_sentences(original_sentences, rewritten_sentences)
+        if restored:
+            return original
         return _restore_quote_style(rewritten, original)
 
     result: list[str] = []
@@ -338,12 +370,21 @@ def apply_full_rewrite(original: str, rewritten: str, *, file_type: str | None =
             result.append(original_line)
             continue
         guarded = _guard_line(original_line, rewritten_line, is_script=is_script, full_original=original)
-        result.append(original_line if guarded is _DELETE else guarded)  # type: ignore[arg-type]
+        kept, _ = _keep_protected_sentences(original_line, guarded)
+        result.append(original_line if kept is _DELETE else kept)  # type: ignore[arg-type]
     return "\n".join(result)
 
 
+def _keep_protected_sentences(original_line: str, guarded: str | object) -> tuple[str | object, int]:
+    """Run the sentence guard on a line the format guard produced (``_DELETE`` = line deleted)."""
+    new_line = "" if guarded is _DELETE else guarded
+    assert isinstance(new_line, str)
+    line, restored = guard_line_sentences(original_line, new_line)
+    return (line, restored) if restored else (guarded, 0)
+
+
 # ---------------------------------------------------------------------------
-# 本次检查提示：把套话所在的行和最后一句直接点给模型
+# 本次检查提示：把套话所在的行直接点给模型
 # ---------------------------------------------------------------------------
 # 关闭思考、温度 1.0 时，模型对清单的召回不稳定：同一段剧本两次请求，一次改掉
 # 「指节泛白」，一次漏掉。套话能确定性地找出来，就别让模型自己找。
@@ -376,26 +417,24 @@ _STOCK_PHRASE_PATTERNS_EN = [
         r"air seemed to freeze",
     )
 ]
-_SENTENCE_END_RE = re.compile(r"(?<=[。！？!?…])|(?<=\.)\s")
-_CLOSER_HINT_MAX_CHARS = 80
-_CLOSER_HINT_MAX_CHARS_EN = 200
+# 顿号连起来、同一个字打头的三连短语，例如「最冷、最长、最难熬」。
+_TRIPLET_ZH_RE = re.compile(
+    r"([一-鿿])[一-鿿]{0,4}、\1[一-鿿]{0,4}、\1[一-鿿]{0,4}"
+)
 _HINT_LINE_MAX_CHARS = 300
 
 
-def _last_sentence(text: str) -> str:
-    lines = [line.strip() for line in text.split("\n") if line.strip()]
-    if not lines:
-        return ""
-    # 丢掉只剩标点的碎片（例如句号后面单独的右引号）。
-    sentences = [s.strip() for s in _SENTENCE_END_RE.split(lines[-1]) if s and re.search(r"\w", s)]
-    return sentences[-1] if sentences else lines[-1]
-
-
 def build_attention_hints(selected_text: str, language: str, file_type: str | None = None) -> str:
-    """Point the model at the lines that contain stock phrases and at the closing sentence."""
+    """Point the model at the lines that contain stock phrases (and, in Chinese, triplets).
+
+    选区的最后一句不再单独点给模型：那条提示让模型把结尾的主题句当成升华句删掉
+    （2026-10-09 第二轮审计 N1），也让本来干净的结尾被顺手改写。
+    """
+    del file_type  # 保留参数，调用方不变；剧本和正文用同一套提示。
     is_english = language.lower().startswith("en")
     patterns = _STOCK_PHRASE_PATTERNS_EN if is_english else _STOCK_PHRASE_PATTERNS_ZH
     hits: list[tuple[str, list[str]]] = []
+    triplets: list[tuple[str, list[str]]] = []
     for line in selected_text.split("\n"):
         stripped = line.strip()
         if not stripped or len(stripped) > _HINT_LINE_MAX_CHARS:
@@ -403,31 +442,215 @@ def build_attention_hints(selected_text: str, language: str, file_type: str | No
         found = [m.group(0) for pattern in patterns for m in pattern.finditer(stripped)]
         if found:
             hits.append((stripped, found))
+        if not is_english:
+            stacked = [m.group(0) for m in _TRIPLET_ZH_RE.finditer(stripped)]
+            if stacked:
+                triplets.append((stripped, stacked))
 
-    closer = "" if file_type == FILE_TYPE_SCRIPT else _last_sentence(selected_text)
-    if len(closer) > (_CLOSER_HINT_MAX_CHARS_EN if is_english else _CLOSER_HINT_MAX_CHARS):
-        closer = ""
-
-    if not hits and not closer:
+    if not hits and not triplets:
         return ""
     if is_english:
-        parts = ["Checks for this selection:"]
-        if hits:
-            parts.append("These lines contain stock phrases from the list. Fix every one (output OLD:/NEW: for each line):")
-            parts.extend(f'- "{line}" — {", ".join(found)}' for line, found in hits)
-        if closer:
-            parts.append(
-                f'The selection ends with: "{closer}". Decide on its own whether it is a moralizing closer; '
-                "if it is, delete or rewrite it, otherwise leave it."
-            )
+        parts = [
+            "Checks for this selection:",
+            "These lines contain stock phrases from the list. Fix every one inside its sentence and keep the rest "
+            "of the sentence (output OLD:/NEW: for each line):",
+        ]
+        parts.extend(f'- "{line}" — {", ".join(found)}' for line, found in hits)
     else:
         parts = ["本次检查提示："]
         if hits:
-            parts.append("下面这些行含有清单里的套话，每一处都必须改掉（每行都输出一组「原：/改：」）：")
+            parts.append(
+                "下面这些行含有清单里的套话，每一处都必须改掉：在句子里改，句子别的内容留着（每行都输出一组「原：/改：」）："
+            )
             parts.extend(f"- 「{line}」：{'、'.join(found)}" for line, found in hits)
-        if closer:
-            parts.append(f"选中文本的最后一句是：「{closer}」。单独判断它是不是升华式收尾句：是就删掉或改写，不是就不动。")
+        if triplets:
+            parts.append("下面这些行有三连排比：只留最有力的一个，或者改成长短不一的说法，句子别的内容留着：")
+            parts.extend(f"- 「{line}」：{'；'.join(found)}" for line, found in triplets)
     return "\n\n" + "\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# 整句删除守卫：模型删掉的有内容的句子，按原位置放回去
+# ---------------------------------------------------------------------------
+# 第二轮审计（N1）里，模型把「她宁可让我恨她，也不肯让我知道，我恨错了人」当升华句删掉了。
+# 提示词已经改成只改写，这里再用代码兜底：逐行按句子对照原文和结果，原文里一句
+# 去掉套话后还有 12 个以上汉字（或 12 个以上英文单词）的句子，如果在结果里既找不到
+# 对应的句子、内容也没并进同一行的别的句子，就把原句放回原来的位置。
+
+_PROTECTED_MIN_CJK = 12
+_PROTECTED_MIN_WORDS = 12
+# 改写后的句子至少要有原句（去掉套话后）三分之一的分量，才算「改写」而不是「删到只剩几个字」。
+_REWRITE_MIN_SHARE = 1 / 3
+_SENTENCE_ENDERS = "。！？!?…"
+_SENTENCE_CLOSERS = "”’」』）)】》\"'"
+_CJK_CHAR_RE = re.compile(r"[㐀-䶿一-鿿]")
+_LATIN_WORD_RE = re.compile(r"[A-Za-z]+(?:'[A-Za-z]+)?")
+_NON_WORD_RE = re.compile(r"[\W_]+")
+
+
+def split_sentences(text: str) -> list[str]:
+    """Split one line into sentences; ``"".join(result) == text``.
+
+    句末标点后面的右引号、右括号和空白都算在这一句里。英文句点只有后面是空白、
+    行尾或右引号时才断句，避免把小数拆开。
+    """
+    sentences: list[str] = []
+    start = 0
+    i = 0
+    length = len(text)
+    while i < length:
+        char = text[i]
+        is_end = char in _SENTENCE_ENDERS or (
+            char == "." and (i + 1 == length or text[i + 1].isspace() or text[i + 1] in _SENTENCE_CLOSERS)
+        )
+        if not is_end:
+            i += 1
+            continue
+        j = i + 1
+        while j < length and (text[j] in _SENTENCE_ENDERS or text[j] == "."):
+            j += 1
+        while j < length and text[j] in _SENTENCE_CLOSERS:
+            j += 1
+        while j < length and text[j] in " \t　":
+            j += 1
+        sentences.append(text[start:j])
+        start = i = j
+    if start < length:
+        sentences.append(text[start:])
+    return sentences
+
+
+def _strip_stock_phrases(sentence: str) -> str:
+    spans = [
+        m.span()
+        for pattern in (*_STOCK_PHRASE_PATTERNS_ZH, *_STOCK_PHRASE_PATTERNS_EN)
+        for m in pattern.finditer(sentence)
+    ]
+    if not spans:
+        return sentence
+    keep = [True] * len(sentence)
+    for begin, end in spans:
+        for k in range(begin, end):
+            keep[k] = False
+    return "".join(char for char, kept in zip(sentence, keep, strict=True) if kept)
+
+
+def _content_weight(sentence: str) -> int:
+    """How much the sentence says once stock phrases are removed (CJK chars, or English words)."""
+    rest = _strip_stock_phrases(sentence)
+    return max(len(_CJK_CHAR_RE.findall(rest)), len(_LATIN_WORD_RE.findall(rest)))
+
+
+def is_protected_sentence(sentence: str) -> bool:
+    """A sentence the polish may rewrite but never drop: it still says something without its stock phrases."""
+    rest = _strip_stock_phrases(sentence)
+    return len(_CJK_CHAR_RE.findall(rest)) >= _PROTECTED_MIN_CJK or len(_LATIN_WORD_RE.findall(rest)) >= _PROTECTED_MIN_WORDS
+
+
+def _compare_key(text: str) -> str:
+    return _NON_WORD_RE.sub("", text.translate(_QUOTE_TRANSLATION)).lower()
+
+
+def _shared_chars(a: str, b: str) -> int:
+    """Characters of ``a`` found in ``b`` in order, counting only runs of two or more."""
+    if not a or not b:
+        return 0
+    matcher = difflib.SequenceMatcher(None, a, b, autojunk=False)
+    return sum(block.size for block in matcher.get_matching_blocks() if block.size >= 2)
+
+
+def _is_same_sentence(original_key: str, new_key: str) -> bool:
+    """The new sentence is the original one edited in place (trimmed, joined, a phrase swapped)."""
+    shared = _shared_chars(original_key, new_key)
+    if not shared:
+        return False
+    return shared >= 0.4 * len(original_key) or (shared >= 6 and shared >= 0.8 * len(new_key))
+
+
+def restore_dropped_sentences(original_sentences: list[str], new_sentences: list[str]) -> tuple[list[str], int]:
+    """Put back protected original sentences that the rewrite dropped.
+
+    Returns (sentences, restored). Unprotected sentences (short ones, or ones made of stock
+    phrases) may still be dropped, and a protected sentence may be rewritten in other words
+    as long as something of comparable weight stands in its place.
+    """
+    original_keys = [_compare_key(s) for s in original_sentences]
+    new_keys = [_compare_key(s) for s in new_sentences]
+    whole_new_key = "".join(new_keys)
+
+    # 每个新句子认领和它最像的原句；认不出的新句子给一个独有的负编号（视为改写出来的新句）。
+    new_ids: list[int] = []
+    for j, new_key in enumerate(new_keys):
+        best, best_shared = -1 - j, 0
+        for i, original_key in enumerate(original_keys):
+            if original_key and _is_same_sentence(original_key, new_key):
+                shared = _shared_chars(original_key, new_key)
+                if shared > best_shared:
+                    best, best_shared = i, shared
+        new_ids.append(best)
+
+    def lost(i: int) -> bool:
+        if not is_protected_sentence(original_sentences[i]):
+            return False
+        # 内容并进了同一行的别的句子（例如两句被合成一句），不算丢。
+        return _shared_chars(original_keys[i], whole_new_key) < 0.5 * len(original_keys[i])
+
+    result: list[str] = []
+    restored = 0
+    matcher = difflib.SequenceMatcher(None, list(range(len(original_sentences))), new_ids, autojunk=False)
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag in ("equal", "insert"):
+            result.extend(new_sentences[j1:j2])
+            continue
+        if tag == "delete":
+            for i in range(i1, i2):
+                if lost(i):
+                    result.append(original_sentences[i])
+                    restored += 1
+            continue
+        # replace：原句按顺序和改写出来的新句一一对应；新句太短、或者没有新句顶替时放回原句。
+        for k in range(max(i2 - i1, j2 - j1)):
+            i = i1 + k if k < i2 - i1 else None
+            j = j1 + k if k < j2 - j1 else None
+            if i is not None and lost(i):
+                weight = _content_weight(original_sentences[i])
+                if j is None or _content_weight(new_sentences[j]) < weight * _REWRITE_MIN_SHARE:
+                    result.append(original_sentences[i])
+                    restored += 1
+                    continue
+            if j is not None:
+                result.append(new_sentences[j])
+    return result, restored
+
+
+def guard_line_sentences(original_line: str, new_line: str) -> tuple[str, int]:
+    """Apply ``restore_dropped_sentences`` to one line; an empty ``new_line`` means the line was deleted.
+
+    Returns (line, restored). When nothing is restored ``new_line`` comes back untouched;
+    otherwise the result keeps the original line's leading and trailing whitespace.
+    """
+    original_core = original_line.strip()
+    new_core = new_line.strip()
+    if not original_core or original_core == new_core:
+        return new_line, 0
+    # 「角色：」「△ 」这类行首标记两边都有时先拿掉，放回句子时就不会多出第二个。
+    prefix = ""
+    marker = _SCRIPT_DIALOGUE_PREFIX_RE.match(original_core)
+    if marker and new_core.startswith(marker.group(0)):
+        prefix = marker.group(0)
+    elif original_core.startswith("△") and new_core.startswith("△"):
+        prefix = "△"
+    original_body = original_core[len(prefix):].lstrip()
+    new_body = new_core[len(prefix):].lstrip() if new_core else ""
+    if prefix == "△":
+        prefix = original_core[: len(original_core) - len(original_body)]
+    sentences, restored = restore_dropped_sentences(
+        split_sentences(original_body), split_sentences(new_body) if new_body else []
+    )
+    if not restored:
+        return new_line, 0
+    body = "".join(sentences).strip()
+    return _leading_ws(original_line) + prefix + body + _trailing_ws(original_line), restored
 
 
 @dataclass
