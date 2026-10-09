@@ -2,7 +2,8 @@
 Messages registry for internationalization.
 
 Stores all API success messages and non-error messages in Chinese and English.
-Use {{variable}} placeholders for string interpolation with .format()
+Use {variable} placeholders and fill them with str.format(); a doubled
+{{variable}} is an escaped brace and would reach the user verbatim.
 """
 
 
@@ -21,14 +22,14 @@ MESSAGES: dict[str, dict[str, str]] = {
         "auth_password_reset_success": "密码已重设，请用新密码登录",
 
         # ==================== Verification Messages ====================
-        "verification_resend_cooldown": "验证码发送过于频繁,请在 {{cooldown_seconds}} 秒后重试",
+        "verification_resend_cooldown": "验证码发送过于频繁,请在 {cooldown_seconds} 秒后重试",
         "verification_send_failed": "验证码发送失败,请稍后重试",
         "verification_email_failed": "邮件发送失败,请检查邮箱地址或稍后重试",
         "verification_error": "发送验证码时发生错误,请稍后重试",
         "verification_too_many_attempts": "验证码错误次数过多,请重新发送验证码",
         "verification_expired": "验证码已过期",
         "verification_not_exist": "验证码已过期或不存在",
-        "verification_incorrect": "验证码错误,还剩 {{count}} 次尝试机会",
+        "verification_incorrect": "验证码错误,还剩 {count} 次尝试机会",
         "verification_verify_error": "验证时发生错误",
         "verification_send_success": "验证码已发送到您的邮箱",
 
@@ -69,14 +70,14 @@ MESSAGES: dict[str, dict[str, str]] = {
         "auth_password_reset_success": "Your password has been reset. Log in with your new password.",
 
         # ==================== Verification Messages ====================
-        "verification_resend_cooldown": "Verification code sent too frequently, please retry after {{cooldown_seconds}} seconds",
+        "verification_resend_cooldown": "Verification code sent too frequently, please retry after {cooldown_seconds} seconds",
         "verification_send_failed": "Failed to send verification code, please try again later",
         "verification_email_failed": "Failed to send email, please check your email address or try again later",
         "verification_error": "An error occurred. Please try again later",
         "verification_too_many_attempts": "Too many incorrect attempts, please request a new code",
         "verification_expired": "Verification code has expired",
         "verification_not_exist": "Verification code has expired or does not exist",
-        "verification_incorrect": "Incorrect verification code, {{count}} attempts remaining",
+        "verification_incorrect": "Incorrect verification code, {count} attempts remaining",
         "verification_verify_error": "An error occurred during verification",
         "verification_send_success": "Verification code has been sent to your email",
 
