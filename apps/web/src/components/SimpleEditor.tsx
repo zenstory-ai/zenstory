@@ -85,6 +85,12 @@ interface SimpleEditorProps {
     content: string;
     updatedAt?: string;
   };
+  /**
+   * While a comparison is open, the draft to keep locally if the editor goes
+   * away (leaving the project, closing the page) instead of the raw draft;
+   * null when this comparison has no such draft.
+   */
+  getReviewLeaveDraft?: () => { title: string; content: string; baseUpdatedAt?: string } | null;
   readOnly?: boolean;
   isStreaming?: boolean;
   /**
@@ -125,6 +131,7 @@ export const SimpleEditor = ({
   onHistoryRestore,
   onFlushReady,
   serverBaseline,
+  getReviewLeaveDraft,
   readOnly = false,
   isStreaming = false,
   isAiEditing = false,
@@ -211,6 +218,8 @@ export const SimpleEditor = ({
   draftScopeRef.current = { userId, projectId };
   latestFileIdRef.current = fileId;
   latestBaseUpdatedAtRef.current = baseUpdatedAt;
+  const reviewLeaveDraftRef = useRef(getReviewLeaveDraft);
+  reviewLeaveDraftRef.current = getReviewLeaveDraft;
 
   useEffect(() => {
     if (!dirtyRef.current && draftRef.current.fileId === fileId) {
@@ -258,9 +267,13 @@ export const SimpleEditor = ({
     if (!userId || !projectId || !fileId) return;
     let lastCapturedDraft: typeof draftRef.current | null = null;
     const captureDirtyDraft = (reason: "chunk-reload" | "page-exit") => {
-      if (!dirtyRef.current || draftRef.current.fileId !== fileId) return true;
-      if (lastCapturedDraft === draftRef.current) return true;
-      const currentDraft = draftRef.current;
+      // With a comparison open, keep what finishing it would save (see getReviewLeaveDraft).
+      const reviewDraft = isReviewModeRef.current ? reviewLeaveDraftRef.current?.() ?? null : null;
+      if (!reviewDraft) {
+        if (!dirtyRef.current || draftRef.current.fileId !== fileId) return true;
+        if (lastCapturedDraft === draftRef.current) return true;
+      }
+      const currentDraft = reviewDraft ?? draftRef.current;
       const captured = writeEditorDraftSnapshot(localStorage, createEditorDraftSnapshot({
         userId,
         projectId,
@@ -270,7 +283,7 @@ export const SimpleEditor = ({
         baseUpdatedAt: currentDraft.baseUpdatedAt,
         reason,
       }));
-      if (captured) lastCapturedDraft = currentDraft;
+      if (captured && !reviewDraft) lastCapturedDraft = draftRef.current;
       return captured;
     };
     const captureBeforeChunkReload = (event: Event) => {
@@ -910,10 +923,13 @@ export const SimpleEditor = ({
     });
     return () => {
       onFlushReady(null);
-      if (!dirtyRef.current) return;
+      // 对比开着时，留下的应是「现在完成对比会保存的内容」（基于服务端新版本和它的令牌），
+      // 而不是作者在旧版本上的整篇草稿：恢复那份草稿会把 AI 的新版本改回去。
+      const reviewDraft = isReviewModeRef.current ? reviewLeaveDraftRef.current?.() ?? null : null;
+      if (!dirtyRef.current && !reviewDraft) return;
       // 离开编辑器时最后一次保存。没保存成功（例如对比还开着、令牌已过期而撞 409）
       // 就把草稿写进本地快照，下次打开这份文件时会提示恢复，作者的字不会丢。
-      const draft = draftRef.current;
+      const draft = reviewDraft ? { ...draftRef.current, ...reviewDraft } : draftRef.current;
       const { userId: ownerId, projectId: draftProjectId } = draftScopeRef.current;
       const keepDraftLocally = () => {
         if (!ownerId || !draftProjectId || !draft.fileId) return;

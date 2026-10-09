@@ -121,6 +121,25 @@ describe("DiffReviewSplitView", () => {
     expect(onResetEdit).toHaveBeenCalledWith("edit-2");
   });
 
+  it("shows every change when some start set aside, so a preselected side is not hidden", () => {
+    const onAcceptEdit = vi.fn();
+    render(
+      <DiffReviewSplitView
+        originalContent="old"
+        modifiedContent="new"
+        pendingEdits={[{ ...pendingEdits[0]!, status: "rejected" }, { ...pendingEdits[1]!, status: "pending" }]}
+        onAcceptEdit={onAcceptEdit}
+        onRejectEdit={vi.fn()}
+        onResetEdit={vi.fn()}
+      />
+    );
+
+    // Both cards are listed; the set-aside one can be taken back.
+    expect(screen.getAllByTitle(/接受 \(Y\)|Accept \(Y\)/)).toHaveLength(2);
+    fireEvent.click(screen.getAllByTitle(/接受 \(Y\)|Accept \(Y\)/)[0]!);
+    expect(onAcceptEdit).toHaveBeenCalledWith("edit-1");
+  });
+
   it("labels the locate button with the resolved locale text, not a raw template", () => {
     render(
       <DiffReviewSplitView

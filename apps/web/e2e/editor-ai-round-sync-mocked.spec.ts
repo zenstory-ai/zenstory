@@ -38,6 +38,13 @@ async function setup(page: Page) {
     const encoder = new TextEncoder();
     let controller: ReadableStreamDefaultController<Uint8Array> | null = null;
     const w = window as unknown as Record<string, unknown>;
+    // Main-thread tasks over 50 ms; the audited freeze blocked the page for minutes.
+    const longTasks: number[] = [];
+    w.__longTasks = longTasks;
+    try {
+      new PerformanceObserver(list => { for (const entry of list.getEntries()) longTasks.push(entry.duration); })
+        .observe({ type: 'longtask', buffered: true });
+    } catch { /* longtask timing unavailable: the responsiveness probe still runs */ }
     w.__sse = {
       push: (type: string, data: unknown) => controller?.enqueue(encoder.encode(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`)),
       close: () => controller?.close(),
@@ -141,13 +148,20 @@ for (const secondWrite of ['edit_file', 'parallel_execute'] as const) {
     // The author types one character at the end.
     await textarea(page).click();
     await textarea(page).evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(el.value.length, el.value.length));
+    await page.evaluate(() => { (window as unknown as { __longTasks: number[] }).__longTasks.length = 0; });
     await page.keyboard.type('好');
     await expect(textarea(page)).toHaveValue(`${V2}好`);
-    // The page stays responsive and the autosave lands on top of v2.
-    const started = Date.now();
-    await page.evaluate(() => 1);
-    expect(Date.now() - started).toBeLessThan(2000);
+    // The page stays responsive through the autosave window and the autosave
+    // lands on top of v2.
+    for (let probe = 0; probe < 5; probe += 1) {
+      const started = Date.now();
+      await page.evaluate(() => 1);
+      expect(Date.now() - started).toBeLessThan(2000);
+      await page.waitForTimeout(700);
+    }
     await expect.poll(() => putsToCh2(f).length, { timeout: 8000 }).toBeGreaterThan(0);
+    const longTasks = await page.evaluate(() => (window as unknown as { __longTasks: number[] }).__longTasks.slice());
+    expect(Math.max(0, ...longTasks)).toBeLessThan(1000);
     expect(putsToCh2(f)[0].body).toMatchObject({ content: `${V2}好`, base_updated_at: tokenV2 });
     expect(f.files.ch2.content).toBe(`${V2}好`);
     expect(f.errors).toEqual([]);
@@ -188,5 +202,84 @@ test('finishing the comparison keeps the AI second write and adds only the autho
   expect(putsToCh2(f)[0].body).toMatchObject({ content: `${V2}作者补一句`, base_updated_at: tokenV2 });
   expect(f.files.ch2.content.startsWith('第二天，')).toBe(true);
   await expect(textarea(page)).toHaveValue(`${V2}作者补一句`);
+  expect(f.errors).toEqual([]);
+});
+
+test('leaving the page during the comparison keeps the author text on top of the AI second write', async ({ page }) => {
+  const f = await setup(page);
+  await runRound(page, f, 'parallel_execute', async () => {
+    await textarea(page).click();
+    await textarea(page).evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(el.value.length, el.value.length));
+    await page.keyboard.type('作者补一句');
+    await expect(page.getByText('未保存', { exact: true })).toBeVisible();
+  });
+  await expect(page.getByText('AI 刚改过这个文件，你还有没保存的修改。', { exact: false })).toBeVisible();
+
+  // The author walks away mid-comparison: nothing stale is sent.
+  await page.goto('/dashboard');
+  expect(putsToCh2(f)).toHaveLength(0);
+  expect(f.files.ch2.content).toBe(V2);
+
+  // Back on the chapter, the kept text is v2 plus only the author's sentence.
+  await page.goto(`/project/${projectId}?file=ch2`);
+  await expect(textarea(page)).toHaveValue(`${V2}作者补一句`);
+
+  // Carrying on writing saves on top of v2 (dev StrictMode may already have
+  // flushed the restored text once): the AI's 第二天 survives, no 409.
+  await textarea(page).click();
+  await textarea(page).evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(el.value.length, el.value.length));
+  await page.keyboard.type('好');
+  await expect.poll(() => f.files.ch2.content, { timeout: 8000 }).toBe(`${V2}作者补一句好`);
+  expect(putsToCh2(f)[0].body).toMatchObject({ base_updated_at: tokenV2 });
+  await expect(page.getByText('文件在别处有了新改动', { exact: false })).toHaveCount(0);
+  expect(f.errors).toEqual([]);
+});
+
+/** The author rewrites the first paragraph, which the AI's v2 also changes. */
+const firstParagraph = V1.split('\n\n')[0]!;
+const authorRewrite = V1.replace(firstParagraph, '傍晚，老周收摊了。');
+async function rewriteFirstParagraph(page: Page) {
+  await textarea(page).click();
+  await textarea(page).evaluate((el: HTMLTextAreaElement, length: number) => el.setSelectionRange(0, length), firstParagraph.length);
+  await page.keyboard.type('傍晚，老周收摊了。');
+  await expect(page.getByText('未保存', { exact: true })).toBeVisible();
+}
+
+test('pressing finish where both rewrote the same words keeps the AI side there', async ({ page }) => {
+  const f = await setup(page);
+  await runRound(page, f, 'parallel_execute', () => rewriteFirstParagraph(page));
+  await expect(page.getByText('AI 刚改过这个文件，你还有没保存的修改。', { exact: false })).toBeVisible();
+  // The preselected AI side is listed, not hidden behind the "pending" filter.
+  await expect(page.getByTitle(/^拒绝 \(N\)$/).first()).toBeDisabled();
+
+  await page.getByTitle(/完成审阅|应用更改/).click();
+  await expect(textarea(page)).toHaveValue(V2);
+  await page.waitForTimeout(3500);
+  expect(f.files.ch2.content).toBe(V2);
+  expect(f.errors).toEqual([]);
+});
+
+test('leaving before deciding where both rewrote the same words keeps the author rewrite to restore', async ({ page }) => {
+  const f = await setup(page);
+  await runRound(page, f, 'parallel_execute', () => rewriteFirstParagraph(page));
+  await expect(page.getByText('AI 刚改过这个文件，你还有没保存的修改。', { exact: false })).toBeVisible();
+
+  // The author walks away mid-comparison: nothing is sent, and v2 is untouched.
+  await page.goto('/dashboard');
+  expect(putsToCh2(f)).toHaveLength(0);
+  expect(f.files.ch2.content).toBe(V2);
+
+  // Back on the chapter: v2 is shown and the author is asked about the draft.
+  await page.goto(`/project/${projectId}?file=ch2`);
+  await expect(textarea(page)).toHaveValue(V2);
+  await expect(page.getByText('你上次没保存的草稿和服务器最新版本不同', { exact: false })).toBeVisible();
+  await page.getByRole('button', { name: '恢复本地草稿' }).click();
+  await expect(textarea(page)).toHaveValue(authorRewrite);
+
+  await textarea(page).click();
+  await textarea(page).evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(el.value.length, el.value.length));
+  await page.keyboard.type('好');
+  await expect.poll(() => f.files.ch2.content, { timeout: 8000 }).toBe(`${authorRewrite}好`);
+  expect(putsToCh2(f).at(-1)?.body).toMatchObject({ base_updated_at: tokenV2 });
   expect(f.errors).toEqual([]);
 });
