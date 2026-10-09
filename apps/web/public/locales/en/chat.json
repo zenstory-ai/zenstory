@@ -112,8 +112,8 @@
     "tokenEstimate": "≈ {{value}} tokens"
   },
   "workflow": {
-    "iteration": "Step",
-    "remaining": "left",
+    "iteration": "step {{step}}",
+    "remaining": " ({{n}} more left)",
     "iterationExhausted": "Pausing here for now",
     "lowTurnWarning": "Close to this round's limit — the AI will finish the most important part first.",
     "collaborationExhaustedSummary": "This is a big task, so the AI paused after many steps. Click \"Keep going\" to continue.",
@@ -196,7 +196,14 @@
       "fileMissing": "This file no longer exists.",
       "repeatRead": "\"{{title}}\" was already read; continuing with it.",
       "repeatReadUntitled": "This was already read; continuing with it.",
+      "authorEdited": "\"{{title}}\" has changes you made yourself, so the AI left it as is. It will ask you before changing it.",
+      "authorEditedUntitled": "This file has changes you made yourself, so the AI left it as is. It will ask you before changing it.",
+      "clarifyFirst": "You haven't said which part to change yet. The AI will ask first; no files were changed.",
       "generic": "That step didn't work; the AI will try another way."
+    },
+    "skippedTitle": {
+      "authorEdited": "Kept your changes",
+      "clarifyFirst": "Asking before changing anything"
     },
     "taskNotCompleted": "Not completed"
   },

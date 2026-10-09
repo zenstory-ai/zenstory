@@ -112,8 +112,8 @@
     "tokenEstimate": "约 {{value}} token"
   },
   "workflow": {
-    "iteration": "步骤",
-    "remaining": "还剩",
+    "iteration": "第 {{step}} 步",
+    "remaining": "（还能做 {{n}} 步）",
     "iterationExhausted": "这一轮先做到这里",
     "lowTurnWarning": "快到这一轮的上限了，AI 会先把最重要的部分做完。",
     "collaborationExhaustedSummary": "任务比较大，AI 已经连着做了不少步，先停一下。点「继续完成」就能接着做。",
@@ -196,7 +196,14 @@
       "fileMissing": "这个文件已经不存在了，可能刚被删除。",
       "repeatRead": "《{{title}}》刚才已经读过，AI 直接用已读内容继续。",
       "repeatReadUntitled": "这份资料刚才已经读过，AI 直接用已读内容继续。",
+      "authorEdited": "《{{title}}》有你手动改过的内容，AI 没有动它；需要改的话会先问你。",
+      "authorEditedUntitled": "这个文件有你手动改过的内容，AI 没有动它；需要改的话会先问你。",
+      "clarifyFirst": "你还没说改哪部分，AI 先问清楚再动手，这次没有改文件。",
       "generic": "这一步没做成，AI 会换个方式继续。"
+    },
+    "skippedTitle": {
+      "authorEdited": "保留了你改过的内容",
+      "clarifyFirst": "先问清楚再改"
     },
     "taskNotCompleted": "没有完成"
   },

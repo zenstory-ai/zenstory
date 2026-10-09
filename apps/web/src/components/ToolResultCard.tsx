@@ -297,7 +297,20 @@ const getToolDisplayInfo = (toolName: string, t: (key: string) => string): { ico
 const readUserFacingText = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() ? value.trim() : undefined;
 
-type ToolFailureKind = 'notFound' | 'ambiguous' | 'fileMissing' | 'repeatRead' | 'generic';
+type ToolFailureKind =
+  | 'notFound'
+  | 'ambiguous'
+  | 'fileMissing'
+  | 'repeatRead'
+  | 'authorEdited'
+  | 'clarifyFirst'
+  | 'generic';
+
+/**
+ * AI 有意没动文件（不是没做成）：作者手改过的文件没点名就不改（author_edit_protected），
+ * 要求太笼统先问清楚（clarify_first）。卡片标题按这一类说，不写「失败」。
+ */
+const INTENTIONAL_SKIP_KINDS: ReadonlySet<ToolFailureKind> = new Set(['authorEdited', 'clarifyFirst']);
 
 /**
  * 按 error_type 归到作者能看懂的几类。error_type 由各工具自己定义，这里只认
@@ -307,6 +320,8 @@ const classifyToolFailure = (errorType: string | undefined): ToolFailureKind => 
   if (!errorType) return 'generic';
   const normalized = errorType.toLowerCase();
   if (normalized === 'repeated_read') return 'repeatRead';
+  if (normalized === 'author_edit_protected') return 'authorEdited';
+  if (normalized === 'clarify_first') return 'clarifyFirst';
   if (/(^|_)file_(not_found|missing|deleted)$/.test(normalized)) return 'fileMissing';
   if (/(ambiguous|multiple_match)/.test(normalized)) return 'ambiguous';
   if (/(anchor|old_text|text|pattern|match|passage)_not_found|no_match/.test(normalized)) return 'notFound';
@@ -319,28 +334,31 @@ const isChineseUi = (): boolean => (i18n.language ?? '').startsWith('zh');
  * 工具失败卡片给作者看的一句话：优先用工具给的 user_message，其次按 error_type
  * 给出通用说法。原始 error（给模型的指令、内部 id、英文异常）永远不显示。
  */
-const resolveToolFailureMessage = (
+const resolveToolFailure = (
   result: Record<string, unknown> | undefined,
   t: (key: string, options?: Record<string, unknown>) => string,
-): string => {
+): { kind: ToolFailureKind; message: string } => {
   const nested = result?.data && typeof result.data === 'object'
     ? (result.data as Record<string, unknown>)
     : undefined;
+  const errorType = readUserFacingText(result?.error_type) ?? readUserFacingText(nested?.error_type);
+  const kind = classifyToolFailure(errorType);
   // user_message is written in Chinese by the backend; other UI languages use the error_type mapping.
   const userMessage = isChineseUi()
     ? readUserFacingText(result?.user_message) ?? readUserFacingText(nested?.user_message)
     : null;
-  if (userMessage) return userMessage;
+  if (userMessage) return { kind, message: userMessage };
 
-  const errorType = readUserFacingText(result?.error_type) ?? readUserFacingText(nested?.error_type);
-  const kind = classifyToolFailure(errorType);
-  if (kind === 'repeatRead') {
-    const title = readUserFacingText(result?.title) ?? readUserFacingText(nested?.title);
-    return title
-      ? t('chat:tool.failureHint.repeatRead', { title })
-      : t('chat:tool.failureHint.repeatReadUntitled');
+  const title = readUserFacingText(result?.title) ?? readUserFacingText(nested?.title);
+  if (kind === 'repeatRead' || kind === 'authorEdited') {
+    return {
+      kind,
+      message: title
+        ? t(`chat:tool.failureHint.${kind}`, { title })
+        : t(`chat:tool.failureHint.${kind}Untitled`),
+    };
   }
-  return t(`chat:tool.failureHint.${kind}`);
+  return { kind, message: t(`chat:tool.failureHint.${kind}`) };
 };
 
 /**
@@ -591,13 +609,18 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
     if (error) {
       // 中途某一步没做成是常态（AI 会换个方式继续），用中性灰色，不用红色报错。
       const { label } = getToolDisplayInfo(toolName, t);
-      const userMessage = resolveToolFailureMessage(result, t);
+      const { kind, message: userMessage } = resolveToolFailure(result, t);
+      const intentionalSkip = INTENTIONAL_SKIP_KINDS.has(kind);
       return (
         <div className="bg-[hsl(var(--bg-tertiary))] border border-[hsl(var(--border-color))] rounded-lg px-3 py-2">
           <div className="flex items-center gap-2">
-            <XCircle className="w-4 h-4 text-[hsl(var(--text-secondary))]" />
+            {intentionalSkip ? (
+              <Info className="w-4 h-4 text-[hsl(var(--text-secondary))]" />
+            ) : (
+              <XCircle className="w-4 h-4 text-[hsl(var(--text-secondary))]" />
+            )}
             <span className="text-sm text-[hsl(var(--text-secondary))]">
-              {t('chat:tool.failed', { label })}
+              {intentionalSkip ? t(`chat:tool.skippedTitle.${kind}`) : t('chat:tool.failed', { label })}
             </span>
           </div>
           <p className="text-xs text-[hsl(var(--text-secondary))] mt-1 ml-6">
