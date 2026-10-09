@@ -23,7 +23,7 @@ PR #163 新用户审计（2026-10-09）里几处工作台与聊天的小问题�
 - **字数说明**：编辑器底栏的「字数 N」改成可点按钮，悬停 `title`、点击弹出 `editor:wordCountHint`：「字数按汉字和英文单词计，不含标点和数字，会比一些平台显示的少。」作品卡片的进度行（已写 N 章 · M 字）加同一句 `title`。
 - **审阅面板**：`DiffToolbar` 在 768px 以下用 `editor:reviewModeHintMobile`（「在下方逐段确认 AI 的修改；没处理的修改默认会被采用。」）；`DiffReviewSplitView` 的 Y/N/U 快捷键提示 768px 以下隐藏；计数徽标不折行；「全部接受 / 全部拒绝」任何宽度都显示文字。
 - **首页输入框**：手机上内边距改为 16px，最小高度 248px，三种示例在 360–390 宽度下完整显示、没有内部滚动条。示例文案不变。
-- **CJK 加粗**：`lib/cjkEmphasis.ts`，不加依赖。解析前 `prepareCjkEmphasis` 只处理 `**`/`***`：一边是汉字等、一边是标点、且至少一边是中日韩字符时，在星号和标点之间插入零宽空格，让这组星号两边都能用；解析后 remark 插件 `remarkStripCjkEmphasisMarkers` 把文本、行内代码、代码块里的零宽空格去掉，渲染和复制出来的文字里没有隐形字符。`LazyMarkdown` 统一接入（聊天、思考过程、素材预览）。
+- **CJK 加粗**：`lib/cjkEmphasis.ts`，不加依赖。解析前 `prepareCjkEmphasis` 只处理 `**`/`***`：一边是汉字等、一边是标点、且至少一边是中日韩字符时，在星号和标点之间插入零宽空格，让这组星号两边都能用；挨着的标点本身是 `~` 或 `_` 时不插入（零宽空格会让字面的 `~` 两侧都算界定，同一段里两个「好~」会被 GFM 配成删除线，整段被划掉），保持原样；解析后 remark 插件 `remarkStripCjkEmphasisMarkers` 把文本、行内代码、代码块里的零宽空格去掉，渲染和复制出来的文字里没有隐形字符。`LazyMarkdown` 统一接入（聊天、思考过程、素材预览）。
 
 ## Alternatives considered
 
@@ -41,5 +41,5 @@ PR #163 新用户审计（2026-10-09）里几处工作台与聊天的小问题�
 
 ## Verification
 
-- `pnpm --dir apps/web exec vitest run src/components/__tests__/Layout.test.tsx src/components/__tests__/SimpleEditor.test.tsx src/components/__tests__/DiffToolbar.test.tsx src/lib/__tests__/cjkEmphasis.test.tsx`：手机布局在有 5 分钟内的待发想法时切到 AI 页、过期想法不切；没选中时点去AI味弹出原因、不调用接口；字数按钮悬停与点按都给说明；审阅提示在手机上换成「在下方」；`**《余额》**的`、`**“站住”**`、括号、列表等 6 种写法渲染为加粗且无星号和零宽空格，代码、转义星号、纯英文不变，并保留一条用 react-markdown 原样渲染复现星号的对照。
+- `pnpm --dir apps/web exec vitest run src/components/__tests__/Layout.test.tsx src/components/__tests__/SimpleEditor.test.tsx src/components/__tests__/DiffToolbar.test.tsx src/lib/__tests__/cjkEmphasis.test.tsx`：手机布局在有 5 分钟内的待发想法时切到 AI 页、过期想法不切；没选中时点去AI味弹出原因、不调用接口；字数按钮悬停与点按都给说明；审阅提示在手机上换成「在下方」；`**《余额》**的`、`**“站住”**`、括号、列表等 6 种写法渲染为加粗且无星号和零宽空格，`收到~**第一章**写好了，你看看~`、`好~**真的**~` 与原样渲染完全一致（波浪号保留、没有删除线），代码、转义星号、纯英文不变，并保留一条用 react-markdown 原样渲染复现星号的对照。
 - 首页输入框尺寸是纯样式改动，没有单测；按 390/360 宽度和 15px 字号、28px 行高计算，最长示例（89 字）约 6–7 行，需 228px 以内。

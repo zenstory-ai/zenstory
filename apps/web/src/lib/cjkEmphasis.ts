@@ -39,6 +39,11 @@ const charAt = (text: string, index: number): string | undefined => {
 const isWordChar = (ch: string | undefined) => ch !== undefined && !WHITESPACE.test(ch) && !PUNCTUATION.test(ch);
 const isPunct = (ch: string | undefined) => ch !== undefined && PUNCTUATION.test(ch);
 const isCjk = (ch: string | undefined) => ch !== undefined && CJK.test(ch);
+// Punctuation that is itself an inline delimiter. A zero-width space beside it
+// would make a literal `~` or `_` flanking on both sides, so two plain tildes in
+// one reply (`收到~**第一章**写好了~`) would pair up as GFM strikethrough. Such
+// runs are left exactly as written.
+const isDelimiter = (ch: string | undefined) => ch === "~" || ch === "_";
 
 /** Inserts zero-width spaces so `**` beside CJK punctuation can open and close. */
 export function prepareCjkEmphasis(markdown: string): string {
@@ -47,6 +52,7 @@ export function prepareCjkEmphasis(markdown: string): string {
     const before = charBefore(whole, offset);
     const after = charAt(whole, offset + run.length);
     if (!isCjk(before) && !isCjk(after)) return run;
+    if (isDelimiter(before) || isDelimiter(after)) return run;
     // `是**《`: could close but not open.
     if (isWordChar(before) && isPunct(after)) return `${run}${ZWSP}`;
     // `》**的`: could open but not close.
