@@ -87,7 +87,7 @@ for (const mobile of [false, true]) {
         mocks.select.mockImplementation((item: SelectedItem | null) => { sharedSelection = item; });
         if (mutation === 'create') {
           mocks.create.mockReturnValue(pending.promise);
-          fireEvent.click(screen.getByTitle(mobile ? 'common:create character' : 'common:create common:fileTypes.character'));
+          fireEvent.click(screen.getByTitle('common:create common:fileTypes.character'));
           const input = screen.getByPlaceholderText('editor:fileTree.newCharacter');
           fireEvent.change(input, { target: { value: 'Pending author' } });
           fireEvent.keyDown(input, { key: 'Enter' });
@@ -208,7 +208,7 @@ for (const mobile of [false, true]) {
       await screen.findByRole('searchbox');
       if (mutation === 'create') {
         mocks.create.mockReturnValue(pending.promise);
-        fireEvent.click(await screen.findByTitle(mobile ? 'common:create character' : 'common:create common:fileTypes.character'));
+        fireEvent.click(await screen.findByTitle('common:create common:fileTypes.character'));
         const input = screen.getByPlaceholderText('editor:fileTree.newCharacter');
         fireEvent.change(input, { target: { value: 'Created in old project' } });
         fireEvent.keyDown(input, { key: 'Enter' });
@@ -252,12 +252,12 @@ for (const mobile of [false, true]) {
       const pending = deferred<object>();
       mocks.create.mockReturnValue(pending.promise);
       const view = mountTree(mobile);
-      fireEvent.click(await screen.findByTitle(mobile ? 'common:create character' : 'common:create common:fileTypes.character'));
+      fireEvent.click(await screen.findByTitle('common:create common:fileTypes.character'));
       fireEvent.change(screen.getByPlaceholderText('editor:fileTree.newCharacter'), { target: { value: 'Old create' } });
       fireEvent.keyDown(screen.getByPlaceholderText('editor:fileTree.newCharacter'), { key: 'Enter' });
       mocks.getTree.mockResolvedValueOnce({ tree: [node('new-root', '设定', 'folder')] });
       view.update({ currentProjectId: 'project-2' });
-      fireEvent.click(await screen.findByTitle(mobile ? 'common:create lore' : 'common:create common:fileTypes.lore'));
+      fireEvent.click(await screen.findByTitle('common:create common:fileTypes.lore'));
       const newInput = screen.getByPlaceholderText('editor:fileTree.newLore');
       fireEvent.change(newInput, { target: { value: 'New project idea' } });
       await act(async () => { pending.resolve({}); });
@@ -303,7 +303,7 @@ for (const mobile of [false, true]) {
     it('creates with trimmed title and refreshes once without losing file selection behavior', async () => {
       mocks.create.mockResolvedValue({ id: 'created' });
       mountTree(mobile);
-      fireEvent.click(await screen.findByTitle(mobile ? 'common:create character' : 'common:create common:fileTypes.character'));
+      fireEvent.click(await screen.findByTitle('common:create common:fileTypes.character'));
       const input = screen.getByPlaceholderText('editor:fileTree.newCharacter');
       fireEvent.change(input, { target: { value: '  New author  ' } });
       fireEvent.keyDown(input, { key: 'Enter' });
@@ -316,7 +316,7 @@ for (const mobile of [false, true]) {
     it('preserves a failed create name and error toast without refreshing', async () => {
       mocks.create.mockRejectedValue(new Error('offline'));
       mountTree(mobile);
-      fireEvent.click(await screen.findByTitle(mobile ? 'common:create character' : 'common:create common:fileTypes.character'));
+      fireEvent.click(await screen.findByTitle('common:create common:fileTypes.character'));
       const input = screen.getByPlaceholderText('editor:fileTree.newCharacter');
       fireEvent.change(input, { target: { value: 'Retry author' } });
       fireEvent.keyDown(input, { key: 'Enter' });
@@ -327,7 +327,7 @@ for (const mobile of [false, true]) {
 
     it.each(['Escape', 'Enter'])('cancels an empty create via %s without an API call', async key => {
       mountTree(mobile);
-      fireEvent.click(await screen.findByTitle(mobile ? 'common:create character' : 'common:create common:fileTypes.character'));
+      fireEvent.click(await screen.findByTitle('common:create common:fileTypes.character'));
       fireEvent.keyDown(screen.getByPlaceholderText('editor:fileTree.newCharacter'), { key });
       expect(screen.queryByPlaceholderText('editor:fileTree.newCharacter')).not.toBeInTheDocument();
       expect(mocks.create).not.toHaveBeenCalled();
