@@ -268,7 +268,7 @@ test.describe('organization site', () => {
       const page = await context.newPage()
       await page.goto(`${SITE}${COMPARISON_PATH}`, { waitUntil: 'domcontentloaded' })
 
-      await expect(page.locator('article.comparison h1')).toContainText(/Oh Story.*DSH.*hosted ZenStory/i)
+      await expect(page.locator('article.comparison h1')).toContainText(/Oh Story.*DSH.*ZenStory/i)
       await expect(page.locator('article.comparison [aria-label="First-party disclosure"]')).toContainText(/first-party/i)
       await expect(page.locator('article.comparison section[aria-labelledby^="axis-"]')).toHaveCount(6)
       await page.goto(`${SITE}/zh${COMPARISON_PATH}`, { waitUntil: 'domcontentloaded' })
@@ -363,10 +363,8 @@ test.describe('organization site', () => {
       const article = page.locator('article.docs')
       await expect(page.locator('header.top')).toBeVisible()
       await expect(page.locator('nav.docs-side a[aria-current="page"]')).toHaveAttribute('href', ACCOUNT_DOC_PATH)
-      await expect(article).toContainText('源码核对：2026-09-12')
-      await expect(article).toContainText('Source review: 2026-09-12')
-      await expect(article).toContainText('不是线上账号验收')
-      await expect(article).toContainText('not a live-account acceptance test')
+      // #158 把账号文档改写为面向用户的说明，去掉了「源码核对日期」「不是线上账号验收」这类内部说明。
+      await expect(article).toContainText('账号注册与登录')
       for (const route of ['register', 'login', 'forgot-password']) {
         await expect(article.locator(`a[href="${CANONICAL_APP}/${route}"]`)).toHaveCount(2)
       }
@@ -382,7 +380,6 @@ test.describe('organization site', () => {
       await page.goto(`${SITE}${ACCOUNT_DOC_PATH}`, { waitUntil: 'networkidle' })
       const section = page.locator(`section.prose#${language}`)
       await expect(section).toHaveAttribute('lang', language === 'zh' ? 'zh-CN' : 'en')
-      await expect(section).toContainText(language === 'zh' ? '不是线上账号验收' : 'not a live-account acceptance test')
       await expect(section.locator(`a[href="${CANONICAL_APP}/register"]`)).toHaveCount(1)
       await expect(section.locator('a[href^="https://github.com/zenstory-ai/zenstory/blob/76b8ab84ce73ca309083f0c1a90f3c9d7ce8d72b/"]')).toHaveCount(12)
       await expect(section).not.toContainText('https://zenstory.ai/register')
