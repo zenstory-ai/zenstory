@@ -239,8 +239,11 @@ export interface UseAgentStreamReturn {
   /**
    * Author pressed stop: ask the server to end the run on this stream so it can
    * settle billing as an author stop; falls back to cancel() if that fails.
+   * `keepFileIds`: files with author text the editor could not save first; the
+   * server does not remove them as blank placeholders. Resolves once the stop
+   * request has settled.
    */
-  stop: () => void;
+  stop: (options?: { keepFileIds?: string[] }) => Promise<void>;
   /** Stop requested, waiting for the server to close the round */
   isStopping: boolean;
   /** Reset state to initial */
@@ -774,7 +777,7 @@ export function useAgentStream(
    * drop the connection when the stop request fails or the server does not wrap
    * up within STOP_GRACE_MS. A second press while stopping drops it right away.
    */
-  const stop = useCallback(() => {
+  const stop = useCallback(async (options?: { keepFileIds?: string[] }) => {
     const runId = runIdRef.current;
     if (!runId || stopRequestedRef.current) {
       cancel();
@@ -787,9 +790,8 @@ export function useAgentStream(
       if (streamEpochRef.current === epoch) cancel();
     };
     stopFallbackTimerRef.current = setTimeout(dropConnection, STOP_GRACE_MS);
-    void stopAgentRun(runId).then((recorded) => {
-      if (!recorded) dropConnection();
-    });
+    const recorded = await stopAgentRun(runId, options?.keepFileIds ?? []);
+    if (!recorded) dropConnection();
   }, [cancel]);
 
   // The round ended (done / error / stop card): the stop has been honoured.

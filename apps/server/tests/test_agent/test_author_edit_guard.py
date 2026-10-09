@@ -411,6 +411,32 @@ async def test_ai_cannot_revert_the_authors_rename_in_an_unrequested_chapter(db_
     assert refusals.file_ids() == [chapter.id]
 
 
+@pytest.mark.parametrize(("change_type", "protected"), [("edit", True), ("ai_edit", False)])
+async def test_comparison_save_keeps_the_rename_protected_only_as_an_author_edit(
+    db_session, owner_project, change_type, protected
+):
+    """作者改名还没自动保存时 AI 写了这一章，作者在对比里保留自己的改名后点完成：
+    编辑器按作者编辑保存（change_type=edit），下一轮 AI 不能把改名改回去。
+    作者接受的 AI 修改（去AI味审阅，change_type=ai_edit）照旧不算作者的文字。"""
+    user, project = owner_project
+    chapter = _ai_chapter(db_session, project)
+    files_api.update_file(
+        chapter.id,
+        files_api.FileUpdate(content=AUTHOR_CH3, change_type=change_type, change_source="user"),
+        BackgroundTasks(),
+        current_user=user,
+        session=db_session,
+    )
+    db_session.expire_all()
+    assert latest_text_is_authors(db_session, db_session.get(File, chapter.id)) is protected
+
+    payload = await _run(
+        mcp_tools.edit_file, db_session, user, project, _revert_rename_edit(chapter.id),
+        message="继续写下一章",
+    )
+    assert (payload.get("error_type") == AUTHOR_EDIT_PROTECTED_ERROR) is protected
+
+
 async def test_author_can_still_ask_for_the_change(db_session, owner_project):
     user, project = owner_project
     chapter = _ai_chapter(db_session, project)

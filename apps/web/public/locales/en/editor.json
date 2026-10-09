@@ -178,8 +178,8 @@
   "save": "Save",
   "saveFailed": "Your changes haven't been saved yet. Try again before switching files.",
   "saveStaleWrite": "The AI just edited this file. The latest version is loaded — review it and save again.",
-  "saveStaleWriteConflict": "This file changed elsewhere. Your text is safe — choose what to keep in the comparison view.",
-  "aiEditedWhileDirty": "The AI just changed this file while you had unsaved edits. Both versions are kept — choose what to keep in the comparison view.",
+  "saveStaleWriteConflict": "This file changed elsewhere. Your text is safe. The comparison lists the newer copy's changes: accept one to use it, reject it to keep yours. Where both changed the same passage, yours is kept by default.",
+  "aiEditedWhileDirty": "The AI just changed this file while you had unsaved edits. Your text is safe. The comparison lists the AI's changes: accept one to use the AI's wording, reject it to keep yours. Where you both changed the same passage, yours is kept by default.",
   "serverSyncFailed": {
     "message": "The AI just changed this file, but the latest version didn't load, so you may be looking at an older copy. Your edits won't be lost.",
     "retry": "Load again",

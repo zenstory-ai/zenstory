@@ -334,6 +334,20 @@ class StopRequest(BaseModel):
         pattern=r"^[0-9a-f]{32}$",
         description="X-Agent-Run-ID of the /stream response to stop",
     )
+    keep_file_ids: list[str] = Field(
+        default_factory=list,
+        max_length=20,
+        description=(
+            "Files the author's editor still holds unsaved text for (the save before "
+            "stopping failed or timed out); a refunded round does not remove them as "
+            "blank placeholders"
+        ),
+    )
+
+    @field_validator("keep_file_ids")
+    @classmethod
+    def _bounded_ids(cls, value: list[str]) -> list[str]:
+        return [item for item in value if isinstance(item, str) and 0 < len(item) <= 128]
 
 
 class StopResponse(BaseModel):
@@ -595,7 +609,7 @@ async def stream_request(
                     removed = await _offload(
                         remove_empty_placeholders,
                         body.project_id,
-                        tracker.removable_placeholders(),
+                        run_outcome.removable(tracker.removable_placeholders()),
                         user_id=user_id,
                     )
             message_id = await run_outcome.wait_message_id(ROUND_OUTCOME_MESSAGE_ID_WAIT_S)
@@ -674,7 +688,7 @@ async def stream_request(
                     removed_files = await _offload(
                         remove_empty_placeholders,
                         body.project_id,
-                        tracker.removable_placeholders(),
+                        run_outcome.removable(tracker.removable_placeholders()),
                         user_id=user_id,
                     )
                     yield quota_refunded_frame(billing_reason, removed_files)
@@ -971,6 +985,7 @@ async def stop_stream(
     if running is not None:
         # 先记下停止原因再取消：process_stream 补存部分历史时据此落库 stop_reason。
         running.outcome.stop_kind = STOP_KIND_USER_STOPPED
+        running.outcome.keep_file_ids.update(body.keep_file_ids)
         running.pump.request_stop()
     log_with_context(
         logger,

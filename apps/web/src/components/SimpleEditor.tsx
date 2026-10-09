@@ -165,6 +165,9 @@ export const SimpleEditor = ({
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isDirty, setIsDirty] = useState(false);
+  // Bumped when a new server baseline leaves the draft unsaved, so the
+  // autosave is scheduled again on the new token (see the baseline effect).
+  const [autosaveNudge, setAutosaveNudge] = useState(0);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   // Selection toolbar state
   const [selectedText, setSelectedText] = useState("");
@@ -256,6 +259,9 @@ export const SimpleEditor = ({
       latestContentRef.current !== serverBaseline.content;
     dirtyRef.current = dirty;
     setIsDirty(dirty);
+    // Text the author has not saved yet (kept on top of the newer copy):
+    // schedule its save again, the pending one was cleared above.
+    if (dirty) setAutosaveNudge((n) => n + 1);
   }, [serverBaseline, fileId]);
 
   useEffect(() => {
@@ -793,7 +799,7 @@ export const SimpleEditor = ({
         saveTimeoutRef.current = null;
       }
     };
-  }, [isDirty, title, content, isNaturalPolishRunning, isAiEditing, showVersionHistory, isReviewMode]);
+  }, [isDirty, title, content, isNaturalPolishRunning, isAiEditing, showVersionHistory, isReviewMode, autosaveNudge]);
 
   // Handle save
   const handleSave = async (providedSubmission?: SaveSubmission): Promise<SaveOutcome> => {

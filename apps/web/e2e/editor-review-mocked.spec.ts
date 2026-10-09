@@ -277,7 +277,7 @@ for (const conflict of [false, true]) {
     await expect.poll(() => puts(f).length).toBe(1);
     expect(puts(f)[0].body).toMatchObject({ content: 'A polished local story.', base_updated_at: token0, change_type: 'ai_edit' });
     if (conflict) {
-      await expect(page.getByText('This file changed elsewhere. Your text is safe — choose what to keep in the comparison view.', { exact: true })).toBeVisible();
+      await expect(page.getByText('This file changed elsewhere. Your text is safe.', { exact: false })).toBeVisible();
       await expect(page.getByRole('button', { name: /^(Apply changes|Finish review)$/ })).toBeVisible();
     }
     else await expect(textarea(page)).toHaveValue('A polished local story.');
@@ -417,7 +417,7 @@ test('@watch final unmount 409 keeps the old A draft while replacement B is sele
   await expect(titleInput(page)).toHaveValue('Chapter Beta');
   f.observations.beforeOldCompletion = await titleInput(page).inputValue();
   f.release();
-  await expect(page.getByText('This file changed elsewhere. Your text is safe — choose what to keep in the comparison view.', { exact: true })).toBeVisible();
+  await expect(page.getByText('This file changed elsewhere. Your text is safe.', { exact: false })).toBeVisible();
   await expect(titleInput(page)).toHaveValue('Chapter Beta');
   const reviewButton = page.getByRole('button', { name: /^(Apply changes|Finish review)$/ });
   expect(await reviewButton.count()).toBe(0);
