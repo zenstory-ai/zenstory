@@ -28,6 +28,8 @@ describe('materialEnumLabel', () => {
     expect(materialEnumLabel(zh.t, 'storyType', 'space_opera')).toBe('其他')
     expect(materialEnumLabel(en.t, 'storyType', 'space_opera')).toBe('Other')
     expect(materialEnumLabel(zh.t, 'plotType', '')).toBe('')
+    expect(materialEnumLabel(zh.t, 'plotType', null)).toBe('')
+    expect(materialEnumLabel(zh.t, 'plotType', undefined)).toBe('')
   })
 
   it('covers every value the extraction validators accept', () => {

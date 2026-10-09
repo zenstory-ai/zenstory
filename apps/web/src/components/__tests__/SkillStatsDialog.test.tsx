@@ -109,6 +109,17 @@ describe('SkillStatsDialog', () => {
     expect(labels[labels.length - 1]).toHaveTextContent('04-30')
   })
 
+  it('uses a denser bar layout for the 90-day range', async () => {
+    const daily = Array.from({ length: 90 }, (_, i) => ({ date: `2026-0${1 + Math.floor(i / 30)}-${String((i % 30) + 1).padStart(2, '0')}`, count: 1 }))
+    mockGetStats.mockResolvedValueOnce({ total_triggers: 90, builtin_count: 90, user_count: 0, top_skills: [], daily_usage: daily })
+
+    render(<SkillStatsDialog isOpen={true} onClose={vi.fn()} projectId="project-1" />)
+
+    const chart = await screen.findByTestId('skill-stats-daily-chart')
+    expect(chart.children).toHaveLength(90)
+    expect(chart.className).toContain('gap-px')
+  })
+
   it('logs errors and keeps the dialog rendered when loading fails', async () => {
     mockGetStats.mockRejectedValueOnce(new Error('stats failed'))
 

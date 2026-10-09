@@ -55,6 +55,8 @@ const mockT = vi.fn((key: string, options?: Record<string, unknown>) => {
     'chat:fileType.character': 'Character',
     'chat:fileType.lore': 'Lore',
     'chat:fileType.snippet': 'Snippet',
+    'chat:fileType.script': 'Script',
+    'chat:fileType.document': 'Document',
     'chat:fileType.default': 'File',
     'chat:edit.replace': 'Replace',
     'chat:edit.append': 'Append',
@@ -854,6 +856,20 @@ describe('ToolResultCard', () => {
         />
       )
       expect(screen.getByText('Lore')).toBeInTheDocument()
+    })
+
+    it.each([
+      ['script', 'Script'],
+      ['document', 'Document'],
+    ])('labels created %s files', (fileType, label) => {
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="create_file"
+          result={{ data: { title: 'Episode 1', file_type: fileType, content: 'Content' } }}
+        />
+      )
+      expect(screen.getByText(label, { exact: false })).toBeInTheDocument()
     })
   })
 
