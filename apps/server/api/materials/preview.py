@@ -104,7 +104,7 @@ def get_material_preview(
         if not character or character.novel_id != novel_id:
             raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404)
 
-        title, markdown = format_character_to_markdown(character, novel.title)
+        title, markdown = format_character_to_markdown(character, novel.title, lang)
         suggested_file_type = "character"
         suggested_folder_name, file_prefix = _localized_import_hints(entity_type, lang)
         suggested_file_name = f"{character.name}-{file_prefix}"
@@ -118,7 +118,7 @@ def get_material_preview(
         if not world_view:
             raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404)
 
-        title, markdown = format_worldview_to_markdown(world_view, novel.title)
+        title, markdown = format_worldview_to_markdown(world_view, novel.title, lang)
         suggested_file_type = "lore"
         suggested_folder_name, file_prefix = _localized_import_hints(entity_type, lang)
         suggested_file_name = f"{file_prefix}-{novel.title}"
@@ -128,7 +128,7 @@ def get_material_preview(
         if not golden_finger or golden_finger.novel_id != novel_id:
             raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404)
 
-        title, markdown = format_goldenfinger_to_markdown(golden_finger, novel.title)
+        title, markdown = format_goldenfinger_to_markdown(golden_finger, novel.title, lang)
         suggested_file_type = "lore"
         suggested_folder_name, file_prefix = _localized_import_hints(entity_type, lang)
         suggested_file_name = f"{file_prefix}-{golden_finger.name}"
@@ -138,7 +138,7 @@ def get_material_preview(
         if not storyline or storyline.novel_id != novel_id:
             raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404)
 
-        title, markdown = format_storyline_to_markdown(storyline, session, novel.title)
+        title, markdown = format_storyline_to_markdown(storyline, session, novel.title, lang)
         suggested_file_type = "outline"
         suggested_folder_name, file_prefix = _localized_import_hints(entity_type, lang)
         suggested_file_name = f"{file_prefix}-{storyline.title}"
@@ -152,7 +152,7 @@ def get_material_preview(
         if not story:
             raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404)
 
-        title, markdown = format_story_to_markdown(story, novel.title)
+        title, markdown = format_story_to_markdown(story, novel.title, lang)
         suggested_file_type = "outline"
         suggested_folder_name, file_prefix = _localized_import_hints(entity_type, lang)
         suggested_file_name = f"{file_prefix}-{story.title}"
@@ -163,7 +163,7 @@ def get_material_preview(
             raise APIException(error_code=ErrorCode.FILE_NOT_FOUND, status_code=404)
 
         title, markdown = format_relationship_to_markdown(
-            novel_id, session, novel.title, relationship_id=entity_id
+            novel_id, session, novel.title, relationship_id=entity_id, lang=lang
         )
         suggested_file_type = "lore"
         suggested_folder_name, file_prefix = _localized_import_hints(entity_type, lang)
