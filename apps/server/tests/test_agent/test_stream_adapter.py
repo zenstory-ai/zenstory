@@ -1230,7 +1230,8 @@ class TestSaveFileContent:
             # Should call update_file
             mock_executor.update_file.assert_called_once_with(
                 id="file-1",
-                content="Test content"
+                content="Test content",
+                normalize_quotes=True,
             )
             assert saved is True
 

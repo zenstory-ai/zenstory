@@ -82,27 +82,41 @@ async def test_missing_rollback_version_matches_content_and_compare_404_without_
     assert indexed == cache_bumps == []
 
 
-@pytest.mark.parametrize("reason", ["missing", "mismatched", "broken_replay"])
-def test_unanchored_edits_commit_without_an_undo_descriptor(db_session, undo_file, monkeypatch, reason):
+@pytest.mark.parametrize("reason", ["missing", "mismatched"])
+def test_unversioned_live_content_is_backed_up_and_anchors_undo(db_session, undo_file, reason):
+    # 历史头和当前正文对不上（没有版本 / 正文没进历史）时，AI 写入前先把当前
+    # 正文备份成 system 版本，撤销锚点落在这份备份上，而不是没有撤销入口。
     user, _, file, *_ = undo_file
     if reason == "missing":
         db_session.delete(get_file_version_service().get_latest_version(db_session, file.id))
         db_session.commit()
-    elif reason == "mismatched":
+    else:
         file.content = "Live content without history\n"
         db_session.add(file)
         db_session.commit()
-    else:
-        original = FileVersionService._get_contents_for_versions
-        calls = []
+    original_content = file.content
+    result = _edit(db_session, user, file)
+    backup_number = result["undo"]["before_version_number"]
+    backup = get_file_version_service().get_version_by_number(db_session, file.id, backup_number)
+    assert (backup.change_source, backup.change_summary) == ("system", "Before AI edit")
+    assert FileVersionService().get_content_at_version(db_session, file.id, backup_number) == original_content
+    db_session.refresh(file)
+    assert file.content == original_content + "AI\n"
 
-        def fail_first(self, session, targets):
-            calls.append(targets)
-            if len(calls) == 1:
-                raise ValueError("Corrupt prior replay")
-            return original(self, session, targets)
 
-        monkeypatch.setattr(FileVersionService, "_get_contents_for_versions", fail_first)
+def test_unanchored_edits_commit_without_an_undo_descriptor(db_session, undo_file, monkeypatch):
+    user, _, file, *_ = undo_file
+    original = FileVersionService._get_contents_for_versions
+    calls = []
+
+    def fail_history_reads(self, session, targets):
+        # 前两次读取是「AI 写入前备份」的比对和撤销锚点的比对；都读不出历史头时不给撤销。
+        calls.append(targets)
+        if len(calls) <= 2:
+            raise ValueError("Corrupt prior replay")
+        return original(self, session, targets)
+
+    monkeypatch.setattr(FileVersionService, "_get_contents_for_versions", fail_history_reads)
     original_content = file.content
     result = _edit(db_session, user, file)
     assert result.get("undo") is None

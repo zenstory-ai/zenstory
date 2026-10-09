@@ -49,6 +49,54 @@ MIN_APPROX_GAP = 0.08
 CONTAINMENT_MIN_LEN_RATIO = 0.6
 
 
+# --- 引号等价精确匹配 -----------------------------------------------------
+# AI 写入正文时会把半角 " 规范化成全角引号（utils.cjk_quotes），模型下一次
+# edit_file 却常常照旧用半角引号抄 old/anchor，逐字 exact 就找不到了。这里把
+# 双引号类字符在原文和 old 里都映射成同一个占位符再找：映射一字对一字，命中
+# 下标可以直接用在原文上，其余字符仍须逐字一致（比去掉全部标点的 fuzzy 严格）。
+QUOTE_EQUIVALENT_CHARS = '"“”＂「」'
+_QUOTE_FOLD_PLACEHOLDER = '"'
+_QUOTE_FOLD_TABLE = str.maketrans(
+    dict.fromkeys(QUOTE_EQUIVALENT_CHARS, _QUOTE_FOLD_PLACEHOLDER)
+)
+
+
+def has_quote_equivalent_chars(text: str) -> bool:
+    """Whether ``text`` contains any mark that quote folding would change."""
+    return any(ch in QUOTE_EQUIVALENT_CHARS for ch in text)
+
+
+def fold_double_quotes(text: str) -> str:
+    """Map every ``"“”＂「」`` to one placeholder; length is unchanged."""
+    return text.translate(_QUOTE_FOLD_TABLE)
+
+
+def locate_exact_or_quote_equivalent(
+    content: str, pattern: str
+) -> tuple[str, str, str] | None:
+    """Find ``pattern`` exactly, or exactly modulo double-quote style.
+
+    Returns ``(match_mode, haystack, needle)`` where ``match_mode`` is
+    ``"exact"`` or ``"quote_equivalent"``. Indices found by searching
+    ``needle`` in ``haystack`` are valid in ``content`` (folding is one
+    character for one character). ``None`` when neither matches.
+
+    A pattern without quote marks cannot gain a match from folding (any
+    folded hit would cover only unchanged characters), so it is not folded.
+    """
+    if not pattern:
+        return None
+    if pattern in content:
+        return "exact", content, pattern
+    if not has_quote_equivalent_chars(pattern):
+        return None
+    folded_pattern = fold_double_quotes(pattern)
+    folded_content = fold_double_quotes(content)
+    if folded_pattern in folded_content:
+        return "quote_equivalent", folded_content, folded_pattern
+    return None
+
+
 def _length_ratio_ok(a: str, b: str, min_ratio: float = CONTAINMENT_MIN_LEN_RATIO) -> bool:
     """两段文本的长度比是否达到 ``min_ratio``（短/长）。"""
     longer = max(len(a), len(b))
@@ -587,6 +635,10 @@ def find_unique_line_span(
 
 
 __all__ = [
+    "QUOTE_EQUIVALENT_CHARS",
+    "fold_double_quotes",
+    "has_quote_equivalent_chars",
+    "locate_exact_or_quote_equivalent",
     "normalize_for_fuzzy_match",
     "find_fuzzy_spans",
     "find_approximate_match",

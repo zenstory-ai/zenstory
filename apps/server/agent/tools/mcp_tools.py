@@ -1527,6 +1527,8 @@ def _create_file_sync(args: dict[str, Any]) -> dict[str, Any]:
             parent_id=args.get("parent_id"),
             order=order_value,
             metadata=args.get("metadata"),
+            # 应用内 agent 写正文：draft/script 的双引号按稿件体例规范化。
+            normalize_quotes=True,
         )
 
         # 如果创建的是空文件，把占坑换成真实 file_id
@@ -1620,6 +1622,8 @@ def _edit_file_sync(args: dict[str, Any]) -> dict[str, Any]:
             # "false"/"0"，而 bool("false") is True——一次编辑失败后本该中止的
             # 批量编辑会继续往下做，且整体仍被报成 success。
             continue_on_error=coerce_bool(args.get("continue_on_error")),
+            # 只规范化各 edit 的新文本，未编辑的段落不动。
+            normalize_quotes=True,
         )
         _record_artifact_ledger(
             action=tool_name,
@@ -2008,19 +2012,26 @@ def _update_project_sync(args: dict[str, Any]) -> dict[str, Any]:
         # 更新项目状态（支持空字符串清空字段）
         status_keys = ["summary", "current_phase", "writing_style", "notes"]
         has_status_update_args = any(k in normalized_args for k in status_keys)
-        if has_status_update_args:
+        # title：AI 给作品起的名字。只在项目还叫默认名时改名（见 ProjectOperations）。
+        title_arg = normalized_args.get("title")
+        has_title_arg = title_arg is not None
+        if has_status_update_args or has_title_arg:
             status_result = executor.update_project_status(
                 project_id=project_id,
                 summary=normalized_args.get("summary"),
                 current_phase=normalized_args.get("current_phase"),
                 writing_style=normalized_args.get("writing_style"),
                 notes=normalized_args.get("notes"),
+                **({"title": title_arg} if has_title_arg else {}),
             )
             result["project_status"] = status_result
             # Backward compatibility: keep common fields at top level for older clients.
             result["project_id"] = status_result.get("project_id")
             result["updated_fields"] = status_result.get("updated_fields", [])
             result["current_status"] = status_result.get("current_status", {})
+            for key in ("project_name_updated", "project_name", "title_skipped", "title_error"):
+                if key in status_result:
+                    result[key] = status_result[key]
 
         # 更新任务计划（允许传空数组以清空任务板）
         if "tasks" in normalized_args and session_id:

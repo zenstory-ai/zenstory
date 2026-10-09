@@ -8,6 +8,7 @@ This module provides operations related to project management:
 Extracted from the monolithic file_executor.py for better maintainability.
 """
 
+import re
 from typing import Any, cast
 
 from sqlmodel import Session
@@ -15,10 +16,41 @@ from sqlmodel import Session
 from agent.tools.permissions import check_project_ownership
 from config.datetime_utils import utcnow
 from config.project_status import normalize_project_status_payload
+from config.project_templates import PROJECT_TEMPLATES_BY_LANG
 from models import Project
 from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
+
+PROJECT_TITLE_MAX_CHARS = 30
+
+# 项目还叫这些名字时，说明作者没自己起过名：AI 给作品起了名就可以跟着改。
+# 来源是各类型、各语言模板的 default_project_name，加上前端的兜底名。
+DEFAULT_PROJECT_NAMES = frozenset(
+    {
+        str(template.get("default_project_name") or "").strip()
+        for templates in PROJECT_TEMPLATES_BY_LANG.values()
+        for template in templates.values()
+    }
+    | {"我的项目", "未命名项目", "Untitled"}
+) - {""}
+
+TITLE_SKIPPED_AUTHOR_NAMED = "author_named"
+TITLE_SKIPPED_INVALID = "invalid_title"
+TITLE_SKIPPED_UNCHANGED = "unchanged"
+
+_TITLE_STRIP_CHARS = re.compile(r"[《》“”]")
+_WHITESPACE_RUN = re.compile(r"\s+")
+
+
+def normalize_project_title(raw: Any) -> str | None:
+    """去掉书名号、弯引号和首尾空白（中间连续空白并成一个），长度 1–30 才有效。"""
+    if not isinstance(raw, str):
+        return None
+    title = _WHITESPACE_RUN.sub(" ", _TITLE_STRIP_CHARS.sub("", raw)).strip()
+    if not title or len(title) > PROJECT_TITLE_MAX_CHARS:
+        return None
+    return title
 
 
 class ProjectOperations:
@@ -187,6 +219,7 @@ class ProjectOperations:
         current_phase: str | None = None,
         writing_style: str | None = None,
         notes: str | None = None,
+        title: str | None = None,
     ) -> dict[str, Any]:
         """
         Update project status information for AI context awareness.
@@ -197,9 +230,14 @@ class ProjectOperations:
             current_phase: Current writing phase description
             writing_style: Writing style guidelines
             notes: Additional notes for AI assistant
+            title: Work title the AI gave the story (≤30 chars, no 《》).
+                Renames the project only while it still has a default name;
+                a name the author chose is never overwritten.
 
         Returns:
-            Updated project status fields
+            Updated project status fields; with ``title``, also
+            ``project_name_updated`` and, when not renamed, ``title_skipped``
+            (author_named / invalid_title / unchanged)
 
         Raises:
             PermissionError: If user doesn't have permission
@@ -231,13 +269,18 @@ class ProjectOperations:
                 setattr(project, field_name, normalized_updates.get(field_name, ""))
                 updated_fields.append(field_name)
 
-        # Update timestamp
-        project.updated_at = utcnow()
+        title_result: dict[str, Any] = {}
+        if title is not None:
+            title_result = self._apply_ai_title(project, title)
 
-        self.session.commit()
-        self.session.refresh(project)
+        has_status_fields = any(value is not None for value in raw_updates.values())
+        if has_status_fields or title_result.get("project_name_updated"):
+            # Update timestamp
+            project.updated_at = utcnow()
+            self.session.commit()
+            self.session.refresh(project)
 
-        return {
+        result: dict[str, Any] = {
             "project_id": project.id,
             "updated_fields": updated_fields,
             "current_status": {
@@ -247,6 +290,28 @@ class ProjectOperations:
                 "notes": project.notes,
             },
         }
+        result.update(title_result)
+        return result
+
+    @staticmethod
+    def _apply_ai_title(project: Project, raw_title: Any) -> dict[str, Any]:
+        """AI 起的作品名只替换默认项目名；作者起过的名字一律不动。"""
+        title = normalize_project_title(raw_title)
+        if title is None:
+            return {
+                "project_name_updated": False,
+                "title_skipped": TITLE_SKIPPED_INVALID,
+                "title_error": (
+                    f"作品名去掉书名号后需为 1–{PROJECT_TITLE_MAX_CHARS} 字，本次未改项目名"
+                ),
+            }
+        current_name = (project.name or "").strip()
+        if current_name == title:
+            return {"project_name_updated": False, "title_skipped": TITLE_SKIPPED_UNCHANGED}
+        if current_name not in DEFAULT_PROJECT_NAMES:
+            return {"project_name_updated": False, "title_skipped": TITLE_SKIPPED_AUTHOR_NAMED}
+        project.name = title
+        return {"project_name_updated": True, "project_name": title}
 
     def execute_update_plan(
         self,
