@@ -146,8 +146,10 @@ vi.mock('../../lib/agentApi', () => ({
 vi.mock('../../lib/subscriptionApi', () => ({
   subscriptionApi: {
     getQuota: vi.fn(async () => ({ ai_conversations: { used: 0, limit: 10, reset_at: null } })),
+    getStatus: vi.fn(async () => ({ tier: 'free' })),
   },
   subscriptionQueryKeys: {
+    status: () => ['subscription-status', 'test-user'],
     quota: () => ['subscription-quota', 'test-user'],
     quotaLite: () => ['quota', 'test-user'],
   },

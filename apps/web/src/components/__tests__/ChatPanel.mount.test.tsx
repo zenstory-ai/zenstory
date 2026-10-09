@@ -89,8 +89,10 @@ vi.mock('../../contexts/ProjectContext', () => ({
 vi.mock('../../lib/subscriptionApi', () => ({
   subscriptionApi: {
     getQuota: vi.fn(async () => mockQuota.value),
+    getStatus: vi.fn(async () => ({ tier: 'free' })),
   },
   subscriptionQueryKeys: {
+    status: () => ['subscription-status', 'test-user'],
     quota: () => ['subscription-quota', 'test-user'],
     quotaLite: () => ['quota', 'test-user'],
   },
