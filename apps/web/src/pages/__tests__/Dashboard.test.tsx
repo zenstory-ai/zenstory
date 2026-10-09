@@ -181,7 +181,7 @@ describe('Dashboard user panel and quick switches', () => {
     mockIsDesktop = false
     renderDashboard(['/dashboard/inspirations'])
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open mobile menu' }))
+    fireEvent.click(screen.getByRole('button', { name: '打开菜单' }))
 
     expect(screen.getByTestId('dashboard-mobile-nav-inspirations')).toHaveAttribute('aria-current', 'page')
     expect(screen.getByTestId('dashboard-mobile-nav-home')).not.toHaveAttribute('aria-current')
