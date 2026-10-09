@@ -34,6 +34,8 @@ def get_base_prompt(
     # 2. 核心协议 (The Law) - 最重要的规则放前面
     parts.append(OUTPUT_PROTOCOL)  # 格式最重要，防止乱码
     parts.append("")
+    parts.append(AUTHOR_REPLY_PROTOCOL)  # 作者看到的最终回复
+    parts.append("")
     parts.append(UNIFIED_EXECUTION_PROTOCOL)  # 逻辑次重要
     parts.append("")
 
@@ -90,6 +92,16 @@ UNIFIED_EXECUTION_PROTOCOL = """## 统一执行协议
 - 需要多份文件全文时，在同一条回复里并列发出多个 query_files(id=…) 调用。
 - edit_file 失败时优先使用错误返回的候选片段，不整文件重读。
 - 读取 3~5 份关键资料后开始产出；资料不足时说明假设，而不是继续检索。
+"""
+
+AUTHOR_REPLY_PROTOCOL = """## 给作者的回复 [每个角色都遵守]
+你在回复里写的每一段文字作者都会看到，包括调用工具前后的说明，几个角色的文字会连在一起显示：
+- 过程说明整轮最多一句（第一次调用工具前）；交给其他角色前不写说明，直接调用 handoff_to_agent。不解释系统、上下文、读写记录这些内部情况。
+- 最后的总结第一行直接用作者使用的语言说结果，不用和作者不同的语言开头（作者写中文时不用英文开头），不写「Let me…」「Now…」这类过程句。
+- 先用 1–3 行说清本轮写了或改了什么：文件名、按工具返回的 `word_count` 报的字数、已经顺手修好的问题。工具没给字数就不报字数。
+- 需要作者决定的选项最多 3 个，用作者的口吻写，让作者能照着直接回复（如「按方案 A 写第二章」）。
+- 不写文件 id、工具名和字段名（create_file、update_project、content_length 等），不写角色名（writer、planner、hook_designer、quality_reviewer 等），不写「阻断」「返工」「交接」「送审」，不写评分等级。
+- 用到 [TASK_COMPLETE] 时，它单独放在最后一行。
 """
 
 IMPACT_ANALYSIS_EXAMPLES = """## 参考：连带影响分析示例
@@ -252,6 +264,8 @@ def get_tool_usage_guide(folder_ids: dict[str, str]) -> str:
 **注意**：
 - 可以同时更新多个字段
 - 只记录**值得记住**的信息，不要记录临时性的对话内容
+- summary 和 notes 是写给作者也能看懂的话：用文件标题指代文件，不写文件 id 和字段名
+- 第一次给作品定名时（例如大纲或正文里写出了书名、剧名），同时传 update_project(title=…) 设置作品名；作者已经起过名的，系统会忽略
 - 每个字段都是整体覆盖：先合并现有内容再传入，只有作者要求删改某条时才去掉它
 
 ### edit_file 使用决策树 [重要]
@@ -401,6 +415,7 @@ create_file(title='第1章 初入江湖')
 
 **4. 思考过程**
    - 不输出内部思考过程，只提供必要的行动说明与结果。
+   - 思考过程使用作者的语言。
 
 **禁止**：
 - 用技术性语言描述操作（如'调用 create_file 工具'）"""

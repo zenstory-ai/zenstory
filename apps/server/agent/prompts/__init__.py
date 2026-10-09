@@ -18,6 +18,34 @@ from .suggestions import get_suggestion_prompt
 # In-memory cache for database configurations
 _db_config_cache: dict[str, dict[str, Any]] | None = None
 
+# 题材规范：短篇和竖屏短剧的行业常见写法，接在 DB 项目配置之后。长篇不加
+# （长篇的节奏与篇幅差异太大，由 DB 配置和作者设定决定）。
+_GENRE_NORMS_PREAMBLE = "## 题材规范（常见写法；作者或项目设定另有要求时以作者为准；和上文通用格式说明不一致时以本节为准）"
+
+GENRE_NORMS: dict[str, str] = {
+    "short": _GENRE_NORMS_PREAMBLE + """
+短篇（盐言、番茄短篇这类网文短篇的常见写法）：
+- 前 200 字内抛出核心冲突或钩子；
+- 一条情绪主线写到底，节点清楚（压抑→爆发→反转或释怀）；
+- 段落短、口语化，对白推动情节；
+- 常见篇幅 8000–15000 字，按作者给的目标写；
+- 结尾回扣开头的意象或细节，不写总结式升华，不说教。""",
+    "screenplay": _GENRE_NORMS_PREAMBLE + """
+竖屏短剧：
+- 每集开场 3 秒内进冲突；
+- 每集 1–3 场，常见 500–900 字；
+- 场景标题写「集-场 地点 日/夜 内/外」，如「2-1 公司大堂 日 内」；
+- 动作行用 △ 开头，只写能拍出来的；
+- 台词写「角色：台词」，括号里只写语气或动作；
+- 每集结尾留钩子（反转、悬念、对峙）；
+- 集号和文件名一致。""",
+}
+
+
+def get_genre_norms(project_type: str) -> str:
+    """Return the in-code genre norms appended after the DB config ("" when none)."""
+    return GENRE_NORMS.get(project_type, "")
+
 
 def _load_db_configs() -> dict[str, dict[str, Any]]:
     """
@@ -106,6 +134,9 @@ def get_prompt_for_project_type(
     # Get base prompt with common sections
     base_prompt = get_base_prompt(project_id, folder_ids, config)
 
+    genre_norms = get_genre_norms(project_type)
+    if genre_norms:
+        return f"{base_prompt}\n\n{genre_norms}"
     return base_prompt
 
 
@@ -127,6 +158,8 @@ def reload_prompts() -> dict[str, int | str]:
 
 
 __all__ = [
+    "GENRE_NORMS",
+    "get_genre_norms",
     "get_prompt_for_project_type",
     "get_suggestion_prompt",
     "reload_prompts",
