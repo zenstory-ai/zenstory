@@ -28,6 +28,10 @@ logger = get_logger(__name__)
 STOP_KIND_USER_STOPPED = "user_stopped"
 STOP_KIND_CLIENT_DISCONNECTED = "client_disconnected"
 STOP_KINDS: frozenset[str] = frozenset({STOP_KIND_USER_STOPPED, STOP_KIND_CLIENT_DISCONNECTED})
+# 写终态时可以被停止原因覆盖的 stop_reason：没有原因、或本来就是取消类的原因。
+# 其余（例如可「继续」的 max_turns_exceeded、run_deadline_exceeded）说明这一轮在停止
+# 之前已经按自己的方式结束并落库，保留原值，「继续」入口才不会丢。
+_OVERWRITABLE_STOP_REASONS: frozenset[str] = frozenset({"", "cancelled", *STOP_KINDS})
 
 
 @dataclass
@@ -52,10 +56,13 @@ class RunOutcome:
             future.set_result(message_id if isinstance(message_id, str) and message_id else None)
 
     async def wait_message_id(self, timeout_s: float) -> str | None:
-        """等这一轮的助手消息 id；超时或不会落库时返回 None（不抛异常）。"""
+        """等这一轮的助手消息 id；超时或不会落库时返回 None。
+
+        等待中的请求被取消（客户端断开）时照常抛出 CancelledError，交给调用方的断线路径。
+        """
         try:
             return await asyncio.wait_for(asyncio.shield(self._future()), timeout=timeout_s)
-        except (TimeoutError, asyncio.CancelledError):
+        except TimeoutError:
             return None
 
 
@@ -184,7 +191,9 @@ def record_round_outcome(message_id: str, *, stop_kind: str, outcome: dict[str, 
                 metadata = {}
             if not isinstance(metadata, dict):
                 metadata = {}
-            metadata["stop_reason"] = stop_kind
+            existing_reason = metadata.get("stop_reason")
+            if not isinstance(existing_reason, str) or existing_reason in _OVERWRITABLE_STOP_REASONS:
+                metadata["stop_reason"] = stop_kind
             metadata["stop_outcome"] = outcome
             message.message_metadata = json.dumps(metadata, ensure_ascii=False)
             session.add(message)

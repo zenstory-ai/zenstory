@@ -1,4 +1,6 @@
 const PARALLEL_WRITE_TASKS = new Set(['write_chapter', 'edit_file', 'delete_file']);
+/** update_project fields an author can see; a task-board or current_phase update alone is not output. */
+const PROJECT_INFO_FIELDS = new Set(['summary', 'writing_style', 'notes']);
 
 /**
  * A reply segment (text between two tool calls) counts as real prose once it has this
@@ -28,8 +30,10 @@ export function isRealProse(segmentContent: string): boolean {
  *
  * Mirrors the server (`StreamBillingTracker._write_effect`): an empty `create_file` (the
  * chapter body streams in afterwards) or an edit that changed nothing does not count;
- * `parallel_execute` counts only when one of its completed sub-tasks is a write. Body
- * text streamed into a file arrives as file_content, which callers count separately.
+ * `parallel_execute` counts only when one of its completed sub-tasks is a write;
+ * `update_project` counts only when it renamed the work or changed its synopsis, style or
+ * notes. Body text streamed into a file arrives as file_content, which callers count
+ * separately.
  */
 export function isWriteToolResult(
   toolName: string,
@@ -49,6 +53,13 @@ export function isWriteToolResult(
     return true;
   }
   if (toolName === 'delete_file') return true;
+  if (toolName === 'update_project') {
+    const fields = Array.isArray(payload?.updated_fields) ? (payload.updated_fields as unknown[]) : [];
+    return (
+      payload?.project_name_updated === true ||
+      fields.some((field) => typeof field === 'string' && PROJECT_INFO_FIELDS.has(field))
+    );
+  }
   if (toolName !== 'parallel_execute') return false;
 
   const tasks = Array.isArray(payload?.tasks) ? (payload.tasks as Array<Record<string, unknown>>) : [];

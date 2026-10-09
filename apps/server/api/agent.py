@@ -554,17 +554,23 @@ async def stream_request(
                     "agent_run_id": agent_run_id,
                     "billing_reason": billing_reason,
                 }
-                if should_refund and detached:
+                if should_refund:
+                    # 退还一律放进后台任务：断线路径不能挂起；连接还开着时用 shield 等它，
+                    # 等待途中请求被取消也不会把排队中的退还一起取消。
                     refund_task = _schedule_detached_refund(
                         session, user_id, charged_period_start, **refund_fields
                     )
                     refund_scheduled = refund_task is not None
-                elif should_refund:
-                    # 先记下「已结算」：退还途中被取消时，finally 不会再退第二次。
-                    settlement = (billing_reason, should_refund, False)
-                    refund_applied = await _refund_quota(
-                        session, user_id, charged_period_start, **refund_fields
-                    )
+                    if refund_task is not None and not detached:
+                        # 先记下「已结算」：等待途中被取消时，finally 不会再退第二次；
+                        # 停止 / 断线的终态由 _finalize_stopped_round 等这个任务的真实结果。
+                        settlement = (billing_reason, should_refund, False)
+                        refund_applied = await asyncio.shield(refund_task)
+                        refund_scheduled = False
+                    elif refund_task is None and not detached:
+                        refund_applied = await _refund_quota(
+                            session, user_id, charged_period_start, **refund_fields
+                        )
                 settlement = (billing_reason, should_refund, refund_applied)
             return settlement
 
@@ -611,9 +617,14 @@ async def stream_request(
             # 不能挂起（断线路径在 GeneratorExit 里调用）：只排后台任务。
             stop_kind = STOP_KIND_USER_STOPPED if user_stopped else STOP_KIND_CLIENT_DISCONNECTED
             charged_now = not refund_applied
+            # 退还已在连接上落定时不再等它（也不再移除一次占位文件）；还没落定的
+            # （断线、或等待途中被取消）由收尾任务等真实结果。
+            pending_refund = None if refund_applied else refund_task
             try:
                 task = asyncio.get_running_loop().create_task(
-                    _finalize_stopped_round(stop_kind, charged_now, refund_task, list(removed_files))
+                    _finalize_stopped_round(
+                        stop_kind, charged_now, pending_refund, list(removed_files)
+                    )
                 )
             except RuntimeError:
                 return
@@ -677,9 +688,10 @@ async def stream_request(
             # 会挂起的 await。作者先点了停止、前端等不到收尾才断开时仍算主动停止。
             client_disconnected = True
             user_stopped = pump.stop_requested
-            run_outcome.stop_kind = (
-                STOP_KIND_USER_STOPPED if user_stopped else STOP_KIND_CLIENT_DISCONNECTED
-            )
+            if user_stopped:
+                run_outcome.stop_kind = STOP_KIND_USER_STOPPED
+            elif not tracker.saw_terminal_event:
+                run_outcome.stop_kind = STOP_KIND_CLIENT_DISCONNECTED
             pump.cancel()
             raise
         except StreamDeadlineExceeded:
@@ -747,7 +759,8 @@ async def stream_request(
             billing_reason, should_refund, refund_applied = await _settle_billing(
                 detached=client_disconnected
             )
-            if user_stopped or client_disconnected:
+            # 终止帧（done 等）之后才断开的一轮已经正常结束：不写「已中断」终态。
+            if user_stopped or (client_disconnected and not tracker.saw_terminal_event):
                 _schedule_round_outcome(refund_applied)
 
             # 每次 run 一行结构化摘要：模型、token、调用次数、LLM 耗时、结束原因、计费。

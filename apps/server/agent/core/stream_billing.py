@@ -2,13 +2,16 @@
 
 规则（按优先级）：
 
-1. 作者主动停止（``POST /agent/stop``，见 agent.core.run_stop）或客户端断线
-   （CancelledError / GeneratorExit）：本轮已有实质产出则计费，否则退还
+1. 作者主动停止（``POST /agent/stop``，见 agent.core.run_stop）或这一轮结束前客户端
+   断线（CancelledError / GeneratorExit）：本轮已有实质产出则计费，否则退还
    （``user_stopped_no_output`` / ``client_disconnected_no_output``）。只想过、读过
    文件、只说了一句过渡旁白、只建了空文件的一轮，不该占作者一条额度；见
    ``architecture/2026-10-09-agent-graceful-stop-and-no-output-refund.md`` 与
    ``architecture/2026-10-09-stop-output-definition-and-round-outcome.md``。
-2. 请求级墙钟时限到期：本轮已有实质产出则计费，否则退还。
+   终止帧（done 等）已经产生之后才断线的，这一轮已经结束，按下面的规则结算，
+   不算中断。
+2. 请求级墙钟时限到期：本轮已有实质产出、或结束时模型正在给作者写回复
+   （``ended_on_reply``）则计费，否则退还。
 3. 失控停止（重复读取无进展 error 帧 reason=no_progress、请求级模型调用预算
    ERR_AGENT_MODEL_CALL_LIMIT、单 agent 工具调用轮数耗尽 iteration_exhausted
    layer=tool_call）且本轮没有任何写入成功：退还（runaway_no_progress）。
@@ -16,14 +19,17 @@
    不看有没有串流文字——打转时模型照样会边读边念叨。
 4. 正常结束（done / workflow_complete / 终止性 workflow_stopped，且没有 error 帧）：计费。
 5. 失败：error 帧明确 ``refundable: false``（例如工具失败熔断）→ 计费；
-   本轮已有实质产出 → 计费；其余才是真正没有产出的平台侧故障 → 退还。
+   本轮已有实质产出、或出错时模型正在给作者写回复（``ended_on_reply``，例如一句
+   不到 60 字的完整回答之后出错）→ 计费；其余才是真正没有产出的平台侧故障 → 退还。
 
 「实质产出」（``produced_output``）只有两种：
 
 - 写入留下了正文（``write_succeeded``）：流式文件正文非空；``create_file`` 带着非空
   正文新建（复用已有文件不算）；``edit_file`` 真的改动了文字（``mutation_applied``）；
-  ``delete_file`` 成功；``parallel_execute`` 里有写入类子任务完成。只建了一个空文件
-  （后面的正文还没写进去）不算。
+  ``delete_file`` 成功；``parallel_execute`` 里有写入类子任务完成（整批的 tool_result，
+  或批次中途被打断前已完成子任务的 ``parallel_task_end``）；``update_project`` 改了
+  作品名、简介、文风或备注（只更新任务板 / 当前进度不算）。只建了一个空文件（后面的
+  正文还没写进去）不算。
 - 真正的回复正文：同一段正文（两次工具调用之间）累计到 ``PROSE_MIN_CHARS`` 个可见
   字符。工具调用前那句「我先看一遍全书大纲。」这类过渡旁白到不了这个长度，不算。
 
@@ -55,6 +61,9 @@ _SEGMENT_BOUNDARY_EVENTS: frozenset[str] = frozenset(
 _FOLDER_FILE_TYPE = "folder"
 # parallel_execute 中会改动文件的子任务类型。
 PARALLEL_WRITE_TASK_TYPES: frozenset[str] = frozenset({"write_chapter", "edit_file", "delete_file"})
+# update_project 里作者看得见的项目信息：改了这些才算产出。只更新任务板（tasks）或
+# current_phase（进度标记，任务板更新时还会被自动推进）不算。
+PROJECT_INFO_FIELDS: frozenset[str] = frozenset({"summary", "writing_style", "notes"})
 
 # 失控停止的信号：error 帧的 reason / code，iteration_exhausted 帧的 layer。
 RUNAWAY_ERROR_REASONS: frozenset[str] = frozenset({"no_progress"})
@@ -137,8 +146,13 @@ class StreamBillingTracker:
     filled_file_ids: set[str] = field(default_factory=set)
     # session_started 帧里的聊天会话 id（停止路径的 done 帧带上它）。
     session_id: str | None = None
+    # 这一轮结束（终止帧 / error 帧）时，模型最后在做的是给作者写回复：最后一段正文
+    # 之后没有再调工具。出错 / 时限路径据此把「短回答之后出错」照旧计费。
+    ended_on_reply: bool = False
     # 当前这段回复正文（两次工具调用之间）已累计的可见字符数。
     _segment_chars: int = field(default=0, repr=False)
+    # parallel_task_start 帧里的子任务类型：(execution_id, task_id) -> task_type。
+    _parallel_task_types: dict[tuple[str, str], str] = field(default_factory=dict, repr=False)
 
     def observe(self, frame: Any) -> None:
         if not isinstance(frame, str):
@@ -148,6 +162,16 @@ class StreamBillingTracker:
         if not event_type:
             return  # SSE 注释帧（心跳）等
         payload = data if isinstance(data, dict) else {}
+
+        if self._segment_chars > 0 and (
+            event_type in _TERMINAL_EVENT_TYPES
+            or event_type == "error"
+            or (
+                event_type == "workflow_stopped"
+                and payload.get("reason") not in NON_TERMINAL_WORKFLOW_STOPPED_REASONS
+            )
+        ):
+            self.ended_on_reply = True
 
         if event_type == "session_started" and isinstance(payload.get("session_id"), str):
             self.session_id = payload["session_id"]
@@ -214,11 +238,12 @@ class StreamBillingTracker:
         ):
             self.created_empty_files[file_id] = str(data.get("title") or "")
 
-    @staticmethod
-    def _write_effect(event_type: str, payload: dict[str, Any]) -> bool:
-        """这一帧是否意味着某个文件被写进了正文（或被删除）。"""
+    def _write_effect(self, event_type: str, payload: dict[str, Any]) -> bool:
+        """这一帧是否意味着某个文件被写进了正文（或被删除）、项目信息被改了。"""
         if event_type == "file_content":
             return bool(str(payload.get("chunk") or "").strip())
+        if event_type in ("parallel_task_start", "parallel_task_end"):
+            return self._parallel_task_wrote(event_type, payload)
         if event_type != "tool_result" or payload.get("status") != "success":
             return False
         tool_name = payload.get("tool_name")
@@ -237,6 +262,12 @@ class StreamBillingTracker:
             return True  # 旧格式结果没有这两个字段：成功即算
         if tool_name == "delete_file":
             return True
+        if tool_name == "update_project":
+            updated_fields = data.get("updated_fields")
+            changed_info = isinstance(updated_fields, list) and any(
+                field_name in PROJECT_INFO_FIELDS for field_name in updated_fields
+            )
+            return changed_info or data.get("project_name_updated") is True
         if tool_name == "parallel_execute":
             tasks = data.get("tasks")
             return any(
@@ -246,6 +277,19 @@ class StreamBillingTracker:
                 for task in tasks or []
             )
         return False
+
+    def _parallel_task_wrote(self, event_type: str, payload: dict[str, Any]) -> bool:
+        """并行批次里的写入子任务完成了（批次中途被打断时，整批的 tool_result 还没来）。"""
+        key = (str(payload.get("execution_id") or ""), str(payload.get("task_id") or ""))
+        if event_type == "parallel_task_start":
+            task_type = payload.get("task_type")
+            if isinstance(task_type, str):
+                self._parallel_task_types[key] = task_type
+            return False
+        return (
+            payload.get("status") == "completed"
+            and self._parallel_task_types.get(key) in PARALLEL_WRITE_TASK_TYPES
+        )
 
     def _prose_reached(self, event_type: str, payload: dict[str, Any]) -> bool:
         """真正的回复正文：同一段正文累计到 PROSE_MIN_CHARS 个可见字符。"""
@@ -266,20 +310,24 @@ class StreamBillingTracker:
         user_stopped: bool = False,
     ) -> tuple[str, bool]:
         """返回 (billing_reason, should_refund)。"""
+        if client_disconnected and not user_stopped and self.saw_terminal_event:
+            # 这一轮已经结束（done / 终止性停止 / error 帧已产生）之后才断开：
+            # 不是中断，按结束方式结算。
+            client_disconnected = False
         if user_stopped or client_disconnected:
             reason = "user_stopped" if user_stopped else "client_disconnected"
             if self.produced_output:
                 return reason, False
             return f"{reason}_no_output", True
         if deadline_exceeded:
-            return "run_deadline_exceeded", not self.produced_output
+            return "run_deadline_exceeded", not (self.produced_output or self.ended_on_reply)
         if self.runaway_stop and not self.write_succeeded and not unexpected_exception:
             return RUNAWAY_BILLING_REASON, True
         if self.saw_terminal_event and not self.saw_error_event and not unexpected_exception:
             return "completed", False
         if self.error_refundable is False:
             return "non_refundable_error", False
-        if self.produced_output:
+        if self.produced_output or self.ended_on_reply:
             return "error_after_output", False
         if self.saw_any_event and not self.saw_terminal_event and not unexpected_exception:
             return "internal_error_no_terminal", True

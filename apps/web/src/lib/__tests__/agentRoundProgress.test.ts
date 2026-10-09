@@ -23,6 +23,18 @@ describe('agentRoundProgress (same output rules as the server bills a stopped ro
     })).toBe(false)
   })
 
+  it('counts update_project only when the project info an author sees changed', () => {
+    expect(isWriteToolResult('update_project', 'success', { updated_fields: ['summary'] })).toBe(true)
+    expect(isWriteToolResult('update_project', 'success', { updated_fields: [], project_name_updated: true })).toBe(true)
+    expect(isWriteToolResult('update_project', 'success', { data: { updated_fields: ['notes'] } })).toBe(true)
+    expect(isWriteToolResult('update_project', 'success', { plan: { tasks: [] } })).toBe(false)
+    expect(isWriteToolResult('update_project', 'success', { updated_fields: ['current_phase'] })).toBe(false)
+    expect(isWriteToolResult('update_project', 'success', {
+      updated_fields: [], project_name_updated: false, title_skipped: 'author_named',
+    })).toBe(false)
+    expect(isWriteToolResult('update_project', 'error', { updated_fields: ['summary'] })).toBe(false)
+  })
+
   it('treats a one-line narration before a tool call as not yet prose', () => {
     expect(isRealProse('我先看一遍全书大纲。')).toBe(false)
     expect(isRealProse('正在查看已有的全书大纲，确认现有设定后再梳理主线。')).toBe(false)
