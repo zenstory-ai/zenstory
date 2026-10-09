@@ -37,24 +37,17 @@ function decodeText(bytes: Uint8Array, encoding: string): string | null {
   }
 }
 
-interface DecodedUpload {
-  text: string;
-  /** Decoded as UTF-8 (strictly or by BOM): safe to re-encode as UTF-8. */
-  utf8: boolean;
-}
-
-async function readMaterialUploadText(file: File): Promise<DecodedUpload | null> {
+async function readMaterialUploadText(file: File): Promise<string | null> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   const bomEncoding = detectBomEncoding(bytes);
   if (bomEncoding) {
-    const text = decodeText(bytes, bomEncoding);
-    return text === null ? null : { text, utf8: bomEncoding === "utf-8" };
+    return decodeText(bytes, bomEncoding);
   }
 
   for (const encoding of ["utf-8", "gb18030"]) {
     const decoded = decodeText(bytes, encoding);
     if (decoded !== null) {
-      return { text: decoded, utf8: encoding === "utf-8" };
+      return decoded;
     }
   }
 
@@ -82,7 +75,7 @@ const UPLOAD_PRECHECK_ERROR_CODES = new Set([
   "ERR_FILE_ENCODING_UNSUPPORTED",
 ]);
 
-/** What a free trial will upload, for the per-book note in the upload dialog. */
+/** How much of the picked book a free trial breaks down, for the note in the upload dialog. */
 export interface MaterialTrialSelection {
   totalChapters: number;
   keptChapters: number;
@@ -90,37 +83,45 @@ export interface MaterialTrialSelection {
 
 export type PreparedMaterialUpload =
   | { error: string }
-  | { error: null; file: File; trial: MaterialTrialSelection | null };
+  | { error: null; trial: MaterialTrialSelection | null };
 
 /**
- * Check a picked file before upload and return what to send.
+ * Check a picked file before upload.
  *
  * With `trialMaxChapters` (free trial), only the first chapters count toward
- * the character limit, and a UTF-8 file with more chapters is cut to those
- * chapters before upload (the server applies the same cut either way).
+ * the character limit, and the result says how many chapters the book has.
+ * The file itself is always uploaded unchanged: the server decides between the
+ * trial and a paid breakdown, cuts a trial book to its first chapters itself,
+ * and records how long the whole book was.
  */
 export async function prepareMaterialUpload(
   file: File,
   t: Translate,
   options: { trialMaxChapters?: number | null } = {},
 ): Promise<PreparedMaterialUpload> {
+  const trialMaxChapters = options.trialMaxChapters ?? null;
+  const trial = trialMaxChapters !== null && trialMaxChapters > 0;
+
   if (!file.name.toLowerCase().endsWith(".txt")) {
     return { error: t("materials:uploadModal.errors.invalidType") };
   }
 
   if (file.size > MATERIALS_UPLOAD_MAX_BYTES) {
-    return { error: t("materials:uploadModal.errors.tooLarge") };
+    return {
+      error: trial
+        ? t("materials:uploadModal.errors.trialTooLarge", { chapters: trialMaxChapters })
+        : t("materials:uploadModal.errors.tooLarge"),
+    };
   }
 
-  const trialMaxChapters = options.trialMaxChapters ?? null;
   try {
-    const decoded = await readMaterialUploadText(file);
-    if (decoded === null) {
+    const text = await readMaterialUploadText(file);
+    if (text === null) {
       // The backend remains the source of truth for encodings the browser can't read.
-      return { error: null, file, trial: null };
+      return { error: null, trial: null };
     }
-    if (trialMaxChapters !== null && trialMaxChapters > 0) {
-      const kept = truncateNovelText(decoded.text, trialMaxChapters);
+    if (trial) {
+      const kept = truncateNovelText(text, trialMaxChapters);
       const keptCharacters = countCharacters(kept.text);
       if (keptCharacters > MATERIALS_UPLOAD_MAX_CHARACTERS) {
         return {
@@ -131,18 +132,15 @@ export async function prepareMaterialUpload(
           ),
         };
       }
-      const trial =
-        kept.totalChapters > 0
-          ? { totalChapters: kept.totalChapters, keptChapters: kept.keptChapters }
-          : null;
-      if (kept.truncated && decoded.utf8) {
-        // The BOM makes the server decode the cut text as UTF-8 unambiguously.
-        const cutFile = new File(["﻿", kept.text], file.name, { type: "text/plain" });
-        return { error: null, file: cutFile, trial };
-      }
-      return { error: null, file, trial };
+      return {
+        error: null,
+        trial:
+          kept.totalChapters > 0
+            ? { totalChapters: kept.totalChapters, keptChapters: kept.keptChapters }
+            : null,
+      };
     }
-    const characters = countCharacters(decoded.text);
+    const characters = countCharacters(text);
     if (characters > MATERIALS_UPLOAD_MAX_CHARACTERS) {
       return { error: tooManyCharactersMessage(t, characters) };
     }
@@ -150,7 +148,7 @@ export async function prepareMaterialUpload(
     // Let the backend remain the source of truth if the browser cannot read the file.
   }
 
-  return { error: null, file, trial: null };
+  return { error: null, trial: null };
 }
 
 export async function validateMaterialUploadFile(

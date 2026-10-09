@@ -14,8 +14,9 @@ Status: implemented
 ## Decision
 
 - **服务端试拆路径**（`api/materials/upload.py::_analyze_upload`）：先判断是否走试用，再解码、用 `split_novel_text` 同一套规则切章。`services/material/novel_text.truncate_novel_text` 在第 N+1 章标题所在行截断，截断后重新切分得到的前 N 章与整本切分完全一致（并入第 N 章的短章仍在第 N 章里）。只对截断后的文本检查 30 万字；总章数上限不再适用于试用。存储和派发的只是这部分文本，按 UTF-8 加 BOM 写入，worker 解码不会走编码猜测。`source_meta` 记录 `source_chapter_count`、`source_char_count`。
-- **付费上传不变**：整本超过 30 万字仍拒绝。`ERR_FILE_CONTENT_TOO_LONG` 现在带 `error_detail: {char_count, limit[, trial_chapters]}`，前端据此显示「这本书约 42.8 万字，超过 30 万字上限」。
-- **前端**（`lib/novelChapterSplit.ts` 移植同一套标题规则，`prepareMaterialUpload`）：试用可用时先在本地切章，只用前 20 章检查字数；UTF-8 文件只上传前 20 章（加 BOM），其他编码上传原文件、由服务端截断，避免浏览器解码与服务端不一致时写坏文本。选好文件后显示「这本书共 150 章，免费试拆只上传并拆前 20 章，后 130 章不拆。」。用 400 个随机样本对比过 Python 与 TypeScript 的截断结果，全部一致。
+- **付费上传不变**：整本超过 30 万字仍拒绝。`ERR_FILE_CONTENT_TOO_LONG` 现在带 `error_detail: {char_count, limit[, trial_chapters]}`；`materialsApi.upload` 保留 `error_detail`，前端据此显示「这本书约 42.8 万字，超过 30 万字上限」或「这本书前 20 章就有约 31.2 万字」。
+- **前端**（`lib/novelChapterSplit.ts` 移植同一套标题规则，`prepareMaterialUpload`）：试用可用时先在本地切章，只用前 20 章检查字数，选好文件后显示「这本书共 150 章，免费试拆只拆前 20 章，后 130 章不拆。」。**浏览器不截断文件，始终上传作者选的原文件**，由服务端判断走试用还是付费、由服务端截断。原因（评审发现）：浏览器先截断的话，服务端只看到 20 章，`source_chapter_count` 记成 20，卡片上的「全书 150 章，只拆了前 20 章」永远不出现；而且刚升级、页面还缓存着免费状态的作者，会被静默截成 20 章再按付费扣次数。试用时对话框的格式说明改为「前 20 章合计不超过 30 万字」，超过 20MB 时提示「可以只保留前 20 章再上传」。
+- **分章规则对齐**：Python 的 `str.strip()`、正则 `\s` 和 `.` 与 JavaScript 的 `trim()`、`\s`、`.` 不同（U+FEFF、`\x1c`-`\x1f`、U+0085、U+2028/2029）。前端改为按 `str.isspace()` 的字符集去空白，`.` 写成 `[^\n]`；两端测试用同一组样例固定这些字符的切分结果。
 - **退还的失败试拆**：素材列表过滤最新任务为 `quota_mode=trial` 且 `quota_refunded=true` 的失败记录（`is_refunded_trial_attempt`）。用列表过滤而不是软删除，是因为退还还会发生在派发后的超时对账和 worker 的平台错误里，过滤能覆盖所有路径。搜索和素材摘要本来就只列已完成的书。
 - **重试**：素材详情页对没有素材库权益的作者隐藏「重试」（列表卡片原本就隐藏）。
 - **文案**：试用已用且库为空时，空状态改为「免费试拆已经用过了」+「开通 Pro」，不再提供上传入口。已用横幅改为泛指「你已经用过免费试拆（只拆前 20 章）。开通 Pro 后，每月可以拆解更多参考小说，每本最多 30 万字。」，不再说「这本书」，也不再承诺「完整的小说」（付费仍有 30 万字上限）。试拆书的卡片单独写「免费试拆：全书 150 章，只拆了前 20 章」。试用上传失败后，重新读取额度，确认试用仍可用时追加「这次没有用掉免费试拆机会。」。
@@ -28,16 +29,17 @@ Status: implemented
 - **只在前端截断，服务端仍按整本检查。** 最强理由：改动最小。被否：接口仍拒绝整本，其他客户端和 GBK 文件都过不了；服务端也会继续存整本。
 - **试用时服务端存整本，只靠阶段0 的 `chapter_limit` 截断。** 最强理由：升级后可以用同一个文件补拆整本。被否：整本可能超过付费的 30 万字上限，升级后重试会绕过它；存储也更大。
 - **派发失败退还时软删除 novel。** 最强理由：数据最干净，详情链接也失效。被否：退还发生在多条路径（上传派发、对账超时、worker 平台错误），在退款代码里改 novel 状态耦合太深；列表过滤一处覆盖全部。
-- **前端对所有编码都截断后重新编码上传。** 最强理由：大文件上传更快。被否：浏览器只认 UTF-8/GB18030，服务端先按 chardet 猜编码，两边不一致时重新编码会把文本写坏；非 UTF-8 文件交给服务端截断更稳。
+- **前端截断 UTF-8 文件后只上传前 20 章（本分支第一版）。** 最强理由：上传更快，超过 20MB 的整本也能试拆。被否：服务端无从得知原书有多少章，卡片说明失效；页面缓存的权益过期时（刚升级），付费上传会被静默截断。
+- **前端截断，同时把原书章数、字数作为参数上传，付费路径拒收截断文件。** 最强理由：同时保住卡片说明和超大文件试拆。被否：多一套只用于展示、需要钳制和校验的客户端参数；超过 20MB 的网文很少（UTF-8 约 700 万字），不值得这份复杂度。
 
 ## Consequences
 
 - 收益：作者照着说明上传整本即可试拆；失败的试拆不会在之后冒出来；试用用完后页面直接指向开通 Pro；每一步都告诉作者这次拆多少章、有没有扣试用。
-- 代价：前端多了一份分章规则，必须与 `novel_text.py` 同步（测试用同一组样例）。试拆书只保存前 N 章，升级后不能用它补拆整本。被过滤的退还记录仍在数据库里（没有软删除），也不会清理其源文件。
+- 代价：前端多了一份分章规则，必须与 `novel_text.py` 同步（测试用同一组样例）；两边若仍有差异，只影响上传前的预检和章数提示，存什么、拆什么始终以服务端为准。试拆仍受 20MB 文件上限限制（整本上传），超过的作者需要自己删到前 20 章。试拆书只保存前 N 章，升级后不能用它补拆整本。被过滤的退还记录仍在数据库里（没有软删除），也不会清理其源文件；之后变成 Pro 的作者在界面上看不到、也删不掉它们，需要时另做定期清理。
 - 开关 `MATERIAL_TRIAL_ENABLED` 仍默认关闭；关闭时免费用户上传仍是 402，付费上传行为不变。
 
 ## Verification
 
 - 后端：`venv/bin/python -m pytest tests/test_api/test_materials_trial.py tests/test_api/test_materials.py tests/test_services/test_novel_text.py tests/test_flows/integration/test_novel_ingestion_stage0.py -q --no-cov -n0`，覆盖：开关开/关；150 章 42 万字整本试拆接受，只存前 20 章且与整本切分一致；前 N 章超限时 400 带字数、不占试用；付费整本仍拒绝；两次派发失败后再成功，列表只剩成功那本；升级后重试试拆书仍带章数上限。
-- 前端：`pnpm --dir apps/web exec vitest run src/lib/__tests__/novelChapterSplit.test.ts src/lib/__tests__/materialUploadValidation.test.ts src/pages/__tests__/MaterialsPage.test.tsx src/pages/__tests__/MaterialDetailPage.test.tsx`。
+- 前端：`pnpm --dir apps/web exec vitest run src/lib/__tests__/novelChapterSplit.test.ts src/lib/__tests__/materialUploadValidation.test.ts src/lib/__tests__/materialsApi.test.ts src/pages/__tests__/MaterialsPage.test.tsx src/pages/__tests__/MaterialDetailPage.test.tsx`，覆盖：试用上传的是作者选的原文件；GBK 文件也能数章；超限错误保留 `error_detail`；空白字符的切分与服务端一致。
 - 未验证：真实 Prefect worker 对截断文件的拆解（本地无 Prefect，派发均为 mock）；浏览器实测。

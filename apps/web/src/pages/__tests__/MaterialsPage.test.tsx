@@ -299,17 +299,17 @@ describe("MaterialsPage", () => {
     render(<MaterialsPage />, { wrapper: createWrapper() });
     fireEvent.click(await screen.findByTestId("materials-trial-start"));
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-    fireEvent.change(fileInput, {
-      target: { files: [new File([trialBook(25)], "雾港旧事.txt", { type: "text/plain" })] },
-    });
+    const picked = new File([trialBook(25)], "雾港旧事.txt", { type: "text/plain" });
+    fireEvent.change(fileInput, { target: { files: [picked] } });
 
     expect(await screen.findByTestId("materials-trial-selection-note")).toHaveTextContent(
-      "这本书共 25 章，免费试拆只上传并拆前 20 章，后 5 章不拆。",
+      "这本书共 25 章，免费试拆只拆前 20 章，后 5 章不拆。",
     );
     fireEvent.click(screen.getByRole("button", { name: "materials:uploadModal.upload" }));
     await waitFor(() => expect(mockUpload).toHaveBeenCalled());
-    const uploaded = mockUpload.mock.calls[0][0] as File;
-    expect(await uploaded.text()).not.toContain("第21章");
+    // The whole book goes up: the server cuts it and remembers it had 25 chapters
+    // (for the card note), and a just-upgraded author still gets the whole book.
+    expect(mockUpload.mock.calls[0][0]).toBe(picked);
   });
 
   it("says the trial was not used when a trial upload fails on the platform side", async () => {

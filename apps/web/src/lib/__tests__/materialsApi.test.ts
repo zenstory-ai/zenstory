@@ -36,7 +36,8 @@ const mockApiGet = vi.fn()
 const mockApiPost = vi.fn()
 const mockApiDelete = vi.fn()
 
-vi.mock('../apiClient', () => ({
+vi.mock('../apiClient', async (importOriginal) => ({
+  apiErrorFromPayload: (await importOriginal<typeof import('../apiClient')>()).apiErrorFromPayload,
   api: {
     get: (...args: unknown[]) => mockApiGet(...args),
     post: (...args: unknown[]) => mockApiPost(...args),
@@ -49,7 +50,8 @@ vi.mock('../apiClient', () => ({
   ApiError: class ApiError extends Error {
     constructor(
       public status: number,
-      message: string
+      message: string,
+      public details?: Record<string, unknown>,
     ) {
       super(message)
       this.name = 'ApiError'
@@ -242,6 +244,23 @@ describe('materialsApi', () => {
       } as Response)
 
       await expect(materialsApi.upload(mockFile)).rejects.toThrow('Invalid file format')
+    })
+
+    it('keeps the counted size the server sends with an over-limit rejection', async () => {
+      vi.mocked(global.fetch).mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          error_code: 'ERR_FILE_CONTENT_TOO_LONG',
+          error_detail: { char_count: 312000, limit: 300000, trial_chapters: 20 },
+        }),
+      } as Response)
+
+      await expect(materialsApi.upload(mockFile)).rejects.toMatchObject({
+        status: 400,
+        message: 'ERR_FILE_CONTENT_TOO_LONG',
+        details: { char_count: 312000, limit: 300000, trial_chapters: 20 },
+      })
     })
 
     it('throws default error message when error response is invalid', async () => {

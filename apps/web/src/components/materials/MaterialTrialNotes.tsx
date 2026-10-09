@@ -14,7 +14,7 @@ export function MaterialTrialSelectionNote({ selection }: { selection: MaterialT
     >
       {rest > 0
         ? t("materials:trialSelectionCut", {
-            defaultValue: "这本书共 {{total}} 章，免费试拆只上传并拆前 {{chapters}} 章，后 {{rest}} 章不拆。",
+            defaultValue: "这本书共 {{total}} 章，免费试拆只拆前 {{chapters}} 章，后 {{rest}} 章不拆。",
             total: selection.totalChapters,
             chapters: selection.keptChapters,
             rest,

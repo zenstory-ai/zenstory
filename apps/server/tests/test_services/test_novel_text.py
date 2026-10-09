@@ -188,3 +188,32 @@ def test_truncation_leaves_short_books_untouched():
     assert kept.text == text
     assert (kept.total_chapters, kept.kept_chapters) == (2, 2)
     assert truncate_novel_text(BODY, 20).total_chapters == 0
+
+
+# Whitespace where Python and JavaScript differ (str.strip vs trim, re "." vs
+# JS "."). apps/web/src/lib/__tests__/novelChapterSplit.test.ts pins the same
+# cases, so the browser pre-check counts the chapters the server will split.
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("middle", "expected"),
+    [
+        ("﻿第二章 继续", 1),  # str.strip keeps U+FEFF: body text
+        ("第二章 标 题", 2),  # Python "." matches U+2028
+        ("2. 标 题", 2),
+        ("\x1c第二章 继续\x1f", 2),  # str.strip removes \x1c-\x1f
+        ("\x85第二章 继续", 2),
+        ("第二章\x85继续", 2),
+    ],
+)
+def test_heading_whitespace_parity_cases(middle, expected):
+    text = f"第一章 开始\n{BODY}\n{middle}\n{BODY}"
+
+    assert len(split_novel_text(text)) == expected
+
+
+@pytest.mark.unit
+def test_stripped_control_characters_do_not_count_toward_chapter_length():
+    text = f"第一章 开始\n{BODY}\n第二章 继续\n{'字' * 99}\x1c\n第三章 末\n{BODY}"
+
+    # 99 characters after strip: merged into 第一章.
+    assert len(split_novel_text(text)) == 2

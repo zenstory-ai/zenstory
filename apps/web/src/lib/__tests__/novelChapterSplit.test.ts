@@ -71,6 +71,28 @@ describe("truncateNovelText", () => {
   });
 });
 
+// Same cases as test_heading_whitespace_parity_cases in
+// apps/server/tests/test_services/test_novel_text.py: Python's str.strip and
+// "." differ from JavaScript's trim and ".".
+describe("Python whitespace parity", () => {
+  it.each([
+    ["﻿第二章 继续", 1],
+    ["第二章 标 题", 2],
+    ["2. 标 题", 2],
+    ["\x1c第二章 继续\x1f", 2],
+    ["\x85第二章 继续", 2],
+    ["第二章\x85继续", 2],
+  ])("splits %j like the server", (middle, expected) => {
+    expect(chapterCount(`第一章 开始\n${BODY}\n${middle}\n${BODY}`)).toBe(expected);
+  });
+
+  it("does not count stripped control characters toward chapter length", () => {
+    const text = `第一章 开始\n${BODY}\n第二章 继续\n${"字".repeat(99)}\x1c\n第三章 末\n${BODY}`;
+
+    expect(chapterCount(text)).toBe(2);
+  });
+});
+
 describe("countCharacters", () => {
   it("counts code points like the server", () => {
     expect(countCharacters("字𠀀a")).toBe(3);

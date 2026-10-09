@@ -267,7 +267,7 @@ export default function MaterialsPage() {
         return;
       }
 
-      setFile(prepared.file);
+      setFile(selectedFile);
       setTrialSelection(prepared.trial);
       if (!title) {
         setTitle(selectedFile.name.replace(/\.[^/.]+$/, ""));
@@ -719,7 +719,12 @@ export default function MaterialsPage() {
                     {t("materials:uploadModal.clickToSelect")}
                   </p>
                   <p className="text-xs text-[hsl(var(--text-tertiary))]">
-                    {t("materials:uploadModal.supportedFormats")}
+                    {trialAvailable
+                      ? t("materials:uploadModal.trialSupportedFormats", {
+                          defaultValue: "仅支持 .txt，不超过 20MB，需要有章节标题（如“第一章”“第一回”）；前 {{chapters}} 章合计不超过 30 万字",
+                          chapters: materialTrial?.max_chapters,
+                        })
+                      : t("materials:uploadModal.supportedFormats")}
                   </p>
                 </>
               )}

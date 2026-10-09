@@ -12,7 +12,7 @@
  * - Importing materials as project files
  */
 
-import { api, ApiError, tryRefreshToken, getAccessToken, getApiBase, resolveOwnedAuthSession } from "./apiClient";
+import { api, ApiError, apiErrorFromPayload, tryRefreshToken, getAccessToken, getApiBase, resolveOwnedAuthSession } from "./apiClient";
 import { resolveApiErrorMessage } from "./errorHandler";
 
 // ==================== Type Definitions ====================
@@ -530,14 +530,20 @@ export const materialsApi = {
     }
 
     if (!response.ok) {
-      let errorMessage = "ERR_MATERIAL_UPLOAD_FAILED";
+      let errorData: unknown = null;
       try {
-        const errorData = await response.json();
-        errorMessage = resolveApiErrorMessage(errorData, errorMessage);
+        errorData = await response.json();
       } catch {
         // Could not parse error response
       }
-      throw new ApiError(response.status, errorMessage);
+      // Keep error_detail (e.g. the counted size of an over-limit book).
+      const { details, detailText } = apiErrorFromPayload(response.status, errorData);
+      throw new ApiError(
+        response.status,
+        resolveApiErrorMessage(errorData, "ERR_MATERIAL_UPLOAD_FAILED"),
+        details,
+        detailText,
+      );
     }
 
     return response.json();

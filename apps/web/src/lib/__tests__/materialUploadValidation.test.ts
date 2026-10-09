@@ -12,7 +12,6 @@ import {
   resolveMaterialUploadErrorMessage,
   validateMaterialUploadFile,
 } from "../materialUploadValidation";
-import { truncateNovelText } from "../novelChapterSplit";
 import { ApiError } from "../apiClient";
 
 function createRepeatedGbkFile(charCount: number): File {
@@ -88,22 +87,15 @@ describe("prepareMaterialUpload for the free trial", () => {
     return Array.from({ length: chapters }, (_, index) => `第${index + 1}章 雾港\n${body}`).join("\n");
   }
 
-  it("accepts a whole book over 300k characters and uploads only its first chapters", async () => {
+  it("accepts a whole book over 300k characters when its first chapters fit", async () => {
     const text = wholeBook(150, 2_800);
     expect(text.length).toBeGreaterThan(MATERIALS_UPLOAD_MAX_CHARACTERS);
     const file = new File([text], "whole-book.txt", { type: "text/plain" });
 
     const prepared = await prepareMaterialUpload(file, t, { trialMaxChapters: 20 });
 
-    if (prepared.error !== null) throw new Error(prepared.error);
-    expect(prepared.trial).toEqual({ totalChapters: 150, keptChapters: 20 });
-    expect(prepared.file.name).toBe("whole-book.txt");
-    const bytes = new Uint8Array(await prepared.file.arrayBuffer());
-    expect(Array.from(bytes.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf]);
-    const uploaded = new TextDecoder("utf-8").decode(bytes);
-    expect(uploaded).toContain("第20章 雾港");
-    expect(uploaded).not.toContain("第21章");
-    expect(truncateNovelText(uploaded, 1_000).totalChapters).toBe(20);
+    // The whole file is uploaded; the server cuts it and records 150 chapters.
+    expect(prepared).toEqual({ error: null, trial: { totalChapters: 150, keptChapters: 20 } });
   });
 
   it("keeps the 300k-character limit for a paid upload of the same book", async () => {
@@ -122,12 +114,28 @@ describe("prepareMaterialUpload for the free trial", () => {
     expect(prepared.error).toBe("materials:uploadModal.errors.trialTooManyCharacters");
   });
 
-  it("uploads a non-UTF-8 book unchanged and lets the server cut it", async () => {
-    const file = createRepeatedGbkFile(10);
+  it("counts the chapters of a GBK book too", async () => {
+    const encoded = new Uint8Array([
+      // "第1章 甲\n" + 120 x "字" + "\n第2章 乙\n" + 120 x "字", in GBK
+      0xb5, 0xda, 0x31, 0xd5, 0xc2, 0x20, 0xbc, 0xd7, 0x0a,
+      ...Array.from({ length: 120 }, () => [0xd7, 0xd6]).flat(),
+      0x0a, 0xb5, 0xda, 0x32, 0xd5, 0xc2, 0x20, 0xd2, 0xd2, 0x0a,
+      ...Array.from({ length: 120 }, () => [0xd7, 0xd6]).flat(),
+    ]);
+    const file = new File([encoded], "gbk.txt", { type: "text/plain" });
+
+    const prepared = await prepareMaterialUpload(file, t, { trialMaxChapters: 1 });
+
+    expect(prepared).toEqual({ error: null, trial: { totalChapters: 2, keptChapters: 1 } });
+  });
+
+  it("points a trial author at the first chapters when the file is over 20MB", async () => {
+    const file = new File(["x"], "big.txt", { type: "text/plain" });
+    Object.defineProperty(file, "size", { value: MATERIALS_UPLOAD_MAX_BYTES + 1 });
 
     const prepared = await prepareMaterialUpload(file, t, { trialMaxChapters: 20 });
 
-    expect(prepared).toMatchObject({ error: null, file });
+    expect(prepared.error).toBe("materials:uploadModal.errors.trialTooLarge");
   });
 });
 
