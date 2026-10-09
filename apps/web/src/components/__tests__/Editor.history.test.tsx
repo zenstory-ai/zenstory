@@ -32,6 +32,12 @@ const savedVersion = { id: 'v1', file_id: 'file-1', version_number: 1, change_ty
 describe('actual Editor / SimpleEditor / history restore integration', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    // resetAllMocks also wipes the global matchMedia mock from test/setup.ts (desktop layout).
+    vi.mocked(window.matchMedia).mockImplementation((query: string) => ({
+      matches: false, media: query, onchange: null,
+      addListener: vi.fn(), removeListener: vi.fn(),
+      addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(),
+    }) as unknown as MediaQueryList)
     getVersions.mockResolvedValue({ total: 1, versions: [savedVersion] })
   })
   afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
