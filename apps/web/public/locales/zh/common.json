@@ -138,5 +138,11 @@
     "panelDescription": "这个面板遇到意外错误，其他面板仍可正常使用。",
     "retry": "重试",
     "reload": "重新加载页面"
+  },
+  "a11y": {
+    "switchToChinese": "切换到中文",
+    "switchToEnglish": "切换到英文",
+    "toggleTheme": "切换深色或浅色模式",
+    "toggleLanguage": "切换界面语言"
   }
 }

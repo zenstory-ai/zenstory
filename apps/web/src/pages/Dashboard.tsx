@@ -269,7 +269,7 @@ function DashboardContent() {
               onClick={() => {
                 void handleLanguageSwitch('zh');
               }}
-              aria-label="Switch to Chinese"
+              aria-label={t('common:a11y.switchToChinese')}
               data-testid="dashboard-quick-language-zh"
               className={`px-2 py-1 rounded text-xs transition-colors ${
                 currentLanguage === 'zh'
@@ -283,7 +283,7 @@ function DashboardContent() {
               onClick={() => {
                 void handleLanguageSwitch('en');
               }}
-              aria-label="Switch to English"
+              aria-label={t('common:a11y.switchToEnglish')}
               data-testid="dashboard-quick-language-en"
               className={`px-2 py-1 rounded text-xs transition-colors ${
                 currentLanguage === 'en'
@@ -491,7 +491,7 @@ function DashboardContent() {
               <button
                 ref={mobileMenuTriggerRef}
                 onClick={() => setShowMobileMenu(!showMobileMenu)}
-                aria-label={showMobileMenu ? 'Close mobile menu' : 'Open mobile menu'}
+                aria-label={showMobileMenu ? t('common:nav.closeMenu') : t('common:nav.openMenu')}
                 aria-expanded={showMobileMenu}
                 aria-controls="dashboard-mobile-navigation"
                 className="p-2 hover:bg-[hsl(var(--bg-tertiary))] rounded text-[hsl(var(--text-primary))] transition-colors"
@@ -507,7 +507,7 @@ function DashboardContent() {
           <nav
             ref={mobileMenuRef}
             id="dashboard-mobile-navigation"
-            aria-label="Mobile navigation"
+            aria-label={t('common:nav.mobileMenu')}
             className="absolute top-12 left-0 right-0 bg-[hsl(var(--bg-secondary))] border-b border-[hsl(var(--separator-color))] shadow-lg z-40"
           >
             <div className="flex flex-col p-2 gap-1">
@@ -549,7 +549,7 @@ function DashboardContent() {
               <div className="grid grid-cols-2 gap-2 px-3 pb-2">
                 <button
                   onClick={() => handleThemeSwitch(theme === 'dark' ? 'light' : 'dark')}
-                  aria-label="Toggle theme"
+                  aria-label={t('common:a11y.toggleTheme')}
                   className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg border border-[hsl(var(--border-color))] text-xs text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
                 >
                   {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
@@ -559,7 +559,7 @@ function DashboardContent() {
                   onClick={() => {
                     void handleLanguageSwitch(currentLanguage === 'zh' ? 'en' : 'zh');
                   }}
-                  aria-label="Toggle language"
+                  aria-label={t('common:a11y.toggleLanguage')}
                   className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg border border-[hsl(var(--border-color))] text-xs text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
                 >
                   <Languages className="w-3.5 h-3.5" />

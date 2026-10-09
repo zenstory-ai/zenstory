@@ -33,6 +33,13 @@ vi.mock('react-i18next', () => ({
         'dashboard:userPanel.openPanel': 'Open user settings panel',
         'dashboard:userPanel.adminPanel': 'Admin panel',
         'dashboard:userPanel.replayTour': 'Replay guide',
+        'common:nav.openMenu': '打开菜单',
+        'common:nav.closeMenu': '关闭菜单',
+        'common:nav.mobileMenu': '移动端导航菜单',
+        'common:a11y.switchToChinese': '切换到中文',
+        'common:a11y.switchToEnglish': '切换到英文',
+        'common:a11y.toggleTheme': '切换深色或浅色模式',
+        'common:a11y.toggleLanguage': '切换界面语言',
         'settings:theme.mode': 'Theme',
         'settings:theme.dark': 'Dark mode',
         'settings:theme.light': 'Light mode',
@@ -265,7 +272,7 @@ describe('Dashboard coachmark tour', () => {
     mockIsDesktop = false;
     renderDashboard();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open mobile menu' }));
+    fireEvent.click(screen.getByRole('button', { name: '打开菜单' }));
     fireEvent.click(screen.getByRole('button', { name: 'Replay guide' }));
 
     const dialog = await screen.findByRole('dialog');
