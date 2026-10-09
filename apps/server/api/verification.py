@@ -5,6 +5,7 @@ import logging
 from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, EmailStr
 from services.auth import (
+    access_token_claims,
     create_access_token,
     create_refresh_token,
     generate_token_jti,
@@ -141,7 +142,7 @@ async def verify_email(
     )
 
     # Generate tokens
-    access_token = create_access_token(data={"sub": user.id})
+    access_token = create_access_token(data=access_token_claims(user))
     refresh_token_jti = generate_token_jti()
     refresh_family_id = generate_token_jti()
     refresh_token = create_refresh_token(

@@ -37,20 +37,69 @@ if hasattr(resend, "RequestsClient") and hasattr(resend, "default_http_client"):
     resend.default_http_client = resend.RequestsClient(timeout=RESEND_TIMEOUT_SECONDS)
 
 
+EMAIL_PURPOSE_REGISTRATION = "registration"
+EMAIL_PURPOSE_PASSWORD_RESET = "password_reset"
+
+_EMAIL_CONTENT: dict[str, dict[str, dict[str, str]]] = {
+    EMAIL_PURPOSE_REGISTRATION: {
+        "en": {
+            "title": "Verify Your Email",
+            "greeting": "Hi there,",
+            "instruction": "Thanks for signing up for zenstory. Please enter the verification code below to complete your registration:",
+            "warning": "This code will expire in {expiry} minutes. If you didn't request this code, you can safely ignore this email.",
+            "support": "Need help? Please visit zenstory.ai.",
+            "footer": "© 2026 zenstory · zenstory.ai",
+            "unsubscribe": "You're receiving this email because you signed up for zenstory.",
+        },
+        "zh": {
+            "title": "验证您的邮箱",
+            "greeting": "您好，",
+            "instruction": "感谢您注册 zenstory。请输入下方的验证码完成注册流程：",
+            "warning": "此验证码将在 {expiry} 分钟后过期。如果您没有请求此验证码，请忽略此邮件。",
+            "support": "需要帮助？请访问 zenstory.ai。",
+            "footer": "© 2026 zenstory · zenstory.ai",
+            "unsubscribe": "您收到此邮件是因为您注册了 zenstory 账号。",
+        },
+    },
+    EMAIL_PURPOSE_PASSWORD_RESET: {
+        "en": {
+            "title": "Reset your zenstory password",
+            "greeting": "Hi there,",
+            "instruction": "Someone asked to reset the password for this zenstory account. Enter this code on the reset page to set a new password:",
+            "warning": "The code expires in {expiry} minutes and works once. If this wasn't you, just ignore this email. Your password stays the same.",
+            "support": "Need help? Email support@zenstory.ai.",
+            "footer": "© 2026 zenstory · zenstory.ai",
+            "unsubscribe": "You're receiving this email because a password reset was requested for your zenstory account.",
+        },
+        "zh": {
+            "title": "重设你的 zenstory 密码",
+            "greeting": "你好，",
+            "instruction": "有人申请重设这个 zenstory 账号的密码。在重设页面输入下面的验证码，就可以设置新密码：",
+            "warning": "验证码 {expiry} 分钟内有效，只能用一次。如果不是你本人操作，忽略这封邮件即可，密码不会改变。",
+            "support": "需要帮助？发邮件给 support@zenstory.ai。",
+            "footer": "© 2026 zenstory · zenstory.ai",
+            "unsubscribe": "你收到这封邮件，是因为有人为你的 zenstory 账号申请了重设密码。",
+        },
+    },
+}
+
+
 async def send_verification_email(
     email: str,
     code: str,
     expiry_minutes: int = 5,
-    language: str = "zh"
+    language: str = "zh",
+    purpose: str = EMAIL_PURPOSE_REGISTRATION,
 ) -> bool:
     """
     Send a verification code email to the user.
 
     Args:
         email: Recipient email address
-        code: 6-digit verification code
+        code: 6-digit verification code (never logged)
         expiry_minutes: Expiry time in minutes (default: 5)
         language: Email language ('zh' or 'en', default: 'zh')
+        purpose: 'registration' (default) or 'password_reset'; picks subject and body
 
     Returns:
         bool: True if successful, False otherwise
@@ -64,27 +113,9 @@ async def send_verification_email(
             )
             return False
 
-        # Language-specific content
-        if language == "en":
-            email_content = {
-                "title": "Verify Your Email",
-                "greeting": "Hi there,",
-                "instruction": "Thanks for signing up for zenstory. Please enter the verification code below to complete your registration:",
-                "warning": "This code will expire in {expiry} minutes. If you didn't request this code, you can safely ignore this email.",
-                "support": "Need help? Please visit zenstory.ai.",
-                "footer": "© 2026 zenstory · zenstory.ai",
-                "unsubscribe": "You're receiving this email because you signed up for zenstory.",
-            }
-        else:  # Chinese (default)
-            email_content = {
-                "title": "验证您的邮箱",
-                "greeting": "您好，",
-                "instruction": "感谢您注册 zenstory。请输入下方的验证码完成注册流程：",
-                "warning": "此验证码将在 {expiry} 分钟后过期。如果您没有请求此验证码，请忽略此邮件。",
-                "support": "需要帮助？请访问 zenstory.ai。",
-                "footer": "© 2026 zenstory · zenstory.ai",
-                "unsubscribe": "您收到此邮件是因为您注册了 zenstory 账号。",
-            }
+        # Purpose- and language-specific content
+        content_by_language = _EMAIL_CONTENT.get(purpose, _EMAIL_CONTENT[EMAIL_PURPOSE_REGISTRATION])
+        email_content = content_by_language["en" if language == "en" else "zh"]
 
         # Create HTML email content (minimal, clean design inspired by Linear/Notion)
         html_content = f"""
@@ -181,6 +212,7 @@ async def send_verification_email(
                 "Verification email sent successfully",
                 email=email,
                 language=language,
+                purpose=purpose,
             )
             return True
         else:
@@ -190,6 +222,7 @@ async def send_verification_email(
                 "Failed to send verification email",
                 email=email,
                 language=language,
+                purpose=purpose,
                 error=str(r),  # type: ignore[attr-defined]
             )
             return False

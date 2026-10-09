@@ -21,6 +21,8 @@
   "ERR_AUTH_REGISTRATION_FAILED": "Registration failed. Please try again later.",
   "ERR_AUTH_RESEND_FAILED": "Couldn’t send the verification code. Please try again later.",
   "ERR_AUTH_RATE_LIMIT_EXCEEDED": "Too many attempts. Please try again later.",
+  "ERR_AUTH_PASSWORD_RESET_CODE_INVALID": "That code is wrong or has expired. Check it or send a new one.",
+  "ERR_AUTH_PASSWORD_RESET_TOO_MANY_REQUESTS": "Too many tries. Please wait a few minutes and try again.",
 
   "ERR_REFERRAL_CODE_INVALID": "Invalid invite code. Check it and try again.",
   "ERR_REFERRAL_CODE_EXPIRED": "This invite code has expired. Try another one.",
