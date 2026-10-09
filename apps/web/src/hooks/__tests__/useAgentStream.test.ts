@@ -1,12 +1,13 @@
 import { renderHook, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { useAgentStream } from '../useAgentStream'
+import { STOP_GRACE_MS, useAgentStream } from '../useAgentStream'
 import * as agentApi from '@/lib/agentApi'
 
 // Mock agentApi
 vi.mock('@/lib/agentApi', () => ({
   streamAgentRequest: vi.fn(),
   sendSteeringRequest: vi.fn(),
+  stopAgentRun: vi.fn(),
 }))
 
 // Helper to simulate SSE events
@@ -715,6 +716,199 @@ describe('useAgentStream', () => {
       expect(result.current.isStreaming).toBe(false)
       expect(result.current.isThinking).toBe(false)
     })
+  })
+
+  describe('stop (author pressed stop)', () => {
+    function startWithRun(runId: string | null = 'run-1') {
+      const hook = renderHook(() => useAgentStream('test-project-id'))
+      const controller = createMockStreamController()
+      act(() => {
+        hook.result.current.startStream({ message: 'test' })
+      })
+      if (runId) {
+        act(() => {
+          controller.getCallbacks()?.onRunStarted?.(runId)
+        })
+      }
+      return { ...hook, controller }
+    }
+
+    it('asks the server to stop and keeps reading the stream until it wraps up', async () => {
+      vi.mocked(agentApi.stopAgentRun).mockResolvedValue(true)
+      const { result, controller } = startWithRun()
+
+      await act(async () => {
+        result.current.stop()
+      })
+
+      expect(agentApi.stopAgentRun).toHaveBeenCalledWith('run-1', [])
+      expect(controller.mockAbortController.abort).not.toHaveBeenCalled()
+      expect(result.current.isStopping).toBe(true)
+
+      act(() => {
+        controller.getCallbacks()?.onWorkflowStopped?.({
+          reason: 'user_stopped',
+          agent_type: '',
+          message: '已停止生成。',
+        })
+        controller.getCallbacks()?.onDone?.({})
+      })
+      act(() => {
+        vi.advanceTimersByTime(STOP_GRACE_MS)
+      })
+
+      expect(result.current.isStreaming).toBe(false)
+      expect(result.current.isStopping).toBe(false)
+      expect(controller.mockAbortController.abort).not.toHaveBeenCalled()
+    })
+
+    it('passes the files the editor could not save to the stop request', async () => {
+      vi.mocked(agentApi.stopAgentRun).mockResolvedValue(true)
+      const { result } = startWithRun()
+
+      await act(async () => {
+        await result.current.stop({ keepFileIds: ['ch-typed'] })
+      })
+
+      expect(agentApi.stopAgentRun).toHaveBeenCalledWith('run-1', ['ch-typed'])
+    })
+
+    it('stays in 正在停止… until done arrives with this round\'s message id', async () => {
+      vi.mocked(agentApi.stopAgentRun).mockResolvedValue(true)
+      const onComplete = vi.fn()
+      const hook = renderHook(() => useAgentStream('test-project-id', { onComplete }))
+      const controller = createMockStreamController()
+      act(() => {
+        hook.result.current.startStream({ message: 'test' })
+      })
+      act(() => {
+        controller.getCallbacks()?.onRunStarted?.('run-1')
+      })
+      await act(async () => {
+        hook.result.current.stop()
+      })
+
+      act(() => {
+        controller.getCallbacks()?.onWorkflowStopped?.({
+          reason: 'user_stopped',
+          agent_type: '',
+          message: '已停止生成。',
+        })
+      })
+      // The stop card alone does not end the round: a send now would cut it off.
+      expect(hook.result.current.isStreaming).toBe(true)
+      expect(hook.result.current.isStopping).toBe(true)
+
+      act(() => {
+        controller.getCallbacks()?.onDone?.({
+          assistant_message_id: 'assistant-7',
+          session_id: 's-1',
+          stop_reason: 'user_stopped',
+          produced_output: false,
+        })
+      })
+      expect(hook.result.current.isStreaming).toBe(false)
+      expect(onComplete).toHaveBeenCalledWith(expect.any(Array), null, expect.objectContaining({
+        assistantMessageId: 'assistant-7',
+        stoppedByAuthor: true,
+        producedOutput: false,
+      }))
+    })
+
+    it('drops the connection when the stop request fails', async () => {
+      vi.mocked(agentApi.stopAgentRun).mockResolvedValue(false)
+      const { result, controller } = startWithRun()
+
+      await act(async () => {
+        result.current.stop()
+      })
+
+      expect(controller.mockAbortController.abort).toHaveBeenCalled()
+      expect(result.current.isStreaming).toBe(false)
+    })
+
+    it('drops the connection when the server does not wrap up in time', async () => {
+      vi.mocked(agentApi.stopAgentRun).mockResolvedValue(true)
+      const { result, controller } = startWithRun()
+
+      await act(async () => {
+        result.current.stop()
+      })
+      act(() => {
+        vi.advanceTimersByTime(STOP_GRACE_MS)
+      })
+
+      expect(controller.mockAbortController.abort).toHaveBeenCalled()
+      expect(result.current.isStreaming).toBe(false)
+    })
+
+    it('does nothing once the round already ended (done arrived while the editor was saving)', async () => {
+      vi.mocked(agentApi.stopAgentRun).mockResolvedValue(true)
+      const { result, controller } = startWithRun()
+
+      act(() => {
+        controller.getCallbacks()?.onDone?.({ assistant_message_id: 'assistant-1' })
+      })
+      await act(async () => {
+        result.current.stop()
+      })
+      act(() => {
+        vi.advanceTimersByTime(STOP_GRACE_MS)
+      })
+
+      // No /stop for a finished run, and no fallback cancel that would drop the frames after done.
+      expect(agentApi.stopAgentRun).not.toHaveBeenCalled()
+      expect(controller.mockAbortController.abort).not.toHaveBeenCalled()
+      expect(result.current.isStopping).toBe(false)
+    })
+
+    it('drops the connection right away before the run id is known', () => {
+      const { result, controller } = startWithRun(null)
+
+      act(() => {
+        result.current.stop()
+      })
+
+      expect(agentApi.stopAgentRun).not.toHaveBeenCalled()
+      expect(controller.mockAbortController.abort).toHaveBeenCalled()
+    })
+  })
+
+  describe('prose segment boundaries', () => {
+    it.each(['agent_selected', 'handoff', 'file_created', 'parallel_start'] as const)(
+      'delivers the text streamed before %s first, so the prose count can restart there',
+      (boundary) => {
+        const onSegmentUpdate = vi.fn()
+        const onBoundary = vi.fn()
+        const { result } = renderHook(() =>
+          useAgentStream('test-project-id', {
+            onSegmentUpdate,
+            onAgentSelected: onBoundary,
+            onHandoff: onBoundary,
+            onFileCreated: onBoundary,
+            onParallelStart: onBoundary,
+          }),
+        )
+        const controller = createMockStreamController()
+        act(() => {
+          result.current.startStream({ message: 'test' })
+        })
+        act(() => {
+          const callbacks = controller.getCallbacks()
+          callbacks?.onContent?.('甲'.repeat(40))
+          if (boundary === 'agent_selected') callbacks?.onAgentSelected?.('writer', '写手', 1, 5, 4)
+          if (boundary === 'handoff') {
+            callbacks?.onHandoff?.({ target_agent: 'writer', reason: '', context: '' } as never)
+          }
+          if (boundary === 'file_created') callbacks?.onFileCreated?.('file-1', 'draft', '第1章')
+          if (boundary === 'parallel_start') callbacks?.onParallelStart?.('exec-1', 2, ['a', 'b'], 0)
+        })
+
+        expect(onSegmentUpdate).toHaveBeenCalledWith(expect.any(String), '甲'.repeat(40))
+        expect(onBoundary).toHaveBeenCalledTimes(1)
+        expect(onSegmentUpdate.mock.invocationCallOrder[0]).toBeLessThan(onBoundary.mock.invocationCallOrder[0])
+      },
+    )
   })
 
   describe('onComplete', () => {

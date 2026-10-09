@@ -17,6 +17,7 @@ from sqlmodel import Session, select
 
 from api.agent import (
     STEER_RATE_LIMIT_MAX_REQUESTS,
+    STOP_RATE_LIMIT_MAX_REQUESTS,
     STREAM_RATE_LIMIT_MAX_REQUESTS,
     SUGGEST_DAILY_MAX_REQUESTS,
     SUGGEST_RATE_LIMIT_MAX_REQUESTS,
@@ -331,12 +332,14 @@ async def test_stream_busy_resolved_session_returns_409_and_refunds(client: Asyn
 def test_all_llm_endpoints_have_user_scoped_rate_limit():
     """守卫用例：agent router 下所有触发 LLM 的端点都必须挂按用户限流依赖。
 
-    只有 /health（无鉴权、无 LLM、无 DB 的探活接口）豁免。
+    只有 /health（无鉴权、无 LLM、无 DB 的探活接口）豁免。/stop 不触发 LLM，
+    但同样是登录后的写操作，一并按用户限流。
     """
     llm_endpoints = {
         "/api/v1/agent/stream": STREAM_RATE_LIMIT_MAX_REQUESTS,
         "/api/v1/agent/suggest": SUGGEST_RATE_LIMIT_MAX_REQUESTS,
         "/api/v1/agent/steer": STEER_RATE_LIMIT_MAX_REQUESTS,
+        "/api/v1/agent/stop": STOP_RATE_LIMIT_MAX_REQUESTS,
     }
 
     routes_by_path = {route.path: route for route in agent_router.routes}

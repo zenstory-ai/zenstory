@@ -10,6 +10,7 @@ from services.material.novel_text import (
     decode_novel_bytes,
     extract_chapter_number,
     split_novel_text,
+    truncate_novel_text,
 )
 
 BODY = "他推开门，院子里的雪已经积了半尺深，远处传来钟声。" * 6
@@ -144,3 +145,75 @@ def test_worker_decodes_every_file_the_upload_accepts(tmp_path):
     assert worker_encoding == analysis.encoding
     assert analysis.chapter_count == parsed["total_chapters"] == 2
     assert parsed_with_encoding["chapters"] == parsed["chapters"]
+
+
+@pytest.mark.unit
+def test_truncation_keeps_exactly_the_first_chapters_the_worker_would_split():
+    """免费试拆在章节标题处截断：截断后的文本重新切分，前 N 章与整本切分完全一致。"""
+    text = "\r\n".join(
+        [
+            BODY,  # becomes 序章
+            "第一卷 风起",
+            "第一章 开始",
+            BODY,
+            "第二章 请假条",
+            "今天停更一天",  # short: merged into 第一章
+            "第三章 继续",
+            BODY,
+            "第二卷 云涌",  # volume line right before the cut
+            "第四章 远行",
+            BODY,
+            "第五章 归来",
+            BODY,
+        ]
+    )
+    whole = split_novel_text(text)
+    assert len(whole) == 5
+
+    kept = truncate_novel_text(text, 3)
+
+    assert kept.truncated
+    assert (kept.total_chapters, kept.kept_chapters) == (5, 3)
+    assert split_novel_text(kept.text) == whole[:3]
+    assert "第四章" not in kept.text
+
+
+@pytest.mark.unit
+def test_truncation_leaves_short_books_untouched():
+    text = f"第一章 开始\n{BODY}\n第二章 继续\n{BODY}"
+
+    kept = truncate_novel_text(text, 20)
+
+    assert not kept.truncated
+    assert kept.text == text
+    assert (kept.total_chapters, kept.kept_chapters) == (2, 2)
+    assert truncate_novel_text(BODY, 20).total_chapters == 0
+
+
+# Whitespace where Python and JavaScript differ (str.strip vs trim, re "." vs
+# JS "."). apps/web/src/lib/__tests__/novelChapterSplit.test.ts pins the same
+# cases, so the browser pre-check counts the chapters the server will split.
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("middle", "expected"),
+    [
+        ("﻿第二章 继续", 1),  # str.strip keeps U+FEFF: body text
+        ("第二章 标 题", 2),  # Python "." matches U+2028
+        ("2. 标 题", 2),
+        ("\x1c第二章 继续\x1f", 2),  # str.strip removes \x1c-\x1f
+        ("\x85第二章 继续", 2),
+        ("第二章\x85继续", 2),
+    ],
+)
+def test_heading_whitespace_parity_cases(middle, expected):
+    text = f"第一章 开始\n{BODY}\n{middle}\n{BODY}"
+
+    assert len(split_novel_text(text)) == expected
+
+
+@pytest.mark.unit
+def test_stripped_control_characters_do_not_count_toward_chapter_length():
+    text = f"第一章 开始\n{BODY}\n第二章 继续\n{'字' * 99}\x1c\n第三章 末\n{BODY}"
+
+    # 99 characters after strip: merged into 第一章.
+    assert len(split_novel_text(text)) == 2

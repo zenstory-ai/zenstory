@@ -106,6 +106,9 @@ class WritingState(TypedDict, total=False):
     scope_directive: str | None
     # 用户明确要求本轮不改文件：tools_adapter 对写文件工具的调用一律拒绝执行。
     read_only: bool
+    # 作者的要求太笼统（「帮我优化一下」）：本轮先问清楚改哪里，写文件工具一律拒绝执行
+    # （graph/author_scope.py；tools_adapter 用另一套拒绝说明）。
+    clarify_first: bool
     # 本次请求共享的 ToolFailureBreaker（工具重复失败熔断），由 writing_graph 创建，
     # 每次 agent run 复用同一个，writer ↔ 审稿人往返不会让失败计数归零。
     tool_failure_breaker: Any

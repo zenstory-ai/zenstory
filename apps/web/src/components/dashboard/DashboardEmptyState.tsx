@@ -22,7 +22,8 @@ export interface DashboardEmptyStateProps {
  * Provides consistent styling and layout for empty data displays across all dashboard pages:
  * - Responsive icon sizing (w-10 h-10 mobile, w-12 h-12 desktop)
  * - Responsive padding (py-8 px-4 mobile, py-12 desktop)
- * - Consistent text hierarchy with title and optional description
+ * - One text hierarchy at every width: title 16/600 (sans, like other section titles),
+ *   description 14/400 secondary — never larger than the page subtitle
  * - Optional action button for user guidance
  *
  * @example
@@ -76,23 +77,15 @@ export function DashboardEmptyState({
           isMobile ? "w-10 h-10" : "w-12 h-12"
         }`}
       />
-      <h3
-        className={`font-semibold mb-2 text-[hsl(var(--text-primary))] ${
-          isMobile ? "text-lg" : "text-xl"
-        }`}
-      >
+      <h3 className="text-base font-semibold text-[hsl(var(--text-primary))]">
         {title}
       </h3>
       {description && (
-        <p
-          className={`mb-6 text-[hsl(var(--text-secondary))] ${
-            isMobile ? "text-sm" : "text-base"
-          }`}
-        >
+        <p className="mx-auto mt-1.5 max-w-md text-sm text-[hsl(var(--text-secondary))]">
           {description}
         </p>
       )}
-      {action && <div className="flex justify-center">{action}</div>}
+      {action && <div className="mt-5 flex justify-center">{action}</div>}
     </div>
   );
 }

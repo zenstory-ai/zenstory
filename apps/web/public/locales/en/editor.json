@@ -17,7 +17,12 @@
     "subscriptionManageHint": "Manage your plan, benefits, and redeem codes",
     "subscriptionRenewalSoon": "{{days}} days left",
     "exportQuotaBlockedTitle": "This export is not available on your current plan",
-    "exportQuotaBlockedDesc": "Upgrade your plan to use this export."
+    "exportQuotaBlockedDesc": "Upgrade your plan to use this export.",
+    "exportWithOutline": "Export outline and text (TXT)",
+    "exportWithOutlineSuccess": "Outline and text exported as a TXT file",
+    "exportOutlineSkipped": "Only the text was exported this time. The outline could not be included; please try again in a few minutes.",
+    "exportNoOutlineYet": "This work has no written outline yet, so the text was exported.",
+    "exportDone": "Exported as a TXT file"
   },
   "fileTree": {
     "ariaLabel": "File tree",
@@ -29,7 +34,7 @@
     "newScript": "New Script",
     "newFileName": "New file name",
     "newProject": "New Project",
-    "uploadMaterial": "Upload material (.txt, up to 200k characters)",
+    "uploadMaterial": "Upload a reference text to this project (.txt, up to 200k characters)",
     "uploadDraft": "Import manuscript (.txt / .md, split into chapters automatically)",
     "draftUploadSuccess": "Imported {{count}} chapters",
     "draftUploadPartial": "Imported {{count}} chapters. Some files were not imported: {{errors}}",
@@ -37,11 +42,11 @@
     "removeFromChat": "Remove from chat",
     "addToChat": "Add to chat",
     "emptyFolder": "Empty, click + to start creating",
-    "emptyMaterialFolder": "No materials yet, click + to upload",
+    "emptyMaterialFolder": "Reference texts for this project. Click + to upload a .txt, then add it to the chat for the AI to use",
     "folderEmpty": "No files yet",
     "createWithAI": "Tell the AI what you want to write — it can set up the outline and chapters.",
     "uploading": "Uploading...",
-    "uploadSuccess": "Uploaded",
+    "uploadSuccess": "Uploaded \"{{name}}\". Click \"Add to chat\" to let the AI use it",
     "uploadFailed": "Upload failed. Please try again.",
     "errorFileTooLarge": "File is too large",
     "errorFileTypeInvalid": "Only .txt and .md files are supported",
@@ -112,6 +117,7 @@
   "emptyStateIcon": "file-plus",
   "reviewMode": "Review AI changes by paragraph",
   "reviewModeHint": "Review the AI's changes paragraph by paragraph on the right (shortcuts supported). Changes you leave untouched will be applied.",
+  "reviewModeHintMobile": "Review the AI's changes paragraph by paragraph below. Changes you leave untouched will be applied.",
   "totalChanges_one": "{{count}} change",
   "totalChanges_other": "{{count}} changes",
   "totalChanges": "{{count}} changes",
@@ -157,6 +163,7 @@
   "reviewParagraphLabel": "Paragraph",
   "aiWriting": "AI is writing",
   "wordCount": "Words",
+  "wordCountHint": "Counts Chinese characters and English words, without punctuation or digits, so it can be lower than some platforms show.",
   "paragraphCount": "Paragraphs",
   "history": "Versions",
   "saving": "Saving...",
@@ -171,16 +178,22 @@
   "save": "Save",
   "saveFailed": "Your changes haven't been saved yet. Try again before switching files.",
   "saveStaleWrite": "The AI just edited this file. The latest version is loaded — review it and save again.",
-  "saveStaleWriteConflict": "This file changed elsewhere. Your text is safe — choose what to keep in the comparison view.",
+  "saveStaleWriteConflict": "This file changed elsewhere. Your text is safe. The comparison lists the newer copy's changes: accept one to use it, reject it to keep yours. Where both changed the same passage, yours is kept by default.",
+  "aiEditedWhileDirty": "The AI just changed this file while you had unsaved edits. Your text is safe. The comparison lists the AI's changes: accept one to use the AI's wording, reject it to keep yours. Where you both changed the same passage, yours is kept by default.",
+  "serverSyncFailed": {
+    "message": "The AI just changed this file, but the latest version didn't load, so you may be looking at an older copy. Your edits won't be lost.",
+    "retry": "Load again",
+    "retrying": "Loading…"
+  },
   "saveVersionQuotaExceeded": "Saved. This file's version history is full, so no new version was created. Pro keeps more versions per file.",
   "draftRecovery": {
-    "restored": "Your unsaved work from before the refresh was restored. Review it, then keep editing or save.",
-    "conflict": "The draft from before the refresh differs from the latest server version. Compare them before restoring the local draft.",
+    "restored": "Your unsaved work from last time was restored. Review it, then keep editing or save.",
+    "conflict": "Your unsaved draft from last time differs from the latest server version. Compare them before restoring it.",
     "compare": "Compare versions",
     "restore": "Restore local draft",
     "discard": "Keep server version",
     "serverVersion": "Latest server version",
-    "localVersion": "Local draft before refresh"
+    "localVersion": "Unsaved local draft from last time"
   },
   "naturalPolish": "Humanize",
   "naturalPolishWorking": "Humanizing...",
@@ -254,7 +267,8 @@
     "versionPrefix": "Version",
     "deletedFile": "(deleted)",
     "fileVersionLimitTitle": "This file's version history is full",
-    "fileVersionLimitUpgrade": "Your text is still saved; we just won't create new versions. Pro keeps more versions per file."
+    "fileVersionLimitUpgrade": "Your text is still saved; we just won't create new versions. Pro keeps more versions per file.",
+    "fileVersionLimitPaid": "Your text is still saved; this file just won't get new versions."
   },
   "bottomTabs": {
     "files": "Files",

@@ -14,6 +14,8 @@ from models import Project, User
 from services.core.auth_service import hash_password
 
 _CHARGED_PERIOD = datetime(2026, 10, 5, 16, tzinfo=UTC)
+# 真正的回复正文（超过一句过渡旁白的长度），停止 / 断线时算产出。
+_PROSE = "第三章的节奏偏慢：前两节都在交代旧书店的来历，主角直到第三节才第一次碰到那本没有书名的旧账本，读者等得太久，建议把账本提前到开头。"
 
 
 async def _login_with_project(client: AsyncClient, db_session) -> tuple[str, Project, User]:
@@ -49,13 +51,33 @@ def _frame_data(text: str, event: str) -> dict | None:
     return None
 
 
-class _FakeService:
-    def __init__(self, frames_factory):
-        self._frames_factory = frames_factory
+_FAKE_ASSISTANT_MESSAGE_ID = "assistant-message-of-this-round"
 
-    async def process_stream(self, **_kwargs):
-        async for frame in self._frames_factory():
-            yield frame
+
+class _FakeService:
+    """Yields the given frames; like the real service, hands back the assistant message id
+    once the (cancelled) round's history is saved."""
+
+    def __init__(self, frames_factory, message_id: str | None = _FAKE_ASSISTANT_MESSAGE_ID):
+        self._frames_factory = frames_factory
+        self._message_id = message_id
+
+    async def process_stream(self, *, run_outcome=None, **_kwargs):
+        try:
+            async for frame in self._frames_factory():
+                yield frame
+        finally:
+            if run_outcome is not None:
+                run_outcome.resolve_message_id(self._message_id)
+
+
+@pytest.fixture(autouse=True)
+def _round_outcome_on_test_db(monkeypatch):
+    """Placeholder cleanup and outcome records open their own sessions: keep them on the test DB."""
+    import database
+    from tests.conftest import TestSessionLocal
+
+    monkeypatch.setattr(database, "create_session", TestSessionLocal)
 
 
 async def _post_stream(client, token, project):
@@ -269,13 +291,33 @@ async def test_refund_that_did_not_apply_is_not_announced(client: AsyncClient, d
     assert "quota_refunded" not in response.text
 
 
+def _billing_log(log_spy) -> dict:
+    billing_logs = [
+        call.kwargs for call in log_spy.call_args_list
+        if len(call.args) >= 3 and call.args[2] == "Agent stream billing evaluated"
+    ]
+    assert billing_logs
+    return billing_logs[-1]
+
+
 @pytest.mark.integration
-async def test_generator_exit_disconnect_is_billed_as_user_cancel(client: AsyncClient, db_session):
-    """以 aclose（GeneratorExit）方式断线时按用户取消计费，而不是内部错误退款。"""
+@pytest.mark.parametrize(
+    ("output_frames", "billing_reason", "refunded"),
+    [
+        ([], "client_disconnected_no_output", True),
+        ([_sse("content", {"text": _PROSE})], "client_disconnected", False),
+    ],
+)
+async def test_generator_exit_disconnect_refunds_only_rounds_without_output(
+    client: AsyncClient, db_session, output_frames, billing_reason, refunded
+):
+    """以 aclose（GeneratorExit）方式断线：没有任何产出就在后台退还，已有产出照常计费。"""
     _token, project, user = await _login_with_project(client, db_session)
 
     async def frames():
         yield _sse("session_started", {"session_id": "s1"})
+        for frame in output_frames:
+            yield frame
         await asyncio.sleep(30)
         yield _sse("done", {})
 
@@ -294,17 +336,132 @@ async def test_generator_exit_disconnect_is_billed_as_user_cancel(client: AsyncC
             _rate_limit=0,
         )
         iterator = response.body_iterator
-        first = await iterator.__anext__()
-        assert first.startswith("event: session_started")
+        received = [await iterator.__anext__() for _ in range(1 + len(output_frames))]
+        assert received[0].startswith("event: session_started")
         await iterator.aclose()
+        await asyncio.gather(*agent_api._detached_refund_tasks)
 
-    refund.assert_not_called()
-    billing_logs = [
-        call.kwargs for call in log_spy.call_args_list
-        if len(call.args) >= 3 and call.args[2] == "Agent stream billing evaluated"
-    ]
-    assert billing_logs and billing_logs[-1]["billing_reason"] == "user_cancelled"
-    assert billing_logs[-1]["charged"] is True
+    assert refund.called is refunded
+    log = _billing_log(log_spy)
+    assert log["billing_reason"] == billing_reason
+    assert log["client_disconnected"] is True
+    assert log["user_stopped"] is False
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("output_frames", "billing_reason", "refund_kind"),
+    [
+        ([_sse("thinking_content", {"content": "先读大纲"})], "user_stopped_no_output", "stopped"),
+        ([_sse("content", {"text": _PROSE})], "user_stopped", None),
+    ],
+)
+async def test_author_stop_ends_run_on_open_stream_and_settles_billing(
+    client: AsyncClient, db_session, output_frames, billing_reason, refund_kind
+):
+    """作者点停止：运行在原连接上收尾（停止卡片 + done），没有产出时退还并告诉前端。"""
+    _token, project, user = await _login_with_project(client, db_session)
+    source_closed = asyncio.Event()
+
+    async def frames():
+        try:
+            yield _sse("session_started", {"session_id": "s1"})
+            for frame in output_frames:
+                yield frame
+            await asyncio.sleep(30)
+            yield _sse("done", {})
+        finally:
+            source_closed.set()
+
+    body = agent_api.AgentRequest(project_id=str(project.id), message="写第五章")
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+        patch("api.agent.log_with_context") as log_spy,
+    ):
+        response = await agent_api.stream_request(
+            body=body,
+            session=db_session,
+            current_user=user,
+            accept_language=None,
+            _rate_limit=0,
+        )
+        run_id = response.headers["X-Agent-Run-ID"]
+        iterator = response.body_iterator
+        for _ in range(1 + len(output_frames)):
+            await iterator.__anext__()
+
+        stopped = await agent_api.stop_stream(
+            body=agent_api.StopRequest(agent_run_id=run_id),
+            current_user=user,
+            _rate_limit=0,
+        )
+        assert stopped.stop_requested is True
+        rest = "".join([frame async for frame in iterator])
+
+    assert source_closed.is_set()
+    assert _frame_data(rest, "workflow_stopped") == {
+        "reason": "user_stopped",
+        "message": agent_api.USER_STOPPED_MESSAGE,
+    }
+    done = _frame_data(rest, "done")
+    # 停止轮的 done 带上这一轮助手消息的 id：反馈、时间戳绑到正确的消息上。
+    assert done["assistant_message_id"] == _FAKE_ASSISTANT_MESSAGE_ID
+    assert done["session_id"] == "s1"
+    assert done["stop_reason"] == "user_stopped"
+    assert done["produced_output"] is (refund_kind is None)
+    refund_frame = _frame_data(rest, "quota_refunded")
+    if refund_kind is None:
+        assert refund_frame is None
+        refund.assert_not_called()
+    else:
+        assert refund_frame == {"refunded": True, "kind": refund_kind}
+        refund.assert_called_once()
+    log = _billing_log(log_spy)
+    assert log["billing_reason"] == billing_reason
+    assert log["user_stopped"] is True
+    assert log["client_disconnected"] is False
+
+
+@pytest.mark.integration
+async def test_stop_request_for_another_users_run_does_not_stop_it(client: AsyncClient, db_session):
+    """停止信号按用户命名：别人拿到 run id 也停不了这次运行。"""
+    _token, project, owner = await _login_with_project(client, db_session)
+    _other_token, _other_project, other = await _login_with_project(client, db_session)
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "s1"})
+        await asyncio.sleep(0.8)
+        yield _sse("content", {"text": "照常写完"})
+        yield _sse("done", {})
+
+    body = agent_api.AgentRequest(project_id=str(project.id), message="写第五章")
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True),
+    ):
+        response = await agent_api.stream_request(
+            body=body,
+            session=db_session,
+            current_user=owner,
+            accept_language=None,
+            _rate_limit=0,
+        )
+        iterator = response.body_iterator
+        await iterator.__anext__()
+        stopped = await agent_api.stop_stream(
+            body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
+            current_user=other,
+            _rate_limit=0,
+        )
+        rest = "".join([frame async for frame in iterator])
+
+    assert stopped.stop_requested is False
+
+    assert _frame_data(rest, "workflow_stopped") is None
+    assert _frame_data(rest, "content") == {"text": "照常写完"}
 
 
 @pytest.mark.integration
@@ -355,3 +512,422 @@ async def test_billing_log_line_carries_run_summary(client: AsyncClient, db_sess
     assert summary["run_stop_reason"] == "end_turn"
     assert summary["billing_reason"] == "completed"
     assert summary["refunded"] is False
+
+
+# ------------------------------------------------------------------ 停止 / 断线一轮的收尾
+
+
+def _seed_round(db_session, project, user):
+    """A chat session with this round's user + (empty, stopped) assistant message, and files."""
+    from models import ChatMessage, ChatSession, File
+
+    chat = ChatSession(user_id=user.id, project_id=project.id)
+    db_session.add(chat)
+    db_session.commit()
+    db_session.add(ChatMessage(session_id=chat.id, role="user", content="写第一章"))
+    assistant = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="",
+        message_metadata=json.dumps({"stop_reason": "user_stopped"}),
+    )
+    db_session.add(assistant)
+    placeholder = File(project_id=project.id, title="第1章 最后一页", content="", file_type="draft")
+    filled = File(project_id=project.id, title="第2章 入宅", content="", file_type="draft")
+    older_empty = File(project_id=project.id, title="作者自己建的空白页", content="", file_type="draft")
+    db_session.add_all([placeholder, filled, older_empty])
+    db_session.commit()
+    return assistant.id, placeholder, filled, older_empty
+
+
+def _create_file_result(file) -> str:
+    return _sse(
+        "tool_result",
+        {
+            "tool_name": "create_file",
+            "status": "success",
+            "data": {"id": file.id, "title": file.title, "content": "", "file_type": "draft"},
+        },
+    )
+
+
+async def _stream(db_session, user, project, service, *, client_stop_contract: str | None = "1"):
+    # 默认是认识停止约定的新前端（带 X-Client-Stop-Contract: 1）。
+    body = agent_api.AgentRequest(project_id=str(project.id), message="写第一章")
+    return await agent_api.stream_request(
+        body=body,
+        session=db_session,
+        current_user=user,
+        accept_language=None,
+        client_stop_contract=client_stop_contract,
+        _rate_limit=0,
+    )
+
+
+@pytest.mark.integration
+async def test_stop_after_only_narration_and_an_empty_chapter_refunds_and_removes_the_placeholder(
+    client: AsyncClient, db_session
+):
+    """一句过渡旁白 + create_file 建了空章节就停：不计入，空章节移除并告诉作者，终态写回助手消息。"""
+    from models import ChatMessage, File
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, placeholder, _filled, older_empty = _seed_round(db_session, project, user)
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "s1"})
+        yield _sse("content", {"text": "我先看一遍全书大纲。"})
+        yield _sse("tool_call", {"tool_name": "query_files", "arguments": {}})
+        yield _sse("tool_result", {"tool_name": "query_files", "status": "success"})
+        yield _create_file_result(placeholder)
+        await asyncio.sleep(30)
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        response = await _stream(db_session, user, project, None)
+        iterator = response.body_iterator
+        for _ in range(5):
+            await iterator.__anext__()
+        await agent_api.stop_stream(
+            body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
+            current_user=user,
+            _rate_limit=0,
+        )
+        rest = "".join([frame async for frame in iterator])
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    refund.assert_called_once()
+    assert _frame_data(rest, "done")["assistant_message_id"] == message_id
+    assert _frame_data(rest, "done")["produced_output"] is False
+    assert _frame_data(rest, "quota_refunded") == {
+        "refunded": True,
+        "kind": "stopped",
+        "removed_files": [{"id": placeholder.id, "title": "第1章 最后一页"}],
+    }
+    db_session.expire_all()
+    assert db_session.get(File, placeholder.id).is_deleted is True
+    # 不是这一轮建的空文件不动。
+    assert db_session.get(File, older_empty.id).is_deleted is False
+    metadata = json.loads(db_session.get(ChatMessage, message_id).message_metadata)
+    assert metadata["stop_reason"] == "user_stopped"
+    assert metadata["stop_outcome"] == {
+        "reason": "user_stopped",
+        "charged": False,
+        "saved_output": False,
+        "removed_files": ["第1章 最后一页"],
+    }
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("then_disconnect", [False, True])
+async def test_refunded_stop_keeps_a_blank_chapter_the_author_has_unsaved_text_in(
+    client: AsyncClient, db_session, then_disconnect
+):
+    """停止前编辑器没存下作者在空章节里打的字（保存失败 / 超时）：停止请求带上这个文件，
+    这一轮照样退还，但这一章不被当作空白占位文件移除；离开页面（停止后马上断线）也一样。"""
+    from models import File
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, placeholder, filled, _older = _seed_round(db_session, project, user)
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "s1"})
+        yield _create_file_result(placeholder)
+        yield _create_file_result(filled)
+        await asyncio.sleep(30)
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        response = await _stream(db_session, user, project, None)
+        iterator = response.body_iterator
+        for _ in range(3):
+            await iterator.__anext__()
+        await agent_api.stop_stream(
+            body=agent_api.StopRequest(
+                agent_run_id=response.headers["X-Agent-Run-ID"], keep_file_ids=[placeholder.id]
+            ),
+            current_user=user,
+            _rate_limit=0,
+        )
+        if then_disconnect:
+            await iterator.aclose()
+            await asyncio.gather(*agent_api._detached_refund_tasks)
+        else:
+            rest = "".join([frame async for frame in iterator])
+            assert _frame_data(rest, "quota_refunded")["removed_files"] == [
+                {"id": filled.id, "title": "第2章 入宅"}
+            ]
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    refund.assert_called_once()
+    db_session.expire_all()
+    assert db_session.get(File, placeholder.id).is_deleted is False
+    # 作者没在里面打字的空章节照常移除。
+    assert db_session.get(File, filled.id).is_deleted is True
+
+
+@pytest.mark.integration
+async def test_stop_after_chapter_body_was_written_is_charged_and_keeps_files(
+    client: AsyncClient, db_session
+):
+    """正文已流进章节再停：计费，文件一个都不动，终态写「已写入的内容已保存」。"""
+    from models import ChatMessage, File
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, placeholder, filled, _older = _seed_round(db_session, project, user)
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "s1"})
+        yield _create_file_result(filled)
+        yield _sse("file_content", {"file_id": filled.id, "chunk": "雨还在下。"})
+        yield _create_file_result(placeholder)
+        await asyncio.sleep(30)
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        response = await _stream(db_session, user, project, None)
+        iterator = response.body_iterator
+        for _ in range(4):
+            await iterator.__anext__()
+        await agent_api.stop_stream(
+            body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
+            current_user=user,
+            _rate_limit=0,
+        )
+        rest = "".join([frame async for frame in iterator])
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    refund.assert_not_called()
+    assert _frame_data(rest, "quota_refunded") is None
+    db_session.expire_all()
+    assert db_session.get(File, placeholder.id).is_deleted is False
+    assert db_session.get(File, filled.id).is_deleted is False
+    outcome = json.loads(db_session.get(ChatMessage, message_id).message_metadata)["stop_outcome"]
+    assert outcome == {"reason": "user_stopped", "charged": True, "saved_output": True}
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("output_frames", "charged"),
+    [
+        ([_sse("content", {"text": "正在查看已有的全书大纲，确认现有设定后再梳理主线。"})], False),
+        (
+            [
+                _sse(
+                    "tool_result",
+                    {
+                        "tool_name": "parallel_execute",
+                        "status": "success",
+                        "data": {"tasks": [{"type": "write_chapter", "status": "completed"}]},
+                    },
+                )
+            ],
+            True,
+        ),
+    ],
+)
+async def test_disconnect_settles_in_background_and_records_the_outcome(
+    client: AsyncClient, db_session, output_frames, charged
+):
+    """离开 / 后退断线：旁白不算产出（退还并移除空章节）；并行写章已完成算产出（计费）。"""
+    from models import ChatMessage, File
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, placeholder, _filled, _older = _seed_round(db_session, project, user)
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "s1"})
+        yield _create_file_result(placeholder)
+        for frame in output_frames:
+            yield frame
+        await asyncio.sleep(30)
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        response = await _stream(db_session, user, project, None)
+        iterator = response.body_iterator
+        for _ in range(2 + len(output_frames)):
+            await iterator.__anext__()
+        await iterator.aclose()
+        await asyncio.gather(*agent_api._detached_refund_tasks)
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    assert refund.called is (not charged)
+    db_session.expire_all()
+    assert db_session.get(File, placeholder.id).is_deleted is (not charged)
+    metadata = json.loads(db_session.get(ChatMessage, message_id).message_metadata)
+    assert metadata["stop_reason"] == "client_disconnected"
+    assert metadata["stop_outcome"]["reason"] == "client_disconnected"
+    assert metadata["stop_outcome"]["charged"] is charged
+
+
+@pytest.mark.integration
+async def test_disconnect_from_a_tab_without_the_stop_contract_keeps_files_and_writes_no_stop_row(
+    client: AsyncClient, db_session
+):
+    """发布前打开的旧标签页（没有 /stop、不带停止约定头）断线：照旧退还没产出的一轮，
+    但不移除这一轮建的空章节、不让 service 写空的「已中断」助手消息、不写终态——
+    旧前端收不到 removed_files，文件树里还列着那一章。"""
+    from models import ChatMessage, File
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, placeholder, _filled, _older = _seed_round(db_session, project, user)
+    seen_stop_kind: list[str | None] = []
+
+    class _RecordingService(_FakeService):
+        async def process_stream(self, *, run_outcome=None, **kwargs):
+            try:
+                async for frame in super().process_stream(run_outcome=run_outcome, **kwargs):
+                    yield frame
+            finally:
+                seen_stop_kind.append(run_outcome.stop_kind if run_outcome is not None else None)
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "s1"})
+        yield _create_file_result(placeholder)
+        await asyncio.sleep(30)
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_RecordingService(frames, message_id)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+    ):
+        response = await _stream(db_session, user, project, None, client_stop_contract=None)
+        iterator = response.body_iterator
+        for _ in range(2):
+            await iterator.__anext__()
+        await iterator.aclose()
+        await asyncio.gather(*agent_api._detached_refund_tasks)
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    refund.assert_called_once()
+    # service 拿不到 stop_kind：按原来的取消原因补存，没有产出就不写助手消息。
+    assert seen_stop_kind == [None]
+    db_session.expire_all()
+    assert db_session.get(File, placeholder.id).is_deleted is False
+    metadata = json.loads(db_session.get(ChatMessage, message_id).message_metadata)
+    assert "stop_outcome" not in metadata
+
+
+@pytest.mark.integration
+async def test_disconnect_after_done_settles_as_completed_without_an_interrupted_stamp(
+    client: AsyncClient, db_session
+):
+    """答完（done 已发出）后还在收尾时面板卸载：短回答照常计费，助手消息不被写成「已中断」。"""
+    from models import ChatMessage
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, _placeholder, _filled, _older = _seed_round(db_session, project, user)
+    message = db_session.get(ChatMessage, message_id)
+    message.content = "第三章叫《雪夜》。"
+    message.message_metadata = json.dumps({"stop_reason": "end_turn"})
+    db_session.add(message)
+    db_session.commit()
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "s1"})
+        yield _sse("content", {"text": "第三章叫《雪夜》。"})
+        yield _sse("done", {"assistant_message_id": message_id})
+        # done 之后 process_stream 还在清理 steering 队列等收尾。
+        await asyncio.sleep(30)
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent.quota_service.release_ai_conversation", return_value=True) as refund,
+        patch("api.agent.log_with_context") as log_spy,
+    ):
+        response = await _stream(db_session, user, project, None)
+        iterator = response.body_iterator
+        for _ in range(3):
+            await iterator.__anext__()
+        await iterator.aclose()
+        await asyncio.gather(*agent_api._detached_refund_tasks)
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    refund.assert_not_called()
+    log = _billing_log(log_spy)
+    assert log["billing_reason"] == "completed"
+    assert log["client_disconnected"] is True
+    db_session.expire_all()
+    metadata = json.loads(db_session.get(ChatMessage, message_id).message_metadata)
+    assert metadata == {"stop_reason": "end_turn"}
+
+
+@pytest.mark.integration
+async def test_stop_refund_survives_the_request_being_cancelled_while_it_is_queued(
+    client: AsyncClient, db_session
+):
+    """作者停止后、退还还在排队时连接被取消：退还照样完成，终态记「未计入」，空章节照样移除。"""
+    from models import ChatMessage, File
+
+    _token, project, user = await _login_with_project(client, db_session)
+    message_id, placeholder, _filled, _older = _seed_round(db_session, project, user)
+    entered = asyncio.Event()
+    gate = asyncio.Event()
+    finished: list[bool] = []
+
+    async def slow_refund(*_args, **_kwargs) -> bool:
+        entered.set()
+        await gate.wait()
+        finished.append(True)
+        return True
+
+    async def frames():
+        yield _sse("session_started", {"session_id": "s1"})
+        yield _create_file_result(placeholder)
+        await asyncio.sleep(30)
+
+    with (
+        patch("api.agent.get_agent_service", return_value=_FakeService(frames, message_id)),
+        patch("api.agent.quota_service.reserve_ai_conversation", return_value=_CHARGED_PERIOD),
+        patch("api.agent._refund_quota", side_effect=slow_refund),
+        patch("api.agent.log_with_context") as log_spy,
+    ):
+        response = await _stream(db_session, user, project, None)
+        iterator = response.body_iterator
+        for _ in range(2):
+            await iterator.__anext__()
+        await agent_api.stop_stream(
+            body=agent_api.StopRequest(agent_run_id=response.headers["X-Agent-Run-ID"]),
+            current_user=user,
+            _rate_limit=0,
+        )
+
+        async def consume() -> list[str]:
+            return [frame async for frame in iterator]
+
+        consumer = asyncio.create_task(consume())
+        await asyncio.wait_for(entered.wait(), timeout=5)
+        consumer.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await consumer
+        gate.set()
+        await asyncio.gather(*agent_api._detached_refund_tasks)
+        await asyncio.gather(*agent_api._round_outcome_tasks)
+
+    assert finished == [True]
+    log = _billing_log(log_spy)
+    assert log["billing_reason"] == "user_stopped_no_output"
+    assert log["refund_scheduled"] is True
+    db_session.expire_all()
+    assert db_session.get(File, placeholder.id).is_deleted is True
+    outcome = json.loads(db_session.get(ChatMessage, message_id).message_metadata)["stop_outcome"]
+    assert outcome == {
+        "reason": "user_stopped",
+        "charged": False,
+        "saved_output": False,
+        "removed_files": ["第1章 最后一页"],
+    }

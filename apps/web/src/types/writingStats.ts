@@ -238,6 +238,8 @@ export interface RecordStatsResponse {
 export interface ProjectDashboardStatsResponse {
   project_id: string;
   project_name: string;
+  /** novel / short / screenplay; older servers omit it (treated as novel). */
+  project_type?: string;
   // Word count
   total_word_count: number;
   words_today: number;

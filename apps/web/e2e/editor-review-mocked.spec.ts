@@ -196,7 +196,7 @@ test('chunk refresh draft waits for an explicit comparison before replacing newe
   await expect(page.getByRole('alert')).toContainText('differs from the latest server version');
   await page.getByText('Compare versions', { exact: true }).click();
   await expect(page.getByText('Latest server version', { exact: true })).toBeVisible();
-  await expect(page.getByText('Local draft before refresh', { exact: true })).toBeVisible();
+  await expect(page.getByText('Unsaved local draft from last time', { exact: true })).toBeVisible();
   await expect(page.getByTestId('editor-panel').getByText('Chapter Alpha', { exact: true })).toBeVisible();
   await expect(page.getByText('Recovered chapter title', { exact: true })).toBeVisible();
   await expect(page.getByText('Recovered local body before refresh', { exact: true })).toBeVisible();
@@ -277,7 +277,7 @@ for (const conflict of [false, true]) {
     await expect.poll(() => puts(f).length).toBe(1);
     expect(puts(f)[0].body).toMatchObject({ content: 'A polished local story.', base_updated_at: token0, change_type: 'ai_edit' });
     if (conflict) {
-      await expect(page.getByText('This file changed elsewhere. Your text is safe — choose what to keep in the comparison view.', { exact: true })).toBeVisible();
+      await expect(page.getByText('This file changed elsewhere. Your text is safe.', { exact: false })).toBeVisible();
       await expect(page.getByRole('button', { name: /^(Apply changes|Finish review)$/ })).toBeVisible();
     }
     else await expect(textarea(page)).toHaveValue('A polished local story.');
@@ -405,7 +405,7 @@ test('@watch mobile project menu item must accept ordinary pointer input', async
   await expect(page).toHaveURL(new RegExp(`/project/${projectB}$`));
 });
 
-test('@watch final unmount 409 records review affinity while replacement B is selected', async ({ page }) => {
+test('@watch final unmount 409 keeps the old A draft while replacement B is selected', async ({ page }) => {
   const f = await fixture(page);
   await openA(page);
   await textarea(page).fill('Final old A draft');
@@ -417,14 +417,17 @@ test('@watch final unmount 409 records review affinity while replacement B is se
   await expect(titleInput(page)).toHaveValue('Chapter Beta');
   f.observations.beforeOldCompletion = await titleInput(page).inputValue();
   f.release();
-  await expect(page.getByText('This file changed elsewhere. Your text is safe — choose what to keep in the comparison view.', { exact: true })).toBeVisible();
+  await expect(page.getByText('This file changed elsewhere. Your text is safe.', { exact: false })).toBeVisible();
   await expect(titleInput(page)).toHaveValue('Chapter Beta');
   const reviewButton = page.getByRole('button', { name: /^(Apply changes|Finish review)$/ });
   expect(await reviewButton.count()).toBe(0);
   f.observations.afterOldCompletion = await titleInput(page).inputValue();
   await selectFile(page, 'Chapter Alpha');
-  await expect(reviewButton).toBeVisible();
-  f.observations.oldReviewVisibleWhenReturningToA = true;
+  // The editor that sent the save is gone, so no comparison opens for it; the
+  // failed leave-save kept the draft locally and reopening A offers it again.
+  await expect(textarea(page)).toHaveValue('Final old A draft');
+  await expect(page.getByText(/Your unsaved work from last time was restored|已恢复你上次没保存的内容/)).toBeVisible();
+  f.observations.oldDraftRestoredWhenReturningToA = true;
   f.observations.originalWriteCommitted = false;
   expect(f.files.A.content).toBe('你好 world\n\n第二段 story');
 });

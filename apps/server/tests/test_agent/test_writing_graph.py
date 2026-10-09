@@ -1356,7 +1356,12 @@ class TestWritingGraphUserScope:
 
     @pytest.mark.asyncio
     async def test_question_to_user_stops_planned_handoff(self):
-        """planner 以提问收尾时等用户回答，不能按计划自动交给 writer。"""
+        """planner 以提问收尾、路由没说作者要不要正文时等用户回答，不按计划自动交给 writer。
+
+        作者已经明确要正文（write_content=true）时不在此列，见
+        test_author_scope_graph.py::test_planner_question_keeps_writer_when_author_asked_for_prose
+        （2026-10-09-planner-question-keeps-requested-prose）。
+        """
         calls: list[str] = []
 
         async def fake_agent(_state, agent_type, **_kwargs):
@@ -1372,9 +1377,9 @@ class TestWritingGraphUserScope:
             )
 
         events = await self._run(
-            self._route({"agent_type": "planner", "workflow_type": "standard", "write_content": True}),
+            self._route({"agent_type": "planner", "workflow_type": "standard"}),
             fake_agent,
-            message="规划一下然后写第一章",
+            message="帮我规划一下故事",
         )
 
         assert calls == ["planner"]

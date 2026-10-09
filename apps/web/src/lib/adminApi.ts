@@ -98,6 +98,8 @@ const DEFAULT_UPGRADE_CONVERSION: UpgradeConversionStats = {
   unattributed_conversions: 0,
   sources: [],
   channels: [],
+  after_ai_quota_wall_conversions: 0,
+  paid_after_ai_quota_wall_conversions: 0,
 };
 
 const DEFAULT_UPGRADE_FUNNEL: UpgradeFunnelStats = {
@@ -1453,6 +1455,14 @@ export async function getUpgradeConversionStats(days = 7): Promise<UpgradeConver
     unattributed_conversions: asNumber(
       payloadRecord.unattributed_conversions,
       DEFAULT_UPGRADE_CONVERSION.unattributed_conversions
+    ),
+    after_ai_quota_wall_conversions: asNumber(
+      payloadRecord.after_ai_quota_wall_conversions,
+      DEFAULT_UPGRADE_CONVERSION.after_ai_quota_wall_conversions
+    ),
+    paid_after_ai_quota_wall_conversions: asNumber(
+      payloadRecord.paid_after_ai_quota_wall_conversions,
+      DEFAULT_UPGRADE_CONVERSION.paid_after_ai_quota_wall_conversions
     ),
     sources: rawSources.map((item) => {
       const raw = resolvePayloadRecord(item);

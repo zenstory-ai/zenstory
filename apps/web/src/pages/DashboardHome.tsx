@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { logger } from "../lib/logger";
 import {
-  Book, FileText, Clapperboard, Clock, Trash2,
+  Book, FileText, Clapperboard,
   Sparkles, Zap, CheckSquare, Square, ChevronRight
 } from "../components/icons";
 import { Modal } from "../components/ui/Modal";
@@ -12,6 +12,9 @@ import { QuotaBadge } from "../components/subscription/QuotaBadge";
 import { DashboardPageHeader } from "../components/dashboard/DashboardPageHeader";
 import { DashboardSearchBar } from "../components/dashboard/DashboardSearchBar";
 import { DashboardEmptyState } from "../components/dashboard/DashboardEmptyState";
+import { ProjectCard } from "../components/dashboard/ProjectCard";
+import { PROJECT_TYPE_STYLES } from "../components/dashboard/projectTypeStyles";
+import { Button } from "../components/ui/Button";
 import {
   DashboardInspirationSuggestions,
   FeaturedInspirationsSection,
@@ -23,10 +26,14 @@ import { handleApiError } from "../lib/errorHandler";
 import { toast } from "../lib/toast";
 import { useAuth } from "../contexts/AuthContext";
 import { useProject } from "../contexts/ProjectContext";
+import { useProjectsProgress } from "../hooks/useProjectsProgress";
 import type { ProjectType } from "../types";
 import { useIsMobile, useIsTablet } from "../hooks/useMediaQuery";
-import { formatRelativeTime, parseUTCDate } from "../lib/dateUtils";
+import { parseUTCDate } from "../lib/dateUtils";
 import { UpgradePromptModal } from "../components/subscription/UpgradePromptModal";
+import { IdeaQuotaWallModal } from "../components/subscription/IdeaQuotaWallModal";
+import { useAiMessageQuota } from "../hooks/useAiMessageQuota";
+import { readHeldDashboardIdea, useHeldDashboardIdea } from "../hooks/useHeldDashboardIdea";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { writingStatsApi } from "../lib/writingStatsApi";
 import { onboardingPersonaApi, type PersonaRecommendation } from "../lib/onboardingPersonaApi";
@@ -34,7 +41,7 @@ import { buildTodayActionPlan, type TodayActionPlanItem } from "../lib/dashboard
 import type { ActivationGuideResponse } from "../types/writingStats";
 import { dashboardOnboardingFlags } from "../config/dashboardOnboarding";
 import { inspirationsConfig } from "../config/inspirations";
-import { clearPreferredProjectType, getPreferredProjectType } from "../lib/preferredProjectType";
+import { useDashboardProjectType } from "../hooks/useDashboardProjectType";
 
 const SUPPORTED_PROJECT_TYPES: ProjectType[] = ["novel", "short", "screenplay"];
 
@@ -53,6 +60,7 @@ export default function DashboardHome() {
     createProject: contextCreateProject,
     deleteProject: contextDeleteProject,
   } = useProject();
+  const projectProgress = useProjectsProgress(projects.length);
 
   // Mobile and tablet detection
   const isMobile = useIsMobile();
@@ -65,11 +73,15 @@ export default function DashboardHome() {
   const [templates, setTemplates] = useState<Record<string, ProjectTemplate> | null>(null);
   const [creating, setCreating] = useState<ProjectType | null>(null);
   const [isQuickCreating, setIsQuickCreating] = useState(false);
-  const [inspiration, setInspiration] = useState("");
+  // An idea held back while today's AI messages were used up comes back after a reload.
+  const [inspiration, setInspiration] = useState(() => readHeldDashboardIdea(user?.id));
+  const aiMessageQuota = useAiMessageQuota();
+  useHeldDashboardIdea(user?.id, inspiration, aiMessageQuota.exhausted);
+  const [showIdeaQuotaModal, setShowIdeaQuotaModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   // The landing page type card (or a short-story / screenwriter onboarding answer)
   // decides which tab a new author starts on.
-  const [activeTab, setActiveTab] = useState<ProjectType>(() => getPreferredProjectType() ?? "novel");
+  const { activeTab, setActiveTab, rememberCreatedType } = useDashboardProjectType(projects);
   const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<string | null>(null);
   const [deletingProject, setDeletingProject] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -97,10 +109,10 @@ export default function DashboardHome() {
     novel: {
       icon: Book,
       labelKey: 'projectType.novel.name',
-      colorClass: 'text-[hsl(var(--text-secondary))]',
-      bgClass: 'bg-white/5',
-      gradientFrom: 'from-white/5',
-      gradientTo: 'to-white/0',
+      colorClass: PROJECT_TYPE_STYLES.novel.colorClass,
+      bgClass: PROJECT_TYPE_STYLES.novel.bgClass,
+      gradientFrom: PROJECT_TYPE_STYLES.novel.gradientFrom,
+      gradientTo: PROJECT_TYPE_STYLES.novel.gradientTo,
       placeholderKey: 'inspiration.novelPlaceholder',
       descriptionKey: 'inspiration.novelDesc',
     },
@@ -269,7 +281,7 @@ export default function DashboardHome() {
         return;
       }
 
-      clearPreferredProjectType();
+      rememberCreatedType(targetProjectType);
       navigate(`/project/${projectId}`);
     } catch (error) {
       if (!(error instanceof ApiError && error.status === 401)) {
@@ -458,10 +470,18 @@ export default function DashboardHome() {
     if (!availableProjectTypes.includes(activeTab)) {
       setActiveTab(availableProjectTypes[0] ?? "novel");
     }
-  }, [activeTab, availableProjectTypes]);
+  }, [activeTab, availableProjectTypes, setActiveTab]);
 
   const handleCreateProject = async (useInspiration = false) => {
     if (!creating) return;
+
+    // The idea would be the first AI message, which cannot go out today: keep it and
+    // explain, instead of spending a project slot on an empty project.
+    if (useInspiration && inspiration.trim() && aiMessageQuota.exhausted) {
+      setCreating(null);
+      setShowIdeaQuotaModal(true);
+      return;
+    }
 
     const fallbackTemplates = templates;
     const defaultName = fallbackTemplates?.[creating]?.default_project_name || t('defaults.untitled');
@@ -489,7 +509,7 @@ export default function DashboardHome() {
         );
       }
 
-      clearPreferredProjectType();
+      rememberCreatedType(creating);
 
       // Clean up form state
       setCreating(null);
@@ -514,8 +534,13 @@ export default function DashboardHome() {
   const handleQuickCreate = async () => {
     if (isQuickCreating) return;
 
-    setIsQuickCreating(true);
     const insp = inspiration.trim();
+    if (insp && aiMessageQuota.exhausted) {
+      setShowIdeaQuotaModal(true);
+      return;
+    }
+
+    setIsQuickCreating(true);
     const fallbackTemplates = templates;
     const defaultName = fallbackTemplates?.[activeTab]?.default_project_name || t('defaults.untitled');
 
@@ -541,7 +566,7 @@ export default function DashboardHome() {
         );
       }
 
-      clearPreferredProjectType();
+      rememberCreatedType(activeTab);
 
       // Clean up form state
       setInspiration("");
@@ -565,7 +590,6 @@ export default function DashboardHome() {
     }
   };
 
-  const hasDraftIdea = inspiration.trim().length > 0;
   // A complete example brief (premise + what to produce first) shows what a good request looks like;
   // a rule such as "enter a core conflict" reads as homework.
   const resolvedInspirationPlaceholder = t(`dashboard:inspiration.example.${activeTab}`);
@@ -664,7 +688,9 @@ export default function DashboardHome() {
             return (
               <button
                 key={type}
+                type="button"
                 onClick={() => setActiveTab(type)}
+                aria-pressed={isActive}
                 className={`
                   flex items-center gap-2 rounded-full font-medium transition-all border touch-target
                   ${isMobile
@@ -674,12 +700,12 @@ export default function DashboardHome() {
                       : "px-4 py-2 text-sm"
                   }
                   ${isActive
-                    ? "bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-primary))] shadow-lg border-[hsl(var(--border-color))]"
+                    ? "bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))] border-transparent!"
                     : "text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-secondary)/0.5)] border-transparent"
                   }
                 `}
               >
-                <config.icon className={`${isMobile ? "w-3.5 h-3.5" : "w-4 h-4"} ${isActive ? config.colorClass : ""}`} />
+                <config.icon className={isMobile ? "w-3.5 h-3.5" : "w-4 h-4"} />
                 {config.label}
               </button>
             );
@@ -695,7 +721,7 @@ export default function DashboardHome() {
             data-testid="dashboard-inspiration-input"
             data-tour-id="dashboard-inspiration-input"
             disabled={isQuickCreating}
-            className={`w-full resize-none rounded-[24px] border border-[hsl(var(--border-color)/0.12)] bg-[linear-gradient(180deg,hsl(var(--bg-tertiary)/0.96),hsl(var(--bg-secondary)/0.99))] px-6 py-5 text-[15px] leading-7 text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-secondary)/0.7)] shadow-[inset_0_1px_0_hsl(0_0%_100%_/_0.015)] transition-all focus:border-[hsl(var(--accent-primary)/0.18)] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--accent-primary)/0.05)] disabled:cursor-not-allowed disabled:opacity-60 ${isMobile ? "min-h-[212px]" : "min-h-[136px] pr-[180px]"}`}
+            className={`w-full resize-none rounded-[24px] border border-[hsl(var(--border-color)/0.12)] bg-[linear-gradient(180deg,hsl(var(--bg-tertiary)/0.96),hsl(var(--bg-secondary)/0.99))] text-[15px] leading-7 text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-secondary)/0.7)] shadow-[inset_0_1px_0_hsl(0_0%_100%_/_0.015)] transition-all focus:border-[hsl(var(--accent-primary)/0.18)] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--accent-primary)/0.05)] disabled:cursor-not-allowed disabled:opacity-60 ${isMobile ? "min-h-[248px] px-4 py-4" : "min-h-[136px] px-6 py-5 pr-[180px]"}`}
             value={inspiration}
             onChange={(e) => setInspiration(e.target.value)}
             onKeyDown={(e) => {
@@ -705,20 +731,18 @@ export default function DashboardHome() {
               }
             }}
           />
-          <button
+          <Button
             onClick={handleQuickCreate}
-            disabled={isQuickCreating}
-            className={`flex items-center justify-center gap-2 rounded-[16px] px-5 text-[13px] font-medium shadow-[inset_0_1px_0_hsl(0_0%_100%_/_0.1)] transition-all duration-150 hover:-translate-y-[1px] disabled:opacity-50 ${
-              hasDraftIdea
-                ? "bg-[hsl(var(--accent-primary)/0.62)] text-white hover:bg-[hsl(var(--accent-primary)/0.72)]"
-                : "bg-[hsl(var(--bg-primary)/0.28)] text-[hsl(var(--text-secondary)/0.86)] hover:bg-[hsl(var(--bg-primary)/0.36)]"
-            } ${isMobile ? "h-11 w-full" : "absolute bottom-4 right-4 h-10 min-w-[128px]"}`}
+            isLoading={isQuickCreating}
+            loadingText={t('common.creatingProject', { defaultValue: '正在创建项目…' })}
+            size={isMobile ? "touch" : "md"}
+            leftIcon={<Sparkles className="h-4 w-4" />}
+            className={isMobile ? "w-full" : "absolute bottom-4 right-4 min-w-[128px]"}
             data-testid="create-project-button"
             data-tour-id="dashboard-create-project"
           >
-            <Sparkles className="h-4 w-4" />
             {t('common.createButton')}
-          </button>
+          </Button>
         </div>
 
         {inspirationsConfig.enabled && (
@@ -775,84 +799,21 @@ export default function DashboardHome() {
 
             {/* Project Cards Grid */}
             <div className={`grid ${isMobile ? "grid-cols-1" : isTablet ? "grid-cols-2" : "lg:grid-cols-3"} gap-3.5`}>
-              {recentProjects.map((project) => {
-                const config = getTranslatedConfig(project.project_type);
-
-                return (
-                  /* data-testid: project-card - Project card component for project selection tests */
-                  <div
-                    key={project.id}
-                    onClick={() => navigate(`/project/${project.id}`)}
-                    tabIndex={0}
-                    role="button"
-                    aria-label={t('dashboard:projects.openProject', { defaultValue: '打开项目「{{name}}」', name: project.name })}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        navigate(`/project/${project.id}`);
-                      }
-                    }}
-                    className={`group relative flex flex-col bg-[hsl(var(--bg-secondary))] rounded-lg border border-[hsl(var(--border-color))] cursor-pointer hover:border-[hsl(var(--accent-primary)/0.3)] hover:shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-[hsl(var(--accent-primary)/0.5)] ${isMobile ? "p-4" : "p-4"}`}
-                    data-testid="project-card"
-                  >
-                    {/* Gradient Overlay */}
-                    <div
-                      className={`absolute inset-0 rounded-lg bg-gradient-to-br ${config.gradientFrom} ${config.gradientTo} opacity-0 group-hover:opacity-100 transition-opacity`}
-                    />
-
-                    <div className="relative flex flex-1 flex-col">
-                      {/* Header */}
-                      <div className="flex items-start justify-between mb-2">
-                        <div
-                          className={`w-9 h-9 rounded-lg ${config.bgClass} flex items-center justify-center group-hover:scale-110 transition-transform`}
-                        >
-                          <config.icon className={`w-4.5 h-4.5 ${config.colorClass}`} />
-                        </div>
-                        <div className="flex-1 min-w-0 ml-3">
-                          <h3 className={`font-semibold text-[hsl(var(--text-primary))] truncate leading-snug ${isMobile ? "text-base" : "text-sm"}`}>
-                            {project.name}
-                          </h3>
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (project.id) {
-                              setPendingDeleteProjectId(project.id);
-                            }
-                          }}
-                          className={`p-1.5 rounded-lg hover:bg-[hsl(var(--error)/0.1)] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--error))] transition-all shrink-0 ${
-                            showDeleteAction
-                              ? "opacity-100"
-                              : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
-                          }`}
-                          title={t('projects.deleteProject')}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      {/* Content */}
-                      {project.description && (
-                        <p className={`${isMobile ? "text-sm" : "text-xs"} text-[hsl(var(--text-secondary))] line-clamp-2 mb-3`}>
-                          {project.description}
-                        </p>
-                      )}
-
-                      {/* Footer */}
-                      <div className="mt-auto flex items-center justify-between">
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded-md ${config.bgClass} ${config.colorClass} font-medium`}
-                        >
-                          {config.label}
-                        </span>
-                        <div className="flex items-center gap-1 text-xs text-[hsl(var(--text-secondary))]">
-                          <Clock className="w-3 h-3" />
-                          {project.updated_at ? formatRelativeTime(project.updated_at) : '-'}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+              {recentProjects.map((project) => (
+                <ProjectCard
+                  key={project.id}
+                  project={project}
+                  progress={project.id ? projectProgress.get(project.id) : undefined}
+                  onOpen={() => navigate(`/project/${project.id}`)}
+                  onDelete={() => {
+                    if (project.id) {
+                      setPendingDeleteProjectId(project.id);
+                    }
+                  }}
+                  alwaysShowDelete={showDeleteAction}
+                  data-testid="project-card"
+                />
+              ))}
             </div>
           </>
         )}
@@ -940,9 +901,9 @@ export default function DashboardHome() {
       {/* Create Modal */}
       <Modal
         open={!!creating && !!templates}
+        // Closing the dialog keeps the idea in the home box (it may be held for tomorrow).
         onClose={() => {
           setCreating(null);
-          setInspiration("");
           setNewProjectName("");
         }}
         size="md"
@@ -961,7 +922,6 @@ export default function DashboardHome() {
                   <button
                     onClick={() => {
                       setCreating(null);
-                      setInspiration("");
                       setNewProjectName("");
                     }}
                     className="p-2 rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] active:bg-[hsl(var(--bg-hover))] transition-all"
@@ -1020,7 +980,6 @@ export default function DashboardHome() {
                     if (e.key === "Enter") handleCreateProject(true);
                     if (e.key === "Escape") {
                       setCreating(null);
-                      setInspiration("");
                       setNewProjectName("");
                     }
                   }}
@@ -1030,7 +989,6 @@ export default function DashboardHome() {
               <div className={`flex gap-3 ${isMobile ? "fixed bottom-0 left-0 right-0 p-4 bg-[hsl(var(--bg-secondary))] border-t border-[hsl(var(--border-color))] mobile-safe-bottom" : ""}`}>
                 <button onClick={() => {
                   setCreating(null);
-                  setInspiration("");
                   setNewProjectName("");
                 }} className={`btn-ghost ${isMobile ? "flex-1 h-12" : "flex-1 h-11"}`}>
                   {t('projects.cancel')}
@@ -1064,6 +1022,12 @@ export default function DashboardHome() {
         loading={deletingProject}
         confirmLabel={t('common:delete')}
         cancelLabel={t('common:cancel')}
+      />
+
+      <IdeaQuotaWallModal
+        open={showIdeaQuotaModal}
+        onClose={() => setShowIdeaQuotaModal(false)}
+        resetAt={aiMessageQuota.resetAt}
       />
 
       <UpgradePromptModal

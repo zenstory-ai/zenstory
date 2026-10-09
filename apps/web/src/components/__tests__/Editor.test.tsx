@@ -36,7 +36,7 @@ const editorTranslations = vi.hoisted(() => ({
   'editor:draftRecovery.restore': 'Restore local draft',
   'editor:draftRecovery.discard': 'Keep server version',
   'editor:draftRecovery.serverVersion': 'Latest server version',
-  'editor:draftRecovery.localVersion': 'Local draft before refresh',
+  'editor:draftRecovery.localVersion': 'Unsaved local draft from last time',
 } satisfies Record<string, string>))
 const editorTranslator = vi.hoisted(() => ({
   current: (key: string) => editorTranslations[key] || key,
@@ -523,7 +523,7 @@ describe('Editor', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Local draft conflicts with the server')
     fireEvent.click(screen.getByText('Compare versions'))
     expect(screen.getByText('Latest server version')).toBeInTheDocument()
-    expect(screen.getByText('Local draft before refresh')).toBeInTheDocument()
+    expect(screen.getByText('Unsaved local draft from last time')).toBeInTheDocument()
     expect(screen.getByText('Test Chapter')).toBeInTheDocument()
     expect(screen.getByText('Recovered title')).toBeInTheDocument()
     expect(screen.getByText('Recovered unsaved body')).toBeInTheDocument()
@@ -1012,7 +1012,7 @@ describe('Editor', () => {
     })
   })
 
-  it('shows the server text after rejecting every local edit in a stale-write conflict review', async () => {
+  it('shows the server text after accepting the newer copy in a stale-write conflict review (author draft on the left)', async () => {
     vi.mocked(api.fileApi.get).mockResolvedValue({ ...mockFile, updated_at: 'server-v1' })
     vi.mocked(api.fileApi.update).mockRejectedValueOnce(new ApiError(
       409,
@@ -1034,7 +1034,7 @@ describe('Editor', () => {
     fireEvent.change(screen.getByTestId('content-input'), { target: { value: 'Local content' } })
     fireEvent.click(screen.getByTestId('save-button'))
     await waitFor(() => {
-      expect(enterDiffReview).toHaveBeenCalledWith('file-1', 'Server content', 'Local content')
+      expect(enterDiffReview).toHaveBeenCalledWith('file-1', 'Local content', 'Server content')
     })
 
     vi.mocked(api.fileApi.update).mockResolvedValue({ ...mockFile, content: 'Server content', updated_at: 'server-v3' })
@@ -1043,9 +1043,9 @@ describe('Editor', () => {
       diffReviewState: {
         isReviewing: true,
         fileId: 'file-1',
-        originalContent: 'Server content',
-        modifiedContent: 'Local content',
-        pendingEdits: [{ id: 'edit-0', op: 'replace', oldText: 'a', newText: 'b', status: 'rejected' }],
+        originalContent: 'Local content',
+        modifiedContent: 'Server content',
+        pendingEdits: [{ id: 'edit-0', op: 'replace', oldText: 'a', newText: 'b', status: 'accepted' }],
       },
     }
     rerender(<UnmemoizedEditor />)

@@ -29,6 +29,7 @@ import { useIsMobile } from '../hooks/useMediaQuery';
 import { normalizeLocale } from '../lib/i18n-helpers';
 import { pointsConfig } from '../config/points';
 import Modal from './ui/Modal';
+import { Button } from './ui/Button';
 import { UserAvatar } from './UserMenu';
 import { SubscriptionStatus } from './subscription/SubscriptionStatus';
 import { QuotaBadge } from './subscription/QuotaBadge';
@@ -44,6 +45,7 @@ import { AgentApiKeysPanel } from './settings/AgentApiKeysPanel';
 import { buildUpgradeUrl, getUpgradePromptDefinition } from '../config/upgradeExperience';
 import { trackUpgradeClick } from '../lib/upgradeAnalytics';
 import { isAnalyticsOptedOut, setAnalyticsOptOut } from '../lib/analytics';
+import { getUserDisplayName } from '../lib/userDisplayName';
 
 /**
  * Props for the SettingsDialog component.
@@ -327,7 +329,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
         closeOnBackdropClick={true}
         closeOnEscape={true}
       >
-        <div className={`flex h-full min-h-0 ${isMobile ? 'flex-col' : ''}`}>
+        <div className={`ui-sans-headings flex h-full min-h-0 ${isMobile ? 'flex-col' : ''}`}>
           {/* Left navigation */}
           <div className={`${isMobile ? 'px-1 pb-2' : 'w-40 px-3 pb-4 shrink-0'}`}>
             <nav
@@ -354,8 +356,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                       isMobile ? 'flex-col gap-1 justify-center min-h-11 py-2 px-1' : 'w-full gap-2 py-2 px-3'
                     } rounded-lg ${
                       isActive
-                        ? 'bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-primary))]'
-                        : 'text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-hover))]'
+                        ? 'bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))] font-medium'
+                        : 'text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-hover))] hover:text-[hsl(var(--text-primary))]'
                     }`}
                   >
                     <Icon size={16} strokeWidth={1.5} />
@@ -385,12 +387,12 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                     {user?.avatar_url ? (
                       <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
                     ) : (
-                      <UserAvatar username={user?.nickname || user?.email || ''} size={48} />
+                      <UserAvatar username={getUserDisplayName(user)} size={48} />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-[hsl(var(--text-primary))] truncate">
-                      {user?.nickname || user?.email?.split('@')[0] || tSettings('profile.anonymous')}
+                      {getUserDisplayName(user) || tSettings('profile.anonymous')}
                     </div>
                     <div className="text-sm text-[hsl(var(--text-secondary))] truncate">
                       {user?.email}
@@ -399,15 +401,17 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                 </div>
 
                 {/* Logout button */}
-                <button
+                <Button
+                  variant="secondary"
+                  size={isMobile ? 'touch' : 'md'}
                   onClick={handleLogout}
                   disabled={isLoggingOut}
                   data-testid="settings-logout-button"
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-[hsl(var(--border-color))] text-sm text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-hover))] transition-colors disabled:opacity-50"
+                  className="w-full"
+                  leftIcon={<LogOut size={16} />}
                 >
-                  <LogOut size={14} />
-                  <span>{isLoggingOut ? tAuth('logout.loading') : tAuth('logout.button')}</span>
-                </button>
+                  {isLoggingOut ? tAuth('logout.loading') : tAuth('logout.button')}
+                </Button>
               </div>
             )}
 
@@ -603,13 +607,15 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose,
                   }`}
                 >
                   <PointsBalance />
-                  <button
+                  <Button
+                    variant="secondary"
+                    size={isMobile ? 'touch' : 'md'}
                     onClick={() => setShowRedeemProModal(true)}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-[hsl(var(--border-color))] text-sm text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-hover))] transition-colors"
+                    className="w-full"
+                    leftIcon={<CreditCard size={16} />}
                   >
-                    <CreditCard size={14} />
-                    <span>{tSettings('points.redeemPro', '用积分兑换 Pro')}</span>
-                  </button>
+                    {tSettings('points.redeemPro', '用积分兑换 Pro')}
+                  </Button>
                   <DailyCheckIn />
                   <EarnOpportunities />
                   <PointsHistory />

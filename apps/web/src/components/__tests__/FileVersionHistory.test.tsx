@@ -1,9 +1,11 @@
-import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-const { getVersions, getVersionContent, rollback, compare, toastError, upgradeModal, translator } = vi.hoisted(() => ({
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach, onTestFinished } from 'vitest'
+const { getVersions, getVersionContent, rollback, compare, toastError, upgradeModal, translator, viewport } = vi.hoisted(() => ({
   getVersions: vi.fn(), getVersionContent: vi.fn(), rollback: vi.fn(), compare: vi.fn(),
   toastError: vi.fn(), upgradeModal: vi.fn(), translator: { current: (key: string) => key },
+  viewport: { isMobile: true },
 }))
+vi.mock('../../hooks/useMediaQuery', () => ({ useIsMobile: () => viewport.isMobile }))
 vi.mock('../../lib/api', () => ({ fileVersionApi: { getVersions, getVersionContent, rollback, compare } }))
 vi.mock('../../lib/toast', () => ({ toast: { error: toastError, success: vi.fn(), info: vi.fn() } }))
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: translator.current }) }))
@@ -326,11 +328,11 @@ describe('FileVersionHistory saved-state boundary', () => {
       if (typeof value !== 'string') return key
       return value.replace(/\{\{(\w+)\}\}/g, (_, name: string) => String(options?.[name] ?? ''))
     }
-    const withSummary = (n: number, change_type: string, change_summary: string) => ({ ...version(n), change_type, change_summary })
+    const withSummary = (n: number, change_type: string, change_summary: string, change_source = 'user') => ({ ...version(n), change_type, change_summary, change_source })
     const history = [
       withSummary(9, 'restore', 'Restored from snapshot 3f2b8c1e-9a4d-4e7f-8b21-6c5d4e3f2a10'),
       withSummary(8, 'restore', 'Restored to version 4'),
-      withSummary(7, 'ai_edit', 'AI 编辑: 替换, 追加, 插入 等 5 处修改'),
+      withSummary(7, 'ai_edit', 'AI 编辑: 替换, 追加, 插入 等 5 处修改', 'ai'),
       withSummary(6, 'ai_edit', 'AI edit (reviewed)'),
       withSummary(5, 'edit', 'File updated'),
       withSummary(4, 'create', '创建文件'),
@@ -339,8 +341,8 @@ describe('FileVersionHistory saved-state boundary', () => {
     ]
 
     it.each([
-      ['zh', versionsZh, ['从项目快照恢复', '恢复到版本 4', 'AI 修改：替换、追加、插入 等 5 处', 'AI 修改（已审阅）'], ['File updated', '创建文件', 'Restored']],
-      ['en', versionsEn, ['Restored from a project snapshot', 'Restored to version 4', 'AI edit: replace, append, insert and more (5 changes)', 'AI edit (reviewed)'], ['File updated', '创建文件', 'AI 编辑', '替换']],
+      ['zh', versionsZh, ['从项目快照恢复', '恢复到版本 4', 'AI 改了 5 处', 'AI 修改（已审阅）'], ['File updated', '创建文件', 'Restored', '替换']],
+      ['en', versionsEn, ['Restored from a project snapshot', 'Restored to version 4', 'AI changed 5 places', 'AI edit (reviewed)'], ['File updated', '创建文件', 'AI 编辑', '替换', 'replace']],
     ])('renders system summaries in the %s UI language and keeps user notes', async (_lang, resources, shown, hidden) => {
       translator.current = localeTranslator(resources)
       getVersions.mockResolvedValue({ total: history.length, versions: history })
@@ -353,6 +355,101 @@ describe('FileVersionHistory saved-state boundary', () => {
       expect(text).not.toContain('mystery_type')
       for (const fragment of hidden) expect(text).not.toContain(fragment)
     })
+
+    it('labels a version the author saved after reviewing AI changes as reviewed, not as an AI edit', async () => {
+      translator.current = localeTranslator(versionsZh)
+      getVersions.mockResolvedValue({
+        total: 2,
+        versions: [
+          withSummary(2, 'ai_edit', 'AI edit (reviewed)', 'user'),
+          withSummary(1, 'ai_edit', 'AI 编辑: 替换、替换、替换', 'ai'),
+        ],
+      })
+      render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} />)
+      const reviewedRow = (await screen.findByText('v2')).parentElement as HTMLElement
+      expect(reviewedRow).toHaveTextContent('审阅后保存')
+      expect(reviewedRow).not.toHaveTextContent('AI 编辑')
+      const aiRow = screen.getByText('v1').parentElement as HTMLElement
+      expect(aiRow).toHaveTextContent('AI 编辑')
+      expect(screen.getByText('AI 改了 3 处')).toBeInTheDocument()
+    })
+  })
+
+  it('gives the preview the whole dialog below 768px instead of squeezing the list beside it', async () => {
+    getVersions.mockResolvedValue({ total: 2, versions: [version(3), version(2)] })
+    getVersionContent.mockResolvedValue({ content: 'Historical draft body' })
+    render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} />)
+    const list = await screen.findByTestId('version-list')
+    expect(list).not.toHaveClass('hidden')
+
+    fireEvent.click(screen.getAllByTitle('viewContent')[0])
+    const preview = await screen.findByTestId('version-preview')
+    // Phone: list hidden, preview full width; from md (768px) up the two sit side by side.
+    expect(list).toHaveClass('hidden', 'md:block', 'md:w-1/3')
+    expect(preview).toHaveClass('w-full', 'md:w-2/3')
+
+    // The previewed version can be restored from the preview itself.
+    fireEvent.click(within(preview).getByRole('button', { name: /rollback/ }))
+    expect(await screen.findByText('rollbackConfirm')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'common:cancel' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'closePreview' }))
+    await waitFor(() => expect(screen.queryByTestId('version-preview')).not.toBeInTheDocument())
+    expect(list).not.toHaveClass('hidden')
+  })
+
+  it('returns to the same place in the list after closing a preview on a phone', async () => {
+    getVersions.mockResolvedValue({ total: 2, versions: [version(3), version(2)] })
+    getVersionContent.mockResolvedValue({ content: 'Historical draft body' })
+    render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} />)
+    const list = await screen.findByTestId('version-list')
+    const rows = screen.getByTestId('version-list-rows')
+
+    // The author scrolled down the history before opening an old version.
+    list.scrollTop = 120
+    fireEvent.scroll(list)
+    rows.scrollTop = 480
+    fireEvent.scroll(rows)
+
+    fireEvent.click(screen.getAllByTitle('viewContent')[0])
+    await screen.findByTestId('version-preview')
+    // display:none drops the scroll position in a real browser.
+    list.scrollTop = 0
+    rows.scrollTop = 0
+
+    fireEvent.click(screen.getByRole('button', { name: 'closePreview' }))
+    await waitFor(() => expect(screen.queryByTestId('version-preview')).not.toBeInTheDocument())
+    expect(list.scrollTop).toBe(120)
+    expect(rows.scrollTop).toBe(480)
+  })
+
+  it('keeps where the author scrolled beside an open preview on a wide screen', async () => {
+    // 768px and up: the list stays visible next to the preview.
+    viewport.isMobile = false
+    onTestFinished(() => { viewport.isMobile = true })
+    getVersions.mockResolvedValue({ total: 2, versions: [version(3), version(2)] })
+    getVersionContent.mockResolvedValue({ content: 'Historical draft body' })
+    render(<FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} />)
+    const list = await screen.findByTestId('version-list')
+    const rows = screen.getByTestId('version-list-rows')
+
+    list.scrollTop = 40
+    fireEvent.scroll(list)
+    rows.scrollTop = 120
+    fireEvent.scroll(rows)
+
+    fireEvent.click(screen.getAllByTitle('viewContent')[0])
+    await screen.findByTestId('version-preview')
+    // Browsing further down the still-visible list while the preview is open.
+    list.scrollTop = 60
+    fireEvent.scroll(list)
+    rows.scrollTop = 900
+    fireEvent.scroll(rows)
+
+    fireEvent.click(screen.getByRole('button', { name: 'closePreview' }))
+    await waitFor(() => expect(screen.queryByTestId('version-preview')).not.toBeInTheDocument())
+    expect(list.scrollTop).toBe(60)
+    expect(rows.scrollTop).toBe(900)
   })
 })
 

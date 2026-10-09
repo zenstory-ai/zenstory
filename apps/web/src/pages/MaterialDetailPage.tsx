@@ -42,8 +42,12 @@ import { useIsMobile } from "../hooks/useMediaQuery";
 import { materialsConfig } from "../config/materials";
 import { handleApiError } from "../lib/errorHandler";
 import { toast } from "../lib/toast";
-import { subscriptionQueryKeys } from "../lib/subscriptionApi";
-import { isFeatureNotIncludedError, materialJobErrorText } from "../lib/materialsAccess";
+import { subscriptionApi, subscriptionQueryKeys } from "../lib/subscriptionApi";
+import {
+  hasMaterialsLibraryAccess,
+  isFeatureNotIncludedError,
+  materialJobErrorText,
+} from "../lib/materialsAccess";
 import { MaterialsUpgradeNotice } from "../components/subscription/MaterialsUpgradePrompt";
 import { useRefreshMaterialLibraryOnCompletion } from "../hooks/useMaterialLibraryRefresh";
 
@@ -130,6 +134,16 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
   });
   const queryClient = useQueryClient();
   const [isRetrying, setIsRetrying] = useState(false);
+  // Retrying charges a monthly breakdown: a free-trial author can only get 402.
+  const { data: subscriptionStatus } = useQuery({
+    queryKey: subscriptionQueryKeys.status(),
+    queryFn: () => subscriptionApi.getStatus(),
+  });
+  const canRetry =
+    hasMaterialsLibraryAccess(
+      subscriptionStatus?.features as Record<string, unknown> | undefined,
+      subscriptionStatus?.tier,
+    ) === true;
   useRefreshMaterialLibraryOnCompletion(material ? [material] : undefined);
 
   const handleRetry = async () => {
@@ -654,15 +668,17 @@ function MaterialDetailContent({ novelId }: { novelId?: string }) {
               </span>
             )}
           </span>
-          <button
-            type="button"
-            onClick={() => void handleRetry()}
-            disabled={isRetrying}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-primary))] px-3 text-xs font-medium text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isRetrying ? "animate-spin" : ""}`} />
-            {t("common:retry", { defaultValue: "重试" })}
-          </button>
+          {canRetry && (
+            <button
+              type="button"
+              onClick={() => void handleRetry()}
+              disabled={isRetrying}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-primary))] px-3 text-xs font-medium text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isRetrying ? "animate-spin" : ""}`} />
+              {t("common:retry", { defaultValue: "重试" })}
+            </button>
+          )}
         </div>
       )}
 

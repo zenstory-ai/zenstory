@@ -26,6 +26,13 @@ vi.mock('react-i18next', () => ({
         'dashboard:userPanel.quickSettings': 'Quick settings',
         'dashboard:userPanel.openPanel': 'Open user settings panel',
         'dashboard:userPanel.adminPanel': 'Admin panel',
+        'common:nav.openMenu': '打开菜单',
+        'common:nav.closeMenu': '关闭菜单',
+        'common:nav.mobileMenu': '移动端导航菜单',
+        'common:a11y.switchToChinese': '切换到中文',
+        'common:a11y.switchToEnglish': '切换到英文',
+        'common:a11y.toggleTheme': '切换深色或浅色模式',
+        'common:a11y.toggleLanguage': '切换界面语言',
         'settings:theme.mode': 'Theme',
         'settings:theme.dark': 'Dark mode',
         'settings:theme.light': 'Light mode',
@@ -142,13 +149,13 @@ describe('Dashboard user panel and quick switches', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open user settings panel' }))
 
-    const zhButton = screen.getByRole('button', { name: 'Switch to Chinese' })
+    const zhButton = screen.getByRole('button', { name: '切换到中文' })
     expect(zhButton.className).toContain('accent-primary')
 
     fireEvent.click(screen.getByRole('button', { name: 'Dark mode' }))
     expect(mockSetTheme).toHaveBeenCalledWith('dark')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Switch to English' }))
+    fireEvent.click(screen.getByRole('button', { name: '切换到英文' }))
     expect(mockChangeLanguage).toHaveBeenCalledWith('en')
   })
 
@@ -169,11 +176,22 @@ describe('Dashboard user panel and quick switches', () => {
     expect(screen.getByTestId('dashboard-contact-support-link')).toHaveTextContent('support@zenstory.ai')
   })
 
+  it('marks the current page in the mobile menu like the desktop sidebar', () => {
+    mockIsMobile = true
+    mockIsDesktop = false
+    renderDashboard(['/dashboard/inspirations'])
+
+    fireEvent.click(screen.getByRole('button', { name: '打开菜单' }))
+
+    expect(screen.getByTestId('dashboard-mobile-nav-inspirations')).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByTestId('dashboard-mobile-nav-home')).not.toHaveAttribute('aria-current')
+  })
+
   it('links the support email from the mobile menu', () => {
     mockIsMobile = true
     mockIsDesktop = false
     renderDashboard()
-    fireEvent.click(screen.getByRole('button', { name: 'Open mobile menu' }))
+    fireEvent.click(screen.getByRole('button', { name: '打开菜单' }))
     expect(screen.getByTestId('dashboard-contact-support-link-mobile')).toHaveAttribute('href', 'mailto:support@zenstory.ai')
   })
 
@@ -183,8 +201,8 @@ describe('Dashboard user panel and quick switches', () => {
     mockResolvedLanguage = undefined
     renderDashboard()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open mobile menu' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle language' }))
+    fireEvent.click(screen.getByRole('button', { name: '打开菜单' }))
+    fireEvent.click(screen.getByRole('button', { name: '切换界面语言' }))
 
     expect(mockChangeLanguage).toHaveBeenCalledWith('en')
   })
@@ -194,17 +212,17 @@ describe('Dashboard user panel and quick switches', () => {
     mockIsDesktop = false
     renderDashboard()
 
-    const trigger = screen.getByRole('button', { name: 'Open mobile menu' })
+    const trigger = screen.getByRole('button', { name: '打开菜单' })
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
     expect(trigger).toHaveAttribute('aria-controls', 'dashboard-mobile-navigation')
 
     fireEvent.click(trigger)
-    expect(screen.getByRole('button', { name: 'Close mobile menu' })).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByRole('navigation', { name: 'Mobile navigation' })).toHaveAttribute('id', 'dashboard-mobile-navigation')
+    expect(screen.getByRole('button', { name: '关闭菜单' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('navigation', { name: '移动端导航菜单' })).toHaveAttribute('id', 'dashboard-mobile-navigation')
 
     fireEvent.keyDown(document, { key: 'Escape' })
-    expect(screen.queryByRole('navigation', { name: 'Mobile navigation' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Open mobile menu' })).toHaveFocus()
+    expect(screen.queryByRole('navigation', { name: '移动端导航菜单' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '打开菜单' })).toHaveFocus()
   })
 
   it('highlights inspirations nav item for /dashboard/inspirations/* routes', () => {
@@ -225,7 +243,7 @@ describe('Dashboard user panel and quick switches', () => {
     mockIsMobile = true
     mockIsDesktop = false
     renderDashboard()
-    fireEvent.click(screen.getByRole('button', { name: 'Open mobile menu' }))
+    fireEvent.click(screen.getByRole('button', { name: '打开菜单' }))
 
     expect(screen.queryByRole('button', { name: 'Inspirations' })).not.toBeInTheDocument()
   })

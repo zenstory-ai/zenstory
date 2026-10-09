@@ -331,6 +331,11 @@ class UpgradeConversionStatsResponse(BaseModel):
     unattributed_conversions: int
     sources: list[UpgradeConversionSourceResponse]
     channels: list[UpgradeConversionChannelResponse] = Field(default_factory=list)
+    # Conversions by authors who hit the daily AI message limit before converting.
+    # The upgrade_source of a conversion is only the last click, so the wall is
+    # invisible there even when it is what made the author pay.
+    after_ai_quota_wall_conversions: int = 0
+    paid_after_ai_quota_wall_conversions: int = 0
 
 
 class UpgradeFunnelTotalsResponse(BaseModel):

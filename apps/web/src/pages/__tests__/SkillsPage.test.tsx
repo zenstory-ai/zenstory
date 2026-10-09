@@ -89,8 +89,10 @@ vi.mock('react-i18next', () => ({
   }),
 }))
 
+const mediaState = vi.hoisted(() => ({ isMobile: false }))
+
 vi.mock('../../hooks/useMediaQuery', () => ({
-  useIsMobile: () => false,
+  useIsMobile: () => mediaState.isMobile,
   useIsTablet: () => false,
 }))
 
@@ -145,8 +147,13 @@ vi.mock('../../components/skills/ShareSkillModal', () => ({
 }))
 
 vi.mock('../../components/subscription/UpgradePromptModal', () => ({
-  UpgradePromptModal: ({ open, title }: { open: boolean; title: string }) =>
-    open ? <div data-testid="upgrade-modal">{title}</div> : null,
+  UpgradePromptModal: ({ open, title, paidDescription }: { open: boolean; title: string; paidDescription?: string }) =>
+    open ? (
+      <div data-testid="upgrade-modal">
+        {title}
+        <p data-testid="upgrade-modal-paid-description">{paidDescription}</p>
+      </div>
+    ) : null,
 }))
 
 // Suppress console noise
@@ -257,6 +264,7 @@ describe('SkillsPage', () => {
 
   afterEach(() => {
     vi.clearAllMocks()
+    mediaState.isMobile = false
   })
 
   // ========================================
@@ -586,6 +594,36 @@ describe('SkillsPage', () => {
       }, { timeout: 1000 })
     })
 
+    it('keeps the skill name row free of the 44px action buttons on phones', async () => {
+      // Five 44px icon buttons in the title row left a 390px phone 8px for the skill name.
+      mediaState.isMobile = true
+      render(<SkillsPage />)
+
+      await userEvent.click(screen.getByRole('button', { name: /my skills/i }))
+      const title = await screen.findByRole('heading', { name: 'Writing Assistant' })
+      const card = title.closest('.group') as HTMLElement
+      const titleRow = title.closest('.items-start') as HTMLElement
+      const actions = within(card).getByTestId('skill-card-actions')
+
+      expect(within(actions).getByRole('button', { name: 'Edit Skill' })).toBeInTheDocument()
+      expect(titleRow.contains(actions)).toBe(false)
+      expect(within(titleRow).queryByRole('button', { name: 'Edit Skill' })).toBeNull()
+
+      const added = await screen.findByRole('heading', { name: 'Plot Twist Generator' })
+      const addedRow = added.closest('.items-start') as HTMLElement
+      expect(within(addedRow).queryByRole('button', { name: 'Remove' })).toBeNull()
+      expect(within(added.closest('.group') as HTMLElement).getByRole('button', { name: 'Remove' })).toBeInTheDocument()
+    })
+
+    it('keeps the card actions beside the title on desktop', async () => {
+      render(<SkillsPage />)
+
+      await userEvent.click(screen.getByRole('button', { name: /my skills/i }))
+      const title = await screen.findByRole('heading', { name: 'Writing Assistant' })
+      const titleRow = title.closest('.items-start') as HTMLElement
+      expect(within(titleRow).getByRole('button', { name: 'Edit Skill' })).toBeInTheDocument()
+    })
+
     it('shows upgrade modal when creating skill hits quota limit', async () => {
       vi.mocked(skillsApi.create).mockRejectedValueOnce(new ApiError(402, 'ERR_QUOTA_EXCEEDED'))
 
@@ -613,6 +651,8 @@ describe('SkillsPage', () => {
         expect(skillsApi.create).toHaveBeenCalled()
         expect(screen.getByTestId('upgrade-modal')).toBeInTheDocument()
       })
+      // A Pro author at the cap is told how to make room, not just "used up".
+      expect(screen.getByTestId('upgrade-modal-paid-description')).toHaveTextContent('skills:quota.createPaidDescription')
     })
   })
 
@@ -767,9 +807,26 @@ describe('SkillsPage', () => {
 
       render(<SkillsPage />)
 
+      // Nothing was searched, so the empty state must not tell the author to change a keyword.
       await waitFor(() => {
-        expect(screen.getByText('No skills found')).toBeInTheDocument()
+        expect(screen.getByText('noDiscoverableSkills')).toBeInTheDocument()
       })
+      expect(screen.queryByText('No skills found')).not.toBeInTheDocument()
+    })
+
+    it('suggests another keyword only after a search found nothing', async () => {
+      render(<SkillsPage />)
+      await screen.findByText('Dialogue Expert')
+      vi.mocked(publicSkillsApi.list).mockResolvedValue({
+        skills: [],
+        total: 0,
+        page: 1,
+        page_size: 20,
+      } as PublicSkillListResponse)
+
+      fireEvent.change(screen.getByTestId('public-skill-search'), { target: { value: 'zzz' } })
+
+      expect(await screen.findByText('No skills found', {}, { timeout: 2000 })).toBeInTheDocument()
     })
   })
 
@@ -944,6 +1001,44 @@ describe('SkillsPage', () => {
       // 前一页的内容保留，已经全部加载后不再显示按钮
       expect(screen.getByText('Dialogue Expert')).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'loadMore' })).not.toBeInTheDocument()
+    })
+
+    it('shows an empty-library state with a create entry instead of a failed-search message', async () => {
+      vi.mocked(publicSkillsApi.list).mockResolvedValue({
+        skills: [],
+        total: 0,
+        page: 1,
+        page_size: 20,
+      } as PublicSkillListResponse)
+      render(<SkillsPage />)
+
+      expect(await screen.findByText('noDiscoverableSkills')).toBeInTheDocument()
+      expect(screen.getByText('noDiscoverableSkillsHint')).toBeInTheDocument()
+      expect(screen.queryByText('No skills found')).not.toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('button', { name: 'createSkill' }))
+      expect(await screen.findByText('Create Skill')).toBeInTheDocument()
+    })
+
+    it('keeps the no-match message for a search that finds nothing', async () => {
+      vi.mocked(publicSkillsApi.list).mockResolvedValue({
+        skills: [],
+        total: 0,
+        page: 1,
+        page_size: 20,
+      } as PublicSkillListResponse)
+      render(<SkillsPage />)
+      await screen.findByText('noDiscoverableSkills')
+
+      fireEvent.change(screen.getByTestId('public-skill-search'), { target: { value: '不存在' } })
+
+      // Still inside the debounce window: these results are for the empty query,
+      // so they must not be described as a failed search for 「不存在」.
+      expect(screen.queryByText('No skills found')).not.toBeInTheDocument()
+      expect(screen.getByText('noDiscoverableSkills')).toBeInTheDocument()
+
+      expect(await screen.findByText('No skills found')).toBeInTheDocument()
+      expect(screen.queryByText('noDiscoverableSkills')).not.toBeInTheDocument()
     })
 
     it('debounces the discover search and waits for IME composition to end', async () => {

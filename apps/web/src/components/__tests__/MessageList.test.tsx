@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MessageList, type Message, type MessageListRef } from '../MessageList'
 import { useEffect, useRef } from 'react'
+import zhChat from '../../../public/locales/zh/chat.json'
+import enChat from '../../../public/locales/en/chat.json'
 
 vi.mock('../LazyMarkdown', () => {
   const SyncMarkdown = ({
@@ -83,8 +85,9 @@ vi.mock('react-i18next', () => ({
     init: vi.fn(),
   },
   useTranslation: () => ({
-    // Return the key as-is to match actual component behavior
-    t: (key: string) => key,
+    // Return the key as-is to match actual component behavior; step-label numbers are appended.
+    t: (key: string, options?: Record<string, unknown>) =>
+      [key, options?.step, options?.n].filter((part) => part !== undefined).join(' '),
   }),
 }))
 
@@ -122,6 +125,26 @@ describe('MessageList', () => {
     // MessageList returns null for empty messages, so we just check it doesn't throw
   })
 
+  it('keeps a stopped round that produced nothing visible, showing how it ended', () => {
+    const stopped = createMessage({
+      role: 'assistant',
+      content: '',
+      backendMessageId: 'a-1',
+      stopOutcome: { reason: 'user_stopped', charged: false, savedOutput: false, removedFiles: [] },
+    })
+    render(<MessageList messages={[createMessage({ content: '写第一章' }), stopped]} showDailyCount />)
+
+    expect(screen.getByTestId('round-end-note')).toHaveTextContent('chat:panel.userStopped · chat:panel.roundNotCounted')
+  })
+
+  it('hides feedback for a stopped bubble that no saved message could be matched to', () => {
+    const stopped = createMessage({ role: 'assistant', content: '第一段', feedbackUnavailable: true })
+    render(<MessageList messages={[stopped]} onSubmitFeedback={vi.fn()} />)
+
+    expect(screen.queryByText('feedback.pendingSave')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'feedback.like' })).not.toBeInTheDocument()
+  })
+
   it('shows only the step number for an agent step, never the step budget', () => {
     const displayItems: NonNullable<Message['displayItems']> = [
       { id: 'agent-step', type: 'agent_selected', agentName: 'Step writer', iteration: 2, maxIterations: 12, remaining: 10, timestamp: new Date() },
@@ -130,6 +153,22 @@ describe('MessageList', () => {
 
     expect(container.textContent).toContain('workflow.iteration 2')
     expect(container.textContent).not.toContain('/12')
+  })
+
+  it('step chip reads as plain words for authors (第 N 步, not 步骤 N)', () => {
+    const displayItems: NonNullable<Message['displayItems']> = [
+      { id: 'agent-step', type: 'agent_selected', agentType: 'quality_reviewer', iteration: 3, maxIterations: 4, remaining: 1, timestamp: new Date() },
+    ]
+    const { container } = render(<MessageList messages={[createMessage({ role: 'assistant', content: '', displayItems })]} />)
+
+    // The step number and the steps left are passed into the sentence, not glued after a bare label.
+    expect(container.textContent).toContain('workflow.iteration 3')
+    expect(container.textContent).toContain('workflow.remaining 1')
+    const fill = (template: string, values: Record<string, number>) =>
+      template.replace(/\{\{(\w+)\}\}/g, (_, name: string) => String(values[name]))
+    expect(fill(zhChat.workflow.iteration, { step: 3 }) + fill(zhChat.workflow.remaining, { n: 1 })).toBe('第 3 步（还能做 1 步）')
+    expect(fill(enChat.workflow.iteration, { step: 3 }) + fill(enChat.workflow.remaining, { n: 1 })).toBe('step 3 (1 more left)')
+    expect(zhChat.workflow.iteration + zhChat.workflow.remaining).not.toContain('步骤')
   })
 
   it('hides Chinese control markers in assistant replies', () => {

@@ -217,6 +217,14 @@ class DoneEventData(BaseModel):
         default=None,
         description="Chat session ID associated with this completed turn",
     )
+    stop_reason: str | None = Field(
+        default=None,
+        description="Set when the author stopped this round (user_stopped)",
+    )
+    produced_output: bool | None = Field(
+        default=None,
+        description="Stopped rounds only: whether the round produced real output (prose or a write)",
+    )
 
 
 class ToolCallEventData(BaseModel):
@@ -415,19 +423,25 @@ def done_event(
     assistant_message_id: str | None = None,
     session_id: str | None = None,
     file_mutated: bool = False,
+    stop_reason: str | None = None,
+    produced_output: bool | None = None,
 ) -> StreamEvent:
     """Create a done event."""
-    return StreamEvent(
-        type=EventType.DONE,
-        data=DoneEventData(
-            file_mutated=file_mutated,
-            apply_action=apply_action,
-            refs=refs or [],
-            intent=intent,
-            assistant_message_id=assistant_message_id,
-            session_id=session_id,
-        ).model_dump()
-    )
+    data = DoneEventData(
+        file_mutated=file_mutated,
+        apply_action=apply_action,
+        refs=refs or [],
+        intent=intent,
+        assistant_message_id=assistant_message_id,
+        session_id=session_id,
+        stop_reason=stop_reason,
+        produced_output=produced_output,
+    ).model_dump()
+    # 只有作者停止的一轮才带这两个字段，其余 done 帧保持原样。
+    for key in ("stop_reason", "produced_output"):
+        if data.get(key) is None:
+            data.pop(key, None)
+    return StreamEvent(type=EventType.DONE, data=data)
 
 
 def tool_call_event(

@@ -66,6 +66,22 @@ describe('DailyCheckIn', () => {
     expect(screen.getByText('连续 3 天')).toBeInTheDocument()
   })
 
+  it('uses the one 12/500 grey section label of the points tab', async () => {
+    mockGetCheckInStatus.mockResolvedValue({
+      checked_in: false,
+      streak_days: 0,
+      points_earned_today: 0,
+    })
+
+    renderWithQuery(<DailyCheckIn />)
+
+    expect(await screen.findByText('每日签到')).toHaveClass(
+      'text-xs',
+      'font-medium',
+      'text-[hsl(var(--text-secondary))]'
+    )
+  })
+
   it('renders checked-in state and earned points', async () => {
     mockGetCheckInStatus.mockResolvedValue({
       checked_in: true,

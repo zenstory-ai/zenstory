@@ -47,9 +47,10 @@ const CASES: Array<[string, string]> = [
   ['Restored from snapshot snap-42', '从项目快照恢复'],
   ['Created via Agent API', '通过 Agent API 创建'],
   ['Updated via Agent API', '通过 Agent API 更新'],
-  ['AI 编辑: 替换', 'AI 修改：替换'],
-  ['AI 编辑：前置、删除', 'AI 修改：开头插入、删除'],
-  ['AI 编辑: 替换, 追加, 插入 等 5 处修改', 'AI 修改：替换、追加、插入 等 5 处'],
+  ['AI 编辑: 替换', 'AI 改了 1 处'],
+  ['AI 编辑：前置、删除', 'AI 改了 2 处'],
+  ['AI 编辑: 替换、替换、替换', 'AI 改了 3 处'],
+  ['AI 编辑: 替换, 追加, 插入 等 5 处修改', 'AI 改了 5 处'],
 ]
 
 /** System summaries that only repeat the type badge (创建 / 编辑 / AI 编辑). */
@@ -67,9 +68,7 @@ describe('describeVersionSummary', () => {
   it('resolves every mapped label in the English locale too', () => {
     expect(describeVersionSummary('Restored to version 2', en)).toBe('Restored to version 2')
     expect(describeVersionSummary('Before restoring version 2', en)).toBe('Automatic backup before restore')
-    expect(describeVersionSummary('AI 编辑: 替换, 追加, 插入 等 5 处修改', en)).toBe(
-      'AI edit: replace, append, insert and more (5 changes)',
-    )
+    expect(describeVersionSummary('AI 编辑: 替换, 追加, 插入 等 5 处修改', en)).toBe('AI changed 5 places')
     for (const [summary] of CASES) {
       expect(describeVersionSummary(summary, en)).not.toMatch(/[一-鿿]/)
     }
@@ -86,8 +85,10 @@ describe('describeVersionSummary', () => {
     expect(describeVersionSummary(summary, zh)).toBeNull()
   })
 
-  it('hides AI edit summaries with an operation it cannot describe', () => {
-    expect(describeVersionSummary('AI 编辑: 替换, 重写', zh)).toBeNull()
+  it('counts the places changed instead of listing operation names, even unfamiliar ones', () => {
+    const summary = describeVersionSummary('AI 编辑: 替换, 重写', zh)
+    expect(summary).toBe('AI 改了 2 处')
+    expect(summary).not.toMatch(/替换|重写/)
   })
 
   it('treats empty summaries as no summary', () => {

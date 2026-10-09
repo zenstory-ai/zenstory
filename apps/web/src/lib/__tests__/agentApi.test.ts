@@ -8,7 +8,9 @@ import {
   fetchSuggestions,
   sendSteeringRequest,
   selectStreamErrorMessage,
+  stopAgentRun,
 } from '../agentApi'
+import { api } from '../apiClient'
 import type { SSEEvent } from '../../types'
 import { debugContext } from '../debugContext'
 
@@ -19,6 +21,7 @@ vi.mock('../apiClient', async importOriginal => ({
   getAccessToken: vi.fn(() => 'test-access-token'),
   clearAuthStorage: vi.fn(),
   getApiBase: vi.fn(() => 'http://localhost:8000'),
+  api: { post: vi.fn() },
 }))
 
 vi.mock('../errorHandler', () => ({
@@ -272,26 +275,81 @@ describe('agentApi', () => {
       await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(onError).toHaveBeenCalledTimes(1)
-      expect(onQuotaRefunded).toHaveBeenCalledWith('error')
+      expect(onQuotaRefunded).toHaveBeenCalledWith('error', [])
     })
 
-    it('maps a no_progress refund and ignores frames that do not claim a refund', async () => {
+    it('passes on the blank files a refunded stop removed, and the stop facts on done', async () => {
       const onQuotaRefunded = vi.fn()
+      const onDone = vi.fn()
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
         body: createMockStream([
-          'event: done\ndata: {}\n\n',
-          'event: quota_refunded\ndata: {"refunded":false,"kind":"no_progress"}\n\n',
-          'event: quota_refunded\ndata: {"refunded":true,"kind":"no_progress"}\n\n',
+          'event: done\ndata: {"assistant_message_id":"m-1","stop_reason":"user_stopped","produced_output":false}\n\n',
+          'event: quota_refunded\ndata: {"refunded":true,"kind":"stopped","removed_files":[{"id":"f-1","title":"第1章"},{"bad":1}]}\n\n',
         ]),
       }))
 
-      streamAgentRequest({ project_id: 'test-project', message: 'test' }, { onQuotaRefunded })
+      streamAgentRequest({ project_id: 'test-project', message: 'test' }, { onQuotaRefunded, onDone })
       await new Promise(resolve => setTimeout(resolve, 100))
 
-      expect(onQuotaRefunded).toHaveBeenCalledTimes(1)
-      expect(onQuotaRefunded).toHaveBeenCalledWith('no_progress')
+      expect(onDone).toHaveBeenCalledWith(expect.objectContaining({
+        assistant_message_id: 'm-1',
+        stop_reason: 'user_stopped',
+        produced_output: false,
+      }))
+      expect(onQuotaRefunded).toHaveBeenCalledWith('stopped', [{ id: 'f-1', title: '第1章' }])
+    })
+
+    it.each(['no_progress', 'stopped'])(
+      'maps a %s refund and ignores frames that do not claim a refund',
+      async (kind) => {
+        const onQuotaRefunded = vi.fn()
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          body: createMockStream([
+            'event: done\ndata: {}\n\n',
+            `event: quota_refunded\ndata: {"refunded":false,"kind":"${kind}"}\n\n`,
+            `event: quota_refunded\ndata: {"refunded":true,"kind":"${kind}"}\n\n`,
+          ]),
+        }))
+
+        streamAgentRequest({ project_id: 'test-project', message: 'test' }, { onQuotaRefunded })
+        await new Promise(resolve => setTimeout(resolve, 100))
+
+        expect(onQuotaRefunded).toHaveBeenCalledTimes(1)
+        expect(onQuotaRefunded).toHaveBeenCalledWith(kind, [])
+      },
+    )
+
+    it('hands the run id from X-Agent-Run-ID to onRunStarted so the run can be stopped', async () => {
+      const onRunStarted = vi.fn()
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: createMockStream(['event: done\ndata: {}\n\n']),
+        headers: { get: (name: string) => (name === 'X-Agent-Run-ID' ? 'run-42' : null) },
+      }))
+
+      streamAgentRequest({ project_id: 'test-project', message: 'test' }, { onRunStarted })
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      expect(onRunStarted).toHaveBeenCalledWith('run-42')
+    })
+
+    it('declares the stop contract on every stream request', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: createMockStream(['event: done\ndata: {}\n\n']),
+      })
+      vi.stubGlobal('fetch', mockFetch)
+
+      streamAgentRequest({ project_id: 'test-project', message: 'test' }, {})
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(mockFetch.mock.calls[0][1].headers['X-Client-Stop-Contract']).toBe('1')
     })
 
     it('passes session_id in stream request body when provided', async () => {
@@ -1116,6 +1174,26 @@ describe('agentApi', () => {
         'STREAM_CLOSED',
         true
       )
+    })
+  })
+
+  describe('stopAgentRun', () => {
+    it('asks the server to stop the run and reports whether it was recorded', async () => {
+      vi.mocked(api.post).mockResolvedValueOnce({ stop_requested: true })
+      await expect(stopAgentRun('run-42')).resolves.toBe(true)
+      expect(api.post).toHaveBeenCalledWith('/api/v1/agent/stop', { agent_run_id: 'run-42' })
+
+      vi.mocked(api.post).mockRejectedValueOnce(new Error('offline'))
+      await expect(stopAgentRun('run-42')).resolves.toBe(false)
+    })
+
+    it('sends the files the editor could not save so a refunded round keeps them', async () => {
+      vi.mocked(api.post).mockResolvedValueOnce({ stop_requested: true })
+      await expect(stopAgentRun('run-42', ['ch-typed'])).resolves.toBe(true)
+      expect(api.post).toHaveBeenCalledWith('/api/v1/agent/stop', {
+        agent_run_id: 'run-42',
+        keep_file_ids: ['ch-typed'],
+      })
     })
   })
 

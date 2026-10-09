@@ -7,6 +7,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { useIsMobile } from "../hooks/useMediaQuery";
 import { buildUpgradeUrl } from "../config/upgradeExperience";
+import { getUserDisplayName } from "../lib/userDisplayName";
 
 type HeaderVariant = "home" | "dashboard" | "auth";
 
@@ -317,7 +318,7 @@ export function PublicHeader({
                 <div className="h-6 w-px bg-[hsl(var(--separator-color))] mx-1" />
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[hsl(var(--bg-tertiary))]">
                   <div className="w-2 h-2 rounded-full bg-[hsl(var(--success))]"></div>
-                  <span className="text-xs font-medium text-[hsl(var(--text-secondary))]">{user.username}</span>
+                  <span className="text-xs font-medium text-[hsl(var(--text-secondary))]">{getUserDisplayName(user)}</span>
                 </div>
                 <button
                   type="button"
@@ -480,11 +481,11 @@ export function PublicHeader({
                 {/* User section in mobile menu */}
                 <div className="flex items-center gap-3 px-3 py-2">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[hsl(var(--accent-primary))] to-[hsl(var(--accent-dark))] flex items-center justify-center text-white text-sm font-medium shrink-0">
-                    {user.username?.charAt(0).toUpperCase() || "U"}
+                    {getUserDisplayName(user).charAt(0).toUpperCase() || "U"}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-[hsl(var(--text-primary))] truncate">
-                      {user.username}
+                      {getUserDisplayName(user)}
                     </div>
                     <div className="text-xs text-[hsl(var(--text-secondary))]">
                       {user.email || ""}

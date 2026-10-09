@@ -13,6 +13,7 @@ import { useIsMobile } from '../../hooks/useMediaQuery';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { IconWrapper } from '../ui/IconWrapper';
+import { statsUnitKey } from './statsUnits';
 
 interface OutstandingTasksCardProps {
   /** Dashboard statistics data */
@@ -113,7 +114,7 @@ export function OutstandingTasksCard({
           id: `not-started-${chapter.outline_id}`,
           type: 'not_started',
           title: chapter.title,
-          description: t('statistics.outstandingTasks.notStartedDesc'),
+          description: t(statsUnitKey(stats, 'notStartedDesc')),
           priority: 'low',
           chapter,
         });
@@ -232,12 +233,12 @@ export function OutstandingTasksCard({
       <div className={`flex flex-wrap ${isMobile ? 'gap-1.5' : 'gap-2'} mb-4`}>
         {taskSummary.notStarted > 0 && (
           <Badge variant="neutral" size="sm">
-            {taskSummary.notStarted} {t('statistics.outstandingTasks.notStartedCount')}
+            {taskSummary.notStarted} {t(statsUnitKey(stats, 'notStartedCount'))}
           </Badge>
         )}
         {taskSummary.outlineWithoutDraft > 0 && (
           <Badge variant="info" size="sm">
-            {taskSummary.outlineWithoutDraft} {t('statistics.outstandingTasks.outlineWithoutDraftCount')}
+            {taskSummary.outlineWithoutDraft} {t(statsUnitKey(stats, 'outlineWithoutDraftCount'))}
           </Badge>
         )}
       </div>

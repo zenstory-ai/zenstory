@@ -19,6 +19,7 @@
   "copyQuotaExceeded": "本月灵感使用次数已用完，可升级套餐或下月再试。",
   "copyQuotaExceededTitle": "本月灵感使用次数已用完",
   "copyQuotaExceededModalDesc": "升级套餐可获得更多次数，也可以等下月再用。",
+  "copyQuotaPaidModalDesc": "北京时间下月 1 日 00:00 恢复。",
   "projectQuotaExceededTitle": "项目数量已达上限",
   "projectQuotaExceededModalDesc": "当前套餐的项目数量已满，升级后可创建更多项目。",
   "copyQuotaUpgradePrimary": "升级套餐",

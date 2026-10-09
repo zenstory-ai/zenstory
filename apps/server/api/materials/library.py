@@ -35,7 +35,10 @@ from models.material_models import (
     StoryLine,
     WorldView,
 )
-from services.material.ingestion_jobs_service import IngestionJobsService
+from services.material.ingestion_jobs_service import (
+    IngestionJobsService,
+    is_refunded_trial_attempt,
+)
 from services.material.job_errors import public_job_error
 from services.material.stories_service import story_in_novel
 from utils.logger import get_logger
@@ -88,8 +91,14 @@ def get_materials(
         elif job is not None and job.status == "failed":
             _reconcile_job_if_needed(session, job)
 
+    # A free-trial attempt that failed for a platform reason gave the trial
+    # back; it is not a book in the author's library.
+    novel_ids = [
+        novel_id
+        for novel_id, (_novel, job) in novel_map.items()
+        if not is_refunded_trial_attempt(job)
+    ]
     # Batch query for chapter counts
-    novel_ids = list(novel_map.keys())
     chapter_counts_dict = {}
 
     if novel_ids:
@@ -106,12 +115,20 @@ def get_materials(
         novel, job = novel_map[novel_id]
         chapters_count = chapter_counts_dict.get(novel_id, 0)
         original_filename = None
+        trial_chapter_limit = None
+        source_chapter_count = None
 
         if novel.source_meta:
             with contextlib.suppress(Exception):
                 parsed_source_meta = json.loads(novel.source_meta)
                 if isinstance(parsed_source_meta, dict):
                     original_filename = parsed_source_meta.get("original_filename")
+                    trial_chapter_limit = _positive_int(
+                        parsed_source_meta.get("trial_chapter_limit")
+                    )
+                    source_chapter_count = _positive_int(
+                        parsed_source_meta.get("source_chapter_count")
+                    )
 
         logger.info(f"Novel {novel.id} ({novel.title}): chapters_count={chapters_count}")
 
@@ -127,9 +144,17 @@ def get_materials(
             error_message=public_job_error(job.error_message) if job else None,
             chapters_count=chapters_count,
             enabled_stages=IngestionJobsService.get_enabled_stages(job),
+            trial_chapter_limit=trial_chapter_limit,
+            source_chapter_count=source_chapter_count,
         ))
 
     return result
+
+
+def _positive_int(value: object) -> int | None:
+    if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+        return value
+    return None
 
 
 # ==================== Detail Endpoints ====================

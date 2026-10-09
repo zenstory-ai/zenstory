@@ -12,6 +12,7 @@ import os
 import re
 import secrets
 import stat
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -46,14 +47,16 @@ from services.infra.upload_storage import (
 from services.material.ingestion_jobs_service import IngestionJobsService
 from services.material.job_errors import REFUNDABLE_JOB_ERROR_CODES
 from services.material.novel_text import (
+    UTF8_BOM,
     NovelDecodeError,
-    NovelTextAnalysis,
-    analyze_novel_bytes,
+    decode_novel_bytes,
+    split_novel_text,
+    truncate_novel_text,
 )
 from services.quota_service import quota_service
 from utils.logger import get_logger
 
-from .access import require_materials_library_access
+from .access import require_materials_upload
 from .constants import (
     ALLOWED_EXTENSIONS,
     MAX_FILE_SIZE,
@@ -228,9 +231,44 @@ def _write_upload_file_without_overwrite(
     )
 
 
-def _analyze_upload(content_bytes: bytes) -> NovelTextAnalysis:
+@dataclass(frozen=True)
+class _UploadAnalysis:
+    """What the upload stores and dispatches, after the pre-check."""
+
+    content_bytes: bytes
+    encoding: str
+    char_count: int
+    chapter_count: int
+    # Chapters in the file the author picked (> chapter_count when a free
+    # trial kept only the first chapters).
+    source_chapter_count: int
+    source_char_count: int
+
+
+def _content_too_long(char_count: int, trial_chapters: int | None = None) -> APIException:
+    """400 with the counted size, so the author sees how far over the limit the text is."""
+    detail: dict[str, int] = {"char_count": char_count, "limit": MAX_TEXT_CHARACTERS}
+    if trial_chapters is not None:
+        detail["trial_chapters"] = trial_chapters
+    return APIException(
+        error_code=ErrorCode.FILE_CONTENT_TOO_LONG,
+        status_code=400,
+        detail=detail,
+    )
+
+
+def _analyze_upload(
+    content_bytes: bytes,
+    trial_max_chapters: int | None = None,
+) -> _UploadAnalysis:
     """
     Decode and split the upload exactly like the ingestion worker's stage0.
+
+    A free trial decomposes only the first ``trial_max_chapters`` chapters, so
+    only those are checked against the character limit, and only those are
+    stored (cut at the next chapter heading, re-encoded as UTF-8 with a BOM so
+    the worker decodes them unambiguously). A paid upload keeps the whole-book
+    limits.
 
     Runs in a worker thread (CPU-bound). Every rejection happens before any
     quota is consumed.
@@ -238,27 +276,54 @@ def _analyze_upload(content_bytes: bytes) -> NovelTextAnalysis:
     from config.material_settings import material_settings
 
     try:
-        analysis = analyze_novel_bytes(content_bytes)
+        text, encoding = decode_novel_bytes(content_bytes)
     except NovelDecodeError as exc:
         raise APIException(
             error_code=ErrorCode.FILE_ENCODING_UNSUPPORTED,
             status_code=400,
         ) from exc
+    source_char_count = len(text)
 
-    if analysis.char_count > MAX_TEXT_CHARACTERS:
-        raise APIException(error_code=ErrorCode.FILE_CONTENT_TOO_LONG, status_code=400)
-    if analysis.chapter_count == 0:
+    if trial_max_chapters is not None:
+        kept = truncate_novel_text(text, trial_max_chapters)
+        if kept.total_chapters == 0:
+            raise APIException(error_code=ErrorCode.MATERIAL_NO_CHAPTERS, status_code=400)
+        if len(kept.text) > MAX_TEXT_CHARACTERS:
+            raise _content_too_long(
+                len(kept.text), kept.kept_chapters if kept.truncated else None
+            )
+        stored = UTF8_BOM + kept.text.encode("utf-8") if kept.truncated else content_bytes
+        return _UploadAnalysis(
+            content_bytes=stored,
+            encoding="utf-8-sig" if kept.truncated else encoding,
+            char_count=len(kept.text),
+            chapter_count=kept.kept_chapters,
+            source_chapter_count=kept.total_chapters,
+            source_char_count=source_char_count,
+        )
+
+    if source_char_count > MAX_TEXT_CHARACTERS:
+        raise _content_too_long(source_char_count)
+    chapter_count = len(split_novel_text(text))
+    if chapter_count == 0:
         raise APIException(error_code=ErrorCode.MATERIAL_NO_CHAPTERS, status_code=400)
-    if analysis.chapter_count > material_settings.MAX_CHAPTERS_PER_NOVEL:
+    if chapter_count > material_settings.MAX_CHAPTERS_PER_NOVEL:
         raise APIException(
             error_code=ErrorCode.MATERIAL_TOO_MANY_CHAPTERS,
             status_code=400,
             detail=(
-                f"{analysis.chapter_count} chapters exceed the limit of "
+                f"{chapter_count} chapters exceed the limit of "
                 f"{material_settings.MAX_CHAPTERS_PER_NOVEL}"
             ),
         )
-    return analysis
+    return _UploadAnalysis(
+        content_bytes=content_bytes,
+        encoding=encoding,
+        char_count=source_char_count,
+        chapter_count=chapter_count,
+        source_chapter_count=chapter_count,
+        source_char_count=source_char_count,
+    )
 
 
 def _check_upload_content_length(request: Request) -> None:
@@ -369,7 +434,7 @@ async def upload_material(
     request: Request,
     title: str | None = Query(None, description="Novel title (optional, auto-detect from file)"),
     author: str | None = Query(None, description="Author name (optional)"),
-    current_user: User = Depends(require_materials_library_access),
+    current_user: User = Depends(require_materials_upload),
     _rate_limit: int = Depends(
         require_user_rate_limit(
             "materials_upload",
@@ -383,10 +448,12 @@ async def upload_material(
     Upload a novel file and start decomposition.
 
     Constraints:
-    - Paid materials-library entitlement and per-user rate limit are checked
-      before the request body is read
+    - Paid materials-library entitlement (or an unused free trial) and per-user
+      rate limit are checked before the request body is read
     - Only .txt files allowed, maximum 20MB, maximum 300,000 characters
     - The text must split into 1..MATERIAL_MAX_CHAPTERS_PER_NOVEL chapters
+    - A free trial keeps only the first TRIAL_MAX_CHAPTERS chapters: the
+      character limit applies to those, and only those are stored and dispatched
     - Returns success only after the decomposition flow dispatch is accepted
     """
     # Size pre-check, then parse the (single-file) multipart body.
@@ -428,7 +495,19 @@ async def process_material_upload(
             status_code=400,
         )
 
-    analysis = await run_in_threadpool(_analyze_upload, content_bytes)
+    # Paid authors spend a monthly decomposition; everyone else reaches this point
+    # only with an unused free trial (require_materials_upload), which covers the
+    # first TRIAL_MAX_CHAPTERS chapters of one book.
+    from config.material_settings import material_settings
+
+    use_trial = not quota_service.has_feature_access(
+        session, current_user.id, "materials_library_access"
+    )
+    trial_chapter_limit = int(material_settings.TRIAL_MAX_CHAPTERS) if use_trial else None
+
+    analysis = await run_in_threadpool(_analyze_upload, content_bytes, trial_chapter_limit)
+    # A trial stores and dispatches only the chapters it decomposes.
+    content_bytes = analysis.content_bytes
     char_count = analysis.char_count
 
     original_filename = file.filename
@@ -437,7 +516,8 @@ async def process_material_upload(
 
     # Check before file I/O, then reserve authoritatively with job creation in
     # one short transaction. No quota write lock spans the file write.
-    check_quota("material_decompose", session, current_user.id)
+    if not use_trial:
+        check_quota("material_decompose", session, current_user.id)
     dispatch_accepted = False
     job_id: int | None = None
     file_path: str | None = None
@@ -462,15 +542,21 @@ async def process_material_upload(
         file_path = stored.reference
         logger.info("Material source saved (%s bytes)", len(content_bytes))
 
-        quota_period_start = quota_service.reserve_feature_quota(
-            session, current_user.id, "material_decompose", commit=False,
-        )
-        if quota_period_start is None:
-            session.rollback()
-            _, used, limit = quota_service.check_feature_quota(
-                session, current_user.id, "material_decompose",
+        quota_period_start = None
+        if use_trial:
+            if not quota_service.reserve_material_trial(session, current_user.id, commit=False):
+                session.rollback()
+                raise FeatureNotIncludedException(feature_type="material_decompose")
+        else:
+            quota_period_start = quota_service.reserve_feature_quota(
+                session, current_user.id, "material_decompose", commit=False,
             )
-            raise QuotaExceededException(feature_type="material_decompose", used=used, limit=limit)
+            if quota_period_start is None:
+                session.rollback()
+                _, used, limit = quota_service.check_feature_quota(
+                    session, current_user.id, "material_decompose",
+                )
+                raise QuotaExceededException(feature_type="material_decompose", used=used, limit=limit)
 
         source_meta = {
             "file_path": file_path,
@@ -480,6 +566,10 @@ async def process_material_upload(
             "encoding": analysis.encoding,
             "original_filename": original_filename,
         }
+        if trial_chapter_limit is not None:
+            source_meta["trial_chapter_limit"] = trial_chapter_limit
+            source_meta["source_chapter_count"] = analysis.source_chapter_count
+            source_meta["source_char_count"] = analysis.source_char_count
         novel = Novel(
             user_id=current_user.id,
             title=novel_title,
@@ -497,12 +587,21 @@ async def process_material_upload(
             processed_chapters=0,
         )
         job.update_stage_progress("queue", "pending", message="等待调度")
-        IngestionJobsService.set_billing(
-            job,
-            quota_charged=True,
-            quota_refunded=False,
-            quota_period_start=_quota_period_iso(quota_period_start),
-        )
+        if trial_chapter_limit is not None:
+            IngestionJobsService.set_billing(
+                job,
+                quota_charged=True,
+                quota_refunded=False,
+                quota_mode="trial",
+                chapter_limit=trial_chapter_limit,
+            )
+        else:
+            IngestionJobsService.set_billing(
+                job,
+                quota_charged=True,
+                quota_refunded=False,
+                quota_period_start=_quota_period_iso(quota_period_start),
+            )
         session.add(job)
         session.flush()
         job_id = job.id
@@ -672,6 +771,9 @@ async def retry_material_job(
                 if isinstance(parsed, dict):
                     source_meta = parsed
         current_source_path = source_meta.get("file_path", locked_latest_job.source_path)
+        # A free-trial book stores only its first chapters; a retry (after
+        # upgrading) resumes those and never pretends to cover the whole book.
+        trial_chapter_limit = source_meta.get("trial_chapter_limit")
 
         # Two retries that read the same failed job cannot both persist a new
         # charge/job. Claim and reservation roll back together for the loser.
@@ -707,6 +809,8 @@ async def retry_material_job(
             quota_refunded=False,
             quota_period_start=_quota_period_iso(quota_period_start),
         )
+        if isinstance(trial_chapter_limit, int) and not isinstance(trial_chapter_limit, bool):
+            IngestionJobsService.set_billing(new_job, chapter_limit=trial_chapter_limit)
         session.add(new_job)
         session.commit()
         job_persisted = True

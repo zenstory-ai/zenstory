@@ -421,7 +421,7 @@ export const FileTreePane: React.FC = () => {
 
     try {
       await fileApi.upload(currentProjectId, file);
-      toast.success(t('editor:fileTree.uploadSuccess'));
+      toast.success(t('editor:fileTree.uploadSuccess', { name: file.name }));
       await loadData(false);
     } catch (error) {
       logger.error("Failed to upload file:", error);

@@ -11,7 +11,7 @@ import { SelectionToolbar } from "./SelectionToolbar";
 import { useTextQuote } from "../contexts/TextQuoteContext";
 import { usePinchZoom } from "../hooks/useGestures";
 import type { DiffReviewState } from "../types";
-import { getLocaleCode } from "../lib/i18n-helpers";
+import { SavedAgoLabel } from "./SavedAgoLabel";
 import { countWords } from "../lib/documentChunker";
 import { logger } from "../lib/logger";
 import { toast } from "../lib/toast";
@@ -24,6 +24,7 @@ import {
   createEditorDraftSnapshot,
   writeEditorDraftSnapshot,
 } from "../lib/editorDraftRecovery";
+import { trackEditorSave } from "../lib/editorSaveTracker";
 
 const isNearBottom = (el: HTMLElement, thresholdPx = 32) => {
   return el.scrollHeight - el.scrollTop - el.clientHeight < thresholdPx;
@@ -71,6 +72,25 @@ interface SimpleEditorProps {
   onSave: (submission: SaveSubmission) => Promise<SaveResult>;
   onHistoryRestore?: () => Promise<void>;
   onFlushReady?: (flush: (() => Promise<SaveOutcome>) | null) => void;
+  /**
+   * The parent switched the editor to a newer server copy (for example after
+   * an AI write). Each new `version` resets the draft, save token, dirty flag
+   * and word-count baseline to this copy; the current `title`/`content` props
+   * become the draft (an unsaved title rename stays dirty).
+   */
+  serverBaseline?: {
+    version: number;
+    fileId: string;
+    title: string;
+    content: string;
+    updatedAt?: string;
+  };
+  /**
+   * While a comparison is open, the draft to keep locally if the editor goes
+   * away (leaving the project, closing the page) instead of the raw draft;
+   * null when this comparison has no such draft.
+   */
+  getReviewLeaveDraft?: () => { title: string; content: string; baseUpdatedAt?: string } | null;
   readOnly?: boolean;
   isStreaming?: boolean;
   /**
@@ -110,6 +130,8 @@ export const SimpleEditor = ({
   onSave,
   onHistoryRestore,
   onFlushReady,
+  serverBaseline,
+  getReviewLeaveDraft,
   readOnly = false,
   isStreaming = false,
   isAiEditing = false,
@@ -143,6 +165,9 @@ export const SimpleEditor = ({
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isDirty, setIsDirty] = useState(false);
+  // Bumped when a new server baseline leaves the draft unsaved, so the
+  // autosave is scheduled again on the new token (see the baseline effect).
+  const [autosaveNudge, setAutosaveNudge] = useState(0);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   // Selection toolbar state
   const [selectedText, setSelectedText] = useState("");
@@ -192,8 +217,12 @@ export const SimpleEditor = ({
 
   latestContentRef.current = content;
   latestTitleRef.current = title;
+  const draftScopeRef = useRef({ userId, projectId });
+  draftScopeRef.current = { userId, projectId };
   latestFileIdRef.current = fileId;
   latestBaseUpdatedAtRef.current = baseUpdatedAt;
+  const reviewLeaveDraftRef = useRef(getReviewLeaveDraft);
+  reviewLeaveDraftRef.current = getReviewLeaveDraft;
 
   useEffect(() => {
     if (!dirtyRef.current && draftRef.current.fileId === fileId) {
@@ -201,6 +230,39 @@ export const SimpleEditor = ({
       persistedBaseRef.current = { fileId, updatedAt: baseUpdatedAt };
     }
   }, [fileId, title, content, baseUpdatedAt]);
+
+  const appliedServerBaselineRef = useRef(serverBaseline?.version ?? 0);
+  useEffect(() => {
+    if (!serverBaseline || serverBaseline.version === appliedServerBaselineRef.current) return;
+    appliedServerBaselineRef.current = serverBaseline.version;
+    if (serverBaseline.fileId !== fileId) return;
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    // 编辑器换成了服务端的新版本：草稿、保存令牌、字数基线都要跟着换，
+    // 否则下一次保存会带着旧令牌和旧草稿发出（撞 409 后把旧稿当成提案），
+    // 或把 AI 写的字算成作者新增的字数。
+    lastSavedContentRef.current = serverBaseline.content;
+    lastSavedTitleRef.current = serverBaseline.title;
+    persistedBaseRef.current = { fileId, updatedAt: serverBaseline.updatedAt };
+    draftRef.current = {
+      fileId,
+      title: latestTitleRef.current,
+      content: latestContentRef.current,
+      baseUpdatedAt: serverBaseline.updatedAt,
+    };
+    pendingBaselineSyncRef.current = false;
+    suppressRecoveredAutoSaveRef.current = false;
+    const dirty =
+      latestTitleRef.current !== serverBaseline.title ||
+      latestContentRef.current !== serverBaseline.content;
+    dirtyRef.current = dirty;
+    setIsDirty(dirty);
+    // Text the author has not saved yet (kept on top of the newer copy):
+    // schedule its save again, the pending one was cleared above.
+    if (dirty) setAutosaveNudge((n) => n + 1);
+  }, [serverBaseline, fileId]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -211,9 +273,13 @@ export const SimpleEditor = ({
     if (!userId || !projectId || !fileId) return;
     let lastCapturedDraft: typeof draftRef.current | null = null;
     const captureDirtyDraft = (reason: "chunk-reload" | "page-exit") => {
-      if (!dirtyRef.current || draftRef.current.fileId !== fileId) return true;
-      if (lastCapturedDraft === draftRef.current) return true;
-      const currentDraft = draftRef.current;
+      // With a comparison open, keep what finishing it would save (see getReviewLeaveDraft).
+      const reviewDraft = isReviewModeRef.current ? reviewLeaveDraftRef.current?.() ?? null : null;
+      if (!reviewDraft) {
+        if (!dirtyRef.current || draftRef.current.fileId !== fileId) return true;
+        if (lastCapturedDraft === draftRef.current) return true;
+      }
+      const currentDraft = reviewDraft ?? draftRef.current;
       const captured = writeEditorDraftSnapshot(localStorage, createEditorDraftSnapshot({
         userId,
         projectId,
@@ -223,7 +289,7 @@ export const SimpleEditor = ({
         baseUpdatedAt: currentDraft.baseUpdatedAt,
         reason,
       }));
-      if (captured) lastCapturedDraft = currentDraft;
+      if (captured && !reviewDraft) lastCapturedDraft = draftRef.current;
       return captured;
     };
     const captureBeforeChunkReload = (event: Event) => {
@@ -293,6 +359,8 @@ export const SimpleEditor = ({
 
   // Check if in diff review mode
   const isReviewMode = diffReviewState?.isReviewing && diffReviewState.fileId === fileId;
+  const isReviewModeRef = useRef(false);
+  isReviewModeRef.current = Boolean(isReviewMode);
 
   useEffect(() => {
     const isFocused =
@@ -419,6 +487,7 @@ export const SimpleEditor = ({
       // Sync local save baseline so "unsaved" status doesn't get stuck.
       if (!diffReviewState) {
         lastSavedContentRef.current = content;
+        lastSavedTitleRef.current = title;
         dirtyRef.current = false;
         persistedBaseRef.current = { fileId, updatedAt: baseUpdatedAt };
         draftRef.current = { fileId, title, content, baseUpdatedAt };
@@ -716,6 +785,9 @@ export const SimpleEditor = ({
     // AI 正在改这份文件：先不排自动保存。标记清除后本 effect 会重新跑，
     // 届时再按新的基线保存，用户的本地改动不会丢。
     if (isAiEditing) return;
+    // 对比审阅进行中：由作者在审阅里决定保留哪一份，审阅完成时整体写回。
+    // 此时再按旧令牌自动保存只会撞 409 并把审阅重置成初始状态。
+    if (isReviewMode) return;
 
     saveTimeoutRef.current = setTimeout(async () => {
       await handleSaveRef.current();
@@ -727,7 +799,7 @@ export const SimpleEditor = ({
         saveTimeoutRef.current = null;
       }
     };
-  }, [isDirty, title, content, isNaturalPolishRunning, isAiEditing, showVersionHistory]);
+  }, [isDirty, title, content, isNaturalPolishRunning, isAiEditing, showVersionHistory, isReviewMode, autosaveNudge]);
 
   // Handle save
   const handleSave = async (providedSubmission?: SaveSubmission): Promise<SaveOutcome> => {
@@ -842,6 +914,8 @@ export const SimpleEditor = ({
       }
     })();
     activeSaveRef.current = { key: submissionKey, promise: result };
+    // 离开编辑器时的最后一次保存在卸载时才发出；工作台据此先等它落库再拉进度。
+    trackEditorSave(result);
     return result;
   };
 
@@ -854,8 +928,35 @@ export const SimpleEditor = ({
       return handleSaveRef.current();
     });
     return () => {
-      if (dirtyRef.current) void handleSaveRef.current();
       onFlushReady(null);
+      // 对比开着时，留下的应是「现在完成对比会保存的内容」（基于服务端新版本和它的令牌），
+      // 而不是作者在旧版本上的整篇草稿：恢复那份草稿会把 AI 的新版本改回去。
+      const reviewDraft = isReviewModeRef.current ? reviewLeaveDraftRef.current?.() ?? null : null;
+      if (!dirtyRef.current && !reviewDraft) return;
+      // 离开编辑器时最后一次保存。没保存成功（例如对比还开着、令牌已过期而撞 409）
+      // 就把草稿写进本地快照，下次打开这份文件时会提示恢复，作者的字不会丢。
+      const draft = reviewDraft ? { ...draftRef.current, ...reviewDraft } : draftRef.current;
+      const { userId: ownerId, projectId: draftProjectId } = draftScopeRef.current;
+      const keepDraftLocally = () => {
+        if (!ownerId || !draftProjectId || !draft.fileId) return;
+        writeEditorDraftSnapshot(localStorage, createEditorDraftSnapshot({
+          userId: ownerId,
+          projectId: draftProjectId,
+          fileId: draft.fileId,
+          title: draft.title,
+          content: draft.content,
+          baseUpdatedAt: draft.baseUpdatedAt,
+          reason: "page-exit",
+        }));
+      };
+      // 对比审阅打开时，草稿的令牌一定是旧的：不发注定 409 的请求。
+      if (isReviewModeRef.current) {
+        keepDraftLocally();
+        return;
+      }
+      void handleSaveRef.current().then((outcome) => {
+        if (outcome !== "saved") keepDraftLocally();
+      });
     };
   }, [onFlushReady]);
 
@@ -977,17 +1078,6 @@ export const SimpleEditor = ({
     await onHistoryRestore?.();
   };
 
-  // Format last saved time
-  const formatLastSaved = (date: Date) => {
-    const now = new Date();
-    const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-    if (diff < 10) return t('editor:savedJustNow');
-    if (diff < 60) return t('editor:secondsAgo', { count: diff });
-    if (diff < 3600) return t('editor:minutesAgo', { count: Math.floor(diff / 60) });
-    return date.toLocaleTimeString(getLocaleCode(), { hour: "2-digit", minute: "2-digit" });
-  };
-
 
   return (
     <div className="relative flex flex-col h-full bg-[hsl(var(--bg-primary))]" onKeyDown={handleKeyDown}>
@@ -1095,9 +1185,17 @@ export const SimpleEditor = ({
       {!isReviewMode && (
         <div className="shrink-0 px-3 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2 bg-[hsl(var(--bg-secondary)/0.3)]">
           <div className="flex items-center gap-4 text-xs text-[hsl(var(--text-secondary))]">
-            <span>
+            {/* Counts Chinese characters and English words only, so it reads lower than
+                platforms that count punctuation; say so on hover and on tap. */}
+            <button
+              type="button"
+              data-testid="editor-word-count"
+              onClick={() => toast.info(t('editor:wordCountHint'))}
+              title={t('editor:wordCountHint')}
+              className="cursor-help text-[hsl(var(--text-secondary))] underline decoration-dotted decoration-[hsl(var(--text-tertiary))] underline-offset-4"
+            >
               {t('editor:wordCount')} <strong className="text-[hsl(var(--text-primary))]">{countWords(content)}</strong>
-            </span>
+            </button>
             <span>
               {t('editor:paragraphCount')} <strong className="text-[hsl(var(--text-primary))]">{content.split(/\n\n+/).filter(Boolean).length}</strong>
             </span>
@@ -1130,14 +1228,16 @@ export const SimpleEditor = ({
             {fileId && (
               <button
                 onClick={startNaturalPolish}
+                // No selection yet: stays pressable (dimmed) so a tap says why — the
+                // hover title alone never reaches touch screens.
                 disabled={
                   !projectId ||
                   readOnly ||
                   isStreaming ||
-                  isNaturalPolishRunning ||
-                  !selectedText
+                  isNaturalPolishRunning
                 }
-                className="px-2 py-1.5 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-secondary))] rounded flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                aria-disabled={!selectedText || undefined}
+                className="px-2 py-1.5 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-secondary))] rounded flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent aria-disabled:opacity-50"
                 title={
                   !projectId
                     ? t("editor:naturalPolishMissingContext")
@@ -1170,7 +1270,7 @@ export const SimpleEditor = ({
             ) : lastSaved ? (
               <span className="text-xs text-[hsl(var(--text-secondary))] flex items-center gap-1">
                 <Check size={12} className="text-[hsl(var(--success))]" />
-                {formatLastSaved(lastSaved)}
+                <SavedAgoLabel savedAt={lastSaved} />
               </span>
             ) : null}
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest'
-import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, cleanup, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MessageInput } from '../MessageInput'
+import { MessageInput, STOP_ARM_DELAY_MS } from '../MessageInput'
 import { skillsApi } from '../../lib/api'
 import { MAX_AGENT_MESSAGE_CHARS } from '../../lib/agentLimits'
 
@@ -46,6 +46,12 @@ vi.mock('../../contexts/TextQuoteContext', () => ({
 vi.mock('../../contexts/SkillTriggerContext', () => ({
   MAX_SELECTED_SKILLS: 3,
   useSkillTrigger: mockUseSkillTrigger,
+}))
+
+const { mockToastInfo } = vi.hoisted(() => ({ mockToastInfo: vi.fn() }))
+
+vi.mock('../../lib/toast', () => ({
+  toast: { info: mockToastInfo, success: vi.fn(), error: vi.fn() },
 }))
 
 vi.mock('../../lib/api', () => ({
@@ -212,13 +218,68 @@ describe('MessageInput', () => {
     expect(screen.getByRole('button', { name: /chat:input.stop/i })).toBeInTheDocument()
   })
 
-  it('calls onCancel when cancel button is clicked', async () => {
-    const user = userEvent.setup({ delay: null })
-    const onCancel = vi.fn()
-    render(<MessageInput {...defaultProps} disabled={true} onCancel={onCancel} />)
+  it('ignores the stop button right after it replaces send, then stops on a later press', () => {
+    // A double tap on send used to land on stop and end the round before anything was written.
+    vi.useFakeTimers()
+    try {
+      const onCancel = vi.fn()
+      render(<MessageInput {...defaultProps} sendDisabled={true} onCancel={onCancel} />)
+      const stopButton = screen.getByTestId('stop-button')
 
-    await user.click(screen.getByRole('button', { name: /chat:input.stop/i }))
-    expect(onCancel).toHaveBeenCalled()
+      // While arming the button says why it cannot stop yet, and a press still gets an answer.
+      expect(stopButton).toHaveAttribute('aria-label', 'chat:input.stopArming')
+      expect(stopButton).toHaveAttribute('aria-disabled', 'true')
+      expect(stopButton.className).toContain('bg-[hsl(var(--bg-tertiary))]')
+      fireEvent.click(stopButton)
+      expect(onCancel).not.toHaveBeenCalled()
+      expect(mockToastInfo).toHaveBeenCalledWith('chat:input.stopArming')
+
+      act(() => {
+        vi.advanceTimersByTime(STOP_ARM_DELAY_MS)
+      })
+      expect(stopButton).toHaveAttribute('aria-label', 'chat:input.stop')
+      expect(stopButton).toHaveAttribute('aria-disabled', 'false')
+      fireEvent.click(stopButton)
+      expect(onCancel).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not stop twice while a stop is already in progress', () => {
+    vi.useFakeTimers()
+    try {
+      const onCancel = vi.fn()
+      render(<MessageInput {...defaultProps} sendDisabled={true} onCancel={onCancel} isStopping={true} />)
+      act(() => {
+        vi.advanceTimersByTime(STOP_ARM_DELAY_MS)
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: /chat:input.stopping/i }))
+      expect(onCancel).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('explains instead of sending while sending is held, and keeps the typed text', async () => {
+    const user = userEvent.setup({ delay: null })
+    const onSend = vi.fn()
+    const onBlockedSend = vi.fn()
+    render(<MessageInput {...defaultProps} onSend={onSend} onBlockedSend={onBlockedSend} />)
+
+    const textarea = screen.getByTestId('chat-input')
+    await user.type(textarea, '继续写第二章')
+    await user.keyboard('{Enter}')
+    expect(onBlockedSend).toHaveBeenCalledTimes(1)
+
+    const sendButton = screen.getByTestId('send-button')
+    expect(sendButton).not.toBeDisabled()
+    fireEvent.click(sendButton)
+    expect(onBlockedSend).toHaveBeenCalledTimes(2)
+
+    expect(onSend).not.toHaveBeenCalled()
+    expect(textarea).toHaveValue('继续写第二章')
   })
 
   it('shows custom placeholder', () => {
@@ -251,6 +312,22 @@ describe('MessageInput', () => {
     expect(textarea).toHaveValue('Suggestion 1')
   })
 
+  it('marks a suggestion sent unchanged, but not one the author edited first', async () => {
+    const user = userEvent.setup({ delay: null })
+    const onSend = vi.fn()
+    render(<MessageInput {...defaultProps} onSend={onSend} aiSuggestions={['写第一章正文', '补充反派动机']} />)
+    const textarea = screen.getByPlaceholderText('chat:input.placeholder')
+
+    await user.click(screen.getByText('写第一章正文'))
+    await user.click(screen.getByTestId('send-button'))
+    expect(onSend).toHaveBeenLastCalledWith('写第一章正文', [], { entry: 'suggestion' })
+
+    await user.click(screen.getByText('补充反派动机'))
+    await user.type(textarea, '，要更狠')
+    await user.click(screen.getByTestId('send-button'))
+    expect(onSend).toHaveBeenLastCalledWith('补充反派动机，要更狠', [])
+  })
+
   it('displays static suggestions when no AI suggestions', () => {
     render(
       <MessageInput
@@ -262,6 +339,31 @@ describe('MessageInput', () => {
     )
     expect(screen.getByText('Static 1')).toBeInTheDocument()
     expect(screen.getByText('Static 2')).toBeInTheDocument()
+  })
+
+  it('leaves out hidden chips from both AI and fallback suggestions', () => {
+    const hideSuggestion = (s: string) => s === 'Static 2' || s === 'Suggestion 1'
+    const { rerender } = render(
+      <MessageInput
+        {...defaultProps}
+        aiSuggestions={[]}
+        suggestionDisplayState="fallback"
+        hideSuggestion={hideSuggestion}
+      />
+    )
+    expect(screen.getByText('Static 1')).toBeInTheDocument()
+    expect(screen.queryByText('Static 2')).not.toBeInTheDocument()
+
+    rerender(
+      <MessageInput
+        {...defaultProps}
+        aiSuggestions={['Suggestion 1', 'Suggestion 2', 'Suggestion 3', 'Suggestion 4']}
+        suggestionDisplayState="ready"
+        hideSuggestion={hideSuggestion}
+      />
+    )
+    expect(screen.queryByText('Suggestion 1')).not.toBeInTheDocument()
+    expect(screen.getByText('Suggestion 4')).toBeInTheDocument()
   })
 
   it('shows loading placeholders instead of static suggestions during loading', () => {

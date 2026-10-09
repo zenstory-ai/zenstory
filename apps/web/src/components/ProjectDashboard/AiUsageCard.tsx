@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   Bot,
@@ -15,6 +16,7 @@ import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { IconWrapper } from '../ui/IconWrapper';
 import { getLocaleCode } from '../../lib/i18n-helpers';
+import { subscriptionApi, subscriptionQueryKeys } from '../../lib/subscriptionApi';
 
 interface AiUsageCardProps {
   /** Dashboard statistics data */
@@ -83,8 +85,9 @@ function getPeriodDisplay(
 
   return {
     label: t(labelKey),
-    totalMessages: period.total,
-    messages: formatNumber(period.total),
+    // Messages the author sent; the AI's replies and tool steps are not counted.
+    totalMessages: period.user ?? 0,
+    messages: formatNumber(period.user ?? 0),
     tokens: formatNumber(period.estimated_tokens),
   };
 }
@@ -98,6 +101,14 @@ export function AiUsageCard({
   projectId,
 }: AiUsageCardProps) {
   const { t } = useTranslation(['dashboard']);
+  // Same cached quota the chat badge polls. The daily-allowance sentence only applies to
+  // a finite daily limit (free); Pro (-1) and an unknown quota see only the first sentence.
+  const { data: quota } = useQuery({
+    queryKey: subscriptionQueryKeys.quota(),
+    queryFn: () => subscriptionApi.getQuota(),
+  });
+  const aiMessageLimit = quota?.ai_conversations?.limit;
+  const showDailyAllowance = typeof aiMessageLimit === 'number' && aiMessageLimit > 0;
   const navigate = useNavigate();
 
   // Get AI usage data from stats
@@ -360,7 +371,7 @@ export function AiUsageCard({
           </span>
           {periodSummaries && (
             <span>
-              {t('statistics.aiUsage.messages', { count: periodSummaries.today.totalMessages })}
+              {t('statistics.aiUsage.todaySent', { count: periodSummaries.today.totalMessages })}
             </span>
           )}
         </div>
@@ -392,6 +403,11 @@ export function AiUsageCard({
             </p>
           </div>
         </div>
+        <p className="mt-3 text-[11px] leading-relaxed text-[hsl(var(--text-tertiary))]">
+          {showDailyAllowance
+            ? t('statistics.aiUsage.quotaNoteWithDaily')
+            : t('statistics.aiUsage.quotaNote')}
+        </p>
       </div>
     </Card>
   );

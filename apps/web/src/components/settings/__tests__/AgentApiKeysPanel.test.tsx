@@ -9,6 +9,12 @@ const { listMock, createMock, apiBaseMock } = vi.hoisted(() => ({
   apiBaseMock: vi.fn(() => 'https://api.zenstory.ai'),
 }))
 
+const mediaState = vi.hoisted(() => ({ isMobile: false }))
+
+vi.mock('../../../hooks/useMediaQuery', () => ({
+  useIsMobile: () => mediaState.isMobile,
+}))
+
 vi.mock('../../../lib/apiClient', () => ({
   getApiBase: apiBaseMock,
 }))
@@ -54,6 +60,7 @@ describe('AgentApiKeysPanel', () => {
     createMock.mockReset()
     apiBaseMock.mockReset()
     apiBaseMock.mockReturnValue('https://api.zenstory.ai')
+    mediaState.isMobile = false
   })
 
   it('does not submit when all permission scopes are deselected', async () => {
@@ -66,6 +73,41 @@ describe('AgentApiKeysPanel', () => {
     expect(screen.getByRole('button', { name: 'apiKeys.create' })).toBeDisabled()
     fireEvent.submit(name.closest('form')!)
     expect(createMock).not.toHaveBeenCalled()
+  })
+
+  it('uses the same 40px primary button for the form submit as for the button that opened it', async () => {
+    listMock.mockResolvedValue({ keys: [] })
+    renderPanel(<AgentApiKeysPanel />)
+    const entry = await screen.findByRole('button', { name: 'apiKeys.create' })
+    expect(entry.className).toContain('min-h-[40px]')
+    fireEvent.click(entry)
+
+    const submit = screen.getByRole('button', { name: 'apiKeys.create' })
+    expect(submit).toHaveAttribute('type', 'submit')
+    expect(submit.className).toContain('min-h-[40px]')
+    expect(submit.className).toContain('bg-[hsl(var(--accent-primary))]')
+    expect(submit.className).not.toContain('text-xs')
+
+    const cancel = screen.getByRole('button', { name: 'common.cancel' })
+    expect(cancel.className).toContain('min-h-[40px]')
+    expect(cancel.className).not.toContain('bg-[hsl(var(--accent-primary))]')
+  })
+
+  it('grows the form buttons to the 44px touch size on phones', async () => {
+    mediaState.isMobile = true
+    listMock.mockResolvedValue({ keys: [] })
+    renderPanel(<AgentApiKeysPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: 'apiKeys.create' }))
+    expect(screen.getByRole('button', { name: 'apiKeys.create' }).className).toContain('min-h-[44px]')
+    expect(screen.getByRole('button', { name: 'common.cancel' }).className).toContain('min-h-[44px]')
+  })
+
+  it('names every key action button for screen readers', async () => {
+    listMock.mockResolvedValue({ keys: [makeKey()] })
+    renderPanel(<AgentApiKeysPanel />)
+    expect(await screen.findByRole('button', { name: 'apiKeys.disable' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'apiKeys.regenerate' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'apiKeys.delete' })).toBeInTheDocument()
   })
 
   it('shows list errors and supports retry instead of claiming there are no keys', async () => {

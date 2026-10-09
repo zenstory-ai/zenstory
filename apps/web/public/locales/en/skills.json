@@ -90,6 +90,7 @@
   "quota": {
     "createTitle": "Custom skill limit reached",
     "createDescription": "Delete a skill you don't use, or get Pro for more custom skills.",
+    "createPaidDescription": "Delete a skill you don't use to make room.",
     "upgradePrimary": "Get Pro",
     "upgradeSecondary": "Compare plans"
   },
@@ -154,5 +155,7 @@
     "batchDeleteFailed": "Failed to delete the selected skills. Please try again.",
     "loadMoreFailed": "Failed to load more skills. Please try again.",
     "detailFailed": "Failed to load the skill details. Please try again."
-  }
+  },
+  "noDiscoverableSkills": "No skills to discover yet",
+  "noDiscoverableSkillsHint": "A skill is a writing rule you hand to the AI, such as \"end every chapter on a hook\", \"keep dialogue short\" or \"write fights as action, not thoughts\". Save the rules you use often as skills and the AI will follow them when they fit."
 }

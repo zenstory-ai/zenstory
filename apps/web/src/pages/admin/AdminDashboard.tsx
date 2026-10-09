@@ -64,6 +64,8 @@ export default function AdminDashboard() {
   const upgradeConversionPaid = upgradeConversion?.paid_conversions ?? 0;
   const conversionChannels = upgradeConversion?.channels ?? [];
   const upgradeConversionUnattributed = upgradeConversion?.unattributed_conversions ?? 0;
+  const upgradeAfterWall = upgradeConversion?.after_ai_quota_wall_conversions ?? 0;
+  const upgradePaidAfterWall = upgradeConversion?.paid_after_ai_quota_wall_conversions ?? 0;
   const upgradeConversionAttributed = Math.max(upgradeConversionTotal - upgradeConversionUnattributed, 0);
   const upgradeConversionAttributedShare = useMemo(() => {
     if (upgradeConversionTotal <= 0) return null;
@@ -391,13 +393,24 @@ export default function AdminDashboard() {
 
               {!upgradeConversionLoading && !upgradeConversionError && (
                 <div className="mt-3 space-y-3">
-                  <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-5">
+                  <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-6">
                     <div className="rounded-md border border-[hsl(var(--accent-primary)/0.5)] p-2">
                       <div className="text-[hsl(var(--text-secondary))]">
                         {t('admin:dashboard.upgradePaidConversions', '付费转化（支付宝）')}
                       </div>
                       <div className="text-[hsl(var(--text-primary))] font-semibold" data-testid="paid-conversions">
                         {upgradeConversionPaid}
+                      </div>
+                    </div>
+                    <div className="rounded-md border border-[hsl(var(--separator-color)/0.5)] p-2">
+                      <div className="text-[hsl(var(--text-secondary))]">
+                        {t('admin:dashboard.upgradeAfterAiQuotaWall', '撞过每日 AI 上限后转化')}
+                      </div>
+                      <div className="text-[hsl(var(--text-primary))] font-semibold" data-testid="conversions-after-ai-quota-wall">
+                        {upgradeAfterWall}
+                        <span className="ml-1 text-xs font-normal text-[hsl(var(--text-secondary))]">
+                          {t('admin:dashboard.upgradeAfterAiQuotaWallPaid', '其中付费 {{count}}', { count: upgradePaidAfterWall })}
+                        </span>
                       </div>
                     </div>
                     <div className="rounded-md border border-[hsl(var(--separator-color)/0.5)] p-2">

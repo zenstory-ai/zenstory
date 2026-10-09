@@ -107,7 +107,7 @@ export function PointsHistory({ className = '', pageSize = 10 }: PointsHistoryPr
   return (
     <Card className={className} padding="none" isLoading={isHistoryLoading}>
       <div className="p-4 border-b border-[hsl(var(--border-color))]">
-        <h3 className="text-sm font-medium text-[hsl(var(--text-primary))]">
+        <h3 className="text-xs font-medium text-[hsl(var(--text-secondary))]">
           {t('history')}
         </h3>
         <p className="text-xs text-[hsl(var(--text-secondary))] mt-1">

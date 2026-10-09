@@ -101,7 +101,7 @@ def test_billing_refunds_internal_error_without_output():
     tracker.observe(HEARTBEAT_FRAME)
     tracker.observe(_sse("error", {"message": "x", "code": "ERR_AGENT_RUN_FAILED", "refundable": True}))
 
-    assert tracker.decide(user_cancelled=False, unexpected_exception=False) == ("internal_error", True)
+    assert tracker.decide(client_disconnected=False, unexpected_exception=False) == ("internal_error", True)
 
 
 def test_billing_refunds_message_when_hidden_cost_guard_blocks_before_output():
@@ -112,7 +112,7 @@ def test_billing_refunds_message_when_hidden_cost_guard_blocks_before_output():
     tracker.observe(_sse("session_started", {"session_id": "s"}))
     tracker.observe(_sse("error", info.as_event_data()))
 
-    assert tracker.decide(user_cancelled=False, unexpected_exception=False) == ("internal_error", True)
+    assert tracker.decide(client_disconnected=False, unexpected_exception=False) == ("internal_error", True)
 
 
 def test_billing_charges_tool_failure_circuit_even_without_output():
@@ -121,7 +121,7 @@ def test_billing_charges_tool_failure_circuit_even_without_output():
         _sse("error", {"message": "熔断", "code": "ERR_AGENT_TOOL_FAILURE_LIMIT", "refundable": False})
     )
 
-    assert tracker.decide(user_cancelled=False, unexpected_exception=False) == (
+    assert tracker.decide(client_disconnected=False, unexpected_exception=False) == (
         "non_refundable_error",
         False,
     )
@@ -130,7 +130,7 @@ def test_billing_charges_tool_failure_circuit_even_without_output():
 @pytest.mark.parametrize(
     "output_frame",
     [
-        _sse("content", {"text": "第一章正文……"}),
+        _sse("content", {"text": "第三章的节奏偏慢：前两节都在交代旧书店的来历，主角直到第三节才第一次碰到那本没有书名的旧账本，读者等得太久，建议把账本提前到开头。"}),
         _sse("file_content", {"file_id": "f", "chunk": "山风吹过断崖。"}),
         _sse("tool_result", {"tool_name": "edit_file", "status": "success", "data": {}}),
     ],
@@ -140,7 +140,7 @@ def test_billing_charges_errors_after_substantive_output(output_frame):
     tracker.observe(output_frame)
     tracker.observe(_sse("error", {"message": "x", "code": "ERR_AGENT_UPSTREAM_UNAVAILABLE", "refundable": True}))
 
-    assert tracker.decide(user_cancelled=False, unexpected_exception=False) == (
+    assert tracker.decide(client_disconnected=False, unexpected_exception=False) == (
         "error_after_output",
         False,
     )
@@ -153,18 +153,40 @@ def test_billing_does_not_count_failed_writes_or_whitespace_as_output():
     tracker.observe(_sse("tool_result", {"tool_name": "query_files", "status": "success"}))
     tracker.observe(_sse("error", {"message": "x", "code": "ERR_AGENT_RUN_FAILED"}))
 
-    assert tracker.decide(user_cancelled=False, unexpected_exception=False)[1] is True
+    assert tracker.decide(client_disconnected=False, unexpected_exception=False)[1] is True
 
 
-def test_billing_user_cancel_and_deadline():
+@pytest.mark.parametrize(
+    ("flags", "no_output", "with_output"),
+    [
+        ({"user_stopped": True}, ("user_stopped_no_output", True), ("user_stopped", False)),
+        (
+            {"client_disconnected": True},
+            ("client_disconnected_no_output", True),
+            ("client_disconnected", False),
+        ),
+    ],
+)
+def test_billing_stop_or_disconnect_refunds_only_rounds_without_output(flags, no_output, with_output):
+    """作者停止或断线：只读过、只想过的一轮退还；已串流正文或写过文件则计费。"""
+    decide_kwargs = {"client_disconnected": False, "unexpected_exception": False, **flags}
     tracker = StreamBillingTracker()
-    assert tracker.decide(user_cancelled=True, unexpected_exception=False) == ("user_cancelled", False)
+    tracker.observe(_sse("thinking_content", {"content": "先读一下大纲"}))
+    tracker.observe(_sse("tool_result", {"tool_name": "query_files", "status": "success"}))
+    assert tracker.decide(**decide_kwargs) == no_output
+
+    tracker.observe(_sse("file_content", {"file_id": "f", "chunk": "山风吹过断崖。"}))
+    assert tracker.decide(**decide_kwargs) == with_output
+
+
+def test_billing_deadline():
+    tracker = StreamBillingTracker()
     assert tracker.decide(
-        user_cancelled=False, unexpected_exception=False, deadline_exceeded=True
+        client_disconnected=False, unexpected_exception=False, deadline_exceeded=True
     ) == ("run_deadline_exceeded", True)
-    tracker.observe(_sse("content", {"text": "已经写了一段"}))
+    tracker.observe(_sse("content", {"text": "第三章的节奏偏慢：前两节都在交代旧书店的来历，主角直到第三节才第一次碰到那本没有书名的旧账本，读者等得太久，建议把账本提前到开头。"}))
     assert tracker.decide(
-        user_cancelled=False, unexpected_exception=False, deadline_exceeded=True
+        client_disconnected=False, unexpected_exception=False, deadline_exceeded=True
     ) == ("run_deadline_exceeded", False)
 
 
@@ -172,7 +194,7 @@ def test_billing_completed_run_is_charged():
     tracker = StreamBillingTracker()
     tracker.observe(_sse("content", {"text": "好的"}))
     tracker.observe(_sse("done", {}))
-    assert tracker.decide(user_cancelled=False, unexpected_exception=False) == ("completed", False)
+    assert tracker.decide(client_disconnected=False, unexpected_exception=False) == ("completed", False)
 
 
 # ------------------------------------------------------------------ 错误脱敏 / 分类

@@ -28,13 +28,24 @@
     "userStoppedSaved": "已写入的内容已保存",
     "userStoppedCounted": "本条计入今日 AI 消息",
     "fileVersionLimitTitle": "文件版本额度已达上限",
-    "fileVersionLimitDesc": "升级套餐后可继续保存更多版本。"
+    "fileVersionLimitDesc": "升级套餐后可继续保存更多版本。",
+    "notChargedStopped": "已停止，这一轮还没有写出内容，不计入今日 AI 消息。",
+    "stoppedNothingWritten": "已停止，这一轮还没有写出内容。",
+    "resend": "重新发送",
+    "roundInterrupted": "已中断",
+    "roundNotCounted": "未计入今日 AI 消息",
+    "roundRemovedFiles": "空白的《{{titles}}》已移除",
+    "removedEmptyFiles": "这一轮新建的空白文件《{{titles}}》已移除。",
+    "removedFilesJoiner": "》《",
+    "unanswered": "这条消息没有收到回复。"
   },
   "input": {
     "placeholder": "想写什么，直接说…",
     "placeholderWhileProcessing": "AI 正在生成，你可以先输入，结束后再发送…",
-    "placeholderQuotaExhausted": "今天的 {{limit}} 条 AI 消息用完了，北京时间明天 00:00 恢复。可以先把想法写下来，到时再发。",
+    "placeholderQuotaExhausted": "先把想法写下来，额度恢复后再发。",
     "stop": "停止生成",
+    "stopping": "正在停止…",
+    "stopArming": "正在开始，稍后可停止",
     "steerPlaceholder": "补充你的要求…",
     "steerButton": "补充要求",
     "steerHint": "AI 正在生成，补充的要求会在它的下一步生效",
@@ -103,8 +114,8 @@
     "tokenEstimate": "约 {{value}} token"
   },
   "workflow": {
-    "iteration": "步骤",
-    "remaining": "还剩",
+    "iteration": "第 {{step}} 步",
+    "remaining": "（还能做 {{n}} 步）",
     "iterationExhausted": "这一轮先做到这里",
     "lowTurnWarning": "快到这一轮的上限了，AI 会先把最重要的部分做完。",
     "collaborationExhaustedSummary": "任务比较大，AI 已经连着做了不少步，先停一下。点「继续完成」就能接着做。",
@@ -141,7 +152,8 @@
     "parallelTaskCompleted": "✓ {{description}}",
     "parallelTaskFailed": "✗ {{description}}：没有完成",
     "parallelEnd": "处理结束：完成 {{completed}}/{{total}} 项，失败 {{failed}} 项",
-    "steeringReceived": "已收到补充要求：{{preview}}"
+    "steeringReceived": "已收到补充要求：{{preview}}",
+    "userStopped": "已停止生成"
   },
   "tool": {
     "create_file": "创建文件",
@@ -186,7 +198,14 @@
       "fileMissing": "这个文件已经不存在了，可能刚被删除。",
       "repeatRead": "《{{title}}》刚才已经读过，AI 直接用已读内容继续。",
       "repeatReadUntitled": "这份资料刚才已经读过，AI 直接用已读内容继续。",
+      "authorEdited": "《{{title}}》有你手动改过的内容，AI 没有动它；需要改的话会先问你。",
+      "authorEditedUntitled": "这个文件有你手动改过的内容，AI 没有动它；需要改的话会先问你。",
+      "clarifyFirst": "你还没说改哪部分，AI 先问清楚再动手，这次没有改文件。",
       "generic": "这一步没做成，AI 会换个方式继续。"
+    },
+    "skippedTitle": {
+      "authorEdited": "保留了你改过的内容",
+      "clarifyFirst": "先问清楚再改"
     },
     "taskNotCompleted": "没有完成"
   },
@@ -304,5 +323,45 @@
   "fileEdit": {
     "allFailed": "《{{title}}》的 {{count}} 处修改都没有成功，文件保持原样，可以让 AI 再试一次。",
     "partialFailed": "《{{title}}》有 {{count}} 处修改没有生效，请检查后让 AI 重试。"
+  },
+  "activity": {
+    "elapsed": "AI 正在处理 · {{seconds}} 秒",
+    "longWaitHint": "写长内容通常要一两分钟，请稍等。"
+  },
+  "leaveWhileGenerating": {
+    "title": "AI 还在写",
+    "message": "离开这个页面会中断这一轮。还没写出内容的话，这一轮不计入今日 AI 消息。",
+    "leave": "离开",
+    "stay": "继续等",
+    "messageWithOutput": "离开这个页面会中断这一轮。已经写出的内容会保存，这一轮计入今日 AI 消息。",
+    "messageWithOutputUnlimited": "离开这个页面会中断这一轮，已经写出的内容会保存。",
+    "messageUnlimited": "离开这个页面会中断这一轮。",
+    "endedTitle": "这一轮已经结束",
+    "endedMessage": "现在离开不会中断任何内容。",
+    "stayEnded": "留在这里"
+  },
+  "quotaCard": {
+    "title": "今天的 {{limit}} 条免费 AI 消息用完了",
+    "resetOnDay": "北京时间 {{day}} 00:00 恢复。写好的内容会留在输入框里，到时再发。",
+    "resetTomorrow": "北京时间明天 00:00 恢复。写好的内容会留在输入框里，到时再发。",
+    "upgradeHint": "想现在接着写，可以开通 Pro，AI 消息不限条数。"
+  },
+  "nextStep": {
+    "dismiss": "先不用",
+    "novel": {
+      "frameworkReady": "框架已就绪，可以开始写第一章了。",
+      "label": "写第一章正文",
+      "message": "按大纲写第一章正文"
+    },
+    "short": {
+      "frameworkReady": "框架已就绪，可以开始写正文了。",
+      "label": "开始写正文",
+      "message": "按大纲开始写正文"
+    },
+    "screenplay": {
+      "frameworkReady": "框架已就绪，可以开始写剧本了。",
+      "label": "写第 1 集剧本",
+      "message": "按分集大纲写第 1 集剧本"
+    }
   }
 }

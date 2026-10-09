@@ -9,6 +9,7 @@
   "teaserFeatureOne": "Get chapter summaries, characters, worldbuilding, and cheat abilities",
   "teaserFeatureTwo": "Add characters and settings to your project, or reference them in AI chat",
   "teaserFeatureThree": "When your monthly breakdowns run out, you can still browse and reference finished results",
+  "teaserFreeTry": "Try it on the free plan: paste a chapter of a reference novel into a project chat and ask the AI to break down its characters, pacing and payoffs. The library breaks down the whole book automatically and keeps it ready to cite.",
   "teaserCardCharacter": "Character example",
   "teaserCardCharacterBody": "Lin Zhou · mentor archetype · first appears in chapter 3",
   "teaserCardSynopsis": "Chapter summary example",
@@ -17,7 +18,7 @@
   "teaserCardWorldviewBody": "Spirit-rank hierarchy, sect territories, forbidden-magic costs",
   "quotaRemaining": "{{remaining}} / {{limit}} breakdowns left this month. Each upload or retry uses 1.",
   "quotaExhausted": "You've used all {{limit}} breakdowns this month (resets {{resetAt}}). You can still browse and reference finished results.",
-  "quotaResetFallback": "next month",
+  "quotaResetFallback": "on the 1st of next month",
   "paidSubtitle": "Upload reference novels and use their characters, worldbuilding, and chapter summaries in your writing",
   "teaserSubtitle": "The Materials Library is a Pro feature: break reference novels into chapter summaries, characters and settings to use while you write.",
   "statusLoadError": "We couldn't check your Pro status. Please retry.",
@@ -41,6 +42,7 @@
     "selectFile": "Select File",
     "clickToSelect": "Click to select file",
     "supportedFormats": ".txt only, up to 20MB and 300,000 characters, with chapter headings (e.g. \"Chapter 1\" or \"第一章\")",
+    "trialSupportedFormats": ".txt only, up to 20MB, with chapter headings (e.g. \"Chapter 1\" or \"第一章\"); the first {{chapters}} chapters must total no more than 300,000 characters",
     "titleLabel": "Novel title",
     "titlePlaceholder": "Leave blank to use the file name",
     "uploading": "Uploading...",
@@ -48,7 +50,10 @@
     "errors": {
       "invalidType": "Only .txt files are supported",
       "tooLarge": "The file is over 20MB. Split it and upload again.",
-      "tooManyCharacters": "The text is over 300,000 characters. Split it and upload again."
+      "trialTooLarge": "The file is over 20MB. The free trial only breaks down the first {{chapters}} chapters, so you can keep just those and upload again.",
+      "tooManyCharacters": "The text is over 300,000 characters. Split it and upload again.",
+      "tooManyCharactersCounted": "This book has about {{chars}} characters, over the 300,000-character limit. Split it and upload again.",
+      "trialTooManyCharacters": "The first {{chapters}} chapters alone have about {{chars}} characters, over the 300,000-character limit. Shorten them and upload again."
     }
   },
   "deleteConfirm": {
@@ -107,7 +112,9 @@
     "uploadDescriptionNoLimit": "The free plan doesn't include the Materials Library. Get Pro to use it.",
     "decomposeTitle": "No breakdowns left this month",
     "upgradePrimary": "Get Pro",
-    "upgradeSecondary": "Compare plans"
+    "upgradeSecondary": "Compare plans",
+    "redeemPrimary": "Redeem a code",
+    "checkoutUnavailable": "Online payment isn't available right now. If you have a redeem code, choose “Redeem a code” to activate Pro."
   },
   "retrySuccess": "Breakdown restarted",
   "toast": {
@@ -174,5 +181,14 @@
       "other": "Other"
     },
     "other": "Other"
-  }
+  },
+  "trialStart": "Try one book free (first {{chapters}} chapters)",
+  "trialUploadNote": "Free trial: upload the whole book; only its first {{chapters}} chapters are broken down, once per account. If it fails on our side, you get the trial back.",
+  "trialUsedBanner": "You've used the free trial (first {{chapters}} chapters only). With Pro you can break down more reference novels every month, up to 300,000 characters each.",
+  "trialSelectionCut": "This book has {{total}} chapters. The free trial breaks down only the first {{chapters}}; the last {{rest}} are skipped.",
+  "trialSelectionAll": "This book has {{total}} chapters; all of them will be broken down.",
+  "trialNotUsed": "Your free trial was not used.",
+  "trialBookNote": "Free trial: first {{chapters}} of {{total}} chapters",
+  "trialUsedEmptyTitle": "You've used the free trial",
+  "trialUsedEmptyBody": "With Pro you can break down reference novels every month, up to 300,000 characters each, and cite their characters, settings and chapter summaries while you write."
 }

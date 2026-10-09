@@ -36,7 +36,7 @@ export default function InspirationsPage() {
       {/* My submissions */}
       <div className="card rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-5 md:p-6 shadow-[0_12px_40px_hsl(0_0%_0%_/_0.25)]">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-[var(--font-display)] text-lg font-semibold text-[hsl(var(--text-primary))]">
+          <h2 className="text-lg font-semibold text-[hsl(var(--text-primary))]">
             {t("mySubmissions.title")}
           </h2>
           <span className="rounded-full border border-[hsl(var(--accent-primary)/0.35)] bg-[hsl(var(--accent-primary)/0.12)] px-2.5 py-1 text-xs font-medium text-[hsl(var(--accent-primary))]">

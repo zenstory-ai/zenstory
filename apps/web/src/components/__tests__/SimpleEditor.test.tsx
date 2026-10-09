@@ -617,6 +617,43 @@ describe('SimpleEditor', () => {
     expect(screen.getByRole('button', { name: 'editor:history' })).toHaveAttribute('title', 'versions:title');
   });
 
+  it('says why 去AI味 is unavailable when tapped without a selection, instead of a silent grey button', async () => {
+    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
+    const toastInfoSpy = vi.spyOn(toast, 'info').mockImplementation(() => {});
+    render(
+      <SimpleEditor
+        projectId="project-1"
+        fileId="file-1"
+        fileType="draft"
+        title="File 1"
+        content="Hello world"
+        onTitleChange={vi.fn()}
+        onContentChange={vi.fn()}
+        onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' })}
+      />
+    );
+
+    const polishButton = screen.getByRole('button', { name: 'editor:naturalPolish' });
+    expect(polishButton).not.toBeDisabled();
+    expect(polishButton).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(polishButton);
+
+    expect(toastInfoSpy).toHaveBeenCalledWith('editor:naturalPolishNoSelection');
+    expect(naturalPolishApi.naturalPolish).not.toHaveBeenCalled();
+    toastInfoSpy.mockRestore();
+  });
+
+  it('explains how words are counted on hover and on tap', () => {
+    const toastInfoSpy = vi.spyOn(toast, 'info').mockImplementation(() => {});
+    renderPolishableEditor();
+
+    const wordCount = screen.getByTestId('editor-word-count');
+    expect(wordCount).toHaveAttribute('title', 'editor:wordCountHint');
+    fireEvent.click(wordCount);
+    expect(toastInfoSpy).toHaveBeenCalledWith('editor:wordCountHint');
+    toastInfoSpy.mockRestore();
+  });
+
   it('resets dirty state when switching files', () => {
     const onSave = vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' });
     const onTitleChange = vi.fn();

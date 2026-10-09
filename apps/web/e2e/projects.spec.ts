@@ -192,21 +192,23 @@ test.describe('Projects', () => {
     // Click on "短篇" (short) tab
     await page.getByRole('button', { name: SHORT_LABEL }).click()
 
-    // Verify the tab is active (should have different styling)
+    // Verify the tab is active (assert the semantics, not the selected-state colour classes)
     const shortTab = page.getByRole('button', { name: SHORT_LABEL })
-    await expect(shortTab).toHaveAttribute('class', /bg-\[hsl\(var\(--bg-secondary\)\)\]/)
+    await expect(shortTab).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByRole('button', { name: NOVEL_LABEL })).toHaveAttribute('aria-pressed', 'false')
 
     // Click on "剧本" (screenplay) tab
     await page.getByRole('button', { name: SCREENPLAY_LABEL }).click()
 
     // Verify the tab is active
     const screenplayTab = page.getByRole('button', { name: SCREENPLAY_LABEL })
-    await expect(screenplayTab).toHaveAttribute('class', /bg-\[hsl\(var\(--bg-secondary\)\)\]/)
+    await expect(screenplayTab).toHaveAttribute('aria-pressed', 'true')
+    await expect(shortTab).toHaveAttribute('aria-pressed', 'false')
 
     // Click on "小说" (novel) tab to return to default
     await page.getByRole('button', { name: NOVEL_LABEL }).click()
     const novelTab = page.getByRole('button', { name: NOVEL_LABEL })
-    await expect(novelTab).toHaveAttribute('class', /bg-\[hsl\(var\(--bg-secondary\)\)\]/)
+    await expect(novelTab).toHaveAttribute('aria-pressed', 'true')
   })
 
   test('user can see empty state when no projects exist', async ({ page, request }) => {

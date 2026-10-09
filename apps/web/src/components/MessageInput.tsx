@@ -27,6 +27,8 @@ import type { Skill } from "../types";
 import { useSwipeGestures } from "../hooks/useGestures";
 import { logger } from "../lib/logger";
 import { MAX_AGENT_MESSAGE_CHARS } from "../lib/agentLimits";
+import { trackEvent } from "../lib/analytics";
+import { toast } from "../lib/toast";
 
 /**
  * Randomly selects a specified number of distinct suggestions from a pool.
@@ -62,6 +64,8 @@ function getSuggestionsToDisplay(
   return [];
 }
 
+/** How long the stop button ignores presses after it replaces the send button. */
+export const STOP_ARM_DELAY_MS = 1500;
 /** Minimum textarea height in pixels */
 const TEXTAREA_MIN_HEIGHT_PX = 64;
 /** Maximum textarea height in auto-layout mode before scrolling */
@@ -164,7 +168,11 @@ interface MessageInputProps {
    * @param message - The message text
    * @param selectedSkillIds - Ids of the skills the user explicitly selected (chips), max 3
    */
-  onSend: (message: string, selectedSkillIds: string[]) => void;
+  /**
+   * Send a new turn. `extraMetadata.entry` is "suggestion" when the author sends a
+   * suggestion chip unchanged.
+   */
+  onSend: (message: string, selectedSkillIds: string[], extraMetadata?: Record<string, unknown>) => void;
   /**
    * Whether the input is disabled (e.g., when the panel is unavailable).
    * This disables both editing and sending.
@@ -177,8 +185,15 @@ interface MessageInputProps {
    * When omitted, defaults to `disabled`.
    */
   sendDisabled?: boolean;
+  /**
+   * Sending is held back (today's AI messages are used up): the send button and Enter
+   * call this instead of `onSend`, and the typed text stays in the box.
+   */
+  onBlockedSend?: () => void;
   /** Callback to cancel an ongoing operation (shows cancel button when disabled) */
   onCancel?: () => void;
+  /** Stop already requested: the stop button shows it is waiting and ignores presses */
+  isStopping?: boolean;
   /**
    * Callback to send a steering (follow-up) message while the agent is
    * streaming. When provided together with `canSteer`, typing during
@@ -191,6 +206,8 @@ interface MessageInputProps {
   placeholder?: string;
   /** AI-generated context-aware suggestions to display */
   aiSuggestions?: string[];
+  /** Chips (AI or fallback) to leave out, e.g. ones that repeat the next-step card. */
+  hideSuggestion?: (suggestion: string) => boolean;
   /** Current conversation message count (reserved for compatibility/analytics) */
   messageCount?: number;
   /** Controls whether suggestion area is loading, ready with AI, or fallback static */
@@ -279,11 +296,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   onSend,
   disabled = false,
   sendDisabled,
+  onBlockedSend,
   onCancel,
+  isStopping = false,
   onSteer,
   canSteer = false,
   placeholder,
   aiSuggestions = [],
+  hideSuggestion,
   suggestionDisplayState = aiSuggestions.length > 0 ? "ready" : "fallback",
   onRefreshSuggestions,
   isRefreshingSuggestions = false,
@@ -299,6 +319,31 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const textareaMinHeightPx = isMobile ? 44 : TEXTAREA_MIN_HEIGHT_PX;
   const effectiveSendDisabled = sendDisabled ?? disabled;
   const inputDisabled = disabled;
+  // The stop button takes the send button's place the moment a message goes out,
+  // so a double tap on send used to stop the round before anything was written.
+  // Ignore it until STOP_ARM_DELAY_MS after it appears.
+  const stopShown = Boolean(onCancel) && effectiveSendDisabled;
+  const [stopArmed, setStopArmed] = useState(false);
+  const [prevStopShown, setPrevStopShown] = useState(stopShown);
+  if (prevStopShown !== stopShown) {
+    setPrevStopShown(stopShown);
+    setStopArmed(false);
+  }
+  useEffect(() => {
+    if (!stopShown) return;
+    const timer = setTimeout(() => setStopArmed(true), STOP_ARM_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [stopShown]);
+  // The suggestion the author last put into the box; sent unchanged → entry "suggestion".
+  const pickedSuggestionRef = useRef<string | null>(null);
+  const noteSuggestionPicked = (suggestion: string, via: "click" | "tab") => {
+    pickedSuggestionRef.current = suggestion;
+    trackEvent("ai_suggestion_picked", {
+      via,
+      index: aiSuggestions.indexOf(suggestion),
+      source: suggestionDisplayState,
+    });
+  };
   // Steering is offered while the agent is generating: the textarea stays
   // editable and submitting dispatches a follow-up instruction instead of a
   // brand-new turn.
@@ -358,8 +403,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   }, [allStaticSuggestions]);
 
   const baseDisplaySuggestions = getSuggestionsToDisplay(
-    staticSuggestions,
-    aiSuggestions,
+    hideSuggestion ? staticSuggestions.filter((s) => !hideSuggestion(s)) : staticSuggestions,
+    hideSuggestion ? aiSuggestions.filter((s) => !hideSuggestion(s)) : aiSuggestions,
     suggestionDisplayState,
   );
 
@@ -492,6 +537,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   // 采纳建议（第一条 AI 建议或静态建议）
   const acceptSuggestion = (suggestion: string) => {
     if (!input) {
+      noteSuggestionPicked(suggestion, "tab");
       setInput(suggestion);
       textareaRef.current?.focus();
       setTimeout(adjustHeight, 0);
@@ -596,8 +642,20 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   const handleSubmit = () => {
     const message = input.trim();
+    if (message && onBlockedSend && !effectiveSendDisabled && !inputTooLong) {
+      // Keep the draft: it is sent once the author can send again.
+      onBlockedSend();
+      return;
+    }
     if (message && !effectiveSendDisabled && !inputTooLong) {
-      onSend(message, selectedSkills.map((skill) => skill.id));
+      const fromSuggestion = pickedSuggestionRef.current?.trim() === message;
+      pickedSuggestionRef.current = null;
+      const skillIds = selectedSkills.map((skill) => skill.id);
+      if (fromSuggestion) {
+        onSend(message, skillIds, { entry: "suggestion" });
+      } else {
+        onSend(message, skillIds);
+      }
       // 与输入框文本保持一致：发送即清空（onSend 不回报失败）。
       setInput("");
       clearSkills();
@@ -608,12 +666,25 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   };
 
+  const stopButtonLabel = isStopping
+    ? t("chat:input.stopping")
+    : stopArmed
+      ? t("chat:input.stop")
+      : t("chat:input.stopArming", { defaultValue: "正在开始，稍后可停止" });
+
   const handleCancel = () => {
+    if (isStopping) return;
+    if (!stopArmed) {
+      // Every press gets an answer: the round is just starting, stop works in a moment.
+      toast.info(t("chat:input.stopArming", { defaultValue: "正在开始，稍后可停止" }));
+      return;
+    }
     onCancel?.();
   };
 
   // 点击提示填充到输入框
   const handleSuggestionClick = (suggestion: string) => {
+    noteSuggestionPicked(suggestion, "click");
     setInput(suggestion);
     textareaRef.current?.focus();
   };
@@ -979,9 +1050,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         ) : onCancel && effectiveSendDisabled ? (
           <button
             onClick={handleCancel}
-            className={`shrink-0 flex items-center justify-center bg-[hsl(var(--error))] hover:bg-[hsl(var(--error))] text-white rounded-lg transition-colors focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--error))] ${isMobile ? 'w-11 h-11' : 'w-9 h-9'}`}
-            title={t("chat:input.stop")}
-            aria-label={t("chat:input.stop")}
+            // While arming the button stays clickable (aria-disabled) so a press gets an answer.
+            disabled={isStopping}
+            aria-disabled={!stopArmed || isStopping}
+            className={`shrink-0 flex items-center justify-center text-white rounded-lg transition-colors focus-visible:outline-none ${
+              !stopArmed || isStopping
+                // Same look as the disabled send button in this spot.
+                ? 'bg-[hsl(var(--bg-tertiary))] cursor-not-allowed focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--bg-tertiary))]'
+                : 'bg-[hsl(var(--error))] hover:bg-[hsl(var(--error))] focus-visible:shadow-[0_0_0_2px_hsl(var(--bg-primary)),_0_0_0_4px_hsl(var(--error))]'
+            } ${isMobile ? 'w-11 h-11' : 'w-9 h-9'}`}
+            title={stopButtonLabel}
+            aria-label={stopButtonLabel}
             data-testid="stop-button"
           >
             <Square size={14} fill="currentColor" />

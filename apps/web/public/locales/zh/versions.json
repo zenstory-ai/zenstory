@@ -33,6 +33,7 @@
     "created": "创建",
     "edited": "编辑",
     "aiEdited": "AI 编辑",
+    "reviewed": "审阅后保存",
     "rolledBack": "恢复",
     "autoSave": "自动保存"
   },
@@ -46,20 +47,14 @@
     "createdViaApi": "通过 Agent API 创建",
     "updatedViaApi": "通过 Agent API 更新",
     "aiRunCheckpoint": "AI 修改后自动存档",
-    "aiEditOps": "AI 修改：{{ops}}",
-    "aiEditOpsMore": "AI 修改：{{ops}} 等 {{total}} 处",
-    "opsSeparator": "、",
-    "ops": {
-      "replace": "替换",
-      "append": "追加",
-      "prepend": "开头插入",
-      "insert": "插入",
-      "delete": "删除"
-    }
+    "aiEditCount": "AI 改了 {{count}} 处",
+    "aiEditCount_one": "AI 改了 {{count}} 处",
+    "aiEditCount_other": "AI 改了 {{count}} 处"
   },
   "quota": {
     "limitTitle": "这个文件的历史版本存满了",
     "limitDescription": "正文照常保存，只是不再生成新版本。开通 Pro 可以保留更多版本。",
+    "paidLimitDescription": "正文照常保存，只是这个文件不再生成新版本。",
     "upgradePrimary": "开通 Pro",
     "upgradeSecondary": "对比套餐"
   }

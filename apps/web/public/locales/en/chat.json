@@ -28,13 +28,24 @@
     "userStoppedSaved": "What was already written is saved",
     "userStoppedCounted": "This counts toward today's AI messages",
     "fileVersionLimitTitle": "File version limit reached",
-    "fileVersionLimitDesc": "Upgrade your plan to keep more versions."
+    "fileVersionLimitDesc": "Upgrade your plan to keep more versions.",
+    "notChargedStopped": "Stopped before anything was written, so this round does not count toward today's AI messages.",
+    "stoppedNothingWritten": "Stopped before anything was written.",
+    "resend": "Send again",
+    "roundInterrupted": "Interrupted",
+    "roundNotCounted": "Not counted toward today's AI messages",
+    "roundRemovedFiles": "Blank \"{{titles}}\" removed",
+    "removedEmptyFiles": " The blank file \"{{titles}}\" created this round was removed.",
+    "removedFilesJoiner": "\", \"",
+    "unanswered": "This message didn't get a reply."
   },
   "input": {
     "placeholder": "Tell the AI what to write…",
     "placeholderWhileProcessing": "AI is generating — you can type now and send when it finishes…",
-    "placeholderQuotaExhausted": "You've used today's {{limit}} AI messages. They reset at 00:00 Beijing time (UTC+8) — draft now and send then.",
+    "placeholderQuotaExhausted": "Draft your idea now and send it once your messages reset.",
     "stop": "Stop generating",
+    "stopping": "Stopping…",
+    "stopArming": "Starting… you can stop in a moment",
     "steerPlaceholder": "Add to your request…",
     "steerButton": "Add request",
     "steerHint": "AI is generating — what you add applies at its next step",
@@ -103,8 +114,8 @@
     "tokenEstimate": "≈ {{value}} tokens"
   },
   "workflow": {
-    "iteration": "Step",
-    "remaining": "left",
+    "iteration": "step {{step}}",
+    "remaining": " ({{n}} more left)",
     "iterationExhausted": "Pausing here for now",
     "lowTurnWarning": "Close to this round's limit — the AI will finish the most important part first.",
     "collaborationExhaustedSummary": "This is a big task, so the AI paused after many steps. Click \"Keep going\" to continue.",
@@ -141,7 +152,8 @@
     "parallelTaskCompleted": "✓ {{description}}",
     "parallelTaskFailed": "✗ {{description}}: not completed",
     "parallelEnd": "Done: {{completed}}/{{total}} completed, {{failed}} failed",
-    "steeringReceived": "Got your addition: {{preview}}"
+    "steeringReceived": "Got your addition: {{preview}}",
+    "userStopped": "Stopped"
   },
   "tool": {
     "create_file": "Create File",
@@ -186,7 +198,14 @@
       "fileMissing": "This file no longer exists.",
       "repeatRead": "\"{{title}}\" was already read; continuing with it.",
       "repeatReadUntitled": "This was already read; continuing with it.",
+      "authorEdited": "\"{{title}}\" has changes you made yourself, so the AI left it as is. It will ask you before changing it.",
+      "authorEditedUntitled": "This file has changes you made yourself, so the AI left it as is. It will ask you before changing it.",
+      "clarifyFirst": "You haven't said which part to change yet. The AI will ask first; no files were changed.",
       "generic": "That step didn't work; the AI will try another way."
+    },
+    "skippedTitle": {
+      "authorEdited": "Kept your changes",
+      "clarifyFirst": "Asking before changing anything"
     },
     "taskNotCompleted": "Not completed"
   },
@@ -304,5 +323,45 @@
   "fileEdit": {
     "allFailed": "None of the {{count}} edits to \"{{title}}\" worked, so the file is unchanged. You can ask the AI to try again.",
     "partialFailed": "{{count}} edit(s) to \"{{title}}\" did not apply. Review them and ask the AI to retry."
+  },
+  "activity": {
+    "elapsed": "AI is working · {{seconds}}s",
+    "longWaitHint": "Long passages usually take a minute or two."
+  },
+  "leaveWhileGenerating": {
+    "title": "The AI is still writing",
+    "message": "Leaving this page ends this round. If nothing has been written yet, it will not count toward today's AI messages.",
+    "leave": "Leave",
+    "stay": "Keep waiting",
+    "messageWithOutput": "Leaving this page ends this round. What's already written is saved, and this round counts toward today's AI messages.",
+    "messageWithOutputUnlimited": "Leaving this page ends this round. What's already written is saved.",
+    "messageUnlimited": "Leaving this page ends this round.",
+    "endedTitle": "This round has finished",
+    "endedMessage": "Leaving now won't cut anything off.",
+    "stayEnded": "Stay here"
+  },
+  "quotaCard": {
+    "title": "You've used today's {{limit}} free AI messages",
+    "resetOnDay": "They come back on {{day}} at 00:00 Beijing time (UTC+8). What you type stays in the box until then.",
+    "resetTomorrow": "They come back tomorrow at 00:00 Beijing time (UTC+8). What you type stays in the box until then.",
+    "upgradeHint": "To keep writing now, get Pro: no daily message limit."
+  },
+  "nextStep": {
+    "dismiss": "Not now",
+    "novel": {
+      "frameworkReady": "The outline is ready. Time to write chapter 1.",
+      "label": "Write chapter 1",
+      "message": "Write chapter 1 from the outline"
+    },
+    "short": {
+      "frameworkReady": "The outline is ready. Time to start the story.",
+      "label": "Start the story",
+      "message": "Start writing the story from the outline"
+    },
+    "screenplay": {
+      "frameworkReady": "The outline is ready. Time to write the script.",
+      "label": "Write episode 1",
+      "message": "Write the episode 1 script from the episode outline"
+    }
   }
 }

@@ -28,7 +28,7 @@ import type {
   SSEWorkflowCompleteData,
   SSEWorkflowStoppedData,
 } from "../types";
-import { tryRefreshToken, getAccessToken, clearAuthStorage, getApiBase, resolveOwnedAuthSession } from "./apiClient";
+import { api, tryRefreshToken, getAccessToken, clearAuthStorage, getApiBase, resolveOwnedAuthSession } from "./apiClient";
 import { debugContext } from "./debugContext";
 import { resolveApiErrorMessage, toUserErrorMessage, translateError } from "./errorHandler";
 import { logger } from "./logger";
@@ -36,6 +36,9 @@ import i18n from "./i18n";
 import { createAgentStreamTelemetry, type AgentStreamTelemetry } from "./agentStreamTelemetry";
 
 const TRACE_ID_HEADER = "X-Trace-ID";
+// 告诉后端这个前端认识停止约定（/agent/stop、quota_refunded.removed_files、断线终态）。
+// 发布前打开的旧标签页不带它，后端对它的断线不移除空白文件、不写空的助手消息。
+const CLIENT_STOP_CONTRACT_HEADER = "X-Client-Stop-Contract";
 
 const generateTraceId = (): string => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -121,8 +124,29 @@ type StreamErrorEventData = {
   reason?: string;
 };
 
-/** quota_refunded 帧的两种说法：失控停止且没改文件 / 平台出错且没有产出。 */
-export type QuotaRefundKind = "no_progress" | "error";
+/**
+ * quota_refunded 帧的三种说法：失控停止且没改文件 / 平台出错且没有产出 /
+ * 作者点了停止且这一轮还没有任何产出。
+ */
+export type QuotaRefundKind = "no_progress" | "error" | "stopped";
+
+/** 作者停止、这一轮被退还时，服务端移除的「这一轮新建、还是空白」的文件。 */
+export interface RemovedPlaceholderFile {
+  id: string;
+  title: string;
+}
+
+/** done 帧。作者停止的一轮额外带 stop_reason / produced_output（是否已有实质产出）。 */
+export interface StreamDoneData {
+  apply_action?: string;
+  refs?: number[];
+  assistant_message_id?: string;
+  session_id?: string;
+  file_mutated?: boolean;
+  stop_reason?: string;
+  produced_output?: boolean;
+}
+
 
 /**
  * 服务端为这几类停止写了具体说明（停在哪、能不能接着来）；只有中文版本。
@@ -157,9 +181,23 @@ export function selectStreamErrorMessage(
 }
 
 function notifyQuotaRefunded(data: unknown, callbacks: AgentStreamCallbacks): void {
-  const payload = (data && typeof data === "object" ? data : {}) as { refunded?: unknown; kind?: unknown };
+  const payload = (data && typeof data === "object" ? data : {}) as {
+    refunded?: unknown;
+    kind?: unknown;
+    removed_files?: unknown;
+  };
   if (payload.refunded !== true) return;
-  callbacks.onQuotaRefunded?.(payload.kind === "no_progress" ? "no_progress" : "error");
+  const kind: QuotaRefundKind =
+    payload.kind === "no_progress" || payload.kind === "stopped" ? payload.kind : "error";
+  const removedFiles: RemovedPlaceholderFile[] = Array.isArray(payload.removed_files)
+    ? payload.removed_files.flatMap((item) => {
+      const file = item as { id?: unknown; title?: unknown } | null;
+      return file && typeof file.id === "string"
+        ? [{ id: file.id, title: typeof file.title === "string" ? file.title : "" }]
+        : [];
+    })
+    : [];
+  callbacks.onQuotaRefunded?.(kind, removedFiles);
 }
 
 /** Report stream outcomes (completed/failed) before handing off to the caller. */
@@ -172,6 +210,10 @@ function withOutcomeTelemetry(
     onToolCall: (...args) => {
       telemetry.noteToolCall();
       callbacks.onToolCall?.(...args);
+    },
+    onWorkflowStopped: (data) => {
+      if (data.reason === "user_stopped") telemetry.stopped();
+      callbacks.onWorkflowStopped?.(data);
     },
     onDone: (data) => {
       telemetry.completed();
@@ -267,6 +309,8 @@ export function streamAgentRequest(
     onWorkflowStopped?: (data: SSEWorkflowStoppedData) => void;
     onWorkflowComplete?: (data: SSEWorkflowCompleteData) => void;
     onSessionStarted?: (sessionId: string) => void;
+    /** 响应头到达：本次运行的 X-Agent-Run-ID，停止生成时要用。 */
+    onRunStarted?: (agentRunId: string) => void;
     onParallelStart?: (
       executionId: string,
       taskCount: number,
@@ -277,16 +321,10 @@ export function streamAgentRequest(
     onParallelTaskEnd?: (executionId: string, taskId: string, status: string, resultPreview?: string, error?: string) => void;
     onParallelEnd?: (executionId: string, total: number, completed: number, failed: number, durationMs: number) => void;
     onSteeringReceived?: (messageId: string, preview: string) => void;
-    onDone?: (data: {
-      apply_action?: string;
-      refs?: number[];
-      assistant_message_id?: string;
-      session_id?: string;
-      file_mutated?: boolean;
-    }) => void;
+    onDone?: (data: StreamDoneData) => void;
     onError?: (message: string, code?: string, retryable?: boolean) => void;
-    /** 后端确实退还了这一轮的 AI 消息（在终止帧之后到达）。 */
-    onQuotaRefunded?: (kind: QuotaRefundKind) => void;
+    /** 后端确实退还了这一轮的 AI 消息（在终止帧之后到达）；附带被移除的空白文件。 */
+    onQuotaRefunded?: (kind: QuotaRefundKind, removedFiles: RemovedPlaceholderFile[]) => void;
   },
 ): AbortController {
   const entryAccess = getAccessToken();
@@ -311,6 +349,7 @@ export function streamAgentRequest(
           "Accept-Language": language,
           Accept: "text/event-stream",
           [TRACE_ID_HEADER]: traceId,
+          [CLIENT_STOP_CONTRACT_HEADER]: "1",
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
         body: JSON.stringify({
@@ -393,6 +432,8 @@ export function streamAgentRequest(
         );
         return;
       }
+
+      if (responseAgentRunId) callbacks.onRunStarted?.(responseAgentRunId);
 
       const reader = response.body?.getReader();
       if (!reader) {
@@ -749,13 +790,7 @@ export function streamAgentRequest(
               break;
             }
             case "done": {
-              const data = event.data as {
-                apply_action?: string;
-                refs?: number[];
-                assistant_message_id?: string;
-                session_id?: string;
-                file_mutated?: boolean;
-              };
+              const data = event.data as StreamDoneData;
               receivedTerminalEvent = true;
               callbacks.onDone?.(data);
               break;
@@ -787,13 +822,7 @@ export function streamAgentRequest(
 
           switch (event.type) {
             case "done": {
-              const data = event.data as {
-                apply_action?: string;
-                refs?: number[];
-                assistant_message_id?: string;
-                session_id?: string;
-                file_mutated?: boolean;
-              };
+              const data = event.data as StreamDoneData;
               receivedTerminalEvent = true;
               callbacks.onDone?.(data);
               break;
@@ -984,4 +1013,29 @@ export async function sendSteeringRequest(
   };
 
   return doSend();
+}
+
+/**
+ * 作者点了「停止生成」：请服务端结束这次运行。
+ *
+ * 服务端会在原 /stream 连接上发 workflow_stopped(user_stopped) + done，没有任何
+ * 产出时再发 quota_refunded(kind=stopped)；调用方应继续读流，只有这里失败或
+ * 迟迟等不到收尾时才直接断开连接。
+ *
+ * `keepFileIds`：编辑器里作者还有没存下的字的文件（停止前的保存失败或超时）。
+ * 这一轮被退还时服务端不把它们当作空白占位文件移除。
+ *
+ * @returns 停止请求是否已被服务端记录
+ */
+export async function stopAgentRun(agentRunId: string, keepFileIds: string[] = []): Promise<boolean> {
+  try {
+    const result = await api.post<{ stop_requested: boolean }>("/api/v1/agent/stop", {
+      agent_run_id: agentRunId,
+      ...(keepFileIds.length > 0 ? { keep_file_ids: keepFileIds } : {}),
+    });
+    return result?.stop_requested === true;
+  } catch (error) {
+    logger.warn("[AgentAPI] stop request failed", error);
+    return false;
+  }
 }

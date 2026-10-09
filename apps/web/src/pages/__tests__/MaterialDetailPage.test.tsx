@@ -96,6 +96,12 @@ vi.mock("../../lib/materialsApi", () => ({
   },
 }));
 
+const mockGetStatus = vi.fn();
+vi.mock("../../lib/subscriptionApi", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../lib/subscriptionApi")>()),
+  subscriptionApi: { getStatus: () => mockGetStatus() },
+}));
+
 vi.mock("../../lib/errorHandler", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../lib/errorHandler")>()),
   translateError: (code: string) => `translated:${code}`,
@@ -131,6 +137,7 @@ describe("MaterialDetailPage", () => {
     materialsConfigState.relationshipsEnabled = false;
     mediaState.isMobile = false;
     routeState.novelId = "novel-1";
+    mockGetStatus.mockResolvedValue({ tier: "pro", features: { materials_library_access: true } });
     mockGetTree.mockResolvedValue({
       tree: [{ id: "chapter-node-1", type: "chapter", title: "Opening Chapter", metadata: { chapter_number: 1 } }],
     });
@@ -277,8 +284,27 @@ describe("MaterialDetailPage", () => {
     expect(banner).toHaveTextContent("拆解失败");
     expect(banner).toHaveTextContent("translated:ERR_MATERIAL_LLM_UNAVAILABLE");
 
-    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    fireEvent.click(await screen.findByRole("button", { name: "重试" }));
     await waitFor(() => expect(mockRetry).toHaveBeenCalledWith("novel-1"));
+  });
+
+  it("offers no retry to a free-trial author, whose retry could only be refused", async () => {
+    mockGetStatus.mockResolvedValue({ tier: "free", features: { materials_library_access: false } });
+    mockGet.mockResolvedValue({
+      id: "novel-1",
+      title: "Novel One",
+      status: "failed",
+      error_message: "ERR_MATERIAL_DECOMPOSE_FAILED",
+      chapters_count: 0,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    });
+
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("拆解失败");
+    await waitFor(() => expect(mockGetStatus).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "重试" })).not.toBeInTheDocument();
   });
 
   it("shows relationships folder when relationships UI is enabled", async () => {

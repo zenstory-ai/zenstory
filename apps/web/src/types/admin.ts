@@ -171,6 +171,10 @@ export interface UpgradeConversionStats {
   unattributed_conversions: number;
   sources: UpgradeConversionSource[];
   channels: UpgradeConversionChannel[];
+  /** Conversions by authors who hit the daily AI message limit before converting. */
+  after_ai_quota_wall_conversions: number;
+  /** Of those, conversions backed by an actual payment. */
+  paid_after_ai_quota_wall_conversions: number;
 }
 
 export interface UpgradeFunnelTotals {

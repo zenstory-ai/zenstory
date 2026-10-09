@@ -4,6 +4,7 @@ Quota Service - Manages usage quotas and limits.
 All quota operations use atomic database updates to prevent race conditions.
 """
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import update
 from sqlmodel import Session, col, func, select
@@ -690,6 +691,55 @@ class QuotaService:
                 session.rollback()
             return False
 
+        if commit:
+            session.commit()
+        return True
+
+    # ------------------------------------------------------------------
+    # 素材拆书免费试用（一个账号一次，见 material_settings.TRIAL_*）
+    # ------------------------------------------------------------------
+    def material_trial_status(self, session: Session, user_id: str) -> dict[str, Any]:
+        """{"enabled", "available", "used", "max_chapters"}；有素材库权益的账号不需要试用。"""
+        from config.material_settings import material_settings
+
+        quota = self.get_user_quota(session, user_id)
+        used = bool(quota and quota.material_trial_used_at is not None)
+        enabled = bool(material_settings.TRIAL_ENABLED)
+        has_access = self.has_feature_access(session, user_id, "materials_library_access")
+        return {
+            "enabled": enabled,
+            "available": enabled and not used and not has_access,
+            "used": used,
+            "max_chapters": int(material_settings.TRIAL_MAX_CHAPTERS),
+        }
+
+    def reserve_material_trial(self, session: Session, user_id: str, *, commit: bool = True) -> bool:
+        """原子地占用这个账号唯一的一次试用；已经用过返回 False。"""
+        self._get_or_create_quota(session, user_id, commit=commit)
+        result = session.exec(
+            update(UsageQuota)
+            .where(UsageQuota.user_id == user_id, UsageQuota.material_trial_used_at.is_(None))
+            .values(material_trial_used_at=utcnow())
+        )
+        if result.rowcount != 1:
+            if commit:
+                session.rollback()
+            return False
+        if commit:
+            session.commit()
+        return True
+
+    def release_material_trial(self, session: Session, user_id: str, *, commit: bool = True) -> bool:
+        """平台原因失败时退还试用（清空占用时间）；没有可退的返回 False。"""
+        result = session.exec(
+            update(UsageQuota)
+            .where(UsageQuota.user_id == user_id, UsageQuota.material_trial_used_at.is_not(None))
+            .values(material_trial_used_at=None)
+        )
+        if result.rowcount != 1:
+            if commit:
+                session.rollback()
+            return False
         if commit:
             session.commit()
         return True

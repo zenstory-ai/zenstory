@@ -119,14 +119,21 @@ export async function mockResponsiveApi(page: Page, tier: 'free' | 'pro' = 'free
             data = { user_skills: [skill], added_skills: [] };
         else if (path.endsWith('/points/balance'))
             data = { available: 300, pending_expiration: 0, nearest_expiration_date: null };
+        else if (path.endsWith('/points/config'))
+            data = { check_in: 5, check_in_streak: 20, referral: 50, skill_contribution: 50, inspiration_contribution: 50, profile_complete: 20, pro_7days_cost: 100, streak_bonus_threshold: 7 };
         else if (path.endsWith('/points/check-in/status'))
             data = { checked_in: false, streak_days: 3, points_earned_today: 0 };
         else if (path.endsWith('/points/transactions'))
             data = { transactions: [], total: 0, page: 1, page_size: 20, total_pages: 1 };
         else if (path.endsWith('/referral/stats'))
             data = { total_invites: 10, successful_invites: 5, total_points: 500, available_points: 300 };
-        else if (path.endsWith('/api-keys'))
-            data = { keys: [] };
+        else if (path.endsWith('/api-keys') || path.endsWith('/agent-api-keys'))
+            // Same shape as AgentApiKeyListResponse: a bare array once made the panel call the
+            // array's built-in `keys()` and crash, so the API-key tab could not be checked here.
+            data = {
+                keys: [{ id: 'agent-key-1', name: '写作助手（家里的电脑）', key_prefix: 'zs_ak_12ab', scopes: ['read', 'write'], is_active: true, last_used_at: '2026-10-02T08:00:00Z', expires_at: null, request_count: 12, created_at: '2026-09-01T08:00:00Z', updated_at: '2026-10-02T08:00:00Z' }],
+                total: 1,
+            };
         else if (path.endsWith('/resources'))
             data = { resources: [{ path: 'references/checks.md', size_bytes: 100 }] };
         else if (path.endsWith('/materials/list'))

@@ -23,7 +23,7 @@ from sqlmodel import Session, col, select, update
 from agent.constants import CONTENT_FILE_TYPES
 from config.datetime_utils import utcnow
 from models.entities import ChatMessage, ChatSession
-from models.file_model import FILE_TYPE_OUTLINE, File
+from models.file_model import FILE_TYPE_OUTLINE, WORD_COUNT_REV, File, cached_word_count
 from models.writing_stats import WritingStats, WritingStreak
 from utils.logger import get_logger, log_with_context
 from utils.text_metrics import count_words
@@ -65,6 +65,66 @@ def _begin_stats_creation_savepoint(session: Session) -> SessionTransaction:
             connection.exec_driver_sql("BEGIN")
     return session.begin_nested()
 
+
+
+def resolve_prose_word_counts(session: Session, files: list[File], **log_fields: Any) -> dict[str, int]:
+    """Editor word count per file id: trust the current-revision cache, recompute the rest.
+
+    ``files`` may be loaded with only ``id`` and ``file_metadata``. Files whose cache is
+    missing or from an older counting revision are reloaded with content and recounted.
+    The backfill is written back only if the row still holds the content and metadata
+    it was counted from, so it never overwrites a save that landed in between (that
+    save stamps its own count); a failed backfill commit is logged and the computed
+    counts returned.
+    """
+    counts: dict[str, int] = {}
+    stale_ids: list[str] = []
+    for file in files:
+        cached = cached_word_count(file.file_metadata)
+        if cached is None:
+            stale_ids.append(file.id)
+        else:
+            counts[file.id] = cached
+    if not stale_ids:
+        return counts
+    stale_rows = session.exec(
+        select(File.id, File.content, File.file_metadata).where(col(File.id).in_(stale_ids))
+    ).all()
+    try:
+        for file_id, content, raw_metadata in stale_rows:
+            word_count = count_words(content)
+            counts[file_id] = word_count
+            try:
+                parsed = json_module.loads(raw_metadata) if raw_metadata else {}
+            except (TypeError, ValueError):
+                parsed = {}
+            metadata: dict[str, Any] = parsed if isinstance(parsed, dict) else {}
+            metadata["word_count"] = word_count
+            metadata["word_count_rev"] = WORD_COUNT_REV
+            session.exec(
+                update(File)
+                .where(
+                    col(File.id) == file_id,
+                    col(File.content).is_(None) if content is None else col(File.content) == content,
+                    col(File.file_metadata).is_(None)
+                    if raw_metadata is None
+                    else col(File.file_metadata) == raw_metadata,
+                )
+                .values(file_metadata=json_module.dumps(metadata))
+                .execution_options(synchronize_session=False)
+            )
+        session.commit()
+    except Exception as exc:  # pragma: no cover - infra dependent
+        session.rollback()
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Failed to backfill prose word_count metadata (continuing)",
+            error=str(exc),
+            error_type=type(exc).__name__,
+            **log_fields,
+        )
+    return counts
 
 class WritingStatsService:
     """Service for managing writing statistics and streaks."""
@@ -110,28 +170,52 @@ class WritingStatsService:
         result += temp
         return result if result > 0 else 0
 
+    _WHOLE_BOOK_COUNT_RE = re.compile(
+        r"^(?P<count>\d+)\s*[章集回话]\s*(?:的)?\s*(?P<scope>分集|分章|全书|全剧|整体|故事)?\s*"
+        r"(?P<kind>大纲|总纲|梗概|目录|规划)"
+    )
+    # A bare 「N集大纲」 below this is read as that episode's own outline.
+    _WHOLE_BOOK_MIN_BARE_COUNT = 10
+
     def _extract_chapter_number(self, title: str | None) -> int | None:
         """
-        Extract chapter number from title.
+        Extract chapter (or episode) number from title.
 
         Supports:
-        - 第一章 / 第二章 (Chinese numerals)
-        - 第1章 / 第2章 (Arabic numerals)
-        - 1xxx / 2xxx (plain leading numbers)
+        - 第一章 / 第二集 / 第三回 (Chinese numerals; 章、集、回、节、话)
+        - 第1章 / 第2集 (Arabic numerals)
+        - Chapter 1 / Episode 2 / Ep. 3
+        - 1xxx / 2xxx (plain leading numbers), except a book length such as
+          「60集分集大纲」on a whole-book outline
         """
         if not title:
             return None
 
-        chinese_match = re.search(r"第([零一二三四五六七八九十百千]+)章", title)
-        if chinese_match:
-            parsed = self._parse_chinese_number(chinese_match.group(1))
+        # The leftmost 第N章/集/回/节/话 wins, whether N is Arabic or Chinese:
+        # 「第12章 第一节课」is chapter 12, not the「第一节」inside the title.
+        ordinal_match = re.search(r"第\s*(\d+|[零一二三四五六七八九十百千]+)\s*[章集回节话]", title)
+        if ordinal_match:
+            value = ordinal_match.group(1)
+            parsed = int(value) if value.isdigit() else self._parse_chinese_number(value)
             return parsed if parsed > 0 else None
 
-        arabic_match = re.search(r"第(\d+)章", title)
-        if arabic_match:
-            return int(arabic_match.group(1))
+        english_match = re.match(r"^\s*(?:chapter|episode|ep\.?)\s*(\d+)", title, re.IGNORECASE)
+        if english_match:
+            return int(english_match.group(1))
 
-        leading_num_match = re.match(r"^(\d+)", title.strip())
+        stripped_title = title.strip()
+        # 「60集分集大纲」「100章总纲」: a leading count of episodes/chapters on a
+        # whole-book outline is its length, not a chapter number. A bare small
+        # 「1集大纲」「3集大纲」 is that episode's own outline and keeps its number.
+        book_count = self._WHOLE_BOOK_COUNT_RE.match(stripped_title)
+        if book_count and (
+            book_count.group("scope")
+            or book_count.group("kind") != "大纲"
+            or int(book_count.group("count")) >= self._WHOLE_BOOK_MIN_BARE_COUNT
+        ):
+            return None
+
+        leading_num_match = re.match(r"^(\d+)", stripped_title)
         if leading_num_match:
             return int(leading_num_match.group(1))
 
@@ -163,66 +247,6 @@ class WritingStatsService:
                 parsed = int(stripped)
                 return parsed if parsed > 0 else None
         return None
-
-    def _parse_non_negative_int(self, value: Any) -> int | None:
-        """Parse non-negative integer from metadata-like value."""
-        if isinstance(value, bool):
-            return None
-        if isinstance(value, int):
-            return value if value >= 0 else None
-        if isinstance(value, float):
-            parsed = int(value)
-            return parsed if parsed >= 0 else None
-        if isinstance(value, str):
-            stripped = value.strip()
-            if not stripped:
-                return None
-            # Support common numeric formats e.g. "1,234"
-            with_value = stripped.replace(",", "")
-            if with_value.isdigit():
-                return int(with_value)
-            try:
-                parsed_float = float(with_value)
-                parsed_int = int(parsed_float)
-                return parsed_int if parsed_int >= 0 else None
-            except ValueError:
-                return None
-        return None
-
-    def _read_word_count_from_file_metadata(self, raw_metadata: str | None) -> int | None:
-        """Read cached word_count from File.file_metadata JSON (returns None when missing/invalid)."""
-        if not raw_metadata:
-            return None
-        try:
-            metadata = json_module.loads(raw_metadata)
-        except (TypeError, ValueError):
-            return None
-        if not isinstance(metadata, dict):
-            return None
-        if "word_count" not in metadata:
-            return None
-        return self._parse_non_negative_int(metadata.get("word_count"))
-
-    def _set_word_count_in_file_metadata(self, file: File, word_count: int) -> bool:
-        """Set file_metadata.word_count, preserving other metadata keys. Returns True when updated."""
-        normalized_word_count = max(0, int(word_count))
-        metadata_dict: dict[str, Any] = {}
-        if file.file_metadata:
-            try:
-                parsed = json_module.loads(file.file_metadata)
-                if isinstance(parsed, dict):
-                    metadata_dict = parsed
-            except (TypeError, ValueError):
-                metadata_dict = {}
-
-        existing = metadata_dict.get("word_count")
-        existing_parsed = self._parse_non_negative_int(existing) if existing is not None else None
-        if existing_parsed == normalized_word_count:
-            return False
-
-        metadata_dict["word_count"] = normalized_word_count
-        file.file_metadata = json_module.dumps(metadata_dict, ensure_ascii=False)
-        return True
 
     def _resolve_completion_target(
         self,
@@ -640,45 +664,7 @@ class WritingStatsService:
             )
         ).all()
 
-        total = 0
-        missing_ids: list[str] = []
-        for file in draft_files:
-            cached = self._read_word_count_from_file_metadata(file.file_metadata)
-            if cached is None:
-                missing_ids.append(file.id)
-            else:
-                total += int(cached)
-
-        if not missing_ids:
-            return total
-
-        # Fallback: compute only missing files, then backfill metadata (commit once).
-        missing_files = session.exec(
-            select(File)
-            .options(load_only(File.id, File.content, File.file_metadata))
-            .where(File.id.in_(missing_ids))
-        ).all()
-
-        updated_any = False
-        for file in missing_files:
-            computed = count_words(file.content)
-            total += computed
-            updated_any = self._set_word_count_in_file_metadata(file, computed) or updated_any
-
-        if updated_any:
-            try:
-                session.commit()
-            except Exception as exc:  # pragma: no cover - infra dependent
-                session.rollback()
-                log_with_context(
-                    logger,
-                    30,  # WARNING
-                    "Failed to backfill draft word_count metadata (continuing)",
-                    project_id=project_id,
-                    error=str(exc),
-                    error_type=type(exc).__name__,
-                )
-
+        total = sum(resolve_prose_word_counts(session, list(draft_files), project_id=project_id).values())
         return total
 
     def get_words_written_in_period(
@@ -732,26 +718,31 @@ class WritingStatsService:
         min_words_for_complete: int = 50,
     ) -> dict[str, Any]:
         """
-        Calculate chapter completion percentage from draft files.
+        Chapter (episode) progress of a project.
 
-        Compares the number of outline files (planned chapters) against
-        draft files with meaningful content to calculate completion.
+        Every prose file (draft / script) is one chapter. A chapter-level outline
+        adds a planned chapter while no prose file matches it. Whole-book
+        outlines such as「核心大纲」or「分集大纲（全60集）」are planning
+        documents, not chapters: an outline only counts when it carries a chapter
+        number (title or metadata) or a prose file links to it.
+
+        Word counts use the editor counting rules (resolve_prose_word_counts),
+        the same source as the project card progress.
 
         Args:
             session: Database session
             project_id: Project ID
-            min_words_for_complete: Minimum word count for a draft to be
-                considered "complete". Default 50 words.
+            min_words_for_complete: Minimum word count for a chapter without a
+                word_count_target to be considered "complete". Default 50.
 
         Returns:
             Dict with completion statistics:
-            - total_chapters: Total number of planned chapters (outlines)
-            - completed_chapters: Number of drafts with sufficient content
-            - in_progress_chapters: Drafts with some content but not complete
-            - completion_percentage: Overall completion percentage
-            - chapter_details: List of individual chapter statuses
+            - total_chapters: chapters written or planned
+            - completed_chapters / in_progress_chapters / not_started_chapters
+            - completion_percentage: completed share of total_chapters
+            - chapter_details: per-chapter rows (outline_id equals draft_id when
+              the chapter has no outline)
         """
-        # Get all outline files (planned chapters)
         outline_files = session.exec(
             select(File)
             .options(
@@ -772,7 +763,6 @@ class WritingStatsService:
             .order_by(File.order.asc())
         ).all()
 
-        # Get all draft files
         draft_files = session.exec(
             select(File)
             .options(
@@ -793,13 +783,15 @@ class WritingStatsService:
             .order_by(File.order.asc())
         ).all()
 
-        # Build draft indexes for robust matching with outlines.
-        # Matching priority:
+        # Matching priority for an outline:
         # 1) Explicit metadata link (outline_id)
         # 2) Exact title match
+        # Numbered (chapter-level) outlines then also try:
         # 3) Chapter number match (metadata/title)
         # 4) Same order index
-        # 5) Loose title contains fallback
+        # 5) Loose title contains
+        # Unnumbered outlines skip 3-5: pairing「分集大纲」with episode 1 by
+        # order showed the episode's word count next to the outline.
         drafts_by_id: dict[str, File] = {draft.id: draft for draft in draft_files}
         used_draft_ids: set[str] = set()
 
@@ -836,120 +828,57 @@ class WritingStatsService:
                     return drafts_by_id[draft_id]
             return None
 
-        total_chapters = len(outline_files)
-        completed_chapters = 0
-        in_progress_chapters = 0
-        chapter_details: list[dict[str, Any]] = []
-
-        outline_draft_pairs: list[tuple[File, File | None]] = []
+        chapter_pairs: list[tuple[File | None, File | None]] = []
 
         for outline in outline_files:
             outline_title_lower = self._normalize_title(outline.title)
             outline_chapter_number = self._extract_chapter_number_from_file(outline)
 
-            # 1) Explicit metadata link
             draft = pick_first_unused(drafts_by_outline_ref.get(str(outline.id)))
-
-            # 2) Exact normalized title match
             if not draft:
                 draft = pick_first_unused(drafts_by_title.get(outline_title_lower))
 
-            # 3) Chapter number match
-            if not draft and outline_chapter_number is not None:
-                draft = pick_first_unused(drafts_by_chapter_number.get(outline_chapter_number))
+            if outline_chapter_number is not None:
+                if not draft:
+                    draft = pick_first_unused(drafts_by_chapter_number.get(outline_chapter_number))
+                if not draft:
+                    draft = pick_first_unused(drafts_by_order.get(outline.order))
+                if not draft and outline_title_lower:
+                    for candidate_id, candidate in drafts_by_id.items():
+                        if candidate_id in used_draft_ids:
+                            continue
+                        candidate_title = self._normalize_title(candidate.title)
+                        if not candidate_title:
+                            continue
+                        if outline_title_lower in candidate_title or candidate_title in outline_title_lower:
+                            used_draft_ids.add(candidate_id)
+                            draft = candidate
+                            break
 
-            # 4) Same order fallback
-            if not draft:
-                draft = pick_first_unused(drafts_by_order.get(outline.order))
-
-            # 5) Loose contains fallback over remaining drafts
-            if not draft and outline_title_lower:
-                for candidate_id, candidate in drafts_by_id.items():
-                    if candidate_id in used_draft_ids:
-                        continue
-                    candidate_title = self._normalize_title(candidate.title)
-                    if not candidate_title:
-                        continue
-                    if outline_title_lower in candidate_title or candidate_title in outline_title_lower:
-                        used_draft_ids.add(candidate_id)
-                        draft = candidate
-                        break
-
-            outline_draft_pairs.append((outline, draft))
-
-        # Resolve word_count for matched drafts.
-        draft_word_counts: dict[str, int] = {}
-        missing_draft_ids: list[str] = []
-        for _outline, draft in outline_draft_pairs:
-            if not draft:
+            if draft is None and outline_chapter_number is None:
+                # Whole-book outline or other unnumbered planning note.
                 continue
-            cached = self._read_word_count_from_file_metadata(draft.file_metadata)
-            if cached is None:
-                missing_draft_ids.append(draft.id)
-            else:
-                draft_word_counts[draft.id] = int(cached)
+            chapter_pairs.append((outline, draft))
 
-        if missing_draft_ids:
-            missing_drafts = session.exec(
-                select(File)
-                .options(load_only(File.id, File.content, File.file_metadata))
-                .where(File.id.in_(missing_draft_ids))
-            ).all()
+        # Prose files that no outline claimed are chapters too.
+        chapter_pairs.extend((None, draft) for draft in draft_files if draft.id not in used_draft_ids)
 
-            updated_any = False
-            for draft in missing_drafts:
-                computed = count_words(draft.content)
-                draft_word_counts[draft.id] = computed
-                updated_any = self._set_word_count_in_file_metadata(draft, computed) or updated_any
+        draft_word_counts = resolve_prose_word_counts(
+            session, [draft for _outline, draft in chapter_pairs if draft], project_id=project_id
+        )
 
-            if updated_any:
-                try:
-                    session.commit()
-                except Exception as exc:  # pragma: no cover - infra dependent
-                    session.rollback()
-                    log_with_context(
-                        logger,
-                        30,  # WARNING
-                        "Failed to backfill draft word_count metadata for chapter stats (continuing)",
-                        project_id=project_id,
-                        error=str(exc),
-                        error_type=type(exc).__name__,
-                    )
+        completed_chapters = 0
+        in_progress_chapters = 0
+        chapter_details: list[dict[str, Any]] = []
 
-        for outline, draft in outline_draft_pairs:
-            if draft:
-                word_count = draft_word_counts.get(draft.id, 0)
-                target_word_count, completion_target = self._resolve_completion_target(
-                    outline=outline,
-                    draft=draft,
-                    min_words_for_complete=min_words_for_complete,
-                )
-                status, chapter_completion_percentage = self._evaluate_chapter_progress(
-                    word_count=word_count,
-                    completion_target=completion_target,
-                )
-
-                if status == "complete":
-                    completed_chapters += 1
-                elif status == "in_progress":
-                    in_progress_chapters += 1
-
-                chapter_details.append({
-                    "outline_id": outline.id,
-                    "draft_id": draft.id,
-                    "title": outline.title,
-                    "word_count": word_count,
-                    "target_word_count": target_word_count,
-                    "status": status,
-                    "completion_percentage": chapter_completion_percentage,
-                })
-            else:
-                # No matching draft found
-                target_word_count, _ = self._resolve_completion_target(
-                    outline=outline,
-                    draft=None,
-                    min_words_for_complete=min_words_for_complete,
-                )
+        for outline, draft in chapter_pairs:
+            target_word_count, completion_target = self._resolve_completion_target(
+                outline=outline,
+                draft=draft,
+                min_words_for_complete=min_words_for_complete,
+            )
+            if draft is None:
+                assert outline is not None
                 chapter_details.append({
                     "outline_id": outline.id,
                     "draft_id": None,
@@ -959,80 +888,30 @@ class WritingStatsService:
                     "status": "not_started",
                     "completion_percentage": 0,
                 })
+                continue
 
-        # Calculate completion percentage
-        if total_chapters > 0:
-            completion_percentage = int((completed_chapters / total_chapters) * 100)
-        else:
-            # If no outlines, use drafts as reference
-            total_chapters = len(draft_files)
-            completed_chapters = 0
-            in_progress_chapters = 0
-            chapter_details = []
+            word_count = draft_word_counts.get(draft.id, 0)
+            status, chapter_completion_percentage = self._evaluate_chapter_progress(
+                word_count=word_count,
+                completion_target=completion_target,
+            )
+            if status == "complete":
+                completed_chapters += 1
+            elif status == "in_progress":
+                in_progress_chapters += 1
 
-            draft_word_counts = {}
-            missing_draft_ids = []
-            for draft in draft_files:
-                cached = self._read_word_count_from_file_metadata(draft.file_metadata)
-                if cached is None:
-                    missing_draft_ids.append(draft.id)
-                else:
-                    draft_word_counts[draft.id] = int(cached)
+            chapter_details.append({
+                "outline_id": outline.id if outline else draft.id,
+                "draft_id": draft.id,
+                "title": outline.title if outline else draft.title,
+                "word_count": word_count,
+                "target_word_count": target_word_count,
+                "status": status,
+                "completion_percentage": chapter_completion_percentage,
+            })
 
-            if missing_draft_ids:
-                missing_drafts = session.exec(
-                    select(File)
-                    .options(load_only(File.id, File.content, File.file_metadata))
-                    .where(File.id.in_(missing_draft_ids))
-                ).all()
-
-                updated_any = False
-                for draft in missing_drafts:
-                    computed = count_words(draft.content)
-                    draft_word_counts[draft.id] = computed
-                    updated_any = self._set_word_count_in_file_metadata(draft, computed) or updated_any
-
-                if updated_any:
-                    try:
-                        session.commit()
-                    except Exception as exc:  # pragma: no cover - infra dependent
-                        session.rollback()
-                        log_with_context(
-                            logger,
-                            30,  # WARNING
-                            "Failed to backfill draft word_count metadata for chapter stats fallback (continuing)",
-                            project_id=project_id,
-                            error=str(exc),
-                            error_type=type(exc).__name__,
-                        )
-
-            for draft in draft_files:
-                word_count = draft_word_counts.get(draft.id, 0)
-                target_word_count, completion_target = self._resolve_completion_target(
-                    outline=None,
-                    draft=draft,
-                    min_words_for_complete=min_words_for_complete,
-                )
-                status, chapter_completion_percentage = self._evaluate_chapter_progress(
-                    word_count=word_count,
-                    completion_target=completion_target,
-                )
-                if status == "complete":
-                    completed_chapters += 1
-                elif status == "in_progress":
-                    in_progress_chapters += 1
-
-                chapter_details.append({
-                    "outline_id": draft.id,
-                    "draft_id": draft.id,
-                    "title": draft.title,
-                    "word_count": word_count,
-                    "target_word_count": target_word_count,
-                    "status": status,
-                    "completion_percentage": chapter_completion_percentage,
-                })
-
-            completion_percentage = int((completed_chapters / total_chapters) * 100) if total_chapters > 0 else 0
+        total_chapters = len(chapter_details)
+        completion_percentage = int((completed_chapters / total_chapters) * 100) if total_chapters > 0 else 0
 
         log_with_context(
             logger,

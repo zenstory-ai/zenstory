@@ -12,7 +12,7 @@ from sqlmodel import Session, func, select
 from config.datetime_utils import beijing_date, beijing_day_bounds, utcnow
 from config.feature_flags import is_inspirations_enabled
 from database import get_session
-from models import Inspiration, Project, User
+from models import Inspiration, Project, UpgradeFunnelEvent, User
 from models.points import CheckInRecord
 from models.referral import InviteCode, Referral
 from models.subscription import SubscriptionHistory, SubscriptionPlan, UserSubscription
@@ -44,6 +44,9 @@ CONVERSION_CHANNELS = {
     "admin_update": "admin_update",
 }
 PAID_CONVERSION_CHANNELS = frozenset({"zpay"})
+# Upgrade-entry sources shown when the free daily AI message limit is used up
+# (the chat card and the quota badge's blocked state).
+AI_QUOTA_WALL_SOURCES = ("chat_quota_blocked", "settings_subscription_upgrade:blocked")
 
 
 # ==================== Dashboard Stats ====================
@@ -246,6 +249,33 @@ def get_upgrade_conversion_stats(
     paid_conversions = sum(
         count for channel, count in channel_counts.items() if channel in PAID_CONVERSION_CHANNELS
     )
+
+    # A renewal is not a conversion caused by the wall. Order by the server's
+    # created_at: occurred_at can be supplied by the client.
+    wall_candidate_rows = [record for record in conversion_rows if record.action != "renewed"]
+    converting_user_ids = {record.user_id for record in wall_candidate_rows}
+    first_wall_at: dict[str, object] = {}
+    if converting_user_ids:
+        first_wall_at = dict(
+            session.exec(
+                select(UpgradeFunnelEvent.user_id, func.min(UpgradeFunnelEvent.created_at))
+                .where(
+                    UpgradeFunnelEvent.user_id.in_(converting_user_ids),
+                    UpgradeFunnelEvent.source.in_(AI_QUOTA_WALL_SOURCES),
+                )
+                .group_by(UpgradeFunnelEvent.user_id)
+            ).all()
+        )
+    after_wall_conversions = 0
+    paid_after_wall_conversions = 0
+    for record in wall_candidate_rows:
+        wall_at = first_wall_at.get(record.user_id)
+        if wall_at is None or wall_at > record.created_at:
+            continue
+        after_wall_conversions += 1
+        metadata = record.event_metadata if isinstance(record.event_metadata, dict) else {}
+        if CONVERSION_CHANNELS.get(str(metadata.get("source") or ""), "other") in PAID_CONVERSION_CHANNELS:
+            paid_after_wall_conversions += 1
     channel_stats = sorted(
         [
             {
@@ -291,6 +321,8 @@ def get_upgrade_conversion_stats(
         unattributed_conversions=unattributed_conversions,
         sources=source_stats,
         channels=channel_stats,
+        after_ai_quota_wall_conversions=after_wall_conversions,
+        paid_after_ai_quota_wall_conversions=paid_after_wall_conversions,
     )
 
 

@@ -16,7 +16,7 @@ const defaultMockUser: { id: string; username: string; nickname: string | null; 
 let mockUser = defaultMockUser
 let mockIsMobile = false
 let mockIsTablet = false
-let mockProjects: Array<{ id: string; name: string; description?: string; project_type: 'novel'; updated_at?: string | null }> = []
+let mockProjects: Array<{ id: string; name: string; description?: string; project_type: 'novel' | 'short' | 'screenplay'; updated_at?: string | null }> = []
 let mockProjectsLoading = false
 let mockFeaturedState: {
   featured: Array<{ id: string; name: string; description?: string; project_type: 'novel' }>;
@@ -66,6 +66,7 @@ const {
   mockUseDashboardInspirations,
   mockGetActivationGuide,
   mockGetRecommendations,
+  mockGetProgress,
 } = vi.hoisted(() => ({
   mockDashboardOnboardingFlags: {
     todayActionPlanEnabled: true,
@@ -78,6 +79,7 @@ const {
   mockUseDashboardInspirations: vi.fn(),
   mockGetActivationGuide: vi.fn(),
   mockGetRecommendations: vi.fn(),
+  mockGetProgress: vi.fn(async () => [] as unknown[]),
 }))
 
 const mockNavigate = vi.fn()
@@ -180,6 +182,7 @@ vi.mock('../../components/subscription/UpgradePromptModal', () => ({
 vi.mock('../../lib/api', () => ({
   projectApi: {
     getTemplates: vi.fn().mockResolvedValue(null),
+    getProgress: mockGetProgress,
   },
 }))
 
@@ -209,6 +212,8 @@ vi.mock('../../components/subscription/QuotaBadge', () => ({
 
 import DashboardHome from '../DashboardHome'
 import { projectApi } from '../../lib/api'
+import { subscriptionApi } from '../../lib/subscriptionApi'
+import type { QuotaResponse } from '../../types/subscription'
 import {
   PREFERRED_PROJECT_TYPE_STORAGE_KEY,
   PREFERRED_PROJECT_TYPE_TTL_MS,
@@ -256,6 +261,140 @@ describe('DashboardHome featured inspirations section', () => {
     mockGetRecommendations.mockImplementation(() => Promise.resolve(mockPersonaRecommendations))
     vi.mocked(projectApi.getTemplates).mockResolvedValue(null)
     localStorage.removeItem(PREFERRED_PROJECT_TYPE_STORAGE_KEY)
+    localStorage.removeItem(`zenstory_held_dashboard_idea:${defaultMockUser.id}`)
+    vi.spyOn(subscriptionApi, 'getQuota').mockResolvedValue(quotaWith(2))
+  })
+
+  const quotaWith = (used: number, limit = 10) =>
+    ({
+      ai_conversations: { used, limit, reset_at: '2026-10-09T16:00:00Z' },
+    }) as unknown as QuotaResponse
+
+  it('keeps the idea and explains, instead of creating an empty project, when today\'s AI messages are used up', async () => {
+    vi.mocked(subscriptionApi.getQuota).mockResolvedValue(quotaWith(10))
+    const { unmount } = renderDashboardHome()
+    await waitFor(() => expect(subscriptionApi.getQuota).toHaveBeenCalled())
+
+    const input = screen.getByTestId('dashboard-inspiration-input')
+    fireEvent.change(input, { target: { value: '写一个关于灯塔守夜人的短故事' } })
+    await waitFor(() =>
+      expect(localStorage.getItem(`zenstory_held_dashboard_idea:${defaultMockUser.id}`)).toBe('写一个关于灯塔守夜人的短故事'),
+    )
+    fireEvent.click(screen.getByTestId('create-project-button'))
+
+    expect(await screen.findByTestId('upgrade-modal')).toHaveTextContent('今天的免费 AI 消息用完了')
+    expect(mockCreateProject).not.toHaveBeenCalled()
+    expect(mockNavigate).not.toHaveBeenCalled()
+    expect(input).toHaveValue('写一个关于灯塔守夜人的短故事')
+
+    // A reload brings the idea back.
+    unmount()
+    renderDashboardHome()
+    expect(screen.getByTestId('dashboard-inspiration-input')).toHaveValue('写一个关于灯塔守夜人的短故事')
+  })
+
+  const heldIdeaKey = `zenstory_held_dashboard_idea:${defaultMockUser.id}`
+  /** First-day guide whose next step opens the create dialog (the "checklist" path). */
+  const openCreateDialogFromGuide = async () => {
+    mockActivationGuide = {
+      user_id: 'u-1',
+      window_hours: 24,
+      within_first_day: true,
+      total_steps: 2,
+      completed_steps: 1,
+      completion_rate: 0.5,
+      is_activated: false,
+      next_event_name: 'project_created',
+      next_action: '/dashboard',
+      steps: [
+        { event_name: 'signup_success', label: 'Signup Success', completed: true, completed_at: '2026-03-08T00:00:00Z', action_path: '/dashboard' },
+        { event_name: 'project_created', label: 'Project Created', completed: false, completed_at: null, action_path: '/dashboard' },
+      ],
+    }
+    renderDashboardHome()
+    await waitFor(() => expect(subscriptionApi.getQuota).toHaveBeenCalled())
+    fireEvent.change(screen.getByTestId('dashboard-inspiration-input'), { target: { value: '灯塔守夜人' } })
+    await screen.findByTestId('activation-guide-card')
+    fireEvent.click(screen.getByRole('button', { name: '继续下一步' }))
+    return screen.findByLabelText('作品名（可不填）')
+  }
+
+  it('keeps the idea and explains when the create dialog is confirmed while the day is used up', async () => {
+    vi.mocked(subscriptionApi.getQuota).mockResolvedValue(quotaWith(10))
+    const nameInput = await openCreateDialogFromGuide()
+
+    fireEvent.keyDown(nameInput, { key: 'Enter' })
+
+    expect(await screen.findByTestId('upgrade-modal')).toHaveTextContent('今天的免费 AI 消息用完了')
+    expect(mockCreateProject).not.toHaveBeenCalled()
+    expect(screen.getByTestId('dashboard-inspiration-input')).toHaveValue('灯塔守夜人')
+    expect(localStorage.getItem(heldIdeaKey)).toBe('灯塔守夜人')
+  })
+
+  it('keeps the held idea when the create dialog is cancelled or closed with Escape', async () => {
+    vi.mocked(subscriptionApi.getQuota).mockResolvedValue(quotaWith(10))
+    const nameInput = await openCreateDialogFromGuide()
+
+    fireEvent.keyDown(nameInput, { key: 'Escape' })
+
+    await waitFor(() => expect(screen.queryByLabelText('作品名（可不填）')).not.toBeInTheDocument())
+    expect(screen.getByTestId('dashboard-inspiration-input')).toHaveValue('灯塔守夜人')
+    expect(localStorage.getItem(heldIdeaKey)).toBe('灯塔守夜人')
+  })
+
+  it('saves edits to a restored idea after the reset, so a reload brings back the latest version', async () => {
+    localStorage.setItem(heldIdeaKey, '灯塔守夜人')
+    const { unmount } = renderDashboardHome()
+    await waitFor(() => expect(subscriptionApi.getQuota).toHaveBeenCalled())
+    const input = screen.getByTestId('dashboard-inspiration-input')
+    expect(input).toHaveValue('灯塔守夜人')
+
+    fireEvent.change(input, { target: { value: '灯塔守夜人，第三夜看见了船' } })
+    await waitFor(() => expect(localStorage.getItem(heldIdeaKey)).toBe('灯塔守夜人，第三夜看见了船'))
+
+    unmount()
+    renderDashboardHome()
+    expect(screen.getByTestId('dashboard-inspiration-input')).toHaveValue('灯塔守夜人，第三夜看见了船')
+  })
+
+  it('sends a held idea the next day and then forgets it', async () => {
+    localStorage.setItem(heldIdeaKey, '灯塔守夜人')
+    renderDashboardHome()
+    await waitFor(() => expect(subscriptionApi.getQuota).toHaveBeenCalled())
+    expect(screen.getByTestId('dashboard-inspiration-input')).toHaveValue('灯塔守夜人')
+
+    fireEvent.click(screen.getByTestId('create-project-button'))
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/project/project-created'))
+    expect(JSON.parse(localStorage.getItem('zenstory_inspiration_project-created') ?? '{}').content).toBe('灯塔守夜人')
+    await waitFor(() => expect(localStorage.getItem(heldIdeaKey)).toBeNull())
+  })
+
+  it('still creates a project with no idea while the day is used up (nothing is sent to the AI)', async () => {
+    vi.mocked(subscriptionApi.getQuota).mockResolvedValue(quotaWith(10))
+    renderDashboardHome()
+    await waitFor(() => expect(subscriptionApi.getQuota).toHaveBeenCalled())
+
+    fireEvent.click(screen.getByTestId('create-project-button'))
+
+    await waitFor(() => expect(mockCreateProject).toHaveBeenCalled())
+    expect(screen.queryByTestId('upgrade-modal')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['messages remain', quotaWith(9)],
+    ['Pro has no daily count', quotaWith(999, -1)],
+  ])('creates the project and hands the idea to the chat when %s', async (_label, quota) => {
+    vi.mocked(subscriptionApi.getQuota).mockResolvedValue(quota)
+    renderDashboardHome()
+    await waitFor(() => expect(subscriptionApi.getQuota).toHaveBeenCalled())
+
+    fireEvent.change(screen.getByTestId('dashboard-inspiration-input'), { target: { value: '灯塔守夜人' } })
+    fireEvent.click(screen.getByTestId('create-project-button'))
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/project/project-created'))
+    expect(JSON.parse(localStorage.getItem('zenstory_inspiration_project-created') ?? '{}').content).toBe('灯塔守夜人')
+    expect(localStorage.getItem(`zenstory_held_dashboard_idea:${defaultMockUser.id}`)).toBeNull()
   })
 
   it.each(['desktop', 'tablet', 'mobile'])('anchors recent project metadata to the card bottom on %s', async (viewport) => {
@@ -277,14 +416,39 @@ describe('DashboardHome featured inspirations section', () => {
       const card = await screen.findByRole('button', { name: `Open project ${project.name}` })
       const content = card.querySelector(':scope > .relative')
       const footer = content?.lastElementChild
+      const meta = footer?.lastElementChild
 
       expect(card).toHaveClass('flex', 'flex-col')
       expect(content).toHaveClass('flex', 'flex-1', 'flex-col')
-      expect(footer).toHaveClass('mt-auto', 'flex', 'items-center', 'justify-between')
-      expect(footer?.children).toHaveLength(2)
-      expect(footer?.firstElementChild).toHaveTextContent('长篇小说')
-      expect(footer?.lastElementChild).not.toBeEmptyDOMElement()
+      // One bottom-anchored footer holds the progress line and the type/time row.
+      expect(footer).toHaveClass('mt-auto')
+      expect(footer).toHaveAttribute('data-testid', 'project-card-footer')
+      expect(meta).toHaveClass('flex', 'items-center', 'justify-between')
+      expect(meta?.children).toHaveLength(2)
+      expect(meta?.firstElementChild).toHaveTextContent('长篇小说')
+      expect(meta?.lastElementChild).not.toBeEmptyDOMElement()
     }
+  })
+
+  it('shows how far each project has got, or that its outline is ready to write from', async () => {
+    mockProjects = [
+      { id: 'p-writing', name: 'Writing', description: '', project_type: 'novel', updated_at: '2026-04-07T00:00:00Z' },
+      { id: 'p-outline', name: 'Outline', description: '', project_type: 'novel', updated_at: '2026-04-07T00:00:00Z' },
+      { id: 'p-empty', name: 'Empty', description: '', project_type: 'novel', updated_at: '2026-04-07T00:00:00Z' },
+    ]
+    mockGetProgress.mockResolvedValueOnce([
+      { project_id: 'p-writing', written_units: 12, word_count: 32_480, framework_ready: false },
+      { project_id: 'p-outline', written_units: 0, word_count: 0, framework_ready: true },
+      { project_id: 'p-empty', written_units: 0, word_count: 0, framework_ready: false },
+    ])
+
+    renderDashboardHome()
+
+    const writing = await screen.findByRole('button', { name: 'Open project Writing' })
+    await waitFor(() => expect(within(writing).getByTestId('project-progress')).toHaveTextContent('dashboard:projectProgress.chapters'))
+    expect(within(screen.getByRole('button', { name: 'Open project Outline' })).getByTestId('project-progress'))
+      .toHaveTextContent('dashboard:projectProgress.frameworkReady')
+    expect(within(screen.getByRole('button', { name: 'Open project Empty' })).queryByTestId('project-progress')).toBeNull()
   })
 
   it('retains the baseline templates and reports a template API failure', async () => {
@@ -628,6 +792,34 @@ describe('DashboardHome featured inspirations section', () => {
 
     expect(await screen.findByTestId('upgrade-modal')).toBeInTheDocument()
   })
+  it('keeps 「开始创作」 usable with an empty idea and says so while the project is being created', async () => {
+    let resolveCreate: (value: { id: string }) => void = () => {}
+    mockCreateProject.mockImplementationOnce(
+      () => new Promise<{ id: string }>((resolve) => { resolveCreate = resolve }),
+    )
+
+    renderDashboardHome()
+
+    // An empty idea still creates a blank project, so the button is a real, enabled control.
+    const cta = screen.getByTestId('create-project-button')
+    expect(cta).toBeEnabled()
+    expect(cta).toHaveTextContent('开始创作')
+
+    fireEvent.click(cta)
+
+    await waitFor(() => expect(screen.getByTestId('create-project-button')).toBeDisabled())
+    expect(screen.getByTestId('create-project-button')).toHaveTextContent('正在创建项目…')
+
+    resolveCreate({ id: 'project-created' })
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/project/project-created'))
+  })
+
+  it('announces which project type is selected', () => {
+    renderDashboardHome()
+
+    expect(screen.getByRole('button', { name: '长篇小说' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
   it('greets an author by nickname, then username, before the localized default name', async () => {
     mockUser = { ...defaultMockUser, nickname: '青柠' }
     const { unmount } = renderDashboardHome()
@@ -642,10 +834,10 @@ describe('DashboardHome featured inspirations section', () => {
     expect(zhDashboard.hero.defaultName).toBe('作者')
     expect(enDashboard.hero.defaultName).toBe('writer')
   })
-  it('opens on the project type picked on the landing page and forgets it after creating', async () => {
+  it('opens on the project type picked on the landing page and keeps it after creating', async () => {
     setPreferredProjectType('screenplay')
 
-    renderDashboardHome()
+    const { unmount } = renderDashboardHome()
 
     fireEvent.click(screen.getByTestId('create-project-button'))
 
@@ -653,7 +845,29 @@ describe('DashboardHome featured inspirations section', () => {
       expect(mockCreateProject).toHaveBeenCalledWith(expect.any(String), undefined, 'screenplay')
       expect(mockNavigate).toHaveBeenCalledWith('/project/project-created')
     })
-    expect(getPreferredProjectType()).toBeNull()
+    expect(getPreferredProjectType()).toBe('screenplay')
+    unmount()
+
+    // Coming back to the dashboard: the screenwriter is not switched to 长篇小说.
+    renderDashboardHome()
+    fireEvent.click(screen.getByTestId('create-project-button'))
+    await waitFor(() => {
+      expect(mockCreateProject).toHaveBeenLastCalledWith(expect.any(String), undefined, 'screenplay')
+    })
+  })
+
+  it('without a stored preference opens on the type of the most recently active project', async () => {
+    mockProjects = [
+      { id: 'old-novel', name: '旧长篇', project_type: 'novel', updated_at: '2026-10-01T08:00:00Z' },
+      { id: 'new-short', name: '订婚宴前夜', project_type: 'short', updated_at: '2026-10-09T08:00:00Z' },
+    ]
+
+    renderDashboardHome()
+    fireEvent.click(screen.getByTestId('create-project-button'))
+
+    await waitFor(() => {
+      expect(mockCreateProject).toHaveBeenLastCalledWith(expect.any(String), undefined, 'short')
+    })
   })
 
   it('keeps the preferred type when project creation fails', async () => {

@@ -4,6 +4,7 @@ import { CheckCircle2, Circle, Loader2, BookOpen } from 'lucide-react';
 import type { ProjectDashboardStatsResponse, ChapterDetailItem } from '../../types/writingStats';
 import { Card } from '../ui/Card';
 import { IconWrapper } from '../ui/IconWrapper';
+import { statsUnitKey } from './statsUnits';
 
 interface ChapterCompletionCardProps {
   /** Dashboard statistics data */
@@ -113,12 +114,12 @@ export function ChapterCompletionCard({
         <div className="flex items-center gap-2 mb-4">
           <BookOpen className="w-5 h-5 text-[hsl(var(--text-secondary))]" />
           <h3 className="text-base font-semibold text-[hsl(var(--text-primary))]">
-            {t('statistics.chapterCompletion.title')}
+            {t(statsUnitKey(stats, 'completionTitle'))}
           </h3>
         </div>
         <div className="flex flex-col items-center justify-center py-8 text-[hsl(var(--text-secondary))]">
           <BookOpen className="w-10 h-10 mb-2 opacity-50" />
-          <p className="text-sm">{t('statistics.chapterCompletion.noChapters')}</p>
+          <p className="text-sm">{t(statsUnitKey(stats, 'noChapters'))}</p>
         </div>
       </Card>
     );
@@ -133,11 +134,11 @@ export function ChapterCompletionCard({
             <BookOpen className="w-4 h-4" />
           </IconWrapper>
           <h3 className="text-base font-semibold text-[hsl(var(--text-primary))]">
-            {t('statistics.chapterCompletion.title')}
+            {t(statsUnitKey(stats, 'completionTitle'))}
           </h3>
         </div>
         <div className="text-sm text-[hsl(var(--text-secondary))]">
-          {t('statistics.chapterCompletion.total', { count: completionData.total_chapters })}
+          {t(statsUnitKey(stats, 'total'), { count: completionData.total_chapters })}
         </div>
       </div>
 
@@ -161,15 +162,15 @@ export function ChapterCompletionCard({
         <div className="flex items-center gap-4 mt-3 text-xs text-[hsl(var(--text-secondary))]">
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span>{completionData.completed_chapters} {t('statistics.chapterCompletion.finished')}</span>
+            <span>{t(statsUnitKey(stats, 'countFinished'), { count: completionData.completed_chapters })}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-amber-500" />
-            <span>{completionData.in_progress_chapters} {t('statistics.chapterCompletion.inProgress')}</span>
+            <span>{t(statsUnitKey(stats, 'countInProgress'), { count: completionData.in_progress_chapters })}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-[hsl(var(--text-secondary)/0.4)]" />
-            <span>{completionData.not_started_chapters} {t('statistics.chapterCompletion.planned')}</span>
+            <span>{t(statsUnitKey(stats, 'countPlanned'), { count: completionData.not_started_chapters })}</span>
           </div>
         </div>
       </div>
@@ -187,7 +188,12 @@ export function ChapterCompletionCard({
                 className="flex items-center gap-3 p-2.5 rounded-lg bg-[hsl(var(--bg-tertiary)/0.5)] hover:bg-[hsl(var(--bg-tertiary))] transition-colors group"
               >
                 {/* Status Icon */}
-                <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${statusDisplay.bgClass}`}>
+                <div
+                  role="img"
+                  aria-label={statusDisplay.label}
+                  title={statusDisplay.label}
+                  className={`flex h-7 w-7 items-center justify-center rounded-lg ${statusDisplay.bgClass}`}
+                >
                   <StatusIcon
                     className={`w-3.5 h-3.5 ${statusDisplay.colorClass} ${
                       chapter.status === 'in_progress' ? 'animate-spin' : ''
@@ -230,7 +236,7 @@ export function ChapterCompletionCard({
           {/* Show more indicator */}
           {remainingCount > 0 && (
             <div className="text-center py-2 text-xs text-[hsl(var(--text-secondary))]">
-              +{remainingCount} {t('statistics.chapterCompletion.total', { count: remainingCount }).replace(/[\d]+\s*/, '')}
+              {t(statsUnitKey(stats, 'more'), { count: remainingCount })}
             </div>
           )}
         </div>

@@ -2,7 +2,7 @@
 // the Beijing calendar day promised by the product.
 process.env.TZ = "UTC";
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
@@ -67,9 +67,22 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
+const media = vi.hoisted(() => ({ isMobile: false }));
+const mockGetPaymentOptions = vi.fn();
+
 vi.mock("../../hooks/useMediaQuery", () => ({
-  useIsMobile: () => false,
+  useIsMobile: () => media.isMobile,
   useIsTablet: () => false,
+}));
+
+vi.mock("../../lib/paymentApi", () => ({
+  paymentApi: { getOptions: () => mockGetPaymentOptions() },
+  paymentQueryKeys: { options: () => ["payment-options"] },
+}));
+
+vi.mock("../../components/subscription/RedeemCodeModal", () => ({
+  RedeemCodeModal: ({ isOpen, source }: { isOpen: boolean; source?: string }) =>
+    isOpen ? <div data-testid="redeem-modal">{source}</div> : null,
 }));
 
 vi.mock("../../lib/materialsApi", () => ({
@@ -136,6 +149,8 @@ function createWrapper() {
 describe("MaterialsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    media.isMobile = false;
+    mockGetPaymentOptions.mockResolvedValue({ enabled: true, payment_methods: [] });
     mockList.mockResolvedValue([]);
     mockGetCatalog.mockResolvedValue({ tiers: [] });
     mockUpload.mockResolvedValue({
@@ -196,11 +211,241 @@ describe("MaterialsPage", () => {
     // Default decomposition does not produce plotlines; the paywall must not sell them.
     expect(document.body.textContent).not.toContain("剧情线");
 
-    const teaserSecondaryButton = screen.getByRole("button", {
-      name: "查看套餐对比",
+    expect(screen.getByRole("button", { name: "查看套餐对比" })).toBeInTheDocument();
+  });
+
+  const freeStatus = {
+    tier: "free",
+    status: "none",
+    display_name: "免费版",
+    days_remaining: null,
+    current_period_end: null,
+    features: { materials_library_access: false },
+  };
+  const freeQuota = (trial: { available: boolean; used: boolean; max_chapters: number }) => ({
+    ai_conversations: { used: 0, limit: 10, reset_at: null },
+    projects: { used: 0, limit: 3, reset_at: null },
+    material_uploads: { used: 0, limit: 0, reset_at: null },
+    material_decompositions: { used: 0, limit: 0, reset_at: null },
+    skill_creates: { used: 0, limit: 3, reset_at: null },
+    inspiration_copies: { used: 0, limit: 10, reset_at: null },
+    material_trial: trial,
+  });
+
+  it("waits for the trial state instead of flashing the Pro teaser first", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    let resolveQuota: (value: unknown) => void = () => {};
+    mockGetQuota.mockReturnValue(new Promise((resolve) => { resolveQuota = resolve; }));
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    await waitFor(() => expect(mockGetStatus).toHaveBeenCalled());
+    // Let the plan answer render; the quota (with the trial state) is still in flight.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
     });
-    expect(teaserSecondaryButton.className).toContain("text-[hsl(var(--accent-primary))]");
-    expect(teaserSecondaryButton.className).not.toContain("btn-secondary");
+    expect(screen.queryByText("上传参考小说，一键拆出章节梗概、角色和世界观")).not.toBeInTheDocument();
+    expect(trackEventMock).not.toHaveBeenCalledWith("materials_teaser_exposed", expect.anything());
+
+    await act(async () => {
+      resolveQuota(freeQuota({ available: true, used: false, max_chapters: 20 }));
+    });
+    expect(await screen.findByTestId("materials-trial-start")).toBeInTheDocument();
+  });
+
+  it("offers a free author one trial breakdown and explains its limits before upload", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: true, used: false, max_chapters: 20 }));
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    fireEvent.click(await screen.findByTestId("materials-trial-start"));
+    expect(await screen.findByTestId("materials-trial-upload-note")).toBeInTheDocument();
+    expect(mockList).not.toHaveBeenCalled();
+  });
+
+  it("keeps one solid call to action when the trial is offered: the header Pro entry steps back", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: true, used: false, max_chapters: 20 }));
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    const trial = await screen.findByTestId("materials-trial-start");
+    const headerUpgrade = screen.getByTestId("materials-header-upgrade");
+    expect(headerUpgrade).toHaveTextContent("开通 Pro");
+
+    const solid = screen
+      .getAllByRole("button")
+      .filter((button) => button.className.includes("bg-[hsl(var(--accent-primary))]"));
+    expect(solid).toEqual([trial]);
+  });
+
+  it("shows a free author their trial book with a note that only the first chapters were broken down", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: false, used: true, max_chapters: 20 }));
+    mockList.mockResolvedValue([
+      { id: "n1", title: "参考书", status: "completed", chapters_count: 20, created_at: "2026-10-09T00:00:00Z" },
+    ]);
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    expect(await screen.findByTestId("materials-trial-banner")).toBeInTheDocument();
+    expect(await screen.findByText("参考书")).toBeInTheDocument();
+    expect(screen.queryByTestId("materials-trial-start")).not.toBeInTheDocument();
+  });
+
+  it("tells the author on the card how much of a long book the trial covered", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: false, used: true, max_chapters: 20 }));
+    mockList.mockResolvedValue([
+      {
+        id: "n1",
+        title: "参考书",
+        status: "completed",
+        chapters_count: 20,
+        trial_chapter_limit: 20,
+        source_chapter_count: 150,
+        created_at: "2026-10-09T00:00:00Z",
+      },
+    ]);
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    expect(await screen.findByTestId("materials-trial-book-note")).toHaveTextContent(
+      "免费试拆：全书 150 章，只拆了前 20 章",
+    );
+    expect(screen.getByTestId("materials-trial-banner")).not.toHaveTextContent("这本书");
+  });
+
+  it("does not invite an upload when the trial is used and the library is empty", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: false, used: true, max_chapters: 20 }));
+    mockList.mockResolvedValue([]);
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    const emptyState = await screen.findByTestId("materials-trial-used-empty");
+    expect(emptyState).toHaveTextContent("免费试拆已经用过了");
+    // The shared dashboard empty state (same frame and type as every other empty library).
+    expect(within(emptyState).getByRole("heading", { level: 3, name: "免费试拆已经用过了" })).toBeInTheDocument();
+    expect(screen.queryByText("materials:uploadFirst")).not.toBeInTheDocument();
+    const upgrade = within(emptyState).getByRole("button", { name: "开通 Pro" });
+    // The shared page-action button: solid primary, 40px on desktop.
+    expect(upgrade.className).toContain("bg-[hsl(var(--accent-primary))]");
+    expect(upgrade.className).toContain("min-h-[40px]");
+    fireEvent.click(upgrade);
+    expect(trackEventMock).toHaveBeenCalledWith("materials_upgrade_clicked", {
+      source: "materials_trial_used",
+      destination: "billing",
+    });
+  });
+
+  it("gives the trial-used empty state a 44px Pro button on phones", async () => {
+    media.isMobile = true;
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: false, used: true, max_chapters: 20 }));
+    mockList.mockResolvedValue([]);
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    const emptyState = await screen.findByTestId("materials-trial-used-empty");
+    expect(within(emptyState).getByRole("button", { name: "开通 Pro" }).className).toContain("min-h-[44px]");
+  });
+
+  it("while online checkout is off, offers the redeem code on the page and says why", async () => {
+    mockGetPaymentOptions.mockResolvedValue({ enabled: false, payment_methods: [] });
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: false, used: true, max_chapters: 20 }));
+    mockList.mockResolvedValue([]);
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    expect(await screen.findByTestId("materials-checkout-unavailable")).toHaveTextContent(
+      "暂时不能在线付款。有兑换码的话，点「兑换码开通」就能开通 Pro。",
+    );
+    expect(screen.getByTestId("materials-header-upgrade")).toHaveTextContent("兑换码开通");
+    const emptyState = screen.getByTestId("materials-trial-used-empty");
+    expect(within(emptyState).queryByRole("button", { name: "开通 Pro" })).not.toBeInTheDocument();
+
+    fireEvent.click(within(emptyState).getByRole("button", { name: "兑换码开通" }));
+
+    expect(screen.getByTestId("redeem-modal")).toHaveTextContent("materials_trial_used");
+    expect(trackEventMock).toHaveBeenCalledWith("materials_upgrade_clicked", {
+      source: "materials_trial_used",
+      destination: "redeem",
+    });
+    expect(trackEventMock).not.toHaveBeenCalledWith(
+      "materials_upgrade_clicked",
+      expect.objectContaining({ destination: "billing" }),
+    );
+  });
+
+  it("keeps 开通 Pro and no checkout notice when the payment options cannot be read", async () => {
+    mockGetPaymentOptions.mockRejectedValue(new Error("network"));
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: false, used: true, max_chapters: 20 }));
+    mockList.mockResolvedValue([]);
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    const emptyState = await screen.findByTestId("materials-trial-used-empty");
+    await waitFor(() => expect(mockGetPaymentOptions).toHaveBeenCalled());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(within(emptyState).getByRole("button", { name: "开通 Pro" })).toBeInTheDocument();
+    expect(screen.queryByTestId("materials-checkout-unavailable")).not.toBeInTheDocument();
+  });
+
+  it("does not ask the payment options of an author who already has the library", async () => {
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    await screen.findByText("materials:noMaterials");
+    expect(mockGetPaymentOptions).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("materials-checkout-unavailable")).not.toBeInTheDocument();
+  });
+
+  const trialBook = (chapters: number) =>
+    Array.from(
+      { length: chapters },
+      (_, index) => `第${index + 1}章 雾港\n${"雾港的灯一盏盏亮起来，他把旧信折好放回怀里。".repeat(10)}`,
+    ).join("\n");
+
+  it("tells the author before upload which chapters of the picked book the trial breaks down", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: true, used: false, max_chapters: 20 }));
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+    fireEvent.click(await screen.findByTestId("materials-trial-start"));
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const picked = new File([trialBook(25)], "雾港旧事.txt", { type: "text/plain" });
+    fireEvent.change(fileInput, { target: { files: [picked] } });
+
+    expect(await screen.findByTestId("materials-trial-selection-note")).toHaveTextContent(
+      "这本书共 25 章，免费试拆只拆前 20 章，后 5 章不拆。",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "materials:uploadModal.upload" }));
+    await waitFor(() => expect(mockUpload).toHaveBeenCalled());
+    // The whole book goes up: the server cuts it and remembers it had 25 chapters
+    // (for the card note), and a just-upgraded author still gets the whole book.
+    expect(mockUpload.mock.calls[0][0]).toBe(picked);
+  });
+
+  it("says the trial was not used when a trial upload fails on the platform side", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: true, used: false, max_chapters: 20 }));
+    mockUpload.mockRejectedValueOnce(new ApiError(503, "ERR_SERVICE_UNAVAILABLE"));
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+    fireEvent.click(await screen.findByTestId("materials-trial-start"));
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(fileInput, {
+      target: { files: [new File([trialBook(3)], "short.txt", { type: "text/plain" })] },
+    });
+    await screen.findByText("short.txt");
+    fireEvent.click(screen.getByRole("button", { name: "materials:uploadModal.upload" }));
+
+    expect(await screen.findByText(/这次没有用掉免费试拆机会。/)).toBeInTheDocument();
   });
 
   it("states the Pro breakdown limit from the plan catalog instead of a constant", async () => {
@@ -423,7 +668,7 @@ describe("MaterialsPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("materials:uploadModal.errors.tooManyCharacters")
+        screen.getByText("materials:uploadModal.errors.tooManyCharactersCounted")
       ).toBeInTheDocument();
     });
 

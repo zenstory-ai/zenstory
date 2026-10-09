@@ -95,7 +95,9 @@
       "admin_update": "管理员开通",
       "other": "其他"
     },
-    "upgradeEntryEvents": "升级入口事件"
+    "upgradeEntryEvents": "升级入口事件",
+    "upgradeAfterAiQuotaWall": "撞过每日 AI 上限后转化",
+    "upgradeAfterAiQuotaWallPaid": "其中付费 {{count}}"
   },
   "users": {
     "title": "用户管理",

@@ -51,6 +51,8 @@ import {
   versionApi,
   fileVersionApi,
   exportApi,
+  exportFilenameIncludesOutline,
+  exportFilenameHasNoOutlineYet,
   skillsApi,
   publicSkillsApi,
 } from '../api'
@@ -791,10 +793,27 @@ describe('api', () => {
         global.URL.createObjectURL = vi.fn(() => mockUrl)
         global.URL.revokeObjectURL = vi.fn()
 
-        await exportApi.exportDrafts('project-1')
+        await expect(exportApi.exportDrafts('project-1')).resolves.toEqual({
+          filename: 'drafts.txt',
+          includesOutline: false,
+          noOutlineYet: false,
+        })
 
         expect(mockLink.click).toHaveBeenCalled()
         expect(mockLink.download).toBe('drafts.txt')
+      })
+
+      it('reads from the file name whether the outline was really included', () => {
+        expect(exportFilenameIncludesOutline('晚风_大纲和正文.txt')).toBe(true)
+        // An API from before include_outline answers with the text-only name.
+        expect(exportFilenameIncludesOutline('晚风_正文.txt')).toBe(false)
+        expect(exportFilenameIncludesOutline('大纲和正文_正文.txt')).toBe(false)
+        expect(exportFilenameIncludesOutline(null)).toBeNull()
+        // Asked for the outline, but the work has none written yet.
+        expect(exportFilenameIncludesOutline('晚风_正文（暂无大纲）.txt')).toBe(false)
+        expect(exportFilenameHasNoOutlineYet('晚风_正文（暂无大纲）.txt')).toBe(true)
+        expect(exportFilenameHasNoOutlineYet('晚风_正文.txt')).toBe(false)
+        expect(exportFilenameHasNoOutlineYet(null)).toBe(false)
       })
 
       it('throws ApiError when no drafts', async () => {
@@ -805,6 +824,21 @@ describe('api', () => {
         })
 
         await expect(exportApi.exportDrafts('project-1')).rejects.toThrow(ApiError)
+      })
+
+      it('asks for the outline only when the author chose it', async () => {
+        const fetchMock = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 404,
+          json: async () => ({ detail: 'ERR_EXPORT_NO_DRAFTS' }),
+        })
+        global.fetch = fetchMock
+
+        await expect(exportApi.exportDrafts('project-1', { includeOutline: true })).rejects.toThrow(ApiError)
+        await expect(exportApi.exportDrafts('project-1')).rejects.toThrow(ApiError)
+
+        expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/projects\/project-1\/export\/drafts\?include_outline=true$/)
+        expect(String(fetchMock.mock.calls[1][0])).toMatch(/\/projects\/project-1\/export\/drafts$/)
       })
     })
   })

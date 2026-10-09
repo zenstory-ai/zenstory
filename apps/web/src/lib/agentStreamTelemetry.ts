@@ -13,6 +13,8 @@ export interface AgentStreamTelemetry {
   /** Count one tool call announced by the stream. */
   noteToolCall(): void;
   completed(): void;
+  /** The author pressed stop and the server ended the run on this stream. */
+  stopped(): void;
   failed(code: string | undefined, retryable: boolean | undefined): void;
   cancelled(): void;
 }
@@ -67,6 +69,7 @@ export function createAgentStreamTelemetry(
     noteToolCall() {
       toolCallCount += 1;
     },
+
     completed() {
       if (!settle()) return;
       trackEvent("ai_chat_completed", baseProperties());
@@ -88,6 +91,10 @@ export function createAgentStreamTelemetry(
           ...properties,
         });
       }
+    },
+    stopped() {
+      if (!settle()) return;
+      trackEvent("ai_chat_stopped", baseProperties());
     },
     cancelled() {
       if (!settle()) return;

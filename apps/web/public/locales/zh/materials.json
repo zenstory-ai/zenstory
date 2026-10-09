@@ -9,6 +9,7 @@
   "teaserFeatureOne": "拆出章节梗概、角色、世界观和金手指",
   "teaserFeatureTwo": "把角色和设定添加到项目，或引用到 AI 对话",
   "teaserFeatureThree": "次数用完后，已拆好的内容仍可查看和引用",
+  "teaserFreeTry": "免费版也可以先试：在作品的对话里贴一章参考正文，让 AI 拆人物、节奏和爽点。素材库会把整本自动拆好，写作时随时引用。",
   "teaserCardCharacter": "角色拆解示例",
   "teaserCardCharacterBody": "林舟 · 导师型配角 · 首次出场第 3 章",
   "teaserCardSynopsis": "章节梗概示例",
@@ -17,7 +18,7 @@
   "teaserCardWorldviewBody": "灵脉阶层、宗门辖区、禁术代价",
   "quotaRemaining": "本月还可拆解 {{remaining}} / {{limit}} 次，每次上传或重试用 1 次",
   "quotaExhausted": "本月 {{limit}} 次拆解已用完，将于 {{resetAt}} 恢复。已拆好的内容仍可查看和引用。",
-  "quotaResetFallback": "下月",
+  "quotaResetFallback": "下月 1 日",
   "paidSubtitle": "上传参考小说，拆出角色、世界观和章节梗概，写作时随时引用",
   "teaserSubtitle": "素材库是 Pro 功能：把参考小说拆成章节梗概、角色和设定，写作时随时引用。",
   "statusLoadError": "没能确认你的 Pro 状态，请重试。",
@@ -41,6 +42,7 @@
     "selectFile": "选择文件",
     "clickToSelect": "点击选择文件",
     "supportedFormats": "仅支持 .txt，不超过 20MB、30 万字，需要有章节标题（如“第一章”“第一回”）",
+    "trialSupportedFormats": "仅支持 .txt，不超过 20MB，需要有章节标题（如“第一章”“第一回”）；前 {{chapters}} 章合计不超过 30 万字",
     "titleLabel": "小说标题",
     "titlePlaceholder": "留空则使用文件名",
     "uploading": "上传中...",
@@ -48,7 +50,10 @@
     "errors": {
       "invalidType": "仅支持上传 .txt 文件",
       "tooLarge": "文件超过 20MB，请拆分后再上传",
-      "tooManyCharacters": "字数超过 30 万，请拆分后再上传"
+      "trialTooLarge": "文件超过 20MB。免费试拆只拆前 {{chapters}} 章，可以只保留前 {{chapters}} 章再上传",
+      "tooManyCharacters": "字数超过 30 万，请拆分后再上传",
+      "tooManyCharactersCounted": "这本书约 {{wan}} 万字，超过 30 万字上限，请拆分后再上传",
+      "trialTooManyCharacters": "这本书前 {{chapters}} 章就有约 {{wan}} 万字，超过 30 万字上限，请删减后再上传"
     }
   },
   "deleteConfirm": {
@@ -107,7 +112,9 @@
     "uploadDescriptionNoLimit": "免费版不含素材库，开通 Pro 后即可使用。",
     "decomposeTitle": "本月拆解次数已用完",
     "upgradePrimary": "开通 Pro",
-    "upgradeSecondary": "查看套餐对比"
+    "upgradeSecondary": "查看套餐对比",
+    "redeemPrimary": "兑换码开通",
+    "checkoutUnavailable": "暂时不能在线付款。有兑换码的话，点「兑换码开通」就能开通 Pro。"
   },
   "retrySuccess": "已重新开始拆解",
   "toast": {
@@ -174,5 +181,14 @@
       "other": "其他"
     },
     "other": "其他"
-  }
+  },
+  "trialStart": "免费试拆一本（前 {{chapters}} 章）",
+  "trialUploadNote": "免费试拆：整本上传即可，只拆这本书的前 {{chapters}} 章，每个账号一次。平台出错没拆成会退还这次机会。",
+  "trialUsedBanner": "你已经用过免费试拆（只拆前 {{chapters}} 章）。开通 Pro 后，每月可以拆解更多参考小说，每本最多 30 万字。",
+  "trialSelectionCut": "这本书共 {{total}} 章，免费试拆只拆前 {{chapters}} 章，后 {{rest}} 章不拆。",
+  "trialSelectionAll": "这本书共 {{total}} 章，会全部拆解。",
+  "trialNotUsed": "这次没有用掉免费试拆机会。",
+  "trialBookNote": "免费试拆：全书 {{total}} 章，只拆了前 {{chapters}} 章",
+  "trialUsedEmptyTitle": "免费试拆已经用过了",
+  "trialUsedEmptyBody": "开通 Pro 后，每月可以拆解参考小说，每本最多 30 万字；拆出的角色、设定和章节梗概写作时随时引用。"
 }

@@ -92,13 +92,16 @@ vi.mock('@tanstack/react-query', () => ({
 vi.mock('../../components/dashboard/DashboardPageHeader', () => ({
   DashboardPageHeader: ({
     title,
+    subtitle,
     action,
   }: {
     title: string
+    subtitle?: string
     action: React.ReactNode
   }) => (
     <div>
       <h1>{title}</h1>
+      {subtitle && <p>{subtitle}</p>}
       {action}
     </div>
   ),
@@ -262,6 +265,41 @@ describe('BillingPage', () => {
     expect(screen.getByText('¥19/month, or ¥190/year (≈¥15.83/month, save 17%)')).toBeInTheDocument()
   })
 
+  it('keeps online checkout as the main action when it is available', () => {
+    render(<BillingPage />)
+    expect(screen.getByRole('button', { name: 'Buy Pro Online' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Redeem Code' })).toBeInTheDocument()
+    expect(screen.queryByTestId('billing-checkout-unavailable')).not.toBeInTheDocument()
+    expect(screen.getByText('Manage plans')).toBeInTheDocument()
+  })
+
+  it('does not tell a Pro author to upgrade in the page subtitle', () => {
+    statusResponse = {
+      ...statusResponse,
+      data: { tier: 'pro', display_name: 'Pro', display_name_en: 'Pro', status: 'active' },
+    }
+    render(<BillingPage />)
+    expect(screen.getByText('查看当前套餐和用量，到期前可以续费 Pro 或使用兑换码。')).toBeInTheDocument()
+    expect(screen.queryByText('Manage plans')).not.toBeInTheDocument()
+  })
+
+  it('shows a used-up allowance in the error colour, like the header badge, and a near-full one as a warning', () => {
+    quotaResponse = {
+      ...quotaResponse,
+      data: {
+        ...(quotaResponse.data as Record<string, unknown>),
+        ai_conversations: { used: 10, limit: 10 },
+        inspiration_copies: { used: 4, limit: 5 },
+      },
+    }
+    render(<BillingPage />)
+
+    expect(screen.getByTestId('billing-usage-ai_conversations').className).toContain('text-[hsl(var(--error))]')
+    expect(screen.getByTestId('billing-usage-bar-ai_conversations').className).toContain('bg-[hsl(var(--error))]')
+    expect(screen.getByTestId('billing-usage-inspiration_copies').className).toContain('text-[hsl(var(--warning))]')
+    expect(screen.getByTestId('billing-usage-bar-inspiration_copies').className).toContain('bg-[hsl(var(--warning))]')
+  })
+
   it('tells Pro users there is no daily limit instead of a reset time', () => {
     statusResponse = {
       ...statusResponse,
@@ -308,6 +346,8 @@ describe('BillingPage', () => {
   })
 
   it('opens checkout as a renewal for Pro users', () => {
+    // Opened from the header, not from an attributed link.
+    currentSearch = ''
     statusResponse = {
       ...statusResponse,
       data: { tier: 'pro', display_name: 'Pro', display_name_en: 'Pro', status: 'active' },
@@ -316,6 +356,9 @@ describe('BillingPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Renew Pro' }))
     expect(screen.getByText('Payment modal')).toHaveAttribute('data-renewal', 'true')
+    // Renewals are attributed apart from upgrades.
+    expect(screen.getByText('Payment modal')).toHaveAttribute('data-source', 'billing_header_renew')
+    expect(trackUpgradeClick).toHaveBeenCalledWith('billing_header_renew', 'direct', 'checkout', 'page')
   })
 
   it('shows the free daily message limit and Beijing midnight reset beside usage', () => {
@@ -431,13 +474,18 @@ describe('BillingPage', () => {
       }
     })
 
-    it('falls back to redeem-code activation without a contact channel', async () => {
+    it('says online payment is off and offers the redeem code itself, not a "开通 Pro" that only opens it', async () => {
       render(<BillingPage />)
 
       expect(screen.queryByRole('button', { name: 'Buy Pro Online' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Upgrade Pro' })).not.toBeInTheDocument()
       expect(screen.queryByText(/微信|WeChat|AIchuangzuo/)).not.toBeInTheDocument()
+      expect(screen.getByTestId('billing-checkout-unavailable')).toHaveTextContent(
+        '暂时不能在线付款。有兑换码的话，点「兑换码」就能开通 Pro。',
+      )
+      expect(screen.getByText('查看当前套餐和用量，需要更多额度时可以用兑换码开通 Pro。')).toBeInTheDocument()
 
-      fireEvent.click(screen.getByRole('button', { name: 'Upgrade Pro' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Redeem Code' }))
       expect(trackUpgradeClick).toHaveBeenCalledWith('chat_quota_blocked', 'direct', 'redeem', 'page')
       expect(await screen.findByText('Redeem modal')).toBeInTheDocument()
       expect(screen.queryByText('Payment modal')).not.toBeInTheDocument()
@@ -459,6 +507,32 @@ describe('BillingPage', () => {
       expect(screen.queryByRole('button', { name: 'Renew Pro' })).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'Upgrade Pro' })).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Redeem Code' })).toBeInTheDocument()
+      expect(screen.queryByTestId('billing-checkout-unavailable')).not.toBeInTheDocument()
+      expect(screen.getByText('查看当前套餐和用量，到期前可以用兑换码续期。')).toBeInTheDocument()
+    })
+  })
+
+  describe('when the payment options request failed', () => {
+    beforeEach(() => {
+      // Production has checkout on: a failed request says nothing about it being off.
+      paymentOptionsResponse = { data: undefined, isLoading: false, isError: true }
+    })
+
+    it('keeps 开通 Pro and does not say online payment is unavailable', () => {
+      render(<BillingPage />)
+      expect(screen.getByRole('button', { name: 'Buy Pro Online' })).toBeInTheDocument()
+      expect(screen.queryByTestId('billing-checkout-unavailable')).not.toBeInTheDocument()
+      expect(screen.queryByText('查看当前套餐和用量，需要更多额度时可以用兑换码开通 Pro。')).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Buy Pro Online' }))
+      expect(screen.getByText('Payment modal')).toBeInTheDocument()
+    })
+
+    it('opens checkout, not the redeem dialog, for a selected Pro plan', () => {
+      currentSearch = 'plan=pro'
+      render(<BillingPage />)
+      expect(screen.getByText('Payment modal')).toBeInTheDocument()
+      expect(screen.queryByText('Redeem modal')).not.toBeInTheDocument()
     })
   })
 

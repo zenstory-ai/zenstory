@@ -17,7 +17,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { History, Settings, Menu, X, Download, Bug, CreditCard, BarChart3, BookOpen } from "lucide-react";
+import { History, Settings, Menu, X, Download, Bug, CreditCard, BarChart3, BookOpen, FileText } from "lucide-react";
 import { Logo, LogoMark } from "./Logo";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
@@ -118,11 +118,26 @@ export const Header: React.FC<HeaderProps> = () => {
     }
   };
 
-  const handleExport = async (closeMobileMenu = false) => {
+  const handleExport = async (closeMobileMenu = false, includeOutline = false) => {
     if (!currentProjectId) return;
     try {
-      await exportDrafts();
-      toast.success(t('editor:header.exportSuccess', '正文已导出为 TXT 文件'));
+      if (includeOutline) {
+        const result = await exportDrafts({ includeOutline: true });
+        // Only promise the outline when the file name says it is in there: an API
+        // deployed before include_outline ignores it and sends the text only.
+        if (result?.includesOutline === true) {
+          toast.success(t('editor:header.exportWithOutlineSuccess', '大纲和正文已导出为 TXT 文件'));
+        } else if (result?.noOutlineYet) {
+          toast.info(t('editor:header.exportNoOutlineYet', '这部作品还没有写好的大纲，这次导出了正文'));
+        } else if (result?.includesOutline === false) {
+          toast.info(t('editor:header.exportOutlineSkipped', '这次只导出了正文，大纲没能一起导出，请过几分钟再试'));
+        } else {
+          toast.success(t('editor:header.exportDone', '已导出为 TXT 文件'));
+        }
+      } else {
+        await exportDrafts();
+        toast.success(t('editor:header.exportSuccess', '正文已导出为 TXT 文件'));
+      }
       if (closeMobileMenu) {
         setShowMobileMenu(false);
       }
@@ -155,6 +170,15 @@ export const Header: React.FC<HeaderProps> = () => {
           icon: BarChart3,
           label: t('editor:header.projectDashboard'),
           onClick: () => handleOpenProjectDashboard(),
+        }]
+      : []),
+    ...(currentProjectId
+      ? [{
+          icon: FileText,
+          label: t('editor:header.exportWithOutline'),
+          onClick: () => {
+            void handleExport(false, true);
+          },
         }]
       : []),
     {
@@ -336,6 +360,19 @@ export const Header: React.FC<HeaderProps> = () => {
               >
                 <Download size={18} />
                 {t('editor:header.export')}
+              </button>
+            )}
+            {currentProjectId && (
+              <button
+                type="button"
+                onClick={() => {
+                  void handleExport(true, true);
+                }}
+                className="flex min-h-[44px] items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-primary))] transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
+                role="menuitem"
+              >
+                <FileText size={18} />
+                {t('editor:header.exportWithOutline')}
               </button>
             )}
             {currentProjectId && (

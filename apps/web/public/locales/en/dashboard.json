@@ -42,6 +42,10 @@
   "billing": {
     "title": "Plans & Benefits",
     "subtitle": "See your plan and usage. Upgrade or use a redeem code when you need more.",
+    "subtitleRedeemOnly": "See your plan and usage. Use a redeem code to get Pro when you need more.",
+    "subtitlePaid": "See your plan and usage. Renew Pro or use a redeem code before it ends.",
+    "subtitlePaidRedeemOnly": "See your plan and usage. Use a redeem code to extend Pro before it ends.",
+    "subtitleNeutral": "See your plan and usage.",
     "currentPlan": "Current Plan",
     "unknownPlan": "Not subscribed",
     "unlockPro": "Unlock Pro",
@@ -102,6 +106,7 @@
     "paymentNoAutoRenew": "One-time payment, no auto-renewal. Renew early and the time is added after your current end date.",
     "paymentUnavailable": "Online payment isn't available right now. Have a redeem code? Open Plans & Benefits and use \"Redeem Code\".",
     "paymentUnavailableOnPage": "Online payment isn't available right now. Have a redeem code? Use \"Redeem Code\" on this page.",
+    "checkoutUnavailableNotice": "Online payment isn't available right now. Have a redeem code? Use \"Redeem Code\" to get Pro.",
     "paymentUnavailableOpenBilling": "Go to Plans & Benefits",
     "paymentInvalidCheckout": "Could not open Alipay. Refresh the page and try again.",
     "paymentCreateFailed": "Could not create the order right now. Please try again later.",
@@ -141,7 +146,9 @@
     "goToPayAmount": "Pay {{price}}",
     "paymentActivatedUntil": "Active until {{date}}. Time to write.",
     "paymentUnlockedTitle": "Unlocked",
-    "startWriting": "Start writing"
+    "startWriting": "Start writing",
+    "paidLimitReached": "You have used all of this allowance on your current plan.",
+    "gotIt": "Got it"
   },
   "todayActionPlan": {
     "title": "Things you can do today",
@@ -284,6 +291,10 @@
       "screenplay": "Write a 60-episode vertical short drama: a healer's disciple comes down the mountain to marry, gets publicly jilted, and marries his fiancée's sister instead. 1–2 min episodes, a twist in each of the first 3. Outline first, then episode 1."
     }
   },
+  "ideaQuota": {
+    "descriptionOnDay": "They come back on {{day}} at 00:00 Beijing time (UTC+8). Your idea stays in the box; press \"Start Writing\" then to pick it up. To write now, get Pro: no daily message limit.",
+    "descriptionTomorrow": "They come back tomorrow at 00:00 Beijing time (UTC+8). Your idea stays in the box; press \"Start Writing\" then to pick it up. To write now, get Pro: no daily message limit."
+  },
   "inspirations": {
     "featured": "Featured Inspirations",
     "viewAll": "View All",
@@ -329,6 +340,7 @@
     "appName": "ZenStory",
     "slogan": "Let AI be your creative partner",
     "createButton": "Start Writing",
+    "creatingProject": "Creating project…",
     "confirmButton": "Confirm",
     "cancelButton": "Cancel",
     "done": "Done",
@@ -510,13 +522,96 @@
         "efficiency": "Ask AI to brainstorm ideas, draft outlines and revise chapters.",
         "iterative": "Let AI write a first pass, then tell it what to change.",
         "context": "Fill in characters, setting and style in \"AI Memory\" so suggestions fit your story."
-      }
+      },
+      "sent": "{{count}} sent",
+      "sent_one": "{{count}} sent",
+      "sent_other": "{{count}} sent",
+      "sentDesc": "Messages you sent to the AI in this project",
+      "todaySent": "{{count}} sent today",
+      "todaySent_one": "{{count}} sent today",
+      "todaySent_other": "{{count}} sent today",
+      "quotaNote": "Counts only the messages you sent to the AI in this project.",
+      "quotaNoteWithDaily": "Counts only the messages you sent to the AI in this project. Today's AI message allowance covers all projects; the count above the chat box is the one that applies."
     },
     "loading": "Loading statistics...",
     "error": "Failed to load",
     "retry": "Retry",
     "noData": "No data available",
-    "lastUpdated": "Last updated: {{time}}"
+    "lastUpdated": "Last updated: {{time}}",
+    "byType": {
+      "novel": {
+        "completionTitle": "Chapter Completion",
+        "progress": "Chapter Progress",
+        "total": "{{count}} chapters",
+        "total_one": "{{count}} chapter",
+        "total_other": "{{count}} chapters",
+        "noChapters": "No chapters yet",
+        "createFirst": "Add a chapter and write whatever comes",
+        "hintNotStarted": "Start writing this chapter",
+        "hintCompleted": "Review or continue to the next chapter",
+        "notStartedDesc": "This chapter hasn't been started yet",
+        "notStartedCount": "not started yet",
+        "outlineWithoutDraftCount": "ready to write",
+        "more": "+{{count}} more",
+        "countFinished": "{{count}} chapters finished",
+        "countFinished_one": "{{count}} chapter finished",
+        "countFinished_other": "{{count}} chapters finished",
+        "countInProgress": "{{count}} chapters in progress",
+        "countInProgress_one": "{{count}} chapter in progress",
+        "countInProgress_other": "{{count}} chapters in progress",
+        "countPlanned": "{{count}} chapters not started",
+        "countPlanned_one": "{{count}} chapter not started",
+        "countPlanned_other": "{{count}} chapters not started"
+      },
+      "short": {
+        "completionTitle": "Completion",
+        "progress": "Progress",
+        "total": "{{count}} pieces",
+        "total_one": "{{count}} piece",
+        "total_other": "{{count}} pieces",
+        "noChapters": "No text yet",
+        "createFirst": "Add a piece and write whatever comes",
+        "hintNotStarted": "Start writing this piece",
+        "hintCompleted": "Review or continue with the next piece",
+        "notStartedDesc": "This piece hasn't been started yet",
+        "notStartedCount": "not started yet",
+        "outlineWithoutDraftCount": "ready to write",
+        "more": "+{{count}} more",
+        "countFinished": "{{count}} pieces finished",
+        "countFinished_one": "{{count}} piece finished",
+        "countFinished_other": "{{count}} pieces finished",
+        "countInProgress": "{{count}} pieces in progress",
+        "countInProgress_one": "{{count}} piece in progress",
+        "countInProgress_other": "{{count}} pieces in progress",
+        "countPlanned": "{{count}} pieces not started",
+        "countPlanned_one": "{{count}} piece not started",
+        "countPlanned_other": "{{count}} pieces not started"
+      },
+      "screenplay": {
+        "completionTitle": "Episode Completion",
+        "progress": "Episode Progress",
+        "total": "{{count}} episodes",
+        "total_one": "{{count}} episode",
+        "total_other": "{{count}} episodes",
+        "noChapters": "No scripts yet",
+        "createFirst": "Add an episode and write whatever comes",
+        "hintNotStarted": "Start writing this episode",
+        "hintCompleted": "Review or continue to the next episode",
+        "notStartedDesc": "This episode hasn't been started yet",
+        "notStartedCount": "not started yet",
+        "outlineWithoutDraftCount": "ready to script",
+        "more": "+{{count}} more",
+        "countFinished": "{{count}} episodes finished",
+        "countFinished_one": "{{count}} episode finished",
+        "countFinished_other": "{{count}} episodes finished",
+        "countInProgress": "{{count}} episodes in progress",
+        "countInProgress_one": "{{count}} episode in progress",
+        "countInProgress_other": "{{count}} episodes in progress",
+        "countPlanned": "{{count}} episodes not started",
+        "countPlanned_one": "{{count}} episode not started",
+        "countPlanned_other": "{{count}} episodes not started"
+      }
+    }
   },
   "dashboardTour": {
     "common": {
@@ -546,5 +641,15 @@
         "description": "When you get stuck, come here for story openings and setting ideas."
       }
     }
+  },
+  "projectProgress": {
+    "chapters_one": "1 chapter · {{words}}",
+    "chapters_other": "{{count}} chapters · {{words}}",
+    "episodes_one": "1 episode · {{words}}",
+    "episodes_other": "{{count}} episodes · {{words}}",
+    "shortWritten": "{{words}} written",
+    "frameworkReady": "Outline ready. Start writing",
+    "words_one": "{{words}} word",
+    "words_other": "{{words}} words"
   }
 }

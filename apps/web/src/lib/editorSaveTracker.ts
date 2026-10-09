@@ -1,0 +1,113 @@
+/**
+ * Cross-page bookkeeping for editor saves.
+ *
+ * Leaving the editor flushes the last unsaved text in the unmount cleanup, at
+ * the same moment the next page (the dashboard) mounts and asks for project
+ * progress. Without coordination the progress request can be answered before
+ * the save lands, and the card shows the old word count. Pages that show
+ * numbers derived from file content wait for in-flight saves first and
+ * refetch when a save completes.
+ */
+
+const pendingSaves = new Set<Promise<unknown>>();
+
+export const EDITOR_CONTENT_SAVED_EVENT = "zenstory:editor-content-saved";
+
+export interface EditorContentSavedDetail {
+  projectId: string;
+}
+
+/** Registers an in-flight editor save. Returns the same promise. */
+export function trackEditorSave<T>(save: Promise<T>): Promise<T> {
+  pendingSaves.add(save);
+  const forget = () => {
+    pendingSaves.delete(save);
+  };
+  save.then(forget, forget);
+  return save;
+}
+
+/**
+ * Resolves once every editor save that is in flight right now has settled,
+ * or after `timeoutMs`, whichever comes first. Never rejects.
+ */
+export async function waitForEditorSaves(timeoutMs = 5000): Promise<void> {
+  if (pendingSaves.size === 0) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, timeoutMs);
+  });
+  try {
+    await Promise.race([Promise.allSettled([...pendingSaves]), timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/** Announces that the editor stored new content for a project. */
+export function notifyEditorContentSaved(projectId: string): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent<EditorContentSavedDetail>(EDITOR_CONTENT_SAVED_EVENT, {
+      detail: { projectId },
+    }),
+  );
+}
+
+/** Resolves to "saved" when everything the editor holds is stored (or nothing was unsaved). */
+type OpenEditorFlush = () => Promise<unknown>;
+let openEditorFlush: OpenEditorFlush | null = null;
+let openEditorFileId: (() => string | null) | null = null;
+
+/**
+ * The open editor's "save now" hook (`null` when it goes away), so other panels can make
+ * sure the author's typed text is stored before they act on the file. Clearing only
+ * removes the hook this editor registered (`previous`), never a newer one.
+ * `getFileId` names the file the editor has open.
+ */
+export function setOpenEditorFlush(
+  flush: OpenEditorFlush | null,
+  previous?: OpenEditorFlush | null,
+  getFileId?: () => string | null,
+): void {
+  if (flush) {
+    openEditorFlush = flush;
+    openEditorFileId = getFileId ?? null;
+  } else if (!previous || openEditorFlush === previous) {
+    openEditorFlush = null;
+    openEditorFileId = null;
+  }
+}
+
+export interface OpenEditorFlushResult {
+  /** The editor's text is stored (or it had nothing unsaved). */
+  saved: boolean;
+  /** The file the editor has open (when known). */
+  fileId: string | null;
+}
+
+/**
+ * Saves whatever the open editor has not saved yet. `null` when no editor is open;
+ * otherwise resolves once that save settles or after `timeoutMs` (then `saved` is
+ * false: the text may still be only in the editor). Never rejects.
+ */
+export function flushOpenEditor(timeoutMs = 1500): Promise<OpenEditorFlushResult> | null {
+  const flush = openEditorFlush;
+  if (!flush) return null;
+  const fileId = openEditorFileId?.() ?? null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<boolean>((resolve) => {
+    timer = setTimeout(() => resolve(false), timeoutMs);
+  });
+  const save = Promise.resolve()
+    .then(flush)
+    .then(
+      (outcome) => outcome === "saved",
+      () => false,
+    );
+  return Promise.race([save, timeout])
+    .then((saved) => ({ saved, fileId }))
+    .finally(() => {
+      if (timer) clearTimeout(timer);
+    });
+}

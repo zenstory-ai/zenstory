@@ -21,6 +21,7 @@ import { X, Home, LogOut, Library, Zap, FolderOpen } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Logo } from "./Logo";
 import { useAuth } from "../contexts/AuthContext";
+import { getUserDisplayName } from "../lib/userDisplayName";
 
 /**
  * Navigation item configuration for the sidebar menu.
@@ -107,6 +108,7 @@ export const MobileSidebar: React.FC<MobileSidebarProps> = ({
 }) => {
   const { t } = useTranslation(['dashboard', 'common']);
   const { user, logout } = useAuth();
+  const displayName = getUserDisplayName(user);
   const navigate = useNavigate();
   const location = useLocation();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -221,11 +223,11 @@ export const MobileSidebar: React.FC<MobileSidebarProps> = ({
         <div className="p-2">
           <div className="mobile-nav-item">
             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[hsl(var(--accent-primary))] to-[hsl(var(--accent-dark))] flex items-center justify-center text-white text-sm font-medium shrink-0">
-              {user?.username?.charAt(0).toUpperCase() || "U"}
+              {displayName.charAt(0).toUpperCase() || "U"}
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium text-[hsl(var(--text-primary))] truncate">
-                {user?.username}
+                {displayName}
               </div>
               <div className="text-xs text-[hsl(var(--text-secondary))]">
                 {user?.email || ""}

@@ -206,11 +206,11 @@ describe('Editor: 整篇覆盖写的两条入口都不得丢用户输入', () =>
     expect((screen.getByTestId('content-input') as HTMLTextAreaElement).value).toBe(
       '用户刚敲的一大段内容',
     )
-    // 服务端正文作为基线进入审阅通道，本地编辑作为待审改动
+    // 作者的正文作为基线（左侧），服务端新正文作为待审改动：拒绝就保留作者的字
     expect(enterDiffReview).toHaveBeenCalledWith(
       'file-1',
-      '服务端的新正文',
       '用户刚敲的一大段内容',
+      '服务端的新正文',
     )
   })
 
@@ -293,8 +293,8 @@ describe('Editor: 整篇覆盖写的两条入口都不得丢用户输入', () =>
     await waitFor(() =>
       expect(enterDiffReview).toHaveBeenCalledWith(
         'file-1',
-        '别人刚写的正文',
         '审阅后的定稿',
+        '别人刚写的正文',
       ),
     )
     // 审阅态不能就这么退出：定稿还没落库

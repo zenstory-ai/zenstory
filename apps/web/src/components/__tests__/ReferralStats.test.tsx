@@ -444,7 +444,8 @@ describe('ReferralStats', () => {
 
       await waitFor(() => {
         const title = screen.getByText('奖励历史')
-        expect(title).toHaveClass('font-semibold')
+        // Settings-dialog section label: the same 12/500 grey label as the 通用 tab.
+        expect(title).toHaveClass('text-xs', 'font-medium')
       })
     })
   })

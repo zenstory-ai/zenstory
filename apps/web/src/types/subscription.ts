@@ -164,6 +164,15 @@ export interface QuotaResponse {
   material_decompositions: QuotaMetric;
   skill_creates: QuotaMetric;
   inspiration_copies: QuotaMetric;
+  /** Free material-breakdown trial; absent from older servers. */
+  material_trial?: MaterialTrial;
+}
+
+/** One free book breakdown per account, first `max_chapters` chapters only. */
+export interface MaterialTrial {
+  available: boolean;
+  used: boolean;
+  max_chapters: number;
 }
 
 export interface QuotaMetric {

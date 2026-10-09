@@ -7,7 +7,7 @@ import re
 
 from sqlmodel import Session, select
 
-from models import File
+from models import File, Project
 from utils.logger import get_logger, log_with_context
 from utils.title_sequence import build_sequence_sort_key
 
@@ -130,7 +130,24 @@ def get_sorted_drafts(session: Session, project_id: str) -> list[File]:
     )
 
     drafts = list(session.exec(query).all())
+    _sort_by_sequence(drafts)
+    return drafts
 
+
+def get_sorted_outlines(session: Session, project_id: str) -> list[File]:
+    """Non-empty outline files of a project, in the same sequence order as the file tree."""
+    query = select(File).where(
+        File.project_id == project_id,
+        File.file_type == "outline",
+        File.is_deleted.is_(False),
+    )
+    outlines = [f for f in session.exec(query).all() if (f.content or "").strip()]
+    _sort_by_sequence(outlines)
+    return outlines
+
+
+def _sort_by_sequence(files: list[File]) -> None:
+    """Sort in place by effective order, title sequence, then creation time."""
     # Sort with the same effective-order semantics as the file-tree endpoint:
     # - `order` is the explicit/stored ordering
     # - Historically many agent-created files had `order == 0` even when the title
@@ -150,17 +167,39 @@ def get_sorted_drafts(session: Session, project_id: str) -> list[File]:
         created_key = created_at.isoformat() if created_at else ""
         return (effective_order, seq_num, created_key)
 
-    drafts.sort(key=sort_key)
-
-    return drafts
+    files.sort(key=sort_key)
 
 
-def export_drafts_to_txt(session: Session, project_id: str) -> str:
+def _join_files(files: list[File]) -> str:
+    return CHAPTER_SEPARATOR.join(
+        f"{f.title}\n\n{_trim_chapter_body(f.content or '')}" for f in files
+    )
+
+
+def export_drafts_to_txt(
+    session: Session,
+    project_id: str,
+    *,
+    title: str | None = None,
+    include_outline: bool = False,
+) -> str:
     """
     Export all drafts for a project as merged TXT content.
 
     Format:
     ```
+    作品名            (when ``title`` is given)
+
+    【大纲】          (only with ``include_outline``)
+
+    大纲标题
+
+    大纲内容...
+
+    ---
+
+    【正文】 / 【剧本】
+
     第一章 标题
 
     正文内容...
@@ -175,20 +214,24 @@ def export_drafts_to_txt(session: Session, project_id: str) -> str:
     Args:
         session: Database session
         project_id: Project ID to export
+        title: Work title printed on the first line
+        include_outline: Put non-empty outline files before the chapters
 
     Returns:
-        Merged text content with all chapters, or empty string if no drafts
+        Merged text content, or empty string when there is nothing to export
     """
     log_with_context(
         logger,
         20,  # INFO
         "export_drafts_to_txt called",
         project_id=project_id,
+        include_outline=include_outline,
     )
 
     drafts = get_sorted_drafts(session, project_id)
+    outlines = get_sorted_outlines(session, project_id) if include_outline else []
 
-    if not drafts:
+    if not drafts and not outlines:
         log_with_context(
             logger,
             20,  # INFO
@@ -203,13 +246,21 @@ def export_drafts_to_txt(session: Session, project_id: str) -> str:
         "export_drafts_to_txt completed",
         project_id=project_id,
         draft_count=len(drafts),
+        outline_count=len(outlines),
         content_length=sum(len(d.title or "") + len(d.content or "") for d in drafts),
     )
 
-    chapters = []
-    for draft in drafts:
-        # Each chapter: title + blank line + content
-        chapter_text = f"{draft.title}\n\n{_trim_chapter_body(draft.content or '')}"
-        chapters.append(chapter_text)
+    if not outlines:
+        body = _join_files(drafts)
+    else:
+        project = session.get(Project, project_id)
+        body_heading = "【剧本】" if project and project.project_type == "screenplay" else "【正文】"
+        sections = [f"【大纲】\n\n{_join_files(outlines)}"]
+        if drafts:
+            sections.append(f"{body_heading}\n\n{_join_files(drafts)}")
+        body = CHAPTER_SEPARATOR.join(sections)
 
-    return CHAPTER_SEPARATOR.join(chapters)
+    clean_title = (title or "").strip()
+    if clean_title:
+        return f"{clean_title}\n\n{body}"
+    return body

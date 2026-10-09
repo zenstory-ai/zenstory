@@ -31,8 +31,11 @@ export interface DashboardFilterPillsProps<T extends string> {
  *
  * Provides consistent styling and behavior for filter buttons across all dashboard pages:
  * - Border radius: rounded-lg (not rounded-full)
- * - Active state: bg-[hsl(var(--accent-primary))] text-white
+ * - Active state: the sidebar's selected state (accent 15% background, accent text).
+ *   Solid accent is reserved for the page's primary action, so a selected filter never
+ *   competes with it.
  * - Inactive state: bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))]
+ * - Height: 32px on desktop, 44px touch target on phones
  * - Hover state for inactive: hover:text-[hsl(var(--text-primary))]
  * - Icon size: w-3.5 h-3.5
  * - Padding: px-3 py-1.5
@@ -84,12 +87,14 @@ export function DashboardFilterPills<T extends string>({
         return (
           <button
             key={option.value}
+            type="button"
             onClick={() => onChange(option.value)}
+            aria-pressed={isActive}
             className={`
-              shrink-0 whitespace-nowrap flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition-colors
-              ${isMobile ? "text-xs" : "text-sm"}
+              shrink-0 whitespace-nowrap flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors
+              ${isMobile ? "min-h-11" : "min-h-8"}
               ${isActive
-                ? "bg-[hsl(var(--accent-primary))] text-white"
+                ? "bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))]"
                 : "bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]"
               }
             `}

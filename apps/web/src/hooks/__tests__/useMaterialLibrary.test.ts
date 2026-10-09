@@ -13,8 +13,11 @@ vi.mock('@/lib/materialsApi', () => ({
 }))
 
 vi.mock('@/lib/subscriptionApi', () => ({
-  subscriptionApi: { getStatus: vi.fn() },
-  subscriptionQueryKeys: { status: () => ['subscription-status', 'test-user'] },
+  subscriptionApi: { getStatus: vi.fn(), getQuota: vi.fn() },
+  subscriptionQueryKeys: {
+    status: () => ['subscription-status', 'test-user'],
+    quota: () => ['subscription-quota', 'test-user'],
+  },
 }))
 
 // Mock @tanstack/react-query
@@ -149,13 +152,29 @@ describe('useMaterialLibrary', () => {
         .map(([args]) => args as QueryArgs)
         .find((args) => args.queryKey[0] === 'material-library-summary')
 
-    function mockQueries(status: unknown, summary: Record<string, unknown>) {
+    function mockQueries(status: unknown, summary: Record<string, unknown>, quota?: unknown) {
       mockUseQuery.mockImplementation((args: QueryArgs) =>
         args.queryKey[0] === 'subscription-status'
           ? { data: status, isLoading: false, error: null }
-          : { data: undefined, isLoading: false, error: null, ...summary },
+          : args.queryKey[0] === 'subscription-quota'
+            ? { data: quota, isLoading: false, error: null }
+            : { data: undefined, isLoading: false, error: null, ...summary },
       )
     }
+
+    it('lets a free author who used the free trial cite their trial book', () => {
+      mockQueries(
+        { tier: 'free', features: { materials_library_access: false } },
+        { data: mockLibraries },
+        { material_trial: { available: false, used: true, max_chapters: 20 } },
+      )
+
+      const { result } = renderHook(() => useMaterialLibrary())
+
+      expect(summaryCall()?.enabled).toBe(true)
+      expect(result.current.accessDenied).toBe(false)
+      expect(result.current.libraries).toEqual(mockLibraries)
+    })
 
     it('does not request the paid summary for plans without the materials library', () => {
       mockQueries({ tier: 'free', features: { materials_library_access: false } }, {})

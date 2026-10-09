@@ -19,6 +19,7 @@
   "copyQuotaExceeded": "You've used all inspiration copies this month. Upgrade or try again next month.",
   "copyQuotaExceededTitle": "Monthly inspiration limit reached",
   "copyQuotaExceededModalDesc": "Upgrade for more copies, or wait until next month.",
+  "copyQuotaPaidModalDesc": "It comes back on the 1st of next month at 00:00 Beijing time (UTC+8).",
   "projectQuotaExceededTitle": "Project limit reached",
   "projectQuotaExceededModalDesc": "Your plan's project limit is full. Upgrade to create more projects.",
   "copyQuotaUpgradePrimary": "Upgrade",

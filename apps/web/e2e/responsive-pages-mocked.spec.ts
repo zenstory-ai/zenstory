@@ -64,7 +64,7 @@ for (const viewport of sizes) {
     await mockResponsiveApp(page, null, 'pro');
     await page.goto('/dashboard');
     if (viewport.width < 768) {
-      await page.getByRole('button', { name: 'Open mobile menu', exact: true }).click();
+      await page.getByRole('button', { name: '打开菜单', exact: true }).click();
       await page.getByRole('button', { name: '设置', exact: true }).click();
     } else {
       await page.getByTestId('dashboard-user-panel-toggle').first().click();

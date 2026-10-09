@@ -118,7 +118,7 @@ export const ReferralStats: React.FC = () => {
 
       {/* Rewards history */}
       <div>
-        <h3 className="text-base font-semibold text-[hsl(var(--text-primary))] mb-3">{t('stats.rewardHistory')}</h3>
+        <h3 className="text-xs font-medium text-[hsl(var(--text-secondary))] mb-2">{t('stats.rewardHistory')}</h3>
 
         {isRewardsLoading ? (
           <div className="flex items-center justify-center py-4">

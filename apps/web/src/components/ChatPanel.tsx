@@ -42,6 +42,8 @@ import { Sparkles, Loader2, Plus, Edit3, Database, ArrowDown } from "lucide-reac
 import { QuotaBadge } from "./subscription/QuotaBadge";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { subscriptionApi, subscriptionQueryKeys } from "../lib/subscriptionApi";
+import { isAiMessageQuotaExhausted } from "../hooks/useAiMessageQuota";
+import { flushOpenEditor, type OpenEditorFlushResult } from "../lib/editorSaveTracker";
 import type {
   AgentContextItem,
   AgentRequest,
@@ -58,8 +60,11 @@ import {
   type MessageFeedbackData,
   type MessageFeedbackVote,
 } from "../lib/chatApi";
-import { fileVersionApi, versionApi } from "../lib/api";
-import { fetchSuggestions, type QuotaRefundKind } from "../lib/agentApi";
+import { fileVersionApi, projectApi, versionApi } from "../lib/api";
+import { NextStepCard } from "./NextStepCard";
+import { useNextStepDismissal } from "../hooks/useNextStepDismissal";
+import { duplicatesNextStep } from "../lib/nextStep";
+import { fetchSuggestions, type QuotaRefundKind, type RemovedPlaceholderFile } from "../lib/agentApi";
 import { parseUTCDate } from "../lib/dateUtils";
 import { ApiError } from "../lib/apiClient";
 import { handleApiError } from "../lib/errorHandler";
@@ -67,9 +72,16 @@ import { toast } from "../lib/toast";
 import { ProjectStatusDialog } from "./ProjectStatusDialog";
 import { useDraftPersistence } from "../hooks/useDraftPersistence";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
+import { ChatQuotaCard } from "./subscription/ChatQuotaCard";
+import { nextAiQuotaResetMs } from "../hooks/useAiMessageQuota";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { trackEvent } from "../lib/analytics";
-import { isWriteToolResult } from "../lib/agentRoundProgress";
+import { useLeaveWhileGenerating } from "../hooks/useLeaveWhileGenerating";
+import { StreamActivityLine } from "./StreamActivityLine";
+import { createProseCounter, isWriteToolResult } from "../lib/agentRoundProgress";
+import { LeaveWhileGeneratingDialog } from "./LeaveWhileGeneratingDialog";
+import { useQuotaRefreshAfterLeave } from "../hooks/useQuotaRefreshAfterLeave";
+import { hasSubstantiveDisplayItems, parseRoundStopOutcome } from "../lib/chatRoundEnd";
 
 const parseMessageStatusCardsFromMetadata = (metadataRaw?: string | null): Message["statusCards"] | undefined => {
   if (!metadataRaw) return undefined;
@@ -213,6 +225,13 @@ const parseToolCallsFromHistory = (toolCallsRaw?: string | null): Pick<Message, 
 interface ChatPanelProps {}
 
 /** Local storage key for persisting chat input panel height */
+/**
+ * Stop options for "the editor could not save the author's text before the round
+ * ends": the server keeps that file even if it looks blank.
+ */
+const keepUnsavedFile = (result: OpenEditorFlushResult): { keepFileIds: string[] } | undefined =>
+  !result.saved && result.fileId ? { keepFileIds: [result.fileId] } : undefined;
+
 const CHAT_INPUT_PANEL_HEIGHT_KEY = "zenstory_chat_input_panel_height_px";
 const SUGGESTION_CACHE_KEY_PREFIX = "zenstory_suggestions_cache_";
 const SUGGESTION_CACHE_TTL_MS = 10 * 60 * 1000;
@@ -371,6 +390,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   }, []);
   const {
     currentProjectId,
+    currentProject,
     selectedItem,
     triggerFileTreeRefresh,
     triggerEditorRefresh,
@@ -391,9 +411,11 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     queryFn: () => subscriptionApi.getQuota(),
   });
   const aiMessageQuota = quota?.ai_conversations;
-  const quotaExhausted = Boolean(
-    aiMessageQuota && aiMessageQuota.limit !== -1 && aiMessageQuota.used >= aiMessageQuota.limit,
-  );
+  // Same rule as the home page (a plan without a positive daily limit is never "used up").
+  const quotaExhausted = isAiMessageQuotaExhausted(aiMessageQuota);
+  // Pro (no daily limit) never hears about today's count, and neither does anyone while the
+  // quota is still loading (it may turn out to be Pro).
+  const showDailyCount = Boolean(aiMessageQuota) && aiMessageQuota?.limit !== -1;
   /** Refresh the quota pill (and other quota readers) after the server charged or refunded. */
   const invalidateQuota = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.quota() });
@@ -418,11 +440,26 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const [showQuotaUpgradeModal, setShowQuotaUpgradeModal] = useState(false);
   const [showFileVersionUpgradeModal, setShowFileVersionUpgradeModal] = useState(false);
   // 后端确实退还了这一轮的 AI 消息时才有值（quota_refunded 帧），按项目隔离，下一轮开始时清空。
-  const [quotaRefund, setQuotaRefund] = useState<{ projectId: string; kind: QuotaRefundKind } | null>(null);
+  const [quotaRefund, setQuotaRefund] = useState<{
+    projectId: string;
+    kind: QuotaRefundKind;
+    removedFiles: RemovedPlaceholderFile[];
+  } | null>(null);
+  const [streamStartedAt, setStreamStartedAt] = useState<number | null>(null);
   // 作者点了「停止生成」后的结束说明，按项目隔离，下一轮开始或新建会话时清空。
   const [userStop, setUserStop] = useState<{ projectId: string; wroteFiles: boolean; counted: boolean } | null>(null);
-  /** What this round has done so far, for the stop note: a write landed / the server charged. */
-  const roundProgressRef = useRef({ wroteFiles: false, charged: false });
+  /**
+   * What this round has done so far, for the stop note and the leave dialog: a write
+   * left text in a file / the server charged / real output exists (a write, or a reply
+   * segment long enough to be prose rather than a one-line narration before a tool call).
+   */
+  const roundProgressRef = useRef({ wroteFiles: false, charged: false, producedOutput: false });
+  /** Reply text since the last segment boundary, counted like the server (see createProseCounter). */
+  const proseCounterRef = useRef(createProseCounter());
+  /** The author pressed 停止 in this project's current round; the note waits for how the round ended. */
+  const stopRequestedProjectRef = useRef<string | null>(null);
+  /** Reentrancy guard: two sends in the same tick (closure isStreaming still stale) start one round. */
+  const sendLockRef = useRef(false);
   const pendingMaterialClearRef = useRef(false);
   const pendingQuoteClearRef = useRef(false);
   const currentAgentSessionIdRef = useRef<string | null>(null);
@@ -458,6 +495,28 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const [showAIMemory, setShowAIMemory] = useState(false);
   const [generationMode, setGenerationMode] = useState<GenerationMode>("quality");
   const { draft, saveDraft, clearDraft } = useDraftPersistence(currentProjectId);
+  const draftRef = useRef(draft);
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+  /** The bubble just sent, until the server accepts the round (it is not stored before that). */
+  const blockedCandidateRef = useRef<{ id: string; content: string } | null>(null);
+  /**
+   * The server refused the round for today's AI messages: put the words back in the input.
+   * Anything typed into the box since sending stays, after the returned message.
+   */
+  const returnBlockedMessageToInput = useCallback(() => {
+    const candidate = blockedCandidateRef.current;
+    blockedCandidateRef.current = null;
+    if (!candidate) return;
+    setMessages((prev) => prev.filter((message) => message.id !== candidate.id));
+    const typedSince = draftRef.current;
+    if (!typedSince.trim()) {
+      saveDraft(candidate.content);
+    } else if (!typedSince.includes(candidate.content)) {
+      saveDraft(`${candidate.content}\n\n${typedSince}`);
+    }
+  }, [saveDraft]);
   const messageListRef = useRef<MessageListRef>(null);
   const messagesScrollContainerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
@@ -497,6 +556,18 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   }, [currentProjectId, generationMode, t]);
 
   const currentProjectIdRef = useRef<string | null>(currentProjectId);
+  // "Write chapter 1" once a framework exists but no prose yet; refreshed on open and after each round.
+  const [frameworkReadyProjectId, setFrameworkReadyProjectId] = useState<string | null>(null);
+  const nextStepDismissal = useNextStepDismissal();
+  const refreshNextStep = useCallback(async (projectId: string) => {
+    try {
+      const [progress] = await projectApi.getProgress(projectId);
+      if (currentProjectIdRef.current !== projectId) return;
+      setFrameworkReadyProjectId(progress?.framework_ready ? projectId : null);
+    } catch (error) {
+      logger.warn("Failed to load the project's progress:", error);
+    }
+  }, []);
   useEffect(() => {
     currentProjectIdRef.current = currentProjectId;
     return () => {
@@ -831,32 +902,55 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     const toolResults = extractCompletedToolResults(completedSegments);
     // React state can still be throttled when the final SSE event arrives.
     const displayItems = getStreamItemsSnapshot?.() ?? [];
+    // Stopped / failed / dropped rounds: never guess which saved message this bubble is
+    // ("the latest unassigned one" can be an older stopped round); bind only by id.
+    const endedEarly = completionMeta?.partial === true || completionMeta?.stoppedByAuthor === true;
+    const assistantMessageId = completionMeta?.assistantMessageId;
 
-
-    // 添加到 messages（正文、状态卡片、已完成的工具结果都会随消息一起保留）
-    if (accumulatedContent.trim() || statusCards.length > 0 || toolResults?.length || displayItems.length) {
+    // 添加到 messages（正文、状态卡片、已完成的工具结果都会随消息一起保留）。
+    // A round that ended early with only transient progress lines (「正在组装上下文…」)
+    // leaves no bubble: the error card / stop note below says what happened.
+    const hasSubstance = Boolean(accumulatedContent.trim() || statusCards.length > 0 || toolResults?.length)
+      || (endedEarly ? hasSubstantiveDisplayItems(displayItems) : displayItems.length > 0);
+    if (hasSubstance) {
       const aiMessage: Message = {
         id: `ai-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
-        backendMessageId: completionMeta?.assistantMessageId,
+        backendMessageId: assistantMessageId,
         role: 'assistant',
         content: accumulatedContent,
         timestamp: new Date(),
         statusCards: statusCards.length > 0 ? statusCards : undefined,
         toolResults,
         displayItems: displayItems.length ? displayItems : undefined,
+        feedbackUnavailable: endedEarly && !assistantMessageId ? true : undefined,
       };
       setMessages(prev => [...prev, aiMessage]);
 
-      if (currentProjectId) {
+      if (currentProjectId && (!endedEarly || assistantMessageId)) {
         void hydrateAssistantBackendMessage(currentProjectId, aiMessage.id, accumulatedContent, {
-          assistantMessageId: completionMeta?.assistantMessageId,
+          assistantMessageId,
           expectedSessionId: completionMeta?.sessionId ?? currentAgentSessionIdRef.current,
         });
       }
     }
 
+    // The stop note says how a stopped round ended, so it waits for the end of the round:
+    // only a done that says the author stopped it (or the stop's fallback that dropped the
+    // connection) gets one. A round that finished on its own before the stop took effect
+    // completed normally and gets no 「已停止」.
+    const stoppedThisRound = completionMeta?.stoppedByAuthor === true
+      || (completionMeta?.partial === true && stopRequestedProjectRef.current === currentProjectId);
+    stopRequestedProjectRef.current = null;
+    if (stoppedThisRound && currentProjectId) {
+      const { wroteFiles, charged } = roundProgressRef.current;
+      // The server's own verdict when the done carries it; otherwise the same rule locally.
+      const producedOutput = completionMeta?.producedOutput ?? roundProgressRef.current.producedOutput;
+      setUserStop({ projectId: currentProjectId, wroteFiles, counted: charged && producedOutput });
+    }
+
     finalizePendingContextClears();
     invalidateQuota();
+    if (currentProjectId) void refreshNextStep(currentProjectId);
 
     // Let the streaming hook finalize cleanup/snapshot work in the background.
     void streamCallbacks.onComplete(
@@ -868,6 +962,17 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     // Delay and request fresh project-aware suggestions (once per completed turn).
     if (suggestionTimeoutRef.current) {
       clearTimeout(suggestionTimeoutRef.current);
+    }
+    // Stopped / dropped before anything was written: chips would assume prose that does not
+    // exist ("接着写第二章"), and asking for them costs an extra model call. Show none; the
+    // stop note offers 「重新发送」.
+    const nothingWritten = completionMeta?.stoppedByAuthor
+      ? completionMeta.producedOutput === false
+      : completionMeta?.partial === true && !roundProgressRef.current.producedOutput;
+    if (nothingWritten) {
+      setAiSuggestions([]);
+      setSuggestionDisplayState("ready");
+      return;
     }
     setSuggestionDisplayState("loading");
     suggestionTimeoutRef.current = setTimeout(async () => {
@@ -903,13 +1008,15 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     finalizePendingContextClears,
     hydrateAssistantBackendMessage,
     invalidateQuota,
+    refreshNextStep,
   ]);
 
   // Agent stream hook - uses callbacks from useChatStreaming hook
   const {
     state,
     startStream,
-    cancel,
+    stop,
+    isStopping,
     reset,
     isStreaming,
     isThinking,
@@ -917,6 +1024,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     conflicts,
     error,
     errorCode,
+    clearError,
     retryable,
     sessionId,
     sendSteeringMessage,
@@ -924,10 +1032,13 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     // Lifecycle callbacks
     onStart: () => {
       streamCallbacks.onStart();
+      setStreamStartedAt(Date.now());
       terminalStatusCardsRef.current = [];
       setQuotaRefund(null);
       setUserStop(null);
-      roundProgressRef.current = { wroteFiles: false, charged: false };
+      roundProgressRef.current = { wroteFiles: false, charged: false, producedOutput: false };
+      proseCounterRef.current.reset();
+      stopRequestedProjectRef.current = null;
       resetOnCompleteFlag();
     },
 
@@ -942,7 +1053,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
     // Segment callbacks
     onSegmentStart: streamCallbacks.onSegmentStart,
-    onSegmentUpdate: streamCallbacks.onSegmentUpdate,
+    onSegmentUpdate: (segmentId, content) => {
+      if (proseCounterRef.current.update(segmentId, content)) roundProgressRef.current.producedOutput = true;
+      streamCallbacks.onSegmentUpdate(segmentId, content);
+    },
     onSegmentUpdateToolCalls: streamCallbacks.onSegmentUpdateToolCalls,
     onSegmentEnd: streamCallbacks.onSegmentEnd,
 
@@ -951,19 +1065,36 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     onError: (message, code, retryable) => {
       streamCallbacks.onError(message, code, retryable);
       invalidateQuota();
+      if (code === 'ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED' || code === 'ERR_QUOTA_AI_DAILY_COST_EXCEEDED') {
+        returnBlockedMessageToInput();
+      }
     },
 
-    // Tool result callbacks
+    // Tool call/result callbacks: the server's prose counter starts a new segment at both.
+    onToolCall: () => {
+      proseCounterRef.current.boundary();
+    },
     onToolResult: (toolName, status, result, toolError) => {
+      proseCounterRef.current.boundary();
       if (isWriteToolResult(toolName, status, result)) {
         roundProgressRef.current.wroteFiles = true;
+        roundProgressRef.current.producedOutput = true;
       }
       streamCallbacks.onToolResult(toolName, status, result, toolError);
     },
 
     // File operation callbacks
-    onFileCreated: streamCallbacks.onFileCreated,
-    onFileContent: streamCallbacks.onFileContent,
+    onFileCreated: (fileId, fileType, title) => {
+      proseCounterRef.current.boundary();
+      streamCallbacks.onFileCreated(fileId, fileType, title);
+    },
+    onFileContent: (fileId, chunk) => {
+      if (chunk.trim()) {
+        roundProgressRef.current.wroteFiles = true;
+        roundProgressRef.current.producedOutput = true;
+      }
+      streamCallbacks.onFileContent(fileId, chunk);
+    },
     onFileContentEnd: streamCallbacks.onFileContentEnd,
     onFileEditStart: streamCallbacks.onFileEditStart,
     onFileEditApplied: streamCallbacks.onFileEditApplied,
@@ -974,7 +1105,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     onSkillsMatched: streamCallbacks.onSkillsMatched,
 
     // Multi-agent workflow callbacks
-    onAgentSelected: streamCallbacks.onAgentSelected,
+    onAgentSelected: (agentType, agentName, iteration, maxIterations, remaining) => {
+      proseCounterRef.current.boundary();
+      streamCallbacks.onAgentSelected(agentType, agentName, iteration, maxIterations, remaining);
+    },
     onIterationExhausted: (layer, iterationsUsed, maxIterations, reason, lastAgent) => {
       terminalStatusCardsRef.current = [{
         type: "iteration_exhausted",
@@ -988,7 +1122,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     },
     onRouterThinking: streamCallbacks.onRouterThinking,
     onRouterDecided: streamCallbacks.onRouterDecided,
-    onHandoff: streamCallbacks.onHandoff,
+    onHandoff: (data) => {
+      proseCounterRef.current.boundary();
+      streamCallbacks.onHandoff(data);
+    },
     onWorkflowStopped: (data: SSEWorkflowStoppedData) => {
       terminalStatusCardsRef.current = [{
         type: "workflow_stopped",
@@ -1005,22 +1142,62 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     },
     onWorkflowComplete: streamCallbacks.onWorkflowComplete,
     onSessionStarted: (sessionId) => {
+      blockedCandidateRef.current = null;
       currentAgentSessionIdRef.current = sessionId;
       streamCallbacks.onSessionStarted(sessionId);
       // The server has already charged this round's AI message by now.
       roundProgressRef.current.charged = true;
       invalidateQuota();
     },
-    onParallelStart: streamCallbacks.onParallelStart,
+    onParallelStart: (executionId, taskCount, taskDescriptions, droppedCount) => {
+      proseCounterRef.current.boundary();
+      streamCallbacks.onParallelStart(executionId, taskCount, taskDescriptions, droppedCount);
+    },
     onParallelTaskStart: streamCallbacks.onParallelTaskStart,
     onParallelTaskEnd: streamCallbacks.onParallelTaskEnd,
     onParallelEnd: streamCallbacks.onParallelEnd,
     onSteeringReceived: streamCallbacks.onSteeringReceived,
-    onQuotaRefunded: (kind) => {
-      if (currentProjectId) setQuotaRefund({ projectId: currentProjectId, kind });
+    onQuotaRefunded: (kind, removedFiles = []) => {
+      if (currentProjectId) setQuotaRefund({ projectId: currentProjectId, kind, removedFiles });
       invalidateQuota();
+      if (removedFiles.length > 0) {
+        // The server removed blank files this stopped round had created.
+        const removedIds = new Set(removedFiles.map((file) => file.id));
+        if (selectedItemRef.current && removedIds.has(selectedItemRef.current.id)) setSelectedItem(null);
+        triggerFileTreeRefresh();
+      }
     },
   });
+  // Stopping already ends the round on its own; no need to ask before leaving then.
+  const leaveGuard = useLeaveWhileGenerating(isStreaming && !isStopping);
+  // Leaving mid-round: the server settles (and may refund) after the chat is gone.
+  useQuotaRefreshAfterLeave(isStreaming, currentProjectId ?? null);
+  /** A confirmed leave is waiting for the editor's save. */
+  const leaveAfterSavePendingRef = useRef(false);
+  // Leaving mid-round drops the stream; a refunded round then removes its still-blank
+  // files. Save the editor first (as the stop button does) so text typed into a chapter
+  // the AI just created counts; if that save fails or times out, stop the round naming
+  // the open file so the server keeps it, then leave.
+  const handleConfirmLeave = () => {
+    const confirmLeave = leaveGuard.confirmLeave;
+    if (leaveGuard.roundEnded) {
+      confirmLeave();
+      return;
+    }
+    if (leaveAfterSavePendingRef.current) return;
+    const editorSaved = flushOpenEditor();
+    if (!editorSaved) {
+      confirmLeave();
+      return;
+    }
+    leaveAfterSavePendingRef.current = true;
+    void editorSaved.then(async (result) => {
+      const keep = keepUnsavedFile(result);
+      if (keep) await stop(keep);
+      leaveAfterSavePendingRef.current = false;
+      confirmLeave();
+    });
+  };
   const conflictCount = state.conflicts?.length ?? 0;
   const streamRenderItemCount = streamRenderItems?.length ?? 0;
 
@@ -1028,17 +1205,85 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const isAiQuotaLimit =
     errorCode === 'ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED'
     || errorCode === 'ERR_QUOTA_AI_DAILY_COST_EXCEEDED';
+  // The server refused a round for today's AI messages. The cached count can still show room
+  // (the cost backstop, or a stale cache), so remember the refusal until the next Beijing
+  // midnight: the chat then behaves like the used-up day (card, blocked send, no next-step
+  // offer) and never names a count it cannot back up.
+  const [aiLimitHitUntil, setAiLimitHitUntil] = useState<number | null>(null);
+  useEffect(() => {
+    if (isAiQuotaLimit) setAiLimitHitUntil(nextAiQuotaResetMs(Date.now()));
+  }, [isAiQuotaLimit]);
+  const isAiQuotaLimitRef = useRef(isAiQuotaLimit);
+  useEffect(() => {
+    isAiQuotaLimitRef.current = isAiQuotaLimit;
+  }, [isAiQuotaLimit]);
+  useEffect(() => {
+    if (aiLimitHitUntil === null) return;
+    const timer = setTimeout(() => {
+      setAiLimitHitUntil(null);
+      // A new Beijing day: yesterday's refusal must not come back as an error card.
+      if (isAiQuotaLimitRef.current) clearError();
+    }, Math.max(0, aiLimitHitUntil - Date.now()));
+    return () => clearTimeout(timer);
+  }, [aiLimitHitUntil, clearError]);
+  const aiLimitHit = aiLimitHitUntil !== null && aiMessageQuota?.limit !== -1;
+  /** Today's AI messages are used up, by the cached count or by the server's refusal. */
+  const aiSendBlocked = quotaExhausted || aiLimitHit;
   // Never pair a refund note with the used-up card: that would hint at a second, cost-based limit.
+  // Pro has no daily count: a refunded stop still says nothing was written (with Resend);
+  // other refunds have nothing to explain.
   const quotaRefundNote = quotaRefund && quotaRefund.projectId === currentProjectId && !isStreaming && !isAiQuotaLimit
-    ? t(quotaRefund.kind === 'no_progress' ? 'chat:panel.notCharged' : 'chat:panel.notChargedError')
+    ? [
+      showDailyCount
+        ? t(
+          quotaRefund.kind === 'no_progress'
+            ? 'chat:panel.notCharged'
+            : quotaRefund.kind === 'stopped'
+              ? 'chat:panel.notChargedStopped'
+              : 'chat:panel.notChargedError',
+        )
+        : quotaRefund.kind === 'stopped'
+          ? t('chat:panel.stoppedNothingWritten', { defaultValue: '已停止，这一轮还没有写出内容。' })
+          : null,
+      quotaRefund.removedFiles.length > 0
+        ? t('chat:panel.removedEmptyFiles', {
+          defaultValue: '这一轮新建的空白文件《{{titles}}》已移除。',
+          titles: quotaRefund.removedFiles
+            .map((file) => file.title)
+            .join(t('chat:panel.removedFilesJoiner', { defaultValue: '》《' })),
+        })
+        : null,
+    ].filter(Boolean).join('').trim() || null
     : null;
+  // Stopped before anything was written: offer to send the same round again (same skills,
+  // attachments and quotes as the original request).
+  const resendAfterStop = Boolean(
+    quotaRefundNote
+    && quotaRefund?.kind === 'stopped'
+    && lastRetryRequestRef.current?.projectId === currentProjectId,
+  );
   // 「已写入」只在这一轮确实有写入成功时才说；没扣费（还没开始）或 Pro 不提今日 AI 消息。
-  const userStopNote = userStop && userStop.projectId === currentProjectId && !isStreaming
+  // The server's refund receipt wins over the click-time guess: a refunded stop shows
+  // only the refund note above (with Resend), never "计入" next to "不计入".
+  const stopRefunded = quotaRefund?.projectId === currentProjectId && quotaRefund?.kind === 'stopped';
+  const userStopNote = userStop && userStop.projectId === currentProjectId && !isStreaming && !stopRefunded
     ? [
         t('chat:panel.userStopped', { defaultValue: '已停止' }),
         userStop.wroteFiles ? t('chat:panel.userStoppedSaved', { defaultValue: '已写入的内容已保存' }) : null,
-        userStop.counted ? t('chat:panel.userStoppedCounted', { defaultValue: '本条计入今日 AI 消息' }) : null,
+        // Counts only with real output (server rule); Pro has no daily count to mention.
+        userStop.counted && showDailyCount
+          ? t('chat:panel.userStoppedCounted', { defaultValue: '本条计入今日 AI 消息' })
+          : null,
       ].filter(Boolean).join(' · ')
+    : null;
+
+  const lastMessage = messages[messages.length - 1];
+  const unansweredUserMessage = lastMessage?.role === 'user'
+    && !isStreaming
+    && !isThinking
+    && !isLoadingHistory
+    && !error
+    ? lastMessage
     : null;
 
   useEffect(() => {
@@ -1084,6 +1329,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
           toolCalls,
           toolResults,
           displayItems: parseChatDisplayEvents(msg.metadata, orderedToolCalls ?? [], parseUTCDate(msg.created_at), t),
+          stopOutcome: msg.role === "assistant" ? parseRoundStopOutcome(msg.metadata) ?? undefined : undefined,
         };
       });
 
@@ -1165,13 +1411,16 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     setSuggestionDisplayState("loading");
     contextItemsRef.current = [];
 
+    setFrameworkReadyProjectId(null);
+    void refreshNextStep(currentProjectId);
+
     // Load chat history first, then request project suggestions immediately.
     void (async () => {
       const loadedMessages = await loadChatHistory(currentProjectId);
       if (loadedMessages === null) return;
       await requestInitialSuggestions(currentProjectId, loadedMessages);
     })();
-  }, [currentProjectId, loadChatHistory, requestInitialSuggestions, setAiSuggestions, setEditProgress, clearStreamItems, setMatchedSkills, reset]); // 依赖 loadChatHistory
+  }, [currentProjectId, loadChatHistory, requestInitialSuggestions, refreshNextStep, setAiSuggestions, setEditProgress, clearStreamItems, setMatchedSkills, reset]); // 依赖 loadChatHistory
 
   // Auto-scroll to bottom when new messages arrive or streaming content meaningfully changes.
   // Coalesce scrolls in a single RAF to avoid completion-time jitter from multiple back-to-back
@@ -1250,6 +1499,51 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   }, []);
 
   /**
+   * Starts one round: every send, resend and retry goes through here. The ref lock makes a
+   * double click in the same tick start only one round (the closure's isStreaming is stale
+   * until React re-renders).
+   */
+  const startRound = useCallback((
+    request: Omit<AgentRequest, "project_id">,
+    options: { userBubble: boolean },
+  ): boolean => {
+    if (sendLockRef.current || isStreaming) return false;
+    // Held until the next task: by then React has re-rendered with isStreaming = true,
+    // which guards every later click.
+    sendLockRef.current = true;
+    setTimeout(() => {
+      sendLockRef.current = false;
+    }, 0);
+
+    // Clear AI suggestions when user sends a message
+    setAiSuggestions([]);
+    setSuggestionDisplayState("loading");
+    if (suggestionTimeoutRef.current) {
+      clearTimeout(suggestionTimeoutRef.current);
+    }
+
+    if (options.userBubble) {
+      // Add user message to chat (optimistic update)
+      const userMessage: Message = {
+        id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+        role: "user",
+        content: request.message,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, userMessage]);
+      blockedCandidateRef.current = { id: userMessage.id, content: request.message };
+    }
+    lastUserRequestRef.current = request.message;
+    followLatestMessage();
+
+    if (currentProjectId) {
+      lastRetryRequestRef.current = { projectId: currentProjectId, request };
+    }
+    startStream(request);
+    return true;
+  }, [isStreaming, currentProjectId, followLatestMessage, setAiSuggestions, startStream]);
+
+  /**
    * Handles sending a user message to the AI agent.
    * Creates a user message, adds it to the chat, constructs the agent request
    * with context (selected file, attachments, quotes), and initiates streaming.
@@ -1269,29 +1563,17 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     selectedSkillIds?: string[],
     extraMetadata?: Record<string, unknown>,
   ) => {
-    if (!message.trim() || isStreaming) return;
+    if (!message.trim() || isStreaming || sendLockRef.current) return;
+
+    // Used up for today: keep the words as the draft and explain, instead of sending.
+    if (aiSendBlocked) {
+      saveDraft(message);
+      setShowQuotaUpgradeModal(true);
+      return;
+    }
 
     // Clear draft after sending
     clearDraft();
-
-    // Clear AI suggestions when user sends a message
-    setAiSuggestions([]);
-    setSuggestionDisplayState("loading");
-    if (suggestionTimeoutRef.current) {
-      clearTimeout(suggestionTimeoutRef.current);
-    }
-
-    // Add user message to chat (optimistic update)
-    const userMessage: Message = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: message,
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    lastUserRequestRef.current = message;
-    followLatestMessage();
 
     // Get current editor content as context
     const request: Omit<AgentRequest, "project_id"> = {
@@ -1330,6 +1612,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
     trackEvent("ai_chat_submitted", {
       project_id: currentProjectId,
+      // Where this message came from: suggestion / next_step / dashboard_idea, otherwise typed.
+      entry: typeof extraMetadata?.entry === "string" ? extraMetadata.entry : "typed",
       generation_mode: generationMode,
       selected_item_type: selectedItem?.type,
       attached_file_count: attachedFileIds.length,
@@ -1337,21 +1621,57 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       quote_count: quotes.length,
     });
 
-    // Start streaming
-    if (currentProjectId) {
-      lastRetryRequestRef.current = { projectId: currentProjectId, request };
-    }
-    startStream(request);
-  }, [isStreaming, selectedItem?.id, selectedItem?.type, selectedItem?.title, attachedFileIds, attachedLibraryMaterials, quotes, generationMode, startStream, clearDraft, setAiSuggestions, currentProjectId, followLatestMessage]);
+    startRound(request, { userBubble: true });
+  }, [isStreaming, aiSendBlocked, saveDraft, selectedItem?.id, selectedItem?.type, selectedItem?.title, attachedFileIds, attachedLibraryMaterials, quotes, generationMode, clearDraft, currentProjectId, startRound]);
 
+  /**
+   * 「重新发送」 after a stop that wrote nothing: the same round again, with the original
+   * request's skills, attachments and quotes (they may already be cleared from the input).
+   */
+  const resendLastRound = useCallback(() => {
+    const last = lastRetryRequestRef.current;
+    if (!last || last.projectId !== currentProjectId) return;
+    trackEvent("ai_chat_submitted", {
+      project_id: currentProjectId,
+      entry: "resend_after_stop",
+      generation_mode: last.request.metadata?.generation_mode,
+    });
+    startRound(
+      { ...last.request, metadata: { ...last.request.metadata, resent_after_stop: true } },
+      { userBubble: true },
+    );
+  }, [currentProjectId, startRound]);
+
+  /** Retry after a stream error: reuse the same (unanswered) user message, no new bubble. */
   const handleRetry = useCallback(() => {
     const lastRequest = lastRetryRequestRef.current;
     if (!retryable || isStreaming || !currentProjectId || lastRequest?.projectId !== currentProjectId) {
       return;
     }
-    followLatestMessage();
-    startStream(lastRequest.request);
-  }, [currentProjectId, isStreaming, retryable, startStream, followLatestMessage]);
+    blockedCandidateRef.current = null;
+    const started = startRound(
+      { ...lastRequest.request, metadata: { ...lastRequest.request.metadata, retry_unanswered: true } },
+      { userBubble: false },
+    );
+    // Remember the author's own request, not the retry variant (a later resend is a new round).
+    if (started) lastRetryRequestRef.current = lastRequest;
+  }, [currentProjectId, isStreaming, retryable, startRound]);
+
+  /** The last message got no reply (failed earlier, seen after a refresh): ask again in place. */
+  const retryUnanswered = useCallback((message: Message) => {
+    trackEvent("ai_chat_submitted", {
+      project_id: currentProjectId,
+      entry: "retry_unanswered",
+      generation_mode: generationMode,
+    });
+    startRound(
+      {
+        message: message.content,
+        metadata: { generation_mode: generationMode, retry_unanswered: true },
+      },
+      { userBubble: false },
+    );
+  }, [currentProjectId, generationMode, startRound]);
 
   /**
    * Send a steering (follow-up) instruction while the agent is generating.
@@ -1539,18 +1859,28 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     }
   }, [currentProjectId, isRefreshingSuggestions, setIsRefreshingSuggestions, fetchAndApplySuggestions]);
 
-  // Handle cancel streaming
+  /** A stop is waiting for the editor's save: further clicks must not send a second stop. */
+  const stopAfterSavePendingRef = useRef(false);
+  // Stop button: the server ends the round on the open stream (see useAgentStream.stop).
   const handleCancel = () => {
-    cancel();
-    if (currentProjectId) {
-      const { wroteFiles, charged } = roundProgressRef.current;
-      // A user stop is charged by design once the server started the round
-      // (see the agent stream refund contract); Pro has no daily count to mention.
-      setUserStop({
-        projectId: currentProjectId,
-        wroteFiles,
-        counted: charged && aiMessageQuota?.limit !== -1,
+    if (stopAfterSavePendingRef.current) return;
+    // The note itself waits for the end of the round (onCompleteHandler): the round may
+    // still finish on its own before the stop reaches the server. Marked before stop():
+    // a stop pressed before run_started ends the round synchronously inside stop().
+    if (currentProjectId) stopRequestedProjectRef.current = currentProjectId;
+    // Text the author typed in the editor (for example into a chapter the AI just created)
+    // is saved first: on a refunded stop the server removes this round's still-blank files,
+    // and it can only see text that has been saved. When that save fails or times out, the
+    // stop names the open file so the server keeps it.
+    const editorSaved = flushOpenEditor();
+    if (editorSaved) {
+      stopAfterSavePendingRef.current = true;
+      void editorSaved.then((result) => {
+        stopAfterSavePendingRef.current = false;
+        void stop(keepUnsavedFile(result));
       });
+    } else {
+      void stop();
     }
   };
 
@@ -1707,6 +2037,20 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     );
   }
 
+  // A refunded stop of the 「写第一章正文」 request already offers 「重新发送」 for the same
+  // request: one button for it, not two.
+  const resendRepeatsNextStep = resendAfterStop
+    && lastRetryRequestRef.current?.request.metadata?.entry === 'next_step';
+  const showNextStep = Boolean(
+    frameworkReadyProjectId
+      && frameworkReadyProjectId === currentProjectId
+      && !nextStepDismissal.isDismissed(frameworkReadyProjectId)
+      && !isStreaming
+      && !isThinking
+      && !aiSendBlocked
+      && !resendRepeatsNextStep,
+  );
+
   return (
     <div
       ref={chatPanelRef}
@@ -1778,6 +2122,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                 onUndo={handleUndo}
                 onSubmitFeedback={handleSubmitFeedback}
                 feedbackPendingMessageId={feedbackPendingMessageId}
+                showDailyCount={showDailyCount}
                 streamingThinkingContent={thinkingContent}
                 isThinking={isThinking}
                 scrollContainerRef={messagesScrollContainerRef}
@@ -1832,7 +2177,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
               )}
 
               {/* Error */}
-              {error && (
+              {error && !(isAiQuotaLimit && aiSendBlocked) && (
                 <div className="mt-3 bg-[hsl(var(--warning)/0.1)] border border-[hsl(var(--warning)/0.3)] rounded-lg p-3 animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="flex items-start gap-2">
                     <svg
@@ -1883,6 +2228,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                 </div>
               )}
 
+              {isStreaming && (
+                <StreamActivityLine startedAt={streamStartedAt} />
+              )}
+
               {/* 作者点了「停止生成」：给出明确的结束状态 */}
               {userStopNote && (
                 <p
@@ -1901,6 +2250,35 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                   className="mt-2 text-xs text-[hsl(var(--text-secondary))]"
                 >
                   {quotaRefundNote}
+                  {resendAfterStop && (
+                    <button
+                      type="button"
+                      data-testid="chat-resend-after-stop"
+                      onClick={resendLastRound}
+                      className="ml-2 text-[hsl(var(--accent-primary))] hover:underline focus-visible:outline-none focus-visible:underline"
+                    >
+                      {t('chat:panel.resend')}
+                    </button>
+                  )}
+                </p>
+              )}
+
+              {/* The last message never got a reply (an earlier failure, seen after a refresh). */}
+              {unansweredUserMessage && !resendAfterStop && (
+                <p
+                  data-testid="chat-unanswered-note"
+                  className="mt-2 text-xs text-[hsl(var(--text-secondary))]"
+                >
+                  {t('chat:panel.unanswered', { defaultValue: '这条消息没有收到回复。' })}
+                  <button
+                    type="button"
+                    data-testid="chat-retry-unanswered"
+                    onClick={() => retryUnanswered(unansweredUserMessage)}
+                    disabled={aiSendBlocked}
+                    className="ml-2 text-[hsl(var(--accent-primary))] hover:underline focus-visible:outline-none focus-visible:underline disabled:cursor-not-allowed disabled:text-[hsl(var(--text-tertiary))] disabled:no-underline"
+                  >
+                    {t('chat:panel.resend')}
+                  </button>
                 </p>
               )}
 
@@ -1960,13 +2338,37 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
               : `px-3 py-2 ${inputPanelHeight !== null ? "flex-1 min-h-0" : ""}`
           }`}
         >
+          {showNextStep && frameworkReadyProjectId && (
+            <NextStepCard
+              projectType={currentProject?.project_type}
+              onStart={(message) => {
+                trackEvent("ai_next_step_clicked", { project_id: frameworkReadyProjectId });
+                setFrameworkReadyProjectId(null);
+                void handleSendMessage(message, undefined, { entry: "next_step" });
+              }}
+              onDismiss={() => {
+                trackEvent("ai_next_step_dismissed", { project_id: frameworkReadyProjectId });
+                nextStepDismissal.dismiss(frameworkReadyProjectId);
+              }}
+            />
+          )}
+          {/* Only once the round has ended: the 10th message is still being answered until then. */}
+          {aiSendBlocked && !isStreaming && !isThinking && (
+            <ChatQuotaCard
+              // The count is named only when the cached quota itself shows the day used up.
+              limit={quotaExhausted ? aiMessageQuota?.limit : undefined}
+              resetAt={aiMessageQuota?.reset_at ?? null}
+            />
+          )}
           <MessageInput
             onSend={handleSendMessage}
             // Allow drafting while AI is streaming/thinking, but prevent sending until it finishes.
             disabled={isLoadingHistory}
-            // Quota used up: drafting stays possible, sending waits for the daily reset.
-            sendDisabled={isStreaming || isThinking || isLoadingHistory || quotaExhausted}
+            sendDisabled={isStreaming || isThinking || isLoadingHistory}
+            // Quota used up: drafting stays possible; send / Enter explains instead of sending.
+            onBlockedSend={aiSendBlocked ? () => setShowQuotaUpgradeModal(true) : undefined}
             onCancel={isStreaming ? handleCancel : undefined}
+            isStopping={isStopping}
             // Steering: while streaming with an active session, the user can send
             // a follow-up instruction that the agent picks up at its next step.
             onSteer={handleSteer}
@@ -1974,11 +2376,13 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             placeholder={
               isStreaming || isThinking
                 ? t("chat:input.placeholderWhileProcessing")
-                : quotaExhausted
-                  ? t("chat:input.placeholderQuotaExhausted", { limit: aiMessageQuota?.limit })
+                : aiSendBlocked
+                  ? t("chat:input.placeholderQuotaExhausted")
                   : undefined
             }
             aiSuggestions={aiSuggestions}
+            // While the card offers "write chapter 1", chips (AI or fallback) saying the same are dropped: one entry for it.
+            hideSuggestion={showNextStep ? duplicatesNextStep : undefined}
             messageCount={messages.length}
             suggestionDisplayState={suggestionDisplayState}
             onRefreshSuggestions={refreshSuggestionsNow}
@@ -2025,6 +2429,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         secondaryDestination="pricing"
         title={t('editor:versionHistory.fileVersionLimitTitle')}
         description={t('editor:versionHistory.fileVersionLimitUpgrade')}
+        paidDescription={t('editor:versionHistory.fileVersionLimitPaid', {
+          defaultValue: '正文照常保存，只是这个文件不再生成新版本。',
+        })}
         primaryLabel={t('common:viewUpgrade')}
         onPrimary={() => {
           window.location.assign(
@@ -2052,6 +2459,16 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         cancelLabel={t('common:cancel')}
         variant="warning"
         loading={isUndoing}
+      />
+
+      {/* Leaving the workbench mid-round drops the stream and ends the round. */}
+      <LeaveWhileGeneratingDialog
+        open={leaveGuard.leavePending}
+        roundEnded={leaveGuard.roundEnded}
+        producedOutput={roundProgressRef.current.producedOutput}
+        showDailyCount={showDailyCount}
+        onStay={leaveGuard.cancelLeave}
+        onLeave={handleConfirmLeave}
       />
 
       {/* AI Memory Dialog */}

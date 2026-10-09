@@ -52,6 +52,7 @@ from .core.metrics import (
     CONTEXT_TOKENS_TOTAL,
     get_metrics_collector,
 )
+from .core.round_outcome import RunOutcome
 from .core.run_meter import AgentRunMeter
 from .core.session_loader import SessionLoader
 from .core.steering import (
@@ -69,6 +70,13 @@ from .skills import get_skill_context_injector, resolve_selected_skills
 from .skills.active_skills import list_active_skill_resources
 from .skills.content_budget import split_selected_budget
 from .stream_adapter import create_stream_adapter
+from .tools.author_edit_guard import (
+    CONFIRM_FILE_IDS_ROUTING_KEY,
+    MAX_CONFIRM_FILE_IDS,
+    AuthorEditRefusals,
+    confirmed_file_ids_from_history,
+    referenced_file_ids_from_metadata,
+)
 from .tools.mcp_tools import ToolContext, _should_offload_tool_execution
 
 logger = get_logger(__name__)
@@ -76,6 +84,9 @@ logger = get_logger(__name__)
 # 取消路径补存部分历史时写进 message_metadata.stop_reason 的值。墙钟时限到期
 # 也是以取消的方式到达 process_stream（sse_pump 取消后台 task），按已用时长区分。
 PARTIAL_SAVE_CANCELLED_STOP_REASON = "cancelled"
+# 前端「重试 / 重新发送」一条没得到回复的消息时在 metadata 里带上它（见
+# _drop_unanswered_retry_message_sync）。
+RETRY_UNANSWERED_METADATA_KEY = "retry_unanswered"
 PARTIAL_SAVE_DEADLINE_STOP_REASON = "run_deadline_exceeded"
 
 
@@ -102,7 +113,7 @@ def routing_from_router_decided(data: dict[str, Any]) -> dict[str, Any]:
     initial_agent = str(data.get("initial_agent") or routing_metadata.get("agent_type") or "")
     write_content = routing_metadata.get("write_content")
     scope = routing_metadata.get("scope")
-    return {
+    routing = {
         "initial_agent": initial_agent,
         "workflow_type": str(
             data.get("workflow_plan") or routing_metadata.get("workflow_type") or ""
@@ -112,6 +123,10 @@ def routing_from_router_decided(data: dict[str, Any]) -> dict[str, Any]:
         "scope": scope.strip() if isinstance(scope, str) else "",
         "last_agent": initial_agent,
     }
+    if routing_metadata.get("clarify_first") is True:
+        # 这一轮是为笼统要求先问清楚：下一轮不再问第二次（graph/writing_graph._should_clarify_first）。
+        routing["clarify_first"] = True
+    return routing
 
 
 # 工作台首页「输入想法 → 新建作品」后自动发出的第一条消息带 metadata.entry=dashboard_idea。
@@ -565,6 +580,7 @@ class AgentService:
         language: str | None = None,
         selected_skill_ids: list[str] | None = None,
         run_report: dict[str, Any] | None = None,
+        run_outcome: RunOutcome | None = None,
     ) -> AsyncGenerator[str, None]:
         """
         Process user message with streaming response.
@@ -581,6 +597,10 @@ class AgentService:
             run_report: Optional dict the caller owns; filled at the end of the run
                 with model, token usage, model calls, LLM time and stop reason so the
                 API layer can write one summary log line together with billing.
+            run_outcome: Optional handle the caller owns (agent.core.round_outcome):
+                the caller sets ``stop_kind`` before cancelling a stopped /
+                disconnected run; this method resolves the persisted assistant
+                message id on it once the round's history is saved.
 
         Yields:
             SSE event strings
@@ -676,6 +696,15 @@ class AgentService:
         assistant_display_events: list[dict[str, Any]] = []
         # 本轮路由（ROUTER_DECIDED + 最后一个 AGENT_SELECTED），随 assistant 消息落库
         assistant_routing: dict[str, Any] = {}
+        # 本轮因为作者手改过而没改成的文件：随 routing 落库，下一轮作者回答时放行。
+        author_edit_refusals = AuthorEditRefusals()
+
+        def _routing_for_save() -> dict[str, Any] | None:
+            refused = author_edit_refusals.file_ids()[:MAX_CONFIRM_FILE_IDS]
+            if not refused:
+                return assistant_routing or None
+            return {**assistant_routing, CONFIRM_FILE_IDS_ROUTING_KEY: refused}
+
         display_text_run_type: str | None = None
         pending_done_payload: dict[str, Any] | None = None
         had_stream_error = False
@@ -786,6 +815,53 @@ class AgentService:
 
             return len(cleaned)
 
+        def _drop_unanswered_retry_message_sync() -> bool:
+            """重试上一条没得到回复的消息：先删掉会话末尾那条同样的用户消息。
+
+            上一次请求出错时只落库了用户消息（没有助手回复）；重试会在本轮结束时
+            再写一条，刷新后就是几条一样的用户消息、没有回复，模型的历史里也会看到
+            同一句话两遍。只删最末一条、内容完全相同、之后没有任何消息的用户行。
+            """
+            from sqlmodel import desc, select
+
+            from models import ChatMessage, ChatSession
+
+            if not session_id:
+                return False
+            with create_session() as retry_session:
+                chat_session = retry_session.get(ChatSession, session_id)
+                if (
+                    chat_session is None
+                    or chat_session.user_id != user_id
+                    or chat_session.project_id != project_id
+                ):
+                    return False
+                last = retry_session.exec(
+                    select(ChatMessage)
+                    .where(ChatMessage.session_id == session_id)
+                    .order_by(desc(ChatMessage.created_at), desc(ChatMessage.id))
+                    .limit(1)
+                ).first()
+                if last is None or last.role != "user" or last.content != message:
+                    return False
+                # 同一时刻还有别的消息（时间戳相同、排序不确定）就不动，宁可留一条重复。
+                tied = retry_session.exec(
+                    select(ChatMessage.id)
+                    .where(
+                        ChatMessage.session_id == session_id,
+                        ChatMessage.created_at >= last.created_at,
+                        ChatMessage.id != last.id,
+                    )
+                    .limit(1)
+                ).first()
+                if tied is not None:
+                    return False
+                retry_session.delete(last)
+                chat_session.message_count = max(0, chat_session.message_count - 1)
+                chat_session.updated_at = utcnow()
+                retry_session.commit()
+                return True
+
         async def _hand_back_steering(pending: list[str]) -> bool:
             """本 run 兜底 drain 出来的 steering，若还有并发 run 在生成就交还。
 
@@ -821,11 +897,11 @@ class AgentService:
                 )
                 return False
 
-        async def _finish_history_write(write: Any, *args: Any) -> None:
+        async def _finish_history_write(write: Any, *args: Any) -> Any:
             """Keep finalization ownership until an uncancellable SQL worker finishes."""
             write_task = asyncio.create_task(asyncio.to_thread(write, *args))
             try:
-                await asyncio.shield(write_task)
+                return await asyncio.shield(write_task)
             except asyncio.CancelledError:
                 # Cancelling the awaiter cannot stop to_thread. Repeated cancellation
                 # must not release ownership while that worker can still commit.
@@ -850,19 +926,27 @@ class AgentService:
             usage = adapter.get_last_message_metadata().get("usage")
             return usage if isinstance(usage, dict) and usage else None
 
-        def _save_partial_history_sync(stop_reason: str | None = None) -> None:
-            """用独立 session 落库部分历史（取消/失败路径，绕开共享 session）。"""
-            if not _has_assistant_payload():
+        def _save_partial_history_sync(
+            stop_reason: str | None = None,
+            persist_empty_assistant: bool = False,
+        ) -> str | None:
+            """用独立 session 落库部分历史（取消/失败路径，绕开共享 session）。
+
+            persist_empty_assistant：作者停止 / 断线的一轮即使什么都没产出也写一条
+            助手消息（带 stop_reason），刷新后作者才看得到这一轮已停止、是否计入。
+            返回助手消息 id（没写助手消息时为 None）。
+            """
+            if not _has_assistant_payload() and not persist_empty_assistant:
                 # 空 assistant 不落库，只保留用户消息与已消费的 steering。
                 _append_user_messages_sync([message, *consumed_steering])
-                return
+                return None
 
             recovery_manager = MessageManager(
                 project_id=project_id,
                 user_id=user_id,
             )
             with create_session() as recovery_session:
-                recovery_manager._save_messages_with_session(
+                return recovery_manager._save_messages_with_session(
                     recovery_session,
                     session_id,
                     message,
@@ -874,7 +958,8 @@ class AgentService:
                     assistant_display_events=assistant_display_events or None,
                     assistant_usage=_accumulated_usage(),
                     assistant_stop_reason=stop_reason,
-                    assistant_routing=assistant_routing or None,
+                    assistant_routing=_routing_for_save(),
+                    persist_empty_assistant=persist_empty_assistant,
                 )
 
         try:
@@ -897,6 +982,20 @@ class AgentService:
             )
             if generation_mode not in {"fast", "quality"}:
                 generation_mode = None
+
+            # 重试上一条没得到回复的消息时，复用它而不是再多一条一样的用户消息。
+            if user_id and metadata and metadata.get(RETRY_UNANSWERED_METADATA_KEY) is True:
+                try:
+                    await asyncio.to_thread(_drop_unanswered_retry_message_sync)
+                except Exception as exc:
+                    log_with_context(
+                        logger,
+                        30,  # WARNING
+                        "Failed to reuse the unanswered user message on retry",
+                        session_id=session_id,
+                        error=str(exc),
+                        error_type=type(exc).__name__,
+                    )
 
             # Assemble intelligent context
             yield thinking_event(
@@ -1088,6 +1187,11 @@ class AgentService:
                 # 作者原话：update_project 据此确认 author_requested 真是作者要求的改名
                 author_message=message,
                 author_steering=consumed_steering,
+                # 作者手改过的文件：作者本轮没点名时 AI 不改（agent/tools/author_edit_guard.py）。
+                focus_file_id=focus_file_id if isinstance(focus_file_id, str) else None,
+                referenced_file_ids=referenced_file_ids_from_metadata(metadata),
+                author_confirmed_file_ids=confirmed_file_ids_from_history(history_messages),
+                author_edit_refusals=author_edit_refusals,
             )
 
             # Build WritingState for workflow execution
@@ -1333,7 +1437,7 @@ class AgentService:
                         assistant_status_cards=assistant_status_cards or None,
                         steering_messages=consumed_steering or None,
                         assistant_display_events=assistant_display_events or None,
-                        assistant_routing=assistant_routing or None,
+                        assistant_routing=_routing_for_save(),
                     )
                     history_saved = True
                     return saved_id
@@ -1348,6 +1452,8 @@ class AgentService:
                 history_save_task = asyncio.create_task(_save_history_once())
                 history_save_task.add_done_callback(_consume_history_save_error)
                 assistant_message_id = await asyncio.shield(history_save_task)
+                if run_outcome is not None:
+                    run_outcome.resolve_message_id(assistant_message_id)
                 if pending_done_payload is not None:
                     refs_candidate = pending_done_payload.get("refs")
                     refs = refs_candidate if isinstance(refs_candidate, list) else None
@@ -1397,6 +1503,14 @@ class AgentService:
             if user_id:
 
                 async def _drain_then_save_partial_history() -> None:
+                    try:
+                        await _drain_then_save_partial_history_inner()
+                    finally:
+                        # 没写成（或已在上面交回）时交回 None，路由层不必一直等。
+                        if run_outcome is not None:
+                            run_outcome.resolve_message_id(None)
+
+                async def _drain_then_save_partial_history_inner() -> None:
                     # 取消可能恰好落在 save_messages 期间：它被 shield 保护会
                     # 继续跑完，所以补偿保存前必须等它的真实结果。已落库时
                     # 不能整轮重写（user/steering/assistant 会写两遍），但仍要
@@ -1404,6 +1518,13 @@ class AgentService:
                     # 一起消失。
                     if history_save_task is not None:
                         await asyncio.wait({history_save_task})
+                        if (
+                            run_outcome is not None
+                            and history_saved
+                            and not history_save_task.cancelled()
+                            and history_save_task.exception() is None
+                        ):
+                            run_outcome.resolve_message_id(history_save_task.result())
 
                     already_consumed = len(consumed_steering)
                     try:
@@ -1430,9 +1551,16 @@ class AgentService:
                                 _append_user_messages_sync, late_steering
                             )
                         return
-                    await _finish_history_write(
-                        _save_partial_history_sync, cancel_stop_reason
+                    # 作者停止 / 断线（路由层在取消前写入 stop_kind）：落库真实的停止
+                    # 原因，并且即使没有任何产出也写一条助手消息，刷新后看得到终态。
+                    stop_kind = run_outcome.stop_kind if run_outcome is not None else None
+                    saved_id = await _finish_history_write(
+                        _save_partial_history_sync,
+                        stop_kind or cancel_stop_reason,
+                        bool(stop_kind),
                     )
+                    if run_outcome is not None:
+                        run_outcome.resolve_message_id(saved_id)
 
                 cancellation_save_task = self._schedule_background_cleanup(
                     _drain_then_save_partial_history(),
@@ -1554,6 +1682,8 @@ class AgentService:
                                 error_type=type(exc).__name__,
                             )
                 finally:
+                    if run_outcome is not None:
+                        run_outcome.resolve_message_id(None)
                     try:
                         await cleanup_steering_queue_async(
                             session_id, run_id=steering_run_id

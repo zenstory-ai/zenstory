@@ -134,6 +134,29 @@ Agent 可以通过两种方式交接：
   `nodes.ends_with_question_to_user`）时，计划交接不触发，本轮停下等用户回答；
   结构化的 `request_clarification` 仍是首选信号。显式 handoff 不受影响。自动质检门不看这个
   信号（writer 收尾"需要我继续写第二章吗？"时，开启了自动质检/高质量模式仍照常送审）。
+  例外：规划类角色（planner / hook_designer）以提问收尾、但路由 `write_content=true` 且计划里
+  还有 writer 时不清空，writer 的交接说明里写明按推荐方案写、不再问
+  （`graph/author_scope.planning_question_keeps_writer`）。
+- 计划交接的交接说明固定带「已完成的不重做、不改刚交付的文件、不追加作者没要的产出」。
+- 「帮我优化一下」这类整句笼统的要求（`author_scope.is_vague_edit_request`）不走路由：writer 单独
+  一轮先问清楚改哪里（`state["clarify_first"]`，写文件工具以 `error_type="clarify_first"` 拒绝，
+  显式交接丢弃）；上一轮收尾只提了一处修改（作者是在答应它）、或上一轮已经问过一次时不问。
+  这个判断先于「沿用上一轮路由」。
+- 作者要了规划（原话里有大纲 / 分章 / 分集 / 规划，不是只想聊聊）、规划师却把至少 5 个
+  「第 N 章 / 集」的规划只贴在对话里、本请求的大纲文件又没覆盖时，同一个规划师补一轮把规划写进
+  大纲文件（每请求一次，`author_scope.chat_only_plan_units` / `request_asks_for_a_plan`）。
+- 作者手动改过的文件（最新版本不是 AI 写的，或正文在版本之后又被改过）：作者本轮没点名并要求改、
+  也不是正开着它提改动时，`edit_file` / `delete_file`（含递归删文件夹里的这类文件）/ 剧本
+  `create_file` 复用同名剧集都不执行，返回 `error_type="author_edit_protected"`，让 agent 以作者
+  写法为准、在回复里问作者（默认问要不要把其他章改成作者的写法）；被拒的文件随 routing 落库
+  （`author_confirm_file_ids`），作者下一轮说清往哪改（「统一成老周」）且每处修改都朝这个方向时
+  放行（「好 / 可以」答应的是改其他章，「不用改」、不带方向的「要统一」都不放行）。点名但拿它当
+  标准（「以第3章为准」「和第3章保持统一」）或讲它改过了（「第3章改好了」）不算要改它。删除
+  （单个文件或递归删文件夹里的）要作者在点名的那一处说删。
+  规则见 `tools/author_edit_guard.py`；工作集也会标注这类文件。前端工具卡片把
+  `author_edit_protected` / `clarify_first` 显示成「保留了你改过的内容」/「先问清楚再改」，不显示「失败」。
+- 每个 agent run 的 TEXT 经 `core/author_facing_text.AgentTextShaper` 整理：和前一个角色的文字之间
+  补空行；作者写中文时，紧接着工具调用的英文过程句（「Now create the … file.」）不发给作者。
 - 只读请求（router `read_only=true`）不交接给有写权限的 agent，显式 handoff 也拦下，并给一张
   `WORKFLOW_STOPPED(reason="read_only_handoff_blocked")` 提示卡片；交接给 quality_reviewer 这类
   只读 agent 照常。前端收到任何 workflow_stopped 都会结束流式状态，所以拦下时只记录、不 break，

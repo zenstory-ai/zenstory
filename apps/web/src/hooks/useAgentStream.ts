@@ -15,7 +15,13 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { produce } from "immer";
 import i18n from "../lib/i18n";
 import { useImmer } from "use-immer";
-import { sendSteeringRequest, streamAgentRequest, type QuotaRefundKind } from "../lib/agentApi";
+import {
+  sendSteeringRequest,
+  stopAgentRun,
+  streamAgentRequest,
+  type QuotaRefundKind,
+  type RemovedPlaceholderFile,
+} from "../lib/agentApi";
 import type {
   AgentContextItem,
   AgentRequest,
@@ -71,6 +77,13 @@ export interface StreamCompletionMeta {
    * 照常落进 messages，而不是让它随下一轮 onStart 的清理一起消失。
    */
   partial?: boolean;
+  /** The author stopped this round and the server wrapped it up (done with stop_reason). */
+  stoppedByAuthor?: boolean;
+  /**
+   * Stopped rounds only: whether the server saw real output (prose or a write). False means
+   * nothing was written, so follow-ups must not assume prose exists.
+   */
+  producedOutput?: boolean;
 }
 
 export interface UseAgentStreamOptions {
@@ -211,7 +224,7 @@ export interface UseAgentStreamOptions {
   /** Called when steering message is received */
   onSteeringReceived?: (messageId: string, preview: string) => void;
   /** Called after the terminal frame when the backend actually refunded this round */
-  onQuotaRefunded?: (kind: QuotaRefundKind) => void;
+  onQuotaRefunded?: (kind: QuotaRefundKind, removedFiles: RemovedPlaceholderFile[]) => void;
 }
 
 export interface UseAgentStreamReturn {
@@ -221,8 +234,18 @@ export interface UseAgentStreamReturn {
   segments: MessageSegment[];
   /** Start streaming request */
   startStream: (request: Omit<AgentRequest, "project_id">) => void;
-  /** Cancel ongoing stream */
+  /** Cancel ongoing stream (drops the connection; used on unmount / project switch) */
   cancel: () => void;
+  /**
+   * Author pressed stop: ask the server to end the run on this stream so it can
+   * settle billing as an author stop; falls back to cancel() if that fails.
+   * `keepFileIds`: files with author text the editor could not save first; the
+   * server does not remove them as blank placeholders. Resolves once the stop
+   * request has settled.
+   */
+  stop: (options?: { keepFileIds?: string[] }) => Promise<void>;
+  /** Stop requested, waiting for the server to close the round */
+  isStopping: boolean;
   /** Reset state to initial */
   reset: () => void;
   /** Whether currently streaming */
@@ -239,6 +262,8 @@ export interface UseAgentStreamReturn {
   error: string | null;
   /** Backend error code if provided by SSE error event */
   errorCode: string | null;
+  /** Clears the current error message and code */
+  clearError: () => void;
   /** Whether the backend says the current stream error can be retried */
   retryable: boolean;
   /** Current session ID for steering */
@@ -246,6 +271,9 @@ export interface UseAgentStreamReturn {
   /** Send a steering message to the active session */
   sendSteeringMessage: (message: string) => Promise<void>;
 }
+
+/** How long to wait for the server to wrap up a stopped round before dropping the connection. */
+export const STOP_GRACE_MS = 5000;
 
 const initialState: AgentStreamState = {
   isStreaming: false,
@@ -321,6 +349,11 @@ export function useAgentStream(
   const [sessionId, setSessionId] = useState<string | null>(null);
   const currentProjectIdRef = useRef(projectId);
   const lastProjectIdRef = useRef(projectId);
+  // X-Agent-Run-ID of the in-flight stream; needed to ask the server to stop it.
+  const runIdRef = useRef<string | null>(null);
+  const stopRequestedRef = useRef(false);
+  const stopFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [stopRequested, setStopRequested] = useState(false);
 
   useEffect(() => {
     currentProjectIdRef.current = projectId;
@@ -390,6 +423,10 @@ export function useAgentStream(
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
+      }
+      if (stopFallbackTimerRef.current) {
+        clearTimeout(stopFallbackTimerRef.current);
+        stopFallbackTimerRef.current = null;
       }
       clearFlushTimer();
       if (errorTimeoutRef.current) {
@@ -703,6 +740,11 @@ export function useAgentStream(
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    if (stopFallbackTimerRef.current) {
+      clearTimeout(stopFallbackTimerRef.current);
+      stopFallbackTimerRef.current = null;
+    }
+    setStopRequested(false);
     // Flush what we already received so the UI doesn't "lose" the last chunk.
     flushPendingContent();
     clearFlushTimer();
@@ -732,6 +774,40 @@ export function useAgentStream(
   }, [clearFlushTimer, finalizeStream, flushPendingContent, onSegmentEnd, updateSegmentsSync]);
 
   /**
+   * Author pressed stop. The server ends the run on the open stream (stop card +
+   * done, and quota_refunded when nothing was produced), so keep reading it; only
+   * drop the connection when the stop request fails or the server does not wrap
+   * up within STOP_GRACE_MS. A second press while stopping drops it right away.
+   */
+  const stop = useCallback(async (options?: { keepFileIds?: string[] }) => {
+    // The round already ended (done arrived, e.g. while the editor was saving before the
+    // stop): there is nothing to stop. Asking /stop or arming the fallback would only
+    // cancel the finished stream and drop the frames that still follow done.
+    if (onCompleteCalledRef.current) return;
+    const runId = runIdRef.current;
+    if (!runId || stopRequestedRef.current) {
+      cancel();
+      return;
+    }
+    stopRequestedRef.current = true;
+    setStopRequested(true);
+    const epoch = streamEpochRef.current;
+    const dropConnection = () => {
+      if (streamEpochRef.current === epoch) cancel();
+    };
+    stopFallbackTimerRef.current = setTimeout(dropConnection, STOP_GRACE_MS);
+    const recorded = await stopAgentRun(runId, options?.keepFileIds ?? []);
+    if (!recorded) dropConnection();
+  }, [cancel]);
+
+  // The round ended (done / error / stop card): the stop has been honoured.
+  useEffect(() => {
+    if (state.isStreaming || !stopFallbackTimerRef.current) return;
+    clearTimeout(stopFallbackTimerRef.current);
+    stopFallbackTimerRef.current = null;
+  }, [state.isStreaming]);
+
+  /**
    * Start a streaming request.
    */
   const startStream = useCallback(
@@ -744,6 +820,13 @@ export function useAgentStream(
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
+      runIdRef.current = null;
+      stopRequestedRef.current = false;
+      if (stopFallbackTimerRef.current) {
+        clearTimeout(stopFallbackTimerRef.current);
+        stopFallbackTimerRef.current = null;
+      }
+      setStopRequested(false);
 
       // 清除之前的错误
       clearError();
@@ -790,6 +873,11 @@ export function useAgentStream(
           selected_skill_ids: request.selected_skill_ids,
         },
         {
+          onRunStarted: (agentRunId) => {
+            if (isStaleEvent()) return;
+            runIdRef.current = agentRunId;
+          },
+
           onThinking: (message) => {
             if (isStaleEvent()) return;
             setState((prev) => ({
@@ -953,6 +1041,7 @@ export function useAgentStream(
 
           onFileCreated: (fileId, fileType, title) => {
             if (isStaleEvent()) return;
+            flushPendingContent();
             onFileCreated?.(fileId, fileType, title);
           },
 
@@ -1011,6 +1100,8 @@ export function useAgentStream(
 
           onAgentSelected: (agentType, agentName, iteration, maxIterations, remaining) => {
             if (isStaleEvent()) return;
+            // Segment boundary for the prose count: deliver the text before it first.
+            flushPendingContent();
             onAgentSelected?.(agentType, agentName, iteration, maxIterations, remaining);
           },
 
@@ -1040,6 +1131,7 @@ export function useAgentStream(
 
           onHandoff: (data) => {
             if (isStaleEvent()) return;
+            flushPendingContent();
             resolvePendingControlTool(
               "handoff_to_agent",
               "success",
@@ -1058,9 +1150,13 @@ export function useAgentStream(
                 data as unknown as Record<string, unknown>,
               );
             }
+            // The author's stop card comes before done (which carries this round's
+            // assistant message id and arrives once the server saved it): keep the round
+            // open ("正在停止…") until then, so a new send cannot cut the round off midway.
+            const keepOpenUntilDone = data.reason === "user_stopped";
             setState((prev) => ({
               ...prev,
-              isStreaming: false,
+              isStreaming: keepOpenUntilDone ? prev.isStreaming : false,
               isThinking: false,
             }));
             onWorkflowStopped?.(data);
@@ -1088,6 +1184,7 @@ export function useAgentStream(
 
           onParallelStart: (execution_id, task_count, task_descriptions, dropped_count) => {
             if (isStaleEvent()) return;
+            flushPendingContent();
             parallelStateRef.current = {
               executionId: execution_id,
               tasks: new Map(),
@@ -1133,9 +1230,9 @@ export function useAgentStream(
             onSteeringReceived?.(message_id, preview);
           },
 
-          onQuotaRefunded: (kind) => {
+          onQuotaRefunded: (kind, removedFiles) => {
             if (isStaleEvent()) return;
-            onQuotaRefunded?.(kind);
+            onQuotaRefunded?.(kind, removedFiles);
           },
 
           onConflict: (conflictData) => {
@@ -1202,10 +1299,17 @@ export function useAgentStream(
                 confirmedFileMutation:
                   typeof data.file_mutated === "boolean" ? data.file_mutated : undefined,
               };
+              if (data.stop_reason === "user_stopped") {
+                completionMeta.stoppedByAuthor = true;
+                if (typeof data.produced_output === "boolean") {
+                  completionMeta.producedOutput = data.produced_output;
+                }
+              }
               if (
                 completionMeta.assistantMessageId ||
                 completionMeta.sessionId ||
-                completionMeta.confirmedFileMutation !== undefined
+                completionMeta.confirmedFileMutation !== undefined ||
+                completionMeta.stoppedByAuthor
               ) {
                 onComplete?.(segmentsRef.current, applyAction || null, completionMeta);
               } else {
@@ -1314,6 +1418,8 @@ export function useAgentStream(
     segments,
     startStream,
     cancel,
+    stop,
+    isStopping: stopRequested && state.isStreaming,
     reset,
     isStreaming: state.isStreaming,
     isThinking: state.isThinking,
@@ -1322,6 +1428,7 @@ export function useAgentStream(
     conflicts: state.conflicts,
     error,
     errorCode,
+    clearError,
     retryable: state.retryable,
     sessionId,
     sendSteeringMessage,

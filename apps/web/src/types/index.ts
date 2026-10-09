@@ -499,6 +499,7 @@ export interface SSEWorkflowStoppedData {
     | "clarification_needed"
     | "error"
     | "user_cancelled"
+    | "user_stopped"
     | "invalid_handoff"
     | (string & {});
   agent_type: string;
@@ -1338,3 +1339,14 @@ export type AgentEnhancementEvent =
   | ParallelTaskEndEvent
   | ParallelEndEvent
   | SteeringReceivedEvent;
+
+/** Writing progress shown on a project card (from GET /projects/progress). */
+export interface ProjectProgress {
+  project_id: string;
+  /** Non-empty chapters (novel/short) or episodes (screenplay). */
+  written_units: number;
+  /** Editor word count across those files. */
+  word_count: number;
+  /** Outline/characters/setting exist but no prose yet. */
+  framework_ready: boolean;
+}

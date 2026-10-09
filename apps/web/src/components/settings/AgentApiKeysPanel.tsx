@@ -8,6 +8,9 @@ import { getLocaleCode } from '../../lib/i18n-helpers';
 import { handleApiError } from '../../lib/errorHandler';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import Modal from '../ui/Modal';
+import { Button } from '../ui/Button';
+import { IconButton } from '../ui/IconButton';
+import { useIsMobile } from '../../hooks/useMediaQuery';
 import type {
   AgentApiKey,
   CreateAgentApiKeyRequest,
@@ -60,12 +63,12 @@ function ScopeBadge({ label }: { scope: string; label: string }) {
 
 function StatusBadge({ isActive, label }: { isActive: boolean; label: string }) {
   return isActive ? (
-    <span className="inline-flex items-center gap-1 text-xs text-green-500">
+    <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs text-green-500">
       <Shield size={12} />
       {label}
     </span>
   ) : (
-    <span className="inline-flex items-center gap-1 text-xs text-[hsl(var(--text-secondary))]">
+    <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs text-[hsl(var(--text-secondary))]">
       <ShieldOff size={12} />
       {label}
     </span>
@@ -131,7 +134,7 @@ function ConnectGuide() {
       aria-labelledby="agent-connect-guide-title"
       className="p-4 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))]"
     >
-      <h3 id="agent-connect-guide-title" className="text-sm font-medium text-[hsl(var(--text-primary))] mb-1">
+      <h3 id="agent-connect-guide-title" className="text-sm font-semibold text-[hsl(var(--text-primary))] mb-1">
         {t('apiKeys.connectGuide.title')}
       </h3>
       <p className="text-xs text-[hsl(var(--text-secondary))] mb-3">
@@ -247,6 +250,7 @@ function CreateKeyForm({
   const [description, setDescription] = useState('');
   const [scopes, setScopes] = useState<string[]>(['read']);
   const [expiresInDays, setExpiresInDays] = useState(0);
+  const actionSize = useIsMobile() ? 'touch' : 'md';
 
   const expirationOptions = [
     { value: 0, label: t('apiKeys.form.never', '永不过期') },
@@ -341,20 +345,18 @@ function CreateKeyForm({
       </div>
 
       <div className="flex justify-end gap-2 pt-1">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-3 py-1.5 rounded-lg text-xs text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-hover))] transition-colors"
-        >
+        <Button type="button" variant="ghost" size={actionSize} onClick={onCancel}>
           {t('common.cancel')}
-        </button>
-        <button
+        </Button>
+        <Button
           type="submit"
-          disabled={!name.trim() || scopes.length === 0 || isSubmitting}
-          className="px-3 py-1.5 rounded-lg text-xs text-white bg-[hsl(var(--accent-primary))] hover:opacity-90 transition-colors disabled:opacity-50"
+          size={actionSize}
+          disabled={!name.trim() || scopes.length === 0}
+          isLoading={isSubmitting}
+          loadingText={t('common.loading')}
         >
-          {isSubmitting ? t('common.loading') : t('apiKeys.create')}
-        </button>
+          {t('apiKeys.create')}
+        </Button>
       </div>
     </form>
   );
@@ -387,7 +389,12 @@ function KeyRow({
   };
 
   return (
-    <div className="flex items-center gap-3 p-3 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))]">
+    // On phones the three 44px actions take their own row under the key, so the name keeps
+    // the full width (beside them it was squeezed to ~48px at 390px).
+    <div
+      data-testid="agent-api-key-row"
+      className="flex items-center gap-3 p-3 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] max-md:flex-col max-md:items-stretch max-md:gap-2"
+    >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <span className="text-sm font-medium text-[hsl(var(--text-primary))] truncate">
@@ -423,28 +430,23 @@ function KeyRow({
         </div>
       </div>
 
-      <div className="flex items-center gap-1 shrink-0">
-        <button
+      <div data-testid="agent-api-key-actions" className="flex items-center gap-1 shrink-0 max-md:justify-end">
+        <IconButton
           onClick={() => onToggleActive(apiKey)}
-          title={apiKey.is_active ? t('apiKeys.disable') : t('apiKeys.enable')}
-          className="p-1.5 rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-hover))] transition-colors"
-        >
-          {apiKey.is_active ? <ShieldOff size={14} /> : <Shield size={14} />}
-        </button>
-        <button
+          label={apiKey.is_active ? t('apiKeys.disable') : t('apiKeys.enable')}
+          icon={apiKey.is_active ? <ShieldOff size={16} /> : <Shield size={16} />}
+        />
+        <IconButton
           onClick={() => onRegenerate(apiKey)}
-          title={t('apiKeys.regenerate')}
-          className="p-1.5 rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-hover))] transition-colors"
-        >
-          <RefreshCw size={14} />
-        </button>
-        <button
+          label={t('apiKeys.regenerate')}
+          icon={<RefreshCw size={16} />}
+        />
+        <IconButton
           onClick={() => onDelete(apiKey)}
-          title={t('apiKeys.delete')}
-          className="p-1.5 rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-hover))] hover:text-red-500 transition-colors"
-        >
-          <Trash2 size={14} />
-        </button>
+          label={t('apiKeys.delete')}
+          tone="danger"
+          icon={<Trash2 size={16} />}
+        />
       </div>
     </div>
   );
@@ -452,6 +454,7 @@ function KeyRow({
 
 export const AgentApiKeysPanel: React.FC = () => {
   const { t } = useTranslation('settings');
+  const actionSize = useIsMobile() ? 'touch' : 'md';
   const queryClient = useQueryClient();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
@@ -560,7 +563,7 @@ export const AgentApiKeysPanel: React.FC = () => {
       <div className="space-y-3">
         <ConnectGuide />
         <p role="alert" className="text-sm text-red-500">{handleApiError(error)}</p>
-        <button onClick={() => void refetch()}>{t('common:retry', '重试')}</button>
+        <Button variant="secondary" size={actionSize} onClick={() => void refetch()}>{t('common:retry', '重试')}</Button>
       </div>
     );
   }
@@ -573,19 +576,15 @@ export const AgentApiKeysPanel: React.FC = () => {
           <div className="w-12 h-12 rounded-full bg-[hsl(var(--bg-tertiary))] flex items-center justify-center mb-3">
             <Key size={20} className="text-[hsl(var(--text-secondary))]" />
           </div>
-          <h3 className="text-sm font-medium text-[hsl(var(--text-primary))] mb-1">
+          <h3 className="text-sm font-semibold text-[hsl(var(--text-primary))] mb-1">
             {t('apiKeys.noKeys')}
           </h3>
           <p className="text-xs text-[hsl(var(--text-secondary))] mb-4 max-w-xs">
             {t('apiKeys.emptyState')}
           </p>
-          <button
-            onClick={() => setShowCreateForm(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-white bg-[hsl(var(--accent-primary))] hover:opacity-90 transition-colors"
-          >
-            <Plus size={14} />
+          <Button size={actionSize} onClick={() => setShowCreateForm(true)} leftIcon={<Plus size={16} />}>
             {t('apiKeys.create')}
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -597,15 +596,11 @@ export const AgentApiKeysPanel: React.FC = () => {
       {mutationError && <p role="alert" className="text-sm text-red-500">{mutationError}</p>}
 
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-[hsl(var(--text-primary))]">{t('apiKeys.title')}</h3>
+        <h3 className="text-xs font-medium text-[hsl(var(--text-secondary))]">{t('apiKeys.title')}</h3>
         {!showCreateForm && (
-          <button
-            onClick={() => setShowCreateForm(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-white bg-[hsl(var(--accent-primary))] hover:opacity-90 transition-colors"
-          >
-            <Plus size={14} />
+          <Button size={actionSize} onClick={() => setShowCreateForm(true)} leftIcon={<Plus size={16} />}>
             {t('apiKeys.create')}
-          </button>
+          </Button>
         )}
       </div>
 

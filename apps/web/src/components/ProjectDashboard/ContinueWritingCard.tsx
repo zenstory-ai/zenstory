@@ -7,6 +7,7 @@ import { useIsMobile } from '../../hooks/useMediaQuery';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { IconWrapper } from '../ui/IconWrapper';
+import { statsUnitKey } from './statsUnits';
 
 interface ContinueWritingCardProps {
   /** Dashboard statistics data */
@@ -218,7 +219,7 @@ export function ContinueWritingCard({
           <PenLine className="w-10 h-10 mb-2 opacity-50" />
           <p className="text-sm">{t('statistics.continueWriting.noFiles')}</p>
           <p className="text-xs mt-1 text-[hsl(var(--text-secondary)/0.7)]">
-            {t('statistics.continueWriting.createFirst')}
+            {t(statsUnitKey(stats, 'createFirst'))}
           </p>
         </div>
       </Card>
@@ -309,8 +310,8 @@ export function ContinueWritingCard({
         {recommendedFile.status === 'in_progress'
           ? t('statistics.continueWriting.hintInProgress')
           : recommendedFile.status === 'not_started'
-            ? t('statistics.continueWriting.hintNotStarted')
-            : t('statistics.continueWriting.hintCompleted')}
+            ? t(statsUnitKey(stats, 'hintNotStarted'))
+            : t(statsUnitKey(stats, 'hintCompleted'))}
       </p>
     </Card>
   );

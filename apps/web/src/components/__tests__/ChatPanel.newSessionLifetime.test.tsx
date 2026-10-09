@@ -101,6 +101,7 @@ beforeEach(async () => {
     if (/^\/api\/v1\/chat\/session\/[ab]\/new$/.test(path)) return json({ id: 'new-session', project_id: path.split('/')[5] })
     if (path === '/api/v1/agent/suggest') return json({ suggestions: [`${(body as { project_id: string }).project_id.toUpperCase()} OWN SUGGESTION`] })
     if (path === '/api/v1/subscription/quota') return json({ ai_conversations: { used: 0, limit: 100 }, plan: 'free' })
+    if (path === '/api/v1/projects/progress') return json([])
     if (/\/locales\/(en|zh)\/[^/]+\.json/.test(path)) return json({})
     unexpected.push(path); throw new Error(`OFFLINE_API_DENIED ${path}`)
   }
@@ -134,7 +135,7 @@ afterEach(async () => {
   gates.forEach(x => x.settle()); await flush(); snapshot('after assertion')
   cleanup(); await queryClient.cancelQueries(); queryClient.clear()
   for (const stream of streams) { if (!stream.closed) { stream.closed = true; stream.controller.close() }; stream.dispose() }
-  await act(async () => { await vi.advanceTimersByTimeAsync(2000) }); await Promise.allSettled([...pending])
+  await act(async () => { await vi.advanceTimersByTimeAsync(5500) }); await Promise.allSettled([...pending])
   const remainingTimers = vi.getTimerCount(); vi.clearAllTimers()
   console.info('M07_NEW_SESSION_OBSERVATION', JSON.stringify({ case: expect.getState().currentTestName, requests, routes, checkpoints, bootstrapLocaleRequestCount: bootstrap.paths.length,
     streams: streams.map(x => ({ closed: x.closed, aborted: x.aborted })), cleanup: { unsettledAtAssertion, pending: pending.size, unexpected, remainingTimers, timersAfterClear: vi.getTimerCount(), dialogs: screen.queryAllByRole('dialog').length,

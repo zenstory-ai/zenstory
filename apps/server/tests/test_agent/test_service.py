@@ -1940,3 +1940,138 @@ class TestProcessStreamRunHeartbeatAndReport:
         assert run_report["output_tokens"] == 5
         assert run_report["stop_reason"] == "end_turn"
         assert "model_calls" in run_report and "llm_duration_ms" in run_report
+
+
+@pytest.mark.integration
+class TestStoppedRoundHistory:
+    """作者停止 / 断线的一轮：落库真实的停止原因、空轮也留一条助手消息、交回消息 id；
+    重试一条没得到回复的消息时复用它，不再多一条一样的用户消息。"""
+
+    async def test_stopped_round_without_output_still_saves_an_assistant_row(
+        self, mock_agent_service, test_user_with_project, db_session: Session
+    ):
+        from agent.core.round_outcome import RunOutcome
+
+        service, _ = mock_agent_service
+        project = test_user_with_project["project"]
+        user = test_user_with_project["user"]
+        started = asyncio.Event()
+
+        async def thinking_forever():
+            started.set()
+            await asyncio.sleep(3600)
+            yield  # pragma: no cover - never reached
+
+        run_outcome = RunOutcome()
+        events: list[str] = []
+
+        async def consume():
+            async for event in service.process_stream(
+                project_id=str(project.id),
+                user_id=str(user.id),
+                message="写第一章",
+                session=db_session,
+                run_outcome=run_outcome,
+            ):
+                events.append(event)
+
+        def _fresh_session():
+            return Session(db_session.get_bind())
+
+        with (
+            patch("agent.service.run_writing_workflow_streaming", return_value=thinking_forever()),
+            patch("agent.service.create_session", side_effect=_fresh_session),
+        ):
+            task = asyncio.create_task(consume())
+            await wait_for_stream_start(started, task)
+            # 路由层先写停止原因再取消（见 api/agent.py）。
+            run_outcome.stop_kind = "user_stopped"
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+            message_id = await run_outcome.wait_message_id(5.0)
+
+        assert message_id is not None
+        db_session.rollback()
+        assistant = db_session.get(ChatMessage, message_id)
+        assert assistant.role == "assistant"
+        assert assistant.content == ""
+        assert json.loads(assistant.message_metadata)["stop_reason"] == "user_stopped"
+        rows = db_session.exec(
+            select(ChatMessage).where(ChatMessage.session_id == assistant.session_id)
+        ).all()
+        assert sorted(row.role for row in rows) == ["assistant", "user"]
+
+    async def test_retrying_an_unanswered_message_reuses_it(
+        self, mock_agent_service, test_user_with_project, db_session: Session, mock_langgraph_workflow
+    ):
+        service, _ = mock_agent_service
+        project = test_user_with_project["project"]
+        user = test_user_with_project["user"]
+        chat = ChatSession(user_id=user.id, project_id=project.id, message_count=1)
+        db_session.add(chat)
+        db_session.commit()
+        # 上一次请求出错：只落库了用户消息，没有回复。
+        db_session.add(ChatMessage(session_id=chat.id, role="user", content="写第一章"))
+        db_session.commit()
+
+        def _fresh_session():
+            return Session(db_session.get_bind())
+
+        with patch("agent.service.create_session", side_effect=_fresh_session):
+            _ = [
+                event
+                async for event in service.process_stream(
+                    project_id=str(project.id),
+                    user_id=str(user.id),
+                    message="写第一章",
+                    session=db_session,
+                    session_id=chat.id,
+                    metadata={"retry_unanswered": True},
+                )
+            ]
+
+        db_session.rollback()
+        rows = db_session.exec(
+            select(ChatMessage).where(ChatMessage.session_id == chat.id).order_by(ChatMessage.created_at)
+        ).all()
+        assert [(row.role, row.content) for row in rows] == [
+            ("user", "写第一章"),
+            ("assistant", "Hello World"),
+        ]
+
+    async def test_retry_flag_never_drops_a_message_that_was_answered(
+        self, mock_agent_service, test_user_with_project, db_session: Session, mock_langgraph_workflow
+    ):
+        service, _ = mock_agent_service
+        project = test_user_with_project["project"]
+        user = test_user_with_project["user"]
+        chat = ChatSession(user_id=user.id, project_id=project.id, message_count=2)
+        db_session.add(chat)
+        db_session.commit()
+        db_session.add(ChatMessage(session_id=chat.id, role="user", content="写第一章"))
+        db_session.commit()
+        db_session.add(ChatMessage(session_id=chat.id, role="assistant", content="第一章写好了。"))
+        db_session.commit()
+
+        def _fresh_session():
+            return Session(db_session.get_bind())
+
+        with patch("agent.service.create_session", side_effect=_fresh_session):
+            _ = [
+                event
+                async for event in service.process_stream(
+                    project_id=str(project.id),
+                    user_id=str(user.id),
+                    message="写第一章",
+                    session=db_session,
+                    session_id=chat.id,
+                    metadata={"retry_unanswered": True},
+                )
+            ]
+
+        db_session.rollback()
+        users = db_session.exec(
+            select(ChatMessage).where(ChatMessage.session_id == chat.id, ChatMessage.role == "user")
+        ).all()
+        assert len(users) == 2

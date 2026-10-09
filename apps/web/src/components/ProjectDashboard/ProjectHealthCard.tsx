@@ -13,6 +13,7 @@ import type { ProjectDashboardStatsResponse } from '../../types/writingStats';
 import { useIsMobile } from '../../hooks/useMediaQuery';
 import { Card } from '../ui/Card';
 import { IconWrapper } from '../ui/IconWrapper';
+import { statsUnitKey } from './statsUnits';
 
 interface ProjectHealthCardProps {
   /** Dashboard statistics data */
@@ -114,7 +115,7 @@ export function ProjectHealthCard({
       indicators.push({
         id: 'chapters',
         icon: BookOpen,
-        label: t('statistics.projectHealth.indicators.chapters'),
+        label: t(statsUnitKey(stats, 'progress')),
         value: `${cc.completed_chapters}/${cc.total_chapters}`,
         level: chapterLevel,
         description:
@@ -122,7 +123,7 @@ export function ProjectHealthCard({
             ? t('statistics.projectHealth.indicators.chaptersDesc', {
                 percent: cc.completion_percentage,
               })
-            : t('statistics.projectHealth.indicators.noChapters'),
+            : t(statsUnitKey(stats, 'noChapters')),
       });
     }
 
@@ -190,11 +191,11 @@ export function ProjectHealthCard({
         id: 'ai',
         icon: Activity,
         label: t('statistics.projectHealth.indicators.aiUsage'),
-        value: t('statistics.aiUsage.messages', { count: ai.total_messages }),
+        value: t('statistics.aiUsage.sent', { count: ai.user_messages ?? 0 }),
         level: aiLevel,
         description:
-          ai.total_messages > 0
-            ? t('statistics.projectHealth.indicators.aiActive')
+          (ai.user_messages ?? 0) > 0
+            ? t('statistics.aiUsage.sentDesc')
             : t('statistics.projectHealth.indicators.aiInactive'),
       });
     }
