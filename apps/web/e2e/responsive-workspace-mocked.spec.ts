@@ -91,6 +91,49 @@ test('tool status stays together and the complete filename wraps in a narrow cha
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(chat!.x + chat!.width);
 });
 
+test('a long project name never covers the mobile menu and its switcher stays on screen at 390x844', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockResponsiveApp(page);
+  const longName = '一个非常非常长的项目名称用来检查小屏顶栏是否会盖住菜单按钮呀';
+  expect([...longName]).toHaveLength(30);
+  const projects = [
+    { id: 'responsive-project-0', name: longName, project_type: 'novel', description: '本地布局检查数据', created_at: '2025-01-01T00:00:00Z', updated_at: '2026-10-04T00:00:00Z' },
+    { id: 'responsive-project-1', name: '第二个项目', project_type: 'short', description: '', created_at: '2025-01-01T00:00:00Z', updated_at: '2026-10-03T00:00:00Z' },
+  ];
+  await page.route('**/api/v1/projects', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(projects) }));
+  await page.route('**/api/v1/projects/responsive-project-0', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(projects[0]) }));
+  await page.goto('/project/responsive-project-0');
+
+  const menuButton = page.locator('header button[aria-controls="header-mobile-menu"]');
+  await expect(menuButton).toBeVisible();
+  const switcherTitle = page.locator('header').getByText(longName);
+  await expect(switcherTitle).toBeVisible();
+
+  // The ☰ button is what a tap at its centre lands on, not the project name.
+  const box = (await menuButton.boundingBox())!;
+  const hitsMenu = await menuButton.evaluate((button, point) => {
+    const hit = document.elementFromPoint(point.x, point.y);
+    return hit !== null && (hit === button || button.contains(hit));
+  }, { x: box.x + box.width / 2, y: box.y + box.height / 2 });
+  expect(hitsMenu).toBe(true);
+  expect(box.x + box.width).toBeLessThanOrEqual(390);
+
+  await switcherTitle.click();
+  const search = page.getByPlaceholder('搜索项目...');
+  await expect(search).toBeVisible();
+  const panel = await search.evaluate(element => {
+    const rect = element.closest('div.rounded-xl')!.getBoundingClientRect();
+    return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+  });
+  expect(panel.left).toBeGreaterThanOrEqual(0);
+  expect(panel.top).toBeGreaterThanOrEqual(0);
+  expect(panel.right).toBeLessThanOrEqual(390);
+  expect(panel.bottom).toBeLessThanOrEqual(844);
+
+  const overflow = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, width: innerWidth }));
+  expect(overflow.scroll).toBeLessThanOrEqual(overflow.width);
+});
+
 test('expanded empty-editor actions remain reachable on a short viewport', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 480 });
   await mockResponsiveApp(page);

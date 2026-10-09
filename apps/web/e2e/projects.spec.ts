@@ -259,7 +259,6 @@ test.describe('Projects', () => {
     const firstProjectCard = page.locator('[data-testid="project-card"]').first()
     await firstProjectCard.hover()
 
-    const dialogPromise = page.waitForEvent('dialog').then((dialog) => dialog.accept())
     const deleteResponsePromise = page.waitForResponse(
       (response) =>
         response.request().method() === 'DELETE' &&
@@ -267,14 +266,16 @@ test.describe('Projects', () => {
       { timeout: 10000 }
     )
 
-    // Click the delete button (trash icon)
+    // Click the delete button (trash icon), then confirm in the in-app dialog
+    await firstProjectCard
+      .locator('button[title="删除项目"], button:has(svg.lucide-trash-2)')
+      .first()
+      .click({ force: true })
+    const confirmDialog = page.getByRole('dialog')
+    await expect(confirmDialog).toBeVisible()
     await Promise.all([
-      dialogPromise,
       deleteResponsePromise,
-      firstProjectCard
-        .locator('button[title="删除项目"], button:has(svg.lucide-trash-2)')
-        .first()
-        .click({ force: true }),
+      confirmDialog.getByRole('button', { name: '删除' }).click(),
     ])
 
     await expect(page.locator('[data-testid="project-card"]')).toHaveCount(0, {
@@ -303,16 +304,15 @@ test.describe('Projects', () => {
     const firstProjectCard = page.locator('[data-testid="project-card"]').first()
     await firstProjectCard.hover()
 
-    const dialogPromise = page.waitForEvent('dialog').then((dialog) => dialog.dismiss())
-
-    // Click the delete button
-    await Promise.all([
-      dialogPromise,
-      firstProjectCard
-        .locator('button[title="删除项目"], button:has(svg.lucide-trash-2)')
-        .first()
-        .click({ force: true }),
-    ])
+    // Click the delete button, then cancel in the in-app dialog
+    await firstProjectCard
+      .locator('button[title="删除项目"], button:has(svg.lucide-trash-2)')
+      .first()
+      .click({ force: true })
+    const confirmDialog = page.getByRole('dialog')
+    await expect(confirmDialog).toBeVisible()
+    await confirmDialog.getByRole('button', { name: '取消' }).click()
+    await expect(confirmDialog).not.toBeVisible()
 
     await expect(page.locator('[data-testid="project-card"]')).toHaveCount(1)
     await expect(page.locator('[data-testid="project-card"]').first()).toBeVisible()

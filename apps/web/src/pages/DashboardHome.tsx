@@ -7,6 +7,8 @@ import {
   Sparkles, Zap, CheckSquare, Square, ChevronRight
 } from "../components/icons";
 import { Modal } from "../components/ui/Modal";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog";
+import { QuotaBadge } from "../components/subscription/QuotaBadge";
 import { DashboardPageHeader } from "../components/dashboard/DashboardPageHeader";
 import { DashboardSearchBar } from "../components/dashboard/DashboardSearchBar";
 import { DashboardEmptyState } from "../components/dashboard/DashboardEmptyState";
@@ -32,6 +34,7 @@ import { buildTodayActionPlan, type TodayActionPlanItem } from "../lib/dashboard
 import type { ActivationGuideResponse } from "../types/writingStats";
 import { dashboardOnboardingFlags } from "../config/dashboardOnboarding";
 import { inspirationsConfig } from "../config/inspirations";
+import { clearPreferredProjectType, getPreferredProjectType } from "../lib/preferredProjectType";
 
 const SUPPORTED_PROJECT_TYPES: ProjectType[] = ["novel", "short", "screenplay"];
 
@@ -40,7 +43,7 @@ function isProjectType(value: string): value is ProjectType {
 }
 
 export default function DashboardHome() {
-  const { t, i18n } = useTranslation(['dashboard', 'home']);
+  const { t, i18n } = useTranslation(['dashboard', 'home', 'common']);
   const projectQuotaUpgradePrompt = getUpgradePromptDefinition("project_quota_blocked");
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -64,7 +67,11 @@ export default function DashboardHome() {
   const [isQuickCreating, setIsQuickCreating] = useState(false);
   const [inspiration, setInspiration] = useState("");
   const [newProjectName, setNewProjectName] = useState("");
-  const [activeTab, setActiveTab] = useState<ProjectType>("novel");
+  // The landing page type card (or a short-story / screenwriter onboarding answer)
+  // decides which tab a new author starts on.
+  const [activeTab, setActiveTab] = useState<ProjectType>(() => getPreferredProjectType() ?? "novel");
+  const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<string | null>(null);
+  const [deletingProject, setDeletingProject] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showProjectQuotaUpgradeModal, setShowProjectQuotaUpgradeModal] = useState(false);
   const [activationGuide, setActivationGuide] = useState<ActivationGuideResponse | null>(null);
@@ -262,6 +269,7 @@ export default function DashboardHome() {
         return;
       }
 
+      clearPreferredProjectType();
       navigate(`/project/${projectId}`);
     } catch (error) {
       if (!(error instanceof ApiError && error.status === 401)) {
@@ -280,17 +288,16 @@ export default function DashboardHome() {
   };
 
   const handleDeleteProject = async (projectId: string) => {
-    if (!projectId) {
+    if (!projectId || deletingProject) {
       return;
     }
 
-    if (!window.confirm(t('projects.deleteConfirm'))) {
-      return;
-    }
-
+    setDeletingProject(true);
     try {
       await contextDeleteProject(projectId);
+      setPendingDeleteProjectId(null);
     } catch (error) {
+      setPendingDeleteProjectId(null);
       if (!(error instanceof ApiError && error.status === 401)) {
         toast.error(handleApiError(error));
         if (
@@ -301,6 +308,8 @@ export default function DashboardHome() {
           setShowProjectQuotaUpgradeModal(true);
         }
       }
+    } finally {
+      setDeletingProject(false);
     }
   };
 
@@ -480,6 +489,8 @@ export default function DashboardHome() {
         );
       }
 
+      clearPreferredProjectType();
+
       // Clean up form state
       setCreating(null);
       setInspiration("");
@@ -530,6 +541,8 @@ export default function DashboardHome() {
         );
       }
 
+      clearPreferredProjectType();
+
       // Clean up form state
       setInspiration("");
       setNewProjectName("");
@@ -562,6 +575,7 @@ export default function DashboardHome() {
       <DashboardPageHeader
         title={t('hero.greeting', { name: user?.nickname || user?.username || t('hero.defaultName') })}
         subtitle={t('hero.question')}
+        action={<QuotaBadge />}
       />
 
       {shouldShowActivationGuideCard && activationGuide && (
@@ -802,7 +816,7 @@ export default function DashboardHome() {
                           onClick={(e) => {
                             e.stopPropagation();
                             if (project.id) {
-                              void handleDeleteProject(project.id);
+                              setPendingDeleteProjectId(project.id);
                             }
                           }}
                           className={`p-1.5 rounded-lg hover:bg-[hsl(var(--error)/0.1)] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--error))] transition-all shrink-0 ${
@@ -1033,6 +1047,24 @@ export default function DashboardHome() {
           );
         })()}
       </Modal>
+
+      <ConfirmDialog
+        open={pendingDeleteProjectId !== null}
+        onClose={() => {
+          if (!deletingProject) setPendingDeleteProjectId(null);
+        }}
+        onConfirm={() => {
+          if (pendingDeleteProjectId) {
+            return handleDeleteProject(pendingDeleteProjectId);
+          }
+        }}
+        title={t('projects.deleteProject')}
+        message={t('projects.deleteConfirm')}
+        variant="danger"
+        loading={deletingProject}
+        confirmLabel={t('common:delete')}
+        cancelLabel={t('common:cancel')}
+      />
 
       <UpgradePromptModal
         open={showProjectQuotaUpgradeModal}

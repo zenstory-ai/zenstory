@@ -9,7 +9,7 @@
  * - **Project deletion**: Remove projects with confirmation (except last project)
  *
  * The dropdown features:
- * - Responsive positioning (centered on mobile, left-aligned on desktop)
+ * - Responsive positioning (pinned inside the viewport on mobile, left-aligned on desktop)
  * - Keyboard navigation support (Enter to select, Escape to close)
  * - Click-outside-to-close functionality
  * - Loading states for async operations
@@ -28,6 +28,7 @@ import { toast } from "../lib/toast";
 import { useProject } from "../contexts/ProjectContext";
 import { useIsMobile } from "../hooks/useMediaQuery";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
+import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
 
 /**
@@ -109,6 +110,8 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [showProjectQuotaUpgradeModal, setShowProjectQuotaUpgradeModal] = useState(false);
+  const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<string | null>(null);
+  const [deletingProject, setDeletingProject] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
 
@@ -253,31 +256,40 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
   };
 
   /**
-   * Deletes a project after confirmation.
+   * Asks for confirmation before deleting a project.
    *
-   * Prevents deletion of the last remaining project. Shows a confirmation
-   * dialog before deletion. Shows a toast error if deletion fails.
+   * The last remaining project cannot be deleted; that is explained in a toast.
    *
    * @param {string} projectId - The ID of the project to delete
    * @param {React.MouseEvent} e - The click event
    */
-  const handleDeleteProject = async (
+  const handleRequestDeleteProject = (
     projectId: string,
     e: React.MouseEvent,
   ) => {
     e.stopPropagation();
     if (projects.length <= 1) {
-      alert(t('editor:projectSwitcher.cannotDeleteLast'));
+      toast.info(t('editor:projectSwitcher.cannotDeleteLast'));
       return;
     }
-    if (confirm(t('editor:projectSwitcher.confirmDelete'))) {
-      try {
-        await deleteProject(projectId);
-      } catch (error) {
-        if (!(error instanceof ApiError && error.status === 401)) {
-          toast.error(handleApiError(error));
-        }
+    setPendingDeleteProjectId(projectId);
+  };
+
+  /**
+   * Deletes the confirmed project. Shows a toast error if deletion fails.
+   */
+  const handleConfirmDeleteProject = async () => {
+    if (!pendingDeleteProjectId || deletingProject) return;
+    setDeletingProject(true);
+    try {
+      await deleteProject(pendingDeleteProjectId);
+    } catch (error) {
+      if (!(error instanceof ApiError && error.status === 401)) {
+        toast.error(handleApiError(error));
       }
+    } finally {
+      setDeletingProject(false);
+      setPendingDeleteProjectId(null);
     }
   };
 
@@ -288,11 +300,11 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
 
   return (
     <>
-      <div className="relative" ref={dropdownRef}>
+      <div className="relative min-w-0 max-w-full" ref={dropdownRef}>
       {/* Trigger Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1.5 md:gap-2 px-2 py-1.5 md:px-3 hover:bg-[hsl(var(--bg-tertiary))] rounded-lg transition-colors group min-w-0"
+        className="flex items-center gap-1.5 md:gap-2 px-2 py-1.5 md:px-3 hover:bg-[hsl(var(--bg-tertiary))] rounded-lg transition-colors group min-w-0 max-w-full"
       >
         <Folder size={16} className="text-[hsl(var(--text-secondary))] shrink-0" />
         <div className="text-left min-w-0 overflow-hidden">
@@ -311,7 +323,13 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
       {/* Dropdown Menu */}
       {isOpen && (
         <div
-          className={`absolute top-full mt-2 w-80 max-w-[calc(100vw-2rem)] bg-[hsl(var(--bg-secondary))] rounded-xl shadow-2xl z-50 overflow-hidden ${isMobile ? 'left-1/2 -translate-x-1/2' : 'left-0'}`}
+          className={`bg-[hsl(var(--bg-secondary))] rounded-xl shadow-2xl z-50 overflow-hidden ${
+            isMobile
+              // Pinned to the viewport: an ancestor-relative, translated panel
+              // spilled off a 390px screen when the title was long.
+              ? 'fixed left-4 right-4 top-12'
+              : 'absolute top-full mt-2 left-0 w-80 max-w-[calc(100vw-2rem)]'
+          }`}
           style={{ maxHeight: "calc(100vh - 100px)" }}
         >
           {/* Search Input */}
@@ -404,7 +422,7 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
                     {editingProjectId !== project.id && (
                       <button
                         onClick={(e) =>
-                          project.id && handleDeleteProject(project.id, e)
+                          project.id && handleRequestDeleteProject(project.id, e)
                         }
                         className="text-[hsl(var(--text-secondary))] opacity-0 group-hover:opacity-100 hover:text-[hsl(var(--error))] transition-all p-1"
                         title={t('editor:projectSwitcher.deleteProject')}
@@ -458,6 +476,20 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = () => {
         </div>
       )}
       </div>
+
+      <ConfirmDialog
+        open={pendingDeleteProjectId !== null}
+        onClose={() => {
+          if (!deletingProject) setPendingDeleteProjectId(null);
+        }}
+        onConfirm={handleConfirmDeleteProject}
+        title={t('editor:projectSwitcher.deleteProject')}
+        message={t('editor:projectSwitcher.confirmDelete')}
+        variant="danger"
+        loading={deletingProject}
+        confirmLabel={t('common:delete')}
+        cancelLabel={t('common:cancel')}
+      />
 
       <UpgradePromptModal
         open={showProjectQuotaUpgradeModal}

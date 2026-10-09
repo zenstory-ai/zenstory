@@ -207,8 +207,8 @@ export const Header: React.FC<HeaderProps> = () => {
               <Logo className="h-7 w-auto" />
             </div>
           </button>
-          {/* ProjectSwitcher with max-width constraint for mobile */}
-          <div className="min-w-0 max-w-[calc(100vw-170px)] md:max-w-[420px]">
+          {/* ProjectSwitcher takes the remaining width and truncates; no ancestor clips its dropdown. */}
+          <div className="min-w-0 flex-1 md:flex-none md:max-w-[420px]">
             <ProjectSwitcher />
           </div>
         </div>

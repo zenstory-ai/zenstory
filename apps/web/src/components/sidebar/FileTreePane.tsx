@@ -5,6 +5,8 @@ import { useMobileLayout } from "../../contexts/MobileLayoutContext";
 import { useMaterialAttachment, MAX_ATTACHED_MATERIALS } from "../../contexts/MaterialAttachmentContext";
 import { fileApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { findAncestorFolderIds } from "../../lib/lastOpenedFile";
 import { FOLDER_TYPE_MAP } from "../../lib/folderTypeMap";
 import type { FileTreeNode, TreeNodeType } from "../../types";
 import { useFileSearch } from "../../hooks/useFileSearch";
@@ -53,6 +55,8 @@ export const FileTreePane: React.FC = () => {
   const [isCreating, setIsCreating] = useState<string | null>(null);
   const [newItemName, setNewItemName] = useState("");
   const [newItemType, setNewItemType] = useState<string>("draft");
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string; projectId: string | null } | null>(null);
+  const [deletingFile, setDeletingFile] = useState(false);
 
   // Upload state
   const [isUploading, setIsUploading] = useState(false);
@@ -146,6 +150,21 @@ export const FileTreePane: React.FC = () => {
       mountedRef.current = false;
     };
   }, []);
+
+  // Expand the folders around a selected file once (e.g. the file restored on
+  // reopening the project), without re-opening folders the author collapses later.
+  const selectedItemId = selectedItem?.id ?? null;
+  const revealedSelectionRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedItemId || revealedSelectionRef.current === selectedItemId) return;
+    const ancestors = findAncestorFolderIds(tree, selectedItemId);
+    if (!ancestors) return;
+    revealedSelectionRef.current = selectedItemId;
+    if (ancestors.length === 0) return;
+    setExpandedFolders((prev) =>
+      ancestors.every((id) => prev.has(id)) ? prev : new Set([...prev, ...ancestors]),
+    );
+  }, [selectedItemId, tree]);
 
   // Reload when fileTreeVersion changes (triggered by AI tool calls)
   // This is a silent refresh - no loading indicator
@@ -326,11 +345,16 @@ export const FileTreePane: React.FC = () => {
     }
   };
 
-  // Delete item
-  const handleDelete = async (e: React.MouseEvent, fileId: string) => {
+  // Delete item: ask in an in-app dialog first.
+  const handleDelete = (e: React.MouseEvent, fileId: string, fileTitle: string) => {
     e.stopPropagation();
+    setPendingDelete({ id: fileId, title: fileTitle, projectId: currentProjectId });
+  };
 
-    if (!confirm(t('common:confirmDelete'))) return;
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete || pendingDelete.projectId !== currentProjectId || deletingFile) return;
+    const fileId = pendingDelete.id;
+    setDeletingFile(true);
 
     try {
       await fileApi.delete(fileId);
@@ -345,6 +369,11 @@ export const FileTreePane: React.FC = () => {
     } catch (error) {
       logger.error("Failed to delete item:", error);
       toast.error(t('editor:fileTree.deleteFailed'));
+    } finally {
+      if (mountedRef.current) {
+        setDeletingFile(false);
+        setPendingDelete(null);
+      }
     }
   };
 
@@ -575,7 +604,7 @@ export const FileTreePane: React.FC = () => {
                   } else {
                     const success = addMaterial(node.id, node.title);
                     if (!success && isAtLimit) {
-                      alert(t('editor:fileTree.maxMaterials', { max: MAX_ATTACHED_MATERIALS }));
+                      toast.info(t('editor:fileTree.maxMaterials', { max: MAX_ATTACHED_MATERIALS }));
                     }
                   }
                 }}
@@ -593,7 +622,7 @@ export const FileTreePane: React.FC = () => {
             {/* Delete button (not for root folders) */}
             {!isFolder && (
               <button
-                onClick={(e) => handleDelete(e, node.id)}
+                onClick={(e) => handleDelete(e, node.id, node.title)}
                 className="p-2 md:p-1 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--error))]"
                 title={t('common:delete')}
               >
@@ -728,6 +757,20 @@ export const FileTreePane: React.FC = () => {
 
       {/* File Tree */}
       {tree.map((node) => renderNode(node, 0))}
+
+      <ConfirmDialog
+        open={pendingDelete !== null && pendingDelete.projectId === currentProjectId}
+        onClose={() => {
+          if (!deletingFile) setPendingDelete(null);
+        }}
+        onConfirm={handleConfirmDelete}
+        title={t('common:confirmDelete')}
+        message={pendingDelete?.title ?? ''}
+        variant="danger"
+        loading={deletingFile}
+        confirmLabel={t('common:delete')}
+        cancelLabel={t('common:cancel')}
+      />
     </div>
   );
 };
