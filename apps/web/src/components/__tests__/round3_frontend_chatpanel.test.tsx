@@ -7,7 +7,16 @@
  */
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
+// ChatPanel reads the quota query (shared with QuotaBadge), so it needs a QueryClient.
+const render = (ui: React.ReactElement) =>
+  rtlRender(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      {ui}
+    </QueryClientProvider>,
+  )
 
 const mockAgentStreamState = vi.hoisted(() => ({
   isStreaming: false,
@@ -151,6 +160,16 @@ vi.mock('../../lib/agentApi', () => ({
   fetchSuggestions: vi.fn(async () => []),
 }))
 
+vi.mock('../../lib/subscriptionApi', () => ({
+  subscriptionApi: {
+    getQuota: vi.fn(async () => ({ ai_conversations: { used: 0, limit: 10, reset_at: null } })),
+  },
+  subscriptionQueryKeys: {
+    quota: () => ['subscription-quota', 'test-user'],
+    quotaLite: () => ['quota', 'test-user'],
+  },
+}))
+
 vi.mock('../../lib/analytics', () => ({
   trackEvent: vi.fn(),
 }))
@@ -241,6 +260,21 @@ async function renderAndGetUndo(): Promise<(target: {
     beforeVersionNumber: number
     expectedAfterUpdatedAt: string
   }) => Promise<void>
+}
+
+/** Clicking undo opens the in-app confirm dialog; the rollback runs on its confirm button. */
+async function undoAndConfirm(
+  onUndo: (target: { fileId: string; beforeVersionNumber: number; expectedAfterUpdatedAt: string }) => unknown,
+  target: { fileId: string; beforeVersionNumber: number; expectedAfterUpdatedAt: string },
+) {
+  act(() => {
+    onUndo(target)
+  })
+  const confirmButton = await screen.findByRole('button', { name: 'chat:actions.undo' })
+  await act(async () => {
+    fireEvent.click(confirmButton)
+  })
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 }
 
 describe('round3 #24 ChatPanel.handleSteer 必须把失败抛回调用方', () => {
@@ -381,9 +415,7 @@ describe('ChatPanel immutable edit undo', () => {
     })
     const onUndo = await renderAndGetUndo()
 
-    await act(async () => {
-      await onUndo(target)
-    })
+    await undoAndConfirm(onUndo, target)
 
     expect(getVersionsMock).not.toHaveBeenCalled()
     expect(rollbackMock).toHaveBeenCalledWith(
@@ -400,14 +432,19 @@ describe('ChatPanel immutable edit undo', () => {
     vi.stubGlobal('confirm', confirmMock)
     const onUndo = await renderAndGetUndo()
 
-    await act(async () => {
-      await onUndo(target)
+    act(() => {
+      void onUndo(target)
     })
 
     // File rollback does not save the current text first, so the undo confirm
     // must not reuse the snapshot copy that promises a way back.
-    expect(confirmMock).toHaveBeenCalledWith('editor:versionHistory.confirmUndoAIEdit')
-    expect(confirmMock).not.toHaveBeenCalledWith('editor:versionHistory.confirmRollback')
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent('editor:versionHistory.confirmUndoAIEdit')
+    expect(dialog).not.toHaveTextContent('editor:versionHistory.confirmRollback')
+    expect(confirmMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common:cancel' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(rollbackMock).not.toHaveBeenCalled()
     expect(triggerEditorRefreshMock).not.toHaveBeenCalled()
   })
@@ -429,9 +466,7 @@ describe('ChatPanel immutable edit undo', () => {
     rollbackMock.mockResolvedValue(result)
     const onUndo = await renderAndGetUndo()
 
-    await act(async () => {
-      await onUndo(target)
-    })
+    await undoAndConfirm(onUndo, target)
 
     expect(toast.error).toHaveBeenCalledWith(feedback)
     expect(triggerFileTreeRefreshMock).toHaveBeenCalledTimes(1)
@@ -448,9 +483,7 @@ describe('ChatPanel immutable edit undo', () => {
     rollbackMock.mockRejectedValue(new ApiError(409, 'ERR_RESOURCE_CONFLICT'))
     const onUndo = await renderAndGetUndo()
 
-    await act(async () => {
-      await onUndo(target)
-    })
+    await undoAndConfirm(onUndo, target)
 
     expect(toast.error).toHaveBeenCalledTimes(1)
     expect(triggerFileTreeRefreshMock).not.toHaveBeenCalled()

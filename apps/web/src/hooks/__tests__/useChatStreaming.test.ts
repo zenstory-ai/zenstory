@@ -1487,7 +1487,7 @@ describe('useChatStreaming', () => {
         expect(deps.createSnapshot).not.toHaveBeenCalled()
       })
 
-      it('creates one generic snapshot for an explicit confirmed mutation even without segments', async () => {
+      it('creates one snapshot for an explicit confirmed mutation even without segments', async () => {
         const { result } = renderHook(() => useChatStreaming())
         const deps = createMockDeps()
         const callbacks = result.current.getStreamCallbacks(deps)
@@ -1498,10 +1498,45 @@ describe('useChatStreaming', () => {
 
         expect(deps.createSnapshot).toHaveBeenCalledTimes(1)
         expect(deps.createSnapshot).toHaveBeenCalledWith('test-project-id', {
-          description: 'chat:message.aiDoneFilesModified',
+          description: 'chat:message.aiDone',
           snapshotType: 'auto',
         })
-        expect(deps.t).toHaveBeenCalledWith('chat:message.aiDoneFilesModified')
+      })
+
+      it('describes the snapshot with the author\'s request, on one line and cut to 24 characters', async () => {
+        const { result } = renderHook(() => useChatStreaming())
+        const deps = createMockDeps()
+        deps.t = vi.fn((key: string, options?: Record<string, unknown>) =>
+          key === 'chat:message.snapshotAfterAiEdit' ? `AI 修改后：${options?.request}` : key)
+        deps.getLatestUserRequest = () => '把第二章的结尾改得更紧张一些，\n让主角在雨夜里发现那封信，然后立刻去码头'
+        const callbacks = result.current.getStreamCallbacks(deps)
+
+        await act(async () => {
+          await callbacks.onComplete([], null, { confirmedFileMutation: true })
+        })
+
+        expect(deps.createSnapshot).toHaveBeenCalledWith('test-project-id', {
+          description: 'AI 修改后：把第二章的结尾改得更紧张一些，让主角在雨夜里发现…',
+          snapshotType: 'auto',
+        })
+      })
+
+      it('keeps a short request whole in the snapshot description', async () => {
+        const { result } = renderHook(() => useChatStreaming())
+        const deps = createMockDeps()
+        deps.t = vi.fn((key: string, options?: Record<string, unknown>) =>
+          key === 'chat:message.snapshotAfterAiEdit' ? `After AI edit: ${options?.request}` : key)
+        deps.getLatestUserRequest = () => 'Write\nchapter 3'
+        const callbacks = result.current.getStreamCallbacks(deps)
+
+        await act(async () => {
+          await callbacks.onComplete([], null, { confirmedFileMutation: true })
+        })
+
+        expect(deps.createSnapshot).toHaveBeenCalledWith('test-project-id', {
+          description: 'After AI edit: Write chapter 3',
+          snapshotType: 'auto',
+        })
       })
 
       it('suppresses snapshots for partial completion even when mutation was confirmed', async () => {

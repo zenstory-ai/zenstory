@@ -1,6 +1,30 @@
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
+const mockQuota = vi.hoisted(() => ({
+  value: { ai_conversations: { used: 2, limit: 10, reset_at: null } } as {
+    ai_conversations: { used: number; limit: number; reset_at: string | null }
+  },
+}))
+
+const mockProjectState = vi.hoisted(() => ({
+  currentProject: { id: 'project-1', name: '外卖小哥看见倒计时' } as { id: string; name: string } | null,
+  refreshProjects: vi.fn(async () => {}),
+  triggerFileTreeRefresh: vi.fn(),
+  triggerEditorRefresh: vi.fn(),
+}))
+
+const mockStartStream = vi.hoisted(() => vi.fn())
+const mockScrollToBottom = vi.hoisted(() => vi.fn())
+const mockRollback = vi.hoisted(() => vi.fn())
+
+let testQueryClient: QueryClient
+const render = (ui: React.ReactElement) => {
+  testQueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return rtlRender(<QueryClientProvider client={testQueryClient}>{ui}</QueryClientProvider>)
+}
 
 const mockAgentStreamState = vi.hoisted(() => ({
   isStreaming: false,
@@ -23,21 +47,31 @@ const chatPanelTranslations: Record<string, string> = {
   'chat:input.mode.switchedQuality': '已切换到高质量模式：更稳更全面（可能更慢）',
   'dashboard:billing.ctaUpgradePro': '升级专业版',
   'home:pricingTeaser.viewPricing': '查看套餐权益',
+  'chat:input.placeholderQuotaExhausted': '今天的 {{limit}} 条 AI 消息用完了，北京时间明天 00:00 恢复。可以先把想法写下来，到时再发。',
+  'chat:input.placeholderWhileProcessing': 'AI 正在生成，你可以先输入，结束后再发送…',
+  'chat:tool.undo_edit': '撤销这次修改',
+  'chat:actions.undo': '撤销',
+  'common:cancel': '取消',
 }
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: { defaultValue?: string } | string) =>
-      chatPanelTranslations[key] ?? (typeof options === 'string' ? options : options?.defaultValue ?? key),
+    t: (key: string, options?: { defaultValue?: string; [name: string]: unknown } | string) => {
+      const template = chatPanelTranslations[key] ?? (typeof options === 'string' ? options : options?.defaultValue ?? key)
+      if (!options || typeof options === 'string') return template
+      return template.replace(/\{\{(\w+)\}\}/g, (_m, name: string) => String(options[name] ?? ''))
+    },
   }),
 }))
 
 vi.mock('../../contexts/ProjectContext', () => ({
   useProject: () => ({
     currentProjectId: 'project-1',
+    currentProject: mockProjectState.currentProject,
+    refreshProjects: mockProjectState.refreshProjects,
     selectedItem: null,
-    triggerFileTreeRefresh: vi.fn(),
-    triggerEditorRefresh: vi.fn(),
+    triggerFileTreeRefresh: mockProjectState.triggerFileTreeRefresh,
+    triggerEditorRefresh: mockProjectState.triggerEditorRefresh,
     setSelectedItem: vi.fn(),
     appendFileContent: vi.fn(),
     finishFileStreaming: vi.fn(),
@@ -45,6 +79,16 @@ vi.mock('../../contexts/ProjectContext', () => ({
     streamingFileId: null,
     enterDiffReview: vi.fn(),
   }),
+}))
+
+vi.mock('../../lib/subscriptionApi', () => ({
+  subscriptionApi: {
+    getQuota: vi.fn(async () => mockQuota.value),
+  },
+  subscriptionQueryKeys: {
+    quota: () => ['subscription-quota', 'test-user'],
+    quotaLite: () => ['quota', 'test-user'],
+  },
 }))
 
 vi.mock('../../contexts/MobileLayoutContext', () => ({
@@ -103,6 +147,8 @@ const streamCallbacks = {
   onSteeringReceived: vi.fn(),
 }
 
+const mockGetStreamCallbacks = vi.fn((_deps: { getLatestUserRequest?: () => string | null | undefined }) => streamCallbacks)
+
 vi.mock('../../hooks/useChatStreaming', () => ({
   useChatStreaming: () => ({
     streamRenderItems: [],
@@ -116,7 +162,7 @@ vi.mock('../../hooks/useChatStreaming', () => ({
     setIsRefreshingSuggestions: vi.fn(),
     matchedSkills: [],
     setMatchedSkills: vi.fn(),
-    getStreamCallbacks: vi.fn(() => streamCallbacks),
+    getStreamCallbacks: mockGetStreamCallbacks,
     clearIdleTimer: vi.fn(),
   }),
 }))
@@ -126,7 +172,7 @@ vi.mock('../../hooks/useAgentStream', () => ({
     capturedUseAgentStream.options = options ?? null
     return ({
     state: {},
-    startStream: vi.fn(),
+    startStream: mockStartStream,
     cancel: vi.fn(),
     reset: vi.fn(),
     isStreaming: mockAgentStreamState.isStreaming,
@@ -158,12 +204,20 @@ vi.mock('../../lib/agentApi', () => ({
 }))
 
 vi.mock('../../lib/api', () => ({
-  fileVersionApi: {},
+  fileVersionApi: { rollback: mockRollback },
   versionApi: {},
 }))
 
-const mockMessageList = vi.fn(() => <div data-testid="mock-message-list" />)
-const mockMessageInput = vi.fn((props: { onGenerationModeChange?: (mode: 'fast' | 'quality') => void }) => (
+type MockMessageInputProps = {
+  onGenerationModeChange?: (mode: 'fast' | 'quality') => void
+  onSend: (message: string, selectedSkillIds: string[]) => void | Promise<void>
+  disabled?: boolean
+  sendDisabled?: boolean
+  placeholder?: string
+}
+
+const mockMessageList = vi.fn((_props: unknown) => <div data-testid="mock-message-list" />)
+const mockMessageInput = vi.fn((props: MockMessageInputProps) => (
   <div data-testid="mock-message-input">
     <button
       type="button"
@@ -172,16 +226,21 @@ const mockMessageInput = vi.fn((props: { onGenerationModeChange?: (mode: 'fast' 
     >
       toggle-generation-mode
     </button>
+    {/* Mirrors MessageInput: drafting follows `disabled`, sending follows `sendDisabled`. */}
+    <textarea data-testid="mock-input-textarea" disabled={props.disabled} placeholder={props.placeholder} />
   </div>
 ))
+const lastMessageInputProps = () => mockMessageInput.mock.calls.at(-1)?.[0] as MockMessageInputProps
 
 vi.mock('../MessageList', () => ({
-  MessageList: React.forwardRef((props: unknown, _ref) => mockMessageList(props)),
+  MessageList: React.forwardRef((props: unknown, ref) => {
+    React.useImperativeHandle(ref, () => ({ scrollToBottom: mockScrollToBottom }))
+    return mockMessageList(props)
+  }),
 }))
 
 vi.mock('../MessageInput', () => ({
-  MessageInput: (props: { onGenerationModeChange?: (mode: 'fast' | 'quality') => void }) =>
-    mockMessageInput(props),
+  MessageInput: (props: MockMessageInputProps) => mockMessageInput(props),
 }))
 
 vi.mock('../ToolResultCard', () => ({
@@ -193,7 +252,9 @@ vi.mock('../ProjectStatusDialog', () => ({
 }))
 
 vi.mock('../subscription/QuotaBadge', () => ({
-  QuotaBadge: () => <div data-testid="mock-quota-badge" />,
+  QuotaBadge: ({ compact }: { compact?: boolean }) => (
+    <div data-testid="mock-quota-badge" data-compact={String(Boolean(compact))} />
+  ),
 }))
 
 vi.mock('../../lib/toast', () => ({
@@ -219,6 +280,9 @@ describe('ChatPanel mount smoke', () => {
     mockAgentStreamState.error = null
     mockAgentStreamState.errorCode = null
     localStorage.removeItem('zenstory_suggestions_cache_project-1')
+    localStorage.removeItem('zenstory_inspiration_project-1')
+    mockQuota.value = { ai_conversations: { used: 2, limit: 10, reset_at: null } }
+    mockProjectState.currentProject = { id: 'project-1', name: '外卖小哥看见倒计时' }
   })
 
   it('mounts without runtime initialization errors', async () => {
@@ -596,5 +660,206 @@ describe('ChatPanel mount smoke', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+type CapturedStreamOptions = {
+  onComplete: (segments: unknown[], action: unknown, meta?: Record<string, unknown>) => Promise<void>
+  onSessionStarted: (sessionId: string) => void
+  onError: (message?: string, code?: string, retryable?: boolean) => void
+  onQuotaRefunded: (kind: 'no_progress' | 'error') => void
+}
+const streamOptions = () => capturedUseAgentStream.options as unknown as CapturedStreamOptions
+const lastMessageListProps = () => mockMessageList.mock.calls.at(-1)?.[0] as {
+  messages?: Array<{ role: string; content: string }>
+  onUndo?: (target: { fileId: string; beforeVersionNumber: number; expectedAfterUpdatedAt: string }) => void
+}
+
+describe('ChatPanel new-author flow', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    capturedUseAgentStream.options = null
+    mockStreamSnapshot.items = []
+    mockAgentStreamState.isStreaming = false
+    mockAgentStreamState.isThinking = false
+    mockAgentStreamState.thinkingContent = ''
+    mockAgentStreamState.error = null
+    mockAgentStreamState.errorCode = null
+    localStorage.removeItem('zenstory_suggestions_cache_project-1')
+    localStorage.removeItem('zenstory_inspiration_project-1')
+    mockQuota.value = { ai_conversations: { used: 2, limit: 10, reset_at: null } }
+    mockProjectState.currentProject = { id: 'project-1', name: '外卖小哥看见倒计时' }
+  })
+
+  it('sends the dashboard idea exactly as written and tags the request as the dashboard entry', async () => {
+    const idea = '一个外卖小哥每次送单都能看见客户头顶的倒计时'
+    localStorage.setItem('zenstory_inspiration_project-1', JSON.stringify({
+      content: idea,
+      projectType: 'short',
+      timestamp: Date.now(),
+    }))
+
+    render(<ChatPanel />)
+
+    await waitFor(() => expect(mockStartStream).toHaveBeenCalledTimes(1), { timeout: 3000 })
+    const request = mockStartStream.mock.calls[0][0] as { message: string; metadata: Record<string, unknown> }
+    expect(request.message).toBe(idea)
+    expect(request.metadata.entry).toBe('dashboard_idea')
+    expect(localStorage.getItem('zenstory_inspiration_project-1')).toBeNull()
+
+    await waitFor(() => {
+      expect(lastMessageListProps().messages?.map((m) => [m.role, m.content])).toEqual([['user', idea]])
+    })
+    // The automatic snapshot after this round is described with the author's words.
+    expect(mockGetStreamCallbacks.mock.calls.at(-1)?.[0].getLatestUserRequest?.()).toBe(idea)
+  })
+
+  it('does not tag ordinary sends from the input box', async () => {
+    render(<ChatPanel />)
+    await waitFor(() => expect(screen.getByTestId('mock-message-input')).toBeInTheDocument())
+
+    await act(async () => { await lastMessageInputProps().onSend('写第二章', []) })
+
+    const request = mockStartStream.mock.calls[0][0] as { message: string; metadata: Record<string, unknown> }
+    expect(request.message).toBe('写第二章')
+    expect(request.metadata).not.toHaveProperty('entry')
+  })
+
+  it('jumps back to the latest message after sending, even when the author had scrolled up', async () => {
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([
+      { id: 'u-1', session_id: 'session-1', role: 'user', content: '写第一章', created_at: '2026-10-08T10:00:00Z' },
+      { id: 'a-1', session_id: 'session-1', role: 'assistant', content: '第一章写好了', created_at: '2026-10-08T10:01:00Z' },
+    ] as never)
+    render(<ChatPanel />)
+    await waitFor(() => expect(lastMessageListProps()?.messages).toHaveLength(2))
+
+    // The author scrolls up to re-read the first chapter.
+    const scroller = screen.getByTestId('message-list')
+    Object.defineProperty(scroller, 'scrollHeight', { configurable: true, value: 2000 })
+    Object.defineProperty(scroller, 'clientHeight', { configurable: true, value: 400 })
+    Object.defineProperty(scroller, 'scrollTop', { configurable: true, writable: true, value: 0 })
+    fireEvent.scroll(scroller)
+    mockScrollToBottom.mockClear()
+
+    await act(async () => { await lastMessageInputProps().onSend('继续写第二章', []) })
+
+    await waitFor(() => expect(mockScrollToBottom).toHaveBeenCalledWith(false))
+    expect(screen.queryByRole('button', { name: 'chat:panel.jumpToLatest' })).not.toBeInTheDocument()
+  })
+
+  it('keeps drafting open but blocks sending once today\'s AI messages are used up', async () => {
+    mockQuota.value = { ai_conversations: { used: 10, limit: 10, reset_at: null } }
+    render(<ChatPanel />)
+
+    await waitFor(() => expect(lastMessageInputProps().sendDisabled).toBe(true))
+    const placeholder = '今天的 10 条 AI 消息用完了，北京时间明天 00:00 恢复。可以先把想法写下来，到时再发。'
+    expect(lastMessageInputProps().placeholder).toBe(placeholder)
+    const textarea = screen.getByTestId('mock-input-textarea')
+    expect(textarea).not.toBeDisabled()
+    expect(textarea).toHaveAttribute('placeholder', placeholder)
+  })
+
+  it.each([
+    ['quota remains', { used: 9, limit: 10 }],
+    ['Pro (limit -1)', { used: 999, limit: -1 }],
+  ])('lets the author send when %s', async (_label, usage) => {
+    mockQuota.value = { ai_conversations: { ...usage, reset_at: null } }
+    render(<ChatPanel />)
+    await waitFor(() => expect(testQueryClient.getQueryData(['subscription-quota', 'test-user'])).toBeDefined())
+    await act(async () => {})
+
+    expect(lastMessageInputProps().sendDisabled).toBe(false)
+    expect(lastMessageInputProps().placeholder).toBeUndefined()
+  })
+
+  it('refreshes the quota pill when the server charges, finishes, fails or refunds a round', async () => {
+    render(<ChatPanel />)
+    await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+    const invalidate = vi.spyOn(testQueryClient, 'invalidateQueries')
+    const expectQuotaInvalidated = () => {
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ['subscription-quota', 'test-user'] })
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ['quota', 'test-user'] })
+      invalidate.mockClear()
+    }
+
+    act(() => streamOptions().onSessionStarted('session-9'))
+    expectQuotaInvalidated()
+
+    await act(async () => {
+      await streamOptions().onComplete([{ type: 'content', id: 'c', content: '写好了' }], null)
+    })
+    expectQuotaInvalidated()
+
+    act(() => streamOptions().onError('boom', 'ERR_INTERNAL', true))
+    expectQuotaInvalidated()
+
+    act(() => streamOptions().onQuotaRefunded('error'))
+    expectQuotaInvalidated()
+  })
+
+  it('keeps the header on one line in a narrow right panel with a compact quota pill', async () => {
+    render(<div style={{ width: 300 }}><ChatPanel /></div>)
+    await waitFor(() => expect(screen.getByTestId('mock-quota-badge')).toBeInTheDocument())
+
+    const titleGroup = screen.getByTestId('chat-panel-header-title')
+    expect(titleGroup).toHaveClass('min-w-0')
+    expect(titleGroup.firstElementChild).toHaveClass('shrink-0', 'whitespace-nowrap')
+    expect(screen.getByTestId('chat-panel-header-actions')).toHaveClass('min-w-0')
+    expect(screen.getByTestId('mock-quota-badge')).toHaveAttribute('data-compact', 'true')
+  })
+
+  it('asks for confirmation in an in-app dialog before undoing an AI edit', async () => {
+    const nativeConfirm = vi.fn(() => true)
+    vi.stubGlobal('confirm', nativeConfirm)
+    mockRollback.mockResolvedValue({ snapshot_created: true })
+    vi.mocked(getRecentMessages).mockResolvedValueOnce([
+      { id: 'a-1', session_id: 'session-1', role: 'assistant', content: '改好了', created_at: '2026-10-08T10:01:00Z' },
+    ] as never)
+    render(<ChatPanel />)
+    await waitFor(() => expect(lastMessageListProps()?.onUndo).toBeTypeOf('function'))
+    const target = { fileId: 'file-1', beforeVersionNumber: 3, expectedAfterUpdatedAt: '2026-10-08T10:01:00Z' }
+
+    act(() => lastMessageListProps().onUndo?.(target))
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent('撤销这次 AI 修改？正文会换回修改前的内容，已有的历史版本都会保留。')
+    expect(nativeConfirm).not.toHaveBeenCalled()
+
+    // Cancelling leaves the text alone.
+    fireEvent.click(screen.getByRole('button', { name: '取消' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(mockRollback).not.toHaveBeenCalled()
+
+    act(() => lastMessageListProps().onUndo?.(target))
+    await screen.findByRole('dialog')
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '撤销' }))
+    })
+    expect(mockRollback).toHaveBeenCalledWith('file-1', 3, '2026-10-08T10:01:00Z')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(mockProjectState.triggerEditorRefresh).toHaveBeenCalledWith('file-1')
+    vi.unstubAllGlobals()
+  })
+
+  it('refreshes the project list after a round while the project still has a default name', async () => {
+    mockProjectState.currentProject = { id: 'project-1', name: '我的短篇' }
+    render(<ChatPanel />)
+    await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+
+    await act(async () => {
+      await streamOptions().onComplete([{ type: 'content', id: 'c', content: '大纲好了' }], null)
+    })
+
+    expect(mockProjectState.refreshProjects).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not refresh the project list once the author has named the project', async () => {
+    render(<ChatPanel />)
+    await waitFor(() => expect(capturedUseAgentStream.options).not.toBeNull())
+
+    await act(async () => {
+      await streamOptions().onComplete([{ type: 'content', id: 'c', content: '大纲好了' }], null)
+    })
+
+    expect(mockProjectState.refreshProjects).not.toHaveBeenCalled()
   })
 })

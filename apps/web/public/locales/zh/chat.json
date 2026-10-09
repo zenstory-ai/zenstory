@@ -30,6 +30,7 @@
   "input": {
     "placeholder": "想写什么，直接说…",
     "placeholderWhileProcessing": "AI 正在生成，你可以先输入，结束后再发送…",
+    "placeholderQuotaExhausted": "今天的 {{limit}} 条 AI 消息用完了，北京时间明天 00:00 恢复。可以先把想法写下来，到时再发。",
     "stop": "停止生成",
     "steerPlaceholder": "补充你的要求…",
     "steerButton": "补充要求",
@@ -80,25 +81,10 @@
     "selectedText": "选中的文本:",
     "context": "上下文:"
   },
-  "projectType": {
-    "novel": {
-      "name": "长篇小说",
-      "description": "适合 5 万字以上的连载小说"
-    },
-    "short": {
-      "name": "短篇小说",
-      "description": "适合 5000-20000 字的独立短篇"
-    },
-    "screenplay": {
-      "name": "短剧剧本",
-      "description": "适合短视频剧本、微短剧创作"
-    }
-  },
   "message": {
     "aiEdit": "AI 修改: {{files}}{{extra}}",
     "aiDone": "AI 对话完成",
-    "createProject": "我想写一部{{typeLabel}}。我的想法是：\n\n{{content}}\n\n请先帮我理一理：如果想法已经比较具体，就给出主要人物、故事背景、核心冲突和大致走向；如果还很模糊，先问我两三个关键问题，我们再一起往下想。",
-    "aiDoneFilesModified": "AI 对话完成 - 文件已修改",
+    "snapshotAfterAiEdit": "AI 修改后：{{request}}",
     "aiConversationAt": "AI 助手对话 - {{time}}"
   },
   "context": {

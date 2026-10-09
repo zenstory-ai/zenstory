@@ -456,9 +456,33 @@ export interface UseChatStreamingDependencies {
       snapshotType?: string;
     }
   ) => Promise<unknown>;
+  /**
+   * Returns the author's own wording for the current round (the message that
+   * started it). Used to describe the automatic snapshot taken after AI edits.
+   */
+  getLatestUserRequest?: () => string | null | undefined;
   /** Translation function for generating snapshot descriptions */
   t: (key: string, options?: Record<string, unknown>) => string;
 }
+
+/** Maximum characters of the author's request quoted in a snapshot description. */
+const SNAPSHOT_REQUEST_PREVIEW_CHARS = 24;
+
+/**
+ * One-line preview of the author's request for a snapshot description:
+ * line breaks removed, first 24 characters, "…" when cut.
+ */
+export const buildSnapshotRequestPreview = (request: string | null | undefined): string => {
+  // Drop line breaks; keep a space only between two Latin letters/digits so English words don't merge.
+  const singleLine = (request ?? "")
+    .trim()
+    .replace(/([A-Za-z0-9]?)\s*[\r\n]+\s*([A-Za-z0-9]?)/g, (_m, before: string, after: string) =>
+      before && after ? `${before} ${after}` : `${before}${after}`,
+    );
+  const chars = Array.from(singleLine);
+  if (chars.length <= SNAPSHOT_REQUEST_PREVIEW_CHARS) return singleLine;
+  return `${chars.slice(0, SNAPSHOT_REQUEST_PREVIEW_CHARS).join("")}…`;
+};
 
 /**
  * Return type for the useChatStreaming hook.
@@ -746,6 +770,7 @@ export function useChatStreaming(): UseChatStreamingReturn {
         enterDiffReview,
         activeProjectId,
         createSnapshot,
+        getLatestUserRequest,
         t,
       } = deps;
 
@@ -1494,9 +1519,13 @@ export function useChatStreaming(): UseChatStreamingReturn {
             completionMeta?.confirmedFileMutation === true &&
             activeProjectId
           ) {
+            // 快照列表里一排「AI 对话完成」分不出哪次是哪次，用作者这一轮的原话来区分。
+            const requestPreview = buildSnapshotRequestPreview(getLatestUserRequest?.());
             try {
               await createSnapshot(activeProjectId, {
-                description: t("chat:message.aiDoneFilesModified"),
+                description: requestPreview
+                  ? t("chat:message.snapshotAfterAiEdit", { request: requestPreview })
+                  : t("chat:message.aiDone"),
                 snapshotType: "auto",
               });
             } catch (err) {

@@ -122,6 +122,30 @@ describe('MessageList', () => {
     // MessageList returns null for empty messages, so we just check it doesn't throw
   })
 
+  it('shows only the step number for an agent step, never the step budget', () => {
+    const displayItems: NonNullable<Message['displayItems']> = [
+      { id: 'agent-step', type: 'agent_selected', agentName: 'Step writer', iteration: 2, maxIterations: 12, remaining: 10, timestamp: new Date() },
+    ]
+    const { container } = render(<MessageList messages={[createMessage({ role: 'assistant', content: '', displayItems })]} />)
+
+    expect(container.textContent).toContain('workflow.iteration 2')
+    expect(container.textContent).not.toContain('/12')
+  })
+
+  it('hides Chinese control markers in assistant replies', () => {
+    const { container } = render(
+      <MessageList messages={[createMessage({ role: 'assistant', content: '第一章写好了。\n\n[任务完成]' })]} />
+    )
+    expect(screen.getByText(/第一章写好了。/)).toBeInTheDocument()
+    expect(container.textContent).not.toContain('[任务完成]')
+
+    const { container: clarification } = render(
+      <MessageList messages={[createMessage({ role: 'assistant', content: '主角叫什么名字？ [需要澄清]' })]} />
+    )
+    expect(clarification.textContent).toContain('主角叫什么名字？')
+    expect(clarification.textContent).not.toContain('[需要澄清]')
+  })
+
   it('marks the conversation as off-limits to analytics DOM capture', () => {
     const { container } = render(
       <MessageList messages={[createMessage({ role: 'user', content: 'private prompt text' })]} />

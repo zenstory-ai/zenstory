@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useQuery } from '@tanstack/react-query';
+import { Sparkles } from "lucide-react";
 import { subscriptionApi, subscriptionQueryKeys } from '../../lib/subscriptionApi';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '../ui/Badge';
@@ -11,7 +12,17 @@ import {
   type UpgradeTriggerStage,
 } from "../../lib/upgradeTriggerStrategy";
 
-export function QuotaBadge() {
+interface QuotaBadgeProps {
+  /**
+   * Narrow headers (the chat panel) show only "{used}/{limit}" and an icon-only
+   * upgrade button; the full wording moves into title / aria-label.
+   * Other surfaces keep the default full label.
+   * @default false
+   */
+  compact?: boolean;
+}
+
+export function QuotaBadge({ compact = false }: QuotaBadgeProps = {}) {
   const { t } = useTranslation('settings');
   const settingsUpgradePrompt = getUpgradePromptDefinition("settings_subscription_upgrade");
   const lastExposedStageRef = useRef<UpgradeTriggerStage | null>(null);
@@ -51,6 +62,10 @@ export function QuotaBadge() {
   const usageLabel = isUnlimited
     ? t('subscription.aiUsageUnlimited', 'AI 消息不限条数')
     : t('subscription.aiUsageCount', '今日 AI 消息 {{used}}/{{limit}} 条', { used, limit });
+  const compactUsageLabel = isUnlimited ? "∞" : `${used}/${limit}`;
+  const upgradeLabel = stage === "blocked"
+    ? t("subscription.upgradeNow", "开通 Pro")
+    : t("subscription.upgradeSuggestion", "开通 Pro，AI 消息不限条数");
 
   const handleUpgradeClick = () => {
     if (!stagedSource) return;
@@ -61,28 +76,53 @@ export function QuotaBadge() {
     );
   };
 
+  const badge = (
+    <Badge
+      variant={getVariant()}
+      className={compact ? "whitespace-nowrap tabular-nums" : undefined}
+      icon={
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        </svg>
+      }
+    >
+      {compact ? compactUsageLabel : usageLabel}
+    </Badge>
+  );
+
   return (
-    <div className="flex items-center gap-2 text-xs">
-      <Badge
-        variant={getVariant()}
-        icon={
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-          </svg>
-        }
-      >
-        {usageLabel}
-      </Badge>
-      {shouldShowUpgradeAction && (
-        <button
-          type="button"
-          onClick={handleUpgradeClick}
-          className="text-[hsl(var(--accent-primary))] hover:underline"
+    <div className={`flex items-center text-xs ${compact ? "shrink-0 gap-1" : "gap-2"}`}>
+      {compact ? (
+        <span
+          role="status"
+          data-testid="quota-badge-compact"
+          title={usageLabel}
+          aria-label={usageLabel}
+          className="inline-flex"
         >
-          {stage === "blocked"
-            ? t("subscription.upgradeNow", "开通 Pro")
-            : t("subscription.upgradeSuggestion", "开通 Pro，AI 消息不限条数")}
-        </button>
+          {badge}
+        </span>
+      ) : badge}
+      {shouldShowUpgradeAction && (
+        compact ? (
+          <button
+            type="button"
+            onClick={handleUpgradeClick}
+            title={upgradeLabel}
+            aria-label={upgradeLabel}
+            className="inline-flex items-center justify-center rounded p-1 text-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)]"
+          >
+            <Sparkles size={14} aria-hidden="true" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleUpgradeClick}
+            className="text-[hsl(var(--accent-primary))] hover:underline"
+          >
+            {upgradeLabel}
+          </button>
+        )
       )}
     </div>
   );
