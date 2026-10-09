@@ -240,7 +240,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             <Icon className="w-10 h-10" />
           </div>
           <div className="flex-1 pt-1">
-            <h2 id={titleId} className="text-lg font-semibold text-[hsl(var(--text-primary))]">
+            <h2 id={titleId} className="ui-sans-headings text-lg font-semibold text-[hsl(var(--text-primary))]">
               {title}
             </h2>
           </div>

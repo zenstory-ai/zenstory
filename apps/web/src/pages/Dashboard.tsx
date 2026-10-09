@@ -15,6 +15,7 @@ import {
   Sun,
 } from "lucide-react";
 import { Logo, LogoMark } from "../components/Logo";
+import { IconButton } from "../components/ui/IconButton";
 import { useAuth } from "../contexts/AuthContext";
 import { useProject } from "../contexts/ProjectContext";
 import { useTheme } from "../contexts/ThemeContext";
@@ -61,6 +62,13 @@ const NAV_ITEMS = [
   { id: "skills", icon: Zap, labelKey: "nav.skills", path: "/dashboard/skills" },
   { id: "billing", icon: CreditCard, labelKey: "nav.billing", path: "/dashboard/billing" },
 ];
+
+/** Account-menu segmented switches: icon and text segments share one 28px height. */
+const SEGMENT_CLASS =
+  "inline-flex h-7 min-w-7 items-center justify-center px-2 rounded text-xs transition-colors";
+
+/** Same selected state as the sidebar navigation (blue 15% background, blue text). */
+const NAV_ACTIVE_CLASS = "bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))]";
 
 // Inner Dashboard component that uses mobile context
 function DashboardContent() {
@@ -235,7 +243,7 @@ function DashboardContent() {
             <button
               onClick={() => handleThemeSwitch('dark')}
               aria-label={t('settings:theme.dark')}
-              className={`px-2 py-1 rounded text-xs transition-colors ${
+              className={`${SEGMENT_CLASS} ${
                 theme === 'dark'
                   ? 'bg-[hsl(var(--accent-primary)/0.18)] text-[hsl(var(--accent-primary))]'
                   : 'text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]'
@@ -247,7 +255,7 @@ function DashboardContent() {
             <button
               onClick={() => handleThemeSwitch('light')}
               aria-label={t('settings:theme.light')}
-              className={`px-2 py-1 rounded text-xs transition-colors ${
+              className={`${SEGMENT_CLASS} ${
                 theme === 'light'
                   ? 'bg-[hsl(var(--accent-primary)/0.18)] text-[hsl(var(--accent-primary))]'
                   : 'text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]'
@@ -271,7 +279,7 @@ function DashboardContent() {
               }}
               aria-label="Switch to Chinese"
               data-testid="dashboard-quick-language-zh"
-              className={`px-2 py-1 rounded text-xs transition-colors ${
+              className={`${SEGMENT_CLASS} ${
                 currentLanguage === 'zh'
                   ? 'bg-[hsl(var(--accent-primary)/0.18)] text-[hsl(var(--accent-primary))]'
                   : 'text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]'
@@ -285,7 +293,7 @@ function DashboardContent() {
               }}
               aria-label="Switch to English"
               data-testid="dashboard-quick-language-en"
-              className={`px-2 py-1 rounded text-xs transition-colors ${
+              className={`${SEGMENT_CLASS} ${
                 currentLanguage === 'en'
                   ? 'bg-[hsl(var(--accent-primary)/0.18)] text-[hsl(var(--accent-primary))]'
                   : 'text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))]'
@@ -380,7 +388,7 @@ function DashboardContent() {
                 onClick={() => handleNavItemClick(item)}
                 className={`w-full flex items-center justify-center gap-2 px-2 py-3 rounded-lg transition-all touch-target ${
                   activeNav === item.id
-                    ? "bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))]"
+                    ? NAV_ACTIVE_CLASS
                     : "text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]"
                 }`}
                 title={t(item.labelKey)}
@@ -435,7 +443,7 @@ function DashboardContent() {
                 onClick={() => handleNavItemClick(item)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                   activeNav === item.id
-                    ? "bg-[hsl(var(--accent-primary)/0.15)] text-[hsl(var(--accent-primary))]"
+                    ? NAV_ACTIVE_CLASS
                     : "text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]"
                 }`}
               >
@@ -477,7 +485,7 @@ function DashboardContent() {
       )}
 
       {/* Main Content */}
-      <main className="flex-1 min-w-0 min-h-0 overflow-auto" style={{ contain: 'layout style paint', scrollbarGutter: 'stable' }}>
+      <main className="ui-sans-headings flex-1 min-w-0 min-h-0 overflow-auto" style={{ contain: 'layout style paint', scrollbarGutter: 'stable' }}>
         {/* Mobile Header */}
         {isMobile && (
           <header className="h-12 bg-[hsl(var(--bg-secondary))] flex items-center px-4 justify-between shrink-0 shadow-sm sticky top-0 z-30">
@@ -488,16 +496,17 @@ function DashboardContent() {
 
             {/* Right: Menu Button */}
             <div className="flex items-center gap-1">
-              <button
+              <IconButton
                 ref={mobileMenuTriggerRef}
                 onClick={() => setShowMobileMenu(!showMobileMenu)}
-                aria-label={showMobileMenu ? 'Close mobile menu' : 'Open mobile menu'}
+                label={showMobileMenu ? 'Close mobile menu' : 'Open mobile menu'}
+                title=""
                 aria-expanded={showMobileMenu}
                 aria-controls="dashboard-mobile-navigation"
-                className="p-2 hover:bg-[hsl(var(--bg-tertiary))] rounded text-[hsl(var(--text-primary))] transition-colors"
-              >
-                {showMobileMenu ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </button>
+                size="touch"
+                className="-mr-2 text-[hsl(var(--text-primary))]"
+                icon={showMobileMenu ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              />
             </div>
           </header>
         )}
@@ -513,6 +522,7 @@ function DashboardContent() {
             <div className="flex flex-col p-2 gap-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
+                const isActive = activeNav === item.id;
                 return (
                   <button
                     key={item.id}
@@ -520,7 +530,13 @@ function DashboardContent() {
                       handleNavItemClick(item);
                       setShowMobileMenu(false);
                     }}
-                    className="flex items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-primary))] transition-colors text-left"
+                    aria-current={isActive ? "page" : undefined}
+                    data-testid={`dashboard-mobile-nav-${item.id}`}
+                    className={`flex min-h-11 items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
+                      isActive
+                        ? NAV_ACTIVE_CLASS
+                        : "text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))]"
+                    }`}
                   >
                     <Icon size={18} />
                     {t(item.labelKey)}
@@ -550,7 +566,7 @@ function DashboardContent() {
                 <button
                   onClick={() => handleThemeSwitch(theme === 'dark' ? 'light' : 'dark')}
                   aria-label="Toggle theme"
-                  className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg border border-[hsl(var(--border-color))] text-xs text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
+                  className="flex min-h-11 items-center justify-center gap-1.5 px-2 py-2 rounded-lg border border-[hsl(var(--border-color))] text-sm text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
                 >
                   {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
                   {theme === 'dark' ? t('settings:theme.light') : t('settings:theme.dark')}
@@ -560,7 +576,7 @@ function DashboardContent() {
                     void handleLanguageSwitch(currentLanguage === 'zh' ? 'en' : 'zh');
                   }}
                   aria-label="Toggle language"
-                  className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg border border-[hsl(var(--border-color))] text-xs text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
+                  className="flex min-h-11 items-center justify-center gap-1.5 px-2 py-2 rounded-lg border border-[hsl(var(--border-color))] text-sm text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
                 >
                   <Languages className="w-3.5 h-3.5" />
                   {currentLanguage === 'zh' ? 'EN' : '中文'}
@@ -568,7 +584,7 @@ function DashboardContent() {
               </div>
               <button
                 onClick={handleOpenSettings}
-                className="flex items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-primary))] transition-colors text-left"
+                className="flex min-h-11 items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded-lg text-sm text-[hsl(var(--text-primary))] transition-colors text-left"
               >
                 <Settings size={18} />
                 {openSettingsLabel}
@@ -587,7 +603,7 @@ function DashboardContent() {
                     }
                     setShowMobileMenu(false);
                   }}
-                  className="flex items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-primary))] transition-colors text-left"
+                  className="flex min-h-11 items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded-lg text-sm text-[hsl(var(--text-primary))] transition-colors text-left"
                 >
                   <Compass size={18} />
                   {replayTourLabel}
@@ -596,7 +612,7 @@ function DashboardContent() {
               <a
                 href={SUPPORT_MAILTO}
                 data-testid="dashboard-contact-support-link-mobile"
-                className="flex items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded text-sm text-[hsl(var(--text-primary))] transition-colors text-left"
+                className="flex min-h-11 items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--bg-tertiary))] rounded-lg text-sm text-[hsl(var(--text-primary))] transition-colors text-left"
               >
                 <Mail size={18} className="shrink-0" />
                 <span className="flex flex-col min-w-0">
@@ -609,7 +625,7 @@ function DashboardContent() {
                   handleLogout();
                   setShowMobileMenu(false);
                 }}
-                className="flex items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--error)/0.1)] rounded text-sm text-[hsl(var(--error))] transition-colors text-left"
+                className="flex min-h-11 items-center gap-3 px-3 py-2.5 hover:bg-[hsl(var(--error)/0.1)] rounded-lg text-sm text-[hsl(var(--error))] transition-colors text-left"
               >
                 <LogOut size={18} />
                 {t('nav.logout')}

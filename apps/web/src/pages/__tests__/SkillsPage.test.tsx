@@ -767,9 +767,26 @@ describe('SkillsPage', () => {
 
       render(<SkillsPage />)
 
+      // Nothing was searched, so the empty state must not tell the author to change a keyword.
       await waitFor(() => {
-        expect(screen.getByText('No skills found')).toBeInTheDocument()
+        expect(screen.getByText('noPublicSkills')).toBeInTheDocument()
       })
+      expect(screen.queryByText('No skills found')).not.toBeInTheDocument()
+    })
+
+    it('suggests another keyword only after a search found nothing', async () => {
+      render(<SkillsPage />)
+      await screen.findByText('Dialogue Expert')
+      vi.mocked(publicSkillsApi.list).mockResolvedValue({
+        skills: [],
+        total: 0,
+        page: 1,
+        page_size: 20,
+      } as PublicSkillListResponse)
+
+      fireEvent.change(screen.getByTestId('public-skill-search'), { target: { value: 'zzz' } })
+
+      expect(await screen.findByText('No skills found', {}, { timeout: 2000 })).toBeInTheDocument()
     })
   })
 

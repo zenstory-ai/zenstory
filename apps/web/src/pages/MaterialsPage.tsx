@@ -14,6 +14,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardPageHeader } from "../components/dashboard/DashboardPageHeader";
 import { DashboardEmptyState } from "../components/dashboard/DashboardEmptyState";
 import { Modal } from "../components/ui/Modal";
+import { Button } from "../components/ui/Button";
+import { IconButton } from "../components/ui/IconButton";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { MaterialsUpgradePromptModal } from "../components/subscription/MaterialsUpgradePrompt";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
@@ -32,6 +34,8 @@ export default function MaterialsPage() {
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
   const showDeleteAction = isMobile || isTablet;
+  /** Page and card actions: 40px on desktop, 44px touch target on phones. */
+  const actionSize = isMobile ? "touch" : "md";
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const teaserTrackedRef = useRef(false);
@@ -158,7 +162,7 @@ export default function MaterialsPage() {
         />
         <div className="rounded-2xl border border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.08)] p-6">
           <div className="space-y-3">
-            <h2 className="text-lg font-semibold text-[hsl(var(--text-primary))]">
+            <h2 className="text-base font-semibold text-[hsl(var(--text-primary))]">
               {t("common:error", { defaultValue: "加载失败" })}
             </h2>
             <p className="text-sm text-[hsl(var(--text-secondary))]">
@@ -166,14 +170,15 @@ export default function MaterialsPage() {
                 defaultValue: "没能确认你的 Pro 状态，请重试。",
               })}
             </p>
-            <button
+            <Button
+              variant="secondary"
+              size={actionSize}
               onClick={() => {
                 void refetchSubscriptionStatus();
               }}
-              className="btn-secondary h-11 px-4"
             >
               {t("common:retry", { defaultValue: "重试" })}
-            </button>
+            </Button>
           </div>
         </div>
       </>
@@ -350,30 +355,32 @@ export default function MaterialsPage() {
         }
         action={
           hasWorkspaceAccess ? (
-            <button
+            <Button
+              size={actionSize}
               onClick={() => setShowUploadModal(true)}
               disabled={isMaterialsQuotaExhausted}
-              className={`btn-primary rounded-xl flex items-center justify-center gap-2 ${isMobile ? "px-3 py-2.5" : "h-11 px-4"} active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed`}
+              leftIcon={<Upload className="w-4 h-4" />}
             >
-              <Upload className="w-4 h-4" />
-              {!isMobile &&
-                (isMaterialsQuotaExhausted
-                  ? t("materials:quota.decomposeTitle", {
-                      defaultValue: "本月拆解次数已用完",
-                    })
-                  : t("materials:upload"))}
-            </button>
+              {isMaterialsQuotaExhausted
+                ? t("materials:quota.decomposeTitle", {
+                    defaultValue: "本月拆解次数已用完",
+                  })
+                : t("materials:upload")}
+            </Button>
           ) : (
-            <button
+            // The page body always carries the main call to action for a free author
+            // (free trial, "开通 Pro" or the trial banner), so the header keeps a quieter
+            // secondary entry: never two solid buttons competing on one screen.
+            <Button
+              variant="secondary"
+              size={actionSize}
               onClick={() => openUpgradePath("billing")}
-              className={`btn-primary rounded-xl flex items-center justify-center gap-2 ${isMobile ? "px-3 py-2.5" : "h-11 px-4"} active:scale-95 transition-transform`}
+              data-testid="materials-header-upgrade"
             >
-              <BookOpen className="w-4 h-4" />
-              {!isMobile &&
-                t("materials:teaserPrimary", {
-                  defaultValue: "开通 Pro",
-                })}
-            </button>
+              {t("materials:teaserPrimary", {
+                defaultValue: "开通 Pro",
+              })}
+            </Button>
           )
         }
       />
@@ -387,15 +394,15 @@ export default function MaterialsPage() {
           <p className="text-sm text-[hsl(var(--text-secondary))]">
             {t("materials:listLoadError", { defaultValue: "素材列表加载失败，请重试。" })}
           </p>
-          <button className="btn-secondary mt-3 h-10 px-4" onClick={() => void refetchMaterials()}>
+          <Button variant="secondary" size={actionSize} className="mt-3" onClick={() => void refetchMaterials()}>
             {t("common:retry", { defaultValue: "重试" })}
-          </button>
+          </Button>
         </div>
       ) : showTeaser ? (
         <div className="space-y-4">
           <div className="rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-6">
             <div className="max-w-3xl space-y-4">
-              <h2 className="text-xl font-semibold text-[hsl(var(--text-primary))]">
+              <h2 className="text-base font-semibold text-[hsl(var(--text-primary))]">
                 {t("materials:teaserTitle", {
                   defaultValue: "上传参考小说，一键拆出章节梗概、角色和世界观",
                 })}
@@ -462,35 +469,29 @@ export default function MaterialsPage() {
               </div>
               <div className="flex flex-wrap gap-3 pt-2">
                 {trialAvailable && (
-                  <button
+                  <Button
+                    size={actionSize}
                     data-testid="materials-trial-start"
                     onClick={() => {
                       trackEvent("materials_trial_started", { source: "materials_teaser" });
                       setShowUploadModal(true);
                     }}
-                    className="btn-primary h-11 px-4"
                   >
                     {t("materials:trialStart", {
                       defaultValue: "免费试拆一本（前 {{chapters}} 章）",
                       chapters: materialTrial?.max_chapters,
                     })}
-                  </button>
+                  </Button>
                 )}
                 {/* With the trial on offer, the header keeps the Pro entry. */}
                 {!trialAvailable && (
-                  <button
-                    onClick={() => openUpgradePath("billing")}
-                    className="btn-primary h-11 px-4"
-                  >
+                  <Button size={actionSize} onClick={() => openUpgradePath("billing")}>
                     {t("materials:teaserPrimary", { defaultValue: "开通 Pro" })}
-                  </button>
+                  </Button>
                 )}
-                <button
-                  onClick={() => openUpgradePath("pricing")}
-                  className="inline-flex h-11 items-center justify-center rounded-md border border-[hsl(var(--accent-primary)/0.24)] bg-[hsl(var(--accent-primary)/0.08)] px-4 text-sm font-medium text-[hsl(var(--accent-primary))] transition-colors hover:border-[hsl(var(--accent-primary)/0.36)] hover:bg-[hsl(var(--accent-primary)/0.14)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.35)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
-                >
+                <Button variant="secondary" size={actionSize} onClick={() => openUpgradePath("pricing")}>
                   {t("materials:teaserSecondary", { defaultValue: "查看套餐对比" })}
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -543,9 +544,9 @@ export default function MaterialsPage() {
                   chapters: materialTrial?.max_chapters,
                 })}
               </p>
-              <button onClick={() => openUpgradePath("billing")} className="btn-primary h-10 px-4">
+              <Button size={actionSize} onClick={() => openUpgradePath("billing")}>
                 {t("materials:teaserPrimary", { defaultValue: "开通 Pro" })}
-              </button>
+              </Button>
             </div>
           )}
           {materialDecomposeQuota && hasWorkspaceAccess && (
@@ -829,7 +830,7 @@ function MaterialCard({
               <BookOpen className="w-5 h-5 text-[hsl(var(--accent-primary))]" />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className={`font-semibold text-[hsl(var(--text-primary))] truncate ${isMobile ? "text-sm" : "text-base"}`}>
+              <h3 className="text-sm font-semibold text-[hsl(var(--text-primary))] truncate">
                 {material.title}
               </h3>
               <p className="text-xs text-[hsl(var(--text-tertiary))] truncate">
@@ -882,19 +883,20 @@ function MaterialCard({
       </div>
 
       {/* Delete Button */}
-      <button
+      <IconButton
+        label={t("materials:deleteConfirm.title", { defaultValue: "删除素材" })}
+        tone="danger"
+        icon={<Trash2 className="w-4 h-4" />}
         onClick={(e) => {
           e.stopPropagation();
           onDelete();
         }}
-        className={`absolute top-3 right-3 rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--error)/0.1)] hover:text-[hsl(var(--error))] transition-all ${
+        className={`absolute top-2 right-2 ${
           showDeleteAction
             ? "opacity-100"
-            : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
-        } ${isMobile ? "p-1.5" : "p-2"}`}
-      >
-        <Trash2 className={isMobile ? "w-3.5 h-3.5" : "w-4 h-4"} />
-      </button>
+            : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+        }`}
+      />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { getLocaleCode } from '../../lib/i18n-helpers';
 import { handleApiError } from '../../lib/errorHandler';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import Modal from '../ui/Modal';
+import { Button } from '../ui/Button';
 import type {
   AgentApiKey,
   CreateAgentApiKeyRequest,
@@ -131,7 +132,7 @@ function ConnectGuide() {
       aria-labelledby="agent-connect-guide-title"
       className="p-4 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))]"
     >
-      <h3 id="agent-connect-guide-title" className="text-sm font-medium text-[hsl(var(--text-primary))] mb-1">
+      <h3 id="agent-connect-guide-title" className="text-sm font-semibold text-[hsl(var(--text-primary))] mb-1">
         {t('apiKeys.connectGuide.title')}
       </h3>
       <p className="text-xs text-[hsl(var(--text-secondary))] mb-3">
@@ -560,7 +561,7 @@ export const AgentApiKeysPanel: React.FC = () => {
       <div className="space-y-3">
         <ConnectGuide />
         <p role="alert" className="text-sm text-red-500">{handleApiError(error)}</p>
-        <button onClick={() => void refetch()}>{t('common:retry', '重试')}</button>
+        <Button variant="secondary" onClick={() => void refetch()}>{t('common:retry', '重试')}</Button>
       </div>
     );
   }
@@ -573,19 +574,15 @@ export const AgentApiKeysPanel: React.FC = () => {
           <div className="w-12 h-12 rounded-full bg-[hsl(var(--bg-tertiary))] flex items-center justify-center mb-3">
             <Key size={20} className="text-[hsl(var(--text-secondary))]" />
           </div>
-          <h3 className="text-sm font-medium text-[hsl(var(--text-primary))] mb-1">
+          <h3 className="text-sm font-semibold text-[hsl(var(--text-primary))] mb-1">
             {t('apiKeys.noKeys')}
           </h3>
           <p className="text-xs text-[hsl(var(--text-secondary))] mb-4 max-w-xs">
             {t('apiKeys.emptyState')}
           </p>
-          <button
-            onClick={() => setShowCreateForm(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-white bg-[hsl(var(--accent-primary))] hover:opacity-90 transition-colors"
-          >
-            <Plus size={14} />
+          <Button onClick={() => setShowCreateForm(true)} leftIcon={<Plus size={16} />}>
             {t('apiKeys.create')}
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -597,15 +594,11 @@ export const AgentApiKeysPanel: React.FC = () => {
       {mutationError && <p role="alert" className="text-sm text-red-500">{mutationError}</p>}
 
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-[hsl(var(--text-primary))]">{t('apiKeys.title')}</h3>
+        <h3 className="text-xs font-medium text-[hsl(var(--text-secondary))]">{t('apiKeys.title')}</h3>
         {!showCreateForm && (
-          <button
-            onClick={() => setShowCreateForm(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-white bg-[hsl(var(--accent-primary))] hover:opacity-90 transition-colors"
-          >
-            <Plus size={14} />
+          <Button onClick={() => setShowCreateForm(true)} leftIcon={<Plus size={16} />}>
             {t('apiKeys.create')}
-          </button>
+          </Button>
         )}
       </div>
 

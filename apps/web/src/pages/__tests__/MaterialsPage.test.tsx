@@ -196,11 +196,7 @@ describe("MaterialsPage", () => {
     // Default decomposition does not produce plotlines; the paywall must not sell them.
     expect(document.body.textContent).not.toContain("剧情线");
 
-    const teaserSecondaryButton = screen.getByRole("button", {
-      name: "查看套餐对比",
-    });
-    expect(teaserSecondaryButton.className).toContain("text-[hsl(var(--accent-primary))]");
-    expect(teaserSecondaryButton.className).not.toContain("btn-secondary");
+    expect(screen.getByRole("button", { name: "查看套餐对比" })).toBeInTheDocument();
   });
 
   const freeStatus = {
@@ -230,6 +226,22 @@ describe("MaterialsPage", () => {
     fireEvent.click(await screen.findByTestId("materials-trial-start"));
     expect(await screen.findByTestId("materials-trial-upload-note")).toBeInTheDocument();
     expect(mockList).not.toHaveBeenCalled();
+  });
+
+  it("keeps one solid call to action when the trial is offered: the header Pro entry steps back", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: true, used: false, max_chapters: 20 }));
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    const trial = await screen.findByTestId("materials-trial-start");
+    const headerUpgrade = screen.getByTestId("materials-header-upgrade");
+    expect(headerUpgrade).toHaveTextContent("开通 Pro");
+
+    const solid = screen
+      .getAllByRole("button")
+      .filter((button) => button.className.includes("bg-[hsl(var(--accent-primary))]"));
+    expect(solid).toEqual([trial]);
   });
 
   it("shows a free author their trial book with a note that only the first chapters were broken down", async () => {

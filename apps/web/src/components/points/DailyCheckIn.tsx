@@ -6,6 +6,7 @@ import { pointsApi } from '../../lib/pointsApi';
 import { useTranslation } from 'react-i18next';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
+import { Button } from '../ui/Button';
 
 interface DailyCheckInProps {
   className?: string;
@@ -69,15 +70,14 @@ export function DailyCheckIn({ className = '' }: DailyCheckInProps) {
           )}
         </div>
       ) : (
-        <button
+        <Button
           onClick={handleCheckIn}
-          disabled={checkInMutation.isPending}
-          className="w-full py-2 px-4 bg-gradient-to-r from-[hsl(var(--accent-secondary-dark))] to-[hsl(var(--accent-secondary))] text-white font-medium rounded-lg hover:from-[hsl(var(--accent-secondary))] hover:to-[hsl(var(--accent-secondary-light))] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          isLoading={checkInMutation.isPending}
+          loadingText={t('common:loading', '处理中...')}
+          className="w-full"
         >
-          {checkInMutation.isPending
-            ? t('common:loading', '处理中...')
-            : t('checkIn', '签到领积分')}
-        </button>
+          {t('checkIn', '签到领积分')}
+        </Button>
       )}
 
       {checkInMutation.isSuccess && checkInMutation.data && (

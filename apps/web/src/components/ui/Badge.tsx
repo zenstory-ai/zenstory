@@ -76,9 +76,9 @@ export interface BadgeProps {
 const getVariantClasses = (variant: BadgeProps['variant']): string => {
   const variants = {
     neutral: 'bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-secondary))]',
-    success: 'bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success-light))]',
-    warning: 'bg-[hsl(var(--warning)/0.15)] text-[hsl(var(--warning))]',
-    error: 'bg-[hsl(var(--error)/0.15)] text-[hsl(var(--error))]',
+    success: 'bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success-text))]',
+    warning: 'bg-[hsl(var(--warning)/0.15)] text-[hsl(var(--warning-text))]',
+    error: 'bg-[hsl(var(--error)/0.15)] text-[hsl(var(--error-text))]',
     info: 'bg-[hsl(var(--info)/0.15)] text-[hsl(var(--info))]',
     purple: 'bg-[hsl(var(--purple)/0.15)] text-[hsl(var(--purple-light))]',
     cyan: 'bg-[hsl(var(--cyan)/0.15)] text-[hsl(var(--cyan-light))]',

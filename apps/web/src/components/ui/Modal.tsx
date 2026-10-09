@@ -17,6 +17,7 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDialogInteractions } from './dialogFocus';
+import { IconButton } from './IconButton';
 
 /**
  * Props for the Modal component.
@@ -329,14 +330,12 @@ export const Modal: React.FC<ModalProps> & {
                 </div>
               )}
               {showCloseButton && (
-                <button
+                <IconButton
                   onClick={onClose}
-                  className="p-1 -m-1 text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] ml-auto"
-                  aria-label={t('common:closeModal')}
-                  type="button"
-                >
-                  <X size={20} />
-                </button>
+                  label={t('common:closeModal')}
+                  icon={<X size={20} />}
+                  className="-mr-2 -mt-1 ml-auto"
+                />
               )}
             </div>
           )}

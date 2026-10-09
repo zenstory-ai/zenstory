@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { subscriptionApi, subscriptionQueryKeys } from '../../lib/subscriptionApi';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '../ui/Badge';
+import { Button } from '../ui/Button';
 import {
   getLocalizedPlanDisplayName,
   getSubscriptionFeatureRows,
@@ -73,37 +74,29 @@ export function SubscriptionStatus({ onRedeemClick, onUpgradeClick, onRenewClick
 
       <div className="flex flex-wrap gap-2">
         {isPaidTier === false && onUpgradeClick && (
-          <button
-            type="button"
-            onClick={onUpgradeClick}
-            className="px-3 py-1.5 text-sm rounded-md bg-[hsl(var(--accent-primary))] text-white hover:opacity-90 transition-colors"
-          >
+          <Button type="button" onClick={onUpgradeClick}>
             {t('settings:subscription.upgradePrimary', '开通 Pro')}
-          </button>
+          </Button>
         )}
 
         {isPaidTier && onRenewClick && (
-          <button
-            type="button"
-            onClick={onRenewClick}
-            className="px-3 py-1.5 text-sm rounded-md bg-[hsl(var(--accent-primary))] text-white hover:opacity-90 transition-colors"
-          >
+          <Button type="button" onClick={onRenewClick}>
             {t('dashboard:billing.ctaRenewPro', '续费 Pro')}
-          </button>
+          </Button>
         )}
 
         {onRedeemClick && (
-          <button
+          <Button
             type="button"
             onClick={onRedeemClick}
-            className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
+            variant={
               (isPaidTier === false && onUpgradeClick) || (isPaidTier && onRenewClick)
-                ? 'border-[hsl(var(--border-color))] text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))]'
-                : 'bg-[hsl(var(--accent-primary))] text-white hover:opacity-90 border-transparent'
-            }`}
+                ? 'secondary'
+                : 'primary'
+            }
           >
             {t('settings:subscription.redeemCode', '兑换码')}
-          </button>
+          </Button>
         )}
       </div>
     </div>

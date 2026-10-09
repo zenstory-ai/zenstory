@@ -331,6 +331,7 @@
     "appName": "ZenStory",
     "slogan": "Let AI be your creative partner",
     "createButton": "Start Writing",
+    "creatingProject": "Creating project…",
     "confirmButton": "Confirm",
     "cancelButton": "Cancel",
     "done": "Done",

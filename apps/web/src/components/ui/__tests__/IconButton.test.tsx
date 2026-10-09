@@ -1,0 +1,32 @@
+import { createRef } from 'react'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { IconButton } from '../IconButton'
+
+describe('IconButton', () => {
+  it('is named by its label, so an icon-only control is never announced as an empty button', () => {
+    render(<IconButton label="删除项目" icon={<svg aria-hidden="true" />} />)
+
+    expect(screen.getByRole('button', { name: '删除项目' })).toHaveAttribute('title', '删除项目')
+  })
+
+  it('does not submit the surrounding form', () => {
+    const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault())
+    render(
+      <form onSubmit={onSubmit}>
+        <IconButton label="展开" icon={<svg aria-hidden="true" />} />
+      </form>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '展开' }))
+
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('forwards its ref so menus can return focus to the trigger', () => {
+    const ref = createRef<HTMLButtonElement>()
+    render(<IconButton ref={ref} label="打开菜单" icon={<svg aria-hidden="true" />} />)
+
+    expect(ref.current).toBe(screen.getByRole('button', { name: '打开菜单' }))
+  })
+})

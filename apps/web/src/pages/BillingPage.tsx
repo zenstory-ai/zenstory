@@ -7,6 +7,7 @@ import { DashboardPageHeader } from "../components/dashboard/DashboardPageHeader
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
 import { Card } from "../components/ui/Card";
+import { useIsMobile } from "../hooks/useMediaQuery";
 import { RedeemCodeModal } from "../components/subscription/RedeemCodeModal";
 import { PaymentCheckoutModal } from "../components/subscription/PaymentCheckoutModal";
 import { subscriptionApi, subscriptionQueryKeys } from "../lib/subscriptionApi";
@@ -42,6 +43,8 @@ export default function BillingPage() {
   const { t, i18n } = useTranslation(["dashboard", "settings", "common"]);
   const [searchParams] = useSearchParams();
   const trackedConversionSourceRef = useRef<string | null>(null);
+  // Page-header actions: the standard 40px button, 44px touch target on phones.
+  const headerActionSize = useIsMobile() ? "touch" : "md";
   const billingUpgradePrompt = getUpgradePromptDefinition("billing_header_upgrade");
   const [paymentCycle] = useState<PaymentCycle>(() => {
     // Yearly is the default offer; an explicit monthly choice on the pricing page wins.
@@ -203,7 +206,7 @@ export default function BillingPage() {
           <div className="flex items-center gap-2">
             {isCheckoutEnabled ? (
               <Button
-                size="sm"
+                size={headerActionSize}
                 onClick={() => {
                   trackUpgradeClick(
                     checkoutSource,
@@ -223,7 +226,7 @@ export default function BillingPage() {
             ) : (
               isUpgradableTier && (
                 <Button
-                  size="sm"
+                  size={headerActionSize}
                   onClick={() => {
                     trackUpgradeClick(
                       effectiveUpgradeSource,
@@ -238,7 +241,7 @@ export default function BillingPage() {
                 </Button>
               )
             )}
-            <Button size="sm" variant="secondary" onClick={() => setShowRedeemCodeModal(true)}>
+            <Button size={headerActionSize} variant="secondary" onClick={() => setShowRedeemCodeModal(true)}>
               {t("settings:subscription.redeemCode", "兑换码")}
             </Button>
           </div>
@@ -383,9 +386,9 @@ export default function BillingPage() {
                 >
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div>
-                      <div className="text-lg font-semibold text-[hsl(var(--text-primary))]">
+                      <h3 className="text-sm font-semibold text-[hsl(var(--text-primary))]">
                         {getLocalizedPlanDisplayName({ ...plan, tier: plan.name }, i18n.language)}
-                      </div>
+                      </h3>
                       <div className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
                         {formatPlanPrice(plan)}
                       </div>

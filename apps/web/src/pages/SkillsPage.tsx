@@ -17,6 +17,8 @@ import { DashboardFilterPills } from "../components/dashboard/DashboardFilterPil
 import { DashboardSearchBar } from "../components/dashboard/DashboardSearchBar";
 import { DashboardEmptyState } from "../components/dashboard/DashboardEmptyState";
 import { Modal } from "../components/ui/Modal";
+import { Button } from "../components/ui/Button";
+import { IconButton } from "../components/ui/IconButton";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { UpgradePromptModal } from "../components/subscription/UpgradePromptModal";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
@@ -543,29 +545,25 @@ export default function SkillsPage() {
               onChange={handleImportFile}
               data-testid="skill-import-input"
             />
-            <button
+            <Button
+              variant="ghost"
+              size={isMobile ? "touch" : "md"}
               onClick={() => importInputRef.current?.click()}
-              disabled={importing}
-              className={`rounded-xl flex items-center justify-center gap-2 ${isMobile ? "px-3 py-2.5" : "h-11 px-4"} active:scale-95 transition-all text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-secondary))] disabled:opacity-50`}
+              isLoading={importing}
+              leftIcon={<Upload className="w-4 h-4" />}
               title={t("skills:import.hint")}
-              aria-label={t("skills:import.button")}
             >
-              {importing ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
-              ) : (
-                <Upload className="w-4 h-4" />
-              )}
-              {!isMobile && t("skills:import.button")}
-            </button>
+              {t("skills:import.button")}
+            </Button>
             {currentProject && (
-              <button
+              <Button
+                variant="ghost"
+                size={isMobile ? "touch" : "md"}
                 onClick={() => setShowStats(true)}
-                className={`rounded-xl flex items-center justify-center gap-2 ${isMobile ? "px-3 py-2.5" : "h-11 px-4"} active:scale-95 transition-all text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-secondary))]`}
-                title={t("stats.title")}
+                leftIcon={<BarChart3 className="w-4 h-4" />}
               >
-                <BarChart3 className="w-4 h-4" />
-                {!isMobile && t("stats.title")}
-              </button>
+                {t("stats.title")}
+              </Button>
             )}
           </div>
         }
@@ -894,7 +892,7 @@ function SkillCard({
               <Zap className={`text-[hsl(var(--accent-primary))] ${isMobile ? "w-4 h-4" : "w-4.5 h-4.5"}`} />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className={`font-semibold text-[hsl(var(--text-primary))] truncate leading-snug ${isMobile ? "text-sm" : "text-sm"}`}>
+              <h3 className="text-sm font-semibold text-[hsl(var(--text-primary))] truncate leading-snug">
                 {skill.name}
               </h3>
             </div>
@@ -906,7 +904,7 @@ function SkillCard({
             {skill.share_status && <ShareStatusBadge status={skill.share_status} />}
           </div>
           {skill.description && (
-            <p className={`text-[hsl(var(--text-secondary))] mb-2.5 line-clamp-2 ${isMobile ? "text-xs" : "text-sm"}`}>
+            <p className="text-xs text-[hsl(var(--text-secondary))] mb-2.5 line-clamp-2">
               {skill.description}
             </p>
           )}
@@ -935,43 +933,33 @@ function SkillCard({
         <div className="flex items-center gap-1 shrink-0">
           {!readonly && (
             <>
-              <button
+              <IconButton
                 onClick={onEdit}
-                title={t("skills:editSkill")}
-                aria-label={t("skills:editSkill")}
-                className={`rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] transition-colors ${isMobile ? "p-1.5" : "p-2"}`}
-              >
-                <Pencil className={isMobile ? "w-3.5 h-3.5" : "w-4 h-4"} />
-              </button>
-              <button
+                label={t("skills:editSkill")}
+                icon={<Pencil className="w-4 h-4" />}
+              />
+              <IconButton
                 onClick={onDelete}
-                className={`rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--error)/0.1)] hover:text-[hsl(var(--error))] transition-colors ${isMobile ? "p-1.5" : "p-2"}`}
-              >
-                <Trash2 className={isMobile ? "w-3.5 h-3.5" : "w-4 h-4"} />
-              </button>
-              <button
+                label={t("skills:deleteConfirm.title")}
+                tone="danger"
+                icon={<Trash2 className="w-4 h-4" />}
+              />
+              <IconButton
                 onClick={onShare}
-                className={`rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--accent-primary)/0.1)] hover:text-[hsl(var(--accent-primary))] transition-colors ${isMobile ? "p-1.5" : "p-2"}`}
-                title={t("skills:share.title")}
-              >
-                <Share2 className={isMobile ? "w-3.5 h-3.5" : "w-4 h-4"} />
-              </button>
+                label={t("skills:share.title")}
+                icon={<Share2 className="w-4 h-4" />}
+              />
             </>
           )}
           {onExport && (
             <ExportButton onExport={onExport} exporting={exporting} isMobile={isMobile} />
           )}
-          <button
+          <IconButton
             onClick={() => setExpanded(!expanded)}
-            className={`rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] transition-colors ${isMobile ? "p-1.5" : "p-2"}`}
-            title={expanded ? t("skills:collapse") : t("skills:expand")}
-          >
-            {expanded ? (
-              <ChevronUp className={isMobile ? "w-3.5 h-3.5" : "w-4 h-4"} />
-            ) : (
-              <ChevronDown className={isMobile ? "w-3.5 h-3.5" : "w-4 h-4"} />
-            )}
-          </button>
+            label={expanded ? t("skills:collapse") : t("skills:expand")}
+            aria-expanded={expanded}
+            icon={expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          />
         </div>
       </div>
 
@@ -1108,13 +1096,13 @@ function MySkillsContent({
               {userSkills.length}
             </span>
           </div>
-          <button
+          <Button
+            size={isMobile ? "touch" : "md"}
             onClick={onCreate}
-            className={`btn-primary rounded-xl flex items-center justify-center gap-2 ${isMobile ? "px-3 py-2" : "h-9 px-4"} active:scale-95 transition-transform text-sm`}
+            leftIcon={<Plus className="w-4 h-4" />}
           >
-            <Plus className="w-4 h-4" />
-            {!isMobile && t("create")}
-          </button>
+            {t("create")}
+          </Button>
         </div>
 
         {userSkills.length === 0 ? (
@@ -1250,7 +1238,7 @@ function AddedSkillCard({
               <Zap className={`text-[hsl(var(--text-secondary))] ${isMobile ? "w-4 h-4" : "w-4.5 h-4.5"}`} />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className={`font-semibold text-[hsl(var(--text-primary))] truncate leading-snug ${isMobile ? "text-sm" : "text-sm"}`}>
+              <h3 className="text-sm font-semibold text-[hsl(var(--text-primary))] truncate leading-snug">
                 {skill.name}
               </h3>
             </div>
@@ -1259,7 +1247,7 @@ function AddedSkillCard({
             </span>
           </div>
           {skill.description && (
-            <p className={`text-[hsl(var(--text-secondary))] mb-2.5 line-clamp-2 ${isMobile ? "text-xs" : "text-sm"}`}>
+            <p className="text-xs text-[hsl(var(--text-secondary))] mb-2.5 line-clamp-2">
               {skill.description}
             </p>
           )}
@@ -1271,32 +1259,28 @@ function AddedSkillCard({
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
-          <button
+          <IconButton
             onClick={onRemove}
             disabled={removing}
-            className={`rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--error)/0.1)] hover:text-[hsl(var(--error))] transition-colors disabled:opacity-50 ${isMobile ? "p-1.5" : "p-2"}`}
-            title={t("skills:remove")}
-          >
-            {removing ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
-            ) : (
-              <MinusCircle className={isMobile ? "w-3.5 h-3.5" : "w-4 h-4"} />
-            )}
-          </button>
+            label={t("skills:remove")}
+            tone="danger"
+            icon={
+              removing ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+              ) : (
+                <MinusCircle className="w-4 h-4" />
+              )
+            }
+          />
           {onExport && (
             <ExportButton onExport={onExport} exporting={exporting} isMobile={isMobile} />
           )}
-          <button
+          <IconButton
             onClick={() => setExpanded(!expanded)}
-            className={`rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] transition-colors ${isMobile ? "p-1.5" : "p-2"}`}
-            title={expanded ? t("skills:collapse") : t("skills:expand")}
-          >
-            {expanded ? (
-              <ChevronUp className={isMobile ? "w-3.5 h-3.5" : "w-4 h-4"} />
-            ) : (
-              <ChevronDown className={isMobile ? "w-3.5 h-3.5" : "w-4 h-4"} />
-            )}
-          </button>
+            label={expanded ? t("skills:collapse") : t("skills:expand")}
+            aria-expanded={expanded}
+            icon={expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          />
         </div>
       </div>
 
@@ -1332,19 +1316,19 @@ function ExportButton({
 }) {
   const { t } = useTranslation(["skills"]);
   return (
-    <button
+    <IconButton
       onClick={onExport}
       disabled={exporting}
-      className={`rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] transition-colors disabled:opacity-50 ${isMobile ? "p-1.5" : "p-2"}`}
-      title={t("skills:export.button")}
-      aria-label={t("skills:export.button")}
-    >
-      {exporting ? (
-        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
-      ) : (
-        <Download className={isMobile ? "w-3.5 h-3.5" : "w-4 h-4"} />
-      )}
-    </button>
+      label={t("skills:export.button")}
+      size={isMobile ? "touch" : "md"}
+      icon={
+        exporting ? (
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+        ) : (
+          <Download className="w-4 h-4" />
+        )
+      }
+    />
   );
 }
 
@@ -1428,7 +1412,11 @@ function DiscoverContent({
       ) : publicSkills.length === 0 ? (
         <DashboardEmptyState
           icon={Compass}
-          title={t("noSkillsFound")}
+          title={
+            searchQuery.trim() || selectedCategory
+              ? t("noSkillsFound")
+              : t("noPublicSkills", { defaultValue: "这里还没有可以添加的技能，稍后再来看看。" })
+          }
         />
       ) : (
         <div className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-2 lg:grid-cols-3"}`}>
@@ -1447,16 +1435,9 @@ function DiscoverContent({
 
       {!loading && hasMore && (
         <div className="flex justify-center mt-6">
-          <button
-            onClick={onLoadMore}
-            disabled={loadingMore}
-            className="btn-ghost h-10 px-5 flex items-center gap-2 disabled:opacity-50"
-          >
-            {loadingMore && (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
-            )}
+          <Button variant="secondary" onClick={onLoadMore} isLoading={loadingMore}>
             {t("loadMore")}
-          </button>
+          </Button>
         </div>
       )}
     </div>
@@ -1508,7 +1489,7 @@ function PublicSkillCard({
           <Zap className="w-3.5 h-3.5 text-[hsl(var(--accent-primary))]" />
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="font-medium text-[hsl(var(--text-primary))] text-sm truncate">{skill.name}</h3>
+          <h3 className="font-semibold text-[hsl(var(--text-primary))] text-sm truncate">{skill.name}</h3>
         </div>
         {skill.source === "official" && (
           <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[hsl(var(--accent-primary)/0.08)] text-[hsl(var(--accent-primary))] shrink-0">
@@ -1518,7 +1499,7 @@ function PublicSkillCard({
       </div>
 
       {/* Description - fixed 2-line height for alignment */}
-      <p className="text-[13px] leading-relaxed text-[hsl(var(--text-secondary))] line-clamp-2 min-h-[2.6em] mb-4">
+      <p className="text-xs leading-relaxed text-[hsl(var(--text-secondary))] line-clamp-2 min-h-[2.6em] mb-4">
         {skill.description || "\u00A0"}
       </p>
 

@@ -169,6 +169,17 @@ describe('Dashboard user panel and quick switches', () => {
     expect(screen.getByTestId('dashboard-contact-support-link')).toHaveTextContent('support@zenstory.ai')
   })
 
+  it('marks the current page in the mobile menu like the desktop sidebar', () => {
+    mockIsMobile = true
+    mockIsDesktop = false
+    renderDashboard(['/dashboard/inspirations'])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open mobile menu' }))
+
+    expect(screen.getByTestId('dashboard-mobile-nav-inspirations')).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByTestId('dashboard-mobile-nav-home')).not.toHaveAttribute('aria-current')
+  })
+
   it('links the support email from the mobile menu', () => {
     mockIsMobile = true
     mockIsDesktop = false

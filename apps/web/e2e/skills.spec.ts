@@ -636,7 +636,7 @@ test.describe('Skills Management', () => {
     await expect(page.locator('button:has-text("发现技能"), button:has-text("Discover")')).toHaveAttribute('class', /accent-primary|text-white/);
 
     const publicSkillTitles = page.locator('div[class*="rounded-xl"][class*="border"] h3');
-    const emptyState = page.locator('text=/没有找到匹配的技能|暂无技能|no skills/i').first();
+    const emptyState = page.locator('text=/没有找到匹配的技能|还没有可以添加的技能|暂无技能|no skills/i').first();
 
     await expect
       .poll(async () => {
