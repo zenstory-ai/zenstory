@@ -79,7 +79,12 @@ export const DiffReviewSplitView = ({
     }
   }, [t]);
 
-  const [filter, setFilter] = useState<EditFilter>("pending");
+  // A comparison that opens with some changes already set aside (where the
+  // author and the AI rewrote the same words, the AI's side is preselected)
+  // starts on "all", so the author sees them before finishing.
+  const [filter, setFilter] = useState<EditFilter>(() =>
+    pendingEdits.some((edit) => edit.status === "rejected") ? "all" : "pending"
+  );
   const [activeEditId, setActiveEditId] = useState<string | null>(null);
 
   const counts = useMemo(() => {

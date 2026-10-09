@@ -61,6 +61,13 @@ interface ConflictReview {
   fileId: string;
   originalContent: string;
   modifiedContent: string;
+  /**
+   * Places where the author and the AI rewrote the same words. They start
+   * rejected (AI side) so pressing finish keeps the AI's text there, but that
+   * default is not the author's choice: until the author decides one of them
+   * in the comparison, a draft kept on leaving keeps the author's side.
+   */
+  undecidedConflictIds: Set<string>;
 }
 
 const isSameReview = (review: DiffReviewState | null, conflict: ConflictReview | null): boolean =>
@@ -316,6 +323,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
       setLoading(true);
     }
     setError(null);
+    const followServer = options?.followServer === true && currentFile?.id === selectedItem.id;
 
     try {
       const data = await fileApi.get(selectedItem.id);
@@ -323,7 +331,6 @@ const EditorComponent: React.FC<EditorProps> = () => {
       setFile(data);
       hasLoadedRef.current = true;
       setServerSyncIssue((prev) => (prev?.fileId === data.id ? null : prev));
-      const followServer = options?.followServer === true && currentFile?.id === data.id;
       const serverContent = data.content || "";
       const scope = currentUserId ? {
         userId: currentUserId,
@@ -376,7 +383,13 @@ const EditorComponent: React.FC<EditorProps> = () => {
       const error = err as { status?: number };
       if (error?.status !== 401) {
         logger.error("Failed to load data:", err);
-        setError(translateRef.current('editor:placeholder.loadFailed'));
+        if (followServer) {
+          // Re-reading the open file after the AI wrote it: keep the editor
+          // (and anything the author typed) and say it may be out of date.
+          setServerSyncIssue({ fileId: selectedItem.id, retrying: false });
+        } else {
+          setError(translateRef.current('editor:placeholder.loadFailed'));
+        }
       }
     } finally {
       if (generation === loadGenerationRef.current) setLoading(false);
@@ -447,30 +460,82 @@ const EditorComponent: React.FC<EditorProps> = () => {
     const { proposal, conflictEditIds } = rebaseLocalEdits(base, localContent, serverContent);
     if (proposal === serverContent) return false;
     enterDiffReview(fileId, serverContent, proposal);
-    conflictReviewRef.current = { fileId, originalContent: serverContent, modifiedContent: proposal };
+    conflictReviewRef.current = {
+      fileId,
+      originalContent: serverContent,
+      modifiedContent: proposal,
+      undecidedConflictIds: new Set(conflictEditIds),
+    };
     for (const editId of conflictEditIds) rejectEdit(editId);
     return true;
   }, [enterDiffReview, rejectEdit]);
 
   /**
    * What SimpleEditor keeps locally when the author leaves (or the page
-   * unloads) while this comparison is open: the text finishing it would save
-   * right now, on the server copy's token. The raw draft would be the author's
-   * whole text on the older copy, and restoring it would undo the AI's write.
+   * unloads) while this comparison is open. Leaving is not a choice, so only
+   * the author's own decisions in the comparison count:
+   *
+   * - Every place both sides rewrote has been decided by the author (or there
+   *   is none): the text finishing would save now, on the server copy's token.
+   *   Reopening restores it on top of the AI's copy.
+   * - Some are undecided: the AI's copy plus every author edit, with the
+   *   author's side in those places, and no save token, so reopening shows
+   *   "your draft differs from the latest copy" with both versions to compare
+   *   instead of silently restoring either side.
+   *
+   * Never the raw draft: that is the author's whole text on the older copy,
+   * and restoring it would undo the AI's write everywhere.
    */
   const getReviewLeaveDraft = useCallback(() => {
     const review = currentReviewRef.current;
     const opened = currentFileRef.current;
-    if (!review || !opened || review.fileId !== opened.id || !isSameReview(review, conflictReviewRef.current)) {
+    const conflict = conflictReviewRef.current;
+    if (!review || !opened || review.fileId !== opened.id || !conflict || !isSameReview(review, conflict)) {
       return null;
     }
+    const undecided = review.pendingEdits.some(
+      (edit) => edit.status === 'rejected' && conflict.undecidedConflictIds.has(edit.id),
+    );
+    const pendingEdits = undecided
+      ? review.pendingEdits.map((edit) =>
+          conflict.undecidedConflictIds.has(edit.id) ? { ...edit, status: 'accepted' as const } : edit,
+        )
+      : review.pendingEdits;
     const { diffs } = buildParagraphReviewData(review.originalContent, review.modifiedContent);
     return {
       title: editTitleRef.current,
-      content: applyPendingEditsToDiffs(diffs, review.pendingEdits),
-      baseUpdatedAt: opened.updated_at,
+      content: applyPendingEditsToDiffs(diffs, pendingEdits),
+      baseUpdatedAt: undecided ? undefined : opened.updated_at,
     };
   }, []);
+
+  // The author's own choices in a conflict comparison (see ConflictReview).
+  const decideConflict = useCallback((editId?: string) => {
+    const conflict = conflictReviewRef.current;
+    if (!conflict) return;
+    if (editId === undefined) conflict.undecidedConflictIds.clear();
+    else conflict.undecidedConflictIds.delete(editId);
+  }, []);
+  const handleAcceptEdit = useCallback((editId: string) => {
+    decideConflict(editId);
+    acceptEdit(editId);
+  }, [acceptEdit, decideConflict]);
+  const handleRejectEdit = useCallback((editId: string) => {
+    decideConflict(editId);
+    rejectEdit(editId);
+  }, [decideConflict, rejectEdit]);
+  const handleResetEdit = useCallback((editId: string) => {
+    decideConflict(editId);
+    resetEdit(editId);
+  }, [decideConflict, resetEdit]);
+  const handleAcceptAllEdits = useCallback(() => {
+    decideConflict();
+    acceptAllEdits();
+  }, [acceptAllEdits, decideConflict]);
+  const handleRejectAllEdits = useCallback(() => {
+    decideConflict();
+    rejectAllEdits();
+  }, [decideConflict, rejectAllEdits]);
 
   // Leaving the project with the comparison open: the draft is already kept
   // locally (getReviewLeaveDraft) and is offered again when the file reopens,
@@ -1239,11 +1304,11 @@ const EditorComponent: React.FC<EditorProps> = () => {
       onEnterDiffReview: enterNaturalPolishReview,
       // Diff review props
       diffReviewState: isInReviewMode ? diffReviewState : null,
-      onAcceptEdit: acceptEdit,
-      onRejectEdit: rejectEdit,
-      onResetEdit: resetEdit,
-      onAcceptAllEdits: acceptAllEdits,
-      onRejectAllEdits: rejectAllEdits,
+      onAcceptEdit: handleAcceptEdit,
+      onRejectEdit: handleRejectEdit,
+      onResetEdit: handleResetEdit,
+      onAcceptAllEdits: handleAcceptAllEdits,
+      onRejectAllEdits: handleRejectAllEdits,
       onFinishReview: handleFinishReview,
       recoveredDraft: draftRecovery?.applied && draftRecovery.snapshot.fileId === file.id
         ? {

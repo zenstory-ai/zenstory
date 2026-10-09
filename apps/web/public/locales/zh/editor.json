@@ -184,13 +184,13 @@
   },
   "saveVersionQuotaExceeded": "内容已保存。这个文件的历史版本存满了，这次没有生成新版本；开通 Pro 可以保留更多版本。",
   "draftRecovery": {
-    "restored": "已恢复刷新前未保存的内容。确认无误后可继续编辑或保存。",
-    "conflict": "刷新前的草稿与服务器最新版本不同。请先比较，再选择是否恢复本地草稿。",
+    "restored": "已恢复你上次没保存的内容。确认无误后可继续编辑或保存。",
+    "conflict": "你上次没保存的草稿和服务器最新版本不同。请先比较，再选择是否恢复这份草稿。",
     "compare": "比较两个版本",
     "restore": "恢复本地草稿",
     "discard": "保留服务器版本",
     "serverVersion": "服务器最新版本",
-    "localVersion": "刷新前的本地草稿"
+    "localVersion": "上次没保存的本地草稿"
   },
   "naturalPolish": "去AI味",
   "naturalPolishWorking": "去AI味中...",

@@ -122,7 +122,7 @@ const putsFor = (id: string) => server.update.mock.calls.filter(([fileId]) => fi
 type SecondWrite = 'edit_file' | 'parallel_execute';
 
 /** Opens chapter 1, then runs the AI round up to (not including) the second write. */
-async function runRoundUntilV1() {
+async function runRoundUntilV1({ failReloadAfterStream = false } = {}) {
   render(<ProjectProvider><Harness /></ProjectProvider>);
   await settle(); await advance(50); await settle();
   expect(textarea().value).toBe(CH1.content);
@@ -141,9 +141,10 @@ async function runRoundUntilV1() {
   await advance(50);
   // Backend saves v1 before file_content_end.
   server.files.set(CH2_ID, { ...server.files.get(CH2_ID)!, content: V1, updated_at: T_V1 });
+  if (failReloadAfterStream) server.get.mockRejectedValueOnce(new Error('network'));
   act(() => callbacks().onFileContentEnd(CH2_ID));
   await advance(300); await settle();
-  expect(textarea().value).toBe(V1);
+  if (!failReloadAfterStream) expect(textarea().value).toBe(V1);
 }
 
 /** Later in the same round the agent writes the open chapter again (v2). */
@@ -394,6 +395,84 @@ describe('AI writes the open chapter twice in one round', () => {
     expect(snapshot).toMatchObject({ content: `${V2}作者补的一句。`, baseUpdatedAt: T_V2 });
   });
 
+  // The author and the AI rewrote the same sentence; the comparison starts on the AI's side there.
+  const AUTHOR_REWRITE = V1.replace('中午十二点，老周还在摊上。', '傍晚，老周收摊了。');
+  const draftFor = () => readEditorDraftSnapshot(localStorage, { userId: 'user-1', projectId: 'project-1', fileId: CH2_ID });
+
+  it("leaving before deciding where both rewrote the same words keeps the author's rewrite and asks on return", async () => {
+    await runRoundUntilV1();
+    fireEvent.change(textarea(), { target: { value: AUTHOR_REWRITE } });
+    await secondWrite('parallel_execute');
+    expect(toastError).toHaveBeenCalledWith('editor:aiEditedWhileDirty');
+
+    act(() => harness.setShowEditor!(false));
+    await settle();
+    expect(putsFor(CH2_ID)).toHaveLength(0);
+    // Leaving is not a choice: the author's side is kept, with no token, so
+    // reopening asks instead of silently keeping either side.
+    const snapshot = draftFor();
+    expect(snapshot?.content).toBe(AUTHOR_REWRITE);
+    expect(snapshot?.baseUpdatedAt).toBeUndefined();
+
+    act(() => harness.setShowEditor!(true));
+    await settle(); await advance(50); await settle();
+    expect(textarea().value).toBe(V2);
+    expect(screen.getByText('editor:draftRecovery.conflict')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'editor:draftRecovery.restore' }));
+    await settle();
+    expect(textarea().value).toBe(AUTHOR_REWRITE);
+    fireEvent.change(textarea(), { target: { value: `${AUTHOR_REWRITE}好` } });
+    await advance(3100); await settle();
+    expect(putsFor(CH2_ID)).toHaveLength(1);
+    expect(putsFor(CH2_ID)[0][1]).toMatchObject({ content: `${AUTHOR_REWRITE}好`, base_updated_at: T_V2 });
+  });
+
+  it("closing the page before deciding where both rewrote the same words keeps the author's rewrite", async () => {
+    await runRoundUntilV1();
+    fireEvent.change(textarea(), { target: { value: `${AUTHOR_REWRITE}作者补的一句。` } });
+    await secondWrite('parallel_execute');
+
+    act(() => { window.dispatchEvent(new Event('pagehide')); });
+    const snapshot = draftFor();
+    expect(snapshot?.content).toBe(`${AUTHOR_REWRITE}作者补的一句。`);
+    expect(snapshot?.baseUpdatedAt).toBeUndefined();
+  });
+
+  it('a choice the author made in the comparison is what leaving keeps', async () => {
+    await runRoundUntilV1();
+    fireEvent.change(textarea(), { target: { value: `${AUTHOR_REWRITE}作者补的一句。` } });
+    await secondWrite('parallel_execute');
+    // The author looks at the rewritten sentence and keeps the AI's version.
+    fireEvent.click(screen.getAllByTitle('editor:acceptChange')[0]);
+    fireEvent.click(screen.getAllByTitle('editor:rejectChange')[0]);
+    await settle();
+
+    act(() => harness.setShowEditor!(false));
+    await settle();
+    expect(draftFor()).toMatchObject({ content: `${V2}作者补的一句。`, baseUpdatedAt: T_V2 });
+
+    act(() => harness.setShowEditor!(true));
+    await settle(); await advance(50); await settle();
+    expect(textarea().value).toBe(`${V2}作者补的一句。`);
+    expect(screen.getByText('editor:draftRecovery.restored')).toBeTruthy();
+  });
+
+  it('pressing finish where both rewrote the same words keeps the AI side and leaves no draft behind', async () => {
+    await runRoundUntilV1();
+    fireEvent.change(textarea(), { target: { value: `${AUTHOR_REWRITE}作者补的一句。` } });
+    await secondWrite('parallel_execute');
+    finishReview();
+    await advance(100); await settle();
+    expect(server.files.get(CH2_ID)!.content).toBe(`${V2}作者补的一句。`);
+    expect(putsFor(CH2_ID)[0][1]).toMatchObject({ base_updated_at: T_V2 });
+    expect(textarea().value).toBe(`${V2}作者补的一句。`);
+
+    act(() => harness.setShowEditor!(false));
+    await settle();
+    expect(draftFor()).toBeNull();
+    expect(putsFor(CH2_ID)).toHaveLength(1);
+  });
+
   it("does not count the AI's streamed chapter as the author's words", async () => {
     await runRoundUntilV1();
     fireEvent.change(textarea(), { target: { value: `${V1}好` } });
@@ -403,6 +482,24 @@ describe('AI writes the open chapter twice in one round', () => {
     expect(putsFor(CH2_ID)[0][1]).toMatchObject({ content: `${V1}好`, base_updated_at: T_V1, skip_version: true });
     expect(recordStats).toHaveBeenCalledTimes(1);
     expect(recordStats.mock.calls[0]).toEqual(['project-1', expect.objectContaining({ words_added: 1, words_deleted: 0 })]);
+  });
+
+  it("keeps the editor and offers to load again when the reload after the AI's streamed chapter fails", async () => {
+    await runRoundUntilV1({ failReloadAfterStream: true });
+    // Not the full-page "failed to load" screen: the editor stays, with a notice.
+    expect(screen.queryByText('editor:placeholder.loadFailed')).toBeNull();
+    expect(textarea()).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toContain('editor:serverSyncFailed.message');
+
+    fireEvent.click(screen.getByRole('button', { name: 'editor:serverSyncFailed.retry' }));
+    await settle();
+    expect(textarea().value).toBe(V1);
+    expect(screen.queryByText('editor:serverSyncFailed.message')).toBeNull();
+
+    // The loaded copy is the clean baseline: the next edit saves on v1's token.
+    fireEvent.change(textarea(), { target: { value: `${V1}好` } });
+    await advance(3100); await settle();
+    expect(putsFor(CH2_ID)[0][1]).toMatchObject({ content: `${V1}好`, base_updated_at: T_V1 });
   });
 
   it('says so when the latest copy cannot be loaded, and loads it on request', async () => {

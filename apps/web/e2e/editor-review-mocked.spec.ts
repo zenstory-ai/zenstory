@@ -196,7 +196,7 @@ test('chunk refresh draft waits for an explicit comparison before replacing newe
   await expect(page.getByRole('alert')).toContainText('differs from the latest server version');
   await page.getByText('Compare versions', { exact: true }).click();
   await expect(page.getByText('Latest server version', { exact: true })).toBeVisible();
-  await expect(page.getByText('Local draft before refresh', { exact: true })).toBeVisible();
+  await expect(page.getByText('Unsaved local draft from last time', { exact: true })).toBeVisible();
   await expect(page.getByTestId('editor-panel').getByText('Chapter Alpha', { exact: true })).toBeVisible();
   await expect(page.getByText('Recovered chapter title', { exact: true })).toBeVisible();
   await expect(page.getByText('Recovered local body before refresh', { exact: true })).toBeVisible();
@@ -426,7 +426,7 @@ test('@watch final unmount 409 keeps the old A draft while replacement B is sele
   // The editor that sent the save is gone, so no comparison opens for it; the
   // failed leave-save kept the draft locally and reopening A offers it again.
   await expect(textarea(page)).toHaveValue('Final old A draft');
-  await expect(page.getByText(/Your unsaved work from before the refresh was restored|已恢复刷新前未保存的内容/)).toBeVisible();
+  await expect(page.getByText(/Your unsaved work from last time was restored|已恢复你上次没保存的内容/)).toBeVisible();
   f.observations.oldDraftRestoredWhenReturningToA = true;
   f.observations.originalWriteCommitted = false;
   expect(f.files.A.content).toBe('你好 world\n\n第二段 story');

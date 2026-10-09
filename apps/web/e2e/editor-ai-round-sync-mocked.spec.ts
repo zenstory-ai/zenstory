@@ -234,3 +234,52 @@ test('leaving the page during the comparison keeps the author text on top of the
   await expect(page.getByText('文件在别处有了新改动', { exact: false })).toHaveCount(0);
   expect(f.errors).toEqual([]);
 });
+
+/** The author rewrites the first paragraph, which the AI's v2 also changes. */
+const firstParagraph = V1.split('\n\n')[0]!;
+const authorRewrite = V1.replace(firstParagraph, '傍晚，老周收摊了。');
+async function rewriteFirstParagraph(page: Page) {
+  await textarea(page).click();
+  await textarea(page).evaluate((el: HTMLTextAreaElement, length: number) => el.setSelectionRange(0, length), firstParagraph.length);
+  await page.keyboard.type('傍晚，老周收摊了。');
+  await expect(page.getByText('未保存', { exact: true })).toBeVisible();
+}
+
+test('pressing finish where both rewrote the same words keeps the AI side there', async ({ page }) => {
+  const f = await setup(page);
+  await runRound(page, f, 'parallel_execute', () => rewriteFirstParagraph(page));
+  await expect(page.getByText('AI 刚改过这个文件，你还有没保存的修改。', { exact: false })).toBeVisible();
+  // The preselected AI side is listed, not hidden behind the "pending" filter.
+  await expect(page.getByTitle(/^拒绝 \(N\)$/).first()).toBeDisabled();
+
+  await page.getByTitle(/完成审阅|应用更改/).click();
+  await expect(textarea(page)).toHaveValue(V2);
+  await page.waitForTimeout(3500);
+  expect(f.files.ch2.content).toBe(V2);
+  expect(f.errors).toEqual([]);
+});
+
+test('leaving before deciding where both rewrote the same words keeps the author rewrite to restore', async ({ page }) => {
+  const f = await setup(page);
+  await runRound(page, f, 'parallel_execute', () => rewriteFirstParagraph(page));
+  await expect(page.getByText('AI 刚改过这个文件，你还有没保存的修改。', { exact: false })).toBeVisible();
+
+  // The author walks away mid-comparison: nothing is sent, and v2 is untouched.
+  await page.goto('/dashboard');
+  expect(putsToCh2(f)).toHaveLength(0);
+  expect(f.files.ch2.content).toBe(V2);
+
+  // Back on the chapter: v2 is shown and the author is asked about the draft.
+  await page.goto(`/project/${projectId}?file=ch2`);
+  await expect(textarea(page)).toHaveValue(V2);
+  await expect(page.getByText('你上次没保存的草稿和服务器最新版本不同', { exact: false })).toBeVisible();
+  await page.getByRole('button', { name: '恢复本地草稿' }).click();
+  await expect(textarea(page)).toHaveValue(authorRewrite);
+
+  await textarea(page).click();
+  await textarea(page).evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(el.value.length, el.value.length));
+  await page.keyboard.type('好');
+  await expect.poll(() => f.files.ch2.content, { timeout: 8000 }).toBe(`${authorRewrite}好`);
+  expect(putsToCh2(f).at(-1)?.body).toMatchObject({ base_updated_at: tokenV2 });
+  expect(f.errors).toEqual([]);
+});

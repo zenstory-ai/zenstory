@@ -36,7 +36,7 @@ const editorTranslations = vi.hoisted(() => ({
   'editor:draftRecovery.restore': 'Restore local draft',
   'editor:draftRecovery.discard': 'Keep server version',
   'editor:draftRecovery.serverVersion': 'Latest server version',
-  'editor:draftRecovery.localVersion': 'Local draft before refresh',
+  'editor:draftRecovery.localVersion': 'Unsaved local draft from last time',
 } satisfies Record<string, string>))
 const editorTranslator = vi.hoisted(() => ({
   current: (key: string) => editorTranslations[key] || key,
@@ -523,7 +523,7 @@ describe('Editor', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Local draft conflicts with the server')
     fireEvent.click(screen.getByText('Compare versions'))
     expect(screen.getByText('Latest server version')).toBeInTheDocument()
-    expect(screen.getByText('Local draft before refresh')).toBeInTheDocument()
+    expect(screen.getByText('Unsaved local draft from last time')).toBeInTheDocument()
     expect(screen.getByText('Test Chapter')).toBeInTheDocument()
     expect(screen.getByText('Recovered title')).toBeInTheDocument()
     expect(screen.getByText('Recovered unsaved body')).toBeInTheDocument()

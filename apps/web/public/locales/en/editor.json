@@ -184,13 +184,13 @@
   },
   "saveVersionQuotaExceeded": "Saved. This file's version history is full, so no new version was created. Pro keeps more versions per file.",
   "draftRecovery": {
-    "restored": "Your unsaved work from before the refresh was restored. Review it, then keep editing or save.",
-    "conflict": "The draft from before the refresh differs from the latest server version. Compare them before restoring the local draft.",
+    "restored": "Your unsaved work from last time was restored. Review it, then keep editing or save.",
+    "conflict": "Your unsaved draft from last time differs from the latest server version. Compare them before restoring it.",
     "compare": "Compare versions",
     "restore": "Restore local draft",
     "discard": "Keep server version",
     "serverVersion": "Latest server version",
-    "localVersion": "Local draft before refresh"
+    "localVersion": "Unsaved local draft from last time"
   },
   "naturalPolish": "Humanize",
   "naturalPolishWorking": "Humanizing...",
