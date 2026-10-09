@@ -7,9 +7,9 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Header
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from services.auth import get_current_active_user
-from sqlmodel import Session, select
+from sqlmodel import Session, col, func, select
 
-from config.datetime_utils import utcnow
+from config.datetime_utils import normalize_datetime_to_utc, utcnow
 from config.project_status import (
     PROJECT_STATUS_MAX_LENGTHS,
     normalize_project_status_payload,
@@ -25,6 +25,7 @@ from core.error_handler import APIException
 from core.project_access import verify_project_ownership
 from database import get_session
 from models import (
+    File,
     Project,
     User,
 )
@@ -79,13 +80,42 @@ def get_projects(
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session)
 ):
-    """Get all projects for the current user (excluding soft-deleted)."""
+    """Get all projects for the current user (excluding soft-deleted).
+
+    ``updated_at`` reports the project's last activity: the later of the
+    project row's own timestamp and its newest non-deleted file edit. Editing
+    a chapter does not touch the project row, so without this the dashboard
+    card says "3 days ago" for a book written five minutes ago.
+    """
     projects = session.exec(
         select(Project).where(
             Project.owner_id == current_user.id,
             Project.is_deleted.is_(False)
         )
     ).all()
+
+    if projects:
+        latest_file_edits = dict(
+            session.exec(
+                select(File.project_id, func.max(File.updated_at))
+                .where(
+                    col(File.project_id).in_([project.id for project in projects]),
+                    File.is_deleted.is_(False),
+                )
+                .group_by(File.project_id)
+            ).all()
+        )
+        activity_projects: list[Project] = []
+        for project in projects:
+            latest_file_edit = latest_file_edits.get(project.id)
+            # 只改脱离 session 的副本：这是读接口，不能把活动时间写回 project 行。
+            view = Project.model_validate(project.model_dump())
+            if latest_file_edit is not None and normalize_datetime_to_utc(
+                latest_file_edit
+            ) > normalize_datetime_to_utc(project.updated_at):
+                view.updated_at = latest_file_edit
+            activity_projects.append(view)
+        projects = activity_projects
 
     log_with_context(
         logger,

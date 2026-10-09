@@ -1,6 +1,6 @@
 # Skills System
 
-The Skills System is a core feature of zenstory Writing Workbench, allowing you to quickly invoke AI for writing tasks through preset instruction templates. Simply enter a trigger word in the chat, and AI will automatically apply the corresponding skill instructions.
+The Skills System is a core feature of ZenStory Writing Workbench, allowing you to quickly invoke AI for writing tasks through preset instruction templates. Simply enter a trigger word in the chat, and AI will automatically apply the corresponding skill instructions.
 
 ## What are Skills?
 
@@ -27,7 +27,7 @@ Browse and add quality skills from official and community sources on the "Discov
 **Skill Sources**:
 | Source | Description |
 |--------|-------------|
-| Official | Carefully crafted by the zenstory team, fully tested and optimized |
+| Official | Carefully crafted by the ZenStory team, fully tested and optimized |
 | Community | Created and shared by users, published after review |
 
 ## My Skills

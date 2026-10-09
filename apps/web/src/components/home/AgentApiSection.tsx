@@ -60,7 +60,7 @@ export function AgentApiSection() {
                 </h3>
               </div>
               <p className="text-xs md:text-sm text-[hsl(var(--text-secondary))] leading-relaxed mb-3">
-                {t('agentApi.subtitle', { defaultValue: '在设置里创建 API 密钥，在终端用 zenstory 命令行工具登录，再给 AI 助手装上 zenstory 技能，Claude Code、Codex、OpenClaw 就能读写你的项目。' })}
+                {t('agentApi.subtitle', { defaultValue: '在设置里创建 API 密钥，在终端用 ZenStory 命令行工具登录，再给 AI 助手装上 ZenStory 技能，Claude Code、Codex、OpenClaw 就能读写你的项目。' })}
               </p>
 
               {/* Agent badges -- styled like code tags */}

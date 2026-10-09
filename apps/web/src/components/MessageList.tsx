@@ -432,7 +432,8 @@ function OrderedMessageItems({ items, onUndo, onIterationAssistAction, isStreami
       );
     } else if (item.type === 'agent_selected' && agentLabel(item.agentType, item.agentName)) {
       // 6. agent_selected - Agent 选择提示
-      const hasIteration = item.iteration !== undefined && item.maxIterations !== undefined;
+      // 只显示第几步：带上分母（「步骤 2/12」）会让作者以为这一轮没做完。
+      const hasIteration = item.iteration !== undefined;
       const isLowTurns = item.remaining !== undefined && item.remaining <= 2;
 
       return (
@@ -450,7 +451,7 @@ function OrderedMessageItems({ items, onUndo, onIterationAssistAction, isStreami
             </span>
             {hasIteration && (
               <span className={`text-xs ${isLowTurns ? 'text-[hsl(var(--warning))]' : 'text-[hsl(var(--text-secondary))]'}`}>
-                · {t('workflow.iteration', { ns: 'chat' })} {item.iteration}/{item.maxIterations}
+                · {t('workflow.iteration', { ns: 'chat' })} {item.iteration}
                 {isLowTurns && ` (${t('workflow.remaining', { ns: 'chat' })} ${item.remaining})`}
               </span>
             )}

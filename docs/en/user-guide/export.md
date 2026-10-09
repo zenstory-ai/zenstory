@@ -1,6 +1,6 @@
 # Export Feature
 
-zenstory supports one-click export of your creative work to local files, making it easy to backup, submit, or share.
+ZenStory supports one-click export of your creative work to local files, making it easy to backup, submit, or share.
 
 ## Export Entry
 
@@ -17,7 +17,7 @@ In the project editing page's top toolbar on the right, click the **download ico
 
 [Screenshot: Example of exported TXT file]
 
-zenstory currently supports exporting to **plain text format (.txt)**, which is the most universal file format with the following features:
+ZenStory currently supports exporting to **plain text format (.txt)**, which is the most universal file format with the following features:
 
 - **Wide compatibility**: Almost all text editors and word processors can open it
 - **Compact size**: Small file size, easy to transfer and store
@@ -116,7 +116,7 @@ The exported filename will be: `My Novel_正文.txt`
 
 ### Q: The exported file has garbled characters?
 
-zenstory exported files use UTF-8 encoding with BOM marker added, so garbled characters should not occur normally.
+ZenStory exported files use UTF-8 encoding with BOM marker added, so garbled characters should not occur normally.
 
 **Solutions**:
 - Open with Notepad: Windows systems recommend using Notepad or Notepad++
@@ -186,7 +186,7 @@ Continue creating in an environment without internet:
 
 1. Export current manuscript
 2. Modify in a local editor
-3. When you have internet, copy the modified content back to zenstory
+3. When you have internet, copy the modified content back to ZenStory
 
 ## Technical Details
 

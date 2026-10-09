@@ -76,6 +76,16 @@ FALLBACK_SUGGESTIONS_EN = [
 ]
 
 
+# 建议芯片是作者点一下就直接发给 AI 的话。含这些词的建议是写给作者本人的指令
+# （「请用户拍板…」），发出去语义不通，直接丢弃，由 fallback 补齐。
+AUTHOR_DIRECTED_MARKERS = ("用户", "请作者", "拍板", "the user")
+
+
+def _is_author_directed(suggestion: str) -> bool:
+    lowered = suggestion.lower()
+    return any(marker in lowered for marker in AUTHOR_DIRECTED_MARKERS)
+
+
 # =============================================================================
 # SuggestService Class
 # =============================================================================
@@ -240,8 +250,12 @@ class SuggestService:
 
             # Step 7: Ensure we return exactly count suggestions
             if len(suggestions) < count:
-                fallbacks = self._get_fallback_suggestions(count - len(suggestions), language)
-                suggestions.extend(fallbacks)
+                fallbacks = [
+                    fallback
+                    for fallback in self._get_fallback_suggestions(count + len(suggestions), language)
+                    if fallback not in suggestions
+                ]
+                suggestions.extend(fallbacks[: count - len(suggestions)])
 
             return suggestions[:count]
 
@@ -508,7 +522,9 @@ class SuggestService:
         return [
             s
             for s in suggestions
-            if isinstance(s, str) and len(s.strip()) >= MIN_SUGGESTION_LENGTH
+            if isinstance(s, str)
+            and len(s.strip()) >= MIN_SUGGESTION_LENGTH
+            and not _is_author_directed(s)
         ]
 
     def _build_prompt(

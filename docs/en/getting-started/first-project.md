@@ -1,12 +1,12 @@
 # Creating Your First Project
 
-Welcome to zenstory Novel Writing Workbench! This tutorial will guide you step-by-step through creating your first creative project and starting your AI-assisted writing journey.
+Welcome to ZenStory Novel Writing Workbench! This tutorial will guide you step-by-step through creating your first creative project and starting your AI-assisted writing journey.
 
 ---
 
 ## What is a Project?
 
-In zenstory, **a project is the fundamental unit of creation**. A project represents a complete work—whether it's a full-length novel, a short story, or a screenplay, you need to create a project to contain it.
+In ZenStory, **a project is the fundamental unit of creation**. A project represents a complete work—whether it's a full-length novel, a short story, or a screenplay, you need to create a project to contain it.
 
 After creating a project, the system automatically generates a matching file structure for you, including folders for outlines, characters, settings, drafts, and more—allowing you to focus on the creative work itself.
 
@@ -18,7 +18,7 @@ After creating a project, the system automatically generates a matching file str
 
 [Screenshot: Homepage hero section highlighting the "Start Writing" button]
 
-If you haven't logged in yet, when you visit the zenstory website you'll see the homepage:
+If you haven't logged in yet, when you visit the ZenStory website you'll see the homepage:
 
 1. Click the "Start Writing" button in the center of the page
 2. If not logged in, you'll be redirected to the login/registration page
@@ -42,7 +42,7 @@ After logging in and entering the dashboard, you'll see a prominent creation are
 
 [Screenshot: Project type selector showing icons and descriptions for three types]
 
-zenstory offers three project types, each with preset file structures:
+ZenStory offers three project types, each with preset file structures:
 
 | Type | Word Count Range | Use Case | Preset Folders |
 |------|-----------------|----------|----------------|
@@ -161,7 +161,7 @@ After the project is created, you can officially start writing!
 
 - **[AI Writing Assistant Guide](../user-guide/ai-assistant.md)** - Learn how to chat with AI and have it help you write
 - **[File Management Guide](../user-guide/file-tree.md)** - Understand how to manage your creative files
-- **[Interface Overview](../user-guide/interface-overview.md)** - Familiarize yourself with zenstory's three-panel workspace
+- **[Interface Overview](../user-guide/interface-overview.md)** - Familiarize yourself with ZenStory's three-panel workspace
 
 ### Common Creative Workflow
 
@@ -173,7 +173,7 @@ After the project is created, you can officially start writing!
 
 ### Quick Start Tips
 
-If you're using zenstory for the first time, we suggest:
+If you're using ZenStory for the first time, we suggest:
 
 1. In the chat panel on the right, enter: "Help me refine the opening setting for this story"
 2. AI will generate more detailed world-building and characters based on your initial inspiration

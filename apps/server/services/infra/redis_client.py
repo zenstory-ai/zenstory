@@ -343,3 +343,160 @@ def reset_verification_attempts(email: str) -> bool:
             error_type=type(e).__name__,
         )
         return False
+
+
+# ==================== Password reset codes ====================
+# Kept in their own ``pwreset:`` namespace so a registration code
+# (``verification:{email}``) can never be redeemed as a reset code, and the two
+# flows never share attempt counters or cooldowns. Only sha256(code) is stored.
+
+# KEYS[1]=code, KEYS[2]=attempts; ARGV[1]=submitted hash. Deletes the code and
+# its attempt counter only while it still matches, so two concurrent confirms
+# with the right code succeed exactly once.
+_CONSUME_PASSWORD_RESET_CODE = (
+    "if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end "
+    "redis.call('DEL', KEYS[1], KEYS[2]) return 1"
+)
+
+# KEYS[1]=code, KEYS[2]=attempts, KEYS[3]=fails; ARGV[1]=max attempts,
+# ARGV[2]=attempts TTL, ARGV[3]=per-email failure cap, ARGV[4]=fails TTL.
+# ``attempts`` is the per-code budget; ``fails`` counts every wrong code for the
+# address and is never reset by a new code. The failure that reaches either
+# budget deletes the code in the same step.
+_RECORD_PASSWORD_RESET_FAILURE = (
+    "local attempts = redis.call('INCR', KEYS[2]) "
+    "if attempts == 1 then redis.call('EXPIRE', KEYS[2], ARGV[2]) end "
+    "local fails = redis.call('INCR', KEYS[3]) "
+    "if fails == 1 then redis.call('EXPIRE', KEYS[3], ARGV[4]) end "
+    "if attempts >= tonumber(ARGV[1]) or fails >= tonumber(ARGV[3]) then "
+    "redis.call('DEL', KEYS[1]) end "
+    "return attempts"
+)
+
+
+def password_reset_key(kind: str, email: str) -> str:
+    """``pwreset:{code|attempts|cooldown|fails}:{email}``."""
+    return f"pwreset:{kind}:{email}"
+
+
+def claim_password_reset_cooldown(email: str, cooldown_seconds: int = 60) -> bool:
+    """Start the send cooldown; False when one is already running or Redis fails."""
+    try:
+        client = get_redis_client()
+        return bool(client.set(
+            password_reset_key("cooldown", email), "1", nx=True, ex=cooldown_seconds,
+        ))
+    except Exception as error:
+        log_with_context(
+            logger, 40, "Error claiming password reset cooldown",
+            error_type=type(error).__name__,
+        )
+        return False
+
+
+def store_password_reset_code(email: str, code_hash: str, ttl: int) -> bool:
+    """Store a fresh reset code hash and restart its attempt budget."""
+    try:
+        client = get_redis_client()
+        pipeline = client.pipeline(transaction=True)
+        pipeline.setex(password_reset_key("code", email), ttl, code_hash)
+        pipeline.delete(password_reset_key("attempts", email))
+        pipeline.execute()
+        return True
+    except Exception as error:
+        log_with_context(
+            logger, 40, "Error storing password reset code",
+            error_type=type(error).__name__,
+        )
+        return False
+
+
+def get_password_reset_code_hash(email: str) -> str | None:
+    """Return the stored reset code hash, or None when absent or unreadable."""
+    try:
+        client = get_redis_client()
+        return client.get(password_reset_key("code", email))  # type: ignore[return-value]
+    except Exception as error:
+        log_with_context(
+            logger, 40, "Error reading password reset code",
+            error_type=type(error).__name__,
+        )
+        return None
+
+
+def consume_password_reset_code(email: str, code_hash: str) -> bool:
+    """Atomically compare and delete the code and its attempts; fail closed."""
+    try:
+        client = get_redis_client()
+        return bool(client.eval(
+            _CONSUME_PASSWORD_RESET_CODE, 2,
+            password_reset_key("code", email),
+            password_reset_key("attempts", email),
+            code_hash,
+        ))
+    except Exception as error:
+        log_with_context(
+            logger, 40, "Error consuming password reset code",
+            error_type=type(error).__name__,
+        )
+        return False
+
+
+def record_password_reset_failure(
+    email: str,
+    max_attempts: int,
+    ttl: int,
+    max_failures: int,
+    failures_ttl: int,
+) -> int:
+    """Count a wrong code against the code and the address.
+
+    The failure reaching ``max_attempts`` (this code) or ``max_failures`` (this
+    address, across codes) deletes the code.
+    """
+    try:
+        client = get_redis_client()
+        return int(client.eval(  # type: ignore[arg-type]
+            _RECORD_PASSWORD_RESET_FAILURE, 3,
+            password_reset_key("code", email),
+            password_reset_key("attempts", email),
+            password_reset_key("fails", email),
+            max_attempts, ttl, max_failures, failures_ttl,
+        ))
+    except Exception as error:
+        log_with_context(
+            logger, 40, "Error recording password reset failure",
+            error_type=type(error).__name__,
+        )
+        return max_attempts
+
+
+def password_reset_failures_capped(email: str, max_failures: int) -> bool:
+    """True when the address has used its wrong-code budget; fail closed on errors."""
+    try:
+        client = get_redis_client()
+        raw = client.get(password_reset_key("fails", email))
+        return raw is not None and int(raw) >= max_failures  # type: ignore[arg-type]
+    except Exception as error:
+        log_with_context(
+            logger, 40, "Error reading password reset failures",
+            error_type=type(error).__name__,
+        )
+        return True
+
+
+def clear_password_reset_state(email: str) -> bool:
+    """Drop code, attempts and cooldown, e.g. when the email could not be sent.
+
+    The per-address ``fails`` counter is deliberately kept.
+    """
+    try:
+        client = get_redis_client()
+        client.delete(*(password_reset_key(kind, email) for kind in ("code", "attempts", "cooldown")))
+        return True
+    except Exception as error:
+        log_with_context(
+            logger, 40, "Error clearing password reset state",
+            error_type=type(error).__name__,
+        )
+        return False

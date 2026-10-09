@@ -1,6 +1,6 @@
 # Error Messages Reference
 
-This document lists common error messages you may encounter while using zenstory and their solutions, helping you quickly identify issues and resume usage.
+This document lists common error messages you may encounter while using ZenStory and their solutions, helping you quickly identify issues and resume usage.
 
 ---
 

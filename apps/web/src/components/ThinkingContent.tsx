@@ -7,11 +7,13 @@
  * the final response, helping users understand the AI's thought process.
  *
  * Features:
- * - Collapsible with expand/collapse toggle
- * - Animated dots when streaming (indicates active thinking)
+ * - Collapsible with expand/collapse toggle; collapsed by default
+ * - Animated dots when streaming (indicates active thinking), also while collapsed
  * - Markdown rendering with GFM support (tables, lists, code blocks)
  * - Returns null when content is empty
- * - Persists expand/collapse state to localStorage
+ * - Only the author's own toggle is remembered in localStorage
+ * - Internal tool/agent names, ids, control markers and raw file tags are
+ *   cleaned for display (see lib/thinkingDisplay); stored reasoning is untouched
  * - Global visibility control via useThinkingVisibility hook
  * - i18n support (English/Chinese labels)
  *
@@ -29,11 +31,12 @@
  * @see useThinkingVisibility - Hook for global thinking visibility control
  */
 
-import { useState, useEffect } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { LazyMarkdown } from "./LazyMarkdown";
 import { useThinkingVisibility } from "../hooks/useThinkingVisibility";
+import { sanitizeThinkingForDisplay } from "../lib/thinkingDisplay";
 
 /**
  * Props for the ThinkingContent component.
@@ -57,21 +60,31 @@ interface ThinkingContentProps {
 }
 
 /**
- * localStorage key for persisting the expanded/collapsed state.
+ * localStorage key for the author's explicit expand/collapse choice.
+ *
+ * `_v2` deliberately ignores the old `zenstory_thinking_expanded` key: the old
+ * component wrote "true" on every mount, so a stored "true" there does not mean
+ * the author ever chose to expand the panel.
  * @constant {string}
  */
-const STORAGE_KEY = "zenstory_thinking_expanded";
+const STORAGE_KEY = "zenstory_thinking_expanded_v2";
+
+const readStoredExpanded = (): boolean => {
+  if (typeof window === "undefined") return false;
+  try {
+    return localStorage.getItem(STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+};
 
 /**
  * Renders a collapsible panel displaying AI thinking/reasoning content.
  *
- * This component displays the AI's intermediate reasoning steps in a
- * collapsible panel with the following behavior:
- *
  * - **Visibility**: Controlled globally via useThinkingVisibility hook
  *   (returns null if thinking is disabled in settings)
- * - **Empty state**: Returns null if content is empty or whitespace-only
- * - **Expand/collapse**: Persists to localStorage, defaults to expanded
+ * - **Empty state**: Returns null if the cleaned content is empty
+ * - **Expand/collapse**: Collapsed by default; only a click persists the choice
  * - **Streaming indicator**: Shows animated dots when isStreaming is true
  * - **Markdown rendering**: Uses ReactMarkdown with GFM support
  *
@@ -79,22 +92,6 @@ const STORAGE_KEY = "zenstory_thinking_expanded";
  * @param {string} props.content - The thinking content to display (Markdown)
  * @param {boolean} [props.isStreaming=false] - Whether AI is actively thinking
  * @returns {React.ReactElement | null} The thinking panel, or null if hidden/empty
- *
- * @example
- * // In a chat message component
- * const message = useAgentStream();
- *
- * return (
- *   <div>
- *     {message.thinking && (
- *       <ThinkingContent
- *         content={message.thinking}
- *         isStreaming={message.isStreamingThinking}
- *       />
- *     )}
- *     <div>{message.text}</div>
- *   </div>
- * );
  */
 export function ThinkingContent({ content, isStreaming = false }: ThinkingContentProps) {
   const { t } = useTranslation('chat');
@@ -102,34 +99,35 @@ export function ThinkingContent({ content, isStreaming = false }: ThinkingConten
   // Currently controlled by localStorage via useThinkingVisibility hook
   const { showThinking } = useThinkingVisibility();
 
-  // Initialize state from localStorage or default to true (expanded)
+  // Collapsed unless the author previously chose to expand it.
   // Note: Hooks must be called unconditionally before any early returns
-  const [isExpanded, setIsExpanded] = useState(() => {
-    if (typeof window === "undefined") return true;
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return stored !== null ? stored === "true" : true;
-    } catch {
-      return true;
-    }
-  });
+  const [isExpanded, setIsExpanded] = useState(readStoredExpanded);
 
-  // Save state to localStorage whenever it changes
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, String(isExpanded));
-    } catch {
-      // Ignore localStorage errors
-    }
-  }, [isExpanded]);
+  // Persist only explicit toggles; mounting never writes, so the default stays collapsed.
+  const handleToggle = useCallback(() => {
+    setIsExpanded((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(STORAGE_KEY, String(next));
+      } catch {
+        // Ignore localStorage errors
+      }
+      return next;
+    });
+  }, []);
+
+  const displayContent = useMemo(
+    () => sanitizeThinkingForDisplay(content ?? "", (key) => t(key)),
+    [content, t],
+  );
 
   // Don't render if global setting is disabled
   if (!showThinking) {
     return null;
   }
 
-  // Return null if no content
-  if (!content || content.trim().length === 0) {
+  // Return null if nothing is left to show
+  if (!displayContent || displayContent.trim().length === 0) {
     return null;
   }
 
@@ -137,7 +135,9 @@ export function ThinkingContent({ content, isStreaming = false }: ThinkingConten
     <div className="max-w-full rounded-lg mb-2 opacity-60 hover:opacity-80 transition-opacity duration-700">
       {/* Header */}
       <button
-        onClick={() => setIsExpanded(!isExpanded)}
+        type="button"
+        onClick={handleToggle}
+        aria-expanded={isExpanded}
         className="w-full px-2 py-1.5 flex items-center justify-between rounded hover:bg-[hsl(var(--bg-tertiary)/0.5)] transition-colors"
         aria-label={isExpanded
           ? t('chat:thinking.collapse', '收起思考过程')
@@ -168,7 +168,7 @@ export function ThinkingContent({ content, isStreaming = false }: ThinkingConten
       {isExpanded && (
         <div className="px-2 py-1.5">
           <div className="prose prose-xs max-w-none text-[hsl(var(--text-secondary))] opacity-80">
-            <LazyMarkdown>{content}</LazyMarkdown>
+            <LazyMarkdown>{displayContent}</LazyMarkdown>
           </div>
         </div>
       )}

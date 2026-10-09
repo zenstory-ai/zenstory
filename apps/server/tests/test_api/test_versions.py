@@ -331,7 +331,7 @@ async def test_get_version_content(client: AsyncClient, db_session):
     )
     assert second.status_code == 200
     second_number = second.json()["version_number"]
-    assert second_number == 4  # 中间的 Web 正文保存也追加了历史。
+    assert second_number == 3  # 中间的 Web 正文保存在合并窗口内并进了版本2，不另起一版。
 
     # 更新文件内容以同步
     await client.put(
@@ -496,8 +496,12 @@ async def test_rollback_to_version(client: AsyncClient, db_session, monkeypatch)
     data = resp.json()
     assert data["success"] is True
     assert data["restored_version"] == first_number
-    assert data["new_version_number"] == 5  # 系统基线 + 三次编辑 + 恢复历史。
+    # 系统基线 + 三次编辑 + 恢复前备份 + 恢复历史。POST /versions 不改正文，
+    # 所以正文仍是 "Content"，和最新版本不同，恢复前要先备份它。
+    assert data["new_version_number"] == 6
     assert data["file_id"] == file_id
+    backup = await client.get(f"/api/v1/files/{file_id}/versions/5/content", headers=headers)
+    assert backup.json()["content"] == "Content"
     assert len(indexed) == 1
     assert indexed[0]["entity_id"] == file_id
     assert indexed[0]["content"] == v1_content

@@ -329,13 +329,15 @@ test.describe('Files', () => {
     const fileToDelete = page.locator('.overflow-auto >> text=待删除文件').first()
     await expect(fileToDelete).toBeVisible()
 
-    // Setup dialog handler
-    page.on('dialog', dialog => dialog.accept())
-
     // Hover over file to reveal delete button
     await fileToDelete.hover()
     const deleteButton = fileToDelete.locator('..').locator('button:has(svg.lucide-trash-2)').first()
     await deleteButton.click({ force: true })
+
+    // Confirm in the in-app dialog
+    const confirmDialog = page.getByRole('dialog')
+    await expect(confirmDialog).toBeVisible()
+    await confirmDialog.getByRole('button', { name: '删除' }).click()
 
     // Verify file is gone
     await expect(page.locator('.overflow-auto >> text=待删除文件')).not.toBeVisible()
@@ -408,13 +410,13 @@ test.describe('Files', () => {
     // Wait for auto-save API response
     await page.waitForResponse(resp => resp.url().includes('/api/v1/') && resp.url().includes('/files') && resp.request().method() === 'PUT', { timeout: 10000 })
 
-    // Look for history button (clock icon)
-    const historyButton = page.locator('button:has(svg.lucide-clock), button:has(svg.lucide-history)')
+    // File-scoped history button in the editor footer (the header one opens project snapshots)
+    const historyButton = page.getByRole('button', { name: /^(历史版本|历史|Versions|History)$/ })
     if (await historyButton.first().isVisible()) {
       await historyButton.first().click()
 
-      // Verify version history panel is visible
-      const versionPanel = page.locator('text=历史版本, text=版本历史')
+      // Verify the file's version history panel is visible
+      const versionPanel = page.getByRole('dialog').getByText(/^(历史版本|Version history)$/)
       await expect(versionPanel.first()).toBeVisible()
     }
   })

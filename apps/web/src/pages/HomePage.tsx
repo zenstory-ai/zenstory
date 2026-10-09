@@ -13,6 +13,8 @@ import { authConfig } from "../config/auth";
 import { buildUpgradeUrl } from "../config/upgradeExperience";
 import { PublicHeader } from "../components/PublicHeader";
 import { AgentApiSection } from "../components/home/AgentApiSection";
+import { setPreferredProjectType } from "../lib/preferredProjectType";
+import type { ProjectType } from "../types";
 
 // Scene definitions for the product preview carousel
 const SCENES = [
@@ -374,21 +376,21 @@ export default function HomePage() {
             {[
               {
                 icon: Book,
-                type: 'novel',
+                type: 'novel' as ProjectType,
                 colorClass: "text-[hsl(var(--text-primary))]",
                 bgClass: "bg-white/5",
                 popular: true
               },
               {
                 icon: FileText,
-                type: 'short',
+                type: 'short' as ProjectType,
                 colorClass: "text-emerald-500",
                 bgClass: "bg-emerald-500/10",
                 popular: false
               },
               {
                 icon: Clapperboard,
-                type: 'screenplay',
+                type: 'screenplay' as ProjectType,
                 colorClass: "text-[hsl(var(--text-primary))]",
                 bgClass: "bg-white/5",
                 popular: false
@@ -404,7 +406,11 @@ export default function HomePage() {
               <button
                 key={item.type}
                 type="button"
-                onClick={handleGetStarted}
+                onClick={() => {
+                  // Remember the type first so the dashboard opens on it after sign-up.
+                  setPreferredProjectType(item.type);
+                  handleGetStarted();
+                }}
                 onFocus={handleGetStartedHover}
                 className="group relative w-full text-left p-4 md:p-5 rounded-xl bg-[hsl(var(--bg-primary))] border border-[hsl(var(--border-color))] hover:border-[hsl(var(--accent-primary)/0.5)] hover:shadow-[0_0_40px_rgba(74,158,255,0.15)] hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))]"
               >

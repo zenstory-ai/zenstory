@@ -114,12 +114,12 @@
     "copyKey": "复制 API 密钥",
     "copyPrefix": "复制密钥前缀",
     "connectGuide": {
-      "title": "在 AI 编程助手中使用 zenstory",
-      "description": "安装 zenstory 命令行工具和技能后，Claude Code、Codex、OpenClaw 等助手就能直接读写你的小说项目。需要 Node.js 20 或以上版本。",
+      "title": "在 AI 编程助手中使用 ZenStory",
+      "description": "安装 ZenStory 命令行工具和技能后，Claude Code、Codex、OpenClaw 等助手就能直接读写你的小说项目。需要 Node.js 20 或以上版本。",
       "step1": "创建一个 API 密钥（只读或读写）",
       "step2": "在终端里登录，出现提示时粘贴密钥——密钥只保存在本机",
       "step2Hint": "出现提示时粘贴密钥（输入不会显示，也不会留在 shell 历史里）。",
-      "step3": "为 AI 助手安装 zenstory 技能",
+      "step3": "为 AI 助手安装 ZenStory 技能",
       "step3Hint": "默认安装到 Claude Code；其他助手加上 --target codex 或 --target openclaw。",
       "otherAgents": "其他 AI 助手可以直接阅读接入文档："
     }

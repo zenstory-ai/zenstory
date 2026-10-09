@@ -25,14 +25,14 @@ RATE_LIMITS = {
 # fields (version, api_base, triggers, ...) therefore live under `metadata` as strings.
 _DESCRIPTIONS = {
     "zh": (
-        "zenstory（AI 辅助小说写作工作台）的 Agent API 使用说明：用 API Key 读取和管理用户在 zenstory 中的"
+        "ZenStory（AI 辅助小说写作工作台）的 Agent API 使用说明：用 API Key 读取和管理用户在 ZenStory 中的"
         "小说项目、章节草稿、大纲、人物设定、世界观与素材，并提供混合搜索与写作上下文。"
-        "当用户提到 zenstory、自己存放在 zenstory 的小说项目，或需要读写其中的章节、大纲、人物、设定时使用。"
+        "当用户提到 ZenStory、自己存放在 ZenStory 的小说项目，或需要读写其中的章节、大纲、人物、设定时使用。"
     ),
     "en": (
-        "Documents the zenstory Agent API: reads and manages a user's novel projects in zenstory "
+        "Documents the ZenStory Agent API: reads and manages a user's novel projects in ZenStory "
         "(chapter drafts, outlines, characters, lore, materials) with an API key, plus hybrid search "
-        "and AI-assembled writing context. Use when the user mentions zenstory or a novel project stored "
+        "and AI-assembled writing context. Use when the user mentions ZenStory or a novel project stored "
         "there, or asks to read or write its chapters, outlines, characters or world-building."
     ),
 }
@@ -125,7 +125,7 @@ class SkillMdService:
 name: zenstory
 description: "{_DESCRIPTIONS["zh"]}"
 metadata:
-  display_name: "zenstory 小说写作平台"
+  display_name: "ZenStory 小说写作平台"
   version: "{self.app_version}"
   api_base: "{self.api_base}"
   auth_method: "api_key"
@@ -138,11 +138,11 @@ metadata:
   cli: "npx zenstory"
 ---
 
-# zenstory 小说写作平台
+# ZenStory 小说写作平台
 
 AI 辅助的小说写作工作台，提供智能对话、文件管理、语义搜索等功能。
 
-## 推荐：使用 zenstory CLI
+## 推荐：使用 ZenStory 命令行工具（`zenstory`）
 
 编程 Agent（Claude Code、Codex、OpenClaw 等）推荐直接使用官方 CLI 和标准 Agent Skill，无需手写 HTTP 请求：
 
@@ -325,7 +325,7 @@ API 返回标准化的错误响应格式：
 name: zenstory
 description: "{_DESCRIPTIONS["en"]}"
 metadata:
-  display_name: "zenstory Novel Writing Platform"
+  display_name: "ZenStory Novel Writing Platform"
   version: "{self.app_version}"
   api_base: "{self.api_base}"
   auth_method: "api_key"
@@ -338,11 +338,11 @@ metadata:
   cli: "npx zenstory"
 ---
 
-# zenstory Novel Writing Platform
+# ZenStory Novel Writing Platform
 
 AI-assisted novel writing workbench with file management, semantic search, and writing context.
 
-## Recommended: use the zenstory CLI
+## Recommended: use the ZenStory CLI (`zenstory`)
 
 Coding agents (Claude Code, Codex, OpenClaw, ...) should prefer the official CLI and standard Agent Skill over hand-written HTTP calls:
 

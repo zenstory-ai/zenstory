@@ -1,5 +1,8 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render as rtlRender, screen, waitFor } from '@testing-library/react';
+import type { RenderOptions } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode, useState } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SimpleEditor } from '../SimpleEditor';
@@ -15,6 +18,25 @@ vi.mock('../../lib/naturalPolishApi', () => ({
     naturalPolish: vi.fn(),
   },
 }));
+
+vi.mock('../../lib/subscriptionApi', () => ({
+  subscriptionQueryKeys: {
+    status: () => ['subscription-status', 'test-user'],
+    quota: () => ['subscription-quota', 'test-user'],
+    quotaLite: () => ['quota', 'test-user'],
+  },
+}));
+
+let testQueryClient: QueryClient;
+const QueryWrapper = ({ children }: { children: ReactNode }) => (
+  <QueryClientProvider client={testQueryClient}>{children}</QueryClientProvider>
+);
+const render = (ui: ReactElement, options?: Omit<RenderOptions, 'wrapper'>) =>
+  rtlRender(ui, { wrapper: QueryWrapper, ...options });
+
+const quotaPayload = (limit: number) => ({
+  ai_conversations: { used: 2, limit, remaining: limit === -1 ? -1 : limit - 2, reset_at: null },
+});
 
 vi.mock('../../lib/writingStatsApi', () => ({
   writingStatsApi: {
@@ -91,6 +113,7 @@ describe('SimpleEditor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    testQueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   });
 
   afterEach(() => {
@@ -395,7 +418,7 @@ describe('SimpleEditor', () => {
   it('natural polish triggers diff review with rewritten text', async () => {
     const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
     const naturalPolishMock = naturalPolishApi.naturalPolish as unknown as ReturnType<typeof vi.fn>;
-    naturalPolishMock.mockResolvedValueOnce('  Rewritten  ');
+    naturalPolishMock.mockResolvedValueOnce({ text: '  Rewritten  ', unchanged: false });
 
     const onEnterDiffReview = vi.fn();
     render(
@@ -431,8 +454,8 @@ describe('SimpleEditor', () => {
     const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
     const naturalPolishMock = naturalPolishApi.naturalPolish as unknown as ReturnType<typeof vi.fn>;
 
-    let resolvePolish: (value: string) => void = () => {};
-    const deferred = new Promise<string>((resolve) => {
+    let resolvePolish: (value: { text: string; unchanged: boolean }) => void = () => {};
+    const deferred = new Promise<{ text: string; unchanged: boolean }>((resolve) => {
       resolvePolish = resolve;
     });
     naturalPolishMock.mockReturnValueOnce(deferred);
@@ -471,7 +494,7 @@ describe('SimpleEditor', () => {
       />
     );
 
-    resolvePolish('Rewritten');
+    resolvePolish({ text: 'Rewritten', unchanged: false });
     await waitFor(() => {
       // flush promise microtasks
       expect(true).toBe(true);
@@ -507,6 +530,91 @@ describe('SimpleEditor', () => {
     await waitFor(() => {
       expect(toastErrorSpy).toHaveBeenCalledWith('ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED');
     });
+  });
+
+  const renderPolishableEditor = (onEnterDiffReview = vi.fn()) => {
+    render(
+      <SimpleEditor
+        projectId="project-1"
+        fileId="file-1"
+        fileType="draft"
+        title="File 1"
+        content="Hello world"
+        onTitleChange={vi.fn()}
+        onContentChange={vi.fn()}
+        onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' })}
+        onEnterDiffReview={onEnterDiffReview}
+      />
+    );
+    const textarea = screen.getByPlaceholderText('editor:placeholder.contentPlaceholder') as HTMLTextAreaElement;
+    selectText(textarea);
+    return textarea;
+  };
+
+  it('natural polish with no real change skips review, says it was free and refreshes the quota', async () => {
+    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
+    vi.mocked(naturalPolishApi.naturalPolish).mockResolvedValueOnce({ text: 'Hello', unchanged: true });
+    const toastInfoSpy = vi.spyOn(toast, 'info').mockImplementation(() => {});
+    const invalidateSpy = vi.spyOn(testQueryClient, 'invalidateQueries');
+    const onEnterDiffReview = vi.fn();
+
+    const textarea = renderPolishableEditor(onEnterDiffReview);
+    fireEvent.keyDown(textarea, { key: 'R', code: 'KeyR', ctrlKey: true, shiftKey: true });
+
+    await waitFor(() => {
+      expect(toastInfoSpy).toHaveBeenCalledWith('editor:naturalPolishNoChange');
+    });
+    expect(onEnterDiffReview).not.toHaveBeenCalled();
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['subscription-quota', 'test-user'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['quota', 'test-user'] });
+  });
+
+  it('natural polish refreshes the quota after a charged rewrite too', async () => {
+    const { naturalPolishApi } = await import('../../lib/naturalPolishApi');
+    vi.mocked(naturalPolishApi.naturalPolish).mockResolvedValueOnce({ text: 'Howdy', unchanged: false });
+    const invalidateSpy = vi.spyOn(testQueryClient, 'invalidateQueries');
+    const onEnterDiffReview = vi.fn();
+
+    const textarea = renderPolishableEditor(onEnterDiffReview);
+    fireEvent.keyDown(textarea, { key: 'R', code: 'KeyR', ctrlKey: true, shiftKey: true });
+
+    await waitFor(() => {
+      expect(onEnterDiffReview).toHaveBeenCalledWith('file-1', 'Hello world', 'Howdy world');
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['subscription-quota', 'test-user'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['quota', 'test-user'] });
+  });
+
+  it('tells free users that natural polish uses one of today\'s AI messages', async () => {
+    renderPolishableEditor();
+    const polishButton = screen.getByRole('button', { name: 'editor:naturalPolish' });
+    expect(polishButton).toHaveAttribute('title', 'editor:naturalPolishTooltip');
+
+    // QuotaBadge 拉到额度后，提示跟着缓存更新，不需要编辑器自己再请求。
+    act(() => {
+      testQueryClient.setQueryData(['subscription-quota', 'test-user'], quotaPayload(10));
+    });
+
+    await waitFor(() => {
+      expect(polishButton).toHaveAttribute('title', 'editor:naturalPolishTooltipFree');
+    });
+  });
+
+  it('keeps the plain natural polish tooltip for unlimited plans', () => {
+    testQueryClient.setQueryData(['subscription-quota', 'test-user'], quotaPayload(-1));
+
+    renderPolishableEditor();
+
+    expect(screen.getByRole('button', { name: 'editor:naturalPolish' })).toHaveAttribute(
+      'title',
+      'editor:naturalPolishTooltip',
+    );
+  });
+
+  it('labels the footer history button with a string title', () => {
+    renderPolishableEditor();
+
+    expect(screen.getByRole('button', { name: 'editor:history' })).toHaveAttribute('title', 'versions:title');
   });
 
   it('resets dirty state when switching files', () => {

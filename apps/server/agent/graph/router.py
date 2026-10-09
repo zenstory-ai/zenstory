@@ -122,7 +122,9 @@ async def router_node(state: WritingState) -> dict:
         # Route via DeepSeek Chat Completions + tolerant JSON parser. (An SDK
         # output_type=RouterDecision path was evaluated and removed: DeepSeek
         # rejects response_format json_schema, so it could never succeed.)
-        response = await _route_with_deepseek_chat(user_message)
+        # 有上一轮助手回复时，把它的结尾和落库路由一起交给路由器（见
+        # build_router_user_message）；第一轮仍只发用户原话，与改动前完全一致。
+        response = await _route_with_deepseek_chat(build_router_user_message(state))
         decision = _parse_router_response(response)
         workflow_agents = plan_workflow_agents(decision)
 
@@ -870,3 +872,104 @@ def inherit_routing_after_clarification(state: WritingState) -> dict[str, Any] |
         "workflow_agents": workflow_agents,
         "routing_metadata": decision.model_dump(),
     }
+
+
+# ----------------------------------------------------------- 路由器看上一轮
+
+# 交给 LLM 路由的上一轮助手结尾：只取模型自己说的话的最后这么多字（它的提问、
+# 收尾的下一步建议都在结尾）；状态卡摘要（澄清卡的问题、截停信息）另取，单独封顶。
+ROUTER_PREV_TAIL_MAX_CHARS = 600
+ROUTER_PREV_CARD_MAX_CHARS = 400
+
+# 上一轮路由里交给路由器的字段（顺序即输出顺序）。
+_ROUTER_PREV_ROUTING_KEYS: tuple[str, ...] = (
+    "initial_agent",
+    "last_agent",
+    "workflow_type",
+    "write_content",
+    "read_only",
+    "scope",
+)
+
+_STATUS_CARD_HEADERS: tuple[str, ...] = ("[workflow_stopped]", "[iteration_exhausted]")
+_BREADCRUMB_HEADERS: tuple[str, ...] = ("[此前的工具操作]", "[Previous tool actions]")
+
+
+def _status_card_text(previous: dict[str, Any]) -> str:
+    """上一轮状态卡的合成摘要。
+
+    session_loader 在历史 dict 上放了 ``status_card_text``（正文非空时摘要不进回放，
+    只能从这里拿到）；没有这个字段时，从正文里截出合成的状态卡段落。
+    """
+    text = previous.get("status_card_text")
+    if isinstance(text, str):
+        return text.strip()
+    content = _message_text(previous.get("content"))
+    starts = [content.find(header) for header in _STATUS_CARD_HEADERS if header in content]
+    if not starts:
+        return ""
+    start = min(starts)
+    end = len(content)
+    for header in _BREADCRUMB_HEADERS:
+        index = content.find(header, start)
+        if index != -1:
+            end = min(end, index)
+    return content[start:end].strip()
+
+
+def _previous_turn_tail(previous: dict[str, Any]) -> str:
+    reply = _reply_text(previous.get("content"))
+    if len(reply) > ROUTER_PREV_TAIL_MAX_CHARS:
+        reply = "…" + reply[-ROUTER_PREV_TAIL_MAX_CHARS:]
+    card = _status_card_text(previous)
+    if len(card) > ROUTER_PREV_CARD_MAX_CHARS:
+        card = card[:ROUTER_PREV_CARD_MAX_CHARS] + "…"
+    return "\n".join(part for part in (reply, card) if part)
+
+
+def _previous_routing_summary(previous: dict[str, Any]) -> str:
+    routing = dict(_previous_routing(previous))
+    # 状态卡上的 lastAgent 是这一轮最后说话的 agent（会话加载时取最后一张卡）。
+    card_agent = _valid_agent(previous.get("last_agent"))
+    if card_agent:
+        routing["last_agent"] = card_agent
+    summary: dict[str, Any] = {}
+    for key in _ROUTER_PREV_ROUTING_KEYS:
+        value = routing.get(key)
+        if key in {"write_content", "read_only"}:
+            if isinstance(value, bool):
+                summary[key] = value
+        elif key == "scope":
+            if isinstance(value, str) and value.strip():
+                summary[key] = value.strip()[:MAX_SCOPE_CHARS]
+        elif isinstance(value, str) and value.strip():
+            summary[key] = value.strip()
+    return json.dumps(summary, ensure_ascii=False) if summary else ""
+
+
+def build_router_user_message(state: WritingState) -> str:
+    """LLM 路由的 user 消息：上一轮助手结尾 + 上一轮路由 + 用户本轮原话。
+
+    路由器只看用户本条原话时，「可以」「B」「隐忍吧」这类回答会被当成孤立指令重新
+    分类（换 agent、把 write_content 判成 false 后以最高优先级下发「不要写正文」）。
+    确定性的沿用规则（inherit_routing_after_clarification）先处理最常见的短回答，
+    没命中的情况由这里把上一轮交给路由器自己判断。
+
+    没有上一轮助手回复（或它既没有正文也没有落库路由）时原样返回用户原话：第一轮
+    的路由输入与改动前完全一致。动态内容只放在 user 消息里，系统提示保持稳定前缀。
+    """
+    user_message = str(state.get("router_message") or state.get("user_message") or "")
+    previous = _last_assistant_message(list(state.get("messages") or []))
+    if previous is None:
+        return user_message
+    tail = _previous_turn_tail(previous)
+    routing = _previous_routing_summary(previous)
+    if not tail and not routing:
+        return user_message
+    sections: list[str] = []
+    if tail:
+        sections.append(f"[上一轮助手结尾]\n{tail}")
+    if routing:
+        sections.append(f"[上一轮路由]\n{routing}")
+    sections.append(f"[用户本轮原话]\n{user_message}")
+    return "\n".join(sections)

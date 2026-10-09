@@ -1,12 +1,12 @@
 # Interface Overview
 
-Welcome to zenstory Novel Writing Workbench. This document provides a quick overview of the interface layout to help you start your creative journey efficiently.
+Welcome to ZenStory Novel Writing Workbench. This document provides a quick overview of the interface layout to help you start your creative journey efficiently.
 
 ## Three-Panel Layout Introduction
 
 [Screenshot: Complete desktop interface with three main areas highlighted]
 
-zenstory employs a classic three-panel layout design that maximizes screen space, allowing you to simultaneously access project resources, edit content, and interact with the AI assistant. From left to right:
+ZenStory employs a classic three-panel layout design that maximizes screen space, allowing you to simultaneously access project resources, edit content, and interact with the AI assistant. From left to right:
 
 - **Left Panel**: Project resources area, containing files, skills, and materials
 - **Center Panel**: Content editor, your creative workspace
@@ -186,7 +186,7 @@ This design ensures comfortable use of all features even on small screens.
 
 ## Responsive Design
 
-zenstory's interface automatically adjusts its layout based on your device:
+ZenStory's interface automatically adjusts its layout based on your device:
 
 ### Desktop (width >= 768px)
 
@@ -218,7 +218,7 @@ zenstory's interface automatically adjusts its layout based on your device:
 
 [Screenshot: Theme options in settings panel]
 
-zenstory supports multiple theme modes:
+ZenStory supports multiple theme modes:
 
 - **Light Mode** - Suitable for daytime use
 - **Dark Mode** - Reduces eye strain, ideal for nighttime writing
@@ -242,13 +242,13 @@ You can also choose your preferred theme color to match your personal style. Ava
 
 [Screenshot: Language options in settings panel]
 
-zenstory supports switching between Chinese and English. You can change the interface language at any time in the settings panel.
+ZenStory supports switching between Chinese and English. You can change the interface language at any time in the settings panel.
 
 ---
 
 ## Keyboard Shortcuts
 
-To improve your creative efficiency, zenstory provides the following global keyboard shortcuts:
+To improve your creative efficiency, ZenStory provides the following global keyboard shortcuts:
 
 | Shortcut | Function |
 |----------|----------|
@@ -259,7 +259,7 @@ To improve your creative efficiency, zenstory provides the following global keyb
 
 ## Next Steps
 
-Now that you understand zenstory's interface layout, you can continue reading the following documents to learn more about each feature:
+Now that you understand ZenStory's interface layout, you can continue reading the following documents to learn more about each feature:
 
 - [Create Your First Project](../getting-started/first-project.md)
 - [Chat with AI](./ai-assistant.md)

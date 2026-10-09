@@ -1,6 +1,6 @@
 # Frequently Asked Questions (FAQ)
 
-This document collects the most common questions from zenstory users to help you quickly find answers.
+This document collects the most common questions from ZenStory users to help you quickly find answers.
 
 ---
 
@@ -16,7 +16,7 @@ If you don't receive the email in your inbox, please check your spam folder.
 
 ### Q: What login methods are supported?
 
-**A:** zenstory supports the following login methods:
+**A:** ZenStory supports the following login methods:
 
 - **Email + Password**: Log in using the email and password you set during registration
 - **Google Account**: One-click login via Google OAuth, no additional password setup required
@@ -35,7 +35,7 @@ Both methods provide full functionality. Choose whichever method you prefer.
 
 ### Q: What is an invitation code?
 
-**A:** An invitation code is zenstory's user referral system. You can invite friends to register for zenstory by sharing your invitation code:
+**A:** An invitation code is ZenStory's user referral system. You can invite friends to register for ZenStory by sharing your invitation code:
 
 - **Referrer Reward**: Earn 100 points for each friend who successfully registers
 - **Invitee Reward**: Earn 100 points after registering with an invitation code and completing email verification
@@ -56,7 +56,7 @@ We recommend organizing files by type using folders (e.g., "Outlines," "Characte
 
 ### Q: Are files automatically saved?
 
-**A:** Yes. zenstory uses a real-time auto-save mechanism:
+**A:** Yes. ZenStory uses a real-time auto-save mechanism:
 
 - **Draft Editor**: Every keystroke is automatically saved without manual intervention
 - **Version History**: Each save creates a version snapshot that you can revisit at any time
@@ -97,7 +97,7 @@ AI is your writing assistant; you have complete control over the final content.
 
 ### Q: Does AI know what I've written before?
 
-**A:** Yes. zenstory's AI assistant has intelligent context understanding capabilities:
+**A:** Yes. ZenStory's AI assistant has intelligent context understanding capabilities:
 
 - **Intra-project File Association**: AI automatically reads other files in the same project (such as outlines, character cards, settings) to understand the overall story background
 - **Conversation Memory**: Within the same conversation, AI remembers previous exchanges
@@ -219,9 +219,9 @@ If you're evaluating before purchase, check the public **Pricing** page first.
 
 ## Other
 
-### Q: Can I use zenstory offline?
+### Q: Can I use ZenStory offline?
 
-**A:** No. zenstory is a pure cloud application. All features (including AI assistant, file storage, and material library) require an internet connection.
+**A:** No. ZenStory is a pure cloud application. All features (including AI assistant, file storage, and material library) require an internet connection.
 
 **Reasons**:
 - AI generation relies on cloud-based large language models
@@ -234,7 +234,7 @@ If you need to write without internet access, we recommend exporting content to 
 
 ### Q: Is my data secure?
 
-**A:** zenstory employs multiple security measures to protect your data:
+**A:** ZenStory employs multiple security measures to protect your data:
 
 - **Encrypted Storage**: All files are stored with AES-256 encryption
 - **Transit Encryption**: Data transmission uses HTTPS/TLS encryption

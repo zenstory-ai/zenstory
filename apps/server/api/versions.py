@@ -77,6 +77,9 @@ class FileVersionListResponse(BaseModel):
     total: int
     file_id: str
     file_title: str
+    current_version_number: int | None = None
+    """第一页（offset=0）才计算：最新一条列出的版本内容与当前正文完全一致时为
+    该版本号；正文里还有没进历史的改动时为 null。翻页请求恒为 null。"""
 
 
 class CreateVersionRequest(BaseModel):
@@ -181,6 +184,15 @@ def get_file_versions(
         include_auto_save=include_auto_save,
     )
 
+    current_version_number: int | None = None
+    if offset == 0 and versions:
+        newest = versions[0]
+        newest_content = service.get_content_at_version(
+            session, file_id, newest.version_number
+        )
+        if newest_content == (file.content or ""):
+            current_version_number = newest.version_number
+
     log_with_context(
         logger,
         20,  # INFO
@@ -213,6 +225,7 @@ def get_file_versions(
         total=total,
         file_id=file_id,
         file_title=file.title,
+        current_version_number=current_version_number,
     )
 
 

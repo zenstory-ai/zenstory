@@ -411,7 +411,7 @@ export function redactKeys(text: string): string {
 }
 
 const NOT_LOGGED_IN =
-  'Not logged in. Create an Agent API key in zenstory Settings → Agent, then run ' +
+  'Not logged in. Create an Agent API key in ZenStory Settings → Agent, then run ' +
   '`npx -y zenstory login` and paste the key when prompted (or set ZENSTORY_API_KEY).';
 
 function apiBaseHint(err: CliError): CliError {
@@ -469,7 +469,7 @@ export const COMMANDS: CommandDef<Ctx>[] = [
       'api-base': { type: 'string', valueName: 'url', description: `API base URL (default ${DEFAULT_API_BASE})` },
     },
     details:
-      'Create a key in zenstory Settings → Agent, run `zenstory login` and paste the key when prompted\n' +
+      'Create a key in ZenStory Settings → Agent, run `zenstory login` and paste the key when prompted\n' +
       '(input is hidden). Non-interactive: printf %s "$KEY" | zenstory login --key -\n' +
       'Validation calls GET /agent/projects. The saved key is bound to the API base it was saved for;\n' +
       'use --api-base for a self-hosted server (https, or http only for localhost).',
@@ -492,7 +492,7 @@ export const COMMANDS: CommandDef<Ctx>[] = [
       key = key.trim();
       if (!key) throw new CliError('No API key entered. Usage: zenstory login [--key -] [--api-base URL]', EXIT.USAGE);
       if (!key.startsWith(API_KEY_PREFIX)) {
-        throw new CliError(`That does not look like a zenstory Agent API key (expected prefix "${API_KEY_PREFIX}").`, EXIT.USAGE);
+        throw new CliError(`That does not look like a ZenStory Agent API key (expected prefix "${API_KEY_PREFIX}").`, EXIT.USAGE);
       }
       const stored = readConfig(ctx.io.env);
       const explicitBase = str(values, 'api-base')?.trim() || undefined;
@@ -1091,14 +1091,14 @@ export const COMMANDS: CommandDef<Ctx>[] = [
   // ---------- skill ----------
   {
     name: 'skill install',
-    summary: 'Install the bundled zenstory Agent Skill into an agent\'s skills directory.',
+    summary: 'Install the bundled ZenStory Agent Skill into an agent\'s skills directory.',
     options: {
       target: {
         type: 'string',
         valueName: 'target',
         description: `${Object.keys(SKILL_TARGETS).join(' | ')} | <skills dir> (default claude)`,
       },
-      force: { type: 'boolean', description: 'Replace a previous zenstory skill installation' },
+      force: { type: 'boolean', description: 'Replace a previous ZenStory skill installation' },
     },
     details:
       'Targets: claude → ~/.claude/skills, codex/agents → ~/.agents/skills,\n' +
@@ -1114,7 +1114,7 @@ export const COMMANDS: CommandDef<Ctx>[] = [
         env: ctx.io.env,
       });
       if (ctx.json) return ctx.printJson({ ok: true, ...result });
-      ctx.print(`${result.replaced ? 'Replaced' : 'Installed'} zenstory skill at ${result.destination}`);
+      ctx.print(`${result.replaced ? 'Replaced' : 'Installed'} ZenStory skill at ${result.destination}`);
     },
   },
   {
@@ -1150,7 +1150,7 @@ function rootHelp(version: string): string {
     return `${title}:\n${rows.join('\n')}`;
   });
   return [
-    `zenstory ${version} — operate zenstory novel projects from the command line (Agent API).`,
+    `zenstory ${version} — operate ZenStory novel projects from the command line (Agent API).`,
     '',
     'Usage: zenstory <command> [args] [options]',
     '',

@@ -27,6 +27,7 @@ from agent.tools import mcp_tools
 from agent.tools.file_ops.executor import FileToolExecutor
 from agent.tools.registry import TOOL_FUNCTIONS
 from models import File, Project, User
+from utils.text_metrics import count_words
 
 
 def _record(name, value):
@@ -202,12 +203,18 @@ class Store:
         result = []
         for row in rows:
             item = dict(row)
-            if not full:
+            if full:
+                # word_count 与编辑器同口径（count_words），full 模式总是给出。
+                item["word_count"] = count_words(item["content"])
+            else:
                 content = item.pop("content")
                 item["content_preview"] = content[:preview]
                 # summary 同时给出全文长度，模型能分辨「预览」与「短文件」。
                 item["content_length"] = len(content)
                 item["content_truncated"] = len(content) > len(content[:preview])
+                # 预览就是全文时才给 word_count；截断的预览算不出全文字数。
+                if not item["content_truncated"]:
+                    item["word_count"] = count_words(content)
             result.append(item)
         return {"status": "success", "data": result}
 

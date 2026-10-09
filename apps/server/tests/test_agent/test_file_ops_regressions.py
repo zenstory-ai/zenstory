@@ -176,9 +176,18 @@ def test_update_file_content_changed_uses_fresh_content(
         latest = check.get(File, file.id)
         assert latest.content == "v1"
         versions = list(
-            check.exec(select(FileVersion).where(FileVersion.file_id == file.id)).all()
+            check.exec(
+                select(FileVersion)
+                .where(FileVersion.file_id == file.id)
+                .order_by(FileVersion.version_number)
+            ).all()
         )
-        assert len(versions) == 1
+        # 并发写入的 v2 不在历史里：AI 覆盖前先备份成 system 版本，再记 AI 版本。
+        assert [(v.change_source, v.change_summary) for v in versions] == [
+            ("system", "Before AI edit"),
+            ("ai", "AI 更新文件内容"),
+        ]
+        assert FileVersionService().get_content_at_version(check, file.id, 1) == "v2"
 
 
 # ========== Bug: 并发编辑时版本链头与正文逆序 ==========

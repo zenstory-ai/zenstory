@@ -1,10 +1,10 @@
 # Version History
 
-zenstory's version history feature provides a complete time machine for your creative work. Whether you want to review modification records, compare content differences between versions, or roll back to a previous version, version history makes it all easy.
+ZenStory's version history feature provides a complete time machine for your creative work. Whether you want to review modification records, compare content differences between versions, or roll back to a previous version, version history makes it all easy.
 
 ## What is Version History?
 
-Version history is an automatic modification tracking system that zenstory creates for each of your files. Every time you save a file, the system automatically creates a new version, completely recording your creative journey.
+Version history is an automatic modification tracking system that ZenStory creates for each of your files. Every time you save a file, the system automatically creates a new version, completely recording your creative journey.
 
 ### Automatic Version Management
 
@@ -103,7 +103,7 @@ After clicking "Compare", the comparison view expands on the right:
 
 ## Rolling Back to Historical Versions
 
-The rollback feature lets you undo changes and restore to any previous version. This is a major safety net in zenstory, giving you peace of mind while creating.
+The rollback feature lets you undo changes and restore to any previous version. This is a major safety net in ZenStory, giving you peace of mind while creating.
 
 ### Performing a Rollback
 
@@ -127,7 +127,7 @@ Rollback steps:
 
 [Screenshot: Version list after rollback, showing the new "Rollback" version]
 
-zenstory's rollback is a **non-destructive operation**:
+ZenStory's rollback is a **non-destructive operation**:
 
 - **Current state auto-saved** - Before rollback, the system saves current content as a new version
 - **History fully preserved** - All historical versions remain, nothing deleted or overwritten
@@ -251,6 +251,6 @@ Now that you've mastered the version history feature, you can:
 
 - [Learn about file management](./file-tree.md) - Learn how to organize project files
 - [Chat with AI](./ai-assistant.md) - Explore how AI helps you modify content
-- [Interface overview](./interface-overview.md) - Review the complete zenstory interface
+- [Interface overview](./interface-overview.md) - Review the complete ZenStory interface
 
 Happy creating, with no worries!

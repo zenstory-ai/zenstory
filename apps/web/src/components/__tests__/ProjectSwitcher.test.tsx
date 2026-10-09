@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ProjectSwitcher } from '../ProjectSwitcher'
@@ -6,6 +6,8 @@ import { ProjectSwitcher } from '../ProjectSwitcher'
 const mockNavigate = vi.fn()
 const mockUseProject = vi.fn()
 const toastErrorMock = vi.fn()
+const toastInfoMock = vi.fn()
+let mockIsMobile = false
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
@@ -31,6 +33,8 @@ vi.mock('react-i18next', () => ({
           'editor:projectSwitcher.createProject': 'Create project',
           'editor:projectSwitcher.confirmDelete': 'Delete it?',
           'editor:projectSwitcher.cannotDeleteLast': 'Cannot delete last project',
+          'common:delete': 'Delete',
+          'common:cancel': 'Cancel',
           'dashboard:billing.ctaUpgradePro': 'Upgrade',
           'home:pricingTeaser.viewPricing': 'View pricing',
         } as Record<string, string>
@@ -43,12 +47,13 @@ vi.mock('../../contexts/ProjectContext', () => ({
 }))
 
 vi.mock('../../hooks/useMediaQuery', () => ({
-  useIsMobile: () => false,
+  useIsMobile: () => mockIsMobile,
 }))
 
 vi.mock('../../lib/toast', () => ({
   toast: {
     error: (...args: unknown[]) => toastErrorMock(...args),
+    info: (...args: unknown[]) => toastInfoMock(...args),
   },
 }))
 
@@ -75,6 +80,8 @@ describe('ProjectSwitcher', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.unstubAllGlobals()
+    mockIsMobile = false
     mockUseProject.mockReturnValue({
       projects: [
         { id: 'project-1', name: 'Alpha', description: 'First project' },
@@ -126,7 +133,8 @@ describe('ProjectSwitcher', () => {
     createProject.mockResolvedValue({ id: 'project-3' })
     deleteProject.mockResolvedValue(undefined)
 
-    vi.stubGlobal('confirm', vi.fn(() => true))
+    const nativeConfirm = vi.fn(() => true)
+    vi.stubGlobal('confirm', nativeConfirm)
 
     render(<ProjectSwitcher />)
     fireEvent.click(screen.getByRole('button', { name: /alpha/i }))
@@ -144,8 +152,61 @@ describe('ProjectSwitcher', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /alpha/i }))
     fireEvent.click(screen.getAllByTitle('Delete project')[1]!)
+
+    const dialog = await screen.findByRole('dialog')
+    expect(nativeConfirm).not.toHaveBeenCalled()
+    expect(within(dialog).getByText('Delete it?')).toBeInTheDocument()
+    expect(deleteProject).not.toHaveBeenCalled()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
     await waitFor(() => {
       expect(deleteProject).toHaveBeenCalledWith('project-2')
     })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('cancelling the delete dialog keeps the project', async () => {
+    render(<ProjectSwitcher />)
+    fireEvent.click(screen.getByRole('button', { name: /alpha/i }))
+    fireEvent.click(screen.getAllByTitle('Delete project')[1]!)
+
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(deleteProject).not.toHaveBeenCalled()
+  })
+
+  it('explains in a toast, not a native alert, that the last project cannot be deleted', () => {
+    const nativeAlert = vi.fn()
+    vi.stubGlobal('alert', nativeAlert)
+    mockUseProject.mockReturnValue({
+      ...mockUseProject(),
+      projects: [{ id: 'project-1', name: 'Alpha' }],
+    })
+
+    render(<ProjectSwitcher />)
+    fireEvent.click(screen.getByRole('button', { name: /alpha/i }))
+    fireEvent.click(screen.getByTitle('Delete project'))
+
+    expect(nativeAlert).not.toHaveBeenCalled()
+    expect(toastInfoMock).toHaveBeenCalledWith('Cannot delete last project')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(deleteProject).not.toHaveBeenCalled()
+  })
+
+  it('lets the trigger shrink and pins the mobile dropdown inside the viewport', () => {
+    mockIsMobile = true
+    const { container } = render(<ProjectSwitcher />)
+
+    const root = container.firstElementChild as HTMLElement
+    expect(root).toHaveClass('min-w-0', 'max-w-full')
+    const trigger = screen.getByRole('button', { name: /alpha/i })
+    expect(trigger).toHaveClass('max-w-full')
+
+    fireEvent.click(trigger)
+    const dropdown = screen.getByPlaceholderText('Search projects').closest('div.rounded-xl') as HTMLElement
+    expect(dropdown).toHaveClass('fixed', 'left-4', 'right-4', 'top-12')
+    expect(dropdown.className).not.toMatch(/translate/)
   })
 })

@@ -8,10 +8,20 @@ from typing import Any
 from agent.tools.parallel_executor import PARALLEL_EXECUTE_TOOL
 from config.project_status import PROJECT_STATUS_MAX_LENGTHS
 
+# 字数口径说明（create_file / edit_file / query_files 共用）。
+WORD_COUNT_CONTRACT = (
+    "字数口径：结果里的 word_count / new_word_count 就是编辑器显示的字数，作者说的「字数」都指它；"
+    "content_length / new_length 是含标点、空白的字符数，不能当字数报给作者。"
+)
+
 # Tool: create_file
 CREATE_FILE_TOOL: dict[str, Any] = {
     "name": "create_file",
-    "description": "创建新文件。用于在项目中创建大纲、角色、设定、草稿等各类文件。注意：此工具只创建空文件，文件内容需要在工具调用后使用 <file>内容</file> 标记流式输出。",
+    "description": (
+        "创建新文件。用于在项目中创建大纲、角色、设定、草稿等各类文件。注意：此工具只创建空文件，"
+        "文件内容需要在工具调用后使用 <file>内容</file> 标记流式输出。"
+        f"{WORD_COUNT_CONTRACT}"
+    ),
     "input_schema": {
         "type": "object",
         "properties": {
@@ -44,7 +54,11 @@ CREATE_FILE_TOOL: dict[str, Any] = {
 # Tool: edit_file
 EDIT_FILE_TOOL: dict[str, Any] = {
     "name": "edit_file",
-    "description": "精确编辑文件内容（diff风格）。支持replace/insert_after/insert_before/append/prepend/delete操作。适合对文件进行局部修改而非全量替换。",
+    "description": (
+        "精确编辑文件内容（diff风格）。支持replace/insert_after/insert_before/append/prepend/delete操作。"
+        "适合对文件进行局部修改而非全量替换。old/anchor 里双引号的半角、全角、「」写法差异视为一致。"
+        f"{WORD_COUNT_CONTRACT}"
+    ),
     "input_schema": {
         "type": "object",
         "properties": {
@@ -91,7 +105,7 @@ EDIT_FILE_TOOL: dict[str, Any] = {
                         },
                         "match_mode": {
                             "type": "string",
-                            "description": "匹配模式：auto(默认，exact 失败后依次尝试模糊/近似匹配)；exact(只做逐字精确匹配，找不到就报错，适合不允许任何偏差的场景)",
+                            "description": "匹配模式：auto(默认，exact 失败后依次尝试模糊/近似匹配)；exact(只做逐字精确匹配，双引号写法差异除外，找不到就报错，适合不允许任何偏差的场景)",
                             "enum": ["auto", "exact"],
                             "default": "auto"
                         },
@@ -146,6 +160,7 @@ QUERY_FILES_TOOL: dict[str, Any] = {
         "查询和搜索项目中的文件。按 id 读取默认返回全文（content）；列表/关键词查询默认返回 summary"
         "（content_preview + content_length + content_truncated，不含全文）。"
         "本轮已经读过的文件仍在上下文里，不要重复读取。"
+        f"{WORD_COUNT_CONTRACT}"
     ),
     "input_schema": {
         "type": "object",
@@ -254,10 +269,19 @@ UPDATE_PROJECT_TOOL: dict[str, Any] = {
         "更新项目信息和任务计划。可同时更新项目状态（摘要、阶段、风格、备注）和任务列表。"
         "summary/current_phase/writing_style/notes 传值即整体替换该字段，不是追加："
         "新增内容时必须把现有内容与新条目合并后整段传入，否则原有内容会丢失。"
+        "给作品定了名字时传 title，项目还叫默认名（如「我的小说」）才会改名，作者自己起的名字不会被改。"
     ),
     "input_schema": {
         "type": "object",
         "properties": {
+            "title": {
+                "type": "string",
+                "description": (
+                    "作品名，30 字以内，不带书名号。只在项目还叫默认名时生效；"
+                    "结果里 project_name_updated=true 表示已改名，title_skipped=author_named 表示作者已自己起名、未改"
+                ),
+                "maxLength": 30,
+            },
             "summary": {
                 "type": "string",
                 "description": "项目摘要/背景介绍（整体替换；先合并现有内容）",

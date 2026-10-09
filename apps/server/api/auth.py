@@ -7,12 +7,13 @@ import logging
 import os
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, ConfigDict, EmailStr, field_serializer, field_validator
 from services.auth import (
     ALLOW_LEGACY_REFRESH_WITHOUT_JTI,
     TOKEN_TYPE_REFRESH,
+    access_token_claims,
     create_access_token,
     create_refresh_token,
     generate_token_jti,
@@ -21,6 +22,9 @@ from services.auth import (
     hash_password,
     verify_password,
     verify_token,
+)
+from services.auth import (
+    revoke_active_refresh_tokens_for_user as _revoke_active_refresh_tokens_for_user,
 )
 from services.verification_service import send_verification_code
 from sqlalchemy import delete, or_
@@ -39,6 +43,7 @@ from models import (
     User,
 )
 from models.referral import InviteCode
+from services.features import password_reset_service
 from services.features.activation_event_service import activation_event_service
 from services.features.referral_service import create_referral as create_referral_service
 from services.subscription.subscription_service import subscription_service
@@ -128,6 +133,22 @@ class UpdateUserRequest(BaseModel):
 
 class ChangePasswordRequest(BaseModel):
     old_password: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, value: str) -> str:
+        return _validate_new_password(value)
+
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+    language: str | None = "zh"
+
+
+class PasswordResetConfirmRequest(BaseModel):
+    email: EmailStr
+    code: str
     new_password: str
 
     @field_validator("new_password")
@@ -242,6 +263,7 @@ def _enforce_auth_rate_limit(
     endpoint: str,
     identifier: str | None = None,
     include_client_ip: bool = True,
+    error_code: str = ErrorCode.AUTH_RATE_LIMIT_EXCEEDED,
 ) -> None:
     """Apply per-IP auth rate limit with security logging."""
     allowed, _remaining = check_rate_limit(
@@ -265,7 +287,7 @@ def _enforce_auth_rate_limit(
         window_seconds=window_seconds,
     )
     raise APIException(
-        error_code=ErrorCode.AUTH_RATE_LIMIT_EXCEEDED,
+        error_code=error_code,
         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
     )
 
@@ -381,33 +403,6 @@ def _revoke_refresh_family(session: Session, *, family_id: str, reason: str) -> 
         record.updated_at = now
         session.add(record)
     return len(records)
-
-
-def _revoke_active_refresh_tokens_for_user(
-    session: Session,
-    *,
-    user_id: str,
-    reason: str,
-) -> int:
-    """Revoke all active refresh tokens for a user."""
-    # Share refresh's User -> token lock order so rotation cannot insert a
-    # descendant after our active-token snapshot. Do not reload pending changes.
-    session.exec(select(User.id).where(User.id == user_id).with_for_update()).first()
-    now = utcnow()
-    active_records = session.exec(
-        select(RefreshTokenRecord).where(
-            RefreshTokenRecord.user_id == user_id,
-            RefreshTokenRecord.revoked_at.is_(None),
-        )
-    ).all()
-
-    for record in active_records:
-        record.revoked_at = now
-        record.revoke_reason = reason
-        record.updated_at = now
-        session.add(record)
-
-    return len(active_records)
 
 
 # Endpoints
@@ -769,7 +764,7 @@ async def login(
         )
 
     # Generate tokens (refresh token is one-time-use with rotation metadata)
-    access_token = create_access_token(data={"sub": user.id})
+    access_token = create_access_token(data=access_token_claims(user))
     refresh_token_jti = generate_token_jti()
     refresh_family_id = generate_token_jti()
     refresh_token = create_refresh_token(
@@ -966,7 +961,7 @@ def refresh_token(
         family_id = refresh_record.family_id
 
     # Rotate refresh token
-    access_token = create_access_token(data={"sub": user.id})
+    access_token = create_access_token(data=access_token_claims(user))
     new_refresh_jti = generate_token_jti()
     resolved_family_id = family_id or generate_token_jti()
     new_refresh_token = create_refresh_token(
@@ -1119,6 +1114,85 @@ async def change_password(
         )
 
     return {"message": get_message("auth_password_changed", accept_language)}
+
+
+@router.post("/password-reset/request")
+async def request_password_reset(
+    request: PasswordResetRequest,
+    http_request: Request,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+    accept_language: str = Depends(get_accept_language),
+):
+    """
+    Email a password reset code.
+
+    Always answers 200 with the same message, whether or not the address
+    belongs to an account (only rate limits answer 429).
+    """
+    normalized_email = normalize_email_identity(str(request.email))
+    if _is_auth_rate_limit_enabled():
+        _enforce_auth_rate_limit(
+            http_request=http_request,
+            key="auth_password_reset_request_ip",
+            max_requests=_safe_int_from_env("AUTH_PASSWORD_RESET_IP_PER_10_MIN", 5, minimum=1),
+            window_seconds=600,
+            endpoint="password_reset_request",
+            error_code=ErrorCode.AUTH_PASSWORD_RESET_TOO_MANY_REQUESTS,
+        )
+        _enforce_auth_rate_limit(
+            http_request=http_request,
+            key=f"auth_password_reset_request_email:{normalized_email}",
+            max_requests=_safe_int_from_env("AUTH_PASSWORD_RESET_EMAIL_PER_HOUR", 3, minimum=1),
+            window_seconds=3600,
+            endpoint="password_reset_request",
+            include_client_ip=False,
+            error_code=ErrorCode.AUTH_PASSWORD_RESET_TOO_MANY_REQUESTS,
+        )
+
+    await password_reset_service.request_reset(
+        session,
+        normalized_email,
+        request.language or accept_language,
+        background_tasks,
+    )
+    return {
+        "message": get_message("auth_password_reset_requested", accept_language).format(
+            minutes=password_reset_service.code_ttl_minutes(),
+        ),
+    }
+
+
+@router.post("/password-reset/confirm")
+async def confirm_password_reset(
+    request: PasswordResetConfirmRequest,
+    http_request: Request,
+    session: Session = Depends(get_session),
+    accept_language: str = Depends(get_accept_language),
+):
+    """
+    Set a new password with an emailed code.
+
+    Signs out every session (refresh tokens revoked, older access tokens
+    rejected); the user then logs in with the new password.
+    """
+    if _is_auth_rate_limit_enabled():
+        _enforce_auth_rate_limit(
+            http_request=http_request,
+            key="auth_password_reset_confirm_ip",
+            max_requests=_safe_int_from_env("AUTH_PASSWORD_RESET_CONFIRM_IP_PER_10_MIN", 20, minimum=1),
+            window_seconds=600,
+            endpoint="password_reset_confirm",
+            error_code=ErrorCode.AUTH_PASSWORD_RESET_TOO_MANY_REQUESTS,
+        )
+
+    await password_reset_service.confirm_reset(
+        session,
+        str(request.email),
+        request.code,
+        request.new_password,
+    )
+    return {"message": get_message("auth_password_reset_success", accept_language)}
 
 
 @router.post("/logout")

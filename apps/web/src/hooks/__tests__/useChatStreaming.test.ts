@@ -1198,6 +1198,58 @@ describe('useChatStreaming', () => {
           window.removeEventListener(PROJECT_STATUS_UPDATED_EVENT, eventHandler as EventListener)
         }
       })
+
+      it('reports a project rename from update_project even when no AI memory field changed', () => {
+        const { result } = renderHook(() => useChatStreaming())
+        const deps = { ...createMockDeps(), onProjectRenamed: vi.fn() }
+        const callbacks = result.current.getStreamCallbacks(deps)
+
+        act(() => {
+          // Title-only call: the server renamed the default-named project.
+          callbacks.onToolResult('update_project', 'success', {
+            data: {
+              updated_fields: [],
+              project_id: 'tool-project-id',
+              project_name_updated: true,
+              project_name: '雾港来信',
+            },
+          })
+        })
+
+        expect(deps.onProjectRenamed).toHaveBeenCalledTimes(1)
+        expect(deps.onProjectRenamed).toHaveBeenCalledWith('tool-project-id')
+      })
+
+      it('reads project_name_updated nested under project_status and falls back to the active project', () => {
+        const { result } = renderHook(() => useChatStreaming())
+        const deps = { ...createMockDeps(), onProjectRenamed: vi.fn() }
+        const callbacks = result.current.getStreamCallbacks(deps)
+
+        act(() => {
+          callbacks.onToolResult('update_project', 'success', {
+            data: { project_status: { updated_fields: ['summary'], project_name_updated: true } },
+          })
+        })
+
+        expect(deps.onProjectRenamed).toHaveBeenCalledWith('test-project-id')
+      })
+
+      it('does not report a rename when the server kept the name or the call failed', () => {
+        const { result } = renderHook(() => useChatStreaming())
+        const deps = { ...createMockDeps(), onProjectRenamed: vi.fn() }
+        const callbacks = result.current.getStreamCallbacks(deps)
+
+        act(() => {
+          callbacks.onToolResult('update_project', 'success', {
+            data: { updated_fields: ['summary'], project_name_updated: false, title_skipped: 'author_named' },
+          })
+          callbacks.onToolResult('update_project', 'success', { data: { updated_fields: ['notes'] } })
+          callbacks.onToolResult('update_project', 'error', { data: { project_name_updated: true } })
+          callbacks.onToolResult('create_file', 'success', { data: { project_name_updated: true } })
+        })
+
+        expect(deps.onProjectRenamed).not.toHaveBeenCalled()
+      })
     })
 
     describe('onFileCreated callback', () => {
@@ -1487,7 +1539,7 @@ describe('useChatStreaming', () => {
         expect(deps.createSnapshot).not.toHaveBeenCalled()
       })
 
-      it('creates one generic snapshot for an explicit confirmed mutation even without segments', async () => {
+      it('creates one snapshot for an explicit confirmed mutation even without segments', async () => {
         const { result } = renderHook(() => useChatStreaming())
         const deps = createMockDeps()
         const callbacks = result.current.getStreamCallbacks(deps)
@@ -1498,10 +1550,45 @@ describe('useChatStreaming', () => {
 
         expect(deps.createSnapshot).toHaveBeenCalledTimes(1)
         expect(deps.createSnapshot).toHaveBeenCalledWith('test-project-id', {
-          description: 'chat:message.aiDoneFilesModified',
+          description: 'chat:message.aiDone',
           snapshotType: 'auto',
         })
-        expect(deps.t).toHaveBeenCalledWith('chat:message.aiDoneFilesModified')
+      })
+
+      it('describes the snapshot with the author\'s request, on one line and cut to 24 characters', async () => {
+        const { result } = renderHook(() => useChatStreaming())
+        const deps = createMockDeps()
+        deps.t = vi.fn((key: string, options?: Record<string, unknown>) =>
+          key === 'chat:message.snapshotAfterAiEdit' ? `AI 修改后：${options?.request}` : key)
+        deps.getLatestUserRequest = () => '把第二章的结尾改得更紧张一些，\n让主角在雨夜里发现那封信，然后立刻去码头'
+        const callbacks = result.current.getStreamCallbacks(deps)
+
+        await act(async () => {
+          await callbacks.onComplete([], null, { confirmedFileMutation: true })
+        })
+
+        expect(deps.createSnapshot).toHaveBeenCalledWith('test-project-id', {
+          description: 'AI 修改后：把第二章的结尾改得更紧张一些，让主角在雨夜里发现…',
+          snapshotType: 'auto',
+        })
+      })
+
+      it('keeps a short request whole in the snapshot description', async () => {
+        const { result } = renderHook(() => useChatStreaming())
+        const deps = createMockDeps()
+        deps.t = vi.fn((key: string, options?: Record<string, unknown>) =>
+          key === 'chat:message.snapshotAfterAiEdit' ? `After AI edit: ${options?.request}` : key)
+        deps.getLatestUserRequest = () => 'Write\nchapter 3'
+        const callbacks = result.current.getStreamCallbacks(deps)
+
+        await act(async () => {
+          await callbacks.onComplete([], null, { confirmedFileMutation: true })
+        })
+
+        expect(deps.createSnapshot).toHaveBeenCalledWith('test-project-id', {
+          description: 'After AI edit: Write chapter 3',
+          snapshotType: 'auto',
+        })
       })
 
       it('suppresses snapshots for partial completion even when mutation was confirmed', async () => {

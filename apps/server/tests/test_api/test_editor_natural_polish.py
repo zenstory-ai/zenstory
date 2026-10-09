@@ -7,11 +7,18 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from models import Project, User
+from models.subscription import UsageQuota
 from services.core.auth_service import hash_password
-from services.features.natural_polish_service import NaturalPolishResult
+from services.features.natural_polish_service import (
+    NaturalPolishResult,
+    apply_full_rewrite,
+    apply_line_edits,
+    build_attention_hints,
+    parse_line_edits,
+)
 
 _CHARGED_PERIOD = datetime(2026, 10, 5, 16, tzinfo=UTC)
 
@@ -90,12 +97,13 @@ async def test_natural_polish_success(client: AsyncClient, db_session: Session):
         )
 
     assert response.status_code == 200
-    assert response.json() == {"text": "rewritten text", "model": "test-model"}
+    assert response.json() == {"text": "rewritten text", "model": "test-model", "unchanged": False}
     mock_check.assert_called_once_with(db_session, user.id)
     mock_consume.assert_called_once_with(db_session, user.id)
     mock_polish.assert_awaited_once_with(
         selected_text="原始文本",
         language="zh",
+        file_type=None,
         user_id=user.id,
         project_id=str(project.id),
     )
@@ -338,3 +346,276 @@ async def test_natural_polish_llm_failure_returns_500(client: AsyncClient, db_se
         admin.id,
         period_start=_CHARGED_PERIOD,
     )
+
+
+def _ai_messages_used(db_session: Session, user_id: str) -> int:
+    db_session.expire_all()
+    quota = db_session.exec(select(UsageQuota).where(UsageQuota.user_id == user_id)).first()
+    return quota.ai_conversations_used if quota else 0
+
+
+async def _polish_with_real_quota(
+    client: AsyncClient,
+    db_session: Session,
+    *,
+    username: str,
+    selected_text: str,
+    polished_text: str,
+) -> tuple[dict, int]:
+    """Run /natural-polish against the real quota ledger; return (body, AI messages used after)."""
+    user = _create_user(
+        db_session,
+        username=username,
+        email=f"{username}@example.com",
+        is_superuser=False,
+    )
+    project = _create_project(db_session, owner_id=user.id)
+    token = await _login(client, user.username)
+    assert _ai_messages_used(db_session, user.id) == 0
+
+    with patch(
+        "api.editor.natural_polish_service.natural_polish",
+        new=AsyncMock(return_value=NaturalPolishResult(polished_text=polished_text, model="test-model")),
+    ):
+        response = await client.post(
+            "/api/v1/editor/natural-polish",
+            json={"project_id": str(project.id), "selected_text": selected_text},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    return response.json(), _ai_messages_used(db_session, user.id)
+
+
+@pytest.mark.integration
+async def test_natural_polish_no_change_refunds_the_ai_message(client: AsyncClient, db_session: Session):
+    original = "\u3000\u3000他站在门口。\n\n\u3000\u3000雨还在下。"
+    # 模型吃掉了全角缩进、改了换行，但一个字都没改。
+    body, used_after = await _polish_with_real_quota(
+        client,
+        db_session,
+        username="np_noop_refund",
+        selected_text=original,
+        polished_text="他站在门口。\n雨还在下。\n",
+    )
+
+    assert body["unchanged"] is True
+    # 返回原文，旧前端即使忽略 unchanged 也不会把格式改动带进审阅。
+    assert body["text"] == original
+    assert used_after == 0
+
+
+@pytest.mark.integration
+async def test_natural_polish_quote_style_only_change_counts_as_unchanged(
+    client: AsyncClient, db_session: Session
+):
+    body, used_after = await _polish_with_real_quota(
+        client,
+        db_session,
+        username="np_quote_only",
+        selected_text='他说："我不爱你了。"她答：\u300c好。\u300d',
+        polished_text="他说：\u201c我不爱你了。\u201d她答：\u201c好。\u201d",
+    )
+
+    assert body["unchanged"] is True
+    assert used_after == 0
+
+
+@pytest.mark.integration
+async def test_natural_polish_real_change_keeps_the_charge(client: AsyncClient, db_session: Session):
+    body, used_after = await _polish_with_real_quota(
+        client,
+        db_session,
+        username="np_real_change",
+        selected_text="她唇角一勾，几不可察地笑了。",
+        polished_text="她笑了一下。",
+    )
+
+    assert body == {"text": "她笑了一下。", "model": "test-model", "unchanged": False}
+    assert used_after == 1
+
+
+@pytest.mark.integration
+async def test_natural_polish_passes_current_file_type_to_service(client: AsyncClient, db_session: Session):
+    user = _create_user(
+        db_session,
+        username="np_file_type",
+        email="np_file_type@example.com",
+        is_superuser=False,
+    )
+    project = _create_project(db_session, owner_id=user.id)
+    token = await _login(client, user.username)
+
+    with (
+        patch(
+            "api.editor.quota_service.check_ai_conversation_quota",
+            return_value=(True, 0, 20),
+        ),
+        patch(
+            "api.editor.quota_service.reserve_ai_conversation",
+            return_value=_CHARGED_PERIOD,
+        ),
+        patch(
+            "api.editor.natural_polish_service.natural_polish",
+            new=AsyncMock(return_value=NaturalPolishResult(polished_text="△ 她转身离开。", model="m")),
+        ) as mock_polish,
+    ):
+        response = await client.post(
+            "/api/v1/editor/natural-polish",
+            json={
+                "project_id": str(project.id),
+                "selected_text": "△ 她唇角一勾，转身离开。",
+                "metadata": {"current_file_id": "f-1", "current_file_type": "script"},
+            },
+            headers={"Authorization": f"Bearer {token}", "Accept-Language": "en-US,en;q=0.9"},
+        )
+
+    assert response.status_code == 200
+    mock_polish.assert_awaited_once_with(
+        selected_text="△ 她唇角一勾，转身离开。",
+        language="en",
+        file_type="script",
+        user_id=user.id,
+        project_id=str(project.id),
+    )
+
+
+def test_script_prompt_adds_format_rules_only_for_scripts():
+    from services.features.natural_polish_service import NaturalPolishService
+
+    script_prompt = NaturalPolishService._resolve_prompt("zh", "script")
+    draft_prompt = NaturalPolishService._resolve_prompt("zh", "draft")
+
+    assert "△" in script_prompt
+    assert "△" not in draft_prompt
+    assert script_prompt.startswith(draft_prompt)
+
+
+# ---------------------------------------------------------------------------
+# 行级改动协议：模型只列「原：/改：」，服务端套回原文，格式由代码保证
+# ---------------------------------------------------------------------------
+
+
+def test_line_edits_keep_indentation_and_untouched_lines_byte_identical():
+    original = "　　她唇角一勾，没说话。\n\n　　窗外下着雨。\n\n　　那一刻，她终于明白了什么是爱。"
+    output = "原：她唇角一勾，没说话。\n改：她没说话。\n\n原：　　那一刻，她终于明白了什么是爱。\n改："
+
+    text, dropped = apply_line_edits(original, parse_line_edits(output))
+
+    assert dropped == 0
+    assert text == "　　她没说话。\n\n　　窗外下着雨。"
+
+
+def test_line_edits_restore_the_original_quote_style():
+    original = '他说："我不爱你了。"她唇角一勾。'
+    edits = parse_line_edits("原：他说：“我不爱你了。”她唇角一勾。\n改：他说：“我不爱你了。”她笑了笑。")
+
+    text, _ = apply_line_edits(original, edits)
+
+    assert text == '他说："我不爱你了。"她笑了笑。'
+
+
+def test_script_line_edits_never_touch_structure():
+    original = "\n".join(
+        [
+            "【场1】机场 · 日 · 内",
+            "人物：苏晚、周野",
+            "",
+            "△ 苏晚唇角几不可察地一勾。",
+            "",
+            "苏晚（淡淡）：走吧。",
+        ]
+    )
+    output = "\n".join(
+        [
+            "原：【场1】机场 · 日 · 内",
+            "改：机场大厅",
+            "",
+            "原：△ 苏晚唇角几不可察地一勾。",
+            "改：苏晚摘下墨镜。",
+            "",
+            "原：苏晚（淡淡）：走吧。",
+            "改：苏晚：跟上。",
+            "",
+            "原：人物：苏晚、周野",
+            "改：",
+        ]
+    )
+
+    text, _ = apply_line_edits(original, parse_line_edits(output), file_type="script")
+
+    assert text.split("\n") == [
+        "【场1】机场 · 日 · 内",
+        "人物：苏晚、周野",
+        "",
+        "△ 苏晚摘下墨镜。",
+        "",
+        "苏晚（淡淡）：跟上。",
+    ]
+
+
+def test_script_action_and_dialogue_lines_cannot_be_deleted():
+    original = "△ 硬切黑屏。\n\n陆沉：签。"
+    edits = parse_line_edits("原：△ 硬切黑屏。\n改：\n\n原：陆沉：签。\n改：")
+
+    text, _ = apply_line_edits(original, edits, file_type="script")
+
+    assert text == original
+
+
+def test_no_change_marker_and_unanchored_edits_leave_text_unchanged():
+    assert parse_line_edits("无改动") == []
+    assert parse_line_edits("NO CHANGES") == []
+
+    text, dropped = apply_line_edits("母亲在剥蒜。", parse_line_edits("原：完全不存在的一句\n改：别的"))
+
+    assert text == "母亲在剥蒜。"
+    assert dropped == 1
+
+
+def test_sentence_level_edit_is_spliced_into_its_paragraph():
+    original = "　　雨停了。他心中一震，回过头。"
+
+    text, _ = apply_line_edits(original, parse_line_edits("原：他心中一震，回过头。\n改：他回过头。"))
+
+    assert text == "　　雨停了。他回过头。"
+
+
+def test_attention_hints_point_at_stock_phrase_lines_and_the_closing_sentence():
+    text = "　　她指节泛白，没说话。\n\n　　窗外下着雨。\n\n　　原来，爱一直都在。"
+
+    hints = build_attention_hints(text, "zh", "draft")
+
+    assert "「她指节泛白，没说话。」：指节泛白" in hints
+    assert "「窗外下着雨。」" not in hints
+    assert "最后一句是：「原来，爱一直都在。」" in hints
+
+
+def test_attention_hints_skip_the_closer_check_for_scripts_and_stay_empty_when_nothing_matches():
+    assert "最后一句" not in build_attention_hints("△ 她转身离开。\n\n苏晚：走吧。", "zh", "script")
+    assert build_attention_hints("x" * 6000, "zh") == ""
+
+
+async def test_service_sends_attention_hints_after_the_static_prompt():
+    from unittest.mock import MagicMock
+
+    from services.features.natural_polish_service import NaturalPolishService
+
+    llm_client = MagicMock()
+    llm_client.MODEL_QUALITY = "quality-model"
+    llm_client.acomplete = AsyncMock(return_value="无改动")
+    text = "他心中一震。"
+
+    with patch("services.features.natural_polish_service.get_llm_client", return_value=llm_client):
+        result = await NaturalPolishService().natural_polish(selected_text=text, language="zh")
+
+    system_prompt = llm_client.acomplete.await_args.kwargs["messages"][0]["content"]
+    assert system_prompt.startswith(NaturalPolishService._resolve_prompt("zh"))
+    assert "「他心中一震。」：心中一震" in system_prompt
+    assert result.polished_text == text
+
+
+def test_full_rewrite_fallback_restores_indentation_per_line():
+    original = "　　第一段。\n\n　　她指节泛白。"
+
+    assert apply_full_rewrite(original, "第一段。\n\n她攥紧了拳。") == "　　第一段。\n\n　　她攥紧了拳。"

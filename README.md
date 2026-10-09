@@ -280,7 +280,7 @@ npx zenstory whoami          # 确认登录状态和读写权限
 
 自己部署的，登录时加上 `--api-base https://你的服务器/api/v1`（设置页会直接给出带这个参数的命令）。Key 不要贴进 AI 对话；已经贴过的，到「设置 → Agent」重新生成。
 
-装好技能后，Agent 通过 `zenstory` 命令行读写项目。技能里写好的续写流程：
+装好技能后，Agent 通过 ZenStory 命令行工具（`zenstory`）读写项目。技能里写好的续写流程：
 
 ```bash
 zenstory files list <项目ID> --type draft --fields id,title --json           # 列出草稿

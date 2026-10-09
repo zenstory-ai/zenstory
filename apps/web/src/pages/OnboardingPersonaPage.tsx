@@ -9,7 +9,9 @@ import {
   Briefcase,
   CalendarCheck,
   Check,
+  Clapperboard,
   Compass,
+  FileText,
   Lightbulb,
   Sparkles,
   Target,
@@ -22,6 +24,10 @@ import { Card } from "../components/ui/Card";
 import { useAuth } from "../contexts/AuthContext";
 import { cn } from "../lib/utils";
 import { toast } from "../lib/toast";
+import { ApiError } from "../lib/apiClient";
+import { dashboardOnboardingFlags } from "../config/dashboardOnboarding";
+import { getPreferredProjectType, setPreferredProjectType } from "../lib/preferredProjectType";
+import type { ProjectType } from "../types";
 import {
   getPersonaOnboardingData,
   savePersonaOnboardingData,
@@ -31,7 +37,14 @@ import { onboardingPersonaApi, personaOnboardingQueryKey } from "../lib/onboardi
 
 const MAX_PERSONA_SELECTION = 3;
 
-type PersonaId = "explorer" | "serial" | "professional" | "fanfic" | "studio";
+type PersonaId =
+  | "explorer"
+  | "serial"
+  | "short_story"
+  | "screenwriter"
+  | "professional"
+  | "fanfic"
+  | "studio";
 type GoalId = "finishBook" | "buildHabit" | "improveQuality" | "growAudience" | "monetize";
 
 interface PersonaOption {
@@ -48,6 +61,8 @@ interface GoalOption {
 const PERSONA_OPTIONS: PersonaOption[] = [
   { id: "explorer", icon: Compass, badgeVariant: "info" },
   { id: "serial", icon: CalendarCheck, badgeVariant: "purple" },
+  { id: "short_story", icon: FileText, badgeVariant: "success" },
+  { id: "screenwriter", icon: Clapperboard, badgeVariant: "warning" },
   { id: "professional", icon: Briefcase, badgeVariant: "warning" },
   { id: "fanfic", icon: Lightbulb, badgeVariant: "cyan" },
   { id: "studio", icon: Users, badgeVariant: "success" },
@@ -62,6 +77,25 @@ const GOAL_OPTIONS: GoalOption[] = [
 ];
 
 const EXPERIENCE_LEVELS: PersonaExperienceLevel[] = ["beginner", "intermediate", "advanced"];
+
+/**
+ * Identities that imply a project type. The dashboard opens on that tab so the
+ * author's first project is the kind they write.
+ */
+const PERSONA_PROJECT_TYPES: Partial<Record<PersonaId, ProjectType>> = {
+  short_story: "short",
+  screenwriter: "screenplay",
+};
+
+/**
+ * Identities added after the original five. An older server (the API deploys
+ * after the web app) rejects them with a validation error, so the save is
+ * retried once without them.
+ */
+const NEWER_PERSONA_IDS: ReadonlySet<string> = new Set<PersonaId>(["short_story", "screenwriter"]);
+
+const isValidationRejection = (error: unknown): boolean =>
+  error instanceof ApiError && (error.status === 400 || error.status === 422);
 
 interface OnboardingLocationState {
   from?: {
@@ -175,6 +209,12 @@ export default function OnboardingPersonaPage() {
     if (selectedPersonas.includes("serial")) {
       tips.push(t("onboarding:preview.items.serial", "连续写作天数统计"));
     }
+    if (selectedPersonas.includes("short_story")) {
+      tips.push(t("onboarding:preview.items.short_story", "工作台默认选中短篇小说，一句想法就能开写"));
+    }
+    if (selectedPersonas.includes("screenwriter")) {
+      tips.push(t("onboarding:preview.items.screenwriter", "工作台默认选中短剧剧本，按分集大纲写剧本"));
+    }
     if (selectedPersonas.includes("professional")) {
       tips.push(t("onboarding:preview.items.professional", "大纲、章节到改稿的高效流程"));
     }
@@ -198,6 +238,11 @@ export default function OnboardingPersonaPage() {
   }, [experienceLevel, selectedGoals, selectedPersonas, t]);
 
   const canSubmit = selectedPersonas.length > 0;
+  // The preview promises what the dashboard home will suggest; only show it
+  // when a dashboard guidance panel that acts on these answers is switched on.
+  const showRecommendationPreview =
+    dashboardOnboardingFlags.todayActionPlanEnabled ||
+    dashboardOnboardingFlags.firstDayActivationGuideEnabled;
 
   const togglePersona = (id: PersonaId) => {
     if (selectedPersonas.includes(id) || selectedPersonas.length < MAX_PERSONA_SELECTION) {
@@ -237,13 +282,39 @@ export default function OnboardingPersonaPage() {
       skipped: skip,
     };
 
+    const saveWithOlderServerFallback = async () => {
+      try {
+        return await onboardingPersonaApi.save(payload);
+      } catch (error) {
+        const olderPersonas = payload.selected_personas.filter((id) => !NEWER_PERSONA_IDS.has(id));
+        if (!isValidationRejection(error) || olderPersonas.length === payload.selected_personas.length) {
+          throw error;
+        }
+        // An older server does not know the new identities. Keep everything
+        // else; with nothing left, record the answers as skipped so the author
+        // is not stuck on this page.
+        return onboardingPersonaApi.save({
+          ...payload,
+          selected_personas: olderPersonas,
+          skipped: payload.skipped || olderPersonas.length === 0,
+        });
+      }
+    };
+
     try {
       await queryClient.cancelQueries({ queryKey: personaQueryKey });
-      const result = await onboardingPersonaApi.save(payload);
+      const result = await saveWithOlderServerFallback();
       if (!mountedRef.current) return;
       const profile = result.profile;
       if (!profile) {
         throw new Error("Persona onboarding save returned no profile");
+      }
+
+      if (!skip && !getPreferredProjectType()) {
+        const impliedType = selectedPersonas
+          .map((id) => PERSONA_PROJECT_TYPES[id])
+          .find((type): type is ProjectType => Boolean(type));
+        if (impliedType) setPreferredProjectType(impliedType);
       }
 
       savePersonaOnboardingData(user.id, {
@@ -293,7 +364,12 @@ export default function OnboardingPersonaPage() {
           </div>
         )}
 
-        <div className="mt-8 grid grid-cols-1 lg:grid-cols-[1.35fr_0.9fr] gap-5">
+        <div
+          className={cn(
+            "mt-8 grid grid-cols-1 gap-5",
+            showRecommendationPreview && "lg:grid-cols-[1.35fr_0.9fr]",
+          )}
+        >
           <div className="space-y-5">
             <Card variant="outlined" padding="lg" className="space-y-4">
               <div className="flex items-center justify-between gap-3">
@@ -471,47 +547,49 @@ export default function OnboardingPersonaPage() {
             </div>
           </div>
 
-          <Card variant="outlined" padding="lg" className="h-fit lg:sticky lg:top-6">
-            <div className="flex items-center gap-2 text-[hsl(var(--text-primary))]">
-              <Sparkles className="w-4 h-4 text-[hsl(var(--accent-primary))]" />
-              <h3 className="text-sm font-semibold">
-                {t("onboarding:preview.title", "首页会为你推荐")}
-              </h3>
-            </div>
+          {showRecommendationPreview && (
+            <Card variant="outlined" padding="lg" className="h-fit lg:sticky lg:top-6">
+              <div className="flex items-center gap-2 text-[hsl(var(--text-primary))]">
+                <Sparkles className="w-4 h-4 text-[hsl(var(--accent-primary))]" />
+                <h3 className="text-sm font-semibold">
+                  {t("onboarding:preview.title", "首页会为你推荐")}
+                </h3>
+              </div>
 
-            <p className="mt-2 text-xs text-[hsl(var(--text-secondary))] leading-relaxed">
-              {t("onboarding:preview.subtitle", "保存后，工作台首页会按这些选择推荐下一步。")}
-            </p>
+              <p className="mt-2 text-xs text-[hsl(var(--text-secondary))] leading-relaxed">
+                {t("onboarding:preview.subtitle", "保存后，工作台首页会按这些选择推荐下一步。")}
+              </p>
 
-            {selectedPersonaLabels.length > 0 ? (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {selectedPersonaLabels.map((label) => (
-                  <Badge key={label} variant="purple">
-                    {label}
-                  </Badge>
+              {selectedPersonaLabels.length > 0 ? (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {selectedPersonaLabels.map((label) => (
+                    <Badge key={label} variant="purple">
+                      {label}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-4 rounded-lg border border-dashed border-[hsl(var(--border-color))] px-3 py-2 text-xs text-[hsl(var(--text-secondary))]">
+                  {t("onboarding:preview.empty", "选一个创作者类型，看看会推荐什么")}
+                </div>
+              )}
+
+              <ul className="mt-4 space-y-2">
+                {personalizedTips.map((tip, index) => (
+                  <li
+                    key={`${tip}-${index}`}
+                    className="rounded-lg bg-[hsl(var(--bg-tertiary)/0.55)] px-3 py-2 text-xs text-[hsl(var(--text-primary))] leading-relaxed"
+                  >
+                    {tip}
+                  </li>
                 ))}
-              </div>
-            ) : (
-              <div className="mt-4 rounded-lg border border-dashed border-[hsl(var(--border-color))] px-3 py-2 text-xs text-[hsl(var(--text-secondary))]">
-                {t("onboarding:preview.empty", "选一个创作者类型，看看会推荐什么")}
-              </div>
-            )}
+              </ul>
 
-            <ul className="mt-4 space-y-2">
-              {personalizedTips.map((tip, index) => (
-                <li
-                  key={`${tip}-${index}`}
-                  className="rounded-lg bg-[hsl(var(--bg-tertiary)/0.55)] px-3 py-2 text-xs text-[hsl(var(--text-primary))] leading-relaxed"
-                >
-                  {tip}
-                </li>
-              ))}
-            </ul>
-
-            <p className="mt-4 text-[11px] text-[hsl(var(--text-tertiary))] leading-relaxed">
-              {t("onboarding:preview.note", "这些选择保存在你的账号里，换设备也有效。")}
-            </p>
-          </Card>
+              <p className="mt-4 text-[11px] text-[hsl(var(--text-tertiary))] leading-relaxed">
+                {t("onboarding:preview.note", "这些选择保存在你的账号里，换设备也有效。")}
+              </p>
+            </Card>
+          )}
         </div>
       </div>
     </div>

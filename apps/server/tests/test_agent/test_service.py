@@ -33,6 +33,33 @@ from services.core.auth_service import hash_password
 pytestmark = pytest.mark.usefixtures("writing_prompt_configs")
 
 
+async def wait_for_stream_start(
+    started: asyncio.Event, task: asyncio.Task, timeout: float = 5.0
+) -> None:
+    """Wait for the fake workflow's ``started`` signal, failing fast otherwise.
+
+    A bare ``await wait_for_stream_start(started, task)`` hangs the whole worker when process_stream
+    dies before reaching the workflow (e.g. steering dialling an unreachable
+    Redis): ``started`` is never set. Race it against the consume task instead,
+    re-raise the task's own exception, and cap the wait.
+    """
+    started_waiter = asyncio.ensure_future(started.wait())
+    try:
+        done, _pending = await asyncio.wait(
+            {started_waiter, task}, timeout=timeout, return_when=asyncio.FIRST_COMPLETED
+        )
+    finally:
+        if not started_waiter.done():
+            started_waiter.cancel()
+    if started_waiter in done:
+        return
+    if task in done:
+        task.result()  # re-raises whatever stopped process_stream early
+        raise AssertionError("process_stream finished before the workflow started")
+    task.cancel()
+    raise AssertionError(f"workflow did not start within {timeout}s")
+
+
 @pytest.fixture
 def test_user_with_project(db_session: Session):
     """Create a test user with project for agent service testing."""
@@ -1346,7 +1373,7 @@ class TestAgentServiceProcessStream:
             mock_schedule_cleanup.side_effect = _consume_cleanup_coro
             with caplog.at_level(logging.INFO, logger="agent.service"):
                 task = asyncio.create_task(consume())
-                await started.wait()
+                await wait_for_stream_start(started, task)
                 await asyncio.sleep(0)
                 task.cancel()
                 with pytest.raises(asyncio.CancelledError):
@@ -1408,7 +1435,7 @@ class TestAgentServiceProcessStream:
             patch("agent.service.create_session", side_effect=_fresh_session),
         ):
             task = asyncio.create_task(consume())
-            await started.wait()
+            await wait_for_stream_start(started, task)
             await asyncio.sleep(0)
             task.cancel()
             with pytest.raises(asyncio.CancelledError):
@@ -1615,7 +1642,7 @@ class TestAgentServiceProcessStream:
             patch("agent.service.create_session", side_effect=_fresh_session),
         ):
             task = asyncio.create_task(consume())
-            await started.wait()
+            await wait_for_stream_start(started, task)
             await asyncio.sleep(0)
             task.cancel()
             with pytest.raises(asyncio.CancelledError):

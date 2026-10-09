@@ -1,8 +1,8 @@
-# zenstory CLI
+# ZenStory CLI
 
-Command-line client for [zenstory](https://zenstory.ai) novel projects, plus a standard
+Command-line client for [ZenStory](https://zenstory.ai) novel projects, plus a standard
 [Agent Skill](https://agentskills.io) that teaches coding agents (Claude Code, Codex,
-OpenClaw, ...) how to use it. It talks to the public zenstory Agent API.
+OpenClaw, ...) how to use it. It talks to the public ZenStory Agent API.
 
 - Zero runtime dependencies, Node.js ≥ 20.
 - Human-readable output by default, `--json` on every command for agents.
@@ -15,7 +15,7 @@ npm install -g zenstory      # or run any command with: npx -y zenstory <command
 
 ## Log in
 
-Create an Agent API key in **zenstory → Settings → Agent** (keys start with `eg_`; enable
+Create an Agent API key in **ZenStory → Settings → Agent** (keys start with `eg_`; enable
 the `write` scope if you want the CLI or an agent to edit files). Then:
 
 ```bash
@@ -107,7 +107,7 @@ zenstory skill path                        # where the bundled copy lives
 ```
 
 An existing installation is only replaced with `--force`, and only if it is a previous
-zenstory skill install (a `SKILL.md` named `zenstory` plus `references/`); any other
+ZenStory skill install (a `SKILL.md` named `zenstory` plus `references/`); any other
 directory is left alone. A symlink at the destination is never followed.
 
 Notes on directories: Codex loads user-scope skills from `$HOME/.agents/skills` (older

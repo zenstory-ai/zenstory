@@ -19,7 +19,7 @@ vi.mock('react-i18next', () => ({
         'card.disabled': '已停用',
         'card.exhausted': '已用完',
         'card.available': '可用',
-        'card.shareTitle': 'zenstory写作 - 邀请码',
+        'card.shareTitle': 'ZenStory写作 - 邀请码',
         'card.shareText': `邀请码: ${options?.code ?? ''}`,
       }
       return translations[key] ?? key
@@ -244,7 +244,7 @@ describe('InviteCodeCard', () => {
       fireEvent.click(shareButton)
 
       expect(mockShare).toHaveBeenCalledWith({
-        title: 'zenstory写作 - 邀请码',
+        title: 'ZenStory写作 - 邀请码',
         text: '邀请码: ABCD-EFGH',
         url: 'http://localhost:5173/register?code=ABCD-EFGH',
       })

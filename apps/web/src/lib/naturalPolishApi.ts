@@ -6,7 +6,9 @@
  * Contract:
  * - POST /api/v1/editor/natural-polish
  * - Supports AbortSignal cancellation
- * - Returns rewritten plain text (JSON: { text: string })
+ * - Returns `{ text, unchanged }`. `unchanged: true` means the server found nothing
+ *   worth changing and did not count this call toward today's AI messages.
+ *   Older servers omit `unchanged`; that is treated as false.
  */
 
 import { api } from "./apiClient";
@@ -18,17 +20,25 @@ export interface NaturalPolishParams {
   selectedText: string;
 }
 
+export interface NaturalPolishResult {
+  text: string;
+  unchanged: boolean;
+}
+
 type NaturalPolishResponse = {
   text: string;
+  unchanged?: boolean;
 };
 
-function extractText(payload: unknown): string {
-  if (typeof payload === "string") return payload;
+function extractResult(payload: unknown): NaturalPolishResult {
+  if (typeof payload === "string") return { text: payload, unchanged: false };
   if (!payload || typeof payload !== "object") {
     throw new Error("Invalid natural polish response");
   }
   const data = payload as Record<string, unknown>;
-  if (typeof data.text === "string") return data.text;
+  if (typeof data.text === "string") {
+    return { text: data.text, unchanged: data.unchanged === true };
+  }
   throw new Error("Invalid natural polish response");
 }
 
@@ -36,7 +46,7 @@ export const naturalPolishApi = {
   naturalPolish: async (
     params: NaturalPolishParams,
     opts?: { signal?: AbortSignal },
-  ): Promise<string> => {
+  ): Promise<NaturalPolishResult> => {
     const payload = {
       project_id: params.projectId,
       selected_text: params.selectedText,
@@ -52,6 +62,6 @@ export const naturalPolishApi = {
       payload,
       { signal: opts?.signal },
     );
-    return extractText(result);
+    return extractResult(result);
   },
 };

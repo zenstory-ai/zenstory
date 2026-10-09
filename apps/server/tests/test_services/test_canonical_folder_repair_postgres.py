@@ -17,7 +17,7 @@ from api import files as files_api
 from config.datetime_utils import normalize_datetime_to_utc
 from models import File, Project, User
 from models.file_version import FileVersion
-from services.features.file_version_service import get_file_version_service
+from services.features.file_version_service import FileVersionService, get_file_version_service
 from services.file_tree_rules import lock_project_for_files
 from tests.test_services.test_snapshot_concurrency_postgres import pg_engine as pg_engine
 
@@ -33,6 +33,9 @@ def isolate_dependencies(monkeypatch):
     import database
 
     monkeypatch.setattr(database, "is_postgres", True)
+    # 普通写入现在总会走版本（合并或新建），额度检查要查 user_subscription；
+    # 这里的 PG schema 不建订阅表，和 test_snapshot_concurrency_postgres 一样把额度桩掉。
+    monkeypatch.setattr(FileVersionService, "check_user_version_quota", lambda *_a, **_kw: (True, 0, 10))
     monkeypatch.setattr(files_api, "utcnow", lambda: STAMP)
     monkeypatch.setattr(crud_module, "utcnow", lambda: STAMP)
     monkeypatch.setattr(FileCRUD, "_schedule_index_upsert", lambda *_a, **_kw: None)
@@ -138,7 +141,7 @@ def test_same_root_repair_waits_and_rereads_without_double_bump(pg_engine, monke
             # A real same-project ordinary writer must complete while recovery is paused.
             with Session(pg_engine) as content_writer:
                 files_api.update_file(
-                    other_id, files_api.FileUpdate(content="Independent updated body", skip_version=True),
+                    other_id, files_api.FileUpdate(content="Independent updated body"),
                     BackgroundTasks(), current_user=content_writer.get(User, user_id), session=content_writer,
                 )
         finally:

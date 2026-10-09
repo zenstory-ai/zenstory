@@ -23,9 +23,10 @@ import { SiteBoundary } from "./components/SiteBoundary";
 import { logger } from "./lib/logger";
 import { fileApi } from "./lib/api";
 import { LOGIN_ATTEMPT_KEY, normalizePlanIntent, type LoginAttempt } from "./lib/authFlow";
-import { clearAuthStorage, resolveOwnedAuthSession } from "./lib/apiClient";
+import { ApiError, clearAuthStorage, resolveOwnedAuthSession } from "./lib/apiClient";
 import { onboardingPersonaApi, personaOnboardingQueryKey } from "./lib/onboardingPersonaApi";
-import type { TreeNodeType } from "./types";
+import { clearLastOpenedFile, getLastOpenedFile, setLastOpenedFile } from "./lib/lastOpenedFile";
+import type { SelectedItem, TreeNodeType } from "./types";
 import { lazyRoute } from "./lib/chunkRecovery";
 import { inspirationsConfig } from "./config/inspirations";
 
@@ -267,25 +268,103 @@ function VerifyEmailWrapper() {
   return <VerifyEmail email={email} planIntent={planIntent} />;
 }
 
+function toSelectedItem(file: { id: string; title: string; file_type: string }): SelectedItem {
+  const fileType = file.file_type as string;
+  const normalizedType: TreeNodeType =
+    fileType === "snippet" ? "material" : (fileType as TreeNodeType);
+  return { id: file.id, title: file.title, type: normalizedType };
+}
+
 // Project editor wrapper - loads project from URL param
 function ProjectEditor() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { setCurrentProjectId, currentProject, loading, error, refreshProjects, projects, setSelectedItem } = useProject();
+  const { setCurrentProjectId, currentProject, loading, error, refreshProjects, projects, selectedItem, setSelectedItem } = useProject();
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const { t } = useTranslation();
 
   const [isEnsuring, setIsEnsuring] = React.useState(false);
   const [notFound, setNotFound] = React.useState(false);
   const attemptedRefreshRef = React.useRef<string | null>(null);
   const selectedFromQueryRef = React.useRef<string | null>(null);
+  const restoreAttemptedRef = React.useRef<string | null>(null);
+  const selectedItemRef = React.useRef(selectedItem ?? null);
+  selectedItemRef.current = selectedItem ?? null;
+
+  const isRouteProjectActive = Boolean(currentProject && projectId && currentProject.id === projectId);
 
   // Reset per projectId
   React.useEffect(() => {
     attemptedRefreshRef.current = null;
     selectedFromQueryRef.current = null;
+    restoreAttemptedRef.current = null;
     setNotFound(false);
   }, [projectId]);
+
+  // Remember the open file so reopening this project lands on it.
+  const selectedFileId = selectedItem && selectedItem.type !== "folder" ? selectedItem.id : null;
+  React.useEffect(() => {
+    if (!userId || !projectId || !isRouteProjectActive || !selectedFileId) return;
+    setLastOpenedFile(userId, projectId, selectedFileId);
+  }, [isRouteProjectActive, projectId, selectedFileId, userId]);
+
+  // Reopen the last file when the project is entered without a ?file= link and
+  // nothing is selected yet. The id is re-validated: it may have been deleted
+  // or moved to another project since.
+  React.useEffect(() => {
+    if (!userId || !projectId || !isRouteProjectActive) return;
+    if (new URLSearchParams(location.search).get("file")) return;
+    if (restoreAttemptedRef.current === projectId) return;
+    if (selectedItemRef.current) return;
+
+    const lastFileId = getLastOpenedFile(userId, projectId);
+    restoreAttemptedRef.current = projectId;
+    if (!lastFileId) return;
+
+    let cancelled = false;
+    let settled = false;
+
+    const restoreLastOpenedFile = async () => {
+      try {
+        const file = await fileApi.get(lastFileId);
+        if (cancelled) return;
+        const isDeleted = (file as { is_deleted?: boolean }).is_deleted === true;
+        if (file.project_id !== projectId || isDeleted || (file.file_type as string) === "folder") {
+          clearLastOpenedFile(userId, projectId);
+          return;
+        }
+        // The author may have opened something while this was loading.
+        if (selectedItemRef.current) return;
+        setSelectedItem(toSelectedItem(file));
+      } catch (err) {
+        if (cancelled) return;
+        // Only a definitive answer (gone / not yours) forgets the record; a
+        // network blip should not lose it.
+        if (err instanceof ApiError && err.status >= 400 && err.status < 500) {
+          clearLastOpenedFile(userId, projectId);
+        }
+        logger.warn("[ProjectEditor] Failed to restore last opened file", {
+          fileId: lastFileId,
+          projectId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      } finally {
+        settled = true;
+      }
+    };
+
+    void restoreLastOpenedFile();
+
+    return () => {
+      cancelled = true;
+      // Interrupted before an answer: allow another attempt.
+      if (!settled && restoreAttemptedRef.current === projectId) {
+        restoreAttemptedRef.current = null;
+      }
+    };
+  }, [isRouteProjectActive, location.search, projectId, setSelectedItem, userId]);
 
   // Select target file from query parameter: /project/:projectId?file=:fileId
   React.useEffect(() => {
@@ -322,15 +401,7 @@ function ProjectEditor() {
           return;
         }
 
-        const fileType = file.file_type as string;
-        const normalizedType: TreeNodeType =
-          fileType === "snippet" ? "material" : (fileType as TreeNodeType);
-
-        setSelectedItem({
-          id: file.id,
-          title: file.title,
-          type: normalizedType,
-        });
+        setSelectedItem(toSelectedItem(file));
         selectedFromQueryRef.current = fileId;
       } catch (err) {
         logger.warn("[ProjectEditor] Failed to load file from query param", {

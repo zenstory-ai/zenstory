@@ -4,7 +4,7 @@
   "sections": {
     "introduction": {
       "title": "1. Introduction",
-      "content": "Welcome to zenstory (\"we,\" \"us,\" or \"our\"). We respect your privacy and are committed to protecting your personal data. This privacy policy will inform you about how we look after your personal data when you visit our website and tell you about your privacy rights and how the law protects you."
+      "content": "Welcome to ZenStory (\"we,\" \"us,\" or \"our\"). We respect your privacy and are committed to protecting your personal data. This privacy policy will inform you about how we look after your personal data when you visit our website and tell you about your privacy rights and how the law protects you."
     },
     "dataCollection": {
       "title": "2. Information We Collect",
@@ -140,7 +140,7 @@
       "title": "11. Contact Us",
       "content": "If you have any questions about this privacy policy or our data practices, please contact us:",
       "email": "Email: support@zenstory.ai",
-      "controller": "Data Controller: zenstory"
+      "controller": "Data Controller: ZenStory"
     }
   },
   "terms": {
@@ -149,11 +149,11 @@
     "sections": {
       "acceptance": {
         "title": "1. Acceptance of Terms",
-        "content": "By accessing or using zenstory, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use our service."
+        "content": "By accessing or using ZenStory, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use our service."
       },
       "description": {
         "title": "2. Service Description",
-        "content": "zenstory is an AI-powered novel writing assistant that helps users create, organize, and develop their stories through AI-driven conversations and writing tools."
+        "content": "ZenStory is an AI-powered novel writing assistant that helps users create, organize, and develop their stories through AI-driven conversations and writing tools."
       },
       "userResponsibilities": {
         "title": "3. User Responsibilities",
@@ -168,7 +168,7 @@
       },
       "intellectualProperty": {
         "title": "4. Intellectual Property",
-        "content": "All content created by you remains your property. zenstory does not claim ownership of your novels, characters, stories, or any other original content. You grant us a non-exclusive, worldwide license to store, process, and display your content solely for providing our services. This license is revocable at any time. AI-generated content created through our service is also your property once you accept and incorporate it into your work."
+        "content": "All content created by you remains your property. ZenStory does not claim ownership of your novels, characters, stories, or any other original content. You grant us a non-exclusive, worldwide license to store, process, and display your content solely for providing our services. This license is revocable at any time. AI-generated content created through our service is also your property once you accept and incorporate it into your work."
       },
       "aiGeneratedContent": {
         "title": "5. AI-Generated Content",
@@ -204,15 +204,15 @@
       },
       "limitation": {
         "title": "13. Limitation of Liability",
-        "content": "In no event shall zenstory be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of our service."
+        "content": "In no event shall ZenStory be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of our service."
       },
       "indemnification": {
         "title": "14. Indemnification",
-        "content": "You agree to indemnify and hold harmless zenstory, its officers, directors, employees, and agents from any claims arising from your use of the service or violation of these terms, including reasonable attorneys' fees."
+        "content": "You agree to indemnify and hold harmless ZenStory, its officers, directors, employees, and agents from any claims arising from your use of the service or violation of these terms, including reasonable attorneys' fees."
       },
       "governingLaw": {
         "title": "15. Governing Law and Dispute Resolution",
-        "content": "These terms shall be governed by and construed in accordance with applicable laws. Any disputes shall be resolved through negotiation first. If negotiation fails, disputes may be submitted to the competent courts in the jurisdiction where zenstory is registered."
+        "content": "These terms shall be governed by and construed in accordance with applicable laws. Any disputes shall be resolved through negotiation first. If negotiation fails, disputes may be submitted to the competent courts in the jurisdiction where ZenStory is registered."
       },
       "changes": {
         "title": "16. Changes to Terms",

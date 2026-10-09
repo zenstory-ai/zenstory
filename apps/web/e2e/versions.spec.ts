@@ -292,12 +292,27 @@ async function editFileContent(page: Page, content: string): Promise<void> {
  */
 async function openVersionHistory(page: Page): Promise<void> {
   // File-scoped history action in the editor status bar
-  const historyButton = page.getByRole('button', { name: /^历史$|^History$/ }).first()
+  const historyButton = page.getByRole('button', { name: /^(历史版本|历史|Versions|History)$/ }).first()
   await expect(historyButton).toBeVisible({ timeout: 5000 })
   await historyButton.click()
 
   // Wait for version history panel
   await expect(page.getByText(/版本历史|历史版本|Version History/i).first()).toBeVisible({ timeout: 5000 })
+}
+
+/**
+ * Confirm the in-app restore dialog (ConfirmDialog, not a native confirm) and
+ * wait for the rollback request it sends.
+ */
+async function confirmRollback(page: Page): Promise<void> {
+  const confirmButton = page.getByRole('dialog').getByRole('button', { name: /^(恢复|Restore)$/ })
+  await expect(confirmButton).toBeVisible({ timeout: 5000 })
+  const rollbackResponse = page.waitForResponse(
+    resp => resp.url().includes('/api/v1/') && resp.url().includes('/rollback') && resp.request().method() === 'POST',
+    { timeout: 5000 }
+  )
+  await confirmButton.click()
+  await rollbackResponse
 }
 
 function getVersionItems(page: Page) {
@@ -615,15 +630,11 @@ test.describe('Version History', () => {
     const count = await versionItems.count()
 
     if (count >= 2) {
-      // Setup dialog handler for confirmation
-      page.on('dialog', dialog => dialog.accept())
-
       // Click rollback button on the second version (older)
       const rollbackButton = versionItems.nth(1).locator('button:has(svg.lucide-rotate-ccw)')
       if (await rollbackButton.isVisible()) {
         await rollbackButton.click()
-        // Wait for rollback API response
-        await page.waitForResponse(resp => resp.url().includes('/api/v1/') && resp.url().includes('/rollback') && resp.request().method() === 'POST', { timeout: 5000 })
+        await confirmRollback(page)
 
         // Verify rollback succeeded - content should be restored
         // The version list should refresh
@@ -647,13 +658,10 @@ test.describe('Version History', () => {
 
     // Perform rollback
     if (initialCount >= 2) {
-      page.on('dialog', dialog => dialog.accept())
-
       const rollbackButton = versionItems.nth(1).locator('button:has(svg.lucide-rotate-ccw)')
       if (await rollbackButton.isVisible()) {
         await rollbackButton.click()
-        // Wait for rollback API response
-        await page.waitForResponse(resp => resp.url().includes('/api/v1/') && resp.url().includes('/rollback') && resp.request().method() === 'POST', { timeout: 5000 })
+        await confirmRollback(page)
 
         // Reload version list
         versionItems = getVersionItems(page)
@@ -681,13 +689,10 @@ test.describe('Version History', () => {
 
     // Perform rollback
     if (initialCount >= 2) {
-      page.on('dialog', dialog => dialog.accept())
-
       const rollbackButton = versionItems.nth(Math.min(2, initialCount - 1)).locator('button:has(svg.lucide-rotate-ccw)')
       if (await rollbackButton.isVisible()) {
         await rollbackButton.click()
-        // Wait for rollback API response
-        await page.waitForResponse(resp => resp.url().includes('/api/v1/') && resp.url().includes('/rollback') && resp.request().method() === 'POST', { timeout: 5000 })
+        await confirmRollback(page)
 
         // All previous versions should still exist
         // Version count should increase (new rollback version) or stay same
@@ -789,15 +794,16 @@ test.describe('Version History', () => {
     // Open version history
     await openVersionHistory(page)
 
-    // Verify panel is open
-    await expect(page.getByText(/版本历史|历史版本|Version History/i).first()).toBeVisible()
+    // Verify panel is open (the file's own history button is also labelled 历史版本, so check the dialog)
+    const historyDialog = page.getByRole('dialog').filter({ hasText: /版本历史|历史版本|Version History/i })
+    await expect(historyDialog.first()).toBeVisible()
 
     // Find and click close button
-    const closeButton = page.locator('button:has(svg.lucide-x)').first()
+    const closeButton = historyDialog.first().locator('button:has(svg.lucide-x)').first()
     await closeButton.click()
 
     // Verify panel is closed
-    await expect(page.getByText(/版本历史|历史版本|Version History/i).first()).not.toBeVisible()
+    await expect(historyDialog).toHaveCount(0)
   })
 
   test('version history shows total version count', async ({ page }) => {
@@ -830,7 +836,8 @@ test.describe('Version History - Error Handling', () => {
     await selectFile(page, '无编辑文件')
 
     // Try to open version history
-    const historyButton = page.locator('button:has(svg.lucide-clock), button:has(svg.lucide-history)').first()
+    // The header's first history-like button is now 项目快照; target the file's own history button.
+    const historyButton = page.getByRole('button', { name: /^(历史版本|历史|Versions|History)$/ }).first()
     if (await historyButton.isVisible()) {
       await historyButton.click()
       // Wait for panel to appear
@@ -861,12 +868,11 @@ test.describe('Version History - Error Handling', () => {
     const count = await versionItems.count()
 
     if (count >= 2) {
-      // Setup dialog handler to cancel
-      page.on('dialog', dialog => dialog.dismiss())
-
       const rollbackButton = versionItems.nth(1).locator('button:has(svg.lucide-rotate-ccw)')
       if (await rollbackButton.isVisible()) {
         await rollbackButton.click()
+        // Cancel the in-app restore confirmation
+        await page.getByRole('dialog').getByRole('button', { name: /^(取消|Cancel)$/ }).click()
 
         // Verify content was NOT rolled back (still has new content)
         const editor = page.locator('textarea[placeholder*="开始你的创作"]').first()

@@ -1,6 +1,6 @@
 # Account Registration and Login
 
-Welcome to zenstory Novel Writing Workbench! This document will guide you through registering and logging into your account to begin your AI-assisted creative journey.
+Welcome to ZenStory Novel Writing Workbench! This document will guide you through registering and logging into your account to begin your AI-assisted creative journey.
 
 ---
 
@@ -15,13 +15,13 @@ Email registration is the most common method and requires verifying your email a
 #### Registration Steps
 
 1. **Access the Registration Page**
-   - Visit the zenstory official website homepage
+   - Visit the ZenStory official website homepage
    - Click the "Register" button in the top right corner
    - Or directly access the `/register` page
 
 2. **Fill in Registration Information**
 
-   - **Username**: At least 3 characters, this will be your unique identifier on zenstory
+   - **Username**: At least 3 characters, this will be your unique identifier on ZenStory
    - **Email Address**: Use your regular email for receiving verification codes and password recovery
    - **Password**: At least 6 characters, recommended to include letters and numbers
    - **Confirm Password**: Re-enter your password to ensure accuracy
@@ -43,7 +43,7 @@ Email registration is the most common method and requires verifying your email a
 
 5. **Verify Email**
 
-   - Open your email and find the verification email from zenstory
+   - Open your email and find the verification email from ZenStory
    - Copy the 6-digit verification code from the email
    - Enter the verification code on the verification page
    - Click the "Verify" button
@@ -69,7 +69,7 @@ A quick login method that doesn't require filling out forms or email verificatio
 1. Find the "Sign in with Google" button on the login or registration page
 2. Click the button to redirect to the Google authorization page
 3. Select your Google account
-4. Authorize zenstory to access your basic information (email, name, avatar)
+4. Authorize ZenStory to access your basic information (email, name, avatar)
 5. Registration/login will complete automatically and redirect to the workbench
 
 #### Advantages
@@ -85,7 +85,7 @@ A quick login method that doesn't require filling out forms or email verificatio
 
 ### Invite Code System
 
-zenstory uses an invitation-based registration system to encourage healthy community growth.
+ZenStory uses an invitation-based registration system to encourage healthy community growth.
 
 [Screenshot: Invite code input field showing green checkmark validation status for valid code]
 
@@ -149,14 +149,14 @@ After successful login, the system intelligently redirects based on your project
 
 ### Remember Login State
 
-zenstory uses JWT tokens to manage login state:
+ZenStory uses JWT tokens to manage login state:
 
 - **Access token**: Short validity period (e.g., 2 hours), used for API requests
 - **Refresh token**: Longer validity period (e.g., 7 days), used to automatically refresh access tokens
 - **Auto-refresh**: When the access token expires, the system automatically uses the refresh token to obtain a new one
 - **No repeated logins**: As long as the refresh token is valid, no need to log in again
 
-> **Security Tip**: Don't check your browser's "Remember password" feature on public computers. zenstory's tokens are stored in browser local storage and won't be cleared when you exit the browser.
+> **Security Tip**: Don't check your browser's "Remember password" feature on public computers. ZenStory's tokens are stored in browser local storage and won't be cleared when you exit the browser.
 
 ### Secure Logout
 
@@ -197,7 +197,7 @@ If you forget your password, you can reset it through your registered email.
    - Click the "Send Reset Link" button
 
 3. **Check Your Email**
-   - Open your email and find the password reset email from zenstory
+   - Open your email and find the password reset email from ZenStory
    - The email contains a reset link valid for **1 hour**
 
 4. **Reset Password**
@@ -239,7 +239,7 @@ After logging in, you can modify your personal information in the settings page.
 
 ### Theme Switching
 
-zenstory supports light/dark themes:
+ZenStory supports light/dark themes:
 
 1. Go to the "Settings" page
 2. Find the "Theme" option in the "Appearance Settings" section
@@ -252,7 +252,7 @@ zenstory supports light/dark themes:
 
 ### Language Switching
 
-zenstory supports multiple interface languages:
+ZenStory supports multiple interface languages:
 
 1. Go to the "Settings" page
 2. Select interface language in the "Language Settings" section
@@ -302,7 +302,7 @@ zenstory supports multiple interface languages:
 1. **Browser blocked popup**: Allow browser popups, or manually redirect to the Google authorization page
 2. **Network issue**: Check your network connection and ensure you can access Google services
 3. **Google service error**: Try again later, or use email registration instead
-4. **Insufficient account permissions**: Ensure you authorize zenstory to access basic information (email, name)
+4. **Insufficient account permissions**: Ensure you authorize ZenStory to access basic information (email, name)
 
 ### Logged out immediately after login?
 
@@ -361,7 +361,7 @@ If you encounter account-related issues, you can get help through:
 After completing registration and login, you can:
 
 - **[Create Your First Project](./first-project.md)** - Start your creative journey
-- **[Understand the Interface](../user-guide/interface-overview.md)** - Familiarize yourself with zenstory's three-panel layout
+- **[Understand the Interface](../user-guide/interface-overview.md)** - Familiarize yourself with ZenStory's three-panel layout
 - **[Chat with AI](../user-guide/ai-assistant.md)** - Learn how to efficiently use the AI assistant
 - **[Manage Files](../user-guide/file-tree.md)** - Master file organization and version control
 

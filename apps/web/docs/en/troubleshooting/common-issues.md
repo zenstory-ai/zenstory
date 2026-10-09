@@ -1,6 +1,6 @@
 # Common Issues Troubleshooting
 
-When you encounter problems while using zenstory, follow this guide to troubleshoot step by step. If the issue persists, please contact customer support for assistance.
+When you encounter problems while using ZenStory, follow this guide to troubleshoot step by step. If the issue persists, please contact customer support for assistance.
 
 ---
 
@@ -146,7 +146,7 @@ If conversation suddenly stops or shows an error, follow these steps:
 
 ### Content Not Saved
 
-zenstory uses an auto-save mechanism. If you notice content loss:
+ZenStory uses an auto-save mechanism. If you notice content loss:
 
 1. **Check Network Connection**
    - Auto-save requires network connection
@@ -290,7 +290,7 @@ zenstory uses an auto-save mechanism. If you notice content loss:
 ### Slow First Load
 
 1. **First Load Downloads Resources**
-   - zenstory's first load requires downloading JS, CSS, and other static resources
+   - ZenStory's first load requires downloading JS, CSS, and other static resources
    - Subsequent visits use browser cache and will be much faster
 
 2. **Network Speed Impact**
@@ -334,6 +334,6 @@ Our technical team will locate the problem as soon as possible and provide you w
 
 **Related Documentation**
 
-- [Quick Start](../getting-started/quick-start.md) - Learn the basics of using zenstory
+- [Quick Start](../getting-started/quick-start.md) - Learn the basics of using ZenStory
 - [FAQ](../reference/faq.md) - View common questions about features
 - [User Guide](../user-guide/interface-overview.md) - Detailed feature usage tutorials

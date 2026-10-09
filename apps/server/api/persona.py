@@ -26,7 +26,15 @@ PERSONA_ONBOARDING_DEFAULT_ROLLOUT_AT = "2026-03-05T16:00:00Z"
 PERSONA_ONBOARDING_DEFAULT_WINDOW_DAYS = 7
 MAX_PERSONA_SELECTION = 3
 ALLOWED_EXPERIENCE_LEVELS = {"beginner", "intermediate", "advanced"}
-ALLOWED_PERSONA_IDS = {"explorer", "serial", "professional", "fanfic", "studio"}
+ALLOWED_PERSONA_IDS = {
+    "explorer",
+    "serial",
+    "professional",
+    "fanfic",
+    "studio",
+    "short_story",
+    "screenwriter",
+}
 ALLOWED_GOAL_IDS = {"finishBook", "buildHabit", "improveQuality", "growAudience", "monetize"}
 
 

@@ -1,4 +1,4 @@
-# zenstory Docker Compose 使用指南
+# ZenStory Docker Compose 使用指南
 
 ## Quick Start（推荐）
 
@@ -45,7 +45,7 @@ docker compose exec -e ZENSTORY_ADMIN_EMAIL=you@example.com \
 | Google 登录 | 后端 `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`GOOGLE_REDIRECT_URI`、`FRONTEND_URL`；前端（`web.environment`）`VITE_GOOGLE_OAUTH_ENABLED=true` |
 | 素材库拆解 | 另行运行 Prefect server 与 worker（见 `apps/server/prefect.yaml`），并给套餐打开素材库权限 |
 | 灵感库（默认关闭） | 快速启动在根目录 `.env` 中设 `INSPIRATIONS_ENABLED=true`，再运行 `docker compose up -d`；该 Compose 自动同步前后端开关。完整部署分别在 `apps/server/.env.docker` 设 `INSPIRATIONS_ENABLED=true`、`apps/web/.env.docker` 设 `VITE_INSPIRATIONS_ENABLED=true`，再运行 `docker compose -f docker-compose.full.yml up -d`。关闭时数据保留，用户/后台入口与 API 停用，不影响输入自己的创意创建项目 |
-| 外部 Agent 接入（Agent API / zenstory CLI） | `API_BASE_URL=https://你的服务器/api/v1`（后端地址，不是 5173，会写进 `/skill.md`）。设置页按前端 `VITE_API_BASE_URL` 给出 `npx zenstory login --api-base <后端地址>/api/v1` 与 `<后端地址>/skill.md`；用户在终端运行后按提示粘贴 Key。CLI 只接受 https（`localhost` / `127.0.0.1` / `::1` 例外），局域网 http 部署需要先在前面加一层 TLS 反向代理 |
+| 外部 Agent 接入（Agent API / ZenStory 命令行工具 `zenstory`） | `API_BASE_URL=https://你的服务器/api/v1`（后端地址，不是 5173，会写进 `/skill.md`）。设置页按前端 `VITE_API_BASE_URL` 给出 `npx zenstory login --api-base <后端地址>/api/v1` 与 `<后端地址>/skill.md`；用户在终端运行后按提示粘贴 Key。CLI 只接受 https（`localhost` / `127.0.0.1` / `::1` 例外），局域网 http 部署需要先在前面加一层 TLS 反向代理 |
 | Pro 套餐、兑换码 | `python scripts/seed_subscription_plans.py` 创建 Pro 套餐；`REDEMPTION_CODE_HMAC_SECRET`（至少 32 字符） |
 
 ## 生产部署（PostgreSQL + Redis）

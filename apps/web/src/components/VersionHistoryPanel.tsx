@@ -5,8 +5,9 @@
  * handling:
  * - Snapshot history display with file/folder counts
  * - Snapshot description editing
- * - Version rollback with confirmation
+ * - Version rollback with an in-app confirmation dialog
  * - Side-by-side version comparison
+ * - Accessible modal shell (Esc to close, focus trap and focus return)
  * - Real-time snapshot loading with error handling
  * - Mobile-responsive layout
  *
@@ -26,9 +27,12 @@ import {
 import { logger } from '../lib/logger';
 import { versionApi } from '../lib/api';
 import { formatRelativeTimeWithYear } from '../lib/dateUtils';
+import { toast } from '../lib/toast';
+import { describeVersionSummary } from '../lib/versionSummary';
 import type { Snapshot } from '../types';
 import { SnapshotComparisonDialog } from './SnapshotComparisonDialog';
-import { useIsMobile } from '../hooks/useMediaQuery';
+import { Modal } from './ui/Modal';
+import { ConfirmDialog } from './ui/ConfirmDialog';
 
 /**
  * Extended snapshot type with computed summary information.
@@ -67,7 +71,6 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
   onRollback,
   onCompare,
 }) => {
-  const isMobile = useIsMobile();
   const { t } = useTranslation(['editor', 'common']);
   const [snapshots, setSnapshots] = useState<SnapshotWithSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,21 +85,7 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
   const [hasMore, setHasMore] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-
-  // Esc 关闭（和其它弹窗一致）。对比视图在上层时交给它处理；正在编辑描述时先退出编辑；
-  // 回滚等操作进行中不关闭，避免操作结果无处显示。
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || showComparison) return;
-      if (editingId) {
-        setEditingId(null);
-        return;
-      }
-      if (!actionBusy) onClose();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [showComparison, editingId, actionBusy, onClose]);
+  const [pendingRollbackId, setPendingRollbackId] = useState<string | null>(null);
   const contextGeneration = useRef(0);
   const requestGeneration = useRef(0);
   const listInFlight = useRef<number | null>(null);
@@ -192,6 +181,7 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
     setShowComparison(false);
     setActionBusy(false);
     setActionError(null);
+    setPendingRollbackId(null);
     void loadSnapshots();
     return () => {
       contextGeneration.current += 1;
@@ -227,12 +217,19 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
     }
   };
 
-  const handleRollback = async (snapshotId: string) => {
+  const handleRollback = (snapshotId: string) => {
     if (actionInFlight.current !== null) return;
-    if (!confirm(t('editor:versionHistory.confirmRollback'))) {
-      return;
-    }
+    setPendingRollbackId(snapshotId);
+  };
 
+  const handleConfirmRollback = () => {
+    const snapshotId = pendingRollbackId;
+    setPendingRollbackId(null);
+    if (snapshotId) void performRollback(snapshotId);
+  };
+
+  const performRollback = async (snapshotId: string) => {
+    if (actionInFlight.current !== null) return;
     const context = contextGeneration.current;
     const action = Symbol('rollback');
     actionInFlight.current = action;
@@ -249,7 +246,7 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
     } catch (err) {
       if (context !== contextGeneration.current) return;
       logger.error('Rollback failed:', err);
-      alert(translate.current('editor:versionHistory.rollbackFailed'));
+      toast.error(translate.current('editor:versionHistory.rollbackFailed'));
     } finally {
       if (actionInFlight.current === action) {
         actionInFlight.current = null;
@@ -289,23 +286,46 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
     return labels[type] || type;
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="version-history-title"
-        className={`bg-[hsl(var(--bg-secondary))] rounded-2xl flex flex-col shadow-2xl ${
-        isMobile ? 'w-full max-h-[80vh]' : 'max-w-3xl w-full max-h-[80vh]'
-      }`}>
-        {/* Header */}
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-2">
-            <Clock className="w-5 h-5 text-[hsl(var(--accent-primary))]" />
-            <h2 id="version-history-title" className="text-lg font-semibold text-[hsl(var(--text-primary))]">{t('editor:versionHistory.title')}</h2>
-          </div>
+  // While a restore is reconciling, every close path (button, Esc, backdrop)
+  // stays inert so the workbench can finish swapping the project contents.
+  const handleClose = () => {
+    if (actionInFlight.current === null) onClose();
+  };
 
-          <div className="flex items-center gap-2">
+  // Escape while editing a description only leaves edit mode; the Modal's own
+  // Escape is switched off meanwhile (closeOnEscape below). Dialogs stacked on
+  // top (comparison, rollback confirmation) handle their own Escape.
+  useEffect(() => {
+    if (!editingId || showComparison || pendingRollbackId) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setEditingId(null);
+      setEditDescription('');
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [editingId, showComparison, pendingRollbackId]);
+
+  return (
+    <>
+      <Modal
+        open={true}
+        onClose={handleClose}
+        size="xl"
+        showCloseButton={false}
+        closeOnEscape={!actionBusy && !editingId}
+        closeOnBackdropClick={!actionBusy}
+        className="relative max-h-[80vh]"
+        title={
+          <span className="flex items-center gap-2 pr-32">
+            <Clock className="w-5 h-5 text-[hsl(var(--accent-primary))]" />
+            <span>{t('editor:versionHistory.title')}</span>
+          </span>
+        }
+        description={t('editor:versionHistory.intro')}
+      >
+        {/* Header actions sit in the dialog's top-right corner. */}
+        <div className="absolute right-4 top-5 flex items-center gap-2">
 
             {selectedForCompare.length === 2 && (
               <button
@@ -318,17 +338,18 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
             )}
 
             <button
-              onClick={onClose}
+              type="button"
+              onClick={handleClose}
               disabled={actionBusy}
-              className="p-1.5 hover:bg-[hsl(var(--bg-tertiary))] rounded-md text-[hsl(var(--text-primary))]"
+              aria-label={t('common:close')}
+              className="p-1.5 hover:bg-[hsl(var(--bg-tertiary))] rounded-md text-[hsl(var(--text-primary))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)]"
             >
               <X className="w-5 h-5" />
             </button>
-          </div>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div>
           {loading && (
             <div className="text-center text-[hsl(var(--text-secondary))] py-8">{t('common:loading')}</div>
           )}
@@ -443,7 +464,7 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
                   ) : (
                     <div className="flex items-start gap-2 mb-2">
                       <p className="flex-1 text-sm text-[hsl(var(--text-secondary))]">
-                        {snapshot.description || (
+                        {describeVersionSummary(snapshot.description, t) ?? (
                           <span className="text-[hsl(var(--text-secondary))]">{t('editor:versionHistory.noDescription')}</span>
                         )}
                       </p>
@@ -451,7 +472,7 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
                         onClick={() => {
                           if (!snapshotId) return;
                           setEditingId(snapshotId);
-                          setEditDescription(snapshot.description || '');
+                          setEditDescription(describeVersionSummary(snapshot.description, t) ?? '');
                         }}
                         disabled={!isSelectable || actionBusy}
                         className={`p-1 hover:bg-[hsl(var(--bg-hover))] rounded text-[hsl(var(--text-secondary))] ${!isSelectable ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -482,7 +503,18 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
             </div>
           )}
         </div>
-      </div>
+      </Modal>
+
+      <ConfirmDialog
+        open={pendingRollbackId !== null}
+        onClose={() => setPendingRollbackId(null)}
+        onConfirm={handleConfirmRollback}
+        title={t('editor:versionHistory.confirmRollbackTitle')}
+        message={t('editor:versionHistory.confirmRollback')}
+        confirmLabel={t('editor:versionHistory.confirmRollbackButton')}
+        cancelLabel={t('common:cancel')}
+        variant="warning"
+      />
 
       {/* Comparison Dialog */}
       {showComparison && selectedForCompare.length === 2 && (
@@ -495,7 +527,7 @@ export const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({
           }}
         />
       )}
-    </div>
+    </>
   );
 };
 

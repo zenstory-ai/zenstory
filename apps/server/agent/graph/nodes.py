@@ -26,6 +26,21 @@ logger = get_logger(__name__)
 
 FAST_MODE_DIRECTIVE = "本轮为快速模式：写完直接结束，不要交接给 quality_reviewer 审稿。"
 
+# 完成标记：提示词要求 [TASK_COMPLETE]，但模型用中文回复时常写成 [任务完成]
+# （也有全角括号的写法）。两种都认作完成，否则以 [任务完成] 收尾的轮次不会结束，
+# 计划交接 / 自动送审会继续往下跑。
+_TASK_COMPLETE_MARKER_RE = re.compile(
+    r"(?:\[\s*task_complete\s*\]|[\[【]\s*任务完成\s*[\]】])\s*$", re.IGNORECASE
+)
+
+
+def _strip_task_complete_marker(text: str) -> tuple[str, bool]:
+    """去掉行尾的完成标记（[TASK_COMPLETE] / [任务完成]），返回 (余下文本, 是否带标记)。"""
+    match = _TASK_COMPLETE_MARKER_RE.search(text)
+    if match is None:
+        return text, False
+    return text[: match.start()].rstrip(), True
+
 
 # =============================================================================
 # Streaming Agent Implementation
@@ -147,13 +162,12 @@ def evaluate_agent_output(content: str, agent_type: str = "unknown") -> OutputEv
             reason="empty_content",
         )
 
-    lowered = text.lower()
-
-    # Explicit [TASK_COMPLETE] marker is the ONLY completion signal.
-    # Chinese substring heuristics (任务已完成, 已完成, etc.) are intentionally
-    # removed: they produced false positives whenever those phrases appeared
-    # mid-text.  Mirror the clarification approach: structured signal only.
-    has_complete_marker = lowered.endswith("[task_complete]")
+    # Explicit [TASK_COMPLETE] marker (or its Chinese alias [任务完成]) at the very
+    # end is the ONLY completion signal. Chinese substring heuristics (任务已完成,
+    # 已完成, etc.) are intentionally removed: they produced false positives whenever
+    # those phrases appeared mid-text.  Mirror the clarification approach:
+    # structured signal only.
+    _, has_complete_marker = _strip_task_complete_marker(text)
     complete_score = 1.0 if has_complete_marker else 0.0
     clarification_score = 0.0
 
@@ -258,8 +272,7 @@ def ends_with_question_to_user(tail_text: str) -> bool:
     if "<file" in lowered:
         return False
 
-    if text.lower().endswith("[task_complete]"):
-        text = text[: -len("[task_complete]")].strip()
+    text, _ = _strip_task_complete_marker(text)
 
     lines = [line for line in (raw.rstrip() for raw in text.splitlines()) if line.strip()]
     if not lines:

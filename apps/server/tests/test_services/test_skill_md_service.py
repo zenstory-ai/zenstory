@@ -350,8 +350,8 @@ class TestContentStructure:
         zh_content = service._generate_chinese()
         en_content = service._generate_english()
 
-        assert "# zenstory" in zh_content
-        assert "# zenstory" in en_content
+        assert "# ZenStory" in zh_content
+        assert "# ZenStory" in en_content
 
     def test_content_has_curl_examples(self, service):
         """Test that content contains curl examples."""
@@ -399,7 +399,7 @@ class TestAgentSkillsSpecCompliance:
         description = frontmatter["description"]
         assert isinstance(description, str)
         assert 0 < len(description) <= 1024
-        assert "zenstory" in description
+        assert "ZenStory" in description
 
     def test_metadata_is_string_map_with_legacy_fields(self, frontmatter):
         metadata = frontmatter["metadata"]

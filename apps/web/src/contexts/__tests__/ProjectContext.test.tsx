@@ -469,6 +469,59 @@ describe('ProjectContext', () => {
 
       expect(vi.mocked(projectApi.getAll).mock.calls.length).toBe(initialCallCount + 1)
     })
+
+    it('refreshProject re-reads one project in place without turning on loading', async () => {
+      // ProjectEditor swaps the whole workspace for a page loader while `loading`
+      // is true, so a rename picked up mid-chat must not flip it.
+      vi.mocked(projectApi.getAll).mockResolvedValue(mockProjects)
+      const wrapper = createWrapper(mockUser)
+      const loadingHistory: boolean[] = []
+      const { result } = renderHook(() => {
+        const ctx = useProject()
+        loadingHistory.push(ctx.loading)
+        return ctx
+      }, { wrapper })
+
+      await waitFor(() => {
+        expect(result.current.projects.length).toBe(2)
+        expect(result.current.loading).toBe(false)
+      })
+      const getAllCalls = vi.mocked(projectApi.getAll).mock.calls.length
+      const currentBefore = result.current.currentProjectId
+      loadingHistory.length = 0
+
+      vi.mocked(projectApi.get).mockResolvedValueOnce({ ...mockProjects[1], name: '雾港来信' })
+      await act(async () => {
+        await result.current.refreshProject('project-2')
+      })
+
+      expect(projectApi.get).toHaveBeenCalledWith('project-2')
+      expect(vi.mocked(projectApi.getAll).mock.calls.length).toBe(getAllCalls)
+      expect(result.current.projects.find(p => p.id === 'project-2')?.name).toBe('雾港来信')
+      expect(result.current.projects.find(p => p.id === 'project-1')?.name).toBe('Project 1')
+      expect(result.current.currentProjectId).toBe(currentBefore)
+      expect(loadingHistory).not.toContain(true)
+    })
+
+    it('refreshProject leaves the list alone when the read fails or the project is not listed', async () => {
+      vi.mocked(projectApi.getAll).mockResolvedValue(mockProjects)
+      const wrapper = createWrapper(mockUser)
+      const { result } = renderHook(() => useProject(), { wrapper })
+      await waitFor(() => expect(result.current.projects.length).toBe(2))
+      const before = result.current.projects
+
+      vi.mocked(projectApi.get).mockRejectedValueOnce(new Error('network'))
+      await act(async () => {
+        await result.current.refreshProject('project-1')
+      })
+      vi.mocked(projectApi.get).mockResolvedValueOnce({ ...mockProjects[0], id: 'project-9', name: 'Other' })
+      await act(async () => {
+        await result.current.refreshProject('project-9')
+      })
+
+      expect(result.current.projects).toEqual(before)
+      expect(result.current.loading).toBe(false)
+    })
   })
 
   // ========================================

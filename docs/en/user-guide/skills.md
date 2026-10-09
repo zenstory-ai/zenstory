@@ -1,6 +1,6 @@
 # Skills System
 
-The Skills System is a core feature of the zenstory Writing Workbench: it lets you turn a writing method (character design, outline structure, scene description, and so on) into a preset instruction set that the AI applies whenever it's needed.
+The Skills System is a core feature of the ZenStory Writing Workbench: it lets you turn a writing method (character design, outline structure, scene description, and so on) into a preset instruction set that the AI applies whenever it's needed.
 
 ## What are Skills?
 
@@ -30,7 +30,7 @@ Browse and add quality skills from official and community sources on the "Discov
 **Skill Sources**:
 | Source | Description |
 |--------|-------------|
-| Official | Carefully crafted by the zenstory team, fully tested and optimized |
+| Official | Carefully crafted by the ZenStory team, fully tested and optimized |
 | Community | Created and shared by users, published after review |
 
 ## My Skills
@@ -141,9 +141,9 @@ Selected skills appear as chips above the input box and are cleared automaticall
 
 ## Open Skill Format
 
-zenstory skills follow the open Agent Skills format (`SKILL.md`), which means:
+ZenStory skills follow the open Agent Skills format (`SKILL.md`), which means:
 
-- **Import**: You can import a `.zip` skill package or a single `.md` file in this format (up to 1 MB). Any executable scripts or non-text files in an imported package are automatically dropped, and the import result lists which files were skipped — **zenstory never executes any script bundled with a skill.**
+- **Import**: You can import a `.zip` skill package or a single `.md` file in this format (up to 1 MB). Any executable scripts or non-text files in an imported package are automatically dropped, and the import result lists which files were skipped — **ZenStory never executes any script bundled with a skill.**
 - **Export**: You can export your own skills as a `.zip` package for use in other tools that support the Agent Skills format (such as Claude Code).
 
 ## Share Skills

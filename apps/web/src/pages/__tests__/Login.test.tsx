@@ -70,17 +70,21 @@ vi.mock("../../lib/api", () => ({
   },
 }));
 
-vi.mock("../../config/auth", () => ({
-  authConfig: {
-    registrationEnabled: true,
-    forgotPasswordEnabled: true,
-    oauthProviders: {
-      google: { get enabled() { return mockOAuthEnabled.google; } },
-      apple: { enabled: false },
+vi.mock("../../config/auth", async () => {
+  const actual = await vi.importActual<typeof import("../../config/auth")>("../../config/auth");
+  return {
+    authConfig: {
+      registrationEnabled: true,
+      // The shipped default (no VITE_FORGOT_PASSWORD_ENABLED in the test env).
+      forgotPasswordEnabled: actual.authConfig.forgotPasswordEnabled,
+      oauthProviders: {
+        google: { get enabled() { return mockOAuthEnabled.google; } },
+        apple: { enabled: false },
+      },
     },
-  },
-  hasOAuthProviders: () => mockOAuthEnabled.google,
-}));
+    hasOAuthProviders: () => mockOAuthEnabled.google,
+  };
+});
 
 vi.mock("../../lib/ssoRedirect", () => ({
   handleSsoRedirect: mockHandleSsoRedirect,
@@ -186,6 +190,15 @@ describe("Login", () => {
   it("does not render redundant inline helper text for login method", () => {
     renderPage();
     expect(screen.queryByText(/auth:login.helper/)).not.toBeInTheDocument();
+  });
+
+  it("shows the forgot-password link by default", () => {
+    expect(import.meta.env.VITE_FORGOT_PASSWORD_ENABLED).toBeUndefined();
+    renderPage();
+    expect(screen.getByRole("link", { name: "auth:login.forgotPassword" })).toHaveAttribute(
+      "href",
+      "/forgot-password",
+    );
   });
 
   it("passes normalized plan intent through Google login", () => {

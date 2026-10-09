@@ -21,6 +21,13 @@ from middleware.rate_limit import _rate_limit_store
 # Tests should not depend on external Redis availability.
 os.environ.setdefault("RATE_LIMIT_BACKEND", "memory")
 
+# `from main import app` ran load_dotenv(), so a developer's .env REDIS_URL (often
+# pointing at a Redis that isn't running) is now in this process. CI never has
+# one; drop it so local runs match CI. Real-Redis lanes use ZENSTORY_TEST_REDIS_URL,
+# and ZENSTORY_TEST_KEEP_REDIS_URL=1 opts back in explicitly.
+if os.getenv("ZENSTORY_TEST_KEEP_REDIS_URL") != "1":
+    os.environ.pop("REDIS_URL", None)
+
 temp_db_file = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
 temp_db_path = temp_db_file.name
 temp_db_file.close()
@@ -300,6 +307,21 @@ def _reset_tool_context():
         yield
     finally:
         ToolContext.clear_context()
+
+
+@pytest.fixture(autouse=True)
+def _reset_steering_redis_health(monkeypatch):
+    """每个用例都从「没检查过 Redis 健康」开始，结束后还原模块全局。
+
+    steering 把 Redis 健康结论缓存 30 秒（进程级全局）。fake Redis 夹具把它标成
+    健康后，同一 xdist worker 上后面的用例若拿到真实 REDIS_URL，会跳过 ping
+    直连一个不存在的 Redis：失败或挂起，且随分组顺序时有时无。
+    """
+    import agent.core.steering as steering
+
+    monkeypatch.setattr(steering, "_redis_health_checked_at", 0.0)
+    monkeypatch.setattr(steering, "_redis_is_healthy", False)
+    monkeypatch.setattr(steering, "_redis_health_url", None)
 
 
 @pytest.fixture

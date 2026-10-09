@@ -50,7 +50,12 @@ export function getBaseUrl(): string {
  *
  * @internal
  */
-const AGENT_CONTROL_MARKERS = ['[NEEDS_CLARIFICATION]', '[TASK_COMPLETE]'];
+const AGENT_CONTROL_MARKERS = ['[NEEDS_CLARIFICATION]', '[TASK_COMPLETE]', '[需要澄清]', '[任务完成]'];
+
+const AGENT_CONTROL_MARKER_PATTERN = new RegExp(
+  AGENT_CONTROL_MARKERS.map(escapeRegExp).join('|'),
+  'g',
+);
 
 /**
  * Escape special characters in a string for use in a regular expression.
@@ -75,12 +80,17 @@ function escapeRegExp(str: string): string {
  * @returns The cleaned content with think tags and control markers removed
  */
 export function stripThinkTags(content: string): string {
-  let result = content.replace(/<\/think>/gi, '');
+  const result = content.replace(/<\/think>/gi, '');
+  return stripAgentControlMarkers(result).trim();
+}
 
-  // Remove all control markers
-  for (const marker of AGENT_CONTROL_MARKERS) {
-    result = result.replace(new RegExp(escapeRegExp(marker), 'g'), '');
-  }
-
-  return result.trim();
+/**
+ * Remove agent control markers (English and Chinese aliases such as
+ * `[TASK_COMPLETE]` / `[任务完成]`).
+ *
+ * @param content - Text that may contain control markers
+ * @returns The text without control markers (not trimmed)
+ */
+export function stripAgentControlMarkers(content: string): string {
+  return content.replace(AGENT_CONTROL_MARKER_PATTERN, '');
 }

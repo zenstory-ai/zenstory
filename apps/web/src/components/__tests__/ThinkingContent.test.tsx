@@ -37,11 +37,19 @@ vi.mock('../../hooks/useThinkingVisibility', () => ({
   })),
 }))
 
+const thinkingLabels: Record<string, string> = {
+  'chat:tool.edit_file': '编辑文件',
+  'chat:workflow.agents.writer': '内容创作者',
+}
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string) => thinkingLabels[key] ?? key,
   }),
 }))
+
+const EXPANDED_KEY = 'zenstory_thinking_expanded_v2'
+const LEGACY_EXPANDED_KEY = 'zenstory_thinking_expanded'
 
 describe('ThinkingContent', () => {
   beforeEach(() => {
@@ -71,7 +79,7 @@ describe('ThinkingContent', () => {
 
   it('renders thinking text', async () => {
     // Set to expanded state
-    localStorage.setItem('zenstory_thinking_expanded', 'true')
+    localStorage.setItem(EXPANDED_KEY, 'true')
 
     render(<ThinkingContent content="Analyzing your request..." />)
     expect(screen.getByText('chat:thinking.title')).toBeInTheDocument()
@@ -86,7 +94,7 @@ describe('ThinkingContent', () => {
   it('toggles visibility when clicked', async () => {
     const user = userEvent.setup()
     // Start expanded
-    localStorage.setItem('zenstory_thinking_expanded', 'true')
+    localStorage.setItem(EXPANDED_KEY, 'true')
 
     render(<ThinkingContent content="Thinking process" />)
 
@@ -113,46 +121,82 @@ describe('ThinkingContent', () => {
     })
   })
 
-  it('collapses by default when localStorage is false', async () => {
-    localStorage.setItem('zenstory_thinking_expanded', 'false')
+  it('is collapsed by default for a new author and does not write storage on mount', () => {
+    render(<ThinkingContent content="Thinking process" isStreaming />)
+
+    expect(screen.queryByText('Thinking process')).not.toBeInTheDocument()
+    // The title and the streaming animation stay visible while collapsed.
+    expect(screen.getByText('chat:thinking.title')).toBeInTheDocument()
+    expect(screen.getByRole('button')).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button').querySelectorAll('.animate-pulse')).toHaveLength(3)
+    expect(localStorage.getItem(EXPANDED_KEY)).toBeNull()
+  })
+
+  it('ignores the legacy key that the old panel wrote as "true" on every mount', () => {
+    localStorage.setItem(LEGACY_EXPANDED_KEY, 'true')
 
     render(<ThinkingContent content="Thinking process" />)
 
-    // Should be collapsed - content not visible
+    expect(screen.queryByText('Thinking process')).not.toBeInTheDocument()
+    expect(localStorage.getItem(EXPANDED_KEY)).toBeNull()
+  })
+
+  it('collapses when the stored choice is false', async () => {
+    localStorage.setItem(EXPANDED_KEY, 'false')
+
+    render(<ThinkingContent content="Thinking process" />)
+
     expect(screen.queryByText('Thinking process')).not.toBeInTheDocument()
   })
 
-  it('expands by default when localStorage is true', () => {
-    localStorage.setItem('zenstory_thinking_expanded', 'true')
+  it('expands when the author previously chose to expand', () => {
+    localStorage.setItem(EXPANDED_KEY, 'true')
 
     render(<ThinkingContent content="Thinking process" />)
 
-    // Should be expanded
     expect(screen.getByText('Thinking process')).toBeInTheDocument()
   })
 
-  it('persists expand/collapse state to localStorage', async () => {
+  it('persists the choice only after the author toggles', async () => {
     const user = userEvent.setup()
-    // Start expanded
-    localStorage.setItem('zenstory_thinking_expanded', 'true')
 
     render(<ThinkingContent content="Thinking process" />)
+    expect(localStorage.getItem(EXPANDED_KEY)).toBeNull()
 
-    const button = screen.getByRole('button')
-
-    // Click to collapse
     await act(async () => {
-      await user.click(button)
+      await user.click(screen.getByRole('button'))
     })
+    expect(screen.getByText('Thinking process')).toBeInTheDocument()
+    expect(localStorage.getItem(EXPANDED_KEY)).toBe('true')
 
-    // Check localStorage was updated
+    await act(async () => {
+      await user.click(screen.getByRole('button'))
+    })
     await waitFor(() => {
-      expect(localStorage.getItem('zenstory_thinking_expanded')).toBe('false')
+      expect(localStorage.getItem(EXPANDED_KEY)).toBe('false')
     })
   })
 
+  it('shows a cleaned copy of the reasoning without internal names, ids or markers', () => {
+    localStorage.setItem(EXPANDED_KEY, 'true')
+    const raw = [
+      '用 edit_file 改 3f2b1c9e-8a7d-4e6f-9b0a-1c2d3e4f5a6b，然后交给 `writer` [TASK_COMPLETE]',
+      '<file id="draft-1" title="第一章">',
+    ].join('\n')
+
+    const { container } = render(<ThinkingContent content={raw} />)
+
+    expect(screen.getByText('用 编辑文件 改 …，然后交给 内容创作者')).toBeInTheDocument()
+    expect(container.textContent).not.toMatch(/edit_file|3f2b1c9e|TASK_COMPLETE|<file|`writer`/)
+  })
+
+  it('renders nothing when only internal markup is left after cleaning', () => {
+    const { container } = render(<ThinkingContent content={'<file id="a">\n[TASK_COMPLETE]'} />)
+    expect(container.firstChild).toBeNull()
+  })
+
   it('shows streaming dots when isStreaming is true', () => {
-    localStorage.setItem('zenstory_thinking_expanded', 'true')
+    localStorage.setItem(EXPANDED_KEY, 'true')
     render(<ThinkingContent content="Thinking..." isStreaming={true} />)
 
     // Animated dots should be present
@@ -162,7 +206,7 @@ describe('ThinkingContent', () => {
   })
 
   it('does not show streaming dots when isStreaming is false', () => {
-    localStorage.setItem('zenstory_thinking_expanded', 'true')
+    localStorage.setItem(EXPANDED_KEY, 'true')
     render(<ThinkingContent content="Thinking..." isStreaming={false} />)
 
     // No animated dots in the button area
@@ -173,7 +217,7 @@ describe('ThinkingContent', () => {
   })
 
   it('renders markdown content', async () => {
-    localStorage.setItem('zenstory_thinking_expanded', 'true')
+    localStorage.setItem(EXPANDED_KEY, 'true')
     const content = `# Analysis
 
 - Point 1
@@ -187,7 +231,7 @@ describe('ThinkingContent', () => {
   })
 
   it('renders bold markdown text', async () => {
-    localStorage.setItem('zenstory_thinking_expanded', 'true')
+    localStorage.setItem(EXPANDED_KEY, 'true')
     render(<ThinkingContent content="This is **important** thinking" />)
 
     const strongElement = screen.getByText('important')
@@ -195,7 +239,7 @@ describe('ThinkingContent', () => {
   })
 
   it('renders italic markdown text', async () => {
-    localStorage.setItem('zenstory_thinking_expanded', 'true')
+    localStorage.setItem(EXPANDED_KEY, 'true')
     render(<ThinkingContent content="This is *emphasized* thinking" />)
 
     const emElement = screen.getByText('emphasized')
@@ -203,7 +247,7 @@ describe('ThinkingContent', () => {
   })
 
   it('renders code blocks in markdown', async () => {
-    localStorage.setItem('zenstory_thinking_expanded', 'true')
+    localStorage.setItem(EXPANDED_KEY, 'true')
     render(<ThinkingContent content="Use `code` here" />)
 
     const codeElement = screen.getByText('code')
@@ -211,7 +255,7 @@ describe('ThinkingContent', () => {
   })
 
   it('renders links in markdown', async () => {
-    localStorage.setItem('zenstory_thinking_expanded', 'true')
+    localStorage.setItem(EXPANDED_KEY, 'true')
     render(<ThinkingContent content="See [docs](https://example.com)" />)
 
     const link = screen.getByRole('link', { name: 'docs' })
@@ -219,7 +263,7 @@ describe('ThinkingContent', () => {
   })
 
   it('renders lists in markdown', async () => {
-    localStorage.setItem('zenstory_thinking_expanded', 'true')
+    localStorage.setItem(EXPANDED_KEY, 'true')
     const content = `- Item 1
 - Item 2
 - Item 3`
@@ -232,7 +276,7 @@ describe('ThinkingContent', () => {
 
   it('has correct aria-label for expand button', async () => {
     // Start collapsed
-    localStorage.setItem('zenstory_thinking_expanded', 'false')
+    localStorage.setItem(EXPANDED_KEY, 'false')
     render(<ThinkingContent content="Thinking process" />)
 
     const button = screen.getByRole('button')
@@ -242,7 +286,7 @@ describe('ThinkingContent', () => {
 
   it('has correct aria-label for collapse button', () => {
     // Start expanded
-    localStorage.setItem('zenstory_thinking_expanded', 'true')
+    localStorage.setItem(EXPANDED_KEY, 'true')
     render(<ThinkingContent content="Thinking process" />)
 
     const button = screen.getByRole('button')
@@ -251,7 +295,7 @@ describe('ThinkingContent', () => {
   })
 
   it('applies hover opacity transition', () => {
-    localStorage.setItem('zenstory_thinking_expanded', 'true')
+    localStorage.setItem(EXPANDED_KEY, 'true')
     const { container } = render(<ThinkingContent content="Thinking" />)
 
     const wrapper = container.firstChild as HTMLElement
@@ -272,7 +316,7 @@ describe('ThinkingContent', () => {
   })
 
   it('handles long content', async () => {
-    localStorage.setItem('zenstory_thinking_expanded', 'true')
+    localStorage.setItem(EXPANDED_KEY, 'true')
     const longContent = 'A'.repeat(1000)
     render(<ThinkingContent content={longContent} />)
 
@@ -282,7 +326,7 @@ describe('ThinkingContent', () => {
   })
 
   it('handles multiline content', async () => {
-    localStorage.setItem('zenstory_thinking_expanded', 'true')
+    localStorage.setItem(EXPANDED_KEY, 'true')
     const multilineContent = `Line 1
 Line 2
 Line 3`
@@ -293,7 +337,7 @@ Line 3`
   })
 
   it('shows chevron icon pointing up when expanded', () => {
-    localStorage.setItem('zenstory_thinking_expanded', 'true')
+    localStorage.setItem(EXPANDED_KEY, 'true')
     render(<ThinkingContent content="Thinking" />)
 
     // Check for chevron icon
@@ -305,7 +349,7 @@ Line 3`
   })
 
   it('shows chevron icon pointing down when collapsed', async () => {
-    localStorage.setItem('zenstory_thinking_expanded', 'false')
+    localStorage.setItem(EXPANDED_KEY, 'false')
     render(<ThinkingContent content="Thinking" />)
 
     const button = screen.getByRole('button')

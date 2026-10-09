@@ -1,71 +1,105 @@
 /**
- * 版本历史里的 change_summary 大多是后端/前端写死的系统文案（有英文有中文，
- * 快照恢复还带内部 id）。这里把已知的系统文案换成当前界面语言的说法，
- * 与类型徽标重复的直接不显示；认不出来的（用户自己写的备注）原样显示。
+ * Human-readable labels for the machine-written summaries stored on file
+ * versions and project snapshots.
+ *
+ * The server and the agent record stable English (and some Chinese) markers
+ * such as "Before restoring version 3", "Before rollback to snapshot <uuid>"
+ * or "AI 编辑: 替换、追加". Showing them verbatim put English, Chinese and raw
+ * UUIDs in front of writers regardless of the UI language. The history panels
+ * translate the known markers, hide the ones that only repeat the version's
+ * type badge, and show anything else (user notes) with ids scrubbed.
+ *
+ * Keys live under `versions:summary.*`; every inline `defaultValue` equals the
+ * zh locale text.
  */
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
-/** 与类型徽标（创建/编辑/AI 编辑）说的是同一件事，不再重复一行。 */
+/** Say the same thing as the type badge (创建 / 编辑 / AI 编辑), so no extra line. */
 const REDUNDANT_SUMMARIES = new Set([
-  'File updated', // api/files.py 默认值
-  'Initial version', // file_version_service 首个版本
+  'File updated', // api/files.py default
+  'Initial version', // file_version_service first version
   '创建文件', // agent create_file
-  'AI 更新文件内容', // agent 写入文件内容
-  'AI 编辑', // agent edit_file，无具体操作
+  'AI 更新文件内容', // agent writes file content
+  'AI 编辑', // agent edit_file without listed operations
 ]);
 
-const FIXED_SUMMARY_KEYS: Record<string, string> = {
-  'Snapshot baseline version': 'summaries.snapshotBaseline',
-  'Snapshot synchronized live content': 'summaries.snapshotSync',
-  'Created via Agent API': 'summaries.createdViaApi',
-  'Updated via Agent API': 'summaries.updatedViaApi',
-  'AI edit (reviewed)': 'summaries.aiReviewed',
-};
-
-/** agent edit_file 写入的操作名（apps/server/agent/tools/file_ops/edit.py）。 */
-const AI_EDIT_OP_KEYS: Record<string, string> = {
-  替换: 'summaries.ops.replace',
-  追加: 'summaries.ops.append',
-  前置: 'summaries.ops.prepend',
-  插入: 'summaries.ops.insert',
-  删除: 'summaries.ops.delete',
-};
-
+const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 const RESTORED_TO_VERSION = /^Restored to version (\d+)$/;
-// 快照恢复会带上快照 id（UUID 或其他内部 id），id 不给作者看。
+// Snapshot markers carry an internal snapshot id (UUID or otherwise); writers never see it.
+const BEFORE_RESTORE = /^(?:Before restoring version \d+|Before rollback to snapshot(?:\s+\S+)?)$/;
 const RESTORED_FROM_SNAPSHOT = /^Restored from snapshot(?:\s+\S+)?$/;
+const AI_RUN_CHECKPOINT =
+  /^(?:AI 对话完成 - 文件已修改|AI (?:chat|conversation) (?:finished|completed?) - files? (?:modified|changed))$/i;
 const AI_EDIT_WITH_OPS = /^AI 编辑[:：]\s*(.+?)(?:\s*等\s*(\d+)\s*处修改)?$/;
 
+/** Operation names written by agent edit_file (apps/server/agent/tools/file_ops/edit.py). */
+const AI_EDIT_OPS: Record<string, { key: string; defaultValue: string }> = {
+  替换: { key: 'versions:summary.ops.replace', defaultValue: '替换' },
+  追加: { key: 'versions:summary.ops.append', defaultValue: '追加' },
+  前置: { key: 'versions:summary.ops.prepend', defaultValue: '开头插入' },
+  插入: { key: 'versions:summary.ops.insert', defaultValue: '插入' },
+  删除: { key: 'versions:summary.ops.delete', defaultValue: '删除' },
+};
+
 const describeAiEditOps = (opsText: string, total: string | undefined, t: Translate): string | null => {
-  const opKeys = opsText.split(/[,，、]\s*/).map((op) => AI_EDIT_OP_KEYS[op.trim()]);
-  // 有认不出的操作名就不显示这一行：它仍是系统文案，徽标已经写了「AI 编辑」。
-  if (opKeys.length === 0 || opKeys.some((key) => !key)) return null;
-  const ops = opKeys.map((key) => t(key)).join(t('summaries.opsSeparator'));
+  const ops = opsText.split(/[,，、]\s*/).map((op) => AI_EDIT_OPS[op.trim()]);
+  // An unknown operation name means we can't describe it faithfully; the badge already says AI edit.
+  if (ops.length === 0 || ops.some((op) => !op)) return null;
+  const separator = t('versions:summary.opsSeparator', { defaultValue: '、' });
+  const opsLabel = ops.map((op) => t(op.key, { defaultValue: op.defaultValue })).join(separator);
   return total
-    ? t('summaries.aiEditOpsMore', { ops, total: Number(total) })
-    : t('summaries.aiEditOps', { ops });
+    ? t('versions:summary.aiEditOpsMore', {
+        ops: opsLabel,
+        total: Number(total),
+        defaultValue: 'AI 修改：{{ops}} 等 {{total}} 处',
+      })
+    : t('versions:summary.aiEditOps', { ops: opsLabel, defaultValue: 'AI 修改：{{ops}}' });
 };
 
 /**
- * 返回要在版本条目下显示的说明；返回 null 表示不显示。
- * `t` 需要绑定 versions 命名空间。
+ * Returns the line to show under a version or snapshot entry, or null when
+ * there is nothing worth showing (empty, or it repeats the type badge).
  */
 export function describeVersionSummary(summary: string | null | undefined, t: Translate): string | null {
-  const text = summary?.trim();
+  const text = (summary ?? '').trim();
   if (!text) return null;
   if (REDUNDANT_SUMMARIES.has(text)) return null;
 
-  const fixedKey = FIXED_SUMMARY_KEYS[text];
-  if (fixedKey) return t(fixedKey);
-
   const restoredTo = RESTORED_TO_VERSION.exec(text);
-  if (restoredTo) return t('summaries.restoredToVersion', { version: Number(restoredTo[1]) });
-
-  if (RESTORED_FROM_SNAPSHOT.test(text)) return t('summaries.restoredFromSnapshot');
+  if (restoredTo) {
+    return t('versions:summary.restoredTo', {
+      version: Number(restoredTo[1]),
+      defaultValue: '恢复到版本 {{version}}',
+    });
+  }
+  if (BEFORE_RESTORE.test(text)) {
+    return t('versions:summary.beforeRestore', { defaultValue: '恢复前自动备份' });
+  }
+  if (RESTORED_FROM_SNAPSHOT.test(text)) {
+    return t('versions:summary.restoredFromSnapshot', { defaultValue: '从项目快照恢复' });
+  }
+  if (text === 'Before AI edit') {
+    return t('versions:summary.beforeAiEdit', { defaultValue: 'AI 修改前自动备份' });
+  }
+  if (text === 'AI edit (reviewed)') {
+    return t('versions:summary.aiEditReviewed', { defaultValue: 'AI 修改（已审阅）' });
+  }
+  if (text === 'Snapshot baseline version' || text === 'Snapshot synchronized live content') {
+    return t('versions:summary.snapshotBaseline', { defaultValue: '拍项目快照时自动保存' });
+  }
+  if (text === 'Created via Agent API') {
+    return t('versions:summary.createdViaApi', { defaultValue: '通过 Agent API 创建' });
+  }
+  if (text === 'Updated via Agent API') {
+    return t('versions:summary.updatedViaApi', { defaultValue: '通过 Agent API 更新' });
+  }
+  if (AI_RUN_CHECKPOINT.test(text)) {
+    return t('versions:summary.aiRunCheckpoint', { defaultValue: 'AI 修改后自动存档' });
+  }
 
   const aiEdit = AI_EDIT_WITH_OPS.exec(text);
   if (aiEdit) return describeAiEditOps(aiEdit[1], aiEdit[2], t);
 
-  return text;
+  return text.replace(UUID_PATTERN, '…');
 }

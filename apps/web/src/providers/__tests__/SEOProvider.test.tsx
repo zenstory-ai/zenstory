@@ -52,8 +52,8 @@ describe('SEOProvider', () => {
       </SEOProvider>,
     )
 
-    expect(screen.getByTestId('seo-title')).toHaveTextContent('Login - zenstory')
-    expect(screen.getByTestId('seo-description')).toHaveTextContent('Sign in to your zenstory account')
+    expect(screen.getByTestId('seo-title')).toHaveTextContent('Login - ZenStory')
+    expect(screen.getByTestId('seo-description')).toHaveTextContent('Sign in to your ZenStory account')
     expect(screen.getByTestId('seo-noindex')).toHaveTextContent('true')
   })
 
@@ -67,7 +67,7 @@ describe('SEOProvider', () => {
       </SEOProvider>,
     )
 
-    expect(screen.getByTestId('seo-title')).toHaveTextContent('项目 - zenstory')
+    expect(screen.getByTestId('seo-title')).toHaveTextContent('项目 - ZenStory')
     expect(screen.getByTestId('seo-description')).toHaveTextContent('AI辅助的小说创作项目')
     expect(screen.getByTestId('seo-noindex')).toHaveTextContent('true')
   })

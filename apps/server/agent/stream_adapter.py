@@ -1110,7 +1110,11 @@ class StreamAdapter:
             return False
 
     def _save_file_content_sync(self, file_id: str, content: str) -> tuple[bool, bool]:
-        """Persist streamed file content with a fresh sync DB session."""
+        """Persist streamed file content with a fresh sync DB session.
+
+        This is an in-app agent write, so draft/script bodies get their double
+        quotes normalized to the manuscript's style (normalize_quotes=True).
+        """
         from agent.tools.file_ops import FileToolExecutor
         from database import create_session, get_session, is_postgres
 
@@ -1122,7 +1126,7 @@ class StreamAdapter:
                     session=session,
                     user_id=self.config.user_id,
                 )
-                result = executor.update_file(id=file_id, content=content)
+                result = executor.update_file(id=file_id, content=content, normalize_quotes=True)
             finally:
                 with contextlib.suppress(StopIteration):
                     next(session_gen)
@@ -1132,7 +1136,7 @@ class StreamAdapter:
                     session=session,
                     user_id=self.config.user_id,
                 )
-                result = executor.update_file(id=file_id, content=content)
+                result = executor.update_file(id=file_id, content=content, normalize_quotes=True)
 
         log_with_context(
             logger,

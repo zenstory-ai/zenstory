@@ -60,6 +60,7 @@ class FileToolExecutor:
         parent_id: str | None = None,
         order: int | None = None,
         metadata: dict[str, Any] | None = None,
+        normalize_quotes: bool = False,
     ) -> dict[str, Any]:
         """
         Create a new file.
@@ -87,6 +88,7 @@ class FileToolExecutor:
             parent_id=parent_id,
             order=order,
             metadata=metadata,
+            normalize_quotes=normalize_quotes,
         )
 
     def update_file(
@@ -97,6 +99,7 @@ class FileToolExecutor:
         parent_id: str | None = None,
         order: int | None = None,
         metadata: dict[str, Any] | None = None,
+        normalize_quotes: bool = False,
     ) -> dict[str, Any]:
         """
         Update an existing file.
@@ -123,6 +126,7 @@ class FileToolExecutor:
             parent_id=parent_id,
             order=order,
             metadata=metadata,
+            normalize_quotes=normalize_quotes,
         )
 
     def delete_file(
@@ -225,6 +229,7 @@ class FileToolExecutor:
         id: str,
         edits: list[dict[str, Any]],
         continue_on_error: bool = False,
+        normalize_quotes: bool = False,
     ) -> dict[str, Any]:
         """
         Apply precise edits to a file's content.
@@ -263,6 +268,7 @@ class FileToolExecutor:
             id=id,
             edits=edits,
             continue_on_error=continue_on_error,
+            normalize_quotes=normalize_quotes,
         )
 
     # ========== Project Operations ==========
@@ -274,6 +280,7 @@ class FileToolExecutor:
         current_phase: str | None = None,
         writing_style: str | None = None,
         notes: str | None = None,
+        title: str | None = None,
     ) -> dict[str, Any]:
         """
         Update project status information for AI context awareness.
@@ -284,6 +291,8 @@ class FileToolExecutor:
             current_phase: Current writing phase description
             writing_style: Writing style guidelines
             notes: Additional notes for AI assistant
+            title: Work title the AI gave the story; renames the project only
+                while it still carries a default name
 
         Returns:
             Updated project status fields
@@ -298,6 +307,7 @@ class FileToolExecutor:
             current_phase=current_phase,
             writing_style=writing_style,
             notes=notes,
+            title=title,
         )
 
     def execute_update_plan(

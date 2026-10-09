@@ -114,6 +114,42 @@ def routing_from_router_decided(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# 工作台首页「输入想法 → 新建作品」后自动发出的第一条消息带 metadata.entry=dashboard_idea。
+# 前端发的是作者原话；服务端只在发给模型的本轮内容里附一句隐藏提示，落库仍是原话。
+DASHBOARD_IDEA_ENTRY = "dashboard_idea"
+
+_PROJECT_TYPE_LABELS_ZH = {"novel": "长篇小说", "short": "短篇小说", "screenplay": "短剧剧本"}
+_PROJECT_TYPE_LABELS_EN = {"novel": "Novel", "short": "Short Story", "screenplay": "Short Drama Script"}
+
+
+def dashboard_kickoff_hint(project_type: str | None, force_en: bool) -> str:
+    """工作台首条想法的隐藏提示（只进模型输入，不落库、不显示）。"""
+    if force_en:
+        label = _PROJECT_TYPE_LABELS_EN.get(project_type or "", "project")
+        return (
+            f"This is the author's first message after creating a new \"{label}\" from the dashboard: "
+            "if the author has clearly asked for the manuscript, an outline or a script, do exactly that; "
+            "if the idea is already concrete, give the main characters, setting, core conflict and overall arc; "
+            "if it is still vague, ask two or three key questions first."
+        )
+    label = _PROJECT_TYPE_LABELS_ZH.get(project_type or "", "作品")
+    return (
+        f"这是作者在工作台新建「{label}」后发来的第一条消息："
+        "作者已经明确要求写正文/大纲/剧本时，直接按要求做；"
+        "想法已经具体时，给出主要人物、背景、核心冲突和大致走向；"
+        "还很模糊时，先问两三个关键问题。"
+    )
+
+
+def _load_project_type_sync(project_id: str) -> str | None:
+    """用独立短 session 查作品类型（PG offload 分支，不碰请求级 session）。"""
+    from models import Project
+
+    with create_session() as read_session:
+        project = read_session.get(Project, project_id)
+        return getattr(project, "project_type", None) if project else None
+
+
 class AgentService:
     """
     AI writing assistant service powered by workflow orchestration + openai-agents-python.
@@ -491,6 +527,26 @@ class AgentService:
             selected_skills=selected_skills or None,
         )
         return selected_skills, system_prompt
+
+    async def _lookup_project_type(self, session: Session, project_id: str) -> str | None:
+        """作品类型只用于首条想法提示的类型名；查不到时提示里用通用说法。"""
+        try:
+            if self._should_offload_session_work(session):
+                return await asyncio.to_thread(_load_project_type_sync, project_id)
+            from models import Project
+
+            project = session.get(Project, project_id)
+            return getattr(project, "project_type", None) if project else None
+        except Exception as exc:
+            log_with_context(
+                logger,
+                30,  # WARNING
+                "Failed to load project type for dashboard kickoff hint",
+                project_id=project_id,
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+            return None
 
     def _prepare_prompt_artifacts_sync(self, **kwargs: Any) -> tuple[list[dict[str, Any]], str]:
         """Same as _prepare_prompt_artifacts, using a fresh sync DB session."""
@@ -922,6 +978,13 @@ class AgentService:
                 if "current_file_type" in metadata:
                     context_parts.append(
                         f"{'File type' if force_en else '文件类型'}: {metadata['current_file_type']}"
+                    )
+                if metadata.get("entry") == DASHBOARD_IDEA_ENTRY:
+                    context_parts.append(
+                        dashboard_kickoff_hint(
+                            await self._lookup_project_type(session, project_id),
+                            force_en,
+                        )
                     )
                 if context_parts:
                     user_content += f"\n\n{'Context' if force_en else '上下文'}:\n" + "\n".join(context_parts)

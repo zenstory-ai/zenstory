@@ -187,6 +187,11 @@ async def test_put_saves_content_when_user_version_quota_is_exhausted(
         headers=headers,
     )
     assert first.status_code == 200, first.text
+    # 离开合并窗口：窗口内的保存会合并进已有版本，不新占额度。
+    first_version = db_session.get(FileVersion, first.json()["id"])
+    first_version.created_at -= timedelta(minutes=30)
+    db_session.add(first_version)
+    db_session.commit()
 
     resp = await client.put(
         f"/api/v1/files/{file_id}",

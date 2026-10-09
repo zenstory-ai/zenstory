@@ -25,6 +25,7 @@
  */
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useProject } from "../contexts/ProjectContext";
 import { useMobileLayout } from "../contexts/MobileLayoutContext";
 import { useMaterialAttachment } from "../contexts/MaterialAttachmentContext";
@@ -39,6 +40,8 @@ import { MessageInput } from "./MessageInput";
 import { ToolResultCard } from "./ToolResultCard";
 import { Sparkles, Loader2, Plus, Edit3, Database, ArrowDown } from "lucide-react";
 import { QuotaBadge } from "./subscription/QuotaBadge";
+import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { subscriptionApi, subscriptionQueryKeys } from "../lib/subscriptionApi";
 import type {
   AgentContextItem,
   AgentRequest,
@@ -377,8 +380,24 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     startFileStreaming,
     streamingFileId,
     enterDiffReview,
+    refreshProject,
   } =
     useProject();
+  const queryClient = useQueryClient();
+  // Same query (and cache) as the header's QuotaBadge, which also polls it.
+  const { data: quota } = useQuery({
+    queryKey: subscriptionQueryKeys.quota(),
+    queryFn: () => subscriptionApi.getQuota(),
+  });
+  const aiMessageQuota = quota?.ai_conversations;
+  const quotaExhausted = Boolean(
+    aiMessageQuota && aiMessageQuota.limit !== -1 && aiMessageQuota.used >= aiMessageQuota.limit,
+  );
+  /** Refresh the quota pill (and other quota readers) after the server charged or refunded. */
+  const invalidateQuota = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.quota() });
+    void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.quotaLite() });
+  }, [queryClient]);
   const { isMobile } = useMobileLayout();
   const { attachedFileIds, attachedLibraryMaterials, clearMaterials } = useMaterialAttachment();
   const { quotes, clearQuotes } = useTextQuote();
@@ -402,6 +421,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const pendingMaterialClearRef = useRef(false);
   const pendingQuoteClearRef = useRef(false);
   const currentAgentSessionIdRef = useRef<string | null>(null);
+  /** The author's own wording for the current round (used for the auto snapshot description). */
+  const lastUserRequestRef = useRef<string | null>(null);
+  const [pendingUndoTarget, setPendingUndoTarget] = useState<FileEditUndoTarget | null>(null);
+  const [isUndoing, setIsUndoing] = useState(false);
   const lastRetryRequestRef = useRef<{
     projectId: string;
     request: Omit<AgentRequest, "project_id">;
@@ -441,6 +464,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
   useEffect(() => {
     lastRetryRequestRef.current = null;
+    lastUserRequestRef.current = null;
   }, [currentProjectId]);
 
   // Persist generation mode per project in localStorage.
@@ -540,6 +564,12 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
           description: options?.description,
           snapshotType: options?.snapshotType,
         }),
+      getLatestUserRequest: () => lastUserRequestRef.current,
+      // update_project 报告服务端给默认名项目改了名：只重读这一个项目，顶栏换上新名字。
+      // 不走 refreshProjects——它会打开全局 loading，整个工作台（含本面板）被换成加载页。
+      onProjectRenamed: (projectId) => {
+        void refreshProject(projectId);
+      },
       t: (key, options) => t(key as string, options as Record<string, unknown>),
     });
   }, [
@@ -554,6 +584,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     streamingFileId,
     enterDiffReview,
     currentProjectId,
+    refreshProject,
     t,
   ]);
 
@@ -820,6 +851,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     }
 
     finalizePendingContextClears();
+    invalidateQuota();
 
     // Let the streaming hook finalize cleanup/snapshot work in the background.
     void streamCallbacks.onComplete(
@@ -865,6 +897,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     fetchAndApplySuggestions,
     finalizePendingContextClears,
     hydrateAssistantBackendMessage,
+    invalidateQuota,
   ]);
 
   // Agent stream hook - uses callbacks from useChatStreaming hook
@@ -908,7 +941,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
     // Completion and error callbacks
     onComplete: onCompleteHandler,
-    onError: streamCallbacks.onError,
+    onError: (message, code, retryable) => {
+      streamCallbacks.onError(message, code, retryable);
+      invalidateQuota();
+    },
 
     // Tool result callbacks
     onToolResult: streamCallbacks.onToolResult,
@@ -959,6 +995,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     onSessionStarted: (sessionId) => {
       currentAgentSessionIdRef.current = sessionId;
       streamCallbacks.onSessionStarted(sessionId);
+      // The server has already charged this round's AI message by now.
+      invalidateQuota();
     },
     onParallelStart: streamCallbacks.onParallelStart,
     onParallelTaskStart: streamCallbacks.onParallelTaskStart,
@@ -967,6 +1005,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     onSteeringReceived: streamCallbacks.onSteeringReceived,
     onQuotaRefunded: (kind) => {
       if (currentProjectId) setQuotaRefund({ projectId: currentProjectId, kind });
+      invalidateQuota();
     },
   });
   const conflictCount = state.conflicts?.length ?? 0;
@@ -1174,16 +1213,41 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   }, []);
 
   /**
+   * The author just sent (or re-sent) something: follow the conversation again
+   * even if they had scrolled up to read earlier messages.
+   */
+  const followLatestMessage = useCallback(() => {
+    shouldAutoScrollRef.current = true;
+    setShowJumpToLatest(false);
+    if (autoScrollFrameRef.current !== null) {
+      cancelAnimationFrame(autoScrollFrameRef.current);
+    }
+    autoScrollFrameRef.current = requestAnimationFrame(() => {
+      autoScrollFrameRef.current = null;
+      messageListRef.current?.scrollToBottom(false);
+    });
+  }, []);
+
+  /**
    * Handles sending a user message to the AI agent.
    * Creates a user message, adds it to the chat, constructs the agent request
    * with context (selected file, attachments, quotes), and initiates streaming.
    * Clears draft and attachments after sending.
    *
-   * @param message - The user's message text to send
+   * Every send entry (input box, suggestion chips via the input, the dashboard idea
+   * auto-send) goes through here, so this is also where the view jumps back to the
+   * latest message.
+   *
+   * @param message - The user's message text to send (shown and stored as-is)
    * @param selectedSkillIds - Skills explicitly selected via chips (sent as selected_skill_ids)
+   * @param extraMetadata - Extra request metadata (e.g. `{ entry: "dashboard_idea" }`)
    */
   // Handle sending a message
-  const handleSendMessage = useCallback(async (message: string, selectedSkillIds?: string[]) => {
+  const handleSendMessage = useCallback(async (
+    message: string,
+    selectedSkillIds?: string[],
+    extraMetadata?: Record<string, unknown>,
+  ) => {
     if (!message.trim() || isStreaming) return;
 
     // Clear draft after sending
@@ -1205,6 +1269,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    lastUserRequestRef.current = message;
+    followLatestMessage();
 
     // Get current editor content as context
     const request: Omit<AgentRequest, "project_id"> = {
@@ -1233,6 +1299,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
           fileId: q.fileId,
           fileTitle: q.fileTitle,
         })) : undefined,
+
+        ...extraMetadata,
       },
     };
 
@@ -1253,15 +1321,16 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       lastRetryRequestRef.current = { projectId: currentProjectId, request };
     }
     startStream(request);
-  }, [isStreaming, selectedItem?.id, selectedItem?.type, selectedItem?.title, attachedFileIds, attachedLibraryMaterials, quotes, generationMode, startStream, clearDraft, setAiSuggestions, currentProjectId]);
+  }, [isStreaming, selectedItem?.id, selectedItem?.type, selectedItem?.title, attachedFileIds, attachedLibraryMaterials, quotes, generationMode, startStream, clearDraft, setAiSuggestions, currentProjectId, followLatestMessage]);
 
   const handleRetry = useCallback(() => {
     const lastRequest = lastRetryRequestRef.current;
     if (!retryable || isStreaming || !currentProjectId || lastRequest?.projectId !== currentProjectId) {
       return;
     }
+    followLatestMessage();
     startStream(lastRequest.request);
-  }, [currentProjectId, isStreaming, retryable, startStream]);
+  }, [currentProjectId, isStreaming, retryable, startStream, followLatestMessage]);
 
   /**
    * Send a steering (follow-up) instruction while the agent is generating.
@@ -1320,22 +1389,16 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     
     if (stored) {
       try {
-        const { content, projectType, timestamp } = JSON.parse(stored);
-        
+        const { content, timestamp } = JSON.parse(stored);
+
         // Only use if recent (within 5 minutes) and content is not empty
         const isRecent = Date.now() - timestamp < 5 * 60 * 1000;
-        
-        if (isRecent && content) {
-          // Build prompt with actual user inspiration content
-          const typeLabel = projectType === 'novel' ? t('chat:projectType.novel.name')
-            : projectType === 'short' ? t('chat:projectType.short.name')
-            : t('chat:projectType.screenplay.name');
 
-          const prompt = t('chat:message.createProject', {
-            type: typeLabel,
-            typeLabel,
-            content,
-          });
+        if (isRecent && typeof content === "string" && content.trim()) {
+          // Send the author's idea as-is: the bubble and the stored message are the
+          // author's own words. `entry` lets the server add its first-message hint
+          // to the model context without persisting it (older servers ignore it).
+          const idea = content;
 
           // Delay slightly to ensure UI is ready. Tracked in a ref so it can be
           // cleared on unmount/deps-change, otherwise a stray auto-send could
@@ -1353,7 +1416,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             inspirationSendTimerRef.current = null;
             inspirationProcessedRef.current.add(projectIdForSend);
             localStorage.removeItem(inspirationKey);
-            handleSendMessage(prompt);
+            void handleSendMessage(idea, undefined, { entry: "dashboard_idea" });
           }, 500);
         } else {
           // Clear old or invalid inspiration
@@ -1371,7 +1434,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         inspirationSendTimerRef.current = null;
       }
     };
-  }, [currentProjectId, isLoadingHistory, isStreaming, handleSendMessage, t]);
+  }, [currentProjectId, isLoadingHistory, isStreaming, handleSendMessage]);
 
   /**
    * Starts a new chat session for the current project.
@@ -1465,30 +1528,38 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
    * @param target - Immutable before-version and post-edit concurrency token
    */
   // Handle undo AI edit using the immutable provenance stored with that edit.
-  const handleUndo = useCallback(async (target: FileEditUndoTarget) => {
+  // The click only opens the in-app confirm dialog; the rollback runs on confirm.
+  const handleUndo = useCallback((target: FileEditUndoTarget) => {
+    setPendingUndoTarget(target);
+  }, []);
+
+  const handleCloseUndoDialog = useCallback(() => {
+    if (isUndoing) return;
+    setPendingUndoTarget(null);
+  }, [isUndoing]);
+
+  const handleConfirmUndo = useCallback(async () => {
+    const target = pendingUndoTarget;
+    if (!target) return;
+    setIsUndoing(true);
     try {
-      // File-level rollback only appends the restored content as a new version
-      // (and skips that when the version quota is full); it does not pre-save
-      // the current text, so this confirm must not promise a way back.
-      if (confirm(t('editor:versionHistory.confirmUndoAIEdit', '撤销这次 AI 修改？正文会换回修改前的内容，已有的历史版本都会保留。'))) {
-        const result = await fileVersionApi.rollback(
-          target.fileId,
-          target.beforeVersionNumber,
-          target.expectedAfterUpdatedAt,
-        );
-        if (!result.snapshot_created) {
-          if (result.version_quota_exceeded) {
-            toast.error(t('versions:quota.limitDescription'));
-            if (fileVersionUpgradePrompt.surface === "modal") {
-              setShowFileVersionUpgradeModal(true);
-            }
-          } else {
-            toast.error(t('versions:rollbackHistoryNotSaved'));
+      const result = await fileVersionApi.rollback(
+        target.fileId,
+        target.beforeVersionNumber,
+        target.expectedAfterUpdatedAt,
+      );
+      if (!result.snapshot_created) {
+        if (result.version_quota_exceeded) {
+          toast.error(t('versions:quota.limitDescription'));
+          if (fileVersionUpgradePrompt.surface === "modal") {
+            setShowFileVersionUpgradeModal(true);
           }
+        } else {
+          toast.error(t('versions:rollbackHistoryNotSaved'));
         }
-        triggerFileTreeRefresh();
-        triggerEditorRefresh(target.fileId);
       }
+      triggerFileTreeRefresh();
+      triggerEditorRefresh(target.fileId);
     } catch (err) {
       if (
         err instanceof ApiError &&
@@ -1506,8 +1577,11 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
           ? handleApiError(err)
           : t('editor:versionHistory.rollbackFailed'),
       );
+    } finally {
+      setIsUndoing(false);
+      setPendingUndoTarget(null);
     }
-  }, [fileVersionUpgradePrompt.surface, triggerFileTreeRefresh, triggerEditorRefresh, t]);
+  }, [pendingUndoTarget, fileVersionUpgradePrompt.surface, triggerFileTreeRefresh, triggerEditorRefresh, t]);
 
   /**
    * Calculates the maximum allowed height for the input panel.
@@ -1612,20 +1686,20 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         ref={headerRef}
         className={`shrink-0 flex items-center justify-between border-b border-[hsl(var(--separator-color))] ${isMobile ? 'h-11 px-2' : 'h-12 px-3'}`}
       >
-        {/* 窄面板（约 270px）下标题曾被折成「AI 创作助 / 手」：标题不换行、可截断，右侧徽标保持一行 */}
-        <div className="flex items-center gap-1 min-w-0">
-          <span className={`font-medium text-[hsl(var(--text-primary))] whitespace-nowrap truncate ${isMobile ? 'text-xs' : 'text-sm'}`}>{t('chat:panel.title')}</span>
+        {/* 右栏可能只有 300px 宽：标题不折行，状态词放不下就省略，额度用紧凑胶囊。 */}
+        <div className="flex min-w-0 items-center gap-1" data-testid="chat-panel-header-title">
+          <span className={`shrink-0 whitespace-nowrap font-medium text-[hsl(var(--text-primary))] ${isMobile ? 'text-xs' : 'text-sm'}`}>{t('chat:panel.title')}</span>
           {isStreaming && (
-            <span className="text-xs text-[hsl(var(--success))] animate-[breathe_1.5s_ease-in-out_infinite]">
+            <span className="min-w-0 truncate whitespace-nowrap text-xs text-[hsl(var(--success))] animate-[breathe_1.5s_ease-in-out_infinite]">
               · {t('chat:panel.processing')}
             </span>
           )}
           {isLoadingHistory && (
-            <span className="text-xs text-[hsl(var(--text-secondary))]">· {t('chat:panel.loadingHistory')}</span>
+            <span className="min-w-0 truncate whitespace-nowrap text-xs text-[hsl(var(--text-secondary))]">· {t('chat:panel.loadingHistory')}</span>
           )}
         </div>
-        <div className={`flex items-center shrink-0 ${isMobile ? 'gap-1' : 'gap-2'}`}>
-          <QuotaBadge />
+        <div className={`flex min-w-0 items-center ${isMobile ? 'gap-1' : 'gap-2'}`} data-testid="chat-panel-header-actions">
+          <QuotaBadge compact />
           <button
             onClick={() => setShowAIMemory(true)}
             className={`flex items-center justify-center text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))] rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] ${isMobile ? 'p-2 min-h-[44px] min-w-[44px]' : 'p-1.5 min-h-0 min-w-0'}`}
@@ -1847,7 +1921,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             onSend={handleSendMessage}
             // Allow drafting while AI is streaming/thinking, but prevent sending until it finishes.
             disabled={isLoadingHistory}
-            sendDisabled={isStreaming || isThinking || isLoadingHistory}
+            // Quota used up: drafting stays possible, sending waits for the daily reset.
+            sendDisabled={isStreaming || isThinking || isLoadingHistory || quotaExhausted}
             onCancel={isStreaming ? handleCancel : undefined}
             // Steering: while streaming with an active session, the user can send
             // a follow-up instruction that the agent picks up at its next step.
@@ -1856,7 +1931,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             placeholder={
               isStreaming || isThinking
                 ? t("chat:input.placeholderWhileProcessing")
-                : undefined
+                : quotaExhausted
+                  ? t("chat:input.placeholderQuotaExhausted", { limit: aiMessageQuota?.limit })
+                  : undefined
             }
             aiSuggestions={aiSuggestions}
             messageCount={messages.length}
@@ -1917,6 +1994,21 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             buildUpgradeUrl(fileVersionUpgradePrompt.pricingPath, fileVersionUpgradePrompt.source)
           );
         }}
+      />
+
+      {/* Undo an AI edit: the copy is the file-level undo message owned by the editor
+          namespace (not the snapshot "restore" copy), shown in the in-app dialog
+          instead of the browser's native confirm. */}
+      <ConfirmDialog
+        open={pendingUndoTarget !== null}
+        onClose={handleCloseUndoDialog}
+        onConfirm={handleConfirmUndo}
+        title={t('chat:tool.undo_edit')}
+        message={t('editor:versionHistory.confirmUndoAIEdit', '撤销这次 AI 修改？正文会换回修改前的内容，已有的历史版本都会保留。')}
+        confirmLabel={t('chat:actions.undo')}
+        cancelLabel={t('common:cancel')}
+        variant="warning"
+        loading={isUndoing}
       />
 
       {/* AI Memory Dialog */}

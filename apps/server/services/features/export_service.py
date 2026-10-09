@@ -86,6 +86,18 @@ def _extract_chapter_number(title: str) -> int:
     return 999999  # Put items without chapter number at the end
 
 
+_LEADING_BLANK_LINES = re.compile(r"^(?:[ \t\u3000]*\r?\n)+")
+
+
+def _trim_chapter_body(content: str) -> str:
+    """去掉正文开头的空行和末尾空白，保留首段的全角空格（U+3000）缩进。
+
+    str.strip() 会把 U+3000 当空白一起削掉，导出的每章首段就顶格了，
+    和编辑器里看到的排版不一致。
+    """
+    return _LEADING_BLANK_LINES.sub("", content).rstrip()
+
+
 def get_sorted_drafts(session: Session, project_id: str) -> list[File]:
     """
     Get all draft files for a project, sorted by chapter order.
@@ -197,7 +209,7 @@ def export_drafts_to_txt(session: Session, project_id: str) -> str:
     chapters = []
     for draft in drafts:
         # Each chapter: title + blank line + content
-        chapter_text = f"{draft.title}\n\n{(draft.content or '').strip()}"
+        chapter_text = f"{draft.title}\n\n{_trim_chapter_body(draft.content or '')}"
         chapters.append(chapter_text)
 
     return CHAPTER_SEPARATOR.join(chapters)

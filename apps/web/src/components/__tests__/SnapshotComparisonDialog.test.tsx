@@ -1,9 +1,10 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import SnapshotComparisonDialog from '../SnapshotComparisonDialog'
 import type { SnapshotComparison } from '../../types'
 
 const mockCompare = vi.fn()
+const mockFileCompare = vi.fn()
 const mockFileGet = vi.fn()
 const loggerError = vi.fn()
 
@@ -24,6 +25,10 @@ const { mockT } = vi.hoisted(() => ({
         'editor:versionHistory.removedFiles': 'Removed files',
         'editor:versionHistory.modifiedFiles': 'Modified files',
         'editor:versionHistory.versionPrefix': 'Version',
+        'editor:versionHistory.viewChanges': 'View changes',
+        'editor:versionHistory.hideChanges': 'Hide changes',
+        'editor:versionHistory.diffLoadFailed': 'Could not load changes',
+        'common:retry': 'Retry',
         'common:close': 'Close',
       } as Record<string, string>
     )[key] ?? key),
@@ -41,6 +46,9 @@ vi.mock('../../lib/api', () => ({
   },
   fileApi: {
     get: (...args: unknown[]) => mockFileGet(...args),
+  },
+  fileVersionApi: {
+    compare: (...args: unknown[]) => mockFileCompare(...args),
   },
 }))
 
@@ -207,5 +215,64 @@ describe('SnapshotComparisonDialog', () => {
       expect(loggerError).toHaveBeenCalledWith('Failed to load comparison:', expect.any(Error))
       expect(screen.getByText('Failed to load comparison')).toBeInTheDocument()
     })
+  })
+
+  const fileDiff = {
+    file_id: 'file-A',
+    version1: { number: 1, created_at: null, change_type: 'edit', change_source: 'user', word_count: 6 },
+    version2: { number: 2, created_at: null, change_type: 'ai_edit', change_source: 'user', word_count: 9 },
+    unified_diff: '',
+    html_diff: [
+      { type: 'equal', old_line: 1, new_line: 1, content: '　　雨下了一夜。' },
+      { type: 'removed', old_line: 2, new_line: null, content: '　　他等了三秒。' },
+      { type: 'added', old_line: null, new_line: 2, content: '　　他等了两秒。' },
+    ],
+    stats: { lines_added: 1, lines_removed: 1, word_diff: 0 },
+  }
+
+  it('lazily loads and renders the text diff of a modified file, and collapses it again', async () => {
+    mockCompare.mockResolvedValue(comparison('A'))
+    mockFileCompare.mockResolvedValue(fileDiff)
+    render(<SnapshotComparisonDialog snapshotId1="snap-1" snapshotId2="snap-2" onClose={vi.fn()} />)
+
+    const toggle = await screen.findByRole('button', { name: 'View changes' })
+    expect(mockFileCompare).not.toHaveBeenCalled()
+    expect(screen.queryByText(/他等了两秒/)).not.toBeInTheDocument()
+
+    fireEvent.click(toggle)
+
+    expect(await screen.findByText(/他等了两秒/)).toBeInTheDocument()
+    expect(screen.getByText(/他等了三秒/)).toBeInTheDocument()
+    expect(mockFileCompare).toHaveBeenCalledWith('file-A', 1, 2)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide changes' }))
+    expect(screen.queryByText(/他等了两秒/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'View changes' }))
+    expect(await screen.findByText(/他等了两秒/)).toBeInTheDocument()
+    expect(mockFileCompare).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows a retryable error when a file diff fails to load', async () => {
+    mockCompare.mockResolvedValue(comparison('A'))
+    mockFileCompare.mockRejectedValueOnce(new Error('network down')).mockResolvedValueOnce(fileDiff)
+    render(<SnapshotComparisonDialog snapshotId1="snap-1" snapshotId2="snap-2" onClose={vi.fn()} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'View changes' }))
+    expect(await screen.findByText('Could not load changes')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText(/他等了两秒/)).toBeInTheDocument()
+    expect(screen.queryByText('Could not load changes')).not.toBeInTheDocument()
+    expect(mockFileCompare).toHaveBeenCalledTimes(2)
+  })
+
+  it('offers no text diff when a modified file kept the same version', async () => {
+    const renamedOnly = comparison('A')
+    renamedOnly.changes.modified[0].new_version = 1
+    mockCompare.mockResolvedValue(renamedOnly)
+    render(<SnapshotComparisonDialog snapshotId1="snap-1" snapshotId2="snap-2" onClose={vi.fn()} />)
+
+    expect(await screen.findByText('A new title')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'View changes' })).not.toBeInTheDocument()
   })
 })

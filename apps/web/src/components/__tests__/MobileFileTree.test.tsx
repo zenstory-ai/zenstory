@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MobileFileTree } from '../MobileFileTree';
 
 const {
@@ -11,6 +11,11 @@ const {
   mockRemoveMaterial,
   mockIsMaterialAttached,
   mockToastSuccess,
+  mockToastInfo,
+  mockToastError,
+  mockDelete,
+  mockAttachmentLimit,
+  mockSelected,
 } = vi.hoisted(() => ({
   mockSetSelectedItem: vi.fn(),
   mockSwitchToEditor: vi.fn(),
@@ -20,6 +25,11 @@ const {
   mockRemoveMaterial: vi.fn(),
   mockIsMaterialAttached: vi.fn(() => false),
   mockToastSuccess: vi.fn(),
+  mockToastInfo: vi.fn(),
+  mockToastError: vi.fn(),
+  mockDelete: vi.fn(),
+  mockAttachmentLimit: { value: false },
+  mockSelected: { value: null as { id: string; type: string; title: string } | null },
 }));
 
 vi.mock('react-i18next', () => ({
@@ -31,7 +41,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('../../contexts/ProjectContext', () => ({
   useProject: () => ({
     currentProjectId: 'project-1',
-    selectedItem: null,
+    selectedItem: mockSelected.value,
     setSelectedItem: mockSetSelectedItem,
     fileTreeVersion: 0,
   }),
@@ -49,13 +59,17 @@ vi.mock('../../contexts/MaterialAttachmentContext', () => ({
     addMaterial: mockAddMaterial,
     removeMaterial: mockRemoveMaterial,
     isMaterialAttached: mockIsMaterialAttached,
-    isAtLimit: false,
+    get isAtLimit() {
+      return mockAttachmentLimit.value;
+    },
   }),
 }));
 
 vi.mock('../../lib/toast', () => ({
   toast: {
     success: mockToastSuccess,
+    info: mockToastInfo,
+    error: mockToastError,
   },
 }));
 
@@ -64,7 +78,7 @@ vi.mock('../../lib/api', () => ({
     getTree: (...args: unknown[]) => mockGetTree(...args),
     upload: (...args: unknown[]) => mockUpload(...args),
     create: vi.fn(),
-    delete: vi.fn(),
+    delete: (...args: unknown[]) => mockDelete(...args),
   },
 }));
 
@@ -104,6 +118,13 @@ vi.mock('../FileSearchInput', () => ({
 describe('MobileFileTree', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAttachmentLimit.value = false;
+    mockSelected.value = null;
+    mockAddMaterial.mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('shows upload entry on material folder and uploads txt file', async () => {
@@ -168,5 +189,114 @@ describe('MobileFileTree', () => {
     fireEvent.click(addButton);
 
     expect(mockAddMaterial).toHaveBeenCalledWith('snippet-1', '片段A');
+  });
+  it('confirms file deletion in an in-app dialog instead of window.confirm', async () => {
+    const nativeConfirm = vi.fn(() => true);
+    vi.stubGlobal('confirm', nativeConfirm);
+    mockDelete.mockResolvedValue(undefined);
+    mockGetTree.mockResolvedValue({
+      tree: [
+        {
+          id: 'draft-1',
+          title: '第一章',
+          file_type: 'draft',
+          parent_id: null,
+          order: 0,
+          content: '',
+          metadata: null,
+          children: [],
+        },
+      ],
+    });
+
+    render(<MobileFileTree />);
+
+    fireEvent.click(await screen.findByTitle('common:delete'));
+    let dialog = await screen.findByRole('dialog');
+    expect(nativeConfirm).not.toHaveBeenCalled();
+    expect(within(dialog).getByText('common:confirmDelete')).toBeInTheDocument();
+    expect(within(dialog).getByText('第一章')).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'common:cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(mockDelete).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTitle('common:delete'));
+    dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'common:delete' }));
+
+    await waitFor(() => expect(mockDelete).toHaveBeenCalledWith('draft-1'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(mockSetSelectedItem).not.toHaveBeenCalled();
+  });
+
+  it('explains the material limit in a toast instead of a native alert', async () => {
+    const nativeAlert = vi.fn();
+    vi.stubGlobal('alert', nativeAlert);
+    mockAttachmentLimit.value = true;
+    mockAddMaterial.mockReturnValue(false);
+    mockGetTree.mockResolvedValue({
+      tree: [
+        {
+          id: 'snippet-1',
+          title: '片段A',
+          file_type: 'snippet',
+          parent_id: null,
+          order: 0,
+          content: '',
+          metadata: null,
+          children: [],
+        },
+      ],
+    });
+
+    render(<MobileFileTree />);
+    fireEvent.click(await screen.findByTitle('editor:fileTree.addToChat'));
+
+    expect(nativeAlert).not.toHaveBeenCalled();
+    expect(mockToastInfo).toHaveBeenCalledWith('editor:fileTree.maxMaterials');
+  });
+  it('expands nested folders down to a restored file', async () => {
+    mockSelected.value = { id: 'draft-9', type: 'draft', title: '第九章' };
+    mockGetTree.mockResolvedValue({
+      tree: [
+        {
+          id: 'folder-drafts',
+          title: '正文',
+          file_type: 'folder',
+          parent_id: null,
+          order: 0,
+          content: '',
+          metadata: null,
+          children: [
+            {
+              id: 'folder-vol-2',
+              title: '第二卷',
+              file_type: 'folder',
+              parent_id: 'folder-drafts',
+              order: 0,
+              content: '',
+              metadata: null,
+              children: [
+                {
+                  id: 'draft-9',
+                  title: '第九章',
+                  file_type: 'draft',
+                  parent_id: 'folder-vol-2',
+                  order: 0,
+                  content: '',
+                  metadata: null,
+                  children: [],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    render(<MobileFileTree />);
+
+    expect(await screen.findByText('第九章')).toBeInTheDocument();
   });
 });

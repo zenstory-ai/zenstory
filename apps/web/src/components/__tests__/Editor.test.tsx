@@ -24,6 +24,8 @@ const editorTranslations = vi.hoisted(() => ({
   'editor:fileTree.newOutline': 'New Outline',
   'editor:fileTree.newCharacter': 'New Character Sheet',
   'editor:fileTree.newLore': 'New Setting',
+  'editor:fileTree.newScript': 'New Script',
+  'editor:emptyStateDescriptionScript': 'Open a file, or create a script or outline.',
   'editor:showMore': 'More options',
   'editor:showLess': 'Show less',
   'editor:fileTree.shortcutHint': 'Ctrl+K',
@@ -43,7 +45,7 @@ const createEditorTranslator = () => (key: string) => editorTranslations[key] ||
 
 // Mock SimpleEditor component
 vi.mock('../SimpleEditor', () => ({
-  SimpleEditor: ({ fileId, fileTitle, baseUpdatedAt, content, onTitleChange, onContentChange, onSave, onFlushReady, onFinishReview, isStreaming }: { fileId: string; fileTitle: string; baseUpdatedAt?: string; content: string; onTitleChange?: (value: string) => void; onContentChange?: (value: string) => void; onSave?: (submission: { fileId: string; title: string; content: string; previousTitle: string; baseUpdatedAt?: string }) => Promise<SaveResult>; onFlushReady?: (flush: (() => Promise<'saved' | 'conflict' | 'failed'>) | null) => void; onFinishReview?: () => void; isStreaming?: boolean }) => {
+  SimpleEditor: ({ fileId, fileTitle, baseUpdatedAt, content, onTitleChange, onContentChange, onSave, onFlushReady, onFinishReview, onEnterDiffReview, isStreaming }: { fileId: string; fileTitle: string; baseUpdatedAt?: string; content: string; onTitleChange?: (value: string) => void; onContentChange?: (value: string) => void; onSave?: (submission: { fileId: string; title: string; content: string; previousTitle: string; baseUpdatedAt?: string }) => Promise<SaveResult>; onFlushReady?: (flush: (() => Promise<'saved' | 'conflict' | 'failed'>) | null) => void; onFinishReview?: () => void; onEnterDiffReview?: (fileId: string, originalContent: string, newContent: string) => void; isStreaming?: boolean }) => {
     const dirtyRef = React.useRef(false)
     const draftRef = React.useRef({ fileId, title: fileTitle, content, baseUpdatedAt, previousTitle: 'Test Chapter' })
     if (!dirtyRef.current) draftRef.current = { fileId, title: fileTitle, content, baseUpdatedAt, previousTitle: fileTitle }
@@ -85,6 +87,9 @@ vi.mock('../SimpleEditor', () => ({
       <button data-testid="finish-review-button" onClick={() => onFinishReview?.()}>
         Finish Review
       </button>
+      <button data-testid="natural-polish-review-button" onClick={() => onEnterDiffReview?.(fileId, content, 'Polished content')}>
+        Natural Polish
+      </button>
       <div data-testid="content-display">{content}</div>
       {isStreaming && <div data-testid="streaming-indicator">Streaming...</div>}
     </div>
@@ -112,6 +117,7 @@ vi.mock('../../lib/api', () => ({
 
 // Mutable state for mocking
 let mockProjectContext: {
+  currentProject?: { id: string; project_type?: string } | null;
   currentProjectId: string;
   selectedItem: { id: string; type: string; title: string } | null;
   setSelectedItem: () => void;
@@ -151,9 +157,10 @@ vi.mock('../../contexts/MaterialAttachmentContext', () => ({
   MaterialAttachmentProvider: ({ children }: { children: React.ReactNode }) => React.createElement(React.Fragment, null, children),
 }))
 
+const viewport = vi.hoisted(() => ({ isMobile: false }))
 vi.mock('../../contexts/MobileLayoutContext', () => ({
   useMobileLayout: () => ({
-    isMobile: false,
+    isMobile: viewport.isMobile,
   }),
   MobileLayoutProvider: ({ children }: { children: React.ReactNode }) => React.createElement(React.Fragment, null, children),
 }))
@@ -208,6 +215,7 @@ describe('Editor', () => {
     vi.clearAllMocks()
     localStorage.clear()
     editorTranslator.current = createEditorTranslator()
+    viewport.isMobile = false
     vi.spyOn(console, 'error').mockImplementation(() => {})
     mockProjectContext = createMockProjectContext()
     vi.mocked(api.fileApi.get).mockResolvedValue(mockFile)
@@ -368,6 +376,62 @@ describe('Editor', () => {
     expect(screen.getByText('Ctrl')).toBeInTheDocument()
     expect(screen.getByText('K')).toBeInTheDocument()
     expect(screen.getByText(/Search files/i)).toBeInTheDocument()
+  })
+
+  it('shows the ⌘ K shortcut on Apple platforms', () => {
+    const platformSpy = vi.spyOn(window.navigator, 'platform', 'get').mockReturnValue('MacIntel')
+    try {
+      mockProjectContext = createMockProjectContext({ selectedItem: null })
+      render(<Editor />)
+      expect(screen.getByText('⌘')).toBeInTheDocument()
+      expect(screen.queryByText('Ctrl')).not.toBeInTheDocument()
+    } finally {
+      platformSpy.mockRestore()
+    }
+  })
+
+  it('hides the keyboard shortcut hint on phones', () => {
+    viewport.isMobile = true
+    mockProjectContext = createMockProjectContext({ selectedItem: null })
+    render(<Editor />)
+    expect(screen.queryByText('Ctrl')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Search files/i)).not.toBeInTheDocument()
+  })
+
+  it('offers a new script instead of a chapter in short drama projects', async () => {
+    mockProjectContext = createMockProjectContext({
+      selectedItem: null,
+      currentProject: { id: 'project-1', project_type: 'screenplay' },
+    })
+    vi.mocked(api.fileApi.getTree).mockResolvedValue({
+      tree: [
+        {
+          id: 'project-1-script-folder',
+          title: '剧本',
+          file_type: 'folder',
+          parent_id: null,
+          order: 0,
+          metadata: null,
+          children: [],
+        },
+      ],
+    })
+    render(<Editor />)
+
+    expect(screen.queryByText('New Chapter')).not.toBeInTheDocument()
+    expect(screen.getByText('Open a file, or create a script or outline.')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('New Script'))
+
+    await waitFor(() => {
+      expect(api.fileApi.create).toHaveBeenCalledWith(
+        'project-1',
+        expect.objectContaining({
+          title: 'New Script',
+          file_type: 'script',
+          parent_id: 'project-1-script-folder',
+        })
+      )
+    })
   })
 
   it('renders folder selected state', () => {
@@ -852,5 +916,148 @@ describe('Editor', () => {
       expect(exitDiffReview).toHaveBeenCalled()
       expect(triggerFileTreeRefresh).toHaveBeenCalled()
     })
+  })
+
+  it('exits a natural-polish review without saving or versioning when every edit was rejected', async () => {
+    const enterDiffReview = vi.fn()
+    const exitDiffReview = vi.fn()
+    const applyDiffReviewChanges = vi.fn().mockReturnValue('Test content')
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+      enterDiffReview,
+      exitDiffReview,
+      applyDiffReviewChanges,
+    })
+    const UnmemoizedEditor = (Editor as unknown as { type: React.ComponentType }).type
+    const { rerender } = render(<UnmemoizedEditor />)
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('Test content'))
+
+    fireEvent.click(screen.getByTestId('natural-polish-review-button'))
+    expect(enterDiffReview).toHaveBeenCalledWith('file-1', 'Test content', 'Polished content')
+
+    mockProjectContext = {
+      ...mockProjectContext,
+      diffReviewState: {
+        isReviewing: true,
+        fileId: 'file-1',
+        originalContent: 'Test content',
+        modifiedContent: 'Polished content',
+        pendingEdits: [{ id: 'edit-0', op: 'replace', oldText: 'a', newText: 'b', status: 'rejected' }],
+      },
+    }
+    rerender(<UnmemoizedEditor />)
+    fireEvent.click(screen.getByTestId('finish-review-button'))
+
+    await waitFor(() => expect(exitDiffReview).toHaveBeenCalledTimes(1))
+    expect(api.fileApi.update).not.toHaveBeenCalled()
+  })
+
+  it('writes the original back when every agent edit is rejected', async () => {
+    // edit_file 已经把 AI 文本落库，编辑器也重新加载成了 AI 文本。
+    vi.mocked(api.fileApi.get).mockResolvedValue({ ...mockFile, content: 'AI content', updated_at: 'server-v2' })
+    vi.mocked(api.fileApi.update).mockResolvedValue({ ...mockFile, content: 'Original content', updated_at: 'server-v3' })
+    const exitDiffReview = vi.fn()
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+      diffReviewState: {
+        isReviewing: true,
+        fileId: 'file-1',
+        originalContent: 'Original content',
+        modifiedContent: 'AI content',
+        pendingEdits: [{ id: 'edit-0', op: 'replace', oldText: 'a', newText: 'b', status: 'rejected' }],
+      },
+      exitDiffReview,
+      applyDiffReviewChanges: vi.fn().mockReturnValue('Original content'),
+    })
+
+    render(<Editor />)
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('AI content'))
+    fireEvent.click(screen.getByTestId('finish-review-button'))
+
+    await waitFor(() => {
+      expect(api.fileApi.update).toHaveBeenCalledWith('file-1', expect.objectContaining({
+        content: 'Original content',
+        base_updated_at: 'server-v2',
+      }))
+      expect(screen.getByTestId('content-input')).toHaveValue('Original content')
+    })
+  })
+
+  it('still writes back a rejected agent review before the editor has reloaded the AI text', async () => {
+    // 审阅进入得比 editorRefreshVersion 触发的重新加载早：编辑器里仍是原文，
+    // 但服务端已经是 AI 文本——全部拒绝不能当成「什么都没变」跳过写库。
+    vi.mocked(api.fileApi.update).mockResolvedValue({ ...mockFile, updated_at: 'server-v3' })
+    const exitDiffReview = vi.fn()
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+      diffReviewState: {
+        isReviewing: true,
+        fileId: 'file-1',
+        originalContent: 'Test content',
+        modifiedContent: 'AI content',
+        pendingEdits: [{ id: 'edit-0', op: 'replace', oldText: 'a', newText: 'b', status: 'rejected' }],
+      },
+      exitDiffReview,
+      applyDiffReviewChanges: vi.fn().mockReturnValue('Test content'),
+    })
+
+    render(<Editor />)
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('Test content'))
+    fireEvent.click(screen.getByTestId('finish-review-button'))
+
+    await waitFor(() => {
+      expect(api.fileApi.update).toHaveBeenCalledWith('file-1', expect.objectContaining({
+        content: 'Test content',
+      }))
+    })
+  })
+
+  it('shows the server text after rejecting every local edit in a stale-write conflict review', async () => {
+    vi.mocked(api.fileApi.get).mockResolvedValue({ ...mockFile, updated_at: 'server-v1' })
+    vi.mocked(api.fileApi.update).mockRejectedValueOnce(new ApiError(
+      409,
+      'ERR_STALE_WRITE',
+      { reason: 'stale_write', current_content: 'Server content', current_updated_at: 'server-v2' },
+    ))
+    const enterDiffReview = vi.fn()
+    const exitDiffReview = vi.fn()
+    mockProjectContext = createMockProjectContext({
+      selectedItem: { id: 'file-1', type: 'draft', title: 'Test Chapter' },
+      enterDiffReview,
+      exitDiffReview,
+      applyDiffReviewChanges: vi.fn().mockReturnValue('Server content'),
+    })
+    const UnmemoizedEditor = (Editor as unknown as { type: React.ComponentType }).type
+    const { rerender } = render(<UnmemoizedEditor />)
+    await waitFor(() => expect(screen.getByTestId('content-input')).toHaveValue('Test content'))
+
+    fireEvent.change(screen.getByTestId('content-input'), { target: { value: 'Local content' } })
+    fireEvent.click(screen.getByTestId('save-button'))
+    await waitFor(() => {
+      expect(enterDiffReview).toHaveBeenCalledWith('file-1', 'Server content', 'Local content')
+    })
+
+    vi.mocked(api.fileApi.update).mockResolvedValue({ ...mockFile, content: 'Server content', updated_at: 'server-v3' })
+    mockProjectContext = {
+      ...mockProjectContext,
+      diffReviewState: {
+        isReviewing: true,
+        fileId: 'file-1',
+        originalContent: 'Server content',
+        modifiedContent: 'Local content',
+        pendingEdits: [{ id: 'edit-0', op: 'replace', oldText: 'a', newText: 'b', status: 'rejected' }],
+      },
+    }
+    rerender(<UnmemoizedEditor />)
+    fireEvent.click(screen.getByTestId('finish-review-button'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('content-input')).toHaveValue('Server content')
+      expect(exitDiffReview).toHaveBeenCalled()
+    })
+    expect(api.fileApi.update).toHaveBeenLastCalledWith('file-1', expect.objectContaining({
+      content: 'Server content',
+      base_updated_at: 'server-v2',
+    }))
   })
 })

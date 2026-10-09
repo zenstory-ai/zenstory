@@ -30,6 +30,7 @@
   "input": {
     "placeholder": "Tell the AI what to write…",
     "placeholderWhileProcessing": "AI is generating — you can type now and send when it finishes…",
+    "placeholderQuotaExhausted": "You've used today's {{limit}} AI messages. They reset at 00:00 Beijing time (UTC+8) — draft now and send then.",
     "stop": "Stop generating",
     "steerPlaceholder": "Add to your request…",
     "steerButton": "Add request",
@@ -80,25 +81,10 @@
     "selectedText": "Selected text:",
     "context": "Context:"
   },
-  "projectType": {
-    "novel": {
-      "name": "Novel",
-      "description": "For long-form novels over 50,000 words"
-    },
-    "short": {
-      "name": "Short Story",
-      "description": "For standalone stories of 5,000-20,000 words"
-    },
-    "screenplay": {
-      "name": "Short Drama Script",
-      "description": "For short video scripts and mini-dramas"
-    }
-  },
   "message": {
     "aiEdit": "AI Edit: {{files}}{{extra}}",
     "aiDone": "AI Chat Finished",
-    "createProject": "I want to write a {{typeLabel}}. My idea:\n\n{{content}}\n\nHelp me shape it: if it's concrete enough, sketch the main characters, setting, core conflict and rough direction; if it's still vague, ask me two or three key questions first.",
-    "aiDoneFilesModified": "AI Chat Finished - files modified",
+    "snapshotAfterAiEdit": "After AI edit: {{request}}",
     "aiConversationAt": "AI Assistant Conversation - {{time}}"
   },
   "context": {

@@ -484,7 +484,7 @@ test('docs pages sit on the organization shell with resolved links and their own
     assert.equal(matches(html, /<h1\b/g).length, 1, `${route} has one h1`)
     assert.doesNotMatch(html, /<pre>/, 'code blocks are keyboard-focusable scroll regions')
     assert.match(html.slice(html.indexOf('<section class="prose" id="en"')), /^<section class="prose" id="en" lang="en">\s*<h2\b/, 'the English article starts one level below the page h1')
-    assert.doesNotMatch(head, /zenstory 文档|zenstory帮助文档/)
+    assert.doesNotMatch(head, /zenstory 文档|zenstory帮助文档/i)
     const graph = graphOf(html)
     assert.deepEqual(graph.map((node) => node['@type']), ['Organization', 'WebSite', 'TechArticle'])
     assert.equal(graph[2].url, canonical)

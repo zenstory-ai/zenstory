@@ -51,13 +51,19 @@ from services.file_tree_rules import (
     resolve_new_file_order,
     validate_parent_assignment,
 )
+from utils.cjk_quotes import normalize_double_quotes
 from utils.logger import get_logger, log_with_context
 from utils.title_sequence import (
     extract_title_first_sequence_number,
     resolve_persisted_sequence_order,
 )
 
-from .edit import acquire_file_write_lock
+from .edit import (
+    NORMALIZED_QUOTE_FILE_TYPES,
+    acquire_file_write_lock,
+    resolve_write_quote_style,
+    stage_pre_ai_write_backup,
+)
 from .serialization import (
     _summary_projection_preview_length,
     resolve_query_files_response_mode,
@@ -130,6 +136,7 @@ class FileCRUD:
         parent_id: str | None = None,
         order: int | None = None,
         metadata: dict[str, Any] | None = None,
+        normalize_quotes: bool = False,
     ) -> dict[str, Any]:
         """
         Create a new file.
@@ -142,6 +149,9 @@ class FileCRUD:
             parent_id: Parent file ID (for folders)
             order: Sort order
             metadata: Type-specific metadata (JSON)
+            normalize_quotes: In-app agent writes only. For draft/script files,
+                normalize double quotes in ``content`` to the previous chapter's
+                style (default “”).
 
         Returns:
             Created file data
@@ -485,6 +495,19 @@ class FileCRUD:
                     reused["mutation_applied"] = changed
                     return reused
 
+        if normalize_quotes and content and file_type in NORMALIZED_QUOTE_FILE_TYPES:
+            content = normalize_double_quotes(
+                content,
+                resolve_write_quote_style(
+                    self.session,
+                    project_id=project_id,
+                    existing_content="",
+                    incoming_text=content,
+                    parent_id=parent_id,
+                    order=resolved_order,
+                ),
+            )
+
         # Create file
         file = File(
             project_id=project_id,
@@ -558,6 +581,7 @@ class FileCRUD:
         parent_id: str | None = None,
         order: int | None = None,
         metadata: dict[str, Any] | None = None,
+        normalize_quotes: bool = False,
     ) -> dict[str, Any]:
         """
         Update an existing file.
@@ -569,6 +593,9 @@ class FileCRUD:
             parent_id: New parent ID
             order: New order
             metadata: New metadata (overwrites existing)
+            normalize_quotes: In-app agent writes only. For draft/script files,
+                normalize double quotes in the whole new ``content`` to the
+                style of the body it replaces (or the previous chapter's).
 
         Returns:
             Updated file data
@@ -587,7 +614,9 @@ class FileCRUD:
             lock_project_for_files(self.session, target.project_id, exclusive=True)
 
         if is_postgres:
-            return self._update_file_impl(id, title, content, parent_id, order, metadata)
+            return self._update_file_impl(
+                id, title, content, parent_id, order, metadata, normalize_quotes
+            )
         # SQLite has no row locks: serialize same-file writes with the
         # in-process per-file lock (shared with edit_file) so concurrent
         # tasks cannot interleave between our read, commit and version
@@ -598,7 +627,9 @@ class FileCRUD:
         # 整个进程会陪着等到对方释放（最坏是 SQLite busy_timeout 的 30 秒）。
         # acquire 版本在工作线程里语义完全不变，只在事件循环线程上改为有界等待。
         with acquire_file_write_lock(id):
-            return self._update_file_impl(id, title, content, parent_id, order, metadata)
+            return self._update_file_impl(
+                id, title, content, parent_id, order, metadata, normalize_quotes
+            )
 
     def _update_file_impl(
         self,
@@ -608,6 +639,7 @@ class FileCRUD:
         parent_id: str | None,
         order: int | None,
         metadata: dict[str, Any] | None,
+        normalize_quotes: bool = False,
     ) -> dict[str, Any]:
         log_with_context(
             logger,
@@ -653,6 +685,20 @@ class FileCRUD:
         # Store old content for version history
         old_content = file.content
 
+        if normalize_quotes and content and file.file_type in NORMALIZED_QUOTE_FILE_TYPES:
+            content = normalize_double_quotes(
+                content,
+                resolve_write_quote_style(
+                    self.session,
+                    project_id=file.project_id,
+                    existing_content=old_content or "",
+                    incoming_text=content,
+                    exclude_file_id=file.id,
+                    parent_id=file.parent_id,
+                    order=file.order,
+                ),
+            )
+
         prospective_title = title if title is not None else file.title
         prospective_content = content if content is not None else file.content
         prospective_parent_id = file.parent_id
@@ -695,6 +741,12 @@ class FileCRUD:
                 metadata=metadata if metadata is not None else file.get_metadata(),
                 file_type=file.file_type,
             )
+
+        # AI 整篇覆盖前，先把还没进历史的当前正文（例如作者手动改过、没生成
+        # 版本）备份成系统版本；在任何字段改动之前做，savepoint 失败也不会
+        # 牵连本次写入。
+        if content is not None and content != old_content:
+            stage_pre_ai_write_backup(self.session, id, old_content or "")
 
         file.title = prospective_title
         file.content = prospective_content

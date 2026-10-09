@@ -507,9 +507,62 @@ def test_internal_evidence_markers_are_not_rendered():
     from agent.graph.writing_graph import _format_handoff_packet_items
 
     rendered = _format_handoff_packet_items(
-        {"todo": [], "evidence": ["workflow_plan=standard", "content_length=812"]}
+        {"todo": [], "evidence": ["workflow_plan=standard", "auto_checks=repeat:2,facts:1"]}
     )
     assert rendered == ""
+
+
+# ------------------------------------------- 完成标记的中文别名
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "content",
+    ["审查通过，可以发布。\n[任务完成]", "审查通过。【任务完成】", "审查通过。[TASK_COMPLETE]\n"],
+)
+def test_chinese_task_complete_marker_counts_as_completion(content):
+    from agent.graph.nodes import detect_task_complete, ends_with_question_to_user
+
+    result = detect_task_complete(content, "quality_reviewer")
+    assert result.is_complete is True
+    assert result.reason == "explicit_complete_marker"
+    assert ends_with_question_to_user(content) is False
+
+
+@pytest.mark.unit
+def test_chinese_marker_mid_text_is_not_completion():
+    from agent.graph.nodes import detect_task_complete
+
+    assert detect_task_complete("上一轮写着[任务完成]，这一轮还要继续改第二段。", "writer").is_complete is False
+
+
+@pytest.mark.unit
+def test_question_before_chinese_marker_still_counts_as_question():
+    from agent.graph.nodes import ends_with_question_to_user
+
+    assert ends_with_question_to_user("第一章写好了。需要我继续写第二章吗？\n[任务完成]") is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_writer_ending_with_chinese_marker_stops_planned_handoff():
+    calls: list[str] = []
+
+    async def fake_agent(state, agent_type, *_args, **_kwargs):
+        calls.append(agent_type)
+        yield _text("大纲已整理好。\n[任务完成]")
+
+    events = await _run_graph(
+        fake_agent,
+        _state("整理大纲"),
+        router=AsyncMock(
+            return_value={"current_agent": "planner", "workflow_plan": "standard", "workflow_agents": ["writer"]}
+        ),
+    )
+
+    assert calls == ["planner"]
+    complete = [e for e in events if e.type == StreamEventType.WORKFLOW_COMPLETE]
+    assert complete and complete[-1].data["reason"] == "task_complete"
 
 
 # ------------------------------------------- 轮数耗尽时的空文件回滚（L3）

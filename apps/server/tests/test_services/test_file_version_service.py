@@ -547,6 +547,10 @@ class TestFileVersionServiceRollback:
             file_id=test_file_with_project.id,
             new_content="Version 2",
         )
+        # Live content matches the latest version, so no pre-restore backup.
+        test_file_with_project.content = "Version 2"
+        db_session.add(test_file_with_project)
+        db_session.commit()
 
         # Rollback
         _, new_version, version_quota_exceeded = (
@@ -588,6 +592,10 @@ class TestFileVersionServiceRollback:
             file_id=test_file_with_project.id,
             new_content="Version 2",
         )
+        # Live content is already in history, so only the restore snapshot runs.
+        test_file_with_project.content = "Version 2"
+        db_session.add(test_file_with_project)
+        db_session.commit()
 
         def fail_snapshot(*_args, **_kwargs):
             raise RuntimeError("snapshot storage unavailable")

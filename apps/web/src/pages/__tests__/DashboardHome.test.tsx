@@ -202,8 +202,18 @@ vi.mock('../../config/inspirations', () => ({
   inspirationsConfig: mockInspirationsConfig,
 }))
 
+vi.mock('../../components/subscription/QuotaBadge', () => ({
+  QuotaBadge: () => <div data-testid="quota-badge" />,
+}))
+
 import DashboardHome from '../DashboardHome'
 import { projectApi } from '../../lib/api'
+import {
+  PREFERRED_PROJECT_TYPE_STORAGE_KEY,
+  PREFERRED_PROJECT_TYPE_TTL_MS,
+  getPreferredProjectType,
+  setPreferredProjectType,
+} from '../../lib/preferredProjectType'
 
 const renderDashboardHome = () => {
   const queryClient = new QueryClient({
@@ -244,6 +254,7 @@ describe('DashboardHome featured inspirations section', () => {
     mockGetActivationGuide.mockImplementation(() => Promise.resolve(mockActivationGuide))
     mockGetRecommendations.mockImplementation(() => Promise.resolve(mockPersonaRecommendations))
     vi.mocked(projectApi.getTemplates).mockResolvedValue(null)
+    localStorage.removeItem(PREFERRED_PROJECT_TYPE_STORAGE_KEY)
   })
 
   it.each(['desktop', 'tablet', 'mobile'])('anchors recent project metadata to the card bottom on %s', async (viewport) => {
@@ -629,5 +640,89 @@ describe('DashboardHome featured inspirations section', () => {
     expect(screen.queryByText('你好，创作者')).not.toBeInTheDocument()
     expect(zhDashboard.hero.defaultName).toBe('作者')
     expect(enDashboard.hero.defaultName).toBe('writer')
+  })
+  it('opens on the project type picked on the landing page and forgets it after creating', async () => {
+    setPreferredProjectType('screenplay')
+
+    renderDashboardHome()
+
+    fireEvent.click(screen.getByTestId('create-project-button'))
+
+    await waitFor(() => {
+      expect(mockCreateProject).toHaveBeenCalledWith(expect.any(String), undefined, 'screenplay')
+      expect(mockNavigate).toHaveBeenCalledWith('/project/project-created')
+    })
+    expect(getPreferredProjectType()).toBeNull()
+  })
+
+  it('keeps the preferred type when project creation fails', async () => {
+    setPreferredProjectType('short')
+    mockCreateProject.mockRejectedValueOnce(new ApiError(500, 'boom'))
+
+    renderDashboardHome()
+    fireEvent.click(screen.getByTestId('create-project-button'))
+
+    await waitFor(() => {
+      expect(mockCreateProject).toHaveBeenCalledWith(expect.any(String), undefined, 'short')
+    })
+    expect(getPreferredProjectType()).toBe('short')
+  })
+
+  it('falls back to novel when the stored preference is stale or invalid', async () => {
+    localStorage.setItem(
+      PREFERRED_PROJECT_TYPE_STORAGE_KEY,
+      JSON.stringify({ type: 'screenplay', ts: Date.now() - PREFERRED_PROJECT_TYPE_TTL_MS - 1000 }),
+    )
+    const { unmount } = renderDashboardHome()
+    fireEvent.click(screen.getByTestId('create-project-button'))
+    await waitFor(() => {
+      expect(mockCreateProject).toHaveBeenLastCalledWith(expect.any(String), undefined, 'novel')
+    })
+    unmount()
+
+    localStorage.setItem(PREFERRED_PROJECT_TYPE_STORAGE_KEY, JSON.stringify({ type: 'poem', ts: Date.now() }))
+    renderDashboardHome()
+    fireEvent.click(screen.getByTestId('create-project-button'))
+    await waitFor(() => {
+      expect(mockCreateProject).toHaveBeenLastCalledWith(expect.any(String), undefined, 'novel')
+    })
+  })
+
+  it('shows the AI message quota next to the page title', () => {
+    renderDashboardHome()
+
+    const heading = screen.getByRole('heading', { level: 1 })
+    const header = heading.closest('div.flex.items-center.justify-between, div.flex.flex-col')
+    expect(header).not.toBeNull()
+    expect(within(header as HTMLElement).getByTestId('quota-badge')).toBeInTheDocument()
+  })
+
+  it('confirms project deletion in an in-app dialog instead of window.confirm', async () => {
+    const nativeConfirm = vi.fn(() => true)
+    vi.stubGlobal('confirm', nativeConfirm)
+    mockDeleteProject.mockResolvedValue(undefined)
+    mockProjects = [{ id: 'p-1', name: 'Doomed', project_type: 'novel', updated_at: '2026-04-07T00:00:00Z' }]
+
+    renderDashboardHome()
+
+    fireEvent.click(screen.getByTitle('projects.deleteProject'))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(nativeConfirm).not.toHaveBeenCalled()
+    expect(within(dialog).getByText('projects.deleteConfirm')).toBeInTheDocument()
+    expect(mockDeleteProject).not.toHaveBeenCalled()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'common:cancel' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(mockDeleteProject).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByTitle('projects.deleteProject'))
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'common:delete' }))
+
+    await waitFor(() => expect(mockDeleteProject).toHaveBeenCalledWith('p-1'))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    // Opening the project card must not have been triggered by the delete click.
+    expect(mockNavigate).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
   })
 })

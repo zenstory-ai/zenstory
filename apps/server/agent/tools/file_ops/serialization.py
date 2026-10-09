@@ -5,10 +5,12 @@ This module provides serialization functions that convert SQLModel File objects
 into JSON-serializable dictionaries, handling special types like datetime objects.
 """
 
+import json
 from datetime import datetime
 from typing import Any, Literal, cast
 
 from models import File
+from utils.text_metrics import count_words
 
 QUERY_FILES_RESPONSE_MODE_SUMMARY = "summary"
 QUERY_FILES_RESPONSE_MODE_FULL = "full"
@@ -47,6 +49,15 @@ def serialize_file(
     and ``content_truncated`` (preview shorter than the content), so the model can
     tell a preview apart from a genuinely short file and knows when to read full.
 
+    ``word_count`` uses ``utils.text_metrics.count_words`` — the same definition as
+    the editor's word count (frontend ``countWords``). Full mode always returns it;
+    summary mode only when the preview is the whole content (``content_truncated``
+    is false), because a word count derived from a preview would be wrong.
+    ``content_length`` stays a character count and is not what the author calls
+    「字数」. A stale ``word_count`` inside ``file_metadata`` is overwritten with
+    the computed value, or dropped when it cannot be computed (returned copy only;
+    the database row is untouched).
+
     Returns:
         A dictionary representation of the file with datetime fields converted
         to ISO format strings
@@ -62,6 +73,9 @@ def serialize_file(
         data["updated_at"] = data["updated_at"].isoformat()
 
     if include_content:
+        word_count = count_words(data.get("content") or "")
+        data["word_count"] = word_count
+        _sync_metadata_word_count(data, word_count)
         return data
 
     preview_length = _normalize_content_preview_chars(content_preview_chars)
@@ -77,7 +91,36 @@ def serialize_file(
     data["content_preview"] = preview
     data["content_length"] = content_length
     data["content_truncated"] = content_length > len(preview)
+    if data["content_truncated"]:
+        _sync_metadata_word_count(data, None)
+    else:
+        word_count = count_words(preview)
+        data["word_count"] = word_count
+        _sync_metadata_word_count(data, word_count)
     return data
+
+
+def _sync_metadata_word_count(data: dict[str, Any], word_count: int | None) -> None:
+    """让返回副本里 file_metadata 的 word_count 与编辑器口径一致。
+
+    file_metadata 里缓存的 word_count 可能是旧值（由写作统计按旧口径或旧正文写入），
+    原样返回会让模型把它当字数报给作者。能算出时覆盖为新值，算不出时删掉；
+    只改序列化副本，不写库。
+    """
+    raw = data.get("file_metadata")
+    if not isinstance(raw, str) or not raw:
+        return
+    try:
+        metadata = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return
+    if not isinstance(metadata, dict) or "word_count" not in metadata:
+        return
+    if word_count is None:
+        metadata.pop("word_count", None)
+    else:
+        metadata["word_count"] = word_count
+    data["file_metadata"] = json.dumps(metadata, ensure_ascii=False)
 
 
 def serialize_query_file(
